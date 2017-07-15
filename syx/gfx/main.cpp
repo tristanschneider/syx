@@ -1,4 +1,6 @@
 #define GLEW_NO_GLU
+#define NOMINMAX
+
 #include <GL/glew.h>
 
 #include <windows.h>

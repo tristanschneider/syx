@@ -20,19 +20,19 @@
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>15.0</VCProjectVersion>
-    <ProjectGuid>{B69805A2-D2C2-4320-B724-097719522A93}</ProjectGuid>
-    <RootNamespace>gfx</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0.14393.0</WindowsTargetPlatformVersion>
+    <ProjectGuid>{85005DAD-8122-4D96-BD86-9CCC57B913AE}</ProjectGuid>
+    <RootNamespace>syx</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0.15063.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
-    <ConfigurationType>Application</ConfigurationType>
+    <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v141</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
-    <ConfigurationType>Application</ConfigurationType>
+    <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>v141</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
@@ -69,26 +69,13 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);glew/include;../syx</IncludePath>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);glew/include;../syx</IncludePath>
-  </PropertyGroup>
+  <PropertyGroup />
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
     </ClCompile>
-    <Link>
-      <AdditionalLibraryDirectories>glew\lib\Release\Win32</AdditionalLibraryDirectories>
-      <AdditionalDependencies>glew32.lib;opengl32.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
-    </Link>
-    <PostBuildEvent>
-      <Command>xcopy glew32.dll $(OutDir) /y
-xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
-    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -108,13 +95,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalLibraryDirectories>glew\lib\Release\Win32</AdditionalLibraryDirectories>
-      <AdditionalDependencies>glew32.lib;opengl32.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
-    <PostBuildEvent>
-      <Command>xcopy glew32.dll $(OutDir) /y
-xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
-    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -130,12 +111,116 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="main.cpp" />
+    <ClCompile Include="SyxAABB.cpp" />
+    <ClCompile Include="SyxAABBTree.cpp" />
+    <ClCompile Include="SyxCaster.cpp" />
+    <ClCompile Include="SyxCollider.cpp" />
+    <ClCompile Include="SyxConstraint.cpp" />
+    <ClCompile Include="SyxConstraintSystem.cpp" />
+    <ClCompile Include="SyxContactConstraint.cpp" />
+    <ClCompile Include="SyxDebugDrawer.cpp" />
+    <ClCompile Include="SyxDebugHelpers.cpp" />
+    <ClCompile Include="SyxDebugSimplex.cpp" />
+    <ClCompile Include="SyxDetectionTests.cpp" />
+    <ClCompile Include="SyxDistanceConstraint.cpp" />
+    <ClCompile Include="SyxGeometricQueries.cpp" />
+    <ClCompile Include="SyxIslandGraph.cpp" />
+    <ClCompile Include="SyxIslandSolver.cpp" />
+    <ClCompile Include="SyxIslandTests.cpp" />
+    <ClCompile Include="SyxManifold.cpp" />
+    <ClCompile Include="SyxMath.cpp" />
+    <ClCompile Include="SyxMathTests.cpp" />
+    <ClCompile Include="SyxMatrix2.cpp" />
+    <ClCompile Include="SyxMatrix3.cpp" />
+    <ClCompile Include="SyxModel.cpp" />
+    <ClCompile Include="SyxModelInstance.cpp" />
+    <ClCompile Include="SyxModelParam.cpp" />
+    <ClCompile Include="SyxNarrowphase.cpp" />
+    <ClCompile Include="SyxNoBroadphase.cpp" />
+    <ClCompile Include="SyxPhysicsObject.cpp" />
+    <ClCompile Include="SyxPhysicsSystem.cpp" />
+    <ClCompile Include="SyxPrimitiveNarrowphase.cpp" />
+    <ClCompile Include="SyxProfiler.cpp" />
+    <ClCompile Include="SyxQuaternion.cpp" />
+    <ClCompile Include="SyxRevoluteConstraint.cpp" />
+    <ClCompile Include="SyxRigidbody.cpp" />
+    <ClCompile Include="SyxSimplex.cpp" />
+    <ClCompile Include="SyxSMatrix3.cpp" />
+    <ClCompile Include="SyxSpace.cpp" />
+    <ClCompile Include="SyxSpeedTests.cpp" />
+    <ClCompile Include="SyxSphericalConstraint.cpp" />
+    <ClCompile Include="SyxSQuaternion.cpp" />
+    <ClCompile Include="SyxSupportTri.cpp" />
+    <ClCompile Include="SyxSVector3.cpp" />
+    <ClCompile Include="SyxTransform.cpp" />
+    <ClCompile Include="SyxVector2.cpp" />
+    <ClCompile Include="SyxVector3.cpp" />
+    <ClCompile Include="SyxWeldConstraint.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\syx\syx.vcxproj">
-      <Project>{85005dad-8122-4d96-bd86-9ccc57b913ae}</Project>
-    </ProjectReference>
+    <ClInclude Include="Precompile.h" />
+    <ClInclude Include="SyxAABB.h" />
+    <ClInclude Include="SyxAABBTree.h" />
+    <ClInclude Include="SyxAlignmentAllocator.h" />
+    <ClInclude Include="SyxAssert.h" />
+    <ClInclude Include="SyxBroadphase.h" />
+    <ClInclude Include="SyxCaster.h" />
+    <ClInclude Include="SyxCollider.h" />
+    <ClInclude Include="SyxConfig.h" />
+    <ClInclude Include="SyxConstraint.h" />
+    <ClInclude Include="SyxConstraintMath.h" />
+    <ClInclude Include="SyxConstraintOptions.h" />
+    <ClInclude Include="SyxConstraintSystem.h" />
+    <ClInclude Include="SyxContactConstraint.h" />
+    <ClInclude Include="SyxDebugDrawer.h" />
+    <ClInclude Include="SyxDebugHelpers.h" />
+    <ClInclude Include="SyxDebugSimplex.h" />
+    <ClInclude Include="SyxDetectionTests.h" />
+    <ClInclude Include="SyxDistanceConstraint.h" />
+    <ClInclude Include="SyxGeometricQueries.h" />
+    <ClInclude Include="SyxHandleMap.h" />
+    <ClInclude Include="SyxHandles.h" />
+    <ClInclude Include="SyxInterface.h" />
+    <ClInclude Include="SyxIntrusive.h" />
+    <ClInclude Include="SyxIslandGraph.h" />
+    <ClInclude Include="SyxIslandSolver.h" />
+    <ClInclude Include="SyxIslandTests.h" />
+    <ClInclude Include="SyxManifold.h" />
+    <ClInclude Include="SyxMaterial.h" />
+    <ClInclude Include="SyxMath.h" />
+    <ClInclude Include="SyxMathDefines.h" />
+    <ClInclude Include="SyxMathTests.h" />
+    <ClInclude Include="SyxMatrix2.h" />
+    <ClInclude Include="SyxMatrix3.h" />
+    <ClInclude Include="SyxModel.h" />
+    <ClInclude Include="SyxModelInstance.h" />
+    <ClInclude Include="SyxModelParam.h" />
+    <ClInclude Include="SyxNarrowphase.h" />
+    <ClInclude Include="SyxNoBroadphase.h" />
+    <ClInclude Include="SyxPhysicsObject.h" />
+    <ClInclude Include="SyxPhysicsSystem.h" />
+    <ClInclude Include="SyxPrimitiveNarrowphase.h" />
+    <ClInclude Include="SyxProfiler.h" />
+    <ClInclude Include="SyxQuaternion.h" />
+    <ClInclude Include="SyxRevoluteConstraint.h" />
+    <ClInclude Include="SyxRigidbody.h" />
+    <ClInclude Include="SyxSConstraintMath.h" />
+    <ClInclude Include="SyxSIMD.h" />
+    <ClInclude Include="SyxSimplex.h" />
+    <ClInclude Include="SyxSmallIndexSet.h" />
+    <ClInclude Include="SyxSMatrix3.h" />
+    <ClInclude Include="SyxSpace.h" />
+    <ClInclude Include="SyxSpeedTests.h" />
+    <ClInclude Include="SyxSphericalConstraint.h" />
+    <ClInclude Include="SyxSQuaternion.h" />
+    <ClInclude Include="SyxStaticIndexable.h" />
+    <ClInclude Include="SyxSupportTri.h" />
+    <ClInclude Include="SyxSVector3.h" />
+    <ClInclude Include="SyxTestHelpers.h" />
+    <ClInclude Include="SyxTransform.h" />
+    <ClInclude Include="SyxVector2.h" />
+    <ClInclude Include="SyxVector3.h" />
+    <ClInclude Include="SyxWeldConstraint.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
