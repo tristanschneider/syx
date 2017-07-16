@@ -32,7 +32,7 @@ namespace Syx {
     Narrowphase& operator=(const Narrowphase& rhs);
 
     void ProcessPairQuery(const BroadPairs& pairs, Space& space);
-    void ProcessRayQuery(const BroadResults& objs, const Vector3& start, const Vector3& end, Space& space);
+    void ProcessRayQuery(const BroadResults& objs, const Vec3& start, const Vec3& end, Space& space);
     void ProcessVolumeQuery(const BroadResults& objs, const BoundingVolume& volume, Space& space);
 
   private:
@@ -55,27 +55,27 @@ namespace Syx {
 
     bool GJK(void);
 
-    Vector3 EPA(ContactPoint& result);
+    Vec3 EPA(ContactPoint& result);
     void InitEPASimplex(void);
     SupportTri* GetClosestTri(void);
-    void DeleteInteriorTris(const Vector3& newPoint);
+    void DeleteInteriorTris(const Vec3& newPoint);
     void ReconstructTriangles(void);
-    Vector3 StoreEPAResult(ContactPoint& result, SupportTri* bestTri);
+    Vec3 StoreEPAResult(ContactPoint& result, SupportTri* bestTri);
 
-    void SubmitContact(const Vector3& worldA, const Vector3& worldB, const Vector3& normal);
-    void SubmitContact(const Vector3& worldA, const Vector3& worldB, const Vector3& normal, float penetration);
-    void SubmitContact(const ContactPoint& contact, const Vector3& normal);
+    void SubmitContact(const Vec3& worldA, const Vec3& worldB, const Vec3& normal);
+    void SubmitContact(const Vec3& worldA, const Vec3& worldB, const Vec3& normal, float penetration);
+    void SubmitContact(const ContactPoint& contact, const Vec3& normal);
 
-    SupportPoint GetSupport(const Vector3& dir);
+    SupportPoint GetSupport(const Vec3& dir);
 
-    SupportPoint SGetSupport(const Vector3& dir);
+    SupportPoint SGetSupport(const Vec3& dir);
     SupportPoint SGetSupport(SFloats dir);
     SupportPoint SGetSupport(SFloats dir, SFloats& resultSupport);
     void SDeleteInteriorTris(SFloats newPoint);
     void SReconstructTriangles(SFloats newSupport);
 
     bool SGJK(void);
-    Vector3 SEPA(ContactPoint& result);
+    Vec3 SEPA(ContactPoint& result);
 
     void DrawEPA(SupportTri* bestTri);
 

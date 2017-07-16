@@ -410,7 +410,7 @@ namespace Syx {
     }
   }
 
-  void AABBTree::QueryRaycast(const Vector3& start, const Vector3& end, BroadphaseContext& context) const {
+  void AABBTree::QueryRaycast(const Vec3& start, const Vec3& end, BroadphaseContext& context) const {
     AABBTreeContext& c = static_cast<AABBTreeContext&>(context);
     c.mQueryResults.clear();
     if(mRoot != AABBNode::Null)
@@ -459,8 +459,8 @@ namespace Syx {
 
   void AABBNode::Draw(const std::vector<AABBNode>& nodes) const {
     DebugDrawer& d = DebugDrawer::Get();
-    d.DrawCube(mAABB.GetCenter(), mAABB.GetDiagonal(), Vector3::UnitX, Vector3::UnitY);
-    Vector3 center = mAABB.GetCenter();
+    d.DrawCube(mAABB.GetCenter(), mAABB.GetDiagonal(), Vec3::UnitX, Vec3::UnitY);
+    Vec3 center = mAABB.GetCenter();
     d.DrawLine(center, mAABB.GetMax());
     if(!IsLeaf()) {
       d.DrawVector(center, nodes[mRight].mAABB.GetCenter() - center);

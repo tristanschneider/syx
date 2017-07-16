@@ -12,10 +12,10 @@ namespace Syx {
     Constraints::LoadObjects(mBlock.mA, mBlock.mB, *mA, *mB);
 
     //Compute anchor points and R vector
-    SAlign Vector3 worldA = mA->mOwner->GetTransform().ModelToWorld(mOwner->GetLocalAnchor(ConstraintObj::A));
-    SAlign Vector3 worldB = mB->mOwner->GetTransform().ModelToWorld(mOwner->GetLocalAnchor(ConstraintObj::B));
-    SAlign Vector3 rA = worldA - mA->mPos;
-    SAlign Vector3 rB = worldB - mB->mPos;
+    SAlign Vec3 worldA = mA->mOwner->GetTransform().ModelToWorld(mOwner->GetLocalAnchor(ConstraintObj::A));
+    SAlign Vec3 worldB = mB->mOwner->GetTransform().ModelToWorld(mOwner->GetLocalAnchor(ConstraintObj::B));
+    SAlign Vec3 rA = worldA - mA->mPos;
+    SAlign Vec3 rB = worldB - mB->mPos;
 
     //Compute jacobian
     JacobianSL& j = mBlock.mJ;
@@ -24,7 +24,7 @@ namespace Syx {
     float linLen = mBlock.mJ.mLinear.Length();
     //If points are on top of each other, resolve in arbitrary direction
     if(linLen < SYX_EPSILON) {
-      j.mLinear = Vector3::UnitY;
+      j.mLinear = Vec3::UnitY;
     }
     else {
       j.mLinear *= 1.0f/linLen;
@@ -33,7 +33,7 @@ namespace Syx {
     mBlock.mBias = Constraints::ComputeBias(linLen - owner->mDistance, sSlop*0.5f, sVelBaumgarteTerm, sMaxVelCorrection);
 
     //Premultiply jacobian and compute mass
-    Vector3 linearB = -j.mLinear;
+    Vec3 linearB = -j.mLinear;
     j.mAngularA = rA.Cross(j.mLinear);
     j.mAngularB = rB.Cross(linearB);
 
@@ -72,10 +72,10 @@ namespace Syx {
     SFloats linVelA, angVelA, linVelB, angVelB;
     SConstraints::LoadVelocity(*mA, *mB, linVelA, angVelA, linVelB, angVelB);
     SFloats linear = SLoadAll(&j.mLinear.x);
-    SFloats lambda = SConstraints::ComputeJV(linear, SLoadAll(&j.mAngularA.x), SVector3::Neg(linear), SLoadAll(&j.mAngularB.x), linVelA, angVelA, linVelB, angVelB);
+    SFloats lambda = SConstraints::ComputeJV(linear, SLoadAll(&j.mAngularA.x), SVec3::Neg(linear), SLoadAll(&j.mAngularB.x), linVelA, angVelA, linVelB, angVelB);
 
     //Load once, shuffle to get the appropriate value
-    SAlign Vector3 store(mBlock.mBias, mBlock.mLambdaSum, mBlock.mConstraintMass);
+    SAlign Vec3 store(mBlock.mBias, mBlock.mLambdaSum, mBlock.mConstraintMass);
     SFloats floats = SLoadAll(&store.x);
 
     lambda = SConstraints::ComputeLambda(lambda, SShuffle(floats, 0, 0, 0, 0), SShuffle(floats, 2, 2, 2, 2));
@@ -92,8 +92,8 @@ namespace Syx {
   }
 
   void LocalDistanceConstraint::Draw() {
-    SAlign Vector3 worldA = mA->mOwner->GetTransform().ModelToWorld(mOwner->GetLocalAnchor(ConstraintObj::A));
-    SAlign Vector3 worldB = mB->mOwner->GetTransform().ModelToWorld(mOwner->GetLocalAnchor(ConstraintObj::B));
+    SAlign Vec3 worldA = mA->mOwner->GetTransform().ModelToWorld(mOwner->GetLocalAnchor(ConstraintObj::A));
+    SAlign Vec3 worldB = mB->mOwner->GetTransform().ModelToWorld(mOwner->GetLocalAnchor(ConstraintObj::B));
     DebugDrawer& d = DebugDrawer::Get();
     float s = 0.1f;
     d.SetColor(1.0f, 0.0f, 0.0f);

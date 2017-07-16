@@ -3,7 +3,7 @@
 
 namespace Syx {
   //I'll deal with the normal later when I actually want to use it
-  void DrawTriangle(const Vector3& a, const Vector3& b, const Vector3& c, bool drawNormal) {
+  void DrawTriangle(const Vec3& a, const Vec3& b, const Vec3& c, bool drawNormal) {
     DebugDrawer& d = DebugDrawer::Get();
     d.DrawLine(a, b);
     d.DrawLine(b, c);
@@ -12,12 +12,12 @@ namespace Syx {
       d.DrawVector((a + b + c)*1.0f / 3.0f, TriangleNormal(a, b, c).SafeNormalized());
   }
 
-  void DrawSphere(const Vector3& center, float radius) {
-    DebugDrawer::Get().DrawSphere(center, radius, Vector3::UnitX, Vector3::UnitY);
+  void DrawSphere(const Vec3& center, float radius) {
+    DebugDrawer::Get().DrawSphere(center, radius, Vec3::UnitX, Vec3::UnitY);
   }
 
-  void DrawCube(const Vector3& center, float scale) {
-    DebugDrawer::Get().DrawCube(center, Vector3(scale), Vector3::UnitX, Vector3::UnitY);
+  void DrawCube(const Vec3& center, float scale) {
+    DebugDrawer::Get().DrawCube(center, Vec3(scale), Vec3::UnitX, Vec3::UnitY);
   }
 
   void DrawCapsule(const Vec3& pos, const Mat3& scaleRot) {

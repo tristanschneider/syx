@@ -12,7 +12,7 @@ namespace Syx {
 #endif
 
   void Rigidbody::UpdateInertia(void) {
-    Matrix3 rot = mOwner->GetTransform().mRot.ToMatrix();
+    Mat3 rot = mOwner->GetTransform().mRot.ToMatrix();
     mInvInertia = rot.Scaled(mLocalInertia) * rot.Transposed();
   }
 
@@ -20,12 +20,12 @@ namespace Syx {
     Collider* collider = mOwner->GetCollider();
     if(!collider) {
       //Default to identity values so colliderless objects with rigidbodies can still move with velocity
-      mInvInertia = Vector3::Identity;
+      mInvInertia = Vec3::Identity;
       mInvMass = 1.0f;
       return;
     }
 
-    Vector3 scale = mOwner->GetTransform().mScale;
+    Vec3 scale = mOwner->GetTransform().mScale;
     MassInfo info = collider->GetModel().ComputeMasses(scale);
     mInvMass = info.mMass;
     mLocalInertia = info.mInertia;
@@ -69,15 +69,15 @@ namespace Syx {
     return mOwner;
   }
 
-  Vector3 Rigidbody::GetGravity() {
-    return Vector3(0.0f, -10.0f, 0.0f);
+  Vec3 Rigidbody::GetGravity() {
+    return Vec3(0.0f, -10.0f, 0.0f);
   }
 
-  Vector3 Rigidbody::GetUnintegratedLinearVelocity() {
+  Vec3 Rigidbody::GetUnintegratedLinearVelocity() {
     return mLinVel - GetGravity()*PhysicsSystem::sSimRate;
   }
 
-  Vector3 Rigidbody::GetUnintegratedAngularVelocity() {
+  Vec3 Rigidbody::GetUnintegratedAngularVelocity() {
     //No angular acceleration, so it's just this
     return mAngVel;
   }

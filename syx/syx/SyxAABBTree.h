@@ -65,7 +65,7 @@ namespace Syx {
     Handle Update(const BoundingVolume& newVol, Handle handle) override;
 
     void QueryPairs(BroadphaseContext& context) const override;
-    void QueryRaycast(const Vector3& start, const Vector3& end, BroadphaseContext& context) const override;
+    void QueryRaycast(const Vec3& start, const Vec3& end, BroadphaseContext& context) const override;
     void QueryVolume(const BoundingVolume& volume, BroadphaseContext& context) const override;
     //Maybe also have an interactive query for raycasting one at a time
     void AABBTree::Draw(void) override;

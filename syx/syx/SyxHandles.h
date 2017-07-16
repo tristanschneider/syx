@@ -1,5 +1,5 @@
 #pragma once
-#include "SyxVector3.h"
+#include "SyxVec3.h"
 #include <vector>
 
 #define SyxInvalidHandle static_cast<size_t>(-1)
@@ -30,7 +30,7 @@ namespace Syx {
 
   struct CastResult {
     CastResult(void): mObj(SyxInvalidHandle) {}
-    CastResult(Handle obj, const Vector3& point, const Vector3& normal, float distSq)
+    CastResult(Handle obj, const Vec3& point, const Vec3& normal, float distSq)
       : mObj(obj)
       , mPoint(point)
       , mNormal(normal)
@@ -45,8 +45,8 @@ namespace Syx {
       Handle mObj;
       const std::vector<CastResult>* mResults;
     };
-    Vector3 mPoint;
-    Vector3 mNormal;
+    Vec3 mPoint;
+    Vec3 mNormal;
     float mDistSq;
   };
 }

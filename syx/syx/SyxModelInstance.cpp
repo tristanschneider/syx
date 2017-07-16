@@ -32,9 +32,9 @@ namespace Syx {
     mAABB = mModel->GetWorldAABB(mModelToWorld);
   }
 
-  Vector3 ModelInstance::GetSupport(const Vector3& dir) {
-    SAlign Vector3 localDir = mWorldToModel.TransformVector(dir);
-    SAlign Vector3 localSupport = mModel->GetSupport(localDir);
+  Vec3 ModelInstance::GetSupport(const Vec3& dir) {
+    SAlign Vec3 localDir = mWorldToModel.TransformVector(dir);
+    SAlign Vec3 localSupport = mModel->GetSupport(localDir);
     return mModelToWorld.TransformPoint(localSupport);
   }
 
@@ -85,6 +85,6 @@ namespace Syx {
     return mModelToWorld.ToSIMDPoint().TransformPoint(mModel->SGetSupport(mWorldToModel.ToSIMDVector().TransformVector(dir)));
   }
 #else
-  SVector3 ModelInstance::SGetSupport(const SVector3& dir) { return dir; }
+  SVec3 ModelInstance::SGetSupport(const SVec3& dir) { return dir; }
 #endif
 }

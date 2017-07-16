@@ -2,30 +2,30 @@
 #include "SyxMath.h"
 
 namespace Syx {
-  Vector3 TriangleNormal(const Vector3& a, const Vector3& b, const Vector3& c) {
+  Vec3 TriangleNormal(const Vec3& a, const Vec3& b, const Vec3& c) {
     return (b - a).Cross(c - a);
   }
 
-  float HalfPlaneD(const Vector3& normal, const Vector3& onPlane) {
+  float HalfPlaneD(const Vec3& normal, const Vec3& onPlane) {
     return -(normal.Dot(onPlane));
   }
 
-  float HalfPlaneSignedDistance(const Vector3& normal, float d, const Vector3& point) {
+  float HalfPlaneSignedDistance(const Vec3& normal, float d, const Vec3& point) {
     return normal.Dot(point) + d;
   }
 
-  float HalfPlaneSignedDistance(const Vector3& normal, const Vector3& onPlane, const Vector3& point) {
+  float HalfPlaneSignedDistance(const Vec3& normal, const Vec3& onPlane, const Vec3& point) {
     return HalfPlaneSignedDistance(normal, HalfPlaneD(normal, onPlane), point);
   }
 
-  Vector3 BarycentricToPoint(const Vector3& a, const Vector3& b, const Vector3& c, const Vector3& bary) {
+  Vec3 BarycentricToPoint(const Vec3& a, const Vec3& b, const Vec3& c, const Vec3& bary) {
     return a*bary.x + b*bary.y + c*bary.z;
   }
 
-  Vector3 PointToBarycentric(const Vector3& aToB, const Vector3& aToC, const Vector3& aToP) {
-    const Vector3& v0 = aToB;
-    const Vector3& v1 = aToC;
-    const Vector3& v2 = aToP;
+  Vec3 PointToBarycentric(const Vec3& aToB, const Vec3& aToC, const Vec3& aToP) {
+    const Vec3& v0 = aToB;
+    const Vec3& v1 = aToC;
+    const Vec3& v2 = aToP;
     float d00 = v0.Dot(v0);
     float d01 = v0.Dot(v1);
     float d11 = v1.Dot(v1);
@@ -33,9 +33,9 @@ namespace Syx {
     float d21 = v2.Dot(v1);
     float denom = d00*d11 - d01*d01;
     if(denom < SYX_EPSILON*SYX_EPSILON)
-      return Vector3::Zero;
+      return Vec3::Zero;
     float invDenom = 1.0f/denom;
-    Vector3 result;
+    Vec3 result;
     //Area of cap
     result.y = (d11*d20 - d01*d21)*invDenom;
     //Area of abp
@@ -45,11 +45,11 @@ namespace Syx {
     return result;
   }
 
-  Vector3 PointToBarycentric(const Vector3& a, const Vector3& b, const Vector3& c, const Vector3& point) {
+  Vec3 PointToBarycentric(const Vec3& a, const Vec3& b, const Vec3& c, const Vec3& point) {
     return PointToBarycentric(b - a, c - a, point - a);
   }
 
-  bool ValidBarycentric(const Vector3& bary) {
+  bool ValidBarycentric(const Vec3& bary) {
     float sum = 0.0f;
     for(int i = 0; i < 3; ++i) {
       float b = bary[i];
@@ -62,11 +62,11 @@ namespace Syx {
     return std::abs(1.0f - sum) < SYX_EPSILON;
   }
 
-  bool IsWithinTri(const Vector3& a, const Vector3& b, const Vector3& c, const Vector3& point, float epsilon) {
-    Vector3 aToB = b - a;
-    Vector3 bToC = c - b;
-    Vector3 cToA = a - c;
-    Vector3 normal = aToB.Cross(bToC);
+  bool IsWithinTri(const Vec3& a, const Vec3& b, const Vec3& c, const Vec3& point, float epsilon) {
+    Vec3 aToB = b - a;
+    Vec3 bToC = c - b;
+    Vec3 cToA = a - c;
+    Vec3 normal = aToB.Cross(bToC);
 
     if(aToB.Cross(normal).Dot(point - a) > epsilon)
       return false;
@@ -77,11 +77,11 @@ namespace Syx {
     return true;
   }
 
-  void GetOutwardTriPlanes(const Vector3& a, const Vector3& b, const Vector3& c, Vector3& resultA, Vector3& resultB, Vector3& resultC, bool normalized) {
-    Vector3 aToB = b - a;
-    Vector3 aToC = c - a;
-    Vector3 bToC = c - b;
-    Vector3 normal = aToB.Cross(aToC);
+  void GetOutwardTriPlanes(const Vec3& a, const Vec3& b, const Vec3& c, Vec3& resultA, Vec3& resultB, Vec3& resultC, bool normalized) {
+    Vec3 aToB = b - a;
+    Vec3 aToC = c - a;
+    Vec3 bToC = c - b;
+    Vec3 normal = aToB.Cross(aToC);
 
     resultA = aToB.Cross(normal);
     if(normalized)
@@ -115,15 +115,15 @@ namespace Syx {
     return RandFloat()*(max - min) + min;
   }
 
-  Vector3 RandOnSphere(void) {
+  Vec3 RandOnSphere(void) {
     //https://en.wikipedia.org/wiki/Spherical_coordinate_system
     float theta = RandFloat(0.0f, SYX_PI);
     float phi = RandFloat(0.0f, SYX_2_PI);
     float sinTheta = std::sin(theta);
-    return Vector3(sinTheta*std::cos(phi), sinTheta*std::sin(phi), std::cos(theta));
+    return Vec3(sinTheta*std::cos(phi), sinTheta*std::sin(phi), std::cos(theta));
   }
 
-  Matrix3 TensorTransform(const Matrix3& tensor, const Vector3& toPoint, float mass) {
+  Mat3 TensorTransform(const Mat3& tensor, const Vec3& toPoint, float mass) {
     //Parallel axis theorem
     float xx = toPoint.x*toPoint.x;
     float yy = toPoint.y*toPoint.y;
@@ -131,12 +131,12 @@ namespace Syx {
     float xy = -mass*toPoint.x*toPoint.y;
     float xz = -mass*toPoint.x*toPoint.z;
     float yz = -mass*toPoint.y*toPoint.z;
-    return tensor + Matrix3(mass*(yy + zz),             xy,             xz,
+    return tensor + Mat3(mass*(yy + zz),             xy,             xz,
                                         xy, mass*(xx + zz),             yz,
                                         xz,             yz, mass*(xx + yy));
   }
 
-  Matrix3 TensorTransform(const Matrix3& tensor, const Matrix3& rotation) {
+  Mat3 TensorTransform(const Mat3& tensor, const Mat3& rotation) {
     return  rotation * tensor * rotation.Transposed();
   }
 
@@ -172,7 +172,7 @@ namespace Syx {
 
 #ifdef SENABLED
   SFloats STriangleNormal(SFloats a, SFloats b, SFloats c) {
-    return SVector3::Cross(SSubAll(b, a), SSubAll(c, a));
+    return SVec3::Cross(SSubAll(b, a), SSubAll(c, a));
   }
 #endif
 }

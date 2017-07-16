@@ -9,21 +9,21 @@ namespace Syx {
     std::sort(mResults.begin(), mResults.end());
   }
 
-  void Caster::LineCast(PhysicsObject& obj, const Vector3& start, const Vector3& end, CasterContext& context) const {
+  void Caster::LineCast(PhysicsObject& obj, const Vec3& start, const Vec3& end, CasterContext& context) const {
     Collider* collider = obj.GetCollider();
     if(!collider)
       return;
 
     ModelInstance& inst = collider->GetModelInstance();
-    SAlign Vector3 localStart = inst.GetWorldToModel().TransformPoint(start);
-    SAlign Vector3 localEnd = inst.GetWorldToModel().TransformPoint(end);
+    SAlign Vec3 localStart = inst.GetWorldToModel().TransformPoint(start);
+    SAlign Vec3 localEnd = inst.GetWorldToModel().TransformPoint(end);
     context.mWorldStart = &start;
     context.mWorldEnd = &end;
     context.mCurObj = &obj;
     LineCastLocal(inst.GetModel(), inst.GetModelToWorld(), localStart, localEnd, context);
   }
 
-  void Caster::LineCastLocal(const Model& model, const Transformer& toWorld, const Vector3& start, const Vector3& end, CasterContext& context) const {
+  void Caster::LineCastLocal(const Model& model, const Transformer& toWorld, const Vec3& start, const Vec3& end, CasterContext& context) const {
     switch(model.GetType()) {
       case ModelType::Cube: LineCastCube(model, toWorld, start, end, context); break;
       case ModelType::Composite: LineCastComposite(model, toWorld, start, end, context); break;
@@ -32,11 +32,11 @@ namespace Syx {
     }
   }
 
-  void Caster::LineCastGJK(const Model& model, const Transformer& toWorld, const Vector3& start, const Vector3& end, CasterContext& context) const {
-    SAlign Vector3 curNormal;
-    Vector3 rayDir = end - start;
+  void Caster::LineCastGJK(const Model& model, const Transformer& toWorld, const Vec3& start, const Vec3& end, CasterContext& context) const {
+    SAlign Vec3 curNormal;
+    Vec3 rayDir = end - start;
     //start - Arbitrary point in object. Support towards the start of the ray
-    Vector3 curSearchDir = start - model.GetSupport(start);
+    Vec3 curSearchDir = start - model.GetSupport(start);
     SupportPoint curSupport;
     Simplex simplex;
     //A safeguard against infinite loops. Shouldn't happen, but just in case
@@ -44,10 +44,10 @@ namespace Syx {
     float lowerBound = 0.0f;
 
     while(iteration++ < 20) {
-      Vector3 lowerBoundPoint = Vector3::Lerp(start, end, lowerBound);
+      Vec3 lowerBoundPoint = Vec3::Lerp(start, end, lowerBound);
 
       //Support is in CSO, this is just on the collider
-      Vector3 supportOnC = model.GetSupport(curSearchDir);
+      Vec3 supportOnC = model.GetSupport(curSearchDir);
       curSupport.mPointB = supportOnC;
       curSupport.mSupport = lowerBoundPoint - supportOnC;
 
@@ -62,7 +62,7 @@ namespace Syx {
         if(lowerBound > 1.0f)
           return;
         curNormal = curSearchDir;
-        Vector3 newLowerBoundPoint = Vector3::Lerp(start, end, lowerBound);
+        Vec3 newLowerBoundPoint = Vec3::Lerp(start, end, lowerBound);
 
         //Lower bound updated, translate support points along ray
         for(unsigned i = 0; i < simplex.Size(); ++i) {
@@ -75,7 +75,7 @@ namespace Syx {
       //Add to simplex and evaluate it, removing points in the wrong direction and finding new search direction
       simplex.Add(curSupport, true);
       //Solve returns vector from closest point to origin, so subtract origin back off
-      Vector3 closestToOrigin = -simplex.Solve();
+      Vec3 closestToOrigin = -simplex.Solve();
 
       //Simplex contains origin, hit found
       if(simplex.ContainsOrigin() || simplex.IsDegenerate())
@@ -84,23 +84,23 @@ namespace Syx {
       curSearchDir = closestToOrigin;
     }
 
-    SAlign Vector3 localPoint = Vector3::Lerp(start, end, lowerBound);
-    Vector3 worldPoint = toWorld.TransformPoint(localPoint);
-    Vector3 worldNormal = toWorld.TransformVector(curNormal).Normalized();
+    SAlign Vec3 localPoint = Vec3::Lerp(start, end, lowerBound);
+    Vec3 worldPoint = toWorld.TransformPoint(localPoint);
+    Vec3 worldNormal = toWorld.TransformVector(curNormal).Normalized();
     float dist2 = worldPoint.Distance2(*context.mWorldStart);
     context.PushResult(CastResult(context.mCurObj->GetHandle(), worldPoint, worldNormal, dist2));
   }
 
-  void Caster::LineCastCube(const Model& model, const Transformer& toWorld, const Vector3& start, const Vector3& end, CasterContext& context) const {
+  void Caster::LineCastCube(const Model& model, const Transformer& toWorld, const Vec3& start, const Vec3& end, CasterContext& context) const {
     float t;
     int normalIndex, normalSign;
     //Use model's aabb, which is in model space
     if(model.GetAABB().LineIntersect(start, end, &t, &normalIndex, &normalSign)) {
       CastResult result;
-      result.mPoint = Vector3::Lerp(*context.mWorldStart, *context.mWorldEnd, t);
+      result.mPoint = Vec3::Lerp(*context.mWorldStart, *context.mWorldEnd, t);
       result.mDistSq = result.mPoint.Distance2(*context.mWorldStart);
       //Local space normal from index transformed into world
-      SAlign Vector3 normal = Vector3::Zero;
+      SAlign Vec3 normal = Vec3::Zero;
       normal[normalIndex] = static_cast<float>(normalSign);
       //Nonuniform scale would be a problem here if the normal wasn't axis aligned, but it will be since it's a cube
       result.mNormal = toWorld.TransformVector(normal).Normalized();
@@ -109,29 +109,29 @@ namespace Syx {
     }
   }
 
-  void Caster::LineCastComposite(const Model& model, const Transformer& toWorld, const Vector3& start, const Vector3& end, CasterContext& context) const {
+  void Caster::LineCastComposite(const Model& model, const Transformer& toWorld, const Vec3& start, const Vec3& end, CasterContext& context) const {
     const auto& submodels = model.GetSubmodelInstances();
     for(const ModelInstance& subModel : submodels) {
-      SAlign Vector3 localStart = subModel.GetWorldToModel().TransformPoint(start);
-      SAlign Vector3 localEnd = subModel.GetWorldToModel().TransformPoint(end);
+      SAlign Vec3 localStart = subModel.GetWorldToModel().TransformPoint(start);
+      SAlign Vec3 localEnd = subModel.GetWorldToModel().TransformPoint(end);
       Transformer localToWorld = Transformer::Combined(subModel.GetModelToWorld(), toWorld);
       LineCastLocal(subModel.GetModel(), localToWorld, localStart, localEnd, context);
     }
   }
 
-  void Caster::LineCastEnvironment(const Model& model, const Transformer& toWorld, const Vector3& start, const Vector3& end, CasterContext& context) const {
+  void Caster::LineCastEnvironment(const Model& model, const Transformer& toWorld, const Vec3& start, const Vec3& end, CasterContext& context) const {
     const auto& tris = model.GetTriangles();
     for(size_t i = 0; i + 2 < tris.size(); i += 3) {
-      const Vector3& a = tris[i];
-      const Vector3& b = tris[i + 1];
-      const Vector3& c = tris[i + 2];
+      const Vec3& a = tris[i];
+      const Vec3& b = tris[i + 1];
+      const Vec3& c = tris[i + 2];
       float t = TriangleLineIntersect(a, b, c, start, end);
       if(t < 0.0f)
         continue;
 
       CastResult result;
-      result.mPoint = Vector3::Lerp(*context.mWorldStart, *context.mWorldEnd, t);
-      SAlign Vector3 normal = TriangleNormal(a, b, c);
+      result.mPoint = Vec3::Lerp(*context.mWorldStart, *context.mWorldEnd, t);
+      SAlign Vec3 normal = TriangleNormal(a, b, c);
       //Make sure normal is facing start point
       if((start - a).Dot(normal) < 0.0f)
         normal = -normal;

@@ -10,7 +10,7 @@ namespace Syx {
       angle = -angle;
       spiral = -spiral;
     }
-    Mat3 rot = Matrix3::AxisAngle(n, segSize);
+    Mat3 rot = Mat3::AxisAngle(n, segSize);
     Vec3 last = start;
     Vec3 p = point;
     while(angle > segSize) {
@@ -23,7 +23,7 @@ namespace Syx {
     }
 
     if(angle > 0.0f) {
-      Vec3 cur = Matrix3::AxisAngle(n, angle)*last;
+      Vec3 cur = Mat3::AxisAngle(n, angle)*last;
       Interface::DrawLine(p + last, p + cur);
     }
   }
@@ -77,34 +77,34 @@ namespace Syx {
 
   void DebugDrawer::SetColor(float r, float g, float b) {
     Command c(CommandType::SetColor);
-    c.mA = Vector3(r, g, b);
+    c.mA = Vec3(r, g, b);
     mCommands.push_back(c);
   }
 
-  void DebugDrawer::DrawLine(const Vector3& start, const Vector3& end) {
+  void DebugDrawer::DrawLine(const Vec3& start, const Vec3& end) {
     Command c(CommandType::DrawLine);
     c.mA = start;
     c.mB = end;
     mCommands.push_back(c);
   }
 
-  void DebugDrawer::DrawVector(const Vector3& start, const Vector3& direction) {
+  void DebugDrawer::DrawVector(const Vec3& start, const Vec3& direction) {
     Command c(CommandType::DrawVector);
     c.mA = start;
     c.mB = direction;
     mCommands.push_back(c);
   }
 
-  void DebugDrawer::DrawSphere(const Vector3& center, float radius, const Vector3& right, const Vector3& up) {
+  void DebugDrawer::DrawSphere(const Vec3& center, float radius, const Vec3& right, const Vec3& up) {
     Command c(CommandType::DrawSphere);
     c.mA = center;
-    c.mB = Vector3(radius);
+    c.mB = Vec3(radius);
     c.mC = right;
     c.mD = up;
     mCommands.push_back(c);
   }
 
-  void DebugDrawer::DrawCube(const Vector3& center, const Vector3& size, const Vector3& right, const Vector3& up) {
+  void DebugDrawer::DrawCube(const Vec3& center, const Vec3& size, const Vec3& right, const Vec3& up) {
     Command c(CommandType::DrawCube);
     c.mA = center;
     c.mB = size;
@@ -113,10 +113,10 @@ namespace Syx {
     mCommands.push_back(c);
   }
 
-  void DebugDrawer::DrawPoint(const Vector3& point, float size) {
+  void DebugDrawer::DrawPoint(const Vec3& point, float size) {
     Command c(CommandType::DrawPoint);
     c.mA = point;
-    c.mB = Vector3(size);
+    c.mB = Vec3(size);
     mCommands.push_back(c);
   }
 

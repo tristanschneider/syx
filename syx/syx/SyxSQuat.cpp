@@ -1,7 +1,7 @@
 #include "Precompile.h"
-#include "SyxSQuaternion.h"
-#include "SyxSVector3.h"
-#include "SyxSMatrix3.h"
+#include "SyxSQuat.h"
+#include "SyxSVec3.h"
+#include "SyxSMat3.h"
 #include "SyxSIMD.h"
 
 #ifdef SENABLED
@@ -9,8 +9,8 @@ namespace Syx {
   const SFloats SQuat::Zero = SLoadFloats(0.0f, 0.0f, 0.0f, 0.0f);
 
   SFloats SQuat::Construct(SFloats ijk, float w) {
-    SAlign Vector3 store;
-    SVector3::Store(ijk, store);
+    SAlign Vec3 store;
+    SVec3::Store(ijk, store);
     store.w = w;
     return SLoadAll(&store.x);
   }
@@ -74,7 +74,7 @@ namespace Syx {
     result = SAddAll(result, SMulAll(SShuffle(lhs, 1, 2, 0, 2), SShuffle(rhs, 2, 0, 1, 2)));
     result = SSubAll(result, SMulAll(SShuffle(lhs, 2, 0, 1, 3), SShuffle(rhs, 1, 2, 0, 3)));
 
-    static const SFloats zeroW = SOr(SOr(SVector3::BitsX, SVector3::BitsY), SVector3::BitsZ);
+    static const SFloats zeroW = SOr(SOr(SVec3::BitsX, SVec3::BitsY), SVec3::BitsZ);
     result = SAnd(result, zeroW);
     return result;
   }
@@ -84,11 +84,11 @@ namespace Syx {
   }
 
   SFloats SQuat::Length(SFloats in) {
-    return SSqrtAll(SVector3::Dot4(in, in));
+    return SSqrtAll(SVec3::Dot4(in, in));
   }
 
   SFloats SQuat::Length2(SFloats in) {
-    return SVector3::Dot4(in, in);
+    return SVec3::Dot4(in, in);
   }
 
   SFloats SQuat::Normalized(SFloats in) {
@@ -103,9 +103,9 @@ namespace Syx {
   //-2yy-2zz+1, 2xy-2zw  , 2xz+2yw
   // 2xy+2zw  ,-2xx-2zz+1, 2yz-2xw
   // 2xz-2yw  , 2yz+2xw  ,-2xx-2yy+1
-  SMatrix3 SQuat::ToMatrix(SFloats in) {
+  SMat3 SQuat::ToMatrix(SFloats in) {
     static const SFloats allTwo = SLoadFloats(-2.0f, 2.0f, 2.0f, 2.0f);
-    SMatrix3 result;
+    SMat3 result;
 
     //Same formula as on standard quaternion, but done per column from left to right as above
     //-2yy-2zz+1
@@ -123,7 +123,7 @@ namespace Syx {
     rhs = SShuffle(in, 2, 3, 3, 3);
     cr = SMulAll(cr, rhs);
     cl = SAddAll(cl, cr);
-    result.mbx = SAddAll(cl, SVector3::UnitX);
+    result.mbx = SAddAll(cl, SVec3::UnitX);
 
     // 2xy-2zw  
     //-2xx-2zz+1
@@ -140,7 +140,7 @@ namespace Syx {
     rhs = SShuffle(in, 3, 2, 3, 3);
     cr = SMulAll(cr, rhs);
     cl = SAddAll(cl, cr);
-    result.mby = SAddAll(cl, SVector3::UnitY);
+    result.mby = SAddAll(cl, SVec3::UnitY);
 
     // 2xz+2yw
     // 2yz-2xw
@@ -157,7 +157,7 @@ namespace Syx {
     rhs = SShuffle(in, 3, 3, 1, 3);
     cr = SMulAll(cr, rhs);
     cl = SAddAll(cl, cr);
-    result.mbz = SAddAll(cl, SVector3::UnitZ);
+    result.mbz = SAddAll(cl, SVec3::UnitZ);
     return result;
   }
 

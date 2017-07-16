@@ -36,9 +36,9 @@ namespace Syx
     const size_t m_noIterations;
     //Pointers so they can be reallocated and thrown out of the cache
     SFloats* m_sPoints;
-    Vector3* m_nPoints;
-    SMatrix3* m_sMats;
-    Matrix3* m_nMats;
+    Vec3* m_nPoints;
+    SMat3* m_sMats;
+    Mat3* m_nMats;
     SFloats* m_sQuats;
     Quat* m_nQuats;
   };

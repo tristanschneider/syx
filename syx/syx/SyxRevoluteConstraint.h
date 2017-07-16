@@ -61,8 +61,8 @@ namespace Syx {
     void SetLocalFreeAxis(const Vec3& axis);
 
   private:
-    SAlign Vector3 mAnchorA;
-    SAlign Vector3 mAnchorB;
+    SAlign Vec3 mAnchorA;
+    SAlign Vec3 mAnchorB;
     //Basis vectors to calculate angular error of off these are cardinal x transformed from world to model (no scale)
     SAlign Vec3 mBasisA[2];
     SAlign Vec3 mBasisB[2];

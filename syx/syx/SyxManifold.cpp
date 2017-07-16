@@ -3,14 +3,14 @@
 #include "SyxPhysicsObject.h"
 
 namespace Syx {
-  ContactPoint::ContactPoint(const ContactObject& a, const ContactObject& b, const Vector3& normal):
+  ContactPoint::ContactPoint(const ContactObject& a, const ContactObject& b, const Vec3& normal):
     mObjA(a), mObjB(b), mPenetration((b.mStartingWorld - a.mStartingWorld).Dot(normal)), mWarmContact(0.0f), mWarmFriction{0.0f} {
   }
 
-  void ContactPoint::Draw(PhysicsObject* a, PhysicsObject* b, const Vector3& normal) const {
+  void ContactPoint::Draw(PhysicsObject* a, PhysicsObject* b, const Vec3& normal) const {
     DebugDrawer& d = DebugDrawer::Get();
-    Vector3 ca = a->GetTransform().ModelToWorld(mObjA.mModelPoint);
-    Vector3 cb = b->GetTransform().ModelToWorld(mObjB.mModelPoint);
+    Vec3 ca = a->GetTransform().ModelToWorld(mObjA.mModelPoint);
+    Vec3 cb = b->GetTransform().ModelToWorld(mObjB.mModelPoint);
 
     d.SetColor(1.0f, 0.0f, 0.0f);
     DrawCube(ca, 0.1f);
@@ -34,13 +34,13 @@ namespace Syx {
   float Manifold::sMatchTolerance = 0.01f;
   float Manifold::sNormalMatchTolerance = 0.01f;
 
-  void Manifold::ReplaceNormal(const Vector3& newNormal) {
+  void Manifold::ReplaceNormal(const Vec3& newNormal) {
     mNormal = newNormal;
     //Normal is only replaced if it is sufficiently different, so no need to try to make friction axes similar
     mNormal.GetBasis(mTangentA, mTangentB);
   }
 
-  void Manifold::MatchNormal(const Vector3& newNormal) {
+  void Manifold::MatchNormal(const Vec3& newNormal) {
     float dot = mNormal.Dot(newNormal);
     if(1.0f - dot > sNormalMatchTolerance) {
       ReplaceNormal(newNormal);
@@ -49,7 +49,7 @@ namespace Syx {
     }
   }
 
-  void Manifold::AddContact(const ContactPoint& contact, const Vector3& normal) {
+  void Manifold::AddContact(const ContactPoint& contact, const Vec3& normal) {
     if(Interface::GetOptions().mDebugFlags & SyxOptions::DrawNewContact)
       DrawCube(contact.mObjA.mStartingWorld, 0.1f);
 
@@ -99,8 +99,8 @@ namespace Syx {
     std::swap(points[1], points[bestPair.second]);
 
     //Find third point that maximizes triangle area
-    Vector3 lineStart = points[0]->mObjA.mStartingWorld;
-    Vector3 line = points[1]->mObjA.mStartingWorld - lineStart;
+    Vec3 lineStart = points[0]->mObjA.mStartingWorld;
+    Vec3 line = points[1]->mObjA.mStartingWorld - lineStart;
     float bestArea = 0.0f;
     int bestThird = 0;
     for(int i = 2; i < 5; ++i) {
@@ -115,7 +115,7 @@ namespace Syx {
     std::swap(points[2], points[bestThird]);
 
     //Find furthest point from triangle
-    Vector3 pA, pB, pC;
+    Vec3 pA, pB, pC;
     GetOutwardTriPlanes(points[0]->mObjA.mStartingWorld, points[1]->mObjA.mStartingWorld, points[2]->mObjA.mStartingWorld, pA, pB, pC, true);
     //Get distance from each plane for index 3
     float dA = pA.Dot4(points[3]->mObjA.mStartingWorld);
@@ -152,10 +152,10 @@ namespace Syx {
 
     for(size_t i = 0; i < mSize;) {
       ContactPoint& p = mContacts[i];
-      Vector3 aWorld = tA.TransformPoint(p.mObjA.mModelPoint);
+      Vec3 aWorld = tA.TransformPoint(p.mObjA.mModelPoint);
 
       //If either has drifted out of the tolerance range, remove it
-      Vector3 aDrift = aWorld - p.mObjA.mStartingWorld;
+      Vec3 aDrift = aWorld - p.mObjA.mStartingWorld;
       if(std::abs(aDrift.Dot(mNormal)) > sNormalTolerance ||
         std::abs(aDrift.Dot(mTangentA)) > sTangentTolerance ||
         std::abs(aDrift.Dot(mTangentB)) > sTangentTolerance) {
@@ -163,8 +163,8 @@ namespace Syx {
         continue;
       }
 
-      Vector3 bWorld = tB.TransformPoint(p.mObjB.mModelPoint);
-      Vector3 bDrift = bWorld - p.mObjB.mStartingWorld;
+      Vec3 bWorld = tB.TransformPoint(p.mObjB.mModelPoint);
+      Vec3 bDrift = bWorld - p.mObjB.mStartingWorld;
       if(std::abs(bDrift.Dot(mNormal)) > sNormalTolerance ||
         std::abs(bDrift.Dot(mTangentA)) > sTangentTolerance ||
         std::abs(bDrift.Dot(mTangentB)) > sTangentTolerance) {
@@ -195,7 +195,7 @@ namespace Syx {
 
   void Manifold::Draw(void) {
     DebugDrawer& d = DebugDrawer::Get();
-    Vector3 center = Vector3::Zero;
+    Vec3 center = Vec3::Zero;
     for(size_t i = 0; i < mSize; ++i) {
       mContacts[i].Draw(mA->GetOwner(), mB->GetOwner(), mNormal);
       center += mContacts[i].mObjA.mCurrentWorld;

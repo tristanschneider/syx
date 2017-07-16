@@ -25,10 +25,10 @@ namespace Syx {
   bool TestSimplex(void) { return false; }
 #else
   bool TestModel(void) {
-    Vector3Vec modelPoints;
-    SVector3Vec sPoints;
+    Vec3Vec modelPoints;
+    SVec3Vec sPoints;
     for(int i = 0; i < 1000; ++i) {
-      Vector3 v = VecRand(-10000, 10000);
+      Vec3 v = VecRand(-10000, 10000);
       modelPoints.push_back(v);
       sPoints.push_back(SLoadFloats(v.x, v.y, v.z, 0.0f));
     }
@@ -36,11 +36,11 @@ namespace Syx {
     Model model(modelPoints, modelPoints, false);
     for(size_t i = 0; i < sPoints.size(); ++i) {
       SFloats sSupport = model.SGetSupport(sPoints[i]);
-      SAlign Vector3 support;
-      SVector3::Store(sSupport, support);
+      SAlign Vec3 support;
+      SVec3::Store(sSupport, support);
 
       float bestDot = support.Dot(modelPoints[i]);
-      for(const Vector3& testPoint : modelPoints)
+      for(const Vec3& testPoint : modelPoints)
         if(testPoint.Dot(modelPoints[i]) > bestDot + SYX_EPSILON)
           FailTest();
     }
@@ -49,35 +49,35 @@ namespace Syx {
 
   bool TestTransform(void) {
     Transform parent;
-    parent.mPos = Vector3(1.0f, 2.0f, 3.0f);
-    parent.mRot = Quat::AxisAngle(Vector3(1.0f, 4.0f, -1.0f).Normalized(), 1.0f);
-    parent.mScale = Vector3(0.5f, 3.0f, 0.9f);
+    parent.mPos = Vec3(1.0f, 2.0f, 3.0f);
+    parent.mRot = Quat::AxisAngle(Vec3(1.0f, 4.0f, -1.0f).Normalized(), 1.0f);
+    parent.mScale = Vec3(0.5f, 3.0f, 0.9f);
 
     Transform child;
-    child.mPos = Vector3(4.0f, -2.0f, -1.0f);
-    child.mRot = Quat::AxisAngle(Vector3(-1.0f, -1.0f, -1.0f).Normalized(), 0.3f);
-    child.mScale = Vector3(2.5f, 1.0f, 1.9f);
+    child.mPos = Vec3(4.0f, -2.0f, -1.0f);
+    child.mRot = Quat::AxisAngle(Vec3(-1.0f, -1.0f, -1.0f).Normalized(), 0.3f);
+    child.mScale = Vec3(2.5f, 1.0f, 1.9f);
 
     Transformer childToWorlder = child.GetModelToWorld();
     Transformer worldToChilder = child.GetWorldToModel();
     Transformer childToParentToWorlder = parent.GetModelToWorld(child);
     Transformer worldToParentToChilder = parent.GetWorldToModel(child);
 
-    Vector3 testPoint(0.5f, 4.0f, 2.0f);
+    Vec3 testPoint(0.5f, 4.0f, 2.0f);
     //Verified by hand with a calculator
-    Vector3 childToWorld(5.36f, 2.40f, 2.28f);
-    Vector3 worldToChild(-1.51f, 4.66f, 2.42f);
-    Vector3 childToParentToWorld(6.27f, 7.96f, 2.69f);
-    Vector3 worldToParentToChild(-1.50f, 1.95f, 0.16f);
+    Vec3 childToWorld(5.36f, 2.40f, 2.28f);
+    Vec3 worldToChild(-1.51f, 4.66f, 2.42f);
+    Vec3 childToParentToWorld(6.27f, 7.96f, 2.69f);
+    Vec3 worldToParentToChild(-1.50f, 1.95f, 0.16f);
     //Really high epsilon since I didn't use much precision for the calculations
     float epsilon = 0.1f;
 
     CheckResult(child.ModelToWorld(testPoint), childToWorld, epsilon);
     CheckResult(child.WorldToModel(testPoint), worldToChild, epsilon);
-    CheckResult(child.WorldToModel(child.ModelToWorld(testPoint)), Vector3(testPoint[0], testPoint[1], testPoint[2]), epsilon);
+    CheckResult(child.WorldToModel(child.ModelToWorld(testPoint)), Vec3(testPoint[0], testPoint[1], testPoint[2]), epsilon);
     CheckResult(childToWorlder.TransformPoint(testPoint), childToWorld, epsilon);
     CheckResult(worldToChilder.TransformPoint(testPoint), worldToChild, epsilon);
-    CheckResult(worldToChilder.TransformPoint(childToWorlder.TransformPoint(testPoint)), Vector3(testPoint[0], testPoint[1], testPoint[2]), epsilon);
+    CheckResult(worldToChilder.TransformPoint(childToWorlder.TransformPoint(testPoint)), Vec3(testPoint[0], testPoint[1], testPoint[2]), epsilon);
     CheckResult(childToParentToWorlder.TransformPoint(testPoint), childToParentToWorld, epsilon);
     CheckResult(worldToParentToChilder.TransformPoint(testPoint), worldToParentToChild, epsilon);
     return TEST_FAILED;
@@ -90,7 +90,7 @@ namespace Syx {
     simplex.Add(Support(b), false);
 
     Vec simplexResult = simplex.Solve();
-    Vector3 baseResult = -ClosestOnLine(Vector3::Zero, ToVector3(a), ToVector3(b));
+    Vec3 baseResult = -ClosestOnLine(Vec3::Zero, ToVec3(a), ToVec3(b));
     CheckResult(simplexResult, baseResult);
     CheckResult(simplex.Size(), expectedSize);
   }
@@ -121,7 +121,7 @@ namespace Syx {
     simplex.Add(Support(c), false);
 
     Vec simplexResult = simplex.Solve();
-    Vector3 baseResult = -ClosestOnTri(Vector3::Zero, ToVector3(a), ToVector3(b), ToVector3(c));
+    Vec3 baseResult = -ClosestOnTri(Vec3::Zero, ToVec3(a), ToVec3(b), ToVec3(c));
     CheckResult(simplexResult.Normalized(), baseResult.Normalized());
     CheckResult(simplex.Size(), expectedSize);
   }
@@ -192,7 +192,7 @@ namespace Syx {
     simplex.Add(Support(d), false);
 
     Vec simplexResult = simplex.Solve();
-    Vector3 baseResult = -ClosestOnTetrahedron(ToVector3(a), ToVector3(b), ToVector3(c), ToVector3(d), Vector3::Zero);
+    Vec3 baseResult = -ClosestOnTetrahedron(ToVec3(a), ToVec3(b), ToVec3(c), ToVec3(d), Vec3::Zero);
     CheckResult(simplexResult.SafeNormalized(), baseResult.SafeNormalized());
     CheckResult(simplex.Size(), expectedSize);
   }
@@ -278,13 +278,13 @@ namespace Syx {
 
   bool TestSimplex(void) {
     TEST_FAILED = false;
-    //TestSimplexLine<SSimplex, SVector3, SSupportPoint>();
-    //TestSimplexTriangle<SSimplex, SVector3, SSupportPoint>();
-    //TestSimplexTetrahedron<SSimplex, SVector3, SSupportPoint>();
+    //TestSimplexLine<SSimplex, SVec3, SSupportPoint>();
+    //TestSimplexTriangle<SSimplex, SVec3, SSupportPoint>();
+    //TestSimplexTetrahedron<SSimplex, SVec3, SSupportPoint>();
 
-    TestSimplexLine<Simplex, Vector3, SupportPoint>();
-    TestSimplexTriangle<Simplex, Vector3, SupportPoint>();
-    TestSimplexTetrahedron<Simplex, Vector3, SupportPoint>();
+    TestSimplexLine<Simplex, Vec3, SupportPoint>();
+    TestSimplexTriangle<Simplex, Vec3, SupportPoint>();
+    TestSimplexTetrahedron<Simplex, Vec3, SupportPoint>();
     return TEST_FAILED;
   }
 
@@ -306,14 +306,14 @@ namespace Syx {
     narrow.mInstA = &objA.GetCollider()->GetModelInstance();
     narrow.mInstB = &objB.GetCollider()->GetModelInstance();
     float diameter = 2.0f;
-    system.SetPosition(space, a, Vector3(0.0f));
+    system.SetPosition(space, a, Vec3(0.0f));
     int numTests = 100000;
 
     //Non colliding tests
     for(int i = 0; i < numTests; ++i) {
       float randRadius = RandFloat(diameter + SYX_EPSILON, 1000.0f);
-      Vector3 randSphere = RandOnSphere();
-      Vector3 randPos = randSphere*randRadius;
+      Vec3 randSphere = RandOnSphere();
+      Vec3 randPos = randSphere*randRadius;
       system.SetPosition(space, b, randPos);
       //CheckResult(narrow.SGJK() == false);
       CheckResult(narrow.GJK() == false);
@@ -322,8 +322,8 @@ namespace Syx {
     //Colliding tests
     for(int i = 0; i < numTests; ++i) {
       float randRadius = RandFloat(0.0f, diameter);
-      Vector3 randSphere = RandOnSphere();
-      Vector3 randPos = randSphere*randRadius;
+      Vec3 randSphere = RandOnSphere();
+      Vec3 randPos = randSphere*randRadius;
       system.SetPosition(space, b, randPos);
       //CheckResult(narrow.SGJK() == true);
       CheckResult(narrow.GJK() == true);

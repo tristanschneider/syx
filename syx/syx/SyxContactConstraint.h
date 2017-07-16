@@ -8,44 +8,44 @@ namespace Syx {
   //Everything needed during solving loop in one compact structure to maximize cache coherence
   SAlign struct ContactBlock {
     //These are the linear and angular terms of the Jacobian that are pre-multiplied with the appropriate masses
-    SAlign Vector3 mNormal;
+    SAlign Vec3 mNormal;
     //Center to contact crossed with normal for object a and b
-    SAlign Vector3 mRCrossNA[4];
-    SAlign Vector3 mRCrossNB[4];
+    SAlign Vec3 mRCrossNA[4];
+    SAlign Vec3 mRCrossNB[4];
 
     //Same terms as above multiplied by the appropriate masses
-    SAlign Vector3 mNormalTMass[2];
-    SAlign Vector3 mRCrossNATInertia[4];
-    SAlign Vector3 mRCrossNBTInertia[4];
+    SAlign Vec3 mNormalTMass[2];
+    SAlign Vec3 mRCrossNATInertia[4];
+    SAlign Vec3 mRCrossNBTInertia[4];
 
     //Penetration bias term ready to be applied straight to the lambda
-    SAlign Vector3 mPenetrationBias;
+    SAlign Vec3 mPenetrationBias;
     //Inverse mass of the Jacobians of the contact constraints
-    SAlign Vector3 mContactMass;
+    SAlign Vec3 mContactMass;
     //Sum of lambda terms over all iterations this frame
-    SAlign Vector3 mLambdaSum;
+    SAlign Vec3 mLambdaSum;
 
     //If false this contact is ignored during solving
     bool mEnforce[4];
   };
 
   SAlign struct FrictionAxisBlock {
-    SAlign Vector3 mConstraintMass;
-    SAlign Vector3 mLambdaSum;
-    SAlign Vector3 mAxis;
-    SAlign Vector3 mRCrossAxisA[4];
-    SAlign Vector3 mRCrossAxisB[4];
+    SAlign Vec3 mConstraintMass;
+    SAlign Vec3 mLambdaSum;
+    SAlign Vec3 mAxis;
+    SAlign Vec3 mRCrossAxisA[4];
+    SAlign Vec3 mRCrossAxisB[4];
 
     //Premultiplied linear and angular terms of Jacobian for a and b
-    SAlign Vector3 mLinearA;
-    SAlign Vector3 mLinearB;
-    SAlign Vector3 mAngularA[4];
-    SAlign Vector3 mAngularB[4];
+    SAlign Vec3 mLinearA;
+    SAlign Vec3 mLinearB;
+    SAlign Vec3 mAngularA[4];
+    SAlign Vec3 mAngularB[4];
   };
 
   SAlign struct FrictionBlock {
     //Contact constraint's sum is used to determine strength of friction
-    SAlign Vector3 mContactLambdaSum;
+    SAlign Vec3 mContactLambdaSum;
     SAlign FrictionAxisBlock mAxes[2];
     //If false this contact is ignored during solving
     bool mEnforce[4];
@@ -94,8 +94,8 @@ namespace Syx {
     Manifold* mManifold;
 
   private:
-    void SetupContactJacobian(float massA, const Matrix3& inertiaA, float massB, const Matrix3& inertiaB);
-    void SetupFrictionJacobian(float massA, const Matrix3& inertiaA, float massB, const Matrix3& inertiaB);
+    void SetupContactJacobian(float massA, const Mat3& inertiaA, float massB, const Mat3& inertiaB);
+    void SetupFrictionJacobian(float massA, const Mat3& inertiaA, float massB, const Mat3& inertiaB);
     float SolveContact(int i);
     float SolveFriction(int i);
 

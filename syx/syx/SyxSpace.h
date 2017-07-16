@@ -44,7 +44,7 @@ namespace Syx {
     const std::string& GetProfileReport(const std::string& indent) { return mProfiler.GetReport(indent); }
     const std::vector<ProfileResult>& GetProfileHistory() { return mProfiler.GetHistory(); }
 
-    CastResult LineCastAll(const Vector3& start, const Vector3& end);
+    CastResult LineCastAll(const Vec3& start, const Vec3& end);
 
     void Clear(void);
     void Update(float dt);

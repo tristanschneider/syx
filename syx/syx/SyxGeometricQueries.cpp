@@ -2,7 +2,7 @@
 
 namespace Syx {
   //http://www.gamedev.net/topic/552906-closest-point-on-triangle/
-  Vector3 ClosestOnTriFromEdges(const Vector3& triA, const Vector3& pToA, const Vector3& aToB, const Vector3& aToC, float* resultABT, float* resultACT, bool* clamped) {
+  Vec3 ClosestOnTriFromEdges(const Vec3& triA, const Vec3& pToA, const Vec3& aToB, const Vec3& aToC, float* resultABT, float* resultACT, bool* clamped) {
     double a = static_cast<double>(aToB.Length2());
     double b = static_cast<double>(aToB.Dot(aToC));
     double c = static_cast<double>(aToC.Length2());
@@ -89,34 +89,34 @@ namespace Syx {
     return triA + static_cast<float>(s)*aToB + static_cast<float>(t)*aToC;
   }
 
-  Vector3 ClosestOnTri(const Vector3& p, const Vector3& triA, const Vector3& triB, const Vector3& triC, float* resultABT, float* resultACT, bool* clamped) {
-    Vector3 pToA = triA - p;
-    Vector3 aToB = triB - triA;
-    Vector3 aToC = triC - triA;
+  Vec3 ClosestOnTri(const Vec3& p, const Vec3& triA, const Vec3& triB, const Vec3& triC, float* resultABT, float* resultACT, bool* clamped) {
+    Vec3 pToA = triA - p;
+    Vec3 aToB = triB - triA;
+    Vec3 aToC = triC - triA;
     return ClosestOnTriFromEdges(triA, pToA, aToB, aToC, resultABT, resultACT, clamped);
   }
 
-  Vector3 ClosestOnRay(const Vector3& p, const Vector3& a, const Vector3& b) {
-    return a + Vector3::ProjVec(p - a, b - a);
+  Vec3 ClosestOnRay(const Vec3& p, const Vec3& a, const Vec3& b) {
+    return a + Vec3::ProjVec(p - a, b - a);
   }
 
-  Vector3 ClosestOnLine(const Vector3& p, const Vector3& a, const Vector3& b) {
-    Vector3 aToB = b - a;
-    float proj = Vector3::ProjVecScalar(p - a, aToB);
+  Vec3 ClosestOnLine(const Vec3& p, const Vec3& a, const Vec3& b) {
+    Vec3 aToB = b - a;
+    float proj = Vec3::ProjVecScalar(p - a, aToB);
     proj = Clamp(proj, 0.0f, 1.0f);
     return a + aToB*proj;
   }
 
-  float PointRayDist2(const Vector3& p, const Vector3& a, const Vector3& b) {
-    Vector3 aToP = p - a;
-    Vector3 proj = Vector3::ProjVec(aToP, b - a);
+  float PointRayDist2(const Vec3& p, const Vec3& a, const Vec3& b) {
+    Vec3 aToP = p - a;
+    Vec3 proj = Vec3::ProjVec(aToP, b - a);
     return aToP.Distance2(proj);
   }
 
-  float PointLineDist2(const Vector3& p, const Vector3& a, const Vector3& b) {
-    Vector3 aToB = b - a;
-    Vector3 aToP = p - a;
-    float proj = Vector3::ProjVecScalar(aToP, aToB);
+  float PointLineDist2(const Vec3& p, const Vec3& a, const Vec3& b) {
+    Vec3 aToB = b - a;
+    Vec3 aToP = p - a;
+    float proj = Vec3::ProjVecScalar(aToP, aToB);
     proj = Clamp(proj, 0.0f, 1.0f);
     return aToP.Distance2(aToB*proj);
   }
@@ -126,27 +126,27 @@ namespace Syx {
     int a, b, c;
   };
 
-  Vector3 ClosestOnTetrahedron(const Vector3& a, const Vector3& b, const Vector3& c, const Vector3& d, const Vector3& point) {
-    const Vector3* points[4] = {&a, &b, &c, &d};
+  Vec3 ClosestOnTetrahedron(const Vec3& a, const Vec3& b, const Vec3& c, const Vec3& d, const Vec3& point) {
+    const Vec3* points[4] = {&a, &b, &c, &d};
     //abc bdc adb cda
     TriIndices tris[4] = {{0, 1, 2}, {1, 3, 2}, {0, 3, 1}, {2, 3, 0}};
     float bestDist = std::numeric_limits<float>::max();
-    Vector3 bestPoint;
+    Vec3 bestPoint;
     bool allInside = true;
 
     for(int i = 0; i < 4; ++i) {
       const TriIndices& tri = tris[i];
-      const Vector3& triA = *points[tri.a];
-      const Vector3& triB = *points[tri.b];
-      const Vector3& triC = *points[tri.c];
-      Vector3 normal = TriangleNormal(triA, triB, triC);
+      const Vec3& triA = *points[tri.a];
+      const Vec3& triB = *points[tri.b];
+      const Vec3& triC = *points[tri.c];
+      Vec3 normal = TriangleNormal(triA, triB, triC);
       float planeDist = HalfPlaneSignedDistance(normal, triA, point);
 
       //Get triangle distance for each triangle that sees the point.
       //If no triangle sees the point it is inside the tetrahedron
       if(planeDist > 0.0f && planeDist) {
         allInside = false;
-        Vector3 closestOnTri = ClosestOnTri(point, triA, triB, triC);
+        Vec3 closestOnTri = ClosestOnTri(point, triA, triB, triC);
         float triDist = closestOnTri.Distance2(point);
 
         if(triDist < bestDist) {
@@ -189,12 +189,12 @@ namespace Syx {
               q.qp.p - p.qp.q
     And there you go, s and t that can be used to get the closest points, a' and b'
   */
-  void ClosestOnRays(const Vector3& aStart, const Vector3& aDir, const Vector3& bStart, const Vector3& bDir, float& ta, float& tb) {
-    Vector3 a = aStart;
-    Vector3 p = aDir;
-    Vector3 b = bStart;
-    Vector3 q = bDir;
-    Vector3 ab = a - b;
+  void ClosestOnRays(const Vec3& aStart, const Vec3& aDir, const Vec3& bStart, const Vec3& bDir, float& ta, float& tb) {
+    Vec3 a = aStart;
+    Vec3 p = aDir;
+    Vec3 b = bStart;
+    Vec3 q = bDir;
+    Vec3 ab = a - b;
     float pp = p.Dot(p);
     float pq = p.Dot(q);
     float qq = q.Dot(q);
@@ -213,13 +213,13 @@ namespace Syx {
   }
 
   //Moller-Trumbore intersection algorithm
-  float TriangleLineIntersect(const Vector3& a, const Vector3& b, const Vector3& c, const Vector3& start, const Vector3& end) {
-    Vector3 dir = end - start;
+  float TriangleLineIntersect(const Vec3& a, const Vec3& b, const Vec3& c, const Vec3& start, const Vec3& end) {
+    Vec3 dir = end - start;
     //Find vectors for two edges sharing V1
-    Vector3 e1 = b - a;
-    Vector3 e2 = c - a;
+    Vec3 e1 = b - a;
+    Vec3 e2 = c - a;
     //Begin calculating determinant - also used to calculate u parameter
-    Vector3 P = dir.Cross(e2);
+    Vec3 P = dir.Cross(e2);
     //if determinant is near zero, ray lies in plane of triangle or ray is parallel to plane of triangle
     float det = e1.Dot(P);
     //NOT CULLING
@@ -228,7 +228,7 @@ namespace Syx {
     float invDet = 1.0f/det;
 
     //calculate distance from V1 to ray origin
-    Vector3 T = start - a;
+    Vec3 T = start - a;
 
     //Calculate u parameter and test bound
     float u = T.Dot(P)*invDet;
@@ -237,7 +237,7 @@ namespace Syx {
       return -1.0f;
 
     //Prepare to test v parameter
-    Vector3 Q = T.Cross(e1);
+    Vec3 Q = T.Cross(e1);
 
     //Calculate V parameter and test bound
     float v = dir.Dot(Q)*invDet;

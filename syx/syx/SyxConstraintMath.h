@@ -1,5 +1,5 @@
 #pragma once
-#include "SyxVector3.h"
+#include "SyxVec3.h"
 #include "SyxConstraint.h"
 #include "SyxSIMD.h"
 
@@ -44,7 +44,7 @@ namespace Syx {
       return std::max(-maxCorrection, (error + halfSlop)*baumgarteTerm);
     }
 
-    FInline float ComputeJV(const Vector3& jal, const Vector3& jaa, const Vector3& jbl, const Vector3& jba, const ConstraintObjBlock& a, const ConstraintObjBlock& b) {
+    FInline float ComputeJV(const Vec3& jal, const Vec3& jaa, const Vec3& jbl, const Vec3& jba, const ConstraintObjBlock& a, const ConstraintObjBlock& b) {
       return jal.Dot(a.mLinVel) + jaa.Dot(a.mAngVel) + jbl.Dot(b.mLinVel) + jba.Dot(b.mAngVel);
     }
 
@@ -133,7 +133,7 @@ namespace Syx {
         enforceDir = LocalConstraint::NoEnforce;
     }
 
-    FInline void ApplyImpulse(float lambda, const Vector3& jalm, const Vector3& jaam, const Vector3& jblm, const Vector3& jbam, ConstraintObjBlock& a, ConstraintObjBlock& b) {
+    FInline void ApplyImpulse(float lambda, const Vec3& jalm, const Vec3& jaam, const Vec3& jblm, const Vec3& jbam, ConstraintObjBlock& a, ConstraintObjBlock& b) {
       a.mLinVel += lambda*jalm;
       a.mAngVel += lambda*jaam;
       b.mLinVel += lambda*jblm;

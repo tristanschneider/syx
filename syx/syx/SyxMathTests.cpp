@@ -10,9 +10,9 @@ namespace Syx
   bool TestAllMath(void)
   {
     TEST_FAILED = false;
-    TestSVector3();
+    TestSVec3();
     if(TEST_FAILED) return TEST_FAILED;
-    TestSMatrix3();
+    TestSMat3();
     if(TEST_FAILED) return TEST_FAILED;
     TestSQuat();
     if(TEST_FAILED) return TEST_FAILED;
@@ -24,48 +24,48 @@ namespace Syx
 
 #ifndef SENABLED
   bool TestSFloats(void) { return false; }
-  bool TestSMatrix3(void) { return false; }
+  bool TestSMat3(void) { return false; }
   bool TestSQuat(void) { return false; }
   bool TestVector2(void) { return false; }
   bool TestMatrix2(void) { return false; }
 #else
-  bool TestSVector3(void)
+  bool TestSVec3(void)
   {
     TEST_FAILED = false;
-    Vector3 va(1.0f, 2.0f, 3.0f);
-    Vector3 vb(2.0f, -2.0f, 1.0f);
+    Vec3 va(1.0f, 2.0f, 3.0f);
+    Vec3 vb(2.0f, -2.0f, 1.0f);
     SFloats sa = SLoadFloats(1.0f, 2.0f, 3.0f);
     SFloats sb = SLoadFloats(2.0f, -2.0f, 1.0f);
     SFloats s4 = SLoadFloats(1.0f, 2.0f, 3.0f, 4.0f);
 
     CheckResult(sa, va);
-    CheckResult(SLoadSplatFloats(1.0f), Vector3(1.0f));
-    CheckResult(SVector3::Add(sa, sb), va + vb);
-    CheckResult(SVector3::Sub(sa, sb), va - vb);
-    CheckResult(SVector3::Neg(sa), -va);
-    CheckResult(SVector3::Mul(sa, SLoadSplatFloats(2.0f)), va*2.0f);
-    CheckResult(SVector3::Div(sa, SLoadSplatFloats(2.0f)), va/2.0f);
-    CheckResult(SAnd(SVector3::Equal(SLoadSplatFloats(2.0f), SLoadSplatFloats(3.0f)), SVector3::Identity), Vector3(0.0f));
-    CheckResult(SAnd(SVector3::Equal(SLoadSplatFloats(2.0f), SLoadSplatFloats(2.0f)), SVector3::Identity), Vector3(1.0f));
-    CheckResult(SAnd(SVector3::NotEqual(SLoadSplatFloats(2.0f), SLoadSplatFloats(3.0f)), SVector3::Identity), Vector3(1.0f));
-    CheckResult(SAnd(SVector3::NotEqual(SLoadSplatFloats(2.0f), SLoadSplatFloats(2.0f)), SVector3::Identity), Vector3(0.0f));
-    CheckResult(SAnd(SVector3::Equal(sa, SLoadFloats(1.0f, 2.0f, 4.0f)), SVector3::Identity), Vector3(0.0f));
-    CheckResult(SVector3::Length(sa), va.Length());
-    CheckResult(SVector3::Length2(sa), va.Length2());
-    CheckResult(SVector3::Distance(sa, sb), va.Distance(vb));
-    CheckResult(SVector3::Distance2(sa, sb), va.Distance2(vb));
-    CheckResult(SVector3::Dot(sa, sb), va.Dot(vb));
-    CheckResult(SVector3::Dot4(s4, s4), Vector3(30.0f));
-    CheckResult(SVector3::Cross(sa, sb), va.Cross(vb));
-    CheckResult(SAnd(SVector3::LeastSignificantAxis(sa), SVector3::Identity), Vector3(1.0f, 0.0f, 0.0f));
-    CheckResult(SAnd(SVector3::MostSignificantAxis(sa), SVector3::Identity), Vector3(0.0f, 0.0f, 1.0f));
-    CheckResult(SVector3::Normalized(sa), va.Normalized());
-    CheckResult(SVector3::SafeNormalized(SVector3::Zero), Vector3::Zero.SafeNormalized());
-    CheckResult(sa*sb, Vector3::Scale(va, vb));
+    CheckResult(SLoadSplatFloats(1.0f), Vec3(1.0f));
+    CheckResult(SVec3::Add(sa, sb), va + vb);
+    CheckResult(SVec3::Sub(sa, sb), va - vb);
+    CheckResult(SVec3::Neg(sa), -va);
+    CheckResult(SVec3::Mul(sa, SLoadSplatFloats(2.0f)), va*2.0f);
+    CheckResult(SVec3::Div(sa, SLoadSplatFloats(2.0f)), va/2.0f);
+    CheckResult(SAnd(SVec3::Equal(SLoadSplatFloats(2.0f), SLoadSplatFloats(3.0f)), SVec3::Identity), Vec3(0.0f));
+    CheckResult(SAnd(SVec3::Equal(SLoadSplatFloats(2.0f), SLoadSplatFloats(2.0f)), SVec3::Identity), Vec3(1.0f));
+    CheckResult(SAnd(SVec3::NotEqual(SLoadSplatFloats(2.0f), SLoadSplatFloats(3.0f)), SVec3::Identity), Vec3(1.0f));
+    CheckResult(SAnd(SVec3::NotEqual(SLoadSplatFloats(2.0f), SLoadSplatFloats(2.0f)), SVec3::Identity), Vec3(0.0f));
+    CheckResult(SAnd(SVec3::Equal(sa, SLoadFloats(1.0f, 2.0f, 4.0f)), SVec3::Identity), Vec3(0.0f));
+    CheckResult(SVec3::Length(sa), va.Length());
+    CheckResult(SVec3::Length2(sa), va.Length2());
+    CheckResult(SVec3::Distance(sa, sb), va.Distance(vb));
+    CheckResult(SVec3::Distance2(sa, sb), va.Distance2(vb));
+    CheckResult(SVec3::Dot(sa, sb), va.Dot(vb));
+    CheckResult(SVec3::Dot4(s4, s4), Vec3(30.0f));
+    CheckResult(SVec3::Cross(sa, sb), va.Cross(vb));
+    CheckResult(SAnd(SVec3::LeastSignificantAxis(sa), SVec3::Identity), Vec3(1.0f, 0.0f, 0.0f));
+    CheckResult(SAnd(SVec3::MostSignificantAxis(sa), SVec3::Identity), Vec3(0.0f, 0.0f, 1.0f));
+    CheckResult(SVec3::Normalized(sa), va.Normalized());
+    CheckResult(SVec3::SafeNormalized(SVec3::Zero), Vec3::Zero.SafeNormalized());
+    CheckResult(sa*sb, Vec3::Scale(va, vb));
     return TEST_FAILED;
   }
 
-  bool TestSMatrix3(void)
+  bool TestSMat3(void)
   {
     TEST_FAILED = false;
     float m[9] = { 1.0f, 2.0f, 3.0f,
@@ -78,13 +78,13 @@ namespace Syx
     float y = 5.5f;
     float z = 0.7f;
 
-    Vector3 v(x, y, z);
+    Vec3 v(x, y, z);
     SFloats sv = SLoadFloats(x, y, z);
 
-    Matrix3 ma(m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8]);
-    SMatrix3 sa(m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8]);
-    Matrix3 mb(r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8]);
-    SMatrix3 sb(r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8]);
+    Mat3 ma(m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8]);
+    SMat3 sa(m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8]);
+    Mat3 mb(r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8]);
+    SMat3 sb(r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8]);
 
     CheckResult(sa, ma);
     CheckResult(sa.Transposed(), ma.Transposed());
@@ -104,13 +104,13 @@ namespace Syx
   bool TestSQuat(void)
   {
     TEST_FAILED = false;
-    SAlign Vector3 axisA(1.0f, 2.0f, 0.5f);
+    SAlign Vec3 axisA(1.0f, 2.0f, 0.5f);
     axisA.Normalize();
     float angleA = 1.0f;
     SFloats sqA = SQuat::AxisAngle(SLoadFloats(axisA.x, axisA.y, axisA.z), angleA);
     SAlign Quat qA = Quat::AxisAngle(axisA, angleA);
 
-    SAlign Vector3 axisB(0.5f, 2.5f, 1.5f);
+    SAlign Vec3 axisB(0.5f, 2.5f, 1.5f);
     axisB.Normalize();
     float angleB = 0.343f;
     SFloats sqB = SQuat::AxisAngle(SLoadFloats(axisB.x, axisB.y, axisB.z), angleB);
@@ -121,11 +121,11 @@ namespace Syx
     CheckResult(SQuat::Add(sqA, sqB), qA + qB);
     CheckResult(SQuat::Div(sqA, SLoadSplatFloats(angleB)), qA/angleB);
     CheckResult(SQuat::MulQuatVec(sqA, SLoadSplatFloats(angleB)), qA*angleB);
-    CheckResult(SQuat::Length2(sqA), Vector3(qA.Length2()));
-    CheckResult(SQuat::Length(sqA), Vector3(qA.Length()));
+    CheckResult(SQuat::Length2(sqA), Vec3(qA.Length2()));
+    CheckResult(SQuat::Length(sqA), Vec3(qA.Length()));
     CheckResult(SQuat::Normalized(sqA), qA.Normalized());
     CheckResult(SQuat::MulQuat(sqA, sqB), qA*qB);
-    CheckResult(SQuat::Rotate(sqA, ToSVector3(axisB)), qA*axisB);
+    CheckResult(SQuat::Rotate(sqA, ToSVec3(axisB)), qA*axisB);
     CheckResult(SQuat::ToMatrix(sqA), qA.ToMatrix());
     return TEST_FAILED;
   }

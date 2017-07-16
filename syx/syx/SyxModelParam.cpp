@@ -14,7 +14,7 @@ namespace Syx {
     mTriangles.reserve(size/3 + 1);
   }
 
-  void ModelParam::AddVertex(const Vector3& v) {
+  void ModelParam::AddVertex(const Vec3& v) {
     mPoints.push_back(v);
   }
 

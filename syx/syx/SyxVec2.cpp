@@ -1,4 +1,4 @@
-#include "SyxVector2.h"
+#include "SyxVec2.h"
 #include "SyxMath.h"
 
 namespace Syx {

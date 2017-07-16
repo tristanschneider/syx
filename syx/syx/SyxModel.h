@@ -10,7 +10,7 @@
 namespace Syx {
   class PhysicsSystem;
   struct Transform;
-  struct Matrix3;
+  struct Mat3;
 
   typedef AABBTree ModelBroadphase;
 
@@ -31,8 +31,8 @@ namespace Syx {
 
   struct MassInfo {
     float mMass;
-    Vector3 mInertia;
-    Vector3 mCenterOfMass;
+    Vec3 mInertia;
+    Vec3 mCenterOfMass;
   };
 
   class Model {
@@ -41,7 +41,7 @@ namespace Syx {
     DeclareHandleMapNode(Model);
 
     Model(void) {}
-    Model(const Vector3Vec& points, const Vector3Vec& triangles, bool environment);
+    Model(const Vec3Vec& points, const Vec3Vec& triangles, bool environment);
     Model(int type);
 
     Model(Handle handle): mType(ModelType::Mesh), mHandle(handle) {}
@@ -59,13 +59,13 @@ namespace Syx {
     int GetType(void) const { return mType; }
     const std::vector<ModelInstance, AlignmentAllocator<ModelInstance>>& GetSubmodelInstances() const { return mInstances; }
     const Broadphase& GetBroadphase() const { return mBroadphase; }
-    const Vector3Vec& GetTriangles() const { return mTriangles; }
+    const Vec3Vec& GetTriangles() const { return mTriangles; }
 
     const AABB& GetAABB(void) const { return mAABB; }
     AABB GetWorldAABB(const Transformer& toWorld) const;
-    void SetTriangle(const Vector3& a, const Vector3& b, const Vector3& c);
+    void SetTriangle(const Vec3& a, const Vec3& b, const Vec3& c);
 
-    MassInfo ComputeMasses(const Vector3& scale) const;
+    MassInfo ComputeMasses(const Vec3& scale) const;
 
     //Takes a point in model space and returns the model space support point.
     //Input should have been transformed to alter primary axis, as from here it will be assumed to be y
@@ -73,7 +73,7 @@ namespace Syx {
     SFloats SGetSupport(SFloats dir) const;
 #endif
 
-    Vector3 GetSupport(const Vector3& dir) const;
+    Vec3 GetSupport(const Vec3& dir) const;
   private:
 
 #ifdef SENABLED
@@ -87,33 +87,33 @@ namespace Syx {
     SFloats SGetTriSupport(SFloats dir) const;
 #endif
 
-    void ComputeMasses(const Vector3& scale, float& mass, Vector3& centerOfMass, Matrix3& inertia) const;
-    void ComputeMasses(const Vector3Vec& triangles, const Vector3& scale, float& mass, Vector3& centerOfMass, Matrix3& inertia) const;
+    void ComputeMasses(const Vec3& scale, float& mass, Vec3& centerOfMass, Mat3& inertia) const;
+    void ComputeMasses(const Vec3Vec& triangles, const Vec3& scale, float& mass, Vec3& centerOfMass, Mat3& inertia) const;
     //Offset all model points by the given vector
-    void Offset(const Vector3& offset);
+    void Offset(const Vec3& offset);
 
-    Vector3 GetMeshSupport(const Vector3& dir) const;
-    Vector3 GetCubeSupport(const Vector3& dir) const;
-    Vector3 GetSphereSupport(const Vector3& dir) const;
-    Vector3 GetCylinderSupport(const Vector3& dir) const;
-    Vector3 GetCapsuleSupport(const Vector3& dir) const;
-    Vector3 GetConeSupport(const Vector3& dir) const;
-    Vector3 GetTriSupport(const Vector3& dir) const;
+    Vec3 GetMeshSupport(const Vec3& dir) const;
+    Vec3 GetCubeSupport(const Vec3& dir) const;
+    Vec3 GetSphereSupport(const Vec3& dir) const;
+    Vec3 GetCylinderSupport(const Vec3& dir) const;
+    Vec3 GetCapsuleSupport(const Vec3& dir) const;
+    Vec3 GetConeSupport(const Vec3& dir) const;
+    Vec3 GetTriSupport(const Vec3& dir) const;
 
     AABB GetCompositeWorldAABB(const Transformer& toWorld) const;
     AABB GetEnvironmentWorldAABB(const Transformer& toWorld) const;
     AABB GetSphereWorldAABB(const Transformer& toWorld) const;
     AABB GetBaseWorldAABB(const Transformer& toWorld) const;
 
-    MassInfo ComputeMeshMasses(const Vector3& scale) const;
-    MassInfo ComputeCubeMasses(const Vector3& scale) const;
-    MassInfo ComputeSphereMasses(const Vector3& scale) const;
-    MassInfo ComputeCapsuleMasses(const Vector3& scale) const;
-    MassInfo ComputeCompositeMasses(const Vector3& scale) const;
-    MassInfo ComputeEnvironmentMasses(const Vector3& scale) const;
+    MassInfo ComputeMeshMasses(const Vec3& scale) const;
+    MassInfo ComputeCubeMasses(const Vec3& scale) const;
+    MassInfo ComputeSphereMasses(const Vec3& scale) const;
+    MassInfo ComputeCapsuleMasses(const Vec3& scale) const;
+    MassInfo ComputeCompositeMasses(const Vec3& scale) const;
+    MassInfo ComputeEnvironmentMasses(const Vec3& scale) const;
 
-    Vector3Vec mPoints;
-    Vector3Vec mTriangles;
+    Vec3Vec mPoints;
+    Vec3Vec mTriangles;
     AABB mAABB;
     int mType;
     Handle mHandle;

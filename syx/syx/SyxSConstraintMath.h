@@ -1,8 +1,8 @@
 #pragma once
 #include "SyxSIMD.h"
-#include "SyxSVector3.h"
+#include "SyxSVec3.h"
 #include "SyxConstraint.h"
-#include "SyxSMatrix3.h"
+#include "SyxSMat3.h"
 
 namespace Syx {
   namespace SConstraints {
@@ -22,19 +22,19 @@ namespace Syx {
 
     FInline SFloats ComputeJV(const SFloats& jla, const SFloats& jaa, const SFloats& jlb, const SFloats& jab,
                               const SFloats& vla, const SFloats& vaa, const SFloats& vlb, const SFloats& vab) {
-      return SVector3::Sum3(SAddAll(SMulAll(jla, vla), SAddAll(SMulAll(jaa, vaa), SAddAll(SMulAll(jlb, vlb), SMulAll(jab, vab)))));
+      return SVec3::Sum3(SAddAll(SMulAll(jla, vla), SAddAll(SMulAll(jaa, vaa), SAddAll(SMulAll(jlb, vlb), SMulAll(jab, vab)))));
     }
 
     FInline SFloats ComputeLambda(SFloats jv, SFloats bias, SFloats constraintMass) {
-      return SVector3::Neg(SMulAll(SAddAll(jv, bias), constraintMass));
+      return SVec3::Neg(SMulAll(SAddAll(jv, bias), constraintMass));
     }
 
     FInline SFloats ComputeLambda(SFloats jv, SFloats constraintMass) {
-      return SVector3::Neg(SMulAll(jv, constraintMass));
+      return SVec3::Neg(SMulAll(jv, constraintMass));
     }
 
-    FInline SFloats ComputeLambda(SFloats jv, SFloats bias, const SMatrix3& constraintMass) {
-      return constraintMass*SVector3::Neg(SAddAll(jv, bias));
+    FInline SFloats ComputeLambda(SFloats jv, SFloats bias, const SMat3& constraintMass) {
+      return constraintMass*SVec3::Neg(SAddAll(jv, bias));
     }
 
     FInline void ClampLambdaMin(SFloats& lambda, SFloats& lambdaSum, SFloats minBound) {

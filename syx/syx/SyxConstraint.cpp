@@ -23,9 +23,9 @@ namespace Syx {
       mInvMass = rb->GetMass();
     }
     else {
-      mLinVel = mAngVel = Vector3::Zero;
+      mLinVel = mAngVel = Vec3::Zero;
       mInvMass = 0.0f;
-      mInertia = Matrix3::Zero;
+      mInertia = Mat3::Zero;
     }
   }
 

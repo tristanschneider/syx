@@ -6,7 +6,7 @@
 #include "SyxSpace.h"
 
 namespace Syx {
-  struct Vector3;
+  struct Vec3;
   struct Quat;
   class ModelParam;
   class CompositeModelParam;
@@ -60,24 +60,24 @@ namespace Syx {
     void SetObjectModel(Handle space, Handle object, Handle model);
     void SetObjectMaterial(Handle space, Handle object, Handle material);
 
-    void SetVelocity(Handle space, Handle object, const Vector3& vel);
-    Vector3 GetVelocity(Handle space, Handle object);
+    void SetVelocity(Handle space, Handle object, const Vec3& vel);
+    Vec3 GetVelocity(Handle space, Handle object);
 
-    void SetAngularVelocity(Handle space, Handle object, const Vector3& angVel);
-    Vector3 GetAngularVelocity(Handle space, Handle object);
+    void SetAngularVelocity(Handle space, Handle object, const Vec3& angVel);
+    Vec3 GetAngularVelocity(Handle space, Handle object);
 
-    void SetPosition(Handle space, Handle object, const Vector3& pos);
-    Vector3 GetPosition(Handle space, Handle object);
+    void SetPosition(Handle space, Handle object, const Vec3& pos);
+    Vec3 GetPosition(Handle space, Handle object);
 
     void SetRotation(Handle space, Handle object, const Quat& rot);
     Quat GetRotation(Handle space, Handle object);
 
-    void SetScale(Handle space, Handle object, const Vector3& scale);
-    Vector3 GetScale(Handle space, Handle object);
+    void SetScale(Handle space, Handle object, const Vec3& scale);
+    Vec3 GetScale(Handle space, Handle object);
 
-    void GetAABB(Handle space, Handle object, Vector3& min, Vector3& max);
+    void GetAABB(Handle space, Handle object, Vec3& min, Vec3& max);
 
-    CastResult LineCastAll(Handle space, const Vector3& start, const Vector3& end);
+    CastResult LineCastAll(Handle space, const Vec3& start, const Vec3& end);
 
     Handle GetCube(void) { return mCubeModel; }
     Handle GetSphere(void) { return mSphereModel; }

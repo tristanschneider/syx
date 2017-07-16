@@ -58,17 +58,17 @@ namespace Syx {
 
     SphericalConstraint(PhysicsObject* a = nullptr, PhysicsObject* b = nullptr, Handle handle = SyxInvalidHandle)
       : Constraint(ConstraintType::Spherical, a, b, handle)
-      , mLinearWarmStart(Vector3::Zero)
+      , mLinearWarmStart(Vec3::Zero)
       , mAngularWarmStart{0.0f} {
     }
 
-    virtual void SetLocalAnchor(const Vector3& anchor, ConstraintObj obj) override {
+    virtual void SetLocalAnchor(const Vec3& anchor, ConstraintObj obj) override {
       if(obj == ConstraintObj::A)
         mAnchorA = anchor;
       else
         mAnchorB = anchor;
     }
-    virtual const Vector3& GetLocalAnchor(ConstraintObj obj) const override {
+    virtual const Vec3& GetLocalAnchor(ConstraintObj obj) const override {
       return obj == ConstraintObj::A ? mAnchorA : mAnchorB;
     }
     //Set swing axis given in a's local space

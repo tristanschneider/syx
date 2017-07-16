@@ -31,7 +31,7 @@ namespace Syx {
         context.mQueryPairResults.push_back({mResults[i], mResults[j]});
   }
 
-  void NoBroadphase::QueryRaycast(const Vector3&, const Vector3&, BroadphaseContext& context) const {
+  void NoBroadphase::QueryRaycast(const Vec3&, const Vec3&, BroadphaseContext& context) const {
     context.mQueryResults = mResults;
   }
 

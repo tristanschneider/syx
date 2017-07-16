@@ -76,7 +76,7 @@ namespace Syx {
   };
 }
 
-#define SVector3Vec std::vector<SFloats, AlignmentAllocator<SFloats>>
-#define Vector3Vec std::vector<Vector3, AlignmentAllocator<Vector3>>
+#define SVec3Vec std::vector<SFloats, AlignmentAllocator<SFloats>>
+#define Vec3Vec std::vector<Vec3, AlignmentAllocator<Vec3>>
 
 DISABLE_WARNING_END

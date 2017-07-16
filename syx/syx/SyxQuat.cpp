@@ -1,12 +1,12 @@
 #include "Precompile.h"
-#include "SyxQuaternion.h"
-#include "SyxMatrix3.h"
+#include "SyxQuat.h"
+#include "SyxMat3.h"
 
 namespace Syx {
   const Quat Quat::Zero(0.0f, 0.0f, 0.0f, 0.0f);
   const Quat Quat::Identity(0.0f, 0.0f, 0.0f, 1.0f);
 
-  Quat::Quat(const Vector3& v, float w): mV(v, w) {}
+  Quat::Quat(const Vec3& v, float w): mV(v, w) {}
 
   Quat::Quat(float i, float j, float k, float w) : mV(i, j, k, w) {}
 
@@ -26,7 +26,7 @@ namespace Syx {
     return *this = *this * rhs;
   }
 
-  Vector3 Quat::operator*(const Vector3& rhs) const {
+  Vec3 Quat::operator*(const Vec3& rhs) const {
     Quat temp = Quat(mV.w*rhs + mV.Cross(rhs), -mV.Dot(rhs));
     Quat neg = Inversed();
     return temp.mV.w*neg.mV + neg.mV.w*temp.mV + temp.mV.Cross(neg.mV);
@@ -76,29 +76,29 @@ namespace Syx {
     *this = Quat(-mV, mV.w);
   }
 
-  Matrix3 Quat::ToMatrix(void) const {
-    return Matrix3(1.0f - 2.0f*mV.y*mV.y - 2.0f*mV.z*mV.z, 2.0f*mV.x*mV.y - 2.0f*mV.z*mV.w, 2.0f*mV.x*mV.z + 2.0f*mV.y*mV.w,
+  Mat3 Quat::ToMatrix(void) const {
+    return Mat3(1.0f - 2.0f*mV.y*mV.y - 2.0f*mV.z*mV.z, 2.0f*mV.x*mV.y - 2.0f*mV.z*mV.w, 2.0f*mV.x*mV.z + 2.0f*mV.y*mV.w,
       2.0f*mV.x*mV.y + 2.0f*mV.z*mV.w, 1.0f - 2.0f*mV.x*mV.x - 2.0f*mV.z*mV.z, 2.0f*mV.y*mV.z - 2.0f*mV.x*mV.w,
       2.0f*mV.x*mV.z - 2.0f*mV.y*mV.w, 2.0f*mV.y*mV.z + 2.0f*mV.x*mV.w, 1.0f - 2.0f*mV.x*mV.x - 2.0f*mV.y*mV.y);
   }
 
-  Quat Quat::AxisAngle(const Vector3& axis, float angle) {
+  Quat Quat::AxisAngle(const Vec3& axis, float angle) {
     float angle2 = 0.5f*angle;
     return Quat(axis*sin(angle2), cos(angle2));
   }
 
-  Quat Quat::LookAt(const Vector3& axis) {
+  Quat Quat::LookAt(const Vec3& axis) {
     Vec3 up = std::abs(axis.y - 1.0f) < SYX_EPSILON ? Vec3::UnitZ : Vec3::UnitY;
     Vec3 right = up.Cross(axis).Normalized();
     up = axis.Cross(right);
     return LookAt(axis, up, right);
   }
 
-  Quat Quat::LookAt(const Vector3& axis, const Vector3& up) {
+  Quat Quat::LookAt(const Vec3& axis, const Vec3& up) {
     return LookAt(axis, up, up.Cross(axis));
   }
 
-  Quat Quat::LookAt(const Vector3& forward, const Vector3& up, const Vector3& right) {
+  Quat Quat::LookAt(const Vec3& forward, const Vec3& up, const Vec3& right) {
     SyxAssertError(right.Cross(up).Dot(forward) > 0.0f);
     //There's probably a better way with quaternion math, but whatever, this is easier.
     return Mat3(right, up, forward).ToQuat();
@@ -124,16 +124,16 @@ namespace Syx {
     return rhs * lhs;
   }
 
-  Vector3 Quat::GetUp(void) const {
-    return *this * Vector3::UnitY;
+  Vec3 Quat::GetUp(void) const {
+    return *this * Vec3::UnitY;
   }
 
-  Vector3 Quat::GetRight(void) const {
-    return *this * Vector3::UnitX;
+  Vec3 Quat::GetRight(void) const {
+    return *this * Vec3::UnitX;
   }
 
-  Vector3 Quat::GetForward(void) const {
-    return *this * Vector3::UnitZ;
+  Vec3 Quat::GetForward(void) const {
+    return *this * Vec3::UnitZ;
   }
 
   float Quat::GetAngle() const {

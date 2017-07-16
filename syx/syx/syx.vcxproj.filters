@@ -72,12 +72,6 @@
     <ClCompile Include="SyxMathTests.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SyxMatrix2.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="SyxMatrix3.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="SyxModel.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -105,9 +99,6 @@
     <ClCompile Include="SyxProfiler.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SyxQuaternion.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="SyxRevoluteConstraint.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -115,9 +106,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="SyxSimplex.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="SyxSMatrix3.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="SyxSpace.cpp">
@@ -129,25 +117,40 @@
     <ClCompile Include="SyxSphericalConstraint.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SyxSQuaternion.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="SyxSupportTri.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="SyxSVector3.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="SyxTransform.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SyxVector2.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="SyxVector3.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="SyxWeldConstraint.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SyxMat4.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SyxVec3.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SyxMat3.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SyxMat2.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SyxQuat.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SyxSMat3.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SyxSQuat.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SyxSVec3.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SyxVec2.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -245,12 +248,6 @@
     <ClInclude Include="SyxMathTests.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="SyxMatrix2.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="SyxMatrix3.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="SyxModel.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -278,9 +275,6 @@
     <ClInclude Include="SyxProfiler.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="SyxQuaternion.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="SyxRevoluteConstraint.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -299,9 +293,6 @@
     <ClInclude Include="SyxSmallIndexSet.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="SyxSMatrix3.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="SyxSpace.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -311,16 +302,10 @@
     <ClInclude Include="SyxSphericalConstraint.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="SyxSQuaternion.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="SyxStaticIndexable.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="SyxSupportTri.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="SyxSVector3.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="SyxTestHelpers.h">
@@ -329,16 +314,37 @@
     <ClInclude Include="SyxTransform.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="SyxVector2.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="SyxVector3.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="SyxWeldConstraint.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Precompile.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="SyxMat4.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="SyxVec3.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="SyxMat3.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="SyxMat2.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="SyxQuat.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="SyxSMat3.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="SyxSQuat.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="SyxSVec3.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="SyxVec2.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

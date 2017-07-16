@@ -13,14 +13,14 @@ namespace Syx {
     return true;
   }
 
-  bool Simplex::Contains(const Vector3& support) const {
+  bool Simplex::Contains(const Vec3& support) const {
     for(size_t i = 0; i < mSize; ++i)
       if(mSupports[i].mSupport == support)
         return true;
     return false;
   }
 
-  Vector3 Simplex::Solve(void) {
+  Vec3 Simplex::Solve(void) {
     mContainsOrigin = false;
     switch(mSize) {
       case 1: return -mSupports[0].mSupport;
@@ -30,7 +30,7 @@ namespace Syx {
     }
 
     SyxAssertError(false, "Nonsense simplex size");
-    return Vector3::Zero;
+    return Vec3::Zero;
   }
 
   void Simplex::Discard(int id) {
@@ -54,21 +54,21 @@ namespace Syx {
   }
 
   void Simplex::FixWinding(void) {
-    Vector3 normal = TriangleNormal(Get(SupportID::A), Get(SupportID::B), Get(SupportID::C));
+    Vec3 normal = TriangleNormal(Get(SupportID::A), Get(SupportID::B), Get(SupportID::C));
     float dot = normal.Dot(-Get(SupportID::A));
     if(dot > 0.0f)
       std::swap(GetSupport(SupportID::B), GetSupport(SupportID::C));
   }
 
-  Vector3 Simplex::SolveLine(void) {
-    const Vector3& a = Get(SupportID::A);
-    const Vector3& b = Get(SupportID::B);
-    Vector3 bToA = a - b;
-    Vector3 bToO = -b;
+  Vec3 Simplex::SolveLine(void) {
+    const Vec3& a = Get(SupportID::A);
+    const Vec3& b = Get(SupportID::B);
+    Vec3 bToA = a - b;
+    Vec3 bToO = -b;
     float bToALen = bToA.Length2();
     if(std::abs(bToALen) < SYX_EPSILON) {
       mDegenerate = true;
-      return Vector3::Zero;
+      return Vec3::Zero;
     }
 
     float t = bToO.Dot(bToA)/bToALen;
@@ -82,29 +82,29 @@ namespace Syx {
       Discard(SupportID::B);
     }
 
-    Vector3 toOrigin = bToO - t*bToA;
-    if(toOrigin == Vector3::Zero) {
+    Vec3 toOrigin = bToO - t*bToA;
+    if(toOrigin == Vec3::Zero) {
       mContainsOrigin = true;
-      return Vector3::Zero;
+      return Vec3::Zero;
     }
 
     return toOrigin;
   }
 
-  Vector3 Simplex::SolveTriangle(void) {
+  Vec3 Simplex::SolveTriangle(void) {
     //Came from ab, so don't need to check that side
-    const Vector3& a = Get(SupportID::A);
-    const Vector3& b = Get(SupportID::B);
-    const Vector3& c = Get(SupportID::C);
+    const Vec3& a = Get(SupportID::A);
+    const Vec3& b = Get(SupportID::B);
+    const Vec3& c = Get(SupportID::C);
 
-    Vector3 aToB = b - a;
-    Vector3 aToC = c - a;
-    Vector3 aToO = -a;
+    Vec3 aToB = b - a;
+    Vec3 aToC = c - a;
+    Vec3 aToO = -a;
     //Result signed areas are (bcp, cap, abp)
-    Vector3 bary = PointToBarycentric(aToB, aToC, aToO);
-    if(bary == Vector3::Zero) {
+    Vec3 bary = PointToBarycentric(aToB, aToC, aToO);
+    if(bary == Vec3::Zero) {
       mDegenerate = true;
-      return Vector3::Zero;
+      return Vec3::Zero;
     }
 
     if(bary.x <= 0.0f) {
@@ -120,14 +120,14 @@ namespace Syx {
       return SolveLine();
     }
 
-    Vector3 closestToOrigin = BarycentricToPoint(a, b, c, bary);
+    Vec3 closestToOrigin = BarycentricToPoint(a, b, c, bary);
     if(closestToOrigin.Length2() < SYX_EPSILON2) {
       mContainsOrigin = true;
-      return Vector3::Zero;
+      return Vec3::Zero;
     }
 
     //Point is within triangle, verify winding
-    Vector3 normal = aToB.Cross(aToC);
+    Vec3 normal = aToB.Cross(aToC);
     if(aToO.Dot(normal) > 0.0f)
       std::swap(GetSupport(SupportID::A), GetSupport(SupportID::B));
     return -closestToOrigin;
@@ -144,7 +144,7 @@ namespace Syx {
   // | C
   // |/   D
   // A
-  Vector3 Simplex::SolveTetrahedron(void) {
+  Vec3 Simplex::SolveTetrahedron(void) {
     //They all need to have D as their last index, because that's the one vertex region it could be in front of
     //bad, cbd, acd
     const TriI tris[3] = {TriI(SupportID::B, SupportID::A, SupportID::D, SupportID::C),
@@ -154,19 +154,19 @@ namespace Syx {
     int inFrontDiscard = -1;
     for(int i = 0; i < 3; ++i) {
       const TriI& tri = tris[i];
-      const Vector3& a = Get(tri.a);
-      const Vector3& b = Get(tri.b);
-      const Vector3& c = Get(tri.c);
+      const Vec3& a = Get(tri.a);
+      const Vec3& b = Get(tri.b);
+      const Vec3& c = Get(tri.c);
 
       //If I adjust the traversal order properly, the neighboring edge calculations can be saved, but that's nitpicking
-      Vector3 cToA = a - c;
-      Vector3 cToB = b - c;
-      Vector3 cToO = -c;
-      Vector3 triNormal = cToA.Cross(cToB);
+      Vec3 cToA = a - c;
+      Vec3 cToB = b - c;
+      Vec3 cToO = -c;
+      Vec3 triNormal = cToA.Cross(cToB);
 
-      if(triNormal == Vector3::Zero) {
+      if(triNormal == Vec3::Zero) {
         mDegenerate = true;
-        return Vector3::Zero;
+        return Vec3::Zero;
       }
 
       //If the origin is behind this face, keep going
@@ -174,7 +174,7 @@ namespace Syx {
         inFrontDiscard = tri.unused;
 
         //We can only safely discard if triangle contains origin, otherwise we risk destroying triangle that does contain origin
-        Vector3 bary = PointToBarycentric(cToA, cToB, cToO);
+        Vec3 bary = PointToBarycentric(cToA, cToB, cToO);
         if(bary.x >= 0.0f && bary.y >= 0.0f && bary.z >= 0.0f) {
           Discard(inFrontDiscard);
           return SolveTriangle();
@@ -190,20 +190,20 @@ namespace Syx {
 
     //Not in front of any faces, so must be inside
     mContainsOrigin = true;
-    return Vector3::Zero;
+    return Vec3::Zero;
   }
 
-  void Simplex::Draw(const Vector3& searchDir) {
+  void Simplex::Draw(const Vec3& searchDir) {
     DebugDrawer& dd = DebugDrawer::Get();
-    const Vector3& a = Get(SupportID::A);
-    const Vector3& b = Get(SupportID::B);
-    const Vector3& c = Get(SupportID::C);
-    const Vector3& d = Get(SupportID::D);
+    const Vec3& a = Get(SupportID::A);
+    const Vec3& b = Get(SupportID::B);
+    const Vec3& c = Get(SupportID::C);
+    const Vec3& d = Get(SupportID::D);
 
     dd.SetColor(1.0f, 0.0f, 0.0f);
     float pSize = 0.1f;
-    dd.DrawSphere(Vector3::Zero, pSize, Vector3::UnitX, Vector3::UnitY);
-    dd.DrawVector(Vector3::Zero, searchDir);
+    dd.DrawSphere(Vec3::Zero, pSize, Vec3::UnitX, Vec3::UnitY);
+    dd.DrawVector(Vec3::Zero, searchDir);
 
     dd.SetColor(0.0f, 1.0f, 0.0f);
     switch(mSize) {
@@ -234,7 +234,7 @@ namespace Syx {
     }
   }
 
-  bool Simplex::MakesProgress(const Vector3& newPoint, const Vector3& searchDir) const {
+  bool Simplex::MakesProgress(const Vec3& newPoint, const Vec3& searchDir) const {
     float newDot = newPoint.Dot(searchDir);
     for(size_t i = 0; i < mSize; ++i)
       if(mSupports[i].mSupport.Dot(searchDir) >= newDot)
@@ -244,10 +244,10 @@ namespace Syx {
 
   void Simplex::GrowToFourPoints(Narrowphase& narrow) {
     //Possible directions to look for support points
-    static SAlign Vector3 searchDirs[] =
+    static SAlign Vec3 searchDirs[] =
     {
-      Vector3::UnitX, Vector3::UnitY, Vector3::UnitZ,
-      -Vector3::UnitX, -Vector3::UnitY, -Vector3::UnitZ,
+      Vec3::UnitX, Vec3::UnitY, Vec3::UnitZ,
+      -Vec3::UnitX, -Vec3::UnitY, -Vec3::UnitZ,
     };
 
     //Intentional fall through cases
@@ -258,10 +258,10 @@ namespace Syx {
 
       case 0:
         //Arbitrary direction. Doesn't matter since there are no others for it to be a duplicate of
-        Add(narrow.GetSupport(Vector3::UnitY), false);
+        Add(narrow.GetSupport(Vec3::UnitY), false);
 
       case 1:
-        for(Vector3& curDir : searchDirs) {
+        for(Vec3& curDir : searchDirs) {
           SupportPoint curPoint = narrow.GetSupport(curDir);
           if(curPoint.mSupport.Distance2(mSupports[0].mSupport) > SYX_EPSILON) {
             Add(curPoint, false);
@@ -272,9 +272,9 @@ namespace Syx {
       case 2:
       {
         //Get closest point to origin on line segment
-        Vector3 lineSeg = (mSupports[1].mSupport - mSupports[0].mSupport).SafeNormalized();
+        Vec3 lineSeg = (mSupports[1].mSupport - mSupports[0].mSupport).SafeNormalized();
         int leastSignificantAxis = lineSeg.LeastSignificantAxis();
-        SAlign Vector3 searchDir = lineSeg.Cross(searchDirs[leastSignificantAxis]);
+        SAlign Vec3 searchDir = lineSeg.Cross(searchDirs[leastSignificantAxis]);
         //Matrix would be a bit faster, but I don't imagine this case comes
         //up often enough for it to matter
         Quat rot = Quat::AxisAngle(lineSeg, 3.14f/3.0f);
@@ -282,7 +282,7 @@ namespace Syx {
 
         for(unsigned i = 0; i < 6; ++i) {
           SupportPoint curPoint = narrow.GetSupport(searchDir);
-          if(Vector3::PointLineDistanceSQ(curPoint.mSupport, mSupports[0].mSupport, mSupports[1].mSupport) > SYX_EPSILON) {
+          if(Vec3::PointLineDistanceSQ(curPoint.mSupport, mSupports[0].mSupport, mSupports[1].mSupport) > SYX_EPSILON) {
             newPoint = curPoint;
             break;
           }
@@ -293,7 +293,7 @@ namespace Syx {
       }
       case 3:
       {
-        SAlign Vector3 searchDir = TriangleNormal(mSupports[2].mSupport,
+        SAlign Vec3 searchDir = TriangleNormal(mSupports[2].mSupport,
           mSupports[1].mSupport, mSupports[0].mSupport);
 
         SupportPoint newPoint = narrow.GetSupport(searchDir);
@@ -301,7 +301,7 @@ namespace Syx {
         for(unsigned i = 0; i < 3; ++i)
           if(mSupports[i].mSupport == newPoint.mSupport) {
             //For flat shapes this could still result in a duplicate, but we can't do anything better from here
-            SAlign Vector3 negDir = -searchDir;
+            SAlign Vec3 negDir = -searchDir;
             newPoint = narrow.GetSupport(negDir);
             break;
           }
@@ -311,10 +311,10 @@ namespace Syx {
     }
 
     //Fix winding
-    Vector3 v30 = mSupports[0].mSupport - mSupports[3].mSupport;
-    Vector3 v31 = mSupports[1].mSupport - mSupports[3].mSupport;
-    Vector3 v32 = mSupports[2].mSupport - mSupports[3].mSupport;
-    float det = Vector3::Dot(v30, Vector3::Cross(v31, v32));
+    Vec3 v30 = mSupports[0].mSupport - mSupports[3].mSupport;
+    Vec3 v31 = mSupports[1].mSupport - mSupports[3].mSupport;
+    Vec3 v32 = mSupports[2].mSupport - mSupports[3].mSupport;
+    float det = Vec3::Dot(v30, Vec3::Cross(v31, v32));
     if(det <= 0.0f)
       std::swap(mSupports[0], mSupports[1]);
   }
@@ -324,16 +324,16 @@ namespace Syx {
     mCheckDirection = false;
     SFloats result;
     switch(mSize) {
-      case 1: result = SVector3::Neg(SLoadAll(&mSupports[0].mSupport.x)); break;
+      case 1: result = SVec3::Neg(SLoadAll(&mSupports[0].mSupport.x)); break;
       case 2: result = SSolveLine(); break;
       case 3: result = SSolveTriangle(); break;
       case 4: result = SSolveTetrahedron(); break;
       default: SyxAssertError(false, "Invalid state encountered in GJK");
-        return SVector3::Zero;
+        return SVec3::Zero;
     }
 
     if(mCheckDirection)
-      mContainsOrigin = SVector3::Get(SVector3::Equal(result, SVector3::Zero), 0) != 0.0f;
+      mContainsOrigin = SVec3::Get(SVec3::Equal(result, SVec3::Zero), 0) != 0.0f;
     return result;
   }
 
@@ -343,23 +343,23 @@ namespace Syx {
     SFloats b = SLoadAll(&Get(SupportID::B).x);
 
     SFloats aToB = SSubAll(b, a);
-    SFloats aToO = SVector3::Neg(a);
+    SFloats aToO = SVec3::Neg(a);
 
-    SFloats ab2 = SVector3::Dot(aToB, aToB);
-    if(SILessLower(ab2, SVector3::Epsilon)) {
+    SFloats ab2 = SVec3::Dot(aToB, aToB);
+    if(SILessLower(ab2, SVec3::Epsilon)) {
       mDegenerate = true;
-      return SVector3::Zero;
+      return SVec3::Zero;
     }
-    SFloats proj = SDivAll(SVector3::Dot(aToO, aToB), ab2);
+    SFloats proj = SDivAll(SVec3::Dot(aToO, aToB), ab2);
 
     //This scalar is 0-1 if within the line segment, otherwise greater than one.
     //It can't be less because we came from B, so we know the origin must be in this direction
-    proj = SMinAll(proj, SVector3::Identity);
+    proj = SMinAll(proj, SVec3::Identity);
     //Origin's clamped projection on the line to the origin.
-    SFloats result = SVector3::Neg(SAddAll(a, SMulAll(aToB, proj)));
+    SFloats result = SVec3::Neg(SAddAll(a, SMulAll(aToB, proj)));
 
     //Store the result of the projection and the equality so they can both be checked in one unload instead of two
-    proj = SShuffle2(proj, SVector3::Equal(result, SVector3::Zero), 0, 0, 0, 0);
+    proj = SShuffle2(proj, SVec3::Equal(result, SVec3::Zero), 0, 0, 0, 0);
 
     SAlign float unloaded[4];
     SStoreAll(unloaded, proj);
@@ -380,8 +380,8 @@ namespace Syx {
     SFloats c = SLoadAll(&Get(SupportID::B).x);
     SFloats aToC = SSubAll(c, a);
     SFloats aToB = SSubAll(b, a);
-    SFloats normal = SVector3::Cross(aToB, aToC);
-    SFloats aToO = SVector3::Neg(a);
+    SFloats normal = SVec3::Cross(aToB, aToC);
+    SFloats aToO = SVec3::Neg(a);
     int resultRegion = 0;
     SFloats result = SSolveTriangle(aToC, aToB, aToO, normal, a, b, c, resultRegion, true);
 
@@ -407,48 +407,48 @@ namespace Syx {
   SFloats Simplex::SSolveTriangle(const SFloats& aToC, const SFloats& aToB, const SFloats& aToO, const SFloats& normal,
     const SFloats& a, const SFloats& b, const SFloats& c,
     int& resultRegion, bool checkWinding) {
-    if(SVector3::Get(SVector3::Equal(normal, SVector3::Zero), 0)) {
+    if(SVec3::Get(SVec3::Equal(normal, SVec3::Zero), 0)) {
       mDegenerate = true;
       resultRegion = SRegion::FaceAwayO;
-      return SVector3::Zero;
+      return SVec3::Zero;
     }
     //We came from the ab line, so possible regions are vertex c, line ca,
     //line cb, and in the triangle
     //Using a,b,c as they were used in the book, so line bc becomes where we came from
-    SFloats d1 = SVector3::Dot(aToB, aToO);
-    SFloats d2 = SVector3::Dot(aToC, aToO);
+    SFloats d1 = SVec3::Dot(aToB, aToO);
+    SFloats d2 = SVec3::Dot(aToC, aToO);
 
     //if(d1 <= 0 && d2 <= 0)
-    SFloats aRegion = SAnd(SLessEqualAll(d1, SVector3::Zero), SLessEqualAll(d2, SVector3::Zero));
+    SFloats aRegion = SAnd(SLessEqualAll(d1, SVec3::Zero), SLessEqualAll(d2, SVec3::Zero));
 
     mCheckDirection = true;
-    SFloats bToO = SVector3::Neg(b);
-    SFloats cToO = SVector3::Neg(c);
-    SFloats d3 = SVector3::Dot(aToB, bToO);
-    SFloats d4 = SVector3::Dot(aToC, bToO);
-    SFloats d5 = SVector3::Dot(aToB, cToO);
-    SFloats d6 = SVector3::Dot(aToC, cToO);
+    SFloats bToO = SVec3::Neg(b);
+    SFloats cToO = SVec3::Neg(c);
+    SFloats d3 = SVec3::Dot(aToB, bToO);
+    SFloats d4 = SVec3::Dot(aToC, bToO);
+    SFloats d5 = SVec3::Dot(aToB, cToO);
+    SFloats d6 = SVec3::Dot(aToC, cToO);
 
     //Can probably computed acRegion and abRegion at the same time
     //Can probably compute va and vb at the same time
     SFloats vb = SSubAll(SMulAll(d5, d2), SMulAll(d1, d6));
     //if(vb <= 0 && d2 >= 0 && d6 <= 0)
     SFloats acRegion = SAnd(
-      SAnd(SLessEqualAll(vb, SVector3::Zero), SGreaterEqualAll(d2, SVector3::Zero)),
-      SLessEqualAll(d6, SVector3::Zero));
+      SAnd(SLessEqualAll(vb, SVec3::Zero), SGreaterEqualAll(d2, SVec3::Zero)),
+      SLessEqualAll(d6, SVec3::Zero));
 
     SFloats vc = SSubAll(SMulAll(d1, d4), SMulAll(d3, d2));
     //if(vc <= 0 && d1 >= 0 && d3 <= 0)
     SFloats abRegion = SAnd(
-      SAnd(SLessEqualAll(vc, SVector3::Zero), SGreaterEqualAll(d1, SVector3::Zero)),
-      SLessEqualAll(d3, SVector3::Zero));
+      SAnd(SLessEqualAll(vc, SVec3::Zero), SGreaterEqualAll(d1, SVec3::Zero)),
+      SLessEqualAll(d3, SVec3::Zero));
 
     SFloats combined;
     if(!checkWinding)
       combined = SCombine(aRegion, acRegion, abRegion);
     else {
       //Is the normal pointing towards the origin
-      SFloats isNToO = SGreaterAll(SVector3::Dot(normal, aToO), SVector3::Zero);
+      SFloats isNToO = SGreaterAll(SVec3::Dot(normal, aToO), SVec3::Zero);
       combined = SCombine(aRegion, acRegion, abRegion, isNToO);
     }
     SAlign float a_ac_ab_n[4];
@@ -463,18 +463,18 @@ namespace Syx {
     if(a_ac_ab_n[1]) {
       resultRegion = SRegion::AC;
       SFloats w = SDivAll(d2, SSubAll(d2, d6));
-      return  SVector3::Neg(SAddAll(a, SMulAll(w, aToC)));
+      return  SVec3::Neg(SAddAll(a, SMulAll(w, aToC)));
     }
     //In front of ab line
     if(a_ac_ab_n[2]) {
       resultRegion = SRegion::AB;
       SFloats v = SDivAll(d1, SSubAll(d1, d3));
-      return SVector3::Neg(SAddAll(a, SMulAll(v, aToB)));
+      return SVec3::Neg(SAddAll(a, SMulAll(v, aToB)));
     }
-    if(SILessLower(SAbsAll(SVector3::Dot(normal, aToO)), SVector3::Epsilon)) {
+    if(SILessLower(SAbsAll(SVec3::Dot(normal, aToO)), SVec3::Epsilon)) {
       mContainsOrigin = true;
       resultRegion = SRegion::FaceAwayO;
-      return SVector3::Zero;
+      return SVec3::Zero;
     }
     if(!checkWinding) {
       resultRegion = SRegion::Face;
@@ -487,7 +487,7 @@ namespace Syx {
     }
     //Normal facing away from origin
     resultRegion = SRegion::FaceAwayO;
-    return SVector3::Neg(normal);
+    return SVec3::Neg(normal);
   }
 
   SFloats Simplex::SSolveTetrahedron(void) {
@@ -499,19 +499,19 @@ namespace Syx {
     //Dot with all faces to figure out which the origin is in front of
     SFloats bToD = SSubAll(d, b);
     SFloats bToA = SSubAll(a, b);
-    SFloats bToO = SVector3::Neg(b);
-    SFloats badNorm = SVector3::Cross(bToA, bToD);
-    SFloats adbRegion = SVector3::Dot(badNorm, bToO);
+    SFloats bToO = SVec3::Neg(b);
+    SFloats badNorm = SVec3::Cross(bToA, bToD);
+    SFloats adbRegion = SVec3::Dot(badNorm, bToO);
 
     SFloats bToC = SSubAll(c, b);
-    SFloats bdcNorm = SVector3::Cross(bToD, bToC);
-    SFloats bdcRegion = SVector3::Dot(bdcNorm, bToO);
+    SFloats bdcNorm = SVec3::Cross(bToD, bToC);
+    SFloats bdcRegion = SVec3::Dot(bdcNorm, bToO);
 
     SFloats aToC = SSubAll(c, a);
     SFloats aToD = SSubAll(d, a);
-    SFloats aToO = SVector3::Neg(a);
-    SFloats acdNorm = SVector3::Cross(aToC, aToD);
-    SFloats acdRegion = SVector3::Dot(acdNorm, aToO);
+    SFloats aToO = SVec3::Neg(a);
+    SFloats acdNorm = SVec3::Cross(aToC, aToD);
+    SFloats acdRegion = SVec3::Dot(acdNorm, aToO);
 
     SFloats combined = SCombine(bdcRegion, acdRegion, adbRegion);
     SAlign float bdc_acd_adb[4];
@@ -541,7 +541,7 @@ namespace Syx {
       //Not in front of any face. Collision.
       mContainsOrigin = true;
       mCheckDirection = false;
-      result = SVector3::Zero;
+      result = SVec3::Zero;
     }
 
     return result;
@@ -554,7 +554,7 @@ namespace Syx {
     SFloats pointC = SLoadAll(&Get(c).x);
     int region;
     //Could go back and reorder region tests so these don't need to be computed, just re-used
-    SFloats result = SSolveTriangle(SSubAll(pointC, pointA), SSubAll(pointB, pointA), SVector3::Neg(pointA), norm, pointA, pointB, pointC, region, false);
+    SFloats result = SSolveTriangle(SSubAll(pointC, pointA), SSubAll(pointB, pointA), SVec3::Neg(pointA), norm, pointA, pointB, pointC, region, false);
     SDiscardTetrahedron(a, b, c, d, region);
     return result;
   }
@@ -569,8 +569,8 @@ namespace Syx {
 
     int abcReg, adbReg;
     SFloats abcResult, adbResult, result;
-    abcResult = SSolveTriangle(SSubAll(pointC, pointA), SSubAll(pointB, pointA), SVector3::Neg(pointA), abcNorm, pointA, pointB, pointC, abcReg, false);
-    adbResult = SSolveTriangle(SSubAll(pointB, pointA), SSubAll(pointD, pointA), SVector3::Neg(pointA), adbNorm, pointA, pointD, pointB, adbReg, false);
+    abcResult = SSolveTriangle(SSubAll(pointC, pointA), SSubAll(pointB, pointA), SVec3::Neg(pointA), abcNorm, pointA, pointB, pointC, abcReg, false);
+    adbResult = SSolveTriangle(SSubAll(pointB, pointA), SSubAll(pointD, pointA), SVec3::Neg(pointA), adbNorm, pointA, pointD, pointB, adbReg, false);
     if(abcReg == SRegion::Face) {
       result = abcResult;
       SDiscardTetrahedron(a, b, c, d, abcReg);
@@ -595,9 +595,9 @@ namespace Syx {
     int bdcReg, acdReg, adbReg;
     SFloats bdcResult, acdResult, adbResult, result;
     //Should go back and reorder region tests so these don't need to be computed, just re-used
-    bdcResult = SSolveTriangle(SSubAll(b, d), SSubAll(c, d), SVector3::Neg(d), bdcNorm, d, c, b, bdcReg, false);
-    acdResult = SSolveTriangle(SSubAll(c, d), SSubAll(a, d), SVector3::Neg(d), acdNorm, d, a, c, acdReg, false);
-    adbResult = SSolveTriangle(SSubAll(a, d), SSubAll(b, d), SVector3::Neg(d), badNorm, d, b, a, adbReg, false);
+    bdcResult = SSolveTriangle(SSubAll(b, d), SSubAll(c, d), SVec3::Neg(d), bdcNorm, d, c, b, bdcReg, false);
+    acdResult = SSolveTriangle(SSubAll(c, d), SSubAll(a, d), SVec3::Neg(d), acdNorm, d, a, c, acdReg, false);
+    adbResult = SSolveTriangle(SSubAll(a, d), SSubAll(b, d), SVec3::Neg(d), badNorm, d, b, a, adbReg, false);
     if(bdcReg == SRegion::Face) {
       result = bdcResult;
       SDiscardTetrahedron(SupportID::D, SupportID::C, SupportID::B, SupportID::A, bdcReg);
@@ -642,9 +642,9 @@ namespace Syx {
         SFloats a = SLoadAll(&Get(SupportID::A).x);
         SFloats b = SLoadAll(&Get(SupportID::B).x);
         SFloats c = SLoadAll(&Get(SupportID::C).x);
-        SFloats n = SVector3::Cross(SSubAll(b, a), SSubAll(c, a));
-        SFloats nLen = SVector3::Dot(n, n);
-        return SILessLower(nLen, SVector3::Epsilon) != 0;
+        SFloats n = SVec3::Cross(SSubAll(b, a), SSubAll(c, a));
+        SFloats nLen = SVec3::Dot(n, n);
+        return SILessLower(nLen, SVec3::Epsilon) != 0;
       }
       case 4:
         //Get abc normal and find distance along normal to d. If this is zero then this is degenerate, either because the normal is zero or distance is zero
@@ -652,9 +652,9 @@ namespace Syx {
         SFloats b = SLoadAll(&Get(SupportID::B).x);
         SFloats c = SLoadAll(&Get(SupportID::C).x);
         SFloats d = SLoadAll(&Get(SupportID::D).x);
-        SFloats n = SVector3::Cross(SSubAll(b, a), SSubAll(c, a));
-        SFloats dDist = SAbsAll(SVector3::Dot(n, d));
-        return SILessLower(dDist, SVector3::Epsilon) != 0;
+        SFloats n = SVec3::Cross(SSubAll(b, a), SSubAll(c, a));
+        SFloats dDist = SAbsAll(SVec3::Dot(n, d));
+        return SILessLower(dDist, SVec3::Epsilon) != 0;
     }
 
     //Doesn't matter, shouldn't happen
@@ -664,26 +664,26 @@ namespace Syx {
   bool Simplex::SMakesProgress(SFloats newPoint, SFloats searchDir) {
     if(!mSize)
       return true;
-    SFloats newDot = SVector3::Dot(searchDir, newPoint);
-    SFloats bestDot = SVector3::Dot(searchDir, SLoadAll(&Get(SupportID::A).x));
+    SFloats newDot = SVec3::Dot(searchDir, newPoint);
+    SFloats bestDot = SVec3::Dot(searchDir, SLoadAll(&Get(SupportID::A).x));
     //Store the biggest  dot product in bestDot[0]
     for(size_t i = 1; i < mSize; ++i)
-      bestDot = SMaxLower(bestDot, SVector3::Dot(searchDir, SLoadAll(&Get(i).x)));
+      bestDot = SMaxLower(bestDot, SVec3::Dot(searchDir, SLoadAll(&Get(i).x)));
 
     //If new value is greatest dot product, this is progress
     return SIGreaterLower(newDot, bestDot) != 0;
   }
 
 #else
-  SFloats Simplex::SSolve(void) { return SVector3::Zero; }
-  SFloats Simplex::SSolveLine(void) { return SVector3::Zero; }
-  SFloats Simplex::SSolveTriangle(void) { return SVector3::Zero; }
-  SFloats Simplex::SSolveTriangle(const SFloats&, const SFloats&, const SFloats&, const SFloats&, const SFloats&, const SFloats&, const SFloats&, int&, bool) { return SVector3::Zero; }
-  SFloats Simplex::SSolveTetrahedron(void) { return SVector3::Zero; }
+  SFloats Simplex::SSolve(void) { return SVec3::Zero; }
+  SFloats Simplex::SSolveLine(void) { return SVec3::Zero; }
+  SFloats Simplex::SSolveTriangle(void) { return SVec3::Zero; }
+  SFloats Simplex::SSolveTriangle(const SFloats&, const SFloats&, const SFloats&, const SFloats&, const SFloats&, const SFloats&, const SFloats&, int&, bool) { return SVec3::Zero; }
+  SFloats Simplex::SSolveTetrahedron(void) { return SVec3::Zero; }
   void Simplex::SDiscardTetrahedron(int, int, int, int, int) {}
-  SFloats Simplex::SOneTriCase(int, int, int, int, const SFloats&) { return SVector3::Zero; }
-  SFloats Simplex::STwoTriCase(int, int, int, int, const SFloats&, const SFloats&) { return SVector3::Zero; }
-  SFloats Simplex::SThreeTriCase(const SFloats&, const SFloats&, const SFloats&) { return SVector3::Zero; }
+  SFloats Simplex::SOneTriCase(int, int, int, int, const SFloats&) { return SVec3::Zero; }
+  SFloats Simplex::STwoTriCase(int, int, int, int, const SFloats&, const SFloats&) { return SVec3::Zero; }
+  SFloats Simplex::SThreeTriCase(const SFloats&, const SFloats&, const SFloats&) { return SVec3::Zero; }
   bool Simplex::SIsDegenerate(void) { return false; }
 #endif
 }

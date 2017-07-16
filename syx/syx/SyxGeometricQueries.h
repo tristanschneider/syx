@@ -1,15 +1,15 @@
 #pragma once
 
 namespace Syx {
-  struct Vector3;
+  struct Vec3;
   //CCW ABC is assumed to be pointing outwards
-  Vector3 ClosestOnTetrahedron(const Vector3& a, const Vector3& b, const Vector3& c, const Vector3& d, const Vector3& point);
-  Vector3 ClosestOnRay(const Vector3& p, const Vector3& a, const Vector3& b);
-  Vector3 ClosestOnLine(const Vector3& p, const Vector3& a, const Vector3& b);
-  Vector3 ClosestOnTri(const Vector3& p, const Vector3& a, const Vector3& b, const Vector3& c, float* resultS = nullptr, float* resultT = nullptr, bool* clamped = nullptr);
-  Vector3 ClosestOnTriFromEdges(const Vector3& triA, const Vector3& pToA, const Vector3& aToB, const Vector3& aToC, float* resultABT = nullptr, float* resultACT = nullptr, bool* clamped = nullptr);
-  float PointRayDist2(const Vector3& p, const Vector3& a, const Vector3& b);
-  float PointLineDist2(const Vector3& p, const Vector3& a, const Vector3& b);
-  void ClosestOnRays(const Vector3& aStart, const Vector3& aDir, const Vector3& bStart, const Vector3& bDir, float& ta, float& tb);
-  float TriangleLineIntersect(const Vector3& a, const Vector3& b, const Vector3& c, const Vector3& start, const Vector3& end);
+  Vec3 ClosestOnTetrahedron(const Vec3& a, const Vec3& b, const Vec3& c, const Vec3& d, const Vec3& point);
+  Vec3 ClosestOnRay(const Vec3& p, const Vec3& a, const Vec3& b);
+  Vec3 ClosestOnLine(const Vec3& p, const Vec3& a, const Vec3& b);
+  Vec3 ClosestOnTri(const Vec3& p, const Vec3& a, const Vec3& b, const Vec3& c, float* resultS = nullptr, float* resultT = nullptr, bool* clamped = nullptr);
+  Vec3 ClosestOnTriFromEdges(const Vec3& triA, const Vec3& pToA, const Vec3& aToB, const Vec3& aToC, float* resultABT = nullptr, float* resultACT = nullptr, bool* clamped = nullptr);
+  float PointRayDist2(const Vec3& p, const Vec3& a, const Vec3& b);
+  float PointLineDist2(const Vec3& p, const Vec3& a, const Vec3& b);
+  void ClosestOnRays(const Vec3& aStart, const Vec3& aDir, const Vec3& bStart, const Vec3& bDir, float& ta, float& tb);
+  float TriangleLineIntersect(const Vec3& a, const Vec3& b, const Vec3& c, const Vec3& start, const Vec3& end);
 }

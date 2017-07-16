@@ -12,14 +12,14 @@ namespace Syx {
     ModelParam();
 
     void Reserve(size_t size);
-    void AddVertex(const Vector3& v);
+    void AddVertex(const Vec3& v);
     void AddTriangle(size_t a, size_t b, size_t c);
     Model ToModel(void) const;
     void SetEnvironment(bool isEnvironment);
 
   private:
-    Vector3Vec mPoints;
-    Vector3Vec mTriangles;
+    Vec3Vec mPoints;
+    Vec3Vec mTriangles;
     bool mEnvironment;
   };
 

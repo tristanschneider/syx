@@ -2,7 +2,7 @@
 #include <string>
 
 namespace Syx {
-  struct Vector3;
+  struct Vec3;
 
   struct SyxOptions {
     enum SIMD {
@@ -39,13 +39,13 @@ namespace Syx {
     SyxOptions GetOptions(void);
 
     void SetColor(float r, float g, float b);
-    void DrawLine(const Vector3& start, const Vector3& end);
-    void DrawVector(const Vector3& start, const Vector3& direction);
-    void DrawSphere(const Vector3& center, float radius, const Vector3& right, const Vector3& up);
+    void DrawLine(const Vec3& start, const Vec3& end);
+    void DrawVector(const Vec3& start, const Vec3& direction);
+    void DrawSphere(const Vec3& center, float radius, const Vec3& right, const Vec3& up);
     // Size is whole size, not half size
-    void DrawCube(const Vector3& center, const Vector3& size, const Vector3& right, const Vector3& up);
+    void DrawCube(const Vec3& center, const Vec3& size, const Vec3& right, const Vec3& up);
     // Simple representation of a point, like a cross where size is the length from one side to the other
-    void DrawPoint(const Vector3& point, float size);
+    void DrawPoint(const Vec3& point, float size);
 
     // 16 byte aligned
     void* AllocAligned(size_t size);

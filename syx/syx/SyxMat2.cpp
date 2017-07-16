@@ -1,4 +1,4 @@
-#include "SyxMatrix2.h"
+#include "SyxMat2.h"
 #include <cmath>
 
 namespace Syx {

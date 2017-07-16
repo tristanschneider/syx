@@ -6,41 +6,41 @@ namespace Syx {
 #ifdef SENABLED
   struct STransformer {
     STransformer(void) {}
-    STransformer(const SMatrix3& scaleRot, SFloats pos): mScaleRot(scaleRot), mPos(pos) {}
+    STransformer(const SMat3& scaleRot, SFloats pos): mScaleRot(scaleRot), mPos(pos) {}
 
     SFloats TransformPoint(SFloats point);
     SFloats TransformVector(SFloats vector);
 
-    SMatrix3 mScaleRot;
+    SMat3 mScaleRot;
     SFloats mPos;
   };
 #endif
 
   SAlign struct Transformer {
     Transformer(void) {}
-    Transformer(const Matrix3& scaleRot, const Vector3& pos): mScaleRot(scaleRot), mPos(pos) {}
+    Transformer(const Mat3& scaleRot, const Vec3& pos): mScaleRot(scaleRot), mPos(pos) {}
 
     // Returns a transformer that will result in transforming by first then second
     static Transformer Combined(const Transformer& first, const Transformer& second);
 
-    Vector3 TransformPoint(const Vector3& point) const;
-    Vector3 TransformVector(const Vector3& vector) const;
+    Vec3 TransformPoint(const Vec3& point) const;
+    Vec3 TransformVector(const Vec3& vector) const;
     //Get the SIMD version for point or for just vectors, meaning the vecor version won't bother loading position
     STransformer ToSIMDPoint();
     STransformer ToSIMDVector();
-    Vector3 GetScale() const;
+    Vec3 GetScale() const;
 
-    SAlign Matrix3 mScaleRot;
-    SAlign Vector3 mPos;
+    SAlign Mat3 mScaleRot;
+    SAlign Vec3 mPos;
   };
 
   struct Transform {
-    Transform(const Vector3& scale, const Quat& rot, const Vector3& pos): mScale(scale), mRot(rot), mPos(pos) {}
-    Transform(void): mPos(Vector3::Zero), mScale(Vector3::Identity), mRot(Quat::Identity) {}
+    Transform(const Vec3& scale, const Quat& rot, const Vec3& pos): mScale(scale), mRot(rot), mPos(pos) {}
+    Transform(void): mPos(Vec3::Zero), mScale(Vec3::Identity), mRot(Quat::Identity) {}
 
     //For one offs, use these
-    Vector3 ModelToWorld(const Vector3& point) const;
-    Vector3 WorldToModel(const Vector3& point) const;
+    Vec3 ModelToWorld(const Vec3& point) const;
+    Vec3 WorldToModel(const Vec3& point) const;
 
     //For batch translations, get one of these and use it for a bunch of points
     Transformer GetModelToWorld() const;
@@ -58,8 +58,8 @@ namespace Syx {
     SFloats SWorldToModel(SFloats point) const;
 #endif
 
-    Vector3 mScale;
+    Vec3 mScale;
     Quat mRot;
-    Vector3 mPos;
+    Vec3 mPos;
   };
 }

@@ -24,7 +24,7 @@ namespace Syx {
       FailTest();
   }
 
-  inline void CheckResult(const Vector3& lhs, const Vector3& rhs, float epsilon = SYX_EPSILON) {
+  inline void CheckResult(const Vec3& lhs, const Vec3& rhs, float epsilon = SYX_EPSILON) {
     CheckResult(lhs.Equal(rhs, epsilon));
   }
 
@@ -32,27 +32,27 @@ namespace Syx {
     return min + static_cast<float>(rand()) / (static_cast<float>(RAND_MAX / (max - min)));
   }
 
-  inline Vector3 VecRand(float min, float max) {
-    return Vector3(FloatRand(min, max), FloatRand(min, max), FloatRand(min, max));
+  inline Vec3 VecRand(float min, float max) {
+    return Vec3(FloatRand(min, max), FloatRand(min, max), FloatRand(min, max));
   }
 
 #ifdef SENABLED
   inline void CheckResult(SFloats a, SFloats b) {
-    if(SVector3::Get(SVector3::Equal(a, b), 0) == 0.0f)
+    if(SVec3::Get(SVec3::Equal(a, b), 0) == 0.0f)
       FailTest();
   }
 
   inline void CheckResult(SFloats lhs, float x, float y, float z, float w, float epsilon) {
     SAlign float store[4];
     SStoreAll(store, lhs);
-    if(!Vector3(store[0], store[1], store[2]).Equal(Vector3(x, y, z), epsilon) || abs(store[3]-w) > epsilon)
+    if(!Vec3(store[0], store[1], store[2]).Equal(Vec3(x, y, z), epsilon) || abs(store[3]-w) > epsilon)
       FailTest();
   }
 
   inline void CheckResult(SFloats lhs, float x, float y, float z, float epsilon) {
-    SAlign Vector3 result;
-    SVector3::Store(lhs, result);
-    if(!result.Equal(Vector3(x, y, z), epsilon))
+    SAlign Vec3 result;
+    SVec3::Store(lhs, result);
+    if(!result.Equal(Vec3(x, y, z), epsilon))
       FailTest();
   }
 
@@ -60,7 +60,7 @@ namespace Syx {
     CheckResult(lhs, splat, splat, splat, epsilon);
   }
 
-  inline void CheckResult(SFloats lhs, const Vector3& rhs, float epsilon = SYX_EPSILON) {
+  inline void CheckResult(SFloats lhs, const Vec3& rhs, float epsilon = SYX_EPSILON) {
     CheckResult(lhs, rhs.x, rhs.y, rhs.z, epsilon);
   }
 
@@ -68,14 +68,14 @@ namespace Syx {
     CheckResult(lhs, rhs.mV.x, rhs.mV.y, rhs.mV.z, rhs.mV.w, epsilon);
   }
 
-  inline void CheckResult(const SMatrix3& lhs, const Matrix3& rhs, float epsilon = SYX_EPSILON) {
+  inline void CheckResult(const SMat3& lhs, const Mat3& rhs, float epsilon = SYX_EPSILON) {
     CheckResult(lhs.mbx, rhs.mbx, epsilon);
     CheckResult(lhs.mby, rhs.mby, epsilon);
     CheckResult(lhs.mbz, rhs.mbz, epsilon);
   }
 
   inline SFloats SVecRand(float min, float max) {
-    Vector3 v = VecRand(min, max);
+    Vec3 v = VecRand(min, max);
     return SLoadFloats(v.x, v.y, v.z, 0.0f);
   }
 #endif

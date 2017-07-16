@@ -1,10 +1,10 @@
 #pragma once
 #include "SyxIntrusive.h"
-#include "SyxVector3.h"
-#include "SyxQuaternion.h"
+#include "SyxVec3.h"
+#include "SyxQuat.h"
 #include "SyxSIMD.h"
 #include "SyxHandles.h"
-#include "SyxMatrix3.h"
+#include "SyxMat3.h"
 
 namespace Syx {
   class PhysicsObject;
@@ -24,17 +24,17 @@ namespace Syx {
   };
 
   SAlign struct Jacobian {
-    SAlign Vector3 mLinearA;
-    SAlign Vector3 mLinearB;
-    SAlign Vector3 mAngularA;
-    SAlign Vector3 mAngularB;
+    SAlign Vec3 mLinearA;
+    SAlign Vec3 mLinearB;
+    SAlign Vec3 mAngularA;
+    SAlign Vec3 mAngularB;
   };
 
   //Same as jacobian but for constraints where the linear component is the other's but flipped
   SAlign struct JacobianSL {
-    SAlign Vector3 mLinear;
-    SAlign Vector3 mAngularA;
-    SAlign Vector3 mAngularB;
+    SAlign Vec3 mLinear;
+    SAlign Vec3 mAngularA;
+    SAlign Vec3 mAngularB;
   };
 
   SAlign struct LocalObject {
@@ -46,11 +46,11 @@ namespace Syx {
     Vec3 WorldToModelPoint(const Vec3& p) const;
     Vec3 WorldToModelVec(const Vec3& v) const;
 
-    SAlign Vector3 mPos;
+    SAlign Vec3 mPos;
     SAlign Quat mRot;
-    SAlign Vector3 mLinVel;
-    SAlign Vector3 mAngVel;
-    SAlign Matrix3 mInertia;
+    SAlign Vec3 mLinVel;
+    SAlign Vec3 mAngVel;
+    SAlign Mat3 mInertia;
     SAlign float mInvMass;
     PhysicsObject* mOwner;
     char mPadding[8];
@@ -58,7 +58,7 @@ namespace Syx {
 
   SAlign struct ConstraintObjBlock {
     ConstraintObjBlock(void) {}
-    ConstraintObjBlock(const Vector3& pos, const Quat& rot, const Vector3& linVel, const Vector3& angVel):
+    ConstraintObjBlock(const Vec3& pos, const Quat& rot, const Vec3& linVel, const Vec3& angVel):
       mPos(pos), mRot(rot), mLinVel(linVel), mAngVel(angVel) {
     }
 
@@ -66,10 +66,10 @@ namespace Syx {
     void LoadVelocity(const LocalObject& obj);
     void StoreVelocity(LocalObject& obj) const;
 
-    SAlign Vector3 mPos;
+    SAlign Vec3 mPos;
     SAlign Quat mRot;
-    SAlign Vector3 mLinVel;
-    SAlign Vector3 mAngVel;
+    SAlign Vec3 mLinVel;
+    SAlign Vec3 mAngVel;
   };
 
   class Constraint {
@@ -105,9 +105,9 @@ namespace Syx {
     Handle GetHandle() const {
       return mHandle;
     }
-    virtual void SetLocalAnchor(const Vector3&, ConstraintObj) {}
-    virtual const Vector3& GetLocalAnchor(ConstraintObj) const {
-      return Vector3::Zero;
+    virtual void SetLocalAnchor(const Vec3&, ConstraintObj) {}
+    virtual const Vec3& GetLocalAnchor(ConstraintObj) const {
+      return Vec3::Zero;
     }
     bool GetBlacklistCollision() {
       return mBlacklistCollision;

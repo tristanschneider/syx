@@ -28,7 +28,7 @@ namespace Syx {
 
     void SetFlag(int flag, bool value);
     bool GetFlag(int flag);
-    Vector3 GetSupport(const Vector3& dir);
+    Vec3 GetSupport(const Vec3& dir);
     SFloats SGetSupport(SFloats dir);
 
     void UpdateModelInst(const Transform& parentTransform);

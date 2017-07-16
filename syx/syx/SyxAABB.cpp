@@ -5,7 +5,7 @@
 namespace Syx {
 
 #ifdef SENABLED
-  void SAABB::Construct(const Vector3Vec& points, bool clear) {
+  void SAABB::Construct(const Vec3Vec& points, bool clear) {
     if(points.empty())
       return;
 
@@ -19,7 +19,7 @@ namespace Syx {
   }
 
   SFloats SAABB::GetVolume(void) const {
-    return SVector3::Mul3(GetDiagonal());
+    return SVec3::Mul3(GetDiagonal());
   }
 
   SFloats SAABB::GetInertia(void) const {
@@ -41,7 +41,7 @@ namespace Syx {
   }
 #endif
 
-  void AABB::Construct(const Vector3Vec& points, bool clear) {
+  void AABB::Construct(const Vec3Vec& points, bool clear) {
     if(points.empty())
       return;
 
@@ -58,28 +58,28 @@ namespace Syx {
   }
 
   float AABB::GetVolume(void) const {
-    Vector3 d = GetDiagonal();
+    Vec3 d = GetDiagonal();
     return d.x*d.y*d.z;
   }
 
-  Vector3 AABB::GetInertia(void) const {
+  Vec3 AABB::GetInertia(void) const {
     //height = y, width = z, length = x
     //Ixx = m/12 * (h^2+w^2)
     //Iyy = m/12 * (l^2+w^2)
     //Izz = m/12 * (h^2+l^2)
-    Vector3 d = GetDiagonal();
+    Vec3 d = GetDiagonal();
     float m12 = (d.x*d.y*d.z)/12.0f;
     float heightSq = d.y*d.y;
     float widthSq = d.z*d.z;
     float lengthSq = d.x*d.x;
 
-    return Vector3(m12 * (heightSq + widthSq),
+    return Vec3(m12 * (heightSq + widthSq),
       m12 * (lengthSq + widthSq),
       m12 * (heightSq + lengthSq));
   }
 
-  bool AABB::LineIntersect(const Vector3& start, const Vector3& end, float* resultT, int* normalIndex, int* normalSign) const {
-    Vector3 dirFrac = (end - start).Reciprocal();
+  bool AABB::LineIntersect(const Vec3& start, const Vec3& end, float* resultT, int* normalIndex, int* normalSign) const {
+    Vec3 dirFrac = (end - start).Reciprocal();
     //Smallest and largest intersection time between line and box, so where the infinite ray enters and leaves it
     //Start at zero as this will remain unchanged if the line is within the box
     float tMin = 0.0f;
@@ -143,7 +143,7 @@ namespace Syx {
   }
 
   void AABB::Draw(void) const {
-    DebugDrawer::Get().DrawCube(GetCenter(), GetDiagonal(), Vector3::UnitX, Vector3::UnitY);
+    DebugDrawer::Get().DrawCube(GetCenter(), GetDiagonal(), Vec3::UnitX, Vec3::UnitY);
   }
 
   AABB AABB::Combined(const AABB& lhs, const AABB& rhs) {
@@ -156,7 +156,7 @@ namespace Syx {
   }
 
   float AABB::GetSurfaceArea(void) const {
-    Vector3 dims = mMax - mMin;
+    Vec3 dims = mMax - mMin;
     return dims.x*dims.y + dims.x*dims.z + dims.y*dims.z;
   }
 
@@ -178,7 +178,7 @@ namespace Syx {
     return test >= min && test <= max;
   }
 
-  bool AABB::IsInside(const Vector3& point) const {
+  bool AABB::IsInside(const Vec3& point) const {
     return Within(point.x, mMin.x, mMax.x) &&
       Within(point.y, mMin.y, mMax.y) &&
       Within(point.z, mMin.z, mMax.z);
@@ -189,24 +189,24 @@ namespace Syx {
   }
 
   void AABB::Pad(float padPercent) {
-    Vector3 pad = (mMax - mMin)*padPercent;
+    Vec3 pad = (mMax - mMin)*padPercent;
     mMin -= pad;
     mMax += pad;
   }
 
-  void AABB::Move(const Vector3& amount) {
+  void AABB::Move(const Vec3& amount) {
     mMin += amount;
     mMax += amount;
   }
 
-  void AABB::Add(const Vector3& point) {
+  void AABB::Add(const Vec3& point) {
     for(int i = 0; i < 3; ++i) {
       mMin[i] = std::min(mMin[i], point[i]);
       mMax[i] = std::max(mMax[i], point[i]);
     }
   }
 
-  void AABB::Init(const Vector3& point) {
+  void AABB::Init(const Vec3& point) {
     mMin = mMax = point;
   }
 }

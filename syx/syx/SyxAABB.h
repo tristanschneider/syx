@@ -1,6 +1,6 @@
 #pragma once
-#include "SyxVector3.h"
-#include "SyxSVector3.h"
+#include "SyxVec3.h"
+#include "SyxSVec3.h"
 #include "SyxAlignmentAllocator.h"
 #include <vector>
 
@@ -12,9 +12,9 @@ namespace Syx {
   public:
     SAABB(SFloats min, SFloats max): mMin(min), mMax(max) {}
     SAABB(void) {}
-    SAABB(const Vector3Vec& points) { Construct(points, true); }
+    SAABB(const Vec3Vec& points) { Construct(points, true); }
 
-    void Construct(const Vector3Vec& points, bool clear);
+    void Construct(const Vec3Vec& points, bool clear);
 
     SFloats GetVolume(void) const;
     SFloats GetInertia(void) const;
@@ -34,41 +34,41 @@ namespace Syx {
 
   class AABB {
   public:
-    AABB(const Vector3& min, const Vector3& max): mMin(min), mMax(max) {}
+    AABB(const Vec3& min, const Vec3& max): mMin(min), mMax(max) {}
     AABB(void) {}
-    AABB(const Vector3Vec& points) { Construct(points, true); }
+    AABB(const Vec3Vec& points) { Construct(points, true); }
 
-    void Construct(const Vector3Vec& points, bool clear);
+    void Construct(const Vec3Vec& points, bool clear);
 
     float GetVolume(void) const;
-    Vector3 GetInertia(void) const;
+    Vec3 GetInertia(void) const;
     float GetSurfaceArea(void) const;
 
-    Vector3 GetMin(void) const { return mMin; }
-    void SetMin(const Vector3& min) { mMin = min; }
-    Vector3 GetMax(void) const { return mMax; }
-    void SetMax(const Vector3& max) { mMax = max; }
-    Vector3 GetDiagonal(void) const { return mMax - mMin; }
-    Vector3 GetCenter(void) const { return (mMin + mMax)*0.5f; }
+    Vec3 GetMin(void) const { return mMin; }
+    void SetMin(const Vec3& min) { mMin = min; }
+    Vec3 GetMax(void) const { return mMax; }
+    void SetMax(const Vec3& max) { mMax = max; }
+    Vec3 GetDiagonal(void) const { return mMax - mMin; }
+    Vec3 GetCenter(void) const { return (mMin + mMax)*0.5f; }
     bool Overlapping(const AABB& other) const;
-    bool IsInside(const Vector3& point) const;
+    bool IsInside(const Vec3& point) const;
     bool IsInside(const AABB& aabb) const;
     void Pad(float padPercent);
-    void Move(const Vector3& amount);
-    void Add(const Vector3& point);
-    void Init(const Vector3& point);
+    void Move(const Vec3& amount);
+    void Add(const Vec3& point);
+    void Init(const Vec3& point);
 
     AABB Transform(const Transformer& transformer) const;
 
-    bool LineIntersect(const Vector3& start, const Vector3& end, float* resultT = nullptr, int* normalIndex = nullptr, int* normalSign = nullptr) const;
+    bool LineIntersect(const Vec3& start, const Vec3& end, float* resultT = nullptr, int* normalIndex = nullptr, int* normalSign = nullptr) const;
 
     void Draw(void) const;
 
     static AABB Combined(const AABB& lhs, const AABB& rhs);
 
   private:
-    Vector3 mMin;
-    Vector3 mMax;
+    Vec3 mMin;
+    Vec3 mMax;
   };
 
 }

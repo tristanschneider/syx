@@ -46,20 +46,20 @@ namespace Syx {
     return *this;
   }
 
-  SupportPoint Narrowphase::GetSupport(const Vector3& dir) {
+  SupportPoint Narrowphase::GetSupport(const Vec3& dir) {
     if(gOptions.mSimdFlags & SyxOptions::SIMD::SupportPoints)
       return SGetSupport(dir);
 
-    Vector3 supportA = mInstA->GetSupport(dir);
-    SAlign Vector3 negDir = -dir;
-    Vector3 supportB = mInstB->GetSupport(negDir);
+    Vec3 supportA = mInstA->GetSupport(dir);
+    SAlign Vec3 negDir = -dir;
+    Vec3 supportB = mInstB->GetSupport(negDir);
     return SupportPoint(supportA, supportB);
   }
 
   bool Narrowphase::GJK(void) {
     mSimplex.Initialize();
     //Arbitrary start direction
-    SAlign Vector3 curDir(Vector3::UnitY);
+    SAlign Vec3 curDir(Vec3::UnitY);
     SupportPoint support = GetSupport(curDir);
 
     int iterationCap = 100;
@@ -98,7 +98,7 @@ namespace Syx {
     return false;
   }
 
-  Vector3 Narrowphase::EPA(ContactPoint& result) {
+  Vec3 Narrowphase::EPA(ContactPoint& result) {
     InitEPASimplex();
 
     int iterationCap = 100;
@@ -126,18 +126,18 @@ namespace Syx {
     }
 
     Interface::Log("EPA Iteration cap reached");
-    return Vector3::Zero;
+    return Vec3::Zero;
   }
 
-  Vector3 Narrowphase::StoreEPAResult(ContactPoint& result, SupportTri* bestTri) {
-    Vector3 originOnTri;
+  Vec3 Narrowphase::StoreEPAResult(ContactPoint& result, SupportTri* bestTri) {
+    Vec3 originOnTri;
     SupportPoint *a, *b, *c;
-    Vector3 bary;
+    Vec3 bary;
     bool first = true;
 
     if(!bestTri) {
       Interface::Log("Problems! No resulting triangle in StoreEPAResult");
-      return Vector3::Zero;
+      return Vec3::Zero;
     }
 
     do {
@@ -151,14 +151,14 @@ namespace Syx {
 
       if(!bestTri) {
         Interface::Log("Problems! No resulting triangle in StoreEPAResult");
-        return Vector3::Zero;
+        return Vec3::Zero;
       }
 
       a = &mVerts[bestTri->m_verts[0]];
       b = &mVerts[bestTri->m_verts[1]];
       c = &mVerts[bestTri->m_verts[2]];
 
-      originOnTri = bestTri->Project(Vector3::Zero);
+      originOnTri = bestTri->Project(Vec3::Zero);
       bary = PointToBarycentric(a->mSupport, b->mSupport, c->mSupport, originOnTri);
     }
     while(!ValidBarycentric(bary));
@@ -209,7 +209,7 @@ namespace Syx {
     return result;
   }
 
-  void Narrowphase::DeleteInteriorTris(const Vector3& newPoint) {
+  void Narrowphase::DeleteInteriorTris(const Vec3& newPoint) {
     for(size_t i = 0; i < mTris.size();) {
       SupportTri& curTri = mTris[i];
       //If triangle is facing new vertex. Doesn't matter which point I choose, direction is similar enough
@@ -264,13 +264,13 @@ namespace Syx {
         DebugDrawer::Get().DrawLine(mA->GetTransform().mPos, mB->GetTransform().mPos);
 
       ContactPoint resultPoint;
-      Vector3 normal;
+      Vec3 normal;
       if(gOptions.mSimdFlags & SyxOptions::SIMD::EPA)
         normal = SEPA(resultPoint);
       else
         normal = EPA(resultPoint);
 
-      if(normal != Vector3::Zero)
+      if(normal != Vec3::Zero)
         SubmitContact(resultPoint, normal);
       else
         Interface::Log("Invalid contact normal");
@@ -304,7 +304,7 @@ namespace Syx {
     mPrimitive.Set(mInstA, mInstB, mSpace, this);
   }
 
-  void Narrowphase::ProcessRayQuery(const BroadResults& /*objs*/, const Vector3& /*start*/, const Vector3& /*end*/, Space& /*space*/) {
+  void Narrowphase::ProcessRayQuery(const BroadResults& /*objs*/, const Vec3& /*start*/, const Vec3& /*end*/, Space& /*space*/) {
 
   }
 
@@ -317,15 +317,15 @@ namespace Syx {
     bestTri = bestTri;
     d.SetColor(1.0f, 0.0f, 0.0f);
     for(auto& tri : mTris) {
-      Vector3 a = mVerts[tri.m_verts[0]].mSupport;
-      Vector3 b = mVerts[tri.m_verts[1]].mSupport;
-      Vector3 c = mVerts[tri.m_verts[2]].mSupport;
+      Vec3 a = mVerts[tri.m_verts[0]].mSupport;
+      Vec3 b = mVerts[tri.m_verts[1]].mSupport;
+      Vec3 c = mVerts[tri.m_verts[2]].mSupport;
       DrawTriangle(a, b, c, true);
     }
 
     d.SetColor(1.0f, 0.0f, 1.0f);
-    DrawSphere(Vector3::Zero, 0.03f);
-    d.DrawPoint(bestTri->Project(Vector3::Zero), 0.01f);
+    DrawSphere(Vec3::Zero, 0.03f);
+    d.DrawPoint(bestTri->Project(Vec3::Zero), 0.01f);
   }
 
   void Narrowphase::SphereSphereHandler() {
@@ -392,13 +392,13 @@ namespace Syx {
     AABB localB = mB->GetCollider()->GetAABB().Transform(mInstA->GetWorldToModel());
     ModelInstance* envRoot = mInstA;
     mInstA->GetModel().GetBroadphase().QueryVolume(localB, *mBroadphaseContext);
-    const Vector3Vec& tris = mInstA->GetModel().GetTriangles();
+    const Vec3Vec& tris = mInstA->GetModel().GetTriangles();
 
     ModelInstance tempInst(mTempTri, envRoot->GetModelToWorld(), envRoot->GetWorldToModel());
 
     for(ResultNode& result : mBroadphaseContext->mQueryResults) {
       size_t triIndex = reinterpret_cast<size_t>(result.mUserdata);
-      const Vector3& a = tris[triIndex];
+      const Vec3& a = tris[triIndex];
       Handle instHandle = *reinterpret_cast<const Handle*>(&a.w);
 
       tempInst.SetHandle(instHandle);
@@ -424,7 +424,7 @@ namespace Syx {
     //Local composite to local environment
     Transformer compToEnv = Transformer::Combined(compRoot->GetModelToWorld(), envRoot->GetWorldToModel());
     ModelInstance tempTriInst(mTempTri, envRoot->GetModelToWorld(), envRoot->GetWorldToModel());
-    const Vector3Vec& tris = mInstA->GetModel().GetTriangles();
+    const Vec3Vec& tris = mInstA->GetModel().GetTriangles();
 
     auto& subInsts = compRoot->GetModel().GetSubmodelInstances();
     //Transform each submodel aabb into env local space and query broadphase, handle pairs of results
@@ -440,7 +440,7 @@ namespace Syx {
       mInstB = &tempSubInst;
       for(const ResultNode& result : mBroadphaseContext->mQueryResults) {
         size_t triIndex = reinterpret_cast<size_t>(result.mUserdata);
-        const Vector3& a = tris[triIndex];
+        const Vec3& a = tris[triIndex];
         Handle instHandle = *reinterpret_cast<const Handle*>(&a.w);
 
         tempTriInst.SetHandle(instHandle);
@@ -487,44 +487,44 @@ namespace Syx {
     return mHandlers[modelTypeA + sHandlerRowCount*modelTypeB];
   }
 
-  void Narrowphase::SubmitContact(const Vector3& worldA, const Vector3& worldB, const Vector3& normal) {
+  void Narrowphase::SubmitContact(const Vec3& worldA, const Vec3& worldB, const Vec3& normal) {
     float penetration = (worldB - worldA).Dot(normal);
     SubmitContact(worldA, worldB, normal, penetration);
   }
 
-  void Narrowphase::SubmitContact(const Vector3& worldA, const Vector3& worldB, const Vector3& normal, float penetration) {
+  void Narrowphase::SubmitContact(const Vec3& worldA, const Vec3& worldB, const Vec3& normal, float penetration) {
     ContactObject ca(mA->GetTransform().WorldToModel(worldA), worldA);
     ContactObject cb(mB->GetTransform().WorldToModel(worldB), worldB);
     ContactPoint point(ca, cb, penetration);
     SubmitContact(point, normal);
   }
 
-  void Narrowphase::SubmitContact(const ContactPoint& contact, const Vector3& normal) {
+  void Narrowphase::SubmitContact(const ContactPoint& contact, const Vec3& normal) {
     Manifold* manifold = mSpace->GetManifold(*mA, *mB, *mInstA, *mInstB);
     if(manifold)
       manifold->AddContact(contact, normal);
   }
 
 #ifdef SENABLED
-  SupportPoint Narrowphase::SGetSupport(const Vector3& dir) {
-    SFloats sDir = ToSVector3(dir);
-    SAlign Vector3 supportA;
-    SAlign Vector3 supportB;
-    SVector3::Store(mInstA->SGetSupport(sDir), supportA);
-    SVector3::Store(mInstB->SGetSupport(SVector3::Neg(sDir)), supportB);
+  SupportPoint Narrowphase::SGetSupport(const Vec3& dir) {
+    SFloats sDir = ToSVec3(dir);
+    SAlign Vec3 supportA;
+    SAlign Vec3 supportB;
+    SVec3::Store(mInstA->SGetSupport(sDir), supportA);
+    SVec3::Store(mInstB->SGetSupport(SVec3::Neg(sDir)), supportB);
     return SupportPoint(supportA, supportB);
   }
 
   SupportPoint Narrowphase::SGetSupport(SFloats dir, SFloats& resultSupport) {
-    SAlign Vector3 supportA;
-    SAlign Vector3 supportB;
-    SAlign Vector3 support;
+    SAlign Vec3 supportA;
+    SAlign Vec3 supportB;
+    SAlign Vec3 support;
     SFloats sa = mInstA->SGetSupport(dir);
-    SFloats sb = mInstB->SGetSupport(SVector3::Neg(dir));
+    SFloats sb = mInstB->SGetSupport(SVec3::Neg(dir));
     resultSupport = SSubAll(sa, sb);
-    SVector3::Store(sa, supportA);
-    SVector3::Store(sb, supportB);
-    SVector3::Store(resultSupport, support);
+    SVec3::Store(sa, supportA);
+    SVec3::Store(sb, supportB);
+    SVec3::Store(resultSupport, support);
     return SupportPoint(supportA, supportB, support);
   }
 
@@ -536,7 +536,7 @@ namespace Syx {
   bool Narrowphase::SGJK(void) {
     mSimplex.Initialize();
     //Arbitrary start direction
-    SupportPoint support = SGetSupport(SVector3::UnitY);
+    SupportPoint support = SGetSupport(SVec3::UnitY);
 
     int iterationCap = 100;
     int iteration = 0;
@@ -561,7 +561,7 @@ namespace Syx {
     return false;
   }
 
-  Vector3 Narrowphase::SEPA(ContactPoint& result) {
+  Vec3 Narrowphase::SEPA(ContactPoint& result) {
     InitEPASimplex();
 
     int iterationCap = 100;
@@ -578,7 +578,7 @@ namespace Syx {
       newSupport = SOr(newSupport, setW);
 
       //If progress is below threshold, we're done
-      if(SILessEqualLower(SVector3::Dot4(triPlane, newSupport), epaEpsilon))
+      if(SILessEqualLower(SVec3::Dot4(triPlane, newSupport), epaEpsilon))
         return StoreEPAResult(result, bestTri);
 
       SDeleteInteriorTris(newSupport);
@@ -586,14 +586,14 @@ namespace Syx {
     }
 
     Interface::Log("EPA Iteration cap reached");
-    return Vector3::Zero;
+    return Vec3::Zero;
   }
 
   void Narrowphase::SDeleteInteriorTris(SFloats newPoint) {
     for(size_t i = 0; i < mTris.size();) {
       SupportTri& curTri = mTris[i];
       //If triangle is facing new vertex. Doesn't matter which point I choose, direction is similar enough
-      if(SIGreaterLower(SVector3::Dot4(SLoadAll(&curTri.m_halfPlane.x), newPoint), SVector3::Zero)) {
+      if(SIGreaterLower(SVec3::Dot4(SLoadAll(&curTri.m_halfPlane.x), newPoint), SVec3::Zero)) {
         //Push edges on the list so they can later be used to construct new triangles with new vertex
         curTri.AddEdges(mEdges);
         SwapRemove(mTris, i);
@@ -627,10 +627,10 @@ namespace Syx {
       SFloats a = SLoadAll(&mVerts[curEdge.m_from].mSupport.x);
       SFloats b = SLoadAll(&mVerts[curEdge.m_to].mSupport.x);
 
-      SFloats normal = SVector3::SafeNormalized(SVector3::CCWTriangleNormal(a, b, newSupport));
-      SFloats wTerm = SVector3::Neg(SVector3::Dot(a, normal));
-      SAlign Vector3 plane;
-      SAlign Vector3 w;
+      SFloats normal = SVec3::SafeNormalized(SVec3::CCWTriangleNormal(a, b, newSupport));
+      SFloats wTerm = SVec3::Neg(SVec3::Dot(a, normal));
+      SAlign Vec3 plane;
+      SAlign Vec3 w;
       SStoreLower(&w.x, wTerm);
       SStoreAll(&plane.x, normal);
       plane.w = w.x;
@@ -643,6 +643,6 @@ namespace Syx {
     mEdges.clear();
   }
 #else
-  SupportPoint Narrowphase::SGetSupport(const Vector3&) { return SupportPoint(); }
+  SupportPoint Narrowphase::SGetSupport(const Vec3&) { return SupportPoint(); }
 #endif
 }

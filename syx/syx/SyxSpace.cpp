@@ -121,7 +121,7 @@ namespace Syx {
     {
       DebugDrawer& d = DebugDrawer::Get();
       AutoProfileBlock draw(mProfiler, "Debug Draw");
-      Vector3 color = Vector3::Zero;
+      Vec3 color = Vec3::Zero;
       color[mMyHandle % 3] = 1.0f;
       if(Interface::GetOptions().mDebugFlags & (SyxOptions::Debug::DrawModels | SyxOptions::Debug::DrawPersonalBBs))
         for(auto it = mObjects.Begin(); it != mObjects.End(); ++it) {
@@ -138,18 +138,18 @@ namespace Syx {
         mBroadphase->Draw();
 
       if(Interface::GetOptions().mDebugFlags & SyxOptions::Debug::DrawIslands) {
-        Vector3 colors[] = {Vector3::Zero
-          , Vector3::UnitX
-          , Vector3::UnitY
-          , Vector3::UnitZ
-          , Vector3::UnitX + Vector3::UnitY
-          , Vector3::UnitX + Vector3::UnitZ
-          , Vector3::UnitY + Vector3::UnitZ
-          , Vector3::Identity};
+        Vec3 colors[] = {Vec3::Zero
+          , Vec3::UnitX
+          , Vec3::UnitY
+          , Vec3::UnitZ
+          , Vec3::UnitX + Vec3::UnitY
+          , Vec3::UnitX + Vec3::UnitZ
+          , Vec3::UnitY + Vec3::UnitZ
+          , Vec3::Identity};
         size_t colorCount = 8;
 
         for(size_t i = 0; i < mIslandGraph.IslandCount(); ++i) {
-          Vector3 c = colors[i % colorCount];
+          Vec3 c = colors[i % colorCount];
           d.SetColor(c.x, c.y, c.z);
           mIslandGraph.GetIsland(i, mIslandStore, true);
           for(Constraint* constraint : mIslandStore.mConstraints) {
@@ -196,7 +196,7 @@ namespace Syx {
       mConstraintSystem.Solve(dt);
   }
 
-  CastResult Space::LineCastAll(const Vector3& start, const Vector3& end) {
+  CastResult Space::LineCastAll(const Vec3& start, const Vec3& end) {
     mBroadphase->QueryRaycast(start, end, *mBroadphaseContext);
     mCasterContext.ClearResults();
 
@@ -301,8 +301,8 @@ namespace Syx {
         continue;
 
       Transform& t = obj.GetTransform();
-      SFloats pos = ToSVector3(t.mPos);
-      SFloats linVel = ToSVector3(rigidbody->mLinVel);
+      SFloats pos = ToSVec3(t.mPos);
+      SFloats linVel = ToSVec3(rigidbody->mLinVel);
       pos = SAddAll(pos, SMulAll(linVel, sdt));
       SStoreAll(&t.mPos.x, pos);
 
@@ -314,12 +314,12 @@ namespace Syx {
       rot = SQuat::Add(rot, SQuat::MulQuatVec(spin, sdt));
       rot = SQuat::Normalized(rot);
 
-      SMatrix3 rotMat = SQuat::ToMatrix(rot);
+      SMat3 rotMat = SQuat::ToMatrix(rot);
       SStoreAll(&t.mRot.mV.x, rot);
 
-      SFloats localInertia = ToSVector3(rigidbody->mLocalInertia);
+      SFloats localInertia = ToSVec3(rigidbody->mLocalInertia);
       //Can probaby combine this whole operation so I don't need to store a transposed copy
-      SMatrix3 transMat = rotMat.Transposed();
+      SMat3 transMat = rotMat.Transposed();
       //Scale matrix by inertia
       rotMat.mbx = SMulAll(rotMat.mbx, SShuffle(localInertia, 0, 0, 0, 0));
       rotMat.mby = SMulAll(rotMat.mby, SShuffle(localInertia, 1, 1, 1, 1));
@@ -343,7 +343,7 @@ namespace Syx {
       Rigidbody* rigidbody = obj.GetRigidbody();
 
       if(rigidbody && rigidbody->mInvMass > SYX_EPSILON) {
-        SFloats sVel = ToSVector3(rigidbody->mLinVel);
+        SFloats sVel = ToSVec3(rigidbody->mLinVel);
         sVel = SAddAll(sVel, gravity);
         SStoreAll(&rigidbody->mLinVel.x, sVel);
       }

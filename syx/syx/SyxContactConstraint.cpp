@@ -12,10 +12,10 @@ namespace Syx {
     , mShouldRemove(&owner.mShouldRemove)
     , mInactiveTime(&owner.mInactiveTime) {}
 
-  void LocalContactConstraint::SetupContactJacobian(float massA, const Matrix3& inertiaA, float massB, const Matrix3& inertiaB) {
+  void LocalContactConstraint::SetupContactJacobian(float massA, const Mat3& inertiaA, float massB, const Mat3& inertiaB) {
     //The equation expects a normal going away from a, but manifold holds the opposite
-    Vector3 normalB = -mManifold->mNormal;
-    Vector3 normalA = mContactBlock.mNormal = mManifold->mNormal;
+    Vec3 normalB = -mManifold->mNormal;
+    Vec3 normalA = mContactBlock.mNormal = mManifold->mNormal;
     //Set linear and angular terms of the jacobian and pre-multiply in the appropriate masses
     mContactBlock.mNormalTMass[0] = normalA*massA;
     mContactBlock.mNormalTMass[1] = normalB*massB;
@@ -62,13 +62,13 @@ namespace Syx {
     SetupFrictionJacobian(massA, inertiaA, massB, inertiaB);
   }
 
-  void LocalContactConstraint::SetupFrictionJacobian(float massA, const Matrix3& inertiaA, float massB, const Matrix3& inertiaB) {
+  void LocalContactConstraint::SetupFrictionJacobian(float massA, const Mat3& inertiaA, float massB, const Mat3& inertiaB) {
     for(int axis = 0; axis < 2; ++axis) {
-      Vector3 dir = !axis ? mManifold->mTangentA : mManifold->mTangentB;
+      Vec3 dir = !axis ? mManifold->mTangentA : mManifold->mTangentB;
       FrictionAxisBlock& block = mFrictionBlock.mAxes[axis];
 
-      Vector3 axisA = block.mAxis = -dir;
-      Vector3 axisB = dir;
+      Vec3 axisA = block.mAxis = -dir;
+      Vec3 axisB = dir;
       block.mLinearA = axisA*massA;
       block.mLinearB = axisB*massB;
 
@@ -186,7 +186,7 @@ namespace Syx {
     SFloats lambdaSum = SLoadAll(&mContactBlock.mLambdaSum.x);
     SFloats linVelA, angVelA, linVelB, angVelB;
     SConstraints::LoadVelocity(*mA, *mB, linVelA, angVelA, linVelB, angVelB);
-    SFloats result = SVector3::Zero;
+    SFloats result = SVec3::Zero;
 
     //Solve friction first because it's less important, and the last constraint wins
     for(int i = 0; i < 4; ++i) {
@@ -202,7 +202,7 @@ namespace Syx {
       for(int j = 0; j < 2; ++j) {
         FrictionAxisBlock& block = mFrictionBlock.mAxes[j];
         SFloats blockAxis = SLoadAll(&block.mAxis.x);
-        SFloats jv = SConstraints::ComputeJV(blockAxis, SLoadAll(&block.mRCrossAxisA[i].x), SVector3::Neg(blockAxis), SLoadAll(&block.mRCrossAxisB[i].x), linVelA, angVelA, linVelB, angVelB);
+        SFloats jv = SConstraints::ComputeJV(blockAxis, SLoadAll(&block.mRCrossAxisA[i].x), SVec3::Neg(blockAxis), SLoadAll(&block.mRCrossAxisB[i].x), linVelA, angVelA, linVelB, angVelB);
         //No bias term for friction
         SFloats lambda = SConstraints::ComputeLambda(jv, SLoadSplat(&block.mConstraintMass[i]));
 
@@ -211,9 +211,9 @@ namespace Syx {
         SFloats oldSum = sum;
         //Upper bound is all of them, splat the one we care about
         SFloats ubound = SSplatIndex(upperBound, i);
-        SConstraints::ClampLambda(lambda, sum, SVector3::Neg(ubound), ubound);
+        SConstraints::ClampLambda(lambda, sum, SVec3::Neg(ubound), ubound);
 
-        SAlign Vector3 lamStore;
+        SAlign Vec3 lamStore;
         SStoreAll(&lamStore.x, sum);
         block.mLambdaSum[i] = lamStore.x;
 
@@ -229,14 +229,14 @@ namespace Syx {
 
       //J = jacobian, V = velocity vector, b = bias term, M = Jacobian mass
       //Calculate lambda = -(JV + b)*M^1
-      SFloats jv = SConstraints::ComputeJV(normal, SLoadAll(&mContactBlock.mRCrossNA[i].x), SVector3::Neg(normal), SLoadAll(&mContactBlock.mRCrossNB[i].x), linVelA, angVelA, linVelB, angVelB);
+      SFloats jv = SConstraints::ComputeJV(normal, SLoadAll(&mContactBlock.mRCrossNA[i].x), SVec3::Neg(normal), SLoadAll(&mContactBlock.mRCrossNB[i].x), linVelA, angVelA, linVelB, angVelB);
       SFloats lambda = SConstraints::ComputeLambda(jv, SLoadSplat(&mContactBlock.mPenetrationBias[i]), SLoadSplat(&mContactBlock.mContactMass[i]));
 
       //Clamp lambda term so contacts don't pull objects back together
       SFloats sum = SSplatIndex(lambdaSum, i);
-      SConstraints::ClampLambdaMin(lambda, sum, SVector3::Zero);
+      SConstraints::ClampLambdaMin(lambda, sum, SVec3::Zero);
 
-      SAlign Vector3 lamstore;
+      SAlign Vec3 lamstore;
       SStoreAll(&lamstore.x, sum);
       mContactBlock.mLambdaSum[i] = lamstore.x;
 
@@ -249,7 +249,7 @@ namespace Syx {
 
     //Store velocities back for other constraints to access
     SConstraints::StoreVelocity(linVelA, angVelA, linVelB, angVelB, *mA, *mB);
-    SAlign Vector3 resultStore;
+    SAlign Vec3 resultStore;
     SStoreAll(&resultStore.x, result);
     return resultStore.x;
   }

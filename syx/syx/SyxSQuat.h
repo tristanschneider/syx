@@ -1,9 +1,9 @@
 #pragma once
-#include "SyxSVector3.h"
+#include "SyxSVec3.h"
 
 #ifdef SENABLED
 namespace Syx {
-  struct SMatrix3;
+  struct SMat3;
 
   struct SQuat {
     static SFloats SQuat::Construct(SFloats ijk, float w);
@@ -23,7 +23,7 @@ namespace Syx {
     static SFloats Normalized(SFloats in);
     static SFloats Inversed(SFloats in);
 
-    static SMatrix3 ToMatrix(SFloats quat);
+    static SMat3 ToMatrix(SFloats quat);
 
     //Construct quaternion from axis angle
     static SFloats AxisAngle(SFloats axis, float angle);

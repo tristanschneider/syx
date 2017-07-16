@@ -1,5 +1,5 @@
 #pragma once
-#include "SyxVector3.h"
+#include "SyxVec3.h"
 
 #define SIMPLEX_MAX 4
 
@@ -8,18 +8,18 @@ namespace Syx {
 
   SAlign struct SupportPoint {
     SupportPoint(void) {}
-    SupportPoint(const Vector3& support): mSupport(support) {}
-    SupportPoint(const Vector3& a, const Vector3& b): mPointA(a), mPointB(b), mSupport(a - b) {}
-    SupportPoint(const Vector3& a, const Vector3& b, const Vector3& amb): mPointA(a), mPointB(b), mSupport(amb) {}
+    SupportPoint(const Vec3& support): mSupport(support) {}
+    SupportPoint(const Vec3& a, const Vec3& b): mPointA(a), mPointB(b), mSupport(a - b) {}
+    SupportPoint(const Vec3& a, const Vec3& b, const Vec3& amb): mPointA(a), mPointB(b), mSupport(amb) {}
 
     bool operator==(const SupportPoint& rhs) { return mSupport == rhs.mSupport; }
     bool operator!=(const SupportPoint& rhs) { return mSupport != rhs.mSupport; }
 
     //Support points from object a and b respectively
-    SAlign Vector3 mPointA;
-    SAlign Vector3 mPointB;
+    SAlign Vec3 mPointA;
+    SAlign Vec3 mPointB;
     //pointA - pointB
-    SAlign Vector3 mSupport;
+    SAlign Vec3 mSupport;
   };
 
   namespace SupportID {
@@ -55,18 +55,18 @@ namespace Syx {
     //Returns if added point was a duplicate and checkForDuplicates is true
     bool Add(const SupportPoint& toAdd, bool checkForDuplicates);
     //Evaluate the simplex, throwing out points not helping contain the origin and return new search direction
-    Vector3 Solve(void);
+    Vec3 Solve(void);
     void GrowToFourPoints(Narrowphase& narrow);
 
-    bool Contains(const Vector3& support) const;
+    bool Contains(const Vec3& support) const;
     bool ContainsOrigin(void) const { return mContainsOrigin; }
     bool IsDegenerate(void) const { return mDegenerate; }
-    bool MakesProgress(const Vector3& newPoint, const Vector3& searchDir) const;
+    bool MakesProgress(const Vec3& newPoint, const Vec3& searchDir) const;
 
-    void Draw(const Vector3& searchDir);
+    void Draw(const Vec3& searchDir);
 
     //Used like Get(SupportID::B)
-    const Vector3& Get(int id) const { return mSupports[id].mSupport; }
+    const Vec3& Get(int id) const { return mSupports[id].mSupport; }
     SupportPoint& GetSupport(int id) { return mSupports[id]; }
     const SupportPoint& GetSupport(int id) const { return mSupports[id]; }
     size_t Size(void) const { return mSize; }
@@ -81,9 +81,9 @@ namespace Syx {
     void Discard(int a, int b, int c);
     void FixWinding(void);
 
-    Vector3 SolveLine(void);
-    Vector3 SolveTriangle(void);
-    Vector3 SolveTetrahedron(void);
+    Vec3 SolveLine(void);
+    Vec3 SolveTriangle(void);
+    Vec3 SolveTetrahedron(void);
 
     SFloats SSolveLine(void);
     SFloats SSolveTriangle(void);

@@ -15,7 +15,7 @@ namespace Syx {
     return (mFlags & flag) != 0;
   }
 
-  Vector3 Collider::GetSupport(const Vector3& dir) {
+  Vec3 Collider::GetSupport(const Vec3& dir) {
     return mModelInst.GetSupport(dir);
   }
 

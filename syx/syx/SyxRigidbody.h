@@ -22,7 +22,7 @@ namespace Syx {
     friend class PhysicsObject;
     friend class Space;
 
-    Rigidbody(PhysicsObject* owner = nullptr): mOwner(owner), mFlags(0), mLinVel(Vector3::Zero), mAngVel(Vector3::Zero) {}
+    Rigidbody(PhysicsObject* owner = nullptr): mOwner(owner), mFlags(0), mLinVel(Vec3::Zero), mAngVel(Vec3::Zero) {}
     // Don't copy because of owner*
     Rigidbody(const Rigidbody&) = delete;
     Rigidbody& operator=(const Rigidbody&) = delete;
@@ -40,19 +40,19 @@ namespace Syx {
     void SetFlag(int flag, bool value) { SetBits(mFlags, flag, value); }
     bool GetFlag(int flag) { return (mFlags & flag) != 0; }
 
-    const Matrix3& GetInertia(void) { return mInvInertia; }
+    const Mat3& GetInertia(void) { return mInvInertia; }
     float GetMass(void) { return mInvMass; }
 
-    SAlign Vector3 mLinVel;
-    SAlign Vector3 mAngVel;
+    SAlign Vec3 mLinVel;
+    SAlign Vec3 mAngVel;
 
-    Vector3 GetGravity();
-    Vector3 GetUnintegratedLinearVelocity();
-    Vector3 GetUnintegratedAngularVelocity();
+    Vec3 GetGravity();
+    Vec3 GetUnintegratedLinearVelocity();
+    Vec3 GetUnintegratedAngularVelocity();
 
   private:
-    SAlign Vector3 mLocalInertia;
-    SAlign Matrix3 mInvInertia;
+    SAlign Vec3 mLocalInertia;
+    SAlign Mat3 mInvInertia;
     float mInvMass;
     int mFlags;
 

@@ -60,7 +60,7 @@ namespace Syx {
     virtual Handle Update(const BoundingVolume& newVol, Handle handle) = 0;
 
     virtual void QueryPairs(BroadphaseContext& context) const = 0;
-    virtual void QueryRaycast(const Vector3& start, const Vector3& end, BroadphaseContext& context) const = 0;
+    virtual void QueryRaycast(const Vec3& start, const Vec3& end, BroadphaseContext& context) const = 0;
     virtual void QueryVolume(const BoundingVolume& volume, BroadphaseContext& context) const = 0;
     //Maybe also have an interactive query for raycasting one at a time
 

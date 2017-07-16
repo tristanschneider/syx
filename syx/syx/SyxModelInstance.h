@@ -37,7 +37,7 @@ namespace Syx {
 
     void UpdateTransformers(const Transform& parentTrans);
     void UpdateAABB(void);
-    Vector3 GetSupport(const Vector3& dir);
+    Vec3 GetSupport(const Vec3& dir);
 
     const AABB& GetAABB(void) const { return mAABB; }
 

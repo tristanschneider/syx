@@ -60,7 +60,7 @@ namespace Syx {
     model->InitComposite(newModel, mModels);
 
     //Force model to be centered around its center of mass. I should ultimately support off-center models instead
-    MassInfo info = model->ComputeMasses(Vector3::Identity);
+    MassInfo info = model->ComputeMasses(Vec3::Identity);
     model->Offset(-info.mCenterOfMass);
 
     return handle;
@@ -77,7 +77,7 @@ namespace Syx {
     }
     else {
       //Force model to be centered around its center of mass. I should ultimately support off-center models instead
-      MassInfo info = model->ComputeMasses(Vector3::Identity);
+      MassInfo info = model->ComputeMasses(Vec3::Identity);
       model->Offset(-info.mCenterOfMass);
     }
     return handle;
@@ -188,9 +188,9 @@ namespace Syx {
     pSpace->SetRigidbodyEnabled(*newObj, hasRigidbody);
 
     Transform& t = newObj->GetTransform();
-    t.mPos = Vector3::Zero;
+    t.mPos = Vec3::Zero;
     t.mRot = Quat::Identity;
-    t.mScale = Vector3::Identity;
+    t.mScale = Vec3::Identity;
     newObj->UpdateModelInst();
 
     if(hasRigidbody)
@@ -287,7 +287,7 @@ namespace Syx {
       rb->CalculateMass();
   }
 
-  void PhysicsSystem::SetVelocity(Handle space, Handle object, const Vector3& vel) {
+  void PhysicsSystem::SetVelocity(Handle space, Handle object, const Vec3& vel) {
     PhysicsObject* obj = GetObject(space, object);
     if(!obj || !obj->GetRigidbody())
       return;
@@ -296,15 +296,15 @@ namespace Syx {
     mSpaces.Get(space)->WakeObject(*obj);
   }
 
-  Vector3 PhysicsSystem::GetVelocity(Handle space, Handle object) {
+  Vec3 PhysicsSystem::GetVelocity(Handle space, Handle object) {
     Rigidbody* rigidbody = GetRigidbody(space, object);
     if(!rigidbody)
-      return Vector3::Zero;
+      return Vec3::Zero;
 
     return rigidbody->mLinVel;
   }
 
-  void PhysicsSystem::SetAngularVelocity(Handle space, Handle object, const Vector3& angVel) {
+  void PhysicsSystem::SetAngularVelocity(Handle space, Handle object, const Vec3& angVel) {
     PhysicsObject* obj = GetObject(space, object);
     if(!obj || !obj->GetRigidbody())
       return;
@@ -313,15 +313,15 @@ namespace Syx {
     mSpaces.Get(space)->WakeObject(*obj);
   }
 
-  Vector3 PhysicsSystem::GetAngularVelocity(Handle space, Handle object) {
+  Vec3 PhysicsSystem::GetAngularVelocity(Handle space, Handle object) {
     Rigidbody* rigidbody = GetRigidbody(space, object);
     if(!rigidbody)
-      return Vector3::Zero;
+      return Vec3::Zero;
 
     return rigidbody->mAngVel;
   }
 
-  void PhysicsSystem::SetPosition(Handle space, Handle object, const Vector3& pos) {
+  void PhysicsSystem::SetPosition(Handle space, Handle object, const Vec3& pos) {
     PhysicsObject* obj = GetObject(space, object);
     if(!obj)
       return;
@@ -332,10 +332,10 @@ namespace Syx {
     s->WakeObject(*obj);
   }
 
-  Vector3 PhysicsSystem::GetPosition(Handle space, Handle object) {
+  Vec3 PhysicsSystem::GetPosition(Handle space, Handle object) {
     PhysicsObject* obj = GetObject(space, object);
     if(!obj)
-      return Vector3::Zero;
+      return Vec3::Zero;
 
     return obj->GetTransform().mPos;
   }
@@ -359,7 +359,7 @@ namespace Syx {
     return obj->GetTransform().mRot;
   }
 
-  void PhysicsSystem::SetScale(Handle space, Handle object, const Vector3& scale) {
+  void PhysicsSystem::SetScale(Handle space, Handle object, const Vec3& scale) {
     PhysicsObject* obj = GetObject(space, object);
     if(!obj)
       return;
@@ -374,10 +374,10 @@ namespace Syx {
     s->WakeObject(*obj);
   }
 
-  Vector3 PhysicsSystem::GetScale(Handle space, Handle object) {
+  Vec3 PhysicsSystem::GetScale(Handle space, Handle object) {
     PhysicsObject* obj = GetObject(space, object);
     if(!obj)
-      return Vector3::Zero;
+      return Vec3::Zero;
 
     return obj->GetTransform().mScale;
   }
@@ -398,7 +398,7 @@ namespace Syx {
     return &s->GetProfileHistory();
   }
 
-  void PhysicsSystem::GetAABB(Handle space, Handle object, Vector3& min, Vector3& max) {
+  void PhysicsSystem::GetAABB(Handle space, Handle object, Vec3& min, Vec3& max) {
     PhysicsObject* obj = GetObject(space, object);
     if(!obj || !obj->GetCollider())
       return;
@@ -407,12 +407,12 @@ namespace Syx {
     max = bb.GetMax();
   }
 
-  CastResult PhysicsSystem::LineCastAll(Handle space, const Vector3& start, const Vector3& end) {
+  CastResult PhysicsSystem::LineCastAll(Handle space, const Vec3& start, const Vec3& end) {
     Space* s = mSpaces.Get(space);
     if(!s)
       return CastResult();
-    SAlign Vector3 sStart = start;
-    SAlign Vector3 sEnd = end;
+    SAlign Vec3 sStart = start;
+    SAlign Vec3 sEnd = end;
     return s->LineCastAll(sStart, sEnd);
   }
 }

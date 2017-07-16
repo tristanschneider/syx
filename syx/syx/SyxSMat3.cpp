@@ -1,32 +1,32 @@
 #include "Precompile.h"
-#include "SyxSMatrix3.h"
-#include "SyxSVector3.h"
+#include "SyxSMat3.h"
+#include "SyxSVec3.h"
 #include "SyxSIMD.h"
-#include "SyxSQuaternion.h"
-#include "SyxMatrix3.h"
-#include "SyxQuaternion.h"
+#include "SyxSQuat.h"
+#include "SyxMat3.h"
+#include "SyxQuat.h"
 
 #ifdef SENABLED
 namespace Syx {
-  const SMatrix3 SMatrix3::Identity = SMatrix3(1.0f, 0.0f, 0.0f,
+  const SMat3 SMat3::Identity = SMat3(1.0f, 0.0f, 0.0f,
     0.0f, 1.0f, 0.0f,
     0.0f, 0.0f, 1.0f);
-  const SMatrix3 SMatrix3::Zero = SMatrix3(0.0f, 0.0f, 0.0f,
+  const SMat3 SMat3::Zero = SMat3(0.0f, 0.0f, 0.0f,
     0.0f, 0.0f, 0.0f,
     0.0f, 0.0f, 0.0f);
 
-  SMatrix3::SMatrix3(float aa, float ab, float ac,
+  SMat3::SMat3(float aa, float ab, float ac,
     float ba, float bb, float bc,
     float ca, float cb, float cc):
     mbx(SLoadFloats(aa, ba, ca)), mby(SLoadFloats(ab, bb, cb)), mbz(SLoadFloats(ac, bc, cc)) {
   }
 
-  SMatrix3::SMatrix3(SFloats bx, SFloats by, SFloats bz) : mbx(bx), mby(by), mbz(bz) {}
+  SMat3::SMat3(SFloats bx, SFloats by, SFloats bz) : mbx(bx), mby(by), mbz(bz) {}
 
-  SMatrix3::SMatrix3(SFloats diag) {
-    mbx = SAnd(diag, SVector3::BitsX);
-    mby = SAnd(diag, SVector3::BitsY);
-    mbz = SAnd(diag, SVector3::BitsZ);
+  SMat3::SMat3(SFloats diag) {
+    mbx = SAnd(diag, SVec3::BitsX);
+    mby = SAnd(diag, SVec3::BitsY);
+    mbz = SAnd(diag, SVec3::BitsZ);
   }
 
   //Dot xyz and leave the result in [0]
@@ -45,7 +45,7 @@ namespace Syx {
   [a b c] [j] [aj+bk+cl]
   [d e f]*[k]=[dj+ek+fl]
   [g h i] [l] [gj+hk+il]*/
-  SFloats MultColumn(const SMatrix3& mat, SFloats vec) {
+  SFloats MultColumn(const SMat3& mat, SFloats vec) {
     SFloats result = SMulAll(mat.mbx, SShuffle(vec, 0, 0, 0, 0));
     result = SAddAll(result, SMulAll(mat.mby, SShuffle(vec, 1, 1, 1, 1)));
     result = SAddAll(result, SMulAll(mat.mbz, SShuffle(vec, 2, 2, 2, 2)));
@@ -56,46 +56,46 @@ namespace Syx {
   [a b c] [j k l] [aj+bm+cp, ak+bn+cq, al+bo+cr]
   [d e f]*[m n o]=[dj+em+fp, dk+en+fq, dl+eo+fr]
   [g h i] [p q r] [gj+hm+ip, gk+hn+iq, gl+ho+ir]*/
-  SMatrix3 SMatrix3::operator*(const SMatrix3& rhs) const {
-    SMatrix3 result;
+  SMat3 SMat3::operator*(const SMat3& rhs) const {
+    SMat3 result;
     result.mbx = MultColumn(*this, rhs.mbx);
     result.mby = MultColumn(*this, rhs.mby);
     result.mbz = MultColumn(*this, rhs.mbz);
     return result;
   }
 
-  SMatrix3& SMatrix3::operator*=(const SMatrix3& rhs) {
+  SMat3& SMat3::operator*=(const SMat3& rhs) {
     return *this = *this * rhs;
   }
 
-  SFloats SMatrix3::operator*(SFloats rhs) const {
+  SFloats SMat3::operator*(SFloats rhs) const {
     return MultColumn(*this, rhs);
   }
 
-  SMatrix3 SMatrix3::operator+(const SMatrix3& rhs) const {
-    return SMatrix3(SAddAll(mbx, rhs.mbx), SAddAll(mby, rhs.mby), SAddAll(mbz, rhs.mbz));
+  SMat3 SMat3::operator+(const SMat3& rhs) const {
+    return SMat3(SAddAll(mbx, rhs.mbx), SAddAll(mby, rhs.mby), SAddAll(mbz, rhs.mbz));
   }
 
-  SMatrix3& SMatrix3::operator+=(const SMatrix3& rhs) {
+  SMat3& SMat3::operator+=(const SMat3& rhs) {
     mbx = SAddAll(mbx, rhs.mbx);
     mby = SAddAll(mby, rhs.mby);
     mbz = SAddAll(mbz, rhs.mbz);
     return *this;
   }
 
-  SMatrix3 SMatrix3::operator-(const SMatrix3& rhs) const {
-    return SMatrix3(SSubAll(mbx, rhs.mbx), SSubAll(mby, rhs.mby), SSubAll(mbz, rhs.mbz));
+  SMat3 SMat3::operator-(const SMat3& rhs) const {
+    return SMat3(SSubAll(mbx, rhs.mbx), SSubAll(mby, rhs.mby), SSubAll(mbz, rhs.mbz));
   }
 
-  SMatrix3& SMatrix3::operator-=(const SMatrix3& rhs) {
+  SMat3& SMat3::operator-=(const SMat3& rhs) {
     mbx = SSubAll(mbx, rhs.mbx);
     mby = SSubAll(mby, rhs.mby);
     mbz = SSubAll(mbz, rhs.mbz);
     return *this;
   }
 
-  SMatrix3 SMatrix3::Transposed(void) const {
-    SMatrix3 result;
+  SMat3 SMat3::Transposed(void) const {
+    SMat3 result;
     //[r0,?,r1,?]
     result.mbx = SShuffle2(mbx, mby, 0, 3, 0, 3);
     //[r0,r1,?,?]
@@ -114,15 +114,15 @@ namespace Syx {
     return result;
   }
 
-  void SMatrix3::Transpose(void) {
+  void SMat3::Transpose(void) {
     *this = Transposed();
   }
 
-  SMatrix3 SMatrix3::TransposedMultiply(const SMatrix3& rhs) const {
+  SMat3 SMat3::TransposedMultiply(const SMat3& rhs) const {
     return Transposed() * rhs;
   }
 
-  SFloats SMatrix3::TransposedMultiply(SFloats rhs) const {
+  SFloats SMat3::TransposedMultiply(SFloats rhs) const {
     return Transposed() * rhs;
   }
 
@@ -130,8 +130,8 @@ namespace Syx {
   [a,b,c]
   [d,e,f]
   [g,h,i]*/
-  SMatrix3 SMatrix3::Inverse(void) const {
-    SMatrix3 result;
+  SMat3 SMat3::Inverse(void) const {
+    SMat3 result;
     SFloats lhs, rhs, det;
 
     //[e,h,b]*[i,c,f]
@@ -160,14 +160,14 @@ namespace Syx {
     det = SAddLower(det, SShuffle(det, 1, 1, 2, 3));
     det = SAddLower(det, SShuffle(det, 2, 1, 2, 3));
     det = SShuffle(det, 0, 0, 0, 0);
-    det = SVector3::SafeDivide(SVector3::Identity, det);
+    det = SVec3::SafeDivide(SVec3::Identity, det);
 
     return det * result;
   }
 
-  SMatrix3 SMatrix3::Inverse(SFloats det) const {
-    SFloats invDet = SVector3::SafeDivide(SVector3::Identity, det);
-    SMatrix3 result;
+  SMat3 SMat3::Inverse(SFloats det) const {
+    SFloats invDet = SVec3::SafeDivide(SVec3::Identity, det);
+    SMat3 result;
     SFloats lhs, rhs;
 
     //[e,h,b]*[i,c,f]
@@ -194,7 +194,7 @@ namespace Syx {
     return invDet * result;
   }
 
-  SFloats SMatrix3::Determinant(void) const {
+  SFloats SMat3::Determinant(void) const {
     //[e,h,b]*[i,c,f]
     SFloats lhs = SMulAll(SShuffle(mby, 1, 2, 0, 3), SShuffle(mbz, 2, 0, 1, 3));
     //[h,b,e]*[f,i,c]
@@ -208,32 +208,32 @@ namespace Syx {
     return SShuffle(result, 0, 0, 0, 0);
   }
 
-  SFloats SMatrix3::ToQuat(void) const {
+  SFloats SMat3::ToQuat(void) const {
     //This has so many branches and single scalar operations I don't think it's worth it to try and SIMD it.
-    SAlign Matrix3 mat;
-    SVector3::Store(mbx, mat.mbx);
-    SVector3::Store(mby, mat.mby);
-    SVector3::Store(mbz, mat.mbz);
+    SAlign Mat3 mat;
+    SVec3::Store(mbx, mat.mbx);
+    SVec3::Store(mby, mat.mby);
+    SVec3::Store(mbz, mat.mbz);
     SAlign Quat quat = mat.ToQuat();
     return SLoadAll(&quat.mV.x);
   }
 
-  SMatrix3 operator*(SFloats lhs, const SMatrix3& rhs) {
-    return SMatrix3(SMulAll(lhs, rhs.mbx), SMulAll(lhs, rhs.mby), SMulAll(lhs, rhs.mbz));
+  SMat3 operator*(SFloats lhs, const SMat3& rhs) {
+    return SMat3(SMulAll(lhs, rhs.mbx), SMulAll(lhs, rhs.mby), SMulAll(lhs, rhs.mbz));
   }
 
-  SMatrix3 ToSMatrix3(const Matrix3& mat) {
-    return SMatrix3(ToSVector3(mat.mbx), ToSVector3(mat.mby), ToSVector3(mat.mbz));
+  SMat3 ToSMat3(const Mat3& mat) {
+    return SMat3(ToSVec3(mat.mbx), ToSVec3(mat.mby), ToSVec3(mat.mbz));
   }
 
-  Matrix3 ToMatrix3(const SMatrix3& mat) {
-    return Matrix3(ToVector3(mat.mbx), ToVector3(mat.mby), ToVector3(mat.mbz));
+  Mat3 ToMat3(const SMat3& mat) {
+    return Mat3(ToVec3(mat.mbx), ToVec3(mat.mby), ToVec3(mat.mbz));
   }
 
-  void SMatrix3::Store(Matrix3& store) const {
-    SVector3::Store(mbx, store.mbx);
-    SVector3::Store(mby, store.mby);
-    SVector3::Store(mbz, store.mbz);
+  void SMat3::Store(Mat3& store) const {
+    SVec3::Store(mbx, store.mbx);
+    SVec3::Store(mby, store.mby);
+    SVec3::Store(mbz, store.mbz);
   }
 }
 #endif

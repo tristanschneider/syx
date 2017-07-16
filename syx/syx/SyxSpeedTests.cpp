@@ -27,18 +27,18 @@ namespace Syx
     AlignedFree(m_sQuats);
 
     m_sPoints = reinterpret_cast<SFloats*>(AlignedAlloc(sizeof(SFloats)*m_noSamples));
-    m_nPoints = reinterpret_cast<Vector3*>(AlignedAlloc(sizeof(Vector3)*m_noSamples));
-    m_nMats = reinterpret_cast<Matrix3*>(AlignedAlloc(sizeof(Matrix3)*m_noSamples));
-    m_sMats = reinterpret_cast<SMatrix3*>(AlignedAlloc(sizeof(SMatrix3)*m_noSamples));
+    m_nPoints = reinterpret_cast<Vec3*>(AlignedAlloc(sizeof(Vec3)*m_noSamples));
+    m_nMats = reinterpret_cast<Mat3*>(AlignedAlloc(sizeof(Mat3)*m_noSamples));
+    m_sMats = reinterpret_cast<SMat3*>(AlignedAlloc(sizeof(SMat3)*m_noSamples));
     m_nQuats = reinterpret_cast<Quat*>(AlignedAlloc(sizeof(Quat)*m_noSamples));
     m_sQuats = reinterpret_cast<SFloats*>(AlignedAlloc(sizeof(SFloats)*m_noSamples));
 
     for(size_t i = 0; i < m_noSamples; ++i)
     {
       m_sPoints[i] = SLoadFloats(RandFloat(), RandFloat(), RandFloat());
-      m_nPoints[i] = Vector3(RandFloat(), RandFloat(), RandFloat());
-      m_nMats[i] = Matrix3(RandFloat(), RandFloat(), RandFloat(), RandFloat(), RandFloat(), RandFloat(), RandFloat(), RandFloat(), RandFloat());
-      m_sMats[i] = SMatrix3(RandFloat(), RandFloat(), RandFloat(), RandFloat(), RandFloat(), RandFloat(), RandFloat(), RandFloat(), RandFloat());
+      m_nPoints[i] = Vec3(RandFloat(), RandFloat(), RandFloat());
+      m_nMats[i] = Mat3(RandFloat(), RandFloat(), RandFloat(), RandFloat(), RandFloat(), RandFloat(), RandFloat(), RandFloat(), RandFloat());
+      m_sMats[i] = SMat3(RandFloat(), RandFloat(), RandFloat(), RandFloat(), RandFloat(), RandFloat(), RandFloat(), RandFloat(), RandFloat());
       m_nQuats[i] = Quat(RandFloat(), RandFloat(), RandFloat(), RandFloat());
       m_sQuats[i] = SLoadFloats(RandFloat(), RandFloat(), RandFloat(), RandFloat());
     }
@@ -66,25 +66,25 @@ namespace Syx
       SpeedTestOp("OpB", totalB, opB);\
     return { totalA, totalB };
 
-  Matrix3 GetRotationMatrix(void)
+  Mat3 GetRotationMatrix(void)
   {
     float r[9] = { 0.612361f, 0.729383f, 0.198896f,
                    0.779353f, 0.334213f, 0.569723f,
                    0.176786f, 0.126579f, 0.15549f };
 
-    return Matrix3(r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8]);
+    return Mat3(r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8]);
   }
 
   TimePair SpeedTester::SDotVsSDot(void)
   {
-    //LoopSpeedTest(m_sPoints[j] = SVector3::Dot(m_sPoints[j], (m_sPoints[j]), m_sPoints[j] = m_sPoints[j].Dot(m_sPoints[j]));
+    //LoopSpeedTest(m_sPoints[j] = SVec3::Dot(m_sPoints[j], (m_sPoints[j]), m_sPoints[j] = m_sPoints[j].Dot(m_sPoints[j]));
     return {0,0};
   }
 
   TimePair SpeedTester::RotVecSMatVsSQuat(void)
   {
-    Matrix3 r = GetRotationMatrix();
-    SMatrix3 sb = ToSMatrix3(r);
+    Mat3 r = GetRotationMatrix();
+    SMat3 sb = ToSMat3(r);
     SFloats q = sb.ToQuat();
 
     //LoopSpeedTest(m_sPoints[j] = sb*m_sPoints[j], m_sPoints[j] = q.Rotate(m_sPoints[j]));
@@ -93,8 +93,8 @@ namespace Syx
 
   TimePair SpeedTester::RotVecSQuatVsNQuat(void)
   {
-    Matrix3 r = GetRotationMatrix();
-    SMatrix3 sb = ToSMatrix3(r);
+    Mat3 r = GetRotationMatrix();
+    SMat3 sb = ToSMat3(r);
     SFloats sq = sb.ToQuat();
     Quat nq = r.ToQuat();
 
@@ -104,23 +104,23 @@ namespace Syx
 
   TimePair SpeedTester::RotVecSMatVsNMat(void)
   {
-    Matrix3 nr = GetRotationMatrix();
-    SMatrix3 sr = ToSMatrix3(nr);
+    Mat3 nr = GetRotationMatrix();
+    SMat3 sr = ToSMat3(nr);
 
     LoopSpeedTest(m_sPoints[j] = sr*m_sPoints[j], m_nPoints[j] = nr*m_nPoints[j]);
   }
 
   TimePair SpeedTester::RotVecTransSMatVsNMat(void)
   {
-    Matrix3 nr = GetRotationMatrix();
-    SMatrix3 sr = ToSMatrix3(nr);
+    Mat3 nr = GetRotationMatrix();
+    SMat3 sr = ToSMat3(nr);
 
     LoopSpeedTest(m_sPoints[j] = sr.TransposedMultiply(m_sPoints[j]), m_nPoints[j] = nr.TransposedMultiply(m_nPoints[j]));
   }
 
   TimePair SpeedTester::SDotVsNDot(void)
   {
-    //LoopSpeedTest(m_sPoints[j] = m_sPoints[j].Dot(m_sPoints[j]), m_nPoints[j] = Vector3(m_nPoints[j].Dot(m_nPoints[j])));
+    //LoopSpeedTest(m_sPoints[j] = m_sPoints[j].Dot(m_sPoints[j]), m_nPoints[j] = Vec3(m_nPoints[j].Dot(m_nPoints[j])));
     return {0,0};
   }
 

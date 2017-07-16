@@ -78,7 +78,7 @@ namespace Syx {
 
       mMassA = massA;
       mMassB = massB;
-      mLambdaSum = Vector3::Zero;
+      mLambdaSum = Vec3::Zero;
 
       //J*M^1*J^T with zero terms removed due to axes being orthogonal to each other
       const Vec3& rax = mAngularA[0]; const Vec3& ray = mAngularA[1]; const Vec3& raz = mAngularA[2];
@@ -96,7 +96,7 @@ namespace Syx {
     void SphericalBlock::ApplyImpulse(const Vec3& lambda, ConstraintObjBlock& a, ConstraintObjBlock& b) {
       for(int i = 0; i < 3; ++i) {
         Vec3 linearA, linearB;
-        linearA = linearB = Vector3::Zero;
+        linearA = linearB = Vec3::Zero;
         linearA[i] = mMassA;
         linearB[i] = -mMassB;
         Constraints::ApplyImpulse(lambda[i], linearA, mAngularMA[i], linearB, mAngularMB[i], a, b);
@@ -122,12 +122,12 @@ namespace Syx {
 
       SFloats jvs[3];
       for(int i = 0; i < 3; ++i) {
-        jvs[i] = SVector3::Sum3(SAddAll(SMulAll(angVelA, SLoadAll(&mAngularA[i].x)), SMulAll(angVelB, SLoadAll(&mAngularB[i].x))));
+        jvs[i] = SVec3::Sum3(SAddAll(SMulAll(angVelA, SLoadAll(&mAngularA[i].x)), SMulAll(angVelB, SLoadAll(&mAngularB[i].x))));
         jvs[i] =  SAddAll(jvs[i], SSplatIndex(velDiff, i));
       }
       jv = SCombine(jvs[0], jvs[1], jvs[2]);
 
-      SFloats lambda = SConstraints::ComputeLambda(jv, SLoadAll(&mBias.x), ToSMatrix3(mConstraintMass));
+      SFloats lambda = SConstraints::ComputeLambda(jv, SLoadAll(&mBias.x), ToSMat3(mConstraintMass));
       //Accumulate lambda sum
       Vec3 oldSum = mLambdaSum;
       SStoreAll(&mLambdaSum.x, SAddAll(SLoadAll(&mLambdaSum.x), lambda));
@@ -135,7 +135,7 @@ namespace Syx {
       //Splat mass into two vectors, we'll mask out non relevant components to form the linear portions of the jacobian
       SAlign Vec3 masses(mMassA, mMassA, mMassB, mMassB);
       SFloats massA = SLoadAll(&masses.x);
-      SFloats massB = SVector3::Neg(SShuffle(massA, 2, 2, 2, 2));
+      SFloats massB = SVec3::Neg(SShuffle(massA, 2, 2, 2, 2));
       massA = SShuffle(massA, 0, 0, 0, 0);
       for(int i = 0; i < 3; ++i) {
         SConstraints::ApplyImpulse(SSplatIndex(lambda, i), linVelA, angVelA, linVelB, angVelB,
@@ -143,7 +143,7 @@ namespace Syx {
           SMaskOtherIndices(massB, i), SLoadAll(&mAngularMB[i].x));
       }
 
-      lambda = SVector3::Sum3(SAbsAll(lambda));
+      lambda = SVec3::Sum3(SAbsAll(lambda));
       SStoreAll(&masses.x, lambda);
       return masses.x;
     }

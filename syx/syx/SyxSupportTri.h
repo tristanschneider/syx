@@ -21,15 +21,15 @@ namespace Syx
   {
     int m_verts[3];
     int m_padding;
-    SAlign Vector3 m_halfPlane;
+    SAlign Vec3 m_halfPlane;
 
     SupportTri(void);
     SupportTri(int a, int b, int c, SupportPoints& pts);
-    SupportTri(int a, int b, int c, const Vector3& halfPlane);
+    SupportTri(int a, int b, int c, const Vec3& halfPlane);
 
-    float SignedNormalDist(const Vector3& point) const;
+    float SignedNormalDist(const Vec3& point) const;
     float OriginDist(void) const;
-    Vector3 Project(const Vector3& point) const;
+    Vec3 Project(const Vec3& point) const;
 
     template <typename Container>
     void AddEdges(Container& container) const

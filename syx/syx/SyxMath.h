@@ -4,14 +4,14 @@
 #include <cmath>
 
 #include "SyxSIMD.h"
-#include "SyxVector3.h"
-#include "SyxSVector3.h"
-#include "SyxMatrix3.h"
-#include "SyxSMatrix3.h"
-#include "SyxQuaternion.h"
-#include "SyxSQuaternion.h"
-#include "SyxVector2.h"
-#include "SyxMatrix2.h"
+#include "SyxVec3.h"
+#include "SyxSVec3.h"
+#include "SyxMat3.h"
+#include "SyxSMat3.h"
+#include "SyxQuat.h"
+#include "SyxSQuat.h"
+#include "SyxVec2.h"
+#include "SyxMat2.h"
 
 namespace Syx {
   //Returns zero in case of division by zero
@@ -40,22 +40,22 @@ namespace Syx {
     return num > 0.0f ? 1.0f : -1.0f;
   }
 
-  Vector3 TriangleNormal(const Vector3& a, const Vector3& b, const Vector3& c);
-  float HalfPlaneD(const Vector3& normal, const Vector3& onPlane);
-  float HalfPlaneSignedDistance(const Vector3& normal, float d, const Vector3& point);
-  float HalfPlaneSignedDistance(const Vector3& normal, const Vector3& onPlane, const Vector3& point);
-  Vector3 BarycentricToPoint(const Vector3& a, const Vector3& b, const Vector3& c, const Vector3& bary);
+  Vec3 TriangleNormal(const Vec3& a, const Vec3& b, const Vec3& c);
+  float HalfPlaneD(const Vec3& normal, const Vec3& onPlane);
+  float HalfPlaneSignedDistance(const Vec3& normal, float d, const Vec3& point);
+  float HalfPlaneSignedDistance(const Vec3& normal, const Vec3& onPlane, const Vec3& point);
+  Vec3 BarycentricToPoint(const Vec3& a, const Vec3& b, const Vec3& c, const Vec3& bary);
   //Result signed areas are (bcp, cap, abp)
-  Vector3 PointToBarycentric(const Vector3& a, const Vector3& b, const Vector3& c, const Vector3& point);
-  Vector3 PointToBarycentric(const Vector3& aToB, const Vector3& aToC, const Vector3& aToP);
-  bool IsWithinTri(const Vector3& a, const Vector3& b, const Vector3& c, const Vector3& point, float epsilon = SYX_EPSILON);
+  Vec3 PointToBarycentric(const Vec3& a, const Vec3& b, const Vec3& c, const Vec3& point);
+  Vec3 PointToBarycentric(const Vec3& aToB, const Vec3& aToC, const Vec3& aToP);
+  bool IsWithinTri(const Vec3& a, const Vec3& b, const Vec3& c, const Vec3& point, float epsilon = SYX_EPSILON);
   //Get the outward facing planes of the triangle formed by the given points. From there, dot4 can be used to get distances
-  void GetOutwardTriPlanes(const Vector3& a, const Vector3& b, const Vector3& c, Vector3& resultA, Vector3& resultB, Vector3& resultC, bool normalized);
+  void GetOutwardTriPlanes(const Vec3& a, const Vec3& b, const Vec3& c, Vec3& resultA, Vec3& resultB, Vec3& resultC, bool normalized);
   float RandFloat(void);
   float RandFloat(float min, float max);
-  Vector3 RandOnSphere(void);
-  Matrix3 TensorTransform(const Matrix3& tensor, const Vector3& toPoint, float mass);
-  Matrix3 TensorTransform(const Matrix3& tensor, const Matrix3& rotation);
+  Vec3 RandOnSphere(void);
+  Mat3 TensorTransform(const Mat3& tensor, const Vec3& toPoint, float mass);
+  Mat3 TensorTransform(const Mat3& tensor, const Mat3& rotation);
   //Given an ellipse at origin and line at origin, find intersection time of line with ellipse.
   float EllipseLineIntersect2d(const Vec2& line, const Vec2& ellipseScale);
   float EllipseLineIntersect2d(const Vec2& lineStart, const Vec2& lineDir, const Vec2& ellipseScale);
@@ -115,7 +115,7 @@ namespace Syx {
   }
 
   //Validates that the given barycentric coordinates are all positive and add up to 1
-  bool ValidBarycentric(const Vector3& bary);
+  bool ValidBarycentric(const Vec3& bary);
 
   size_t CombineHash(size_t lhs, size_t rhs);
 

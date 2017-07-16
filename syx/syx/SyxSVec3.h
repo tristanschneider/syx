@@ -1,25 +1,24 @@
 #pragma once
 #include "SyxSIMD.h"
 #include "SyxMathDefines.h"
+#include "SyxVec3.h"
 
 #ifdef SENABLED
 namespace Syx {
-  struct Vector3;
-
-  struct SVector3 {
+  struct SVec3 {
     static FInline SFloats Add(SFloats lhs, SFloats rhs) { return SAddAll(lhs, rhs); }
     static FInline SFloats Sub(SFloats lhs, SFloats rhs) { return SSubAll(lhs, rhs); }
     static FInline SFloats Neg(SFloats v) { return SSubAll(Zero, v); }
     static FInline SFloats Mul(SFloats lhs, SFloats rhs) { return SMulAll(lhs, rhs); }
     static FInline SFloats Div(SFloats lhs, SFloats rhs) { return SDivAll(lhs, rhs); }
-    static FInline void Store(SFloats toStore, Vector3& destination) { SStoreAll(&destination.x, toStore); }
+    static FInline void Store(SFloats toStore, Vec3& destination) { SStoreAll(&destination.x, toStore); }
     static FInline SFloats Normalized(SFloats in) { return SDivAll(in, Length(in)); }
     static FInline SFloats SafeNormalized(SFloats in) { return SafeDivide(in, Length(in)); }
     static FInline SFloats Abs(SFloats in) { return SAbsAll(in); }
     static FInline SFloats Reciprocal(SFloats in) { return SafeDivide(Identity, in); }
-    static FInline SFloats Length2(SFloats in) { return SVector3::Dot(in, in); }
-    static FInline SFloats Distance(SFloats lhs, SFloats rhs) { return SVector3::Length(SVector3::Sub(lhs, rhs)); }
-    static FInline SFloats Distance2(SFloats lhs, SFloats rhs) { return SVector3::Length2(SVector3::Sub(lhs, rhs)); }
+    static FInline SFloats Length2(SFloats in) { return SVec3::Dot(in, in); }
+    static FInline SFloats Distance(SFloats lhs, SFloats rhs) { return SVec3::Length(SVec3::Sub(lhs, rhs)); }
+    static FInline SFloats Distance2(SFloats lhs, SFloats rhs) { return SVec3::Length2(SVec3::Sub(lhs, rhs)); }
     static FInline SFloats ProjVec(SFloats vec, SFloats onto) { return Mul(onto, Div(Dot(vec, onto), Dot(onto, onto))); }
     static FInline SFloats ProjVecScalar(SFloats vec, SFloats onto) { return Div(Dot(vec, onto), Dot(onto, onto)); }
     static FInline SFloats Lerp(SFloats start, SFloats end, SFloats t) { return Add(start, Mul(t, Sub(end, start))); }
@@ -32,7 +31,7 @@ namespace Syx {
 
     //Expensive. Avoid use when possible
     static FInline float Get(SFloats in, int index) {
-      SAlign Vector3 store;
+      SAlign Vec3 store;
       Store(in, store);
       return store[index];
     }
@@ -150,9 +149,9 @@ namespace Syx {
       SAlign float store[4];
       SStoreAll(store, in);
       if(abs(store[0]) >= 0.57735f)
-        resultA = SVector3::Normalized(SLoadFloats(store[1], -store[0], 0.0f));
+        resultA = SVec3::Normalized(SLoadFloats(store[1], -store[0], 0.0f));
       else
-        resultA = SVector3::Normalized(SLoadFloats(0.0f, store[2], -store[1]));
+        resultA = SVec3::Normalized(SLoadFloats(0.0f, store[2], -store[1]));
 
       resultB = Cross(in, resultA);
     }
@@ -187,18 +186,18 @@ namespace Syx {
     const static SFloats BitsAll;
   };
 
-  FInline SFloats ToSVector3(const Vector3& vec) {
+  FInline SFloats ToSVec3(const Vec3& vec) {
     AssertAlignment(vec.x)
       return SLoadAll(&vec.x);
   }
 
-  FInline Vector3 ToVector3(SFloats vec) {
-    SAlign Vector3 result;
-    SVector3::Store(vec, result);
+  FInline Vec3 ToVec3(SFloats vec) {
+    SAlign Vec3 result;
+    SVec3::Store(vec, result);
     return result;
   }
 
-  FInline SFloats ToSVector3(SFloats vec) { return vec; }
-  FInline Vector3 ToVector3(const Vector3& vec) { return vec; }
+  FInline SFloats ToSVec3(SFloats vec) { return vec; }
+  FInline Vec3 ToVec3(const Vec3& vec) { return vec; }
 }
 #endif

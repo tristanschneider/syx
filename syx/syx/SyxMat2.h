@@ -1,5 +1,5 @@
 #pragma once
-#include "SyxVector2.h"
+#include "SyxVec2.h"
 
 namespace Syx {
   struct Matrix2 {
