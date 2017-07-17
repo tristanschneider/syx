@@ -1,7 +1,7 @@
 #define GLEW_NO_GLU
 #define NOMINMAX
 
-#include <GL/glew.h>
+#include <gl/glew.h>
 
 #include <windows.h>
 #include <stdio.h>
@@ -11,37 +11,21 @@
 #include <thread>
 #include <fstream>
 
+//For console
+#include <io.h>
+#include <fcntl.h>
+
+#include <SyxMat4.h>
+#include <SyxVec3.h>
+#include <SyxQuat.h>
+#include <SyxMat3.h>
+#include "Shader.h"
+
+using namespace Syx;
+
 HDC deviceContext = NULL;
 HGLRC glContext = NULL;
-GLuint glProgram = NULL;
-
-#define CHECKERR {\
-  auto e = glGetError();\
-  OutputDebugString(("gl error " + std::to_string(e) + "\n").c_str());\
-}
-
-void getStatusWithInfo(GLuint handle, GLenum status, GLint& logLen, GLint& result) {
-  result = GL_FALSE;
-  glGetShaderiv(handle, status, &result);
-  glGetShaderiv(handle, GL_INFO_LOG_LENGTH, &logLen);
-}
-
-void compileShader(GLuint shaderHandle, const std::string& source) {
-  //Compile Shader
-  const char* cstr = source.c_str();
-  glShaderSource(shaderHandle, 1, &cstr, NULL);
-  glCompileShader(shaderHandle);
-
-  //GL_COMPILE_STATUS
-  GLint result, logLen;
-  getStatusWithInfo(shaderHandle, GL_COMPILE_STATUS, logLen, result);
-  //Check Shader
-  if(logLen > 0) {
-    std::string error(logLen + 1, 0);
-    glGetShaderInfoLog(shaderHandle, logLen, NULL, &error[0]);
-    printf("%s\n", error.c_str());
-  }
-}
+Shader gShader;
 
 void readFile(const std::string& path, std::string& buffer) {
   std::ifstream file(path, std::ifstream::in | std::ifstream::binary);
@@ -55,46 +39,15 @@ void readFile(const std::string& path, std::string& buffer) {
   }
 }
 
-GLuint loadShaders(const std::string& vsSource, const std::string& psSource) {
-  //Create the shaders
-  GLuint vs = glCreateShader(GL_VERTEX_SHADER);
-  GLuint ps = glCreateShader(GL_FRAGMENT_SHADER);
-
-  compileShader(vs, vsSource);
-  compileShader(ps, psSource);
-
-  //Link the program
-  GLuint program = glCreateProgram();
-  glAttachShader(program, vs);
-  glAttachShader(program, ps);
-  glLinkProgram(program);
-
-  GLint result, logLen;
-  getStatusWithInfo(program, GL_LINK_STATUS, logLen, result);
-  if(logLen > 0) {
-    std::string error(logLen + 1, 0);
-    glGetProgramInfoLog(program, logLen, NULL, &error[0]);
-    printf("%s\n", error.c_str());
-  }
-
-  //Once program is linked we can get rid of the individual shaders
-  glDetachShader(program, vs);
-  glDetachShader(program, ps);
-
-  glDeleteShader(vs);
-  glDeleteShader(ps);
-
-  return program;
-}
-
-GLuint loadShadersFromFile(const std::string& vsPath, const std::string& psPath) {
+Shader loadShadersFromFile(const std::string& vsPath, const std::string& psPath) {
+  Shader result;
   std::string vs, ps;
   readFile(vsPath, vs);
   readFile(psPath, ps);
   if(vs.size() && ps.size()) {
-    return loadShaders(vs, ps);
+    result.load(vs, ps);
   }
-  return NULL;
+  return result;
 }
 
 static GLuint vertexBuffer;
@@ -120,7 +73,7 @@ void _createTestTriangle() {
 
 void initGraphics() {
   _createTestTriangle();
-  glProgram = loadShadersFromFile("shaders/test.vs", "shaders/test.ps");
+  gShader = loadShadersFromFile("shaders/phong.vs", "shaders/phong.ps");
 }
 
 void render() {
@@ -133,10 +86,26 @@ void render() {
   //Define the attribute structure
   glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
 
-  glUseProgram(glProgram);
-  glDrawArrays(GL_TRIANGLES, 0, 3);
+  {
+    Shader::Binder b(gShader);
 
+    static Vec3 camPos(0.0f, 0.0f, -3.0f);
+    Mat4 camTransform = Mat4::transform(Vec3::Identity, Quat::LookAt(-Vec3::UnitZ), camPos);
+    static Quat triRot = Quat::Identity;
+    triRot *= Quat::AxisAngle(Vec3::UnitY, 0.01f);
+    Mat4 triTransform = Mat4::transform(Vec3::Identity, triRot, Vec3::Zero);
+    float fov = 1.396f;
+    float nearD = 0.1f;
+    float farD = 100.0f;
+    Mat4 proj = Mat4::perspective(fov, fov, nearD, farD);
+    Mat4 mvp = proj * camTransform.affineInverse() * triTransform.affineInverse();
+
+    glUniformMatrix4fv(gShader.getUniform("mvp"), 1, GL_FALSE, mvp.mData);
+
+    glDrawArrays(GL_TRIANGLES, 0, 3);
+  }
   glDisableVertexAttribArray(0);
+
   SwapBuffers(deviceContext);
 }
 
@@ -258,7 +227,15 @@ int mainLoop() {
   return msg.wParam;
 }
 
+void createConsole() {
+  AllocConsole();
+  FILE* fp;
+  freopen_s(&fp, "CONOUT$", "w", stdout);
+}
+
 int WINAPI WinMain(HINSTANCE hinstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
+  createConsole();
+
   registerWindow(hinstance);
   HWND wnd = CreateWindow("MainClass", "SYX",
     WS_OVERLAPPEDWINDOW | CS_OWNDC,
