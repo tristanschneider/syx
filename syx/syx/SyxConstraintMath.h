@@ -1,7 +1,5 @@
 #pragma once
-#include "SyxVec3.h"
 #include "SyxConstraint.h"
-#include "SyxSIMD.h"
 
 namespace Syx {
   namespace Constraints {

@@ -1,6 +1,4 @@
 #include "Precompile.h"
-#include "SyxQuat.h"
-#include "SyxMat3.h"
 
 namespace Syx {
   const Quat Quat::Zero(0.0f, 0.0f, 0.0f, 0.0f);

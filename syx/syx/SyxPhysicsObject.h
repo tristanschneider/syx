@@ -2,8 +2,6 @@
 #include "SyxTransform.h"
 #include "SyxRigidbody.h"
 #include "SyxCollider.h"
-#include "SyxHandles.h"
-#include "SyxHandleMap.h"
 
 namespace Syx {
   namespace PhysicsObjectFlags {

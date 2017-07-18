@@ -1,6 +1,4 @@
 #pragma once
-#include "SyxAABB.h"
-#include "SyxHandles.h"
 #include "SyxSmallIndexSet.h"
 
 namespace Syx {

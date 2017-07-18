@@ -15,7 +15,6 @@ namespace Syx {
     void QueryVolume(const BoundingVolume& volume, BroadphaseContext& context) const override;
 
   private:
-    void RebuildPairs(void);
 
     BroadResults mResults;
   };

@@ -1,3 +1,4 @@
+#include "Precompile.h"
 #include "SyxModelParam.h"
 #include "SyxModel.h"
 

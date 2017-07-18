@@ -1,8 +1,6 @@
 #pragma once
 #include "SyxTransform.h"
-#include "SyxAABB.h"
 #include "SyxMaterial.h"
-#include "SyxHandles.h"
 
 namespace Syx {
   class Model;

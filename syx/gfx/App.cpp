@@ -1,3 +1,4 @@
+#include "Precompile.h"
 #include "App.h"
 
 void App::init() {

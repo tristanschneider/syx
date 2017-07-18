@@ -1,10 +1,4 @@
 #pragma once
-#include <vector>
-#include <algorithm>
-#include <unordered_map>
-#include "SyxAlignmentAllocator.h"
-#include "SyxIntrusive.h"
-#include "SyxHandles.h"
 
 //This is the same as DeclareIntrusiveNode, but using this so I'm not bound to intrusive if I want to change
 #define DeclareHandleMapNode(ClassType) IntrusiveNode<ClassType> mIntrusiveNode;

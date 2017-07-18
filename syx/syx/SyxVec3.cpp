@@ -1,5 +1,4 @@
 #include "Precompile.h"
-#include "SyxVec3.h"
 
 namespace Syx {
   SAlign const Vec3 Vec3::UnitX(1.0f, 0.0f, 0.0f);

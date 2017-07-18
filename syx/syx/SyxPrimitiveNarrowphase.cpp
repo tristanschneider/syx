@@ -1,3 +1,4 @@
+#include "Precompile.h"
 #include "SyxPrimitiveNarrowphase.h"
 #include "SyxNarrowphase.h"
 #include "SyxModelInstance.h"

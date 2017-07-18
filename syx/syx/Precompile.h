@@ -1,18 +1,5 @@
 #pragma once
 
-//Syx stuff
-#include "SyxMath.h"
-#include "SyxGeometricQueries.h"
-#include "SyxProfiler.h"
-#include "SyxAlignmentAllocator.h"
-#include "SyxAssert.h"
-#include "SyxHandles.h"
-#include "SyxInterface.h"
-#include "SyxDebugHelpers.h"
-#include "SyxDebugDrawer.h"
-#include "SyxIntrusive.h"
-#include "SyxStaticIndexable.h"
-
 #include <chrono>
 #ifdef SENABLED
 #include <xmmintrin.h>
@@ -27,13 +14,32 @@
 #include <limits>
 #include <string>
 #include <iostream>
-#include <functional>//Probably only used in tests
+#include <functional>
 #include <sstream>
 #include <bitset>
 #include <unordered_map>
 #include <unordered_set>
+#include <chrono>
+#include <thread>
+#include <mutex>
+#include <utility>
+#include <cmath>
 
-namespace Syx
-{
+#include "SyxMathIncludes.h"
+#include "SyxMath.h"
+#include "SyxGeometricQueries.h"
+#include "SyxProfiler.h"
+#include "SyxAlignmentAllocator.h"
+#include "SyxAssert.h"
+#include "SyxHandles.h"
+#include "SyxInterface.h"
+#include "SyxDebugHelpers.h"
+#include "SyxDebugDrawer.h"
+#include "SyxIntrusive.h"
+#include "SyxStaticIndexable.h"
+#include "SyxIntrusive.h"
+#include "SyxHandleMap.h"
+
+namespace Syx {
   extern Syx::SyxOptions gOptions;
 }

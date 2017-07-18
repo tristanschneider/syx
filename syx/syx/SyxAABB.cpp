@@ -1,5 +1,4 @@
 #include "Precompile.h"
-#include "SyxAABB.h"
 #include "SyxTransform.h"
 
 namespace Syx {

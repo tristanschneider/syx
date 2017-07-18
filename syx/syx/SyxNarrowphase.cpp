@@ -1,3 +1,4 @@
+#include "Precompile.h"
 #include "SyxNarrowphase.h"
 #include "SyxPhysicsObject.h"
 #include "SyxCollider.h"

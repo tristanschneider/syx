@@ -1,7 +1,5 @@
 #pragma once
 #include "SyxBroadphase.h"
-#include <vector>
-#include <queue>
 
 namespace Syx {
   class AABBNode {

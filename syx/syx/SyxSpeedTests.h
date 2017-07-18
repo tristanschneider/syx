@@ -1,12 +1,10 @@
 #pragma once
 
 #ifdef SENABLED
-namespace Syx
-{
+namespace Syx {
   typedef std::pair<long long, long long> TimePair;
 
-  class SpeedTester
-  {
+  class SpeedTester {
   public:
     SpeedTester(void);
     ~SpeedTester(void);

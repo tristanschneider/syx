@@ -1,6 +1,4 @@
 #pragma once
-#include "SyxHandleMap.h"
-#include "SyxHandles.h"
 #include "SyxPhysicsObject.h"
 #include "SyxConstraintSystem.h"
 #include "SyxNarrowphase.h"

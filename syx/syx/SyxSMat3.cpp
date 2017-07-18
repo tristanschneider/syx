@@ -1,10 +1,4 @@
 #include "Precompile.h"
-#include "SyxSMat3.h"
-#include "SyxSVec3.h"
-#include "SyxSIMD.h"
-#include "SyxSQuat.h"
-#include "SyxMat3.h"
-#include "SyxQuat.h"
 
 #ifdef SENABLED
 namespace Syx {

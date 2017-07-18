@@ -1,10 +1,4 @@
 #pragma once
-#include "SyxIntrusive.h"
-#include "SyxVec3.h"
-#include "SyxQuat.h"
-#include "SyxSIMD.h"
-#include "SyxHandles.h"
-#include "SyxMat3.h"
 
 namespace Syx {
   class PhysicsObject;

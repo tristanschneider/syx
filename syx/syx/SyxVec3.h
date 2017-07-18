@@ -1,6 +1,4 @@
 #pragma once
-#include <cmath>
-#include "SyxSIMD.h"
 
 namespace Syx {
   struct Vec3 {

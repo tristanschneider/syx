@@ -1,8 +1,4 @@
 #pragma once
-#include "SyxAABB.h"
-#include "SyxHandles.h"
-#include <vector>
-#include "SyxHandleMap.h"
 #include "SyxModelParam.h"
 #include "SyxModelInstance.h"
 #include "SyxAABBTree.h"

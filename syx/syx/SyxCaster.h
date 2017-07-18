@@ -1,5 +1,4 @@
 #pragma once
-#include "SyxHandles.h"
 
 namespace Syx {
   class PhysicsObject;

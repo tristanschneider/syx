@@ -1,6 +1,4 @@
 #pragma once
-#include "SyxHandleMap.h"
-#include "SyxHandles.h"
 #include "SyxMaterial.h"
 #include "SyxModel.h"
 #include "SyxSpace.h"

@@ -1,27 +1,21 @@
 #pragma once
-#include <chrono>
-#include <string>
-#include <vector>
-namespace Syx
-{
+namespace Syx {
   typedef std::chrono::nanoseconds Duration;
   typedef std::chrono::high_resolution_clock::time_point Time;
 
-  struct ProfileBlock
-  {
+  struct ProfileBlock {
     std::string m_name;
     Time m_startTime;
     size_t m_historyBlock;
   };
 
-  struct ProfileResult
-  {
+  struct ProfileResult {
     ProfileResult(void) {}
-    ProfileResult(const std::string& name, Duration duration, size_t depth):
-      m_name(name), m_duration(duration), m_depth(depth) {}
+    ProfileResult(const std::string& name, Duration duration, size_t depth) :
+      m_name(name), m_duration(duration), m_depth(depth) {
+    }
 
-    std::string GetReportString(const std::string& indent, float time)
-    {
+    std::string GetReportString(const std::string& indent, float time) {
       std::string result;
       result.reserve(indent.size()*m_depth + m_name.size() + 10);
 
@@ -34,21 +28,18 @@ namespace Syx
       return result;
     }
 
-    std::string GetReportString(const std::string& indent)
-    {
+    std::string GetReportString(const std::string& indent) {
       return GetReportString(indent, Milliseconds());
     }
 
-    float Seconds(void) const
-    {
+    float Seconds(void) const {
       double billion = 1000000000.0;
-      return static_cast<float>(static_cast<double>(m_duration.count())/billion);
+      return static_cast<float>(static_cast<double>(m_duration.count()) / billion);
     }
 
-    float Milliseconds(void) const
-    {
+    float Milliseconds(void) const {
       double million = 1000000.0;
-      return static_cast<float>(static_cast<double>(m_duration.count())/million);
+      return static_cast<float>(static_cast<double>(m_duration.count()) / million);
     }
 
     std::string m_name;
@@ -56,10 +47,9 @@ namespace Syx
     size_t m_depth;
   };
 
-  class Profiler
-  {
+  class Profiler {
   public:
-    Profiler(void): m_curDepth(0) {}
+    Profiler(void) : m_curDepth(0) {}
 
     void PushBlock(const std::string& name);
     //This will pop the next block on the stack, but throw an error if it's not the block you think it is
@@ -82,15 +72,12 @@ namespace Syx
     std::string m_report;
   };
 
-  struct AutoProfileBlock
-  {
-    AutoProfileBlock(Profiler& profiler, const std::string& name): m_profiler(profiler), m_name(name)
-    {
+  struct AutoProfileBlock {
+    AutoProfileBlock(Profiler& profiler, const std::string& name) : m_profiler(profiler), m_name(name) {
       m_profiler.PushBlock(m_name);
     }
 
-    ~AutoProfileBlock(void)
-    {
+    ~AutoProfileBlock(void) {
       m_profiler.PopBlock(m_name);
     }
 

@@ -1,24 +1,14 @@
 #define GLEW_NO_GLU
 #define NOMINMAX
 
-#include <gl/glew.h>
-
+#include "Precompile.h"
 #include <windows.h>
-#include <stdio.h>
-#include <string>
-#include <algorithm>
-#include <chrono>
-#include <thread>
-#include <fstream>
 
 //For console
 #include <io.h>
 #include <fcntl.h>
 
-#include <SyxMat4.h>
-#include <SyxVec3.h>
-#include <SyxQuat.h>
-#include <SyxMat3.h>
+#include <SyxMathIncludes.h>
 #include "Shader.h"
 
 using namespace Syx;

@@ -1,5 +1,4 @@
-#include "SyxMat2.h"
-#include <cmath>
+#include "Precompile.h"
 
 namespace Syx {
   const Matrix2 Matrix2::sZero(0.0f, 0.0f,

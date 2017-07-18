@@ -1,11 +1,7 @@
 #include "Precompile.h"
-#include "SyxSVec3.h"
-#include "SyxSIMD.h"
-#include "SyxVec3.h"
 
 #ifdef SENABLED
-namespace Syx
-{
+namespace Syx {
   const static int nOne = -1;
   const static float AllOne = *reinterpret_cast<const float*>(&nOne);
 

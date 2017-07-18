@@ -1,5 +1,4 @@
 #pragma once
-#include <vector>
 #include "SyxStaticIndexable.h"
 
 namespace Syx {

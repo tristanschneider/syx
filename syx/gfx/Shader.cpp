@@ -1,3 +1,4 @@
+#include "Precompile.h"
 #include "Shader.h"
 
 Shader::Binder::Binder(const Shader& shader) {

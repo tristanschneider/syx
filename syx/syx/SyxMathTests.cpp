@@ -1,6 +1,5 @@
 #include "Precompile.h"
 #include "SyxMathTests.h"
-#include "SyxMath.h"
 #include "SyxTestHelpers.h"
 
 namespace Syx

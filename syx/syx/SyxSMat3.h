@@ -1,5 +1,4 @@
 #pragma once
-#include "SyxSVec3.h"
 
 #ifdef SENABLED
 namespace Syx {

@@ -1,3 +1,4 @@
+#include "Precompile.h"
 #include "SyxNoBroadphase.h"
 
 namespace Syx {

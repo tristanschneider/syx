@@ -1,6 +1,4 @@
 #pragma once
-#include "SyxVec3.h"
-#include <vector>
 
 #define SyxInvalidHandle static_cast<size_t>(-1)
 

@@ -1,5 +1,4 @@
-#include "SyxVec2.h"
-#include "SyxMath.h"
+#include "Precompile.h"
 
 namespace Syx {
   const Vector2 Vector2::sUnitX(1.0f, 0.0f);

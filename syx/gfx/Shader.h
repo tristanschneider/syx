@@ -1,7 +1,4 @@
 #pragma once
-#include <gl/glew.h>
-#include <unordered_map>
-#include <string>
 
 class Shader {
 public:

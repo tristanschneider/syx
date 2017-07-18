@@ -1,8 +1,4 @@
 #pragma once
-#include "SyxVec3.h"
-#include "SyxSVec3.h"
-#include "SyxAlignmentAllocator.h"
-#include <vector>
 
 namespace Syx {
   struct Transformer;

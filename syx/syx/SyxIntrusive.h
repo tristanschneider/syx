@@ -1,6 +1,4 @@
 #pragma once
-#include <mutex>
-#include "SyxSIMD.h"
 
 //This macro must be used in classes that want to be in intrusive structures
 #define DeclareIntrusiveNode(ClassType) IntrusiveNode<ClassType> mIntrusiveNode;

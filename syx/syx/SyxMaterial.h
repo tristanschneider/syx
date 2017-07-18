@@ -1,6 +1,4 @@
 #pragma once
-#include "SyxHandles.h"
-#include "SyxHandleMap.h"
 
 namespace Syx
 {

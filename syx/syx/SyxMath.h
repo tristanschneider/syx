@@ -1,18 +1,4 @@
 #pragma once
-#include <utility>
-#include "SyxMathDefines.h"
-#include <cmath>
-
-#include "SyxSIMD.h"
-#include "SyxVec3.h"
-#include "SyxSVec3.h"
-#include "SyxMat3.h"
-#include "SyxSMat3.h"
-#include "SyxQuat.h"
-#include "SyxSQuat.h"
-#include "SyxVec2.h"
-#include "SyxMat2.h"
-
 namespace Syx {
   //Returns zero in case of division by zero
   template <typename Number>

@@ -1,5 +1,4 @@
 #include "Precompile.h"
-#include "SyxMat4.h"
 
 namespace Syx {
     Mat4::Mat4(float r00, float r01, float r02, float r03,

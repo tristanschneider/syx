@@ -1,5 +1,4 @@
 #pragma once
-#include "SyxVec3.h"
 
 #define SIMPLEX_MAX 4
 

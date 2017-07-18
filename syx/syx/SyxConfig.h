@@ -1,12 +1,9 @@
 #pragma once
 
-namespace Syx
-{
-  class Config
-  {
+namespace Syx {
+  class Config {
   public:
-    enum class LogLevel : unsigned char
-    {
+    enum class LogLevel : unsigned char {
       Warning,
       Error
     };
@@ -26,12 +23,10 @@ namespace Syx
 
 
   template <typename ObjectT>
-  inline void DeleteObject(Config* _config, ObjectT* _object, size_t _align = 0)
-  {
-    if (nullptr != _object)
-    {
+  inline void DeleteObject(Config* _config, ObjectT* _object, size_t _align = 0) {
+    if(nullptr != _object) {
       _object->~ObjectT();
-      _config->AlignedFree( _object);
+      _config->AlignedFree(_object);
     }
   }
 

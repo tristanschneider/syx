@@ -1,7 +1,4 @@
 #pragma once
-#include "SyxAlignmentAllocator.h"
-#include <vector>
-#include <unordered_map>
 #include "SyxTransform.h"
 
 namespace Syx {

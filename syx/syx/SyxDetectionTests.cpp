@@ -4,7 +4,6 @@
 #include "SyxModel.h"
 #include "SyxTransform.h"
 #include "SyxSimplex.h"
-#include "SyxGeometricQueries.h"
 #include "SyxNarrowphase.h"
 #include "SyxSpace.h"
 #include "SyxPhysicsSystem.h"

@@ -1,5 +1,4 @@
 #pragma once
-#include <vector>
 
 //Set for small range of indices with static memory, but will fall back on allocated memory if it has to
 template<size_t StaticBytes>

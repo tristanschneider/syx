@@ -1,5 +1,4 @@
 #pragma once
-#include "SyxIntrusive.h"
 #include "SyxContactConstraint.h"
 #include "SyxDistanceConstraint.h"
 #include "SyxSphericalConstraint.h"

@@ -1,10 +1,8 @@
 #pragma once
 #include "SyxSimplex.h"
 
-namespace Syx
-{
-  class DebugSimplex
-  {
+namespace Syx {
+  class DebugSimplex {
   public:
     DebugSimplex(void) { Initialize(); }
     DebugSimplex(const Simplex& rhs) { *this = rhs; }

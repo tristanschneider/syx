@@ -1,5 +1,4 @@
 #pragma once
-#include "SyxIntrusive.h"
 #include "SyxWeldConstraint.h"
 #include "SyxIslandGraph.h"
 #include "SyxIslandSolver.h"

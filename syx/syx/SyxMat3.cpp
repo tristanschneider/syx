@@ -1,8 +1,4 @@
 #include "Precompile.h"
-#include "SyxMat3.h"
-#include "SyxVec3.h"
-#include "SyxMath.h"
-#include "SyxQuat.h"
 
 namespace Syx {
   const Mat3 Mat3::Identity = Mat3(1.0f, 0.0f, 0.0f,

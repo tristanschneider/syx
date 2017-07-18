@@ -1,5 +1,4 @@
 #include "Precompile.h"
-#include "SyxMath.h"
 
 namespace Syx {
   Vec3 TriangleNormal(const Vec3& a, const Vec3& b, const Vec3& c) {
