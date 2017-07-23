@@ -27,6 +27,14 @@ namespace Syx {
     Mat4 affineInverse() const;
 
     void decompose(Vec3& scale, Mat3& rotate, Vec3& translate) const;
+    Vec3 getScale() const;
+    Vec3 getTranslate() const;
+    Quat getRotQ() const;
+    Mat3 getRotM() const;
+    void setScale(const Vec3& scale);
+    void setTranslate(const Vec3& translate);
+    void setRot(const Mat3& rot);
+    void setRot(const Quat& rot);
 
     static Mat4 zero();
     static Mat4 identity();
