@@ -24,8 +24,6 @@ namespace Syx {
       IntrusiveIterator<Value> m_it;
     };
 
-    HandleMap(): mNewKey(static_cast<Handle>(0)) {}
-
     Iterator Begin() {
       return mValueStore.Begin();
     }
@@ -77,7 +75,6 @@ namespace Syx {
   private:
     VecList<Value> mValueStore;
     std::unordered_map<Handle, Value*> mKeyToValue;
-    Handle mNewKey;
     HandleGenerator mKeygen;
   };
 }

@@ -8,96 +8,13 @@
 #include <io.h>
 #include <fcntl.h>
 
-#include <SyxMathIncludes.h>
 #include "Shader.h"
+#include "App.h"
 
 using namespace Syx;
 
-HDC deviceContext = NULL;
-HGLRC glContext = NULL;
-Shader gShader;
-
-void readFile(const std::string& path, std::string& buffer) {
-  std::ifstream file(path, std::ifstream::in | std::ifstream::binary);
-  if(file.good()) {
-    file.seekg(0, file.end);
-    size_t size = static_cast<size_t>(file.tellg());
-    file.seekg(0, file.beg);
-    buffer.resize(size + 1);
-    file.read(&buffer[0], size);
-    buffer[size] = 0;
-  }
-}
-
-Shader loadShadersFromFile(const std::string& vsPath, const std::string& psPath) {
-  Shader result;
-  std::string vs, ps;
-  readFile(vsPath, vs);
-  readFile(psPath, ps);
-  if(vs.size() && ps.size()) {
-    result.load(vs, ps);
-  }
-  return result;
-}
-
-static GLuint vertexBuffer;
-static GLuint vertexArray;
-
-void _createTestTriangle() {
-  //Generate a vertex array name
-  glGenVertexArrays(1, &vertexArray);
-  //Bind this array so we can fill it in
-  glBindVertexArray(vertexArray);
-  GLfloat triBuff[] = {
-      -1.0f, -1.0f, 0.0f,
-      1.0f, -1.0f, 0.0f,
-      0.0f,  1.0f, 0.0f,
-  };
-  //Generate a vertex buffer name
-  glGenBuffers(1, &vertexBuffer);
-  //Bind vertexBuffer as "Vertex attributes"
-  glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer);
-  //Upload triBuff to gpu as vertexBuffer
-  glBufferData(GL_ARRAY_BUFFER, sizeof(triBuff), triBuff, GL_STATIC_DRAW);
-}
-
-void initGraphics() {
-  _createTestTriangle();
-  gShader = loadShadersFromFile("shaders/phong.vs", "shaders/phong.ps");
-}
-
-void render() {
-  glClearColor(0.0f, 0.0f, 1.0f, 0.0f);
-  glClear(GL_COLOR_BUFFER_BIT);
-
-  //Specify that we're talking about the zeroth attribute
-  glEnableVertexAttribArray(0);
-  glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer);
-  //Define the attribute structure
-  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
-
-  {
-    Shader::Binder b(gShader);
-
-    static Vec3 camPos(0.0f, 0.0f, -3.0f);
-    Mat4 camTransform = Mat4::transform(Vec3::Identity, Quat::LookAt(-Vec3::UnitZ), camPos);
-    static Quat triRot = Quat::Identity;
-    triRot *= Quat::AxisAngle(Vec3::UnitY, 0.01f);
-    Mat4 triTransform = Mat4::transform(Vec3::Identity, triRot, Vec3::Zero);
-    float fov = 1.396f;
-    float nearD = 0.1f;
-    float farD = 100.0f;
-    Mat4 proj = Mat4::perspective(fov, fov, nearD, farD);
-    Mat4 mvp = proj * camTransform.affineInverse() * triTransform.affineInverse();
-
-    glUniformMatrix4fv(gShader.getUniform("mvp"), 1, GL_FALSE, mvp.mData);
-
-    glDrawArrays(GL_TRIANGLES, 0, 3);
-  }
-  glDisableVertexAttribArray(0);
-
-  SwapBuffers(deviceContext);
-}
+static HDC gDeviceContext = NULL;
+static HGLRC gGLContext = NULL;
 
 void setWindowSize(int width, int height) {
   glViewport(0, 0, width, height);
@@ -176,8 +93,8 @@ HGLRC createGLContext(HDC dc) {
 
 void destroyContext() {
   //To destroy the context, it must be made not current
-  wglMakeCurrent(deviceContext, NULL);
-  wglDeleteContext(glContext);
+  wglMakeCurrent(gDeviceContext, NULL);
+  wglDeleteContext(gGLContext);
 }
 
 void sleepMS(int ms) {
@@ -190,6 +107,10 @@ int mainLoop() {
   MSG msg;
   bool exit = false;
   int targetFrameTimeMS = 16;
+  App app;
+
+  app.init();
+  auto lastFrameEnd = std::chrono::high_resolution_clock::now();
   while(!exit) {
     auto frameStart = std::chrono::high_resolution_clock::now();
     while((gotMessage = PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) > 0) {
@@ -204,15 +125,19 @@ int mainLoop() {
     if(exit)
       break;
 
-    render();
-    auto frameEnd = std::chrono::high_resolution_clock::now();
-    int frameTimeMS = static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(frameEnd - frameStart).count());
+    int dtMS = static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(frameStart - lastFrameEnd).count());
+    app.update(static_cast<float>(dtMS)*0.001f);
+    SwapBuffers(gDeviceContext);
+
+    lastFrameEnd = std::chrono::high_resolution_clock::now();
+    int frameTimeMS = static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(lastFrameEnd - frameStart).count());
     //If frame time was greater than target time then we're behind, start the next frame immediately
     int timeToNextFrameMS = targetFrameTimeMS - frameTimeMS;
     if(timeToNextFrameMS <= 0)
       continue;
     sleepMS(timeToNextFrameMS);
   }
+  app.uninit();
 
   return msg.wParam;
 }
@@ -239,12 +164,10 @@ int WINAPI WinMain(HINSTANCE hinstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     NULL);
   ShowWindow(wnd, nCmdShow);
 
-  deviceContext = GetDC(wnd);
-  initDeviceContext(deviceContext, 32, 24, 8, 0);
-  glContext = createGLContext(deviceContext);
+  gDeviceContext = GetDC(wnd);
+  initDeviceContext(gDeviceContext, 32, 24, 8, 0);
+  gGLContext = createGLContext(gDeviceContext);
   glewInit();
-
-  initGraphics();
 
   UpdateWindow(wnd);
 

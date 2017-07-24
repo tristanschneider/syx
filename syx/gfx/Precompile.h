@@ -11,3 +11,8 @@
 #include <thread>
 #include <fstream>
 #include <gl/glew.h>
+#include <gl/GL.h>
+#include <memory>
+
+#include <SyxMathIncludes.h>
+#include "Handle.h"
