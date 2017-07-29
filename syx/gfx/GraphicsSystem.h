@@ -2,14 +2,15 @@
 #include "Shader.h"
 #include "Model.h"
 #include "Camera.h"
+#include "System.h"
 
-class GraphicsSystem {
+class GraphicsSystem : public System {
 public:
   GraphicsSystem();
 
-  void init();
-  void update(float dt);
-  void uninit();
+  void init() override;
+  void update(float dt) override;
+  void uninit() override;
 
   Camera& getPrimaryCamera();
 
