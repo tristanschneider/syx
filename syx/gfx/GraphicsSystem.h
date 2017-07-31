@@ -8,6 +8,10 @@ class GraphicsSystem : public System {
 public:
   GraphicsSystem();
 
+  SystemId getId() const override {
+    return SystemId::Graphics;
+  }
+
   void init() override;
   void update(float dt) override;
   void uninit() override;

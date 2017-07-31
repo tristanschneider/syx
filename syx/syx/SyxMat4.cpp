@@ -60,9 +60,9 @@ namespace Syx {
     pos = -pos;
     //Build up transform again backwards: scale*rotate*translate
     Mat4 result(scale.x*rot.mbx.x, scale.x*rot.mby.x, scale.x*rot.mbz.x, 0.0f,
-      scale.y*rot.mbx.y, scale.y*rot.mby.y, scale.y*rot.mbz.y, 0.0f,
-      scale.z*rot.mbx.z, scale.z*rot.mby.z, scale.z*rot.mbz.z, 0.0f,
-      0.0f, 0.0f, 0.0f, 1.0f);
+                scale.y*rot.mbx.y, scale.y*rot.mby.y, scale.y*rot.mbz.y, 0.0f,
+                scale.z*rot.mbx.z, scale.z*rot.mby.z, scale.z*rot.mbz.z, 0.0f,
+                             0.0f,              0.0f,              0.0f, 1.0f);
     result.mColRow[3][0] = _dotV3(0, result, pos);
     result.mColRow[3][1] = _dotV3(1, result, pos);
     result.mColRow[3][2] = _dotV3(2, result, pos);
@@ -72,12 +72,19 @@ namespace Syx {
   void Mat4::decompose(Vec3& scale, Mat3& rotate, Vec3& translate) const {
     translate = Vec3(mColRow[3][0], mColRow[3][1], mColRow[3][2]);
     rotate = Mat3(mColRow[0][0], mColRow[1][0], mColRow[2][0],
-      mColRow[0][1], mColRow[1][1], mColRow[2][1],
-      mColRow[0][2], mColRow[1][2], mColRow[2][2]);
+                  mColRow[0][1], mColRow[1][1], mColRow[2][1],
+                  mColRow[0][2], mColRow[1][2], mColRow[2][2]);
     scale = Vec3(rotate.mbx.Length(), rotate.mby.Length(), rotate.mbz.Length());
     rotate.mbx /= scale.x;
     rotate.mby /= scale.y;
     rotate.mbz /= scale.z;
+  }
+
+  void Mat4::decompose(Mat3& rotate, Vec3& translate) const {
+    translate = Vec3(mColRow[3][0], mColRow[3][1], mColRow[3][2]);
+    rotate = Mat3(mColRow[0][0], mColRow[1][0], mColRow[2][0],
+                  mColRow[0][1], mColRow[1][1], mColRow[2][1],
+                  mColRow[0][2], mColRow[1][2], mColRow[2][2]);
   }
 
   Mat4 Mat4::zero() {
@@ -88,35 +95,47 @@ namespace Syx {
 
   Mat4 Mat4::identity() {
     return Mat4(1.0f, 0.0f, 0.0f, 0.0f,
-      0.0f, 1.0f, 0.0f, 0.0f,
-      0.0f, 0.0f, 1.0f, 0.0f,
-      0.0f, 0.0f, 0.0f, 1.0f);
+                0.0f, 1.0f, 0.0f, 0.0f,
+                0.0f, 0.0f, 1.0f, 0.0f,
+                0.0f, 0.0f, 0.0f, 1.0f);
   }
 
   Mat4 Mat4::transform(const Vec3& scale, const Mat3& rotate, const Vec3& translate) {
     //translate*rotate*scale
     return Mat4(rotate.mbx.x*scale.x, rotate.mby.x*scale.y, rotate.mbz.x*scale.z, translate.x,
-      rotate.mbx.y*scale.x, rotate.mby.y*scale.y, rotate.mbz.y*scale.z, translate.y,
-      rotate.mbx.z*scale.x, rotate.mby.z*scale.y, rotate.mbz.z*scale.z, translate.z,
-      0.0f, 0.0f, 0.0f, 1.0f);
+                rotate.mbx.y*scale.x, rotate.mby.y*scale.y, rotate.mbz.y*scale.z, translate.y,
+                rotate.mbx.z*scale.x, rotate.mby.z*scale.y, rotate.mbz.z*scale.z, translate.z,
+                                0.0f,                 0.0f,                 0.0f,        1.0f);
   }
 
   Mat4 Mat4::transform(const Vec3& scale, const Quat& rotate, const Vec3& translate) {
     return Mat4::transform(scale, rotate.ToMatrix(), translate);
   }
 
+  Mat4 Mat4::transform(const Mat3& rotate, const Vec3& translate) {
+    //translate*rotate*scale
+    return Mat4(rotate.mbx.x, rotate.mby.x, rotate.mbz.x, translate.x,
+                rotate.mbx.y, rotate.mby.y, rotate.mbz.y, translate.y,
+                rotate.mbx.z, rotate.mby.z, rotate.mbz.z, translate.z,
+                        0.0f,         0.0f,         0.0f,        1.0f);
+  }
+
+  Mat4 Mat4::transform(const Quat& rotate, const Vec3& translate) {
+    return Mat4::transform(rotate.ToMatrix(), translate);
+  }
+
   Mat4 Mat4::scale(const Vec3& scale) {
-    return Mat4(scale.x, 0.0f, 0.0f, 0.0f,
-      0.0f, scale.y, 0.0f, 0.0f,
-      0.0f, 0.0f, scale.z, 0.0f,
-      0.0f, 0.0f, 0.0f, 1.0f);
+    return Mat4(scale.x,    0.0f,    0.0f, 0.0f,
+                   0.0f, scale.y,    0.0f, 0.0f,
+                   0.0f,    0.0f, scale.z, 0.0f,
+                   0.0f,    0.0f,    0.0f, 1.0f);
   }
 
   Mat4 Mat4::rotate(const Mat3& rotate) {
     return Mat4(rotate.mbx.x, rotate.mby.x, rotate.mbz.x, 0.0f,
-      rotate.mbx.y, rotate.mby.y, rotate.mbz.y, 0.0f,
-      rotate.mbx.z, rotate.mby.z, rotate.mbz.z, 0.0f,
-      0.0f, 0.0f, 0.0f, 1.0f);
+                rotate.mbx.y, rotate.mby.y, rotate.mbz.y, 0.0f,
+                rotate.mbx.z, rotate.mby.z, rotate.mbz.z, 0.0f,
+                        0.0f,         0.0f,         0.0f, 1.0f);
   }
 
   Mat4 Mat4::rotate(const Quat& rotate) {
@@ -125,25 +144,25 @@ namespace Syx {
 
   Mat4 Mat4::translate(const Vec3& translate) {
     return Mat4(1.0f, 0.0f, 0.0f, translate.x,
-      0.0f, 1.0f, 0.0f, translate.y,
-      0.0f, 0.0f, 1.0f, translate.z,
-      0.0f, 0.0f, 0.0f, 1.0f);
+                0.0f, 1.0f, 0.0f, translate.y,
+                0.0f, 0.0f, 1.0f, translate.z,
+                0.0f, 0.0f, 0.0f,        1.0f);
   }
 
   Mat4 Mat4::orthographic(float width, float height, float near, float far) {
     float farmnear = far - near;
-    return Mat4(1.0f / width, 0.0f, 0.0f, 0.0f,
-      0.0f, 1.0f / height, 0.0f, 0.0f,
-      0.0f, 0.0f, -2.0f / farmnear, -(far + near) / farmnear,
-      0.0f, 0.0f, 0.0f, 1.0f);
+    return Mat4(1.0f/width,        0.0f,           0.0f,                   0.0f,
+                      0.0f, 1.0f/height,           0.0f,                   0.0f,
+                      0.0f,        0.0f, -2.0f/farmnear, -(far + near)/farmnear,
+                      0.0f,        0.0f,           0.0f,                   1.0f);
   }
 
   Mat4 Mat4::perspective(float fovX, float fovY, float near, float far) {
     float farmnear = far - near;
-    return Mat4(std::atan(fovX*0.5f), 0.0f, 0.0f, 0.0f,
-      0.0f, std::atan(fovY*0.5f), 0.0f, 0.0f,
-      0.0f, 0.0f, -(far + near) / farmnear, -2.0f*far*near / farmnear,
-      0.0f, 0.0f, -1.0f, 0.0f);
+    return Mat4(std::atan(fovX*0.5f),                 0.0f,                   0.0f,                    0.0f,
+                                0.0f, std::atan(fovY*0.5f),                   0.0f,                    0.0f,
+                                0.0f,                 0.0f, -(far + near)/farmnear, -2.0f*far*near/farmnear,
+                                0.0f,                 0.0f,                  -1.0f,                    0.0f);
   }
 
   static float _colLen(const Mat4& m, int i) {
@@ -165,8 +184,8 @@ namespace Syx {
 
   Mat3 Mat4::getRotM() const {
     Mat3 result(mColRow[0][0], mColRow[1][0], mColRow[2][0],
-      mColRow[0][1], mColRow[1][1], mColRow[2][1],
-      mColRow[0][2], mColRow[1][2], mColRow[2][2]);
+                mColRow[0][1], mColRow[1][1], mColRow[2][1],
+                mColRow[0][2], mColRow[1][2], mColRow[2][2]);
     result.mbx.Normalize();
     result.mby.Normalize();
     result.mbz.Normalize();

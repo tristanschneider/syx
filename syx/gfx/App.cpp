@@ -2,30 +2,35 @@
 #include "App.h"
 #include "GraphicsSystem.h"
 #include "KeyboardInput.h"
+#include "EditorNavigator.h"
 
 App::App() {
-  mSystems.resize(static_cast<int>(SystemId::Count), nullptr);
-  _registerSystem(mGraphics, SystemId::Graphics);
-  _registerSystem(mKeyboardInput, SystemId::KeyboardInput);
+  mSystems.resize(static_cast<size_t>(SystemId::Count));
+  _registerSystem<GraphicsSystem>();
+  _registerSystem<KeyboardInput>();
+  _registerSystem<EditorNavigator>();
 }
 
 App::~App() {
 }
 
 void App::init() {
-  for(System* system : mSystems) {
-    system->init();
+  for(auto& system : mSystems) {
+    if(system)
+      system->init();
   }
 }
 
 void App::update(float dt) {
-  for(System* system : mSystems) {
-    system->update(dt);
+  for(auto& system : mSystems) {
+    if(system)
+      system->update(dt);
   }
 }
 
 void App::uninit() {
-  for(System* system : mSystems) {
-    system->uninit();
+  for(auto& system : mSystems) {
+    if(system)
+      system->uninit();
   }
 }

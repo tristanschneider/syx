@@ -27,6 +27,8 @@ namespace Syx {
     Mat4 affineInverse() const;
 
     void decompose(Vec3& scale, Mat3& rotate, Vec3& translate) const;
+    //Decompose transform that has unit scale
+    void decompose(Mat3& rotate, Vec3& translate) const;
     Vec3 getScale() const;
     Vec3 getTranslate() const;
     Quat getRotQ() const;
@@ -40,6 +42,9 @@ namespace Syx {
     static Mat4 identity();
     static Mat4 transform(const Vec3& scale, const Mat3& rotate, const Vec3& translate);
     static Mat4 transform(const Vec3& scale, const Quat& rotate, const Vec3& translate);
+    //Unit scale
+    static Mat4 transform(const Mat3& rotate, const Vec3& translate);
+    static Mat4 transform(const Quat& rotate, const Vec3& translate);
     static Mat4 scale(const Vec3& scale);
     static Mat4 rotate(const Mat3& rotate);
     static Mat4 rotate(const Quat& rotate);

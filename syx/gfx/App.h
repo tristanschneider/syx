@@ -3,15 +3,10 @@
 class GraphicsSystem;
 class KeyboardInput;
 class System;
+enum class SystemId : uint8_t;
 
 class App {
 public:
-  enum class SystemId {
-    Graphics,
-    KeyboardInput,
-    Count
-  };
-
   App();
   ~App();
 
@@ -27,12 +22,11 @@ public:
 private:
   //Construct and register derived type of System, and store the constructed object in systemPtr
   template<typename SystemType, typename... ArgTypes>
-  void _registerSystem(std::unique_ptr<SystemType>& systemPtr, SystemId id, ArgTypes&&... args) {
-    systemPtr = std::make_unique<SystemType>(std::forward<ArgTypes>(args)...);
-    mSystems[static_cast<int>(id)] = static_cast<System*>(systemPtr.get());
+  void _registerSystem(ArgTypes&&... args) {
+    std::unique_ptr<System> systemPtr = std::make_unique<SystemType>(std::forward<ArgTypes>(args)...);
+    systemPtr->mApp = this;
+    mSystems[static_cast<int>(systemPtr->getId())] = std::move(systemPtr);
   }
 
-  std::unique_ptr<GraphicsSystem> mGraphics;
-  std::unique_ptr<KeyboardInput> mKeyboardInput;
-  std::vector<System*> mSystems;
+  std::vector<std::unique_ptr<System>> mSystems;
 };

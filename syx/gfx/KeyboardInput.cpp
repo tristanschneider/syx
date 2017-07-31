@@ -2,7 +2,7 @@
 #include "KeyboardInput.h"
 #include <Windows.h>
 
-KeyboardInput::KeyState KeyboardInput::getKeyState(Key key) const {
+KeyState KeyboardInput::getKeyState(Key key) const {
   //Only care about top bit
   unsigned char filter = 128;
   unsigned char prev = mPrevState[static_cast<int>(key)] & filter;
@@ -10,6 +10,14 @@ KeyboardInput::KeyState KeyboardInput::getKeyState(Key key) const {
   if(prev != cur)
     return prev ? KeyState::OnUp : KeyState::OnDown;
   return cur ? KeyState::Down : KeyState::Up;
+}
+
+bool KeyboardInput::getKeyDown(Key key) const {
+  return (mCurState[static_cast<int>(key)] & 128) != 0;
+}
+
+bool KeyboardInput::getKeyUp(Key key) const {
+  return (mCurState[static_cast<int>(key)] & 128) == 0;
 }
 
 Syx::Vec2 KeyboardInput::getMousePos() const {

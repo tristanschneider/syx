@@ -1,8 +1,24 @@
 #pragma once
 
+class App;
+
+enum class SystemId : uint8_t {
+  Graphics,
+  KeyboardInput,
+  EditorNavigator,
+  Count
+};
+
 class System {
 public:
-  virtual void init() = 0;
-  virtual void update(float dt) = 0;
-  virtual void uninit() = 0;
+  friend class App;
+
+  virtual SystemId getId() const = 0;
+
+  virtual void init() {}
+  virtual void update(float dt) {}
+  virtual void uninit() {}
+
+protected:
+  App* mApp;
 };

@@ -97,16 +97,26 @@ void destroyContext() {
   wglDeleteContext(gGLContext);
 }
 
-void sleepMS(int ms) {
+void sleepNS(int ns) {
   //Would probably be best to process coroutines or something here instead of sleep
-  std::this_thread::sleep_for(std::chrono::milliseconds(ms));
+  //sleep_for is pretty erratic, so yield in a loop instead
+  auto before = std::chrono::high_resolution_clock::now();
+  int slept = 0;
+  int yieldSlop = 300;
+  while(slept + yieldSlop < ns) {
+    std::this_thread::yield();
+    auto after = std::chrono::high_resolution_clock::now();
+    slept = static_cast<int>(std::chrono::duration_cast<std::chrono::nanoseconds>(after - before).count());
+  }
 }
 
 int mainLoop() {
   BOOL gotMessage;
   MSG msg;
   bool exit = false;
-  int targetFrameTimeMS = 16;
+  float nsToMS = 1.0f/1000000.0f;
+  float msToNS = 1000000.0f;
+  int targetFrameTimeNS = 16*static_cast<int>(msToNS);
   App app;
 
   app.init();
@@ -125,17 +135,17 @@ int mainLoop() {
     if(exit)
       break;
 
-    int dtMS = static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(frameStart - lastFrameEnd).count());
-    app.update(static_cast<float>(dtMS)*0.001f);
+    int dtNS = static_cast<int>(std::chrono::duration_cast<std::chrono::nanoseconds>(frameStart - lastFrameEnd).count());
+    app.update(static_cast<float>(dtNS)*nsToMS*0.001f);
     SwapBuffers(gDeviceContext);
 
     lastFrameEnd = std::chrono::high_resolution_clock::now();
-    int frameTimeMS = static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(lastFrameEnd - frameStart).count());
+    int frameTimeNS = static_cast<int>(std::chrono::duration_cast<std::chrono::nanoseconds>(lastFrameEnd - frameStart).count());
     //If frame time was greater than target time then we're behind, start the next frame immediately
-    int timeToNextFrameMS = targetFrameTimeMS - frameTimeMS;
-    if(timeToNextFrameMS <= 0)
+    int timeToNextFrameNS = targetFrameTimeNS - frameTimeNS;
+    if(timeToNextFrameNS <= 0)
       continue;
-    sleepMS(timeToNextFrameMS);
+    sleepNS(timeToNextFrameNS);
   }
   app.uninit();
 
