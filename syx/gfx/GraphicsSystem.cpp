@@ -2,8 +2,8 @@
 #include "GraphicsSystem.h"
 #include "Model.h"
 #include "Shader.h"
-#include "BufferAttribs.h"
 #include "Camera.h"
+#include "DebugDrawer.h"
 
 using namespace Syx;
 
@@ -19,19 +19,19 @@ static void readFile(const std::string& path, std::string& buffer) {
   }
 }
 
-static std::unique_ptr<Shader> loadShadersFromFile(const std::string& vsPath, const std::string& psPath, std::string& vsBuffer, std::string& psBuffer) {
-  vsBuffer.clear();
-  psBuffer.clear();
+std::unique_ptr<Shader> GraphicsSystem::_loadShadersFromFile(const std::string& vsPath, const std::string& psPath) {
+  mVSBuffer.clear();
+  mPSBuffer.clear();
   std::unique_ptr<Shader> result = std::make_unique<Shader>();
-  readFile(vsPath, vsBuffer);
-  readFile(psPath, psBuffer);
-  if(vsBuffer.size() && psBuffer.size()) {
-    result->load(vsBuffer, psBuffer);
+  readFile(vsPath, mVSBuffer);
+  readFile(psPath, mPSBuffer);
+  if(mVSBuffer.size() && mPSBuffer.size()) {
+    result->load(mVSBuffer, mPSBuffer);
   }
   else {
-    if(vsBuffer.empty())
+    if(mVSBuffer.empty())
       printf("Vertex shader not found at %s\n", vsPath.c_str());
-    if(psBuffer.empty())
+    if(mPSBuffer.empty())
       printf("Pixel shader not found at %s\n", psPath.c_str());
   }
   return result;
@@ -39,10 +39,7 @@ static std::unique_ptr<Shader> loadShadersFromFile(const std::string& vsPath, co
 
 Model _createTestTriangle() {
   GLuint vertexArray, vertexBuffer;
-  //Generate a vertex array name
-  glGenVertexArrays(1, &vertexArray);
-  //Bind this array so we can fill it in
-  glBindVertexArray(vertexArray);
+
   GLfloat triBuff[] = {
       -1.0f, -1.0f, 0.0f,
       1.0f, -1.0f, 0.0f,
@@ -54,6 +51,16 @@ Model _createTestTriangle() {
   glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer);
   //Upload triBuff to gpu as vertexBuffer
   glBufferData(GL_ARRAY_BUFFER, sizeof(triBuff), triBuff, GL_STATIC_DRAW);
+
+  //Generate a vertex array name
+  glGenVertexArrays(1, &vertexArray);
+  //Bind this array so we can fill it in
+  glBindVertexArray(vertexArray);
+
+  glEnableVertexAttribArray(0);
+  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
+
+  glBindVertexArray(0);
   return Model(vertexBuffer, vertexArray);
 }
 
@@ -61,13 +68,11 @@ GraphicsSystem::~GraphicsSystem() {
 }
 
 GraphicsSystem::GraphicsSystem()
-  : mCamera(std::make_unique<Camera>(CameraOps(1.396f, 1.396f, 0.1f, 100.0f)))
-  , mGeometryAttribs(std::make_unique<BufferAttribs>()) {
+  : mCamera(std::make_unique<Camera>(CameraOps(1.396f, 1.396f, 0.1f, 100.0f))) {
 }
 
 void GraphicsSystem::init() {
-  std::string buffA, buffB;
-  mGeometry = loadShadersFromFile("shaders/phong.vs", "shaders/phong.ps", buffA, buffB);
+  mGeometry = _loadShadersFromFile("shaders/phong.vs", "shaders/phong.ps");
 
   Model tri = _createTestTriangle();
   mTriHandle = addModel(tri);
@@ -77,8 +82,7 @@ void GraphicsSystem::init() {
   ct.setRot(Quat::LookAt(-Vec3::UnitZ));
   mCamera->setTransform(ct);
 
-  //Position
-  mGeometryAttribs->addAttrib(3, GL_FLOAT, 0);
+  mDebugDrawer = std::make_unique<DebugDrawer>(*this);
 }
 
 void GraphicsSystem::update(float dt) {
@@ -105,18 +109,18 @@ void GraphicsSystem::_render() {
   glEnable(GL_DEPTH_TEST);
   glDepthFunc(GL_LESS);
 
+  mDebugDrawer->_render(mCamera->getWorldToView());
+
   Model& tri = mHandleToModel[mTriHandle];
   {
-    BufferAttribs::Binder bab(*mGeometryAttribs);
-    glBindBuffer(GL_ARRAY_BUFFER, tri.mVB);
+    //BufferAttribs::Binder bab(*mGeometryAttribs);
+    glBindVertexArray(tri.mVA);
     {
       Shader::Binder b(*mGeometry);
 
-      static Vec3 camPos(0.0f, 0.0f, -3.0f);
-      Mat4 camTransform = Mat4::transform(Vec3::Identity, Quat::LookAt(-Vec3::UnitZ), camPos);
       static Quat triRot = Quat::Identity;
       triRot *= Quat::AxisAngle(Vec3::UnitY, 0.01f);
-      Mat4 triTransform = Mat4::transform(Vec3::Identity, triRot, Vec3::Zero);
+      Mat4 triTransform = Mat4::transform(triRot, Vec3::Zero);
       Mat4 mvp = mCamera->getWorldToView() * triTransform;
 
       glUniformMatrix4fv(mGeometry->getUniform("mvp"), 1, GL_FALSE, mvp.mData);
