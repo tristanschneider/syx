@@ -3,6 +3,7 @@
 #include "KeyboardInput.h"
 #include "App.h"
 #include "GraphicsSystem.h"
+#include "Camera.h"
 
 void EditorNavigator::update(float dt) {
   using namespace Syx;

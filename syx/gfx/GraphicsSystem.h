@@ -1,12 +1,15 @@
 #pragma once
-#include "Shader.h"
-#include "Model.h"
-#include "Camera.h"
 #include "System.h"
+
+class BufferAttribs;
+class Shader;
+class Camera;
+struct Model;
 
 class GraphicsSystem : public System {
 public:
   GraphicsSystem();
+  ~GraphicsSystem();
 
   SystemId getId() const override {
     return SystemId::Graphics;
@@ -22,9 +25,10 @@ public:
 private:
   void _render();
 
-  Shader mGeometry;
+  std::unique_ptr<Shader> mGeometry;
   std::unordered_map<int, Model> mHandleToModel;
   HandleGen mModelGen;
   Handle mTriHandle;
-  Camera mCamera;
+  std::unique_ptr<Camera> mCamera;
+  std::unique_ptr<BufferAttribs> mGeometryAttribs;
 };

@@ -135,7 +135,9 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="App.cpp" />
+    <ClCompile Include="BufferAttribs.cpp" />
     <ClCompile Include="Camera.cpp" />
+    <ClCompile Include="DebugDrawer.cpp" />
     <ClCompile Include="EditorNavigator.cpp" />
     <ClCompile Include="GraphicsSystem.cpp" />
     <ClCompile Include="KeyboardInput.cpp" />
@@ -152,7 +154,9 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="App.h" />
+    <ClInclude Include="BufferAttribs.h" />
     <ClInclude Include="Camera.h" />
+    <ClInclude Include="DebugDrawer.h" />
     <ClInclude Include="EditorNavigator.h" />
     <ClInclude Include="GraphicsSystem.h" />
     <ClInclude Include="Handle.h" />
