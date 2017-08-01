@@ -84,7 +84,9 @@ Handle GraphicsSystem::addModel(Model& model) {
 
 void GraphicsSystem::_render() {
   glClearColor(0.0f, 0.0f, 1.0f, 0.0f);
-  glClear(GL_COLOR_BUFFER_BIT);
+  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  glEnable(GL_DEPTH_TEST);
+  glDepthFunc(GL_LESS);
 
   Model& tri = mHandleToModel[mTriHandle];
   //Specify that we're talking about the zeroth attribute
@@ -105,10 +107,17 @@ void GraphicsSystem::_render() {
     float nearD = 0.1f;
     float farD = 100.0f;
     Mat4 proj = Mat4::perspective(fov, fov, nearD, farD);
-    Mat4 mvp = mCamera.getWorldToView() * triTransform.affineInverse();
+    Mat4 mvp = mCamera.getWorldToView() * triTransform;
 
     glUniformMatrix4fv(mGeometry.getUniform("mvp"), 1, GL_FALSE, mvp.mData);
+    glUniform3f(mGeometry.getUniform("uColor"), 1.0f, 0.0f, 0.0f);
 
+    glDrawArrays(GL_TRIANGLES, 0, 3);
+
+    triTransform = Mat4::transform(triRot, Vec3(2.0f, 0.0f, 0.0f));
+    mvp = mCamera.getWorldToView() * triTransform;
+    glUniformMatrix4fv(mGeometry.getUniform("mvp"), 1, GL_FALSE, mvp.mData);
+    glUniform3f(mGeometry.getUniform("uColor"), 0.0f, 1.0f, 0.0f);
     glDrawArrays(GL_TRIANGLES, 0, 3);
   }
   glDisableVertexAttribArray(0);
