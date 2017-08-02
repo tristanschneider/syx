@@ -4,8 +4,11 @@
 #include "Shader.h"
 #include "Camera.h"
 #include "DebugDrawer.h"
+#include "ModelLoader.h"
 
 using namespace Syx;
+
+static Handle sTestModel;
 
 static void readFile(const std::string& path, std::string& buffer) {
   std::ifstream file(path, std::ifstream::in | std::ifstream::binary);
@@ -37,45 +40,15 @@ std::unique_ptr<Shader> GraphicsSystem::_loadShadersFromFile(const std::string& 
   return result;
 }
 
-Model _createTestTriangle() {
-  GLuint vertexArray, vertexBuffer;
-
-  GLfloat triBuff[] = {
-      -1.0f, -1.0f, 0.0f,
-      1.0f, -1.0f, 0.0f,
-      0.0f,  1.0f, 0.0f,
-  };
-  //Generate a vertex buffer name
-  glGenBuffers(1, &vertexBuffer);
-  //Bind vertexBuffer as "Vertex attributes"
-  glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer);
-  //Upload triBuff to gpu as vertexBuffer
-  glBufferData(GL_ARRAY_BUFFER, sizeof(triBuff), triBuff, GL_STATIC_DRAW);
-
-  //Generate a vertex array name
-  glGenVertexArrays(1, &vertexArray);
-  //Bind this array so we can fill it in
-  glBindVertexArray(vertexArray);
-
-  glEnableVertexAttribArray(0);
-  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
-
-  glBindVertexArray(0);
-  return Model(vertexBuffer, vertexArray);
-}
-
 GraphicsSystem::~GraphicsSystem() {
 }
 
-GraphicsSystem::GraphicsSystem()
-  : mCamera(std::make_unique<Camera>(CameraOps(1.396f, 1.396f, 0.1f, 100.0f))) {
+GraphicsSystem::GraphicsSystem() {
 }
 
 void GraphicsSystem::init() {
+  mCamera = std::make_unique<Camera>(CameraOps(1.396f, 1.396f, 0.1f, 100.0f));
   mGeometry = _loadShadersFromFile("shaders/phong.vs", "shaders/phong.ps");
-
-  Model tri = _createTestTriangle();
-  mTriHandle = addModel(tri);
 
   Mat4 ct = mCamera->getTransform();
   ct.setTranslate(Vec3(0.0f, 0.0f, -3.0f));
@@ -83,6 +56,10 @@ void GraphicsSystem::init() {
   mCamera->setTransform(ct);
 
   mDebugDrawer = std::make_unique<DebugDrawer>(*this);
+
+  mModelLoader = std::make_unique<ModelLoader>();
+
+  sTestModel = addModel("models/car.obj");
 }
 
 void GraphicsSystem::update(float dt) {
@@ -90,7 +67,6 @@ void GraphicsSystem::update(float dt) {
 }
 
 void GraphicsSystem::uninit() {
-
 }
 
 Camera& GraphicsSystem::getPrimaryCamera() {
@@ -99,39 +75,44 @@ Camera& GraphicsSystem::getPrimaryCamera() {
 
 Handle GraphicsSystem::addModel(Model& model) {
   model.mHandle = mModelGen.Next();
-  mHandleToModel[model.mHandle] = model;
-  return model.mHandle;
+  Model& added = mHandleToModel[model.mHandle] = model;
+  //Ultimately this should be a separate step as needed
+  added.loadGpu();
+  return added.mHandle;
+}
+
+Handle GraphicsSystem::addModel(const std::string& filePath) {
+  std::unique_ptr<Model> model = mModelLoader->loadModel(filePath);
+  if(model) {
+    return addModel(*model);
+  }
+  return InvalidHandle;
 }
 
 void GraphicsSystem::_render() {
   glClearColor(0.0f, 0.0f, 1.0f, 0.0f);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
   glEnable(GL_DEPTH_TEST);
   glDepthFunc(GL_LESS);
 
+  glEnable(GL_CULL_FACE);
+  glCullFace(GL_BACK);
+
   mDebugDrawer->_render(mCamera->getWorldToView());
-
-  Model& tri = mHandleToModel[mTriHandle];
+  Model& testModel = mHandleToModel[sTestModel];
   {
-    //BufferAttribs::Binder bab(*mGeometryAttribs);
-    glBindVertexArray(tri.mVA);
-    {
-      Shader::Binder b(*mGeometry);
+    Shader::Binder b(*mGeometry);
 
-      static Quat triRot = Quat::Identity;
-      triRot *= Quat::AxisAngle(Vec3::UnitY, 0.01f);
-      Mat4 triTransform = Mat4::transform(triRot, Vec3::Zero);
-      Mat4 mvp = mCamera->getWorldToView() * triTransform;
+    static Quat triRot = Quat::Identity;
+    triRot *= Quat::AxisAngle(Vec3::UnitY, 0.01f);
+    Mat4 triTransform = Mat4::transform(triRot, Vec3::Zero);
+    Mat4 mvp = mCamera->getWorldToView() * triTransform;
 
-      glUniformMatrix4fv(mGeometry->getUniform("mvp"), 1, GL_FALSE, mvp.mData);
-      glUniform3f(mGeometry->getUniform("uColor"), 1.0f, 0.0f, 0.0f);
-      glDrawArrays(GL_TRIANGLES, 0, 3);
-
-      triTransform = Mat4::transform(triRot, Vec3(2.0f, 0.0f, 0.0f));
-      mvp = mCamera->getWorldToView() * triTransform;
-      glUniformMatrix4fv(mGeometry->getUniform("mvp"), 1, GL_FALSE, mvp.mData);
-      glUniform3f(mGeometry->getUniform("uColor"), 0.0f, 1.0f, 0.0f);
-      glDrawArrays(GL_TRIANGLES, 0, 3);
-    }
+    glBindVertexArray(testModel.mVA);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, testModel.mIB);
+    glUniformMatrix4fv(mGeometry->getUniform("mvp"), 1, GL_FALSE, mvp.mData);
+    glUniformMatrix4fv(mGeometry->getUniform("mw"), 1, GL_FALSE, triTransform.mData);
+    glDrawElements(GL_TRIANGLES, testModel.mIndices.size(), GL_UNSIGNED_INT, nullptr);
   }
 }

@@ -4,6 +4,7 @@
 class Shader;
 class Camera;
 class DebugDrawer;
+class ModelLoader;
 struct Model;
 
 class GraphicsSystem : public System {
@@ -22,6 +23,7 @@ public:
   Camera& getPrimaryCamera();
 
   Handle addModel(Model& model);
+  Handle addModel(const std::string& filePath);
   std::unique_ptr<Shader> _loadShadersFromFile(const std::string& vsPath, const std::string& psPath);
 
 private:
@@ -30,9 +32,9 @@ private:
   std::unique_ptr<Shader> mGeometry;
   std::unique_ptr<Camera> mCamera;
   std::unique_ptr<DebugDrawer> mDebugDrawer;
+  std::unique_ptr<ModelLoader> mModelLoader;
   std::unordered_map<int, Model> mHandleToModel;
   HandleGen mModelGen;
-  Handle mTriHandle;
   std::string mVSBuffer;
   std::string mPSBuffer;
 };

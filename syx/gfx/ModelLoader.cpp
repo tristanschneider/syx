@@ -113,7 +113,7 @@ bool ModelLoader::_readLine() {
       break;
     case CommandType::Face: {
       Vec3 vert, uv, normal;
-      v = _readVec(line, -1.0f, &uv, &normal);
+      vert = _readVec(line, -1.0f, &uv, &normal);
       VertLookup verts[4];
       for(int i = 0; i < 4; ++i) {
         //-1 all over because they aren't 0 indexed
@@ -124,7 +124,7 @@ bool ModelLoader::_readLine() {
       size_t b = _getVertIndex(verts[1]);
       size_t c = _getVertIndex(verts[2]);
 
-      if(v.w < 0.0f) {
+      if(vert.w < 0.0f) {
         _addTri(a, b, c);
       }
       else {
@@ -149,8 +149,10 @@ void ModelLoader::_reset() {
 std::unique_ptr<Model> ModelLoader::loadModel(const std::string& objFile) {
   _reset();
   mStream = std::ifstream(objFile);
-  if(!mStream.good())
+  if(!mStream.good()) {
+    printf("Failed to open model file at %s\n", objFile.c_str());
     return nullptr;
+  }
 
   mModel = std::make_unique<Model>();
   bool parsing = true;
@@ -175,7 +177,7 @@ size_t ModelLoader::_getVertIndex(const VertLookup& lookup) {
     index = mModel->mVerts.size();
     mModel->mVerts.emplace_back(v);
   }
-  return 0;
+  return index;
 }
 
 void ModelLoader::_addTri(size_t a, size_t b, size_t c) {

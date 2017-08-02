@@ -13,9 +13,13 @@ struct Model {
   Model();
   Model(GLuint vb, GLuint va);
 
+  void loadGpu();
+  void unloadGpu();
+
   std::vector<Vertex> mVerts;
   std::vector<size_t> mIndices;
   Handle mHandle;
   GLuint mVB;
+  GLuint mIB;
   GLuint mVA;
 };

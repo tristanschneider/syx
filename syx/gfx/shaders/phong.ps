@@ -1,8 +1,8 @@
 #version 330 core
 out vec3 color;
 
-uniform vec3 uColor;
+in vec3 oNormal;
 
 void main(){
-  color = uColor;
+  color = oNormal;
 }
