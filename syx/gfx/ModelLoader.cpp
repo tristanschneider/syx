@@ -117,7 +117,16 @@ bool ModelLoader::_readLine() {
       VertLookup verts[4];
       for(int i = 0; i < 4; ++i) {
         //-1 all over because they aren't 0 indexed
-        verts[i] = VertLookup(static_cast<size_t>(vert[i]) - 1, static_cast<size_t>(normal[i]) - 1, static_cast<size_t>(uv[i]) - 1);
+        VertLookup& curVert = verts[i];
+        curVert = VertLookup(static_cast<size_t>(vert[i]) - 1, static_cast<size_t>(normal[i]) - 1, static_cast<size_t>(uv[i]) - 1);
+        size_t invalidIndex = static_cast<size_t>(-1);
+        if(curVert.mVert != invalidIndex) {
+          if(curVert.mNormal == invalidIndex || curVert.mUV == invalidIndex) {
+            printf("Invalid obj file, each vertex must specify vertex, normal, and uv");
+            mModel = nullptr;
+            return false;
+          }
+        }
       }
 
       size_t a = _getVertIndex(verts[0]);
