@@ -1,14 +1,17 @@
 #version 330 core
-layout(location = 0) in vec3 position;
-layout(location = 1) in vec3 normal;
-layout(location = 2) in vec2 uv;
+layout(location = 0) in vec3 aPosition;
+layout(location = 1) in vec3 aNormal;
+layout(location = 2) in vec2 aUV;
+
+uniform mat4 uMVP;
+uniform mat4 uMW;
+uniform vec3 uCamPos;
 
 out vec3 oNormal;
-
-uniform mat4 mvp;
-uniform mat4 mw;
+out vec3 oEyeToFrag;
 
 void main(){
-  gl_Position = mvp * vec4(position.xyz, 1.0);
-  oNormal = (mw * vec4(normal.xyz, 1.0)).xyz;
+  gl_Position = uMVP * vec4(aPosition.xyz, 1.0);
+  oNormal = (uMW * vec4(aNormal.xyz, 0.0)).xyz;
+  oEyeToFrag = (uMW * vec4(aPosition.xyz, 1.0)).xyz - uCamPos;
 }

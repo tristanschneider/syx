@@ -106,13 +106,35 @@ void GraphicsSystem::_render() {
 
     static Quat triRot = Quat::Identity;
     triRot *= Quat::AxisAngle(Vec3::UnitY, 0.01f);
-    Mat4 triTransform = Mat4::transform(triRot, Vec3::Zero);
+    Mat4 triTransform = Mat4::transform(Vec3(0.1f), triRot, Vec3::Zero);
     Mat4 mvp = mCamera->getWorldToView() * triTransform;
+    Vec3 camPos = mCamera->getTransform().getTranslate();
+
+    Vec3 mDiff(0.3f);
+    Vec3 mSpec(0.6f);
+    mSpec.w = 2.5f;
+    Vec3 mAmb(0.2f, 0.0f, 0.0f);
+
+    Vec3 sunDir = -Vec3::Identity.Normalized();
+    Vec3 sunColor = Vec3::Identity;
+    {
+      Vec3 p(3.0f);
+      mDebugDrawer->drawLine(p, p + sunDir, sunColor);
+      mDebugDrawer->drawLine(p + sunDir, p + sunDir - Vec3(0.1f));
+    }
 
     glBindVertexArray(testModel.mVA);
+    //This bind shouldn't be needed since vao is supposed to know all it needs, but some intel cards apparently have a bug with index buffers
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, testModel.mIB);
-    glUniformMatrix4fv(mGeometry->getUniform("mvp"), 1, GL_FALSE, mvp.mData);
-    glUniformMatrix4fv(mGeometry->getUniform("mw"), 1, GL_FALSE, triTransform.mData);
+    glUniformMatrix4fv(mGeometry->getUniform("uMVP"), 1, GL_FALSE, mvp.mData);
+    glUniformMatrix4fv(mGeometry->getUniform("uMW"), 1, GL_FALSE, triTransform.mData);
+    glUniform3f(mGeometry->getUniform("uCamPos"), camPos.x, camPos.y, camPos.z);
+    glUniform3f(mGeometry->getUniform("uDiffuse"), mDiff.x, mDiff.y, mDiff.z);
+    glUniform3f(mGeometry->getUniform("uAmbient"), mAmb.x, mAmb.y, mAmb.z);
+    glUniform4f(mGeometry->getUniform("uSpecular"), mSpec.x, mSpec.y, mSpec.z, mSpec.w);
+    glUniform3f(mGeometry->getUniform("uSunDir"), sunDir.x, sunDir.y, sunDir.z);
+    glUniform3f(mGeometry->getUniform("uSunColor"), sunColor.x, sunColor.y, sunColor.z);
+
     glDrawElements(GL_TRIANGLES, testModel.mIndices.size(), GL_UNSIGNED_INT, nullptr);
   }
 }
