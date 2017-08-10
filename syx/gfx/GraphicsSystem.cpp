@@ -5,6 +5,7 @@
 #include "Camera.h"
 #include "DebugDrawer.h"
 #include "ModelLoader.h"
+#include "TextureLoader.h"
 
 using namespace Syx;
 
@@ -58,8 +59,9 @@ void GraphicsSystem::init() {
   mDebugDrawer = std::make_unique<DebugDrawer>(*this);
 
   mModelLoader = std::make_unique<ModelLoader>();
+  mTextureLoader = std::make_unique<TextureLoader>();
 
-  sTestModel = addModel("models/car.obj");
+  sTestModel = addModel("models/bowserlow.obj");
 }
 
 void GraphicsSystem::update(float dt) {

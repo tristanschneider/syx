@@ -5,6 +5,7 @@ class Shader;
 class Camera;
 class DebugDrawer;
 class ModelLoader;
+class TextureLoader;
 struct Model;
 
 class GraphicsSystem : public System {
@@ -33,6 +34,7 @@ private:
   std::unique_ptr<Camera> mCamera;
   std::unique_ptr<DebugDrawer> mDebugDrawer;
   std::unique_ptr<ModelLoader> mModelLoader;
+  std::unique_ptr<TextureLoader> mTextureLoader;
   std::unordered_map<int, Model> mHandleToModel;
   HandleGen mModelGen;
   std::string mVSBuffer;
