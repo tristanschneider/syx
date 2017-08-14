@@ -92,3 +92,7 @@ void Model::unloadGpu() {
   glDeleteBuffers(1, &mVA);
   mVB = mIB = mVA = 0;
 }
+
+void Model::draw() {
+  glDrawElements(GL_TRIANGLES, mIndices.size(), GL_UNSIGNED_INT, nullptr);
+}

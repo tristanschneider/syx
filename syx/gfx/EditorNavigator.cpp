@@ -1,8 +1,8 @@
 #include "Precompile.h"
 #include "EditorNavigator.h"
-#include "KeyboardInput.h"
+#include "systems/KeyboardInput.h"
 #include "App.h"
-#include "GraphicsSystem.h"
+#include "systems/GraphicsSystem.h"
 #include "Camera.h"
 
 void EditorNavigator::update(float dt) {

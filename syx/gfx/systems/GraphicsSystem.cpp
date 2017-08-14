@@ -1,5 +1,5 @@
 #include "Precompile.h"
-#include "GraphicsSystem.h"
+#include "systems/GraphicsSystem.h"
 #include "Model.h"
 #include "Shader.h"
 #include "Camera.h"
@@ -171,7 +171,7 @@ void GraphicsSystem::_render() {
         glUniform3f(mGeometry->getUniform("uSunDir"), sunDir.x, sunDir.y, sunDir.z);
         glUniform3f(mGeometry->getUniform("uSunColor"), sunColor.x, sunColor.y, sunColor.z);
 
-        glDrawElements(GL_TRIANGLES, testModel.mIndices.size(), GL_UNSIGNED_INT, nullptr);
+        testModel.draw();
       }
     }
   }

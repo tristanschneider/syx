@@ -3,6 +3,7 @@
 class GraphicsSystem;
 class KeyboardInput;
 class System;
+class Space;
 enum class SystemId : uint8_t;
 
 class App {
@@ -13,6 +14,7 @@ public:
   void init();
   void update(float dt);
   void uninit();
+  Space& getDefaultSpace();
 
   template<typename SystemType>
   SystemType& getSystem(SystemId id) {
@@ -29,4 +31,5 @@ private:
   }
 
   std::vector<std::unique_ptr<System>> mSystems;
+  std::unique_ptr<Space> mDefaultSpace;
 };

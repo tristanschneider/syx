@@ -20,6 +20,7 @@ struct Model {
 
   void loadGpu();
   void unloadGpu();
+  void draw();
 
   std::vector<Vertex> mVerts;
   std::vector<size_t> mIndices;

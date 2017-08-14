@@ -70,10 +70,12 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);glew/include;../syx</IncludePath>
+    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);glew/include;../syx;</IncludePath>
+    <ReferencePath>$(VC_ReferencesPath_x86);</ReferencePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);glew/include;../syx</IncludePath>
+    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);glew/include;../syx;</IncludePath>
+    <ReferencePath>$(VC_ReferencesPath_x86);</ReferencePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -82,6 +84,8 @@
       <SDLCheck>true</SDLCheck>
       <PrecompiledHeader>Create</PrecompiledHeader>
       <PrecompiledHeaderFile>Precompile.h</PrecompiledHeaderFile>
+      <ShowIncludes>false</ShowIncludes>
+      <AdditionalIncludeDirectories>$(ProjectDir)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <AdditionalLibraryDirectories>glew\lib\Release\Win32</AdditionalLibraryDirectories>
@@ -108,6 +112,8 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
       <SDLCheck>true</SDLCheck>
       <PrecompiledHeader>Create</PrecompiledHeader>
       <PrecompiledHeaderFile>Precompile.h</PrecompiledHeaderFile>
+      <ShowIncludes>false</ShowIncludes>
+      <AdditionalIncludeDirectories>$(ProjectDir)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
@@ -136,14 +142,18 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
   <ItemGroup>
     <ClCompile Include="App.cpp" />
     <ClCompile Include="Camera.cpp" />
+    <ClCompile Include="components\GraphicsComponent.cpp" />
+    <ClCompile Include="components\TransformComponent.cpp" />
     <ClCompile Include="DebugDrawer.cpp" />
     <ClCompile Include="EditorNavigator.cpp" />
-    <ClCompile Include="GraphicsSystem.cpp" />
-    <ClCompile Include="KeyboardInput.cpp" />
+    <ClCompile Include="Gameobject.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="ModelLoader.cpp" />
     <ClCompile Include="Model.cpp" />
     <ClCompile Include="Shader.cpp" />
+    <ClCompile Include="Space.cpp" />
+    <ClCompile Include="systems\GraphicsSystem.cpp" />
+    <ClCompile Include="systems\KeyboardInput.cpp" />
     <ClCompile Include="Texture.cpp" />
     <ClCompile Include="TextureLoader.cpp" />
     <ClCompile Include="Util.cpp" />
@@ -156,16 +166,22 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
   <ItemGroup>
     <ClInclude Include="App.h" />
     <ClInclude Include="Camera.h" />
+    <ClInclude Include="Component.h" />
+    <ClInclude Include="components\GraphicsComponent.h" />
+    <ClInclude Include="components\TransformComponent.h" />
     <ClInclude Include="DebugDrawer.h" />
     <ClInclude Include="EditorNavigator.h" />
-    <ClInclude Include="GraphicsSystem.h" />
+    <ClInclude Include="Gameobject.h" />
     <ClInclude Include="Handle.h" />
-    <ClInclude Include="KeyboardInput.h" />
+    <ClInclude Include="MappedBuffer.h" />
     <ClInclude Include="ModelLoader.h" />
     <ClInclude Include="Model.h" />
     <ClInclude Include="Precompile.h" />
     <ClInclude Include="Shader.h" />
+    <ClInclude Include="Space.h" />
     <ClInclude Include="System.h" />
+    <ClInclude Include="systems\GraphicsSystem.h" />
+    <ClInclude Include="systems\KeyboardInput.h" />
     <ClInclude Include="Texture.h" />
     <ClInclude Include="TextureLoader.h" />
     <ClInclude Include="Util.h" />
