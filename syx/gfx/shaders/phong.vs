@@ -9,9 +9,11 @@ uniform vec3 uCamPos;
 
 out vec3 oNormal;
 out vec3 oEyeToFrag;
+out vec2 oUV;
 
 void main(){
   gl_Position = uMVP * vec4(aPosition.xyz, 1.0);
   oNormal = (uMW * vec4(aNormal.xyz, 0.0)).xyz;
   oEyeToFrag = (uMW * vec4(aPosition.xyz, 1.0)).xyz - uCamPos;
+  oUV = aUV;
 }

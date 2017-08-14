@@ -7,6 +7,7 @@ class DebugDrawer;
 class ModelLoader;
 class TextureLoader;
 struct Model;
+struct Texture;
 
 class GraphicsSystem : public System {
 public:
@@ -25,6 +26,11 @@ public:
 
   Handle addModel(Model& model);
   Handle addModel(const std::string& filePath);
+  void removeModel(Handle model);
+
+  Handle addTexture(const std::string& filePath);
+  void removeTexture(Handle texture);
+
   std::unique_ptr<Shader> _loadShadersFromFile(const std::string& vsPath, const std::string& psPath);
 
 private:
@@ -35,8 +41,9 @@ private:
   std::unique_ptr<DebugDrawer> mDebugDrawer;
   std::unique_ptr<ModelLoader> mModelLoader;
   std::unique_ptr<TextureLoader> mTextureLoader;
-  std::unordered_map<int, Model> mHandleToModel;
-  HandleGen mModelGen;
+  std::unordered_map<Handle, Model> mHandleToModel;
+  std::unordered_map<Handle, Texture> mHandleToTexture;
+  HandleGen mModelGen, mTextureGen;
   std::string mVSBuffer;
   std::string mPSBuffer;
 };

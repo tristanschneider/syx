@@ -17,4 +17,6 @@ public:
 
 private:
   std::vector<unsigned char> mBuffer;
+  //Buffer used temporarily to transform from bgr to rgba
+  std::vector<unsigned char> mTempConvert;
 };

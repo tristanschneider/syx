@@ -13,6 +13,17 @@ Vertex::Vertex(float px, float py, float pz, float nx, float ny, float nz, float
   , mUV{u, v} {
 }
 
+Model::Binder::Binder(const Model& model) {
+  glBindVertexArray(model.mVA);
+  //This bind shouldn't be needed since vao is supposed to know all it needs, but some intel cards apparently have a bug with index buffers
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, model.mIB);
+}
+
+Model::Binder::~Binder() {
+  glBindVertexArray(0);
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+}
+
 Model::Model()
   : mVB(0)
   , mVA(0)

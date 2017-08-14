@@ -10,6 +10,11 @@ struct Vertex {
 };
 
 struct Model {
+  struct Binder {
+    Binder(const Model& model);
+    ~Binder();
+  };
+
   Model();
   Model(GLuint vb, GLuint va);
 

@@ -1,6 +1,6 @@
 #version 330 core
-uniform vec3 uDiffuse;
 uniform vec3 uAmbient;
+uniform sampler2D uDiffuse;
 //Specular color with sharpness exponent as the last component
 uniform vec4 uSpecular;
 uniform vec3 uSunDir;
@@ -8,6 +8,7 @@ uniform vec3 uSunColor;
 
 in vec3 oNormal;
 in vec3 oEyeToFrag;
+in vec2 oUV;
 
 out vec3 color;
 
@@ -32,7 +33,7 @@ void computeLight(in vec3 eyeToFrag, in vec3 lightDir, in vec3 lightColor, out v
   //Raise to sharpness exponent
   specTerm = pow(specTerm, uSpecular.w);
 
-  diffuse = diffTerm*uDiffuse*lightColor;
+  diffuse = diffTerm*texture(uDiffuse, oUV).rgb*lightColor;
   specular = specTerm*uSpecular.xyz*lightColor;
 }
 

@@ -38,14 +38,27 @@ TextureLoader::Texture TextureLoader::loadBmp(const std::string& path) {
   if(!dataStart)
     dataStart = 54;
 
-  mBuffer.clear();
-  mBuffer.resize(imageSize);
+  mTempConvert.clear();
+  //Resize in preparation for the fourth component we'll add to each pixel
+  mTempConvert.resize(imageSize);
   stream.seekg(dataStart);
-  stream.read(reinterpret_cast<char*>(&mBuffer[0]), imageSize);
+  stream.read(reinterpret_cast<char*>(&mTempConvert[0]), imageSize);
   bytesRead = static_cast<size_t>(stream.gcount());
   if(bytesRead != imageSize) {
     printf("Error reading bmp data at %s\n", path.c_str());
     return Texture();
+  }
+
+  mBuffer.clear();
+  mBuffer.resize(width*height*4);
+  for(uint16_t i = 0; i < width*height; ++i) {
+    size_t bp = 4*i;
+    size_t tp = 3*i;
+    //Flip bgr to rgb and add empty alpha
+    mBuffer[bp] = mTempConvert[tp + 2];
+    mBuffer[bp + 1] = mTempConvert[tp + 1];
+    mBuffer[bp + 2] = mTempConvert[tp];
+    mBuffer[bp + 3] = 0;
   }
 
   return Texture(&mBuffer, width, height);
