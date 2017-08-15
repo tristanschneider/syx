@@ -1,7 +1,7 @@
 #include "Precompile.h"
-#include "GraphicsComponent.h"
+#include "Renderable.h"
 
-GraphicsComponent::GraphicsComponent(Handle owner)
+Renderable::Renderable(Handle owner)
   : Component(owner)
   , mModel(InvalidHandle)
   , mDiffTex(InvalidHandle) {

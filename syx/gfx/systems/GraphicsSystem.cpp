@@ -10,7 +10,7 @@
 #include "App.h"
 #include "Space.h"
 #include "Gameobject.h"
-#include "components/GraphicsComponent.h"
+#include "components/Renderable.h"
 
 using namespace Syx;
 
@@ -144,7 +144,7 @@ void GraphicsSystem::_render() {
     Vec3 camPos = mCamera->getTransform().getTranslate();
     Vec3 mDiff(0.3f);
     Vec3 mSpec(0.6f, 0.6f, 0.6f, 2.5f);
-    Vec3 mAmb(0.1f, 0.1f, 0.1f);
+    Vec3 mAmb(0.12f, 0.12f, 0.12f);
     Vec3 sunDir = -Vec3::Identity.Normalized();
     Vec3 sunColor = Vec3::Identity;
     Mat4 wvp = mCamera->getWorldToView();
@@ -163,7 +163,7 @@ void GraphicsSystem::_render() {
 
     std::vector<Gameobject>& objects = mApp->getDefaultSpace().mObjects.getBuffer();
     for(Gameobject& obj : objects) {
-      GraphicsComponent* gfx = obj.getComponent<GraphicsComponent>(ComponentType::Graphics);
+      Renderable* gfx = obj.getComponent<Renderable>(ComponentType::Graphics);
       if(!gfx)
         continue;
 
@@ -172,7 +172,7 @@ void GraphicsSystem::_render() {
         continue;
       auto diffIt = mHandleToTexture.find(gfx->mDiffTex);
 
-      Mat4 mw = obj.getComponent<TransformComponent>(ComponentType::Transform)->mMat;
+      Mat4 mw = obj.getComponent<Transform>(ComponentType::Transform)->mMat;
       Mat4 mvp = wvp * mw;
       Vec3 camPos = mCamera->getTransform().getTranslate();
 

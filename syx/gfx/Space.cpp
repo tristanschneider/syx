@@ -2,7 +2,7 @@
 #include "Space.h"
 #include "Gameobject.h"
 
-#include "components/GraphicsComponent.h"
+#include "components/Renderable.h"
 #include "App.h"
 
 Space::Space(App& app)
@@ -19,18 +19,18 @@ void Space::init() {
     g.init();
 
   Gameobject* obj = createObject();
-  std::unique_ptr<GraphicsComponent> gfx = std::make_unique<GraphicsComponent>(obj->getHandle());
+  std::unique_ptr<Renderable> gfx = std::make_unique<Renderable>(obj->getHandle());
   gfx->mModel = getApp().mAssets["bowser"];
   gfx->mDiffTex = getApp().mAssets["maze"];
   obj->addComponent(std::move(gfx));
-  obj->getComponent<TransformComponent>(ComponentType::Transform)->mMat = Syx::Mat4::transform(Vec3(0.1f), Quat::Identity, Vec3::Zero);
+  obj->getComponent<Transform>(ComponentType::Transform)->mMat = Syx::Mat4::transform(Vec3(0.1f), Quat::Identity, Vec3::Zero);
 
   obj = createObject();
-  gfx = std::make_unique<GraphicsComponent>(obj->getHandle());
+  gfx = std::make_unique<Renderable>(obj->getHandle());
   gfx->mModel = getApp().mAssets["car"];
   gfx->mDiffTex = getApp().mAssets["maze"];
   obj->addComponent(std::move(gfx));
-  obj->getComponent<TransformComponent>(ComponentType::Transform)->mMat = Syx::Mat4::transform(Vec3(0.5f), Quat::Identity, Vec3(8.0f, 0.0f, 0.0f));
+  obj->getComponent<Transform>(ComponentType::Transform)->mMat = Syx::Mat4::transform(Vec3(0.5f), Quat::Identity, Vec3(8.0f, 0.0f, 0.0f));
 
 }
 

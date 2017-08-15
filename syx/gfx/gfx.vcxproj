@@ -142,8 +142,8 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
   <ItemGroup>
     <ClCompile Include="App.cpp" />
     <ClCompile Include="Camera.cpp" />
-    <ClCompile Include="components\GraphicsComponent.cpp" />
-    <ClCompile Include="components\TransformComponent.cpp" />
+    <ClCompile Include="components\Renderable.cpp" />
+    <ClCompile Include="components\Transform.cpp" />
     <ClCompile Include="DebugDrawer.cpp" />
     <ClCompile Include="EditorNavigator.cpp" />
     <ClCompile Include="Gameobject.cpp" />
@@ -167,8 +167,8 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClInclude Include="App.h" />
     <ClInclude Include="Camera.h" />
     <ClInclude Include="Component.h" />
-    <ClInclude Include="components\GraphicsComponent.h" />
-    <ClInclude Include="components\TransformComponent.h" />
+    <ClInclude Include="components\Renderable.h" />
+    <ClInclude Include="components\Transform.h" />
     <ClInclude Include="DebugDrawer.h" />
     <ClInclude Include="EditorNavigator.h" />
     <ClInclude Include="Gameobject.h" />

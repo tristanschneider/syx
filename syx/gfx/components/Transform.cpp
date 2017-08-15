@@ -1,9 +1,9 @@
 #include "Precompile.h"
-#include "TransformComponent.h"
+#include "Transform.h"
 
 using namespace Syx;
 
-TransformComponent::TransformComponent(Handle owner) 
+Transform::Transform(Handle owner) 
   : Component(owner)
   , mMat(Mat4::transform(Quat::Identity, Vec3::Zero)) {
 }

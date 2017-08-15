@@ -54,16 +54,16 @@
     <ClCompile Include="Space.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="components\TransformComponent.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="components\GraphicsComponent.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="systems\KeyboardInput.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="systems\GraphicsSystem.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="components\Transform.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="components\Renderable.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -119,16 +119,16 @@
     <ClInclude Include="Space.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="components\GraphicsComponent.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="components\TransformComponent.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="systems\GraphicsSystem.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="systems\KeyboardInput.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="components\Transform.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="components\Renderable.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

@@ -1,7 +1,7 @@
 #pragma once
 #include "MappedBuffer.h"
 #include "Component.h"
-#include "components/TransformComponent.h"
+#include "components/Transform.h"
 
 enum class ComponentType : uint8_t;
 
@@ -36,5 +36,5 @@ private:
   Handle mHandle;
   MappedBuffer<std::unique_ptr<Component>> mComponents;
   //Hard code transform because everything needs it
-  TransformComponent mTransform;
+  Transform mTransform;
 };

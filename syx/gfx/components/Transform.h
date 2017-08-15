@@ -1,13 +1,13 @@
 #pragma once
 #include "Component.h"
 
-class GraphicsComponent : public Component {
+class Transform : public Component {
 public:
-  GraphicsComponent(Handle owner);
+  Transform(Handle owner);
 
   Handle getHandle() const override {
     return static_cast<Handle>(ComponentType::Graphics);
   }
 
-  Handle mModel, mDiffTex;
+  Syx::Mat4 mMat;
 };
