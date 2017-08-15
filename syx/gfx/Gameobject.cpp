@@ -25,6 +25,10 @@ void Gameobject::uninit() {
     comp->uninit();
 }
 
+Handle Gameobject::getHandle() {
+  return mHandle;
+}
+
 Component& Gameobject::addComponent(std::unique_ptr<Component> component) {
   Handle h = component->getHandle();
   return *mComponents.pushBack(std::move(component), h);
@@ -43,3 +47,8 @@ Component* Gameobject::getComponent(Handle handle) {
     }
   }
 }
+
+Component* Gameobject::getComponent(ComponentType type) {
+  return getComponent(static_cast<Handle>(type));
+}
+

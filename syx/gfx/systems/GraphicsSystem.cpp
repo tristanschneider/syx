@@ -7,6 +7,10 @@
 #include "ModelLoader.h"
 #include "TextureLoader.h"
 #include "Texture.h"
+#include "App.h"
+#include "Space.h"
+#include "Gameobject.h"
+#include "components/GraphicsComponent.h"
 
 using namespace Syx;
 
@@ -133,45 +137,56 @@ void GraphicsSystem::_render() {
   glCullFace(GL_BACK);
 
   mDebugDrawer->_render(mCamera->getWorldToView());
-  Model& testModel = mHandleToModel[sTestModel];
+
   {
+    Texture emptyTexture;
     Shader::Binder sb(*mGeometry);
-
-    static Quat triRot = Quat::Identity;
-    triRot *= Quat::AxisAngle(Vec3::UnitY, 0.01f);
-    Mat4 triTransform = Mat4::transform(Vec3(0.1f), triRot, Vec3::Zero);
-    Mat4 mvp = mCamera->getWorldToView() * triTransform;
     Vec3 camPos = mCamera->getTransform().getTranslate();
-
     Vec3 mDiff(0.3f);
-    Vec3 mSpec(0.6f);
-    mSpec.w = 2.5f;
+    Vec3 mSpec(0.6f, 0.6f, 0.6f, 2.5f);
     Vec3 mAmb(0.1f, 0.1f, 0.1f);
-
     Vec3 sunDir = -Vec3::Identity.Normalized();
     Vec3 sunColor = Vec3::Identity;
+    Mat4 wvp = mCamera->getWorldToView();
+
     {
       Vec3 p(3.0f);
       mDebugDrawer->drawLine(p, p + sunDir, sunColor);
       mDebugDrawer->drawLine(p + sunDir, p + sunDir - Vec3(0.1f));
     }
 
-    {
-      Texture::Binder tb(mHandleToTexture[sTestTexture], 0);
-      //Tell the sampler uniform to use the given texture slot
-      glUniform1i(mGeometry->getUniform("uDiffuse"), 0);
+    glUniform3f(mGeometry->getUniform("uCamPos"), camPos.x, camPos.y, camPos.z);
+    glUniform3f(mGeometry->getUniform("uAmbient"), mAmb.x, mAmb.y, mAmb.z);
+    glUniform4f(mGeometry->getUniform("uSpecular"), mSpec.x, mSpec.y, mSpec.z, mSpec.w);
+    glUniform3f(mGeometry->getUniform("uSunDir"), sunDir.x, sunDir.y, sunDir.z);
+    glUniform3f(mGeometry->getUniform("uSunColor"), sunColor.x, sunColor.y, sunColor.z);
+
+    std::vector<Gameobject>& objects = mApp->getDefaultSpace().mObjects.getBuffer();
+    for(Gameobject& obj : objects) {
+      GraphicsComponent* gfx = obj.getComponent<GraphicsComponent>(ComponentType::Graphics);
+      if(!gfx)
+        continue;
+
+      auto modelIt = mHandleToModel.find(gfx->mModel);
+      if(modelIt == mHandleToModel.end())
+        continue;
+      auto diffIt = mHandleToTexture.find(gfx->mDiffTex);
+
+      Mat4 mw = obj.getComponent<TransformComponent>(ComponentType::Transform)->mMat;
+      Mat4 mvp = wvp * mw;
+      Vec3 camPos = mCamera->getTransform().getTranslate();
+
       {
-        Model::Binder mb(testModel);
+        Texture::Binder tb(diffIt != mHandleToTexture.end() ? diffIt->second : emptyTexture, 0);
+        //Tell the sampler uniform to use the given texture slot
+        glUniform1i(mGeometry->getUniform("uDiffuse"), 0);
+        {
+          Model::Binder mb(modelIt->second);
 
-        glUniformMatrix4fv(mGeometry->getUniform("uMVP"), 1, GL_FALSE, mvp.mData);
-        glUniformMatrix4fv(mGeometry->getUniform("uMW"), 1, GL_FALSE, triTransform.mData);
-        glUniform3f(mGeometry->getUniform("uCamPos"), camPos.x, camPos.y, camPos.z);
-        glUniform3f(mGeometry->getUniform("uAmbient"), mAmb.x, mAmb.y, mAmb.z);
-        glUniform4f(mGeometry->getUniform("uSpecular"), mSpec.x, mSpec.y, mSpec.z, mSpec.w);
-        glUniform3f(mGeometry->getUniform("uSunDir"), sunDir.x, sunDir.y, sunDir.z);
-        glUniform3f(mGeometry->getUniform("uSunColor"), sunColor.x, sunColor.y, sunColor.z);
-
-        testModel.draw();
+          glUniformMatrix4fv(mGeometry->getUniform("uMVP"), 1, GL_FALSE, mvp.mData);
+          glUniformMatrix4fv(mGeometry->getUniform("uMW"), 1, GL_FALSE, mw.mData);
+          modelIt->second.draw();
+        }
       }
     }
   }

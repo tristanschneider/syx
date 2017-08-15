@@ -21,6 +21,9 @@ public:
     return static_cast<SystemType&>(*mSystems[static_cast<int>(id)]);
   }
 
+  // Temporary until asset manager that wraps asset loading and such
+  std::unordered_map<std::string, Handle> mAssets;
+
 private:
   //Construct and register derived type of System, and store the constructed object in systemPtr
   template<typename SystemType, typename... ArgTypes>

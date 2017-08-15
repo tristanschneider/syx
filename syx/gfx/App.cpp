@@ -10,18 +10,24 @@ App::App() {
   _registerSystem<GraphicsSystem>();
   _registerSystem<KeyboardInput>();
   _registerSystem<EditorNavigator>();
-  mDefaultSpace = std::make_unique<Space>();
+  mDefaultSpace = std::make_unique<Space>(*this);
 }
 
 App::~App() {
 }
 
 void App::init() {
-  mDefaultSpace->init();
   for(auto& system : mSystems) {
     if(system)
       system->init();
   }
+
+  GraphicsSystem& gfx = getSystem<GraphicsSystem>(SystemId::Graphics);
+  mAssets["car"] = gfx.addModel("models/car.obj");
+  mAssets["bowser"] = gfx.addModel("models/bowserlow.obj");
+  mAssets["maze"] = gfx.addTexture("textures/test.bmp");
+
+  mDefaultSpace->init();
 }
 
 void App::update(float dt) {
