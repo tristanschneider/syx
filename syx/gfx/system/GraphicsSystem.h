@@ -8,6 +8,7 @@ class ModelLoader;
 class TextureLoader;
 struct Model;
 struct Texture;
+struct TransformListener;
 
 class GraphicsSystem : public System {
 public:
@@ -41,6 +42,7 @@ private:
   std::unique_ptr<DebugDrawer> mDebugDrawer;
   std::unique_ptr<ModelLoader> mModelLoader;
   std::unique_ptr<TextureLoader> mTextureLoader;
+  std::unique_ptr<TransformListener> mTransformListener;
   std::unordered_map<Handle, Model> mHandleToModel;
   std::unordered_map<Handle, Texture> mHandleToTexture;
   HandleGen mModelGen, mTextureGen;

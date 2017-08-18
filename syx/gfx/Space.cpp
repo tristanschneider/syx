@@ -2,7 +2,7 @@
 #include "Space.h"
 #include "Gameobject.h"
 
-#include "components/Renderable.h"
+#include "component/Renderable.h"
 #include "App.h"
 
 Space::Space(App& app)

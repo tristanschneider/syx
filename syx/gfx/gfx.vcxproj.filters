@@ -54,16 +54,19 @@
     <ClCompile Include="Space.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="systems\KeyboardInput.cpp">
+    <ClCompile Include="system\GraphicsSystem.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="systems\GraphicsSystem.cpp">
+    <ClCompile Include="system\KeyboardInput.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="components\Transform.cpp">
+    <ClCompile Include="component\Transform.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="components\Renderable.cpp">
+    <ClCompile Include="component\Renderable.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="system\MessagingSystem.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -86,9 +89,6 @@
     <ClInclude Include="Handle.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="System.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="EditorNavigator.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -107,9 +107,6 @@
     <ClInclude Include="Texture.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Component.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="Gameobject.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -119,16 +116,25 @@
     <ClInclude Include="Space.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="systems\GraphicsSystem.h">
+    <ClInclude Include="system\KeyboardInput.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="systems\KeyboardInput.h">
+    <ClInclude Include="system\System.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="components\Transform.h">
+    <ClInclude Include="system\GraphicsSystem.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="components\Renderable.h">
+    <ClInclude Include="component\Renderable.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="component\Transform.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="component\Component.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="system\MessagingSystem.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

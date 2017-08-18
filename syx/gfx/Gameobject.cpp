@@ -1,6 +1,6 @@
 #include "Precompile.h"
 #include "Gameobject.h"
-#include "Component.h"
+#include "component/Component.h"
 
 Gameobject::Gameobject(Handle handle)
   : mHandle(handle)

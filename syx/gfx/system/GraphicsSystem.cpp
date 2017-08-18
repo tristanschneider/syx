@@ -1,5 +1,5 @@
 #include "Precompile.h"
-#include "systems/GraphicsSystem.h"
+#include "system/GraphicsSystem.h"
 #include "Model.h"
 #include "Shader.h"
 #include "Camera.h"
@@ -10,7 +10,8 @@
 #include "App.h"
 #include "Space.h"
 #include "Gameobject.h"
-#include "components/Renderable.h"
+#include "component/Renderable.h"
+#include "system/MessagingSystem.h"
 
 using namespace Syx;
 
@@ -69,6 +70,9 @@ void GraphicsSystem::init() {
 
   sTestModel = addModel("models/bowserlow.obj");
   sTestTexture = addTexture("textures/test.bmp");
+
+  mTransformListener = std::make_unique<TransformListener>();
+  mApp->getSystem<MessagingSystem>(SystemId::Messaging).addTransformListener(*mTransformListener);
 }
 
 void GraphicsSystem::update(float dt) {
@@ -76,6 +80,7 @@ void GraphicsSystem::update(float dt) {
 }
 
 void GraphicsSystem::uninit() {
+  mApp->getSystem<MessagingSystem>(SystemId::Messaging).removeTransformListener(*mTransformListener);
 }
 
 Camera& GraphicsSystem::getPrimaryCamera() {

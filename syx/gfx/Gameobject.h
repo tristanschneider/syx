@@ -1,7 +1,7 @@
 #pragma once
 #include "MappedBuffer.h"
-#include "Component.h"
-#include "components/Transform.h"
+#include "component/Component.h"
+#include "component/Transform.h"
 
 enum class ComponentType : uint8_t;
 

@@ -1,12 +1,14 @@
 #include "Precompile.h"
 #include "App.h"
-#include "systems/GraphicsSystem.h"
-#include "systems/KeyboardInput.h"
+#include "system/GraphicsSystem.h"
+#include "system/KeyboardInput.h"
+#include "system/MessagingSystem.h"
 #include "EditorNavigator.h"
 #include "Space.h"
 
 App::App() {
   mSystems.resize(static_cast<size_t>(SystemId::Count));
+  _registerSystem<MessagingSystem>();
   _registerSystem<GraphicsSystem>();
   _registerSystem<KeyboardInput>();
   _registerSystem<EditorNavigator>();

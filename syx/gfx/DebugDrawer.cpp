@@ -1,7 +1,7 @@
 #include "Precompile.h"
 #include "DebugDrawer.h"
 #include "Shader.h"
-#include "systems/GraphicsSystem.h"
+#include "system/GraphicsSystem.h"
 
 const static int sStartingSize = 1000;
 

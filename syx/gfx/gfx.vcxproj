@@ -142,8 +142,8 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
   <ItemGroup>
     <ClCompile Include="App.cpp" />
     <ClCompile Include="Camera.cpp" />
-    <ClCompile Include="components\Renderable.cpp" />
-    <ClCompile Include="components\Transform.cpp" />
+    <ClCompile Include="component\Renderable.cpp" />
+    <ClCompile Include="component\Transform.cpp" />
     <ClCompile Include="DebugDrawer.cpp" />
     <ClCompile Include="EditorNavigator.cpp" />
     <ClCompile Include="Gameobject.cpp" />
@@ -152,8 +152,9 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClCompile Include="Model.cpp" />
     <ClCompile Include="Shader.cpp" />
     <ClCompile Include="Space.cpp" />
-    <ClCompile Include="systems\GraphicsSystem.cpp" />
-    <ClCompile Include="systems\KeyboardInput.cpp" />
+    <ClCompile Include="system\GraphicsSystem.cpp" />
+    <ClCompile Include="system\KeyboardInput.cpp" />
+    <ClCompile Include="system\MessagingSystem.cpp" />
     <ClCompile Include="Texture.cpp" />
     <ClCompile Include="TextureLoader.cpp" />
     <ClCompile Include="Util.cpp" />
@@ -166,9 +167,9 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
   <ItemGroup>
     <ClInclude Include="App.h" />
     <ClInclude Include="Camera.h" />
-    <ClInclude Include="Component.h" />
-    <ClInclude Include="components\Renderable.h" />
-    <ClInclude Include="components\Transform.h" />
+    <ClInclude Include="component\Component.h" />
+    <ClInclude Include="component\Renderable.h" />
+    <ClInclude Include="component\Transform.h" />
     <ClInclude Include="DebugDrawer.h" />
     <ClInclude Include="EditorNavigator.h" />
     <ClInclude Include="Gameobject.h" />
@@ -179,9 +180,10 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClInclude Include="Precompile.h" />
     <ClInclude Include="Shader.h" />
     <ClInclude Include="Space.h" />
-    <ClInclude Include="System.h" />
-    <ClInclude Include="systems\GraphicsSystem.h" />
-    <ClInclude Include="systems\KeyboardInput.h" />
+    <ClInclude Include="system\GraphicsSystem.h" />
+    <ClInclude Include="system\KeyboardInput.h" />
+    <ClInclude Include="system\MessagingSystem.h" />
+    <ClInclude Include="system\System.h" />
     <ClInclude Include="Texture.h" />
     <ClInclude Include="TextureLoader.h" />
     <ClInclude Include="Util.h" />
