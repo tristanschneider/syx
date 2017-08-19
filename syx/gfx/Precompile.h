@@ -13,6 +13,7 @@
 #include <gl/glew.h>
 #include <gl/GL.h>
 #include <memory>
+#include <mutex>
 
 #include <SyxMathIncludes.h>
 #include "Handle.h"

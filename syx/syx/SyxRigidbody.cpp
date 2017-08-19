@@ -30,7 +30,7 @@ namespace Syx {
     mInvMass = info.mMass;
     mLocalInertia = info.mInertia;
 
-    float density = collider->GetModelInstance().GetMaterial().m_density;
+    float density = collider->GetModelInstance().GetMaterial().mDensity;
     mInvMass *= density;
     mLocalInertia *= density;
 

@@ -7,6 +7,7 @@ enum class SystemId : uint8_t {
   KeyboardInput,
   EditorNavigator,
   Messaging,
+  Physics,
   Count
 };
 

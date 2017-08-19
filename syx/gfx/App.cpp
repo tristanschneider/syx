@@ -3,15 +3,17 @@
 #include "system/GraphicsSystem.h"
 #include "system/KeyboardInput.h"
 #include "system/MessagingSystem.h"
+#include "system/PhysicsSystem.h"
 #include "EditorNavigator.h"
 #include "Space.h"
 
 App::App() {
   mSystems.resize(static_cast<size_t>(SystemId::Count));
   _registerSystem<MessagingSystem>();
-  _registerSystem<GraphicsSystem>();
   _registerSystem<KeyboardInput>();
   _registerSystem<EditorNavigator>();
+  _registerSystem<PhysicsSystem>();
+  _registerSystem<GraphicsSystem>();
   mDefaultSpace = std::make_unique<Space>(*this);
 }
 

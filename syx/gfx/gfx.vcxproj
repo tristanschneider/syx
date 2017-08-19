@@ -155,6 +155,8 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClCompile Include="system\GraphicsSystem.cpp" />
     <ClCompile Include="system\KeyboardInput.cpp" />
     <ClCompile Include="system\MessagingSystem.cpp" />
+    <ClCompile Include="system\PhysicsSystem.cpp" />
+    <ClCompile Include="SyxInterface.cpp" />
     <ClCompile Include="Texture.cpp" />
     <ClCompile Include="TextureLoader.cpp" />
     <ClCompile Include="Util.cpp" />
@@ -183,6 +185,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClInclude Include="system\GraphicsSystem.h" />
     <ClInclude Include="system\KeyboardInput.h" />
     <ClInclude Include="system\MessagingSystem.h" />
+    <ClInclude Include="system\PhysicsSystem.h" />
     <ClInclude Include="system\System.h" />
     <ClInclude Include="Texture.h" />
     <ClInclude Include="TextureLoader.h" />

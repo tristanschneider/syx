@@ -24,6 +24,7 @@ public:
   void uninit() override;
 
   Camera& getPrimaryCamera();
+  DebugDrawer& getDebugDrawer();
 
   Handle addModel(Model& model);
   Handle addModel(const std::string& filePath);

@@ -15,6 +15,11 @@ namespace Syx {
     mTriangles.reserve(size/3 + 1);
   }
 
+  void ModelParam::Reserve(size_t verts, size_t indices) {
+    mPoints.reserve(verts);
+    mTriangles.reserve(indices);
+  }
+
   void ModelParam::AddVertex(const Vec3& v) {
     mPoints.push_back(v);
   }
@@ -23,6 +28,10 @@ namespace Syx {
     mTriangles.push_back(mPoints[a]);
     mTriangles.push_back(mPoints[b]);
     mTriangles.push_back(mPoints[c]);
+  }
+
+  void ModelParam::AddIndex(size_t i) {
+    mTriangles.push_back(mPoints[i]);
   }
 
   Model ModelParam::ToModel(void) const {

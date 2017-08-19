@@ -17,7 +17,7 @@ namespace Syx {
 
     static float sSimRate;
 
-    PhysicsSystem(void);
+    PhysicsSystem();
 
     void Update(float dt);
 

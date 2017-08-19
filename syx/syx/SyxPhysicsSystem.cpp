@@ -7,7 +7,7 @@ namespace Syx {
 
   float PhysicsSystem::sSimRate = 1.0f/60.0f;
 
-  PhysicsSystem::PhysicsSystem(void) {
+  PhysicsSystem::PhysicsSystem() {
     mCubeModel = AddModel(Model(ModelType::Cube));
     mSphereModel = AddModel(Model(ModelType::Sphere));
     mCylinderModel = AddModel(Model(ModelType::Cylinder));
@@ -85,9 +85,9 @@ namespace Syx {
 
   Handle PhysicsSystem::AddMaterial(const Material& newMaterial) {
     Material* material = mMaterials.Add();
-    Handle handle = material->m_handle;
+    Handle handle = material->mHandle;
     *material = newMaterial;
-    material->m_handle = handle;
+    material->mHandle = handle;
     return handle;
   }
 
@@ -135,7 +135,7 @@ namespace Syx {
       return;
 
     *material = updated;
-    material->m_handle = handle;
+    material->mHandle = handle;
   }
 
   const Model* PhysicsSystem::GetModel(Handle handle) {

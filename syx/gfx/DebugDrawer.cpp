@@ -53,6 +53,34 @@ void DebugDrawer::drawLine(const Syx::Vec3& a, const Syx::Vec3& b) {
   drawLine(a, b, mColor);
 }
 
+void DebugDrawer::drawVector(const Syx::Vec3& point, const Syx::Vec3& dir) {
+  float tipSize = 0.1f;
+  Syx::Vec3 ortho = dir.SafeNormalized().GetOrthogonal();
+  Syx::Vec3 end = point + dir;
+  drawLine(point, end);
+  drawLine(end, end - dir*tipSize + ortho*tipSize);
+}
+
+void DebugDrawer::DrawSphere(const Syx::Vec3& center, float radius, const Syx::Vec3& right, const Syx::Vec3& up) {
+
+}
+
+void DebugDrawer::DrawCube(const Syx::Vec3& center, const Syx::Vec3& size, const Syx::Vec3& right, const Syx::Vec3& up) {
+
+}
+
+void DebugDrawer::DrawPoint(const Syx::Vec3& point, float size) {
+  float hSize = size*0.5f;
+  for(int i = 0; i < 3; ++i) {
+    Syx::Vec3 start, end;
+    start = end = point;
+    start[i] -= hSize;
+    end[i] += hSize;
+    drawLine(start, end);
+  }
+}
+
+
 void DebugDrawer::setColor(const Syx::Vec3& color) {
   mColor = color;
 }

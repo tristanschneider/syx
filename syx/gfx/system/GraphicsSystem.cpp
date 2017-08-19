@@ -87,6 +87,10 @@ Camera& GraphicsSystem::getPrimaryCamera() {
   return *mCamera;
 }
 
+DebugDrawer& GraphicsSystem::getDebugDrawer() {
+  return *mDebugDrawer;
+}
+
 Handle GraphicsSystem::addModel(Model& model) {
   model.mHandle = mModelGen.Next();
   Model& added = mHandleToModel[model.mHandle] = model;

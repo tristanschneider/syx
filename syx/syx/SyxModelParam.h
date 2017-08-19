@@ -9,8 +9,10 @@ namespace Syx {
     ModelParam();
 
     void Reserve(size_t size);
+    void Reserve(size_t verts, size_t indices);
     void AddVertex(const Vec3& v);
     void AddTriangle(size_t a, size_t b, size_t c);
+    void AddIndex(size_t i);
     Model ToModel(void) const;
     void SetEnvironment(bool isEnvironment);
 
@@ -42,7 +44,6 @@ namespace Syx {
     //If neither of these are done, the submodel won't actually be a part of the composite model, which wouldn't make sense to do
     Handle AddSubmodel(const ModelParam& model, bool addInstance);
     void AddSubmodelInstance(const SubmodelInstance& instance);
-    Model ToModel(void) const;
 
   private:
     std::vector<SubmodelInstance> mInstances;
