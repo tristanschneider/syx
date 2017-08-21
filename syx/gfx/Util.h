@@ -1,5 +1,19 @@
 #pragma once
 
+#define BITWISE_OVERLOAD(func, symbol, Type)\
+  inline Type func(Type l, Type r) { return (Type)((std::underlying_type_t<Type>)l symbol (std::underlying_type_t<Type>)r); }
+
+#define BITWISE_OVERLOAD_EQ(func, symbol, Type)\
+  inline Type& func(Type& l, Type r) { l = (Type)((std::underlying_type_t<Type>)l symbol (std::underlying_type_t<Type>)r); return l; }
+
+#define MAKE_BITWISE_ENUM(Type)\
+  BITWISE_OVERLOAD(operator|, |, Type)\
+  BITWISE_OVERLOAD(operator&, &, Type)\
+  BITWISE_OVERLOAD(operator^, ^, Type)\
+  BITWISE_OVERLOAD_EQ(operator|=, |, Type)\
+  BITWISE_OVERLOAD_EQ(operator&=, &, Type)\
+  BITWISE_OVERLOAD_EQ(operator^=, ^, Type)
+
 namespace Util {
   inline void hashCombine(size_t) {
   }

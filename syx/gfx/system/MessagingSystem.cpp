@@ -1,5 +1,6 @@
 #include "Precompile.h"
 #include "system/MessagingSystem.h"
+#include "event/Event.h"
 
 void MessagingSystem::init() {
   mFrame = 0;
@@ -35,6 +36,26 @@ void MessagingSystem::fireTransformEvents(std::vector<TransformEvent>& e) {
     buff.resize(oldSize + e.size());
     std::memcpy(&buff[oldSize], e.data(), size);
   }
+}
+
+void MessagingSystem::addEventListener(EventListener& listener) {
+  mEventListeners.push_back(&listener);
+}
+
+void MessagingSystem::removeEventListener(EventListener& listener) {
+  auto it = std::find(mEventListeners.begin(), mEventListeners.end(), &listener);
+  if(it != mEventListeners.end())
+    mEventListeners.erase(it);
+}
+
+void MessagingSystem::fireEvent(std::unique_ptr<Event> e) {
+  for(size_t i = 0; i + 1 < mEventListeners.size(); ++i) {
+    std::unique_ptr<Event> temp = e->clone();
+    mEventListeners[i]->mEvents.push_back(std::move(e));
+    e = std::move(temp);
+  }
+  if(mEventListeners.size())
+    mEventListeners.back()->mEvents.push_back(std::move(e));
 }
 
 TransformEvent::TransformEvent(Handle handle, Syx::Mat4 transform)

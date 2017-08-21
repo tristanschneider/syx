@@ -181,7 +181,7 @@ void GraphicsSystem::_render() {
         continue;
       auto diffIt = mHandleToTexture.find(gfx->mDiffTex);
 
-      Mat4 mw = obj.getComponent<Transform>(ComponentType::Transform)->mMat;
+      Mat4 mw = obj.getComponent<Transform>(ComponentType::Transform)->get();
       Mat4 mvp = wvp * mw;
       Vec3 camPos = mCamera->getTransform().getTranslate();
 

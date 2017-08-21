@@ -4,37 +4,6 @@
 #include "DebugDrawer.h"
 
 namespace Syx {
-  /*struct SyxOptions {
-    enum SIMD {
-      PositionIntegration = 1 << 0,
-      VelocityIntegration = 1 << 1,
-      SupportPoints = 1 << 2,
-      Transforms = 1 << 3,
-      ConstraintSolve = 1 << 4,
-      GJK = 1 << 5,
-      EPA = 1 << 6
-    };
-
-    enum Debug {
-      DrawModels = 1 << 0,
-      DrawPersonalBBs = 1 << 1,
-      DrawCollidingPairs = 1 << 2,
-      DrawGJK = 1 << 3,
-      DrawEPA = 1 << 4,
-      DrawNewContact = 1 << 5,
-      DrawManifolds = 1 << 6,
-      DisableCollision = 1 << 7,
-      DrawBroadphase = 1 << 8,
-      DrawIslands = 1 << 9,
-      DrawSleeping = 1 << 10,
-      DrawJoints = 1 << 11
-    };
-
-    int mSimdFlags;
-    int mDebugFlags;
-    int mTest;
-  };*/
-
   namespace Interface {
     ::DebugDrawer* gDrawer = nullptr;
 
@@ -58,17 +27,51 @@ namespace Syx {
     }
 
     void DrawSphere(const Vec3& center, float radius, const Vec3& right, const Vec3& up) {
-
+      DrawPoint(center, radius*2.0f);
     }
 
     // Size is whole size, not half size
     void DrawCube(const Vec3& center, const Vec3& size, const Vec3& right, const Vec3& up) {
+      Vec3 r = right*size.x;
+      Vec3 u = up*size.y;
+      Vec3 f = right.Cross(up)*size.z;
 
+      Vec3 lbl = center - (r + u + f)*0.5f;
+      Vec3 lbr = lbl + r;
+      Vec3 ltl = lbl + f;
+      Vec3 ltr = lbr + f;
+
+      Vec3 ubl = lbl + u;
+      Vec3 ubr = lbr + u;
+      Vec3 utl = ltl + u;
+      Vec3 utr = ltr + u;
+
+      DrawLine(lbl, lbr);
+      DrawLine(lbr, ltr);
+      DrawLine(ltr, ltl);
+      DrawLine(ltl, lbl);
+
+      DrawLine(ubl, ubr);
+      DrawLine(ubr, utr);
+      DrawLine(utr, utl);
+      DrawLine(utl, ubl);
+
+      DrawLine(lbl, ubl);
+      DrawLine(lbr, ubr);
+      DrawLine(ltl, utl);
+      DrawLine(ltr, utr);
     }
 
     // Simple representation of a point, like a cross where size is the length from one side to the other
     void DrawPoint(const Vec3& point, float size) {
-
+      float hSize = size*0.5f;
+      for(int i = 0; i < 3; ++i) {
+        Vec3 start, end;
+        start = end = point;
+        start[i] -= hSize;
+        end[i] += hSize;
+        gDrawer->drawLine(start, end);
+      }
     }
 
     // 16 byte aligned

@@ -142,10 +142,12 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
   <ItemGroup>
     <ClCompile Include="App.cpp" />
     <ClCompile Include="Camera.cpp" />
+    <ClCompile Include="component\Physics.cpp" />
     <ClCompile Include="component\Renderable.cpp" />
     <ClCompile Include="component\Transform.cpp" />
     <ClCompile Include="DebugDrawer.cpp" />
     <ClCompile Include="EditorNavigator.cpp" />
+    <ClCompile Include="event\Event.cpp" />
     <ClCompile Include="Gameobject.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="ModelLoader.cpp" />
@@ -170,10 +172,12 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClInclude Include="App.h" />
     <ClInclude Include="Camera.h" />
     <ClInclude Include="component\Component.h" />
+    <ClInclude Include="component\Physics.h" />
     <ClInclude Include="component\Renderable.h" />
     <ClInclude Include="component\Transform.h" />
     <ClInclude Include="DebugDrawer.h" />
     <ClInclude Include="EditorNavigator.h" />
+    <ClInclude Include="event\Event.h" />
     <ClInclude Include="Gameobject.h" />
     <ClInclude Include="Handle.h" />
     <ClInclude Include="MappedBuffer.h" />

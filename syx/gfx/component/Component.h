@@ -1,16 +1,19 @@
 #pragma once
 
 class Gameobject;
+class MessagingSystem;
 
 enum class ComponentType : uint8_t {
   Transform,
-  Graphics
+  Graphics,
+  Physics
 };
 
 class Component {
 public:
-  Component(Handle owner)
-    : mOwner(owner) {
+  Component(Handle owner, MessagingSystem* messaging)
+    : mOwner(owner)
+    , mMessaging(messaging) {
   }
 
   virtual Handle getHandle() const = 0;
@@ -24,4 +27,5 @@ public:
 
 protected:
   Handle mOwner;
+  MessagingSystem* mMessaging;
 };

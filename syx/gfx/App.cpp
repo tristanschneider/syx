@@ -30,6 +30,7 @@ void App::init() {
   mAssets["car"] = gfx.addModel("models/car.obj");
   mAssets["bowser"] = gfx.addModel("models/bowserlow.obj");
   mAssets["maze"] = gfx.addTexture("textures/test.bmp");
+  mAssets["cube"] = gfx.addModel("models/cube.obj");
 
   mDefaultSpace->init();
 }

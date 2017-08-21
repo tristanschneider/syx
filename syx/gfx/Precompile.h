@@ -14,6 +14,7 @@
 #include <gl/GL.h>
 #include <memory>
 #include <mutex>
+#include <type_traits>
 
 #include <SyxMathIncludes.h>
 #include "Handle.h"
