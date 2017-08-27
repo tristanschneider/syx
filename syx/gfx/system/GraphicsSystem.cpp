@@ -151,9 +151,9 @@ void GraphicsSystem::_render() {
     Texture emptyTexture;
     Shader::Binder sb(*mGeometry);
     Vec3 camPos = mCamera->getTransform().getTranslate();
-    Vec3 mDiff(0.3f);
+    Vec3 mDiff(1.0f);
     Vec3 mSpec(0.6f, 0.6f, 0.6f, 2.5f);
-    Vec3 mAmb(0.12f, 0.12f, 0.12f);
+    Vec3 mAmb(0.22f, 0.22f, 0.22f);
     Vec3 sunDir = -Vec3::Identity.Normalized();
     Vec3 sunColor = Vec3::Identity;
     Mat4 wvp = mCamera->getWorldToView();
@@ -165,6 +165,7 @@ void GraphicsSystem::_render() {
     }
 
     glUniform3f(mGeometry->getUniform("uCamPos"), camPos.x, camPos.y, camPos.z);
+    glUniform3f(mGeometry->getUniform("uDiffuse"), mDiff.x, mDiff.y, mDiff.z);
     glUniform3f(mGeometry->getUniform("uAmbient"), mAmb.x, mAmb.y, mAmb.z);
     glUniform4f(mGeometry->getUniform("uSpecular"), mSpec.x, mSpec.y, mSpec.z, mSpec.w);
     glUniform3f(mGeometry->getUniform("uSunDir"), sunDir.x, sunDir.y, sunDir.z);
@@ -188,7 +189,7 @@ void GraphicsSystem::_render() {
       {
         Texture::Binder tb(diffIt != mHandleToTexture.end() ? diffIt->second : emptyTexture, 0);
         //Tell the sampler uniform to use the given texture slot
-        glUniform1i(mGeometry->getUniform("uDiffuse"), 0);
+        glUniform1i(mGeometry->getUniform("uTex"), 0);
         {
           Model::Binder mb(modelIt->second);
 
