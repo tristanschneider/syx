@@ -7,15 +7,16 @@ Transform::Transform(Handle owner, MessagingSystem* messaging)
   , mMat(Syx::Mat4::transform(Syx::Quat::Identity, Syx::Vec3::Zero)) {
 }
 
-void Transform::set(const Syx::Mat4& m) {
+void Transform::set(const Syx::Mat4& m, bool fireEvent) {
   mMat = m;
-  fireEvent();
+  if(fireEvent)
+    _fireEvent();
 }
 
 const Syx::Mat4& Transform::get() {
   return mMat;
 }
 
-void Transform::fireEvent() {
+void Transform::_fireEvent() {
   mMessaging->fireTransformEvent(TransformEvent(mOwner, mMat));
 }

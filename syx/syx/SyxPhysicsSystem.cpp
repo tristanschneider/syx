@@ -407,6 +407,12 @@ namespace Syx {
     max = bb.GetMax();
   }
 
+  const EventListener<UpdateEvent>* PhysicsSystem::getUpdateEvents(Handle space) {
+    if(Space* s = mSpaces.Get(space))
+      return &s->getUpdateEvents();
+    return nullptr;
+  }
+
   CastResult PhysicsSystem::LineCastAll(Handle space, const Vec3& start, const Vec3& end) {
     Space* s = mSpaces.Get(space);
     if(!s)

@@ -20,7 +20,7 @@ public:
   void addTransformListener(TransformListener& listener);
   void removeTransformListener(TransformListener& listener);
   void fireTransformEvent(TransformEvent& e);
-  void fireTransformEvents(std::vector<TransformEvent>& e);
+  void fireTransformEvents(std::vector<TransformEvent>& e, TransformListener* except = nullptr);
 
   void addEventListener(EventListener& listener);
   void removeEventListener(EventListener& listener);

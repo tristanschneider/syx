@@ -5,6 +5,7 @@
 #include "SyxProfiler.h"
 #include "SyxCaster.h"
 #include "SyxIslandGraph.h"
+#include "SyxEvents.h"
 
 namespace Syx {
   class Broadphase;
@@ -61,6 +62,8 @@ namespace Syx {
 
     void RemoveConstraint(Handle handle);
 
+    const EventListener<UpdateEvent>& getUpdateEvents();
+
   private:
     bool FillOps(ConstraintOptions& ops);
 
@@ -75,6 +78,8 @@ namespace Syx {
     void IntegrateAllVelocity(float dt);
     void SIntegrateAllVelocity(float dt);
 
+    void _fireUpdateEvent(PhysicsObject& obj);
+
     HandleMap<PhysicsObject> mObjects;
     Handle mMyHandle;
     Broadphase* mBroadphase;
@@ -86,5 +91,6 @@ namespace Syx {
     Caster mCaster;
     Profiler mProfiler;
     CasterContext mCasterContext;
+    EventListener<UpdateEvent> mUpdateEvents;
   };
 }

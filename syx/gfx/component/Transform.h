@@ -11,11 +11,11 @@ public:
     return static_cast<Handle>(ComponentType::Graphics);
   }
 
-  void set(const Syx::Mat4& m);
+  void set(const Syx::Mat4& m, bool fireEvent = true);
   const Syx::Mat4& get();
 
 private:
-  void fireEvent();
+  void _fireEvent();
 
   Syx::Mat4 mMat;
 };

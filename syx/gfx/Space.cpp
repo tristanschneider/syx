@@ -60,6 +60,7 @@ void Space::init() {
   phy->setCollider(mApp->mAssets["pCube"], mApp->mAssets["pDefMat"]);
   phy->setRigidbody(Syx::Vec3::Zero, Syx::Vec3::Zero);
   phy->setPhysToModel(Syx::Mat4::scale(Syx::Vec3(2.0f)));
+  phy->setAngVel(Vec3(3.0f));
   obj->addComponent(std::move(phy));
   obj->getComponent<Transform>(ComponentType::Transform)->set(Syx::Mat4::transform(Vec3(1.0f, 1.0f, 1.0f), Quat::Identity, Vec3(0.0f, 8.0f, 0.0f)));
   obj->init();

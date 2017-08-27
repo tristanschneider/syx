@@ -43,9 +43,6 @@ namespace Syx {
   }
 
   void Rigidbody::IntegratePosition(float dt) {
-    if(mInvMass < SYX_EPSILON)
-      return;
-
     Transform& t = mOwner->GetTransform();
     t.mPos += mLinVel*dt;
 

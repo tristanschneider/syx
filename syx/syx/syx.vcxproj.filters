@@ -153,6 +153,9 @@
     <ClCompile Include="SyxVec2.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="SyxEvents.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="SyxAABB.h">
@@ -348,6 +351,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="SyxMathIncludes.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="SyxEvents.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

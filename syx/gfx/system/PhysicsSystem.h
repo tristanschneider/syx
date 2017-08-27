@@ -5,6 +5,7 @@ namespace Syx {
   class PhysicsSystem;
   typedef size_t Handle;
   struct Material;
+  struct UpdateEvent;
 };
 
 struct Model;
@@ -12,6 +13,7 @@ struct EventListener;
 struct TransformListener;
 struct TransformEvent;
 class PhysicsCompUpdateEvent;
+class Gameobject;
 
 class PhysicsSystem : public System {
 public:
@@ -39,7 +41,9 @@ private:
     Syx::Mat4 mSyxToModel;
   };
 
-  void _processEvents();
+  void _processGameEvents();
+  void _processSyxEvents();
+  void _updateObject(Gameobject& obj, const SyxData& data, const Syx::UpdateEvent& e);
   void _compUpdateEvent(const PhysicsCompUpdateEvent& e);
   void _transformEvent(const TransformEvent& e);
   Syx::Handle _createObject(Handle gameobject, bool hasRigidbody, bool hasCollider);
@@ -47,6 +51,7 @@ private:
   std::unique_ptr<Syx::PhysicsSystem> mSystem;
   std::unique_ptr<EventListener> mEventListener;
   std::unique_ptr<TransformListener> mTransformListener;
+  std::unique_ptr<std::vector<TransformEvent>> mTransformUpdates;
   std::unordered_map<Handle, SyxData> mToSyx;
   std::unordered_map<Syx::Handle, Handle> mFromSyx;
   Syx::Handle mDefaultSpace;

@@ -44,6 +44,8 @@ public:
   void setCollider(Handle model, Handle material);
   void setRigidbody(const Syx::Vec3& linVel, const Syx::Vec3& angVel);
   void setPhysToModel(const Syx::Mat4& physToModel);
+  void setLinVel(const Syx::Vec3& linVel);
+  void setAngVel(const Syx::Vec3& angVel);
 
 private:
   void fireUpdateEvent();

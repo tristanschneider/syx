@@ -127,6 +127,7 @@
     <ClCompile Include="SyxDebugSimplex.cpp" />
     <ClCompile Include="SyxDetectionTests.cpp" />
     <ClCompile Include="SyxDistanceConstraint.cpp" />
+    <ClCompile Include="SyxEvents.cpp" />
     <ClCompile Include="SyxGeometricQueries.cpp" />
     <ClCompile Include="SyxIslandGraph.cpp" />
     <ClCompile Include="SyxIslandSolver.cpp" />
@@ -182,6 +183,7 @@
     <ClInclude Include="SyxDebugSimplex.h" />
     <ClInclude Include="SyxDetectionTests.h" />
     <ClInclude Include="SyxDistanceConstraint.h" />
+    <ClInclude Include="SyxEvents.h" />
     <ClInclude Include="SyxGeometricQueries.h" />
     <ClInclude Include="SyxHandleMap.h" />
     <ClInclude Include="SyxHandles.h" />

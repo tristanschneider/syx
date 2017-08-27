@@ -2,6 +2,7 @@
 #include "SyxMaterial.h"
 #include "SyxModel.h"
 #include "SyxSpace.h"
+#include "SyxEvents.h"
 
 namespace Syx {
   struct Vec3;
@@ -74,6 +75,8 @@ namespace Syx {
     Vec3 GetScale(Handle space, Handle object);
 
     void GetAABB(Handle space, Handle object, Vec3& min, Vec3& max);
+
+    const EventListener<UpdateEvent>* getUpdateEvents(Handle space);
 
     CastResult LineCastAll(Handle space, const Vec3& start, const Vec3& end);
 

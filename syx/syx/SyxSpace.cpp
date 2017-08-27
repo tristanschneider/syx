@@ -107,6 +107,7 @@ namespace Syx {
   void Space::IntegratePosition(float dt) {
     {
       AutoProfileBlock block(mProfiler, "Integrate Position");
+      mUpdateEvents.mEvents.clear();
       if(Interface::GetOptions().mSimdFlags & SyxOptions::SIMD::PositionIntegration)
         SIntegrateAllPositions(dt);
       else
@@ -168,8 +169,9 @@ namespace Syx {
       if(obj.GetAsleep())
         continue;
       Rigidbody* rigidbody = obj.GetRigidbody();
-      if(rigidbody) {
-        rigidbody->IntegratePosition(dt);
+      if(obj.shouldIntegrate()) {
+        obj.GetRigidbody()->IntegratePosition(dt);
+        _fireUpdateEvent(obj);
         UpdateMovedObject(*it);
       }
     }
@@ -276,6 +278,10 @@ namespace Syx {
     mConstraintSystem.RemoveConstraint(handle);
   }
 
+  const EventListener<UpdateEvent>& Space::getUpdateEvents() {
+    return mUpdateEvents;
+  }
+
   bool Space::FillOps(ConstraintOptions& ops) {
     ops.mObjA = mObjects.Get(ops.mA);
     ops.mObjB = mObjects.Get(ops.mB);
@@ -297,7 +303,7 @@ namespace Syx {
       PhysicsObject& obj = *it;
       Rigidbody* rigidbody = obj.GetRigidbody();
       //This ultimately shouldn't be needed because I should have a dynamic objects list that this would iterate over
-      if(obj.GetAsleep() || !rigidbody || rigidbody->mInvMass < SYX_EPSILON)
+      if(!obj.shouldIntegrate())
         continue;
 
       Transform& t = obj.GetTransform();
@@ -328,6 +334,7 @@ namespace Syx {
       //rotMat now contains Rot.Scaled(m_localInertia) * rot.Transposed
       rotMat.Store(rigidbody->mInvInertia);
 
+      _fireUpdateEvent(obj);
       UpdateMovedObject(*it);
     }
   }
@@ -348,6 +355,18 @@ namespace Syx {
         SStoreAll(&rigidbody->mLinVel.x, sVel);
       }
     }
+  }
+
+  void Space::_fireUpdateEvent(PhysicsObject& obj) {
+    UpdateEvent e;
+    //Can't be null because if it was it wouldn't move, so we wouldn't fire this event
+    Rigidbody* rb = obj.GetRigidbody();
+    e.mLinVel = rb->mLinVel;
+    e.mAngVel = rb->mAngVel;
+    e.mPos = obj.GetTransform().mPos;
+    e.mRot = obj.GetTransform().mRot;
+    e.mHandle = obj.GetHandle();
+    mUpdateEvents.mEvents.push_back(e);
   }
 
 #else

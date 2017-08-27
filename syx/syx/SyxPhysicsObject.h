@@ -48,6 +48,8 @@ namespace Syx {
     const std::unordered_set<Handle>& GetConstraints();
     void ClearConstraints();
 
+    bool shouldIntegrate();
+
   private:
     SAlign Transform mTransform;
     SAlign Collider mCollider;

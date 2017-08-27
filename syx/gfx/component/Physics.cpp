@@ -51,6 +51,16 @@ void Physics::setPhysToModel(const Syx::Mat4& physToModel) {
   fireUpdateEvent();
 }
 
+void Physics::setLinVel(const Syx::Vec3& linVel) {
+  mData.mLinVel = linVel;
+  fireUpdateEvent();
+}
+
+void Physics::setAngVel(const Syx::Vec3& angVel) {
+  mData.mAngVel = angVel;
+  fireUpdateEvent();
+}
+
 void Physics::fireUpdateEvent() {
   mMessaging->fireEvent(std::make_unique<PhysicsCompUpdateEvent>(mData, mOwner));
 }

@@ -6,6 +6,7 @@
 #include "system/MessagingSystem.h"
 #include "event/Event.h"
 #include "component/Physics.h"
+#include "Space.h"
 
 #include <SyxIntrusive.h>
 #include <SyxHandles.h>
@@ -38,17 +39,19 @@ void PhysicsSystem::init() {
 
   mEventListener = std::make_unique<EventListener>(EventFlag::Physics);
   mTransformListener = std::make_unique<TransformListener>();
+  mTransformUpdates = std::make_unique<std::vector<TransformEvent>>();
   MessagingSystem& msg = mApp->getSystem<MessagingSystem>(SystemId::Messaging);
   msg.addEventListener(*mEventListener);
   msg.addTransformListener(*mTransformListener);
 }
 
 void PhysicsSystem::update(float dt) {
-  _processEvents();
+  _processGameEvents();
   mSystem->Update(dt);
+  _processSyxEvents();
 }
 
-void PhysicsSystem::_processEvents() {
+void PhysicsSystem::_processGameEvents() {
   for(const std::unique_ptr<Event>& e : mEventListener->mEvents) {
     switch(static_cast<EventType>(e->getHandle())) {
       case EventType::PhysicsCompUpdate: _compUpdateEvent(static_cast<const PhysicsCompUpdateEvent&>(*e)); break;
@@ -60,6 +63,38 @@ void PhysicsSystem::_processEvents() {
   for(const TransformEvent& t : mTransformListener->mEvents)
     _transformEvent(t);
   mTransformListener->mEvents.clear();
+}
+
+void PhysicsSystem::_processSyxEvents() {
+  mTransformUpdates->clear();
+  const Syx::EventListener<Syx::UpdateEvent>* updates = mSystem->getUpdateEvents(mDefaultSpace);
+  if(updates) {
+    Space& space = mApp->getDefaultSpace();
+    for(const Syx::UpdateEvent& e : updates->mEvents) {
+      auto it = mFromSyx.find(e.mHandle);
+      if(it != mFromSyx.end()) {
+        if(Gameobject* obj = space.mObjects.get(it->second)) {
+          const SyxData& data = mToSyx[it->second];
+          _updateObject(*obj, data, e);
+        }
+        else
+          printf("Failed to get game object for physics update %u\n", it->second);
+      }
+      else
+        printf("Failed to map physics object %u\n", e.mHandle);
+    }
+  }
+  else
+    printf("Failed to get physics update events\n");
+
+  mApp->getSystem<MessagingSystem>(SystemId::Messaging).fireTransformEvents(*mTransformUpdates, mTransformListener.get());
+}
+
+void PhysicsSystem::_updateObject(Gameobject& obj, const SyxData& data, const Syx::UpdateEvent& e) {
+  Transform& t = *obj.getComponent<Transform>(ComponentType::Transform);
+  Syx::Vec3 scale = t.get().getScale();
+  t.set(Syx::Mat4::transform(data.mSyxToModel.getScale().Reciprocal(), e.mRot, e.mPos) * data.mSyxToModel, false);
+  mTransformUpdates->emplace_back(obj.getHandle(), t.get());
 }
 
 void PhysicsSystem::_compUpdateEvent(const PhysicsCompUpdateEvent& e) {

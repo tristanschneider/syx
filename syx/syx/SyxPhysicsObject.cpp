@@ -108,4 +108,9 @@ namespace Syx {
   void PhysicsObject::ClearConstraints() {
     mConstraints.clear();
   }
+
+  bool PhysicsObject::shouldIntegrate() {
+    Rigidbody* rb = GetRigidbody();
+    return !GetAsleep() && rb && rb->mInvMass > 0.0f;
+  }
 }
