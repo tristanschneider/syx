@@ -11,6 +11,8 @@ struct PhysicsData {
   Syx::Vec3 mAngVel;
   Handle mModel;
   Handle mMaterial;
+  //Transform from physics space to model space
+  Syx::Mat4 mPhysToModel;
 };
 
 class PhysicsCompUpdateEvent : public Event {
@@ -41,6 +43,7 @@ public:
   void setData(const PhysicsData& data, bool fireEvent = true);
   void setCollider(Handle model, Handle material);
   void setRigidbody(const Syx::Vec3& linVel, const Syx::Vec3& angVel);
+  void setPhysToModel(const Syx::Mat4& physToModel);
 
 private:
   void fireUpdateEvent();

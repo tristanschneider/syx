@@ -65,10 +65,14 @@ void PhysicsSystem::_processEvents() {
 void PhysicsSystem::_compUpdateEvent(const PhysicsCompUpdateEvent& e) {
   auto it = mToSyx.find(e.mOwner);
   Syx::Handle h;
-  if(it == mToSyx.end())
+  if(it == mToSyx.end()) {
     h = _createObject(e.mOwner, e.mData.mHasRigidbody, e.mData.mHasCollider);
+    it = mToSyx.find(e.mOwner);
+  }
   else
-    h = it->second;
+    h = it->second.mHandle;
+
+  it->second.mSyxToModel = e.mData.mPhysToModel;
 
   mSystem->SetVelocity(mDefaultSpace, h, e.mData.mLinVel);
   mSystem->SetAngularVelocity(mDefaultSpace, h, e.mData.mAngVel);
@@ -83,16 +87,20 @@ void PhysicsSystem::_transformEvent(const TransformEvent& e) {
   if(it != mToSyx.end()) {
     Syx::Vec3 pos, scale;
     Syx::Mat3 rot;
-    e.mTransform.decompose(scale, rot, pos);
-    mSystem->SetPosition(mDefaultSpace, it->second, pos);
-    mSystem->SetRotation(mDefaultSpace, it->second, rot.ToQuat());
-    mSystem->SetScale(mDefaultSpace, it->second, scale);
+    //Move the transform into syx space then decompose it
+    (e.mTransform * it->second.mSyxToModel.affineInverse()).decompose(scale, rot, pos);
+    Syx::Handle h = it->second.mHandle;
+    mSystem->SetPosition(mDefaultSpace, h, pos);
+    mSystem->SetRotation(mDefaultSpace, h, rot.ToQuat());
+    mSystem->SetScale(mDefaultSpace, h, scale);
   }
 }
 
 Syx::Handle PhysicsSystem::_createObject(Handle gameobject, bool hasRigidbody, bool hasCollider) {
   Syx::Handle result = mSystem->AddPhysicsObject(hasRigidbody, hasCollider, mDefaultSpace);
-  mToSyx[gameobject] = result;
+  SyxData d;
+  d.mHandle = result;
+  mToSyx[gameobject] = d;
   mFromSyx[result] = gameobject;
   return result;
 }

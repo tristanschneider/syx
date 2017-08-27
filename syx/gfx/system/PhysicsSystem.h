@@ -33,6 +33,12 @@ public:
   void removeMaterial(Handle handle);
 
 private:
+  struct SyxData {
+    Syx::Handle mHandle;
+    //Transform from syx to model space
+    Syx::Mat4 mSyxToModel;
+  };
+
   void _processEvents();
   void _compUpdateEvent(const PhysicsCompUpdateEvent& e);
   void _transformEvent(const TransformEvent& e);
@@ -41,7 +47,7 @@ private:
   std::unique_ptr<Syx::PhysicsSystem> mSystem;
   std::unique_ptr<EventListener> mEventListener;
   std::unique_ptr<TransformListener> mTransformListener;
-  std::unordered_map<Handle, Syx::Handle> mToSyx;
+  std::unordered_map<Handle, SyxData> mToSyx;
   std::unordered_map<Syx::Handle, Handle> mFromSyx;
   Syx::Handle mDefaultSpace;
 };
