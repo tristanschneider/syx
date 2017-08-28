@@ -3,27 +3,27 @@
 #include "SyxNarrowphase.h"
 
 namespace Syx {
-  bool DebugSimplex::Add(const SupportPoint& toAdd, bool checkForDuplicates) {
+  bool DebugSimplex::add(const SupportPoint& toAdd, bool checkForDuplicates) {
     if(checkForDuplicates)
-      for(size_t i = 0; i < m_size; ++i)
-        if(m_supports[i].mSupport == toAdd.mSupport)
+      for(size_t i = 0; i < mSize; ++i)
+        if(mSupports[i].mSupport == toAdd.mSupport)
           return false;
 
-    m_supports[m_size++] = toAdd;
+    mSupports[mSize++] = toAdd;
     return true;
   }
 
-  Vec3 DebugSimplex::Solve(void) {
-    switch(m_size) {
-    case 1: m_history += "Solve point\n"; return -m_supports[0].mSupport;
-    case 2: return SolveLine();
-    case 3: return SolveTriangle();
-    case 4: return SolveTetrahedron();
+  Vec3 DebugSimplex::solve(void) {
+    switch(mSize) {
+    case 1: mHistory += "Solve point\n"; return -mSupports[0].mSupport;
+    case 2: return _solveLine();
+    case 3: return _solveTriangle();
+    case 4: return _solveTetrahedron();
     default: SyxAssertError(false, "Nonsense size in debug solve"); return Vec3::Zero;
     }
   }
 
-  void DebugSimplex::GrowToFourPoints(Narrowphase& narrow) {
+  void DebugSimplex::growToFourPoints(Narrowphase& narrow) {
     //Possible directions to look for support points
     static SAlign Vec3 searchDirs[] =
     {
@@ -32,20 +32,20 @@ namespace Syx {
     };
 
     //Intentional fall through cases
-    switch(m_size) {
+    switch(mSize) {
       //Already has four, get out of here
     case 4:
       return;
 
     case 0:
       //Arbitrary direction. Doesn't matter since there are no others for it to be a duplicate of
-      Add(narrow.GetSupport(Vec3::UnitY), false);
+      add(narrow._getSupport(Vec3::UnitY), false);
 
     case 1:
       for(Vec3& curDir : searchDirs) {
-        SupportPoint curPoint = narrow.GetSupport(curDir);
-        if(curPoint.mSupport.Distance2(m_supports[0].mSupport) > SYX_EPSILON) {
-          Add(curPoint, false);
+        SupportPoint curPoint = narrow._getSupport(curDir);
+        if(curPoint.mSupport.distance2(mSupports[0].mSupport) > SYX_EPSILON) {
+          add(curPoint, false);
           break;
         }
       }
@@ -53,69 +53,69 @@ namespace Syx {
     case 2:
     {
       //Get closest point to origin on line segment
-      Vec3 lineSeg = (m_supports[1].mSupport - m_supports[0].mSupport).SafeNormalized();
-      int leastSignificantAxis = lineSeg.LeastSignificantAxis();
-      SAlign Vec3 searchDir = lineSeg.Cross(searchDirs[leastSignificantAxis]);
+      Vec3 lineSeg = (mSupports[1].mSupport - mSupports[0].mSupport).safeNormalized();
+      int leastSignificantAxis = lineSeg.leastSignificantAxis();
+      SAlign Vec3 searchDir = lineSeg.cross(searchDirs[leastSignificantAxis]);
       //Matrix would be a bit faster, but I don't imagine this case comes
       //up often enough for it to matter
-      Quat rot = Quat::AxisAngle(lineSeg, 3.14f / 3.0f);
-      SupportPoint newPoint = narrow.GetSupport(searchDir);
+      Quat rot = Quat::axisAngle(lineSeg, 3.14f / 3.0f);
+      SupportPoint newPoint = narrow._getSupport(searchDir);
 
       for(unsigned i = 0; i < 6; ++i) {
-        SupportPoint curPoint = narrow.GetSupport(searchDir);
-        if(Vec3::PointLineDistanceSQ(curPoint.mSupport, m_supports[0].mSupport, m_supports[1].mSupport) > SYX_EPSILON) {
+        SupportPoint curPoint = narrow._getSupport(searchDir);
+        if(Vec3::pointLineDistanceSQ(curPoint.mSupport, mSupports[0].mSupport, mSupports[1].mSupport) > SYX_EPSILON) {
           newPoint = curPoint;
           break;
         }
 
         searchDir = rot * searchDir;
       }
-      Add(newPoint, false);
+      add(newPoint, false);
     }
     case 3:
     {
-      SAlign Vec3 searchDir = TriangleNormal(m_supports[2].mSupport,
-        m_supports[1].mSupport, m_supports[0].mSupport);
+      SAlign Vec3 searchDir = triangleNormal(mSupports[2].mSupport,
+        mSupports[1].mSupport, mSupports[0].mSupport);
 
-      SupportPoint newPoint = narrow.GetSupport(searchDir);
+      SupportPoint newPoint = narrow._getSupport(searchDir);
       //If this point matches one of the other points already, search in a different direction
       for(unsigned i = 0; i < 3; ++i)
-        if(m_supports[i].mSupport == newPoint.mSupport) {
+        if(mSupports[i].mSupport == newPoint.mSupport) {
           //For flat shapes this could still result in a duplicate, but we can't do anything better from here
           SAlign Vec3 negDir = -searchDir;
-          newPoint = narrow.GetSupport(negDir);
+          newPoint = narrow._getSupport(negDir);
           break;
         }
 
-      Add(newPoint, false);
+      add(newPoint, false);
     }
     }
 
     //Fix winding
-    Vec3 v30 = m_supports[0].mSupport - m_supports[3].mSupport;
-    Vec3 v31 = m_supports[1].mSupport - m_supports[3].mSupport;
-    Vec3 v32 = m_supports[2].mSupport - m_supports[3].mSupport;
-    float det = Vec3::Dot(v30, Vec3::Cross(v31, v32));
+    Vec3 v30 = mSupports[0].mSupport - mSupports[3].mSupport;
+    Vec3 v31 = mSupports[1].mSupport - mSupports[3].mSupport;
+    Vec3 v32 = mSupports[2].mSupport - mSupports[3].mSupport;
+    float det = Vec3::dot(v30, Vec3::cross(v31, v32));
     if(det <= 0.0f)
-      std::swap(m_supports[0], m_supports[1]);
+      std::swap(mSupports[0], mSupports[1]);
   }
 
-  bool DebugSimplex::Contains(const Vec3& support) const {
-    for(size_t i = 0; i < m_size; ++i)
-      if(m_supports[i].mSupport == support)
+  bool DebugSimplex::contains(const Vec3& support) const {
+    for(size_t i = 0; i < mSize; ++i)
+      if(mSupports[i].mSupport == support)
         return true;
     return false;
   }
 
-  Vec3 DebugSimplex::GetTri(int index, Vec3& ra, Vec3& rb, Vec3& rc) const {
+  Vec3 DebugSimplex::_getTri(int index, Vec3& ra, Vec3& rb, Vec3& rc) const {
     // B.
     // | C
     // |/   D
     // A
-    const Vec3& a = m_supports[0].mSupport;
-    const Vec3& b = m_supports[1].mSupport;
-    const Vec3& c = m_supports[2].mSupport;
-    const Vec3& d = m_supports[3].mSupport;
+    const Vec3& a = mSupports[0].mSupport;
+    const Vec3& b = mSupports[1].mSupport;
+    const Vec3& c = mSupports[2].mSupport;
+    const Vec3& d = mSupports[3].mSupport;
     // Arbitrary ordering
     switch(index) {
     case 0:
@@ -142,34 +142,34 @@ namespace Syx {
     }
   }
 
-  bool DebugSimplex::ContainsOrigin(void) {
-    if(IsDegenerate())
+  bool DebugSimplex::containsOrigin(void) {
+    if(isDegenerate())
       SyxAssertError(false, "Don't want to deal with figuring out if degenerate shape contains origin");
 
     Vec3 o = Vec3::Zero;
-    const Vec3& a = Get(SupportID::A);
-    const Vec3& b = Get(SupportID::B);
-    const Vec3& c = Get(SupportID::C);
+    const Vec3& a = get(SupportID::A);
+    const Vec3& b = get(SupportID::B);
+    const Vec3& c = get(SupportID::C);
 
-    switch(m_size) {
+    switch(mSize) {
     case 1: return a == o;
     case 2:
     {
       Vec3 ao = o - a;
       Vec3 ab = b - a;
-      float t = Vec3::ProjVecScalar(ao, ab);
+      float t = Vec3::projVecScalar(ao, ab);
       if(t < 0.0f || t > 1.0f)
         return false;
       return o == a + ab*t;
     }
-    case 3: return ClosestOnTri(o, a, b, c) == o;
+    case 3: return closestOnTri(o, a, b, c) == o;
     case 4:
     {
-      FixWinding();
+      _fixWinding();
       Vec3 ta, tb, tc;
       for(int i = 0; i < 4; ++i) {
-        GetTri(i, ta, tb, tc);
-        if(TriangleNormal(ta, tb, tc).Dot(o - ta) > 0.0f)
+        _getTri(i, ta, tb, tc);
+        if(triangleNormal(ta, tb, tc).dot(o - ta) > 0.0f)
           return false;
       }
       return true;
@@ -178,56 +178,56 @@ namespace Syx {
     }
   }
 
-  bool DebugSimplex::IsDegenerate(void) const {
-    const Vec3& a = Get(SupportID::A);
-    const Vec3& b = Get(SupportID::B);
-    const Vec3& c = Get(SupportID::C);
-    const Vec3& d = Get(SupportID::D);
+  bool DebugSimplex::isDegenerate(void) const {
+    const Vec3& a = get(SupportID::A);
+    const Vec3& b = get(SupportID::B);
+    const Vec3& c = get(SupportID::C);
+    const Vec3& d = get(SupportID::D);
 
-    switch(m_size) {
+    switch(mSize) {
     case 1: return false;
     case 2: return a == b;
-    case 3: return TriangleNormal(a, b, c).Length() < SYX_EPSILON;
-    case 4: return std::abs((d - a).Dot(TriangleNormal(a, b, c))) < SYX_EPSILON;
+    case 3: return triangleNormal(a, b, c).length() < SYX_EPSILON;
+    case 4: return std::abs((d - a).dot(triangleNormal(a, b, c))) < SYX_EPSILON;
     default: SyxAssertError(false, "Nonsense size"); return false;
     }
   }
 
-  bool DebugSimplex::MakesProgress(const Vec3& newPoint, const Vec3& searchDir) const {
-    float newDot = newPoint.Dot(searchDir);
-    for(size_t i = 0; i < m_size; ++i)
-      if(m_supports[i].mSupport.Dot(searchDir) >= newDot)
+  bool DebugSimplex::makesProgress(const Vec3& newPoint, const Vec3& searchDir) const {
+    float newDot = newPoint.dot(searchDir);
+    for(size_t i = 0; i < mSize; ++i)
+      if(mSupports[i].mSupport.dot(searchDir) >= newDot)
         return false;
     return true;
   }
 
-  Vec3 DebugSimplex::SolveLine(void) {
-    m_history += "Solve line\n";
-    PrintState();
+  Vec3 DebugSimplex::_solveLine(void) {
+    mHistory += "Solve line\n";
+    _printState();
 
-    Vec3 a = Get(SupportID::A);
-    Vec3 b = Get(SupportID::B);
+    Vec3 a = get(SupportID::A);
+    Vec3 b = get(SupportID::B);
 
     Vec3 aToB = b - a;
-    float proj = Vec3::ProjVecScalar(-a, aToB);
+    float proj = Vec3::projVecScalar(-a, aToB);
     if(proj >= 1.0f) {
       proj = 1.0f;
-      Discard(SupportID::A);
+      _discard(SupportID::A);
     }
     else if(proj <= 0.0f) {
       proj = 0.0f;
-      Discard(SupportID::B);
+      _discard(SupportID::B);
     }
     return -(a + aToB*proj);
   }
 
-  Vec3 DebugSimplex::SolveTriangle(void) {
-    m_history += "Solve triangle\n";
-    PrintState();
+  Vec3 DebugSimplex::_solveTriangle(void) {
+    mHistory += "Solve triangle\n";
+    _printState();
 
-    Vec3 a = Get(SupportID::A);
-    Vec3 b = Get(SupportID::B);
-    Vec3 c = Get(SupportID::C);
+    Vec3 a = get(SupportID::A);
+    Vec3 b = get(SupportID::B);
+    Vec3 c = get(SupportID::C);
     //Vec3 n = TriangleNormal(a, b, c);
     //
     //Vec3 abNorm = (b - a).Cross(n).SafeNormalized();
@@ -235,9 +235,9 @@ namespace Syx {
     //Vec3 caNorm = (a - c).Cross(n).SafeNormalized();
     //bool lineCase = true;
     //Vec3 lineResult;
-    //float abDot = abNorm.Dot(-a);
-    //float bcDot = bcNorm.Dot(-b);
-    //float caDot = caNorm.Dot(-a);
+    //float abDot = abNorm.dot(-a);
+    //float bcDot = bcNorm.dot(-b);
+    //float caDot = caNorm.dot(-a);
     //
     //if(abDot >= 0.0f)
     //{
@@ -263,32 +263,32 @@ namespace Syx {
     float one = 1.0f;
     bool lineCase = true;
     bool wasClamped;
-    Vec3 result = -ClosestOnTri(Vec3::Zero, a, b, c, &s, &t, &wasClamped);
+    Vec3 result = -closestOnTri(Vec3::Zero, a, b, c, &s, &t, &wasClamped);
     if(s == 0.0f && t == 0.0f)
-      Discard(SupportID::B, SupportID::C);
+      _discard(SupportID::B, SupportID::C);
     else if(s == 0.0f) {
       if(t >= one)
-        Discard(SupportID::A, SupportID::B);
+        _discard(SupportID::A, SupportID::B);
       else
-        Discard(SupportID::B);
+        _discard(SupportID::B);
     }
     else if(t == 0.0f) {
       if(s >= one)
-        Discard(SupportID::A, SupportID::C);
+        _discard(SupportID::A, SupportID::C);
       else
-        Discard(SupportID::C);
+        _discard(SupportID::C);
     }
     else if(s + t >= one)
-      Discard(SupportID::A);
+      _discard(SupportID::A);
     else
       lineCase = false;
 
     if(!lineCase)
-      FixWinding();
+      _fixWinding();
 
     if(lineCase) {
-      Vec3 test = Solve();
-      SyxAssertError(test.Equal(result, 0.01f), "Wrong result");
+      Vec3 test = solve();
+      SyxAssertError(test.equal(result, 0.01f), "Wrong result");
     }
     //SyxAssertError(!lineCase || result == SolveLine(), "Made a mistake with barycentric discarding");
 
@@ -309,23 +309,23 @@ namespace Syx {
     float oproj;
   };
 
-  Vec3 DebugSimplex::SolveTetrahedron(void) {
-    m_history += "Solve tetrahedron\n";
-    PrintState();
+  Vec3 DebugSimplex::_solveTetrahedron(void) {
+    mHistory += "Solve tetrahedron\n";
+    _printState();
 
-    FixWinding();
+    _fixWinding();
     float dots[4];
     Test test[4];
     Vec3 bestPoint;
     int bestIndex = -1;
     for(int i = 0; i < 4; ++i) {
       Vec3 a, b, c;
-      Vec3 o = GetTri(i, a, b, c);
-      dots[i] = TriangleNormal(a, b, c).Dot(-a);
+      Vec3 o = _getTri(i, a, b, c);
+      dots[i] = triangleNormal(a, b, c).dot(-a);
       float s, t;
       bool clamped;
-      Vec3 closest = ClosestOnTri(Vec3::Zero, a, b, c, &s, &t, &clamped);
-      if(dots[i] && (bestIndex == -1 || closest.Length2() < bestPoint.Length2())) {
+      Vec3 closest = closestOnTri(Vec3::Zero, a, b, c, &s, &t, &clamped);
+      if(dots[i] && (bestIndex == -1 || closest.length2() < bestPoint.length2())) {
         bestIndex = i;
         bestPoint = closest;
       }
@@ -344,85 +344,85 @@ namespace Syx {
     bool inFront = false;
     for(int i = 0; i < 4; ++i) {
       Vec3 a, b, c;
-      Vec3 other = GetTri(i, a, b, c);
-      if(TriangleNormal(a, b, c).Dot(-a) > 0.0f) {
+      Vec3 other = _getTri(i, a, b, c);
+      if(triangleNormal(a, b, c).dot(-a) > 0.0f) {
         inFront = true;
         bool wasClamped;
-        ClosestOnTri(Vec3::Zero, a, b, c, nullptr, nullptr, &wasClamped);
+        closestOnTri(Vec3::Zero, a, b, c, nullptr, nullptr, &wasClamped);
         if(wasClamped)
           continue;
 
-        Discard(other);
-        Vec3 result = SolveTriangle();
-        if(!result.Equal(-bestPoint, 0.01f))
+        _discard(other);
+        Vec3 result = _solveTriangle();
+        if(!result.equal(-bestPoint, 0.01f))
           __debugbreak();
-        SyxAssertError(result.Equal(-bestPoint, 0.01f), "Wrong point");
+        SyxAssertError(result.equal(-bestPoint, 0.01f), "Wrong point");
         return result;
       }
     }
     // In front of one or more faces, but not contained by any
     if(inFront) {
       Vec3 a, b, c;
-      Discard(GetTri(bestIndex, a, b, c));
-      Vec3 result = SolveTriangle();
-      SyxAssertError(result.Equal(-bestPoint, 0.01f), "Wrong point");
+      _discard(_getTri(bestIndex, a, b, c));
+      Vec3 result = _solveTriangle();
+      SyxAssertError(result.equal(-bestPoint, 0.01f), "Wrong point");
       return result;
     }
 
     return Vec3::Zero;
   }
 
-  void DebugSimplex::Discard(const Vec3& point) {
-    for(size_t i = 0; i < m_size; ++i)
-      if(point == Get(i)) {
-        Discard(i);
+  void DebugSimplex::_discard(const Vec3& point) {
+    for(size_t i = 0; i < mSize; ++i)
+      if(point == get(i)) {
+        _discard(i);
         return;
       }
     SyxAssertError(false, "Tried to discard point that wasn't in simplex");
   }
 
-  void DebugSimplex::Discard(int id) {
-    m_history += "Discard " + GetIndexName(id);
-    m_history += "\n";
+  void DebugSimplex::_discard(int id) {
+    mHistory += "Discard " + _getIndexName(id);
+    mHistory += "\n";
 
-    --m_size;
-    for(size_t i = static_cast<size_t>(id); i < m_size; ++i)
-      m_supports[i] = m_supports[i + 1];
+    --mSize;
+    for(size_t i = static_cast<size_t>(id); i < mSize; ++i)
+      mSupports[i] = mSupports[i + 1];
   }
 
-  void DebugSimplex::Discard(int a, int b) {
+  void DebugSimplex::_discard(int a, int b) {
     if(a > b)
       std::swap(a, b);
-    Discard(b);
-    Discard(a);
+    _discard(b);
+    _discard(a);
   }
 
-  void DebugSimplex::Discard(int a, int b, int c) {
-    OrderAscending(a, b, c);
-    Discard(c);
-    Discard(b);
-    Discard(a);
+  void DebugSimplex::_discard(int a, int b, int c) {
+    orderAscending(a, b, c);
+    _discard(c);
+    _discard(b);
+    _discard(a);
   }
 
-  void DebugSimplex::FixWinding(void) {
-    Vec3 normal = TriangleNormal(Get(SupportID::A), Get(SupportID::B), Get(SupportID::C));
-    float dot = normal.Dot(-Get(SupportID::A));
+  void DebugSimplex::_fixWinding(void) {
+    Vec3 normal = triangleNormal(get(SupportID::A), get(SupportID::B), get(SupportID::C));
+    float dot = normal.dot(-get(SupportID::A));
     if(dot > 0.0f) {
-      std::swap(GetSupport(SupportID::B), GetSupport(SupportID::C));
-      m_history += "Fixed winding\n";
+      std::swap(getSupport(SupportID::B), getSupport(SupportID::C));
+      mHistory += "Fixed winding\n";
     }
   }
 
-  void DebugSimplex::PrintState(void) {
-    m_history += "Simplex Points:\n";
+  void DebugSimplex::_printState(void) {
+    mHistory += "Simplex Points:\n";
 
-    for(size_t i = 0; i < m_size; ++i) {
-      const Vec3& p = Get(i);
-      m_history += GetIndexName(i) + ": (" + std::to_string(p.x) + ", " + std::to_string(p.y) + ", " + std::to_string(p.z) + ")\n";
+    for(size_t i = 0; i < mSize; ++i) {
+      const Vec3& p = get(i);
+      mHistory += _getIndexName(i) + ": (" + std::to_string(p.x) + ", " + std::to_string(p.y) + ", " + std::to_string(p.z) + ")\n";
     }
   }
 
-  std::string DebugSimplex::GetIndexName(int index) {
+  std::string DebugSimplex::_getIndexName(int index) {
     switch(index) {
     case 0: return "A";
     case 1: return "B";
@@ -434,11 +434,11 @@ namespace Syx {
   }
 
   bool DebugSimplex::operator==(const Simplex& rhs) {
-    if(m_size != rhs.Size())
+    if(mSize != rhs.size())
       return false;
 
-    for(size_t i = 0; i < m_size; ++i)
-      if(Get(i) != rhs.Get(i))
+    for(size_t i = 0; i < mSize; ++i)
+      if(get(i) != rhs.get(i))
         return false;
     return true;
   }
@@ -448,9 +448,9 @@ namespace Syx {
   }
 
   DebugSimplex& DebugSimplex::operator=(const Simplex& rhs) {
-    m_size = rhs.Size();
-    for(size_t i = 0; i < m_size; ++i)
-      m_supports[i] = rhs.GetSupport(i);
+    mSize = rhs.size();
+    for(size_t i = 0; i < mSize; ++i)
+      mSupports[i] = rhs.getSupport(i);
     return *this;
   }
 }

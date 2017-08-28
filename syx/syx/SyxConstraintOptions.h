@@ -13,18 +13,18 @@ namespace Syx {
       , mCollisionEnabled(false) {
     }
 
-    void Set(Handle a, Handle b, Handle space) {
+    void set(Handle a, Handle b, Handle space) {
       mA = a;
       mB = b;
       mSpace = space;
     }
 
-    void SetWorldAnchor(const Vec3& anchor) {
+    void setWorldAnchor(const Vec3& anchor) {
       mAnchorA = mAnchorB = anchor;
       mWorldAnchors = true;
     }
 
-    void SetAnchors(const Vec3& a, const Vec3& b, bool world) {
+    void setAnchors(const Vec3& a, const Vec3& b, bool world) {
       mAnchorA = a;
       mAnchorB = b;
       mWorldAnchors = world;
@@ -57,7 +57,7 @@ namespace Syx {
       , mMinTwistRads(1.0f)
       , mMaxTwistRads(-1.0f)
       , mMaxAngularImpulse(-1.0f)
-      , mSwingFrame(Quat::LookAt(Vec3::UnitZ)) {
+      , mSwingFrame(Quat::lookAt(Vec3::UnitZ)) {
     }
 
     //Axis only needs to be supplied if angular limits are desired

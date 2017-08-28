@@ -4,23 +4,23 @@
 #include "SyxModelInstance.h"
 
 namespace Syx {
-  void PrimitiveNarrowphase::Set(ModelInstance* a, ModelInstance* b, Space* space, Narrowphase* narrowphase) {
+  void PrimitiveNarrowphase::set(ModelInstance* a, ModelInstance* b, Space* space, Narrowphase* narrowphase) {
     mA = a;
     mB = b;
     mSpace = space;
     mNarrowphase = narrowphase;
   }
 
-  void PrimitiveNarrowphase::SphereSphere(void) {
-    const Transformer& ta = mA->GetModelToWorld();
-    const Transformer& tb = mB->GetModelToWorld();
+  void PrimitiveNarrowphase::sphereSphere(void) {
+    const Transformer& ta = mA->getModelToWorld();
+    const Transformer& tb = mB->getModelToWorld();
     const Vec3& posA = ta.mPos;
     const Vec3& posB = tb.mPos;
-    float radiusA = ta.mScaleRot.mbx.Length();
-    float radiusB = tb.mScaleRot.mbx.Length();
+    float radiusA = ta.mScaleRot.mbx.length();
+    float radiusB = tb.mScaleRot.mbx.length();
 
     Vec3 aToB = posB - posA;
-    float dist = aToB.Length2();
+    float dist = aToB.length2();
     float combinedRadius = radiusA + radiusB;
     if(dist > combinedRadius*combinedRadius)
       return;
@@ -37,6 +37,6 @@ namespace Syx {
     float penetration = combinedRadius - dist;
     Vec3 worldA = posA - normalA*radiusA;
     Vec3 worldB = posB + normalA*radiusB;
-    mNarrowphase->SubmitContact(worldA, worldB, normalA, penetration);
+    mNarrowphase->_submitContact(worldA, worldB, normalA, penetration);
   }
 }

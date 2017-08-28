@@ -9,7 +9,7 @@ namespace Syx {
   Quat::Quat(float i, float j, float k, float w) : mV(i, j, k, w) {}
 
   Quat Quat::operator*(const Quat& rhs) const {
-    return Quat(mV.w*rhs.mV + rhs.mV.w*mV + mV.Cross(rhs.mV), mV.w*rhs.mV.w - mV.Dot(rhs.mV));
+    return Quat(mV.w*rhs.mV + rhs.mV.w*mV + mV.cross(rhs.mV), mV.w*rhs.mV.w - mV.dot(rhs.mV));
   }
 
   Quat& Quat::operator*=(const Quat& rhs) {
@@ -25,9 +25,9 @@ namespace Syx {
   }
 
   Vec3 Quat::operator*(const Vec3& rhs) const {
-    Quat temp = Quat(mV.w*rhs + mV.Cross(rhs), -mV.Dot(rhs));
-    Quat neg = Inversed();
-    return temp.mV.w*neg.mV + neg.mV.w*temp.mV + temp.mV.Cross(neg.mV);
+    Quat temp = Quat(mV.w*rhs + mV.cross(rhs), -mV.dot(rhs));
+    Quat neg = inversed();
+    return temp.mV.w*neg.mV + neg.mV.w*temp.mV + temp.mV.cross(neg.mV);
   }
 
   Quat Quat::operator+(const Quat& rhs) const {
@@ -50,66 +50,66 @@ namespace Syx {
     return Quat(-mV, -mV.w);
   }
 
-  float Quat::Length(void) const {
-    return sqrt(Length2());
+  float Quat::length(void) const {
+    return sqrt(length2());
   }
 
-  float Quat::Length2(void) const {
-    return mV.Length2() + mV.w*mV.w;
+  float Quat::length2(void) const {
+    return mV.length2() + mV.w*mV.w;
   }
 
-  Quat Quat::Normalized(void) const {
-    return *this / Length();
+  Quat Quat::normalized(void) const {
+    return *this / length();
   }
 
-  void Quat::Normalize(void) {
-    *this /= Length();
+  void Quat::normalize(void) {
+    *this /= length();
   }
 
-  Quat Quat::Inversed(void) const {
+  Quat Quat::inversed(void) const {
     return Quat(-mV, mV.w);
   }
 
-  void Quat::Inverse(void) {
+  void Quat::inverse(void) {
     *this = Quat(-mV, mV.w);
   }
 
-  Mat3 Quat::ToMatrix(void) const {
+  Mat3 Quat::toMatrix(void) const {
     return Mat3(1.0f - 2.0f*mV.y*mV.y - 2.0f*mV.z*mV.z, 2.0f*mV.x*mV.y - 2.0f*mV.z*mV.w, 2.0f*mV.x*mV.z + 2.0f*mV.y*mV.w,
       2.0f*mV.x*mV.y + 2.0f*mV.z*mV.w, 1.0f - 2.0f*mV.x*mV.x - 2.0f*mV.z*mV.z, 2.0f*mV.y*mV.z - 2.0f*mV.x*mV.w,
       2.0f*mV.x*mV.z - 2.0f*mV.y*mV.w, 2.0f*mV.y*mV.z + 2.0f*mV.x*mV.w, 1.0f - 2.0f*mV.x*mV.x - 2.0f*mV.y*mV.y);
   }
 
-  Quat Quat::AxisAngle(const Vec3& axis, float angle) {
+  Quat Quat::axisAngle(const Vec3& axis, float angle) {
     float angle2 = 0.5f*angle;
     return Quat(axis*sin(angle2), cos(angle2));
   }
 
-  Quat Quat::LookAt(const Vec3& axis) {
+  Quat Quat::lookAt(const Vec3& axis) {
     Vec3 up = std::abs(axis.y - 1.0f) < SYX_EPSILON ? Vec3::UnitZ : Vec3::UnitY;
-    Vec3 right = up.Cross(axis).Normalized();
-    up = axis.Cross(right);
-    return LookAt(axis, up, right);
+    Vec3 right = up.cross(axis).normalized();
+    up = axis.cross(right);
+    return lookAt(axis, up, right);
   }
 
-  Quat Quat::LookAt(const Vec3& axis, const Vec3& up) {
-    return LookAt(axis, up, up.Cross(axis));
+  Quat Quat::lookAt(const Vec3& axis, const Vec3& up) {
+    return lookAt(axis, up, up.cross(axis));
   }
 
-  Quat Quat::LookAt(const Vec3& forward, const Vec3& up, const Vec3& right) {
-    SyxAssertError(right.Cross(up).Dot(forward) > 0.0f);
+  Quat Quat::lookAt(const Vec3& forward, const Vec3& up, const Vec3& right) {
+    SyxAssertError(right.cross(up).dot(forward) > 0.0f);
     //There's probably a better way with quaternion math, but whatever, this is easier.
-    return Mat3(right, up, forward).ToQuat();
+    return Mat3(right, up, forward).toQuat();
   }
 
-  Quat Quat::GetRotation(const Vec3& from, const Vec3& to) {
-    Vec3 axis = from.Cross(to);
-    float cosAngle = from.Dot(to);
+  Quat Quat::getRotation(const Vec3& from, const Vec3& to) {
+    Vec3 axis = from.cross(to);
+    float cosAngle = from.dot(to);
 
     //If angle is 180 pick an arbitrary axis orthogonal to from
     if(cosAngle <= -1.0f + SYX_EPSILON) {
-      axis = from.GetOrthogonal();
-      return AxisAngle(axis, SYX_PI);
+      axis = from.getOrthogonal();
+      return axisAngle(axis, SYX_PI);
     }
 
     //Game Programming Gems 2.10 sin cos optimization madness
@@ -122,23 +122,23 @@ namespace Syx {
     return rhs * lhs;
   }
 
-  Vec3 Quat::GetUp(void) const {
+  Vec3 Quat::getUp(void) const {
     return *this * Vec3::UnitY;
   }
 
-  Vec3 Quat::GetRight(void) const {
+  Vec3 Quat::getRight(void) const {
     return *this * Vec3::UnitX;
   }
 
-  Vec3 Quat::GetForward(void) const {
+  Vec3 Quat::getForward(void) const {
     return *this * Vec3::UnitZ;
   }
 
-  float Quat::GetAngle() const {
+  float Quat::getAngle() const {
     return 2.0f*std::acos(mV.w);
   }
 
-  Vec3 Quat::GetAxis() const {
+  Vec3 Quat::getAxis() const {
     return Vec3(mV.x, mV.y, mV.z);
   }
 }

@@ -12,7 +12,7 @@ namespace Syx {
     public:
       Iterator(IntrusiveIterator<Value> it): m_it(it) {}
       Value& operator*(void) { return *m_it; }
-      Value* DataPointer(void) { return m_it.DataPointer(); }
+      Value* dataPointer(void) { return m_it.dataPointer(); }
       Iterator& operator++(void) { ++m_it; return *this; }
       Iterator operator++(int) { return Iterator(m_it++); }
       Iterator& operator--(void) { --m_it; return *this; }
@@ -24,51 +24,51 @@ namespace Syx {
       IntrusiveIterator<Value> m_it;
     };
 
-    Iterator Begin() {
-      return mValueStore.Begin();
+    Iterator begin() {
+      return mValueStore.begin();
     }
 
-    Iterator End() {
-      return mValueStore.End();
+    Iterator end() {
+      return mValueStore.end();
     }
 
-    size_t Size() {
-      return mValueStore.Size();
+    size_t size() {
+      return mValueStore.size();
     }
 
-    Value* Get(Handle key) const {
+    Value* get(Handle key) const {
       auto it = mKeyToValue.find(key);
       if(it != mKeyToValue.end())
         return it->second;
       return nullptr;
     }
 
-    Value* Add() {
-      Handle newKey = mKeygen.Next();
+    Value* add() {
+      Handle newKey = mKeygen.next();
 
-      Value* result = mValueStore.Push(Value(newKey));
+      Value* result = mValueStore.push(Value(newKey));
 
       //Could assert here for duplicate insertion
       mKeyToValue[newKey] = result;
       return result;
     }
 
-    void Remove(Handle key) {
+    void remove(Handle key) {
       auto it = mKeyToValue.find(key);
       if(it == mKeyToValue.end())
         return;
 
-      mValueStore.Free(it->second);
+      mValueStore.freeObj(it->second);
       mKeyToValue.erase(it);
     }
 
-    void Clear() {
+    void clear() {
       mKeyToValue.clear();
-      mValueStore.Clear();
-      mKeygen.Reset();
+      mValueStore.clear();
+      mKeygen.reset();
     }
 
-    void Reserve(size_t size) {
+    void reserve(size_t size) {
       mKeyToValue.reserve(size);
     }
 

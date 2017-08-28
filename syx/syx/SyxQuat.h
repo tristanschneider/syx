@@ -20,31 +20,31 @@ namespace Syx {
     Quat& operator/=(float rhs);
     Quat operator-(void) const;
 
-    Vec3 GetUp() const;
-    Vec3 GetRight() const;
-    Vec3 GetForward() const;
+    Vec3 getUp() const;
+    Vec3 getRight() const;
+    Vec3 getForward() const;
     //Normalized quaternion is like axis angle. This gets said angle
-    float GetAngle() const;
-    Vec3 GetAxis() const;
+    float getAngle() const;
+    Vec3 getAxis() const;
 
-    float Length() const;
-    float Length2() const;
+    float length() const;
+    float length2() const;
 
-    Quat Normalized() const;
-    void Normalize();
+    Quat normalized() const;
+    void normalize();
 
-    Quat Inversed() const;
-    void Inverse();
+    Quat inversed() const;
+    void inverse();
 
-    Mat3 ToMatrix() const;
+    Mat3 toMatrix() const;
 
-    static Quat AxisAngle(const Vec3& axis, float angle);
+    static Quat axisAngle(const Vec3& axis, float angle);
     //Assumes normalized input
-    static Quat LookAt(const Vec3& axis);
+    static Quat lookAt(const Vec3& axis);
     //Assumes orthonormal inputs
-    static Quat LookAt(const Vec3& axis, const Vec3& up);
-    static Quat LookAt(const Vec3& forward, const Vec3& up, const Vec3& right);
-    static Quat GetRotation(const Vec3& from, const Vec3& to);
+    static Quat lookAt(const Vec3& axis, const Vec3& up);
+    static Quat lookAt(const Vec3& forward, const Vec3& up, const Vec3& right);
+    static Quat getRotation(const Vec3& from, const Vec3& to);
 
     static const Quat Zero;
     static const Quat Identity;

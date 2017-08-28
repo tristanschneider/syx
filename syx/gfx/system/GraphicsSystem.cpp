@@ -60,7 +60,7 @@ void GraphicsSystem::init() {
 
   Mat4 ct = mCamera->getTransform();
   ct.setTranslate(Vec3(0.0f, 0.0f, -3.0f));
-  ct.setRot(Quat::LookAt(-Vec3::UnitZ));
+  ct.setRot(Quat::lookAt(-Vec3::UnitZ));
   mCamera->setTransform(ct);
 
   mDebugDrawer = std::make_unique<DebugDrawer>(*this);
@@ -92,7 +92,7 @@ DebugDrawer& GraphicsSystem::getDebugDrawer() {
 }
 
 Handle GraphicsSystem::addModel(Model& model) {
-  model.mHandle = mModelGen.Next();
+  model.mHandle = mModelGen.next();
   Model& added = mHandleToModel[model.mHandle] = model;
   //Ultimately this should be a separate step as needed
   added.loadGpu();
@@ -127,7 +127,7 @@ void GraphicsSystem::removeTexture(Handle texture) {
 }
 
 Handle GraphicsSystem::addTexture(const std::string& filePath) {
-  Handle handle = mTextureGen.Next();
+  Handle handle = mTextureGen.next();
   Texture& t = mHandleToTexture[handle];
   t.mFilename = filePath;
   t.mHandle = handle;
@@ -154,7 +154,7 @@ void GraphicsSystem::_render() {
     Vec3 mDiff(1.0f);
     Vec3 mSpec(0.6f, 0.6f, 0.6f, 2.5f);
     Vec3 mAmb(0.22f, 0.22f, 0.22f);
-    Vec3 sunDir = -Vec3::Identity.Normalized();
+    Vec3 sunDir = -Vec3::Identity.normalized();
     Vec3 sunColor = Vec3::Identity;
     Mat4 wvp = mCamera->getWorldToView();
 

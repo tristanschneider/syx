@@ -4,15 +4,15 @@
 namespace Syx {
   class NoBroadphase: public Broadphase {
   public:
-    Handle Insert(const BoundingVolume& obj, void* userdata) override;
-    void Remove(Handle handle) override;
-    void Clear(void) override;
+    Handle insert(const BoundingVolume& obj, void* userdata) override;
+    void remove(Handle handle) override;
+    void clear(void) override;
 
-    Handle Update(const BoundingVolume& newVol, Handle handle) override;
+    Handle update(const BoundingVolume& newVol, Handle handle) override;
 
-    void QueryPairs(BroadphaseContext& context) const override;
-    void QueryRaycast(const Vec3& start, const Vec3& end, BroadphaseContext& context) const override;
-    void QueryVolume(const BoundingVolume& volume, BroadphaseContext& context) const override;
+    void queryPairs(BroadphaseContext& context) const override;
+    void queryRaycast(const Vec3& start, const Vec3& end, BroadphaseContext& context) const override;
+    void queryVolume(const BoundingVolume& volume, BroadphaseContext& context) const override;
 
   private:
 

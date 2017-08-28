@@ -33,50 +33,50 @@ namespace Syx {
     mbz(0.0f, 0.0f, diag.z) {
   }
 
-  Mat3 Mat3::Scaled(const Vec3& scale) const {
+  Mat3 Mat3::scaled(const Vec3& scale) const {
     //Wastes a bunch of non-diagonal multiplications. Can optimize later if I feel like it
     Mat3 temp = Mat3::Identity;
-    temp.SetDiagonal(scale);
+    temp.setDiagonal(scale);
     return *this * temp;
   }
 
-  void Mat3::SetDiagonal(float x, float y, float z) {
+  void Mat3::setDiagonal(float x, float y, float z) {
     mbx.x = x;
     mby.y = y;
     mbz.z = z;
   }
 
-  void Mat3::SetDiagonal(const Vec3& diag) {
-    SetDiagonal(diag.x, diag.y, diag.z);
+  void Mat3::setDiagonal(const Vec3& diag) {
+    setDiagonal(diag.x, diag.y, diag.z);
   }
 
-  Vec3 Mat3::GetDiagonal(void) const {
-    return Vec3(Get(0, 0), Get(1, 1), Get(2, 2));
+  Vec3 Mat3::getDiagonal(void) const {
+    return Vec3(get(0, 0), get(1, 1), get(2, 2));
   }
 
-  void Mat3::SetRow(int index, const Vec3& row) {
-    SetRow(index, row.x, row.y, row.z);
+  void Mat3::setRow(int index, const Vec3& row) {
+    setRow(index, row.x, row.y, row.z);
   }
 
-  void Mat3::SetRow(int index, float x, float y, float z) {
-    Get(index, 0) = x;
-    Get(index, 1) = y;
-    Get(index, 2) = z;
+  void Mat3::setRow(int index, float x, float y, float z) {
+    get(index, 0) = x;
+    get(index, 1) = y;
+    get(index, 2) = z;
   }
 
-  float& Mat3::Get(int row, int col) {
+  float& Mat3::get(int row, int col) {
     return *(&mbx.x + row + 4*col);
   }
 
-  const float& Mat3::Get(int row, int col) const {
+  const float& Mat3::get(int row, int col) const {
     return *(&mbx.x + row + 4*col);
   }
 
-  Vec3 Mat3::GetRow(int index) const {
-    return Vec3(Get(index, 0), Get(index, 1), Get(index, 2));
+  Vec3 Mat3::getRow(int index) const {
+    return Vec3(get(index, 0), get(index, 1), get(index, 2));
   }
 
-  const Vec3& Mat3::GetCol(int index) const {
+  const Vec3& Mat3::getCol(int index) const {
     switch(index) {
       case 0: return mbx;
       case 1: return mby;
@@ -85,7 +85,7 @@ namespace Syx {
     }
   }
 
-  Vec3& Mat3::GetCol(int index) {
+  Vec3& Mat3::getCol(int index) {
     switch(index) {
       case 0: return mbx;
       case 1: return mby;
@@ -103,17 +103,17 @@ namespace Syx {
   }
 
   Mat3 Mat3::operator*(const Mat3& rhs) const {
-    return Mat3(Get(0, 0)*rhs.Get(0, 0) + Get(0, 1)*rhs.Get(1, 0) + Get(0, 2)*rhs.Get(2, 0),
-      Get(0, 0)*rhs.Get(0, 1) + Get(0, 1)*rhs.Get(1, 1) + Get(0, 2)*rhs.Get(2, 1),
-      Get(0, 0)*rhs.Get(0, 2) + Get(0, 1)*rhs.Get(1, 2) + Get(0, 2)*rhs.Get(2, 2),
+    return Mat3(get(0, 0)*rhs.get(0, 0) + get(0, 1)*rhs.get(1, 0) + get(0, 2)*rhs.get(2, 0),
+      get(0, 0)*rhs.get(0, 1) + get(0, 1)*rhs.get(1, 1) + get(0, 2)*rhs.get(2, 1),
+      get(0, 0)*rhs.get(0, 2) + get(0, 1)*rhs.get(1, 2) + get(0, 2)*rhs.get(2, 2),
 
-      Get(1, 0)*rhs.Get(0, 0) + Get(1, 1)*rhs.Get(1, 0) + Get(1, 2)*rhs.Get(2, 0),
-      Get(1, 0)*rhs.Get(0, 1) + Get(1, 1)*rhs.Get(1, 1) + Get(1, 2)*rhs.Get(2, 1),
-      Get(1, 0)*rhs.Get(0, 2) + Get(1, 1)*rhs.Get(1, 2) + Get(1, 2)*rhs.Get(2, 2),
+      get(1, 0)*rhs.get(0, 0) + get(1, 1)*rhs.get(1, 0) + get(1, 2)*rhs.get(2, 0),
+      get(1, 0)*rhs.get(0, 1) + get(1, 1)*rhs.get(1, 1) + get(1, 2)*rhs.get(2, 1),
+      get(1, 0)*rhs.get(0, 2) + get(1, 1)*rhs.get(1, 2) + get(1, 2)*rhs.get(2, 2),
 
-      Get(2, 0)*rhs.Get(0, 0) + Get(2, 1)*rhs.Get(1, 0) + Get(2, 2)*rhs.Get(2, 0),
-      Get(2, 0)*rhs.Get(0, 1) + Get(2, 1)*rhs.Get(1, 1) + Get(2, 2)*rhs.Get(2, 1),
-      Get(2, 0)*rhs.Get(0, 2) + Get(2, 1)*rhs.Get(1, 2) + Get(2, 2)*rhs.Get(2, 2));
+      get(2, 0)*rhs.get(0, 0) + get(2, 1)*rhs.get(1, 0) + get(2, 2)*rhs.get(2, 0),
+      get(2, 0)*rhs.get(0, 1) + get(2, 1)*rhs.get(1, 1) + get(2, 2)*rhs.get(2, 1),
+      get(2, 0)*rhs.get(0, 2) + get(2, 1)*rhs.get(1, 2) + get(2, 2)*rhs.get(2, 2));
   }
 
   Mat3& Mat3::operator*=(const Mat3& rhs) {
@@ -121,9 +121,9 @@ namespace Syx {
   }
 
   Vec3 Mat3::operator*(const Vec3& rhs) const {
-    return Vec3(Get(0, 0)*rhs.x + Get(0, 1)*rhs.y + Get(0, 2)*rhs.z,
-      Get(1, 0)*rhs.x + Get(1, 1)*rhs.y + Get(1, 2)*rhs.z,
-      Get(2, 0)*rhs.x + Get(2, 1)*rhs.y + Get(2, 2)*rhs.z);
+    return Vec3(get(0, 0)*rhs.x + get(0, 1)*rhs.y + get(0, 2)*rhs.z,
+      get(1, 0)*rhs.x + get(1, 1)*rhs.y + get(1, 2)*rhs.z,
+      get(2, 0)*rhs.x + get(2, 1)*rhs.y + get(2, 2)*rhs.z);
   }
 
   Mat3 Mat3::operator*(float rhs) const {
@@ -167,87 +167,87 @@ namespace Syx {
     return *this *= (1.0f/rhs);
   }
 
-  Quat Mat3::ToQuat(void) {
-    float trace = Get(0, 0) + Get(1, 1) + Get(2, 2);
+  Quat Mat3::toQuat(void) {
+    float trace = get(0, 0) + get(1, 1) + get(2, 2);
     if(trace > SYX_EPSILON) {
       float s = sqrt(trace + 1.0f)*2.0f;
-      return Quat((Get(2, 1) - Get(1, 2))/s, (Get(0, 2) - Get(2, 0))/s, (Get(1, 0) - Get(0, 1))/s, 0.25f*s);
+      return Quat((get(2, 1) - get(1, 2))/s, (get(0, 2) - get(2, 0))/s, (get(1, 0) - get(0, 1))/s, 0.25f*s);
     }
-    if(Get(0, 0) > Get(1, 1) && Get(0, 0) > Get(2, 2)) {
-      float s = sqrt(1.0f + Get(0, 0) - Get(1, 1) - Get(2, 2))*2.0f;
-      return Quat(0.25f*s, (Get(0, 1) + Get(1, 0))/s, (Get(0, 2) + Get(2, 0))/s, (Get(2, 1) - Get(1, 2))/s);
+    if(get(0, 0) > get(1, 1) && get(0, 0) > get(2, 2)) {
+      float s = sqrt(1.0f + get(0, 0) - get(1, 1) - get(2, 2))*2.0f;
+      return Quat(0.25f*s, (get(0, 1) + get(1, 0))/s, (get(0, 2) + get(2, 0))/s, (get(2, 1) - get(1, 2))/s);
     }
-    if(Get(1, 1) > Get(2, 2)) {
-      float s = sqrt(1.0f + Get(1, 1) - Get(0, 0) - Get(2, 2))*2.0f;
-      return Quat((Get(0, 1) + Get(1, 0))/s, 0.25f*s, (Get(1, 2) + Get(2, 1))/s, (Get(0, 2) - Get(2, 0))/s);
+    if(get(1, 1) > get(2, 2)) {
+      float s = sqrt(1.0f + get(1, 1) - get(0, 0) - get(2, 2))*2.0f;
+      return Quat((get(0, 1) + get(1, 0))/s, 0.25f*s, (get(1, 2) + get(2, 1))/s, (get(0, 2) - get(2, 0))/s);
     }
-    float s = sqrt(1.0f + Get(2, 2) - Get(0, 0) - Get(1, 1))*2.0f;
-    return Quat((Get(0, 2) + Get(2, 0))/s, (Get(1, 2) + Get(2, 1))/s, 0.25f*s, (Get(1, 0) - Get(0, 1))/s);
+    float s = sqrt(1.0f + get(2, 2) - get(0, 0) - get(1, 1))*2.0f;
+    return Quat((get(0, 2) + get(2, 0))/s, (get(1, 2) + get(2, 1))/s, 0.25f*s, (get(1, 0) - get(0, 1))/s);
   }
 
-  Mat3 Mat3::Transposed(void) const {
-    return Mat3(Get(0, 0), Get(1, 0), Get(2, 0),
-      Get(0, 1), Get(1, 1), Get(2, 1),
-      Get(0, 2), Get(1, 2), Get(2, 2));
+  Mat3 Mat3::transposed(void) const {
+    return Mat3(get(0, 0), get(1, 0), get(2, 0),
+      get(0, 1), get(1, 1), get(2, 1),
+      get(0, 2), get(1, 2), get(2, 2));
   }
 
-  void Mat3::Transpose(void) {
-    std::swap(Get(0, 1), Get(1, 0));
-    std::swap(Get(0, 2), Get(2, 0));
-    std::swap(Get(2, 1), Get(1, 2));
+  void Mat3::transpose(void) {
+    std::swap(get(0, 1), get(1, 0));
+    std::swap(get(0, 2), get(2, 0));
+    std::swap(get(2, 1), get(1, 2));
   }
 
-  Mat3 Mat3::TransposedMultiply(const Mat3& rhs) const {
-    return Mat3(Get(0, 0)*rhs.Get(0, 0) + Get(1, 0)*rhs.Get(1, 0) + Get(2, 0)*rhs.Get(2, 0),
-      Get(0, 0)*rhs.Get(0, 1) + Get(1, 0)*rhs.Get(1, 1) + Get(2, 0)*rhs.Get(2, 1),
-      Get(0, 0)*rhs.Get(0, 2) + Get(1, 0)*rhs.Get(1, 2) + Get(2, 0)*rhs.Get(2, 2),
+  Mat3 Mat3::transposedMultiply(const Mat3& rhs) const {
+    return Mat3(get(0, 0)*rhs.get(0, 0) + get(1, 0)*rhs.get(1, 0) + get(2, 0)*rhs.get(2, 0),
+      get(0, 0)*rhs.get(0, 1) + get(1, 0)*rhs.get(1, 1) + get(2, 0)*rhs.get(2, 1),
+      get(0, 0)*rhs.get(0, 2) + get(1, 0)*rhs.get(1, 2) + get(2, 0)*rhs.get(2, 2),
 
-      Get(0, 1)*rhs.Get(0, 0) + Get(1, 1)*rhs.Get(1, 0) + Get(2, 1)*rhs.Get(2, 0),
-      Get(0, 1)*rhs.Get(0, 1) + Get(1, 1)*rhs.Get(1, 1) + Get(2, 1)*rhs.Get(2, 1),
-      Get(0, 1)*rhs.Get(0, 2) + Get(1, 1)*rhs.Get(1, 2) + Get(2, 1)*rhs.Get(2, 2),
+      get(0, 1)*rhs.get(0, 0) + get(1, 1)*rhs.get(1, 0) + get(2, 1)*rhs.get(2, 0),
+      get(0, 1)*rhs.get(0, 1) + get(1, 1)*rhs.get(1, 1) + get(2, 1)*rhs.get(2, 1),
+      get(0, 1)*rhs.get(0, 2) + get(1, 1)*rhs.get(1, 2) + get(2, 1)*rhs.get(2, 2),
 
-      Get(0, 2)*rhs.Get(0, 0) + Get(1, 2)*rhs.Get(1, 0) + Get(2, 2)*rhs.Get(2, 0),
-      Get(0, 2)*rhs.Get(0, 1) + Get(1, 2)*rhs.Get(1, 1) + Get(2, 2)*rhs.Get(2, 1),
-      Get(0, 2)*rhs.Get(0, 2) + Get(1, 2)*rhs.Get(1, 2) + Get(2, 2)*rhs.Get(2, 2));
+      get(0, 2)*rhs.get(0, 0) + get(1, 2)*rhs.get(1, 0) + get(2, 2)*rhs.get(2, 0),
+      get(0, 2)*rhs.get(0, 1) + get(1, 2)*rhs.get(1, 1) + get(2, 2)*rhs.get(2, 1),
+      get(0, 2)*rhs.get(0, 2) + get(1, 2)*rhs.get(1, 2) + get(2, 2)*rhs.get(2, 2));
   }
 
-  Vec3 Mat3::TransposedMultiply(const Vec3& rhs) const {
-    return Vec3(Get(0, 0)*rhs.x + Get(1, 0)*rhs.y + Get(2, 0)*rhs.z,
-      Get(0, 1)*rhs.x + Get(1, 1)*rhs.y + Get(2, 1)*rhs.z,
-      Get(0, 2)*rhs.x + Get(1, 2)*rhs.y + Get(2, 2)*rhs.z);
+  Vec3 Mat3::transposedMultiply(const Vec3& rhs) const {
+    return Vec3(get(0, 0)*rhs.x + get(1, 0)*rhs.y + get(2, 0)*rhs.z,
+      get(0, 1)*rhs.x + get(1, 1)*rhs.y + get(2, 1)*rhs.z,
+      get(0, 2)*rhs.x + get(1, 2)*rhs.y + get(2, 2)*rhs.z);
   }
 
-  Mat3 Mat3::Inverse(void) const {
-    return Inverse(Determinant());
+  Mat3 Mat3::inverse(void) const {
+    return inverse(determinant());
   }
 
-  Mat3 Mat3::Inverse(float det) const {
-    float invdet = SafeDivide(1.0f, det, SYX_EPSILON);
+  Mat3 Mat3::inverse(float det) const {
+    float invdet = safeDivide(1.0f, det, SYX_EPSILON);
 
     Mat3 result;
-    result.Get(0, 0) = (Get(1, 1) * Get(2, 2) - Get(2, 1) * Get(1, 2))*invdet;
-    result.Get(0, 1) = -(Get(0, 1) * Get(2, 2) - Get(0, 2) * Get(2, 1))*invdet;
-    result.Get(0, 2) = (Get(0, 1) * Get(1, 2) - Get(0, 2) * Get(1, 1))*invdet;
-    result.Get(1, 0) = -(Get(1, 0) * Get(2, 2) - Get(1, 2) * Get(2, 0))*invdet;
-    result.Get(1, 1) = (Get(0, 0) * Get(2, 2) - Get(0, 2) * Get(2, 0))*invdet;
-    result.Get(1, 2) = -(Get(0, 0) * Get(1, 2) - Get(1, 0) * Get(0, 2))*invdet;
-    result.Get(2, 0) = (Get(1, 0) * Get(2, 1) - Get(2, 0) * Get(1, 1))*invdet;
-    result.Get(2, 1) = -(Get(0, 0) * Get(2, 1) - Get(2, 0) * Get(0, 1))*invdet;
-    result.Get(2, 2) = (Get(0, 0) * Get(1, 1) - Get(1, 0) * Get(0, 1))*invdet;
+    result.get(0, 0) = (get(1, 1) * get(2, 2) - get(2, 1) * get(1, 2))*invdet;
+    result.get(0, 1) = -(get(0, 1) * get(2, 2) - get(0, 2) * get(2, 1))*invdet;
+    result.get(0, 2) = (get(0, 1) * get(1, 2) - get(0, 2) * get(1, 1))*invdet;
+    result.get(1, 0) = -(get(1, 0) * get(2, 2) - get(1, 2) * get(2, 0))*invdet;
+    result.get(1, 1) = (get(0, 0) * get(2, 2) - get(0, 2) * get(2, 0))*invdet;
+    result.get(1, 2) = -(get(0, 0) * get(1, 2) - get(1, 0) * get(0, 2))*invdet;
+    result.get(2, 0) = (get(1, 0) * get(2, 1) - get(2, 0) * get(1, 1))*invdet;
+    result.get(2, 1) = -(get(0, 0) * get(2, 1) - get(2, 0) * get(0, 1))*invdet;
+    result.get(2, 2) = (get(0, 0) * get(1, 1) - get(1, 0) * get(0, 1))*invdet;
     return result;
   }
 
-  float Mat3::Determinant(void) const {
-    return Get(0, 0) * (Get(1, 1) * Get(2, 2) - Get(2, 1) * Get(1, 2)) -
-      Get(0, 1) * (Get(1, 0) * Get(2, 2) - Get(1, 2) * Get(2, 0)) +
-      Get(0, 2) * (Get(1, 0) * Get(2, 1) - Get(1, 1) * Get(2, 0));
+  float Mat3::determinant(void) const {
+    return get(0, 0) * (get(1, 1) * get(2, 2) - get(2, 1) * get(1, 2)) -
+      get(0, 1) * (get(1, 0) * get(2, 2) - get(1, 2) * get(2, 0)) +
+      get(0, 2) * (get(1, 0) * get(2, 1) - get(1, 1) * get(2, 0));
   }
 
   Mat3 operator*(float lhs, const Mat3& rhs) {
     return rhs * lhs;
   }
 
-  Mat3 Mat3::AxisAngle(const Vec3& axis, float cosAngle, float sinAngle) {
+  Mat3 Mat3::axisAngle(const Vec3& axis, float cosAngle, float sinAngle) {
     /* Using Axis-Angle formula:
     xxC + c, xyC - zs, xzC + ys
     yxC + zs, yyC + c, yzC - xs,
@@ -268,47 +268,47 @@ namespace Syx {
       z*x*C - y*s, z*y*C + x*s, z*z*C + c);
   }
 
-  Mat3 Mat3::AxisAngle(const Vec3& axis, float angle) {
-    return AxisAngle(axis, cosf(angle), sinf(angle));
+  Mat3 Mat3::axisAngle(const Vec3& axis, float angle) {
+    return axisAngle(axis, cosf(angle), sinf(angle));
   }
 
-  Mat3 Mat3::XRot(float angle) {
-    return XRot(sin(angle), cos(angle));
+  Mat3 Mat3::xRot(float angle) {
+    return xRot(sin(angle), cos(angle));
   }
 
-  Mat3 Mat3::YRot(float angle) {
-    return YRot(sin(angle), cos(angle));
+  Mat3 Mat3::yRot(float angle) {
+    return yRot(sin(angle), cos(angle));
   }
 
-  Mat3 Mat3::ZRot(float angle) {
-    return ZRot(sin(angle), cos(angle));
+  Mat3 Mat3::zRot(float angle) {
+    return zRot(sin(angle), cos(angle));
   }
 
-  Mat3 Mat3::XRot(float sinAngle, float cosAngle) {
+  Mat3 Mat3::xRot(float sinAngle, float cosAngle) {
     return Mat3(1.0f, 0.0f, 0.0f,
       0.0f, cosAngle, -sinAngle,
       0.0f, sinAngle, cosAngle);
   }
 
-  Mat3 Mat3::YRot(float sinAngle, float cosAngle) {
+  Mat3 Mat3::yRot(float sinAngle, float cosAngle) {
     return Mat3(cosAngle, 0.0f, sinAngle,
       0.0f, 1.0f, 0.0f,
       -sinAngle, 0.0f, cosAngle);
   }
 
-  Mat3 Mat3::ZRot(float sinAngle, float cosAngle) {
+  Mat3 Mat3::zRot(float sinAngle, float cosAngle) {
     return Mat3(cosAngle, -sinAngle, 0.0f,
       sinAngle, cosAngle, 0.0f,
       0.0f, 0.0f, 1.0f);
   }
 
-  Mat3 Mat3::OuterProduct(const Vec3& lhs, const Vec3& rhs) {
+  Mat3 Mat3::outerProduct(const Vec3& lhs, const Vec3& rhs) {
     return Mat3(lhs.x*rhs.x, lhs.x*rhs.y, lhs.x*rhs.z,
                    lhs.y*rhs.x, lhs.y*rhs.y, lhs.y*rhs.z,
                    lhs.z*rhs.x, lhs.z*rhs.y, lhs.z*rhs.z);
   }
 
-  Mat3 Mat3::OuterProduct(const Vec3& v) {
+  Mat3 Mat3::outerProduct(const Vec3& v) {
     float xy = v.x*v.y;
     float xz = v.x*v.z;
     float yz = v.y*v.z;
@@ -318,7 +318,7 @@ namespace Syx {
   }
 
   //From Bullet
-  void Mat3::Diagonalize(void) {
+  void Mat3::diagonalize(void) {
     Mat3 orientation = Mat3::Zero;
     Mat3& matrix = *this;
 

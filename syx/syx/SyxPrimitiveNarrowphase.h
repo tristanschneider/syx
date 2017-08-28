@@ -7,9 +7,9 @@ namespace Syx {
 
   class PrimitiveNarrowphase {
   public:
-    void Set(ModelInstance* a, ModelInstance* b, Space* space, Narrowphase* narrowphase);
+    void set(ModelInstance* a, ModelInstance* b, Space* space, Narrowphase* narrowphase);
 
-    void SphereSphere(void);
+    void sphereSphere(void);
 
   private:
     ModelInstance* mA;

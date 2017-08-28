@@ -4,10 +4,10 @@
 namespace Syx {
   //Everything needed during solving loop in one compact structure to maximize cache coherence
   SAlign struct SphericalBlock {
-    void Setup(const Vec3& posA, const Vec3& posB, const Vec3& anchorA, const Vec3& anchorB, float massA, float massB, const Mat3& inertiaA, const Mat3& inertiaB);
-    void ApplyImpulse(const Vec3& lambda, ConstraintObjBlock& a, ConstraintObjBlock& b);
-    float Solve(ConstraintObjBlock& a, ConstraintObjBlock& b);
-    float SSolve(SFloats& linVelA, SFloats& angVelA, SFloats& linVelB, SFloats& angVelB);
+    void setup(const Vec3& posA, const Vec3& posB, const Vec3& anchorA, const Vec3& anchorB, float massA, float massB, const Mat3& inertiaA, const Mat3& inertiaB);
+    void applyImpulse(const Vec3& lambda, ConstraintObjBlock& a, ConstraintObjBlock& b);
+    float solve(ConstraintObjBlock& a, ConstraintObjBlock& b);
+    float sSolve(SFloats& linVelA, SFloats& angVelA, SFloats& linVelB, SFloats& angVelB);
 
     //No need to store linear portion, it's always unit x,y,z
     SAlign Vec3 mAngularA[3];
@@ -23,19 +23,19 @@ namespace Syx {
   };
 
   SAlign struct SwingTwistBlock {
-    void Setup(const Quat& refA, const Quat& refB,
+    void setup(const Quat& refA, const Quat& refB,
       const Quat& rotA, const Quat& rotB,
       const Mat3& inertiaA, const Mat3& inertiaB,
       float maxSwingX, float maxSwingY,
       float minTwist, float maxTwist,
       float maxAngularImpulse);
-    void ApplyImpulse(int index, float lambda, ConstraintObjBlock& a, ConstraintObjBlock& b);
-    float Solve(ConstraintObjBlock& a, ConstraintObjBlock& b);
-    float SSolve(SFloats& angVelA, SFloats& angVelB);
+    void applyImpulse(int index, float lambda, ConstraintObjBlock& a, ConstraintObjBlock& b);
+    float solve(ConstraintObjBlock& a, ConstraintObjBlock& b);
+    float sSolve(SFloats& angVelA, SFloats& angVelB);
 
     //Given swing frame with twist removed, computes angle anglular error within ellipse mapped on sphere surface. As such, the limite and axis are given back as they will be different if ellipse isn't a circle
-    static void ComputeSwingError(const Quat& swingFrame, float maxSwingX, float maxSwingY, float& swingError, Vec3& swingAxis, float& swingAngle);
-    static void ComputeTwistError(const Quat& twistFrame, float& twistAngle, Vec3& twistAxis);
+    static void computeSwingError(const Quat& swingFrame, float maxSwingX, float maxSwingY, float& swingError, Vec3& swingAxis, float& swingAngle);
+    static void computeTwistError(const Quat& twistFrame, float& twistAngle, Vec3& twistAxis);
 
     //Swing, twist, orthogonal for friction
     SAlign Vec3 mAngular[3];
@@ -62,24 +62,24 @@ namespace Syx {
       , mAngularWarmStart{0.0f} {
     }
 
-    virtual void SetLocalAnchor(const Vec3& anchor, ConstraintObj obj) override {
+    virtual void setLocalAnchor(const Vec3& anchor, ConstraintObj obj) override {
       if(obj == ConstraintObj::A)
         mAnchorA = anchor;
       else
         mAnchorB = anchor;
     }
-    virtual const Vec3& GetLocalAnchor(ConstraintObj obj) const override {
+    virtual const Vec3& getLocalAnchor(ConstraintObj obj) const override {
       return obj == ConstraintObj::A ? mAnchorA : mAnchorB;
     }
     //Set swing axis given in a's local space
-    void SetSwingFrame(const Quat& aFrame);
-    void GetAngularReferences(Quat& ra, Quat& rb) const;
-    void GetSwingLimits(float& maxRadsX, float& maxRadsY) const;
-    void SetSwingLimits(float maxRadsX, float maxRadsY);
-    void GetTwistLimits(float& minRads, float& maxRads) const;
-    void SetTwistLimits(float minRads, float maxRads);
-    void SetMaxAngularImpulse(float max);
-    float GetMaxAngularImpulse() const;
+    void setSwingFrame(const Quat& aFrame);
+    void getAngularReferences(Quat& ra, Quat& rb) const;
+    void getSwingLimits(float& maxRadsX, float& maxRadsY) const;
+    void setSwingLimits(float maxRadsX, float maxRadsY);
+    void getTwistLimits(float& minRads, float& maxRads) const;
+    void setTwistLimits(float minRads, float maxRads);
+    void setMaxAngularImpulse(float max);
+    float getMaxAngularImpulse() const;
 
   private:
     SAlign Vec3 mAnchorA;
@@ -98,11 +98,11 @@ namespace Syx {
 
   SAlign class LocalSphericalConstraint: public LocalConstraint {
   public:
-    void FirstIteration();
-    void LastIteration();
-    float Solve();
-    float SSolve();
-    void Draw();
+    void firstIteration();
+    void lastIteration();
+    float solve();
+    float sSolve();
+    void draw();
 
     static const float sLinearSlop;
     static const float sAngularSlop;

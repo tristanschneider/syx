@@ -3,7 +3,7 @@
 
 Camera::Camera(const CameraOps& ops)
   : mWorldToViewDirty(true)
-  , mTransform(Syx::Mat4::transform(Syx::Vec3::Identity, Syx::Quat::LookAt(Syx::Vec3::UnitZ), Syx::Vec3::Zero))
+  , mTransform(Syx::Mat4::transform(Syx::Vec3::Identity, Syx::Quat::lookAt(Syx::Vec3::UnitZ), Syx::Vec3::Zero))
   , mOps(ops) {
 }
 

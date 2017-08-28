@@ -123,51 +123,51 @@
 namespace Syx {
   typedef __m128 SFloats;
 
-  inline SFloats SLoadFloats(float x, float y, float z, float w = 0.0f) {
+  inline SFloats sLoadFloats(float x, float y, float z, float w = 0.0f) {
     SAlign float store[4] = {x, y, z, w};
     return SLoadAll(store);
   }
 
-  inline SFloats SLoadSplatFloats(float all) {
+  inline SFloats sLoadSplatFloats(float all) {
     SAlign float store = all;
     return SLoadSplat(&store);
   }
 
-  inline SFloats SAbsAll(SFloats in) {
+  inline SFloats sAbsAll(SFloats in) {
     SFloats negIn = SSubAll(SSetZero(), in);
     return SMaxAll(in, negIn);
   }
 
-  inline SFloats SClampAll(SFloats min, SFloats max, SFloats value) {
+  inline SFloats sClampAll(SFloats min, SFloats max, SFloats value) {
     return SMaxAll(SMinAll(max, value), min);
   }
 
   //Select ifVec if all bits in condition are set, else select elseVec. This applies per element
   //result = condition ? ifVec : elseVec;
-  inline SFloats SSelectIf(SFloats condition, SFloats ifVec, SFloats elseVec) {
+  inline SFloats sSelectIf(SFloats condition, SFloats ifVec, SFloats elseVec) {
     return SOr(SAnd(condition, ifVec), SAndNot(condition, elseVec));
   }
 
   //All Combines assume each element of the vector is equal, so it doesn't matter which index is mixed in to the result
   //[a a b b]
-  inline SFloats SCombine(SFloats a, SFloats b) {
+  inline SFloats sCombine(SFloats a, SFloats b) {
     return SShuffle2(a, b, 0, 0, 0, 0);
   }
 
   //[a b c c]
-  inline SFloats SCombine(SFloats a, SFloats b, SFloats c) {
-    SFloats ab = SCombine(a, b);
+  inline SFloats sCombine(SFloats a, SFloats b, SFloats c) {
+    SFloats ab = sCombine(a, b);
     return SShuffle2(ab, c, 0, 2, 0, 0);
   }
 
   //[a b c d]
-  inline SFloats SCombine(SFloats a, SFloats b, SFloats c, const SFloats& d) {
-    SFloats ccdd = SCombine(c, d);
+  inline SFloats sCombine(SFloats a, SFloats b, SFloats c, const SFloats& d) {
+    SFloats ccdd = sCombine(c, d);
     SFloats cbcd = SShuffle2(b, ccdd, 0, 0, 1, 2);
     return SMoveLower(cbcd, a);
   }
 
-  inline SFloats SSplatIndex(SFloats v, int index) {
+  inline SFloats sSplatIndex(SFloats v, int index) {
     switch(index) {
       case 0: return SShuffle(v, 0, 0, 0, 0); break;
       case 1: return SShuffle(v, 1, 1, 1, 1); break;
@@ -180,7 +180,7 @@ namespace Syx {
   }
 
   //Zero out all terms but the given index
-  inline SFloats SMaskOtherIndices(SFloats v, int index) {
+  inline SFloats sMaskOtherIndices(SFloats v, int index) {
     SAlign int mask[4] = {0};
     mask[index] = ~mask[index];
     return SAnd(v, SLoadAll(reinterpret_cast<float*>(&mask[0])));

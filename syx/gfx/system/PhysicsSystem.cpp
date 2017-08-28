@@ -30,12 +30,12 @@ void PhysicsSystem::init() {
   Syx::Interface::gDrawer = &mApp->getSystem<GraphicsSystem>(SystemId::Graphics).getDebugDrawer();
   mSystem = std::make_unique<Syx::PhysicsSystem>();
 
-  mApp->mAssets["pCube"] = mSystem->GetCube();
-  mApp->mAssets["pSphere"] = mSystem->GetSphere();
-  mApp->mAssets["pCapsule"] = mSystem->GetCapsule();
-  mApp->mAssets["pDefMat"] = mSystem->GetDefaultMaterial();
+  mApp->mAssets["pCube"] = mSystem->getCube();
+  mApp->mAssets["pSphere"] = mSystem->getSphere();
+  mApp->mAssets["pCapsule"] = mSystem->getCapsule();
+  mApp->mAssets["pDefMat"] = mSystem->getDefaultMaterial();
 
-  mDefaultSpace = mSystem->AddSpace();
+  mDefaultSpace = mSystem->addSpace();
 
   mEventListener = std::make_unique<EventListener>(EventFlag::Physics);
   mTransformListener = std::make_unique<TransformListener>();
@@ -47,7 +47,7 @@ void PhysicsSystem::init() {
 
 void PhysicsSystem::update(float dt) {
   _processGameEvents();
-  mSystem->Update(dt);
+  mSystem->update(dt);
   _processSyxEvents();
 }
 
@@ -93,7 +93,7 @@ void PhysicsSystem::_processSyxEvents() {
 void PhysicsSystem::_updateObject(Gameobject& obj, const SyxData& data, const Syx::UpdateEvent& e) {
   Transform& t = *obj.getComponent<Transform>(ComponentType::Transform);
   Syx::Vec3 scale = t.get().getScale();
-  t.set(Syx::Mat4::transform(data.mSyxToModel.getScale().Reciprocal(), e.mRot, e.mPos) * data.mSyxToModel, false);
+  t.set(Syx::Mat4::transform(data.mSyxToModel.getScale().reciprocal(), e.mRot, e.mPos) * data.mSyxToModel, false);
   mTransformUpdates->emplace_back(obj.getHandle(), t.get());
 }
 
@@ -109,12 +109,12 @@ void PhysicsSystem::_compUpdateEvent(const PhysicsCompUpdateEvent& e) {
 
   it->second.mSyxToModel = e.mData.mPhysToModel;
 
-  mSystem->SetVelocity(mDefaultSpace, h, e.mData.mLinVel);
-  mSystem->SetAngularVelocity(mDefaultSpace, h, e.mData.mAngVel);
-  mSystem->SetHasCollider(e.mData.mHasCollider, mDefaultSpace, h);
-  mSystem->SetHasRigidbody(e.mData.mHasRigidbody, mDefaultSpace, h);
-  mSystem->SetObjectModel(mDefaultSpace, h, e.mData.mModel);
-  mSystem->SetObjectMaterial(mDefaultSpace, h, e.mData.mMaterial);
+  mSystem->setVelocity(mDefaultSpace, h, e.mData.mLinVel);
+  mSystem->setAngularVelocity(mDefaultSpace, h, e.mData.mAngVel);
+  mSystem->setHasCollider(e.mData.mHasCollider, mDefaultSpace, h);
+  mSystem->setHasRigidbody(e.mData.mHasRigidbody, mDefaultSpace, h);
+  mSystem->setObjectModel(mDefaultSpace, h, e.mData.mModel);
+  mSystem->setObjectMaterial(mDefaultSpace, h, e.mData.mMaterial);
 }
 
 void PhysicsSystem::_transformEvent(const TransformEvent& e) {
@@ -125,14 +125,14 @@ void PhysicsSystem::_transformEvent(const TransformEvent& e) {
     //Move the transform into syx space then decompose it
     (e.mTransform * it->second.mSyxToModel.affineInverse()).decompose(scale, rot, pos);
     Syx::Handle h = it->second.mHandle;
-    mSystem->SetPosition(mDefaultSpace, h, pos);
-    mSystem->SetRotation(mDefaultSpace, h, rot.ToQuat());
-    mSystem->SetScale(mDefaultSpace, h, scale);
+    mSystem->setPosition(mDefaultSpace, h, pos);
+    mSystem->setRotation(mDefaultSpace, h, rot.toQuat());
+    mSystem->setScale(mDefaultSpace, h, scale);
   }
 }
 
 Syx::Handle PhysicsSystem::_createObject(Handle gameobject, bool hasRigidbody, bool hasCollider) {
-  Syx::Handle result = mSystem->AddPhysicsObject(hasRigidbody, hasCollider, mDefaultSpace);
+  Syx::Handle result = mSystem->addPhysicsObject(hasRigidbody, hasCollider, mDefaultSpace);
   SyxData d;
   d.mHandle = result;
   mToSyx[gameobject] = d;
@@ -145,24 +145,24 @@ void PhysicsSystem::uninit() {
 
 Handle PhysicsSystem::addModel(const Model& model, bool environment) {
   Syx::ModelParam p;
-  p.Reserve(model.mVerts.size(), model.mIndices.size());
+  p.reserve(model.mVerts.size(), model.mIndices.size());
 
   for(const Vertex& vert : model.mVerts)
-    p.AddVertex(Syx::Vec3(vert.mPos[0], vert.mPos[1], vert.mPos[2]));
+    p.addVertex(Syx::Vec3(vert.mPos[0], vert.mPos[1], vert.mPos[2]));
   for(size_t i : model.mIndices)
-    p.AddIndex(i);
-  p.SetEnvironment(environment);
-  return mSystem->AddModel(p);
+    p.addIndex(i);
+  p.setEnvironment(environment);
+  return mSystem->addModel(p);
 }
 
 void PhysicsSystem::removeModel(Handle handle) {
-  mSystem->RemoveModel(handle);
+  mSystem->removeModel(handle);
 }
 
 Handle PhysicsSystem::addMaterial(const Syx::Material& mat) {
-  return mSystem->AddMaterial(mat);
+  return mSystem->addMaterial(mat);
 }
 
 void PhysicsSystem::removeMaterial(Handle handle) {
-  mSystem->RemoveMaterial(handle);
+  mSystem->removeMaterial(handle);
 }

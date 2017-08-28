@@ -30,7 +30,7 @@ namespace Syx {
   {
   }
 
-  void Island::Add(IndexableKey islandKey, IslandNode& node) {
+  void Island::add(IndexableKey islandKey, IslandNode& node) {
     //Tracking static node count is more trouble than it's worth, so don't increment size for them
     if(node.mIsland != sStaticNodeIndex) {
       ++mSize;
@@ -39,7 +39,7 @@ namespace Syx {
     }
   }
 
-  void Island::Remove(IslandNode& node) {
+  void Island::remove(IslandNode& node) {
     //Not tracking count for static nodes
     if(node.mIsland != sStaticNodeIndex) {
       SyxAssertError(node.mIsland != sInvalidIslandIndex, "Tried to remove not that wasn't in an island");
@@ -48,7 +48,7 @@ namespace Syx {
     }
   }
 
-  void IndexContainer::PushBack(IslandIndex obj) {
+  void IndexContainer::pushBack(IslandIndex obj) {
     if(mSize < sMaxStaticSize)
       mStatic[mSize] = obj;
     else
@@ -56,8 +56,8 @@ namespace Syx {
     ++mSize;
   }
 
-  void IndexContainer::Remove(size_t index) {
-    Get(index) = Get(mSize - 1);
+  void IndexContainer::remove(size_t index) {
+    _get(index) = _get(mSize - 1);
     if(mSize > sMaxStaticSize)
       mDynamic.pop_back();
     --mSize;
@@ -69,13 +69,13 @@ namespace Syx {
     return mDynamic[index - sMaxStaticSize];
   }
 
-  IslandIndex& IndexContainer::Get(size_t index) {
+  IslandIndex& IndexContainer::_get(size_t index) {
     if(index < sMaxStaticSize)
       return mStatic[index];
     return mDynamic[index - sMaxStaticSize];
   }
 
-  void IndexContainer::Clear() {
+  void IndexContainer::clear() {
     mSize = 0;
     mDynamic.clear();
   }
@@ -83,11 +83,11 @@ namespace Syx {
   IslandNode::IslandNode()
     : mIsland(sInvalidIslandIndex) {}
 
-  void IslandNode::RemoveEdge(IslandIndex edge) {
+  void IslandNode::removeEdge(IslandIndex edge) {
     //It is a linear search, but these containers should be pretty small, particularly since edges aren't added to static objects
-    for(size_t i = 0; i < mEdges.Size(); ++i) {
+    for(size_t i = 0; i < mEdges.size(); ++i) {
       if(mEdges[i] == edge) {
-        mEdges.Remove(i);
+        mEdges.remove(i);
         break;
       }
     }
@@ -98,32 +98,32 @@ namespace Syx {
     , mTo(sInvalidIslandIndex)
     , mConstraint(nullptr) {}
 
-  void IslandEdge::Link(IslandNode& a, IslandNode& b, IslandIndex edge) {
+  void IslandEdge::link(IslandNode& a, IslandNode& b, IslandIndex edge) {
     //We don't traverse static edges, so don't maintain their edges, as that's wasted effort, and could get rather large for objects like ground planes
     if(a.mIsland != sStaticNodeIndex)
-      a.mEdges.PushBack(edge);
+      a.mEdges.pushBack(edge);
     if(b.mIsland != sStaticNodeIndex)
-      b.mEdges.PushBack(edge);
+      b.mEdges.pushBack(edge);
   }
 
-  void IslandEdge::Unlink(IslandNode& a, IslandNode& b, IslandIndex edge) {
-    a.RemoveEdge(edge);
-    b.RemoveEdge(edge);
+  void IslandEdge::unlink(IslandNode& a, IslandNode& b, IslandIndex edge) {
+    a.removeEdge(edge);
+    b.removeEdge(edge);
   }
 
-  void IslandGraph::Add(Constraint& constraint) {
+  void IslandGraph::add(Constraint& constraint) {
     VALIDATE_ISLAND
 
-    IslandIndex indexA = GetNode(*constraint.GetObjA());
-    IslandIndex indexB = GetNode(*constraint.GetObjB());
+    IslandIndex indexA = _getNode(*constraint.getObjA());
+    IslandIndex indexB = _getNode(*constraint.getObjB());
     IslandNode& nodeA = mNodes[indexA];
     IslandNode& nodeB = mNodes[indexB];
     //No sense in starting an island with only static objects
     if(nodeA.mIsland == sStaticNodeIndex && nodeB.mIsland == sStaticNodeIndex)
       return;
 
-    SyxAssertError(mConstraintToEdge.find(constraint.GetHandle()) == mConstraintToEdge.end(), "Duplicate constraint addition");
-    IslandIndex edgeIndex = GetEdge(constraint);
+    SyxAssertError(mConstraintToEdge.find(constraint.getHandle()) == mConstraintToEdge.end(), "Duplicate constraint addition");
+    IslandIndex edgeIndex = _getEdge(constraint);
     IslandEdge& edge = mEdges[edgeIndex];
     edge.mConstraint = &constraint;
     edge.mFrom = indexA;
@@ -136,37 +136,37 @@ namespace Syx {
     //Neither are in an island, start a new one
     if((aIsland == sInvalidIslandIndex || aIsland == sStaticNodeIndex) &&
       (bIsland == sInvalidIslandIndex || bIsland == sStaticNodeIndex)) {
-      CreateNewIsland(indexA, indexB, edgeIndex);
+      _createNewIsland(indexA, indexB, edgeIndex);
     }
     //Already in the same island, just add new edge
     else if(aIsland == bIsland) {
-      nodeA.mEdges.PushBack(edgeIndex);
-      nodeB.mEdges.PushBack(edgeIndex);
+      nodeA.mEdges.pushBack(edgeIndex);
+      nodeB.mEdges.pushBack(edgeIndex);
     }
     //A doesn't have an island, B does, add A to B's island
     else if(aIsland == sInvalidIslandIndex || aIsland == sStaticNodeIndex) {
-      AddToIsland(indexB, indexA, edgeIndex);
+      _addToIsland(indexB, indexA, edgeIndex);
     }
     //B doesn't have an island, A does, add B to A's island
     else if(bIsland == sInvalidIslandIndex || bIsland == sStaticNodeIndex) {
-      AddToIsland(indexA, indexB, edgeIndex);
+      _addToIsland(indexA, indexB, edgeIndex);
     }
     //They're both in their own islands, merge them
     else {
-      MergeIslands(indexA, indexB, edgeIndex);
+      _mergeIslands(indexA, indexB, edgeIndex);
     }
 
     //Islands could have changed, so don't use aIsland and bIsland
     //Something active collided with a potentially sleeping island. Wake it
     if(nodeA.mIsland != sStaticNodeIndex)
-      mIslands[nodeA.mIsland].SetActive();
+      mIslands[nodeA.mIsland].setActive();
     else
-      mIslands[nodeB.mIsland].SetActive();
+      mIslands[nodeB.mIsland].setActive();
 
     VALIDATE_ISLAND
   }
 
-  void IslandGraph::CreateNewIsland(IslandIndex a, IslandIndex b, IslandIndex edge) {
+  void IslandGraph::_createNewIsland(IslandIndex a, IslandIndex b, IslandIndex edge) {
     mIslandIndicesDirty = true;
     IslandNode& nodeA = mNodes[a];
     IslandNode& nodeB = mNodes[b];
@@ -176,30 +176,30 @@ namespace Syx {
     if(nodeA.mIsland == sStaticNodeIndex)
       root = b;
 
-    IndexableKey islandKey = NewIsland(root);
+    IndexableKey islandKey = _newIsland(root);
     Island& island = mIslands[islandKey];
-    island.Add(islandKey, nodeA);
-    island.Add(islandKey, nodeB);
+    island.add(islandKey, nodeA);
+    island.add(islandKey, nodeB);
 
-    IslandEdge::Link(nodeA, nodeB, edge);
+    IslandEdge::link(nodeA, nodeB, edge);
   }
 
-  void IslandGraph::AddToIsland(IslandIndex hasIsland, IslandIndex toAdd, IslandIndex edge) {
+  void IslandGraph::_addToIsland(IslandIndex hasIsland, IslandIndex toAdd, IslandIndex edge) {
     IslandNode& islandNode = mNodes[hasIsland];
     IslandNode& addNode = mNodes[toAdd];
 
     Island& island = mIslands[islandNode.mIsland];
-    island.Add(islandNode.mIsland, addNode);
+    island.add(islandNode.mIsland, addNode);
 
-    IslandEdge::Link(islandNode, addNode, edge);
+    IslandEdge::link(islandNode, addNode, edge);
   }
 
-  void IslandGraph::MergeIslands(IslandIndex a, IslandIndex b, IslandIndex edge) {
+  void IslandGraph::_mergeIslands(IslandIndex a, IslandIndex b, IslandIndex edge) {
     IslandIndex from = a;
     IslandIndex to = b;
 
     //Merge the smaller island into the bigger one
-    if(GetIslandFromNode(a).mSize > GetIslandFromNode(b).mSize) {
+    if(_getIslandFromNode(a).mSize > _getIslandFromNode(b).mSize) {
       std::swap(from, to);
     }
 
@@ -208,43 +208,43 @@ namespace Syx {
     Island& toIsland = mIslands[toNode.mIsland];
     IndexableKey toIslandId = toNode.mIsland;
 
-    mIslands.Erase(fromNode.mIsland);
+    mIslands.erase(fromNode.mIsland);
     mIslandIndicesDirty = true;
 
-    ClearTraversed();
+    _clearTraversed();
     mToProcess.push(from);
 
     //Walk all nodes in from and set their island to to's island
     while(!mToProcess.empty()) {
-      IslandIndex nodeIndex = PopToProcess();
+      IslandIndex nodeIndex = _popToProcess();
       //Add duplicates of static nodes to reference count the edges
-      if(HasTraversedNode(nodeIndex))
+      if(_hasTraversedNode(nodeIndex))
         continue;
 
       IslandNode& node = mNodes[nodeIndex];
       if(node.mIsland == sStaticNodeIndex)
         continue;
 
-      toIsland.Add(toIslandId, node);
+      toIsland.add(toIslandId, node);
 
-      for(size_t i = 0; i < node.mEdges.Size(); ++i) {
+      for(size_t i = 0; i < node.mEdges.size(); ++i) {
         IslandIndex edgeIndex = node.mEdges[i];
-        if(HasTraversedEdge(edgeIndex))
+        if(_hasTraversedEdge(edgeIndex))
           continue;
         const IslandEdge& curEdge = mEdges[edgeIndex];
-        mToProcess.push(curEdge.GetOther(nodeIndex));
+        mToProcess.push(curEdge.getOther(nodeIndex));
       }
     }
 
-    IslandEdge::Link(fromNode, toNode, edge);
+    IslandEdge::link(fromNode, toNode, edge);
   }
 
-  void IslandGraph::Remove(Constraint& constraint) {
+  void IslandGraph::remove(Constraint& constraint) {
     VALIDATE_ISLAND
 
-    auto edgeIt = mConstraintToEdge.find(constraint.GetHandle());
+    auto edgeIt = mConstraintToEdge.find(constraint.getHandle());
     if(edgeIt == mConstraintToEdge.end()) {
-      SyxAssertError(constraint.GetObjA()->IsStatic() && constraint.GetObjB()->IsStatic(), "Removed constraint that didn't exist");
+      SyxAssertError(constraint.getObjA()->isStatic() && constraint.getObjB()->isStatic(), "Removed constraint that didn't exist");
       return;
     }
     IslandIndex edgeIndex = edgeIt->second;
@@ -254,59 +254,59 @@ namespace Syx {
     IslandNode& nodeA = mNodes[indexA];
     IslandNode& nodeB = mNodes[indexB];
 
-    IslandEdge::Unlink(nodeA, nodeB, edgeIndex);
+    IslandEdge::unlink(nodeA, nodeB, edgeIndex);
     mConstraintToEdge.erase(edgeIt);
     edge.mConstraint = nullptr;
-    mEdges.Erase(edgeIndex);
-    size_t aEdges = nodeA.mEdges.Size();
-    size_t bEdges = nodeB.mEdges.Size();
+    mEdges.erase(edgeIndex);
+    size_t aEdges = nodeA.mEdges.size();
+    size_t bEdges = nodeB.mEdges.size();
 
     //Something like bottom of stack may have just been removed, wake island
     if(nodeA.mIsland != sStaticNodeIndex)
-      mIslands[nodeA.mIsland].SetActive();
+      mIslands[nodeA.mIsland].setActive();
     else
-      mIslands[nodeB.mIsland].SetActive();
+      mIslands[nodeB.mIsland].setActive();
 
     //If this was the only edge left in the island, remove it
     if(!aEdges && !bEdges) {
-      RemoveIsland(indexA, indexB);
+      _removeIsland(indexA, indexB);
     }
     //A doesn't have any additional edges, it can be removed without splitting the island
     else if(!aEdges) {
-      RemoveIslandLeaf(indexB, indexA);
+      _removeIslandLeaf(indexB, indexA);
     }
     //A doesn't have any additional edges, it can be removed without splitting the island
     else if(!bEdges) {
-      RemoveIslandLeaf(indexA, indexB);
+      _removeIslandLeaf(indexA, indexB);
     }
     //They both have additional edges we need to traverse the whole dang thing to see if the island needs to be split
     else {
-      SplitIsland(indexA, indexB);
+      _splitIsland(indexA, indexB);
     }
 
     VALIDATE_ISLAND
   }
 
-  void IslandGraph::Remove(PhysicsObject& obj) {
+  void IslandGraph::remove(PhysicsObject& obj) {
     VALIDATE_ISLAND
 
-    auto nodeIt = mObjectToNode.find(obj.GetHandle());
+    auto nodeIt = mObjectToNode.find(obj.getHandle());
     if(nodeIt == mObjectToNode.end()) {
       return;
     }
     IslandIndex nodeIndex = nodeIt->second;
     IslandNode& node = mNodes[nodeIndex];
 
-    while(node.mEdges.Size())
-      Remove(*mEdges[node.mEdges[0]].mConstraint);
+    while(node.mEdges.size())
+      remove(*mEdges[node.mEdges[0]].mConstraint);
 
     mObjectToNode.erase(nodeIt);
-    mNodes.Erase(nodeIndex);
+    mNodes.erase(nodeIndex);
 
     VALIDATE_ISLAND
   }
 
-  void IslandGraph::RemoveIslandLeaf(IslandIndex inIsland, IslandIndex leaf) {
+  void IslandGraph::_removeIslandLeaf(IslandIndex inIsland, IslandIndex leaf) {
     IslandNode& inNode = mNodes[inIsland];
     Island& island = mIslands[inNode.mIsland];
 
@@ -316,16 +316,16 @@ namespace Syx {
 
     //If the leaf was the root, move it to the portion of the island that's sticking around
     if(island.mRoot == leaf)
-      MoveRoot(inIsland);
+      _moveRoot(inIsland);
 
-    island.Remove(mNodes[leaf]);
+    island.remove(mNodes[leaf]);
   }
 
-  void IslandGraph::SplitIsland(IslandIndex a, IslandIndex b) {
-    Island* islandA = &GetIslandFromNode(a);
+  void IslandGraph::_splitIsland(IslandIndex a, IslandIndex b) {
+    Island* islandA = &_getIslandFromNode(a);
 
     //Gather all nodes that can be reached from the root
-    size_t staticNodes = GatherNodes(islandA->mRoot, mGatheredNodes);
+    size_t staticNodes = _gatherNodes(islandA->mRoot, mGatheredNodes);
 
     //If all nodes can still be reached that means the island can remain as is
     //Island only tracks non-static nodes, so add them on when comparing
@@ -338,35 +338,35 @@ namespace Syx {
     if(mTraversedNodes.find(a) != mTraversedNodes.end())
       otherSide = b;
 
-    GatherNodes(otherSide, mGatheredNodes);
+    _gatherNodes(otherSide, mGatheredNodes);
 
     //Find and construct new island root
-    IslandIndex newRootIndex = FindNewRoot(mGatheredNodes.front());
-    IndexableKey newIslandKey = NewIsland(newRootIndex);
+    IslandIndex newRootIndex = _findNewRoot(mGatheredNodes.front());
+    IndexableKey newIslandKey = _newIsland(newRootIndex);
     Island& newIsland = mIslands[newIslandKey];
     //Push could resize, so grab new pointer
-    islandA = &GetIslandFromNode(a);
+    islandA = &_getIslandFromNode(a);
 
     //Point all nodes in the island at the new root
     for(IslandIndex curIndex : mGatheredNodes) {
       IslandNode& curNode = mNodes[curIndex];
-      islandA->Remove(curNode);
-      newIsland.Add(newIslandKey, curNode);
+      islandA->remove(curNode);
+      newIsland.add(newIslandKey, curNode);
     }
 
     mIslandIndicesDirty = true;
   }
 
-  size_t IslandGraph::GatherNodes(IslandIndex start, std::vector<IslandIndex>& container) {
+  size_t IslandGraph::_gatherNodes(IslandIndex start, std::vector<IslandIndex>& container) {
     container.clear();
-    ClearTraversed();
+    _clearTraversed();
 
     size_t staticNodes = 0;
     //For each node in island
     mToProcess.push(start);
     while(!mToProcess.empty()) {
-      IslandIndex nodeIndex = PopToProcess();
-      if(HasTraversedNode(nodeIndex))
+      IslandIndex nodeIndex = _popToProcess();
+      if(_hasTraversedNode(nodeIndex))
         continue;
 
       container.push_back(nodeIndex);
@@ -378,41 +378,41 @@ namespace Syx {
       }
 
       //For each edge in node, push new constraints and the nodes they lead to
-      for(size_t i = 0; i < node.mEdges.Size(); ++i) {
+      for(size_t i = 0; i < node.mEdges.size(); ++i) {
         IslandIndex edgeIndex = node.mEdges[i];
-        if(HasTraversedEdge(edgeIndex))
+        if(_hasTraversedEdge(edgeIndex))
           continue;
         const IslandEdge& edge = mEdges[edgeIndex];
-        mToProcess.push(edge.GetOther(nodeIndex));
+        mToProcess.push(edge.getOther(nodeIndex));
       }
     }
     return staticNodes;
   }
 
-  void IslandGraph::RemoveIsland(IslandIndex a, IslandIndex b) {
+  void IslandGraph::_removeIsland(IslandIndex a, IslandIndex b) {
     IslandNode& nodeA = mNodes[a];
     IslandNode& nodeB = mNodes[b];
     //Find the old island so we can remove it, but static nodes won't have it. They can't both be static because we don't allow static-static constraints
     IndexableKey islandKey = nodeA.mIsland == sStaticNodeIndex ? nodeB.mIsland : nodeA.mIsland;
     Island& island = mIslands[islandKey];
 
-    island.Remove(nodeA);
-    island.Remove(nodeB);
+    island.remove(nodeA);
+    island.remove(nodeB);
     SyxAssertError(island.mSize == 0, "Removed island that wasn't empty");
-    mIslands.Erase(islandKey);
+    mIslands.erase(islandKey);
     mIslandIndicesDirty = true;
   }
 
-  IslandIndex IslandGraph::FindNewRoot(IslandIndex from) {
+  IslandIndex IslandGraph::_findNewRoot(IslandIndex from) {
     IslandIndex newRoot = from;
     IslandNode& toNode = mNodes[from];
 
     //If this is a static node we need to traverse edges to find a different root.
     //Doesn't need to be recursive because we don't allow static-static constraints
     if(toNode.mIsland == sStaticNodeIndex) {
-      for(size_t i = 0; i < toNode.mEdges.Size(); ++i) {
+      for(size_t i = 0; i < toNode.mEdges.size(); ++i) {
         IslandEdge& edge = mEdges[toNode.mEdges[i]];
-        IslandIndex nodeIndex = edge.GetOther(from);
+        IslandIndex nodeIndex = edge.getOther(from);
         IslandNode& node = mNodes[nodeIndex];
         if(node.mIsland != sStaticNodeIndex) {
           newRoot = nodeIndex;
@@ -423,38 +423,38 @@ namespace Syx {
     return newRoot;
   }
 
-  void IslandGraph::MoveRoot(IslandIndex to) {
-    IslandIndex newRoot = FindNewRoot(to);
-    GetIslandFromNode(newRoot).mRoot = newRoot;
+  void IslandGraph::_moveRoot(IslandIndex to) {
+    IslandIndex newRoot = _findNewRoot(to);
+    _getIslandFromNode(newRoot).mRoot = newRoot;
   }
 
-  IndexableKey IslandGraph::NewIsland(IslandIndex root) {
-    IndexableKey result = mIslands.Push(Island(root));
+  IndexableKey IslandGraph::_newIsland(IslandIndex root) {
+    IndexableKey result = mIslands.push(Island(root));
     SyxAssertError(result != sInvalidIslandIndex && result != sStaticNodeIndex, "Invalid island index created");
     return result;
   }
 
-  void IslandGraph::Clear() {
-    mNodes.Clear();
-    mEdges.Clear();
-    mIslands.Clear();
+  void IslandGraph::clear() {
+    mNodes.clear();
+    mEdges.clear();
+    mIslands.clear();
     mIslandIndices.clear();
     mObjectToNode.clear();
     mConstraintToEdge.clear();
     mIslandIndicesDirty = true;
   }
 
-  size_t IslandGraph::IslandCount() {
-    return GetIslandIndices().size();
+  size_t IslandGraph::islandCount() {
+    return _getIslandIndices().size();
   }
 
-  void IslandGraph::GetIsland(size_t index, IslandContents& result, bool fillInactive) {
-    IndexableKey islandKey = GetIslandIndices()[index];
+  void IslandGraph::getIsland(size_t index, IslandContents& result, bool fillInactive) {
+    IndexableKey islandKey = _getIslandIndices()[index];
     Island& island = mIslands[islandKey];
     IslandIndex root = mIslands[islandKey].mRoot;
-    ClearTraversed();
+    _clearTraversed();
 
-    result.Clear();
+    result.clear();
     result.mIslandKey = islandKey;
     result.mSleepState = island.mSleepState;
     if(!fillInactive && island.mSleepState == SleepState::Inactive)
@@ -463,90 +463,90 @@ namespace Syx {
     //For each node in island
     mToProcess.push(root);
     while(!mToProcess.empty()) {
-      IslandIndex nodeIndex = PopToProcess();
-      if(HasTraversedNode(nodeIndex))
+      IslandIndex nodeIndex = _popToProcess();
+      if(_hasTraversedNode(nodeIndex))
         continue;
 
       const IslandNode& node = mNodes[nodeIndex];
       if(node.mIsland == sStaticNodeIndex)
         continue;
       //For each edge in node, push new constraints and the nodes they lead to
-      for(size_t i = 0; i < node.mEdges.Size(); ++i) {
+      for(size_t i = 0; i < node.mEdges.size(); ++i) {
         IslandIndex edgeIndex = node.mEdges[i];
-        if(HasTraversedEdge(edgeIndex))
+        if(_hasTraversedEdge(edgeIndex))
           continue;
         const IslandEdge& edge = mEdges[edgeIndex];
         result.mConstraints.push_back(edge.mConstraint);
-        mToProcess.push(edge.GetOther(nodeIndex));
+        mToProcess.push(edge.getOther(nodeIndex));
       }
     }
   }
 
-  std::vector<IndexableKey>& IslandGraph::GetIslandIndices() {
+  std::vector<IndexableKey>& IslandGraph::_getIslandIndices() {
     if(mIslandIndicesDirty)
-      mIslands.GetIndices(mIslandIndices);
+      mIslands.getIndices(mIslandIndices);
     mIslandIndicesDirty = false;
     return mIslandIndices;
   }
 
-  void IslandGraph::ClearTraversed() {
+  void IslandGraph::_clearTraversed() {
     mTraversedEdges.clear();
     mTraversedNodes.clear();
   }
 
-  bool IslandGraph::HasTraversedNode(IslandIndex node) {
+  bool IslandGraph::_hasTraversedNode(IslandIndex node) {
     return !mTraversedNodes.insert(node).second;
   }
 
-  bool IslandGraph::HasTraversedEdge(IslandIndex edge) {
+  bool IslandGraph::_hasTraversedEdge(IslandIndex edge) {
     return !mTraversedEdges.insert(edge).second;
   }
 
-  IslandIndex IslandGraph::PopToProcess() {
+  IslandIndex IslandGraph::_popToProcess() {
     IslandIndex result = mToProcess.front();
     mToProcess.pop();
     return result;
   }
 
-  IslandIndex IslandGraph::GetNode(PhysicsObject& obj) {
-    Handle handle = obj.GetHandle();
+  IslandIndex IslandGraph::_getNode(PhysicsObject& obj) {
+    Handle handle = obj.getHandle();
     auto it = mObjectToNode.find(handle);
     if(it != mObjectToNode.end())
       return it->second;
 
     //No existing node found, make new one
-    IslandIndex newIndex = static_cast<IslandIndex>(mNodes.Push(IslandNode(obj.IsStatic() ? sStaticNodeIndex : sInvalidIslandIndex)));
+    IslandIndex newIndex = static_cast<IslandIndex>(mNodes.push(IslandNode(obj.isStatic() ? sStaticNodeIndex : sInvalidIslandIndex)));
     mObjectToNode[handle] = newIndex;
     return newIndex;
   }
 
-  IslandIndex IslandGraph::GetEdge(Constraint& constraint) {
-    Handle handle = constraint.GetHandle();
+  IslandIndex IslandGraph::_getEdge(Constraint& constraint) {
+    Handle handle = constraint.getHandle();
     auto it = mConstraintToEdge.find(handle);
     if(it != mConstraintToEdge.end())
       return it->second;
 
     //No existing constraint found, make new one
-    IslandIndex newIndex = static_cast<IslandIndex>(mEdges.Push(IslandEdge(sInvalidIslandIndex, sInvalidIslandIndex, constraint)));
+    IslandIndex newIndex = static_cast<IslandIndex>(mEdges.push(IslandEdge(sInvalidIslandIndex, sInvalidIslandIndex, constraint)));
     mConstraintToEdge[handle] = newIndex;
     return newIndex;
   }
 
-  Island& IslandGraph::GetIslandFromNode(IslandIndex inIsland) {
+  Island& IslandGraph::_getIslandFromNode(IslandIndex inIsland) {
     IslandNode& nodeInIsland = mNodes[inIsland];
     return mIslands[nodeInIsland.mIsland];
   }
 
-  bool IslandGraph::Validate() {
-    std::vector<IndexableKey>& islands = GetIslandIndices();
+  bool IslandGraph::validate() {
+    std::vector<IndexableKey>& islands = _getIslandIndices();
     //Validate that both containers are in sync
-    if(islands.size() != mIslands.Size())
+    if(islands.size() != mIslands.size())
       return false;
 
     //Validate that each node in an island points back at the right island and that the island has as many nodes as it thinks it does
     for(IndexableKey islandKey : islands) {
       Island& island = mIslands[islandKey];
-      size_t staticNodes = GatherNodes(island.mRoot, mGatheredNodes);
+      size_t staticNodes = _gatherNodes(island.mRoot, mGatheredNodes);
 
       //Make sure island count matches traversed count
       if(island.mSize + staticNodes != mTraversedNodes.size())
@@ -559,8 +559,8 @@ namespace Syx {
           return false;
 
         //Check for duplicate edges
-        for(size_t i = 0; i < curNode.mEdges.Size(); ++i)
-          for(size_t j = i + 1; j < curNode.mEdges.Size(); ++j)
+        for(size_t i = 0; i < curNode.mEdges.size(); ++i)
+          for(size_t j = i + 1; j < curNode.mEdges.size(); ++j)
             if(curNode.mEdges[i] == curNode.mEdges[j])
               return false;
       }
@@ -569,13 +569,13 @@ namespace Syx {
     static std::unordered_set<Handle> constraints;
     static IslandContents contents;
     constraints.clear();
-    contents.Clear();
+    contents.clear();
 
-    for(size_t i = 0; i < IslandCount(); ++i) {
-      GetIsland(i, contents);
-      contents.Clear();
+    for(size_t i = 0; i < islandCount(); ++i) {
+      getIsland(i, contents);
+      contents.clear();
       for(Constraint* c : contents.mConstraints) {
-        if(!constraints.insert(c->GetHandle()).second)
+        if(!constraints.insert(c->getHandle()).second)
           return false;
       }
     }
@@ -583,7 +583,7 @@ namespace Syx {
     return true;
   }
 
-  void Island::SetInactive(float dt) {
+  void Island::setInactive(float dt) {
     switch(mSleepState) {
       //If we're not asleep, accumulate inactive time and go to sleep if it's been long enough
       case SleepState::Active:
@@ -605,7 +605,7 @@ namespace Syx {
     }
   }
 
-  void Island::SetActive(bool clearAwake) {
+  void Island::setActive(bool clearAwake) {
     switch(mSleepState) {
       //If we were inactive, reset inactive time and wake up
       case SleepState::Asleep:
@@ -629,8 +629,8 @@ namespace Syx {
     mInactiveTime = 0.0f;
   }
 
-  void IslandGraph::WakeIsland(PhysicsObject& obj) {
-    Handle handle = obj.GetHandle();
+  void IslandGraph::wakeIsland(PhysicsObject& obj) {
+    Handle handle = obj.getHandle();
     auto it = mObjectToNode.find(handle);
     //If we didn't find it, it's not involved in any islands, so nothing to wake
     if(it == mObjectToNode.end())
@@ -644,34 +644,34 @@ namespace Syx {
         break;
       //Could be in multiple islands, so we need to find them all and wake them
       case sStaticNodeIndex:
-        WakeIslandsWithStaticNode(nodeIndex);
+        _wakeIslandsWithStaticNode(nodeIndex);
         break;
       //Belongs to one island, update it
       default:
-        mIslands[node.mIsland].SetActive();
+        mIslands[node.mIsland].setActive();
         break;
     }
   }
 
-  void IslandGraph::WakeIslandsWithStaticNode(IslandIndex staticIndex) {
+  void IslandGraph::_wakeIslandsWithStaticNode(IslandIndex staticIndex) {
     //Don't have a way to find all islands a static node belongs to, but this shouldn't happen often,
     //as it's setting position of a static object, at which point it probably shouldn't be static
-    const std::vector<IndexableKey>& islands = GetIslandIndices();
+    const std::vector<IndexableKey>& islands = _getIslandIndices();
     for(IndexableKey islandKey : islands) {
       Island& island = mIslands[islandKey];
-      GatherNodes(island.mRoot, mGatheredNodes);
+      _gatherNodes(island.mRoot, mGatheredNodes);
       //Wake any islands that contain this node
       if(std::find(mGatheredNodes.begin(), mGatheredNodes.end(), staticIndex) != mGatheredNodes.end())
-        island.SetActive();
+        island.setActive();
     }
   }
 
-  void IslandGraph::UpdateIslandState(IndexableKey islandKey, SleepState stateThisFrame, float dt) {
+  void IslandGraph::updateIslandState(IndexableKey islandKey, SleepState stateThisFrame, float dt) {
     SyxAssertError(stateThisFrame == SleepState::Active || stateThisFrame == SleepState::Inactive, "Invalid state");
     Island& island = mIslands[islandKey];
     if(stateThisFrame == SleepState::Active)
-      island.SetActive(true);
+      island.setActive(true);
     else
-      island.SetInactive(dt);
+      island.setInactive(dt);
   }
 }

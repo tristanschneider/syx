@@ -12,7 +12,7 @@ namespace Syx {
     , mShouldRemove(&owner.mShouldRemove)
     , mInactiveTime(&owner.mInactiveTime) {}
 
-  void LocalContactConstraint::SetupContactJacobian(float massA, const Mat3& inertiaA, float massB, const Mat3& inertiaB) {
+  void LocalContactConstraint::_setupContactJacobian(float massA, const Mat3& inertiaA, float massB, const Mat3& inertiaB) {
     //The equation expects a normal going away from a, but manifold holds the opposite
     Vec3 normalB = -mManifold->mNormal;
     Vec3 normalA = mContactBlock.mNormal = mManifold->mNormal;
@@ -27,24 +27,24 @@ namespace Syx {
       mContactBlock.mLambdaSum[i] = 0.0f;
 
       const ContactPoint& c = mManifold->mContacts[i];
-      mContactBlock.mRCrossNA[i] = -((c.mObjA.mCurrentWorld - mBlockObjA.mPos).Cross(normalB));
-      mContactBlock.mRCrossNB[i] = (c.mObjB.mCurrentWorld - mBlockObjB.mPos).Cross(normalB);
+      mContactBlock.mRCrossNA[i] = -((c.mObjA.mCurrentWorld - mBlockObjA.mPos).cross(normalB));
+      mContactBlock.mRCrossNB[i] = (c.mObjB.mCurrentWorld - mBlockObjB.mPos).cross(normalB);
       mContactBlock.mRCrossNATInertia[i] = inertiaA*mContactBlock.mRCrossNA[i];
       mContactBlock.mRCrossNBTInertia[i] = inertiaB*mContactBlock.mRCrossNB[i];
 
       //Mass of the angular portion of the jacobian
-      float angularMass = mContactBlock.mRCrossNATInertia[i].Dot(mContactBlock.mRCrossNA[i]) + mContactBlock.mRCrossNBTInertia[i].Dot(mContactBlock.mRCrossNB[i]);
-      mContactBlock.mContactMass[i] = SafeDivide(1.0f, linearMass + angularMass, SYX_EPSILON);
+      float angularMass = mContactBlock.mRCrossNATInertia[i].dot(mContactBlock.mRCrossNA[i]) + mContactBlock.mRCrossNBTInertia[i].dot(mContactBlock.mRCrossNB[i]);
+      mContactBlock.mContactMass[i] = safeDivide(1.0f, linearMass + angularMass, SYX_EPSILON);
 
       mContactBlock.mEnforce[i] = c.mPenetration > 0.0f;
       float posError = -std::max(0.0f, c.mPenetration);
       //Position error is always negative
-      mContactBlock.mPenetrationBias[i] = Constraints::ComputeBiasNeg(posError, sPositionSlop*0.5f, sVelBaumgarteTerm, sMaxVelCorrection);
+      mContactBlock.mPenetrationBias[i] = Constraints::computeBiasNeg(posError, sPositionSlop*0.5f, sVelBaumgarteTerm, sMaxVelCorrection);
 
       if(mContactBlock.mEnforce[i]) {
         *mInactiveTime = 0.0f;
         if(c.mWarmContact) {
-          Constraints::ApplyImpulse(c.mWarmContact, mContactBlock.mNormalTMass[0], mContactBlock.mRCrossNATInertia[i], mContactBlock.mNormalTMass[1], mContactBlock.mRCrossNBTInertia[i], mBlockObjA, mBlockObjB);
+          Constraints::applyImpulse(c.mWarmContact, mContactBlock.mNormalTMass[0], mContactBlock.mRCrossNATInertia[i], mContactBlock.mNormalTMass[1], mContactBlock.mRCrossNBTInertia[i], mBlockObjA, mBlockObjB);
           mContactBlock.mLambdaSum[i] = c.mWarmContact;
         }
       }
@@ -59,10 +59,10 @@ namespace Syx {
       *mShouldRemove = true;
     }
 
-    SetupFrictionJacobian(massA, inertiaA, massB, inertiaB);
+    _setupFrictionJacobian(massA, inertiaA, massB, inertiaB);
   }
 
-  void LocalContactConstraint::SetupFrictionJacobian(float massA, const Mat3& inertiaA, float massB, const Mat3& inertiaB) {
+  void LocalContactConstraint::_setupFrictionJacobian(float massA, const Mat3& inertiaA, float massB, const Mat3& inertiaB) {
     for(int axis = 0; axis < 2; ++axis) {
       Vec3 dir = !axis ? mManifold->mTangentA : mManifold->mTangentB;
       FrictionAxisBlock& block = mFrictionBlock.mAxes[axis];
@@ -72,22 +72,22 @@ namespace Syx {
       block.mLinearA = axisA*massA;
       block.mLinearB = axisB*massB;
 
-      float linearMass = axisA.Dot(block.mLinearA) + axisB.Dot(block.mLinearB);
+      float linearMass = axisA.dot(block.mLinearA) + axisB.dot(block.mLinearB);
 
       for(size_t i = 0; i < mManifold->mSize; ++i) {
         const ContactPoint& c = mManifold->mContacts[i];
-        block.mRCrossAxisA[i] = -((c.mObjA.mCurrentWorld - mBlockObjA.mPos).Cross(dir));
-        block.mRCrossAxisB[i] = (c.mObjB.mCurrentWorld - mBlockObjB.mPos).Cross(dir);
+        block.mRCrossAxisA[i] = -((c.mObjA.mCurrentWorld - mBlockObjA.mPos).cross(dir));
+        block.mRCrossAxisB[i] = (c.mObjB.mCurrentWorld - mBlockObjB.mPos).cross(dir);
         block.mAngularA[i] = inertiaA*block.mRCrossAxisA[i];
         block.mAngularB[i] = inertiaB*block.mRCrossAxisB[i];
 
-        float angularMass = block.mRCrossAxisA[i].Dot(block.mAngularA[i]) + block.mRCrossAxisB[i].Dot(block.mAngularB[i]);
-        block.mConstraintMass[i] = SafeDivide(1.0f, linearMass + angularMass, SYX_EPSILON);
+        float angularMass = block.mRCrossAxisA[i].dot(block.mAngularA[i]) + block.mRCrossAxisB[i].dot(block.mAngularB[i]);
+        block.mConstraintMass[i] = safeDivide(1.0f, linearMass + angularMass, SYX_EPSILON);
 
         block.mLambdaSum[i] = 0.0f;
         float warmStart = c.mWarmFriction[axis];
         if(warmStart && mContactBlock.mEnforce[i]) {
-          Constraints::ApplyImpulse(warmStart, block.mLinearA, block.mAngularA[i], block.mLinearB, block.mAngularB[i], mBlockObjA, mBlockObjB);
+          Constraints::applyImpulse(warmStart, block.mLinearA, block.mAngularA[i], block.mLinearB, block.mAngularB[i], mBlockObjA, mBlockObjB);
           mFrictionBlock.mAxes[axis].mLambdaSum[i] = warmStart;
         }
       }
@@ -100,15 +100,15 @@ namespace Syx {
     }
 
     //Store result of warm starts from contact and friction
-    Constraints::StoreVelocity(mBlockObjA, mBlockObjB, *mA, *mB);
+    Constraints::storeVelocity(mBlockObjA, mBlockObjB, *mA, *mB);
   }
 
-  void LocalContactConstraint::FirstIteration(void) {
-    Constraints::LoadObjects(mBlockObjA, mBlockObjB, *mA, *mB);
-    SetupContactJacobian(mA->mInvMass, mA->mInertia, mB->mInvMass, mB->mInertia);
+  void LocalContactConstraint::firstIteration(void) {
+    Constraints::loadObjects(mBlockObjA, mBlockObjB, *mA, *mB);
+    _setupContactJacobian(mA->mInvMass, mA->mInertia, mB->mInvMass, mB->mInertia);
   }
 
-  void LocalContactConstraint::LastIteration(void) {
+  void LocalContactConstraint::lastIteration(void) {
     for(int i = 0; i < 4; ++i) {
       ContactPoint& c = mManifold->mContacts[i];
       if(!mContactBlock.mEnforce[i])
@@ -121,40 +121,40 @@ namespace Syx {
     }
   }
 
-  float LocalContactConstraint::Solve(void) {
+  float LocalContactConstraint::solve(void) {
     mFrictionBlock.mContactLambdaSum = mContactBlock.mLambdaSum;
-    Constraints::LoadVelocity(mBlockObjA, mBlockObjB, *mA, *mB);
+    Constraints::loadVelocity(mBlockObjA, mBlockObjB, *mA, *mB);
     float result = 0.0f;
     //Solve friction first because it's less important, and the last constraint wins
     for(int i = 0; i < 4; ++i)
       if(!mFrictionBlock.mEnforce[i])
         continue;
       else
-        result += SolveFriction(i);
+        result += _solveFriction(i);
 
     for(int i = 0; i < 4; ++i)
       if(!mContactBlock.mEnforce[i])
         continue;
       else
-        result += SolveContact(i);
+        result += _solveContact(i);
 
     //Store velocities back for other constraints to access
-    Constraints::StoreVelocity(mBlockObjA, mBlockObjB, *mA, *mB);
+    Constraints::storeVelocity(mBlockObjA, mBlockObjB, *mA, *mB);
     return result;
   }
 
-  float LocalContactConstraint::SolveContact(int i) {
+  float LocalContactConstraint::_solveContact(int i) {
     //J = jacobian, V = velocity vector, b = bias term, M = Jacobian mass
     //Calculate lambda = -(JV + b)*M^1
-    float jv = Constraints::ComputeJV(mContactBlock.mNormal, mContactBlock.mRCrossNA[i], -mContactBlock.mNormal, mContactBlock.mRCrossNB[i], mBlockObjA, mBlockObjB);
-    float lambda = Constraints::ComputeLambda(jv, mContactBlock.mPenetrationBias[i], mContactBlock.mContactMass[i]);
+    float jv = Constraints::computeJV(mContactBlock.mNormal, mContactBlock.mRCrossNA[i], -mContactBlock.mNormal, mContactBlock.mRCrossNB[i], mBlockObjA, mBlockObjB);
+    float lambda = Constraints::computeLambda(jv, mContactBlock.mPenetrationBias[i], mContactBlock.mContactMass[i]);
     //Clamp lambda term so contacts don't pull objects back together
-    Constraints::ClampLambdaMin(lambda, mContactBlock.mLambdaSum[i], 0.0f);
-    Constraints::ApplyImpulse(lambda, mContactBlock.mNormalTMass[0], mContactBlock.mRCrossNATInertia[i], mContactBlock.mNormalTMass[1], mContactBlock.mRCrossNBTInertia[i], mBlockObjA, mBlockObjB);
+    Constraints::clampLambdaMin(lambda, mContactBlock.mLambdaSum[i], 0.0f);
+    Constraints::applyImpulse(lambda, mContactBlock.mNormalTMass[0], mContactBlock.mRCrossNATInertia[i], mContactBlock.mNormalTMass[1], mContactBlock.mRCrossNBTInertia[i], mBlockObjA, mBlockObjB);
     return std::abs(lambda);
   }
 
-  float LocalContactConstraint::SolveFriction(int i) {
+  float LocalContactConstraint::_solveFriction(int i) {
     //This is supposed to come from the material. I'll do that later
     float frictionCoeff = 0.9f;
     float lambdaLimit = mFrictionBlock.mContactLambdaSum[i]*frictionCoeff;
@@ -167,25 +167,25 @@ namespace Syx {
     //Both axes
     for(int j = 0; j < 2; ++j) {
       FrictionAxisBlock& block = mFrictionBlock.mAxes[j];
-      float jv = Constraints::ComputeJV(block.mAxis, block.mRCrossAxisA[i], -block.mAxis, block.mRCrossAxisB[i], mBlockObjA, mBlockObjB);
+      float jv = Constraints::computeJV(block.mAxis, block.mRCrossAxisA[i], -block.mAxis, block.mRCrossAxisB[i], mBlockObjA, mBlockObjB);
       //No bias term for friction
-      float lambda = Constraints::ComputeLambda(jv, block.mConstraintMass[i]);
+      float lambda = Constraints::computeLambda(jv, block.mConstraintMass[i]);
       //Clamp lambda term so friction doesn't work harder than normal force
-      Constraints::ClampLambda(lambda, block.mLambdaSum[i], lowerBound, upperBound);
-      Constraints::ApplyImpulse(lambda, block.mLinearA, block.mAngularA[i], block.mLinearB, block.mAngularB[i], mBlockObjA, mBlockObjB);
+      Constraints::clampLambda(lambda, block.mLambdaSum[i], lowerBound, upperBound);
+      Constraints::applyImpulse(lambda, block.mLinearA, block.mAngularA[i], block.mLinearB, block.mAngularB[i], mBlockObjA, mBlockObjB);
       result += std::abs(lambda);
     }
     return result;
   }
 
-  void LocalContactConstraint::Draw() {
-    mManifold->Draw();
+  void LocalContactConstraint::draw() {
+    mManifold->draw();
   }
 
-  float LocalContactConstraint::SSolve(void) {
+  float LocalContactConstraint::sSolve(void) {
     SFloats lambdaSum = SLoadAll(&mContactBlock.mLambdaSum.x);
     SFloats linVelA, angVelA, linVelB, angVelB;
-    SConstraints::LoadVelocity(*mA, *mB, linVelA, angVelA, linVelB, angVelB);
+    SConstraints::loadVelocity(*mA, *mB, linVelA, angVelA, linVelB, angVelB);
     SFloats result = SVec3::Zero;
 
     //Solve friction first because it's less important, and the last constraint wins
@@ -196,29 +196,29 @@ namespace Syx {
       //This is supposed to come from the material. I'll do that later
       SAlign float frictionCoeff = 0.9f;
       SFloats fcoeff = SLoadSplat(&frictionCoeff);
-      SFloats upperBound = SAbsAll(SMulAll(lambdaSum, fcoeff));
+      SFloats upperBound = sAbsAll(SMulAll(lambdaSum, fcoeff));
 
       //Both axes
       for(int j = 0; j < 2; ++j) {
         FrictionAxisBlock& block = mFrictionBlock.mAxes[j];
         SFloats blockAxis = SLoadAll(&block.mAxis.x);
-        SFloats jv = SConstraints::ComputeJV(blockAxis, SLoadAll(&block.mRCrossAxisA[i].x), SVec3::Neg(blockAxis), SLoadAll(&block.mRCrossAxisB[i].x), linVelA, angVelA, linVelB, angVelB);
+        SFloats jv = SConstraints::computeJV(blockAxis, SLoadAll(&block.mRCrossAxisA[i].x), SVec3::neg(blockAxis), SLoadAll(&block.mRCrossAxisB[i].x), linVelA, angVelA, linVelB, angVelB);
         //No bias term for friction
-        SFloats lambda = SConstraints::ComputeLambda(jv, SLoadSplat(&block.mConstraintMass[i]));
+        SFloats lambda = SConstraints::computeLambda(jv, SLoadSplat(&block.mConstraintMass[i]));
 
         //Clamp lambda term so friction doesn't work harder than normal force
         SFloats sum = SLoadSplat(&block.mLambdaSum[i]);
         SFloats oldSum = sum;
         //Upper bound is all of them, splat the one we care about
-        SFloats ubound = SSplatIndex(upperBound, i);
-        SConstraints::ClampLambda(lambda, sum, SVec3::Neg(ubound), ubound);
+        SFloats ubound = sSplatIndex(upperBound, i);
+        SConstraints::clampLambda(lambda, sum, SVec3::neg(ubound), ubound);
 
         SAlign Vec3 lamStore;
         SStoreAll(&lamStore.x, sum);
         block.mLambdaSum[i] = lamStore.x;
 
-        SConstraints::ApplyImpulse(lambda, linVelA, angVelA, linVelB, angVelB, SLoadAll(&block.mLinearA.x), SLoadAll(&block.mAngularA[i].x), SLoadAll(&block.mLinearB.x), SLoadAll(&block.mAngularB[i].x));
-        result = SAddAll(result, SAbsAll(lambda));
+        SConstraints::applyImpulse(lambda, linVelA, angVelA, linVelB, angVelB, SLoadAll(&block.mLinearA.x), SLoadAll(&block.mAngularA[i].x), SLoadAll(&block.mLinearB.x), SLoadAll(&block.mAngularB[i].x));
+        result = SAddAll(result, sAbsAll(lambda));
       }
     }
 
@@ -229,26 +229,26 @@ namespace Syx {
 
       //J = jacobian, V = velocity vector, b = bias term, M = Jacobian mass
       //Calculate lambda = -(JV + b)*M^1
-      SFloats jv = SConstraints::ComputeJV(normal, SLoadAll(&mContactBlock.mRCrossNA[i].x), SVec3::Neg(normal), SLoadAll(&mContactBlock.mRCrossNB[i].x), linVelA, angVelA, linVelB, angVelB);
-      SFloats lambda = SConstraints::ComputeLambda(jv, SLoadSplat(&mContactBlock.mPenetrationBias[i]), SLoadSplat(&mContactBlock.mContactMass[i]));
+      SFloats jv = SConstraints::computeJV(normal, SLoadAll(&mContactBlock.mRCrossNA[i].x), SVec3::neg(normal), SLoadAll(&mContactBlock.mRCrossNB[i].x), linVelA, angVelA, linVelB, angVelB);
+      SFloats lambda = SConstraints::computeLambda(jv, SLoadSplat(&mContactBlock.mPenetrationBias[i]), SLoadSplat(&mContactBlock.mContactMass[i]));
 
       //Clamp lambda term so contacts don't pull objects back together
-      SFloats sum = SSplatIndex(lambdaSum, i);
-      SConstraints::ClampLambdaMin(lambda, sum, SVec3::Zero);
+      SFloats sum = sSplatIndex(lambdaSum, i);
+      SConstraints::clampLambdaMin(lambda, sum, SVec3::Zero);
 
       SAlign Vec3 lamstore;
       SStoreAll(&lamstore.x, sum);
       mContactBlock.mLambdaSum[i] = lamstore.x;
 
       const ContactBlock& cb = mContactBlock;
-      SConstraints::ApplyImpulse(lambda, linVelA, angVelA, linVelB, angVelB,
+      SConstraints::applyImpulse(lambda, linVelA, angVelA, linVelB, angVelB,
         SLoadAll(&cb.mNormalTMass[0].x), SLoadAll(&cb.mRCrossNATInertia[i].x), SLoadAll(&cb.mNormalTMass[1].x), SLoadAll(&cb.mRCrossNBTInertia[i].x));
 
-      result = SAddAll(result, SAbsAll(lambda));
+      result = SAddAll(result, sAbsAll(lambda));
     }
 
     //Store velocities back for other constraints to access
-    SConstraints::StoreVelocity(linVelA, angVelA, linVelB, angVelB, *mA, *mB);
+    SConstraints::storeVelocity(linVelA, angVelA, linVelB, angVelB, *mA, *mB);
     SAlign Vec3 resultStore;
     SStoreAll(&resultStore.x, result);
     return resultStore.x;

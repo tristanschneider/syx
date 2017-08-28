@@ -4,26 +4,26 @@
 
 namespace Syx {
   ContactPoint::ContactPoint(const ContactObject& a, const ContactObject& b, const Vec3& normal):
-    mObjA(a), mObjB(b), mPenetration((b.mStartingWorld - a.mStartingWorld).Dot(normal)), mWarmContact(0.0f), mWarmFriction{0.0f} {
+    mObjA(a), mObjB(b), mPenetration((b.mStartingWorld - a.mStartingWorld).dot(normal)), mWarmContact(0.0f), mWarmFriction{0.0f} {
   }
 
-  void ContactPoint::Draw(PhysicsObject* a, PhysicsObject* b, const Vec3& normal) const {
-    DebugDrawer& d = DebugDrawer::Get();
-    Vec3 ca = a->GetTransform().ModelToWorld(mObjA.mModelPoint);
-    Vec3 cb = b->GetTransform().ModelToWorld(mObjB.mModelPoint);
+  void ContactPoint::draw(PhysicsObject* a, PhysicsObject* b, const Vec3& normal) const {
+    DebugDrawer& d = DebugDrawer::get();
+    Vec3 ca = a->getTransform().modelToWorld(mObjA.mModelPoint);
+    Vec3 cb = b->getTransform().modelToWorld(mObjB.mModelPoint);
 
-    d.SetColor(1.0f, 0.0f, 0.0f);
-    DrawCube(ca, 0.1f);
-    d.DrawPoint(mObjA.mStartingWorld, 0.1f);
-    d.DrawVector(ca, normal);
+    d.setColor(1.0f, 0.0f, 0.0f);
+    drawCube(ca, 0.1f);
+    d.drawPoint(mObjA.mStartingWorld, 0.1f);
+    d.drawVector(ca, normal);
 
-    d.SetColor(0.0f, 0.0f, 1.0f);
-    DrawCube(cb, 0.1f);
-    d.DrawPoint(mObjB.mStartingWorld, 0.1f);
-    d.DrawVector(cb, -normal);
+    d.setColor(0.0f, 0.0f, 1.0f);
+    drawCube(cb, 0.1f);
+    d.drawPoint(mObjB.mStartingWorld, 0.1f);
+    d.drawVector(cb, -normal);
   }
 
-  void ContactPoint::Replace(const ContactPoint& c) {
+  void ContactPoint::replace(const ContactPoint& c) {
     mObjA = c.mObjA;
     mObjB = c.mObjB;
     mPenetration = c.mPenetration;
@@ -34,51 +34,51 @@ namespace Syx {
   float Manifold::sMatchTolerance = 0.01f;
   float Manifold::sNormalMatchTolerance = 0.01f;
 
-  void Manifold::ReplaceNormal(const Vec3& newNormal) {
+  void Manifold::_replaceNormal(const Vec3& newNormal) {
     mNormal = newNormal;
     //Normal is only replaced if it is sufficiently different, so no need to try to make friction axes similar
-    mNormal.GetBasis(mTangentA, mTangentB);
+    mNormal.getBasis(mTangentA, mTangentB);
   }
 
-  void Manifold::MatchNormal(const Vec3& newNormal) {
-    float dot = mNormal.Dot(newNormal);
+  void Manifold::_matchNormal(const Vec3& newNormal) {
+    float dot = mNormal.dot(newNormal);
     if(1.0f - dot > sNormalMatchTolerance) {
-      ReplaceNormal(newNormal);
+      _replaceNormal(newNormal);
       //Since the normal changed, penetration values need to be updated
-      Update();
+      update();
     }
   }
 
-  void Manifold::AddContact(const ContactPoint& contact, const Vec3& normal) {
-    if(Interface::GetOptions().mDebugFlags & SyxOptions::DrawNewContact)
-      DrawCube(contact.mObjA.mStartingWorld, 0.1f);
+  void Manifold::addContact(const ContactPoint& contact, const Vec3& normal) {
+    if(Interface::getOptions().mDebugFlags & SyxOptions::DrawNewContact)
+      drawCube(contact.mObjA.mStartingWorld, 0.1f);
 
     if(!mSize) {
-      PushContact(contact);
-      ReplaceNormal(normal);
+      _pushContact(contact);
+      _replaceNormal(normal);
       return;
     }
 
-    MatchNormal(normal);
+    _matchNormal(normal);
 
     //Look for contacts that could be replaced (within thresholds)
     for(size_t i = 0; i < mSize; ++i) {
       ContactPoint& p = mContacts[i];
       //They'll either both be within or not, so I don't need to check both a and b. Arbitrarily check a
       //Using world or model space for this test has its tradeoffs. World space will give more consistent results
-      if(p.mObjA.mStartingWorld.Distance2(contact.mObjA.mStartingWorld) < sMatchTolerance) {
-        mContacts[i].Replace(contact);
+      if(p.mObjA.mStartingWorld.distance2(contact.mObjA.mStartingWorld) < sMatchTolerance) {
+        mContacts[i].replace(contact);
         return;
       }
     }
 
     if(mSize < MAX_CONTACTS)
-      PushContact(contact);
+      _pushContact(contact);
     else
-      AddToFull(contact);
+      _addToFull(contact);
   }
 
-  void Manifold::AddToFull(const ContactPoint& contact) {
+  void Manifold::_addToFull(const ContactPoint& contact) {
     //Put everything in here for convenient iteration
     const ContactPoint* points[5] = {&mContacts[0], &mContacts[1], &mContacts[2], &mContacts[3], &contact};
 
@@ -87,7 +87,7 @@ namespace Syx {
     float bestDist = 0.0f;
     for(int i = 0; i < 5; ++i)
       for(int j = i + 1; j < 5; ++j) {
-        float curDist = points[i]->mObjA.mStartingWorld.Distance2(points[j]->mObjA.mStartingWorld);
+        float curDist = points[i]->mObjA.mStartingWorld.distance2(points[j]->mObjA.mStartingWorld);
         if(curDist > bestDist) {
           bestDist = curDist;
           bestPair = {i, j};
@@ -104,7 +104,7 @@ namespace Syx {
     float bestArea = 0.0f;
     int bestThird = 0;
     for(int i = 2; i < 5; ++i) {
-      float curArea = (points[i]->mObjA.mStartingWorld - lineStart).Cross(line).Length2();
+      float curArea = (points[i]->mObjA.mStartingWorld - lineStart).cross(line).length2();
       if(curArea > bestArea) {
         bestArea = curArea;
         bestThird = i;
@@ -116,17 +116,17 @@ namespace Syx {
 
     //Find furthest point from triangle
     Vec3 pA, pB, pC;
-    GetOutwardTriPlanes(points[0]->mObjA.mStartingWorld, points[1]->mObjA.mStartingWorld, points[2]->mObjA.mStartingWorld, pA, pB, pC, true);
+    getOutwardTriPlanes(points[0]->mObjA.mStartingWorld, points[1]->mObjA.mStartingWorld, points[2]->mObjA.mStartingWorld, pA, pB, pC, true);
     //Get distance from each plane for index 3
-    float dA = pA.Dot4(points[3]->mObjA.mStartingWorld);
-    float dB = pB.Dot4(points[3]->mObjA.mStartingWorld);
-    float dC = pC.Dot4(points[3]->mObjA.mStartingWorld);
+    float dA = pA.dot4(points[3]->mObjA.mStartingWorld);
+    float dB = pB.dot4(points[3]->mObjA.mStartingWorld);
+    float dC = pC.dot4(points[3]->mObjA.mStartingWorld);
     float distA = std::max(dA, std::max(dB, dC));
 
     //Get distance from each plane for index 4
-    dA = pA.Dot4(points[4]->mObjA.mStartingWorld);
-    dB = pB.Dot4(points[4]->mObjA.mStartingWorld);
-    dC = pC.Dot4(points[4]->mObjA.mStartingWorld);
+    dA = pA.dot4(points[4]->mObjA.mStartingWorld);
+    dB = pB.dot4(points[4]->mObjA.mStartingWorld);
+    dC = pC.dot4(points[4]->mObjA.mStartingWorld);
     float distB = std::max(dA, std::max(dB, dC));
 
     //Put the further point in slot 4
@@ -146,46 +146,46 @@ namespace Syx {
       mContacts[i] = temp[i];
   }
 
-  void Manifold::Update(void) {
-    Transformer tA = mA->GetOwner()->GetTransform().GetModelToWorld();
-    Transformer tB = mB->GetOwner()->GetTransform().GetModelToWorld();
+  void Manifold::update(void) {
+    Transformer tA = mA->getOwner()->getTransform().getModelToWorld();
+    Transformer tB = mB->getOwner()->getTransform().getModelToWorld();
 
     for(size_t i = 0; i < mSize;) {
       ContactPoint& p = mContacts[i];
-      Vec3 aWorld = tA.TransformPoint(p.mObjA.mModelPoint);
+      Vec3 aWorld = tA.transformPoint(p.mObjA.mModelPoint);
 
       //If either has drifted out of the tolerance range, remove it
       Vec3 aDrift = aWorld - p.mObjA.mStartingWorld;
-      if(std::abs(aDrift.Dot(mNormal)) > sNormalTolerance ||
-        std::abs(aDrift.Dot(mTangentA)) > sTangentTolerance ||
-        std::abs(aDrift.Dot(mTangentB)) > sTangentTolerance) {
-        RemoveContact(i);
+      if(std::abs(aDrift.dot(mNormal)) > sNormalTolerance ||
+        std::abs(aDrift.dot(mTangentA)) > sTangentTolerance ||
+        std::abs(aDrift.dot(mTangentB)) > sTangentTolerance) {
+        _removeContact(i);
         continue;
       }
 
-      Vec3 bWorld = tB.TransformPoint(p.mObjB.mModelPoint);
+      Vec3 bWorld = tB.transformPoint(p.mObjB.mModelPoint);
       Vec3 bDrift = bWorld - p.mObjB.mStartingWorld;
-      if(std::abs(bDrift.Dot(mNormal)) > sNormalTolerance ||
-        std::abs(bDrift.Dot(mTangentA)) > sTangentTolerance ||
-        std::abs(bDrift.Dot(mTangentB)) > sTangentTolerance) {
-        RemoveContact(i);
+      if(std::abs(bDrift.dot(mNormal)) > sNormalTolerance ||
+        std::abs(bDrift.dot(mTangentA)) > sTangentTolerance ||
+        std::abs(bDrift.dot(mTangentB)) > sTangentTolerance) {
+        _removeContact(i);
         continue;
       }
 
       //If we got here, this contact is still good, update penetration and world values
-      p.mPenetration = (bWorld - aWorld).Dot(mNormal);
+      p.mPenetration = (bWorld - aWorld).dot(mNormal);
       p.mObjA.mCurrentWorld = aWorld;
       p.mObjB.mCurrentWorld = bWorld;
       ++i;
     }
   }
 
-  void Manifold::PushContact(const ContactPoint& contact) {
+  void Manifold::_pushContact(const ContactPoint& contact) {
     SyxAssertError(mSize < MAX_CONTACTS);
     mContacts[mSize++] = contact;
   }
 
-  void Manifold::RemoveContact(size_t index) {
+  void Manifold::_removeContact(size_t index) {
     SyxAssertError(mSize > 0);
     //Swap remove
     if(mSize > 1)
@@ -193,22 +193,22 @@ namespace Syx {
     --mSize;
   }
 
-  void Manifold::Draw(void) {
-    DebugDrawer& d = DebugDrawer::Get();
+  void Manifold::draw(void) {
+    DebugDrawer& d = DebugDrawer::get();
     Vec3 center = Vec3::Zero;
     for(size_t i = 0; i < mSize; ++i) {
-      mContacts[i].Draw(mA->GetOwner(), mB->GetOwner(), mNormal);
+      mContacts[i].draw(mA->getOwner(), mB->getOwner(), mNormal);
       center += mContacts[i].mObjA.mCurrentWorld;
     }
 
     if(mSize) {
       center /= static_cast<float>(mSize);
-      d.SetColor(1.0f, 0.0f, 0.0f);
-      d.DrawVector(center, mNormal);
-      d.SetColor(0.0f, 1.0f, 0.0f);
-      d.DrawVector(center, mTangentA);
-      d.SetColor(0.0f, 0.0f, 1.0f);
-      d.DrawVector(center, mTangentB);
+      d.setColor(1.0f, 0.0f, 0.0f);
+      d.drawVector(center, mNormal);
+      d.setColor(0.0f, 1.0f, 0.0f);
+      d.drawVector(center, mTangentA);
+      d.setColor(0.0f, 0.0f, 1.0f);
+      d.drawVector(center, mTangentB);
     }
   }
 }

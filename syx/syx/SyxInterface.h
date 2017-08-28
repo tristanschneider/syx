@@ -35,27 +35,24 @@ namespace Syx {
   };
 
   namespace Interface {
-    SyxOptions GetOptions(void);
+    SyxOptions getOptions(void);
 
-    void SetColor(float r, float g, float b);
-    void DrawLine(const Vec3& start, const Vec3& end);
-    void DrawVector(const Vec3& start, const Vec3& direction);
-    void DrawSphere(const Vec3& center, float radius, const Vec3& right, const Vec3& up);
+    void setColor(float r, float g, float b);
+    void drawLine(const Vec3& start, const Vec3& end);
+    void drawVector(const Vec3& start, const Vec3& direction);
+    void drawSphere(const Vec3& center, float radius, const Vec3& right, const Vec3& up);
     // Size is whole size, not half size
-    void DrawCube(const Vec3& center, const Vec3& size, const Vec3& right, const Vec3& up);
+    void drawCube(const Vec3& center, const Vec3& size, const Vec3& right, const Vec3& up);
     // Simple representation of a point, like a cross where size is the length from one side to the other
-    void DrawPoint(const Vec3& point, float size);
+    void drawPoint(const Vec3& point, float size);
 
     // 16 byte aligned
-    void* AllocAligned(size_t size);
-    void FreeAligned(void* p);
+    void* allocAligned(size_t size);
+    void freeAligned(void* p);
 
-    void* Alloc(size_t size);
-    void Free(void* p);
+    void* allocUnaligned(size_t size);
+    void freeUnaligned(void* p);
 
-    // Different types of allocations?
-
-    // Maybe put logs and asserts here too
-    void Log(const std::string& message);
+    void log(const std::string& message);
   }
 }

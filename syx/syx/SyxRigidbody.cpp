@@ -6,18 +6,18 @@
 
 namespace Syx {
 #ifdef SENABLED
-  void Rigidbody::SCalculateMass(void) {
+  void Rigidbody::sCalculateMass(void) {
 
   }
 #endif
 
-  void Rigidbody::UpdateInertia(void) {
-    Mat3 rot = mOwner->GetTransform().mRot.ToMatrix();
-    mInvInertia = rot.Scaled(mLocalInertia) * rot.Transposed();
+  void Rigidbody::updateInertia(void) {
+    Mat3 rot = mOwner->getTransform().mRot.toMatrix();
+    mInvInertia = rot.scaled(mLocalInertia) * rot.transposed();
   }
 
-  void Rigidbody::CalculateMass(void) {
-    Collider* collider = mOwner->GetCollider();
+  void Rigidbody::calculateMass(void) {
+    Collider* collider = mOwner->getCollider();
     if(!collider) {
       //Default to identity values so colliderless objects with rigidbodies can still move with velocity
       mInvInertia = Vec3::Identity;
@@ -25,56 +25,56 @@ namespace Syx {
       return;
     }
 
-    Vec3 scale = mOwner->GetTransform().mScale;
-    MassInfo info = collider->GetModel().ComputeMasses(scale);
+    Vec3 scale = mOwner->getTransform().mScale;
+    MassInfo info = collider->getModel()._computeMasses(scale);
     mInvMass = info.mMass;
     mLocalInertia = info.mInertia;
 
-    float density = collider->GetModelInstance().GetMaterial().mDensity;
+    float density = collider->getModelInstance().getMaterial().mDensity;
     mInvMass *= density;
     mLocalInertia *= density;
 
     // Use no epsilon. Masses can get tiny and still be okay
-    mInvMass = SafeDivide(1.0f, mInvMass, 0.0f);
+    mInvMass = safeDivide(1.0f, mInvMass, 0.0f);
     for(int i = 0; i < 3; ++i)
-      mLocalInertia[i] = SafeDivide(1.0f, mLocalInertia[i], 0.0f);
+      mLocalInertia[i] = safeDivide(1.0f, mLocalInertia[i], 0.0f);
 
-    UpdateInertia();
+    updateInertia();
   }
 
-  void Rigidbody::IntegratePosition(float dt) {
-    Transform& t = mOwner->GetTransform();
+  void Rigidbody::integratePosition(float dt) {
+    Transform& t = mOwner->getTransform();
     t.mPos += mLinVel*dt;
 
     Quat quatVel(mAngVel, 0.0f);
     Quat spin = 0.5f*quatVel*t.mRot;
     t.mRot += spin*dt;
-    t.mRot.Normalize();
+    t.mRot.normalize();
 
-    UpdateInertia();
+    updateInertia();
   }
 
-  void Rigidbody::IntegrateVelocity(float dt) {
+  void Rigidbody::integrateVelocity(float dt) {
     if(mInvMass < SYX_EPSILON)
       return;
 
     //Other accelerations would go here, but there's only gravity now
-    mLinVel += GetGravity()*dt;
+    mLinVel += getGravity()*dt;
   }
 
-  PhysicsObject* Rigidbody::GetOwner(void) {
+  PhysicsObject* Rigidbody::getOwner(void) {
     return mOwner;
   }
 
-  Vec3 Rigidbody::GetGravity() {
+  Vec3 Rigidbody::getGravity() {
     return Vec3(0.0f, -10.0f, 0.0f);
   }
 
-  Vec3 Rigidbody::GetUnintegratedLinearVelocity() {
-    return mLinVel - GetGravity()*PhysicsSystem::sSimRate;
+  Vec3 Rigidbody::getUnintegratedLinearVelocity() {
+    return mLinVel - getGravity()*PhysicsSystem::sSimRate;
   }
 
-  Vec3 Rigidbody::GetUnintegratedAngularVelocity() {
+  Vec3 Rigidbody::getUnintegratedAngularVelocity() {
     //No angular acceleration, so it's just this
     return mAngVel;
   }

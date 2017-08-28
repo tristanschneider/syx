@@ -77,7 +77,7 @@ void Space::uninit() {
 }
 
 Gameobject* Space::createObject() {
-  Handle h = mObjectGen.Next();
+  Handle h = mObjectGen.next();
   return &mObjects.pushBack(Gameobject(h, &mApp->getSystem<MessagingSystem>(SystemId::Messaging)), h);
 }
 

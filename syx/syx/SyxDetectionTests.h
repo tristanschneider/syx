@@ -1,13 +1,13 @@
 #pragma once
 
 namespace Syx {
-  bool TestAllDetection(void);
-  bool TestModel(void);
-  bool TestTransform(void);
-  bool TestSimplex(void);
+  bool testAllDetection();
+  bool testModel();
+  bool testTransform();
+  bool testSimplex();
 
   class NarrowphaseTest {
   public:
-    static bool Run(void);
+    static bool run();
   };
 }

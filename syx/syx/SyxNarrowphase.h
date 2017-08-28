@@ -31,55 +31,55 @@ namespace Syx {
 
     Narrowphase& operator=(const Narrowphase& rhs);
 
-    void ProcessPairQuery(const BroadPairs& pairs, Space& space);
-    void ProcessRayQuery(const BroadResults& objs, const Vec3& start, const Vec3& end, Space& space);
-    void ProcessVolumeQuery(const BroadResults& objs, const BoundingVolume& volume, Space& space);
+    void processPairQuery(const BroadPairs& pairs, Space& space);
+    void processRayQuery(const BroadResults& objs, const Vec3& start, const Vec3& end, Space& space);
+    void processVolumeQuery(const BroadResults& objs, const BoundingVolume& volume, Space& space);
 
   private:
     //Once m_a, m_b, m_space are set, this is called to find the right pair function and call it, which takes care of everything
-    void HandlePair(void);
-    CollisionHandler& GetHandler(int modelTypeA, int modelTypeB);
+    void _handlePair(void);
+    CollisionHandler& _getHandler(int modelTypeA, int modelTypeB);
 
-    void GJKEPAHandler();
-    void SphereSphereHandler();
-    void CompositeOtherHandler();
-    void OtherCompositeHandler();
-    void CompositeCompositeHandler();
-    void EnvOtherHandler();
-    void OtherEnvHandler();
-    void EnvEnvHandler();
-    void EnvCompositeHandler();
-    void CompositeEnvHandler();
+    void _gjkEPAHandler();
+    void _sphereSphereHandler();
+    void _compositeOtherHandler();
+    void _otherCompositeHandler();
+    void _compositeCompositeHandler();
+    void _envOtherHandler();
+    void _otherEnvHandler();
+    void _envEnvHandler();
+    void _envCompositeHandler();
+    void _compositeEnvHandler();
 
-    void InitHandlers(void);
+    void _initHandlers(void);
 
-    bool GJK(void);
+    bool _gjk(void);
 
-    Vec3 EPA(ContactPoint& result);
-    void InitEPASimplex(void);
-    SupportTri* GetClosestTri(void);
-    void DeleteInteriorTris(const Vec3& newPoint);
-    void ReconstructTriangles(void);
-    Vec3 StoreEPAResult(ContactPoint& result, SupportTri* bestTri);
+    Vec3 _epa(ContactPoint& result);
+    void _initEPASimplex(void);
+    SupportTri* _getClosestTri(void);
+    void _deleteInteriorTris(const Vec3& newPoint);
+    void _reconstructTriangles(void);
+    Vec3 _storeEPAResult(ContactPoint& result, SupportTri* bestTri);
 
-    void SubmitContact(const Vec3& worldA, const Vec3& worldB, const Vec3& normal);
-    void SubmitContact(const Vec3& worldA, const Vec3& worldB, const Vec3& normal, float penetration);
-    void SubmitContact(const ContactPoint& contact, const Vec3& normal);
+    void _submitContact(const Vec3& worldA, const Vec3& worldB, const Vec3& normal);
+    void _submitContact(const Vec3& worldA, const Vec3& worldB, const Vec3& normal, float penetration);
+    void _submitContact(const ContactPoint& contact, const Vec3& normal);
 
-    SupportPoint GetSupport(const Vec3& dir);
+    SupportPoint _getSupport(const Vec3& dir);
 
-    SupportPoint SGetSupport(const Vec3& dir);
-    SupportPoint SGetSupport(SFloats dir);
-    SupportPoint SGetSupport(SFloats dir, SFloats& resultSupport);
-    void SDeleteInteriorTris(SFloats newPoint);
-    void SReconstructTriangles(SFloats newSupport);
+    SupportPoint _sGetSupport(const Vec3& dir);
+    SupportPoint _sGetSupport(SFloats dir);
+    SupportPoint _sGetSupport(SFloats dir, SFloats& resultSupport);
+    void _sDeleteInteriorTris(SFloats newPoint);
+    void _sReconstructTriangles(SFloats newSupport);
 
-    bool SGJK(void);
-    Vec3 SEPA(ContactPoint& result);
+    bool _sGJK(void);
+    Vec3 _sEPA(ContactPoint& result);
 
-    void DrawEPA(SupportTri* bestTri);
+    void _drawEPA(SupportTri* bestTri);
 
-    void SwapAB();
+    void _swapAB();
 
     static float sepaEpsilon;
 

@@ -27,28 +27,28 @@ namespace Syx {
     Rigidbody(const Rigidbody&) = delete;
     Rigidbody& operator=(const Rigidbody&) = delete;
 
-    void SCalculateMass(void);
+    void sCalculateMass(void);
 
-    void UpdateInertia(void);
-    void CalculateMass(void);
+    void updateInertia(void);
+    void calculateMass(void);
 
-    void IntegratePosition(float dt);
-    void IntegrateVelocity(float dt);
+    void integratePosition(float dt);
+    void integrateVelocity(float dt);
 
-    PhysicsObject* GetOwner(void);
+    PhysicsObject* getOwner(void);
 
-    void SetFlag(int flag, bool value) { SetBits(mFlags, flag, value); }
-    bool GetFlag(int flag) { return (mFlags & flag) != 0; }
+    void setFlag(int flag, bool value) { setBits(mFlags, flag, value); }
+    bool getFlag(int flag) { return (mFlags & flag) != 0; }
 
-    const Mat3& GetInertia(void) { return mInvInertia; }
-    float GetMass(void) { return mInvMass; }
+    const Mat3& getInertia(void) { return mInvInertia; }
+    float getMass(void) { return mInvMass; }
 
     SAlign Vec3 mLinVel;
     SAlign Vec3 mAngVel;
 
-    Vec3 GetGravity();
-    Vec3 GetUnintegratedLinearVelocity();
-    Vec3 GetUnintegratedAngularVelocity();
+    Vec3 getGravity();
+    Vec3 getUnintegratedLinearVelocity();
+    Vec3 getUnintegratedAngularVelocity();
 
   private:
     SAlign Vec3 mLocalInertia;

@@ -20,82 +20,82 @@ namespace Syx {
 
     PhysicsSystem();
 
-    void Update(float dt);
+    void update(float dt);
 
     //Adding resources this way leaves the possibility of adding a resource layer on top of it that would call these,
     //which is probably what should happen to reduce dependencies
-    Handle AddModel(const ModelParam& newModel);
-    Handle AddCompositeModel(const CompositeModelParam& newModel);
-    Handle AddMaterial(const Material& newMaterial);
+    Handle addModel(const ModelParam& newModel);
+    Handle addCompositeModel(const CompositeModelParam& newModel);
+    Handle addMaterial(const Material& newMaterial);
 
-    Handle AddDistanceConstraint(DistanceOps ops);
-    Handle AddSphericalConstraint(SphericalOps ops);
-    Handle AddWeldConstraint(WeldOps ops);
-    Handle AddRevoluteConstraint(RevoluteOps ops);
+    Handle addDistanceConstraint(DistanceOps ops);
+    Handle addSphericalConstraint(SphericalOps ops);
+    Handle addWeldConstraint(WeldOps ops);
+    Handle addRevoluteConstraint(RevoluteOps ops);
 
-    void RemoveConstraint(Handle space, Handle constraint);
+    void removeConstraint(Handle space, Handle constraint);
 
-    void UpdateModel(Handle handle, const Model& updated);
-    void UpdateMaterial(Handle handle, const Material& updated);
+    void updateModel(Handle handle, const Model& updated);
+    void updateMaterial(Handle handle, const Material& updated);
 
-    const Model* GetModel(Handle handle);
-    const Material* GetMaterial(Handle handle);
+    const Model* getModel(Handle handle);
+    const Material* getMaterial(Handle handle);
 
-    void RemoveModel(Handle handle);
-    void RemoveMaterial(Handle handle);
+    void removeModel(Handle handle);
+    void removeMaterial(Handle handle);
 
-    Handle AddSpace(void);
-    void RemoveSpace(Handle handle);
-    void ClearSpace(Handle handle);
+    Handle addSpace();
+    void removeSpace(Handle handle);
+    void clearSpace(Handle handle);
 
-    Handle AddPhysicsObject(bool hasRigidbody, bool hasCollider, Handle space);
-    void RemovePhysicsObject(Handle space, Handle object);
+    Handle addPhysicsObject(bool hasRigidbody, bool hasCollider, Handle space);
+    void removePhysicsObject(Handle space, Handle object);
 
-    void SetHasRigidbody(bool has, Handle space, Handle object);
-    void SetHasCollider(bool has, Handle space, Handle object);
-    bool GetHasRigidbody(Handle space, Handle object);
-    bool GetHasCollider(Handle space, Handle object);
+    void setHasRigidbody(bool has, Handle space, Handle object);
+    void setHasCollider(bool has, Handle space, Handle object);
+    bool getHasRigidbody(Handle space, Handle object);
+    bool getHasCollider(Handle space, Handle object);
 
-    void SetObjectModel(Handle space, Handle object, Handle model);
-    void SetObjectMaterial(Handle space, Handle object, Handle material);
+    void setObjectModel(Handle space, Handle object, Handle model);
+    void setObjectMaterial(Handle space, Handle object, Handle material);
 
-    void SetVelocity(Handle space, Handle object, const Vec3& vel);
-    Vec3 GetVelocity(Handle space, Handle object);
+    void setVelocity(Handle space, Handle object, const Vec3& vel);
+    Vec3 getVelocity(Handle space, Handle object);
 
-    void SetAngularVelocity(Handle space, Handle object, const Vec3& angVel);
-    Vec3 GetAngularVelocity(Handle space, Handle object);
+    void setAngularVelocity(Handle space, Handle object, const Vec3& angVel);
+    Vec3 getAngularVelocity(Handle space, Handle object);
 
-    void SetPosition(Handle space, Handle object, const Vec3& pos);
-    Vec3 GetPosition(Handle space, Handle object);
+    void setPosition(Handle space, Handle object, const Vec3& pos);
+    Vec3 getPosition(Handle space, Handle object);
 
-    void SetRotation(Handle space, Handle object, const Quat& rot);
-    Quat GetRotation(Handle space, Handle object);
+    void setRotation(Handle space, Handle object, const Quat& rot);
+    Quat getRotation(Handle space, Handle object);
 
-    void SetScale(Handle space, Handle object, const Vec3& scale);
-    Vec3 GetScale(Handle space, Handle object);
+    void setScale(Handle space, Handle object, const Vec3& scale);
+    Vec3 getScale(Handle space, Handle object);
 
-    void GetAABB(Handle space, Handle object, Vec3& min, Vec3& max);
+    void getAABB(Handle space, Handle object, Vec3& min, Vec3& max);
 
     const EventListener<UpdateEvent>* getUpdateEvents(Handle space);
 
-    CastResult LineCastAll(Handle space, const Vec3& start, const Vec3& end);
+    CastResult lineCastAll(Handle space, const Vec3& start, const Vec3& end);
 
-    Handle GetCube(void) { return mCubeModel; }
-    Handle GetSphere(void) { return mSphereModel; }
-    Handle GetCylinder(void) { return mCylinderModel; }
-    Handle GetCapsule(void) { return mCapsuleModel; }
-    Handle GetCone(void) { return mConeModel; }
-    Handle GetDefaultMaterial(void) { return mDefaultMaterial; }
+    Handle getCube(void) { return mCubeModel; }
+    Handle getSphere(void) { return mSphereModel; }
+    Handle getCylinder(void) { return mCylinderModel; }
+    Handle getCapsule(void) { return mCapsuleModel; }
+    Handle getCone(void) { return mConeModel; }
+    Handle getDefaultMaterial(void) { return mDefaultMaterial; }
 
-    const std::string* GetProfileReport(Handle space, const std::string& indent);
-    const std::vector<ProfileResult>* GetProfileHistory(Handle space);
+    const std::string* getProfileReport(Handle space, const std::string& indent);
+    const std::vector<ProfileResult>* getProfileHistory(Handle space);
 
   private:
-    Handle AddModel(const Model& newModel);
+    Handle _addModel(const Model& newModel);
 
-    PhysicsObject* GetObject(Handle space, Handle object);
-    Rigidbody* GetRigidbody(Handle space, Handle object);
-    Collider* GetCollider(Handle space, Handle object);
+    PhysicsObject* _getObject(Handle space, Handle object);
+    Rigidbody* _getRigidbody(Handle space, Handle object);
+    Collider* _getCollider(Handle space, Handle object);
 
     HandleMap<Material> mMaterials;
     HandleMap<Model> mModels;

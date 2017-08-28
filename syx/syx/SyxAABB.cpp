@@ -4,7 +4,7 @@
 namespace Syx {
 
 #ifdef SENABLED
-  void SAABB::Construct(const Vec3Vec& points, bool clear) {
+  void SAABB::construct(const Vec3Vec& points, bool clear) {
     if(points.empty())
       return;
 
@@ -17,17 +17,17 @@ namespace Syx {
     }
   }
 
-  SFloats SAABB::GetVolume(void) const {
-    return SVec3::Mul3(GetDiagonal());
+  SFloats SAABB::getVolume(void) const {
+    return SVec3::mul3(getDiagonal());
   }
 
-  SFloats SAABB::GetInertia(void) const {
-    SFloats dimensions = GetDiagonal();
+  SFloats SAABB::getInertia(void) const {
+    SFloats dimensions = getDiagonal();
     //x*y*z in all elements
     SFloats mass = SMulAll(dimensions, SShuffle(dimensions, 1, 2, 0, 3));
     mass = SMulAll(mass, SShuffle(dimensions, 2, 0, 1, 3));
 
-    static const SFloats div12 = SLoadFloats(1.0f/12.0f, 1.0f/12.0f, 1.0f/12.0f, 0.0f);
+    static const SFloats div12 = sLoadFloats(1.0f/12.0f, 1.0f/12.0f, 1.0f/12.0f, 0.0f);
     mass = SMulAll(mass, div12);
 
     dimensions = SMulAll(dimensions, dimensions);
@@ -40,7 +40,7 @@ namespace Syx {
   }
 #endif
 
-  void AABB::Construct(const Vec3Vec& points, bool clear) {
+  void AABB::construct(const Vec3Vec& points, bool clear) {
     if(points.empty())
       return;
 
@@ -56,17 +56,17 @@ namespace Syx {
       }
   }
 
-  float AABB::GetVolume(void) const {
-    Vec3 d = GetDiagonal();
+  float AABB::getVolume(void) const {
+    Vec3 d = getDiagonal();
     return d.x*d.y*d.z;
   }
 
-  Vec3 AABB::GetInertia(void) const {
+  Vec3 AABB::getInertia(void) const {
     //height = y, width = z, length = x
     //Ixx = m/12 * (h^2+w^2)
     //Iyy = m/12 * (l^2+w^2)
     //Izz = m/12 * (h^2+l^2)
-    Vec3 d = GetDiagonal();
+    Vec3 d = getDiagonal();
     float m12 = (d.x*d.y*d.z)/12.0f;
     float heightSq = d.y*d.y;
     float widthSq = d.z*d.z;
@@ -77,8 +77,8 @@ namespace Syx {
       m12 * (heightSq + lengthSq));
   }
 
-  bool AABB::LineIntersect(const Vec3& start, const Vec3& end, float* resultT, int* normalIndex, int* normalSign) const {
-    Vec3 dirFrac = (end - start).Reciprocal();
+  bool AABB::lineIntersect(const Vec3& start, const Vec3& end, float* resultT, int* normalIndex, int* normalSign) const {
+    Vec3 dirFrac = (end - start).reciprocal();
     //Smallest and largest intersection time between line and box, so where the infinite ray enters and leaves it
     //Start at zero as this will remain unchanged if the line is within the box
     float tMin = 0.0f;
@@ -108,7 +108,7 @@ namespace Syx {
         tMax = std::min(curMax, tMax);
       }
       //No change on this axis, so just need to make sure it is within box on this axis
-      else if(!Between(start[i], mMin[i], mMax[i]))
+      else if(!between(start[i], mMin[i], mMax[i]))
         return false;
     }
 
@@ -124,7 +124,7 @@ namespace Syx {
   }
 
   //UpdateAABB from Realtime Collision Detection
-  AABB AABB::Transform(const Transformer& transformer) const {
+  AABB AABB::transform(const Transformer& transformer) const {
     AABB result;
 
     for(int i = 0; i < 3; ++i) {
@@ -141,11 +141,11 @@ namespace Syx {
     return result;
   }
 
-  void AABB::Draw(void) const {
-    DebugDrawer::Get().DrawCube(GetCenter(), GetDiagonal(), Vec3::UnitX, Vec3::UnitY);
+  void AABB::draw(void) const {
+    DebugDrawer::get().drawCube(getCenter(), getDiagonal(), Vec3::UnitX, Vec3::UnitY);
   }
 
-  AABB AABB::Combined(const AABB& lhs, const AABB& rhs) {
+  AABB AABB::combined(const AABB& lhs, const AABB& rhs) {
     AABB result;
     for(int i = 0; i < 3; ++i) {
       result.mMin[i] = std::min(lhs.mMin[i], rhs.mMin[i]);
@@ -154,12 +154,12 @@ namespace Syx {
     return result;
   }
 
-  float AABB::GetSurfaceArea(void) const {
+  float AABB::getSurfaceArea(void) const {
     Vec3 dims = mMax - mMin;
     return dims.x*dims.y + dims.x*dims.z + dims.y*dims.z;
   }
 
-  bool AABB::Overlapping(const AABB& other) const {
+  bool AABB::overlapping(const AABB& other) const {
     //Loop over each axis hoping for an early out to avoid computations,
     //as this is heavily used for broadphase calculation
     for(int i = 0; i < 3; ++i) {
@@ -177,35 +177,35 @@ namespace Syx {
     return test >= min && test <= max;
   }
 
-  bool AABB::IsInside(const Vec3& point) const {
+  bool AABB::isInside(const Vec3& point) const {
     return Within(point.x, mMin.x, mMax.x) &&
       Within(point.y, mMin.y, mMax.y) &&
       Within(point.z, mMin.z, mMax.z);
   }
 
-  bool AABB::IsInside(const AABB& aabb) const {
-    return IsInside(aabb.mMin) && IsInside(aabb.mMax);
+  bool AABB::isInside(const AABB& aabb) const {
+    return isInside(aabb.mMin) && isInside(aabb.mMax);
   }
 
-  void AABB::Pad(float padPercent) {
+  void AABB::pad(float padPercent) {
     Vec3 pad = (mMax - mMin)*padPercent;
     mMin -= pad;
     mMax += pad;
   }
 
-  void AABB::Move(const Vec3& amount) {
+  void AABB::move(const Vec3& amount) {
     mMin += amount;
     mMax += amount;
   }
 
-  void AABB::Add(const Vec3& point) {
+  void AABB::add(const Vec3& point) {
     for(int i = 0; i < 3; ++i) {
       mMin[i] = std::min(mMin[i], point[i]);
       mMax[i] = std::max(mMax[i], point[i]);
     }
   }
 
-  void AABB::Init(const Vec3& point) {
+  void AABB::init(const Vec3& point) {
     mMin = mMax = point;
   }
 }

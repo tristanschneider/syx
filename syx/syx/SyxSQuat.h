@@ -5,32 +5,33 @@ namespace Syx {
   struct SMat3;
 
   struct SQuat {
-    static SFloats SQuat::Construct(SFloats ijk, float w);
+    static SFloats construct(SFloats ijk, float w);
 
-    static SFloats MulQuat(SFloats qa, SFloats qb);
-    static SFloats MulQuatVec(SFloats quat, SFloats vec);
-    static SFloats MulVecQuat(SFloats vec, SFloats quat);
-    static SFloats Add(SFloats lhs, SFloats rhs);
-    static SFloats Div(SFloats lhs, SFloats rhs);
-    static SFloats Neg(SFloats in);
+    static SFloats mulQuat(SFloats qa, SFloats qb);
+    static SFloats mulQuatVec(SFloats quat, SFloats vec);
+    static SFloats mulVecQuat(SFloats vec, SFloats quat);
+    static SFloats add(SFloats lhs, SFloats rhs);
+    static SFloats div(SFloats lhs, SFloats rhs);
+    static SFloats neg(SFloats in);
 
-    static SFloats Rotate(SFloats quat, SFloats toRot);
+    static SFloats rotate(SFloats quat, SFloats toRot);
 
-    static SFloats Length(SFloats in);
-    static SFloats Length2(SFloats in);
+    static SFloats length(SFloats in);
+    static SFloats length2(SFloats in);
 
-    static SFloats Normalized(SFloats in);
-    static SFloats Inversed(SFloats in);
+    static SFloats normalized(SFloats in);
+    static SFloats inversed(SFloats in);
 
-    static SMat3 ToMatrix(SFloats quat);
+    static SMat3 toMatrix(SFloats quat);
 
     //Construct quaternion from axis angle
-    static SFloats AxisAngle(SFloats axis, float angle);
+    static SFloats 
+      axisAngle(SFloats axis, float angle);
 
     static const SFloats Zero;
   };
 
-  Quat ToQuat(SFloats quat);
-  SFloats ToSQuat(const Quat& quat);
+  Quat toQuat(SFloats quat);
+  SFloats toSQuat(const Quat& quat);
 }
 #endif

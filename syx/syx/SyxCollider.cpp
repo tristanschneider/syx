@@ -7,51 +7,51 @@ namespace Syx {
   Collider::Collider(PhysicsObject* owner): mOwner(owner), mFlags(0), mBroadHandle(SyxInvalidHandle) {
   }
 
-  void Collider::SetFlag(int flag, bool value) {
-    SetBits(mFlags, flag, value);
+  void Collider::setFlag(int flag, bool value) {
+    setBits(mFlags, flag, value);
   }
 
-  bool Collider::GetFlag(int flag) {
+  bool Collider::getFlag(int flag) {
     return (mFlags & flag) != 0;
   }
 
-  Vec3 Collider::GetSupport(const Vec3& dir) {
-    return mModelInst.GetSupport(dir);
+  Vec3 Collider::getSupport(const Vec3& dir) {
+    return mModelInst.getSupport(dir);
   }
 
-  void Collider::UpdateModelInst(const Transform& parentTransform) {
-    mModelInst.UpdateTransformers(parentTransform);
-    mModelInst.UpdateAABB();
+  void Collider::updateModelInst(const Transform& parentTransform) {
+    mModelInst.updateTransformers(parentTransform);
+    mModelInst.updateAABB();
   }
 
-  PhysicsObject* Collider::GetOwner(void) {
+  PhysicsObject* Collider::getOwner(void) {
     return mOwner;
   }
 
-  void Collider::SetModel(const Model& model) {
-    mModelInst.SetModel(model);
+  void Collider::setModel(const Model& model) {
+    mModelInst.setModel(model);
   }
 
-  void Collider::SetMaterial(const Material& material) {
-    mModelInst.SetMaterial(material);
+  void Collider::setMaterial(const Material& material) {
+    mModelInst.setMaterial(material);
   }
 
-  int Collider::GetModelType(void) {
-    return mModelInst.GetModelType();
+  int Collider::getModelType(void) {
+    return mModelInst.getModelType();
   }
 
-  void Collider::Initialize(Space& space) {
-    mBroadHandle = space.mBroadphase->Insert(BoundingVolume(GetAABB()), reinterpret_cast<void*>(mOwner));
+  void Collider::initialize(Space& space) {
+    mBroadHandle = space.mBroadphase->insert(BoundingVolume(getAABB()), reinterpret_cast<void*>(mOwner));
   }
 
-  void Collider::Uninitialize(Space& space) {
-    space.mBroadphase->Remove(mBroadHandle);
+  void Collider::uninitialize(Space& space) {
+    space.mBroadphase->remove(mBroadHandle);
     mBroadHandle = SyxInvalidHandle;
   }
 
 #ifdef SENABLED
-  SFloats Collider::SGetSupport(SFloats dir) {
-    return mModelInst.SGetSupport(dir);
+  SFloats Collider::sGetSupport(SFloats dir) {
+    return mModelInst.sGetSupport(dir);
   }
 #else
 

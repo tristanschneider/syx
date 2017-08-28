@@ -9,19 +9,19 @@ namespace Syx {
   Space::Space(void)
     : mBroadphase(new DefaultBroadphase())
     , mBroadphaseContext(new DefaultBroadphaseContext()) {
-    mConstraintSystem.SetIslandGraph(mIslandGraph);
+    mConstraintSystem.setIslandGraph(mIslandGraph);
   }
 
   Space::Space(Handle handle)
     : mMyHandle(handle)
     , mBroadphase(new DefaultBroadphase())
     , mBroadphaseContext(new DefaultBroadphaseContext()) {
-    mConstraintSystem.SetIslandGraph(mIslandGraph);
+    mConstraintSystem.setIslandGraph(mIslandGraph);
   }
 
   Space::Space(const Space& rhs) {
     *this = rhs;
-    mObjects.Reserve(100);
+    mObjects.reserve(100);
     mBroadphase = new DefaultBroadphase();
   }
 
@@ -37,108 +37,108 @@ namespace Syx {
     mNarrowphase = rhs.mNarrowphase;
     mObjects = rhs.mObjects;
     mProfiler = rhs.mProfiler;
-    mConstraintSystem.SetIslandGraph(mIslandGraph);
+    mConstraintSystem.setIslandGraph(mIslandGraph);
     return *this;
   }
 
-  PhysicsObject* Space::CreateObject(void) {
-    return mObjects.Add();
+  PhysicsObject* Space::createObject(void) {
+    return mObjects.add();
   }
 
-  void Space::DestroyObject(Handle handle) {
-    PhysicsObject* obj = mObjects.Get(handle);
-    while(!obj->GetConstraints().empty())
-      RemoveConstraint(*obj->GetConstraints().begin());
-    mIslandGraph.Remove(*mObjects.Get(handle));
-    mObjects.Remove(handle);
+  void Space::destroyObject(Handle handle) {
+    PhysicsObject* obj = mObjects.get(handle);
+    while(!obj->getConstraints().empty())
+      removeConstraint(*obj->getConstraints().begin());
+    mIslandGraph.remove(*mObjects.get(handle));
+    mObjects.remove(handle);
   }
 
-  PhysicsObject* Space::GetObject(Handle handle) {
-    return mObjects.Get(handle);
+  PhysicsObject* Space::getObject(Handle handle) {
+    return mObjects.get(handle);
   }
 
-  void Space::Clear(void) {
-    mObjects.Clear();
-    mBroadphase->Clear();
-    mConstraintSystem.Clear();
-    mIslandGraph.Clear();
+  void Space::clear(void) {
+    mObjects.clear();
+    mBroadphase->clear();
+    mConstraintSystem.clear();
+    mIslandGraph.clear();
   }
 
-  void Space::Update(float dt) {
+  void Space::update(float dt) {
     AutoProfileBlock block(mProfiler, "Update Space");
 
-    IntegrateVelocity(dt);
-    if((Interface::GetOptions().mDebugFlags & SyxOptions::DisableCollision) == 0)
-      CollisionDetection();
-    SolveConstraints(dt);
-    IntegratePosition(dt);
+    _integrateVelocity(dt);
+    if((Interface::getOptions().mDebugFlags & SyxOptions::DisableCollision) == 0)
+      _collisionDetection();
+    _solveConstraints(dt);
+    _integratePosition(dt);
   }
 
-  void Space::IntegrateVelocity(float dt) {
+  void Space::_integrateVelocity(float dt) {
     AutoProfileBlock block(mProfiler, "Integrate Velocity");
-    if(Interface::GetOptions().mSimdFlags & SyxOptions::SIMD::VelocityIntegration)
-      SIntegrateAllVelocity(dt);
+    if(Interface::getOptions().mSimdFlags & SyxOptions::SIMD::VelocityIntegration)
+      _sIntegrateAllVelocity(dt);
     else
-      IntegrateAllVelocity(dt);
+      _integrateAllVelocity(dt);
   }
 
-  void Space::IntegrateAllVelocity(float dt) {
-    for(auto it = mObjects.Begin(); it != mObjects.End(); ++it) {
+  void Space::_integrateAllVelocity(float dt) {
+    for(auto it = mObjects.begin(); it != mObjects.end(); ++it) {
       PhysicsObject& obj = *it;
-      if(obj.GetAsleep())
+      if(obj.getAsleep())
         continue;
-      Rigidbody* rigidbody = obj.GetRigidbody();
+      Rigidbody* rigidbody = obj.getRigidbody();
       if(rigidbody)
-        rigidbody->IntegrateVelocity(dt);
+        rigidbody->integrateVelocity(dt);
     }
   }
 
-  void Space::UpdateMovedObject(PhysicsObject& obj) {
-    obj.UpdateModelInst();
-    Collider* collider = obj.GetCollider();
+  void Space::updateMovedObject(PhysicsObject& obj) {
+    obj.updateModelInst();
+    Collider* collider = obj.getCollider();
     if(collider)
-      collider->mBroadHandle = mBroadphase->Update(BoundingVolume(collider->GetAABB()), collider->mBroadHandle);
+      collider->mBroadHandle = mBroadphase->update(BoundingVolume(collider->getAABB()), collider->mBroadHandle);
   }
 
-  void Space::WakeObject(PhysicsObject& obj) {
-    mIslandGraph.WakeIsland(obj);
+  void Space::wakeObject(PhysicsObject& obj) {
+    mIslandGraph.wakeIsland(obj);
   }
 
-  void Space::IntegratePosition(float dt) {
+  void Space::_integratePosition(float dt) {
     {
       AutoProfileBlock block(mProfiler, "Integrate Position");
       mUpdateEvents.mEvents.clear();
-      if(Interface::GetOptions().mSimdFlags & SyxOptions::SIMD::PositionIntegration)
-        SIntegrateAllPositions(dt);
+      if(Interface::getOptions().mSimdFlags & SyxOptions::SIMD::PositionIntegration)
+        _sIntegrateAllPositions(dt);
       else
-        IntegrateAllPositions(dt);
+        _integrateAllPositions(dt);
     }
 
     {
       AutoProfileBlock block(mProfiler, "Update Manifolds");
-      mConstraintSystem.UpdateManifolds();
+      mConstraintSystem.updateManifolds();
     }
 
     {
-      DebugDrawer& d = DebugDrawer::Get();
+      DebugDrawer& d = DebugDrawer::get();
       AutoProfileBlock draw(mProfiler, "Debug Draw");
       Vec3 color = Vec3::Zero;
       color[mMyHandle % 3] = 1.0f;
-      if(Interface::GetOptions().mDebugFlags & (SyxOptions::Debug::DrawModels | SyxOptions::Debug::DrawPersonalBBs))
-        for(auto it = mObjects.Begin(); it != mObjects.End(); ++it) {
+      if(Interface::getOptions().mDebugFlags & (SyxOptions::Debug::DrawModels | SyxOptions::Debug::DrawPersonalBBs))
+        for(auto it = mObjects.begin(); it != mObjects.end(); ++it) {
           PhysicsObject& obj = *it;
-          d.SetColor(color.x, color.y, color.z);
-          obj.DrawModel();
-          if((Interface::GetOptions().mDebugFlags & SyxOptions::Debug::DrawSleeping) && obj.GetAsleep()) {
-            d.SetColor(1.0f, 1.0f, 1.0f);
-            d.DrawPoint(obj.GetTransform().mPos, 0.1f);
+          d.setColor(color.x, color.y, color.z);
+          obj.drawModel();
+          if((Interface::getOptions().mDebugFlags & SyxOptions::Debug::DrawSleeping) && obj.getAsleep()) {
+            d.setColor(1.0f, 1.0f, 1.0f);
+            d.drawPoint(obj.getTransform().mPos, 0.1f);
           }
         }
 
-      if(Interface::GetOptions().mDebugFlags & SyxOptions::Debug::DrawBroadphase)
-        mBroadphase->Draw();
+      if(Interface::getOptions().mDebugFlags & SyxOptions::Debug::DrawBroadphase)
+        mBroadphase->draw();
 
-      if(Interface::GetOptions().mDebugFlags & SyxOptions::Debug::DrawIslands) {
+      if(Interface::getOptions().mDebugFlags & SyxOptions::Debug::DrawIslands) {
         Vec3 colors[] = {Vec3::Zero
           , Vec3::UnitX
           , Vec3::UnitY
@@ -149,208 +149,208 @@ namespace Syx {
           , Vec3::Identity};
         size_t colorCount = 8;
 
-        for(size_t i = 0; i < mIslandGraph.IslandCount(); ++i) {
+        for(size_t i = 0; i < mIslandGraph.islandCount(); ++i) {
           Vec3 c = colors[i % colorCount];
-          d.SetColor(c.x, c.y, c.z);
-          mIslandGraph.GetIsland(i, mIslandStore, true);
+          d.setColor(c.x, c.y, c.z);
+          mIslandGraph.getIsland(i, mIslandStore, true);
           for(Constraint* constraint : mIslandStore.mConstraints) {
             //Don't draw static object lines as it clutters visuals quickly for ground planes
-            if(!constraint->GetObjA()->IsStatic() && !constraint->GetObjB()->IsStatic())
-              d.DrawLine(constraint->GetObjA()->GetTransform().mPos, constraint->GetObjB()->GetTransform().mPos);
+            if(!constraint->getObjA()->isStatic() && !constraint->getObjB()->isStatic())
+              d.drawLine(constraint->getObjA()->getTransform().mPos, constraint->getObjB()->getTransform().mPos);
           }
         }
       }
     }
   }
 
-  void Space::IntegrateAllPositions(float dt) {
-    for(auto it = mObjects.Begin(); it != mObjects.End(); ++it) {
+  void Space::_integrateAllPositions(float dt) {
+    for(auto it = mObjects.begin(); it != mObjects.end(); ++it) {
       PhysicsObject& obj = *it;
-      if(obj.GetAsleep())
+      if(obj.getAsleep())
         continue;
-      Rigidbody* rigidbody = obj.GetRigidbody();
+      Rigidbody* rigidbody = obj.getRigidbody();
       if(obj.shouldIntegrate()) {
-        obj.GetRigidbody()->IntegratePosition(dt);
+        obj.getRigidbody()->integratePosition(dt);
         _fireUpdateEvent(obj);
-        UpdateMovedObject(*it);
+        updateMovedObject(*it);
       }
     }
   }
 
-  void Space::CollisionDetection(void) {
+  void Space::_collisionDetection(void) {
     AutoProfileBlock detection(mProfiler, "Collision Detection");
 
-    mProfiler.PushBlock("Broadphase");
-    mBroadphase->QueryPairs(*mBroadphaseContext);
-    mProfiler.PopBlock("Broadphase");
+    mProfiler.pushBlock("Broadphase");
+    mBroadphase->queryPairs(*mBroadphaseContext);
+    mProfiler.popBlock("Broadphase");
 
     {
       AutoProfileBlock narrow(mProfiler, "Narrowphase");
-      mNarrowphase.ProcessPairQuery(mBroadphaseContext->mQueryPairResults, *this);
+      mNarrowphase.processPairQuery(mBroadphaseContext->mQueryPairResults, *this);
     }
   }
 
-  void Space::SolveConstraints(float dt) {
+  void Space::_solveConstraints(float dt) {
     AutoProfileBlock block(mProfiler, "Constraint Solving");
     if(gOptions.mSimdFlags & SyxOptions::SIMD::ConstraintSolve)
-      mConstraintSystem.SSolve(dt);
+      mConstraintSystem.sSolve(dt);
     else
-      mConstraintSystem.Solve(dt);
+      mConstraintSystem.solve(dt);
   }
 
-  CastResult Space::LineCastAll(const Vec3& start, const Vec3& end) {
-    mBroadphase->QueryRaycast(start, end, *mBroadphaseContext);
-    mCasterContext.ClearResults();
+  CastResult Space::lineCastAll(const Vec3& start, const Vec3& end) {
+    mBroadphase->queryRaycast(start, end, *mBroadphaseContext);
+    mCasterContext.clearResults();
 
     for(const ResultNode& obj : mBroadphaseContext->mQueryResults) {
       PhysicsObject* pObj = reinterpret_cast<PhysicsObject*>(obj.mUserdata);
-      mCaster.LineCast(*pObj, start, end, mCasterContext);
+      mCaster.lineCast(*pObj, start, end, mCasterContext);
     }
 
-    mCasterContext.SortResults();
-    return CastResult(&mCasterContext.GetResults());
+    mCasterContext.sortResults();
+    return CastResult(&mCasterContext.getResults());
   }
 
-  void Space::SetColliderEnabled(PhysicsObject& obj, bool enabled) {
-    Collider* collider = obj.GetCollider();
+  void Space::setColliderEnabled(PhysicsObject& obj, bool enabled) {
+    Collider* collider = obj.getCollider();
     if(collider && !enabled)
-      collider->Uninitialize(*this);
+      collider->uninitialize(*this);
     else if(!collider && enabled)
-      collider->Initialize(*this);
-    obj.SetColliderEnabled(enabled);
+      collider->initialize(*this);
+    obj.setColliderEnabled(enabled);
   }
 
-  void Space::SetRigidbodyEnabled(PhysicsObject& obj, bool enabled) {
+  void Space::setRigidbodyEnabled(PhysicsObject& obj, bool enabled) {
     //Will probably soon have the same initialization as collider
-    obj.SetRigidbodyEnabled(enabled);
+    obj.setRigidbodyEnabled(enabled);
   }
 
-  Manifold* Space::GetManifold(PhysicsObject& a, PhysicsObject& b, ModelInstance& instA, ModelInstance& instB) {
-    return mConstraintSystem.GetManifold(a, b, instA, instB);
+  Manifold* Space::getManifold(PhysicsObject& a, PhysicsObject& b, ModelInstance& instA, ModelInstance& instB) {
+    return mConstraintSystem.getManifold(a, b, instA, instB);
   }
 
 #define AddConstraint(func)\
-    if(!FillOps(ops))\
+    if(!_fillOps(ops))\
       return SyxInvalidHandle;\
     return mConstraintSystem.func(ops)
 
-  Handle Space::AddDistanceConstraint(DistanceOps& ops) {
-    AddConstraint(AddDistanceConstraint);
+  Handle Space::addDistanceConstraint(DistanceOps& ops) {
+    AddConstraint(addDistanceConstraint);
   }
 
-  Handle Space::AddSphericalConstraint(SphericalOps& ops) {
-    ops.mObjA = mObjects.Get(ops.mA);
-    ops.mObjB = mObjects.Get(ops.mB);
+  Handle Space::addSphericalConstraint(SphericalOps& ops) {
+    ops.mObjA = mObjects.get(ops.mA);
+    ops.mObjB = mObjects.get(ops.mB);
     if(!ops.mObjA || !ops.mObjB)
       return false;
     if(ops.mWorldAnchors) {
-      SAlign Transformer worldToModelA = ops.mObjA->GetTransform().GetWorldToModel();
+      SAlign Transformer worldToModelA = ops.mObjA->getTransform().getWorldToModel();
       SAlign Vec3 aligned = ops.mAnchorA;
-      ops.mAnchorA = worldToModelA.TransformPoint(aligned);
-      ops.mSwingFrame = ops.mObjA->GetTransform().mRot.Inversed()*ops.mSwingFrame;
-      ops.mAnchorB = ops.mObjB->GetTransform().WorldToModel(ops.mAnchorB);
+      ops.mAnchorA = worldToModelA.transformPoint(aligned);
+      ops.mSwingFrame = ops.mObjA->getTransform().mRot.inversed()*ops.mSwingFrame;
+      ops.mAnchorB = ops.mObjB->getTransform().worldToModel(ops.mAnchorB);
     }
-    mConstraintSystem.AddSphericalConstraint(ops);
+    mConstraintSystem.addSphericalConstraint(ops);
     return true;
   }
 
-  Handle Space::AddWeldConstraint(WeldOps& ops) {
-    AddConstraint(AddWeldConstraint);
+  Handle Space::addWeldConstraint(WeldOps& ops) {
+    AddConstraint(addWeldConstraint);
   }
 
-  Handle Space::AddRevoluteConstraint(RevoluteOps& ops) {
-    ops.mObjA = mObjects.Get(ops.mA);
-    ops.mObjB = mObjects.Get(ops.mB);
+  Handle Space::addRevoluteConstraint(RevoluteOps& ops) {
+    ops.mObjA = mObjects.get(ops.mA);
+    ops.mObjB = mObjects.get(ops.mB);
     if(!ops.mObjA || !ops.mObjB)
       return false;
     if(ops.mWorldAnchors) {
-      SAlign Transformer worldToModelA = ops.mObjA->GetTransform().GetWorldToModel();
+      SAlign Transformer worldToModelA = ops.mObjA->getTransform().getWorldToModel();
       SAlign Vec3 aligned = ops.mAnchorA;
-      ops.mAnchorA = worldToModelA.TransformPoint(aligned);
-      ops.mFreeAxis = ops.mObjA->GetTransform().mRot.Inversed()*ops.mFreeAxis;
-      ops.mAnchorB = ops.mObjB->GetTransform().WorldToModel(ops.mAnchorB);
+      ops.mAnchorA = worldToModelA.transformPoint(aligned);
+      ops.mFreeAxis = ops.mObjA->getTransform().mRot.inversed()*ops.mFreeAxis;
+      ops.mAnchorB = ops.mObjB->getTransform().worldToModel(ops.mAnchorB);
     }
-    mConstraintSystem.AddRevoluteConstraint(ops);
+    mConstraintSystem.addRevoluteConstraint(ops);
     return true;
   }
 
-  void Space::RemoveConstraint(Handle handle) {
-    mConstraintSystem.RemoveConstraint(handle);
+  void Space::removeConstraint(Handle handle) {
+    mConstraintSystem.removeConstraint(handle);
   }
 
   const EventListener<UpdateEvent>& Space::getUpdateEvents() {
     return mUpdateEvents;
   }
 
-  bool Space::FillOps(ConstraintOptions& ops) {
-    ops.mObjA = mObjects.Get(ops.mA);
-    ops.mObjB = mObjects.Get(ops.mB);
+  bool Space::_fillOps(ConstraintOptions& ops) {
+    ops.mObjA = mObjects.get(ops.mA);
+    ops.mObjB = mObjects.get(ops.mB);
     if(!ops.mObjA || !ops.mObjB)
       return false;
     if(ops.mWorldAnchors) {
-      ops.mAnchorA = ops.mObjA->GetTransform().WorldToModel(ops.mAnchorA);
-      ops.mAnchorB = ops.mObjB->GetTransform().WorldToModel(ops.mAnchorB);
+      ops.mAnchorA = ops.mObjA->getTransform().worldToModel(ops.mAnchorA);
+      ops.mAnchorB = ops.mObjB->getTransform().worldToModel(ops.mAnchorB);
     }
     return true;
   }
 
 #ifdef SENABLED
-  void Space::SIntegrateAllPositions(float dt) {
-    SFloats sdt = SLoadSplatFloats(dt);
-    SFloats half = SLoadSplatFloats(0.5f);
+  void Space::_sIntegrateAllPositions(float dt) {
+    SFloats sdt = sLoadSplatFloats(dt);
+    SFloats half = sLoadSplatFloats(0.5f);
 
-    for(auto it = mObjects.Begin(); it != mObjects.End(); ++it) {
+    for(auto it = mObjects.begin(); it != mObjects.end(); ++it) {
       PhysicsObject& obj = *it;
-      Rigidbody* rigidbody = obj.GetRigidbody();
+      Rigidbody* rigidbody = obj.getRigidbody();
       //This ultimately shouldn't be needed because I should have a dynamic objects list that this would iterate over
       if(!obj.shouldIntegrate())
         continue;
 
-      Transform& t = obj.GetTransform();
-      SFloats pos = ToSVec3(t.mPos);
-      SFloats linVel = ToSVec3(rigidbody->mLinVel);
+      Transform& t = obj.getTransform();
+      SFloats pos = toSVec3(t.mPos);
+      SFloats linVel = toSVec3(rigidbody->mLinVel);
       pos = SAddAll(pos, SMulAll(linVel, sdt));
       SStoreAll(&t.mPos.x, pos);
 
       SFloats angVel(SLoadAll(&rigidbody->mAngVel.x));
-      SFloats rot = ToSQuat(t.mRot);
+      SFloats rot = toSQuat(t.mRot);
 
       //The quaternion multiplication can be optimized because we know the w component is 0, removing a + and *
-      SFloats spin = SQuat::MulVecQuat(half, SQuat::MulQuat(angVel, rot));
-      rot = SQuat::Add(rot, SQuat::MulQuatVec(spin, sdt));
-      rot = SQuat::Normalized(rot);
+      SFloats spin = SQuat::mulVecQuat(half, SQuat::mulQuat(angVel, rot));
+      rot = SQuat::add(rot, SQuat::mulQuatVec(spin, sdt));
+      rot = SQuat::normalized(rot);
 
-      SMat3 rotMat = SQuat::ToMatrix(rot);
+      SMat3 rotMat = SQuat::toMatrix(rot);
       SStoreAll(&t.mRot.mV.x, rot);
 
-      SFloats localInertia = ToSVec3(rigidbody->mLocalInertia);
+      SFloats localInertia = toSVec3(rigidbody->mLocalInertia);
       //Can probaby combine this whole operation so I don't need to store a transposed copy
-      SMat3 transMat = rotMat.Transposed();
+      SMat3 transMat = rotMat.transposed();
       //Scale matrix by inertia
       rotMat.mbx = SMulAll(rotMat.mbx, SShuffle(localInertia, 0, 0, 0, 0));
       rotMat.mby = SMulAll(rotMat.mby, SShuffle(localInertia, 1, 1, 1, 1));
       rotMat.mbz = SMulAll(rotMat.mbz, SShuffle(localInertia, 2, 2, 2, 2));
       rotMat *= transMat;
       //rotMat now contains Rot.Scaled(m_localInertia) * rot.Transposed
-      rotMat.Store(rigidbody->mInvInertia);
+      rotMat.store(rigidbody->mInvInertia);
 
       _fireUpdateEvent(obj);
-      UpdateMovedObject(*it);
+      updateMovedObject(*it);
     }
   }
 
-  void Space::SIntegrateAllVelocity(float dt) {
-    SFloats gravity = SLoadSplatFloats(dt);
-    gravity = SMulAll(gravity, SLoadFloats(0.0f, -10.0f, 0.0f));
+  void Space::_sIntegrateAllVelocity(float dt) {
+    SFloats gravity = sLoadSplatFloats(dt);
+    gravity = SMulAll(gravity, sLoadFloats(0.0f, -10.0f, 0.0f));
 
-    for(auto it = mObjects.Begin(); it != mObjects.End(); ++it) {
+    for(auto it = mObjects.begin(); it != mObjects.end(); ++it) {
       PhysicsObject& obj = *it;
-      if(obj.GetAsleep())
+      if(obj.getAsleep())
         continue;
-      Rigidbody* rigidbody = obj.GetRigidbody();
+      Rigidbody* rigidbody = obj.getRigidbody();
 
       if(rigidbody && rigidbody->mInvMass > SYX_EPSILON) {
-        SFloats sVel = ToSVec3(rigidbody->mLinVel);
+        SFloats sVel = toSVec3(rigidbody->mLinVel);
         sVel = SAddAll(sVel, gravity);
         SStoreAll(&rigidbody->mLinVel.x, sVel);
       }
@@ -360,17 +360,17 @@ namespace Syx {
   void Space::_fireUpdateEvent(PhysicsObject& obj) {
     UpdateEvent e;
     //Can't be null because if it was it wouldn't move, so we wouldn't fire this event
-    Rigidbody* rb = obj.GetRigidbody();
+    Rigidbody* rb = obj.getRigidbody();
     e.mLinVel = rb->mLinVel;
     e.mAngVel = rb->mAngVel;
-    e.mPos = obj.GetTransform().mPos;
-    e.mRot = obj.GetTransform().mRot;
-    e.mHandle = obj.GetHandle();
+    e.mPos = obj.getTransform().mPos;
+    e.mRot = obj.getTransform().mRot;
+    e.mHandle = obj.getHandle();
     mUpdateEvents.mEvents.push_back(e);
   }
 
 #else
-  void Space::SIntegrateAllPositions(float) {}
-  void Space::SIntegrateAllVelocity(float) {}
+  void Space::_sIntegrateAllPositions(float) {}
+  void Space::_sIntegrateAllVelocity(float) {}
 #endif
 }

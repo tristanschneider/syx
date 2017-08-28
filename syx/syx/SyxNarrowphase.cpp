@@ -19,7 +19,7 @@ namespace Syx {
   Narrowphase::Narrowphase()
     : mBroadphaseContext(new AABBTreeContext())
     , mTempTri(ModelType::Triangle) {
-    InitHandlers();
+    _initHandlers();
   }
 
   Narrowphase::~Narrowphase() {
@@ -43,101 +43,101 @@ namespace Syx {
     mVerts = rhs.mVerts;
     mTempTri = rhs.mTempTri;
     mBroadphaseContext = new AABBTreeContext();
-    InitHandlers();
+    _initHandlers();
     return *this;
   }
 
-  SupportPoint Narrowphase::GetSupport(const Vec3& dir) {
+  SupportPoint Narrowphase::_getSupport(const Vec3& dir) {
     if(gOptions.mSimdFlags & SyxOptions::SIMD::SupportPoints)
-      return SGetSupport(dir);
+      return _sGetSupport(dir);
 
-    Vec3 supportA = mInstA->GetSupport(dir);
+    Vec3 supportA = mInstA->getSupport(dir);
     SAlign Vec3 negDir = -dir;
-    Vec3 supportB = mInstB->GetSupport(negDir);
+    Vec3 supportB = mInstB->getSupport(negDir);
     return SupportPoint(supportA, supportB);
   }
 
-  bool Narrowphase::GJK(void) {
-    mSimplex.Initialize();
+  bool Narrowphase::_gjk(void) {
+    mSimplex.initialize();
     //Arbitrary start direction
     SAlign Vec3 curDir(Vec3::UnitY);
-    SupportPoint support = GetSupport(curDir);
+    SupportPoint support = _getSupport(curDir);
 
     int iterationCap = 100;
     int iteration = 0;
 
     while(iteration++ < iterationCap) {
-      mSimplex.Add(support, false);
-      curDir = mSimplex.Solve();
+      mSimplex.add(support, false);
+      curDir = mSimplex.solve();
 
-      if(mSimplex.ContainsOrigin())
+      if(mSimplex.containsOrigin())
         return true;
-      else if(mSimplex.IsDegenerate())
+      else if(mSimplex.isDegenerate())
         return false;
 
-      support = GetSupport(curDir);
+      support = _getSupport(curDir);
 
       // If we didn't pass over the origin, no collision. Only works when used for collision, not closest point or raycast
       // Dotting points looks weird, but it's actually vectors from origin to the supports, but that's subtraction by zero
-      if(support.mSupport.Dot(curDir) < 0.0f)
+      if(support.mSupport.dot(curDir) < 0.0f)
         return false;
 
 #ifdef DEBUG_GJK
       bool drawIteration = (iteration == gOptions.mTest && gOptions.mDebugFlags & SyxOptions::Debug::DrawGJK);
       if(drawIteration) {
-        DebugDrawer& d = DebugDrawer::Get();
-        d.SetColor(1.0f, 0.0f, 0.0f);
-        DrawCube(support.mSupport, 0.1f);
-        d.SetColor(0.0f, 1.0f, 1.0f);
-        DrawCube(support.mPointA, 0.03f);
-        DrawCube(support.mPointB, 0.03f);
+        DebugDrawer& d = DebugDrawer::get();
+        d.setColor(1.0f, 0.0f, 0.0f);
+        drawCube(support.mSupport, 0.1f);
+        d.setColor(0.0f, 1.0f, 1.0f);
+        drawCube(support.mPointA, 0.03f);
+        drawCube(support.mPointB, 0.03f);
       }
 #endif
     }
 
-    Interface::Log("GJK Iteration cap reached");
+    Interface::log("GJK Iteration cap reached");
     return false;
   }
 
-  Vec3 Narrowphase::EPA(ContactPoint& result) {
-    InitEPASimplex();
+  Vec3 Narrowphase::_epa(ContactPoint& result) {
+    _initEPASimplex();
 
     int iterationCap = 100;
     int iteration = 0;
     while(iteration++ < iterationCap) {
-      SupportTri* bestTri = GetClosestTri();
+      SupportTri* bestTri = _getClosestTri();
 
-      mVerts.push_back(GetSupport(bestTri->m_halfPlane));
+      mVerts.push_back(_getSupport(bestTri->mHalfPlane));
 
       SupportPoint* newVert = &mVerts.back();
-      float progress = bestTri->SignedNormalDist(newVert->mSupport);
+      float progress = bestTri->signedNormalDist(newVert->mSupport);
 
 #ifdef DEBUG_EPA
       if(iteration == gOptions.mTest && gOptions.mDebugFlags & SyxOptions::Debug::DrawEPA) {
-        DebugDrawer::Get().SetColor(0.0f, 1.0f, 0.0f);
-        DrawEPA(bestTri);
+        DebugDrawer::get().setColor(0.0f, 1.0f, 0.0f);
+        _drawEPA(bestTri);
       }
 #endif
 
       if(progress <= sepaEpsilon)
-        return StoreEPAResult(result, bestTri);
+        return _storeEPAResult(result, bestTri);
 
-      DeleteInteriorTris(newVert->mSupport);
-      ReconstructTriangles();
+      _deleteInteriorTris(newVert->mSupport);
+      _reconstructTriangles();
     }
 
-    Interface::Log("EPA Iteration cap reached");
+    Interface::log("EPA Iteration cap reached");
     return Vec3::Zero;
   }
 
-  Vec3 Narrowphase::StoreEPAResult(ContactPoint& result, SupportTri* bestTri) {
+  Vec3 Narrowphase::_storeEPAResult(ContactPoint& result, SupportTri* bestTri) {
     Vec3 originOnTri;
     SupportPoint *a, *b, *c;
     Vec3 bary;
     bool first = true;
 
     if(!bestTri) {
-      Interface::Log("Problems! No resulting triangle in StoreEPAResult");
+      Interface::log("Problems! No resulting triangle in StoreEPAResult");
       return Vec3::Zero;
     }
 
@@ -145,46 +145,46 @@ namespace Syx {
       //We're given the first one, but after that we need to throw away the invalid one and get a new one
       if(!first) {
         int index = bestTri - &*mTris.begin();
-        SwapRemove(mTris, index);
-        bestTri = GetClosestTri();
+        swapRemove(mTris, index);
+        bestTri = _getClosestTri();
       }
       first = false;
 
       if(!bestTri) {
-        Interface::Log("Problems! No resulting triangle in StoreEPAResult");
+        Interface::log("Problems! No resulting triangle in StoreEPAResult");
         return Vec3::Zero;
       }
 
-      a = &mVerts[bestTri->m_verts[0]];
-      b = &mVerts[bestTri->m_verts[1]];
-      c = &mVerts[bestTri->m_verts[2]];
+      a = &mVerts[bestTri->mVerts[0]];
+      b = &mVerts[bestTri->mVerts[1]];
+      c = &mVerts[bestTri->mVerts[2]];
 
-      originOnTri = bestTri->Project(Vec3::Zero);
-      bary = PointToBarycentric(a->mSupport, b->mSupport, c->mSupport, originOnTri);
+      originOnTri = bestTri->project(Vec3::Zero);
+      bary = pointToBarycentric(a->mSupport, b->mSupport, c->mSupport, originOnTri);
     }
-    while(!ValidBarycentric(bary));
+    while(!validBarycentric(bary));
 
-    result.mObjA.mStartingWorld = result.mObjA.mCurrentWorld = BarycentricToPoint(a->mPointA, b->mPointA, c->mPointA, bary);
-    result.mObjB.mStartingWorld = result.mObjB.mCurrentWorld = BarycentricToPoint(a->mPointB, b->mPointB, c->mPointB, bary);
+    result.mObjA.mStartingWorld = result.mObjA.mCurrentWorld = barycentricToPoint(a->mPointA, b->mPointA, c->mPointA, bary);
+    result.mObjB.mStartingWorld = result.mObjB.mCurrentWorld = barycentricToPoint(a->mPointB, b->mPointB, c->mPointB, bary);
 
-    result.mObjA.mModelPoint = mA->GetTransform().WorldToModel(result.mObjA.mStartingWorld);
-    result.mObjB.mModelPoint = mB->GetTransform().WorldToModel(result.mObjB.mStartingWorld);
-    result.mPenetration = (result.mObjB.mStartingWorld - result.mObjA.mStartingWorld).Dot(-bestTri->m_halfPlane);
+    result.mObjA.mModelPoint = mA->getTransform().worldToModel(result.mObjA.mStartingWorld);
+    result.mObjB.mModelPoint = mB->getTransform().worldToModel(result.mObjB.mStartingWorld);
+    result.mPenetration = (result.mObjB.mStartingWorld - result.mObjA.mStartingWorld).dot(-bestTri->mHalfPlane);
     result.mWarmContact = result.mWarmFriction[0] = result.mWarmFriction[1] = 0.0f;
-    return -bestTri->m_halfPlane;
+    return -bestTri->mHalfPlane;
   }
 
-  void Narrowphase::InitEPASimplex(void) {
-    mSimplex.GrowToFourPoints(*this);
+  void Narrowphase::_initEPASimplex(void) {
+    mSimplex.growToFourPoints(*this);
 
     mVerts.clear();
     mEdges.clear();
     mTris.clear();
 
-    mVerts.push_back(mSimplex.GetSupport(SupportID::A));
-    mVerts.push_back(mSimplex.GetSupport(SupportID::B));
-    mVerts.push_back(mSimplex.GetSupport(SupportID::C));
-    mVerts.push_back(mSimplex.GetSupport(SupportID::D));
+    mVerts.push_back(mSimplex.getSupport(SupportID::A));
+    mVerts.push_back(mSimplex.getSupport(SupportID::B));
+    mVerts.push_back(mSimplex.getSupport(SupportID::C));
+    mVerts.push_back(mSimplex.getSupport(SupportID::D));
 
     //bad, cbd, acd, abc
     mTris.push_back(SupportTri(SupportID::B, SupportID::A, SupportID::D, mVerts));
@@ -193,7 +193,7 @@ namespace Syx {
     mTris.push_back(SupportTri(SupportID::A, SupportID::B, SupportID::C, mVerts));
   }
 
-  SupportTri* Narrowphase::GetClosestTri(void) {
+  SupportTri* Narrowphase::_getClosestTri(void) {
     if(mTris.empty())
       return nullptr;
 
@@ -201,7 +201,7 @@ namespace Syx {
     SupportTri* result = &mTris[0];
     float bestDist = std::numeric_limits<float>::max();
     for(size_t i = 0; i < mTris.size(); ++i) {
-      float curDist = std::abs(mTris[i].OriginDist());
+      float curDist = std::abs(mTris[i].originDist());
       if(curDist < bestDist) {
         result = &mTris[i];
         bestDist = curDist;
@@ -210,21 +210,21 @@ namespace Syx {
     return result;
   }
 
-  void Narrowphase::DeleteInteriorTris(const Vec3& newPoint) {
+  void Narrowphase::_deleteInteriorTris(const Vec3& newPoint) {
     for(size_t i = 0; i < mTris.size();) {
       SupportTri& curTri = mTris[i];
       //If triangle is facing new vertex. Doesn't matter which point I choose, direction is similar enough
-      if(curTri.SignedNormalDist(newPoint) > 0.0f) {
+      if(curTri.signedNormalDist(newPoint) > 0.0f) {
         //Push edges on the list so they can later be used to construct new triangles with new vertex
-        curTri.AddEdges(mEdges);
-        SwapRemove(mTris, i);
+        curTri.addEdges(mEdges);
+        swapRemove(mTris, i);
       }
       else
         ++i;
     }
   }
 
-  void Narrowphase::ReconstructTriangles(void) {
+  void Narrowphase::_reconstructTriangles(void) {
     //Connect deleted triangles' edges to new face
     for(size_t i = 0; i < mEdges.size();) {
       auto& curEdge = mEdges[i];
@@ -233,10 +233,10 @@ namespace Syx {
       bool edgeRemoved = false;
       for(size_t j = i + 1; j < mEdges.size(); ++j) {
         auto& searchEdge = mEdges[j];
-        if(searchEdge.m_from == curEdge.m_to &&
-          searchEdge.m_to == curEdge.m_from) {
-          SwapRemove(mEdges, j);
-          SwapRemove(mEdges, i);
+        if(searchEdge.mFrom == curEdge.mTo &&
+          searchEdge.mTo == curEdge.mFrom) {
+          swapRemove(mEdges, j);
+          swapRemove(mEdges, i);
           edgeRemoved = true;
           break;
         }
@@ -245,7 +245,7 @@ namespace Syx {
         continue;
 
       //Construct a triangle out of this edge with the new vertex
-      mTris.push_back(SupportTri(curEdge.m_from, curEdge.m_to, mVerts.size() - 1, mVerts));
+      mTris.push_back(SupportTri(curEdge.mFrom, curEdge.mTo, mVerts.size() - 1, mVerts));
       ++i;
     }
 
@@ -253,358 +253,358 @@ namespace Syx {
     mEdges.clear();
   }
 
-  void Narrowphase::GJKEPAHandler(void) {
+  void Narrowphase::_gjkEPAHandler(void) {
     bool collision;
     if(gOptions.mSimdFlags & SyxOptions::SIMD::GJK)
-      collision = SGJK();
+      collision = _sGJK();
     else
-      collision = GJK();
+      collision = _gjk();
 
     if(collision) {
       if(gOptions.mDebugFlags & SyxOptions::Debug::DrawCollidingPairs)
-        DebugDrawer::Get().DrawLine(mA->GetTransform().mPos, mB->GetTransform().mPos);
+        DebugDrawer::get().drawLine(mA->getTransform().mPos, mB->getTransform().mPos);
 
       ContactPoint resultPoint;
       Vec3 normal;
       if(gOptions.mSimdFlags & SyxOptions::SIMD::EPA)
-        normal = SEPA(resultPoint);
+        normal = _sEPA(resultPoint);
       else
-        normal = EPA(resultPoint);
+        normal = _epa(resultPoint);
 
       if(normal != Vec3::Zero)
-        SubmitContact(resultPoint, normal);
+        _submitContact(resultPoint, normal);
       else
-        Interface::Log("Invalid contact normal");
+        Interface::log("Invalid contact normal");
     }
   }
 
-  void Narrowphase::ProcessPairQuery(const BroadPairs& pairs, Space& space) {
+  void Narrowphase::processPairQuery(const BroadPairs& pairs, Space& space) {
     mSpace = &space;
     for(auto& pair : pairs) {
       mA = reinterpret_cast<PhysicsObject*>(pair.first.mUserdata);
       mB = reinterpret_cast<PhysicsObject*>(pair.second.mUserdata);
       //Eventually broadphase shouldn't even return these in the query
-      if(mA->GetAsleep() && mB->GetAsleep())
+      if(mA->getAsleep() && mB->getAsleep())
         continue;
       //Ensure always consistent ordering of a and b
-      if(mA->GetHandle() < mB->GetHandle())
+      if(mA->getHandle() < mB->getHandle())
         std::swap(mA, mB);
 
       //Update these values in case the primitive narrowphase is used for this
-      mPrimitive.Set(mInstA, mInstB, mSpace, this);
-      mInstA = &mA->GetCollider()->GetModelInstance();
-      mInstB = &mB->GetCollider()->GetModelInstance();
+      mPrimitive.set(mInstA, mInstB, mSpace, this);
+      mInstA = &mA->getCollider()->getModelInstance();
+      mInstB = &mB->getCollider()->getModelInstance();
 
-      HandlePair();
+      _handlePair();
     }
   }
 
-  void Narrowphase::SwapAB() {
+  void Narrowphase::_swapAB() {
     std::swap(mA, mB);
     std::swap(mInstA, mInstB);
-    mPrimitive.Set(mInstA, mInstB, mSpace, this);
+    mPrimitive.set(mInstA, mInstB, mSpace, this);
   }
 
-  void Narrowphase::ProcessRayQuery(const BroadResults& /*objs*/, const Vec3& /*start*/, const Vec3& /*end*/, Space& /*space*/) {
-
-  }
-
-  void Narrowphase::ProcessVolumeQuery(const BroadResults& /*objs*/, const BoundingVolume& /*volume*/, Space& /*space*/) {
+  void Narrowphase::processRayQuery(const BroadResults& /*objs*/, const Vec3& /*start*/, const Vec3& /*end*/, Space& /*space*/) {
 
   }
 
-  void Narrowphase::DrawEPA(SupportTri* bestTri) {
-    DebugDrawer& d = DebugDrawer::Get();
+  void Narrowphase::processVolumeQuery(const BroadResults& /*objs*/, const BoundingVolume& /*volume*/, Space& /*space*/) {
+
+  }
+
+  void Narrowphase::_drawEPA(SupportTri* bestTri) {
+    DebugDrawer& d = DebugDrawer::get();
     bestTri = bestTri;
-    d.SetColor(1.0f, 0.0f, 0.0f);
+    d.setColor(1.0f, 0.0f, 0.0f);
     for(auto& tri : mTris) {
-      Vec3 a = mVerts[tri.m_verts[0]].mSupport;
-      Vec3 b = mVerts[tri.m_verts[1]].mSupport;
-      Vec3 c = mVerts[tri.m_verts[2]].mSupport;
-      DrawTriangle(a, b, c, true);
+      Vec3 a = mVerts[tri.mVerts[0]].mSupport;
+      Vec3 b = mVerts[tri.mVerts[1]].mSupport;
+      Vec3 c = mVerts[tri.mVerts[2]].mSupport;
+      drawTriangle(a, b, c, true);
     }
 
-    d.SetColor(1.0f, 0.0f, 1.0f);
-    DrawSphere(Vec3::Zero, 0.03f);
-    d.DrawPoint(bestTri->Project(Vec3::Zero), 0.01f);
+    d.setColor(1.0f, 0.0f, 1.0f);
+    drawSphere(Vec3::Zero, 0.03f);
+    d.drawPoint(bestTri->project(Vec3::Zero), 0.01f);
   }
 
-  void Narrowphase::SphereSphereHandler() {
-    mPrimitive.SphereSphere();
+  void Narrowphase::_sphereSphereHandler() {
+    mPrimitive.sphereSphere();
   }
 
-  void Narrowphase::CompositeOtherHandler() {
+  void Narrowphase::_compositeOtherHandler() {
     //Transform b's bounding box into a's space so it can test against all a's submodels
-    AABB localB = mB->GetCollider()->GetAABB().Transform(mInstA->GetWorldToModel());
+    AABB localB = mB->getCollider()->getAABB().transform(mInstA->getWorldToModel());
     ModelInstance* compositeRoot = mInstA;
 
     //This would be the place to have a local space broadphase for composite models, but we're doing them all now
-    auto& subInsts = compositeRoot->GetModel().GetSubmodelInstances();
+    auto& subInsts = compositeRoot->getModel().getSubmodelInstances();
     for(size_t i = 0; i < subInsts.size(); ++i) {
       const ModelInstance& subInst = subInsts[i];
-      if(localB.Overlapping(subInst.GetAABB())) {
+      if(localB.overlapping(subInst.getAABB())) {
         //Construct a model instance with the combined transforms so there aren't extra transforms when getting supports
-        ModelInstance tempWorldInst = ModelInstance::Combined(*compositeRoot, subInst, subInst, compositeRoot->GetSubmodelInstHandle(i));
+        ModelInstance tempWorldInst = ModelInstance::combined(*compositeRoot, subInst, subInst, compositeRoot->getSubmodelInstHandle(i));
         mInstA = &tempWorldInst;
-        mPrimitive.Set(mInstA, mInstB, mSpace, this);
-        HandlePair();
+        mPrimitive.set(mInstA, mInstB, mSpace, this);
+        _handlePair();
       }
     }
   }
 
-  void Narrowphase::OtherCompositeHandler() {
-    SwapAB();
-    CompositeOtherHandler();
+  void Narrowphase::_otherCompositeHandler() {
+    _swapAB();
+    _compositeOtherHandler();
   }
 
-  void Narrowphase::CompositeCompositeHandler() {
+  void Narrowphase::_compositeCompositeHandler() {
     //We'll calculate in the space of the composite object with more submodels
-    if(mInstA->GetModel().GetSubmodelInstances().size() < mInstB->GetModel().GetSubmodelInstances().size()) {
-      SwapAB();
+    if(mInstA->getModel().getSubmodelInstances().size() < mInstB->getModel().getSubmodelInstances().size()) {
+      _swapAB();
     }
 
-    Transformer localBToLocalA = Transformer::Combined(mInstB->GetModelToWorld(), mInstA->GetWorldToModel());
+    Transformer localBToLocalA = Transformer::combined(mInstB->getModelToWorld(), mInstA->getWorldToModel());
     ModelInstance* rootA = mInstA;
     ModelInstance* rootB = mInstB;
 
     //N^2 composite to composite. Needs broadphase!
-    auto& subInstsB = rootB->GetModel().GetSubmodelInstances();
+    auto& subInstsB = rootB->getModel().getSubmodelInstances();
     for(size_t i = 0; i < subInstsB.size(); ++i) {
       const ModelInstance& subInstB = subInstsB[i];
-      AABB bInA = subInstB.GetAABB().Transform(localBToLocalA);
-      ModelInstance tempWorldInstB = ModelInstance::Combined(*rootB, subInstB, subInstB, rootB->GetSubmodelInstHandle(i));
+      AABB bInA = subInstB.getAABB().transform(localBToLocalA);
+      ModelInstance tempWorldInstB = ModelInstance::combined(*rootB, subInstB, subInstB, rootB->getSubmodelInstHandle(i));
 
-      auto& subInstsA = rootA->GetModel().GetSubmodelInstances();
+      auto& subInstsA = rootA->getModel().getSubmodelInstances();
       for(size_t j = 0; j < subInstsA.size(); ++j) {
         const ModelInstance& subInstA = subInstsA[j];
-        if(subInstA.GetAABB().Overlapping(bInA)) {
-          ModelInstance tempWorldInstA = ModelInstance::Combined(*rootA, subInstA, subInstA, rootA->GetSubmodelInstHandle(j));
+        if(subInstA.getAABB().overlapping(bInA)) {
+          ModelInstance tempWorldInstA = ModelInstance::combined(*rootA, subInstA, subInstA, rootA->getSubmodelInstHandle(j));
           mInstA = &tempWorldInstA;
           mInstB = &tempWorldInstB;
-          mPrimitive.Set(mInstA, mInstB, mSpace, this);
-          HandlePair();
+          mPrimitive.set(mInstA, mInstB, mSpace, this);
+          _handlePair();
         }
       }
     }
   }
 
-  void Narrowphase::EnvOtherHandler() {
+  void Narrowphase::_envOtherHandler() {
     //Transform b's bounding box into a's space so it can test against all a's submodels
-    AABB localB = mB->GetCollider()->GetAABB().Transform(mInstA->GetWorldToModel());
+    AABB localB = mB->getCollider()->getAABB().transform(mInstA->getWorldToModel());
     ModelInstance* envRoot = mInstA;
-    mInstA->GetModel().GetBroadphase().QueryVolume(localB, *mBroadphaseContext);
-    const Vec3Vec& tris = mInstA->GetModel().GetTriangles();
+    mInstA->getModel().getBroadphase().queryVolume(localB, *mBroadphaseContext);
+    const Vec3Vec& tris = mInstA->getModel().getTriangles();
 
-    ModelInstance tempInst(mTempTri, envRoot->GetModelToWorld(), envRoot->GetWorldToModel());
+    ModelInstance tempInst(mTempTri, envRoot->getModelToWorld(), envRoot->getWorldToModel());
 
     for(ResultNode& result : mBroadphaseContext->mQueryResults) {
       size_t triIndex = reinterpret_cast<size_t>(result.mUserdata);
       const Vec3& a = tris[triIndex];
       Handle instHandle = *reinterpret_cast<const Handle*>(&a.w);
 
-      tempInst.SetHandle(instHandle);
-      mTempTri.SetTriangle(a, tris[triIndex + 1], tris[triIndex + 2]);
+      tempInst.setHandle(instHandle);
+      mTempTri.setTriangle(a, tris[triIndex + 1], tris[triIndex + 2]);
       mInstA = &tempInst;
-      mPrimitive.Set(mInstA, mInstB, mSpace, this);
-      HandlePair();
+      mPrimitive.set(mInstA, mInstB, mSpace, this);
+      _handlePair();
     }
   }
 
-  void Narrowphase::OtherEnvHandler() {
-    SwapAB();
-    EnvOtherHandler();
+  void Narrowphase::_otherEnvHandler() {
+    _swapAB();
+    _envOtherHandler();
   }
 
-  void Narrowphase::EnvEnvHandler() {
+  void Narrowphase::_envEnvHandler() {
     //Don't care if environments collide
   }
 
-  void Narrowphase::EnvCompositeHandler() {
+  void Narrowphase::_envCompositeHandler() {
     ModelInstance* envRoot = mInstA;
     ModelInstance* compRoot = mInstB;
     //Local composite to local environment
-    Transformer compToEnv = Transformer::Combined(compRoot->GetModelToWorld(), envRoot->GetWorldToModel());
-    ModelInstance tempTriInst(mTempTri, envRoot->GetModelToWorld(), envRoot->GetWorldToModel());
-    const Vec3Vec& tris = mInstA->GetModel().GetTriangles();
+    Transformer compToEnv = Transformer::combined(compRoot->getModelToWorld(), envRoot->getWorldToModel());
+    ModelInstance tempTriInst(mTempTri, envRoot->getModelToWorld(), envRoot->getWorldToModel());
+    const Vec3Vec& tris = mInstA->getModel().getTriangles();
 
-    auto& subInsts = compRoot->GetModel().GetSubmodelInstances();
+    auto& subInsts = compRoot->getModel().getSubmodelInstances();
     //Transform each submodel aabb into env local space and query broadphase, handle pairs of results
     for(size_t i = 0; i < subInsts.size(); ++i) {
       const ModelInstance& subInst = subInsts[i];
-      AABB queryBox = subInst.GetAABB().Transform(compToEnv);
+      AABB queryBox = subInst.getAABB().transform(compToEnv);
 
-      envRoot->GetModel().GetBroadphase().QueryVolume(queryBox, *mBroadphaseContext);
+      envRoot->getModel().getBroadphase().queryVolume(queryBox, *mBroadphaseContext);
       if(mBroadphaseContext->mQueryResults.empty())
         continue;
 
-      ModelInstance tempSubInst = ModelInstance::Combined(*compRoot, subInst, subInst, compRoot->GetSubmodelInstHandle(i));
+      ModelInstance tempSubInst = ModelInstance::combined(*compRoot, subInst, subInst, compRoot->getSubmodelInstHandle(i));
       mInstB = &tempSubInst;
       for(const ResultNode& result : mBroadphaseContext->mQueryResults) {
         size_t triIndex = reinterpret_cast<size_t>(result.mUserdata);
         const Vec3& a = tris[triIndex];
         Handle instHandle = *reinterpret_cast<const Handle*>(&a.w);
 
-        tempTriInst.SetHandle(instHandle);
-        mTempTri.SetTriangle(a, tris[triIndex + 1], tris[triIndex + 2]);
+        tempTriInst.setHandle(instHandle);
+        mTempTri.setTriangle(a, tris[triIndex + 1], tris[triIndex + 2]);
         mInstA = &tempTriInst;
-        mPrimitive.Set(mInstA, mInstB, mSpace, this);
-        HandlePair();
+        mPrimitive.set(mInstA, mInstB, mSpace, this);
+        _handlePair();
       }
     }
   }
 
-  void Narrowphase::CompositeEnvHandler() {
-    SwapAB();
-    EnvCompositeHandler();
+  void Narrowphase::_compositeEnvHandler() {
+    _swapAB();
+    _envCompositeHandler();
   }
 
-  void Narrowphase::HandlePair() {
-    (*this.*GetHandler(mInstA->GetModelType(), mInstB->GetModelType()))();
+  void Narrowphase::_handlePair() {
+    (*this.*_getHandler(mInstA->getModelType(), mInstB->getModelType()))();
   }
 
-  void Narrowphase::InitHandlers() {
+  void Narrowphase::_initHandlers() {
     //Default to gjk, then call out special cases
     for(int i = 0; i < sHandlerRowCount; ++i)
       for(int j = 0; j < sHandlerRowCount; ++j)
-        GetHandler(i, j) = &Narrowphase::GJKEPAHandler;
+        _getHandler(i, j) = &Narrowphase::_gjkEPAHandler;
 
     for(int i = 0; i < sHandlerRowCount; ++i) {
-      GetHandler(ModelType::Composite, i) = &Narrowphase::CompositeOtherHandler;
-      GetHandler(i, ModelType::Composite) = &Narrowphase::OtherCompositeHandler;
+      _getHandler(ModelType::Composite, i) = &Narrowphase::_compositeOtherHandler;
+      _getHandler(i, ModelType::Composite) = &Narrowphase::_otherCompositeHandler;
 
-      GetHandler(ModelType::Environment, i) = &Narrowphase::EnvOtherHandler;
-      GetHandler(i, ModelType::Environment) = &Narrowphase::OtherEnvHandler;
+      _getHandler(ModelType::Environment, i) = &Narrowphase::_envOtherHandler;
+      _getHandler(i, ModelType::Environment) = &Narrowphase::_otherEnvHandler;
     }
-    GetHandler(ModelType::Composite, ModelType::Composite) = &Narrowphase::CompositeCompositeHandler;
-    GetHandler(ModelType::Environment, ModelType::Environment) = &Narrowphase::EnvEnvHandler;
+    _getHandler(ModelType::Composite, ModelType::Composite) = &Narrowphase::_compositeCompositeHandler;
+    _getHandler(ModelType::Environment, ModelType::Environment) = &Narrowphase::_envEnvHandler;
 
-    GetHandler(ModelType::Environment, ModelType::Composite) = &Narrowphase::EnvCompositeHandler;
-    GetHandler(ModelType::Composite, ModelType::Environment) = &Narrowphase::CompositeEnvHandler;
+    _getHandler(ModelType::Environment, ModelType::Composite) = &Narrowphase::_envCompositeHandler;
+    _getHandler(ModelType::Composite, ModelType::Environment) = &Narrowphase::_compositeEnvHandler;
 
-    GetHandler(ModelType::Sphere, ModelType::Sphere) = &Narrowphase::SphereSphereHandler;
+    _getHandler(ModelType::Sphere, ModelType::Sphere) = &Narrowphase::_sphereSphereHandler;
   }
 
-  CollisionHandler& Narrowphase::GetHandler(int modelTypeA, int modelTypeB) {
+  CollisionHandler& Narrowphase::_getHandler(int modelTypeA, int modelTypeB) {
     return mHandlers[modelTypeA + sHandlerRowCount*modelTypeB];
   }
 
-  void Narrowphase::SubmitContact(const Vec3& worldA, const Vec3& worldB, const Vec3& normal) {
-    float penetration = (worldB - worldA).Dot(normal);
-    SubmitContact(worldA, worldB, normal, penetration);
+  void Narrowphase::_submitContact(const Vec3& worldA, const Vec3& worldB, const Vec3& normal) {
+    float penetration = (worldB - worldA).dot(normal);
+    _submitContact(worldA, worldB, normal, penetration);
   }
 
-  void Narrowphase::SubmitContact(const Vec3& worldA, const Vec3& worldB, const Vec3& normal, float penetration) {
-    ContactObject ca(mA->GetTransform().WorldToModel(worldA), worldA);
-    ContactObject cb(mB->GetTransform().WorldToModel(worldB), worldB);
+  void Narrowphase::_submitContact(const Vec3& worldA, const Vec3& worldB, const Vec3& normal, float penetration) {
+    ContactObject ca(mA->getTransform().worldToModel(worldA), worldA);
+    ContactObject cb(mB->getTransform().worldToModel(worldB), worldB);
     ContactPoint point(ca, cb, penetration);
-    SubmitContact(point, normal);
+    _submitContact(point, normal);
   }
 
-  void Narrowphase::SubmitContact(const ContactPoint& contact, const Vec3& normal) {
-    Manifold* manifold = mSpace->GetManifold(*mA, *mB, *mInstA, *mInstB);
+  void Narrowphase::_submitContact(const ContactPoint& contact, const Vec3& normal) {
+    Manifold* manifold = mSpace->getManifold(*mA, *mB, *mInstA, *mInstB);
     if(manifold)
-      manifold->AddContact(contact, normal);
+      manifold->addContact(contact, normal);
   }
 
 #ifdef SENABLED
-  SupportPoint Narrowphase::SGetSupport(const Vec3& dir) {
-    SFloats sDir = ToSVec3(dir);
+  SupportPoint Narrowphase::_sGetSupport(const Vec3& dir) {
+    SFloats sDir = toSVec3(dir);
     SAlign Vec3 supportA;
     SAlign Vec3 supportB;
-    SVec3::Store(mInstA->SGetSupport(sDir), supportA);
-    SVec3::Store(mInstB->SGetSupport(SVec3::Neg(sDir)), supportB);
+    SVec3::store(mInstA->sGetSupport(sDir), supportA);
+    SVec3::store(mInstB->sGetSupport(SVec3::neg(sDir)), supportB);
     return SupportPoint(supportA, supportB);
   }
 
-  SupportPoint Narrowphase::SGetSupport(SFloats dir, SFloats& resultSupport) {
+  SupportPoint Narrowphase::_sGetSupport(SFloats dir, SFloats& resultSupport) {
     SAlign Vec3 supportA;
     SAlign Vec3 supportB;
     SAlign Vec3 support;
-    SFloats sa = mInstA->SGetSupport(dir);
-    SFloats sb = mInstB->SGetSupport(SVec3::Neg(dir));
+    SFloats sa = mInstA->sGetSupport(dir);
+    SFloats sb = mInstB->sGetSupport(SVec3::neg(dir));
     resultSupport = SSubAll(sa, sb);
-    SVec3::Store(sa, supportA);
-    SVec3::Store(sb, supportB);
-    SVec3::Store(resultSupport, support);
+    SVec3::store(sa, supportA);
+    SVec3::store(sb, supportB);
+    SVec3::store(resultSupport, support);
     return SupportPoint(supportA, supportB, support);
   }
 
-  SupportPoint Narrowphase::SGetSupport(SFloats dir) {
+  SupportPoint Narrowphase::_sGetSupport(SFloats dir) {
     SFloats unused;
-    return SGetSupport(dir, unused);
+    return _sGetSupport(dir, unused);
   }
 
-  bool Narrowphase::SGJK(void) {
-    mSimplex.Initialize();
+  bool Narrowphase::_sGJK(void) {
+    mSimplex.initialize();
     //Arbitrary start direction
-    SupportPoint support = SGetSupport(SVec3::UnitY);
+    SupportPoint support = _sGetSupport(SVec3::UnitY);
 
     int iterationCap = 100;
     int iteration = 0;
 
     while(iteration++ < iterationCap) {
-      mSimplex.Add(support, false);
+      mSimplex.add(support, false);
 
-      SFloats newDir = mSimplex.SSolve();
+      SFloats newDir = mSimplex.sSolve();
 
-      if(mSimplex.ContainsOrigin())
+      if(mSimplex.containsOrigin())
         return true;
-      else if(mSimplex.IsDegenerate() || mSimplex.SIsDegenerate())
+      else if(mSimplex.isDegenerate() || mSimplex.sIsDegenerate())
         return false;
 
-      support = SGetSupport(newDir);
+      support = _sGetSupport(newDir);
 
-      if(!mSimplex.SMakesProgress(SLoadAll(&support.mSupport.x), newDir))
+      if(!mSimplex.sMakesProgress(SLoadAll(&support.mSupport.x), newDir))
         return false;
     }
 
-    Interface::Log("GJK Iteration cap reached");
+    Interface::log("GJK Iteration cap reached");
     return false;
   }
 
-  Vec3 Narrowphase::SEPA(ContactPoint& result) {
-    InitEPASimplex();
+  Vec3 Narrowphase::_sEPA(ContactPoint& result) {
+    _initEPASimplex();
 
     int iterationCap = 100;
     int iteration = 0;
-    const SFloats epaEpsilon = SLoadSplatFloats(sepaEpsilon);
-    const SFloats setW = SLoadFloats(0.0f, 0.0f, 0.0f, 1.0f);
+    const SFloats epaEpsilon = sLoadSplatFloats(sepaEpsilon);
+    const SFloats setW = sLoadFloats(0.0f, 0.0f, 0.0f, 1.0f);
 
     while(iteration++ < iterationCap) {
-      SupportTri* bestTri = GetClosestTri();
-      SFloats triPlane = SLoadAll(&bestTri->m_halfPlane.x);
+      SupportTri* bestTri = _getClosestTri();
+      SFloats triPlane = SLoadAll(&bestTri->mHalfPlane.x);
       SFloats newSupport;
-      mVerts.push_back(SGetSupport(triPlane, newSupport));
+      mVerts.push_back(_sGetSupport(triPlane, newSupport));
       //Put a one in the w component so dot4 works
       newSupport = SOr(newSupport, setW);
 
       //If progress is below threshold, we're done
-      if(SILessEqualLower(SVec3::Dot4(triPlane, newSupport), epaEpsilon))
-        return StoreEPAResult(result, bestTri);
+      if(SILessEqualLower(SVec3::dot4(triPlane, newSupport), epaEpsilon))
+        return _storeEPAResult(result, bestTri);
 
-      SDeleteInteriorTris(newSupport);
-      SReconstructTriangles(newSupport);
+      _sDeleteInteriorTris(newSupport);
+      _sReconstructTriangles(newSupport);
     }
 
-    Interface::Log("EPA Iteration cap reached");
+    Interface::log("EPA Iteration cap reached");
     return Vec3::Zero;
   }
 
-  void Narrowphase::SDeleteInteriorTris(SFloats newPoint) {
+  void Narrowphase::_sDeleteInteriorTris(SFloats newPoint) {
     for(size_t i = 0; i < mTris.size();) {
       SupportTri& curTri = mTris[i];
       //If triangle is facing new vertex. Doesn't matter which point I choose, direction is similar enough
-      if(SIGreaterLower(SVec3::Dot4(SLoadAll(&curTri.m_halfPlane.x), newPoint), SVec3::Zero)) {
+      if(SIGreaterLower(SVec3::dot4(SLoadAll(&curTri.mHalfPlane.x), newPoint), SVec3::Zero)) {
         //Push edges on the list so they can later be used to construct new triangles with new vertex
-        curTri.AddEdges(mEdges);
-        SwapRemove(mTris, i);
+        curTri.addEdges(mEdges);
+        swapRemove(mTris, i);
       }
       else
         ++i;
     }
   }
 
-  void Narrowphase::SReconstructTriangles(SFloats newSupport) {
+  void Narrowphase::_sReconstructTriangles(SFloats newSupport) {
     //Connect deleted triangles' edges to new face
     for(size_t i = 0; i < mEdges.size();) {
       auto& curEdge = mEdges[i];
@@ -613,10 +613,10 @@ namespace Syx {
       bool edgeRemoved = false;
       for(size_t j = i + 1; j < mEdges.size(); ++j) {
         auto& searchEdge = mEdges[j];
-        if(searchEdge.m_from == curEdge.m_to &&
-          searchEdge.m_to == curEdge.m_from) {
-          SwapRemove(mEdges, j);
-          SwapRemove(mEdges, i);
+        if(searchEdge.mFrom == curEdge.mTo &&
+          searchEdge.mTo == curEdge.mFrom) {
+          swapRemove(mEdges, j);
+          swapRemove(mEdges, i);
           edgeRemoved = true;
           break;
         }
@@ -625,18 +625,18 @@ namespace Syx {
         continue;
 
       //Construct a triangle out of this edge with the new vertex
-      SFloats a = SLoadAll(&mVerts[curEdge.m_from].mSupport.x);
-      SFloats b = SLoadAll(&mVerts[curEdge.m_to].mSupport.x);
+      SFloats a = SLoadAll(&mVerts[curEdge.mFrom].mSupport.x);
+      SFloats b = SLoadAll(&mVerts[curEdge.mTo].mSupport.x);
 
-      SFloats normal = SVec3::SafeNormalized(SVec3::CCWTriangleNormal(a, b, newSupport));
-      SFloats wTerm = SVec3::Neg(SVec3::Dot(a, normal));
+      SFloats normal = SVec3::safeNormalized(SVec3::ccwTriangleNormal(a, b, newSupport));
+      SFloats wTerm = SVec3::neg(SVec3::dot(a, normal));
       SAlign Vec3 plane;
       SAlign Vec3 w;
       SStoreLower(&w.x, wTerm);
       SStoreAll(&plane.x, normal);
       plane.w = w.x;
 
-      mTris.push_back(SupportTri(curEdge.m_from, curEdge.m_to, mVerts.size() - 1, plane));
+      mTris.push_back(SupportTri(curEdge.mFrom, curEdge.mTo, mVerts.size() - 1, plane));
       ++i;
     }
 
@@ -644,6 +644,6 @@ namespace Syx {
     mEdges.clear();
   }
 #else
-  SupportPoint Narrowphase::SGetSupport(const Vec3&) { return SupportPoint(); }
+  SupportPoint Narrowphase::_sGetSupport(const Vec3&) { return SupportPoint(); }
 #endif
 }

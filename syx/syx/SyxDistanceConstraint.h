@@ -27,16 +27,16 @@ namespace Syx {
       , mWarmStart(0.0f) {
     }
 
-    virtual void SetLocalAnchor(const Vec3& anchor, ConstraintObj obj) override {
+    virtual void setLocalAnchor(const Vec3& anchor, ConstraintObj obj) override {
       if(obj == ConstraintObj::A)
         mAnchorA = anchor;
       else
         mAnchorB = anchor;
     }
-    virtual const Vec3& GetLocalAnchor(ConstraintObj obj) const override {
+    virtual const Vec3& getLocalAnchor(ConstraintObj obj) const override {
       return obj == ConstraintObj::A ? mAnchorA : mAnchorB;
     }
-    void SetDistance(float dist) {
+    void setDistance(float dist) {
       mDistance = dist;
     }
 
@@ -49,11 +49,11 @@ namespace Syx {
 
   SAlign class LocalDistanceConstraint: public LocalConstraint {
   public:
-    void FirstIteration();
-    void LastIteration();
-    float Solve();
-    float SSolve();
-    void Draw();
+    void firstIteration();
+    void lastIteration();
+    float solve();
+    float sSolve();
+    void draw();
 
   private:
     static float sSlop;

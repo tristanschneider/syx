@@ -2,11 +2,11 @@
 
 #ifdef SENABLED
 namespace Syx {
-  const SFloats SQuat::Zero = SLoadFloats(0.0f, 0.0f, 0.0f, 0.0f);
+  const SFloats SQuat::Zero = sLoadFloats(0.0f, 0.0f, 0.0f, 0.0f);
 
-  SFloats SQuat::Construct(SFloats ijk, float w) {
+  SFloats SQuat::construct(SFloats ijk, float w) {
     SAlign Vec3 store;
-    SVec3::Store(ijk, store);
+    SVec3::store(ijk, store);
     store.w = w;
     return SLoadAll(&store.x);
   }
@@ -21,34 +21,34 @@ namespace Syx {
 
    //Last row rearranged to from equation for less operations
    [wt-xq-yr-zs] = wt-(qx+yr+zs) = -(qx+yr+zs)+wt = -(qx+yr+zs-wt)*/
-  SFloats SQuat::MulQuat(SFloats lhs, SFloats rhs) {
+  SFloats SQuat::mulQuat(SFloats lhs, SFloats rhs) {
     SFloats result = SMulAll(SShuffle(lhs, 3, 3, 3, 0), SShuffle(rhs, 0, 1, 2, 0));
     result = SAddAll(result, SMulAll(SShuffle(lhs, 0, 1, 2, 1), SShuffle(rhs, 3, 3, 3, 1)));
     result = SAddAll(result, SMulAll(SShuffle(lhs, 1, 2, 0, 2), SShuffle(rhs, 2, 0, 1, 2)));
     result = SSubAll(result, SMulAll(SShuffle(lhs, 2, 0, 1, 3), SShuffle(rhs, 1, 2, 0, 3)));
 
-    static const SFloats flipWSign = SLoadFloats(1.0f, 1.0f, 1.0f, -1.0f);
+    static const SFloats flipWSign = sLoadFloats(1.0f, 1.0f, 1.0f, -1.0f);
     return SMulAll(result, flipWSign);
   }
 
-  SFloats SQuat::MulQuatVec(SFloats quat, SFloats vec) {
+  SFloats SQuat::mulQuatVec(SFloats quat, SFloats vec) {
     return SMulAll(quat, vec);
   }
 
-  SFloats SQuat::MulVecQuat(SFloats vec, SFloats quat) {
+  SFloats SQuat::mulVecQuat(SFloats vec, SFloats quat) {
     return SMulAll(vec, quat);
   }
 
-  SFloats SQuat::Add(SFloats lhs, SFloats rhs) {
+  SFloats SQuat::add(SFloats lhs, SFloats rhs) {
     return SAddAll(lhs, rhs);
   }
 
-  SFloats SQuat::Div(SFloats lhs, SFloats rhs) {
+  SFloats SQuat::div(SFloats lhs, SFloats rhs) {
     return SDivAll(lhs, rhs);
   }
 
-  SFloats SQuat::Neg(SFloats in) {
-    static const SFloats negation = SLoadFloats(-1.0f, -1.0f, -1.0f, -1.0f);
+  SFloats SQuat::neg(SFloats in) {
+    static const SFloats negation = sLoadFloats(-1.0f, -1.0f, -1.0f, -1.0f);
     return SMulAll(in, negation);
   }
 
@@ -57,7 +57,7 @@ namespace Syx {
     //Same as quaternion multiplication but with t terms removed since it's 0
     SFloats result = SMulAll(SShuffle(lhs, 3, 3, 3, 0), SShuffle(rhs, 0, 1, 2, 0));
     result = SAddAll(result, SMulAll(SShuffle(lhs, 1, 2, 0, 1), SShuffle(rhs, 2, 0, 1, 1)));
-    static const SFloats flipWSign = SLoadFloats(1.0f, 1.0f, 1.0f, -1.0f);
+    static const SFloats flipWSign = sLoadFloats(1.0f, 1.0f, 1.0f, -1.0f);
     result = SSubAll(result, SMulAll(flipWSign, SMulAll(SShuffle(lhs, 2, 0, 1, 2), SShuffle(rhs, 1, 2, 0, 2))));
 
     result = SMulAll(result, flipWSign);
@@ -75,32 +75,32 @@ namespace Syx {
     return result;
   }
 
-  SFloats SQuat::Rotate(SFloats quat, SFloats toRot) {
-    return QuatMultZeroW(QuatMultNoW(quat, toRot), Inversed(quat));
+  SFloats SQuat::rotate(SFloats quat, SFloats toRot) {
+    return QuatMultZeroW(QuatMultNoW(quat, toRot), inversed(quat));
   }
 
-  SFloats SQuat::Length(SFloats in) {
-    return SSqrtAll(SVec3::Dot4(in, in));
+  SFloats SQuat::length(SFloats in) {
+    return SSqrtAll(SVec3::dot4(in, in));
   }
 
-  SFloats SQuat::Length2(SFloats in) {
-    return SVec3::Dot4(in, in);
+  SFloats SQuat::length2(SFloats in) {
+    return SVec3::dot4(in, in);
   }
 
-  SFloats SQuat::Normalized(SFloats in) {
-    return SDivAll(in, Length(in));
+  SFloats SQuat::normalized(SFloats in) {
+    return SDivAll(in, length(in));
   }
 
-  SFloats SQuat::Inversed(SFloats in) {
-    static const SFloats negation = SLoadFloats(-1.0f, -1.0f, -1.0f, 1.0f);
+  SFloats SQuat::inversed(SFloats in) {
+    static const SFloats negation = sLoadFloats(-1.0f, -1.0f, -1.0f, 1.0f);
     return SMulAll(in, negation);
   }
 
   //-2yy-2zz+1, 2xy-2zw  , 2xz+2yw
   // 2xy+2zw  ,-2xx-2zz+1, 2yz-2xw
   // 2xz-2yw  , 2yz+2xw  ,-2xx-2yy+1
-  SMat3 SQuat::ToMatrix(SFloats in) {
-    static const SFloats allTwo = SLoadFloats(-2.0f, 2.0f, 2.0f, 2.0f);
+  SMat3 SQuat::toMatrix(SFloats in) {
+    static const SFloats allTwo = sLoadFloats(-2.0f, 2.0f, 2.0f, 2.0f);
     SMat3 result;
 
     //Same formula as on standard quaternion, but done per column from left to right as above
@@ -157,19 +157,19 @@ namespace Syx {
     return result;
   }
 
-  SFloats SQuat::AxisAngle(SFloats axis, float angle) {
+  SFloats SQuat::axisAngle(SFloats axis, float angle) {
     angle *= 0.5f;
-    SFloats sinAngle = SLoadSplatFloats(sin(angle));
-    return Construct(SMulAll(axis, sinAngle), cos(angle));
+    SFloats sinAngle = sLoadSplatFloats(sin(angle));
+    return construct(SMulAll(axis, sinAngle), cos(angle));
   }
 
-  Quat ToQuat(SFloats quat) {
+  Quat toQuat(SFloats quat) {
     SAlign Quat store;
     SStoreAll(&store.mV.x, quat);
     return store;
   }
 
-  SFloats ToSQuat(const Quat& quat) {
+  SFloats toSQuat(const Quat& quat) {
     AssertAlignment(quat.mV.x);
     return SLoadAll(&quat.mV.x);
   }

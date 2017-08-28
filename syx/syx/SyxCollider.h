@@ -21,26 +21,26 @@ namespace Syx {
     Collider(const Collider&) = delete;
     Collider& operator=(const Collider&) = delete;
 
-    void Initialize(Space& space);
-    void Uninitialize(Space& space);
+    void initialize(Space& space);
+    void uninitialize(Space& space);
 
-    PhysicsObject* GetOwner(void);
+    PhysicsObject* getOwner();
 
-    void SetFlag(int flag, bool value);
-    bool GetFlag(int flag);
-    Vec3 GetSupport(const Vec3& dir);
-    SFloats SGetSupport(SFloats dir);
+    void setFlag(int flag, bool value);
+    bool getFlag(int flag);
+    Vec3 getSupport(const Vec3& dir);
+    SFloats sGetSupport(SFloats dir);
 
-    void UpdateModelInst(const Transform& parentTransform);
+    void updateModelInst(const Transform& parentTransform);
 
-    void SetModel(const Model& model);
-    void SetMaterial(const Material& material);
+    void setModel(const Model& model);
+    void setMaterial(const Material& material);
 
-    int GetModelType(void);
+    int getModelType();
 
-    const Model& GetModel(void) { return mModelInst.GetModel(); }
-    ModelInstance& GetModelInstance(void) { return mModelInst; }
-    const AABB& GetAABB(void) { return mModelInst.GetAABB(); }
+    const Model& getModel() { return mModelInst.getModel(); }
+    ModelInstance& getModelInstance() { return mModelInst; }
+    const AABB& getAABB() { return mModelInst.getAABB(); }
 
     Handle mBroadHandle;
   private:

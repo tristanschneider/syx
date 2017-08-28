@@ -34,49 +34,49 @@ namespace Syx {
     Space& operator=(const Space& rhs);
     bool operator<(Handle rhs) { return mMyHandle < rhs; }
     bool operator==(Handle rhs) { return mMyHandle == rhs; }
-    Handle GetHandle(void) { return mMyHandle; }
+    Handle getHandle(void) { return mMyHandle; }
 
-    PhysicsObject* CreateObject(void);
-    void DestroyObject(Handle handle);
-    PhysicsObject* GetObject(Handle handle);
+    PhysicsObject* createObject(void);
+    void destroyObject(Handle handle);
+    PhysicsObject* getObject(Handle handle);
 
-    const std::string& GetProfileReport(const std::string& indent) { return mProfiler.GetReport(indent); }
-    const std::vector<ProfileResult>& GetProfileHistory() { return mProfiler.GetHistory(); }
+    const std::string& getProfileReport(const std::string& indent) { return mProfiler.getReport(indent); }
+    const std::vector<ProfileResult>& getProfileHistory() { return mProfiler.getHistory(); }
 
-    CastResult LineCastAll(const Vec3& start, const Vec3& end);
+    CastResult lineCastAll(const Vec3& start, const Vec3& end);
 
-    void Clear(void);
-    void Update(float dt);
+    void clear(void);
+    void update(float dt);
 
-    void WakeObject(PhysicsObject& obj);
-    void UpdateMovedObject(PhysicsObject& obj);
-    void SetColliderEnabled(PhysicsObject& obj, bool enabled);
-    void SetRigidbodyEnabled(PhysicsObject& obj, bool enabled);
+    void wakeObject(PhysicsObject& obj);
+    void updateMovedObject(PhysicsObject& obj);
+    void setColliderEnabled(PhysicsObject& obj, bool enabled);
+    void setRigidbodyEnabled(PhysicsObject& obj, bool enabled);
 
-    Manifold* GetManifold(PhysicsObject& a, PhysicsObject& b, ModelInstance& instA, ModelInstance& instB);
+    Manifold* getManifold(PhysicsObject& a, PhysicsObject& b, ModelInstance& instA, ModelInstance& instB);
 
-    Handle AddDistanceConstraint(DistanceOps& ops);
-    Handle AddSphericalConstraint(SphericalOps& ops);
-    Handle AddWeldConstraint(WeldOps& ops);
-    Handle AddRevoluteConstraint(RevoluteOps& ops);
+    Handle addDistanceConstraint(DistanceOps& ops);
+    Handle addSphericalConstraint(SphericalOps& ops);
+    Handle addWeldConstraint(WeldOps& ops);
+    Handle addRevoluteConstraint(RevoluteOps& ops);
 
-    void RemoveConstraint(Handle handle);
+    void removeConstraint(Handle handle);
 
     const EventListener<UpdateEvent>& getUpdateEvents();
 
   private:
-    bool FillOps(ConstraintOptions& ops);
+    bool _fillOps(ConstraintOptions& ops);
 
-    void IntegrateVelocity(float dt);
-    void IntegratePosition(float dt);
-    void CollisionDetection(void);
-    void SolveConstraints(float dt);
+    void _integrateVelocity(float dt);
+    void _integratePosition(float dt);
+    void _collisionDetection(void);
+    void _solveConstraints(float dt);
 
-    void IntegrateAllPositions(float dt);
-    void SIntegrateAllPositions(float dt);
+    void _integrateAllPositions(float dt);
+    void _sIntegrateAllPositions(float dt);
 
-    void IntegrateAllVelocity(float dt);
-    void SIntegrateAllVelocity(float dt);
+    void _integrateAllVelocity(float dt);
+    void _sIntegrateAllVelocity(float dt);
 
     void _fireUpdateEvent(PhysicsObject& obj);
 

@@ -59,14 +59,14 @@ namespace Syx {
 
     ContactConstraint(PhysicsObject* a = nullptr, PhysicsObject* b = nullptr, Handle handle = SyxInvalidHandle, Handle instA = SyxInvalidHandle, Handle instB = SyxInvalidHandle)
       : Constraint(ConstraintType::Contact, a, b, handle)
-      , mManifold(a ? a->GetCollider() : nullptr, b ? b->GetCollider() : nullptr)
+      , mManifold(a ? a->getCollider() : nullptr, b ? b->getCollider() : nullptr)
       , mInactiveTime(0.0f)
       , mInstA(instA) 
       , mInstB(instB) {
     }
 
-    Handle GetModelInstanceA() { return mInstA; }
-    Handle GetModelInstanceB() { return mInstB; }
+    Handle getModelInstanceA() { return mInstA; }
+    Handle getModelInstanceB() { return mInstB; }
 
     SAlign Manifold mManifold;
   private:
@@ -84,20 +84,20 @@ namespace Syx {
     LocalContactConstraint() {}
     LocalContactConstraint(ContactConstraint& owner);
 
-    void FirstIteration();
-    void LastIteration();
-    float Solve();
-    float SSolve();
-    void Draw();
+    void firstIteration();
+    void lastIteration();
+    float solve();
+    float sSolve();
+    void draw();
 
     //Pointer because warm starts are ultimately stored here. Only used in first and last iteration, so cache misses shouldn't hit too hard
     Manifold* mManifold;
 
   private:
-    void SetupContactJacobian(float massA, const Mat3& inertiaA, float massB, const Mat3& inertiaB);
-    void SetupFrictionJacobian(float massA, const Mat3& inertiaA, float massB, const Mat3& inertiaB);
-    float SolveContact(int i);
-    float SolveFriction(int i);
+    void _setupContactJacobian(float massA, const Mat3& inertiaA, float massB, const Mat3& inertiaB);
+    void _setupFrictionJacobian(float massA, const Mat3& inertiaA, float massB, const Mat3& inertiaB);
+    float _solveContact(int i);
+    float _solveFriction(int i);
 
     SAlign ContactBlock mContactBlock;
     SAlign FrictionBlock mFrictionBlock;

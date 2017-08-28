@@ -9,10 +9,10 @@ namespace Syx {
 
   class CasterContext {
   public:
-    const std::vector<CastResult>& GetResults(void) { return mResults; }
-    void PushResult(const CastResult& result) { mResults.push_back(result); }
-    void ClearResults(void) { mResults.clear(); }
-    void SortResults(void);
+    const std::vector<CastResult>& getResults(void) { return mResults; }
+    void pushResult(const CastResult& result) { mResults.push_back(result); }
+    void clearResults(void) { mResults.clear(); }
+    void sortResults(void);
 
     const Vec3* mWorldStart;
     const Vec3* mWorldEnd;
@@ -23,14 +23,14 @@ namespace Syx {
 
   class Caster {
   public:
-    void LineCast(PhysicsObject& obj, const Vec3& start, const Vec3& end, CasterContext& context) const;
+    void lineCast(PhysicsObject& obj, const Vec3& start, const Vec3& end, CasterContext& context) const;
 
   private:
     // Model space raycast, then toWorld is used to put the final results in world space
-    void LineCastGJK(const Model& model, const Transformer& toWorld, const Vec3& start, const Vec3& end, CasterContext& context) const;
-    void LineCastCube(const Model& model, const Transformer& toWorld, const Vec3& start, const Vec3& end, CasterContext& context) const;
-    void LineCastLocal(const Model& model, const Transformer& toWorld, const Vec3& start, const Vec3& end, CasterContext& context) const;
-    void LineCastComposite(const Model& model, const Transformer& toWorld, const Vec3& start, const Vec3& end, CasterContext& context) const;
-    void LineCastEnvironment(const Model& model, const Transformer& toWorld, const Vec3& start, const Vec3& end, CasterContext& context) const;
+    void _lineCastGJK(const Model& model, const Transformer& toWorld, const Vec3& start, const Vec3& end, CasterContext& context) const;
+    void _lineCastCube(const Model& model, const Transformer& toWorld, const Vec3& start, const Vec3& end, CasterContext& context) const;
+    void _lineCastLocal(const Model& model, const Transformer& toWorld, const Vec3& start, const Vec3& end, CasterContext& context) const;
+    void _lineCastComposite(const Model& model, const Transformer& toWorld, const Vec3& start, const Vec3& end, CasterContext& context) const;
+    void _lineCastEnvironment(const Model& model, const Transformer& toWorld, const Vec3& start, const Vec3& end, CasterContext& context) const;
   };
 }

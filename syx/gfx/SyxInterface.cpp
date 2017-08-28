@@ -7,34 +7,34 @@ namespace Syx {
   namespace Interface {
     ::DebugDrawer* gDrawer = nullptr;
 
-    SyxOptions GetOptions(void) {
+    SyxOptions getOptions(void) {
       SyxOptions result;
       result.mDebugFlags = SyxOptions::DrawModels;
       result.mSimdFlags = 0;
       return result;
     }
 
-    void SetColor(float r, float g, float b) {
+    void setColor(float r, float g, float b) {
       gDrawer->setColor(Vec3(r, g, b));
     }
 
-    void DrawLine(const Vec3& start, const Vec3& end) {
+    void drawLine(const Vec3& start, const Vec3& end) {
       gDrawer->drawLine(start, end);
     }
 
-    void DrawVector(const Vec3& start, const Vec3& direction) {
+    void drawVector(const Vec3& start, const Vec3& direction) {
       gDrawer->drawVector(start, direction);
     }
 
-    void DrawSphere(const Vec3& center, float radius, const Vec3& right, const Vec3& up) {
-      DrawPoint(center, radius*2.0f);
+    void drawSphere(const Vec3& center, float radius, const Vec3& right, const Vec3& up) {
+      drawPoint(center, radius*2.0f);
     }
 
     // Size is whole size, not half size
-    void DrawCube(const Vec3& center, const Vec3& size, const Vec3& right, const Vec3& up) {
+    void drawCube(const Vec3& center, const Vec3& size, const Vec3& right, const Vec3& up) {
       Vec3 r = right*size.x;
       Vec3 u = up*size.y;
-      Vec3 f = right.Cross(up)*size.z;
+      Vec3 f = right.cross(up)*size.z;
 
       Vec3 lbl = center - (r + u + f)*0.5f;
       Vec3 lbr = lbl + r;
@@ -46,24 +46,24 @@ namespace Syx {
       Vec3 utl = ltl + u;
       Vec3 utr = ltr + u;
 
-      DrawLine(lbl, lbr);
-      DrawLine(lbr, ltr);
-      DrawLine(ltr, ltl);
-      DrawLine(ltl, lbl);
+      drawLine(lbl, lbr);
+      drawLine(lbr, ltr);
+      drawLine(ltr, ltl);
+      drawLine(ltl, lbl);
 
-      DrawLine(ubl, ubr);
-      DrawLine(ubr, utr);
-      DrawLine(utr, utl);
-      DrawLine(utl, ubl);
+      drawLine(ubl, ubr);
+      drawLine(ubr, utr);
+      drawLine(utr, utl);
+      drawLine(utl, ubl);
 
-      DrawLine(lbl, ubl);
-      DrawLine(lbr, ubr);
-      DrawLine(ltl, utl);
-      DrawLine(ltr, utr);
+      drawLine(lbl, ubl);
+      drawLine(lbr, ubr);
+      drawLine(ltl, utl);
+      drawLine(ltr, utr);
     }
 
     // Simple representation of a point, like a cross where size is the length from one side to the other
-    void DrawPoint(const Vec3& point, float size) {
+    void drawPoint(const Vec3& point, float size) {
       float hSize = size*0.5f;
       for(int i = 0; i < 3; ++i) {
         Vec3 start, end;
@@ -75,23 +75,23 @@ namespace Syx {
     }
 
     // 16 byte aligned
-    void* AllocAligned(size_t size) {
+    void* allocAligned(size_t size) {
       return _aligned_malloc(size, 16);
     }
 
-    void FreeAligned(void* p) {
+    void freeAligned(void* p) {
       return _aligned_free(p);
     }
 
-    void* Alloc(size_t size) {
+    void* allocUnaligned(size_t size) {
       return malloc(size);
     }
 
-    void Free(void* p) {
+    void freeUnaligned(void* p) {
       return free(p);
     }
 
-    void Log(const std::string& message) {
+    void log(const std::string& message) {
       printf(message.c_str());
     }
   }

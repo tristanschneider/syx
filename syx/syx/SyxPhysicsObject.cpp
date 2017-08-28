@@ -16,28 +16,28 @@ namespace Syx {
     , mMyHandle(myHandle) {
   }
 
-  void PhysicsObject::SetRigidbodyEnabled(bool enabled) {
-    mRigidbody.SetFlag(RigidbodyFlags::Disabled, !enabled);
+  void PhysicsObject::setRigidbodyEnabled(bool enabled) {
+    mRigidbody.setFlag(RigidbodyFlags::Disabled, !enabled);
   }
 
-  void PhysicsObject::SetColliderEnabled(bool enabled) {
-    mCollider.SetFlag(ColliderFlags::Disabled, !enabled);
+  void PhysicsObject::setColliderEnabled(bool enabled) {
+    mCollider.setFlag(ColliderFlags::Disabled, !enabled);
   }
 
-  void PhysicsObject::DrawModel() {
-    DebugDrawer& d = DebugDrawer::Get();
-    Collider* collider = GetCollider();
+  void PhysicsObject::drawModel() {
+    DebugDrawer& d = DebugDrawer::get();
+    Collider* collider = getCollider();
     if(!collider)
       return;
 
-    int options = Interface::GetOptions().mDebugFlags;
+    int options = Interface::getOptions().mDebugFlags;
 
     if(options & SyxOptions::Debug::DrawModels)
-      collider->GetModel().Draw(mTransform.GetModelToWorld());
+      collider->getModel().draw(mTransform.getModelToWorld());
 
-    d.SetColor(0.0f, 1.0f, 1.0f);
+    d.setColor(0.0f, 1.0f, 1.0f);
     if(options & SyxOptions::Debug::DrawPersonalBBs)
-      collider->GetAABB().Draw();
+      collider->getAABB().draw();
   }
 
   PhysicsObject& PhysicsObject::operator=(const PhysicsObject& rhs) {
@@ -61,56 +61,56 @@ namespace Syx {
     return *this;
   }
 
-  void PhysicsObject::UpdateModelInst() {
-    Collider* collider = GetCollider();
+  void PhysicsObject::updateModelInst() {
+    Collider* collider = getCollider();
     if(collider)
-      collider->UpdateModelInst(mTransform);
+      collider->updateModelInst(mTransform);
   }
 
-  bool PhysicsObject::IsStatic() {
+  bool PhysicsObject::isStatic() {
     //Might want to include rigidbodies with infinite mass, but I'm not sure what the pros and cons are
-    return GetRigidbody() == nullptr;
+    return getRigidbody() == nullptr;
   }
 
-  void PhysicsObject::SetAsleep(bool asleep) {
-    SetBits(mFlags, static_cast<int>(PhysicsObjectFlags::Asleep), asleep);
+  void PhysicsObject::setAsleep(bool asleep) {
+    setBits(mFlags, static_cast<int>(PhysicsObjectFlags::Asleep), asleep);
     //Need to inform broadphase that these nodes can be skipped...
   }
 
-  bool PhysicsObject::GetAsleep() {
+  bool PhysicsObject::getAsleep() {
     return (mFlags & PhysicsObjectFlags::Asleep) != 0;
   }
 
-  bool PhysicsObject::IsInactive() {
+  bool PhysicsObject::isInactive() {
     float linearThreshold2 = 0.001f;
     float angularThreshold2 = 0.00001f;
 
-    Rigidbody* rb = GetRigidbody();
+    Rigidbody* rb = getRigidbody();
     //If it doesn't have a rigidbody, it can't move, so is obviously inactive
     if(!rb)
       return true;
     //This is called after integration but before solving, so factor out energy added by integration, assuming it'll be solved away
-    return rb->GetUnintegratedLinearVelocity().Length2() < linearThreshold2 && rb->GetUnintegratedAngularVelocity().Length2() < angularThreshold2;
+    return rb->getUnintegratedLinearVelocity().length2() < linearThreshold2 && rb->getUnintegratedAngularVelocity().length2() < angularThreshold2;
   }
 
-  void PhysicsObject::RemoveConstraint(Handle handle) {
+  void PhysicsObject::removeConstraint(Handle handle) {
     mConstraints.erase(handle);
   }
 
-  void PhysicsObject::AddConstraint(Handle handle) {
+  void PhysicsObject::addConstraint(Handle handle) {
     mConstraints.insert(handle);
   }
 
-  const std::unordered_set<Handle>& PhysicsObject::GetConstraints() {
+  const std::unordered_set<Handle>& PhysicsObject::getConstraints() {
     return mConstraints;
   }
 
-  void PhysicsObject::ClearConstraints() {
+  void PhysicsObject::clearConstraints() {
     mConstraints.clear();
   }
 
   bool PhysicsObject::shouldIntegrate() {
-    Rigidbody* rb = GetRigidbody();
-    return !GetAsleep() && rb && rb->mInvMass > 0.0f;
+    Rigidbody* rb = getRigidbody();
+    return !getAsleep() && rb && rb->mInvMass > 0.0f;
   }
 }

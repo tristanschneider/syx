@@ -14,7 +14,7 @@ public:
     mNewKey = 0;
   }
 
-  Handle Next() {
+  Handle next() {
     Handle result = mNewKey++;
     if(mNewKey == InvalidHandle)
       ++mNewKey;

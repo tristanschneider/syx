@@ -18,23 +18,23 @@ namespace Syx {
     return *this;
   }
 
-  void AABBTree::SyncParents(Handle index) {
+  void AABBTree::_syncParents(Handle index) {
     while(index != AABBNode::Null) {
-      if(!mNodes[index].IsLeaf()) {
-        index = Balance(index);
+      if(!mNodes[index].isLeaf()) {
+        index = _balance(index);
 
         Handle left = mNodes[index].mLeft;
         Handle right = mNodes[index].mRight;
 
         mNodes[index].mHeight = 1 + std::max(mNodes[left].mHeight, mNodes[right].mHeight);
-        mNodes[index].mAABB = AABB::Combined(mNodes[left].mAABB, mNodes[right].mAABB);
+        mNodes[index].mAABB = AABB::combined(mNodes[left].mAABB, mNodes[right].mAABB);
       }
 
       index = mNodes[index].mParent;
     }
   }
 
-  void AABBTree::FreeNode(Handle index) {
+  void AABBTree::_freeNode(Handle index) {
     AABBNode* toFree = &mNodes[index];
     toFree->mHeight = AABBNode::Null;
     toFree->mNext = mFreeList;
@@ -42,11 +42,11 @@ namespace Syx {
     mFreeList = index;
   }
 
-  Handle AABBTree::CreateNode(void) {
+  Handle AABBTree::_createNode(void) {
     //Grow node list if necessary
     if(mNodes[mFreeList].mNext == AABBNode::Null) {
       mNodes.resize(mNodes.size()*2);
-      ConstructFreeList(mFreeList);
+      _constructFreeList(mFreeList);
     }
 
     Handle freeNode = mFreeList;
@@ -54,7 +54,7 @@ namespace Syx {
     return freeNode;
   }
 
-  void AABBTree::ConstructFreeList(unsigned start) {
+  void AABBTree::_constructFreeList(unsigned start) {
     //Should never happen, but would cause a crash without the check from the -1u below
     if(mNodes.empty())
       return;
@@ -70,13 +70,13 @@ namespace Syx {
       mFreeList = start;
   }
 
-  Handle AABBTree::Balance(Handle index) {
-    if(mNodes[index].IsLeaf() || mNodes[index].mHeight < 2)
+  Handle AABBTree::_balance(Handle index) {
+    if(mNodes[index].isLeaf() || mNodes[index].mHeight < 2)
       return index;
-    return Balance(index, mNodes[mNodes[index].mRight].mHeight - mNodes[mNodes[index].mLeft].mHeight);
+    return _balance(index, mNodes[mNodes[index].mRight].mHeight - mNodes[mNodes[index].mLeft].mHeight);
   }
 
-  Handle AABBTree::Balance(Handle index, int balance) {
+  Handle AABBTree::_balance(Handle index, int balance) {
     //Tree is already balanced, don't need to do anything
     if(balance >= -1 && balance <= 1)
       return index;
@@ -129,8 +129,8 @@ namespace Syx {
         aNode.mRight = eIndex;
       eNode.mParent = aIndex;
 
-      aNode.mAABB = AABB::Combined(cNode.mAABB, eNode.mAABB);
-      bNode.mAABB = AABB::Combined(aNode.mAABB, dNode.mAABB);
+      aNode.mAABB = AABB::combined(cNode.mAABB, eNode.mAABB);
+      bNode.mAABB = AABB::combined(aNode.mAABB, dNode.mAABB);
 
       aNode.mHeight = 1 + std::max(cNode.mHeight, eNode.mHeight);
       bNode.mHeight = 1 + std::max(aNode.mHeight, dNode.mHeight);
@@ -143,8 +143,8 @@ namespace Syx {
         aNode.mRight = dIndex;
       dNode.mParent = aIndex;
 
-      aNode.mAABB = AABB::Combined(cNode.mAABB, dNode.mAABB);
-      bNode.mAABB = AABB::Combined(aNode.mAABB, eNode.mAABB);
+      aNode.mAABB = AABB::combined(cNode.mAABB, dNode.mAABB);
+      bNode.mAABB = AABB::combined(aNode.mAABB, eNode.mAABB);
 
       aNode.mHeight = 1 + std::max(cNode.mHeight, dNode.mHeight);
       bNode.mHeight = 1 + std::max(aNode.mHeight, eNode.mHeight);
@@ -153,21 +153,21 @@ namespace Syx {
     return bIndex;
   }
 
-  Handle AABBTree::Insert(const BoundingVolume& obj, void* userdata) {
-    Handle newIndex = CreateNode();
+  Handle AABBTree::insert(const BoundingVolume& obj, void* userdata) {
+    Handle newIndex = _createNode();
     AABBNode& newNode = mNodes[newIndex];
     newNode.mLeafData.mHandle = newIndex;
     newNode.mLeafData.mUserdata = userdata;
     newNode.mAABB = obj.mAABB;
-    newNode.mAABB.Pad(sBoxPadding);
+    newNode.mAABB.pad(sBoxPadding);
     newNode.mHeight = 0;
     newNode.mIsLeaf = true;
 
-    InsertNode(newNode, newIndex);
+    _insertNode(newNode, newIndex);
     return newIndex;
   }
 
-  void AABBTree::InsertNode(AABBNode& newNode, Handle newIndex) {
+  void AABBTree::_insertNode(AABBNode& newNode, Handle newIndex) {
     if(mRoot == AABBNode::Null) {
       newNode.mParent = AABBNode::Null;
       mRoot = newIndex;
@@ -178,21 +178,21 @@ namespace Syx {
 
     //Find best sibling to pair aabb with based on surface area heuristic
     Handle curIndex = mRoot;
-    while(!mNodes[curIndex].IsLeaf()) {
+    while(!mNodes[curIndex].isLeaf()) {
       AABBNode& curNode = mNodes[curIndex];
       AABBNode& right = mNodes[curNode.mRight];
       AABBNode& left = mNodes[curNode.mLeft];
 
-      float curArea = curNode.mAABB.GetSurfaceArea();
+      float curArea = curNode.mAABB.getSurfaceArea();
 
-      float combinedArea = AABB::Combined(curNode.mAABB, newBox).GetSurfaceArea();
+      float combinedArea = AABB::combined(curNode.mAABB, newBox).getSurfaceArea();
       //Minimum cost of inserting node lower in the tree
       float inheritanceCost = 2.0f*(combinedArea - curArea);
       //Cost of creating a new parent for this node and new node
       float parentCost = 2.0f*combinedArea;
 
-      float leftCost = TraversalCost(left, newBox) + inheritanceCost;
-      float rightCost = TraversalCost(right, newBox) + inheritanceCost;
+      float leftCost = _traversalCost(left, newBox) + inheritanceCost;
+      float rightCost = _traversalCost(right, newBox) + inheritanceCost;
 
       //If it is cheaper to create a new parent than descend
       if(parentCost < rightCost && parentCost < leftCost)
@@ -208,11 +208,11 @@ namespace Syx {
     //Sibling was found in above loop upon break
     Handle sibling = curIndex;
     Handle oldParent = mNodes[sibling].mParent;
-    Handle newParent = CreateNode();
+    Handle newParent = _createNode();
     AABBNode& newParRef = mNodes[newParent];
 
     newParRef.mParent = oldParent;
-    newParRef.mAABB = AABB::Combined(mNodes[sibling].mAABB, newBox);
+    newParRef.mAABB = AABB::combined(mNodes[sibling].mAABB, newBox);
     newParRef.mHeight = mNodes[sibling].mHeight + 1;
     newParRef.mIsLeaf = false;
 
@@ -234,30 +234,30 @@ namespace Syx {
     newNode.mParent = newParent;
 
     //Balances and updates aabbs of all parents
-    SyncParents(newParent);
+    _syncParents(newParent);
   }
 
-  float AABBTree::TraversalCost(AABBNode& traversal, AABB& insertBox) {
+  float AABBTree::_traversalCost(AABBNode& traversal, AABB& insertBox) {
     float result;
-    AABB combined = AABB::Combined(insertBox, traversal.mAABB);
-    float combinedArea = combined.GetSurfaceArea();
+    AABB combined = AABB::combined(insertBox, traversal.mAABB);
+    float combinedArea = combined.getSurfaceArea();
 
-    if(traversal.IsLeaf())
+    if(traversal.isLeaf())
       result = combinedArea;
     else
-      result = combinedArea - traversal.mAABB.GetSurfaceArea();
+      result = combinedArea - traversal.mAABB.getSurfaceArea();
 
     return result;
   }
 
-  void AABBTree::Remove(Handle toRemove) {
+  void AABBTree::remove(Handle toRemove) {
     //It isn't in the broadphase, so don't do anything
     if(toRemove == AABBNode::Null)
       return;
     //Remove object and replace its parent with its sibling
     Handle parent = mNodes[toRemove].mParent;
 
-    FreeNode(toRemove);
+    _freeNode(toRemove);
 
     if(parent == AABBNode::Null) {
       mRoot = AABBNode::Null;
@@ -275,7 +275,7 @@ namespace Syx {
     mNodes[sibling].mParent = grandParent;
     if(grandParent == AABBNode::Null) {
       mRoot = sibling;
-      FreeNode(parent);
+      _freeNode(parent);
       return;
     }
     else if(mNodes[grandParent].mLeft == parent)
@@ -284,53 +284,53 @@ namespace Syx {
       mNodes[grandParent].mRight = sibling;
 
     //Kill disconnected parent
-    FreeNode(parent);
+    _freeNode(parent);
 
-    SyncParents(grandParent);
+    _syncParents(grandParent);
   }
 
-  Handle AABBTree::Update(const BoundingVolume& newVol, Handle handle) {
+  Handle AABBTree::update(const BoundingVolume& newVol, Handle handle) {
     bool needsUpdate = handle == AABBNode::Null;
     AABBNode* node = nullptr;
     if(!needsUpdate) {
-      node = &GetNode(handle);
-      needsUpdate = !node->mAABB.IsInside(newVol.mAABB);
+      node = &_getNode(handle);
+      needsUpdate = !node->mAABB.isInside(newVol.mAABB);
     }
 
     if(needsUpdate && node) {
       void* userdata = node->mLeafData.mUserdata;
-      Remove(handle);
-      return Insert(newVol, userdata);
+      remove(handle);
+      return insert(newVol, userdata);
     }
 
     return handle;
   }
 
-  void AABBTree::Clear(void) {
+  void AABBTree::clear(void) {
     mRoot = mFreeList = AABBNode::Null;
-    ConstructFreeList();
+    _constructFreeList();
   }
 
-  void AABBTree::CheckBounds(const AABBNode& nodeA, const AABBNode& nodeB, AABBTreeContext& context) const {
-    if(nodeA.mAABB.Overlapping(nodeB.mAABB)) {
+  void AABBTree::_checkBounds(const AABBNode& nodeA, const AABBNode& nodeB, AABBTreeContext& context) const {
+    if(nodeA.mAABB.overlapping(nodeB.mAABB)) {
       ResultNode resultA(nodeA.mLeafData.mHandle, nodeA.mLeafData.mUserdata);
       ResultNode resultB(nodeB.mLeafData.mHandle, nodeB.mLeafData.mUserdata);
       context.mQueryPairResults.push_back({resultA, resultB});
     }
   }
 
-  bool AABBTree::EvalEmpty(AABBTreeContext& context) const {
+  bool AABBTree::_evalEmpty(AABBTreeContext& context) const {
     return context.mEvalSize == 0;
   }
 
-  void AABBTree::PushToEval(Handle indexA, Handle indexB, AABBTreeContext& context) const {
-    PushToEval(&GetNode(indexA), &GetNode(indexB), context);
+  void AABBTree::_pushToEval(Handle indexA, Handle indexB, AABBTreeContext& context) const {
+    _pushToEval(&_getNode(indexA), &_getNode(indexB), context);
   }
 
-  void AABBTree::PushToEval(const AABBNode* nodeA, const AABBNode* nodeB, AABBTreeContext& context) const {
+  void AABBTree::_pushToEval(const AABBNode* nodeA, const AABBNode* nodeB, AABBTreeContext& context) const {
     //First clause is to avoid computing sibling intersections, because they shouldn't be
     //While adding intersection computations, this has the potential of cutting off entire subtrees, so is worth it
-    if(nodeA->mParent != nodeB->mParent && !nodeA->mAABB.Overlapping(nodeB->mAABB))
+    if(nodeA->mParent != nodeB->mParent && !nodeA->mAABB.overlapping(nodeB->mAABB))
       return;
     //+1 for when the size is 0
     if(context.mEvalSize >= context.mToEvaluate.size())
@@ -338,79 +338,79 @@ namespace Syx {
     context.mToEvaluate[context.mEvalSize++] = std::pair<const AABBNode*, const AABBNode*>(nodeA, nodeB);
   }
 
-  std::pair<const AABBNode*, const AABBNode*> AABBTree::PopFromEval(AABBTreeContext& context) const {
+  std::pair<const AABBNode*, const AABBNode*> AABBTree::_popFromEval(AABBTreeContext& context) const {
     return context.mToEvaluate[--context.mEvalSize];
   }
 
-  void AABBTree::TraverseChild(const AABBNode& child, AABBTreeContext& context) const {
-    if(context.mTraversed.Insert(GetHandle(child)))
+  void AABBTree::_traverseChild(const AABBNode& child, AABBTreeContext& context) const {
+    if(context.mTraversed.insert(_getHandle(child)))
       return;
-    PushToEval(child.mLeft, child.mRight, context);
+    _pushToEval(child.mLeft, child.mRight, context);
   }
 
-  void AABBTree::LeafBranchCase(const AABBNode& leaf, const AABBNode& branch, AABBTreeContext& context) const {
-    TraverseChild(branch, context);
-    PushToEval(&leaf, &GetNode(branch.mLeft), context);
-    PushToEval(&leaf, &GetNode(branch.mRight), context);
+  void AABBTree::_leafBranchCase(const AABBNode& leaf, const AABBNode& branch, AABBTreeContext& context) const {
+    _traverseChild(branch, context);
+    _pushToEval(&leaf, &_getNode(branch.mLeft), context);
+    _pushToEval(&leaf, &_getNode(branch.mRight), context);
   }
 
-  Handle AABBTree::GetHandle(const AABBNode& node) const {
+  Handle AABBTree::_getHandle(const AABBNode& node) const {
     return static_cast<size_t>(&node - &mNodes[0]);
   }
 
-  void AABBTree::QueryPairs(BroadphaseContext& context) const {
+  void AABBTree::queryPairs(BroadphaseContext& context) const {
     AABBTreeContext& c = static_cast<AABBTreeContext&>(context);
     c.mQueryPairResults.clear();
-    if(mRoot == AABBNode::Null || mNodes[mRoot].IsLeaf())
+    if(mRoot == AABBNode::Null || mNodes[mRoot].isLeaf())
       return;
 
-    c.mTraversed.Clear();
-    PushToEval(mNodes[mRoot].mLeft, mNodes[mRoot].mRight, c);
+    c.mTraversed.clear();
+    _pushToEval(mNodes[mRoot].mLeft, mNodes[mRoot].mRight, c);
 
-    while(!EvalEmpty(c)) {
-      std::pair<const AABBNode*, const AABBNode*> pair = PopFromEval(c);
-      if(pair.first->IsLeaf()) {
-        if(pair.second->IsLeaf())
-          CheckBounds(*pair.first, *pair.second, c);
+    while(!_evalEmpty(c)) {
+      std::pair<const AABBNode*, const AABBNode*> pair = _popFromEval(c);
+      if(pair.first->isLeaf()) {
+        if(pair.second->isLeaf())
+          _checkBounds(*pair.first, *pair.second, c);
         else
-          LeafBranchCase(*pair.first, *pair.second, c);
+          _leafBranchCase(*pair.first, *pair.second, c);
       }
-      else if(pair.second->IsLeaf())
-        LeafBranchCase(*pair.second, *pair.first, c);
+      else if(pair.second->isLeaf())
+        _leafBranchCase(*pair.second, *pair.first, c);
       else {
-        TraverseChild(*pair.first, c);
-        TraverseChild(*pair.second, c);
-        PushToEval(pair.first->mLeft, pair.second->mLeft, c);
-        PushToEval(pair.first->mLeft, pair.second->mRight, c);
-        PushToEval(pair.first->mRight, pair.second->mLeft, c);
-        PushToEval(pair.first->mRight, pair.second->mRight, c);
+        _traverseChild(*pair.first, c);
+        _traverseChild(*pair.second, c);
+        _pushToEval(pair.first->mLeft, pair.second->mLeft, c);
+        _pushToEval(pair.first->mLeft, pair.second->mRight, c);
+        _pushToEval(pair.first->mRight, pair.second->mLeft, c);
+        _pushToEval(pair.first->mRight, pair.second->mRight, c);
       }
     }
   }
 
-  void AABBTree::QueryVolume(const BoundingVolume& volume, BroadphaseContext& context) const {
+  void AABBTree::queryVolume(const BoundingVolume& volume, BroadphaseContext& context) const {
     AABBTreeContext& c = static_cast<AABBTreeContext&>(context);
     c.mQueryResults.clear();
 
-    GetCollidingHelper(mRoot, volume, c);
+    _getCollidingHelper(mRoot, volume, c);
   }
 
-  void AABBTree::GetCollidingHelper(Handle curNode, const BoundingVolume& volume, AABBTreeContext& context) const {
+  void AABBTree::_getCollidingHelper(Handle curNode, const BoundingVolume& volume, AABBTreeContext& context) const {
     if(curNode == AABBNode::Null)
       return;
-    const AABBNode& node = GetNode(curNode);
+    const AABBNode& node = _getNode(curNode);
     //Compare with the object's aabb, which is smaller, if this is a leaf, otherwise, node aabb
-    if(node.mAABB.Overlapping(volume.mAABB)) {
-      if(node.IsLeaf())
+    if(node.mAABB.overlapping(volume.mAABB)) {
+      if(node.isLeaf())
         context.mQueryResults.push_back(ResultNode(node.mLeafData.mHandle, node.mLeafData.mUserdata));
       else {
-        GetCollidingHelper(node.mLeft, volume, context);
-        GetCollidingHelper(node.mRight, volume, context);
+        _getCollidingHelper(node.mLeft, volume, context);
+        _getCollidingHelper(node.mRight, volume, context);
       }
     }
   }
 
-  void AABBTree::QueryRaycast(const Vec3& start, const Vec3& end, BroadphaseContext& context) const {
+  void AABBTree::queryRaycast(const Vec3& start, const Vec3& end, BroadphaseContext& context) const {
     AABBTreeContext& c = static_cast<AABBTreeContext&>(context);
     c.mQueryResults.clear();
     if(mRoot != AABBNode::Null)
@@ -422,8 +422,8 @@ namespace Syx {
 
       const AABB& aabb = curNode.mAABB;
       float t;
-      if(aabb.LineIntersect(start, end, &t)) {
-        if(curNode.IsLeaf())
+      if(aabb.lineIntersect(start, end, &t)) {
+        if(curNode.isLeaf())
           c.mQueryResults.push_back(ResultNode(curNode.mLeafData.mHandle, curNode.mLeafData.mUserdata));
         else//is branch
         {
@@ -434,37 +434,37 @@ namespace Syx {
     }
   }
 
-  void AABBTree::DrawHelper(Handle index) {
-    DebugDrawer& d = DebugDrawer::Get();
+  void AABBTree::_drawHelper(Handle index) {
+    DebugDrawer& d = DebugDrawer::get();
     if(index == AABBNode::Null)
       return;
     const AABBNode& node = mNodes[index];
-    if(node.IsLeaf())
-      d.SetColor(1.0f, 0.0f, 0.0f);
+    if(node.isLeaf())
+      d.setColor(1.0f, 0.0f, 0.0f);
     else
-      d.SetColor(0.0f, 0.0f, 1.0f);
-    node.Draw(mNodes);
-    if(!node.IsLeaf()) {
-      DrawHelper(node.mLeft);
-      DrawHelper(node.mRight);
+      d.setColor(0.0f, 0.0f, 1.0f);
+    node.draw(mNodes);
+    if(!node.isLeaf()) {
+      _drawHelper(node.mLeft);
+      _drawHelper(node.mRight);
     }
   }
 
-  void AABBTree::Draw(void) {
-    DebugDrawer::Get().SetColor(0.0f, 0.0f, 1.0f);
+  void AABBTree::draw(void) {
+    DebugDrawer::get().setColor(0.0f, 0.0f, 1.0f);
     if(mRoot != AABBNode::Null)
-      mNodes[mRoot].Draw(mNodes);
-    DrawHelper(mRoot);
+      mNodes[mRoot].draw(mNodes);
+    _drawHelper(mRoot);
   }
 
-  void AABBNode::Draw(const std::vector<AABBNode>& nodes) const {
-    DebugDrawer& d = DebugDrawer::Get();
-    d.DrawCube(mAABB.GetCenter(), mAABB.GetDiagonal(), Vec3::UnitX, Vec3::UnitY);
-    Vec3 center = mAABB.GetCenter();
-    d.DrawLine(center, mAABB.GetMax());
-    if(!IsLeaf()) {
-      d.DrawVector(center, nodes[mRight].mAABB.GetCenter() - center);
-      d.DrawVector(center, nodes[mLeft].mAABB.GetCenter() - center);
+  void AABBNode::draw(const std::vector<AABBNode>& nodes) const {
+    DebugDrawer& d = DebugDrawer::get();
+    d.drawCube(mAABB.getCenter(), mAABB.getDiagonal(), Vec3::UnitX, Vec3::UnitY);
+    Vec3 center = mAABB.getCenter();
+    d.drawLine(center, mAABB.getMax());
+    if(!isLeaf()) {
+      d.drawVector(center, nodes[mRight].mAABB.getCenter() - center);
+      d.drawVector(center, nodes[mLeft].mAABB.getCenter() - center);
     }
   }
 }

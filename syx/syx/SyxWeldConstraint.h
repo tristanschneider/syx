@@ -4,10 +4,10 @@
 
 namespace Syx {
   SAlign struct FixedAngleBlock {
-    void Setup(const ConstraintObjBlock& a, const ConstraintObjBlock& b, const Vec3* basisA, const Vec3* basisB, const Mat3& ia, const Mat3& ib);
-    void ApplyImpulse(const Vec3& lambda, ConstraintObjBlock& a, ConstraintObjBlock& b);
-    float Solve(ConstraintObjBlock& a, ConstraintObjBlock& b);
-    float SSolve(SFloats& linVelA, SFloats& angVelA, SFloats& linVelB, SFloats& angVelB);
+    void setup(const ConstraintObjBlock& a, const ConstraintObjBlock& b, const Vec3* basisA, const Vec3* basisB, const Mat3& ia, const Mat3& ib);
+    void applyImpulse(const Vec3& lambda, ConstraintObjBlock& a, ConstraintObjBlock& b);
+    float solve(ConstraintObjBlock& a, ConstraintObjBlock& b);
+    float sSolve(SFloats& linVelA, SFloats& angVelA, SFloats& linVelB, SFloats& angVelB);
 
     static float sSlop;
 
@@ -32,7 +32,7 @@ namespace Syx {
     }
 
     //Sets the references such that the relative position and orientation will stay as they are now
-    void LockRelativeTransform();
+    void lockRelativeTransform();
 
   private:
     SAlign Vec3 mAnchorA;
@@ -46,11 +46,11 @@ namespace Syx {
 
   SAlign class LocalWeldConstraint: public LocalConstraint {
   public:
-    void FirstIteration();
-    void LastIteration();
-    float Solve();
-    float SSolve();
-    void Draw();
+    void firstIteration();
+    void lastIteration();
+    float solve();
+    float sSolve();
+    void draw();
 
   private:
     SAlign ConstraintObjBlock mBlockObjA;

@@ -16,31 +16,31 @@ namespace Syx {
     bool operator!=(const Vector2& rhs) const;
     Vector2 operator-(void) const;
 
-    bool Equal(const Vector2& rhs, float epsilon);
+    bool equal(const Vector2& rhs, float epsilon);
 
     Vector2& operator+=(const Vector2& rhs);
     Vector2& operator-=(const Vector2& rhs);
     Vector2& operator*=(float scalar);
     Vector2& operator/=(float denom);
 
-    float Dot(const Vector2& rhs) const;
-    float Cross(const Vector2& rhs) const;
-    Vector2 Proj(const Vector2& onto) const;
-    float ProjScalar(const Vector2& onto) const;
-    Vector2 Scale(const Vector2& scalar) const;
+    float dot(const Vector2& rhs) const;
+    float cross(const Vector2& rhs) const;
+    Vector2 proj(const Vector2& onto) const;
+    float projScalar(const Vector2& onto) const;
+    Vector2 scale(const Vector2& scalar) const;
 
-    float Length(void) const;
-    float Length2(void) const;
-    float Dist(const Vector2& to) const;
-    float Dist2(const Vector2& to) const;
+    float length(void) const;
+    float length2(void) const;
+    float dist(const Vector2& to) const;
+    float dist2(const Vector2& to) const;
 
-    float Normalize(void);
-    Vector2 Normalized(void) const;
+    float normalize(void);
+    Vector2 normalized(void) const;
 
-    Vector2 Lerp(const Vector2& to, float t) const;
+    Vector2 lerp(const Vector2& to, float t) const;
     //Assumes this and to are both normalized
-    Vector2 Slerp(const Vector2& to, float t) const;
-    Vector2 Rotate(float ccwRadians) const;
+    Vector2 slerp(const Vector2& to, float t) const;
+    Vector2 rotate(float ccwRadians) const;
 
     static const Vector2 sUnitX;
     static const Vector2 sUnitY;

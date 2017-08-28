@@ -38,20 +38,20 @@ void EditorNavigator::update(float dt) {
   float speed = 3.0f*speedMod;
   move = camRot * move;
   move.y += vertical;
-  move.SafeNormalize();
+  move.safeNormalize();
   camPos += move*dt*speed;
 
   bool rotated = false;
   if(in.getKeyDown(Key::RightMouse)) {
     float sensitivity = 0.01f;
     Vec2 rot = -in.getMouseDelta()*sensitivity;
-    Mat3 yRot = Mat3::YRot(rot.x);
-    Mat3 xRot = Mat3::AxisAngle(camRot.GetCol(0), rot.y);
+    Mat3 yRot = Mat3::yRot(rot.x);
+    Mat3 xRot = Mat3::axisAngle(camRot.getCol(0), rot.y);
     camRot = yRot * xRot * camRot;
     rotated = true;
   }
 
-  if(move.Length2() > 0.0f || rotated) {
+  if(move.length2() > 0.0f || rotated) {
     cam.setTransform(Mat4::transform(camRot, camPos));
   }
 }

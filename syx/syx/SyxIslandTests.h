@@ -1,9 +1,9 @@
 #pragma once
 
 namespace Syx {
-  bool TestIslandAdd();
-  bool TestIslandRemoveConstraint();
-  bool TestIslandRemoveObject();
-  bool TestIslandSleep();
-  bool TestIslandAll();
+  bool testIslandAdd();
+  bool testIslandRemoveConstraint();
+  bool testIslandRemoveObject();
+  bool testIslandSleep();
+  bool testIslandAll();
 }

@@ -20,18 +20,18 @@ namespace Syx {
       return mBuffer[index];
     }
 
-    void Erase(size_t index) {
+    void erase(size_t index) {
       mFreeIndices.push_back(index);
       --mSize;
     }
 
-    void Clear() {
+    void clear() {
       mBuffer.clear();
       mFreeIndices.clear();
       mSize = 0;
     }
 
-    size_t Push(const T& obj) {
+    size_t push(const T& obj) {
       size_t index;
       if(!mFreeIndices.empty()) {
         index = mFreeIndices.back();
@@ -46,7 +46,7 @@ namespace Syx {
       return index;
     }
 
-    void GetIndices(std::vector<size_t>& indices) {
+    void getIndices(std::vector<size_t>& indices) {
       indices.clear();
       //Sort so we can iterate along this in parallel to skip free nodes
       std::sort(mFreeIndices.begin(), mFreeIndices.end());
@@ -71,7 +71,7 @@ namespace Syx {
       }
     }
 
-    size_t Size() {
+    size_t size() {
       return mSize;
     }
 

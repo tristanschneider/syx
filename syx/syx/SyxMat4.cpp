@@ -55,8 +55,8 @@ namespace Syx {
     Vec3 scale, pos;
     decompose(scale, rot, pos);
     //Invert each component
-    rot.Transpose();
-    scale = scale.Reciprocal();
+    rot.transpose();
+    scale = scale.reciprocal();
     pos = -pos;
     //Build up transform again backwards: scale*rotate*translate
     Mat4 result(scale.x*rot.mbx.x, scale.x*rot.mby.x, scale.x*rot.mbz.x, 0.0f,
@@ -74,7 +74,7 @@ namespace Syx {
     rotate = Mat3(mColRow[0][0], mColRow[1][0], mColRow[2][0],
                   mColRow[0][1], mColRow[1][1], mColRow[2][1],
                   mColRow[0][2], mColRow[1][2], mColRow[2][2]);
-    scale = Vec3(rotate.mbx.Length(), rotate.mby.Length(), rotate.mbz.Length());
+    scale = Vec3(rotate.mbx.length(), rotate.mby.length(), rotate.mbz.length());
     rotate.mbx /= scale.x;
     rotate.mby /= scale.y;
     rotate.mbz /= scale.z;
@@ -109,7 +109,7 @@ namespace Syx {
   }
 
   Mat4 Mat4::transform(const Vec3& scale, const Quat& rotate, const Vec3& translate) {
-    return Mat4::transform(scale, rotate.ToMatrix(), translate);
+    return Mat4::transform(scale, rotate.toMatrix(), translate);
   }
 
   Mat4 Mat4::transform(const Mat3& rotate, const Vec3& translate) {
@@ -121,7 +121,7 @@ namespace Syx {
   }
 
   Mat4 Mat4::transform(const Quat& rotate, const Vec3& translate) {
-    return Mat4::transform(rotate.ToMatrix(), translate);
+    return Mat4::transform(rotate.toMatrix(), translate);
   }
 
   Mat4 Mat4::scale(const Vec3& scale) {
@@ -139,7 +139,7 @@ namespace Syx {
   }
 
   Mat4 Mat4::rotate(const Quat& rotate) {
-    return Mat4::rotate(rotate.ToMatrix());
+    return Mat4::rotate(rotate.toMatrix());
   }
 
   Mat4 Mat4::translate(const Vec3& translate) {
@@ -179,16 +179,16 @@ namespace Syx {
   }
 
   Quat Mat4::getRotQ() const {
-    return getRotM().ToQuat();
+    return getRotM().toQuat();
   }
 
   Mat3 Mat4::getRotM() const {
     Mat3 result(mColRow[0][0], mColRow[1][0], mColRow[2][0],
                 mColRow[0][1], mColRow[1][1], mColRow[2][1],
                 mColRow[0][2], mColRow[1][2], mColRow[2][2]);
-    result.mbx.Normalize();
-    result.mby.Normalize();
-    result.mbz.Normalize();
+    result.mbx.normalize();
+    result.mby.normalize();
+    result.mbz.normalize();
     return result;
   }
 
@@ -214,6 +214,6 @@ namespace Syx {
   }
 
   void Mat4::setRot(const Quat& rot) {
-    setRot(rot.ToMatrix());
+    setRot(rot.toMatrix());
   }
 }

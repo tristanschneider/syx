@@ -8,14 +8,14 @@ namespace Syx {
   class HandleGenerator {
   public:
     HandleGenerator() {
-      Reset();
+      reset();
     }
 
-    void Reset() {
+    void reset() {
       mNewKey = 0;
     }
 
-    Handle Next() {
+    Handle next() {
       Handle result = mNewKey++;
       if(mNewKey == SyxInvalidHandle)
         ++mNewKey;
@@ -27,14 +27,18 @@ namespace Syx {
   };
 
   struct CastResult {
-    CastResult(void): mObj(SyxInvalidHandle) {}
+    CastResult()
+      : mObj(SyxInvalidHandle) {
+    }
     CastResult(Handle obj, const Vec3& point, const Vec3& normal, float distSq)
       : mObj(obj)
       , mPoint(point)
       , mNormal(normal)
       , mDistSq(distSq) {
     }
-    CastResult(const std::vector<CastResult>* results): mResults(results) {}
+    CastResult(const std::vector<CastResult>* results)
+      : mResults(results) {
+    }
 
     bool operator<(const CastResult& rhs) { return mDistSq < rhs.mDistSq; }
 

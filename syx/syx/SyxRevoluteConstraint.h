@@ -6,8 +6,8 @@ namespace Syx {
   //Everything needed during solving loop in one compact structure to maximize cache coherence
   SAlign struct RevoluteBlock {
     //Get errors on the two fixed axes
-    void GetFixedErrors(const Vec3* worldBasisB, float* errors) const;
-    float GetFreeError(float lastError, const Vec3& referenceB);
+    void getFixedErrors(const Vec3* worldBasisB, float* errors) const;
+    float getFreeError(float lastError, const Vec3& referenceB);
 
     static float sSlop;
 
@@ -38,27 +38,27 @@ namespace Syx {
       , mLastFreeError(0.0f) {
     }
 
-    virtual void SetLocalAnchor(const Vec3& anchor, ConstraintObj obj) override {
+    virtual void setLocalAnchor(const Vec3& anchor, ConstraintObj obj) override {
       if(obj == ConstraintObj::A)
         mAnchorA = anchor;
       else
         mAnchorB = anchor;
     }
-    virtual const Vec3& GetLocalAnchor(ConstraintObj obj) const override {
+    virtual const Vec3& getLocalAnchor(ConstraintObj obj) const override {
       return obj == ConstraintObj::A ? mAnchorA : mAnchorB;
     }
-    void SetMaxFreeImpulse(float max) {
+    void setMaxFreeImpulse(float max) {
       mMaxFreeImpulse = max;
     }
-    void SetLastFreeError(float error) {
+    void setLastFreeError(float error) {
       mLastFreeError = error;
     }
-    float GetLastFreeError() {
+    float getLastFreeError() {
       return mLastFreeError;
     }
-    void SetFreeLimits(float minRads, float maxRads);
-    void GetFreeLimits(float& minRads, float& maxRads) const;
-    void SetLocalFreeAxis(const Vec3& axis);
+    void setFreeLimits(float minRads, float maxRads);
+    void getFreeLimits(float& minRads, float& maxRads) const;
+    void setLocalFreeAxis(const Vec3& axis);
 
   private:
     SAlign Vec3 mAnchorA;
@@ -76,11 +76,11 @@ namespace Syx {
 
   SAlign class LocalRevoluteConstraint: public LocalConstraint {
   public:
-    void FirstIteration();
-    void LastIteration();
-    float Solve();
-    float SSolve();
-    void Draw();
+    void firstIteration();
+    void lastIteration();
+    float solve();
+    float sSolve();
+    void draw();
 
   private:
     SAlign ConstraintObjBlock mBlockObjA;

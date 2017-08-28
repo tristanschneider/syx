@@ -4,84 +4,86 @@ namespace Syx {
   typedef std::chrono::high_resolution_clock::time_point Time;
 
   struct ProfileBlock {
-    std::string m_name;
-    Time m_startTime;
-    size_t m_historyBlock;
+    std::string mName;
+    Time mStartTime;
+    size_t mHistoryBlock;
   };
 
   struct ProfileResult {
-    ProfileResult(void) {}
+    ProfileResult() {}
     ProfileResult(const std::string& name, Duration duration, size_t depth) :
-      m_name(name), m_duration(duration), m_depth(depth) {
+      mName(name), mDuration(duration), mDepth(depth) {
     }
 
-    std::string GetReportString(const std::string& indent, float time) {
+    std::string getReportString(const std::string& indent, float time) {
       std::string result;
-      result.reserve(indent.size()*m_depth + m_name.size() + 10);
+      result.reserve(indent.size()*mDepth + mName.size() + 10);
 
-      for(size_t i = 0; i < m_depth; ++i)
+      for(size_t i = 0; i < mDepth; ++i)
         result += indent;
 
-      result += m_name;
+      result += mName;
       result += ": ";
       result += std::to_string(time);
       return result;
     }
 
-    std::string GetReportString(const std::string& indent) {
-      return GetReportString(indent, Milliseconds());
+    std::string getReportString(const std::string& indent) {
+      return getReportString(indent, milliseconds());
     }
 
-    float Seconds(void) const {
+    float seconds() const {
       double billion = 1000000000.0;
-      return static_cast<float>(static_cast<double>(m_duration.count()) / billion);
+      return static_cast<float>(static_cast<double>(mDuration.count()) / billion);
     }
 
-    float Milliseconds(void) const {
+    float milliseconds() const {
       double million = 1000000.0;
-      return static_cast<float>(static_cast<double>(m_duration.count()) / million);
+      return static_cast<float>(static_cast<double>(mDuration.count()) / million);
     }
 
-    std::string m_name;
-    Duration m_duration;
-    size_t m_depth;
+    std::string mName;
+    Duration mDuration;
+    size_t mDepth;
   };
 
   class Profiler {
   public:
-    Profiler(void) : m_curDepth(0) {}
+    Profiler(void) : mCurDepth(0) {}
 
-    void PushBlock(const std::string& name);
+    void pushBlock(const std::string& name);
     //This will pop the next block on the stack, but throw an error if it's not the block you think it is
-    void PopBlock(const std::string& name);
+    void popBlock(const std::string& name);
 
-    const std::vector<ProfileResult> GetBlocks(void) { return m_history; }
+    const std::vector<ProfileResult> getBlocks() { return mHistory; }
     //Returns first block with given name
-    const ProfileResult* GetBlock(const std::string& name);
+    const ProfileResult* getBlock(const std::string& name);
 
-    const std::string& GetReport(const std::string& indent);
-    const std::vector<ProfileResult>& GetHistory(void) { return m_history; }
+    const std::string& getReport(const std::string& indent);
+    const std::vector<ProfileResult>& getHistory() { return mHistory; }
 
   private:
-    ProfileBlock& GetBlock(size_t index);
-    Time GetTime(void) { return std::chrono::high_resolution_clock::now(); }
+    ProfileBlock& _getBlock(size_t index);
+    Time _getTime() { return std::chrono::high_resolution_clock::now(); }
 
-    size_t m_curDepth;
-    std::vector<ProfileBlock> m_blockStack;
-    std::vector<ProfileResult> m_history;
-    std::string m_report;
+    size_t mCurDepth;
+    std::vector<ProfileBlock> mBlockStack;
+    std::vector<ProfileResult> mHistory;
+    std::string mReport;
   };
 
   struct AutoProfileBlock {
-    AutoProfileBlock(Profiler& profiler, const std::string& name) : m_profiler(profiler), m_name(name) {
-      m_profiler.PushBlock(m_name);
+    AutoProfileBlock(Profiler& profiler, const std::string& name)
+      : mProfiler(profiler)
+      , mName(name) {
+      mProfiler.pushBlock(mName);
     }
 
     ~AutoProfileBlock(void) {
-      m_profiler.PopBlock(m_name);
+      mProfiler.popBlock(mName);
     }
 
-    Profiler& m_profiler;
-    std::string m_name;
+    Profiler& mProfiler;
+    std::string mName;
   };
 }

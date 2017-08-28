@@ -35,10 +35,10 @@ namespace Syx {
     LocalObject();
     LocalObject(PhysicsObject& owner);
 
-    Vec3 ModelToWorldPoint(const Vec3& p) const;
-    Vec3 ModelToWorldVec(const Vec3& v) const;
-    Vec3 WorldToModelPoint(const Vec3& p) const;
-    Vec3 WorldToModelVec(const Vec3& v) const;
+    Vec3 modelToWorldPoint(const Vec3& p) const;
+    Vec3 modelToWorldVec(const Vec3& v) const;
+    Vec3 worldToModelPoint(const Vec3& p) const;
+    Vec3 worldToModelVec(const Vec3& v) const;
 
     SAlign Vec3 mPos;
     SAlign Quat mRot;
@@ -52,13 +52,16 @@ namespace Syx {
 
   SAlign struct ConstraintObjBlock {
     ConstraintObjBlock(void) {}
-    ConstraintObjBlock(const Vec3& pos, const Quat& rot, const Vec3& linVel, const Vec3& angVel):
-      mPos(pos), mRot(rot), mLinVel(linVel), mAngVel(angVel) {
+    ConstraintObjBlock(const Vec3& pos, const Quat& rot, const Vec3& linVel, const Vec3& angVel)
+      : mPos(pos)
+      , mRot(rot)
+      , mLinVel(linVel)
+      , mAngVel(angVel) {
     }
 
-    void Set(const LocalObject& obj);
-    void LoadVelocity(const LocalObject& obj);
-    void StoreVelocity(LocalObject& obj) const;
+    void set(const LocalObject& obj);
+    void loadVelocity(const LocalObject& obj);
+    void storeVelocity(LocalObject& obj) const;
 
     SAlign Vec3 mPos;
     SAlign Quat mRot;
@@ -81,32 +84,32 @@ namespace Syx {
       , mBlacklistCollision(true) {
     }
 
-    PhysicsObject* GetObjA() {
+    PhysicsObject* getObjA() {
       return mA;
     }
-    PhysicsObject* GetObjB() {
+    PhysicsObject* getObjB() {
       return mB;
     }
-    PhysicsObject* GetObj(ConstraintObj obj) {
-      return obj == ConstraintObj::A ? GetObjA() : GetObjB();
+    PhysicsObject* getObj(ConstraintObj obj) {
+      return obj == ConstraintObj::A ? getObjA() : getObjB();
     }
-    ConstraintType GetType() {
+    ConstraintType getType() {
       return mType;
     };
-    bool ShouldRemove() {
+    bool shouldRemove() {
       return mShouldRemove;
     }
-    Handle GetHandle() const {
+    Handle getHandle() const {
       return mHandle;
     }
-    virtual void SetLocalAnchor(const Vec3&, ConstraintObj) {}
-    virtual const Vec3& GetLocalAnchor(ConstraintObj) const {
+    virtual void setLocalAnchor(const Vec3&, ConstraintObj) {}
+    virtual const Vec3& getLocalAnchor(ConstraintObj) const {
       return Vec3::Zero;
     }
-    bool GetBlacklistCollision() {
+    bool getBlacklistCollision() {
       return mBlacklistCollision;
     }
-    void SetBlacklistCollision(bool val) {
+    void setBlacklistCollision(bool val) {
       mBlacklistCollision = val;
     }
 
@@ -139,19 +142,20 @@ namespace Syx {
     LocalConstraint()
       : mA(nullptr)
       , mB(nullptr)
-      , mOwner(nullptr) {}
+      , mOwner(nullptr) {
+    }
 
-    void Set(LocalObject& a, LocalObject& b, Constraint& owner) {
+    void set(LocalObject& a, LocalObject& b, Constraint& owner) {
       mA = &a;
       mB = &b;
       mOwner = &owner;
     }
 
-    Constraint* GetOwner() {
+    Constraint* getOwner() {
       return mOwner;
     }
 
-    virtual void Draw() {}
+    virtual void draw() {}
 
   protected:
     LocalObject* mA;

@@ -8,9 +8,9 @@ namespace Syx {
   ModelInstance::ModelInstance(Model* model)
       : mModel(model)
       , mMaterialSource(nullptr)
-      , mHandle(sHandleGen.Next()) {
+      , mHandle(sHandleGen.next()) {
     if(model) {
-      SetModel(*model);
+      setModel(*model);
     }
   }
 
@@ -23,68 +23,68 @@ namespace Syx {
   }
 
 
-  void ModelInstance::UpdateTransformers(const Transform& parentTrans) {
-    mModelToWorld = parentTrans.GetModelToWorld(mLocalTransform);
-    mWorldToModel = parentTrans.GetWorldToModel(mLocalTransform);
+  void ModelInstance::updateTransformers(const Transform& parentTrans) {
+    mModelToWorld = parentTrans.getModelToWorld(mLocalTransform);
+    mWorldToModel = parentTrans.getWorldToModel(mLocalTransform);
   }
 
-  void ModelInstance::UpdateAABB(void) {
-    mAABB = mModel->GetWorldAABB(mModelToWorld);
+  void ModelInstance::updateAABB(void) {
+    mAABB = mModel->getWorldAABB(mModelToWorld);
   }
 
-  Vec3 ModelInstance::GetSupport(const Vec3& dir) {
-    SAlign Vec3 localDir = mWorldToModel.TransformVector(dir);
-    SAlign Vec3 localSupport = mModel->GetSupport(localDir);
-    return mModelToWorld.TransformPoint(localSupport);
+  Vec3 ModelInstance::getSupport(const Vec3& dir) {
+    SAlign Vec3 localDir = mWorldToModel.transformVector(dir);
+    SAlign Vec3 localSupport = mModel->getSupport(localDir);
+    return mModelToWorld.transformPoint(localSupport);
   }
 
-  int ModelInstance::GetModelType(void) const {
-    return mModel->GetType();
+  int ModelInstance::getModelType(void) const {
+    return mModel->getType();
   }
 
-  void ModelInstance::SetModel(const Model& model) {
+  void ModelInstance::setModel(const Model& model) {
     mModel = &model;
     mSubmodelInstHandles.clear();
-    if(mModel->GetType() == ModelType::Composite) {
-      for(size_t i = 0; i < mModel->GetSubmodelInstances().size(); ++i)
-        mSubmodelInstHandles.push_back(sHandleGen.Next());
+    if(mModel->getType() == ModelType::Composite) {
+      for(size_t i = 0; i < mModel->getSubmodelInstances().size(); ++i)
+        mSubmodelInstHandles.push_back(sHandleGen.next());
     }
   }
 
-  void ModelInstance::SetMaterial(const Material& material) {
+  void ModelInstance::setMaterial(const Material& material) {
     mMaterialSource = &material;
     mLocalMaterial = material;
   }
 
-  void ModelInstance::SetLocalTransform(const Transform& transform) {
+  void ModelInstance::setLocalTransform(const Transform& transform) {
     mLocalTransform = transform;
   }
 
-  void ModelInstance::SetSubmodelInstLocalTransform(const Transform& transform) {
+  void ModelInstance::setSubmodelInstLocalTransform(const Transform& transform) {
     //Submodel instances are in the parent model's space, so update these now
-    SetLocalTransform(transform);
-    UpdateTransformers(Transform());
-    UpdateAABB();
+    setLocalTransform(transform);
+    updateTransformers(Transform());
+    updateAABB();
   }
 
-  Handle ModelInstance::GetSubmodelInstHandle(size_t index) const {
+  Handle ModelInstance::getSubmodelInstHandle(size_t index) const {
     return mSubmodelInstHandles[index];
   }
 
-  ModelInstance ModelInstance::Combined(const ModelInstance& parent, const ModelInstance& child, const ModelInstance& modelInfo, Handle handle) {
+  ModelInstance ModelInstance::combined(const ModelInstance& parent, const ModelInstance& child, const ModelInstance& modelInfo, Handle handle) {
     ModelInstance result = modelInfo;
     result.mHandle = handle;
-    result.mModelToWorld = Transformer::Combined(child.mModelToWorld, parent.mModelToWorld);
-    result.mWorldToModel = Transformer::Combined(parent.mWorldToModel, child.mWorldToModel);
+    result.mModelToWorld = Transformer::combined(child.mModelToWorld, parent.mModelToWorld);
+    result.mWorldToModel = Transformer::combined(parent.mWorldToModel, child.mWorldToModel);
     return result;
   }
 
 #ifdef SENABLED
-  SFloats ModelInstance::SGetSupport(SFloats dir) {
+  SFloats ModelInstance::sGetSupport(SFloats dir) {
     //Transform world vector to model space, get model space support point, and transform it back into world space
-    return mModelToWorld.ToSIMDPoint().TransformPoint(mModel->SGetSupport(mWorldToModel.ToSIMDVector().TransformVector(dir)));
+    return mModelToWorld.toSIMDPoint().transformPoint(mModel->sGetSupport(mWorldToModel.toSIMDVector().transformVector(dir)));
   }
 #else
-  SVec3 ModelInstance::SGetSupport(const SVec3& dir) { return dir; }
+  SVec3 ModelInstance::sGetSupport(const SVec3& dir) { return dir; }
 #endif
 }

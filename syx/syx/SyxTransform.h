@@ -8,8 +8,8 @@ namespace Syx {
     STransformer(void) {}
     STransformer(const SMat3& scaleRot, SFloats pos): mScaleRot(scaleRot), mPos(pos) {}
 
-    SFloats TransformPoint(SFloats point);
-    SFloats TransformVector(SFloats vector);
+    SFloats transformPoint(SFloats point);
+    SFloats transformVector(SFloats vector);
 
     SMat3 mScaleRot;
     SFloats mPos;
@@ -21,14 +21,14 @@ namespace Syx {
     Transformer(const Mat3& scaleRot, const Vec3& pos): mScaleRot(scaleRot), mPos(pos) {}
 
     // Returns a transformer that will result in transforming by first then second
-    static Transformer Combined(const Transformer& first, const Transformer& second);
+    static Transformer combined(const Transformer& first, const Transformer& second);
 
-    Vec3 TransformPoint(const Vec3& point) const;
-    Vec3 TransformVector(const Vec3& vector) const;
+    Vec3 transformPoint(const Vec3& point) const;
+    Vec3 transformVector(const Vec3& vector) const;
     //Get the SIMD version for point or for just vectors, meaning the vecor version won't bother loading position
-    STransformer ToSIMDPoint();
-    STransformer ToSIMDVector();
-    Vec3 GetScale() const;
+    STransformer toSIMDPoint();
+    STransformer toSIMDVector();
+    Vec3 getScale() const;
 
     SAlign Mat3 mScaleRot;
     SAlign Vec3 mPos;
@@ -39,23 +39,23 @@ namespace Syx {
     Transform(void): mPos(Vec3::Zero), mScale(Vec3::Identity), mRot(Quat::Identity) {}
 
     //For one offs, use these
-    Vec3 ModelToWorld(const Vec3& point) const;
-    Vec3 WorldToModel(const Vec3& point) const;
+    Vec3 modelToWorld(const Vec3& point) const;
+    Vec3 worldToModel(const Vec3& point) const;
 
     //For batch translations, get one of these and use it for a bunch of points
-    Transformer GetModelToWorld() const;
-    Transformer GetModelToWorld(const Transform& child) const;
-    Transformer GetWorldToModel() const;
-    Transformer GetWorldToModel(const Transform& child) const;
+    Transformer getModelToWorld() const;
+    Transformer getModelToWorld(const Transform& child) const;
+    Transformer getWorldToModel() const;
+    Transformer getWorldToModel(const Transform& child) const;
 
 #ifdef SENABLED
-    STransformer SGetModelToWorld() const;
-    STransformer SGetModelToWorld(const Transform& child) const;
-    STransformer SGetWorldToModel() const;
-    STransformer SGetWorldToModel(const Transform& child) const;
+    STransformer sgetModelToWorld() const;
+    STransformer sGetModelToWorld(const Transform& child) const;
+    STransformer sGetworldToModel() const;
+    STransformer sGetworldToModel(const Transform& child) const;
 
-    SFloats SModelToWorld(SFloats point) const;
-    SFloats SWorldToModel(SFloats point) const;
+    SFloats sModelToWorld(SFloats point) const;
+    SFloats sworldToModel(SFloats point) const;
 #endif
 
     Vec3 mScale;

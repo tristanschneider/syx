@@ -18,40 +18,40 @@ namespace Syx {
     ConstraintSystem()
       : mIslandGraph(nullptr) {}
 
-    void Solve(float dt);
-    void SSolve(float dt);
+    void solve(float dt);
+    void sSolve(float dt);
 
-    void SetIslandGraph(IslandGraph& graph) {
+    void setIslandGraph(IslandGraph& graph) {
       mIslandGraph = &graph;
     }
 
     //Gets the existing manifold on the constraint between these two, or creates the constraint and returns the new manifold if there wasn't one
-    Manifold* GetManifold(PhysicsObject& objA, PhysicsObject& objB, ModelInstance& instA, ModelInstance& instB);
+    Manifold* getManifold(PhysicsObject& objA, PhysicsObject& objB, ModelInstance& instA, ModelInstance& instB);
     //Update penetration values and discard invalid points
     //This won't be needed if objects know what constraints they have, because then it can be done when their position is integrated
-    void UpdateManifolds(void);
-    void Clear(void);
-    Constraint* GetConstraint(Handle handle);
+    void updateManifolds(void);
+    void clear(void);
+    Constraint* getConstraint(Handle handle);
 
-    Handle AddDistanceConstraint(const DistanceOps& ops);
-    Handle AddSphericalConstraint(const SphericalOps& ops);
-    Handle AddWeldConstraint(const WeldOps& ops);
-    Handle AddRevoluteConstraint(const RevoluteOps& ops);
+    Handle addDistanceConstraint(const DistanceOps& ops);
+    Handle addSphericalConstraint(const SphericalOps& ops);
+    Handle addWeldConstraint(const WeldOps& ops);
+    Handle addRevoluteConstraint(const RevoluteOps& ops);
 
-    void RemoveConstraint(Handle handle);
+    void removeConstraint(Handle handle);
 
   private:
-    void AddConstraintMapping(Constraint& constraint);
-    void RemoveConstraintMapping(Constraint& constraint);
-    void MoveConstraintMapping(Constraint& constraint);
-    void ClearConstraintMappings();
-    ContactConstraint* CreateContact(PhysicsObject* objA, PhysicsObject* objB, Handle instA, Handle instB);
-    void RemoveContact(ContactConstraint& toRemove);
-    void AddBlacklistPair(Handle a, Handle b);
-    void RemoveBlacklistPair(Handle a, Handle b);
-    bool IsBlacklistPair(Handle a, Handle b);
+    void _addConstraintMapping(Constraint& constraint);
+    void _removeConstraintMapping(Constraint& constraint);
+    void _moveConstraintMapping(Constraint& constraint);
+    void _clearConstraintMappings();
+    ContactConstraint* _createContact(PhysicsObject* objA, PhysicsObject* objB, Handle instA, Handle instB);
+    void _removeContact(ContactConstraint& toRemove);
+    void _addBlacklistPair(Handle a, Handle b);
+    void _removeBlacklistPair(Handle a, Handle b);
+    bool _isBlacklistPair(Handle a, Handle b);
 
-    void CreateSolvers();
+    void _createSolvers();
 
     VecList<WeldConstraint> mWelds;
     VecList<ContactConstraint> mContacts;

@@ -10,28 +10,28 @@ namespace Syx {
       angle = -angle;
       spiral = -spiral;
     }
-    Mat3 rot = Mat3::AxisAngle(n, segSize);
+    Mat3 rot = Mat3::axisAngle(n, segSize);
     Vec3 last = start;
     Vec3 p = point;
     while(angle > segSize) {
       Vec3 cur = rot*last;
       Vec3 nextP = p + normal*(spiral*segSize);
-      Interface::DrawLine(p + last, nextP + cur);
+      Interface::drawLine(p + last, nextP + cur);
       angle -= segSize;
       p = nextP;
       last = cur;
     }
 
     if(angle > 0.0f) {
-      Vec3 cur = Mat3::AxisAngle(n, angle)*last;
-      Interface::DrawLine(p + last, p + cur);
+      Vec3 cur = Mat3::axisAngle(n, angle)*last;
+      Interface::drawLine(p + last, p + cur);
     }
   }
 
   static void RunEllipse(const Vec3& center, const Vec3& x, const Vec3& y) {
     //Given equation for ellipse 1 = (x*x)/(a*a) + (y*y)/(b*b) Input range of x values and solve for y
     //y = +-(b*sqrt(a*a - x*x))/a
-    float a2 = x.Length2();
+    float a2 = x.length2();
     float a = std::sqrt(a2);
     float invA = 1.0f/a;
     //Should be even so point lands on tip of ellipse
@@ -54,48 +54,48 @@ namespace Syx {
     for(int i = 0; i < segments; ++i) {
       Vec3 cur = x*posX[i] + y*posY[i];
       //Draw segment on upper arc, then lower arc
-      Interface::DrawLine(center + last, center + cur);
-      Interface::DrawLine(center - last, center - cur);
+      Interface::drawLine(center + last, center + cur);
+      Interface::drawLine(center - last, center - cur);
       last = cur;
     }
-    Interface::DrawLine(center + last, center + x);
-    Interface::DrawLine(center - last, center - x);
+    Interface::drawLine(center + last, center + x);
+    Interface::drawLine(center - last, center - x);
   }
 
-  void Command::Run(void) {
+  void Command::run(void) {
     switch(mType) {
-      case CommandType::DrawCube: Interface::DrawCube(mA, mB, mC, mD); break;
-      case CommandType::DrawLine: Interface::DrawLine(mA, mB); break;
-      case CommandType::DrawPoint: Interface::DrawPoint(mA, mB.x); break;
-      case CommandType::DrawSphere: Interface::DrawSphere(mA, mB.x, mC, mD); break;
-      case CommandType::DrawVector: Interface::DrawVector(mA, mB); break;
-      case CommandType::SetColor: Interface::SetColor(mA.x, mA.y, mA.z); break;
+      case CommandType::DrawCube: Interface::drawCube(mA, mB, mC, mD); break;
+      case CommandType::DrawLine: Interface::drawLine(mA, mB); break;
+      case CommandType::DrawPoint: Interface::drawPoint(mA, mB.x); break;
+      case CommandType::DrawSphere: Interface::drawSphere(mA, mB.x, mC, mD); break;
+      case CommandType::DrawVector: Interface::drawVector(mA, mB); break;
+      case CommandType::SetColor: Interface::setColor(mA.x, mA.y, mA.z); break;
       case CommandType::DrawArc: RunArc(mA, mB, mC, mD.x, mD.y); break;
       case CommandType::DrawEllipse: RunEllipse(mA, mB, mC); break;
     }
   }
 
-  void DebugDrawer::SetColor(float r, float g, float b) {
+  void DebugDrawer::setColor(float r, float g, float b) {
     Command c(CommandType::SetColor);
     c.mA = Vec3(r, g, b);
     mCommands.push_back(c);
   }
 
-  void DebugDrawer::DrawLine(const Vec3& start, const Vec3& end) {
+  void DebugDrawer::drawLine(const Vec3& start, const Vec3& end) {
     Command c(CommandType::DrawLine);
     c.mA = start;
     c.mB = end;
     mCommands.push_back(c);
   }
 
-  void DebugDrawer::DrawVector(const Vec3& start, const Vec3& direction) {
+  void DebugDrawer::drawVector(const Vec3& start, const Vec3& direction) {
     Command c(CommandType::DrawVector);
     c.mA = start;
     c.mB = direction;
     mCommands.push_back(c);
   }
 
-  void DebugDrawer::DrawSphere(const Vec3& center, float radius, const Vec3& right, const Vec3& up) {
+  void DebugDrawer::drawSphere(const Vec3& center, float radius, const Vec3& right, const Vec3& up) {
     Command c(CommandType::DrawSphere);
     c.mA = center;
     c.mB = Vec3(radius);
@@ -104,7 +104,7 @@ namespace Syx {
     mCommands.push_back(c);
   }
 
-  void DebugDrawer::DrawCube(const Vec3& center, const Vec3& size, const Vec3& right, const Vec3& up) {
+  void DebugDrawer::drawCube(const Vec3& center, const Vec3& size, const Vec3& right, const Vec3& up) {
     Command c(CommandType::DrawCube);
     c.mA = center;
     c.mB = size;
@@ -113,14 +113,14 @@ namespace Syx {
     mCommands.push_back(c);
   }
 
-  void DebugDrawer::DrawPoint(const Vec3& point, float size) {
+  void DebugDrawer::drawPoint(const Vec3& point, float size) {
     Command c(CommandType::DrawPoint);
     c.mA = point;
     c.mB = Vec3(size);
     mCommands.push_back(c);
   }
 
-  void DebugDrawer::DrawArc(const Vec3& point, const Vec3& begin, const Vec3& normal, float angle, float spiral) {
+  void DebugDrawer::drawArc(const Vec3& point, const Vec3& begin, const Vec3& normal, float angle, float spiral) {
     Command c(CommandType::DrawArc);
     c.mA = point;
     c.mB = begin;
@@ -130,7 +130,7 @@ namespace Syx {
     mCommands.push_back(c);
   }
 
-  void DebugDrawer::DrawEllipse(const Vec3& center, const Vec3& x, const Vec3& y) {
+  void DebugDrawer::drawEllipse(const Vec3& center, const Vec3& x, const Vec3& y) {
     Command c(CommandType::DrawEllipse);
     c.mA = center;
     c.mB = x;
@@ -138,16 +138,16 @@ namespace Syx {
     mCommands.push_back(c);
   }
 
-  void DebugDrawer::Draw(void) {
+  void DebugDrawer::draw(void) {
     for(Command& command : mCommands)
-      command.Run();
+      command.run();
   }
 
-  void DebugDrawer::Clear(void) {
+  void DebugDrawer::clear(void) {
     mCommands.clear();
   }
 
-  DebugDrawer& DebugDrawer::Get(void) {
+  DebugDrawer& DebugDrawer::get(void) {
     static DebugDrawer singleton;
     return singleton;
   }

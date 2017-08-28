@@ -8,33 +8,31 @@ namespace Syx {
       Error
     };
     virtual ~Config() {}
-    virtual void * AlignedAllocate(size_t size, size_t alignment) = 0;
-    virtual void AlignedFree(void * data) = 0;
+    virtual void * alignedAllocate(size_t size, size_t alignment) = 0;
+    virtual void alignedFree(void * data) = 0;
 
-    virtual void Log(LogLevel level, char const* format, ...) = 0;
-    virtual void Assert(char const* exp, char const* function, char const * file, int line, char const* format, ...) = 0;
+    virtual void log(LogLevel level, char const* format, ...) = 0;
+    virtual void assert(char const* exp, char const* function, char const * file, int line, char const* format, ...) = 0;
 
-    virtual unsigned int SubmitTaskToTheadPool(void(*taskfn)(void * data), void * data) = 0;
-    virtual bool IsTaskCompeted(unsigned int) = 0;
-    virtual void WaitTillTaskIsCompeted(unsigned int) = 0;
-
-
+    virtual unsigned int submitTaskToTheadPool(void(*taskfn)(void * data), void * data) = 0;
+    virtual bool isTaskCompeted(unsigned int) = 0;
+    virtual void waitTillTaskIsCompeted(unsigned int) = 0;
   };
 
 
   template <typename ObjectT>
-  inline void DeleteObject(Config* _config, ObjectT* _object, size_t _align = 0) {
+  inline void deleteObject(Config* _config, ObjectT* _object, size_t _align = 0) {
     if(nullptr != _object) {
       _object->~ObjectT();
-      _config->AlignedFree(_object);
+      _config->alignedFree(_object);
     }
   }
 
 }//Syx
 
 
-#define SYX_ALIGNED_NEW(_config, _type, _align)           ::new(_config->AlignedAllocate( sizeof(_type), _align) ) _type
-#define SYX_ALIGNED_DELETE(_config, _ptr, _align)         Syx::DeleteObject(_config, _ptr, _align)
+#define SYX_ALIGNED_NEW(_config, _type, _align)           ::new(_config->alignedAllocate( sizeof(_type), _align) ) _type
+#define SYX_ALIGNED_DELETE(_config, _ptr, _align)         Syx::deleteObject(_config, _ptr, _align)
 
 #define SYX_STRINGIZE(_x) #_x
 

@@ -22,31 +22,31 @@ namespace Syx {
     bool operator<(Handle rhs) { return mMyHandle < rhs; }
     bool operator==(Handle rhs) { return mMyHandle == rhs; }
     PhysicsObject& operator=(const PhysicsObject& rhs);
-    Handle GetHandle() { return mMyHandle; }
+    Handle getHandle() { return mMyHandle; }
 
     //Always use these so the location of them can easily be swapped out for cache coherency where it's needed
-    Collider* GetCollider() { return mCollider.GetFlag(ColliderFlags::Disabled) ? nullptr : &mCollider; }
-    Rigidbody* GetRigidbody() { return mRigidbody.GetFlag(RigidbodyFlags::Disabled) ? nullptr : &mRigidbody; }
-    Transform& GetTransform() { return mTransform; }
+    Collider* getCollider() { return mCollider.getFlag(ColliderFlags::Disabled) ? nullptr : &mCollider; }
+    Rigidbody* getRigidbody() { return mRigidbody.getFlag(RigidbodyFlags::Disabled) ? nullptr : &mRigidbody; }
+    Transform& getTransform() { return mTransform; }
 
-    bool IsStatic();
+    bool isStatic();
 
-    void SetAsleep(bool asleep);
-    bool GetAsleep();
+    void setAsleep(bool asleep);
+    bool getAsleep();
     //If this is inactive enough that it could go to sleep if everything else was in place
-    bool IsInactive();
+    bool isInactive();
 
-    void SetRigidbodyEnabled(bool enabled);
-    void SetColliderEnabled(bool enabled);
+    void setRigidbodyEnabled(bool enabled);
+    void setColliderEnabled(bool enabled);
 
-    void UpdateModelInst();
+    void updateModelInst();
 
-    void DrawModel();
+    void drawModel();
 
-    void RemoveConstraint(Handle handle);
-    void AddConstraint(Handle handle);
-    const std::unordered_set<Handle>& GetConstraints();
-    void ClearConstraints();
+    void removeConstraint(Handle handle);
+    void addConstraint(Handle handle);
+    const std::unordered_set<Handle>& getConstraints();
+    void clearConstraints();
 
     bool shouldIntegrate();
 

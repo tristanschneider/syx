@@ -9,20 +9,20 @@
 namespace Syx {
   SAlign class IslandSolver {
   public:
-    void Set(const IslandContents& island);
-    void Solve(float dt);
-    void SSolve(float dt);
-    void PreSolve(float dt);
-    void PostSolve();
-    void StoreObjects();
-    const std::vector<Constraint*>& GetToRemove();
-    IndexableKey GetIslandKey();
-    SleepState GetNewIslandState();
+    void set(const IslandContents& island);
+    void solve(float dt);
+    void sSolve(float dt);
+    void preSolve(float dt);
+    void postSolve();
+    void storeObjects();
+    const std::vector<Constraint*>& getToRemove();
+    IndexableKey getIslandKey();
+    SleepState getNewIslandState();
 
   private:
-    size_t GetObjectIndex(PhysicsObject& obj);
-    void PushLocalConstraint(Constraint& constraint, size_t indexA, size_t indexB);
-    void ClearLocalConstraints();
+    size_t _getObjectIndex(PhysicsObject& obj);
+    void _pushLocalConstraint(Constraint& constraint, size_t indexA, size_t indexB);
+    void _clearLocalConstraints();
 
     std::vector<LocalObject, AlignmentAllocator<LocalObject>> mObjects;
     std::vector<LocalWeldConstraint, AlignmentAllocator<LocalContactConstraint>> mWelds;

@@ -23,20 +23,22 @@ namespace Syx {
   public:
     static const int sMaxStaticSize = 10;
 
-    IndexContainer(): mSize(0) {}
+    IndexContainer()
+      : mSize(0) {
+    }
 
-    size_t Size() const {
+    size_t size() const {
       return mSize;
     }
 
-    void PushBack(IslandIndex obj);
-    void Remove(size_t index);
+    void pushBack(IslandIndex obj);
+    void remove(size_t index);
     IslandIndex operator[](size_t index) const;
 
-    void Clear();
+    void clear();
 
   private:
-    IslandIndex& Get(size_t index);
+    IslandIndex& _get(size_t index);
 
     IslandIndex mStatic[sMaxStaticSize];
     std::vector<IslandIndex> mDynamic;
@@ -46,9 +48,10 @@ namespace Syx {
   struct IslandNode {
     IslandNode();
     IslandNode(IslandIndex island)
-      : mIsland(island) {}
+      : mIsland(island) {
+    }
 
-    void RemoveEdge(IslandIndex edge);
+    void removeEdge(IslandIndex edge);
 
     IndexableKey mIsland;
     IndexContainer mEdges;
@@ -61,12 +64,12 @@ namespace Syx {
       , mTo(to)
       , mConstraint(&constraint) {}
 
-    IslandIndex GetOther(IslandIndex index) const {
+    IslandIndex getOther(IslandIndex index) const {
       return index == mFrom ? mTo : mFrom;
     }
 
-    static void Link(IslandNode& a, IslandNode& b, IslandIndex edge);
-    static void Unlink(IslandNode& a, IslandNode& b, IslandIndex edge);
+    static void link(IslandNode& a, IslandNode& b, IslandIndex edge);
+    static void unlink(IslandNode& a, IslandNode& b, IslandIndex edge);
 
     Constraint* mConstraint;
     IslandIndex mFrom;
@@ -75,7 +78,7 @@ namespace Syx {
 
   //Not sure what I'll want to be tacking on here, so wrapping it in a struct
   struct IslandContents {
-    void Clear() {
+    void clear() {
       mConstraints.clear();
     }
 
@@ -91,10 +94,10 @@ namespace Syx {
     Island();
     Island(IslandIndex root);
 
-    void Add(IndexableKey islandKey, IslandNode& node);
-    void Remove(IslandNode& node);
-    void SetInactive(float dt);
-    void SetActive(bool clearAwake = false);
+    void add(IndexableKey islandKey, IslandNode& node);
+    void remove(IslandNode& node);
+    void setInactive(float dt);
+    void setActive(bool clearAwake = false);
 
     IslandIndex mRoot;
     size_t mSize;
@@ -107,47 +110,47 @@ namespace Syx {
     IslandGraph()
       : mIslandIndicesDirty(true) {}
 
-    void Add(Constraint& constraint);
-    void Remove(Constraint& constraint);
-    void Remove(PhysicsObject& obj);
-    void Clear();
+    void add(Constraint& constraint);
+    void remove(Constraint& constraint);
+    void remove(PhysicsObject& obj);
+    void clear();
 
     //Force wake up the island this object belongs to, if any. Needed for waking outside of constraints, like set position
-    void WakeIsland(PhysicsObject& obj);
+    void wakeIsland(PhysicsObject& obj);
     //Store sleep state this frame, either Active or Inactive, and this will accumulate or reset inactive time
-    void UpdateIslandState(IndexableKey islandKey, SleepState stateThisFrame, float dt);
+    void updateIslandState(IndexableKey islandKey, SleepState stateThisFrame, float dt);
 
-    size_t IslandCount();
-    void GetIsland(size_t index, IslandContents& result, bool fillInactive = false);
+    size_t islandCount();
+    void getIsland(size_t index, IslandContents& result, bool fillInactive = false);
 
-    bool Validate();
+    bool validate();
 
   private:
-    std::vector<IndexableKey>& GetIslandIndices();
-    void ClearTraversed();
-    bool HasTraversedNode(IslandIndex node);
-    bool HasTraversedEdge(IslandIndex edge);
-    IslandIndex PopToProcess();
+    std::vector<IndexableKey>& _getIslandIndices();
+    void _clearTraversed();
+    bool _hasTraversedNode(IslandIndex node);
+    bool _hasTraversedEdge(IslandIndex edge);
+    IslandIndex _popToProcess();
 
-    IslandIndex GetNode(PhysicsObject& obj);
-    IslandIndex GetEdge(Constraint& constraint);
-    Island& GetIslandFromNode(IslandIndex inIsland);
+    IslandIndex _getNode(PhysicsObject& obj);
+    IslandIndex _getEdge(Constraint& constraint);
+    Island& _getIslandFromNode(IslandIndex inIsland);
 
-    void CreateNewIsland(IslandIndex a, IslandIndex b, IslandIndex edge);
-    void AddToIsland(IslandIndex hasIsland, IslandIndex toAdd, IslandIndex edge);
-    void MergeIslands(IslandIndex a, IslandIndex b, IslandIndex edge);
+    void _createNewIsland(IslandIndex a, IslandIndex b, IslandIndex edge);
+    void _addToIsland(IslandIndex hasIsland, IslandIndex toAdd, IslandIndex edge);
+    void _mergeIslands(IslandIndex a, IslandIndex b, IslandIndex edge);
 
-    void RemoveIslandLeaf(IslandIndex inIsland, IslandIndex leaf);
-    void SplitIsland(IslandIndex a, IslandIndex b);
+    void _removeIslandLeaf(IslandIndex inIsland, IslandIndex leaf);
+    void _splitIsland(IslandIndex a, IslandIndex b);
     //Returns number of static nodes gathered
-    size_t GatherNodes(IslandIndex start, std::vector<IslandIndex>& container);
-    void RemoveIsland(IslandIndex a, IslandIndex b);
+    size_t _gatherNodes(IslandIndex start, std::vector<IslandIndex>& container);
+    void _removeIsland(IslandIndex a, IslandIndex b);
     //Find a nonstatic node from 'from' that can be a new root
-    IslandIndex FindNewRoot(IslandIndex from);
+    IslandIndex _findNewRoot(IslandIndex from);
     //Find and assign a new node to be the root of to's island starting from to, and searching his edges if he's static
-    void MoveRoot(IslandIndex to);
-    IndexableKey NewIsland(IslandIndex root);
-    void WakeIslandsWithStaticNode(IslandIndex staticIndex);
+    void _moveRoot(IslandIndex to);
+    IndexableKey _newIsland(IslandIndex root);
+    void _wakeIslandsWithStaticNode(IslandIndex staticIndex);
 
     StaticIndexable<IslandNode> mNodes;
     StaticIndexable<IslandEdge> mEdges;

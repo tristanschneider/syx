@@ -55,7 +55,7 @@ void DebugDrawer::drawLine(const Syx::Vec3& a, const Syx::Vec3& b) {
 
 void DebugDrawer::drawVector(const Syx::Vec3& point, const Syx::Vec3& dir) {
   float tipSize = 0.1f;
-  Syx::Vec3 ortho = dir.SafeNormalized().GetOrthogonal();
+  Syx::Vec3 ortho = dir.safeNormalized().getOrthogonal();
   Syx::Vec3 end = point + dir;
   drawLine(point, end);
   drawLine(end, end - dir*tipSize + ortho*tipSize);

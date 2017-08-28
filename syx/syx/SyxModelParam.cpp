@@ -6,52 +6,52 @@ namespace Syx {
   ModelParam::ModelParam()
     : mEnvironment(false) {}
 
-  void ModelParam::SetEnvironment(bool isEnvironment) {
+  void ModelParam::setEnvironment(bool isEnvironment) {
     mEnvironment = isEnvironment;
   }
 
-  void ModelParam::Reserve(size_t size) {
+  void ModelParam::reserve(size_t size) {
     mPoints.reserve(size);
     mTriangles.reserve(size/3 + 1);
   }
 
-  void ModelParam::Reserve(size_t verts, size_t indices) {
+  void ModelParam::reserve(size_t verts, size_t indices) {
     mPoints.reserve(verts);
     mTriangles.reserve(indices);
   }
 
-  void ModelParam::AddVertex(const Vec3& v) {
+  void ModelParam::addVertex(const Vec3& v) {
     mPoints.push_back(v);
   }
 
-  void ModelParam::AddTriangle(size_t a, size_t b, size_t c) {
+  void ModelParam::addTriangle(size_t a, size_t b, size_t c) {
     mTriangles.push_back(mPoints[a]);
     mTriangles.push_back(mPoints[b]);
     mTriangles.push_back(mPoints[c]);
   }
 
-  void ModelParam::AddIndex(size_t i) {
+  void ModelParam::addIndex(size_t i) {
     mTriangles.push_back(mPoints[i]);
   }
 
-  Model ModelParam::ToModel(void) const {
+  Model ModelParam::toModel(void) const {
     return Model(mPoints, mTriangles, mEnvironment);
   }
 
-  void CompositeModelParam::Reserve(size_t submodels, size_t instances) {
+  void CompositeModelParam::reserve(size_t submodels, size_t instances) {
     mSubmodels.reserve(submodels);
     mInstances.reserve(instances);
   }
 
-  Handle CompositeModelParam::AddSubmodel(const ModelParam& model, bool addInstance) {
-    Handle result = mHandleGen.Next();
+  Handle CompositeModelParam::addSubmodel(const ModelParam& model, bool addInstance) {
+    Handle result = mHandleGen.next();
     mSubmodels[result] = model;
     if(addInstance)
-      AddSubmodelInstance(SubmodelInstance(result, true, Transform()));
+      addSubmodelInstance(SubmodelInstance(result, true, Transform()));
     return result;
   }
 
-  void CompositeModelParam::AddSubmodelInstance(const SubmodelInstance& instance) {
+  void CompositeModelParam::addSubmodelInstance(const SubmodelInstance& instance) {
     mInstances.push_back(instance);
   }
 }

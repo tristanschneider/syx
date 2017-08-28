@@ -12,7 +12,7 @@ namespace Syx {
     SMat3(SFloats bx, SFloats by, SFloats bz);
     SMat3(SFloats diag);
 
-    void Store(Mat3& store) const;
+    void store(Mat3& store) const;
 
     SMat3 operator*(const SMat3& rhs) const;
     SMat3& operator*=(const SMat3& rhs);
@@ -22,17 +22,17 @@ namespace Syx {
     SMat3 operator-(const SMat3& rhs) const;
     SMat3& operator-=(const SMat3& rhs);
 
-    SFloats ToQuat(void) const;
+    SFloats toQuat(void) const;
 
-    SMat3 Transposed(void) const;
-    void Transpose(void);
+    SMat3 transposed(void) const;
+    void transpose(void);
     //Not faster when using SIMD versions, so if possible, cache the transpose and re-use it
-    SMat3 TransposedMultiply(const SMat3& rhs) const;
-    SFloats TransposedMultiply(SFloats rhs) const;
+    SMat3 transposedMultiply(const SMat3& rhs) const;
+    SFloats transposedMultiply(SFloats rhs) const;
 
-    SMat3 Inverse(void) const;
-    SMat3 Inverse(SFloats det) const;
-    SFloats Determinant(void) const;
+    SMat3 inverse(void) const;
+    SMat3 inverse(SFloats det) const;
+    SFloats determinant(void) const;
 
     static const SMat3 Identity;
     static const SMat3 Zero;
@@ -44,7 +44,7 @@ namespace Syx {
   };
 
   SMat3 operator*(SFloats lhs, const SMat3& rhs);
-  SMat3 ToSMat3(const Mat3& mat);
-  Mat3 ToMat3(const SMat3& mat);
+  SMat3 toSMat3(const Mat3& mat);
+  Mat3 toMat3(const SMat3& mat);
 }
 #endif

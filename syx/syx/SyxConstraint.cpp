@@ -14,13 +14,13 @@ namespace Syx {
 
   LocalObject::LocalObject(PhysicsObject& owner)
     : mOwner(&owner)
-    , mPos(owner.GetTransform().mPos)
-    , mRot(owner.GetTransform().mRot) {
-    if(Rigidbody* rb = owner.GetRigidbody()) {
+    , mPos(owner.getTransform().mPos)
+    , mRot(owner.getTransform().mRot) {
+    if(Rigidbody* rb = owner.getRigidbody()) {
       mLinVel = rb->mLinVel;
       mAngVel = rb->mAngVel;
-      mInertia = rb->GetInertia();
-      mInvMass = rb->GetMass();
+      mInertia = rb->getInertia();
+      mInvMass = rb->getMass();
     }
     else {
       mLinVel = mAngVel = Vec3::Zero;
@@ -29,34 +29,34 @@ namespace Syx {
     }
   }
 
-  Vec3 LocalObject::ModelToWorldPoint(const Vec3& p) const {
+  Vec3 LocalObject::modelToWorldPoint(const Vec3& p) const {
     return (mRot * p) + mPos;
   }
 
-  Vec3 LocalObject::ModelToWorldVec(const Vec3& v) const {
+  Vec3 LocalObject::modelToWorldVec(const Vec3& v) const {
     return mRot * v;
   }
 
-  Vec3 LocalObject::WorldToModelPoint(const Vec3& p) const {
-    return mRot.Inversed() * (p - mPos);
+  Vec3 LocalObject::worldToModelPoint(const Vec3& p) const {
+    return mRot.inversed() * (p - mPos);
   }
 
-  Vec3 LocalObject::WorldToModelVec(const Vec3& v) const {
-    return mRot.Inversed() * v;
+  Vec3 LocalObject::worldToModelVec(const Vec3& v) const {
+    return mRot.inversed() * v;
   }
 
-  void ConstraintObjBlock::Set(const LocalObject& obj) {
+  void ConstraintObjBlock::set(const LocalObject& obj) {
     mPos = obj.mPos;
     mRot = obj.mRot;
-    LoadVelocity(obj);
+    loadVelocity(obj);
   }
 
-  void ConstraintObjBlock::LoadVelocity(const LocalObject& obj) {
+  void ConstraintObjBlock::loadVelocity(const LocalObject& obj) {
     mLinVel = obj.mLinVel;
     mAngVel = obj.mAngVel;
   }
 
-  void ConstraintObjBlock::StoreVelocity(LocalObject& obj) const {
+  void ConstraintObjBlock::storeVelocity(LocalObject& obj) const {
     obj.mLinVel = mLinVel;
     obj.mAngVel = mAngVel;
   }

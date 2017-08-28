@@ -4,47 +4,47 @@
 namespace Syx {
   class DebugSimplex {
   public:
-    DebugSimplex(void) { Initialize(); }
+    DebugSimplex() { initialize(); }
     DebugSimplex(const Simplex& rhs) { *this = rhs; }
 
-    void Initialize(void) { m_size = 0; m_history.clear(); }
+    void initialize() { mSize = 0; mHistory.clear(); }
     //Returns if added point was a duplicate and checkForDuplicates is true
-    bool Add(const SupportPoint& toAdd, bool checkForDuplicates);
+    bool add(const SupportPoint& toAdd, bool checkForDuplicates);
     //Evaluate the simplex, throwing out points not helping contain the origin and return new search direction
-    Vec3 Solve(void);
-    void GrowToFourPoints(Narrowphase& narrow);
+    Vec3 solve();
+    void growToFourPoints(Narrowphase& narrow);
 
-    bool Contains(const Vec3& support) const;
-    bool ContainsOrigin(void);
-    bool IsDegenerate(void) const;
-    bool MakesProgress(const Vec3& newPoint, const Vec3& searchDir) const;
+    bool contains(const Vec3& support) const;
+    bool containsOrigin();
+    bool isDegenerate() const;
+    bool makesProgress(const Vec3& newPoint, const Vec3& searchDir) const;
 
-    const Vec3& Get(int id) const { return m_supports[id].mSupport; }
-    SupportPoint& GetSupport(int id) { return m_supports[id]; }
-    size_t Size(void) { return m_size; }
+    const Vec3& get(int id) const { return mSupports[id].mSupport; }
+    SupportPoint& getSupport(int id) { return mSupports[id]; }
+    size_t size() { return mSize; }
 
     bool operator==(const Simplex& rhs);
     bool operator!=(const Simplex& rhs);
     DebugSimplex& operator=(const Simplex& rhs);
 
   private:
-    Vec3 SolveLine(void);
-    Vec3 SolveTriangle(void);
-    Vec3 SolveTetrahedron(void);
+    Vec3 _solveLine();
+    Vec3 _solveTriangle();
+    Vec3 _solveTetrahedron();
 
-    Vec3 DebugSimplex::GetTri(int index, Vec3& ra, Vec3& rb, Vec3& rc) const;
+    Vec3 _getTri(int index, Vec3& ra, Vec3& rb, Vec3& rc) const;
 
-    void Discard(const Vec3& point);
-    void Discard(int id);
-    void Discard(int a, int b);
-    void Discard(int a, int b, int c);
-    void FixWinding(void);
+    void _discard(const Vec3& point);
+    void _discard(int id);
+    void _discard(int a, int b);
+    void _discard(int a, int b, int c);
+    void _fixWinding();
 
-    void PrintState(void);
-    std::string GetIndexName(int index);
+    void _printState();
+    std::string _getIndexName(int index);
 
-    SAlign SupportPoint m_supports[SIMPLEX_MAX];
-    size_t m_size;
-    std::string m_history;
+    SAlign SupportPoint mSupports[SIMPLEX_MAX];
+    size_t mSize;
+    std::string mHistory;
   };
 }
