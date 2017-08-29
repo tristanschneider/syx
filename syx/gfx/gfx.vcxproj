@@ -70,11 +70,11 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);glew/include;../syx;</IncludePath>
+    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);glew/include;../syx;src-deps</IncludePath>
     <ReferencePath>$(VC_ReferencesPath_x86);</ReferencePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);glew/include;../syx;</IncludePath>
+    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);glew/include;../syx;src-deps</IncludePath>
     <ReferencePath>$(VC_ReferencesPath_x86);</ReferencePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -149,11 +149,15 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClCompile Include="EditorNavigator.cpp" />
     <ClCompile Include="event\Event.cpp" />
     <ClCompile Include="Gameobject.cpp" />
+    <ClCompile Include="ImGuiImpl.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="ModelLoader.cpp" />
     <ClCompile Include="Model.cpp" />
     <ClCompile Include="Shader.cpp" />
     <ClCompile Include="Space.cpp" />
+    <ClCompile Include="src-deps\imgui\imgui.cpp" />
+    <ClCompile Include="src-deps\imgui\imgui_demo.cpp" />
+    <ClCompile Include="src-deps\imgui\imgui_draw.cpp" />
     <ClCompile Include="system\GraphicsSystem.cpp" />
     <ClCompile Include="system\KeyboardInput.cpp" />
     <ClCompile Include="system\MessagingSystem.cpp" />
@@ -180,12 +184,19 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClInclude Include="event\Event.h" />
     <ClInclude Include="Gameobject.h" />
     <ClInclude Include="Handle.h" />
+    <ClInclude Include="ImGuiImpl.h" />
     <ClInclude Include="MappedBuffer.h" />
     <ClInclude Include="ModelLoader.h" />
     <ClInclude Include="Model.h" />
     <ClInclude Include="Precompile.h" />
     <ClInclude Include="Shader.h" />
     <ClInclude Include="Space.h" />
+    <ClInclude Include="src-deps\imgui\imconfig.h" />
+    <ClInclude Include="src-deps\imgui\imgui.h" />
+    <ClInclude Include="src-deps\imgui\imgui_internal.h" />
+    <ClInclude Include="src-deps\imgui\stb_rect_pack.h" />
+    <ClInclude Include="src-deps\imgui\stb_textedit.h" />
+    <ClInclude Include="src-deps\imgui\stb_truetype.h" />
     <ClInclude Include="system\GraphicsSystem.h" />
     <ClInclude Include="system\KeyboardInput.h" />
     <ClInclude Include="system\MessagingSystem.h" />

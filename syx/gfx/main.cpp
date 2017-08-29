@@ -10,14 +10,21 @@
 
 #include "Shader.h"
 #include "App.h"
+#include "system/GraphicsSystem.h"
 
 using namespace Syx;
 
-static HDC gDeviceContext = NULL;
-static HGLRC gGLContext = NULL;
+static HDC sDeviceContext = NULL;
+static HGLRC sGLContext = NULL;
+static std::unique_ptr<App> sApp;
+static int sWidth, sHeight;
 
 void setWindowSize(int width, int height) {
-  glViewport(0, 0, width, height);
+  sWidth = width;
+  sHeight = height;
+  if(sApp) {
+    sApp->getSystem<GraphicsSystem>(SystemId::Graphics).onResize(width, height);
+  }
 }
 
 LRESULT CALLBACK mainProc(HWND wnd, UINT msg, WPARAM w, LPARAM l) {
@@ -32,7 +39,7 @@ LRESULT CALLBACK mainProc(HWND wnd, UINT msg, WPARAM w, LPARAM l) {
 
     case WM_SIZING: {
       RECT& rect = *reinterpret_cast<RECT*>(l);
-      setWindowSize(rect.right - rect.left, rect.top - rect.bottom);
+      setWindowSize(rect.right - rect.left, rect.bottom - rect.top);
       break;
     }
   }
@@ -93,8 +100,8 @@ HGLRC createGLContext(HDC dc) {
 
 void destroyContext() {
   //To destroy the context, it must be made not current
-  wglMakeCurrent(gDeviceContext, NULL);
-  wglDeleteContext(gGLContext);
+  wglMakeCurrent(sDeviceContext, NULL);
+  wglDeleteContext(sGLContext);
 }
 
 void sleepNS(int ns) {
@@ -117,9 +124,11 @@ int mainLoop() {
   float nsToMS = 1.0f/1000000.0f;
   float msToNS = 1000000.0f;
   int targetFrameTimeNS = 16*static_cast<int>(msToNS);
-  App app;
+  sApp = std::make_unique<App>();
 
-  app.init();
+  sApp->init();
+  //Inform graphcis of screen size
+  setWindowSize(sWidth, sHeight);
   auto lastFrameEnd = std::chrono::high_resolution_clock::now();
   while(!exit) {
     auto frameStart = std::chrono::high_resolution_clock::now();
@@ -136,8 +145,8 @@ int mainLoop() {
       break;
 
     int dtNS = static_cast<int>(std::chrono::duration_cast<std::chrono::nanoseconds>(frameStart - lastFrameEnd).count());
-    app.update(static_cast<float>(dtNS)*nsToMS*0.001f);
-    SwapBuffers(gDeviceContext);
+    sApp->update(static_cast<float>(dtNS)*nsToMS*0.001f);
+    SwapBuffers(sDeviceContext);
 
     lastFrameEnd = std::chrono::high_resolution_clock::now();
     int frameTimeNS = static_cast<int>(std::chrono::duration_cast<std::chrono::nanoseconds>(lastFrameEnd - frameStart).count());
@@ -147,7 +156,7 @@ int mainLoop() {
       continue;
     sleepNS(timeToNextFrameNS);
   }
-  app.uninit();
+  sApp->uninit();
 
   return msg.wParam;
 }
@@ -174,9 +183,9 @@ int WINAPI WinMain(HINSTANCE hinstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     NULL);
   ShowWindow(wnd, nCmdShow);
 
-  gDeviceContext = GetDC(wnd);
-  initDeviceContext(gDeviceContext, 32, 24, 8, 0);
-  gGLContext = createGLContext(gDeviceContext);
+  sDeviceContext = GetDC(wnd);
+  initDeviceContext(sDeviceContext, 32, 24, 8, 0);
+  sGLContext = createGLContext(sDeviceContext);
   glewInit();
 
   UpdateWindow(wnd);

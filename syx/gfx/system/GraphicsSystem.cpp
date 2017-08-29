@@ -10,13 +10,11 @@
 #include "App.h"
 #include "Space.h"
 #include "Gameobject.h"
+#include "ImGuiImpl.h"
 #include "component/Renderable.h"
 #include "system/MessagingSystem.h"
 
 using namespace Syx;
-
-static Handle sTestModel;
-static Handle sTestTexture;
 
 static void readFile(const std::string& path, std::string& buffer) {
   std::ifstream file(path, std::ifstream::in | std::ifstream::binary);
@@ -62,21 +60,18 @@ void GraphicsSystem::init() {
   ct.setTranslate(Vec3(0.0f, 0.0f, -3.0f));
   ct.setRot(Quat::lookAt(-Vec3::UnitZ));
   mCamera->setTransform(ct);
-
   mDebugDrawer = std::make_unique<DebugDrawer>(*this);
+  mImGui = std::make_unique<ImGuiImpl>();
 
   mModelLoader = std::make_unique<ModelLoader>();
   mTextureLoader = std::make_unique<TextureLoader>();
-
-  sTestModel = addModel("models/bowserlow.obj");
-  sTestTexture = addTexture("textures/test.bmp");
 
   mTransformListener = std::make_unique<TransformListener>();
   mApp->getSystem<MessagingSystem>(SystemId::Messaging).addTransformListener(*mTransformListener);
 }
 
 void GraphicsSystem::update(float dt) {
-  _render();
+  _render(dt);
 }
 
 void GraphicsSystem::uninit() {
@@ -135,7 +130,7 @@ Handle GraphicsSystem::addTexture(const std::string& filePath) {
   return t.mHandle;
 }
 
-void GraphicsSystem::_render() {
+void GraphicsSystem::_render(float dt) {
   glClearColor(0.0f, 0.0f, 1.0f, 0.0f);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -200,4 +195,12 @@ void GraphicsSystem::_render() {
       }
     }
   }
+
+  if(mImGui)
+    mImGui->render(dt, mScreenSize);
+}
+
+void GraphicsSystem::onResize(int width, int height) {
+  glViewport(0, 0, width, height);
+  mScreenSize = Syx::Vec2(static_cast<float>(width), static_cast<float>(height));
 }

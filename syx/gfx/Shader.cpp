@@ -73,6 +73,15 @@ GLuint Shader::getUniform(const std::string& name) {
   return newId;
 }
 
+GLuint Shader::getAttrib(const std::string& name) {
+  auto it = mUniformLocations.find(name);
+  if(it != mUniformLocations.end())
+    return it->second;
+  GLuint newId = glGetAttribLocation(mId, name.c_str());
+  mUniformLocations[name] = newId;
+  return newId;
+}
+
 GLuint Shader::getId() const {
   return mId;
 }

@@ -6,6 +6,7 @@ class Camera;
 class DebugDrawer;
 class ModelLoader;
 class TextureLoader;
+class ImGuiImpl;
 struct Model;
 struct Texture;
 struct TransformListener;
@@ -35,8 +36,10 @@ public:
 
   std::unique_ptr<Shader> _loadShadersFromFile(const std::string& vsPath, const std::string& psPath);
 
+  void onResize(int width, int height);
+
 private:
-  void _render();
+  void _render(float dt);
 
   std::unique_ptr<Shader> mGeometry;
   std::unique_ptr<Camera> mCamera;
@@ -44,9 +47,11 @@ private:
   std::unique_ptr<ModelLoader> mModelLoader;
   std::unique_ptr<TextureLoader> mTextureLoader;
   std::unique_ptr<TransformListener> mTransformListener;
+  std::unique_ptr<ImGuiImpl> mImGui;
   std::unordered_map<Handle, Model> mHandleToModel;
   std::unordered_map<Handle, Texture> mHandleToTexture;
   HandleGen mModelGen, mTextureGen;
   std::string mVSBuffer;
   std::string mPSBuffer;
+  Syx::Vec2 mScreenSize;
 };

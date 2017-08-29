@@ -89,7 +89,7 @@ void Model::unloadGpu() {
   }
   glDeleteBuffers(1, &mVB);
   glDeleteBuffers(1, &mIB);
-  glDeleteBuffers(1, &mVA);
+  glDeleteVertexArrays(1, &mVA);
   mVB = mIB = mVA = 0;
 }
 
