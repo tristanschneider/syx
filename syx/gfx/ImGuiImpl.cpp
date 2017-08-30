@@ -82,6 +82,7 @@ ImGuiImpl::~ImGuiImpl() {
   glDeleteVertexArrays(1, &mVA);
   glDeleteBuffers(1, &mVB);
   glDeleteBuffers(1, &mIB);
+  mShader->unload();
 }
 
 void ImGuiImpl::render(float dt, Syx::Vec2 display) {
@@ -120,40 +121,33 @@ void ImGuiImpl::render(float dt, Syx::Vec2 display) {
 
   //Setup viewport, orthographic projection matrix
   glViewport(0, 0, (GLsizei)fbWidth, (GLsizei)fbHeight);
-  const float proj[4][4] = {
-      { 2.0f/io.DisplaySize.x, 0.0f,                   0.0f, 0.0f },
-      { 0.0f,                  2.0f/-io.DisplaySize.y, 0.0f, 0.0f },
-      { 0.0f,                  0.0f,                  -1.0f, 0.0f },
-      {-1.0f,                  1.0f,                   0.0f, 1.0f },
-  };
+  Syx::Mat4 proj(2.0f/io.DisplaySize.x,                   0.0f,  0.0f, -1.0f,
+                                  0.0f, 2.0f/-io.DisplaySize.y,  0.0f,  1.0f,
+                                  0.0f,                   0.0f, -1.0f,  0.0f,
+                                  0.0f,                   0.0f,  0.0f,  1.0f);
 
   {
     Shader::Binder sb(*mShader);
     glUniform1i(mShader->getUniform("Texture"), 0);
-    glUniformMatrix4fv(mShader->getUniform("ProjMtx"), 1, GL_FALSE, (GLfloat*)proj);
+    glUniformMatrix4fv(mShader->getUniform("ProjMtx"), 1, GL_FALSE, (GLfloat*)proj.mData);
 
     glBindVertexArray(mVA);
+    glBindBuffer(GL_ARRAY_BUFFER, mVB);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mIB);
+    glBindTexture(GL_TEXTURE_2D, mFontTexture);
     for(int i = 0; i < drawData->CmdListsCount; ++i) {
       const ImDrawList* cmdList = drawData->CmdLists[i];
       const ImDrawIdx* offset = 0;
 
-      glBindBuffer(GL_ARRAY_BUFFER, mVB);
+      //Upload this command list
       glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)cmdList->VtxBuffer.Size * sizeof(ImDrawVert), (const GLvoid*)cmdList->VtxBuffer.Data, GL_STREAM_DRAW);
-
-      glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mIB);
       glBufferData(GL_ELEMENT_ARRAY_BUFFER, (GLsizeiptr)cmdList->IdxBuffer.Size * sizeof(ImDrawIdx), (const GLvoid*)cmdList->IdxBuffer.Data, GL_STREAM_DRAW);
 
       for(int cmd = 0; cmd < cmdList->CmdBuffer.Size; ++cmd) {
-          const ImDrawCmd* pcmd = &cmdList->CmdBuffer[cmd];
-          if(pcmd->UserCallback) {
-              pcmd->UserCallback(cmdList, pcmd);
-          }
-          else {
-            glBindTexture(GL_TEXTURE_2D, (GLuint)(intptr_t)pcmd->TextureId);
-            glScissor((int)pcmd->ClipRect.x, (int)(fbHeight - pcmd->ClipRect.w), (int)(pcmd->ClipRect.z - pcmd->ClipRect.x), (int)(pcmd->ClipRect.w - pcmd->ClipRect.y));
-            glDrawElements(GL_TRIANGLES, (GLsizei)pcmd->ElemCount, sizeof(ImDrawIdx) == 2 ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT, offset);
-          }
-          offset += pcmd->ElemCount;
+        const ImDrawCmd* pcmd = &cmdList->CmdBuffer[cmd];
+        glScissor((int)pcmd->ClipRect.x, (int)(fbHeight - pcmd->ClipRect.w), (int)(pcmd->ClipRect.z - pcmd->ClipRect.x), (int)(pcmd->ClipRect.w - pcmd->ClipRect.y));
+        glDrawElements(GL_TRIANGLES, (GLsizei)pcmd->ElemCount, sizeof(ImDrawIdx) == 2 ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT, offset);
+        offset += pcmd->ElemCount;
       }
     }
   }

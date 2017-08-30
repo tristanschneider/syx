@@ -8,6 +8,7 @@ public:
   };
 
   bool load(const std::string& vsSource, const std::string& psSource);
+  void unload();
   GLuint getUniform(const std::string& name);
   GLuint getAttrib(const std::string& name);
   GLuint getId() const;

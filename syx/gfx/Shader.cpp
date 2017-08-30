@@ -64,6 +64,11 @@ bool Shader::load(const std::string& vsSource, const std::string& psSource) {
   return true;
 }
 
+void Shader::unload() {
+  glDeleteProgram(mId);
+  mId = 0;
+}
+
 GLuint Shader::getUniform(const std::string& name) {
   auto it = mUniformLocations.find(name);
   if(it != mUniformLocations.end())
