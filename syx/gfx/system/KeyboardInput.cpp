@@ -2,6 +2,8 @@
 #include "KeyboardInput.h"
 #include <Windows.h>
 
+extern HWND gHwnd;
+
 KeyState KeyboardInput::getKeyState(Key key) const {
   //Only care about top bit
   unsigned char filter = 128;
@@ -38,11 +40,11 @@ void KeyboardInput::update(float dt) {
   GetKeyboardState(mCurState);
   POINT p;
   if(GetCursorPos(&p)) {
+    ScreenToClient(gHwnd, &p);
     mPrevMouse = mCurMouse;
     mCurMouse = Syx::Vec2(static_cast<float>(p.x), static_cast<float>(p.y));
   }
 }
 
 void KeyboardInput::uninit() {
-
 }

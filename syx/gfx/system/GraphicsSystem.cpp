@@ -13,6 +13,7 @@
 #include "ImGuiImpl.h"
 #include "component/Renderable.h"
 #include "system/MessagingSystem.h"
+#include "system/KeyboardInput.h"
 
 using namespace Syx;
 
@@ -72,6 +73,10 @@ void GraphicsSystem::init() {
 
 void GraphicsSystem::update(float dt) {
   _render(dt);
+  if(mImGui) {
+    mImGui->render(dt, mScreenSize);
+    mImGui->updateInput(mApp->getSystem<KeyboardInput>(SystemId::KeyboardInput));
+  }
 }
 
 void GraphicsSystem::uninit() {
@@ -195,9 +200,6 @@ void GraphicsSystem::_render(float dt) {
       }
     }
   }
-
-  if(mImGui)
-    mImGui->render(dt, mScreenSize);
 }
 
 void GraphicsSystem::onResize(int width, int height) {

@@ -6,7 +6,7 @@ enum class Key : uint8_t {
   LeftMouse = 1,
   RightMouse = 2,
   MiddleMouse = 4,
-  Back = 8,
+  Backspace = 8,
   Tab = 9,
   Enter = 13,
   Shift = 16,
@@ -23,6 +23,7 @@ enum class Key : uint8_t {
   Up = 38,
   Right = 39,
   Down = 40,
+  Delete = 46,
   //Not numpad
   Key0 = 48, Key1, Key2, Key3, Key4, Key5, Key6, Key7, Key8, Key9,
   KeyA = 65, KeyB, KeyC, KeyD, KeyE, KeyF, KeyG, KeyH, KeyI, KeyJ, KeyK, KeyL, KeyM, KeyN, KeyO, KeyP, KeyQ, KeyR, KeyS, KeyT, KeyU, KeyV, KeyW, KeyX, KeyY, KeyZ,

@@ -2,6 +2,7 @@
 #include "ImGuiImpl.h"
 #include "Shader.h"
 #include "imgui/imgui.h"
+#include "system/KeyboardInput.h"
 
 bool ImGuiImpl::sEnabled = false;
 
@@ -74,6 +75,31 @@ ImGuiImpl::ImGuiImpl() {
   glBindTexture(GL_TEXTURE_2D, 0);
   glBindBuffer(GL_ARRAY_BUFFER, 0);
   glBindVertexArray(0);
+
+  _initKeyMap();
+}
+
+void ImGuiImpl::_initKeyMap() {
+  int* map = ImGui::GetIO().KeyMap;
+  map[ImGuiKey_Tab] = (int)Key::Tab;
+  map[ImGuiKey_LeftArrow] = (int)Key::Left;
+  map[ImGuiKey_RightArrow] = (int)Key::Right;
+  map[ImGuiKey_UpArrow] = (int)Key::Up;
+  map[ImGuiKey_DownArrow] = (int)Key::Down;
+  map[ImGuiKey_PageUp] = (int)Key::PageUp;
+  map[ImGuiKey_PageDown] = (int)Key::PageDown;
+  map[ImGuiKey_Home] = (int)Key::Home;
+  map[ImGuiKey_End] = (int)Key::End;
+  map[ImGuiKey_Delete] = (int)Key::Delete;
+  map[ImGuiKey_Backspace] = (int)Key::Backspace;
+  map[ImGuiKey_Enter] = (int)Key::Enter;
+  map[ImGuiKey_Escape] = (int)Key::Esc;
+  map[ImGuiKey_A] = (int)Key::KeyA;
+  map[ImGuiKey_C] = (int)Key::KeyC;
+  map[ImGuiKey_V] = (int)Key::KeyV;
+  map[ImGuiKey_X] = (int)Key::KeyX;
+  map[ImGuiKey_Y] = (int)Key::KeyY;
+  map[ImGuiKey_Z] = (int)Key::KeyZ;
 }
 
 ImGuiImpl::~ImGuiImpl() {
@@ -83,6 +109,19 @@ ImGuiImpl::~ImGuiImpl() {
   glDeleteBuffers(1, &mVB);
   glDeleteBuffers(1, &mIB);
   mShader->unload();
+}
+
+void ImGuiImpl::updateInput(KeyboardInput& input) {
+  ImGuiIO& io = ImGui::GetIO();
+
+  io.KeyCtrl = input.getKeyDown(Key::Control);
+  io.KeyShift = input.getKeyDown(Key::Shift);
+  io.KeyAlt = input.getKeyDown(Key::Alt);
+
+  io.MouseDown[0] = input.getKeyDown(Key::LeftMouse);
+  io.MouseDown[1] = input.getKeyDown(Key::RightMouse);
+  Syx::Vec2 mp = input.getMousePos();
+  io.MousePos = ImVec2(mp.x, mp.y);
 }
 
 void ImGuiImpl::render(float dt, Syx::Vec2 display) {

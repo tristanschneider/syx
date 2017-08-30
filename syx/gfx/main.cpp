@@ -19,6 +19,8 @@ static HGLRC sGLContext = NULL;
 static std::unique_ptr<App> sApp;
 static int sWidth, sHeight;
 
+HWND gHwnd = NULL;
+
 void setWindowSize(int width, int height) {
   sWidth = width;
   sHeight = height;
@@ -190,6 +192,7 @@ int WINAPI WinMain(HINSTANCE hinstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
   UpdateWindow(wnd);
 
+  gHwnd = wnd;
   int exitCode = mainLoop();
 
   destroyContext();
