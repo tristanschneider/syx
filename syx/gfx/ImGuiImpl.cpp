@@ -122,6 +122,16 @@ void ImGuiImpl::updateInput(KeyboardInput& input) {
   io.MouseDown[1] = input.getKeyDown(Key::RightMouse);
   Syx::Vec2 mp = input.getMousePos();
   io.MousePos = ImVec2(mp.x, mp.y);
+
+  for(size_t i = 0; i < 128; ++i) {
+    char c = static_cast<char>(i);
+    if(input.getAsciiState(c) == KeyState::Triggered)
+      io.AddInputCharacter(c);
+  }
+
+  for(size_t i = 0; i < static_cast<size_t>(Key::Count); ++i) {
+    io.KeysDown[i] = input.getKeyDown(static_cast<Key>(i));
+  }
 }
 
 void ImGuiImpl::render(float dt, Syx::Vec2 display) {

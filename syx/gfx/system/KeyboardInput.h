@@ -29,18 +29,34 @@ enum class Key : uint8_t {
   KeyA = 65, KeyB, KeyC, KeyD, KeyE, KeyF, KeyG, KeyH, KeyI, KeyJ, KeyK, KeyL, KeyM, KeyN, KeyO, KeyP, KeyQ, KeyR, KeyS, KeyT, KeyU, KeyV, KeyW, KeyX, KeyY, KeyZ,
   //Numpad
   Num0 = 96, Num1, Num2, Num3, Num4, Num5, Num6, Num7, Num8, Num9,
+  Mul = 106,
+  Add = 107,
+  Sub = 109,
+  Dot = 0xBE,
+  FwdSlash = 111,
+  Semicolon = 0xBA,
+  Comma = 0xBC,
+  Question = 0xBF,
+  Tilda = 0xC0,
+  LeftCurly = 0xDB,
+  Bar = 0xDC,
+  RightCurly = 0XDD,
+  Quote = 0xDE,
+  MinusUnderLine = 0xBD,
+  PlusEq = 0xBB,
   F1 = 112, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12, F13, F14, F15, F16, F17, F18, F19, F20, F21, F22, F23, F24,
   LeftShift = 160,
   RightShift,
   LeftCtrl,
   RightCtrl,
+  Count = 255
 };
 
 enum class KeyState : uint8_t {
   Up,
   Down,
-  OnUp,
-  OnDown
+  Triggered,
+  Released
 };
 
 class KeyboardInput : public System {
@@ -56,14 +72,24 @@ public:
   KeyState getKeyState(Key key) const;
   bool getKeyDown(Key key) const;
   bool getKeyUp(Key key) const;
+  bool getKeyTriggered(Key key) const;
+  bool getKeyReleased(Key key) const;
+  KeyState getAsciiState(char c) const;
   //Get mouse information in pixels
   Syx::Vec2 getMousePos() const;
   Syx::Vec2 getMouseDelta() const;
 private:
   static const size_t sKeyCount = 256;
+  static const size_t sAsciiCount = 128;
 
-  unsigned char mPrevState[sKeyCount];
-  unsigned char mCurState[sKeyCount];
+  KeyState _shiftAnd(Key key) const;
+  KeyState _noShift(Key key) const;
+  KeyState _or(KeyState a, KeyState b) const;
+
+  uint8_t mPrevState[sKeyCount];
+  uint8_t mCurState[sKeyCount];
+  uint8_t mAsciiToKey[sAsciiCount];
+  uint8_t mKeyToAscii[sAsciiCount];
   Syx::Vec2 mPrevMouse;
   Syx::Vec2 mCurMouse;
 };
