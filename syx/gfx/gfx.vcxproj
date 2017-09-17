@@ -165,6 +165,10 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClCompile Include="SyxInterface.cpp" />
     <ClCompile Include="Texture.cpp" />
     <ClCompile Include="TextureLoader.cpp" />
+    <ClCompile Include="threading\FunctionTask.cpp" />
+    <ClCompile Include="threading\IWorkerPool.cpp" />
+    <ClCompile Include="threading\Task.cpp" />
+    <ClCompile Include="threading\WorkerPool.cpp" />
     <ClCompile Include="Util.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -204,6 +208,10 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClInclude Include="system\System.h" />
     <ClInclude Include="Texture.h" />
     <ClInclude Include="TextureLoader.h" />
+    <ClInclude Include="threading\FunctionTask.h" />
+    <ClInclude Include="threading\IWorkerPool.h" />
+    <ClInclude Include="threading\Task.h" />
+    <ClInclude Include="threading\WorkerPool.h" />
     <ClInclude Include="Util.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

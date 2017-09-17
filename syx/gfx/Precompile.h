@@ -15,6 +15,9 @@
 #include <memory>
 #include <mutex>
 #include <type_traits>
+#include <condition_variable>
+#include <thread>
+#include <functional>
 
 #include <SyxMathIncludes.h>
 #include "Handle.h"
