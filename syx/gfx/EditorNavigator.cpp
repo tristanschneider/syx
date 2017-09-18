@@ -7,8 +7,8 @@
 
 void EditorNavigator::update(float dt) {
   using namespace Syx;
-  const KeyboardInput& in = mApp->getSystem<KeyboardInput>(SystemId::KeyboardInput);
-  GraphicsSystem& graphics = mApp->getSystem<GraphicsSystem>(SystemId::Graphics);
+  const KeyboardInput& in = *mApp->getSystem<KeyboardInput>(SystemId::KeyboardInput);
+  GraphicsSystem& graphics = *mApp->getSystem<GraphicsSystem>(SystemId::Graphics);
   Vec3 move = Vec3::Zero;
   Camera& cam = graphics.getPrimaryCamera();
   Mat4 camTransform = cam.getTransform();

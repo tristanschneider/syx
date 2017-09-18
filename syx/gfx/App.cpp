@@ -26,7 +26,7 @@ void App::init() {
       system->init();
   }
 
-  GraphicsSystem& gfx = getSystem<GraphicsSystem>(SystemId::Graphics);
+  GraphicsSystem& gfx = *getSystem<GraphicsSystem>(SystemId::Graphics);
   mAssets["car"] = gfx.addModel("models/car.obj");
   mAssets["bowser"] = gfx.addModel("models/bowserlow.obj");
   mAssets["maze"] = gfx.addTexture("textures/test.bmp");

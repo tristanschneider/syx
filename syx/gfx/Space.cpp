@@ -22,7 +22,7 @@ void Space::init() {
     g.init();
 
   Gameobject* obj = createObject();
-  MessagingSystem& msg = mApp->getSystem<MessagingSystem>(SystemId::Messaging);
+  MessagingSystem& msg = *mApp->getSystem<MessagingSystem>(SystemId::Messaging);
   std::unique_ptr<Renderable> gfx = std::make_unique<Renderable>(obj->getHandle(), msg);
   std::unique_ptr<Physics> phy;
   gfx->mModel = getApp().mAssets["bowser"];
@@ -78,7 +78,7 @@ void Space::uninit() {
 
 Gameobject* Space::createObject() {
   Handle h = mObjectGen.next();
-  return &mObjects.pushBack(Gameobject(h, &mApp->getSystem<MessagingSystem>(SystemId::Messaging)), h);
+  return &mObjects.pushBack(Gameobject(h, mApp->getSystem<MessagingSystem>(SystemId::Messaging)), h);
 }
 
 App& Space::getApp() {

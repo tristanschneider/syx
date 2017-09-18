@@ -17,11 +17,11 @@ public:
   Space& getDefaultSpace();
 
   template<typename SystemType>
-  SystemType& getSystem(SystemId id) {
-    return static_cast<SystemType&>(*mSystems[static_cast<int>(id)]);
+  SystemType* getSystem(SystemId id) {
+    return static_cast<SystemType*>(mSystems[static_cast<int>(id)].get());
   }
 
-  // Temporary until asset manager that wraps asset loading and such
+  //Temporary until asset manager that wraps asset loading and such
   std::unordered_map<std::string, Handle> mAssets;
 
 private:

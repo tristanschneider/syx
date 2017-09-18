@@ -68,19 +68,19 @@ void GraphicsSystem::init() {
   mTextureLoader = std::make_unique<TextureLoader>();
 
   mTransformListener = std::make_unique<TransformListener>();
-  mApp->getSystem<MessagingSystem>(SystemId::Messaging).addTransformListener(*mTransformListener);
+  mApp->getSystem<MessagingSystem>(SystemId::Messaging)->addTransformListener(*mTransformListener);
 }
 
 void GraphicsSystem::update(float dt) {
   _render(dt);
   if(mImGui) {
     mImGui->render(dt, mScreenSize);
-    mImGui->updateInput(mApp->getSystem<KeyboardInput>(SystemId::KeyboardInput));
+    mImGui->updateInput(*mApp->getSystem<KeyboardInput>(SystemId::KeyboardInput));
   }
 }
 
 void GraphicsSystem::uninit() {
-  mApp->getSystem<MessagingSystem>(SystemId::Messaging).removeTransformListener(*mTransformListener);
+  mApp->getSystem<MessagingSystem>(SystemId::Messaging)->removeTransformListener(*mTransformListener);
 }
 
 Camera& GraphicsSystem::getPrimaryCamera() {

@@ -25,7 +25,7 @@ void setWindowSize(int width, int height) {
   sWidth = width;
   sHeight = height;
   if(sApp) {
-    sApp->getSystem<GraphicsSystem>(SystemId::Graphics).onResize(width, height);
+    sApp->getSystem<GraphicsSystem>(SystemId::Graphics)->onResize(width, height);
   }
 }
 

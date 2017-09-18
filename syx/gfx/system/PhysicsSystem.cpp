@@ -27,7 +27,7 @@ PhysicsSystem::~PhysicsSystem() {
 }
 
 void PhysicsSystem::init() {
-  Syx::Interface::gDrawer = &mApp->getSystem<GraphicsSystem>(SystemId::Graphics).getDebugDrawer();
+  Syx::Interface::gDrawer = &mApp->getSystem<GraphicsSystem>(SystemId::Graphics)->getDebugDrawer();
   mSystem = std::make_unique<Syx::PhysicsSystem>();
 
   mApp->mAssets["pCube"] = mSystem->getCube();
@@ -40,7 +40,7 @@ void PhysicsSystem::init() {
   mEventListener = std::make_unique<EventListener>(EventFlag::Physics);
   mTransformListener = std::make_unique<TransformListener>();
   mTransformUpdates = std::make_unique<std::vector<TransformEvent>>();
-  MessagingSystem& msg = mApp->getSystem<MessagingSystem>(SystemId::Messaging);
+  MessagingSystem& msg = *mApp->getSystem<MessagingSystem>(SystemId::Messaging);
   msg.addEventListener(*mEventListener);
   msg.addTransformListener(*mTransformListener);
 }
@@ -87,7 +87,7 @@ void PhysicsSystem::_processSyxEvents() {
   else
     printf("Failed to get physics update events\n");
 
-  mApp->getSystem<MessagingSystem>(SystemId::Messaging).fireTransformEvents(*mTransformUpdates, mTransformListener.get());
+  mApp->getSystem<MessagingSystem>(SystemId::Messaging)->fireTransformEvents(*mTransformUpdates, mTransformListener.get());
 }
 
 void PhysicsSystem::_updateObject(Gameobject& obj, const SyxData& data, const Syx::UpdateEvent& e) {
