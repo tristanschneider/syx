@@ -1,5 +1,13 @@
 #pragma once
 class TaskGroup {
+public:
+  //Groups are kept alive by parent pointers, meaning order of events is bottom up, since parents won't start until all children are done
+  TaskGroup(std::shared_ptr<TaskGroup> parent);
+
+  static std::weak_ptr<TaskGroup> nullGroup();
+
+private:
+  std::shared_ptr<TaskGroup> mParent;
 };
 
 class Task {

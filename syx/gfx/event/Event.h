@@ -37,4 +37,5 @@ struct EventListener {
 
   std::vector<std::unique_ptr<Event>> mEvents;
   EventFlag mListenFlags;
+  std::mutex mMutex;
 };

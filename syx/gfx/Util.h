@@ -25,3 +25,20 @@ namespace Util {
     hashCombine(seed, rest...);
   }
 }
+
+template <typename T>
+class GuardWrapped {
+public:
+  GuardWrapped(T& obj, std::mutex& mutex)
+    : mObj(obj)
+    , mLock(mutex) {
+  }
+
+  T& get() {
+    return mObj;
+  }
+
+private:
+  std::unique_lock<std::mutex> mLock;
+  T& mObj;
+};

@@ -7,6 +7,8 @@
 #include "event/Event.h"
 #include "component/Physics.h"
 #include "Space.h"
+#include "threading/FunctionTask.h"
+#include "threading/IWorkerPool.h"
 
 #include <SyxIntrusive.h>
 #include <SyxHandles.h>
@@ -40,29 +42,50 @@ void PhysicsSystem::init() {
   mEventListener = std::make_unique<EventListener>(EventFlag::Physics);
   mTransformListener = std::make_unique<TransformListener>();
   mTransformUpdates = std::make_unique<std::vector<TransformEvent>>();
+  mLocalEvents = std::make_unique<std::vector<std::unique_ptr<Event>>>();
+  mLocalTransformEvents = std::make_unique<std::vector<TransformEvent>>();
   MessagingSystem& msg = *mApp->getSystem<MessagingSystem>(SystemId::Messaging);
   msg.addEventListener(*mEventListener);
   msg.addTransformListener(*mTransformListener);
 }
 
-void PhysicsSystem::update(float dt) {
-  _processGameEvents();
-  mSystem->update(dt);
-  _processSyxEvents();
+void PhysicsSystem::update(float dt, IWorkerPool& pool, std::shared_ptr<TaskGroup> frameTask) {
+  auto eventGroup = std::make_shared<TaskGroup>(frameTask);
+  auto updateGroup = std::make_shared<TaskGroup>(eventGroup);
+  auto gameGroup = std::make_shared<TaskGroup>(updateGroup);
+
+  pool.queueTask(std::make_unique<FunctionTask>([this]() {
+    _processGameEvents();
+  }, TaskGroup::nullGroup(), gameGroup));
+
+  pool.queueTask(std::make_unique<FunctionTask>([this, dt]() {
+    mSystem->update(dt);
+  }, gameGroup, updateGroup));
+
+  pool.queueTask(std::make_unique<FunctionTask>([this]() {
+    _processSyxEvents();
+  }, updateGroup, eventGroup));
 }
 
 void PhysicsSystem::_processGameEvents() {
-  for(const std::unique_ptr<Event>& e : mEventListener->mEvents) {
+  mEventListener->mMutex.lock();
+  mLocalEvents->swap(mEventListener->mEvents);
+  mEventListener->mMutex.unlock();
+
+  for(const std::unique_ptr<Event>& e : *mLocalEvents) {
     switch(static_cast<EventType>(e->getHandle())) {
       case EventType::PhysicsCompUpdate: _compUpdateEvent(static_cast<const PhysicsCompUpdateEvent&>(*e)); break;
       default: continue;
     }
   }
-  mEventListener->mEvents.clear();
+  mLocalEvents->clear();
 
-  for(const TransformEvent& t : mTransformListener->mEvents)
+  mTransformListener->mMutex.lock();
+  mLocalTransformEvents->swap(mTransformListener->mEvents);
+  mTransformListener->mMutex.unlock();
+  for(const TransformEvent& t : *mLocalTransformEvents)
     _transformEvent(t);
-  mTransformListener->mEvents.clear();
+  mLocalTransformEvents->clear();
 }
 
 void PhysicsSystem::_processSyxEvents() {
@@ -70,10 +93,12 @@ void PhysicsSystem::_processSyxEvents() {
   const Syx::EventListener<Syx::UpdateEvent>* updates = mSystem->getUpdateEvents(mDefaultSpace);
   if(updates) {
     Space& space = mApp->getDefaultSpace();
+    auto objGuard = space.getObjects();
+    auto& objects = objGuard.get();
     for(const Syx::UpdateEvent& e : updates->mEvents) {
       auto it = mFromSyx.find(e.mHandle);
       if(it != mFromSyx.end()) {
-        if(Gameobject* obj = space.mObjects.get(it->second)) {
+        if(Gameobject* obj = objects.get(it->second)) {
           const SyxData& data = mToSyx[it->second];
           _updateObject(*obj, data, e);
         }

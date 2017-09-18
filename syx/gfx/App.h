@@ -5,6 +5,7 @@ class KeyboardInput;
 class System;
 class Space;
 enum class SystemId : uint8_t;
+class IWorkerPool;
 
 class App {
 public:
@@ -15,6 +16,7 @@ public:
   void update(float dt);
   void uninit();
   Space& getDefaultSpace();
+  IWorkerPool& getWorkerPool();
 
   template<typename SystemType>
   SystemType* getSystem(SystemId id) {
@@ -35,4 +37,5 @@ private:
 
   std::vector<std::unique_ptr<System>> mSystems;
   std::unique_ptr<Space> mDefaultSpace;
+  std::unique_ptr<IWorkerPool> mWorkerPool;
 };

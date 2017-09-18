@@ -5,7 +5,7 @@
 #include "system/GraphicsSystem.h"
 #include "Camera.h"
 
-void EditorNavigator::update(float dt) {
+void EditorNavigator::update(float dt, IWorkerPool& pool, std::shared_ptr<TaskGroup> frameTask) {
   using namespace Syx;
   const KeyboardInput& in = *mApp->getSystem<KeyboardInput>(SystemId::KeyboardInput);
   GraphicsSystem& graphics = *mApp->getSystem<GraphicsSystem>(SystemId::Graphics);

@@ -71,7 +71,8 @@ void GraphicsSystem::init() {
   mApp->getSystem<MessagingSystem>(SystemId::Messaging)->addTransformListener(*mTransformListener);
 }
 
-void GraphicsSystem::update(float dt) {
+void GraphicsSystem::update(float dt, IWorkerPool& pool, std::shared_ptr<TaskGroup> frameTask) {
+  //Can't really do anything on background threads at the moment because this one has the context.
   _render(dt);
   if(mImGui) {
     mImGui->render(dt, mScreenSize);
@@ -171,7 +172,8 @@ void GraphicsSystem::_render(float dt) {
     glUniform3f(mGeometry->getUniform("uSunDir"), sunDir.x, sunDir.y, sunDir.z);
     glUniform3f(mGeometry->getUniform("uSunColor"), sunColor.x, sunColor.y, sunColor.z);
 
-    std::vector<Gameobject>& objects = mApp->getDefaultSpace().mObjects.getBuffer();
+    auto guardedObjs = mApp->getDefaultSpace().getObjects();
+    std::vector<Gameobject>& objects = guardedObjs.get().getBuffer();
     for(Gameobject& obj : objects) {
       Renderable* gfx = obj.getComponent<Renderable>(ComponentType::Graphics);
       if(!gfx)

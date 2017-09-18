@@ -4,8 +4,11 @@
 #include "system/KeyboardInput.h"
 #include "system/MessagingSystem.h"
 #include "system/PhysicsSystem.h"
+#include "threading/WorkerPool.h"
+#include "threading/Task.h"
 #include "EditorNavigator.h"
 #include "Space.h"
+#include "ImGuiImpl.h"
 
 App::App() {
   mSystems.resize(static_cast<size_t>(SystemId::Count));
@@ -15,6 +18,7 @@ App::App() {
   _registerSystem<PhysicsSystem>();
   _registerSystem<GraphicsSystem>();
   mDefaultSpace = std::make_unique<Space>(*this);
+  mWorkerPool = std::make_unique<WorkerPool>(3);
 }
 
 App::~App() {
@@ -36,11 +40,20 @@ void App::init() {
 }
 
 void App::update(float dt) {
+
+  auto frameTask = std::make_shared<TaskGroup>(nullptr);
+
   mDefaultSpace->update(dt);
   for(auto& system : mSystems) {
     if(system)
-      system->update(dt);
+      system->update(dt, *mWorkerPool, frameTask);
   }
+
+  }
+
+  std::weak_ptr<TaskGroup> weakFrame = frameTask;
+  frameTask = nullptr;
+  mWorkerPool->sync(weakFrame);
 }
 
 void App::uninit() {
@@ -53,4 +66,8 @@ void App::uninit() {
 
 Space& App::getDefaultSpace() {
   return *mDefaultSpace;
+}
+
+IWorkerPool& App::getWorkerPool() {
+  return *mWorkerPool;
 }

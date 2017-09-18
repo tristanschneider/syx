@@ -21,7 +21,7 @@ public:
   }
 
   void init() override;
-  void update(float dt) override;
+  void update(float dt, IWorkerPool& pool, std::shared_ptr<TaskGroup> frameTask) override;
   void uninit() override;
 
   Camera& getPrimaryCamera();

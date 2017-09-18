@@ -3,14 +3,14 @@
 class Task;
 class TaskGroup;
 
-class WorkerPool {
+class WorkerPool : public IWorkerPool {
 public:
   WorkerPool(size_t threadCount);
   ~WorkerPool();
 
-  void queueTask(std::unique_ptr<Task> task);
+  void queueTask(std::unique_ptr<Task> task) override;
   //Do work on this thread along with others until this group is done
-  void sync(std::weak_ptr<TaskGroup> group);
+  void sync(std::weak_ptr<TaskGroup> group) override;
 
 private:
   void _workerLoop();

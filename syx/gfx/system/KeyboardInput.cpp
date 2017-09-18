@@ -115,7 +115,7 @@ void KeyboardInput::init() {
   std::memset(mCurState, 0, sKeyCount);
 }
 
-void KeyboardInput::update(float dt) {
+void KeyboardInput::update(float dt, IWorkerPool& pool, std::shared_ptr<TaskGroup> frameTask) {
   std::memcpy(mPrevState, mCurState, sKeyCount);
   GetKeyboardState(mCurState);
   POINT p;

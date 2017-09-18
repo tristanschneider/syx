@@ -15,7 +15,7 @@ public:
   }
 
   void init() override;
-  void update(float dt) override;
+  void update(float dt, IWorkerPool& pool, std::shared_ptr<TaskGroup> frameTask) override;
 
   void addTransformListener(TransformListener& listener);
   void removeTransformListener(TransformListener& listener);
@@ -33,6 +33,7 @@ public:
 
 struct TransformListener {
   std::vector<TransformEvent> mEvents;
+  std::mutex mMutex;
 };
 
 struct TransformEvent {

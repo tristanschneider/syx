@@ -67,8 +67,6 @@ void Space::init() {
 }
 
 void Space::update(float dt) {
-  for(Gameobject& g : mObjects.getBuffer())
-    g.update(dt);
 }
 
 void Space::uninit() {
@@ -83,4 +81,8 @@ Gameobject* Space::createObject() {
 
 App& Space::getApp() {
   return *mApp;
+}
+
+GuardWrapped<MappedBuffer<Gameobject>> Space::getObjects() {
+  return GuardWrapped<MappedBuffer<Gameobject>>(mObjects, mObjectsMutex);
 }
