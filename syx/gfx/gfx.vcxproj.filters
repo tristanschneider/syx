@@ -111,6 +111,9 @@
     <ClCompile Include="threading\FunctionTask.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="component\Component.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="App.h">
@@ -219,6 +222,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="threading\FunctionTask.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="event\BaseComponentEvents.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="event\TransformEvent.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

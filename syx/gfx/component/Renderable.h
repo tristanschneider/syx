@@ -1,13 +1,31 @@
 #pragma once
 #include "Component.h"
+#include "event/Event.h"
+
+struct RenderableData {
+  Handle mModel;
+  Handle mDiffTex;
+};
+
+class RenderableUpdateEvent : public Event {
+public:
+  RenderableUpdateEvent(const RenderableData& data, Handle obj);
+  Handle getHandle() const override;
+  std::unique_ptr<Event> clone() const override;
+
+  Handle mObj;
+  RenderableData mData;
+};
 
 class Renderable : public Component {
 public:
   Renderable(Handle owner, MessagingSystem& messaging);
 
-  Handle getHandle() const override {
-    return static_cast<Handle>(ComponentType::Graphics);
-  }
+  const RenderableData& get() const;
+  void set(const RenderableData& data);
 
-  Handle mModel, mDiffTex;
+private:
+  void _fireUpdate();
+
+  RenderableData mData;
 };

@@ -54,10 +54,6 @@ private:
   std::unique_ptr<TransformListener> mTransformListener;
   std::unique_ptr<std::vector<TransformEvent>> mTransformUpdates;
 
-  //Local buffers used to spend as little time as possible locking event queues
-  std::unique_ptr<std::vector<std::unique_ptr<Event>>> mLocalEvents;
-  std::unique_ptr<std::vector<TransformEvent>> mLocalTransformEvents;
-
   std::unordered_map<Handle, SyxData> mToSyx;
   std::unordered_map<Syx::Handle, Handle> mFromSyx;
   Syx::Handle mDefaultSpace;

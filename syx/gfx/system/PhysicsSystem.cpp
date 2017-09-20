@@ -9,6 +9,7 @@
 #include "Space.h"
 #include "threading/FunctionTask.h"
 #include "threading/IWorkerPool.h"
+#include "event/TransformEvent.h"
 
 #include <SyxIntrusive.h>
 #include <SyxHandles.h>
@@ -42,8 +43,6 @@ void PhysicsSystem::init() {
   mEventListener = std::make_unique<EventListener>(EventFlag::Physics);
   mTransformListener = std::make_unique<TransformListener>();
   mTransformUpdates = std::make_unique<std::vector<TransformEvent>>();
-  mLocalEvents = std::make_unique<std::vector<std::unique_ptr<Event>>>();
-  mLocalTransformEvents = std::make_unique<std::vector<TransformEvent>>();
   MessagingSystem& msg = *mApp->getSystem<MessagingSystem>(SystemId::Messaging);
   msg.addEventListener(*mEventListener);
   msg.addTransformListener(*mTransformListener);
@@ -68,24 +67,20 @@ void PhysicsSystem::update(float dt, IWorkerPool& pool, std::shared_ptr<TaskGrou
 }
 
 void PhysicsSystem::_processGameEvents() {
-  mEventListener->mMutex.lock();
-  mLocalEvents->swap(mEventListener->mEvents);
-  mEventListener->mMutex.unlock();
+  mEventListener->updateLocal();
 
-  for(const std::unique_ptr<Event>& e : *mLocalEvents) {
+  for(const std::unique_ptr<Event>& e : mEventListener->mLocalEvents) {
     switch(static_cast<EventType>(e->getHandle())) {
       case EventType::PhysicsCompUpdate: _compUpdateEvent(static_cast<const PhysicsCompUpdateEvent&>(*e)); break;
       default: continue;
     }
   }
-  mLocalEvents->clear();
+  mEventListener->mLocalEvents.clear();
 
-  mTransformListener->mMutex.lock();
-  mLocalTransformEvents->swap(mTransformListener->mEvents);
-  mTransformListener->mMutex.unlock();
-  for(const TransformEvent& t : *mLocalTransformEvents)
+  mTransformListener->updateLocal();
+  for(const TransformEvent& t : mTransformListener->mLocalEvents)
     _transformEvent(t);
-  mLocalTransformEvents->clear();
+  mTransformListener->mLocalEvents.clear();
 }
 
 void PhysicsSystem::_processSyxEvents() {
@@ -98,9 +93,10 @@ void PhysicsSystem::_processSyxEvents() {
     for(const Syx::UpdateEvent& e : updates->mEvents) {
       auto it = mFromSyx.find(e.mHandle);
       if(it != mFromSyx.end()) {
-        if(Gameobject* obj = objects.get(it->second)) {
+        auto objIt = objects.find(it->second);
+        if(objIt != objects.end()) {
           const SyxData& data = mToSyx[it->second];
-          _updateObject(*obj, data, e);
+          _updateObject(objIt->second, data, e);
         }
         else
           printf("Failed to get game object for physics update %u\n", it->second);

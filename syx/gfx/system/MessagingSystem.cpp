@@ -1,14 +1,7 @@
 #include "Precompile.h"
 #include "system/MessagingSystem.h"
 #include "event/Event.h"
-
-void MessagingSystem::init() {
-  mFrame = 0;
-}
-
-void MessagingSystem::update(float dt, IWorkerPool& pool, std::shared_ptr<TaskGroup> frameTask) {
-  ++mFrame;
-}
+#include "event/TransformEvent.h"
 
 void MessagingSystem::addTransformListener(TransformListener& listener) {
   mTransformListeners.push_back(&listener);
@@ -21,7 +14,6 @@ void MessagingSystem::removeTransformListener(TransformListener& listener) {
 }
 
 void MessagingSystem::fireTransformEvent(TransformEvent& e) {
-  e.mFrame = mFrame;
   for(TransformListener* l : mTransformListeners) {
     l->mMutex.lock();
     l->mEvents.push_back(e);
@@ -32,8 +24,7 @@ void MessagingSystem::fireTransformEvent(TransformEvent& e) {
 void MessagingSystem::fireTransformEvents(std::vector<TransformEvent>& e, TransformListener* except) {
   if(e.empty())
     return;
-  for(TransformEvent& c : e)
-    c.mFrame = mFrame;
+
   size_t size = sizeof(TransformEvent)*e.size();
   for(TransformListener* l : mTransformListeners) {
     if(l == except)
@@ -80,10 +71,4 @@ void MessagingSystem::fireEvent(std::unique_ptr<Event> e) {
     mEventListeners.back()->mEvents.push_back(std::move(e));
     listener->mMutex.unlock();
   }
-}
-
-TransformEvent::TransformEvent(Handle handle, Syx::Mat4 transform)
-  : mFrame(0)
-  , mHandle(handle)
-  , mTransform(transform) {
 }

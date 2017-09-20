@@ -32,10 +32,6 @@ class Physics : public Component {
 public:
   Physics(Handle owner, MessagingSystem& messaging);
 
-  Handle getHandle() const override {
-    return static_cast<Handle>(ComponentType::Physics);
-  }
-
   const PhysicsData& getData() const {
     return mData;
   }

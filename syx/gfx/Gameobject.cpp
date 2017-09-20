@@ -11,18 +11,14 @@ Gameobject::~Gameobject() {
 }
 
 void Gameobject::init() {
-  for(auto& comp : mComponents.getBuffer())
-    comp->init();
+  //Fire a transform update on init so any components added before this have an up to date transform
+  mTransform.set(mTransform.get(), true);
 }
 
 void Gameobject::update(float dt) {
-  for(auto& comp : mComponents.getBuffer())
-    comp->update(dt);
 }
 
 void Gameobject::uninit() {
-  for(auto& comp : mComponents.getBuffer())
-    comp->uninit();
 }
 
 Handle Gameobject::getHandle() {
@@ -31,7 +27,10 @@ Handle Gameobject::getHandle() {
 
 Component& Gameobject::addComponent(std::unique_ptr<Component> component) {
   Handle h = component->getHandle();
-  return *mComponents.pushBack(std::move(component), h);
+  assert(mComponents.find(h) == mComponents.end()); //Duplicate component added
+  Component* result = component.get();
+  mComponents[h] = std::move(component);
+  return *result;
 }
 
 void Gameobject::removeComponent(Handle handle) {
@@ -42,8 +41,8 @@ Component* Gameobject::getComponent(Handle handle) {
   switch(static_cast<ComponentType>(handle)) {
     case ComponentType::Transform: return &mTransform;
     default: {
-      std::unique_ptr<Component>* found = mComponents.get(handle);
-      return found ? found->get() : nullptr;
+      auto it = mComponents.find(handle);
+      return it != mComponents.end() ? it->second.get() : nullptr;
     }
   }
 }

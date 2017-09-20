@@ -1,9 +1,10 @@
 #include "Precompile.h"
 #include "Transform.h"
 #include "system/MessagingSystem.h"
+#include "event/TransformEvent.h"
 
 Transform::Transform(Handle owner, MessagingSystem* messaging)
-  : Component(owner, messaging)
+  : Component(static_cast<Handle>(ComponentType::Transform), owner, messaging)
   , mMat(Syx::Mat4::transform(Syx::Quat::Identity, Syx::Vec3::Zero)) {
 }
 

@@ -4,11 +4,15 @@ enum class EventFlag : uint8_t {
   Invalid = 0,
   Graphics = 1 << 0,
   Physics = 1 << 1,
+  Component = 1 << 2
 };
 MAKE_BITWISE_ENUM(EventFlag);
 
 enum class EventType : uint8_t {
-  PhysicsCompUpdate
+  PhysicsCompUpdate,
+  RenderableUpdate,
+  AddComponent,
+  RemoveComponent
 };
 
 class Event {
@@ -35,7 +39,16 @@ struct EventListener {
     : mListenFlags(listenFlags) {
   }
 
+  void updateLocal() {
+    mLocalEvents.clear();
+    mMutex.lock();
+    mLocalEvents.swap(mEvents);
+    mMutex.unlock();
+  }
+
   std::vector<std::unique_ptr<Event>> mEvents;
+  //Local buffer used to spend as little time as possible locking event queues
+  std::vector<std::unique_ptr<Event>> mLocalEvents;
   EventFlag mListenFlags;
   std::mutex mMutex;
 };

@@ -14,6 +14,8 @@
 #include "component/Renderable.h"
 #include "system/MessagingSystem.h"
 #include "system/KeyboardInput.h"
+#include "event/TransformEvent.h"
+#include "event/BaseComponentEvents.h"
 
 using namespace Syx;
 
@@ -27,6 +29,17 @@ static void readFile(const std::string& path, std::string& buffer) {
     file.read(&buffer[0], size);
     buffer[size] = 0;
   }
+}
+
+GraphicsSystem::LocalRenderable::LocalRenderable(Handle h)
+  : mHandle(h)
+  , mModel(nullptr)
+  , mDiffTex(nullptr)
+  , mTransform(Syx::Mat4::identity()) {
+}
+
+Handle GraphicsSystem::LocalRenderable::getHandle() const {
+  return mHandle;
 }
 
 std::unique_ptr<Shader> GraphicsSystem::_loadShadersFromFile(const std::string& vsPath, const std::string& psPath) {
@@ -68,10 +81,14 @@ void GraphicsSystem::init() {
   mTextureLoader = std::make_unique<TextureLoader>();
 
   mTransformListener = std::make_unique<TransformListener>();
-  mApp->getSystem<MessagingSystem>(SystemId::Messaging)->addTransformListener(*mTransformListener);
+  mEventListener = std::make_unique<EventListener>(EventFlag::Component | EventFlag::Graphics);
+  MessagingSystem* msg = mApp->getSystem<MessagingSystem>(SystemId::Messaging);
+  msg->addTransformListener(*mTransformListener);
+  msg->addEventListener(*mEventListener);
 }
 
 void GraphicsSystem::update(float dt, IWorkerPool& pool, std::shared_ptr<TaskGroup> frameTask) {
+  _processEvents();
   //Can't really do anything on background threads at the moment because this one has the context.
   _render(dt);
   if(mImGui) {
@@ -136,6 +153,54 @@ Handle GraphicsSystem::addTexture(const std::string& filePath) {
   return t.mHandle;
 }
 
+void GraphicsSystem::_processEvents() {
+  mTransformListener->updateLocal();
+  mEventListener->updateLocal();
+
+  for(const std::unique_ptr<Event>& e : mEventListener->mLocalEvents) {
+    switch(static_cast<EventType>(e->getHandle())) {
+      case EventType::AddComponent: _processAddEvent(static_cast<const ComponentEvent&>(*e)); break;
+      case EventType::RemoveComponent: _processRemoveEvent(static_cast<const ComponentEvent&>(*e)); break;
+      case EventType::RenderableUpdate: _processRenderableEvent(static_cast<const RenderableUpdateEvent&>(*e)); break;
+    }
+  }
+  mEventListener->mLocalEvents.clear();
+
+  for(const TransformEvent& e : mTransformListener->mLocalEvents)
+    _processTransformEvent(e);
+  mTransformListener->mLocalEvents.clear();
+}
+
+void GraphicsSystem::_processAddEvent(const ComponentEvent& e) {
+  if(static_cast<ComponentType>(e.mCompType) == ComponentType::Graphics)
+    mLocalRenderables.pushBack(LocalRenderable(e.mObj));
+}
+
+void GraphicsSystem::_processRemoveEvent(const ComponentEvent& e) {
+  if(static_cast<ComponentType>(e.mCompType) == ComponentType::Graphics)
+    mLocalRenderables.erase(e.mObj);
+}
+
+void GraphicsSystem::_processTransformEvent(const TransformEvent& e) {
+  LocalRenderable* obj = mLocalRenderables.get(e.mHandle);
+  if(obj) {
+    obj->mTransform = e.mTransform;
+  }
+}
+
+void GraphicsSystem::_processRenderableEvent(const RenderableUpdateEvent& e) {
+  LocalRenderable* obj = mLocalRenderables.get(e.mObj);
+  if(obj) {
+    auto mod = mHandleToModel.find(e.mData.mModel);
+    if(mod != mHandleToModel.end())
+      obj->mModel = &mod->second;
+
+    auto tex = mHandleToTexture.find(e.mData.mDiffTex);
+    if(tex != mHandleToTexture.end())
+      obj->mDiffTex = &tex->second;
+  }
+}
+
 void GraphicsSystem::_render(float dt) {
   glClearColor(0.0f, 0.0f, 1.0f, 0.0f);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -172,32 +237,24 @@ void GraphicsSystem::_render(float dt) {
     glUniform3f(mGeometry->getUniform("uSunDir"), sunDir.x, sunDir.y, sunDir.z);
     glUniform3f(mGeometry->getUniform("uSunColor"), sunColor.x, sunColor.y, sunColor.z);
 
-    auto guardedObjs = mApp->getDefaultSpace().getObjects();
-    std::vector<Gameobject>& objects = guardedObjs.get().getBuffer();
-    for(Gameobject& obj : objects) {
-      Renderable* gfx = obj.getComponent<Renderable>(ComponentType::Graphics);
-      if(!gfx)
+    for(LocalRenderable& obj : mLocalRenderables.getBuffer()) {
+      if(!obj.mModel)
         continue;
 
-      auto modelIt = mHandleToModel.find(gfx->mModel);
-      if(modelIt == mHandleToModel.end())
-        continue;
-      auto diffIt = mHandleToTexture.find(gfx->mDiffTex);
-
-      Mat4 mw = obj.getComponent<Transform>(ComponentType::Transform)->get();
+      Mat4 mw = obj.mTransform;
       Mat4 mvp = wvp * mw;
       Vec3 camPos = mCamera->getTransform().getTranslate();
 
       {
-        Texture::Binder tb(diffIt != mHandleToTexture.end() ? diffIt->second : emptyTexture, 0);
+        Texture::Binder tb(obj.mDiffTex ? *obj.mDiffTex : emptyTexture, 0);
         //Tell the sampler uniform to use the given texture slot
         glUniform1i(mGeometry->getUniform("uTex"), 0);
         {
-          Model::Binder mb(modelIt->second);
+          Model::Binder mb(*obj.mModel);
 
           glUniformMatrix4fv(mGeometry->getUniform("uMVP"), 1, GL_FALSE, mvp.mData);
           glUniformMatrix4fv(mGeometry->getUniform("uMW"), 1, GL_FALSE, mw.mData);
-          modelIt->second.draw();
+          obj.mModel->draw();
         }
       }
     }

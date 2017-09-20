@@ -17,10 +17,10 @@ public:
   Gameobject* createObject();
 
   App& getApp();
-  GuardWrapped<MappedBuffer<Gameobject>> getObjects();
+  GuardWrapped<HandleMap<Gameobject>> getObjects();
 
 private:
-  MappedBuffer<Gameobject> mObjects;
+  HandleMap<Gameobject> mObjects;
   std::mutex mObjectsMutex;
   HandleGen mObjectGen;
   App* mApp;

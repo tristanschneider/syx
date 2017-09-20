@@ -22,3 +22,4 @@
 #include <SyxMathIncludes.h>
 #include "Handle.h"
 #include "Util.h"
+#include "MappedBuffer.h"

@@ -23,7 +23,7 @@ std::unique_ptr<Event> PhysicsCompUpdateEvent::clone() const {
 }
 
 Physics::Physics(Handle owner, MessagingSystem& messaging)
-  : Component(owner, &messaging) {
+  : Component(static_cast<Handle>(ComponentType::Physics), owner, &messaging) {
 }
 
 void Physics::setData(const PhysicsData& data, bool fireEvent) {

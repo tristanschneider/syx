@@ -11,12 +11,13 @@ enum class ComponentType : uint8_t {
 
 class Component {
 public:
-  Component(Handle owner, MessagingSystem* messaging)
-    : mOwner(owner)
-    , mMessaging(messaging) {
-  }
+  Component(Handle type, Handle owner, MessagingSystem* messaging);
+  ~Component();
 
-  virtual Handle getHandle() const = 0;
+  //Should always be overriden, but needs to have empty implementation to avoid linker error with getHandle call in constructor
+  virtual Handle getHandle() const {
+    return mType;
+  }
   virtual void init() {}
   virtual void update(float dt) {}
   virtual void uninit() {}
@@ -28,4 +29,5 @@ public:
 protected:
   Handle mOwner;
   MessagingSystem* mMessaging;
+  Handle mType;
 };

@@ -18,31 +18,32 @@ Space::~Space() {
 void Space::init() {
   using namespace Syx;
 
-  for(Gameobject& g : mObjects.getBuffer())
-    g.init();
-
   Gameobject* obj = createObject();
   MessagingSystem& msg = *mApp->getSystem<MessagingSystem>(SystemId::Messaging);
   std::unique_ptr<Renderable> gfx = std::make_unique<Renderable>(obj->getHandle(), msg);
   std::unique_ptr<Physics> phy;
-  gfx->mModel = getApp().mAssets["bowser"];
-  gfx->mDiffTex = getApp().mAssets["maze"];
+  RenderableData d;
+  d.mModel = getApp().mAssets["bowser"];
+  d.mDiffTex = getApp().mAssets["maze"];
+  gfx->set(d);
   obj->addComponent(std::move(gfx));
   obj->getComponent<Transform>(ComponentType::Transform)->set(Syx::Mat4::transform(Vec3(0.1f), Quat::Identity, Vec3::Zero));
   obj->init();
 
   obj = createObject();
   gfx = std::make_unique<Renderable>(obj->getHandle(), msg);
-  gfx->mModel = getApp().mAssets["car"];
-  gfx->mDiffTex = getApp().mAssets["maze"];
+  d.mModel = getApp().mAssets["car"];
+  d.mDiffTex = getApp().mAssets["maze"];
+  gfx->set(d);
   obj->addComponent(std::move(gfx));
   obj->getComponent<Transform>(ComponentType::Transform)->set(Syx::Mat4::transform(Vec3(0.5f), Quat::Identity, Vec3(8.0f, 0.0f, 0.0f)));
   obj->init();
 
   obj = createObject();
   gfx = std::make_unique<Renderable>(obj->getHandle(), msg);
-  gfx->mModel = getApp().mAssets["cube"];
-  gfx->mDiffTex = getApp().mAssets["maze"];
+  d.mModel = getApp().mAssets["cube"];
+  d.mDiffTex = getApp().mAssets["maze"];
+  gfx->set(d);
   obj->addComponent(std::move(gfx));
   phy = std::make_unique<Physics>(obj->getHandle(), msg);
   phy->setCollider(mApp->mAssets["pCube"], mApp->mAssets["pDefMat"]);
@@ -53,8 +54,9 @@ void Space::init() {
 
   obj = createObject();
   gfx = std::make_unique<Renderable>(obj->getHandle(), msg);
-  gfx->mModel = getApp().mAssets["cube"];
-  gfx->mDiffTex = getApp().mAssets["maze"];
+  d.mModel = getApp().mAssets["cube"];
+  d.mDiffTex = getApp().mAssets["maze"];
+  gfx->set(d);
   obj->addComponent(std::move(gfx));
   phy = std::make_unique<Physics>(obj->getHandle(), msg);
   phy->setCollider(mApp->mAssets["pCube"], mApp->mAssets["pDefMat"]);
@@ -70,19 +72,18 @@ void Space::update(float dt) {
 }
 
 void Space::uninit() {
-  for(Gameobject& g : mObjects.getBuffer())
-    g.uninit();
 }
 
 Gameobject* Space::createObject() {
   Handle h = mObjectGen.next();
-  return &mObjects.pushBack(Gameobject(h, mApp->getSystem<MessagingSystem>(SystemId::Messaging)), h);
+  auto resultPair = mObjects.emplace(std::piecewise_construct, std::forward_as_tuple(h), std::forward_as_tuple(h, mApp->getSystem<MessagingSystem>(SystemId::Messaging)));
+  return &resultPair.first->second;
 }
 
 App& Space::getApp() {
   return *mApp;
 }
 
-GuardWrapped<MappedBuffer<Gameobject>> Space::getObjects() {
-  return GuardWrapped<MappedBuffer<Gameobject>>(mObjects, mObjectsMutex);
+GuardWrapped<HandleMap<Gameobject>> Space::getObjects() {
+  return GuardWrapped<HandleMap<Gameobject>>(mObjects, mObjectsMutex);
 }

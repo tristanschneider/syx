@@ -42,3 +42,6 @@ private:
   std::unique_lock<std::mutex> mLock;
   T& mObj;
 };
+
+template<typename T>
+using HandleMap = std::unordered_map<Handle, T>;

@@ -33,9 +33,13 @@ public:
     return static_cast<CompType*>(getComponent(handle));
   }
 
+  Transform& getTransform() {
+    return mTransform;
+  }
+
 private:
   Handle mHandle;
-  MappedBuffer<std::unique_ptr<Component>> mComponents;
+  HandleMap<std::unique_ptr<Component>> mComponents;
   //Hard code transform because everything needs it
   Transform mTransform;
   MessagingSystem* mMessaging;

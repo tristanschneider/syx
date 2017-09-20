@@ -8,14 +8,9 @@ class Event;
 
 class MessagingSystem : public System {
 public:
-  typedef uint8_t FrameId;
-
   SystemId getId() const {
     return SystemId::Messaging;
   }
-
-  void init() override;
-  void update(float dt, IWorkerPool& pool, std::shared_ptr<TaskGroup> frameTask) override;
 
   void addTransformListener(TransformListener& listener);
   void removeTransformListener(TransformListener& listener);
@@ -28,19 +23,4 @@ public:
 
   std::vector<TransformListener*> mTransformListeners;
   std::vector<EventListener*> mEventListeners;
-  FrameId mFrame;
-};
-
-struct TransformListener {
-  std::vector<TransformEvent> mEvents;
-  std::mutex mMutex;
-};
-
-struct TransformEvent {
-  TransformEvent() {}
-  TransformEvent(Handle handle, Syx::Mat4 transform);
-
-  MessagingSystem::FrameId mFrame;
-  Handle mHandle;
-  Syx::Mat4 mTransform;
 };
