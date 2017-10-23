@@ -48,22 +48,26 @@ void PhysicsSystem::init() {
   msg.addTransformListener(*mTransformListener);
 }
 
-void PhysicsSystem::update(float dt, IWorkerPool& pool, std::shared_ptr<TaskGroup> frameTask) {
-  auto eventGroup = std::make_shared<TaskGroup>(frameTask);
-  auto updateGroup = std::make_shared<TaskGroup>(eventGroup);
-  auto gameGroup = std::make_shared<TaskGroup>(updateGroup);
-
-  pool.queueTask(std::make_unique<FunctionTask>([this]() {
+void PhysicsSystem::update(float dt, IWorkerPool& pool, std::shared_ptr<Task> frameTask) {
+  auto game = std::make_shared<FunctionTask>([this]() {
     _processGameEvents();
-  }, TaskGroup::nullGroup(), gameGroup));
+  });
 
-  pool.queueTask(std::make_unique<FunctionTask>([this, dt]() {
+  auto update = std::make_shared<FunctionTask>([this, dt]() {
     mSystem->update(dt);
-  }, gameGroup, updateGroup));
+  });
+  update->addDependency(game);
 
-  pool.queueTask(std::make_unique<FunctionTask>([this]() {
+  auto events = std::make_shared<FunctionTask>([this]() {
     _processSyxEvents();
-  }, updateGroup, eventGroup));
+  });
+  events->addDependency(update);
+
+  //Frame isn't done until all physics events are, which ends with events task
+  frameTask->addDependency(events);
+  pool.queueTask(game);
+  pool.queueTask(update);
+  pool.queueTask(events);
 }
 
 void PhysicsSystem::_processGameEvents() {

@@ -4,6 +4,7 @@
 
 WorkerPool::WorkerPool(size_t workerCount)
   : mTerminate(false)
+  , mSyncing(false)
   , mWorkers(nullptr)
   , mWorkerCount(workerCount) {
 
@@ -29,56 +30,62 @@ WorkerPool::~WorkerPool() {
   mWorkers = nullptr;
 }
 
-void WorkerPool::queueTask(std::unique_ptr<Task> task) {
-  bool canStartNow = task->canRun();
-  mTaskMutex.lock();
-  mTasks.push_back(std::move(task));
-  if(canStartNow)
-    mWorkerCV.notify_one();
-  mTaskMutex.unlock();
-}
-
-void WorkerPool::sync(std::weak_ptr<TaskGroup> group) {
-  bool wakeWorkers = false;
-  //Normally there shouldn't be termination during sync because the syncing thread is probably the one who would tear down
-  while(!group.expired() && !mTerminate) {
-    std::unique_lock<std::mutex> taskLock(mTaskMutex);
-    //The work we're waiting on might have finished while we were grabbing mutex. If so, exit
-    if(group.expired()) {
-      //Don't forgot to wake other workers in case this thread finished a work group and that's what it was syncing on
-      if(wakeWorkers)
-        mWorkerCV.notify_all();
-      break;
-    }
-
-    _doNextTask(taskLock, wakeWorkers);
+void WorkerPool::queueTask(std::shared_ptr<Task> task) {
+  task->setWorkerPool(*this);
+  if(!task->hasDependencies()) {
+    taskReady(task);
   }
 }
 
+void WorkerPool::taskReady(std::shared_ptr<Task> task) {
+  mTaskMutex.lock();
+  mTasks.push_back(std::move(task));
+  mWorkerCV.notify_one();
+  mTaskMutex.unlock();
+}
+
+void WorkerPool::sync(std::weak_ptr<Task> task) {
+  mSyncing = true;
+  mSyncTask = task;
+  //Normally there shouldn't be termination during sync because the syncing thread is probably the one who would tear down
+  while(!task.expired() && !mTerminate) {
+    std::unique_lock<std::mutex> taskLock(mTaskMutex);
+    //The work we're waiting on might have finished while we were grabbing mutex. If so, exit
+    if(task.expired()) {
+      break;
+    }
+
+    _doNextTask(taskLock);
+  }
+  mSyncTask.reset();
+  mSyncing = false;
+}
+
+void WorkerPool::_wakeSyncer() {
+  mTaskMutex.lock();
+  mSyncing = false;
+  mWorkerCV.notify_all();
+  mTaskMutex.unlock();
+}
+
 void WorkerPool::_workerLoop() {
-  bool wakeWorkers = false;
   while(!mTerminate) {
     //Use same lock for condition variable as tasks, so if work is being queued,
     //a thread doesn't miss the notification then immediately wait on the condition variable
     std::unique_lock<std::mutex> taskLock(mTaskMutex);
-    _doNextTask(taskLock, wakeWorkers);
+    _doNextTask(taskLock);
   }
 }
 
-void WorkerPool::_doNextTask(std::unique_lock<std::mutex>& taskLock, bool& wakeWorkers) {
-  std::unique_ptr<Task> task = _getTask();
-  //Wake others after grabbing the task, as we don't want completion of the last task to cause other workers to steal from this
-  if(wakeWorkers)
-    mWorkerCV.notify_all();
-
+void WorkerPool::_doNextTask(std::unique_lock<std::mutex>& taskLock) {
+  std::shared_ptr<Task> task = _getTask();
   if(task) {
     taskLock.unlock();
     task->run();
-
-    //If completing this task unblocks other tasks, wake up other workers.
-    //Ideally you only wake others if more than one task is available, but shared_ptr can't know
-    wakeWorkers = task->isLastInGroup();
     task = nullptr;
+    if(mSyncing && mSyncTask.expired()) {
+      _wakeSyncer();
+    }
   }
   else {
     //Termination might have been signaled as we were grabbing mutex, check before sleeping
@@ -89,16 +96,12 @@ void WorkerPool::_doNextTask(std::unique_lock<std::mutex>& taskLock, bool& wakeW
   }
 }
 
-std::unique_ptr<Task> WorkerPool::_getTask() {
-  std::unique_ptr<Task> result = nullptr;
-  for(size_t i = 0; i < mTasks.size(); ++i) {
-    std::unique_ptr<Task>& task = mTasks[i];
-    if(task->canRun()) {
-      result = std::move(task);
-      //No swap remove since we want to preserver order of tasks
-      mTasks.erase(mTasks.begin() + i);
-      return std::move(result);
-    }
+std::shared_ptr<Task> WorkerPool::_getTask() {
+  std::shared_ptr<Task> result = nullptr;
+  //Order doesn't matter as they're all tasks that have no dependencies left, so grab the last one
+  if(mTasks.size()) {
+    result = std::move(mTasks.back());
+    mTasks.pop_back();
   }
-  return nullptr;
+  return result;
 }

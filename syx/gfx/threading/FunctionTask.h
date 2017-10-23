@@ -3,9 +3,10 @@
 
 class FunctionTask : public Task {
 public:
-    FunctionTask(std::function<void(void)> func, std::weak_ptr<TaskGroup> dependsOn, std::shared_ptr<TaskGroup> taskGroup);
+    FunctionTask(std::function<void(void)> func);
 
-    virtual void run() override;
+protected:
+    virtual void _run() override;
 
 private:
   std::function<void(void)> mFunc;

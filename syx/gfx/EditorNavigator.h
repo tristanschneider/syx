@@ -7,5 +7,5 @@ public:
     return SystemId::EditorNavigator;
   }
 
-  void update(float dt, IWorkerPool& pool, std::shared_ptr<TaskGroup> frameTask) override;
+  void update(float dt, IWorkerPool& pool, std::shared_ptr<Task> frameTask) override;
 };

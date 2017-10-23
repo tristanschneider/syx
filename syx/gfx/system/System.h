@@ -2,7 +2,7 @@
 
 class App;
 class IWorkerPool;
-class TaskGroup;
+class Task;
 
 enum class SystemId : uint8_t {
   Graphics,
@@ -20,7 +20,7 @@ public:
   virtual SystemId getId() const = 0;
 
   virtual void init() {}
-  virtual void update(float dt, IWorkerPool& pool, std::shared_ptr<TaskGroup> frameTask) {}
+  virtual void update(float dt, IWorkerPool& pool, std::shared_ptr<Task> frameTask) {}
   virtual void uninit() {}
 
 protected:

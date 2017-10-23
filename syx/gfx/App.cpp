@@ -41,17 +41,18 @@ void App::init() {
 
 void App::update(float dt) {
 
-  auto frameTask = std::make_shared<TaskGroup>(nullptr);
+  auto frameTask = std::make_shared<Task>();
 
   mDefaultSpace->update(dt);
   for(auto& system : mSystems) {
     if(system)
       system->update(dt, *mWorkerPool, frameTask);
   }
+  mWorkerPool->queueTask(frameTask);
 
   }
 
-  std::weak_ptr<TaskGroup> weakFrame = frameTask;
+  std::weak_ptr<Task> weakFrame = frameTask;
   frameTask = nullptr;
   mWorkerPool->sync(weakFrame);
 }

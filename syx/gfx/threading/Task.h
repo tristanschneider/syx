@@ -1,29 +1,41 @@
 #pragma once
-class TaskGroup {
-public:
-  //Groups are kept alive by parent pointers, meaning order of events is bottom up, since parents won't start until all children are done
-  TaskGroup(std::shared_ptr<TaskGroup> parent);
+class Task;
+class IWorkerPool;
 
-  static std::weak_ptr<TaskGroup> nullGroup();
+struct TaskDependency {
+  TaskDependency();
 
-private:
-  std::shared_ptr<TaskGroup> mParent;
+  //The task we're depending on
+  std::shared_ptr<Task> mDependency;
+  //Next in a linked list of other tasks that also depend on mDependency
+  std::shared_ptr<Task> mNext;
+  //Other dependencies for this task
+  TaskDependency* mNextOther;
 };
 
-class Task {
+class Task : public std::enable_shared_from_this<Task> {
 public:
-  //Tasks will only begin once dependsOn is gone
-  //partOf is the task group this task is a part of, that other tasks point at using dependsOn
-  //This is so that tasks can require other sets to complete before they start
-  //A task can leave dependency as null if it doesn't matter when it completes
-  Task(std::weak_ptr<TaskGroup> dependsOn, std::shared_ptr<TaskGroup> taskGroup);
+  Task();
+  Task(const Task&) = delete;
+  Task(const Task&&) = delete;
+  Task& operator=(const Task&) = delete;
+  virtual ~Task();
 
-  bool canRun();
-  bool isLastInGroup();
+  void run();
+  void setWorkerPool(IWorkerPool& pool);
+  void addDependent(std::shared_ptr<Task> dependent);
+  void addDependency(std::shared_ptr<Task> dependency);
+  bool hasDependencies();
 
-  virtual void run() = 0;
+protected:
+  virtual void _run() {}
+  //Remove the appropriate dependency from this task's list and return the removed value.
+  TaskDependency _removeDependency(const Task& parent);
 
-private:
-  std::weak_ptr<TaskGroup> mDependsOn;
-  std::shared_ptr<TaskGroup> mTaskGroup;
+  //What this depends on, which contains a linked list
+  //Keep head by value because one dependency is way more common than multiple, so save the cache miss
+  TaskDependency mDependency;
+  //Head of linked list of tasks that depend on this
+  std::shared_ptr<Task> mDependentHead;
+  IWorkerPool* mPool;
 };

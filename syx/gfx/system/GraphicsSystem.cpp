@@ -87,7 +87,7 @@ void GraphicsSystem::init() {
   msg->addEventListener(*mEventListener);
 }
 
-void GraphicsSystem::update(float dt, IWorkerPool& pool, std::shared_ptr<TaskGroup> frameTask) {
+void GraphicsSystem::update(float dt, IWorkerPool& pool, std::shared_ptr<Task> frameTask) {
   _processEvents();
   //Can't really do anything on background threads at the moment because this one has the context.
   _render(dt);

@@ -26,7 +26,7 @@ public:
   }
 
   void init() override;
-  void update(float dt, IWorkerPool& pool, std::shared_ptr<TaskGroup> frameTask) override;
+  void update(float dt, IWorkerPool& pool, std::shared_ptr<Task> frameTask) override;
   void uninit() override;
 
   Handle addModel(const Model& model, bool environment);
