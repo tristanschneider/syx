@@ -39,26 +39,38 @@ void WorkerPool::queueTask(std::shared_ptr<Task> task) {
 
 void WorkerPool::taskReady(std::shared_ptr<Task> task) {
   mTaskMutex.lock();
-  mTasks.push_back(std::move(task));
-  mWorkerCV.notify_one();
+  //Tasks can be queued on queueTask or when its dependencies are done
+  //Make sure not to add the task twice
+  if(!task->hasBeenQueued()) {
+    //Dependent task could have finished between adding dependency and queuing, in which case set the pool now
+    task->setWorkerPool(*this);
+    task->setQueued();
+    mTasks.push_back(std::move(task));
+    mWorkerCV.notify_one();
+  }
   mTaskMutex.unlock();
 }
 
 void WorkerPool::sync(std::weak_ptr<Task> task) {
-  mSyncing = true;
-  mSyncTask = task;
-  //Normally there shouldn't be termination during sync because the syncing thread is probably the one who would tear down
-  while(!task.expired() && !mTerminate) {
-    std::unique_lock<std::mutex> taskLock(mTaskMutex);
-    //The work we're waiting on might have finished while we were grabbing mutex. If so, exit
-    if(task.expired()) {
-      break;
-    }
-
-    _doNextTask(taskLock);
+  {
+    std::shared_ptr<Task> t = task.lock();
+    if(t)
+      mSyncTask = t.get();
+    else
+      return;
   }
-  mSyncTask.reset();
+  mSyncing = true;
+  //Normally there shouldn't be termination during sync because the syncing thread is probably the one who would tear down
+  while(mSyncing) {
+    std::unique_lock<std::mutex> taskLock(mTaskMutex);
+    //task.expired shouldn't generally happen, but is possible since sync check isn't in a locked section
+    if(!mSyncing || mTerminate || task.expired())
+      break;
+    mWorkerCV.wait(taskLock);
+  }
+
   mSyncing = false;
+  mSyncTask = nullptr;
 }
 
 void WorkerPool::_wakeSyncer() {
@@ -82,8 +94,9 @@ void WorkerPool::_doNextTask(std::unique_lock<std::mutex>& taskLock) {
   if(task) {
     taskLock.unlock();
     task->run();
+    Task* taskAddr = task.get();
     task = nullptr;
-    if(mSyncing && mSyncTask.expired()) {
+    if(mSyncing && mSyncTask == taskAddr) {
       _wakeSyncer();
     }
   }

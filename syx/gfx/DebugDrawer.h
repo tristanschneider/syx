@@ -33,6 +33,7 @@ private:
 
   std::unique_ptr<Shader> mShader;
   std::vector<Vertex> mVerts;
+  std::mutex mVertsMutex;
   //Size of buffer currently on gpu
   size_t mBufferSize;
   GLuint mVAO;

@@ -18,6 +18,7 @@
 #include <condition_variable>
 #include <thread>
 #include <functional>
+#include <atomic>
 
 #include <SyxMathIncludes.h>
 #include "Handle.h"

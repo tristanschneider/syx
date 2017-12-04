@@ -76,11 +76,12 @@ namespace Syx {
     AutoProfileBlock(Profiler& profiler, const std::string& name)
       : mProfiler(profiler)
       , mName(name) {
-      mProfiler.pushBlock(mName);
+      //Need to fix this, it isn't thread safe
+      //mProfiler.pushBlock(mName);
     }
 
     ~AutoProfileBlock(void) {
-      mProfiler.popBlock(mName);
+      //mProfiler.popBlock(mName);
     }
 
     Profiler& mProfiler;

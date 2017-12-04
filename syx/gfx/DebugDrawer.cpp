@@ -34,6 +34,7 @@ DebugDrawer::~DebugDrawer() {
 }
 
 void DebugDrawer::drawLine(const Syx::Vec3& a, const Syx::Vec3& b, const Syx::Vec3& colorA, const Syx::Vec3& colorB) {
+  std::unique_lock<std::mutex> vLock(mVertsMutex);
   Vertex vA, vB;
   for(int i = 0; i < 3; ++i) {
     vA.mPos[i] = a[i];
@@ -86,6 +87,7 @@ void DebugDrawer::setColor(const Syx::Vec3& color) {
 }
 
 void DebugDrawer::_render(const Syx::Mat4& wvp) {
+  std::unique_lock<std::mutex> vLock(mVertsMutex);
   if(mVerts.empty())
     return;
 

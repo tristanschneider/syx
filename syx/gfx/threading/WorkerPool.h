@@ -22,8 +22,8 @@ private:
 
   std::condition_variable mWorkerCV;
   bool mTerminate;
-  bool mSyncing;
-  std::weak_ptr<Task> mSyncTask;
+  std::atomic_bool mSyncing;
+  std::atomic<Task*> mSyncTask;
 
   std::thread* mWorkers;
   size_t mWorkerCount;

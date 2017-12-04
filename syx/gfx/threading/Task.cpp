@@ -2,91 +2,78 @@
 #include "threading/Task.h"
 #include "threading/IWorkerPool.h"
 
-TaskDependency::TaskDependency()
-  : mNextOther(nullptr) {
-}
-
 Task::Task()
-  : mPool(nullptr) {
+  : mPool(nullptr)
+  , mState(TaskState::Waiting)
+  , mDependencies(0) {
 }
 
 Task::~Task() {
-  TaskDependency* d = mDependency.mNextOther;
-  while(d) {
-    TaskDependency* next = d->mNextOther;
-    delete d;
-    d = next;
-  }
 }
 
 void Task::run() {
   _run();
+  mState = TaskState::Done;
 
   assert(mPool);
+  //RW lock would be good here, as it's only needed to protect against adding dependents while completing
+  mDependentsMutex.lock();
   //Now that this task is complete, remove it as a dependency for all tasks waiting on it
-  while(mDependentHead) {
-    TaskDependency d = mDependentHead->_removeDependency(*this);
-    std::shared_ptr<Task> next = std::move(d.mNext);
-    //Inform pool this dependent is ready to go if this was the last dependency
-    if(!mDependentHead->hasDependencies()) {
-      mPool->taskReady(mDependentHead);
+  for(Task* dep : mDependents) {
+    //If this was the last dependency on the task, it can run now
+    if(dep->mDependencies.fetch_sub(1) == 1) {
+      mPool->taskReady(dep->shared_from_this());
     }
-
-    mDependentHead = std::move(next);
   }
+  mDependentsMutex.unlock();
+
+  mSelf = nullptr;
 }
 
 void Task::setWorkerPool(IWorkerPool& pool) {
   mPool = &pool;
+  if(mState != TaskState::Done) {
+    //Tasks manage their own lifetime while waiting in the pool, and drop this reference on completion
+    mSelf = shared_from_this();
+  }
 }
 
 void Task::addDependent(std::shared_ptr<Task> dependent) {
-  //Get new node for dependent's dependencies to point at this
-  TaskDependency* d = &dependent->mDependency;
-  if(d->mDependency) {
-    TaskDependency* old = d->mNextOther;
-    d->mNextOther = new TaskDependency();
-    d->mNextOther->mNextOther = old;
-    d = d->mNextOther;
-  }
-  d->mDependency = shared_from_this();
+  //If this is already done, then there's no need to add the dependency, since there's nothing for dependent to wait for
+  if(mState == TaskState::Done)
+    return;
 
-  //Add to linked list of tasks depending on this
-  if(mDependentHead) {
-    std::shared_ptr<Task> oldHead = std::move(mDependentHead);
-    mDependentHead = dependent;
-    dependent->mDependency.mNext = oldHead;
-  }
-  else {
-    mDependentHead = dependent;
-  }
+  //RW lock would be great here as this is only needed if the task finishes while a dependency is added
+  mDependentsMutex.lock();
+  mDependents.push_back(dependent.get());
+  mDependentsMutex.unlock();
+
+  if(mState != TaskState::Done)
+    dependent->mDependencies.fetch_add(1);
+  //If the task completed while we were adding to dependents no need to remove it as it won't be touched after completion
 }
 
 void Task::addDependency(std::shared_ptr<Task> dependency) {
   dependency->addDependent(shared_from_this());
 }
 
-TaskDependency Task::_removeDependency(const Task& parent) {
-  TaskDependency* prev = nullptr;
-  TaskDependency* cur = &mDependency;
-  while(cur && cur->mDependency.get() != &parent) {
-    prev = cur;
-    cur = cur->mNextOther;
-  }
-  assert(cur); //This should always be found since the parent was pointing at this as a dependent
-
-  TaskDependency result = *cur;
-  if(prev) {
-    prev->mNextOther = cur->mNextOther;
-    delete cur;
-  }
-  else {
-    //This is the head value stored on task, just clear the value
-    cur->mDependency = nullptr;
-  }
-  return result;
+bool Task::hasDependencies() {
+  return mDependencies != 0;
 }
 
-bool Task::hasDependencies() {
-  return mDependency.mDependency != nullptr || mDependency.mNext != nullptr;
+void Task::setQueued() {
+  //Won't do anything if already queued
+  TaskState expected = TaskState::Waiting;
+  mState.compare_exchange_strong(expected, TaskState::Queued);
+}
+
+bool Task::hasBeenQueued() {
+  TaskState state = mState;
+  switch(state) {
+    case TaskState::Queued:
+    case TaskState::Done:
+      return true;
+    default:
+      return false;
+  }
 }
