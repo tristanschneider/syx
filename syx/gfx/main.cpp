@@ -1,7 +1,9 @@
+
+#include "Precompile.h"
+
 #define GLEW_NO_GLU
 #define NOMINMAX
 
-#include "Precompile.h"
 #include <windows.h>
 
 //For console

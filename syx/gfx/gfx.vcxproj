@@ -141,6 +141,8 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="App.cpp" />
+    <ClCompile Include="asset\AssetLoader.cpp" />
+    <ClCompile Include="asset\AssetRepo.cpp" />
     <ClCompile Include="Camera.cpp" />
     <ClCompile Include="component\Component.cpp" />
     <ClCompile Include="component\Physics.cpp" />
@@ -183,6 +185,9 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="App.h" />
+    <ClInclude Include="asset\Asset.h" />
+    <ClInclude Include="asset\AssetLoader.h" />
+    <ClInclude Include="asset\AssetRepo.h" />
     <ClInclude Include="Camera.h" />
     <ClInclude Include="component\Component.h" />
     <ClInclude Include="component\Physics.h" />
