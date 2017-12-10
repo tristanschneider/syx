@@ -23,27 +23,30 @@ namespace Syx {
   }
 }
 
-PhysicsSystem::PhysicsSystem() {
+RegisterSystemCPP(PhysicsSystem);
+
+PhysicsSystem::PhysicsSystem(App& app)
+  : System(app) {
 }
 
 PhysicsSystem::~PhysicsSystem() {
 }
 
 void PhysicsSystem::init() {
-  Syx::Interface::gDrawer = &mApp->getSystem<GraphicsSystem>(SystemId::Graphics)->getDebugDrawer();
+  Syx::Interface::gDrawer = &mApp.getSystem<GraphicsSystem>()->getDebugDrawer();
   mSystem = std::make_unique<Syx::PhysicsSystem>();
 
-  mApp->mAssets["pCube"] = mSystem->getCube();
-  mApp->mAssets["pSphere"] = mSystem->getSphere();
-  mApp->mAssets["pCapsule"] = mSystem->getCapsule();
-  mApp->mAssets["pDefMat"] = mSystem->getDefaultMaterial();
+  mApp.mAssets["pCube"] = mSystem->getCube();
+  mApp.mAssets["pSphere"] = mSystem->getSphere();
+  mApp.mAssets["pCapsule"] = mSystem->getCapsule();
+  mApp.mAssets["pDefMat"] = mSystem->getDefaultMaterial();
 
   mDefaultSpace = mSystem->addSpace();
 
   mEventListener = std::make_unique<EventListener>(EventFlag::Physics);
   mTransformListener = std::make_unique<TransformListener>();
   mTransformUpdates = std::make_unique<std::vector<TransformEvent>>();
-  MessagingSystem& msg = *mApp->getSystem<MessagingSystem>(SystemId::Messaging);
+  MessagingSystem& msg = *mApp.getSystem<MessagingSystem>();
   msg.addEventListener(*mEventListener);
   msg.addTransformListener(*mTransformListener);
 }
@@ -91,7 +94,7 @@ void PhysicsSystem::_processSyxEvents() {
   mTransformUpdates->clear();
   const Syx::EventListener<Syx::UpdateEvent>* updates = mSystem->getUpdateEvents(mDefaultSpace);
   if(updates) {
-    Space& space = mApp->getDefaultSpace();
+    Space& space = mApp.getDefaultSpace();
     auto objGuard = space.getObjects();
     auto& objects = objGuard.get();
     for(const Syx::UpdateEvent& e : updates->mEvents) {
@@ -112,7 +115,7 @@ void PhysicsSystem::_processSyxEvents() {
   else
     printf("Failed to get physics update events\n");
 
-  mApp->getSystem<MessagingSystem>(SystemId::Messaging)->fireTransformEvents(*mTransformUpdates, mTransformListener.get());
+  mApp.getSystem<MessagingSystem>()->fireTransformEvents(*mTransformUpdates, mTransformListener.get());
 }
 
 void PhysicsSystem::_updateObject(Gameobject& obj, const SyxData& data, const Syx::UpdateEvent& e) {

@@ -8,9 +8,8 @@ class Event;
 
 class MessagingSystem : public System {
 public:
-  SystemId getId() const {
-    return SystemId::Messaging;
-  }
+  RegisterSystemH(MessagingSystem);
+  using System::System;
 
   void addTransformListener(TransformListener& listener);
   void removeTransformListener(TransformListener& listener);

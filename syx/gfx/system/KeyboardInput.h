@@ -61,9 +61,8 @@ enum class KeyState : uint8_t {
 
 class KeyboardInput : public System {
 public:
-  SystemId getId() const override {
-    return SystemId::KeyboardInput;
-  }
+  RegisterSystemH(KeyboardInput);
+  using System::System;
 
   void init() override;
   void update(float dt, IWorkerPool& pool, std::shared_ptr<Task> frameTask) override;

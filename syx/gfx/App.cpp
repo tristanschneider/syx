@@ -1,9 +1,6 @@
 #include "Precompile.h"
 #include "App.h"
 #include "system/GraphicsSystem.h"
-#include "system/KeyboardInput.h"
-#include "system/MessagingSystem.h"
-#include "system/PhysicsSystem.h"
 #include "threading/WorkerPool.h"
 #include "threading/Task.h"
 #include "EditorNavigator.h"
@@ -11,12 +8,7 @@
 #include "ImGuiImpl.h"
 
 App::App() {
-  mSystems.resize(static_cast<size_t>(SystemId::Count));
-  _registerSystem<MessagingSystem>();
-  _registerSystem<KeyboardInput>();
-  _registerSystem<EditorNavigator>();
-  _registerSystem<PhysicsSystem>();
-  _registerSystem<GraphicsSystem>();
+  System::Registry::getSystems(*this, mSystems);
   mDefaultSpace = std::make_unique<Space>(*this);
   mWorkerPool = std::make_unique<WorkerPool>(3);
 }
@@ -30,7 +22,7 @@ void App::init() {
       system->init();
   }
 
-  GraphicsSystem& gfx = *getSystem<GraphicsSystem>(SystemId::Graphics);
+  GraphicsSystem& gfx = *getSystem<GraphicsSystem>();
   mAssets["car"] = gfx.addModel("models/car.obj");
   mAssets["bowser"] = gfx.addModel("models/bowserlow.obj");
   mAssets["maze"] = gfx.addTexture("textures/test.bmp");

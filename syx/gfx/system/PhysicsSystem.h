@@ -15,15 +15,13 @@ struct TransformEvent;
 class PhysicsCompUpdateEvent;
 class Gameobject;
 class Event;
+class App;
 
 class PhysicsSystem : public System {
 public:
-  PhysicsSystem();
+  RegisterSystemH(PhysicsSystem);
+  PhysicsSystem(App& app);
   ~PhysicsSystem();
-
-  SystemId getId() const override {
-    return SystemId::Physics;
-  }
 
   void init() override;
   void update(float dt, IWorkerPool& pool, std::shared_ptr<Task> frameTask) override;

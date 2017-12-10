@@ -3,6 +3,8 @@
 #include "event/Event.h"
 #include "event/TransformEvent.h"
 
+RegisterSystemCPP(MessagingSystem);
+
 void MessagingSystem::addTransformListener(TransformListener& listener) {
   mTransformListeners.push_back(&listener);
 }

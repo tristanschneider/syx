@@ -15,15 +15,13 @@ struct TransformEvent;
 class ComponentEvent;
 class RenderableUpdateEvent;
 struct EventListener;
+class App;
 
 class GraphicsSystem : public System {
 public:
-  GraphicsSystem();
+  RegisterSystemH(GraphicsSystem);
+  GraphicsSystem(App& app);
   ~GraphicsSystem();
-
-  SystemId getId() const override {
-    return SystemId::Graphics;
-  }
 
   void init() override;
   void update(float dt, IWorkerPool& pool, std::shared_ptr<Task> frameTask) override;

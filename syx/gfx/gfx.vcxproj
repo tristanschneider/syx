@@ -171,6 +171,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClCompile Include="system\KeyboardInput.cpp" />
     <ClCompile Include="system\MessagingSystem.cpp" />
     <ClCompile Include="system\PhysicsSystem.cpp" />
+    <ClCompile Include="system\System.cpp" />
     <ClCompile Include="SyxInterface.cpp" />
     <ClCompile Include="Texture.cpp" />
     <ClCompile Include="TextureLoader.cpp" />

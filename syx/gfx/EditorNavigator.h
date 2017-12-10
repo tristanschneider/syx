@@ -3,9 +3,8 @@
 
 class EditorNavigator : public System {
 public:
-  SystemId getId() const override {
-    return SystemId::EditorNavigator;
-  }
+  RegisterSystemH(EditorNavigator);
+  using System::System;
 
   void update(float dt, IWorkerPool& pool, std::shared_ptr<Task> frameTask) override;
 };

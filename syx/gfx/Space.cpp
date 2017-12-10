@@ -19,7 +19,7 @@ void Space::init() {
   using namespace Syx;
 
   Gameobject* obj = createObject();
-  MessagingSystem& msg = *mApp->getSystem<MessagingSystem>(SystemId::Messaging);
+  MessagingSystem& msg = *mApp->getSystem<MessagingSystem>();
   std::unique_ptr<Renderable> gfx = std::make_unique<Renderable>(obj->getHandle(), msg);
   std::unique_ptr<Physics> phy;
   RenderableData d;
@@ -76,7 +76,7 @@ void Space::uninit() {
 
 Gameobject* Space::createObject() {
   Handle h = mObjectGen.next();
-  auto resultPair = mObjects.emplace(std::piecewise_construct, std::forward_as_tuple(h), std::forward_as_tuple(h, mApp->getSystem<MessagingSystem>(SystemId::Messaging)));
+  auto resultPair = mObjects.emplace(std::piecewise_construct, std::forward_as_tuple(h), std::forward_as_tuple(h, mApp->getSystem<MessagingSystem>()));
   return &resultPair.first->second;
 }
 

@@ -4,6 +4,8 @@
 
 extern HWND gHwnd;
 
+RegisterSystemCPP(KeyboardInput);
+
 KeyState KeyboardInput::getKeyState(Key key) const {
   //Only care about top bit
   unsigned char filter = 128;

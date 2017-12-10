@@ -5,10 +5,12 @@
 #include "system/GraphicsSystem.h"
 #include "Camera.h"
 
+RegisterSystemCPP(EditorNavigator);
+
 void EditorNavigator::update(float dt, IWorkerPool& pool, std::shared_ptr<Task> frameTask) {
   using namespace Syx;
-  const KeyboardInput& in = *mApp->getSystem<KeyboardInput>(SystemId::KeyboardInput);
-  GraphicsSystem& graphics = *mApp->getSystem<GraphicsSystem>(SystemId::Graphics);
+  const KeyboardInput& in = *mApp.getSystem<KeyboardInput>();
+  GraphicsSystem& graphics = *mApp.getSystem<GraphicsSystem>();
   Vec3 move = Vec3::Zero;
   Camera& cam = graphics.getPrimaryCamera();
   Mat4 camTransform = cam.getTransform();

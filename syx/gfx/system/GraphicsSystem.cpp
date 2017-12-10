@@ -19,6 +19,8 @@
 
 using namespace Syx;
 
+RegisterSystemCPP(GraphicsSystem);
+
 static void readFile(const std::string& path, std::string& buffer) {
   std::ifstream file(path, std::ifstream::in | std::ifstream::binary);
   if(file.good()) {
@@ -63,7 +65,8 @@ std::unique_ptr<Shader> GraphicsSystem::_loadShadersFromFile(const std::string& 
 GraphicsSystem::~GraphicsSystem() {
 }
 
-GraphicsSystem::GraphicsSystem() {
+GraphicsSystem::GraphicsSystem(App& app)
+  : System(app) {
 }
 
 void GraphicsSystem::init() {
@@ -82,7 +85,7 @@ void GraphicsSystem::init() {
 
   mTransformListener = std::make_unique<TransformListener>();
   mEventListener = std::make_unique<EventListener>(EventFlag::Component | EventFlag::Graphics);
-  MessagingSystem* msg = mApp->getSystem<MessagingSystem>(SystemId::Messaging);
+  MessagingSystem* msg = mApp.getSystem<MessagingSystem>();
   msg->addTransformListener(*mTransformListener);
   msg->addEventListener(*mEventListener);
 }
@@ -93,12 +96,12 @@ void GraphicsSystem::update(float dt, IWorkerPool& pool, std::shared_ptr<Task> f
   _render(dt);
   if(mImGui) {
     mImGui->render(dt, mScreenSize);
-    mImGui->updateInput(*mApp->getSystem<KeyboardInput>(SystemId::KeyboardInput));
+    mImGui->updateInput(*mApp.getSystem<KeyboardInput>());
   }
 }
 
 void GraphicsSystem::uninit() {
-  mApp->getSystem<MessagingSystem>(SystemId::Messaging)->removeTransformListener(*mTransformListener);
+  mApp.getSystem<MessagingSystem>()->removeTransformListener(*mTransformListener);
 }
 
 Camera& GraphicsSystem::getPrimaryCamera() {

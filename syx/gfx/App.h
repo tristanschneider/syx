@@ -1,4 +1,5 @@
 #pragma once
+#include "system/System.h"
 
 class GraphicsSystem;
 class KeyboardInput;
@@ -18,23 +19,16 @@ public:
   Space& getDefaultSpace();
   IWorkerPool& getWorkerPool();
 
-  template<typename SystemType>
-  SystemType* getSystem(SystemId id) {
-    return static_cast<SystemType*>(mSystems[static_cast<int>(id)].get());
+  template<typename T>
+  T* getSystem() {
+    size_t id = GetSystemID(T);
+    return id < mSystems.size() ? static_cast<T*>(mSystems[id].get()) : nullptr;
   }
 
   //Temporary until asset manager that wraps asset loading and such
   std::unordered_map<std::string, Handle> mAssets;
 
 private:
-  //Construct and register derived type of System, and store the constructed object in systemPtr
-  template<typename SystemType, typename... ArgTypes>
-  void _registerSystem(ArgTypes&&... args) {
-    std::unique_ptr<System> systemPtr = std::make_unique<SystemType>(std::forward<ArgTypes>(args)...);
-    systemPtr->mApp = this;
-    mSystems[static_cast<int>(systemPtr->getId())] = std::move(systemPtr);
-  }
-
   std::vector<std::unique_ptr<System>> mSystems;
   std::unique_ptr<Space> mDefaultSpace;
   std::unique_ptr<IWorkerPool> mWorkerPool;
