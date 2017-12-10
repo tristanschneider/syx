@@ -26,8 +26,8 @@ class Asset {
 public:
   friend class AssetRepo;
 
-  Asset(const AssetInfo& info)
-    : mInfo(info)
+  Asset(AssetInfo&& info)
+    : mInfo(std::move(info))
     , mState(AssetState::Empty) {
   }
   virtual ~Asset() {

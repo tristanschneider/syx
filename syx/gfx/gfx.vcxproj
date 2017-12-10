@@ -86,6 +86,7 @@
       <PrecompiledHeaderFile>Precompile.h</PrecompiledHeaderFile>
       <ShowIncludes>false</ShowIncludes>
       <AdditionalIncludeDirectories>$(ProjectDir)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_MBCS;%(PreprocessorDefinitions);_CRT_SECURE_NO_WARNINGS</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <AdditionalLibraryDirectories>glew\lib\Release\Win32</AdditionalLibraryDirectories>
@@ -114,6 +115,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
       <PrecompiledHeaderFile>Precompile.h</PrecompiledHeaderFile>
       <ShowIncludes>false</ShowIncludes>
       <AdditionalIncludeDirectories>$(ProjectDir)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_MBCS;%(PreprocessorDefinitions);_CRT_SECURE_NO_WARNINGS</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>

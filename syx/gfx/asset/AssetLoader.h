@@ -5,6 +5,7 @@ struct AssetInfo;
 
 enum class AssetLoadResult : uint8_t {
   NotFound,
+  IOError,
   Fail,
   Success
 };
@@ -15,9 +16,36 @@ public:
   virtual ~AssetLoader();
 
   const std::string& getCategory();
-  //Opens file according to configuration then calls the appropriate _load
-  AssetLoadResult load(Asset& asset);
+  virtual AssetLoadResult load(const std::string& basePath, Asset& asset) = 0;
 
 private:
   std::string mCategory;
+};
+
+class BufferAssetLoader : public AssetLoader {
+public:
+  using AssetLoader::AssetLoader;
+  virtual ~BufferAssetLoader();
+
+  //Load file in to mData
+  virtual AssetLoadResult load(const std::string& basePath, Asset& asset) override;
+
+protected:
+  //Do whatever processing and put result in asset
+  virtual AssetLoadResult _load(Asset& asset);
+
+  std::vector<uint8_t> mData;
+};
+
+class TextAssetLoader : public AssetLoader {
+public:
+  using AssetLoader::AssetLoader;
+  virtual ~TextAssetLoader();
+
+  virtual AssetLoadResult load(const std::string& basePath, Asset& asset) override;
+
+protected:
+  virtual AssetLoadResult _load(Asset& asset);
+
+  std::string mData;
 };

@@ -1,4 +1,9 @@
 #pragma once
+//Repository that manages acquisition and async loading of assets.
+//AssetLoaders register themselves through AssetRepo::Loaders::registerLoader
+//getAsset always returns an asset. This is either a previously loaded asset, or a
+//newly created empty asset that will be soon loaded with the given loader in a task.
+//Loaders are pooled so resources can be re-used in the same loader between loading of different assets.
 
 class IWorkerPool;
 class Asset;
@@ -25,7 +30,27 @@ public:
     std::unordered_map<std::string, std::pair<LoaderConstructor, AssetConstructor>> mCategoryToConstructors;
   };
 
+  //Use this registration function if your AssetLoader/Asset constructors are default
+  template<typename AssetType, typename LoaderType>
+  static void registerLoader(const std::string& category) {
+    Loaders::registerLoader(category, [category]() {
+      return std::make_unique<LoaderType>(category);
+    }, [](AssetInfo&& info) {
+      return std::make_unique<AssetType>(std::move(info));
+    });
+  }
+
+  //Don't use this directly, use the RegisterAssetLoader macro to statically register an asset loader
+  //Makes it possible to statically register a loader instead of needing function scope
+  template<typename AssetType, typename LoaderType>
+  struct StaticRegisterLoader {
+    StaticRegisterLoader(const std::string& category) {
+      registerLoader<AssetType, LoaderType>(category);
+    }
+  };
+
   AssetRepo(const std::string& basePath, IWorkerPool& pool);
+  ~AssetRepo();
 
   std::shared_ptr<Asset> getAsset(AssetInfo info);
 
@@ -46,3 +71,8 @@ private:
   std::unordered_map<std::string, std::vector<std::unique_ptr<AssetLoader>>> mLoaderPool;
   std::mutex mLoaderMutex;
 };
+
+//Statically registers a loader for use in AssetRepo
+//example usage RegisterAssetLoader("txt", TextAssetLoader, TextAsset)
+#define RegisterAssetLoader(category, loaderType, assetType)\
+namespace { static AssetRepo::StaticRegisterLoader<assetType, loaderType> registeredLoader##loaderType(category); }

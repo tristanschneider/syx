@@ -19,6 +19,7 @@
 #include <thread>
 #include <functional>
 #include <atomic>
+#include <cstdio>
 
 #include <SyxMathIncludes.h>
 #include "Handle.h"

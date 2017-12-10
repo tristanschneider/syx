@@ -12,6 +12,8 @@ AssetRepo::Loaders::~Loaders() {
 }
 
 void AssetRepo::Loaders::registerLoader(const std::string& category, LoaderConstructor constructLoader, AssetConstructor constructAsset) {
+  //Duplicate loaders registered, likely undefined behavior
+  assert(_get().mCategoryToConstructors.find(category) == _get().mCategoryToConstructors.end());
   _get().mCategoryToConstructors[category] = { constructLoader, constructAsset };
 }
 
@@ -33,6 +35,9 @@ AssetRepo::Loaders& AssetRepo::Loaders::_get() {
 AssetRepo::AssetRepo(const std::string& basePath, IWorkerPool& pool)
   : mBasePath(basePath)
   , mPool(pool) {
+}
+
+AssetRepo::~AssetRepo() {
 }
 
 std::shared_ptr<Asset> AssetRepo::getAsset(AssetInfo info) {
@@ -58,7 +63,7 @@ std::shared_ptr<Asset> AssetRepo::getAsset(AssetInfo info) {
   //Queue loading of asset
   mPool.queueTask(std::make_shared<FunctionTask>([newAsset, this](){
     std::unique_ptr<AssetLoader> loader = _getLoader(newAsset->getInfo().mCategory);
-    AssetLoadResult result = loader->load(*newAsset);
+    AssetLoadResult result = loader->load(mBasePath, *newAsset);
     _assetLoaded(result, *newAsset);
     _returnLoader(std::move(loader));
   }));
@@ -73,6 +78,9 @@ void AssetRepo::_assetLoaded(AssetLoadResult result, Asset& asset) {
     break;
   case AssetLoadResult::Fail:
     printf("Failed to load asset at location %s\n", asset.getInfo().mUri.c_str());
+    break;
+  case AssetLoadResult::IOError:
+    printf("IO error attempting to load asset at location %s\n", asset.getInfo().mUri.c_str());
     break;
   case AssetLoadResult::Success:
     asset.mState = AssetState::Loaded;
