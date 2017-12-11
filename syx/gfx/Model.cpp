@@ -24,15 +24,10 @@ Model::Binder::~Binder() {
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 }
 
-Model::Model()
-  : mVB(0)
+Model::Model(AssetInfo&& info)
+  : Asset(std::move(info))
+  , mVB(0)
   , mVA(0)
-  , mIB(0) {
-}
-
-Model::Model(GLuint vb, GLuint va)
-  : mVB(vb)
-  , mVA(va)
   , mIB(0) {
 }
 
@@ -80,6 +75,8 @@ void Model::loadGpu() {
   glEnableVertexAttribArray(2);
   glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<void*>(start));
   glBindVertexArray(0);
+
+  mState = AssetState::PostProcessed;
 }
 
 void Model::unloadGpu() {

@@ -1,9 +1,13 @@
 #pragma once
-struct Model;
+#include "asset/AssetLoader.h"
 
-class ModelLoader {
-public:
-  std::unique_ptr<Model> loadModel(const std::string& objFile);
+class Model;
+
+class ModelOBJLoader : public TextAssetLoader {
+protected:
+  using TextAssetLoader::TextAssetLoader;
+  AssetLoadResult _load(Asset& asset) override;
+  void postProcess(App& app, Asset& asset) override;
 
 private:
   struct V3 {
@@ -42,8 +46,8 @@ private:
   size_t _getVertIndex(const VertLookup& lookup);
   void _addTri(size_t a, size_t b, size_t c);
 
-  std::unique_ptr<Model> mModel;
-  std::ifstream mStream;
+  Model* mModel;
+  AssetLoadResult mResultState;
   std::vector<V3> mVerts;
   std::vector<V3> mNormals;
   std::vector<V2> mUVs;

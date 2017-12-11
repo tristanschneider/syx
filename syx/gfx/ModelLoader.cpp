@@ -1,100 +1,105 @@
 #include "Precompile.h"
 #include "ModelLoader.h"
 #include "Model.h"
+#include "App.h"
+#include "system/GraphicsSystem.h"
+#include "asset/AssetRepo.h"
+
+RegisterAssetLoader("obj", ModelOBJLoader, Model);
 
 using namespace Syx;
 
-enum class CommandType : uint8_t {
-  Vertex,
-  VertexNormal,
-  VertexParam,
-  Comment,
-  Texture,
-  Face,
-  Unknown
-};
+namespace {
+  enum class CommandType : uint8_t {
+    Vertex,
+    VertexNormal,
+    VertexParam,
+    Comment,
+    Texture,
+    Face,
+    Unknown
+  };
 
-static CommandType _getCommandType(const char* type) {
-  CommandType result = CommandType::Unknown;
-  switch(*type) {
-    case '#': return CommandType::Comment;
-    case 'f': return CommandType::Face;
-    case 'v': {
-      switch(type[1]) {
-        case ' ': return CommandType::Vertex;
-        case 'n': return CommandType::VertexNormal;
-        case 't': return CommandType::Texture;
-        case 'p': return CommandType::VertexParam;
+  CommandType _getCommandType(const char* type) {
+    CommandType result = CommandType::Unknown;
+    switch(*type) {
+      case '#': return CommandType::Comment;
+      case 'f': return CommandType::Face;
+      case 'v': {
+        switch(type[1]) {
+          case ' ': return CommandType::Vertex;
+          case 'n': return CommandType::VertexNormal;
+          case 't': return CommandType::Texture;
+          case 'p': return CommandType::VertexParam;
+        }
       }
     }
-  }
-  return result;
-}
-
-static bool _isNumber(char in) {
-  return (in >= '0' && in <= '9') || in == '+' || in == '-';
-}
-
-static void _stripNumber(const char* line, int& curIndex) {
-  while(_isNumber(line[curIndex]) && line[curIndex] != 0)
-    ++curIndex;
-}
-
-static void _stripNonNumber(const char* line, int& curIndex) {
-  while(!_isNumber(line[curIndex]) && line[curIndex] != 0)
-    ++curIndex;
-}
-
-static void _stripNonWhitespace(const char* line, int& curIndex) {
-  while(line[curIndex] != ' ' && line[curIndex] != 0)
-    ++curIndex;
-}
-
-static Vec3 _readVec(const char* line, float defaultW, Vec3* second = nullptr, Vec3* third = nullptr) {
-  int curIndex = 2;
-  int foundNumbers = 0;
-  Vec3 result(0.0f, 0.0f, 0.0f, defaultW);
-  if(second) {
-    *second = result;
-    if(third)
-      *third = result;
+    return result;
   }
 
-  while(line[curIndex] != 0 && foundNumbers < 4) {
-    _stripNonNumber(line, curIndex);
-    if(line[curIndex]) {
-      result[foundNumbers] = static_cast<float>(atof(&line[curIndex]));
-      if(second) {
-        //Given 1/2/3 Skip past first number (1), then the / to read 2
-        _stripNumber(line, curIndex);
-        if(line[curIndex] == '/') {
-          ++curIndex;
-          (*second)[foundNumbers] = static_cast<float>(atof(&line[curIndex]));
+  bool _isNumber(char in) {
+    return (in >= '0' && in <= '9') || in == '+' || in == '-';
+  }
 
-          //Same as above except for the third character
-          if(third) {
-            _stripNumber(line, curIndex);
-            if(line[curIndex] == '/') {
-              ++curIndex;
-              (*third)[foundNumbers] = static_cast<float>(atof(&line[curIndex]));
+  void _stripNumber(const char* line, int& curIndex) {
+    while(_isNumber(line[curIndex]) && line[curIndex] != 0)
+      ++curIndex;
+  }
+
+  void _stripNonNumber(const char* line, int& curIndex) {
+    while(!_isNumber(line[curIndex]) && line[curIndex] != 0)
+      ++curIndex;
+  }
+
+  void _stripNonWhitespace(const char* line, int& curIndex) {
+    while(line[curIndex] != ' ' && line[curIndex] != 0)
+      ++curIndex;
+  }
+
+  Vec3 _readVec(const char* line, float defaultW, Vec3* second = nullptr, Vec3* third = nullptr) {
+    int curIndex = 2;
+    int foundNumbers = 0;
+    Vec3 result(0.0f, 0.0f, 0.0f, defaultW);
+    if(second) {
+      *second = result;
+      if(third)
+        *third = result;
+    }
+
+    while(line[curIndex] != 0 && foundNumbers < 4) {
+      _stripNonNumber(line, curIndex);
+      if(line[curIndex]) {
+        result[foundNumbers] = static_cast<float>(atof(&line[curIndex]));
+        if(second) {
+          //Given 1/2/3 Skip past first number (1), then the / to read 2
+          _stripNumber(line, curIndex);
+          if(line[curIndex] == '/') {
+            ++curIndex;
+            (*second)[foundNumbers] = static_cast<float>(atof(&line[curIndex]));
+
+            //Same as above except for the third character
+            if(third) {
+              _stripNumber(line, curIndex);
+              if(line[curIndex] == '/') {
+                ++curIndex;
+                (*third)[foundNumbers] = static_cast<float>(atof(&line[curIndex]));
+              }
             }
           }
         }
+        ++foundNumbers;
       }
-      ++foundNumbers;
+      _stripNonWhitespace(line, curIndex);
     }
-    _stripNonWhitespace(line, curIndex);
+    return result;
   }
-  return result;
 }
 
-bool ModelLoader::_readLine() {
+bool ModelOBJLoader::_readLine() {
   const size_t maxLineSize = 100;
   char line[maxLineSize];
-  mStream.getline(line, maxLineSize);
-  bool parsing = true;
-  if(!mStream.good() || mStream.gcount() == 0)
-    parsing = false;
+  if(!_getLine(line, maxLineSize))
+    return false;
 
   Vec3 v;
   CommandType cType = _getCommandType(line);
@@ -124,6 +129,7 @@ bool ModelLoader::_readLine() {
           if(curVert.mNormal == invalidIndex || curVert.mUV == invalidIndex) {
             printf("Invalid obj file, each vertex must specify vertex, normal, and uv");
             mModel = nullptr;
+            mResultState = AssetLoadResult::Fail;
             return false;
           }
         }
@@ -144,36 +150,38 @@ bool ModelLoader::_readLine() {
       break;
     }
   }
-  return parsing;
+  return true;
 }
 
-void ModelLoader::_reset() {
+void ModelOBJLoader::_reset() {
   mModel = nullptr;
   mVerts.clear();
   mNormals.clear();
   mUVs.clear();
   mVertToIndex.clear();
+  mResultState = AssetLoadResult::Success;
 }
 
-std::unique_ptr<Model> ModelLoader::loadModel(const std::string& objFile) {
+AssetLoadResult ModelOBJLoader::_load(Asset& asset) {
   _reset();
-  mStream = std::ifstream(objFile);
-  if(!mStream.good()) {
-    printf("Failed to open model file at %s\n", objFile.c_str());
-    return nullptr;
-  }
 
-  mModel = std::make_unique<Model>();
+  mModel = static_cast<Model*>(&asset);
   bool parsing = true;
   do {
     parsing = _readLine();
   }
   while(parsing);
 
-  return std::move(mModel);
+  return mResultState;
 }
 
-size_t ModelLoader::_getVertIndex(const VertLookup& lookup) {
+void ModelOBJLoader::postProcess(App& app, Asset& asset) {
+  app.getSystem<GraphicsSystem>()->dispatchToRenderThread([&asset]() {
+    static_cast<Model&>(asset).loadGpu();
+  });
+}
+
+size_t ModelOBJLoader::_getVertIndex(const VertLookup& lookup) {
   size_t prevSize = mVertToIndex.size();
   size_t& index = mVertToIndex[lookup];
   size_t postSize = mVertToIndex.size();
@@ -189,7 +197,7 @@ size_t ModelLoader::_getVertIndex(const VertLookup& lookup) {
   return index;
 }
 
-void ModelLoader::_addTri(size_t a, size_t b, size_t c) {
+void ModelOBJLoader::_addTri(size_t a, size_t b, size_t c) {
   mModel->mIndices.push_back(a);
   mModel->mIndices.push_back(b);
   mModel->mIndices.push_back(c);

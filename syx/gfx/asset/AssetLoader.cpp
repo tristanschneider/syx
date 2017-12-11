@@ -51,6 +51,11 @@ AssetLoadResult BufferAssetLoader::_load(Asset& asset) {
 
 RegisterAssetLoader("txt", TextAssetLoader, TextAsset);
 
+TextAssetLoader::TextAssetLoader(const std::string& category)
+  : AssetLoader(category)
+  , mCurIndex(0) {
+}
+
 TextAssetLoader::~TextAssetLoader() {
 }
 
@@ -63,4 +68,15 @@ AssetLoadResult TextAssetLoader::load(const std::string& basePath, Asset& asset)
 AssetLoadResult TextAssetLoader::_load(Asset& asset) {
   static_cast<TextAsset&>(asset).set(std::move(mData));
   return AssetLoadResult::Success;
+}
+
+size_t TextAssetLoader::_getLine(char* buffer, size_t bufferSize, char delimiter) {
+  size_t readCount = 0;
+  while(readCount < bufferSize && mCurIndex < mData.size()) {
+    char c = mData[mCurIndex++];
+    buffer[readCount++] = c;
+    if(c == delimiter)
+      break;
+  }
+  return readCount;
 }

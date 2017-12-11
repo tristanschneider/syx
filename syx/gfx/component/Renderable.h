@@ -3,7 +3,7 @@
 #include "event/Event.h"
 
 struct RenderableData {
-  Handle mModel;
+  size_t mModel;
   Handle mDiffTex;
 };
 

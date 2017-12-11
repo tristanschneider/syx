@@ -1,4 +1,5 @@
 #pragma once
+#include "asset/Asset.h"
 
 struct Vertex {
   Vertex(const Syx::Vec3& pos, const Syx::Vec3& normal, const Syx::Vec2& uv);
@@ -9,14 +10,14 @@ struct Vertex {
   float mUV[2];
 };
 
-struct Model {
+class Model : public Asset {
+public:
   struct Binder {
     Binder(const Model& model);
     ~Binder();
   };
 
-  Model();
-  Model(GLuint vb, GLuint va);
+  Model(AssetInfo&& info);
 
   void loadGpu();
   void unloadGpu();

@@ -4,6 +4,9 @@
 #include "asset/AssetLoader.h"
 #include "threading/FunctionTask.h"
 #include "threading/IWorkerPool.h"
+#include "App.h"
+
+RegisterSystemCPP(AssetRepo);
 
 AssetRepo::Loaders::Loaders() {
 }
@@ -32,9 +35,9 @@ AssetRepo::Loaders& AssetRepo::Loaders::_get() {
   return singleton;
 }
 
-AssetRepo::AssetRepo(const std::string& basePath, IWorkerPool& pool)
-  : mBasePath(basePath)
-  , mPool(pool) {
+AssetRepo::AssetRepo(App& app)
+  : System(app)
+  , mPool(app.getWorkerPool()) {
 }
 
 AssetRepo::~AssetRepo() {
@@ -52,6 +55,9 @@ std::shared_ptr<Asset> AssetRepo::getAsset(AssetInfo info) {
 
     if(it != mIdToAsset.end())
       return it->second;
+    //If uri wasn't given then there's nothing to create the asset from
+    if(info.mUri.empty())
+      return nullptr;
 
     newAsset = Loaders::getAsset(std::move(info));
     if(!newAsset)
@@ -64,14 +70,18 @@ std::shared_ptr<Asset> AssetRepo::getAsset(AssetInfo info) {
   mPool.queueTask(std::make_shared<FunctionTask>([newAsset, this](){
     std::unique_ptr<AssetLoader> loader = _getLoader(newAsset->getInfo().mCategory);
     AssetLoadResult result = loader->load(mBasePath, *newAsset);
-    _assetLoaded(result, *newAsset);
+    _assetLoaded(result, *newAsset, *loader);
     _returnLoader(std::move(loader));
   }));
 
   return newAsset;
 }
 
-void AssetRepo::_assetLoaded(AssetLoadResult result, Asset& asset) {
+void AssetRepo::setBasePath(const std::string& basePath) {
+  mBasePath = basePath;
+}
+
+void AssetRepo::_assetLoaded(AssetLoadResult result, Asset& asset, AssetLoader& loader) {
   switch(result) {
   case AssetLoadResult::NotFound:
     printf("Failed to find asset at location %s\n", asset.getInfo().mUri.c_str());
@@ -84,14 +94,17 @@ void AssetRepo::_assetLoaded(AssetLoadResult result, Asset& asset) {
     break;
   case AssetLoadResult::Success:
     asset.mState = AssetState::Loaded;
+    loader.postProcess(mApp, asset);
     break;
   }
 }
 
 void AssetRepo::_fillInfo(AssetInfo& info) {
-  std::hash<std::string> hash;
-  info.mId = hash(info.mUri);
-  info.mCategory = AssetInfo::getCategory(info.mUri);
+  if(!info.mUri.empty()) {
+    std::hash<std::string> hash;
+    info.mId = hash(info.mUri);
+    info.mCategory = AssetInfo::getCategory(info.mUri);
+  }
 }
 
 std::unique_ptr<AssetLoader> AssetRepo::_getLoader(const std::string& category) {

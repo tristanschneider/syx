@@ -8,9 +8,9 @@
 #include "ImGuiImpl.h"
 
 App::App() {
-  System::Registry::getSystems(*this, mSystems);
   mDefaultSpace = std::make_unique<Space>(*this);
   mWorkerPool = std::make_unique<WorkerPool>(3);
+  System::Registry::getSystems(*this, mSystems);
 }
 
 App::~App() {
@@ -23,10 +23,7 @@ void App::init() {
   }
 
   GraphicsSystem& gfx = *getSystem<GraphicsSystem>();
-  mAssets["car"] = gfx.addModel("models/car.obj");
-  mAssets["bowser"] = gfx.addModel("models/bowserlow.obj");
   mAssets["maze"] = gfx.addTexture("textures/test.bmp");
-  mAssets["cube"] = gfx.addModel("models/cube.obj");
 
   mDefaultSpace->init();
 }

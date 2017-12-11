@@ -16,6 +16,7 @@
 #include "system/KeyboardInput.h"
 #include "event/TransformEvent.h"
 #include "event/BaseComponentEvents.h"
+#include "asset/AssetRepo.h"
 
 using namespace Syx;
 
@@ -80,7 +81,6 @@ void GraphicsSystem::init() {
   mDebugDrawer = std::make_unique<DebugDrawer>(*this);
   mImGui = std::make_unique<ImGuiImpl>();
 
-  mModelLoader = std::make_unique<ModelLoader>();
   mTextureLoader = std::make_unique<TextureLoader>();
 
   mTransformListener = std::make_unique<TransformListener>();
@@ -98,6 +98,7 @@ void GraphicsSystem::update(float dt, IWorkerPool& pool, std::shared_ptr<Task> f
     mImGui->render(dt, mScreenSize);
     mImGui->updateInput(*mApp.getSystem<KeyboardInput>());
   }
+  _processRenderThreadTasks();
 }
 
 void GraphicsSystem::uninit() {
@@ -112,22 +113,6 @@ DebugDrawer& GraphicsSystem::getDebugDrawer() {
   return *mDebugDrawer;
 }
 
-Handle GraphicsSystem::addModel(Model& model) {
-  model.mHandle = mModelGen.next();
-  Model& added = mHandleToModel[model.mHandle] = model;
-  //Ultimately this should be a separate step as needed
-  added.loadGpu();
-  return added.mHandle;
-}
-
-Handle GraphicsSystem::addModel(const std::string& filePath) {
-  std::unique_ptr<Model> model = mModelLoader->loadModel(filePath);
-  if(model) {
-    return addModel(*model);
-  }
-  return InvalidHandle;
-}
-
 template<typename Resource>
 void removeResource(Handle handle, std::unordered_map<Handle, Resource>& resMap, const char* errorMsg) {
   auto it = resMap.find(handle);
@@ -139,12 +124,14 @@ void removeResource(Handle handle, std::unordered_map<Handle, Resource>& resMap,
   resMap.erase(it);
 }
 
-void GraphicsSystem::removeModel(Handle model) {
-  removeResource(model, mHandleToModel, "Tried to remove model that didn't exist");
-}
-
 void GraphicsSystem::removeTexture(Handle texture) {
   removeResource(texture, mHandleToTexture, "Tried to remove texture that didn't exist");
+}
+
+void GraphicsSystem::dispatchToRenderThread(std::function<void()> func) {
+  mTasksMutex.lock();
+  mTasks.push_back(func);
+  mTasksMutex.unlock();
 }
 
 Handle GraphicsSystem::addTexture(const std::string& filePath) {
@@ -194,14 +181,22 @@ void GraphicsSystem::_processTransformEvent(const TransformEvent& e) {
 void GraphicsSystem::_processRenderableEvent(const RenderableUpdateEvent& e) {
   LocalRenderable* obj = mLocalRenderables.get(e.mObj);
   if(obj) {
-    auto mod = mHandleToModel.find(e.mData.mModel);
-    if(mod != mHandleToModel.end())
-      obj->mModel = &mod->second;
+    obj->mModel = mApp.getSystem<AssetRepo>()->getAsset(AssetInfo(e.mData.mModel));
 
     auto tex = mHandleToTexture.find(e.mData.mDiffTex);
     if(tex != mHandleToTexture.end())
       obj->mDiffTex = &tex->second;
   }
+}
+
+void GraphicsSystem::_processRenderThreadTasks() {
+  mTasksMutex.lock();
+  mTasks.swap(mLocalTasks);
+  mTasksMutex.unlock();
+
+  for(auto& task : mLocalTasks)
+    task();
+  mLocalTasks.clear();
 }
 
 void GraphicsSystem::_render(float dt) {
@@ -241,7 +236,7 @@ void GraphicsSystem::_render(float dt) {
     glUniform3f(mGeometry->getUniform("uSunColor"), sunColor.x, sunColor.y, sunColor.z);
 
     for(LocalRenderable& obj : mLocalRenderables.getBuffer()) {
-      if(!obj.mModel)
+      if(!obj.mModel || obj.mModel->getState() != AssetState::PostProcessed)
         continue;
 
       Mat4 mw = obj.mTransform;
@@ -253,11 +248,12 @@ void GraphicsSystem::_render(float dt) {
         //Tell the sampler uniform to use the given texture slot
         glUniform1i(mGeometry->getUniform("uTex"), 0);
         {
-          Model::Binder mb(*obj.mModel);
+          Model& model = static_cast<Model&>(*obj.mModel);
+          Model::Binder mb(model);
 
           glUniformMatrix4fv(mGeometry->getUniform("uMVP"), 1, GL_FALSE, mvp.mData);
           glUniformMatrix4fv(mGeometry->getUniform("uMW"), 1, GL_FALSE, mw.mData);
-          obj.mModel->draw();
+          model.draw();
         }
       }
     }

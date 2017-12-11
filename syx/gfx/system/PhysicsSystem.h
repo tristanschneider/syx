@@ -8,7 +8,7 @@ namespace Syx {
   struct UpdateEvent;
 };
 
-struct Model;
+class Model;
 struct EventListener;
 struct TransformListener;
 struct TransformEvent;

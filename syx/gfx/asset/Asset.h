@@ -6,6 +6,10 @@ struct AssetInfo {
     , mId(0) {
   }
 
+  AssetInfo(size_t id)
+    : mId(id) {
+  }
+
   static std::string getCategory(const std::string& uri) {
     size_t ext = uri.find_last_of('.');
     return ext != std::string::npos ? uri.substr(ext + 1) : "";
@@ -19,6 +23,8 @@ struct AssetInfo {
 enum class AssetState : uint8_t {
   Empty,
   Loaded,
+  //Up to the implementation to use this as an extra step after asset load
+  PostProcessed,
   Failed
 };
 
@@ -40,9 +46,11 @@ public:
     return mInfo;
   }
 
+protected:
+  AssetState mState;
+
 private:
   AssetInfo mInfo;
-  AssetState mState;
 };
 
 class TextAsset : public Asset {

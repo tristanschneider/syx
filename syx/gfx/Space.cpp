@@ -7,6 +7,8 @@
 #include "system/System.h"
 #include "component/Physics.h"
 #include "system/MessagingSystem.h"
+#include "asset/AssetRepo.h"
+#include "asset/Asset.h"
 
 Space::Space(App& app)
   : mApp(&app) {
@@ -23,7 +25,8 @@ void Space::init() {
   std::unique_ptr<Renderable> gfx = std::make_unique<Renderable>(obj->getHandle(), msg);
   std::unique_ptr<Physics> phy;
   RenderableData d;
-  d.mModel = getApp().mAssets["bowser"];
+  AssetRepo* repo = getApp().getSystem<AssetRepo>();
+  d.mModel = repo->getAsset(AssetInfo("models/bowserlow.obj"))->getInfo().mId;
   d.mDiffTex = getApp().mAssets["maze"];
   gfx->set(d);
   obj->addComponent(std::move(gfx));
@@ -32,7 +35,7 @@ void Space::init() {
 
   obj = createObject();
   gfx = std::make_unique<Renderable>(obj->getHandle(), msg);
-  d.mModel = getApp().mAssets["car"];
+  d.mModel = repo->getAsset(AssetInfo("models/car.obj"))->getInfo().mId;
   d.mDiffTex = getApp().mAssets["maze"];
   gfx->set(d);
   obj->addComponent(std::move(gfx));
@@ -41,7 +44,8 @@ void Space::init() {
 
   obj = createObject();
   gfx = std::make_unique<Renderable>(obj->getHandle(), msg);
-  d.mModel = getApp().mAssets["cube"];
+  size_t cubeModelId = repo->getAsset(AssetInfo("models/cube.obj"))->getInfo().mId;
+  d.mModel = cubeModelId;
   d.mDiffTex = getApp().mAssets["maze"];
   gfx->set(d);
   obj->addComponent(std::move(gfx));
@@ -54,7 +58,7 @@ void Space::init() {
 
   obj = createObject();
   gfx = std::make_unique<Renderable>(obj->getHandle(), msg);
-  d.mModel = getApp().mAssets["cube"];
+  d.mModel = cubeModelId;
   d.mDiffTex = getApp().mAssets["maze"];
   gfx->set(d);
   obj->addComponent(std::move(gfx));

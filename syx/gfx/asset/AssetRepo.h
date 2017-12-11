@@ -5,14 +5,17 @@
 //newly created empty asset that will be soon loaded with the given loader in a task.
 //Loaders are pooled so resources can be re-used in the same loader between loading of different assets.
 
+#include "system/System.h"
+
 class IWorkerPool;
 class Asset;
 class AssetLoader;
 struct AssetInfo;
 enum class AssetLoadResult : uint8_t;
 
-class AssetRepo {
+class AssetRepo : public System {
 public:
+  RegisterSystemH(AssetRepo);
   class Loaders {
   public:
     using LoaderConstructor = std::function<std::unique_ptr<AssetLoader>()>;
@@ -49,14 +52,16 @@ public:
     }
   };
 
-  AssetRepo(const std::string& basePath, IWorkerPool& pool);
+  AssetRepo(App& app);
   ~AssetRepo();
 
+  //If uri is provided it will be loaded if it doesn't exist. If only id is provided, only an existing asset will be returned
   std::shared_ptr<Asset> getAsset(AssetInfo info);
+  void setBasePath(const std::string& basePath);
 
 private:
   void _fillInfo(AssetInfo& info);
-  void _assetLoaded(AssetLoadResult result, Asset& asset);
+  void _assetLoaded(AssetLoadResult result, Asset& asset, AssetLoader& loader);
   //Get or create a loader from the pool
   std::unique_ptr<AssetLoader> _getLoader(const std::string& category);
   //Return a loader to the pool
