@@ -1,7 +1,10 @@
 #pragma once
+#include "asset/Asset.h"
 
-class Shader {
+class Shader : public Asset {
 public:
+  using Asset::Asset;
+
   struct Binder {
     Binder(const Shader& shader);
     ~Binder();

@@ -1,10 +1,12 @@
 #pragma once
 class Shader;
 class GraphicsSystem;
+class AssetRepo;
+class Asset;
 
 class DebugDrawer {
 public:
-  DebugDrawer(GraphicsSystem& graphics);
+  DebugDrawer(AssetRepo& repo);
   ~DebugDrawer();
 
   void drawLine(const Syx::Vec3& a, const Syx::Vec3& b, const Syx::Vec3& colorA, const Syx::Vec3& colorB);
@@ -31,7 +33,7 @@ private:
   //Requires buffer to be bound before calling
   void _resizeBuffer(size_t newSize);
 
-  std::unique_ptr<Shader> mShader;
+  std::shared_ptr<Asset> mShader;
   std::vector<Vertex> mVerts;
   std::mutex mVertsMutex;
   //Size of buffer currently on gpu

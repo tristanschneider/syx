@@ -7,7 +7,7 @@
 #include "system/System.h"
 #include "component/Physics.h"
 #include "system/MessagingSystem.h"
-#include "asset/AssetRepo.h"
+#include "system/AssetRepo.h"
 #include "asset/Asset.h"
 
 Space::Space(App& app)

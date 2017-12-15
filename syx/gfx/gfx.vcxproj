@@ -143,8 +143,9 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="App.cpp" />
-    <ClCompile Include="asset\AssetLoader.cpp" />
-    <ClCompile Include="asset\AssetRepo.cpp" />
+    <ClCompile Include="asset\Model.cpp" />
+    <ClCompile Include="asset\Shader.cpp" />
+    <ClCompile Include="asset\Texture.cpp" />
     <ClCompile Include="Camera.cpp" />
     <ClCompile Include="component\Component.cpp" />
     <ClCompile Include="component\Physics.cpp" />
@@ -155,26 +156,26 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClCompile Include="event\Event.cpp" />
     <ClCompile Include="Gameobject.cpp" />
     <ClCompile Include="ImGuiImpl.cpp" />
+    <ClCompile Include="loader\AssetLoader.cpp" />
+    <ClCompile Include="loader\ModelLoader.cpp" />
+    <ClCompile Include="loader\ShaderLoader.cpp" />
+    <ClCompile Include="loader\TextureLoader.cpp" />
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="ModelLoader.cpp" />
-    <ClCompile Include="Model.cpp" />
     <ClCompile Include="Precompile.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="Shader.cpp" />
     <ClCompile Include="Space.cpp" />
     <ClCompile Include="src-deps\imgui\imgui.cpp" />
     <ClCompile Include="src-deps\imgui\imgui_demo.cpp" />
     <ClCompile Include="src-deps\imgui\imgui_draw.cpp" />
+    <ClCompile Include="system\AssetRepo.cpp" />
     <ClCompile Include="system\GraphicsSystem.cpp" />
     <ClCompile Include="system\KeyboardInput.cpp" />
     <ClCompile Include="system\MessagingSystem.cpp" />
     <ClCompile Include="system\PhysicsSystem.cpp" />
     <ClCompile Include="system\System.cpp" />
     <ClCompile Include="SyxInterface.cpp" />
-    <ClCompile Include="Texture.cpp" />
-    <ClCompile Include="TextureLoader.cpp" />
     <ClCompile Include="threading\FunctionTask.cpp" />
     <ClCompile Include="threading\IWorkerPool.cpp" />
     <ClCompile Include="threading\Task.cpp" />
@@ -189,8 +190,9 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
   <ItemGroup>
     <ClInclude Include="App.h" />
     <ClInclude Include="asset\Asset.h" />
-    <ClInclude Include="asset\AssetLoader.h" />
-    <ClInclude Include="asset\AssetRepo.h" />
+    <ClInclude Include="asset\Model.h" />
+    <ClInclude Include="asset\Shader.h" />
+    <ClInclude Include="asset\Texture.h" />
     <ClInclude Include="Camera.h" />
     <ClInclude Include="component\Component.h" />
     <ClInclude Include="component\Physics.h" />
@@ -204,11 +206,12 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClInclude Include="Gameobject.h" />
     <ClInclude Include="Handle.h" />
     <ClInclude Include="ImGuiImpl.h" />
+    <ClInclude Include="loader\AssetLoader.h" />
+    <ClInclude Include="loader\ModelLoader.h" />
+    <ClInclude Include="loader\ShaderLoader.h" />
+    <ClInclude Include="loader\TextureLoader.h" />
     <ClInclude Include="MappedBuffer.h" />
-    <ClInclude Include="ModelLoader.h" />
-    <ClInclude Include="Model.h" />
     <ClInclude Include="Precompile.h" />
-    <ClInclude Include="Shader.h" />
     <ClInclude Include="Space.h" />
     <ClInclude Include="src-deps\imgui\imconfig.h" />
     <ClInclude Include="src-deps\imgui\imgui.h" />
@@ -216,13 +219,12 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClInclude Include="src-deps\imgui\stb_rect_pack.h" />
     <ClInclude Include="src-deps\imgui\stb_textedit.h" />
     <ClInclude Include="src-deps\imgui\stb_truetype.h" />
+    <ClInclude Include="system\AssetRepo.h" />
     <ClInclude Include="system\GraphicsSystem.h" />
     <ClInclude Include="system\KeyboardInput.h" />
     <ClInclude Include="system\MessagingSystem.h" />
     <ClInclude Include="system\PhysicsSystem.h" />
     <ClInclude Include="system\System.h" />
-    <ClInclude Include="Texture.h" />
-    <ClInclude Include="TextureLoader.h" />
     <ClInclude Include="threading\FunctionTask.h" />
     <ClInclude Include="threading\IWorkerPool.h" />
     <ClInclude Include="threading\Task.h" />

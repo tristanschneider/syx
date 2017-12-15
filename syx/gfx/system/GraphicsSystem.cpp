@@ -1,12 +1,11 @@
 #include "Precompile.h"
 #include "system/GraphicsSystem.h"
-#include "Model.h"
-#include "Shader.h"
+
+#include "asset/Model.h"
+#include "asset/Shader.h"
+#include "asset/Texture.h"
 #include "Camera.h"
 #include "DebugDrawer.h"
-#include "ModelLoader.h"
-#include "TextureLoader.h"
-#include "Texture.h"
 #include "App.h"
 #include "Space.h"
 #include "Gameobject.h"
@@ -16,7 +15,8 @@
 #include "system/KeyboardInput.h"
 #include "event/TransformEvent.h"
 #include "event/BaseComponentEvents.h"
-#include "asset/AssetRepo.h"
+#include "system/AssetRepo.h"
+#include "loader/TextureLoader.h"
 
 using namespace Syx;
 
@@ -45,24 +45,6 @@ Handle GraphicsSystem::LocalRenderable::getHandle() const {
   return mHandle;
 }
 
-std::unique_ptr<Shader> GraphicsSystem::_loadShadersFromFile(const std::string& vsPath, const std::string& psPath) {
-  mVSBuffer.clear();
-  mPSBuffer.clear();
-  std::unique_ptr<Shader> result = std::make_unique<Shader>();
-  readFile(vsPath, mVSBuffer);
-  readFile(psPath, mPSBuffer);
-  if(mVSBuffer.size() && mPSBuffer.size()) {
-    result->load(mVSBuffer, mPSBuffer);
-  }
-  else {
-    if(mVSBuffer.empty())
-      printf("Vertex shader not found at %s\n", vsPath.c_str());
-    if(mPSBuffer.empty())
-      printf("Pixel shader not found at %s\n", psPath.c_str());
-  }
-  return result;
-}
-
 GraphicsSystem::~GraphicsSystem() {
 }
 
@@ -72,13 +54,13 @@ GraphicsSystem::GraphicsSystem(App& app)
 
 void GraphicsSystem::init() {
   mCamera = std::make_unique<Camera>(CameraOps(1.396f, 1.396f, 0.1f, 100.0f));
-  mGeometry = _loadShadersFromFile("shaders/phong.vs", "shaders/phong.ps");
+  mGeometry =  mApp.getSystem<AssetRepo>()->getAsset(AssetInfo("shaders/phong.vs"));
 
   Mat4 ct = mCamera->getTransform();
   ct.setTranslate(Vec3(0.0f, 0.0f, -3.0f));
   ct.setRot(Quat::lookAt(-Vec3::UnitZ));
   mCamera->setTransform(ct);
-  mDebugDrawer = std::make_unique<DebugDrawer>(*this);
+  mDebugDrawer = std::make_unique<DebugDrawer>(*mApp.getSystem<AssetRepo>());
   mImGui = std::make_unique<ImGuiImpl>();
 
   mTextureLoader = std::make_unique<TextureLoader>();
@@ -211,9 +193,13 @@ void GraphicsSystem::_render(float dt) {
 
   mDebugDrawer->_render(mCamera->getWorldToView());
 
+  if(mGeometry->getState() != AssetState::PostProcessed)
+    return;
+
   {
     Texture emptyTexture;
-    Shader::Binder sb(*mGeometry);
+    Shader& geometry = static_cast<Shader&>(*mGeometry);
+    Shader::Binder sb(geometry);
     Vec3 camPos = mCamera->getTransform().getTranslate();
     Vec3 mDiff(1.0f);
     Vec3 mSpec(0.6f, 0.6f, 0.6f, 2.5f);
@@ -228,12 +214,12 @@ void GraphicsSystem::_render(float dt) {
       mDebugDrawer->drawLine(p + sunDir, p + sunDir - Vec3(0.1f));
     }
 
-    glUniform3f(mGeometry->getUniform("uCamPos"), camPos.x, camPos.y, camPos.z);
-    glUniform3f(mGeometry->getUniform("uDiffuse"), mDiff.x, mDiff.y, mDiff.z);
-    glUniform3f(mGeometry->getUniform("uAmbient"), mAmb.x, mAmb.y, mAmb.z);
-    glUniform4f(mGeometry->getUniform("uSpecular"), mSpec.x, mSpec.y, mSpec.z, mSpec.w);
-    glUniform3f(mGeometry->getUniform("uSunDir"), sunDir.x, sunDir.y, sunDir.z);
-    glUniform3f(mGeometry->getUniform("uSunColor"), sunColor.x, sunColor.y, sunColor.z);
+    glUniform3f(geometry.getUniform("uCamPos"), camPos.x, camPos.y, camPos.z);
+    glUniform3f(geometry.getUniform("uDiffuse"), mDiff.x, mDiff.y, mDiff.z);
+    glUniform3f(geometry.getUniform("uAmbient"), mAmb.x, mAmb.y, mAmb.z);
+    glUniform4f(geometry.getUniform("uSpecular"), mSpec.x, mSpec.y, mSpec.z, mSpec.w);
+    glUniform3f(geometry.getUniform("uSunDir"), sunDir.x, sunDir.y, sunDir.z);
+    glUniform3f(geometry.getUniform("uSunColor"), sunColor.x, sunColor.y, sunColor.z);
 
     for(LocalRenderable& obj : mLocalRenderables.getBuffer()) {
       if(!obj.mModel || obj.mModel->getState() != AssetState::PostProcessed)
@@ -246,13 +232,13 @@ void GraphicsSystem::_render(float dt) {
       {
         Texture::Binder tb(obj.mDiffTex ? *obj.mDiffTex : emptyTexture, 0);
         //Tell the sampler uniform to use the given texture slot
-        glUniform1i(mGeometry->getUniform("uTex"), 0);
+        glUniform1i(geometry.getUniform("uTex"), 0);
         {
           Model& model = static_cast<Model&>(*obj.mModel);
           Model::Binder mb(model);
 
-          glUniformMatrix4fv(mGeometry->getUniform("uMVP"), 1, GL_FALSE, mvp.mData);
-          glUniformMatrix4fv(mGeometry->getUniform("uMW"), 1, GL_FALSE, mw.mData);
+          glUniformMatrix4fv(geometry.getUniform("uMVP"), 1, GL_FALSE, mvp.mData);
+          glUniformMatrix4fv(geometry.getUniform("uMW"), 1, GL_FALSE, mw.mData);
           model.draw();
         }
       }

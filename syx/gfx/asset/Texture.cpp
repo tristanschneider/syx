@@ -1,6 +1,6 @@
 #include "Precompile.h"
 #include "Texture.h"
-#include "TextureLoader.h"
+#include "loader/TextureLoader.h"
 
 Texture::Binder::Binder(const Texture& tex, int slot)
   : mSlot(slot) {

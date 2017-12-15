@@ -4,7 +4,6 @@
 class Shader;
 class Camera;
 class DebugDrawer;
-class ModelLoader;
 class TextureLoader;
 class ImGuiImpl;
 class Model;
@@ -35,8 +34,6 @@ public:
   void removeTexture(Handle texture);
   void dispatchToRenderThread(std::function<void()> func);
 
-  std::unique_ptr<Shader> _loadShadersFromFile(const std::string& vsPath, const std::string& psPath);
-
   void onResize(int width, int height);
 
 private:
@@ -58,7 +55,7 @@ private:
   void _processRenderableEvent(const RenderableUpdateEvent& e);
   void _processRenderThreadTasks();
 
-  std::unique_ptr<Shader> mGeometry;
+  std::shared_ptr<Asset> mGeometry;
   std::unique_ptr<Camera> mCamera;
   std::unique_ptr<DebugDrawer> mDebugDrawer;
   std::unique_ptr<TextureLoader> mTextureLoader;

@@ -9,26 +9,28 @@ Shader::Binder::~Binder() {
   glUseProgram(0);
 }
 
-static void _getStatusWithInfo(GLuint handle, GLenum status, GLint& logLen, GLint& result) {
-  result = GL_FALSE;
-  glGetShaderiv(handle, status, &result);
-  glGetShaderiv(handle, GL_INFO_LOG_LENGTH, &logLen);
-}
+namespace {
+  void _getStatusWithInfo(GLuint handle, GLenum status, GLint& logLen, GLint& result) {
+    result = GL_FALSE;
+    glGetShaderiv(handle, status, &result);
+    glGetShaderiv(handle, GL_INFO_LOG_LENGTH, &logLen);
+  }
 
-static void _compileShader(GLuint shaderHandle, const std::string& source) {
-  //Compile Shader
-  const char* cstr = source.c_str();
-  glShaderSource(shaderHandle, 1, &cstr, NULL);
-  glCompileShader(shaderHandle);
+  void _compileShader(GLuint shaderHandle, const std::string& source) {
+    //Compile Shader
+    const char* cstr = source.c_str();
+    glShaderSource(shaderHandle, 1, &cstr, NULL);
+    glCompileShader(shaderHandle);
 
-  //GL_COMPILE_STATUS
-  GLint result, logLen;
-  _getStatusWithInfo(shaderHandle, GL_COMPILE_STATUS, logLen, result);
-  //Check Shader
-  if(logLen > 0) {
-    std::string error(logLen + 1, 0);
-    glGetShaderInfoLog(shaderHandle, logLen, NULL, &error[0]);
-    printf("%s\n", error.c_str());
+    //GL_COMPILE_STATUS
+    GLint result, logLen;
+    _getStatusWithInfo(shaderHandle, GL_COMPILE_STATUS, logLen, result);
+    //Check Shader
+    if(logLen > 0) {
+      std::string error(logLen + 1, 0);
+      glGetShaderInfoLog(shaderHandle, logLen, NULL, &error[0]);
+      printf("%s\n", error.c_str());
+    }
   }
 }
 
@@ -61,6 +63,7 @@ bool Shader::load(const std::string& vsSource, const std::string& psSource) {
 
   glDeleteShader(vs);
   glDeleteShader(ps);
+  mState = AssetState::PostProcessed;
   return true;
 }
 

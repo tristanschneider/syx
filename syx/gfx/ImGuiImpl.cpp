@@ -1,6 +1,6 @@
 #include "Precompile.h"
 #include "ImGuiImpl.h"
-#include "Shader.h"
+#include "asset/Shader.h"
 #include "imgui/imgui.h"
 #include "system/KeyboardInput.h"
 
@@ -33,7 +33,7 @@ ImGuiImpl::ImGuiImpl() {
       " Out_Color = Frag_Color * texture( Texture, Frag_UV.st);\n"
       "}\n";
 
-  mShader = std::make_unique<Shader>();
+  mShader = std::make_unique<Shader>(AssetInfo(0));
   mShader->load(vsSrc, psSrc);
 
   glGenBuffers(1, &mVB);

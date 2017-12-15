@@ -1,5 +1,5 @@
 #pragma once
-#include "asset/AssetLoader.h"
+#include "loader/AssetLoader.h"
 
 class Model;
 

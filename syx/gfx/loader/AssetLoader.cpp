@@ -1,26 +1,7 @@
 #include "Precompile.h"
-#include "asset/AssetLoader.h"
-#include "asset/AssetRepo.h"
+#include "loader/AssetLoader.h"
+#include "system/AssetRepo.h"
 #include "asset/Asset.h"
-
-namespace {
-  template<typename Buffer>
-  AssetLoadResult _readEntireFile(const std::string& filename, Buffer& buffer) {
-    std::FILE* file = std::fopen(filename.c_str(), "rb");
-    if (!file)
-      return AssetLoadResult::NotFound;
-
-    std::fseek(file, 0, SEEK_END);
-    long bytes = std::ftell(file);
-    std::rewind(file);
-    buffer.clear();
-    buffer.resize(static_cast<size_t>(bytes));
-
-    bool readSuccess = bytes == std::fread(&buffer[0], 1, bytes, file);
-    std::fclose(file);
-    return readSuccess ? AssetLoadResult::Success : AssetLoadResult::IOError;
-  }
-}
 
 AssetLoader::AssetLoader(const std::string& category)
   : mCategory(category) {

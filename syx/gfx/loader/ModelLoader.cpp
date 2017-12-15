@@ -1,9 +1,10 @@
 #include "Precompile.h"
 #include "ModelLoader.h"
-#include "Model.h"
+
+#include "asset/Model.h"
 #include "App.h"
 #include "system/GraphicsSystem.h"
-#include "asset/AssetRepo.h"
+#include "system/AssetRepo.h"
 
 RegisterAssetLoader("obj", ModelOBJLoader, Model);
 

@@ -1,6 +1,7 @@
 #include "Precompile.h"
 #include "system/PhysicsSystem.h"
-#include "Model.h"
+
+#include "asset/Model.h"
 #include "system/GraphicsSystem.h"
 #include "App.h"
 #include "system/MessagingSystem.h"
