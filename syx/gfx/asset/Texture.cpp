@@ -13,30 +13,24 @@ Texture::Binder::~Binder() {
   glBindTexture(GL_TEXTURE_2D, 0);
 }
 
-Texture::Texture()
-  : mTexture(0) {
-}
-
-Texture::Texture(const std::string& filename)
-  : mFilename(filename)
+Texture::Texture(AssetInfo&& info)
+  : BufferAsset(std::move(info))
   , mTexture(0) {
 }
 
-void Texture::loadGpu(TextureLoader& loader) {
+void Texture::loadGpu() {
   if(mTexture) {
     printf("Tried to upload texture that already was");
     return;
   }
 
-  const TextureLoader::Texture& tex = loader.loadBmp(mFilename);
-  if(tex.mBuffer) {
-    glGenTextures(1, &mTexture);
-    glBindTexture(GL_TEXTURE_2D, mTexture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, tex.mWidth, tex.mHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, tex.mBuffer->data());
-    //Define sampling mode, no mip maps snap to nearest
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-  }
+  glGenTextures(1, &mTexture);
+  glBindTexture(GL_TEXTURE_2D, mTexture);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, mWidth, mHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, get().data());
+  //Define sampling mode, no mip maps snap to nearest
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  mState = AssetState::PostProcessed;
 }
 
 void Texture::unloadGpu() {

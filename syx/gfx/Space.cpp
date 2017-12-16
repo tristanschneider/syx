@@ -26,8 +26,9 @@ void Space::init() {
   std::unique_ptr<Physics> phy;
   RenderableData d;
   AssetRepo* repo = getApp().getSystem<AssetRepo>();
+  size_t mazeTexId = repo->getAsset(AssetInfo("textures/test.bmp"))->getInfo().mId;
   d.mModel = repo->getAsset(AssetInfo("models/bowserlow.obj"))->getInfo().mId;
-  d.mDiffTex = getApp().mAssets["maze"];
+  d.mDiffTex = mazeTexId;
   gfx->set(d);
   obj->addComponent(std::move(gfx));
   obj->getComponent<Transform>(ComponentType::Transform)->set(Syx::Mat4::transform(Vec3(0.1f), Quat::Identity, Vec3::Zero));
@@ -36,7 +37,7 @@ void Space::init() {
   obj = createObject();
   gfx = std::make_unique<Renderable>(obj->getHandle(), msg);
   d.mModel = repo->getAsset(AssetInfo("models/car.obj"))->getInfo().mId;
-  d.mDiffTex = getApp().mAssets["maze"];
+  d.mDiffTex = mazeTexId;
   gfx->set(d);
   obj->addComponent(std::move(gfx));
   obj->getComponent<Transform>(ComponentType::Transform)->set(Syx::Mat4::transform(Vec3(0.5f), Quat::Identity, Vec3(8.0f, 0.0f, 0.0f)));
@@ -46,7 +47,7 @@ void Space::init() {
   gfx = std::make_unique<Renderable>(obj->getHandle(), msg);
   size_t cubeModelId = repo->getAsset(AssetInfo("models/cube.obj"))->getInfo().mId;
   d.mModel = cubeModelId;
-  d.mDiffTex = getApp().mAssets["maze"];
+  d.mDiffTex = mazeTexId;
   gfx->set(d);
   obj->addComponent(std::move(gfx));
   phy = std::make_unique<Physics>(obj->getHandle(), msg);
@@ -59,7 +60,7 @@ void Space::init() {
   obj = createObject();
   gfx = std::make_unique<Renderable>(obj->getHandle(), msg);
   d.mModel = cubeModelId;
-  d.mDiffTex = getApp().mAssets["maze"];
+  d.mDiffTex = mazeTexId;
   gfx->set(d);
   obj->addComponent(std::move(gfx));
   phy = std::make_unique<Physics>(obj->getHandle(), msg);

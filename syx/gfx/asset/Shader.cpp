@@ -34,13 +34,13 @@ namespace {
   }
 }
 
-bool Shader::load(const std::string& vsSource, const std::string& psSource) {
+void Shader::load() {
   //Create the shaders
   GLuint vs = glCreateShader(GL_VERTEX_SHADER);
   GLuint ps = glCreateShader(GL_FRAGMENT_SHADER);
 
-  _compileShader(vs, vsSource);
-  _compileShader(ps, psSource);
+  _compileShader(vs, mSourceVS);
+  _compileShader(ps, mSourcePS);
 
   //Link the program
   mId = glCreateProgram();
@@ -54,7 +54,8 @@ bool Shader::load(const std::string& vsSource, const std::string& psSource) {
     std::string error(logLen + 1, 0);
     glGetProgramInfoLog(mId, logLen, NULL, &error[0]);
     printf("%s\n", error.c_str());
-    return false;
+    mState = AssetState::Failed;
+    return;
   }
 
   //Once program is linked we can get rid of the individual shaders
@@ -64,7 +65,6 @@ bool Shader::load(const std::string& vsSource, const std::string& psSource) {
   glDeleteShader(vs);
   glDeleteShader(ps);
   mState = AssetState::PostProcessed;
-  return true;
 }
 
 void Shader::unload() {
@@ -92,4 +92,9 @@ GLuint Shader::getAttrib(const std::string& name) {
 
 GLuint Shader::getId() const {
   return mId;
+}
+
+void Shader::set(std::string&& sourceVS, std::string&& sourcePS) {
+  mSourceVS = std::move(sourceVS);
+  mSourcePS = std::move(sourcePS);
 }

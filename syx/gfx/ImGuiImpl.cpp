@@ -7,7 +7,7 @@
 bool ImGuiImpl::sEnabled = false;
 
 ImGuiImpl::ImGuiImpl() {
-  const std::string vsSrc =
+  std::string vsSrc =
       "#version 330\n"
       "uniform mat4 ProjMtx;\n"
       "in vec2 Position;\n"
@@ -22,7 +22,7 @@ ImGuiImpl::ImGuiImpl() {
       " gl_Position = ProjMtx * vec4(Position.xy,0,1);\n"
       "}\n";
 
-  const std::string psSrc =
+  std::string psSrc =
       "#version 330\n"
       "uniform sampler2D Texture;\n"
       "in vec2 Frag_UV;\n"
@@ -34,7 +34,8 @@ ImGuiImpl::ImGuiImpl() {
       "}\n";
 
   mShader = std::make_unique<Shader>(AssetInfo(0));
-  mShader->load(vsSrc, psSrc);
+  mShader->set(std::move(vsSrc), std::move(psSrc));
+  mShader->load();
 
   glGenBuffers(1, &mVB);
   glGenBuffers(1, &mIB);

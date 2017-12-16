@@ -1,22 +1,13 @@
 #pragma once
+#include "loader/AssetLoader.h"
 
-class TextureLoader {
+class TextureBMPLoader : public BufferAssetLoader {
 public:
-  struct Texture {
-    Texture(std::vector<unsigned char>* buffer = nullptr, size_t width = 0, size_t height = 0)
-      : mBuffer(buffer)
-      , mWidth(width)
-      , mHeight(height) {
-    }
-
-    size_t mWidth, mHeight;
-    std::vector<unsigned char>* mBuffer;
-  };
-
-  Texture loadBmp(const std::string& path);
+  using BufferAssetLoader::BufferAssetLoader;
+  AssetLoadResult _load(Asset& asset) override;
+  void postProcess(App& app, Asset& asset) override;
 
 private:
-  std::vector<unsigned char> mBuffer;
   //Buffer used temporarily to transform from bgr to rgba
-  std::vector<unsigned char> mTempConvert;
+  std::vector<uint8_t> mTempConvert;
 };

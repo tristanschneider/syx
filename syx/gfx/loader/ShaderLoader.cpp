@@ -17,6 +17,7 @@ AssetLoadResult ShaderLoader::load(const std::string& basePath, Asset& asset) {
   //Turn .vs extension into .ps
   vsPath[vsPath.length() - 2] = 'p';
   AssetLoadResult psResult = _readEntireFile(vsPath, mSourcePS);
+  static_cast<Shader&>(asset).set(std::move(mSourceVS), std::move(mSourcePS));
   if(vsResult != AssetLoadResult::Success)
     return vsResult;
   return psResult;
@@ -24,6 +25,6 @@ AssetLoadResult ShaderLoader::load(const std::string& basePath, Asset& asset) {
 
 void ShaderLoader::postProcess(App& app, Asset& asset) {
   app.getSystem<GraphicsSystem>()->dispatchToRenderThread([&asset, this]() {
-    static_cast<Shader&>(asset).load(mSourceVS, mSourcePS);
+    static_cast<Shader&>(asset).load();
   });
 }

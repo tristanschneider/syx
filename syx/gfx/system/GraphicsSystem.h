@@ -4,10 +4,9 @@
 class Shader;
 class Camera;
 class DebugDrawer;
-class TextureLoader;
 class ImGuiImpl;
 class Model;
-struct Texture;
+class Texture;
 struct TransformListener;
 class Event;
 struct TransformEvent;
@@ -30,8 +29,6 @@ public:
   Camera& getPrimaryCamera();
   DebugDrawer& getDebugDrawer();
 
-  Handle addTexture(const std::string& filePath);
-  void removeTexture(Handle texture);
   void dispatchToRenderThread(std::function<void()> func);
 
   void onResize(int width, int height);
@@ -44,7 +41,7 @@ private:
     Handle mHandle;
     Syx::Mat4 mTransform;
     std::shared_ptr<Asset> mModel;
-    Texture* mDiffTex;
+    std::shared_ptr<Asset> mDiffTex;
   };
 
   void _render(float dt);
@@ -58,12 +55,7 @@ private:
   std::shared_ptr<Asset> mGeometry;
   std::unique_ptr<Camera> mCamera;
   std::unique_ptr<DebugDrawer> mDebugDrawer;
-  std::unique_ptr<TextureLoader> mTextureLoader;
   std::unique_ptr<ImGuiImpl> mImGui;
-  std::unordered_map<Handle, Texture> mHandleToTexture;
-  HandleGen mTextureGen;
-  std::string mVSBuffer;
-  std::string mPSBuffer;
   Syx::Vec2 mScreenSize;
 
   std::unique_ptr<TransformListener> mTransformListener;

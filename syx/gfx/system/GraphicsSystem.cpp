@@ -16,23 +16,10 @@
 #include "event/TransformEvent.h"
 #include "event/BaseComponentEvents.h"
 #include "system/AssetRepo.h"
-#include "loader/TextureLoader.h"
 
 using namespace Syx;
 
 RegisterSystemCPP(GraphicsSystem);
-
-static void readFile(const std::string& path, std::string& buffer) {
-  std::ifstream file(path, std::ifstream::in | std::ifstream::binary);
-  if(file.good()) {
-    file.seekg(0, file.end);
-    size_t size = static_cast<size_t>(file.tellg());
-    file.seekg(0, file.beg);
-    buffer.resize(size + 1);
-    file.read(&buffer[0], size);
-    buffer[size] = 0;
-  }
-}
 
 GraphicsSystem::LocalRenderable::LocalRenderable(Handle h)
   : mHandle(h)
@@ -62,8 +49,6 @@ void GraphicsSystem::init() {
   mCamera->setTransform(ct);
   mDebugDrawer = std::make_unique<DebugDrawer>(*mApp.getSystem<AssetRepo>());
   mImGui = std::make_unique<ImGuiImpl>();
-
-  mTextureLoader = std::make_unique<TextureLoader>();
 
   mTransformListener = std::make_unique<TransformListener>();
   mEventListener = std::make_unique<EventListener>(EventFlag::Component | EventFlag::Graphics);
@@ -106,23 +91,10 @@ void removeResource(Handle handle, std::unordered_map<Handle, Resource>& resMap,
   resMap.erase(it);
 }
 
-void GraphicsSystem::removeTexture(Handle texture) {
-  removeResource(texture, mHandleToTexture, "Tried to remove texture that didn't exist");
-}
-
 void GraphicsSystem::dispatchToRenderThread(std::function<void()> func) {
   mTasksMutex.lock();
   mTasks.push_back(func);
   mTasksMutex.unlock();
-}
-
-Handle GraphicsSystem::addTexture(const std::string& filePath) {
-  Handle handle = mTextureGen.next();
-  Texture& t = mHandleToTexture[handle];
-  t.mFilename = filePath;
-  t.mHandle = handle;
-  t.loadGpu(*mTextureLoader);
-  return t.mHandle;
 }
 
 void GraphicsSystem::_processEvents() {
@@ -163,11 +135,9 @@ void GraphicsSystem::_processTransformEvent(const TransformEvent& e) {
 void GraphicsSystem::_processRenderableEvent(const RenderableUpdateEvent& e) {
   LocalRenderable* obj = mLocalRenderables.get(e.mObj);
   if(obj) {
-    obj->mModel = mApp.getSystem<AssetRepo>()->getAsset(AssetInfo(e.mData.mModel));
-
-    auto tex = mHandleToTexture.find(e.mData.mDiffTex);
-    if(tex != mHandleToTexture.end())
-      obj->mDiffTex = &tex->second;
+    AssetRepo& repo = *mApp.getSystem<AssetRepo>();
+    obj->mModel = repo.getAsset(AssetInfo(e.mData.mModel));
+    obj->mDiffTex = repo.getAsset(AssetInfo(e.mData.mDiffTex));
   }
 }
 
@@ -197,7 +167,7 @@ void GraphicsSystem::_render(float dt) {
     return;
 
   {
-    Texture emptyTexture;
+    Texture emptyTexture(AssetInfo(0));
     Shader& geometry = static_cast<Shader&>(*mGeometry);
     Shader::Binder sb(geometry);
     Vec3 camPos = mCamera->getTransform().getTranslate();
@@ -230,7 +200,7 @@ void GraphicsSystem::_render(float dt) {
       Vec3 camPos = mCamera->getTransform().getTranslate();
 
       {
-        Texture::Binder tb(obj.mDiffTex ? *obj.mDiffTex : emptyTexture, 0);
+        Texture::Binder tb(obj.mDiffTex && obj.mDiffTex->getState() == AssetState::PostProcessed ? static_cast<Texture&>(*obj.mDiffTex) : emptyTexture, 0);
         //Tell the sampler uniform to use the given texture slot
         glUniform1i(geometry.getUniform("uTex"), 0);
         {

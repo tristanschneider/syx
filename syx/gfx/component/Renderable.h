@@ -4,7 +4,7 @@
 
 struct RenderableData {
   size_t mModel;
-  Handle mDiffTex;
+  size_t mDiffTex;
 };
 
 class RenderableUpdateEvent : public Event {

@@ -9,7 +9,7 @@
 
 App::App() {
   mDefaultSpace = std::make_unique<Space>(*this);
-  mWorkerPool = std::make_unique<WorkerPool>(3);
+  mWorkerPool = std::make_unique<WorkerPool>(4);
   System::Registry::getSystems(*this, mSystems);
 }
 
@@ -21,9 +21,6 @@ void App::init() {
     if(system)
       system->init();
   }
-
-  GraphicsSystem& gfx = *getSystem<GraphicsSystem>();
-  mAssets["maze"] = gfx.addTexture("textures/test.bmp");
 
   mDefaultSpace->init();
 }

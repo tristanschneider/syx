@@ -10,13 +10,16 @@ public:
     ~Binder();
   };
 
-  bool load(const std::string& vsSource, const std::string& psSource);
+  void load();
   void unload();
   GLuint getUniform(const std::string& name);
   GLuint getAttrib(const std::string& name);
   GLuint getId() const;
+  void set(std::string&& sourceVS, std::string&& sourcePS);
 
 private:
   GLuint mId;
+  std::string mSourceVS;
+  std::string mSourcePS;
   std::unordered_map<std::string, GLuint> mUniformLocations;
 };

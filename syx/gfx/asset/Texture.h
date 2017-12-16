@@ -1,8 +1,10 @@
 #pragma once
+#include "asset/Asset.h"
 
 class TextureLoader;
 
-struct Texture {
+class Texture : public BufferAsset {
+public:
   struct Binder {
     Binder(const Texture& tex, int slot);
     ~Binder();
@@ -10,14 +12,13 @@ struct Texture {
     int mSlot;
   };
 
-  Texture();
-  Texture(const std::string& filename);
+  Texture(AssetInfo&& info);
 
   //Load texture from file and upload to gpu
-  void loadGpu(TextureLoader& loader);
+  void loadGpu();
   void unloadGpu();
 
-  std::string mFilename;
   GLuint mTexture;
-  Handle mHandle;
+  size_t mWidth;
+  size_t mHeight;
 };
