@@ -70,11 +70,11 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);glew/include;../syx;src-deps</IncludePath>
+    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);glew/include;../syx;src-deps;../lua;</IncludePath>
     <ReferencePath>$(VC_ReferencesPath_x86);</ReferencePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);glew/include;../syx;src-deps</IncludePath>
+    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);glew/include;../syx;src-deps;../lua;</IncludePath>
     <ReferencePath>$(VC_ReferencesPath_x86);</ReferencePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -183,6 +183,9 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClCompile Include="Util.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\lua\lua.vcxproj">
+      <Project>{b6e419ec-567f-4eb1-8833-a395540e9bc4}</Project>
+    </ProjectReference>
     <ProjectReference Include="..\syx\syx.vcxproj">
       <Project>{85005dad-8122-4d96-bd86-9ccc57b913ae}</Project>
     </ProjectReference>
