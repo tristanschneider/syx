@@ -178,6 +178,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClCompile Include="SyxInterface.cpp" />
     <ClCompile Include="threading\FunctionTask.cpp" />
     <ClCompile Include="threading\IWorkerPool.cpp" />
+    <ClCompile Include="threading\RWLock.cpp" />
     <ClCompile Include="threading\Task.cpp" />
     <ClCompile Include="threading\WorkerPool.cpp" />
     <ClCompile Include="Util.cpp" />
@@ -230,6 +231,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClInclude Include="system\System.h" />
     <ClInclude Include="threading\FunctionTask.h" />
     <ClInclude Include="threading\IWorkerPool.h" />
+    <ClInclude Include="threading\RWLock.h" />
     <ClInclude Include="threading\Task.h" />
     <ClInclude Include="threading\WorkerPool.h" />
     <ClInclude Include="Util.h" />

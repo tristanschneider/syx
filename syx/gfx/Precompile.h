@@ -25,3 +25,4 @@
 #include "Handle.h"
 #include "Util.h"
 #include "MappedBuffer.h"
+#include "threading/RWLock.h"
