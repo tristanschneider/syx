@@ -81,18 +81,6 @@
     <ClCompile Include="ImGuiImpl.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="threading\IWorkerPool.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="threading\Task.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="threading\WorkerPool.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="threading\FunctionTask.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="component\Component.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -127,9 +115,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="system\AssetRepo.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="threading\RWLock.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -212,18 +197,6 @@
     <ClInclude Include="ImGuiImpl.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="threading\IWorkerPool.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="threading\Task.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="threading\WorkerPool.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="threading\FunctionTask.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="event\BaseComponentEvents.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -258,9 +231,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="system\AssetRepo.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="threading\RWLock.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

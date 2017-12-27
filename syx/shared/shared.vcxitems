@@ -1,0 +1,30 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup Label="Globals">
+    <MSBuildAllProjects>$(MSBuildAllProjects);$(MSBuildThisFileFullPath)</MSBuildAllProjects>
+    <HasSharedItems>true</HasSharedItems>
+    <ItemsProjectGuid>{d8319db0-b598-45a4-a974-8cab10800b49}</ItemsProjectGuid>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(MSBuildThisFileDirectory)</AdditionalIncludeDirectories>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ProjectCapability Include="SourceItemsFromImports" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="$(MSBuildThisFileDirectory)threading\FunctionTask.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)threading\IWorkerPool.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)threading\RWLock.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)threading\Task.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)threading\WorkerPool.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="$(MSBuildThisFileDirectory)threading\FunctionTask.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)threading\IWorkerPool.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)threading\RWLock.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)threading\Task.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)threading\WorkerPool.h" />
+  </ItemGroup>
+</Project>

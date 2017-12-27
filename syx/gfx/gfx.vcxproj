@@ -55,6 +55,7 @@
   <ImportGroup Label="ExtensionSettings">
   </ImportGroup>
   <ImportGroup Label="Shared">
+    <Import Project="..\shared\shared.vcxitems" Label="Shared" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
@@ -70,12 +71,14 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);glew/include;../syx;src-deps;../lua;</IncludePath>
+    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);glew/include;../syx;src-deps;../lua;../shared;$(VCInstallDir)UnitTest\include;$(IncludePath)</IncludePath>
     <ReferencePath>$(VC_ReferencesPath_x86);</ReferencePath>
+    <LibraryPath>$(VC_LibraryPath_x86);$(WindowsSDK_LibraryPath_x86);$(NETFXKitsDir)Lib\um\x86;$(VCInstallDir)UnitTest\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);glew/include;../syx;src-deps;../lua;</IncludePath>
+    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);glew/include;../syx;src-deps;../lua;../shared;$(VCInstallDir)UnitTest\include;$(IncludePath)</IncludePath>
     <ReferencePath>$(VC_ReferencesPath_x86);</ReferencePath>
+    <LibraryPath>$(VC_LibraryPath_x86);$(WindowsSDK_LibraryPath_x86);$(NETFXKitsDir)Lib\um\x86;$(VCInstallDir)UnitTest\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -176,11 +179,6 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClCompile Include="system\PhysicsSystem.cpp" />
     <ClCompile Include="system\System.cpp" />
     <ClCompile Include="SyxInterface.cpp" />
-    <ClCompile Include="threading\FunctionTask.cpp" />
-    <ClCompile Include="threading\IWorkerPool.cpp" />
-    <ClCompile Include="threading\RWLock.cpp" />
-    <ClCompile Include="threading\Task.cpp" />
-    <ClCompile Include="threading\WorkerPool.cpp" />
     <ClCompile Include="Util.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -229,11 +227,6 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClInclude Include="system\MessagingSystem.h" />
     <ClInclude Include="system\PhysicsSystem.h" />
     <ClInclude Include="system\System.h" />
-    <ClInclude Include="threading\FunctionTask.h" />
-    <ClInclude Include="threading\IWorkerPool.h" />
-    <ClInclude Include="threading\RWLock.h" />
-    <ClInclude Include="threading\Task.h" />
-    <ClInclude Include="threading\WorkerPool.h" />
     <ClInclude Include="Util.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

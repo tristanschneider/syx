@@ -1,0 +1,42 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="threading">
+      <UniqueIdentifier>{0e39ed41-6ee9-4ea6-91be-17911753d447}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="D:\syx\syx\shared\threading\IWorkerPool.cpp">
+      <Filter>threading</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\syx\syx\shared\threading\FunctionTask.cpp">
+      <Filter>threading</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\syx\syx\shared\threading\RWLock.cpp">
+      <Filter>threading</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\syx\syx\shared\threading\Task.cpp">
+      <Filter>threading</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\syx\syx\shared\threading\WorkerPool.cpp">
+      <Filter>threading</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="D:\syx\syx\shared\threading\FunctionTask.h">
+      <Filter>threading</Filter>
+    </ClInclude>
+    <ClInclude Include="D:\syx\syx\shared\threading\IWorkerPool.h">
+      <Filter>threading</Filter>
+    </ClInclude>
+    <ClInclude Include="D:\syx\syx\shared\threading\RWLock.h">
+      <Filter>threading</Filter>
+    </ClInclude>
+    <ClInclude Include="D:\syx\syx\shared\threading\Task.h">
+      <Filter>threading</Filter>
+    </ClInclude>
+    <ClInclude Include="D:\syx\syx\shared\threading\WorkerPool.h">
+      <Filter>threading</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>
