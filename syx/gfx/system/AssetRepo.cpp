@@ -46,18 +46,27 @@ AssetRepo::~AssetRepo() {
 std::shared_ptr<Asset> AssetRepo::getAsset(AssetInfo info) {
   _fillInfo(info);
   //Get or insert in asset map
-  std::shared_ptr<Asset> newAsset;
+  size_t prevId = info.mId;
   {
-    std::unique_lock<std::mutex> lock(mAssetMutex);
-    auto it = mIdToAsset.find(info.mId);
-    while(it != mIdToAsset.end() && it->second->getInfo().mUri == info.mUri)
-      it = mIdToAsset.find(++info.mId);
-
-    if(it != mIdToAsset.end())
-      return it->second;
+    auto readLock = mAssetLock.getReader();
+    if(std::shared_ptr<Asset> existing = _find(info))
+      return existing;
     //If uri wasn't given then there's nothing to create the asset from
     if(info.mUri.empty())
       return nullptr;
+  }
+
+  //Reset id change for when we look up again
+  info.mId = prevId;
+
+  //Asset doesn't exist, grab write lock to create the asset
+  std::shared_ptr<Asset> newAsset;
+  {
+    auto writeLock = mAssetLock.getWriter();
+    //Need to make sure asset didn't get created while acquiring the lock
+    std::shared_ptr<Asset> existing = _find(info);
+    if(existing)
+      return existing;
 
     newAsset = Loaders::getAsset(std::move(info));
     if(!newAsset)
@@ -68,13 +77,23 @@ std::shared_ptr<Asset> AssetRepo::getAsset(AssetInfo info) {
 
   //Queue loading of asset
   mPool.queueTask(std::make_shared<FunctionTask>([newAsset, this](){
-    std::unique_ptr<AssetLoader> loader = _getLoader(newAsset->getInfo().mCategory);
-    AssetLoadResult result = loader->load(mBasePath, *newAsset);
-    _assetLoaded(result, *newAsset, *loader);
-    _returnLoader(std::move(loader));
+    if(AssetLoader* loader = _getLoader(newAsset->getInfo().mCategory)) {
+      //Locking here is overkill, but makes it less easier to forget in a particular loader
+      //Unlikely to cause blocks as users can check the status of the asset against Loaded or PostProccessed
+      auto lock = newAsset->getLock().getWriter();
+      AssetLoadResult result = loader->load(mBasePath, *newAsset);
+      _assetLoaded(result, *newAsset, *loader);
+    }
   }));
 
   return newAsset;
+}
+
+std::shared_ptr<Asset> AssetRepo::_find(AssetInfo& info) {
+  auto it = mIdToAsset.find(info.mId);
+  while (it != mIdToAsset.end() && it->second->getInfo().mUri == info.mUri)
+    it = mIdToAsset.find(++info.mId);
+  return it != mIdToAsset.end() ? it->second : nullptr;
 }
 
 void AssetRepo::setBasePath(const std::string& basePath) {
@@ -107,34 +126,16 @@ void AssetRepo::_fillInfo(AssetInfo& info) {
   }
 }
 
-std::unique_ptr<AssetLoader> AssetRepo::_getLoader(const std::string& category) {
-  //Attempt to re-use an existing loader in the pool, and fall back to creating a new one if none are found
-  std::unique_lock<std::mutex> lock(mLoaderMutex);
-  auto loadersIt = mLoaderPool.find(category);
-  if(loadersIt != mLoaderPool.end()) {
-    auto& loaders = loadersIt->second;
-    if(loaders.size()) {
-      std::unique_ptr<AssetLoader> result = std::move(loaders.back());
-      loaders.pop_back();
-      return result;
-    }
-  }
-  return Loaders::getLoader(category);
-}
+AssetLoader* AssetRepo::_getLoader(const std::string& category) {
+  auto& loaders = mLoaderPool.get();
+  auto it = loaders.find(category);
+  //If a loader already exists, use that one
+  if(it != loaders.end())
+    return it->second.get();
 
-void AssetRepo::_returnLoader(std::unique_ptr<AssetLoader> loader) {
-  //Return a loader to the pool unless that category is already full
-  std::unique_lock<std::mutex> lock(mLoaderMutex);
-  const std::string& category = loader->getCategory();
-  auto loadersIt = mLoaderPool.find(category);
-  if(loadersIt != mLoaderPool.end()) {
-    if(loadersIt->second.size() < sMaxLoaders)
-      loadersIt->second.emplace_back(std::move(loader));
-    //else pool is full, let loader destruct
-  }
-  else {
-    std::vector<std::unique_ptr<AssetLoader>> loaderContainer;
-    loaderContainer.emplace_back(std::move(loader));
-    mLoaderPool[category] = std::move(loaderContainer);
-  }
+  //Loader doesn't exist, make a new one, store it in the pool and return it
+  std::unique_ptr<AssetLoader> newLoader = Loaders::getLoader(category);
+  AssetLoader* result = newLoader.get();
+  loaders[category] = std::move(newLoader);
+  return result;
 }

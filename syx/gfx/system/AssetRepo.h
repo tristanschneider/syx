@@ -63,18 +63,16 @@ private:
   void _fillInfo(AssetInfo& info);
   void _assetLoaded(AssetLoadResult result, Asset& asset, AssetLoader& loader);
   //Get or create a loader from the pool
-  std::unique_ptr<AssetLoader> _getLoader(const std::string& category);
-  //Return a loader to the pool
-  void _returnLoader(std::unique_ptr<AssetLoader> loader);
+  AssetLoader* _getLoader(const std::string& category);
+  std::shared_ptr<Asset> _find(AssetInfo& info);
 
   static const size_t sMaxLoaders = 5;
 
   std::string mBasePath;
   IWorkerPool& mPool;
   std::unordered_map<size_t, std::shared_ptr<Asset>> mIdToAsset;
-  std::mutex mAssetMutex;
-  std::unordered_map<std::string, std::vector<std::unique_ptr<AssetLoader>>> mLoaderPool;
-  std::mutex mLoaderMutex;
+  RWLock mAssetLock;
+  ThreadLocal<std::unordered_map<std::string, std::unique_ptr<AssetLoader>>> mLoaderPool;
 };
 
 //Statically registers a loader for use in AssetRepo
