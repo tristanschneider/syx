@@ -6,10 +6,10 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="D:\syx\syx\shared\threading\IWorkerPool.cpp">
+    <ClCompile Include="D:\syx\syx\shared\threading\FunctionTask.cpp">
       <Filter>threading</Filter>
     </ClCompile>
-    <ClCompile Include="D:\syx\syx\shared\threading\FunctionTask.cpp">
+    <ClCompile Include="D:\syx\syx\shared\threading\IWorkerPool.cpp">
       <Filter>threading</Filter>
     </ClCompile>
     <ClCompile Include="D:\syx\syx\shared\threading\RWLock.cpp">
@@ -23,6 +23,9 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="D:\syx\syx\shared\threading\ThreadLocal.h">
+      <Filter>threading</Filter>
+    </ClInclude>
     <ClInclude Include="D:\syx\syx\shared\threading\FunctionTask.h">
       <Filter>threading</Filter>
     </ClInclude>
@@ -30,6 +33,9 @@
       <Filter>threading</Filter>
     </ClInclude>
     <ClInclude Include="D:\syx\syx\shared\threading\RWLock.h">
+      <Filter>threading</Filter>
+    </ClInclude>
+    <ClInclude Include="D:\syx\syx\shared\threading\SpinLock.h">
       <Filter>threading</Filter>
     </ClInclude>
     <ClInclude Include="D:\syx\syx\shared\threading\Task.h">

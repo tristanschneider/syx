@@ -26,3 +26,5 @@
 #include "Util.h"
 #include "MappedBuffer.h"
 #include "threading/RWLock.h"
+#include "threading/SpinLock.h"
+#include "threading/ThreadLocal.h"

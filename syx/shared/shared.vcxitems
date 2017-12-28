@@ -24,7 +24,9 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)threading\FunctionTask.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)threading\IWorkerPool.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)threading\RWLock.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)threading\SpinLock.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)threading\Task.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)threading\ThreadLocal.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)threading\WorkerPool.h" />
   </ItemGroup>
 </Project>
