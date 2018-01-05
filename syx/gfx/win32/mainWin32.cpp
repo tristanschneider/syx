@@ -13,6 +13,7 @@
 #include "asset/Shader.h"
 #include "App.h"
 #include "system/GraphicsSystem.h"
+#include "win32/AppPlatformWin32.h"
 
 using namespace Syx;
 
@@ -128,7 +129,7 @@ int mainLoop() {
   float nsToMS = 1.0f/1000000.0f;
   float msToNS = 1000000.0f;
   int targetFrameTimeNS = 16*static_cast<int>(msToNS);
-  sApp = std::make_unique<App>();
+  sApp = std::make_unique<App>(std::make_unique<AppPlatformWin32>());
 
   sApp->init();
   //Inform graphcis of screen size

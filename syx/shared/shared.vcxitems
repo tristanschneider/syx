@@ -28,5 +28,6 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)threading\Task.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)threading\ThreadLocal.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)threading\WorkerPool.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)util\Observer.h" />
   </ItemGroup>
 </Project>

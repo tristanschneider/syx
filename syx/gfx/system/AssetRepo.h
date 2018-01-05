@@ -57,6 +57,7 @@ public:
 
   //If uri is provided it will be loaded if it doesn't exist. If only id is provided, only an existing asset will be returned
   std::shared_ptr<Asset> getAsset(AssetInfo info);
+  void reloadAsset(std::shared_ptr<Asset> asset);
   void setBasePath(const std::string& basePath);
 
 private:
@@ -65,6 +66,7 @@ private:
   //Get or create a loader from the pool
   AssetLoader* _getLoader(const std::string& category);
   std::shared_ptr<Asset> _find(AssetInfo& info);
+  void _queueLoad(std::shared_ptr<Asset> asset);
 
   static const size_t sMaxLoaders = 5;
 

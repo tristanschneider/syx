@@ -7,10 +7,11 @@ class System;
 class Space;
 enum class SystemId : uint8_t;
 class IWorkerPool;
+class AppPlatform;
 
 class App {
 public:
-  App();
+  App(std::unique_ptr<AppPlatform> appPlatform);
   ~App();
 
   void init();
@@ -18,6 +19,7 @@ public:
   void uninit();
   Space& getDefaultSpace();
   IWorkerPool& getWorkerPool();
+  AppPlatform& getAppPlatform();
 
   template<typename T>
   T* getSystem() {
@@ -32,4 +34,5 @@ private:
   std::vector<std::unique_ptr<System>> mSystems;
   std::unique_ptr<Space> mDefaultSpace;
   std::unique_ptr<IWorkerPool> mWorkerPool;
+  std::unique_ptr<AppPlatform> mAppPlatform;
 };

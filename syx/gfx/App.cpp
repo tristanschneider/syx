@@ -7,9 +7,12 @@
 #include "Space.h"
 #include "ImGuiImpl.h"
 
-App::App() {
-  mDefaultSpace = std::make_unique<Space>(*this);
-  mWorkerPool = std::make_unique<WorkerPool>(4);
+#include "AppPlatform.h"
+
+App::App(std::unique_ptr<AppPlatform> appPlatform)
+  : mDefaultSpace(std::make_unique<Space>(*this))
+  , mWorkerPool(std::make_unique<WorkerPool>(4))
+  , mAppPlatform(std::move(appPlatform)) {
   System::Registry::getSystems(*this, mSystems);
 }
 
@@ -121,4 +124,8 @@ Space& App::getDefaultSpace() {
 
 IWorkerPool& App::getWorkerPool() {
   return *mWorkerPool;
+}
+
+AppPlatform& App::getAppPlatform() {
+  return *mAppPlatform;
 }

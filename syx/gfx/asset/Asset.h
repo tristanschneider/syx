@@ -45,9 +45,13 @@ public:
   const AssetInfo& getInfo() const {
     return mInfo;
   }
+  RWLock& getLock() const {
+    return mLock;
+  }
 
 protected:
   AssetState mState;
+  mutable RWLock mLock;
 
 private:
   AssetInfo mInfo;

@@ -75,17 +75,7 @@ std::shared_ptr<Asset> AssetRepo::getAsset(AssetInfo info) {
     mIdToAsset[info.mId] = newAsset;
   }
 
-  //Queue loading of asset
-  mPool.queueTask(std::make_shared<FunctionTask>([newAsset, this](){
-    if(AssetLoader* loader = _getLoader(newAsset->getInfo().mCategory)) {
-      //Locking here is overkill, but makes it less easier to forget in a particular loader
-      //Unlikely to cause blocks as users can check the status of the asset against Loaded or PostProccessed
-      auto lock = newAsset->getLock().getWriter();
-      AssetLoadResult result = loader->load(mBasePath, *newAsset);
-      _assetLoaded(result, *newAsset, *loader);
-    }
-  }));
-
+  _queueLoad(newAsset);
   return newAsset;
 }
 
@@ -94,6 +84,23 @@ std::shared_ptr<Asset> AssetRepo::_find(AssetInfo& info) {
   while (it != mIdToAsset.end() && it->second->getInfo().mUri == info.mUri)
     it = mIdToAsset.find(++info.mId);
   return it != mIdToAsset.end() ? it->second : nullptr;
+}
+
+void AssetRepo::_queueLoad(std::shared_ptr<Asset> asset) {
+  mPool.queueTask(std::make_shared<FunctionTask>([asset, this]() {
+    if(AssetLoader* loader = _getLoader(asset->getInfo().mCategory)) {
+      //Locking here is overkill, but makes it less easier to forget in a particular loader
+      //Unlikely to cause blocks as users can check the status of the asset against Loaded or PostProccessed
+      auto lock = asset->getLock().getWriter();
+      AssetLoadResult result = loader->load(mBasePath, *asset);
+      _assetLoaded(result, *asset, *loader);
+    }
+  }));
+}
+
+void AssetRepo::reloadAsset(std::shared_ptr<Asset> asset) {
+  asset->mState = AssetState::Empty;
+  _queueLoad(asset);
 }
 
 void AssetRepo::setBasePath(const std::string& basePath) {
