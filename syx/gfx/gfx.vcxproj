@@ -146,6 +146,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="App.cpp" />
+    <ClCompile Include="AppPlatform.cpp" />
     <ClCompile Include="asset\Model.cpp" />
     <ClCompile Include="asset\Shader.cpp" />
     <ClCompile Include="asset\Texture.cpp" />

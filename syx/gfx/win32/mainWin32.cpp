@@ -32,6 +32,15 @@ void setWindowSize(int width, int height) {
   }
 }
 
+void onFocusChanged(WPARAM w) {
+  if(sApp) {
+    if(LOWORD(w) == TRUE)
+      sApp->getAppPlatform().onFocusGained();
+    else
+      sApp->getAppPlatform().onFocusLost();
+  }
+}
+
 LRESULT CALLBACK mainProc(HWND wnd, UINT msg, WPARAM w, LPARAM l) {
   switch(msg) {
     case WM_DESTROY:
@@ -47,6 +56,10 @@ LRESULT CALLBACK mainProc(HWND wnd, UINT msg, WPARAM w, LPARAM l) {
       setWindowSize(rect.right - rect.left, rect.bottom - rect.top);
       break;
     }
+
+    case WM_ACTIVATEAPP:
+      onFocusChanged(w);
+      break;
   }
   return DefWindowProc(wnd, msg, w, l);
 }

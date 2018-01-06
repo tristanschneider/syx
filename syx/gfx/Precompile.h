@@ -28,3 +28,4 @@
 #include "threading/RWLock.h"
 #include "threading/SpinLock.h"
 #include "threading/ThreadLocal.h"
+#include "util/Observer.h"
