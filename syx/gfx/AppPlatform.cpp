@@ -9,16 +9,10 @@ void AppPlatform::addDirectoryObserver(DirectoryWatcher::ObserverType& o) {
   o.observe(&mDirectorySubject);
 }
 
-#define CallOnObservers(subject, method, ...) for(auto o : subject.get()) o->get()->method(__VA_ARGS__);
-
 void AppPlatform::onFocusGained() {
-  CallOnObservers(mFocusSubject, onFocusGained);
+  CallOnObserversPtr(mFocusSubject, onFocusGained);
 }
 
 void AppPlatform::onFocusLost() {
-  CallOnObservers(mFocusSubject, onFocusLost);
-}
-
-void AppPlatform::onFileChanged(const std::string& filename) {
-  CallOnObservers(mDirectorySubject, onFileChanged, filename);
+  CallOnObserversPtr(mFocusSubject, onFocusLost);
 }

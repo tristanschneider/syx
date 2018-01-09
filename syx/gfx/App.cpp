@@ -65,6 +65,30 @@ void luaTest() {
   lua_close(lua);
 }
 
+class AppFocusListener : public FocusEvents {
+  void onFocusGained() override {
+    printf("focus gained\n");
+  }
+  void onFocusLost() override {
+    printf("focus lost\n");
+  }
+};
+
+class AppDirectoryWatcher : public DirectoryWatcher {
+  void onFileChanged(const std::string& filename) override {
+    printf("File changed: %s\n", filename.c_str());
+  }
+  void onFileAdded(const std::string& filename) {
+    printf("File added: %s\n", filename.c_str());
+  }
+  void onFileRemoved(const std::string& filename) {
+    printf("File removed: %s\n", filename.c_str());
+  }
+  void onFileRenamed(const std::string& oldName, const std::string& newName) {
+    printf("File renamed from: %s to %s\n", oldName.c_str(), newName.c_str());
+  }
+};
+
 void App::init() {
   luaTest();
 
@@ -74,6 +98,13 @@ void App::init() {
   }
 
   mDefaultSpace->init();
+
+  static FocusEvents::ObserverType o(std::make_unique<AppFocusListener>());
+  if(!o.hasSubject())
+    getAppPlatform().addFocusObserver(o);
+  static DirectoryWatcher::ObserverType d(std::make_unique<AppDirectoryWatcher>());
+  if(!d.hasSubject())
+    getAppPlatform().addDirectoryObserver(d);
 }
 
 #include "imgui/imgui.h"

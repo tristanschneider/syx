@@ -6,6 +6,9 @@ public:
   using ObserverType = Observer<std::unique_ptr<DirectoryWatcher>>;
   using SubjectType = ObserverType::SubjectType;
   virtual void onFileChanged(const std::string& filename) = 0;
+  virtual void onFileAdded(const std::string& filename) = 0;
+  virtual void onFileRemoved(const std::string& filename) = 0;
+  virtual void onFileRenamed(const std::string& oldName, const std::string& newName) = 0;
 };
 
 class FocusEvents {
@@ -23,7 +26,8 @@ public:
   //Notify observers of events
   void onFocusGained();
   void onFocusLost();
-  void onFileChanged(const std::string& filename);
+
+  virtual std::string getExePath() = 0;
 
 protected:
   FocusEvents::SubjectType mFocusSubject;

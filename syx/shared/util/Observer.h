@@ -4,6 +4,10 @@ class Observer;
 
 #pragma warning (disable: 4521)
 
+//Call method on all observers of subject
+#define CallOnObserversPtr(subject, method, ...) { for(auto o : subject.get()) o->get()->method(__VA_ARGS__); }
+#define CallOnObservers(subject, method, ...) { for(auto o : subject.get()) o->get().method(__VA_ARGS__); }
+
 template<typename Obs, typename Inner>
 class Subject {
   friend class Observer<Inner>;

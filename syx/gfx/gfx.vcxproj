@@ -181,6 +181,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClCompile Include="SyxInterface.cpp" />
     <ClCompile Include="Util.cpp" />
     <ClCompile Include="win32\AppPlatformWin32.cpp" />
+    <ClCompile Include="win32\DirectoryWatcher32.cpp" />
     <ClCompile Include="win32\mainWin32.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -232,6 +233,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClInclude Include="system\System.h" />
     <ClInclude Include="Util.h" />
     <ClInclude Include="win32\AppPlatformWin32.h" />
+    <ClInclude Include="win32\DirectoryWatcher32.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
