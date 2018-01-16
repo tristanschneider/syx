@@ -164,6 +164,8 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClCompile Include="loader\ModelLoader.cpp" />
     <ClCompile Include="loader\ShaderLoader.cpp" />
     <ClCompile Include="loader\TextureLoader.cpp" />
+    <ClCompile Include="lua\LuaNode.cpp" />
+    <ClCompile Include="lua\LuaState.cpp" />
     <ClCompile Include="Precompile.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
@@ -216,6 +218,8 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClInclude Include="loader\ModelLoader.h" />
     <ClInclude Include="loader\ShaderLoader.h" />
     <ClInclude Include="loader\TextureLoader.h" />
+    <ClInclude Include="lua\LuaNode.h" />
+    <ClInclude Include="lua\LuaState.h" />
     <ClInclude Include="MappedBuffer.h" />
     <ClInclude Include="Precompile.h" />
     <ClInclude Include="Space.h" />
