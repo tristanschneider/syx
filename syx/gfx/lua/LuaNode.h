@@ -5,21 +5,31 @@
 
 namespace Lua {
   class State;
+  class Node;
 
   #define MAKE_NODE(NodeType, ParamType)\
-    inline std::unique_ptr<NodeType> makeRootNode(const std::string& name, ParamType& p) {\
-      return std::make_unique<NodeType>(nullptr, name, p);\
+    inline std::unique_ptr<NodeType> makeRootNode(NodeOps&& ops, ParamType& p) {\
+      return std::make_unique<NodeType>(std::move(ops), p);\
     }\
-    inline NodeType& makeNode(Node& parent, const std::string& name, ParamType& p) {\
-      auto newNode = std::make_unique<NodeType>(&parent, name, p);\
+    inline NodeType& makeNode(NodeOps&& ops, ParamType& p) {\
+      Node* parent = ops.mParent;\
+      auto newNode = std::make_unique<NodeType>(std::move(ops), p);\
       auto& result = *newNode;\
-      parent.addChild(std::move(newNode));\
+      parent->addChild(std::move(newNode));\
       return result;\
     }
 
+  struct NodeOps {
+    NodeOps(Node& parent, std::string&& name);
+    NodeOps(std::string&& name);
+
+    Node* mParent;
+    std::string mName;
+  };
+
   class Node {
   public:
-    Node(Node* parent, const std::string& name);
+    Node(NodeOps&& ops);
     virtual ~Node();
     Node(const Node&) = delete;
     Node(Node&&) = delete;
@@ -41,30 +51,40 @@ namespace Lua {
     void getField(State& s) const;
     void setField(State& s) const;
 
-    Node* mParent;
+    NodeOps mOps;
     std::vector<std::unique_ptr<Node>> mChildren;
-    std::string mName;
   };
 
-  inline std::unique_ptr<Node> makeRootNode(const std::string& name) {
-    return std::make_unique<Node>(nullptr, name);
+  inline std::unique_ptr<Node> makeRootNode(NodeOps&& ops) {
+    return std::make_unique<Node>(std::move(ops));
   }
 
-  inline Node& makeNode(Node& parent, const std::string& name) {
-    auto newNode = std::make_unique<Node>(&parent, name);
+  inline Node& makeNode(NodeOps&& ops) {
+    auto newNode = std::make_unique<Node>(std::move(ops));
     auto& result = *newNode;
-    parent.addChild(std::move(newNode));
+    ops.mParent->addChild(std::move(newNode));
     return result;
   }
 
   class IntNode : public Node {
   public:
-    IntNode(Node* parent, const std::string& name, int& i);
+    IntNode(NodeOps&& ops, int& i);
     void _read(State& s) override;
     void _write(State& s) const override;
 
   protected:
-    int& mI;
+    int* mI;
   };
   MAKE_NODE(IntNode, int);
+
+  class StringNode : public Node {
+  public:
+    StringNode(NodeOps&& ops, std::string& str);
+    void _read(State& s) override;
+    void _write(State& s) const override;
+
+  protected:
+    std::string* mStr;
+  };
+  MAKE_NODE(StringNode, std::string);
 }

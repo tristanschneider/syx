@@ -5,39 +5,48 @@
 #include <lua.hpp>
 
 namespace Lua {
-  Node::Node(Node* parent, const std::string& name)
-    : mParent(parent)
-    , mName(name) {
+  NodeOps::NodeOps(Node& parent, std::string&& name)
+    : mParent(&parent)
+    , mName(std::move(name)) {
+  }
+
+  NodeOps::NodeOps(std::string&& name)
+    : mParent(nullptr)
+    , mName(std::move(name)) {
+  }
+
+  Node::Node(NodeOps&& ops)
+    : mOps(std::move(ops)) {
   }
 
   Node::~Node() {
   }
 
   void Node::addChild(std::unique_ptr<Node> child) {
-    child->mParent = this;
+    child->mOps.mParent = this;
     mChildren.emplace_back(std::move(child));
   }
 
   void Node::getField(State& s, const std::string& field) const {
-    if(!mParent)
+    if(!mOps.mParent)
       lua_getglobal(s, field.c_str());
     else
       lua_getfield(s, -1, field.c_str());
   }
 
   void Node::setField(State& s, const std::string& field) const {
-    if(!mParent)
+    if(!mOps.mParent)
       lua_setglobal(s, field.c_str());
     else
       lua_setfield(s, -2, field.c_str());
   }
 
   void Node::getField(State& s) const {
-    getField(s, mName);
+    getField(s, mOps.mName);
   }
 
   void Node::setField(State& s) const {
-    setField(s, mName);
+    setField(s, mOps.mName);
   }
 
   void Node::read(State& s) {
@@ -63,17 +72,31 @@ namespace Lua {
     }
   }
 
-  IntNode::IntNode(Node* parent, const std::string& name, int& i)
-    : Node(parent, name)
-    , mI(i) {
+  IntNode::IntNode(NodeOps&& ops, int& i)
+    : Node(std::move(ops))
+    , mI(&i) {
   }
 
   void IntNode::_read(State& s) {
-    mI = static_cast<int>(lua_tointeger(s, -1));
+    *mI = static_cast<int>(lua_tointeger(s, -1));
   }
 
   void IntNode::_write(State& s) const {
-    lua_pushinteger(s, mI);
+    lua_pushinteger(s, *mI);
+    setField(s);
+  }
+
+  StringNode::StringNode(NodeOps&& ops, std::string& str)
+    : Node(std::move(ops))
+    , mStr(&str) {
+  }
+
+  void StringNode::_read(State& s) {
+    *mStr = lua_tostring(s, -1);
+  }
+
+  void StringNode::_write(State& s) const {
+    lua_pushlstring(s, mStr->c_str(), mStr->size());
     setField(s);
   }
 }
