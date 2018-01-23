@@ -50,5 +50,8 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)util\Observer.h">
       <Filter>util</Filter>
     </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)util\TypeId.h">
+      <Filter>util</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
