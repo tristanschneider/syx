@@ -80,4 +80,4 @@ private:
 //Statically registers a loader for use in AssetRepo
 //example usage RegisterAssetLoader("txt", TextAssetLoader, TextAsset)
 #define RegisterAssetLoader(category, loaderType, assetType)\
-namespace { static AssetRepo::StaticRegisterLoader<assetType, loaderType> registeredLoader##loaderType(category); }
+namespace { AssetRepo::StaticRegisterLoader<assetType, loaderType> registeredLoader##loaderType(category); }
