@@ -1,26 +1,11 @@
 #pragma once
+#include "event/Event.h"
 
-struct TransformEvent {
-  TransformEvent() {}
-  TransformEvent::TransformEvent(Handle handle, Syx::Mat4 transform)
-    : mHandle(handle)
-    , mTransform(transform) {
-  }
+class TransformEvent : public Event {
+public:
+  TransformEvent::TransformEvent(Handle handle, Syx::Mat4 transform, size_t fromSystem = static_cast<size_t>(-1));
 
   Handle mHandle;
   Syx::Mat4 mTransform;
-};
-
-struct TransformListener {
-  void updateLocal() {
-    mLocalEvents.clear();
-    mMutex.lock();
-    mLocalEvents.swap(mEvents);
-    mMutex.unlock();
-  }
-
-  std::vector<TransformEvent> mEvents;
-  //Local buffer used to spend as little time as possible locking event queues
-  std::vector<TransformEvent> mLocalEvents;
-  std::mutex mMutex;
+  size_t mFromSystem;
 };

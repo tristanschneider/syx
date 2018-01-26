@@ -19,5 +19,5 @@ const Syx::Mat4& Transform::get() {
 }
 
 void Transform::_fireEvent() {
-  mMessaging->fireTransformEvent(TransformEvent(mOwner, mMat));
+  mMessaging->fireEvent(TransformEvent(mOwner, mMat));
 }

@@ -7,14 +7,15 @@ class DebugDrawer;
 class ImGuiImpl;
 class Model;
 class Texture;
-struct TransformListener;
 class Event;
-struct TransformEvent;
+class TransformEvent;
 class ComponentEvent;
 class RenderableUpdateEvent;
-struct EventListener;
+class EventListener;
 class App;
 class Asset;
+class AddComponentEvent;
+class RemoveComponentEvent;
 
 class GraphicsSystem : public System {
 public:
@@ -46,8 +47,8 @@ private:
 
   void _render(float dt);
   void _processEvents();
-  void _processAddEvent(const ComponentEvent& e);
-  void _processRemoveEvent(const ComponentEvent& e);
+  void _processAddEvent(const AddComponentEvent& e);
+  void _processRemoveEvent(const RemoveComponentEvent& e);
   void _processTransformEvent(const TransformEvent& e);
   void _processRenderableEvent(const RenderableUpdateEvent& e);
   void _processRenderThreadTasks();
@@ -57,9 +58,6 @@ private:
   std::unique_ptr<DebugDrawer> mDebugDrawer;
   std::unique_ptr<ImGuiImpl> mImGui;
   Syx::Vec2 mScreenSize;
-
-  std::unique_ptr<TransformListener> mTransformListener;
-  std::unique_ptr<EventListener> mEventListener;
 
   //Tasks queued for execution on render thread
   std::vector<std::function<void()>> mTasks;

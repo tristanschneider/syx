@@ -2,18 +2,9 @@
 #include "Renderable.h"
 #include "system/MessagingSystem.h"
 
-RenderableUpdateEvent::RenderableUpdateEvent(const RenderableData& data, Handle obj)
-  : Event(EventFlag::Graphics)
+DEFINE_EVENT(RenderableUpdateEvent, const RenderableData& data, Handle obj)
   , mObj(obj)
   , mData(data) {
-}
-
-Handle RenderableUpdateEvent::getHandle() const {
-  return static_cast<Handle>(EventType::RenderableUpdate);
-}
-
-std::unique_ptr<Event> RenderableUpdateEvent::clone() const {
-  return std::make_unique<RenderableUpdateEvent>(mData, mObj);
 }
 
 Renderable::Renderable(Handle owner, MessagingSystem& messaging)
@@ -31,5 +22,5 @@ void Renderable::set(const RenderableData& data) {
 }
 
 void Renderable::_fireUpdate() {
-  mMessaging->fireEvent(std::make_unique<RenderableUpdateEvent>(mData, mOwner));
+  mMessaging->fireEvent(RenderableUpdateEvent(mData, mOwner));
 }

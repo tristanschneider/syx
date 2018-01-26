@@ -2,6 +2,11 @@
 #include "component/Physics.h"
 #include "system/MessagingSystem.h"
 
+DEFINE_EVENT(PhysicsCompUpdateEvent, const PhysicsData& data, Handle owner)
+  , mData(data)
+  , mOwner(owner) {
+}
+
 PhysicsData::PhysicsData()
   : mHasRigidbody(false)
   , mHasCollider(false)
@@ -10,16 +15,6 @@ PhysicsData::PhysicsData()
   , mPhysToModel(Syx::Mat4::identity())
   , mLinVel(Syx::Vec3::Zero)
   , mAngVel(Syx::Vec3::Zero) {
-}
-
-PhysicsCompUpdateEvent::PhysicsCompUpdateEvent(const PhysicsData& data, Handle owner)
-  : Event(EventFlag::Physics)
-  , mData(data)
-  , mOwner(owner) {
-}
-
-std::unique_ptr<Event> PhysicsCompUpdateEvent::clone() const {
-  return std::make_unique<PhysicsCompUpdateEvent>(mData, mOwner);
 }
 
 Physics::Physics(Handle owner, MessagingSystem& messaging)
@@ -62,6 +57,5 @@ void Physics::setAngVel(const Syx::Vec3& angVel) {
 }
 
 void Physics::fireUpdateEvent() {
-  mMessaging->fireEvent(std::make_unique<PhysicsCompUpdateEvent>(mData, mOwner));
+  mMessaging->fireEvent(PhysicsCompUpdateEvent(mData, mOwner));
 }
-

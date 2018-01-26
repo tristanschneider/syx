@@ -1,24 +1,16 @@
 #pragma once
 #include "event/Event.h"
 
-class ComponentEvent : public Event {
+class AddComponentEvent : public Event {
 public:
-  ComponentEvent(EventType type, Handle obj, Handle compType)
-    : Event(EventFlag::Component)
-    , mEventType(type)
-    , mObj(obj)
-    , mCompType(compType) {
-  }
-
-  virtual Handle getHandle() const override {
-    return static_cast<Handle>(mEventType);
-  }
-
-  virtual std::unique_ptr<Event> clone() const override {
-    return std::make_unique<ComponentEvent>(mEventType, mObj, mCompType);
-  }
-
+  AddComponentEvent(Handle obj, Handle compType);
   Handle mObj;
   Handle mCompType;
-  EventType mEventType;
+};
+
+class RemoveComponentEvent : public Event {
+public:
+  RemoveComponentEvent(Handle obj, Handle compType);
+  Handle mObj;
+  Handle mCompType;
 };

@@ -1,5 +1,6 @@
 #include "Precompile.h"
 #include "system/System.h"
+#include "event/Event.h"
 
 System::Registry::Registry() {
 }
@@ -30,4 +31,8 @@ System::System(App& app)
 }
 
 System::~System() {
+}
+
+EventListener* System::getListener() {
+  return mListener.get();
 }

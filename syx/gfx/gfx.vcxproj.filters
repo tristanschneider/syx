@@ -63,9 +63,6 @@
     <ClCompile Include="component\Physics.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="event\Event.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="src-deps\imgui\imgui_demo.cpp">
       <Filter>src-deps\imgui</Filter>
     </ClCompile>
@@ -135,6 +132,12 @@
     <ClCompile Include="lua\LuaSerializer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="event\BaseComponentEvents.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="event\TransformEvent.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="App.h">
@@ -189,9 +192,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="component\Physics.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="event\Event.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src-deps\imgui\imgui.h">

@@ -44,17 +44,16 @@ void PhysicsSystem::init() {
 
   mDefaultSpace = mSystem->addSpace();
 
-  mEventListener = std::make_unique<EventListener>(EventFlag::Physics);
-  mTransformListener = std::make_unique<TransformListener>();
-  mTransformUpdates = std::make_unique<std::vector<TransformEvent>>();
-  MessagingSystem& msg = *mApp.getSystem<MessagingSystem>();
-  msg.addEventListener(*mEventListener);
-  msg.addTransformListener(*mTransformListener);
+  mTransformUpdates = std::make_unique<EventListener>();
+  mListener = std::make_unique<EventListener>();
+
+  SYSTEM_EVENT_HANDLER(TransformEvent, _transformEvent);
+  SYSTEM_EVENT_HANDLER(PhysicsCompUpdateEvent, _compUpdateEvent);
 }
 
 void PhysicsSystem::update(float dt, IWorkerPool& pool, std::shared_ptr<Task> frameTask) {
   auto game = std::make_shared<FunctionTask>([this]() {
-    _processGameEvents();
+    mListener->handleEvents();
   });
 
   auto update = std::make_shared<FunctionTask>([this, dt]() {
@@ -72,23 +71,6 @@ void PhysicsSystem::update(float dt, IWorkerPool& pool, std::shared_ptr<Task> fr
   pool.queueTask(game);
   pool.queueTask(update);
   pool.queueTask(events);
-}
-
-void PhysicsSystem::_processGameEvents() {
-  mEventListener->updateLocal();
-
-  for(const std::unique_ptr<Event>& e : mEventListener->mLocalEvents) {
-    switch(static_cast<EventType>(e->getHandle())) {
-      case EventType::PhysicsCompUpdate: _compUpdateEvent(static_cast<const PhysicsCompUpdateEvent&>(*e)); break;
-      default: continue;
-    }
-  }
-  mEventListener->mLocalEvents.clear();
-
-  mTransformListener->updateLocal();
-  for(const TransformEvent& t : mTransformListener->mLocalEvents)
-    _transformEvent(t);
-  mTransformListener->mLocalEvents.clear();
 }
 
 void PhysicsSystem::_processSyxEvents() {
@@ -116,14 +98,15 @@ void PhysicsSystem::_processSyxEvents() {
   else
     printf("Failed to get physics update events\n");
 
-  mApp.getSystem<MessagingSystem>()->fireTransformEvents(*mTransformUpdates, mTransformListener.get());
+  mTransformUpdates->appendTo(mApp.getSystem<MessagingSystem>()->getListener());
+  mTransformUpdates->clear();
 }
 
 void PhysicsSystem::_updateObject(Gameobject& obj, const SyxData& data, const Syx::UpdateEvent& e) {
   Transform& t = *obj.getComponent<Transform>(ComponentType::Transform);
   Syx::Vec3 scale = t.get().getScale();
   t.set(Syx::Mat4::transform(data.mSyxToModel.getScale().reciprocal(), e.mRot, e.mPos) * data.mSyxToModel, false);
-  mTransformUpdates->emplace_back(obj.getHandle(), t.get());
+  mTransformUpdates->push(TransformEvent(obj.getHandle(), t.get(), GetSystemID(PhysicsSystem)));
 }
 
 void PhysicsSystem::_compUpdateEvent(const PhysicsCompUpdateEvent& e) {
@@ -147,6 +130,8 @@ void PhysicsSystem::_compUpdateEvent(const PhysicsCompUpdateEvent& e) {
 }
 
 void PhysicsSystem::_transformEvent(const TransformEvent& e) {
+  if(e.mFromSystem == GetSystemID(PhysicsSystem))
+    return;
   auto it = mToSyx.find(e.mHandle);
   if(it != mToSyx.end()) {
     Syx::Vec3 pos, scale;

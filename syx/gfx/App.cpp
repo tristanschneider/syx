@@ -6,6 +6,8 @@
 #include "EditorNavigator.h"
 #include "Space.h"
 #include "ImGuiImpl.h"
+#include "system/MessagingSystem.h"
+#include "event/Event.h"
 
 #include "AppPlatform.h"
 
@@ -114,10 +116,15 @@ void App::update(float dt) {
   auto frameTask = std::make_shared<Task>();
 
   mDefaultSpace->update(dt);
+  EventListener& events = getSystem<MessagingSystem>()->getListener();
   for(auto& system : mSystems) {
-    if(system)
+    if(system) {
+      if(EventListener* systemListener = system->getListener())
+        events.appendTo(*systemListener);
       system->update(dt, *mWorkerPool, frameTask);
+    }
   }
+  events.clear();
   mWorkerPool->queueTask(frameTask);
 
   if(ImGuiImpl::enabled()) {

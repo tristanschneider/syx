@@ -8,10 +8,10 @@ Component::Component(Handle type, Handle owner, MessagingSystem* messaging)
   , mType(type)
   , mMessaging(messaging) {
   if(mMessaging)
-    mMessaging->fireEvent(std::make_unique<ComponentEvent>(EventType::AddComponent, mOwner, getHandle()));
+    mMessaging->fireEvent(AddComponentEvent(mOwner, getHandle()));
 }
 
 Component::~Component() {
   if(mMessaging)
-    mMessaging->fireEvent(std::make_unique<ComponentEvent>(EventType::RemoveComponent, mOwner, getHandle()));
+    mMessaging->fireEvent(RemoveComponentEvent(mOwner, getHandle()));
 }

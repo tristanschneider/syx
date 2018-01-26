@@ -9,9 +9,8 @@ namespace Syx {
 };
 
 class Model;
-struct EventListener;
-struct TransformListener;
-struct TransformEvent;
+class EventListener;
+class TransformEvent;
 class PhysicsCompUpdateEvent;
 class Gameobject;
 class Event;
@@ -40,7 +39,6 @@ private:
     Syx::Mat4 mSyxToModel;
   };
 
-  void _processGameEvents();
   void _processSyxEvents();
   void _updateObject(Gameobject& obj, const SyxData& data, const Syx::UpdateEvent& e);
   void _compUpdateEvent(const PhysicsCompUpdateEvent& e);
@@ -48,9 +46,7 @@ private:
   Syx::Handle _createObject(Handle gameobject, bool hasRigidbody, bool hasCollider);
 
   std::unique_ptr<Syx::PhysicsSystem> mSystem;
-  std::unique_ptr<EventListener> mEventListener;
-  std::unique_ptr<TransformListener> mTransformListener;
-  std::unique_ptr<std::vector<TransformEvent>> mTransformUpdates;
+  std::unique_ptr<EventListener> mTransformUpdates;
 
   std::unordered_map<Handle, SyxData> mToSyx;
   std::unordered_map<Syx::Handle, Handle> mFromSyx;

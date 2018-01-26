@@ -7,6 +7,9 @@
     <Filter Include="util">
       <UniqueIdentifier>{56057ca8-b7e2-489f-8a7e-6b47c14e10a1}</UniqueIdentifier>
     </Filter>
+    <Filter Include="event">
+      <UniqueIdentifier>{58846020-69cc-449c-8a67-77e116e53ad5}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="$(MSBuildThisFileDirectory)threading\FunctionTask.cpp">
@@ -23,6 +26,9 @@
     </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)threading\WorkerPool.cpp">
       <Filter>threading</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)event\Event.cpp">
+      <Filter>event</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -52,6 +58,9 @@
     </ClInclude>
     <ClInclude Include="$(MSBuildThisFileDirectory)util\TypeId.h">
       <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)event\Event.h">
+      <Filter>event</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

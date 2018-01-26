@@ -14,6 +14,7 @@
     <ProjectCapability Include="SourceItemsFromImports" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="$(MSBuildThisFileDirectory)event\Event.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)threading\FunctionTask.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)threading\IWorkerPool.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)threading\RWLock.cpp" />
@@ -21,6 +22,7 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)threading\WorkerPool.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="$(MSBuildThisFileDirectory)event\Event.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)threading\FunctionTask.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)threading\IWorkerPool.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)threading\RWLock.h" />

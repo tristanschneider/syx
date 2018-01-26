@@ -19,11 +19,6 @@ class PhysicsCompUpdateEvent : public Event {
 public:
   PhysicsCompUpdateEvent(const PhysicsData& data, Handle owner);
 
-  Handle getHandle() const override {
-    return static_cast<Handle>(EventType::PhysicsCompUpdate);
-  }
-  std::unique_ptr<Event> clone() const override;
-
   PhysicsData mData;
   Handle mOwner;
 };

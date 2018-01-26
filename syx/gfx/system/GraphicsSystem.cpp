@@ -50,15 +50,15 @@ void GraphicsSystem::init() {
   mDebugDrawer = std::make_unique<DebugDrawer>(*mApp.getSystem<AssetRepo>());
   mImGui = std::make_unique<ImGuiImpl>();
 
-  mTransformListener = std::make_unique<TransformListener>();
-  mEventListener = std::make_unique<EventListener>(EventFlag::Component | EventFlag::Graphics);
-  MessagingSystem* msg = mApp.getSystem<MessagingSystem>();
-  msg->addTransformListener(*mTransformListener);
-  msg->addEventListener(*mEventListener);
+  mListener = std::make_unique<EventListener>();
+  SYSTEM_EVENT_HANDLER(AddComponentEvent, _processAddEvent);
+  SYSTEM_EVENT_HANDLER(RemoveComponentEvent, _processRemoveEvent);
+  SYSTEM_EVENT_HANDLER(RenderableUpdateEvent, _processRenderableEvent);
+  SYSTEM_EVENT_HANDLER(TransformEvent, _processTransformEvent);
 }
 
 void GraphicsSystem::update(float dt, IWorkerPool& pool, std::shared_ptr<Task> frameTask) {
-  _processEvents();
+  mListener->handleEvents();
   //Can't really do anything on background threads at the moment because this one has the context.
   _render(dt);
   if(mImGui) {
@@ -69,7 +69,6 @@ void GraphicsSystem::update(float dt, IWorkerPool& pool, std::shared_ptr<Task> f
 }
 
 void GraphicsSystem::uninit() {
-  mApp.getSystem<MessagingSystem>()->removeTransformListener(*mTransformListener);
 }
 
 Camera& GraphicsSystem::getPrimaryCamera() {
@@ -97,30 +96,12 @@ void GraphicsSystem::dispatchToRenderThread(std::function<void()> func) {
   mTasksMutex.unlock();
 }
 
-void GraphicsSystem::_processEvents() {
-  mTransformListener->updateLocal();
-  mEventListener->updateLocal();
-
-  for(const std::unique_ptr<Event>& e : mEventListener->mLocalEvents) {
-    switch(static_cast<EventType>(e->getHandle())) {
-      case EventType::AddComponent: _processAddEvent(static_cast<const ComponentEvent&>(*e)); break;
-      case EventType::RemoveComponent: _processRemoveEvent(static_cast<const ComponentEvent&>(*e)); break;
-      case EventType::RenderableUpdate: _processRenderableEvent(static_cast<const RenderableUpdateEvent&>(*e)); break;
-    }
-  }
-  mEventListener->mLocalEvents.clear();
-
-  for(const TransformEvent& e : mTransformListener->mLocalEvents)
-    _processTransformEvent(e);
-  mTransformListener->mLocalEvents.clear();
-}
-
-void GraphicsSystem::_processAddEvent(const ComponentEvent& e) {
+void GraphicsSystem::_processAddEvent(const AddComponentEvent& e) {
   if(static_cast<ComponentType>(e.mCompType) == ComponentType::Graphics)
     mLocalRenderables.pushBack(LocalRenderable(e.mObj));
 }
 
-void GraphicsSystem::_processRemoveEvent(const ComponentEvent& e) {
+void GraphicsSystem::_processRemoveEvent(const RemoveComponentEvent& e) {
   if(static_cast<ComponentType>(e.mCompType) == ComponentType::Graphics)
     mLocalRenderables.erase(e.mObj);
 }

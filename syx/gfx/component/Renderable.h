@@ -10,8 +10,6 @@ struct RenderableData {
 class RenderableUpdateEvent : public Event {
 public:
   RenderableUpdateEvent(const RenderableData& data, Handle obj);
-  Handle getHandle() const override;
-  std::unique_ptr<Event> clone() const override;
 
   Handle mObj;
   RenderableData mData;
