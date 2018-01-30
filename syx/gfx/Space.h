@@ -17,7 +17,7 @@ public:
   Gameobject* createObject();
 
   App& getApp();
-  GuardWrapped<HandleMap<Gameobject>> getObjects();
+  Guarded<HandleMap<Gameobject>> getObjects();
 
 private:
   HandleMap<Gameobject> mObjects;

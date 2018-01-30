@@ -89,6 +89,6 @@ App& Space::getApp() {
   return *mApp;
 }
 
-GuardWrapped<HandleMap<Gameobject>> Space::getObjects() {
-  return GuardWrapped<HandleMap<Gameobject>>(mObjects, mObjectsMutex);
+Guarded<HandleMap<Gameobject>> Space::getObjects() {
+  return Guarded<HandleMap<Gameobject>>(mObjects, mObjectsMutex);
 }

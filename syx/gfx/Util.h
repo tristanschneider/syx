@@ -26,21 +26,65 @@ namespace Util {
   }
 }
 
-template <typename T>
-class GuardWrapped {
+template<typename T, typename Lock = std::mutex>
+class Guarded {
 public:
-  GuardWrapped(T& obj, std::mutex& mutex)
-    : mObj(obj)
-    , mLock(mutex) {
+  Guarded(T& obj, Lock& lock)
+    : mObj(&obj)
+    , mLock(&lock) {
+    mLock->lock();
   }
 
+  ~Guarded() {
+    _unlock();
+  }
+
+  Guarded(const Guarded<T, Lock>&) = delete;
+
+  Guarded(Guarded<T, Lock>&& g) {
+    mLock = g.mLock;
+    mObj = g.mObj;
+    g._clear();
+  }
+
+  Guarded<T, Lock>& operator=(Guarded<T, Lock>&& g) {
+    _unlock();
+    mLock = g.mLock;
+    mObj = g.mObj;
+    g._clear();
+  }
+
+  Guarded<T, Lock>& operator=(const Guarded<T, Lock>&) = delete;
+
   T& get() {
-    return mObj;
+    return *mObj;
+  }
+
+  const T& get() const {
+    return *mObj;
+  }
+
+  operator T&() {
+    return *mObj;
+  }
+
+  operator const T&() const {
+    return *mObj;
   }
 
 private:
-  std::unique_lock<std::mutex> mLock;
-  T& mObj;
+  void _clear() {
+    mLock = nullptr;
+    mLock = nullptr;
+  }
+
+  void _unlock() {
+    if(mLock)
+      mLock->unlock();
+  }
+
+  Lock* mLock;
+  T* mObj;
 };
 
 template<typename T>
