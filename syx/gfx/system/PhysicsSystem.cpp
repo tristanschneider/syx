@@ -77,19 +77,11 @@ void PhysicsSystem::_processSyxEvents() {
   mTransformUpdates->clear();
   const Syx::EventListener<Syx::UpdateEvent>* updates = mSystem->getUpdateEvents(mDefaultSpace);
   if(updates) {
-    Space& space = mApp.getDefaultSpace();
-    auto objGuard = space.getObjects();
-    auto& objects = objGuard.get();
     for(const Syx::UpdateEvent& e : updates->mEvents) {
       auto it = mFromSyx.find(e.mHandle);
       if(it != mFromSyx.end()) {
-        auto objIt = objects.find(it->second);
-        if(objIt != objects.end()) {
-          const SyxData& data = mToSyx[it->second];
-          _updateObject(objIt->second, data, e);
-        }
-        else
-          printf("Failed to get game object for physics update %u\n", it->second);
+        const SyxData& data = mToSyx[it->second];
+        _updateObject(it->second, data, e);
       }
       else
         printf("Failed to map physics object %u\n", e.mHandle);
@@ -102,11 +94,9 @@ void PhysicsSystem::_processSyxEvents() {
   mTransformUpdates->clear();
 }
 
-void PhysicsSystem::_updateObject(Gameobject& obj, const SyxData& data, const Syx::UpdateEvent& e) {
-  Transform& t = *obj.getComponent<Transform>(ComponentType::Transform);
-  Syx::Vec3 scale = t.get().getScale();
-  t.set(Syx::Mat4::transform(data.mSyxToModel.getScale().reciprocal(), e.mRot, e.mPos) * data.mSyxToModel, false);
-  mTransformUpdates->push(TransformEvent(obj.getHandle(), t.get(), GetSystemID(PhysicsSystem)));
+void PhysicsSystem::_updateObject(Handle obj, const SyxData& data, const Syx::UpdateEvent& e) {
+  Syx::Mat4 newTransform = Syx::Mat4::transform(data.mSyxToModel.getScale().reciprocal(), e.mRot, e.mPos) * data.mSyxToModel;
+  mTransformUpdates->push(TransformEvent(obj, newTransform, GetSystemID(PhysicsSystem)));
 }
 
 void PhysicsSystem::_compUpdateEvent(const PhysicsCompUpdateEvent& e) {

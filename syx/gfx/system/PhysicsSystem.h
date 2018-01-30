@@ -40,7 +40,7 @@ private:
   };
 
   void _processSyxEvents();
-  void _updateObject(Gameobject& obj, const SyxData& data, const Syx::UpdateEvent& e);
+  void _updateObject(Handle obj, const SyxData& data, const Syx::UpdateEvent& e);
   void _compUpdateEvent(const PhysicsCompUpdateEvent& e);
   void _transformEvent(const TransformEvent& e);
   Syx::Handle _createObject(Handle gameobject, bool hasRigidbody, bool hasCollider);

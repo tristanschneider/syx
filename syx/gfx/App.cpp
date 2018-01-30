@@ -121,10 +121,15 @@ void App::update(float dt) {
     if(system) {
       if(EventListener* systemListener = system->getListener())
         events.appendTo(*systemListener);
-      system->update(dt, *mWorkerPool, frameTask);
     }
   }
   events.clear();
+
+  for(auto& system : mSystems) {
+    if(system)
+        system->update(dt, *mWorkerPool, frameTask);
+  }
+
   mWorkerPool->queueTask(frameTask);
 
   if(ImGuiImpl::enabled()) {
