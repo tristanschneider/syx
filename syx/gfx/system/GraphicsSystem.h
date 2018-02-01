@@ -46,7 +46,6 @@ private:
   };
 
   void _render(float dt);
-  void _processEvents();
   void _processAddEvent(const AddComponentEvent& e);
   void _processRemoveEvent(const RemoveComponentEvent& e);
   void _processTransformEvent(const TransformEvent& e);

@@ -25,7 +25,7 @@ public:
 
 class Physics : public Component {
 public:
-  Physics(Handle owner, MessagingSystem& messaging);
+  Physics(Handle owner, MessageQueueProvider& messaging);
 
   const PhysicsData& getData() const {
     return mData;

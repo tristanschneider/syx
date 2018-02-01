@@ -1,17 +1,17 @@
 #include "Precompile.h"
 #include "component/Component.h"
-#include "system/MessagingSystem.h"
+#include "MessageQueueProvider.h"
 #include "event/BaseComponentEvents.h"
 
-Component::Component(Handle type, Handle owner, MessagingSystem* messaging)
+Component::Component(Handle type, Handle owner, MessageQueueProvider* messaging)
   : mOwner(owner)
   , mType(type)
   , mMessaging(messaging) {
   if(mMessaging)
-    mMessaging->fireEvent(AddComponentEvent(mOwner, getHandle()));
+    mMessaging->getMessageQueue().get().push(AddComponentEvent(mOwner, getHandle()));
 }
 
 Component::~Component() {
   if(mMessaging)
-    mMessaging->fireEvent(RemoveComponentEvent(mOwner, getHandle()));
+    mMessaging->getMessageQueue().get().push(RemoveComponentEvent(mOwner, getHandle()));
 }

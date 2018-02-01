@@ -1,13 +1,13 @@
 #include "Precompile.h"
 #include "Renderable.h"
-#include "system/MessagingSystem.h"
+#include "MessageQueueProvider.h"
 
 DEFINE_EVENT(RenderableUpdateEvent, const RenderableData& data, Handle obj)
   , mObj(obj)
   , mData(data) {
 }
 
-Renderable::Renderable(Handle owner, MessagingSystem& messaging)
+Renderable::Renderable(Handle owner, MessageQueueProvider& messaging)
   : Component(static_cast<Handle>(ComponentType::Graphics), owner, &messaging) {
   mData.mModel = mData.mDiffTex = InvalidHandle;
 }
@@ -22,5 +22,5 @@ void Renderable::set(const RenderableData& data) {
 }
 
 void Renderable::_fireUpdate() {
-  mMessaging->fireEvent(RenderableUpdateEvent(mData, mOwner));
+  mMessaging->getMessageQueue().get().push(RenderableUpdateEvent(mData, mOwner));
 }

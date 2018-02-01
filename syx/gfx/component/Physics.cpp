@@ -1,6 +1,6 @@
 #include "Precompile.h"
 #include "component/Physics.h"
-#include "system/MessagingSystem.h"
+#include "MessageQueueProvider.h"
 
 DEFINE_EVENT(PhysicsCompUpdateEvent, const PhysicsData& data, Handle owner)
   , mData(data)
@@ -17,7 +17,7 @@ PhysicsData::PhysicsData()
   , mAngVel(Syx::Vec3::Zero) {
 }
 
-Physics::Physics(Handle owner, MessagingSystem& messaging)
+Physics::Physics(Handle owner, MessageQueueProvider& messaging)
   : Component(static_cast<Handle>(ComponentType::Physics), owner, &messaging) {
 }
 
@@ -57,5 +57,5 @@ void Physics::setAngVel(const Syx::Vec3& angVel) {
 }
 
 void Physics::fireUpdateEvent() {
-  mMessaging->fireEvent(PhysicsCompUpdateEvent(mData, mOwner));
+  mMessaging->getMessageQueue().get().push(PhysicsCompUpdateEvent(mData, mOwner));
 }

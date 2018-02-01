@@ -11,7 +11,6 @@
 #include "Gameobject.h"
 #include "ImGuiImpl.h"
 #include "component/Renderable.h"
-#include "system/MessagingSystem.h"
 #include "system/KeyboardInput.h"
 #include "event/TransformEvent.h"
 #include "event/BaseComponentEvents.h"

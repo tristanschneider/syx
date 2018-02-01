@@ -1,5 +1,7 @@
 #pragma once
 #include "system/System.h"
+#include "MessageQueueProvider.h"
+#include "SystemProvider.h"
 
 class GraphicsSystem;
 class KeyboardInput;
@@ -9,7 +11,9 @@ enum class SystemId : uint8_t;
 class IWorkerPool;
 class AppPlatform;
 
-class App {
+class App
+  : public MessageQueueProvider
+  , public SystemProvider {
 public:
   App(std::unique_ptr<AppPlatform> appPlatform);
   ~App();
@@ -21,11 +25,8 @@ public:
   IWorkerPool& getWorkerPool();
   AppPlatform& getAppPlatform();
 
-  template<typename T>
-  T* getSystem() {
-    size_t id = GetSystemID(T);
-    return id < mSystems.size() ? static_cast<T*>(mSystems[id].get()) : nullptr;
-  }
+  MessageQueue getMessageQueue() override;
+  System* _getSystem(size_t id) override;
 
   //Temporary until asset manager that wraps asset loading and such
   std::unordered_map<std::string, Handle> mAssets;
@@ -35,4 +36,6 @@ private:
   std::unique_ptr<Space> mDefaultSpace;
   std::unique_ptr<IWorkerPool> mWorkerPool;
   std::unique_ptr<AppPlatform> mAppPlatform;
+  std::unique_ptr<EventListener> mMessageQueue;
+  SpinLock mMessageLock;
 };

@@ -179,7 +179,6 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClCompile Include="system\AssetRepo.cpp" />
     <ClCompile Include="system\GraphicsSystem.cpp" />
     <ClCompile Include="system\KeyboardInput.cpp" />
-    <ClCompile Include="system\MessagingSystem.cpp" />
     <ClCompile Include="system\PhysicsSystem.cpp" />
     <ClCompile Include="system\System.cpp" />
     <ClCompile Include="SyxInterface.cpp" />
@@ -223,6 +222,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClInclude Include="lua\LuaState.h" />
     <ClInclude Include="lua\LuaSerializer.h" />
     <ClInclude Include="MappedBuffer.h" />
+    <ClInclude Include="MessageQueueProvider.h" />
     <ClInclude Include="Precompile.h" />
     <ClInclude Include="Space.h" />
     <ClInclude Include="src-deps\imgui\imconfig.h" />
@@ -231,10 +231,10 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClInclude Include="src-deps\imgui\stb_rect_pack.h" />
     <ClInclude Include="src-deps\imgui\stb_textedit.h" />
     <ClInclude Include="src-deps\imgui\stb_truetype.h" />
+    <ClInclude Include="SystemProvider.h" />
     <ClInclude Include="system\AssetRepo.h" />
     <ClInclude Include="system\GraphicsSystem.h" />
     <ClInclude Include="system\KeyboardInput.h" />
-    <ClInclude Include="system\MessagingSystem.h" />
     <ClInclude Include="system\PhysicsSystem.h" />
     <ClInclude Include="system\System.h" />
     <ClInclude Include="Util.h" />

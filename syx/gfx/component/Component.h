@@ -1,7 +1,7 @@
 #pragma once
 
 class Gameobject;
-class MessagingSystem;
+class MessageQueueProvider;
 
 enum class ComponentType : uint8_t {
   Transform,
@@ -11,7 +11,7 @@ enum class ComponentType : uint8_t {
 
 class Component {
 public:
-  Component(Handle type, Handle owner, MessagingSystem* messaging);
+  Component(Handle type, Handle owner, MessageQueueProvider* messaging);
   ~Component();
 
   //Should always be overriden, but needs to have empty implementation to avoid linker error with getHandle call in constructor
@@ -28,6 +28,6 @@ public:
 
 protected:
   Handle mOwner;
-  MessagingSystem* mMessaging;
+  MessageQueueProvider* mMessaging;
   Handle mType;
 };

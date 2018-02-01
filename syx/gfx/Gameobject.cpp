@@ -2,7 +2,7 @@
 #include "Gameobject.h"
 #include "component/Component.h"
 
-Gameobject::Gameobject(Handle handle, MessagingSystem* messaging)
+Gameobject::Gameobject(Handle handle, MessageQueueProvider* messaging)
   : mHandle(handle)
   , mTransform(handle, messaging) {
 }

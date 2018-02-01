@@ -1,11 +1,9 @@
 #pragma once
 #include "Component.h"
 
-class MessagingSystem;
-
 class Transform : public Component {
 public:
-  Transform(Handle owner, MessagingSystem* messaging);
+  Transform(Handle owner, MessageQueueProvider* messaging);
 
   void set(const Syx::Mat4& m, bool fireEvent = true);
   const Syx::Mat4& get();

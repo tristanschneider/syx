@@ -51,9 +51,6 @@
     <ClCompile Include="component\Renderable.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="system\MessagingSystem.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="system\PhysicsSystem.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -185,9 +182,6 @@
     <ClInclude Include="component\Component.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="system\MessagingSystem.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="system\PhysicsSystem.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -267,6 +261,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="lua\LuaSerializer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="MessageQueueProvider.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="SystemProvider.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

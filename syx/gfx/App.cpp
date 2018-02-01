@@ -6,7 +6,6 @@
 #include "EditorNavigator.h"
 #include "Space.h"
 #include "ImGuiImpl.h"
-#include "system/MessagingSystem.h"
 #include "event/Event.h"
 
 #include "AppPlatform.h"
@@ -14,11 +13,15 @@
 App::App(std::unique_ptr<AppPlatform> appPlatform)
   : mDefaultSpace(std::make_unique<Space>(*this))
   , mWorkerPool(std::make_unique<WorkerPool>(4))
+  , mMessageQueue(std::make_unique<EventListener>())
   , mAppPlatform(std::move(appPlatform)) {
   System::Registry::getSystems(*this, mSystems);
 }
 
 App::~App() {
+  mSystems.clear();
+  mDefaultSpace = nullptr;
+  mMessageQueue = nullptr;
 }
 
 #include <lua.hpp>
@@ -116,14 +119,17 @@ void App::update(float dt) {
   auto frameTask = std::make_shared<Task>();
 
   mDefaultSpace->update(dt);
-  EventListener& events = getSystem<MessagingSystem>()->getListener();
-  for(auto& system : mSystems) {
-    if(system) {
-      if(EventListener* systemListener = system->getListener())
-        events.appendTo(*systemListener);
+  {
+    auto queue = getMessageQueue();
+    EventListener& events = queue;
+    for(auto& system : mSystems) {
+      if(system) {
+        if(EventListener* systemListener = system->getListener())
+          events.appendTo(*systemListener);
+      }
     }
+    events.clear();
   }
-  events.clear();
 
   for(auto& system : mSystems) {
     if(system)
@@ -171,4 +177,12 @@ IWorkerPool& App::getWorkerPool() {
 
 AppPlatform& App::getAppPlatform() {
   return *mAppPlatform;
+}
+
+MessageQueue App::getMessageQueue() {
+  return MessageQueue(*mMessageQueue, mMessageLock);
+}
+
+System* App::_getSystem(size_t id) {
+  return id < mSystems.size() ? mSystems[id].get() : nullptr;
 }

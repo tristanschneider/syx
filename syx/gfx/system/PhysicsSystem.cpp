@@ -4,7 +4,6 @@
 #include "asset/Model.h"
 #include "system/GraphicsSystem.h"
 #include "App.h"
-#include "system/MessagingSystem.h"
 #include "event/Event.h"
 #include "component/Physics.h"
 #include "Space.h"
@@ -90,7 +89,10 @@ void PhysicsSystem::_processSyxEvents() {
   else
     printf("Failed to get physics update events\n");
 
-  mTransformUpdates->appendTo(mApp.getSystem<MessagingSystem>()->getListener());
+  {
+    MessageQueue m = mApp.getMessageQueue();
+    mTransformUpdates->appendTo(m);
+  }
   mTransformUpdates->clear();
 }
 

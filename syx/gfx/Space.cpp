@@ -6,7 +6,6 @@
 #include "App.h"
 #include "system/System.h"
 #include "component/Physics.h"
-#include "system/MessagingSystem.h"
 #include "system/AssetRepo.h"
 #include "asset/Asset.h"
 
@@ -21,7 +20,7 @@ void Space::init() {
   using namespace Syx;
 
   Gameobject* obj = createObject();
-  MessagingSystem& msg = *mApp->getSystem<MessagingSystem>();
+  MessageQueueProvider& msg = *mApp;
   std::unique_ptr<Renderable> gfx = std::make_unique<Renderable>(obj->getHandle(), msg);
   std::unique_ptr<Physics> phy;
   RenderableData d;
@@ -81,7 +80,7 @@ void Space::uninit() {
 
 Gameobject* Space::createObject() {
   Handle h = mObjectGen.next();
-  auto resultPair = mObjects.emplace(std::piecewise_construct, std::forward_as_tuple(h), std::forward_as_tuple(h, mApp->getSystem<MessagingSystem>()));
+  auto resultPair = mObjects.emplace(std::piecewise_construct, std::forward_as_tuple(h), std::forward_as_tuple(h, mApp));
   return &resultPair.first->second;
 }
 

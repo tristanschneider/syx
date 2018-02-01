@@ -1,9 +1,9 @@
 #include "Precompile.h"
 #include "Transform.h"
-#include "system/MessagingSystem.h"
+#include "MessageQueueProvider.h"
 #include "event/TransformEvent.h"
 
-Transform::Transform(Handle owner, MessagingSystem* messaging)
+Transform::Transform(Handle owner, MessageQueueProvider* messaging)
   : Component(static_cast<Handle>(ComponentType::Transform), owner, messaging)
   , mMat(Syx::Mat4::transform(Syx::Quat::Identity, Syx::Vec3::Zero)) {
 }
@@ -19,5 +19,5 @@ const Syx::Mat4& Transform::get() {
 }
 
 void Transform::_fireEvent() {
-  mMessaging->fireEvent(TransformEvent(mOwner, mMat));
+  mMessaging->getMessageQueue().get().push(TransformEvent(mOwner, mMat));
 }
