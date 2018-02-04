@@ -9,7 +9,7 @@ namespace Syx {
 };
 
 class Model;
-class EventListener;
+class EventBuffer;
 class TransformEvent;
 class PhysicsCompUpdateEvent;
 class Gameobject;
@@ -23,7 +23,7 @@ public:
   ~PhysicsSystem();
 
   void init() override;
-  void update(float dt, IWorkerPool& pool, std::shared_ptr<Task> frameTask) override;
+  void queueTasks(float dt, IWorkerPool& pool, std::shared_ptr<Task> frameTask) override;
   void uninit() override;
 
   Handle addModel(const Model& model, bool environment);
@@ -46,7 +46,7 @@ private:
   Syx::Handle _createObject(Handle gameobject, bool hasRigidbody, bool hasCollider);
 
   std::unique_ptr<Syx::PhysicsSystem> mSystem;
-  std::unique_ptr<EventListener> mTransformUpdates;
+  std::unique_ptr<EventBuffer> mTransformUpdates;
 
   std::unordered_map<Handle, SyxData> mToSyx;
   std::unordered_map<Syx::Handle, Handle> mFromSyx;

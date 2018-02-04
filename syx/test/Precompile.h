@@ -23,3 +23,6 @@
 #include <atomic>
 #include <cstdio>
 #include <cassert>
+#include <cstdint>
+
+#include "util/TypeId.h"

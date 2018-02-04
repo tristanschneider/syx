@@ -18,35 +18,6 @@
   eventType::eventType(__VA_ARGS__)\
     : Event(Event::typeId<eventType>(), sizeof(eventType))
 
-class Event;
-
-class EventListener {
-public:
-  using EventHandler = std::function<void(const Event&)>;
-
-  EventListener(size_t baseCapacity = 256);
-  //No reason to copy this, so any copies would likely be accidental
-  EventListener(const EventListener&) = delete;
-  EventListener& operator=(const EventListener&) = delete;
-
-  void push(Event&& e);
-  void push(const Event& e);
-  void registerEventHandler(size_t type, EventHandler h);
-  void registerGlobalHandler(EventHandler h);
-  void appendTo(EventListener& listener) const;
-  void handleEvents();
-  void clear();
-
-private:
-  void _growBuffer(size_t bytes);
-
-  uint8_t* mBuffer;
-  size_t mBufferSize;
-  size_t mBufferCapacity;
-  TypeMap<EventHandler> mEventHandlers;
-  EventHandler mGlobalHandler;
-};
-
 class Event {
 public:
   class Registry {

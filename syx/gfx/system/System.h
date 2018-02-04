@@ -3,9 +3,10 @@
 class App;
 class IWorkerPool;
 class Task;
-class EventListener;
+class EventBuffer;
+class EventHandler;
 
-#define SYSTEM_EVENT_HANDLER(eventType, handler) mListener->registerEventHandler(Event::typeId<eventType>(), [this](const Event& e) {\
+#define SYSTEM_EVENT_HANDLER(eventType, handler) mEventHandler->registerEventHandler(Event::typeId<eventType>(), [this](const Event& e) {\
     handler(static_cast<const eventType&>(e));\
   });
 
@@ -42,14 +43,19 @@ public:
   virtual ~System();
 
   virtual void init() {}
+  //Each frame queueTasks is called on all system, then update on all of them.
+  //Queueing should be done in queueTasks so the work can be done in the background while any main thread work is done in update
+  virtual void queueTasks(float dt, IWorkerPool& pool, std::shared_ptr<Task> frameTask) {}
   virtual void update(float dt, IWorkerPool& pool, std::shared_ptr<Task> frameTask) {}
   virtual void uninit() {}
 
-  EventListener* getListener();
+  //Each frame this is updated to point at the message queue for that frame.
+  void setEventBuffer(const EventBuffer* buffer);
 
 protected:
   App& mApp;
-  std::unique_ptr<EventListener> mListener;
+  const EventBuffer* mEventBuffer;
+  std::unique_ptr<EventHandler> mEventHandler;
 };
 
 //Must be used in class scope of system, then in cpp. Registers it and assigns an id for lookup

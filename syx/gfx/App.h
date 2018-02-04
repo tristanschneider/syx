@@ -36,6 +36,8 @@ private:
   std::unique_ptr<Space> mDefaultSpace;
   std::unique_ptr<IWorkerPool> mWorkerPool;
   std::unique_ptr<AppPlatform> mAppPlatform;
-  std::unique_ptr<EventListener> mMessageQueue;
+  //Message queue is what is pushed to every frame, frozen is what all systems look at each frame to read from
+  std::unique_ptr<EventBuffer> mMessageQueue;
+  std::unique_ptr<EventBuffer> mFrozenMessageQueue;
   SpinLock mMessageLock;
 };

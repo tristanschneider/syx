@@ -4,16 +4,18 @@
 #include "asset/Model.h"
 #include "asset/Shader.h"
 #include "asset/Texture.h"
-#include "Camera.h"
-#include "DebugDrawer.h"
 #include "App.h"
-#include "Space.h"
-#include "Gameobject.h"
-#include "ImGuiImpl.h"
+#include "Camera.h"
 #include "component/Renderable.h"
-#include "system/KeyboardInput.h"
+#include "DebugDrawer.h"
+#include "event/EventBuffer.h"
+#include "event/EventHandler.h"
 #include "event/TransformEvent.h"
 #include "event/BaseComponentEvents.h"
+#include "Gameobject.h"
+#include "ImGuiImpl.h"
+#include "Space.h"
+#include "system/KeyboardInput.h"
 #include "system/AssetRepo.h"
 
 using namespace Syx;
@@ -49,7 +51,7 @@ void GraphicsSystem::init() {
   mDebugDrawer = std::make_unique<DebugDrawer>(*mApp.getSystem<AssetRepo>());
   mImGui = std::make_unique<ImGuiImpl>();
 
-  mListener = std::make_unique<EventListener>();
+  mEventHandler = std::make_unique<EventHandler>();
   SYSTEM_EVENT_HANDLER(AddComponentEvent, _processAddEvent);
   SYSTEM_EVENT_HANDLER(RemoveComponentEvent, _processRemoveEvent);
   SYSTEM_EVENT_HANDLER(RenderableUpdateEvent, _processRenderableEvent);
@@ -57,7 +59,7 @@ void GraphicsSystem::init() {
 }
 
 void GraphicsSystem::update(float dt, IWorkerPool& pool, std::shared_ptr<Task> frameTask) {
-  mListener->handleEvents();
+  mEventHandler->handleEvents(*mEventBuffer);
   //Can't really do anything on background threads at the moment because this one has the context.
   _render(dt);
   if(mImGui) {

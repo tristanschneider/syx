@@ -1,7 +1,9 @@
 #include "Precompile.h"
 #include "component/Component.h"
-#include "MessageQueueProvider.h"
+
 #include "event/BaseComponentEvents.h"
+#include "event/EventBuffer.h"
+#include "MessageQueueProvider.h"
 
 Component::Component(Handle type, Handle owner, MessageQueueProvider* messaging)
   : mOwner(owner)

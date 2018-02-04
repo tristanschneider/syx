@@ -1,0 +1,1 @@
+//Dummy file to fix intellisense thinking it can't open Precompile.h from shared project

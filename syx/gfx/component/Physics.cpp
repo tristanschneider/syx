@@ -1,5 +1,7 @@
 #include "Precompile.h"
 #include "component/Physics.h"
+
+#include "event/EventBuffer.h"
 #include "MessageQueueProvider.h"
 
 DEFINE_EVENT(PhysicsCompUpdateEvent, const PhysicsData& data, Handle owner)

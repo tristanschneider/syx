@@ -30,6 +30,12 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)event\Event.cpp">
       <Filter>event</Filter>
     </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)event\EventHandler.cpp">
+      <Filter>event</Filter>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)event\EventBuffer.cpp">
+      <Filter>event</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="$(MSBuildThisFileDirectory)threading\FunctionTask.h">
@@ -62,5 +68,12 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)event\Event.h">
       <Filter>event</Filter>
     </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)event\EventBuffer.h">
+      <Filter>event</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)event\EventHandler.h">
+      <Filter>event</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)Precompile.h" />
   </ItemGroup>
 </Project>

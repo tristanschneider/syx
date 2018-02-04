@@ -11,7 +11,7 @@ class Event;
 class TransformEvent;
 class ComponentEvent;
 class RenderableUpdateEvent;
-class EventListener;
+class EventBuffer;
 class App;
 class Asset;
 class AddComponentEvent;

@@ -5,6 +5,8 @@
 #include "system/GraphicsSystem.h"
 #include "App.h"
 #include "event/Event.h"
+#include "event/EventBuffer.h"
+#include "event/EventHandler.h"
 #include "component/Physics.h"
 #include "Space.h"
 #include "threading/FunctionTask.h"
@@ -43,16 +45,16 @@ void PhysicsSystem::init() {
 
   mDefaultSpace = mSystem->addSpace();
 
-  mTransformUpdates = std::make_unique<EventListener>();
-  mListener = std::make_unique<EventListener>();
+  mTransformUpdates = std::make_unique<EventBuffer>();
+  mEventHandler = std::make_unique<EventHandler>();
 
   SYSTEM_EVENT_HANDLER(TransformEvent, _transformEvent);
   SYSTEM_EVENT_HANDLER(PhysicsCompUpdateEvent, _compUpdateEvent);
 }
 
-void PhysicsSystem::update(float dt, IWorkerPool& pool, std::shared_ptr<Task> frameTask) {
+void PhysicsSystem::queueTasks(float dt, IWorkerPool& pool, std::shared_ptr<Task> frameTask) {
   auto game = std::make_shared<FunctionTask>([this]() {
-    mListener->handleEvents();
+    mEventHandler->handleEvents(*mEventBuffer);
   });
 
   auto update = std::make_shared<FunctionTask>([this, dt]() {

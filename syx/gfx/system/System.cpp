@@ -1,6 +1,8 @@
 #include "Precompile.h"
 #include "system/System.h"
+
 #include "event/Event.h"
+#include "event/EventHandler.h"
 
 System::Registry::Registry() {
 }
@@ -33,6 +35,6 @@ System::System(App& app)
 System::~System() {
 }
 
-EventListener* System::getListener() {
-  return mListener.get();
+void System::setEventBuffer(const EventBuffer* buffer) {
+  mEventBuffer = buffer;
 }

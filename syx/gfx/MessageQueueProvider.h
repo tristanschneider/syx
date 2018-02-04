@@ -1,8 +1,8 @@
 #pragma once
 
-class EventListener;
+class EventBuffer;
 
-using MessageQueue = Guarded<EventListener, SpinLock>;
+using MessageQueue = Guarded<EventBuffer, SpinLock>;
 
 class MessageQueueProvider {
 public:

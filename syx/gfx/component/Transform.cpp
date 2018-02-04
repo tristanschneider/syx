@@ -1,6 +1,7 @@
 #include "Precompile.h"
 #include "Transform.h"
 #include "MessageQueueProvider.h"
+#include "event/EventBuffer.h"
 #include "event/TransformEvent.h"
 
 Transform::Transform(Handle owner, MessageQueueProvider* messaging)

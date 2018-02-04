@@ -6,14 +6,15 @@
 #include "EditorNavigator.h"
 #include "Space.h"
 #include "ImGuiImpl.h"
-#include "event/Event.h"
+#include "event/EventBuffer.h"
 
 #include "AppPlatform.h"
 
 App::App(std::unique_ptr<AppPlatform> appPlatform)
   : mDefaultSpace(std::make_unique<Space>(*this))
   , mWorkerPool(std::make_unique<WorkerPool>(4))
-  , mMessageQueue(std::make_unique<EventListener>())
+  , mMessageQueue(std::make_unique<EventBuffer>())
+  , mFrozenMessageQueue(std::make_unique<EventBuffer>())
   , mAppPlatform(std::move(appPlatform)) {
   System::Registry::getSystems(*this, mSystems);
 }
@@ -115,25 +116,20 @@ void App::init() {
 #include "imgui/imgui.h"
 
 void App::update(float dt) {
+  //Freeze message state by swapping them into freeze. Systems will look at this, while pushing to non-frozen queue
+  mMessageLock.lock();
+  mMessageQueue.swap(mFrozenMessageQueue);
+  mMessageLock.unlock();
 
   auto frameTask = std::make_shared<Task>();
 
-  mDefaultSpace->update(dt);
-  {
-    auto queue = getMessageQueue();
-    EventListener& events = queue;
-    for(auto& system : mSystems) {
-      if(system) {
-        if(EventListener* systemListener = system->getListener())
-          events.appendTo(*systemListener);
-      }
-    }
-    events.clear();
+  for(auto& system : mSystems) {
+    system->setEventBuffer(mFrozenMessageQueue.get());
+    system->queueTasks(dt, *mWorkerPool, frameTask);
   }
 
   for(auto& system : mSystems) {
-    if(system)
-        system->update(dt, *mWorkerPool, frameTask);
+    system->update(dt, *mWorkerPool, frameTask);
   }
 
   mWorkerPool->queueTask(frameTask);
@@ -157,6 +153,8 @@ void App::update(float dt) {
   std::weak_ptr<Task> weakFrame = frameTask;
   frameTask = nullptr;
   mWorkerPool->sync(weakFrame);
+  //All readers should have either looked at this in update or in a frameTask dependent task, so clear now.
+  mFrozenMessageQueue->clear();
 }
 
 void App::uninit() {

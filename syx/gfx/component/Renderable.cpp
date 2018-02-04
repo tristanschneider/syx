@@ -1,5 +1,7 @@
 #include "Precompile.h"
 #include "Renderable.h"
+
+#include "event/EventBuffer.h"
 #include "MessageQueueProvider.h"
 
 DEFINE_EVENT(RenderableUpdateEvent, const RenderableData& data, Handle obj)

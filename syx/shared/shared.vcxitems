@@ -15,6 +15,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="$(MSBuildThisFileDirectory)event\Event.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)event\EventBuffer.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)event\EventHandler.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)threading\FunctionTask.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)threading\IWorkerPool.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)threading\RWLock.cpp" />
@@ -23,6 +25,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="$(MSBuildThisFileDirectory)event\Event.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)event\EventBuffer.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)event\EventHandler.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)Precompile.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)threading\FunctionTask.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)threading\IWorkerPool.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)threading\RWLock.h" />
