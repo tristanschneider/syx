@@ -7,7 +7,7 @@ public:
   virtual ~ShaderLoader();
 
   AssetLoadResult load(const std::string& basePath, Asset& asset) override;
-  void postProcess(App& app, Asset& asset) override;
+  void postProcess(const SystemArgs& args, Asset& asset) override;
 private:
   std::string mSourceVS;
   std::string mSourcePS;

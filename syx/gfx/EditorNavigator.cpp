@@ -1,16 +1,16 @@
 #include "Precompile.h"
 #include "EditorNavigator.h"
 #include "system/KeyboardInput.h"
-#include "App.h"
 #include "system/GraphicsSystem.h"
+#include "SystemProvider.h"
 #include "Camera.h"
 
 RegisterSystemCPP(EditorNavigator);
 
 void EditorNavigator::update(float dt, IWorkerPool& pool, std::shared_ptr<Task> frameTask) {
   using namespace Syx;
-  const KeyboardInput& in = *mApp.getSystem<KeyboardInput>();
-  GraphicsSystem& graphics = *mApp.getSystem<GraphicsSystem>();
+  const KeyboardInput& in = *mArgs.mSystems->getSystem<KeyboardInput>();
+  GraphicsSystem& graphics = *mArgs.mSystems->getSystem<GraphicsSystem>();
   Vec3 move = Vec3::Zero;
   Camera& cam = graphics.getPrimaryCamera();
   Mat4 camTransform = cam.getTransform();

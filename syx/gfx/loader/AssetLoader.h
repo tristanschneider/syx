@@ -3,6 +3,7 @@
 class App;
 class Asset;
 struct AssetInfo;
+struct SystemArgs;
 
 enum class AssetLoadResult : uint8_t {
   NotFound,
@@ -19,7 +20,7 @@ public:
   const std::string& getCategory();
   virtual AssetLoadResult load(const std::string& basePath, Asset& asset) = 0;
   //Not required. Gives a chance to kick off any post processing tasks after successful loading. User is responsible for setting PostProcessed state
-  virtual void postProcess(App& app, Asset& asset) {}
+  virtual void postProcess(const SystemArgs& args, Asset& asset) {}
 
 protected:
   template<typename Buffer>

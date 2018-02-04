@@ -2,9 +2,9 @@
 #include "ModelLoader.h"
 
 #include "asset/Model.h"
-#include "App.h"
 #include "system/GraphicsSystem.h"
 #include "system/AssetRepo.h"
+#include "SystemProvider.h"
 
 RegisterAssetLoader("obj", ModelOBJLoader, Model);
 
@@ -176,8 +176,8 @@ AssetLoadResult ModelOBJLoader::_load(Asset& asset) {
   return mResultState;
 }
 
-void ModelOBJLoader::postProcess(App& app, Asset& asset) {
-  app.getSystem<GraphicsSystem>()->dispatchToRenderThread([&asset]() {
+void ModelOBJLoader::postProcess(const SystemArgs& args, Asset& asset) {
+  args.mSystems->getSystem<GraphicsSystem>()->dispatchToRenderThread([&asset]() {
     static_cast<Model&>(asset).loadGpu();
   });
 }

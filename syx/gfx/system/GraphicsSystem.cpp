@@ -4,7 +4,6 @@
 #include "asset/Model.h"
 #include "asset/Shader.h"
 #include "asset/Texture.h"
-#include "App.h"
 #include "Camera.h"
 #include "component/Renderable.h"
 #include "DebugDrawer.h"
@@ -17,6 +16,7 @@
 #include "Space.h"
 #include "system/KeyboardInput.h"
 #include "system/AssetRepo.h"
+#include "SystemProvider.h"
 
 using namespace Syx;
 
@@ -36,19 +36,19 @@ Handle GraphicsSystem::LocalRenderable::getHandle() const {
 GraphicsSystem::~GraphicsSystem() {
 }
 
-GraphicsSystem::GraphicsSystem(App& app)
-  : System(app) {
+GraphicsSystem::GraphicsSystem(const SystemArgs& args)
+  : System(args) {
 }
 
 void GraphicsSystem::init() {
   mCamera = std::make_unique<Camera>(CameraOps(1.396f, 1.396f, 0.1f, 100.0f));
-  mGeometry =  mApp.getSystem<AssetRepo>()->getAsset(AssetInfo("shaders/phong.vs"));
+  mGeometry = mArgs.mSystems->getSystem<AssetRepo>()->getAsset(AssetInfo("shaders/phong.vs"));
 
   Mat4 ct = mCamera->getTransform();
   ct.setTranslate(Vec3(0.0f, 0.0f, -3.0f));
   ct.setRot(Quat::lookAt(-Vec3::UnitZ));
   mCamera->setTransform(ct);
-  mDebugDrawer = std::make_unique<DebugDrawer>(*mApp.getSystem<AssetRepo>());
+  mDebugDrawer = std::make_unique<DebugDrawer>(*mArgs.mSystems->getSystem<AssetRepo>());
   mImGui = std::make_unique<ImGuiImpl>();
 
   mEventHandler = std::make_unique<EventHandler>();
@@ -64,7 +64,7 @@ void GraphicsSystem::update(float dt, IWorkerPool& pool, std::shared_ptr<Task> f
   _render(dt);
   if(mImGui) {
     mImGui->render(dt, mScreenSize);
-    mImGui->updateInput(*mApp.getSystem<KeyboardInput>());
+    mImGui->updateInput(*mArgs.mSystems->getSystem<KeyboardInput>());
   }
   _processRenderThreadTasks();
 }
@@ -117,7 +117,7 @@ void GraphicsSystem::_processTransformEvent(const TransformEvent& e) {
 void GraphicsSystem::_processRenderableEvent(const RenderableUpdateEvent& e) {
   LocalRenderable* obj = mLocalRenderables.get(e.mObj);
   if(obj) {
-    AssetRepo& repo = *mApp.getSystem<AssetRepo>();
+    AssetRepo& repo = *mArgs.mSystems->getSystem<AssetRepo>();
     obj->mModel = repo.getAsset(AssetInfo(e.mData.mModel));
     obj->mDiffTex = repo.getAsset(AssetInfo(e.mData.mDiffTex));
   }

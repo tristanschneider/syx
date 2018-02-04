@@ -4,7 +4,7 @@
 #include "asset/Shader.h"
 #include "system/AssetRepo.h"
 #include "system/GraphicsSystem.h"
-#include "App.h"
+#include "SystemProvider.h"
 
 RegisterAssetLoader("vs", ShaderLoader, Shader);
 
@@ -23,8 +23,8 @@ AssetLoadResult ShaderLoader::load(const std::string& basePath, Asset& asset) {
   return psResult;
 }
 
-void ShaderLoader::postProcess(App& app, Asset& asset) {
-  app.getSystem<GraphicsSystem>()->dispatchToRenderThread([&asset, this]() {
+void ShaderLoader::postProcess(const SystemArgs& args, Asset& asset) {
+  args.mSystems->getSystem<GraphicsSystem>()->dispatchToRenderThread([&asset, this]() {
     static_cast<Shader&>(asset).load();
   });
 }

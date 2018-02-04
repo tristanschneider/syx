@@ -2,12 +2,13 @@
 #include "loader/AssetLoader.h"
 
 class Model;
+struct SystemArgs;
 
 class ModelOBJLoader : public TextAssetLoader {
 protected:
   using TextAssetLoader::TextAssetLoader;
   AssetLoadResult _load(Asset& asset) override;
-  void postProcess(App& app, Asset& asset) override;
+  void postProcess(const SystemArgs& args, Asset& asset) override;
 
 private:
   struct V3 {

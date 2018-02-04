@@ -16,7 +16,13 @@ App::App(std::unique_ptr<AppPlatform> appPlatform)
   , mMessageQueue(std::make_unique<EventBuffer>())
   , mFrozenMessageQueue(std::make_unique<EventBuffer>())
   , mAppPlatform(std::move(appPlatform)) {
-  System::Registry::getSystems(*this, mSystems);
+  SystemArgs args = {
+    mWorkerPool.get(),
+    this,
+    this,
+    &mAssets
+  };
+  System::Registry::getSystems(args, mSystems);
 }
 
 App::~App() {
@@ -163,10 +169,6 @@ void App::uninit() {
     if(system)
       system->uninit();
   }
-}
-
-Space& App::getDefaultSpace() {
-  return *mDefaultSpace;
 }
 
 IWorkerPool& App::getWorkerPool() {

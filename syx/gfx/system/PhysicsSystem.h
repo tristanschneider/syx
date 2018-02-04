@@ -19,7 +19,7 @@ class App;
 class PhysicsSystem : public System {
 public:
   RegisterSystemH(PhysicsSystem);
-  PhysicsSystem(App& app);
+  PhysicsSystem(const SystemArgs& args);
   ~PhysicsSystem();
 
   void init() override;

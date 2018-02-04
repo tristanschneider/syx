@@ -20,7 +20,7 @@ class RemoveComponentEvent;
 class GraphicsSystem : public System {
 public:
   RegisterSystemH(GraphicsSystem);
-  GraphicsSystem(App& app);
+  GraphicsSystem(const SystemArgs& args);
   ~GraphicsSystem();
 
   void init() override;

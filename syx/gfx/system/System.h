@@ -5,19 +5,30 @@ class IWorkerPool;
 class Task;
 class EventBuffer;
 class EventHandler;
+class SystemProvider;
+class AppPlatform;
+class MessageQueueProvider;
 
 #define SYSTEM_EVENT_HANDLER(eventType, handler) mEventHandler->registerEventHandler(Event::typeId<eventType>(), [this](const Event& e) {\
     handler(static_cast<const eventType&>(e));\
   });
 
+struct SystemArgs {
+  IWorkerPool* mPool;
+  SystemProvider* mSystems;
+  MessageQueueProvider* mMessages;
+  //TODO: Get rid of last use of this and use AssetRepo
+  std::unordered_map<std::string, Handle>* mAssetsHack;
+};
+
 class System {
 public:
   class Registry {
   public:
-    using SystemConstructor = std::function<std::unique_ptr<System>(App&)>;
+    using SystemConstructor = std::function<std::unique_ptr<System>(const SystemArgs&)>;
 
     static size_t registerSystem(SystemConstructor systemConstructor);
-    static void getSystems(App& app, std::vector<std::unique_ptr<System>>& result);
+    static void getSystems(const SystemArgs& args, std::vector<std::unique_ptr<System>>& result);
 
   private:
     Registry();
@@ -31,15 +42,15 @@ public:
   template<typename System>
   struct StaticRegisterSystem {
     StaticRegisterSystem() {
-      mID = Registry::registerSystem([](App& app) {
-        return std::make_unique<System>(app);
+      mID = Registry::registerSystem([](const SystemArgs& args) {
+        return std::make_unique<System>(args);
       });
     }
 
     size_t mID;
   };
 
-  System(App& app);
+  System(const SystemArgs& args);
   virtual ~System();
 
   virtual void init() {}
@@ -53,7 +64,7 @@ public:
   void setEventBuffer(const EventBuffer* buffer);
 
 protected:
-  App& mApp;
+  SystemArgs mArgs;
   const EventBuffer* mEventBuffer;
   std::unique_ptr<EventHandler> mEventHandler;
 };

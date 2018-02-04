@@ -17,10 +17,10 @@ size_t System::Registry::registerSystem(SystemConstructor systemConstructor) {
   return id;
 }
 
-void System::Registry::getSystems(App& app, std::vector<std::unique_ptr<System>>& result) {
+void System::Registry::getSystems(const SystemArgs& args, std::vector<std::unique_ptr<System>>& result) {
   result.clear();
   for(auto& constructor : _get().mSystems)
-    result.emplace_back(std::move(constructor(app)));
+    result.emplace_back(std::move(constructor(args)));
 }
 
 System::Registry& System::Registry::_get() {
@@ -28,8 +28,8 @@ System::Registry& System::Registry::_get() {
   return singleton;
 }
 
-System::System(App& app)
-  : mApp(app) {
+System::System(const SystemArgs& args)
+  : mArgs(args) {
 }
 
 System::~System() {

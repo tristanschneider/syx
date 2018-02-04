@@ -52,7 +52,7 @@ public:
     }
   };
 
-  AssetRepo(App& app);
+  AssetRepo(const SystemArgs& args);
   ~AssetRepo();
 
   //If uri is provided it will be loaded if it doesn't exist. If only id is provided, only an existing asset will be returned
@@ -71,7 +71,6 @@ private:
   static const size_t sMaxLoaders = 5;
 
   std::string mBasePath;
-  IWorkerPool& mPool;
   std::unordered_map<size_t, std::shared_ptr<Asset>> mIdToAsset;
   RWLock mAssetLock;
   ThreadLocal<std::unordered_map<std::string, std::unique_ptr<AssetLoader>>> mLoaderPool;

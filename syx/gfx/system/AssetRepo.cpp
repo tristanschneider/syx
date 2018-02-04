@@ -4,7 +4,6 @@
 #include "loader/AssetLoader.h"
 #include "threading/FunctionTask.h"
 #include "threading/IWorkerPool.h"
-#include "App.h"
 
 RegisterSystemCPP(AssetRepo);
 
@@ -35,9 +34,8 @@ AssetRepo::Loaders& AssetRepo::Loaders::_get() {
   return singleton;
 }
 
-AssetRepo::AssetRepo(App& app)
-  : System(app)
-  , mPool(app.getWorkerPool()) {
+AssetRepo::AssetRepo(const SystemArgs& args)
+  : System(args) {
 }
 
 AssetRepo::~AssetRepo() {
@@ -87,7 +85,7 @@ std::shared_ptr<Asset> AssetRepo::_find(AssetInfo& info) {
 }
 
 void AssetRepo::_queueLoad(std::shared_ptr<Asset> asset) {
-  mPool.queueTask(std::make_shared<FunctionTask>([asset, this]() {
+  mArgs.mPool->queueTask(std::make_shared<FunctionTask>([asset, this]() {
     if(AssetLoader* loader = _getLoader(asset->getInfo().mCategory)) {
       //Locking here is overkill, but makes it less easier to forget in a particular loader
       //Unlikely to cause blocks as users can check the status of the asset against Loaded or PostProccessed
@@ -120,7 +118,7 @@ void AssetRepo::_assetLoaded(AssetLoadResult result, Asset& asset, AssetLoader& 
     break;
   case AssetLoadResult::Success:
     asset.mState = AssetState::Loaded;
-    loader.postProcess(mApp, asset);
+    loader.postProcess(mArgs, asset);
     break;
   }
 }

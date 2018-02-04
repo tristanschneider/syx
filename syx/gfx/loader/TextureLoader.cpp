@@ -1,10 +1,10 @@
 #include "Precompile.h"
 #include "loader/TextureLoader.h"
 
-#include "App.h"
 #include "asset/Texture.h"
 #include "system/AssetRepo.h"
 #include "system/GraphicsSystem.h"
+#include "SystemProvider.h"
 
 RegisterAssetLoader("bmp", TextureBMPLoader, Texture);
 
@@ -62,8 +62,8 @@ AssetLoadResult TextureBMPLoader::_load(Asset& asset) {
   return AssetLoadResult::Success;
 }
 
-void TextureBMPLoader::postProcess(App& app, Asset& asset) {
-  app.getSystem<GraphicsSystem>()->dispatchToRenderThread([&asset] {
+void TextureBMPLoader::postProcess(const SystemArgs& args, Asset& asset) {
+  args.mSystems->getSystem<GraphicsSystem>()->dispatchToRenderThread([&asset] {
     static_cast<Texture&>(asset).loadGpu();
   });
 }

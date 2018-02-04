@@ -21,7 +21,6 @@ public:
   void init();
   void update(float dt);
   void uninit();
-  Space& getDefaultSpace();
   IWorkerPool& getWorkerPool();
   AppPlatform& getAppPlatform();
 

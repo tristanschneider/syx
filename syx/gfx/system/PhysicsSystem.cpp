@@ -3,7 +3,6 @@
 
 #include "asset/Model.h"
 #include "system/GraphicsSystem.h"
-#include "App.h"
 #include "event/Event.h"
 #include "event/EventBuffer.h"
 #include "event/EventHandler.h"
@@ -12,6 +11,8 @@
 #include "threading/FunctionTask.h"
 #include "threading/IWorkerPool.h"
 #include "event/TransformEvent.h"
+#include "SystemProvider.h"
+#include "MessageQueueProvider.h"
 
 #include <SyxIntrusive.h>
 #include <SyxHandles.h>
@@ -27,21 +28,21 @@ namespace Syx {
 
 RegisterSystemCPP(PhysicsSystem);
 
-PhysicsSystem::PhysicsSystem(App& app)
-  : System(app) {
+PhysicsSystem::PhysicsSystem(const SystemArgs& args)
+  : System(args) {
 }
 
 PhysicsSystem::~PhysicsSystem() {
 }
 
 void PhysicsSystem::init() {
-  Syx::Interface::gDrawer = &mApp.getSystem<GraphicsSystem>()->getDebugDrawer();
+  Syx::Interface::gDrawer = &mArgs.mSystems->getSystem<GraphicsSystem>()->getDebugDrawer();
   mSystem = std::make_unique<Syx::PhysicsSystem>();
 
-  mApp.mAssets["pCube"] = mSystem->getCube();
-  mApp.mAssets["pSphere"] = mSystem->getSphere();
-  mApp.mAssets["pCapsule"] = mSystem->getCapsule();
-  mApp.mAssets["pDefMat"] = mSystem->getDefaultMaterial();
+  (*mArgs.mAssetsHack)["pCube"] = mSystem->getCube();
+  (*mArgs.mAssetsHack)["pSphere"] = mSystem->getSphere();
+  (*mArgs.mAssetsHack)["pCapsule"] = mSystem->getCapsule();
+  (*mArgs.mAssetsHack)["pDefMat"] = mSystem->getDefaultMaterial();
 
   mDefaultSpace = mSystem->addSpace();
 
@@ -92,7 +93,7 @@ void PhysicsSystem::_processSyxEvents() {
     printf("Failed to get physics update events\n");
 
   {
-    MessageQueue m = mApp.getMessageQueue();
+    MessageQueue m = mArgs.mMessages->getMessageQueue();
     mTransformUpdates->appendTo(m);
   }
   mTransformUpdates->clear();
