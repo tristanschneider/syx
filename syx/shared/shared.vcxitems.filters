@@ -75,5 +75,8 @@
       <Filter>event</Filter>
     </ClInclude>
     <ClInclude Include="$(MSBuildThisFileDirectory)Precompile.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)util\ScopeWrap.h">
+      <Filter>util</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

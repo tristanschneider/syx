@@ -36,6 +36,7 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)threading\ThreadLocal.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)threading\WorkerPool.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)util\Observer.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)util\ScopeWrap.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)util\TypeId.h" />
   </ItemGroup>
 </Project>
