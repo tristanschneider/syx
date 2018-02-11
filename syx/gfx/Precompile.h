@@ -30,3 +30,4 @@
 #include "threading/ThreadLocal.h"
 #include "util/Observer.h"
 #include "util/TypeId.h"
+#include "util/ScopeWrap.h"
