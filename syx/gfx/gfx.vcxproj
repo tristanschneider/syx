@@ -166,6 +166,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClCompile Include="loader\ShaderLoader.cpp" />
     <ClCompile Include="loader\TextureLoader.cpp" />
     <ClCompile Include="lua\LuaNode.cpp" />
+    <ClCompile Include="lua\LuaStackAssert.cpp" />
     <ClCompile Include="lua\LuaState.cpp" />
     <ClCompile Include="lua\LuaSerializer.cpp" />
     <ClCompile Include="Precompile.cpp">
@@ -219,6 +220,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClInclude Include="loader\ShaderLoader.h" />
     <ClInclude Include="loader\TextureLoader.h" />
     <ClInclude Include="lua\LuaNode.h" />
+    <ClInclude Include="lua\LuaStackAssert.h" />
     <ClInclude Include="lua\LuaState.h" />
     <ClInclude Include="lua\LuaSerializer.h" />
     <ClInclude Include="MappedBuffer.h" />
