@@ -20,6 +20,7 @@ App::App(std::unique_ptr<AppPlatform> appPlatform)
     mWorkerPool.get(),
     this,
     this,
+    this,
     &mAssets
   };
   System::Registry::getSystems(args, mSystems);
@@ -185,4 +186,8 @@ MessageQueue App::getMessageQueue() {
 
 System* App::_getSystem(size_t id) {
   return id < mSystems.size() ? mSystems[id].get() : nullptr;
+}
+
+Handle App::newHandle() {
+  return mGameObjectGen.next();
 }

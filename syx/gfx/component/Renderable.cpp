@@ -2,15 +2,14 @@
 #include "Renderable.h"
 
 #include "event/EventBuffer.h"
-#include "MessageQueueProvider.h"
+#include "provider/MessageQueueProvider.h"
 
 DEFINE_EVENT(RenderableUpdateEvent, const RenderableData& data, Handle obj)
   , mObj(obj)
   , mData(data) {
 }
 
-Renderable::Renderable(Handle owner, MessageQueueProvider& messaging)
-  : Component(static_cast<Handle>(ComponentType::Graphics), owner, &messaging) {
+DEFINE_COMPONENT(Renderable) {
   mData.mModel = mData.mDiffTex = InvalidHandle;
 }
 

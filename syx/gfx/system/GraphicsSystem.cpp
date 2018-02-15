@@ -11,12 +11,11 @@
 #include "event/EventHandler.h"
 #include "event/TransformEvent.h"
 #include "event/BaseComponentEvents.h"
-#include "Gameobject.h"
 #include "ImGuiImpl.h"
 #include "Space.h"
 #include "system/KeyboardInput.h"
 #include "system/AssetRepo.h"
-#include "SystemProvider.h"
+#include "provider/SystemProvider.h"
 
 using namespace Syx;
 
@@ -98,12 +97,12 @@ void GraphicsSystem::dispatchToRenderThread(std::function<void()> func) {
 }
 
 void GraphicsSystem::_processAddEvent(const AddComponentEvent& e) {
-  if(static_cast<ComponentType>(e.mCompType) == ComponentType::Graphics)
+  if(e.mCompType == Component::typeId<Renderable>())
     mLocalRenderables.pushBack(LocalRenderable(e.mObj));
 }
 
 void GraphicsSystem::_processRemoveEvent(const RemoveComponentEvent& e) {
-  if(static_cast<ComponentType>(e.mCompType) == ComponentType::Graphics)
+  if(e.mCompType == Component::typeId<Renderable>())
     mLocalRenderables.erase(e.mObj);
 }
 

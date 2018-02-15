@@ -4,7 +4,7 @@
 #include "asset/Texture.h"
 #include "system/AssetRepo.h"
 #include "system/GraphicsSystem.h"
-#include "SystemProvider.h"
+#include "provider/SystemProvider.h"
 
 RegisterAssetLoader("bmp", TextureBMPLoader, Texture);
 

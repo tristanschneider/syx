@@ -1,11 +1,10 @@
 #include "Precompile.h"
 #include "Transform.h"
-#include "MessageQueueProvider.h"
+#include "provider/MessageQueueProvider.h"
 #include "event/EventBuffer.h"
 #include "event/TransformEvent.h"
 
-Transform::Transform(Handle owner, MessageQueueProvider* messaging)
-  : Component(static_cast<Handle>(ComponentType::Transform), owner, messaging)
+DEFINE_COMPONENT(Transform)
   , mMat(Syx::Mat4::transform(Syx::Quat::Identity, Syx::Vec3::Zero)) {
 }
 

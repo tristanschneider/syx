@@ -11,8 +11,8 @@
 #include "threading/FunctionTask.h"
 #include "threading/IWorkerPool.h"
 #include "event/TransformEvent.h"
-#include "SystemProvider.h"
-#include "MessageQueueProvider.h"
+#include "provider/SystemProvider.h"
+#include "provider/MessageQueueProvider.h"
 
 #include <SyxIntrusive.h>
 #include <SyxHandles.h>

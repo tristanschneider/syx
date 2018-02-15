@@ -4,7 +4,7 @@
 #include "asset/Shader.h"
 #include "system/AssetRepo.h"
 #include "system/GraphicsSystem.h"
-#include "SystemProvider.h"
+#include "provider/SystemProvider.h"
 
 RegisterAssetLoader("vs", ShaderLoader, Shader);
 

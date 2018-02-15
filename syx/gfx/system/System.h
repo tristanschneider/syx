@@ -8,6 +8,7 @@ class EventHandler;
 class SystemProvider;
 class AppPlatform;
 class MessageQueueProvider;
+class GameObjectHandleProvider;
 
 #define SYSTEM_EVENT_HANDLER(eventType, handler) mEventHandler->registerEventHandler(Event::typeId<eventType>(), [this](const Event& e) {\
     handler(static_cast<const eventType&>(e));\
@@ -17,6 +18,7 @@ struct SystemArgs {
   IWorkerPool* mPool;
   SystemProvider* mSystems;
   MessageQueueProvider* mMessages;
+  GameObjectHandleProvider* mGameObjectGen;
   //TODO: Get rid of last use of this and use AssetRepo
   std::unordered_map<std::string, Handle>* mAssetsHack;
 };

@@ -1,27 +1,24 @@
 #pragma once
 
-class Gameobject;
 class MessageQueueProvider;
 
-enum class ComponentType : uint8_t {
-  Transform,
-  Graphics,
-  Physics
-};
+#define DEFINE_COMPONENT(compType, ...) compType::compType(Handle owner, MessageQueueProvider* messaging)\
+  : Component(Component::typeId<compType>(), owner, messaging)
 
 class Component {
 public:
+  DECLARE_TYPE_CATEGORY;
   Component(Handle type, Handle owner, MessageQueueProvider* messaging);
   ~Component();
 
-  //Should always be overriden, but needs to have empty implementation to avoid linker error with getHandle call in constructor
-  virtual Handle getHandle() const {
+  template<typename T>
+  static size_t typeId() {
+    return ::typeId<T, Component>();
+  }
+
+  size_t getType() const {
     return mType;
   }
-  virtual void init() {}
-  virtual void update(float dt) {}
-  virtual void uninit() {}
-
   Handle getOwner() {
     return mOwner;
   }
@@ -29,5 +26,5 @@ public:
 protected:
   Handle mOwner;
   MessageQueueProvider* mMessaging;
-  Handle mType;
+  size_t mType;
 };

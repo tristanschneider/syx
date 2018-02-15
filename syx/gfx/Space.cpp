@@ -20,7 +20,7 @@ void Space::init() {
   using namespace Syx;
 
   Gameobject* obj = createObject();
-  MessageQueueProvider& msg = *mApp;
+  MessageQueueProvider* msg = mApp;
   std::unique_ptr<Renderable> gfx = std::make_unique<Renderable>(obj->getHandle(), msg);
   std::unique_ptr<Physics> phy;
   RenderableData d;
@@ -30,7 +30,7 @@ void Space::init() {
   d.mDiffTex = mazeTexId;
   gfx->set(d);
   obj->addComponent(std::move(gfx));
-  obj->getComponent<Transform>(ComponentType::Transform)->set(Syx::Mat4::transform(Vec3(0.1f), Quat::Identity, Vec3::Zero));
+  obj->getComponent<Transform>()->set(Syx::Mat4::transform(Vec3(0.1f), Quat::Identity, Vec3::Zero));
   obj->init();
 
   obj = createObject();
@@ -39,7 +39,7 @@ void Space::init() {
   d.mDiffTex = mazeTexId;
   gfx->set(d);
   obj->addComponent(std::move(gfx));
-  obj->getComponent<Transform>(ComponentType::Transform)->set(Syx::Mat4::transform(Vec3(0.5f), Quat::Identity, Vec3(8.0f, 0.0f, 0.0f)));
+  obj->getComponent<Transform>()->set(Syx::Mat4::transform(Vec3(0.5f), Quat::Identity, Vec3(8.0f, 0.0f, 0.0f)));
   obj->init();
 
   obj = createObject();
@@ -53,7 +53,7 @@ void Space::init() {
   phy->setCollider(mApp->mAssets["pCube"], mApp->mAssets["pDefMat"]);
   phy->setPhysToModel(Syx::Mat4::scale(Syx::Vec3(2.0f)));
   obj->addComponent(std::move(phy));
-  obj->getComponent<Transform>(ComponentType::Transform)->set(Syx::Mat4::transform(Vec3(10.0f, 1.0f, 10.0f), Quat::Identity, Vec3(0.0f, -10.0f, 0.0f)));
+  obj->getComponent<Transform>()->set(Syx::Mat4::transform(Vec3(10.0f, 1.0f, 10.0f), Quat::Identity, Vec3(0.0f, -10.0f, 0.0f)));
   obj->init();
 
   obj = createObject();
@@ -68,7 +68,7 @@ void Space::init() {
   phy->setPhysToModel(Syx::Mat4::scale(Syx::Vec3(2.0f)));
   phy->setAngVel(Vec3(3.0f));
   obj->addComponent(std::move(phy));
-  obj->getComponent<Transform>(ComponentType::Transform)->set(Syx::Mat4::transform(Vec3(1.0f, 1.0f, 1.0f), Quat::Identity, Vec3(0.0f, 8.0f, 0.0f)));
+  obj->getComponent<Transform>()->set(Syx::Mat4::transform(Vec3(1.0f, 1.0f, 1.0f), Quat::Identity, Vec3(0.0f, 8.0f, 0.0f)));
   obj->init();
 }
 
@@ -79,7 +79,7 @@ void Space::uninit() {
 }
 
 Gameobject* Space::createObject() {
-  Handle h = mObjectGen.next();
+  Handle h = mApp->newHandle();
   auto resultPair = mObjects.emplace(std::piecewise_construct, std::forward_as_tuple(h), std::forward_as_tuple(h, mApp));
   return &resultPair.first->second;
 }

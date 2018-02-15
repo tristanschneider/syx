@@ -141,6 +141,9 @@
     <ClCompile Include="lua\LuaStackAssert.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="system\LuaGameSystem.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="App.h">
@@ -269,16 +272,22 @@
     <ClInclude Include="lua\LuaSerializer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="MessageQueueProvider.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="SystemProvider.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="lua\LuaSandbox.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="lua\LuaStackAssert.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="system\LuaGameSystem.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="provider\SystemProvider.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="provider\MessageQueueProvider.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="provider\GameObjectHandleProvider.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

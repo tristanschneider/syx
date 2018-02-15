@@ -22,6 +22,5 @@ public:
 private:
   HandleMap<Gameobject> mObjects;
   std::mutex mObjectsMutex;
-  HandleGen mObjectGen;
   App* mApp;
 };

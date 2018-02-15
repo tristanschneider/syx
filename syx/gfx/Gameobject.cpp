@@ -26,7 +26,7 @@ Handle Gameobject::getHandle() {
 }
 
 Component& Gameobject::addComponent(std::unique_ptr<Component> component) {
-  Handle h = component->getHandle();
+  Handle h = component->getType();
   assert(mComponents.find(h) == mComponents.end()); //Duplicate component added
   Component* result = component.get();
   mComponents[h] = std::move(component);
@@ -37,17 +37,11 @@ void Gameobject::removeComponent(Handle handle) {
   mComponents.erase(handle);
 }
 
-Component* Gameobject::getComponent(Handle handle) {
-  switch(static_cast<ComponentType>(handle)) {
-    case ComponentType::Transform: return &mTransform;
-    default: {
-      auto it = mComponents.find(handle);
-      return it != mComponents.end() ? it->second.get() : nullptr;
-    }
-  }
+Component* Gameobject::getComponent(size_t type) {
+  if(Component::typeId<Transform>() == type)
+    return &mTransform;
+  auto it = mComponents.find(type);
+  return it != mComponents.end() ? it->second.get() : nullptr;
 }
 
-Component* Gameobject::getComponent(ComponentType type) {
-  return getComponent(static_cast<Handle>(type));
-}
 

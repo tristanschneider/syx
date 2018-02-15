@@ -7,20 +7,21 @@ typedef size_t Handle;
 class HandleGen {
 public:
   HandleGen() {
-    Reset();
+    reset();
   }
 
-  void Reset() {
+  void reset() {
     mNewKey = 0;
   }
 
   Handle next() {
-    Handle result = mNewKey++;
-    if(mNewKey == InvalidHandle)
-      ++mNewKey;
+    Handle inc = 1;
+    Handle result = mNewKey.fetch_add(inc) + inc;
+    if(result == InvalidHandle)
+      result = mNewKey.fetch_add(inc) + inc;
     return result;
   }
 
 private:
-  Handle mNewKey;
+  std::atomic<Handle> mNewKey;
 };

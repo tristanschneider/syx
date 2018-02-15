@@ -3,8 +3,6 @@
 #include "component/Component.h"
 #include "component/Transform.h"
 
-enum class ComponentType : uint8_t;
-
 class Gameobject {
 public:
   ~Gameobject();
@@ -20,16 +18,11 @@ public:
 
   Component& addComponent(std::unique_ptr<Component> component);
   void removeComponent(Handle handle);
-  Component* getComponent(Handle handle);
-  Component* getComponent(ComponentType type);
+  Component* getComponent(size_t type);
 
   template<typename CompType>
-  CompType* getComponent(Handle handle) {
-    return static_cast<CompType*>(getComponent(handle));
-  }
-  template<typename CompType>
-  CompType* getComponent(ComponentType handle) {
-    return static_cast<CompType*>(getComponent(handle));
+  CompType* getComponent() {
+    return static_cast<CompType*>(getComponent(Component::typeId<CompType>()));
   }
 
   Transform& getTransform() {

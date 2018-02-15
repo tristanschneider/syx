@@ -2,7 +2,7 @@
 #include "EditorNavigator.h"
 #include "system/KeyboardInput.h"
 #include "system/GraphicsSystem.h"
-#include "SystemProvider.h"
+#include "provider/SystemProvider.h"
 #include "Camera.h"
 
 RegisterSystemCPP(EditorNavigator);

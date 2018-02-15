@@ -3,17 +3,17 @@
 
 #include "event/BaseComponentEvents.h"
 #include "event/EventBuffer.h"
-#include "MessageQueueProvider.h"
+#include "provider/MessageQueueProvider.h"
 
 Component::Component(Handle type, Handle owner, MessageQueueProvider* messaging)
   : mOwner(owner)
   , mType(type)
   , mMessaging(messaging) {
   if(mMessaging)
-    mMessaging->getMessageQueue().get().push(AddComponentEvent(mOwner, getHandle()));
+    mMessaging->getMessageQueue().get().push(AddComponentEvent(mOwner, mType));
 }
 
 Component::~Component() {
   if(mMessaging)
-    mMessaging->getMessageQueue().get().push(RemoveComponentEvent(mOwner, getHandle()));
+    mMessaging->getMessageQueue().get().push(RemoveComponentEvent(mOwner, mType));
 }

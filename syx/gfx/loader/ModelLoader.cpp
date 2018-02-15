@@ -4,7 +4,7 @@
 #include "asset/Model.h"
 #include "system/GraphicsSystem.h"
 #include "system/AssetRepo.h"
-#include "SystemProvider.h"
+#include "provider/SystemProvider.h"
 
 RegisterAssetLoader("obj", ModelOBJLoader, Model);
 

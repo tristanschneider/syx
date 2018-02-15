@@ -2,7 +2,7 @@
 #include "component/Physics.h"
 
 #include "event/EventBuffer.h"
-#include "MessageQueueProvider.h"
+#include "provider/MessageQueueProvider.h"
 
 DEFINE_EVENT(PhysicsCompUpdateEvent, const PhysicsData& data, Handle owner)
   , mData(data)
@@ -19,8 +19,7 @@ PhysicsData::PhysicsData()
   , mAngVel(Syx::Vec3::Zero) {
 }
 
-Physics::Physics(Handle owner, MessageQueueProvider& messaging)
-  : Component(static_cast<Handle>(ComponentType::Physics), owner, &messaging) {
+DEFINE_COMPONENT(Physics) {
 }
 
 void Physics::setData(const PhysicsData& data, bool fireEvent) {
