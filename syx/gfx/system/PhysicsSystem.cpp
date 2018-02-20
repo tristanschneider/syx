@@ -7,7 +7,6 @@
 #include "event/EventBuffer.h"
 #include "event/EventHandler.h"
 #include "component/Physics.h"
-#include "Space.h"
 #include "threading/FunctionTask.h"
 #include "threading/IWorkerPool.h"
 #include "event/TransformEvent.h"

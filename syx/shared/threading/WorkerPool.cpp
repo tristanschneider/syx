@@ -32,13 +32,20 @@ WorkerPool::~WorkerPool() {
 
 void WorkerPool::queueTask(std::shared_ptr<Task> task) {
   task->setWorkerPool(*this);
+  mTaskMutex.lock();
   if(!task->hasDependencies()) {
-    taskReady(task);
+    _taskReady(task);
   }
+  mTaskMutex.unlock();
 }
 
 void WorkerPool::taskReady(std::shared_ptr<Task> task) {
   mTaskMutex.lock();
+  _taskReady(task);
+  mTaskMutex.unlock();
+}
+
+void WorkerPool::_taskReady(std::shared_ptr<Task> task) {
   //Tasks can be queued on queueTask or when its dependencies are done
   //Make sure not to add the task twice
   if(!task->hasBeenQueued()) {
@@ -48,7 +55,6 @@ void WorkerPool::taskReady(std::shared_ptr<Task> task) {
     mTasks.push_back(std::move(task));
     mWorkerCV.notify_one();
   }
-  mTaskMutex.unlock();
 }
 
 void WorkerPool::sync(std::weak_ptr<Task> task) {

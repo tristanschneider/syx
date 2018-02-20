@@ -12,7 +12,6 @@
 #include "event/TransformEvent.h"
 #include "event/BaseComponentEvents.h"
 #include "ImGuiImpl.h"
-#include "Space.h"
 #include "system/KeyboardInput.h"
 #include "system/AssetRepo.h"
 #include "provider/SystemProvider.h"

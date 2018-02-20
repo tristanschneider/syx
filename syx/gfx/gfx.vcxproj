@@ -159,12 +159,12 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClCompile Include="EditorNavigator.cpp" />
     <ClCompile Include="event\BaseComponentEvents.cpp" />
     <ClCompile Include="event\TransformEvent.cpp" />
-    <ClCompile Include="Gameobject.cpp" />
     <ClCompile Include="ImGuiImpl.cpp" />
     <ClCompile Include="loader\AssetLoader.cpp" />
     <ClCompile Include="loader\ModelLoader.cpp" />
     <ClCompile Include="loader\ShaderLoader.cpp" />
     <ClCompile Include="loader\TextureLoader.cpp" />
+    <ClCompile Include="LuaGameObject.cpp" />
     <ClCompile Include="lua\LuaNode.cpp" />
     <ClCompile Include="lua\LuaSandbox.cpp" />
     <ClCompile Include="lua\LuaStackAssert.cpp" />
@@ -174,7 +174,6 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="Space.cpp" />
     <ClCompile Include="src-deps\imgui\imgui.cpp" />
     <ClCompile Include="src-deps\imgui\imgui_demo.cpp" />
     <ClCompile Include="src-deps\imgui\imgui_draw.cpp" />
@@ -214,13 +213,13 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClInclude Include="EditorNavigator.h" />
     <ClInclude Include="event\BaseComponentEvents.h" />
     <ClInclude Include="event\TransformEvent.h" />
-    <ClInclude Include="Gameobject.h" />
     <ClInclude Include="Handle.h" />
     <ClInclude Include="ImGuiImpl.h" />
     <ClInclude Include="loader\AssetLoader.h" />
     <ClInclude Include="loader\ModelLoader.h" />
     <ClInclude Include="loader\ShaderLoader.h" />
     <ClInclude Include="loader\TextureLoader.h" />
+    <ClInclude Include="LuaGameObject.h" />
     <ClInclude Include="lua\LuaNode.h" />
     <ClInclude Include="lua\LuaSandbox.h" />
     <ClInclude Include="lua\LuaStackAssert.h" />
@@ -231,7 +230,6 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClInclude Include="provider\GameObjectHandleProvider.h" />
     <ClInclude Include="provider\MessageQueueProvider.h" />
     <ClInclude Include="provider\SystemProvider.h" />
-    <ClInclude Include="Space.h" />
     <ClInclude Include="src-deps\imgui\imconfig.h" />
     <ClInclude Include="src-deps\imgui\imgui.h" />
     <ClInclude Include="src-deps\imgui\imgui_internal.h" />

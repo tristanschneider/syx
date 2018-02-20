@@ -33,12 +33,6 @@
     <ClCompile Include="DebugDrawer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Gameobject.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="Space.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="system\GraphicsSystem.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -144,6 +138,9 @@
     <ClCompile Include="system\LuaGameSystem.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="LuaGameObject.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="App.h">
@@ -164,13 +161,7 @@
     <ClInclude Include="DebugDrawer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Gameobject.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="MappedBuffer.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="Space.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="system\KeyboardInput.h">
@@ -288,6 +279,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="provider\GameObjectHandleProvider.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="LuaGameObject.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

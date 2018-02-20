@@ -2,13 +2,36 @@
 
 class MessageQueueProvider;
 
-#define DEFINE_COMPONENT(compType, ...) compType::compType(Handle owner, MessageQueueProvider* messaging)\
-  : Component(Component::typeId<compType>(), owner, messaging)
+#define DEFINE_COMPONENT(compType, ...) namespace {\
+    static Component::Registry::Registrar compType##_reg(Component::typeId<compType>(), [](Handle h) {\
+      return std::make_unique<compType>(h);\
+    });\
+  }\
+  compType::compType(Handle owner)\
+    : Component(Component::typeId<compType>(), owner)
 
 class Component {
 public:
   DECLARE_TYPE_CATEGORY;
-  Component(Handle type, Handle owner, MessageQueueProvider* messaging);
+
+  class Registry {
+  public:
+    using Constructor = std::function<std::unique_ptr<Component>(Handle)>;
+
+    struct Registrar {
+      Registrar(size_t type, Constructor ctor);
+    };
+
+    static void registerComponent(size_t type, Constructor ctor);
+    static std::unique_ptr<Component> construct(size_t type, Handle owner);
+  private:
+    Registry();
+    static Registry& _get();
+
+    TypeMap<Constructor, Component> mCtors;
+  };
+
+  Component(Handle type, Handle owner);
   ~Component();
 
   template<typename T>
@@ -25,6 +48,5 @@ public:
 
 protected:
   Handle mOwner;
-  MessageQueueProvider* mMessaging;
   size_t mType;
 };

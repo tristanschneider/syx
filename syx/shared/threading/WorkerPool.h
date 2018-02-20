@@ -12,6 +12,7 @@ public:
   void taskReady(std::shared_ptr<Task> task) override;
 
 private:
+  void _taskReady(std::shared_ptr<Task> task);
   void _workerLoop();
   std::shared_ptr<Task> _getTask();
   void _doNextTask(std::unique_lock<std::mutex>& taskLock);

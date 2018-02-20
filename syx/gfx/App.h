@@ -7,7 +7,6 @@
 class GraphicsSystem;
 class KeyboardInput;
 class System;
-class Space;
 enum class SystemId : uint8_t;
 class IWorkerPool;
 class AppPlatform;
@@ -36,7 +35,6 @@ public:
 
 private:
   std::vector<std::unique_ptr<System>> mSystems;
-  std::unique_ptr<Space> mDefaultSpace;
   std::unique_ptr<IWorkerPool> mWorkerPool;
   std::unique_ptr<AppPlatform> mAppPlatform;
   //Message queue is what is pushed to every frame, frozen is what all systems look at each frame to read from

@@ -19,15 +19,15 @@ size_t typeId() {
 //Map of type id to T. Since ids are generated consecutively and there shouldn't be many of them,
 //use a vector and index by id. If the map only containes certain types, they could be generated with a unique IdGen
 //so that this container can contain only the relevant types
-template<typename T>
+template<typename T, typename Category = DefaultTypeCategory>
 class TypeMap {
 public:
   template<typename K>
-  const T& get() const {
-    return get(typeId<K>());
+  const T* get() const {
+    return get(typeId<K, Category>());
   }
 
-  template<typename K, typename Category = DefaultTypeCategory>
+  template<typename K>
   T* get() {
     return get(typeId<K, Category>());
   }
@@ -40,7 +40,7 @@ public:
     return key < mValues.size() ? &mValues[key] : nullptr;
   }
 
-  template<typename K, typename Category = DefaultTypeCategory>
+  template<typename K>
   void set(T&& value) {
     set(typeId<K, Category>(), std::move(value));
   }

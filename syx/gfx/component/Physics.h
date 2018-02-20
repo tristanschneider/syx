@@ -25,7 +25,7 @@ public:
 
 class Physics : public Component {
 public:
-  Physics(Handle owner, MessageQueueProvider* messaging);
+  Physics(Handle owner);
 
   const PhysicsData& getData() const {
     return mData;
@@ -39,7 +39,5 @@ public:
   void setAngVel(const Syx::Vec3& angVel);
 
 private:
-  void fireUpdateEvent();
-
   PhysicsData mData;
 };

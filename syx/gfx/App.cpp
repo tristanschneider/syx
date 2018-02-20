@@ -4,15 +4,13 @@
 #include "threading/WorkerPool.h"
 #include "threading/Task.h"
 #include "EditorNavigator.h"
-#include "Space.h"
 #include "ImGuiImpl.h"
 #include "event/EventBuffer.h"
 
 #include "AppPlatform.h"
 
 App::App(std::unique_ptr<AppPlatform> appPlatform)
-  : mDefaultSpace(std::make_unique<Space>(*this))
-  , mWorkerPool(std::make_unique<WorkerPool>(4))
+  : mWorkerPool(std::make_unique<WorkerPool>(4))
   , mMessageQueue(std::make_unique<EventBuffer>())
   , mFrozenMessageQueue(std::make_unique<EventBuffer>())
   , mAppPlatform(std::move(appPlatform)) {
@@ -28,7 +26,6 @@ App::App(std::unique_ptr<AppPlatform> appPlatform)
 
 App::~App() {
   mSystems.clear();
-  mDefaultSpace = nullptr;
   mMessageQueue = nullptr;
 }
 
@@ -110,8 +107,6 @@ void App::init() {
       system->init();
   }
 
-  mDefaultSpace->init();
-
   static FocusEvents::ObserverType o(std::make_unique<AppFocusListener>());
   if(!o.hasSubject())
     getAppPlatform().addFocusObserver(o);
@@ -165,7 +160,6 @@ void App::update(float dt) {
 }
 
 void App::uninit() {
-  mDefaultSpace->uninit();
   for(auto& system : mSystems) {
     if(system)
       system->uninit();

@@ -14,3 +14,15 @@ public:
   Handle mObj;
   Handle mCompType;
 };
+
+class AddGameObjectEvent : public Event {
+public:
+  AddGameObjectEvent(Handle obj);
+  Handle mObj;
+};
+
+class RemoveGameObjectEvent : public Event {
+public:
+  RemoveGameObjectEvent(Handle obj);
+  Handle mObj;
+};

@@ -17,13 +17,11 @@ public:
 
 class Renderable : public Component {
 public:
-  Renderable(Handle owner, MessageQueueProvider* messaging);
+  Renderable(Handle owner);
 
   const RenderableData& get() const;
   void set(const RenderableData& data);
 
 private:
-  void _fireUpdate();
-
   RenderableData mData;
 };

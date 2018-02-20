@@ -2,15 +2,15 @@
 #include "System.h"
 
 class Task;
+class LuaGameObject;
 
-class LuaGameObject {
-public:
-  LuaGameObject(Handle h);
-  Handle getHandle() const;
-
-private:
-  Handle mHandle;
-};
+class AddComponentEvent;
+class AddGameObjectEvent;
+class RemoveComponentEvent;
+class RemoveGameObjectEvent;
+class RenderableUpdateEvent;
+class TransformEvent;
+class PhysicsCompUpdateEvent;
 
 class LuaGameSystem : public System {
 public:
@@ -23,4 +23,17 @@ public:
   void uninit() override;
 
 private:
+  //TODO: make it possible to do this from lua
+  void _initHardCodedScene();
+  LuaGameObject* _getObj(Handle h);
+
+  void _onAddComponent(const AddComponentEvent& e);
+  void _onRemoveComponent(const RemoveComponentEvent& e);
+  void _onAddGameObject(const AddGameObjectEvent& e);
+  void _onRemoveGameObject(const RemoveGameObjectEvent& e);
+  void _onRenderableUpdate(const RenderableUpdateEvent& e);
+  void _onTransformUpdate(const TransformEvent& e);
+  void _onPhysicsUpdate(const PhysicsCompUpdateEvent& e);
+
+  HandleMap<std::unique_ptr<LuaGameObject>> mObjects;
 };

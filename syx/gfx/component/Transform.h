@@ -3,13 +3,11 @@
 
 class Transform : public Component {
 public:
-  Transform(Handle owner, MessageQueueProvider* messaging);
+  Transform(Handle owner);
 
-  void set(const Syx::Mat4& m, bool fireEvent = true);
+  void set(const Syx::Mat4& m);
   const Syx::Mat4& get();
 
 private:
-  void _fireEvent();
-
   Syx::Mat4 mMat;
 };
