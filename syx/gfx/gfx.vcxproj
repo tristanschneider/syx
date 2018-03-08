@@ -147,11 +147,13 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
   <ItemGroup>
     <ClCompile Include="App.cpp" />
     <ClCompile Include="AppPlatform.cpp" />
+    <ClCompile Include="asset\LuaScript.cpp" />
     <ClCompile Include="asset\Model.cpp" />
     <ClCompile Include="asset\Shader.cpp" />
     <ClCompile Include="asset\Texture.cpp" />
     <ClCompile Include="Camera.cpp" />
     <ClCompile Include="component\Component.cpp" />
+    <ClCompile Include="component\LuaComponent.cpp" />
     <ClCompile Include="component\Physics.cpp" />
     <ClCompile Include="component\Renderable.cpp" />
     <ClCompile Include="component\Transform.cpp" />
@@ -161,6 +163,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClCompile Include="event\TransformEvent.cpp" />
     <ClCompile Include="ImGuiImpl.cpp" />
     <ClCompile Include="loader\AssetLoader.cpp" />
+    <ClCompile Include="loader\LuaScriptLoader.cpp" />
     <ClCompile Include="loader\ModelLoader.cpp" />
     <ClCompile Include="loader\ShaderLoader.cpp" />
     <ClCompile Include="loader\TextureLoader.cpp" />
@@ -201,11 +204,13 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClInclude Include="App.h" />
     <ClInclude Include="AppPlatform.h" />
     <ClInclude Include="asset\Asset.h" />
+    <ClInclude Include="asset\LuaScript.h" />
     <ClInclude Include="asset\Model.h" />
     <ClInclude Include="asset\Shader.h" />
     <ClInclude Include="asset\Texture.h" />
     <ClInclude Include="Camera.h" />
     <ClInclude Include="component\Component.h" />
+    <ClInclude Include="component\LuaComponent.h" />
     <ClInclude Include="component\Physics.h" />
     <ClInclude Include="component\Renderable.h" />
     <ClInclude Include="component\Transform.h" />
@@ -216,6 +221,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClInclude Include="Handle.h" />
     <ClInclude Include="ImGuiImpl.h" />
     <ClInclude Include="loader\AssetLoader.h" />
+    <ClInclude Include="loader\LuaScriptLoader.h" />
     <ClInclude Include="loader\ModelLoader.h" />
     <ClInclude Include="loader\ShaderLoader.h" />
     <ClInclude Include="loader\TextureLoader.h" />
