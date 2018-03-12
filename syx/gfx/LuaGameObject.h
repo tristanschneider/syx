@@ -30,6 +30,7 @@ public:
   LuaComponent* addLuaComponent(size_t script);
   LuaComponent* getLuaComponent(size_t script);
   void removeLuaComponent(size_t script);
+  std::unordered_map<size_t, LuaComponent>& getLuaComponents();
 
 private:
   Handle mHandle;

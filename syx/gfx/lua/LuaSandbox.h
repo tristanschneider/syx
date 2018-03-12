@@ -1,6 +1,6 @@
 #pragma once
 //Upon construction, creates a sandbox table and saves it as a global under the given id
-//This sandbox can then be pushed onto the stack and 
+//This sandbox can then be used as an updvalue to replace _ENV making all global access contained within the sandbox
 
 namespace Lua {
   class State;
@@ -17,6 +17,8 @@ namespace Lua {
     Sandbox(const Sandbox&) = delete;
     Sandbox& operator=(const Sandbox&) = delete;
 
+    //Push the lua state to the top of the stack
+    //Also sets the upvalue of the chunk so any functions called with in it are sandboxed
     void push();
     void pop();
 

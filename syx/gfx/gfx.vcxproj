@@ -173,6 +173,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClCompile Include="lua\LuaStackAssert.cpp" />
     <ClCompile Include="lua\LuaState.cpp" />
     <ClCompile Include="lua\LuaSerializer.cpp" />
+    <ClCompile Include="lua\LuaUtil.cpp" />
     <ClCompile Include="Precompile.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
@@ -231,6 +232,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClInclude Include="lua\LuaStackAssert.h" />
     <ClInclude Include="lua\LuaState.h" />
     <ClInclude Include="lua\LuaSerializer.h" />
+    <ClInclude Include="lua\LuaUtil.h" />
     <ClInclude Include="MappedBuffer.h" />
     <ClInclude Include="Precompile.h" />
     <ClInclude Include="provider\GameObjectHandleProvider.h" />

@@ -4,4 +4,4 @@
 #include "asset/LuaScript.h"
 #include "system/AssetRepo.h"
 
-RegisterAssetLoader("lc", TextAssetLoader, TextAsset);
+RegisterAssetLoader("lc", LuaScriptLoader, LuaScript);

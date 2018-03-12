@@ -2,12 +2,17 @@
 #include "system/LuaGameSystem.h"
 
 #include "asset/Asset.h"
+#include "asset/LuaScript.h"
+#include "component/LuaComponent.h"
 #include "component/Physics.h"
 #include "component/Renderable.h"
 #include "event/BaseComponentEvents.h"
 #include "event/EventBuffer.h"
 #include "event/EventHandler.h"
 #include "event/TransformEvent.h"
+#include <lua.hpp>
+#include "lua/LuaStackAssert.h"
+#include "lua/LuaState.h"
 #include "LuaGameObject.h"
 #include "provider/GameObjectHandleProvider.h"
 #include "provider/MessageQueueProvider.h"
@@ -31,11 +36,15 @@ void LuaGameSystem::init() {
   mEventHandler = std::make_unique<EventHandler>();
   SYSTEM_EVENT_HANDLER(AddComponentEvent, _onAddComponent);
   SYSTEM_EVENT_HANDLER(RemoveComponentEvent, _onRemoveComponent);
+  SYSTEM_EVENT_HANDLER(AddLuaComponentEvent, _onAddLuaComponent);
+  SYSTEM_EVENT_HANDLER(RemoveLuaComponentEvent, _onRemoveLuaComponent)
   SYSTEM_EVENT_HANDLER(AddGameObjectEvent, _onAddGameObject);
   SYSTEM_EVENT_HANDLER(RemoveGameObjectEvent, _onRemoveGameObject);
   SYSTEM_EVENT_HANDLER(RenderableUpdateEvent, _onRenderableUpdate);
   SYSTEM_EVENT_HANDLER(TransformEvent, _onTransformUpdate);
   SYSTEM_EVENT_HANDLER(PhysicsCompUpdateEvent, _onPhysicsUpdate);
+
+  mState = std::make_unique<Lua::State>();
 }
 
 void LuaGameSystem::queueTasks(float dt, IWorkerPool& pool, std::shared_ptr<Task> frameTask) {
@@ -43,8 +52,8 @@ void LuaGameSystem::queueTasks(float dt, IWorkerPool& pool, std::shared_ptr<Task
     mEventHandler->handleEvents(*mEventBuffer);
   });
 
-  auto update = std::make_shared<FunctionTask>([this]() {
-    //TODO: call update on lua scripts
+  auto update = std::make_shared<FunctionTask>([this, dt]() {
+    _update(dt);
   });
   events->addDependency(update);
 
@@ -53,7 +62,44 @@ void LuaGameSystem::queueTasks(float dt, IWorkerPool& pool, std::shared_ptr<Task
   pool.queueTask(update);
 }
 
+void LuaGameSystem::_update(float dt) {
+  for(auto& objIt : mObjects) {
+    for(auto& compIt : objIt.second->getLuaComponents()) {
+      LuaComponent& comp = compIt.second;
+      //If the component needs initialization, get the script and initialize it
+      if(comp.needsInit()) {
+        AssetRepo* repo = mArgs.mSystems->getSystem<AssetRepo>();
+        std::shared_ptr<Asset> script = repo->getAsset(AssetInfo(comp.getScript()));
+        assert(script && "Script should exist in repo as creating the component should have triggered the asset load");
+        //If script isn't doen loading, wait until later
+        if(script->getState() != AssetState::Loaded)
+          continue;
+
+        //Load the script on to the top of the stack
+        const std::string& scriptSource = static_cast<LuaScript&>(*script).get();
+        {
+          Lua::StackAssert sa(*mState);
+          if(int loadError = luaL_loadstring(*mState, scriptSource.c_str())) {
+            printf("Error loading script %s: %s\n", static_cast<LuaScript&>(*script).getInfo().mUri.c_str(), lua_tostring(*mState, -1));
+          }
+          else {
+            comp.init(*mState);
+          }
+          //Pop off the error or the script
+          lua_pop(*mState, 1);
+        }
+      }
+      //Else sandbox is already initialized, do the update
+      else {
+        comp.update(*mState, dt);
+      }
+    }
+  }
+}
+
 void LuaGameSystem::uninit() {
+  mEventHandler = nullptr;
+  mState = nullptr;
 }
 
 void LuaGameSystem::_onAddComponent(const AddComponentEvent& e) {
@@ -64,6 +110,16 @@ void LuaGameSystem::_onAddComponent(const AddComponentEvent& e) {
 void LuaGameSystem::_onRemoveComponent(const RemoveComponentEvent& e) {
   if(LuaGameObject* obj = _getObj(e.mObj))
     obj->removeComponent(e.mCompType);
+}
+
+void LuaGameSystem::_onAddLuaComponent(const AddLuaComponentEvent& e) {
+  if(LuaGameObject* obj = _getObj(e.mOwner))
+    obj->addLuaComponent(e.mScript);
+}
+
+void LuaGameSystem::_onRemoveLuaComponent(const RemoveLuaComponentEvent& e) {
+  if(LuaGameObject* obj = _getObj(e.mOwner))
+    obj->removeLuaComponent(e.mScript);
 }
 
 void LuaGameSystem::_onAddGameObject(const AddGameObjectEvent& e) {
@@ -155,6 +211,7 @@ void LuaGameSystem::_initHardCodedScene() {
     m.push(AddComponentEvent(h, Component::typeId<Physics>()));
     m.push(PhysicsCompUpdateEvent(phy.getData(), h));
     m.push(TransformEvent(h, Syx::Mat4::transform(Vec3(10.0f, 1.0f, 10.0f), Quat::Identity, Vec3(0.0f, -10.0f, 0.0f))));
+    m.push(AddLuaComponentEvent(h, repo->getAsset(AssetInfo("scripts/test.lc"))->getInfo().mId));
   }
 
   {

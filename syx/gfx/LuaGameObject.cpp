@@ -48,3 +48,7 @@ void LuaGameObject::removeLuaComponent(size_t script) {
   if(it != mLuaComponents.end())
     mLuaComponents.erase(it);
 }
+
+std::unordered_map<size_t, LuaComponent>& LuaGameObject::getLuaComponents() {
+  return mLuaComponents;
+}

@@ -1,6 +1,7 @@
 #include "Precompile.h"
 #include "lua/LuaSerializer.h"
 
+#include "lua/LuaStackAssert.h"
 #include "lua/LuaState.h"
 #include <lua.hpp>
 
@@ -18,15 +19,19 @@ namespace Lua {
   }
 
   void Serializer::serializeGlobal(State& s, const std::string& global, std::string& buffer) {
+    Lua::StackAssert sa(s);
     lua_getglobal(s, global.c_str());
     buffer += global + " = ";
     serializeTop(s, buffer);
   }
 
   void Serializer::serializeTop(State& s, std::string& buffer) {
+    Lua::StackAssert sa(s);
     mS = &s;
     mBuffer = &buffer;
     mDepth = 0;
+    //Copy the value as _serialize will pop it
+    lua_pushvalue(s, -1);
     _serialize();
     mBuffer = nullptr;
     mS = nullptr;

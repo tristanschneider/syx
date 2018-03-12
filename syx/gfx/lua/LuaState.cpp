@@ -6,6 +6,7 @@
 namespace Lua {
   State::State() {
     mState = luaL_newstate();
+    luaL_openlibs(mState);
   }
 
   State::State(State&& s) {
