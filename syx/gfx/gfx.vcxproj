@@ -168,6 +168,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClCompile Include="loader\ShaderLoader.cpp" />
     <ClCompile Include="loader\TextureLoader.cpp" />
     <ClCompile Include="LuaGameObject.cpp" />
+    <ClCompile Include="lua\lib\LuaNumArray.cpp" />
     <ClCompile Include="lua\LuaNode.cpp" />
     <ClCompile Include="lua\LuaSandbox.cpp" />
     <ClCompile Include="lua\LuaStackAssert.cpp" />
@@ -227,6 +228,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClInclude Include="loader\ShaderLoader.h" />
     <ClInclude Include="loader\TextureLoader.h" />
     <ClInclude Include="LuaGameObject.h" />
+    <ClInclude Include="lua\lib\LuaNumArray.h" />
     <ClInclude Include="lua\LuaNode.h" />
     <ClInclude Include="lua\LuaSandbox.h" />
     <ClInclude Include="lua\LuaStackAssert.h" />
