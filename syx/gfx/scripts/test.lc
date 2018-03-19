@@ -1,0 +1,44 @@
+local testLocal = "local";
+testGlobal = "global";
+
+print("test init script");
+
+local function testStatic()
+  local size = 10;
+  local arr = NumArray.new(10);
+  print("Static begin...")
+  print("Size is "..tostring(NumArray.size(arr)));
+  for i = 1, 10 do
+    NumArray.set(arr, i, i*2);
+  end
+  local values = '';
+  for i = 1, 10 do
+    values = values.." "..NumArray.get(arr, i);
+  end
+  print(values);
+  print("Static end");
+end
+
+local function testMember()
+  local size = 10;
+  local arr = NumArray.new(10);
+  print("Member begin...")
+  print("Size is "..tostring(arr:size()));
+  for i = 1, 10 do
+    arr:set(i, i*2);
+  end
+  arr[1] = 3;
+  print(arr);
+  print("arr[1] is "..arr[1]);
+  print("Member end");
+  arr.test = 'stored test';
+  local r2 = NumArray.new(10);
+  r2.test = 'other stored test';
+  print(arr.test..", "..r2.test);
+end
+
+function update(dt)
+  --testStatic();
+  testMember();
+  print("lua update\n");
+end
