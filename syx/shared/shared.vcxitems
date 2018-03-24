@@ -17,6 +17,10 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)event\Event.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)event\EventBuffer.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)event\EventHandler.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)Precompile.cpp">
+      <PrecompiledHeaderFile>Precompile.h</PrecompiledHeaderFile>
+      <PrecompiledHeader>Create</PrecompiledHeader>
+    </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)threading\FunctionTask.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)threading\IWorkerPool.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)threading\RWLock.cpp" />

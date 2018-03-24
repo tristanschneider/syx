@@ -54,9 +54,7 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
   </ImportGroup>
-  <ImportGroup Label="Shared">
-    <Import Project="..\shared\shared.vcxitems" Label="Shared" />
-  </ImportGroup>
+  <ImportGroup Label="Shared" />
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
@@ -74,11 +72,19 @@
     <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);glew/include;../syx;src-deps;../lua;../shared;$(VCInstallDir)UnitTest\include;$(IncludePath)</IncludePath>
     <ReferencePath>$(VC_ReferencesPath_x86);</ReferencePath>
     <LibraryPath>$(VC_LibraryPath_x86);$(WindowsSDK_LibraryPath_x86);$(NETFXKitsDir)Lib\um\x86;$(VCInstallDir)UnitTest\lib;$(LibraryPath)</LibraryPath>
+    <SourcePath>$(VC_SourcePath);;glew/include;../syx;src-deps;../lua;../shared</SourcePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);glew/include;../syx;src-deps;../lua;../shared;$(VCInstallDir)UnitTest\include;$(IncludePath)</IncludePath>
     <ReferencePath>$(VC_ReferencesPath_x86);</ReferencePath>
     <LibraryPath>$(VC_LibraryPath_x86);$(WindowsSDK_LibraryPath_x86);$(NETFXKitsDir)Lib\um\x86;$(VCInstallDir)UnitTest\lib;$(LibraryPath)</LibraryPath>
+    <SourcePath>$(VC_SourcePath);;glew/include;../syx;src-deps;../lua;../shared</SourcePath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <SourcePath>$(VC_SourcePath);;glew/include;../syx;src-deps;../lua;../shared</SourcePath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <SourcePath>$(VC_SourcePath);;glew/include;../syx;src-deps;../lua;../shared</SourcePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -197,6 +203,9 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
   <ItemGroup>
     <ProjectReference Include="..\lua\lua.vcxproj">
       <Project>{b6e419ec-567f-4eb1-8833-a395540e9bc4}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\sharedLib\sharedLib.vcxproj">
+      <Project>{ddb73903-0a98-4c90-8276-06ad7daecffd}</Project>
     </ProjectReference>
     <ProjectReference Include="..\syx\syx.vcxproj">
       <Project>{85005dad-8122-4d96-bd86-9ccc57b913ae}</Project>

@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
-VisualStudioVersion = 15.0.26403.7
+VisualStudioVersion = 15.0.27130.2010
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "gfx", "gfx\gfx.vcxproj", "{B69805A2-D2C2-4320-B724-097719522A93}"
 	ProjectSection(ProjectDependencies) = postProject
@@ -16,11 +16,12 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test", "test\test.vcxproj",
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "shared", "shared\shared.vcxitems", "{D8319DB0-B598-45A4-A974-8CAB10800B49}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "sharedLib", "sharedLib\sharedLib.vcxproj", "{DDB73903-0A98-4C90-8276-06AD7DAECFFD}"
+EndProject
 Global
 	GlobalSection(SharedMSBuildProjectFiles) = preSolution
-		shared\shared.vcxitems*{95900503-a0ca-4b4c-adc3-d1449bd6d39d}*SharedItemsImports = 4
-		shared\shared.vcxitems*{b69805a2-d2c2-4320-b724-097719522a93}*SharedItemsImports = 4
 		shared\shared.vcxitems*{d8319db0-b598-45a4-a974-8cab10800b49}*SharedItemsImports = 9
+		shared\shared.vcxitems*{ddb73903-0a98-4c90-8276-06ad7daecffd}*SharedItemsImports = 4
 	EndGlobalSection
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -61,8 +62,19 @@ Global
 		{95900503-A0CA-4B4C-ADC3-D1449BD6D39D}.Release|x64.Build.0 = Release|x64
 		{95900503-A0CA-4B4C-ADC3-D1449BD6D39D}.Release|x86.ActiveCfg = Release|Win32
 		{95900503-A0CA-4B4C-ADC3-D1449BD6D39D}.Release|x86.Build.0 = Release|Win32
+		{DDB73903-0A98-4C90-8276-06AD7DAECFFD}.Debug|x64.ActiveCfg = Debug|x64
+		{DDB73903-0A98-4C90-8276-06AD7DAECFFD}.Debug|x64.Build.0 = Debug|x64
+		{DDB73903-0A98-4C90-8276-06AD7DAECFFD}.Debug|x86.ActiveCfg = Debug|Win32
+		{DDB73903-0A98-4C90-8276-06AD7DAECFFD}.Debug|x86.Build.0 = Debug|Win32
+		{DDB73903-0A98-4C90-8276-06AD7DAECFFD}.Release|x64.ActiveCfg = Release|x64
+		{DDB73903-0A98-4C90-8276-06AD7DAECFFD}.Release|x64.Build.0 = Release|x64
+		{DDB73903-0A98-4C90-8276-06AD7DAECFFD}.Release|x86.ActiveCfg = Release|Win32
+		{DDB73903-0A98-4C90-8276-06AD7DAECFFD}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {AF5D0BD6-49D6-49A3-9E0E-342269985169}
 	EndGlobalSection
 EndGlobal

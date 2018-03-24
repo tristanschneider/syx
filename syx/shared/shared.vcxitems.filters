@@ -36,6 +36,7 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)event\EventBuffer.cpp">
       <Filter>event</Filter>
     </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)Precompile.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="$(MSBuildThisFileDirectory)threading\FunctionTask.h">
