@@ -3,42 +3,45 @@ testGlobal = "global";
 
 print("test init script");
 
-local function testStatic()
-  local size = 10;
+local function testArray()
   local arr = NumArray.new(10);
-  print("Static begin...")
-  print("Size is "..tostring(NumArray.size(arr)));
-  for i = 1, 10 do
-    NumArray.set(arr, i, i*2);
-  end
-  local values = '';
-  for i = 1, 10 do
-    values = values.." "..NumArray.get(arr, i);
-  end
-  print(values);
-  print("Static end");
+  assert(#arr == 10, "Size should match construction");
+  assert(arr:size() == 10, "Size should match construction");
+  arr[1] = 1;
+  assert(arr[1] == 1, "Set should have worked");
+  print("testArray complete");
 end
 
-local function testMember()
-  local size = 10;
-  local arr = NumArray.new(10);
-  print("Member begin...")
-  print("Size is "..tostring(arr:size()));
-  for i = 1, 10 do
-    arr:set(i, i*2);
+local function testVec()
+  local v = NumVec.new();
+  assert(#v == 0, "New vector should be empty");
+  assert(v:size() == 0, "New vector should be empty");
+  assert(v:empty() == true, "New vector should be empty");
+  v:pushBack(1);
+  assert(#v == 1, "Push should have increased size");
+  assert(v[1] == 1, "Element should be there");
+  v:popBack();
+  assert(v:empty(), "Should have popped");
+  v:resize(100);
+  for i = 1, 100 do
+    v[i] = i;
   end
-  arr[1] = 3;
-  print(arr);
-  print("arr[1] is "..arr[1]);
-  print("Member end");
-  arr.test = 'stored test';
-  local r2 = NumArray.new(10);
-  r2.test = 'other stored test';
-  print(arr.test..", "..r2.test);
+  assert(v:find(50) == 50, "Should have found element");
+  assert(v:find(200) == 0, "Shouldn't have found element");
+  v:resize(50);
+  assert(v:size() == 50, "Resize should have shrunk");
+  v:clear();
+  assert(v:empty(), "clear should have emptied container");
+  v:reserve(10);
+  print("testVec complete");
 end
+
+local init = true;
 
 function update(dt)
-  --testStatic();
-  testMember();
-  print("lua update\n");
+  if init then
+    init = false;
+    testArray();
+    testVec();
+  end
 end

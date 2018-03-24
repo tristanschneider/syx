@@ -55,6 +55,7 @@ namespace Lua {
       { "__tostring", NumArray::toString },
       { "__index", NumArray::indexOverload },
       { "__newindex", NumArray::newindexOverload },
+      { "__len", NumArray::size },
       { nullptr, nullptr }
     };
 
