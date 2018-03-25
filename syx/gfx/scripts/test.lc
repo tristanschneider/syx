@@ -9,6 +9,7 @@ local function testArray()
   assert(arr:size() == 10, "Size should match construction");
   arr[1] = 1;
   assert(arr[1] == 1, "Set should have worked");
+  tostring(arr);
   print("testArray complete");
 end
 
@@ -30,6 +31,7 @@ local function testVec()
   assert(v:find(200) == 0, "Shouldn't have found element");
   v:resize(50);
   assert(v:size() == 50, "Resize should have shrunk");
+  tostring(v);
   v:clear();
   assert(v:empty(), "clear should have emptied container");
   v:reserve(10);

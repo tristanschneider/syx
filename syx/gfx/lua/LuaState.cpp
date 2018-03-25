@@ -1,6 +1,7 @@
 #include "Precompile.h"
 #include "lua/LuaState.h"
 #include "lua/lib/LuaNumArray.h"
+#include "lua/lib/LuaNumVec.h"
 
 #include <lua.hpp>
 
@@ -10,6 +11,7 @@ namespace Lua {
     luaL_openlibs(mState);
 
     Lua::NumArray::openLib(mState);
+    Lua::NumVec::openLib(mState);
   }
 
   State::State(State&& s) {

@@ -1,6 +1,7 @@
 #include "Precompile.h"
 #include "lua/lib/LuaNumArray.h"
 #include "lua/LuaStackAssert.h"
+#include "lua/LuaUtil.h"
 
 #include <lua.hpp>
 
@@ -58,7 +59,7 @@ namespace Lua {
       { "__len", NumArray::size },
       { nullptr, nullptr }
     };
-
+    Util::registerClass(l, statics, members, CLASS_NAME);
     luaL_newmetatable(l, CLASS_NAME);
     //Register member functions
     luaL_setfuncs(l, members, 0);
@@ -111,33 +112,13 @@ namespace Lua {
   //number __index(array, index)
   //function __index(array, string)
   int NumArray::indexOverload(lua_State* l) {
-    if(lua_isinteger(l, 2))
-      return get(l);
-
-    lua_getmetatable(l, 1);
-    //Push the __index key
-    lua_pushvalue(l, 2);
-    //get metatable[key], which is the function user is presumably trying to index
-    lua_gettable(l, -2);
-    //remove metatable, leaving function on top
-    lua_remove(l, 3);
-    return 1;
+    return Util::intIndexOverload(l, get);
   }
 
   //void __newindex(array, index, number)
   //void __newindex(array, key, value)
   int NumArray::newindexOverload(lua_State* l) {
-    if(lua_isinteger(l, 2))
-      return set(l);
-
-    lua_getmetatable(l, 1);
-    //Push key
-    lua_pushvalue(l, 2);
-    //Push value
-    lua_pushvalue(l, 3);
-    //array.metatable[key] = value
-    lua_settable(l, -3);
-    return 0;
+    return Util::intNewIndexOverload(l, set);
   }
 
   NumArray* NumArray::_getArray(lua_State* l, int i) {
