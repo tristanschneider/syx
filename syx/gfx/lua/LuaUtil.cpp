@@ -22,10 +22,18 @@ namespace Lua {
       printf("%s\n", buff.c_str());
     }
 
-    void registerClass(lua_State* l, const luaL_Reg* statics, const luaL_Reg* members, const char* className) {
+    void registerClass(lua_State* l, const luaL_Reg* statics, const luaL_Reg* members, const char* className, bool defaultIndex, bool defaultNewIndex) {
       Lua::StackAssert sa(l);
       luaL_newmetatable(l, className);
       luaL_setfuncs(l, members, 0);
+      if(defaultIndex) {
+        lua_pushvalue(l, -1);
+        lua_setfield(l, -2, "__index");
+      }
+      if(defaultNewIndex) {
+        lua_pushvalue(l, -1);
+        lua_setfield(l, -2, "__newindex");
+      }
       lua_pop(l, 1);
 
       luaL_newlib(l, statics);

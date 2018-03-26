@@ -13,6 +13,7 @@
 #include <lua.hpp>
 #include "lua/LuaStackAssert.h"
 #include "lua/LuaState.h"
+#include "lua/AllLuaLibs.h"
 #include "LuaGameObject.h"
 #include "provider/GameObjectHandleProvider.h"
 #include "provider/MessageQueueProvider.h"
@@ -45,6 +46,8 @@ void LuaGameSystem::init() {
   SYSTEM_EVENT_HANDLER(PhysicsCompUpdateEvent, _onPhysicsUpdate);
 
   mState = std::make_unique<Lua::State>();
+  mLibs = std::make_unique<Lua::AllLuaLibs>();
+  mLibs->open(*mState);
 }
 
 void LuaGameSystem::queueTasks(float dt, IWorkerPool& pool, std::shared_ptr<Task> frameTask) {

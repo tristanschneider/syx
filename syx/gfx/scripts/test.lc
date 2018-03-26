@@ -38,6 +38,61 @@ local function testVec()
   print("testVec complete");
 end
 
+local function testVec3()
+  local v = Vec3.new3(1, 2, 3);
+  assert(v[1] == 1 and v[2] == 2 and v[3] == 3, "3 Constructor should have worked");
+  v = Vec3.newSplat(1);
+  assert(v[1] == 1 and v[2] == 1 and v[3] == 1, "Splat constructor should have worked");
+  v = Vec3.new();
+  assert(v == Vec3.zero(), "Default constructor should be zero");
+  assert(v:len() == 0, "Zero should have zero length");
+  assert(v:len2() == 0, "Zero should have zero squared length");
+  v:set(1, 0, 0);
+  assert(v == Vec3.unitX(), "Set should set in place");
+  local c = v:copy();
+  assert(v == c, "Copy should have copied");
+  v[1] = 0; v[2] = 1; v[3] = 0;
+  assert(v == Vec3.unitY(), "Newindex should set");
+  v = Vec3.unitX():add(Vec3.unitY());
+  assert(v[1] == 1 and v[2] == 1 and v[3] == 0, "Static add should work");
+  v = Vec3.unitX():sub(Vec3.unitY());
+  local d = Vec3.unitX():dot(Vec3.one());
+  assert(d == 1, "X dot 1 should be one");
+  v = v:normalized();
+  v = v:mulVec(Vec3.unitZ());
+  v = v:mulScalar(2);
+  v = v:projOnto(Vec3.unitX());
+  d = v:dist(Vec3.unitX());
+  d = v:dist2(Vec3.unitX());
+  v = v:neg();
+  v = v:recip();
+  v = v:divScalar(2);
+  local ba, bb = v:getBasis();
+  assert(ba ~= nil and bb ~= nil, "getBasis should return two values");
+  v = v:cross(Vec3.unitX());
+  d = v:dot(Vec3.unitY());
+  v:lerp(Vec3.unitZ(), 0.5);
+  print(v);
+  print("testVec3 complete");
+end
+
+local function testQuat()
+  local q = Quat.newAxisAngle(Vec3.unitX(), 0.5);
+  local q2 = Quat.newFromTo(Vec3.unitX(), Vec3.unitZ());
+  local q3 = Quat.newLookAt(Vec3.unitX());
+  local q4 = Quat.newLookAt(Vec3.unitX(), Vec3.unitY());
+  assert(q3 == q4, "Look at default up should be unit y");
+  q4 = q4:inverse();
+  q3 = q3:normalized();
+  q = q2:mul(q3);
+  q = q:mulScalar(2);
+  local r = q:rot(Vec3.unitX());
+  local x, y, z = q:getBasis();
+  local s = q:slerp(q2, 0.5);
+  print(q);
+  print("testQuat complete");
+end
+
 local init = true;
 
 function update(dt)
@@ -45,5 +100,7 @@ function update(dt)
     init = false;
     testArray();
     testVec();
+    testVec3();
+    testQuat();
   end
 end

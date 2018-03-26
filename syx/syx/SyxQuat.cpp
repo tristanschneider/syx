@@ -80,6 +80,10 @@ namespace Syx {
       2.0f*mV.x*mV.z - 2.0f*mV.y*mV.w, 2.0f*mV.y*mV.z + 2.0f*mV.x*mV.w, 1.0f - 2.0f*mV.x*mV.x - 2.0f*mV.y*mV.y);
   }
 
+  float Quat::dot(const Quat& rhs) const {
+    return mV.dot(rhs.mV) + mV.w*rhs.mV.w;
+  }
+
   Quat Quat::axisAngle(const Vec3& axis, float angle) {
     float angle2 = 0.5f*angle;
     return Quat(axis*sin(angle2), cos(angle2));
@@ -116,6 +120,24 @@ namespace Syx {
     float s = std::sqrt((1.0f + cosAngle)*2.0f);
     float rs = 1.0f/s;
     return Quat(axis*rs, s*0.5f);
+  }
+
+  //http://www.euclideanspace.com/maths/algebra/realNormedAlgebra/quaternions/slerp/index.htm
+  Quat Quat::slerp(const Quat& from, const Quat& to, float t) {
+    float cosHalfAngle = from.dot(to);
+    //If from and two are the same, nothing to slerp, return from
+    if(std::abs(cosHalfAngle) >= 1.0f)
+      return from;
+
+    float halfAngle = std::acos(cosHalfAngle);
+    float sinHalfAngle = std::sqrt(1.0f - cosHalfAngle*cosHalfAngle);
+    if(std::abs(sinHalfAngle) < 0.0001f)
+      return from*0.5f + to*0.5f;
+
+    float invSin = safeDivide(1.0f, sinHalfAngle, SYX_EPSILON);
+    float a = std::sin((1.0f - t)*halfAngle)*invSin;
+    float b = std::sin(t*halfAngle)*invSin;
+    return from*a + to*b;
   }
 
   Quat operator*(float lhs, const Quat& rhs) {

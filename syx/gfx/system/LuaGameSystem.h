@@ -16,6 +16,7 @@ class RemoveLuaComponentEvent;
 
 namespace Lua {
   class State;
+  class LuaLibGroup;
 }
 
 class LuaGameSystem : public System {
@@ -46,4 +47,5 @@ private:
 
   HandleMap<std::unique_ptr<LuaGameObject>> mObjects;
   std::unique_ptr<Lua::State> mState;
+  std::unique_ptr<Lua::LuaLibGroup> mLibs;
 };

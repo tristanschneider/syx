@@ -174,8 +174,11 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClCompile Include="loader\ShaderLoader.cpp" />
     <ClCompile Include="loader\TextureLoader.cpp" />
     <ClCompile Include="LuaGameObject.cpp" />
+    <ClCompile Include="lua\AllLuaLibs.cpp" />
     <ClCompile Include="lua\lib\LuaNumArray.cpp" />
     <ClCompile Include="lua\lib\LuaNumVec.cpp" />
+    <ClCompile Include="lua\lib\LuaQuat.cpp" />
+    <ClCompile Include="lua\lib\LuaVec3.cpp" />
     <ClCompile Include="lua\LuaNode.cpp" />
     <ClCompile Include="lua\LuaSandbox.cpp" />
     <ClCompile Include="lua\LuaStackAssert.cpp" />
@@ -238,8 +241,12 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClInclude Include="loader\ShaderLoader.h" />
     <ClInclude Include="loader\TextureLoader.h" />
     <ClInclude Include="LuaGameObject.h" />
+    <ClInclude Include="lua\AllLuaLibs.h" />
     <ClInclude Include="lua\lib\LuaNumArray.h" />
     <ClInclude Include="lua\lib\LuaNumVec.h" />
+    <ClInclude Include="lua\lib\LuaQuat.h" />
+    <ClInclude Include="lua\lib\LuaVec3.h" />
+    <ClInclude Include="lua\LuaLibGroup.h" />
     <ClInclude Include="lua\LuaNode.h" />
     <ClInclude Include="lua\LuaSandbox.h" />
     <ClInclude Include="lua\LuaStackAssert.h" />

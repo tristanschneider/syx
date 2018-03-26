@@ -38,6 +38,8 @@ namespace Syx {
 
     Mat3 toMatrix() const;
 
+    float dot(const Quat& rhs) const;
+
     static Quat axisAngle(const Vec3& axis, float angle);
     //Assumes normalized input
     static Quat lookAt(const Vec3& axis);
@@ -45,6 +47,7 @@ namespace Syx {
     static Quat lookAt(const Vec3& axis, const Vec3& up);
     static Quat lookAt(const Vec3& forward, const Vec3& up, const Vec3& right);
     static Quat getRotation(const Vec3& from, const Vec3& to);
+    static Quat slerp(const Quat& from, const Quat& to, float t);
 
     static const Quat Zero;
     static const Quat Identity;
