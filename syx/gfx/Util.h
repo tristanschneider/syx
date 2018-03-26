@@ -24,6 +24,24 @@ namespace Util {
     seed ^= hasher(v) + 0x9e3779b9 + (seed<<6) + (seed>>2);
     hashCombine(seed, rest...);
   }
+
+  //Get offset from owner to member, member must be direct member of owner
+  template<typename Owner, typename Member>
+  size_t offsetOf(const Owner& owner, const Member& member) {
+    size_t result = reinterpret_cast<const uint8_t*>(&member) - reinterpret_cast<const uint8_t*>(&owner);
+    assert(result + sizeof(Member) <= sizeof(Owner) && "Member must be a direct member of owner");
+    return result;
+  }
+
+  template<typename Member, typename Owner>
+  Member& fromOffset(Owner& owner, size_t offset) {
+    return *reinterpret_cast<Member*>(reinterpret_cast<uint8_t*>(owner) + offset);
+  }
+
+  template<typename Member, typename Owner>
+  const Member& fromOffset(const Owner& owner, size_t offset) {
+    return *reinterpret_cast<const Member*>(reinterpret_cast<const uint8_t*>(owner) + offset);
+  }
 }
 
 template<typename T, typename Lock = std::mutex>

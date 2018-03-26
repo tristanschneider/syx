@@ -7,26 +7,17 @@ namespace Lua {
   class State;
   class Node;
 
-  #define MAKE_NODE(NodeType, ParamType)\
-    inline std::unique_ptr<NodeType> makeRootNode(NodeOps&& ops, ParamType& p) {\
-      return std::make_unique<NodeType>(std::move(ops), p);\
-    }\
-    inline NodeType& makeNode(NodeOps&& ops, ParamType& p) {\
-      Node* parent = ops.mParent;\
-      auto newNode = std::make_unique<NodeType>(std::move(ops), p);\
-      auto& result = *newNode;\
-      parent->addChild(std::move(newNode));\
-      return result;\
-    }
-
   struct NodeOps {
-    NodeOps(Node& parent, std::string&& name);
+    NodeOps(Node& parent, std::string&& name, size_t offset);
     NodeOps(std::string&& name);
 
     Node* mParent;
     std::string mName;
+    size_t mOffset;
   };
 
+  //read/write take base pointer so one scheme can be used between all instances of the class
+  //members are then accessed through pointer offsets
   class Node {
   public:
     Node(NodeOps&& ops);
@@ -35,13 +26,22 @@ namespace Lua {
     Node(Node&&) = delete;
     Node& operator=(const Node&) = delete;
 
-    void read(State& s);
-    void write(State& s) const;
+    //Read state from lua object(s) on stack
+    void read(State& s, uint8_t* base) const;
+    //Write state to new lua object(s) on stack
+    void write(State& s, uint8_t* base) const;
 
+    //Attempt to read state from load object(s) on stack, returns if it was read
+    bool readChild(State& s, const char* child, uint8_t* base) const;
+    //Attempt to write state from load object(s) on stack, returns if it was read
+    bool writeChild(State& s, const char* child, uint8_t* base) const;
     void addChild(std::unique_ptr<Node> child);
+
+    const std::string& getName() const;
+
   protected:
-    virtual void _read(State& s) {}
-    virtual void _write(State& s) const {}
+    virtual void _read(State& s, uint8_t* base) const {}
+    virtual void _write(State& s, uint8_t* base) const {}
 
     //Push stack[top][field] onto top of stack, or global[field] if root node
     void getField(State& s, const std::string& field) const;
@@ -68,23 +68,21 @@ namespace Lua {
 
   class IntNode : public Node {
   public:
-    IntNode(NodeOps&& ops, int& i);
-    void _read(State& s) override;
-    void _write(State& s) const override;
+    using Node::Node;
+    void _read(State& s, uint8_t* base) const override;
+    void _write(State& s, uint8_t* base) const override;
 
   protected:
-    int* mI;
+    int& _get(uint8_t* base) const;
   };
-  MAKE_NODE(IntNode, int);
 
   class StringNode : public Node {
   public:
-    StringNode(NodeOps&& ops, std::string& str);
-    void _read(State& s) override;
-    void _write(State& s) const override;
+    using Node::Node;
+    void _read(State& s, uint8_t* base) const override;
+    void _write(State& s, uint8_t* base) const override;
 
   protected:
-    std::string* mStr;
+    std::string& _get(uint8_t* base) const;
   };
-  MAKE_NODE(StringNode, std::string);
 }
