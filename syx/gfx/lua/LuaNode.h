@@ -3,6 +3,11 @@
 //read and written to lua. All nodes take a reference to the type to bind,
 //which will be written or read. Overload makeNode for new node types.
 
+namespace Syx {
+  struct Vec3;
+  struct Quat;
+}
+
 namespace Lua {
   class State;
   class Node;
@@ -26,15 +31,15 @@ namespace Lua {
     Node(Node&&) = delete;
     Node& operator=(const Node&) = delete;
 
-    //Read state from lua object(s) on stack
-    void read(State& s, uint8_t* base) const;
-    //Write state to new lua object(s) on stack
-    void write(State& s, uint8_t* base) const;
+    //Read state from lua object(s) on stack or global
+    void read(State& s, uint8_t* base, bool fromGlobal = false) const;
+    //Write state to new lua object(s) on stack or global
+    void write(State& s, uint8_t* base, bool fromGlobal = false) const;
 
     //Attempt to read state from load object(s) on stack, returns if it was read
-    bool readChild(State& s, const char* child, uint8_t* base) const;
+    bool readChild(State& s, const char* child, uint8_t* base, bool fromGlobal = false) const;
     //Attempt to write state from load object(s) on stack, returns if it was read
-    bool writeChild(State& s, const char* child, uint8_t* base) const;
+    bool writeChild(State& s, const char* child, uint8_t* base, bool fromGlobal = false) const;
     void addChild(std::unique_ptr<Node> child);
 
     const std::string& getName() const;
@@ -44,12 +49,12 @@ namespace Lua {
     virtual void _write(State& s, uint8_t* base) const {}
 
     //Push stack[top][field] onto top of stack, or global[field] if root node
-    void getField(State& s, const std::string& field) const;
+    void getField(State& s, const std::string& field, bool fromGlobal = false) const;
     //stack[top - 1][field] = stack[top]
-    void setField(State& s, const std::string& field) const;
+    void setField(State& s, const std::string& field, bool fromGlobal = false) const;
     //Same as above but uses mName
-    void getField(State& s) const;
-    void setField(State& s) const;
+    void getField(State& s, bool fromGlobal = false) const;
+    void setField(State& s, bool fromGlobal = false) const;
 
     NodeOps mOps;
     std::vector<std::unique_ptr<Node>> mChildren;
@@ -84,5 +89,55 @@ namespace Lua {
 
   protected:
     std::string& _get(uint8_t* base) const;
+  };
+
+  class FloatNode : public Node {
+  public:
+    using Node::Node;
+    void _read(State& s, uint8_t* base) const override;
+    void _write(State& s, uint8_t* base) const override;
+
+  protected:
+    float& _get(uint8_t* base) const;
+  };
+
+  class LightUserdataNode : public Node {
+  public:
+    using Node::Node;
+    void _read(State& s, uint8_t* base) const override;
+    void _write(State& s, uint8_t* base) const override;
+
+  protected:
+    void*& _get(uint8_t* base) const;
+  };
+
+  class BoolNode : public Node {
+  public:
+    using Node::Node;
+    void _read(State& s, uint8_t* base) const override;
+    void _write(State& s, uint8_t* base) const override;
+
+  protected:
+    bool& _get(uint8_t* base) const;
+  };
+
+  class Vec3Node : public Node {
+  public:
+    using Node::Node;
+    void _read(State& s, uint8_t* base) const override;
+    void _write(State& s, uint8_t* base) const override;
+
+  protected:
+    Syx::Vec3& _get(uint8_t* base) const;
+  };
+
+  class QuatNode : public Node {
+  public:
+    using Node::Node;
+    void _read(State& s, uint8_t* base) const override;
+    void _write(State& s, uint8_t* base) const override;
+
+  protected:
+    Syx::Quat& _get(uint8_t* base) const;
   };
 }

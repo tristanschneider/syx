@@ -19,6 +19,8 @@ namespace Syx {
     Quat operator/(float rhs) const;
     Quat& operator/=(float rhs);
     Quat operator-(void) const;
+    float operator[](int index) const;
+    float& operator[](int index);
 
     Vec3 getUp() const;
     Vec3 getRight() const;

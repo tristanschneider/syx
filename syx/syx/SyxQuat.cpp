@@ -50,6 +50,14 @@ namespace Syx {
     return Quat(-mV, -mV.w);
   }
 
+  float Quat::operator[](int index) const {
+    return mV[index];
+  }
+
+  float& Quat::operator[](int index) {
+    return mV[index];
+  }
+
   float Quat::length(void) const {
     return sqrt(length2());
   }
