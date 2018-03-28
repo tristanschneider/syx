@@ -2,6 +2,10 @@
 
 class MessageQueueProvider;
 
+namespace Lua {
+  class Node;
+};
+
 #define DEFINE_COMPONENT(compType, ...) namespace {\
     static Component::Registry::Registrar compType##_reg(Component::typeId<compType>(), [](Handle h) {\
       return std::make_unique<compType>(h);\
@@ -45,6 +49,8 @@ public:
   Handle getOwner() {
     return mOwner;
   }
+
+  virtual const Lua::Node* getLuaProps() const;
 
 protected:
   Handle mOwner;

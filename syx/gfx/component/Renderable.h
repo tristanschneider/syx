@@ -22,6 +22,10 @@ public:
   const RenderableData& get() const;
   void set(const RenderableData& data);
 
+  virtual const Lua::Node* getLuaProps() const override;
+
 private:
+  std::unique_ptr<Lua::Node> _buildLuaProps() const;
+
   RenderableData mData;
 };

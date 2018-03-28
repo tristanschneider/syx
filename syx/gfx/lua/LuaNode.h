@@ -64,8 +64,9 @@ namespace Lua {
     return std::make_unique<Node>(std::move(ops));
   }
 
-  inline Node& makeNode(NodeOps&& ops) {
-    auto newNode = std::make_unique<Node>(std::move(ops));
+  template<typename T>
+  T& makeNode(NodeOps&& ops) {
+    auto newNode = std::make_unique<T>(std::move(ops));
     auto& result = *newNode;
     ops.mParent->addChild(std::move(newNode));
     return result;
@@ -109,6 +110,16 @@ namespace Lua {
 
   protected:
     void*& _get(uint8_t* base) const;
+  };
+
+  class LightUserdataSizetNode : public Node {
+  public:
+    using Node::Node;
+    void _read(State& s, uint8_t* base) const override;
+    void _write(State& s, uint8_t* base) const override;
+
+  protected:
+    size_t& _get(uint8_t* base) const;
   };
 
   class BoolNode : public Node {

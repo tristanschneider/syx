@@ -162,6 +162,19 @@ namespace Lua {
     return *reinterpret_cast<void**>(base);
   }
 
+  void LightUserdataSizetNode::_read(State& s, uint8_t* base) const {
+    _get(base) = reinterpret_cast<size_t>(lua_touserdata(s, -1));
+  }
+
+  void LightUserdataSizetNode::_write(State& s, uint8_t* base) const {
+    lua_pushlightuserdata(s, reinterpret_cast<void*>(_get(base)));
+    setField(s);
+  }
+
+  size_t& LightUserdataSizetNode::_get(uint8_t* base) const {
+    return *reinterpret_cast<size_t*>(base);
+  }
+
   void BoolNode::_read(State& s, uint8_t* base) const {
     _get(base) = static_cast<bool>(lua_toboolean(s, -1));
   }

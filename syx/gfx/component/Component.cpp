@@ -32,3 +32,7 @@ Component::Component(Handle type, Handle owner)
 
 Component::~Component() {
 }
+
+const Lua::Node* Component::getLuaProps() const {
+  return nullptr;
+}
