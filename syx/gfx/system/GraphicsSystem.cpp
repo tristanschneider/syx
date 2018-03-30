@@ -11,6 +11,7 @@
 #include "event/EventHandler.h"
 #include "event/TransformEvent.h"
 #include "event/BaseComponentEvents.h"
+#include "event/DebugDrawEvent.h"
 #include "ImGuiImpl.h"
 #include "system/KeyboardInput.h"
 #include "system/AssetRepo.h"
@@ -54,6 +55,11 @@ void GraphicsSystem::init() {
   SYSTEM_EVENT_HANDLER(RemoveComponentEvent, _processRemoveEvent);
   SYSTEM_EVENT_HANDLER(RenderableUpdateEvent, _processRenderableEvent);
   SYSTEM_EVENT_HANDLER(TransformEvent, _processTransformEvent);
+  SYSTEM_EVENT_HANDLER(DrawLineEvent, _processDebugDrawEvent);
+  SYSTEM_EVENT_HANDLER(DrawVectorEvent, _processDebugDrawEvent);
+  SYSTEM_EVENT_HANDLER(DrawPointEvent, _processDebugDrawEvent);
+  SYSTEM_EVENT_HANDLER(DrawCubeEvent, _processDebugDrawEvent);
+  SYSTEM_EVENT_HANDLER(DrawSphereEvent, _processDebugDrawEvent);
 }
 
 void GraphicsSystem::update(float dt, IWorkerPool& pool, std::shared_ptr<Task> frameTask) {
@@ -119,6 +125,30 @@ void GraphicsSystem::_processRenderableEvent(const RenderableUpdateEvent& e) {
     obj->mModel = repo.getAsset(AssetInfo(e.mData.mModel));
     obj->mDiffTex = repo.getAsset(AssetInfo(e.mData.mDiffTex));
   }
+}
+
+void GraphicsSystem::_processDebugDrawEvent(const DrawLineEvent& e) {
+  mDebugDrawer->drawLine(e.mStart, e.mEnd, e.mColor);
+}
+
+void GraphicsSystem::_processDebugDrawEvent(const DrawVectorEvent& e) {
+  mDebugDrawer->setColor(e.mColor);
+  mDebugDrawer->drawVector(e.mStart, e.mDir);
+}
+
+void GraphicsSystem::_processDebugDrawEvent(const DrawPointEvent& e) {
+  mDebugDrawer->setColor(e.mColor);
+  mDebugDrawer->DrawPoint(e.mPoint, e.mSize);
+}
+
+void GraphicsSystem::_processDebugDrawEvent(const DrawCubeEvent& e) {
+  mDebugDrawer->setColor(e.mColor);
+  mDebugDrawer->DrawCube(e.mCenter, e.mSize, e.mRot.getRight(), e.mRot.getUp());
+}
+
+void GraphicsSystem::_processDebugDrawEvent(const DrawSphereEvent& e) {
+  mDebugDrawer->setColor(e.mColor);
+  mDebugDrawer->DrawSphere(e.mCenter, e.mRadius, e.mRot.getRight(), e.mRot.getUp());
 }
 
 void GraphicsSystem::_processRenderThreadTasks() {

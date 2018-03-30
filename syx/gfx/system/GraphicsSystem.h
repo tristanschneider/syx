@@ -16,6 +16,11 @@ class App;
 class Asset;
 class AddComponentEvent;
 class RemoveComponentEvent;
+class DrawLineEvent;
+class DrawVectorEvent;
+class DrawPointEvent;
+class DrawCubeEvent;
+class DrawSphereEvent;
 
 class GraphicsSystem : public System {
 public:
@@ -46,10 +51,17 @@ private:
   };
 
   void _render(float dt);
+
   void _processAddEvent(const AddComponentEvent& e);
   void _processRemoveEvent(const RemoveComponentEvent& e);
   void _processTransformEvent(const TransformEvent& e);
   void _processRenderableEvent(const RenderableUpdateEvent& e);
+  void _processDebugDrawEvent(const DrawLineEvent& e);
+  void _processDebugDrawEvent(const DrawVectorEvent& e);
+  void _processDebugDrawEvent(const DrawPointEvent& e);
+  void _processDebugDrawEvent(const DrawCubeEvent& e);
+  void _processDebugDrawEvent(const DrawSphereEvent& e);
+
   void _processRenderThreadTasks();
 
   std::shared_ptr<Asset> mGeometry;
