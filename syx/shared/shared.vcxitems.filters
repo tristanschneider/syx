@@ -15,9 +15,6 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)threading\FunctionTask.cpp">
       <Filter>threading</Filter>
     </ClCompile>
-    <ClCompile Include="$(MSBuildThisFileDirectory)threading\IWorkerPool.cpp">
-      <Filter>threading</Filter>
-    </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)threading\RWLock.cpp">
       <Filter>threading</Filter>
     </ClCompile>
@@ -37,6 +34,9 @@
       <Filter>event</Filter>
     </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)Precompile.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)threading\SyncTask.cpp">
+      <Filter>threading</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="$(MSBuildThisFileDirectory)threading\FunctionTask.h">
@@ -78,6 +78,9 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)Precompile.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)util\ScopeWrap.h">
       <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="$(MSBuildThisFileDirectory)threading\SyncTask.h">
+      <Filter>threading</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

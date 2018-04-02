@@ -147,9 +147,12 @@ int mainLoop() {
   sApp->init();
   //Inform graphcis of screen size
   setWindowSize(sWidth, sHeight);
-  auto lastFrameEnd = std::chrono::high_resolution_clock::now();
+  auto lastFrameStart = std::chrono::high_resolution_clock::now();
   while(!exit) {
     auto frameStart = std::chrono::high_resolution_clock::now();
+    int dtNS = static_cast<int>(std::chrono::duration_cast<std::chrono::nanoseconds>(frameStart - lastFrameStart).count());
+    lastFrameStart = frameStart;
+
     while((gotMessage = PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) > 0) {
       if(msg.message == WM_QUIT) {
         exit = true;
@@ -162,12 +165,10 @@ int mainLoop() {
     if(exit)
       break;
 
-    int dtNS = static_cast<int>(std::chrono::duration_cast<std::chrono::nanoseconds>(frameStart - lastFrameEnd).count());
     sApp->update(static_cast<float>(dtNS)*nsToMS*0.001f);
     SwapBuffers(sDeviceContext);
 
-    lastFrameEnd = std::chrono::high_resolution_clock::now();
-    int frameTimeNS = static_cast<int>(std::chrono::duration_cast<std::chrono::nanoseconds>(lastFrameEnd - frameStart).count());
+    int frameTimeNS = static_cast<int>(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - frameStart).count());
     //If frame time was greater than target time then we're behind, start the next frame immediately
     int timeToNextFrameNS = targetFrameTimeNS - frameTimeNS;
     if(timeToNextFrameNS <= 0)

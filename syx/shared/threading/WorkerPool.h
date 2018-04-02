@@ -8,23 +8,20 @@ public:
   ~WorkerPool();
 
   void queueTask(std::shared_ptr<Task> task) override;
-  void sync(std::weak_ptr<Task> task) override;
+
+protected:
   void taskReady(std::shared_ptr<Task> task) override;
 
 private:
   void _taskReady(std::shared_ptr<Task> task);
   void _workerLoop();
   std::shared_ptr<Task> _getTask();
-  void _doNextTask(std::unique_lock<std::mutex>& taskLock);
-  void _wakeSyncer();
 
   std::vector<std::shared_ptr<Task>> mTasks;
   std::mutex mTaskMutex;
 
   std::condition_variable mWorkerCV;
   bool mTerminate;
-  std::atomic_bool mSyncing;
-  std::atomic<Task*> mSyncTask;
 
   std::thread* mWorkers;
   size_t mWorkerCount;

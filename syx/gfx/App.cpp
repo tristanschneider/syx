@@ -2,7 +2,7 @@
 #include "App.h"
 #include "system/GraphicsSystem.h"
 #include "threading/WorkerPool.h"
-#include "threading/Task.h"
+#include "threading/SyncTask.h"
 #include "EditorNavigator.h"
 #include "ImGuiImpl.h"
 #include "event/EventBuffer.h"
@@ -123,7 +123,7 @@ void App::update(float dt) {
   mMessageQueue.swap(mFrozenMessageQueue);
   mMessageLock.unlock();
 
-  auto frameTask = std::make_shared<Task>();
+  auto frameTask = std::make_shared<SyncTask>();
 
   for(auto& system : mSystems) {
     system->setEventBuffer(mFrozenMessageQueue.get());
@@ -152,9 +152,7 @@ void App::update(float dt) {
     ImGui::InputText("Text In", buff, buffSize);
   }
 
-  std::weak_ptr<Task> weakFrame = frameTask;
-  frameTask = nullptr;
-  mWorkerPool->sync(weakFrame);
+  frameTask->sync();
   //All readers should have either looked at this in update or in a frameTask dependent task, so clear now.
   mFrozenMessageQueue->clear();
 }

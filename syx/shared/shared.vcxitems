@@ -22,8 +22,8 @@
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)threading\FunctionTask.cpp" />
-    <ClCompile Include="$(MSBuildThisFileDirectory)threading\IWorkerPool.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)threading\RWLock.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)threading\SyncTask.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)threading\Task.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)threading\WorkerPool.cpp" />
   </ItemGroup>
@@ -36,6 +36,7 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)threading\IWorkerPool.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)threading\RWLock.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)threading\SpinLock.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)threading\SyncTask.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)threading\Task.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)threading\ThreadLocal.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)threading\WorkerPool.h" />

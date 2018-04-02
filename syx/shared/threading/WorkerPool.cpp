@@ -4,7 +4,6 @@
 
 WorkerPool::WorkerPool(size_t workerCount)
   : mTerminate(false)
-  , mSyncing(false)
   , mWorkers(nullptr)
   , mWorkerCount(workerCount) {
 
@@ -57,58 +56,17 @@ void WorkerPool::_taskReady(std::shared_ptr<Task> task) {
   }
 }
 
-void WorkerPool::sync(std::weak_ptr<Task> task) {
-  {
-    std::shared_ptr<Task> t = task.lock();
-    if(t)
-      mSyncTask = t.get();
-    else
-      return;
-  }
-  mSyncing = true;
-  //Normally there shouldn't be termination during sync because the syncing thread is probably the one who would tear down
-  while(mSyncing) {
-    std::unique_lock<std::mutex> taskLock(mTaskMutex);
-    //task.expired shouldn't generally happen, but is possible since sync check isn't in a locked section
-    if(!mSyncing || mTerminate || task.expired())
-      break;
-    mWorkerCV.wait(taskLock);
-  }
-
-  mSyncing = false;
-  mSyncTask = nullptr;
-}
-
-void WorkerPool::_wakeSyncer() {
-  mTaskMutex.lock();
-  mSyncing = false;
-  mWorkerCV.notify_all();
-  mTaskMutex.unlock();
-}
-
 void WorkerPool::_workerLoop() {
   while(!mTerminate) {
     //Use same lock for condition variable as tasks, so if work is being queued,
     //a thread doesn't miss the notification then immediately wait on the condition variable
     std::unique_lock<std::mutex> taskLock(mTaskMutex);
-    _doNextTask(taskLock);
-  }
-}
-
-void WorkerPool::_doNextTask(std::unique_lock<std::mutex>& taskLock) {
-  std::shared_ptr<Task> task = _getTask();
-  if(task) {
-    taskLock.unlock();
-    task->run();
-    Task* taskAddr = task.get();
-    task = nullptr;
-    if(mSyncing && mSyncTask == taskAddr) {
-      _wakeSyncer();
+    if(std::shared_ptr<Task> task = _getTask()) {
+      taskLock.unlock();
+      task->run();
     }
-  }
-  else {
-    //Termination might have been signaled as we were grabbing mutex, check before sleeping
-    if(!mTerminate) {
+    //No work, but termination might have been signaled as we were grabbing mutex, check before sleeping
+    else if(!mTerminate) {
       //Now work now, wait until some is available
       mWorkerCV.wait(taskLock);
     }
