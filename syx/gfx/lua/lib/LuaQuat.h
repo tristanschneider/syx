@@ -33,8 +33,9 @@ namespace Lua {
     static int toString(lua_State* l);
     static int equality(lua_State* l);
 
-  private:
     static Syx::Quat& _getQuat(lua_State* l, int i);
+
+  private:
     static Syx::Vec3& _getVec(lua_State* l, int i);
     static float _getValue(lua_State* l, int i);
 

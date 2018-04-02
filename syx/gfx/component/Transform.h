@@ -8,6 +8,10 @@ public:
   void set(const Syx::Mat4& m);
   const Syx::Mat4& get();
 
+  virtual const Lua::Node* getLuaProps() const override;
+
 private:
+  std::unique_ptr<Lua::Node> _buildLuaProps() const;
+
   Syx::Mat4 mMat;
 };

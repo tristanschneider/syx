@@ -38,6 +38,10 @@ public:
   void setLinVel(const Syx::Vec3& linVel);
   void setAngVel(const Syx::Vec3& angVel);
 
+  const Lua::Node* getLuaProps() const override;
+
 private:
+  std::unique_ptr<Lua::Node> _buildLuaProps() const;
+
   PhysicsData mData;
 };

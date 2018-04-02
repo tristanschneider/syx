@@ -15,6 +15,7 @@ namespace Lua {
   struct NodeOps {
     NodeOps(Node& parent, std::string&& name, size_t offset);
     NodeOps(std::string&& name);
+    NodeOps(const std::string& name);
 
     Node* mParent;
     std::string mName;
@@ -150,5 +151,15 @@ namespace Lua {
 
   protected:
     Syx::Quat& _get(uint8_t* base) const;
+  };
+
+  class Mat4Node : public Node {
+  public:
+    using Node::Node;
+    void _read(State& s, uint8_t* base) const override;
+    void _write(State& s, uint8_t* base) const override;
+
+  protected:
+    Syx::Mat4& _get(uint8_t* base) const;
   };
 }

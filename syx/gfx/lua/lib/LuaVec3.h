@@ -49,10 +49,11 @@ namespace Lua {
     static int setIndex(lua_State* l);
     static int equality(lua_State* l);
 
+    static Syx::Vec3& _getVec(lua_State* l, int i);
+
   private:
     static const char* CLASS_NAME;
 
-    static Syx::Vec3& _getVec(lua_State* l, int i);
     static int _getIndex(lua_State* l, int i);
     static float _getValue(lua_State* l, int i);
 

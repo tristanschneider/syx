@@ -26,7 +26,7 @@ const Lua::Node* Renderable::getLuaProps() const {
 
 std::unique_ptr<Lua::Node> Renderable::_buildLuaProps() const {
   using namespace Lua;
-  auto root = makeRootNode(NodeOps("props"));
+  auto root = makeRootNode(NodeOps(LUA_PROPS_KEY));
   makeNode<LightUserdataSizetNode>(NodeOps(*root, "model", Util::offsetOf(*this, mData.mModel)));
   makeNode<LightUserdataSizetNode>(NodeOps(*root, "diffuseTexture", Util::offsetOf(*this, mData.mDiffTex)));
   return root;

@@ -5,6 +5,8 @@
 #include "event/EventBuffer.h"
 #include "provider/MessageQueueProvider.h"
 
+const std::string Component::LUA_PROPS_KEY = "props";
+
 Component::Registry::Registrar::Registrar(size_t type, Constructor ctor) {
   Component::Registry::registerComponent(type, ctor);
 }

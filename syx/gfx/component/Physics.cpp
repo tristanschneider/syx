@@ -1,5 +1,6 @@
 #include "Precompile.h"
 #include "component/Physics.h"
+#include "lua/LuaNode.h"
 
 DEFINE_EVENT(PhysicsCompUpdateEvent, const PhysicsData& data, Handle owner)
   , mData(data)
@@ -45,4 +46,22 @@ void Physics::setLinVel(const Syx::Vec3& linVel) {
 
 void Physics::setAngVel(const Syx::Vec3& angVel) {
   mData.mAngVel = angVel;
+}
+
+const Lua::Node* Physics::getLuaProps() const {
+  static std::unique_ptr<Lua::Node> props = _buildLuaProps();
+  return props.get();
+}
+
+std::unique_ptr<Lua::Node> Physics::_buildLuaProps() const {
+  using namespace Lua;
+  std::unique_ptr<Lua::Node> root = makeRootNode(NodeOps(LUA_PROPS_KEY));
+  makeNode<BoolNode>(NodeOps(*root, "hasRigidbody", Util::offsetOf(*this, mData.mHasRigidbody)));
+  makeNode<BoolNode>(NodeOps(*root, "hasCollider", Util::offsetOf(*this, mData.mHasCollider)));
+  makeNode<Vec3Node>(NodeOps(*root, "linVel", Util::offsetOf(*this, mData.mLinVel)));
+  makeNode<Vec3Node>(NodeOps(*root, "angVel", Util::offsetOf(*this, mData.mAngVel)));
+  makeNode<LightUserdataSizetNode>(NodeOps(*root, "model", Util::offsetOf(*this, mData.mModel)));
+  makeNode<LightUserdataSizetNode>(NodeOps(*root, "material", Util::offsetOf(*this, mData.mMaterial)));
+  makeNode<Mat4Node>(NodeOps(*root, "physToModel", Util::offsetOf(*this, mData.mPhysToModel)));
+  return root;
 }

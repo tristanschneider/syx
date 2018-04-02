@@ -1,6 +1,8 @@
 #include "Precompile.h"
 #include "lua/LuaNode.h"
 #include "lua/LuaState.h"
+#include "lua/lib/LuaVec3.h"
+#include "lua/lib/LuaQuat.h"
 
 #include <lua.hpp>
 #include <SyxVec3.h>
@@ -16,6 +18,11 @@ namespace Lua {
   NodeOps::NodeOps(std::string&& name)
     : mParent(nullptr)
     , mName(std::move(name)) {
+  }
+
+  NodeOps::NodeOps(const std::string& name)
+    : mParent(nullptr)
+    , mName(name) {
   }
 
   Node::Node(NodeOps&& ops)
@@ -189,23 +196,11 @@ namespace Lua {
   }
 
   void Vec3Node::_read(State& s, uint8_t* base) const {
-    Syx::Vec3& v = _get(base);
-    for(int i = 0; i < 3; ++i) {
-      lua_pushinteger(s, i + 1);
-      lua_gettable(s, -2);
-      v[i] = static_cast<float>(lua_tonumber(s, -1));
-      lua_pop(s, 1);
-    }
+    _get(base) = Lua::Vec3::_getVec(s, -1);
   }
 
   void Vec3Node::_write(State& s, uint8_t* base) const {
-    lua_createtable(s, 3, 0);
-    Syx::Vec3& v = _get(base);
-    for(int i = 0; i < 3; ++i) {
-      lua_pushinteger(s, i + 1);
-      lua_pushnumber(s, v[i]);
-      lua_settable(s, -3);
-    }
+    Lua::Vec3::construct(s, _get(base));
     setField(s);
   }
 
@@ -214,27 +209,40 @@ namespace Lua {
   }
 
   void QuatNode::_read(State& s, uint8_t* base) const {
-    Syx::Quat& v = _get(base);
-    for(int i = 0; i < 4; ++i) {
-      lua_pushinteger(s, i + 1);
-      lua_gettable(s, -2);
-      v[i] = static_cast<float>(lua_tonumber(s, -1));
-      lua_pop(s, 1);
-    }
+    _get(base) = Lua::Quat::_getQuat(s, -1);
   }
 
   void QuatNode::_write(State& s, uint8_t* base) const {
-    lua_createtable(s, 3, 0);
-    Syx::Quat& v = _get(base);
-    for(int i = 0; i < 4; ++i) {
-      lua_pushinteger(s, i + 1);
-      lua_pushnumber(s, v[i]);
-      lua_settable(s, -3);
-    }
+    Lua::Quat::construct(s, _get(base));
     setField(s);
   }
 
   Syx::Quat& QuatNode::_get(uint8_t* base) const {
     return *reinterpret_cast<Syx::Quat*>(base);
+  }
+
+  void Mat4Node::_read(State& s, uint8_t* base) const {
+    Syx::Mat4& m = _get(base);
+    for(int i = 0; i < 16; ++i) {
+      lua_pushinteger(s, i + 1);
+      lua_gettable(s, -2);
+      m.mData[i] = static_cast<float>(lua_tonumber(s, -1));
+      lua_pop(s, 1);
+    }
+  }
+
+  void Mat4Node::_write(State& s, uint8_t* base) const {
+    lua_createtable(s, 16, 0);
+    Syx::Mat4& m = _get(base);
+    for(int i = 0; i < 16; ++i) {
+      lua_pushinteger(s, i + 1);
+      lua_pushnumber(s, m.mData[i]);
+      lua_settable(s, -3);
+    }
+    setField(s);
+  }
+
+  Syx::Mat4& Mat4Node::_get(uint8_t* base) const {
+    return reinterpret_cast<Syx::Mat4&>(*base);
   }
 }

@@ -52,6 +52,8 @@ public:
 
   virtual const Lua::Node* getLuaProps() const;
 
+  static const std::string LUA_PROPS_KEY;
+
 protected:
   Handle mOwner;
   size_t mType;
