@@ -22,6 +22,8 @@
 #include "threading/FunctionTask.h"
 #include "threading/IWorkerPool.h"
 
+const std::string LuaGameSystem::INSTANCE_KEY = "LuaGameSystem";
+
 RegisterSystemCPP(LuaGameSystem);
 
 LuaGameSystem::LuaGameSystem(const SystemArgs& args)
@@ -48,6 +50,9 @@ void LuaGameSystem::init() {
   mState = std::make_unique<Lua::State>();
   mLibs = std::make_unique<Lua::AllLuaLibs>();
   mLibs->open(*mState);
+  //Store an instance of this in the registry for later
+  lua_pushlightuserdata(*mState, this);
+  lua_setfield(*mState, LUA_REGISTRYINDEX, INSTANCE_KEY.c_str());
 }
 
 void LuaGameSystem::queueTasks(float dt, IWorkerPool& pool, std::shared_ptr<Task> frameTask) {
@@ -104,6 +109,11 @@ void LuaGameSystem::uninit() {
   mObjects.clear();
   mEventHandler = nullptr;
   mState = nullptr;
+}
+
+LuaGameSystem* LuaGameSystem::get(lua_State* l) {
+  lua_getfield(l, LUA_REGISTRYINDEX, INSTANCE_KEY.c_str());
+  return static_cast<LuaGameSystem*>(lua_touserdata(l, -1));
 }
 
 void LuaGameSystem::_onAddComponent(const AddComponentEvent& e) {

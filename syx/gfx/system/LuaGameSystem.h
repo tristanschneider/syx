@@ -13,6 +13,7 @@ class TransformEvent;
 class PhysicsCompUpdateEvent;
 class AddLuaComponentEvent;
 class RemoveLuaComponentEvent;
+struct lua_State;
 
 namespace Lua {
   class State;
@@ -29,11 +30,14 @@ public:
   void queueTasks(float dt, IWorkerPool& pool, std::shared_ptr<Task> frameTask) override;
   void uninit() override;
 
+  LuaGameObject* _getObj(Handle h);
+
+  static LuaGameSystem* get(lua_State* l);
+
 private:
   void _update(float dt);
   //TODO: make it possible to do this from lua
   void _initHardCodedScene();
-  LuaGameObject* _getObj(Handle h);
 
   void _onAddComponent(const AddComponentEvent& e);
   void _onRemoveComponent(const RemoveComponentEvent& e);
@@ -44,6 +48,8 @@ private:
   void _onRenderableUpdate(const RenderableUpdateEvent& e);
   void _onTransformUpdate(const TransformEvent& e);
   void _onPhysicsUpdate(const PhysicsCompUpdateEvent& e);
+
+  static const std::string INSTANCE_KEY;
 
   HandleMap<std::unique_ptr<LuaGameObject>> mObjects;
   std::unique_ptr<Lua::State> mState;

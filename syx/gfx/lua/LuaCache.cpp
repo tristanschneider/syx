@@ -25,7 +25,7 @@ namespace Lua {
     lua_settable(l, LUA_REGISTRYINDEX);
   }
 
-  int Cache::push(lua_State* l, void* data, size_t handle) const {
+  int Cache::push(lua_State* l, void* data, size_t handle, const char* typeOverride) const {
     Lua::StackAssert sa(l, 1);
     _pushCache(l);
 
@@ -36,7 +36,7 @@ namespace Lua {
     if(lua_isnil(l, -1)) {
       void** newObj = static_cast<void**>(lua_newuserdata(l, sizeof(void*)));
       *newObj = data;
-      luaL_setmetatable(l, mUserdataType.c_str());
+      luaL_setmetatable(l, typeOverride ? typeOverride : mUserdataType.c_str());
       //Store the new userdata in the cache
       lua_pushinteger(l, static_cast<lua_Integer>(handle));
       lua_pushvalue(l, -2);
@@ -48,7 +48,7 @@ namespace Lua {
     return 1;
   }
 
-  int Cache::invalidate(lua_State* l, size_t handle) const {
+  int Cache::invalidate(lua_State* l, size_t handle, const char* typeOverride) const {
     Lua::StackAssert sa(l);
     _pushCache(l);
 
@@ -57,7 +57,7 @@ namespace Lua {
     lua_gettable(l, -2);
     if(!lua_isnil(l, -1)) {
       //Null object in cache
-      void** cachedObj = static_cast<void**>(luaL_checkudata(l, -1, mUserdataType.c_str()));
+      void** cachedObj = static_cast<void**>(luaL_checkudata(l, -1, typeOverride ? typeOverride : mUserdataType.c_str()));
       *cachedObj = nullptr;
       //Remove object from registry
       lua_pushinteger(l, static_cast<lua_Integer>(handle));
@@ -70,12 +70,12 @@ namespace Lua {
     return 0;
   }
 
-  void* Cache::getParam(lua_State* l, int index) const {
-    return *static_cast<void**>(luaL_checkudata(l, index, mUserdataType.c_str()));
+  void* Cache::getParam(lua_State* l, int index, const char* typeOverride) const {
+    return *static_cast<void**>(luaL_checkudata(l, index, typeOverride ? typeOverride : mUserdataType.c_str()));
   }
 
-  void* Cache::checkParam(lua_State* l, int index) const {
-    void* result = getParam(l, index);
+  void* Cache::checkParam(lua_State* l, int index, const char* typeOverride) const {
+    void* result = getParam(l, index, typeOverride);
     luaL_argcheck(l, result != nullptr, index, "object is invalid");
     return result;
   }

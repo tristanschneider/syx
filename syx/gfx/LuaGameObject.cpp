@@ -73,6 +73,8 @@ void LuaGameObject::openLib(lua_State* l) {
     { nullptr, nullptr }
   };
   Lua::Util::registerClass(l, statics, members, CLASS_NAME.c_str());
+
+  sCache->createCache(l);
 }
 
 int LuaGameObject::toString(lua_State* l) {
@@ -95,6 +97,7 @@ int LuaGameObject::indexOverload(lua_State* l) {
       break;
   }
   //If key isn't known, assume it's a component name and try to find it
+  return 0;
 }
 
 int LuaGameObject::addComponent(lua_State* l) {

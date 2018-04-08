@@ -37,7 +37,7 @@ namespace Lua {
     mChildren.emplace_back(std::move(child));
   }
 
-  void Node::getField(State& s, const std::string& field, bool fromGlobal) const {
+  void Node::getField(lua_State* s, const std::string& field, bool fromGlobal) const {
     if(!mOps.mParent) {
       if(fromGlobal)
         lua_getglobal(s, field.c_str());
@@ -47,7 +47,7 @@ namespace Lua {
       lua_getfield(s, -1, field.c_str());
   }
 
-  void Node::setField(State& s, const std::string& field, bool fromGlobal) const {
+  void Node::setField(lua_State* s, const std::string& field, bool fromGlobal) const {
     if(!mOps.mParent) {
       if(fromGlobal)
         lua_setglobal(s, field.c_str());
@@ -57,15 +57,15 @@ namespace Lua {
       lua_setfield(s, -2, field.c_str());
   }
 
-  void Node::getField(State& s, bool fromGlobal) const {
+  void Node::getField(lua_State* s, bool fromGlobal) const {
     getField(s, mOps.mName, fromGlobal);
   }
 
-  void Node::setField(State& s, bool fromGlobal) const {
+  void Node::setField(lua_State* s, bool fromGlobal) const {
     setField(s, mOps.mName, fromGlobal);
   }
 
-  void Node::read(State& s, uint8_t* base, bool fromGlobal) const {
+  void Node::read(lua_State* s, uint8_t* base, bool fromGlobal) const {
     getField(s);
     _read(s, base);
     for(auto& child : mChildren)
@@ -73,7 +73,7 @@ namespace Lua {
     lua_pop(s, 1);
   }
 
-  void Node::write(State& s, uint8_t* base, bool fromGlobal) const {
+  void Node::write(lua_State* s, uint8_t* base, bool fromGlobal) const {
     if(mChildren.size()) {
       //Make new table and allow children to fill it
       lua_newtable(s);
@@ -88,7 +88,7 @@ namespace Lua {
     }
   }
 
-  bool Node::readChild(State& s, const char* child, uint8_t* base, bool fromGlobal) const {
+  bool Node::readChild(lua_State* s, const char* child, uint8_t* base, bool fromGlobal) const {
     for(const auto& c : mChildren) {
       if(!strcmp(child, c->getName().c_str())) {
         getField(s, fromGlobal);
@@ -101,7 +101,7 @@ namespace Lua {
     return false;
   }
 
-  bool Node::writeChild(State& s, const char* child, uint8_t* base, bool fromGlobal) const {
+  bool Node::writeChild(lua_State* s, const char* child, uint8_t* base, bool fromGlobal) const {
     for(const auto& c : mChildren) {
       if(!strcmp(child, c->getName().c_str())) {
         lua_newtable(s);
@@ -117,11 +117,11 @@ namespace Lua {
     return mOps.mName;
   }
 
-  void IntNode::_read(State& s, uint8_t* base) const {
+  void IntNode::_read(lua_State* s, uint8_t* base) const {
     _get(base) = static_cast<int>(lua_tointeger(s, -1));
   }
 
-  void IntNode::_write(State& s, uint8_t* base) const {
+  void IntNode::_write(lua_State* s, uint8_t* base) const {
     lua_pushinteger(s, _get(base));
     setField(s);
   }
@@ -130,11 +130,11 @@ namespace Lua {
     return *reinterpret_cast<int*>(base);
   }
 
-  void StringNode::_read(State& s, uint8_t* base) const {
+  void StringNode::_read(lua_State* s, uint8_t* base) const {
     _get(base) = lua_tostring(s, -1);
   }
 
-  void StringNode::_write(State& s, uint8_t* base) const {
+  void StringNode::_write(lua_State* s, uint8_t* base) const {
     lua_pushlstring(s, _get(base).c_str(), _get(base).size());
     setField(s);
   }
@@ -143,11 +143,11 @@ namespace Lua {
     return *reinterpret_cast<std::string*>(base);
   }
 
-  void FloatNode::_read(State& s, uint8_t* base) const {
+  void FloatNode::_read(lua_State* s, uint8_t* base) const {
     _get(base) = static_cast<float>(lua_tonumber(s, -1));
   }
 
-  void FloatNode::_write(State& s, uint8_t* base) const {
+  void FloatNode::_write(lua_State* s, uint8_t* base) const {
     lua_pushnumber(s, _get(base));
     setField(s);
   }
@@ -156,11 +156,11 @@ namespace Lua {
     return *reinterpret_cast<float*>(base);
   }
 
-  void LightUserdataNode::_read(State& s, uint8_t* base) const {
+  void LightUserdataNode::_read(lua_State* s, uint8_t* base) const {
     _get(base) = lua_touserdata(s, -1);
   }
 
-  void LightUserdataNode::_write(State& s, uint8_t* base) const {
+  void LightUserdataNode::_write(lua_State* s, uint8_t* base) const {
     lua_pushlightuserdata(s, _get(base));
     setField(s);
   }
@@ -169,11 +169,11 @@ namespace Lua {
     return *reinterpret_cast<void**>(base);
   }
 
-  void LightUserdataSizetNode::_read(State& s, uint8_t* base) const {
+  void LightUserdataSizetNode::_read(lua_State* s, uint8_t* base) const {
     _get(base) = reinterpret_cast<size_t>(lua_touserdata(s, -1));
   }
 
-  void LightUserdataSizetNode::_write(State& s, uint8_t* base) const {
+  void LightUserdataSizetNode::_write(lua_State* s, uint8_t* base) const {
     lua_pushlightuserdata(s, reinterpret_cast<void*>(_get(base)));
     setField(s);
   }
@@ -182,11 +182,11 @@ namespace Lua {
     return *reinterpret_cast<size_t*>(base);
   }
 
-  void BoolNode::_read(State& s, uint8_t* base) const {
+  void BoolNode::_read(lua_State* s, uint8_t* base) const {
     _get(base) = static_cast<bool>(lua_toboolean(s, -1));
   }
 
-  void BoolNode::_write(State& s, uint8_t* base) const {
+  void BoolNode::_write(lua_State* s, uint8_t* base) const {
     lua_pushboolean(s, static_cast<int>(_get(base)));
     setField(s);
   }
@@ -195,11 +195,11 @@ namespace Lua {
     return *reinterpret_cast<bool*>(base);
   }
 
-  void Vec3Node::_read(State& s, uint8_t* base) const {
+  void Vec3Node::_read(lua_State* s, uint8_t* base) const {
     _get(base) = Lua::Vec3::_getVec(s, -1);
   }
 
-  void Vec3Node::_write(State& s, uint8_t* base) const {
+  void Vec3Node::_write(lua_State* s, uint8_t* base) const {
     Lua::Vec3::construct(s, _get(base));
     setField(s);
   }
@@ -208,11 +208,11 @@ namespace Lua {
     return *reinterpret_cast<Syx::Vec3*>(base);
   }
 
-  void QuatNode::_read(State& s, uint8_t* base) const {
+  void QuatNode::_read(lua_State* s, uint8_t* base) const {
     _get(base) = Lua::Quat::_getQuat(s, -1);
   }
 
-  void QuatNode::_write(State& s, uint8_t* base) const {
+  void QuatNode::_write(lua_State* s, uint8_t* base) const {
     Lua::Quat::construct(s, _get(base));
     setField(s);
   }
@@ -221,7 +221,7 @@ namespace Lua {
     return *reinterpret_cast<Syx::Quat*>(base);
   }
 
-  void Mat4Node::_read(State& s, uint8_t* base) const {
+  void Mat4Node::_read(lua_State* s, uint8_t* base) const {
     Syx::Mat4& m = _get(base);
     for(int i = 0; i < 16; ++i) {
       lua_pushinteger(s, i + 1);
@@ -231,7 +231,7 @@ namespace Lua {
     }
   }
 
-  void Mat4Node::_write(State& s, uint8_t* base) const {
+  void Mat4Node::_write(lua_State* s, uint8_t* base) const {
     lua_createtable(s, 16, 0);
     Syx::Mat4& m = _get(base);
     for(int i = 0; i < 16; ++i) {

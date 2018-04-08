@@ -18,13 +18,13 @@ namespace Lua {
     void destroyCache(lua_State* l) const;
 
     //Push userdata of the given handle onto the stack, using the cached version if available. Otherwise new userdata is created and cached.
-    int push(lua_State* l, void* data, size_t handle) const;
+    int push(lua_State* l, void* data, size_t handle, const char* typeOverride = nullptr) const;
     //Invalidate the given object in the cache. References to this object in lua may keep it alive, but the internal pointer will be null, which can be checked through getParam != nullptr
-    int invalidate(lua_State* l, size_t handle) const;
+    int invalidate(lua_State* l, size_t handle, const char* typeOverride = nullptr) const;
     //Get the cached userdata type from the stack. Will return null if object has been invalidated
-    void* getParam(lua_State* l, int index) const;
+    void* getParam(lua_State* l, int index, const char* typeOverride = nullptr) const;
     //Get the cached userdata type and throw a lua error if it is not valid. Guaranteed to return non-null pointer if it returns
-    void* checkParam(lua_State* l, int index) const;
+    void* checkParam(lua_State* l, int index, const char* typeOverride = nullptr) const;
 
     //Generate a new handle to associate with userdata. This is threadsafe
     size_t nextHandle();
