@@ -101,6 +101,7 @@ void LuaGameSystem::_update(float dt) {
 }
 
 void LuaGameSystem::uninit() {
+  mObjects.clear();
   mEventHandler = nullptr;
   mState = nullptr;
 }

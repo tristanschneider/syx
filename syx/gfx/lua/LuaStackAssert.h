@@ -8,11 +8,11 @@ namespace Lua {
 
   class StackAssert {
   public:
-    StackAssert(lua_State* lua);
+    StackAssert(lua_State* lua, int expectedDiff = 0);
     ~StackAssert();
 
   private:
-    int mStartStack;
+    int mExpectedStack;
     lua_State& mState;
   };
 }

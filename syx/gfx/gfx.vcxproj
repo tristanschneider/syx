@@ -180,6 +180,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClCompile Include="lua\lib\LuaNumVec.cpp" />
     <ClCompile Include="lua\lib\LuaQuat.cpp" />
     <ClCompile Include="lua\lib\LuaVec3.cpp" />
+    <ClCompile Include="lua\LuaCache.cpp" />
     <ClCompile Include="lua\LuaNode.cpp" />
     <ClCompile Include="lua\LuaSandbox.cpp" />
     <ClCompile Include="lua\LuaStackAssert.cpp" />
@@ -248,6 +249,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClInclude Include="lua\lib\LuaNumVec.h" />
     <ClInclude Include="lua\lib\LuaQuat.h" />
     <ClInclude Include="lua\lib\LuaVec3.h" />
+    <ClInclude Include="lua\LuaCache.h" />
     <ClInclude Include="lua\LuaLibGroup.h" />
     <ClInclude Include="lua\LuaNode.h" />
     <ClInclude Include="lua\LuaSandbox.h" />

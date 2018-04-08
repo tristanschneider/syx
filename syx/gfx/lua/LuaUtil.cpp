@@ -40,10 +40,7 @@ namespace Lua {
       lua_setglobal(l, className);
     }
 
-    int intIndexOverload(lua_State* l, CFunc overload) {
-      if(lua_isinteger(l, 2))
-        return overload(l);
-
+    int defaultIndex(lua_State* l) {
       lua_getmetatable(l, 1);
       //Push the __index key
       lua_pushvalue(l, 2);
@@ -52,6 +49,12 @@ namespace Lua {
       //remove metatable, leaving function on top
       lua_remove(l, 3);
       return 1;
+    }
+
+    int intIndexOverload(lua_State* l, CFunc overload) {
+      if(lua_isinteger(l, 2))
+        return overload(l);
+      return defaultIndex(l);
     }
 
     int intNewIndexOverload(lua_State* l, CFunc overload) {

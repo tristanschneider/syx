@@ -2,6 +2,13 @@
 #include "LuaGameObject.h"
 
 #include "component/LuaComponent.h"
+#include "lua/LuaStackAssert.h"
+#include "lua/LuaUtil.h"
+#include "lua/LuaCache.h"
+#include <lua.hpp>
+
+const std::string LuaGameObject::CLASS_NAME = "Gameobject";
+std::unique_ptr<Lua::Cache> LuaGameObject::sCache = std::make_unique<Lua::Cache>("_goc_", CLASS_NAME);
 
 LuaGameObject::LuaGameObject(Handle h)
   : mHandle(h)
@@ -51,4 +58,66 @@ void LuaGameObject::removeLuaComponent(size_t script) {
 
 std::unordered_map<size_t, LuaComponent>& LuaGameObject::getLuaComponents() {
   return mLuaComponents;
+}
+
+void LuaGameObject::openLib(lua_State* l) {
+  luaL_Reg statics[] = {
+    { nullptr, nullptr }
+  };
+  luaL_Reg members[] = {
+    { "__index", &indexOverload },
+    { "__tostring", &toString },
+    { "addComponent", &addComponent },
+    { "removeComponent", &removeComponent },
+    { "isValid", &isValid },
+    { nullptr, nullptr }
+  };
+  Lua::Util::registerClass(l, statics, members, CLASS_NAME.c_str());
+}
+
+int LuaGameObject::toString(lua_State* l) {
+  LuaGameObject& self = getObj(l, 1);
+  std::string result = CLASS_NAME + "( " + std::to_string(self.mHandle) + ")";
+  lua_pushlstring(l, result.c_str(), result.size());
+  return 1;
+}
+
+int LuaGameObject::indexOverload(lua_State* l) {
+  LuaGameObject& obj = getObj(l, 1);
+  const char* key = luaL_checkstring(l, 2);
+  //If key is a known function, fall back to default behavior and call that
+  switch(Util::constHash(key)) {
+    case Util::constHash("addComponent"):
+    case Util::constHash("removeComponent"):
+    case Util::constHash("isValid"):
+      return Lua::Util::defaultIndex(l);
+    default:
+      break;
+  }
+  //If key isn't known, assume it's a component name and try to find it
+}
+
+int LuaGameObject::addComponent(lua_State* l) {
+  return 0;
+}
+
+int LuaGameObject::removeComponent(lua_State* l) {
+  return 0;
+}
+
+int LuaGameObject::isValid(lua_State* l) {
+  lua_pushboolean(l, sCache->getParam(l, 1) != nullptr);
+  return 1;
+}
+
+int LuaGameObject::push(lua_State* l, LuaGameObject& obj) {
+  return sCache->push(l, &obj, obj.mHandle);
+}
+
+int LuaGameObject::invalidate(lua_State* l, LuaGameObject& obj) {
+  return sCache->invalidate(l, obj.mHandle);
+}
+
+LuaGameObject& LuaGameObject::getObj(lua_State* l, int index) {
+  return *static_cast<LuaGameObject*>(sCache->checkParam(l, index));
 }

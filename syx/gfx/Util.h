@@ -42,6 +42,10 @@ namespace Util {
   const Member& fromOffset(const Owner& owner, size_t offset) {
     return *reinterpret_cast<const Member*>(reinterpret_cast<const uint8_t*>(owner) + offset);
   }
+
+  constexpr size_t constHash(const char* str) {
+    return *str ? static_cast<size_t>(*str) + 33ull*constHash(str + 1) : 5381ull;
+  }
 }
 
 template<typename T, typename Lock = std::mutex>

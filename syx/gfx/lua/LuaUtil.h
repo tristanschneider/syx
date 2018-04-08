@@ -11,6 +11,7 @@ namespace Lua {
     void printTop(State& state);
     void printGlobal(State& state, const std::string& global);
     void registerClass(lua_State* l, const luaL_Reg* statics, const luaL_Reg* members, const char* className, bool defaultIndex = false, bool defaultNewIndex = false);
+    int defaultIndex(lua_State* l);
     int intIndexOverload(lua_State* l, CFunc overload);
     int intNewIndexOverload(lua_State* l, CFunc overload);
   }

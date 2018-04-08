@@ -5,12 +5,12 @@
 #include <lua.hpp>
 
 namespace Lua {
-  StackAssert::StackAssert(lua_State* state)
+  StackAssert::StackAssert(lua_State* state, int expectedDiff)
     : mState(*state) {
-    mStartStack = lua_gettop(&mState);
+    mExpectedStack = lua_gettop(&mState) + expectedDiff;
   }
 
   StackAssert::~StackAssert() {
-    assert(mStartStack == lua_gettop(&mState) && "Stack size should be back to mStartStack size");
+    assert(mExpectedStack == lua_gettop(&mState) && "Stack size should be back to mStartStack size");
   }
 }
