@@ -18,7 +18,7 @@ namespace Lua {
   compType::compType(Handle owner)\
     : Component(Component::typeId<compType>(), owner)
 
-#define WRAP_BASE_FUNC(func, name) static int func(lua_State* l) { return func(l, name); }
+#define WRAP_BASE_FUNC(func, name) static int func(lua_State* l) { return Component::func(l, name); }
 //Implement base functions with wrappers for the derived class
 #define COMPONENT_LUA_INHERIT(name)\
   WRAP_BASE_FUNC(getName, name)\
@@ -27,10 +27,10 @@ namespace Lua {
   WRAP_BASE_FUNC(getProps, name)
 
 #define COMPONENT_LUA_BASE_REGS \
-  { "getName", &getName },\
-  { "getType", &getType },\
-  { "getOwner", &getOwner },\
-  { "getProps", &getProps },
+  { "getName", getName },\
+  { "getType", getType },\
+  { "getOwner", getOwner },\
+  { "getProps", getProps }
 
 class Component {
 public:
@@ -46,6 +46,7 @@ public:
 
     static void registerComponent(size_t type, Constructor ctor);
     static std::unique_ptr<Component> construct(size_t type, Handle owner);
+    static const TypeMap<Constructor, Component>& getConstructors();
   private:
     Registry();
     static Registry& _get();

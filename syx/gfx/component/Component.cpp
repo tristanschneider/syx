@@ -28,6 +28,10 @@ std::unique_ptr<Component> Component::Registry::construct(size_t type, Handle ow
   return _get().mCtors[type](owner);
 }
 
+const TypeMap<Component::Registry::Constructor, Component>& Component::Registry::getConstructors() {
+  return _get().mCtors;
+}
+
 Component::Registry::Registry() {
 }
 

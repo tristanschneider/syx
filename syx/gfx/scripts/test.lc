@@ -95,7 +95,7 @@ end
 
 local init = true;
 
-function update(dt)
+function update(self, dt)
   if init then
     init = false;
     testArray();
@@ -103,4 +103,9 @@ function update(dt)
     testVec3();
     testQuat();
   end
+  printRenderableProps(dt, self.renderable:getProps());
+end
+
+function printRenderableProps(dt, gfx)
+  print('Update, model '..tostring(gfx.model)..' texture '..tostring(gfx.diffuseTexture));
 end

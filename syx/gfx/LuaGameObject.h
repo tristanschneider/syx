@@ -61,4 +61,6 @@ private:
   TypeMap<std::unique_ptr<Component>, Component> mComponents;
   //Id of script in asset repo to the lua component holding it
   std::unordered_map<size_t, LuaComponent> mLuaComponents;
+  //Name hash to component or lua component
+  std::unordered_map<size_t, Component*> mHashToComponent;
 };

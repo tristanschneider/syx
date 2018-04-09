@@ -22,6 +22,53 @@ size_t typeId() {
 template<typename T, typename Category = DefaultTypeCategory>
 class TypeMap {
 public:
+  //Forward iterator, requires that default value has implicit conversion to false
+  template<typename Value, typename Container>
+  class Iterator {
+  public:
+    Iterator(size_t index, Container* container)
+      : mIndex(index)
+      , mContainer(container) {
+    }
+
+    Iterator<Value, Container> operator++(int) {
+      Iterator<Value, Container> result(mIndex, mContainer);
+      _next();
+      return result;
+    }
+
+    Iterator<Value, Container>& operator++() {
+      _next();
+      return *this;
+    }
+
+    Value& operator*() {
+      return (*mContainer)[mIndex];
+    }
+
+    bool operator==(const Iterator<Value, Container>& rhs) {
+      return mIndex == rhs.mIndex && mContainer == rhs.mContainer;
+    }
+
+    bool operator!=(const Iterator<Value, Container>& rhs) {
+      return !(*this == rhs);
+    }
+
+  private:
+    void _next() {
+      ++mIndex;
+      //Keep going until a non-default value is found
+      while(mIndex < mContainer->size() && !(*mContainer)[mIndex])
+        ++mIndex;
+    }
+
+    size_t mIndex;
+    Container* mContainer;
+  };
+
+  using Iterator_t = Iterator<T, std::vector<T>>;
+  using Const_Iterator_t = Iterator<const T, const std::vector<T>>;
+
   template<typename K>
   const T* get() const {
     return get(typeId<K, Category>());
@@ -61,6 +108,22 @@ public:
   T& operator[](size_t key) {
     _growToFit(key);
     return mValues[key];
+  }
+
+  Iterator_t begin() {
+    return Iterator_t(0, &mValues);
+  }
+
+  Const_Iterator_t begin() const {
+    return Const_Iterator_t(0, &mValues);
+  }
+
+  Iterator_t end() {
+    return Iterator_t(mValues.size(), &mValues);
+  }
+
+  Const_Iterator_t end() const {
+    return Const_Iterator_t(mValues.size(), &mValues);
   }
 
 private:

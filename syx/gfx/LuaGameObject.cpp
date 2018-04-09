@@ -23,11 +23,15 @@ Handle LuaGameObject::getHandle() const {
 }
 
 void LuaGameObject::addComponent(std::unique_ptr<Component> component) {
+  mHashToComponent[component->getNameConstHash()] = component.get();
   mComponents[component->getType()] = std::move(component);
 }
 
 void LuaGameObject::removeComponent(size_t type) {
-  mComponents[type] = nullptr;
+  if(std::unique_ptr<Component>* component = mComponents.get(type)) {
+    mHashToComponent.erase((*component)->getNameConstHash());
+    *component = nullptr;
+  }
 }
 
 Component* LuaGameObject::getComponent(size_t type) {
@@ -42,6 +46,7 @@ LuaComponent* LuaGameObject::addLuaComponent(size_t script) {
   auto it = mLuaComponents.emplace(script, mHandle);
   LuaComponent& result = it.first->second;
   result.setScript(script);
+  mHashToComponent[result.getNameConstHash()] = &result;
   return &result;
 }
 
@@ -52,8 +57,10 @@ LuaComponent* LuaGameObject::getLuaComponent(size_t script) {
 
 void LuaGameObject::removeLuaComponent(size_t script) {
   auto it = mLuaComponents.find(script);
-  if(it != mLuaComponents.end())
+  if(it != mLuaComponents.end()) {
+    mHashToComponent.erase(it->second.getNameConstHash());
     mLuaComponents.erase(it);
+  }
 }
 
 std::unordered_map<size_t, LuaComponent>& LuaGameObject::getLuaComponents() {
@@ -88,7 +95,8 @@ int LuaGameObject::indexOverload(lua_State* l) {
   LuaGameObject& obj = getObj(l, 1);
   const char* key = luaL_checkstring(l, 2);
   //If key is a known function, fall back to default behavior and call that
-  switch(Util::constHash(key)) {
+  size_t nameHash = Util::constHash(key);
+  switch(nameHash) {
     case Util::constHash("addComponent"):
     case Util::constHash("removeComponent"):
     case Util::constHash("isValid"):
@@ -96,8 +104,17 @@ int LuaGameObject::indexOverload(lua_State* l) {
     default:
       break;
   }
+
   //If key isn't known, assume it's a component name and try to find it
-  return 0;
+  auto it = obj.mHashToComponent.find(nameHash);
+  if(it != obj.mHashToComponent.end()) {
+    it->second->push(l);
+  }
+  else {
+    //No component by this name, return null
+    lua_pushnil(l);
+  }
+  return 1;
 }
 
 int LuaGameObject::addComponent(lua_State* l) {

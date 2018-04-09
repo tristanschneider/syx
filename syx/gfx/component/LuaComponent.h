@@ -33,7 +33,7 @@ public:
 
   //The script must be at the top of the stack
   void init(Lua::State& state);
-  void update(Lua::State& state, float dt);
+  void update(Lua::State& state, float dt, int selfIndex);
   void uninit();
   bool needsInit() const;
 

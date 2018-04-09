@@ -71,6 +71,7 @@ void LuaGameSystem::queueTasks(float dt, IWorkerPool& pool, std::shared_ptr<Task
 }
 
 void LuaGameSystem::_update(float dt) {
+  Lua::StackAssert sa(*mState);
   for(auto& objIt : mObjects) {
     for(auto& compIt : objIt.second->getLuaComponents()) {
       LuaComponent& comp = compIt.second;
@@ -99,7 +100,9 @@ void LuaGameSystem::_update(float dt) {
       }
       //Else sandbox is already initialized, do the update
       else {
-        comp.update(*mState, dt);
+        LuaGameObject::push(*mState, *objIt.second);
+        comp.update(*mState, dt, lua_gettop(*mState));
+        lua_pop(*mState, 1);
       }
     }
   }

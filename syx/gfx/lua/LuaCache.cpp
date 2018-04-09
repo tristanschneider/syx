@@ -34,6 +34,8 @@ namespace Lua {
     lua_gettable(l, -2);
     //If object wasn't found in the cache, create a new one, store it in the cache, and return it
     if(lua_isnil(l, -1)) {
+      //Pop off the null
+      lua_pop(l, 1);
       void** newObj = static_cast<void**>(lua_newuserdata(l, sizeof(void*)));
       *newObj = data;
       luaL_setmetatable(l, typeOverride ? typeOverride : mUserdataType.c_str());

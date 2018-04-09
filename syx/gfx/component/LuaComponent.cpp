@@ -49,14 +49,15 @@ void LuaComponent::init(Lua::State& state) {
   }
 }
 
-void LuaComponent::update(Lua::State& state, float dt) {
+void LuaComponent::update(Lua::State& state, float dt, int selfIndex) {
   Lua::StackAssert sa(state);
   auto sandbox = Lua::Sandbox::ScopedState(*mSandbox);
 
   int updateType = lua_getfield(state, -1, "update");
   if(updateType == LUA_TFUNCTION) {
+    lua_pushvalue(state, selfIndex);
     lua_pushnumber(state, dt);
-    if(int error = lua_pcall(state, 1, 0, 0)) {
+    if(int error = lua_pcall(state, 2, 0, 0)) {
       //Error message is on top of the stack. Display then pop it
       printf("Error updating object %i script %i: %s\n", static_cast<int>(mOwner), static_cast<int>(mScript), lua_tostring(state, -1));
       lua_pop(state, 1);

@@ -16,5 +16,11 @@ namespace Lua {
     Quat::openLib(l);
     LuaGameObject::openLib(l);
     Component::baseOpenLib(l);
+
+    //Construct a temporary of each type to call opeenlibs
+    const auto& ctors = Component::Registry::getConstructors();
+    for(auto it = ctors.begin(); it != ctors.end(); ++it) {
+      (*it)(0)->openLib(l);
+    }
   }
 }
