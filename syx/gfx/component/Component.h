@@ -18,19 +18,30 @@ namespace Lua {
   compType::compType(Handle owner)\
     : Component(Component::typeId<compType>(), owner)
 
-#define WRAP_BASE_FUNC(func, name) static int func(lua_State* l) { return Component::func(l, name); }
+#define WRAP_BASE_FUNC(func) static int func(lua_State* l) { return Component::func(l, singleton().getTypeInfo().mTypeName); }
 //Implement base functions with wrappers for the derived class
-#define COMPONENT_LUA_INHERIT(name)\
-  WRAP_BASE_FUNC(getName, name)\
-  WRAP_BASE_FUNC(getType, name)\
-  WRAP_BASE_FUNC(getOwner, name)\
-  WRAP_BASE_FUNC(getProps, name)
+#define COMPONENT_LUA_INHERIT(type)\
+  static const type& singleton() { static type s(0); return s; }\
+  WRAP_BASE_FUNC(getName)\
+  WRAP_BASE_FUNC(getType)\
+  WRAP_BASE_FUNC(getOwner)\
+  WRAP_BASE_FUNC(getProps)
 
 #define COMPONENT_LUA_BASE_REGS \
   { "getName", getName },\
   { "getType", getType },\
   { "getOwner", getOwner },\
   { "getProps", getProps }
+
+struct ComponentTypeInfo {
+  ComponentTypeInfo(const std::string& typeName);
+
+  //Name of the lua type
+  std::string mTypeName;
+  //Name of the property on game objects
+  std::string mPropName;
+  size_t mPropNameConstHash;
+};
 
 class Component {
 public:
@@ -75,10 +86,7 @@ public:
 
   virtual const Lua::Node* getLuaProps() const;
   virtual void openLib(lua_State* l) const;
-  //Name is the name the component appears as on the gameobject, while typename is the name of the lua type for the component
-  virtual const std::string& getName() const;
-  virtual const std::string& getTypeName() const;
-  virtual size_t getNameConstHash() const;
+  virtual const ComponentTypeInfo& getTypeInfo() const;
 
   static void baseOpenLib(lua_State* l);
   static int getName(lua_State* l, const std::string& type);

@@ -1,6 +1,8 @@
 #include "Precompile.h"
 #include "component/Physics.h"
 #include "lua/LuaNode.h"
+#include "lua/LuaUtil.h"
+#include <lua.hpp>
 
 DEFINE_EVENT(PhysicsCompUpdateEvent, const PhysicsData& data, Handle owner)
   , mData(data)
@@ -53,15 +55,31 @@ const Lua::Node* Physics::getLuaProps() const {
   return props.get();
 }
 
+void Physics::openLib(lua_State* l) const {
+  luaL_Reg statics[] = {
+    { nullptr, nullptr }
+  };
+  luaL_Reg members[] = {
+    COMPONENT_LUA_BASE_REGS,
+    { nullptr, nullptr }
+  };
+  Lua::Util::registerClass(l, statics, members, getTypeInfo().mTypeName.c_str(), true);
+}
+
+const ComponentTypeInfo& Physics::getTypeInfo() const {
+  static ComponentTypeInfo result("Physics");
+  return result;
+}
+
 std::unique_ptr<Lua::Node> Physics::_buildLuaProps() const {
   using namespace Lua;
   std::unique_ptr<Lua::Node> root = makeRootNode(NodeOps(LUA_PROPS_KEY));
-  makeNode<BoolNode>(NodeOps(*root, "hasRigidbody", Util::offsetOf(*this, mData.mHasRigidbody)));
-  makeNode<BoolNode>(NodeOps(*root, "hasCollider", Util::offsetOf(*this, mData.mHasCollider)));
-  makeNode<Vec3Node>(NodeOps(*root, "linVel", Util::offsetOf(*this, mData.mLinVel)));
-  makeNode<Vec3Node>(NodeOps(*root, "angVel", Util::offsetOf(*this, mData.mAngVel)));
-  makeNode<LightUserdataSizetNode>(NodeOps(*root, "model", Util::offsetOf(*this, mData.mModel)));
-  makeNode<LightUserdataSizetNode>(NodeOps(*root, "material", Util::offsetOf(*this, mData.mMaterial)));
-  makeNode<Mat4Node>(NodeOps(*root, "physToModel", Util::offsetOf(*this, mData.mPhysToModel)));
+  makeNode<BoolNode>(NodeOps(*root, "hasRigidbody", ::Util::offsetOf(*this, mData.mHasRigidbody)));
+  makeNode<BoolNode>(NodeOps(*root, "hasCollider", ::Util::offsetOf(*this, mData.mHasCollider)));
+  makeNode<Vec3Node>(NodeOps(*root, "linVel", ::Util::offsetOf(*this, mData.mLinVel)));
+  makeNode<Vec3Node>(NodeOps(*root, "angVel", ::Util::offsetOf(*this, mData.mAngVel)));
+  makeNode<LightUserdataSizetNode>(NodeOps(*root, "model", ::Util::offsetOf(*this, mData.mModel)));
+  makeNode<LightUserdataSizetNode>(NodeOps(*root, "material", ::Util::offsetOf(*this, mData.mMaterial)));
+  makeNode<Mat4Node>(NodeOps(*root, "physToModel", ::Util::offsetOf(*this, mData.mPhysToModel)));
   return root;
 }

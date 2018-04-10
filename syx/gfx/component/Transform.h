@@ -10,6 +10,10 @@ public:
 
   virtual const Lua::Node* getLuaProps() const override;
 
+  COMPONENT_LUA_INHERIT(Transform);
+  virtual void openLib(lua_State* l) const;
+  virtual const ComponentTypeInfo& getTypeInfo() const;
+
 private:
   std::unique_ptr<Lua::Node> _buildLuaProps() const;
 

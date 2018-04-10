@@ -44,7 +44,7 @@ namespace Util {
   }
 
   constexpr size_t constHash(const char* str) {
-    return *str ? static_cast<size_t>(*str) + 33ull*constHash(str + 1) : 5381ull;
+    return str && *str ? static_cast<size_t>(*str) + 33ull*constHash(str + 1) : 5381ull;
   }
 
   template<typename Value, typename Hasher>

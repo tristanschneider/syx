@@ -23,13 +23,13 @@ Handle LuaGameObject::getHandle() const {
 }
 
 void LuaGameObject::addComponent(std::unique_ptr<Component> component) {
-  mHashToComponent[component->getNameConstHash()] = component.get();
+  mHashToComponent[component->getTypeInfo().mPropNameConstHash] = component.get();
   mComponents[component->getType()] = std::move(component);
 }
 
 void LuaGameObject::removeComponent(size_t type) {
   if(std::unique_ptr<Component>* component = mComponents.get(type)) {
-    mHashToComponent.erase((*component)->getNameConstHash());
+    mHashToComponent.erase((*component)->getTypeInfo().mPropNameConstHash);
     *component = nullptr;
   }
 }
@@ -46,7 +46,7 @@ LuaComponent* LuaGameObject::addLuaComponent(size_t script) {
   auto it = mLuaComponents.emplace(script, mHandle);
   LuaComponent& result = it.first->second;
   result.setScript(script);
-  mHashToComponent[result.getNameConstHash()] = &result;
+  mHashToComponent[result.getTypeInfo().mPropNameConstHash] = &result;
   return &result;
 }
 
@@ -58,7 +58,7 @@ LuaComponent* LuaGameObject::getLuaComponent(size_t script) {
 void LuaGameObject::removeLuaComponent(size_t script) {
   auto it = mLuaComponents.find(script);
   if(it != mLuaComponents.end()) {
-    mHashToComponent.erase(it->second.getNameConstHash());
+    mHashToComponent.erase(it->second.getTypeInfo().mPropNameConstHash);
     mLuaComponents.erase(it);
   }
 }

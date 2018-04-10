@@ -9,12 +9,22 @@
 #include "lua/LuaStackAssert.h"
 #include "system/LuaGameSystem.h"
 #include "LuaGameObject.h"
+#include "Util.h"
 
 #include <lua.hpp>
 
 const std::string Component::LUA_PROPS_KEY = "props";
 const std::string Component::BASE_CLASS_NAME = "Component";
 std::unique_ptr<Lua::Cache> Component::sLuaCache = std::make_unique<Lua::Cache>("_component_cache_", BASE_CLASS_NAME);
+
+ComponentTypeInfo::ComponentTypeInfo(const std::string& typeName)
+  : mTypeName(typeName)
+  , mPropName(typeName) {
+  //Property name is just typename that starts with lowercase
+  if(mPropName.size())
+    mPropName.front() -= 'A' - 'a';
+  mPropNameConstHash = Util::constHash(mPropName.c_str());
+}
 
 Component::Registry::Registrar::Registrar(size_t type, Constructor ctor) {
   Component::Registry::registerComponent(type, ctor);
@@ -54,28 +64,19 @@ const Lua::Node* Component::getLuaProps() const {
 }
 
 int Component::push(lua_State* l) {
-  return sLuaCache->push(l, this, mCacheId, getTypeName().c_str());
+  return sLuaCache->push(l, this, mCacheId, getTypeInfo().mTypeName.c_str());
 }
 
 void Component::invalidate(lua_State* l) const {
-  sLuaCache->invalidate(l, mCacheId, getTypeName().c_str());
+  sLuaCache->invalidate(l, mCacheId, getTypeInfo().mTypeName.c_str());
 }
 
 void Component::openLib(lua_State* l) const {
 }
 
-const std::string& Component::getName() const {
-  static std::string empty;
-  return empty;
-}
-
-const std::string& Component::getTypeName() const {
-  static std::string empty;
-  return empty;
-}
-
-size_t Component::getNameConstHash() const {
-  return 0;
+const ComponentTypeInfo& Component::getTypeInfo() const {
+  static ComponentTypeInfo result("");
+  return result;
 }
 
 void Component::baseOpenLib(lua_State* l) {
@@ -84,14 +85,14 @@ void Component::baseOpenLib(lua_State* l) {
 
 int Component::getName(lua_State* l, const std::string& type) {
   Component* self = static_cast<Component*>(sLuaCache->checkParam(l, 1, type.c_str()));
-  const std::string& name = self->getName();
+  const std::string& name = self->getTypeInfo().mPropName;
   lua_pushlstring(l, name.c_str(), name.size());
   return 1;
 }
 
 int Component::getType(lua_State* l, const std::string& type) {
   Component* self = static_cast<Component*>(sLuaCache->checkParam(l, 1, type.c_str()));
-  const std::string& name = self->getTypeName();
+  const std::string& name = self->getTypeInfo().mTypeName;
   lua_pushlstring(l, name.c_str(), name.size());
   return 1;
 }

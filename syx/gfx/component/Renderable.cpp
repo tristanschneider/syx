@@ -4,9 +4,6 @@
 #include "lua/LuaUtil.h"
 #include <lua.hpp>
 
-const std::string Renderable::CLASS_NAME = "Renderable";
-const std::pair<std::string, size_t> Renderable::NAME_HASH = Util::getHashPair("renderable", Util::constHash);
-
 DEFINE_EVENT(RenderableUpdateEvent, const RenderableData& data, Handle obj)
   , mObj(obj)
   , mData(data) {
@@ -37,19 +34,12 @@ void Renderable::openLib(lua_State* l) const {
     COMPONENT_LUA_BASE_REGS,
     { nullptr, nullptr }
   };
-  Lua::Util::registerClass(l, statics, members, CLASS_NAME.c_str(), true);
+  Lua::Util::registerClass(l, statics, members, getTypeInfo().mTypeName.c_str(), true);
 }
 
-const std::string& Renderable::getName() const {
-  return NAME_HASH.first;
-}
-
-const std::string& Renderable::getTypeName() const {
-  return CLASS_NAME;
-}
-
-size_t Renderable::getNameConstHash() const {
-  return NAME_HASH.second;
+const ComponentTypeInfo& Renderable::getTypeInfo() const {
+  static ComponentTypeInfo result("Renderable");
+  return result;
 }
 
 std::unique_ptr<Lua::Node> Renderable::_buildLuaProps() const {
