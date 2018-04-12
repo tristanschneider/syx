@@ -14,7 +14,7 @@ namespace Lua {
 
     static void openLib(lua_State* l);
     static int construct(lua_State* l, float x, float y, float z, float w);
-    static int construct(lua_State* l, Syx::Vec3& v);
+    static int construct(lua_State* l, const Syx::Vec3& v);
     static int new3(lua_State* l);
     static int newSplat(lua_State* l);
     static int newDefault(lua_State* l);

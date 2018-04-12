@@ -59,7 +59,7 @@ namespace Lua {
     return 1;
   }
 
-  int Vec3::construct(lua_State* l, Syx::Vec3& v) {
+  int Vec3::construct(lua_State* l, const Syx::Vec3& v) {
     return construct(l, v.x, v.y, v.z, v.w);
   }
 

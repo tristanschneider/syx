@@ -250,6 +250,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClInclude Include="lua\lib\LuaQuat.h" />
     <ClInclude Include="lua\lib\LuaVec3.h" />
     <ClInclude Include="lua\LuaCache.h" />
+    <ClInclude Include="lua\LuaCompositeNodes.h" />
     <ClInclude Include="lua\LuaLibGroup.h" />
     <ClInclude Include="lua\LuaNode.h" />
     <ClInclude Include="lua\LuaSandbox.h" />

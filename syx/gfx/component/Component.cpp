@@ -111,7 +111,7 @@ int Component::getProps(lua_State* l, const std::string& type) {
   Lua::StackAssert sa(l, 1);
   Component* self = static_cast<Component*>(sLuaCache->checkParam(l, 1, type.c_str()));
   if(const Lua::Node* props = self->getLuaProps()) {
-    props->write(l, reinterpret_cast<uint8_t*>(self));
+    props->writeToLua(l, self);
   }
   else {
     lua_newtable(l);

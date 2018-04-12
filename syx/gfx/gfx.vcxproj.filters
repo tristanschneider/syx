@@ -353,5 +353,8 @@
     <ClInclude Include="lua\LuaCache.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="lua\LuaCompositeNodes.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

@@ -43,6 +43,14 @@ namespace Util {
     return *reinterpret_cast<const Member*>(reinterpret_cast<const uint8_t*>(owner) + offset);
   }
 
+  inline const void* offset(const void* base, size_t bytes) {
+    return static_cast<const void*>(static_cast<const uint8_t*>(base) + bytes);
+  }
+
+  inline void* offset(void* base, size_t bytes) {
+    return static_cast<void*>(static_cast<uint8_t*>(base) + bytes);
+  }
+
   constexpr size_t constHash(const char* str) {
     return str && *str ? static_cast<size_t>(*str) + 33ull*constHash(str + 1) : 5381ull;
   }
