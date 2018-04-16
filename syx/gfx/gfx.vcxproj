@@ -160,6 +160,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClCompile Include="Camera.cpp" />
     <ClCompile Include="component\Component.cpp" />
     <ClCompile Include="component\LuaComponent.cpp" />
+    <ClCompile Include="component\LuaComponentRegistry.cpp" />
     <ClCompile Include="component\Physics.cpp" />
     <ClCompile Include="component\Renderable.cpp" />
     <ClCompile Include="component\Transform.cpp" />
@@ -228,6 +229,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClInclude Include="Camera.h" />
     <ClInclude Include="component\Component.h" />
     <ClInclude Include="component\LuaComponent.h" />
+    <ClInclude Include="component\LuaComponentRegistry.h" />
     <ClInclude Include="component\Physics.h" />
     <ClInclude Include="component\Renderable.h" />
     <ClInclude Include="component\Transform.h" />

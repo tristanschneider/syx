@@ -6,6 +6,8 @@ class LuaGameObject;
 
 class AddComponentEvent;
 class AddGameObjectEvent;
+class Component;
+class LuaComponentRegistry;
 class RemoveComponentEvent;
 class RemoveGameObjectEvent;
 class RenderableUpdateEvent;
@@ -23,6 +25,7 @@ namespace Lua {
 class LuaGameSystem : public System {
 public:
   RegisterSystemH(LuaGameSystem);
+
   LuaGameSystem(const SystemArgs& args);
   ~LuaGameSystem();
 
@@ -34,8 +37,15 @@ public:
 
   static LuaGameSystem* get(lua_State* l);
 
+  //Add component to gameobject with the given owner. Returns a pending component that will be applied next frame. Null if invalid name
+  Component* addComponent(const std::string& name, Handle owner);
+  LuaGameObject& addGameObject();
+
 private:
+
+  void _registerBuiltInComponents();
   void _update(float dt);
+
   //TODO: make it possible to do this from lua
   void _initHardCodedScene();
 
@@ -54,4 +64,12 @@ private:
   HandleMap<std::unique_ptr<LuaGameObject>> mObjects;
   std::unique_ptr<Lua::State> mState;
   std::unique_ptr<Lua::LuaLibGroup> mLibs;
+  std::unique_ptr<LuaComponentRegistry> mComponents;
+  RWLock mComponentsLock;
+  //Pending objects that have been created this frame. For said frame they are available only to the caller that created them.
+  //Next frame they are moved to the system and available to all
+  std::vector<std::unique_ptr<Component>> mPendingComponents;
+  SpinLock mPendingComponentsLock;
+  std::vector<std::unique_ptr<LuaGameObject>> mPendingObjects;
+  SpinLock mPendingObjectsLock;
 };

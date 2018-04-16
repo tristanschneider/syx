@@ -4,6 +4,7 @@
 #include "asset/Asset.h"
 #include "asset/LuaScript.h"
 #include "component/LuaComponent.h"
+#include "component/LuaComponentRegistry.h"
 #include "component/Physics.h"
 #include "component/Renderable.h"
 #include "event/BaseComponentEvents.h"
@@ -53,6 +54,9 @@ void LuaGameSystem::init() {
   //Store an instance of this in the registry for later
   lua_pushlightuserdata(*mState, this);
   lua_setfield(*mState, LUA_REGISTRYINDEX, INSTANCE_KEY.c_str());
+
+  mComponents = std::make_unique<LuaComponentRegistry>();
+  _registerBuiltInComponents();
 }
 
 void LuaGameSystem::queueTasks(float dt, IWorkerPool& pool, std::shared_ptr<Task> frameTask) {
@@ -108,6 +112,38 @@ void LuaGameSystem::_update(float dt) {
   }
 }
 
+void LuaGameSystem::_registerBuiltInComponents() {
+  auto lock = mComponentsLock.getWriter();
+  const auto& ctors = Component::Registry::getConstructors();
+  for(auto it = ctors.begin(); it != ctors.end(); ++it) {
+    std::unique_ptr<Component> temp = (*it)(0);
+    mComponents->registerComponent(temp->getTypeInfo().mTypeName, *it);
+  }
+}
+
+Component* LuaGameSystem::addComponent(const std::string& name, Handle owner) {
+  auto lock = mComponentsLock.getReader();
+  std::unique_ptr<Component> component = mComponents->construct(name, owner);
+  Component* result = component.get();
+  if(result) {
+    mArgs.mMessages->getMessageQueue().get().push(AddComponentEvent(owner, result->getType()));
+    mPendingComponentsLock.lock();
+    mPendingComponents.push_back(std::move(component));
+    mPendingComponentsLock.unlock();
+  }
+  return result;
+}
+
+LuaGameObject& LuaGameSystem::addGameObject() {
+  auto obj = std::make_unique<LuaGameObject>(mArgs.mGameObjectGen->newHandle());
+  LuaGameObject& result = *obj;
+  mArgs.mMessages->getMessageQueue().get().push(AddGameObjectEvent(result.getHandle()));
+  mPendingObjectsLock.lock();
+  mPendingObjects.push_back(std::move(obj));
+  mPendingObjectsLock.unlock();
+  return result;
+}
+
 void LuaGameSystem::uninit() {
   mObjects.clear();
   mEventHandler = nullptr;
@@ -120,8 +156,25 @@ LuaGameSystem* LuaGameSystem::get(lua_State* l) {
 }
 
 void LuaGameSystem::_onAddComponent(const AddComponentEvent& e) {
-  if(LuaGameObject* obj = _getObj(e.mObj))
-    obj->addComponent(Component::Registry::construct(e.mCompType, e.mObj));
+  if(LuaGameObject* obj = _getObj(e.mObj)) {
+    //Try to see if this was a pending component
+    std::unique_ptr<Component> pending;
+    mPendingComponentsLock.lock();
+    for(size_t i = 0; i < mPendingComponents.size(); ++i) {
+      std::unique_ptr<Component>& component = mPendingComponents[i];
+      if(component->getOwner() == e.mObj && component->getType() == e.mCompType) {
+        pending = std::move(component);
+        //Erase instead of swap remove as it's very likely order in vector is the order of the messages, so component can often be found at 0 if erased
+        mPendingComponents.erase(mPendingComponents.begin() + i);
+        break;
+      }
+    }
+    mPendingComponentsLock.unlock();
+    if(pending)
+      obj->addComponent(std::move(pending));
+    else
+      obj->addComponent(Component::Registry::construct(e.mCompType, e.mObj));
+  }
 }
 
 void LuaGameSystem::_onRemoveComponent(const RemoveComponentEvent& e) {
@@ -140,7 +193,20 @@ void LuaGameSystem::_onRemoveLuaComponent(const RemoveLuaComponentEvent& e) {
 }
 
 void LuaGameSystem::_onAddGameObject(const AddGameObjectEvent& e) {
-  mObjects[e.mObj] = std::make_unique<LuaGameObject>(e.mObj);
+  //See if there is a pending object for this message
+  std::unique_ptr<LuaGameObject> pending;
+  mPendingObjectsLock.lock();
+  for(size_t i = 0; i < mPendingObjects.size(); ++i) {
+    std::unique_ptr<LuaGameObject>& obj = mPendingObjects[i];
+    if(obj->getHandle() == e.mObj) {
+      pending = std::move(obj);
+      //Erase since order of messages is likely order of pending container
+      mPendingObjects.erase(mPendingObjects.begin() + i);
+      break;
+    }
+  }
+  mPendingObjectsLock.unlock();
+  mObjects[e.mObj] = pending ? std::move(pending) : std::make_unique<LuaGameObject>(e.mObj);
 }
 
 void LuaGameSystem::_onRemoveGameObject(const RemoveGameObjectEvent& e) {
