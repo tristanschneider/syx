@@ -1,17 +1,17 @@
 #pragma once
 
-namespace Lua {
-  class State;
+struct lua_State;
 
+namespace Lua {
   class Serializer {
   public:
     //numPrecision is number of decimal places numbers are rounded to, and determines the epsilon under which a number is an int
     Serializer(const std::string tab, const std::string& newline, int numPrecision);
 
     //Serialize the given global value
-    void serializeGlobal(State& s, const std::string& global, std::string& buffer);
+    void serializeGlobal(lua_State* s, const std::string& global, std::string& buffer);
     //Serializes the value on top of the stack and pops it
-    void serializeTop(State& s, std::string& buffer);
+    void serializeTop(lua_State* s, std::string& buffer);
 
   private:
     void _serialize();
@@ -28,7 +28,7 @@ namespace Lua {
 
     std::string mTab;
     std::string mNewline;
-    State* mS;
+    lua_State* mS;
     std::string* mBuffer;
     int mDepth;
     //10^numPrecision

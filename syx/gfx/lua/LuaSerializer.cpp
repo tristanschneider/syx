@@ -18,16 +18,16 @@ namespace Lua {
     mEpsilon = 1.0/static_cast<double>(mRoundDigits);
   }
 
-  void Serializer::serializeGlobal(State& s, const std::string& global, std::string& buffer) {
+  void Serializer::serializeGlobal(lua_State* s, const std::string& global, std::string& buffer) {
     Lua::StackAssert sa(s);
     lua_getglobal(s, global.c_str());
     buffer += global + " = ";
     serializeTop(s, buffer);
   }
 
-  void Serializer::serializeTop(State& s, std::string& buffer) {
+  void Serializer::serializeTop(lua_State* s, std::string& buffer) {
     Lua::StackAssert sa(s);
-    mS = &s;
+    mS = s;
     mBuffer = &buffer;
     mDepth = 0;
     //Copy the value as _serialize will pop it
@@ -38,7 +38,7 @@ namespace Lua {
   }
 
   void Serializer::_serialize() {
-    State& s = *mS;
+    lua_State* s = mS;
     int type = lua_type(s, -1);
     if(type != LUA_TTABLE)
       return _serializeValue();
@@ -92,11 +92,11 @@ namespace Lua {
   }
 
   void Serializer::_serializeValue() {
-    int type = lua_type(*mS, -1);
+    int type = lua_type(mS, -1);
     std::string& buffer = *mBuffer;
     switch(type) {
       case LUA_TNUMBER: {
-        double num = static_cast<double>(lua_tonumber(*mS, -1));
+        double num = static_cast<double>(lua_tonumber(mS, -1));
         double rounded = _round(num);
         //If rounded is within an epsilon of num, write as int, otherwise decimal
         if(std::abs(_roundInt(num) - rounded) < mEpsilon)
@@ -106,19 +106,19 @@ namespace Lua {
         break;
       }
       case LUA_TSTRING:
-        _quoted(lua_tostring(*mS, -1));
+        _quoted(lua_tostring(mS, -1));
         break;
       case LUA_TBOOLEAN:
-        buffer += lua_toboolean(*mS, -1) ? "true" : "false";
+        buffer += lua_toboolean(mS, -1) ? "true" : "false";
         break;
       default:
-        printf("Unsupported value type %s\n", lua_typename(*mS, type));
+        printf("Unsupported value type %s\n", lua_typename(mS, type));
       case LUA_TNIL:
         buffer += "nil";
         break;
     }
     //Pop value to serialize off of stack
-    lua_pop(*mS, 1);
+    lua_pop(mS, 1);
   }
 
   bool Serializer::_isSupportedKeyType(int type) {

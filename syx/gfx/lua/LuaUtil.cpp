@@ -3,19 +3,25 @@
 
 #include <lua.hpp>
 #include "lua/LuaSerializer.h"
-#include "lua/LuaState.h"
 #include "lua/LuaStackAssert.h"
 
 namespace Lua {
   namespace Util {
-    void printTop(State& state) {
+    void printTop(lua_State* state) {
+      printStack(state, -1);
+    }
+
+    void printStack(lua_State* state, int index) {
+      Lua::StackAssert sa(state);
+      lua_pushvalue(state, index);
       Lua::Serializer s("\t", "\n", 1);
       std::string buff;
       s.serializeTop(state, buff);
       printf("%s\n", buff.c_str());
+      lua_pop(state, 1);
     }
 
-    void printGlobal(State& state, const std::string& global) {
+    void printGlobal(lua_State* state, const std::string& global) {
       Lua::Serializer s("\t", "\n", 1);
       std::string buff;
       s.serializeGlobal(state, global, buff);
