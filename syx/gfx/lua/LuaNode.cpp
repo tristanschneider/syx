@@ -202,6 +202,5 @@ namespace Lua {
       lua_pushnumber(s, m.mData[i]);
       lua_settable(s, -3);
     }
-    setField(s);
   }
 }

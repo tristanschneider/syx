@@ -47,6 +47,7 @@ void LuaGameSystem::init() {
   SYSTEM_EVENT_HANDLER(RenderableUpdateEvent, _onRenderableUpdate);
   SYSTEM_EVENT_HANDLER(TransformEvent, _onTransformUpdate);
   SYSTEM_EVENT_HANDLER(PhysicsCompUpdateEvent, _onPhysicsUpdate);
+  SYSTEM_EVENT_HANDLER(SetComponentPropsEvent, _onSetComponentProps);
 
   mState = std::make_unique<Lua::State>();
   mLibs = std::make_unique<Lua::AllLuaLibs>();
@@ -144,6 +145,10 @@ LuaGameObject& LuaGameSystem::addGameObject() {
   return result;
 }
 
+MessageQueue LuaGameSystem::getMessageQueue() {
+  return mArgs.mMessages->getMessageQueue();
+}
+
 void LuaGameSystem::uninit() {
   mObjects.clear();
   mEventHandler = nullptr;
@@ -153,6 +158,13 @@ void LuaGameSystem::uninit() {
 LuaGameSystem* LuaGameSystem::get(lua_State* l) {
   lua_getfield(l, LUA_REGISTRYINDEX, INSTANCE_KEY.c_str());
   return static_cast<LuaGameSystem*>(lua_touserdata(l, -1));
+}
+
+LuaGameSystem& LuaGameSystem::check(lua_State* l) {
+  LuaGameSystem* result = get(l);
+  if(!result)
+    luaL_error(l, "LuaGameSystem instance didn't exist");
+  return *result;
 }
 
 void LuaGameSystem::_onAddComponent(const AddComponentEvent& e) {
@@ -236,6 +248,14 @@ void LuaGameSystem::_onPhysicsUpdate(const PhysicsCompUpdateEvent& e) {
   }
 }
 
+void LuaGameSystem::_onSetComponentProps(const SetComponentPropsEvent& e) {
+  if(LuaGameObject* obj = _getObj(e.mNewValue->getOwner())) {
+    if(Component* comp = obj->getComponent(e.mNewValue->getType())) {
+      comp->set(*e.mNewValue);
+    }
+  }
+}
+
 LuaGameObject* LuaGameSystem::_getObj(Handle h) {
   auto it = mObjects.find(h);
   return it == mObjects.end() ? nullptr : it->second.get();
@@ -294,7 +314,6 @@ void LuaGameSystem::_initHardCodedScene() {
     m.push(AddComponentEvent(h, Component::typeId<Physics>()));
     m.push(PhysicsCompUpdateEvent(phy.getData(), h));
     m.push(TransformEvent(h, Syx::Mat4::transform(Vec3(10.0f, 1.0f, 10.0f), Quat::Identity, Vec3(0.0f, -10.0f, 0.0f))));
-    m.push(AddLuaComponentEvent(h, repo->getAsset(AssetInfo("scripts/test.lc"))->getInfo().mId));
   }
 
   {
@@ -317,5 +336,6 @@ void LuaGameSystem::_initHardCodedScene() {
     m.push(AddComponentEvent(h, Component::typeId<Physics>()));
     m.push(PhysicsCompUpdateEvent(phy.getData(), h));
     m.push(TransformEvent(h, Syx::Mat4::transform(Vec3(1.0f, 1.0f, 1.0f), Quat::Identity, Vec3(0.0f, 8.0f, 0.0f))));
+    m.push(AddLuaComponentEvent(h, repo->getAsset(AssetInfo("scripts/test.lc"))->getInfo().mId));
   }
 }

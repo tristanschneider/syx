@@ -26,10 +26,14 @@ public:
 class Physics : public Component {
 public:
   Physics(Handle owner);
+  Physics(const Physics& other);
 
   const PhysicsData& getData() const {
     return mData;
   }
+
+  std::unique_ptr<Component> clone() const override;
+  void set(const Component& component) override;
 
   void setData(const PhysicsData& data, bool fireEvent = true);
   void setCollider(Handle model, Handle material);

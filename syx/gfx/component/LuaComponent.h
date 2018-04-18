@@ -26,10 +26,14 @@ public:
 class LuaComponent : public Component {
 public:
   LuaComponent(Handle owner);
+  LuaComponent(const LuaComponent& other);
   ~LuaComponent();
 
   size_t getScript() const;
   void setScript(size_t script);
+
+  std::unique_ptr<Component> clone() const override;
+  void set(const Component& component) override;
 
   //The script must be at the top of the stack
   void init(Lua::State& state);

@@ -22,6 +22,19 @@ PhysicsData::PhysicsData()
 DEFINE_COMPONENT(Physics) {
 }
 
+Physics::Physics(const Physics& other)
+  : Component(other.getType(), other.getOwner()) {
+}
+
+std::unique_ptr<Component> Physics::clone() const {
+  return std::make_unique<Physics>(*this);
+}
+
+void Physics::set(const Component& component) {
+  assert(getType() == component.getType() && "set type must match");
+  mData = static_cast<const Physics&>(component).mData;
+}
+
 void Physics::setData(const PhysicsData& data, bool fireEvent) {
   mData = data;
 }

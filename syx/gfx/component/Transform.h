@@ -4,9 +4,13 @@
 class Transform : public Component {
 public:
   Transform(Handle owner);
+  Transform(const Transform& rhs);
 
   void set(const Syx::Mat4& m);
   const Syx::Mat4& get();
+
+  std::unique_ptr<Component> clone() const override;
+  void set(const Component& component) override;
 
   virtual const Lua::Node* getLuaProps() const override;
 

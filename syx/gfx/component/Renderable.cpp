@@ -13,12 +13,26 @@ DEFINE_COMPONENT(Renderable) {
   mData.mModel = mData.mDiffTex = InvalidHandle;
 }
 
+Renderable::Renderable(const Renderable& other)
+  : Component(other.getType(), other.getOwner())
+  , mData(other.mData) {
+}
+
 const RenderableData& Renderable::get() const {
   return mData;
 }
 
 void Renderable::set(const RenderableData& data) {
   mData = data;
+}
+
+std::unique_ptr<Component> Renderable::clone() const {
+  return std::make_unique<Renderable>(*this);
+}
+
+void Renderable::set(const Component& component) {
+  assert(getType() == component.getType() && "Set component type must match");
+  mData = static_cast<const Renderable&>(component).mData;
 }
 
 const Lua::Node* Renderable::getLuaProps() const {

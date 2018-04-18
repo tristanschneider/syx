@@ -3,6 +3,7 @@
 
 #include "asset/Model.h"
 #include "system/GraphicsSystem.h"
+#include "event/BaseComponentEvents.h"
 #include "event/Event.h"
 #include "event/EventBuffer.h"
 #include "event/EventHandler.h"
@@ -50,6 +51,7 @@ void PhysicsSystem::init() {
 
   SYSTEM_EVENT_HANDLER(TransformEvent, _transformEvent);
   SYSTEM_EVENT_HANDLER(PhysicsCompUpdateEvent, _compUpdateEvent);
+  SYSTEM_EVENT_HANDLER(SetComponentPropsEvent, _setComponentPropsEvent);
 }
 
 void PhysicsSystem::queueTasks(float dt, IWorkerPool& pool, std::shared_ptr<Task> frameTask) {
@@ -103,24 +105,34 @@ void PhysicsSystem::_updateObject(Handle obj, const SyxData& data, const Syx::Up
   mTransformUpdates->push(TransformEvent(obj, newTransform, GetSystemID(PhysicsSystem)));
 }
 
+void PhysicsSystem::_setComponentPropsEvent(const SetComponentPropsEvent& e) {
+  if(e.mNewValue->getType() == Component::typeId<Physics>()) {
+    _updateFromData(e.mNewValue->getOwner(), static_cast<const Physics&>(*e.mNewValue).getData());
+  }
+}
+
 void PhysicsSystem::_compUpdateEvent(const PhysicsCompUpdateEvent& e) {
-  auto it = mToSyx.find(e.mOwner);
+  _updateFromData(e.mOwner, e.mData);
+}
+
+void PhysicsSystem::_updateFromData(Handle obj, const PhysicsData& data) {
+  auto it = mToSyx.find(obj);
   Syx::Handle h;
   if(it == mToSyx.end()) {
-    h = _createObject(e.mOwner, e.mData.mHasRigidbody, e.mData.mHasCollider);
-    it = mToSyx.find(e.mOwner);
+    h = _createObject(obj, data.mHasRigidbody, data.mHasCollider);
+    it = mToSyx.find(obj);
   }
   else
     h = it->second.mHandle;
 
-  it->second.mSyxToModel = e.mData.mPhysToModel;
+  it->second.mSyxToModel = data.mPhysToModel;
 
-  mSystem->setVelocity(mDefaultSpace, h, e.mData.mLinVel);
-  mSystem->setAngularVelocity(mDefaultSpace, h, e.mData.mAngVel);
-  mSystem->setHasCollider(e.mData.mHasCollider, mDefaultSpace, h);
-  mSystem->setHasRigidbody(e.mData.mHasRigidbody, mDefaultSpace, h);
-  mSystem->setObjectModel(mDefaultSpace, h, e.mData.mModel);
-  mSystem->setObjectMaterial(mDefaultSpace, h, e.mData.mMaterial);
+  mSystem->setVelocity(mDefaultSpace, h, data.mLinVel);
+  mSystem->setAngularVelocity(mDefaultSpace, h, data.mAngVel);
+  mSystem->setHasCollider(data.mHasCollider, mDefaultSpace, h);
+  mSystem->setHasRigidbody(data.mHasRigidbody, mDefaultSpace, h);
+  mSystem->setObjectModel(mDefaultSpace, h, data.mModel);
+  mSystem->setObjectMaterial(mDefaultSpace, h, data.mMaterial);
 }
 
 void PhysicsSystem::_transformEvent(const TransformEvent& e) {

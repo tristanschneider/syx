@@ -83,21 +83,21 @@ void Component::baseOpenLib(lua_State* l) {
   sLuaCache->createCache(l);
 }
 
-int Component::getName(lua_State* l, const std::string& type) {
+int Component::_getName(lua_State* l, const std::string& type) {
   Component* self = static_cast<Component*>(sLuaCache->checkParam(l, 1, type.c_str()));
   const std::string& name = self->getTypeInfo().mPropName;
   lua_pushlstring(l, name.c_str(), name.size());
   return 1;
 }
 
-int Component::getType(lua_State* l, const std::string& type) {
+int Component::_getType(lua_State* l, const std::string& type) {
   Component* self = static_cast<Component*>(sLuaCache->checkParam(l, 1, type.c_str()));
   const std::string& name = self->getTypeInfo().mTypeName;
   lua_pushlstring(l, name.c_str(), name.size());
   return 1;
 }
 
-int Component::getOwner(lua_State* l, const std::string& type) {
+int Component::_getOwner(lua_State* l, const std::string& type) {
   Component* self = static_cast<Component*>(sLuaCache->checkParam(l, 1, type.c_str()));
   if(LuaGameSystem* game = LuaGameSystem::get(l)) {
     if(LuaGameObject* obj = game->_getObj(self->getOwner())) {
@@ -107,7 +107,7 @@ int Component::getOwner(lua_State* l, const std::string& type) {
   return 0;
 }
 
-int Component::getProps(lua_State* l, const std::string& type) {
+int Component::_getProps(lua_State* l, const std::string& type) {
   Lua::StackAssert sa(l, 1);
   Component* self = static_cast<Component*>(sLuaCache->checkParam(l, 1, type.c_str()));
   if(const Lua::Node* props = self->getLuaProps()) {
@@ -117,6 +117,26 @@ int Component::getProps(lua_State* l, const std::string& type) {
     lua_newtable(l);
   }
   return 1;
+}
+
+int Component::_setProps(lua_State* l, const std::string& type) {
+  Lua::StackAssert sa(l);
+  Component* self = static_cast<Component*>(sLuaCache->checkParam(l, 1, type.c_str()));
+  LuaGameSystem& game = LuaGameSystem::check(l);
+  luaL_checktype(l, 2, LUA_TTABLE);
+
+  int top = lua_gettop(l);
+  int ttype = lua_type(l, top);
+
+  if(const Lua::Node* props = self->getLuaProps()) {
+    //Read the data into a copy and send an event with the change to apply it next frame
+    std::unique_ptr<Component> clone = self->clone();
+    lua_pushvalue(l, 2);
+    props->readFromLua(l, clone.get());
+    lua_pop(l, 1);
+    game.getMessageQueue().get().push(SetComponentPropsEvent(std::move(clone)));
+  }
+  return 0;
 }
 
 const Lua::Cache& Component::getLuaCache() const {

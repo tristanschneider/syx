@@ -22,16 +22,18 @@ namespace Lua {
 //Implement base functions with wrappers for the derived class
 #define COMPONENT_LUA_INHERIT(type)\
   static const type& singleton() { static type s(0); return s; }\
-  WRAP_BASE_FUNC(getName)\
-  WRAP_BASE_FUNC(getType)\
-  WRAP_BASE_FUNC(getOwner)\
-  WRAP_BASE_FUNC(getProps)
+  WRAP_BASE_FUNC(_getName)\
+  WRAP_BASE_FUNC(_getType)\
+  WRAP_BASE_FUNC(_getOwner)\
+  WRAP_BASE_FUNC(_getProps)\
+  WRAP_BASE_FUNC(_setProps)
 
 #define COMPONENT_LUA_BASE_REGS \
-  { "getName", getName },\
-  { "getType", getType },\
-  { "getOwner", getOwner },\
-  { "getProps", getProps }
+  { "getName", _getName },\
+  { "getType", _getType },\
+  { "getOwner", _getOwner },\
+  { "getProps", _getProps },\
+  { "setProps", _setProps }
 
 struct ComponentTypeInfo {
   ComponentTypeInfo(const std::string& typeName);
@@ -76,7 +78,7 @@ public:
   size_t getType() const {
     return mType;
   }
-  Handle getOwner() {
+  Handle getOwner() const {
     return mOwner;
   }
 
@@ -84,15 +86,19 @@ public:
   int push(lua_State* l);
   void invalidate(lua_State* l) const;
 
+  virtual std::unique_ptr<Component> clone() const = 0;
+  virtual void set(const Component& component) = 0;
+
   virtual const Lua::Node* getLuaProps() const;
   virtual void openLib(lua_State* l) const;
   virtual const ComponentTypeInfo& getTypeInfo() const;
 
   static void baseOpenLib(lua_State* l);
-  static int getName(lua_State* l, const std::string& type);
-  static int getType(lua_State* l, const std::string& type);
-  static int getOwner(lua_State* l, const std::string& type);
-  static int getProps(lua_State* l, const std::string& type);
+  static int _getName(lua_State* l, const std::string& type);
+  static int _getType(lua_State* l, const std::string& type);
+  static int _getOwner(lua_State* l, const std::string& type);
+  static int _getProps(lua_State* l, const std::string& type);
+  static int _setProps(lua_State* l, const std::string& type);
 
   static const std::string LUA_PROPS_KEY;
 

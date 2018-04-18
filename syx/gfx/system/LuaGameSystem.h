@@ -1,5 +1,6 @@
 #pragma once
 #include "System.h"
+#include "provider/MessageQueueProvider.h"
 
 class Task;
 class LuaGameObject;
@@ -15,6 +16,7 @@ class TransformEvent;
 class PhysicsCompUpdateEvent;
 class AddLuaComponentEvent;
 class RemoveLuaComponentEvent;
+class SetComponentPropsEvent;
 struct lua_State;
 
 namespace Lua {
@@ -36,10 +38,13 @@ public:
   LuaGameObject* _getObj(Handle h);
 
   static LuaGameSystem* get(lua_State* l);
+  static LuaGameSystem& check(lua_State* l);
 
   //Add component to gameobject with the given owner. Returns a pending component that will be applied next frame. Null if invalid name
   Component* addComponent(const std::string& name, Handle owner);
   LuaGameObject& addGameObject();
+
+  MessageQueue getMessageQueue();
 
 private:
 
@@ -58,6 +63,7 @@ private:
   void _onRenderableUpdate(const RenderableUpdateEvent& e);
   void _onTransformUpdate(const TransformEvent& e);
   void _onPhysicsUpdate(const PhysicsCompUpdateEvent& e);
+  void _onSetComponentProps(const SetComponentPropsEvent& e);
 
   static const std::string INSTANCE_KEY;
 

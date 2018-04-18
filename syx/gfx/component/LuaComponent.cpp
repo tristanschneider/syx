@@ -21,7 +21,20 @@ DEFINE_COMPONENT(LuaComponent) {
   mScript = 0;
 }
 
+LuaComponent::LuaComponent(const LuaComponent& other)
+  : Component(other.getType(), other.getOwner()) {
+}
+
 LuaComponent::~LuaComponent() {
+}
+
+std::unique_ptr<Component> LuaComponent::clone() const {
+  return std::make_unique<LuaComponent>(*this);
+}
+
+void LuaComponent::set(const Component& component) {
+  assert(getType() == component.getType() && "set component type must match");
+  mScript = static_cast<const LuaComponent&>(component).mScript;
 }
 
 size_t LuaComponent::getScript() const {

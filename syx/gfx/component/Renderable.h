@@ -18,9 +18,13 @@ public:
 class Renderable : public Component {
 public:
   Renderable(Handle owner);
+  Renderable(const Renderable& other);
 
   const RenderableData& get() const;
   void set(const RenderableData& data);
+
+  std::unique_ptr<Component> clone() const override;
+  void set(const Component& component) override;
 
   virtual const Lua::Node* getLuaProps() const override;
 

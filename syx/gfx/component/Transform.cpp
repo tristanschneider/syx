@@ -8,12 +8,26 @@ DEFINE_COMPONENT(Transform)
   , mMat(Syx::Mat4::transform(Syx::Quat::Identity, Syx::Vec3::Zero)) {
 }
 
+Transform::Transform(const Transform& rhs)
+  : Component(rhs.getType(), rhs.getOwner())
+  , mMat(rhs.mMat) {
+}
+
 void Transform::set(const Syx::Mat4& m) {
   mMat = m;
 }
 
 const Syx::Mat4& Transform::get() {
   return mMat;
+}
+
+std::unique_ptr<Component> Transform::clone() const {
+  return std::make_unique<Transform>(*this);
+}
+
+void Transform::set(const Component& component) {
+  assert(getType() == component.getType() && "set type should match");
+  mMat = static_cast<const Transform&>(component).mMat;
 }
 
 const Lua::Node* Transform::getLuaProps() const {
