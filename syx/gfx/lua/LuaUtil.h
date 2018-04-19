@@ -3,8 +3,6 @@ struct lua_State;
 struct luaL_Reg;
 
 namespace Lua {
-  class State;
-
   namespace Util {
     using CFunc = int(*)(lua_State*);
 

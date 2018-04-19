@@ -74,6 +74,8 @@ namespace Lua {
   }
 
   void Node::writeToLua(lua_State* s, const void* base, bool fromGlobal) const {
+    //Either leaf node writes or branch node changes offset
+    _writeToLua(s, base);
     if(mChildren.size()) {
       //Make new table and allow children to fill it
       lua_newtable(s);
@@ -81,12 +83,9 @@ namespace Lua {
         child->writeToLua(s, Util::offset(base, + child->mOps.mOffset));
         child->setField(s);
       }
-      //Store new table on parent
-      setField(s);
-    }
-    else {
-      //Leaf node, write to field in parent's table
-      _writeToLua(s, base);
+      //Parent will store the result of this write in their table. If there is no parent we must do it here
+      if(!mOps.mParent)
+        setField(s);
     }
   }
 
@@ -106,6 +105,8 @@ namespace Lua {
   bool Node::writeChildToLua(lua_State* s, const char* child, const void* base, bool fromGlobal) const {
     for(const auto& c : mChildren) {
       if(!strcmp(child, c->getName().c_str())) {
+        //Most likely a no-op on the root node, but could also shift the pointer
+        _writeToLua(s, base);
         lua_newtable(s);
         c->writeToLua(s, Util::offset(base, c->mOps.mOffset), false);
         setField(s, fromGlobal);
@@ -119,72 +120,72 @@ namespace Lua {
     return mOps.mName;
   }
 
-  void IntNode::_readFromLua(lua_State* s, void* base) const {
+  void IntNode::_readFromLua(lua_State* s, void*& base) const {
     *static_cast<int*>(base) = static_cast<int>(lua_tointeger(s, -1));
   }
 
-  void IntNode::_writeToLua(lua_State* s, const void* base) const {
+  void IntNode::_writeToLua(lua_State* s, const void*& base) const {
     lua_pushinteger(s, *static_cast<const int*>(base));
   }
 
-  void StringNode::_readFromLua(lua_State* s, void* base) const {
+  void StringNode::_readFromLua(lua_State* s, void*& base) const {
     *static_cast<std::string*>(base) = lua_tostring(s, -1);
   }
 
-  void StringNode::_writeToLua(lua_State* s, const void* base) const {
+  void StringNode::_writeToLua(lua_State* s, const void*& base) const {
     const std::string& str = *static_cast<const std::string*>(base);
     lua_pushlstring(s, str.c_str(), str.size());
   }
 
-  void FloatNode::_readFromLua(lua_State* s, void* base) const {
+  void FloatNode::_readFromLua(lua_State* s, void*& base) const {
     *static_cast<float*>(base) = static_cast<float>(lua_tonumber(s, -1));
   }
 
-  void FloatNode::_writeToLua(lua_State* s, const void* base) const {
+  void FloatNode::_writeToLua(lua_State* s, const void*& base) const {
     lua_pushnumber(s, *static_cast<const float*>(base));
   }
 
-  void LightUserdataNode::_readFromLua(lua_State* s, void* base) const {
+  void LightUserdataNode::_readFromLua(lua_State* s, void*& base) const {
     *static_cast<void**>(base) = lua_touserdata(s, -1);
   }
 
-  void LightUserdataNode::_writeToLua(lua_State* s, const void* base) const {
+  void LightUserdataNode::_writeToLua(lua_State* s, const void*& base) const {
     lua_pushlightuserdata(s, *static_cast<void**>(const_cast<void*>(base)));
   }
 
-  void LightUserdataSizetNode::_readFromLua(lua_State* s, void* base) const {
+  void LightUserdataSizetNode::_readFromLua(lua_State* s, void*& base) const {
     *static_cast<size_t*>(base) = reinterpret_cast<size_t>(lua_touserdata(s, -1));
   }
 
-  void LightUserdataSizetNode::_writeToLua(lua_State* s, const void* base) const {
+  void LightUserdataSizetNode::_writeToLua(lua_State* s, const void*& base) const {
     lua_pushlightuserdata(s, &(const_cast<size_t&>(*static_cast<const size_t*>(base))));
   }
 
-  void BoolNode::_readFromLua(lua_State* s, void* base) const {
+  void BoolNode::_readFromLua(lua_State* s, void*& base) const {
     *static_cast<bool*>(base) = static_cast<bool>(lua_toboolean(s, -1));
   }
 
-  void BoolNode::_writeToLua(lua_State* s, const void* base) const {
+  void BoolNode::_writeToLua(lua_State* s, const void*& base) const {
     lua_pushboolean(s, static_cast<int>(*static_cast<const bool*>(base)));
   }
 
-  void Vec3Node::_readFromLua(lua_State* s, void* base) const {
+  void Vec3Node::_readFromLua(lua_State* s, void*& base) const {
     *static_cast<Syx::Vec3*>(base) = Lua::Vec3::_getVec(s, -1);
   }
 
-  void Vec3Node::_writeToLua(lua_State* s, const void* base) const {
+  void Vec3Node::_writeToLua(lua_State* s, const void*& base) const {
     Lua::Vec3::construct(s, *static_cast<const Syx::Vec3*>(base));
   }
 
-  void QuatNode::_readFromLua(lua_State* s, void* base) const {
+  void QuatNode::_readFromLua(lua_State* s, void*& base) const {
     *static_cast<Syx::Quat*>(base) = Lua::Quat::_getQuat(s, -1);
   }
 
-  void QuatNode::_writeToLua(lua_State* s, const void* base) const {
+  void QuatNode::_writeToLua(lua_State* s, const void*& base) const {
     Lua::Quat::construct(s, *static_cast<const Syx::Quat*>(base));
   }
 
-  void Mat4Node::_readFromLua(lua_State* s, void* base) const {
+  void Mat4Node::_readFromLua(lua_State* s, void*& base) const {
     Syx::Mat4& m = *static_cast<Syx::Mat4*>(base);
     for(int i = 0; i < 16; ++i) {
       lua_pushinteger(s, i + 1);
@@ -194,7 +195,7 @@ namespace Lua {
     }
   }
 
-  void Mat4Node::_writeToLua(lua_State* s, const void* base) const {
+  void Mat4Node::_writeToLua(lua_State* s, const void*& base) const {
     lua_createtable(s, 16, 0);
     const Syx::Mat4& m = *static_cast<const Syx::Mat4*>(base);
     for(int i = 0; i < 16; ++i) {

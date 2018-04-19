@@ -24,7 +24,7 @@ namespace Lua {
       , mWrapped(NodeOps("")) {
     }
 
-    void _readFromLua(lua_State* s, void* base) const override {
+    void _readFromLua(lua_State* s, void*& base) const override {
       std::vector<WrappedNode::WrappedType>& vec = *static_cast<std::vector<WrappedNode::WrappedType>*>(base);
       vec.clear();
       //Dummy value for next to pop off
@@ -40,7 +40,7 @@ namespace Lua {
       }
     }
 
-    void _writeToLua(lua_State* s, const void* base) const override {
+    void _writeToLua(lua_State* s, const void*& base) const override {
       const std::vector<WrappedNode::WrappedType>& vec = *static_cast<const std::vector<WrappedNode::WrappedType>*>(base);
       lua_createtable(s, vec.size(), 0);
       for(size_t i = 0; i < vec.size(); ++i) {
@@ -64,7 +64,7 @@ namespace Lua {
       , mValueNode(NodeOps("")) {
     }
 
-    void _readFromLua(lua_State* s, void* base) const override {
+    void _readFromLua(lua_State* s, void*& base) const override {
       auto& map = *static_cast<std::unordered_map<KeyNode::WrappedType, ValueNode::WrappedType>*>(base);
       map.clear();
       //Dummy value for next to pop off
@@ -81,7 +81,7 @@ namespace Lua {
       }
     }
 
-    void _writeToLua(lua_State* s, const void* base) const override {
+    void _writeToLua(lua_State* s, const void*& base) const override {
       const auto& map = *static_cast<const std::unordered_map<KeyNode::WrappedType, ValueNode::WrappedType>*>(base);
       lua_createtable(s, map.size(), 0);
       for(const auto& it : map) {
@@ -96,5 +96,25 @@ namespace Lua {
   protected:
     KeyNode mKeyNode;
     ValueNode mValueNode;
+  };
+
+  //A pointer node that can be used as a parent of other node and used to follow a pointer value in a structure
+  //The pointer value must be non-null, as the node can't know how to create a new one
+  template<typename Ptr>
+  class PointerNode : public Node {
+  public:
+    using Node::Node;
+    //Follow pointer so children are relative to dereferenced address
+    void _readFromLua(lua_State* s, void*& base) const override {
+      Ptr& ptr = *static_cast<Ptr*>(base);
+      assert(ptr != nullptr && "Pointer must have a value");
+      base = &*ptr;
+    }
+
+    void _writeToLua(lua_State* s, const void*& base) const override {
+      const Ptr& ptr = *static_cast<const Ptr*>(base);
+      assert(ptr != nullptr && "Pointer must have a value");
+      base =  &*ptr;
+    }
   };
 }

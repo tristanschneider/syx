@@ -47,8 +47,9 @@ namespace Lua {
     const std::string& getName() const;
 
   protected:
-    virtual void _readFromLua(lua_State* s, void* base) const {}
-    virtual void _writeToLua(lua_State* s, const void* base) const {}
+    //Takes a reference so that a node can change the pointer, for instance to follow a pointer
+    virtual void _readFromLua(lua_State* s, void*& base) const = 0;
+    virtual void _writeToLua(lua_State* s, const void*& base) const = 0;
 
     //Push stack[top][field] onto top of stack, or global[field] if root node
     void getField(lua_State* s, const std::string& field, bool fromGlobal = false) const;
@@ -62,8 +63,15 @@ namespace Lua {
     std::vector<std::unique_ptr<Node>> mChildren;
   };
 
+  class RootNode : public Node {
+  public:
+    using Node::Node;
+    void _readFromLua(lua_State* s, void*& base) const override {}
+    void _writeToLua(lua_State* s, const void*& base) const override {}
+  };
+
   inline std::unique_ptr<Node> makeRootNode(NodeOps&& ops) {
-    return std::make_unique<Node>(std::move(ops));
+    return std::make_unique<RootNode>(std::move(ops));
   }
 
   template<typename T>
@@ -78,71 +86,71 @@ namespace Lua {
   public:
     using WrappedType = int;
     using Node::Node;
-    void _readFromLua(lua_State* s, void* base) const override;
-    void _writeToLua(lua_State* s, const void* base) const override;
+    void _readFromLua(lua_State* s, void*& base) const override;
+    void _writeToLua(lua_State* s, const void*& base) const override;
   };
 
   class StringNode : public Node {
   public:
     using WrappedType = std::string;
     using Node::Node;
-    void _readFromLua(lua_State* s, void* base) const override;
-    void _writeToLua(lua_State* s, const void* base) const override;
+    void _readFromLua(lua_State* s, void*& base) const override;
+    void _writeToLua(lua_State* s, const void*& base) const override;
   };
 
   class FloatNode : public Node {
   public:
     using WrappedType = float;
     using Node::Node;
-    void _readFromLua(lua_State* s, void* base) const override;
-    void _writeToLua(lua_State* s, const void* base) const override;
+    void _readFromLua(lua_State* s, void*& base) const override;
+    void _writeToLua(lua_State* s, const void*& base) const override;
   };
 
   class LightUserdataNode : public Node {
   public:
     using WrappedType = void*;
     using Node::Node;
-    void _readFromLua(lua_State* s, void* base) const override;
-    void _writeToLua(lua_State* s, const void* base) const override;
+    void _readFromLua(lua_State* s, void*& base) const override;
+    void _writeToLua(lua_State* s, const void*& base) const override;
   };
 
   class LightUserdataSizetNode : public Node {
   public:
     using WrappedType = size_t;
     using Node::Node;
-    void _readFromLua(lua_State* s, void* base) const override;
-    void _writeToLua(lua_State* s, const void* base) const override;
+    void _readFromLua(lua_State* s, void*& base) const override;
+    void _writeToLua(lua_State* s, const void*& base) const override;
   };
 
   class BoolNode : public Node {
   public:
     using WrappedType = bool;
     using Node::Node;
-    void _readFromLua(lua_State* s, void* base) const override;
-    void _writeToLua(lua_State* s, const void* base) const override;
+    void _readFromLua(lua_State* s, void*& base) const override;
+    void _writeToLua(lua_State* s, const void*& base) const override;
   };
 
   class Vec3Node : public Node {
   public:
     using WrappedType = Syx::Vec3;
     using Node::Node;
-    void _readFromLua(lua_State* s, void* base) const override;
-    void _writeToLua(lua_State* s, const void* base) const override;
+    void _readFromLua(lua_State* s, void*& base) const override;
+    void _writeToLua(lua_State* s, const void*& base) const override;
   };
 
   class QuatNode : public Node {
   public:
     using WrappedType = Syx::Quat;
     using Node::Node;
-    void _readFromLua(lua_State* s, void* base) const override;
-    void _writeToLua(lua_State* s, const void* base) const override;
+    void _readFromLua(lua_State* s, void*& base) const override;
+    void _writeToLua(lua_State* s, const void*& base) const override;
   };
 
   class Mat4Node : public Node {
   public:
     using WrappedType = Syx::Mat4;
     using Node::Node;
-    void _readFromLua(lua_State* s, void* base) const override;
-    void _writeToLua(lua_State* s, const void* base) const override;
+    void _readFromLua(lua_State* s, void*& base) const override;
+    void _writeToLua(lua_State* s, const void*& base) const override;
   };
 }

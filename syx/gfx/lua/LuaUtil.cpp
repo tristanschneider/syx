@@ -14,7 +14,7 @@ namespace Lua {
     void printStack(lua_State* state, int index) {
       Lua::StackAssert sa(state);
       lua_pushvalue(state, index);
-      Lua::Serializer s("\t", "\n", 1);
+      Lua::Serializer s("  ", "\n", 1);
       std::string buff;
       s.serializeTop(state, buff);
       printf("%s\n", buff.c_str());
@@ -22,7 +22,7 @@ namespace Lua {
     }
 
     void printGlobal(lua_State* state, const std::string& global) {
-      Lua::Serializer s("\t", "\n", 1);
+      Lua::Serializer s("  ", "\n", 1);
       std::string buff;
       s.serializeGlobal(state, global, buff);
       printf("%s\n", buff.c_str());
