@@ -6,6 +6,7 @@
 #include "lua/LuaUtil.h"
 #include "lua/LuaCache.h"
 #include <lua.hpp>
+#include "system/LuaGameSystem.h"
 
 const std::string LuaGameObject::CLASS_NAME = "Gameobject";
 std::unique_ptr<Lua::Cache> LuaGameObject::sCache = std::make_unique<Lua::Cache>("_goc_", CLASS_NAME);
@@ -127,6 +128,13 @@ int LuaGameObject::removeComponent(lua_State* l) {
 
 int LuaGameObject::isValid(lua_State* l) {
   lua_pushboolean(l, sCache->getParam(l, 1) != nullptr);
+  return 1;
+}
+
+int LuaGameObject::newDefault(lua_State* l) {
+  Lua::StackAssert sa(l, 1);
+  LuaGameSystem& game = LuaGameSystem::check(l);
+  LuaGameObject::push(l, game.addGameObject());
   return 1;
 }
 

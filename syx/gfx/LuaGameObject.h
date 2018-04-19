@@ -47,6 +47,9 @@ public:
   //bool isValid()
   static int isValid(lua_State* l);
 
+  //static LuaGameObject newDefault()
+  static int newDefault(lua_State* l);
+
   static int push(lua_State* l, LuaGameObject& obj);
   static int invalidate(lua_State* l, LuaGameObject& obj);
 
