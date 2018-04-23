@@ -16,6 +16,7 @@ class TransformEvent;
 class PhysicsCompUpdateEvent;
 class AddLuaComponentEvent;
 class RemoveLuaComponentEvent;
+class SetComponentPropEvent;
 class SetComponentPropsEvent;
 struct lua_State;
 
@@ -64,6 +65,7 @@ private:
   void _onTransformUpdate(const TransformEvent& e);
   void _onPhysicsUpdate(const PhysicsCompUpdateEvent& e);
   void _onSetComponentProps(const SetComponentPropsEvent& e);
+  void _onSetComponentProp(const SetComponentPropEvent& e);
 
   static const std::string INSTANCE_KEY;
 

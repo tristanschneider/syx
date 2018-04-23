@@ -15,7 +15,6 @@ namespace Lua {
   }
 
   NumVec::~NumVec() {
-    printf("Vec destructor");
   }
 
   std::string NumVec::toString() const {

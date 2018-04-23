@@ -26,14 +26,18 @@ namespace Lua {
   WRAP_BASE_FUNC(_getType)\
   WRAP_BASE_FUNC(_getOwner)\
   WRAP_BASE_FUNC(_getProps)\
-  WRAP_BASE_FUNC(_setProps)
+  WRAP_BASE_FUNC(_setProps)\
+  WRAP_BASE_FUNC(_getProp)\
+  WRAP_BASE_FUNC(_setProp)
 
 #define COMPONENT_LUA_BASE_REGS \
   { "getName", _getName },\
   { "getType", _getType },\
   { "getOwner", _getOwner },\
   { "getProps", _getProps },\
-  { "setProps", _setProps }
+  { "setProps", _setProps },\
+  { "getProp", _getProp },\
+  { "setProp", _setProp }
 
 struct ComponentTypeInfo {
   ComponentTypeInfo(const std::string& typeName);
@@ -99,6 +103,8 @@ public:
   static int _getOwner(lua_State* l, const std::string& type);
   static int _getProps(lua_State* l, const std::string& type);
   static int _setProps(lua_State* l, const std::string& type);
+  static int _getProp(lua_State* l, const std::string& type);
+  static int _setProp(lua_State* l, const std::string& type);
 
   static const std::string LUA_PROPS_KEY;
 

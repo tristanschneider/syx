@@ -2,6 +2,7 @@
 #include "event/BaseComponentEvents.h"
 
 #include "component/Component.h"
+#include "lua/LuaNode.h"
 
 DEFINE_EVENT(AddComponentEvent, Handle obj, Handle compType)
   , mObj(obj)
@@ -36,4 +37,35 @@ SetComponentPropsEvent::SetComponentPropsEvent(SetComponentPropsEvent&& other)
 }
 
 SetComponentPropsEvent::~SetComponentPropsEvent() {
+}
+
+DEFINE_EVENT(SetComponentPropEvent, Handle obj, size_t compType, const Lua::Node* prop, std::vector<uint8_t>&& buffer)
+  , mObj(obj)
+  , mCompType(compType)
+  , mProp(prop)
+  , mBuffer(std::move(buffer)) {
+}
+
+SetComponentPropEvent::SetComponentPropEvent(const SetComponentPropEvent& other) 
+  : Event(Event::typeId<SetComponentPropEvent>(), sizeof(SetComponentPropEvent)) {
+  mObj = other.mObj;
+  mCompType = other.mCompType;
+  mProp = other.mProp;
+  mBuffer.resize(other.mBuffer.size());
+  mProp->copyConstructBufferToBuffer(&other.mBuffer[0], &mBuffer[0]);
+}
+
+SetComponentPropEvent::SetComponentPropEvent(SetComponentPropEvent&& other)
+  : Event(Event::typeId<SetComponentPropEvent>(), sizeof(SetComponentPropEvent))
+  , mObj(other.mObj)
+  , mCompType(other.mCompType)
+  , mProp(other.mProp)
+  , mBuffer(std::move(other.mBuffer)) {
+  other.mProp = nullptr;
+}
+
+SetComponentPropEvent::~SetComponentPropEvent() {
+  if(mProp) {
+    mProp->destructBuffer(&mBuffer[0]);
+  }
 }

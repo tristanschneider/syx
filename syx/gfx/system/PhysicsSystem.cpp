@@ -13,6 +13,7 @@
 #include "event/TransformEvent.h"
 #include "provider/SystemProvider.h"
 #include "provider/MessageQueueProvider.h"
+#include "lua/LuaNode.h"
 
 #include <SyxIntrusive.h>
 #include <SyxHandles.h>
@@ -52,6 +53,7 @@ void PhysicsSystem::init() {
   SYSTEM_EVENT_HANDLER(TransformEvent, _transformEvent);
   SYSTEM_EVENT_HANDLER(PhysicsCompUpdateEvent, _compUpdateEvent);
   SYSTEM_EVENT_HANDLER(SetComponentPropsEvent, _setComponentPropsEvent);
+  SYSTEM_EVENT_HANDLER(SetComponentPropEvent, _setComponentPropEvent);
 }
 
 void PhysicsSystem::queueTasks(float dt, IWorkerPool& pool, std::shared_ptr<Task> frameTask) {
@@ -111,21 +113,43 @@ void PhysicsSystem::_setComponentPropsEvent(const SetComponentPropsEvent& e) {
   }
 }
 
+void PhysicsSystem::_setComponentPropEvent(const SetComponentPropEvent& e) {
+  if(e.mCompType == Component::typeId<Physics>()) {
+    SyxData& syxData = _getSyxData(e.mObj, false, false);
+    Syx::Handle h = syxData.mHandle;
+    Physics comp(0);
+    e.mProp->copyFromBuffer(&comp, &e.mBuffer[0]);
+    const PhysicsData& data = comp.getData();
+    switch(Util::constHash(e.mProp->getName().c_str())) {
+      case Util::constHash("hasRigidbody"): mSystem->setHasRigidbody(data.mHasRigidbody, mDefaultSpace, h); break;
+      case Util::constHash("hasCollider"): mSystem->setHasCollider(data.mHasCollider, mDefaultSpace, h); break;
+      case Util::constHash("linVel"): mSystem->setVelocity(mDefaultSpace, h, data.mLinVel); break;
+      case Util::constHash("angVel"): mSystem->setAngularVelocity(mDefaultSpace, h, data.mAngVel); break;
+      case Util::constHash("model"): mSystem->setObjectModel(mDefaultSpace, h, data.mModel); break;
+      case Util::constHash("material"): mSystem->setObjectMaterial(mDefaultSpace, h, data.mMaterial); break;
+      case Util::constHash("physToModel"): syxData.mSyxToModel = data.mPhysToModel; break;
+      default: assert(false && "Unhandled property setter"); break;
+    }
+  }
+}
+
 void PhysicsSystem::_compUpdateEvent(const PhysicsCompUpdateEvent& e) {
   _updateFromData(e.mOwner, e.mData);
 }
 
-void PhysicsSystem::_updateFromData(Handle obj, const PhysicsData& data) {
+PhysicsSystem::SyxData& PhysicsSystem::_getSyxData(Handle obj, bool hasRigidbody, bool hasCollider) {
   auto it = mToSyx.find(obj);
-  Syx::Handle h;
-  if(it == mToSyx.end()) {
-    h = _createObject(obj, data.mHasRigidbody, data.mHasCollider);
-    it = mToSyx.find(obj);
-  }
-  else
-    h = it->second.mHandle;
+  if(it != mToSyx.end())
+    return it->second;
+  _createObject(obj, hasRigidbody, hasCollider);
+  return mToSyx.find(obj)->second;
+}
 
-  it->second.mSyxToModel = data.mPhysToModel;
+void PhysicsSystem::_updateFromData(Handle obj, const PhysicsData& data) {
+  SyxData& syxData = _getSyxData(obj, data.mHasRigidbody, data.mHasCollider);
+  Syx::Handle h = syxData.mHandle;
+
+  syxData.mSyxToModel = data.mPhysToModel;
 
   mSystem->setVelocity(mDefaultSpace, h, data.mLinVel);
   mSystem->setAngularVelocity(mDefaultSpace, h, data.mAngVel);

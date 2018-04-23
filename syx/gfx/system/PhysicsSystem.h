@@ -12,6 +12,7 @@ class Model;
 class EventBuffer;
 class TransformEvent;
 class PhysicsCompUpdateEvent;
+class SetComponentPropEvent;
 class SetComponentPropsEvent;
 class Gameobject;
 class Event;
@@ -46,8 +47,10 @@ private:
   void _compUpdateEvent(const PhysicsCompUpdateEvent& e);
   void _transformEvent(const TransformEvent& e);
   void _setComponentPropsEvent(const SetComponentPropsEvent& e);
+  void _setComponentPropEvent(const SetComponentPropEvent& e);
   Syx::Handle _createObject(Handle gameobject, bool hasRigidbody, bool hasCollider);
 
+  SyxData& _getSyxData(Handle obj, bool hasRigidbody, bool hasCollider);
   void _updateFromData(Handle obj, const PhysicsData& data);
 
   std::unique_ptr<Syx::PhysicsSystem> mSystem;

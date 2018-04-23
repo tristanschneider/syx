@@ -139,6 +139,43 @@ int Component::_setProps(lua_State* l, const std::string& type) {
   return 0;
 }
 
+int Component::_getProp(lua_State* l, const std::string& type) {
+  Lua::StackAssert sa(l, 1);
+  Component* self = static_cast<Component*>(sLuaCache->checkParam(l, 1, type.c_str()));
+  const char* propName = luaL_checkstring(l, 2);
+
+  if(const Lua::Node* props = self->getLuaProps()) {
+    //TODO: support a way to get children several levels deep?
+    if(const Lua::Node* foundProp = props->getChild(propName)) {
+      foundProp->writeToLua(l, self);
+      return 1;
+    }
+  }
+  //Property not found, return null
+  lua_pushnil(l);
+  return 1;
+}
+
+int Component::_setProp(lua_State* l, const std::string& type) {
+  Lua::StackAssert sa(l, 1);
+  Component* self = static_cast<Component*>(sLuaCache->checkParam(l, 1, type.c_str()));
+  const char* propName = luaL_checkstring(l, 2);
+  LuaGameSystem& game = LuaGameSystem::check(l);
+
+  if(const Lua::Node* props = self->getLuaProps()) {
+    //TODO: support a way to get children several levels deep?
+    if(const Lua::Node* foundProp = props->getChild(propName)) {
+      std::vector<uint8_t> buff;
+      buff.resize(foundProp->size());
+      lua_pushvalue(l, 3);
+      foundProp->readFromLuaToBuffer(l, &buff[0], Lua::Node::SourceType::FromStack);
+      lua_pop(l, 1);
+      game.getMessageQueue().get().push(SetComponentPropEvent(self->getOwner(), self->getType(), foundProp, std::move(buff)));
+    }
+  }
+  return 0;
+}
+
 const Lua::Cache& Component::getLuaCache() const {
   return *sLuaCache;
 }

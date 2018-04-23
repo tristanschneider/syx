@@ -2,6 +2,9 @@
 #include "event/Event.h"
 
 class Component;
+namespace Lua {
+  class Node;
+};
 
 class AddComponentEvent : public Event {
 public:
@@ -36,4 +39,17 @@ public:
   SetComponentPropsEvent(SetComponentPropsEvent&& other);
   ~SetComponentPropsEvent();
   std::unique_ptr<Component> mNewValue;
+};
+
+class SetComponentPropEvent : public Event {
+public:
+  //TODO: emplace such that no allocations are required to use this
+  SetComponentPropEvent(Handle obj, size_t compType, const Lua::Node* prop, std::vector<uint8_t>&& buffer);
+  SetComponentPropEvent(const SetComponentPropEvent& other);
+  SetComponentPropEvent(SetComponentPropEvent&& other);
+  ~SetComponentPropEvent();
+  Handle mObj;
+  size_t mCompType;
+  const Lua::Node* mProp;
+  std::vector<uint8_t> mBuffer;
 };

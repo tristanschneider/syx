@@ -108,6 +108,12 @@ local function testProps(self)
   self.physics:setProps(physicsProps);
 end
 
+local function testProp(self)
+  local vel = self.physics:getProp("linVel");
+  vel = vel:add(Vec3.new3(-1.5, -1, 0));
+  self.physics:setProp("linVel", vel);
+end
+
 function update(self, dt)
   if init then
     init = false;
@@ -116,6 +122,7 @@ function update(self, dt)
     testVec3();
     testQuat();
     testProps(self);
+    testProp(self);
   end
   printRenderableProps(dt, self.renderable:getProps());
 end
