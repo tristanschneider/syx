@@ -177,6 +177,9 @@
     <ClCompile Include="component\LuaComponentRegistry.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="lua\lib\LuaAssetRepo.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="App.h">
@@ -360,6 +363,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="component\LuaComponentRegistry.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="lua\lib\LuaAssetRepo.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

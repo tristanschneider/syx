@@ -79,7 +79,8 @@ std::shared_ptr<Asset> AssetRepo::getAsset(AssetInfo info) {
 
 std::shared_ptr<Asset> AssetRepo::_find(AssetInfo& info) {
   auto it = mIdToAsset.find(info.mId);
-  while (it != mIdToAsset.end() && it->second->getInfo().mUri == info.mUri)
+  //Deal with hash collisions by incrementing id if a uri was provided
+  while (it != mIdToAsset.end() && !info.mUri.empty() && it->second->getInfo().mUri != info.mUri)
     it = mIdToAsset.find(++info.mId);
   return it != mIdToAsset.end() ? it->second : nullptr;
 }

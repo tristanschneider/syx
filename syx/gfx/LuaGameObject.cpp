@@ -30,8 +30,10 @@ void LuaGameObject::addComponent(std::unique_ptr<Component> component) {
 
 void LuaGameObject::removeComponent(size_t type) {
   if(std::unique_ptr<Component>* component = mComponents.get(type)) {
-    mHashToComponent.erase((*component)->getTypeInfo().mPropNameConstHash);
-    *component = nullptr;
+    if(*component) {
+      mHashToComponent.erase((*component)->getTypeInfo().mPropNameConstHash);
+      *component = nullptr;
+    }
   }
 }
 

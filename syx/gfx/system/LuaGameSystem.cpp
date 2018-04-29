@@ -166,6 +166,10 @@ MessageQueue LuaGameSystem::getMessageQueue() {
   return mArgs.mMessages->getMessageQueue();
 }
 
+AssetRepo& LuaGameSystem::getAssetRepo() {
+  return *mArgs.mSystems->getSystem<AssetRepo>();
+}
+
 void LuaGameSystem::uninit() {
   mObjects.clear();
   mEventHandler = nullptr;

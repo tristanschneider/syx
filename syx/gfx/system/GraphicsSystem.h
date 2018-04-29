@@ -21,6 +21,9 @@ class DrawVectorEvent;
 class DrawPointEvent;
 class DrawCubeEvent;
 class DrawSphereEvent;
+class SetComponentPropEvent;
+class SetComponentPropsEvent;
+struct RenderableData;
 
 class GraphicsSystem : public System {
 public:
@@ -61,8 +64,12 @@ private:
   void _processDebugDrawEvent(const DrawPointEvent& e);
   void _processDebugDrawEvent(const DrawCubeEvent& e);
   void _processDebugDrawEvent(const DrawSphereEvent& e);
+  void _processSetCompPropEvent(const SetComponentPropEvent& e);
+  void _processSetCompPropsEvent(const SetComponentPropsEvent& e);
 
   void _processRenderThreadTasks();
+
+  void _setFromData(LocalRenderable& renderable, const RenderableData& data);
 
   std::shared_ptr<Asset> mGeometry;
   std::unique_ptr<Camera> mCamera;

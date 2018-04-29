@@ -12,6 +12,7 @@
 #include "event/TransformEvent.h"
 #include "event/BaseComponentEvents.h"
 #include "event/DebugDrawEvent.h"
+#include "lua/LuaNode.h"
 #include "ImGuiImpl.h"
 #include "system/KeyboardInput.h"
 #include "system/AssetRepo.h"
@@ -60,6 +61,8 @@ void GraphicsSystem::init() {
   SYSTEM_EVENT_HANDLER(DrawPointEvent, _processDebugDrawEvent);
   SYSTEM_EVENT_HANDLER(DrawCubeEvent, _processDebugDrawEvent);
   SYSTEM_EVENT_HANDLER(DrawSphereEvent, _processDebugDrawEvent);
+  SYSTEM_EVENT_HANDLER(SetComponentPropEvent, _processSetCompPropEvent);
+  SYSTEM_EVENT_HANDLER(SetComponentPropsEvent, _processSetCompPropsEvent);
 }
 
 void GraphicsSystem::update(float dt, IWorkerPool& pool, std::shared_ptr<Task> frameTask) {
@@ -121,9 +124,7 @@ void GraphicsSystem::_processTransformEvent(const TransformEvent& e) {
 void GraphicsSystem::_processRenderableEvent(const RenderableUpdateEvent& e) {
   LocalRenderable* obj = mLocalRenderables.get(e.mObj);
   if(obj) {
-    AssetRepo& repo = *mArgs.mSystems->getSystem<AssetRepo>();
-    obj->mModel = repo.getAsset(AssetInfo(e.mData.mModel));
-    obj->mDiffTex = repo.getAsset(AssetInfo(e.mData.mDiffTex));
+    _setFromData(*obj, e.mData);
   }
 }
 
@@ -151,6 +152,30 @@ void GraphicsSystem::_processDebugDrawEvent(const DrawSphereEvent& e) {
   mDebugDrawer->DrawSphere(e.mCenter, e.mRadius, e.mRot.getRight(), e.mRot.getUp());
 }
 
+void GraphicsSystem::_processSetCompPropEvent(const SetComponentPropEvent& e) {
+  if(e.mCompType == Component::typeId<Renderable>()) {
+    if(LocalRenderable* obj = mLocalRenderables.get(e.mObj)) {
+      //Make a local renderable that has the new property
+      Renderable renderable(0);
+      e.mProp->copyFromBuffer(&renderable, e.mBuffer.data());
+      AssetRepo& repo = *mArgs.mSystems->getSystem<AssetRepo>();
+      //Assign the property that changed, pulling the desired asset given the handle
+      switch(Util::constHash(e.mProp->getName().c_str())) {
+        case Util::constHash("model"): obj->mModel = repo.getAsset(AssetInfo(renderable.get().mModel)); break;
+        case Util::constHash("diffuseTexture"): obj->mDiffTex = repo.getAsset(AssetInfo(renderable.get().mDiffTex)); break;
+      }
+    }
+  }
+}
+
+void GraphicsSystem::_processSetCompPropsEvent(const SetComponentPropsEvent& e) {
+  if(e.mNewValue->getType() == Component::typeId<Renderable>()) {
+    if(LocalRenderable* obj = mLocalRenderables.get(e.mNewValue->getOwner())) {
+      _setFromData(*obj, static_cast<const Renderable*>(e.mNewValue.get())->get());
+    }
+  }
+}
+
 void GraphicsSystem::_processRenderThreadTasks() {
   mTasksMutex.lock();
   mTasks.swap(mLocalTasks);
@@ -159,6 +184,12 @@ void GraphicsSystem::_processRenderThreadTasks() {
   for(auto& task : mLocalTasks)
     task();
   mLocalTasks.clear();
+}
+
+void GraphicsSystem::_setFromData(LocalRenderable& renderable, const RenderableData& data) {
+  AssetRepo& repo = *mArgs.mSystems->getSystem<AssetRepo>();
+  renderable.mModel = repo.getAsset(AssetInfo(data.mModel));
+  renderable.mDiffTex = repo.getAsset(AssetInfo(data.mDiffTex));
 }
 
 void GraphicsSystem::_render(float dt) {

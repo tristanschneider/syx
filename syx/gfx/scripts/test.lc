@@ -114,6 +114,24 @@ local function testProp(self)
   self.physics:setProp("linVel", vel);
 end
 
+local totalTime = 0;
+local addRemoveStage = 0;
+local function testAddRemove(self, dt)
+  totalTime = totalTime + dt;
+  if addRemoveStage == 0 and totalTime > 2 then
+    addRemoveStage = 1;
+    self:removeComponent('Renderable');
+  elseif addRemoveStage == 1 and totalTime > 4 then
+    addRemoveStage = 2;
+    local renderable = self:addComponent('Renderable');
+    local props = {
+      model = AssetRepo.getOrLoadAsset('models/cube.obj'),
+      diffuseTexture = AssetRepo.getOrLoadAsset('textures/test.bmp')
+    };
+    renderable:setProps(props);
+  end
+end
+
 function update(self, dt)
   if init then
     init = false;
@@ -124,9 +142,9 @@ function update(self, dt)
     testProps(self);
     testProp(self);
   end
-  printRenderableProps(dt, self.renderable:getProps());
+  testAddRemove(self, dt);
 end
 
 function printRenderableProps(dt, gfx)
-  --print('Update, model '..tostring(gfx.model)..' texture '..tostring(gfx.diffuseTexture));
+  print('Update, model '..tostring(gfx.model)..' texture '..tostring(gfx.diffuseTexture));
 end

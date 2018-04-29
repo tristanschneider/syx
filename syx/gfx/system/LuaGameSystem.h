@@ -2,6 +2,7 @@
 #include "System.h"
 #include "provider/MessageQueueProvider.h"
 
+class AssetRepo;
 class Task;
 class LuaGameObject;
 
@@ -47,6 +48,7 @@ public:
   LuaGameObject& addGameObject();
 
   MessageQueue getMessageQueue();
+  AssetRepo& getAssetRepo();
 
 private:
 

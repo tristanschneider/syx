@@ -2,6 +2,7 @@
 #include "lua/AllLuaLibs.h"
 
 #include "component/Component.h"
+#include "lua/lib/LuaAssetRepo.h"
 #include "lua/lib/LuaNumArray.h"
 #include "lua/lib/LuaNumVec.h"
 #include "lua/lib/LuaVec3.h"
@@ -16,6 +17,7 @@ namespace Lua {
     Quat::openLib(l);
     LuaGameObject::openLib(l);
     Component::baseOpenLib(l);
+    AssetRepo::openLib(l);
 
     //Construct a temporary of each type to call opeenlibs
     const auto& ctors = Component::Registry::getConstructors();
