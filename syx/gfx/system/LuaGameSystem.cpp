@@ -125,8 +125,11 @@ void LuaGameSystem::_registerBuiltInComponents() {
 }
 
 Component* LuaGameSystem::addComponent(const std::string& name, Handle owner) {
-  auto lock = mComponentsLock.getReader();
-  std::unique_ptr<Component> component = mComponents->construct(name, owner);
+  std::unique_ptr<Component> component;
+  {
+    auto lock = mComponentsLock.getReader();
+    component = mComponents->construct(name, owner);
+  }
   Component* result = component.get();
   if(result) {
     mArgs.mMessages->getMessageQueue().get().push(AddComponentEvent(owner, result->getType()));
@@ -135,6 +138,18 @@ Component* LuaGameSystem::addComponent(const std::string& name, Handle owner) {
     mPendingComponentsLock.unlock();
   }
   return result;
+}
+
+void LuaGameSystem::removeComponent(const std::string& name, Handle owner) {
+  size_t type = 0;
+  bool validType = false;
+  {
+    auto lock = mComponentsLock.getReader();
+    //TODO: Probably need something special here for lua components
+    validType = mComponents->getComponentType(name, type);
+  }
+  if(validType)
+    mArgs.mMessages->getMessageQueue().get().push(RemoveComponentEvent(owner, type));
 }
 
 LuaGameObject& LuaGameSystem::addGameObject() {

@@ -43,6 +43,7 @@ public:
 
   //Add component to gameobject with the given owner. Returns a pending component that will be applied next frame. Null if invalid name
   Component* addComponent(const std::string& name, Handle owner);
+  void removeComponent(const std::string& name, Handle owner);
   LuaGameObject& addGameObject();
 
   MessageQueue getMessageQueue();

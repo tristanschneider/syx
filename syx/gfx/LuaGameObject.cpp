@@ -119,10 +119,21 @@ int LuaGameObject::indexOverload(lua_State* l) {
 }
 
 int LuaGameObject::addComponent(lua_State* l) {
-  return 0;
+  LuaGameObject& obj = getObj(l, 1);
+  const char* componentName = luaL_checkstring(l, 2);
+  LuaGameSystem& game = LuaGameSystem::check(l);
+  if(Component* result = game.addComponent(componentName, obj.getHandle()))
+    result->push(l);
+  else
+    lua_pushnil(l);
+  return 1;
 }
 
 int LuaGameObject::removeComponent(lua_State* l) {
+  LuaGameObject& obj = getObj(l, 1);
+  const char* componentName = luaL_checkstring(l, 2);
+  LuaGameSystem& game = LuaGameSystem::check(l);
+  game.removeComponent(componentName, obj.getHandle());
   return 0;
 }
 
