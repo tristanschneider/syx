@@ -30,9 +30,6 @@ public:
   //GameObjectHandleProvider
   Handle newHandle() override;
 
-  //Temporary until asset manager that wraps asset loading and such
-  std::unordered_map<std::string, Handle> mAssets;
-
 private:
   std::vector<std::unique_ptr<System>> mSystems;
   std::unique_ptr<IWorkerPool> mWorkerPool;

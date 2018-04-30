@@ -21,6 +21,11 @@ struct PhysicsData;
 
 class PhysicsSystem : public System {
 public:
+  static const std::string CUBE_MODEL_NAME;
+  static const std::string SPHERE_MODEL_NAME;
+  static const std::string CAPSULE_MODEL_NAME;
+  static const std::string DEFAULT_MATERIAL_NAME;
+
   RegisterSystemH(PhysicsSystem);
   PhysicsSystem(const SystemArgs& args);
   ~PhysicsSystem();

@@ -10,6 +10,7 @@
 #include "event/BaseComponentEvents.h"
 #include "event/EventBuffer.h"
 #include "event/EventHandler.h"
+#include "event/LifecycleEvents.h"
 #include "event/TransformEvent.h"
 #include <lua.hpp>
 #include "lua/LuaNode.h"
@@ -21,6 +22,7 @@
 #include "provider/MessageQueueProvider.h"
 #include "provider/SystemProvider.h"
 #include "system/AssetRepo.h"
+#include "system/PhysicsSystem.h"
 #include "threading/FunctionTask.h"
 #include "threading/IWorkerPool.h"
 
@@ -36,8 +38,6 @@ LuaGameSystem::~LuaGameSystem() {
 }
 
 void LuaGameSystem::init() {
-  _initHardCodedScene();
-
   mEventHandler = std::make_unique<EventHandler>();
   SYSTEM_EVENT_HANDLER(AddComponentEvent, _onAddComponent);
   SYSTEM_EVENT_HANDLER(RemoveComponentEvent, _onRemoveComponent);
@@ -50,6 +50,7 @@ void LuaGameSystem::init() {
   SYSTEM_EVENT_HANDLER(PhysicsCompUpdateEvent, _onPhysicsUpdate);
   SYSTEM_EVENT_HANDLER(SetComponentPropsEvent, _onSetComponentProps);
   SYSTEM_EVENT_HANDLER(SetComponentPropEvent, _onSetComponentProp);
+  SYSTEM_EVENT_HANDLER(AllSystemsInitialized, _onAllSystemsInit);
 
   mState = std::make_unique<Lua::State>();
   mLibs = std::make_unique<Lua::AllLuaLibs>();
@@ -188,6 +189,10 @@ LuaGameSystem& LuaGameSystem::check(lua_State* l) {
   return *result;
 }
 
+void LuaGameSystem::_onAllSystemsInit(const AllSystemsInitialized&) {
+  _initHardCodedScene();
+}
+
 void LuaGameSystem::_onAddComponent(const AddComponentEvent& e) {
   if(LuaGameObject* obj = _getObj(e.mObj)) {
     //Try to see if this was a pending component
@@ -294,6 +299,8 @@ void LuaGameSystem::_initHardCodedScene() {
   using namespace Syx;
   AssetRepo* repo = mArgs.mSystems->getSystem<AssetRepo>();
   size_t mazeTexId = repo->getAsset(AssetInfo("textures/test.bmp"))->getInfo().mId;
+  size_t cubeCollider = repo->getAsset(AssetInfo(::PhysicsSystem::CUBE_MODEL_NAME))->getInfo().mId;
+  size_t defMat = repo->getAsset(AssetInfo(::PhysicsSystem::DEFAULT_MATERIAL_NAME))->getInfo().mId;
 
   MessageQueueProvider* msg = mArgs.mMessages;
   {
@@ -332,7 +339,7 @@ void LuaGameSystem::_initHardCodedScene() {
     d.mDiffTex = mazeTexId;
 
     Physics phy(h);
-    phy.setCollider((*mArgs.mAssetsHack)["pCube"], (*mArgs.mAssetsHack)["pDefMat"]);
+    phy.setCollider(cubeCollider, defMat);
     phy.setPhysToModel(Syx::Mat4::scale(Syx::Vec3(2.0f)));
 
     MessageQueue q = msg->getMessageQueue();
@@ -352,7 +359,7 @@ void LuaGameSystem::_initHardCodedScene() {
     d.mDiffTex = mazeTexId;
 
     Physics phy(h);
-    phy.setCollider((*mArgs.mAssetsHack)["pCube"], (*mArgs.mAssetsHack)["pDefMat"]);
+    phy.setCollider(cubeCollider, defMat);
     phy.setPhysToModel(Syx::Mat4::scale(Syx::Vec3(2.0f)));
     phy.setRigidbody(Syx::Vec3::Zero, Syx::Vec3::Zero);
     phy.setAngVel(Vec3(3.0f));

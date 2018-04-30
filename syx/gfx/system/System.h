@@ -19,8 +19,6 @@ struct SystemArgs {
   SystemProvider* mSystems;
   MessageQueueProvider* mMessages;
   GameObjectHandleProvider* mGameObjectGen;
-  //TODO: Get rid of last use of this and use AssetRepo
-  std::unordered_map<std::string, Handle>* mAssetsHack;
 };
 
 class System {

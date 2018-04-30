@@ -59,6 +59,8 @@ public:
   std::shared_ptr<Asset> getAsset(AssetInfo info);
   void reloadAsset(std::shared_ptr<Asset> asset);
   void setBasePath(const std::string& basePath);
+  //Add an asset without going through an AssetLoader. Intended for assets that aren't in files like built in physics models
+  void addAsset(std::shared_ptr<Asset> asset);
 
 private:
   void _fillInfo(AssetInfo& info);

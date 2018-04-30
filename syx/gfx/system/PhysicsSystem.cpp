@@ -2,6 +2,8 @@
 #include "system/PhysicsSystem.h"
 
 #include "asset/Model.h"
+#include "asset/PhysicsModel.h"
+#include "system/AssetRepo.h"
 #include "system/GraphicsSystem.h"
 #include "event/BaseComponentEvents.h"
 #include "event/Event.h"
@@ -29,6 +31,12 @@ namespace Syx {
 
 RegisterSystemCPP(PhysicsSystem);
 
+const std::string PhysicsSystem::CUBE_MODEL_NAME = "CubeCollider";
+const std::string PhysicsSystem::SPHERE_MODEL_NAME = "SphereCollider";
+const std::string PhysicsSystem::CAPSULE_MODEL_NAME = "CapsuleCollider";
+const std::string PhysicsSystem::DEFAULT_MATERIAL_NAME = "DefaultPhysicsMaterial";
+
+
 PhysicsSystem::PhysicsSystem(const SystemArgs& args)
   : System(args) {
 }
@@ -40,10 +48,23 @@ void PhysicsSystem::init() {
   Syx::Interface::gDrawer = &mArgs.mSystems->getSystem<GraphicsSystem>()->getDebugDrawer();
   mSystem = std::make_unique<Syx::PhysicsSystem>();
 
-  (*mArgs.mAssetsHack)["pCube"] = mSystem->getCube();
-  (*mArgs.mAssetsHack)["pSphere"] = mSystem->getSphere();
-  (*mArgs.mAssetsHack)["pCapsule"] = mSystem->getCapsule();
-  (*mArgs.mAssetsHack)["pDefMat"] = mSystem->getDefaultMaterial();
+  AssetRepo* assets = mArgs.mSystems->getSystem<AssetRepo>();
+  std::shared_ptr<PhysicsModel> mod = std::make_shared<PhysicsModel>(AssetInfo(CUBE_MODEL_NAME));
+  mod->mSyxHandle = mSystem->getCube();
+  assets->addAsset(mod);
+
+  mod = std::make_shared<PhysicsModel>(AssetInfo(SPHERE_MODEL_NAME));
+  mod->mSyxHandle = mSystem->getSphere();
+  assets->addAsset(mod);
+
+  mod = std::make_shared<PhysicsModel>(AssetInfo(CAPSULE_MODEL_NAME));
+  mod->mSyxHandle = mSystem->getCapsule();
+  assets->addAsset(mod);
+
+  //Not actually a model, but all that's needed is a handle
+  mod = std::make_shared<PhysicsModel>(AssetInfo(DEFAULT_MATERIAL_NAME));
+  mod->mSyxHandle = mSystem->getDefaultMaterial();
+  assets->addAsset(mod);
 
   mDefaultSpace = mSystem->addSpace();
 

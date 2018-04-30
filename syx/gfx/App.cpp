@@ -1,13 +1,14 @@
 #include "Precompile.h"
 #include "App.h"
+
+#include "AppPlatform.h"
+#include "event/EventBuffer.h"
+#include "event/LifecycleEvents.h"
 #include "system/GraphicsSystem.h"
 #include "threading/WorkerPool.h"
 #include "threading/SyncTask.h"
 #include "EditorNavigator.h"
 #include "ImGuiImpl.h"
-#include "event/EventBuffer.h"
-
-#include "AppPlatform.h"
 
 App::App(std::unique_ptr<AppPlatform> appPlatform)
   : mWorkerPool(std::make_unique<WorkerPool>(4))
@@ -19,7 +20,6 @@ App::App(std::unique_ptr<AppPlatform> appPlatform)
     this,
     this,
     this,
-    &mAssets
   };
   System::Registry::getSystems(args, mSystems);
 }
@@ -27,52 +27,6 @@ App::App(std::unique_ptr<AppPlatform> appPlatform)
 App::~App() {
   mSystems.clear();
   mMessageQueue = nullptr;
-}
-
-#include <lua.hpp>
-
-int luaToCFunc(lua_State* lua) {
-  printf("Called C function\n");
-  double input = lua_tonumber(lua, 1);
-  lua_pushnumber(lua, input + 10);
-  return 1;
-}
-
-void luaTest() {
-  lua_State* lua = luaL_newstate();
-  luaL_openlibs(lua);
-
-  lua_pushcfunction(lua, luaToCFunc);
-  lua_setglobal(lua, "testC");
-
-  int status = luaL_loadfile(lua, "scripts/test.lua");
-  if(status) {
-    printf("Couldn't load file: %s\n", lua_tostring(lua, -1));
-    return;
-  }
-
-  lua_newtable(lua);
-  for(int i = 1; i <= 5; ++i) {
-    lua_pushnumber(lua, i);
-    lua_pushnumber(lua, i*2);
-    lua_rawset(lua, -3);
-  }
-  lua_setglobal(lua, "foo");
-
-  int result = lua_pcall(lua, 0, LUA_MULTRET, 0);
-  if(result) {
-    printf("Failed to run script: %s\n", lua_tostring(lua, -1));
-    return;
-  }
-  double returnValue = lua_tonumber(lua, -1);
-  printf("Script returned: %.0f\n", returnValue);
-  lua_pop(lua, -1);
-
-  lua_getglobal(lua, "func");
-  lua_pushnumber(lua, 7);
-  lua_call(lua, 1, 0);
-
-  lua_close(lua);
 }
 
 class AppFocusListener : public FocusEvents {
@@ -100,12 +54,13 @@ class AppDirectoryWatcher : public DirectoryWatcher {
 };
 
 void App::init() {
-  luaTest();
-
   for(auto& system : mSystems) {
     if(system)
       system->init();
   }
+  mMessageLock.lock();
+  mMessageQueue->push(AllSystemsInitialized());
+  mMessageLock.unlock();
 
   static FocusEvents::ObserverType o(std::make_unique<AppFocusListener>());
   if(!o.hasSubject())

@@ -19,6 +19,7 @@ class AddLuaComponentEvent;
 class RemoveLuaComponentEvent;
 class SetComponentPropEvent;
 class SetComponentPropsEvent;
+class AllSystemsInitialized;
 struct lua_State;
 
 namespace Lua {
@@ -58,6 +59,7 @@ private:
   //TODO: make it possible to do this from lua
   void _initHardCodedScene();
 
+  void _onAllSystemsInit(const AllSystemsInitialized& e);
   void _onAddComponent(const AddComponentEvent& e);
   void _onRemoveComponent(const RemoveComponentEvent& e);
   void _onAddLuaComponent(const AddLuaComponentEvent& e);

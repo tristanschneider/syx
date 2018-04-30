@@ -77,6 +77,19 @@ std::shared_ptr<Asset> AssetRepo::getAsset(AssetInfo info) {
   return newAsset;
 }
 
+void AssetRepo::addAsset(std::shared_ptr<Asset> asset) {
+  AssetInfo& info = asset->mInfo;
+  _fillInfo(info);
+  auto lock = mAssetLock.getWriter();
+  assert(asset && asset->getInfo().mUri.size() && "Asset must exist and have a uri");
+  auto it = mIdToAsset.find(info.mId);
+  while (it != mIdToAsset.end()) {
+    assert(it->second->getInfo().mUri != info.mUri && "Asset should not already exist when adding it");
+    it = mIdToAsset.find(++info.mId);
+  }
+  mIdToAsset[info.mId] = std::move(asset);
+}
+
 std::shared_ptr<Asset> AssetRepo::_find(AssetInfo& info) {
   auto it = mIdToAsset.find(info.mId);
   //Deal with hash collisions by incrementing id if a uri was provided

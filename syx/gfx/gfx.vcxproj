@@ -155,6 +155,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClCompile Include="AppPlatform.cpp" />
     <ClCompile Include="asset\LuaScript.cpp" />
     <ClCompile Include="asset\Model.cpp" />
+    <ClCompile Include="asset\PhysicsModel.cpp" />
     <ClCompile Include="asset\Shader.cpp" />
     <ClCompile Include="asset\Texture.cpp" />
     <ClCompile Include="Camera.cpp" />
@@ -168,6 +169,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClCompile Include="EditorNavigator.cpp" />
     <ClCompile Include="event\BaseComponentEvents.cpp" />
     <ClCompile Include="event\DebugDrawEvent.cpp" />
+    <ClCompile Include="event\LifecycleEvents.cpp" />
     <ClCompile Include="event\TransformEvent.cpp" />
     <ClCompile Include="ImGuiImpl.cpp" />
     <ClCompile Include="loader\AssetLoader.cpp" />
@@ -190,8 +192,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClCompile Include="lua\LuaSerializer.cpp" />
     <ClCompile Include="lua\LuaUtil.cpp" />
     <ClCompile Include="Precompile.cpp">
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
+      <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="src-deps\imgui\imgui.cpp" />
     <ClCompile Include="src-deps\imgui\imgui_demo.cpp" />
@@ -225,6 +226,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClInclude Include="asset\Asset.h" />
     <ClInclude Include="asset\LuaScript.h" />
     <ClInclude Include="asset\Model.h" />
+    <ClInclude Include="asset\PhysicsModel.h" />
     <ClInclude Include="asset\Shader.h" />
     <ClInclude Include="asset\Texture.h" />
     <ClInclude Include="Camera.h" />
@@ -238,6 +240,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClInclude Include="EditorNavigator.h" />
     <ClInclude Include="event\BaseComponentEvents.h" />
     <ClInclude Include="event\DebugDrawEvent.h" />
+    <ClInclude Include="event\LifecycleEvents.h" />
     <ClInclude Include="event\TransformEvent.h" />
     <ClInclude Include="Handle.h" />
     <ClInclude Include="ImGuiImpl.h" />
