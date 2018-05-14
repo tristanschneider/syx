@@ -26,6 +26,14 @@ public:
 
   void push(Event&& e);
   void push(const Event& e);
+  //Emplace an event of the given type and size. Must still be an event, but allows overallocation for variable event sizes within the same event type
+  template<typename E, typename... Args>
+  void emplace(size_t size, Args&&... args) {
+    size_t start = mBufferSize;
+    _growBuffer(size);
+    new (&mBuffer[start]) E(std::forward(args)...);
+  }
+
   void appendTo(EventBuffer& listener) const;
   void clear();
   EventBufferConstIt begin() const;

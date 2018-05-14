@@ -3,6 +3,7 @@
 #include <unordered_set>
 #include <vector>
 #include <queue>
+#include <stack>
 #include <algorithm>
 #include <stdio.h>
 #include <string>

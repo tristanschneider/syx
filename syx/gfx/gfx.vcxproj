@@ -151,6 +151,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="allocator\LIFOAllocator.cpp" />
     <ClCompile Include="App.cpp" />
     <ClCompile Include="AppPlatform.cpp" />
     <ClCompile Include="asset\LuaScript.cpp" />
@@ -221,6 +222,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="allocator\LIFOAllocator.h" />
     <ClInclude Include="App.h" />
     <ClInclude Include="AppPlatform.h" />
     <ClInclude Include="asset\Asset.h" />
