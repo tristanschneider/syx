@@ -58,6 +58,10 @@ namespace Syx {
     return mV[index];
   }
 
+  bool Quat::operator==(const Quat& rhs) const {
+    return mV == rhs.mV && mV.w == rhs.mV.w;
+  }
+
   float Quat::length(void) const {
     return sqrt(length2());
   }

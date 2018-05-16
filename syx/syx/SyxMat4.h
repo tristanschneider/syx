@@ -16,6 +16,7 @@ namespace Syx {
 
     Mat4 operator*(const Mat4& rhs) const;
     Vec3 operator*(const Vec3& v) const;
+    bool operator==(const Mat4& rhs) const;
 
     float* operator[](int i) {
       return mColRow[i];

@@ -122,6 +122,30 @@ namespace Lua {
     }
   }
 
+  NodeDiff Node::getDiff(const void* base, const void* other) const {
+    int nodeIndex = 0;
+    return _getDiff(base, other, nodeIndex);
+  }
+
+  NodeDiff Node::_getDiff(const void* base, const void* other, int& nodeIndex) const {
+    assert(nodeIndex < 64 && "NodeDiff is only big enough to hold 64 node diffs");
+    NodeDiff result = 0;
+    //Leaf nodes have values, write diff to bitfield
+    if(mChildren.empty()) {
+      result = !_equals(base, other) ? 1 << nodeIndex : 0;
+      ++nodeIndex;
+    }
+    else {
+      _translateBase(base);
+      _translateBase(other);
+      for(const auto& child : mChildren) {
+         result |= child->_getDiff(Util::offset(base, child->mOps.mOffset), Util::offset(other, child->mOps.mOffset), nodeIndex);
+      }
+    }
+
+    return result;
+  }
+
   void Node::getField(lua_State* s, const std::string& field, SourceType source) const {
     //If source is from stack then there's nothing to do
     if(source == SourceType::FromStack)

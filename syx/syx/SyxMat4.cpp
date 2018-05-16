@@ -44,6 +44,13 @@ namespace Syx {
     return Vec3(_dotV(0, *this, v), _dotV(1, *this, v), _dotV(2, *this, v), _dotV(3, *this, v));
   }
 
+  bool Mat4::operator==(const Mat4& rhs) const {
+    for(int i = 0; i < 16; ++i)
+      if(mData[i] != rhs.mData[i])
+        return false;
+    return true;
+  }
+
   static float _dotV3(int i, const Mat4& l, const Vec3& v) {
     return l[0][i] * v[0] +
       l[1][i] * v[1] +

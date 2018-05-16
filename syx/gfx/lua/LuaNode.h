@@ -13,6 +13,9 @@ namespace Syx {
 namespace Lua {
   class Node;
 
+  //Bitfield where bits set indicate the object at that traversal order (depth first) is different
+  using NodeDiff = uint64_t;
+
   struct NodeOps {
     NodeOps(Node& parent, std::string&& name, size_t offset);
     NodeOps(std::string&& name);
@@ -63,6 +66,8 @@ namespace Lua {
     //Call destructor on each value in buffer
     void destructBuffer(void* buffer) const;
 
+    NodeDiff getDiff(const void* base, const void* other) const;
+
     //Size of this node in bytes
     virtual size_t _size() const { return 0; }
     //Default construct node at location
@@ -73,6 +78,8 @@ namespace Lua {
     virtual void _copy(const void* from, void* to) const {}
     //Call destructor on node
     virtual void _destruct(void* base) const {}
+    //Equality, used for generating diff
+    virtual bool _equals(const void* lhs, const void* rhs) const { return true; }
 
     const std::string& getName() const;
 
@@ -85,6 +92,7 @@ namespace Lua {
     void _funcFromBuffer(void (Node::* func)(const void*, void*) const, void* base, const void* buffer) const;
     //Traverse buffer and use func on each leaf node
     void _funcBufferToBuffer(void (Node::* func)(const void*, void*) const, const void* from, void* to) const;
+    NodeDiff _getDiff(const void* base, const void* other, int& nodeIndex) const;
 
     //Translate the location of base based on this node type. Usually nothing but can be used to follow pointers
     virtual void _translateBase(const void*& base) const {}
@@ -127,6 +135,7 @@ namespace Lua {
   class TypedNode : public Node {
   public:
     using Node::Node;
+    using WrappedType = T;
   protected:
     size_t _size() const override {
       return sizeof(T);
@@ -149,11 +158,13 @@ namespace Lua {
     const T& _cast(const void* value) const {
       return *static_cast<const T*>(value);
     }
+    bool _equals(const void* lhs, const void* rhs) const override {
+      return _cast(lhs) == _cast(rhs);
+    }
   };
 
   class IntNode : public TypedNode<int> {
   public:
-    using WrappedType = int;
     using TypedNode::TypedNode;
     void _readFromLua(lua_State* s, void* base) const override;
     void _writeToLua(lua_State* s, const void* base) const override;
@@ -161,7 +172,6 @@ namespace Lua {
 
   class StringNode : public TypedNode<std::string> {
   public:
-    using WrappedType = std::string;
     using TypedNode::TypedNode;
     void _readFromLua(lua_State* s, void* base) const override;
     void _writeToLua(lua_State* s, const void* base) const override;
@@ -169,7 +179,6 @@ namespace Lua {
 
   class FloatNode : public TypedNode<float> {
   public:
-    using WrappedType = float;
     using TypedNode::TypedNode;
     void _readFromLua(lua_State* s, void* base) const override;
     void _writeToLua(lua_State* s, const void* base) const override;
@@ -177,7 +186,6 @@ namespace Lua {
 
   class LightUserdataNode : public TypedNode<void*> {
   public:
-    using WrappedType = void*;
     using TypedNode::TypedNode;
     void _readFromLua(lua_State* s, void* base) const override;
     void _writeToLua(lua_State* s, const void* base) const override;
@@ -185,7 +193,6 @@ namespace Lua {
 
   class LightUserdataSizetNode : public TypedNode<size_t> {
   public:
-    using WrappedType = size_t;
     using TypedNode::TypedNode;
     void _readFromLua(lua_State* s, void* base) const override;
     void _writeToLua(lua_State* s, const void* base) const override;
@@ -193,7 +200,6 @@ namespace Lua {
 
   class BoolNode : public TypedNode<bool> {
   public:
-    using WrappedType = bool;
     using TypedNode::TypedNode;
     void _readFromLua(lua_State* s, void* base) const override;
     void _writeToLua(lua_State* s, const void* base) const override;
@@ -201,7 +207,6 @@ namespace Lua {
 
   class Vec3Node : public TypedNode<Syx::Vec3> {
   public:
-    using WrappedType = Syx::Vec3;
     using TypedNode::TypedNode;
     void _readFromLua(lua_State* s, void* base) const override;
     void _writeToLua(lua_State* s, const void* base) const override;
@@ -209,7 +214,6 @@ namespace Lua {
 
   class QuatNode : public TypedNode<Syx::Quat> {
   public:
-    using WrappedType = Syx::Quat;
     using TypedNode::TypedNode;
     void _readFromLua(lua_State* s, void* base) const override;
     void _writeToLua(lua_State* s, const void* base) const override;
@@ -217,7 +221,6 @@ namespace Lua {
 
   class Mat4Node : public TypedNode<Syx::Mat4> {
   public:
-    using WrappedType = Syx::Mat4;
     using TypedNode::TypedNode;
     void _readFromLua(lua_State* s, void* base) const override;
     void _writeToLua(lua_State* s, const void* base) const override;
