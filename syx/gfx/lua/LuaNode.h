@@ -30,6 +30,8 @@ namespace Lua {
   //members are then accessed through pointer offsets
   class Node {
   public:
+    using DiffCallback = std::function<void(const Node&, const void*)>;
+
     enum class SourceType {
       FromGlobal,
       FromStack,
@@ -67,6 +69,13 @@ namespace Lua {
     void destructBuffer(void* buffer) const;
 
     NodeDiff getDiff(const void* base, const void* other) const;
+    void forEachDiff(NodeDiff diff, const void* base, const DiffCallback& callback) const;
+    //Copy each node flagged by the diff in from to to
+    void copyFromDiff(NodeDiff diff, const void* from, void* to) const;
+
+    //Translate base which is the root of the tree down to this node
+    const void* _translateBaseToNode(const void* base) const;
+    void* _translateBaseToNode(void* base) const;
 
     //Size of this node in bytes
     virtual size_t _size() const { return 0; }
@@ -93,6 +102,7 @@ namespace Lua {
     //Traverse buffer and use func on each leaf node
     void _funcBufferToBuffer(void (Node::* func)(const void*, void*) const, const void* from, void* to) const;
     NodeDiff _getDiff(const void* base, const void* other, int& nodeIndex) const;
+    void _forEachDiff(NodeDiff diff, const void* base, const DiffCallback& callback, int& nodeIndex) const;
 
     //Translate the location of base based on this node type. Usually nothing but can be used to follow pointers
     virtual void _translateBase(const void*& base) const {}

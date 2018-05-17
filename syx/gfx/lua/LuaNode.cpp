@@ -1,5 +1,7 @@
 #include "Precompile.h"
 #include "lua/LuaNode.h"
+
+#include "allocator/LIFOAllocator.h"
 #include "lua/LuaState.h"
 #include "lua/lib/LuaVec3.h"
 #include "lua/lib/LuaQuat.h"
@@ -127,12 +129,24 @@ namespace Lua {
     return _getDiff(base, other, nodeIndex);
   }
 
+  void Node::forEachDiff(NodeDiff diff, const void* base, const DiffCallback& callback) const {
+    int nodeIndex = 0;
+    _forEachDiff(diff, base, callback, nodeIndex);
+  }
+
+  void Node::copyFromDiff(NodeDiff diff, const void* from, void* to) const {
+    //Walk through each diff node in from, then translate the base of to to that node and copy the data
+    forEachDiff(diff, from, [to](const Lua::Node& node, const void* base) {
+      node._copy(base, node._translateBaseToNode(to));
+    });
+  }
+
   NodeDiff Node::_getDiff(const void* base, const void* other, int& nodeIndex) const {
     assert(nodeIndex < 64 && "NodeDiff is only big enough to hold 64 node diffs");
     NodeDiff result = 0;
     //Leaf nodes have values, write diff to bitfield
     if(mChildren.empty()) {
-      result = !_equals(base, other) ? 1 << nodeIndex : 0;
+      result = !_equals(base, other) ? static_cast<NodeDiff>(1) << nodeIndex : 0;
       ++nodeIndex;
     }
     else {
@@ -144,6 +158,44 @@ namespace Lua {
     }
 
     return result;
+  }
+
+  void Node::_forEachDiff(NodeDiff diff, const void* base, const DiffCallback& callback, int& nodeIndex) const {
+    //Leaf nodes have values, write diff to bitfield
+    if(mChildren.empty()) {
+      if(diff & (static_cast<NodeDiff>(1) << nodeIndex))
+        callback(*this, base);
+      ++nodeIndex;
+    }
+    else {
+      _translateBase(base);
+      for(const auto& child : mChildren) {
+         child->_forEachDiff(diff, Util::offset(base, child->mOps.mOffset), callback, nodeIndex);
+      }
+    }
+  }
+
+  const void* Node::_translateBaseToNode(const void* base) const {
+    //From the child build a top down stack of parents
+    std::stack<const Node*, std::vector<const Node*, LIFOAllocator<const Node*>>> parents;
+    const Node* node = this;
+    while(node) {
+      parents.push(node);
+      node = node->mOps.mParent;
+    }
+
+    //Walk down the heirarchy from the root offsetting the pointer
+    while(!parents.empty()) {
+      const Node* node = parents.top();
+      node->_translateBase(base);
+      base = Util::offset(base, node->mOps.mOffset);
+      parents.pop();
+    }
+    return base;
+  }
+
+  void* Node::_translateBaseToNode(void* base) const {
+    return const_cast<void*>(_translateBaseToNode(const_cast<const void*>(base)));
   }
 
   void Node::getField(lua_State* s, const std::string& field, SourceType source) const {
