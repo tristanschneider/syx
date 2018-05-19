@@ -49,7 +49,6 @@ void LuaGameSystem::init() {
   SYSTEM_EVENT_HANDLER(TransformEvent, _onTransformUpdate);
   SYSTEM_EVENT_HANDLER(PhysicsCompUpdateEvent, _onPhysicsUpdate);
   SYSTEM_EVENT_HANDLER(SetComponentPropsEvent, _onSetComponentProps);
-  SYSTEM_EVENT_HANDLER(SetComponentPropEvent, _onSetComponentProp);
   SYSTEM_EVENT_HANDLER(AllSystemsInitialized, _onAllSystemsInit);
 
   mState = std::make_unique<Lua::State>();
@@ -275,17 +274,9 @@ void LuaGameSystem::_onPhysicsUpdate(const PhysicsCompUpdateEvent& e) {
 }
 
 void LuaGameSystem::_onSetComponentProps(const SetComponentPropsEvent& e) {
-  if(LuaGameObject* obj = _getObj(e.mNewValue->getOwner())) {
-    if(Component* comp = obj->getComponent(e.mNewValue->getType())) {
-      comp->set(*e.mNewValue);
-    }
-  }
-}
-
-void LuaGameSystem::_onSetComponentProp(const SetComponentPropEvent& e) {
   if(LuaGameObject* obj = _getObj(e.mObj)) {
     if(Component* comp = obj->getComponent(e.mCompType)) {
-      e.mProp->copyFromBuffer(comp, &e.mBuffer[0]);
+      e.mProp->copyFromBuffer(comp, e.mBuffer.data(), e.mDiff);
     }
   }
 }

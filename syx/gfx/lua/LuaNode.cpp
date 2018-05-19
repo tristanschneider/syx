@@ -56,8 +56,8 @@ namespace Lua {
     _funcToBuffer(&Node::_copyConstruct, base, buffer);
   }
 
-  void Node::copyConstructFromBuffer(void* base, const void* buffer) const {
-    _funcFromBuffer(&Node::_copyConstruct, base, buffer);
+  void Node::copyConstructFromBuffer(void* base, const void* buffer, NodeDiff diff) const {
+    _funcFromBuffer(&Node::_copyConstruct, base, buffer, diff);
   }
 
   void Node::_funcToBuffer(void (Node::* func)(const void*, void*) const, const void* base, void* buffer) const {
@@ -70,14 +70,25 @@ namespace Lua {
     }
   }
 
-  void Node::_funcFromBuffer(void (Node::* func)(const void*, void*) const, void* base, const void* buffer) const {
+  void Node::_funcFromBuffer(void (Node::* func)(const void*, void*) const, void* base, const void* buffer, NodeDiff diff) const {
+    int nodeIndex = 0;
+    _funcFromBuffer(func, base, buffer, diff, nodeIndex);
+  }
+
+  void Node::_funcFromBuffer(void (Node::* func)(const void*, void*) const, void* base, const void* buffer, NodeDiff diff, int& nodeIndex) const {
     base = Util::offset(base, mOps.mOffset);
-    (this->*func)(buffer, base);
-    _translateBase(base);
-    buffer = Util::offset(buffer, _size());
-    for(const auto& child : mChildren) {
-      child->_funcFromBuffer(func, base, buffer);
-      buffer = Util::offset(buffer, child->size());
+    if(mChildren.empty()) {
+      if(diff & (static_cast<NodeDiff>(1) << nodeIndex))
+        (this->*func)(buffer, base);
+      ++nodeIndex;
+    }
+    else {
+      _translateBase(base);
+      buffer = Util::offset(buffer, _size());
+      for(const auto& child : mChildren) {
+        child->_funcFromBuffer(func, base, buffer, diff, nodeIndex);
+        buffer = Util::offset(buffer, child->size());
+      }
     }
   }
 
@@ -85,8 +96,8 @@ namespace Lua {
     _funcToBuffer(&Node::_copy, base, buffer);
   }
 
-  void Node::copyFromBuffer(void* base, const void* buffer) const {
-    _funcFromBuffer(&Node::_copy, base, buffer);
+  void Node::copyFromBuffer(void* base, const void* buffer, NodeDiff diff) const {
+    _funcFromBuffer(&Node::_copy, base, buffer, diff);
   }
 
   void Node::copyConstructBufferToBuffer(const void* from, void* to) const {
@@ -196,6 +207,54 @@ namespace Lua {
 
   void* Node::_translateBaseToNode(void* base) const {
     return const_cast<void*>(_translateBaseToNode(const_cast<const void*>(base)));
+  }
+
+  const void* Node::_translateBufferToNode(const void* buffer) const {
+    size_t bytes = 0;
+    _forEachDepthFirstToChild(&Node::_countNodeSizes, &bytes);
+    return Util::offset(buffer, bytes);
+  }
+
+  void* Node::_translateBufferToNode(void* buffer) const {
+    return const_cast<void*>(_translateBufferToNode(const_cast<const void*>(buffer)));
+  }
+
+  NodeDiff Node::_getDiffId() const {
+    size_t count = 0;
+    _forEachDepthFirstToChild(&Node::_countNodes, &count);
+    return static_cast<NodeDiff>(1) << count;
+  }
+
+  void Node::_forEachDepthFirstToChild(void (Node::* func)(const Node&, void*) const, void* data) const {
+    //From the child build a top down stack of parents
+    std::stack<const Node*, std::vector<const Node*, LIFOAllocator<const Node*>>> parents;
+    const Node* node = this;
+    while(node) {
+      parents.push(node);
+      node = node->mOps.mParent;
+    }
+
+    size_t offset = 0;
+    while(parents.size() > 1) {
+      const Node* node = parents.top();
+      parents.pop();
+      const Node* traverseChild = parents.top();
+      parents.pop();
+      for(const auto& child : node->mChildren) {
+        if(child.get() == traverseChild)
+          break;
+        else
+          (this->*func)(*child, data);
+      }
+    }
+  }
+
+  void Node::_countNodes(const Node& node, void* data) const {
+    ++(*reinterpret_cast<size_t*>(data));
+  }
+
+  void Node::_countNodeSizes(const Node& node, void* data) const {
+    *reinterpret_cast<size_t*>(data) += node._size();
   }
 
   void Node::getField(lua_State* s, const std::string& field, SourceType source) const {

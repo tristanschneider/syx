@@ -125,16 +125,16 @@ int Component::_setProps(lua_State* l, const std::string& type) {
   LuaGameSystem& game = LuaGameSystem::check(l);
   luaL_checktype(l, 2, LUA_TTABLE);
 
-  int top = lua_gettop(l);
-  int ttype = lua_type(l, top);
-
   if(const Lua::Node* props = self->getLuaProps()) {
     //Read the data into a copy and send an event with the change to apply it next frame
+    //TODO: stack allocations
     std::unique_ptr<Component> clone = self->clone();
     lua_pushvalue(l, 2);
     props->readFromLua(l, clone.get());
     lua_pop(l, 1);
-    game.getMessageQueue().get().push(SetComponentPropsEvent(std::move(clone)));
+    std::vector<uint8_t> buffer(props->size());
+    props->copyConstructToBuffer(clone.get(), &buffer[0]);
+    game.getMessageQueue().get().push(SetComponentPropsEvent(self->getOwner(), self->getType(), props, ~0, std::move(buffer)));
   }
   return 0;
 }
@@ -165,12 +165,19 @@ int Component::_setProp(lua_State* l, const std::string& type) {
   if(const Lua::Node* props = self->getLuaProps()) {
     //TODO: support a way to get children several levels deep?
     if(const Lua::Node* foundProp = props->getChild(propName)) {
-      std::vector<uint8_t> buff;
-      buff.resize(foundProp->size());
+      //Make a buffer big enough to hold the whole component
+      //TODO: stack allocate
+      std::vector<uint8_t> buff(props->size());
+      //Translate to part of buffer where property goes
+      void* propValue = foundProp->_translateBufferToNode(&buff[0]);
+
+      //Write property value in buffer
       lua_pushvalue(l, 3);
-      foundProp->readFromLuaToBuffer(l, &buff[0], Lua::Node::SourceType::FromStack);
+      foundProp->readFromLuaToBuffer(l, propValue, Lua::Node::SourceType::FromStack);
       lua_pop(l, 1);
-      game.getMessageQueue().get().push(SetComponentPropEvent(self->getOwner(), self->getType(), foundProp, std::move(buff)));
+
+      //Send with diff indicating the appropriate part of the buffer
+      game.getMessageQueue().get().push(SetComponentPropsEvent(self->getOwner(), self->getType(), props, foundProp->_getDiffId(), std::move(buff)));
     }
   }
   return 0;

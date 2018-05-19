@@ -61,7 +61,6 @@ void GraphicsSystem::init() {
   SYSTEM_EVENT_HANDLER(DrawPointEvent, _processDebugDrawEvent);
   SYSTEM_EVENT_HANDLER(DrawCubeEvent, _processDebugDrawEvent);
   SYSTEM_EVENT_HANDLER(DrawSphereEvent, _processDebugDrawEvent);
-  SYSTEM_EVENT_HANDLER(SetComponentPropEvent, _processSetCompPropEvent);
   SYSTEM_EVENT_HANDLER(SetComponentPropsEvent, _processSetCompPropsEvent);
 }
 
@@ -152,26 +151,20 @@ void GraphicsSystem::_processDebugDrawEvent(const DrawSphereEvent& e) {
   mDebugDrawer->DrawSphere(e.mCenter, e.mRadius, e.mRot.getRight(), e.mRot.getUp());
 }
 
-void GraphicsSystem::_processSetCompPropEvent(const SetComponentPropEvent& e) {
+void GraphicsSystem::_processSetCompPropsEvent(const SetComponentPropsEvent& e) {
   if(e.mCompType == Component::typeId<Renderable>()) {
     if(LocalRenderable* obj = mLocalRenderables.get(e.mObj)) {
-      //Make a local renderable that has the new property
+      //Make a local renderable that has the new properties
       Renderable renderable(0);
       e.mProp->copyFromBuffer(&renderable, e.mBuffer.data());
       AssetRepo& repo = *mArgs.mSystems->getSystem<AssetRepo>();
-      //Assign the property that changed, pulling the desired asset given the handle
-      switch(Util::constHash(e.mProp->getName().c_str())) {
-        case Util::constHash("model"): obj->mModel = repo.getAsset(AssetInfo(renderable.get().mModel)); break;
-        case Util::constHash("diffuseTexture"): obj->mDiffTex = repo.getAsset(AssetInfo(renderable.get().mDiffTex)); break;
-      }
-    }
-  }
-}
-
-void GraphicsSystem::_processSetCompPropsEvent(const SetComponentPropsEvent& e) {
-  if(e.mNewValue->getType() == Component::typeId<Renderable>()) {
-    if(LocalRenderable* obj = mLocalRenderables.get(e.mNewValue->getOwner())) {
-      _setFromData(*obj, static_cast<const Renderable*>(e.mNewValue.get())->get());
+      //Assign the properties that changed, pulling the desired asset given the handle
+      e.mProp->forEachDiff(e.mDiff, &renderable, [&obj, &renderable, &repo](const Lua::Node& node, const void*) {
+        switch(Util::constHash(node.getName().c_str())) {
+          case Util::constHash("model"): obj->mModel = repo.getAsset(AssetInfo(renderable.get().mModel)); break;
+          case Util::constHash("diffuseTexture"): obj->mDiffTex = repo.getAsset(AssetInfo(renderable.get().mDiffTex)); break;
+        }
+      });
     }
   }
 }

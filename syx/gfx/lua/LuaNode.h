@@ -58,10 +58,10 @@ namespace Lua {
     size_t size() const;
     //Copy construct each node in tree into a flatttened buffer. Caller must ensure buffer has at least size() bytes left
     void copyConstructToBuffer(const void* base, void* buffer) const;
-    void copyConstructFromBuffer(void* base, const void* buffer) const;
+    void copyConstructFromBuffer(void* base, const void* buffer, NodeDiff diff = ~0) const;
     //Copy each node in tree. Caller must ensure buffer has at least size() bytes left
     void copyToBuffer(const void* base, void* buffer) const;
-    void copyFromBuffer(void* base, const void* buffer) const;
+    void copyFromBuffer(void* base, const void* buffer, NodeDiff diff = ~0) const;
     //Copy construct each value in buffer to new location
     void copyConstructBufferToBuffer(const void* from, void* to) const;
     void copyBufferToBuffer(const void* from, void* to) const;
@@ -76,6 +76,10 @@ namespace Lua {
     //Translate base which is the root of the tree down to this node
     const void* _translateBaseToNode(const void* base) const;
     void* _translateBaseToNode(void* base) const;
+    const void* _translateBufferToNode(const void* buffer) const;
+    void* _translateBufferToNode(void* buffer) const;
+    //Traverse hierarchy to find the diff id of this node
+    NodeDiff _getDiffId() const;
 
     //Size of this node in bytes
     virtual size_t _size() const { return 0; }
@@ -98,11 +102,16 @@ namespace Lua {
 
     //Traverse the tree and use func to construct/move/copy to/from buffer
     void _funcToBuffer(void (Node::* func)(const void*, void*) const, const void* base, void* buffer) const;
-    void _funcFromBuffer(void (Node::* func)(const void*, void*) const, void* base, const void* buffer) const;
+    void _funcFromBuffer(void (Node::* func)(const void*, void*) const, void* base, const void* buffer, NodeDiff diff) const;
+    void _funcFromBuffer(void (Node::* func)(const void*, void*) const, void* base, const void* buffer, NodeDiff diff, int& nodeIndex) const;
     //Traverse buffer and use func on each leaf node
     void _funcBufferToBuffer(void (Node::* func)(const void*, void*) const, const void* from, void* to) const;
     NodeDiff _getDiff(const void* base, const void* other, int& nodeIndex) const;
     void _forEachDiff(NodeDiff diff, const void* base, const DiffCallback& callback, int& nodeIndex) const;
+
+    void _forEachDepthFirstToChild(void (Node::* func)(const Node&, void*) const, void* data) const;
+    void _countNodes(const Node& node, void* data) const;
+    void _countNodeSizes(const Node& node, void* data) const;
 
     //Translate the location of base based on this node type. Usually nothing but can be used to follow pointers
     virtual void _translateBase(const void*& base) const {}

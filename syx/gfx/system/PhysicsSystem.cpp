@@ -74,7 +74,6 @@ void PhysicsSystem::init() {
   SYSTEM_EVENT_HANDLER(TransformEvent, _transformEvent);
   SYSTEM_EVENT_HANDLER(PhysicsCompUpdateEvent, _compUpdateEvent);
   SYSTEM_EVENT_HANDLER(SetComponentPropsEvent, _setComponentPropsEvent);
-  SYSTEM_EVENT_HANDLER(SetComponentPropEvent, _setComponentPropEvent);
 }
 
 void PhysicsSystem::queueTasks(float dt, IWorkerPool& pool, std::shared_ptr<Task> frameTask) {
@@ -129,28 +128,24 @@ void PhysicsSystem::_updateObject(Handle obj, const SyxData& data, const Syx::Up
 }
 
 void PhysicsSystem::_setComponentPropsEvent(const SetComponentPropsEvent& e) {
-  if(e.mNewValue->getType() == Component::typeId<Physics>()) {
-    _updateFromData(e.mNewValue->getOwner(), static_cast<const Physics&>(*e.mNewValue).getData());
-  }
-}
-
-void PhysicsSystem::_setComponentPropEvent(const SetComponentPropEvent& e) {
   if(e.mCompType == Component::typeId<Physics>()) {
     SyxData& syxData = _getSyxData(e.mObj, false, false);
     Syx::Handle h = syxData.mHandle;
     Physics comp(0);
-    e.mProp->copyFromBuffer(&comp, &e.mBuffer[0]);
+    e.mProp->copyFromBuffer(&comp, e.mBuffer.data());
     const PhysicsData& data = comp.getData();
-    switch(Util::constHash(e.mProp->getName().c_str())) {
-      case Util::constHash("hasRigidbody"): mSystem->setHasRigidbody(data.mHasRigidbody, mDefaultSpace, h); break;
-      case Util::constHash("hasCollider"): mSystem->setHasCollider(data.mHasCollider, mDefaultSpace, h); break;
-      case Util::constHash("linVel"): mSystem->setVelocity(mDefaultSpace, h, data.mLinVel); break;
-      case Util::constHash("angVel"): mSystem->setAngularVelocity(mDefaultSpace, h, data.mAngVel); break;
-      case Util::constHash("model"): mSystem->setObjectModel(mDefaultSpace, h, data.mModel); break;
-      case Util::constHash("material"): mSystem->setObjectMaterial(mDefaultSpace, h, data.mMaterial); break;
-      case Util::constHash("physToModel"): syxData.mSyxToModel = data.mPhysToModel; break;
-      default: assert(false && "Unhandled property setter"); break;
-    }
+    e.mProp->forEachDiff(e.mDiff, &comp, [&data, &syxData, this, h](const Lua::Node& node, const void*) {
+      switch(Util::constHash(node.getName().c_str())) {
+        case Util::constHash("hasRigidbody"): mSystem->setHasRigidbody(data.mHasRigidbody, mDefaultSpace, h); break;
+        case Util::constHash("hasCollider"): mSystem->setHasCollider(data.mHasCollider, mDefaultSpace, h); break;
+        case Util::constHash("linVel"): mSystem->setVelocity(mDefaultSpace, h, data.mLinVel); break;
+        case Util::constHash("angVel"): mSystem->setAngularVelocity(mDefaultSpace, h, data.mAngVel); break;
+        case Util::constHash("model"): mSystem->setObjectModel(mDefaultSpace, h, data.mModel); break;
+        case Util::constHash("material"): mSystem->setObjectMaterial(mDefaultSpace, h, data.mMaterial); break;
+        case Util::constHash("physToModel"): syxData.mSyxToModel = data.mPhysToModel; break;
+        default: assert(false && "Unhandled property setter"); break;
+      }
+    });
   }
 }
 

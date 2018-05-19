@@ -64,7 +64,6 @@ private:
   void _processDebugDrawEvent(const DrawPointEvent& e);
   void _processDebugDrawEvent(const DrawCubeEvent& e);
   void _processDebugDrawEvent(const DrawSphereEvent& e);
-  void _processSetCompPropEvent(const SetComponentPropEvent& e);
   void _processSetCompPropsEvent(const SetComponentPropsEvent& e);
 
   void _processRenderThreadTasks();

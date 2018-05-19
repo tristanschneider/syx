@@ -4,6 +4,7 @@
 class Component;
 namespace Lua {
   class Node;
+  using NodeDiff = uint64_t;
 };
 
 class AddComponentEvent : public Event {
@@ -34,22 +35,14 @@ public:
 
 class SetComponentPropsEvent : public Event {
 public:
-  SetComponentPropsEvent(std::unique_ptr<Component> comp);
+  //TODO: emplace such that no allocations are required to use this
+  SetComponentPropsEvent(Handle obj, size_t compType, const Lua::Node* prop, Lua::NodeDiff diff, std::vector<uint8_t>&& buffer);
   SetComponentPropsEvent(const SetComponentPropsEvent& other);
   SetComponentPropsEvent(SetComponentPropsEvent&& other);
   ~SetComponentPropsEvent();
-  std::unique_ptr<Component> mNewValue;
-};
-
-class SetComponentPropEvent : public Event {
-public:
-  //TODO: emplace such that no allocations are required to use this
-  SetComponentPropEvent(Handle obj, size_t compType, const Lua::Node* prop, std::vector<uint8_t>&& buffer);
-  SetComponentPropEvent(const SetComponentPropEvent& other);
-  SetComponentPropEvent(SetComponentPropEvent&& other);
-  ~SetComponentPropEvent();
   Handle mObj;
   size_t mCompType;
+  Lua::NodeDiff mDiff;
   const Lua::Node* mProp;
   std::vector<uint8_t> mBuffer;
 };
