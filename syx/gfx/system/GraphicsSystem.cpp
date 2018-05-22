@@ -12,6 +12,7 @@
 #include "event/TransformEvent.h"
 #include "event/BaseComponentEvents.h"
 #include "event/DebugDrawEvent.h"
+#include "event/SceneEvents.h"
 #include "lua/LuaNode.h"
 #include "ImGuiImpl.h"
 #include "system/KeyboardInput.h"
@@ -62,6 +63,7 @@ void GraphicsSystem::init() {
   SYSTEM_EVENT_HANDLER(DrawCubeEvent, _processDebugDrawEvent);
   SYSTEM_EVENT_HANDLER(DrawSphereEvent, _processDebugDrawEvent);
   SYSTEM_EVENT_HANDLER(SetComponentPropsEvent, _processSetCompPropsEvent);
+  SYSTEM_EVENT_HANDLER(ClearSceneEvent, _processClearSceneEvent);
 }
 
 void GraphicsSystem::update(float dt, IWorkerPool& pool, std::shared_ptr<Task> frameTask) {
@@ -167,6 +169,11 @@ void GraphicsSystem::_processSetCompPropsEvent(const SetComponentPropsEvent& e) 
       });
     }
   }
+}
+
+void GraphicsSystem::_processClearSceneEvent(const ClearSceneEvent& e) {
+  //TODO: use scene id
+  mLocalRenderables.clear();
 }
 
 void GraphicsSystem::_processRenderThreadTasks() {

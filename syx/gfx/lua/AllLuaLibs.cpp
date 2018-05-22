@@ -8,6 +8,7 @@
 #include "lua/lib/LuaVec3.h"
 #include "lua/lib/LuaQuat.h"
 #include "LuaGameObject.h"
+#include "system/LuaGameSystem.h"
 
 namespace Lua {
   void AllLuaLibs::open(lua_State* l) {
@@ -18,6 +19,7 @@ namespace Lua {
     LuaGameObject::openLib(l);
     Component::baseOpenLib(l);
     AssetRepo::openLib(l);
+    LuaGameSystem::openLib(l);
 
     //Construct a temporary of each type to call opeenlibs
     const auto& ctors = Component::Registry::getConstructors();

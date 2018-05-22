@@ -45,6 +45,10 @@ Transform& LuaGameObject::getTransform() {
   return mTransform;
 }
 
+const Transform& LuaGameObject::getTransform() const {
+  return mTransform;
+}
+
 LuaComponent* LuaGameObject::addLuaComponent(size_t script) {
   auto it = mLuaComponents.emplace(script, mHandle);
   LuaComponent& result = it.first->second;
@@ -68,6 +72,14 @@ void LuaGameObject::removeLuaComponent(size_t script) {
 
 std::unordered_map<size_t, LuaComponent>& LuaGameObject::getLuaComponents() {
   return mLuaComponents;
+}
+
+const std::unordered_map<size_t, LuaComponent>& LuaGameObject::getLuaComponents() const {
+  return mLuaComponents;
+}
+
+const TypeMap<std::unique_ptr<Component>, Component>& LuaGameObject::getComponents() const {
+  return mComponents;
 }
 
 void LuaGameObject::openLib(lua_State* l) {
@@ -156,7 +168,14 @@ int LuaGameObject::push(lua_State* l, LuaGameObject& obj) {
 }
 
 int LuaGameObject::invalidate(lua_State* l, LuaGameObject& obj) {
-  return sCache->invalidate(l, obj.mHandle);
+  sCache->invalidate(l, obj.mHandle);
+  for(auto& comp : obj.getComponents()) {
+    comp->invalidate(l);
+  }
+  for(auto& comp : obj.getLuaComponents()) {
+    comp.second.invalidate(l);
+  }
+  return 0;
 }
 
 LuaGameObject& LuaGameObject::getObj(lua_State* l, int index) {

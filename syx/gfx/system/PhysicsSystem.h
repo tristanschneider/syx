@@ -8,6 +8,7 @@ namespace Syx {
   struct UpdateEvent;
 };
 
+class ClearSceneEvent;
 class Model;
 class EventBuffer;
 class TransformEvent;
@@ -52,7 +53,8 @@ private:
   void _compUpdateEvent(const PhysicsCompUpdateEvent& e);
   void _transformEvent(const TransformEvent& e);
   void _setComponentPropsEvent(const SetComponentPropsEvent& e);
-  void _setComponentPropEvent(const SetComponentPropEvent& e);
+  void _clearSceneEvent(const ClearSceneEvent& e);
+
   Syx::Handle _createObject(Handle gameobject, bool hasRigidbody, bool hasCollider);
 
   SyxData& _getSyxData(Handle obj, bool hasRigidbody, bool hasCollider);

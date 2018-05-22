@@ -10,6 +10,7 @@ class Texture;
 class Event;
 class TransformEvent;
 class ComponentEvent;
+class ClearSceneEvent;
 class RenderableUpdateEvent;
 class EventBuffer;
 class App;
@@ -65,6 +66,7 @@ private:
   void _processDebugDrawEvent(const DrawCubeEvent& e);
   void _processDebugDrawEvent(const DrawSphereEvent& e);
   void _processSetCompPropsEvent(const SetComponentPropsEvent& e);
+  void _processClearSceneEvent(const ClearSceneEvent& e);
 
   void _processRenderThreadTasks();
 

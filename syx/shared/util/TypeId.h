@@ -111,11 +111,17 @@ public:
   }
 
   Iterator_t begin() {
-    return Iterator_t(0, &mValues);
+    Iterator_t result(0, &mValues);
+    if(!*result)
+      ++result;
+    return result;
   }
 
   Const_Iterator_t begin() const {
-    return Const_Iterator_t(0, &mValues);
+    Const_Iterator_t result(0, &mValues);
+    if(!*result)
+      ++result;
+    return result;
   }
 
   Iterator_t end() {

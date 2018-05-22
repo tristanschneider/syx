@@ -7,7 +7,7 @@ public:
   Transform(const Transform& rhs);
 
   void set(const Syx::Mat4& m);
-  const Syx::Mat4& get();
+  const Syx::Mat4& get() const;
 
   std::unique_ptr<Component> clone() const override;
   void set(const Component& component) override;

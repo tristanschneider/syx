@@ -7,7 +7,9 @@ class Task;
 class LuaGameObject;
 
 class AddComponentEvent;
+class AddLuaComponentEvent;
 class AddGameObjectEvent;
+class ClearSceneEvent;
 class Component;
 class LuaComponentRegistry;
 class RemoveComponentEvent;
@@ -17,7 +19,6 @@ class TransformEvent;
 class PhysicsCompUpdateEvent;
 class AddLuaComponentEvent;
 class RemoveLuaComponentEvent;
-class SetComponentPropEvent;
 class SetComponentPropsEvent;
 class AllSystemsInitialized;
 struct lua_State;
@@ -29,6 +30,8 @@ namespace Lua {
 
 class LuaGameSystem : public System {
 public:
+  static const char* CLASS_NAME;
+
   RegisterSystemH(LuaGameSystem);
 
   LuaGameSystem(const SystemArgs& args);
@@ -48,8 +51,15 @@ public:
   void removeComponent(const std::string& name, Handle owner);
   LuaGameObject& addGameObject();
 
+  void cloneScene(Handle fromScene, Handle toScene);
+  void clearScene(Handle sceneId);
+  void addObjectsFromScene(Handle fromScene, Handle toScene);
+
   MessageQueue getMessageQueue();
   AssetRepo& getAssetRepo();
+
+  static void openLib(lua_State* l);
+  static int _cloneScene(lua_State* l);
 
 private:
 
@@ -70,7 +80,7 @@ private:
   void _onTransformUpdate(const TransformEvent& e);
   void _onPhysicsUpdate(const PhysicsCompUpdateEvent& e);
   void _onSetComponentProps(const SetComponentPropsEvent& e);
-  void _onSetComponentProp(const SetComponentPropEvent& e);
+  void _onSceneClear(const ClearSceneEvent& e);
 
   static const std::string INSTANCE_KEY;
 

@@ -129,6 +129,10 @@ local function testAddRemove(self, dt)
       diffuseTexture = AssetRepo.getOrLoadAsset('textures/test.bmp')
     };
     renderable:setProps(props);
+  elseif addRemoveStage == 2 and totalTime > 6 then
+    Game.cloneScene(0, 1);
+    addRemoveState = 3;
+    print("Scene cloned");
   end
 end
 

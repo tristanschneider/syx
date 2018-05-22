@@ -171,6 +171,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClCompile Include="event\BaseComponentEvents.cpp" />
     <ClCompile Include="event\DebugDrawEvent.cpp" />
     <ClCompile Include="event\LifecycleEvents.cpp" />
+    <ClCompile Include="event\SceneEvents.cpp" />
     <ClCompile Include="event\TransformEvent.cpp" />
     <ClCompile Include="ImGuiImpl.cpp" />
     <ClCompile Include="loader\AssetLoader.cpp" />
@@ -243,6 +244,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClInclude Include="event\BaseComponentEvents.h" />
     <ClInclude Include="event\DebugDrawEvent.h" />
     <ClInclude Include="event\LifecycleEvents.h" />
+    <ClInclude Include="event\SceneEvents.h" />
     <ClInclude Include="event\TransformEvent.h" />
     <ClInclude Include="Handle.h" />
     <ClInclude Include="ImGuiImpl.h" />

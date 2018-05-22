@@ -64,11 +64,11 @@ namespace Lua {
       //Remove object from registry
       lua_pushinteger(l, static_cast<lua_Integer>(handle));
       lua_pushnil(l);
-      lua_settable(l, -3);
+      lua_settable(l, -4);
     }
     //else: object wasn't in cache, which is fine, nothing to invalidate
-    //Pop cache table
-    lua_pop(l, 1);
+    //Pop cache entry and cache table
+    lua_pop(l, 2);
     return 0;
   }
 

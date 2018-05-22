@@ -17,7 +17,7 @@ void Transform::set(const Syx::Mat4& m) {
   mMat = m;
 }
 
-const Syx::Mat4& Transform::get() {
+const Syx::Mat4& Transform::get() const {
   return mMat;
 }
 

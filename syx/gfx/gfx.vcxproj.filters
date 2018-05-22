@@ -189,6 +189,9 @@
     <ClCompile Include="allocator\LIFOAllocator.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="event\SceneEvents.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="App.h">
@@ -384,6 +387,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="allocator\LIFOAllocator.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="event\SceneEvents.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

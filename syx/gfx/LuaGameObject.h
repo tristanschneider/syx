@@ -20,6 +20,7 @@ public:
   void removeComponent(size_t type);
   Component* getComponent(size_t type);
   Transform& getTransform();
+  const Transform& getTransform() const;
 
   template<typename CompType>
   CompType* getComponent() {
@@ -36,6 +37,8 @@ public:
   LuaComponent* getLuaComponent(size_t script);
   void removeLuaComponent(size_t script);
   std::unordered_map<size_t, LuaComponent>& getLuaComponents();
+  const std::unordered_map<size_t, LuaComponent>& getLuaComponents() const;
+  const TypeMap<std::unique_ptr<Component>, Component>& getComponents() const;
 
   static void openLib(lua_State* l);
   static int toString(lua_State* l);
