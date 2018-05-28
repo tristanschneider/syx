@@ -2,9 +2,11 @@
 #include "LuaGameObject.h"
 
 #include "component/LuaComponent.h"
+#include "lua/LuaCache.h"
+#include "lua/LuaComponentNode.h"
+#include "lua/LuaCompositeNodes.h"
 #include "lua/LuaStackAssert.h"
 #include "lua/LuaUtil.h"
-#include "lua/LuaCache.h"
 #include <lua.hpp>
 #include "system/LuaGameSystem.h"
 
@@ -180,4 +182,17 @@ int LuaGameObject::invalidate(lua_State* l, LuaGameObject& obj) {
 
 LuaGameObject& LuaGameObject::getObj(lua_State* l, int index) {
   return *static_cast<LuaGameObject*>(sCache->checkParam(l, index));
+}
+
+const Lua::Node& LuaGameObjectDescription::getMetadata() const {
+  static std::unique_ptr<Lua::Node> root = _buildMetadata();
+  return *root;
+}
+
+std::unique_ptr<Lua::Node> LuaGameObjectDescription::_buildMetadata() const {
+  using namespace Lua;
+  auto root = makeRootNode(NodeOps(""));
+  makeNode<SizetNode>(NodeOps(*root.get(), "handle", ::Util::offsetOf(*this, mHandle)));
+  makeNode<VectorNode<ComponentNode>>(NodeOps(*root.get(), "components", ::Util::offsetOf(*this, mComponents)));
+  return root;
 }

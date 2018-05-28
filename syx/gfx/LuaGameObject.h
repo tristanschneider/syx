@@ -7,7 +7,18 @@ struct lua_State;
 
 namespace Lua {
   class Cache;
+  class Node;
 }
+
+struct LuaGameObjectDescription {
+  const Lua::Node& getMetadata() const;
+
+  size_t mHandle;
+  std::vector<std::unique_ptr<Component>> mComponents;
+
+private:
+  std::unique_ptr<Lua::Node> _buildMetadata() const;
+};
 
 class LuaGameObject {
 public:

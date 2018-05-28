@@ -34,7 +34,7 @@ namespace Lua {
         WrappedNode::WrappedType value;
         //Read value, ignore key, since they're in order
         mWrapped._readFromLua(s, &value);
-        vec.push_back(value);
+        vec.emplace_back(std::move(value));
         //Pop value
         lua_pop(s, 1);
       }
@@ -44,7 +44,7 @@ namespace Lua {
       const std::vector<WrappedNode::WrappedType>& vec = *static_cast<const std::vector<WrappedNode::WrappedType>*>(base);
       lua_createtable(s, vec.size(), 0);
       for(size_t i = 0; i < vec.size(); ++i) {
-        WrappedNode::WrappedType&& obj = vec[i];
+        auto&& obj = vec[i];
         lua_pushinteger(s, static_cast<lua_Integer>(i + 1));
         mWrapped._writeToLua(s, &obj);
         lua_settable(s, -3);
