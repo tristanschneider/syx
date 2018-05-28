@@ -213,6 +213,10 @@ AssetRepo& LuaGameSystem::getAssetRepo() {
   return *mArgs.mSystems->getSystem<AssetRepo>();
 }
 
+const LuaComponentRegistry& LuaGameSystem::getComonentRegistry() const {
+  return *mComponents;
+}
+
 void LuaGameSystem::uninit() {
   mObjects.clear();
   mEventHandler = nullptr;
@@ -221,7 +225,9 @@ void LuaGameSystem::uninit() {
 
 LuaGameSystem* LuaGameSystem::get(lua_State* l) {
   lua_getfield(l, LUA_REGISTRYINDEX, INSTANCE_KEY.c_str());
-  return static_cast<LuaGameSystem*>(lua_touserdata(l, -1));
+  LuaGameSystem* result = static_cast<LuaGameSystem*>(lua_touserdata(l, -1));
+  lua_pop(l, 1);
+  return result;
 }
 
 LuaGameSystem& LuaGameSystem::check(lua_State* l) {

@@ -377,11 +377,11 @@ namespace Lua {
   }
 
   void LightUserdataSizetNode::_readFromLua(lua_State* s, void* base) const {
-    *static_cast<size_t*>(base) = reinterpret_cast<size_t>(lua_touserdata(s, -1));
+    _cast(base) = reinterpret_cast<size_t>(lua_touserdata(s, -1));
   }
 
   void LightUserdataSizetNode::_writeToLua(lua_State* s, const void* base) const {
-    lua_pushlightuserdata(s, &(const_cast<size_t&>(*static_cast<const size_t*>(base))));
+    lua_pushlightuserdata(s, reinterpret_cast<void*>(_cast(base)));
   }
 
   void BoolNode::_readFromLua(lua_State* s, void* base) const {
@@ -390,6 +390,14 @@ namespace Lua {
 
   void BoolNode::_writeToLua(lua_State* s, const void* base) const {
     lua_pushboolean(s, static_cast<int>(*static_cast<const bool*>(base)));
+  }
+
+  void SizetNode::_readFromLua(lua_State* s, void* base) const {
+    _cast(base) = static_cast<size_t>(lua_tointeger(s, -1));
+  }
+
+  void SizetNode::_writeToLua(lua_State* s, const void* base) const {
+    lua_pushinteger(s, static_cast<lua_Integer>(_cast(base)));
   }
 
   void Vec3Node::_readFromLua(lua_State* s, void* base) const {

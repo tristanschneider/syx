@@ -163,10 +163,10 @@ namespace Lua {
       new (to) T();
     }
     void _copyConstruct(const void* from, void* to) const override {
-      new (to) T(_cast(from));
+      _copyConstructIfCopyable<T>(from, to);
     }
     void _copy(const void* from, void* to) const override {
-      _cast(to) = _cast(from);
+      _copyIfCopyable<T>(from, to);
     }
     void _destruct(void* base) const override {
       _cast(base).~T();
@@ -179,6 +179,23 @@ namespace Lua {
     }
     bool _equals(const void* lhs, const void* rhs) const override {
       return _cast(lhs) == _cast(rhs);
+    }
+
+    template<typename S>
+    std::enable_if_t<std::is_copy_assignable<S>::value> _copyIfCopyable(const void* from, void* to) const {
+      _cast(to) = _cast(from);
+    }
+    template<typename S>
+    std::enable_if_t<!std::is_copy_assignable<S>::value> _copyIfCopyable(const void* from, void* to) const {
+      assert(false && "Wrapped type isn't copyable, node should override _copy");
+    }
+    template<typename S>
+    std::enable_if_t<std::is_copy_constructible<S>::value> _copyConstructIfCopyable(const void* from, void* to) const {
+      new (to) T(_cast(from));
+    }
+    template<typename S>
+    std::enable_if_t<!std::is_copy_constructible<S>::value> _copyConstructIfCopyable(const void* from, void* to) const {
+      assert(false && "Wrapped type isn't copyable, node should override _copyConstruct");
     }
   };
 
@@ -218,6 +235,13 @@ namespace Lua {
   };
 
   class BoolNode : public TypedNode<bool> {
+  public:
+    using TypedNode::TypedNode;
+    void _readFromLua(lua_State* s, void* base) const override;
+    void _writeToLua(lua_State* s, const void* base) const override;
+  };
+
+  class SizetNode : public TypedNode<size_t> {
   public:
     using TypedNode::TypedNode;
     void _readFromLua(lua_State* s, void* base) const override;

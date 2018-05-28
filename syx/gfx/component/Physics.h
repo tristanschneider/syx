@@ -35,7 +35,7 @@ public:
   std::unique_ptr<Component> clone() const override;
   void set(const Component& component) override;
 
-  void setData(const PhysicsData& data, bool fireEvent = true);
+  void setData(const PhysicsData& data);
   void setCollider(Handle model, Handle material);
   void setRigidbody(const Syx::Vec3& linVel, const Syx::Vec3& angVel);
   void setPhysToModel(const Syx::Mat4& physToModel);

@@ -35,7 +35,7 @@ void Physics::set(const Component& component) {
   mData = static_cast<const Physics&>(component).mData;
 }
 
-void Physics::setData(const PhysicsData& data, bool fireEvent) {
+void Physics::setData(const PhysicsData& data) {
   mData = data;
 }
 

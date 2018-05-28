@@ -57,6 +57,7 @@ public:
 
   MessageQueue getMessageQueue();
   AssetRepo& getAssetRepo();
+  const LuaComponentRegistry& getComonentRegistry() const;
 
   static void openLib(lua_State* l);
   static int _cloneScene(lua_State* l);
