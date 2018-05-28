@@ -111,6 +111,35 @@ namespace Lua {
       case LUA_TBOOLEAN:
         buffer += lua_toboolean(mS, -1) ? "true" : "false";
         break;
+      case LUA_TLIGHTUSERDATA:
+        //This is for handles wrapped in userdata.
+        buffer += std::to_string(reinterpret_cast<size_t>(lua_touserdata(mS, -1)));
+        break;
+      case LUA_TUSERDATA: {
+        Lua::StackAssert sa(mS);
+        bool success = false;
+        //If it's userdata, try to serialize by calling __serialize
+        if(lua_getmetatable(mS, -1)) {
+          if(lua_getfield(mS, -1, "__serialize") == LUA_TFUNCTION) {
+            //push userdata
+            lua_pushvalue(mS, -3);
+            if(lua_pcall(mS, 1, 1, 0) == LUA_OK && lua_type(mS, -1) == LUA_TSTRING) {
+              buffer += lua_tostring(mS, -1);
+              success = true;
+            }
+            //Pop function result or error
+            lua_pop(mS, 1);
+          }
+          //If function wasn't there, pop the nil
+          else
+            lua_pop(mS, 1);
+          //Pop metatable
+          lua_pop(mS, 1);
+        }
+        //If we succeeded, break, otherwise falll through to nil
+        if(success)
+          break;
+      }
       default:
         printf("Unsupported value type %s\n", lua_typename(mS, type));
       case LUA_TNIL:

@@ -17,6 +17,7 @@ namespace Lua {
       { "newAxisAngle", newAxisAngle },
       { "newFromTo", newFromTo },
       { "newLookAt", newLookAt },
+      { "new4", new4 },
       { nullptr, nullptr }
     };
     luaL_Reg members[] = {
@@ -28,6 +29,7 @@ namespace Lua {
       { "getBasis", getBasis },
       { "slerp", slerp },
       { "__tostring", toString },
+      { "__serialize", serialize },
       { "__eq", equality },
       { nullptr, nullptr }
     };
@@ -64,6 +66,14 @@ namespace Lua {
     if(up.length2() == 0.0f)
       up = forward.getOrthogonal();
     return construct(l, Syx::Quat::lookAt(forward, up));
+  }
+
+  int Quat::new4(lua_State* l) {
+      float x = static_cast<float>(luaL_checknumber(l, 1));
+      float y = static_cast<float>(luaL_checknumber(l, 2));
+      float z = static_cast<float>(luaL_checknumber(l, 3));
+      float w = static_cast<float>(luaL_checknumber(l, 4));
+      return construct(l, x, y, z, w);
   }
 
   int Quat::inverse(lua_State* l) {
@@ -110,6 +120,24 @@ namespace Lua {
       std::to_string(q.mV.z) + ", " +
       std::to_string(q.mV.w) + ")";
     lua_pushlstring(l, str.c_str(), str.size());
+    return 1;
+  }
+
+  int Quat::serialize(lua_State* l) {
+    const Syx::Quat& q = _getQuat(l, 1);
+    std::string str;
+    str.reserve(50);
+    str = CLASS_NAME;
+    str += ".new4(";
+    str += std::to_string(q.mV.x);
+    str += ", ";
+    str += std::to_string(q.mV.y);
+    str += ", ";
+    str += std::to_string(q.mV.z);
+    str += ", ";
+    str += std::to_string(q.mV.w);
+    str += ")";
+    lua_pushstring(l, str.c_str());
     return 1;
   }
 

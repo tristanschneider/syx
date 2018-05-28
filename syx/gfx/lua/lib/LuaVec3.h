@@ -45,6 +45,7 @@ namespace Lua {
     static int index(lua_State* l);
     static int newIndex(lua_State* l);
     static int toString(lua_State* l);
+    static int serialize(lua_State* l);
     static int getIndex(lua_State* l);
     static int setIndex(lua_State* l);
     static int equality(lua_State* l);

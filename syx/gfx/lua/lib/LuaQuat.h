@@ -23,6 +23,7 @@ namespace Lua {
     static int newAxisAngle(lua_State* l);
     static int newFromTo(lua_State* l);
     static int newLookAt(lua_State* l);
+    static int new4(lua_State* l);
     static int inverse(lua_State* l);
     static int normalized(lua_State* l);
     static int mul(lua_State* l);
@@ -31,6 +32,7 @@ namespace Lua {
     static int getBasis(lua_State* l);
     static int slerp(lua_State* l);
     static int toString(lua_State* l);
+    static int serialize(lua_State* l);
     static int equality(lua_State* l);
 
     static Syx::Quat& _getQuat(lua_State* l, int i);

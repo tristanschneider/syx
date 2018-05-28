@@ -44,6 +44,7 @@ namespace Lua {
       { "getBasis", getBasis },
       { "lerp", lerp },
       { "__tostring", toString },
+      { "__serialize", serialize },
       { "__index", index },
       { "__newindex", newIndex },
       { "__eq", equality },
@@ -211,6 +212,22 @@ namespace Lua {
       std::to_string(v.y) + ", " +
       std::to_string(v.z) + ")";
     lua_pushlstring(l, str.c_str(), str.size());
+    return 1;
+  }
+
+  int Vec3::serialize(lua_State* l) {
+    const Syx::Vec3& v = _getVec(l, 1);
+    std::string str;
+    str.reserve(50);
+    str = CLASS_NAME;
+    str += ".new3(";
+    str += std::to_string(v.x);
+    str += ", ";
+    str += std::to_string(v.y);
+    str += ", ";
+    str += std::to_string(v.z);
+    str += ")";
+    lua_pushstring(l, str.c_str());
     return 1;
   }
 
