@@ -1,4 +1,5 @@
 #pragma once
+#include "FileSystem.h"
 
 class App;
 class Asset;
@@ -25,19 +26,15 @@ public:
 protected:
   template<typename Buffer>
   static AssetLoadResult _readEntireFile(const std::string& filename, Buffer& buffer) {
-    std::FILE* file = std::fopen(filename.c_str(), "rb");
-    if (!file)
-      return AssetLoadResult::NotFound;
-
-    std::fseek(file, 0, SEEK_END);
-    long bytes = std::ftell(file);
-    std::rewind(file);
-    buffer.clear();
-    buffer.resize(static_cast<size_t>(bytes));
-
-    bool readSuccess = bytes == std::fread(&buffer[0], 1, bytes, file);
-    std::fclose(file);
-    return readSuccess ? AssetLoadResult::Success : AssetLoadResult::IOError;
+    using namespace FileSystem;
+    FileResult result = readFile(filename.c_str(), buffer);
+    switch(result) {
+      default:
+      case FileResult::Fail: return AssetLoadResult::Fail;
+      case FileResult::IOError: return AssetLoadResult::IOError;
+      case FileResult::NotFound: return AssetLoadResult::NotFound;
+      case FileResult::Success: return AssetLoadResult::Success;
+    }
   }
 
 private:

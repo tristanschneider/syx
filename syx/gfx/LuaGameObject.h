@@ -11,10 +11,26 @@ namespace Lua {
 }
 
 struct LuaGameObjectDescription {
+  //Needs overload for lua node
+  LuaGameObjectDescription() = default;
+  LuaGameObjectDescription(LuaGameObjectDescription&&) = default;
+  bool operator==(const LuaGameObjectDescription&) const { return false; }
+  LuaGameObjectDescription& operator=(const LuaGameObjectDescription&) = delete;
+  LuaGameObjectDescription& operator=(LuaGameObjectDescription&&) = default;
   const Lua::Node& getMetadata() const;
 
   size_t mHandle;
   std::vector<std::unique_ptr<Component>> mComponents;
+
+private:
+  std::unique_ptr<Lua::Node> _buildMetadata() const;
+};
+
+struct LuaSceneDescription {
+  const Lua::Node& getMetadata() const;
+
+  std::string mName;
+  std::vector<std::unique_ptr<Component>> mObjects;
 
 private:
   std::unique_ptr<Lua::Node> _buildMetadata() const;

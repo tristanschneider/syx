@@ -142,9 +142,9 @@ namespace Lua {
     return std::make_unique<RootNode>(std::move(ops));
   }
 
-  template<typename T>
-  T& makeNode(NodeOps&& ops) {
-    auto newNode = std::make_unique<T>(std::move(ops));
+  template<typename T, typename... Args>
+  T& makeNode(NodeOps&& ops, Args&&... args) {
+    auto newNode = std::make_unique<T>(std::move(ops), std::forward(args)...);
     auto& result = *newNode;
     ops.mParent->addChild(std::move(newNode));
     return result;
@@ -182,11 +182,11 @@ namespace Lua {
     }
 
     template<typename S>
-    std::enable_if_t<std::is_copy_assignable<S>::value> _copyIfCopyable(const void* from, void* to) const {
+    std::enable_if_t<std::is_copy_assignable_v<S>> _copyIfCopyable(const void* from, void* to) const {
       _cast(to) = _cast(from);
     }
     template<typename S>
-    std::enable_if_t<!std::is_copy_assignable<S>::value> _copyIfCopyable(const void* from, void* to) const {
+    std::enable_if_t<!std::is_copy_assignable_v<S>> _copyIfCopyable(const void* from, void* to) const {
       assert(false && "Wrapped type isn't copyable, node should override _copy");
     }
     template<typename S>

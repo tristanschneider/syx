@@ -184,6 +184,19 @@ LuaGameObject& LuaGameObject::getObj(lua_State* l, int index) {
   return *static_cast<LuaGameObject*>(sCache->checkParam(l, index));
 }
 
+class LuaGameObjectDescriptionNode : public Lua::TypedNode<LuaGameObjectDescription> {
+public:
+  using TypedNode::TypedNode;
+  void _readFromLua(lua_State* s, void* base) const override {
+    LuaGameObjectDescription& desc = _cast(base);
+    desc.getMetadata().readFromLua(s, base, Lua::Node::SourceType::FromStack);
+  }
+  void _writeToLua(lua_State* s, const void* base) const override {
+    const LuaGameObjectDescription& desc = _cast(base);
+    desc.getMetadata().writeToLua(s, base, Lua::Node::SourceType::FromStack);
+  }
+};
+
 const Lua::Node& LuaGameObjectDescription::getMetadata() const {
   static std::unique_ptr<Lua::Node> root = _buildMetadata();
   return *root;
@@ -192,7 +205,20 @@ const Lua::Node& LuaGameObjectDescription::getMetadata() const {
 std::unique_ptr<Lua::Node> LuaGameObjectDescription::_buildMetadata() const {
   using namespace Lua;
   auto root = makeRootNode(NodeOps(""));
-  makeNode<SizetNode>(NodeOps(*root.get(), "handle", ::Util::offsetOf(*this, mHandle)));
-  makeNode<VectorNode<ComponentNode>>(NodeOps(*root.get(), "components", ::Util::offsetOf(*this, mComponents)));
+  makeNode<SizetNode>(NodeOps(*root, "handle", ::Util::offsetOf(*this, mHandle)));
+  makeNode<VectorNode<ComponentNode>>(NodeOps(*root, "components", ::Util::offsetOf(*this, mComponents)));
+  return root;
+}
+
+const Lua::Node& LuaSceneDescription::getMetadata() const {
+  static std::unique_ptr<Lua::Node> root = _buildMetadata();
+  return *root;
+}
+
+std::unique_ptr<Lua::Node> LuaSceneDescription::_buildMetadata() const {
+  using namespace Lua;
+  auto root = makeRootNode(NodeOps(""));
+  makeNode<StringNode>(NodeOps(*root, "name", ::Util::offsetOf(*this, mName)));
+  makeNode<VectorNode<LuaGameObjectDescriptionNode>>(NodeOps(*root, "objects", ::Util::offsetOf(*this, mObjects)));
   return root;
 }

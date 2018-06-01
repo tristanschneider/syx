@@ -173,6 +173,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClCompile Include="event\LifecycleEvents.cpp" />
     <ClCompile Include="event\SceneEvents.cpp" />
     <ClCompile Include="event\TransformEvent.cpp" />
+    <ClCompile Include="FileSystem.cpp" />
     <ClCompile Include="ImGuiImpl.cpp" />
     <ClCompile Include="loader\AssetLoader.cpp" />
     <ClCompile Include="loader\LuaScriptLoader.cpp" />
@@ -247,6 +248,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClInclude Include="event\LifecycleEvents.h" />
     <ClInclude Include="event\SceneEvents.h" />
     <ClInclude Include="event\TransformEvent.h" />
+    <ClInclude Include="FileSystem.h" />
     <ClInclude Include="Handle.h" />
     <ClInclude Include="ImGuiImpl.h" />
     <ClInclude Include="loader\AssetLoader.h" />
