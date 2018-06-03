@@ -173,7 +173,8 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClCompile Include="event\LifecycleEvents.cpp" />
     <ClCompile Include="event\SceneEvents.cpp" />
     <ClCompile Include="event\TransformEvent.cpp" />
-    <ClCompile Include="FileSystem.cpp" />
+    <ClCompile Include="file\FilePath.cpp" />
+    <ClCompile Include="file\FileSystem.cpp" />
     <ClCompile Include="ImGuiImpl.cpp" />
     <ClCompile Include="loader\AssetLoader.cpp" />
     <ClCompile Include="loader\LuaScriptLoader.cpp" />
@@ -198,6 +199,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClCompile Include="Precompile.cpp">
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="ProjectLocator.cpp" />
     <ClCompile Include="src-deps\imgui\imgui.cpp" />
     <ClCompile Include="src-deps\imgui\imgui_demo.cpp" />
     <ClCompile Include="src-deps\imgui\imgui_draw.cpp" />
@@ -248,7 +250,8 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClInclude Include="event\LifecycleEvents.h" />
     <ClInclude Include="event\SceneEvents.h" />
     <ClInclude Include="event\TransformEvent.h" />
-    <ClInclude Include="FileSystem.h" />
+    <ClInclude Include="file\FilePath.h" />
+    <ClInclude Include="file\FileSystem.h" />
     <ClInclude Include="Handle.h" />
     <ClInclude Include="ImGuiImpl.h" />
     <ClInclude Include="loader\AssetLoader.h" />
@@ -275,6 +278,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClInclude Include="lua\LuaUtil.h" />
     <ClInclude Include="MappedBuffer.h" />
     <ClInclude Include="Precompile.h" />
+    <ClInclude Include="ProjectLocator.h" />
     <ClInclude Include="provider\GameObjectHandleProvider.h" />
     <ClInclude Include="provider\MessageQueueProvider.h" />
     <ClInclude Include="provider\SystemProvider.h" />

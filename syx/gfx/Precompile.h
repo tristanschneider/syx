@@ -21,6 +21,7 @@
 #include <functional>
 #include <atomic>
 #include <cstdio>
+#include <array>
 
 #include <SyxMathIncludes.h>
 #include "Handle.h"

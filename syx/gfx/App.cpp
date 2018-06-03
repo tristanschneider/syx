@@ -2,24 +2,29 @@
 #include "App.h"
 
 #include "AppPlatform.h"
+#include "EditorNavigator.h"
 #include "event/EventBuffer.h"
 #include "event/LifecycleEvents.h"
+#include "ProjectLocator.h"
 #include "system/GraphicsSystem.h"
 #include "threading/WorkerPool.h"
 #include "threading/SyncTask.h"
-#include "EditorNavigator.h"
+
 #include "ImGuiImpl.h"
 
 App::App(std::unique_ptr<AppPlatform> appPlatform)
   : mWorkerPool(std::make_unique<WorkerPool>(4))
   , mMessageQueue(std::make_unique<EventBuffer>())
   , mFrozenMessageQueue(std::make_unique<EventBuffer>())
-  , mAppPlatform(std::move(appPlatform)) {
+  , mAppPlatform(std::move(appPlatform))
+  , mProjectLocator(std::make_unique<ProjectLocator>()) {
+  //TODO: set project locator roots to something
   SystemArgs args = {
     mWorkerPool.get(),
     this,
     this,
     this,
+    mProjectLocator.get()
   };
   System::Registry::getSystems(args, mSystems);
 }

@@ -10,6 +10,7 @@ class System;
 enum class SystemId : uint8_t;
 class IWorkerPool;
 class AppPlatform;
+class ProjectLocator;
 
 class App
   : public MessageQueueProvider
@@ -37,6 +38,7 @@ private:
   //Message queue is what is pushed to every frame, frozen is what all systems look at each frame to read from
   std::unique_ptr<EventBuffer> mMessageQueue;
   std::unique_ptr<EventBuffer> mFrozenMessageQueue;
+  std::unique_ptr<ProjectLocator> mProjectLocator;
   SpinLock mMessageLock;
   HandleGen mGameObjectGen;
 };

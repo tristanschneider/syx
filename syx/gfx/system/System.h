@@ -9,6 +9,7 @@ class SystemProvider;
 class AppPlatform;
 class MessageQueueProvider;
 class GameObjectHandleProvider;
+class ProjectLocator;
 
 #define SYSTEM_EVENT_HANDLER(eventType, handler) mEventHandler->registerEventHandler(Event::typeId<eventType>(), [this](const Event& e) {\
     handler(static_cast<const eventType&>(e));\
@@ -19,6 +20,7 @@ struct SystemArgs {
   SystemProvider* mSystems;
   MessageQueueProvider* mMessages;
   GameObjectHandleProvider* mGameObjectGen;
+  const ProjectLocator* mProjectLocator;
 };
 
 class System {

@@ -38,4 +38,6 @@ namespace FileSystem {
     std::fclose(file);
     return success ? FileResult::Success : FileResult::Fail;
   }
+
+  static bool fileExists(const char* filename);
 };
