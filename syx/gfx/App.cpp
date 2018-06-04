@@ -5,6 +5,7 @@
 #include "EditorNavigator.h"
 #include "event/EventBuffer.h"
 #include "event/LifecycleEvents.h"
+#include "file/FilePath.h"
 #include "ProjectLocator.h"
 #include "system/GraphicsSystem.h"
 #include "threading/WorkerPool.h"
@@ -18,7 +19,10 @@ App::App(std::unique_ptr<AppPlatform> appPlatform)
   , mFrozenMessageQueue(std::make_unique<EventBuffer>())
   , mAppPlatform(std::move(appPlatform))
   , mProjectLocator(std::make_unique<ProjectLocator>()) {
-  //TODO: set project locator roots to something
+  FilePath path, file, ext;
+  FilePath exePath(mAppPlatform->getExePath().c_str());
+  exePath.getParts(path, file, ext);
+  mProjectLocator->setPathRoot(path, PathSpace::Project);
   SystemArgs args = {
     mWorkerPool.get(),
     this,

@@ -14,18 +14,20 @@ namespace Lua {
     void printStack(lua_State* state, int index) {
       Lua::StackAssert sa(state);
       lua_pushvalue(state, index);
-      Lua::Serializer s("  ", "\n", 1);
       std::string buff;
-      s.serializeTop(state, buff);
+      getDefaultSerializer().serializeTop(state, buff);
       printf("%s\n", buff.c_str());
       lua_pop(state, 1);
     }
 
-    void printGlobal(lua_State* state, const std::string& global) {
-      Lua::Serializer s("  ", "\n", 1);
+    void printGlobal(lua_State* state, const char* global) {
       std::string buff;
-      s.serializeGlobal(state, global, buff);
+      getDefaultSerializer().serializeGlobal(state, global, buff);
       printf("%s\n", buff.c_str());
+    }
+
+    Serializer getDefaultSerializer() {
+      return Lua::Serializer("  ", "\n", 1);
     }
 
     void registerClass(lua_State* l, const luaL_Reg* statics, const luaL_Reg* members, const char* className, bool defaultIndex, bool defaultNewIndex) {

@@ -60,7 +60,13 @@ public:
   const LuaComponentRegistry& getComonentRegistry() const;
 
   static void openLib(lua_State* l);
+  //void cloneScene(Scene from, Scene to)
   static int _cloneScene(lua_State* l);
+  //void saveScene(Scene scene, string filename)
+  static int _saveScene(lua_State* l);
+  //returns true if scene exists
+  //bool loadScene(Scene scene, string filename)
+  static int _loadScene(lua_State* l);
 
 private:
 

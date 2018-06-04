@@ -13,13 +13,17 @@
 #include "event/LifecycleEvents.h"
 #include "event/SceneEvents.h"
 #include "event/TransformEvent.h"
+#include "file/FilePath.h"
+#include "file/FileSystem.h"
 #include <lua.hpp>
 #include "lua/AllLuaLibs.h"
 #include "lua/LuaNode.h"
+#include "lua/LuaSerializer.h"
 #include "lua/LuaStackAssert.h"
 #include "lua/LuaState.h"
 #include "lua/LuaUtil.h"
 #include "LuaGameObject.h"
+#include "ProjectLocator.h"
 #include "provider/GameObjectHandleProvider.h"
 #include "provider/MessageQueueProvider.h"
 #include "provider/SystemProvider.h"
@@ -32,6 +36,12 @@ const std::string LuaGameSystem::INSTANCE_KEY = "LuaGameSystem";
 const char* LuaGameSystem::CLASS_NAME = "Game";
 
 RegisterSystemCPP(LuaGameSystem);
+
+namespace {
+  Handle _checkScene(lua_State* l, int index) {
+    return static_cast<Handle>(luaL_checkinteger(l, index));
+  }
+}
 
 LuaGameSystem::LuaGameSystem(const SystemArgs& args)
   : System(args) {
@@ -347,6 +357,7 @@ LuaGameObject* LuaGameSystem::_getObj(Handle h) {
 void LuaGameSystem::openLib(lua_State* l) {
   luaL_Reg statics[] = {
     { "cloneScene", _cloneScene },
+    { "saveScene", _saveScene },
     { nullptr, nullptr }
   };
   luaL_Reg members[] = {
@@ -356,9 +367,46 @@ void LuaGameSystem::openLib(lua_State* l) {
 }
 
 int LuaGameSystem::_cloneScene(lua_State* l) {
-  Handle fromScene = static_cast<Handle>(luaL_checkinteger(l, 1));
-  Handle toScene = static_cast<Handle>(luaL_checkinteger(l, 2));
+  Handle fromScene = _checkScene(l, 1);
+  Handle toScene = _checkScene(l, 2);
   check(l).cloneScene(fromScene, toScene);
+  return 0;
+}
+
+int LuaGameSystem::_saveScene(lua_State* l) {
+  LuaGameSystem& game = check(l);
+  //TODO: use this for something
+  Handle sceneId = static_cast<Handle>(luaL_checkinteger(l, 1));
+  const char* name = luaL_checkstring(l, 2);
+  LuaSceneDescription scene;
+  scene.mName = name;
+  scene.mObjects.reserve(game.mObjects.size());
+
+  for(const auto& obj : game.mObjects) {
+    const LuaGameObject& o = *obj.second;
+    LuaGameObjectDescription desc;
+    desc.mHandle = o.getHandle();
+    o.forEachComponent([&o, &desc](const Component& c) {
+      desc.mComponents.emplace_back(std::move(c.clone()));
+    });
+    scene.mObjects.emplace_back(std::move(desc));
+  }
+
+  Lua::StackAssert sa(l);
+  scene.getMetadata().writeToLua(l, &scene, Lua::Node::SourceType::FromGlobal);
+  std::string serialized;
+  Lua::Util::getDefaultSerializer().serializeGlobal(l, scene.ROOT_KEY, serialized);
+  //Remove scene from global
+  lua_pushnil(l);
+  lua_setglobal(l, scene.ROOT_KEY);
+
+  FilePath path = game.mArgs.mProjectLocator->transform(name, PathSpace::Project, PathSpace::Full);
+  path = path.addExtension(scene.FILE_EXTENSION);
+  FileSystem::writeFile(path, serialized);
+  return 0;
+}
+
+int LuaGameSystem::_loadScene(lua_State* l) {
   return 0;
 }
 

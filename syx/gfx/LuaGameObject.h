@@ -27,10 +27,14 @@ private:
 };
 
 struct LuaSceneDescription {
+  //Metadata writes the scene to this global
+  static const char* ROOT_KEY;
+  static const char* FILE_EXTENSION;
+
   const Lua::Node& getMetadata() const;
 
   std::string mName;
-  std::vector<std::unique_ptr<Component>> mObjects;
+  std::vector<LuaGameObjectDescription> mObjects;
 
 private:
   std::unique_ptr<Lua::Node> _buildMetadata() const;
@@ -66,6 +70,7 @@ public:
   std::unordered_map<size_t, LuaComponent>& getLuaComponents();
   const std::unordered_map<size_t, LuaComponent>& getLuaComponents() const;
   const TypeMap<std::unique_ptr<Component>, Component>& getComponents() const;
+  void forEachComponent(std::function<void(const Component&)> callback) const;
 
   static void openLib(lua_State* l);
   static int toString(lua_State* l);

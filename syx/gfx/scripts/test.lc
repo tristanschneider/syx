@@ -136,7 +136,12 @@ local function testAddRemove(self, dt)
   end
 end
 
+local hasSaved = false;
 function update(self, dt)
+  if hasSaved == false then
+    Game.saveScene(0, "scene");
+    hasSaved = true;
+  end
   if init then
     init = false;
     testArray();

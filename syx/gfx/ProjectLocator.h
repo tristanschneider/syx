@@ -2,16 +2,16 @@
 
 class FilePath;
 
+//Space the given path is in, so Project means path is relative to project while full means its the full path
+enum class PathSpace : uint8_t {
+  Project,
+  Full
+};
+
 //Abstracts all conversions to and from full paths that are relevant to the engine
 //This makes it easier to change project structure without having to change all uses of paths
 class ProjectLocator {
 public:
-  //Space the given path is in, so Project means path is relative to project while full means its the full path
-  enum class PathSpace : uint8_t {
-    Project,
-    Full
-  };
-
   ProjectLocator();
   ~ProjectLocator();
 

@@ -20,6 +20,9 @@ public:
 
   //Get this path relative to the given path, meaning that if this path begins with relative that part is removed
   FilePath getRelativeTo(const FilePath& relative) const;
+  //Add or replace the given extension. Dot will be placed if necessary
+  FilePath addExtension(const char* extension) const;
+  void getParts(FilePath& path, FilePath& file, FilePath& extension) const;
   static FilePath join(const FilePath& lhs, const FilePath& rhs);
 
 private:
@@ -27,6 +30,8 @@ private:
   bool _endsWithSlash() const;
   void _append(const char* str);
   size_t _remainingSize() const;
+  FilePath _substr(size_t begin, size_t chars) const;
+  const char* _findLastOf(const char* c) const;
 
   std::array<char, MAX_PATH> mPath;
   //Size of path. If this is MAX_PATH, that indicates the path is too big

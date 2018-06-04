@@ -84,6 +84,14 @@ const TypeMap<std::unique_ptr<Component>, Component>& LuaGameObject::getComponen
   return mComponents;
 }
 
+void LuaGameObject::forEachComponent(std::function<void(const Component&)> callback) const {
+  for(const auto& c : mComponents)
+    callback(*c);
+  for(const auto& c : mLuaComponents)
+    callback(c.second);
+  callback(mTransform);
+}
+
 void LuaGameObject::openLib(lua_State* l) {
   luaL_Reg statics[] = {
     { nullptr, nullptr }
@@ -210,6 +218,9 @@ std::unique_ptr<Lua::Node> LuaGameObjectDescription::_buildMetadata() const {
   return root;
 }
 
+const char* LuaSceneDescription::ROOT_KEY = "scene";
+const char* LuaSceneDescription::FILE_EXTENSION = "ls";
+
 const Lua::Node& LuaSceneDescription::getMetadata() const {
   static std::unique_ptr<Lua::Node> root = _buildMetadata();
   return *root;
@@ -217,7 +228,7 @@ const Lua::Node& LuaSceneDescription::getMetadata() const {
 
 std::unique_ptr<Lua::Node> LuaSceneDescription::_buildMetadata() const {
   using namespace Lua;
-  auto root = makeRootNode(NodeOps(""));
+  auto root = makeRootNode(NodeOps(ROOT_KEY));
   makeNode<StringNode>(NodeOps(*root, "name", ::Util::offsetOf(*this, mName)));
   makeNode<VectorNode<LuaGameObjectDescriptionNode>>(NodeOps(*root, "objects", ::Util::offsetOf(*this, mObjects)));
   return root;

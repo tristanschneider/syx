@@ -6,7 +6,7 @@
 #include <lua.hpp>
 
 namespace Lua {
-  Serializer::Serializer(const std::string tab, const std::string& newline, int numPrecision)
+  Serializer::Serializer(const std::string& tab, const std::string& newline, int numPrecision)
     : mTab(tab)
     , mNewline(newline)
     , mS(nullptr)
@@ -18,11 +18,13 @@ namespace Lua {
     mEpsilon = 1.0/static_cast<double>(mRoundDigits);
   }
 
-  void Serializer::serializeGlobal(lua_State* s, const std::string& global, std::string& buffer) {
+  void Serializer::serializeGlobal(lua_State* s, const char* global, std::string& buffer) {
     Lua::StackAssert sa(s);
-    lua_getglobal(s, global.c_str());
-    buffer += global + " = ";
+    lua_getglobal(s, global);
+    buffer += global;
+    buffer += " = ";
     serializeTop(s, buffer);
+    lua_pop(s, 1);
   }
 
   void Serializer::serializeTop(lua_State* s, std::string& buffer) {

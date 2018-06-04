@@ -33,11 +33,7 @@ const char* FilePath::getExtensionWithoutDot() const {
 }
 
 const char* FilePath::getExtensionWithDot() const {
-  //Look from the end to find the dot. Dot at first character is not valid
-  for(size_t i = mSize; i > 0; --i)
-    if(mPath[i] == '.')
-      return &mPath[i];
-  return nullptr;
+  return _findLastOf(".");
 }
 
 bool FilePath::hasValidLength() const {
@@ -56,14 +52,42 @@ size_t FilePath::_remainingSize() const {
   return mPath.size() - mSize;
 }
 
+FilePath FilePath::_substr(size_t begin, size_t chars) const {
+  assert(begin + chars < mPath.size() && "Substring out of bounds");
+  FilePath result;
+  std::memcpy(result.mPath.data(), &mPath[begin], chars);
+  result.mSize = chars;
+  //Null terminator
+  result._append(nullptr);
+  return result;
+}
+
+namespace {
+  bool _hasMatch(char c, const char* chars) {
+    while(*chars) {
+      if(*chars == c)
+        return true;
+      ++chars;
+    }
+    return false;
+  }
+}
+
+const char* FilePath::_findLastOf(const char* c) const {
+  for(size_t i = mSize; i > 0; --i)
+    if(_hasMatch(mPath[i], c))
+      return &mPath[i];
+  return _hasMatch(mPath[0], c) ? mPath.data() : nullptr;
+}
+
 void FilePath::_append(const char* str) {
   if(str) {
     size_t charsToCopy = std::min(_remainingSize(), std::strlen(str));
     std::memcpy(&mPath[mSize], str, charsToCopy);
     mSize += charsToCopy;
-    //Add null terminator. If mSize is MAX_PATH then this is !hasValidLength and will be truncated with null terminator
-    mPath[std::min(mSize, mPath.size() - 1)] = 0;
   }
+  //Add null terminator. If mSize is MAX_PATH then this is !hasValidLength and will be truncated with null terminator
+  mPath[std::min(mSize, mPath.size() - 1)] = 0;
 }
 
 FilePath FilePath::getRelativeTo(const FilePath& relative) const {
@@ -75,6 +99,43 @@ FilePath FilePath::getRelativeTo(const FilePath& relative) const {
     result._append(&mPath[relative.mSize]);
   }
   return result;
+}
+
+FilePath FilePath::addExtension(const char* extension) const {
+  assert(extension && "Extension to add must not be null");
+  FilePath result(*this);
+  //Remove existing extension if there is one
+  if(const char* existing = result.getExtensionWithDot())
+    result.mSize = existing - result.cstr();
+  //Add dot if it isn't in extension
+  if(extension[0] != '.')
+    result._append(".");
+  result._append(extension);
+  return result;
+}
+
+void FilePath::getParts(FilePath& path, FilePath& file, FilePath& extension) const {
+  path = file = extension = FilePath();
+  const char* pathEnd = _findLastOf("/\\");
+  const char* ext = getExtensionWithDot();
+  if(pathEnd)
+    path = _substr(0, pathEnd - cstr());
+
+  size_t fileBegin = 0;
+  if(pathEnd) {
+    fileBegin = pathEnd - cstr();
+    //Move the beginning off of the slash
+    if(fileBegin != 0)
+      ++fileBegin;
+  }
+  size_t fileEnd = mSize;
+  if(ext)
+    fileEnd = ext - cstr();
+  file = _substr(fileBegin, fileEnd - fileBegin);
+
+  if(ext) {
+    extension = _substr(ext - cstr(), mSize - (ext - cstr()));
+  }
 }
 
 FilePath FilePath::join(const FilePath& lhs, const FilePath& rhs) {

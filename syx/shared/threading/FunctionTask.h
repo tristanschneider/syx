@@ -3,10 +3,10 @@
 
 class FunctionTask : public Task {
 public:
-    FunctionTask(std::function<void(void)> func);
+  FunctionTask(std::function<void(void)> func);
 
 protected:
-    virtual void _run() override;
+  virtual void _run() override;
 
 private:
   std::function<void(void)> mFunc;
