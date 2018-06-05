@@ -9,7 +9,7 @@ namespace FileSystem {
   };
 
   template<typename Buffer>
-  static FileResult readFile(const char* filename, Buffer& buffer) {
+  FileResult readFile(const char* filename, Buffer& buffer) {
     std::FILE* file = std::fopen(filename, "rb");
     if(!file)
       return FileResult::NotFound;
@@ -26,7 +26,7 @@ namespace FileSystem {
   }
 
   template<typename Buffer>
-  static FileResult writeFile(const char* filename, const Buffer& buffer) {
+  FileResult writeFile(const char* filename, const Buffer& buffer) {
     std::FILE* file = std::fopen(filename, "wb");
     if(!file)
       return FileResult::IOError;
@@ -39,5 +39,5 @@ namespace FileSystem {
     return success ? FileResult::Success : FileResult::Fail;
   }
 
-  static bool fileExists(const char* filename);
+  bool fileExists(const char* filename);
 };

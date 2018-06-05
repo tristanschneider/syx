@@ -3,6 +3,7 @@
 
 #include "allocator/LIFOAllocator.h"
 #include "lua/LuaState.h"
+#include "lua/LuaStackAssert.h"
 #include "lua/lib/LuaVec3.h"
 #include "lua/lib/LuaQuat.h"
 
@@ -259,12 +260,18 @@ namespace Lua {
 
   void Node::getField(lua_State* s, const std::string& field, SourceType source) const {
     //If source is from stack then there's nothing to do
-    if(source == SourceType::FromStack)
+    if(source == SourceType::FromStack) {
+      //Need to push something so stack size stays the same
+      lua_pushvalue(s, -1);
       return;
+    }
     if(!mOps.mParent) {
       if(source == SourceType::FromGlobal)
         lua_getglobal(s, field.c_str());
-      //else value is expected to already be on top of the stack
+      else {
+        //value is expected to already be on top of the stack
+        lua_pushvalue(s, -1);
+      }
     }
     else
       lua_getfield(s, -1, field.c_str());
@@ -292,6 +299,7 @@ namespace Lua {
   }
 
   void Node::readFromLua(lua_State* s, void* base, SourceType source) const {
+    Lua::StackAssert sa(s);
     getField(s, source);
     _readFromLua(s, base);
     _translateBase(base);
@@ -301,6 +309,7 @@ namespace Lua {
   }
 
   void Node::writeToLua(lua_State* s, const void* base, SourceType source) const {
+    Lua::StackAssert sa(s, source == SourceType::FromGlobal ? 0 : 1);
     _writeToLua(s, base);
     _translateBase(base);
     if(mChildren.size()) {
@@ -317,6 +326,7 @@ namespace Lua {
   }
 
   void Node::readFromLuaToBuffer(lua_State* s, void* buffer, SourceType source) const {
+    Lua::StackAssert sa(s);
     getField(s, source);
     //Leaf nodes have values
     if(mChildren.empty()) {
@@ -330,6 +340,7 @@ namespace Lua {
         buffer = Util::offset(buffer, child->size());
       }
     }
+    lua_pop(s, 1);
   }
 
   const Node* Node::getChild(const char* child) const {
@@ -377,7 +388,12 @@ namespace Lua {
   }
 
   void LightUserdataSizetNode::_readFromLua(lua_State* s, void* base) const {
-    _cast(base) = reinterpret_cast<size_t>(lua_touserdata(s, -1));
+    //Either are acceptable, since some userdata can only be serialized as a number
+    switch(lua_type(s, -1)) {
+      case LUA_TLIGHTUSERDATA: _cast(base) = reinterpret_cast<size_t>(lua_touserdata(s, -1)); break;
+      case LUA_TNUMBER: _cast(base) = static_cast<size_t>(lua_tointeger(s, -1)); break;
+      default: break;
+    }
   }
 
   void LightUserdataSizetNode::_writeToLua(lua_State* s, const void* base) const {

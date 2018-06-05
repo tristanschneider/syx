@@ -13,10 +13,6 @@ namespace Lua {
   void ComponentNode::_readFromLua(lua_State* s, void* base) const {
     Lua::StackAssert sa(s);
     if(lua_getfield(s, -1, TYPE_KEY) == LUA_TSTRING) {
-      {
-        Lua::StackAssert sz(s);
-        const LuaGameSystem& game = LuaGameSystem::check(s);
-      }
       const LuaGameSystem& game = LuaGameSystem::check(s);
       //Read type name and construct default from it
       std::unique_ptr<Component>& comp = _cast(base);
@@ -26,9 +22,9 @@ namespace Lua {
       if(comp) {
         if(lua_getfield(s, -2, PROPS_KEY) == LUA_TTABLE) {
           if(const Node* props = comp->getLuaProps()) {
-            Lua::StackAssert zz(s);
             lua_pushvalue(s, -1);
             props->readFromLua(s, comp.get(), SourceType::FromStack);
+            lua_pop(s, 1);
           }
         }
         //Pop props table

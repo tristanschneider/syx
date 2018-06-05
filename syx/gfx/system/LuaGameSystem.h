@@ -11,7 +11,9 @@ class AddLuaComponentEvent;
 class AddGameObjectEvent;
 class ClearSceneEvent;
 class Component;
+class FilePath;
 class LuaComponentRegistry;
+struct LuaSceneDescription;
 class RemoveComponentEvent;
 class RemoveGameObjectEvent;
 class RenderableUpdateEvent;
@@ -88,6 +90,11 @@ private:
   void _onPhysicsUpdate(const PhysicsCompUpdateEvent& e);
   void _onSetComponentProps(const SetComponentPropsEvent& e);
   void _onSceneClear(const ClearSceneEvent& e);
+
+  void _loadSceneFromDescription(const LuaSceneDescription& scene);
+
+  FilePath _sceneNameToFullPath(const char* scene) const;
+  void _openAllLibs(lua_State* l);
 
   static const std::string INSTANCE_KEY;
 

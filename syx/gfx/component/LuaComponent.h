@@ -34,6 +34,8 @@ public:
 
   std::unique_ptr<Component> clone() const override;
   void set(const Component& component) override;
+  const Lua::Node* getLuaProps() const override;
+  const ComponentTypeInfo& LuaComponent::getTypeInfo() const override;
 
   //The script must be at the top of the stack
   void init(Lua::State& state);
@@ -42,6 +44,8 @@ public:
   bool needsInit() const;
 
 private:
+  std::unique_ptr<Lua::Node> _buildLuaProps() const;
+
   size_t mScript;
   std::unique_ptr<Lua::Sandbox> mSandbox;
 };

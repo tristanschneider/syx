@@ -131,6 +131,7 @@ int Component::_setProps(lua_State* l, const std::string& type) {
     std::unique_ptr<Component> clone = self->clone();
     lua_pushvalue(l, 2);
     props->readFromLua(l, clone.get());
+    lua_pop(l, 1);
     std::vector<uint8_t> buffer(props->size());
     props->copyConstructToBuffer(clone.get(), &buffer[0]);
     game.getMessageQueue().get().push(SetComponentPropsEvent(self->getOwner(), self->getType(), props, ~0, std::move(buffer)));
@@ -156,7 +157,7 @@ int Component::_getProp(lua_State* l, const std::string& type) {
 }
 
 int Component::_setProp(lua_State* l, const std::string& type) {
-  Lua::StackAssert sa(l, 1);
+  Lua::StackAssert sa(l);
   Component* self = static_cast<Component*>(sLuaCache->checkParam(l, 1, type.c_str()));
   const char* propName = luaL_checkstring(l, 2);
   LuaGameSystem& game = LuaGameSystem::check(l);
@@ -173,7 +174,8 @@ int Component::_setProp(lua_State* l, const std::string& type) {
       //Write property value in buffer
       lua_pushvalue(l, 3);
       foundProp->readFromLuaToBuffer(l, propValue, Lua::Node::SourceType::FromStack);
-
+      lua_pop(l, 1);
+ 
       //Send with diff indicating the appropriate part of the buffer
       game.getMessageQueue().get().push(SetComponentPropsEvent(self->getOwner(), self->getType(), props, foundProp->_getDiffId(), std::move(buff)));
     }

@@ -2,6 +2,7 @@
 #include "component/LuaComponent.h"
 
 #include <lua.hpp>
+#include "lua/LuaNode.h"
 #include "lua/LuaSandbox.h"
 #include "lua/LuaStackAssert.h"
 #include "lua/LuaState.h"
@@ -22,7 +23,8 @@ DEFINE_COMPONENT(LuaComponent) {
 }
 
 LuaComponent::LuaComponent(const LuaComponent& other)
-  : Component(other.getType(), other.getOwner()) {
+  : Component(other.getType(), other.getOwner())
+  , mScript(other.mScript) {
 }
 
 LuaComponent::~LuaComponent() {
@@ -35,6 +37,24 @@ std::unique_ptr<Component> LuaComponent::clone() const {
 void LuaComponent::set(const Component& component) {
   assert(getType() == component.getType() && "set component type must match");
   mScript = static_cast<const LuaComponent&>(component).mScript;
+}
+
+const ComponentTypeInfo& LuaComponent::getTypeInfo() const {
+  static ComponentTypeInfo result("Script");
+  return result;
+}
+
+const Lua::Node* LuaComponent::getLuaProps() const {
+  //TODO: handle properties inside scripts
+  static std::unique_ptr<Lua::Node> props = _buildLuaProps();
+  return props.get();
+}
+
+std::unique_ptr<Lua::Node> LuaComponent::_buildLuaProps() const {
+  using namespace Lua;
+  auto root = makeRootNode(Lua::NodeOps(""));
+  makeNode<LightUserdataSizetNode>(Lua::NodeOps(*root, "script", ::Util::offsetOf(*this, mScript)));
+  return std::move(root);
 }
 
 size_t LuaComponent::getScript() const {

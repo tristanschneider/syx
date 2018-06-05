@@ -80,7 +80,7 @@ namespace Lua {
     std::sort(keys.begin(), keys.end());
     for(const std::string& key : keys) {
       _csv(first);
-      _quoted(key);
+      *mBuffer += key;
       *mBuffer += " = ";
       lua_getfield(s, -1, key.c_str());
       _serialize();

@@ -67,13 +67,17 @@ void LuaGameSystem::init() {
 
   mState = std::make_unique<Lua::State>();
   mLibs = std::make_unique<Lua::AllLuaLibs>();
-  mLibs->open(*mState);
-  //Store an instance of this in the registry for later
-  lua_pushlightuserdata(*mState, this);
-  lua_setfield(*mState, LUA_REGISTRYINDEX, INSTANCE_KEY.c_str());
+  _openAllLibs(*mState);
 
   mComponents = std::make_unique<LuaComponentRegistry>();
   _registerBuiltInComponents();
+}
+
+void LuaGameSystem::_openAllLibs(lua_State* l) {
+  mLibs->open(l);
+  //Store an instance of this in the registry for later
+  lua_pushlightuserdata(l, this);
+  lua_setfield(l, LUA_REGISTRYINDEX, INSTANCE_KEY.c_str());
 }
 
 void LuaGameSystem::queueTasks(float dt, IWorkerPool& pool, std::shared_ptr<Task> frameTask) {
@@ -349,6 +353,11 @@ void LuaGameSystem::_onSceneClear(const ClearSceneEvent& e) {
   mPendingComponents.clear();
 }
 
+FilePath LuaGameSystem::_sceneNameToFullPath(const char* scene) const {
+  FilePath path = mArgs.mProjectLocator->transform(scene, PathSpace::Project, PathSpace::Full);
+  return path.addExtension(LuaSceneDescription::FILE_EXTENSION);
+}
+
 LuaGameObject* LuaGameSystem::_getObj(Handle h) {
   auto it = mObjects.find(h);
   return it == mObjects.end() ? nullptr : it->second.get();
@@ -358,6 +367,7 @@ void LuaGameSystem::openLib(lua_State* l) {
   luaL_Reg statics[] = {
     { "cloneScene", _cloneScene },
     { "saveScene", _saveScene },
+    { "loadScene", _loadScene },
     { nullptr, nullptr }
   };
   luaL_Reg members[] = {
@@ -376,7 +386,7 @@ int LuaGameSystem::_cloneScene(lua_State* l) {
 int LuaGameSystem::_saveScene(lua_State* l) {
   LuaGameSystem& game = check(l);
   //TODO: use this for something
-  Handle sceneId = static_cast<Handle>(luaL_checkinteger(l, 1));
+  Handle sceneId = _checkScene(l, 1);
   const char* name = luaL_checkstring(l, 2);
   LuaSceneDescription scene;
   scene.mName = name;
@@ -400,14 +410,66 @@ int LuaGameSystem::_saveScene(lua_State* l) {
   lua_pushnil(l);
   lua_setglobal(l, scene.ROOT_KEY);
 
-  FilePath path = game.mArgs.mProjectLocator->transform(name, PathSpace::Project, PathSpace::Full);
-  path = path.addExtension(scene.FILE_EXTENSION);
+  FilePath path = game._sceneNameToFullPath(name);
   FileSystem::writeFile(path, serialized);
   return 0;
 }
 
 int LuaGameSystem::_loadScene(lua_State* l) {
-  return 0;
+  LuaGameSystem& game = check(l);
+  //TODO: use this for something
+  Handle scene = _checkScene(l, 1);
+  const char* name = luaL_checkstring(l, 2);
+
+  FilePath path = game._sceneNameToFullPath(name);
+  bool exists = FileSystem::fileExists(path);
+  static bool once = true;
+  if(once)
+  game.mArgs.mPool->queueTask(std::make_shared<FunctionTask>([&game, path]() {
+    Lua::State s;
+    game._openAllLibs(s);
+
+    Lua::StackAssert sa(s);
+    std::string serializedScene;
+    if(FileSystem::readFile(path, serializedScene) == FileSystem::FileResult::Success) {
+      if(luaL_dostring(s, serializedScene.c_str()) == LUA_OK) {
+        LuaSceneDescription sceneDesc;
+        sceneDesc.getMetadata().readFromLua(s, &sceneDesc, Lua::Node::SourceType::FromGlobal);
+        game._loadSceneFromDescription(sceneDesc);
+      }
+      else {
+        printf("Error loading scene %s\n", lua_tostring(s, -1));
+        lua_pop(s, 1);
+      }
+    }
+  }));
+  once = false;
+  return exists;
+}
+
+void LuaGameSystem::_loadSceneFromDescription(const LuaSceneDescription& scene) {
+  //TODO: use scene ids
+  MessageQueue msg = mArgs.mMessages->getMessageQueue();
+  msg.get().push(ClearSceneEvent(0));
+  for(const LuaGameObjectDescription& obj : scene.mObjects) {
+    //Create object
+    msg.get().push(AddGameObjectEvent(obj.mHandle));
+
+    //Copy components
+    for(const auto& comp : obj.mComponents) {
+      msg.get().push(AddComponentEvent(obj.mHandle, comp->getType()));
+
+      if(comp->getType() == Component::typeId<LuaComponent>()) {
+        msg.get().push(AddLuaComponentEvent(obj.mHandle, static_cast<LuaComponent&>(*comp).getScript()));
+        //TODO: set lua props
+      }
+      else if(const Lua::Node* props = comp->getLuaProps()) {
+        std::vector<uint8_t> buffer(props->size());
+        props->copyConstructToBuffer(comp.get(), buffer.data());
+        msg.get().push(SetComponentPropsEvent(obj.mHandle, comp->getType(), props, ~0, std::move(buffer)));
+      }
+    }
+  }
 }
 
 void LuaGameSystem::_initHardCodedScene() {

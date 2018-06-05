@@ -52,6 +52,7 @@ private:
   void _updateObject(Handle obj, const SyxData& data, const Syx::UpdateEvent& e);
   void _compUpdateEvent(const PhysicsCompUpdateEvent& e);
   void _transformEvent(const TransformEvent& e);
+  void _updateTransform(Handle handle, const Syx::Mat4& mat);
   void _setComponentPropsEvent(const SetComponentPropsEvent& e);
   void _clearSceneEvent(const ClearSceneEvent& e);
 

@@ -6,6 +6,7 @@
 #include "asset/Texture.h"
 #include "Camera.h"
 #include "component/Renderable.h"
+#include "component/Transform.h"
 #include "DebugDrawer.h"
 #include "event/EventBuffer.h"
 #include "event/EventHandler.h"
@@ -167,6 +168,14 @@ void GraphicsSystem::_processSetCompPropsEvent(const SetComponentPropsEvent& e) 
           case Util::constHash("diffuseTexture"): obj->mDiffTex = repo.getAsset(AssetInfo(renderable.get().mDiffTex)); break;
         }
       });
+    }
+  }
+  else if(e.mCompType == Component::typeId<Transform>()) {
+    LocalRenderable* obj = mLocalRenderables.get(e.mObj);
+    if(obj) {
+      Transform t(0);
+      t.getLuaProps()->copyConstructFromBuffer(&t, e.mBuffer.data());
+      obj->mTransform = t.get();
     }
   }
 }

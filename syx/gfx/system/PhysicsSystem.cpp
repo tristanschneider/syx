@@ -11,6 +11,7 @@
 #include "event/EventHandler.h"
 #include "event/SceneEvents.h"
 #include "component/Physics.h"
+#include "component/Transform.h"
 #include "threading/FunctionTask.h"
 #include "threading/IWorkerPool.h"
 #include "event/TransformEvent.h"
@@ -149,6 +150,10 @@ void PhysicsSystem::_setComponentPropsEvent(const SetComponentPropsEvent& e) {
       }
     });
   }
+  else if(e.mCompType == Component::typeId<Transform>()) {
+    Transform t(0);
+    _updateTransform(e.mObj, t.get());
+  }
 }
 
 void PhysicsSystem::_clearSceneEvent(const ClearSceneEvent& e) {
@@ -187,12 +192,16 @@ void PhysicsSystem::_updateFromData(Handle obj, const PhysicsData& data) {
 void PhysicsSystem::_transformEvent(const TransformEvent& e) {
   if(e.mFromSystem == GetSystemID(PhysicsSystem))
     return;
-  auto it = mToSyx.find(e.mHandle);
+  _updateTransform(e.mHandle, e.mTransform);
+}
+
+void PhysicsSystem::_updateTransform(Handle handle, const Syx::Mat4& mat) {
+  auto it = mToSyx.find(handle);
   if(it != mToSyx.end()) {
     Syx::Vec3 pos, scale;
     Syx::Mat3 rot;
     //Move the transform into syx space then decompose it
-    (e.mTransform * it->second.mSyxToModel.affineInverse()).decompose(scale, rot, pos);
+    (mat * it->second.mSyxToModel.affineInverse()).decompose(scale, rot, pos);
     Syx::Handle h = it->second.mHandle;
     mSystem->setPosition(mDefaultSpace, h, pos);
     mSystem->setRotation(mDefaultSpace, h, rot.toQuat());

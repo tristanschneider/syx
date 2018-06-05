@@ -137,11 +137,19 @@ local function testAddRemove(self, dt)
 end
 
 local hasSaved = false;
+local loadDelay = 1.5;
 function update(self, dt)
   if hasSaved == false then
     Game.saveScene(0, "scene");
     hasSaved = true;
   end
+  if loadDelay > 0 then
+    loadDelay = loadDelay - dt;
+    if loadDelay <= 0 then
+      Game.loadScene(0, "scene");
+    end
+  end
+  --[[
   if init then
     init = false;
     testArray();
@@ -152,6 +160,7 @@ function update(self, dt)
     testProp(self);
   end
   testAddRemove(self, dt);
+  ]]
 end
 
 function printRenderableProps(dt, gfx)
