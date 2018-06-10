@@ -22,6 +22,7 @@
 #include "lua/LuaStackAssert.h"
 #include "lua/LuaState.h"
 #include "lua/LuaUtil.h"
+#include "LuaSpace.h"
 #include "LuaGameObject.h"
 #include "ProjectLocator.h"
 #include "provider/GameObjectHandleProvider.h"
@@ -232,6 +233,14 @@ AssetRepo& LuaGameSystem::getAssetRepo() {
 
 const LuaComponentRegistry& LuaGameSystem::getComonentRegistry() const {
   return *mComponents;
+}
+
+LuaSpace& LuaGameSystem::getSpace(Handle id) {
+  auto it = mSpaces.find(id);
+  if(it != mSpaces.end())
+    return it->second;
+  auto result = mSpaces.emplace(id, id);
+  return result.first->second;
 }
 
 void LuaGameSystem::uninit() {

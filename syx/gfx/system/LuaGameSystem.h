@@ -14,6 +14,7 @@ class Component;
 class FilePath;
 class LuaComponentRegistry;
 struct LuaSceneDescription;
+class LuaSpace;
 class RemoveComponentEvent;
 class RemoveGameObjectEvent;
 class RenderableUpdateEvent;
@@ -60,6 +61,7 @@ public:
   MessageQueue getMessageQueue();
   AssetRepo& getAssetRepo();
   const LuaComponentRegistry& getComonentRegistry() const;
+  LuaSpace& getSpace(Handle id);
 
   static void openLib(lua_State* l);
   //void cloneScene(Scene from, Scene to)
@@ -108,5 +110,6 @@ private:
   std::vector<std::unique_ptr<Component>> mPendingComponents;
   SpinLock mPendingComponentsLock;
   std::vector<std::unique_ptr<LuaGameObject>> mPendingObjects;
+  std::unordered_map<Handle, LuaSpace> mSpaces;
   SpinLock mPendingObjectsLock;
 };

@@ -182,6 +182,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClCompile Include="loader\ShaderLoader.cpp" />
     <ClCompile Include="loader\TextureLoader.cpp" />
     <ClCompile Include="LuaGameObject.cpp" />
+    <ClCompile Include="LuaSpace.cpp" />
     <ClCompile Include="lua\AllLuaLibs.cpp" />
     <ClCompile Include="lua\lib\LuaAssetRepo.cpp" />
     <ClCompile Include="lua\lib\LuaNumArray.cpp" />
@@ -260,6 +261,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClInclude Include="loader\ShaderLoader.h" />
     <ClInclude Include="loader\TextureLoader.h" />
     <ClInclude Include="LuaGameObject.h" />
+    <ClInclude Include="LuaSpace.h" />
     <ClInclude Include="lua\AllLuaLibs.h" />
     <ClInclude Include="lua\lib\LuaAssetRepo.h" />
     <ClInclude Include="lua\lib\LuaNumArray.h" />
