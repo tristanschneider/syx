@@ -65,7 +65,7 @@ void LuaComponent::setScript(size_t script) {
   mScript = script;
 }
 
-void LuaComponent::init(Lua::State& state) {
+void LuaComponent::init(Lua::State& state, int selfIndex) {
   Lua::StackAssert sa(state);
   assert(mScript && "Need a script to initilize");
   mSandbox = std::make_unique<Lua::Sandbox>(state, std::to_string(mOwner) + "_" + std::to_string(mScript));
@@ -79,6 +79,16 @@ void LuaComponent::init(Lua::State& state) {
       //Pop off the error
       lua_pop(state, 1);
     }
+    else {
+      //Script load succeeded, call init if found
+      int initFunc = lua_getfield(state, -1, "initialize");
+      if(initFunc == LUA_TFUNCTION) {
+        lua_pushvalue(state, selfIndex);
+        _callFunc(state, "initialize", 1, 0);
+      }
+      else
+        lua_pop(state, 1);
+    }
   }
 }
 
@@ -90,12 +100,20 @@ void LuaComponent::update(Lua::State& state, float dt, int selfIndex) {
   if(updateType == LUA_TFUNCTION) {
     lua_pushvalue(state, selfIndex);
     lua_pushnumber(state, dt);
-    if(int error = lua_pcall(state, 2, 0, 0)) {
-      //Error message is on top of the stack. Display then pop it
-      printf("Error updating object %i script %i: %s\n", static_cast<int>(mOwner), static_cast<int>(mScript), lua_tostring(state, -1));
-      lua_pop(state, 1);
-    }
+    _callFunc(state, "update", 2, 0);
   }
+  else
+    lua_pop(state, 1);
+}
+
+bool LuaComponent::_callFunc(lua_State* s, const char* funcName, int arguments, int returns) const {
+  if(int error = lua_pcall(s, arguments, returns, 0)) {
+    //Error message is on top of the stack. Display then pop it
+    printf("Error calling %s on object %i script %i: %s\n", funcName, static_cast<int>(mOwner), static_cast<int>(mScript), lua_tostring(s, -1));
+    lua_pop(s, 1);
+    return false;
+  }
+  return true;
 }
 
 void LuaComponent::uninit() {

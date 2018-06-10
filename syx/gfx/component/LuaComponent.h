@@ -7,6 +7,8 @@ namespace Lua {
   class State;
 }
 
+struct lua_State;
+
 class AddLuaComponentEvent : public Event {
 public:
   AddLuaComponentEvent(size_t owner, size_t script);
@@ -38,12 +40,13 @@ public:
   const ComponentTypeInfo& LuaComponent::getTypeInfo() const override;
 
   //The script must be at the top of the stack
-  void init(Lua::State& state);
+  void init(Lua::State& state, int selfIndex);
   void update(Lua::State& state, float dt, int selfIndex);
   void uninit();
   bool needsInit() const;
 
 private:
+  bool _callFunc(lua_State* s, const char* funcName, int arguments, int returns) const;
   std::unique_ptr<Lua::Node> _buildLuaProps() const;
 
   size_t mScript;

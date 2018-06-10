@@ -136,6 +136,10 @@ local function testAddRemove(self, dt)
   end
 end
 
+function initialize(self)
+  print("lua initialize");
+end
+
 local hasSaved = false;
 local loadDelay = 1.5;
 function update(self, dt)

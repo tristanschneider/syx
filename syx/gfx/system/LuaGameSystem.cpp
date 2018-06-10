@@ -98,6 +98,9 @@ void LuaGameSystem::queueTasks(float dt, IWorkerPool& pool, std::shared_ptr<Task
 void LuaGameSystem::_update(float dt) {
   Lua::StackAssert sa(*mState);
   for(auto& objIt : mObjects) {
+    LuaGameObject::push(*mState, *objIt.second);
+    int selfIndex = lua_gettop(*mState);
+
     for(auto& compIt : objIt.second->getLuaComponents()) {
       LuaComponent& comp = compIt.second;
       //If the component needs initialization, get the script and initialize it
@@ -117,7 +120,7 @@ void LuaGameSystem::_update(float dt) {
             printf("Error loading script %s: %s\n", static_cast<LuaScript&>(*script).getInfo().mUri.c_str(), lua_tostring(*mState, -1));
           }
           else {
-            comp.init(*mState);
+            comp.init(*mState, selfIndex);
           }
           //Pop off the error or the script
           lua_pop(*mState, 1);
@@ -125,11 +128,11 @@ void LuaGameSystem::_update(float dt) {
       }
       //Else sandbox is already initialized, do the update
       else {
-        LuaGameObject::push(*mState, *objIt.second);
-        comp.update(*mState, dt, lua_gettop(*mState));
-        lua_pop(*mState, 1);
+        comp.update(*mState, dt, selfIndex);
       }
     }
+    // pop gameobject
+    lua_pop(*mState, 1);
   }
 }
 
