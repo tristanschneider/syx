@@ -189,9 +189,6 @@
     <ClCompile Include="allocator\LIFOAllocator.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="event\SceneEvents.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="lua\LuaComponentNode.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -204,7 +201,10 @@
     <ClCompile Include="ProjectLocator.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="LuaSpace.cpp">
+    <ClCompile Include="component\SpaceComponent.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="event\SpaceEvents.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -404,9 +404,6 @@
     <ClInclude Include="allocator\LIFOAllocator.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="event\SceneEvents.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="lua\LuaComponentNode.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -419,7 +416,10 @@
     <ClInclude Include="ProjectLocator.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="LuaSpace.h">
+    <ClInclude Include="component\SpaceComponent.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="event\SpaceEvents.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

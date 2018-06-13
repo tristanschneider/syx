@@ -9,7 +9,7 @@
 #include "event/Event.h"
 #include "event/EventBuffer.h"
 #include "event/EventHandler.h"
-#include "event/SceneEvents.h"
+#include "event/SpaceEvents.h"
 #include "component/Physics.h"
 #include "component/Transform.h"
 #include "threading/FunctionTask.h"
@@ -76,7 +76,7 @@ void PhysicsSystem::init() {
   SYSTEM_EVENT_HANDLER(TransformEvent, _transformEvent);
   SYSTEM_EVENT_HANDLER(PhysicsCompUpdateEvent, _compUpdateEvent);
   SYSTEM_EVENT_HANDLER(SetComponentPropsEvent, _setComponentPropsEvent);
-  SYSTEM_EVENT_HANDLER(ClearSceneEvent, _clearSceneEvent);
+  SYSTEM_EVENT_HANDLER(ClearSpaceEvent, _clearSpaceEvent);
 }
 
 void PhysicsSystem::queueTasks(float dt, IWorkerPool& pool, std::shared_ptr<Task> frameTask) {
@@ -156,7 +156,7 @@ void PhysicsSystem::_setComponentPropsEvent(const SetComponentPropsEvent& e) {
   }
 }
 
-void PhysicsSystem::_clearSceneEvent(const ClearSceneEvent& e) {
+void PhysicsSystem::_clearSpaceEvent(const ClearSpaceEvent& e) {
   //TODO: use scene id
   mToSyx.clear();
   mFromSyx.clear();

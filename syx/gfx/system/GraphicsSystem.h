@@ -10,7 +10,7 @@ class Texture;
 class Event;
 class TransformEvent;
 class ComponentEvent;
-class ClearSceneEvent;
+class ClearSpaceEvent;
 class RenderableUpdateEvent;
 class EventBuffer;
 class App;
@@ -49,6 +49,7 @@ private:
     Handle getHandle() const;
 
     Handle mHandle;
+    Handle mSpace;
     Syx::Mat4 mTransform;
     std::shared_ptr<Asset> mModel;
     std::shared_ptr<Asset> mDiffTex;
@@ -66,7 +67,7 @@ private:
   void _processDebugDrawEvent(const DrawCubeEvent& e);
   void _processDebugDrawEvent(const DrawSphereEvent& e);
   void _processSetCompPropsEvent(const SetComponentPropsEvent& e);
-  void _processClearSceneEvent(const ClearSceneEvent& e);
+  void _processClearSpaceEvent(const ClearSpaceEvent& e);
 
   void _processRenderThreadTasks();
 

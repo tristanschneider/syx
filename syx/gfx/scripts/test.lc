@@ -130,7 +130,7 @@ local function testAddRemove(self, dt)
     };
     renderable:setProps(props);
   elseif addRemoveStage == 2 and totalTime > 6 then
-    Game.cloneScene(0, 1);
+    Space.get("cloned").cloneScene(0, 1);
     addRemoveState = 3;
     print("Scene cloned");
   end
@@ -144,13 +144,13 @@ local hasSaved = false;
 local loadDelay = 1.5;
 function update(self, dt)
   if hasSaved == false then
-    Game.saveScene(0, "scene");
+    self.space:save("scene");
     hasSaved = true;
   end
   if loadDelay > 0 then
     loadDelay = loadDelay - dt;
     if loadDelay <= 0 then
-      Game.loadScene(0, "scene");
+      self.space:load("scene");
     end
   end
   --[[

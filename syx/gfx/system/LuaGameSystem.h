@@ -9,7 +9,7 @@ class LuaGameObject;
 class AddComponentEvent;
 class AddLuaComponentEvent;
 class AddGameObjectEvent;
-class ClearSceneEvent;
+class ClearSpaceEvent;
 class Component;
 class FilePath;
 class LuaComponentRegistry;
@@ -18,6 +18,7 @@ class LuaSpace;
 class RemoveComponentEvent;
 class RemoveGameObjectEvent;
 class RenderableUpdateEvent;
+class SpaceComponent;
 class TransformEvent;
 class PhysicsCompUpdateEvent;
 class AddLuaComponentEvent;
@@ -54,23 +55,18 @@ public:
   void removeComponent(const std::string& name, Handle owner);
   LuaGameObject& addGameObject();
 
-  void cloneScene(Handle fromScene, Handle toScene);
-  void clearScene(Handle sceneId);
-  void addObjectsFromScene(Handle fromScene, Handle toScene);
-
   MessageQueue getMessageQueue();
   AssetRepo& getAssetRepo();
   const LuaComponentRegistry& getComonentRegistry() const;
-  LuaSpace& getSpace(Handle id);
+  //Safe to access lock free for any task queued as a dependency or dependent of event processing
+  const HandleMap<std::unique_ptr<LuaGameObject>>& getObjects() const;
+  SpaceComponent& getSpace(Handle id);
+  const ProjectLocator& getProjectLocator() const;
+  IWorkerPool& getWorkerPool();
+
+  void _openAllLibs(lua_State* l);
 
   static void openLib(lua_State* l);
-  //void cloneScene(Scene from, Scene to)
-  static int _cloneScene(lua_State* l);
-  //void saveScene(Scene scene, string filename)
-  static int _saveScene(lua_State* l);
-  //returns true if scene exists
-  //bool loadScene(Scene scene, string filename)
-  static int _loadScene(lua_State* l);
 
 private:
 
@@ -91,12 +87,7 @@ private:
   void _onTransformUpdate(const TransformEvent& e);
   void _onPhysicsUpdate(const PhysicsCompUpdateEvent& e);
   void _onSetComponentProps(const SetComponentPropsEvent& e);
-  void _onSceneClear(const ClearSceneEvent& e);
-
-  void _loadSceneFromDescription(const LuaSceneDescription& scene);
-
-  FilePath _sceneNameToFullPath(const char* scene) const;
-  void _openAllLibs(lua_State* l);
+  void _onSpaceClear(const ClearSpaceEvent& e);
 
   static const std::string INSTANCE_KEY;
 
@@ -110,6 +101,7 @@ private:
   std::vector<std::unique_ptr<Component>> mPendingComponents;
   SpinLock mPendingComponentsLock;
   std::vector<std::unique_ptr<LuaGameObject>> mPendingObjects;
-  std::unordered_map<Handle, LuaSpace> mSpaces;
+  //Global instances of each space so spaces can be retreived by name.
+  std::unordered_map<Handle, SpaceComponent> mSpaces;
   SpinLock mPendingObjectsLock;
 };

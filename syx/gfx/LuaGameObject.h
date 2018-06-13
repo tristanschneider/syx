@@ -1,4 +1,5 @@
 #pragma once
+#include "component/SpaceComponent.h"
 #include "component/Transform.h"
 
 class Component;
@@ -43,6 +44,7 @@ private:
 class LuaGameObject {
 public:
   LuaGameObject(Handle h);
+  LuaGameObject(const LuaGameObject&) = delete;
   ~LuaGameObject();
 
   Handle getHandle() const;
@@ -50,13 +52,20 @@ public:
   void addComponent(std::unique_ptr<Component> component);
   void removeComponent(size_t type);
   Component* getComponent(size_t type);
+  const Component* getComponent(size_t type) const;
   Transform& getTransform();
   const Transform& getTransform() const;
+  Handle getSpace() const;
 
   template<typename CompType>
   CompType* getComponent() {
     std::unique_ptr<Component>* result = mComponents.get<CompType>();
     return result ? static_cast<CompType*>(result->get()) : nullptr;
+  }
+  template<typename CompType>
+  const CompType* getComponent() const {
+    std::unique_ptr<Component> const* result = mComponents.get<CompType>();
+    return result ? static_cast<const CompType*>(result->get()) : nullptr;
   }
 
   template<typename CompType>
@@ -94,8 +103,13 @@ private:
   static const std::string CLASS_NAME;
   static std::unique_ptr<Lua::Cache> sCache;
 
+  void _addBuiltInComponents();
+  void _addComponentLookup(Component& comp);
+  void _removeComponentLookup(const Component& comp);
+
   Handle mHandle;
   Transform mTransform;
+  SpaceComponent mSpace;
   TypeMap<std::unique_ptr<Component>, Component> mComponents;
   //Id of script in asset repo to the lua component holding it
   std::unordered_map<size_t, LuaComponent> mLuaComponents;

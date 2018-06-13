@@ -109,7 +109,7 @@ public:
   static const std::string LUA_PROPS_KEY;
 
 protected:
-  const Lua::Cache& getLuaCache() const;
+  static const Lua::Cache& getLuaCache();
 
   Handle mOwner;
   size_t mType;

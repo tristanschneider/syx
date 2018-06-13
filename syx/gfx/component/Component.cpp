@@ -183,6 +183,6 @@ int Component::_setProp(lua_State* l, const std::string& type) {
   return 0;
 }
 
-const Lua::Cache& Component::getLuaCache() const {
+const Lua::Cache& Component::getLuaCache() {
   return *sLuaCache;
 }

@@ -2,6 +2,7 @@
 #include "LuaGameObject.h"
 
 #include "component/LuaComponent.h"
+#include "component/SpaceComponent.h"
 #include "lua/LuaCache.h"
 #include "lua/LuaComponentNode.h"
 #include "lua/LuaCompositeNodes.h"
@@ -15,10 +16,17 @@ std::unique_ptr<Lua::Cache> LuaGameObject::sCache = std::make_unique<Lua::Cache>
 
 LuaGameObject::LuaGameObject(Handle h)
   : mHandle(h)
-  , mTransform(h) {
+  , mTransform(h)
+  , mSpace(h) {
+  _addBuiltInComponents();
 }
 
 LuaGameObject::~LuaGameObject() {
+}
+
+void LuaGameObject::_addBuiltInComponents() {
+  _addComponentLookup(mTransform);
+  _addComponentLookup(mSpace);
 }
 
 Handle LuaGameObject::getHandle() const {
@@ -26,20 +34,30 @@ Handle LuaGameObject::getHandle() const {
 }
 
 void LuaGameObject::addComponent(std::unique_ptr<Component> component) {
-  mHashToComponent[component->getTypeInfo().mPropNameConstHash] = component.get();
+  _addComponentLookup(*component);
   mComponents[component->getType()] = std::move(component);
 }
 
 void LuaGameObject::removeComponent(size_t type) {
   if(std::unique_ptr<Component>* component = mComponents.get(type)) {
     if(*component) {
-      mHashToComponent.erase((*component)->getTypeInfo().mPropNameConstHash);
+      _removeComponentLookup(**component);
       *component = nullptr;
     }
   }
 }
 
 Component* LuaGameObject::getComponent(size_t type) {
+  return const_cast<Component*>(const_cast<const LuaGameObject*>(this)->getComponent(type));
+}
+
+const Component* LuaGameObject::getComponent(size_t type) const {
+  if(type == Component::typeId<Transform>()) {
+    return &mTransform;
+  }
+  if(type == Component::typeId<SpaceComponent>()) {
+    return &mSpace;
+  }
   return mComponents[type].get();
 }
 
@@ -51,11 +69,15 @@ const Transform& LuaGameObject::getTransform() const {
   return mTransform;
 }
 
+Handle LuaGameObject::getSpace() const {
+  return mSpace.get();
+}
+
 LuaComponent* LuaGameObject::addLuaComponent(size_t script) {
   auto it = mLuaComponents.emplace(script, mHandle);
   LuaComponent& result = it.first->second;
   result.setScript(script);
-  mHashToComponent[result.getTypeInfo().mPropNameConstHash] = &result;
+  _addComponentLookup(result);
   return &result;
 }
 
@@ -67,9 +89,19 @@ LuaComponent* LuaGameObject::getLuaComponent(size_t script) {
 void LuaGameObject::removeLuaComponent(size_t script) {
   auto it = mLuaComponents.find(script);
   if(it != mLuaComponents.end()) {
-    mHashToComponent.erase(it->second.getTypeInfo().mPropNameConstHash);
+    _removeComponentLookup(it->second);
     mLuaComponents.erase(it);
   }
+}
+
+void LuaGameObject::_addComponentLookup(Component& comp) {
+  mHashToComponent[comp.getTypeInfo().mPropNameConstHash] = &comp;
+}
+
+void LuaGameObject::_removeComponentLookup(const Component& comp) {
+  auto it = mHashToComponent.find(comp.getTypeInfo().mPropNameConstHash);
+  if(it != mHashToComponent.end())
+    mHashToComponent.erase(it);
 }
 
 std::unordered_map<size_t, LuaComponent>& LuaGameObject::getLuaComponents() {
@@ -90,6 +122,7 @@ void LuaGameObject::forEachComponent(std::function<void(const Component&)> callb
   for(const auto& c : mLuaComponents)
     callback(c.second);
   callback(mTransform);
+  callback(mSpace);
 }
 
 void LuaGameObject::openLib(lua_State* l) {
@@ -179,12 +212,9 @@ int LuaGameObject::push(lua_State* l, LuaGameObject& obj) {
 
 int LuaGameObject::invalidate(lua_State* l, LuaGameObject& obj) {
   sCache->invalidate(l, obj.mHandle);
-  for(auto& comp : obj.getComponents()) {
-    comp->invalidate(l);
-  }
-  for(auto& comp : obj.getLuaComponents()) {
-    comp.second.invalidate(l);
-  }
+  obj.forEachComponent([l](const Component& comp) {
+    comp.invalidate(l);
+  });
   return 0;
 }
 

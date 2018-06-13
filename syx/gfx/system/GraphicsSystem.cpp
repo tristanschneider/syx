@@ -6,6 +6,7 @@
 #include "asset/Texture.h"
 #include "Camera.h"
 #include "component/Renderable.h"
+#include "component/SpaceComponent.h"
 #include "component/Transform.h"
 #include "DebugDrawer.h"
 #include "event/EventBuffer.h"
@@ -13,7 +14,7 @@
 #include "event/TransformEvent.h"
 #include "event/BaseComponentEvents.h"
 #include "event/DebugDrawEvent.h"
-#include "event/SceneEvents.h"
+#include "event/SpaceEvents.h"
 #include "lua/LuaNode.h"
 #include "ImGuiImpl.h"
 #include "system/KeyboardInput.h"
@@ -26,6 +27,7 @@ RegisterSystemCPP(GraphicsSystem);
 
 GraphicsSystem::LocalRenderable::LocalRenderable(Handle h)
   : mHandle(h)
+  , mSpace(0)
   , mModel(nullptr)
   , mDiffTex(nullptr)
   , mTransform(Syx::Mat4::identity()) {
@@ -64,7 +66,7 @@ void GraphicsSystem::init() {
   SYSTEM_EVENT_HANDLER(DrawCubeEvent, _processDebugDrawEvent);
   SYSTEM_EVENT_HANDLER(DrawSphereEvent, _processDebugDrawEvent);
   SYSTEM_EVENT_HANDLER(SetComponentPropsEvent, _processSetCompPropsEvent);
-  SYSTEM_EVENT_HANDLER(ClearSceneEvent, _processClearSceneEvent);
+  SYSTEM_EVENT_HANDLER(ClearSpaceEvent, _processClearSpaceEvent);
 }
 
 void GraphicsSystem::update(float dt, IWorkerPool& pool, std::shared_ptr<Task> frameTask) {
@@ -178,11 +180,23 @@ void GraphicsSystem::_processSetCompPropsEvent(const SetComponentPropsEvent& e) 
       obj->mTransform = t.get();
     }
   }
+  else if(e.mCompType == Component::typeId<SpaceComponent>()) {
+    if(LocalRenderable* obj = mLocalRenderables.get(e.mObj)) {
+      SpaceComponent s(0);
+      s.getLuaProps()->copyConstructFromBuffer(&s, e.mBuffer.data());
+      obj->mSpace = s.get();
+    }
+  }
 }
 
-void GraphicsSystem::_processClearSceneEvent(const ClearSceneEvent& e) {
-  //TODO: use scene id
-  mLocalRenderables.clear();
+void GraphicsSystem::_processClearSpaceEvent(const ClearSpaceEvent& e) {
+  std::vector<Handle> removed;
+  for(const auto& renderable : mLocalRenderables.getBuffer())
+    if(renderable.mSpace == e.mSpace)
+      removed.push_back(renderable.mHandle);
+
+  for(Handle h : removed)
+    mLocalRenderables.erase(h);
 }
 
 void GraphicsSystem::_processRenderThreadTasks() {
@@ -242,6 +256,7 @@ void GraphicsSystem::_render(float dt) {
     glUniform3f(geometry.getUniform("uSunColor"), sunColor.x, sunColor.y, sunColor.z);
 
     for(LocalRenderable& obj : mLocalRenderables.getBuffer()) {
+      //TODO: skip objects not visible to the spaces the camera can see
       if(!obj.mModel || obj.mModel->getState() != AssetState::PostProcessed)
         continue;
 
