@@ -119,7 +119,7 @@ public:
 
   Const_Iterator_t begin() const {
     Const_Iterator_t result(0, &mValues);
-    if(!*result)
+    if(!mValues.empty() && !*result)
       ++result;
     return result;
   }

@@ -38,6 +38,8 @@ public:
   static int load(lua_State* l);
   //void clear(self)
   static int clear(lua_State* l);
+  //Gameobject addObject(self, table)
+  static int addObject(lua_State* l);
 
   static SpaceComponent& getObj(lua_State* l, int index);
   static void _loadSceneFromDescription(LuaGameSystem& game, const LuaSceneDescription& scene, Handle space);

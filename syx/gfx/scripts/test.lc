@@ -137,6 +137,28 @@ local function testAddRemove(self, dt)
 end
 
 function initialize(self)
+  self.space:addObject({
+    components = {
+      {
+        props = {
+          diffuseTexture = 1088482667,
+          model = 2263845287
+        },
+        type = "Renderable"
+      },
+      {
+        props = {
+          matrix = {
+            0.01, 0, 0, 0,
+            0, 0.01, 0, 0,
+            0, 0, 0.01, 0,
+            -5, 0, 0, 1
+          }
+        },
+        type = "Transform"
+      }
+    }
+  });
   print("lua initialize");
 end
 

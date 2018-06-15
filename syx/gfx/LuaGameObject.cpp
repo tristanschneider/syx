@@ -58,7 +58,8 @@ const Component* LuaGameObject::getComponent(size_t type) const {
   if(type == Component::typeId<SpaceComponent>()) {
     return &mSpace;
   }
-  return mComponents[type].get();
+  auto ptr = mComponents.get(type);
+  return ptr ? ptr->get() : nullptr;
 }
 
 Transform& LuaGameObject::getTransform() {
@@ -179,7 +180,7 @@ int LuaGameObject::addComponent(lua_State* l) {
   LuaGameObject& obj = getObj(l, 1);
   const char* componentName = luaL_checkstring(l, 2);
   LuaGameSystem& game = LuaGameSystem::check(l);
-  if(Component* result = game.addComponent(componentName, obj.getHandle()))
+  if(Component* result = game.addComponent(componentName, obj))
     result->push(l);
   else
     lua_pushnil(l);

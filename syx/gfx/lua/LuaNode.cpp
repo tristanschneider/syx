@@ -298,14 +298,18 @@ namespace Lua {
     setField(s, mOps.mName, source);
   }
 
-  void Node::readFromLua(lua_State* s, void* base, SourceType source) const {
+  bool Node::readFromLua(lua_State* s, void* base, SourceType source) const {
     Lua::StackAssert sa(s);
     getField(s, source);
-    _readFromLua(s, base);
-    _translateBase(base);
-    for(auto& child : mChildren)
-      child->readFromLua(s, Util::offset(base, child->mOps.mOffset));
+    bool gotField = lua_type(s, -1) != LUA_TNIL;
+    if(gotField) {
+      _readFromLua(s, base);
+      _translateBase(base);
+      for(auto& child : mChildren)
+        gotField = child->readFromLua(s, Util::offset(base, child->mOps.mOffset)) && gotField;
+    }
     lua_pop(s, 1);
+    return gotField;
   }
 
   void Node::writeToLua(lua_State* s, const void* base, SourceType source) const {
@@ -325,22 +329,29 @@ namespace Lua {
     }
   }
 
-  void Node::readFromLuaToBuffer(lua_State* s, void* buffer, SourceType source) const {
+  bool Node::readFromLuaToBuffer(lua_State* s, void* buffer, SourceType source) const {
     Lua::StackAssert sa(s);
-    getField(s, source);
+    bool gotField = lua_type(s, -1) != LUA_TNIL;
+    if(gotField)
+      getField(s, source);
+    gotField = lua_type(s, -1) != LUA_TNIL;
+
     //Leaf nodes have values
     if(mChildren.empty()) {
       //Construct in buffer so there's a valid object there for assignment
+      //Need to make sure that entire struct is default constructed even if lua values are missing
       _defaultConstruct(buffer);
-      _readFromLua(s, buffer);
+      if(gotField)
+        _readFromLua(s, buffer);
     }
     else {
       for(const auto& child : mChildren) {
-        child->readFromLuaToBuffer(s, buffer);
+        gotField = child->readFromLuaToBuffer(s, buffer) && gotField;
         buffer = Util::offset(buffer, child->size());
       }
     }
     lua_pop(s, 1);
+    return gotField;
   }
 
   const Node* Node::getChild(const char* child) const {

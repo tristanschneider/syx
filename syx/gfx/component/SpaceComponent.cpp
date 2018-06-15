@@ -38,6 +38,20 @@ namespace {
       }
     }
   }
+
+  void _pushObjectFromDescription(LuaGameSystem& game, const LuaGameObjectDescription& obj, Handle space) {
+    MessageQueue msg = game.getMessageQueue();
+    //Create object
+    msg.get().push(AddGameObjectEvent(obj.mHandle));
+
+    //Copy components
+    for(const auto& comp : obj.mComponents) {
+      _pushComponent(msg, obj.mHandle, *comp);
+    }
+    SpaceComponent spaceComp(0);
+    spaceComp.set(space);
+    _pushComponent(msg, obj.mHandle, spaceComp);
+  }
 }
 
 DEFINE_COMPONENT(SpaceComponent)
@@ -75,6 +89,7 @@ void SpaceComponent::openLib(lua_State* l) const {
     { "save", save },
     { "load", load },
     { "clear", clear },
+    { "addObject", addObject },
     { nullptr, nullptr }
   };
   Lua::Util::registerClass(l, statics, members, getTypeInfo().mTypeName.c_str(), true);
@@ -182,19 +197,11 @@ int SpaceComponent::load(lua_State* l) {
 }
 
 void SpaceComponent::_loadSceneFromDescription(LuaGameSystem& game, const LuaSceneDescription& scene, Handle space) {
-  MessageQueue msg = game.getMessageQueue();
-  msg.get().push(ClearSpaceEvent(space));
+  game.getMessageQueue().get().push(ClearSpaceEvent(space));
   SpaceComponent destSpaceComp(0);
   destSpaceComp.set(space);
   for(const LuaGameObjectDescription& obj : scene.mObjects) {
-    //Create object
-    msg.get().push(AddGameObjectEvent(obj.mHandle));
-
-    //Copy components
-    for(const auto& comp : obj.mComponents) {
-      _pushComponent(msg, obj.mHandle, *comp);
-    }
-    _pushComponent(msg, obj.mHandle, destSpaceComp);
+    _pushObjectFromDescription(game, obj, space);
   }
 }
 
@@ -228,6 +235,23 @@ int SpaceComponent::clear(lua_State* l) {
   SpaceComponent& self = getObj(l, 1);
   LuaGameSystem::check(l).getMessageQueue().get().push(ClearSpaceEvent(self.get()));
   return 0;
+}
+
+int SpaceComponent::addObject(lua_State* l) {
+  SpaceComponent& self = getObj(l, 1);
+  luaL_checktype(l, 2, LUA_TTABLE);
+  LuaGameSystem& game = LuaGameSystem::check(l);
+
+  Lua::StackAssert sa(l, 1);
+  lua_pushvalue(l, -1);
+  LuaGameObjectDescription desc;
+  desc.getMetadata().readFromLua(l, &desc, Lua::Node::SourceType::FromStack);
+  LuaGameObject& obj = game.addGameObject();
+  _pushObjectFromDescription(game, desc, self.get());
+  lua_pop(l, 1);
+
+  LuaGameObject::push(l, obj);
+  return 1;
 }
 
 FilePath SpaceComponent::_sceneNameToFullPath(LuaGameSystem& game, const char* scene) const {

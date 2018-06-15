@@ -140,15 +140,20 @@ void LuaGameSystem::_registerBuiltInComponents() {
   }
 }
 
-Component* LuaGameSystem::addComponent(const std::string& name, Handle owner) {
+Component* LuaGameSystem::addComponent(const std::string& name, LuaGameObject& owner) {
   std::unique_ptr<Component> component;
   {
     auto lock = mComponentsLock.getReader();
-    component = mComponents->construct(name, owner);
+    size_t type = mComponents->getComponentType(name, type);
+    //Comopnent may already exist, most likely for built in components
+    if(Component* existing = owner.getComponent(type)) {
+      return existing;
+    }
+    component = mComponents->construct(name, owner.getHandle());
   }
   Component* result = component.get();
   if(result) {
-    mArgs.mMessages->getMessageQueue().get().push(AddComponentEvent(owner, result->getType()));
+    mArgs.mMessages->getMessageQueue().get().push(AddComponentEvent(owner.getHandle(), result->getType()));
     mPendingComponentsLock.lock();
     mPendingComponents.push_back(std::move(component));
     mPendingComponentsLock.unlock();
@@ -237,6 +242,9 @@ void LuaGameSystem::_onAllSystemsInit(const AllSystemsInitialized&) {
 
 void LuaGameSystem::_onAddComponent(const AddComponentEvent& e) {
   if(LuaGameObject* obj = _getObj(e.mObj)) {
+    //Don't add types that already exist
+    if(obj->getComponent(e.mCompType))
+      return;
     //Try to see if this was a pending component
     std::unique_ptr<Component> pending;
     mPendingComponentsLock.lock();

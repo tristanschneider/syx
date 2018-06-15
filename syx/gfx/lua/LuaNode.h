@@ -45,11 +45,11 @@ namespace Lua {
     Node& operator=(const Node&) = delete;
 
     //Read state from lua object(s) on stack or global
-    void readFromLua(lua_State* s, void* base, SourceType source = SourceType::Default) const;
+    bool readFromLua(lua_State* s, void* base, SourceType source = SourceType::Default) const;
     //Write state to new lua object(s) on stack or global
     void writeToLua(lua_State* s, const void* base, SourceType source = SourceType::Default) const;
     //Read state from lua object(s) on stack or global into flat buffer. Values are default constructed into buffer then assigned. Caller must ensure buffer has size() bytes
-    void readFromLuaToBuffer(lua_State* s, void* buffer, SourceType source = SourceType::Default) const;
+    bool readFromLuaToBuffer(lua_State* s, void* buffer, SourceType source = SourceType::Default) const;
 
     const Node* getChild(const char* child) const;
     void addChild(std::unique_ptr<Node> child);
