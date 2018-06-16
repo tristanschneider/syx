@@ -140,6 +140,13 @@ void LuaGameSystem::_registerBuiltInComponents() {
   }
 }
 
+Component* LuaGameSystem::addComponentFromPropName(const char* name, LuaGameObject& owner) {
+  auto lock = mComponentsLock.getReader();
+  if(const Component* comp = mComponents->getInstanceByPropName(name))
+    return addComponent(comp->getTypeInfo().mTypeName, owner);
+  return nullptr;
+}
+
 Component* LuaGameSystem::addComponent(const std::string& name, LuaGameObject& owner) {
   std::unique_ptr<Component> component;
   {
@@ -171,6 +178,12 @@ void LuaGameSystem::removeComponent(const std::string& name, Handle owner) {
   }
   if(validType)
     mArgs.mMessages->getMessageQueue().get().push(RemoveComponentEvent(owner, type));
+}
+
+void LuaGameSystem::removeComponentFromPropName(const char* name, Handle owner) {
+  auto lock = mComponentsLock.getReader();
+  if(const Component* comp = mComponents->getInstanceByPropName(name))
+    removeComponent(comp->getTypeInfo().mTypeName, owner);
 }
 
 LuaGameObject& LuaGameSystem::addGameObject() {

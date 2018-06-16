@@ -109,7 +109,7 @@ void GraphicsSystem::dispatchToRenderThread(std::function<void()> func) {
 }
 
 void GraphicsSystem::_processAddEvent(const AddComponentEvent& e) {
-  if(e.mCompType == Component::typeId<Renderable>())
+  if(e.mCompType == Component::typeId<Renderable>() && !mLocalRenderables.get(e.mObj))
     mLocalRenderables.pushBack(LocalRenderable(e.mObj));
 }
 

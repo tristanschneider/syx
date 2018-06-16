@@ -137,7 +137,7 @@ local function testAddRemove(self, dt)
 end
 
 function initialize(self)
-  self.space:addObject({
+  local obj = self.space:addObject({
     components = {
       {
         props = {
@@ -159,6 +159,7 @@ function initialize(self)
       }
     }
   });
+  obj.renderable = { model = 2775790889 };
   print("lua initialize");
 end
 
@@ -169,12 +170,14 @@ function update(self, dt)
     self.space:save("scene");
     hasSaved = true;
   end
+  --[[
   if loadDelay > 0 then
     loadDelay = loadDelay - dt;
     if loadDelay <= 0 then
       self.space:load("scene");
     end
   end
+  ]]
   --[[
   if init then
     init = false;

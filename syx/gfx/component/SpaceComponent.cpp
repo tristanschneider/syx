@@ -247,6 +247,7 @@ int SpaceComponent::addObject(lua_State* l) {
   LuaGameObjectDescription desc;
   desc.getMetadata().readFromLua(l, &desc, Lua::Node::SourceType::FromStack);
   LuaGameObject& obj = game.addGameObject();
+  desc.mHandle = obj.getHandle();
   _pushObjectFromDescription(game, desc, self.get());
   lua_pop(l, 1);
 

@@ -1,6 +1,7 @@
 #pragma once
 
 class MessageQueueProvider;
+class LuaGameSystem;
 
 struct lua_State;
 struct luaL_Reg;
@@ -96,6 +97,9 @@ public:
   virtual const Lua::Node* getLuaProps() const;
   virtual void openLib(lua_State* l) const;
   virtual const ComponentTypeInfo& getTypeInfo() const;
+
+  void setPropsFromStack(lua_State* l, LuaGameSystem& game) const;
+  void setPropFromStack(lua_State* l, const char* name, LuaGameSystem& game) const;
 
   static void baseOpenLib(lua_State* l);
   static int _getName(lua_State* l, const std::string& type);

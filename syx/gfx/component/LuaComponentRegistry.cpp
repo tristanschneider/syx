@@ -4,7 +4,8 @@
 #include "component/Component.h"
 
 void LuaComponentRegistry::registerComponent(const std::string& name, Constructor constructor) {
-  mNameToInfo[name] = CompInfo{ constructor, constructor(0) };
+  auto& info = mNameToInfo[name] = CompInfo{ constructor, constructor(0) };
+  mPropNameToInfo[info.instance->getTypeInfo().mPropNameConstHash] = &info;
 }
 
 std::unique_ptr<Component> LuaComponentRegistry::construct(const std::string& name, Handle owner) const {
@@ -21,4 +22,13 @@ bool LuaComponentRegistry::getComponentType(const std::string& name, size_t& typ
     return true;
   }
   return false;
+}
+
+const Component* LuaComponentRegistry::getInstanceByPropName(const char* name) const {
+  return getInstanceByPropNameConstHash(Util::constHash(name));
+}
+
+const Component* LuaComponentRegistry::getInstanceByPropNameConstHash(size_t hash) const {
+  auto it = mPropNameToInfo.find(hash);
+  return it != mPropNameToInfo.end() ? it->second->instance.get() : nullptr;
 }

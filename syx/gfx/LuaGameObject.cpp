@@ -131,11 +131,12 @@ void LuaGameObject::openLib(lua_State* l) {
     { nullptr, nullptr }
   };
   luaL_Reg members[] = {
-    { "__index", &indexOverload },
-    { "__tostring", &toString },
-    { "addComponent", &addComponent },
-    { "removeComponent", &removeComponent },
-    { "isValid", &isValid },
+    { "__index", indexOverload },
+    { "__newindex", newIndexOverload },
+    { "__tostring", toString },
+    { "addComponent", addComponent },
+    { "removeComponent", removeComponent },
+    { "isValid", isValid },
     { nullptr, nullptr }
   };
   Lua::Util::registerClass(l, statics, members, CLASS_NAME.c_str());
@@ -174,6 +175,28 @@ int LuaGameObject::indexOverload(lua_State* l) {
     lua_pushnil(l);
   }
   return 1;
+}
+
+int LuaGameObject::newIndexOverload(lua_State* l) {
+  LuaGameObject& self = getObj(l, 1);
+  const char* key = luaL_checkstring(l, 2);
+  int valueType = lua_type(l, 3);
+  luaL_argcheck(l, valueType == LUA_TTABLE || valueType == LUA_TNIL, 3, "nil or table expected");
+  LuaGameSystem& game = LuaGameSystem::check(l);
+
+  //Trying to add component
+  if(valueType == LUA_TTABLE) {
+    Component* comp = game.addComponentFromPropName(key, self);
+    luaL_argcheck(l, comp != nullptr, 2, "no such component exists");
+    lua_pushvalue(l, 3);
+    comp->setPropsFromStack(l, game);
+    lua_pop(l, 1);
+  }
+  //Trying to remove component. Setting invalid component name to nil is fine, as it wouldn't do anything
+  else {
+    game.removeComponentFromPropName(key, self.getHandle());
+  }
+  return 0;
 }
 
 int LuaGameObject::addComponent(lua_State* l) {

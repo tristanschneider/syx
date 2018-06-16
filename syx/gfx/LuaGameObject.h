@@ -84,6 +84,7 @@ public:
   static void openLib(lua_State* l);
   static int toString(lua_State* l);
   static int indexOverload(lua_State* l);
+  static int newIndexOverload(lua_State* l);
   //Component addComponent(string componentName)
   static int addComponent(lua_State* l);
   //void removeComponent(string componentName)
