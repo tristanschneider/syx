@@ -87,15 +87,13 @@ void PhysicsSystem::queueTasks(float dt, IWorkerPool& pool, std::shared_ptr<Task
   auto update = std::make_shared<FunctionTask>([this, dt]() {
     mSystem->update(dt);
   });
-  update->addDependency(game);
 
   auto events = std::make_shared<FunctionTask>([this]() {
     _processSyxEvents();
   });
-  events->addDependency(update);
 
-  //Frame isn't done until all physics events are, which ends with events task
-  frameTask->addDependency(events);
+  game->then(update)->then(events)->then(frameTask);
+
   pool.queueTask(game);
   pool.queueTask(update);
   pool.queueTask(events);

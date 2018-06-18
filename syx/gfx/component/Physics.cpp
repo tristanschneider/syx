@@ -76,7 +76,7 @@ void Physics::openLib(lua_State* l) const {
     COMPONENT_LUA_BASE_REGS,
     { nullptr, nullptr }
   };
-  Lua::Util::registerClass(l, statics, members, getTypeInfo().mTypeName.c_str(), true);
+  Lua::Util::registerClass(l, statics, members, getTypeInfo().mTypeName.c_str());
 }
 
 const ComponentTypeInfo& Physics::getTypeInfo() const {

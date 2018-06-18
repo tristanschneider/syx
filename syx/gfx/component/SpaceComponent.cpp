@@ -39,10 +39,11 @@ namespace {
     }
   }
 
-  void _pushObjectFromDescription(LuaGameSystem& game, const LuaGameObjectDescription& obj, Handle space) {
+  void _pushObjectFromDescription(LuaGameSystem& game, const LuaGameObjectDescription& obj, Handle space, bool fireAddEvent = true) {
     MessageQueue msg = game.getMessageQueue();
     //Create object
-    msg.get().push(AddGameObjectEvent(obj.mHandle));
+    if(fireAddEvent)
+      msg.get().push(AddGameObjectEvent(obj.mHandle));
 
     //Copy components
     for(const auto& comp : obj.mComponents) {
@@ -85,6 +86,7 @@ void SpaceComponent::openLib(lua_State* l) const {
     { nullptr, nullptr }
   };
   luaL_Reg members[] = {
+    COMPONENT_LUA_BASE_REGS,
     { "cloneTo", cloneTo },
     { "save", save },
     { "load", load },
@@ -92,7 +94,7 @@ void SpaceComponent::openLib(lua_State* l) const {
     { "addObject", addObject },
     { nullptr, nullptr }
   };
-  Lua::Util::registerClass(l, statics, members, getTypeInfo().mTypeName.c_str(), true);
+  Lua::Util::registerClass(l, statics, members, getTypeInfo().mTypeName.c_str());
 }
 
 const ComponentTypeInfo& SpaceComponent::getTypeInfo() const {
@@ -248,7 +250,7 @@ int SpaceComponent::addObject(lua_State* l) {
   desc.getMetadata().readFromLua(l, &desc, Lua::Node::SourceType::FromStack);
   LuaGameObject& obj = game.addGameObject();
   desc.mHandle = obj.getHandle();
-  _pushObjectFromDescription(game, desc, self.get());
+  _pushObjectFromDescription(game, desc, self.get(), false);
   lua_pop(l, 1);
 
   LuaGameObject::push(l, obj);

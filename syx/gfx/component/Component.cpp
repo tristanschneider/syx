@@ -7,6 +7,7 @@
 #include "lua/LuaCache.h"
 #include "lua/LuaNode.h"
 #include "lua/LuaStackAssert.h"
+#include "lua/LuaUtil.h"
 #include "system/LuaGameSystem.h"
 #include "LuaGameObject.h"
 #include "Util.h"
@@ -191,6 +192,27 @@ int Component::_setProp(lua_State* l, const std::string& type) {
 
   self->setPropFromStack(l, propName, game);
   return 0;
+}
+
+int Component::_indexOverload(lua_State* l, const std::string& type) {
+  Component* self = static_cast<Component*>(sLuaCache->checkParam(l, 1, type.c_str()));
+  const char* propName = luaL_checkstring(l, 2);
+  //Determine if they're accessinga  property or calling a function
+  //Property exists, access property
+  if(self->_getPropByName(propName))
+    return _getProp(l, type);
+  //Property doesn't exist, fall back to default, which is most likely a function
+  return Lua::Util::defaultIndex(l);
+}
+
+int Component::_newIndexOverload(lua_State* l, const std::string& type) {
+  return _setProp(l, type);
+}
+
+const Lua::Node* Component::_getPropByName(const char* propName) const {
+  if(const Lua::Node* props = getLuaProps())
+    return props->getChild(propName);
+  return nullptr;
 }
 
 const Lua::Cache& Component::getLuaCache() {

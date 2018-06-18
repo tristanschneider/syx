@@ -136,6 +136,7 @@ local function testAddRemove(self, dt)
   end
 end
 
+local initObj = nil;
 function initialize(self)
   local obj = self.space:addObject({
     components = {
@@ -160,12 +161,24 @@ function initialize(self)
     }
   });
   obj.renderable = { model = 2775790889 };
+  obj.physics = {};
+  initObj = obj;
   print("lua initialize");
+end
+
+function initPost(self)
+  initObj.renderable.model = 2263845287;
+  print("New object angular velocity "..tostring(initObj.physics.angVel));
 end
 
 local hasSaved = false;
 local loadDelay = 1.5;
+local hasInitPost = false;
 function update(self, dt)
+  if hasInitPost == false then
+    initPost(self);
+    hasInitPost = true;
+  end
   if hasSaved == false then
     self.space:save("scene");
     hasSaved = true;

@@ -18,8 +18,12 @@ public:
 
   void run();
   void setWorkerPool(IWorkerPool& pool);
+  //dependent depends on this
   void addDependent(std::shared_ptr<Task> dependent);
+  //this depends on dependency
   void addDependency(std::shared_ptr<Task> dependency);
+  //Compose dependencies like a.then(b).then(c)
+  std::shared_ptr<Task> then(std::shared_ptr<Task> next);
   bool hasDependencies();
   void setQueued();
   bool hasBeenQueued();

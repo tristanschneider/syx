@@ -23,6 +23,8 @@ namespace Lua {
 //Implement base functions with wrappers for the derived class
 #define COMPONENT_LUA_INHERIT(type)\
   static const type& singleton() { static type s(0); return s; }\
+  WRAP_BASE_FUNC(_indexOverload)\
+  WRAP_BASE_FUNC(_newIndexOverload)\
   WRAP_BASE_FUNC(_getName)\
   WRAP_BASE_FUNC(_getType)\
   WRAP_BASE_FUNC(_getOwner)\
@@ -32,6 +34,8 @@ namespace Lua {
   WRAP_BASE_FUNC(_setProp)
 
 #define COMPONENT_LUA_BASE_REGS \
+  { "__index", _indexOverload },\
+  { "__newindex", _newIndexOverload },\
   { "getName", _getName },\
   { "getType", _getType },\
   { "getOwner", _getOwner },\
@@ -109,11 +113,15 @@ public:
   static int _setProps(lua_State* l, const std::string& type);
   static int _getProp(lua_State* l, const std::string& type);
   static int _setProp(lua_State* l, const std::string& type);
+  static int _indexOverload(lua_State* l, const std::string& type);
+  static int _newIndexOverload(lua_State* l, const std::string& type);
 
   static const std::string LUA_PROPS_KEY;
 
 protected:
   static const Lua::Cache& getLuaCache();
+
+  const Lua::Node* _getPropByName(const char* propName) const;
 
   Handle mOwner;
   size_t mType;

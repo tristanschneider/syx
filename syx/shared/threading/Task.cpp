@@ -57,6 +57,11 @@ void Task::addDependency(std::shared_ptr<Task> dependency) {
   dependency->addDependent(shared_from_this());
 }
 
+std::shared_ptr<Task> Task::then(std::shared_ptr<Task> next) {
+  addDependent(next);
+  return next;
+}
+
 bool Task::hasDependencies() {
   return mDependencies != 0;
 }

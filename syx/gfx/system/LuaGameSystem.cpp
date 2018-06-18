@@ -83,9 +83,9 @@ void LuaGameSystem::queueTasks(float dt, IWorkerPool& pool, std::shared_ptr<Task
   auto update = std::make_shared<FunctionTask>([this, dt]() {
     _update(dt);
   });
-  events->addDependency(update);
 
-  frameTask->addDependency(events);
+  events->then(update)->then(frameTask);
+
   pool.queueTask(events);
   pool.queueTask(update);
 }
@@ -307,7 +307,8 @@ void LuaGameSystem::_onAddGameObject(const AddGameObjectEvent& e) {
     }
   }
   mPendingObjectsLock.unlock();
-  mObjects[e.mObj] = pending ? std::move(pending) : std::make_unique<LuaGameObject>(e.mObj);
+  if(mObjects.find(e.mObj) == mObjects.end())
+    mObjects[e.mObj] = pending ? std::move(pending) : std::make_unique<LuaGameObject>(e.mObj);
 }
 
 void LuaGameSystem::_onRemoveGameObject(const RemoveGameObjectEvent& e) {
