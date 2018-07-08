@@ -37,7 +37,7 @@ public:
   std::unique_ptr<Component> clone() const override;
   void set(const Component& component) override;
   const Lua::Node* getLuaProps() const override;
-  const ComponentTypeInfo& LuaComponent::getTypeInfo() const override;
+  const ComponentTypeInfo& getTypeInfo() const override;
 
   //The script must be at the top of the stack
   void init(Lua::State& state, int selfIndex);
@@ -47,8 +47,12 @@ public:
 
 private:
   bool _callFunc(lua_State* s, const char* funcName, int arguments, int returns) const;
-  std::unique_ptr<Lua::Node> _buildLuaProps() const;
+  std::unique_ptr<Lua::Node> _buildLuaProps(lua_State* l);
+  //Build node tree from globals in script whose sandbox is on top of the stack
+  void _buildPropsFromStack(lua_State* l, Lua::Node& parent) const;
 
   size_t mScript;
+  std::vector<uint8_t> mPropsBuffer;
   std::unique_ptr<Lua::Sandbox> mSandbox;
+  std::unique_ptr<Lua::Node> mProps;
 };

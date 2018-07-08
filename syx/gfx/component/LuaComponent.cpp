@@ -2,11 +2,27 @@
 #include "component/LuaComponent.h"
 
 #include <lua.hpp>
-#include "lua/LuaNode.h"
+#include "lua/LuaCompositeNodes.h"
 #include "lua/LuaSandbox.h"
 #include "lua/LuaStackAssert.h"
 #include "lua/LuaState.h"
 #include "lua/LuaUtil.h"
+
+namespace {
+  bool _isSupportedLuaPropType(int type) {
+    switch(type) {
+      case LUA_TLIGHTUSERDATA:
+      case LUA_TNUMBER:
+      case LUA_TSTRING:
+      case LUA_TBOOLEAN:
+      case LUA_TUSERDATA:
+      case LUA_TTABLE:
+        return true;
+      default:
+        return false;
+    }
+  }
+}
 
 DEFINE_EVENT(AddLuaComponentEvent, size_t owner, size_t script)
   , mOwner(owner)
@@ -28,6 +44,10 @@ LuaComponent::LuaComponent(const LuaComponent& other)
 }
 
 LuaComponent::~LuaComponent() {
+  if(mProps) {
+    auto props = static_cast<const Lua::BufferNode*>(mProps->getChild("props"));
+    props->destroyBuffer(mPropsBuffer);
+  }
 }
 
 std::unique_ptr<Component> LuaComponent::clone() const {
@@ -45,16 +65,63 @@ const ComponentTypeInfo& LuaComponent::getTypeInfo() const {
 }
 
 const Lua::Node* LuaComponent::getLuaProps() const {
-  //TODO: handle properties inside scripts
-  static std::unique_ptr<Lua::Node> props = _buildLuaProps();
-  return props.get();
+  return mProps.get();
 }
 
-std::unique_ptr<Lua::Node> LuaComponent::_buildLuaProps() const {
+std::unique_ptr<Lua::Node> LuaComponent::_buildLuaProps(lua_State* l) {
   using namespace Lua;
   auto root = makeRootNode(Lua::NodeOps(""));
   makeNode<LightUserdataSizetNode>(Lua::NodeOps(*root, "script", ::Util::offsetOf(*this, mScript)));
+  Node& props = makeNode<BufferNode>(Lua::NodeOps(*root, "props", ::Util::offsetOf(*this, mPropsBuffer)));
+  _buildPropsFromStack(l, props);
   return std::move(root);
+}
+
+void LuaComponent::_buildPropsFromStack(lua_State* l, Lua::Node& parent) const {
+  Lua::StackAssert sa(l);
+  //Dummy value for next to pop off
+  lua_pushnil(l);
+  bool first = true;
+  size_t curSize = 0;
+  Lua::Node* curParent = &parent;
+
+  using namespace Lua;
+  while(lua_next(l, -2)) {
+    int keyType = lua_type(l, -2);
+    bool isValidKey = keyType == LUA_TSTRING || lua_isinteger(l, -2);
+    bool isValidValue = _isSupportedLuaPropType(lua_type(l, -1));
+    if(!isValidKey || !isValidValue) {
+      lua_pop(l, 1);
+      continue;
+    }
+
+    //Key is now at -2 and value at -1
+    const char* keyName = nullptr;
+    NodeOps ops = keyType == LUA_TSTRING ?
+      NodeOps(*curParent, lua_tostring(l, -2), curSize) :
+      NodeOps(*curParent, static_cast<int>(lua_tointeger(l, -2)), curSize);
+
+    Lua::Node* node = nullptr;
+
+    switch(lua_type(l, -1)) {
+      case LUA_TLIGHTUSERDATA: node = &makeNode<LightUserdataNode>(std::move(ops)); break;
+      case LUA_TNUMBER: node = &makeNode<DoubleNode>(std::move(ops)); break;
+      case LUA_TSTRING: node = &makeNode<StringNode>(std::move(ops)); break;
+      case LUA_TBOOLEAN: node = &makeNode<BoolNode>(std::move(ops)); break;
+      //TODO: get node from type name through metatable
+      case LUA_TUSERDATA: break;
+      case LUA_TTABLE:
+        node = &makeNode<RootNode>(NodeOps(std::move(ops)));
+        _buildPropsFromStack(l, *node);
+        break;
+    }
+
+    if(node) {
+      curSize += node->size();
+    }
+
+    lua_pop(l, 1);
+  }
 }
 
 size_t LuaComponent::getScript() const {
@@ -74,12 +141,14 @@ void LuaComponent::init(Lua::State& state, int selfIndex) {
     auto sandbox = Lua::Sandbox::ScopedState(*mSandbox);
     //Run the script, filling the sandbox
     lua_pushvalue(state, -2);
-    if(int error = lua_pcall(state, 0, 0, 0)) {
+    if(lua_pcall(state, 0, 0, 0) != LUA_OK) {
       printf("Error initializing script %i: %s\n", static_cast<int>(mScript), lua_tostring(state, -1));
       //Pop off the error
       lua_pop(state, 1);
     }
     else {
+      //TODO: move ownership of props from per component to per script type
+      mProps = _buildLuaProps(state);
       //Script load succeeded, call init if found
       int initFunc = lua_getfield(state, -1, "initialize");
       if(initFunc == LUA_TFUNCTION) {

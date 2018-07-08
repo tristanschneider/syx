@@ -113,4 +113,36 @@ namespace Lua {
     void _readFromLua(lua_State* s, void* base) const override {}
     void _writeToLua(lua_State* s, const void* base) const override {}
   };
+
+  class BufferNode : public TypedNode<std::vector<uint8_t>> {
+  public:
+    using TypedNode::TypedNode;
+    void destroyBuffer(std::vector<uint8_t>& buffer) const {
+      if(!buffer.empty()) {
+        for(const auto& child : mChildren)
+          child->destruct(child->offset(buffer.data()));
+      }
+    }
+    void _readFromLua(lua_State* s, void* base) const override {
+      bool needsConstruction = _cast(base).empty();
+      //Prepare buffer size in this _read so child _reads will have a place to read to
+      _cast(base).resize(size());
+      if(needsConstruction) {
+        Node::_translateBase(base);
+        for(const auto& child : mChildren) {
+          child->defaultConstruct(child->offset(base));
+        }
+      }
+    }
+    void _writeToLua(lua_State* s, const void* base) const override {
+      //Write table for children to fill
+      lua_newtable(s);
+    }
+    void _defaultConstruct(void* to) const override {
+      new (to) std::vector<uint8_t>(size());
+    }
+    void _translateBase(const void*& base) const override {
+      base = _cast(base).data();
+    }
+  };
 }

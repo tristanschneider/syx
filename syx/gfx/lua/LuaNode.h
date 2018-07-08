@@ -18,12 +18,20 @@ namespace Lua {
 
   struct NodeOps {
     NodeOps(Node& parent, std::string&& name, size_t offset);
+    NodeOps(Node& parent, int index, size_t offset);
     NodeOps(std::string&& name);
     NodeOps(const std::string& name);
 
+    void pushKey(lua_State* s) const;
+
     Node* mParent;
     std::string mName;
+    //Index value for key if it is not a string
+    int mIndex;
     size_t mOffset;
+
+  private:
+    NodeOps(Node* parent, std::string&& name, int index, size_t offset);
   };
 
   //read/write take base pointer so one scheme can be used between all instances of the class
@@ -68,6 +76,9 @@ namespace Lua {
     //Call destructor on each value in buffer
     void destructBuffer(void* buffer) const;
 
+    void defaultConstruct(void* base) const;
+    void destruct(void* base) const;
+
     NodeDiff getDiff(const void* base, const void* other) const;
     void forEachDiff(NodeDiff diff, const void* base, const DiffCallback& callback) const;
     //Copy each node flagged by the diff in from to to
@@ -94,6 +105,9 @@ namespace Lua {
     //Equality, used for generating diff
     virtual bool _equals(const void* lhs, const void* rhs) const { return true; }
 
+    const void* offset(const void* base) const;
+    void* offset(void* base) const;
+
     const std::string& getName() const;
 
   protected:
@@ -106,6 +120,7 @@ namespace Lua {
     void _funcFromBuffer(void (Node::* func)(const void*, void*) const, void* base, const void* buffer, NodeDiff diff, int& nodeIndex) const;
     //Traverse buffer and use func on each leaf node
     void _funcBufferToBuffer(void (Node::* func)(const void*, void*) const, const void* from, void* to) const;
+    void _forEachBottomUp(void (Node::* func)(void*) const, void* base) const;
     NodeDiff _getDiff(const void* base, const void* other, int& nodeIndex) const;
     void _forEachDiff(NodeDiff diff, const void* base, const DiffCallback& callback, int& nodeIndex) const;
 
@@ -118,11 +133,8 @@ namespace Lua {
     void _translateBase(void*& base) const { _translateBase(const_cast<const void*&>(base)); }
 
     //Push stack[top][field] onto top of stack, or global[field] if root node
-    void getField(lua_State* s, const std::string& field, SourceType source = SourceType::Default) const;
-    //stack[top - 1][field] = stack[top]
-    void setField(lua_State* s, const std::string& field, SourceType source = SourceType::Default) const;
-    //Same as above but uses mName
     void getField(lua_State* s, SourceType source = SourceType::Default) const;
+    //stack[top - 1][field] = stack[top]
     void setField(lua_State* s, SourceType source = SourceType::Default) const;
 
     NodeOps mOps;
@@ -135,7 +147,7 @@ namespace Lua {
   public:
     using Node::Node;
     void _readFromLua(lua_State* s, void* base) const override {}
-    void _writeToLua(lua_State* s, const void* base) const override {}
+    void _writeToLua(lua_State* s, const void* base) const override;
   };
 
   inline std::unique_ptr<Node> makeRootNode(NodeOps&& ops) {
@@ -171,14 +183,14 @@ namespace Lua {
     void _destruct(void* base) const override {
       _cast(base).~T();
     }
+    bool _equals(const void* lhs, const void* rhs) const override {
+      return _cast(lhs) == _cast(rhs);
+    }
     T& _cast(void* value) const {
       return *static_cast<T*>(value);
     }
     const T& _cast(const void* value) const {
       return *static_cast<const T*>(value);
-    }
-    bool _equals(const void* lhs, const void* rhs) const override {
-      return _cast(lhs) == _cast(rhs);
     }
 
     template<typename S>
@@ -242,6 +254,13 @@ namespace Lua {
   };
 
   class SizetNode : public TypedNode<size_t> {
+  public:
+    using TypedNode::TypedNode;
+    void _readFromLua(lua_State* s, void* base) const override;
+    void _writeToLua(lua_State* s, const void* base) const override;
+  };
+
+  class DoubleNode : public TypedNode<double> {
   public:
     using TypedNode::TypedNode;
     void _readFromLua(lua_State* s, void* base) const override;

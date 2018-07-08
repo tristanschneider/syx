@@ -1,7 +1,23 @@
-local testLocal = "local";
-testGlobal = "global";
+a = nil;
+b = 2;
+c = 3.5;
+d = "str";
+e = true;
+f = Vec3.unitX();
+g = {};
+h = { 1, 2, 3 }
+i = {
+  ia = 1,
+  ib = "two",
+  ic = false
+};
+j = {
+  ja = 2,
+  jb = {
+    jbs = "asdf"
+  }
+};
 
-print("test init script");
 
 local function testArray()
   local arr = NumArray.new(10);

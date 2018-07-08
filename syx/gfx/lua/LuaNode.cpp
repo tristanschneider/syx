@@ -12,22 +12,34 @@
 #include <SyxQuat.h>
 
 namespace Lua {
-  NodeOps::NodeOps(Node& parent, std::string&& name, size_t offset)
-    : mParent(&parent)
+  NodeOps::NodeOps(Node* parent, std::string&& name, int index, size_t offset)
+    : mParent(parent)
     , mName(std::move(name))
+    , mIndex(index)
     , mOffset(offset) {
   }
 
+  NodeOps::NodeOps(Node& parent, std::string&& name, size_t offset)
+    : NodeOps(&parent, std::move(name), -1, offset) {
+  }
+
+  NodeOps::NodeOps(Node& parent, int index, size_t offset)
+    : NodeOps(&parent, {}, index, offset) {
+  }
+
   NodeOps::NodeOps(std::string&& name)
-    : mParent(nullptr)
-    , mName(std::move(name))
-    , mOffset(0) {
+    : NodeOps(nullptr, std::move(name), -1, 0) {
   }
 
   NodeOps::NodeOps(const std::string& name)
-    : mParent(nullptr)
-    , mName(name)
-    , mOffset(0) {
+    : NodeOps(nullptr, std::move(std::string(name)), -1, 0) {
+  }
+
+  void NodeOps::pushKey(lua_State* s) const {
+    if(mName.empty())
+      lua_pushinteger(s, mIndex);
+    else
+      lua_pushstring(s, mName.c_str());
   }
 
   Node::Node(NodeOps&& ops)
@@ -64,6 +76,8 @@ namespace Lua {
   void Node::_funcToBuffer(void (Node::* func)(const void*, void*) const, const void* base, void* buffer) const {
     (this->*func)(base, buffer);
     _translateBase(base);
+    if(!base)
+      return;
     buffer = Util::offset(buffer, _size());
     for(const auto& child : mChildren) {
       child->_funcToBuffer(func, Util::offset(base, child->mOps.mOffset), buffer);
@@ -78,18 +92,18 @@ namespace Lua {
 
   void Node::_funcFromBuffer(void (Node::* func)(const void*, void*) const, void* base, const void* buffer, NodeDiff diff, int& nodeIndex) const {
     base = Util::offset(base, mOps.mOffset);
-    if(mChildren.empty()) {
-      if(diff & (static_cast<NodeDiff>(1) << nodeIndex))
-        (this->*func)(buffer, base);
-      ++nodeIndex;
-    }
-    else {
-      _translateBase(base);
-      buffer = Util::offset(buffer, _size());
-      for(const auto& child : mChildren) {
-        child->_funcFromBuffer(func, base, buffer, diff, nodeIndex);
-        buffer = Util::offset(buffer, child->size());
-      }
+
+    if(diff & (static_cast<NodeDiff>(1) << nodeIndex))
+      (this->*func)(buffer, base);
+    ++nodeIndex;
+
+    _translateBase(base);
+    if(!base)
+      return;
+    buffer = Util::offset(buffer, _size());
+    for(const auto& child : mChildren) {
+      child->_funcFromBuffer(func, base, buffer, diff, nodeIndex);
+      buffer = Util::offset(buffer, child->size());
     }
   }
 
@@ -110,30 +124,64 @@ namespace Lua {
   }
 
   void Node::_funcBufferToBuffer(void (Node::* func)(const void*, void*) const, const void* from, void* to) const {
-    if(mChildren.empty()) {
-      (this->*func)(from, to);
+    (this->*func)(from, to);
+
+    for(const auto& child : mChildren) {
+      child->_funcBufferToBuffer(func, from, to);
+      size_t childSize = child->size();
+      from = Util::offset(from, childSize);
+      to = Util::offset(to, childSize);
     }
-    else {
-      for(const auto& child : mChildren) {
-        child->_funcBufferToBuffer(func, from, to);
-        size_t childSize = child->size();
-        from = Util::offset(from, childSize);
-        to = Util::offset(to, childSize);
+  }
+
+  void Node::_forEachBottomUp(void (Node::* func)(void*) const, void* base) const {
+    std::queue<std::pair<const Node*, void*>> toTraverse;
+    std::deque<std::pair<const Node*, void*>> nodes;
+    toTraverse.push({ this, base });
+
+    //Traverse tree and put each node breadth first into 'nodes'
+    while(!toTraverse.empty()) {
+      nodes.push_back(toTraverse.front());
+
+      const Node* node = toTraverse.front().first;
+      void* data = toTraverse.front().second;
+      toTraverse.pop();
+
+      node->_translateBase(data);
+      if(data) {
+        for(const auto& child : node->mChildren) {
+          toTraverse.push({ child.get(), Util::offset(data, child->mOps.mOffset) });
+        }
       }
+    }
+
+    //nodes are depth first traversal, walk it backwards for a bottom up traversal
+    while(!nodes.empty()) {
+      (nodes.back().first->*func)(nodes.front().second);
+      nodes.pop_back();
     }
   }
 
   void Node::destructBuffer(void* buffer) const {
-    //Only leaf nodes have values to destruct
-    if(mChildren.empty()) {
-      _destruct(buffer);
+    _destruct(buffer);
+
+    for(const auto& child : mChildren) {
+      child->destructBuffer(buffer);
+      buffer = Util::offset(buffer, child->size());
     }
-    else {
-      for(const auto& child : mChildren) {
-        child->destructBuffer(buffer);
-        buffer = Util::offset(buffer, child->size());
-      }
-    }
+  }
+
+  void Node::defaultConstruct(void* base) const {
+    int nodeIndex = 0;
+    _defaultConstruct(base);
+    _forEachDiff(~0, base, [](const Node& node, const void* data) {
+      node._defaultConstruct(const_cast<void*>(data));
+    }, nodeIndex);
+  }
+
+  void Node::destruct(void* base) const {
+    //Must be bottom up in case parent nodes contain children
+    _forEachBottomUp(&Node::_destruct, base);
   }
 
   NodeDiff Node::getDiff(const void* base, const void* other) const {
@@ -164,8 +212,10 @@ namespace Lua {
     else {
       _translateBase(base);
       _translateBase(other);
-      for(const auto& child : mChildren) {
-         result |= child->_getDiff(Util::offset(base, child->mOps.mOffset), Util::offset(other, child->mOps.mOffset), nodeIndex);
+      if(base && other) {
+        for(const auto& child : mChildren) {
+           result |= child->_getDiff(Util::offset(base, child->mOps.mOffset), Util::offset(other, child->mOps.mOffset), nodeIndex);
+        }
       }
     }
 
@@ -181,8 +231,10 @@ namespace Lua {
     }
     else {
       _translateBase(base);
-      for(const auto& child : mChildren) {
-         child->_forEachDiff(diff, Util::offset(base, child->mOps.mOffset), callback, nodeIndex);
+      if(base) {
+        for(const auto& child : mChildren) {
+           child->_forEachDiff(diff, Util::offset(base, child->mOps.mOffset), callback, nodeIndex);
+        }
       }
     }
   }
@@ -199,9 +251,11 @@ namespace Lua {
     //Walk down the heirarchy from the root offsetting the pointer
     while(!parents.empty()) {
       const Node* node = parents.top();
-      node->_translateBase(base);
       base = Util::offset(base, node->mOps.mOffset);
       parents.pop();
+      //If this is the destination, don't translate, as translate sets up traversal for children
+      if(!parents.empty())
+        node->_translateBase(base);
     }
     return base;
   }
@@ -224,6 +278,14 @@ namespace Lua {
     size_t count = 0;
     _forEachDepthFirstToChild(&Node::_countNodes, &count);
     return static_cast<NodeDiff>(1) << count;
+  }
+
+  const void* Node::offset(const void* base) const {
+    return Util::offset(base, mOps.mOffset);
+  }
+
+  void* Node::offset(void* base) const {
+    return Util::offset(base, mOps.mOffset);
   }
 
   void Node::_forEachDepthFirstToChild(void (Node::* func)(const Node&, void*) const, void* data) const {
@@ -258,44 +320,45 @@ namespace Lua {
     *reinterpret_cast<size_t*>(data) += node._size();
   }
 
-  void Node::getField(lua_State* s, const std::string& field, SourceType source) const {
+  void Node::getField(lua_State* s, SourceType source) const {
     //If source is from stack then there's nothing to do
     if(source == SourceType::FromStack) {
       //Need to push something so stack size stays the same
       lua_pushvalue(s, -1);
-      return;
     }
-    if(!mOps.mParent) {
-      if(source == SourceType::FromGlobal)
-        lua_getglobal(s, field.c_str());
-      else {
-        //value is expected to already be on top of the stack
-        lua_pushvalue(s, -1);
-      }
+    else if(source == SourceType::FromGlobal) {
+      assert(!mOps.mName.empty() && "Globals must have string keys");
+      lua_getglobal(s, mOps.mName.c_str());
     }
-    else
-      lua_getfield(s, -1, field.c_str());
+    else if(!mOps.mParent) {
+      //value is expected to already be on top of the stack
+      lua_pushvalue(s, -1);
+    }
+    else {
+      mOps.pushKey(s);
+      lua_gettable(s, -2);
+    }
   }
 
-  void Node::setField(lua_State* s, const std::string& field, SourceType source) const {
+  void Node::setField(lua_State* s, SourceType source) const {
     //If desired destination is stack then there's nothing to do
     if(source == SourceType::FromStack)
       return;
     if(!mOps.mParent) {
-      if(source == SourceType::FromGlobal)
-        lua_setglobal(s, field.c_str());
+      if(source == SourceType::FromGlobal) {
+        assert(!mOps.mName.empty() && "Globals must have string keys");
+        lua_setglobal(s, mOps.mName.c_str());
+      }
       //else value is left on top of stack
     }
-    else
-      lua_setfield(s, -2, field.c_str());
-  }
-
-  void Node::getField(lua_State* s, SourceType source) const {
-    getField(s, mOps.mName, source);
-  }
-
-  void Node::setField(lua_State* s, SourceType source) const {
-    setField(s, mOps.mName, source);
+    else {
+      mOps.pushKey(s);
+      //push value, which is under key
+      lua_pushvalue(s, -2);
+      lua_settable(s, -4);
+      //pop extra value that was sitting under key
+      lua_pop(s, 1);
+    }
   }
 
   bool Node::readFromLua(lua_State* s, void* base, SourceType source) const {
@@ -317,8 +380,7 @@ namespace Lua {
     _writeToLua(s, base);
     _translateBase(base);
     if(mChildren.size()) {
-      //Make new table and allow children to fill it
-      lua_newtable(s);
+      assert(lua_type(s, -1) == LUA_TTABLE && "Nodes which children should write tables in _writeToLua");
       for(auto& child : mChildren) {
         child->writeToLua(s, Util::offset(base, child->mOps.mOffset));
         child->setField(s);
@@ -336,20 +398,17 @@ namespace Lua {
       getField(s, source);
     gotField = lua_type(s, -1) != LUA_TNIL;
 
-    //Leaf nodes have values
-    if(mChildren.empty()) {
-      //Construct in buffer so there's a valid object there for assignment
-      //Need to make sure that entire struct is default constructed even if lua values are missing
-      _defaultConstruct(buffer);
-      if(gotField)
-        _readFromLua(s, buffer);
-    }
-    else {
-      for(const auto& child : mChildren) {
+    //Construct in buffer so there's a valid object there for assignment
+    //Need to make sure that entire struct is default constructed even if lua values are missing
+    _defaultConstruct(buffer);
+    if(gotField)
+      _readFromLua(s, buffer);
+
+    for(const auto& child : mChildren) {
         gotField = child->readFromLuaToBuffer(s, buffer) && gotField;
         buffer = Util::offset(buffer, child->size());
-      }
     }
+
     lua_pop(s, 1);
     return gotField;
   }
@@ -363,6 +422,11 @@ namespace Lua {
 
   const std::string& Node::getName() const {
     return mOps.mName;
+  }
+
+  void RootNode::_writeToLua(lua_State* s, const void* base) const {
+    // Write table for children to fill
+    lua_newtable(s);
   }
 
   void IntNode::_readFromLua(lua_State* s, void* base) const {
@@ -425,6 +489,14 @@ namespace Lua {
 
   void SizetNode::_writeToLua(lua_State* s, const void* base) const {
     lua_pushinteger(s, static_cast<lua_Integer>(_cast(base)));
+  }
+
+  void DoubleNode::_readFromLua(lua_State* s, void* base) const {
+    _cast(base) = static_cast<lua_Number>(lua_tonumber(s, -1));
+  }
+
+  void DoubleNode::_writeToLua(lua_State* s, const void* base) const {
+    lua_pushnumber(s, static_cast<lua_Number>(_cast(base)));
   }
 
   void Vec3Node::_readFromLua(lua_State* s, void* base) const {
