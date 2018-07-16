@@ -79,6 +79,9 @@ namespace Lua {
     void defaultConstruct(void* base) const;
     void destruct(void* base) const;
 
+    //Get typeid of the wrapped type of this node. void if it doesn't wrap a type
+    virtual size_t getTypeId() const;
+
     NodeDiff getDiff(const void* base, const void* other) const;
     void forEachDiff(NodeDiff diff, const void* base, const DiffCallback& callback) const;
     //Copy each node flagged by the diff in from to to
@@ -186,6 +189,9 @@ namespace Lua {
     bool _equals(const void* lhs, const void* rhs) const override {
       return _cast(lhs) == _cast(rhs);
     }
+    size_t getTypeId() const override {
+      return typeId<T>();
+    }
     T& _cast(void* value) const {
       return *static_cast<T*>(value);
     }
@@ -211,8 +217,11 @@ namespace Lua {
     }
   };
 
+#define NODE_SINGLETON(NodeType) static const NodeType& singleton() { static NodeType s(NodeOps("")); return s; }
+
   class IntNode : public TypedNode<int> {
   public:
+    NODE_SINGLETON(IntNode);
     using TypedNode::TypedNode;
     void _readFromLua(lua_State* s, void* base) const override;
     void _writeToLua(lua_State* s, const void* base) const override;
@@ -220,6 +229,7 @@ namespace Lua {
 
   class StringNode : public TypedNode<std::string> {
   public:
+    NODE_SINGLETON(StringNode);
     using TypedNode::TypedNode;
     void _readFromLua(lua_State* s, void* base) const override;
     void _writeToLua(lua_State* s, const void* base) const override;
@@ -227,6 +237,7 @@ namespace Lua {
 
   class FloatNode : public TypedNode<float> {
   public:
+    NODE_SINGLETON(FloatNode);
     using TypedNode::TypedNode;
     void _readFromLua(lua_State* s, void* base) const override;
     void _writeToLua(lua_State* s, const void* base) const override;
@@ -234,6 +245,7 @@ namespace Lua {
 
   class LightUserdataNode : public TypedNode<void*> {
   public:
+    NODE_SINGLETON(LightUserdataNode);
     using TypedNode::TypedNode;
     void _readFromLua(lua_State* s, void* base) const override;
     void _writeToLua(lua_State* s, const void* base) const override;
@@ -241,6 +253,7 @@ namespace Lua {
 
   class LightUserdataSizetNode : public TypedNode<size_t> {
   public:
+    NODE_SINGLETON(LightUserdataSizetNode);
     using TypedNode::TypedNode;
     void _readFromLua(lua_State* s, void* base) const override;
     void _writeToLua(lua_State* s, const void* base) const override;
@@ -248,6 +261,7 @@ namespace Lua {
 
   class BoolNode : public TypedNode<bool> {
   public:
+    NODE_SINGLETON(BoolNode);
     using TypedNode::TypedNode;
     void _readFromLua(lua_State* s, void* base) const override;
     void _writeToLua(lua_State* s, const void* base) const override;
@@ -255,6 +269,7 @@ namespace Lua {
 
   class SizetNode : public TypedNode<size_t> {
   public:
+    NODE_SINGLETON(SizetNode);
     using TypedNode::TypedNode;
     void _readFromLua(lua_State* s, void* base) const override;
     void _writeToLua(lua_State* s, const void* base) const override;
@@ -262,6 +277,7 @@ namespace Lua {
 
   class DoubleNode : public TypedNode<double> {
   public:
+    NODE_SINGLETON(DoubleNode);
     using TypedNode::TypedNode;
     void _readFromLua(lua_State* s, void* base) const override;
     void _writeToLua(lua_State* s, const void* base) const override;
@@ -269,6 +285,7 @@ namespace Lua {
 
   class Vec3Node : public TypedNode<Syx::Vec3> {
   public:
+    NODE_SINGLETON(Vec3Node);
     using TypedNode::TypedNode;
     void _readFromLua(lua_State* s, void* base) const override;
     void _writeToLua(lua_State* s, const void* base) const override;
@@ -276,6 +293,7 @@ namespace Lua {
 
   class QuatNode : public TypedNode<Syx::Quat> {
   public:
+    NODE_SINGLETON(QuatNode);
     using TypedNode::TypedNode;
     void _readFromLua(lua_State* s, void* base) const override;
     void _writeToLua(lua_State* s, const void* base) const override;
@@ -283,6 +301,7 @@ namespace Lua {
 
   class Mat4Node : public TypedNode<Syx::Mat4> {
   public:
+    NODE_SINGLETON(Mat4Node);
     using TypedNode::TypedNode;
     void _readFromLua(lua_State* s, void* base) const override;
     void _writeToLua(lua_State* s, const void* base) const override;

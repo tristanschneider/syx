@@ -191,12 +191,14 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClCompile Include="lua\lib\LuaVec3.cpp" />
     <ClCompile Include="lua\LuaCache.cpp" />
     <ClCompile Include="lua\LuaComponentNode.cpp" />
+    <ClCompile Include="lua\LuaKey.cpp" />
     <ClCompile Include="lua\LuaNode.cpp" />
     <ClCompile Include="lua\LuaSandbox.cpp" />
     <ClCompile Include="lua\LuaStackAssert.cpp" />
     <ClCompile Include="lua\LuaState.cpp" />
     <ClCompile Include="lua\LuaSerializer.cpp" />
     <ClCompile Include="lua\LuaUtil.cpp" />
+    <ClCompile Include="lua\LuaVariant.cpp" />
     <ClCompile Include="Precompile.cpp">
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
@@ -271,6 +273,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClInclude Include="lua\LuaCache.h" />
     <ClInclude Include="lua\LuaComponentNode.h" />
     <ClInclude Include="lua\LuaCompositeNodes.h" />
+    <ClInclude Include="lua\LuaKey.h" />
     <ClInclude Include="lua\LuaLibGroup.h" />
     <ClInclude Include="lua\LuaNode.h" />
     <ClInclude Include="lua\LuaSandbox.h" />
@@ -278,6 +281,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClInclude Include="lua\LuaState.h" />
     <ClInclude Include="lua\LuaSerializer.h" />
     <ClInclude Include="lua\LuaUtil.h" />
+    <ClInclude Include="lua\LuaVariant.h" />
     <ClInclude Include="MappedBuffer.h" />
     <ClInclude Include="Precompile.h" />
     <ClInclude Include="ProjectLocator.h" />

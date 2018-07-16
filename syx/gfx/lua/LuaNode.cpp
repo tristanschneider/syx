@@ -184,6 +184,10 @@ namespace Lua {
     _forEachBottomUp(&Node::_destruct, base);
   }
 
+  size_t Node::getTypeId() const {
+    return typeId<void>();
+  }
+
   NodeDiff Node::getDiff(const void* base, const void* other) const {
     int nodeIndex = 0;
     return _getDiff(base, other, nodeIndex);
