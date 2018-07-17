@@ -105,6 +105,21 @@ namespace Lua {
     mType = nullptr;
   }
 
+  size_t Variant::getTypeId() const {
+    return mType ? mType->getTypeId() : typeId<void>();
+  }
+
+  const Variant* Variant::getChild(const Key& key) const {
+    for(const Variant& child : mChildren)
+      if(mKey == child.mKey)
+        return &child;
+  }
+
+  Variant* Variant::getChild(const Key& key) {
+    return const_cast<Variant*>(const_cast<const Variant*>(this)->getChild(key));
+  }
+
+
   void Variant::_destructData() {
     if(mType && mData.size()) {
       mType->destruct(mData.data());

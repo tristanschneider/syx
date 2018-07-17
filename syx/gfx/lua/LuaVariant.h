@@ -22,6 +22,18 @@ namespace Lua {
     // Write this and all children to the top of the stack
     void writeToLua(lua_State* l) const;
     void clear();
+    size_t getTypeId() const;
+    const Variant* getChild(const Key& key) const;
+    Variant* getChild(const Key& key);
+
+    template<typename T>
+    T* get() {
+      return getTypeId() == typeId<T>() && mData.size() ? reinterpret_cast<T*>(mData.data()) : nullptr;
+    }
+    template<typename T>
+    const T* get() const {
+      return getTypeId() == typeId<T>() && mData.size() ? reinterpret_cast<const T*>(mData.data()) : nullptr;
+    }
 
   private:
     void _destructData();
