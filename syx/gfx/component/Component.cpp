@@ -54,6 +54,7 @@ Component::Registry& Component::Registry::_get() {
 Component::Component(Handle type, Handle owner)
   : mOwner(owner)
   , mType(type)
+  , mSubType(0)
   , mCacheId(sLuaCache->nextHandle()) {
 }
 

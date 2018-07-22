@@ -5,6 +5,7 @@
 namespace Lua {
   class Sandbox;
   class State;
+  class Variant;
 }
 
 struct lua_State;
@@ -38,6 +39,8 @@ public:
   void set(const Component& component) override;
   const Lua::Node* getLuaProps() const override;
   const ComponentTypeInfo& getTypeInfo() const override;
+  void _setSubType(size_t subType) override;
+  void onPropsUpdated() override;
 
   //The script must be at the top of the stack
   void init(Lua::State& state, int selfIndex);
@@ -47,12 +50,12 @@ public:
 
 private:
   bool _callFunc(lua_State* s, const char* funcName, int arguments, int returns) const;
-  std::unique_ptr<Lua::Node> _buildLuaProps(lua_State* l);
-  //Build node tree from globals in script whose sandbox is on top of the stack
-  void _buildPropsFromStack(lua_State* l, Lua::Node& parent) const;
+  std::unique_ptr<Lua::Node> _buildLuaProps() const;
+  void _readPropsFromLua(lua_State* s);
+  void _writePropsToLua(lua_State* s);
 
   size_t mScript;
-  std::vector<uint8_t> mPropsBuffer;
   std::unique_ptr<Lua::Sandbox> mSandbox;
-  std::unique_ptr<Lua::Node> mProps;
+  std::unique_ptr<Lua::Variant> mProps;
+  bool mPropsNeedWriteToLua = false;
 };

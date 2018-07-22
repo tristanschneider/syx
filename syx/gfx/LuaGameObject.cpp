@@ -34,8 +34,13 @@ Handle LuaGameObject::getHandle() const {
 }
 
 void LuaGameObject::addComponent(std::unique_ptr<Component> component) {
-  _addComponentLookup(*component);
-  mComponents[component->getType()] = std::move(component);
+  if(component->getType() == Component::typeId<LuaComponent>()) {
+    addLuaComponent(component->getSubType());
+  }
+  else {
+    _addComponentLookup(*component);
+    mComponents[component->getType()] = std::move(component);
+  }
 }
 
 void LuaGameObject::removeComponent(size_t type) {
@@ -47,16 +52,19 @@ void LuaGameObject::removeComponent(size_t type) {
   }
 }
 
-Component* LuaGameObject::getComponent(size_t type) {
-  return const_cast<Component*>(const_cast<const LuaGameObject*>(this)->getComponent(type));
+Component* LuaGameObject::getComponent(size_t type, size_t subType) {
+  return const_cast<Component*>(const_cast<const LuaGameObject*>(this)->getComponent(type, subType));
 }
 
-const Component* LuaGameObject::getComponent(size_t type) const {
+const Component* LuaGameObject::getComponent(size_t type, size_t subType) const {
   if(type == Component::typeId<Transform>()) {
     return &mTransform;
   }
   if(type == Component::typeId<SpaceComponent>()) {
     return &mSpace;
+  }
+  if(type == Component::typeId<LuaComponent>()) {
+    return getLuaComponent(subType);
   }
   auto ptr = mComponents.get(type);
   return ptr ? ptr->get() : nullptr;
@@ -83,6 +91,10 @@ LuaComponent* LuaGameObject::addLuaComponent(size_t script) {
 }
 
 LuaComponent* LuaGameObject::getLuaComponent(size_t script) {
+  return const_cast<LuaComponent*>(const_cast<const LuaGameObject*>(this)->getLuaComponent(script));
+}
+
+const LuaComponent* LuaGameObject::getLuaComponent(size_t script) const {
   auto it = mLuaComponents.find(script);
   return it != mLuaComponents.end() ? &it->second : nullptr;
 }

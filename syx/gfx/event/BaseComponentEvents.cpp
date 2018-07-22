@@ -4,14 +4,16 @@
 #include "component/Component.h"
 #include "lua/LuaNode.h"
 
-DEFINE_EVENT(AddComponentEvent, Handle obj, Handle compType)
+DEFINE_EVENT(AddComponentEvent, Handle obj, size_t compType, size_t subType)
   , mObj(obj)
-  , mCompType(compType) {
+  , mCompType(compType)
+  , mSubType(subType) {
 }
 
-DEFINE_EVENT(RemoveComponentEvent, Handle obj, Handle compType)
+DEFINE_EVENT(RemoveComponentEvent, Handle obj, size_t compType, size_t subType)
   , mObj(obj)
-  , mCompType(compType) {
+  , mCompType(compType)
+  , mSubType(subType) {
 }
 
 DEFINE_EVENT(AddGameObjectEvent, Handle obj)
@@ -22,9 +24,10 @@ DEFINE_EVENT(RemoveGameObjectEvent, Handle obj)
   , mObj(obj) {
 }
 
-DEFINE_EVENT(SetComponentPropsEvent, Handle obj, size_t compType, const Lua::Node* prop, Lua::NodeDiff diff, std::vector<uint8_t>&& buffer)
+DEFINE_EVENT(SetComponentPropsEvent, Handle obj, size_t compType, const Lua::Node* prop, Lua::NodeDiff diff, std::vector<uint8_t>&& buffer, size_t subType)
   , mObj(obj)
   , mCompType(compType)
+  , mSubType(subType)
   , mDiff(diff)
   , mProp(prop)
   , mBuffer(std::move(buffer)) {
@@ -34,6 +37,7 @@ SetComponentPropsEvent::SetComponentPropsEvent(const SetComponentPropsEvent& oth
   : Event(Event::typeId<SetComponentPropsEvent>(), sizeof(SetComponentPropsEvent)) {
   mObj = other.mObj;
   mCompType = other.mCompType;
+  mSubType = other.mSubType;
   mDiff = other.mDiff;
   mProp = other.mProp;
   mBuffer.resize(other.mBuffer.size());
@@ -44,6 +48,7 @@ SetComponentPropsEvent::SetComponentPropsEvent(SetComponentPropsEvent&& other)
   : Event(Event::typeId<SetComponentPropsEvent>(), sizeof(SetComponentPropsEvent))
   , mObj(other.mObj)
   , mCompType(other.mCompType)
+  , mSubType(other.mSubType)
   , mDiff(other.mDiff)
   , mProp(other.mProp)
   , mBuffer(std::move(other.mBuffer)) {
@@ -52,6 +57,6 @@ SetComponentPropsEvent::SetComponentPropsEvent(SetComponentPropsEvent&& other)
 
 SetComponentPropsEvent::~SetComponentPropsEvent() {
   if(mProp) {
-    mProp->destructBuffer(&mBuffer[0]);
+    mProp->destructBuffer(mBuffer.data());
   }
 }

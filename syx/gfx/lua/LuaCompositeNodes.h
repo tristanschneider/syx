@@ -101,18 +101,25 @@ namespace Lua {
   //A pointer node that can be used as a parent of other node and used to follow a pointer value in a structure
   //The pointer value must be non-null, as the node can't know how to create a new one
   template<typename Ptr>
-  class PointerNode : public Node {
+  class PointerNode : public TypedNode<Ptr> {
   public:
-    using Node::Node;
+    using TypedNode::TypedNode;
     //Follow pointer so children are relative to dereferenced address
     void _translateBase(const void*& base) const override {
-      const Ptr& ptr = *static_cast<const Ptr*>(base);
-      assert(ptr != nullptr && "Pointer must have a value");
-      base = &*ptr;
+      const auto& ptr = _cast(base);
+      if(ptr)
+        base = &*ptr;
+      else
+        base = nullptr;
     }
     void _readFromLua(lua_State* s, void* base) const override {}
-    void _writeToLua(lua_State* s, const void* base) const override {}
+    void _writeToLua(lua_State* s, const void* base) const override {
+      //Write table for children to fill
+      lua_newtable(s);
+    }
   };
+  template<typename T>
+  using UniquePtrNode = PointerNode<std::unique_ptr<T>>;
 
   class BufferNode : public TypedNode<std::vector<uint8_t>> {
   public:

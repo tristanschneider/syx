@@ -87,8 +87,15 @@ public:
   size_t getType() const {
     return mType;
   }
+  size_t getSubType() const {
+    return mSubType;
+  }
   Handle getOwner() const {
     return mOwner;
+  }
+  void setSubType(size_t subType) {
+    mSubType = subType;
+    _setSubType(subType);
   }
 
   //Push lua component onto stack
@@ -101,6 +108,7 @@ public:
   virtual const Lua::Node* getLuaProps() const;
   virtual void openLib(lua_State* l) const;
   virtual const ComponentTypeInfo& getTypeInfo() const;
+  virtual void onPropsUpdated() {}
 
   void setPropsFromStack(lua_State* l, LuaGameSystem& game) const;
   void setPropFromStack(lua_State* l, const char* name, LuaGameSystem& game) const;
@@ -123,8 +131,11 @@ protected:
 
   const Lua::Node* _getPropByName(const char* propName) const;
 
+  virtual void _setSubType(size_t subType) {}
+
   Handle mOwner;
   size_t mType;
+  size_t mSubType;
   size_t mCacheId;
 
 private:

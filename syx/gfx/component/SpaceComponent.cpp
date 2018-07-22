@@ -24,18 +24,12 @@
 
 namespace {
   void _pushComponent(MessageQueue& msg, Handle objHandle, const Component& comp) {
-    if(comp.getType() == Component::typeId<LuaComponent>()) {
-      msg.get().push(AddLuaComponentEvent(objHandle, static_cast<const LuaComponent&>(comp).getScript()));
-      //TODO: set lua props
-    }
-    else {
-      msg.get().push(AddComponentEvent(objHandle, comp.getType()));
+    msg.get().push(AddComponentEvent(objHandle, comp.getType(), comp.getSubType()));
 
-      if(const Lua::Node* props = comp.getLuaProps()) {
-        std::vector<uint8_t> buffer(props->size());
-        props->copyConstructToBuffer(&comp, buffer.data());
-        msg.get().push(SetComponentPropsEvent(objHandle, comp.getType(), props, ~0, std::move(buffer)));
-      }
+    if(const Lua::Node* props = comp.getLuaProps()) {
+      std::vector<uint8_t> buffer(props->size());
+      props->copyConstructToBuffer(&comp, buffer.data());
+      msg.get().push(SetComponentPropsEvent(objHandle, comp.getType(), props, ~0, std::move(buffer), comp.getSubType()));
     }
   }
 

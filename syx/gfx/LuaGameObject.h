@@ -51,8 +51,8 @@ public:
 
   void addComponent(std::unique_ptr<Component> component);
   void removeComponent(size_t type);
-  Component* getComponent(size_t type);
-  const Component* getComponent(size_t type) const;
+  Component* getComponent(size_t type, size_t subType = 00);
+  const Component* getComponent(size_t type, size_t subType = 0) const;
   Transform& getTransform();
   const Transform& getTransform() const;
   Handle getSpace() const;
@@ -75,6 +75,7 @@ public:
 
   LuaComponent* addLuaComponent(size_t script);
   LuaComponent* getLuaComponent(size_t script);
+  const LuaComponent* getLuaComponent(size_t script) const;
   void removeLuaComponent(size_t script);
   std::unordered_map<size_t, LuaComponent>& getLuaComponents();
   const std::unordered_map<size_t, LuaComponent>& getLuaComponents() const;

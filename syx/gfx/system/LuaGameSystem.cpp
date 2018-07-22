@@ -256,14 +256,14 @@ void LuaGameSystem::_onAllSystemsInit(const AllSystemsInitialized&) {
 void LuaGameSystem::_onAddComponent(const AddComponentEvent& e) {
   if(LuaGameObject* obj = _getObj(e.mObj)) {
     //Don't add types that already exist
-    if(obj->getComponent(e.mCompType))
+    if(obj->getComponent(e.mCompType, e.mSubType))
       return;
     //Try to see if this was a pending component
     std::unique_ptr<Component> pending;
     mPendingComponentsLock.lock();
     for(size_t i = 0; i < mPendingComponents.size(); ++i) {
       std::unique_ptr<Component>& component = mPendingComponents[i];
-      if(component->getOwner() == e.mObj && component->getType() == e.mCompType) {
+      if(component->getOwner() == e.mObj && component->getType() == e.mCompType && component->getSubType() == e.mSubType) {
         pending = std::move(component);
         //Erase instead of swap remove as it's very likely order in vector is the order of the messages, so component can often be found at 0 if erased
         mPendingComponents.erase(mPendingComponents.begin() + i);
@@ -273,8 +273,11 @@ void LuaGameSystem::_onAddComponent(const AddComponentEvent& e) {
     mPendingComponentsLock.unlock();
     if(pending)
       obj->addComponent(std::move(pending));
-    else
-      obj->addComponent(Component::Registry::construct(e.mCompType, e.mObj));
+    else {
+      auto comp = Component::Registry::construct(e.mCompType, e.mObj);
+      comp->setSubType(e.mSubType);
+      obj->addComponent(std::move(comp));
+    }
   }
 }
 
@@ -340,8 +343,9 @@ void LuaGameSystem::_onPhysicsUpdate(const PhysicsCompUpdateEvent& e) {
 
 void LuaGameSystem::_onSetComponentProps(const SetComponentPropsEvent& e) {
   if(LuaGameObject* obj = _getObj(e.mObj)) {
-    if(Component* comp = obj->getComponent(e.mCompType)) {
+    if(Component* comp = obj->getComponent(e.mCompType, e.mSubType)) {
       e.mProp->copyFromBuffer(comp, e.mBuffer.data(), e.mDiff);
+      comp->onPropsUpdated();
     }
   }
 }

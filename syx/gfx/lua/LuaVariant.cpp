@@ -2,7 +2,6 @@
 #include "lua/LuaVariant.h"
 
 #include <lua.hpp>
-#include "lua/LuaNode.h"
 #include "lua/LuaStackAssert.h"
 
 namespace Lua {
@@ -47,6 +46,18 @@ namespace Lua {
     mChildren = std::move(rhs.mChildren);
     _moveData(rhs.mData);
     return *this;
+  }
+
+  bool Variant::operator==(const Variant& rhs) const {
+    if(mKey != rhs.mKey || mType != rhs.mType || mChildren.size() != rhs.mChildren.size() || mData.size() != rhs.mData.size())
+      return false;
+    if(mType && !mType->_equals(mData.data(), rhs.mData.data()))
+      return false;
+    return mChildren == rhs.mChildren;
+  }
+
+  bool Variant::operator!=(const Variant& rhs) const {
+    return !(*this == rhs);
   }
 
   bool Variant::readFromLua(lua_State* l) {
@@ -109,16 +120,30 @@ namespace Lua {
     return mType ? mType->getTypeId() : typeId<void>();
   }
 
+  const Key& Variant::getKey() const {
+    return mKey;
+  }
+
   const Variant* Variant::getChild(const Key& key) const {
     for(const Variant& child : mChildren)
       if(mKey == child.mKey)
         return &child;
+    return nullptr;
   }
 
   Variant* Variant::getChild(const Key& key) {
     return const_cast<Variant*>(const_cast<const Variant*>(this)->getChild(key));
   }
 
+  void Variant::forEachChild(std::function<void(const Variant&)> callback) const {
+    for(const Variant& child : mChildren)
+      callback(child);
+  }
+
+  void Variant::forEachChild(std::function<void(Variant&)> callback) {
+    for(Variant& child : mChildren)
+      callback(child);
+  }
 
   void Variant::_destructData() {
     if(mType && mData.size()) {
