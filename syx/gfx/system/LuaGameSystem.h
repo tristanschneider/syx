@@ -23,6 +23,7 @@ class TransformEvent;
 class PhysicsCompUpdateEvent;
 class AddLuaComponentEvent;
 class RemoveLuaComponentEvent;
+class SceneBrowser;
 class SetComponentPropsEvent;
 class AllSystemsInitialized;
 struct lua_State;
@@ -74,6 +75,7 @@ private:
 
   void _registerBuiltInComponents();
   void _update(float dt);
+  void _editorUpdate();
 
   //TODO: make it possible to do this from lua
   void _initHardCodedScene();
@@ -106,4 +108,7 @@ private:
   //Global instances of each space so spaces can be retreived by name.
   std::unordered_map<Handle, SpaceComponent> mSpaces;
   SpinLock mPendingObjectsLock;
+
+  //Editor
+  std::unique_ptr<SceneBrowser> mSceneBrowser;
 };

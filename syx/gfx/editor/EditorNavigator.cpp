@@ -1,5 +1,5 @@
 #include "Precompile.h"
-#include "EditorNavigator.h"
+#include "editor/EditorNavigator.h"
 #include "system/KeyboardInput.h"
 #include "system/GraphicsSystem.h"
 #include "provider/SystemProvider.h"

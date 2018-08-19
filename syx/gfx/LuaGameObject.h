@@ -1,4 +1,5 @@
 #pragma once
+#include "component/NameComponent.h"
 #include "component/SpaceComponent.h"
 #include "component/Transform.h"
 
@@ -55,6 +56,7 @@ public:
   const Component* getComponent(size_t type, size_t subType = 0) const;
   Transform& getTransform();
   const Transform& getTransform() const;
+  const NameComponent& getName() const;
   Handle getSpace() const;
 
   template<typename CompType>
@@ -106,12 +108,15 @@ private:
   static std::unique_ptr<Lua::Cache> sCache;
 
   void _addBuiltInComponents();
+  void _forEachBuiltInComponent(std::function<void(Component&)> func);
+  void _forEachBuiltInComponent(std::function<void(const Component&)> func) const;
   void _addComponentLookup(Component& comp);
   void _removeComponentLookup(const Component& comp);
 
   Handle mHandle;
   Transform mTransform;
   SpaceComponent mSpace;
+  NameComponent mName;
   TypeMap<std::unique_ptr<Component>, Component> mComponents;
   //Id of script in asset repo to the lua component holding it
   std::unordered_map<size_t, LuaComponent> mLuaComponents;

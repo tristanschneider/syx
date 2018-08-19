@@ -8,6 +8,7 @@
 #include "component/Physics.h"
 #include "component/Renderable.h"
 #include "component/SpaceComponent.h"
+#include "editor/SceneBrowser.h"
 #include "event/BaseComponentEvents.h"
 #include "event/EventBuffer.h"
 #include "event/EventHandler.h"
@@ -66,6 +67,8 @@ void LuaGameSystem::init() {
 
   mComponents = std::make_unique<LuaComponentRegistry>();
   _registerBuiltInComponents();
+
+  mSceneBrowser = std::make_unique<SceneBrowser>(mArgs.mMessages);
 }
 
 void LuaGameSystem::_openAllLibs(lua_State* l) {
@@ -76,6 +79,9 @@ void LuaGameSystem::_openAllLibs(lua_State* l) {
 }
 
 void LuaGameSystem::queueTasks(float dt, IWorkerPool& pool, std::shared_ptr<Task> frameTask) {
+  //Editor uses ui that must be on the main thread
+  _editorUpdate();
+
   auto events = std::make_shared<FunctionTask>([this]() {
     mEventHandler->handleEvents(*mEventBuffer);
   });
@@ -131,6 +137,10 @@ void LuaGameSystem::_update(float dt) {
   }
 }
 
+void LuaGameSystem::_editorUpdate() {
+  mSceneBrowser->editorUpdate(getObjects());
+}
+
 void LuaGameSystem::_registerBuiltInComponents() {
   auto lock = mComponentsLock.getWriter();
   const auto& ctors = Component::Registry::getConstructors();
@@ -151,7 +161,10 @@ Component* LuaGameSystem::addComponent(const std::string& name, LuaGameObject& o
   std::unique_ptr<Component> component;
   {
     auto lock = mComponentsLock.getReader();
-    size_t type = mComponents->getComponentType(name, type);
+    size_t type = 0;
+    if(!mComponents->getComponentType(name, type)) {
+      return nullptr;
+    }
     //Comopnent may already exist, most likely for built in components
     if(Component* existing = owner.getComponent(type)) {
       return existing;

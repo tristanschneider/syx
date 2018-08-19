@@ -2,7 +2,6 @@
 #include "App.h"
 
 #include "AppPlatform.h"
-#include "EditorNavigator.h"
 #include "event/EventBuffer.h"
 #include "event/LifecycleEvents.h"
 #include "file/FilePath.h"

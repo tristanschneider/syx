@@ -17,7 +17,8 @@ std::unique_ptr<Lua::Cache> LuaGameObject::sCache = std::make_unique<Lua::Cache>
 LuaGameObject::LuaGameObject(Handle h)
   : mHandle(h)
   , mTransform(h)
-  , mSpace(h) {
+  , mSpace(h)
+  , mName(h) {
   _addBuiltInComponents();
 }
 
@@ -25,8 +26,21 @@ LuaGameObject::~LuaGameObject() {
 }
 
 void LuaGameObject::_addBuiltInComponents() {
-  _addComponentLookup(mTransform);
-  _addComponentLookup(mSpace);
+  _forEachBuiltInComponent([this](Component& c) {
+    _addComponentLookup(c);
+  });
+}
+
+void LuaGameObject::_forEachBuiltInComponent(std::function<void(Component&)> func) {
+  const_cast<const LuaGameObject*>(this)->_forEachBuiltInComponent([func](const Component& c) {
+    func(const_cast<Component&>(c));
+  });
+}
+
+void LuaGameObject::_forEachBuiltInComponent(std::function<void(const Component&)> func) const {
+  func(mTransform);
+  func(mSpace);
+  func(mName);
 }
 
 Handle LuaGameObject::getHandle() const {
@@ -57,12 +71,16 @@ Component* LuaGameObject::getComponent(size_t type, size_t subType) {
 }
 
 const Component* LuaGameObject::getComponent(size_t type, size_t subType) const {
-  if(type == Component::typeId<Transform>()) {
-    return &mTransform;
+  const Component* builtIn = nullptr;
+  _forEachBuiltInComponent([&builtIn, type](const Component& c) {
+    if(type == c.getType()) {
+      builtIn = &c;
+    }
+  });
+  if(builtIn) {
+    return builtIn;
   }
-  if(type == Component::typeId<SpaceComponent>()) {
-    return &mSpace;
-  }
+
   if(type == Component::typeId<LuaComponent>()) {
     return getLuaComponent(subType);
   }
@@ -76,6 +94,10 @@ Transform& LuaGameObject::getTransform() {
 
 const Transform& LuaGameObject::getTransform() const {
   return mTransform;
+}
+
+const NameComponent& LuaGameObject::getName() const {
+  return mName;
 }
 
 Handle LuaGameObject::getSpace() const {
@@ -134,8 +156,7 @@ void LuaGameObject::forEachComponent(std::function<void(const Component&)> callb
     callback(*c);
   for(const auto& c : mLuaComponents)
     callback(c.second);
-  callback(mTransform);
-  callback(mSpace);
+  _forEachBuiltInComponent(callback);
 }
 
 void LuaGameObject::openLib(lua_State* l) {
