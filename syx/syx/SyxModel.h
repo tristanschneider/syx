@@ -116,7 +116,7 @@ namespace Syx {
 
     //Only for composite models
     std::vector<ModelInstance, AlignmentAllocator<ModelInstance>> mInstances;
-    std::vector<Model, AlignmentAllocator<ModelInstance>> mSubmodels;
+    std::vector<Model, AlignmentAllocator<Model>> mSubmodels;
     //Composite and environment
     ModelBroadphase mBroadphase;
   };

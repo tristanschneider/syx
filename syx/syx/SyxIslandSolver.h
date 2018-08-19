@@ -25,10 +25,10 @@ namespace Syx {
     void _clearLocalConstraints();
 
     std::vector<LocalObject, AlignmentAllocator<LocalObject>> mObjects;
-    std::vector<LocalWeldConstraint, AlignmentAllocator<LocalContactConstraint>> mWelds;
-    std::vector<LocalRevoluteConstraint, AlignmentAllocator<RevoluteConstraint>> mRevolutes;
+    std::vector<LocalWeldConstraint, AlignmentAllocator<LocalWeldConstraint>> mWelds;
+    std::vector<LocalRevoluteConstraint, AlignmentAllocator<LocalRevoluteConstraint>> mRevolutes;
     std::vector<LocalContactConstraint, AlignmentAllocator<LocalContactConstraint>> mContacts;
-    std::vector<LocalSphericalConstraint, AlignmentAllocator<SphericalConstraint>> mSphericals;
+    std::vector<LocalSphericalConstraint, AlignmentAllocator<LocalSphericalConstraint>> mSphericals;
     std::vector<LocalDistanceConstraint, AlignmentAllocator<LocalDistanceConstraint>> mDistances;
     std::vector<Constraint*> mToRemove;
     std::unordered_map<Handle, size_t> mObjHandleToIndex;
