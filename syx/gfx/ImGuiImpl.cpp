@@ -123,6 +123,8 @@ void ImGuiImpl::updateInput(KeyboardInput& input) {
   io.MouseDown[1] = input.getKeyDown(Key::RightMouse);
   Syx::Vec2 mp = input.getMousePos();
   io.MousePos = ImVec2(mp.x, mp.y);
+  const float sensitivity = 0.3f;
+  io.MouseWheel = input.getWheelDelta()*sensitivity;
 
   for(size_t i = 0; i < 128; ++i) {
     char c = static_cast<char>(i);
@@ -133,6 +135,8 @@ void ImGuiImpl::updateInput(KeyboardInput& input) {
   for(size_t i = 0; i < static_cast<size_t>(Key::Count); ++i) {
     io.KeysDown[i] = input.getKeyDown(static_cast<Key>(i));
   }
+  // New frame checks for input and render clears it, so frame must start here
+  ImGui::NewFrame();
 }
 
 void ImGuiImpl::render(float dt, Syx::Vec2 display) {
@@ -207,5 +211,4 @@ void ImGuiImpl::render(float dt, Syx::Vec2 display) {
   glBindBuffer(GL_ARRAY_BUFFER, 0);
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
   glBindTexture(GL_TEXTURE_2D, 0);
-  ImGui::NewFrame();
 }

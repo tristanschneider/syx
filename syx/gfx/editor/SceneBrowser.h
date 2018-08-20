@@ -11,4 +11,5 @@ public:
 
 private:
   MessageQueueProvider* mMsg;
+  Handle mSelected;
 };

@@ -13,14 +13,18 @@
 #include "asset/Shader.h"
 #include "App.h"
 #include "system/GraphicsSystem.h"
+#include "system/KeyboardInput.h"
 #include "win32/AppPlatformWin32.h"
 
 using namespace Syx;
 
-static HDC sDeviceContext = NULL;
-static HGLRC sGLContext = NULL;
-static std::unique_ptr<App> sApp;
-static int sWidth, sHeight;
+namespace {
+  HDC sDeviceContext = NULL;
+  HGLRC sGLContext = NULL;
+  std::unique_ptr<App> sApp;
+  int sWidth, sHeight;
+  KeyboardInput* input = nullptr;
+}
 
 HWND gHwnd = NULL;
 
@@ -59,6 +63,12 @@ LRESULT CALLBACK mainProc(HWND wnd, UINT msg, WPARAM w, LPARAM l) {
 
     case WM_ACTIVATEAPP:
       onFocusChanged(w);
+      break;
+
+    case WM_MOUSEWHEEL:
+      if(input) {
+        input->feedWheelDelta(static_cast<float>(GET_WHEEL_DELTA_WPARAM(w))/static_cast<float>(WHEEL_DELTA));
+      }
       break;
   }
   return DefWindowProc(wnd, msg, w, l);
@@ -145,6 +155,7 @@ int mainLoop() {
   sApp = std::make_unique<App>(std::make_unique<AppPlatformWin32>());
 
   sApp->init();
+  input = sApp->getSystem<KeyboardInput>();
   //Inform graphcis of screen size
   setWindowSize(sWidth, sHeight);
   auto lastFrameStart = std::chrono::high_resolution_clock::now();

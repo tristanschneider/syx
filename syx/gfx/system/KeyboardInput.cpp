@@ -112,6 +112,10 @@ Syx::Vec2 KeyboardInput::getMouseDelta() const {
   return mCurMouse - mPrevMouse;
 }
 
+float KeyboardInput::getWheelDelta() const {
+  return mCurWheel;
+}
+
 void KeyboardInput::init() {
   std::memset(mPrevState, 0, sKeyCount);
   std::memset(mCurState, 0, sKeyCount);
@@ -126,7 +130,13 @@ void KeyboardInput::update(float dt, IWorkerPool& pool, std::shared_ptr<Task> fr
     mPrevMouse = mCurMouse;
     mCurMouse = Syx::Vec2(static_cast<float>(p.x), static_cast<float>(p.y));
   }
+  mCurWheel = mPrevWheel;
+  mPrevWheel = 0.0f;
 }
 
 void KeyboardInput::uninit() {
+}
+
+void KeyboardInput::feedWheelDelta(float delta) {
+  mPrevWheel = delta;
 }

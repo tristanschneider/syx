@@ -68,6 +68,8 @@ public:
   void update(float dt, IWorkerPool& pool, std::shared_ptr<Task> frameTask) override;
   void uninit() override;
 
+  void feedWheelDelta(float delta);
+
   KeyState getKeyState(Key key) const;
   bool getKeyDown(Key key) const;
   bool getKeyUp(Key key) const;
@@ -77,6 +79,8 @@ public:
   //Get mouse information in pixels
   Syx::Vec2 getMousePos() const;
   Syx::Vec2 getMouseDelta() const;
+  float getWheelDelta() const;
+
 private:
   static const size_t sKeyCount = 256;
   static const size_t sAsciiCount = 128;
@@ -91,4 +95,6 @@ private:
   uint8_t mKeyToAscii[sAsciiCount];
   Syx::Vec2 mPrevMouse;
   Syx::Vec2 mCurMouse;
+  float mPrevWheel;
+  float mCurWheel;
 };
