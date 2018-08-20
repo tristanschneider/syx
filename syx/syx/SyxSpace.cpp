@@ -49,8 +49,12 @@ namespace Syx {
     PhysicsObject* obj = mObjects.get(handle);
     while(!obj->getConstraints().empty())
       removeConstraint(*obj->getConstraints().begin());
-    mIslandGraph.remove(*mObjects.get(handle));
+    if(obj) {
+      mIslandGraph.wakeIsland(*obj);
+      mIslandGraph.remove(*obj);
+    }
     mObjects.remove(handle);
+    mBroadphase->remove(handle);
   }
 
   PhysicsObject* Space::getObject(Handle handle) {

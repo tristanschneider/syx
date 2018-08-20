@@ -4,6 +4,7 @@
 #include "component/Transform.h"
 
 class Component;
+class EventBuffer;
 class LuaComponent;
 struct lua_State;
 
@@ -74,6 +75,8 @@ public:
   void removeComponent() {
     mComponents.set<CompType>(nullptr);
   }
+
+  void remove(EventBuffer& msg) const;
 
   LuaComponent* addLuaComponent(size_t script);
   LuaComponent* getLuaComponent(size_t script);

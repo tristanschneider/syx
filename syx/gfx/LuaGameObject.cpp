@@ -3,6 +3,8 @@
 
 #include "component/LuaComponent.h"
 #include "component/SpaceComponent.h"
+#include "event/BaseComponentEvents.h"
+#include "event/EventBuffer.h"
 #include "lua/LuaCache.h"
 #include "lua/LuaComponentNode.h"
 #include "lua/LuaCompositeNodes.h"
@@ -102,6 +104,13 @@ const NameComponent& LuaGameObject::getName() const {
 
 Handle LuaGameObject::getSpace() const {
   return mSpace.get();
+}
+
+void LuaGameObject::remove(EventBuffer& msg) const {
+  forEachComponent([&msg, this](const Component& comp) {
+    msg.push(RemoveComponentEvent(getHandle(), comp.getType(), comp.getSubType()));
+  });
+  msg.push(RemoveGameObjectEvent(getHandle()));
 }
 
 LuaComponent* LuaGameObject::addLuaComponent(size_t script) {

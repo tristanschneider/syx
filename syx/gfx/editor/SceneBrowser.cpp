@@ -2,14 +2,17 @@
 #include "editor/SceneBrowser.h"
 
 #include "editor/event/EditorEvents.h"
+#include "event/BaseComponentEvents.h"
 #include "event/eventBuffer.h"
 #include "imgui/imgui.h"
 #include "ImGuiImpl.h"
 #include "LuaGameObject.h"
+#include "provider/GameObjectHandleProvider.h"
 #include "provider/MessageQueueProvider.h"
 
-SceneBrowser::SceneBrowser(MessageQueueProvider* msg)
-  : mMsg(msg) {
+SceneBrowser::SceneBrowser(MessageQueueProvider* msg, GameObjectHandleProvider* handleGen)
+  : mMsg(msg)
+  , mHandleGen(handleGen) {
 }
 
 void SceneBrowser::editorUpdate(const HandleMap<std::unique_ptr<LuaGameObject>>& objects) {
@@ -17,7 +20,20 @@ void SceneBrowser::editorUpdate(const HandleMap<std::unique_ptr<LuaGameObject>>&
     return;
   }
   ImGui::Begin("Objects");
-  ImGui::BeginChild("ScrollView", ImVec2(50, 200));
+
+  if(ImGui::Button("New Object")) {
+    mSelected = mHandleGen->newHandle();
+    mMsg->getMessageQueue().get().push(AddGameObjectEvent(mSelected));
+  }
+
+  if(ImGui::Button("Delete Object")) {
+    const auto& it = objects.find(mSelected);
+    if(it != objects.end()) {
+      it->second->remove(mMsg->getMessageQueue().get());
+    }
+  }
+
+  ImGui::BeginChild("ScrollView", ImVec2(0, 0), true);
   std::string name;
   for(const auto& it : objects) {
     const LuaGameObject& obj = *it.second;
@@ -31,5 +47,6 @@ void SceneBrowser::editorUpdate(const HandleMap<std::unique_ptr<LuaGameObject>>&
     }
   }
   ImGui::EndChild();
+
   ImGui::End();
 }

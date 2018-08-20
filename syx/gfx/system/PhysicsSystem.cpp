@@ -77,6 +77,7 @@ void PhysicsSystem::init() {
   SYSTEM_EVENT_HANDLER(PhysicsCompUpdateEvent, _compUpdateEvent);
   SYSTEM_EVENT_HANDLER(SetComponentPropsEvent, _setComponentPropsEvent);
   SYSTEM_EVENT_HANDLER(ClearSpaceEvent, _clearSpaceEvent);
+  SYSTEM_EVENT_HANDLER(RemoveComponentEvent, _removeComponentEvent);
 }
 
 void PhysicsSystem::queueTasks(float dt, IWorkerPool& pool, std::shared_ptr<Task> frameTask) {
@@ -159,6 +160,15 @@ void PhysicsSystem::_clearSpaceEvent(const ClearSpaceEvent& e) {
   mToSyx.clear();
   mFromSyx.clear();
   mSystem->clearSpace(mDefaultSpace);
+}
+
+void PhysicsSystem::_removeComponentEvent(const RemoveComponentEvent& e) {
+  if(e.mCompType == Component::typeId<Physics>()) {
+    const auto& it = mToSyx.find(e.mObj);
+    if(it != mToSyx.end()) {
+      mSystem->removePhysicsObject(mDefaultSpace, it->second.mHandle);
+    }
+  }
 }
 
 void PhysicsSystem::_compUpdateEvent(const PhysicsCompUpdateEvent& e) {

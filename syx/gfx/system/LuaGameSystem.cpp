@@ -68,7 +68,7 @@ void LuaGameSystem::init() {
   mComponents = std::make_unique<LuaComponentRegistry>();
   _registerBuiltInComponents();
 
-  mSceneBrowser = std::make_unique<SceneBrowser>(mArgs.mMessages);
+  mSceneBrowser = std::make_unique<SceneBrowser>(mArgs.mMessages, mArgs.mGameObjectGen);
 }
 
 void LuaGameSystem::_openAllLibs(lua_State* l) {
