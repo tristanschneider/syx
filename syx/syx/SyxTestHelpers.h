@@ -4,8 +4,17 @@
 namespace Syx {
   extern bool TEST_FAILED;
 
+    struct TestRegistrar {
+      TestRegistrar(std::vector<bool(*)()>& funcs, bool(*func)()) {
+        funcs.push_back(func);
+      }
+    };
+#define TEST_FUNC(container, name) bool name(); TestRegistrar name##_reg(container, &name); bool name()
+
+
   inline void failTest(void) {
     TEST_FAILED = true;
+    assert(false && "Test failed");
   }
 
   template <typename T>

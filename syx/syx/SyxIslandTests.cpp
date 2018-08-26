@@ -5,30 +5,34 @@
 #include "SyxTestHelpers.h"
 
 namespace Syx {
-  bool Contains(const IslandContents& contents, const Constraint& constraint) {
-    for(const Constraint* c : contents.mConstraints)
-      if(c->getHandle() == constraint.getHandle())
-        return true;
-    return false;
-  }
+  namespace {
+    std::vector<bool(*)()> islandTests;
 
-  bool Match(const IslandContents& contents, const std::vector<Constraint*> constraints) {
-    if(contents.mConstraints.size() != constraints.size())
+    bool Contains(const IslandContents& contents, const Constraint& constraint) {
+      for(const Constraint* c : contents.mConstraints)
+        if(c->getHandle() == constraint.getHandle())
+          return true;
       return false;
-    for(Constraint* constraint : constraints)
-      if(!Contains(contents, *constraint))
+    }
+
+    bool Match(const IslandContents& contents, const std::vector<Constraint*> constraints) {
+      if(contents.mConstraints.size() != constraints.size())
         return false;
-    return true;
+      for(Constraint* constraint : constraints)
+        if(!Contains(contents, *constraint))
+          return false;
+      return true;
+    }
+
+    bool Match(const IslandContents& contentsA, const IslandContents& contentsB, const std::vector<Constraint*> correctA, const std::vector<Constraint*> correctB) {
+      //We don't enforce an ordering, so if any works 
+      bool aFound = Match(contentsA, correctA) || Match(contentsB, correctA);
+      bool bFound = Match(contentsA, correctB) || Match(contentsB, correctB);
+      return aFound && bFound;
+    }
   }
 
-  bool Match(const IslandContents& contentsA, const IslandContents& contentsB, const std::vector<Constraint*> correctA, const std::vector<Constraint*> correctB) {
-    //We don't enforce an ordering, so if any works 
-    bool aFound = Match(contentsA, correctA) || Match(contentsB, correctA);
-    bool bFound = Match(contentsA, correctB) || Match(contentsB, correctB);
-    return aFound && bFound;
-  }
-
-  bool testIslandAdd() {
+  TEST_FUNC(islandTests, testIslandAdd) {
     TEST_FAILED = false;
     Handle id = 0;
     PhysicsObject a(id++);
@@ -165,7 +169,7 @@ namespace Syx {
     return TEST_FAILED;
   }
 
-  bool testIslandRemoveConstraint() {
+  TEST_FUNC(islandTests, testIslandRemoveConstraint) {
     TEST_FAILED = false;
     Handle id = 0;
     PhysicsObject a(id++);
@@ -343,7 +347,7 @@ namespace Syx {
     return TEST_FAILED;
   }
 
-  bool testIslandRemoveObject() {
+  TEST_FUNC(islandTests, testIslandRemoveObject) {
     TEST_FAILED = false;
     Handle id = 0;
     PhysicsObject a(id++);
@@ -407,7 +411,23 @@ namespace Syx {
     return TEST_FAILED;
   }
 
-  bool testIslandSleep() {
+  TEST_FUNC(islandTests, island_remove_static_object_from_pair_island_is_removed) {
+    Handle id = 0;
+    PhysicsObject staticObj(id++);
+    staticObj.setRigidbodyEnabled(false);
+    PhysicsObject dynamicObj(id++);
+    Constraint c(ConstraintType::Invalid, &staticObj, &dynamicObj, id++);
+    IslandGraph graph;
+    IslandContents contents;
+
+    graph.add(c);
+    graph.remove(staticObj);
+
+    assert(graph.islandCount() == 0 && "Island should be removed");
+    return false;
+  }
+
+  TEST_FUNC(islandTests, testIslandSleep) {
     TEST_FAILED = false;
     Handle id = 0;
     PhysicsObject a(id++);
@@ -495,10 +515,9 @@ namespace Syx {
   }
 
   bool testIslandAll() {
-    bool add = testIslandAdd();
-    bool remCon = testIslandRemoveConstraint();
-    bool remObj = testIslandRemoveObject();
-    bool sleep = testIslandSleep();
-    return add || remCon || remObj || sleep;
+    bool failed = false;
+    for(auto func : islandTests)
+      failed = func() || failed;
+    return failed;
   }
 }

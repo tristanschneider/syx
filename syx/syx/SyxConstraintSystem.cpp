@@ -171,13 +171,20 @@ namespace Syx {
   }
 
 #define RemoveConstraintType(container, type)\
-  _removeConstraintMapping(*c);\
-  container.freeObj(static_cast<type*>(c));
+  _removeConstraintMapping(constraint);\
+  container.freeObj(static_cast<type*>(&constraint));
 
   void ConstraintSystem::removeConstraint(Handle handle) {
-    Constraint* c = getConstraint(handle);
-    if(c) {
-      switch(c->getType()) {
+    if(Constraint* c = getConstraint(handle)) {
+      removeConstraint(*c);
+    }
+  }
+
+  void ConstraintSystem::removeConstraint(Constraint& constraint) {
+      constraint.getObjA()->setAsleep(false);
+      constraint.getObjB()->setAsleep(false);
+      switch(constraint.getType()) {
+        case ConstraintType::Contact: _removeContact(static_cast<ContactConstraint&>(constraint)); break;
         case ConstraintType::Distance: RemoveConstraintType(mDistances, DistanceConstraint); break;
         case ConstraintType::Spherical: RemoveConstraintType(mSphericals, SphericalConstraint); break;
         case ConstraintType::Weld: RemoveConstraintType(mWelds, WeldConstraint); break;
@@ -185,7 +192,6 @@ namespace Syx {
         default:
           SyxAssertError(false, "Tried to remove invalid constraint type");
       }
-    }
   }
 
   void ConstraintSystem::_addConstraintMapping(Constraint& constraint) {

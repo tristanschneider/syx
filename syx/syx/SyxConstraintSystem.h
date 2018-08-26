@@ -39,6 +39,7 @@ namespace Syx {
     Handle addRevoluteConstraint(const RevoluteOps& ops);
 
     void removeConstraint(Handle handle);
+    void removeConstraint(Constraint& constraint);
 
   private:
     void _addConstraintMapping(Constraint& constraint);

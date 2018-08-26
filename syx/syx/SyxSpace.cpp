@@ -46,12 +46,10 @@ namespace Syx {
   }
 
   void Space::destroyObject(Handle handle) {
-    PhysicsObject* obj = mObjects.get(handle);
-    while(!obj->getConstraints().empty())
-      removeConstraint(*obj->getConstraints().begin());
-    if(obj) {
-      mIslandGraph.wakeIsland(*obj);
-      mIslandGraph.remove(*obj);
+    if(PhysicsObject* obj = mObjects.get(handle)) {
+      mIslandGraph.remove(*obj, [this](Constraint& c) {
+        mConstraintSystem.removeConstraint(c);
+      });
     }
     mObjects.remove(handle);
     mBroadphase->remove(handle);

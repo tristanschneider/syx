@@ -244,7 +244,6 @@ namespace Syx {
 
     auto edgeIt = mConstraintToEdge.find(constraint.getHandle());
     if(edgeIt == mConstraintToEdge.end()) {
-      SyxAssertError(constraint.getObjA()->isStatic() && constraint.getObjB()->isStatic(), "Removed constraint that didn't exist");
       return;
     }
     IslandIndex edgeIndex = edgeIt->second;
@@ -254,10 +253,7 @@ namespace Syx {
     IslandNode& nodeA = mNodes[indexA];
     IslandNode& nodeB = mNodes[indexB];
 
-    IslandEdge::unlink(nodeA, nodeB, edgeIndex);
-    mConstraintToEdge.erase(edgeIt);
-    edge.mConstraint = nullptr;
-    mEdges.erase(edgeIndex);
+    _removeEdge(edgeIndex);
     size_t aEdges = nodeA.mEdges.size();
     size_t bEdges = nodeB.mEdges.size();
 
@@ -287,7 +283,7 @@ namespace Syx {
     VALIDATE_ISLAND
   }
 
-  void IslandGraph::remove(PhysicsObject& obj) {
+  void IslandGraph::remove(PhysicsObject& obj, std::function<void(Constraint&)> onRemove) {
     VALIDATE_ISLAND
 
     auto nodeIt = mObjectToNode.find(obj.getHandle());
@@ -297,8 +293,30 @@ namespace Syx {
     IslandIndex nodeIndex = nodeIt->second;
     IslandNode& node = mNodes[nodeIndex];
 
-    while(node.mEdges.size())
-      remove(*mEdges[node.mEdges[0]].mConstraint);
+    //Static node doesn't know edges so we have to find them
+    if(node.mIsland == sStaticNodeIndex) {
+      auto& edgeIndices = mIslandIndices;
+      mEdges.getIndices(edgeIndices);
+      for(IndexableKey edgeIndex : edgeIndices) {
+        IslandEdge& edge = mEdges[edgeIndex];
+        if(edge.mTo == nodeIndex || edge.mFrom == nodeIndex) {
+          Constraint& c = *edge.mConstraint;
+          remove(c);
+          if(onRemove) {
+            onRemove(c);
+          }
+        }
+      }
+    }
+    else {
+      while(node.mEdges.size()) {
+        Constraint& c = *mEdges[node.mEdges[0]].mConstraint;
+        remove(c);
+        if(onRemove) {
+          onRemove(c);
+        }
+      }
+    }
 
     mObjectToNode.erase(nodeIt);
     mNodes.erase(nodeIndex);
@@ -664,6 +682,14 @@ namespace Syx {
       if(std::find(mGatheredNodes.begin(), mGatheredNodes.end(), staticIndex) != mGatheredNodes.end())
         island.setActive();
     }
+  }
+
+  void IslandGraph::_removeEdge(IndexableKey edgeIndex) {
+    IslandEdge& edge = mEdges[edgeIndex];
+    IslandEdge::unlink(mNodes[edge.mFrom], mNodes[edge.mTo], edgeIndex);
+    mConstraintToEdge.erase(edge.mConstraint->getHandle());
+    edge.mConstraint = nullptr;
+    mEdges.erase(edgeIndex);
   }
 
   void IslandGraph::updateIslandState(IndexableKey islandKey, SleepState stateThisFrame, float dt) {

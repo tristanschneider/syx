@@ -112,7 +112,7 @@ namespace Syx {
 
     void add(Constraint& constraint);
     void remove(Constraint& constraint);
-    void remove(PhysicsObject& obj);
+    void remove(PhysicsObject& obj, std::function<void(Constraint&)> onRemove = nullptr);
     void clear();
 
     //Force wake up the island this object belongs to, if any. Needed for waking outside of constraints, like set position
@@ -151,6 +151,7 @@ namespace Syx {
     void _moveRoot(IslandIndex to);
     IndexableKey _newIsland(IslandIndex root);
     void _wakeIslandsWithStaticNode(IslandIndex staticIndex);
+    void _removeEdge(IndexableKey edgeIndex);
 
     StaticIndexable<IslandNode> mNodes;
     StaticIndexable<IslandEdge> mEdges;

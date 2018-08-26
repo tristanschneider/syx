@@ -25,6 +25,8 @@
 #include <SyxPhysicsSystem.h>
 #include <SyxModelParam.h>
 
+#include <SyxIslandTests.h>
+
 namespace Syx {
   namespace Interface {
     extern ::DebugDrawer* gDrawer;
@@ -41,6 +43,7 @@ const std::string PhysicsSystem::DEFAULT_MATERIAL_NAME = "DefaultPhysicsMaterial
 
 PhysicsSystem::PhysicsSystem(const SystemArgs& args)
   : System(args) {
+  assert(!Syx::testIslandAll() && "Physics tests failed");
 }
 
 PhysicsSystem::~PhysicsSystem() {
