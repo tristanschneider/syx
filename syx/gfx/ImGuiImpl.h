@@ -21,8 +21,8 @@ private:
   void _initKeyMap();
 
   std::unique_ptr<Shader> mShader;
-  GLuint mVB;
-  GLuint mVA;
-  GLuint mIB;
-  GLuint mFontTexture;
+  GLHandle mVB;
+  GLHandle mVA;
+  GLHandle mIB;
+  GLHandle mFontTexture;
 };

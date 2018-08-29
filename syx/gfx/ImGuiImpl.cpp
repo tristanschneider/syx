@@ -4,6 +4,8 @@
 #include "imgui/imgui.h"
 #include "system/KeyboardInput.h"
 
+#include <gl/glew.h>
+
 bool ImGuiImpl::sEnabled = false;
 
 ImGuiImpl::ImGuiImpl() {

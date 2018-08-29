@@ -26,7 +26,7 @@ public:
   std::vector<Vertex> mVerts;
   std::vector<size_t> mIndices;
   Handle mHandle;
-  GLuint mVB;
-  GLuint mIB;
-  GLuint mVA;
+  GLHandle mVB;
+  GLHandle mIB;
+  GLHandle mVA;
 };

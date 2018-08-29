@@ -183,6 +183,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClCompile Include="event\TransformEvent.cpp" />
     <ClCompile Include="file\FilePath.cpp" />
     <ClCompile Include="file\FileSystem.cpp" />
+    <ClCompile Include="graphics\FrameBuffer.cpp" />
     <ClCompile Include="ImGuiImpl.cpp" />
     <ClCompile Include="loader\AssetLoader.cpp" />
     <ClCompile Include="loader\LuaScriptLoader.cpp" />
@@ -266,6 +267,8 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClInclude Include="event\TransformEvent.h" />
     <ClInclude Include="file\FilePath.h" />
     <ClInclude Include="file\FileSystem.h" />
+    <ClInclude Include="graphics\FrameBuffer.h" />
+    <ClInclude Include="graphics\GraphicsTypes.h" />
     <ClInclude Include="Handle.h" />
     <ClInclude Include="ImGuiImpl.h" />
     <ClInclude Include="loader\AssetLoader.h" />

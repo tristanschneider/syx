@@ -1,6 +1,8 @@
 #include "Precompile.h"
 #include "Model.h"
 
+#include <gl/glew.h>
+
 Vertex::Vertex(const Syx::Vec3& pos, const Syx::Vec3& normal, const Syx::Vec2& uv)
   : mPos{pos.x, pos.y, pos.z}
   , mNormal{normal.x, normal.y, normal.z}

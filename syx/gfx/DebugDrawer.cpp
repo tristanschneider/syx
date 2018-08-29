@@ -5,7 +5,11 @@
 #include "system/GraphicsSystem.h"
 #include "system/AssetRepo.h"
 
-const static int sStartingSize = 1000;
+#include <gl/glew.h>
+
+namespace {
+  const int sStartingSize = 1000;
+}
 
 DebugDrawer::DebugDrawer(AssetRepo& repo) {
   mShader = repo.getAsset(AssetInfo("shaders/debug.vs"));
@@ -82,7 +86,6 @@ void DebugDrawer::DrawPoint(const Syx::Vec3& point, float size) {
     drawLine(start, end);
   }
 }
-
 
 void DebugDrawer::setColor(const Syx::Vec3& color) {
   mColor = color;

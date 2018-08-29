@@ -21,6 +21,8 @@
 #include "system/AssetRepo.h"
 #include "provider/SystemProvider.h"
 
+#include <gl/glew.h>
+
 using namespace Syx;
 
 RegisterSystemCPP(GraphicsSystem);

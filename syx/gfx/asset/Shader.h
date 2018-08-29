@@ -12,14 +12,14 @@ public:
 
   void load();
   void unload();
-  GLuint getUniform(const std::string& name);
-  GLuint getAttrib(const std::string& name);
-  GLuint getId() const;
+  GLHandle getUniform(const std::string& name);
+  GLHandle getAttrib(const std::string& name);
+  GLHandle getId() const;
   void set(std::string&& sourceVS, std::string&& sourcePS);
 
 private:
-  GLuint mId;
+  GLHandle mId;
   std::string mSourceVS;
   std::string mSourcePS;
-  std::unordered_map<std::string, GLuint> mUniformLocations;
+  std::unordered_map<std::string, GLHandle> mUniformLocations;
 };

@@ -38,7 +38,7 @@ private:
   std::mutex mVertsMutex;
   //Size of buffer currently on gpu
   size_t mBufferSize;
-  GLuint mVAO;
-  GLuint mVBO;
+  GLHandle mVAO;
+  GLHandle mVBO;
   Syx::Vec3 mColor;
 };

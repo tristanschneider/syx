@@ -18,7 +18,7 @@ public:
   void loadGpu();
   void unloadGpu();
 
-  GLuint mTexture;
+  GLHandle mTexture;
   size_t mWidth;
   size_t mHeight;
 };

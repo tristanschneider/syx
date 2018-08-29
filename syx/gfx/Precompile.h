@@ -12,8 +12,6 @@
 #include <chrono>
 #include <thread>
 #include <fstream>
-#include <gl/glew.h>
-#include <gl/GL.h>
 #include <memory>
 #include <mutex>
 #include <type_traits>
@@ -34,3 +32,4 @@
 #include "util/Observer.h"
 #include "util/TypeId.h"
 #include "util/ScopeWrap.h"
+#include "graphics/GraphicsTypes.h"

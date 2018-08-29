@@ -2,6 +2,9 @@
 #include "Texture.h"
 #include "loader/TextureLoader.h"
 
+#include <gl/glew.h>
+
+
 Texture::Binder::Binder(const Texture& tex, int slot)
   : mSlot(slot) {
   glActiveTexture(GL_TEXTURE0 + slot);

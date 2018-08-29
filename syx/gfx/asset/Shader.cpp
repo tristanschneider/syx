@@ -1,6 +1,9 @@
 #include "Precompile.h"
 #include "Shader.h"
 
+#include <gl/glew.h>
+
+
 Shader::Binder::Binder(const Shader& shader) {
   glUseProgram(shader.getId());
 }
@@ -72,7 +75,7 @@ void Shader::unload() {
   mId = 0;
 }
 
-GLuint Shader::getUniform(const std::string& name) {
+GLHandle Shader::getUniform(const std::string& name) {
   auto it = mUniformLocations.find(name);
   if(it != mUniformLocations.end())
     return it->second;
@@ -81,7 +84,7 @@ GLuint Shader::getUniform(const std::string& name) {
   return newId;
 }
 
-GLuint Shader::getAttrib(const std::string& name) {
+GLHandle Shader::getAttrib(const std::string& name) {
   auto it = mUniformLocations.find(name);
   if(it != mUniformLocations.end())
     return it->second;
@@ -90,7 +93,7 @@ GLuint Shader::getAttrib(const std::string& name) {
   return newId;
 }
 
-GLuint Shader::getId() const {
+GLHandle Shader::getId() const {
   return mId;
 }
 

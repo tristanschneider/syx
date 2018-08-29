@@ -16,6 +16,9 @@
 #include "system/KeyboardInput.h"
 #include "win32/AppPlatformWin32.h"
 
+#include <gl/glew.h>
+
+
 using namespace Syx;
 
 namespace {
