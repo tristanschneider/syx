@@ -3,3 +3,4 @@
 
 // Replacement for gluint
 using GLHandle = unsigned int;
+using GLEnum = unsigned int;

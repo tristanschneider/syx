@@ -27,6 +27,30 @@ void TextureDescription::create(void* texture) const {
   }
 }
 
+size_t TextureDescription::bytesPerPixel() const {
+  switch(format) {
+    case TextureFormat::RGBA8: return 4;
+    default: return 0;
+  }
+}
+
+size_t TextureDescription::totalBytes() const {
+  return bytesPerPixel()*width*height;
+}
+
+GLEnum TextureDescription::getGLFormat() const {
+  switch(format) {
+    case TextureFormat::RGBA8: return GL_RGBA;
+    default: return 0;
+  }
+}
+
+GLEnum TextureDescription::getGLType() const {
+  switch(format) {
+    case TextureFormat::RGBA8: return GL_UNSIGNED_BYTE;
+    default: return 0;
+  }
+}
 
 FrameBuffer::FrameBuffer(const TextureDescription& desc)
   : mDesc(desc) {
@@ -74,6 +98,10 @@ void FrameBuffer::unBind() {
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
+const TextureDescription& FrameBuffer::getDescription() const {
+  return mDesc;
+}
+
 void FrameBuffer::_create() {
   glGenFramebuffers(1, &mFb);
   glBindFramebuffer(GL_FRAMEBUFFER, mFb);
@@ -95,9 +123,7 @@ void FrameBuffer::_create() {
 
   assert(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE && "Failed to create frame buffer");
 
-  //Specify this as a buffer that can be written to
-  std::array<GLenum, 1> buffers = { GL_COLOR_ATTACHMENT0 };
-  glDrawBuffers(buffers.size(), buffers.data());
+  setRenderTargets<1>();
 
   unBind();
 }
@@ -113,4 +139,63 @@ void FrameBuffer::_destroy() {
 
 void FrameBuffer::_clear() {
   mFb = mTex = mDepth = 0;
+}
+
+void FrameBuffer::_setRenderTargets(GLHandle* targets, int count) {
+  //Specify this as a buffer that can be written to
+  for(int i = 0; i < count; ++i)
+    targets[i] = GL_COLOR_ATTACHMENT0 + i;
+  glDrawBuffers(static_cast<GLsizei>(count), targets);
+}
+
+PixelBuffer::PixelBuffer(const TextureDescription& desc, Type type)
+  : mDesc(desc)
+  , mType(type)
+  , mPb(0) {
+}
+
+void PixelBuffer::download(GLEnum targetAttachment) {
+  assert(mType == Type::Pack && "Pack type must be used to download");
+  //Specify the buffer to read
+  glReadBuffer(targetAttachment);
+  glBindBuffer(GL_PIXEL_PACK_BUFFER, mPb);
+  //Since pixel pack is defined, data pointer becomes a read offset, start at 0
+  glReadPixels(0, 0, mDesc.width, mDesc.height, mDesc.getGLFormat(), mDesc.getGLType(), 0);
+}
+
+void PixelBuffer::mapBuffer(std::vector<uint8_t>& bytes) {
+  assert(mType == Type::Pack && "Pack type must be used to map buffer");
+  glBindBuffer(GL_PIXEL_PACK_BUFFER, mPb);
+  bytes.resize(mDesc.totalBytes());
+  uint8_t* result = static_cast<uint8_t*>(glMapBuffer(GL_PIXEL_PACK_BUFFER, GL_READ_ONLY));
+  std::memcpy(bytes.data(), result, mDesc.totalBytes());
+}
+
+GLEnum PixelBuffer::_glType() const {
+  return mType == Type::Pack ? GL_PIXEL_PACK_BUFFER : GL_PIXEL_UNPACK_BUFFER;
+}
+
+void PixelBuffer::_bind() const {
+  glBindBuffer(_glType(), mPb);
+}
+
+void PixelBuffer::_unbind() const {
+  glBindBuffer(_glType(), 0);
+}
+
+void PixelBuffer::_create() {
+  glGenBuffers(1, &mPb);
+  glBindBuffer(_glType(), mPb);
+  glBufferData(_glType(), mDesc.totalBytes(), nullptr, mType == Type::Pack ? GL_STREAM_READ : GL_STREAM_DRAW);
+}
+
+void PixelBuffer::_destroy() {
+  if(mPb) {
+    glDeleteBuffers(1, &mPb);
+    _clear();
+  }
+}
+
+void PixelBuffer::_clear() {
+  mPb = 0;
 }
