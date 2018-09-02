@@ -78,6 +78,7 @@ private:
 
   void _drawTexture(const Texture& tex, const Syx::Vec2& origin, const Syx::Vec2& size);
   void _drawBoundTexture(const Syx::Vec2& origin, const Syx::Vec2& size);
+  void _drawPickScene(const FrameBuffer& destination);
 
   std::shared_ptr<Shader> mGeometry;
   std::shared_ptr<Shader> mFSQShader;

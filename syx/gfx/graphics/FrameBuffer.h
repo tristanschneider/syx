@@ -11,10 +11,10 @@ public:
   FrameBuffer& operator=(const FrameBuffer& fb);
   FrameBuffer& operator=(FrameBuffer&& fb);
 
-  void bind();
-  void unBind();
-  void bindTexture(int slot);
-  void unBindTexture(int slot);
+  void bind() const;
+  void unBind() const;
+  void bindTexture(int slot) const;
+  void unBindTexture(int slot) const;
   const TextureDescription& getDescription() const;
 
   template<int Targets>

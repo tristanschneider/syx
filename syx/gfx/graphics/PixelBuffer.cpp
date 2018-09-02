@@ -7,6 +7,11 @@ PixelBuffer::PixelBuffer(const TextureDescription& desc, Type type)
   : mDesc(desc)
   , mType(type)
   , mPb(0) {
+  _create();
+}
+
+PixelBuffer::~PixelBuffer() {
+  _destroy();
 }
 
 void PixelBuffer::download(GLEnum targetAttachment) {

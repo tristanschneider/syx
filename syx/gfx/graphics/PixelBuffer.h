@@ -10,6 +10,7 @@ public:
   PixelBuffer(const TextureDescription& desc, Type type);
   PixelBuffer(const PixelBuffer& fb) = delete;
   PixelBuffer(PixelBuffer&& fb) = delete;
+  ~PixelBuffer();
   PixelBuffer& operator=(const PixelBuffer& fb) = delete;
   PixelBuffer& operator=(PixelBuffer&& fb) = delete;
 

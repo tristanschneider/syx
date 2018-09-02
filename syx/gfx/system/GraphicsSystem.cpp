@@ -29,6 +29,15 @@ using namespace Syx;
 
 RegisterSystemCPP(GraphicsSystem);
 
+namespace {
+  Vec3 encodeHandle(Handle handle) {
+    uint32_t h = static_cast<uint32_t>(handle);
+    assert(static_cast<Handle>(h) == handle && "Pick needs to be updated to work with handle values over 24 bits");
+    uint8_t* rgb = reinterpret_cast<uint8_t*>(&h);
+    return Vec3(static_cast<float>(rgb[0]), static_cast<float>(rgb[1]), static_cast<float>(rgb[2]));
+  }
+}
+
 GraphicsSystem::LocalRenderable::LocalRenderable(Handle h)
   : mHandle(h)
   , mSpace(0)
@@ -80,8 +89,28 @@ void GraphicsSystem::init() {
 
 void GraphicsSystem::update(float dt, IWorkerPool& pool, std::shared_ptr<Task> frameTask) {
   mEventHandler->handleEvents(*mEventBuffer);
+
+  bool lmb = mArgs.mSystems->getSystem<KeyboardInput>()->getKeyTriggered(Key::LeftMouse);
+  if(lmb && mFrameBuffer) {
+    _drawPickScene(*mFrameBuffer);
+    mPixelPackBuffer->download(GL_COLOR_ATTACHMENT0);
+  }
+
   //Can't really do anything on background threads at the moment because this one has the context.
   _render(dt);
+
+  if(mFrameBuffer) {
+    mFrameBuffer->bindTexture(0);
+    _drawBoundTexture(Vec2(mScreenSize.x - 210, 10), Vec2(200));
+    mFrameBuffer->unBindTexture(0);
+
+    if(lmb) {
+      std::vector<uint8_t> buffer;
+      mPixelPackBuffer->mapBuffer(buffer);
+      //TODO: change lmb to a pick request caused by a message, then send result message here
+    }
+  }
+
   if(mImGui) {
     mImGui->render(dt, mScreenSize);
     mImGui->updateInput(*mArgs.mSystems->getSystem<KeyboardInput>());
@@ -313,6 +342,45 @@ void GraphicsSystem::_drawBoundTexture(const Syx::Vec2& origin, const Syx::Vec2&
     mFullScreenQuad->draw();
     glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
   }
+}
+
+void GraphicsSystem::_drawPickScene(const FrameBuffer& destination) {
+  if(mFlatColorShader->getState() != AssetState::PostProcessed) {
+    return;
+  }
+  destination.bind();
+  glViewport(0, 0, (int)mScreenSize.x, (int)mScreenSize.y);
+  glClearColor(0.0f, 0.0f, 1.0f, 0.0f);
+  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+  glEnable(GL_DEPTH_TEST);
+  glDepthFunc(GL_LESS);
+
+  glEnable(GL_CULL_FACE);
+  glCullFace(GL_BACK);
+
+  {
+    Shader::Binder sb(*mFlatColorShader);
+    Vec3 camPos = mCamera->getTransform().getTranslate();
+    Mat4 wvp = mCamera->getWorldToView();
+
+    for(LocalRenderable& obj : mLocalRenderables.getBuffer()) {
+      //TODO: skip objects not visible to the spaces the camera can see
+      if(!obj.mModel || obj.mModel->getState() != AssetState::PostProcessed)
+        continue;
+
+      Mat4 mw = obj.mTransform;
+      Mat4 mvp = wvp * mw;
+      Model& model = static_cast<Model&>(*obj.mModel);
+      Model::Binder mb(model);
+      glUniformMatrix4fv(mFlatColorShader->getUniform("mvp"), 1, GL_FALSE, mvp.mData);
+      Vec3 handleColor = encodeHandle(obj.getHandle())*(1.0f/255.0f);
+      glUniform3fv(mFlatColorShader->getUniform("uColor"), 1, &handleColor.x);
+
+      model.draw();
+    }
+  }
+  destination.unBind();
 }
 
 void GraphicsSystem::onResize(int width, int height) {

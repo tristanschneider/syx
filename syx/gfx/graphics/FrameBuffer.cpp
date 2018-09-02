@@ -41,20 +41,20 @@ FrameBuffer& FrameBuffer::operator=(FrameBuffer&& fb) {
   return *this;
 }
 
-void FrameBuffer::bind() {
+void FrameBuffer::bind() const {
   glBindFramebuffer(GL_FRAMEBUFFER, mFb);
 }
 
-void FrameBuffer::unBind() {
+void FrameBuffer::unBind() const {
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
-void FrameBuffer::bindTexture(int slot) {
+void FrameBuffer::bindTexture(int slot) const {
   glActiveTexture(GL_TEXTURE0 + slot);
   glBindTexture(GL_TEXTURE_2D, mTex);
 }
 
-void FrameBuffer::unBindTexture(int slot) {
+void FrameBuffer::unBindTexture(int slot) const {
   glActiveTexture(GL_TEXTURE0 + slot);
   glBindTexture(GL_TEXTURE_2D, 0);
 }
