@@ -1,0 +1,10 @@
+#version 330 core
+uniform sampler2D uTex;
+
+in vec2 texCoord;
+
+layout(location = 0) out vec3 color;
+
+void main() {
+  color = texture(uTex, texCoord).rgb;
+}

@@ -25,6 +25,9 @@ class DrawSphereEvent;
 class SetComponentPropEvent;
 class SetComponentPropsEvent;
 struct RenderableData;
+class FullScreenQuad;
+class FrameBuffer;
+class PixelBuffer;
 
 class GraphicsSystem : public System {
 public:
@@ -73,10 +76,19 @@ private:
 
   void _setFromData(LocalRenderable& renderable, const RenderableData& data);
 
-  std::shared_ptr<Asset> mGeometry;
+  void _drawTexture(const Texture& tex, const Syx::Vec2& origin, const Syx::Vec2& size);
+  void _drawBoundTexture(const Syx::Vec2& origin, const Syx::Vec2& size);
+
+  std::shared_ptr<Shader> mGeometry;
+  std::shared_ptr<Shader> mFSQShader;
+  std::shared_ptr<Shader> mFlatColorShader;
+
   std::unique_ptr<Camera> mCamera;
   std::unique_ptr<DebugDrawer> mDebugDrawer;
   std::unique_ptr<ImGuiImpl> mImGui;
+  std::unique_ptr<FullScreenQuad> mFullScreenQuad;
+  std::unique_ptr<FrameBuffer> mFrameBuffer;
+  std::unique_ptr<PixelBuffer> mPixelPackBuffer;
   Syx::Vec2 mScreenSize;
 
   //Tasks queued for execution on render thread

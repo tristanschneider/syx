@@ -15,13 +15,15 @@
 #include "event/BaseComponentEvents.h"
 #include "event/DebugDrawEvent.h"
 #include "event/SpaceEvents.h"
-#include "lua/LuaNode.h"
+#include "provider/SystemProvider.h"
+#include <gl/glew.h>
+#include "graphics/FullScreenQuad.h"
+#include "graphics/FrameBuffer.h"
+#include "graphics/PixelBuffer.h"
 #include "ImGuiImpl.h"
+#include "lua/LuaNode.h"
 #include "system/KeyboardInput.h"
 #include "system/AssetRepo.h"
-#include "provider/SystemProvider.h"
-
-#include <gl/glew.h>
 
 using namespace Syx;
 
@@ -48,7 +50,12 @@ GraphicsSystem::GraphicsSystem(const SystemArgs& args)
 
 void GraphicsSystem::init() {
   mCamera = std::make_unique<Camera>(CameraOps(1.396f, 1.396f, 0.1f, 100.0f));
-  mGeometry = mArgs.mSystems->getSystem<AssetRepo>()->getAsset(AssetInfo("shaders/phong.vs"));
+  mFullScreenQuad = std::make_unique<FullScreenQuad>();
+
+  AssetRepo& assets = *mArgs.mSystems->getSystem<AssetRepo>();
+  mGeometry = assets.getAsset<Shader>(AssetInfo("shaders/phong.vs"));
+  mFSQShader = assets.getAsset<Shader>(AssetInfo("shaders/fullScreenQuad.vs"));
+  mFlatColorShader = assets.getAsset<Shader>(AssetInfo("shaders/flatColor.vs"));
 
   Mat4 ct = mCamera->getTransform();
   ct.setTranslate(Vec3(0.0f, 0.0f, -3.0f));
@@ -218,6 +225,7 @@ void GraphicsSystem::_setFromData(LocalRenderable& renderable, const RenderableD
 }
 
 void GraphicsSystem::_render(float dt) {
+  glViewport(0, 0, (int)mScreenSize.x, (int)mScreenSize.y);
   glClearColor(0.0f, 0.0f, 1.0f, 0.0f);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -229,12 +237,18 @@ void GraphicsSystem::_render(float dt) {
 
   mDebugDrawer->_render(mCamera->getWorldToView());
 
-  if(mGeometry->getState() != AssetState::PostProcessed)
-    return;
+  Shader* requiredShaders[] = {
+    mGeometry.get(),
+  };
+
+  for(Shader* shader : requiredShaders) {
+    if(shader->getState() != AssetState::PostProcessed)
+      return;
+  }
 
   {
     Texture emptyTexture(AssetInfo(0));
-    Shader& geometry = static_cast<Shader&>(*mGeometry);
+    Shader& geometry = *mGeometry;
     Shader::Binder sb(geometry);
     Vec3 camPos = mCamera->getTransform().getTranslate();
     Vec3 mDiff(1.0f);
@@ -283,7 +297,29 @@ void GraphicsSystem::_render(float dt) {
   }
 }
 
+void GraphicsSystem::_drawTexture(const Texture& tex, const Syx::Vec2& origin, const Syx::Vec2& size) {
+  if(tex.getState() == AssetState::PostProcessed) {
+    Texture::Binder b(tex, 0);
+    _drawBoundTexture(origin, size);
+  }
+}
+
+void GraphicsSystem::_drawBoundTexture(const Syx::Vec2& origin, const Syx::Vec2& size) {
+  if(mFSQShader->getState() == AssetState::PostProcessed) {
+    int viewport[4];
+    glGetIntegerv(GL_VIEWPORT, viewport);
+    glViewport(static_cast<int>(origin.x), static_cast<int>(origin.y), static_cast<int>(size.x), static_cast<int>(size.y));
+    Shader::Binder b(*mFSQShader);
+    mFullScreenQuad->draw();
+    glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
+  }
+}
+
 void GraphicsSystem::onResize(int width, int height) {
   glViewport(0, 0, width, height);
   mScreenSize = Syx::Vec2(static_cast<float>(width), static_cast<float>(height));
+
+  TextureDescription desc(width, height, TextureFormat::RGBA8, TextureSampleMode::Nearest);
+  mFrameBuffer = std::make_unique<FrameBuffer>(desc);
+  mPixelPackBuffer = std::make_unique<PixelBuffer>(desc, PixelBuffer::Type::Pack);
 }
