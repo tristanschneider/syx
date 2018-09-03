@@ -1,6 +1,8 @@
 #pragma once
 #include "graphics/TextureDescription.h"
 
+class FrameBuffer;
+
 class PixelBuffer {
 public:
   enum class Type : uint8_t {
@@ -17,11 +19,13 @@ public:
   //Start asynchronous download/upload
   //Attach location of target like GL_FRONT or GL_COLOR_ATTACHMENTX
   void download(GLEnum targetAttachment);
+  void download(const FrameBuffer& fb);
 
   //Map previous asynchronous action to client space
   void mapBuffer(std::vector<uint8_t>& bytes);
 
 private:
+  void _downloadBoundObject();
   GLEnum _glType() const;
   void _bind() const;
   void _unbind() const;

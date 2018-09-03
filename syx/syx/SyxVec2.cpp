@@ -34,6 +34,14 @@ namespace Syx {
     return Vector2(-x, -y);
   }
 
+  float& Vector2::operator[](size_t index) {
+    return index ? y : x;
+  }
+
+  float Vector2::operator[](size_t index) const {
+    return index ? y : x;
+  }
+
   Vector2& Vector2::operator+=(const Vector2& rhs) {
     return *this = *this + rhs;
   }

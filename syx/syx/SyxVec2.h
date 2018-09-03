@@ -15,6 +15,8 @@ namespace Syx {
     bool operator==(const Vector2& rhs) const;
     bool operator!=(const Vector2& rhs) const;
     Vector2 operator-(void) const;
+    float& operator[](size_t index);
+    float operator[](size_t index) const;
 
     bool equal(const Vector2& rhs, float epsilon);
 

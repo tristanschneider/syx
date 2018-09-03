@@ -8,6 +8,7 @@
 #include "component/Physics.h"
 #include "component/Renderable.h"
 #include "component/SpaceComponent.h"
+#include "editor/event/EditorEvents.h"
 #include "editor/SceneBrowser.h"
 #include "event/BaseComponentEvents.h"
 #include "event/EventBuffer.h"
@@ -30,6 +31,7 @@
 #include "provider/MessageQueueProvider.h"
 #include "provider/SystemProvider.h"
 #include "system/AssetRepo.h"
+#include "system/KeyboardInput.h"
 #include "system/PhysicsSystem.h"
 #include "threading/FunctionTask.h"
 #include "threading/IWorkerPool.h"
@@ -60,6 +62,7 @@ void LuaGameSystem::init() {
   SYSTEM_EVENT_HANDLER(SetComponentPropsEvent, _onSetComponentProps);
   SYSTEM_EVENT_HANDLER(AllSystemsInitialized, _onAllSystemsInit);
   SYSTEM_EVENT_HANDLER(ClearSpaceEvent, _onSpaceClear);
+  SYSTEM_EVENT_HANDLER(ScreenPickResponse, _onScreenPickResponse);
 
   mState = std::make_unique<Lua::State>();
   mLibs = std::make_unique<Lua::AllLuaLibs>();
@@ -68,7 +71,7 @@ void LuaGameSystem::init() {
   mComponents = std::make_unique<LuaComponentRegistry>();
   _registerBuiltInComponents();
 
-  mSceneBrowser = std::make_unique<SceneBrowser>(mArgs.mMessages, mArgs.mGameObjectGen);
+  mSceneBrowser = std::make_unique<SceneBrowser>(mArgs.mMessages, mArgs.mGameObjectGen, mArgs.mSystems->getSystem<KeyboardInput>());
 }
 
 void LuaGameSystem::_openAllLibs(lua_State* l) {
@@ -396,6 +399,12 @@ void LuaGameSystem::_onSpaceClear(const ClearSpaceEvent& e) {
   auto it = mSpaces.find(e.mSpace);
   if(it != mSpaces.end())
     mSpaces.erase(it);
+}
+
+void LuaGameSystem::_onScreenPickResponse(const ScreenPickResponse& e) {
+  if(mSceneBrowser) {
+    mSceneBrowser->onPickResponse(e);
+  }
 }
 
 LuaGameObject* LuaGameSystem::_getObj(Handle h) {

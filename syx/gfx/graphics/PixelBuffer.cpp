@@ -1,6 +1,7 @@
 #include "Precompile.h"
 #include "graphics/PixelBuffer.h"
 
+#include "graphics/FrameBuffer.h"
 #include<gl/glew.h>
 
 PixelBuffer::PixelBuffer(const TextureDescription& desc, Type type)
@@ -18,6 +19,17 @@ void PixelBuffer::download(GLEnum targetAttachment) {
   assert(mType == Type::Pack && "Pack type must be used to download");
   //Specify the buffer to read
   glReadBuffer(targetAttachment);
+  _downloadBoundObject();
+}
+
+void PixelBuffer::download(const FrameBuffer& fb) {
+  assert(mType == Type::Pack && "Pack type must be used to download");
+  fb.bind();
+  _downloadBoundObject();
+  fb.unBind();
+}
+
+void PixelBuffer::_downloadBoundObject() {
   glBindBuffer(GL_PIXEL_PACK_BUFFER, mPb);
   //Since pixel pack is defined, data pointer becomes a read offset, start at 0
   glReadPixels(0, 0, mDesc.width, mDesc.height, mDesc.getGLFormat(), mDesc.getGLType(), 0);

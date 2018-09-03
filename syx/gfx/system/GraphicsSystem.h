@@ -28,6 +28,7 @@ struct RenderableData;
 class FullScreenQuad;
 class FrameBuffer;
 class PixelBuffer;
+class ScreenPickRequest;
 
 class GraphicsSystem : public System {
 public:
@@ -71,6 +72,7 @@ private:
   void _processDebugDrawEvent(const DrawSphereEvent& e);
   void _processSetCompPropsEvent(const SetComponentPropsEvent& e);
   void _processClearSpaceEvent(const ClearSpaceEvent& e);
+  void _processScreenPickRequest(const ScreenPickRequest& e);
 
   void _processRenderThreadTasks();
 
@@ -79,6 +81,7 @@ private:
   void _drawTexture(const Texture& tex, const Syx::Vec2& origin, const Syx::Vec2& size);
   void _drawBoundTexture(const Syx::Vec2& origin, const Syx::Vec2& size);
   void _drawPickScene(const FrameBuffer& destination);
+  void _processPickRequests(const std::vector<uint8_t> pickScene, const std::vector<ScreenPickRequest>& requests);
 
   std::shared_ptr<Shader> mGeometry;
   std::shared_ptr<Shader> mFSQShader;
@@ -96,6 +99,8 @@ private:
   std::vector<std::function<void()>> mTasks;
   std::vector<std::function<void()>> mLocalTasks;
   std::mutex mTasksMutex;
+
+  std::vector<ScreenPickRequest> mPickRequests;
 
   //Local state
   MappedBuffer<LocalRenderable> mLocalRenderables;

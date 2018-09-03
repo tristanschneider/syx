@@ -1,7 +1,24 @@
 #include "event/Event.h"
 
-class PickObjectEvent : public Event {
+class SetSelectionEvent : public Event {
 public:
-  PickObjectEvent(Handle obj);
-  Handle mObj;
+  SetSelectionEvent(std::vector<Handle>&& objects);
+  std::vector<Handle> mObjects;
+};
+
+class ScreenPickRequest : public Event {
+public:
+  ScreenPickRequest(size_t requestId, Handle space, const Syx::Vec2& min, const Syx::Vec2& max);
+  size_t mRequestId;
+  Handle mSpace;
+  Syx::Vec2 mMin;
+  Syx::Vec2 mMax;
+};
+
+class ScreenPickResponse : public Event {
+public:
+  ScreenPickResponse(size_t requestId, Handle space, std::vector<Handle>&& objects);
+  size_t mRequestId;
+  Handle mSpace;
+  std::vector<Handle> mObjects;
 };

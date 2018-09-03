@@ -24,6 +24,7 @@ class PhysicsCompUpdateEvent;
 class AddLuaComponentEvent;
 class RemoveLuaComponentEvent;
 class SceneBrowser;
+class ScreenPickResponse;
 class SetComponentPropsEvent;
 class AllSystemsInitialized;
 struct lua_State;
@@ -92,6 +93,7 @@ private:
   void _onPhysicsUpdate(const PhysicsCompUpdateEvent& e);
   void _onSetComponentProps(const SetComponentPropsEvent& e);
   void _onSpaceClear(const ClearSpaceEvent& e);
+  void _onScreenPickResponse(const ScreenPickResponse& e);
 
   static const std::string INSTANCE_KEY;
 

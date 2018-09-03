@@ -9,12 +9,14 @@
 #include "component/SpaceComponent.h"
 #include "component/Transform.h"
 #include "DebugDrawer.h"
+#include "editor/event/EditorEvents.h"
 #include "event/EventBuffer.h"
 #include "event/EventHandler.h"
 #include "event/TransformEvent.h"
 #include "event/BaseComponentEvents.h"
 #include "event/DebugDrawEvent.h"
 #include "event/SpaceEvents.h"
+#include "provider/MessageQueueProvider.h"
 #include "provider/SystemProvider.h"
 #include <gl/glew.h>
 #include "graphics/FullScreenQuad.h"
@@ -31,10 +33,16 @@ RegisterSystemCPP(GraphicsSystem);
 
 namespace {
   Vec3 encodeHandle(Handle handle) {
-    uint32_t h = static_cast<uint32_t>(handle);
-    assert(static_cast<Handle>(h) == handle && "Pick needs to be updated to work with handle values over 24 bits");
-    uint8_t* rgb = reinterpret_cast<uint8_t*>(&h);
-    return Vec3(static_cast<float>(rgb[0]), static_cast<float>(rgb[1]), static_cast<float>(rgb[2]));
+    assert(static_cast<Handle>(static_cast<uint32_t>(handle)) == handle && "Pick needs to be updated to work with handle values over 24 bits");
+    const uint8_t fullByte = ~0;
+    const Handle low = fullByte;
+    const Handle med = fullByte << 8;
+    const Handle high = fullByte << 16;
+    return Vec3(static_cast<float>(handle & low), static_cast<float>(handle & med), static_cast<float>(handle & high));
+  }
+
+  Handle decodeHandle(const uint8_t* handle) {
+    return handle[0] | (handle[1] << 8) | (handle[2] << 16);
   }
 }
 
@@ -85,30 +93,26 @@ void GraphicsSystem::init() {
   SYSTEM_EVENT_HANDLER(DrawSphereEvent, _processDebugDrawEvent);
   SYSTEM_EVENT_HANDLER(SetComponentPropsEvent, _processSetCompPropsEvent);
   SYSTEM_EVENT_HANDLER(ClearSpaceEvent, _processClearSpaceEvent);
+  SYSTEM_EVENT_HANDLER(ScreenPickRequest, _processScreenPickRequest);
 }
 
 void GraphicsSystem::update(float dt, IWorkerPool& pool, std::shared_ptr<Task> frameTask) {
   mEventHandler->handleEvents(*mEventBuffer);
 
-  bool lmb = mArgs.mSystems->getSystem<KeyboardInput>()->getKeyTriggered(Key::LeftMouse);
-  if(lmb && mFrameBuffer) {
+  bool updatePick = mPickRequests.size() && mFrameBuffer;
+  if(updatePick) {
     _drawPickScene(*mFrameBuffer);
-    mPixelPackBuffer->download(GL_COLOR_ATTACHMENT0);
+    mPixelPackBuffer->download(*mFrameBuffer);
   }
 
   //Can't really do anything on background threads at the moment because this one has the context.
   _render(dt);
 
-  if(mFrameBuffer) {
-    mFrameBuffer->bindTexture(0);
-    _drawBoundTexture(Vec2(mScreenSize.x - 210, 10), Vec2(200));
-    mFrameBuffer->unBindTexture(0);
-
-    if(lmb) {
-      std::vector<uint8_t> buffer;
-      mPixelPackBuffer->mapBuffer(buffer);
-      //TODO: change lmb to a pick request caused by a message, then send result message here
-    }
+  if(updatePick) {
+    std::vector<uint8_t> buffer;
+    mPixelPackBuffer->mapBuffer(buffer);
+    _processPickRequests(buffer, mPickRequests);
+    mPickRequests.clear();
   }
 
   if(mImGui) {
@@ -307,7 +311,6 @@ void GraphicsSystem::_render(float dt) {
 
       Mat4 mw = obj.mTransform;
       Mat4 mvp = wvp * mw;
-      Vec3 camPos = mCamera->getTransform().getTranslate();
 
       {
         Texture::Binder tb(obj.mDiffTex && obj.mDiffTex->getState() == AssetState::PostProcessed ? static_cast<Texture&>(*obj.mDiffTex) : emptyTexture, 0);
@@ -350,7 +353,7 @@ void GraphicsSystem::_drawPickScene(const FrameBuffer& destination) {
   }
   destination.bind();
   glViewport(0, 0, (int)mScreenSize.x, (int)mScreenSize.y);
-  glClearColor(0.0f, 0.0f, 1.0f, 0.0f);
+  glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
   glEnable(GL_DEPTH_TEST);
@@ -381,6 +384,58 @@ void GraphicsSystem::_drawPickScene(const FrameBuffer& destination) {
     }
   }
   destination.unBind();
+}
+
+void GraphicsSystem::_processScreenPickRequest(const ScreenPickRequest& e) {
+  mPickRequests.push_back(e);
+}
+
+void GraphicsSystem::_processPickRequests(const std::vector<uint8_t> pickScene, const std::vector<ScreenPickRequest>& requests) {
+  std::unordered_set<Handle> foundHandles;
+  for(const ScreenPickRequest& req : requests) {
+    Syx::Vec2 reqMin = req.mMin;
+    Syx::Vec2 reqMax = req.mMax;
+    //Flip y from top left to bottom left
+    reqMin.y = mScreenSize.y - reqMin.y;
+    reqMax.y = mScreenSize.y - reqMax.y;
+
+    size_t min[2];
+    size_t max[2];
+    for(size_t i = 0; i < 2; ++i) {
+      min[i] = static_cast<size_t>(std::min(reqMin[i], reqMax[i]));
+      max[i] = static_cast<size_t>(std::max(reqMin[i], reqMax[i]));
+    }
+
+    //rgba
+    const int pixelStride = 4;
+    const int rowStride = pixelStride*static_cast<int>(mScreenSize.x);
+    Handle lastFound = 0;
+    for(size_t x = min[0]; x <= max[0]; ++x) {
+      for(size_t y = min[1]; y <= max[1]; ++y) {
+        size_t index = x*pixelStride + y*rowStride;
+        if(index < pickScene.size()) {
+          const uint8_t* pixel = &pickScene[index];
+          printf("Pixel value %i,%i,%i,%i\n", pixel[0], pixel[1], pixel[2], pixel[3]);
+          if(Handle h = decodeHandle(pixel)) {
+            //Set lookup is slower than last check, which is very likely in drag selection
+            if(h != lastFound) {
+              foundHandles.insert(h);
+              lastFound = h;
+            }
+          }
+        }
+      }
+    }
+
+    std::vector<Handle> results;
+    results.reserve(foundHandles.size());
+    for(Handle h : foundHandles) {
+      results.push_back(h);
+      printf("Picked object %d\n", (int)h);
+    }
+    mArgs.mMessages->getMessageQueue().get().push(ScreenPickResponse(req.mRequestId, req.mSpace, std::move(results)));
+    foundHandles.clear();
+  }
 }
 
 void GraphicsSystem::onResize(int width, int height) {
