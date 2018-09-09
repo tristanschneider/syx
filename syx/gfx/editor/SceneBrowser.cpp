@@ -4,6 +4,7 @@
 #include "editor/event/EditorEvents.h"
 #include "event/BaseComponentEvents.h"
 #include "event/eventBuffer.h"
+#include "graphics/RenderCommand.h"
 #include "imgui/imgui.h"
 #include "ImGuiImpl.h"
 #include "LuaGameObject.h"
@@ -69,6 +70,14 @@ void SceneBrowser::editorUpdate(const HandleMap<std::unique_ptr<LuaGameObject>>&
   ImGui::EndChild();
 
   ImGui::End();
+  _drawSelected();
+}
+
+void SceneBrowser::_drawSelected() {
+  auto msg = mMsg->getMessageQueue();
+  for(Handle h : mSelected) {
+    msg.get().push(RenderCommandEvent(RenderCommand::outline(h, Syx::Vec3(1, 0, 0), 5)));
+  }
 }
 
 void SceneBrowser::onPickResponse(const ScreenPickResponse& response) {

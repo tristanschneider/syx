@@ -92,6 +92,6 @@ void Model::unloadGpu() {
   mVB = mIB = mVA = 0;
 }
 
-void Model::draw() {
+void Model::draw() const {
   glDrawElements(GL_TRIANGLES, mIndices.size(), GL_UNSIGNED_INT, nullptr);
 }

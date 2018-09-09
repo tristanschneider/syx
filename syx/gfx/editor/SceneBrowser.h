@@ -17,6 +17,7 @@ private:
   void _updatePick();
   //Clear current selection to make room for a new one unless the current selection should be added to
   void _clearForNewSelection();
+  void _drawSelected();
 
   MessageQueueProvider* mMsg;
   GameObjectHandleProvider* mHandleGen;

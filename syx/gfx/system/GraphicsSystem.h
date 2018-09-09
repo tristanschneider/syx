@@ -29,6 +29,8 @@ class FullScreenQuad;
 class FrameBuffer;
 class PixelBuffer;
 class ScreenPickRequest;
+struct RenderCommand;
+class RenderCommandEvent;
 
 class GraphicsSystem : public System {
 public:
@@ -60,6 +62,8 @@ private:
   };
 
   void _render(float dt);
+  void _renderCommands();
+  void _outline(const RenderCommand& c);
 
   void _processAddEvent(const AddComponentEvent& e);
   void _processRemoveEvent(const RemoveComponentEvent& e);
@@ -73,6 +77,7 @@ private:
   void _processSetCompPropsEvent(const SetComponentPropsEvent& e);
   void _processClearSpaceEvent(const ClearSpaceEvent& e);
   void _processScreenPickRequest(const ScreenPickRequest& e);
+  void _processRenderCommandEvent(const RenderCommandEvent& e);
 
   void _processRenderThreadTasks();
 
@@ -104,4 +109,5 @@ private:
 
   //Local state
   MappedBuffer<LocalRenderable> mLocalRenderables;
+  std::vector<RenderCommand> mRenderCommands;
 };

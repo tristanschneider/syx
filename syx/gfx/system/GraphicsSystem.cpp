@@ -22,6 +22,7 @@
 #include "graphics/FullScreenQuad.h"
 #include "graphics/FrameBuffer.h"
 #include "graphics/PixelBuffer.h"
+#include "graphics/RenderCommand.h"
 #include "ImGuiImpl.h"
 #include "lua/LuaNode.h"
 #include "system/KeyboardInput.h"
@@ -94,6 +95,7 @@ void GraphicsSystem::init() {
   SYSTEM_EVENT_HANDLER(SetComponentPropsEvent, _processSetCompPropsEvent);
   SYSTEM_EVENT_HANDLER(ClearSpaceEvent, _processClearSpaceEvent);
   SYSTEM_EVENT_HANDLER(ScreenPickRequest, _processScreenPickRequest);
+  SYSTEM_EVENT_HANDLER(RenderCommandEvent, _processRenderCommandEvent);
 }
 
 void GraphicsSystem::update(float dt, IWorkerPool& pool, std::shared_ptr<Task> frameTask) {
@@ -120,6 +122,7 @@ void GraphicsSystem::update(float dt, IWorkerPool& pool, std::shared_ptr<Task> f
     mImGui->updateInput(*mArgs.mSystems->getSystem<KeyboardInput>());
   }
   _processRenderThreadTasks();
+  mRenderCommands.clear();
 }
 
 void GraphicsSystem::uninit() {
@@ -260,7 +263,7 @@ void GraphicsSystem::_setFromData(LocalRenderable& renderable, const RenderableD
 void GraphicsSystem::_render(float dt) {
   glViewport(0, 0, (int)mScreenSize.x, (int)mScreenSize.y);
   glClearColor(0.0f, 0.0f, 1.0f, 0.0f);
-  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
   glEnable(GL_DEPTH_TEST);
   glDepthFunc(GL_LESS);
@@ -327,6 +330,77 @@ void GraphicsSystem::_render(float dt) {
       }
     }
   }
+
+  _renderCommands();
+}
+
+void GraphicsSystem::_renderCommands() {
+  for(const RenderCommand& c : mRenderCommands) {
+    switch(c.mType) {
+      case RenderCommand::Type::Outline: _outline(c); break;
+    }
+  }
+}
+
+void GraphicsSystem::_outline(const RenderCommand& c) {
+  if(mFlatColorShader->getState() != AssetState::PostProcessed)
+    return;
+  const LocalRenderable* obj = mLocalRenderables.get(c.mOutline.mHandle);
+  if(!obj || !obj->mModel || obj->mModel->getState() != AssetState::PostProcessed)
+    return;
+
+  const int stencilWrite = 0;
+  const int outline = 1;
+  GLint prevStencilFunc;
+  glGetIntegerv(GL_STENCIL_FUNC, &prevStencilFunc);
+  GLboolean prevBlend = glIsEnabled(GL_BLEND);
+  GLboolean prevStencil = glIsEnabled(GL_STENCIL_TEST);
+  float prevLineWidth;
+  glGetFloatv(GL_LINE_WIDTH, &prevLineWidth);
+
+  glEnable(GL_STENCIL_TEST);
+
+  Shader::Binder sb(*mFlatColorShader);
+  const Model& model = static_cast<Model&>(*obj->mModel);
+  Model::Binder mb(model);
+
+  Mat4 wvp = mCamera->getWorldToView();
+  Mat4 mw = obj->mTransform;
+  Mat4 mvp = wvp * mw;
+  glUniformMatrix4fv(mFlatColorShader->getUniform("mvp"), 1, GL_FALSE, mvp.mData);
+  //Since the object has already been drawn, re draw it slightly above so the draw doesn't fail depth tests
+  glUniform1f(mFlatColorShader->getUniform("depthBias"), -0.01f);
+  glUniform3f(mFlatColorShader->getUniform("uColor"), c.mOutline.mColor.x, c.mOutline.mColor.y, c.mOutline.mColor.z);
+  glEnable(GL_BLEND);
+
+  for(int pass = 0; pass < 2; ++pass) {
+    if(pass == stencilWrite) {
+      //Write model's shape to stencil buffer
+      glStencilFunc(GL_ALWAYS, 1, -1);
+      glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
+      //Draw nothing, zero from source, one from dest, just used to write stencil
+      glBlendFunc(GL_ZERO, GL_ONE);
+    }
+    else if(pass == outline) {
+      //Draw with line primitives, only ones that lie outside the stencil.
+      glLineWidth(c.mOutline.mWidth);
+      glPolygonMode(GL_FRONT, GL_LINE);
+      glStencilFunc(GL_NOTEQUAL, 1, -1);
+      glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
+      //Set this back to default
+      glDisable(GL_BLEND);
+      glBlendFunc(GL_ONE, GL_ZERO);
+    }
+
+    model.draw();
+  }
+
+  //Restore old states
+  glPolygonMode(GL_FRONT, GL_FILL);
+  if(!prevStencil) glDisable(GL_STENCIL_TEST);
+  if(prevBlend) glEnable(GL_BLEND);
+  glStencilFunc(prevStencilFunc, 1, -1);
+  glLineWidth(prevLineWidth);
 }
 
 void GraphicsSystem::_drawTexture(const Texture& tex, const Syx::Vec2& origin, const Syx::Vec2& size) {
@@ -390,6 +464,10 @@ void GraphicsSystem::_processScreenPickRequest(const ScreenPickRequest& e) {
   mPickRequests.push_back(e);
 }
 
+void GraphicsSystem::_processRenderCommandEvent(const RenderCommandEvent& e) {
+  mRenderCommands.emplace_back(e.mCmd);
+}
+
 void GraphicsSystem::_processPickRequests(const std::vector<uint8_t> pickScene, const std::vector<ScreenPickRequest>& requests) {
   std::unordered_set<Handle> foundHandles;
   for(const ScreenPickRequest& req : requests) {
@@ -415,7 +493,6 @@ void GraphicsSystem::_processPickRequests(const std::vector<uint8_t> pickScene, 
         size_t index = x*pixelStride + y*rowStride;
         if(index < pickScene.size()) {
           const uint8_t* pixel = &pickScene[index];
-          printf("Pixel value %i,%i,%i,%i\n", pixel[0], pixel[1], pixel[2], pixel[3]);
           if(Handle h = decodeHandle(pixel)) {
             //Set lookup is slower than last check, which is very likely in drag selection
             if(h != lastFound) {
@@ -431,7 +508,6 @@ void GraphicsSystem::_processPickRequests(const std::vector<uint8_t> pickScene, 
     results.reserve(foundHandles.size());
     for(Handle h : foundHandles) {
       results.push_back(h);
-      printf("Picked object %d\n", (int)h);
     }
     mArgs.mMessages->getMessageQueue().get().push(ScreenPickResponse(req.mRequestId, req.mSpace, std::move(results)));
     foundHandles.clear();

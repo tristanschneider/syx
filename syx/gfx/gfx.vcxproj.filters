@@ -234,6 +234,9 @@
     <ClCompile Include="graphics\TextureDescription.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="graphics\RenderCommand.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="App.h">
@@ -477,6 +480,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="graphics\TextureDescription.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="graphics\RenderCommand.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

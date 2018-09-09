@@ -186,6 +186,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClCompile Include="graphics\FrameBuffer.cpp" />
     <ClCompile Include="graphics\FullScreenQuad.cpp" />
     <ClCompile Include="graphics\PixelBuffer.cpp" />
+    <ClCompile Include="graphics\RenderCommand.cpp" />
     <ClCompile Include="graphics\TextureDescription.cpp" />
     <ClCompile Include="ImGuiImpl.cpp" />
     <ClCompile Include="loader\AssetLoader.cpp" />
@@ -274,6 +275,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClInclude Include="graphics\FullScreenQuad.h" />
     <ClInclude Include="graphics\GraphicsTypes.h" />
     <ClInclude Include="graphics\PixelBuffer.h" />
+    <ClInclude Include="graphics\RenderCommand.h" />
     <ClInclude Include="graphics\TextureDescription.h" />
     <ClInclude Include="Handle.h" />
     <ClInclude Include="ImGuiImpl.h" />

@@ -21,7 +21,7 @@ public:
 
   void loadGpu();
   void unloadGpu();
-  void draw();
+  void draw() const;
 
   std::vector<Vertex> mVerts;
   std::vector<size_t> mIndices;
