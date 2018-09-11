@@ -338,6 +338,7 @@ void GraphicsSystem::_renderCommands() {
   for(const RenderCommand& c : mRenderCommands) {
     switch(c.mType) {
       case RenderCommand::Type::Outline: _outline(c); break;
+      case RenderCommand::Type::Quad2d: _quad2d(c); break;
     }
   }
 }
@@ -370,7 +371,7 @@ void GraphicsSystem::_outline(const RenderCommand& c) {
   glUniformMatrix4fv(mFlatColorShader->getUniform("mvp"), 1, GL_FALSE, mvp.mData);
   //Since the object has already been drawn, re draw it slightly above so the draw doesn't fail depth tests
   glUniform1f(mFlatColorShader->getUniform("depthBias"), -0.01f);
-  glUniform3f(mFlatColorShader->getUniform("uColor"), c.mOutline.mColor.x, c.mOutline.mColor.y, c.mOutline.mColor.z);
+  glUniform4f(mFlatColorShader->getUniform("uColor"), c.mOutline.mColor[0], c.mOutline.mColor[1], c.mOutline.mColor[2], 0.0f);
   glEnable(GL_BLEND);
 
   for(int pass = 0; pass < 2; ++pass) {
@@ -401,6 +402,38 @@ void GraphicsSystem::_outline(const RenderCommand& c) {
   if(prevBlend) glEnable(GL_BLEND);
   glStencilFunc(prevStencilFunc, 1, -1);
   glLineWidth(prevLineWidth);
+}
+
+void GraphicsSystem::_quad2d(const RenderCommand& c) {
+  if(mFlatColorShader->getState() != AssetState::PostProcessed)
+    return;
+
+  const auto& q = c.mQuad2d;
+  Vec2 min(q.mMin[0], q.mMin[1]);
+  Vec2 max(q.mMax[0], q.mMax[1]);
+  Mat4 mvp = Mat4::identity();
+
+  // Flip origin from top left to bottom right
+  min.y = mScreenSize.y - min.y;
+  max.y = mScreenSize.y - max.y;
+  if(min.y > max.y)
+    std::swap(min.y, max.y);
+
+  Vec2 origin = (min + max)*0.5f;
+  Vec2 scale = (max - min)*0.5f;
+  mvp = Mat4::translate(Vec3(-1, -1, 0)) * Mat4::scale(Vec3(2.0f/mScreenSize.x, 2.0f/mScreenSize.y, 0.0f)) * Mat4::translate(Vec3(origin.x, origin.y, 0.0f)) * Mat4::scale(Vec3(scale.x, scale.y, 0.0f));
+
+  if(q.mColor[3] != 0 && q.mColor[3] != 1) {
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+  }
+
+  Shader::Binder b(*mFlatColorShader);
+  glUniform4f(mFlatColorShader->getUniform("uColor"), q.mColor[0], q.mColor[1], q.mColor[2], q.mColor[3]);
+  glUniformMatrix4fv(mFlatColorShader->getUniform("mvp"), 1, GL_FALSE, mvp.mData);
+  mFullScreenQuad->draw();
+
+  glDisable(GL_BLEND);
 }
 
 void GraphicsSystem::_drawTexture(const Texture& tex, const Syx::Vec2& origin, const Syx::Vec2& size) {
@@ -452,7 +485,7 @@ void GraphicsSystem::_drawPickScene(const FrameBuffer& destination) {
       Model::Binder mb(model);
       glUniformMatrix4fv(mFlatColorShader->getUniform("mvp"), 1, GL_FALSE, mvp.mData);
       Vec3 handleColor = encodeHandle(obj.getHandle())*(1.0f/255.0f);
-      glUniform3fv(mFlatColorShader->getUniform("uColor"), 1, &handleColor.x);
+      glUniform4fv(mFlatColorShader->getUniform("uColor"), 1, &handleColor.x);
 
       model.draw();
     }

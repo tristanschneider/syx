@@ -15,6 +15,7 @@
 namespace {
   const Syx::Vec2 INVALID_MOUSE(-1);
   const size_t PICK_ID = std::hash<std::string>()("editor pick");
+  const Syx::Vec3 PICK_COLOR(1, 0, 0);
 }
 
 SceneBrowser::SceneBrowser(MessageQueueProvider* msg, GameObjectHandleProvider* handleGen, KeyboardInput* input)
@@ -76,7 +77,21 @@ void SceneBrowser::editorUpdate(const HandleMap<std::unique_ptr<LuaGameObject>>&
 void SceneBrowser::_drawSelected() {
   auto msg = mMsg->getMessageQueue();
   for(Handle h : mSelected) {
-    msg.get().push(RenderCommandEvent(RenderCommand::outline(h, Syx::Vec3(1, 0, 0), 5)));
+    msg.get().push(RenderCommandEvent(RenderCommand::outline(h, PICK_COLOR, 5)));
+  }
+
+  KeyState lmb = mInput->getKeyState(Key::LeftMouse);
+  Syx::Vec2 mousePos = mInput->getMousePos();
+  if(lmb == KeyState::Down && mMouseDownPos != INVALID_MOUSE && mousePos != mMouseDownPos) {
+    Syx::Vec2 min = mMouseDownPos;
+    Syx::Vec2 max = mInput->getMousePos();
+    for(int i = 0; i < 2; ++i) {
+      if(min[i] > max[i])
+        std::swap(min[i], max[i]);
+    }
+    Syx::Vec3 color = PICK_COLOR;
+    color.w = 0.3f;
+    msg.get().push(RenderCommandEvent(RenderCommand::quad2d(min, max, color, RenderCommand::Space::ScreenPixel)));
   }
 }
 

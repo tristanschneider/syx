@@ -64,6 +64,7 @@ private:
   void _render(float dt);
   void _renderCommands();
   void _outline(const RenderCommand& c);
+  void _quad2d(const RenderCommand& c);
 
   void _processAddEvent(const AddComponentEvent& e);
   void _processRemoveEvent(const RemoveComponentEvent& e);
