@@ -9,9 +9,13 @@ namespace Lua {
     : mType(nullptr) {
   }
 
-  Variant::Variant(const Key& key)
-    : mKey(key)
-    , mType(nullptr) {
+  Variant::Variant(Key key, const Node* type)
+    : mKey(std::move(key))
+    , mType(type) {
+    if(mType) {
+      mData.resize(mType->_size());
+      mType->_defaultConstruct(mData.data());
+    }
   }
 
   Variant::Variant(const Variant& rhs)
@@ -143,6 +147,10 @@ namespace Lua {
   void Variant::forEachChild(std::function<void(Variant&)> callback) {
     for(Variant& child : mChildren)
       callback(child);
+  }
+
+  void Variant::addChild(Variant child) {
+    mChildren.emplace_back(std::move(child));
   }
 
   void Variant::_destructData() {

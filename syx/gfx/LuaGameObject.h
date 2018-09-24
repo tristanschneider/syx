@@ -87,6 +87,8 @@ public:
   const TypeMap<std::unique_ptr<Component>, Component>& getComponents() const;
   void forEachComponent(std::function<void(const Component&)> callback) const;
 
+  std::unique_ptr<LuaGameObject> clone() const;
+
   static void openLib(lua_State* l);
   static int toString(lua_State* l);
   static int indexOverload(lua_State* l);
@@ -113,6 +115,7 @@ private:
   void _addBuiltInComponents();
   void _forEachBuiltInComponent(std::function<void(Component&)> func);
   void _forEachBuiltInComponent(std::function<void(const Component&)> func) const;
+  bool _isBuiltInComponent(const Component& comp) const;
   void _addComponentLookup(Component& comp);
   void _removeComponentLookup(const Component& comp);
 

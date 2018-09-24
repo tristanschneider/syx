@@ -9,6 +9,7 @@
 #include "component/Renderable.h"
 #include "component/SpaceComponent.h"
 #include "editor/event/EditorEvents.h"
+#include "editor/ObjectInspector.h"
 #include "editor/SceneBrowser.h"
 #include "event/BaseComponentEvents.h"
 #include "event/EventBuffer.h"
@@ -72,6 +73,7 @@ void LuaGameSystem::init() {
   _registerBuiltInComponents();
 
   mSceneBrowser = std::make_unique<SceneBrowser>(mArgs.mMessages, mArgs.mGameObjectGen, mArgs.mSystems->getSystem<KeyboardInput>());
+  mObjectInspector = std::make_unique<ObjectInspector>(*mArgs.mMessages, *mEventHandler);
 }
 
 void LuaGameSystem::_openAllLibs(lua_State* l) {
@@ -142,6 +144,7 @@ void LuaGameSystem::_update(float dt) {
 
 void LuaGameSystem::_editorUpdate() {
   mSceneBrowser->editorUpdate(getObjects());
+  mObjectInspector->editorUpdate(*this);
 }
 
 void LuaGameSystem::_registerBuiltInComponents() {
@@ -243,6 +246,10 @@ const ProjectLocator& LuaGameSystem::getProjectLocator() const {
 
 IWorkerPool& LuaGameSystem::getWorkerPool() {
   return *mArgs.mPool;
+}
+
+const LuaGameObject* LuaGameSystem::getObject(Handle handle) const {
+  return _getObj(handle);
 }
 
 void LuaGameSystem::uninit() {
@@ -407,7 +414,7 @@ void LuaGameSystem::_onScreenPickResponse(const ScreenPickResponse& e) {
   }
 }
 
-LuaGameObject* LuaGameSystem::_getObj(Handle h) {
+LuaGameObject* LuaGameSystem::_getObj(Handle h) const {
   auto it = mObjects.find(h);
   return it == mObjects.end() ? nullptr : it->second.get();
 }

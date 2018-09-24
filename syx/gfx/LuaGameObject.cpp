@@ -45,11 +45,31 @@ void LuaGameObject::_forEachBuiltInComponent(std::function<void(const Component&
   func(mName);
 }
 
+bool LuaGameObject::_isBuiltInComponent(const Component& comp) const {
+  size_t compType = comp.getType();
+  bool isBuiltIn = false;
+  _forEachBuiltInComponent([compType, &isBuiltIn](const Component& c) {
+    isBuiltIn = isBuiltIn || c.getType() == compType;
+  });
+  return isBuiltIn;
+}
+
 Handle LuaGameObject::getHandle() const {
   return mHandle;
 }
 
 void LuaGameObject::addComponent(std::unique_ptr<Component> component) {
+  bool wasBuiltIn = false;
+  //For built in types copy value to type so it behaves as other components by being overwritten
+  _forEachBuiltInComponent([&component, &wasBuiltIn](Component& c) {
+    if(c.getType() == component->getType()) {
+      c.set(*component);
+      wasBuiltIn = true;
+    }
+  });
+  if(wasBuiltIn)
+    return;
+
   if(component->getType() == Component::typeId<LuaComponent>()) {
     addLuaComponent(component->getSubType());
   }
@@ -166,6 +186,14 @@ void LuaGameObject::forEachComponent(std::function<void(const Component&)> callb
   for(const auto& c : mLuaComponents)
     callback(c.second);
   _forEachBuiltInComponent(callback);
+}
+
+std::unique_ptr<LuaGameObject> LuaGameObject::clone() const {
+  auto result = std::make_unique<LuaGameObject>(mHandle);
+  forEachComponent([&result](const Component& c) {
+    result->addComponent(c.clone());
+  });
+  return result;
 }
 
 void LuaGameObject::openLib(lua_State* l) {

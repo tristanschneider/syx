@@ -10,10 +10,31 @@ namespace Lua {
   class Variant {
   public:
     Variant();
-    Variant(const Key& key);
+    Variant(Key key, const Node* type = nullptr);
     Variant(const Variant& rhs);
     Variant(Variant&& rhs);
     ~Variant();
+
+    template<class T>
+    void set(const T& value) {
+      assert(!mData.empty() && "Data should have been set when type was");
+      assert(mType->getTypeId() == typeId<T>() && "Variant must have appropriate type to set");
+      mType->_copy(&value, mData.data());
+    }
+
+    template<class T>
+    const T& get() const {
+      assert(!mData.empty() && "Data should have been set when type was");
+      assert(mType->getTypeId() == typeId<T>() && "Variant must have appropriate type to get");
+      reinterpret_cast<const T&>(*mData.data());
+    }
+
+    template<class T>
+    T& get() {
+      assert(!mData.empty() && "Data should have been set when type was");
+      assert(mType->getTypeId() == typeId<T>() && "Variant must have appropriate type to get");
+      reinterpret_cast<T&>(*mData.data());
+    }
 
     Variant& operator=(const Variant& rhs);
     Variant& operator=(Variant&& rhs);
@@ -31,6 +52,7 @@ namespace Lua {
     Variant* getChild(const Key& key);
     void forEachChild(std::function<void(const Variant&)> callback) const;
     void forEachChild(std::function<void(Variant&)> callback);
+    void addChild(Variant child);
 
     template<typename T>
     T* get() {

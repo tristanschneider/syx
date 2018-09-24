@@ -1,6 +1,7 @@
 #pragma once
 #include "System.h"
 #include "provider/MessageQueueProvider.h"
+#include "provider/LuaGameObjectProvider.h"
 
 class AssetRepo;
 class Task;
@@ -28,13 +29,14 @@ class ScreenPickResponse;
 class SetComponentPropsEvent;
 class AllSystemsInitialized;
 struct lua_State;
+class ObjectInspector;
 
 namespace Lua {
   class State;
   class LuaLibGroup;
 }
 
-class LuaGameSystem : public System {
+class LuaGameSystem : public System, public LuaGameObjectProvider {
 public:
   static const char* CLASS_NAME;
 
@@ -47,7 +49,7 @@ public:
   void queueTasks(float dt, IWorkerPool& pool, std::shared_ptr<Task> frameTask) override;
   void uninit() override;
 
-  LuaGameObject* _getObj(Handle h);
+  LuaGameObject* _getObj(Handle h) const;
 
   static LuaGameSystem* get(lua_State* l);
   static LuaGameSystem& check(lua_State* l);
@@ -67,6 +69,8 @@ public:
   SpaceComponent& getSpace(Handle id);
   const ProjectLocator& getProjectLocator() const;
   IWorkerPool& getWorkerPool();
+
+  const LuaGameObject* getObject(Handle handle) const;
 
   void _openAllLibs(lua_State* l);
 
@@ -113,4 +117,5 @@ private:
 
   //Editor
   std::unique_ptr<SceneBrowser> mSceneBrowser;
+  std::unique_ptr<ObjectInspector> mObjectInspector;
 };

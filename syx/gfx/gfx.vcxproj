@@ -175,6 +175,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClCompile Include="DebugDrawer.cpp" />
     <ClCompile Include="editor\EditorNavigator.cpp" />
     <ClCompile Include="editor\event\EditorEvents.cpp" />
+    <ClCompile Include="editor\ObjectInspector.cpp" />
     <ClCompile Include="editor\SceneBrowser.cpp" />
     <ClCompile Include="event\BaseComponentEvents.cpp" />
     <ClCompile Include="event\DebugDrawEvent.cpp" />
@@ -263,6 +264,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClInclude Include="DebugDrawer.h" />
     <ClInclude Include="editor\EditorNavigator.h" />
     <ClInclude Include="editor\event\EditorEvents.h" />
+    <ClInclude Include="editor\ObjectInspector.h" />
     <ClInclude Include="editor\SceneBrowser.h" />
     <ClInclude Include="event\BaseComponentEvents.h" />
     <ClInclude Include="event\DebugDrawEvent.h" />
@@ -307,6 +309,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClInclude Include="Precompile.h" />
     <ClInclude Include="ProjectLocator.h" />
     <ClInclude Include="provider\GameObjectHandleProvider.h" />
+    <ClInclude Include="provider\LuaGameObjectProvider.h" />
     <ClInclude Include="provider\MessageQueueProvider.h" />
     <ClInclude Include="provider\SystemProvider.h" />
     <ClInclude Include="src-deps\imgui\imconfig.h" />

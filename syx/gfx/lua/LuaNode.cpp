@@ -61,6 +61,12 @@ namespace Lua {
     mChildren.emplace_back(std::move(child));
   }
 
+  void Node::forEachChildShallow(std::function<void(const Node&)> callback) const {
+    for(const auto& child : mChildren) {
+      callback(*child);
+    }
+  }
+
   size_t Node::size() const {
     return mSize + _size();
   }
@@ -93,17 +99,20 @@ namespace Lua {
   void Node::_funcFromBuffer(void (Node::* func)(const void*, void*) const, void* base, const void* buffer, NodeDiff diff, int& nodeIndex) const {
     base = Util::offset(base, mOps.mOffset);
 
-    if(diff & (static_cast<NodeDiff>(1) << nodeIndex))
-      (this->*func)(buffer, base);
-    ++nodeIndex;
-
-    _translateBase(base);
-    if(!base)
-      return;
-    buffer = Util::offset(buffer, _size());
-    for(const auto& child : mChildren) {
-      child->_funcFromBuffer(func, base, buffer, diff, nodeIndex);
-      buffer = Util::offset(buffer, child->size());
+    if(mChildren.empty()) {
+      if(diff & (static_cast<NodeDiff>(1) << nodeIndex))
+        (this->*func)(buffer, base);
+      ++nodeIndex;
+    }
+    else {
+      _translateBase(base);
+      if(!base)
+        return;
+      buffer = Util::offset(buffer, _size());
+      for(const auto& child : mChildren) {
+        child->_funcFromBuffer(func, base, buffer, diff, nodeIndex);
+        buffer = Util::offset(buffer, child->size());
+      }
     }
   }
 

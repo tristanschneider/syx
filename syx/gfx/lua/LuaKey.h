@@ -5,6 +5,7 @@ struct lua_State;
 namespace Lua {
   class Key {
   public:
+    Key(std::string key);
     Key(const char* key);
     Key(int key = 0);
 

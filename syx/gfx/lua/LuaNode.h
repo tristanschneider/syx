@@ -61,6 +61,7 @@ namespace Lua {
 
     const Node* getChild(const char* child) const;
     void addChild(std::unique_ptr<Node> child);
+    void forEachChildShallow(std::function<void(const Node&)> callback) const;
 
     //Total size in bytes of tree
     size_t size() const;

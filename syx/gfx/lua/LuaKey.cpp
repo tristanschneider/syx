@@ -4,6 +4,11 @@
 #include <lua.hpp>
 
 namespace Lua {
+  Key::Key(std::string key)
+    : mStr(std::move(key)) {
+    mHash = std::hash<std::string>()(mStr);
+  }
+
   Key::Key(const char* key)
     : mStr(key) {
     mHash = std::hash<std::string>()(mStr);
