@@ -188,6 +188,18 @@ void LuaGameObject::forEachComponent(std::function<void(const Component&)> callb
   _forEachBuiltInComponent(callback);
 }
 
+void LuaGameObject::forEachComponent(std::function<void(Component&)> callback) {
+  for(auto& c : mComponents)
+    callback(*c);
+  for(auto& c : mLuaComponents)
+    callback(c.second);
+  _forEachBuiltInComponent(callback);
+}
+
+size_t LuaGameObject::componentCount() const {
+  return mHashToComponent.size();
+}
+
 std::unique_ptr<LuaGameObject> LuaGameObject::clone() const {
   auto result = std::make_unique<LuaGameObject>(mHandle);
   forEachComponent([&result](const Component& c) {

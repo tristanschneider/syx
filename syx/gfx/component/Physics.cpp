@@ -23,7 +23,8 @@ DEFINE_COMPONENT(Physics) {
 }
 
 Physics::Physics(const Physics& other)
-  : Component(other.getType(), other.getOwner()) {
+  : Component(other.getType(), other.getOwner())
+  , mData(other.mData) {
 }
 
 std::unique_ptr<Component> Physics::clone() const {

@@ -12,6 +12,46 @@
 #include "provider/LuaGameObjectProvider.h"
 #include "provider/MessageQueueProvider.h"
 
+namespace {
+  Component** _findComponent(std::vector<Component*>& components, size_t type) {
+    for(Component*& c : components)
+      if(c->getType() == type)
+        return &c;
+    return nullptr;
+  }
+
+  void _sortComponents(std::vector<Component*>& components) {
+    // These first then whatever
+    std::swap(components[0], *_findComponent(components, Component::typeId<NameComponent>()));
+    std::swap(components[1], *_findComponent(components, Component::typeId<Transform>()));
+    std::swap(components[2], *_findComponent(components, Component::typeId<SpaceComponent>()));
+  }
+
+  bool _createEditor(const Lua::Node& prop, std::string& str) {
+    const size_t textLimit = 100;
+    str.reserve(textLimit);
+    if(ImGui::InputText(prop.getName().c_str(), str.data(), textLimit)) {
+      //Since we manually modified the internals of string, manually update size
+      str.resize(std::strlen(str.data()));
+      return true;
+    }
+    return false;
+  }
+
+  bool _createEditor(const Lua::Node& prop, bool& str) {
+    return ImGui::Checkbox(prop.getName().c_str(), &str);
+  }
+
+  bool _createEditor(const Lua::Node& prop, void* data) {
+    //TODO: register defaults for plain data somewhere, and allow overrides on the nodes
+    if(prop.getTypeId() == typeId<std::string>())
+      return _createEditor(prop, *reinterpret_cast<std::string*>(data));
+    else if(prop.getTypeId() == typeId<bool>())
+      return _createEditor(prop, *reinterpret_cast<bool*>(data));
+    return false;
+  }
+}
+
 ObjectInspector::ObjectInspector(MessageQueueProvider& msg, EventHandler& handler)
   : mMsg(msg) {
 
@@ -33,38 +73,45 @@ void ObjectInspector::editorUpdate(const LuaGameObjectProvider& objects) {
   const size_t textLimit = 100;
   for(size_t i = 0; i < mSelected.size(); ++i) {
     auto& selected = mSelectedData[i];
+    const LuaGameObject& original = *objects.getObject(mSelected[i]);
+
     ImGui::PushID(static_cast<int>(selected->getHandle()));
-    //TODO: get a mutable reference through less nefarious means
-    NameComponent& name = const_cast<NameComponent&>(selected->getName());
-    //TODO: do similar approach but for all components, using known type ids to populate appropriate ui
-    //TODO: detect when property has changed so property change message can be sent
-    bool updateComponent = false;
-    const Lua::Node* props = name.getLuaProps();
-    props->forEachChildShallow([&name, textLimit, this, &updateComponent](const Lua::Node& prop) {
-      if(prop.getTypeId() == typeId<std::string>()) {
-        std::string* nameValue = reinterpret_cast<std::string*>(prop._translateBaseToNode(&name));
-        nameValue->reserve(textLimit);
-        if(ImGui::InputText(prop.getName().c_str(), nameValue->data(), textLimit)) {
-          updateComponent = true;
-          //Since we manually modified the internals of string, manually update size
-          nameValue->resize(std::strlen(nameValue->data()));
-        }
-      }
+
+    std::vector<Component*> components(selected->componentCount());
+    components.clear();
+    selected->forEachComponent([&components](Component& c) {
+      components.push_back(&c);
     });
+    _sortComponents(components);
 
-    //TODO: generalize this beyond name component
-    if(updateComponent) {
-      const LuaGameObject& original = *objects.getObject(mSelected[i]);
-      const auto& originalComp = original.getName();
-      const auto& newComp = selected->getName();
+    for(Component* comp : components) {
+      bool updateComponent = false;
+      if(const Lua::Node* props = comp->getLuaProps()) {
+        ImGui::Text(comp->getTypeInfo().mTypeName.c_str());
+        ImGui::BeginGroup();
 
-      //Generate diff of component
-      auto diff = props->getDiff(&originalComp, &newComp);
+        //Populate editor for each property
+        props->forEachDiff(~0, comp, [&updateComponent](const Lua::Node& prop, const void* data) {
+          updateComponent = _createEditor(prop, const_cast<void*>(data)) || updateComponent;
+        });
 
-      //Copy new values to buffer and send diff so only new value is updated
-      std::vector<uint8_t> buffer(props->size());
-      props->copyConstructToBuffer(&newComp, buffer.data());
-      mMsg.getMessageQueue().get().push(SetComponentPropsEvent(newComp.getOwner(), newComp.getType(), props, diff, std::move(buffer)));
+        //If a property changed, make a diff and send an update message
+        if(updateComponent) {
+          const auto& originalComp = original.getComponent(comp->getType(), comp->getSubType());
+          const auto& newComp = *comp;
+
+          //Generate diff of component
+          auto diff = props->getDiff(&originalComp, &newComp);
+
+          //Copy new values to buffer and send diff so only new value is updated
+          std::vector<uint8_t> buffer(props->size());
+          props->copyConstructToBuffer(&newComp, buffer.data());
+          mMsg.getMessageQueue().get().push(SetComponentPropsEvent(newComp.getOwner(), newComp.getType(), props, diff, std::move(buffer)));
+        }
+
+        ImGui::EndGroup();
+        ImGui::Separator();
+      }
     }
 
     ImGui::PopID();

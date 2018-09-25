@@ -86,6 +86,8 @@ public:
   const std::unordered_map<size_t, LuaComponent>& getLuaComponents() const;
   const TypeMap<std::unique_ptr<Component>, Component>& getComponents() const;
   void forEachComponent(std::function<void(const Component&)> callback) const;
+  void forEachComponent(std::function<void(Component&)> callback);
+  size_t componentCount() const;
 
   std::unique_ptr<LuaGameObject> clone() const;
 
