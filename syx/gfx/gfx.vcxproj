@@ -173,8 +173,10 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClCompile Include="component\SpaceComponent.cpp" />
     <ClCompile Include="component\Transform.cpp" />
     <ClCompile Include="DebugDrawer.cpp" />
+    <ClCompile Include="editor\DefaultInspectors.cpp" />
     <ClCompile Include="editor\EditorNavigator.cpp" />
     <ClCompile Include="editor\event\EditorEvents.cpp" />
+    <ClCompile Include="editor\InspectorFactory.cpp" />
     <ClCompile Include="editor\ObjectInspector.cpp" />
     <ClCompile Include="editor\SceneBrowser.cpp" />
     <ClCompile Include="event\BaseComponentEvents.cpp" />
@@ -262,8 +264,10 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClInclude Include="component\SpaceComponent.h" />
     <ClInclude Include="component\Transform.h" />
     <ClInclude Include="DebugDrawer.h" />
+    <ClInclude Include="editor\DefaultInspectors.h" />
     <ClInclude Include="editor\EditorNavigator.h" />
     <ClInclude Include="editor\event\EditorEvents.h" />
+    <ClInclude Include="editor\InspectorFactory.h" />
     <ClInclude Include="editor\ObjectInspector.h" />
     <ClInclude Include="editor\SceneBrowser.h" />
     <ClInclude Include="event\BaseComponentEvents.h" />

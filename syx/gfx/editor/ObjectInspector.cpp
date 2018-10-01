@@ -1,6 +1,7 @@
 #include "Precompile.h"
 #include "ObjectInspector.h"
 
+#include "editor/DefaultInspectors.h"
 #include "editor/event/EditorEvents.h"
 #include "event/BaseComponentEvents.h"
 #include <event/EventBuffer.h>
@@ -26,38 +27,18 @@ namespace {
     std::swap(components[1], *_findComponent(components, Component::typeId<Transform>()));
     std::swap(components[2], *_findComponent(components, Component::typeId<SpaceComponent>()));
   }
-
-  bool _createEditor(const Lua::Node& prop, std::string& str) {
-    const size_t textLimit = 100;
-    str.reserve(textLimit);
-    if(ImGui::InputText(prop.getName().c_str(), str.data(), textLimit)) {
-      //Since we manually modified the internals of string, manually update size
-      str.resize(std::strlen(str.data()));
-      return true;
-    }
-    return false;
-  }
-
-  bool _createEditor(const Lua::Node& prop, bool& str) {
-    return ImGui::Checkbox(prop.getName().c_str(), &str);
-  }
-
-  bool _createEditor(const Lua::Node& prop, void* data) {
-    //TODO: register defaults for plain data somewhere, and allow overrides on the nodes
-    if(prop.getTypeId() == typeId<std::string>())
-      return _createEditor(prop, *reinterpret_cast<std::string*>(data));
-    else if(prop.getTypeId() == typeId<bool>())
-      return _createEditor(prop, *reinterpret_cast<bool*>(data));
-    return false;
-  }
 }
 
 ObjectInspector::ObjectInspector(MessageQueueProvider& msg, EventHandler& handler)
-  : mMsg(msg) {
+  : mMsg(msg)
+  , mDefaultInspectors(std::make_unique<DefaultInspectors>()) {
 
   handler.registerEventHandler<SetSelectionEvent>([this](const SetSelectionEvent& e) {
     mSelected = e.mObjects;
   });
+}
+
+ObjectInspector::~ObjectInspector() {
 }
 
 void ObjectInspector::editorUpdate(const LuaGameObjectProvider& objects) {
@@ -84,15 +65,18 @@ void ObjectInspector::editorUpdate(const LuaGameObjectProvider& objects) {
     });
     _sortComponents(components);
 
-    for(Component* comp : components) {
+    for(size_t c = 0; c < components.size(); ++c) {
+      Component* comp = components[c];
+
       bool updateComponent = false;
       if(const Lua::Node* props = comp->getLuaProps()) {
+        ImGui::PushID(static_cast<int>(c));
         ImGui::Text(comp->getTypeInfo().mTypeName.c_str());
         ImGui::BeginGroup();
 
         //Populate editor for each property
-        props->forEachDiff(~0, comp, [&updateComponent](const Lua::Node& prop, const void* data) {
-          updateComponent = _createEditor(prop, const_cast<void*>(data)) || updateComponent;
+        props->forEachDiff(~0, comp, [&updateComponent, this](const Lua::Node& prop, const void* data) {
+          updateComponent = _inspectProperty(prop, const_cast<void*>(data)) || updateComponent;
         });
 
         //If a property changed, make a diff and send an update message
@@ -111,6 +95,7 @@ void ObjectInspector::editorUpdate(const LuaGameObjectProvider& objects) {
 
         ImGui::EndGroup();
         ImGui::Separator();
+        ImGui::PopID();
       }
     }
 
@@ -131,4 +116,11 @@ void ObjectInspector::_updateSelection(const LuaGameObjectProvider& objects) {
       mSelectedData.emplace_back(obj->clone());
     }
   }
+}
+
+bool ObjectInspector::_inspectProperty(const Lua::Node& prop, void* data) const {
+  if(auto func = mDefaultInspectors->getFactory(prop))
+    return (*func)(prop, data);
+  //TODO: handle inspector overrides on prop
+  return false;
 }

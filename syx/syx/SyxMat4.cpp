@@ -76,6 +76,15 @@ namespace Syx {
     return result;
   }
 
+  Mat4 Mat4::transposed() const {
+    Mat4 result = *this;
+    for(int r = 0; r < 4; ++r)
+      for(int c = r; c < 4; ++c)
+        if(r != c)
+          std::swap(result.mColRow[c][r], result.mColRow[r][c]);
+    return result;
+  }
+
   void Mat4::decompose(Vec3& scale, Mat3& rotate, Vec3& translate) const {
     translate = Vec3(mColRow[3][0], mColRow[3][1], mColRow[3][2]);
     rotate = Mat3(mColRow[0][0], mColRow[1][0], mColRow[2][0],
