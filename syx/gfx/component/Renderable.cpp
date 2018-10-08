@@ -1,5 +1,7 @@
 #include "Precompile.h"
 #include "Renderable.h"
+
+#include "editor/InspectorFactory.h"
 #include "lua/LuaNode.h"
 #include "lua/LuaUtil.h"
 #include <lua.hpp>
@@ -60,6 +62,6 @@ std::unique_ptr<Lua::Node> Renderable::_buildLuaProps() const {
   using namespace Lua;
   auto root = makeRootNode(NodeOps(LUA_PROPS_KEY));
   makeNode<LightUserdataSizetNode>(NodeOps(*root, "model", ::Util::offsetOf(*this, mData.mModel)));
-  makeNode<LightUserdataSizetNode>(NodeOps(*root, "diffuseTexture", ::Util::offsetOf(*this, mData.mDiffTex)));
+  makeNode<LightUserdataSizetNode>(NodeOps(*root, "diffuseTexture", ::Util::offsetOf(*this, mData.mDiffTex))).setInspector(Inspector::getAssetInspector(*getAssetRepo(), "bmp"));
   return root;
 }

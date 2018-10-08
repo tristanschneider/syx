@@ -5,6 +5,8 @@
 #include "threading/FunctionTask.h"
 #include "threading/IWorkerPool.h"
 
+AssetRepo* AssetRepo::sSingleton = nullptr;
+
 RegisterSystemCPP(AssetRepo);
 
 AssetRepo::Loaders::Loaders() {
@@ -36,9 +38,11 @@ AssetRepo::Loaders& AssetRepo::Loaders::_get() {
 
 AssetRepo::AssetRepo(const SystemArgs& args)
   : System(args) {
+  sSingleton = this;
 }
 
 AssetRepo::~AssetRepo() {
+  sSingleton = nullptr;
 }
 
 std::shared_ptr<Asset> AssetRepo::getAsset(AssetInfo info) {
@@ -75,6 +79,14 @@ std::shared_ptr<Asset> AssetRepo::getAsset(AssetInfo info) {
 
   _queueLoad(newAsset);
   return newAsset;
+}
+
+void AssetRepo::getAssetsByCategory(std::string_view category, std::vector<std::shared_ptr<Asset>>& assets) const {
+  for(const auto& it : mIdToAsset) {
+    if(it.second->getState() >= AssetState::Loaded && it.second->getInfo().mCategory == category) {
+      assets.emplace_back(it.second);
+    }
+  }
 }
 
 void AssetRepo::addAsset(std::shared_ptr<Asset> asset) {

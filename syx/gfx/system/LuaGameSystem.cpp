@@ -176,6 +176,7 @@ Component* LuaGameSystem::addComponent(const std::string& name, LuaGameObject& o
       return existing;
     }
     component = mComponents->construct(name, owner.getHandle());
+    component->setSystem(*this);
   }
   Component* result = component.get();
   if(result) {

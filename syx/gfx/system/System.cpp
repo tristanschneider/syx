@@ -38,3 +38,7 @@ System::~System() {
 void System::setEventBuffer(const EventBuffer* buffer) {
   mEventBuffer = buffer;
 }
+
+SystemProvider& System::getSystemProvider() const {
+  return *mArgs.mSystems;
+}

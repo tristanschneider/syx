@@ -437,6 +437,19 @@ namespace Lua {
     return mOps.mName;
   }
 
+  bool Node::hasInspector() const {
+    return mInspector != nullptr;
+  }
+
+  bool Node::inspect(void* prop) const {
+    return mInspector(*this, prop);
+  }
+
+  Node& Node::setInspector(std::function<bool(const Node&, void*)> inspector) {
+    mInspector = std::move(inspector);
+    return *this;
+  }
+
   void RootNode::_writeToLua(lua_State* s, const void* base) const {
     // Write table for children to fill
     lua_newtable(s);

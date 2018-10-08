@@ -1,7 +1,9 @@
 #pragma once
 
+class AssetRepo;
 class MessageQueueProvider;
 class LuaGameSystem;
+class System;
 
 struct lua_State;
 struct luaL_Reg;
@@ -98,6 +100,10 @@ public:
     _setSubType(subType);
   }
 
+  void setSystem(System& system);
+  System* getSystem() const;
+  AssetRepo* getAssetRepo() const;
+
   //Push lua component onto stack
   int push(lua_State* l);
   void invalidate(lua_State* l) const;
@@ -137,6 +143,7 @@ protected:
   size_t mType;
   size_t mSubType;
   size_t mCacheId;
+  System* mSystem = nullptr;
 
 private:
   static const std::string BASE_CLASS_NAME;

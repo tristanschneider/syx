@@ -65,6 +65,8 @@ public:
   //Each frame this is updated to point at the message queue for that frame.
   void setEventBuffer(const EventBuffer* buffer);
 
+  SystemProvider& getSystemProvider() const;
+
 protected:
   SystemArgs mArgs;
   const EventBuffer* mEventBuffer;

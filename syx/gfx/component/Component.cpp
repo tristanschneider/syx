@@ -8,6 +8,7 @@
 #include "lua/LuaNode.h"
 #include "lua/LuaStackAssert.h"
 #include "lua/LuaUtil.h"
+#include "system/AssetRepo.h"
 #include "system/LuaGameSystem.h"
 #include "LuaGameObject.h"
 #include "Util.h"
@@ -63,6 +64,18 @@ Component::~Component() {
 
 const Lua::Node* Component::getLuaProps() const {
   return nullptr;
+}
+
+void Component::setSystem(System& system) {
+  mSystem = &system;
+}
+
+System* Component::getSystem() const {
+  return mSystem;
+}
+
+AssetRepo* Component::getAssetRepo() const {
+  return AssetRepo::get();
 }
 
 int Component::push(lua_State* l) {

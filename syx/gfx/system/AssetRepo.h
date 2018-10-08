@@ -55,12 +55,18 @@ public:
   AssetRepo(const SystemArgs& args);
   ~AssetRepo();
 
+  //TODO: find a better way to make this available
+  static AssetRepo* get() {
+    return sSingleton;
+  }
+
   //If uri is provided it will be loaded if it doesn't exist. If only id is provided, only an existing asset will be returned
   std::shared_ptr<Asset> getAsset(AssetInfo info);
   template<typename AssetType>
   std::shared_ptr<AssetType> getAsset(AssetInfo info) {
     return std::static_pointer_cast<AssetType>(getAsset(info));
   }
+  void getAssetsByCategory(std::string_view category, std::vector<std::shared_ptr<Asset>>& assets) const;
 
   void reloadAsset(std::shared_ptr<Asset> asset);
   void setBasePath(const std::string& basePath);
@@ -81,6 +87,8 @@ private:
   std::unordered_map<size_t, std::shared_ptr<Asset>> mIdToAsset;
   RWLock mAssetLock;
   ThreadLocal<std::unordered_map<std::string, std::unique_ptr<AssetLoader>>> mLoaderPool;
+  //TODO: find a better way to make this available
+  static AssetRepo* sSingleton;
 };
 
 //Statically registers a loader for use in AssetRepo

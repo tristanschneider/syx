@@ -119,8 +119,11 @@ void ObjectInspector::_updateSelection(const LuaGameObjectProvider& objects) {
 }
 
 bool ObjectInspector::_inspectProperty(const Lua::Node& prop, void* data) const {
+  //Try an override first
+  if(prop.hasInspector())
+    return prop.inspect(data);
+  //No override, use default inspector
   if(auto func = mDefaultInspectors->getFactory(prop))
     return (*func)(prop, data);
-  //TODO: handle inspector overrides on prop
   return false;
 }

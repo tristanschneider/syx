@@ -1,8 +1,10 @@
 #include "Precompile.h"
 #include "InspectorFactory.h"
 
+#include "asset/Asset.h"
 #include <imgui/imgui.h>
 #include "lua/LuaNode.h"
+#include "system/AssetRepo.h"
 
 namespace Inspector {
   bool inspectString(const Lua::Node& prop, std::string& str) {
@@ -54,5 +56,45 @@ namespace Inspector {
 
   bool inspectFloat(const Lua::Node& prop, float& data) {
     return ImGui::InputFloat(prop.getName().c_str(), &data);
+  }
+
+  bool inspectAsset(const Lua::Node& prop, size_t& data, AssetRepo& repo, std::string_view category) {
+    const char* propName = prop.getName().c_str();
+    ImGui::Text(propName);
+
+    const char* valueName = "none";
+    if(std::shared_ptr<Asset> asset = repo.getAsset(AssetInfo(data))) {
+      valueName = asset->getInfo().mUri.c_str();
+    }
+    ImGui::SameLine();
+    if(ImGui::Button(valueName)) {
+      ImGui::OpenPopup(propName);
+    }
+    ImGui::NewLine();
+
+    if(ImGui::BeginPopupModal(propName, nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+      ImGui::BeginChild("assets", ImVec2(200, 200));
+      std::vector<std::shared_ptr<Asset>> assets;
+      repo.getAssetsByCategory(category, assets);
+      bool assetSelected = false;
+      for(const auto& asset : assets) {
+        ImGui::Selectable(asset->getInfo().mUri.c_str());
+        if(ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(0)) {
+          assetSelected = true;
+          data = asset->getInfo().mId;
+          ImGui::CloseCurrentPopup();
+          break;
+        }
+      }
+      ImGui::EndChild();
+      ImGui::EndPopup();
+    }
+    return false;
+  }
+
+  std::function<bool(const Lua::Node&, void*)> getAssetInspector(AssetRepo& repo, std::string_view category) {
+    return [&repo, category](const Lua::Node& prop, void* data) {
+      return inspectAsset(prop, *reinterpret_cast<size_t*>(data), repo, category);
+    };
   }
 }
