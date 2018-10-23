@@ -10,6 +10,8 @@
 #include "threading/WorkerPool.h"
 #include "threading/SyncTask.h"
 
+#include "test/TestRegistry.h"
+
 #include "ImGuiImpl.h"
 
 App::App(std::unique_ptr<AppPlatform> appPlatform)
@@ -30,6 +32,8 @@ App::App(std::unique_ptr<AppPlatform> appPlatform)
     mProjectLocator.get()
   };
   System::Registry::getSystems(args, mSystems);
+
+  TestRegistry::get().run();
 }
 
 App::~App() {

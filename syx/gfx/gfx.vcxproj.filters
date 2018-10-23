@@ -246,6 +246,12 @@
     <ClCompile Include="editor\DefaultInspectors.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="util\ScratchPad.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="test\UtilsTests.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="App.h">
@@ -504,6 +510,15 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="editor\InspectorFactory.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="util\Variant.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="util\ScratchPad.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="test\TestRegistry.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

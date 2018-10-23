@@ -228,7 +228,9 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClCompile Include="system\PhysicsSystem.cpp" />
     <ClCompile Include="system\System.cpp" />
     <ClCompile Include="SyxInterface.cpp" />
+    <ClCompile Include="test\UtilsTests.cpp" />
     <ClCompile Include="Util.cpp" />
+    <ClCompile Include="util\ScratchPad.cpp" />
     <ClCompile Include="win32\AppPlatformWin32.cpp" />
     <ClCompile Include="win32\DirectoryWatcher32.cpp" />
     <ClCompile Include="win32\mainWin32.cpp" />
@@ -328,7 +330,10 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClInclude Include="system\LuaGameSystem.h" />
     <ClInclude Include="system\PhysicsSystem.h" />
     <ClInclude Include="system\System.h" />
+    <ClInclude Include="test\TestRegistry.h" />
     <ClInclude Include="Util.h" />
+    <ClInclude Include="util\ScratchPad.h" />
+    <ClInclude Include="util\Variant.h" />
     <ClInclude Include="win32\AppPlatformWin32.h" />
     <ClInclude Include="win32\DirectoryWatcher32.h" />
   </ItemGroup>
