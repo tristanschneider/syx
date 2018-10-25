@@ -3,6 +3,7 @@
 #include "asset/Shader.h"
 #include "imgui/imgui.h"
 #include "system/KeyboardInput.h"
+#include "util/ScratchPad.h"
 
 #include <gl/glew.h>
 
@@ -213,4 +214,9 @@ void ImGuiImpl::render(float dt, Syx::Vec2 display) {
   glBindBuffer(GL_ARRAY_BUFFER, 0);
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
   glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+ScratchPad& ImGuiImpl::getPad() {
+  static ScratchPad singleton(1);
+  return singleton;
 }

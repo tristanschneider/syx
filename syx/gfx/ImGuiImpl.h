@@ -1,5 +1,6 @@
 #pragma once
 
+class ScratchPad;
 class Shader;
 class KeyboardInput;
 
@@ -14,6 +15,8 @@ public:
   static bool enabled() {
     return sEnabled;
   }
+
+  static ScratchPad& getPad();
 
 private:
   static bool sEnabled;

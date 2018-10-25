@@ -1,6 +1,5 @@
 #pragma once
-
-class Variant;
+#include "util/Variant.h"
 
 class ScratchPad {
 public:

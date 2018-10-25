@@ -5,14 +5,13 @@
 #include "event/EventBuffer.h"
 #include "event/LifecycleEvents.h"
 #include "file/FilePath.h"
+#include "ImGuiImpl.h"
 #include "ProjectLocator.h"
 #include "system/GraphicsSystem.h"
+#include "test/TestRegistry.h"
 #include "threading/WorkerPool.h"
 #include "threading/SyncTask.h"
-
-#include "test/TestRegistry.h"
-
-#include "ImGuiImpl.h"
+#include "util/ScratchPad.h"
 
 App::App(std::unique_ptr<AppPlatform> appPlatform)
   : mWorkerPool(std::make_unique<WorkerPool>(4))
@@ -89,6 +88,8 @@ void App::update(float dt) {
   mMessageLock.lock();
   mMessageQueue.swap(mFrozenMessageQueue);
   mMessageLock.unlock();
+
+  ImGuiImpl::getPad().update();
 
   auto frameTask = std::make_shared<SyncTask>();
 
