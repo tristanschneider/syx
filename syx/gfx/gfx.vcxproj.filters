@@ -521,5 +521,8 @@
     <ClInclude Include="test\TestRegistry.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="util\Finally.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

@@ -332,6 +332,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClInclude Include="system\System.h" />
     <ClInclude Include="test\TestRegistry.h" />
     <ClInclude Include="Util.h" />
+    <ClInclude Include="util\Finally.h" />
     <ClInclude Include="util\ScratchPad.h" />
     <ClInclude Include="util\Variant.h" />
     <ClInclude Include="win32\AppPlatformWin32.h" />
