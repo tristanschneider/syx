@@ -1,3 +1,4 @@
+#include "asset/Asset.h"
 #include "event/Event.h"
 
 class SetSelectionEvent : public Event {
@@ -21,4 +22,10 @@ public:
   size_t mRequestId;
   Handle mSpace;
   std::vector<Handle> mObjects;
+};
+
+class PreviewAssetEvent : public Event {
+public:
+  PreviewAssetEvent(AssetInfo asset);
+  AssetInfo mAsset;
 };

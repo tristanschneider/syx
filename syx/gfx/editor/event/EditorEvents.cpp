@@ -17,3 +17,7 @@ DEFINE_EVENT(ScreenPickResponse, size_t requestId, Handle space, std::vector<Han
   , mSpace(space)
   , mObjects(std::move(objects)) {
 }
+
+DEFINE_EVENT(PreviewAssetEvent, AssetInfo asset)
+  , mAsset(std::move(asset)) {
+}

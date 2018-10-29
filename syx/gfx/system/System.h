@@ -66,6 +66,7 @@ public:
   void setEventBuffer(const EventBuffer* buffer);
 
   SystemProvider& getSystemProvider() const;
+  MessageQueueProvider& getMessageQueueProvider() const;
 
 protected:
   SystemArgs mArgs;

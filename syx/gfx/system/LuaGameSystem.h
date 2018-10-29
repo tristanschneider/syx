@@ -3,33 +3,32 @@
 #include "provider/MessageQueueProvider.h"
 #include "provider/LuaGameObjectProvider.h"
 
-class AssetRepo;
-class Task;
-class LuaGameObject;
-
 class AddComponentEvent;
-class AddLuaComponentEvent;
 class AddGameObjectEvent;
+class AddLuaComponentEvent;
+class AllSystemsInitialized;
+class AssetPreview;
+class AssetRepo;
 class ClearSpaceEvent;
 class Component;
 class FilePath;
+struct lua_State;
 class LuaComponentRegistry;
+class LuaGameObject;
 struct LuaSceneDescription;
 class LuaSpace;
+class ObjectInspector;
+class PhysicsCompUpdateEvent;
 class RemoveComponentEvent;
 class RemoveGameObjectEvent;
-class RenderableUpdateEvent;
-class SpaceComponent;
-class TransformEvent;
-class PhysicsCompUpdateEvent;
-class AddLuaComponentEvent;
 class RemoveLuaComponentEvent;
+class RenderableUpdateEvent;
 class SceneBrowser;
 class ScreenPickResponse;
 class SetComponentPropsEvent;
-class AllSystemsInitialized;
-struct lua_State;
-class ObjectInspector;
+class SpaceComponent;
+class Task;
+class TransformEvent;
 
 namespace Lua {
   class State;
@@ -118,4 +117,5 @@ private:
   //Editor
   std::unique_ptr<SceneBrowser> mSceneBrowser;
   std::unique_ptr<ObjectInspector> mObjectInspector;
+  std::unique_ptr<AssetPreview> mAssetPreview;
 };

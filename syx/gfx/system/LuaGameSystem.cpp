@@ -8,6 +8,7 @@
 #include "component/Physics.h"
 #include "component/Renderable.h"
 #include "component/SpaceComponent.h"
+#include "editor/AssetPreview.h"
 #include "editor/event/EditorEvents.h"
 #include "editor/ObjectInspector.h"
 #include "editor/SceneBrowser.h"
@@ -74,6 +75,7 @@ void LuaGameSystem::init() {
 
   mSceneBrowser = std::make_unique<SceneBrowser>(mArgs.mMessages, mArgs.mGameObjectGen, mArgs.mSystems->getSystem<KeyboardInput>());
   mObjectInspector = std::make_unique<ObjectInspector>(*mArgs.mMessages, *mEventHandler);
+  mAssetPreview = std::make_unique<AssetPreview>(*mArgs.mMessages, *mEventHandler, *mArgs.mSystems->getSystem<AssetRepo>());
 }
 
 void LuaGameSystem::_openAllLibs(lua_State* l) {
@@ -145,6 +147,7 @@ void LuaGameSystem::_update(float dt) {
 void LuaGameSystem::_editorUpdate() {
   mSceneBrowser->editorUpdate(getObjects());
   mObjectInspector->editorUpdate(*this);
+  mAssetPreview->editorUpdate();
 }
 
 void LuaGameSystem::_registerBuiltInComponents() {

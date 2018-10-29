@@ -2,10 +2,14 @@
 #include "InspectorFactory.h"
 
 #include "asset/Asset.h"
+#include "editor/event/EditorEvents.h"
+#include <event/EventBuffer.h>
 #include <imgui/imgui.h>
 #include "ImGuiImpl.h"
 #include "lua/LuaNode.h"
+#include "provider/MessageQueueProvider.h"
 #include "system/AssetRepo.h"
+#include "util/Finally.h"
 #include "util/ScratchPad.h"
 #include "util/Variant.h"
 
@@ -80,13 +84,25 @@ namespace Inspector {
     ImGui::NewLine();
 
     //Populate asset list in modal
+    bool valueChanged = false;
     if(ImGui::BeginPopupModal(propName, nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+      auto endPopup = Finally([]() { ImGui::EndPopup(); });
+      //Button to close modal
+      if(ImGui::Button("Close")) {
+        ImGui::CloseCurrentPopup();
+        //Clear preview
+        repo.getMessageQueueProvider().getMessageQueue().get().push(PreviewAssetEvent(AssetInfo(0)));
+        return false;
+      }
+      //Scroll view for asset list
       ImGui::BeginChild("assets", ImVec2(200, 200));
+      auto endAssets = Finally([]() { ImGui::EndChild(); });
       std::vector<std::shared_ptr<Asset>> assets;
       repo.getAssetsByCategory(category, assets);
 
       //Get the previously selected item
       pad.push(propName);
+      auto popPad = Finally([&pad]() { pad.pop(); });
       std::string_view selectedKey = "selectedAsset";
       Variant* selected = pad.read(selectedKey);
       size_t selectedId = selected ? selected->get<size_t>() : 0;
@@ -99,21 +115,18 @@ namespace Inspector {
         if(thisSelected != wasSelected) {
           size_t newSelection = thisSelected ? asset->getInfo().mId : 0;
           pad.write(selectedKey, newSelection);
-          //TODO: broadcast selection message for preview
+          repo.getMessageQueueProvider().getMessageQueue().get().push(PreviewAssetEvent(asset->getInfo()));
         }
 
         if(ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(0)) {
           data = asset->getInfo().mId;
+          valueChanged = true;
           ImGui::CloseCurrentPopup();
           break;
         }
       }
-
-      pad.pop();
-      ImGui::EndChild();
-      ImGui::EndPopup();
     }
-    return false;
+    return valueChanged;
   }
 
   std::function<bool(const Lua::Node&, void*)> getAssetInspector(AssetRepo& repo, std::string_view category) {

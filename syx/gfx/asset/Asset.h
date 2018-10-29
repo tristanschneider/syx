@@ -10,6 +10,10 @@ struct AssetInfo {
     : mId(id) {
   }
 
+  bool isEmpty() const {
+    return !mId && mUri.empty();
+  }
+
   static std::string getCategory(const std::string& uri) {
     size_t ext = uri.find_last_of('.');
     return ext != std::string::npos ? uri.substr(ext + 1) : "";
@@ -47,6 +51,9 @@ public:
   }
   RWLock& getLock() const {
     return mLock;
+  }
+  virtual bool isReady() const {
+    return mState == AssetState::Loaded || mState == AssetState::PostProcessed;
   }
 
 protected:
