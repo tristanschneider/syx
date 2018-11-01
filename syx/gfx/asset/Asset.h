@@ -3,11 +3,13 @@
 struct AssetInfo {
   AssetInfo(const std::string& location)
     : mUri(location)
+    , mType(0)
     , mId(0) {
   }
 
   AssetInfo(size_t id)
-    : mId(id) {
+    : mId(id)
+    , mType(0) {
   }
 
   bool isEmpty() const {
@@ -21,6 +23,7 @@ struct AssetInfo {
 
   std::string mUri;
   size_t mId;
+  size_t mType;
   std::string mCategory;
 };
 
@@ -34,6 +37,7 @@ enum class AssetState : uint8_t {
 
 class Asset {
 public:
+  DECLARE_TYPE_CATEGORY
   friend class AssetRepo;
 
   Asset(AssetInfo&& info)
@@ -54,6 +58,15 @@ public:
   }
   virtual bool isReady() const {
     return mState == AssetState::Loaded || mState == AssetState::PostProcessed;
+  }
+  template<class T>
+  bool isOfType() const {
+    assert(mInfo.mType && "Type should have been set on construction");
+    return mInfo.mType == Asset::typeId<T>();
+  }
+  template<class T>
+  static size_t typeId() {
+    return ::typeId<Asset, T>();
   }
 
 protected:

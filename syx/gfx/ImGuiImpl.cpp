@@ -28,12 +28,14 @@ ImGuiImpl::ImGuiImpl() {
   std::string psSrc =
       "#version 330\n"
       "uniform sampler2D Texture;\n"
+      "uniform float alphaOffset;\n"
       "in vec2 Frag_UV;\n"
       "in vec4 Frag_Color;\n"
       "out vec4 Out_Color;\n"
       "void main()\n"
       "{\n"
-      " Out_Color = Frag_Color * texture( Texture, Frag_UV.st);\n"
+      "Out_Color = Frag_Color * texture( Texture, Frag_UV.st);"
+      "Out_Color.w += alphaOffset;\n"
       "}\n";
 
   mShader = std::make_unique<Shader>(AssetInfo(0));
@@ -186,12 +188,14 @@ void ImGuiImpl::render(float dt, Syx::Vec2 display) {
   {
     Shader::Binder sb(*mShader);
     glUniform1i(mShader->getUniform("Texture"), 0);
+    GLHandle alphaOffset = mShader->getUniform("alphaOffset");
+    glUniform1f(alphaOffset, 0.0f);
     glUniformMatrix4fv(mShader->getUniform("ProjMtx"), 1, GL_FALSE, (GLfloat*)proj.mData);
 
     glBindVertexArray(mVA);
     glBindBuffer(GL_ARRAY_BUFFER, mVB);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mIB);
-    glBindTexture(GL_TEXTURE_2D, mFontTexture);
+    GLuint boundTex = 0;
     for(int i = 0; i < drawData->CmdListsCount; ++i) {
       const ImDrawList* cmdList = drawData->CmdLists[i];
       const ImDrawIdx* offset = 0;
@@ -202,7 +206,17 @@ void ImGuiImpl::render(float dt, Syx::Vec2 display) {
 
       for(int cmd = 0; cmd < cmdList->CmdBuffer.Size; ++cmd) {
         const ImDrawCmd* pcmd = &cmdList->CmdBuffer[cmd];
+        GLuint curTex = reinterpret_cast<GLuint>(pcmd->TextureId);
+
         glScissor((int)pcmd->ClipRect.x, (int)(fbHeight - pcmd->ClipRect.w), (int)(pcmd->ClipRect.z - pcmd->ClipRect.x), (int)(pcmd->ClipRect.w - pcmd->ClipRect.y));
+        if(curTex != boundTex) {
+          glActiveTexture(GL_TEXTURE0);
+          boundTex = curTex;
+          glBindTexture(GL_TEXTURE_2D, boundTex);
+          //My textures don't have alpha so force it to one, except for default imgui textures which use partial transparency
+          glUniform1f(alphaOffset, boundTex == mFontTexture ? 0.0f : 1.0f);
+        }
+
         glDrawElements(GL_TRIANGLES, (GLsizei)pcmd->ElemCount, sizeof(ImDrawIdx) == 2 ? GL_UNSIGNED_SHORT : GL_UNSIGNED_INT, offset);
         offset += pcmd->ElemCount;
       }

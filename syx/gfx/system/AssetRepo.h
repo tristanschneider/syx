@@ -39,6 +39,8 @@ public:
     Loaders::registerLoader(category, [category]() {
       return std::make_unique<LoaderType>(category);
     }, [](AssetInfo&& info) {
+      //TODO: is this a reliable way to set type? It seems easy to miss
+      info.mType = Asset::typeId<AssetType>();
       return std::make_unique<AssetType>(std::move(info));
     });
   }

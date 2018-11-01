@@ -2,6 +2,7 @@
 #include "AssetPreview.h"
 
 #include "asset/Asset.h"
+#include "asset/Texture.h"
 #include "editor/event/EditorEvents.h"
 #include <event/EventHandler.h>
 #include "provider/MessageQueueProvider.h"
@@ -29,7 +30,10 @@ void AssetPreview::editorUpdate() {
   if(mPreview && mPreview->isReady()) {
     auto lock = mPreview->getLock().getReader();
     ImGui::Text(mPreview->getInfo().mUri.c_str());
-    //TODO: show asset here
+    //TODO: Might need separate thumbnail asset for previews that aren't textures
+    if(mPreview->isOfType<Texture>()) {
+      ImGui::Image(reinterpret_cast<ImTextureID>(static_cast<Texture&>(*mPreview).mTexture), ImVec2(100, 100));
+    }
   }
   else {
     ImGui::Text("None");
