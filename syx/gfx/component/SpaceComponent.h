@@ -33,6 +33,7 @@ public:
   static int cloneTo(lua_State* l);
   //void save(self, string filename)
   static int save(lua_State* l);
+  static void _save(lua_State* l, Handle space, const char* filename);
   //returns true if scene exists
   //bool load(self, string filename)
   static int load(lua_State* l);
@@ -46,7 +47,7 @@ public:
   static void _addObjectsFromSpace(LuaGameSystem& game, Handle fromSpace, Handle toSpace);
 
 private:
-  FilePath _sceneNameToFullPath(LuaGameSystem& game, const char* scene) const;
+  static FilePath _sceneNameToFullPath(LuaGameSystem& game, const char* scene);
   std::unique_ptr<Lua::Node> _buildLuaProps() const;
 
   Handle mId;

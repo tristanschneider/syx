@@ -2,6 +2,7 @@
 #include "editor/SceneBrowser.h"
 
 #include "editor/event/EditorEvents.h"
+#include <event/EventHandler.h>
 #include "event/BaseComponentEvents.h"
 #include "event/eventBuffer.h"
 #include "graphics/RenderCommand.h"
@@ -18,11 +19,12 @@ namespace {
   const Syx::Vec3 PICK_COLOR(1, 0, 0);
 }
 
-SceneBrowser::SceneBrowser(MessageQueueProvider* msg, GameObjectHandleProvider* handleGen, KeyboardInput* input)
-  : mMsg(msg)
-  , mHandleGen(handleGen)
-  , mInput(input)
+SceneBrowser::SceneBrowser(MessageQueueProvider& msg, GameObjectHandleProvider& handleGen, KeyboardInput& input, EventHandler& handler)
+  : mMsg(&msg)
+  , mHandleGen(&handleGen)
+  , mInput(&input)
   , mMouseDownPos(INVALID_MOUSE) {
+  handler.registerEventHandler<ScreenPickResponse>(std::bind(&SceneBrowser::_onPickResponse, this, std::placeholders::_1));
 }
 
 void SceneBrowser::editorUpdate(const HandleMap<std::unique_ptr<LuaGameObject>>& objects) {
@@ -95,7 +97,7 @@ void SceneBrowser::_drawSelected() {
   }
 }
 
-void SceneBrowser::onPickResponse(const ScreenPickResponse& response) {
+void SceneBrowser::_onPickResponse(const ScreenPickResponse& response) {
   if(response.mRequestId == PICK_ID) {
     _clearForNewSelection();
     for(Handle obj : response.mObjects) {

@@ -210,9 +210,6 @@
     <ClCompile Include="lua\LuaKey.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="editor\EditorNavigator.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="editor\SceneBrowser.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -256,6 +253,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="editor\Toolbox.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="editor\Editor.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -476,9 +476,6 @@
     <ClInclude Include="lua\LuaKey.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="editor\EditorNavigator.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="editor\SceneBrowser.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -534,6 +531,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="editor\Toolbox.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="editor\Editor.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

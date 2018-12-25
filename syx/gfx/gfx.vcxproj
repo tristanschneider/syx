@@ -175,7 +175,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClCompile Include="DebugDrawer.cpp" />
     <ClCompile Include="editor\AssetPreview.cpp" />
     <ClCompile Include="editor\DefaultInspectors.cpp" />
-    <ClCompile Include="editor\EditorNavigator.cpp" />
+    <ClCompile Include="editor\Editor.cpp" />
     <ClCompile Include="editor\event\EditorEvents.cpp" />
     <ClCompile Include="editor\InspectorFactory.cpp" />
     <ClCompile Include="editor\ObjectInspector.cpp" />
@@ -270,7 +270,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClInclude Include="DebugDrawer.h" />
     <ClInclude Include="editor\AssetPreview.h" />
     <ClInclude Include="editor\DefaultInspectors.h" />
-    <ClInclude Include="editor\EditorNavigator.h" />
+    <ClInclude Include="editor\Editor.h" />
     <ClInclude Include="editor\event\EditorEvents.h" />
     <ClInclude Include="editor\InspectorFactory.h" />
     <ClInclude Include="editor\ObjectInspector.h" />

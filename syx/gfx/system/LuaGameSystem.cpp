@@ -65,7 +65,6 @@ void LuaGameSystem::init() {
   SYSTEM_EVENT_HANDLER(SetComponentPropsEvent, _onSetComponentProps);
   SYSTEM_EVENT_HANDLER(AllSystemsInitialized, _onAllSystemsInit);
   SYSTEM_EVENT_HANDLER(ClearSpaceEvent, _onSpaceClear);
-  SYSTEM_EVENT_HANDLER(ScreenPickResponse, _onScreenPickResponse);
 
   mState = std::make_unique<Lua::State>();
   mLibs = std::make_unique<Lua::AllLuaLibs>();
@@ -73,11 +72,6 @@ void LuaGameSystem::init() {
 
   mComponents = std::make_unique<LuaComponentRegistry>();
   _registerBuiltInComponents();
-
-  mSceneBrowser = std::make_unique<SceneBrowser>(mArgs.mMessages, mArgs.mGameObjectGen, mArgs.mSystems->getSystem<KeyboardInput>());
-  mObjectInspector = std::make_unique<ObjectInspector>(*mArgs.mMessages, *mEventHandler);
-  mAssetPreview = std::make_unique<AssetPreview>(*mArgs.mMessages, *mEventHandler, *mArgs.mSystems->getSystem<AssetRepo>());
-  mToolbox = std::make_unique<Toolbox>(*mArgs.mMessages, *mEventHandler);
 }
 
 void LuaGameSystem::_openAllLibs(lua_State* l) {
@@ -88,11 +82,12 @@ void LuaGameSystem::_openAllLibs(lua_State* l) {
 }
 
 void LuaGameSystem::queueTasks(float dt, IWorkerPool& pool, std::shared_ptr<Task> frameTask) {
-  //Editor uses ui that must be on the main thread
-  _editorUpdate();
+  CallOnObserversPtr(mSubject, preUpdate, *this);
 
+  mSafeToAccessObjects = false;
   auto events = std::make_shared<FunctionTask>([this]() {
     mEventHandler->handleEvents(*mEventBuffer);
+    mSafeToAccessObjects = true;
   });
 
   auto update = std::make_shared<FunctionTask>([this, dt]() {
@@ -141,16 +136,9 @@ void LuaGameSystem::_update(float dt) {
         comp.update(*mState, dt, selfIndex);
       }
     }
-    // pop gameobject
+    //pop gameobject
     lua_pop(*mState, 1);
   }
-}
-
-void LuaGameSystem::_editorUpdate() {
-  mSceneBrowser->editorUpdate(getObjects());
-  mObjectInspector->editorUpdate(*this);
-  mAssetPreview->editorUpdate();
-  mToolbox->editorUpdate(*mArgs.mSystems->getSystem<KeyboardInput>());
 }
 
 void LuaGameSystem::_registerBuiltInComponents() {
@@ -222,6 +210,10 @@ LuaGameObject& LuaGameSystem::addGameObject() {
   return result;
 }
 
+void LuaGameSystem::addObserver(Observer<std::unique_ptr<LuaGameSystemObserver>>& observer) {
+  observer.observe(&mSubject);
+}
+
 MessageQueue LuaGameSystem::getMessageQueue() {
   return mArgs.mMessages->getMessageQueue();
 }
@@ -235,6 +227,7 @@ const LuaComponentRegistry& LuaGameSystem::getComonentRegistry() const {
 }
 
 const HandleMap<std::unique_ptr<LuaGameObject>>& LuaGameSystem::getObjects() const {
+  assert(mSafeToAccessObjects && "Lua objects should only be accessed on tasks depending on event processing");
   return mObjects;
 }
 
@@ -256,6 +249,7 @@ IWorkerPool& LuaGameSystem::getWorkerPool() {
 }
 
 const LuaGameObject* LuaGameSystem::getObject(Handle handle) const {
+  assert(mSafeToAccessObjects && "Lua objects should only be accessed on tasks depending on event processing");
   return _getObj(handle);
 }
 
@@ -413,12 +407,6 @@ void LuaGameSystem::_onSpaceClear(const ClearSpaceEvent& e) {
   auto it = mSpaces.find(e.mSpace);
   if(it != mSpaces.end())
     mSpaces.erase(it);
-}
-
-void LuaGameSystem::_onScreenPickResponse(const ScreenPickResponse& e) {
-  if(mSceneBrowser) {
-    mSceneBrowser->onPickResponse(e);
-  }
 }
 
 LuaGameObject* LuaGameSystem::_getObj(Handle h) const {

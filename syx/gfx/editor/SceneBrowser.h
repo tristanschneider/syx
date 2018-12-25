@@ -1,19 +1,21 @@
 #pragma once
 
+class EventHandler;
 class GameObjectHandleProvider;
+class KeyboardInput;
 class LuaGameObject;
 class MessageQueueProvider;
-class KeyboardInput;
 class ScreenPickResponse;
 
 class SceneBrowser {
 public:
-  SceneBrowser(MessageQueueProvider* msg, GameObjectHandleProvider* handleGen, KeyboardInput* input);
+  SceneBrowser(MessageQueueProvider& msg, GameObjectHandleProvider& handleGen, KeyboardInput& input, EventHandler& handler);
 
   void editorUpdate(const HandleMap<std::unique_ptr<LuaGameObject>>& objects);
-  void onPickResponse(const ScreenPickResponse& response);
 
 private:
+  void _onPickResponse(const ScreenPickResponse& response);
+
   void _updatePick();
   //Clear current selection to make room for a new one unless the current selection should be added to
   void _clearForNewSelection();

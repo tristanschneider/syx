@@ -129,18 +129,16 @@ int SpaceComponent::cloneTo(lua_State* l) {
   return 0;
 }
 
-int SpaceComponent::save(lua_State* l) {
+void SpaceComponent::_save(lua_State* l, Handle space, const char* filename) {
   LuaGameSystem& game = LuaGameSystem::check(l);
-  SpaceComponent& self = getObj(l, 1);
-  const char* name = luaL_checkstring(l, 2);
   LuaSceneDescription scene;
-  scene.mName = name;
+  scene.mName = filename;
   scene.mObjects.reserve(game.getObjects().size());
 
   for(const auto& obj : game.getObjects()) {
     const LuaGameObject& o = *obj.second;
     //Skip objects not in this space
-    if(o.getSpace() != self.get())
+    if(o.getSpace() != space)
       continue;
 
     LuaGameObjectDescription desc;
@@ -159,8 +157,14 @@ int SpaceComponent::save(lua_State* l) {
   lua_pushnil(l);
   lua_setglobal(l, scene.ROOT_KEY);
 
-  FilePath path = self._sceneNameToFullPath(game, name);
+  FilePath path = _sceneNameToFullPath(game, filename);
   FileSystem::writeFile(path, serialized);
+}
+
+int SpaceComponent::save(lua_State* l) {
+  SpaceComponent& self = getObj(l, 1);
+  const char* name = luaL_checkstring(l, 2);
+  _save(l, self.get(), name);
   return 0;
 }
 
@@ -251,7 +255,7 @@ int SpaceComponent::addObject(lua_State* l) {
   return 1;
 }
 
-FilePath SpaceComponent::_sceneNameToFullPath(LuaGameSystem& game, const char* scene) const {
+FilePath SpaceComponent::_sceneNameToFullPath(LuaGameSystem& game, const char* scene) {
   FilePath path = game.getProjectLocator().transform(scene, PathSpace::Project, PathSpace::Full);
   return path.addExtension(LuaSceneDescription::FILE_EXTENSION);
 }
