@@ -28,6 +28,7 @@ class ScreenPickResponse;
 class SetComponentPropsEvent;
 class SpaceComponent;
 class Task;
+class Toolbox;
 class TransformEvent;
 
 namespace Lua {
@@ -114,8 +115,10 @@ private:
   std::unordered_map<Handle, SpaceComponent> mSpaces;
   SpinLock mPendingObjectsLock;
 
+  //TODO: move these loose editor objects to an editor class
   //Editor
   std::unique_ptr<SceneBrowser> mSceneBrowser;
   std::unique_ptr<ObjectInspector> mObjectInspector;
   std::unique_ptr<AssetPreview> mAssetPreview;
+  std::unique_ptr<Toolbox> mToolbox;
 };

@@ -12,6 +12,7 @@
 #include "editor/event/EditorEvents.h"
 #include "editor/ObjectInspector.h"
 #include "editor/SceneBrowser.h"
+#include "editor/Toolbox.h"
 #include "event/BaseComponentEvents.h"
 #include "event/EventBuffer.h"
 #include "event/EventHandler.h"
@@ -76,6 +77,7 @@ void LuaGameSystem::init() {
   mSceneBrowser = std::make_unique<SceneBrowser>(mArgs.mMessages, mArgs.mGameObjectGen, mArgs.mSystems->getSystem<KeyboardInput>());
   mObjectInspector = std::make_unique<ObjectInspector>(*mArgs.mMessages, *mEventHandler);
   mAssetPreview = std::make_unique<AssetPreview>(*mArgs.mMessages, *mEventHandler, *mArgs.mSystems->getSystem<AssetRepo>());
+  mToolbox = std::make_unique<Toolbox>(*mArgs.mMessages, *mEventHandler);
 }
 
 void LuaGameSystem::_openAllLibs(lua_State* l) {
@@ -148,6 +150,7 @@ void LuaGameSystem::_editorUpdate() {
   mSceneBrowser->editorUpdate(getObjects());
   mObjectInspector->editorUpdate(*this);
   mAssetPreview->editorUpdate();
+  mToolbox->editorUpdate(*mArgs.mSystems->getSystem<KeyboardInput>());
 }
 
 void LuaGameSystem::_registerBuiltInComponents() {

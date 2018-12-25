@@ -21,3 +21,7 @@ DEFINE_EVENT(ScreenPickResponse, size_t requestId, Handle space, std::vector<Han
 DEFINE_EVENT(PreviewAssetEvent, AssetInfo asset)
   , mAsset(std::move(asset)) {
 }
+
+DEFINE_EVENT(SetPlayStateEvent, PlayState state)
+  , mState(state) {
+}

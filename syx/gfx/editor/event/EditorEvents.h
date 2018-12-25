@@ -29,3 +29,17 @@ public:
   PreviewAssetEvent(AssetInfo asset);
   AssetInfo mAsset;
 };
+
+enum class PlayState : uint8_t {
+  Invalid,
+  Stopped,
+  Paused,
+  Stepping,
+  Playing,
+};
+
+class SetPlayStateEvent : public Event {
+public:
+  SetPlayStateEvent(PlayState state);
+  PlayState mState;
+};

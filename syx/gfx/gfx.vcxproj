@@ -180,6 +180,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClCompile Include="editor\InspectorFactory.cpp" />
     <ClCompile Include="editor\ObjectInspector.cpp" />
     <ClCompile Include="editor\SceneBrowser.cpp" />
+    <ClCompile Include="editor\Toolbox.cpp" />
     <ClCompile Include="event\BaseComponentEvents.cpp" />
     <ClCompile Include="event\DebugDrawEvent.cpp" />
     <ClCompile Include="event\LifecycleEvents.cpp" />
@@ -274,6 +275,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClInclude Include="editor\InspectorFactory.h" />
     <ClInclude Include="editor\ObjectInspector.h" />
     <ClInclude Include="editor\SceneBrowser.h" />
+    <ClInclude Include="editor\Toolbox.h" />
     <ClInclude Include="event\BaseComponentEvents.h" />
     <ClInclude Include="event\DebugDrawEvent.h" />
     <ClInclude Include="event\LifecycleEvents.h" />
