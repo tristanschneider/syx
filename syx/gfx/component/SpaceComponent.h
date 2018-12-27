@@ -37,6 +37,7 @@ public:
   //returns true if scene exists
   //bool load(self, string filename)
   static int load(lua_State* l);
+  static bool _load(lua_State* l, Handle space, const char* filename);
   //void clear(self)
   static int clear(lua_State* l);
   //Gameobject addObject(self, table)

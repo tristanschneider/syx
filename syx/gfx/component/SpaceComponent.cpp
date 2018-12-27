@@ -132,7 +132,7 @@ int SpaceComponent::cloneTo(lua_State* l) {
 void SpaceComponent::_save(lua_State* l, Handle space, const char* filename) {
   LuaGameSystem& game = LuaGameSystem::check(l);
   LuaSceneDescription scene;
-  scene.mName = filename;
+  scene.mName = FilePath(filename).getFileNameWithoutExtension();
   scene.mObjects.reserve(game.getObjects().size());
 
   for(const auto& obj : game.getObjects()) {
@@ -157,25 +157,21 @@ void SpaceComponent::_save(lua_State* l, Handle space, const char* filename) {
   lua_pushnil(l);
   lua_setglobal(l, scene.ROOT_KEY);
 
-  FilePath path = _sceneNameToFullPath(game, filename);
-  FileSystem::writeFile(path, serialized);
+  FileSystem::writeFile(filename, serialized);
 }
 
 int SpaceComponent::save(lua_State* l) {
   SpaceComponent& self = getObj(l, 1);
   const char* name = luaL_checkstring(l, 2);
-  _save(l, self.get(), name);
+  _save(l, self.get(), _sceneNameToFullPath(LuaGameSystem::check(l), name));
   return 0;
 }
 
-int SpaceComponent::load(lua_State* l) {
-  SpaceComponent& self = getObj(l, 1);
+bool SpaceComponent::_load(lua_State* l, Handle space, const char* filename) {
   LuaGameSystem& game = LuaGameSystem::check(l);
-  const char* name = luaL_checkstring(l, 2);
-
-  FilePath path = self._sceneNameToFullPath(game, name);
-  bool exists = FileSystem::fileExists(path);
-  game.getWorkerPool().queueTask(std::make_shared<FunctionTask>([&game, path, &self]() {
+  const FilePath path(filename);
+  const bool exists = FileSystem::fileExists(path);
+  game.getWorkerPool().queueTask(std::make_shared<FunctionTask>([&game, path, space]() {
     Lua::State s;
     game._openAllLibs(s);
 
@@ -185,7 +181,7 @@ int SpaceComponent::load(lua_State* l) {
       if(luaL_dostring(s, serializedScene.c_str()) == LUA_OK) {
         LuaSceneDescription sceneDesc;
         sceneDesc.getMetadata().readFromLua(s, &sceneDesc, Lua::Node::SourceType::FromGlobal);
-        _loadSceneFromDescription(game, sceneDesc, self.get());
+        _loadSceneFromDescription(game, sceneDesc, space);
       }
       else {
         printf("Error loading scene %s\n", lua_tostring(s, -1));
@@ -194,6 +190,16 @@ int SpaceComponent::load(lua_State* l) {
     }
   }));
   return exists;
+}
+
+int SpaceComponent::load(lua_State* l) {
+  SpaceComponent& self = getObj(l, 1);
+  const char* name = luaL_checkstring(l, 2);
+
+  const bool exists = _load(l, self.get(), _sceneNameToFullPath(LuaGameSystem::check(l), name));
+
+  lua_pushboolean(l, static_cast<int>(exists));
+  return 1;
 }
 
 void SpaceComponent::_loadSceneFromDescription(LuaGameSystem& game, const LuaSceneDescription& scene, Handle space) {

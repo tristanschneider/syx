@@ -41,6 +41,10 @@ public:
   SetComponentPropsEvent(Handle obj, size_t compType, const Lua::Node* prop, Lua::NodeDiff diff, std::vector<uint8_t>&& buffer, size_t subType = 0);
   SetComponentPropsEvent(const SetComponentPropsEvent& other);
   SetComponentPropsEvent(SetComponentPropsEvent&& other);
+
+  SetComponentPropsEvent& operator=(const SetComponentPropsEvent&) = delete;
+  SetComponentPropsEvent& operator=(const SetComponentPropsEvent&&) = delete;
+
   ~SetComponentPropsEvent();
   Handle mObj;
   size_t mCompType;

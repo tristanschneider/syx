@@ -65,6 +65,8 @@ void LuaGameSystem::init() {
   SYSTEM_EVENT_HANDLER(SetComponentPropsEvent, _onSetComponentProps);
   SYSTEM_EVENT_HANDLER(AllSystemsInitialized, _onAllSystemsInit);
   SYSTEM_EVENT_HANDLER(ClearSpaceEvent, _onSpaceClear);
+  SYSTEM_EVENT_HANDLER(SaveSpaceEvent, _onSpaceSave);
+  SYSTEM_EVENT_HANDLER(LoadSpaceEvent, _onSpaceLoad);
 
   mState = std::make_unique<Lua::State>();
   mLibs = std::make_unique<Lua::AllLuaLibs>();
@@ -86,6 +88,7 @@ void LuaGameSystem::queueTasks(float dt, IWorkerPool& pool, std::shared_ptr<Task
 
   mSafeToAccessObjects = false;
   auto events = std::make_shared<FunctionTask>([this]() {
+    mEventHandlerThread = std::this_thread::get_id();
     mEventHandler->handleEvents(*mEventBuffer);
     mSafeToAccessObjects = true;
   });
@@ -210,7 +213,7 @@ LuaGameObject& LuaGameSystem::addGameObject() {
   return result;
 }
 
-void LuaGameSystem::addObserver(Observer<std::unique_ptr<LuaGameSystemObserver>>& observer) {
+void LuaGameSystem::addObserver(LuaGameSystemObserverT& observer) {
   observer.observe(&mSubject);
 }
 
@@ -227,7 +230,7 @@ const LuaComponentRegistry& LuaGameSystem::getComonentRegistry() const {
 }
 
 const HandleMap<std::unique_ptr<LuaGameObject>>& LuaGameSystem::getObjects() const {
-  assert(mSafeToAccessObjects && "Lua objects should only be accessed on tasks depending on event processing");
+  assert((mSafeToAccessObjects || mEventHandlerThread == std::this_thread::get_id()) && "Lua objects should only be accessed on tasks depending on event processing");
   return mObjects;
 }
 
@@ -249,7 +252,7 @@ IWorkerPool& LuaGameSystem::getWorkerPool() {
 }
 
 const LuaGameObject* LuaGameSystem::getObject(Handle handle) const {
-  assert(mSafeToAccessObjects && "Lua objects should only be accessed on tasks depending on event processing");
+  assert((mSafeToAccessObjects || mEventHandlerThread == std::this_thread::get_id()) && "Lua objects should only be accessed on tasks depending on event processing");
   return _getObj(handle);
 }
 
@@ -407,6 +410,14 @@ void LuaGameSystem::_onSpaceClear(const ClearSpaceEvent& e) {
   auto it = mSpaces.find(e.mSpace);
   if(it != mSpaces.end())
     mSpaces.erase(it);
+}
+
+void LuaGameSystem::_onSpaceSave(const SaveSpaceEvent& e) {
+  SpaceComponent::_save(*mState, e.mSpace, e.mFile);
+}
+
+void LuaGameSystem::_onSpaceLoad(const LoadSpaceEvent& e) {
+  SpaceComponent::_load(*mState, e.mSpace, e.mFile);
 }
 
 LuaGameObject* LuaGameSystem::_getObj(Handle h) const {

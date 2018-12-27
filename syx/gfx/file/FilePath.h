@@ -16,6 +16,9 @@ public:
 
   const char* getExtensionWithoutDot() const;
   const char* getExtensionWithDot() const;
+  const char* getFileNameWithExtension() const;
+  FilePath getFileNameWithoutExtension() const;
+  FilePath getPath();
   bool hasValidLength() const;
 
   //Get this path relative to the given path, meaning that if this path begins with relative that part is removed

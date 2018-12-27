@@ -12,11 +12,10 @@ class AssetRepo;
 class ClearSpaceEvent;
 class Component;
 class FilePath;
-struct lua_State;
+class LoadSpaceEvent;
 class LuaComponentRegistry;
 class LuaGameObject;
 class LuaGameSystem;
-struct LuaSceneDescription;
 class LuaSpace;
 class ObjectInspector;
 class PhysicsCompUpdateEvent;
@@ -24,6 +23,7 @@ class RemoveComponentEvent;
 class RemoveGameObjectEvent;
 class RemoveLuaComponentEvent;
 class RenderableUpdateEvent;
+class SaveSpaceEvent;
 class SceneBrowser;
 class ScreenPickResponse;
 class SetComponentPropsEvent;
@@ -31,6 +31,9 @@ class SpaceComponent;
 class Task;
 class Toolbox;
 class TransformEvent;
+
+struct LuaSceneDescription;
+struct lua_State;
 
 namespace Lua {
   class State;
@@ -107,6 +110,8 @@ private:
   void _onPhysicsUpdate(const PhysicsCompUpdateEvent& e);
   void _onSetComponentProps(const SetComponentPropsEvent& e);
   void _onSpaceClear(const ClearSpaceEvent& e);
+  void _onSpaceSave(const SaveSpaceEvent& e);
+  void _onSpaceLoad(const LoadSpaceEvent& e);
 
   static const std::string INSTANCE_KEY;
 
@@ -125,5 +130,6 @@ private:
   SpinLock mPendingObjectsLock;
   //Used for debug checking thread safety of public accesses to LuaGameObjects
   bool mSafeToAccessObjects = true;
+  std::thread::id mEventHandlerThread;
   LuaGameSystemObserverT::SubjectType mSubject;
 };

@@ -2,8 +2,10 @@
 #include "system/System.h"
 
 class AssetPreview;
+class FilePath;
 class LuaGameSystemObserver;
 class ObjectInspector;
+enum class PlayState : uint8_t;
 class SceneBrowser;
 class Toolbox;
 
@@ -19,10 +21,15 @@ public:
 private:
   void _updateInput(float dt);
   void _editorUpdate();
+  void _updateState(PlayState state);
+  Handle _getEditorSpace() const;
+  Handle _getPlaySpace() const;
 
   std::unique_ptr<Observer<std::unique_ptr<LuaGameSystemObserver>>> mGameObserver;
   std::unique_ptr<SceneBrowser> mSceneBrowser;
   std::unique_ptr<ObjectInspector> mObjectInspector;
   std::unique_ptr<AssetPreview> mAssetPreview;
   std::unique_ptr<Toolbox> mToolbox;
+  PlayState mCurrentState;
+  std::unique_ptr<FilePath> mSavedScene;
 };

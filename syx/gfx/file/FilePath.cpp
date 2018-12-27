@@ -36,6 +36,22 @@ const char* FilePath::getExtensionWithDot() const {
   return _findLastOf(".");
 }
 
+const char* FilePath::getFileNameWithExtension() const {
+  return _findLastOf("/\\");
+}
+
+FilePath FilePath::getFileNameWithoutExtension() const {
+  FilePath path, name, ext;
+  getParts(path, name, ext);
+  return name;
+}
+
+FilePath FilePath::getPath() {
+  FilePath path, name, ext;
+  getParts(path, name, ext);
+  return path;
+}
+
 bool FilePath::hasValidLength() const {
   return mSize != mPath.size();
 }

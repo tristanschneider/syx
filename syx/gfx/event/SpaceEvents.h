@@ -1,8 +1,23 @@
 #pragma once
 #include "event/Event.h"
+#include "file/FilePath.h"
 
 class ClearSpaceEvent : public Event {
 public:
-  ClearSpaceEvent(Handle sceneId);
+  ClearSpaceEvent(Handle space);
   Handle mSpace;
+};
+
+class LoadSpaceEvent : public Event {
+public:
+  LoadSpaceEvent(Handle spaceId, const FilePath& path);
+  Handle mSpace;
+  FilePath mFile;
+};
+
+class SaveSpaceEvent : public Event {
+public:
+  SaveSpaceEvent(Handle spaceId, const FilePath& path);
+  Handle mSpace;
+  FilePath mFile;
 };

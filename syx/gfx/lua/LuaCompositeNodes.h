@@ -119,7 +119,20 @@ namespace Lua {
     }
   };
   template<typename T>
-  using UniquePtrNode = PointerNode<std::unique_ptr<T>>;
+  class UniquePtrNode : public PointerNode<std::unique_ptr<T>> {
+  public:
+    using PointerNode::PointerNode;
+
+    void _defaultConstruct(void* to) const override {
+      new (to) std::unique_ptr<T>(std::make_unique<T>());
+    }
+    void _copyConstruct(const void* from, void* to) const override {
+      new (to) std::unique_ptr<T>(std::make_unique<T>(*_cast(from)));
+    }
+    void _copy(const void* from, void* to) const override {
+      *_cast(to) = *_cast(from);
+    }
+  };
 
   class BufferNode : public TypedNode<std::vector<uint8_t>> {
   public:
