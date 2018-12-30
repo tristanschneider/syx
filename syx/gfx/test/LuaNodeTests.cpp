@@ -12,7 +12,7 @@ namespace Test {
     Tracker() { reset(); ++defaultCtors; }
     Tracker(const Tracker& rhs) { reset(); _accumulate(rhs); ++copyCtors; }
     Tracker(Tracker&& rhs) { reset(); _accumulate(rhs); ++moveCtors; }
-    ~Tracker() { ++dtors; }
+    ~Tracker() { ++dtors; ++globalDtors; }
     Tracker& operator=(const Tracker& rhs) { _accumulate(rhs); ++copies; return *this; }
     Tracker& operator=(Tracker&& rhs) { _accumulate(rhs); ++copies; return *this; }
     bool operator==(const Tracker& rhs) const {
@@ -29,6 +29,11 @@ namespace Test {
     bool validCtor() const { return (defaultCtors + copyCtors + moveCtors) == 1; }
     bool validDtor() const { return dtors == 1; }
     void reset() { defaultCtors = copyCtors = moveCtors = copies = moves = dtors = 0; }
+
+    static void resetDtors() { globalDtors = 0; }
+
+    //It may not be safe to look at the object after destruction, so dtors must be counted separately from instances
+    static size_t globalDtors;
 
     uint8_t defaultCtors;
     uint8_t copyCtors;
@@ -48,6 +53,8 @@ namespace Test {
     }
   };
 
+  size_t Tracker::globalDtors = 0;
+
   class TrackerNode : public TypedNode<Tracker> {
     using TypedNode::TypedNode;
     void _readFromLua(lua_State*, void*) const override {}
@@ -64,6 +71,7 @@ namespace Test {
     virtual void reset() {
       const auto values = getValues();
       std::for_each(values.begin(), values.end(), [](Tracker* v) { v->reset(); });
+      Tracker::resetDtors();
     }
     virtual size_t defaultCtorCount() const {
       const auto values = getValues();
@@ -86,8 +94,9 @@ namespace Test {
       return std::accumulate(values.begin(), values.end(), 0, [](size_t result, const Tracker* v) { return result + v->moves; });
     }
     virtual size_t dtorCount() const {
-      const auto values = getValues();
-      return std::accumulate(values.begin(), values.end(), 0, [](size_t result, const Tracker* v) { return result + v->dtors; });
+      return Tracker::globalDtors;
+      //const auto values = getValues();
+      //return std::accumulate(values.begin(), values.end(), 0, [](size_t result, const Tracker* v) { return result + v->dtors; });
     }
     virtual std::vector<const Tracker*> getValues() const {
       const std::vector<Tracker*> values = const_cast<NodeTestObject*>(this)->getValues();
@@ -147,6 +156,11 @@ namespace Test {
   };
 
   struct UnusedFieldObj : public DoubleObj {
+    std::unique_ptr<Node> getNode() override {
+      auto root = makeRootNode(NodeOps(""));
+      makeNode<TrackerNode>(NodeOps(*root, "valueB", Util::offsetOf(*this, valueB)));
+      return root;
+    }
     std::vector<Tracker*> getValues() override {
       return { &valueB };
     }
@@ -252,10 +266,8 @@ namespace Test {
     obj->reset();
     node->copyConstructToBuffer(obj.get(), buffer.data());
     node->destructBuffer(buffer.data());
-    node->copyConstructFromBuffer(obj.get(), buffer.data());
 
     TEST_ASSERT(obj->avg(obj->dtorCount()) == 1, "Dtor should have been called");
-    TEST_ASSERT(obj->avg(obj->copyCtorCount()) == 2, "Copy ctor should be called once to and from buffer");
   }
 
   void Node_TestAllOnType(const TestObjFactory& factory) {
@@ -289,8 +301,7 @@ namespace Test {
   }
 
   TEST_FUNC(Node_UniqueValue) {
-    //TODO: fix UniquePtrNode
-    //Node_TestAll<UniquePtrObj>();
+    Node_TestAll<UniquePtrObj>();
   }
 
   //TODO: write tests for these
