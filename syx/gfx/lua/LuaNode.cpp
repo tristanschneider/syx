@@ -166,7 +166,7 @@ namespace Lua {
 
     //nodes are depth first traversal, walk it backwards for a bottom up traversal
     while(!nodes.empty()) {
-      (nodes.back().first->*func)(nodes.front().second);
+      (nodes.back().first->*func)(nodes.back().second);
       nodes.pop_back();
     }
   }
