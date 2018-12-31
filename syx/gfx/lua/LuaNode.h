@@ -108,6 +108,9 @@ namespace Lua {
     virtual void _destruct(void* base) const {}
     //Equality, used for generating diff
     virtual bool _equals(const void* lhs, const void* rhs) const { return true; }
+    //True if the wrapped type owns child memory, meaning destroying this would automatically destroy children without needing an explicit _destruct call
+    //Overriding destruct should mean that this is true
+    virtual bool _ownsChildMemory() const { return true; }
 
     const void* offset(const void* base) const;
     void* offset(void* base) const;
@@ -157,6 +160,7 @@ namespace Lua {
     using Node::Node;
     void _readFromLua(lua_State* s, void* base) const override {}
     void _writeToLua(lua_State* s, const void* base) const override;
+    bool _ownsChildMemory() const override { return false; }
   };
 
   inline std::unique_ptr<Node> makeRootNode(NodeOps&& ops) {

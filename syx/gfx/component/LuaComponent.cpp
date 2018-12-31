@@ -65,8 +65,7 @@ std::unique_ptr<Lua::Node> LuaComponent::_buildLuaProps() const {
   auto root = makeRootNode(Lua::NodeOps(""));
   makeNode<LightUserdataSizetNode>(Lua::NodeOps(*root, "script", ::Util::offsetOf(*this, mScript)));
   Node& propsPtr = makeNode<UniquePtrNode<Variant>>(Lua::NodeOps(*root, "props", ::Util::offsetOf(*this, mProps)));
-  //TODO: write tests to demonstrate how uniqueptrnode is suppose to work, it's confusing
-  //makeNode<VariantNode>(Lua::NodeOps(propsPtr, "", 0));
+  makeNode<VariantNode>(Lua::NodeOps(propsPtr, "", 0));
   return std::move(root);
 }
 

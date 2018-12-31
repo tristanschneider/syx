@@ -1,55 +1,106 @@
 #include "Precompile.h"
 #include "test/TestRegistry.h"
 
-#include "lua/LuaNode.h"
+#include <lua.hpp>
 #include "lua/LuaCompositeNodes.h"
+#include "lua/LuaNode.h"
+#include "lua/LuaState.h"
 #include <numeric>
 
 namespace Test {
   using namespace Lua;
 
   struct Tracker {
-    Tracker() { reset(); ++defaultCtors; }
-    Tracker(const Tracker& rhs) { reset(); _accumulate(rhs); ++copyCtors; }
-    Tracker(Tracker&& rhs) { reset(); _accumulate(rhs); ++moveCtors; }
-    ~Tracker() { ++dtors; ++globalDtors; }
-    Tracker& operator=(const Tracker& rhs) { _accumulate(rhs); ++copies; return *this; }
-    Tracker& operator=(Tracker&& rhs) { _accumulate(rhs); ++copies; return *this; }
+    Tracker() {
+      _init();
+      ++defaultCtors;
+    }
+    Tracker(const Tracker& rhs) {
+      _init();
+      _accumulate(rhs);
+      ++copyCtors;
+    }
+    Tracker(Tracker&& rhs) {
+      _init();
+      _accumulate(rhs);
+      ++moveCtors;
+    }
+    ~Tracker() {
+      _assertThis();
+      ++dtors;
+      ++globalDtors;
+    }
+    Tracker& operator=(const Tracker& rhs) {
+      _accumulate(rhs);
+      ++copies;
+      return *this;
+    }
+    Tracker& operator=(Tracker&& rhs) {
+      _assertThis();
+      _accumulate(rhs);
+      ++copies;
+      return *this;
+    }
     bool operator==(const Tracker& rhs) const {
       return defaultCtors == rhs.defaultCtors
         && copyCtors == rhs.copyCtors
         && moveCtors == rhs.moveCtors
         && copies == rhs.copies
         && moves == rhs.moves
-        && dtors == rhs.dtors;
+        && dtors == rhs.dtors
+        && luaReads == rhs.luaReads
+        && luaWrites == rhs.luaWrites;
     }
     bool operator!=(const Tracker& rhs) const {
       return !(*this == rhs);
     }
     bool validCtor() const { return (defaultCtors + copyCtors + moveCtors) == 1; }
     bool validDtor() const { return dtors == 1; }
-    void reset() { defaultCtors = copyCtors = moveCtors = copies = moves = dtors = 0; }
+    void reset() { defaultCtors = copyCtors = moveCtors = copies = moves = dtors = luaReads = luaWrites = 0; }
+    void readFromLua() { ++luaReads; }
+    void writeToLua() { ++luaWrites; }
 
     static void resetDtors() { globalDtors = 0; }
 
     //It may not be safe to look at the object after destruction, so dtors must be counted separately from instances
     static size_t globalDtors;
 
+    uint8_t beginPost;
     uint8_t defaultCtors;
     uint8_t copyCtors;
     uint8_t moveCtors;
     uint8_t copies;
     uint8_t moves;
     uint8_t dtors;
+    uint8_t luaReads;
+    uint8_t luaWrites;
+    uint8_t endPost;
 
   private:
     void _accumulate(const Tracker& t) {
+      _assertThis();
+      t._assertThis();
       defaultCtors += t.defaultCtors;
       copyCtors += t.copyCtors;
       moveCtors += t.moveCtors;
       copies += t.copies;
       moves += t.moves;
       dtors += t.dtors;
+      luaReads += t.luaReads;
+      luaWrites += t.luaWrites;
+    }
+    void _init() {
+      // A magic number that is not likely to have been set by zeroing memory or such
+      const uint8_t magicBegin = 123;
+      const uint8_t magicEnd = 214;
+      if(beginPost != magicBegin || endPost != magicEnd) {
+        reset();
+        beginPost = magicBegin;
+        endPost = magicEnd;
+      }
+    }
+    void _assertThis() const {
+      assert(beginPost == 123 && endPost == 214 && "Invalid this pointer");
     }
   };
 
@@ -57,14 +108,17 @@ namespace Test {
 
   class TrackerNode : public TypedNode<Tracker> {
     using TypedNode::TypedNode;
-    void _readFromLua(lua_State*, void*) const override {}
-    void _writeToLua(lua_State*, const void*) const override {}
+    void _readFromLua(lua_State* l, void* base) const override {
+      _cast(base).readFromLua();
+    }
+    void _writeToLua(lua_State* l, const void* base) const override {
+      _cast(const_cast<void*>(base)).writeToLua();
+      lua_pushboolean(l, true);
+    }
   };
 
   class UniqueTrackerNode : public UniquePtrNode<Tracker> {
     using UniquePtrNode::UniquePtrNode;
-    void _readFromLua(lua_State*, void*) const override {}
-    void _writeToLua(lua_State*, const void*) const override {}
   };
 
   struct NodeTestObject {
@@ -95,8 +149,14 @@ namespace Test {
     }
     virtual size_t dtorCount() const {
       return Tracker::globalDtors;
-      //const auto values = getValues();
-      //return std::accumulate(values.begin(), values.end(), 0, [](size_t result, const Tracker* v) { return result + v->dtors; });
+    }
+    virtual size_t luaReadCount() const {
+      const auto values = getValues();
+      return std::accumulate(values.begin(), values.end(), 0, [](size_t result, const Tracker* v) { return result + v->luaReads; });
+    }
+    virtual size_t luaWriteCount() const {
+      const auto values = getValues();
+      return std::accumulate(values.begin(), values.end(), 0, [](size_t result, const Tracker* v) { return result + v->luaWrites; });
     }
     virtual std::vector<const Tracker*> getValues() const {
       const std::vector<Tracker*> values = const_cast<NodeTestObject*>(this)->getValues();
@@ -177,7 +237,10 @@ namespace Test {
 
     std::unique_ptr<Node> getNode() override {
       auto root = makeRootNode(NodeOps(""));
-      makeNode<UniqueTrackerNode>(NodeOps(*root, "value", Util::offsetOf(*this, value)));
+      //This node translates the pointer during node traversal
+      auto& ptr = makeNode<UniqueTrackerNode>(NodeOps(*root, "", Util::offsetOf(*this, value)));
+      //Once translated, this node can be read as usual, with a zero offset, since its unique parent already did the translation
+      makeNode<TrackerNode>(NodeOps(ptr, "value", 0));
       return root;
     }
     std::vector<Tracker*> getValues() override {
@@ -270,6 +333,27 @@ namespace Test {
     TEST_ASSERT(obj->avg(obj->dtorCount()) == 1, "Dtor should have been called");
   }
 
+  void Node_WriteToLua_AllNodesWritten(const TestObjFactory& factory) {
+    std::unique_ptr<NodeTestObject> obj = factory();
+    auto node = obj->getNode();
+
+    State l;
+    node->writeToLua(l, obj.get());
+
+    TEST_ASSERT(obj->avg(obj->luaWriteCount()) == 1, "All values should have been written to lua");
+  }
+
+  void Node_WriteAndReadFromLua_AllNodesAreRead(const TestObjFactory& factory) {
+    std::unique_ptr<NodeTestObject> obj = factory();
+    auto node = obj->getNode();
+
+    State l;
+    node->writeToLua(l, obj.get());
+    node->readFromLua(l, obj.get());
+
+    TEST_ASSERT(obj->avg(obj->luaReadCount()) == 1, "All values should have been written to lua");
+  }
+
   void Node_TestAllOnType(const TestObjFactory& factory) {
     Node_DefaultConstructAndDestroy_CtorAndDtorAreCalled(factory);
     Node_CopyToAndFromBuffer_CopyCalledTwice(factory);
@@ -277,6 +361,8 @@ namespace Test {
     Node_CopyCtorBufferToBuffer_CtorCalledTwice(factory);
     Node_CopyBufferToBuffer_CopyCalledOnce(factory);
     Node_DestructBuffer_DtorCalled(factory);
+    Node_WriteToLua_AllNodesWritten(factory);
+    Node_WriteAndReadFromLua_AllNodesAreRead(factory);
   }
 
   template<typename NodeT>

@@ -80,14 +80,18 @@ namespace Lua {
   }
 
   void Node::_funcToBuffer(void (Node::* func)(const void*, void*) const, const void* base, void* buffer) const {
-    (this->*func)(base, buffer);
-    _translateBase(base);
-    if(!base)
-      return;
-    buffer = Util::offset(buffer, _size());
-    for(const auto& child : mChildren) {
-      child->_funcToBuffer(func, Util::offset(base, child->mOps.mOffset), buffer);
-      buffer = Util::offset(buffer, child->size());
+    if(mChildren.empty()) {
+      (this->*func)(base, buffer);
+    }
+    else {
+      _translateBase(base);
+      if(!base)
+        return;
+      buffer = Util::offset(buffer, _size());
+      for(const auto& child : mChildren) {
+        child->_funcToBuffer(func, Util::offset(base, child->mOps.mOffset), buffer);
+        buffer = Util::offset(buffer, child->size());
+      }
     }
   }
 
@@ -133,13 +137,19 @@ namespace Lua {
   }
 
   void Node::_funcBufferToBuffer(void (Node::* func)(const void*, void*) const, const void* from, void* to) const {
-    (this->*func)(from, to);
-
-    for(const auto& child : mChildren) {
-      child->_funcBufferToBuffer(func, from, to);
-      size_t childSize = child->size();
-      from = Util::offset(from, childSize);
-      to = Util::offset(to, childSize);
+    if(mChildren.empty()) {
+      (this->*func)(from, to);
+    }
+    else {
+      auto offsetBuffers = [&from, &to](size_t bytes) {
+        from = Util::offset(from, bytes);
+        to = Util::offset(to, bytes);
+      };
+      offsetBuffers(_size());
+      for(const auto& child : mChildren) {
+        child->_funcBufferToBuffer(func, from, to);
+        offsetBuffers(child->size());
+      }
     }
   }
 
@@ -172,11 +182,15 @@ namespace Lua {
   }
 
   void Node::destructBuffer(void* buffer) const {
-    _destruct(buffer);
-
-    for(const auto& child : mChildren) {
-      child->destructBuffer(buffer);
-      buffer = Util::offset(buffer, child->size());
+    if(mChildren.empty()) {
+      _destruct(buffer);
+    }
+    else {
+      buffer = Util::offset(buffer, _size());
+      for(const auto& child : mChildren) {
+        child->destructBuffer(buffer);
+        buffer = Util::offset(buffer, child->size());
+      }
     }
   }
 
@@ -189,8 +203,18 @@ namespace Lua {
   }
 
   void Node::destruct(void* base) const {
-    //Must be bottom up in case parent nodes contain children
-    _forEachBottomUp(&Node::_destruct, base);
+    //If this owns child memory that means destruction should go all the way down, so no further recursion needed
+    if(_ownsChildMemory()) {
+      _destruct(base);
+    }
+    else {
+      _translateBase(base);
+      if(base) {
+        for(const auto& child : mChildren) {
+          child->destruct(Util::offset(base, child->mOps.mOffset));
+        }
+      }
+    }
   }
 
   size_t Node::getTypeId() const {
@@ -393,7 +417,7 @@ namespace Lua {
     _writeToLua(s, base);
     _translateBase(base);
     if(mChildren.size()) {
-      assert(lua_type(s, -1) == LUA_TTABLE && "Nodes which children should write tables in _writeToLua");
+      assert(lua_type(s, -1) == LUA_TTABLE && "Nodes with children should write tables in _writeToLua");
       for(auto& child : mChildren) {
         child->writeToLua(s, Util::offset(base, child->mOps.mOffset));
         child->setField(s);
