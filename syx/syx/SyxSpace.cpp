@@ -215,11 +215,14 @@ namespace Syx {
 
   void Space::setColliderEnabled(PhysicsObject& obj, bool enabled) {
     Collider* collider = obj.getCollider();
-    if(collider && !enabled)
+    if(collider && !enabled) {
       collider->uninitialize(*this);
-    else if(!collider && enabled)
-      collider->initialize(*this);
-    obj.setColliderEnabled(enabled);
+      obj.setColliderEnabled(false);
+    }
+    else if(!collider && enabled) {
+      obj.setColliderEnabled(true);
+      obj.getCollider()->initialize(*this);
+    }
   }
 
   void Space::setRigidbodyEnabled(PhysicsObject& obj, bool enabled) {

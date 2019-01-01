@@ -33,15 +33,20 @@ public:
     std::unordered_map<std::string, std::pair<LoaderConstructor, AssetConstructor>> mCategoryToConstructors;
   };
 
+  template<typename AssetType>
+  static std::unique_ptr<AssetType> createAsset(AssetInfo&& info) {
+    //TODO: is this a reliable way to set type? It seems easy to miss
+    info.mType = Asset::typeId<AssetType>();
+    return std::make_unique<AssetType>(std::move(info));
+  }
+
   //Use this registration function if your AssetLoader/Asset constructors are default
   template<typename AssetType, typename LoaderType>
   static void registerLoader(const std::string& category) {
     Loaders::registerLoader(category, [category]() {
       return std::make_unique<LoaderType>(category);
     }, [](AssetInfo&& info) {
-      //TODO: is this a reliable way to set type? It seems easy to miss
-      info.mType = Asset::typeId<AssetType>();
-      return std::make_unique<AssetType>(std::move(info));
+      return createAsset<AssetType>(std::move(info));
     });
   }
 

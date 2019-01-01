@@ -68,6 +68,10 @@ public:
   static size_t typeId() {
     return ::typeId<Asset, T>();
   }
+  template<class T>
+  const T* cast() const {
+    return isOfType<T>() ? static_cast<const T*>(this) : nullptr;
+  }
 
 protected:
   AssetState mState;

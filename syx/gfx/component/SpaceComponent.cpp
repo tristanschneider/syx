@@ -18,6 +18,7 @@
 #include <lua.hpp>
 #include "ProjectLocator.h"
 #include "provider/MessageQueueProvider.h"
+#include "Space.h"
 #include "system/LuaGameSystem.h"
 #include "threading/FunctionTask.h"
 #include "threading/WorkerPool.h"
@@ -203,7 +204,8 @@ int SpaceComponent::load(lua_State* l) {
 }
 
 void SpaceComponent::_loadSceneFromDescription(LuaGameSystem& game, const LuaSceneDescription& scene, Handle space) {
-  game.getMessageQueue().get().push(ClearSpaceEvent(space));
+  //TODO: should this be here? It causes issues with play/pause since the scene is lost after timescale is set
+  //game.getMessageQueue().get().push(ClearSpaceEvent(space));
   SpaceComponent destSpaceComp(0);
   destSpaceComp.set(space);
   for(const LuaGameObjectDescription& obj : scene.mObjects) {

@@ -154,6 +154,7 @@ end
 
 local initObj = nil;
 function initialize(self)
+  if true then return end
   local obj = self.space:addObject({
     components = {
       {
@@ -192,11 +193,11 @@ local loadDelay = 1.5;
 local hasInitPost = false;
 function update(self, dt)
   if hasInitPost == false then
-    initPost(self);
+    --initPost(self);
     hasInitPost = true;
   end
   if hasSaved == false then
-    self.space:save("scene");
+    --self.space:save("scene");
     hasSaved = true;
   end
   --[[

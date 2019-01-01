@@ -50,26 +50,27 @@ PhysicsSystem::~PhysicsSystem() {
 }
 
 void PhysicsSystem::init() {
+  mTimescale = 0;
   Syx::Interface::gDrawer = &mArgs.mSystems->getSystem<GraphicsSystem>()->getDebugDrawer();
   mSystem = std::make_unique<Syx::PhysicsSystem>();
 
   AssetRepo* assets = mArgs.mSystems->getSystem<AssetRepo>();
-  std::shared_ptr<PhysicsModel> mod = std::make_shared<PhysicsModel>(AssetInfo(CUBE_MODEL_NAME));
+  std::unique_ptr<PhysicsModel> mod = AssetRepo::createAsset<PhysicsModel>(AssetInfo(CUBE_MODEL_NAME));
   mod->mSyxHandle = mSystem->getCube();
-  assets->addAsset(mod);
+  assets->addAsset(std::move(mod));
 
-  mod = std::make_shared<PhysicsModel>(AssetInfo(SPHERE_MODEL_NAME));
+  mod = AssetRepo::createAsset<PhysicsModel>(AssetInfo(SPHERE_MODEL_NAME));
   mod->mSyxHandle = mSystem->getSphere();
-  assets->addAsset(mod);
+  assets->addAsset(std::move(mod));
 
-  mod = std::make_shared<PhysicsModel>(AssetInfo(CAPSULE_MODEL_NAME));
+  mod = AssetRepo::createAsset<PhysicsModel>(AssetInfo(CAPSULE_MODEL_NAME));
   mod->mSyxHandle = mSystem->getCapsule();
-  assets->addAsset(mod);
+  assets->addAsset(std::move(mod));
 
   //Not actually a model, but all that's needed is a handle
-  mod = std::make_shared<PhysicsModel>(AssetInfo(DEFAULT_MATERIAL_NAME));
+  mod = AssetRepo::createAsset<PhysicsModel>(AssetInfo(DEFAULT_MATERIAL_NAME));
   mod->mSyxHandle = mSystem->getDefaultMaterial();
-  assets->addAsset(mod);
+  assets->addAsset(std::move(mod));
 
   mDefaultSpace = mSystem->addSpace();
 
@@ -81,6 +82,7 @@ void PhysicsSystem::init() {
   SYSTEM_EVENT_HANDLER(SetComponentPropsEvent, _setComponentPropsEvent);
   SYSTEM_EVENT_HANDLER(ClearSpaceEvent, _clearSpaceEvent);
   SYSTEM_EVENT_HANDLER(RemoveComponentEvent, _removeComponentEvent);
+  SYSTEM_EVENT_HANDLER(SetTimescaleEvent, _setTimescaleEvent);
 }
 
 void PhysicsSystem::queueTasks(float dt, IWorkerPool& pool, std::shared_ptr<Task> frameTask) {
@@ -89,7 +91,7 @@ void PhysicsSystem::queueTasks(float dt, IWorkerPool& pool, std::shared_ptr<Task
   });
 
   auto update = std::make_shared<FunctionTask>([this, dt]() {
-    mSystem->update(dt);
+    mSystem->update(dt*mTimescale);
   });
 
   auto events = std::make_shared<FunctionTask>([this]() {
@@ -145,8 +147,22 @@ void PhysicsSystem::_setComponentPropsEvent(const SetComponentPropsEvent& e) {
         case Util::constHash("hasCollider"): mSystem->setHasCollider(data.mHasCollider, mDefaultSpace, h); break;
         case Util::constHash("linVel"): mSystem->setVelocity(mDefaultSpace, h, data.mLinVel); break;
         case Util::constHash("angVel"): mSystem->setAngularVelocity(mDefaultSpace, h, data.mAngVel); break;
-        case Util::constHash("model"): mSystem->setObjectModel(mDefaultSpace, h, data.mModel); break;
-        case Util::constHash("material"): mSystem->setObjectMaterial(mDefaultSpace, h, data.mMaterial); break;
+        case Util::constHash("model"): {
+          if(auto modelAsset = mArgs.mSystems->getSystem<AssetRepo>()->getAsset(AssetInfo(data.mModel))) {
+            if(const PhysicsModel* pmod = modelAsset->cast<PhysicsModel>()) {
+              mSystem->setObjectModel(mDefaultSpace, h, pmod->getSyxHandle());
+            }
+          }
+          break;
+        }
+        case Util::constHash("material"): {
+          if(auto materialAsset = mArgs.mSystems->getSystem<AssetRepo>()->getAsset(AssetInfo(data.mMaterial))) {
+            if(const PhysicsModel* pmat = materialAsset->cast<PhysicsModel>()) {
+              mSystem->setObjectMaterial(mDefaultSpace, h, pmat->getSyxHandle());
+            }
+          }
+          break;
+        }
         case Util::constHash("physToModel"): syxData.mSyxToModel = data.mPhysToModel; break;
         default: assert(false && "Unhandled property setter"); break;
       }
@@ -154,6 +170,7 @@ void PhysicsSystem::_setComponentPropsEvent(const SetComponentPropsEvent& e) {
   }
   else if(e.mCompType == Component::typeId<Transform>()) {
     Transform t(0);
+    e.mProp->copyFromBuffer(&t, e.mBuffer.data(), e.mDiff);
     _updateTransform(e.mObj, t.get());
   }
 }
@@ -172,6 +189,10 @@ void PhysicsSystem::_removeComponentEvent(const RemoveComponentEvent& e) {
       mSystem->removePhysicsObject(mDefaultSpace, it->second.mHandle);
     }
   }
+}
+
+void PhysicsSystem::_setTimescaleEvent(const SetTimescaleEvent& e) {
+  mTimescale = e.mTimescale;
 }
 
 void PhysicsSystem::_compUpdateEvent(const PhysicsCompUpdateEvent& e) {

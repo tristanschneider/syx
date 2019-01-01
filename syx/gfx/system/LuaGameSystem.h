@@ -27,7 +27,8 @@ class SaveSpaceEvent;
 class SceneBrowser;
 class ScreenPickResponse;
 class SetComponentPropsEvent;
-class SpaceComponent;
+class SetTimescaleEvent;
+class Space;
 class Task;
 class Toolbox;
 class TransformEvent;
@@ -80,7 +81,7 @@ public:
   const LuaComponentRegistry& getComonentRegistry() const;
   //Safe to access lock free for any task queued as a dependency or dependent of event processing
   const HandleMap<std::unique_ptr<LuaGameObject>>& getObjects() const;
-  SpaceComponent& getSpace(Handle id);
+  Space& getSpace(Handle id);
   const ProjectLocator& getProjectLocator() const;
   IWorkerPool& getWorkerPool();
 
@@ -112,6 +113,7 @@ private:
   void _onSpaceClear(const ClearSpaceEvent& e);
   void _onSpaceSave(const SaveSpaceEvent& e);
   void _onSpaceLoad(const LoadSpaceEvent& e);
+  void _onSetTimescale(const SetTimescaleEvent& e);
 
   static const std::string INSTANCE_KEY;
 
@@ -125,8 +127,7 @@ private:
   std::vector<std::unique_ptr<Component>> mPendingComponents;
   SpinLock mPendingComponentsLock;
   std::vector<std::unique_ptr<LuaGameObject>> mPendingObjects;
-  //Global instances of each space so spaces can be retreived by name.
-  std::unordered_map<Handle, SpaceComponent> mSpaces;
+  std::unordered_map<Handle, Space> mSpaces;
   SpinLock mPendingObjectsLock;
   //Used for debug checking thread safety of public accesses to LuaGameObjects
   bool mSafeToAccessObjects = true;

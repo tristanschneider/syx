@@ -15,6 +15,7 @@ class TransformEvent;
 class PhysicsCompUpdateEvent;
 class SetComponentPropEvent;
 class SetComponentPropsEvent;
+class SetTimescaleEvent;
 class RemoveComponentEvent;
 class Gameobject;
 class Event;
@@ -57,6 +58,7 @@ private:
   void _setComponentPropsEvent(const SetComponentPropsEvent& e);
   void _clearSpaceEvent(const ClearSpaceEvent& e);
   void _removeComponentEvent(const RemoveComponentEvent& e);
+  void _setTimescaleEvent(const SetTimescaleEvent& e);
 
   Syx::Handle _createObject(Handle gameobject, bool hasRigidbody, bool hasCollider);
 
@@ -69,4 +71,5 @@ private:
   std::unordered_map<Handle, SyxData> mToSyx;
   std::unordered_map<Syx::Handle, Handle> mFromSyx;
   Syx::Handle mDefaultSpace;
+  float mTimescale;
 };

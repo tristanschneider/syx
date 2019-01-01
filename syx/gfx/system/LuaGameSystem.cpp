@@ -7,7 +7,6 @@
 #include "component/LuaComponentRegistry.h"
 #include "component/Physics.h"
 #include "component/Renderable.h"
-#include "component/SpaceComponent.h"
 #include "editor/AssetPreview.h"
 #include "editor/event/EditorEvents.h"
 #include "editor/ObjectInspector.h"
@@ -33,6 +32,7 @@
 #include "provider/GameObjectHandleProvider.h"
 #include "provider/MessageQueueProvider.h"
 #include "provider/SystemProvider.h"
+#include "Space.h"
 #include "system/AssetRepo.h"
 #include "system/KeyboardInput.h"
 #include "system/PhysicsSystem.h"
@@ -67,6 +67,7 @@ void LuaGameSystem::init() {
   SYSTEM_EVENT_HANDLER(ClearSpaceEvent, _onSpaceClear);
   SYSTEM_EVENT_HANDLER(SaveSpaceEvent, _onSpaceSave);
   SYSTEM_EVENT_HANDLER(LoadSpaceEvent, _onSpaceLoad);
+  SYSTEM_EVENT_HANDLER(SetTimescaleEvent, _onSetTimescale);
 
   mState = std::make_unique<Lua::State>();
   mLibs = std::make_unique<Lua::AllLuaLibs>();
@@ -108,6 +109,8 @@ void LuaGameSystem::_update(float dt) {
   for(auto& objIt : mObjects) {
     LuaGameObject::push(*mState, *objIt.second);
     int selfIndex = lua_gettop(*mState);
+    dt *= getSpace(objIt.second->getSpace()).getTimescale();
+    const bool doUpdate = dt != 0;
 
     for(auto& compIt : objIt.second->getLuaComponents()) {
       LuaComponent& comp = compIt.second;
@@ -135,7 +138,7 @@ void LuaGameSystem::_update(float dt) {
         }
       }
       //Else sandbox is already initialized, do the update
-      else {
+      else if(doUpdate) {
         comp.update(*mState, dt, selfIndex);
       }
     }
@@ -234,13 +237,11 @@ const HandleMap<std::unique_ptr<LuaGameObject>>& LuaGameSystem::getObjects() con
   return mObjects;
 }
 
-SpaceComponent& LuaGameSystem::getSpace(Handle id) {
+Space& LuaGameSystem::getSpace(Handle id) {
   auto it = mSpaces.find(id);
   if(it != mSpaces.end())
     return it->second;
-  auto result = mSpaces.emplace(id, 0);
-  result.first->second.set(id);
-  return result.first->second;
+  return mSpaces.emplace(id, id).first->second;
 }
 
 const ProjectLocator& LuaGameSystem::getProjectLocator() const {
@@ -418,6 +419,10 @@ void LuaGameSystem::_onSpaceSave(const SaveSpaceEvent& e) {
 
 void LuaGameSystem::_onSpaceLoad(const LoadSpaceEvent& e) {
   SpaceComponent::_load(*mState, e.mSpace, e.mFile);
+}
+
+void LuaGameSystem::_onSetTimescale(const SetTimescaleEvent& e) {
+  getSpace(e.mSpace).setTimescale(e.mTimescale);
 }
 
 LuaGameObject* LuaGameSystem::_getObj(Handle h) const {

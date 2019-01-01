@@ -92,16 +92,12 @@ void LuaComponent::init(Lua::State& state, int selfIndex) {
       lua_pop(state, 1);
     }
     else {
+      //Write state in case anything was loaded with this component
+      //TODO: is this actually handling saved values properly?
       _writePropsToLua(state);
-      //Script load succeeded, call init if found
-      int initFunc = lua_getfield(state, -1, "initialize");
-      if(initFunc == LUA_TFUNCTION) {
-        lua_pushvalue(state, selfIndex);
-        _callFunc(state, "initialize", 1, 0);
-        _readPropsFromLua(state);
-      }
-      else
-        lua_pop(state, 1);
+      //Read state in case there wasn't to populate defaults from script
+      _readPropsFromLua(state);
+      mNeedsInit = true;
     }
   }
 }
@@ -113,6 +109,20 @@ void LuaComponent::update(Lua::State& state, float dt, int selfIndex) {
   if(mPropsNeedWriteToLua) {
     _writePropsToLua(state);
     mPropsNeedWriteToLua = false;
+  }
+
+  if(mNeedsInit) {
+    Lua::StackAssert ia(state);
+    //Script load succeeded, call init if found
+    int initFunc = lua_getfield(state, -1, "initialize");
+    if(initFunc == LUA_TFUNCTION) {
+      lua_pushvalue(state, selfIndex);
+      _callFunc(state, "initialize", 1, 0);
+      _readPropsFromLua(state);
+    }
+    else
+      lua_pop(state, 1);
+    mNeedsInit = false;
   }
 
   int updateType = lua_getfield(state, -1, "update");

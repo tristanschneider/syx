@@ -229,17 +229,19 @@ namespace Syx {
   }
 
   void PhysicsSystem::setHasRigidbody(bool has, Handle space, Handle object) {
-    PhysicsObject* obj = _getObject(space, object);
-    if(!obj)
-      return;
-    obj->setRigidbodyEnabled(has);
+    if(Space* s = mSpaces.get(space)) {
+      if(PhysicsObject* obj = _getObject(space, object)) {
+        s->setRigidbodyEnabled(*obj, has);
+      }
+    }
   }
 
   void PhysicsSystem::setHasCollider(bool has, Handle space, Handle object) {
-    PhysicsObject* obj = _getObject(space, object);
-    if(!obj)
-      return;
-    obj->setColliderEnabled(has);
+    if(Space* s = mSpaces.get(space)) {
+      if(PhysicsObject* obj = _getObject(space, object)) {
+        s->setColliderEnabled(*obj, has);
+      }
+    }
   }
 
   bool PhysicsSystem::getHasRigidbody(Handle space, Handle object) {

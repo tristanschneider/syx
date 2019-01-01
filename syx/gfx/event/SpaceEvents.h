@@ -21,3 +21,10 @@ public:
   Handle mSpace;
   FilePath mFile;
 };
+
+class SetTimescaleEvent : public Event {
+public:
+  SetTimescaleEvent(Handle space, float timescale);
+  Handle mSpace;
+  float mTimescale;
+};

@@ -58,4 +58,6 @@ private:
   std::unique_ptr<Lua::Sandbox> mSandbox;
   std::unique_ptr<Lua::Variant> mProps;
   bool mPropsNeedWriteToLua = false;
+  //If scripts init function hasn't been called yet
+  bool mNeedsInit = true;
 };

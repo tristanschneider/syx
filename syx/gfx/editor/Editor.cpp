@@ -82,7 +82,7 @@ void Editor::_updateState(PlayState state) {
   const PlayState prevState = mCurrentState;
   mCurrentState = state;
   const bool startedPlaying = prevState == PlayState::Stopped && mCurrentState == PlayState::Playing;
-  const bool stoppedPlaying = prevState == PlayState::Playing && mCurrentState == PlayState::Stopped;
+  const bool stoppedPlaying = mCurrentState == PlayState::Stopped;
   if(startedPlaying) {
     MessageQueue msg = mArgs.mMessages->getMessageQueue();
     msg.get().push(SaveSpaceEvent(_getEditorSpace(), *mSavedScene));
@@ -94,6 +94,19 @@ void Editor::_updateState(PlayState state) {
     msg.get().push(ClearSpaceEvent(_getEditorSpace()));
     msg.get().push(LoadSpaceEvent(_getEditorSpace(), *mSavedScene));
   }
+
+  const float timescale = [](PlayState state) {
+    switch(state) {
+      case PlayState::Paused:
+      case PlayState::Stopped:
+        return 0.0f;
+      case PlayState::Playing:
+      case PlayState::Stepping:
+      default:
+        return 1.0f;
+    }
+  }(mCurrentState);
+  mArgs.mMessages->getMessageQueue().get().push(SetTimescaleEvent(_getEditorSpace(), timescale));
 }
 
 Handle Editor::_getEditorSpace() const {
