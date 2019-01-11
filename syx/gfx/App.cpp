@@ -64,6 +64,10 @@ class AppDirectoryWatcher : public DirectoryWatcher {
   }
 };
 
+void App::onUriActivated(std::string uri) {
+  mMessageQueue->push(UriActivated(uri));
+}
+
 void App::init() {
   for(auto& system : mSystems) {
     if(system)

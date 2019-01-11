@@ -7,23 +7,15 @@
 #include "component/LuaComponentRegistry.h"
 #include "component/Physics.h"
 #include "component/Renderable.h"
-#include "editor/AssetPreview.h"
-#include "editor/event/EditorEvents.h"
-#include "editor/ObjectInspector.h"
-#include "editor/SceneBrowser.h"
-#include "editor/Toolbox.h"
 #include "event/BaseComponentEvents.h"
 #include "event/EventBuffer.h"
 #include "event/EventHandler.h"
 #include "event/LifecycleEvents.h"
 #include "event/SpaceEvents.h"
 #include "event/TransformEvent.h"
-#include "file/FilePath.h"
-#include "file/FileSystem.h"
 #include <lua.hpp>
 #include "lua/AllLuaLibs.h"
 #include "lua/LuaNode.h"
-#include "lua/LuaSerializer.h"
 #include "lua/LuaStackAssert.h"
 #include "lua/LuaState.h"
 #include "lua/LuaUtil.h"
@@ -34,8 +26,6 @@
 #include "provider/SystemProvider.h"
 #include "Space.h"
 #include "system/AssetRepo.h"
-#include "system/KeyboardInput.h"
-#include "system/PhysicsSystem.h"
 #include "threading/FunctionTask.h"
 #include "threading/IWorkerPool.h"
 
@@ -278,7 +268,6 @@ LuaGameSystem& LuaGameSystem::check(lua_State* l) {
 }
 
 void LuaGameSystem::_onAllSystemsInit(const AllSystemsInitialized&) {
-  _initHardCodedScene();
 }
 
 void LuaGameSystem::_onAddComponent(const AddComponentEvent& e) {
@@ -438,85 +427,4 @@ void LuaGameSystem::openLib(lua_State* l) {
     { nullptr, nullptr }
   };
   Lua::Util::registerClass(l, statics, members, CLASS_NAME);
-}
-
-void LuaGameSystem::_initHardCodedScene() {
-  using namespace Syx;
-  AssetRepo* repo = mArgs.mSystems->getSystem<AssetRepo>();
-  size_t mazeTexId = repo->getAsset(AssetInfo("textures/test.bmp"))->getInfo().mId;
-  size_t cubeCollider = repo->getAsset(AssetInfo(::PhysicsSystem::CUBE_MODEL_NAME))->getInfo().mId;
-  size_t defMat = repo->getAsset(AssetInfo(::PhysicsSystem::DEFAULT_MATERIAL_NAME))->getInfo().mId;
-
-  MessageQueueProvider* msg = mArgs.mMessages;
-  {
-    Handle h = mArgs.mGameObjectGen->newHandle();
-    RenderableData d;
-    d.mModel = repo->getAsset(AssetInfo("models/bowserlow.obj"))->getInfo().mId;
-    d.mDiffTex = mazeTexId;
-
-    MessageQueue q = msg->getMessageQueue();
-    EventBuffer& m = q.get();
-    m.push(AddGameObjectEvent(h));
-    m.push(AddComponentEvent(h, Component::typeId<Renderable>()));
-    m.push(RenderableUpdateEvent(d, h));
-    m.push(TransformEvent(h, Syx::Mat4::transform(Vec3(0.1f), Quat::Identity, Vec3::Zero)));
-  }
-
-  {
-    Handle h = mArgs.mGameObjectGen->newHandle();
-    RenderableData d;
-    d.mModel = repo->getAsset(AssetInfo("models/car.obj"))->getInfo().mId;
-    d.mDiffTex = mazeTexId;
-
-    MessageQueue q = msg->getMessageQueue();
-    EventBuffer& m = q.get();
-    m.push(AddGameObjectEvent(h));
-    m.push(AddComponentEvent(h, Component::typeId<Renderable>()));
-    m.push(RenderableUpdateEvent(d, h));
-    m.push(TransformEvent(h, Syx::Mat4::transform(Vec3(0.5f), Quat::Identity, Vec3(8.0f, 0.0f, 0.0f))));
-  }
-
-  size_t cubeModelId = repo->getAsset(AssetInfo("models/cube.obj"))->getInfo().mId;
-  {
-    Handle h = mArgs.mGameObjectGen->newHandle();
-    RenderableData d;
-    d.mModel = cubeModelId;
-    d.mDiffTex = mazeTexId;
-
-    Physics phy(h);
-    phy.setCollider(cubeCollider, defMat);
-    phy.setPhysToModel(Syx::Mat4::scale(Syx::Vec3(2.0f)));
-
-    MessageQueue q = msg->getMessageQueue();
-    EventBuffer& m = q.get();
-    m.push(AddGameObjectEvent(h));
-    m.push(AddComponentEvent(h, Component::typeId<Renderable>()));
-    m.push(RenderableUpdateEvent(d, h));
-    m.push(AddComponentEvent(h, Component::typeId<Physics>()));
-    m.push(PhysicsCompUpdateEvent(phy.getData(), h));
-    m.push(TransformEvent(h, Syx::Mat4::transform(Vec3(10.0f, 1.0f, 10.0f), Quat::Identity, Vec3(0.0f, -10.0f, 0.0f))));
-  }
-
-  {
-    Handle h = mArgs.mGameObjectGen->newHandle();
-    RenderableData d;
-    d.mModel = cubeModelId;
-    d.mDiffTex = mazeTexId;
-
-    Physics phy(h);
-    phy.setCollider(cubeCollider, defMat);
-    phy.setPhysToModel(Syx::Mat4::scale(Syx::Vec3(2.0f)));
-    phy.setRigidbody(Syx::Vec3::Zero, Syx::Vec3::Zero);
-    phy.setAngVel(Vec3(3.0f));
-
-    MessageQueue q = msg->getMessageQueue();
-    EventBuffer& m = q.get();
-    m.push(AddGameObjectEvent(h));
-    m.push(AddComponentEvent(h, Component::typeId<Renderable>()));
-    m.push(RenderableUpdateEvent(d, h));
-    m.push(AddComponentEvent(h, Component::typeId<Physics>()));
-    m.push(PhysicsCompUpdateEvent(phy.getData(), h));
-    m.push(TransformEvent(h, Syx::Mat4::transform(Vec3(1.0f, 1.0f, 1.0f), Quat::Identity, Vec3(0.0f, 8.0f, 0.0f))));
-    m.push(AddLuaComponentEvent(h, repo->getAsset(AssetInfo("scripts/test.lc"))->getInfo().mId));
-  }
 }

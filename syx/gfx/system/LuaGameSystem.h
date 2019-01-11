@@ -96,9 +96,6 @@ private:
   void _registerBuiltInComponents();
   void _update(float dt);
 
-  //TODO: make it possible to do this from lua
-  void _initHardCodedScene();
-
   void _onAllSystemsInit(const AllSystemsInitialized& e);
   void _onAddComponent(const AddComponentEvent& e);
   void _onRemoveComponent(const RemoveComponentEvent& e);

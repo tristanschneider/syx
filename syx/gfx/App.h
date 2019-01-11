@@ -20,6 +20,8 @@ public:
   App(std::unique_ptr<AppPlatform> appPlatform);
   ~App();
 
+  void onUriActivated(std::string uri);
+
   void init();
   void update(float dt);
   void uninit();

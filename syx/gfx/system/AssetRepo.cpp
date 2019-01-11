@@ -82,6 +82,7 @@ std::shared_ptr<Asset> AssetRepo::getAsset(AssetInfo info) {
 }
 
 void AssetRepo::getAssetsByCategory(std::string_view category, std::vector<std::shared_ptr<Asset>>& assets) const {
+  auto lock = mAssetLock.getReader();
   for(const auto& it : mIdToAsset) {
     if(it.second->getState() >= AssetState::Loaded && it.second->getInfo().mCategory == category) {
       assets.emplace_back(it.second);
@@ -100,6 +101,14 @@ void AssetRepo::addAsset(std::shared_ptr<Asset> asset) {
     it = mIdToAsset.find(++info.mId);
   }
   mIdToAsset[info.mId] = std::move(asset);
+}
+
+void AssetRepo::forEachAsset(const std::function<void(std::shared_ptr<Asset>)> callback) {
+  auto lock = mAssetLock.getReader();
+  for(const auto& it : mIdToAsset) {
+    //TODO: how to protect against recursive lock from callback?
+    callback(it.second);
+  }
 }
 
 std::shared_ptr<Asset> AssetRepo::_find(AssetInfo& info) {

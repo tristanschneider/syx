@@ -1,0 +1,296 @@
+scene = {
+  assets = {
+    "shaders/phong.vs",
+    "models/bowserlow.obj",
+    "shaders/fullScreenQuad.vs",
+    "DefaultPhysicsMaterial",
+    "shaders/flatColor.vs",
+    "scripts/test.lc",
+    "CapsuleCollider",
+    "shaders/debug.vs",
+    "CubeCollider",
+    "SphereCollider",
+    "textures/test.bmp",
+    "models/car.obj",
+    "models/cube.obj"
+  },
+  name = "scene",
+  objects = {
+    {
+      components = {
+        {
+          props = {
+            diffuseTexture = 1088482667,
+            model = 2263845287
+          },
+          type = "Renderable"
+        },
+        {
+          props = {
+            matrix = {
+              0.100000,
+              0,
+              0,
+              0,
+              0,
+              0.100000,
+              0,
+              0,
+              0,
+              0,
+              0.100000,
+              0,
+              0,
+              0,
+              0,
+              1
+            }
+          },
+          type = "Transform"
+        },
+        {
+          props = {
+            id = 0
+          },
+          type = "Space"
+        },
+        {
+          props = {
+            name = "Bowser"
+          },
+          type = "Name"
+        }
+      },
+      handle = 1
+    },
+    {
+      components = {
+        {
+          props = {
+            diffuseTexture = 1088482667,
+            model = 2775790889
+          },
+          type = "Renderable"
+        },
+        {
+          props = {
+            matrix = {
+              0.500000,
+              0,
+              0,
+              0,
+              0,
+              0.500000,
+              0,
+              0,
+              0,
+              0,
+              0.500000,
+              0,
+              8,
+              0,
+              0,
+              1
+            }
+          },
+          type = "Transform"
+        },
+        {
+          props = {
+            id = 0
+          },
+          type = "Space"
+        },
+        {
+          props = {
+            name = "Car"
+          },
+          type = "Name"
+        }
+      },
+      handle = 2
+    },
+    {
+      components = {
+        {
+          props = {
+            angVel = Vec3.new3(0.000000, 0.000000, 0.000000),
+            hasCollider = true,
+            hasRigidbody = false,
+            linVel = Vec3.new3(0.000000, 0.000000, 0.000000),
+            material = 916610062,
+            model = 3191119156,
+            physToModel = {
+              2,
+              0,
+              0,
+              0,
+              0,
+              2,
+              0,
+              0,
+              0,
+              0,
+              2,
+              0,
+              0,
+              0,
+              0,
+              1
+            }
+          },
+          type = "Physics"
+        },
+        {
+          props = {
+            diffuseTexture = 1088482667,
+            model = 140062738
+          },
+          type = "Renderable"
+        },
+        {
+          props = {
+            matrix = {
+              10,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              10,
+              0,
+              0,
+              -10,
+              0,
+              1
+            }
+          },
+          type = "Transform"
+        },
+        {
+          props = {
+            id = 0
+          },
+          type = "Space"
+        },
+        {
+          props = {
+            name = "Ground"
+          },
+          type = "Name"
+        }
+      },
+      handle = 3
+    },
+    {
+      components = {
+        {
+          props = {
+            angVel = Vec3.new3(3.000000, 3.000000, 3.000000),
+            hasCollider = true,
+            hasRigidbody = true,
+            linVel = Vec3.new3(0.000000, 0.000000, 0.000000),
+            material = 916610062,
+            model = 3191119156,
+            physToModel = {
+              2,
+              0,
+              0,
+              0,
+              0,
+              2,
+              0,
+              0,
+              0,
+              0,
+              2,
+              0,
+              0,
+              0,
+              0,
+              1
+            }
+          },
+          type = "Physics"
+        },
+        {
+          props = {
+            diffuseTexture = 1088482667,
+            model = 140062738
+          },
+          type = "Renderable"
+        },
+        {
+          props = {
+            props = {
+              {
+                b = 2,
+                c = 3.500000,
+                d = "str",
+                e = true,
+                h = {
+                  1,
+                  2,
+                  3
+                },
+                i = {
+                  ia = 1,
+                  ib = "two",
+                  ic = false
+                },
+                j = {
+                  ja = 2,
+                  jb = {
+                    jbs = "asdf"
+                  }
+                }
+              }
+            },
+            script = 3676084395
+          },
+          type = "Script"
+        },
+        {
+          props = {
+            matrix = {
+              1,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              8,
+              0,
+              1
+            }
+          },
+          type = "Transform"
+        },
+        {
+          props = {
+            id = 0
+          },
+          type = "Space"
+        },
+        {
+          props = {
+            name = "PhysicsBox"
+          },
+          type = "Name"
+        }
+      },
+      handle = 4
+    }
+  }
+}

@@ -148,7 +148,7 @@ void sleepNS(int ns) {
   }
 }
 
-int mainLoop() {
+int mainLoop(const char* launchUri) {
   BOOL gotMessage;
   MSG msg;
   bool exit = false;
@@ -158,6 +158,7 @@ int mainLoop() {
   sApp = std::make_unique<App>(std::make_unique<AppPlatformWin32>());
 
   sApp->init();
+  sApp->onUriActivated(launchUri);
   input = sApp->getSystem<KeyboardInput>();
   //Inform graphcis of screen size
   setWindowSize(sWidth, sHeight);
@@ -224,7 +225,7 @@ int WINAPI WinMain(HINSTANCE hinstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
   UpdateWindow(wnd);
 
   gHwnd = wnd;
-  int exitCode = mainLoop();
+  int exitCode = mainLoop(lpCmdLine);
 
   destroyContext();
 

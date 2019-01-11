@@ -1,6 +1,7 @@
 #include "Precompile.h"
 #include "component/SpaceComponent.h"
 
+#include "asset/Asset.h"
 #include "component/LuaComponent.h"
 #include "event/BaseComponentEvents.h"
 #include "event/EventBuffer.h"
@@ -19,6 +20,7 @@
 #include "ProjectLocator.h"
 #include "provider/MessageQueueProvider.h"
 #include "Space.h"
+#include "system/AssetRepo.h"
 #include "system/LuaGameSystem.h"
 #include "threading/FunctionTask.h"
 #include "threading/WorkerPool.h"
@@ -135,6 +137,10 @@ void SpaceComponent::_save(lua_State* l, Handle space, const char* filename) {
   LuaSceneDescription scene;
   scene.mName = FilePath(filename).getFileNameWithoutExtension();
   scene.mObjects.reserve(game.getObjects().size());
+  //TODO: only save the assets that are used by this collection of objects
+  game.getAssetRepo().forEachAsset([&scene](std::shared_ptr<Asset> asset) {
+    scene.mAssets.emplace_back(asset->getInfo().mUri);
+  });
 
   for(const auto& obj : game.getObjects()) {
     const LuaGameObject& o = *obj.second;
@@ -208,6 +214,11 @@ void SpaceComponent::_loadSceneFromDescription(LuaGameSystem& game, const LuaSce
   //game.getMessageQueue().get().push(ClearSpaceEvent(space));
   SpaceComponent destSpaceComp(0);
   destSpaceComp.set(space);
+  AssetRepo& repo = game.getAssetRepo();
+  //Cause loading of all necessary assets
+  for(const std::string& asset : scene.mAssets) {
+    repo.getAsset(AssetInfo(asset));
+  }
   for(const LuaGameObjectDescription& obj : scene.mObjects) {
     _pushObjectFromDescription(game, obj, space);
   }

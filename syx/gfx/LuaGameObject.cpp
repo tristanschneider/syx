@@ -342,30 +342,27 @@ public:
 };
 
 const Lua::Node& LuaGameObjectDescription::getMetadata() const {
-  static std::unique_ptr<Lua::Node> root = _buildMetadata();
+  static std::unique_ptr<Lua::Node> root = [this]() {
+    using namespace Lua;
+    auto root = makeRootNode(NodeOps(""));
+    makeNode<SizetNode>(NodeOps(*root, "handle", ::Util::offsetOf(*this, mHandle)));
+    makeNode<VectorNode<ComponentNode>>(NodeOps(*root, "components", ::Util::offsetOf(*this, mComponents)));
+    return root;
+  }();
   return *root;
-}
-
-std::unique_ptr<Lua::Node> LuaGameObjectDescription::_buildMetadata() const {
-  using namespace Lua;
-  auto root = makeRootNode(NodeOps(""));
-  makeNode<SizetNode>(NodeOps(*root, "handle", ::Util::offsetOf(*this, mHandle)));
-  makeNode<VectorNode<ComponentNode>>(NodeOps(*root, "components", ::Util::offsetOf(*this, mComponents)));
-  return root;
 }
 
 const char* LuaSceneDescription::ROOT_KEY = "scene";
 const char* LuaSceneDescription::FILE_EXTENSION = "ls";
 
 const Lua::Node& LuaSceneDescription::getMetadata() const {
-  static std::unique_ptr<Lua::Node> root = _buildMetadata();
+  static std::unique_ptr<Lua::Node> root = [this]() {
+    using namespace Lua;
+    auto root = makeRootNode(NodeOps(ROOT_KEY));
+    makeNode<StringNode>(NodeOps(*root, "name", ::Util::offsetOf(*this, mName)));
+    makeNode<VectorNode<LuaGameObjectDescriptionNode>>(NodeOps(*root, "objects", ::Util::offsetOf(*this, mObjects)));
+    makeNode<VectorNode<StringNode>>(NodeOps(*root, "assets", ::Util::offsetOf(*this, mAssets)));
+    return root;
+  }();
   return *root;
-}
-
-std::unique_ptr<Lua::Node> LuaSceneDescription::_buildMetadata() const {
-  using namespace Lua;
-  auto root = makeRootNode(NodeOps(ROOT_KEY));
-  makeNode<StringNode>(NodeOps(*root, "name", ::Util::offsetOf(*this, mName)));
-  makeNode<VectorNode<LuaGameObjectDescriptionNode>>(NodeOps(*root, "objects", ::Util::offsetOf(*this, mObjects)));
-  return root;
 }

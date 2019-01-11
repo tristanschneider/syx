@@ -12,6 +12,7 @@
 #include "event/LifecycleEvents.h"
 #include "event/SpaceEvents.h"
 #include "file/FilePath.h"
+#include "file/FileSystem.h"
 #include "ProjectLocator.h"
 #include "provider/SystemProvider.h"
 #include "system/AssetRepo.h"
@@ -50,6 +51,16 @@ void Editor::init() {
   mEventHandler->registerEventHandler<AllSystemsInitialized>([this](const AllSystemsInitialized&) {
     mGameObserver = std::make_unique<LuaGameSystemObserverT>(std::make_unique<EditorGameObserver>(std::bind(&Editor::_editorUpdate, this)));
     mArgs.mSystems->getSystem<LuaGameSystem>()->addObserver(*mGameObserver);
+  });
+
+  mEventHandler->registerEventHandler<UriActivated>([this](const UriActivated& e) {
+    if(FileSystem::fileExists(e.mUri.c_str())) {
+      //TODO: should this path be kept seperate from mSavedScene?
+      *mSavedScene = FilePath(e.mUri.c_str());
+      MessageQueue msg = mArgs.mMessages->getMessageQueue();
+      msg.get().push(ClearSpaceEvent(_getEditorSpace()));
+      msg.get().push(LoadSpaceEvent(_getEditorSpace(), *mSavedScene));
+    }
   });
 
   mEventHandler->registerEventHandler<SetPlayStateEvent>([this](const SetPlayStateEvent& e) {

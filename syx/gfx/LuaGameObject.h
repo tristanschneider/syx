@@ -24,9 +24,6 @@ struct LuaGameObjectDescription {
 
   size_t mHandle;
   std::vector<std::unique_ptr<Component>> mComponents;
-
-private:
-  std::unique_ptr<Lua::Node> _buildMetadata() const;
 };
 
 struct LuaSceneDescription {
@@ -38,9 +35,7 @@ struct LuaSceneDescription {
 
   std::string mName;
   std::vector<LuaGameObjectDescription> mObjects;
-
-private:
-  std::unique_ptr<Lua::Node> _buildMetadata() const;
+  std::vector<std::string> mAssets;
 };
 
 class LuaGameObject {
