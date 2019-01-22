@@ -1,26 +1,39 @@
 #pragma once
 
-class Finally {
+template<class Callable>
+class FinalAction {
 public:
-  Finally(std::function<void()> action)
-    : mAction(std::move(action)) {
+  template<class Callable>
+  FinalAction(Callable&& action)
+    : mAction(std::move(action))
+    , mIsValid(true) {
   }
 
-  ~Finally() {
-    if(mAction)
+  ~FinalAction() {
+    if(mIsValid)
       mAction();
   }
 
   void cancel() {
-    mAction = nullptr;
+    mIsValid = false;
   }
 
-  Finally(const Finally&) = delete;
-  Finally(Finally&& rhs) = default;
+  FinalAction(const FinalAction&) = delete;
+  FinalAction(FinalAction&& rhs)
+    : mAction(std::move(rhs.mAction))
+    , mIsValid(true) {
+    rhs.mIsValid = false;
+  }
 
-  Finally& operator=(const Finally&) = delete;
-  Finally& operator=(Finally&&) = delete;
+  FinalAction& operator=(const FinalAction&) = delete;
+  FinalAction& operator=(FinalAction&&) = delete;
 
 private:
-  std::function<void()> mAction;
+  Callable mAction;
+  bool mIsValid;
 };
+
+template<class Callable>
+FinalAction<Callable> finally(Callable&& callable) {
+  return FinalAction<Callable>(callable);
+}

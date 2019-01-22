@@ -86,7 +86,7 @@ namespace Inspector {
     //Populate asset list in modal
     bool valueChanged = false;
     if(ImGui::BeginPopupModal(propName, nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-      auto endPopup = Finally([]() { ImGui::EndPopup(); });
+      auto endPopup = finally([]() { ImGui::EndPopup(); });
       //Button to close modal
       if(ImGui::Button("Close")) {
         ImGui::CloseCurrentPopup();
@@ -96,13 +96,13 @@ namespace Inspector {
       }
       //Scroll view for asset list
       ImGui::BeginChild("assets", ImVec2(200, 200));
-      auto endAssets = Finally([]() { ImGui::EndChild(); });
+      auto endAssets = finally([]() { ImGui::EndChild(); });
       std::vector<std::shared_ptr<Asset>> assets;
       repo.getAssetsByCategory(category, assets);
 
       //Get the previously selected item
       pad.push(propName);
-      auto popPad = Finally([&pad]() { pad.pop(); });
+      auto popPad = finally([&pad]() { pad.pop(); });
       std::string_view selectedKey = "selectedAsset";
       Variant* selected = pad.read(selectedKey);
       size_t selectedId = selected ? selected->get<size_t>() : 0;

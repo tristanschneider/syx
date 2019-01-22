@@ -15,13 +15,9 @@ std::unique_ptr<Component> LuaComponentRegistry::construct(const std::string& na
   return nullptr;
 }
 
-bool LuaComponentRegistry::getComponentType(const std::string& name, size_t& type) const {
+std::optional<size_t> LuaComponentRegistry::getComponentType(const std::string& name) const {
   auto it = mNameToInfo.find(name);
-  if(it != mNameToInfo.end()) {
-    type = it->second.instance->getType();
-    return true;
-  }
-  return false;
+  return it == mNameToInfo.end() ? std::nullopt : std::make_optional(it->second.instance->getType());
 }
 
 const Component* LuaComponentRegistry::getInstanceByPropName(const char* name) const {
@@ -31,4 +27,10 @@ const Component* LuaComponentRegistry::getInstanceByPropName(const char* name) c
 const Component* LuaComponentRegistry::getInstanceByPropNameConstHash(size_t hash) const {
   auto it = mPropNameToInfo.find(hash);
   return it != mPropNameToInfo.end() ? it->second->instance.get() : nullptr;
+}
+
+void LuaComponentRegistry::forEachComponent(const std::function<void(const Component&)>& callback) const {
+  for(const auto& it : mNameToInfo) {
+    callback(*it.second.instance);
+  }
 }

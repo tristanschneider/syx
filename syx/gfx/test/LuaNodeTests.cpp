@@ -5,6 +5,7 @@
 #include "lua/LuaCompositeNodes.h"
 #include "lua/LuaNode.h"
 #include "lua/LuaState.h"
+#include "lua/LuaVariant.h"
 #include <numeric>
 
 namespace Test {
@@ -388,6 +389,41 @@ namespace Test {
 
   TEST_FUNC(Node_UniqueValue) {
     Node_TestAll<UniquePtrObj>();
+  }
+
+  struct UniquePtrToVariant {
+    UniquePtrToVariant()
+      : mProps(std::make_unique<Lua::Variant>()) {
+    }
+
+    std::unique_ptr<Node> getNode() const {
+      auto root = makeRootNode(Lua::NodeOps(""));
+      makeNode<LightUserdataSizetNode>(Lua::NodeOps(*root, "script", ::Util::offsetOf(*this, mScript)));
+      Node& propsPtr = makeNode<UniquePtrNode<Variant>>(Lua::NodeOps(*root, "props", ::Util::offsetOf(*this, mProps)));
+      makeNode<VariantNode>(Lua::NodeOps(propsPtr, "", 0));
+      return root;
+    }
+
+    size_t mScript;
+    std::unique_ptr<Lua::Variant> mProps;
+  };
+
+  TEST_FUNC(Node_DiffUniqueVariantSame_AreSame) {
+    UniquePtrToVariant a;
+    UniquePtrToVariant b;
+    auto node = a.getNode();
+    const bool areDifferent = node->getDiff(&a, &b) != 0;
+    TEST_ASSERT(!areDifferent, "Objects were unchanged and should be the same");
+  }
+
+  TEST_FUNC(Node_DiffUniqueVariantScriptDifferent_DetectsDifference) {
+    UniquePtrToVariant a;
+    UniquePtrToVariant b;
+    a.mScript = 1;
+    b.mScript = 2;
+    auto node = a.getNode();
+    const bool areDifferent = node->getDiff(&a, &b) != 0;
+    TEST_ASSERT(areDifferent, "Script should be different");
   }
 
   //TODO: write tests for these

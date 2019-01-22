@@ -1,5 +1,6 @@
 #pragma once
 
+class ComponentRegistryProvider;
 class DefaultInspectors;
 class EventHandler;
 class LuaGameObject;
@@ -14,7 +15,7 @@ namespace Lua {
 
 class ObjectInspector {
 public:
-  ObjectInspector(MessageQueueProvider& msg, EventHandler& handler);
+  ObjectInspector(MessageQueueProvider& msg, EventHandler& handler, const ComponentRegistryProvider& componentRegistry);
   ~ObjectInspector();
 
   void editorUpdate(const LuaGameObjectProvider& objects);
@@ -22,10 +23,12 @@ public:
 private:
   void _updateSelection(const LuaGameObjectProvider& objects);
   bool _inspectProperty(const Lua::Node& prop, void* data) const;
+  void _showComponentPicker() const;
 
   MessageQueueProvider& mMsg;
   std::vector<Handle> mSelected;
   std::vector<Handle> mPrevSelected;
   std::vector<std::unique_ptr<LuaGameObject>> mSelectedData;
   std::unique_ptr<DefaultInspectors> mDefaultInspectors;
+  const ComponentRegistryProvider& mComponentRegistry;
 };

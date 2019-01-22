@@ -9,9 +9,10 @@ public:
 
   void registerComponent(const std::string& name, Constructor constructor);
   std::unique_ptr<Component> construct(const std::string& name, Handle owner) const;
-  bool getComponentType(const std::string& name, size_t& type) const;
+  std::optional<size_t> getComponentType(const std::string& name) const;
   const Component* getInstanceByPropName(const char* name) const;
   const Component* getInstanceByPropNameConstHash(size_t hash) const;
+  void forEachComponent(const std::function<void(const Component&)>& callback) const;
 
 private:
   struct CompInfo {

@@ -16,7 +16,7 @@ namespace Lua {
       const LuaGameSystem& game = LuaGameSystem::check(s);
       //Read type name and construct default from it
       std::unique_ptr<Component>& comp = _cast(base);
-      comp = game.getComonentRegistry().construct(lua_tostring(s, -1), 0);
+      comp = game.getComponentRegistry().construct(lua_tostring(s, -1), 0);
 
       //If type was valid, fill it in from properties table
       if(comp) {

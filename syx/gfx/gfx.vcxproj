@@ -179,6 +179,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClCompile Include="editor\event\EditorEvents.cpp" />
     <ClCompile Include="editor\InspectorFactory.cpp" />
     <ClCompile Include="editor\ObjectInspector.cpp" />
+    <ClCompile Include="editor\Picker.cpp" />
     <ClCompile Include="editor\SceneBrowser.cpp" />
     <ClCompile Include="editor\Toolbox.cpp" />
     <ClCompile Include="event\BaseComponentEvents.cpp" />
@@ -276,6 +277,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClInclude Include="editor\event\EditorEvents.h" />
     <ClInclude Include="editor\InspectorFactory.h" />
     <ClInclude Include="editor\ObjectInspector.h" />
+    <ClInclude Include="editor\Picker.h" />
     <ClInclude Include="editor\SceneBrowser.h" />
     <ClInclude Include="editor\Toolbox.h" />
     <ClInclude Include="event\BaseComponentEvents.h" />
@@ -320,6 +322,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClInclude Include="MappedBuffer.h" />
     <ClInclude Include="Precompile.h" />
     <ClInclude Include="ProjectLocator.h" />
+    <ClInclude Include="provider\ComponentRegistryProvider.h" />
     <ClInclude Include="provider\GameObjectHandleProvider.h" />
     <ClInclude Include="provider\LuaGameObjectProvider.h" />
     <ClInclude Include="provider\MessageQueueProvider.h" />

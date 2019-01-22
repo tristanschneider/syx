@@ -44,7 +44,7 @@ void Editor::init() {
   mSavedScene = std::make_unique<FilePath>(mArgs.mProjectLocator->transform("scene.json", PathSpace::Project, PathSpace::Full));
 
   mSceneBrowser = std::make_unique<SceneBrowser>(*mArgs.mMessages, *mArgs.mGameObjectGen, *mArgs.mSystems->getSystem<KeyboardInput>(), *mEventHandler);
-  mObjectInspector = std::make_unique<ObjectInspector>(*mArgs.mMessages, *mEventHandler);
+  mObjectInspector = std::make_unique<ObjectInspector>(*mArgs.mMessages, *mEventHandler, *mArgs.mSystems->getSystem<LuaGameSystem>());
   mAssetPreview = std::make_unique<AssetPreview>(*mArgs.mMessages, *mEventHandler, *mArgs.mSystems->getSystem<AssetRepo>());
   mToolbox = std::make_unique<Toolbox>(*mArgs.mMessages, *mEventHandler);
 

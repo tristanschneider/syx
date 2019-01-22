@@ -1,5 +1,6 @@
 #pragma once
 #include "System.h"
+#include "provider/ComponentRegistryProvider.h"
 #include "provider/MessageQueueProvider.h"
 #include "provider/LuaGameObjectProvider.h"
 
@@ -49,7 +50,10 @@ public:
 };
 using LuaGameSystemObserverT = Observer<std::unique_ptr<LuaGameSystemObserver>>;
 
-class LuaGameSystem : public System, public LuaGameObjectProvider {
+class LuaGameSystem
+  : public System
+  , public LuaGameObjectProvider
+  , public ComponentRegistryProvider {
 public:
   static const char* CLASS_NAME;
 
@@ -78,7 +82,8 @@ public:
 
   MessageQueue getMessageQueue();
   AssetRepo& getAssetRepo();
-  const LuaComponentRegistry& getComonentRegistry() const;
+  const LuaComponentRegistry& getComponentRegistry() const;
+  void forEachComponentType(const std::function<void(const Component&)>& callback) const override;
   //Safe to access lock free for any task queued as a dependency or dependent of event processing
   const HandleMap<std::unique_ptr<LuaGameObject>>& getObjects() const;
   Space& getSpace(Handle id);
@@ -118,7 +123,7 @@ private:
   std::unique_ptr<Lua::State> mState;
   std::unique_ptr<Lua::LuaLibGroup> mLibs;
   std::unique_ptr<LuaComponentRegistry> mComponents;
-  RWLock mComponentsLock;
+  mutable RWLock mComponentsLock;
   //Pending objects that have been created this frame. For said frame they are available only to the caller that created them.
   //Next frame they are moved to the system and available to all
   std::vector<std::unique_ptr<Component>> mPendingComponents;

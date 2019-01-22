@@ -108,9 +108,8 @@ void LuaGameSystem::_update(float dt) {
       if(comp.needsInit()) {
         AssetRepo* repo = mArgs.mSystems->getSystem<AssetRepo>();
         std::shared_ptr<Asset> script = repo->getAsset(AssetInfo(comp.getScript()));
-        assert(script && "Script should exist in repo as creating the component should have triggered the asset load");
         //If script isn't doen loading, wait until later
-        if(script->getState() != AssetState::Loaded)
+        if(!script || script->getState() != AssetState::Loaded)
           continue;
 
         //Load the script on to the top of the stack
@@ -157,12 +156,12 @@ Component* LuaGameSystem::addComponent(const std::string& name, LuaGameObject& o
   std::unique_ptr<Component> component;
   {
     auto lock = mComponentsLock.getReader();
-    size_t type = 0;
-    if(!mComponents->getComponentType(name, type)) {
+    std::optional<size_t> type = mComponents->getComponentType(name);
+    if(!type) {
       return nullptr;
     }
     //Comopnent may already exist, most likely for built in components
-    if(Component* existing = owner.getComponent(type)) {
+    if(Component* existing = owner.getComponent(*type)) {
       return existing;
     }
     component = mComponents->construct(name, owner.getHandle());
@@ -179,15 +178,14 @@ Component* LuaGameSystem::addComponent(const std::string& name, LuaGameObject& o
 }
 
 void LuaGameSystem::removeComponent(const std::string& name, Handle owner) {
-  size_t type = 0;
-  bool validType = false;
+  std::optional<size_t> type;
   {
     auto lock = mComponentsLock.getReader();
     //TODO: Probably need something special here for lua components
-    validType = mComponents->getComponentType(name, type);
+    type = mComponents->getComponentType(name);
   }
-  if(validType)
-    mArgs.mMessages->getMessageQueue().get().push(RemoveComponentEvent(owner, type));
+  if(type)
+    mArgs.mMessages->getMessageQueue().get().push(RemoveComponentEvent(owner, *type));
 }
 
 void LuaGameSystem::removeComponentFromPropName(const char* name, Handle owner) {
@@ -218,8 +216,15 @@ AssetRepo& LuaGameSystem::getAssetRepo() {
   return *mArgs.mSystems->getSystem<AssetRepo>();
 }
 
-const LuaComponentRegistry& LuaGameSystem::getComonentRegistry() const {
+const LuaComponentRegistry& LuaGameSystem::getComponentRegistry() const {
   return *mComponents;
+}
+
+void LuaGameSystem::forEachComponentType(const std::function<void(const Component&)>& callback) const {
+  auto lock = mComponentsLock.getReader();
+  mComponents->forEachComponent([&callback](const Component& component) {
+    callback(component);
+  });
 }
 
 const HandleMap<std::unique_ptr<LuaGameObject>>& LuaGameSystem::getObjects() const {

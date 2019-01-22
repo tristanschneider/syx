@@ -149,7 +149,7 @@ TEST_FUNC(ScratchPad_AddMultipleValuesDifferentLifetimes_ValuesDestroyedInOrder)
 TEST_FUNC(Finally_Construct_DoesAction) {
   int actions = 0;
   {
-    Finally f([&actions]() { ++actions; });
+    auto f = finally([&actions]() { ++actions; });
   }
   TEST_ASSERT(actions == 1, "Action should have been performed once");
 }
@@ -157,8 +157,8 @@ TEST_FUNC(Finally_Construct_DoesAction) {
 TEST_FUNC(Finally_MoveConstruct_DoesActionOnce) {
   int actions = 0;
   {
-    Finally a([&actions]() { ++actions; });
-    Finally b = std::move(a);
+    auto a = finally([&actions]() { ++actions; });
+    auto b = std::move(a);
   }
   TEST_ASSERT(actions == 1, "Action should have been performed once by moved item");
 }
@@ -166,7 +166,7 @@ TEST_FUNC(Finally_MoveConstruct_DoesActionOnce) {
 TEST_FUNC(Finally_Cancel_DoesNoAction) {
   int actions = 0;
   {
-    Finally f([&actions]() { ++actions; });
+    auto f = finally([&actions]() { ++actions; });
     f.cancel();
   }
   TEST_ASSERT(actions == 0, "Action should have been cancelled");

@@ -37,6 +37,7 @@ namespace Lua {
   }
 
   Variant& Variant::operator=(const Variant& rhs) {
+    //TODO: this doesn't handle its previous value properly
     mKey = rhs.mKey;
     mType = rhs.mType;
     mChildren = rhs.mChildren;
@@ -45,6 +46,7 @@ namespace Lua {
   }
 
   Variant& Variant::operator=(Variant&& rhs) {
+    //TODO: this doesn't handle its previous value properly
     mKey = std::move(rhs.mKey);
     mType = rhs.mType;
     mChildren = std::move(rhs.mChildren);

@@ -3,6 +3,7 @@
 
 #include "editor/DefaultInspectors.h"
 #include "editor/event/EditorEvents.h"
+#include "editor/Picker.h"
 #include "event/BaseComponentEvents.h"
 #include <event/EventBuffer.h>
 #include <event/EventHandler.h>
@@ -10,8 +11,11 @@
 #include "ImGuiImpl.h"
 #include "lua/LuaVariant.h"
 #include "LuaGameObject.h"
+#include "provider/ComponentRegistryProvider.h"
 #include "provider/LuaGameObjectProvider.h"
 #include "provider/MessageQueueProvider.h"
+#include "util/Finally.h"
+#include "util/ScratchPad.h"
 
 namespace {
   Component** _findComponent(std::vector<Component*>& components, size_t type) {
@@ -22,20 +26,27 @@ namespace {
   }
 
   void _sortComponents(std::vector<Component*>& components) {
-    // These first then whatever
+    //These first then whatever
     std::swap(components[0], *_findComponent(components, Component::typeId<NameComponent>()));
     std::swap(components[1], *_findComponent(components, Component::typeId<Transform>()));
     std::swap(components[2], *_findComponent(components, Component::typeId<SpaceComponent>()));
   }
 }
 
-ObjectInspector::ObjectInspector(MessageQueueProvider& msg, EventHandler& handler)
+ObjectInspector::ObjectInspector(MessageQueueProvider& msg, EventHandler& handler, const ComponentRegistryProvider& componentRegistry)
   : mMsg(msg)
-  , mDefaultInspectors(std::make_unique<DefaultInspectors>()) {
+  , mDefaultInspectors(std::make_unique<DefaultInspectors>())
+  , mComponentRegistry(componentRegistry) {
 
   handler.registerEventHandler<SetSelectionEvent>([this](const SetSelectionEvent& e) {
     mSelected = e.mObjects;
   });
+
+  auto refreshSelection = [this]() {
+    mPrevSelected.clear();
+  };
+  handler.registerEventHandler<AddComponentEvent>([this, refreshSelection](const AddComponentEvent&) { refreshSelection(); });
+  handler.registerEventHandler<RemoveComponentEvent>([this, refreshSelection](const RemoveComponentEvent) { refreshSelection(); });
 }
 
 ObjectInspector::~ObjectInspector() {
@@ -65,9 +76,10 @@ void ObjectInspector::editorUpdate(const LuaGameObjectProvider& objects) {
     });
     _sortComponents(components);
 
+    _showComponentPicker();
+
     for(size_t c = 0; c < components.size(); ++c) {
       Component* comp = components[c];
-
       bool updateComponent = false;
       if(const Lua::Node* props = comp->getLuaProps()) {
         ImGui::PushID(static_cast<int>(c));
@@ -81,8 +93,8 @@ void ObjectInspector::editorUpdate(const LuaGameObjectProvider& objects) {
 
         //If a property changed, make a diff and send an update message
         if(updateComponent) {
-          const auto& originalComp = original.getComponent(comp->getType(), comp->getSubType());
-          const auto& newComp = *comp;
+          const Component& originalComp = *original.getComponent(comp->getType(), comp->getSubType());
+          const Component& newComp = *comp;
 
           //Generate diff of component
           auto diff = props->getDiff(&originalComp, &newComp);
@@ -126,4 +138,40 @@ bool ObjectInspector::_inspectProperty(const Lua::Node& prop, void* data) const 
   if(auto func = mDefaultInspectors->getFactory(prop))
     return (*func)(prop, data);
   return false;
+}
+
+void ObjectInspector::_showComponentPicker() const {
+  Picker::PickerInfo picker;
+  picker.name = "Components";
+  picker.padKey = "selectedComponent";
+
+  ScratchPad& pad = ImGuiImpl::getPad();
+  pad.push("componentPicker");
+  auto popPad = finally([&pad]() { pad.pop(); });
+
+  picker.forEachItem = [this](const Picker::PickerInfo::ForEachCallback& callback) {
+    mComponentRegistry.forEachComponentType([&callback, this](const Component& type) {
+      const bool canAddComponent = std::any_of(mSelectedData.begin(), mSelectedData.end(), [&type](const std::unique_ptr<LuaGameObject>& obj) {
+        return obj->getComponent(type.getType(), type.getSubType()) == nullptr;
+      });
+      if(canAddComponent)
+        callback(type.getTypeInfo().mTypeName.c_str(), type.getTypeInfo().mPropNameConstHash, &type);
+    });
+  };
+
+  //Add the component to all selected items
+  picker.onItemSelected = [this](const void* item) {
+    const Component* type = reinterpret_cast<const Component*>(item);
+    auto msg = mMsg.getMessageQueue();
+    for(const auto& obj : mSelectedData) {
+      if(!obj->getComponent(type->getType(), type->getSubType()))
+        msg.get().push(AddComponentEvent(obj->getHandle(), type->getType(), type->getSubType()));
+    }
+  };
+
+  if(ImGui::Button("Add Component")) {
+    ImGui::OpenPopup(picker.name);
+  }
+
+  Picker::createModal(picker);
 }
