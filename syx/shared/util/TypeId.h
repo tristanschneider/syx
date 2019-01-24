@@ -112,7 +112,7 @@ public:
 
   Iterator_t begin() {
     Iterator_t result(0, &mValues);
-    if(!*result)
+    if(!mValues.empty() && !*result)
       ++result;
     return result;
   }

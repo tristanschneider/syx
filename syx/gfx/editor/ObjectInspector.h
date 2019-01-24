@@ -1,5 +1,6 @@
 #pragma once
 
+class Component;
 class ComponentRegistryProvider;
 class DefaultInspectors;
 class EventHandler;
@@ -24,6 +25,7 @@ private:
   void _updateSelection(const LuaGameObjectProvider& objects);
   bool _inspectProperty(const Lua::Node& prop, void* data) const;
   void _showComponentPicker() const;
+  void _deleteComponentButton(const Component& component);
 
   MessageQueueProvider& mMsg;
   std::vector<Handle> mSelected;

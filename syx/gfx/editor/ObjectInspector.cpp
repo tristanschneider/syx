@@ -62,7 +62,9 @@ void ObjectInspector::editorUpdate(const LuaGameObjectProvider& objects) {
 
   ImGui::Begin("Inspector");
   ImGui::BeginChild("ScrollView", ImVec2(0, 0), true);
-  const size_t textLimit = 100;
+
+  _showComponentPicker();
+
   for(size_t i = 0; i < mSelected.size(); ++i) {
     auto& selected = mSelectedData[i];
     const LuaGameObject& original = *objects.getObject(mSelected[i]);
@@ -76,10 +78,9 @@ void ObjectInspector::editorUpdate(const LuaGameObjectProvider& objects) {
     });
     _sortComponents(components);
 
-    _showComponentPicker();
-
     for(size_t c = 0; c < components.size(); ++c) {
       Component* comp = components[c];
+
       bool updateComponent = false;
       if(const Lua::Node* props = comp->getLuaProps()) {
         ImGui::PushID(static_cast<int>(c));
@@ -103,6 +104,10 @@ void ObjectInspector::editorUpdate(const LuaGameObjectProvider& objects) {
           std::vector<uint8_t> buffer(props->size());
           props->copyConstructToBuffer(&newComp, buffer.data());
           mMsg.getMessageQueue().get().push(SetComponentPropsEvent(newComp.getOwner(), newComp.getType(), props, diff, std::move(buffer)));
+        }
+
+        if(!original._isBuiltInComponent(*comp)) {
+          _deleteComponentButton(*comp);
         }
 
         ImGui::EndGroup();
@@ -174,4 +179,10 @@ void ObjectInspector::_showComponentPicker() const {
   }
 
   Picker::createModal(picker);
+}
+
+void ObjectInspector::_deleteComponentButton(const Component& component) {
+  if(ImGui::Button("Remove Component")) {
+    mMsg.getMessageQueue().get().push(RemoveComponentEvent(component.getOwner(), component.getType(), component.getSubType()));
+  }
 }

@@ -80,12 +80,25 @@ void LuaGameObject::addComponent(std::unique_ptr<Component> component) {
 }
 
 void LuaGameObject::removeComponent(size_t type) {
-  if(std::unique_ptr<Component>* component = mComponents.get(type)) {
+  //TODO: get rid of this overload
+  removeComponent({ type, 0 });
+}
+
+void LuaGameObject::removeComponent(const ComponentType& type) {
+  if(type.id == Component::typeId<LuaComponent>()) {
+    auto found = mLuaComponents.find(type.subId);
+    if(found != mLuaComponents.end()) {
+      _removeComponentLookup(found->second);
+      mLuaComponents.erase(found);
+    }
+  }
+  else if(std::unique_ptr<Component>* component = mComponents.get(type.id)) {
     if(*component) {
       _removeComponentLookup(**component);
       *component = nullptr;
     }
   }
+  //Built in components can't be removed
 }
 
 Component* LuaGameObject::getComponent(size_t type, size_t subType) {

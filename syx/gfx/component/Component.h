@@ -56,6 +56,12 @@ struct ComponentTypeInfo {
   size_t mPropNameConstHash;
 };
 
+//TODO: use this everywhere instead of separate values
+struct ComponentType {
+  size_t id;
+  size_t subId;
+};
+
 class Component {
 public:
   DECLARE_TYPE_CATEGORY;
@@ -91,6 +97,10 @@ public:
   }
   size_t getSubType() const {
     return mSubType;
+  }
+  //TODO: replace the above two with this
+  ComponentType getFullType() const {
+    return { mType, mSubType };
   }
   Handle getOwner() const {
     return mOwner;

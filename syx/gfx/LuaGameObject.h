@@ -48,6 +48,7 @@ public:
 
   void addComponent(std::unique_ptr<Component> component);
   void removeComponent(size_t type);
+  void removeComponent(const ComponentType& type);
   Component* getComponent(size_t type, size_t subType = 00);
   const Component* getComponent(size_t type, size_t subType = 0) const;
   Transform& getTransform();
@@ -105,6 +106,8 @@ public:
 
   static LuaGameObject& getObj(lua_State* l, int index);
 
+  bool _isBuiltInComponent(const Component& comp) const;
+
 private:
   static const std::string CLASS_NAME;
   static std::unique_ptr<Lua::Cache> sCache;
@@ -112,7 +115,6 @@ private:
   void _addBuiltInComponents();
   void _forEachBuiltInComponent(std::function<void(Component&)> func);
   void _forEachBuiltInComponent(std::function<void(const Component&)> func) const;
-  bool _isBuiltInComponent(const Component& comp) const;
   void _addComponentLookup(Component& comp);
   void _removeComponentLookup(const Component& comp);
 
