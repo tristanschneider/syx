@@ -41,6 +41,7 @@ TextAssetLoader::~TextAssetLoader() {
 }
 
 AssetLoadResult TextAssetLoader::load(const std::string& basePath, Asset& asset) {
+  mCurIndex = 0;
   std::string fullPath = basePath + asset.getInfo().mUri;
   AssetLoadResult ioResult = _readEntireFile(fullPath, mData);
   return ioResult == AssetLoadResult::Success ? _load(asset) : ioResult;
