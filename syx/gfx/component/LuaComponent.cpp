@@ -1,6 +1,7 @@
 #include "Precompile.h"
 #include "component/LuaComponent.h"
 
+#include "editor/InspectorFactory.h"
 #include <lua.hpp>
 #include "lua/LuaCompositeNodes.h"
 #include "lua/LuaSandbox.h"
@@ -62,8 +63,9 @@ const Lua::Node* LuaComponent::getLuaProps() const {
 
 std::unique_ptr<Lua::Node> LuaComponent::_buildLuaProps() const {
   using namespace Lua;
+  using namespace Inspector;
   auto root = makeRootNode(Lua::NodeOps(""));
-  makeNode<LightUserdataSizetNode>(Lua::NodeOps(*root, "script", ::Util::offsetOf(*this, mScript)));
+  makeNode<LightUserdataSizetNode>(Lua::NodeOps(*root, "script", ::Util::offsetOf(*this, mScript))).setInspector(getAssetInspector(*getAssetRepo(), "lc"));
   Node& propsPtr = makeNode<UniquePtrNode<Variant>>(Lua::NodeOps(*root, "props", ::Util::offsetOf(*this, mProps)));
   makeNode<VariantNode>(Lua::NodeOps(propsPtr, "", 0));
   return std::move(root);
