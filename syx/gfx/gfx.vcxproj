@@ -280,6 +280,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClInclude Include="editor\Picker.h" />
     <ClInclude Include="editor\SceneBrowser.h" />
     <ClInclude Include="editor\Toolbox.h" />
+    <ClInclude Include="editor\util\ScopedImGui.h" />
     <ClInclude Include="event\BaseComponentEvents.h" />
     <ClInclude Include="event\DebugDrawEvent.h" />
     <ClInclude Include="event\LifecycleEvents.h" />

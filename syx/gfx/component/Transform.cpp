@@ -1,5 +1,7 @@
 #include "Precompile.h"
 #include "Transform.h"
+
+#include "editor/InspectorFactory.h"
 #include "lua/LuaNode.h"
 #include "lua/LuaUtil.h"
 #include <lua.hpp>
@@ -54,6 +56,6 @@ const ComponentTypeInfo& Transform::getTypeInfo() const {
 std::unique_ptr<Lua::Node> Transform::_buildLuaProps() const {
   using namespace Lua;
   std::unique_ptr<Node> root = makeRootNode(NodeOps(LUA_PROPS_KEY));
-  makeNode<Mat4Node>(NodeOps(*root, "matrix", ::Util::offsetOf(*this, mMat)));
+  makeNode<Mat4Node>(NodeOps(*root, "matrix", ::Util::offsetOf(*this, mMat))).setInspector(Inspector::wrap(Inspector::inspectTransform));
   return root;
 }

@@ -554,5 +554,8 @@
     <ClInclude Include="editor\Picker.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="editor\util\ScopedImGui.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

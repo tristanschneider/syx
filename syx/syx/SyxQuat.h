@@ -33,6 +33,7 @@ namespace Syx {
     float length() const;
     float length2() const;
 
+    Quat safeNormalized() const;
     Quat normalized() const;
     void normalize();
 

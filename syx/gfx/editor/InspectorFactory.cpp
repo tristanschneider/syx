@@ -3,6 +3,7 @@
 
 #include "asset/Asset.h"
 #include "editor/event/EditorEvents.h"
+#include "editor/util/ScopedImGui.h"
 #include <event/EventBuffer.h>
 #include <imgui/imgui.h>
 #include "ImGuiImpl.h"
@@ -48,6 +49,31 @@ namespace Inspector {
       mat = m.transposed();
     ImGui::PopID();
     return changed;
+  }
+
+  bool inspectTransform(const Lua::Node& prop, Syx::Mat4& mat) {
+    const char* name = prop.getName().c_str();
+    ImGui::Text(name);
+    ScopedStringId propScope(name);
+
+    Syx::Vec3 translate, scale;
+    Syx::Mat3 mRot;
+    mat.decompose(scale, mRot, translate);
+    Syx::Quat qRot = mRot.toQuat();
+    bool changed = false;
+
+    changed = ImGui::InputFloat3("Translate", translate.data());
+    changed = ImGui::InputFloat4("Rotate", qRot.mV.data()) || changed;
+    changed = ImGui::InputFloat3("Scale", scale.data()) || changed;
+
+    if(changed) {
+      //Validate parameters so that transform is still a valid affine transformation
+      for(int i = 0; i < 3; ++i)
+        scale[i] = std::max(0.0001f, scale[i]);
+      mat = Syx::Mat4::transform(scale, qRot.safeNormalized(), translate);
+      return true;
+    }
+    return false;
   }
 
   bool inspectInt(const Lua::Node& prop, int& i) {

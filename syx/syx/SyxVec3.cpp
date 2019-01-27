@@ -153,6 +153,14 @@ namespace Syx {
     return safeDivide(*this, length());
   }
 
+  const float* Vec3::data() const {
+    return &x;
+  }
+
+  float* Vec3::data() {
+    return &x;
+  }
+
   void Vec3::safeDivide(float rhs) {
     float scalar = 0.0f;
     if(std::abs(rhs) > SYX_EPSILON)

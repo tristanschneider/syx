@@ -70,6 +70,11 @@ namespace Syx {
     return mV.length2() + mV.w*mV.w;
   }
 
+  Quat Quat::safeNormalized() const {
+    const float len = length();
+    return len > SYX_EPSILON ? *this / len : Quat(1, 0, 0, 0);
+  }
+
   Quat Quat::normalized(void) const {
     return *this / length();
   }

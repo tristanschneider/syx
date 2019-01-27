@@ -1,5 +1,7 @@
 #include "Precompile.h"
 #include "component/Physics.h"
+
+#include "editor/InspectorFactory.h"
 #include "lua/LuaNode.h"
 #include "lua/LuaUtil.h"
 #include <lua.hpp>
@@ -94,6 +96,6 @@ std::unique_ptr<Lua::Node> Physics::_buildLuaProps() const {
   makeNode<Vec3Node>(NodeOps(*root, "angVel", ::Util::offsetOf(*this, mData.mAngVel)));
   makeNode<LightUserdataSizetNode>(NodeOps(*root, "model", ::Util::offsetOf(*this, mData.mModel)));
   makeNode<LightUserdataSizetNode>(NodeOps(*root, "material", ::Util::offsetOf(*this, mData.mMaterial)));
-  makeNode<Mat4Node>(NodeOps(*root, "physToModel", ::Util::offsetOf(*this, mData.mPhysToModel)));
+  makeNode<Mat4Node>(NodeOps(*root, "physToModel", ::Util::offsetOf(*this, mData.mPhysToModel))).setInspector(Inspector::wrap(Inspector::inspectTransform));
   return root;
 }

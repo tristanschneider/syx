@@ -40,6 +40,8 @@ namespace Syx {
     int mostSignificantAxis(void) const;
     Vec3 normalized(void) const;
     Vec3 safeNormalized(void) const;
+    const float* data() const;
+    float* data();
 
     void safeDivide(float rhs);
     void scale(const Vec3& rhs);
