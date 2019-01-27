@@ -13,6 +13,7 @@ class AssetRepo;
 class ClearSpaceEvent;
 class Component;
 class FilePath;
+class GameObjectHandleProvider;
 class LoadSpaceEvent;
 class LuaComponentRegistry;
 class LuaGameObject;
@@ -89,6 +90,7 @@ public:
   Space& getSpace(Handle id);
   const ProjectLocator& getProjectLocator() const;
   IWorkerPool& getWorkerPool();
+  GameObjectHandleProvider& getGameObjectGen() const;
 
   const LuaGameObject* getObject(Handle handle) const;
 

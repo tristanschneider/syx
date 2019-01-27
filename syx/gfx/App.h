@@ -1,9 +1,9 @@
 #pragma once
 #include "system/System.h"
-#include "provider/GameObjectHandleProvider.h"
 #include "provider/MessageQueueProvider.h"
 #include "provider/SystemProvider.h"
 
+class GameObjectHandleProvider;
 class GraphicsSystem;
 class KeyboardInput;
 class System;
@@ -14,8 +14,7 @@ class ProjectLocator;
 
 class App
   : public MessageQueueProvider
-  , public SystemProvider
-  , public GameObjectHandleProvider {
+  , public SystemProvider {
 public:
   App(std::unique_ptr<AppPlatform> appPlatform);
   ~App();
@@ -30,8 +29,6 @@ public:
 
   MessageQueue getMessageQueue() override;
   System* _getSystem(size_t id) override;
-  //GameObjectHandleProvider
-  Handle newHandle() override;
 
 private:
   std::vector<std::unique_ptr<System>> mSystems;
@@ -41,6 +38,6 @@ private:
   std::unique_ptr<EventBuffer> mMessageQueue;
   std::unique_ptr<EventBuffer> mFrozenMessageQueue;
   std::unique_ptr<ProjectLocator> mProjectLocator;
+  std::unique_ptr<GameObjectHandleProvider> mGameObjectGen;
   SpinLock mMessageLock;
-  HandleGen mGameObjectGen;
 };

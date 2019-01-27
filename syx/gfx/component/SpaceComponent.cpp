@@ -18,6 +18,7 @@
 #include "lua/LuaUtil.h"
 #include <lua.hpp>
 #include "ProjectLocator.h"
+#include "provider/GameObjectHandleProvider.h"
 #include "provider/MessageQueueProvider.h"
 #include "Space.h"
 #include "system/AssetRepo.h"
@@ -219,7 +220,9 @@ void SpaceComponent::_loadSceneFromDescription(LuaGameSystem& game, const LuaSce
   for(const std::string& asset : scene.mAssets) {
     repo.getAsset(AssetInfo(asset));
   }
+  GameObjectHandleProvider& objGen = game.getGameObjectGen();
   for(const LuaGameObjectDescription& obj : scene.mObjects) {
+    objGen.blacklistHandle(obj.mHandle);
     _pushObjectFromDescription(game, obj, space);
   }
 }
@@ -234,8 +237,8 @@ void SpaceComponent::_addObjectsFromSpace(LuaGameSystem& game, Handle fromSpace,
     const LuaGameObject& obj = *it.second;
     if(obj.getSpace() != fromSpace)
       continue;
-    msg.get().push(AddGameObjectEvent(obj.getHandle()));
-    Handle objHandle = obj.getHandle();
+    const Handle objHandle = obj.getHandle();
+    msg.get().push(AddGameObjectEvent(objHandle));
 
     //Copy components
     obj.forEachComponent([&msg, objHandle](const Component& comp) {

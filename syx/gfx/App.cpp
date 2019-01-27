@@ -7,18 +7,34 @@
 #include "file/FilePath.h"
 #include "ImGuiImpl.h"
 #include "ProjectLocator.h"
+#include "provider/GameObjectHandleProvider.h"
 #include "system/GraphicsSystem.h"
 #include "test/TestRegistry.h"
 #include "threading/WorkerPool.h"
 #include "threading/SyncTask.h"
 #include "util/ScratchPad.h"
 
+class GameObjectGen : public GameObjectHandleProvider {
+public:
+  Handle newHandle() override {
+    return mGen.next();
+  }
+
+  void blacklistHandle(Handle used) override {
+    mGen.blacklistHandle(used);
+  }
+
+private:
+  HandleGen mGen;
+};
+
 App::App(std::unique_ptr<AppPlatform> appPlatform)
   : mWorkerPool(std::make_unique<WorkerPool>(4))
   , mMessageQueue(std::make_unique<EventBuffer>())
   , mFrozenMessageQueue(std::make_unique<EventBuffer>())
   , mAppPlatform(std::move(appPlatform))
-  , mProjectLocator(std::make_unique<ProjectLocator>()) {
+  , mProjectLocator(std::make_unique<ProjectLocator>())
+  , mGameObjectGen(std::make_unique<GameObjectGen>()) {
   FilePath path, file, ext;
   FilePath exePath(mAppPlatform->getExePath().c_str());
   exePath.getParts(path, file, ext);
@@ -27,7 +43,7 @@ App::App(std::unique_ptr<AppPlatform> appPlatform)
     mWorkerPool.get(),
     this,
     this,
-    this,
+    mGameObjectGen.get(),
     mProjectLocator.get()
   };
   System::Registry::getSystems(args, mSystems);
@@ -150,8 +166,4 @@ MessageQueue App::getMessageQueue() {
 
 System* App::_getSystem(size_t id) {
   return id < mSystems.size() ? mSystems[id].get() : nullptr;
-}
-
-Handle App::newHandle() {
-  return mGameObjectGen.next();
 }

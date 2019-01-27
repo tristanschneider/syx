@@ -247,6 +247,10 @@ IWorkerPool& LuaGameSystem::getWorkerPool() {
   return *mArgs.mPool;
 }
 
+GameObjectHandleProvider& LuaGameSystem::getGameObjectGen() const {
+  return *mArgs.mGameObjectGen;
+}
+
 const LuaGameObject* LuaGameSystem::getObject(Handle handle) const {
   assert((mSafeToAccessObjects || mEventHandlerThread == std::this_thread::get_id()) && "Lua objects should only be accessed on tasks depending on event processing");
   return _getObj(handle);

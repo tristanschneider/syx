@@ -22,6 +22,15 @@ public:
     return result;
   }
 
+  //Prevent this handle from being generated from a future call to next
+  void blacklistHandle(Handle used) {
+    //Handles are generated in ascending order, so put next key above the blacklisted key.
+    //Doesn't handle overflow, but neither does next
+    Handle curValue = mNewKey;
+    if(curValue < used)
+      mNewKey.fetch_add(used - curValue);
+  }
+
 private:
   std::atomic<Handle> mNewKey;
 };
