@@ -44,7 +44,8 @@ App::App(std::unique_ptr<AppPlatform> appPlatform)
     this,
     this,
     mGameObjectGen.get(),
-    mProjectLocator.get()
+    mProjectLocator.get(),
+    mAppPlatform.get(),
   };
   System::Registry::getSystems(args, mSystems);
 

@@ -21,6 +21,7 @@ struct SystemArgs {
   MessageQueueProvider* mMessages;
   GameObjectHandleProvider* mGameObjectGen;
   const ProjectLocator* mProjectLocator;
+  AppPlatform* mAppPlatform;
 };
 
 class System {

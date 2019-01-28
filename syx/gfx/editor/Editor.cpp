@@ -1,6 +1,7 @@
 #include "Precompile.h"
 #include "editor/Editor.h"
 
+#include "AppPlatform.h"
 #include "Camera.h"
 #include "editor/AssetPreview.h"
 #include "editor/ObjectInspector.h"
@@ -19,6 +20,8 @@
 #include "system/KeyboardInput.h"
 #include "system/LuaGameSystem.h"
 #include "system/GraphicsSystem.h"
+#include <threading/FunctionTask.h>
+#include <threading/IWorkerPool.h>
 
 RegisterSystemCPP(Editor);
 
@@ -37,6 +40,59 @@ private:
   std::function<void()> mUpdate;
 };
 
+class DragDropAssetLoader : public DragDropObserver {
+public:
+  DragDropAssetLoader(AssetRepo& repo, IWorkerPool& workerPool, const ProjectLocator& locator)
+    : mAssets(repo)
+    , mPool(workerPool)
+    , mLocator(locator) {
+  }
+
+  void onDrop(const std::vector<FilePath>& files) override {
+    std::vector<FilePath> myFiles = files;
+    mPool.queueTask(std::make_shared<FunctionTask>([this, myFiles = std::move(files)]() mutable {
+      _expandDirectories(myFiles);
+      _loadAssets(myFiles);
+    }));
+  }
+
+private:
+  void _expandDirectories(std::vector<FilePath>& files) {
+    size_t end = files.size();
+    for(size_t i = 0; i < end; ++i) {
+      const FilePath file = files[i];
+      if(FileSystem::isDirectory(file)) {
+        FileSystem::forEachInDirectoryRecursive(files[i].cstr(), [&files](std::string_view file) {
+          files.emplace_back(file.data());
+        });
+      }
+    }
+  }
+
+  void _loadAssets(const std::vector<FilePath>& files) {
+    for(const FilePath& file : files) {
+      //TODO: fix this, right now the project root is in a weird place, which would make ignoring them annoying
+      const FilePath relativePath = file;//mLocator.transform(file.cstr(), PathSpace::Full, PathSpace::Project);
+      //Skip paths that aren't under the project
+      //if(relativePath != file) {
+        if(mAssets.getAsset(AssetInfo(relativePath.cstr()))) {
+          printf("Loading asset %s\n", relativePath.cstr());
+        }
+        else {
+          printf("Unsupported asset type %s\n", relativePath.cstr());
+        }
+    //  }
+    //  else {
+    //    printf("Ignoring asset not under project root %s\n", file.cstr());
+    //  }
+    }
+  }
+
+  AssetRepo& mAssets;
+  IWorkerPool& mPool;
+  const ProjectLocator& mLocator;
+};
+
 void Editor::init() {
   mCurrentState = PlayState::Stopped;
   mEventHandler = std::make_unique<EventHandler>();
@@ -47,6 +103,8 @@ void Editor::init() {
   mObjectInspector = std::make_unique<ObjectInspector>(*mArgs.mMessages, *mEventHandler, *mArgs.mSystems->getSystem<LuaGameSystem>());
   mAssetPreview = std::make_unique<AssetPreview>(*mArgs.mMessages, *mEventHandler, *mArgs.mSystems->getSystem<AssetRepo>());
   mToolbox = std::make_unique<Toolbox>(*mArgs.mMessages, *mEventHandler);
+  mDragDropAssetLoader = std::make_unique<DragDropAssetLoader>(*mArgs.mSystems->getSystem<AssetRepo>(), *mArgs.mPool, *mArgs.mProjectLocator);
+  mArgs.mAppPlatform->addDragDropObserver(*mDragDropAssetLoader);
 
   mEventHandler->registerEventHandler<AllSystemsInitialized>([this](const AllSystemsInitialized&) {
     mGameObserver = std::make_unique<EditorGameObserver>(std::bind(&Editor::_editorUpdate, this));

@@ -113,8 +113,9 @@ FilePath FilePath::getRelativeTo(const FilePath& relative) const {
     //Reset the size and append 
     result.mSize = 0;
     result._append(&mPath[relative.mSize]);
+    return result;
   }
-  return result;
+  return {};
 }
 
 FilePath FilePath::addExtension(const char* extension) const {

@@ -2,6 +2,7 @@
 #include "system/System.h"
 
 class AssetPreview;
+class DragDropAssetLoader;
 class FilePath;
 class LuaGameSystemObserver;
 class ObjectInspector;
@@ -32,4 +33,5 @@ private:
   std::unique_ptr<Toolbox> mToolbox;
   PlayState mCurrentState;
   std::unique_ptr<FilePath> mSavedScene;
+  std::unique_ptr<DragDropAssetLoader> mDragDropAssetLoader;
 };

@@ -41,9 +41,10 @@ namespace FileSystem {
 
   template<class Func>
   bool forEachInDirectoryRecursive(const char* directory, const Func& func) {
+    assert(isDirectory(directory) && "Should only be called with directories");
     bool any = false;
     for(auto it : std::filesystem::recursive_directory_iterator(directory)) {
-      func(it.path());
+      func(it.path().u8string());
       any = true;
     }
     return any;

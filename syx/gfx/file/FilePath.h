@@ -4,7 +4,7 @@
 class FilePath {
 public:
   //Max path on windows is 260, add one for null terminator
-  static const size_t MAX_PATH = 261;
+  static const size_t MAX_FILE_PATH = 261;
   static const FilePath EMPTY_PATH;
 
   FilePath(const char* path = nullptr);
@@ -36,7 +36,7 @@ private:
   FilePath _substr(size_t begin, size_t chars) const;
   const char* _findLastOf(const char* c) const;
 
-  std::array<char, MAX_PATH> mPath;
-  //Size of path. If this is MAX_PATH, that indicates the path is too big
+  std::array<char, MAX_FILE_PATH> mPath;
+  //Size of path. If this is MAX_FILE_PATH, that indicates the path is too big
   size_t mSize;
 };

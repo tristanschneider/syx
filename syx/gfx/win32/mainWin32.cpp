@@ -12,6 +12,7 @@
 
 #include "asset/Shader.h"
 #include "App.h"
+#include "file/FilePath.h"
 #include "system/GraphicsSystem.h"
 #include "system/KeyboardInput.h"
 #include "win32/AppPlatformWin32.h"
@@ -48,6 +49,28 @@ void onFocusChanged(WPARAM w) {
   }
 }
 
+void _registerDragDrop(HWND window) {
+  ::DragAcceptFiles(window, TRUE);
+}
+
+LRESULT _handleDragDrop(HWND wnd, UINT msg, WPARAM w, LPARAM l) {
+  const HDROP drop = reinterpret_cast<HDROP>(w);
+  const UINT fileCount = ::DragQueryFileA(drop, 0xFFFFFFFF, nullptr, 0);
+  std::vector<FilePath> files;
+
+  std::array<char, FilePath::MAX_FILE_PATH> buffer;
+  for(UINT i = 0; i < fileCount; ++i) {
+    if(::DragQueryFileA(drop, i, buffer.data(), buffer.size())) {
+      printf("Receiving file %s\n", buffer.data());
+      files.emplace_back(FilePath(buffer.data()));
+    }
+  }
+
+  ::DragFinish(drop);
+  sApp->getAppPlatform().onDrop(files);
+  return ::DefWindowProc(wnd, msg, w, l);
+}
+
 LRESULT CALLBACK mainProc(HWND wnd, UINT msg, WPARAM w, LPARAM l) {
   switch(msg) {
     case WM_DESTROY:
@@ -73,6 +96,9 @@ LRESULT CALLBACK mainProc(HWND wnd, UINT msg, WPARAM w, LPARAM l) {
         input->feedWheelDelta(static_cast<float>(GET_WHEEL_DELTA_WPARAM(w))/static_cast<float>(WHEEL_DELTA));
       }
       break;
+
+    case WM_DROPFILES:
+      return _handleDragDrop(wnd, msg, w, l);
   }
   return DefWindowProc(wnd, msg, w, l);
 }
@@ -216,6 +242,8 @@ int WINAPI WinMain(HINSTANCE hinstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     hinstance,
     NULL);
   ShowWindow(wnd, nCmdShow);
+
+  _registerDragDrop(wnd);
 
   sDeviceContext = GetDC(wnd);
   initDeviceContext(sDeviceContext, 32, 24, 8, 0);
