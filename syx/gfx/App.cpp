@@ -93,12 +93,16 @@ void App::init() {
   mMessageQueue->push(AllSystemsInitialized());
   mMessageLock.unlock();
 
-  static FocusEvents::ObserverType o(std::make_unique<AppFocusListener>());
-  if(!o.hasSubject())
-    getAppPlatform().addFocusObserver(o);
-  static DirectoryWatcher::ObserverType d(std::make_unique<AppDirectoryWatcher>());
-  if(!d.hasSubject())
-    getAppPlatform().addDirectoryObserver(d);
+  static std::unique_ptr<AppFocusListener> o = [this]() {
+    auto l = std::make_unique<AppFocusListener>();
+    getAppPlatform().addFocusObserver(*l);
+    return l;
+  }();
+  static std::unique_ptr<AppDirectoryWatcher> d = [this]() {
+    auto w = std::make_unique<AppDirectoryWatcher>();;
+    getAppPlatform().addDirectoryObserver(*w);
+    return w;
+  }();
 }
 
 #include "imgui/imgui.h"

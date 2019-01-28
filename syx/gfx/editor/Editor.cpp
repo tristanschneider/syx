@@ -49,7 +49,7 @@ void Editor::init() {
   mToolbox = std::make_unique<Toolbox>(*mArgs.mMessages, *mEventHandler);
 
   mEventHandler->registerEventHandler<AllSystemsInitialized>([this](const AllSystemsInitialized&) {
-    mGameObserver = std::make_unique<LuaGameSystemObserverT>(std::make_unique<EditorGameObserver>(std::bind(&Editor::_editorUpdate, this)));
+    mGameObserver = std::make_unique<EditorGameObserver>(std::bind(&Editor::_editorUpdate, this));
     mArgs.mSystems->getSystem<LuaGameSystem>()->addObserver(*mGameObserver);
   });
 

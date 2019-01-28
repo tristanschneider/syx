@@ -1,19 +1,25 @@
 #pragma once
-template<typename T>
+template<class T, class Mutex>
 class Observer;
 
 #pragma warning (disable: 4521)
 
-//Call method on all observers of subject
-#define CallOnObserversPtr(subject, method, ...) { for(auto o : subject.get()) o->get()->method(__VA_ARGS__); }
-#define CallOnObservers(subject, method, ...) { for(auto o : subject.get()) o->get().method(__VA_ARGS__); }
+//Call method on all observers of subject. Not threadsafe.
+#define CallOnObserversPtr(subject, method, ...) { for(auto o : subject.get()) o->method(__VA_ARGS__); }
+#define CallOnObservers(subject, method, ...) { for(auto o : subject.get()) o.method(__VA_ARGS__); }
 
-template<typename Obs, typename Inner>
+struct NoMutex {
+  void lock() {}
+  void unlock() {}
+};
+
+template<class Obs, class Friend, class Mutex>
 class Subject {
-  friend class Observer<Inner>;
+  friend Friend;
 
 public:
   ~Subject() {
+    std::lock_guard<Mutex> lock(mMutex);
     for(Obs* o : mObservers)
       o->mSubject = nullptr;
     mObservers.clear();
@@ -23,15 +29,24 @@ public:
     return mObservers;
   }
 
-private:
-  //Called through observer's observe()
-  void add(Obs& observer) {
-    mObservers.push_back(&observer);
+  template<class Func>
+  void forEach(const Func& func) {
+    std::lock_guard<Mutex> lock(mMutex);
+    for(Obs* o : mObservers)
+      func(*o);
   }
 
-  void remove(Obs& observer) {
+private:
+  //Called through observer's observe()
+  void add(Friend& observer) {
+    std::lock_guard<Mutex> lock(mMutex);
+    mObservers.push_back(reinterpret_cast<Obs*>(&observer));
+  }
+
+  void remove(Friend& observer) {
+    std::lock_guard<Mutex> lock(mMutex);
     for(size_t i = 0; i < mObservers.size(); ++i) {
-      if(mObservers[i] == &observer) {
+      if(mObservers[i] == reinterpret_cast<Obs*>(&observer)) {
         observer.mSubject = nullptr;
         mObservers[i] = mObservers.back();
         mObservers.pop_back();
@@ -42,62 +57,30 @@ private:
   }
 
   std::vector<Obs*> mObservers;
+  Mutex mMutex;
 };
 
-template<typename T>
+template<class T, class Mutex = NoMutex>
 class Observer {
 public:
-  using SubjectType = Subject<Observer<T>, T>;
+  using SubjectType = Subject<T, Observer<T>, Mutex>;
   friend class SubjectType;
 
-  template<typename... Args>
-  Observer(Args&&... args)
-    : mObj(std::forward<Args>(args)...)
-    , mSubject(nullptr) {
+  Observer()
+    : mSubject(nullptr) {
   }
 
-  Observer(const Observer<T>& observer)
-    : mObj(observer.mObj)
-    , mSubject(nullptr) {
-    observe(observer.mSubject);
-  }
+  Observer(const Observer&) = delete;
 
-  //Needed to prefer copy constructor over variatic template constructor
-  Observer(Observer<T>& observer)
-    : Observer(const_cast<const Observer<T>&>(observer)) {
-  }
+  Observer(Observer&&) = delete;
 
-  Observer(Observer<T>&& observer)
-    : mObj(std::move(observer.mObj)) {
-    if(observer.mSubject) {
-      observer.mSubject->remove(observer);
-      observer.mSubject->add(*this);
-    }
-  }
+  Observer<T>& operator=(const Observer&) = delete;
 
-  Observer<T>& operator=(const Observer<T>& observer) {
-    if(this == &observer)
-      return *this;
+  Observer& operator=(Observer&&) = delete;
+
+  virtual ~Observer() {
     if(mSubject)
       mSubject->remove(*this);
-
-    mObj = observer.mObj;
-    if(observer.mSubject)
-      observer.mSubject->add(*this);
-    return *this;
-  }
-
-  ~Observer() {
-    if(mSubject)
-      mSubject->remove(*this);
-  }
-
-  T& get() {
-    return mObj;
-  }
-
-  const T& get() const {
-    return mObj;
   }
 
   bool hasSubject() const {
@@ -121,7 +104,6 @@ public:
 private:
   //Set by subject on add/remove
   SubjectType* mSubject;
-  T mObj;
 };
 
 #pragma warning (default: 4521)

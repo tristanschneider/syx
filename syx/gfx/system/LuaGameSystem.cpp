@@ -204,7 +204,7 @@ LuaGameObject& LuaGameSystem::addGameObject() {
   return result;
 }
 
-void LuaGameSystem::addObserver(LuaGameSystemObserverT& observer) {
+void LuaGameSystem::addObserver(LuaGameSystemObserver& observer) {
   observer.observe(&mSubject);
 }
 

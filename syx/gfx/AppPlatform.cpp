@@ -1,18 +1,18 @@
 #include "Precompile.h"
 #include "AppPlatform.h"
 
-void AppPlatform::addFocusObserver(FocusEvents::ObserverType& o) {
+void AppPlatform::addFocusObserver(FocusEvents& o) {
   o.observe(&mFocusSubject);
 }
 
-void AppPlatform::addDirectoryObserver(DirectoryWatcher::ObserverType& o) {
+void AppPlatform::addDirectoryObserver(DirectoryWatcher& o) {
   o.observe(&mDirectorySubject);
 }
 
 void AppPlatform::onFocusGained() {
-  CallOnObserversPtr(mFocusSubject, onFocusGained);
+  mFocusSubject.forEach([](FocusEvents& e) { e.onFocusGained(); });
 }
 
 void AppPlatform::onFocusLost() {
-  CallOnObserversPtr(mFocusSubject, onFocusLost);
+  mFocusSubject.forEach([](FocusEvents& e) { e.onFocusLost(); });
 }

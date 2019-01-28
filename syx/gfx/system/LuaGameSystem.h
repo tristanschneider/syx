@@ -43,13 +43,12 @@ namespace Lua {
   class LuaLibGroup;
 }
 
-class LuaGameSystemObserver {
+class LuaGameSystemObserver : public Observer<LuaGameSystemObserver> {
 public:
   virtual ~LuaGameSystemObserver() {}
   //Main thread, safe to access lua objects
   virtual void preUpdate(const LuaGameSystem& game) {}
 };
-using LuaGameSystemObserverT = Observer<std::unique_ptr<LuaGameSystemObserver>>;
 
 class LuaGameSystem
   : public System
@@ -79,7 +78,7 @@ public:
   void removeComponentFromPropName(const char* name, Handle owner);
   LuaGameObject& addGameObject();
 
-  void addObserver(LuaGameSystemObserverT& observer);
+  void addObserver(LuaGameSystemObserver& observer);
 
   MessageQueue getMessageQueue();
   AssetRepo& getAssetRepo();
@@ -136,5 +135,5 @@ private:
   //Used for debug checking thread safety of public accesses to LuaGameObjects
   bool mSafeToAccessObjects = true;
   std::thread::id mEventHandlerThread;
-  LuaGameSystemObserverT::SubjectType mSubject;
+  LuaGameSystemObserver::SubjectType mSubject;
 };

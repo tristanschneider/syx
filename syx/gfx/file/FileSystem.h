@@ -39,5 +39,19 @@ namespace FileSystem {
     return success ? FileResult::Success : FileResult::Fail;
   }
 
+  template<class Func>
+  bool forEachInDirectoryRecursive(const char* directory, const Func& func) {
+    bool any = false;
+    for(auto it : std::filesystem::recursive_directory_iterator(directory)) {
+      func(it.path());
+      any = true;
+    }
+    return any;
+  }
+
+  inline bool isDirectory(const char* path) {
+    return std::filesystem::is_directory(path);
+  }
+
   bool fileExists(const char* filename);
 };

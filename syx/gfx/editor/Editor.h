@@ -25,7 +25,7 @@ private:
   Handle _getEditorSpace() const;
   Handle _getPlaySpace() const;
 
-  std::unique_ptr<Observer<std::unique_ptr<LuaGameSystemObserver>>> mGameObserver;
+  std::unique_ptr<LuaGameSystemObserver> mGameObserver;
   std::unique_ptr<SceneBrowser> mSceneBrowser;
   std::unique_ptr<ObjectInspector> mObjectInspector;
   std::unique_ptr<AssetPreview> mAssetPreview;

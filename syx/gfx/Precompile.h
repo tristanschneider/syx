@@ -22,6 +22,7 @@
 #include <cstdio>
 #include <array>
 #include <optional>
+#include <filesystem>
 
 #include <SyxMathIncludes.h>
 #include "Handle.h"
