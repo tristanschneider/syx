@@ -97,23 +97,29 @@ const char* FilePath::_findLastOf(const char* c) const {
 }
 
 void FilePath::_append(const char* str) {
+  const size_t oldSize = mSize;
   if(str) {
-    size_t charsToCopy = std::min(_remainingSize(), std::strlen(str));
+    const size_t charsToCopy = std::min(_remainingSize(), std::strlen(str));
     std::memcpy(&mPath[mSize], str, charsToCopy);
     mSize += charsToCopy;
   }
   //Add null terminator. If mSize is MAX_PATH then this is !hasValidLength and will be truncated with null terminator
   mPath[std::min(mSize, mPath.size() - 1)] = 0;
+  //Normalize slashes
+  std::replace(mPath.begin() + oldSize, mPath.begin() + mSize, '\\', '/');
 }
 
 FilePath FilePath::getRelativeTo(const FilePath& relative) const {
-  FilePath result(*this);
+  if(!relative.size()) {
+    return *this;
+  }
   //If relative is found in this, remove it
-  if(!std::strncmp(relative, result, result.mPath.size())) {
-    //Reset the size and append 
-    result.mSize = 0;
-    result._append(&mPath[relative.mSize]);
-    return result;
+  int cmp = std::strncmp(relative, *this, relative.size());
+  if(!cmp) {
+    size_t relativeBegin = relative.size();
+    if(size() > relative.size() && _isSlash(mPath[relative.size()]))
+      ++relativeBegin;
+    return FilePath(&mPath[relativeBegin]);
   }
   return {};
 }

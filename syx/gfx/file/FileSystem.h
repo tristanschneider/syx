@@ -44,8 +44,10 @@ namespace FileSystem {
     assert(isDirectory(directory) && "Should only be called with directories");
     bool any = false;
     for(auto it : std::filesystem::recursive_directory_iterator(directory)) {
-      func(it.path().u8string());
-      any = true;
+      if(!it.is_directory()) {
+        func(it.path().u8string());
+        any = true;
+      }
     }
     return any;
   }

@@ -33,6 +33,7 @@ public:
   void onDrop(const std::vector<FilePath>& files);
 
   virtual std::string getExePath() = 0;
+  virtual void setWorkingDirectory(const char* working) = 0;
 
 protected:
   FocusEvents::SubjectType mFocusSubject;

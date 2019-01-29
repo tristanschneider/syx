@@ -71,20 +71,19 @@ private:
 
   void _loadAssets(const std::vector<FilePath>& files) {
     for(const FilePath& file : files) {
-      //TODO: fix this, right now the project root is in a weird place, which would make ignoring them annoying
-      const FilePath relativePath = file;//mLocator.transform(file.cstr(), PathSpace::Full, PathSpace::Project);
+      const FilePath relativePath = mLocator.transform(file.cstr(), PathSpace::Full, PathSpace::Project);
       //Skip paths that aren't under the project
-      //if(relativePath != file) {
+      if(relativePath != file) {
         if(mAssets.getAsset(AssetInfo(relativePath.cstr()))) {
           printf("Loading asset %s\n", relativePath.cstr());
         }
         else {
           printf("Unsupported asset type %s\n", relativePath.cstr());
         }
-    //  }
-    //  else {
-    //    printf("Ignoring asset not under project root %s\n", file.cstr());
-    //  }
+      }
+      else {
+        printf("Ignoring asset not under project root %s\n", file.cstr());
+      }
     }
   }
 
@@ -112,9 +111,10 @@ void Editor::init() {
   });
 
   mEventHandler->registerEventHandler<UriActivated>([this](const UriActivated& e) {
-    if(FileSystem::fileExists(e.mUri.c_str())) {
+    const auto it = e.mParams.find("loadScene");
+    if(it != e.mParams.end() && FileSystem::fileExists(it->second.c_str())) {
       //TODO: should this path be kept seperate from mSavedScene?
-      *mSavedScene = FilePath(e.mUri.c_str());
+      *mSavedScene = FilePath(it->second.c_str());
       MessageQueue msg = mArgs.mMessages->getMessageQueue();
       msg.get().push(ClearSpaceEvent(_getEditorSpace()));
       msg.get().push(LoadSpaceEvent(_getEditorSpace(), *mSavedScene));

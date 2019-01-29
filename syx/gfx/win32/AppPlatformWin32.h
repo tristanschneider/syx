@@ -9,6 +9,7 @@ public:
   ~AppPlatformWin32();
 
   std::string getExePath() override;
+  void setWorkingDirectory(const char* working) override;
 
 private:
   std::unique_ptr<DirectoryWatcher32> mDirectoryWatcher;

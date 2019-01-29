@@ -23,3 +23,7 @@ std::string AppPlatformWin32::getExePath() {
     result[i] = static_cast<char>(buff[i]);
   return result;
 }
+
+void AppPlatformWin32::setWorkingDirectory(const char* working) {
+  ::SetCurrentDirectoryA(working);
+}

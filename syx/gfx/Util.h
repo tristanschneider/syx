@@ -59,6 +59,8 @@ namespace Util {
   std::pair<std::string, size_t> getHashPair(const Value& value, Hasher h) {
     return { value, h(value) };
   }
+
+  std::vector<std::string_view> split(std::string_view str, std::string_view delimiter);
 }
 
 template<typename T, typename Lock = std::mutex>

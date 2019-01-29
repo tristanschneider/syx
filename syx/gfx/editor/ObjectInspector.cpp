@@ -67,7 +67,11 @@ void ObjectInspector::editorUpdate(const LuaGameObjectProvider& objects) {
 
   for(size_t i = 0; i < mSelected.size(); ++i) {
     auto& selected = mSelectedData[i];
-    const LuaGameObject& original = *objects.getObject(mSelected[i]);
+    const LuaGameObject* original = objects.getObject(mSelected[i]);
+    if(!original) {
+      mSelected.clear();
+      break;
+    }
 
     ImGui::PushID(static_cast<int>(selected->getHandle()));
 
@@ -94,7 +98,7 @@ void ObjectInspector::editorUpdate(const LuaGameObjectProvider& objects) {
 
         //If a property changed, make a diff and send an update message
         if(updateComponent) {
-          const Component& originalComp = *original.getComponent(comp->getType(), comp->getSubType());
+          const Component& originalComp = *original->getComponent(comp->getType(), comp->getSubType());
           const Component& newComp = *comp;
 
           //Generate diff of component
@@ -106,7 +110,7 @@ void ObjectInspector::editorUpdate(const LuaGameObjectProvider& objects) {
           mMsg.getMessageQueue().get().push(SetComponentPropsEvent(newComp.getOwner(), newComp.getType(), props, diff, std::move(buffer)));
         }
 
-        if(!original._isBuiltInComponent(*comp)) {
+        if(!original->_isBuiltInComponent(*comp)) {
           _deleteComponentButton(*comp);
         }
 

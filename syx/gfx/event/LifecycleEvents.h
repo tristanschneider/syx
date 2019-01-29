@@ -8,6 +8,6 @@ public:
 
 class UriActivated : public Event {
 public:
-  UriActivated(std::string uri);
-  std::string mUri;
+  UriActivated(std::string_view uri);
+  std::unordered_map<std::string, std::string> mParams;
 };
