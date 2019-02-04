@@ -145,7 +145,7 @@ bool ObjectInspector::_inspectProperty(const Lua::Node& prop, void* data) const 
     return prop.inspect(data);
   //No override, use default inspector
   if(auto func = mDefaultInspectors->getFactory(prop))
-    return (*func)(prop, data);
+    return (*func)(prop.getName().c_str(), data);
   return false;
 }
 

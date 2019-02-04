@@ -6,7 +6,7 @@ namespace Lua {
 
 class DefaultInspectors {
 public:
-  using FactoryFunc = std::function<bool(const Lua::Node&, void*)>;
+  using FactoryFunc = std::function<bool(const char*, void*)>;
 
   DefaultInspectors();
 

@@ -6,9 +6,9 @@
 #include "lua/LuaVariant.h"
 
 namespace {
-  template<class Type, class Container>
-  void _registerFactory(Container& container, std::function<bool(const Lua::Node&, Type&)> func) {
-    container[typeId<Type>()] = [f = std::move(func)](const Lua::Node& node, void* data) {
+  template<class Type, class Container, class Func>
+  void _registerFactory(Container& container, Func func) {
+    container[typeId<Type>()] = [f = std::move(func)](const char* node, void* data) {
       return f(node, *reinterpret_cast<Type*>(data));
     };
   }
@@ -24,7 +24,7 @@ bool DefaultInspectors::hasDefault(const Lua::Node& node) const {
 
 bool DefaultInspectors::createInspector(const Lua::Node& node, void* data) const {
   if(auto func = getFactory(node))
-    return (*func)(node, data);
+    return (*func)(node.getName().c_str(), data);
   return false;
 }
 

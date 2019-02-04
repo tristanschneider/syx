@@ -50,9 +50,12 @@ namespace Lua {
     const Key& getKey() const;
     const Variant* getChild(const Key& key) const;
     Variant* getChild(const Key& key);
+    const Lua::Node* getType() const;
     void forEachChild(std::function<void(const Variant&)> callback) const;
     void forEachChild(std::function<void(Variant&)> callback);
     void addChild(Variant child);
+    const void* data() const;
+    void* data();
 
     template<typename T>
     T* tryGet() {

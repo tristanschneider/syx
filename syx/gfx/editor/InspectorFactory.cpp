@@ -17,10 +17,10 @@
 #include "util/Variant.h"
 
 namespace Inspector {
-  bool inspectString(const Lua::Node& prop, std::string& str) {
+  bool inspectString(const char* prop, std::string& str) {
     const size_t textLimit = 100;
     str.reserve(textLimit);
-    if(ImGui::InputText(prop.getName().c_str(), str.data(), textLimit)) {
+    if(ImGui::InputText(prop, str.data(), textLimit)) {
       //Since we manually modified the internals of string, manually update size
       str.resize(std::strlen(str.data()));
       return true;
@@ -28,19 +28,18 @@ namespace Inspector {
     return false;
   }
 
-  bool inspectBool(const Lua::Node& prop, bool& b) {
-    return ImGui::Checkbox(prop.getName().c_str(), &b);
+  bool inspectBool(const char* prop, bool& b) {
+    return ImGui::Checkbox(prop, &b);
   }
 
-  bool inspectVec3(const Lua::Node& prop, Syx::Vec3& vec) {
-    return ImGui::InputFloat3(prop.getName().c_str(), &vec.x);
+  bool inspectVec3(const char* prop, Syx::Vec3& vec) {
+    return ImGui::InputFloat3(prop, &vec.x);
   }
 
-  bool inspectMat4(const Lua::Node& prop, Syx::Mat4& mat) {
-    const char* name = prop.getName().c_str();
-    ImGui::Text(name);
+  bool inspectMat4(const char* prop, Syx::Mat4& mat) {
+    ImGui::Text(prop);
 
-    ImGui::PushID(name);
+    ImGui::PushID(prop);
     bool changed = false;
     const char* names[] = { "##c0", "##c1", "##c2", "##c3" };
     Syx::Mat4 m = mat.transposed();
@@ -53,10 +52,9 @@ namespace Inspector {
     return changed;
   }
 
-  bool inspectTransform(const Lua::Node& prop, Syx::Mat4& mat) {
-    const char* name = prop.getName().c_str();
-    ImGui::Text(name);
-    ScopedStringId propScope(name);
+  bool inspectTransform(const char* prop, Syx::Mat4& mat) {
+    ImGui::Text(prop);
+    ScopedStringId propScope(prop);
 
     Syx::Vec3 translate, scale;
     Syx::Mat3 mRot;
@@ -78,11 +76,11 @@ namespace Inspector {
     return false;
   }
 
-  bool inspectInt(const Lua::Node& prop, int& i) {
-    return ImGui::InputInt(prop.getName().c_str(), &i);
+  bool inspectInt(const char* prop, int& i) {
+    return ImGui::InputInt(prop, &i);
   }
 
-  bool inspectSizeT(const Lua::Node& prop, size_t& data) {
+  bool inspectSizeT(const char* prop, size_t& data) {
     int i = static_cast<int>(data);
     bool result = inspectInt(prop, i);
     data = static_cast<size_t>(std::max(0, i));
@@ -91,10 +89,6 @@ namespace Inspector {
 
   bool inspectFloat(const char* name, float& data) {
     return ImGui::InputFloat(name, &data);
-  }
-
-  bool inspectFloat(const Lua::Node& prop, float& data) {
-    return inspectFloat(prop.getName().c_str(), data);
   }
 
   bool inspectDouble(const char* name, double& data) {
@@ -106,15 +100,10 @@ namespace Inspector {
     return false;
   }
 
-  bool inspectDouble(const Lua::Node& prop, double& data) {
-    return inspectDouble(prop.getName().c_str(), data);
-  }
-
-  bool inspectAsset(const Lua::Node& prop, size_t& data, AssetRepo& repo, std::string_view category) {
+  bool inspectAsset(const char* prop, size_t& data, AssetRepo& repo, std::string_view category) {
     ScratchPad& pad = ImGuiImpl::getPad();
     //Left side label for property
-    const char* propName = prop.getName().c_str();
-    ImGui::Text(propName);
+    ImGui::Text(prop);
 
     //Button with name of current asset
     const char* valueName = "none";
@@ -124,13 +113,13 @@ namespace Inspector {
     ImGui::SameLine();
     //Open selection modal on button press
     if(ImGui::Button(valueName)) {
-      ImGui::OpenPopup(propName);
+      ImGui::OpenPopup(prop);
     }
     ImGui::NewLine();
 
     //Populate asset list in modal
     bool valueChanged = false;
-    if(ImGui::BeginPopupModal(propName, nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+    if(ImGui::BeginPopupModal(prop, nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
       auto endPopup = finally([]() { ImGui::EndPopup(); });
       //Button to close modal
       if(ImGui::Button("Close")) {
@@ -146,7 +135,7 @@ namespace Inspector {
       repo.getAssetsByCategory(category, assets);
 
       //Get the previously selected item
-      pad.push(propName);
+      pad.push(prop);
       auto popPad = finally([&pad]() { pad.pop(); });
       std::string_view selectedKey = "selectedAsset";
       Variant* selected = pad.read(selectedKey);
@@ -174,18 +163,20 @@ namespace Inspector {
     return valueChanged;
   }
 
-  std::function<bool(const Lua::Node&, void*)> getAssetInspector(AssetRepo& repo, std::string_view category) {
-    return [&repo, category](const Lua::Node& prop, void* data) {
+  std::function<bool(const char*, void*)> getAssetInspector(AssetRepo& repo, std::string_view category) {
+    return [&repo, category](const char* prop, void* data) {
       return inspectAsset(prop, *reinterpret_cast<size_t*>(data), repo, category);
     };
   }
 
-  bool inspectLuaVariant(const Lua::Node& prop, Lua::Variant& data) {
+  bool inspectLuaVariant(const char* prop, Lua::Variant& data) {
     bool changed = false;
     data.forEachChild([&changed](Lua::Variant& child) {
-      const size_t type = child.getTypeId();
-      if(type == typeId<double>()) {
-        changed = inspectDouble(child.getKey().toString().c_str(), child.get<double>()) || changed;
+      static DefaultInspectors inspectors;
+      if(const Lua::Node* type = child.getType()) {
+        if(auto inspector = inspectors.getFactory(*type)) {
+          changed = (*inspector)(child.getKey().toString().c_str(), child.data()) || changed;
+        }
       }
     });
     return changed;

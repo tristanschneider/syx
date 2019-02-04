@@ -141,6 +141,10 @@ namespace Lua {
     return const_cast<Variant*>(const_cast<const Variant*>(this)->getChild(key));
   }
 
+  const Lua::Node* Variant::getType() const {
+    return mType;
+  }
+
   void Variant::forEachChild(std::function<void(const Variant&)> callback) const {
     for(const Variant& child : mChildren)
       callback(child);
@@ -153,6 +157,14 @@ namespace Lua {
 
   void Variant::addChild(Variant child) {
     mChildren.emplace_back(std::move(child));
+  }
+
+  const void* Variant::data() const {
+    return mData.data();
+  }
+
+  void* Variant::data() {
+    return mData.data();
   }
 
   void Variant::_destructData() {

@@ -119,7 +119,7 @@ namespace Lua {
 
     bool hasInspector() const;
     bool inspect(void* prop) const;
-    Node& setInspector(std::function<bool(const Node&, void*)> inspector);
+    Node& setInspector(std::function<bool(const char*, void*)> inspector);
 
   protected:
     virtual void _readFromLua(lua_State* s, void* base) const = 0;
@@ -152,7 +152,7 @@ namespace Lua {
     std::vector<std::unique_ptr<Node>> mChildren;
     //Size of tree from here down
     size_t mSize;
-    std::function<bool(const Node&, void*)> mInspector;
+    std::function<bool(const char*, void*)> mInspector;
   };
 
   class RootNode : public Node {

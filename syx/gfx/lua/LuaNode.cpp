@@ -466,10 +466,10 @@ namespace Lua {
   }
 
   bool Node::inspect(void* prop) const {
-    return mInspector(*this, prop);
+    return mInspector(mOps.mName.c_str(), prop);
   }
 
-  Node& Node::setInspector(std::function<bool(const Node&, void*)> inspector) {
+  Node& Node::setInspector(std::function<bool(const char*, void*)> inspector) {
     mInspector = std::move(inspector);
     return *this;
   }
