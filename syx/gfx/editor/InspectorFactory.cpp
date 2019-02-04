@@ -2,12 +2,14 @@
 #include "InspectorFactory.h"
 
 #include "asset/Asset.h"
+#include "editor/DefaultInspectors.h"
 #include "editor/event/EditorEvents.h"
 #include "editor/util/ScopedImGui.h"
 #include <event/EventBuffer.h>
 #include <imgui/imgui.h>
 #include "ImGuiImpl.h"
 #include "lua/LuaNode.h"
+#include "lua/LuaVariant.h"
 #include "provider/MessageQueueProvider.h"
 #include "system/AssetRepo.h"
 #include "util/Finally.h"
@@ -87,8 +89,25 @@ namespace Inspector {
     return result;
   }
 
+  bool inspectFloat(const char* name, float& data) {
+    return ImGui::InputFloat(name, &data);
+  }
+
   bool inspectFloat(const Lua::Node& prop, float& data) {
-    return ImGui::InputFloat(prop.getName().c_str(), &data);
+    return inspectFloat(prop.getName().c_str(), data);
+  }
+
+  bool inspectDouble(const char* name, double& data) {
+    float temp = static_cast<float>(data);
+    if(inspectFloat(name, temp)) {
+      data = static_cast<float>(temp);
+      return true;
+    }
+    return false;
+  }
+
+  bool inspectDouble(const Lua::Node& prop, double& data) {
+    return inspectDouble(prop.getName().c_str(), data);
   }
 
   bool inspectAsset(const Lua::Node& prop, size_t& data, AssetRepo& repo, std::string_view category) {
@@ -159,5 +178,16 @@ namespace Inspector {
     return [&repo, category](const Lua::Node& prop, void* data) {
       return inspectAsset(prop, *reinterpret_cast<size_t*>(data), repo, category);
     };
+  }
+
+  bool inspectLuaVariant(const Lua::Node& prop, Lua::Variant& data) {
+    bool changed = false;
+    data.forEachChild([&changed](Lua::Variant& child) {
+      const size_t type = child.getTypeId();
+      if(type == typeId<double>()) {
+        changed = inspectDouble(child.getKey().toString().c_str(), child.get<double>()) || changed;
+      }
+    });
+    return changed;
   }
 }

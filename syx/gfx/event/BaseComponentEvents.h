@@ -1,4 +1,5 @@
 #pragma once
+#include "component/Component.h"
 #include "event/Event.h"
 
 class Component;
@@ -38,7 +39,7 @@ public:
 class SetComponentPropsEvent : public Event {
 public:
   //TODO: emplace such that no allocations are required to use this
-  SetComponentPropsEvent(Handle obj, size_t compType, const Lua::Node* prop, Lua::NodeDiff diff, std::vector<uint8_t>&& buffer, size_t subType = 0);
+  SetComponentPropsEvent(Handle obj, ComponentType compType, const Lua::Node* prop, Lua::NodeDiff diff, std::vector<uint8_t>&& buffer);
   SetComponentPropsEvent(const SetComponentPropsEvent& other);
   SetComponentPropsEvent(SetComponentPropsEvent&& other);
 
@@ -47,8 +48,7 @@ public:
 
   ~SetComponentPropsEvent();
   Handle mObj;
-  size_t mCompType;
-  size_t mSubType;
+  ComponentType mCompType;
   Lua::NodeDiff mDiff;
   const Lua::Node* mProp;
   std::vector<uint8_t> mBuffer;

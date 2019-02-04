@@ -26,14 +26,14 @@ namespace Lua {
     const T& get() const {
       assert(!mData.empty() && "Data should have been set when type was");
       assert(mType->getTypeId() == typeId<T>() && "Variant must have appropriate type to get");
-      reinterpret_cast<const T&>(*mData.data());
+      return reinterpret_cast<const T&>(*mData.data());
     }
 
     template<class T>
     T& get() {
       assert(!mData.empty() && "Data should have been set when type was");
       assert(mType->getTypeId() == typeId<T>() && "Variant must have appropriate type to get");
-      reinterpret_cast<T&>(*mData.data());
+      return reinterpret_cast<T&>(*mData.data());
     }
 
     Variant& operator=(const Variant& rhs);
@@ -55,11 +55,11 @@ namespace Lua {
     void addChild(Variant child);
 
     template<typename T>
-    T* get() {
+    T* tryGet() {
       return getTypeId() == typeId<T>() && mData.size() ? reinterpret_cast<T*>(mData.data()) : nullptr;
     }
     template<typename T>
-    const T* get() const {
+    const T* tryGet() const {
       return getTypeId() == typeId<T>() && mData.size() ? reinterpret_cast<const T*>(mData.data()) : nullptr;
     }
 

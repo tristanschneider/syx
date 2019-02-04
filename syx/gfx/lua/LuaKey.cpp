@@ -50,4 +50,11 @@ namespace Lua {
     //This is either the actual hash or the index, both of which work for comparison
     return mHash;
   }
+
+  std::string Key::toString() const {
+    if(!mStr.empty())
+      return mStr;
+    return std::to_string(mIndex);
+  }
+
 }

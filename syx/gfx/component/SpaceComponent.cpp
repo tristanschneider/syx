@@ -33,7 +33,7 @@ namespace {
     if(const Lua::Node* props = comp.getLuaProps()) {
       std::vector<uint8_t> buffer(props->size());
       props->copyConstructToBuffer(&comp, buffer.data());
-      msg.get().push(SetComponentPropsEvent(objHandle, comp.getType(), props, ~0, std::move(buffer), comp.getSubType()));
+      msg.get().push(SetComponentPropsEvent(objHandle, comp.getFullType(), props, ~0, std::move(buffer)));
     }
   }
 

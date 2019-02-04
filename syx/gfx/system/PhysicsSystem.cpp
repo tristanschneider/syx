@@ -135,7 +135,7 @@ void PhysicsSystem::_updateObject(Handle obj, const SyxData& data, const Syx::Up
 }
 
 void PhysicsSystem::_setComponentPropsEvent(const SetComponentPropsEvent& e) {
-  if(e.mCompType == Component::typeId<Physics>()) {
+  if(e.mCompType.id == Component::typeId<Physics>()) {
     SyxData& syxData = _getSyxData(e.mObj, false, false);
     Syx::Handle h = syxData.mHandle;
     Physics comp(0);
@@ -168,7 +168,7 @@ void PhysicsSystem::_setComponentPropsEvent(const SetComponentPropsEvent& e) {
       }
     });
   }
-  else if(e.mCompType == Component::typeId<Transform>()) {
+  else if(e.mCompType.id == Component::typeId<Transform>()) {
     Transform t(0);
     e.mProp->copyFromBuffer(&t, e.mBuffer.data(), e.mDiff);
     _updateTransform(e.mObj, t.get());

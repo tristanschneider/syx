@@ -74,6 +74,34 @@ scene = {
         },
         {
           props = {
+            props = {
+              b = 4,
+              c = 3.500000,
+              d = "str",
+              e = true,
+              h = {
+                1,
+                2,
+                3
+              },
+              i = {
+                ia = 1,
+                ib = "two",
+                ic = false
+              },
+              j = {
+                ja = 2,
+                jb = {
+                  jbs = "asdf"
+                }
+              }
+            },
+            script = 3676084395
+          },
+          type = "Script"
+        },
+        {
+          props = {
             matrix = {
               0.500000,
               0,
@@ -227,26 +255,24 @@ scene = {
         {
           props = {
             props = {
-              {
-                b = 2,
-                c = 3.500000,
-                d = "str",
-                e = true,
-                h = {
-                  1,
-                  2,
-                  3
-                },
-                i = {
-                  ia = 1,
-                  ib = "two",
-                  ic = false
-                },
-                j = {
-                  ja = 2,
-                  jb = {
-                    jbs = "asdf"
-                  }
+              b = 2,
+              c = 3.500000,
+              d = "str",
+              e = true,
+              h = {
+                1,
+                2,
+                3
+              },
+              i = {
+                ia = 1,
+                ib = "two",
+                ic = false
+              },
+              j = {
+                ja = 2,
+                jb = {
+                  jbs = "asdf"
                 }
               }
             },

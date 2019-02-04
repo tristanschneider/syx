@@ -29,6 +29,7 @@ LuaComponent::LuaComponent(const LuaComponent& other)
   : Component(other.getType(), other.getOwner())
   , mScript(other.mScript)
   , mProps(std::make_unique<Lua::Variant>(other.mProps ? *other.mProps : Lua::Variant())) {
+  setSubType(mScript);
 }
 
 LuaComponent::~LuaComponent() {
@@ -54,6 +55,7 @@ void LuaComponent::_setSubType(size_t subType) {
 
 void LuaComponent::onPropsUpdated() {
   mPropsNeedWriteToLua = true;
+  setSubType(mScript);
 }
 
 const Lua::Node* LuaComponent::getLuaProps() const {
@@ -66,8 +68,8 @@ std::unique_ptr<Lua::Node> LuaComponent::_buildLuaProps() const {
   using namespace Inspector;
   auto root = makeRootNode(Lua::NodeOps(""));
   makeNode<LightUserdataSizetNode>(Lua::NodeOps(*root, "script", ::Util::offsetOf(*this, mScript))).setInspector(getAssetInspector(*getAssetRepo(), "lc"));
-  Node& propsPtr = makeNode<UniquePtrNode<Variant>>(Lua::NodeOps(*root, "props", ::Util::offsetOf(*this, mProps)));
-  makeNode<VariantNode>(Lua::NodeOps(propsPtr, "", 0));
+  Node& propsPtr = makeNode<UniquePtrNode<Variant>>(Lua::NodeOps(*root, "", ::Util::offsetOf(*this, mProps)));
+  makeNode<VariantNode>(Lua::NodeOps(propsPtr, "props", 0));
   return std::move(root);
 }
 

@@ -104,7 +104,7 @@ void Component::setPropsFromStack(lua_State* l, LuaGameSystem& game) const {
     lua_pop(l, 1);
     std::vector<uint8_t> buffer(props->size());
     props->copyConstructToBuffer(copy.get(), &buffer[0]);
-    game.getMessageQueue().get().push(SetComponentPropsEvent(copy->getOwner(), copy->getType(), props, ~0, std::move(buffer)));
+    game.getMessageQueue().get().push(SetComponentPropsEvent(copy->getOwner(), copy->getFullType(), props, ~0, std::move(buffer)));
   }
 }
 
@@ -124,7 +124,7 @@ void Component::setPropFromStack(lua_State* l, const char* name, LuaGameSystem& 
       lua_pop(l, 1);
  
       //Send with diff indicating the appropriate part of the buffer
-      game.getMessageQueue().get().push(SetComponentPropsEvent(getOwner(), getType(), props, foundProp->_getDiffId(), std::move(buff)));
+      game.getMessageQueue().get().push(SetComponentPropsEvent(getOwner(), getFullType(), props, foundProp->_getDiffId(), std::move(buff)));
     }
   }
 }

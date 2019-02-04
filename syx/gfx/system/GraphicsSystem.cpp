@@ -202,7 +202,7 @@ void GraphicsSystem::_processDebugDrawEvent(const DrawSphereEvent& e) {
 }
 
 void GraphicsSystem::_processSetCompPropsEvent(const SetComponentPropsEvent& e) {
-  if(e.mCompType == Component::typeId<Renderable>()) {
+  if(e.mCompType.id == Component::typeId<Renderable>()) {
     if(LocalRenderable* obj = mLocalRenderables.get(e.mObj)) {
       //Make a local renderable that has the new properties
       Renderable renderable(0);
@@ -217,7 +217,7 @@ void GraphicsSystem::_processSetCompPropsEvent(const SetComponentPropsEvent& e) 
       });
     }
   }
-  else if(e.mCompType == Component::typeId<Transform>()) {
+  else if(e.mCompType.id == Component::typeId<Transform>()) {
     LocalRenderable* obj = mLocalRenderables.get(e.mObj);
     if(obj) {
       Transform t(0);
@@ -225,7 +225,7 @@ void GraphicsSystem::_processSetCompPropsEvent(const SetComponentPropsEvent& e) 
       obj->mTransform = t.get();
     }
   }
-  else if(e.mCompType == Component::typeId<SpaceComponent>()) {
+  else if(e.mCompType.id == Component::typeId<SpaceComponent>()) {
     if(LocalRenderable* obj = mLocalRenderables.get(e.mObj)) {
       SpaceComponent s(0);
       s.getLuaProps()->copyConstructFromBuffer(&s, e.mBuffer.data());

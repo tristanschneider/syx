@@ -144,9 +144,9 @@ namespace Lua {
     void _translateBase(void*& base) const { _translateBase(const_cast<const void*&>(base)); }
 
     //Push stack[top][field] onto top of stack, or global[field] if root node
-    void getField(lua_State* s, SourceType source = SourceType::Default) const;
+    virtual void getField(lua_State* s, SourceType source = SourceType::Default) const;
     //stack[top - 1][field] = stack[top]
-    void setField(lua_State* s, SourceType source = SourceType::Default) const;
+    virtual void setField(lua_State* s, SourceType source = SourceType::Default) const;
 
     NodeOps mOps;
     std::vector<std::unique_ptr<Node>> mChildren;

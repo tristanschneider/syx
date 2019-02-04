@@ -3,6 +3,7 @@
 
 #include "editor/InspectorFactory.h"
 #include "lua/LuaNode.h"
+#include "lua/LuaVariant.h"
 
 namespace {
   template<class Type, class Container>
@@ -42,5 +43,7 @@ void DefaultInspectors::_registerTypes() {
   _registerFactory<Syx::Mat4>(mFactory, inspectMat4);
   _registerFactory<int>(mFactory, inspectInt);
   _registerFactory<float>(mFactory, inspectFloat);
+  _registerFactory<double>(mFactory, inspectDouble);
   _registerFactory<size_t>(mFactory, inspectSizeT);
+  _registerFactory<Lua::Variant>(mFactory, inspectLuaVariant);
 }

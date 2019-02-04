@@ -107,7 +107,7 @@ void ObjectInspector::editorUpdate(const LuaGameObjectProvider& objects) {
           //Copy new values to buffer and send diff so only new value is updated
           std::vector<uint8_t> buffer(props->size());
           props->copyConstructToBuffer(&newComp, buffer.data());
-          mMsg.getMessageQueue().get().push(SetComponentPropsEvent(newComp.getOwner(), newComp.getType(), props, diff, std::move(buffer)));
+          mMsg.getMessageQueue().get().push(SetComponentPropsEvent(newComp.getOwner(), newComp.getFullType(), props, diff, std::move(buffer)));
         }
 
         if(!original->_isBuiltInComponent(*comp)) {

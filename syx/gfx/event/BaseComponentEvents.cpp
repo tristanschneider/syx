@@ -24,10 +24,9 @@ DEFINE_EVENT(RemoveGameObjectEvent, Handle obj)
   , mObj(obj) {
 }
 
-DEFINE_EVENT(SetComponentPropsEvent, Handle obj, size_t compType, const Lua::Node* prop, Lua::NodeDiff diff, std::vector<uint8_t>&& buffer, size_t subType)
+DEFINE_EVENT(SetComponentPropsEvent, Handle obj, ComponentType compType, const Lua::Node* prop, Lua::NodeDiff diff, std::vector<uint8_t>&& buffer)
   , mObj(obj)
   , mCompType(compType)
-  , mSubType(subType)
   , mDiff(diff)
   , mProp(prop)
   , mBuffer(std::move(buffer)) {
@@ -37,7 +36,6 @@ SetComponentPropsEvent::SetComponentPropsEvent(const SetComponentPropsEvent& oth
   : Event(Event::typeId<SetComponentPropsEvent>(), sizeof(SetComponentPropsEvent)) {
   mObj = other.mObj;
   mCompType = other.mCompType;
-  mSubType = other.mSubType;
   mDiff = other.mDiff;
   mProp = other.mProp;
   mBuffer.resize(other.mBuffer.size());
@@ -48,7 +46,6 @@ SetComponentPropsEvent::SetComponentPropsEvent(SetComponentPropsEvent&& other)
   : Event(Event::typeId<SetComponentPropsEvent>(), sizeof(SetComponentPropsEvent))
   , mObj(other.mObj)
   , mCompType(other.mCompType)
-  , mSubType(other.mSubType)
   , mDiff(other.mDiff)
   , mProp(other.mProp)
   , mBuffer(std::move(other.mBuffer)) {

@@ -15,6 +15,7 @@ namespace Lua {
     int push(lua_State* l) const;
     bool readFromLua(lua_State* l, int index);
     size_t getHash() const;
+    std::string toString() const;
 
   private:
     std::string mStr;

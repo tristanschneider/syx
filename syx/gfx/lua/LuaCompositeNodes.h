@@ -112,10 +112,19 @@ namespace Lua {
       else
         base = nullptr;
     }
+    //These do nothing, children do the read instead, this is an invisible middle man
     void _readFromLua(lua_State* s, void* base) const override {}
     void _writeToLua(lua_State* s, const void* base) const override {
-      //Write table for children to fill
-      lua_newtable(s);
+      //Push the parent table so this still puts something on the stack, but doesn't create a new table
+      lua_pushvalue(s, -1);
+    }
+    void getField(lua_State* s, SourceType source = SourceType::Default) const override {
+      //Same as above, need something but not a new table
+      lua_pushvalue(s, -1);
+    }
+    void setField(lua_State* s, SourceType source = SourceType::Default) const override {
+      //Nothing to set since we didn't make a table, pop off the reference
+      lua_pop(s, 1);
     }
   };
   template<typename T>

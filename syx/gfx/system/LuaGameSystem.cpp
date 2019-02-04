@@ -102,15 +102,14 @@ void LuaGameSystem::_update(float dt) {
     dt *= getSpace(objIt.second->getSpace()).getTimescale();
     const bool doUpdate = dt != 0;
 
-    for(auto& compIt : objIt.second->getLuaComponents()) {
-      LuaComponent& comp = compIt.second;
+    objIt.second->forEachLuaComponent([this, selfIndex, doUpdate, dt](LuaComponent& comp) {
       //If the component needs initialization, get the script and initialize it
       if(comp.needsInit()) {
         AssetRepo* repo = mArgs.mSystems->getSystem<AssetRepo>();
         std::shared_ptr<Asset> script = repo->getAsset(AssetInfo(comp.getScript()));
         //If script isn't doen loading, wait until later
         if(!script || script->getState() != AssetState::Loaded)
-          continue;
+          return;
 
         //Load the script on to the top of the stack
         const std::string& scriptSource = static_cast<LuaScript&>(*script).get();
@@ -130,7 +129,7 @@ void LuaGameSystem::_update(float dt) {
       else if(doUpdate) {
         comp.update(*mState, dt, selfIndex);
       }
-    }
+    });
     //pop gameobject
     lua_pop(*mState, 1);
   }
@@ -369,7 +368,7 @@ void LuaGameSystem::_onPhysicsUpdate(const PhysicsCompUpdateEvent& e) {
 
 void LuaGameSystem::_onSetComponentProps(const SetComponentPropsEvent& e) {
   if(LuaGameObject* obj = _getObj(e.mObj)) {
-    if(Component* comp = obj->getComponent(e.mCompType, e.mSubType)) {
+    if(Component* comp = obj->getComponent(e.mCompType)) {
       e.mProp->copyFromBuffer(comp, e.mBuffer.data(), e.mDiff);
       comp->onPropsUpdated();
     }

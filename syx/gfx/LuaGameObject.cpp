@@ -16,6 +16,21 @@
 const std::string LuaGameObject::CLASS_NAME = "Gameobject";
 std::unique_ptr<Lua::Cache> LuaGameObject::sCache = std::make_unique<Lua::Cache>("_goc_", CLASS_NAME);
 
+namespace {
+  using LuaComp = std::unique_ptr<LuaComponent>;
+  using LuaComps = std::vector<LuaComp>;
+  LuaComps::iterator _findLuaComp(size_t script, LuaComps& comps) {
+    return std::find_if(comps.begin(), comps.end(), [script](const LuaComp& c) {
+      return c->getScript() == script;
+    });
+  }
+  LuaComps::const_iterator _findLuaComp(size_t script, const LuaComps& comps) {
+    return std::find_if(comps.begin(), comps.end(), [script](const LuaComp& c) {
+      return c->getScript() == script;
+    });
+  }
+}
+
 LuaGameObject::LuaGameObject(Handle h)
   : mHandle(h)
   , mTransform(h)
@@ -71,7 +86,7 @@ void LuaGameObject::addComponent(std::unique_ptr<Component> component) {
     return;
 
   if(component->getType() == Component::typeId<LuaComponent>()) {
-    addLuaComponent(component->getSubType());
+    addLuaComponent(std::unique_ptr<LuaComponent>(static_cast<LuaComponent*>(component.release())));
   }
   else {
     _addComponentLookup(*component);
@@ -86,9 +101,9 @@ void LuaGameObject::removeComponent(size_t type) {
 
 void LuaGameObject::removeComponent(const ComponentType& type) {
   if(type.id == Component::typeId<LuaComponent>()) {
-    auto found = mLuaComponents.find(type.subId);
+    auto found = _findLuaComp(type.subId, mLuaComponents);
     if(found != mLuaComponents.end()) {
-      _removeComponentLookup(found->second);
+      _removeComponentLookup(**found);
       mLuaComponents.erase(found);
     }
   }
@@ -102,13 +117,21 @@ void LuaGameObject::removeComponent(const ComponentType& type) {
 }
 
 Component* LuaGameObject::getComponent(size_t type, size_t subType) {
-  return const_cast<Component*>(const_cast<const LuaGameObject*>(this)->getComponent(type, subType));
+  return getComponent({ type, subType });
 }
 
 const Component* LuaGameObject::getComponent(size_t type, size_t subType) const {
+  return getComponent({ type, subType });
+}
+
+Component* LuaGameObject::getComponent(const ComponentType& type) {
+  return const_cast<Component*>(const_cast<const LuaGameObject*>(this)->getComponent(type));
+}
+
+const Component* LuaGameObject::getComponent(const ComponentType& type) const {
   const Component* builtIn = nullptr;
   _forEachBuiltInComponent([&builtIn, type](const Component& c) {
-    if(type == c.getType()) {
+    if(type.id == c.getType()) {
       builtIn = &c;
     }
   });
@@ -116,10 +139,10 @@ const Component* LuaGameObject::getComponent(size_t type, size_t subType) const 
     return builtIn;
   }
 
-  if(type == Component::typeId<LuaComponent>()) {
-    return getLuaComponent(subType);
+  if(type.id == Component::typeId<LuaComponent>()) {
+    return getLuaComponent(type.subId);
   }
-  auto ptr = mComponents.get(type);
+  auto ptr = mComponents.get(type.id);
   return ptr ? ptr->get() : nullptr;
 }
 
@@ -146,9 +169,17 @@ void LuaGameObject::remove(EventBuffer& msg) const {
   msg.push(RemoveGameObjectEvent(getHandle()));
 }
 
+LuaComponent* LuaGameObject::addLuaComponent(std::unique_ptr<LuaComponent> component) {
+  const size_t script = component->getScript();
+  LuaComponent& result = *component;
+  mLuaComponents.emplace_back(std::move(component));
+  _addComponentLookup(result);
+  return &result;
+}
+
 LuaComponent* LuaGameObject::addLuaComponent(size_t script) {
-  auto it = mLuaComponents.emplace(script, mHandle);
-  LuaComponent& result = it.first->second;
+  mLuaComponents.emplace_back(std::make_unique<LuaComponent>(mHandle));
+  LuaComponent& result = *mLuaComponents.back();
   result.setScript(script);
   _addComponentLookup(result);
   return &result;
@@ -159,14 +190,14 @@ LuaComponent* LuaGameObject::getLuaComponent(size_t script) {
 }
 
 const LuaComponent* LuaGameObject::getLuaComponent(size_t script) const {
-  auto it = mLuaComponents.find(script);
-  return it != mLuaComponents.end() ? &it->second : nullptr;
+  auto it = _findLuaComp(script, mLuaComponents);
+  return it != mLuaComponents.end() ? it->get() : nullptr;
 }
 
 void LuaGameObject::removeLuaComponent(size_t script) {
-  auto it = mLuaComponents.find(script);
+  auto it = _findLuaComp(script, mLuaComponents);
   if(it != mLuaComponents.end()) {
-    _removeComponentLookup(it->second);
+    _removeComponentLookup(**it);
     mLuaComponents.erase(it);
   }
 }
@@ -181,14 +212,6 @@ void LuaGameObject::_removeComponentLookup(const Component& comp) {
     mHashToComponent.erase(it);
 }
 
-std::unordered_map<size_t, LuaComponent>& LuaGameObject::getLuaComponents() {
-  return mLuaComponents;
-}
-
-const std::unordered_map<size_t, LuaComponent>& LuaGameObject::getLuaComponents() const {
-  return mLuaComponents;
-}
-
 const TypeMap<std::unique_ptr<Component>, Component>& LuaGameObject::getComponents() const {
   return mComponents;
 }
@@ -197,7 +220,7 @@ void LuaGameObject::forEachComponent(std::function<void(const Component&)> callb
   for(const auto& c : mComponents)
     callback(*c);
   for(const auto& c : mLuaComponents)
-    callback(c.second);
+    callback(*c);
   _forEachBuiltInComponent(callback);
 }
 
@@ -205,7 +228,7 @@ void LuaGameObject::forEachComponent(std::function<void(Component&)> callback) {
   for(auto& c : mComponents)
     callback(*c);
   for(auto& c : mLuaComponents)
-    callback(c.second);
+    callback(*c);
   _forEachBuiltInComponent(callback);
 }
 

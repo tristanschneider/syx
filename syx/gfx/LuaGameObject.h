@@ -49,8 +49,11 @@ public:
   void addComponent(std::unique_ptr<Component> component);
   void removeComponent(size_t type);
   void removeComponent(const ComponentType& type);
-  Component* getComponent(size_t type, size_t subType = 00);
+  //TODO: get rid of these sub type overloads
+  Component* getComponent(size_t type, size_t subType = 0);
   const Component* getComponent(size_t type, size_t subType = 0) const;
+  Component* getComponent(const ComponentType& type);
+  const Component* getComponent(const ComponentType& type) const;
   Transform& getTransform();
   const Transform& getTransform() const;
   const NameComponent& getName() const;
@@ -74,12 +77,18 @@ public:
 
   void remove(EventBuffer& msg) const;
 
+  LuaComponent* addLuaComponent(std::unique_ptr<LuaComponent> component);
   LuaComponent* addLuaComponent(size_t script);
   LuaComponent* getLuaComponent(size_t script);
   const LuaComponent* getLuaComponent(size_t script) const;
   void removeLuaComponent(size_t script);
-  std::unordered_map<size_t, LuaComponent>& getLuaComponents();
-  const std::unordered_map<size_t, LuaComponent>& getLuaComponents() const;
+
+  template<class Func>
+  void forEachLuaComponent(const Func& func) {
+    for(std::unique_ptr<LuaComponent>& c : mLuaComponents)
+      func(*c);
+  }
+
   const TypeMap<std::unique_ptr<Component>, Component>& getComponents() const;
   void forEachComponent(std::function<void(const Component&)> callback) const;
   void forEachComponent(std::function<void(Component&)> callback);
@@ -123,8 +132,7 @@ private:
   SpaceComponent mSpace;
   NameComponent mName;
   TypeMap<std::unique_ptr<Component>, Component> mComponents;
-  //Id of script in asset repo to the lua component holding it
-  std::unordered_map<size_t, LuaComponent> mLuaComponents;
+  std::vector<std::unique_ptr<LuaComponent>> mLuaComponents;
   //Name hash to component or lua component
   std::unordered_map<size_t, Component*> mHashToComponent;
 };
