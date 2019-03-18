@@ -61,13 +61,11 @@ public:
 
   template<typename CompType>
   CompType* getComponent() {
-    std::unique_ptr<Component>* result = mComponents.get<CompType>();
-    return result ? static_cast<CompType*>(result->get()) : nullptr;
+    return static_cast<CompType*>(getComponent(Component::typeId<CompType>()));
   }
   template<typename CompType>
   const CompType* getComponent() const {
-    std::unique_ptr<Component> const* result = mComponents.get<CompType>();
-    return result ? static_cast<const CompType*>(result->get()) : nullptr;
+    return static_cast<CompType*>(getComponent(Component::typeId<CompType>()));
   }
 
   template<typename CompType>

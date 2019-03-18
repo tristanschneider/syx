@@ -164,6 +164,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClCompile Include="asset\Shader.cpp" />
     <ClCompile Include="asset\Texture.cpp" />
     <ClCompile Include="Camera.cpp" />
+    <ClCompile Include="component\CameraComponent.cpp" />
     <ClCompile Include="component\Component.cpp" />
     <ClCompile Include="component\LuaComponent.cpp" />
     <ClCompile Include="component\LuaComponentRegistry.cpp" />
@@ -187,6 +188,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClCompile Include="event\LifecycleEvents.cpp" />
     <ClCompile Include="event\SpaceEvents.cpp" />
     <ClCompile Include="event\TransformEvent.cpp" />
+    <ClCompile Include="event\ViewportEvents.cpp" />
     <ClCompile Include="file\FilePath.cpp" />
     <ClCompile Include="file\FileSystem.cpp" />
     <ClCompile Include="graphics\FrameBuffer.cpp" />
@@ -194,6 +196,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClCompile Include="graphics\PixelBuffer.cpp" />
     <ClCompile Include="graphics\RenderCommand.cpp" />
     <ClCompile Include="graphics\TextureDescription.cpp" />
+    <ClCompile Include="graphics\Viewport.cpp" />
     <ClCompile Include="ImGuiImpl.cpp" />
     <ClCompile Include="loader\AssetLoader.cpp" />
     <ClCompile Include="loader\LuaScriptLoader.cpp" />
@@ -262,6 +265,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClInclude Include="asset\Shader.h" />
     <ClInclude Include="asset\Texture.h" />
     <ClInclude Include="Camera.h" />
+    <ClInclude Include="component\CameraComponent.h" />
     <ClInclude Include="component\Component.h" />
     <ClInclude Include="component\LuaComponent.h" />
     <ClInclude Include="component\LuaComponentRegistry.h" />
@@ -286,6 +290,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClInclude Include="event\LifecycleEvents.h" />
     <ClInclude Include="event\SpaceEvents.h" />
     <ClInclude Include="event\TransformEvent.h" />
+    <ClInclude Include="event\ViewportEvents.h" />
     <ClInclude Include="file\FilePath.h" />
     <ClInclude Include="file\FileSystem.h" />
     <ClInclude Include="graphics\FrameBuffer.h" />
@@ -294,6 +299,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClInclude Include="graphics\PixelBuffer.h" />
     <ClInclude Include="graphics\RenderCommand.h" />
     <ClInclude Include="graphics\TextureDescription.h" />
+    <ClInclude Include="graphics\Viewport.h" />
     <ClInclude Include="Handle.h" />
     <ClInclude Include="ImGuiImpl.h" />
     <ClInclude Include="loader\AssetLoader.h" />

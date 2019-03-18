@@ -210,7 +210,7 @@ int SpaceComponent::load(lua_State* l) {
   return 1;
 }
 
-void SpaceComponent::_loadSceneFromDescription(LuaGameSystem& game, const LuaSceneDescription& scene, Handle space) {
+void SpaceComponent::_loadSceneFromDescription(LuaGameSystem& game, LuaSceneDescription& scene, Handle space) {
   //TODO: should this be here? It causes issues with play/pause since the scene is lost after timescale is set
   //game.getMessageQueue().get().push(ClearSpaceEvent(space));
   SpaceComponent destSpaceComp(0);
@@ -221,8 +221,10 @@ void SpaceComponent::_loadSceneFromDescription(LuaGameSystem& game, const LuaSce
     repo.getAsset(AssetInfo(asset));
   }
   GameObjectHandleProvider& objGen = game.getGameObjectGen();
-  for(const LuaGameObjectDescription& obj : scene.mObjects) {
-    objGen.blacklistHandle(obj.mHandle);
+  for(LuaGameObjectDescription& obj : scene.mObjects) {
+    if(!objGen.blacklistHandle(obj.mHandle)) {
+      obj.mHandle = objGen.newHandle();
+    }
     _pushObjectFromDescription(game, obj, space);
   }
 }

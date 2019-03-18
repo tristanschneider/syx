@@ -267,6 +267,15 @@
     <ClCompile Include="editor\Picker.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="component\CameraComponent.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="graphics\Viewport.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="event\ViewportEvents.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="App.h">
@@ -555,6 +564,15 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="editor\util\ScopedImGui.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="component\CameraComponent.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="graphics\Viewport.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="event\ViewportEvents.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

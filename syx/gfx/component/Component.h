@@ -1,6 +1,7 @@
 #pragma once
 
 class AssetRepo;
+class EventBuffer;
 class MessageQueueProvider;
 class LuaGameSystem;
 class System;
@@ -9,8 +10,9 @@ struct lua_State;
 struct luaL_Reg;
 
 namespace Lua {
-  class Node;
   class Cache;
+  class Node;
+  using NodeDiff = uint64_t;
 };
 
 #define DEFINE_COMPONENT(compType, ...) namespace {\
@@ -117,6 +119,9 @@ public:
   //Push lua component onto stack
   int push(lua_State* l);
   void invalidate(lua_State* l) const;
+
+  void addSync(EventBuffer& msg) const;
+  void sync(EventBuffer& msg, Lua::NodeDiff diff = ~0) const;
 
   virtual std::unique_ptr<Component> clone() const = 0;
   virtual void set(const Component& component) = 0;

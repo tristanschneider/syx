@@ -35,5 +35,5 @@ private:
 
 template<class Callable>
 FinalAction<Callable> finally(Callable&& callable) {
-  return FinalAction<Callable>(callable);
+  return FinalAction<Callable>(std::move(callable));
 }

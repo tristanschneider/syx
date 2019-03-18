@@ -21,8 +21,8 @@ public:
     return mGen.next();
   }
 
-  void blacklistHandle(Handle used) override {
-    mGen.blacklistHandle(used);
+  bool blacklistHandle(Handle used) override {
+    return mGen.blacklistHandle(used);
   }
 
 private:

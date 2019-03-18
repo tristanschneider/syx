@@ -3,18 +3,24 @@
 
 #include "AppPlatform.h"
 #include "Camera.h"
+#include "component/CameraComponent.h"
+#include "component/SpaceComponent.h"
 #include "editor/AssetPreview.h"
 #include "editor/ObjectInspector.h"
 #include "editor/SceneBrowser.h"
 #include "editor/Toolbox.h"
+#include "event/BaseComponentEvents.h"
 #include "event/EditorEvents.h"
 #include <event/EventBuffer.h>
 #include <event/EventHandler.h>
 #include "event/LifecycleEvents.h"
 #include "event/SpaceEvents.h"
+#include "event/ViewportEvents.h"
 #include "file/FilePath.h"
 #include "file/FileSystem.h"
+#include "LuaGameObject.h"
 #include "ProjectLocator.h"
+#include "provider/GameObjectHandleProvider.h"
 #include "provider/SystemProvider.h"
 #include "system/AssetRepo.h"
 #include "system/KeyboardInput.h"
@@ -124,6 +130,22 @@ void Editor::init() {
   mEventHandler->registerEventHandler<SetPlayStateEvent>([this](const SetPlayStateEvent& e) {
     _updateState(e.mState);
   });
+
+  //TODO: make this less confusing and error prone
+  MessageQueue msg = mArgs.mMessages->getMessageQueue();
+  msg.get().push(SetViewportEvent(Viewport("editor", Syx::Vec2::sZero, Syx::Vec2::sIdentity)));
+  mCamera = std::make_unique<LuaGameObject>(mArgs.mGameObjectGen->newHandle());
+  msg.get().push(AddGameObjectEvent(mCamera->getHandle()));
+  mCamera->getComponent<SpaceComponent>()->set(std::hash<std::string>()("editor"));
+  mCamera->getComponent<SpaceComponent>()->sync(msg.get());
+
+  auto cc = std::make_unique<CameraComponent>(mCamera->getHandle());
+  cc->setViewport("editor");
+  cc->addSync(msg.get());
+  mCamera->addComponent(std::move(cc));
+
+  //TODO: active camera should not be necessary
+  msg.get().push(SetActiveCameraEvent(mCamera->getHandle()));
 }
 
 void Editor::uninit() {
@@ -192,8 +214,7 @@ void Editor::_updateInput(float dt) {
   const KeyboardInput& in = *mArgs.mSystems->getSystem<KeyboardInput>();
   GraphicsSystem& graphics = *mArgs.mSystems->getSystem<GraphicsSystem>();
   Vec3 move = Vec3::Zero;
-  Camera& cam = graphics.getPrimaryCamera();
-  Mat4 camTransform = cam.getTransform();
+  Mat4 camTransform = mCamera->getComponent<Transform>()->get();
   Vec3 camPos;
   Mat3 camRot;
   camTransform.decompose(camRot, camPos);
@@ -234,6 +255,7 @@ void Editor::_updateInput(float dt) {
   }
 
   if(move.length2() > 0.0f || rotated) {
-    cam.setTransform(Mat4::transform(camRot, camPos));
+    mCamera->getComponent<Transform>()->set(Mat4::transform(camRot, camPos));
+    mCamera->getComponent<Transform>()->sync(mArgs.mMessages->getMessageQueue().get());
   }
 }

@@ -1,36 +1,41 @@
 #pragma once
 #include "System.h"
 
-class Shader;
-class Camera;
-class DebugDrawer;
-class ImGuiImpl;
-class Model;
-class Texture;
-class Event;
-class TransformEvent;
-class ComponentEvent;
-class ClearSpaceEvent;
-class RenderableUpdateEvent;
-class EventBuffer;
+class AddComponentEvent;
 class App;
 class Asset;
-class AddComponentEvent;
-class RemoveComponentEvent;
-class DrawLineEvent;
-class DrawVectorEvent;
-class DrawPointEvent;
+class Camera;
+class ClearSpaceEvent;
+class ComponentEvent;
+class DebugDrawer;
 class DrawCubeEvent;
+class DrawLineEvent;
+class DrawPointEvent;
 class DrawSphereEvent;
+class DrawVectorEvent;
+class Event;
+class EventBuffer;
+class FrameBuffer;
+class FullScreenQuad;
+class ImGuiImpl;
+class Model;
+class PixelBuffer;
+class RemoveComponentEvent;
+class RemoveViewportEvent;
+class RenderCommandEvent;
+class RenderableUpdateEvent;
+class ScreenPickRequest;
+class SetActiveCameraEvent;
 class SetComponentPropEvent;
 class SetComponentPropsEvent;
-struct RenderableData;
-class FullScreenQuad;
-class FrameBuffer;
-class PixelBuffer;
-class ScreenPickRequest;
+class SetViewportEvent;
+class Shader;
+class Texture;
+class TransformEvent;
+class Viewport;
+
 struct RenderCommand;
-class RenderCommandEvent;
+struct RenderableData;
 
 class GraphicsSystem : public System {
 public:
@@ -61,7 +66,7 @@ private:
     std::shared_ptr<Asset> mDiffTex;
   };
 
-  void _render(float dt);
+  void _render(const Camera& camera, const Viewport& viewport);
   void _renderCommands();
   void _outline(const RenderCommand& c);
   void _quad2d(const RenderCommand& c);
@@ -79,6 +84,9 @@ private:
   void _processClearSpaceEvent(const ClearSpaceEvent& e);
   void _processScreenPickRequest(const ScreenPickRequest& e);
   void _processRenderCommandEvent(const RenderCommandEvent& e);
+  void _processSetActiveCameraEvent(const SetActiveCameraEvent& e);
+  void _processSetViewportEvent(const SetViewportEvent& e);
+  void _processRemoveViewportEvent(const RemoveViewportEvent& e);
 
   void _processRenderThreadTasks();
 
@@ -89,11 +97,14 @@ private:
   void _drawPickScene(const FrameBuffer& destination);
   void _processPickRequests(const std::vector<uint8_t> pickScene, const std::vector<ScreenPickRequest>& requests);
 
+  Camera& _getActiveCamera();
+  Camera* _getCamera(Handle handle);
+  Viewport* _getViewport(const std::string& name);
+
   std::shared_ptr<Shader> mGeometry;
   std::shared_ptr<Shader> mFSQShader;
   std::shared_ptr<Shader> mFlatColorShader;
 
-  std::unique_ptr<Camera> mCamera;
   std::unique_ptr<DebugDrawer> mDebugDrawer;
   std::unique_ptr<ImGuiImpl> mImGui;
   std::unique_ptr<FullScreenQuad> mFullScreenQuad;
@@ -111,4 +122,8 @@ private:
   //Local state
   MappedBuffer<LocalRenderable> mLocalRenderables;
   std::vector<RenderCommand> mRenderCommands;
+
+  std::vector<Camera> mCameras;
+  std::vector<Viewport> mViewports;
+  Handle mActiveCamera;
 };

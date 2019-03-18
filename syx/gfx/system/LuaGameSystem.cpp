@@ -322,6 +322,7 @@ void LuaGameSystem::_onRemoveLuaComponent(const RemoveLuaComponentEvent& e) {
 }
 
 void LuaGameSystem::_onAddGameObject(const AddGameObjectEvent& e) {
+  mArgs.mGameObjectGen->blacklistHandle(e.mObj);
   //See if there is a pending object for this message
   std::unique_ptr<LuaGameObject> pending;
   mPendingObjectsLock.lock();

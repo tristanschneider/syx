@@ -4,6 +4,7 @@
 class AssetPreview;
 class DragDropAssetLoader;
 class FilePath;
+class LuaGameObject;
 class LuaGameSystemObserver;
 class ObjectInspector;
 enum class PlayState : uint8_t;
@@ -34,4 +35,5 @@ private:
   PlayState mCurrentState;
   std::unique_ptr<FilePath> mSavedScene;
   std::unique_ptr<DragDropAssetLoader> mDragDropAssetLoader;
+  std::unique_ptr<LuaGameObject> mCamera;
 };

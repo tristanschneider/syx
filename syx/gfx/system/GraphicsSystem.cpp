@@ -5,6 +5,7 @@
 #include "asset/Shader.h"
 #include "asset/Texture.h"
 #include "Camera.h"
+#include "component/CameraComponent.h"
 #include "component/Renderable.h"
 #include "component/SpaceComponent.h"
 #include "component/Transform.h"
@@ -16,6 +17,7 @@
 #include "event/BaseComponentEvents.h"
 #include "event/DebugDrawEvent.h"
 #include "event/SpaceEvents.h"
+#include "event/ViewportEvents.h"
 #include "provider/MessageQueueProvider.h"
 #include "provider/SystemProvider.h"
 #include <gl/glew.h>
@@ -23,6 +25,7 @@
 #include "graphics/FrameBuffer.h"
 #include "graphics/PixelBuffer.h"
 #include "graphics/RenderCommand.h"
+#include "graphics/Viewport.h"
 #include "ImGuiImpl.h"
 #include "lua/LuaNode.h"
 #include "system/KeyboardInput.h"
@@ -44,6 +47,10 @@ namespace {
 
   Handle decodeHandle(const uint8_t* handle) {
     return handle[0] | (handle[1] << 8) | (handle[2] << 16);
+  }
+
+  Camera createCamera(Handle owner) {
+    return Camera(CameraOps(1.396f, 1.396f, 0.1f, 100.0f, owner));
   }
 }
 
@@ -67,7 +74,10 @@ GraphicsSystem::GraphicsSystem(const SystemArgs& args)
 }
 
 void GraphicsSystem::init() {
-  mCamera = std::make_unique<Camera>(CameraOps(1.396f, 1.396f, 0.1f, 100.0f));
+  mCameras.push_back(createCamera(0));
+  Camera& defaultCamera = mCameras.back();
+  mActiveCamera = defaultCamera.getOps().mOwner;
+
   mFullScreenQuad = std::make_unique<FullScreenQuad>();
 
   AssetRepo& assets = *mArgs.mSystems->getSystem<AssetRepo>();
@@ -75,10 +85,10 @@ void GraphicsSystem::init() {
   mFSQShader = assets.getAsset<Shader>(AssetInfo("shaders/fullScreenQuad.vs"));
   mFlatColorShader = assets.getAsset<Shader>(AssetInfo("shaders/flatColor.vs"));
 
-  Mat4 ct = mCamera->getTransform();
+  Mat4 ct = defaultCamera.getTransform();
   ct.setTranslate(Vec3(0.0f, 0.0f, -3.0f));
   ct.setRot(Quat::lookAt(-Vec3::UnitZ));
-  mCamera->setTransform(ct);
+  defaultCamera.setTransform(ct);
   mDebugDrawer = std::make_unique<DebugDrawer>(*mArgs.mSystems->getSystem<AssetRepo>());
   mImGui = std::make_unique<ImGuiImpl>();
 
@@ -96,6 +106,9 @@ void GraphicsSystem::init() {
   SYSTEM_EVENT_HANDLER(ClearSpaceEvent, _processClearSpaceEvent);
   SYSTEM_EVENT_HANDLER(ScreenPickRequest, _processScreenPickRequest);
   SYSTEM_EVENT_HANDLER(RenderCommandEvent, _processRenderCommandEvent);
+  SYSTEM_EVENT_HANDLER(SetActiveCameraEvent, _processSetActiveCameraEvent);
+  SYSTEM_EVENT_HANDLER(SetViewportEvent, _processSetViewportEvent);
+  SYSTEM_EVENT_HANDLER(RemoveViewportEvent, _processRemoveViewportEvent);
 }
 
 void GraphicsSystem::update(float dt, IWorkerPool& pool, std::shared_ptr<Task> frameTask) {
@@ -108,7 +121,11 @@ void GraphicsSystem::update(float dt, IWorkerPool& pool, std::shared_ptr<Task> f
   }
 
   //Can't really do anything on background threads at the moment because this one has the context.
-  _render(dt);
+  for(const Camera& c : mCameras) {
+    if(const Viewport* v = _getViewport(c.getOps().mViewport)) {
+      _render(c, *v);
+    }
+  }
 
   if(updatePick) {
     std::vector<uint8_t> buffer;
@@ -129,7 +146,7 @@ void GraphicsSystem::uninit() {
 }
 
 Camera& GraphicsSystem::getPrimaryCamera() {
-  return *mCamera;
+  return mCameras.front();
 }
 
 DebugDrawer& GraphicsSystem::getDebugDrawer() {
@@ -156,11 +173,16 @@ void GraphicsSystem::dispatchToRenderThread(std::function<void()> func) {
 void GraphicsSystem::_processAddEvent(const AddComponentEvent& e) {
   if(e.mCompType == Component::typeId<Renderable>() && !mLocalRenderables.get(e.mObj))
     mLocalRenderables.pushBack(LocalRenderable(e.mObj));
+  else if(e.mCompType == Component::typeId<CameraComponent>() && !_getCamera(e.mObj))
+    mCameras.push_back(createCamera(e.mObj));
 }
 
 void GraphicsSystem::_processRemoveEvent(const RemoveComponentEvent& e) {
   if(e.mCompType == Component::typeId<Renderable>())
     mLocalRenderables.erase(e.mObj);
+  else if(e.mCompType == Component::typeId<CameraComponent>()) {
+    //TODO: remove
+  }
 }
 
 void GraphicsSystem::_processTransformEvent(const TransformEvent& e) {
@@ -168,6 +190,7 @@ void GraphicsSystem::_processTransformEvent(const TransformEvent& e) {
   if(obj) {
     obj->mTransform = e.mTransform;
   }
+  //TODO camera transform update
 }
 
 void GraphicsSystem::_processRenderableEvent(const RenderableUpdateEvent& e) {
@@ -221,8 +244,13 @@ void GraphicsSystem::_processSetCompPropsEvent(const SetComponentPropsEvent& e) 
     LocalRenderable* obj = mLocalRenderables.get(e.mObj);
     if(obj) {
       Transform t(0);
-      t.getLuaProps()->copyConstructFromBuffer(&t, e.mBuffer.data());
+      t.getLuaProps()->copyFromBuffer(&t, e.mBuffer.data());
       obj->mTransform = t.get();
+    }
+    if(Camera* camera = _getCamera(e.mObj)) {
+      Transform t(0);
+      t.getLuaProps()->copyFromBuffer(&t, e.mBuffer.data());
+      camera->setTransform(t.get());
     }
   }
   else if(e.mCompType.id == Component::typeId<SpaceComponent>()) {
@@ -230,6 +258,18 @@ void GraphicsSystem::_processSetCompPropsEvent(const SetComponentPropsEvent& e) 
       SpaceComponent s(0);
       s.getLuaProps()->copyConstructFromBuffer(&s, e.mBuffer.data());
       obj->mSpace = s.get();
+    }
+  }
+  else if(e.mCompType.id == Component::typeId<CameraComponent>()) {
+    if(Camera* camera = _getCamera(e.mObj)) {
+      CameraComponent c(0);
+      c.getLuaProps()->copyFromBuffer(&c, e.mBuffer.data(), e.mDiff);
+      CameraComponent(0).getLuaProps()->forEachDiff(e.mDiff, &c, [camera](const Lua::Node& node, const void* data) {
+        switch(Util::constHash(node.getName().c_str())) {
+          case Util::constHash("viewport"): camera->setViewport(*static_cast<const std::string*>(data));
+          default: break;
+        }
+      });
     }
   }
 }
@@ -260,8 +300,11 @@ void GraphicsSystem::_setFromData(LocalRenderable& renderable, const RenderableD
   renderable.mDiffTex = repo.getAsset(AssetInfo(data.mDiffTex));
 }
 
-void GraphicsSystem::_render(float dt) {
-  glViewport(0, 0, (int)mScreenSize.x, (int)mScreenSize.y);
+void GraphicsSystem::_render(const Camera& camera, const Viewport& viewport) {
+  glViewport(static_cast<int>(viewport.getMin().x*mScreenSize.x),
+    static_cast<int>(viewport.getMin().y*mScreenSize.y),
+    static_cast<int>((viewport.getMax().x - viewport.getMin().x)*mScreenSize.x),
+    static_cast<int>((viewport.getMax().y - viewport.getMin().y)*mScreenSize.y));
   glClearColor(0.0f, 0.0f, 1.0f, 0.0f);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
@@ -271,7 +314,7 @@ void GraphicsSystem::_render(float dt) {
   glEnable(GL_CULL_FACE);
   glCullFace(GL_BACK);
 
-  mDebugDrawer->_render(mCamera->getWorldToView());
+  mDebugDrawer->_render(camera.getWorldToView());
 
   Shader* requiredShaders[] = {
     mGeometry.get(),
@@ -283,22 +326,16 @@ void GraphicsSystem::_render(float dt) {
   }
 
   {
-    Texture emptyTexture(AssetInfo(0));
+    const Texture emptyTexture(AssetInfo(0));
     Shader& geometry = *mGeometry;
-    Shader::Binder sb(geometry);
-    Vec3 camPos = mCamera->getTransform().getTranslate();
-    Vec3 mDiff(1.0f);
-    Vec3 mSpec(0.6f, 0.6f, 0.6f, 2.5f);
-    Vec3 mAmb(0.22f, 0.22f, 0.22f);
-    Vec3 sunDir = -Vec3::Identity.normalized();
-    Vec3 sunColor = Vec3::Identity;
-    Mat4 wvp = mCamera->getWorldToView();
-
-    {
-      Vec3 p(3.0f);
-      mDebugDrawer->drawLine(p, p + sunDir, sunColor);
-      mDebugDrawer->drawLine(p + sunDir, p + sunDir - Vec3(0.1f));
-    }
+    const Shader::Binder sb(geometry);
+    const Vec3 camPos = camera.getTransform().getTranslate();
+    const Vec3 mDiff(1.0f);
+    const Vec3 mSpec(0.6f, 0.6f, 0.6f, 2.5f);
+    const Vec3 mAmb(0.22f, 0.22f, 0.22f);
+    const Vec3 sunDir = -Vec3::Identity.normalized();
+    const Vec3 sunColor = Vec3::Identity;
+    const Mat4 wvp = camera.getWorldToView();
 
     glUniform3f(geometry.getUniform("uCamPos"), camPos.x, camPos.y, camPos.z);
     glUniform3f(geometry.getUniform("uDiffuse"), mDiff.x, mDiff.y, mDiff.z);
@@ -312,8 +349,8 @@ void GraphicsSystem::_render(float dt) {
       if(!obj.mModel || obj.mModel->getState() != AssetState::PostProcessed)
         continue;
 
-      Mat4 mw = obj.mTransform;
-      Mat4 mvp = wvp * mw;
+      const Mat4 mw = obj.mTransform;
+      const Mat4 mvp = wvp * mw;
 
       {
         Texture::Binder tb(obj.mDiffTex && obj.mDiffTex->getState() == AssetState::PostProcessed ? static_cast<Texture&>(*obj.mDiffTex) : emptyTexture, 0);
@@ -354,20 +391,20 @@ void GraphicsSystem::_outline(const RenderCommand& c) {
   const int outline = 1;
   GLint prevStencilFunc;
   glGetIntegerv(GL_STENCIL_FUNC, &prevStencilFunc);
-  GLboolean prevBlend = glIsEnabled(GL_BLEND);
-  GLboolean prevStencil = glIsEnabled(GL_STENCIL_TEST);
+  const GLboolean prevBlend = glIsEnabled(GL_BLEND);
+  const GLboolean prevStencil = glIsEnabled(GL_STENCIL_TEST);
   float prevLineWidth;
   glGetFloatv(GL_LINE_WIDTH, &prevLineWidth);
 
   glEnable(GL_STENCIL_TEST);
 
-  Shader::Binder sb(*mFlatColorShader);
+  const Shader::Binder sb(*mFlatColorShader);
   const Model& model = static_cast<Model&>(*obj->mModel);
-  Model::Binder mb(model);
+  const Model::Binder mb(model);
 
-  Mat4 wvp = mCamera->getWorldToView();
-  Mat4 mw = obj->mTransform;
-  Mat4 mvp = wvp * mw;
+  const Mat4 wvp = _getActiveCamera().getWorldToView();
+  const Mat4 mw = obj->mTransform;
+  const Mat4 mvp = wvp * mw;
   glUniformMatrix4fv(mFlatColorShader->getUniform("mvp"), 1, GL_FALSE, mvp.mData);
   //Since the object has already been drawn, re draw it slightly above so the draw doesn't fail depth tests
   glUniform1f(mFlatColorShader->getUniform("depthBias"), -0.01f);
@@ -470,21 +507,22 @@ void GraphicsSystem::_drawPickScene(const FrameBuffer& destination) {
   glCullFace(GL_BACK);
 
   {
-    Shader::Binder sb(*mFlatColorShader);
-    Vec3 camPos = mCamera->getTransform().getTranslate();
-    Mat4 wvp = mCamera->getWorldToView();
+    const Shader::Binder sb(*mFlatColorShader);
+    const Camera& camera = _getActiveCamera();
+    const Vec3 camPos = camera.getTransform().getTranslate();
+    const Mat4 wvp = camera.getWorldToView();
 
     for(LocalRenderable& obj : mLocalRenderables.getBuffer()) {
       //TODO: skip objects not visible to the spaces the camera can see
       if(!obj.mModel || obj.mModel->getState() != AssetState::PostProcessed)
         continue;
 
-      Mat4 mw = obj.mTransform;
-      Mat4 mvp = wvp * mw;
-      Model& model = static_cast<Model&>(*obj.mModel);
-      Model::Binder mb(model);
+      const Mat4 mw = obj.mTransform;
+      const Mat4 mvp = wvp * mw;
+      const Model& model = static_cast<Model&>(*obj.mModel);
+      const Model::Binder mb(model);
       glUniformMatrix4fv(mFlatColorShader->getUniform("mvp"), 1, GL_FALSE, mvp.mData);
-      Vec3 handleColor = encodeHandle(obj.getHandle())*(1.0f/255.0f);
+      const Vec3 handleColor = encodeHandle(obj.getHandle())*(1.0f/255.0f);
       glUniform4fv(mFlatColorShader->getUniform("uColor"), 1, &handleColor.x);
 
       model.draw();
@@ -499,6 +537,24 @@ void GraphicsSystem::_processScreenPickRequest(const ScreenPickRequest& e) {
 
 void GraphicsSystem::_processRenderCommandEvent(const RenderCommandEvent& e) {
   mRenderCommands.emplace_back(e.mCmd);
+}
+
+void GraphicsSystem::_processSetActiveCameraEvent(const SetActiveCameraEvent& e) {
+  if(std::find_if(mCameras.begin(), mCameras.end(), [&e](const Camera& c) { return c.getOps().mOwner == e.mHandle; }) != mCameras.end())
+    mActiveCamera = e.mHandle;
+}
+
+void GraphicsSystem::_processSetViewportEvent(const SetViewportEvent& e) {
+  auto it = std::find_if(mViewports.begin(), mViewports.end(), [&e](const Viewport& v) { return v.getName() == e.mViewport.getName(); });
+  if(it != mViewports.end())
+    *it = e.mViewport;
+  mViewports.push_back(e.mViewport);
+}
+
+void GraphicsSystem::_processRemoveViewportEvent(const RemoveViewportEvent& e) {
+  auto it = std::find_if(mViewports.begin(), mViewports.end(), [&e](const Viewport& v) { return v.getName() == e.mName; });
+  if(it != mViewports.end())
+    mViewports.erase(it);
 }
 
 void GraphicsSystem::_processPickRequests(const std::vector<uint8_t> pickScene, const std::vector<ScreenPickRequest>& requests) {
@@ -545,6 +601,20 @@ void GraphicsSystem::_processPickRequests(const std::vector<uint8_t> pickScene, 
     mArgs.mMessages->getMessageQueue().get().push(ScreenPickResponse(req.mRequestId, req.mSpace, std::move(results)));
     foundHandles.clear();
   }
+}
+
+Camera& GraphicsSystem::_getActiveCamera() {
+  return *_getCamera(mActiveCamera);
+}
+
+Camera* GraphicsSystem::_getCamera(Handle handle) {
+  auto it = std::find_if(mCameras.begin(), mCameras.end(), [handle](const Camera& c) { return c.getOps().mOwner == handle; });
+  return it != mCameras.end() ? &*it : nullptr;
+}
+
+Viewport* GraphicsSystem::_getViewport(const std::string& name) {
+  auto it = std::find_if(mViewports.begin(), mViewports.end(), [&name](const Viewport& v) { return v.getName() == name; });
+  return it != mViewports.end() ? &*it : nullptr;
 }
 
 void GraphicsSystem::onResize(int width, int height) {

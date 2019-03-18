@@ -86,6 +86,19 @@ void Component::invalidate(lua_State* l) const {
   sLuaCache->invalidate(l, mCacheId, getTypeInfo().mTypeName.c_str());
 }
 
+void Component::addSync(EventBuffer& msg) const {
+  msg.push(AddComponentEvent(getOwner(), getFullType().id, getFullType().subId));
+  sync(msg, ~0);
+}
+
+void Component::sync(EventBuffer& msg, Lua::NodeDiff diff) const {
+  if(const Lua::Node* props = getLuaProps()) {
+    std::vector<uint8_t> buffer(props->size());
+    props->copyConstructToBuffer(this, buffer.data());
+    msg.push(SetComponentPropsEvent(getOwner(), getFullType(), props, diff, std::move(buffer)));
+  }
+}
+
 void Component::openLib(lua_State* l) const {
 }
 

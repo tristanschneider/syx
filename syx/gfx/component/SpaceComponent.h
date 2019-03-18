@@ -44,7 +44,7 @@ public:
   static int addObject(lua_State* l);
 
   static SpaceComponent& getObj(lua_State* l, int index);
-  static void _loadSceneFromDescription(LuaGameSystem& game, const LuaSceneDescription& scene, Handle space);
+  static void _loadSceneFromDescription(LuaGameSystem& game, LuaSceneDescription& scene, Handle space);
   static void _addObjectsFromSpace(LuaGameSystem& game, Handle fromSpace, Handle toSpace);
 
 private:
