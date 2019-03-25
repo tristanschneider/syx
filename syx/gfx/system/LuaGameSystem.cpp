@@ -58,6 +58,7 @@ void LuaGameSystem::init() {
   SYSTEM_EVENT_HANDLER(SaveSpaceEvent, _onSpaceSave);
   SYSTEM_EVENT_HANDLER(LoadSpaceEvent, _onSpaceLoad);
   SYSTEM_EVENT_HANDLER(SetTimescaleEvent, _onSetTimescale);
+  mEventHandler->registerEventHandler<CallbackEvent>(CallbackEvent::getHandler(GetSystemID(LuaGameSystem)));
 
   mState = std::make_unique<Lua::State>();
   mLibs = std::make_unique<Lua::AllLuaLibs>();

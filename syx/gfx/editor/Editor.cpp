@@ -130,6 +130,7 @@ void Editor::init() {
   mEventHandler->registerEventHandler<SetPlayStateEvent>([this](const SetPlayStateEvent& e) {
     _updateState(e.mState);
   });
+  mEventHandler->registerEventHandler<CallbackEvent>(CallbackEvent::getHandler(GetSystemID(Editor)));
 
   //TODO: make this less confusing and error prone
   MessageQueue msg = mArgs.mMessages->getMessageQueue();

@@ -1,6 +1,7 @@
 #include "Precompile.h"
 #include "editor/SceneBrowser.h"
 
+#include "editor/Editor.h"
 #include "editor/event/EditorEvents.h"
 #include <event/EventHandler.h>
 #include "event/BaseComponentEvents.h"
@@ -19,12 +20,11 @@ namespace {
   const Syx::Vec3 PICK_COLOR(1, 0, 0);
 }
 
-SceneBrowser::SceneBrowser(MessageQueueProvider& msg, GameObjectHandleProvider& handleGen, KeyboardInput& input, EventHandler& handler)
+SceneBrowser::SceneBrowser(MessageQueueProvider& msg, GameObjectHandleProvider& handleGen, KeyboardInput& input, EventHandler&)
   : mMsg(&msg)
   , mHandleGen(&handleGen)
   , mInput(&input)
   , mMouseDownPos(INVALID_MOUSE) {
-  handler.registerEventHandler<ScreenPickResponse>(std::bind(&SceneBrowser::_onPickResponse, this, std::placeholders::_1));
 }
 
 void SceneBrowser::editorUpdate(const HandleMap<std::unique_ptr<LuaGameObject>>& objects) {
@@ -97,16 +97,6 @@ void SceneBrowser::_drawSelected() {
   }
 }
 
-void SceneBrowser::_onPickResponse(const ScreenPickResponse& response) {
-  if(response.mRequestId == PICK_ID) {
-    _clearForNewSelection();
-    for(Handle obj : response.mObjects) {
-      mSelected.insert(obj);
-    }
-    mMsg->getMessageQueue().get().push(SetSelectionEvent(std::vector<Handle>(response.mObjects)));
-  }
-}
-
 void SceneBrowser::_updatePick() {
   KeyState lmb = mInput->getKeyState(Key::LeftMouse);
   if(!ImGui::IsMouseHoveringAnyWindow() && lmb == KeyState::Triggered) {
@@ -116,7 +106,13 @@ void SceneBrowser::_updatePick() {
   if((lmb == KeyState::Released || lmb == KeyState::Up) && mMouseDownPos != INVALID_MOUSE) {
     //TODO: set the space to something
     Handle space = 0;
-    mMsg->getMessageQueue().get().push(ScreenPickRequest(PICK_ID, space, mMouseDownPos, mInput->getMousePos()));
+    mMsg->getMessageQueue().get().push(ScreenPickRequest(PICK_ID, space, mMouseDownPos, mInput->getMousePos()).then(GetSystemID(Editor), [this](const ScreenPickResponse& res) {
+      _clearForNewSelection();
+      for(Handle obj : res.mObjects) {
+        mSelected.insert(obj);
+      }
+      mMsg->getMessageQueue().get().push(SetSelectionEvent(std::vector<Handle>(res.mObjects)));
+    }));
     mMouseDownPos = INVALID_MOUSE;
   }
 }

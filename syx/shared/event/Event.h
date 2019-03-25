@@ -1,5 +1,7 @@
 #pragma once
 
+#include <event/EventBuffer.h>
+
 #define REGISTER_EVENT(type) namespace {\
   Event::Registry::Registrar type##_registrar(Event::typeId<type>(), [](const Event& e, uint8_t* buffer) {\
      new (buffer) type(static_cast<const type&>(e));\
@@ -9,6 +11,7 @@
   });\
 }
 
+//TODO: get rid of this in favor of TypedEvent
 //Register event type and begin constructor, used like:
 //DEFINE_EVENT(MyEventType, int constructorArgA, bool constructorArgB)
 //  , mA(constructorArgA)
@@ -58,4 +61,65 @@ public:
 private:
   size_t mType;
   size_t mSize;
+};
+
+template<class T>
+class TypedEvent : public Event {
+public:
+  TypedEvent()
+    : Event(Event::typeId<T>(), sizeof(T)) {
+    Event::Registry::Registrar(Event::typeId<T>(), [](const Event& e, uint8_t* buffer) {
+       new (buffer) T(static_cast<const T&>(e));
+    },
+    [](Event&& e, uint8_t* buffer) {
+      new (buffer) T(std::move(static_cast<T&&>(e)));
+    });
+  }
+};
+
+// Used to deliver a callback to a given system id. For a system to get the callback it must add the handler to its message handler.
+class CallbackEvent : public TypedEvent<CallbackEvent> {
+public:
+  CallbackEvent(size_t destinationId, std::function<void()>&& callback)
+    : mDestId(destinationId)
+    , mCallback(std::move(callback)) {
+  }
+
+  static std::function<void(const Event&)> getHandler(size_t systemId) {
+    return [systemId](const Event& e) {
+      const CallbackEvent& self = static_cast<const CallbackEvent&>(e);
+      if(self.mDestId == systemId)
+        self.mCallback();
+    };
+  }
+
+private:
+  size_t mDestId;
+  std::function<void()> mCallback;
+};
+
+//Used to request a response from some system and have the resulting handler be processed on the requester's message loop.
+template<class Req, class Res>
+class RequestEvent : public TypedEvent<Req> {
+public:
+  using ResponseHandler = std::function<void(const Res&)>;
+
+  Req& then(size_t requesterType, ResponseHandler&& responseHandler) {
+    mRequesterType = requesterType;
+    mHandler = std::move(responseHandler);
+    return static_cast<Req&>(*this);
+  }
+
+  void respond(EventBuffer& msg, Res&& res) const {
+    //Copy the callback and the result and deliver it to the requester to be executed there
+    ResponseHandler handlerCopy = std::move(mHandler);
+    //The requester must have a handler for CallbackEvent or he won't get this response
+    msg.push(CallbackEvent(mRequesterType, [res = std::move(res), handlerCopy = std::move(handlerCopy)]() {
+      handlerCopy(res);
+    }));
+  }
+
+private:
+  size_t mRequesterType;
+  mutable ResponseHandler mHandler;
 };

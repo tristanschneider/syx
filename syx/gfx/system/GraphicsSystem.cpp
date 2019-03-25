@@ -109,6 +109,7 @@ void GraphicsSystem::init() {
   SYSTEM_EVENT_HANDLER(SetActiveCameraEvent, _processSetActiveCameraEvent);
   SYSTEM_EVENT_HANDLER(SetViewportEvent, _processSetViewportEvent);
   SYSTEM_EVENT_HANDLER(RemoveViewportEvent, _processRemoveViewportEvent);
+  mEventHandler->registerEventHandler<CallbackEvent>(CallbackEvent::getHandler(GetSystemID(GraphicsSystem)));
 }
 
 void GraphicsSystem::update(float dt, IWorkerPool& pool, std::shared_ptr<Task> frameTask) {
@@ -598,7 +599,7 @@ void GraphicsSystem::_processPickRequests(const std::vector<uint8_t> pickScene, 
     for(Handle h : foundHandles) {
       results.push_back(h);
     }
-    mArgs.mMessages->getMessageQueue().get().push(ScreenPickResponse(req.mRequestId, req.mSpace, std::move(results)));
+    req.respond(mArgs.mMessages->getMessageQueue().get(), ScreenPickResponse(req.mRequestId, req.mSpace, std::move(results)));
     foundHandles.clear();
   }
 }

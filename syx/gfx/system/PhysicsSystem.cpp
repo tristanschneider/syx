@@ -83,6 +83,7 @@ void PhysicsSystem::init() {
   SYSTEM_EVENT_HANDLER(ClearSpaceEvent, _clearSpaceEvent);
   SYSTEM_EVENT_HANDLER(RemoveComponentEvent, _removeComponentEvent);
   SYSTEM_EVENT_HANDLER(SetTimescaleEvent, _setTimescaleEvent);
+  mEventHandler->registerEventHandler<CallbackEvent>(CallbackEvent::getHandler(GetSystemID(PhysicsSystem)));
 }
 
 void PhysicsSystem::queueTasks(float dt, IWorkerPool& pool, std::shared_ptr<Task> frameTask) {
