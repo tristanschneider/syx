@@ -5,10 +5,6 @@
 #include "lua/LuaUtil.h"
 #include <lua.hpp>
 
-DEFINE_EVENT(SetActiveCameraEvent, Handle handle)
-  , mHandle(handle) {
-}
-
 DEFINE_COMPONENT(CameraComponent) {
 }
 

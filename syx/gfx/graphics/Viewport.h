@@ -7,6 +7,7 @@ public:
   const std::string& getName() const;
   Syx::Vec2 getMin() const;
   Syx::Vec2 getMax() const;
+  bool within(const Syx::Vec2& point) const;
 
   void set(const Syx::Vec2& min, const Syx::Vec2& max);
 

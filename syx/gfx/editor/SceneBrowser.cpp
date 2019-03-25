@@ -1,6 +1,7 @@
 #include "Precompile.h"
 #include "editor/SceneBrowser.h"
 
+#include "Camera.h"
 #include "editor/Editor.h"
 #include "editor/event/EditorEvents.h"
 #include <event/EventHandler.h>
@@ -106,12 +107,19 @@ void SceneBrowser::_updatePick() {
   if((lmb == KeyState::Released || lmb == KeyState::Up) && mMouseDownPos != INVALID_MOUSE) {
     //TODO: set the space to something
     Handle space = 0;
-    mMsg->getMessageQueue().get().push(ScreenPickRequest(PICK_ID, space, mMouseDownPos, mInput->getMousePos()).then(GetSystemID(Editor), [this](const ScreenPickResponse& res) {
-      _clearForNewSelection();
-      for(Handle obj : res.mObjects) {
-        mSelected.insert(obj);
+    const Syx::Vec2 mouseDownPos = mMouseDownPos;
+    const Syx::Vec2 mouseUpPos = mInput->getMousePos();
+    //Get the camera at the mouse, then pick with that camera
+    mMsg->getMessageQueue().get().push(GetCameraRequest(mouseDownPos, GetCameraRequest::CoordSpace::Pixel).then(GetSystemID(Editor), [this, space, mouseDownPos, mouseUpPos](const GetCameraResponse& getCam) {
+      if(getCam.mCamera.isValid()) {
+        mMsg->getMessageQueue().get().push(ScreenPickRequest(PICK_ID, getCam.mCamera.getOps().mOwner, space, mouseDownPos, mouseUpPos).then(GetSystemID(Editor), [this](const ScreenPickResponse& res) {
+          _clearForNewSelection();
+          for(Handle obj : res.mObjects) {
+            mSelected.insert(obj);
+          }
+          mMsg->getMessageQueue().get().push(SetSelectionEvent(std::vector<Handle>(res.mObjects)));
+        }));
       }
-      mMsg->getMessageQueue().get().push(SetSelectionEvent(std::vector<Handle>(res.mObjects)));
     }));
     mMouseDownPos = INVALID_MOUSE;
   }

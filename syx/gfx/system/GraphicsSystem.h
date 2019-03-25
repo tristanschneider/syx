@@ -17,6 +17,7 @@ class Event;
 class EventBuffer;
 class FrameBuffer;
 class FullScreenQuad;
+class GetCameraRequest;
 class ImGuiImpl;
 class Model;
 class PixelBuffer;
@@ -25,7 +26,6 @@ class RemoveViewportEvent;
 class RenderCommandEvent;
 class RenderableUpdateEvent;
 class ScreenPickRequest;
-class SetActiveCameraEvent;
 class SetComponentPropEvent;
 class SetComponentPropsEvent;
 class SetViewportEvent;
@@ -67,9 +67,9 @@ private:
   };
 
   void _render(const Camera& camera, const Viewport& viewport);
-  void _renderCommands();
-  void _outline(const RenderCommand& c);
-  void _quad2d(const RenderCommand& c);
+  void _renderCommands(const Camera& camera, const Viewport& viewport);
+  void _outline(const RenderCommand& c, const Camera& camera, const Viewport& viewport);
+  void _quad2d(const RenderCommand& c, const Camera& camera, const Viewport& viewport);
 
   void _processAddEvent(const AddComponentEvent& e);
   void _processRemoveEvent(const RemoveComponentEvent& e);
@@ -84,9 +84,9 @@ private:
   void _processClearSpaceEvent(const ClearSpaceEvent& e);
   void _processScreenPickRequest(const ScreenPickRequest& e);
   void _processRenderCommandEvent(const RenderCommandEvent& e);
-  void _processSetActiveCameraEvent(const SetActiveCameraEvent& e);
   void _processSetViewportEvent(const SetViewportEvent& e);
   void _processRemoveViewportEvent(const RemoveViewportEvent& e);
+  void _processGetCameraRequest(const GetCameraRequest& e);
 
   void _processRenderThreadTasks();
 
@@ -94,12 +94,14 @@ private:
 
   void _drawTexture(const Texture& tex, const Syx::Vec2& origin, const Syx::Vec2& size);
   void _drawBoundTexture(const Syx::Vec2& origin, const Syx::Vec2& size);
-  void _drawPickScene(const FrameBuffer& destination);
-  void _processPickRequests(const std::vector<uint8_t> pickScene, const std::vector<ScreenPickRequest>& requests);
+  void _drawPickScene(const FrameBuffer& destination, const Camera& camera, const Viewport& viewport);
+  void _processPickRequests(const std::vector<uint8_t> pickScene, std::vector<ScreenPickRequest>& requests, Handle cameraId);
 
-  Camera& _getActiveCamera();
   Camera* _getCamera(Handle handle);
   Viewport* _getViewport(const std::string& name);
+
+  void _glViewport(const Viewport& viewport) const;
+  Syx::Vec2 _pixelToNDC(const Syx::Vec2 point) const;
 
   std::shared_ptr<Shader> mGeometry;
   std::shared_ptr<Shader> mFSQShader;
@@ -125,5 +127,4 @@ private:
 
   std::vector<Camera> mCameras;
   std::vector<Viewport> mViewports;
-  Handle mActiveCamera;
 };

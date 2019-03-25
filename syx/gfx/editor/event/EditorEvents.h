@@ -17,8 +17,9 @@ public:
 
 class ScreenPickRequest : public RequestEvent<ScreenPickRequest, ScreenPickResponse> {
 public:
-  ScreenPickRequest(size_t requestId, Handle space, const Syx::Vec2& min, const Syx::Vec2& max);
+  ScreenPickRequest(size_t requestId, Handle camera, Handle space, const Syx::Vec2& min, const Syx::Vec2& max);
   size_t mRequestId;
+  Handle mCamera;
   Handle mSpace;
   Syx::Vec2 mMin;
   Syx::Vec2 mMax;

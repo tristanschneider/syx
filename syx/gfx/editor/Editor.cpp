@@ -144,9 +144,6 @@ void Editor::init() {
   cc->setViewport("editor");
   cc->addSync(msg.get());
   mCamera->addComponent(std::move(cc));
-
-  //TODO: active camera should not be necessary
-  msg.get().push(SetActiveCameraEvent(mCamera->getHandle()));
 }
 
 void Editor::uninit() {

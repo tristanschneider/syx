@@ -19,6 +19,13 @@ Syx::Vec2 Viewport::getMax() const {
   return mMax;
 }
 
+bool Viewport::within(const Syx::Vec2& point) const {
+  return point.x >= mMin.x &&
+    point.x <= mMax.x &&
+    point.y >= mMin.y &&
+    point.y <= mMax.y;
+}
+
 void Viewport::set(const Syx::Vec2& min, const Syx::Vec2& max) {
   mMin = min;
   mMax = max;

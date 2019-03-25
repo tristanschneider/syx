@@ -5,8 +5,9 @@ SetSelectionEvent::SetSelectionEvent(std::vector<Handle>&& objects)
   : mObjects(std::move(objects)) {
 }
 
-ScreenPickRequest::ScreenPickRequest(size_t requestId, Handle space, const Syx::Vec2& min, const Syx::Vec2& max)
+ScreenPickRequest::ScreenPickRequest(size_t requestId, Handle camera, Handle space, const Syx::Vec2& min, const Syx::Vec2& max)
   : mRequestId(requestId)
+  , mCamera(camera)
   , mSpace(space)
   , mMin(min)
   , mMax(max) {

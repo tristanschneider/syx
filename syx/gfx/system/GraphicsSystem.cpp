@@ -30,6 +30,7 @@
 #include "lua/LuaNode.h"
 #include "system/KeyboardInput.h"
 #include "system/AssetRepo.h"
+#include "util/Finally.h"
 
 using namespace Syx;
 
@@ -76,7 +77,6 @@ GraphicsSystem::GraphicsSystem(const SystemArgs& args)
 void GraphicsSystem::init() {
   mCameras.push_back(createCamera(0));
   Camera& defaultCamera = mCameras.back();
-  mActiveCamera = defaultCamera.getOps().mOwner;
 
   mFullScreenQuad = std::make_unique<FullScreenQuad>();
 
@@ -106,9 +106,9 @@ void GraphicsSystem::init() {
   SYSTEM_EVENT_HANDLER(ClearSpaceEvent, _processClearSpaceEvent);
   SYSTEM_EVENT_HANDLER(ScreenPickRequest, _processScreenPickRequest);
   SYSTEM_EVENT_HANDLER(RenderCommandEvent, _processRenderCommandEvent);
-  SYSTEM_EVENT_HANDLER(SetActiveCameraEvent, _processSetActiveCameraEvent);
   SYSTEM_EVENT_HANDLER(SetViewportEvent, _processSetViewportEvent);
   SYSTEM_EVENT_HANDLER(RemoveViewportEvent, _processRemoveViewportEvent);
+  SYSTEM_EVENT_HANDLER(GetCameraRequest, _processGetCameraRequest);
   mEventHandler->registerEventHandler<CallbackEvent>(CallbackEvent::getHandler(GetSystemID(GraphicsSystem)));
 }
 
@@ -117,8 +117,17 @@ void GraphicsSystem::update(float dt, IWorkerPool& pool, std::shared_ptr<Task> f
 
   bool updatePick = mPickRequests.size() && mFrameBuffer;
   if(updatePick) {
-    _drawPickScene(*mFrameBuffer);
-    mPixelPackBuffer->download(*mFrameBuffer);
+    auto failCase = finally([&updatePick, this]() {
+      updatePick = false;
+      mPickRequests.pop_back();
+    });
+    if(Camera* camera = _getCamera(mPickRequests.front().mCamera)) {
+      if(Viewport* viewport = _getViewport(camera->getOps().mViewport)) {
+        _drawPickScene(*mFrameBuffer, *camera, *viewport);
+        mPixelPackBuffer->download(*mFrameBuffer);
+        failCase.cancel();
+      }
+    }
   }
 
   //Can't really do anything on background threads at the moment because this one has the context.
@@ -131,7 +140,7 @@ void GraphicsSystem::update(float dt, IWorkerPool& pool, std::shared_ptr<Task> f
   if(updatePick) {
     std::vector<uint8_t> buffer;
     mPixelPackBuffer->mapBuffer(buffer);
-    _processPickRequests(buffer, mPickRequests);
+    _processPickRequests(buffer, mPickRequests, mPickRequests.front().mCamera);
     mPickRequests.clear();
   }
 
@@ -302,10 +311,7 @@ void GraphicsSystem::_setFromData(LocalRenderable& renderable, const RenderableD
 }
 
 void GraphicsSystem::_render(const Camera& camera, const Viewport& viewport) {
-  glViewport(static_cast<int>(viewport.getMin().x*mScreenSize.x),
-    static_cast<int>(viewport.getMin().y*mScreenSize.y),
-    static_cast<int>((viewport.getMax().x - viewport.getMin().x)*mScreenSize.x),
-    static_cast<int>((viewport.getMax().y - viewport.getMin().y)*mScreenSize.y));
+  _glViewport(viewport);
   glClearColor(0.0f, 0.0f, 1.0f, 0.0f);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
@@ -369,19 +375,19 @@ void GraphicsSystem::_render(const Camera& camera, const Viewport& viewport) {
     }
   }
 
-  _renderCommands();
+  _renderCommands(camera, viewport);
 }
 
-void GraphicsSystem::_renderCommands() {
+void GraphicsSystem::_renderCommands(const Camera& camera, const Viewport& viewport) {
   for(const RenderCommand& c : mRenderCommands) {
     switch(c.mType) {
-      case RenderCommand::Type::Outline: _outline(c); break;
-      case RenderCommand::Type::Quad2d: _quad2d(c); break;
+      case RenderCommand::Type::Outline: _outline(c, camera, viewport); break;
+      case RenderCommand::Type::Quad2d: _quad2d(c, camera, viewport); break;
     }
   }
 }
 
-void GraphicsSystem::_outline(const RenderCommand& c) {
+void GraphicsSystem::_outline(const RenderCommand& c, const Camera& camera, const Viewport& viewport) {
   if(mFlatColorShader->getState() != AssetState::PostProcessed)
     return;
   const LocalRenderable* obj = mLocalRenderables.get(c.mOutline.mHandle);
@@ -403,7 +409,7 @@ void GraphicsSystem::_outline(const RenderCommand& c) {
   const Model& model = static_cast<Model&>(*obj->mModel);
   const Model::Binder mb(model);
 
-  const Mat4 wvp = _getActiveCamera().getWorldToView();
+  const Mat4 wvp = camera.getWorldToView();
   const Mat4 mw = obj->mTransform;
   const Mat4 mvp = wvp * mw;
   glUniformMatrix4fv(mFlatColorShader->getUniform("mvp"), 1, GL_FALSE, mvp.mData);
@@ -442,7 +448,7 @@ void GraphicsSystem::_outline(const RenderCommand& c) {
   glLineWidth(prevLineWidth);
 }
 
-void GraphicsSystem::_quad2d(const RenderCommand& c) {
+void GraphicsSystem::_quad2d(const RenderCommand& c, const Camera& camera, const Viewport& viewport) {
   if(mFlatColorShader->getState() != AssetState::PostProcessed)
     return;
 
@@ -451,7 +457,7 @@ void GraphicsSystem::_quad2d(const RenderCommand& c) {
   Vec2 max(q.mMax[0], q.mMax[1]);
   Mat4 mvp = Mat4::identity();
 
-  // Flip origin from top left to bottom right
+  //Flip origin from top left to bottom right
   min.y = mScreenSize.y - min.y;
   max.y = mScreenSize.y - max.y;
   if(min.y > max.y)
@@ -492,12 +498,12 @@ void GraphicsSystem::_drawBoundTexture(const Syx::Vec2& origin, const Syx::Vec2&
   }
 }
 
-void GraphicsSystem::_drawPickScene(const FrameBuffer& destination) {
+void GraphicsSystem::_drawPickScene(const FrameBuffer& destination, const Camera& camera, const Viewport& viewport) {
   if(mFlatColorShader->getState() != AssetState::PostProcessed) {
     return;
   }
   destination.bind();
-  glViewport(0, 0, (int)mScreenSize.x, (int)mScreenSize.y);
+  _glViewport(viewport);
   glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -509,7 +515,6 @@ void GraphicsSystem::_drawPickScene(const FrameBuffer& destination) {
 
   {
     const Shader::Binder sb(*mFlatColorShader);
-    const Camera& camera = _getActiveCamera();
     const Vec3 camPos = camera.getTransform().getTranslate();
     const Mat4 wvp = camera.getWorldToView();
 
@@ -540,11 +545,6 @@ void GraphicsSystem::_processRenderCommandEvent(const RenderCommandEvent& e) {
   mRenderCommands.emplace_back(e.mCmd);
 }
 
-void GraphicsSystem::_processSetActiveCameraEvent(const SetActiveCameraEvent& e) {
-  if(std::find_if(mCameras.begin(), mCameras.end(), [&e](const Camera& c) { return c.getOps().mOwner == e.mHandle; }) != mCameras.end())
-    mActiveCamera = e.mHandle;
-}
-
 void GraphicsSystem::_processSetViewportEvent(const SetViewportEvent& e) {
   auto it = std::find_if(mViewports.begin(), mViewports.end(), [&e](const Viewport& v) { return v.getName() == e.mViewport.getName(); });
   if(it != mViewports.end())
@@ -558,9 +558,32 @@ void GraphicsSystem::_processRemoveViewportEvent(const RemoveViewportEvent& e) {
     mViewports.erase(it);
 }
 
-void GraphicsSystem::_processPickRequests(const std::vector<uint8_t> pickScene, const std::vector<ScreenPickRequest>& requests) {
+void GraphicsSystem::_processGetCameraRequest(const GetCameraRequest& e) {
+  auto it = std::find_if(mCameras.begin(), mCameras.end(), [&e, this](const Camera& c) {
+    if(const Viewport* v = _getViewport(c.getOps().mViewport)) {
+      Syx::Vec2 normalizedQueryPoint = e.mPoint;
+      switch(e.mSpace) {
+        case GetCameraRequest::CoordSpace::Pixel:
+          normalizedQueryPoint = _pixelToNDC(normalizedQueryPoint);
+          break;
+      }
+      return v->within(normalizedQueryPoint);
+    }
+    return false;
+  });
+  Camera result = it != mCameras.end() ? *it : Camera(CameraOps(0, 0, 0, 0, 0));
+  e.respond(mArgs.mMessages->getMessageQueue().get(), GetCameraResponse(result));
+}
+
+void GraphicsSystem::_processPickRequests(const std::vector<uint8_t> pickScene, std::vector<ScreenPickRequest>& requests, Handle cameraId) {
   std::unordered_set<Handle> foundHandles;
-  for(const ScreenPickRequest& req : requests) {
+  for(size_t i = 0; i < requests.size();) {
+    const ScreenPickRequest& req = requests[i];
+    if(req.mCamera != cameraId) {
+      ++i;
+      continue;
+    }
+
     Syx::Vec2 reqMin = req.mMin;
     Syx::Vec2 reqMax = req.mMax;
     //Flip y from top left to bottom left
@@ -601,11 +624,11 @@ void GraphicsSystem::_processPickRequests(const std::vector<uint8_t> pickScene, 
     }
     req.respond(mArgs.mMessages->getMessageQueue().get(), ScreenPickResponse(req.mRequestId, req.mSpace, std::move(results)));
     foundHandles.clear();
-  }
-}
 
-Camera& GraphicsSystem::_getActiveCamera() {
-  return *_getCamera(mActiveCamera);
+    //Remove request
+    requests[i] = requests.back();
+    requests.pop_back();
+  }
 }
 
 Camera* GraphicsSystem::_getCamera(Handle handle) {
@@ -625,4 +648,16 @@ void GraphicsSystem::onResize(int width, int height) {
   TextureDescription desc(width, height, TextureFormat::RGBA8, TextureSampleMode::Nearest);
   mFrameBuffer = std::make_unique<FrameBuffer>(desc);
   mPixelPackBuffer = std::make_unique<PixelBuffer>(desc, PixelBuffer::Type::Pack);
+}
+
+void GraphicsSystem::_glViewport(const Viewport& viewport) const {
+  glViewport(static_cast<int>(viewport.getMin().x*mScreenSize.x),
+    static_cast<int>(viewport.getMin().y*mScreenSize.y),
+    static_cast<int>((viewport.getMax().x - viewport.getMin().x)*mScreenSize.x),
+    static_cast<int>((viewport.getMax().y - viewport.getMin().y)*mScreenSize.y)
+  );
+}
+
+Syx::Vec2 GraphicsSystem::_pixelToNDC(const Syx::Vec2 point) const {
+  return Syx::Vec2(point.x/mScreenSize.x, point.y/mScreenSize.y);
 }

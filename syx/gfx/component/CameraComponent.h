@@ -1,13 +1,5 @@
 #pragma once
 #include "Component.h"
-#include <event/Event.h>
-
-class SetActiveCameraEvent : public Event {
-public:
-  SetActiveCameraEvent(Handle handle);
-
-  Handle mHandle;
-};
 
 class CameraComponent : public Component {
 public:

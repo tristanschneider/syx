@@ -37,3 +37,7 @@ const CameraOps& Camera::getOps() const {
 void Camera::setViewport(const std::string& viewport) {
   mOps.mViewport = viewport;
 }
+
+bool Camera::isValid() const {
+  return mOps.mFar > mOps.mNear && mOps.mFOVX > 0 && mOps.mFOVY > 0 && !mOps.mViewport.empty();
+}
