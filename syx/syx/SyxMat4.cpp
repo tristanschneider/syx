@@ -85,6 +85,11 @@ namespace Syx {
     return result;
   }
 
+  Vec3 Mat4::getCol(int c) const {
+    assert(c >= 0 && c <= 3 && "Index out of bounds");
+    return { mColRow[c][0], mColRow[c][1], mColRow[c][2], mColRow[c][3] };
+  }
+
   void Mat4::decompose(Vec3& scale, Mat3& rotate, Vec3& translate) const {
     translate = Vec3(mColRow[3][0], mColRow[3][1], mColRow[3][2]);
     rotate = Mat3(mColRow[0][0], mColRow[1][0], mColRow[2][0],

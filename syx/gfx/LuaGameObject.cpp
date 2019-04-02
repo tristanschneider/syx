@@ -48,18 +48,6 @@ void LuaGameObject::_addBuiltInComponents() {
   });
 }
 
-void LuaGameObject::_forEachBuiltInComponent(std::function<void(Component&)> func) {
-  const_cast<const LuaGameObject*>(this)->_forEachBuiltInComponent([func](const Component& c) {
-    func(const_cast<Component&>(c));
-  });
-}
-
-void LuaGameObject::_forEachBuiltInComponent(std::function<void(const Component&)> func) const {
-  func(mTransform);
-  func(mSpace);
-  func(mName);
-}
-
 bool LuaGameObject::_isBuiltInComponent(const Component& comp) const {
   size_t compType = comp.getType();
   bool isBuiltIn = false;
@@ -214,22 +202,6 @@ void LuaGameObject::_removeComponentLookup(const Component& comp) {
 
 const TypeMap<std::unique_ptr<Component>, Component>& LuaGameObject::getComponents() const {
   return mComponents;
-}
-
-void LuaGameObject::forEachComponent(std::function<void(const Component&)> callback) const {
-  for(const auto& c : mComponents)
-    callback(*c);
-  for(const auto& c : mLuaComponents)
-    callback(*c);
-  _forEachBuiltInComponent(callback);
-}
-
-void LuaGameObject::forEachComponent(std::function<void(Component&)> callback) {
-  for(auto& c : mComponents)
-    callback(*c);
-  for(auto& c : mLuaComponents)
-    callback(*c);
-  _forEachBuiltInComponent(callback);
 }
 
 size_t LuaGameObject::componentCount() const {

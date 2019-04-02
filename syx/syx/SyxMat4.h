@@ -28,6 +28,8 @@ namespace Syx {
     Mat4 affineInverse() const;
     Mat4 transposed() const;
 
+    Vec3 getCol(int c) const;
+
     void decompose(Vec3& scale, Mat3& rotate, Vec3& translate) const;
     //Decompose transform that has unit scale
     void decompose(Mat3& rotate, Vec3& translate) const;

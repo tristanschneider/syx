@@ -18,8 +18,8 @@ public:
   virtual void openLib(lua_State* l) const;
   virtual const ComponentTypeInfo& getTypeInfo() const;
 
-private:
-  std::unique_ptr<Lua::Node> _buildLuaProps() const;
+  virtual void onEditorUpdate(const LuaGameObject& self, bool selected, EditorUpdateArgs& args) const override;
 
+private:
   Syx::Mat4 mMat;
 };

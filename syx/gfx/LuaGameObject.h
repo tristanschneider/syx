@@ -1,4 +1,5 @@
 #pragma once
+#include "component/LuaComponent.h"
 #include "component/NameComponent.h"
 #include "component/SpaceComponent.h"
 #include "component/Transform.h"
@@ -65,7 +66,7 @@ public:
   }
   template<typename CompType>
   const CompType* getComponent() const {
-    return static_cast<CompType*>(getComponent(Component::typeId<CompType>()));
+    return static_cast<const CompType*>(getComponent(Component::typeId<CompType>()));
   }
 
   template<typename CompType>
@@ -88,8 +89,24 @@ public:
   }
 
   const TypeMap<std::unique_ptr<Component>, Component>& getComponents() const;
-  void forEachComponent(std::function<void(const Component&)> callback) const;
-  void forEachComponent(std::function<void(Component&)> callback);
+  template<class Func>
+  void forEachComponent(const Func& callback) const {
+    for(const auto& c : mComponents)
+      callback(*c);
+    for(const auto& c : mLuaComponents)
+      callback(*c);
+    _forEachBuiltInComponent(callback);
+  }
+
+  template<class Func>
+  void forEachComponent(const Func& callback) {
+    for(const auto& c : mComponents)
+      callback(*c);
+    for(const auto& c : mLuaComponents)
+      callback(*c);
+    _forEachBuiltInComponent(callback);
+  }
+
   size_t componentCount() const;
 
   std::unique_ptr<LuaGameObject> clone() const;
@@ -120,8 +137,21 @@ private:
   static std::unique_ptr<Lua::Cache> sCache;
 
   void _addBuiltInComponents();
-  void _forEachBuiltInComponent(std::function<void(Component&)> func);
-  void _forEachBuiltInComponent(std::function<void(const Component&)> func) const;
+
+  template<class Func>
+  void _forEachBuiltInComponent(const Func& func) {
+    const_cast<const LuaGameObject*>(this)->_forEachBuiltInComponent([func](const Component& c) {
+      func(const_cast<Component&>(c));
+    });
+  }
+
+  template<class Func>
+  void _forEachBuiltInComponent(const Func& func) const {
+    func(mTransform);
+    func(mSpace);
+    func(mName);
+  }
+
   void _addComponentLookup(Component& comp);
   void _removeComponentLookup(const Component& comp);
 

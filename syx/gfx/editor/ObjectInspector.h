@@ -20,6 +20,7 @@ public:
   ~ObjectInspector();
 
   void editorUpdate(const LuaGameObjectProvider& objects);
+  bool isSelected(Handle handle) const;
 
 private:
   void _updateSelection(const LuaGameObjectProvider& objects);

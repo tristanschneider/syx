@@ -162,6 +162,18 @@ void Editor::_editorUpdate() {
   mObjectInspector->editorUpdate(game);
   mAssetPreview->editorUpdate();
   mToolbox->editorUpdate(*mArgs.mSystems->getSystem<KeyboardInput>());
+
+  Component::EditorUpdateArgs args{ game,
+    mArgs.mSystems->getSystem<GraphicsSystem>()->getDebugDrawer(),
+    *mArgs.mMessages,
+    *mCamera,
+  };
+  for(const auto& obj : game.getObjects()) {
+    const bool selected = mObjectInspector->isSelected(obj.second->getHandle());
+    obj.second->forEachComponent([this, &obj, selected, &args](const Component& comp) {
+      comp.onEditorUpdate(*obj.second, selected, args);
+    });
+  }
 }
 
 void Editor::_updateState(PlayState state) {

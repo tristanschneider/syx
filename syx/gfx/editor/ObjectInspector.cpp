@@ -127,6 +127,10 @@ void ObjectInspector::editorUpdate(const LuaGameObjectProvider& objects) {
   ImGui::End();
 }
 
+bool ObjectInspector::isSelected(Handle handle) const {
+  return std::find(mSelected.begin(), mSelected.end(), handle) != mSelected.end();
+}
+
 void ObjectInspector::_updateSelection(const LuaGameObjectProvider& objects) {
   using namespace Lua;
 
