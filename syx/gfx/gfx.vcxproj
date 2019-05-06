@@ -206,6 +206,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClCompile Include="LuaGameObject.cpp" />
     <ClCompile Include="lua\AllLuaLibs.cpp" />
     <ClCompile Include="lua\lib\LuaAssetRepo.cpp" />
+    <ClCompile Include="lua\lib\LuaKeyboardInput.cpp" />
     <ClCompile Include="lua\lib\LuaNumArray.cpp" />
     <ClCompile Include="lua\lib\LuaNumVec.cpp" />
     <ClCompile Include="lua\lib\LuaQuat.cpp" />
@@ -310,6 +311,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClInclude Include="LuaGameObject.h" />
     <ClInclude Include="lua\AllLuaLibs.h" />
     <ClInclude Include="lua\lib\LuaAssetRepo.h" />
+    <ClInclude Include="lua\lib\LuaKeyboardInput.h" />
     <ClInclude Include="lua\lib\LuaNumArray.h" />
     <ClInclude Include="lua\lib\LuaNumVec.h" />
     <ClInclude Include="lua\lib\LuaQuat.h" />

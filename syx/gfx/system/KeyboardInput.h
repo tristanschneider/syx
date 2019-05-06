@@ -56,7 +56,8 @@ enum class KeyState : uint8_t {
   Up,
   Down,
   Triggered,
-  Released
+  Released,
+  Invalid
 };
 
 class KeyboardInput : public System {
@@ -70,6 +71,7 @@ public:
 
   void feedWheelDelta(float delta);
 
+  KeyState getKeyState(const std::string& key) const;
   KeyState getKeyState(Key key) const;
   bool getKeyDown(Key key) const;
   bool getKeyUp(Key key) const;

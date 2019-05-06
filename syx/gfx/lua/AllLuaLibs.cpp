@@ -5,6 +5,7 @@
 #include "lua/lib/LuaAssetRepo.h"
 #include "lua/lib/LuaNumArray.h"
 #include "lua/lib/LuaNumVec.h"
+#include "lua/lib/LuaKeyboardInput.h"
 #include "lua/lib/LuaVec3.h"
 #include "lua/lib/LuaQuat.h"
 #include "LuaGameObject.h"
@@ -20,6 +21,7 @@ namespace Lua {
     Component::baseOpenLib(l);
     AssetRepo::openLib(l);
     LuaGameSystem::openLib(l);
+    KeyboardInput::openLib(l);
 
     //Construct a temporary of each type to call opeenlibs
     const auto& ctors = Component::Registry::getConstructors();
