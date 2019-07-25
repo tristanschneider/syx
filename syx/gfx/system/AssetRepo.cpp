@@ -132,7 +132,11 @@ void AssetRepo::_queueLoad(std::shared_ptr<Asset> asset) {
 }
 
 void AssetRepo::reloadAsset(std::shared_ptr<Asset> asset) {
-  asset->mState = AssetState::Empty;
+  //TODO: this probably doesn't work properly if the asset was already in the middle of loading
+  {
+    asset->getLock().getWriter();
+    asset->mState = AssetState::Empty;
+  }
   _queueLoad(asset);
 }
 
@@ -159,11 +163,7 @@ void AssetRepo::_assetLoaded(AssetLoadResult result, Asset& asset, AssetLoader& 
 }
 
 void AssetRepo::_fillInfo(AssetInfo& info) {
-  if(!info.mUri.empty()) {
-    std::hash<std::string> hash;
-    info.mId = hash(info.mUri);
-    info.mCategory = AssetInfo::getCategory(info.mUri);
-  }
+  info.fill();
 }
 
 AssetLoader* AssetRepo::_getLoader(const std::string& category) {

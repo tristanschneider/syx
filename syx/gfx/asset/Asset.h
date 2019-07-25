@@ -1,8 +1,8 @@
 #pragma once
 
 struct AssetInfo {
-  AssetInfo(const std::string& location)
-    : mUri(location)
+  AssetInfo(std::string location)
+    : mUri(std::move(location))
     , mType(0)
     , mId(0) {
   }
@@ -10,6 +10,13 @@ struct AssetInfo {
   AssetInfo(size_t id)
     : mId(id)
     , mType(0) {
+  }
+
+  void fill() {
+    if(!mUri.empty()) {
+      mId = std::hash<std::string>()(mUri);
+      mCategory = AssetInfo::getCategory(mUri);
+    }
   }
 
   bool isEmpty() const {
@@ -21,6 +28,7 @@ struct AssetInfo {
     return ext != std::string::npos ? uri.substr(ext + 1) : "";
   }
 
+  //TODO: change this to FilePath
   std::string mUri;
   size_t mId;
   size_t mType;

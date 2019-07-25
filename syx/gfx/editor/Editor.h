@@ -2,6 +2,7 @@
 #include "system/System.h"
 
 class AssetPreview;
+class AssetWatcher;
 class DragDropAssetLoader;
 class FilePath;
 class LuaGameObject;
@@ -36,4 +37,5 @@ private:
   std::unique_ptr<FilePath> mSavedScene;
   std::unique_ptr<DragDropAssetLoader> mDragDropAssetLoader;
   std::unique_ptr<LuaGameObject> mCamera;
+  std::unique_ptr<AssetWatcher> mAssetWatcher;
 };

@@ -6,6 +6,7 @@
 #include "component/CameraComponent.h"
 #include "component/SpaceComponent.h"
 #include "editor/AssetPreview.h"
+#include "editor/AssetWatcher.h"
 #include "editor/ObjectInspector.h"
 #include "editor/SceneBrowser.h"
 #include "editor/Toolbox.h"
@@ -144,6 +145,10 @@ void Editor::init() {
   cc->setViewport("editor");
   cc->addSync(msg.get());
   mCamera->addComponent(std::move(cc));
+
+  mEventHandler->registerEventHandler<AllSystemsInitialized>([this](const auto&) {
+    mAssetWatcher = std::make_unique<AssetWatcher>(*mArgs.mMessages, *mEventHandler, *mArgs.mAppPlatform, *mArgs.mSystems->getSystem<AssetRepo>(), *mArgs.mProjectLocator);
+  });
 }
 
 void Editor::uninit() {

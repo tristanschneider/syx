@@ -58,30 +58,6 @@ App::~App() {
   mMessageQueue = nullptr;
 }
 
-class AppFocusListener : public FocusEvents {
-  void onFocusGained() override {
-    printf("focus gained\n");
-  }
-  void onFocusLost() override {
-    printf("focus lost\n");
-  }
-};
-
-class AppDirectoryWatcher : public DirectoryWatcher {
-  void onFileChanged(const std::string& filename) override {
-    printf("File changed: %s\n", filename.c_str());
-  }
-  void onFileAdded(const std::string& filename) {
-    printf("File added: %s\n", filename.c_str());
-  }
-  void onFileRemoved(const std::string& filename) {
-    printf("File removed: %s\n", filename.c_str());
-  }
-  void onFileRenamed(const std::string& oldName, const std::string& newName) {
-    printf("File renamed from: %s to %s\n", oldName.c_str(), newName.c_str());
-  }
-};
-
 void App::onUriActivated(std::string uri) {
   const UriActivated activated(uri);
   //TODO: where should this go?
@@ -102,17 +78,6 @@ void App::init() {
   mMessageLock.lock();
   mMessageQueue->push(AllSystemsInitialized());
   mMessageLock.unlock();
-
-  static std::unique_ptr<AppFocusListener> o = [this]() {
-    auto l = std::make_unique<AppFocusListener>();
-    getAppPlatform().addFocusObserver(*l);
-    return l;
-  }();
-  static std::unique_ptr<AppDirectoryWatcher> d = [this]() {
-    auto w = std::make_unique<AppDirectoryWatcher>();;
-    getAppPlatform().addDirectoryObserver(*w);
-    return w;
-  }();
 }
 
 #include "imgui/imgui.h"

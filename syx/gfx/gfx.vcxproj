@@ -175,6 +175,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClCompile Include="component\Transform.cpp" />
     <ClCompile Include="DebugDrawer.cpp" />
     <ClCompile Include="editor\AssetPreview.cpp" />
+    <ClCompile Include="editor\AssetWatcher.cpp" />
     <ClCompile Include="editor\DefaultInspectors.cpp" />
     <ClCompile Include="editor\Editor.cpp" />
     <ClCompile Include="editor\event\EditorEvents.cpp" />
@@ -277,6 +278,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClInclude Include="component\Transform.h" />
     <ClInclude Include="DebugDrawer.h" />
     <ClInclude Include="editor\AssetPreview.h" />
+    <ClInclude Include="editor\AssetWatcher.h" />
     <ClInclude Include="editor\DefaultInspectors.h" />
     <ClInclude Include="editor\Editor.h" />
     <ClInclude Include="editor\event\EditorEvents.h" />
@@ -292,6 +294,7 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClInclude Include="event\SpaceEvents.h" />
     <ClInclude Include="event\TransformEvent.h" />
     <ClInclude Include="event\ViewportEvents.h" />
+    <ClInclude Include="file\DirectoryWatcher.h" />
     <ClInclude Include="file\FilePath.h" />
     <ClInclude Include="file\FileSystem.h" />
     <ClInclude Include="graphics\FrameBuffer.h" />

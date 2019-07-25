@@ -1,10 +1,10 @@
 #include "Precompile.h"
 #include "win32/DirectoryWatcher32.h"
+
 #include <Windows.h>
 
-DirectoryWatcher32::DirectoryWatcher32(DirectoryWatcher::SubjectType& subject, const std::string& rootDir)
-  : mSubject(subject)
-  , mTerminate(false)
+DirectoryWatcher32::DirectoryWatcher32(FilePath rootDir)
+  : mTerminate(false)
   , mRootDir(rootDir)
   , mDirHandle(nullptr)
   , mWatchThread(&DirectoryWatcher32::_watchLoop, this) {
@@ -34,8 +34,6 @@ void DirectoryWatcher32::_watchLoop() {
     FILE_FLAG_BACKUP_SEMANTICS,
     NULL);
   mDirHandle = static_cast<void*>(handle);
-
-  //HANDLE handle = FindFirstChangeNotification(dirName, TRUE, FILE_NOTIFY_CHANGE_LAST_WRITE);
 
   if(handle == INVALID_HANDLE_VALUE) {
     printf("Failed to get diretory handle\n");

@@ -10,7 +10,7 @@ public:
 
   std::string getExePath() override;
   void setWorkingDirectory(const char* working) override;
+  std::unique_ptr<DirectoryWatcher> createDirectoryWatcher(FilePath root) override;
 
 private:
-  std::unique_ptr<DirectoryWatcher32> mDirectoryWatcher;
 };

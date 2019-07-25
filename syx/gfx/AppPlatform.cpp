@@ -5,10 +5,6 @@ void AppPlatform::addFocusObserver(FocusEvents& o) {
   o.observe(&mFocusSubject);
 }
 
-void AppPlatform::addDirectoryObserver(DirectoryWatcher& o) {
-  o.observe(&mDirectorySubject);
-}
-
 void AppPlatform::addDragDropObserver(DragDropObserver& o) {
   o.observe(&mDragDropSubject);
 }

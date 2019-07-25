@@ -40,3 +40,14 @@ private:
   //Size of path. If this is MAX_FILE_PATH, that indicates the path is too big
   size_t mSize;
 };
+
+namespace std {
+  template<>
+  struct hash<FilePath> {
+    typedef FilePath argument_type;
+    typedef std::size_t result_type;
+    result_type operator()(argument_type const& path) const noexcept {
+      return std::hash<std::string_view>()(std::string_view(path.cstr(), path.size()));
+    }
+  };
+}

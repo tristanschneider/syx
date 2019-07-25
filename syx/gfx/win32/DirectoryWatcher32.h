@@ -1,17 +1,17 @@
 #pragma once
-#include "AppPlatform.h"
+#include "file/DirectoryWatcher.h"
+#include "file/FilePath.h"
 
-class DirectoryWatcher32 {
+class DirectoryWatcher32 : public DirectoryWatcher {
 public:
-  DirectoryWatcher32(DirectoryWatcher::SubjectType& subject, const std::string& rootDir);
+  DirectoryWatcher32(FilePath rootDir);
   ~DirectoryWatcher32();
 
 private:
   void _watchLoop();
 
-  DirectoryWatcher::SubjectType& mSubject;
   bool mTerminate;
-  std::string mRootDir;
+  FilePath mRootDir;
   void* mDirHandle;
   std::thread mWatchThread;
 };

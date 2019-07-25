@@ -1,13 +1,11 @@
 #include "Precompile.h"
 #include "win32/AppPlatformWin32.h"
+
+#include "file/FilePath.h"
 #include "win32/DirectoryWatcher32.h"
 #include <Windows.h>
 
 AppPlatformWin32::AppPlatformWin32() {
-  std::string dir = getExePath();
-  //TODO: watch user's desired project path
-  dir.resize(dir.find_last_of('\\') + 1);
-  mDirectoryWatcher = std::make_unique<DirectoryWatcher32>(mDirectorySubject, dir);
 }
 
 AppPlatformWin32::~AppPlatformWin32() {
@@ -26,4 +24,8 @@ std::string AppPlatformWin32::getExePath() {
 
 void AppPlatformWin32::setWorkingDirectory(const char* working) {
   ::SetCurrentDirectoryA(working);
+}
+
+std::unique_ptr<DirectoryWatcher> AppPlatformWin32::createDirectoryWatcher(FilePath root) {
+  return std::make_unique<DirectoryWatcher32>(root);
 }
