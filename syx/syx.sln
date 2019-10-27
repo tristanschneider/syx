@@ -18,8 +18,14 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "shared", "shared\shared.vcx
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "sharedLib", "sharedLib\sharedLib.vcxproj", "{DDB73903-0A98-4C90-8276-06AD7DAECFFD}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Win32.Shared", "Win32.Shared\Win32.Shared.vcxitems", "{AD341285-58B4-452D-B7EF-2454C5BC845D}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Win32.App", "Win32.App\Win32.App.vcxproj", "{A3A634CF-5DBF-42BB-8DA5-33DE6CA3325E}"
+EndProject
 Global
 	GlobalSection(SharedMSBuildProjectFiles) = preSolution
+		Win32.Shared\Win32.Shared.vcxitems*{a3a634cf-5dbf-42bb-8da5-33de6ca3325e}*SharedItemsImports = 4
+		Win32.Shared\Win32.Shared.vcxitems*{ad341285-58b4-452d-b7ef-2454c5bc845d}*SharedItemsImports = 9
 		shared\shared.vcxitems*{d8319db0-b598-45a4-a974-8cab10800b49}*SharedItemsImports = 9
 		shared\shared.vcxitems*{ddb73903-0a98-4c90-8276-06ad7daecffd}*SharedItemsImports = 4
 	EndGlobalSection
@@ -70,6 +76,14 @@ Global
 		{DDB73903-0A98-4C90-8276-06AD7DAECFFD}.Release|x64.Build.0 = Release|x64
 		{DDB73903-0A98-4C90-8276-06AD7DAECFFD}.Release|x86.ActiveCfg = Release|Win32
 		{DDB73903-0A98-4C90-8276-06AD7DAECFFD}.Release|x86.Build.0 = Release|Win32
+		{A3A634CF-5DBF-42BB-8DA5-33DE6CA3325E}.Debug|x64.ActiveCfg = Debug|x64
+		{A3A634CF-5DBF-42BB-8DA5-33DE6CA3325E}.Debug|x64.Build.0 = Debug|x64
+		{A3A634CF-5DBF-42BB-8DA5-33DE6CA3325E}.Debug|x86.ActiveCfg = Debug|Win32
+		{A3A634CF-5DBF-42BB-8DA5-33DE6CA3325E}.Debug|x86.Build.0 = Debug|Win32
+		{A3A634CF-5DBF-42BB-8DA5-33DE6CA3325E}.Release|x64.ActiveCfg = Release|x64
+		{A3A634CF-5DBF-42BB-8DA5-33DE6CA3325E}.Release|x64.Build.0 = Release|x64
+		{A3A634CF-5DBF-42BB-8DA5-33DE6CA3325E}.Release|x86.ActiveCfg = Release|Win32
+		{A3A634CF-5DBF-42BB-8DA5-33DE6CA3325E}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

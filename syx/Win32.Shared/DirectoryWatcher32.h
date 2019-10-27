@@ -1,4 +1,5 @@
 #pragma once
+/*
 #include "file/DirectoryWatcher.h"
 #include "file/FilePath.h"
 
@@ -15,3 +16,4 @@ private:
   void* mDirHandle;
   std::thread mWatchThread;
 };
+*/

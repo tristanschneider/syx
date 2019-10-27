@@ -1,0 +1,29 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup Label="Globals">
+    <MSBuildAllProjects>$(MSBuildAllProjects);$(MSBuildThisFileFullPath)</MSBuildAllProjects>
+    <HasSharedItems>true</HasSharedItems>
+    <ItemsProjectGuid>{ad341285-58b4-452d-b7ef-2454c5bc845d}</ItemsProjectGuid>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(MSBuildThisFileDirectory)</AdditionalIncludeDirectories>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ProjectCapability Include="SourceItemsFromImports" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="$(MSBuildThisFileDirectory)AppPlatformWin32.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)DirectoryWatcher32.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)Precompile.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="$(MSBuildThisFileDirectory)AppPlatformWin32.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)DirectoryWatcher32.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)mainWin32.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)Precompile.cpp" >
+      <PrecompiledHeader>Create</PrecompiledHeader>
+    </ClCompile>
+  </ItemGroup>
+</Project>

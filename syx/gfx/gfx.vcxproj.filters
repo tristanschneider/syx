@@ -99,16 +99,7 @@
     <ClCompile Include="system\AssetRepo.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="win32\mainWin32.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="win32\AppPlatformWin32.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="AppPlatform.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="win32\DirectoryWatcher32.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="lua\LuaState.cpp">
@@ -384,12 +375,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="AppPlatform.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="win32\AppPlatformWin32.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="win32\DirectoryWatcher32.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="lua\LuaNode.h">

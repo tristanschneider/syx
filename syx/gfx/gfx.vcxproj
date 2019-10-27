@@ -241,9 +241,6 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClCompile Include="test\UtilsTests.cpp" />
     <ClCompile Include="Util.cpp" />
     <ClCompile Include="util\ScratchPad.cpp" />
-    <ClCompile Include="win32\AppPlatformWin32.cpp" />
-    <ClCompile Include="win32\DirectoryWatcher32.cpp" />
-    <ClCompile Include="win32\mainWin32.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\lua\lua.vcxproj">
@@ -357,8 +354,6 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ClInclude Include="util\Finally.h" />
     <ClInclude Include="util\ScratchPad.h" />
     <ClInclude Include="util\Variant.h" />
-    <ClInclude Include="win32\AppPlatformWin32.h" />
-    <ClInclude Include="win32\DirectoryWatcher32.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

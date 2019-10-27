@@ -1,4 +1,5 @@
 #include "Precompile.h"
+/*
 #include "win32/AppPlatformWin32.h"
 
 #include "file/FilePath.h"
@@ -29,3 +30,4 @@ void AppPlatformWin32::setWorkingDirectory(const char* working) {
 std::unique_ptr<DirectoryWatcher> AppPlatformWin32::createDirectoryWatcher(FilePath root) {
   return std::make_unique<DirectoryWatcher32>(root);
 }
+*/
