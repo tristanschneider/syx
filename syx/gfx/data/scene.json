@@ -21,53 +21,6 @@ scene = {
         {
           props = {
             diffuseTexture = 1088482667,
-            model = 2263845287
-          },
-          type = "Renderable"
-        },
-        {
-          props = {
-            matrix = {
-              0.100000,
-              0,
-              0,
-              0,
-              0,
-              0.100000,
-              0,
-              0,
-              0,
-              0,
-              0.100000,
-              0,
-              0,
-              0,
-              0,
-              1
-            }
-          },
-          type = "Transform"
-        },
-        {
-          props = {
-            id = 0
-          },
-          type = "Space"
-        },
-        {
-          props = {
-            name = "Bowser"
-          },
-          type = "Name"
-        }
-      },
-      handle = 1
-    },
-    {
-      components = {
-        {
-          props = {
-            diffuseTexture = 1088482667,
             model = 2775790889
           },
           type = "Renderable"
@@ -136,7 +89,54 @@ scene = {
           type = "Name"
         }
       },
-      handle = 2
+      handle = 113
+    },
+    {
+      components = {
+        {
+          props = {
+            diffuseTexture = 1088482667,
+            model = 2263845287
+          },
+          type = "Renderable"
+        },
+        {
+          props = {
+            matrix = {
+              0.100000,
+              0,
+              0,
+              0,
+              0,
+              0.100000,
+              0,
+              0,
+              0,
+              0,
+              0.100000,
+              0,
+              0,
+              0,
+              0,
+              1
+            }
+          },
+          type = "Transform"
+        },
+        {
+          props = {
+            id = 0
+          },
+          type = "Space"
+        },
+        {
+          props = {
+            name = "Bowser"
+          },
+          type = "Name"
+        }
+      },
+      handle = 110
     },
     {
       components = {
@@ -212,7 +212,7 @@ scene = {
           type = "Name"
         }
       },
-      handle = 3
+      handle = 111
     },
     {
       components = {
@@ -316,7 +316,53 @@ scene = {
           type = "Name"
         }
       },
-      handle = 4
+      handle = 112
+    },
+    {
+      components = {
+        {
+          props = {
+            viewport = "game"
+          },
+          type = "Camera"
+        },
+        {
+          props = {
+            matrix = {
+              1,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              10,
+              1
+            }
+          },
+          type = "Transform"
+        },
+        {
+          props = {
+            id = 0
+          },
+          type = "Space"
+        },
+        {
+          props = {
+            name = "camera"
+          },
+          type = "Name"
+        }
+      },
+      handle = 114
     }
   }
 }

@@ -32,6 +32,11 @@
 
 RegisterSystemCPP(Editor);
 
+namespace {
+  const char* EDITOR_VIEWPORT = "editor";
+  const char* GAME_VIEWPORT = "game";
+}
+
 class EditorGameObserver : public LuaGameSystemObserver {
 public:
   EditorGameObserver(std::function<void()> update)
@@ -194,11 +199,15 @@ void Editor::_updateState(PlayState state) {
     msg.get().push(SaveSpaceEvent(_getEditorSpace(), *mSavedScene));
     msg.get().push(ClearSpaceEvent(_getPlaySpace()));
     msg.get().push(LoadSpaceEvent(_getPlaySpace(), *mSavedScene));
+    msg.get().push(RemoveViewportEvent(EDITOR_VIEWPORT));
+    msg.get().push(SetViewportEvent(Viewport(GAME_VIEWPORT, Syx::Vec2::sZero, Syx::Vec2::sIdentity)));
   }
   else if(stoppedPlaying) {
     MessageQueue msg = mArgs.mMessages->getMessageQueue();
     msg.get().push(ClearSpaceEvent(_getEditorSpace()));
     msg.get().push(LoadSpaceEvent(_getEditorSpace(), *mSavedScene));
+    msg.get().push(RemoveViewportEvent(GAME_VIEWPORT));
+    msg.get().push(SetViewportEvent(Viewport(EDITOR_VIEWPORT, Syx::Vec2::sZero, Syx::Vec2::sIdentity)));
   }
 
   const float timescale = [](PlayState state) {
@@ -226,6 +235,11 @@ Handle Editor::_getPlaySpace() const {
 
 void Editor::_updateInput(float dt) {
   using namespace Syx;
+
+  if(mCurrentState == PlayState::Playing) {
+    return;
+  }
+
   const KeyboardInput& in = *mArgs.mSystems->getSystem<KeyboardInput>();
   GraphicsSystem& graphics = *mArgs.mSystems->getSystem<GraphicsSystem>();
   Vec3 move = Vec3::Zero;
