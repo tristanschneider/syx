@@ -45,8 +45,10 @@ public:
   template<typename System>
   struct StaticRegisterSystem {
     StaticRegisterSystem() {
-      mID = Registry::registerSystem([](const SystemArgs& args) {
-        return std::make_unique<System>(args);
+      mID = Registry::registerSystem([](const SystemArgs&) { //args) {
+        // TODO: fix this
+        return nullptr;
+        //return std::make_unique<System>(args);
       });
     }
 

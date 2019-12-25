@@ -2,9 +2,10 @@
 <Project ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <GlobalDefines>_HAS_EXCEPTIONS=0;_CRT_SECURE_NO_WARNINGS;$(GlobalDefines)</GlobalDefines>
-    <ProjProps>proj\$(RootNamespace).props</ProjProps>
     <RootProjectDir>$(MSBuildThisFileDirectory)\..</RootProjectDir>
     <SrcDeps>$(RootProjectDir)\src-deps</SrcDeps>
+    <PropsDir>$(MSBuildThisFileDirectory)</PropsDir>
+    <ProjProps>$(PropsDir)\proj\$(RootNamespace).props</ProjProps>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>

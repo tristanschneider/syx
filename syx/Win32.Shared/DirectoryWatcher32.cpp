@@ -1,8 +1,5 @@
 #include "Precompile.h"
-/*
-#include "win32/DirectoryWatcher32.h"
-
-#include <Windows.h>
+#include "DirectoryWatcher32.h"
 
 DirectoryWatcher32::DirectoryWatcher32(FilePath rootDir)
   : mTerminate(false)
@@ -60,13 +57,12 @@ void DirectoryWatcher32::_watchLoop() {
       continue;
     }
 
-    DWORD nextInfo = 0;
     FILE_NOTIFY_INFORMATION* info = reinterpret_cast<FILE_NOTIFY_INFORMATION*>(infoBuffer);
     //Next entry offset is number of bytes to next element, or 0 if this is the end
     while(true) {
       //Coppy wchar buffer into char buffer, then notify observers
       stringBuff.resize(info->FileNameLength/sizeof(wchar_t));
-      for(size_t i = 0; i < stringBuff.size(); ++i)
+      for(i = 0; i < stringBuff.size(); ++i)
         stringBuff[i] = static_cast<char>(info->FileName[i]);
 
       switch(info->Action) {
@@ -83,4 +79,3 @@ void DirectoryWatcher32::_watchLoop() {
     }
   }
 }
-*/

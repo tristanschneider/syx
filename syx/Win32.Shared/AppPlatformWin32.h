@@ -1,5 +1,5 @@
 #pragma once
-/*
+
 #include "AppPlatform.h"
 
 class DirectoryWatcher32;
@@ -15,4 +15,3 @@ public:
 
 private:
 };
-*/

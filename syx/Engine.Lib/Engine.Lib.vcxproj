@@ -33,12 +33,7 @@
     <Import Project="..\Engine.shared\Engine.shared.vcxitems" Label="Shared" />
   </ImportGroup>
   <PropertyGroup>
-  <!--
-    <ProjectIncludes>$(SrcDeps)/glew/include;$(SrcDeps);$(RootProjectDir)/syx;$(RootProjectDir)/lua;</ProjectIncludes>
-    <IncludePath>$(ProjectIncludes)$(IncludePath)</IncludePath>
-    <SourcePath>$(ProjectIncludes)$(SourcePath)</SourcePath>
--->
-    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);$(IncludePath)</IncludePath>
+    <IncludePath>$(VC_IncludePath);$(IncludePath)</IncludePath>
     <SourcePath>$(VC_SourcePath);$(SourcePath)</SourcePath>
 
     <ReferencePath>$(VC_ReferencesPath_x86);$(ReferencePath)</ReferencePath>

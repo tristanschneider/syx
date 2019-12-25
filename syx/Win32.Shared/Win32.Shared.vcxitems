@@ -16,13 +16,15 @@
   <ItemGroup>
     <ClInclude Include="$(MSBuildThisFileDirectory)AppPlatformWin32.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)DirectoryWatcher32.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)KeyboardInputWin32.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Precompile.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="$(MSBuildThisFileDirectory)AppPlatformWin32.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)DirectoryWatcher32.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)KeyboardInputWin32.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)mainWin32.cpp" />
-    <ClCompile Include="$(MSBuildThisFileDirectory)Precompile.cpp" >
+    <ClCompile Include="$(MSBuildThisFileDirectory)Precompile.cpp">
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
   </ItemGroup>

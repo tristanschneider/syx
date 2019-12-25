@@ -1,23 +1,16 @@
 
 #include "Precompile.h"
 
-#define GLEW_NO_GLU
-#define NOMINMAX
-
-#include <windows.h>
-
 //For console
 #include <io.h>
 #include <fcntl.h>
-
-/*
 
 #include "asset/Shader.h"
 #include "App.h"
 #include "file/FilePath.h"
 #include "system/GraphicsSystem.h"
 #include "system/KeyboardInput.h"
-#include "win32/AppPlatformWin32.h"
+#include "AppPlatformWin32.h"
 
 #include <gl/glew.h>
 
@@ -116,8 +109,8 @@ void registerWindow(HINSTANCE inst) {
   wc.hIcon = NULL; // predefined app. icon 
   wc.hCursor = LoadCursor(NULL, IDC_ARROW); // predefined arrow 
   wc.hbrBackground = CreateSolidBrush(COLOR_ACTIVEBORDER);
-  wc.lpszMenuName = "MainMenu";    // name of menu resource 
-  wc.lpszClassName = "MainClass";  // name of window class 
+  wc.lpszMenuName = L"MainMenu";    // name of menu resource 
+  wc.lpszClassName = L"MainClass";  // name of window class 
   wc.hIconSm = NULL; // small class icon 
   // Register the window class.
   RegisterClassEx(&wc);
@@ -178,7 +171,7 @@ void sleepNS(int ns) {
 
 int mainLoop(const char* launchUri) {
   BOOL gotMessage;
-  MSG msg;
+  MSG msg = { 0 };
   bool exit = false;
   float nsToMS = 1.0f/1000000.0f;
   float msToNS = 1000000.0f;
@@ -229,11 +222,11 @@ void createConsole() {
   freopen_s(&fp, "CONOUT$", "w", stdout);
 }
 
-int WINAPI WinMain(HINSTANCE hinstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
+int WINAPI WinMain(HINSTANCE hinstance, HINSTANCE, LPSTR lpCmdLine, int nCmdShow) {
   createConsole();
 
   registerWindow(hinstance);
-  HWND wnd = CreateWindow("MainClass", "SYX",
+  HWND wnd = CreateWindow(L"MainClass", L"SYX",
     WS_OVERLAPPEDWINDOW | CS_OWNDC,
     CW_USEDEFAULT,
     CW_USEDEFAULT,
@@ -258,120 +251,6 @@ int WINAPI WinMain(HINSTANCE hinstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
   int exitCode = mainLoop(lpCmdLine);
 
   destroyContext();
-
-  return exitCode;
-}
-*/
-
-
-namespace {
-  int sWidth, sHeight;
-}
-
-HWND gHwnd = NULL;
-
-void setWindowSize(int width, int height) {
-  sWidth = width;
-  sHeight = height;
-}
-
-LRESULT CALLBACK mainProc(HWND wnd, UINT msg, WPARAM w, LPARAM l) {
-  switch(msg) {
-    case WM_DESTROY:
-      PostQuitMessage(0);
-      break;
-
-    case WM_SIZE:
-      setWindowSize(LOWORD(l), HIWORD(l));
-      break;
-
-    case WM_SIZING: {
-      RECT& rect = *reinterpret_cast<RECT*>(l);
-      setWindowSize(rect.right - rect.left, rect.bottom - rect.top);
-      break;
-    }
-  }
-  return DefWindowProc(wnd, msg, w, l);
-}
-
-void registerWindow(HINSTANCE inst) {
-  WNDCLASSEX wc;
-  wc.cbSize = sizeof(wc);          // size of structure 
-  wc.style = CS_HREDRAW | CS_VREDRAW; // redraw if size changes 
-  wc.lpfnWndProc = mainProc;     // points to window procedure 
-  wc.cbClsExtra = 0;                // no extra class memory 
-  wc.cbWndExtra = 0;                // no extra window memory 
-  wc.hInstance = inst;         // handle to instance 
-  wc.hIcon = NULL; // predefined app. icon 
-  wc.hCursor = LoadCursor(NULL, IDC_ARROW); // predefined arrow 
-  wc.hbrBackground = CreateSolidBrush(COLOR_ACTIVEBORDER);
-  wc.lpszMenuName = L"MainMenu";    // name of menu resource 
-  wc.lpszClassName = L"MainClass";  // name of window class 
-  wc.hIconSm = NULL; // small class icon 
-  // Register the window class.
-  RegisterClassEx(&wc);
-}
-
-int mainLoop(const char*) {
-  BOOL gotMessage;
-  MSG msg;
-  bool exit = false;
-  //Inform graphcis of screen size
-  setWindowSize(sWidth, sHeight);
-  auto lastFrameStart = std::chrono::high_resolution_clock::now();
-  while(!exit) {
-    while((gotMessage = PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) > 0) {
-      if(msg.message == WM_QUIT) {
-        exit = true;
-        break;
-      }
-      TranslateMessage(&msg);
-      DispatchMessage(&msg);
-    }
-
-    if(exit)
-      break;
-
-    //SwapBuffers(sDeviceContext);
-
-    std::this_thread::yield();
-  }
-  return 0;
-}
-
-void createConsole() {
-  AllocConsole();
-  FILE* fp;
-  freopen_s(&fp, "CONOUT$", "w", stdout);
-}
-
-int WINAPI WinMain(HINSTANCE hinstance, HINSTANCE, LPSTR lpCmdLine, int nCmdShow) {
-  createConsole();
-
-  registerWindow(hinstance);
-  HWND wnd = CreateWindow(L"MainClass", L"SYX",
-    WS_OVERLAPPEDWINDOW | CS_OWNDC,
-    CW_USEDEFAULT,
-    CW_USEDEFAULT,
-    CW_USEDEFAULT,
-    CW_USEDEFAULT,
-    NULL,
-    NULL,
-    hinstance,
-    NULL);
-  ShowWindow(wnd, nCmdShow);
-
-  //sDeviceContext = GetDC(wnd);
-  //initDeviceContext(sDeviceContext, 32, 24, 8, 0);
-  //sGLContext = createGLContext(sDeviceContext);
-  //glewInit();
-
-  UpdateWindow(wnd);
-
-  gHwnd = wnd;
-  int exitCode = mainLoop(lpCmdLine);
-
-  //destroyContext();
 
   return exitCode;
 }

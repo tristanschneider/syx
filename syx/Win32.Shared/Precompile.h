@@ -23,3 +23,19 @@
 #include <array>
 #include <optional>
 #include <filesystem>
+
+//TODO: probably don't need all of these
+#include <SyxMathIncludes.h>
+#include "Handle.h"
+#include "Util.h"
+#include "MappedBuffer.h"
+#include "threading/RWLock.h"
+#include "threading/SpinLock.h"
+#include "threading/ThreadLocal.h"
+#include "util/Observer.h"
+#include "util/TypeId.h"
+#include "util/ScopeWrap.h"
+#include "graphics/GraphicsTypes.h"
+
+#define NOMINMAX
+#include <Windows.h>
