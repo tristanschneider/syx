@@ -334,15 +334,15 @@ namespace Syx {
 
     //For debugging cache coherency
     void printIndexes() {
-      std::stringstream s;
+      std::string s;
       for(auto it = mObjects.begin(); it != mObjects.end(); ++it) {
         int page = getPage(*it);
         if(page == -1)
-          s << "(X,X)";
+          s += "(X,X)";
         else
-          s << "(" << page << "," << getIndexInPage(*it, page) << ")";
+          s += "(" + std::to_string(page) + "," + std::to_string(getIndexInPage(*it, page)) + ")";
       }
-      log(s.str());
+      Interface::log(s);
     }
 
 #ifdef VECLIST_TRAVERSAL_TRACKING

@@ -246,9 +246,6 @@ xcopy shaders\* $(OutDir)\shaders /s /i /y</Command>
     <ProjectReference Include="..\lua\lua.vcxproj">
       <Project>{b6e419ec-567f-4eb1-8833-a395540e9bc4}</Project>
     </ProjectReference>
-    <ProjectReference Include="..\sharedLib\sharedLib.vcxproj">
-      <Project>{ddb73903-0a98-4c90-8276-06ad7daecffd}</Project>
-    </ProjectReference>
     <ProjectReference Include="..\syx\syx.vcxproj">
       <Project>{85005dad-8122-4d96-bd86-9ccc57b913ae}</Project>
     </ProjectReference>

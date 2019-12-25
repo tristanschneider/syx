@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?> 
 <Project ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
-    <GlobalDefines>_HAS_EXCEPTIONS=0;$(GlobalDefines)</GlobalDefines>
+    <GlobalDefines>_HAS_EXCEPTIONS=0;_CRT_SECURE_NO_WARNINGS;$(GlobalDefines)</GlobalDefines>
+    <ProjProps>proj\$(RootNamespace).props</ProjProps>
+    <RootProjectDir>$(MSBuildThisFileDirectory)\..</RootProjectDir>
+    <SrcDeps>$(RootProjectDir)\src-deps</SrcDeps>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
@@ -27,5 +30,6 @@
 
   <ImportGroup Label="PropertySheets">
     <Import Project="$(Configuration).props" />
+    <Import Condition="exists($(ProjProps))" Project="$(ProjProps)" />
   </ImportGroup>
 </Project>

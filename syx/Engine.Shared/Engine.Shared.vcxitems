@@ -1,0 +1,198 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup Label="Globals">
+    <MSBuildAllProjects>$(MSBuildAllProjects);$(MSBuildThisFileFullPath)</MSBuildAllProjects>
+    <HasSharedItems>true</HasSharedItems>
+    <ItemsProjectGuid>{f2794aab-fc79-4c31-a16c-0e16666a9dc0}</ItemsProjectGuid>
+    <ItemsProjectName>Engine.Shared</ItemsProjectName>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(MSBuildThisFileDirectory)</AdditionalIncludeDirectories>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ProjectCapability Include="SourceItemsFromImports" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="$(MSBuildThisFileDirectory)allocator\LIFOAllocator.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)App.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)AppPlatform.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)asset\LuaScript.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)asset\Model.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)asset\PhysicsModel.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)asset\Shader.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)asset\Texture.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)Camera.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)component\CameraComponent.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)component\Component.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)component\LuaComponent.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)component\LuaComponentRegistry.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)component\NameComponent.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)component\Physics.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)component\Renderable.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)component\SpaceComponent.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)component\Transform.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)DebugDrawer.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)editor\AssetPreview.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)editor\AssetWatcher.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)editor\DefaultInspectors.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)editor\Editor.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)editor\event\EditorEvents.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)editor\InspectorFactory.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)editor\ObjectInspector.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)editor\Picker.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)editor\SceneBrowser.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)editor\Toolbox.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)event\BaseComponentEvents.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)event\DebugDrawEvent.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)event\LifecycleEvents.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)event\SpaceEvents.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)event\TransformEvent.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)event\ViewportEvents.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)file\FilePath.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)file\FileSystem.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)graphics\FrameBuffer.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)graphics\FullScreenQuad.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)graphics\PixelBuffer.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)graphics\RenderCommand.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)graphics\TextureDescription.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)graphics\Viewport.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)ImGuiImpl.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)loader\AssetLoader.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)loader\LuaScriptLoader.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)loader\ModelLoader.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)loader\ShaderLoader.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)loader\TextureLoader.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)LuaGameObject.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)lua\AllLuaLibs.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)lua\lib\LuaAssetRepo.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)lua\lib\LuaKeyboardInput.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)lua\lib\LuaNumArray.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)lua\lib\LuaNumVec.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)lua\lib\LuaQuat.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)lua\lib\LuaVec3.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)lua\LuaCache.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)lua\LuaComponentNode.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)lua\LuaKey.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)lua\LuaNode.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)lua\LuaSandbox.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)lua\LuaSerializer.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)lua\LuaStackAssert.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)lua\LuaState.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)lua\LuaUtil.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)lua\LuaVariant.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)Precompile.cpp" >
+      <PrecompiledHeader>Create</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="$(MSBuildThisFileDirectory)ProjectLocator.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)Space.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)system\AssetRepo.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)system\GraphicsSystem.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)system\KeyboardInput.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)system\LuaGameSystem.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)system\PhysicsSystem.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)system\System.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)SyxInterface.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)test\LuaNodeTests.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)test\UtilsTests.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)Util.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)util\ScratchPad.cpp" />
+    </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="$(MSBuildThisFileDirectory)allocator\LIFOAllocator.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)App.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)AppPlatform.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)asset\Asset.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)asset\LuaScript.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)asset\Model.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)asset\PhysicsModel.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)asset\Shader.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)asset\Texture.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)Camera.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)component\CameraComponent.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)component\Component.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)component\LuaComponent.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)component\LuaComponentRegistry.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)component\NameComponent.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)component\Physics.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)component\Renderable.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)component\SpaceComponent.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)component\Transform.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)DebugDrawer.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)editor\AssetPreview.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)editor\AssetWatcher.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)editor\DefaultInspectors.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)editor\Editor.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)editor\event\EditorEvents.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)editor\InspectorFactory.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)editor\ObjectInspector.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)editor\Picker.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)editor\SceneBrowser.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)editor\Toolbox.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)editor\util\ScopedImGui.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)event\BaseComponentEvents.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)event\DebugDrawEvent.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)event\LifecycleEvents.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)event\SpaceEvents.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)event\TransformEvent.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)event\ViewportEvents.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)file\DirectoryWatcher.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)file\FilePath.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)file\FileSystem.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)graphics\FrameBuffer.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)graphics\FullScreenQuad.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)graphics\GraphicsTypes.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)graphics\PixelBuffer.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)graphics\RenderCommand.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)graphics\TextureDescription.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)graphics\Viewport.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)Handle.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)ImGuiImpl.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)loader\AssetLoader.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)loader\LuaScriptLoader.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)loader\ModelLoader.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)loader\ShaderLoader.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)loader\TextureLoader.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)LuaGameObject.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)lua\AllLuaLibs.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)lua\lib\LuaAssetRepo.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)lua\lib\LuaKeyboardInput.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)lua\lib\LuaNumArray.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)lua\lib\LuaNumVec.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)lua\lib\LuaQuat.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)lua\lib\LuaVec3.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)lua\LuaCache.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)lua\LuaComponentNode.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)lua\LuaCompositeNodes.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)lua\LuaKey.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)lua\LuaLibGroup.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)lua\LuaNode.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)lua\LuaSandbox.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)lua\LuaSerializer.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)lua\LuaStackAssert.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)lua\LuaState.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)lua\LuaUtil.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)lua\LuaVariant.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)MappedBuffer.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)Precompile.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)ProjectLocator.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)provider\ComponentRegistryProvider.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)provider\GameObjectHandleProvider.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)provider\LuaGameObjectProvider.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)provider\MessageQueueProvider.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)provider\SystemProvider.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)Space.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)system\AssetRepo.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)system\GraphicsSystem.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)system\KeyboardInput.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)system\LuaGameSystem.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)system\PhysicsSystem.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)system\System.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)test\TestRegistry.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)Util.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)util\Finally.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)util\ScratchPad.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)util\Variant.h" />
+  </ItemGroup>
+</Project>
