@@ -3,6 +3,7 @@
 
 class DirectoryWatcher;
 class FilePath;
+class KeyboardInputImpl;
 
 class FocusEvents : public Observer<FocusEvents> {
 public:
@@ -27,6 +28,8 @@ public:
   virtual std::string getExePath() = 0;
   virtual void setWorkingDirectory(const char* working) = 0;
   virtual std::unique_ptr<DirectoryWatcher> createDirectoryWatcher(FilePath root) = 0;
+
+  virtual KeyboardInputImpl& getKeyboardInput() = 0;
 
 protected:
   FocusEvents::SubjectType mFocusSubject;

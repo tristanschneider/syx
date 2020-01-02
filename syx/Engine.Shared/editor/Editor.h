@@ -14,8 +14,10 @@ class Toolbox;
 
 class Editor : public System {
 public:
+  static const int testval = 0;
   RegisterSystemH(Editor);
-  using System::System;
+  Editor(const SystemArgs& args);
+  ~Editor();
 
   void init() override;
   void uninit() override;

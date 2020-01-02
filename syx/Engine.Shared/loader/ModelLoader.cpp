@@ -6,8 +6,6 @@
 #include "system/AssetRepo.h"
 #include "provider/SystemProvider.h"
 
-RegisterAssetLoader("obj", ModelOBJLoader, Model);
-
 using namespace Syx;
 
 namespace {

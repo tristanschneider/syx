@@ -8,6 +8,7 @@
 #include "asset/Shader.h"
 #include "App.h"
 #include "file/FilePath.h"
+#include "KeyboardInputWin32.h"
 #include "system/GraphicsSystem.h"
 #include "system/KeyboardInput.h"
 #include "AppPlatformWin32.h"
@@ -22,7 +23,6 @@ namespace {
   HGLRC sGLContext = NULL;
   std::unique_ptr<App> sApp;
   int sWidth, sHeight;
-  KeyboardInput* input = nullptr;
 }
 
 HWND gHwnd = NULL;
@@ -87,8 +87,8 @@ LRESULT CALLBACK mainProc(HWND wnd, UINT msg, WPARAM w, LPARAM l) {
       break;
 
     case WM_MOUSEWHEEL:
-      if(input) {
-        input->feedWheelDelta(static_cast<float>(GET_WHEEL_DELTA_WPARAM(w))/static_cast<float>(WHEEL_DELTA));
+      if(sApp) {
+        static_cast<KeyboardInputWin32&>(sApp->getAppPlatform().getKeyboardInput()).feedWheelDelta(static_cast<float>(GET_WHEEL_DELTA_WPARAM(w))/static_cast<float>(WHEEL_DELTA));
       }
       break;
 
@@ -178,9 +178,9 @@ int mainLoop(const char* launchUri) {
   int targetFrameTimeNS = 16*static_cast<int>(msToNS);
   sApp = std::make_unique<App>(std::make_unique<AppPlatformWin32>());
 
+  sApp->onUriActivated(launchUri);
   sApp->init();
   sApp->onUriActivated(launchUri);
-  input = sApp->getSystem<KeyboardInput>();
   //Inform graphcis of screen size
   setWindowSize(sWidth, sHeight);
   auto lastFrameStart = std::chrono::high_resolution_clock::now();

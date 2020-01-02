@@ -14,8 +14,6 @@ const std::string& AssetLoader::getCategory() {
   return mCategory;
 }
 
-RegisterAssetLoader("buff", BufferAssetLoader, BufferAsset);
-
 BufferAssetLoader::~BufferAssetLoader() {
 }
 
@@ -29,8 +27,6 @@ AssetLoadResult BufferAssetLoader::_load(Asset& asset) {
   static_cast<BufferAsset&>(asset).set(std::move(mData));
   return AssetLoadResult::Success;
 }
-
-RegisterAssetLoader("txt", TextAssetLoader, TextAsset);
 
 TextAssetLoader::TextAssetLoader(const std::string& category)
   : AssetLoader(category)

@@ -2,6 +2,7 @@
 #include "App.h"
 
 #include "AppPlatform.h"
+#include "AppRegistration.h"
 #include "event/EventBuffer.h"
 #include "event/LifecycleEvents.h"
 #include "file/FilePath.h"
@@ -40,6 +41,11 @@ App::App(std::unique_ptr<AppPlatform> appPlatform)
   FilePath exePath(mAppPlatform->getExePath().c_str());
   exePath.getParts(path, file, ext);
   mProjectLocator->setPathRoot(path, PathSpace::Project);
+
+  AppRegistration reg;
+  reg.registerSystems();
+  reg.registerAssetLoaders();
+
   SystemArgs args = {
     mWorkerPool.get(),
     this,

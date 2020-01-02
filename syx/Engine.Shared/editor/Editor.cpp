@@ -104,12 +104,18 @@ private:
   const ProjectLocator& mLocator;
 };
 
+Editor::Editor(const SystemArgs& args)
+  : System(args) {
+}
+
+
+Editor::~Editor() = default;
+
 void Editor::init() {
   mCurrentState = PlayState::Stopped;
   mEventHandler = std::make_unique<EventHandler>();
 
   mSavedScene = std::make_unique<FilePath>(mArgs.mProjectLocator->transform("scene.json", PathSpace::Project, PathSpace::Full));
-
   mSceneBrowser = std::make_unique<SceneBrowser>(*mArgs.mMessages, *mArgs.mGameObjectGen, *mArgs.mSystems->getSystem<KeyboardInput>(), *mEventHandler);
   mObjectInspector = std::make_unique<ObjectInspector>(*mArgs.mMessages, *mEventHandler, *mArgs.mSystems->getSystem<LuaGameSystem>());
   mAssetPreview = std::make_unique<AssetPreview>(*mArgs.mMessages, *mEventHandler, *mArgs.mSystems->getSystem<AssetRepo>());

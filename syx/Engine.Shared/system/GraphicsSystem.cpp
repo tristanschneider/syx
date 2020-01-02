@@ -328,7 +328,7 @@ void GraphicsSystem::_render(const Camera& camera, const Viewport& viewport) {
   };
 
   for(Shader* shader : requiredShaders) {
-    if(shader->getState() != AssetState::PostProcessed)
+    if(!shader || shader->getState() != AssetState::PostProcessed)
       return;
   }
 

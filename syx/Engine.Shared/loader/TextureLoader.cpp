@@ -6,8 +6,6 @@
 #include "system/GraphicsSystem.h"
 #include "provider/SystemProvider.h"
 
-RegisterAssetLoader("bmp", TextureBMPLoader, Texture);
-
 namespace {
   const int sDataPosOffset = 0x0A;
   const int sImageSizeOffset = 0x22;

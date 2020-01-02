@@ -51,15 +51,6 @@ public:
     });
   }
 
-  //Don't use this directly, use the RegisterAssetLoader macro to statically register an asset loader
-  //Makes it possible to statically register a loader instead of needing function scope
-  template<typename AssetType, typename LoaderType>
-  struct StaticRegisterLoader {
-    StaticRegisterLoader(const std::string& category) {
-      registerLoader<AssetType, LoaderType>(category);
-    }
-  };
-
   AssetRepo(const SystemArgs& args);
   ~AssetRepo();
 
@@ -99,8 +90,3 @@ private:
   //TODO: find a better way to make this available
   static AssetRepo* sSingleton;
 };
-
-//Statically registers a loader for use in AssetRepo
-//example usage RegisterAssetLoader("txt", TextAssetLoader, TextAsset)
-#define RegisterAssetLoader(category, loaderType, assetType)\
-namespace { AssetRepo::StaticRegisterLoader<assetType, loaderType> registeredLoader##loaderType(category); }

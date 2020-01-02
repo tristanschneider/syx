@@ -6,8 +6,6 @@
 #include "system/GraphicsSystem.h"
 #include "provider/SystemProvider.h"
 
-RegisterAssetLoader("vs", ShaderLoader, Shader);
-
 ShaderLoader::~ShaderLoader() {
 }
 
