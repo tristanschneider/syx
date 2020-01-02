@@ -6,6 +6,7 @@
     <SrcDeps>$(RootProjectDir)\src-deps</SrcDeps>
     <PropsDir>$(MSBuildThisFileDirectory)</PropsDir>
     <ProjProps>$(PropsDir)\proj\$(RootNamespace).props</ProjProps>
+    <DataDir>$(RootProjectDir)\data</DataDir>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>

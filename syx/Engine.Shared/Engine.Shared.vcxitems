@@ -46,6 +46,9 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)editor\Toolbox.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)event\BaseComponentEvents.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)event\DebugDrawEvent.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)event\Event.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)event\EventBuffer.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)event\EventHandler.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)event\LifecycleEvents.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)event\SpaceEvents.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)event\TransformEvent.cpp" />
@@ -82,7 +85,7 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)lua\LuaState.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)lua\LuaUtil.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)lua\LuaVariant.cpp" />
-    <ClCompile Include="$(MSBuildThisFileDirectory)Precompile.cpp" >
+    <ClCompile Include="$(MSBuildThisFileDirectory)Precompile.cpp">
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)ProjectLocator.cpp" />
@@ -96,9 +99,14 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)SyxInterface.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)test\LuaNodeTests.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)test\UtilsTests.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)threading\FunctionTask.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)threading\RWLock.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)threading\SyncTask.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)threading\Task.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)threading\WorkerPool.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)Util.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)util\ScratchPad.cpp" />
-    </ItemGroup>
+  </ItemGroup>
   <ItemGroup>
     <ClInclude Include="$(MSBuildThisFileDirectory)allocator\LIFOAllocator.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)App.h" />
@@ -133,6 +141,9 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)editor\util\ScopedImGui.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)event\BaseComponentEvents.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)event\DebugDrawEvent.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)event\Event.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)event\EventBuffer.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)event\EventHandler.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)event\LifecycleEvents.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)event\SpaceEvents.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)event\TransformEvent.h" />
@@ -190,6 +201,14 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)system\PhysicsSystem.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)system\System.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)test\TestRegistry.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)threading\FunctionTask.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)threading\IWorkerPool.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)threading\RWLock.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)threading\SpinLock.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)threading\SyncTask.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)threading\Task.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)threading\ThreadLocal.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)threading\WorkerPool.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Util.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)util\Finally.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)util\ScratchPad.h" />

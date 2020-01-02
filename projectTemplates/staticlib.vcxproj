@@ -18,33 +18,24 @@
       <Platform>x64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\Imgui.Lib\Imgui.Lib.vcxproj">
-      <Project>{ebd7dc44-e5f0-4e0b-a8a7-eadfe23eb3d9}</Project>
-    </ProjectReference>
-    <ProjectReference Include="..\lua\lua.vcxproj">
-      <Project>{b6e419ec-567f-4eb1-8833-a395540e9bc4}</Project>
-    </ProjectReference>
-  </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>15.0</VCProjectVersion>
+    <!-- INSERT NEW GUID AND NAME HERE -->
     <ProjectGuid>{BDAC7533-AA7B-468A-8706-6113F801B843}</ProjectGuid>
-    <Keyword>Win32Proj</Keyword>
-    <RootNamespace>EngineLib</RootNamespace>
+    <Keyword>ProjectName</Keyword>
+    <RootNamespace>ProjectName</RootNamespace>
     <WindowsTargetPlatformVersion>10.0.17763.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <Import Project="..\props\General.props" />
   <Import Project="..\props\StaticLib.props" />
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
-  <ImportGroup Label="Shared">
-    <Import Project="..\Engine.shared\Engine.shared.vcxitems" Label="Shared" />
-  </ImportGroup>
   <PropertyGroup>
     <IncludePath>$(VC_IncludePath);$(IncludePath)</IncludePath>
     <SourcePath>$(VC_SourcePath);$(SourcePath)</SourcePath>
+
     <ReferencePath>$(VC_ReferencesPath_x86);$(ReferencePath)</ReferencePath>
-    <LibraryPath>$(VC_LibraryPath_x86);$(WindowsSDK_LibraryPath_x86);$(NETFXKitsDir)Lib\um\x86;$(LibraryPath)</LibraryPath>
+    <LibraryPath>$(VC_LibraryPath_x86);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>
