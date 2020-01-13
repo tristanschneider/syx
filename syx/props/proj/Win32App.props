@@ -9,8 +9,9 @@
   </ImportGroup>
   <ItemDefinitionGroup>
     <PostBuildEvent>
-    <Command>xcopy $(SrcDeps)\glew\lib\Release\Win32\glew32.dll $(OutDir) /y
-xcopy $(DataDir) $(OutDir)\data /s /i /y</Command>
+      <Command>xcopy $(SrcDeps)\glew\lib\Release\Win32\glew32.dll $(OutDir) /y
+               xcopy $(DataDir) $(OutDir)\data /s /i /y
+      </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
 </Project>

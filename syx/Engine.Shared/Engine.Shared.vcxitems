@@ -5,6 +5,7 @@
     <HasSharedItems>true</HasSharedItems>
     <ItemsProjectGuid>{f2794aab-fc79-4c31-a16c-0e16666a9dc0}</ItemsProjectGuid>
     <ItemsProjectName>Engine.Shared</ItemsProjectName>
+    <ItemsRootNamespace>EngineLib</ItemsRootNamespace>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
