@@ -21,9 +21,11 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Imgui.Lib", "Imgui.Lib\Imgu
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Imgui.Shared", "Imgui.Shared\Imgui.Shared.vcxitems", "{D48B34FA-A327-4245-982F-024E77E2464E}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Win32.Platform", "Win32.Platform\Win32.Platform.vcxproj", "{09B9290C-EE79-49EE-914B-441F01CA212C}"
+EndProject
 Global
 	GlobalSection(SharedMSBuildProjectFiles) = preSolution
-		Win32.Shared\Win32.Shared.vcxitems*{a3a634cf-5dbf-42bb-8da5-33de6ca3325e}*SharedItemsImports = 4
+		Win32.Shared\Win32.Shared.vcxitems*{09b9290c-ee79-49ee-914b-441f01ca212c}*SharedItemsImports = 4
 		Win32.Shared\Win32.Shared.vcxitems*{ad341285-58b4-452d-b7ef-2454c5bc845d}*SharedItemsImports = 9
 		Engine.shared\Engine.shared.vcxitems*{bdac7533-aa7b-468a-8706-6113f801b843}*SharedItemsImports = 4
 		Imgui.Shared\Imgui.Shared.vcxitems*{d48b34fa-a327-4245-982f-024e77e2464e}*SharedItemsImports = 9
@@ -85,6 +87,14 @@ Global
 		{EBD7DC44-E5F0-4E0B-A8A7-EADFE23EB3D9}.Release|x64.Build.0 = Release|x64
 		{EBD7DC44-E5F0-4E0B-A8A7-EADFE23EB3D9}.Release|x86.ActiveCfg = Release|Win32
 		{EBD7DC44-E5F0-4E0B-A8A7-EADFE23EB3D9}.Release|x86.Build.0 = Release|Win32
+		{09B9290C-EE79-49EE-914B-441F01CA212C}.Debug|x64.ActiveCfg = Debug|x64
+		{09B9290C-EE79-49EE-914B-441F01CA212C}.Debug|x64.Build.0 = Debug|x64
+		{09B9290C-EE79-49EE-914B-441F01CA212C}.Debug|x86.ActiveCfg = Debug|Win32
+		{09B9290C-EE79-49EE-914B-441F01CA212C}.Debug|x86.Build.0 = Debug|Win32
+		{09B9290C-EE79-49EE-914B-441F01CA212C}.Release|x64.ActiveCfg = Release|x64
+		{09B9290C-EE79-49EE-914B-441F01CA212C}.Release|x64.Build.0 = Release|x64
+		{09B9290C-EE79-49EE-914B-441F01CA212C}.Release|x86.ActiveCfg = Release|Win32
+		{09B9290C-EE79-49EE-914B-441F01CA212C}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
