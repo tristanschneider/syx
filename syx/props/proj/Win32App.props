@@ -3,15 +3,16 @@
   <PropertyGroup>
     <IncludePath>$(WindowsSDK_IncludePath);$(IncludePath)</IncludePath>
   </PropertyGroup>
-  <ImportGroup>
-    <Import Project="$(PropsDir)\proj\EngineLibImport.props" />
-    <Import Project="$(PropsDir)\proj\GlewImport.props" />
-  </ImportGroup>
+  <!-- Don't want to include any headers in this project as doing so causes intellisense not to see the files anymore -->
   <ItemDefinitionGroup>
     <PostBuildEvent>
       <Command>xcopy $(SrcDeps)\glew\lib\Release\Win32\glew32.dll $(OutDir) /y
                xcopy $(DataDir) $(OutDir)\data /s /i /y
       </Command>
     </PostBuildEvent>
-  </ItemDefinitionGroup>
+    <Link>
+      <AdditionalLibraryDirectories>$(SrcDeps)\glew\lib\Release\Win32;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>glew32.lib;opengl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+    </ItemDefinitionGroup>
 </Project>

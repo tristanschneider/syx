@@ -3,6 +3,8 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
 VisualStudioVersion = 15.0.27130.2010
 MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Win32.App", "Win32.App\Win32.App.vcxproj", "{A3A634CF-5DBF-42BB-8DA5-33DE6CA3325E}"
+EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "syx", "syx\syx.vcxproj", "{85005DAD-8122-4D96-BD86-9CCC57B913AE}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "lua", "lua\lua.vcxproj", "{B6E419EC-567F-4EB1-8833-A395540E9BC4}"
@@ -10,8 +12,6 @@ EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test", "test\test.vcxproj", "{95900503-A0CA-4B4C-ADC3-D1449BD6D39D}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Win32.Shared", "Win32.Shared\Win32.Shared.vcxitems", "{AD341285-58B4-452D-B7EF-2454C5BC845D}"
-EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Win32.App", "Win32.App\Win32.App.vcxproj", "{A3A634CF-5DBF-42BB-8DA5-33DE6CA3325E}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Engine.Shared", "Engine.shared\Engine.shared.vcxitems", "{F2794AAB-FC79-4C31-A16C-0E16666A9DC0}"
 EndProject
