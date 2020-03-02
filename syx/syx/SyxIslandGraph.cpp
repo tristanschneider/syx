@@ -297,6 +297,7 @@ namespace Syx {
     if(node.mIsland == sStaticNodeIndex) {
       auto& edgeIndices = mIslandIndices;
       mEdges.getIndices(edgeIndices);
+      mIslandIndicesDirty = true;
       for(IndexableKey edgeIndex : edgeIndices) {
         IslandEdge& edge = mEdges[edgeIndex];
         if(edge.mTo == nodeIndex || edge.mFrom == nodeIndex) {

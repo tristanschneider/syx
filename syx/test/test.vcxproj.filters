@@ -38,5 +38,8 @@
     <ClCompile Include="UtilTest.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="syx\BroadphaseTest.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>
