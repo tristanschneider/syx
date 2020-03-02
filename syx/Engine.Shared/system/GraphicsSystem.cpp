@@ -31,6 +31,7 @@
 #include "system/KeyboardInput.h"
 #include "system/AssetRepo.h"
 #include "util/Finally.h"
+#include "Util.h"
 
 using namespace Syx;
 
@@ -89,7 +90,7 @@ void GraphicsSystem::init() {
   ct.setTranslate(Vec3(0.0f, 0.0f, -3.0f));
   ct.setRot(Quat::lookAt(-Vec3::UnitZ));
   defaultCamera.setTransform(ct);
-  mDebugDrawer = std::make_unique<DebugDrawer>(*mArgs.mSystems->getSystem<AssetRepo>());
+  mDebugDrawer = std::make_unique<::DebugDrawer>(*mArgs.mSystems->getSystem<AssetRepo>());
   mImGui = std::make_unique<ImGuiImpl>();
 
   mEventHandler = std::make_unique<EventHandler>();
@@ -159,7 +160,7 @@ Camera& GraphicsSystem::getPrimaryCamera() {
   return mCameras.front();
 }
 
-DebugDrawer& GraphicsSystem::getDebugDrawer() {
+::DebugDrawer& GraphicsSystem::getDebugDrawer() {
   return *mDebugDrawer;
 }
 

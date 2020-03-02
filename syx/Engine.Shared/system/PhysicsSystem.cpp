@@ -24,6 +24,7 @@
 #include <SyxHandleMap.h>
 #include <SyxPhysicsSystem.h>
 #include <SyxModelParam.h>
+#include "Util.h"
 
 #include <SyxIslandTests.h>
 
