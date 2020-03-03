@@ -4,6 +4,39 @@
 namespace Syx {
   float AABBTree::sBoxPadding = 0.0f;
 
+  struct AABBTreeContext {
+    //Used during raycasting to keep track of things to cast against, stored here to save on re-allocations
+    std::queue<const AABBNode*> mNodeQueue;
+    //Number of elements in use in m_toEvaluate
+    size_t mEvalSize;
+    std::vector<std::pair<const AABBNode*, const AABBNode*>> mToEvaluate;
+    SmallIndexSet<100> mTraversed;
+    std::vector<std::pair<ResultNode, ResultNode>> mQueryPairResults;
+    std::vector<ResultNode> mQueryResults;
+  };
+
+  struct AABBSingleContext : public AABBTreeContext, public BroadphaseContext {
+    const std::vector<ResultNode>& get() const override {
+      return mQueryResults;
+    }
+
+    size_t getTypeId() const override {
+      static const size_t result = std::hash<std::string>()("AABBSingleContext");
+      return result;
+    }
+  };
+
+  struct AABBPairContext : public AABBTreeContext, public BroadphasePairContext {
+    const std::vector<std::pair<ResultNode, ResultNode>>& get() const override {
+      return mQueryPairResults;
+    }
+
+    size_t getTypeId() const override {
+      static const size_t result = std::hash<std::string>()("AABBPairContext");
+      return result;
+    }
+  };
+
   AABBNode::AABBNode(const AABBNode& other) {
     *this = other;
   }
@@ -152,6 +185,15 @@ namespace Syx {
 
     return bIndex;
   }
+
+  AABBTree::AABBTree(int startingSize)
+    : mRoot(AABBNode::Null)
+    , mFreeList(AABBNode::Null) {
+    mNodes.resize(startingSize);
+    _constructFreeList();
+  }
+
+  AABBTree::~AABBTree() = default;
 
   Handle AABBTree::insert(const BoundingVolume& obj, void* userdata) {
     Handle newIndex = _createNode();
@@ -358,8 +400,8 @@ namespace Syx {
     return static_cast<size_t>(&node - &mNodes[0]);
   }
 
-  void AABBTree::queryPairs(BroadphaseContext& context) const {
-    AABBTreeContext& c = static_cast<AABBTreeContext&>(context);
+  void AABBTree::queryPairs(BroadphasePairContext& context) const {
+    AABBTreeContext& c = static_cast<AABBTreeContext&>(static_cast<AABBPairContext&>(context));
     c.mQueryPairResults.clear();
     if(mRoot == AABBNode::Null || mNodes[mRoot].isLeaf())
       return;
@@ -389,7 +431,7 @@ namespace Syx {
   }
 
   void AABBTree::queryVolume(const BoundingVolume& volume, BroadphaseContext& context) const {
-    AABBTreeContext& c = static_cast<AABBTreeContext&>(context);
+    AABBTreeContext& c = static_cast<AABBTreeContext&>(static_cast<AABBSingleContext&>(context));
     c.mQueryResults.clear();
 
     _getCollidingHelper(mRoot, volume, c);
@@ -411,7 +453,7 @@ namespace Syx {
   }
 
   void AABBTree::queryRaycast(const Vec3& start, const Vec3& end, BroadphaseContext& context) const {
-    AABBTreeContext& c = static_cast<AABBTreeContext&>(context);
+    AABBTreeContext& c = static_cast<AABBTreeContext&>(static_cast<AABBSingleContext&>(context));
     c.mQueryResults.clear();
     if(mRoot != AABBNode::Null)
       c.mNodeQueue.push(&mNodes[mRoot]);
@@ -455,6 +497,24 @@ namespace Syx {
     if(mRoot != AABBNode::Null)
       mNodes[mRoot].draw(mNodes);
     _drawHelper(mRoot);
+  }
+
+  std::unique_ptr<BroadphaseContext> AABBTree::createHitContext() const {
+    return std::make_unique<AABBSingleContext>();
+  }
+
+  std::unique_ptr<BroadphasePairContext> AABBTree::createPairContext() const {
+    return std::make_unique<AABBPairContext>();
+  }
+
+  bool AABBTree::isValid(const BroadphaseContext& context) const {
+    static const size_t type = AABBSingleContext().getTypeId();
+    return type == context.getTypeId();
+  }
+
+  bool AABBTree::isValid(const BroadphasePairContext& context) const {
+    static const size_t type = AABBPairContext().getTypeId();
+    return type == context.getTypeId();
   }
 
   void AABBNode::draw(const std::vector<AABBNode>& nodes) const {

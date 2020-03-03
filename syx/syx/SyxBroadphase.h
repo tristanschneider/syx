@@ -34,14 +34,18 @@ namespace Syx {
     void* mUserdata;
   };
 
-  typedef std::vector<ResultNode> BroadResults;
-  typedef std::vector<std::pair<ResultNode, ResultNode>> BroadPairs;
-
   class BroadphaseContext {
   public:
-    virtual ~BroadphaseContext() {}
-    BroadResults mQueryResults;
-    BroadPairs mQueryPairResults;
+    virtual ~BroadphaseContext() = default;
+    virtual const std::vector<ResultNode>& get() const = 0;
+    virtual size_t getTypeId() const = 0;
+  };
+
+  class BroadphasePairContext {
+  public:
+    virtual ~BroadphasePairContext() = default;
+    virtual const std::vector<std::pair<ResultNode, ResultNode>>& get() const = 0;
+    virtual size_t getTypeId() const = 0;
   };
 
   class Broadphase {
@@ -63,10 +67,14 @@ namespace Syx {
     virtual void draw() {}
     virtual Handle update(const BoundingVolume& newVol, Handle handle) = 0;
 
-    virtual void queryPairs(BroadphaseContext& context) const = 0;
+    virtual void queryPairs(BroadphasePairContext& context) const = 0;
     virtual void queryRaycast(const Vec3& start, const Vec3& end, BroadphaseContext& context) const = 0;
     virtual void queryVolume(const BoundingVolume& volume, BroadphaseContext& context) const = 0;
-    //Maybe also have an interactive query for raycasting one at a time
+
+    virtual std::unique_ptr<BroadphaseContext> createHitContext() const = 0;
+    virtual std::unique_ptr<BroadphasePairContext> createPairContext() const = 0;
+    virtual bool isValid(const BroadphaseContext& conetxt) const = 0;
+    virtual bool isValid(const BroadphasePairContext& context) const = 0;
 
   protected:
     Handle _getNewHandle() { return mHandleGen.next(); }

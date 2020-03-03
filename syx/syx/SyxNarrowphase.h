@@ -31,9 +31,9 @@ namespace Syx {
 
     Narrowphase& operator=(const Narrowphase& rhs);
 
-    void processPairQuery(const BroadPairs& pairs, Space& space);
-    void processRayQuery(const BroadResults& objs, const Vec3& start, const Vec3& end, Space& space);
-    void processVolumeQuery(const BroadResults& objs, const BoundingVolume& volume, Space& space);
+    void processPairQuery(const std::vector<std::pair<ResultNode, ResultNode>>& pairs, Space& space);
+    void processRayQuery(const std::vector<ResultNode>& objs, const Vec3& start, const Vec3& end, Space& space);
+    void processVolumeQuery(const std::vector<ResultNode>& objs, const BoundingVolume& volume, Space& space);
 
   private:
     //Once m_a, m_b, m_space are set, this is called to find the right pair function and call it, which takes care of everything
@@ -80,6 +80,8 @@ namespace Syx {
     void _drawEPA(SupportTri* bestTri);
 
     void _swapAB();
+    //Returns a cached context if available, otherwise creates a new one
+    BroadphaseContext& _getBroadphaseContext(const Broadphase& broadphase);
 
     static float sepaEpsilon;
 
@@ -96,7 +98,7 @@ namespace Syx {
     std::vector<SupportTri, AlignmentAllocator<SupportTri>> mTris;
     std::vector<SupportEdge, AlignmentAllocator<SupportEdge>> mEdges;
     std::vector<SupportPoint, AlignmentAllocator<SupportPoint>> mVerts;
-    BroadphaseContext* mBroadphaseContext;
+    std::unique_ptr<BroadphaseContext> mBroadphaseContext;
     Model mTempTri;
 
     static const int sHandlerCount = ModelType::Count*ModelType::Count;

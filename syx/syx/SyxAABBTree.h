@@ -2,6 +2,9 @@
 #include "SyxBroadphase.h"
 
 namespace Syx {
+  struct AABBTreeContext;
+  class AABBNode;
+
   class AABBNode {
   public:
     AABBNode(const AABBNode& other);
@@ -45,23 +48,10 @@ namespace Syx {
     static const Handle Null = std::numeric_limits<size_t>::max();
   };
 
-  struct AABBTreeContext : public BroadphaseContext {
-    //Used during raycasting to keep track of things to cast against, stored here to save on re-allocations
-    std::queue<const AABBNode*> mNodeQueue;
-    //Number of elements in use in m_toEvaluate
-    size_t mEvalSize;
-    std::vector<std::pair<const AABBNode*, const AABBNode*>> mToEvaluate;
-    SmallIndexSet<100> mTraversed;
-  };
-
   class AABBTree: public Broadphase {
   public:
-    AABBTree(int startingSize = 1000)
-      : mRoot(AABBNode::Null)
-      , mFreeList(AABBNode::Null) {
-      mNodes.resize(startingSize);
-      _constructFreeList();
-    }
+    AABBTree(int startingSize = 1000);
+    ~AABBTree();
 
     Handle insert(const BoundingVolume& obj, void* userdata) override;
     void remove(Handle handle) override;
@@ -69,11 +59,16 @@ namespace Syx {
 
     Handle update(const BoundingVolume& newVol, Handle handle) override;
 
-    void queryPairs(BroadphaseContext& context) const override;
+    void queryPairs(BroadphasePairContext& context) const override;
     void queryRaycast(const Vec3& start, const Vec3& end, BroadphaseContext& context) const override;
     void queryVolume(const BoundingVolume& volume, BroadphaseContext& context) const override;
     //Maybe also have an interactive query for raycasting one at a time
     void draw(void) override;
+
+    std::unique_ptr<BroadphaseContext> createHitContext() const override;
+    std::unique_ptr<BroadphasePairContext> createPairContext() const override;
+    bool isValid(const BroadphaseContext& conetxt) const override;
+    bool isValid(const BroadphasePairContext& context) const override;
 
   private:
     inline const AABBNode& _getNode(Handle handle) const { return mNodes[handle]; }

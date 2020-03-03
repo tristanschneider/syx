@@ -15,26 +15,28 @@ namespace Syx {
 namespace SyxTest {
   TEST_CLASS(BroadphaseTest) {
   public:
-    // TODO: context is dangerous
-    void _assertQueryResults(const Syx::Broadphase& broadphase, const Syx::BoundingVolume& queryVolume, const Syx::BroadphaseContext& expected) {
-      Syx::AABBTreeContext pair, raycast, volume;
-      broadphase.queryPairs(pair);
-      // Cast from outside the volume into it
-      broadphase.queryRaycast(queryVolume.mAABB.getCenter() + queryVolume.mAABB.getDiagonal(), queryVolume.mAABB.getCenter(), raycast);
-      broadphase.queryVolume(queryVolume, volume);
+    void _assertQueryResults(const Syx::Broadphase& broadphase, const Syx::BoundingVolume& queryVolume, const std::vector<Syx::ResultNode>& expectedHits, const std::vector<std::pair<Syx::ResultNode, Syx::ResultNode>>& expectedPairs) {
+      auto pair = broadphase.createPairContext();
+      auto raycast = broadphase.createHitContext();
+      auto volume = broadphase.createHitContext();
 
-      Assert::IsTrue(expected.mQueryPairResults == pair.mQueryPairResults, L"Pair query should match", LINE_INFO());
-      Assert::IsTrue(expected.mQueryResults == raycast.mQueryResults, L"Raycast query should match", LINE_INFO());
-      Assert::IsTrue(expected.mQueryResults == volume.mQueryResults, L"Volume query should match", LINE_INFO());
+      broadphase.queryPairs(*pair);
+      // Cast from outside the volume into it
+      broadphase.queryRaycast(queryVolume.mAABB.getCenter() + queryVolume.mAABB.getDiagonal(), queryVolume.mAABB.getCenter(), *raycast);
+      broadphase.queryVolume(queryVolume, *volume);
+
+      Assert::IsTrue(expectedPairs == pair->get(), L"Pair query should match", LINE_INFO());
+      Assert::IsTrue(expectedHits == raycast->get(), L"Raycast query should match", LINE_INFO());
+      Assert::IsTrue(expectedHits == volume->get(), L"Volume query should match", LINE_INFO());
     }
 
     TEST_METHOD(Broadphase_AddOne_ShowsInQueries) {
       Syx::AABBTree broadphase;
       Syx::BoundingVolume volume(Syx::AABB(Syx::Vec3(0.0f), Syx::Vec3(1.0f)));
       Syx::Handle handle = broadphase.insert(volume, nullptr);
-      Syx::AABBTreeContext expected;
-      expected.mQueryResults.push_back({ handle, nullptr });
-      _assertQueryResults(broadphase, volume, expected);
+      std::vector<Syx::ResultNode> expectedHits;
+      expectedHits.push_back({ handle, nullptr });
+      _assertQueryResults(broadphase, volume, expectedHits, {});
     }
 
     TEST_METHOD(Broadphase_AddRemoveOne_IsEmpty) {
@@ -43,7 +45,7 @@ namespace SyxTest {
       Syx::Handle handle = broadphase.insert(volume, nullptr);
       broadphase.remove(handle);
       // Results should be empty
-      _assertQueryResults(broadphase, volume, Syx::AABBTreeContext());
+      _assertQueryResults(broadphase, volume, {}, {});
     }
   };
 }

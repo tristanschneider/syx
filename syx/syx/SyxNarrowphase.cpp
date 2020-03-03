@@ -17,13 +17,11 @@ namespace Syx {
   float Narrowphase::sepaEpsilon = SYX_EPSILON;
 
   Narrowphase::Narrowphase()
-    : mBroadphaseContext(new AABBTreeContext())
-    , mTempTri(ModelType::Triangle) {
+    : mTempTri(ModelType::Triangle) {
     _initHandlers();
   }
 
   Narrowphase::~Narrowphase() {
-    delete mBroadphaseContext;
   }
 
   Narrowphase::Narrowphase(const Narrowphase& other) {
@@ -42,7 +40,6 @@ namespace Syx {
     mEdges = rhs.mEdges;
     mVerts = rhs.mVerts;
     mTempTri = rhs.mTempTri;
-    mBroadphaseContext = new AABBTreeContext();
     _initHandlers();
     return *this;
   }
@@ -278,7 +275,7 @@ namespace Syx {
     }
   }
 
-  void Narrowphase::processPairQuery(const BroadPairs& pairs, Space& space) {
+  void Narrowphase::processPairQuery(const std::vector<std::pair<ResultNode, ResultNode>>& pairs, Space& space) {
     mSpace = &space;
     for(auto& pair : pairs) {
       mA = reinterpret_cast<PhysicsObject*>(pair.first.mUserdata);
@@ -305,11 +302,18 @@ namespace Syx {
     mPrimitive.set(mInstA, mInstB, mSpace, this);
   }
 
-  void Narrowphase::processRayQuery(const BroadResults& /*objs*/, const Vec3& /*start*/, const Vec3& /*end*/, Space& /*space*/) {
+  BroadphaseContext& Narrowphase::_getBroadphaseContext(const Broadphase& broadphase) {
+    if (!mBroadphaseContext || !broadphase.isValid(*mBroadphaseContext)) {
+      mBroadphaseContext = broadphase.createHitContext();
+    }
+    return *mBroadphaseContext;
+  }
+
+  void Narrowphase::processRayQuery(const std::vector<ResultNode>& /*objs*/, const Vec3& /*start*/, const Vec3& /*end*/, Space& /*space*/) {
 
   }
 
-  void Narrowphase::processVolumeQuery(const BroadResults& /*objs*/, const BoundingVolume& /*volume*/, Space& /*space*/) {
+  void Narrowphase::processVolumeQuery(const std::vector<ResultNode>& /*objs*/, const BoundingVolume& /*volume*/, Space& /*space*/) {
 
   }
 
@@ -397,7 +401,7 @@ namespace Syx {
 
     ModelInstance tempInst(mTempTri, envRoot->getModelToWorld(), envRoot->getWorldToModel());
 
-    for(ResultNode& result : mBroadphaseContext->mQueryResults) {
+    for(const ResultNode& result : mBroadphaseContext->get()) {
       size_t triIndex = reinterpret_cast<size_t>(result.mUserdata);
       const Vec3& a = tris[triIndex];
       Handle instHandle = *reinterpret_cast<const Handle*>(&a.w);
@@ -429,17 +433,19 @@ namespace Syx {
 
     auto& subInsts = compRoot->getModel().getSubmodelInstances();
     //Transform each submodel aabb into env local space and query broadphase, handle pairs of results
+    auto& context = _getBroadphaseContext(envRoot->getModel().getBroadphase());
     for(size_t i = 0; i < subInsts.size(); ++i) {
       const ModelInstance& subInst = subInsts[i];
       AABB queryBox = subInst.getAABB().transform(compToEnv);
 
-      envRoot->getModel().getBroadphase().queryVolume(queryBox, *mBroadphaseContext);
-      if(mBroadphaseContext->mQueryResults.empty())
+      envRoot->getModel().getBroadphase().queryVolume(queryBox, context);
+      if(context.get().empty()) {
         continue;
+      }
 
       ModelInstance tempSubInst = ModelInstance::combined(*compRoot, subInst, subInst, compRoot->getSubmodelInstHandle(i));
       mInstB = &tempSubInst;
-      for(const ResultNode& result : mBroadphaseContext->mQueryResults) {
+      for(const ResultNode& result : context.get()) {
         size_t triIndex = reinterpret_cast<size_t>(result.mUserdata);
         const Vec3& a = tris[triIndex];
         Handle instHandle = *reinterpret_cast<const Handle*>(&a.w);

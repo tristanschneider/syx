@@ -6,28 +6,23 @@ namespace Syx {
   typedef AABBTree DefaultBroadphase;
   typedef AABBTreeContext DefaultBroadphaseContext;
 
-  Space::Space(void)
-    : mBroadphase(new DefaultBroadphase())
-    , mBroadphaseContext(new DefaultBroadphaseContext()) {
-    mConstraintSystem.setIslandGraph(mIslandGraph);
-  }
-
   Space::Space(Handle handle)
     : mMyHandle(handle)
-    , mBroadphase(new DefaultBroadphase())
-    , mBroadphaseContext(new DefaultBroadphaseContext()) {
+    , mBroadphase(std::make_unique<DefaultBroadphase>())
+    , mBroadphaseContext(mBroadphase->createHitContext())
+    , mBroadphasePairContext(mBroadphase->createPairContext()) {
     mConstraintSystem.setIslandGraph(mIslandGraph);
   }
 
   Space::Space(const Space& rhs) {
     *this = rhs;
     mObjects.reserve(100);
-    mBroadphase = new DefaultBroadphase();
+    mBroadphase = std::make_unique<DefaultBroadphase>();
+    mBroadphaseContext = mBroadphase->createHitContext();
+    mBroadphasePairContext = mBroadphase->createPairContext();
   }
 
-  Space::~Space(void) {
-    delete mBroadphase;
-    delete mBroadphaseContext;
+  Space::~Space() {
   }
 
   Space& Space::operator=(const Space& rhs) {
@@ -38,6 +33,9 @@ namespace Syx {
     mObjects = rhs.mObjects;
     mProfiler = rhs.mProfiler;
     mConstraintSystem.setIslandGraph(mIslandGraph);
+    mBroadphase = std::make_unique<DefaultBroadphase>();
+    mBroadphaseContext = mBroadphase->createHitContext();
+    mBroadphasePairContext = mBroadphase->createPairContext();
     return *this;
   }
 
@@ -183,12 +181,12 @@ namespace Syx {
     AutoProfileBlock detection(mProfiler, "Collision Detection");
 
     mProfiler.pushBlock("Broadphase");
-    mBroadphase->queryPairs(*mBroadphaseContext);
+    mBroadphase->queryPairs(*mBroadphasePairContext);
     mProfiler.popBlock("Broadphase");
 
     {
       AutoProfileBlock narrow(mProfiler, "Narrowphase");
-      mNarrowphase.processPairQuery(mBroadphaseContext->mQueryPairResults, *this);
+      mNarrowphase.processPairQuery(mBroadphasePairContext->get(), *this);
     }
   }
 
@@ -204,7 +202,7 @@ namespace Syx {
     mBroadphase->queryRaycast(start, end, *mBroadphaseContext);
     mCasterContext.clearResults();
 
-    for(const ResultNode& obj : mBroadphaseContext->mQueryResults) {
+    for(const ResultNode& obj : mBroadphaseContext->get()) {
       PhysicsObject* pObj = reinterpret_cast<PhysicsObject*>(obj.mUserdata);
       mCaster.lineCast(*pObj, start, end, mCasterContext);
     }

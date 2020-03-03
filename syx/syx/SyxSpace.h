@@ -26,8 +26,7 @@ namespace Syx {
 
     DeclareHandleMapNode(Space);
 
-    Space(void);
-    Space(Handle handle);
+    Space(Handle handle = 0);
     Space(const Space& rhs);
     ~Space(void);
 
@@ -82,8 +81,9 @@ namespace Syx {
 
     HandleMap<PhysicsObject> mObjects;
     Handle mMyHandle;
-    Broadphase* mBroadphase;
-    BroadphaseContext* mBroadphaseContext;
+    std::unique_ptr<Broadphase> mBroadphase;
+    std::unique_ptr<BroadphaseContext> mBroadphaseContext;
+    std::unique_ptr<BroadphasePairContext> mBroadphasePairContext;
     Narrowphase mNarrowphase;
     ConstraintSystem mConstraintSystem;
     IslandGraph mIslandGraph;
