@@ -4,11 +4,10 @@
 #include "SyxAABBTree.h"
 
 namespace Syx {
+  class Broadphase;
   class PhysicsSystem;
   struct Transform;
   struct Mat3;
-
-  typedef AABBTree ModelBroadphase;
 
   namespace ModelType {
     enum {
@@ -37,10 +36,14 @@ namespace Syx {
     DeclareHandleMapNode(Model);
 
     Model() {}
+    ~Model();
+    Model(int type, const Vec3Vec& points, const Vec3Vec& triangles, std::unique_ptr<Broadphase> broadphase, const AABB& aabb);
     Model(const Vec3Vec& points, const Vec3Vec& triangles, bool environment);
     Model(int type);
-
     Model(Handle handle): mType(ModelType::Mesh), mHandle(handle) {}
+
+    Model(const Model& rhs);
+    Model& operator=(const Model& rhs);
 
     //Links pointers to local objects, so this needs to be at its final location
     void initComposite(const CompositeModelParam& param, const HandleMap<Model>& modelMap);
@@ -54,7 +57,7 @@ namespace Syx {
     Handle getHandle(void) { return mHandle; }
     int getType(void) const { return mType; }
     const std::vector<ModelInstance, AlignmentAllocator<ModelInstance>>& getSubmodelInstances() const { return mInstances; }
-    const Broadphase& getBroadphase() const { return mBroadphase; }
+    const Broadphase& getBroadphase() const { return *mBroadphase; }
     const Vec3Vec& getTriangles() const { return mTriangles; }
 
     const AABB& getAABB(void) const { return mAABB; }
@@ -118,6 +121,6 @@ namespace Syx {
     std::vector<ModelInstance, AlignmentAllocator<ModelInstance>> mInstances;
     std::vector<Model, AlignmentAllocator<Model>> mSubmodels;
     //Composite and environment
-    ModelBroadphase mBroadphase;
+    std::unique_ptr<Broadphase> mBroadphase;
   };
 }

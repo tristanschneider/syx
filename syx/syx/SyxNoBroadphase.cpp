@@ -2,43 +2,74 @@
 #include "SyxNoBroadphase.h"
 
 namespace Syx {
-  // Since this isn't a real broadphase the results can all point at the same container
-  class SingleContext : public BroadphaseContext {
+  class ContextBase {
   public:
-    SingleContext(const std::vector<ResultNode>& res)
-      : mResult(res) {
+    ContextBase(const NoBroadphase& broadphase, std::weak_ptr<bool> existenceTracker)
+      : mBroadphase(broadphase)
+      , mExistenceTracker(std::move(existenceTracker)) {
+    }
+
+    const NoBroadphase& mBroadphase;
+    std::weak_ptr<bool> mExistenceTracker;
+  };
+
+  // Since this isn't a real broadphase the results can all point at the same container
+  class SingleContext : public BroadphaseContext, public ContextBase {
+  public:
+    SingleContext(const NoBroadphase& broadphase, std::weak_ptr<bool> existenceTracker, const std::vector<ResultNode>& res)
+      : ContextBase(broadphase, std::move(existenceTracker))
+      , mResult(res) {
+    }
+
+    void queryRaycast(const Vec3& start, const Vec3& end) override {
+      if(auto e = mExistenceTracker.lock()) {
+        mBroadphase.queryRaycast(start, end, *this);
+      }
+    }
+
+    void queryVolume(const BoundingVolume& volume) override {
+      if(auto e = mExistenceTracker.lock()) {
+        mBroadphase.queryVolume(volume, *this);
+      }
     }
 
     const std::vector<ResultNode>& get() const override {
       return mResult;
     }
 
-    size_t getTypeId() const override {
-      const static size_t result = std::hash<std::string>()("SingleContext");
-      return result;
-    }
-
     const std::vector<ResultNode>& mResult;
   };
 
-  class PairContext : public BroadphasePairContext {
+  class PairContext : public BroadphasePairContext, public ContextBase {
   public:
-    PairContext(const std::vector<std::pair<ResultNode, ResultNode>>& res)
-      : mResult(res) {
+    PairContext(const NoBroadphase& broadphase, std::weak_ptr<bool> existenceTracker, const std::vector<std::pair<ResultNode, ResultNode>>& res)
+      : ContextBase(broadphase, std::move(existenceTracker))
+      , mResult(res) {
+    }
+
+    void queryPairs() override {
+      if(auto e = mExistenceTracker.lock()) {
+        mBroadphase.queryPairs(*this);
+      }
     }
 
     const std::vector<std::pair<ResultNode, ResultNode>>& get() const override {
       return mResult;
     }
 
-    size_t getTypeId() const override {
-      const static size_t result = std::hash<std::string>()("PairContext");
-      return result;
-    }
-
   private:
     const std::vector<std::pair<ResultNode, ResultNode>>& mResult;
   };
+
+  NoBroadphase::NoBroadphase()
+    : mExistenceTracker(std::make_shared<bool>()) {
+  }
+
+  NoBroadphase::~NoBroadphase() {
+    while(mExistenceTracker.use_count() > 1) {
+      std::this_thread::yield();
+    }
+  }
 
   Handle NoBroadphase::insert(const BoundingVolume&, void* userdata) {
     Handle result = _getNewHandle();
@@ -70,27 +101,19 @@ namespace Syx {
         mPairs.push_back({mHits[i], mHits[j]});
   }
 
-  void NoBroadphase::queryRaycast(const Vec3&, const Vec3&, BroadphaseContext& context) const {
+  void NoBroadphase::queryRaycast(const Vec3&, const Vec3&, BroadphaseContext&) const {
     // Don't need to update, it's already pointing at the container
   }
 
-  void NoBroadphase::queryVolume(const BoundingVolume&, BroadphaseContext& context) const {
+  void NoBroadphase::queryVolume(const BoundingVolume&, BroadphaseContext&) const {
     // Don't need to update, it's already pointing at the container
   }
 
   std::unique_ptr<BroadphaseContext> NoBroadphase::createHitContext() const {
-    return std::make_unique<SingleContext>(mHits);
+    return std::make_unique<SingleContext>(*this, mExistenceTracker, mHits);
   }
 
   std::unique_ptr<BroadphasePairContext> NoBroadphase::createPairContext() const {
-    return std::make_unique<PairContext>(mPairs);
-  }
-
-  bool NoBroadphase::isValid(const BroadphaseContext& context) const {
-    return SingleContext(mHits).getTypeId() == context.getTypeId();
-  }
-
-  bool NoBroadphase::isValid(const BroadphasePairContext& context) const {
-    return PairContext(mPairs).getTypeId() == context.getTypeId();
+    return std::make_unique<PairContext>(*this, mExistenceTracker, mPairs);
   }
 }

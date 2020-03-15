@@ -2,6 +2,7 @@
 #include "SyxModel.h"
 #include "SyxTransform.h"
 #include "SyxDebugHelpers.h"
+#include "SyxAABBTree.h"
 
 namespace Syx {
 #ifdef SENABLED
@@ -104,17 +105,21 @@ namespace Syx {
   }
 #endif
 
-  Model::Model(const Vec3Vec& points, const Vec3Vec& triangles, bool environment)
-    : mType(environment ? ModelType::Environment : ModelType::Mesh)
+  Model::Model(int type, const Vec3Vec& points, const Vec3Vec& triangles, std::unique_ptr<Broadphase> broadphase, const AABB& aabb)
+    : mType(type)
     , mPoints(points)
     , mTriangles(triangles)
-    , mAABB(points) {
+    , mAABB(aabb) {
+  }
+
+
+  Model::Model(const Vec3Vec& points, const Vec3Vec& triangles, bool environment)
+    : Model(environment ? ModelType::Environment : ModelType::Mesh, points, triangles, Create::aabbTree(), AABB(points)) {
   }
 
   //All primitives are from -1.0 to 1.0 so I don't need to multiply by 0.5 when getting support points
   Model::Model(int type)
-    : mType(type)
-    , mAABB(-Vec3::Identity, Vec3::Identity) {
+    : Model(type, {}, {}, Create::aabbTree(), AABB(-Vec3::Identity, Vec3::Identity)) {
     switch(mType) {
       case ModelType::Triangle:
         mPoints.resize(3);
@@ -125,6 +130,7 @@ namespace Syx {
     }
   }
 
+  Model::~Model() = default;
 
   Vec3 Model::getSupport(const Vec3& dir) const {
     switch(mType) {
@@ -467,6 +473,29 @@ namespace Syx {
     mAABB.move(offset);
   }
 
+  Model::Model(const Model& rhs)
+    : mPoints(rhs.mPoints)
+    , mTriangles(rhs.mTriangles)
+    , mAABB(rhs.mAABB)
+    , mType(rhs.mType)
+    , mHandle(rhs.mHandle)
+    , mInstances(rhs.mInstances)
+    , mSubmodels(rhs.mSubmodels)
+    , mBroadphase(Create::aabbTree()) {
+  }
+
+  Model& Model::operator=(const Model& rhs) {
+    mPoints = rhs.mPoints;
+    mTriangles = rhs.mTriangles;
+    mAABB = rhs.mAABB;
+    mType = rhs.mType;
+    mHandle = rhs.mHandle;
+    mInstances = rhs.mInstances;
+    mSubmodels = rhs.mSubmodels;
+    mBroadphase = Create::aabbTree();
+    return *this;
+  }
+
   void Model::initComposite(const CompositeModelParam& param, const HandleMap<Model>& modelMap) {
     mSubmodels.resize(param.mSubmodels.size());
     mInstances.reserve(param.mInstances.size());
@@ -512,6 +541,6 @@ namespace Syx {
       Handle handle = ModelInstance::sHandleGen.next();
       mTriangles[i].w = *reinterpret_cast<float*>(&handle);
     }
-    mBroadphase.buildStatic(params);
+    mBroadphase->buildStatic(params);
   }
 }

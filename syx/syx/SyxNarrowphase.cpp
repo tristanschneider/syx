@@ -303,9 +303,8 @@ namespace Syx {
   }
 
   BroadphaseContext& Narrowphase::_getBroadphaseContext(const Broadphase& broadphase) {
-    if (!mBroadphaseContext || !broadphase.isValid(*mBroadphaseContext)) {
-      mBroadphaseContext = broadphase.createHitContext();
-    }
+    // TODO: better solution for re-use
+    mBroadphaseContext = broadphase.createHitContext();
     return *mBroadphaseContext;
   }
 
@@ -396,7 +395,7 @@ namespace Syx {
     //Transform b's bounding box into a's space so it can test against all a's submodels
     AABB localB = mB->getCollider()->getAABB().transform(mInstA->getWorldToModel());
     ModelInstance* envRoot = mInstA;
-    mInstA->getModel().getBroadphase().queryVolume(localB, *mBroadphaseContext);
+    _getBroadphaseContext(mInstA->getModel().getBroadphase()).queryVolume(localB);
     const Vec3Vec& tris = mInstA->getModel().getTriangles();
 
     ModelInstance tempInst(mTempTri, envRoot->getModelToWorld(), envRoot->getWorldToModel());
@@ -438,7 +437,7 @@ namespace Syx {
       const ModelInstance& subInst = subInsts[i];
       AABB queryBox = subInst.getAABB().transform(compToEnv);
 
-      envRoot->getModel().getBroadphase().queryVolume(queryBox, context);
+      _getBroadphaseContext(envRoot->getModel().getBroadphase()).queryVolume(queryBox);
       if(context.get().empty()) {
         continue;
       }

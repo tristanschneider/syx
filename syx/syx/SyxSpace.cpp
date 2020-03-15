@@ -3,12 +3,9 @@
 #include "SyxAABBTree.h"
 
 namespace Syx {
-  typedef AABBTree DefaultBroadphase;
-  typedef AABBTreeContext DefaultBroadphaseContext;
-
   Space::Space(Handle handle)
     : mMyHandle(handle)
-    , mBroadphase(std::make_unique<DefaultBroadphase>())
+    , mBroadphase(Create::aabbTree())
     , mBroadphaseContext(mBroadphase->createHitContext())
     , mBroadphasePairContext(mBroadphase->createPairContext()) {
     mConstraintSystem.setIslandGraph(mIslandGraph);
@@ -17,7 +14,7 @@ namespace Syx {
   Space::Space(const Space& rhs) {
     *this = rhs;
     mObjects.reserve(100);
-    mBroadphase = std::make_unique<DefaultBroadphase>();
+    mBroadphase = Create::aabbTree();
     mBroadphaseContext = mBroadphase->createHitContext();
     mBroadphasePairContext = mBroadphase->createPairContext();
   }
@@ -33,7 +30,7 @@ namespace Syx {
     mObjects = rhs.mObjects;
     mProfiler = rhs.mProfiler;
     mConstraintSystem.setIslandGraph(mIslandGraph);
-    mBroadphase = std::make_unique<DefaultBroadphase>();
+    mBroadphase = Create::aabbTree();
     mBroadphaseContext = mBroadphase->createHitContext();
     mBroadphasePairContext = mBroadphase->createPairContext();
     return *this;
@@ -181,7 +178,7 @@ namespace Syx {
     AutoProfileBlock detection(mProfiler, "Collision Detection");
 
     mProfiler.pushBlock("Broadphase");
-    mBroadphase->queryPairs(*mBroadphasePairContext);
+    mBroadphasePairContext->queryPairs();
     mProfiler.popBlock("Broadphase");
 
     {
@@ -199,7 +196,7 @@ namespace Syx {
   }
 
   CastResult Space::lineCastAll(const Vec3& start, const Vec3& end) {
-    mBroadphase->queryRaycast(start, end, *mBroadphaseContext);
+    mBroadphaseContext->queryRaycast(start, end);
     mCasterContext.clearResults();
 
     for(const ResultNode& obj : mBroadphaseContext->get()) {
