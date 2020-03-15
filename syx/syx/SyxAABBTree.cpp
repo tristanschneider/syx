@@ -144,6 +144,7 @@ namespace Syx {
       //It isn't in the broadphase, so don't do anything
       if(toRemove == AABBNode::Null)
         return;
+      assert(mNodes[toRemove].isLeaf() && "Any publicly exposed nodes should be leaves");
       //Remove object and replace its parent with its sibling
       Handle parent = mNodes[toRemove].mParent;
 
@@ -183,6 +184,7 @@ namespace Syx {
       bool needsUpdate = handle == AABBNode::Null;
       AABBNode* node = nullptr;
       if(!needsUpdate) {
+        assert(mNodes[handle].isLeaf() && "Any publicly exposed nodes should be leaves");
         node = &_getNode(handle);
         needsUpdate = !node->mAABB.isInside(newVol.mAABB);
       }
@@ -196,7 +198,7 @@ namespace Syx {
       return handle;
     }
 
-    void clear(void) {
+    void clear() {
       mRoot = mFreeList = AABBNode::Null;
       _constructFreeList();
     }

@@ -45,9 +45,11 @@ namespace Syx {
       mIslandGraph.remove(*obj, [this](Constraint& c) {
         mConstraintSystem.removeConstraint(c);
       });
+      if(Collider* c = obj->getCollider()) {
+        c->uninitialize(*this);
+      }
     }
     mObjects.remove(handle);
-    mBroadphase->remove(handle);
   }
 
   PhysicsObject* Space::getObject(Handle handle) {
