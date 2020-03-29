@@ -3,8 +3,6 @@
 
 #include "AppPlatform.h"
 
-RegisterSystemCPP(KeyboardInput);
-
 namespace {
   const std::unordered_map<Key, std::string> KEY_TO_STRING = []() {
     std::unordered_map<Key, std::string> map;

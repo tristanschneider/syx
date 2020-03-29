@@ -73,7 +73,6 @@ public:
 
 class KeyboardInput : public System {
 public:
-  RegisterSystemH(KeyboardInput);
   ~KeyboardInput();
   using System::System;
 

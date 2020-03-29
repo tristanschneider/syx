@@ -57,8 +57,6 @@ class LuaGameSystem
 public:
   static const char* CLASS_NAME;
 
-  RegisterSystemH(LuaGameSystem);
-
   LuaGameSystem(const SystemArgs& args);
   ~LuaGameSystem();
 

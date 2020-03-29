@@ -4,29 +4,20 @@
 #include "event/Event.h"
 #include "event/EventHandler.h"
 
-System::Registry::Registry() {
-}
 
-System::Registry::~Registry() {
-}
+class SystemRegistry : public ISystemRegistry {
+public:
+  void registerSystem(std::unique_ptr<System> system) override {
+    mSystems.emplace_back(std::move(system));
+  }
 
-size_t System::Registry::registerSystem(SystemConstructor systemConstructor) {
-  Registry& r = _get();
-  size_t id = r.mSystems.size();
-  r.mSystems.push_back(systemConstructor);
-  return id;
-}
+  std::vector<std::unique_ptr<System>> takeSystems() override {
+    return std::move(mSystems);
+  }
 
-void System::Registry::getSystems(const SystemArgs& args, std::vector<std::unique_ptr<System>>& result) {
-  result.clear();
-  for(auto& constructor : _get().mSystems)
-    result.emplace_back(std::move(constructor(args)));
-}
-
-System::Registry& System::Registry::_get() {
-  static Registry singleton;
-  return singleton;
-}
+private:
+  std::vector<std::unique_ptr<System>> mSystems;
+};
 
 System::System(const SystemArgs& args)
   : mArgs(args) {
@@ -45,4 +36,10 @@ SystemProvider& System::getSystemProvider() const {
 
 MessageQueueProvider& System::getMessageQueueProvider() const {
   return *mArgs.mMessages;
+}
+
+namespace Registry {
+  std::unique_ptr<ISystemRegistry> createSystemRegistry() {
+    return std::make_unique<SystemRegistry>();
+  }
 }

@@ -30,8 +30,6 @@
 #include <threading/FunctionTask.h>
 #include <threading/IWorkerPool.h>
 
-RegisterSystemCPP(Editor);
-
 namespace {
   const char* EDITOR_VIEWPORT = "editor";
   const char* GAME_VIEWPORT = "game";
@@ -142,7 +140,7 @@ void Editor::init() {
   mEventHandler->registerEventHandler<SetPlayStateEvent>([this](const SetPlayStateEvent& e) {
     _updateState(e.mState);
   });
-  mEventHandler->registerEventHandler<CallbackEvent>(CallbackEvent::getHandler(GetSystemID(Editor)));
+  mEventHandler->registerEventHandler<CallbackEvent>(CallbackEvent::getHandler(typeId<Editor>()));
 
   //TODO: make this less confusing and error prone
   MessageQueue msg = mArgs.mMessages->getMessageQueue();

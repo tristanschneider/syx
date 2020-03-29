@@ -29,7 +29,6 @@ public:
   static const std::string CAPSULE_MODEL_NAME;
   static const std::string DEFAULT_MATERIAL_NAME;
 
-  RegisterSystemH(PhysicsSystem);
   PhysicsSystem(const SystemArgs& args);
   ~PhysicsSystem();
 

@@ -14,8 +14,6 @@ class Toolbox;
 
 class Editor : public System {
 public:
-  static const int testval = 0;
-  RegisterSystemH(Editor);
   Editor(const SystemArgs& args);
   ~Editor();
 

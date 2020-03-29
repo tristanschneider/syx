@@ -34,8 +34,6 @@ namespace Syx {
   }
 }
 
-RegisterSystemCPP(PhysicsSystem);
-
 const std::string PhysicsSystem::CUBE_MODEL_NAME = "CubeCollider";
 const std::string PhysicsSystem::SPHERE_MODEL_NAME = "SphereCollider";
 const std::string PhysicsSystem::CAPSULE_MODEL_NAME = "CapsuleCollider";
@@ -84,7 +82,7 @@ void PhysicsSystem::init() {
   SYSTEM_EVENT_HANDLER(ClearSpaceEvent, _clearSpaceEvent);
   SYSTEM_EVENT_HANDLER(RemoveComponentEvent, _removeComponentEvent);
   SYSTEM_EVENT_HANDLER(SetTimescaleEvent, _setTimescaleEvent);
-  mEventHandler->registerEventHandler<CallbackEvent>(CallbackEvent::getHandler(GetSystemID(PhysicsSystem)));
+  mEventHandler->registerEventHandler<CallbackEvent>(CallbackEvent::getHandler(typeId<PhysicsSystem>()));
 }
 
 void PhysicsSystem::queueTasks(float dt, IWorkerPool& pool, std::shared_ptr<Task> frameTask) {
@@ -133,7 +131,7 @@ void PhysicsSystem::_processSyxEvents() {
 
 void PhysicsSystem::_updateObject(Handle obj, const SyxData& data, const Syx::UpdateEvent& e) {
   Syx::Mat4 newTransform = Syx::Mat4::transform(data.mSyxToModel.getScale().reciprocal(), e.mRot, e.mPos) * data.mSyxToModel;
-  mTransformUpdates->push(TransformEvent(obj, newTransform, GetSystemID(PhysicsSystem)));
+  mTransformUpdates->push(TransformEvent(obj, newTransform, typeId<PhysicsSystem>()));
 }
 
 void PhysicsSystem::_setComponentPropsEvent(const SetComponentPropsEvent& e) {
@@ -224,7 +222,7 @@ void PhysicsSystem::_updateFromData(Handle obj, const PhysicsData& data) {
 }
 
 void PhysicsSystem::_transformEvent(const TransformEvent& e) {
-  if(e.mFromSystem == GetSystemID(PhysicsSystem))
+  if(e.mFromSystem == typeId<PhysicsSystem>())
     return;
   _updateTransform(e.mHandle, e.mTransform);
 }

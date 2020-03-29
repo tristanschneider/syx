@@ -41,7 +41,6 @@ struct RenderableData;
 
 class GraphicsSystem : public System {
 public:
-  RegisterSystemH(GraphicsSystem);
   GraphicsSystem(const SystemArgs& args);
   ~GraphicsSystem();
 

@@ -20,21 +20,31 @@
 #include "loader/ShaderLoader.h"
 #include "loader/TextureLoader.h"
 
-void AppRegistration::registerSystems() {
-  AssetRepo::sSystemReg.registerSystem();
-  GraphicsSystem::sSystemReg.registerSystem();
-  KeyboardInput::sSystemReg.registerSystem();
-  LuaGameSystem::sSystemReg.registerSystem();
-  PhysicsSystem::sSystemReg.registerSystem();
-  Editor::sSystemReg.registerSystem();
-}
+class DefaultAppRegistration : public AppRegistration {
+public:
+  void registerSystems(const SystemArgs& args, ISystemRegistry& registry) override {
+    auto loaders = Registry::createAssetLoaderRegistry();
+    registerAssetLoaders(*loaders);
+    registry.registerSystem(std::make_unique<AssetRepo>(args, std::move(loaders)));
+    registry.registerSystem(std::make_unique<GraphicsSystem>(args));
+    registry.registerSystem(std::make_unique<KeyboardInput>(args));
+    registry.registerSystem(std::make_unique<LuaGameSystem>(args));
+    registry.registerSystem(std::make_unique<PhysicsSystem>(args));
+    registry.registerSystem(std::make_unique<Editor>(args));
+  }
 
-void AppRegistration::registerAssetLoaders() {
-  AssetRepo::registerLoader<BufferAsset, BufferAssetLoader>("buff");
+  void registerAssetLoaders(IAssetLoaderRegistry& registry) override {
+    registry.registerLoader<BufferAsset, BufferAssetLoader>("buff");
+    registry.registerLoader<TextAsset, TextAssetLoader>("txt");
+    registry.registerLoader<LuaScript, LuaScriptLoader>("lc");
+    registry.registerLoader<Model, ModelOBJLoader>("obj");
+    registry.registerLoader<Shader, ShaderLoader>("vs");
+    registry.registerLoader<Texture, TextureBMPLoader>("bmp");
+  }
+};
 
-  AssetRepo::registerLoader<TextAsset, TextAssetLoader>("txt");
-  AssetRepo::registerLoader<LuaScript, LuaScriptLoader>("lc");
-  AssetRepo::registerLoader<Model, ModelOBJLoader>("obj");
-  AssetRepo::registerLoader<Shader, ShaderLoader>("vs");
-  AssetRepo::registerLoader<Texture, TextureBMPLoader>("bmp");
-}
+namespace Registration {
+  std::unique_ptr<AppRegistration> createDefaultApp() {
+    return std::make_unique<DefaultAppRegistration>();
+  }
+};

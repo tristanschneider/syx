@@ -3,6 +3,7 @@
 #include "provider/MessageQueueProvider.h"
 #include "provider/SystemProvider.h"
 
+class AppRegistration;
 class GameObjectHandleProvider;
 class GraphicsSystem;
 class KeyboardInput;
@@ -16,7 +17,7 @@ class App
   : public MessageQueueProvider
   , public SystemProvider {
 public:
-  App(std::unique_ptr<AppPlatform> appPlatform);
+  App(std::unique_ptr<AppPlatform> appPlatform, std::unique_ptr<AppRegistration> registration);
   ~App();
 
   void onUriActivated(std::string uri);

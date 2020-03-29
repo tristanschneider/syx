@@ -7,37 +7,31 @@
 
 AssetRepo* AssetRepo::sSingleton = nullptr;
 
-RegisterSystemCPP(AssetRepo);
+class AssetLoaderRegistry : public IAssetLoaderRegistry {
+public:
+  void registerLoader(const std::string& category, LoaderConstructor constructLoader, AssetConstructor constructAsset) override {
+    //Duplicate loaders registered, likely undefined behavior
+    assert(mCategoryToConstructors.find(category) == mCategoryToConstructors.end());
+    mCategoryToConstructors[category] = { std::move(constructLoader), std::move(constructAsset) };
+  }
 
-AssetRepo::Loaders::Loaders() {
-}
+  std::unique_ptr<AssetLoader> getLoader(const std::string& category) override {
+    auto it = mCategoryToConstructors.find(category);
+    return it != mCategoryToConstructors.end() ? it->second.first() : nullptr;
+  }
 
-AssetRepo::Loaders::~Loaders() {
-}
+  std::shared_ptr<Asset> getAsset(AssetInfo&& info) override {
+    auto it = mCategoryToConstructors.find(info.mCategory);
+    return it != mCategoryToConstructors.end() ? it->second.second(std::move(info)) : nullptr;
+  }
 
-void AssetRepo::Loaders::registerLoader(const std::string& category, LoaderConstructor constructLoader, AssetConstructor constructAsset) {
-  //Duplicate loaders registered, likely undefined behavior
-  assert(_get().mCategoryToConstructors.find(category) == _get().mCategoryToConstructors.end());
-  _get().mCategoryToConstructors[category] = { constructLoader, constructAsset };
-}
+private:
+  std::unordered_map<std::string, std::pair<LoaderConstructor, AssetConstructor>> mCategoryToConstructors;
+};
 
-std::unique_ptr<AssetLoader> AssetRepo::Loaders::getLoader(const std::string& category) {
-  auto it = _get().mCategoryToConstructors.find(category);
-  return it != _get().mCategoryToConstructors.end() ? it->second.first() : nullptr;
-}
-
-std::shared_ptr<Asset> AssetRepo::Loaders::getAsset(AssetInfo&& info) {
-  auto it = _get().mCategoryToConstructors.find(info.mCategory);
-  return it != _get().mCategoryToConstructors.end() ? it->second.second(std::move(info)) : nullptr;
-}
-
-AssetRepo::Loaders& AssetRepo::Loaders::_get() {
-  static Loaders singleton;
-  return singleton;
-}
-
-AssetRepo::AssetRepo(const SystemArgs& args)
-  : System(args) {
+AssetRepo::AssetRepo(const SystemArgs& args, std::unique_ptr<IAssetLoaderRegistry> loaderRegistry)
+  : System(args)
+  , mLoaderRegistry(std::move(loaderRegistry)) {
   sSingleton = this;
 }
 
@@ -70,7 +64,7 @@ std::shared_ptr<Asset> AssetRepo::getAsset(AssetInfo info) {
     if(existing)
       return existing;
 
-    newAsset = Loaders::getAsset(std::move(info));
+    newAsset = mLoaderRegistry->getAsset(std::move(info));
     if(!newAsset)
       return nullptr;
 
@@ -174,8 +168,14 @@ AssetLoader* AssetRepo::_getLoader(const std::string& category) {
     return it->second.get();
 
   //Loader doesn't exist, make a new one, store it in the pool and return it
-  std::unique_ptr<AssetLoader> newLoader = Loaders::getLoader(category);
+  std::unique_ptr<AssetLoader> newLoader = mLoaderRegistry->getLoader(category);
   AssetLoader* result = newLoader.get();
   loaders[category] = std::move(newLoader);
   return result;
+}
+
+namespace Registry {
+  std::unique_ptr<IAssetLoaderRegistry> createAssetLoaderRegistry() {
+    return std::make_unique<AssetLoaderRegistry>();
+  }
 }

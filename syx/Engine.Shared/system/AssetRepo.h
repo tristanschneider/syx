@@ -13,27 +13,10 @@ class Asset;
 class AssetLoader;
 struct AssetInfo;
 enum class AssetLoadResult : uint8_t;
+class IAssetLoaderRegistry;
 
 class AssetRepo : public System {
 public:
-  RegisterSystemH(AssetRepo);
-  class Loaders {
-  public:
-    using LoaderConstructor = std::function<std::unique_ptr<AssetLoader>()>;
-    using AssetConstructor = std::function<std::shared_ptr<Asset>(AssetInfo&&)>;
-
-    static void registerLoader(const std::string& category, LoaderConstructor constructLoader, AssetConstructor constructAsset);
-    static std::unique_ptr<AssetLoader> getLoader(const std::string& category);
-    static std::shared_ptr<Asset> getAsset(AssetInfo&& info);
-
-  private:
-    Loaders();
-    ~Loaders();
-    static Loaders& _get();
-
-    std::unordered_map<std::string, std::pair<LoaderConstructor, AssetConstructor>> mCategoryToConstructors;
-  };
-
   template<typename AssetType>
   static std::unique_ptr<AssetType> createAsset(AssetInfo&& info) {
     //TODO: is this a reliable way to set type? It seems easy to miss
@@ -41,17 +24,7 @@ public:
     return std::make_unique<AssetType>(std::move(info));
   }
 
-  //Use this registration function if your AssetLoader/Asset constructors are default
-  template<typename AssetType, typename LoaderType>
-  static void registerLoader(const std::string& category) {
-    Loaders::registerLoader(category, [category]() {
-      return std::make_unique<LoaderType>(category);
-    }, [](AssetInfo&& info) {
-      return createAsset<AssetType>(std::move(info));
-    });
-  }
-
-  AssetRepo(const SystemArgs& args);
+  AssetRepo(const SystemArgs& args, std::unique_ptr<IAssetLoaderRegistry> loaderRegistry);
   ~AssetRepo();
 
   //TODO: find a better way to make this available
@@ -87,6 +60,31 @@ private:
   std::unordered_map<size_t, std::shared_ptr<Asset>> mIdToAsset;
   mutable RWLock mAssetLock;
   ThreadLocal<std::unordered_map<std::string, std::unique_ptr<AssetLoader>>> mLoaderPool;
+  std::unique_ptr<IAssetLoaderRegistry> mLoaderRegistry;
   //TODO: find a better way to make this available
   static AssetRepo* sSingleton;
 };
+
+class IAssetLoaderRegistry {
+public:
+  using LoaderConstructor = std::function<std::unique_ptr<AssetLoader>()>;
+  using AssetConstructor = std::function<std::shared_ptr<Asset>(AssetInfo&&)>;
+
+  virtual void registerLoader(const std::string& category, LoaderConstructor constructLoader, AssetConstructor constructAsset) = 0;
+  virtual std::unique_ptr<AssetLoader> getLoader(const std::string& category) = 0;
+  virtual std::shared_ptr<Asset> getAsset(AssetInfo&& info) = 0;
+
+  //Use this registration function if your AssetLoader/Asset constructors are default
+  template<typename AssetType, typename LoaderType>
+  void registerLoader(const std::string& category) {
+    registerLoader(category, [category]() {
+      return std::make_unique<LoaderType>(category);
+    }, [](AssetInfo&& info) {
+      return AssetRepo::createAsset<AssetType>(std::move(info));
+    });
+  }
+};
+
+namespace Registry {
+  std::unique_ptr<IAssetLoaderRegistry> createAssetLoaderRegistry();
+}

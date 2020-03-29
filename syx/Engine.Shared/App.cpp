@@ -30,7 +30,7 @@ private:
   HandleGen mGen;
 };
 
-App::App(std::unique_ptr<AppPlatform> appPlatform)
+App::App(std::unique_ptr<AppPlatform> appPlatform, std::unique_ptr<AppRegistration> registration)
   : mWorkerPool(std::make_unique<WorkerPool>(4))
   , mMessageQueue(std::make_unique<EventBuffer>())
   , mFrozenMessageQueue(std::make_unique<EventBuffer>())
@@ -42,10 +42,6 @@ App::App(std::unique_ptr<AppPlatform> appPlatform)
   exePath.getParts(path, file, ext);
   mProjectLocator->setPathRoot(path, PathSpace::Project);
 
-  AppRegistration reg;
-  reg.registerSystems();
-  reg.registerAssetLoaders();
-
   SystemArgs args = {
     mWorkerPool.get(),
     this,
@@ -54,8 +50,11 @@ App::App(std::unique_ptr<AppPlatform> appPlatform)
     mProjectLocator.get(),
     mAppPlatform.get(),
   };
-  System::Registry::getSystems(args, mSystems);
+  auto systems = Registry::createSystemRegistry();
+  registration->registerSystems(args, *systems);
+  mSystems = systems->takeSystems();
 
+  //TODO: move this to test project
   TestRegistry::get().run();
 }
 

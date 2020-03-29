@@ -5,6 +5,7 @@
 #include <io.h>
 #include <fcntl.h>
 
+#include "AppRegistration.h"
 #include "asset/Shader.h"
 #include "App.h"
 #include "file/FilePath.h"
@@ -176,7 +177,7 @@ int mainLoop(const char* launchUri) {
   float nsToMS = 1.0f/1000000.0f;
   float msToNS = 1000000.0f;
   int targetFrameTimeNS = 16*static_cast<int>(msToNS);
-  sApp = std::make_unique<App>(std::make_unique<AppPlatformWin32>());
+  sApp = std::make_unique<App>(std::make_unique<AppPlatformWin32>(), Registration::createDefaultApp());
 
   sApp->onUriActivated(launchUri);
   sApp->init();

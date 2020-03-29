@@ -110,9 +110,9 @@ void SceneBrowser::_updatePick() {
     const Syx::Vec2 mouseDownPos = mMouseDownPos;
     const Syx::Vec2 mouseUpPos = mInput->getMousePos();
     //Get the camera at the mouse, then pick with that camera
-    mMsg->getMessageQueue().get().push(GetCameraRequest(mouseDownPos, GetCameraRequest::CoordSpace::Pixel).then(GetSystemID(Editor), [this, space, mouseDownPos, mouseUpPos](const GetCameraResponse& getCam) {
+    mMsg->getMessageQueue().get().push(GetCameraRequest(mouseDownPos, GetCameraRequest::CoordSpace::Pixel).then(typeId<Editor>(), [this, space, mouseDownPos, mouseUpPos](const GetCameraResponse& getCam) {
       if(getCam.mCamera.isValid()) {
-        mMsg->getMessageQueue().get().push(ScreenPickRequest(PICK_ID, getCam.mCamera.getOps().mOwner, space, mouseDownPos, mouseUpPos).then(GetSystemID(Editor), [this](const ScreenPickResponse& res) {
+        mMsg->getMessageQueue().get().push(ScreenPickRequest(PICK_ID, getCam.mCamera.getOps().mOwner, space, mouseDownPos, mouseUpPos).then(typeId<Editor>(), [this](const ScreenPickResponse& res) {
           _clearForNewSelection();
           for(Handle obj : res.mObjects) {
             mSelected.insert(obj);

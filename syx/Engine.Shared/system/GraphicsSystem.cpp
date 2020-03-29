@@ -35,8 +35,6 @@
 
 using namespace Syx;
 
-RegisterSystemCPP(GraphicsSystem);
-
 namespace {
   Vec3 encodeHandle(Handle handle) {
     assert(static_cast<Handle>(static_cast<uint32_t>(handle)) == handle && "Pick needs to be updated to work with handle values over 24 bits");
@@ -110,7 +108,7 @@ void GraphicsSystem::init() {
   SYSTEM_EVENT_HANDLER(SetViewportEvent, _processSetViewportEvent);
   SYSTEM_EVENT_HANDLER(RemoveViewportEvent, _processRemoveViewportEvent);
   SYSTEM_EVENT_HANDLER(GetCameraRequest, _processGetCameraRequest);
-  mEventHandler->registerEventHandler<CallbackEvent>(CallbackEvent::getHandler(GetSystemID(GraphicsSystem)));
+  mEventHandler->registerEventHandler<CallbackEvent>(CallbackEvent::getHandler(typeId<GraphicsSystem>()));
 }
 
 void GraphicsSystem::update(float dt, IWorkerPool&, std::shared_ptr<Task>) {
