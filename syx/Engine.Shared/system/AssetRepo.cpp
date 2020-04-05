@@ -94,6 +94,7 @@ void AssetRepo::addAsset(std::shared_ptr<Asset> asset) {
     assert(it->second->getInfo().mUri != info.mUri && "Asset should not already exist when adding it");
     it = mIdToAsset.find(++info.mId);
   }
+  asset->mState = AssetState::Loaded;
   mIdToAsset[info.mId] = std::move(asset);
 }
 

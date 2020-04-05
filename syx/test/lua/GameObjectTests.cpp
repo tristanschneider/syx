@@ -17,6 +17,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 #include "event/BaseComponentEvents.h"
 #include "event/EventBuffer.h"
 #include "LuaGameObject.h"
+#include "lua/LuaVariant.h"
 
 class TestKeyboardInputImpl : public KeyboardInputImpl {
 public:
@@ -105,6 +106,7 @@ namespace LuaTests {
   public:
     AssetInfo _addScript(App& app, std::string scriptName, std::string script) {
       AssetInfo info(std::move(scriptName));
+      info.fill();
       auto scriptAsset = AssetRepo::createAsset<LuaScript>(AssetInfo(info));
       scriptAsset->set(std::move(script));
       app.getSystem<AssetRepo>()->addAsset(std::move(scriptAsset));
@@ -124,6 +126,19 @@ namespace LuaTests {
       return newObj.getHandle();
     }
 
+    const Lua::Variant* _getScriptProps(Handle obj, const std::string& script, MockApp& app) {
+      const LuaGameObject* gameObject = app.get().getSystem<LuaGameSystem>()->getObject(obj);
+      Assert::IsNotNull(gameObject, L"Game object should exist", LINE_INFO());
+      if(obj) {
+        AssetInfo info(script);
+        info.fill();
+        const LuaComponent* comp = gameObject->getLuaComponent(info.mId);
+        Assert::IsNotNull(comp, L"Game object should have a LuaComponent", LINE_INFO());
+        return comp ? &comp->getPropVariant() : nullptr;
+      }
+      return nullptr;
+    }
+
     TEST_METHOD(GameObject_EmptyGame_DoesntCrash) {
       MockApp().get().update(1.0f);
     }
@@ -137,6 +152,23 @@ namespace LuaTests {
       Assert::IsNotNull(obj, L"Object should have been added in _addObjectWithScript", LINE_INFO());
       if(obj) {
         Assert::IsNotNull(obj->getComponent("script"), L"Script should have been added to game object", LINE_INFO());
+      }
+    }
+
+    TEST_METHOD(GameObject_PublicBool_SavedToProps) {
+      MockApp app;
+      const Handle objHandle = _addObjectWithScript(app.get(), "script", "a = true;");
+      //Once for init, once for update
+      app.get().update(1.0f);
+      app.get().update(1.0f);
+
+      if(const Lua::Variant* props = _getScriptProps(objHandle, "script", app)) {
+        const Lua::Variant* a = props->getChild(Lua::Key("a"));
+        Assert::IsNotNull(a, L"Object should have the 'a' property", LINE_INFO());
+        if(a) {
+          Assert::IsTrue(a->getTypeId() == typeId<bool>(), L"Property should be bool", LINE_INFO());
+          Assert::IsTrue(a->get<bool>(), L"Property should be true", LINE_INFO());
+        }
       }
     }
   };

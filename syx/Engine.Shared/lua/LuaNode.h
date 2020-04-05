@@ -5,10 +5,9 @@
 
 struct lua_State;
 
-namespace Syx {
-  struct Vec3;
-  struct Quat;
-}
+#include "SyxMat4.h"
+#include "SyxVec3.h"
+#include "SyxQuat.h"
 
 namespace Lua {
   class Node;

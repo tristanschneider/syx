@@ -47,6 +47,7 @@ public:
   void update(Lua::State& state, float dt, int selfIndex);
   void uninit();
   bool needsInit() const;
+  const Lua::Variant& getPropVariant() const;
 
 private:
   bool _callFunc(lua_State* s, const char* funcName, int arguments, int returns) const;

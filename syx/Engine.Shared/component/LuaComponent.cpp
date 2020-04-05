@@ -172,3 +172,7 @@ void LuaComponent::uninit() {
 bool LuaComponent::needsInit() const {
   return mSandbox == nullptr;
 }
+
+const Lua::Variant& LuaComponent::getPropVariant() const {
+  return *mProps;
+}

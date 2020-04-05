@@ -1,4 +1,5 @@
 #pragma once
+#include "SyxSIMD.h"
 
 namespace Syx {
   struct Vec3 {
