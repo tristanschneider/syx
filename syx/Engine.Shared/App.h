@@ -12,6 +12,7 @@ enum class SystemId : uint8_t;
 class IWorkerPool;
 class AppPlatform;
 class ProjectLocator;
+class SpinLock;
 
 class App
   : public MessageQueueProvider
@@ -40,5 +41,5 @@ private:
   std::unique_ptr<EventBuffer> mFrozenMessageQueue;
   std::unique_ptr<ProjectLocator> mProjectLocator;
   std::unique_ptr<GameObjectHandleProvider> mGameObjectGen;
-  SpinLock mMessageLock;
+  std::unique_ptr<SpinLock> mMessageLock;
 };

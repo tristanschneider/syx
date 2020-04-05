@@ -36,6 +36,7 @@ App::App(std::unique_ptr<AppPlatform> appPlatform, std::unique_ptr<AppRegistrati
   , mFrozenMessageQueue(std::make_unique<EventBuffer>())
   , mAppPlatform(std::move(appPlatform))
   , mProjectLocator(std::make_unique<ProjectLocator>())
+  , mMessageLock(std::make_unique<SpinLock>())
   , mGameObjectGen(std::make_unique<GameObjectGen>()) {
   FilePath path, file, ext;
   FilePath exePath(mAppPlatform->getExePath().c_str());
@@ -80,18 +81,18 @@ void App::init() {
     if(system)
       system->init();
   }
-  mMessageLock.lock();
+  mMessageLock->lock();
   mMessageQueue->push(AllSystemsInitialized());
-  mMessageLock.unlock();
+  mMessageLock->unlock();
 }
 
 #include "imgui/imgui.h"
 
 void App::update(float dt) {
   //Freeze message state by swapping them into freeze. Systems will look at this, while pushing to non-frozen queue
-  mMessageLock.lock();
+  mMessageLock->lock();
   mMessageQueue.swap(mFrozenMessageQueue);
-  mMessageLock.unlock();
+  mMessageLock->unlock();
 
   ImGuiImpl::getPad().update();
 
@@ -145,7 +146,7 @@ AppPlatform& App::getAppPlatform() {
 }
 
 MessageQueue App::getMessageQueue() {
-  return MessageQueue(*mMessageQueue, mMessageLock);
+  return MessageQueue(*mMessageQueue, *mMessageLock);
 }
 
 System* App::_getSystem(size_t id) {

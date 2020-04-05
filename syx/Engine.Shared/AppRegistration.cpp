@@ -33,7 +33,7 @@ public:
     registry.registerSystem(std::make_unique<Editor>(args));
   }
 
-  void registerAssetLoaders(IAssetLoaderRegistry& registry) override {
+  void registerAssetLoaders(IAssetLoaderRegistry& registry) {
     registry.registerLoader<BufferAsset, BufferAssetLoader>("buff");
     registry.registerLoader<TextAsset, TextAssetLoader>("txt");
     registry.registerLoader<LuaScript, LuaScriptLoader>("lc");

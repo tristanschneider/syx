@@ -2,6 +2,7 @@
 #include "targetver.h"
 #include "CppUnitTest.h"
 
+#include <array>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>

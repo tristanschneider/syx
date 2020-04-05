@@ -1,4 +1,5 @@
 #pragma once
+#include "util/Observer.h"
 //Input and graphics are still platform specific, but anything easily compartmentalized goes here
 
 class DirectoryWatcher;

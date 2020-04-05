@@ -3,6 +3,7 @@
 #include "provider/ComponentRegistryProvider.h"
 #include "provider/MessageQueueProvider.h"
 #include "provider/LuaGameObjectProvider.h"
+#include "threading/SpinLock.h"
 
 class AddComponentEvent;
 class AddGameObjectEvent;

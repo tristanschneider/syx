@@ -55,6 +55,7 @@ public:
   const Component* getComponent(size_t type, size_t subType = 0) const;
   Component* getComponent(const ComponentType& type);
   const Component* getComponent(const ComponentType& type) const;
+  const Component* getComponent(const char* name) const;
   Transform& getTransform();
   const Transform& getTransform() const;
   const NameComponent& getName() const;

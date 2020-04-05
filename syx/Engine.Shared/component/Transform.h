@@ -1,5 +1,6 @@
 #pragma once
 #include "Component.h"
+#include "SyxMat4.h"
 
 class Transform : public Component {
 public:

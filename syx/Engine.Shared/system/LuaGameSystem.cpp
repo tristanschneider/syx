@@ -43,6 +43,7 @@ void LuaGameSystem::init() {
   mEventHandler = std::make_unique<EventHandler>();
   SYSTEM_EVENT_HANDLER(AddComponentEvent, _onAddComponent);
   SYSTEM_EVENT_HANDLER(RemoveComponentEvent, _onRemoveComponent);
+  //TODO: can this be removed? I think addcomponent does the same thing
   SYSTEM_EVENT_HANDLER(AddLuaComponentEvent, _onAddLuaComponent);
   SYSTEM_EVENT_HANDLER(RemoveLuaComponentEvent, _onRemoveLuaComponent)
   SYSTEM_EVENT_HANDLER(AddGameObjectEvent, _onAddGameObject);
@@ -106,7 +107,7 @@ void LuaGameSystem::_update(float dt) {
       if(comp.needsInit()) {
         AssetRepo* repo = mArgs.mSystems->getSystem<AssetRepo>();
         std::shared_ptr<Asset> script = repo->getAsset(AssetInfo(comp.getScript()));
-        //If script isn't doen loading, wait until later
+        //If script isn't done loading, wait until later
         if(!script || script->getState() != AssetState::Loaded)
           return;
 

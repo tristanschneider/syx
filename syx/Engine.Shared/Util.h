@@ -1,4 +1,5 @@
 #pragma once
+#include "Handle.h"
 
 #define BITWISE_OVERLOAD(func, symbol, Type)\
   inline Type func(Type l, Type r) { return (Type)((std::underlying_type_t<Type>)l symbol (std::underlying_type_t<Type>)r); }

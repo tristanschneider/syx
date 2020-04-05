@@ -1,5 +1,6 @@
 #pragma once
 #include "System.h"
+#include "SyxVec2.h"
 
 //Same as windows keys, but this way you don't have to include windows.h to query key states
 enum class Key : uint8_t {

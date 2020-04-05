@@ -134,6 +134,11 @@ const Component* LuaGameObject::getComponent(const ComponentType& type) const {
   return ptr ? ptr->get() : nullptr;
 }
 
+const Component* LuaGameObject::getComponent(const char* name) const {
+  const auto& it = mHashToComponent.find(Util::constHash(name));
+  return it != mHashToComponent.end() ? it->second : nullptr;
+}
+
 Transform& LuaGameObject::getTransform() {
   return mTransform;
 }

@@ -7,6 +7,7 @@
 
 #include "asset/Asset.h"
 #include "system/System.h"
+#include "threading/ThreadLocal.h"
 
 class IWorkerPool;
 class Asset;

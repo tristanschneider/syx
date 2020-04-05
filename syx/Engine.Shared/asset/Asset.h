@@ -1,4 +1,6 @@
 #pragma once
+#include "threading/RWLock.h"
+#include "util/TypeId.h"
 
 struct AssetInfo {
   AssetInfo(std::string location)

@@ -7,7 +7,6 @@ struct SystemArgs;
 class AppRegistration {
 public:
   virtual void registerSystems(const SystemArgs& args, ISystemRegistry& registry) = 0;
-  virtual void registerAssetLoaders(IAssetLoaderRegistry& registry) = 0;
 };
 
 namespace Registration {
