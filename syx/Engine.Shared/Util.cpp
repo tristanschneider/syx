@@ -1,6 +1,8 @@
 #include "Precompile.h"
 #include "Util.h"
 
+#include <locale>
+
 namespace Util {
   std::vector<std::string_view> split(std::string_view str, std::string_view delimiter) {
     std::vector<std::string_view> result;
@@ -21,5 +23,13 @@ namespace Util {
 
     pushSubstring(begin, str.size());
     return result;
+  }
+
+  std::wstring toWide(const std::string& str) {
+    return std::wstring_convert<std::codecvt<wchar_t, char, std::mbstate_t>>().from_bytes(str);
+  }
+
+  std::string toString(const std::wstring& str) {
+    return std::wstring_convert<std::codecvt<wchar_t, char, std::mbstate_t>>().to_bytes(str);
   }
 }

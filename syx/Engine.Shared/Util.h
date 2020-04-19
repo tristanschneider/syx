@@ -62,6 +62,8 @@ namespace Util {
   }
 
   std::vector<std::string_view> split(std::string_view str, std::string_view delimiter);
+  std::wstring toWide(const std::string& str);
+  std::string toString(const std::wstring& str);
 }
 
 template<typename T, typename Lock = std::mutex>

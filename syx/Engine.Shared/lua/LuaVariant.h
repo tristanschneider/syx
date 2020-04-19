@@ -7,6 +7,8 @@ struct lua_State;
 namespace Lua {
   class Node;
 
+  //Intended for reading and writing variable type data to/from lua
+  //Meant primarily as a way to store values computed in lua to the native side
   class Variant {
   public:
     Variant();
@@ -14,6 +16,14 @@ namespace Lua {
     Variant(const Variant& rhs);
     Variant(Variant&& rhs);
     ~Variant();
+
+    //Create a variant with a value, provided node type must match value type
+    template<class T>
+    static Variant create(Key key, const Node& type, const T& value) {
+      Variant result(std::move(key), &type);
+      result.set(std::move(value));
+      return result;
+    }
 
     template<class T>
     void set(const T& value) {

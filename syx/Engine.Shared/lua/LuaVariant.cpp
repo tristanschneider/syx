@@ -74,7 +74,27 @@ namespace Lua {
       case LUA_TBOOLEAN: mType = &BoolNode::singleton(); break;
       case LUA_TLIGHTUSERDATA: mType = &LightUserdataSizetNode::singleton(); break;
       case LUA_TNUMBER: mType = &DoubleNode::singleton(); break;
-      case LUA_TUSERDATA: /* TODO: call a function on the member to get the appropriate node */ break;
+      case LUA_TUSERDATA: {
+        Lua::StackAssert mem(l);
+        if(lua_getmetatable(l, -1)) {
+          if(lua_getfield(l, -1, "__typeNode") == LUA_TFUNCTION) {
+            //push userdata
+            lua_pushvalue(l, -3);
+            if(lua_pcall(l, 1, 1, 0) == LUA_OK && lua_type(l, -1) == LUA_TLIGHTUSERDATA) {
+              mType = reinterpret_cast<Lua::Node*>(lua_touserdata(l, -1));
+            }
+            //Pop function result or error
+            lua_pop(l, 1);
+          }
+          //If function wasn't there, pop the nil
+          else {
+            lua_pop(l, 1);
+          }
+          //Pop metatable
+          lua_pop(l, 1);
+        }
+        break;
+      }
       case LUA_TTABLE: {
         lua_pushnil(l);
         while(lua_next(l, -2)) {

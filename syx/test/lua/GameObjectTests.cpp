@@ -171,5 +171,92 @@ namespace LuaTests {
         }
       }
     }
+
+    template<class T>
+    const Lua::Variant* _getAssertProp(const Lua::Variant& props, const Lua::Key& key) {
+      const Lua::Variant* result = props.getChild(key);
+      Assert::IsNotNull(result, (L"Prop should have been found: " + Util::toWide(key.toString())).c_str(), LINE_INFO());
+      if(result) {
+        const bool typesMatch = result->getTypeId() == typeId<T>();
+        Assert::IsTrue(typesMatch, (L"Property should have expected type: " + Util::toWide(key.toString())).c_str());
+        return typesMatch ? result : nullptr;
+      }
+      return nullptr;
+    }
+
+    TEST_METHOD(GameObject_PublicProps_AllAreSaved) {
+      MockApp app;
+      const Handle objHandle = _addObjectWithScript(app.get(), "script", R"(
+          --Does nothing
+          a = nil;
+          b = 2;
+          c = 3.5;
+          d = "str";
+          e = true;
+          f = Vec3.unitX();
+          --Equivalent to null
+          g = {};
+          h = { 1, 2, 3 };
+          i = {
+            ia = 1,
+            ib = "two",
+            ic = false
+          };
+          j = {
+            ja = 2,
+            jb = {
+              jbs = "asdf"
+            }
+          };
+        )");
+      app.get().update(1.0f);
+      app.get().update(1.0f);
+
+      if(const Lua::Variant* props = _getScriptProps(objHandle, "script", app)) {
+        if(const Lua::Variant* prop = _getAssertProp<double>(*props, Lua::Key("b"))) {
+          Assert::AreEqual(prop->get<double>(), 2.0, 0.1, L"b should have expected value", LINE_INFO());
+        }
+        if(const Lua::Variant* prop = _getAssertProp<double>(*props, Lua::Key("c"))) {
+          Assert::AreEqual(prop->get<double>(), 3.5, L"c should have expected value", LINE_INFO());
+        }
+        if(const Lua::Variant* prop = _getAssertProp<std::string>(*props, Lua::Key("d"))) {
+          Assert::IsTrue(prop->get<std::string>() == "str", L"d should have expected value", LINE_INFO());
+        }
+        if(const Lua::Variant* prop = _getAssertProp<bool>(*props, Lua::Key("e"))) {
+          Assert::IsTrue(prop->get<bool>(), L"e should have expected value", LINE_INFO());
+        }
+        if(const Lua::Variant* prop = _getAssertProp<Syx::Vec3>(*props, Lua::Key("f"))) {
+          Assert::IsTrue(prop->get<Syx::Vec3>() == Syx::Vec3::UnitX, L"f should turn into a vec3 via the __typeNode function in lua", LINE_INFO());
+        }
+        if(const Lua::Variant* prop = _getAssertProp<void>(*props, Lua::Key("h"))) {
+          for(int i = 0; i < 3; ++i) {
+            if(const Lua::Variant* index = _getAssertProp<double>(*prop, Lua::Key(i + 1))) {
+              Assert::AreEqual(index->get<double>(), static_cast<double>(i) + 1.0, 0.1, L"Index value should match", LINE_INFO());
+            }
+          }
+        }
+        if(const Lua::Variant* prop = _getAssertProp<void>(*props, Lua::Key("i"))) {
+          if(const Lua::Variant* ia = _getAssertProp<double>(*prop, Lua::Key("ia"))) {
+            Assert::AreEqual(ia->get<double>(), 1.0, 0.1, L"ia value should match");
+          }
+          if(const Lua::Variant* ib = _getAssertProp<std::string>(*prop, Lua::Key("ib"))) {
+            Assert::AreEqual(ib->get<std::string>().c_str(), "two", L"ib should have matching string variant", LINE_INFO());
+          }
+          if(const Lua::Variant* ic = _getAssertProp<bool>(*prop, Lua::Key("ic"))) {
+            Assert::IsFalse(ic->get<bool>(), L"ic value should match", LINE_INFO());
+          }
+        }
+        if(const Lua::Variant* prop = _getAssertProp<void>(*props, Lua::Key("j"))) {
+          if(const Lua::Variant* ja = _getAssertProp<double>(*prop, Lua::Key("ja"))) {
+            Assert::AreEqual(ja->get<double>(), 2.0, 0.1, L"ja value should match", LINE_INFO());
+          }
+          if(const Lua::Variant* jb = _getAssertProp<void>(*prop, Lua::Key("jb"))) {
+            if(const Lua::Variant* jbs = _getAssertProp<std::string>(*jb, Lua::Key("jbs"))) {
+              Assert::AreEqual(jbs->get<std::string>().c_str(), "asdf", "jbs value should match", LINE_INFO());
+            }
+          }
+        }
+      }
+    }
   };
 }

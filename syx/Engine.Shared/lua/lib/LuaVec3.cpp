@@ -3,6 +3,7 @@
 #include "lua/LuaStackAssert.h"
 #include "lua/LuaUtil.h"
 #include <lua.hpp>
+#include "lua/LuaNode.h"
 
 namespace Lua {
   const char* Vec3::CLASS_NAME = "Vec3";
@@ -45,6 +46,7 @@ namespace Lua {
       { "lerp", lerp },
       { "__tostring", toString },
       { "__serialize", serialize },
+      { "__typeNode", typeNode },
       { "__index", index },
       { "__newindex", newIndex },
       { "__eq", equality },
@@ -228,6 +230,13 @@ namespace Lua {
     str += std::to_string(v.z);
     str += ")";
     lua_pushstring(l, str.c_str());
+    return 1;
+  }
+
+  int Vec3::typeNode(lua_State* l) {
+    //Don't need it, but just make sure it's valid
+    _getVec(l, 1);
+    lua_pushlightuserdata(l, const_cast<Lua::Vec3Node*>(&Lua::Vec3Node::singleton()));
     return 1;
   }
 
