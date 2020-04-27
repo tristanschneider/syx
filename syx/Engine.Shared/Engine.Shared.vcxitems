@@ -28,6 +28,7 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)Camera.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)component\CameraComponent.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)component\Component.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)component\ComponentPublisher.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)component\LuaComponent.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)component\LuaComponentRegistry.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)component\NameComponent.cpp" />
@@ -123,6 +124,7 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)Camera.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)component\CameraComponent.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)component\Component.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)component\ComponentPublisher.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)component\LuaComponent.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)component\LuaComponentRegistry.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)component\NameComponent.h" />

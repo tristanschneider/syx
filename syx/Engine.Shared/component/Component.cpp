@@ -1,6 +1,7 @@
 #include "Precompile.h"
 #include "component/Component.h"
 
+#include "component/ComponentPublisher.h"
 #include "event/BaseComponentEvents.h"
 #include "event/EventBuffer.h"
 #include "provider/MessageQueueProvider.h"
@@ -82,6 +83,10 @@ int Component::push(lua_State* l) {
   return sLuaCache->push(l, this, mCacheId, getTypeInfo().mTypeName.c_str());
 }
 
+ComponentPublisher Component::_checkSelf(lua_State* l, const std::string& type, int arg) {
+  return ComponentPublisher(*static_cast<Component*>(sLuaCache->checkParam(l, arg, type.c_str())));
+}
+
 void Component::invalidate(lua_State* l) const {
   sLuaCache->invalidate(l, mCacheId, getTypeInfo().mTypeName.c_str());
 }
@@ -147,21 +152,21 @@ void Component::baseOpenLib(lua_State* l) {
 }
 
 int Component::_getName(lua_State* l, const std::string& type) {
-  Component* self = static_cast<Component*>(sLuaCache->checkParam(l, 1, type.c_str()));
+  ComponentPublisher self = _checkSelf(l, type);
   const std::string& name = self->getTypeInfo().mPropName;
   lua_pushlstring(l, name.c_str(), name.size());
   return 1;
 }
 
 int Component::_getType(lua_State* l, const std::string& type) {
-  Component* self = static_cast<Component*>(sLuaCache->checkParam(l, 1, type.c_str()));
+  ComponentPublisher self = _checkSelf(l, type);
   const std::string& name = self->getTypeInfo().mTypeName;
   lua_pushlstring(l, name.c_str(), name.size());
   return 1;
 }
 
 int Component::_getOwner(lua_State* l, const std::string& type) {
-  Component* self = static_cast<Component*>(sLuaCache->checkParam(l, 1, type.c_str()));
+  ComponentPublisher self = _checkSelf(l, type);
   if(LuaGameSystem* game = LuaGameSystem::get(l)) {
     if(LuaGameObject* obj = game->_getObj(self->getOwner())) {
       return LuaGameObject::push(l, *obj);
@@ -172,9 +177,9 @@ int Component::_getOwner(lua_State* l, const std::string& type) {
 
 int Component::_getProps(lua_State* l, const std::string& type) {
   Lua::StackAssert sa(l, 1);
-  Component* self = static_cast<Component*>(sLuaCache->checkParam(l, 1, type.c_str()));
+  ComponentPublisher self = _checkSelf(l, type);
   if(const Lua::Node* props = self->getLuaProps()) {
-    props->writeToLua(l, self);
+    props->writeToLua(l, self.get());
   }
   else {
     lua_newtable(l);
@@ -184,7 +189,7 @@ int Component::_getProps(lua_State* l, const std::string& type) {
 
 int Component::_setProps(lua_State* l, const std::string& type) {
   Lua::StackAssert sa(l);
-  Component* self = static_cast<Component*>(sLuaCache->checkParam(l, 1, type.c_str()));
+  ComponentPublisher self = _checkSelf(l, type);
   LuaGameSystem& game = LuaGameSystem::check(l);
   luaL_checktype(l, 2, LUA_TTABLE);
 
@@ -196,13 +201,13 @@ int Component::_setProps(lua_State* l, const std::string& type) {
 
 int Component::_getProp(lua_State* l, const std::string& type) {
   Lua::StackAssert sa(l, 1);
-  Component* self = static_cast<Component*>(sLuaCache->checkParam(l, 1, type.c_str()));
+  ComponentPublisher self = _checkSelf(l, type);
   const char* propName = luaL_checkstring(l, 2);
 
   if(const Lua::Node* props = self->getLuaProps()) {
     //TODO: support a way to get children several levels deep?
     if(const Lua::Node* foundProp = props->getChild(propName)) {
-      foundProp->writeToLua(l, self);
+      foundProp->writeToLua(l, self.get());
       return 1;
     }
   }
@@ -213,7 +218,7 @@ int Component::_getProp(lua_State* l, const std::string& type) {
 
 int Component::_setProp(lua_State* l, const std::string& type) {
   Lua::StackAssert sa(l);
-  Component* self = static_cast<Component*>(sLuaCache->checkParam(l, 1, type.c_str()));
+  ComponentPublisher self = _checkSelf(l, type);
   const char* propName = luaL_checkstring(l, 2);
   LuaGameSystem& game = LuaGameSystem::check(l);
 
@@ -222,7 +227,7 @@ int Component::_setProp(lua_State* l, const std::string& type) {
 }
 
 int Component::_indexOverload(lua_State* l, const std::string& type) {
-  Component* self = static_cast<Component*>(sLuaCache->checkParam(l, 1, type.c_str()));
+  ComponentPublisher self = _checkSelf(l, type);
   const char* propName = luaL_checkstring(l, 2);
   //Determine if they're accessinga  property or calling a function
   //Property exists, access property

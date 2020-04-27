@@ -211,6 +211,10 @@ MessageQueue LuaGameSystem::getMessageQueue() {
   return mArgs.mMessages->getMessageQueue();
 }
 
+MessageQueueProvider& LuaGameSystem::getMessageQueueProvider() {
+  return *mArgs.mMessages;
+}
+
 AssetRepo& LuaGameSystem::getAssetRepo() {
   return *mArgs.mSystems->getSystem<AssetRepo>();
 }

@@ -2,6 +2,7 @@
 
 class AssetRepo;
 class Camera;
+class ComponentPublisher;
 class DebugDrawer;
 class EventBuffer;
 class MessageQueueProvider;
@@ -157,6 +158,8 @@ public:
   static int _setProp(lua_State* l, const std::string& type);
   static int _indexOverload(lua_State* l, const std::string& type);
   static int _newIndexOverload(lua_State* l, const std::string& type);
+
+  static ComponentPublisher _checkSelf(lua_State* l, const std::string& type, int arg = 1);
 
   static const std::string LUA_PROPS_KEY;
 

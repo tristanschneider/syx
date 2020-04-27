@@ -84,8 +84,6 @@ namespace Lua {
 
     NodeDiff getDiff(const void* base, const void* other) const;
     void forEachDiff(NodeDiff diff, const void* base, const DiffCallback& callback) const;
-    //Copy each node flagged by the diff in from to to
-    void copyFromDiff(NodeDiff diff, const void* from, void* to) const;
 
     //Translate base which is the root of the tree down to this node
     const void* _translateBaseToNode(const void* base) const;

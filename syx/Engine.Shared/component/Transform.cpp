@@ -1,12 +1,93 @@
 #include "Precompile.h"
 #include "Transform.h"
 
+#include "component/ComponentPublisher.h"
 #include "DebugDrawer.h"
 #include "editor/InspectorFactory.h"
 #include "lua/LuaNode.h"
 #include "lua/LuaUtil.h"
 #include <lua.hpp>
 #include "LuaGameObject.h"
+
+#include "lua/lib/LuaVec3.h"
+#include "lua/lib/LuaQuat.h"
+
+namespace {
+  ComponentPublisher _checkSelfTransform(lua_State* l) {
+    static const Transform typeInfo(0);
+    return Component::_checkSelf(l,  typeInfo.getTypeInfo().mTypeName);
+  }
+
+  Transform _createTransform(const Syx::Mat4& mat, const ComponentPublisher& publisher) {
+    Transform result(publisher->getOwner());
+    result.set(mat);
+    return result;
+  }
+
+  Syx::Mat4 _getMatrix(const ComponentPublisher& publisher) {
+    return publisher.get<Transform>()->get();
+  }
+
+  int _getTranslate(lua_State* l) {
+    return Lua::Vec3::construct(l, _checkSelfTransform(l).get<Transform>()->get().getTranslate());
+  }
+
+  int _setTranslate(lua_State* l) {
+    const ComponentPublisher publisher(_checkSelfTransform(l));
+    Syx::Mat4 mat = _getMatrix(publisher);
+    mat.setTranslate(Lua::Vec3::_getVec(l, 2));
+    publisher.publish(_createTransform(mat, publisher), l);
+    return 0;
+  }
+
+  int _getRotate(lua_State* l) {
+    return Lua::Quat::construct(l, _checkSelfTransform(l).get<Transform>()->get().getRotQ());
+  }
+
+  int _setRotate(lua_State* l) {
+    const ComponentPublisher publisher(_checkSelfTransform(l));
+    Syx::Mat4 mat = _getMatrix(publisher);
+    mat.setRot(Lua::Quat::_getQuat(l, 2));
+    publisher.publish(_createTransform(mat, publisher), l);
+    return 0;
+  }
+
+  int _getScale(lua_State* l) {
+    return Lua::Vec3::construct(l, _checkSelfTransform(l).get<Transform>()->get().getScale());
+  }
+
+  int _setScale(lua_State* l) {
+    const ComponentPublisher publisher(_checkSelfTransform(l));
+    Syx::Mat4 mat = _getMatrix(publisher);
+    mat.setScale(Lua::Vec3::_getVec(l, 2));
+    publisher.publish(_createTransform(mat, publisher), l);
+    return 0;
+  }
+
+  int _getComponents(lua_State* l) {
+    Syx::Vec3 translate, scale;
+    Syx::Mat3 rotate;
+    _checkSelfTransform(l).get<Transform>()->get().decompose(scale, rotate, translate);
+    Lua::Vec3::construct(l, translate);
+    Lua::Quat::construct(l, rotate.toQuat());
+    Lua::Vec3::construct(l, scale);
+    return 3;
+  }
+
+  int _setComponents(lua_State* l) {
+    const ComponentPublisher publisher(_checkSelfTransform(l));
+    _checkSelfTransform(l).publish(_createTransform(Syx::Mat4::transform(Lua::Vec3::_getVec(l, 3), Lua::Quat::_getQuat(l, 2), Lua::Vec3::_getVec(l, 1)), publisher), l);
+    return 0;
+  }
+
+  int _modelToWorld(lua_State* l) {
+    return Lua::Vec3::construct(l, _checkSelfTransform(l).get<Transform>()->get() * Lua::Vec3::_getVec(l, 2));
+  }
+
+  int _worldToModel(lua_State* l) {
+    return Lua::Vec3::construct(l, _checkSelfTransform(l).get<Transform>()->get().affineInverse() * Lua::Vec3::_getVec(l, 2));
+  }
+}
 
 DEFINE_COMPONENT(Transform)
   , mMat(Syx::Mat4::transform(Syx::Quat::Identity, Syx::Vec3::Zero)) {
@@ -50,6 +131,16 @@ void Transform::openLib(lua_State* l) const {
   };
   luaL_Reg members[] = {
     COMPONENT_LUA_BASE_REGS,
+    { "getTranslate", _getTranslate },
+    { "setTranslate", _setTranslate },
+    { "getRotate", _getRotate },
+    { "setRotate", _setRotate },
+    { "getScale", _getScale },
+    { "setScale", _setScale },
+    { "getComponents", _getComponents },
+    { "setComponents", _setComponents },
+    { "modelToWorld", _modelToWorld },
+    { "worldToModel", _worldToModel },
     { nullptr, nullptr }
   };
   Lua::Util::registerClass(l, statics, members, getTypeInfo().mTypeName.c_str());

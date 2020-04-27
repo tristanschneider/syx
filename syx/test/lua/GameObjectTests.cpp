@@ -15,6 +15,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 #include "SyxVec2.h"
 #include "asset/LuaScript.h"
 #include "event/BaseComponentEvents.h"
+#include "event/SpaceEvents.h"
 #include "event/EventBuffer.h"
 #include "LuaGameObject.h"
 #include "lua/LuaVariant.h"
@@ -257,6 +258,49 @@ namespace LuaTests {
           }
         }
       }
+    }
+
+    TEST_METHOD(GameObject_SetTransformMat_TransformIsUpdated) {
+      MockApp app;
+      const Handle objHandle = _addObjectWithScript(app.get(), "script", R"(
+        function initialize(self)
+          self.transform.matrix = { 1, 0, 0, 0,
+                                    0, 1, 0, 0,
+                                    0, 0, 1, 5,
+                                    0, 0, 0, 1 };
+        end
+        )");
+      //Make timescale nonzero so scripts update
+      app.mApp->getMessageQueue().get().push(SetTimescaleEvent(0, 1.0f));
+      //Initialize script component
+      app.get().update(1.0f);
+      //Call initialize function
+      app.get().update(1.0f);
+      //Apply events sent by initialization
+      app.get().update(1.0f);
+      const LuaGameObject* obj = app.mApp->getSystem<LuaGameSystem>()->getObject(objHandle);
+      Assert::IsNotNull(obj, L"Gameobject should exist", LINE_INFO());
+      Assert::IsTrue(obj && obj->getComponent<Transform>()->get() == Syx::Mat4(1, 0, 0, 0,
+                                                                               0, 1, 0, 0,
+                                                                               0, 0, 1, 5,
+                                                                               0, 0, 0, 1), L"Transform matrix should have been set by lua", LINE_INFO());
+    }
+
+    TEST_METHOD(GameObject_UseTransformMethod_TransformIsUpdated) {
+      MockApp app;
+      const Handle objHandle = _addObjectWithScript(app.get(), "script", R"(
+        function initialize(self)
+          self.transform:setTranslate(Vec3.new3(0, 5, 0));
+        end
+      )");
+      app.mApp->getMessageQueue().get().push(SetTimescaleEvent(0, 1.0f));
+      for(int i = 0; i < 3; ++i) {
+        app.get().update(1.0f);
+      }
+
+      const LuaGameObject* obj = app.mApp->getSystem<LuaGameSystem>()->getObject(objHandle);
+      Assert::IsNotNull(obj, L"Gameobject should exist", LINE_INFO());
+      Assert::IsTrue(obj && obj->getComponent<Transform>()->get().getTranslate() == Syx::Vec3(0, 5, 0), L"Translate should have been updated by script", LINE_INFO());
     }
   };
 }

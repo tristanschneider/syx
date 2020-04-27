@@ -80,6 +80,7 @@ public:
   void addObserver(LuaGameSystemObserver& observer);
 
   MessageQueue getMessageQueue();
+  MessageQueueProvider& getMessageQueueProvider();
   AssetRepo& getAssetRepo();
   const LuaComponentRegistry& getComponentRegistry() const;
   void forEachComponentType(const std::function<void(const Component&)>& callback) const override;

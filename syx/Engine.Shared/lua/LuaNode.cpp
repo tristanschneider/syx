@@ -231,13 +231,6 @@ namespace Lua {
     _forEachDiff(diff, base, callback, nodeIndex);
   }
 
-  void Node::copyFromDiff(NodeDiff diff, const void* from, void* to) const {
-    //Walk through each diff node in from, then translate the base of to to that node and copy the data
-    forEachDiff(diff, from, [to](const Lua::Node& node, const void* base) {
-      node._copy(base, node._translateBaseToNode(to));
-    });
-  }
-
   NodeDiff Node::_getDiff(const void* base, const void* other, int& nodeIndex) const {
     assert(nodeIndex < 64 && "NodeDiff is only big enough to hold 64 node diffs");
     NodeDiff result = 0;
