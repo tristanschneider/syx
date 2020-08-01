@@ -16,14 +16,13 @@
   BITWISE_OVERLOAD_EQ(operator^=, ^, Type)
 
 namespace Util {
-  inline void hashCombine(size_t) {
+  inline size_t hashCombine(size_t in) {
+    return in;
   }
 
   template <typename T, typename... Rest>
-  inline void hashCombine(size_t& seed, const T& v, Rest... rest) {
-    std::hash<T> hasher;
-    seed ^= hasher(v) + 0x9e3779b9 + (seed<<6) + (seed>>2);
-    hashCombine(seed, rest...);
+  inline size_t hashCombine(size_t seed, const T& v, Rest... rest) {
+    return hashCombine(seed ^ std::hash<T>()(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2), rest...);
   }
 
   //Get offset from owner to member, member must be direct member of owner

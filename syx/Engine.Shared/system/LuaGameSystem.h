@@ -68,15 +68,18 @@ public:
 
   LuaGameObject* _getObj(Handle h) const;
 
+  // TODO: get rid of these, all access should be through the ILuaGameContext
   static LuaGameSystem* get(lua_State* l);
   static LuaGameSystem& check(lua_State* l);
 
   //Add component to gameobject with the given owner. Returns a pending component that will be applied next frame. Null if invalid name
+/*
+  moved to context, delete when certain
   Component* addComponent(const std::string& name, LuaGameObject& owner);
   Component* addComponentFromPropName(const char* name, LuaGameObject& owner);
   void removeComponent(const std::string& name, Handle owner);
   void removeComponentFromPropName(const char* name, Handle owner);
-  LuaGameObject& addGameObject();
+*/
 
   void addObserver(LuaGameSystemObserver& observer);
 
@@ -86,7 +89,7 @@ public:
   const LuaComponentRegistry& getComponentRegistry() const;
   void forEachComponentType(const std::function<void(const Component&)>& callback) const override;
   //Safe to access lock free for any task queued as a dependency or dependent of event processing
-  const HandleMap<std::unique_ptr<LuaGameObject>>& getObjects() const;
+  const HandleMap<std::shared_ptr<LuaGameObject>>& getObjects() const;
   Space& getSpace(Handle id);
   const ProjectLocator& getProjectLocator() const;
   IWorkerPool& getWorkerPool();

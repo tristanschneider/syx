@@ -11,7 +11,7 @@ class SceneBrowser {
 public:
   SceneBrowser(MessageQueueProvider& msg, GameObjectHandleProvider& handleGen, KeyboardInput& input, EventHandler& handler);
 
-  void editorUpdate(const HandleMap<std::unique_ptr<LuaGameObject>>& objects);
+  void editorUpdate(const HandleMap<std::shared_ptr<LuaGameObject>>& objects);
 
 private:
   void _updatePick();

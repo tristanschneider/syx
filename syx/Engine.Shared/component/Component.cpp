@@ -7,6 +7,7 @@
 #include "provider/MessageQueueProvider.h"
 #include "lua/LuaCache.h"
 #include "lua/LuaNode.h"
+#include "lua/LuaGameContext.h"
 #include "lua/LuaStackAssert.h"
 #include "lua/LuaUtil.h"
 #include "system/AssetRepo.h"
@@ -22,9 +23,16 @@ std::unique_ptr<Lua::Cache> Component::sLuaCache = std::make_unique<Lua::Cache>(
 
 size_t ComponentType::operator()() const {
   std::hash<size_t> hasher;
-  size_t base = hasher(id);
-  Util::hashCombine(base, hasher(subId));
-  return base;
+  return Util::hashCombine(hasher(id), subId);
+}
+
+const bool ComponentType::operator==(const ComponentType& rhs) const {
+  return id == rhs.id
+    && subId == rhs.subId;
+}
+
+const bool ComponentType::operator!=(const ComponentType& rhs) const {
+  return !(*this == rhs);
 }
 
 ComponentTypeInfo::ComponentTypeInfo(const std::string& typeName)
@@ -119,7 +127,7 @@ const ComponentTypeInfo& Component::getTypeInfo() const {
   return result;
 }
 
-void Component::setPropsFromStack(lua_State* l, LuaGameSystem& game) const {
+void Component::setPropsFromStack(lua_State* l, MessageQueueProvider& msg) const {
   if(const Lua::Node* props = getLuaProps()) {
     //Read the data into a copy and send an event with the change to apply it next frame
     //TODO: stack allocations
@@ -129,11 +137,11 @@ void Component::setPropsFromStack(lua_State* l, LuaGameSystem& game) const {
     lua_pop(l, 1);
     std::vector<uint8_t> buffer(props->size());
     props->copyConstructToBuffer(copy.get(), &buffer[0]);
-    game.getMessageQueue().get().push(SetComponentPropsEvent(copy->getOwner(), copy->getFullType(), props, ~Lua::NodeDiff(0), std::move(buffer)));
+    msg.getMessageQueue().get().push(SetComponentPropsEvent(copy->getOwner(), copy->getFullType(), props, ~Lua::NodeDiff(0), std::move(buffer)));
   }
 }
 
-void Component::setPropFromStack(lua_State* l, const char* name, LuaGameSystem& game) const {
+void Component::setPropFromStack(lua_State* l, const char* name, MessageQueueProvider& msg) const {
   if(const Lua::Node* props = getLuaProps()) {
     //TODO: support a way to get children several levels deep?
     if(const Lua::Node* foundProp = props->getChild(name)) {
@@ -149,7 +157,7 @@ void Component::setPropFromStack(lua_State* l, const char* name, LuaGameSystem& 
       lua_pop(l, 1);
  
       //Send with diff indicating the appropriate part of the buffer
-      game.getMessageQueue().get().push(SetComponentPropsEvent(getOwner(), getFullType(), props, foundProp->_getDiffId(), std::move(buff)));
+      msg.getMessageQueue().get().push(SetComponentPropsEvent(getOwner(), getFullType(), props, foundProp->_getDiffId(), std::move(buff)));
     }
   }
 }
@@ -197,11 +205,11 @@ int Component::_getProps(lua_State* l, const std::string& type) {
 int Component::_setProps(lua_State* l, const std::string& type) {
   Lua::StackAssert sa(l);
   ComponentPublisher self = _checkSelf(l, type);
-  LuaGameSystem& game = LuaGameSystem::check(l);
+  ILuaGameContext& game = Lua::checkGameContext(l);
   luaL_checktype(l, 2, LUA_TTABLE);
 
   lua_pushvalue(l, 2);
-  self->setPropsFromStack(l, game);
+  self->setPropsFromStack(l, game.getMessageProvider());
   lua_pop(l, 1);
   return 0;
 }
@@ -227,9 +235,9 @@ int Component::_setProp(lua_State* l, const std::string& type) {
   Lua::StackAssert sa(l);
   ComponentPublisher self = _checkSelf(l, type);
   const char* propName = luaL_checkstring(l, 2);
-  LuaGameSystem& game = LuaGameSystem::check(l);
+  ILuaGameContext& game = Lua::checkGameContext(l);
 
-  self->setPropFromStack(l, propName, game);
+  self->setPropFromStack(l, propName, game.getMessageProvider());
   return 0;
 }
 

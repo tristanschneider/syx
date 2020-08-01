@@ -7,10 +7,10 @@ class Camera;
 class ComponentPublisher;
 class DebugDrawer;
 class EventBuffer;
-class MessageQueueProvider;
 class LuaGameObject;
 class LuaGameObjectProvider;
 class LuaGameSystem;
+class MessageQueueProvider;
 class System;
 
 struct lua_State;
@@ -71,6 +71,8 @@ struct ComponentType {
   size_t subId;
 
   size_t operator()() const;
+  const bool operator==(const ComponentType& rhs) const;
+  const bool operator!=(const ComponentType& rhs) const;
 };
 
 class Component {
@@ -103,7 +105,7 @@ public:
   };
 
   Component(Handle type, Handle owner);
-  ~Component();
+  virtual ~Component();
 
   template<typename T>
   static size_t typeId() {
@@ -149,8 +151,8 @@ public:
 
   virtual void onEditorUpdate(const LuaGameObject&, bool, EditorUpdateArgs&) const {}
 
-  void setPropsFromStack(lua_State* l, LuaGameSystem& game) const;
-  void setPropFromStack(lua_State* l, const char* name, LuaGameSystem& game) const;
+  void setPropsFromStack(lua_State* l, MessageQueueProvider& msg) const;
+  void setPropFromStack(lua_State* l, const char* name, MessageQueueProvider& msg) const;
 
   static void baseOpenLib(lua_State* l);
   static int _getName(lua_State* l, const std::string& type);

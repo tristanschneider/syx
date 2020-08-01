@@ -28,7 +28,7 @@ SceneBrowser::SceneBrowser(MessageQueueProvider& msg, GameObjectHandleProvider& 
   , mMouseDownPos(INVALID_MOUSE) {
 }
 
-void SceneBrowser::editorUpdate(const HandleMap<std::unique_ptr<LuaGameObject>>& objects) {
+void SceneBrowser::editorUpdate(const HandleMap<std::shared_ptr<LuaGameObject>>& objects) {
   _updatePick();
 
   if(!ImGuiImpl::enabled()) {

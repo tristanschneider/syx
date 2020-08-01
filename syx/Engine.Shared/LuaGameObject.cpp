@@ -8,10 +8,12 @@
 #include "lua/LuaCache.h"
 #include "lua/LuaComponentNode.h"
 #include "lua/LuaCompositeNodes.h"
+#include "lua/LuaGameContext.h"
 #include "lua/LuaStackAssert.h"
 #include "lua/LuaUtil.h"
 #include <lua.hpp>
 #include "system/LuaGameSystem.h"
+
 
 const std::string LuaGameObject::CLASS_NAME = "Gameobject";
 std::unique_ptr<Lua::Cache> LuaGameObject::sCache = std::make_unique<Lua::Cache>("_goc_", CLASS_NAME);
@@ -277,14 +279,14 @@ int LuaGameObject::newIndexOverload(lua_State* l) {
   const char* key = luaL_checkstring(l, 2);
   int valueType = lua_type(l, 3);
   luaL_argcheck(l, valueType == LUA_TTABLE || valueType == LUA_TNIL, 3, "nil or table expected");
-  LuaGameSystem& game = LuaGameSystem::check(l);
+  ILuaGameContext& game = Lua::checkGameContext(l);
 
   //Trying to add component
   if(valueType == LUA_TTABLE) {
     Component* comp = game.addComponentFromPropName(key, self);
     luaL_argcheck(l, comp != nullptr, 2, "no such component exists");
     lua_pushvalue(l, 3);
-    comp->setPropsFromStack(l, game);
+    comp->setPropsFromStack(l, game.getMessageProvider());
     lua_pop(l, 1);
   }
   //Trying to remove component. Setting invalid component name to nil is fine, as it wouldn't do anything
@@ -297,7 +299,7 @@ int LuaGameObject::newIndexOverload(lua_State* l) {
 int LuaGameObject::addComponent(lua_State* l) {
   LuaGameObject& obj = getObj(l, 1);
   const char* componentName = luaL_checkstring(l, 2);
-  LuaGameSystem& game = LuaGameSystem::check(l);
+  ILuaGameContext& game = Lua::checkGameContext(l);
   if(Component* result = game.addComponent(componentName, obj))
     result->push(l);
   else
@@ -308,7 +310,7 @@ int LuaGameObject::addComponent(lua_State* l) {
 int LuaGameObject::removeComponent(lua_State* l) {
   LuaGameObject& obj = getObj(l, 1);
   const char* componentName = luaL_checkstring(l, 2);
-  LuaGameSystem& game = LuaGameSystem::check(l);
+  ILuaGameContext& game = Lua::checkGameContext(l);
   game.removeComponent(componentName, obj.getHandle());
   return 0;
 }
@@ -320,7 +322,7 @@ int LuaGameObject::isValid(lua_State* l) {
 
 int LuaGameObject::newDefault(lua_State* l) {
   Lua::StackAssert sa(l, 1);
-  LuaGameSystem& game = LuaGameSystem::check(l);
+  ILuaGameContext& game = Lua::checkGameContext(l);
   LuaGameObject::push(l, game.addGameObject());
   return 1;
 }

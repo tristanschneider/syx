@@ -144,6 +144,8 @@ void LuaGameSystem::_registerBuiltInComponents() {
   }
 }
 
+/*
+
 Component* LuaGameSystem::addComponentFromPropName(const char* name, LuaGameObject& owner) {
   auto lock = mComponentsLock.getReader();
   if(const Component* comp = mComponents->getInstanceByPropName(name))
@@ -193,6 +195,8 @@ void LuaGameSystem::removeComponentFromPropName(const char* name, Handle owner) 
     removeComponent(comp->getTypeInfo().mTypeName, owner);
 }
 
+*/
+
 void LuaGameSystem::addObserver(LuaGameSystemObserver& observer) {
   observer.observe(&mSubject);
 }
@@ -220,7 +224,7 @@ void LuaGameSystem::forEachComponentType(const std::function<void(const Componen
   });
 }
 
-const HandleMap<std::unique_ptr<LuaGameObject>>& LuaGameSystem::getObjects() const {
+const HandleMap<std::shared_ptr<LuaGameObject>>& LuaGameSystem::getObjects() const {
   assert((mSafeToAccessObjects || mEventHandlerThread == std::this_thread::get_id()) && "Lua objects should only be accessed on tasks depending on event processing");
   return mObjects;
 }

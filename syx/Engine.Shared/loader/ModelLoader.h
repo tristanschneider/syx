@@ -20,9 +20,7 @@ private:
   struct VertLookup {
     struct Hasher {
       size_t operator()(const VertLookup& v) const {
-        size_t result = 0;
-        Util::hashCombine(result, v.mVert, v.mNormal, v.mUV);
-        return result;
+        return Util::hashCombine(0, v.mVert, v.mNormal, v.mUV);
       }
     };
 

@@ -4,6 +4,7 @@ class Component;
 class LuaGameObject;
 class LuaGameSystem;
 struct lua_State;
+class MessageQueueProvider;
 
 namespace Lua {
   class State;
@@ -28,6 +29,8 @@ struct ILuaGameContext {
   virtual void removeComponent(const std::string& name, Handle owner) = 0;
   virtual LuaGameObject& addGameObject() = 0;
   virtual void removeGameObject(Handle object) = 0;
+
+  virtual MessageQueueProvider& getMessageProvider() const = 0;
 };
 
 namespace Lua {

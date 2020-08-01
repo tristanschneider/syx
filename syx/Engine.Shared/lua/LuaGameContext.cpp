@@ -25,10 +25,27 @@ struct ComponentKey {
   ComponentType mType;
 
   size_t operator()() const {
-    size_t base = std::hash<Handle>()(mOwner);
-    Util::hashCombine(base, mType());
+    return Util::hashCombine(std::hash<Handle>()(mOwner), mType());
+  }
+
+  bool operator==(const ComponentKey& rhs) const {
+    return mOwner == rhs.mOwner 
+      && mType == rhs.mType;
+  }
+
+  bool operator!=(const ComponentKey& rhs) const {
+    return !(*this == rhs);
   }
 };
+
+namespace std {
+  template<>
+  struct hash<ComponentKey> {
+    std::size_t operator()(const ComponentKey& key) const noexcept {
+      return key();
+    }
+  };
+}
 
 template<class Key, class Value>
 class ObjectCache {
@@ -194,10 +211,14 @@ public:
     mObjectCache.insertDeletionMarker(object);
   }
 
+  virtual MessageQueueProvider& getMessageProvider() const override {
+    return mSystem.getMessageQueueProvider();
+  }
+
 private:
   HandleMap<std::weak_ptr<LuaGameObject>> mObjects;
   std::unique_ptr<Lua::State> mState;
-  // Cache of components used to hold changess made this frame until next frame when they are officially applied via messages.
+  // Cache of components used to hold changes made this frame until next frame when they are officially applied via messages.
   // For this reason, the cache is cleared every frame
   ObjectCache<ComponentKey, Component> mComponentCache;
   ObjectCache<Handle, LuaGameObject> mObjectCache;

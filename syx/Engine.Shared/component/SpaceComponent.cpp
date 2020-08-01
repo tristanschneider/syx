@@ -9,6 +9,7 @@
 #include "file/FilePath.h"
 #include "file/FileSystem.h"
 #include "lua/LuaCache.h"
+#include "lua/LuaGameContext.h"
 #include "lua/LuaSerializer.h"
 #include "lua/LuaStackAssert.h"
 #include "lua/LuaState.h"
@@ -37,8 +38,8 @@ namespace {
     }
   }
 
-  void _pushObjectFromDescription(LuaGameSystem& game, const LuaGameObjectDescription& obj, Handle space, bool fireAddEvent = true) {
-    MessageQueue msg = game.getMessageQueue();
+  void _pushObjectFromDescription(MessageQueueProvider& msgProvider, const LuaGameObjectDescription& obj, Handle space, bool fireAddEvent = true) {
+    MessageQueue msg = msgProvider.getMessageQueue();
     //Create object
     if(fireAddEvent)
       msg.get().push(AddGameObjectEvent(obj.mHandle));
@@ -225,7 +226,7 @@ void SpaceComponent::_loadSceneFromDescription(LuaGameSystem& game, LuaSceneDesc
     if(!objGen.blacklistHandle(obj.mHandle)) {
       obj.mHandle = objGen.newHandle();
     }
-    _pushObjectFromDescription(game, obj, space);
+    _pushObjectFromDescription(game.getMessageQueueProvider(), obj, space);
   }
 }
 
@@ -264,7 +265,7 @@ int SpaceComponent::clear(lua_State* l) {
 int SpaceComponent::addObject(lua_State* l) {
   SpaceComponent& self = getObj(l, 1);
   luaL_checktype(l, 2, LUA_TTABLE);
-  LuaGameSystem& game = LuaGameSystem::check(l);
+  ILuaGameContext& game = Lua::checkGameContext(l);
 
   Lua::StackAssert sa(l, 1);
   lua_pushvalue(l, -1);
@@ -272,7 +273,7 @@ int SpaceComponent::addObject(lua_State* l) {
   desc.getMetadata().readFromLua(l, &desc, Lua::Node::SourceType::FromStack);
   LuaGameObject& obj = game.addGameObject();
   desc.mHandle = obj.getHandle();
-  _pushObjectFromDescription(game, desc, self.get(), false);
+  _pushObjectFromDescription(game.getMessageProvider(), desc, self.get(), false);
   lua_pop(l, 1);
 
   LuaGameObject::push(l, obj);
