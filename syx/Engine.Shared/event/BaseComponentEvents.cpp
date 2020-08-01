@@ -10,10 +10,24 @@ DEFINE_EVENT(AddComponentEvent, Handle obj, size_t compType, size_t subType)
   , mSubType(subType) {
 }
 
+AddComponentEvent::AddComponentEvent(Handle obj, const ComponentType& type)
+  : Event(typeId<AddComponentEvent>(), sizeof(AddComponentEvent))
+  , mObj(obj)
+  , mCompType(type.id)
+  , mSubType(type.subId) {
+}
+
 DEFINE_EVENT(RemoveComponentEvent, Handle obj, size_t compType, size_t subType)
   , mObj(obj)
   , mCompType(compType)
   , mSubType(subType) {
+}
+
+RemoveComponentEvent::RemoveComponentEvent(Handle obj, const ComponentType& type)
+  : Event(typeId<RemoveComponentEvent>(), sizeof(RemoveComponentEvent))
+  , mObj(obj)
+  , mCompType(type.id)
+  , mSubType(type.subId) {
 }
 
 DEFINE_EVENT(AddGameObjectEvent, Handle obj)

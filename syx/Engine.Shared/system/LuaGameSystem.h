@@ -4,6 +4,7 @@
 #include "provider/MessageQueueProvider.h"
 #include "provider/LuaGameObjectProvider.h"
 #include "threading/SpinLock.h"
+#include "util/Observer.h"
 
 class AddComponentEvent;
 class AddGameObjectEvent;
@@ -120,10 +121,11 @@ private:
 
   static const std::string INSTANCE_KEY;
 
-  HandleMap<std::unique_ptr<LuaGameObject>> mObjects;
+  HandleMap<std::shared_ptr<LuaGameObject>> mObjects;
   std::unique_ptr<Lua::State> mState;
   std::unique_ptr<Lua::LuaLibGroup> mLibs;
   std::unique_ptr<LuaComponentRegistry> mComponents;
+  // TODO: I don't think this lock is necessary
   mutable RWLock mComponentsLock;
   //Pending objects that have been created this frame. For said frame they are available only to the caller that created them.
   //Next frame they are moved to the system and available to all

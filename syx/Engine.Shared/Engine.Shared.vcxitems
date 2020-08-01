@@ -80,6 +80,7 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)lua\lib\LuaVec3.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)lua\LuaCache.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)lua\LuaComponentNode.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)lua\LuaGameContext.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)lua\LuaKey.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)lua\LuaNode.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)lua\LuaSandbox.cpp" />
@@ -181,6 +182,7 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)lua\LuaCache.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)lua\LuaComponentNode.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)lua\LuaCompositeNodes.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)lua\LuaGameContext.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)lua\LuaKey.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)lua\LuaLibGroup.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)lua\LuaNode.h" />

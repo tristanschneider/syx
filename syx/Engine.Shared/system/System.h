@@ -1,4 +1,5 @@
 #pragma once
+#include "util/TypeId.h"
 
 class App;
 class IWorkerPool;

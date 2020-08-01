@@ -2,6 +2,11 @@
 #include "Component.h"
 #include "SyxMat4.h"
 
+namespace Syx {
+  struct Vec3;
+  struct Quat;
+};
+
 class Transform : public Component {
 public:
   Transform(Handle owner);

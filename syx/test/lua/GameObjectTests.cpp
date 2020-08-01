@@ -302,5 +302,30 @@ namespace LuaTests {
       Assert::IsNotNull(obj, L"Gameobject should exist", LINE_INFO());
       Assert::IsTrue(obj && obj->getComponent<Transform>()->get().getTranslate() == Syx::Vec3(0, 5, 0), L"Translate should have been updated by script", LINE_INFO());
     }
+
+    TEST_METHOD(GameObject_SetTransformTwice_BothChangesPreserved) {
+      MockApp app;
+      const Handle objHandle = _addObjectWithScript(app.get(), "script", R"(
+        function initialize(self)
+          self.transform:setTranslate(Vec3.new3(0, 5, 0));
+          self.transform:setScale(Vec3.new3(1, 2, 3));
+        end
+      )");
+      app.mApp->getMessageQueue().get().push(SetTimescaleEvent(0, 1.0f));
+      for(int i = 0; i < 3; ++i) {
+        app.get().update(1.0f);
+      }
+
+      const LuaGameObject* obj = app.mApp->getSystem<LuaGameSystem>()->getObject(objHandle);
+      Assert::IsNotNull(obj, L"Gameobject should exist", LINE_INFO());
+      if(obj) {
+        const Transform* transform = obj->getComponent<Transform>();
+        Assert::IsTrue(transform->get().getTranslate() == Syx::Vec3(0, 5, 0), L"Translate should have been updated by script", LINE_INFO());
+        Assert::IsTrue(transform->get().getScale() == Syx::Vec3(1, 2, 3), L"Scale should have been updated by script", LINE_INFO());
+      }
+    }
+
+    TEST_METHOD(GameObject_AddComponent_HasComponent) {
+    }
   };
 }

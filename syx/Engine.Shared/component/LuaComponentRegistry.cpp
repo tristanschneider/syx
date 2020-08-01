@@ -2,6 +2,7 @@
 #include "component/LuaComponentRegistry.h"
 
 #include "component/Component.h"
+#include "Util.h"
 
 void LuaComponentRegistry::registerComponent(const std::string& name, Constructor constructor) {
   auto& info = mNameToInfo[name] = CompInfo{ constructor, constructor(0) };
@@ -18,6 +19,11 @@ std::unique_ptr<Component> LuaComponentRegistry::construct(const std::string& na
 std::optional<size_t> LuaComponentRegistry::getComponentType(const std::string& name) const {
   auto it = mNameToInfo.find(name);
   return it == mNameToInfo.end() ? std::nullopt : std::make_optional(it->second.instance->getType());
+}
+
+std::optional<ComponentType> LuaComponentRegistry::getComponentFullType(const std::string& name) const {
+  auto it = mNameToInfo.find(name);
+  return it == mNameToInfo.end() ? std::nullopt : std::make_optional(it->second.instance->getFullType());
 }
 
 const Component* LuaComponentRegistry::getInstanceByPropName(const char* name) const {

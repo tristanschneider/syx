@@ -20,6 +20,13 @@ const std::string Component::LUA_PROPS_KEY = "props";
 const std::string Component::BASE_CLASS_NAME = "Component";
 std::unique_ptr<Lua::Cache> Component::sLuaCache = std::make_unique<Lua::Cache>("_component_cache_", BASE_CLASS_NAME);
 
+size_t ComponentType::operator()() const {
+  std::hash<size_t> hasher;
+  size_t base = hasher(id);
+  Util::hashCombine(base, hasher(subId));
+  return base;
+}
+
 ComponentTypeInfo::ComponentTypeInfo(const std::string& typeName)
   : mTypeName(typeName)
   , mPropName(typeName) {

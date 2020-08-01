@@ -3,6 +3,7 @@
 #include "event/Event.h"
 
 class Component;
+struct ComponentType;
 namespace Lua {
   class Node;
   using NodeDiff = uint64_t;
@@ -11,6 +12,7 @@ namespace Lua {
 class AddComponentEvent : public Event {
 public:
   AddComponentEvent(Handle obj, size_t compType, size_t subType = 0);
+  AddComponentEvent(Handle obj, const ComponentType& type);
   Handle mObj;
   size_t mCompType;
   size_t mSubType;
@@ -19,6 +21,7 @@ public:
 class RemoveComponentEvent : public Event {
 public:
   RemoveComponentEvent(Handle obj, size_t compType, size_t subType = 0);
+  RemoveComponentEvent(Handle obj, const ComponentType& type);
   Handle mObj;
   size_t mCompType;
   size_t mSubType;

@@ -4,6 +4,7 @@ class Observer;
 
 #pragma warning (disable: 4521)
 
+//TODO: make a template for this
 //Call method on all observers of subject. Not threadsafe.
 #define CallOnObserversPtr(subject, method, ...) { for(auto o : subject.get()) o->method(__VA_ARGS__); }
 #define CallOnObservers(subject, method, ...) { for(auto o : subject.get()) o.method(__VA_ARGS__); }
@@ -25,7 +26,7 @@ public:
     mObservers.clear();
   }
 
-  const std::vector<Obs*> get() const {
+  const std::vector<Obs*>& get() const {
     return mObservers;
   }
 

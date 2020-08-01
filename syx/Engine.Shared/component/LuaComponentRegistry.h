@@ -1,6 +1,8 @@
 #pragma once
+#include <optional>
 
 class Component;
+struct ComponentType;
 struct ComponentTypeInfo;
 
 class LuaComponentRegistry {
@@ -10,6 +12,7 @@ public:
   void registerComponent(const std::string& name, Constructor constructor);
   std::unique_ptr<Component> construct(const std::string& name, Handle owner) const;
   std::optional<size_t> getComponentType(const std::string& name) const;
+  std::optional<ComponentType> getComponentFullType(const std::string& name) const;
   const Component* getInstanceByPropName(const char* name) const;
   const Component* getInstanceByPropNameConstHash(size_t hash) const;
   void forEachComponent(const std::function<void(const Component&)>& callback) const;

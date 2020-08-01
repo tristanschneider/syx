@@ -193,16 +193,6 @@ void LuaGameSystem::removeComponentFromPropName(const char* name, Handle owner) 
     removeComponent(comp->getTypeInfo().mTypeName, owner);
 }
 
-LuaGameObject& LuaGameSystem::addGameObject() {
-  auto obj = std::make_unique<LuaGameObject>(mArgs.mGameObjectGen->newHandle());
-  LuaGameObject& result = *obj;
-  mArgs.mMessages->getMessageQueue().get().push(AddGameObjectEvent(result.getHandle()));
-  mPendingObjectsLock.lock();
-  mPendingObjects.push_back(std::move(obj));
-  mPendingObjectsLock.unlock();
-  return result;
-}
-
 void LuaGameSystem::addObserver(LuaGameSystemObserver& observer) {
   observer.observe(&mSubject);
 }

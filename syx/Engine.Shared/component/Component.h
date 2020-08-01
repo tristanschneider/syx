@@ -1,4 +1,6 @@
 #pragma once
+#include "Handle.h"
+#include "util/TypeId.h"
 
 class AssetRepo;
 class Camera;
@@ -67,6 +69,8 @@ struct ComponentTypeInfo {
 struct ComponentType {
   size_t id;
   size_t subId;
+
+  size_t operator()() const;
 };
 
 class Component {
