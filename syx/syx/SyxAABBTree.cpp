@@ -12,7 +12,7 @@ namespace Syx {
 
     AABBNode()
       : mParent(Null)
-      , mHeight(Null)
+      , mHeight(0)
       , mLeft(Null)
       , mRight(Null)
       , mIsLeaf(false) {
@@ -44,7 +44,7 @@ namespace Syx {
       Handle mParent;
       Handle mNext;
     };
-    //Null height means node is free
+    //0 height means node is free
     int mHeight;
 
     //Union because only leaf nodes hold data
@@ -446,7 +446,7 @@ namespace Syx {
 
     void _freeNode(Handle index) {
       AABBNode* toFree = &mNodes[index];
-      toFree->mHeight = AABBNode::Null;
+      toFree->mHeight = 0;
       toFree->mNext = mFreeList;
       toFree->mRight = AABBNode::Null;
       mFreeList = index;
@@ -464,14 +464,14 @@ namespace Syx {
       return freeNode;
     }
 
-    void _constructFreeList(unsigned start = 0) {
+    void _constructFreeList(size_t start = 0) {
       //Should never happen, but would cause a crash without the check from the -1u below
       if(mNodes.empty())
         return;
 
-      for(unsigned i = start; i < mNodes.size() - 1u; ++i) {
+      for(size_t i = start; i < mNodes.size() - 1u; ++i) {
         mNodes[i].mNext = i + 1;
-        mNodes[i].mHeight = AABBNode::Null;
+        mNodes[i].mHeight = 0;
       }
 
       mNodes.back().mNext = AABBNode::Null;

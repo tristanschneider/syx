@@ -61,6 +61,7 @@ protected:
 
 class ISystemRegistry {
 public:
+  virtual ~ISystemRegistry() = default;
   virtual void registerSystem(std::unique_ptr<System> system) = 0;
   virtual std::vector<std::unique_ptr<System>> takeSystems() = 0;
 };

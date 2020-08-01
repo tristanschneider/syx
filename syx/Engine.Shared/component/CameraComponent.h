@@ -5,6 +5,7 @@ class CameraComponent : public Component {
 public:
   CameraComponent(Handle owner);
   CameraComponent(const CameraComponent& rhs);
+  virtual ~CameraComponent() = default;
 
   std::unique_ptr<Component> clone() const override;
   void set(const Component& component) override;

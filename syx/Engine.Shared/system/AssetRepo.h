@@ -71,6 +71,7 @@ public:
   using LoaderConstructor = std::function<std::unique_ptr<AssetLoader>()>;
   using AssetConstructor = std::function<std::shared_ptr<Asset>(AssetInfo&&)>;
 
+  virtual ~IAssetLoaderRegistry() = default;
   virtual void registerLoader(const std::string& category, LoaderConstructor constructLoader, AssetConstructor constructAsset) = 0;
   virtual std::unique_ptr<AssetLoader> getLoader(const std::string& category) = 0;
   virtual std::shared_ptr<Asset> getAsset(AssetInfo&& info) = 0;

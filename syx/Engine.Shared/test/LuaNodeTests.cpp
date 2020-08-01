@@ -123,6 +123,7 @@ namespace Test {
   };
 
   struct NodeTestObject {
+    virtual ~NodeTestObject() = default;
     virtual void reset() {
       const auto values = getValues();
       std::for_each(values.begin(), values.end(), [](Tracker* v) { v->reset(); });

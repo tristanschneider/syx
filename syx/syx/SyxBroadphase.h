@@ -51,6 +51,7 @@ namespace Syx {
 
   class Broadphase {
   public:
+    virtual ~Broadphase() = default;
     //Builds a broadphase optimized for being static. Handles provided if a container is given, but likely aren't needed since nodes are static
     virtual void buildStatic(const std::vector<InsertParam>& nodes, std::vector<Handle>* resultHandles = nullptr) {
       //Up to derived classes to do something clever

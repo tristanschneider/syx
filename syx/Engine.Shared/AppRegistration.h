@@ -6,6 +6,7 @@ struct SystemArgs;
 
 class AppRegistration {
 public:
+  virtual ~AppRegistration() = default;
   virtual void registerSystems(const SystemArgs& args, ISystemRegistry& registry) = 0;
 };
 

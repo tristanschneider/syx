@@ -2,8 +2,14 @@
 
 class Event;
 
-class EventBufferConstIt : public std::iterator<std::forward_iterator_tag, const Event> {
+class EventBufferConstIt {
 public:
+  using iterator_category = std::forward_iterator_tag;
+  using value_type = Event;
+  using different_type = std::ptrdiff_t;
+  using pointer = Event*;
+  using reference = Event&;
+
   EventBufferConstIt(const uint8_t* ptr);
 
   EventBufferConstIt& operator++();

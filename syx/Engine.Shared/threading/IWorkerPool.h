@@ -4,6 +4,7 @@ class TaskGroup;
 
 class IWorkerPool {
 public:
+  virtual ~IWorkerPool() = default;
   // Frienship as the task calls taskReady for dependencies upon completion
   friend class Task;
 

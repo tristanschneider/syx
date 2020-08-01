@@ -8,17 +8,20 @@ class KeyboardInputImpl;
 
 class FocusEvents : public Observer<FocusEvents> {
 public:
+  virtual ~FocusEvents() = default;
   virtual void onFocusGained() {}
   virtual void onFocusLost() {}
 };
 
 class DragDropObserver : public Observer<DragDropObserver> {
 public:
+  virtual ~DragDropObserver() = default;
   virtual void onDrop(const std::vector<FilePath>& files) = 0;
 };
 
 class AppPlatform {
 public:
+  virtual ~AppPlatform() = default;
   void addFocusObserver(FocusEvents& o);
   void addDragDropObserver(DragDropObserver& o);
   //Notify observers of events
