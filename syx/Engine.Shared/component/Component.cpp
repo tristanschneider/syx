@@ -94,8 +94,9 @@ AssetRepo* Component::getAssetRepo() const {
   return AssetRepo::get();
 }
 
-int Component::push(lua_State* l) {
-  return sLuaCache->push(l, this, mCacheId, getTypeInfo().mTypeName.c_str());
+int Component::push(lua_State* l) const {
+  // Lua must take a mutable void pointer, but Component will only expose accessor as const when getting it back out, so const_cast is safe
+  return sLuaCache->push(l, const_cast<Component*>(this), mCacheId, getTypeInfo().mTypeName.c_str());
 }
 
 ComponentPublisher Component::_checkSelf(lua_State* l, const std::string& type, int arg) {

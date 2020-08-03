@@ -4,6 +4,7 @@ class Component;
 class LuaGameObject;
 class LuaGameSystem;
 struct lua_State;
+struct IGameObject;
 class MessageQueueProvider;
 
 namespace Lua {
@@ -23,13 +24,14 @@ struct ILuaGameContext {
   virtual void update(float dt) = 0;
 
   //Functions intended to be used from lua
-  virtual Component* addComponentFromPropName(const char* name, LuaGameObject& owner) = 0;
-  virtual Component* addComponent(const std::string& name, LuaGameObject& owner) = 0;
+  virtual const Component* addComponentFromPropName(const char* name, const LuaGameObject& owner) = 0;
+  virtual const Component* addComponent(const std::string& name, const LuaGameObject& owner) = 0;
   virtual void removeComponentFromPropName(const char* name, Handle owner) = 0;
   virtual void removeComponent(const std::string& name, Handle owner) = 0;
-  virtual LuaGameObject& addGameObject() = 0;
+  virtual IGameObject& addGameObject() = 0;
   virtual void removeGameObject(Handle object) = 0;
 
+  virtual IGameObject* getGameObject(Handle object) = 0;
   virtual MessageQueueProvider& getMessageProvider() const = 0;
 };
 

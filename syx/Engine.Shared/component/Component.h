@@ -135,7 +135,7 @@ public:
   AssetRepo* getAssetRepo() const;
 
   //Push lua component onto stack
-  int push(lua_State* l);
+  int push(lua_State* l) const;
   void invalidate(lua_State* l) const;
 
   void addSync(EventBuffer& msg) const;

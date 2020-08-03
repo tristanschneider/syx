@@ -16,6 +16,7 @@
 
 
 const std::string LuaGameObject::CLASS_NAME = "Gameobject";
+// TODO: instead of static, this should be owned by the context and accessible as a global lua object like the ILuaGameContext
 std::unique_ptr<Lua::Cache> LuaGameObject::sCache = std::make_unique<Lua::Cache>("_goc_", CLASS_NAME);
 
 namespace {
@@ -242,14 +243,16 @@ void LuaGameObject::openLib(lua_State* l) {
 }
 
 int LuaGameObject::toString(lua_State* l) {
-  LuaGameObject& self = getObj(l, 1);
-  std::string result = CLASS_NAME + "( " + std::to_string(self.mHandle) + ")";
+  IGameObject& self = getObj(l, 1);
+  std::string result = CLASS_NAME + "( " + std::to_string(self.getHandle()) + ")";
   lua_pushlstring(l, result.c_str(), result.size());
   return 1;
 }
 
+#include "component/LuaComponentRegistry.h"
+
 int LuaGameObject::indexOverload(lua_State* l) {
-  LuaGameObject& obj = getObj(l, 1);
+  IGameObject& obj = getObj(l, 1);
   const char* key = luaL_checkstring(l, 2);
   //If key is a known function, fall back to default behavior and call that
   size_t nameHash = Util::constHash(key);
@@ -263,9 +266,8 @@ int LuaGameObject::indexOverload(lua_State* l) {
   }
 
   //If key isn't known, assume it's a component name and try to find it
-  auto it = obj.mHashToComponent.find(nameHash);
-  if(it != obj.mHashToComponent.end()) {
-    it->second->push(l);
+  if(const Component* comp = obj.getComponentByPropName(key)) {
+    comp->push(l);
   }
   else {
     //No component by this name, return null
@@ -275,7 +277,7 @@ int LuaGameObject::indexOverload(lua_State* l) {
 }
 
 int LuaGameObject::newIndexOverload(lua_State* l) {
-  LuaGameObject& self = getObj(l, 1);
+  IGameObject& self = getObj(l, 1);
   const char* key = luaL_checkstring(l, 2);
   int valueType = lua_type(l, 3);
   luaL_argcheck(l, valueType == LUA_TTABLE || valueType == LUA_TNIL, 3, "nil or table expected");
@@ -283,7 +285,7 @@ int LuaGameObject::newIndexOverload(lua_State* l) {
 
   //Trying to add component
   if(valueType == LUA_TTABLE) {
-    Component* comp = game.addComponentFromPropName(key, self);
+    const Component* comp = self.addComponentFromPropName(key);
     luaL_argcheck(l, comp != nullptr, 2, "no such component exists");
     lua_pushvalue(l, 3);
     comp->setPropsFromStack(l, game.getMessageProvider());
@@ -297,18 +299,19 @@ int LuaGameObject::newIndexOverload(lua_State* l) {
 }
 
 int LuaGameObject::addComponent(lua_State* l) {
-  LuaGameObject& obj = getObj(l, 1);
+  IGameObject& obj = getObj(l, 1);
   const char* componentName = luaL_checkstring(l, 2);
-  ILuaGameContext& game = Lua::checkGameContext(l);
-  if(Component* result = game.addComponent(componentName, obj))
+  if(const Component* result = obj.addComponent(componentName)) {
     result->push(l);
-  else
+  }
+  else {
     lua_pushnil(l);
+  }
   return 1;
 }
 
 int LuaGameObject::removeComponent(lua_State* l) {
-  LuaGameObject& obj = getObj(l, 1);
+  IGameObject& obj = getObj(l, 1);
   const char* componentName = luaL_checkstring(l, 2);
   ILuaGameContext& game = Lua::checkGameContext(l);
   game.removeComponent(componentName, obj.getHandle());
@@ -327,20 +330,20 @@ int LuaGameObject::newDefault(lua_State* l) {
   return 1;
 }
 
-int LuaGameObject::push(lua_State* l, LuaGameObject& obj) {
-  return sCache->push(l, &obj, obj.mHandle);
+int LuaGameObject::push(lua_State* l, IGameObject& obj) {
+  return sCache->push(l, &obj, obj.getHandle());
 }
 
-int LuaGameObject::invalidate(lua_State* l, LuaGameObject& obj) {
-  sCache->invalidate(l, obj.mHandle);
+int LuaGameObject::invalidate(lua_State* l, const IGameObject& obj) {
+  sCache->invalidate(l, obj.getHandle());
   obj.forEachComponent([l](const Component& comp) {
     comp.invalidate(l);
   });
   return 0;
 }
 
-LuaGameObject& LuaGameObject::getObj(lua_State* l, int index) {
-  return *static_cast<LuaGameObject*>(sCache->checkParam(l, index));
+IGameObject& LuaGameObject::getObj(lua_State* l, int index) {
+  return *static_cast<IGameObject*>(sCache->checkParam(l, index));
 }
 
 class LuaGameObjectDescriptionNode : public Lua::TypedNode<LuaGameObjectDescription> {

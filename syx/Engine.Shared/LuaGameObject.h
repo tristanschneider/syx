@@ -39,6 +39,18 @@ struct LuaSceneDescription {
   std::vector<std::string> mAssets;
 };
 
+struct IGameObject {
+  virtual ~IGameObject() = default;
+  virtual Handle getHandle() const = 0;
+  virtual const Component* addComponent(const char* componentName) = 0;
+  virtual const Component* getComponent(const ComponentType& type) = 0;
+  virtual const Component* getComponentByPropName(const char* name) const = 0;
+  virtual void forEachComponent(const std::function<void(const Component&)>& callback) const = 0;
+  virtual const Component* addComponentFromPropName(const char* name) = 0;
+  virtual void removeComponentFromPropName(const char* name) = 0;
+  virtual void removeComponent(const std::string& name) = 0;
+};
+
 class LuaGameObject {
 public:
   LuaGameObject(Handle h);
@@ -126,10 +138,10 @@ public:
   //static LuaGameObject newDefault()
   static int newDefault(lua_State* l);
 
-  static int push(lua_State* l, LuaGameObject& obj);
-  static int invalidate(lua_State* l, LuaGameObject& obj);
+  static int push(lua_State* l, IGameObject& obj);
+  static int invalidate(lua_State* l, const IGameObject& obj);
 
-  static LuaGameObject& getObj(lua_State* l, int index);
+  static IGameObject& getObj(lua_State* l, int index);
 
   bool _isBuiltInComponent(const Component& comp) const;
 

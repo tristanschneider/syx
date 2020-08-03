@@ -80,6 +80,59 @@ private:
   std::unordered_map<Key, std::unique_ptr<Value>> mCachedComponents;
 };
 
+//This is intended to be used by the scripting layer to act as if objects are mutable, but in reality it's just using temporary state on ILuaGameContext
+//and sending messages so that all actual state mutations are done through messages processed on the next frame.
+class LuaBoundGameObject : public IGameObject {
+public:
+  LuaBoundGameObject(Handle handle, ILuaGameContext& gameContext, std::function<const LuaGameObject&(Handle)> getObj)
+    : mObj(handle)
+    , mGameContext(gameContext)
+    , mGetObj(std::move(getObj)) {
+  }
+
+  Handle getHandle() const override {
+    return mObj;
+  }
+
+  const Component* addComponent(const char* componentName) {
+    return mGameContext.addComponent(componentName, _get());
+  }
+
+  const Component* getComponent(const ComponentType& type) {
+    return _get().getComponent(type);
+  }
+
+  const Component* getComponentByPropName(const char* name) const {
+    return _get().getComponent(name);
+  }
+
+  void forEachComponent(const std::function<void(const Component&)>& callback) const {
+    return _get().forEachComponent(callback);
+  }
+
+  const Component* addComponentFromPropName(const char* name) override {
+    return mGameContext.addComponentFromPropName(name, _get());
+  }
+
+  void removeComponentFromPropName(const char* name) override {
+    mGameContext.removeComponentFromPropName(name, mObj);
+  }
+
+  void removeComponent(const std::string& name) override {
+    mGameContext.removeComponent(name, mObj);
+  }
+
+private:
+  const LuaGameObject& _get() const {
+    return mGetObj(mObj);
+  }
+
+  const Handle mObj;
+  ILuaGameContext& mGameContext;
+  std::function<const LuaGameObject&(Handle)> mGetObj;
+};
+
+
 class LuaGameContext : public ILuaGameContext {
 public:
   virtual ~LuaGameContext() = default;
@@ -118,11 +171,12 @@ public:
     Lua::StackAssert sa(*mState);
     for(auto& objIt : mObjects) {
       std::shared_ptr<LuaGameObject> obj = objIt.second.lock();
-      if(!obj) {
+      IGameObject* boundObj = getGameObject(objIt.first);
+      if(!obj || !boundObj) {
         continue;
       }
 
-      LuaGameObject::push(*mState, *obj);
+      LuaGameObject::push(*mState, *boundObj);
       int selfIndex = lua_gettop(*mState);
       dt *= mSystem.getSpace(obj->getSpace()).getTimescale();
       const bool doUpdate = dt != 0;
@@ -161,14 +215,14 @@ public:
     }
   }
 
-  virtual Component* addComponentFromPropName(const char* name, LuaGameObject& owner) override {
+  virtual const Component* addComponentFromPropName(const char* name, const LuaGameObject& owner) override {
     const Component* component = mSystem.getComponentRegistry().getInstanceByPropName(name);
     return component ? addComponent(component->getTypeInfo().mTypeName, owner) : nullptr;
   }
 
-  virtual Component* addComponent(const std::string& name, LuaGameObject& owner) override {
+  virtual const Component* addComponent(const std::string& name, const LuaGameObject& owner) override {
     if(std::optional<ComponentType> typeID = mSystem.getComponentRegistry().getComponentFullType(name)) {
-      if(Component* existing = owner.getComponent(*typeID)) {
+      if(const Component* existing = owner.getComponent(*typeID)) {
         return existing;
       }
 
@@ -198,17 +252,30 @@ public:
     }
   }
 
-  virtual LuaGameObject& addGameObject() override {
-    auto obj = std::make_unique<LuaGameObject>(mSystem.getGameObjectGen().newHandle());
-    LuaGameObject& result = *obj;
-    mSystem.getMessageQueue().get().push(AddGameObjectEvent(obj->getHandle()));
-    mObjectCache.insert(obj->getHandle(), std::move(obj));
-    return result;
+  virtual IGameObject& addGameObject() override {
+    const Handle newHandle = mSystem.getGameObjectGen().newHandle();
+    mSystem.getMessageQueue().get().push(AddGameObjectEvent(newHandle));
+    mObjectCache.insert(newHandle, std::make_unique<LuaGameObject>(newHandle));
+
+    //Can't be null because we just put it in the object cache
+    return *getGameObject(newHandle);
   }
 
   virtual void removeGameObject(Handle object) override {
     mSystem.getMessageQueue().get().push(RemoveGameObjectEvent(object));
     mObjectCache.insertDeletionMarker(object);
+    if(auto it = mBoundObjects.find(object); it != mBoundObjects.end()) {
+      mBoundObjects.erase(it);
+    }
+  }
+
+  virtual IGameObject* getGameObject(Handle object) {
+    auto it = mBoundObjects.find(object);
+    if(it == mBoundObjects.end() && _getObject(object)) {
+      auto getObj = [this](Handle handle) -> const LuaGameObject& { return *_getObject(handle); };
+      &mBoundObjects.emplace(std::make_pair(object, LuaBoundGameObject(object, *this, std::move(getObj)))).first->second;
+    }
+    return nullptr;
   }
 
   virtual MessageQueueProvider& getMessageProvider() const override {
@@ -216,10 +283,20 @@ public:
   }
 
 private:
+  const LuaGameObject* _getObject(Handle handle) {
+    //Present local pending state as the truth within this context
+    if(auto cached = mObjectCache.tryGet(handle)) {
+      return *cached;
+    }
+    //Not necessary to look in owned object list since the system has them all
+    return mSystem.getObject(handle);
+  }
+
   HandleMap<std::weak_ptr<LuaGameObject>> mObjects;
+  std::unordered_map<Handle, LuaBoundGameObject> mBoundObjects;
   std::unique_ptr<Lua::State> mState;
-  // Cache of components used to hold changes made this frame until next frame when they are officially applied via messages.
-  // For this reason, the cache is cleared every frame
+  //Cache of components used to hold changes made this frame until next frame when they are officially applied via messages.
+  //For this reason, the cache is cleared every frame
   ObjectCache<ComponentKey, Component> mComponentCache;
   ObjectCache<Handle, LuaGameObject> mObjectCache;
   LuaGameSystem& mSystem;
