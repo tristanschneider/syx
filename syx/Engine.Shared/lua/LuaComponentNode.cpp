@@ -3,8 +3,8 @@
 
 #include "component/Component.h"
 #include "component/LuaComponentRegistry.h"
+#include "lua/LuaGameContext.h"
 #include "lua/LuaStackAssert.h"
-#include "system/LuaGameSystem.h"
 
 namespace Lua {
   const char* ComponentNode::TYPE_KEY = "type";
@@ -13,7 +13,7 @@ namespace Lua {
   void ComponentNode::_readFromLua(lua_State* s, void* base) const {
     Lua::StackAssert sa(s);
     if(lua_getfield(s, -1, TYPE_KEY) == LUA_TSTRING) {
-      const LuaGameSystem& game = LuaGameSystem::check(s);
+      const ILuaGameContext& game = Lua::checkGameContext(s);
       //Read type name and construct default from it
       std::unique_ptr<Component>& comp = _cast(base);
       comp = game.getComponentRegistry().construct(lua_tostring(s, -1), 0);

@@ -18,6 +18,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 #include "event/SpaceEvents.h"
 #include "event/EventBuffer.h"
 #include "LuaGameObject.h"
+#include "lua/LuaGameContext.h"
+#include "lua/LuaState.h"
 #include "lua/LuaVariant.h"
 
 class TestKeyboardInputImpl : public KeyboardInputImpl {
@@ -114,11 +116,19 @@ namespace LuaTests {
       return info;
     }
 
+    std::unique_ptr<ILuaGameContext> _createGameContext(App& app) {
+      auto state = std::make_unique<Lua::State>();
+      LuaGameSystem* gameSystem = app.getSystem<LuaGameSystem>();
+      gameSystem->_openAllLibs(state->get());
+      return Lua::createGameContext(*gameSystem, std::move(state));
+    }
+
     Handle _addObjectWithScript(App& app, std::string scriptName, std::string script) {
       //Add script to asset repo
       const AssetInfo info = _addScript(app, std::move(scriptName), std::move(script));
       //Create empty object
-      LuaGameObject& newObj = app.getSystem<LuaGameSystem>()->addGameObject();
+      auto context = _createGameContext(app);
+      IGameObject& newObj = context->addGameObject();
       //Configure local version of object
       LuaComponent newComp(newObj.getHandle());
       newComp.setScript(info.mId);

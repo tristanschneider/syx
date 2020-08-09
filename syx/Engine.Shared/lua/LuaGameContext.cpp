@@ -282,6 +282,48 @@ public:
     return mSystem.getMessageQueueProvider();
   }
 
+  virtual lua_State* getLuaState() override {
+    return mState->get();
+  }
+
+  virtual AssetRepo& getAssetRepo() override {
+    return mSystem.getAssetRepo();
+  }
+
+  virtual const HandleMap<std::shared_ptr<LuaGameObject>>& getObjects() const override {
+    return mSystem.getObjects();
+  }
+
+  virtual const ProjectLocator& getProjectLocator() const override {
+    return mSystem.getProjectLocator();
+  }
+
+  virtual GameObjectHandleProvider& getGameObjectGen() override {
+    return mSystem.getGameObjectGen();
+  }
+
+  virtual const Space& getOrCreateSpace(Handle id) const override {
+    return mSystem.getSpace(id);
+  }
+
+  virtual IWorkerPool& getWorkerPool() override {
+    return mSystem.getWorkerPool();
+  }
+
+  virtual std::unique_ptr<Lua::State> createLuaState() const override {
+    auto state = std::make_unique<Lua::State>();
+    mSystem._openAllLibs(state->get());
+    return state;
+  }
+
+  virtual SystemProvider& getSystemProvider() override {
+    return mSystem.getSystemProvider();
+  }
+
+  virtual const LuaComponentRegistry& getComponentRegistry() const override {
+    return mSystem.getComponentRegistry();
+  }
+
 private:
   const LuaGameObject* _getObject(Handle handle) {
     //Present local pending state as the truth within this context

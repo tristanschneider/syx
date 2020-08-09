@@ -7,7 +7,7 @@ namespace Lua {
 
 class FilePath;
 struct lua_State;
-class LuaGameSystem;
+struct ILuaGameContext;
 struct LuaSceneDescription;
 
 class SpaceComponent : public Component {
@@ -44,11 +44,11 @@ public:
   static int addObject(lua_State* l);
 
   static SpaceComponent& getObj(lua_State* l, int index);
-  static void _loadSceneFromDescription(LuaGameSystem& game, LuaSceneDescription& scene, Handle space);
-  static void _addObjectsFromSpace(LuaGameSystem& game, Handle fromSpace, Handle toSpace);
+  static void _loadSceneFromDescription(ILuaGameContext& game, LuaSceneDescription& scene, Handle space);
+  static void _addObjectsFromSpace(ILuaGameContext& game, Handle fromSpace, Handle toSpace);
 
 private:
-  static FilePath _sceneNameToFullPath(LuaGameSystem& game, const char* scene);
+  static FilePath _sceneNameToFullPath(ILuaGameContext& game, const char* scene);
   std::unique_ptr<Lua::Node> _buildLuaProps() const;
 
   Handle mId;

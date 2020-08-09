@@ -1,11 +1,19 @@
 #pragma once
 
+class AssetRepo;
 class Component;
+class GameObjectHandleProvider;
+struct IGameObject;
+class IWorkerPool;
+class LuaComponentRegistry;
 class LuaGameObject;
 class LuaGameSystem;
+class LuaLibGroup;
 struct lua_State;
-struct IGameObject;
 class MessageQueueProvider;
+class ProjectLocator;
+class Space;
+class SystemProvider;
 
 namespace Lua {
   class State;
@@ -31,8 +39,19 @@ struct ILuaGameContext {
   virtual IGameObject& addGameObject() = 0;
   virtual void removeGameObject(Handle object) = 0;
 
+  virtual lua_State* getLuaState() = 0;
   virtual IGameObject* getGameObject(Handle object) = 0;
   virtual MessageQueueProvider& getMessageProvider() const = 0;
+
+  virtual AssetRepo& getAssetRepo() = 0;
+  virtual const HandleMap<std::shared_ptr<LuaGameObject>>& getObjects() const = 0;
+  virtual const ProjectLocator& getProjectLocator() const = 0;
+  virtual GameObjectHandleProvider& getGameObjectGen() = 0;
+  virtual const Space& getOrCreateSpace(Handle id) const = 0;
+  virtual IWorkerPool& getWorkerPool() = 0;
+  virtual std::unique_ptr<Lua::State> createLuaState() const = 0;
+  virtual SystemProvider& getSystemProvider() = 0;
+  virtual const LuaComponentRegistry& getComponentRegistry() const = 0;
 };
 
 namespace Lua {

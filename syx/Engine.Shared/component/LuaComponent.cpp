@@ -9,6 +9,7 @@
 #include "lua/LuaState.h"
 #include "lua/LuaUtil.h"
 #include "lua/LuaVariant.h"
+#include "Util.h"
 
 DEFINE_EVENT(AddLuaComponentEvent, size_t owner, size_t script)
   , mOwner(owner)

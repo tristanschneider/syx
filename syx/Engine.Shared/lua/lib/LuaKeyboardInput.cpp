@@ -1,12 +1,12 @@
 #include "Precompile.h"
 #include "lua/lib/LuaKeyboardInput.h"
 
+#include "lua/LuaGameContext.h"
 #include "lua/lib/LuaVec3.h"
 #include "lua/LuaUtil.h"
 #include <lua.hpp>
 #include "provider/SystemProvider.h"
 #include "system/KeyboardInput.h"
-#include "system/LuaGameSystem.h"
 
 namespace Lua {
   const char* CLASS_NAME = "Keyboard";
@@ -71,6 +71,6 @@ namespace Lua {
   }
 
   ::KeyboardInput& KeyboardInput::_getInput(lua_State* l) {
-    return *LuaGameSystem::check(l).getSystemProvider().getSystem<::KeyboardInput>();
+    return *Lua::checkGameContext(l).getSystemProvider().getSystem<::KeyboardInput>();
   }
 }

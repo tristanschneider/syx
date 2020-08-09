@@ -1,0 +1,1 @@
+- Task should take an async handle (std future?), the task itself shouldn't be the handle as it is now

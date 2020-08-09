@@ -10,7 +10,7 @@ public:
   float getTimescale() const;
   void setTimescale(float timescale);
 
-  int push(lua_State* l);
+  int push(lua_State* l) const;
 
 private:
   SpaceComponent mInstance;

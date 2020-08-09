@@ -37,6 +37,14 @@ public:
       func(*o);
   }
 
+  template<class Callable, class... Args>
+  void dispatch(Callable&& callable, Args&&... args) {
+    std::lock_guard<Mutex> lock(mMutex);
+    for(Obs* o : mObservers) {
+      std::invoke(callable, o, std::forward<Args>(args)...);
+    }
+  }
+
 private:
   //Called through observer's observe()
   void add(Friend& observer) {

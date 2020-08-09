@@ -183,10 +183,9 @@ int Component::_getType(lua_State* l, const std::string& type) {
 
 int Component::_getOwner(lua_State* l, const std::string& type) {
   ComponentPublisher self = _checkSelf(l, type);
-  if(LuaGameSystem* game = LuaGameSystem::get(l)) {
-    if(LuaGameObject* obj = game->_getObj(self->getOwner())) {
-      return LuaGameObject::push(l, *obj);
-    }
+  ILuaGameContext& game = Lua::checkGameContext(l);
+  if(IGameObject* obj = game.getGameObject(self->getOwner())) {
+    return LuaGameObject::push(l, *obj);
   }
   return 0;
 }

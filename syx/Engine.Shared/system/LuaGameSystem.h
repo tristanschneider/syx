@@ -16,6 +16,7 @@ class ClearSpaceEvent;
 class Component;
 class FilePath;
 class GameObjectHandleProvider;
+struct ILuaGameContext;
 class LoadSpaceEvent;
 class LuaComponentRegistry;
 class LuaGameObject;
@@ -50,8 +51,12 @@ public:
   virtual ~LuaGameSystemObserver() {}
   //Main thread, safe to access lua objects
   virtual void preUpdate(const LuaGameSystem&) {}
+  virtual void onObjectDestroyed(const LuaGameObject&) {}
 };
 
+// This class is responsible for owning and mutating state on LuaGameObjects, as well as owning the LuaGameContexts.
+// The contexts are what are used to dole out the work of updating the gameobjects and sending messages to request mutations.
+// Pending state is tracked locally within the context until the messages are processed by the system, who is the source of truth
 class LuaGameSystem
   : public System
   , public LuaGameObjectProvider
@@ -67,19 +72,6 @@ public:
   void uninit() override;
 
   LuaGameObject* _getObj(Handle h) const;
-
-  // TODO: get rid of these, all access should be through the ILuaGameContext
-  static LuaGameSystem* get(lua_State* l);
-  static LuaGameSystem& check(lua_State* l);
-
-  //Add component to gameobject with the given owner. Returns a pending component that will be applied next frame. Null if invalid name
-/*
-  moved to context, delete when certain
-  Component* addComponent(const std::string& name, LuaGameObject& owner);
-  Component* addComponentFromPropName(const char* name, LuaGameObject& owner);
-  void removeComponent(const std::string& name, Handle owner);
-  void removeComponentFromPropName(const char* name, Handle owner);
-*/
 
   void addObserver(LuaGameSystemObserver& observer);
 
@@ -103,8 +95,10 @@ public:
 
 private:
 
+  std::unique_ptr<ILuaGameContext> _createGameContext();
+  ILuaGameContext& _getNextGameContext();
+
   void _registerBuiltInComponents();
-  void _update(float dt);
 
   void _onAllSystemsInit(const AllSystemsInitialized& e);
   void _onAddComponent(const AddComponentEvent& e);
@@ -122,23 +116,16 @@ private:
   void _onSpaceLoad(const LoadSpaceEvent& e);
   void _onSetTimescale(const SetTimescaleEvent& e);
 
-  static const std::string INSTANCE_KEY;
-
   HandleMap<std::shared_ptr<LuaGameObject>> mObjects;
-  std::unique_ptr<Lua::State> mState;
   std::unique_ptr<Lua::LuaLibGroup> mLibs;
   std::unique_ptr<LuaComponentRegistry> mComponents;
   // TODO: I don't think this lock is necessary
   mutable RWLock mComponentsLock;
-  //Pending objects that have been created this frame. For said frame they are available only to the caller that created them.
-  //Next frame they are moved to the system and available to all
-  std::vector<std::unique_ptr<Component>> mPendingComponents;
-  SpinLock mPendingComponentsLock;
-  std::vector<std::unique_ptr<LuaGameObject>> mPendingObjects;
   std::unordered_map<Handle, Space> mSpaces;
   SpinLock mPendingObjectsLock;
   //Used for debug checking thread safety of public accesses to LuaGameObjects
   bool mSafeToAccessObjects = true;
   std::thread::id mEventHandlerThread;
   LuaGameSystemObserver::SubjectType mSubject;
+  std::vector<std::unique_ptr<ILuaGameContext>> mLuaContexts;
 };

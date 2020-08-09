@@ -103,8 +103,7 @@ const ComponentTypeInfo& SpaceComponent::getTypeInfo() const {
 
 int SpaceComponent::get(lua_State* l) {
   const char* name = luaL_checkstring(l, 1);
-  LuaGameSystem& game = LuaGameSystem::check(l);
-  game.getSpace(Util::constHash(name)).push(l);
+  Lua::checkGameContext(l).getOrCreateSpace(Util::constHash(name)).push(l);
   return 1;
 }
 
@@ -127,15 +126,15 @@ std::unique_ptr<Lua::Node> SpaceComponent::_buildLuaProps() const {
 int SpaceComponent::cloneTo(lua_State* l) {
   SpaceComponent& from = getObj(l, 1);
   SpaceComponent& to = getObj(l, 2);
-  LuaGameSystem& game = LuaGameSystem::check(l);
+  ILuaGameContext& game = Lua::checkGameContext(l);
 
-  game.getMessageQueue().get().push(ClearSpaceEvent(to.get()));
+  game.getMessageProvider().getMessageQueue().get().push(ClearSpaceEvent(to.get()));
   _addObjectsFromSpace(game, from.get(), to.get());
   return 0;
 }
 
 void SpaceComponent::_save(lua_State* l, Handle space, const char* filename) {
-  LuaGameSystem& game = LuaGameSystem::check(l);
+  ILuaGameContext& game = Lua::checkGameContext(l);
   LuaSceneDescription scene;
   scene.mName = FilePath(filename).getFileNameWithoutExtension();
   scene.mObjects.reserve(game.getObjects().size());
@@ -172,29 +171,28 @@ void SpaceComponent::_save(lua_State* l, Handle space, const char* filename) {
 int SpaceComponent::save(lua_State* l) {
   SpaceComponent& self = getObj(l, 1);
   const char* name = luaL_checkstring(l, 2);
-  _save(l, self.get(), _sceneNameToFullPath(LuaGameSystem::check(l), name));
+  _save(l, self.get(), _sceneNameToFullPath(Lua::checkGameContext(l), name));
   return 0;
 }
 
 bool SpaceComponent::_load(lua_State* l, Handle space, const char* filename) {
-  LuaGameSystem& game = LuaGameSystem::check(l);
+  ILuaGameContext& game = Lua::checkGameContext(l);
   const FilePath path(filename);
   const bool exists = FileSystem::fileExists(path);
   game.getWorkerPool().queueTask(std::make_shared<FunctionTask>([&game, path, space]() {
-    Lua::State s;
-    game._openAllLibs(s);
+    auto s = game.createLuaState();
 
-    Lua::StackAssert sa(s);
+    Lua::StackAssert sa(s->get());
     std::string serializedScene;
     if(FileSystem::readFile(path, serializedScene) == FileSystem::FileResult::Success) {
-      if(luaL_dostring(s, serializedScene.c_str()) == LUA_OK) {
+      if(luaL_dostring(s->get(), serializedScene.c_str()) == LUA_OK) {
         LuaSceneDescription sceneDesc;
-        sceneDesc.getMetadata().readFromLua(s, &sceneDesc, Lua::Node::SourceType::FromGlobal);
+        sceneDesc.getMetadata().readFromLua(s->get(), &sceneDesc, Lua::Node::SourceType::FromGlobal);
         _loadSceneFromDescription(game, sceneDesc, space);
       }
       else {
-        printf("Error loading scene %s\n", lua_tostring(s, -1));
-        lua_pop(s, 1);
+        printf("Error loading scene %s\n", lua_tostring(s->get(), -1));
+        lua_pop(s->get(), 1);
       }
     }
   }));
@@ -205,13 +203,13 @@ int SpaceComponent::load(lua_State* l) {
   SpaceComponent& self = getObj(l, 1);
   const char* name = luaL_checkstring(l, 2);
 
-  const bool exists = _load(l, self.get(), _sceneNameToFullPath(LuaGameSystem::check(l), name));
+  const bool exists = _load(l, self.get(), _sceneNameToFullPath(Lua::checkGameContext(l), name));
 
   lua_pushboolean(l, static_cast<int>(exists));
   return 1;
 }
 
-void SpaceComponent::_loadSceneFromDescription(LuaGameSystem& game, LuaSceneDescription& scene, Handle space) {
+void SpaceComponent::_loadSceneFromDescription(ILuaGameContext& game, LuaSceneDescription& scene, Handle space) {
   //TODO: should this be here? It causes issues with play/pause since the scene is lost after timescale is set
   //game.getMessageQueue().get().push(ClearSpaceEvent(space));
   SpaceComponent destSpaceComp(0);
@@ -226,12 +224,12 @@ void SpaceComponent::_loadSceneFromDescription(LuaGameSystem& game, LuaSceneDesc
     if(!objGen.blacklistHandle(obj.mHandle)) {
       obj.mHandle = objGen.newHandle();
     }
-    _pushObjectFromDescription(game.getMessageQueueProvider(), obj, space);
+    _pushObjectFromDescription(game.getMessageProvider(), obj, space);
   }
 }
 
-void SpaceComponent::_addObjectsFromSpace(LuaGameSystem& game, Handle fromSpace, Handle toScene) {
-  MessageQueue msg = game.getMessageQueue();
+void SpaceComponent::_addObjectsFromSpace(ILuaGameContext& game, Handle fromSpace, Handle toScene) {
+  MessageQueue msg = game.getMessageProvider().getMessageQueue();
   SpaceComponent newSpaceComp(0);
   newSpaceComp.set(toScene);
 
@@ -258,7 +256,7 @@ void SpaceComponent::_addObjectsFromSpace(LuaGameSystem& game, Handle fromSpace,
 
 int SpaceComponent::clear(lua_State* l) {
   SpaceComponent& self = getObj(l, 1);
-  LuaGameSystem::check(l).getMessageQueue().get().push(ClearSpaceEvent(self.get()));
+  Lua::checkGameContext(l).getMessageProvider().getMessageQueue().get().push(ClearSpaceEvent(self.get()));
   return 0;
 }
 
@@ -271,7 +269,7 @@ int SpaceComponent::addObject(lua_State* l) {
   lua_pushvalue(l, -1);
   LuaGameObjectDescription desc;
   desc.getMetadata().readFromLua(l, &desc, Lua::Node::SourceType::FromStack);
-  LuaGameObject& obj = game.addGameObject();
+  IGameObject& obj = game.addGameObject();
   desc.mHandle = obj.getHandle();
   _pushObjectFromDescription(game.getMessageProvider(), desc, self.get(), false);
   lua_pop(l, 1);
@@ -280,7 +278,7 @@ int SpaceComponent::addObject(lua_State* l) {
   return 1;
 }
 
-FilePath SpaceComponent::_sceneNameToFullPath(LuaGameSystem& game, const char* scene) {
+FilePath SpaceComponent::_sceneNameToFullPath(ILuaGameContext& game, const char* scene) {
   FilePath path = game.getProjectLocator().transform(scene, PathSpace::Project, PathSpace::Full);
   return path.addExtension(LuaSceneDescription::FILE_EXTENSION);
 }

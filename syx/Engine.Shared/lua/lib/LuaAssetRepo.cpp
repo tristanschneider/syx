@@ -3,7 +3,7 @@
 
 #include "asset/Asset.h"
 #include "system/AssetRepo.h"
-#include "system/LuaGameSystem.h"
+#include "lua/LuaGameContext.h"
 #include "lua/LuaUtil.h"
 
 #include <lua.hpp>
@@ -34,6 +34,6 @@ namespace Lua {
   }
 
   ::AssetRepo& AssetRepo::_getRepo(lua_State* l) {
-    return LuaGameSystem::check(l).getAssetRepo();
+    return Lua::checkGameContext(l).getAssetRepo();
   }
 }

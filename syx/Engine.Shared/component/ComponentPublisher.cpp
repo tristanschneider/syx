@@ -4,8 +4,8 @@
 #include "component/Component.h"
 #include "event/BaseComponentEvents.h"
 #include "lua/LuaNode.h"
+#include "lua/LuaGameContext.h"
 #include "provider/MessageQueueProvider.h"
-#include "system/LuaGameSystem.h"
 
 ComponentPublisher::ComponentPublisher(const Component& component)
   : mComponent(&component) {
@@ -24,7 +24,7 @@ const Component* ComponentPublisher::operator->() const {
 }
 
 void ComponentPublisher::publish(const Component& component, lua_State* l) const {
-  publish(component, LuaGameSystem::check(l).getMessageQueueProvider());
+  publish(component, Lua::checkGameContext(l).getMessageProvider());
 }
 
 void ComponentPublisher::publish(const Component& component, MessageQueueProvider& msg) const {

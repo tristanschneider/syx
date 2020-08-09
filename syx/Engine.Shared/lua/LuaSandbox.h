@@ -1,4 +1,5 @@
 #pragma once
+#include "util/ScopeWrap.h"
 //Upon construction, creates a sandbox table and saves it as a global under the given id
 //This sandbox can then be used as an updvalue to replace _ENV making all global access contained within the sandbox
 
