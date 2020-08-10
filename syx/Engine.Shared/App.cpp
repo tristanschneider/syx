@@ -99,9 +99,6 @@ void App::update(float dt) {
   ImGuiImpl::getPad().update();
 
   auto frameTask = std::make_shared<SyncTask>();
-  //This dummy task used as a placeholder dependency during system update to prevent the frame task from completing before all systems have had a chance to add dependencies to it
-  auto queueFrameTask = std::make_shared<FunctionTask>([] {});
-  queueFrameTask->then(frameTask);
 
   for(auto& system : mSystems) {
     system->setEventBuffer(mFrozenMessageQueue.get());
@@ -113,7 +110,6 @@ void App::update(float dt) {
   }
 
   mWorkerPool->queueTask(frameTask);
-  mWorkerPool->queueTask(queueFrameTask);
 
   if(ImGuiImpl::enabled()) {
     static float f = 0.0f;

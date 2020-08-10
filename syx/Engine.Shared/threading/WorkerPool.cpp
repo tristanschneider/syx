@@ -30,26 +30,29 @@ WorkerPool::~WorkerPool() {
 }
 
 void WorkerPool::queueTask(std::shared_ptr<Task> task) {
-  task->setWorkerPool(*this);
-  mTaskMutex.lock();
-  if(!task->hasDependencies()) {
-    _taskReady(task);
+  assert(!task->hasWorkerPool() && "Task should only be queued once");
+  if(!task->hasWorkerPool()) {
+    std::lock_guard<std::mutex> lock(mTaskMutex);
+    task->setWorkerPool(*this);
+    if(!task->hasDependencies()) {
+      _taskReady(task);
+    }
   }
-  mTaskMutex.unlock();
 }
 
 void WorkerPool::taskReady(std::shared_ptr<Task> task) {
-  mTaskMutex.lock();
-  _taskReady(task);
-  mTaskMutex.unlock();
+  std::lock_guard<std::mutex> lock(mTaskMutex);
+  //If it has a pool that means queueTask has been called on it, and all of its dependencies have now completed, so it can run
+  //Otherwise, all dependencies are complete, but it hasn't been queued yet, so the user may still add more dependencies before queueing
+  if(task->hasWorkerPool()) {
+    _taskReady(task);
+  }
 }
 
 void WorkerPool::_taskReady(std::shared_ptr<Task> task) {
   //Tasks can be queued on queueTask or when its dependencies are done
   //Make sure not to add the task twice
   if(!task->hasBeenQueued()) {
-    //Dependent task could have finished between adding dependency and queuing, in which case set the pool now
-    task->setWorkerPool(*this);
     task->setQueued();
     mTasks.push_back(std::move(task));
     mWorkerCV.notify_one();

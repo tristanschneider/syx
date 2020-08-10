@@ -1,1 +1,3 @@
 - Task should take an async handle (std future?), the task itself shouldn't be the handle as it is now
+- Find a way to make game object modification less confusing when not done through lua. The message dependencies and order aren't obvious.
+- Component access needs to go through LuaGameContext so local changes apply immediately

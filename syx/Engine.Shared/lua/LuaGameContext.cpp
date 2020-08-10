@@ -145,11 +145,13 @@ public:
   }
 
   static LuaGameContext& _getContext(lua_State* l) {
+    Lua::StackAssert sa(l);
     lua_getfield(l, LUA_REGISTRYINDEX, LUA_CONTEXT_KEY);
     LuaGameContext* context = static_cast<LuaGameContext*>(lua_touserdata(l, -1));
     if(!context) {
       luaL_error(l, "LuaGameContext instance didn't exist");
     }
+    lua_pop(l, 1);
     return *context;
   }
 
@@ -271,11 +273,17 @@ public:
 
   virtual IGameObject* getGameObject(Handle object) {
     auto it = mBoundObjects.find(object);
-    if(it == mBoundObjects.end() && _getObject(object)) {
-      auto getObj = [this](Handle handle) -> const LuaGameObject& { return *_getObject(handle); };
-      &mBoundObjects.emplace(std::make_pair(object, LuaBoundGameObject(object, *this, std::move(getObj)))).first->second;
+    if(it == mBoundObjects.end()) {
+      //If the object exists, create the bound object and return it
+      if (_getObject(object)) {
+        auto getObj = [this](Handle handle) -> const LuaGameObject& { return *_getObject(handle); };
+        return &mBoundObjects.emplace(std::make_pair(object, LuaBoundGameObject(object, *this, std::move(getObj)))).first->second;
+      }
+      //Object doesn't exist so there's nothing to bind to
+      return nullptr;
     }
-    return nullptr;
+    //Object already bound, return that
+    return &it->second;
   }
 
   virtual MessageQueueProvider& getMessageProvider() const override {

@@ -21,7 +21,9 @@ void Task::run() {
   //Now that this task is complete, remove it as a dependency for all tasks waiting on it
   for(Task* dep : mDependents) {
     //If this was the last dependency on the task, it can run now
-    if(dep->mDependencies.fetch_sub(1) == 1) {
+    const int prevDependencyCount = dep->mDependencies.fetch_sub(1);
+    assert(prevDependencyCount > 0 && "Dependency count should always be positive otherwise bookeeping has failed");
+    if(prevDependencyCount == 1) {
       mPool->taskReady(dep->shared_from_this());
     }
   }
@@ -38,6 +40,10 @@ void Task::setWorkerPool(IWorkerPool& pool) {
   }
 }
 
+bool Task::hasWorkerPool() const {
+  return mPool != nullptr;
+}
+
 void Task::addDependent(std::shared_ptr<Task> dependent) {
   //If this is already done, then there's no need to add the dependency, since there's nothing for dependent to wait for
   if(mState == TaskState::Done)
@@ -46,10 +52,11 @@ void Task::addDependent(std::shared_ptr<Task> dependent) {
   //RW lock would be great here as this is only needed if the task finishes while a dependency is added
   mDependentsMutex.lock();
   mDependents.push_back(dependent.get());
+  if(mState != TaskState::Done) {
+    dependent->mDependencies.fetch_add(1);
+  }
   mDependentsMutex.unlock();
 
-  if(mState != TaskState::Done)
-    dependent->mDependencies.fetch_add(1);
   //If the task completed while we were adding to dependents no need to remove it as it won't be touched after completion
 }
 
@@ -81,4 +88,8 @@ bool Task::hasBeenQueued() {
     default:
       return false;
   }
+}
+
+TaskState Task::getState() const {
+  return mState;
 }

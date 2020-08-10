@@ -171,6 +171,7 @@
     <ClCompile Include="syx\BroadphaseTest.cpp" />
     <ClCompile Include="TypeTest.cpp" />
     <ClCompile Include="UtilTest.cpp" />
+    <ClCompile Include="WorkerPoolTest.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\syx\syx.vcxproj">
