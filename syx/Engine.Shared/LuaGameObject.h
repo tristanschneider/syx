@@ -6,6 +6,7 @@
 
 class Component;
 class EventBuffer;
+struct IGameObject;
 class LuaComponent;
 struct lua_State;
 
@@ -37,18 +38,6 @@ struct LuaSceneDescription {
   std::string mName;
   std::vector<LuaGameObjectDescription> mObjects;
   std::vector<std::string> mAssets;
-};
-
-struct IGameObject {
-  virtual ~IGameObject() = default;
-  virtual Handle getHandle() const = 0;
-  virtual const Component* addComponent(const char* componentName) = 0;
-  virtual const Component* getComponent(const ComponentType& type) = 0;
-  virtual const Component* getComponentByPropName(const char* name) const = 0;
-  virtual void forEachComponent(const std::function<void(const Component&)>& callback) const = 0;
-  virtual const Component* addComponentFromPropName(const char* name) = 0;
-  virtual void removeComponentFromPropName(const char* name) = 0;
-  virtual void removeComponent(const std::string& name) = 0;
 };
 
 class LuaGameObject {

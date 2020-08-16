@@ -3,6 +3,7 @@
 
 #include "asset/LuaScript.h"
 #include "component/Component.h"
+#include "component/ComponentPublisher.h"
 #include "component/LuaComponentRegistry.h"
 #include <lua.hpp>
 #include "lua/LuaStackAssert.h"
@@ -94,23 +95,24 @@ public:
     return mObj;
   }
 
-  const Component* addComponent(const char* componentName) {
+  IComponent* addComponent(const char* componentName) override {
     return mGameContext.addComponent(componentName, _get());
   }
 
-  const Component* getComponent(const ComponentType& type) {
-    return _get().getComponent(type);
+  IComponent* getComponent(const ComponentType& type) override {
+    return mGameContext.getComponent(mObj, type);
   }
 
-  const Component* getComponentByPropName(const char* name) const {
-    return _get().getComponent(name);
+  IComponent* getComponentByPropName(const char* name) override {
+    const Component* instance = mGameContext.getComponentRegistry().getInstanceByPropName(name);
+    return instance ? mGameContext.getComponent(mObj, instance->getFullType()) : nullptr;
   }
 
-  void forEachComponent(const std::function<void(const Component&)>& callback) const {
-    return _get().forEachComponent(callback);
+  void forEachComponent(const std::function<void(const Component&)>& callback) const override {
+    _get().forEachComponent(callback);
   }
 
-  const Component* addComponentFromPropName(const char* name) override {
+  IComponent* addComponentFromPropName(const char* name) override {
     return mGameContext.addComponentFromPropName(name, _get());
   }
 
@@ -132,6 +134,36 @@ private:
   std::function<const LuaGameObject&(Handle)> mGetObj;
 };
 
+class LuaBoundComponent : public IComponent {
+public:
+  LuaBoundComponent(Handle object, const ComponentType& component, ILuaGameContext& context, std::function<Component&()> getMutableComponent)
+    : mObject(object)
+    , mComponent(component)
+    , mContext(context)
+    , mGetMutableComponent(std::move(getMutableComponent)) {
+  }
+
+  virtual const Component& get() const override {
+    const Component* result = mContext.getRawComponent(mObject, mComponent);
+    assert(result && "Component should exist or this object should have been destroyed");
+    return *result;
+  }
+
+  virtual void set(const Component& newValue) override {
+    Component& self = mGetMutableComponent();
+    ComponentPublisher publisher(self);
+    //Publish the changes to persist the change
+    publisher.publish(newValue, mContext.getMessageProvider());
+    //Perform the modification now on the local object so context-local state is consistent
+    self.set(newValue);
+  }
+
+private:
+  const Handle mObject;
+  const ComponentType mComponent;
+  ILuaGameContext& mContext;
+  std::function<Component&()> mGetMutableComponent;
+};
 
 class LuaGameContext : public ILuaGameContext {
 public:
@@ -154,7 +186,6 @@ public:
     lua_pop(l, 1);
     return *context;
   }
-
 
   virtual void addObject(std::weak_ptr<LuaGameObject> object) {
     if(auto obj = object.lock()) {
@@ -217,26 +248,29 @@ public:
     }
   }
 
-  virtual const Component* addComponentFromPropName(const char* name, const LuaGameObject& owner) override {
+  virtual IComponent* addComponentFromPropName(const char* name, const LuaGameObject& owner) override {
     const Component* component = mSystem.getComponentRegistry().getInstanceByPropName(name);
     return component ? addComponent(component->getTypeInfo().mTypeName, owner) : nullptr;
   }
 
-  virtual const Component* addComponent(const std::string& name, const LuaGameObject& owner) override {
+  virtual IComponent* addComponent(const std::string& name, const LuaGameObject& owner) override {
     if(std::optional<ComponentType> typeID = mSystem.getComponentRegistry().getComponentFullType(name)) {
+      //If the component already exists, return the bound form of it
       if(const Component* existing = owner.getComponent(*typeID)) {
-        return existing;
+        return getComponent(owner.getHandle(), existing->getFullType());
       }
 
+      //The component doesn't already exist, make a new one
       std::unique_ptr<Component> newComponent = mSystem.getComponentRegistry().construct(name, owner.getHandle());
       //TODO: it doesn't seem like this is needed, but also it could replace the global one stored in lua state
       newComponent->setSystem(mSystem);
 
-      // TODO: component publisher should somehow be updated to do this
-      mSystem.getMessageQueue().get().push(AddComponentEvent(owner.getHandle(), newComponent->getType()));
+      //TODO: component publisher should somehow be updated to do this
+      mSystem.getMessageQueue().get().push(AddComponentEvent(owner.getHandle(), newComponent->getFullType()));
       Component* result = newComponent.get();
       mComponentCache.insert({ owner.getHandle(), *typeID }, std::move(newComponent));
-      return result;
+      //Now that it's been added to the component cache, use the getComponent code path to create and return the bound object
+      return getComponent(owner.getHandle(), result->getFullType());
     }
     return nullptr;
   }
@@ -271,7 +305,7 @@ public:
     }
   }
 
-  virtual IGameObject* getGameObject(Handle object) {
+  virtual IGameObject* getGameObject(Handle object) override {
     auto it = mBoundObjects.find(object);
     if(it == mBoundObjects.end()) {
       //If the object exists, create the bound object and return it
@@ -284,6 +318,40 @@ public:
     }
     //Object already bound, return that
     return &it->second;
+  }
+
+  virtual IComponent* getComponent(Handle object, const ComponentType& component) override {
+    const ComponentKey key{ object, component };
+    auto it = mBoundComponents.find(key);
+    if(it == mBoundComponents.end()) {
+      //If the object exists, create the bound object and return it
+      if (_getComponent(object, component)) {
+        auto getMutableComponent = [this, key]() -> Component& {
+          //This needs to be mutable meaning it must return one of the cached objects representing context-local state
+          if(auto existing = mComponentCache.tryGet(key); existing && *existing) {
+            return **existing;
+          }
+
+          //No cached component exists, make one from the real version
+          const Component* component = _getComponentFromSystem(key);
+          assert(component && "Component should exist if bound object representing it still does");
+          std::unique_ptr<Component> mutableCopy = component->clone();
+          Component& result = *mutableCopy;
+          mComponentCache.insert(key, std::move(mutableCopy));
+          return result;
+        };
+
+        return &mBoundComponents.emplace(std::make_pair(key, LuaBoundComponent(object, component, *this, std::move(getMutableComponent)))).first->second;
+      }
+      //Object doesn't exist so there's nothing to bind to
+      return nullptr;
+    }
+    //Object already bound, return that
+    return &it->second;
+  }
+
+  virtual const Component* getRawComponent(Handle object, const ComponentType& component) override {
+    return _getComponent(object, component);
   }
 
   virtual MessageQueueProvider& getMessageProvider() const override {
@@ -342,8 +410,22 @@ private:
     return mSystem.getObject(handle);
   }
 
+  const Component* _getComponentFromSystem(const ComponentKey& key) {
+    const LuaGameObject* obj = mSystem.getObject(key.mOwner);
+    return obj ? obj->getComponent(key.mType) : nullptr;
+  }
+
+  const Component* _getComponent(Handle handle, const ComponentType& component) {
+    if(auto cached = mComponentCache.tryGet({ handle, component })) {
+      return *cached;
+    }
+    //Could do _getObject or go straight to the system. Since the component is not in the component cache it wouldn't make any sense for the object itself to be in the object cache
+    return _getComponentFromSystem({ handle, component });
+  }
+
   HandleMap<std::weak_ptr<LuaGameObject>> mObjects;
   std::unordered_map<Handle, LuaBoundGameObject> mBoundObjects;
+  std::unordered_map<ComponentKey, LuaBoundComponent> mBoundComponents;
   std::unique_ptr<Lua::State> mState;
   //Cache of components used to hold changes made this frame until next frame when they are officially applied via messages.
   //For this reason, the cache is cleared every frame

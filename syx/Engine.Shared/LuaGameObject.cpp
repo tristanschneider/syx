@@ -249,8 +249,6 @@ int LuaGameObject::toString(lua_State* l) {
   return 1;
 }
 
-#include "component/LuaComponentRegistry.h"
-
 int LuaGameObject::indexOverload(lua_State* l) {
   IGameObject& obj = getObj(l, 1);
   const char* key = luaL_checkstring(l, 2);
@@ -266,8 +264,8 @@ int LuaGameObject::indexOverload(lua_State* l) {
   }
 
   //If key isn't known, assume it's a component name and try to find it
-  if(const Component* comp = obj.getComponentByPropName(key)) {
-    comp->push(l);
+  if(IComponent* comp = obj.getComponentByPropName(key)) {
+    Component::push(l, *comp);
   }
   else {
     //No component by this name, return null
@@ -285,10 +283,10 @@ int LuaGameObject::newIndexOverload(lua_State* l) {
 
   //Trying to add component
   if(valueType == LUA_TTABLE) {
-    const Component* comp = self.addComponentFromPropName(key);
+    IComponent* comp = self.addComponentFromPropName(key);
     luaL_argcheck(l, comp != nullptr, 2, "no such component exists");
     lua_pushvalue(l, 3);
-    comp->setPropsFromStack(l, game.getMessageProvider());
+    Component::setPropsFromStack(l, *comp);
     lua_pop(l, 1);
   }
   //Trying to remove component. Setting invalid component name to nil is fine, as it wouldn't do anything
@@ -301,8 +299,8 @@ int LuaGameObject::newIndexOverload(lua_State* l) {
 int LuaGameObject::addComponent(lua_State* l) {
   IGameObject& obj = getObj(l, 1);
   const char* componentName = luaL_checkstring(l, 2);
-  if(const Component* result = obj.addComponent(componentName)) {
-    result->push(l);
+  if(IComponent* result = obj.addComponent(componentName)) {
+    Component::push(l, *result);
   }
   else {
     lua_pushnil(l);

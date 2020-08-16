@@ -15,6 +15,8 @@ void Space::setTimescale(float timescale) {
   mTimescale = timescale;
 }
 
-int Space::push(lua_State* l) const {
-  return mInstance.push(l);
+int Space::push(lua_State*) const {
+  //TODO: fix this
+  //return mInstance.push(l);
+  return 0;
 }

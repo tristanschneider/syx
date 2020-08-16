@@ -19,6 +19,8 @@ std::unique_ptr<Component> CameraComponent::clone() const {
 
 void CameraComponent::set(const Component& component) {
   assert(getType() == component.getType() && "set type should match");
+  const CameraComponent& rhs = static_cast<const CameraComponent&>(component);
+  mViewportName = rhs.mViewportName;
 }
 
 const Lua::Node* CameraComponent::getLuaProps() const {

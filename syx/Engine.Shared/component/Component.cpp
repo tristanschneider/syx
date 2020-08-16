@@ -78,6 +78,15 @@ Component::Component(Handle type, Handle owner)
 Component::~Component() {
 }
 
+void Component::set(const Component& component) {
+  assert(getFullType() == component.getFullType() && "Caller should make ssure types match before calling set");
+  if (const Lua::Node* props = component.getLuaProps()) {
+    std::vector<uint8_t> buffer(props->size());
+    props->copyToBuffer(&component, buffer.data());
+    props->copyFromBuffer(this, buffer.data());
+  }
+}
+
 const Lua::Node* Component::getLuaProps() const {
   return nullptr;
 }
@@ -94,13 +103,13 @@ AssetRepo* Component::getAssetRepo() const {
   return AssetRepo::get();
 }
 
-int Component::push(lua_State* l) const {
+int Component::push(lua_State* l, IComponent& component) {
   // Lua must take a mutable void pointer, but Component will only expose accessor as const when getting it back out, so const_cast is safe
-  return sLuaCache->push(l, const_cast<Component*>(this), mCacheId, getTypeInfo().mTypeName.c_str());
+  return sLuaCache->push(l, &component, component.get().mCacheId, component.get().getTypeInfo().mTypeName.c_str());
 }
 
-ComponentPublisher Component::_checkSelf(lua_State* l, const std::string& type, int arg) {
-  return ComponentPublisher(*static_cast<Component*>(sLuaCache->checkParam(l, arg, type.c_str())));
+IComponent& Component::_checkSelf(lua_State* l, const std::string& type, int arg) {
+  return *static_cast<IComponent*>(sLuaCache->checkParam(l, arg, type.c_str()));
 }
 
 void Component::invalidate(lua_State* l) const {
@@ -128,37 +137,37 @@ const ComponentTypeInfo& Component::getTypeInfo() const {
   return result;
 }
 
-void Component::setPropsFromStack(lua_State* l, MessageQueueProvider& msg) const {
-  if(const Lua::Node* props = getLuaProps()) {
+void Component::setPropsFromStack(lua_State* l, IComponent& component) {
+  const Component& self = component.get();
+  if(const Lua::Node* props = self.getLuaProps()) {
     //Read the data into a copy and send an event with the change to apply it next frame
-    //TODO: stack allocations
-    std::unique_ptr<Component> copy = clone();
+    std::unique_ptr<Component> copy = self.clone();
+
     lua_pushvalue(l, -1);
     props->readFromLua(l, copy.get(), Lua::Node::SourceType::FromStack);
     lua_pop(l, 1);
-    std::vector<uint8_t> buffer(props->size());
-    props->copyConstructToBuffer(copy.get(), &buffer[0]);
-    msg.getMessageQueue().get().push(SetComponentPropsEvent(copy->getOwner(), copy->getFullType(), props, ~Lua::NodeDiff(0), std::move(buffer)));
+
+    component.set(*copy);
   }
 }
 
-void Component::setPropFromStack(lua_State* l, const char* name, MessageQueueProvider& msg) const {
-  if(const Lua::Node* props = getLuaProps()) {
+void Component::setPropFromStack(lua_State* l, IComponent& component, const char* name) {
+  const Component& self = component.get();
+  if(const Lua::Node* props = self.getLuaProps()) {
     //TODO: support a way to get children several levels deep?
     if(const Lua::Node* foundProp = props->getChild(name)) {
       //Make a buffer big enough to hold the whole component
-      //TODO: stack allocate
       std::vector<uint8_t> buff(props->size());
       //Translate to part of buffer where property goes
-      void* propValue = foundProp->_translateBufferToNode(&buff[0]);
+      std::unique_ptr<Component> mutableCopy = self.clone();
+      void* propValue = foundProp->_translateBaseToNode(mutableCopy.get());
 
-      //Write property value in buffer
+      //Write property value in copy
       lua_pushvalue(l, 3);
-      foundProp->readFromLuaToBuffer(l, propValue, Lua::Node::SourceType::FromStack);
+      foundProp->readFromLua(l, propValue, Lua::Node::SourceType::FromStack);
       lua_pop(l, 1);
- 
-      //Send with diff indicating the appropriate part of the buffer
-      msg.getMessageQueue().get().push(SetComponentPropsEvent(getOwner(), getFullType(), props, foundProp->_getDiffId(), std::move(buff)));
+
+      component.set(*mutableCopy);
     }
   }
 }
@@ -168,23 +177,23 @@ void Component::baseOpenLib(lua_State* l) {
 }
 
 int Component::_getName(lua_State* l, const std::string& type) {
-  ComponentPublisher self = _checkSelf(l, type);
-  const std::string& name = self->getTypeInfo().mPropName;
+  IComponent& self = _checkSelf(l, type);
+  const std::string& name = self.get().getTypeInfo().mPropName;
   lua_pushlstring(l, name.c_str(), name.size());
   return 1;
 }
 
 int Component::_getType(lua_State* l, const std::string& type) {
-  ComponentPublisher self = _checkSelf(l, type);
-  const std::string& name = self->getTypeInfo().mTypeName;
+  IComponent& self = _checkSelf(l, type);
+  const std::string& name = self.get().getTypeInfo().mTypeName;
   lua_pushlstring(l, name.c_str(), name.size());
   return 1;
 }
 
 int Component::_getOwner(lua_State* l, const std::string& type) {
-  ComponentPublisher self = _checkSelf(l, type);
+  IComponent& self = _checkSelf(l, type);
   ILuaGameContext& game = Lua::checkGameContext(l);
-  if(IGameObject* obj = game.getGameObject(self->getOwner())) {
+  if(IGameObject* obj = game.getGameObject(self.get().getOwner())) {
     return LuaGameObject::push(l, *obj);
   }
   return 0;
@@ -192,9 +201,9 @@ int Component::_getOwner(lua_State* l, const std::string& type) {
 
 int Component::_getProps(lua_State* l, const std::string& type) {
   Lua::StackAssert sa(l, 1);
-  ComponentPublisher self = _checkSelf(l, type);
-  if(const Lua::Node* props = self->getLuaProps()) {
-    props->writeToLua(l, self.get());
+  IComponent& self = _checkSelf(l, type);
+  if(const Lua::Node* props = self.get().getLuaProps()) {
+    props->writeToLua(l, &self.get());
   }
   else {
     lua_newtable(l);
@@ -204,25 +213,24 @@ int Component::_getProps(lua_State* l, const std::string& type) {
 
 int Component::_setProps(lua_State* l, const std::string& type) {
   Lua::StackAssert sa(l);
-  ComponentPublisher self = _checkSelf(l, type);
-  ILuaGameContext& game = Lua::checkGameContext(l);
+  IComponent& self = _checkSelf(l, type);
   luaL_checktype(l, 2, LUA_TTABLE);
 
   lua_pushvalue(l, 2);
-  self->setPropsFromStack(l, game.getMessageProvider());
+  setPropsFromStack(l, self);
   lua_pop(l, 1);
   return 0;
 }
 
 int Component::_getProp(lua_State* l, const std::string& type) {
   Lua::StackAssert sa(l, 1);
-  ComponentPublisher self = _checkSelf(l, type);
+  IComponent& self = _checkSelf(l, type);
   const char* propName = luaL_checkstring(l, 2);
 
-  if(const Lua::Node* props = self->getLuaProps()) {
+  if(const Lua::Node* props = self.get().getLuaProps()) {
     //TODO: support a way to get children several levels deep?
     if(const Lua::Node* foundProp = props->getChild(propName)) {
-      foundProp->writeToLua(l, self.get());
+      foundProp->writeToLua(l, &self.get());
       return 1;
     }
   }
@@ -233,20 +241,19 @@ int Component::_getProp(lua_State* l, const std::string& type) {
 
 int Component::_setProp(lua_State* l, const std::string& type) {
   Lua::StackAssert sa(l);
-  ComponentPublisher self = _checkSelf(l, type);
+  IComponent& self = _checkSelf(l, type);
   const char* propName = luaL_checkstring(l, 2);
-  ILuaGameContext& game = Lua::checkGameContext(l);
 
-  self->setPropFromStack(l, propName, game.getMessageProvider());
+  setPropFromStack(l, self, propName);
   return 0;
 }
 
 int Component::_indexOverload(lua_State* l, const std::string& type) {
-  ComponentPublisher self = _checkSelf(l, type);
+  IComponent& self = _checkSelf(l, type);
   const char* propName = luaL_checkstring(l, 2);
   //Determine if they're accessinga  property or calling a function
   //Property exists, access property
-  if(self->_getPropByName(propName))
+  if(self.get()._getPropByName(propName))
     return _getProp(l, type);
   //Property doesn't exist, fall back to default, which is most likely a function
   return Lua::Util::defaultIndex(l);

@@ -7,6 +7,7 @@ class Camera;
 class ComponentPublisher;
 class DebugDrawer;
 class EventBuffer;
+struct IComponent;
 class LuaGameObject;
 class LuaGameObjectProvider;
 class LuaGameSystem;
@@ -135,13 +136,14 @@ public:
   AssetRepo* getAssetRepo() const;
 
   //Push lua component onto stack
-  int push(lua_State* l) const;
+  static int push(lua_State* l, IComponent& component);
   void invalidate(lua_State* l) const;
 
   void addSync(EventBuffer& msg) const;
   void sync(EventBuffer& msg, Lua::NodeDiff diff = ~0) const;
 
   virtual std::unique_ptr<Component> clone() const = 0;
+  //Base version sets this object based on its properties, derived types can do explicit assignment as an optimization
   virtual void set(const Component& component) = 0;
 
   virtual const Lua::Node* getLuaProps() const;
@@ -151,8 +153,8 @@ public:
 
   virtual void onEditorUpdate(const LuaGameObject&, bool, EditorUpdateArgs&) const {}
 
-  void setPropsFromStack(lua_State* l, MessageQueueProvider& msg) const;
-  void setPropFromStack(lua_State* l, const char* name, MessageQueueProvider& msg) const;
+  static void setPropsFromStack(lua_State* l, IComponent& component);
+  static void setPropFromStack(lua_State* l, IComponent& component, const char* name);
 
   static void baseOpenLib(lua_State* l);
   static int _getName(lua_State* l, const std::string& type);
@@ -165,7 +167,7 @@ public:
   static int _indexOverload(lua_State* l, const std::string& type);
   static int _newIndexOverload(lua_State* l, const std::string& type);
 
-  static ComponentPublisher _checkSelf(lua_State* l, const std::string& type, int arg = 1);
+  static IComponent& _checkSelf(lua_State* l, const std::string& type, int arg = 1);
 
   static const std::string LUA_PROPS_KEY;
 
