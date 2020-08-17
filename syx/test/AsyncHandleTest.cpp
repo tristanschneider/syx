@@ -100,6 +100,62 @@ namespace ThreadingTests {
       Assert::IsTrue(Async::createCompleteHandle()->getStatus() == AsyncStatus::Complete, L"Complete tasks should have completed state", LINE_INFO());
     }
 
+    TEST_METHOD(AsyncHandle_ThenValues_CallbackAfterTask) {
+      auto first = Async::createAsyncHandle<int>();
+
+      bool wasCalled = false;
+      auto second = Async::thenResult(*first, [&wasCalled](IAsyncHandle<int>& prev) {
+        Assert::AreEqual(*prev.getResult(), 10, L"First value should match completion", LINE_INFO());
+        wasCalled = true;
+        return Async::createResult(std::string("complete"));
+      });
+
+      Assert::IsFalse(wasCalled, L"Callbacks shouldn't trigger before task completes", LINE_INFO());
+
+      Async::setComplete(*first, 10);
+
+      Assert::IsTrue(wasCalled, L"Callback should be triggered after completion", LINE_INFO());
+      Assert::IsTrue(second->getStatus() == AsyncStatus::Complete, L"Then task should be completed", LINE_INFO());
+      Assert::AreEqual(*second->getResult(), std::string("complete"), L"Wrapped value should match", LINE_INFO());
+    }
+
+    TEST_METHOD(AsyncHandle_ThenValuesToVoid_Compiles) {
+      auto first = Async::createAsyncHandle<int>();
+      auto second = Async::thenResult(*first, [](IAsyncHandle<int>&) {
+        return Async::createResult();
+      });
+    }
+
+    TEST_METHOD(AsyncHandle_ThenAsyncValues_CallbacksAreCalled) {
+      auto original = Async::createAsyncHandle<int>();
+
+      auto innerTask = Async::createAsyncHandle<std::string>();
+      bool allChained = false;
+      auto wrapper = Async::thenHandle(*original, [innerTask](IAsyncHandle<int>&) {
+        return innerTask;
+      });
+
+      wrapper->then([&allChained](IAsyncHandle<std::string>& chained) {
+        Assert::AreEqual(*chained.getResult(), std::string("complete"), L"Value should be passed through to wrapper", LINE_INFO());
+        allChained = true;
+      });
+
+      Async::setComplete(*original, 10);
+      Async::setComplete(*innerTask, std::string("complete"));
+
+      Assert::IsTrue(allChained, L"All callbacks should be triggered", LINE_INFO());
+    }
+
+    TEST_METHOD(AsyncHandle_THenAsyncVoid_Compiles) {
+      auto original = Async::createAsyncHandle<int>();
+      auto innerTask = Async::createAsyncHandle<void>();
+      Async::thenHandle(*original, [innerTask](IAsyncHandle<int>&) {
+        return innerTask;
+      });
+      Async::setComplete(*original, 10);
+      Async::setComplete(*innerTask);
+    }
+
     TEST_METHOD(CompleteHandle_CreateInt_IsComplete) {
       const int value = 10;
 

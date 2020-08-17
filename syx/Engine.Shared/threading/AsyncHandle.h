@@ -13,6 +13,7 @@ enum class AsyncStatus {
 template<class T>
 struct AsyncResult {
   struct Void {};
+  using TemplateT = T;
   using ValueT = std::conditional_t<std::is_void_v<T>, Void, T>;
 
   ValueT& operator*() { return mValue; }
@@ -26,6 +27,7 @@ struct AsyncResult {
 template<class ResultT>
 struct IAsyncHandle {
   using OnComplete = std::function<void(IAsyncHandle&)>;
+  using TemplateT = ResultT;
 
   virtual ~IAsyncHandle() = default;
   virtual const AsyncResult<ResultT>& getResult() const = 0;
@@ -41,7 +43,7 @@ namespace Async {
   }
 
   AsyncResult<void> createResult() {
-    return AsyncResult<void>{};
+    return {};
   }
 
   namespace Details {
@@ -166,10 +168,34 @@ namespace Async {
     handle.complete({});
   }
 
-  template<class Callback, class ChainedTask>
-  std::shared_ptr<ChainedTask> then(Callback callback) {
-    //TODO:
-    callback;
-    return nullptr;
+  //Create a chained handle using a function that returns an AsyncResult
+  template<class Callback, class T>
+  auto thenResult(IAsyncHandle<T>& prev, Callback callback) {
+    using ResultT = std::invoke_result_t<Callback, IAsyncHandle<T>&>;
+    using WrappedType = typename ResultT::TemplateT;
+    auto wrapperTask = createAsyncHandle<WrappedType>();
+    prev.then([wrapperTask, callback(std::move(callback))](IAsyncHandle<T>& outerTask) {
+      wrapperTask->complete(callback(outerTask));
+    });
+    return wrapperTask;
+  }
+
+  //Create a chaned handle using a function that returns a new AsyncHandle
+  template<class Callback, class T>
+  auto thenHandle(IAsyncHandle<T>& prev, Callback callback) {
+    using ResultT = std::invoke_result_t<Callback, IAsyncHandle<T>&>;
+    //Dig out the type from the shared pointer to an IAsyncHandle
+    using WrappedType = typename ResultT::element_type::TemplateT;
+    //Create a wrapper task to represent the final result, the chained task can't start until prev finishes
+    auto wrapperTask = createAsyncHandle<WrappedType>();
+    prev.then([wrapperTask, callback(std::move(callback))](IAsyncHandle<T>& outerTask) {
+      //Prev has finished, use the result to create the task from the callback
+      auto chainedTask = callback(outerTask);
+      //Forward the result from the chained task to the wrapper task so the caller of thenResult can use it
+      chainedTask->then([wrapperTask](auto& original) {
+        wrapperTask->complete(original.getResult());
+      });
+    });
+    return wrapperTask;
   }
 };
