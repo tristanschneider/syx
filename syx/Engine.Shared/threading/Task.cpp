@@ -51,9 +51,9 @@ void Task::addDependent(std::shared_ptr<Task> dependent) {
 
   //RW lock would be great here as this is only needed if the task finishes while a dependency is added
   mDependentsMutex.lock();
-  mDependents.push_back(dependent.get());
   if(mState != TaskState::Done) {
     dependent->mDependencies.fetch_add(1);
+    mDependents.push_back(dependent.get());
   }
   mDependentsMutex.unlock();
 

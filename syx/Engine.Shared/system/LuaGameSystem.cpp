@@ -279,6 +279,7 @@ void LuaGameSystem::_onSpaceSave(const SaveSpaceEvent& e) {
 }
 
 void LuaGameSystem::_onSpaceLoad(const LoadSpaceEvent& e) {
+  //TODO: fix lifetime here, _load is async and needs the context to last
   auto context = _createGameContext();
   SpaceComponent::_load(context->getLuaState(), e.mSpace, e.mFile);
 }
