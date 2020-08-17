@@ -157,6 +157,7 @@
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="AsyncHandleTest.cpp" />
     <ClCompile Include="LockTest.cpp" />
     <ClCompile Include="lua\GameObjectTests.cpp" />
     <ClCompile Include="ObserverTest.cpp" />

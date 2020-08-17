@@ -208,6 +208,7 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)system\PhysicsSystem.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)system\System.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)test\TestRegistry.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)threading\AsyncHandle.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)threading\FunctionTask.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)threading\IWorkerPool.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)threading\RWLock.h" />
