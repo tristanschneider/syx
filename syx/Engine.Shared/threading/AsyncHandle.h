@@ -42,7 +42,7 @@ namespace Async {
     return AsyncResult<std::decay_t<T>>{ std::move(result) };
   }
 
-  AsyncResult<void> createResult() {
+  inline AsyncResult<void> createResult() {
     return {};
   }
 
@@ -155,7 +155,7 @@ namespace Async {
     return std::make_shared<Details::CompleteHandle<T>>(Async::createResult(std::move(value)));
   }
 
-  std::shared_ptr<IAsyncHandle<void>> createCompleteHandle() {
+  inline std::shared_ptr<IAsyncHandle<void>> createCompleteHandle() {
     return std::make_shared<Details::CompleteHandle<void>>(Async::createResult());
   }
 
@@ -164,7 +164,7 @@ namespace Async {
     handle.complete({ std::move(result) });
   }
 
-  void setComplete(Details::AsyncHandle<void>& handle) {
+  inline void setComplete(Details::AsyncHandle<void>& handle) {
     handle.complete({});
   }
 

@@ -10,6 +10,8 @@
 #include <lua.hpp>
 #include <SyxVec3.h>
 #include <SyxQuat.h>
+#include "Util.h"
+#include "util/TypeId.h"
 
 namespace Lua {
   NodeOps::NodeOps(Node* parent, std::string&& name, int index, size_t offset)
@@ -559,21 +561,26 @@ namespace Lua {
 
   void Mat4Node::_readFromLua(lua_State* s, void* base) const {
     Syx::Mat4& m = *static_cast<Syx::Mat4*>(base);
-    for(int i = 0; i < 16; ++i) {
-      lua_pushinteger(s, i + 1);
-      lua_gettable(s, -2);
-      m.mData[i] = static_cast<float>(lua_tonumber(s, -1));
-      lua_pop(s, 1);
+    //The visual layout is [c0.x, c1.x, c2.x, c3.x] but the data layout is [c0.x, c0.y, c0.z, c0.w] so have columns in the inner loop
+    for(int r = 0; r < 4; ++r) {
+      for(int c = 0; c < 4; ++c) {
+        lua_pushinteger(s, (r * 4) + c + 1);
+        lua_gettable(s, -2);
+        m[c][r] = static_cast<float>(lua_tonumber(s, -1));
+        lua_pop(s, 1);
+      }
     }
   }
 
   void Mat4Node::_writeToLua(lua_State* s, const void* base) const {
     lua_createtable(s, 16, 0);
     const Syx::Mat4& m = *static_cast<const Syx::Mat4*>(base);
-    for(int i = 0; i < 16; ++i) {
-      lua_pushinteger(s, i + 1);
-      lua_pushnumber(s, m.mData[i]);
-      lua_settable(s, -3);
+    for(int r = 0; r < 4; ++r) {
+      for(int c = 0; c < 4; ++c) {
+        lua_pushinteger(s, (r * 4) + c + 1);
+        lua_pushnumber(s, m[c][r]);
+        lua_settable(s, -3);
+      }
     }
   }
 }

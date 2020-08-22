@@ -23,14 +23,6 @@ namespace Lua {
   using NodeDiff = uint64_t;
 };
 
-#define DEFINE_COMPONENT(compType, ...) namespace {\
-    static Component::Registry::Registrar compType##_reg(Component::typeId<compType>(), [](Handle h) {\
-      return std::make_unique<compType>(h);\
-    });\
-  }\
-  compType::compType(Handle owner)\
-    : Component(Component::typeId<compType>(), owner)
-
 #define WRAP_BASE_FUNC(func) static int func(lua_State* l) { return Component::func(l, singleton().getTypeInfo().mTypeName); }
 //Implement base functions with wrappers for the derived class
 #define COMPONENT_LUA_INHERIT(type)\
@@ -79,24 +71,6 @@ struct ComponentType {
 class Component {
 public:
   DECLARE_TYPE_CATEGORY;
-
-  class Registry {
-  public:
-    using Constructor = std::function<std::unique_ptr<Component>(Handle)>;
-
-    struct Registrar {
-      Registrar(size_t type, Constructor ctor);
-    };
-
-    static void registerComponent(size_t type, Constructor ctor);
-    static std::unique_ptr<Component> construct(size_t type, Handle owner);
-    static const TypeMap<Constructor, Component>& getConstructors();
-  private:
-    Registry();
-    static Registry& _get();
-
-    TypeMap<Constructor, Component> mCtors;
-  };
 
   struct EditorUpdateArgs {
     const LuaGameObjectProvider& objects;
@@ -187,4 +161,17 @@ protected:
 private:
   static const std::string BASE_CLASS_NAME;
   static std::unique_ptr<Lua::Cache> sLuaCache;
+};
+
+//Convenience wrapper for constructor inheritance
+template<class T>
+class TypedComponent : public Component {
+public:
+  TypedComponent(Handle h)
+    : Component(Component::typeId<T>(), h) {
+  }
+  TypedComponent(const TypedComponent& rhs)
+    : Component(rhs.getType(), rhs.getOwner()) {
+  }
+  virtual ~TypedComponent() = default;
 };

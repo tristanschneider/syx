@@ -21,11 +21,8 @@ PhysicsData::PhysicsData()
   , mAngVel(Syx::Vec3::Zero) {
 }
 
-DEFINE_COMPONENT(Physics) {
-}
-
 Physics::Physics(const Physics& other)
-  : Component(other.getType(), other.getOwner())
+  : TypedComponent(other)
   , mData(other.mData) {
 }
 

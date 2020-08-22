@@ -4,12 +4,10 @@
 #include "lua/LuaNode.h"
 #include "lua/LuaUtil.h"
 #include <lua.hpp>
-
-DEFINE_COMPONENT(CameraComponent) {
-}
+#include "Util.h"
 
 CameraComponent::CameraComponent(const CameraComponent& rhs)
-  : Component(rhs.getType(), rhs.getOwner())
+  : TypedComponent(rhs)
   , mViewportName(rhs.mViewportName) {
 }
 

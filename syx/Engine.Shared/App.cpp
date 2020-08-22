@@ -3,12 +3,14 @@
 
 #include "AppPlatform.h"
 #include "AppRegistration.h"
+#include "component/LuaComponentRegistry.h"
 #include "event/EventBuffer.h"
 #include "event/LifecycleEvents.h"
 #include "file/FilePath.h"
 #include "file/FileSystem.h"
 #include "ImGuiImpl.h"
 #include "ProjectLocator.h"
+#include "provider/ComponentRegistryProvider.h"
 #include "provider/GameObjectHandleProvider.h"
 #include "system/GraphicsSystem.h"
 #include "test/TestRegistry.h"
@@ -39,7 +41,8 @@ App::App(std::unique_ptr<AppPlatform> appPlatform, std::unique_ptr<AppRegistrati
   , mAppPlatform(std::move(appPlatform))
   , mProjectLocator(std::make_unique<ProjectLocator>())
   , mMessageLock(std::make_unique<SpinLock>())
-  , mGameObjectGen(std::make_unique<GameObjectGen>()) {
+  , mGameObjectGen(std::make_unique<GameObjectGen>())
+  , mComponentRegistry(Registry::createComponentRegistryProvider()) {
   FilePath path, file, ext;
   FilePath exePath(mAppPlatform->getExePath().c_str());
   exePath.getParts(path, file, ext);
@@ -52,9 +55,11 @@ App::App(std::unique_ptr<AppPlatform> appPlatform, std::unique_ptr<AppRegistrati
     mGameObjectGen.get(),
     mProjectLocator.get(),
     mAppPlatform.get(),
+    mComponentRegistry.get(),
   };
   auto systems = Registry::createSystemRegistry();
   registration->registerSystems(args, *systems);
+  registration->registerComponents(mComponentRegistry->getWriter().first);
   mSystems = systems->takeSystems();
 
   //TODO: move this to test project
@@ -67,7 +72,7 @@ App::~App() {
 }
 
 void App::onUriActivated(std::string uri) {
-  const UriActivated activated(uri);
+  UriActivated activated(uri);
   //TODO: where should this go?
   const auto it = activated.mParams.find("projectRoot");
   if(it != activated.mParams.end() && FileSystem::isDirectory(it->second.c_str())) {

@@ -4,6 +4,7 @@
 #include "provider/SystemProvider.h"
 
 class AppRegistration;
+class ComponentRegistryProvider;
 class GameObjectHandleProvider;
 class GraphicsSystem;
 class KeyboardInput;
@@ -42,4 +43,5 @@ private:
   std::unique_ptr<ProjectLocator> mProjectLocator;
   std::unique_ptr<GameObjectHandleProvider> mGameObjectGen;
   std::unique_ptr<SpinLock> mMessageLock;
+  std::unique_ptr<ComponentRegistryProvider> mComponentRegistry;
 };

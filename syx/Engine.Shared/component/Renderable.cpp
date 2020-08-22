@@ -11,12 +11,13 @@ DEFINE_EVENT(RenderableUpdateEvent, const RenderableData& data, Handle obj)
   , mData(data) {
 }
 
-DEFINE_COMPONENT(Renderable) {
+Renderable::Renderable(Handle h)
+  : TypedComponent(h) {
   mData.mModel = mData.mDiffTex = InvalidHandle;
 }
 
 Renderable::Renderable(const Renderable& other)
-  : Component(other.getType(), other.getOwner())
+  : TypedComponent(other)
   , mData(other.mData) {
 }
 

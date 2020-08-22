@@ -14,11 +14,11 @@ class AssetPreview;
 class AssetRepo;
 class ClearSpaceEvent;
 class Component;
+class ComponentRegistryProvider;
 class FilePath;
 class GameObjectHandleProvider;
 struct ILuaGameContext;
 class LoadSpaceEvent;
-class LuaComponentRegistry;
 class LuaGameObject;
 class LuaGameSystem;
 class LuaSpace;
@@ -59,8 +59,7 @@ public:
 // Pending state is tracked locally within the context until the messages are processed by the system, who is the source of truth
 class LuaGameSystem
   : public System
-  , public LuaGameObjectProvider
-  , public ComponentRegistryProvider {
+  , public LuaGameObjectProvider {
 public:
   static const char* CLASS_NAME;
 
@@ -78,8 +77,7 @@ public:
   MessageQueue getMessageQueue();
   MessageQueueProvider& getMessageQueueProvider();
   AssetRepo& getAssetRepo();
-  const LuaComponentRegistry& getComponentRegistry() const;
-  void forEachComponentType(const std::function<void(const Component&)>& callback) const override;
+  ComponentRegistryProvider& getComponentRegistry() const;
   //Safe to access lock free for any task queued as a dependency or dependent of event processing
   const HandleMap<std::shared_ptr<LuaGameObject>>& getObjects() const;
   Space& getSpace(Handle id);
@@ -97,8 +95,6 @@ private:
 
   std::unique_ptr<ILuaGameContext> _createGameContext();
   ILuaGameContext& _getNextGameContext();
-
-  void _registerBuiltInComponents();
 
   void _onAllSystemsInit(const AllSystemsInitialized& e);
   void _onAddComponent(const AddComponentEvent& e);
@@ -118,7 +114,6 @@ private:
 
   HandleMap<std::shared_ptr<LuaGameObject>> mObjects;
   std::unique_ptr<Lua::LuaLibGroup> mLibs;
-  std::unique_ptr<LuaComponentRegistry> mComponents;
   // TODO: I don't think this lock is necessary
   mutable RWLock mComponentsLock;
   std::unordered_map<Handle, Space> mSpaces;

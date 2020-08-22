@@ -10,10 +10,12 @@ struct lua_State;
 struct ILuaGameContext;
 struct LuaSceneDescription;
 
-class SpaceComponent : public Component {
+template<class ResultT>
+struct IAsyncHandle;
+
+class SpaceComponent : public TypedComponent<SpaceComponent> {
 public:
-  SpaceComponent(Handle owner);
-  SpaceComponent(const SpaceComponent& rhs);
+  using TypedComponent::TypedComponent;
 
   void set(Handle id);
   Handle get() const;
@@ -37,7 +39,8 @@ public:
   //returns true if scene exists
   //bool load(self, string filename)
   static int load(lua_State* l);
-  static bool _load(lua_State* l, Handle space, const char* filename);
+  //Can return nullptr if scene doesn't exist, async bool indicates success of the async load
+  static std::shared_ptr<IAsyncHandle<bool>> _load(lua_State* l, Handle space, const char* filename);
   //void clear(self)
   static int clear(lua_State* l);
   //Gameobject addObject(self, table)
@@ -51,5 +54,5 @@ private:
   static FilePath _sceneNameToFullPath(ILuaGameContext& game, const char* scene);
   std::unique_ptr<Lua::Node> _buildLuaProps() const;
 
-  Handle mId;
+  Handle mId = 0;
 };

@@ -2,6 +2,9 @@
 #include "Component.h"
 #include "event/Event.h"
 
+#include "SyxMat4.h"
+#include "SyxVec3.h"
+
 struct PhysicsData {
   PhysicsData();
 
@@ -23,9 +26,9 @@ public:
   Handle mOwner;
 };
 
-class Physics : public Component {
+class Physics : public TypedComponent<Physics> {
 public:
-  Physics(Handle owner);
+  using TypedComponent::TypedComponent;
   Physics(const Physics& other);
 
   const PhysicsData& getData() const {

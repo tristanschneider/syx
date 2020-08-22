@@ -1,6 +1,7 @@
 #include "Precompile.h"
 #include "ObjectInspector.h"
 
+#include "component/LuaComponentRegistry.h"
 #include "editor/DefaultInspectors.h"
 #include "editor/event/EditorEvents.h"
 #include "editor/Picker.h"
@@ -163,7 +164,7 @@ void ObjectInspector::_showComponentPicker() const {
   auto popPad = finally([&pad]() { pad.pop(); });
 
   picker.forEachItem = [this](const Picker::PickerInfo::ForEachCallback& callback) {
-    mComponentRegistry.forEachComponentType([&callback, this](const Component& type) {
+    mComponentRegistry.getReader().first.forEachComponent([&callback, this](const Component& type) {
       const bool canAddComponent = std::any_of(mSelectedData.begin(), mSelectedData.end(), [&type](const std::unique_ptr<LuaGameObject>& obj) {
         return obj->getComponent(type.getType(), type.getSubType()) == nullptr;
       });

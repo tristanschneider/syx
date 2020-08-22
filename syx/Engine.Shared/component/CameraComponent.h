@@ -1,9 +1,9 @@
 #pragma once
 #include "Component.h"
 
-class CameraComponent : public Component {
+class CameraComponent : public TypedComponent<CameraComponent> {
 public:
-  CameraComponent(Handle owner);
+  using TypedComponent::TypedComponent;
   CameraComponent(const CameraComponent& rhs);
   virtual ~CameraComponent() = default;
 

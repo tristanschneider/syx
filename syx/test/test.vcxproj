@@ -160,6 +160,7 @@
     <ClCompile Include="AsyncHandleTest.cpp" />
     <ClCompile Include="LockTest.cpp" />
     <ClCompile Include="lua\GameObjectTests.cpp" />
+    <ClCompile Include="Mat4Test.cpp" />
     <ClCompile Include="ObserverTest.cpp" />
     <ClCompile Include="Precompile.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>

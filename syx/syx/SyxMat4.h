@@ -56,7 +56,7 @@ namespace Syx {
     static Mat4 perspective(float fovX, float fovY, float near, float far);
     static Mat4 orthographic(float width, float height, float near, float far);
 
-    //Layout to match opengl
+    //Layout to match opengl, which is that the basis vectors (columns) are contiguous in memory
     union {
       float mData[16];
       // mColRow[1][2] means first column vector, second component so basisY.z

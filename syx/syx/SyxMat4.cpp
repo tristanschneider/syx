@@ -5,10 +5,10 @@ namespace Syx {
     float r10, float r11, float r12, float r13,
     float r20, float r21, float r22, float r23,
     float r30, float r31, float r32, float r33)
-    : mData{ r00, r01, r02, r03,
-            r10, r11, r12, r13,
-            r20, r21, r22, r23,
-            r30, r31, r32, r33 } {
+    : mData{ r00, r10, r20, r30,
+             r01, r11, r21, r31,
+             r02, r12, r22, r32,
+             r03, r13, r23, r33 } {
   }
 
   Mat4::Mat4(const Vec3& c0, const Vec3& c1, const Vec3& c2, const Vec3& c3)

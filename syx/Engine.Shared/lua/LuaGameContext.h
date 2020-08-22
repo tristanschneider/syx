@@ -1,7 +1,9 @@
 #pragma once
+#include "Util.h"
 
 class AssetRepo;
 class Component;
+class ComponentRegistryProvider;
 struct ComponentType;
 class GameObjectHandleProvider;
 struct IGameObject;
@@ -77,9 +79,9 @@ struct ILuaGameContext {
   virtual GameObjectHandleProvider& getGameObjectGen() = 0;
   virtual const Space& getOrCreateSpace(Handle id) const = 0;
   virtual IWorkerPool& getWorkerPool() = 0;
-  virtual std::unique_ptr<Lua::State> createLuaState() const = 0;
+  virtual std::unique_ptr<Lua::State> createLuaState() = 0;
   virtual SystemProvider& getSystemProvider() = 0;
-  virtual const LuaComponentRegistry& getComponentRegistry() const = 0;
+  virtual const ComponentRegistryProvider& getComponentRegistry() const = 0;
 };
 
 namespace Lua {

@@ -2,6 +2,7 @@
 #include "util/TypeId.h"
 
 class App;
+class ComponentRegistryProvider;
 class IWorkerPool;
 class Task;
 class Event;
@@ -19,12 +20,13 @@ class ProjectLocator;
   });
 
 struct SystemArgs {
-  IWorkerPool* mPool;
-  SystemProvider* mSystems;
-  MessageQueueProvider* mMessages;
-  GameObjectHandleProvider* mGameObjectGen;
-  const ProjectLocator* mProjectLocator;
-  AppPlatform* mAppPlatform;
+  IWorkerPool* mPool = nullptr;
+  SystemProvider* mSystems = nullptr;
+  MessageQueueProvider* mMessages = nullptr;
+  GameObjectHandleProvider* mGameObjectGen = nullptr;
+  const ProjectLocator* mProjectLocator = nullptr;
+  AppPlatform* mAppPlatform = nullptr;
+  ComponentRegistryProvider* mComponentRegistry = nullptr;
 };
 
 class System {

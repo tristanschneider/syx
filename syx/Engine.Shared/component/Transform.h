@@ -7,7 +7,7 @@ namespace Syx {
   struct Quat;
 };
 
-class Transform : public Component {
+class Transform : public TypedComponent<Transform> {
 public:
   Transform(Handle owner);
   Transform(const Transform& rhs);

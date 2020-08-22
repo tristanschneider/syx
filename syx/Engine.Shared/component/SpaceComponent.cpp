@@ -24,6 +24,7 @@
 #include "Space.h"
 #include "system/AssetRepo.h"
 #include "system/LuaGameSystem.h"
+#include "threading/AsyncHandle.h"
 #include "threading/FunctionTask.h"
 #include "threading/WorkerPool.h"
 
@@ -52,15 +53,6 @@ namespace {
     spaceComp.set(space);
     _pushComponent(msg, obj.mHandle, spaceComp);
   }
-}
-
-DEFINE_COMPONENT(SpaceComponent)
-  , mId(0) {
-}
-
-SpaceComponent::SpaceComponent(const SpaceComponent& rhs)
-  : Component(rhs.getType(), rhs.getOwner())
-  , mId(rhs.mId) {
 }
 
 void SpaceComponent::set(Handle id) {
@@ -175,11 +167,15 @@ int SpaceComponent::save(lua_State* l) {
   return 0;
 }
 
-bool SpaceComponent::_load(lua_State* l, Handle space, const char* filename) {
+std::shared_ptr<IAsyncHandle<bool>> SpaceComponent::_load(lua_State* l, Handle space, const char* filename) {
   ILuaGameContext& game = Lua::checkGameContext(l);
   const FilePath path(filename);
-  const bool exists = FileSystem::fileExists(path);
-  game.getWorkerPool().queueTask(std::make_shared<FunctionTask>([&game, path, space]() {
+  if(!FileSystem::fileExists(path)) {
+    return nullptr;
+  }
+
+  auto result = Async::createAsyncHandle<bool>();
+  game.getWorkerPool().queueTask(std::make_shared<FunctionTask>([&game, path, space, result]() {
     auto s = game.createLuaState();
 
     Lua::StackAssert sa(s->get());
@@ -189,21 +185,24 @@ bool SpaceComponent::_load(lua_State* l, Handle space, const char* filename) {
         LuaSceneDescription sceneDesc;
         sceneDesc.getMetadata().readFromLua(s->get(), &sceneDesc, Lua::Node::SourceType::FromGlobal);
         _loadSceneFromDescription(game, sceneDesc, space);
+        //Assume success if lua was properly formatted
+        Async::setComplete(*result, true);
       }
       else {
         printf("Error loading scene %s\n", lua_tostring(s->get(), -1));
         lua_pop(s->get(), 1);
+        Async::setComplete(*result, false);
       }
     }
   }));
-  return exists;
+  return result;
 }
 
 int SpaceComponent::load(lua_State* l) {
   SpaceComponent& self = getObj(l, 1);
   const char* name = luaL_checkstring(l, 2);
 
-  const bool exists = _load(l, self.get(), _sceneNameToFullPath(Lua::checkGameContext(l), name));
+  const bool exists = _load(l, self.get(), _sceneNameToFullPath(Lua::checkGameContext(l), name)) != nullptr;
 
   lua_pushboolean(l, static_cast<int>(exists));
   return 1;

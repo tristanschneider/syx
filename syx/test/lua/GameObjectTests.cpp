@@ -7,6 +7,14 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 #include "AppPlatform.h"
 #include "AppRegistration.h"
+#include "component/CameraComponent.h"
+#include "component/LuaComponent.h"
+#include "component/LuaComponentRegistry.h"
+#include "component/NameComponent.h"
+#include "component/Physics.h"
+#include "component/Renderable.h"
+#include "component/SpaceComponent.h"
+#include "component/Transform.h"
 #include "file/FilePath.h"
 #include "file/DirectoryWatcher.h"
 #include "system/AssetRepo.h"
@@ -85,6 +93,16 @@ namespace LuaTests {
     virtual void registerSystems(const SystemArgs& args, ISystemRegistry& registry) override {
       registry.registerSystem(std::make_unique<AssetRepo>(args, Registry::createAssetLoaderRegistry()));
       registry.registerSystem(std::make_unique<LuaGameSystem>(args));
+    }
+
+    void registerComponents(IComponentRegistry& registry) override {
+      registry.registerComponent<CameraComponent>();
+      registry.registerComponent<LuaComponent>();
+      registry.registerComponent<NameComponent>();
+      registry.registerComponent<Physics>();
+      registry.registerComponent<Renderable>();
+      registry.registerComponent<SpaceComponent>();
+      registry.registerComponent<Transform>();
     }
   };
 
@@ -336,6 +354,25 @@ namespace LuaTests {
     }
 
     TEST_METHOD(GameObject_AddComponent_HasComponent) {
+      MockApp app;
+      const Handle objHandle = _addObjectWithScript(app.get(), "script", R"(
+        function initialize(self)
+          self.camera = {};
+          self:addComponent("Renderable");
+        end
+      )");
+
+      app.mApp->getMessageQueue().get().push(SetTimescaleEvent(0, 1.0f));
+      for(int i = 0; i < 3; ++i) {
+        app.get().update(1.0f);
+      }
+
+      const LuaGameObject* obj = app.mApp->getSystem<LuaGameSystem>()->getObject(objHandle);
+      Assert::IsNotNull(obj, L"Gameobject should exist", LINE_INFO());
+      if(obj) {
+        Assert::IsNotNull(obj->getComponent<CameraComponent>(), L"Camera should have been added by index assignment", LINE_INFO());
+        Assert::IsNotNull(obj->getComponent<Renderable>(), L"Viewport should have been added via addComponent call", LINE_INFO());
+      }
     }
   };
 }

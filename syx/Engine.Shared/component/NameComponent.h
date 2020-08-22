@@ -1,7 +1,7 @@
 #pragma once
 #include "Component.h"
 
-class NameComponent : public Component {
+class NameComponent : public TypedComponent<NameComponent> {
 public:
   NameComponent(Handle owner);
   NameComponent(const NameComponent& rhs);

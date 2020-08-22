@@ -27,6 +27,7 @@
 #include "provider/SystemProvider.h"
 #include "Space.h"
 #include "system/AssetRepo.h"
+#include "threading/AsyncHandle.h"
 #include "threading/FunctionTask.h"
 #include "threading/IWorkerPool.h"
 
@@ -60,8 +61,6 @@ void LuaGameSystem::init() {
   mEventHandler->registerEventHandler<CallbackEvent>(CallbackEvent::getHandler(typeId<LuaGameSystem>()));
 
   mLibs = std::make_unique<Lua::AllLuaLibs>();
-  mComponents = std::make_unique<LuaComponentRegistry>();
-  _registerBuiltInComponents();
 
   //Arbitrarily create a static amount of contexts to load balance with
   constexpr size_t numContexts = 4;
@@ -73,6 +72,10 @@ void LuaGameSystem::init() {
 
 void LuaGameSystem::_openAllLibs(lua_State* l) {
   mLibs->open(l);
+  auto registry = mArgs.mComponentRegistry->getReader();
+  registry.first.forEachComponent([l](const Component& component) {
+    component.openLib(l);
+  });
 }
 
 void LuaGameSystem::queueTasks(float dt, IWorkerPool& pool, std::shared_ptr<Task> frameTask) {
@@ -94,15 +97,6 @@ void LuaGameSystem::queueTasks(float dt, IWorkerPool& pool, std::shared_ptr<Task
     });
     events->then(update)->then(frameTask);
     pool.queueTask(update);
-  }
-}
-
-void LuaGameSystem::_registerBuiltInComponents() {
-  auto lock = mComponentsLock.getWriter();
-  const auto& ctors = Component::Registry::getConstructors();
-  for(auto it = ctors.begin(); it != ctors.end(); ++it) {
-    std::unique_ptr<Component> temp = (*it)(0);
-    mComponents->registerComponent(temp->getTypeInfo().mTypeName, *it);
   }
 }
 
@@ -133,15 +127,8 @@ AssetRepo& LuaGameSystem::getAssetRepo() {
   return *mArgs.mSystems->getSystem<AssetRepo>();
 }
 
-const LuaComponentRegistry& LuaGameSystem::getComponentRegistry() const {
-  return *mComponents;
-}
-
-void LuaGameSystem::forEachComponentType(const std::function<void(const Component&)>& callback) const {
-  auto lock = mComponentsLock.getReader();
-  mComponents->forEachComponent([&callback](const Component& component) {
-    callback(component);
-  });
+ComponentRegistryProvider& LuaGameSystem::getComponentRegistry() const {
+  return *mArgs.mComponentRegistry;
 }
 
 const HandleMap<std::shared_ptr<LuaGameObject>>& LuaGameSystem::getObjects() const {
@@ -189,7 +176,9 @@ void LuaGameSystem::_onAddComponent(const AddComponentEvent& e) {
     }
 
     // Add new component
-    auto comp = Component::Registry::construct(e.mCompType, e.mObj);
+    auto components = mArgs.mComponentRegistry->getReader();
+    //components.first.
+    auto comp = mArgs.mComponentRegistry->getReader().first.construct(ComponentType{ e.mCompType, e.mSubType }, e.mObj);
     comp->setSubType(e.mSubType);
     obj->addComponent(std::move(comp));
   }
@@ -279,9 +268,9 @@ void LuaGameSystem::_onSpaceSave(const SaveSpaceEvent& e) {
 }
 
 void LuaGameSystem::_onSpaceLoad(const LoadSpaceEvent& e) {
-  //TODO: fix lifetime here, _load is async and needs the context to last
-  auto context = _createGameContext();
-  SpaceComponent::_load(context->getLuaState(), e.mSpace, e.mFile);
+  // Keep the context alive until the task completes
+  std::shared_ptr<ILuaGameContext> context = _createGameContext();
+  SpaceComponent::_load(context->getLuaState(), e.mSpace, e.mFile)->then([context](auto&&) {});
 }
 
 void LuaGameSystem::_onSetTimescale(const SetTimescaleEvent& e) {

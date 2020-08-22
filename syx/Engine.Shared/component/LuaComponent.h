@@ -26,7 +26,7 @@ public:
   size_t mScript;
 };
 
-class LuaComponent : public Component {
+class LuaComponent : public TypedComponent<LuaComponent> {
 public:
   LuaComponent(Handle owner);
   LuaComponent(const LuaComponent& other);

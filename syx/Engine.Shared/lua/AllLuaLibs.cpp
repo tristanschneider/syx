@@ -22,11 +22,5 @@ namespace Lua {
     AssetRepo::openLib(l);
     LuaGameSystem::openLib(l);
     KeyboardInput::openLib(l);
-
-    //Construct a temporary of each type to call opeenlibs
-    const auto& ctors = Component::Registry::getConstructors();
-    for(auto it = ctors.begin(); it != ctors.end(); ++it) {
-      (*it)(0)->openLib(l);
-    }
   }
 }

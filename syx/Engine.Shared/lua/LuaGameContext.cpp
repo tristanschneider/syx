@@ -104,7 +104,7 @@ public:
   }
 
   IComponent* getComponentByPropName(const char* name) override {
-    const Component* instance = mGameContext.getComponentRegistry().getInstanceByPropName(name);
+    const Component* instance = mGameContext.getComponentRegistry().getReader().first.getInstanceByPropName(name);
     return instance ? mGameContext.getComponent(mObj, instance->getFullType()) : nullptr;
   }
 
@@ -171,9 +171,13 @@ public:
   LuaGameContext(LuaGameSystem& system, std::unique_ptr<Lua::State> state)
     : mSystem(system)
     , mState(std::move(state)) {
+    _storeContextInState(*mState);
+  }
+
+  void _storeContextInState(lua_State* l) {
     //Store a reference to this state's game context
-    lua_pushlightuserdata(*mState, this);
-    lua_setfield(*mState, LUA_REGISTRYINDEX, LUA_CONTEXT_KEY);
+    lua_pushlightuserdata(l, this);
+    lua_setfield(l, LUA_REGISTRYINDEX, LUA_CONTEXT_KEY);
   }
 
   static LuaGameContext& _getContext(lua_State* l) {
@@ -249,19 +253,19 @@ public:
   }
 
   virtual IComponent* addComponentFromPropName(const char* name, const LuaGameObject& owner) override {
-    const Component* component = mSystem.getComponentRegistry().getInstanceByPropName(name);
+    const Component* component = mSystem.getComponentRegistry().getReader().first.getInstanceByPropName(name);
     return component ? addComponent(component->getTypeInfo().mTypeName, owner) : nullptr;
   }
 
   virtual IComponent* addComponent(const std::string& name, const LuaGameObject& owner) override {
-    if(std::optional<ComponentType> typeID = mSystem.getComponentRegistry().getComponentFullType(name)) {
+    if(std::optional<ComponentType> typeID = mSystem.getComponentRegistry().getReader().first.getComponentFullType(name)) {
       //If the component already exists, return the bound form of it
       if(const Component* existing = owner.getComponent(*typeID)) {
         return getComponent(owner.getHandle(), existing->getFullType());
       }
 
       //The component doesn't already exist, make a new one
-      std::unique_ptr<Component> newComponent = mSystem.getComponentRegistry().construct(name, owner.getHandle());
+      std::unique_ptr<Component> newComponent = mSystem.getComponentRegistry().getReader().first.construct(name, owner.getHandle());
       //TODO: it doesn't seem like this is needed, but also it could replace the global one stored in lua state
       newComponent->setSystem(mSystem);
 
@@ -276,13 +280,13 @@ public:
   }
 
   virtual void removeComponentFromPropName(const char* name, Handle owner) override {
-    if(const Component* component = mSystem.getComponentRegistry().getInstanceByPropName(name)) {
+    if(const Component* component = mSystem.getComponentRegistry().getReader().first.getInstanceByPropName(name)) {
       removeComponent(component->getTypeInfo().mTypeName, owner);
     }
   }
 
   virtual void removeComponent(const std::string& name, Handle owner) override {
-    if(std::optional<ComponentType> typeID = mSystem.getComponentRegistry().getComponentFullType(name)) {
+    if(std::optional<ComponentType> typeID = mSystem.getComponentRegistry().getReader().first.getComponentFullType(name)) {
       mSystem.getMessageQueue().get().push(RemoveComponentEvent(owner, *typeID));
       mComponentCache.insertDeletionMarker({ owner, *typeID });
     }
@@ -386,9 +390,10 @@ public:
     return mSystem.getWorkerPool();
   }
 
-  virtual std::unique_ptr<Lua::State> createLuaState() const override {
+  virtual std::unique_ptr<Lua::State> createLuaState() override {
     auto state = std::make_unique<Lua::State>();
     mSystem._openAllLibs(state->get());
+    _storeContextInState(*state);
     return state;
   }
 
@@ -396,7 +401,7 @@ public:
     return mSystem.getSystemProvider();
   }
 
-  virtual const LuaComponentRegistry& getComponentRegistry() const override {
+  virtual const ComponentRegistryProvider& getComponentRegistry() const override {
     return mSystem.getComponentRegistry();
   }
 

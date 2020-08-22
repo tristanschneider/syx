@@ -15,7 +15,7 @@ public:
   RenderableData mData;
 };
 
-class Renderable : public Component {
+class Renderable : public TypedComponent<Renderable> {
 public:
   Renderable(Handle owner);
   Renderable(const Renderable& other);

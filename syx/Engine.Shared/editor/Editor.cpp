@@ -115,7 +115,7 @@ void Editor::init() {
 
   mSavedScene = std::make_unique<FilePath>(mArgs.mProjectLocator->transform("scene.json", PathSpace::Project, PathSpace::Full));
   mSceneBrowser = std::make_unique<SceneBrowser>(*mArgs.mMessages, *mArgs.mGameObjectGen, *mArgs.mSystems->getSystem<KeyboardInput>(), *mEventHandler);
-  mObjectInspector = std::make_unique<ObjectInspector>(*mArgs.mMessages, *mEventHandler, *mArgs.mSystems->getSystem<LuaGameSystem>());
+  mObjectInspector = std::make_unique<ObjectInspector>(*mArgs.mMessages, *mEventHandler, *mArgs.mComponentRegistry);
   mAssetPreview = std::make_unique<AssetPreview>(*mArgs.mMessages, *mEventHandler, *mArgs.mSystems->getSystem<AssetRepo>());
   mToolbox = std::make_unique<Toolbox>(*mArgs.mMessages, *mEventHandler);
   mDragDropAssetLoader = std::make_unique<DragDropAssetLoader>(*mArgs.mSystems->getSystem<AssetRepo>(), *mArgs.mPool, *mArgs.mProjectLocator);
@@ -144,7 +144,7 @@ void Editor::init() {
 
   //TODO: make this less confusing and error prone
   MessageQueue msg = mArgs.mMessages->getMessageQueue();
-  msg.get().push(SetViewportEvent(Viewport("editor", Syx::Vec2::sZero, Syx::Vec2::sIdentity)));
+  msg.get().push(SetViewportEvent(Viewport(EDITOR_VIEWPORT, Syx::Vec2::sZero, Syx::Vec2::sIdentity)));
   mCamera = std::make_unique<LuaGameObject>(mArgs.mGameObjectGen->newHandle());
   msg.get().push(AddGameObjectEvent(mCamera->getHandle()));
   mCamera->getComponent<SpaceComponent>()->set(std::hash<std::string>()("editor"));

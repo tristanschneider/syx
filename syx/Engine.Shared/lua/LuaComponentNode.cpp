@@ -5,6 +5,7 @@
 #include "component/LuaComponentRegistry.h"
 #include "lua/LuaGameContext.h"
 #include "lua/LuaStackAssert.h"
+#include "provider/ComponentRegistryProvider.h"
 
 namespace Lua {
   const char* ComponentNode::TYPE_KEY = "type";
@@ -16,7 +17,7 @@ namespace Lua {
       const ILuaGameContext& game = Lua::checkGameContext(s);
       //Read type name and construct default from it
       std::unique_ptr<Component>& comp = _cast(base);
-      comp = game.getComponentRegistry().construct(lua_tostring(s, -1), 0);
+      comp = game.getComponentRegistry().getReader().first.construct(lua_tostring(s, -1), 0);
 
       //If type was valid, fill it in from properties table
       if(comp) {

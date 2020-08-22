@@ -21,13 +21,14 @@ DEFINE_EVENT(RemoveLuaComponentEvent, size_t owner, size_t script)
   , mScript(script) {
 }
 
-DEFINE_COMPONENT(LuaComponent) {
-  mScript = 0;
-  mProps = std::make_unique<Lua::Variant>();
+LuaComponent::LuaComponent(Handle h)
+  : TypedComponent(h)
+  , mScript(0)
+  , mProps(std::make_unique<Lua::Variant>()) {
 }
 
 LuaComponent::LuaComponent(const LuaComponent& other)
-  : Component(other.getType(), other.getOwner())
+  : TypedComponent(other)
   , mScript(other.mScript)
   , mProps(std::make_unique<Lua::Variant>(other.mProps ? *other.mProps : Lua::Variant())) {
   setSubType(mScript);

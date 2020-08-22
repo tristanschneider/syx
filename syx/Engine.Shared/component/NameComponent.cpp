@@ -4,12 +4,13 @@
 #include "lua/LuaUtil.h"
 #include <lua.hpp>
 
-DEFINE_COMPONENT(NameComponent)
+NameComponent::NameComponent(Handle h)
+  : TypedComponent(h)
   , mName("object") {
 }
 
 NameComponent::NameComponent(const NameComponent& rhs)
-  : Component(rhs.getType(), rhs.getOwner())
+  : TypedComponent(rhs)
   , mName(rhs.mName) {
 }
 

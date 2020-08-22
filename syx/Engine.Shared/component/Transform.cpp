@@ -12,6 +12,7 @@
 
 #include "lua/lib/LuaVec3.h"
 #include "lua/lib/LuaQuat.h"
+#include "Util.h"
 
 namespace {
   IComponent& _checkSelfTransform(lua_State* l) {
@@ -89,12 +90,13 @@ namespace {
   }
 }
 
-DEFINE_COMPONENT(Transform)
+Transform::Transform(Handle h)
+  : TypedComponent(h)
   , mMat(Syx::Mat4::transform(Syx::Quat::Identity, Syx::Vec3::Zero)) {
 }
 
 Transform::Transform(const Transform& rhs)
-  : Component(rhs.getType(), rhs.getOwner())
+  : TypedComponent(rhs)
   , mMat(rhs.mMat) {
 }
 
