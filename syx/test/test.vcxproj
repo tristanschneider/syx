@@ -74,20 +74,6 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <LinkIncremental>true</LinkIncremental>
-    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);../shared;</IncludePath>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <LinkIncremental>true</LinkIncremental>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <LinkIncremental>true</LinkIncremental>
-    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);../shared;</IncludePath>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <LinkIncremental>true</LinkIncremental>
-  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <PrecompiledHeader>Use</PrecompiledHeader>
@@ -150,11 +136,13 @@
       <OptimizeReferences>true</OptimizeReferences>
     </Link>
   </ItemDefinitionGroup>
-  <Import Project="..\props\General.props" />
-  <Import Project="$(PropsDir)\proj\EngineLibImport.props" />
   <ItemGroup>
     <ClInclude Include="Precompile.h" />
     <ClInclude Include="targetver.h" />
+    <ClInclude Include="test\MockApp.h" />
+    <ClInclude Include="test\TestAppPlatform.h" />
+    <ClInclude Include="test\TestAppRegistration.h" />
+    <ClInclude Include="test\TestKeyboardInput.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="AsyncHandleTest.cpp" />
@@ -163,14 +151,14 @@
     <ClCompile Include="Mat4Test.cpp" />
     <ClCompile Include="ObserverTest.cpp" />
     <ClCompile Include="Precompile.cpp">
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
-      <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Precompile.h</PrecompiledHeaderFile>
-      <PrecompiledHeaderFile Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Precompile.h</PrecompiledHeaderFile>
+      <PrecompiledHeader>Create</PrecompiledHeader>
+      <PrecompiledHeaderFile>Precompile.h</PrecompiledHeaderFile>
     </ClCompile>
     <ClCompile Include="syx\BroadphaseTest.cpp" />
+    <ClCompile Include="test\MockApp.cpp" />
+    <ClCompile Include="test\TestAppPlatform.cpp" />
+    <ClCompile Include="test\TestAppRegistration.cpp" />
+    <ClCompile Include="test\TestKeyboardInput.cpp" />
     <ClCompile Include="TypeTest.cpp" />
     <ClCompile Include="UtilTest.cpp" />
     <ClCompile Include="WorkerPoolTest.cpp" />
@@ -180,11 +168,9 @@
       <Project>{85005dad-8122-4d96-bd86-9ccc57b913ae}</Project>
     </ProjectReference>
   </ItemGroup>
-  <ImportGroup>
-    <!-- TODO: the glew dependency should move to its own project implemented through a graphics interface -->
-    <Import Project="$(PropsDir)\proj\GlewImport.props" />
-  </ImportGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <Import Project="..\props\General.props" />
+  <Import Project="$(PropsDir)\proj\EngineLibImport.props" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
 </Project>
