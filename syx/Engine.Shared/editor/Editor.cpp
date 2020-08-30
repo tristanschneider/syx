@@ -69,10 +69,11 @@ public:
 private:
   void _expandDirectories(std::vector<FilePath>& files) {
     size_t end = files.size();
+    auto& fs = FileSystem::get();
     for(size_t i = 0; i < end; ++i) {
       const FilePath file = files[i];
-      if(FileSystem::isDirectory(file)) {
-        FileSystem::forEachInDirectoryRecursive(files[i].cstr(), [&files](std::string_view file) {
+      if(fs.isDirectory(file)) {
+        fs.forEachInDirectoryRecursive(files[i].cstr(), [&files](std::string_view file) {
           files.emplace_back(file.data());
         });
       }
@@ -128,7 +129,7 @@ void Editor::init() {
 
   mEventHandler->registerEventHandler<UriActivated>([this](const UriActivated& e) {
     const auto it = e.mParams.find("loadScene");
-    if(it != e.mParams.end() && FileSystem::fileExists(it->second.c_str())) {
+    if(it != e.mParams.end() && FileSystem::get().fileExists(it->second.c_str())) {
       //TODO: should this path be kept seperate from mSavedScene?
       *mSavedScene = FilePath(it->second.c_str());
       MessageQueue msg = mArgs.mMessages->getMessageQueue();

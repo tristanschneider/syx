@@ -24,10 +24,10 @@ public:
   virtual void postProcess(const SystemArgs&, Asset&) {}
 
 protected:
-  template<typename Buffer>
-  static AssetLoadResult _readEntireFile(const std::string& filename, Buffer& buffer) {
+
+  static AssetLoadResult _readEntireFile(const std::string& filename, std::vector<uint8_t> buffer) {
     using namespace FileSystem;
-    FileResult result = readFile(filename.c_str(), buffer);
+    FileResult result = get().readFile(filename.c_str(), buffer);
     switch(result) {
       default:
       case FileResult::Fail: return AssetLoadResult::Fail;
@@ -36,6 +36,16 @@ protected:
       case FileResult::Success: return AssetLoadResult::Success;
     }
   }
+
+  template<typename Buffer>
+  static AssetLoadResult _readEntireFile(const std::string& filename, Buffer& buffer) {
+    std::vector<uint8_t> temp;
+    const AssetLoadResult result = _readEntireFile(filename, temp);
+    buffer.resize(temp.size());
+    std::memcpy(buffer.data(), temp.data(), temp.size());
+    return result;
+  }
+
 
 private:
   std::string mCategory;

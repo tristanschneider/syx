@@ -142,12 +142,14 @@
     <ClInclude Include="test\MockApp.h" />
     <ClInclude Include="test\TestAppPlatform.h" />
     <ClInclude Include="test\TestAppRegistration.h" />
+    <ClInclude Include="test\TestFileSystem.h" />
     <ClInclude Include="test\TestKeyboardInput.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="AsyncHandleTest.cpp" />
     <ClCompile Include="LockTest.cpp" />
     <ClCompile Include="lua\GameObjectTests.cpp" />
+    <ClCompile Include="lua\SceneSaveLoadTests.cpp" />
     <ClCompile Include="Mat4Test.cpp" />
     <ClCompile Include="ObserverTest.cpp" />
     <ClCompile Include="Precompile.cpp">
@@ -158,6 +160,7 @@
     <ClCompile Include="test\MockApp.cpp" />
     <ClCompile Include="test\TestAppPlatform.cpp" />
     <ClCompile Include="test\TestAppRegistration.cpp" />
+    <ClCompile Include="test\TestFileSystem.cpp" />
     <ClCompile Include="test\TestKeyboardInput.cpp" />
     <ClCompile Include="TypeTest.cpp" />
     <ClCompile Include="UtilTest.cpp" />

@@ -3,11 +3,13 @@
 
 #include "DirectoryWatcher32.h"
 #include "file/FilePath.h"
+#include "file/FileSystem.h"
 #include "KeyboardInputWin32.h"
 #include <Windows.h>
 
 AppPlatformWin32::AppPlatformWin32()
   : mKeyboardInput(std::make_unique<KeyboardInputWin32>()) {
+  FileSystem::_set(FileSystem::createStd());
 }
 
 AppPlatformWin32::~AppPlatformWin32() {

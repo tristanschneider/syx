@@ -7,6 +7,7 @@ public:
   static const size_t MAX_FILE_PATH = 261;
   static const FilePath EMPTY_PATH;
 
+  explicit FilePath(const std::string& str);
   FilePath(const char* path = nullptr);
 
   //Both ways to get the same null terminated string

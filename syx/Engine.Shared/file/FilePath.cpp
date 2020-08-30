@@ -9,6 +9,10 @@ namespace {
 
 const FilePath FilePath::EMPTY_PATH;
 
+FilePath::FilePath(const std::string& str)
+  : FilePath(str.c_str()) {
+}
+
 FilePath::FilePath(const char* path)
   : mSize(0) {
   _append(path);

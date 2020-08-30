@@ -75,7 +75,7 @@ void App::onUriActivated(std::string uri) {
   UriActivated activated(uri);
   //TODO: where should this go?
   const auto it = activated.mParams.find("projectRoot");
-  if(it != activated.mParams.end() && FileSystem::isDirectory(it->second.c_str())) {
+  if(it != activated.mParams.end() && FileSystem::get().isDirectory(it->second.c_str())) {
     printf("Project root set to %s\n", it->second.c_str());
     mProjectLocator->setPathRoot(it->second.c_str(), PathSpace::Project);
     mAppPlatform->setWorkingDirectory(it->second.c_str());
