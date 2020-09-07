@@ -25,7 +25,7 @@ public:
 
 protected:
 
-  AssetLoadResult _readEntireFile(const std::string& filename, std::vector<uint8_t> buffer) {
+  AssetLoadResult _readEntireFile(const std::string& filename, std::vector<uint8_t>& buffer) {
     using namespace FileSystem;
     FileResult result = mFileSystem.readFile(filename.c_str(), buffer);
     switch(result) {

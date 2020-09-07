@@ -5,7 +5,7 @@
 namespace FileSystem {
   //Intended to be cross platform. If a platform ends up not supporting this part of the std the responsibility could be moved to AppPlatform
   struct STDFileSystem : public IFileSystem {
-    FileResult readFile(const char* filename, std::vector<uint8_t> buffer) override {
+    FileResult readFile(const char* filename, std::vector<uint8_t>& buffer) override {
       std::FILE* file = std::fopen(filename, "rb");
       if(!file)
         return FileResult::NotFound;
@@ -14,9 +14,14 @@ namespace FileSystem {
       size_t bytes = static_cast<size_t>(std::ftell(file));
       std::rewind(file);
       buffer.clear();
+      buffer.reserve(static_cast<size_t>(bytes + 1));
       buffer.resize(static_cast<size_t>(bytes));
 
       bool readSuccess = bytes == std::fread(&buffer[0], 1, bytes, file);
+      //Null terminator
+      if (!buffer.empty() && buffer.back() != 0) {
+        buffer.push_back(0);
+      }
       std::fclose(file);
       return readSuccess ? FileResult::Success : FileResult::Fail;
     }
