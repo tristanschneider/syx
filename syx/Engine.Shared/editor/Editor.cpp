@@ -52,10 +52,11 @@ private:
 
 class DragDropAssetLoader : public DragDropObserver {
 public:
-  DragDropAssetLoader(AssetRepo& repo, IWorkerPool& workerPool, const ProjectLocator& locator)
+  DragDropAssetLoader(AssetRepo& repo, IWorkerPool& workerPool, const ProjectLocator& locator, FileSystem::IFileSystem& fileSystem)
     : mAssets(repo)
     , mPool(workerPool)
-    , mLocator(locator) {
+    , mLocator(locator)
+    , mFileSystem(fileSystem) {
   }
 
   void onDrop(const std::vector<FilePath>& files) override {
@@ -69,11 +70,10 @@ public:
 private:
   void _expandDirectories(std::vector<FilePath>& files) {
     size_t end = files.size();
-    auto& fs = FileSystem::get();
     for(size_t i = 0; i < end; ++i) {
       const FilePath file = files[i];
-      if(fs.isDirectory(file)) {
-        fs.forEachInDirectoryRecursive(files[i].cstr(), [&files](std::string_view file) {
+      if(mFileSystem.isDirectory(file)) {
+        mFileSystem.forEachInDirectoryRecursive(files[i].cstr(), [&files](std::string_view file) {
           files.emplace_back(file.data());
         });
       }
@@ -101,12 +101,12 @@ private:
   AssetRepo& mAssets;
   IWorkerPool& mPool;
   const ProjectLocator& mLocator;
+  FileSystem::IFileSystem& mFileSystem;
 };
 
 Editor::Editor(const SystemArgs& args)
-  : System(args) {
+  : System(args, typeId<Editor, System>()) {
 }
-
 
 Editor::~Editor() = default;
 
@@ -119,7 +119,7 @@ void Editor::init() {
   mObjectInspector = std::make_unique<ObjectInspector>(*mArgs.mMessages, *mEventHandler, *mArgs.mComponentRegistry);
   mAssetPreview = std::make_unique<AssetPreview>(*mArgs.mMessages, *mEventHandler, *mArgs.mSystems->getSystem<AssetRepo>());
   mToolbox = std::make_unique<Toolbox>(*mArgs.mMessages, *mEventHandler);
-  mDragDropAssetLoader = std::make_unique<DragDropAssetLoader>(*mArgs.mSystems->getSystem<AssetRepo>(), *mArgs.mPool, *mArgs.mProjectLocator);
+  mDragDropAssetLoader = std::make_unique<DragDropAssetLoader>(*mArgs.mSystems->getSystem<AssetRepo>(), *mArgs.mPool, *mArgs.mProjectLocator, *mArgs.mFileSystem);
   mArgs.mAppPlatform->addDragDropObserver(*mDragDropAssetLoader);
 
   mEventHandler->registerEventHandler<AllSystemsInitialized>([this](const AllSystemsInitialized&) {
@@ -129,7 +129,7 @@ void Editor::init() {
 
   mEventHandler->registerEventHandler<UriActivated>([this](const UriActivated& e) {
     const auto it = e.mParams.find("loadScene");
-    if(it != e.mParams.end() && FileSystem::get().fileExists(it->second.c_str())) {
+    if(it != e.mParams.end() && mArgs.mFileSystem->fileExists(it->second.c_str())) {
       //TODO: should this path be kept seperate from mSavedScene?
       *mSavedScene = FilePath(it->second.c_str());
       MessageQueue msg = mArgs.mMessages->getMessageQueue();

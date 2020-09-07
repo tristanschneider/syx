@@ -6,6 +6,10 @@ class DirectoryWatcher;
 class FilePath;
 class KeyboardInputImpl;
 
+namespace FileSystem {
+  struct IFileSystem;
+}
+
 class FocusEvents : public Observer<FocusEvents> {
 public:
   virtual ~FocusEvents() = default;
@@ -34,6 +38,8 @@ public:
   virtual std::unique_ptr<DirectoryWatcher> createDirectoryWatcher(FilePath root) = 0;
 
   virtual KeyboardInputImpl& getKeyboardInput() = 0;
+
+  virtual std::unique_ptr<FileSystem::IFileSystem> createFileSystem();
 
 protected:
   FocusEvents::SubjectType mFocusSubject;

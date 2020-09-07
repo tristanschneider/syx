@@ -14,6 +14,10 @@ class MessageQueueProvider;
 class GameObjectHandleProvider;
 class ProjectLocator;
 
+namespace FileSystem {
+  struct IFileSystem;
+}
+
 //TODO: Update all uses to use template
 #define SYSTEM_EVENT_HANDLER(eventType, handler) mEventHandler->registerEventHandler(Event::typeId<eventType>(), [this](const Event& e) {\
     handler(static_cast<const eventType&>(e));\
@@ -27,12 +31,13 @@ struct SystemArgs {
   const ProjectLocator* mProjectLocator = nullptr;
   AppPlatform* mAppPlatform = nullptr;
   ComponentRegistryProvider* mComponentRegistry = nullptr;
+  FileSystem::IFileSystem* mFileSystem = nullptr;
 };
 
 class System {
 public:
   DECLARE_TYPE_CATEGORY
-  System(const SystemArgs& args);
+  System(const SystemArgs& args, size_t type);
   virtual ~System();
 
   virtual void init() {}
@@ -48,7 +53,12 @@ public:
   SystemProvider& getSystemProvider() const;
   MessageQueueProvider& getMessageQueueProvider() const;
 
+  size_t getType() const { return mType; };
+
 protected:
+  template<class T>
+  static size_t _typeId() { return typeId<T, System>(); }
+
   template<class EventT>
   std::function<void(Event)> _registerSystemEventHandler(void(System::* handler)(const EventT&)) {
     return [this, handler](const Event& event) {
@@ -59,7 +69,10 @@ protected:
   SystemArgs mArgs;
   const EventBuffer* mEventBuffer;
   std::unique_ptr<EventHandler> mEventHandler;
+  const size_t mType;
 };
+
+class LuaGameSystem;
 
 class ISystemRegistry {
 public:

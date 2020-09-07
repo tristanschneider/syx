@@ -70,7 +70,7 @@ GraphicsSystem::~GraphicsSystem() {
 }
 
 GraphicsSystem::GraphicsSystem(const SystemArgs& args)
-  : System(args) {
+  : System(args, _typeId<GraphicsSystem>()) {
 }
 
 void GraphicsSystem::init() {

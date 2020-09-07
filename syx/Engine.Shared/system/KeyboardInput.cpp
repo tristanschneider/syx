@@ -75,6 +75,10 @@ namespace {
   }
 }
 
+KeyboardInput::KeyboardInput(const SystemArgs& args)
+  : System(args, _typeId<KeyboardInput>()) {
+}
+
 KeyboardInput::~KeyboardInput() = default;
 
 KeyState KeyboardInput::getKeyState(const std::string& key) const {

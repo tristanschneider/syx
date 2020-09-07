@@ -157,7 +157,7 @@ void SpaceComponent::_save(lua_State* l, Handle space, const char* filename) {
   lua_pushnil(l);
   lua_setglobal(l, scene.ROOT_KEY);
 
-  FileSystem::get().writeFile(filename, serialized);
+  game.getFileSystem().writeFile(filename, serialized);
 }
 
 int SpaceComponent::save(lua_State* l) {
@@ -170,7 +170,7 @@ int SpaceComponent::save(lua_State* l) {
 std::shared_ptr<IAsyncHandle<bool>> SpaceComponent::_load(lua_State* l, Handle space, const char* filename) {
   ILuaGameContext& game = Lua::checkGameContext(l);
   const FilePath path(filename);
-  if(!FileSystem::get().fileExists(path)) {
+  if(!game.getFileSystem().fileExists(path)) {
     return nullptr;
   }
 
@@ -180,7 +180,7 @@ std::shared_ptr<IAsyncHandle<bool>> SpaceComponent::_load(lua_State* l, Handle s
 
     Lua::StackAssert sa(s->get());
     std::vector<uint8_t> serializedScene;
-    if(FileSystem::get().readFile(path, serializedScene) == FileSystem::FileResult::Success) {
+    if(game.getFileSystem().readFile(path, serializedScene) == FileSystem::FileResult::Success) {
       if(luaL_dostring(s->get(), reinterpret_cast<const char*>(serializedScene.data())) == LUA_OK) {
         LuaSceneDescription sceneDesc;
         sceneDesc.getMetadata().readFromLua(s->get(), &sceneDesc, Lua::Node::SourceType::FromGlobal);

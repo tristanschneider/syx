@@ -48,6 +48,8 @@ App::App(std::unique_ptr<AppPlatform> appPlatform, std::unique_ptr<AppRegistrati
   exePath.getParts(path, file, ext);
   mProjectLocator->setPathRoot(path, PathSpace::Project);
 
+  mFileSystem = mAppPlatform->createFileSystem();
+
   SystemArgs args = {
     mWorkerPool.get(),
     this,
@@ -56,6 +58,7 @@ App::App(std::unique_ptr<AppPlatform> appPlatform, std::unique_ptr<AppRegistrati
     mProjectLocator.get(),
     mAppPlatform.get(),
     mComponentRegistry.get(),
+    mFileSystem.get(),
   };
   auto systems = Registry::createSystemRegistry();
   registration->registerSystems(args, *systems);
@@ -75,7 +78,7 @@ void App::onUriActivated(std::string uri) {
   UriActivated activated(uri);
   //TODO: where should this go?
   const auto it = activated.mParams.find("projectRoot");
-  if(it != activated.mParams.end() && FileSystem::get().isDirectory(it->second.c_str())) {
+  if(it != activated.mParams.end() && mFileSystem->isDirectory(it->second.c_str())) {
     printf("Project root set to %s\n", it->second.c_str());
     mProjectLocator->setPathRoot(it->second.c_str(), PathSpace::Project);
     mAppPlatform->setWorkingDirectory(it->second.c_str());
@@ -152,10 +155,15 @@ AppPlatform& App::getAppPlatform() {
   return *mAppPlatform;
 }
 
+FileSystem::IFileSystem& App::getFileSystem() {
+  return *mFileSystem;
+}
+
 MessageQueue App::getMessageQueue() {
   return MessageQueue(*mMessageQueue, *mMessageLock);
 }
 
 System* App::_getSystem(size_t id) {
-  return id < mSystems.size() ? mSystems[id].get() : nullptr;
+  auto found = std::find_if(mSystems.begin(), mSystems.end(), [id](const std::unique_ptr<System>& system) { return system->getType() == id; });
+  return found != mSystems.end() ? found->get() : nullptr;
 }

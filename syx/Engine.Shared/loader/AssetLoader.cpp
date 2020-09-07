@@ -3,8 +3,9 @@
 #include "system/AssetRepo.h"
 #include "asset/Asset.h"
 
-AssetLoader::AssetLoader(const std::string& category)
-  : mCategory(category) {
+AssetLoader::AssetLoader(FileSystem::IFileSystem& fileSystem, const std::string& category)
+  : mCategory(category)
+  , mFileSystem(fileSystem) {
 }
 
 AssetLoader::~AssetLoader() {
@@ -28,13 +29,7 @@ AssetLoadResult BufferAssetLoader::_load(Asset& asset) {
   return AssetLoadResult::Success;
 }
 
-TextAssetLoader::TextAssetLoader(const std::string& category)
-  : AssetLoader(category)
-  , mCurIndex(0) {
-}
-
-TextAssetLoader::~TextAssetLoader() {
-}
+TextAssetLoader::~TextAssetLoader() = default;
 
 AssetLoadResult TextAssetLoader::load(const std::string& basePath, Asset& asset) {
   mCurIndex = 0;

@@ -17,10 +17,5 @@ namespace FileSystem {
     virtual bool forEachInDirectoryRecursive(const char* directory, const std::function<void(std::string_view)>& func) = 0;
   };
 
-  //TODO: probably better to have more explicit ownership of this
-  IFileSystem& get();
-  //Caller is responsible of thread safety between get and set. Presumably the file system only needs to be set once on startup or during a test
-  void _set(std::unique_ptr<IFileSystem> fs);
-
   std::unique_ptr<IFileSystem> createStd();
 };

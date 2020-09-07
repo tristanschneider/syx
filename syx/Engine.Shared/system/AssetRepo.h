@@ -68,19 +68,19 @@ private:
 
 class IAssetLoaderRegistry {
 public:
-  using LoaderConstructor = std::function<std::unique_ptr<AssetLoader>()>;
+  using LoaderConstructor = std::function<std::unique_ptr<AssetLoader>(FileSystem::IFileSystem&)>;
   using AssetConstructor = std::function<std::shared_ptr<Asset>(AssetInfo&&)>;
 
   virtual ~IAssetLoaderRegistry() = default;
   virtual void registerLoader(const std::string& category, LoaderConstructor constructLoader, AssetConstructor constructAsset) = 0;
-  virtual std::unique_ptr<AssetLoader> getLoader(const std::string& category) = 0;
+  virtual std::unique_ptr<AssetLoader> getLoader(FileSystem::IFileSystem& fileSystem, const std::string& category) = 0;
   virtual std::shared_ptr<Asset> getAsset(AssetInfo&& info) = 0;
 
   //Use this registration function if your AssetLoader/Asset constructors are default
   template<typename AssetType, typename LoaderType>
   void registerLoader(const std::string& category) {
-    registerLoader(category, [category]() {
-      return std::make_unique<LoaderType>(category);
+    registerLoader(category, [category](FileSystem::IFileSystem& fs) {
+      return std::make_unique<LoaderType>(fs, category);
     }, [](AssetInfo&& info) {
       return AssetRepo::createAsset<AssetType>(std::move(info));
     });

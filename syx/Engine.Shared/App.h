@@ -15,6 +15,10 @@ class AppPlatform;
 class ProjectLocator;
 class SpinLock;
 
+namespace FileSystem {
+  struct IFileSystem;
+}
+
 class App
   : public MessageQueueProvider
   , public SystemProvider {
@@ -29,6 +33,7 @@ public:
   void uninit();
   IWorkerPool& getWorkerPool();
   AppPlatform& getAppPlatform();
+  FileSystem::IFileSystem& getFileSystem();
 
   MessageQueue getMessageQueue() override;
   System* _getSystem(size_t id) override;
@@ -44,4 +49,5 @@ private:
   std::unique_ptr<GameObjectHandleProvider> mGameObjectGen;
   std::unique_ptr<SpinLock> mMessageLock;
   std::unique_ptr<ComponentRegistryProvider> mComponentRegistry;
+  std::unique_ptr<FileSystem::IFileSystem> mFileSystem;
 };

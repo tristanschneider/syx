@@ -34,11 +34,10 @@
 const char* LuaGameSystem::CLASS_NAME = "Game";
 
 LuaGameSystem::LuaGameSystem(const SystemArgs& args)
-  : System(args) {
+  : System(args, _typeId<LuaGameSystem>()) {
 }
 
-LuaGameSystem::~LuaGameSystem() {
-}
+LuaGameSystem::~LuaGameSystem() = default;
 
 void LuaGameSystem::init() {
   mEventHandler = std::make_unique<EventHandler>();
@@ -153,6 +152,10 @@ IWorkerPool& LuaGameSystem::getWorkerPool() {
 
 GameObjectHandleProvider& LuaGameSystem::getGameObjectGen() const {
   return *mArgs.mGameObjectGen;
+}
+
+FileSystem::IFileSystem& LuaGameSystem::getFileSystem() {
+  return *mArgs.mFileSystem;
 }
 
 const LuaGameObject* LuaGameSystem::getObject(Handle handle) const {

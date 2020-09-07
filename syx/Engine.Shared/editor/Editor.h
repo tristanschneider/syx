@@ -14,6 +14,7 @@ class Toolbox;
 
 class Editor : public System {
 public:
+  //using TypedSystem::TypedSystem;
   Editor(const SystemArgs& args);
   ~Editor();
 

@@ -3,17 +3,6 @@
 #include <filesystem>
 
 namespace FileSystem {
-  std::unique_ptr<IFileSystem> FS;
-
-  IFileSystem& get() {
-    assert(FS && "FileSystem should be set before it needs to be used");
-    return *FS;
-  }
-
-  void _set(std::unique_ptr<IFileSystem> fs) {
-    FS = std::move(fs);
-  }
-
   //Intended to be cross platform. If a platform ends up not supporting this part of the std the responsibility could be moved to AppPlatform
   struct STDFileSystem : public IFileSystem {
     FileResult readFile(const char* filename, std::vector<uint8_t> buffer) override {

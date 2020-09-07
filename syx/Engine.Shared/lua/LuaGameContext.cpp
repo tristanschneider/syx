@@ -201,9 +201,19 @@ public:
     mObjects.clear();
   }
 
-  virtual void update(float dt) {
+  virtual void clearCache() {
+    //This is needed to ensure that state is fetched from the game system when needed. If rebuilding these every frame proves to be too costly they could be cached longer and kept in sync via an observer.
+    for(auto&& pair : mBoundObjects) {
+      LuaGameObject::invalidate(*mState, pair.second);
+    }
     mComponentCache.clear();
     mObjectCache.clear();
+    mBoundObjects.clear();
+    mBoundComponents.clear();
+  }
+
+  virtual void update(float dt) {
+    clearCache();
 
     Lua::StackAssert sa(*mState);
     for(auto& objIt : mObjects) {
@@ -403,6 +413,10 @@ public:
 
   virtual const ComponentRegistryProvider& getComponentRegistry() const override {
     return mSystem.getComponentRegistry();
+  }
+
+  virtual FileSystem::IFileSystem& getFileSystem() override {
+    return mSystem.getFileSystem();
   }
 
 private:

@@ -41,7 +41,8 @@ const std::string PhysicsSystem::DEFAULT_MATERIAL_NAME = "DefaultPhysicsMaterial
 
 
 PhysicsSystem::PhysicsSystem(const SystemArgs& args)
-  : System(args) {
+  : System(args, _typeId<PhysicsSystem>()) {
+  //TODO: move to test framework
   assert(!Syx::testIslandAll() && "Physics tests failed");
 }
 

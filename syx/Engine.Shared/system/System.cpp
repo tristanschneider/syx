@@ -19,8 +19,9 @@ private:
   std::vector<std::unique_ptr<System>> mSystems;
 };
 
-System::System(const SystemArgs& args)
-  : mArgs(args) {
+System::System(const SystemArgs& args, size_t type)
+  : mArgs(args)
+  , mType(type) {
 }
 
 System::~System() {

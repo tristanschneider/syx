@@ -15,9 +15,9 @@ public:
     mCategoryToConstructors[category] = { std::move(constructLoader), std::move(constructAsset) };
   }
 
-  std::unique_ptr<AssetLoader> getLoader(const std::string& category) override {
+  std::unique_ptr<AssetLoader> getLoader(FileSystem::IFileSystem& fileSystem, const std::string& category) override {
     auto it = mCategoryToConstructors.find(category);
-    return it != mCategoryToConstructors.end() ? it->second.first() : nullptr;
+    return it != mCategoryToConstructors.end() ? it->second.first(fileSystem) : nullptr;
   }
 
   std::shared_ptr<Asset> getAsset(AssetInfo&& info) override {
@@ -30,7 +30,7 @@ private:
 };
 
 AssetRepo::AssetRepo(const SystemArgs& args, std::unique_ptr<IAssetLoaderRegistry> loaderRegistry)
-  : System(args)
+  : System(args, _typeId<AssetRepo>())
   , mLoaderRegistry(std::move(loaderRegistry)) {
   sSingleton = this;
 }
@@ -129,7 +129,7 @@ void AssetRepo::_queueLoad(std::shared_ptr<Asset> asset) {
 void AssetRepo::reloadAsset(std::shared_ptr<Asset> asset) {
   //TODO: this probably doesn't work properly if the asset was already in the middle of loading
   {
-    asset->getLock().getWriter();
+    auto lock(asset->getLock().getWriter());
     asset->mState = AssetState::Empty;
   }
   _queueLoad(asset);
@@ -169,7 +169,7 @@ AssetLoader* AssetRepo::_getLoader(const std::string& category) {
     return it->second.get();
 
   //Loader doesn't exist, make a new one, store it in the pool and return it
-  std::unique_ptr<AssetLoader> newLoader = mLoaderRegistry->getLoader(category);
+  std::unique_ptr<AssetLoader> newLoader = mLoaderRegistry->getLoader(*mArgs.mFileSystem, category);
   AssetLoader* result = newLoader.get();
   loaders[category] = std::move(newLoader);
   return result;

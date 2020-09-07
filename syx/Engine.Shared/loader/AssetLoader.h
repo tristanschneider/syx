@@ -15,7 +15,7 @@ enum class AssetLoadResult : uint8_t {
 
 class AssetLoader {
 public:
-  AssetLoader(const std::string& category);
+  AssetLoader(FileSystem::IFileSystem& fileSystem, const std::string& category);
   virtual ~AssetLoader();
 
   const std::string& getCategory();
@@ -25,9 +25,9 @@ public:
 
 protected:
 
-  static AssetLoadResult _readEntireFile(const std::string& filename, std::vector<uint8_t> buffer) {
+  AssetLoadResult _readEntireFile(const std::string& filename, std::vector<uint8_t> buffer) {
     using namespace FileSystem;
-    FileResult result = get().readFile(filename.c_str(), buffer);
+    FileResult result = mFileSystem.readFile(filename.c_str(), buffer);
     switch(result) {
       default:
       case FileResult::Fail: return AssetLoadResult::Fail;
@@ -38,7 +38,7 @@ protected:
   }
 
   template<typename Buffer>
-  static AssetLoadResult _readEntireFile(const std::string& filename, Buffer& buffer) {
+  AssetLoadResult _readEntireFile(const std::string& filename, Buffer& buffer) {
     std::vector<uint8_t> temp;
     const AssetLoadResult result = _readEntireFile(filename, temp);
     buffer.resize(temp.size());
@@ -46,6 +46,8 @@ protected:
     return result;
   }
 
+
+  FileSystem::IFileSystem& mFileSystem;
 
 private:
   std::string mCategory;
@@ -68,7 +70,7 @@ protected:
 
 class TextAssetLoader : public AssetLoader {
 public:
-  TextAssetLoader(const std::string& category);
+  using AssetLoader::AssetLoader;
   virtual ~TextAssetLoader();
 
   virtual AssetLoadResult load(const std::string& basePath, Asset& asset) override;
@@ -79,5 +81,5 @@ protected:
   size_t _getLine(char* buffer, size_t bufferSize, char delimiter = '\n');
 
   std::string mData;
-  size_t mCurIndex;
+  size_t mCurIndex = 0;
 };

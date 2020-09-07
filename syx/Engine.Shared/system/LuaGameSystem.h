@@ -46,6 +46,10 @@ namespace Lua {
   class LuaLibGroup;
 }
 
+namespace FileSystem {
+  struct IFileSystem;
+}
+
 class LuaGameSystemObserver : public Observer<LuaGameSystemObserver> {
 public:
   virtual ~LuaGameSystemObserver() {}
@@ -84,6 +88,7 @@ public:
   const ProjectLocator& getProjectLocator() const;
   IWorkerPool& getWorkerPool();
   GameObjectHandleProvider& getGameObjectGen() const;
+  FileSystem::IFileSystem& getFileSystem();
 
   const LuaGameObject* getObject(Handle handle) const;
 

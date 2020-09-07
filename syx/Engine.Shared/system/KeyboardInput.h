@@ -74,8 +74,8 @@ public:
 
 class KeyboardInput : public System {
 public:
+  KeyboardInput(const SystemArgs& args);
   ~KeyboardInput();
-  using System::System;
 
   void init() override;
   void update(float, IWorkerPool&, std::shared_ptr<Task> frameTask) override;

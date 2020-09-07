@@ -22,6 +22,10 @@ namespace Lua {
   class State;
 }
 
+namespace FileSystem {
+  struct IFileSystem;
+}
+
 //Wraps access to the underlying object so that it can either be backed by the actual object owned by LuaGameSystem, or the pending context-local state owned by ILuaGameContext
 struct IComponent {
   //Get the underlying component. Ideally all accessors could be abstracted away so the underlying component is entirely hidden, but that would make for a very cumbersome interface
@@ -59,6 +63,9 @@ struct ILuaGameContext {
   virtual void clear() = 0;
   virtual void update(float dt) = 0;
 
+  //Clear local cache of object state. Not needed for contexts owned by LuaGameSystem, but needed if using them by hand to ensure state outside of the context is fetched when it changes
+  virtual void clearCache() = 0;
+
   //Functions intended to be used from lua
   virtual IComponent* addComponentFromPropName(const char* name, const LuaGameObject& owner) = 0;
   virtual IComponent* addComponent(const std::string& name, const LuaGameObject& owner) = 0;
@@ -82,6 +89,7 @@ struct ILuaGameContext {
   virtual std::unique_ptr<Lua::State> createLuaState() = 0;
   virtual SystemProvider& getSystemProvider() = 0;
   virtual const ComponentRegistryProvider& getComponentRegistry() const = 0;
+  virtual FileSystem::IFileSystem& getFileSystem() = 0;
 };
 
 namespace Lua {

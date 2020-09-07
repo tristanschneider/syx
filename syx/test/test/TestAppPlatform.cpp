@@ -3,6 +3,7 @@
 
 #include "file/DirectoryWatcher.h"
 #include "file/FilePath.h"
+#include "TestFileSystem.h"
 #include "TestKeyboardInput.h"
 
 TestAppPlatform::TestAppPlatform()
@@ -22,4 +23,8 @@ std::unique_ptr<DirectoryWatcher> TestAppPlatform::createDirectoryWatcher(FilePa
 
 KeyboardInputImpl& TestAppPlatform::getKeyboardInput() {
   return *mKeyboardInput;
+}
+
+std::unique_ptr<FileSystem::IFileSystem> TestAppPlatform::createFileSystem() {
+  return std::make_unique<FileSystem::TestFileSystem>();
 }
