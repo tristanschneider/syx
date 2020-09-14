@@ -203,6 +203,8 @@ public:
 
   virtual void clearCache() {
     //This is needed to ensure that state is fetched from the game system when needed. If rebuilding these every frame proves to be too costly they could be cached longer and kept in sync via an observer.
+    //This doesn't work because the obect is already gone, need to either register a listener or delete the cached state in mState
+    //Bound objects only need to be deleted if the object is, it's not a problem if state on the object changed
     for(auto&& pair : mBoundObjects) {
       LuaGameObject::invalidate(*mState, pair.second);
     }

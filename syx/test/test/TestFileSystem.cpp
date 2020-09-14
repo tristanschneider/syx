@@ -3,7 +3,7 @@
 #include "test/TestFileSystem.h"
 
 namespace FileSystem {
-  FileResult TestFileSystem::readFile(const char* filename, std::vector<uint8_t> buffer) {
+  FileResult TestFileSystem::readFile(const char* filename, std::vector<uint8_t>& buffer) {
     Lock lock(mMutex);
     if(isDirectory(filename)) {
       return FileResult::NotFound;

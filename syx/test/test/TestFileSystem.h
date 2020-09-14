@@ -5,7 +5,7 @@ namespace FileSystem {
   struct TestFileSystem : public IFileSystem {
     virtual ~TestFileSystem() = default;
 
-    virtual FileResult readFile(const char* filename, std::vector<uint8_t> buffer) override;
+    virtual FileResult readFile(const char* filename, std::vector<uint8_t>& buffer) override;
     virtual FileResult writeFile(const char* filename, std::string_view buffer) override;
     virtual bool isDirectory(const char* path) override;
     virtual bool fileExists(const char* path) override;
