@@ -4,7 +4,7 @@
 
 namespace Lua {
   class Sandbox;
-  class State;
+  struct IState;
   class Variant;
 }
 
@@ -43,8 +43,8 @@ public:
   void onPropsUpdated() override;
 
   //The script must be at the top of the stack
-  void init(Lua::State& state, int selfIndex);
-  void update(Lua::State& state, float dt, int selfIndex);
+  void init(Lua::IState& state, int selfIndex);
+  void update(Lua::IState& state, float dt, int selfIndex);
   void uninit();
   bool needsInit() const;
   const Lua::Variant& getPropVariant() const;

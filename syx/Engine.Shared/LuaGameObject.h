@@ -42,6 +42,8 @@ struct LuaSceneDescription {
 
 class LuaGameObject {
 public:
+  static const std::string CLASS_NAME;
+
   LuaGameObject(Handle h);
   LuaGameObject(const LuaGameObject&) = delete;
   ~LuaGameObject();
@@ -128,16 +130,12 @@ public:
   static int newDefault(lua_State* l);
 
   static int push(lua_State* l, IGameObject& obj);
-  static int invalidate(lua_State* l, const IGameObject& obj);
 
   static IGameObject& getObj(lua_State* l, int index);
 
   bool _isBuiltInComponent(const Component& comp) const;
 
 private:
-  static const std::string CLASS_NAME;
-  static std::unique_ptr<Lua::Cache> sCache;
-
   void _addBuiltInComponents();
 
   template<class Func>

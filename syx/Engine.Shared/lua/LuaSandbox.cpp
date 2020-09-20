@@ -10,7 +10,7 @@
 namespace Lua {
   const char* Sandbox::CHUNK_ID = "_chunk_";
 
-  Sandbox::Sandbox(State& state, const std::string& id)
+  Sandbox::Sandbox(IState& state, const std::string& id)
     : mState(&state)
     , mId(id) {
     _createSandbox();
@@ -53,7 +53,7 @@ namespace Lua {
   }
 
   void Sandbox::_createSandbox() {
-    State& l = *mState;
+    IState& l = *mState;
     StackAssert sa(l);
 
     //Push clean environment

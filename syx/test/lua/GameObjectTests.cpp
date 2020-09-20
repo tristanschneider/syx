@@ -45,10 +45,7 @@ namespace LuaTests {
     }
 
     std::unique_ptr<ILuaGameContext> _createGameContext(App& app) {
-      auto state = std::make_unique<Lua::State>();
-      LuaGameSystem* gameSystem = app.getSystem<LuaGameSystem>();
-      gameSystem->_openAllLibs(state->get());
-      return Lua::createGameContext(*gameSystem, std::move(state));
+      return Lua::createGameContext(*app.getSystem<LuaGameSystem>());
     }
 
     Handle _addObjectWithScript(App& app, std::string scriptName, std::string script) {

@@ -19,7 +19,6 @@
 
 const std::string Component::LUA_PROPS_KEY = "props";
 const std::string Component::BASE_CLASS_NAME = "Component";
-std::unique_ptr<Lua::Cache> Component::sLuaCache = std::make_unique<Lua::Cache>("_component_cache_", BASE_CLASS_NAME);
 
 size_t ComponentType::operator()() const {
   std::hash<size_t> hasher;
@@ -47,8 +46,7 @@ ComponentTypeInfo::ComponentTypeInfo(const std::string& typeName)
 Component::Component(Handle type, Handle owner)
   : mOwner(owner)
   , mType(type)
-  , mSubType(0)
-  , mCacheId(sLuaCache->nextHandle()) {
+  , mSubType(0) {
 }
 
 Component::~Component() {
@@ -79,17 +77,12 @@ AssetRepo* Component::getAssetRepo() const {
   return AssetRepo::get();
 }
 
-int Component::push(lua_State* l, IComponent& component) {
-  // Lua must take a mutable void pointer, but Component will only expose accessor as const when getting it back out, so const_cast is safe
-  return sLuaCache->push(l, &component, component.get().mCacheId, component.get().getTypeInfo().mTypeName.c_str());
+int Component::push(lua_State*, IComponent& component) {
+  return component.getOrCreateCacheEntry().push();
 }
 
 IComponent& Component::_checkSelf(lua_State* l, const std::string& type, int arg) {
-  return *static_cast<IComponent*>(sLuaCache->checkParam(l, arg, type.c_str()));
-}
-
-void Component::invalidate(lua_State* l) const {
-  sLuaCache->invalidate(l, mCacheId, getTypeInfo().mTypeName.c_str());
+  return *static_cast<IComponent*>(Lua::ScopedCacheEntry::checkParam(l, arg, type.c_str()));
 }
 
 void Component::addSync(EventBuffer& msg) const {
@@ -146,10 +139,6 @@ void Component::setPropFromStack(lua_State* l, IComponent& component, const char
       component.set(*mutableCopy);
     }
   }
-}
-
-void Component::baseOpenLib(lua_State* l) {
-  sLuaCache->createCache(l);
 }
 
 int Component::_getName(lua_State* l, const std::string& type) {
@@ -243,8 +232,4 @@ const Lua::Node* Component::_getPropByName(const char* propName) const {
   if(const Lua::Node* props = getLuaProps())
     return props->getChild(propName);
   return nullptr;
-}
-
-const Lua::Cache& Component::getLuaCache() {
-  return *sLuaCache;
 }

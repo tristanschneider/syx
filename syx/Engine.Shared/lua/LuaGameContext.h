@@ -19,7 +19,9 @@ class Space;
 class SystemProvider;
 
 namespace Lua {
-  class State;
+  struct IState;
+  class ScopedCacheEntry;
+  class ScopedCacheInstance;
 }
 
 namespace FileSystem {
@@ -36,6 +38,8 @@ struct IComponent {
   }
   //Overwrite the component with new values. The intended use is getting the component above, making a copy, modifying, and setting
   virtual void set(const Component& newValue) = 0;
+
+  virtual Lua::ScopedCacheEntry& getOrCreateCacheEntry() = 0;
 };
 
 struct IGameObject {
@@ -44,6 +48,7 @@ struct IGameObject {
   virtual IComponent* addComponent(const char* componentName) = 0;
   virtual IComponent* getComponent(const ComponentType& type) = 0;
   virtual IComponent* getComponentByPropName(const char* name) = 0;
+  virtual Lua::ScopedCacheEntry& getOrCreateCacheEntry() = 0;
   //Intentionally accessing the underlying object to avoid needing to create a bunch of extra IComponents when probably not all of them are needed
   virtual void forEachComponent(const std::function<void(const Component&)>& callback) const = 0;
   virtual IComponent* addComponentFromPropName(const char* name) = 0;
@@ -80,19 +85,22 @@ struct ILuaGameContext {
   virtual const Component* getRawComponent(Handle object, const ComponentType& component) = 0;
   virtual MessageQueueProvider& getMessageProvider() const = 0;
 
+  virtual Lua::ScopedCacheInstance& getGameobjectCache() = 0;
+  virtual Lua::ScopedCacheInstance& getComponentCache() = 0;
+
   virtual AssetRepo& getAssetRepo() = 0;
   virtual const HandleMap<std::shared_ptr<LuaGameObject>>& getObjects() const = 0;
   virtual const ProjectLocator& getProjectLocator() const = 0;
   virtual GameObjectHandleProvider& getGameObjectGen() = 0;
   virtual const Space& getOrCreateSpace(Handle id) const = 0;
   virtual IWorkerPool& getWorkerPool() = 0;
-  virtual std::unique_ptr<Lua::State> createLuaState() = 0;
+  virtual std::unique_ptr<Lua::IState> createLuaState() = 0;
   virtual SystemProvider& getSystemProvider() = 0;
   virtual const ComponentRegistryProvider& getComponentRegistry() const = 0;
   virtual FileSystem::IFileSystem& getFileSystem() = 0;
 };
 
 namespace Lua {
-  std::unique_ptr<ILuaGameContext> createGameContext(LuaGameSystem& system, std::unique_ptr<Lua::State> state);
+  std::unique_ptr<ILuaGameContext> createGameContext(LuaGameSystem& system);
   ILuaGameContext& checkGameContext(lua_State* l);
 }

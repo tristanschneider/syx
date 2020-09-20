@@ -83,7 +83,7 @@ void LuaComponent::setScript(size_t script) {
   mScript = script;
 }
 
-void LuaComponent::init(Lua::State& state, int) {
+void LuaComponent::init(Lua::IState& state, int) {
   Lua::StackAssert sa(state);
   assert(mScript && "Need a script to initilize");
   mSandbox = std::make_unique<Lua::Sandbox>(state, std::to_string(mOwner) + "_" + std::to_string(mScript));
@@ -108,7 +108,7 @@ void LuaComponent::init(Lua::State& state, int) {
   }
 }
 
-void LuaComponent::update(Lua::State& state, float dt, int selfIndex) {
+void LuaComponent::update(Lua::IState& state, float dt, int selfIndex) {
   Lua::StackAssert sa(state);
   auto sandbox = Lua::Sandbox::ScopedState(*mSandbox);
 

@@ -21,10 +21,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 namespace LuaTests {
   TEST_CLASS(SceneSaveLoadTests) {
     std::unique_ptr<ILuaGameContext> _createGameContext(MockApp& app) {
-      auto state = std::make_unique<Lua::State>();
-      LuaGameSystem* gameSystem = app->getSystem<LuaGameSystem>();
-      gameSystem->_openAllLibs(state->get());
-      return Lua::createGameContext(*gameSystem, std::move(state));
+      return Lua::createGameContext(*app->getSystem<LuaGameSystem>());
     }
 
     void _clearSpace(Handle space, MockApp& app) {

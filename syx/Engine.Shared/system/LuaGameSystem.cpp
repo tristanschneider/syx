@@ -100,9 +100,7 @@ void LuaGameSystem::queueTasks(float dt, IWorkerPool& pool, std::shared_ptr<Task
 }
 
 std::unique_ptr<ILuaGameContext> LuaGameSystem::_createGameContext() {
-  auto luaState = std::make_unique<Lua::State>();
-  _openAllLibs(*luaState);
-  return Lua::createGameContext(*this, std::move(luaState));
+  return Lua::createGameContext(*this);
 }
 
 ILuaGameContext& LuaGameSystem::_getNextGameContext() {

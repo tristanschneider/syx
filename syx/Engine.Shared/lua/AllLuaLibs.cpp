@@ -1,7 +1,6 @@
 #include "Precompile.h"
 #include "lua/AllLuaLibs.h"
 
-#include "component/Component.h"
 #include "lua/lib/LuaAssetRepo.h"
 #include "lua/lib/LuaNumArray.h"
 #include "lua/lib/LuaNumVec.h"
@@ -18,7 +17,6 @@ namespace Lua {
     Vec3::openLib(l);
     Quat::openLib(l);
     LuaGameObject::openLib(l);
-    Component::baseOpenLib(l);
     AssetRepo::openLib(l);
     LuaGameSystem::openLib(l);
     KeyboardInput::openLib(l);

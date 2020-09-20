@@ -4,11 +4,11 @@
 //This sandbox can then be used as an updvalue to replace _ENV making all global access contained within the sandbox
 
 namespace Lua {
-  class State;
+  struct IState;
 
   class Sandbox {
   public:
-    Sandbox(State& state, const std::string& id);
+    Sandbox(IState& state, const std::string& id);
     ~Sandbox();
 
     Sandbox(Sandbox&& rhs);
@@ -33,7 +33,7 @@ namespace Lua {
     void _clear();
 
     std::string mId;
-    State* mState;
+    IState* mState;
 
     static const char* CHUNK_ID;
   };

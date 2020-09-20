@@ -72,6 +72,9 @@ class Component {
 public:
   DECLARE_TYPE_CATEGORY;
 
+  static const std::string BASE_CLASS_NAME;
+
+
   struct EditorUpdateArgs {
     const LuaGameObjectProvider& objects;
     DebugDrawer& drawer;
@@ -130,7 +133,6 @@ public:
   static void setPropsFromStack(lua_State* l, IComponent& component);
   static void setPropFromStack(lua_State* l, IComponent& component, const char* name);
 
-  static void baseOpenLib(lua_State* l);
   static int _getName(lua_State* l, const std::string& type);
   static int _getType(lua_State* l, const std::string& type);
   static int _getOwner(lua_State* l, const std::string& type);
@@ -146,21 +148,15 @@ public:
   static const std::string LUA_PROPS_KEY;
 
 protected:
-  static const Lua::Cache& getLuaCache();
-
   const Lua::Node* _getPropByName(const char* propName) const;
 
   virtual void _setSubType(size_t) {}
 
   Handle mOwner;
+  //TODO: put ComponentType object here instead
   size_t mType;
   size_t mSubType;
-  size_t mCacheId;
   System* mSystem = nullptr;
-
-private:
-  static const std::string BASE_CLASS_NAME;
-  static std::unique_ptr<Lua::Cache> sLuaCache;
 };
 
 //Convenience wrapper for constructor inheritance

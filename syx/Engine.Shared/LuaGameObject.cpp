@@ -14,10 +14,7 @@
 #include <lua.hpp>
 #include "system/LuaGameSystem.h"
 
-
 const std::string LuaGameObject::CLASS_NAME = "Gameobject";
-// TODO: instead of static, this should be owned by the context and accessible as a global lua object like the ILuaGameContext
-std::unique_ptr<Lua::Cache> LuaGameObject::sCache = std::make_unique<Lua::Cache>("_goc_", CLASS_NAME);
 
 namespace {
   using LuaComp = std::unique_ptr<LuaComponent>;
@@ -238,8 +235,6 @@ void LuaGameObject::openLib(lua_State* l) {
     { nullptr, nullptr }
   };
   Lua::Util::registerClass(l, statics, members, CLASS_NAME.c_str());
-
-  sCache->createCache(l);
 }
 
 int LuaGameObject::toString(lua_State* l) {
@@ -317,7 +312,7 @@ int LuaGameObject::removeComponent(lua_State* l) {
 }
 
 int LuaGameObject::isValid(lua_State* l) {
-  lua_pushboolean(l, sCache->getParam(l, 1) != nullptr);
+  lua_pushboolean(l, Lua::ScopedCacheEntry::getParam(l, 1, CLASS_NAME.c_str()) != nullptr);
   return 1;
 }
 
@@ -328,20 +323,12 @@ int LuaGameObject::newDefault(lua_State* l) {
   return 1;
 }
 
-int LuaGameObject::push(lua_State* l, IGameObject& obj) {
-  return sCache->push(l, &obj, obj.getHandle());
-}
-
-int LuaGameObject::invalidate(lua_State* l, const IGameObject& obj) {
-  sCache->invalidate(l, obj.getHandle());
-  obj.forEachComponent([l](const Component& comp) {
-    comp.invalidate(l);
-  });
-  return 0;
+int LuaGameObject::push(lua_State*, IGameObject& obj) {
+  return obj.getOrCreateCacheEntry().push();
 }
 
 IGameObject& LuaGameObject::getObj(lua_State* l, int index) {
-  return *static_cast<IGameObject*>(sCache->checkParam(l, index));
+  return *static_cast<IGameObject*>(Lua::ScopedCacheEntry::checkParam(l, index, CLASS_NAME.c_str()));
 }
 
 class LuaGameObjectDescriptionNode : public Lua::TypedNode<LuaGameObjectDescription> {

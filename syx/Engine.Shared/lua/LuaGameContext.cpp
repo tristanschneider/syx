@@ -6,6 +6,7 @@
 #include "component/ComponentPublisher.h"
 #include "component/LuaComponentRegistry.h"
 #include <lua.hpp>
+#include "lua/LuaCache.h"
 #include "lua/LuaStackAssert.h"
 #include "lua/LuaState.h"
 #include "LuaGameObject.h"
@@ -19,6 +20,29 @@
 
 namespace {
   const char* LUA_CONTEXT_KEY = "LuaGameContext";
+
+  struct LuaStateWithCache : public Lua::IState {
+    LuaStateWithCache()
+      //The name given is arbitrary, just something unlikely to be used by lua scripts to avoid name collisions
+      : mState(std::make_unique<Lua::State>())
+      , mGameobjectFactory(std::make_shared<Lua::ScopedCacheFactory>("_goc_gameobject"))
+      , mComponentFactory(std::make_shared<Lua::ScopedCacheFactory>("_goc_component"))
+      , mGameobjectInstance(mGameobjectFactory->createInstance(*mState))
+      , mComponentInstance(mComponentFactory->createInstance(*mState))
+    {
+    }
+
+    operator lua_State*() override {
+      return *mState;
+    }
+
+    std::unique_ptr<Lua::State> mState;
+    std::shared_ptr<Lua::ScopedCacheFactory> mGameobjectFactory;
+    std::shared_ptr<Lua::ScopedCacheFactory> mComponentFactory;
+
+    std::shared_ptr<Lua::ScopedCacheInstance> mGameobjectInstance;
+    std::shared_ptr<Lua::ScopedCacheInstance> mComponentInstance;
+  };
 }
 
 struct ComponentKey {
@@ -108,6 +132,13 @@ public:
     return instance ? mGameContext.getComponent(mObj, instance->getFullType()) : nullptr;
   }
 
+  Lua::ScopedCacheEntry& getOrCreateCacheEntry() override {
+    if(!mCacheEntry) {
+      mCacheEntry = mGameContext.getGameobjectCache().createEntry(this, LuaGameObject::CLASS_NAME);
+    }
+    return *mCacheEntry;
+  }
+
   void forEachComponent(const std::function<void(const Component&)>& callback) const override {
     _get().forEachComponent(callback);
   }
@@ -132,6 +163,7 @@ private:
   const Handle mObj;
   ILuaGameContext& mGameContext;
   std::function<const LuaGameObject&(Handle)> mGetObj;
+  std::unique_ptr<Lua::ScopedCacheEntry> mCacheEntry;
 };
 
 class LuaBoundComponent : public IComponent {
@@ -158,20 +190,27 @@ public:
     self.set(newValue);
   }
 
+  virtual Lua::ScopedCacheEntry& getOrCreateCacheEntry() override {
+    if(!mCacheEntry) {
+      mCacheEntry = mContext.getComponentCache().createEntry(this, get().getTypeInfo().mTypeName);
+    }
+    return *mCacheEntry;
+  }
+
 private:
   const Handle mObject;
   const ComponentType mComponent;
   ILuaGameContext& mContext;
   std::function<Component&()> mGetMutableComponent;
+  std::unique_ptr<Lua::ScopedCacheEntry> mCacheEntry;
 };
 
 class LuaGameContext : public ILuaGameContext {
 public:
   virtual ~LuaGameContext() = default;
-  LuaGameContext(LuaGameSystem& system, std::unique_ptr<Lua::State> state)
-    : mSystem(system)
-    , mState(std::move(state)) {
-    _storeContextInState(*mState);
+  LuaGameContext(LuaGameSystem& system)
+    : mSystem(system) {
+    mState = _createLuaState();
   }
 
   void _storeContextInState(lua_State* l) {
@@ -203,11 +242,7 @@ public:
 
   virtual void clearCache() {
     //This is needed to ensure that state is fetched from the game system when needed. If rebuilding these every frame proves to be too costly they could be cached longer and kept in sync via an observer.
-    //This doesn't work because the obect is already gone, need to either register a listener or delete the cached state in mState
     //Bound objects only need to be deleted if the object is, it's not a problem if state on the object changed
-    for(auto&& pair : mBoundObjects) {
-      LuaGameObject::invalidate(*mState, pair.second);
-    }
     mComponentCache.clear();
     mObjectCache.clear();
     mBoundObjects.clear();
@@ -374,8 +409,16 @@ public:
     return mSystem.getMessageQueueProvider();
   }
 
+  virtual Lua::ScopedCacheInstance& getGameobjectCache() override {
+    return *mState->mGameobjectInstance;
+  }
+
+  virtual Lua::ScopedCacheInstance& getComponentCache() override {
+    return *mState->mComponentInstance;
+  }
+
   virtual lua_State* getLuaState() override {
-    return mState->get();
+    return *mState;
   }
 
   virtual AssetRepo& getAssetRepo() override {
@@ -402,9 +445,13 @@ public:
     return mSystem.getWorkerPool();
   }
 
-  virtual std::unique_ptr<Lua::State> createLuaState() override {
-    auto state = std::make_unique<Lua::State>();
-    mSystem._openAllLibs(state->get());
+  virtual std::unique_ptr<Lua::IState> createLuaState() override {
+    return _createLuaState();
+  }
+
+  std::unique_ptr<LuaStateWithCache> _createLuaState() {
+    auto state = std::make_unique<LuaStateWithCache>();
+    mSystem._openAllLibs(*state);
     _storeContextInState(*state);
     return state;
   }
@@ -447,7 +494,7 @@ private:
   HandleMap<std::weak_ptr<LuaGameObject>> mObjects;
   std::unordered_map<Handle, LuaBoundGameObject> mBoundObjects;
   std::unordered_map<ComponentKey, LuaBoundComponent> mBoundComponents;
-  std::unique_ptr<Lua::State> mState;
+  std::unique_ptr<LuaStateWithCache> mState;
   //Cache of components used to hold changes made this frame until next frame when they are officially applied via messages.
   //For this reason, the cache is cleared every frame
   ObjectCache<ComponentKey, Component> mComponentCache;
@@ -456,8 +503,8 @@ private:
 };
 
 namespace Lua {
-  std::unique_ptr<ILuaGameContext> createGameContext(LuaGameSystem& system, std::unique_ptr<Lua::State> state) {
-    return std::make_unique<LuaGameContext>(system, std::move(state));
+  std::unique_ptr<ILuaGameContext> createGameContext(LuaGameSystem& system) {
+    return std::make_unique<LuaGameContext>(system);
   }
 
   ILuaGameContext& checkGameContext(lua_State* l) {
