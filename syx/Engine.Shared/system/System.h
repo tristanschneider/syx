@@ -2,17 +2,18 @@
 #include "util/TypeId.h"
 
 class App;
+class AppPlatform;
 class ComponentRegistryProvider;
-class IWorkerPool;
-class Task;
 class Event;
 class EventBuffer;
 class EventHandler;
-class SystemProvider;
-class AppPlatform;
-class MessageQueueProvider;
 class GameObjectHandleProvider;
+struct IIDRegistry;
+class IWorkerPool;
+class MessageQueueProvider;
 class ProjectLocator;
+class SystemProvider;
+class Task;
 
 namespace FileSystem {
   struct IFileSystem;
@@ -23,6 +24,8 @@ namespace FileSystem {
     handler(static_cast<const eventType&>(e));\
   });
 
+//This contains information that should be available to all systems. Anything exposed here should be safe for the system to use as it sees fit
+//TODO: this is a bit clunky. It would probably be better to have a more formal mechanism to do this
 struct SystemArgs {
   IWorkerPool* mPool = nullptr;
   SystemProvider* mSystems = nullptr;
@@ -32,6 +35,7 @@ struct SystemArgs {
   AppPlatform* mAppPlatform = nullptr;
   ComponentRegistryProvider* mComponentRegistry = nullptr;
   FileSystem::IFileSystem* mFileSystem = nullptr;
+  IIDRegistry* mIDRegistry = nullptr;
 };
 
 class System {

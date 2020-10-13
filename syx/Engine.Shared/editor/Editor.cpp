@@ -23,6 +23,7 @@
 #include "ProjectLocator.h"
 #include "provider/GameObjectHandleProvider.h"
 #include "provider/SystemProvider.h"
+#include "registry/IDRegistry.h"
 #include "system/AssetRepo.h"
 #include "system/KeyboardInput.h"
 #include "system/LuaGameSystem.h"
@@ -146,8 +147,9 @@ void Editor::init() {
   //TODO: make this less confusing and error prone
   MessageQueue msg = mArgs.mMessages->getMessageQueue();
   msg.get().push(SetViewportEvent(Viewport(EDITOR_VIEWPORT, Syx::Vec2::sZero, Syx::Vec2::sIdentity)));
-  mCamera = std::make_unique<LuaGameObject>(mArgs.mGameObjectGen->newHandle());
-  msg.get().push(AddGameObjectEvent(mCamera->getHandle()));
+  std::shared_ptr<IClaimedUniqueID> uniqueID = mArgs.mIDRegistry->generateNewUniqueID();
+  mCamera = std::make_unique<LuaGameObject>(mArgs.mGameObjectGen->newHandle(), uniqueID);
+  msg.get().push(AddGameObjectEvent(mCamera->getHandle(), uniqueID));
   mCamera->getComponent<SpaceComponent>()->set(std::hash<std::string>()("editor"));
   mCamera->getComponent<SpaceComponent>()->sync(msg.get());
 

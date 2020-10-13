@@ -68,12 +68,13 @@ class TypedEvent : public Event {
 public:
   TypedEvent()
     : Event(Event::typeId<T>(), sizeof(T)) {
-    Event::Registry::Registrar(Event::typeId<T>(), [](const Event& e, uint8_t* buffer) {
+    //TODO: do this explicitly in AppRegistration
+    static auto reg(Event::Registry::Registrar(Event::typeId<T>(), [](const Event& e, uint8_t* buffer) {
        new (buffer) T(static_cast<const T&>(e));
     },
     [](Event&& e, uint8_t* buffer) {
       new (buffer) T(std::move(static_cast<T&&>(e)));
-    });
+    }));
   }
 };
 

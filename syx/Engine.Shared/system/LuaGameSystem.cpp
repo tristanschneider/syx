@@ -25,6 +25,7 @@
 #include "provider/GameObjectHandleProvider.h"
 #include "provider/MessageQueueProvider.h"
 #include "provider/SystemProvider.h"
+#include "registry/IDRegistry.h"
 #include "Space.h"
 #include "system/AssetRepo.h"
 #include "threading/AsyncHandle.h"
@@ -152,6 +153,10 @@ GameObjectHandleProvider& LuaGameSystem::getGameObjectGen() const {
   return *mArgs.mGameObjectGen;
 }
 
+IIDRegistry& LuaGameSystem::getIDRegistry() const {
+  return *mArgs.mIDRegistry;
+}
+
 FileSystem::IFileSystem& LuaGameSystem::getFileSystem() {
   return *mArgs.mFileSystem;
 }
@@ -203,7 +208,7 @@ void LuaGameSystem::_onRemoveLuaComponent(const RemoveLuaComponentEvent& e) {
 void LuaGameSystem::_onAddGameObject(const AddGameObjectEvent& e) {
   mArgs.mGameObjectGen->blacklistHandle(e.mObj);
   if(mObjects.find(e.mObj) == mObjects.end()) {
-    auto newObj = std::make_shared<LuaGameObject>(e.mObj);
+    auto newObj = std::make_shared<LuaGameObject>(e.mObj, e.mUniqueID ? e.mUniqueID : std::shared_ptr<IClaimedUniqueID>(mArgs.mIDRegistry->generateNewUniqueID()) );
     mObjects[e.mObj] = newObj;
     _getNextGameContext().addObject(newObj);
   }

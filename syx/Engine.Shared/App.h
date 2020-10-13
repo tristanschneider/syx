@@ -10,6 +10,7 @@ class GraphicsSystem;
 class KeyboardInput;
 class System;
 enum class SystemId : uint8_t;
+struct IIDRegistry;
 class IWorkerPool;
 class AppPlatform;
 class ProjectLocator;
@@ -50,4 +51,5 @@ private:
   std::unique_ptr<SpinLock> mMessageLock;
   std::unique_ptr<ComponentRegistryProvider> mComponentRegistry;
   std::unique_ptr<FileSystem::IFileSystem> mFileSystem;
+  std::unique_ptr<IIDRegistry> mIDRegistry;
 };

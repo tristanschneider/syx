@@ -7,6 +7,7 @@ class ComponentRegistryProvider;
 struct ComponentType;
 class GameObjectHandleProvider;
 struct IGameObject;
+struct IIDRegistry;
 class IWorkerPool;
 class LuaComponentRegistry;
 class LuaGameObject;
@@ -17,6 +18,7 @@ class MessageQueueProvider;
 class ProjectLocator;
 class Space;
 class SystemProvider;
+struct UniqueID;
 
 namespace Lua {
   struct IState;
@@ -44,7 +46,8 @@ struct IComponent {
 
 struct IGameObject {
   virtual ~IGameObject() = default;
-  virtual Handle getHandle() const = 0;
+  virtual Handle getRuntimeID() const = 0;
+  virtual const UniqueID& getUniqueID() const = 0;
   virtual IComponent* addComponent(const char* componentName) = 0;
   virtual IComponent* getComponent(const ComponentType& type) = 0;
   virtual IComponent* getComponentByPropName(const char* name) = 0;
@@ -77,6 +80,8 @@ struct ILuaGameContext {
   virtual void removeComponentFromPropName(const char* name, Handle owner) = 0;
   virtual void removeComponent(const std::string& name, Handle owner) = 0;
   virtual IGameObject& addGameObject() = 0;
+  //Try to add a game object with the given id. Returns null if the id was already taken
+  virtual IGameObject* tryAddGameObject(const UniqueID& uniqueID) = 0;
   virtual void removeGameObject(Handle object) = 0;
 
   virtual lua_State* getLuaState() = 0;
@@ -98,6 +103,7 @@ struct ILuaGameContext {
   virtual SystemProvider& getSystemProvider() = 0;
   virtual const ComponentRegistryProvider& getComponentRegistry() const = 0;
   virtual FileSystem::IFileSystem& getFileSystem() = 0;
+  virtual IIDRegistry& getIDRegistry() = 0;
 };
 
 namespace Lua {

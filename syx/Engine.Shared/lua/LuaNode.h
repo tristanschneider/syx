@@ -282,6 +282,14 @@ namespace Lua {
     void _writeToLua(lua_State* s, const void* base) const override;
   };
 
+  class Uint64Node : public TypedNode<uint64_t> {
+  public:
+    NODE_SINGLETON(Uint64Node);
+    using TypedNode::TypedNode;
+    void _readFromLua(lua_State* s, void* base) const override;
+    void _writeToLua(lua_State* s, const void* base) const override;
+  };
+
   class DoubleNode : public TypedNode<double> {
   public:
     NODE_SINGLETON(DoubleNode);

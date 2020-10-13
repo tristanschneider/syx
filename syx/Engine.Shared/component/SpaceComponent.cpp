@@ -21,6 +21,7 @@
 #include "ProjectLocator.h"
 #include "provider/GameObjectHandleProvider.h"
 #include "provider/MessageQueueProvider.h"
+#include "registry/IDRegistry.h"
 #include "Space.h"
 #include "system/AssetRepo.h"
 #include "system/LuaGameSystem.h"
@@ -39,19 +40,27 @@ namespace {
     }
   }
 
-  void _pushObjectFromDescription(MessageQueueProvider& msgProvider, const LuaGameObjectDescription& obj, Handle space, bool fireAddEvent = true) {
+  void _pushObjectFromDescription(MessageQueueProvider& msgProvider, const LuaGameObjectDescription& obj, Handle space, IIDRegistry& idRegistry, bool fireAddEvent = true) {
     MessageQueue msg = msgProvider.getMessageQueue();
     //Create object
-    if(fireAddEvent)
-      msg.get().push(AddGameObjectEvent(obj.mHandle));
+    if(fireAddEvent) {
+      //TODO: how is this supposed to work if you're trying to load the same same scene into two different spaces?
+      if(auto claimedID = idRegistry.tryClaimKnownID(obj.mUniqueID)) {
+        msg.get().push(AddGameObjectEvent(obj.mRuntimeID, std::move(claimedID)));
+      }
+      else {
+        printf("Unable to create object %s, it already exists", std::to_string(obj.mUniqueID).c_str());
+        return;
+      }
+    }
 
     //Copy components
     for(const auto& comp : obj.mComponents) {
-      _pushComponent(msg, obj.mHandle, *comp);
+      _pushComponent(msg, obj.mRuntimeID, *comp);
     }
     SpaceComponent spaceComp(0);
     spaceComp.set(space);
-    _pushComponent(msg, obj.mHandle, spaceComp);
+    _pushComponent(msg, obj.mRuntimeID, spaceComp);
   }
 }
 
@@ -142,7 +151,9 @@ void SpaceComponent::_save(lua_State* l, Handle space, const char* filename) {
       continue;
 
     LuaGameObjectDescription desc;
-    desc.mHandle = o.getHandle();
+    //Runtime ID won't be saved, but set it anyway to avoid potential confusion
+    desc.mRuntimeID = o.getHandle();
+    desc.mUniqueID = o.getUniqueID();
     o.forEachComponent([&o, &desc](const Component& c) {
       desc.mComponents.emplace_back(std::move(c.clone()));
     });
@@ -220,10 +231,8 @@ void SpaceComponent::_loadSceneFromDescription(ILuaGameContext& game, LuaSceneDe
   }
   GameObjectHandleProvider& objGen = game.getGameObjectGen();
   for(LuaGameObjectDescription& obj : scene.mObjects) {
-    if(!objGen.blacklistHandle(obj.mHandle)) {
-      obj.mHandle = objGen.newHandle();
-    }
-    _pushObjectFromDescription(game.getMessageProvider(), obj, space);
+    obj.mRuntimeID = objGen.newHandle();
+    _pushObjectFromDescription(game.getMessageProvider(), obj, space, game.getIDRegistry());
   }
 }
 
@@ -269,8 +278,9 @@ int SpaceComponent::addObject(lua_State* l) {
   LuaGameObjectDescription desc;
   desc.getMetadata().readFromLua(l, &desc, Lua::Node::SourceType::FromStack);
   IGameObject& obj = game.addGameObject();
-  desc.mHandle = obj.getHandle();
-  _pushObjectFromDescription(game.getMessageProvider(), desc, self.get(), false);
+  desc.mRuntimeID = obj.getRuntimeID();
+  desc.mUniqueID = obj.getUniqueID();
+  _pushObjectFromDescription(game.getMessageProvider(), desc, self.get(), game.getIDRegistry(), false);
   lua_pop(l, 1);
 
   LuaGameObject::push(l, obj);

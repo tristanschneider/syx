@@ -17,6 +17,7 @@ class Component;
 class ComponentRegistryProvider;
 class FilePath;
 class GameObjectHandleProvider;
+struct IIDRegistry;
 struct ILuaGameContext;
 class LoadSpaceEvent;
 class LuaGameObject;
@@ -88,6 +89,7 @@ public:
   const ProjectLocator& getProjectLocator() const;
   IWorkerPool& getWorkerPool();
   GameObjectHandleProvider& getGameObjectGen() const;
+  IIDRegistry& getIDRegistry() const;
   FileSystem::IFileSystem& getFileSystem();
 
   const LuaGameObject* getObject(Handle handle) const;

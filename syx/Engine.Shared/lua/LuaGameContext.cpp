@@ -10,6 +10,7 @@
 #include "lua/LuaStackAssert.h"
 #include "lua/LuaState.h"
 #include "LuaGameObject.h"
+#include "registry/IDRegistry.h"
 #include "Space.h"
 #include "system/AssetRepo.h"
 #include "system/LuaGameSystem.h"
@@ -115,8 +116,12 @@ public:
     , mGetObj(std::move(getObj)) {
   }
 
-  Handle getHandle() const override {
+  Handle getRuntimeID() const override {
     return mObj;
+  }
+
+  const UniqueID& getUniqueID() const override {
+    return _get().getUniqueID();
   }
 
   IComponent* addComponent(const char* componentName) override {
@@ -182,6 +187,7 @@ public:
   }
 
   virtual void set(const Component& newValue) override {
+    assert(newValue.getOwner() == mObject && "Component setter should not be used to change ownership");
     Component& self = mGetMutableComponent();
     ComponentPublisher publisher(self);
     //Publish the changes to persist the change
@@ -339,13 +345,41 @@ public:
     }
   }
 
+  //Usually components are looked up on demand, starting with the caches in this content and looking in the game system if this doesn't have it.
+  //Built in components are implicitly created by this context when the object is, so they need to be manually added to the caches here otherwise
+  //the lookup won't see them until they have been propagated to the game system
+  IGameObject* _cacheBuiltInComponents(Handle handle) {
+    if(IGameObject* boundObject = getGameObject(handle)) {
+      boundObject->forEachComponent([this, handle](const Component& comp) {
+        std::unique_ptr<Component> newComponent = comp.clone();
+
+        Component* result = newComponent.get();
+        mComponentCache.insert({ handle, result->getFullType() }, std::move(newComponent));
+      });
+      return boundObject;
+    }
+    return nullptr;
+  }
+
   virtual IGameObject& addGameObject() override {
     const Handle newHandle = mSystem.getGameObjectGen().newHandle();
-    mSystem.getMessageQueue().get().push(AddGameObjectEvent(newHandle));
-    mObjectCache.insert(newHandle, std::make_unique<LuaGameObject>(newHandle));
+    std::shared_ptr<IClaimedUniqueID> uniqueID = mSystem.getIDRegistry().generateNewUniqueID();
+    mSystem.getMessageQueue().get().push(AddGameObjectEvent(newHandle, uniqueID));
+    mObjectCache.insert(newHandle, std::make_unique<LuaGameObject>(newHandle, std::move(uniqueID)));
 
     //Can't be null because we just put it in the object cache
-    return *getGameObject(newHandle);
+    return *_cacheBuiltInComponents(newHandle);
+  }
+
+  virtual IGameObject* tryAddGameObject(const UniqueID& uniqueID) override {
+    if(std::shared_ptr<IClaimedUniqueID> claimedID = mSystem.getIDRegistry().tryClaimKnownID(uniqueID)) {
+      const Handle newHandle = mSystem.getGameObjectGen().newHandle();
+      mSystem.getMessageQueue().get().push(AddGameObjectEvent(newHandle, claimedID));
+      mObjectCache.insert(newHandle, std::make_unique<LuaGameObject>(newHandle, claimedID));
+
+      return _cacheBuiltInComponents(newHandle);
+    }
+    return nullptr;
   }
 
   virtual void removeGameObject(Handle object) override {
@@ -466,6 +500,10 @@ public:
 
   virtual FileSystem::IFileSystem& getFileSystem() override {
     return mSystem.getFileSystem();
+  }
+
+  virtual IIDRegistry& getIDRegistry() override {
+    return mSystem.getIDRegistry();
   }
 
 private:

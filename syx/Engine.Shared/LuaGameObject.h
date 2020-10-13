@@ -3,9 +3,11 @@
 #include "component/NameComponent.h"
 #include "component/SpaceComponent.h"
 #include "component/Transform.h"
+#include "UniqueID.h"
 
 class Component;
 class EventBuffer;
+struct IClaimedUniqueID;
 struct IGameObject;
 class LuaComponent;
 struct lua_State;
@@ -24,7 +26,8 @@ struct LuaGameObjectDescription {
   LuaGameObjectDescription& operator=(LuaGameObjectDescription&&) = default;
   const Lua::Node& getMetadata() const;
 
-  size_t mHandle;
+  size_t mRuntimeID;
+  UniqueID mUniqueID;
   std::vector<std::unique_ptr<Component>> mComponents;
 };
 
@@ -44,11 +47,14 @@ class LuaGameObject {
 public:
   static const std::string CLASS_NAME;
 
-  LuaGameObject(Handle h);
+  LuaGameObject(Handle runtimeID, std::shared_ptr<IClaimedUniqueID> uniqueID);
   LuaGameObject(const LuaGameObject&) = delete;
   ~LuaGameObject();
 
+  //Runtime id. Identifies object as it is in the scene now, can change when the scene is reloaded
   Handle getHandle() const;
+  //Unique id. Identifies this object uniquely and is consistent across scene loads.
+  const UniqueID& getUniqueID() const;
 
   void addComponent(std::unique_ptr<Component> component);
   void removeComponent(size_t type);
@@ -155,7 +161,8 @@ private:
   void _addComponentLookup(Component& comp);
   void _removeComponentLookup(const Component& comp);
 
-  Handle mHandle;
+  Handle mRuntimeID;
+  std::shared_ptr<IClaimedUniqueID> mUniqueID;
   Transform mTransform;
   SpaceComponent mSpace;
   NameComponent mName;

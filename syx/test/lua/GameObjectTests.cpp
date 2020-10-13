@@ -55,11 +55,11 @@ namespace LuaTests {
       auto context = _createGameContext(app);
       IGameObject& newObj = context->addGameObject();
       //Configure local version of object
-      LuaComponent newComp(newObj.getHandle());
+      LuaComponent newComp(newObj.getRuntimeID());
       newComp.setScript(info.mId);
       //Send messages to replicate local object
       newComp.addSync(app.getMessageQueue());
-      return newObj.getHandle();
+      return newObj.getRuntimeID();
     }
 
     const Lua::Variant* _getScriptProps(Handle obj, const std::string& script, MockApp& app) {

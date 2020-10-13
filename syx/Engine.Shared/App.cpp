@@ -12,6 +12,7 @@
 #include "ProjectLocator.h"
 #include "provider/ComponentRegistryProvider.h"
 #include "provider/GameObjectHandleProvider.h"
+#include "registry/IDRegistry.h"
 #include "system/GraphicsSystem.h"
 #include "test/TestRegistry.h"
 #include "threading/FunctionTask.h"
@@ -42,7 +43,8 @@ App::App(std::unique_ptr<AppPlatform> appPlatform, std::unique_ptr<AppRegistrati
   , mProjectLocator(std::make_unique<ProjectLocator>())
   , mMessageLock(std::make_unique<SpinLock>())
   , mGameObjectGen(std::make_unique<GameObjectGen>())
-  , mComponentRegistry(Registry::createComponentRegistryProvider()) {
+  , mComponentRegistry(Registry::createComponentRegistryProvider())
+  , mIDRegistry(create::idRegistry()) {
   FilePath path, file, ext;
   FilePath exePath(mAppPlatform->getExePath().c_str());
   exePath.getParts(path, file, ext);
@@ -59,6 +61,7 @@ App::App(std::unique_ptr<AppPlatform> appPlatform, std::unique_ptr<AppRegistrati
     mAppPlatform.get(),
     mComponentRegistry.get(),
     mFileSystem.get(),
+    mIDRegistry.get(),
   };
   auto systems = Registry::createSystemRegistry();
   registration->registerSystems(args, *systems);

@@ -3,6 +3,7 @@
 
 #include "component/Component.h"
 #include "lua/LuaNode.h"
+#include "registry/IDRegistry.h"
 
 DEFINE_EVENT(AddComponentEvent, Handle obj, size_t compType, size_t subType)
   , mObj(obj)
@@ -30,9 +31,12 @@ RemoveComponentEvent::RemoveComponentEvent(Handle obj, const ComponentType& type
   , mSubType(type.subId) {
 }
 
-DEFINE_EVENT(AddGameObjectEvent, Handle obj)
-  , mObj(obj) {
+AddGameObjectEvent::AddGameObjectEvent(Handle obj, std::shared_ptr<IClaimedUniqueID> uniqueID)
+  : mObj(obj)
+  , mUniqueID(uniqueID) {
 }
+
+AddGameObjectEvent::~AddGameObjectEvent() = default;
 
 DEFINE_EVENT(RemoveGameObjectEvent, Handle obj)
   , mObj(obj) {

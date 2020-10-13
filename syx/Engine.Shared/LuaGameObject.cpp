@@ -12,6 +12,7 @@
 #include "lua/LuaStackAssert.h"
 #include "lua/LuaUtil.h"
 #include <lua.hpp>
+#include "registry/IDRegistry.h"
 #include "system/LuaGameSystem.h"
 
 const std::string LuaGameObject::CLASS_NAME = "Gameobject";
@@ -31,11 +32,12 @@ namespace {
   }
 }
 
-LuaGameObject::LuaGameObject(Handle h)
-  : mHandle(h)
-  , mTransform(h)
-  , mSpace(h)
-  , mName(h) {
+LuaGameObject::LuaGameObject(Handle runtimeID, std::shared_ptr<IClaimedUniqueID> uniqueID)
+  : mRuntimeID(runtimeID)
+  , mUniqueID(std::move(uniqueID))
+  , mTransform(runtimeID)
+  , mSpace(runtimeID)
+  , mName(runtimeID) {
   _addBuiltInComponents();
 }
 
@@ -58,7 +60,11 @@ bool LuaGameObject::_isBuiltInComponent(const Component& comp) const {
 }
 
 Handle LuaGameObject::getHandle() const {
-  return mHandle;
+  return mRuntimeID;
+}
+
+const UniqueID& LuaGameObject::getUniqueID() const {
+  return **mUniqueID;
 }
 
 void LuaGameObject::addComponent(std::unique_ptr<Component> component) {
@@ -171,7 +177,7 @@ LuaComponent* LuaGameObject::addLuaComponent(std::unique_ptr<LuaComponent> compo
 }
 
 LuaComponent* LuaGameObject::addLuaComponent(size_t script) {
-  mLuaComponents.emplace_back(std::make_unique<LuaComponent>(mHandle));
+  mLuaComponents.emplace_back(std::make_unique<LuaComponent>(mRuntimeID));
   LuaComponent& result = *mLuaComponents.back();
   result.setScript(script);
   _addComponentLookup(result);
@@ -214,7 +220,7 @@ size_t LuaGameObject::componentCount() const {
 }
 
 std::unique_ptr<LuaGameObject> LuaGameObject::clone() const {
-  auto result = std::make_unique<LuaGameObject>(mHandle);
+  auto result = std::make_unique<LuaGameObject>(mRuntimeID, mUniqueID);
   forEachComponent([&result](const Component& c) {
     result->addComponent(c.clone());
   });
@@ -239,7 +245,7 @@ void LuaGameObject::openLib(lua_State* l) {
 
 int LuaGameObject::toString(lua_State* l) {
   IGameObject& self = getObj(l, 1);
-  std::string result = CLASS_NAME + "( " + std::to_string(self.getHandle()) + ")";
+  std::string result = CLASS_NAME + "( " + std::to_string(self.getRuntimeID()) + ")";
   lua_pushlstring(l, result.c_str(), result.size());
   return 1;
 }
@@ -286,7 +292,7 @@ int LuaGameObject::newIndexOverload(lua_State* l) {
   }
   //Trying to remove component. Setting invalid component name to nil is fine, as it wouldn't do anything
   else {
-    game.removeComponentFromPropName(key, self.getHandle());
+    game.removeComponentFromPropName(key, self.getRuntimeID());
   }
   return 0;
 }
@@ -307,7 +313,7 @@ int LuaGameObject::removeComponent(lua_State* l) {
   IGameObject& obj = getObj(l, 1);
   const char* componentName = luaL_checkstring(l, 2);
   ILuaGameContext& game = Lua::checkGameContext(l);
-  game.removeComponent(componentName, obj.getHandle());
+  game.removeComponent(componentName, obj.getRuntimeID());
   return 0;
 }
 
@@ -348,7 +354,7 @@ const Lua::Node& LuaGameObjectDescription::getMetadata() const {
   static std::unique_ptr<Lua::Node> result = [this]() {
     using namespace Lua;
     auto root = makeRootNode(NodeOps(""));
-    makeNode<SizetNode>(NodeOps(*root, "handle", ::Util::offsetOf(*this, mHandle)));
+    makeNode<Uint64Node>(NodeOps(*root, "uniqueID", ::Util::offsetOf(*this, mUniqueID.mRaw)));
     makeNode<VectorNode<ComponentNode>>(NodeOps(*root, "components", ::Util::offsetOf(*this, mComponents)));
     return root;
   }();

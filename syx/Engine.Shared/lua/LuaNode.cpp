@@ -535,6 +535,16 @@ namespace Lua {
     lua_pushinteger(s, static_cast<lua_Integer>(_cast(base)));
   }
 
+  void Uint64Node::_readFromLua(lua_State* s, void* base) const {
+    static_assert(sizeof(lua_Integer) >= sizeof(uint64_t), "Lua number must be big enough to hold value or this needs to be rewritten");
+    _cast(base) = static_cast<size_t>(lua_tointeger(s, -1));
+  }
+
+  void Uint64Node::_writeToLua(lua_State* s, const void* base) const {
+    static_assert(sizeof(lua_Integer) >= sizeof(uint64_t), "Lua number must be big enough to hold value or this needs to be rewritten");
+    lua_pushinteger(s, static_cast<lua_Integer>(_cast(base)));
+  }
+
   void DoubleNode::_readFromLua(lua_State* s, void* base) const {
     _cast(base) = static_cast<lua_Number>(lua_tonumber(s, -1));
   }

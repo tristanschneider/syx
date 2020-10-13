@@ -4,6 +4,7 @@
 
 class Component;
 struct ComponentType;
+struct IClaimedUniqueID;
 namespace Lua {
   class Node;
   using NodeDiff = uint64_t;
@@ -27,10 +28,13 @@ public:
   size_t mSubType;
 };
 
-class AddGameObjectEvent : public Event {
+class AddGameObjectEvent : public TypedEvent<AddGameObjectEvent> {
 public:
-  AddGameObjectEvent(Handle obj);
+  //Caller can specify an id that they claimed or instead leave it empty and the game system will generate a new one
+  AddGameObjectEvent(Handle obj, std::shared_ptr<IClaimedUniqueID> uniqueID = nullptr);
+  ~AddGameObjectEvent();
   Handle mObj;
+  std::shared_ptr<IClaimedUniqueID> mUniqueID;
 };
 
 class RemoveGameObjectEvent : public Event {

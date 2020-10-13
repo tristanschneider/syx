@@ -46,12 +46,48 @@ namespace LuaTests {
     TEST_METHOD(Scene_ClearScene_ObjectsRemoved) {
       MockApp app;
       auto context = _createGameContext(app);
-      const Handle createdObject = context->addGameObject().getHandle();
+      const Handle createdObject = context->addGameObject().getRuntimeID();
 
       _clearSpace(0, app);
 
       context->clearCache();
       Assert::IsNull(context->getGameObject(createdObject), L"Created object should have been destroyed when the scene was cleared", LINE_INFO());
+    }
+
+    TEST_METHOD(Scene_AccessBuiltInComponentsOnNewObject_ComponentsExist) {
+      MockApp app;
+      auto context = _createGameContext(app);
+      IGameObject& createdObject = context->addGameObject();
+      Assert::IsTrue(createdObject.getComponent({ Component::typeId<NameComponent>(), 0 }) != nullptr, L"Name should exist");
+      Assert::IsTrue(createdObject.getComponent({ Component::typeId<SpaceComponent>(), 0 }) != nullptr, L"Space should exist");
+      Assert::IsTrue(createdObject.getComponent({ Component::typeId<Transform>(), 0 }) != nullptr, L"Transform should exist");
+    }
+
+    TEST_METHOD(Scene_SaveLoadSingleObjectName_IsSame) {
+      MockApp app;
+      auto context = _createGameContext(app);
+      IGameObject& createdObject = context->addGameObject();
+      const Handle createdObjectHandle = createdObject.getRuntimeID();
+      IComponent& name = *createdObject.getComponent({ Component::typeId<NameComponent>(), 0 });
+      name.set([&name] {
+         NameComponent temp = name.get<NameComponent>();
+         temp.setName("test");
+         return temp;
+      }());
+      //TODO save here, load, and then get the name again to see if it matches
+
+      _clearSpace(0, app);
+
+      context->clearCache();
+      Assert::IsNull(context->getGameObject(createdObjectHandle), L"Created object should have been destroyed when the scene was cleared", LINE_INFO());
+    }
+
+    TEST_METHOD(Scene_SaveLoadSingleObject_IsSame) {
+
+    }
+
+    TEST_METHOD(Scene_LoadSceneWithAsset_AssetIsLoaded) {
+
     }
   };
 }

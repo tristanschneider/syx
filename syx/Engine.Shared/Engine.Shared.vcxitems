@@ -93,6 +93,7 @@
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="$(MSBuildThisFileDirectory)ProjectLocator.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)registry\IDRegistry.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)Space.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)system\AssetRepo.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)system\GraphicsSystem.cpp" />
@@ -200,6 +201,7 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)provider\LuaGameObjectProvider.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)provider\MessageQueueProvider.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)provider\SystemProvider.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)registry\IDRegistry.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Space.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)system\AssetRepo.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)system\GraphicsSystem.h" />
@@ -217,6 +219,7 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)threading\Task.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)threading\ThreadLocal.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)threading\WorkerPool.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)UniqueID.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Util.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)util\Finally.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)util\ScratchPad.h" />

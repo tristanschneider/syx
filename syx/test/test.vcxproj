@@ -147,6 +147,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="AsyncHandleTest.cpp" />
+    <ClCompile Include="IDRegistryTest.cpp" />
     <ClCompile Include="LockTest.cpp" />
     <ClCompile Include="lua\GameObjectTests.cpp" />
     <ClCompile Include="lua\LuaCacheTests.cpp" />
