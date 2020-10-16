@@ -147,6 +147,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="AsyncHandleTest.cpp" />
+    <ClCompile Include="event\EventBufferTest.cpp" />
     <ClCompile Include="IDRegistryTest.cpp" />
     <ClCompile Include="LockTest.cpp" />
     <ClCompile Include="lua\GameObjectTests.cpp" />
@@ -166,6 +167,7 @@
     <ClCompile Include="test\TestKeyboardInput.cpp" />
     <ClCompile Include="TypeTest.cpp" />
     <ClCompile Include="UtilTest.cpp" />
+    <ClCompile Include="util\FunctionTraitsTest.cpp" />
     <ClCompile Include="WorkerPoolTest.cpp" />
   </ItemGroup>
   <ItemGroup>

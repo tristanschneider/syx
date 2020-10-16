@@ -1,6 +1,7 @@
 #pragma once
 #include "event/Event.h"
 #include "file/FilePath.h"
+#include "Handle.h"
 
 class ClearSpaceEvent : public Event {
 public:

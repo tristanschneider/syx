@@ -16,7 +16,8 @@ public:
   EventBufferConstIt operator++(int);
   bool operator==(EventBufferConstIt it);
   bool operator!=(EventBufferConstIt it);
-  const Event& operator*();
+  const Event& operator*() const;
+  const Event* operator->() const;
 
 private:
   const uint8_t* mPtr;
@@ -30,8 +31,14 @@ public:
   EventBuffer(const EventBuffer&) = delete;
   EventBuffer& operator=(const EventBuffer&) = delete;
 
-  void push(Event&& e);
-  void push(const Event& e);
+  template<class EventType>
+  void push(EventType e) {
+    static_assert(std::is_convertible_v<EventType, Event>, "Should be an event type");
+    size_t start = mBufferSize;
+    _growBuffer(e.getSize());
+    Event::Registry::moveConstruct(std::move(e), mBuffer[start]);
+  }
+
   //Emplace an event of the given type and size. Must still be an event, but allows overallocation for variable event sizes within the same event type
   template<typename E, typename... Args>
   void emplace(size_t size, Args&&... args) {

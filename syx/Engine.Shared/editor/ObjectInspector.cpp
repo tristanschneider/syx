@@ -39,15 +39,15 @@ ObjectInspector::ObjectInspector(MessageQueueProvider& msg, EventHandler& handle
   , mDefaultInspectors(std::make_unique<DefaultInspectors>())
   , mComponentRegistry(componentRegistry) {
 
-  handler.registerEventHandler<SetSelectionEvent>([this](const SetSelectionEvent& e) {
+  handler.registerEventHandler([this](const SetSelectionEvent& e) {
     mSelected = e.mObjects;
   });
 
   auto refreshSelection = [this]() {
     mPrevSelected.clear();
   };
-  handler.registerEventHandler<AddComponentEvent>([this, refreshSelection](const AddComponentEvent&) { refreshSelection(); });
-  handler.registerEventHandler<RemoveComponentEvent>([this, refreshSelection](const RemoveComponentEvent) { refreshSelection(); });
+  handler.registerEventHandler([this, refreshSelection](const AddComponentEvent&) { refreshSelection(); });
+  handler.registerEventHandler([this, refreshSelection](const RemoveComponentEvent&) { refreshSelection(); });
 }
 
 ObjectInspector::~ObjectInspector() {

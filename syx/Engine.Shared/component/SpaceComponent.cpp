@@ -28,6 +28,7 @@
 #include "threading/AsyncHandle.h"
 #include "threading/FunctionTask.h"
 #include "threading/WorkerPool.h"
+#include "util/Finally.h"
 
 namespace {
   void _pushComponent(MessageQueue& msg, Handle objHandle, const Component& comp) {
@@ -191,6 +192,9 @@ std::shared_ptr<IAsyncHandle<bool>> SpaceComponent::_load(lua_State* l, Handle s
 
     Lua::StackAssert sa(*s);
     std::vector<uint8_t> serializedScene;
+    auto completeOnFailure(finally([&result] {
+      Async::setComplete(*result, false);
+    }));
     if(game.getFileSystem().readFile(path, serializedScene) == FileSystem::FileResult::Success) {
       if(luaL_dostring(*s, reinterpret_cast<const char*>(serializedScene.data())) == LUA_OK) {
         LuaSceneDescription sceneDesc;
@@ -198,11 +202,11 @@ std::shared_ptr<IAsyncHandle<bool>> SpaceComponent::_load(lua_State* l, Handle s
         _loadSceneFromDescription(game, sceneDesc, space);
         //Assume success if lua was properly formatted
         Async::setComplete(*result, true);
+        completeOnFailure.cancel();
       }
       else {
         printf("Error loading scene %s\n", lua_tostring(*s, -1));
         lua_pop(*s, 1);
-        Async::setComplete(*result, false);
       }
     }
   }));

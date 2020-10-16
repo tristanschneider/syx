@@ -25,26 +25,18 @@ bool EventBufferConstIt::operator!=(EventBufferConstIt it) {
   return mPtr != it.mPtr;
 }
 
-const Event& EventBufferConstIt::operator*() {
+const Event& EventBufferConstIt::operator*() const {
   return reinterpret_cast<const Event&>(*mPtr);
+}
+
+const Event* EventBufferConstIt::operator->() const {
+  return reinterpret_cast<const Event*>(mPtr);
 }
 
 EventBuffer::EventBuffer(size_t baseCapacity)
   : mBuffer(new uint8_t[baseCapacity])
   , mBufferSize(0)
   , mBufferCapacity(baseCapacity) {
-}
-
-void EventBuffer::push(Event&& e) {
-  size_t start = mBufferSize;
-  _growBuffer(e.getSize());
-  Event::Registry::moveConstruct(std::move(e), mBuffer[start]);
-}
-
-void EventBuffer::push(const Event& e) {
-  size_t start = mBufferSize;
-  _growBuffer(e.getSize());
-  Event::Registry::copyConstruct(e, mBuffer[start]);
 }
 
 void EventBuffer::clear() {

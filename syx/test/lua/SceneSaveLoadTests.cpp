@@ -30,12 +30,17 @@ namespace LuaTests {
     }
 
     std::string _saveSpace(Handle space, FilePath file, MockApp& app) {
-      app->getMessageQueue().get().push(SaveSpaceEvent(space, file));
+      app->getMessageQueue()->push(SaveSpaceEvent(space, file));
       app->update(1.f);
       auto& fs = static_cast<FileSystem::TestFileSystem&>(app->getFileSystem());
       auto found = fs.mFiles.find(file.cstr());
       Assert::IsTrue(found != fs.mFiles.end(), L"File for saved scene should exist after saving", LINE_INFO());
       return found != fs.mFiles.end() ? found->second : "";
+    }
+
+    void _loadSpace(Handle targetSpace, FilePath toLoad, MockApp& app) {
+      app->getMessageQueue()->push(LoadSpaceEvent(targetSpace, toLoad));
+      app->update(1.f);
     }
 
     TEST_METHOD(Scene_SaveLoadEmptyScene_FileExists) {
@@ -76,6 +81,7 @@ namespace LuaTests {
       }());
       //TODO save here, load, and then get the name again to see if it matches
 
+      _saveSpace(0, "test", app);
       _clearSpace(0, app);
 
       context->clearCache();

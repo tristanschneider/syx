@@ -111,6 +111,14 @@ public:
     return *mObj;
   }
 
+  const T* operator->() const {
+    return mObj;
+  }
+
+  T* operator->() {
+    return mObj;
+  }
+
 private:
   void _clear() {
     mLock = nullptr;

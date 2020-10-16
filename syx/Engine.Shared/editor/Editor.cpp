@@ -123,12 +123,12 @@ void Editor::init() {
   mDragDropAssetLoader = std::make_unique<DragDropAssetLoader>(*mArgs.mSystems->getSystem<AssetRepo>(), *mArgs.mPool, *mArgs.mProjectLocator, *mArgs.mFileSystem);
   mArgs.mAppPlatform->addDragDropObserver(*mDragDropAssetLoader);
 
-  mEventHandler->registerEventHandler<AllSystemsInitialized>([this](const AllSystemsInitialized&) {
+  mEventHandler->registerEventHandler([this](const AllSystemsInitialized&) {
     mGameObserver = std::make_unique<EditorGameObserver>(std::bind(&Editor::_editorUpdate, this));
     mArgs.mSystems->getSystem<LuaGameSystem>()->addObserver(*mGameObserver);
   });
 
-  mEventHandler->registerEventHandler<UriActivated>([this](const UriActivated& e) {
+  mEventHandler->registerEventHandler([this](const UriActivated& e) {
     const auto it = e.mParams.find("loadScene");
     if(it != e.mParams.end() && mArgs.mFileSystem->fileExists(it->second.c_str())) {
       //TODO: should this path be kept seperate from mSavedScene?
@@ -139,10 +139,10 @@ void Editor::init() {
     }
   });
 
-  mEventHandler->registerEventHandler<SetPlayStateEvent>([this](const SetPlayStateEvent& e) {
+  mEventHandler->registerEventHandler([this](const SetPlayStateEvent& e) {
     _updateState(e.mState);
   });
-  mEventHandler->registerEventHandler<CallbackEvent>(CallbackEvent::getHandler(typeId<Editor>()));
+  mEventHandler->registerEventHandler(CallbackEvent::getHandler(typeId<Editor>()));
 
   //TODO: make this less confusing and error prone
   MessageQueue msg = mArgs.mMessages->getMessageQueue();
@@ -158,7 +158,7 @@ void Editor::init() {
   cc->addSync(msg.get());
   mCamera->addComponent(std::move(cc));
 
-  mEventHandler->registerEventHandler<AllSystemsInitialized>([this](const auto&) {
+  mEventHandler->registerEventHandler([this](const AllSystemsInitialized&) {
     mAssetWatcher = std::make_unique<AssetWatcher>(*mArgs.mMessages, *mEventHandler, *mArgs.mAppPlatform, *mArgs.mSystems->getSystem<AssetRepo>(), *mArgs.mProjectLocator);
   });
 }

@@ -14,7 +14,7 @@ Toolbox::Toolbox(MessageQueueProvider& msg, EventHandler& handler)
   , mCurrentPlayState(PlayState::Stopped)
   , mPostStepState(PlayState::Invalid) {
 
-  handler.registerEventHandler<SetPlayStateEvent>([this](const SetPlayStateEvent& e) {
+  handler.registerEventHandler([this](const SetPlayStateEvent& e) {
     mCurrentPlayState = e.mState;
     if(mCurrentPlayState == PlayState::Stepping && mPostStepState != PlayState::Invalid) {
       _requestPlayStateChange(mPostStepState);

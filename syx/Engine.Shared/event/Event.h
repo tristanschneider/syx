@@ -86,11 +86,11 @@ public:
     , mCallback(std::move(callback)) {
   }
 
-  static std::function<void(const Event&)> getHandler(size_t systemId) {
-    return [systemId](const Event& e) {
-      const CallbackEvent& self = static_cast<const CallbackEvent&>(e);
-      if(self.mDestId == systemId)
-        self.mCallback();
+  static std::function<void(const CallbackEvent&)> getHandler(size_t systemId) {
+    return [systemId](const CallbackEvent& e) {
+      if(e.mDestId == systemId) {
+        e.mCallback();
+      }
     };
   }
 
@@ -112,12 +112,16 @@ public:
   }
 
   void respond(EventBuffer& msg, Res&& res) const {
-    //Copy the callback and the result and deliver it to the requester to be executed there
-    ResponseHandler handlerCopy = std::move(mHandler);
-    //The requester must have a handler for CallbackEvent or he won't get this response
-    msg.push(CallbackEvent(mRequesterType, [res = std::move(res), handlerCopy = std::move(handlerCopy)]() {
-      handlerCopy(res);
-    }));
+    //Make sure there is a handler listening for this response. If there isn't, either no one cares or this event has already been responded to
+    if(mHandler) {
+      //Copy the callback and the result and deliver it to the requester to be executed there
+      ResponseHandler handlerCopy = std::move(mHandler);
+      mHandler = nullptr;
+      //The requester must have a handler for CallbackEvent or he won't get this response
+      msg.push(CallbackEvent(mRequesterType, [res = std::move(res), handlerCopy = std::move(handlerCopy)]() {
+        handlerCopy(res);
+      }));
+    }
   }
 
 private:

@@ -108,7 +108,7 @@ void GraphicsSystem::init() {
   SYSTEM_EVENT_HANDLER(SetViewportEvent, _processSetViewportEvent);
   SYSTEM_EVENT_HANDLER(RemoveViewportEvent, _processRemoveViewportEvent);
   SYSTEM_EVENT_HANDLER(GetCameraRequest, _processGetCameraRequest);
-  mEventHandler->registerEventHandler<CallbackEvent>(CallbackEvent::getHandler(typeId<GraphicsSystem>()));
+  mEventHandler->registerEventHandler(CallbackEvent::getHandler(typeId<GraphicsSystem>()));
 }
 
 void GraphicsSystem::update(float dt, IWorkerPool&, std::shared_ptr<Task>) {

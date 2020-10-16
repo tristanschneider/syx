@@ -14,7 +14,7 @@ AssetPreview::AssetPreview(MessageQueueProvider& msg, EventHandler& handler, Ass
   : mMsg(msg)
   , mAssets(assets) {
 
-  handler.registerEventHandler<PreviewAssetEvent>([this](const PreviewAssetEvent& e) {
+  handler.registerEventHandler([this](const PreviewAssetEvent& e) {
     mPreview = !e.mAsset.isEmpty() ? mAssets.getAsset(e.mAsset) : nullptr;
     //TODO: request asset thumbnail if necessary
   });

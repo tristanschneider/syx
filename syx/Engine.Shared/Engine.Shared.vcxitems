@@ -222,6 +222,7 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)UniqueID.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Util.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)util\Finally.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)util\FunctionTraits.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)util\ScratchPad.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)util\Variant.h" />
   </ItemGroup>
