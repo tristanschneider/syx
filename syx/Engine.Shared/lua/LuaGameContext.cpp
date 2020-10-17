@@ -102,6 +102,14 @@ public:
     mCachedComponents.clear();
   }
 
+  auto begin() {
+    return mCachedComponents.begin();
+  }
+
+  auto end() {
+    return mCachedComponents.end();
+  }
+
 private:
   std::unordered_map<Key, std::unique_ptr<Value>> mCachedComponents;
 };

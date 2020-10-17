@@ -111,7 +111,7 @@ public:
     return static_cast<Req&>(*this);
   }
 
-  void respond(EventBuffer& msg, Res&& res) const {
+  void respond(EventBuffer& msg, Res res) const {
     //Make sure there is a handler listening for this response. If there isn't, either no one cares or this event has already been responded to
     if(mHandler) {
       //Copy the callback and the result and deliver it to the requester to be executed there

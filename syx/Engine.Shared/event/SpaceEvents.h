@@ -3,27 +3,28 @@
 #include "file/FilePath.h"
 #include "Handle.h"
 
-class ClearSpaceEvent : public Event {
+class ClearSpaceEvent : public TypedEvent<ClearSpaceEvent> {
 public:
   ClearSpaceEvent(Handle space);
   Handle mSpace;
 };
 
-class LoadSpaceEvent : public Event {
+//Response is a bool indicating success
+class LoadSpaceEvent : public RequestEvent<LoadSpaceEvent, bool> {
 public:
   LoadSpaceEvent(Handle spaceId, const FilePath& path);
   Handle mSpace;
   FilePath mFile;
 };
 
-class SaveSpaceEvent : public Event {
+class SaveSpaceEvent : public TypedEvent<SaveSpaceEvent> {
 public:
   SaveSpaceEvent(Handle spaceId, const FilePath& path);
   Handle mSpace;
   FilePath mFile;
 };
 
-class SetTimescaleEvent : public Event {
+class SetTimescaleEvent : public TypedEvent<SetTimescaleEvent> {
 public:
   SetTimescaleEvent(Handle space, float timescale);
   Handle mSpace;

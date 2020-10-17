@@ -8,6 +8,7 @@
 #include "component/Physics.h"
 #include "component/Renderable.h"
 #include "event/BaseComponentEvents.h"
+#include "event/DeferredEventBuffer.h"
 #include "event/EventBuffer.h"
 #include "event/EventHandler.h"
 #include "event/LifecycleEvents.h"
@@ -276,7 +277,14 @@ void LuaGameSystem::_onSpaceSave(const SaveSpaceEvent& e) {
 void LuaGameSystem::_onSpaceLoad(const LoadSpaceEvent& e) {
   // Keep the context alive until the task completes
   std::shared_ptr<ILuaGameContext> context = _createGameContext();
-  SpaceComponent::_load(context->getLuaState(), e.mSpace, e.mFile)->then([context](auto&&) {});
+  SpaceComponent::_load(context->getLuaState(), e.mSpace, e.mFile)->then([context, e, this](IAsyncHandle<bool>& result) {
+    //Send an event to ourselves after a tick to make sure that the events caused by loading the scene have been processed
+    CallbackEvent response(typeId<LuaGameSystem>(), [this, e, result(*result.getResult())] {
+      e.respond(*getMessageQueueProvider().getMessageQueue(), result);
+    });
+
+    getMessageQueueProvider().getDeferredMessageQueue()->push(std::move(response), DeferredEventBuffer::Condition::waitTicks(1));
+  });
 }
 
 void LuaGameSystem::_onSetTimescale(const SetTimescaleEvent& e) {

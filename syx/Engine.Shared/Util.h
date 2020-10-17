@@ -103,6 +103,7 @@ public:
     return *mObj;
   }
 
+  //TODO: these are weird, should remove, * and -> make more sense
   operator T&() {
     return *mObj;
   }
@@ -117,6 +118,14 @@ public:
 
   T* operator->() {
     return mObj;
+  }
+
+  T& operator*() {
+    return *mObj;
+  }
+
+  const T& operator*() const {
+    return *mObj;
   }
 
 private:

@@ -537,7 +537,7 @@ namespace Lua {
 
   void Uint64Node::_readFromLua(lua_State* s, void* base) const {
     static_assert(sizeof(lua_Integer) >= sizeof(uint64_t), "Lua number must be big enough to hold value or this needs to be rewritten");
-    _cast(base) = static_cast<size_t>(lua_tointeger(s, -1));
+    _cast(base) = static_cast<uint64_t>(lua_tointeger(s, -1));
   }
 
   void Uint64Node::_writeToLua(lua_State* s, const void* base) const {

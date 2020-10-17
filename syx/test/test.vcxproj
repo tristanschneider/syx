@@ -152,6 +152,7 @@
     <ClCompile Include="LockTest.cpp" />
     <ClCompile Include="lua\GameObjectTests.cpp" />
     <ClCompile Include="lua\LuaCacheTests.cpp" />
+    <ClCompile Include="lua\LuaNodeTests.cpp" />
     <ClCompile Include="lua\SceneSaveLoadTests.cpp" />
     <ClCompile Include="Mat4Test.cpp" />
     <ClCompile Include="ObserverTest.cpp" />

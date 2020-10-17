@@ -37,6 +37,7 @@ public:
   FileSystem::IFileSystem& getFileSystem();
 
   MessageQueue getMessageQueue() override;
+  DeferredMessageQueue getDeferredMessageQueue() override;
   System* _getSystem(size_t id) override;
 
 private:
@@ -46,10 +47,13 @@ private:
   //Message queue is what is pushed to every frame, frozen is what all systems look at each frame to read from
   std::unique_ptr<EventBuffer> mMessageQueue;
   std::unique_ptr<EventBuffer> mFrozenMessageQueue;
+  std::unique_ptr<DeferredEventBuffer> mDeferredEventBuffer;
+  std::mutex mDeferredEventMutex;
   std::unique_ptr<ProjectLocator> mProjectLocator;
   std::unique_ptr<GameObjectHandleProvider> mGameObjectGen;
   std::unique_ptr<SpinLock> mMessageLock;
   std::unique_ptr<ComponentRegistryProvider> mComponentRegistry;
   std::unique_ptr<FileSystem::IFileSystem> mFileSystem;
   std::unique_ptr<IIDRegistry> mIDRegistry;
+  uint64_t mCurrentTick = 0;
 };

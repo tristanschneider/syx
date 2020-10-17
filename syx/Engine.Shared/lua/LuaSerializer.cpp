@@ -98,13 +98,19 @@ namespace Lua {
     std::string& buffer = *mBuffer;
     switch(type) {
       case LUA_TNUMBER: {
-        double num = static_cast<double>(lua_tonumber(mS, -1));
-        double rounded = _round(num);
-        //If rounded is within an epsilon of num, write as int, otherwise decimal
-        if(std::abs(_roundInt(num) - rounded) < mEpsilon)
-          buffer += std::to_string(static_cast<int>(rounded));
-        else
-          buffer += std::to_string(rounded);
+        //Split into integer and decimal cases to avoid loss in precision
+        if(lua_isinteger(mS, -1)) {
+          buffer += std::to_string(lua_tointeger(mS, -1));
+        }
+        else {
+          double num = static_cast<double>(lua_tonumber(mS, -1));
+          double rounded = _round(num);
+          //If rounded is within an epsilon of num, write as int, otherwise decimal
+          if(std::abs(_roundInt(num) - rounded) < mEpsilon)
+            buffer += std::to_string(static_cast<int>(rounded));
+          else
+            buffer += std::to_string(rounded);
+        }
         break;
       }
       case LUA_TSTRING:

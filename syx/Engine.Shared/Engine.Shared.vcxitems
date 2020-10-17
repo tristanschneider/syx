@@ -49,6 +49,7 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)editor\Toolbox.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)event\BaseComponentEvents.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)event\DebugDrawEvent.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)event\DeferredEventBuffer.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)event\Event.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)event\EventBuffer.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)event\EventHandler.cpp" />
@@ -102,7 +103,6 @@
     <ClCompile Include="$(MSBuildThisFileDirectory)system\PhysicsSystem.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)system\System.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)SyxInterface.cpp" />
-    <ClCompile Include="$(MSBuildThisFileDirectory)test\LuaNodeTests.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)test\UtilsTests.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)threading\FunctionTask.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)threading\RWLock.cpp" />
@@ -148,6 +148,7 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)editor\util\ScopedImGui.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)event\BaseComponentEvents.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)event\DebugDrawEvent.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)event\DeferredEventBuffer.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)event\Event.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)event\EventBuffer.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)event\EventHandler.h" />

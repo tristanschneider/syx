@@ -136,6 +136,8 @@ namespace EventTests {
         Assert::IsTrue(res, L"Value on response should have been preserved", LINE_INFO());
       });
       tester.mHandlerA.registerEventHandler(CallbackEvent::getHandler(0));
+      //Register this to make sure it doesn't trigger a double response
+      tester.mHandlerB.registerEventHandler(CallbackEvent::getHandler(1));
       tester.mHandlerB.registerEventHandler([&tester](const TestRequestPlainResponse& e) mutable {
         e.respond(tester.mWriteBuffer, true);
       });

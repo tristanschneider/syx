@@ -4,6 +4,7 @@
 #include "AppPlatform.h"
 #include "AppRegistration.h"
 #include "component/LuaComponentRegistry.h"
+#include "event/DeferredEventBuffer.h"
 #include "event/EventBuffer.h"
 #include "event/LifecycleEvents.h"
 #include "file/FilePath.h"
@@ -39,6 +40,7 @@ App::App(std::unique_ptr<AppPlatform> appPlatform, std::unique_ptr<AppRegistrati
   : mWorkerPool(std::make_unique<WorkerPool>(4))
   , mMessageQueue(std::make_unique<EventBuffer>())
   , mFrozenMessageQueue(std::make_unique<EventBuffer>())
+  , mDeferredEventBuffer(std::make_unique<DeferredEventBuffer>())
   , mAppPlatform(std::move(appPlatform))
   , mProjectLocator(std::make_unique<ProjectLocator>())
   , mMessageLock(std::make_unique<SpinLock>())
@@ -138,9 +140,18 @@ void App::update(float dt) {
     ImGui::InputText("Text In", buff, buffSize);
   }
 
+  //There is no guarantee of the timing of deferred events, so this can go anywhere. It is here since the only other thing this thread would do is wait on the sync
+  {
+    //The frozen swap as done for normal events would be more efficient. Currently the assumption is that deffered event volume is dramatically lower than normal events so it's not worth the added complexity
+    auto deferredMsg = getDeferredMessageQueue();
+    auto msg = getMessageQueue();
+    deferredMsg->enqueueDeferredEvents(*msg, mCurrentTick);
+  }
+
   frameTask->sync();
   //All readers should have either looked at this in update or in a frameTask dependent task, so clear now.
   mFrozenMessageQueue->clear();
+  ++mCurrentTick;
 }
 
 void App::uninit() {
@@ -164,6 +175,10 @@ FileSystem::IFileSystem& App::getFileSystem() {
 
 MessageQueue App::getMessageQueue() {
   return MessageQueue(*mMessageQueue, *mMessageLock);
+}
+
+DeferredMessageQueue App::getDeferredMessageQueue() {
+  return DeferredMessageQueue(*mDeferredEventBuffer, mDeferredEventMutex);
 }
 
 System* App::_getSystem(size_t id) {

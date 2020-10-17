@@ -12,9 +12,10 @@
 #include "lua/LuaGameContext.h"
 #include "lua/LuaState.h"
 #include "lua/LuaVariant.h"
-
 #include "test/MockApp.h"
+#include "test/TestAppRegistration.h"
 #include "test/TestFileSystem.h"
+#include "threading/AsyncHandle.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -38,9 +39,41 @@ namespace LuaTests {
       return found != fs.mFiles.end() ? found->second : "";
     }
 
-    void _loadSpace(Handle targetSpace, FilePath toLoad, MockApp& app) {
-      app->getMessageQueue()->push(LoadSpaceEvent(targetSpace, toLoad));
+    std::shared_ptr<IAsyncHandle<bool>> _loadSpace(Handle targetSpace, FilePath toLoad, MockApp& app) {
+      LoadSpaceEvent loadSpace(targetSpace, toLoad);
+      auto result = Async::createAsyncHandle<bool>();
+      loadSpace.then(LuaRegistration::TEST_CALLBACK_ID, [result, alreadyComplete(std::make_shared<bool>(false))](bool success) {
+        Async::setComplete(*result, success);
+        Assert::IsFalse(*alreadyComplete, L"Task completion should only trigger once");
+        *alreadyComplete = true;
+      });
+
+      app->getMessageQueue()->push(std::move(loadSpace));
+
+      return result;
+    }
+
+    void _reloadSpace(Handle space, MockApp& app) {
+      const FilePath path = "test";
+      _saveSpace(space, path, app);
+      _clearSpace(space, app);
+      //Update to let the clear go through, otherwise the unique ids can't be reclaimed
       app->update(1.f);
+
+      auto loadTask = _loadSpace(space, path, app);
+
+      app.waitUntil([&loadTask] {
+        return loadTask->getStatus() == AsyncStatus::Complete;
+      });
+      Assert::IsTrue(*loadTask->getResult(), L"Loading the scene should have worked");
+    }
+
+    const LuaGameObject* _getObject(const UniqueID& id, MockApp& app) {
+      const auto& objs = app->getSystem<LuaGameSystem>()->getObjects();
+      const auto it = std::find_if(objs.begin(), objs.end(), [&id](const auto& pair) {
+        return pair.second->getUniqueID() == id;
+      });
+      return it != objs.end() ? it->second.get() : nullptr;
     }
 
     TEST_METHOD(Scene_SaveLoadEmptyScene_FileExists) {
@@ -73,23 +106,24 @@ namespace LuaTests {
       auto context = _createGameContext(app);
       IGameObject& createdObject = context->addGameObject();
       const Handle createdObjectHandle = createdObject.getRuntimeID();
+      const UniqueID createdUniqueID = createdObject.getUniqueID();
       IComponent& name = *createdObject.getComponent({ Component::typeId<NameComponent>(), 0 });
       name.set([&name] {
          NameComponent temp = name.get<NameComponent>();
          temp.setName("test");
          return temp;
       }());
-      //TODO save here, load, and then get the name again to see if it matches
 
-      _saveSpace(0, "test", app);
-      _clearSpace(0, app);
-
+      //This particular order is required to ensure that the claimed id is released before the scene is loaded. It likely indicates a problem that I'll need to address when continuing with the design of UniqueID
       context->clearCache();
-      Assert::IsNull(context->getGameObject(createdObjectHandle), L"Created object should have been destroyed when the scene was cleared", LINE_INFO());
-    }
+      _reloadSpace(0, app);
 
-    TEST_METHOD(Scene_SaveLoadSingleObject_IsSame) {
+      const LuaGameObject* reloadedObject = _getObject(createdUniqueID, app);
+      Assert::IsNotNull(reloadedObject, L"Object should have been reloaded with the same unique id", LINE_INFO());
 
+      const NameComponent* reloadedName = reloadedObject->getComponent<NameComponent>();
+      Assert::IsNotNull(reloadedName, L"Name component should have been reloaded", LINE_INFO());
+      Assert::IsTrue(reloadedName->getName() == "test", L"Name should retain saved value", LINE_INFO());
     }
 
     TEST_METHOD(Scene_LoadSceneWithAsset_AssetIsLoaded) {
