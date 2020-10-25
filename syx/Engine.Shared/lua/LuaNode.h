@@ -2,6 +2,14 @@
 //Nodes used to specify a structure to bind data to, allowing it to be
 //read and written to lua. All nodes take a reference to the type to bind,
 //which will be written or read. Overload makeNode for new node types.
+//This class has two main purposes, which cause some problematic behavior.
+//The first purpose is to be able to read to and write a class hierarchy to lua. This works fine.
+//The second is to allow the object to be copied to a buffer safely, and restored, without statically
+//having to know what the type is.
+//This mostly works for plain types, but is tricky for dynamic ones. The size of the node is expected to be static,
+//so the current approach is to placement construct the dynamic class into the buffer. This means the size is still static,
+//since the buffer will contain an object with a pointer to a buffer it allocated for itself. It will be freed when the user calls the destructors
+//on everything in the buffer. That in itself is also not so great since that's something that the developer could forget to do.
 
 struct lua_State;
 
@@ -83,6 +91,7 @@ namespace Lua {
     virtual size_t getTypeId() const;
 
     NodeDiff getDiff(const void* base, const void* other) const;
+    //Iterate over all nodes on the object, which should already be constructed
     void forEachDiff(NodeDiff diff, const void* base, const DiffCallback& callback) const;
 
     //Translate base which is the root of the tree down to this node
@@ -154,6 +163,8 @@ namespace Lua {
 
   class RootNode : public Node {
   public:
+    static void _writeRootToLua(lua_State* s);
+
     using Node::Node;
     void _readFromLua(lua_State*, void*) const override {}
     void _writeToLua(lua_State* s, const void* base) const override;
@@ -222,6 +233,17 @@ namespace Lua {
     std::enable_if_t<!std::is_copy_constructible<S>::value> _copyConstructIfCopyable(const void*, void*) const {
       assert(false && "Wrapped type isn't copyable, node should override _copyConstruct");
     }
+  };
+
+  //Be careful when using this not to have any non-owning pointers in the class, as they will be copied by value into buffers and potentially unsafe
+  template<class T>
+  struct OwnerRootNode : public TypedNode<T> {
+    using TypedNode<T>::TypedNode;
+    void _readFromLua(lua_State*, void*) const override {}
+    void _writeToLua(lua_State* s, const void*) const override {
+      RootNode::_writeRootToLua(s);
+    }
+    bool _ownsChildMemory() const override { return true; }
   };
 
 #define NODE_SINGLETON(NodeType) static const NodeType& singleton() { static NodeType s(NodeOps("")); return s; }

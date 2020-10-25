@@ -1,6 +1,7 @@
 #include "Precompile.h"
 #include "CppUnitTest.h"
 
+#include <array>
 #include <lua.hpp>
 #include "lua/LuaCompositeNodes.h"
 #include "lua/LuaNode.h"
@@ -237,9 +238,9 @@ namespace LuaTests {
     std::unique_ptr<Tracker> value;
 
     UniquePtrObj(): value(std::make_unique<Tracker>()) {}
-    UniquePtrObj(const UniquePtrObj& rhs): value(std::make_unique<Tracker>(*rhs.value)) {}
+    UniquePtrObj(const UniquePtrObj& rhs): value(rhs.value ? std::make_unique<Tracker>(*rhs.value) : nullptr) {}
     UniquePtrObj(UniquePtrObj&&) = default;
-    UniquePtrObj& operator=(const UniquePtrObj& rhs) { value = std::make_unique<Tracker>(*rhs.value); return *this; }
+    UniquePtrObj& operator=(const UniquePtrObj& rhs) { value = rhs.value ? std::make_unique<Tracker>(*rhs.value) : nullptr; return *this; }
     UniquePtrObj& operator=(UniquePtrObj&&) = default;
 
     std::unique_ptr<Node> getNode() override {
@@ -251,7 +252,8 @@ namespace LuaTests {
       return root;
     }
     std::vector<Tracker*> getValues() override {
-      return { value.get() };
+      std::vector<Tracker*> values { value.get() };
+      return value ? values : std::vector<Tracker*>();
     }
   };
 
@@ -261,6 +263,9 @@ namespace LuaTests {
     std::unique_ptr<NodeTestObject> obj = factory();
     auto node = obj->getNode();
 
+    //Destroy first since the object was constructed by the factory above, but we want to explicitly try constructing it
+    node->destruct(obj.get());
+
     obj->reset();
     node->defaultConstruct(obj.get());
     Assert::IsTrue(obj->avg(obj->defaultCtorCount()) == 1, L"Default constructor should be called once", LINE_INFO());
@@ -268,6 +273,9 @@ namespace LuaTests {
     obj->reset();
     node->destruct(obj.get());
     Assert::IsTrue(obj->avg(obj->dtorCount()) == 1, L"Destructor should be called once", LINE_INFO());
+
+    //Then need to put the value back since the unique ptr would otherwise double free the object
+    node->defaultConstruct(obj.get());
   }
 
   void Node_CopyToAndFromBuffer_CopyCalledTwice(const TestObjFactory& factory) {
@@ -411,10 +419,9 @@ namespace LuaTests {
       Node_TestAll<UnusedFieldObj>();
     }
 
-    //TODO: fix this test
-    //TEST_METHOD(Node_UniqueValue) {
-    //  Node_TestAll<UniquePtrObj>();
-    //}
+    TEST_METHOD(Node_UniqueValue) {
+      Node_TestAll<UniquePtrObj>();
+    }
 
     TEST_METHOD(Node_DiffUniqueVariantSame_AreSame) {
       UniquePtrToVariant a;
@@ -492,6 +499,86 @@ namespace LuaTests {
       root->readFromLua(readState, &readValue, Lua::Node::SourceType::FromGlobal);
 
       Assert::IsTrue(prevValue == readValue.value, L"Value should have been preserved through serialization round trip", LINE_INFO());
+    }
+
+    struct OwnedNodeObjectBase {
+      virtual ~OwnedNodeObjectBase() = default;
+      virtual int test() { return 7; }
+    };
+
+    //Use inheritance to test the trickiest ownership case
+    struct OwnedNodeObject : public OwnedNodeObjectBase {
+      int test() override { return 10; }
+      //Use some tricky member types
+      std::unique_ptr<std::string> mStr;
+      std::vector<std::unique_ptr<int>> mInts;
+      bool mBool;
+
+      OwnedNodeObject() = default;
+      OwnedNodeObject(const OwnedNodeObject& rhs)
+        : mStr(rhs.mStr ? std::make_unique<std::string>(*rhs.mStr) : nullptr)
+        , mBool(rhs.mBool) {
+        for(auto&& i : rhs.mInts) {
+          mInts.push_back(i ? std::make_unique<int>(*i) : nullptr);
+        }
+      }
+
+      // Don't care, not used in test cases
+      bool operator==(const OwnedNodeObject&) const {
+        return false;
+      }
+
+      static std::unique_ptr<Node> getNode() {
+        const OwnedNodeObject obj;
+        auto root = std::make_unique<OwnerRootNode<OwnedNodeObject>>(Lua::NodeOps("root"));
+        auto& strPtr = makeNode<UniquePtrNode<std::string>>(Lua::NodeOps(*root, "mStr", Util::offsetOf(obj, obj.mStr)));
+        makeNode<StringNode>(Lua::NodeOps(strPtr, "value", 0));
+
+        auto& ints = makeNode<VectorNode<UniquePtrNode<int>>>(Lua::NodeOps(*root, "mInts", Util::offsetOf(obj, obj.mInts)));
+        auto& intPtr = makeNode<UniquePtrNode<int>>(Lua::NodeOps(ints, "ptr", 0));
+        makeNode<IntNode>(Lua::NodeOps(intPtr, "value", 0));
+
+        makeNode<BoolNode>(Lua::NodeOps(*root, "mBool", Util::offsetOf(obj, obj.mBool)));
+        return root;
+      }
+    };
+
+    TEST_METHOD(ComplexOwnedType_ConstructDestruct_IsGood) {
+      auto node = OwnedNodeObject::getNode();
+      std::array<uint8_t, 1024> buffer;
+
+      node->defaultConstruct(buffer.data());
+      auto obj = reinterpret_cast<OwnedNodeObject*>(buffer.data());
+
+      Assert::IsTrue(obj->test() == 10, L"Virtual function call should work", LINE_INFO());
+
+      node->destruct(buffer.data());
+    }
+
+    TEST_METHOD(ComplexOwnedType_CopyRoundTrip_ValuesRetained) {
+      auto node = OwnedNodeObject::getNode();
+      std::array<uint8_t, 1024> buffer;
+      node->defaultConstruct(buffer.data());
+      auto obj = reinterpret_cast<OwnedNodeObject*>(buffer.data());
+
+      obj->mBool = true;
+      obj->mStr = std::make_unique<std::string>("string");
+      obj->mInts.push_back(std::make_unique<int>(13));
+
+      std::array<uint8_t, 1024> copyBuffer;
+      node->copyConstructToBuffer(obj, copyBuffer.data());
+      node->destruct(obj);
+
+      std::array<uint8_t, 1024> newBuffer;
+      node->copyConstructFromBuffer(newBuffer.data(), copyBuffer.data());
+      auto restoredObj = reinterpret_cast<OwnedNodeObject*>(newBuffer.data());
+
+      Assert::IsTrue(restoredObj->test() == 10, L"Virtual function call should work", LINE_INFO());
+      Assert::IsTrue(restoredObj->mBool, L"Bool value should have been retained", LINE_INFO());
+      Assert::IsTrue(*restoredObj->mStr == "string", L"mStr value should have been retained", LINE_INFO());
+      Assert::IsTrue(*restoredObj->mInts[0] == 13, L"mInts value should have been retained", LINE_INFO());
+
+      node->destruct(restoredObj);
     }
 
   //TODO: write tests for these

@@ -82,7 +82,8 @@ namespace Lua {
   }
 
   void Node::_funcToBuffer(void (Node::* func)(const void*, void*) const, const void* base, void* buffer) const {
-    if(mChildren.empty()) {
+    //If this owns the memory it'll copy everyone under it just fine. The danger here is that a raw pointer could be copied, but raw pointers should not be used here
+    if(mChildren.empty() || _ownsChildMemory()) {
       (this->*func)(base, buffer);
     }
     else {
@@ -109,6 +110,10 @@ namespace Lua {
       if(diff & (static_cast<NodeDiff>(1) << nodeIndex))
         (this->*func)(buffer, base);
       ++nodeIndex;
+    }
+    else if(_ownsChildMemory()) {
+      //Diff is broken for this case, the object must be copied at the top level for the static size requirement to be satisfied, but that means the children won't be iterated to find the proper diff nodes.
+      (this->*func)(buffer, base);
     }
     else {
       _translateBase(base);
@@ -139,7 +144,8 @@ namespace Lua {
   }
 
   void Node::_funcBufferToBuffer(void (Node::* func)(const void*, void*) const, const void* from, void* to) const {
-    if(mChildren.empty()) {
+    //If this owns the memory it'll copy everyone under it just fine. The danger here is that a raw pointer could be copied, but raw pointers should not be used here
+    if(mChildren.empty() || _ownsChildMemory()) {
       (this->*func)(from, to);
     }
     else {
@@ -184,7 +190,7 @@ namespace Lua {
   }
 
   void Node::destructBuffer(void* buffer) const {
-    if(mChildren.empty()) {
+    if(mChildren.empty() || _ownsChildMemory()) {
       _destruct(buffer);
     }
     else {
@@ -197,11 +203,15 @@ namespace Lua {
   }
 
   void Node::defaultConstruct(void* base) const {
-    int nodeIndex = 0;
     _defaultConstruct(base);
-    _forEachDiff(~Lua::NodeDiff(0), base, [](const Node& node, const void* data) {
-      node._defaultConstruct(const_cast<void*>(data));
-    }, nodeIndex);
+    //_forEachDiff can't quite be used here because this needs to be aware of memory owning nodes in a way that a query foreach doesn't
+    //If this owns the child memory that means initializing this will already initialize the children, so no further recursion is needed
+    if (!_ownsChildMemory()) {
+      _translateBase(base);
+      for (const auto& child : mChildren) {
+        child->defaultConstruct(Util::offset(base, child->mOps.mOffset));
+      }
+    }
   }
 
   void Node::destruct(void* base) const {
@@ -468,9 +478,13 @@ namespace Lua {
     return *this;
   }
 
-  void RootNode::_writeToLua(lua_State* s, const void*) const {
+  void RootNode::_writeRootToLua(lua_State* s) {
     // Write table for children to fill
     lua_newtable(s);
+  }
+
+  void RootNode::_writeToLua(lua_State* s, const void*) const {
+    _writeRootToLua(s);
   }
 
   void IntNode::_readFromLua(lua_State* s, void* base) const {

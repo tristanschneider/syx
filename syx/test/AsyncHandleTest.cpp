@@ -73,14 +73,14 @@ namespace ThreadingTests {
     TEST_METHOD(AsyncHandle_MultithreadedCallbacks_AllComplete) {
       auto handle = Async::createAsyncHandle<bool>();
       const int numCallbacks = 10000;
-      int numComplete = 0;
+      std::atomic_int numComplete = 0;
       std::atomic_bool threadStarted = false;
 
       std::thread thread([&handle, &numComplete, &threadStarted] {
         for(int i = 0; i < 10000; ++i) {
           handle->then([&numComplete](IAsyncHandle<bool>& result) {
             Assert::IsTrue(*result.getResult(), L"Value should match completion value", LINE_INFO());
-            ++numComplete;
+            numComplete.fetch_add(1);
           });
           threadStarted = true;
         }
@@ -93,7 +93,7 @@ namespace ThreadingTests {
       Async::setComplete(*handle, true);
       thread.join();
 
-      Assert::AreEqual(numCallbacks, numComplete, L"All callbacks should have been triggered", LINE_INFO());
+      Assert::AreEqual(numCallbacks, numComplete.load(), L"All callbacks should have been triggered", LINE_INFO());
     }
 
     TEST_METHOD(CompleteHandle_CreateVoid_IsComplete) {
