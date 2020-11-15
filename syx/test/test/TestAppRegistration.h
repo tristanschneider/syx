@@ -8,3 +8,7 @@ struct LuaRegistration : public AppRegistration {
   virtual void registerSystems(const SystemArgs& args, ISystemRegistry& registry) override;
   virtual void registerComponents(IComponentRegistry& registry) override;
 };
+
+namespace TestRegistration {
+  std::unique_ptr<AppRegistration> createEditorRegistration();
+}

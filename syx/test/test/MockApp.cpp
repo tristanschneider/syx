@@ -7,7 +7,11 @@
 #include "test/TestAppRegistration.h"
 
 MockApp::MockApp()
-  : mApp(std::make_unique<App>(std::make_unique<TestAppPlatform>(), std::make_unique<LuaRegistration>())) {
+  : MockApp(std::make_unique<TestAppPlatform>(), std::make_unique<LuaRegistration>()) {
+}
+
+MockApp::MockApp(std::unique_ptr<AppPlatform> appPlatform, std::unique_ptr<AppRegistration> registration)
+  : mApp(std::make_unique<App>(std::move(appPlatform), std::move(registration))) {
   mApp->init();
 }
 

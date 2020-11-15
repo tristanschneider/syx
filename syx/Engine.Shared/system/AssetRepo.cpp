@@ -106,6 +106,15 @@ void AssetRepo::forEachAsset(const std::function<void(std::shared_ptr<Asset>)> c
   }
 }
 
+void AssetRepo::removeAsset(AssetInfo info) {
+  info.fill();
+  auto lock = mAssetLock.getWriter();
+  auto it = mIdToAsset.find(info.mId);
+  if(it != mIdToAsset.end()) {
+    mIdToAsset.erase(it);
+  }
+}
+
 std::shared_ptr<Asset> AssetRepo::_find(AssetInfo& info) {
   auto it = mIdToAsset.find(info.mId);
   //Deal with hash collisions by incrementing id if a uri was provided

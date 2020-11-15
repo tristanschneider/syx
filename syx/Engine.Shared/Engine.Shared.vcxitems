@@ -194,6 +194,7 @@
     <ClInclude Include="$(MSBuildThisFileDirectory)lua\LuaState.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)lua\LuaUtil.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)lua\LuaVariant.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)Macros.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)MappedBuffer.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)Precompile.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)ProjectLocator.h" />

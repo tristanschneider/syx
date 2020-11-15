@@ -125,7 +125,24 @@ namespace LuaTests {
     }
 
     TEST_METHOD(Scene_LoadSceneWithAsset_AssetIsLoaded) {
+      MockApp app;
+      AssetRepo& assets = *app->getSystem<AssetRepo>();
+      AssetInfo testAssetInfo("test.txt");
+      auto& fs = static_cast<FileSystem::TestFileSystem&>(app->getFileSystem());
+      fs.writeFile(testAssetInfo.mUri.c_str(), "test file contents");
 
+      testAssetInfo.fill();
+      //This will need to be updated if scene saving becomes smarter about pruning unnecessary assets
+      assets.getAsset(AssetInfo(testAssetInfo));
+
+      _saveSpace(0, "testspace", app);
+      assets.removeAsset(testAssetInfo);
+      Assert::IsTrue(assets.getAsset(AssetInfo(testAssetInfo.mId)) == nullptr, L"Asset should be gone after it's removed", LINE_INFO());
+
+      auto loadTask = _loadSpace(0, "testspace", app);
+      app.waitUntil([&loadTask] { return loadTask->getStatus() == AsyncStatus::Complete; });
+
+      Assert::IsTrue(assets.getAsset(AssetInfo(testAssetInfo.mId)) != nullptr, L"Asset load should have been triggered by loading a scene that was saved with it");
     }
   };
 }

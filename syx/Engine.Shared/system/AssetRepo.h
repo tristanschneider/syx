@@ -46,6 +46,7 @@ public:
   //Add an asset without going through an AssetLoader. Intended for assets that aren't in files like built in physics models
   void addAsset(std::shared_ptr<Asset> asset);
   void forEachAsset(const std::function<void(std::shared_ptr<Asset>)> callback);
+  void removeAsset(AssetInfo info);
 
 private:
   void _fillInfo(AssetInfo& info);

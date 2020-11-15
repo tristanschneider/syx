@@ -1,4 +1,5 @@
 #pragma once
+#include "Handle.h"
 #include "system/System.h"
 
 class AssetPreview;

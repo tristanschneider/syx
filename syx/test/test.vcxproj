@@ -144,9 +144,11 @@
     <ClInclude Include="test\TestAppRegistration.h" />
     <ClInclude Include="test\TestFileSystem.h" />
     <ClInclude Include="test\TestKeyboardInput.h" />
+    <ClInclude Include="test\TestListenerSystem.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="AsyncHandleTest.cpp" />
+    <ClCompile Include="editor\EditorTests.cpp" />
     <ClCompile Include="event\EventBufferTest.cpp" />
     <ClCompile Include="IDRegistryTest.cpp" />
     <ClCompile Include="LockTest.cpp" />
@@ -166,6 +168,7 @@
     <ClCompile Include="test\TestAppRegistration.cpp" />
     <ClCompile Include="test\TestFileSystem.cpp" />
     <ClCompile Include="test\TestKeyboardInput.cpp" />
+    <ClCompile Include="test\TestListenerSystem.cpp" />
     <ClCompile Include="TypeTest.cpp" />
     <ClCompile Include="UtilTest.cpp" />
     <ClCompile Include="util\FunctionTraitsTest.cpp" />

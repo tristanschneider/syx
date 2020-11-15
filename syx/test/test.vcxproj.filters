@@ -36,6 +36,9 @@
     <ClInclude Include="test\TestFileSystem.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="test\TestListenerSystem.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="LockTest.cpp">
@@ -99,6 +102,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="lua\LuaNodeTests.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="test\TestListenerSystem.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="editor\EditorTests.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

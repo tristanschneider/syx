@@ -22,6 +22,7 @@
 #include "lua/LuaState.h"
 #include "lua/LuaUtil.h"
 #include "LuaGameObject.h"
+#include "Macros.h"
 #include "ProjectLocator.h"
 #include "provider/GameObjectHandleProvider.h"
 #include "provider/MessageQueueProvider.h"
@@ -186,9 +187,13 @@ void LuaGameSystem::_onAddComponent(const AddComponentEvent& e) {
     // Add new component
     auto components = mArgs.mComponentRegistry->getReader();
     //components.first.
-    auto comp = mArgs.mComponentRegistry->getReader().first.construct(ComponentType{ e.mCompType, e.mSubType }, e.mObj);
-    comp->setSubType(e.mSubType);
-    obj->addComponent(std::move(comp));
+    if(auto comp = mArgs.mComponentRegistry->getReader().first.construct(ComponentType{ e.mCompType, e.mSubType }, e.mObj)) {
+      comp->setSubType(e.mSubType);
+      obj->addComponent(std::move(comp));
+    }
+    else {
+      DEBUG_LOG("Unknown component type in _onAddComponent");
+    }
   }
 }
 
