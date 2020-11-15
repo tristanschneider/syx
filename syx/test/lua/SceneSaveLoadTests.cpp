@@ -57,8 +57,6 @@ namespace LuaTests {
       const FilePath path = "test";
       _saveSpace(space, path, app);
       _clearSpace(space, app);
-      //Update to let the clear go through, otherwise the unique ids can't be reclaimed
-      app->update(1.f);
 
       auto loadTask = _loadSpace(space, path, app);
 

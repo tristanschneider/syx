@@ -169,6 +169,7 @@ const LuaGameObject* LuaGameSystem::getObject(Handle handle) const {
 
 void LuaGameSystem::uninit() {
   mObjects.clear();
+  mLuaContexts.clear();
   mEventHandler = nullptr;
 }
 
@@ -254,11 +255,13 @@ void LuaGameSystem::_onSetComponentProps(const SetComponentPropsEvent& e) {
 }
 
 void LuaGameSystem::_onSpaceClear(const ClearSpaceEvent& e) {
+  bool anyRemoved = false;
   for(auto it = mObjects.begin(); it != mObjects.end();) {
     if(it->second->getSpace() == e.mSpace) {
       mSubject.dispatch(&LuaGameSystemObserver::onObjectDestroyed, *it->second);
 
       it = mObjects.erase(it);
+      anyRemoved = true;
     }
     else
       ++it;
@@ -266,6 +269,12 @@ void LuaGameSystem::_onSpaceClear(const ClearSpaceEvent& e) {
 
   if(auto it = mSpaces.find(e.mSpace); it != mSpaces.end()) {
     mSpaces.erase(it);
+  }
+
+  if(anyRemoved) {
+    for(auto& context : mLuaContexts) {
+      context->clearCache();
+    }
   }
 }
 
