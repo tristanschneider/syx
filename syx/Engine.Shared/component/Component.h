@@ -5,7 +5,7 @@
 class AssetRepo;
 class Camera;
 class ComponentPublisher;
-class DebugDrawer;
+struct IDebugDrawer;
 class EventBuffer;
 struct IComponent;
 class LuaGameObject;
@@ -77,7 +77,7 @@ public:
 
   struct EditorUpdateArgs {
     const LuaGameObjectProvider& objects;
-    DebugDrawer& drawer;
+    IDebugDrawer& drawer;
     MessageQueueProvider& msg;
     const LuaGameObject& editorCamera;
   };

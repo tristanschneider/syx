@@ -20,7 +20,7 @@ class EventBuffer;
 class FrameBuffer;
 class FullScreenQuad;
 class GetCameraRequest;
-class ImGuiImpl;
+struct IDebugDrawer;
 class Model;
 class PixelBuffer;
 class RemoveComponentEvent;
@@ -49,7 +49,7 @@ public:
   void uninit() override;
 
   Camera& getPrimaryCamera();
-  ::DebugDrawer& getDebugDrawer();
+  IDebugDrawer& getDebugDrawer();
 
   void dispatchToRenderThread(std::function<void()> func);
 
@@ -109,7 +109,6 @@ private:
   std::shared_ptr<Shader> mFlatColorShader;
 
   std::unique_ptr<::DebugDrawer> mDebugDrawer;
-  std::unique_ptr<ImGuiImpl> mImGui;
   std::unique_ptr<FullScreenQuad> mFullScreenQuad;
   std::unique_ptr<FrameBuffer> mFrameBuffer;
   std::unique_ptr<PixelBuffer> mPixelPackBuffer;

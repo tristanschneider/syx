@@ -4,28 +4,16 @@ class ScratchPad;
 class Shader;
 class KeyboardInput;
 
-class ImGuiImpl {
-public:
-  ImGuiImpl();
-  ~ImGuiImpl();
+struct IImGuiImpl {
+  virtual ~IImGuiImpl() = default;
 
-  void updateInput(KeyboardInput& input);
-  void render(float dt, Syx::Vec2 display);
+  virtual void updateInput(KeyboardInput& input) = 0;
+  virtual void render(float dt, Syx::Vec2 display) = 0;
 
-  static bool enabled() {
-    return sEnabled;
-  }
-
+  //TODO: move ownership of this to ImGuiSystem
   static ScratchPad& getPad();
-
-private:
-  static bool sEnabled;
-
-  void _initKeyMap();
-
-  std::unique_ptr<Shader> mShader;
-  GLHandle mVB;
-  GLHandle mVA;
-  GLHandle mIB;
-  GLHandle mFontTexture;
 };
+
+namespace Create {
+  std::unique_ptr<IImGuiImpl> imGuiImpl();
+}

@@ -101,7 +101,7 @@ namespace Inspector {
   }
 
   bool inspectAsset(const char* prop, size_t& data, AssetRepo& repo, std::string_view category) {
-    ScratchPad& pad = ImGuiImpl::getPad();
+    ScratchPad& pad = IImGuiImpl::getPad();
     //Left side label for property
     ImGui::Text(prop);
 

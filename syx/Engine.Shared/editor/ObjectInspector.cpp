@@ -54,12 +54,9 @@ ObjectInspector::~ObjectInspector() {
 }
 
 void ObjectInspector::editorUpdate(const LuaGameObjectProvider& objects) {
-  if(!ImGuiImpl::enabled()) {
-    return;
-  }
-
-  if(mSelected != mPrevSelected)
+  if(mSelected != mPrevSelected) {
     _updateSelection(objects);
+  }
 
   ImGui::Begin("Inspector");
   ImGui::BeginChild("ScrollView", ImVec2(0, 0), true);
@@ -159,7 +156,7 @@ void ObjectInspector::_showComponentPicker() const {
   picker.name = "Components";
   picker.padKey = "selectedComponent";
 
-  ScratchPad& pad = ImGuiImpl::getPad();
+  ScratchPad& pad = IImGuiImpl::getPad();
   pad.push("componentPicker");
   auto popPad = finally([&pad]() { pad.pop(); });
 

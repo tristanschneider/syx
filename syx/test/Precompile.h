@@ -27,3 +27,14 @@
 #include <cstdint>
 
 #include "util/TypeId.h"
+
+namespace Test {
+  // Hack to get LINE_INFO not to trigger error c2102
+  template<typename T>
+  T *lineInfoHack(T &&v) {
+    return &v;
+  }
+}
+
+#undef LINE_INFO
+#define  LINE_INFO() Test::lineInfoHack(Microsoft::VisualStudio::CppUnitTestFramework::__LineInfo(__WFILE__, __FUNCTION__, __LINE__))

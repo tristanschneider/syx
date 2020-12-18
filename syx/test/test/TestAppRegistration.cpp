@@ -20,6 +20,44 @@
 
 size_t LuaRegistration::TEST_CALLBACK_ID = typeId<TestListenerSystem>();
 
+//TODO: move to its own file
+#include "imgui/imgui.h"
+#include "ImGuiImpl.h"
+#include "system/ImGuiSystem.h"
+#include "util/ScratchPad.h"
+
+//Imgui but without any graphics calls
+struct TestImGuiSystem : public IImGuiSystem {
+  using IImGuiSystem::IImGuiSystem;
+
+  void init() override {
+    ImGuiIO& io = ImGui::GetIO();
+    //Arbitrary values, just needed to be able to accept commands
+    io.DisplaySize = ImVec2(100.f, 100.f);
+    io.DisplayFramebufferScale = ImVec2(1.f, 1.f);
+    io.DeltaTime = 0.01f;
+    unsigned char* pixels;
+    int width, height;
+    //Don't care about font but need to call this so it doesn't assert about being uninitialized
+    io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
+
+    ImGui::NewFrame();
+  }
+
+  void queueTasks(float, IWorkerPool&, std::shared_ptr<Task>) override {
+    IImGuiImpl::getPad().update();
+    ImGui::NewFrame();
+  }
+
+  void uninit() override {
+    ImGui::Shutdown();
+  }
+
+  IImGuiImpl* _getImpl() override {
+    return nullptr;
+  }
+};
+
 void LuaRegistration::registerSystems(const SystemArgs& args, ISystemRegistry& registry) {
   auto assetLoaders = Registry::createAssetLoaderRegistry();
   assetLoaders->registerLoader<TextAsset, TextAssetLoader>("txt");
@@ -43,6 +81,7 @@ namespace TestRegistration {
   std::unique_ptr<AppRegistration> createEditorRegistration() {
     struct Reg : public LuaRegistration {
       void registerSystems(const SystemArgs& args, ISystemRegistry& registry) override {
+        registry.registerSystem(std::make_unique<TestImGuiSystem>(args));
         LuaRegistration::registerSystems(args, registry);
         registry.registerSystem(std::make_unique<Editor>(args));
         registry.registerSystem(std::make_unique<KeyboardInput>(args));

@@ -16,6 +16,7 @@
   <ItemGroup>
     <ClInclude Include="$(MSBuildThisFileDirectory)..\src-deps\imgui\imconfig.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)..\src-deps\imgui\imgui.h" />
+    <ClInclude Include="$(MSBuildThisFileDirectory)..\src-deps\imgui\imgui_ext.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)..\src-deps\imgui\imgui_internal.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)..\src-deps\imgui\stb_rect_pack.h" />
     <ClInclude Include="$(MSBuildThisFileDirectory)..\src-deps\imgui\stb_textedit.h" />
@@ -24,5 +25,6 @@
   <ItemGroup>
     <ClCompile Include="$(MSBuildThisFileDirectory)..\src-deps\imgui\imgui.cpp" />
     <ClCompile Include="$(MSBuildThisFileDirectory)..\src-deps\imgui\imgui_draw.cpp" />
+    <ClCompile Include="$(MSBuildThisFileDirectory)..\src-deps\imgui\imgui_ext.cpp" />
   </ItemGroup>
 </Project>

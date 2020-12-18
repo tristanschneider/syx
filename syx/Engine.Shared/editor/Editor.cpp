@@ -5,6 +5,7 @@
 #include "Camera.h"
 #include "component/CameraComponent.h"
 #include "component/SpaceComponent.h"
+#include "DebugDrawer.h"
 #include "editor/AssetPreview.h"
 #include "editor/AssetWatcher.h"
 #include "editor/ObjectInspector.h"
@@ -181,7 +182,7 @@ void Editor::_editorUpdate() {
   mToolbox->editorUpdate(*mArgs.mSystems->getSystem<KeyboardInput>());
 
   Component::EditorUpdateArgs args{ game,
-    mArgs.mSystems->getSystem<GraphicsSystem>()->getDebugDrawer(),
+    _getDebugDrawer(),
     *mArgs.mMessages,
     *mCamera,
   };
@@ -238,6 +239,11 @@ Handle Editor::_getEditorSpace() const {
 
 Handle Editor::_getPlaySpace() const {
   return 0;
+}
+
+IDebugDrawer& Editor::_getDebugDrawer() {
+  GraphicsSystem* graphics = mArgs.mSystems->getSystem<GraphicsSystem>();
+  return graphics ? graphics->getDebugDrawer() : DebugDrawerExt::getNullDrawer();
 }
 
 void Editor::_updateInput(float dt) {

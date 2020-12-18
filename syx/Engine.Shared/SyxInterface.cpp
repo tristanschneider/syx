@@ -5,7 +5,7 @@
 
 namespace Syx {
   namespace Interface {
-    ::DebugDrawer* gDrawer = nullptr;
+    ::IDebugDrawer* gDrawer = nullptr;
 
     SyxOptions getOptions(void) {
       SyxOptions result;

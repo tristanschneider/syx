@@ -28,8 +28,9 @@
 #include "graphics/Viewport.h"
 #include "ImGuiImpl.h"
 #include "lua/LuaNode.h"
-#include "system/KeyboardInput.h"
 #include "system/AssetRepo.h"
+#include "system/ImGuiSystem.h"
+#include "system/KeyboardInput.h"
 #include "util/Finally.h"
 #include "Util.h"
 
@@ -89,7 +90,6 @@ void GraphicsSystem::init() {
   ct.setRot(Quat::lookAt(-Vec3::UnitZ));
   defaultCamera.setTransform(ct);
   mDebugDrawer = std::make_unique<::DebugDrawer>(*mArgs.mSystems->getSystem<AssetRepo>());
-  mImGui = std::make_unique<ImGuiImpl>();
 
   mEventHandler = std::make_unique<EventHandler>();
   SYSTEM_EVENT_HANDLER(AddComponentEvent, _processAddEvent);
@@ -143,9 +143,12 @@ void GraphicsSystem::update(float dt, IWorkerPool&, std::shared_ptr<Task>) {
     mPickRequests.clear();
   }
 
-  if(mImGui) {
-    mImGui->render(dt, mScreenSize);
-    mImGui->updateInput(*mArgs.mSystems->getSystem<KeyboardInput>());
+  if(ImGuiSystem* gui = mArgs.mSystems->getSystem<ImGuiSystem>()) {
+    if(IImGuiImpl* impl = gui->_getImpl()) {
+      impl->render(dt, mScreenSize);
+      //TODO: can this input responsibility be moved to the ImGuiSystem?
+      impl->updateInput(*mArgs.mSystems->getSystem<KeyboardInput>());
+    }
   }
   _processRenderThreadTasks();
   mRenderCommands.clear();
@@ -158,7 +161,7 @@ Camera& GraphicsSystem::getPrimaryCamera() {
   return mCameras.front();
 }
 
-::DebugDrawer& GraphicsSystem::getDebugDrawer() {
+IDebugDrawer& GraphicsSystem::getDebugDrawer() {
   return *mDebugDrawer;
 }
 

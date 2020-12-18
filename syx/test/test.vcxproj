@@ -82,7 +82,6 @@
       <PreprocessorDefinitions>WIN32;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <UseFullPaths>true</UseFullPaths>
       <PrecompiledHeaderFile>Precompile.h</PrecompiledHeaderFile>
-      <DisableSpecificWarnings>4238</DisableSpecificWarnings>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -95,7 +94,6 @@
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <UseFullPaths>true</UseFullPaths>
-      <DisableSpecificWarnings>4238</DisableSpecificWarnings>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -111,7 +109,6 @@
       <PreprocessorDefinitions>WIN32;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <UseFullPaths>true</UseFullPaths>
       <PrecompiledHeaderFile>Precompile.h</PrecompiledHeaderFile>
-      <DisableSpecificWarnings>4238</DisableSpecificWarnings>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -128,7 +125,6 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <UseFullPaths>true</UseFullPaths>
-      <DisableSpecificWarnings>4238</DisableSpecificWarnings>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -143,6 +139,7 @@
     <ClInclude Include="test\TestAppPlatform.h" />
     <ClInclude Include="test\TestAppRegistration.h" />
     <ClInclude Include="test\TestFileSystem.h" />
+    <ClInclude Include="test\TestGUIHook.h" />
     <ClInclude Include="test\TestKeyboardInput.h" />
     <ClInclude Include="test\TestListenerSystem.h" />
   </ItemGroup>
@@ -167,6 +164,7 @@
     <ClCompile Include="test\TestAppPlatform.cpp" />
     <ClCompile Include="test\TestAppRegistration.cpp" />
     <ClCompile Include="test\TestFileSystem.cpp" />
+    <ClCompile Include="test\TestGUIHook.cpp" />
     <ClCompile Include="test\TestKeyboardInput.cpp" />
     <ClCompile Include="test\TestListenerSystem.cpp" />
     <ClCompile Include="TypeTest.cpp" />

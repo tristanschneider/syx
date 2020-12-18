@@ -30,7 +30,7 @@
 
 namespace Syx {
   namespace Interface {
-    extern ::DebugDrawer* gDrawer;
+    extern ::IDebugDrawer* gDrawer;
   }
 }
 

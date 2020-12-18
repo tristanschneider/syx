@@ -24,8 +24,6 @@ Toolbox::Toolbox(MessageQueueProvider& msg, EventHandler& handler)
 }
 
 void Toolbox::editorUpdate(const KeyboardInput& input) {
-  if(!ImGuiImpl::enabled())
-    return;
   _updateGui();
   _updateInput(input);
 }

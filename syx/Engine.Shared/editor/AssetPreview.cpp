@@ -23,9 +23,6 @@ AssetPreview::AssetPreview(MessageQueueProvider& msg, EventHandler& handler, Ass
 }
 
 void AssetPreview::editorUpdate() {
-  if(!ImGuiImpl::enabled())
-    return;
-
   ImGui::Begin("Preview");
   if(mPreview && mPreview->isReady()) {
     auto lock = mPreview->getLock().getReader();

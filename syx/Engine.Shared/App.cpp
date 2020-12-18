@@ -101,15 +101,11 @@ void App::init() {
   mMessageLock->unlock();
 }
 
-#include "imgui/imgui.h"
-
 void App::update(float dt) {
   //Freeze message state by swapping them into freeze. Systems will look at this, while pushing to non-frozen queue
   mMessageLock->lock();
   mMessageQueue.swap(mFrozenMessageQueue);
   mMessageLock->unlock();
-
-  ImGuiImpl::getPad().update();
 
   auto frameTask = std::make_shared<SyncTask>();
 
@@ -123,22 +119,6 @@ void App::update(float dt) {
   }
 
   mWorkerPool->queueTask(frameTask);
-
-  if(ImGuiImpl::enabled()) {
-    static float f = 0.0f;
-    ImGui::Text("Hello, world!");
-    ImGui::SliderFloat("float", &f, 0.0f, 1.0f);
-    static Syx::Vec3 clear_color(0.0f);
-    static bool show_test_window = true;
-    static bool show_another_window = true;
-    ImGui::ColorEdit3("clear color", (float*)&clear_color);
-    if(ImGui::Button("Test Window")) show_test_window ^= 1;
-    if(ImGui::Button("Another Window")) show_another_window ^= 1;
-    ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-    const int buffSize = 100;
-    static char buff[buffSize] = { 0 };
-    ImGui::InputText("Text In", buff, buffSize);
-  }
 
   //There is no guarantee of the timing of deferred events, so this can go anywhere. It is here since the only other thing this thread would do is wait on the sync
   {

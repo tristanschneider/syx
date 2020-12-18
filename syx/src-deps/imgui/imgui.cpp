@@ -544,6 +544,7 @@
 #endif
 
 #include "imgui.h"
+#include "imgui_ext.h"
 #define IMGUI_DEFINE_MATH_OPERATORS
 #define IMGUI_DEFINE_PLACEMENT_NEW
 #include "imgui_internal.h"
@@ -5658,6 +5659,12 @@ bool ImGui::ButtonBehavior(const ImRect& bb, ImGuiID id, bool* out_hovered, bool
 
     if (out_hovered) *out_hovered = hovered;
     if (out_held) *out_held = held;
+
+    switch (ImGuiExt::Hook::onButtonUpdate(id)) {
+      case ImGuiExt::ButtonResult::PerformPress: pressed = true; break;
+      case ImGuiExt::ButtonResult::PreventPress: pressed = false; break;
+      case ImGuiExt::ButtonResult::Continue: break;
+    }
 
     return pressed;
 }

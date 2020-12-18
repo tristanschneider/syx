@@ -13,6 +13,8 @@ MockApp::MockApp()
 MockApp::MockApp(std::unique_ptr<AppPlatform> appPlatform, std::unique_ptr<AppRegistration> registration)
   : mApp(std::make_unique<App>(std::move(appPlatform), std::move(registration))) {
   mApp->init();
+  //Process the AllSystemsInitialized event
+  mApp->update(0.f);
 }
 
 MockApp::~MockApp() {

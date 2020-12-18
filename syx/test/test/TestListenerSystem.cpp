@@ -6,8 +6,11 @@
 #include "test/TestAppRegistration.h"
 
 TestListenerSystem::TestListenerSystem(const SystemArgs& args)
-    : System(args, _typeId<TestListenerSystem>()) {
-  }
+  : System(args, _typeId<TestListenerSystem>())
+  , mEventBufferCopy(std::make_unique<EventBuffer>()) {
+}
+
+TestListenerSystem::~TestListenerSystem() = default;
 
 void TestListenerSystem::init() {
   mEventHandler = std::make_unique<EventHandler>();
@@ -16,12 +19,15 @@ void TestListenerSystem::init() {
 
 void TestListenerSystem::update(float, IWorkerPool&, std::shared_ptr<Task>) {
   mEventHandler->handleEvents(*mEventBuffer);
+
+  mEventBufferCopy->clear();
+  mEventBuffer->appendTo(*mEventBufferCopy);
 }
 
 const EventBuffer& TestListenerSystem::getEventBuffer() const {
-  return *mEventBuffer;
+  return *mEventBufferCopy;
 }
 
 bool TestListenerSystem::hasEventOfType(size_t type) const {
-  return std::any_of(mEventBuffer->begin(), mEventBuffer->end(), [type](const Event& e) { return e.getType() == type; });
+  return std::any_of(mEventBufferCopy->begin(), mEventBufferCopy->end(), [type](const Event& e) { return e.getType() == type; });
 }

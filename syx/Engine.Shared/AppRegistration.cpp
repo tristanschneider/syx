@@ -6,7 +6,7 @@
 #include "asset/PhysicsModel.h"
 #include "asset/Shader.h"
 #include "asset/Texture.h"
-
+#include "editor/Editor.h"
 #include "component/CameraComponent.h"
 #include "component/LuaComponent.h"
 #include "component/LuaComponentRegistry.h"
@@ -15,14 +15,12 @@
 #include "component/Renderable.h"
 #include "component/SpaceComponent.h"
 #include "component/Transform.h"
-
 #include "system/AssetRepo.h"
 #include "system/GraphicsSystem.h"
+#include "system/ImGuiSystem.h"
 #include "system/KeyboardInput.h"
 #include "system/LuaGameSystem.h"
 #include "system/PhysicsSystem.h"
-#include "editor/Editor.h"
-
 #include "loader/AssetLoader.h"
 #include "loader/LuaScriptLoader.h"
 #include "loader/ModelLoader.h"
@@ -34,6 +32,7 @@ public:
   void registerSystems(const SystemArgs& args, ISystemRegistry& registry) override {
     auto loaders = Registry::createAssetLoaderRegistry();
     registerAssetLoaders(*loaders);
+    registry.registerSystem(std::make_unique<ImGuiSystem>(args));
     registry.registerSystem(std::make_unique<AssetRepo>(args, std::move(loaders)));
     registry.registerSystem(std::make_unique<GraphicsSystem>(args));
     registry.registerSystem(std::make_unique<KeyboardInput>(args));

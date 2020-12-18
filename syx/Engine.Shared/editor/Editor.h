@@ -6,6 +6,7 @@ class AssetPreview;
 class AssetWatcher;
 class DragDropAssetLoader;
 class FilePath;
+struct IDebugDrawer;
 class LuaGameObject;
 class LuaGameSystemObserver;
 class ObjectInspector;
@@ -29,6 +30,7 @@ private:
   void _updateState(PlayState state);
   Handle _getEditorSpace() const;
   Handle _getPlaySpace() const;
+  IDebugDrawer& _getDebugDrawer();
 
   std::unique_ptr<LuaGameSystemObserver> mGameObserver;
   std::unique_ptr<SceneBrowser> mSceneBrowser;

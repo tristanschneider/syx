@@ -31,9 +31,6 @@ SceneBrowser::SceneBrowser(MessageQueueProvider& msg, GameObjectHandleProvider& 
 void SceneBrowser::editorUpdate(const HandleMap<std::shared_ptr<LuaGameObject>>& objects) {
   _updatePick();
 
-  if(!ImGuiImpl::enabled()) {
-    return;
-  }
   ImGui::Begin("Objects");
 
   if(ImGui::Button("New Object")) {

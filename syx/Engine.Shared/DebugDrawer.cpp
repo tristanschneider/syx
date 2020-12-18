@@ -124,3 +124,18 @@ void DebugDrawer::_resizeBuffer(size_t newSize) {
   glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex)*newSize, nullptr, GL_DYNAMIC_DRAW);
   mBufferSize = newSize;
 }
+
+IDebugDrawer& DebugDrawerExt::getNullDrawer() {
+  struct Empty : public IDebugDrawer {
+    void drawLine(const Syx::Vec3&, const Syx::Vec3&, const Syx::Vec3&, const Syx::Vec3&) {}
+    void drawLine(const Syx::Vec3&, const Syx::Vec3&, const Syx::Vec3&) {}
+    void drawLine(const Syx::Vec3&, const Syx::Vec3&) {}
+    void drawVector(const Syx::Vec3&, const Syx::Vec3&) {}
+    void DrawSphere(const Syx::Vec3&, float, const Syx::Vec3&, const Syx::Vec3&) {}
+    void DrawCube(const Syx::Vec3&, const Syx::Vec3&, const Syx::Vec3&, const Syx::Vec3&) {}
+    void DrawPoint(const Syx::Vec3&, float) {}
+    void setColor(const Syx::Vec3&) {}
+  };
+  static Empty singleton;
+  return singleton;
+}

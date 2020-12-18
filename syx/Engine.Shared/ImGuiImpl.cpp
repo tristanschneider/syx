@@ -7,7 +7,25 @@
 
 #include <gl/glew.h>
 
-bool ImGuiImpl::sEnabled = false;
+class ImGuiImpl : public IImGuiImpl {
+public:
+  ImGuiImpl();
+  ~ImGuiImpl();
+
+  void updateInput(KeyboardInput& input) override;
+  void render(float dt, Syx::Vec2 display) override;
+
+private:
+  bool mEnabled = false;
+
+  void _initKeyMap();
+
+  std::unique_ptr<Shader> mShader;
+  GLHandle mVB;
+  GLHandle mVA;
+  GLHandle mIB;
+  GLHandle mFontTexture;
+};
 
 ImGuiImpl::ImGuiImpl() {
   std::string vsSrc =
@@ -83,6 +101,12 @@ ImGuiImpl::ImGuiImpl() {
   glBindVertexArray(0);
 
   _initKeyMap();
+
+  //Arbitrary values to initialize the frame with so that commands can immediately start being accepted
+  io.DisplaySize = ImVec2(100.f, 100.f);
+  io.DisplayFramebufferScale = ImVec2(1.f, 1.f);
+  io.DeltaTime = 0.01f;
+  ImGui::NewFrame();
 }
 
 void ImGuiImpl::_initKeyMap() {
@@ -150,13 +174,6 @@ void ImGuiImpl::render(float dt, Syx::Vec2 display) {
   io.DisplaySize = ImVec2(display.x, display.y);
   io.DisplayFramebufferScale = ImVec2(1.0f, 1.0f);
   io.DeltaTime = dt;
-
-  if(!sEnabled) {
-    //Only allowed to make ImGui calls after new frame
-    ImGui::NewFrame();
-    sEnabled = true;
-    return;
-  }
 
   ImGui::Render();
 
@@ -230,7 +247,11 @@ void ImGuiImpl::render(float dt, Syx::Vec2 display) {
   glBindTexture(GL_TEXTURE_2D, 0);
 }
 
-ScratchPad& ImGuiImpl::getPad() {
+ScratchPad& IImGuiImpl::getPad() {
   static ScratchPad singleton(1);
   return singleton;
+}
+
+std::unique_ptr<IImGuiImpl> Create::imGuiImpl() {
+  return std::make_unique<ImGuiImpl>();
 }
