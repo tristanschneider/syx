@@ -13,6 +13,7 @@ public:
   const EventBuffer& getEventBuffer() const;
   //Was an event of this type recieved last update
   bool hasEventOfType(size_t type) const;
+  const Event* tryGetEventOfType(size_t type) const;
 
 private:
   //The event buffer is cleared at the end of the frame. For tests to be able to look at what was sent it is copied into this

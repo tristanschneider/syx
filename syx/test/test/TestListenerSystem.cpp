@@ -29,5 +29,10 @@ const EventBuffer& TestListenerSystem::getEventBuffer() const {
 }
 
 bool TestListenerSystem::hasEventOfType(size_t type) const {
-  return std::any_of(mEventBufferCopy->begin(), mEventBufferCopy->end(), [type](const Event& e) { return e.getType() == type; });
+  return tryGetEventOfType(type) != nullptr;
+}
+
+const Event* TestListenerSystem::tryGetEventOfType(size_t type) const {
+  auto it = std::find_if(mEventBufferCopy->begin(), mEventBufferCopy->end(), [type](const Event& e) { return e.getType() == type; });
+  return it != mEventBufferCopy->end() ? &*it : nullptr;
 }

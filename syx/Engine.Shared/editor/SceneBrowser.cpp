@@ -21,11 +21,16 @@ namespace {
   const Syx::Vec3 PICK_COLOR(1, 0, 0);
 }
 
-SceneBrowser::SceneBrowser(MessageQueueProvider& msg, GameObjectHandleProvider& handleGen, KeyboardInput& input, EventHandler&)
+SceneBrowser::SceneBrowser(MessageQueueProvider& msg, GameObjectHandleProvider& handleGen, KeyboardInput& input, EventHandler& handler)
   : mMsg(&msg)
   , mHandleGen(&handleGen)
   , mInput(&input)
   , mMouseDownPos(INVALID_MOUSE) {
+  //Selection is predictively set when the events originate from here, either way, obey any messages that change selection
+  handler.registerEventHandler([this](const SetSelectionEvent& e) {
+    mSelected.clear();
+    mSelected.insert(e.mObjects.begin(), e.mObjects.end());
+  });
 }
 
 void SceneBrowser::editorUpdate(const HandleMap<std::shared_ptr<LuaGameObject>>& objects) {
@@ -35,23 +40,21 @@ void SceneBrowser::editorUpdate(const HandleMap<std::shared_ptr<LuaGameObject>>&
 
   if(ImGui::Button("New Object")) {
     mSelected.clear();
-    Handle newHandle = mHandleGen->newHandle();
+    const Handle newHandle = mHandleGen->newHandle();
     mSelected.insert(newHandle);
-    auto msg = mMsg->getMessageQueue();
-    msg.get().push(AddGameObjectEvent(newHandle));
-    msg.get().push(SetSelectionEvent({ newHandle }));
+    mMsg->getMessageQueue()->push(AddGameObjectEvent(newHandle));
+    _broadcastSelection();
   }
 
   if(ImGui::Button("Delete Object")) {
-    auto msg = mMsg->getMessageQueue();
     for(Handle obj : mSelected) {
       const auto& it = objects.find(obj);
       if(it != objects.end()) {
-        it->second->remove(msg.get());
+        it->second->remove(*mMsg->getMessageQueue());
       }
     }
     mSelected.clear();
-    msg.get().push(SetSelectionEvent({}));
+    _broadcastSelection();
   }
 
   ImGui::BeginChild("ScrollView", ImVec2(0, 0), true);
@@ -65,7 +68,7 @@ void SceneBrowser::editorUpdate(const HandleMap<std::shared_ptr<LuaGameObject>>&
     if(ImGui::Selectable(name.c_str(), mSelected.find(obj.getHandle()) != mSelected.end())) {
       _clearForNewSelection();
       mSelected.insert(obj.getHandle());
-      mMsg->getMessageQueue().get().push(SetSelectionEvent({ obj.getHandle() }));
+      _broadcastSelection();
     }
   }
   ImGui::EndChild();
@@ -114,7 +117,7 @@ void SceneBrowser::_updatePick() {
           for(Handle obj : res.mObjects) {
             mSelected.insert(obj);
           }
-          mMsg->getMessageQueue().get().push(SetSelectionEvent(std::vector<Handle>(res.mObjects)));
+          _broadcastSelection();
         }));
       }
     }));
@@ -126,4 +129,11 @@ void SceneBrowser::_clearForNewSelection() {
   if(!mInput->getKeyDown(Key::Control) && !mInput->getKeyDown(Key::Shift)) {
     mSelected.clear();
   }
+}
+
+void SceneBrowser::_broadcastSelection() const {
+  std::vector<Handle> selection;
+  selection.reserve(mSelected.size());
+  selection.insert(selection.begin(), mSelected.begin(), mSelected.end());
+  mMsg->getMessageQueue()->push(SetSelectionEvent(std::move(selection)));
 }

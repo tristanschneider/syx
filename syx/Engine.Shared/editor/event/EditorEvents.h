@@ -1,5 +1,6 @@
 #include "asset/Asset.h"
 #include "event/Event.h"
+#include "SyxVec2.h"
 
 class SetSelectionEvent : public TypedEvent<SetSelectionEvent> {
 public:

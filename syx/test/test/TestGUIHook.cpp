@@ -26,6 +26,11 @@ namespace {
         : ImGuiExt::ButtonResult::Continue;
     }
 
+    virtual ImGuiExt::HookBoolResult shouldClip(ImGuiID) override {
+      // Don't clip anything while the test hook is active, clipping may prevent the intended gui logic from being triggered
+      return ImGuiExt::HookBoolResult::ForceFalse;
+    }
+
     std::vector<std::string> mPressedButtons;
   };
 }

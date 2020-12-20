@@ -7,6 +7,15 @@ typedef unsigned int ImGuiID;
 
 //Extensions added on top of imgui
 namespace ImGuiExt {
+  enum class HookBoolResult {
+    //Continue, accepting whatever the default logic computes
+    Continue,
+    //Regardless of what imgui logic computes, force the result to true
+    ForceTrue,
+    //Regardless of what imgui logic computes, force the result to false
+    ForceFalse,
+  };
+
   enum class ButtonResult {
     //Do nothing special and fall back to default button handling
     Continue,
@@ -23,6 +32,7 @@ namespace ImGuiExt {
     virtual ~TestHook() = default;
 
     virtual ButtonResult onButtonUpdate(ImGuiID id) = 0;
+    virtual HookBoolResult shouldClip(ImGuiID id) = 0;
 
   protected:
     virtual bool doesIDMatch(ImGuiID id, std::string_view label) const;
@@ -33,5 +43,6 @@ namespace ImGuiExt {
   //Used within imgui to check for hook override behavior. Used to prevent imgui from having to worry about the lifetime or implementation details of TestHook
   namespace Hook {
     ButtonResult onButtonUpdate(ImGuiID id);
+    HookBoolResult shouldClip(ImGuiID id);
   }
 }

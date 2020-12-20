@@ -23,11 +23,20 @@ namespace ImGuiExt {
   }
 
   namespace Hook {
-    ButtonResult onButtonUpdate(ImGuiID id) {
+    template<class MemberFunc, class ReturnType, class... Args>
+    auto _forwardCall(const MemberFunc& func, const ReturnType& defaultValue, Args&&... args) {
       if(auto hook = _getHookSingleton().lock()) {
-        return hook->onButtonUpdate(id);
+        return std::invoke(func, hook.get(), std::forward<Args>(args)...);
       }
-      return ButtonResult::Continue;
+      return defaultValue;
+    }
+
+    ButtonResult onButtonUpdate(ImGuiID id) {
+      return _forwardCall(&TestHook::onButtonUpdate, ButtonResult::Continue, id);
+    }
+
+    HookBoolResult shouldClip(ImGuiID id) {
+      return _forwardCall(&TestHook::shouldClip, HookBoolResult::Continue, id);
     }
   }
 }

@@ -1951,6 +1951,12 @@ bool ImGui::ItemAdd(const ImRect& bb, const ImGuiID* id)
 
 bool ImGui::IsClippedEx(const ImRect& bb, const ImGuiID* id, bool clip_even_when_logged)
 {
+    switch (ImGuiExt::Hook::shouldClip(id ? *id : 0)) {
+      case ImGuiExt::HookBoolResult::Continue: break;
+      case ImGuiExt::HookBoolResult::ForceTrue: return true;
+      case ImGuiExt::HookBoolResult::ForceFalse: return false;
+    }
+
     ImGuiContext& g = *GImGui;
     ImGuiWindow* window = GetCurrentWindowRead();
     if (!bb.Overlaps(window->ClipRect))
