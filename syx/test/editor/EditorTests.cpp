@@ -2,6 +2,7 @@
 #include "CppUnitTest.h"
 
 #include "App.h"
+#include "Camera.h"
 #include "editor/Editor.h"
 #include "editor/event/EditorEvents.h"
 #include "event/BaseComponentEvents.h"
@@ -19,6 +20,7 @@
 #include "test/TestAppRegistration.h"
 #include "test/TestFileSystem.h"
 #include "test/TestGUIHook.h"
+#include "test/TestKeyboardInput.h"
 #include "test/TestListenerSystem.h"
 #include "threading/AsyncHandle.h"
 
@@ -78,6 +80,55 @@ namespace EditorTests {
         const LuaGameObject* result = mApp->getSystem<LuaGameSystem>()->getObject(newHandle);
         Assert::IsNotNull(result, L"New object should have been found in LuaGameSystem, if it wasn't the system failed to created it or the id from the add event didn't match");
         return *result;
+      }
+
+      //Arbitrary camera values that result in Camera::isValid returning true
+      static Camera _createValidCamera() {
+        Camera result(CameraOps(1.f, 1.f, 1.f, 2.f, 0));
+        result.setViewport("arbitrary");
+        Assert::IsTrue(result.isValid(), L"Values above should be considered valid, if not, this helper needs to be adjusted", LINE_INFO());
+        return result;
+      }
+
+      //One update to process the event and another for the response to be processed
+      void _updateForEventResponse() {
+        for(int i = 0; i < 2; ++i) {
+          mApp->update(0.f);
+        }
+      }
+
+      std::vector<Handle> simulateMousePick(const std::vector<Handle> objs) {
+        auto& input = static_cast<TestKeyboardInputImpl&>(mApp->getAppPlatform().getKeyboardInput());
+        //Needs to be down for a frame then released to trigger the pick behavior
+        input.clearInputAfterOneFrame().mKeyStates[Key::LeftMouse] = KeyState::Triggered;
+        mApp->update(1.f);
+        input.clearInputAfterOneFrame().mKeyStates[Key::LeftMouse] = KeyState::Released;
+
+        //SceneBrowser gets the camera with a GetCameraRequest, then uses it to send a ScreenPickRequest
+        //Those are normally provided by the GraphicsSystem. These tests don't have that system, so mock the responses
+        TestListenerSystem& listener = *mApp->getSystem<TestListenerSystem>();
+        listener.registerEventHandler(Event::typeId<GetCameraRequest>(), TestListenerSystem::HandlerLifetime::SingleUse, TestListenerSystem::HandlerResponse::Continue, [](const Event& e, MessageQueueProvider& msg) {
+          //Details of mouse and camera aren't needed since this isn't testing the coordinate logic
+          static_cast<const GetCameraRequest&>(e).respond(*msg.getMessageQueue(), GetCameraResponse(_createValidCamera()));
+        })
+        .registerEventHandler(Event::typeId<ScreenPickRequest>(), TestListenerSystem::HandlerLifetime::SingleUse, TestListenerSystem::HandlerResponse::Continue, [objs(objs)](const Event& e, MessageQueueProvider& msg) mutable {
+          auto req = static_cast<const ScreenPickRequest&>(e);
+          req.respond(*msg.getMessageQueue(), ScreenPickResponse(req.mRequestId, req.mSpace, std::move(objs)));
+        });
+
+        _updateForEventResponse();
+        Assert::IsTrue(listener.hasEventOfType(Event::typeId<GetCameraRequest>()), L"Mouse input should have triggered the GetCameraRequest to bein the pick process", LINE_INFO());
+        _updateForEventResponse();
+        Assert::IsTrue(listener.hasEventOfType(Event::typeId<ScreenPickRequest>()), L"GetCameraResponse should have triggered the ScreenPickRequest", LINE_INFO());
+        _updateForEventResponse();
+        auto* selection = static_cast<const SetSelectionEvent*>(listener.tryGetEventOfType(Event::typeId<SetSelectionEvent>()));
+        Assert::IsNotNull(selection, L"SetSelectionEvent should have been triggered by the ScreenPickResponse", LINE_INFO());
+
+        return selection->mObjects;
+      }
+
+      std::vector<Handle> simulateMousePick(Handle obj) {
+        return simulateMousePick(std::vector{ obj });
       }
     };
 
@@ -152,6 +203,15 @@ namespace EditorTests {
       app.pressButtonAndProcessInput(DELETE_OBJECT_BUTTON);
 
       //Scope exits here, asserting that everything was deleted
+    }
+
+    TEST_METHOD(SingleObject_PickWithMouse_IsSelected) {
+      MockEditorApp app;
+      const std::vector<size_t> expectedSelection { app.createNewObject().getHandle() };
+
+      const std::vector<Handle> newSelection = app.simulateMousePick(expectedSelection);
+
+      Assert::IsTrue(expectedSelection == newSelection, L"Picked objects should have been selected", LINE_INFO());
     }
   };
 }

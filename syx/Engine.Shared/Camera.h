@@ -1,5 +1,8 @@
 #pragma once
 #include <event/Event.h>
+#include "Handle.h"
+#include "SyxMat4.h"
+#include "SyxVec2.h"
 
 struct CameraOps {
   CameraOps(float fovx, float fovy, float nearPlane, float farPlane, Handle owner = InvalidHandle)
