@@ -3919,6 +3919,8 @@ bool ImGui::Begin(const char* name, bool* p_open, const ImVec2& size_on_first_us
         window_is_new = true;
     }
 
+    ImGuiExt::Hook::onWindowBegin(window->ID, window->Name);
+
     const int current_frame = ImGui::GetFrameCount();
     const bool first_begin_of_the_frame = (window->LastFrameActive != current_frame);
     if (first_begin_of_the_frame)
@@ -4462,6 +4464,8 @@ void ImGui::End()
 {
     ImGuiContext& g = *GImGui;
     ImGuiWindow* window = g.CurrentWindow;
+
+    ImGuiExt::Hook::onWindowEnd();
 
     if (window->DC.ColumnsCount != 1) // close columns set if any is open
         EndColumns();
@@ -5696,6 +5700,8 @@ bool ImGui::ButtonEx(const char* label, const ImVec2& size_arg, ImGuiButtonFlags
     if (!ItemAdd(bb, &id))
         return false;
 
+    ImGuiExt::Hook::onButtonCreated(id, label);
+
     if (window->DC.ButtonRepeat) flags |= ImGuiButtonFlags_Repeat;
     bool hovered, held;
     bool pressed = ButtonBehavior(bb, id, &hovered, &held, flags);
@@ -5742,6 +5748,8 @@ bool ImGui::InvisibleButton(const char* str_id, const ImVec2& size_arg)
     ItemSize(bb);
     if (!ItemAdd(bb, &id))
         return false;
+
+    ImGuiExt::Hook::onButtonCreated(id, str_id);
 
     bool hovered, held;
     bool pressed = ButtonBehavior(bb, id, &hovered, &held);
@@ -8687,6 +8695,8 @@ bool ImGui::Selectable(const char* label, bool selected, ImGuiSelectableFlags fl
             PushColumnClipRect();
         return false;
     }
+
+    ImGuiExt::Hook::onButtonCreated(id, label);
 
     ImGuiButtonFlags button_flags = 0;
     if (flags & ImGuiSelectableFlags_Menu) button_flags |= ImGuiButtonFlags_PressedOnClick;

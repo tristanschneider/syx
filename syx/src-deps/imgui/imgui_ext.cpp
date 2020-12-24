@@ -31,12 +31,31 @@ namespace ImGuiExt {
       return defaultValue;
     }
 
+    template<class MemberFunc, class... Args>
+    auto _forwardVoidCall(const MemberFunc& func, Args&&... args) {
+      if(auto hook = _getHookSingleton().lock()) {
+        std::invoke(func, hook.get(), std::forward<Args>(args)...);
+      }
+    }
+
     ButtonResult onButtonUpdate(ImGuiID id) {
       return _forwardCall(&TestHook::onButtonUpdate, ButtonResult::Continue, id);
     }
 
     HookBoolResult shouldClip(ImGuiID id) {
       return _forwardCall(&TestHook::shouldClip, HookBoolResult::Continue, id);
+    }
+
+    void onWindowBegin(ImGuiID id, const char* name) {
+      _forwardVoidCall(&TestHook::onWindowBegin, id, name);
+    }
+
+    void onWindowEnd() {
+      _forwardVoidCall(&TestHook::onWindowEnd);
+    }
+
+    void onButtonCreated(ImGuiID id, const char* name) {
+      _forwardVoidCall(&TestHook::onButtonCreated, id, name);
     }
   }
 }

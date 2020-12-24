@@ -33,6 +33,10 @@ namespace ImGuiExt {
 
     virtual ButtonResult onButtonUpdate(ImGuiID id) = 0;
     virtual HookBoolResult shouldClip(ImGuiID id) = 0;
+    virtual void onWindowBegin(ImGuiID id, const char* name) = 0;
+    virtual void onWindowEnd() = 0;
+    //Called after clipping
+    virtual void onButtonCreated(ImGuiID id, const char* name) = 0;
 
   protected:
     virtual bool doesIDMatch(ImGuiID id, std::string_view label) const;
@@ -44,5 +48,8 @@ namespace ImGuiExt {
   namespace Hook {
     ButtonResult onButtonUpdate(ImGuiID id);
     HookBoolResult shouldClip(ImGuiID id);
+    void onWindowBegin(ImGuiID id, const char* name);
+    void onWindowEnd();
+    void onButtonCreated(ImGuiID id, const char* name);
   }
 }

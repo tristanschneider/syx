@@ -132,7 +132,7 @@ namespace LuaTests {
     virtual ~NodeTestObject() = default;
     virtual void reset() {
       const auto values = getValues();
-      std::for_each(values.begin(), values.end(), [](Tracker* v) { v->reset(); });
+      std::for_each(values.begin(), values.end(), [](Tracker* v) { if(v) v->reset(); });
       Tracker::resetDtors();
     }
     virtual size_t defaultCtorCount() const {

@@ -29,6 +29,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 namespace EditorTests {
   const std::string NEW_OBJECT_BUTTON = "New Object";
   const std::string DELETE_OBJECT_BUTTON = "Delete Object";
+  const std::string OBJECTS_WINDOW = "Objects";
+  const std::string OBJECTS_SCROLL_VIEW = "ScrollView";
 
   TEST_CLASS(BaseEditorTests) {
     struct MockEditorApp : public MockApp {
@@ -212,6 +214,79 @@ namespace EditorTests {
       const std::vector<Handle> newSelection = app.simulateMousePick(expectedSelection);
 
       Assert::IsTrue(expectedSelection == newSelection, L"Picked objects should have been selected", LINE_INFO());
+    }
+
+    static std::shared_ptr<ITestGuiQueryContext> _getOrAssertQueryContext(ITestGuiHook& hook) {
+      auto result = hook.query();
+      Assert::IsTrue(result != nullptr, L"Root should exist", LINE_INFO());
+      return result;
+    }
+
+    //Find a shallow child node who triggers a false return of the callback
+    static void _invokeOrAssert(const ITestGuiQueryContext& query, const std::function<bool(const ITestGuiQueryContext&)> callback, const std::wstring& assertMsg) {
+      bool invoked = false;
+      query.visitChildrenShallow([callback, &invoked](const ITestGuiQueryContext& child) {
+        bool shouldContinue = false;
+        if(callback) {
+          shouldContinue = callback(child);
+        }
+        //Assume that the callback will return false (don't continue) when it has found what it's looking for
+        invoked = !shouldContinue;
+        return shouldContinue;
+      });
+      Assert::IsTrue(invoked, assertMsg.c_str(), LINE_INFO());
+    }
+
+    //Find a shallow child node whose name matches the given string
+    static void _findOrAssert(const ITestGuiQueryContext& query, const std::string& name, const std::function<void(const ITestGuiQueryContext&)> callback, const std::wstring& assertMsg) {
+      _invokeOrAssert(query, [&name, &callback](const ITestGuiQueryContext& child) {
+        if(child.getName() == name) {
+          if (callback) {
+            callback(child);
+          }
+          return false;
+        }
+        return true;
+      }, assertMsg);
+    }
+
+    //Find a shallow child node whose name contains the given string
+    static void _findContainsOrAssert(const ITestGuiQueryContext& query, const std::string& name, const std::function<void(const ITestGuiQueryContext&)> callback, const std::wstring& assertMsg) {
+      _invokeOrAssert(query, [&name, &callback](const ITestGuiQueryContext& child) {
+        if(child.getName().find(name) != std::string::npos) {
+          if(callback) {
+            callback(child);
+          }
+          return false;
+        }
+        return true;
+      }, assertMsg);
+    }
+
+    TEST_METHOD(SceneBrowser_QueryObjectsWindow_HasStaticButtons) {
+      MockEditorApp app;
+      auto gui = Create::createAndRegisterTestGuiHook();
+      app->update(0.f);
+
+      _findOrAssert(*_getOrAssertQueryContext(*gui), OBJECTS_WINDOW, [](const ITestGuiQueryContext& child) {
+        _findOrAssert(child, NEW_OBJECT_BUTTON, nullptr, L"New object button should exist");
+        _findOrAssert(child, DELETE_OBJECT_BUTTON, nullptr, L"Delete object button should exist");
+      }, L"Objects window should have been found");
+    }
+
+    TEST_METHOD(SceneBrowserOneObject_QueryObjectList_IsInObjectList) {
+      MockEditorApp app;
+      const std::string objectName(app.createNewObject().getName().getName());
+      auto gui = Create::createAndRegisterTestGuiHook();
+      app->update(0.f);
+
+      _findOrAssert(*_getOrAssertQueryContext(*gui), OBJECTS_WINDOW, [&objectName](const ITestGuiQueryContext& objects) {
+        _findContainsOrAssert(objects, OBJECTS_SCROLL_VIEW, [&objectName](const ITestGuiQueryContext& scrollView) {
+          _findContainsOrAssert(scrollView, objectName, [](const ITestGuiQueryContext& objectEntry) {
+            Assert::IsTrue(objectEntry.getType() == TestGuiElementType::Button, L"Object element in list should be a button");
+          }, L"Created object should be in the object list");
+        }, L"Objects scroll view should exist");
+      }, L"Objects window should have been found");
     }
   };
 }

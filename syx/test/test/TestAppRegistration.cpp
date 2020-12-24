@@ -22,6 +22,7 @@ size_t LuaRegistration::TEST_CALLBACK_ID = typeId<TestListenerSystem>();
 
 //TODO: move to its own file
 #include "imgui/imgui.h"
+#include "imgui/imgui_internal.h"
 #include "ImGuiImpl.h"
 #include "system/ImGuiSystem.h"
 #include "util/ScratchPad.h"
@@ -32,6 +33,8 @@ struct TestImGuiSystem : public IImGuiSystem {
 
   void init() override {
     ImGuiIO& io = ImGui::GetIO();
+    //Prevent saving anyything to disk during tests
+    io.IniFilename = nullptr;
     //Arbitrary values, just needed to be able to accept commands
     io.DisplaySize = ImVec2(100.f, 100.f);
     io.DisplayFramebufferScale = ImVec2(1.f, 1.f);
@@ -46,6 +49,7 @@ struct TestImGuiSystem : public IImGuiSystem {
 
   void queueTasks(float, IWorkerPool&, std::shared_ptr<Task>) override {
     IImGuiImpl::getPad().update();
+    ImGui::EndFrame();
     ImGui::NewFrame();
   }
 
