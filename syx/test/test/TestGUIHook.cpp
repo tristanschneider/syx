@@ -5,18 +5,37 @@
 #include "imgui/imgui_ext.h"
 #include <optional>
 
+template<class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
+template<class... Ts> overloaded(Ts...) -> overloaded<Ts...>;
+
+std::string TestGuiElementData::toString() const {
+  auto printValues = [](const char* typeName, const auto& type) {
+    std::string result = std::string(typeName) + "[ ";
+    for(size_t i = 0; i < type.mValues.size(); ++i) {
+      result += i ? ", " : "";
+      result += std::to_string(type.mValues[i]);
+    }
+    result += " ]";
+    return result;
+  };
+
+  std::string result = std::visit(overloaded{
+    [](const Unknown&) { return std::string("Unknown"); },
+    [](const Window&) { return std::string("Window"); },
+    [](const InputText& input) { return "InputText [ " + input.mEditText + ", " + std::to_string(reinterpret_cast<size_t>(input.mUserdata)) + " ]"; },
+    [](const Checkbox& checkbox) { return "Checkbox [" + std::string(checkbox.mValue ? "true" : "false") + " ]"; },
+    [&printValues](const InputFloats& floats) { return printValues("InputFloats", floats); },
+    [&printValues](const InputInts& ints) { return printValues("InputInts", ints); },
+    [](const Button&) { return std::string("Button"); },
+    [](const Text&) { return std::string("Text"); }
+  }, mVariant);
+  return result;
+}
+
 namespace {
   struct UIElement {
-    static UIElement createWindow(std::string name) {
-      return { std::move(name), TestGuiElementType::Window };
-    }
-
-    static UIElement createButton(std::string name) {
-      return { std::move(name), TestGuiElementType::Button };
-    }
-
     std::string mName;
-    TestGuiElementType mType = TestGuiElementType::Unknown;
+    TestGuiElementData mData;
     std::vector<std::shared_ptr<UIElement>> mElements;
     std::weak_ptr<UIElement> mParent;
   };
@@ -26,8 +45,8 @@ namespace {
       : mElement(element) {
     }
 
-    TestGuiElementType getType() const override {
-      return mElement.mType;
+    const TestGuiElementData& getData() const override {
+      return mElement.mData;
     }
 
     const std::string& getName() const override {
@@ -128,6 +147,32 @@ namespace {
       return nullptr;
     }
 
+    static void _recurseToString(const UIElement& current, std::string depthSpacer, const std::string& tab, const std::string& newline, std::string& result) {
+      //Tab this in
+      result += depthSpacer;
+      //Print this
+      result += current.mName + " (" + current.mData.toString() + ")" + newline;
+
+      //Recurse into children
+      depthSpacer += tab;
+      for(const auto& child : current.mElements) {
+        if(child) {
+          _recurseToString(*child, depthSpacer, tab, newline, result);
+        }
+      }
+    }
+
+    std::string toString(const std::string& tab, const std::string& newline) const override {
+      std::string result;
+      if(const UIElement* root = mScreenTree.tryGetRoot()) {
+        _recurseToString(*root, "", tab, newline, result);
+      }
+      else {
+        result = "(Empty)";
+      }
+      return result;
+    }
+
     ImGuiExt::ButtonResult onButtonUpdate(ImGuiID id) override {
       return std::any_of(mPressedButtons.begin(), mPressedButtons.end(), [this, id](const std::string& button) { return doesIDMatch(id, button); })
         ? ImGuiExt::ButtonResult::PerformPress
@@ -135,7 +180,43 @@ namespace {
     }
 
     void onButtonCreated(ImGuiID, const char* name) override {
-      mScreenTree.push(UIElement::createButton(name));
+      mScreenTree.push({ name, TestGuiElementData::Button() });
+      mScreenTree.pop();
+    }
+
+    void onTextCreated(const char* text) override {
+      mScreenTree.push({ text, TestGuiElementData::Text() });
+      mScreenTree.pop();
+    }
+
+    void onInputTextCreated(const char* label, std::string_view buffer, const void* userdata) override {
+      //Only take the cstring portion of the buffer, discard the unused space behind it
+      mScreenTree.push({ label, TestGuiElementData::InputText{ std::string(buffer.data(), std::strlen(buffer.data())), userdata } });
+      mScreenTree.pop();
+    }
+
+    void onCheckboxCreated(const char* label, bool value) override {
+      mScreenTree.push({ label, TestGuiElementData::Checkbox{ value } });
+      mScreenTree.pop();
+    }
+
+    void onInputFloatsCreated(const char* label, const float* elements, size_t elementCount) override {
+      std::vector<float> values;
+      values.reserve(elementCount);
+      for(size_t i = 0; i < elementCount; ++i) {
+        values.push_back(elements[i]);
+      }
+      mScreenTree.push({ label, TestGuiElementData::InputFloats{ std::move(values) } });
+      mScreenTree.pop();
+    }
+
+    void onInputIntsCreated(const char* label, const int* elements, size_t elementCount) override {
+      std::vector<int> values;
+      values.reserve(elementCount);
+      for(size_t i = 0; i < elementCount; ++i) {
+        values.push_back(elements[i]);
+      }
+      mScreenTree.push({ label, TestGuiElementData::InputInts{ std::move(values) } });
       mScreenTree.pop();
     }
 
@@ -144,7 +225,7 @@ namespace {
       ImGui::SetNextWindowCollapsed(false);
       ImGui::SetNextWindowPos(ImVec2(0, 0));
       ImGui::SetNextWindowSize(ImVec2(100, 100));
-      mScreenTree.push(UIElement::createWindow(name));
+      mScreenTree.push({ name, TestGuiElementData::Window() });
     }
 
     void onWindowEnd() override {

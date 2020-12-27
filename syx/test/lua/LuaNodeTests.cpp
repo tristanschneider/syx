@@ -272,7 +272,9 @@ namespace LuaTests {
 
     obj->reset();
     node->destruct(obj.get());
-    Assert::IsTrue(obj->avg(obj->dtorCount()) == 1, L"Destructor should be called once", LINE_INFO());
+    if(!obj->getValues().empty()) {
+      Assert::IsTrue(obj->avg(obj->dtorCount()) == 1, L"Destructor should be called once", LINE_INFO());
+    }
 
     //Then need to put the value back since the unique ptr would otherwise double free the object
     node->defaultConstruct(obj.get());

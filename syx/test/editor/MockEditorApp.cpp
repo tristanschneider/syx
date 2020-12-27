@@ -1,0 +1,165 @@
+#include "Precompile.h"
+#include "editor/MockEditorApp.h"
+
+#include "App.h"
+#include "Camera.h"
+#include "CppUnitTest.h"
+#include "editor/event/EditorEvents.h"
+#include "editor/SceneBrowser.h"
+#include "event/BaseComponentEvents.h"
+#include "system/LuaGameSystem.h"
+#include "test/TestAppPlatform.h"
+#include "test/TestAppRegistration.h"
+#include "test/TestGUIHook.h"
+#include "test/TestKeyboardInput.h"
+#include "test/TestListenerSystem.h"
+
+using namespace Microsoft::VisualStudio::CppUnitTestFramework;
+
+namespace EditorTests {
+  MockEditorApp::MockEditorApp()
+    : MockApp(std::make_unique<TestAppPlatform>(), TestRegistration::createEditorRegistration()) {
+  }
+
+  MockEditorApp::~MockEditorApp() = default;
+
+  void MockEditorApp::processEditorInput() {
+    //The first update will process whatever the desired input was, the second will process whatever event the input sent
+    mApp->update(0.f);
+    mApp->update(0.f);
+  }
+
+  void MockEditorApp::pressButtonAndProcessInput(const std::string& label) {
+    {
+      auto gui = Create::createAndRegisterTestGuiHook();
+      auto press = gui->addScopedButtonPress(label);
+      mApp->update(0.f);
+    }
+    mApp->update(0.f);
+  }
+
+  //Set a selection and propagate the change to the editor
+  void MockEditorApp::setAndUpdateSelection(std::vector<Handle> selection) {
+    mApp->getMessageQueue()->push(SetSelectionEvent(std::move(selection)));
+    //Editor update happens to be before editor messages are processed, so if the test wants to trigger logic in the editor udpate that depends on the new selection, wait a frame
+    mApp->update(0.f);
+  }
+
+  MockEditorApp::ScopedAssertion MockEditorApp::createScopedNetObjectCountAssertion(int netChange, const std::wstring& assertMessage) {
+    const size_t prevCount = mApp->getSystem<LuaGameSystem>()->getObjects().size();
+    const size_t expectedCount = static_cast<size_t>(static_cast<int>(prevCount) + netChange);
+    return finally(std::function<void()>([expectedCount, assertMessage, this] {
+      Assert::AreEqual(expectedCount, mApp->getSystem<LuaGameSystem>()->getObjects().size(), assertMessage.c_str(), LINE_INFO());
+    }));
+  }
+
+  const LuaGameObject& MockEditorApp::createNewObject() {
+    //Simulate creating the object through the editor
+    pressButtonAndProcessInput(SceneBrowser::NEW_OBJECT_LABEL);
+
+    const Event* createEvent = mApp->getSystem<TestListenerSystem>()->tryGetEventOfType(Event::typeId<AddGameObjectEvent>());
+    Assert::IsNotNull(createEvent, L"Creation event should be found when a new object is created");
+    //New object creation is expected to use this field, not the IClaimedUniqueID since there's no known value to claim
+    const Handle newHandle = static_cast<const AddGameObjectEvent&>(*createEvent).mObj;
+
+    const LuaGameObject* result = mApp->getSystem<LuaGameSystem>()->getObject(newHandle);
+    Assert::IsNotNull(result, L"New object should have been found in LuaGameSystem, if it wasn't the system failed to created it or the id from the add event didn't match");
+    return *result;
+  }
+
+  //Arbitrary camera values that result in Camera::isValid returning true
+  Camera MockEditorApp::_createValidCamera() {
+    Camera result(CameraOps(1.f, 1.f, 1.f, 2.f, 0));
+    result.setViewport("arbitrary");
+    Assert::IsTrue(result.isValid(), L"Values above should be considered valid, if not, this helper needs to be adjusted", LINE_INFO());
+    return result;
+  }
+
+  //One update to process the event and another for the response to be processed
+  void MockEditorApp::_updateForEventResponse() {
+    for(int i = 0; i < 2; ++i) {
+      mApp->update(0.f);
+    }
+  }
+
+  std::vector<Handle> MockEditorApp::simulateMousePick(const std::vector<Handle> objs) {
+    auto& input = static_cast<TestKeyboardInputImpl&>(mApp->getAppPlatform().getKeyboardInput());
+    //Needs to be down for a frame then released to trigger the pick behavior
+    input.clearInputAfterOneFrame().mKeyStates[Key::LeftMouse] = KeyState::Triggered;
+    mApp->update(1.f);
+    input.clearInputAfterOneFrame().mKeyStates[Key::LeftMouse] = KeyState::Released;
+
+    //SceneBrowser gets the camera with a GetCameraRequest, then uses it to send a ScreenPickRequest
+    //Those are normally provided by the GraphicsSystem. These tests don't have that system, so mock the responses
+    TestListenerSystem& listener = *mApp->getSystem<TestListenerSystem>();
+    listener.registerEventHandler(Event::typeId<GetCameraRequest>(), TestListenerSystem::HandlerLifetime::SingleUse, TestListenerSystem::HandlerResponse::Continue, [](const Event& e, MessageQueueProvider& msg) {
+      //Details of mouse and camera aren't needed since this isn't testing the coordinate logic
+      static_cast<const GetCameraRequest&>(e).respond(*msg.getMessageQueue(), GetCameraResponse(_createValidCamera()));
+    })
+    .registerEventHandler(Event::typeId<ScreenPickRequest>(), TestListenerSystem::HandlerLifetime::SingleUse, TestListenerSystem::HandlerResponse::Continue, [objs(objs)](const Event& e, MessageQueueProvider& msg) mutable {
+      auto req = static_cast<const ScreenPickRequest&>(e);
+      req.respond(*msg.getMessageQueue(), ScreenPickResponse(req.mRequestId, req.mSpace, std::move(objs)));
+    });
+
+    _updateForEventResponse();
+    Assert::IsTrue(listener.hasEventOfType(Event::typeId<GetCameraRequest>()), L"Mouse input should have triggered the GetCameraRequest to bein the pick process", LINE_INFO());
+    _updateForEventResponse();
+    Assert::IsTrue(listener.hasEventOfType(Event::typeId<ScreenPickRequest>()), L"GetCameraResponse should have triggered the ScreenPickRequest", LINE_INFO());
+    _updateForEventResponse();
+    auto* selection = static_cast<const SetSelectionEvent*>(listener.tryGetEventOfType(Event::typeId<SetSelectionEvent>()));
+    Assert::IsNotNull(selection, L"SetSelectionEvent should have been triggered by the ScreenPickResponse", LINE_INFO());
+
+    return selection->mObjects;
+  }
+
+  std::vector<Handle> MockEditorApp::simulateMousePick(Handle obj) {
+    return simulateMousePick(std::vector{ obj });
+  }
+
+  std::shared_ptr<ITestGuiQueryContext> MockEditorApp::getOrAssertQueryContext(ITestGuiHook& hook) {
+    auto result = hook.query();
+    Assert::IsTrue(result != nullptr, L"Root should exist", LINE_INFO());
+    return result;
+  }
+
+  //Find a shallow child node who triggers a false return of the callback
+  void MockEditorApp::invokeOrAssert(const ITestGuiQueryContext& query, const std::function<bool(const ITestGuiQueryContext&)> callback, const std::wstring& assertMsg) {
+    bool invoked = false;
+    query.visitChildrenShallow([callback, &invoked](const ITestGuiQueryContext& child) {
+      bool shouldContinue = false;
+      if(callback) {
+        shouldContinue = callback(child);
+      }
+      //Assume that the callback will return false (don't continue) when it has found what it's looking for
+      invoked = !shouldContinue;
+      return shouldContinue;
+    });
+    Assert::IsTrue(invoked, assertMsg.c_str(), LINE_INFO());
+  }
+
+  //Find a shallow child node whose name matches the given string
+  void MockEditorApp::findOrAssert(const ITestGuiQueryContext& query, const std::string& name, const std::function<void(const ITestGuiQueryContext&)> callback, const std::wstring& assertMsg) {
+    invokeOrAssert(query, [&name, &callback](const ITestGuiQueryContext& child) {
+      if(child.getName() == name) {
+        if (callback) {
+          callback(child);
+        }
+        return false;
+      }
+      return true;
+    }, assertMsg);
+  }
+
+  //Find a shallow child node whose name contains the given string
+  void MockEditorApp::findContainsOrAssert(const ITestGuiQueryContext& query, const std::string& name, const std::function<void(const ITestGuiQueryContext&)> callback, const std::wstring& assertMsg) {
+    invokeOrAssert(query, [&name, &callback](const ITestGuiQueryContext& child) {
+      if(child.getName().find(name) != std::string::npos) {
+        if(callback) {
+          callback(child);
+        }
+        return false;
+      }
+      return true;
+    }, assertMsg);
+  }
+}

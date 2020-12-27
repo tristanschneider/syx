@@ -143,7 +143,7 @@ void GraphicsSystem::update(float dt, IWorkerPool&, std::shared_ptr<Task>) {
     mPickRequests.clear();
   }
 
-  if(ImGuiSystem* gui = mArgs.mSystems->getSystem<ImGuiSystem>()) {
+  if(IImGuiSystem* gui = mArgs.mSystems->getSystem<IImGuiSystem>()) {
     if(IImGuiImpl* impl = gui->_getImpl()) {
       impl->render(dt, mScreenSize);
       //TODO: can this input responsibility be moved to the ImGuiSystem?

@@ -21,6 +21,11 @@ namespace {
   const Syx::Vec3 PICK_COLOR(1, 0, 0);
 }
 
+const char* SceneBrowser::WINDOW_NAME = "Objects";
+const char* SceneBrowser::NEW_OBJECT_LABEL = "New Object";
+const char* SceneBrowser::DELETE_OBJECT_LABEL = "Delete Object";
+const char* SceneBrowser::OBJECT_LIST_NAME = "ScrollView";
+
 SceneBrowser::SceneBrowser(MessageQueueProvider& msg, GameObjectHandleProvider& handleGen, KeyboardInput& input, EventHandler& handler)
   : mMsg(&msg)
   , mHandleGen(&handleGen)
@@ -36,9 +41,9 @@ SceneBrowser::SceneBrowser(MessageQueueProvider& msg, GameObjectHandleProvider& 
 void SceneBrowser::editorUpdate(const HandleMap<std::shared_ptr<LuaGameObject>>& objects) {
   _updatePick();
 
-  ImGui::Begin("Objects");
+  ImGui::Begin(WINDOW_NAME);
 
-  if(ImGui::Button("New Object")) {
+  if(ImGui::Button(NEW_OBJECT_LABEL)) {
     mSelected.clear();
     const Handle newHandle = mHandleGen->newHandle();
     mSelected.insert(newHandle);
@@ -46,7 +51,7 @@ void SceneBrowser::editorUpdate(const HandleMap<std::shared_ptr<LuaGameObject>>&
     _broadcastSelection();
   }
 
-  if(ImGui::Button("Delete Object")) {
+  if(ImGui::Button(DELETE_OBJECT_LABEL)) {
     for(Handle obj : mSelected) {
       const auto& it = objects.find(obj);
       if(it != objects.end()) {
@@ -57,7 +62,7 @@ void SceneBrowser::editorUpdate(const HandleMap<std::shared_ptr<LuaGameObject>>&
     _broadcastSelection();
   }
 
-  ImGui::BeginChild("ScrollView", ImVec2(0, 0), true);
+  ImGui::BeginChild(OBJECT_LIST_NAME, ImVec2(0, 0), true);
   std::string name;
   for(const auto& it : objects) {
     const LuaGameObject& obj = *it.second;

@@ -133,6 +133,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="editor\MockEditorApp.h" />
     <ClInclude Include="Precompile.h" />
     <ClInclude Include="targetver.h" />
     <ClInclude Include="test\MockApp.h" />
@@ -145,7 +146,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="AsyncHandleTest.cpp" />
-    <ClCompile Include="editor\EditorTests.cpp" />
+    <ClCompile Include="editor\MockEditorApp.cpp" />
+    <ClCompile Include="editor\ObjectInspectorTests.cpp" />
+    <ClCompile Include="editor\SceneBrowserTests.cpp" />
     <ClCompile Include="event\EventBufferTest.cpp" />
     <ClCompile Include="IDRegistryTest.cpp" />
     <ClCompile Include="LockTest.cpp" />

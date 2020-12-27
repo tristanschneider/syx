@@ -35,8 +35,12 @@ namespace ImGuiExt {
     virtual HookBoolResult shouldClip(ImGuiID id) = 0;
     virtual void onWindowBegin(ImGuiID id, const char* name) = 0;
     virtual void onWindowEnd() = 0;
-    //Called after clipping
     virtual void onButtonCreated(ImGuiID id, const char* name) = 0;
+    virtual void onTextCreated(const char* text) = 0;
+    virtual void onInputTextCreated(const char* label, std::string_view buffer, const void* userdata) = 0;
+    virtual void onCheckboxCreated(const char* label, bool value) = 0;
+    virtual void onInputFloatsCreated(const char* label, const float* elements, size_t elementCount) = 0;
+    virtual void onInputIntsCreated(const char* label, const int* elements, size_t elementCount) = 0;
 
   protected:
     virtual bool doesIDMatch(ImGuiID id, std::string_view label) const;
@@ -50,6 +54,14 @@ namespace ImGuiExt {
     HookBoolResult shouldClip(ImGuiID id);
     void onWindowBegin(ImGuiID id, const char* name);
     void onWindowEnd();
+    //Called after clipping
     void onButtonCreated(ImGuiID id, const char* name);
+    //Any hook in an editable ui element hooks the value BEFORE modification
+    //Text before printf style formatting
+    void onTextCreated(const char* text);
+    void onInputTextCreated(const char* label, std::string_view buffer, const void* userdata);
+    void onCheckboxCreated(const char* label, bool value);
+    void onInputFloatsCreated(const char* label, const float* elements, size_t elementCount);
+    void onInputIntsCreated(const char* label, const int* elements, size_t elementCount);
   }
 }

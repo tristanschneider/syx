@@ -5367,6 +5367,8 @@ void ImGui::TextV(const char* fmt, va_list args)
     if (window->SkipItems)
         return;
 
+    ImGuiExt::Hook::onTextCreated(fmt);
+
     ImGuiContext& g = *GImGui;
     const char* text_end = g.TempBuffer + ImFormatStringV(g.TempBuffer, IM_ARRAYSIZE(g.TempBuffer), fmt, args);
     TextUnformatted(g.TempBuffer, text_end);
@@ -7365,6 +7367,8 @@ bool ImGui::Checkbox(const char* label, bool* v)
     if (window->SkipItems)
         return false;
 
+    ImGuiExt::Hook::onCheckboxCreated(label, *v);
+
     ImGuiContext& g = *GImGui;
     const ImGuiStyle& style = g.Style;
     const ImGuiID id = window->GetID(label);
@@ -7749,6 +7753,8 @@ bool ImGui::InputTextEx(const char* label, char* buf, int buf_size, const ImVec2
     ImGuiWindow* window = GetCurrentWindow();
     if (window->SkipItems)
         return false;
+
+    ImGuiExt::Hook::onInputTextCreated(label, std::string_view(buf, static_cast<size_t>(buf_size)), user_data);
 
     IM_ASSERT(!((flags & ImGuiInputTextFlags_CallbackHistory) && (flags & ImGuiInputTextFlags_Multiline))); // Can't use both together (they both use up/down keys)
     IM_ASSERT(!((flags & ImGuiInputTextFlags_CallbackCompletion) && (flags & ImGuiInputTextFlags_AllowTabInput))); // Can't use both together (they both use tab key)
@@ -8334,6 +8340,13 @@ bool ImGui::InputScalarEx(const char* label, ImGuiDataType data_type, void* data
     if (window->SkipItems)
         return false;
 
+    // Hook these as if they were a 1D call to InputIntN
+    switch(data_type) {
+      case ImGuiDataType::ImGuiDataType_Float: ImGuiExt::Hook::onInputFloatsCreated(label, static_cast<const float*>(data_ptr), size_t(1)); break;
+      case ImGuiDataType::ImGuiDataType_Int: ImGuiExt::Hook::onInputIntsCreated(label, static_cast<const int*>(data_ptr), size_t(1)); break;
+      case ImGuiDataType::ImGuiDataType_Float2: break; // Not implemented
+    }
+
     ImGuiContext& g = *GImGui;
     const ImGuiStyle& style = g.Style;
     const ImVec2 label_size = CalcTextSize(label, NULL, true);
@@ -8407,6 +8420,8 @@ bool ImGui::InputFloatN(const char* label, float* v, int components, int decimal
     if (window->SkipItems)
         return false;
 
+    ImGuiExt::Hook::onInputFloatsCreated(label, v, static_cast<size_t>(components));
+
     ImGuiContext& g = *GImGui;
     bool value_changed = false;
     BeginGroup();
@@ -8449,6 +8464,8 @@ bool ImGui::InputIntN(const char* label, int* v, int components, ImGuiInputTextF
     ImGuiWindow* window = GetCurrentWindow();
     if (window->SkipItems)
         return false;
+
+    ImGuiExt::Hook::onInputIntsCreated(label, v, static_cast<size_t>(components));
 
     ImGuiContext& g = *GImGui;
     bool value_changed = false;

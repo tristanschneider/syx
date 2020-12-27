@@ -57,5 +57,25 @@ namespace ImGuiExt {
     void onButtonCreated(ImGuiID id, const char* name) {
       _forwardVoidCall(&TestHook::onButtonCreated, id, name);
     }
+
+    void onTextCreated(const char* text) {
+      _forwardVoidCall(&TestHook::onTextCreated, text);
+    }
+
+    void onInputTextCreated(const char* label, std::string_view buffer, const void* userdata) {
+      _forwardVoidCall(&TestHook::onInputTextCreated, label, buffer, userdata);
+    }
+
+    void onCheckboxCreated(const char* label, bool value) {
+      _forwardVoidCall(&TestHook::onCheckboxCreated, label, value);
+    }
+
+    void onInputFloatsCreated(const char* label, const float* elements, size_t elementCount) {
+      _forwardVoidCall(&TestHook::onInputFloatsCreated, label, elements, elementCount);
+    }
+
+    void onInputIntsCreated(const char* label, const int* elements, size_t elementCount) {
+      _forwardVoidCall(&TestHook::onInputIntsCreated, label, elements, elementCount);
+    }
   }
 }

@@ -34,6 +34,12 @@ namespace {
   }
 }
 
+const char* ObjectInspector::WINDOW_NAME = "Inspector";
+const char* ObjectInspector::COMPONENT_LIST = "ScrollView";
+const char* ObjectInspector::ADD_COMPONENT_BUTTON = "Add Component";
+const char* ObjectInspector::REMOVE_COMPONENT_BUTTON = "Remove Component";
+const char* ObjectInspector::COMPONENT_PICKER_MODAL = "Components";
+
 ObjectInspector::ObjectInspector(MessageQueueProvider& msg, EventHandler& handler, const ComponentRegistryProvider& componentRegistry)
   : mMsg(msg)
   , mDefaultInspectors(std::make_unique<DefaultInspectors>())
@@ -58,70 +64,73 @@ void ObjectInspector::editorUpdate(const LuaGameObjectProvider& objects) {
     _updateSelection(objects);
   }
 
-  ImGui::Begin("Inspector");
-  ImGui::BeginChild("ScrollView", ImVec2(0, 0), true);
+  ImGui::Begin(WINDOW_NAME);
 
-  _showComponentPicker();
+  if(std::any_of(mSelected.begin(), mSelected.end(), [this, &objects](Handle h) { return objects.getObject(h) != nullptr; })) {
+    ImGui::BeginChild(COMPONENT_LIST, ImVec2(0, 0), true);
 
-  for(size_t i = 0; i < mSelected.size(); ++i) {
-    auto& selected = mSelectedData[i];
-    const LuaGameObject* original = objects.getObject(mSelected[i]);
-    if(!original) {
-      mSelected.clear();
-      break;
-    }
+    _showComponentPicker();
 
-    ImGui::PushID(static_cast<int>(selected->getHandle()));
-
-    std::vector<Component*> components(selected->componentCount());
-    components.clear();
-    selected->forEachComponent([&components](Component& c) {
-      components.push_back(&c);
-    });
-    _sortComponents(components);
-
-    for(size_t c = 0; c < components.size(); ++c) {
-      Component* comp = components[c];
-
-      bool updateComponent = false;
-      if(const Lua::Node* props = comp->getLuaProps()) {
-        ImGui::PushID(static_cast<int>(c));
-        ImGui::Text(comp->getTypeInfo().mTypeName.c_str());
-        ImGui::BeginGroup();
-
-        //Populate editor for each property
-        props->forEachDiff(static_cast<Lua::NodeDiff>(~0), comp, [&updateComponent, this](const Lua::Node& prop, const void* data) {
-          updateComponent = _inspectProperty(prop, const_cast<void*>(data)) || updateComponent;
-        });
-
-        //If a property changed, make a diff and send an update message
-        if(updateComponent) {
-          const Component& originalComp = *original->getComponent(comp->getType(), comp->getSubType());
-          const Component& newComp = *comp;
-
-          //Generate diff of component
-          auto diff = props->getDiff(&originalComp, &newComp);
-
-          //Copy new values to buffer and send diff so only new value is updated
-          std::vector<uint8_t> buffer(props->size());
-          props->copyConstructToBuffer(&newComp, buffer.data());
-          mMsg.getMessageQueue().get().push(SetComponentPropsEvent(newComp.getOwner(), newComp.getFullType(), props, diff, std::move(buffer)));
-        }
-
-        if(!original->_isBuiltInComponent(*comp)) {
-          _deleteComponentButton(*comp);
-        }
-
-        ImGui::EndGroup();
-        ImGui::Separator();
-        ImGui::PopID();
+    for(size_t i = 0; i < mSelected.size(); ++i) {
+      auto& selected = mSelectedData[i];
+      const LuaGameObject* original = objects.getObject(mSelected[i]);
+      if(!original) {
+        mSelected.clear();
+        break;
       }
+
+      ImGui::PushID(static_cast<int>(selected->getHandle()));
+
+      std::vector<Component*> components(selected->componentCount());
+      components.clear();
+      selected->forEachComponent([&components](Component& c) {
+        components.push_back(&c);
+      });
+      _sortComponents(components);
+
+      for(size_t c = 0; c < components.size(); ++c) {
+        Component* comp = components[c];
+
+        bool updateComponent = false;
+        if(const Lua::Node* props = comp->getLuaProps()) {
+          ImGui::PushID(static_cast<int>(c));
+          ImGui::Text(comp->getTypeInfo().mTypeName.c_str());
+          ImGui::BeginGroup();
+
+          //Populate editor for each property
+          props->forEachDiff(static_cast<Lua::NodeDiff>(~0), comp, [&updateComponent, this](const Lua::Node& prop, const void* data) {
+            updateComponent = _inspectProperty(prop, const_cast<void*>(data)) || updateComponent;
+          });
+
+          //If a property changed, make a diff and send an update message
+          if(updateComponent) {
+            const Component& originalComp = *original->getComponent(comp->getType(), comp->getSubType());
+            const Component& newComp = *comp;
+
+            //Generate diff of component
+            auto diff = props->getDiff(&originalComp, &newComp);
+
+            //Copy new values to buffer and send diff so only new value is updated
+            std::vector<uint8_t> buffer(props->size());
+            props->copyConstructToBuffer(&newComp, buffer.data());
+            mMsg.getMessageQueue().get().push(SetComponentPropsEvent(newComp.getOwner(), newComp.getFullType(), props, diff, std::move(buffer)));
+          }
+
+          if(!original->_isBuiltInComponent(*comp)) {
+            _deleteComponentButton(*comp);
+          }
+
+          ImGui::EndGroup();
+          ImGui::Separator();
+          ImGui::PopID();
+        }
+      }
+
+      ImGui::PopID();
     }
 
-    ImGui::PopID();
+    ImGui::EndChild();
   }
-
-  ImGui::EndChild();
   ImGui::End();
 }
 
@@ -153,7 +162,7 @@ bool ObjectInspector::_inspectProperty(const Lua::Node& prop, void* data) const 
 
 void ObjectInspector::_showComponentPicker() const {
   Picker::PickerInfo picker;
-  picker.name = "Components";
+  picker.name = COMPONENT_PICKER_MODAL;
   picker.padKey = "selectedComponent";
 
   ScratchPad& pad = IImGuiImpl::getPad();
@@ -180,7 +189,7 @@ void ObjectInspector::_showComponentPicker() const {
     }
   };
 
-  if(ImGui::Button("Add Component")) {
+  if(ImGui::Button(ADD_COMPONENT_BUTTON)) {
     ImGui::OpenPopup(picker.name);
   }
 
@@ -188,7 +197,7 @@ void ObjectInspector::_showComponentPicker() const {
 }
 
 void ObjectInspector::_deleteComponentButton(const Component& component) {
-  if(ImGui::Button("Remove Component")) {
+  if(ImGui::Button(REMOVE_COMPONENT_BUTTON)) {
     mMsg.getMessageQueue().get().push(RemoveComponentEvent(component.getOwner(), component.getType(), component.getSubType()));
   }
 }

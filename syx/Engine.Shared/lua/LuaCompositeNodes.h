@@ -129,6 +129,12 @@ namespace Lua {
       //Nothing to set since we didn't make a table, pop off the reference
       lua_pop(s, 1);
     }
+    void _destruct(void* base) const override {
+      auto& ptr = Base::_cast(base);
+      ptr.~Ptr();
+      //Not strictly necessary, although makes debugging less confusing if the pointers are null instead of garbage
+      ptr = nullptr;
+    }
   };
   template<typename T>
   class UniquePtrNode : public PointerNode<std::unique_ptr<T>> {
@@ -144,6 +150,9 @@ namespace Lua {
     }
     void _copy(const void* from, void* to) const override {
       *Base::_cast(to) = *Base::_cast(from);
+    }
+    void _destruct(void* base) const override {
+      Base::_cast(base).reset();
     }
   };
 

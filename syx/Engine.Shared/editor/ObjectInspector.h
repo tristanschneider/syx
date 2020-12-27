@@ -22,6 +22,12 @@ public:
   void editorUpdate(const LuaGameObjectProvider& objects);
   bool isSelected(Handle handle) const;
 
+  static const char* WINDOW_NAME;
+  static const char* COMPONENT_LIST;
+  static const char* ADD_COMPONENT_BUTTON;
+  static const char* REMOVE_COMPONENT_BUTTON;
+  static const char* COMPONENT_PICKER_MODAL;
+
 private:
   void _updateSelection(const LuaGameObjectProvider& objects);
   bool _inspectProperty(const Lua::Node& prop, void* data) const;

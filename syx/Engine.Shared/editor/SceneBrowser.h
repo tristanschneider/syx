@@ -13,6 +13,11 @@ public:
 
   void editorUpdate(const HandleMap<std::shared_ptr<LuaGameObject>>& objects);
 
+  static const char* WINDOW_NAME;
+  static const char* NEW_OBJECT_LABEL;
+  static const char* DELETE_OBJECT_LABEL;
+  static const char* OBJECT_LIST_NAME;
+
 private:
   void _updatePick();
   //Clear current selection to make room for a new one unless the current selection should be added to

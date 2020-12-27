@@ -42,6 +42,9 @@
     <ClInclude Include="test\TestGUIHook.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="editor\MockEditorApp.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="LockTest.cpp">
@@ -110,10 +113,16 @@
     <ClCompile Include="test\TestListenerSystem.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="editor\EditorTests.cpp">
+    <ClCompile Include="test\TestGUIHook.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="test\TestGUIHook.cpp">
+    <ClCompile Include="editor\SceneBrowserTests.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="editor\ObjectInspectorTests.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="editor\MockEditorApp.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
