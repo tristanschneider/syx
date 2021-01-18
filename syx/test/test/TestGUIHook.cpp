@@ -140,6 +140,27 @@ namespace {
       }));
     }
 
+    ResetToken addScopedItemHover(const std::string& label) override {
+      mHoveredButtons.push_back(label);
+      return finally(std::function<void()>([this, label] {
+        auto it = std::find(mHoveredButtons.begin(), mHoveredButtons.end(), label);
+        mHoveredButtons.erase(std::remove(mHoveredButtons.begin(), mHoveredButtons.end(), label), mHoveredButtons.end());
+      }));
+    }
+
+    ResetToken addScopedPickerPick(const std::string& pickedItem) override {
+      //The hover lasts the duration of the scope, the double click will be cleared by imgui on the next NewFrame
+      //The single frame should be enough to simulate the pick
+      //Reverse engineer the logic in ImGui::NewFrame to cause IO::MouseDoubleClicked to be set
+      auto& io = ImGui::GetIO();
+      const int mouseButton = 0;
+      io.MouseDown[mouseButton] = true;
+      io.MouseClickedTime[mouseButton] = ImGui::GetTime();
+      io.MouseClickedPos[mouseButton] = io.MousePos;
+      io.MouseDownDuration[mouseButton] = io.MouseDownDurationPrev[mouseButton] = -1.f;
+      return addScopedItemHover(pickedItem);
+    }
+
     std::shared_ptr<ITestGuiQueryContext> query() override {
       if(const UIElement* root = mScreenTree.tryGetRoot()) {
         return std::make_shared<TestGuiQueryContext>(*root);
@@ -177,6 +198,12 @@ namespace {
       return std::any_of(mPressedButtons.begin(), mPressedButtons.end(), [this, id](const std::string& button) { return doesIDMatch(id, button); })
         ? ImGuiExt::ButtonResult::PerformPress
         : ImGuiExt::ButtonResult::Continue;
+    }
+
+    ImGuiExt::HookBoolResult isItemHovered(ImGuiID lastItem) override {
+      return std::any_of(mHoveredButtons.begin(), mHoveredButtons.end(), [this, lastItem](const std::string& button) { return doesIDMatch(lastItem, button); })
+        ? ImGuiExt::HookBoolResult::ForceTrue
+        : ImGuiExt::HookBoolResult::Continue;
     }
 
     void onButtonCreated(ImGuiID, const char* name) override {
@@ -238,6 +265,7 @@ namespace {
     }
 
     std::vector<std::string> mPressedButtons;
+    std::vector<std::string> mHoveredButtons;
     PreservingScreenTree mScreenTree;
   };
 }

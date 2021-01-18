@@ -58,6 +58,8 @@ struct ITestGuiHook {
   virtual void addPressedButton(const std::string& label) = 0;
   virtual void removePressedButton(const std::string& label) = 0;
   virtual ResetToken addScopedButtonPress(const std::string& label) = 0;
+  virtual ResetToken addScopedItemHover(const std::string& label) = 0;
+  virtual ResetToken addScopedPickerPick(const std::string& pickedItem) = 0;
   virtual std::shared_ptr<ITestGuiQueryContext> query() = 0;
   //Pretty print hierarchy for debugging
   virtual std::string toString(const std::string& tab = "  ", const std::string& newline = "\n") const = 0;

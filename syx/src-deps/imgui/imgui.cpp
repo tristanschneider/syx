@@ -3302,6 +3302,11 @@ void ImGui::CaptureMouseFromApp(bool capture)
 bool ImGui::IsItemHovered()
 {
     ImGuiWindow* window = GetCurrentWindowRead();
+    switch (ImGuiExt::Hook::isItemHovered(window->DC.LastItemId)) {
+      case ImGuiExt::HookBoolResult::ForceFalse: return false;
+      case ImGuiExt::HookBoolResult::ForceTrue: return true;
+      case ImGuiExt::HookBoolResult::Continue: break;
+    }
     return window->DC.LastItemHoveredAndUsable;
 }
 

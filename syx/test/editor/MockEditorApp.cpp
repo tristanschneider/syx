@@ -5,8 +5,10 @@
 #include "Camera.h"
 #include "CppUnitTest.h"
 #include "editor/event/EditorEvents.h"
+#include "editor/ObjectInspector.h"
 #include "editor/SceneBrowser.h"
 #include "event/BaseComponentEvents.h"
+#include "LuaGameObject.h"
 #include "system/LuaGameSystem.h"
 #include "test/TestAppPlatform.h"
 #include "test/TestAppRegistration.h"
@@ -65,6 +67,18 @@ namespace EditorTests {
     const LuaGameObject* result = mApp->getSystem<LuaGameSystem>()->getObject(newHandle);
     Assert::IsNotNull(result, L"New object should have been found in LuaGameSystem, if it wasn't the system failed to created it or the id from the add event didn't match");
     return *result;
+  }
+
+  const Component& MockEditorApp::createComponent(const LuaGameObject& object, const ComponentTypeInfo& type) {
+      auto gui = Create::createAndRegisterTestGuiHook();
+      auto addComponent = gui->addScopedButtonPress(ObjectInspector::ADD_COMPONENT_BUTTON);
+      mApp->update(1.f);
+      auto pick = gui->addScopedPickerPick(type.mTypeName);
+      processEditorInput();
+
+      const Component* result = object.getComponent(type.mPropName.c_str());
+      Assert::IsNotNull(result, L"Component should have been added after picking it in the new component picker");
+      return *result;
   }
 
   //Arbitrary camera values that result in Camera::isValid returning true

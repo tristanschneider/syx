@@ -1,6 +1,10 @@
 #include "Precompile.h"
 
 #include "App.h"
+#include "component/CameraComponent.h"
+#include "component/LuaComponent.h"
+#include "component/Physics.h"
+#include "component/Renderable.h"
 #include "CppUnitTest.h"
 #include "editor/MockEditorApp.h"
 #include "editor/ObjectInspector.h"
@@ -112,6 +116,30 @@ namespace EditorTests {
           Assert::AreEqual(spaceInput->mValues[0], static_cast<int>(space.get()), L"Space should match", LINE_INFO());
         }, L"Space input should be found");
       });
+    }
+
+    TEST_METHOD(NewObject_AddCameraFromPicker_CameraIsAdded) {
+      MockEditorApp app;
+
+      app.createComponent(app.createNewObject(), CameraComponent::singleton().getTypeInfo());
+    }
+
+    TEST_METHOD(NewObject_AddPhysicsFromPicker_PhysicsIsAdded) {
+      MockEditorApp app;
+
+      app.createComponent(app.createNewObject(), Physics::singleton().getTypeInfo());
+    }
+
+    TEST_METHOD(NewObject_AddScriptFromPicker_ScriptIsAdded) {
+      MockEditorApp app;
+
+      app.createComponent(app.createNewObject(), LuaComponent(0).getTypeInfo());
+    }
+
+    TEST_METHOD(NewObject_AddRenderableFromPicker_RenderableIsAdded) {
+      MockEditorApp app;
+
+      app.createComponent(app.createNewObject(), Renderable::singleton().getTypeInfo());
     }
   };
 }

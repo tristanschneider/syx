@@ -46,6 +46,10 @@ namespace ImGuiExt {
       return _forwardCall(&TestHook::shouldClip, HookBoolResult::Continue, id);
     }
 
+    HookBoolResult isItemHovered(ImGuiID lastItem) {
+      return _forwardCall(&TestHook::isItemHovered, HookBoolResult::Continue, lastItem);
+    }
+
     void onWindowBegin(ImGuiID id, const char* name) {
       _forwardVoidCall(&TestHook::onWindowBegin, id, name);
     }

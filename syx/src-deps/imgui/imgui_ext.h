@@ -33,6 +33,7 @@ namespace ImGuiExt {
 
     virtual ButtonResult onButtonUpdate(ImGuiID id) = 0;
     virtual HookBoolResult shouldClip(ImGuiID id) = 0;
+    virtual HookBoolResult isItemHovered(ImGuiID lastItem) = 0;
     virtual void onWindowBegin(ImGuiID id, const char* name) = 0;
     virtual void onWindowEnd() = 0;
     virtual void onButtonCreated(ImGuiID id, const char* name) = 0;
@@ -52,6 +53,7 @@ namespace ImGuiExt {
   namespace Hook {
     ButtonResult onButtonUpdate(ImGuiID id);
     HookBoolResult shouldClip(ImGuiID id);
+    HookBoolResult isItemHovered(ImGuiID lastItem);
     void onWindowBegin(ImGuiID id, const char* name);
     void onWindowEnd();
     //Called after clipping

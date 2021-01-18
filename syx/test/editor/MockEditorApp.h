@@ -3,6 +3,8 @@
 #include "test/MockApp.h"
 
 class Camera;
+class Component;
+struct ComponentTypeInfo;
 template<class Callable>
 class FinalAction;
 struct ITestGuiHook;
@@ -23,6 +25,7 @@ namespace EditorTests {
     void setAndUpdateSelection(::std::vector<Handle> selection);
     ScopedAssertion createScopedNetObjectCountAssertion(int netChange, const ::std::wstring& assertMessage);
     const LuaGameObject& createNewObject();
+    const Component& createComponent(const LuaGameObject& object, const ComponentTypeInfo& type);
     //Arbitrary camera values that result in Camera::isValid returning true
     static Camera _createValidCamera();
     //One update to process the event and another for the response to be processed
