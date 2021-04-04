@@ -40,6 +40,21 @@ namespace EditorTests {
     mApp->update(0.f);
   }
 
+  void MockEditorApp::pressKeyAndProcessInput(Key key) {
+    pressKeysAndProcessInput({ key });
+  }
+
+  void MockEditorApp::pressKeysAndProcessInput(const std::initializer_list<Key>& keys) {
+    auto& input = static_cast<TestKeyboardInputImpl&>(mApp->getAppPlatform().getKeyboardInput());
+    for(auto key : keys) {
+      input.clearInputAfterOneFrame().mKeyStates[key] = KeyState::Triggered;
+    }
+    mApp->update(1.f);
+    for(auto key : keys) {
+      input.clearInputAfterOneFrame().mKeyStates[key] = KeyState::Released;
+    }
+  }
+
   //Set a selection and propagate the change to the editor
   void MockEditorApp::setAndUpdateSelection(std::vector<Handle> selection) {
     mApp->getMessageQueue()->push(SetSelectionEvent(std::move(selection)));
@@ -96,12 +111,9 @@ namespace EditorTests {
     }
   }
 
-  std::vector<Handle> MockEditorApp::simulateMousePick(const std::vector<Handle> objs) {
-    auto& input = static_cast<TestKeyboardInputImpl&>(mApp->getAppPlatform().getKeyboardInput());
+  std::vector<Handle> MockEditorApp::simulateMousePick(const std::vector<Handle>& objs) {
     //Needs to be down for a frame then released to trigger the pick behavior
-    input.clearInputAfterOneFrame().mKeyStates[Key::LeftMouse] = KeyState::Triggered;
-    mApp->update(1.f);
-    input.clearInputAfterOneFrame().mKeyStates[Key::LeftMouse] = KeyState::Released;
+    pressKeyAndProcessInput(Key::LeftMouse);
 
     //SceneBrowser gets the camera with a GetCameraRequest, then uses it to send a ScreenPickRequest
     //Those are normally provided by the GraphicsSystem. These tests don't have that system, so mock the responses

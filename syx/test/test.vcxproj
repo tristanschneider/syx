@@ -146,6 +146,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="AsyncHandleTest.cpp" />
+    <ClCompile Include="editor\EditorToolboxTests.cpp" />
     <ClCompile Include="editor\MockEditorApp.cpp" />
     <ClCompile Include="editor\ObjectInspectorTests.cpp" />
     <ClCompile Include="editor\SceneBrowserTests.cpp" />

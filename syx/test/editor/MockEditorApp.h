@@ -9,6 +9,7 @@ template<class Callable>
 class FinalAction;
 struct ITestGuiHook;
 struct ITestGuiQueryContext;
+enum class Key : uint8_t;
 class LuaGameObject;
 
 namespace EditorTests {
@@ -21,6 +22,8 @@ namespace EditorTests {
     void processEditorInput();
     //Simulate a button press expected to trigger an event on the next update, then await the processing of that event
     void pressButtonAndProcessInput(const ::std::string& label);
+    void pressKeyAndProcessInput(Key key);
+    void pressKeysAndProcessInput(const ::std::initializer_list<Key>& keys);
     //Set a selection and propagate the change to the editor
     void setAndUpdateSelection(::std::vector<Handle> selection);
     ScopedAssertion createScopedNetObjectCountAssertion(int netChange, const ::std::wstring& assertMessage);
@@ -30,7 +33,7 @@ namespace EditorTests {
     static Camera _createValidCamera();
     //One update to process the event and another for the response to be processed
     void _updateForEventResponse();
-    ::std::vector<Handle> simulateMousePick(const ::std::vector<Handle> objs);
+    ::std::vector<Handle> simulateMousePick(const ::std::vector<Handle>& objs);
     ::std::vector<Handle> simulateMousePick(Handle obj);
 
     static std::shared_ptr<ITestGuiQueryContext> getOrAssertQueryContext(ITestGuiHook& hook);

@@ -23,6 +23,10 @@ Toolbox::Toolbox(MessageQueueProvider& msg, EventHandler& handler)
   });
 }
 
+void Toolbox::update(const KeyboardInput& input) {
+  _updateInput(input);
+}
+
 void Toolbox::editorUpdate(const KeyboardInput& input) {
   _updateGui();
   _updateInput(input);
@@ -72,20 +76,23 @@ void Toolbox::_updateGui() {
 void Toolbox::_updateInput(const KeyboardInput& input) {
   const bool ctrl = input.getKeyDown(Key::LeftCtrl) || input.getKeyDown(Key::RightCtrl);
   const bool shift = input.getKeyDown(Key::Shift);
-  if(ctrl && shift && input.getKeyTriggered(Key::KeyS))
-    _saveAs();
-  else if(ctrl && input.getKeyTriggered(Key::KeyS))
-    _save();
-  else if(ctrl && input.getKeyTriggered(Key::KeyO))
-    _open();
-  else if(shift && input.getKeyTriggered(Key::F5))
-    _stop();
-  else if(input.getKeyTriggered(Key::F5))
-    _play();
-  else if(input.getKeyTriggered(Key::F6)) {
-    if(mCurrentPlayState == PlayState::Playing)
+  if(mCurrentPlayState == PlayState::Playing) {
+    if(shift && input.getKeyTriggered(Key::F5))
+      _stop();
+    else if(input.getKeyTriggered(Key::F6)) {
       _pause();
-    else if(mCurrentPlayState == PlayState::Paused)
+    }
+  }
+  else {
+    if(ctrl && shift && input.getKeyTriggered(Key::KeyS))
+      _saveAs();
+    else if(ctrl && input.getKeyTriggered(Key::KeyS))
+      _save();
+    else if(ctrl && input.getKeyTriggered(Key::KeyO))
+      _open();
+    else if(input.getKeyTriggered(Key::F5))
+      _play();
+    else if(input.getKeyTriggered(Key::F6) && mCurrentPlayState == PlayState::Paused)
       _step();
   }
 }

@@ -35,6 +35,10 @@
 namespace {
   const char* EDITOR_VIEWPORT = "editor";
   const char* GAME_VIEWPORT = "game";
+
+  bool _shouldUpdateEditor(PlayState state) {
+    return state != PlayState::Playing;
+  }
 }
 
 class EditorGameObserver : public LuaGameSystemObserver {
@@ -171,10 +175,17 @@ void Editor::uninit() {
 void Editor::update(float dt, IWorkerPool&, std::shared_ptr<Task> frameTask) {
   mEventHandler->handleEvents(*mEventBuffer);
 
-  _updateInput(dt);
+  if(_shouldUpdateEditor(mCurrentState)) {
+    _updateInput(dt);
+  }
+  mToolbox->update(*mArgs.mSystems->getSystem<KeyboardInput>());
 }
 
 void Editor::_editorUpdate() {
+  if(!_shouldUpdateEditor(mCurrentState)) {
+    return;
+  }
+
   const LuaGameSystem& game = *mArgs.mSystems->getSystem<LuaGameSystem>();
   mSceneBrowser->editorUpdate(game.getObjects());
   mObjectInspector->editorUpdate(game);

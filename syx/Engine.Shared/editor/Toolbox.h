@@ -10,6 +10,9 @@ class Toolbox {
 public:
   Toolbox(MessageQueueProvider& msg, EventHandler& handler);
 
+  //Updates during play state
+  void update(const KeyboardInput& input);
+  //Updates during edit state
   void editorUpdate(const KeyboardInput& input);
 
 private:
