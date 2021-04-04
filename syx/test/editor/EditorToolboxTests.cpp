@@ -44,10 +44,13 @@ namespace EditorTests {
     TEST_METHOD(PlayState_ShiftF5_ToolboxExists) {
       MockEditorApp app;
       Assert::IsNotNull(app->getSystem<Editor>(), L"Editor should exist", LINE_INFO());
-      auto gui = Create::createAndRegisterTestGuiHook();
       app.pressButtonAndProcessInput("Play");
 
       app.pressKeysAndProcessInput({ Key::F5, Key::Shift });
+      auto gui = Create::createAndRegisterTestGuiHook();
+      //One update to process the play state change, another to populate the editor ui
+      app->update(0.f);
+      app->update(0.f);
 
       _assertToolboxExists(*gui);
     }

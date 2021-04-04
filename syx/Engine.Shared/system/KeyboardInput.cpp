@@ -94,6 +94,16 @@ bool KeyboardInput::getKeyDown(Key key) const {
   return getKeyState(key) == KeyState::Down;
 }
 
+bool KeyboardInput::getKeyDownOrTriggered(Key key) const {
+  switch(getKeyState(key)) {
+  case KeyState::Down:
+  case KeyState::Triggered:
+    return true;
+  default:
+    return false;
+  }
+}
+
 bool KeyboardInput::getKeyUp(Key key) const {
   return getKeyState(key) == KeyState::Up;
 }

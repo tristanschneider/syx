@@ -74,8 +74,8 @@ void Toolbox::_updateGui() {
 }
 
 void Toolbox::_updateInput(const KeyboardInput& input) {
-  const bool ctrl = input.getKeyDown(Key::LeftCtrl) || input.getKeyDown(Key::RightCtrl);
-  const bool shift = input.getKeyDown(Key::Shift);
+  const bool ctrl = input.getKeyDownOrTriggered(Key::LeftCtrl) || input.getKeyDownOrTriggered(Key::RightCtrl);
+  const bool shift = input.getKeyDownOrTriggered(Key::Shift);
   if(mCurrentPlayState == PlayState::Playing) {
     if(shift && input.getKeyTriggered(Key::F5))
       _stop();

@@ -83,6 +83,7 @@ public:
   KeyState getKeyState(const std::string& key) const;
   KeyState getKeyState(Key key) const;
   bool getKeyDown(Key key) const;
+  bool getKeyDownOrTriggered(Key key) const;
   bool getKeyUp(Key key) const;
   bool getKeyTriggered(Key key) const;
   bool getKeyReleased(Key key) const;
