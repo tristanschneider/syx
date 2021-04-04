@@ -28,6 +28,7 @@ namespace EditorTests {
     void setAndUpdateSelection(::std::vector<Handle> selection);
     ScopedAssertion createScopedNetObjectCountAssertion(int netChange, const ::std::wstring& assertMessage);
     const LuaGameObject& createNewObject();
+    const LuaGameObject& findGameObjectOrAssert(const std::string_view name);
     const Component& createComponent(const LuaGameObject& object, const ComponentTypeInfo& type);
     //Arbitrary camera values that result in Camera::isValid returning true
     static Camera _createValidCamera();

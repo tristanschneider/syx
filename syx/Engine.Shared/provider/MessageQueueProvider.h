@@ -1,4 +1,5 @@
 #pragma once
+#include "threading/SpinLock.h"
 #include "Util.h"
 
 class DeferredEventBuffer;

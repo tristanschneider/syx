@@ -181,7 +181,6 @@ int mainLoop(const char* launchUri) {
 
   sApp->onUriActivated(launchUri);
   sApp->init();
-  sApp->onUriActivated(launchUri);
   //Inform graphcis of screen size
   setWindowSize(sWidth, sHeight);
   auto lastFrameStart = std::chrono::high_resolution_clock::now();

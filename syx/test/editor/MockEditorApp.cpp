@@ -84,6 +84,20 @@ namespace EditorTests {
     return *result;
   }
 
+  const LuaGameObject& MockEditorApp::findGameObjectOrAssert(const std::string_view name) {
+    LuaGameSystem* game = mApp->getSystem<LuaGameSystem>();
+    Assert::IsNotNull(game, L"Game should exist");
+    auto it = std::find_if(game->getObjects().begin(), game->getObjects().end(), [&name](const auto& pair) {
+      LuaGameObject& obj = *pair.second;
+      if(const NameComponent* nameComponent = obj.getComponent<NameComponent>()) {
+        return nameComponent->getName() == name;
+      }
+      return false;
+    });
+    Assert::IsFalse(it == game->getObjects().end(), L"Object should have been found");
+    return *it->second;
+  }
+
   const Component& MockEditorApp::createComponent(const LuaGameObject& object, const ComponentTypeInfo& type) {
       auto gui = Create::createAndRegisterTestGuiHook();
       auto addComponent = gui->addScopedButtonPress(ObjectInspector::ADD_COMPONENT_BUTTON);
@@ -128,7 +142,7 @@ namespace EditorTests {
     });
 
     _updateForEventResponse();
-    Assert::IsTrue(listener.hasEventOfType(Event::typeId<GetCameraRequest>()), L"Mouse input should have triggered the GetCameraRequest to bein the pick process", LINE_INFO());
+    Assert::IsTrue(listener.hasEventOfType(Event::typeId<GetCameraRequest>()), L"Mouse input should have triggered the GetCameraRequest to begin the pick process", LINE_INFO());
     _updateForEventResponse();
     Assert::IsTrue(listener.hasEventOfType(Event::typeId<ScreenPickRequest>()), L"GetCameraResponse should have triggered the ScreenPickRequest", LINE_INFO());
     _updateForEventResponse();

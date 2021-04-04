@@ -2,11 +2,15 @@
 #include "CppUnitTest.h"
 
 #include "App.h"
+#include "component/ComponentPublisher.h"
+#include "component/NameComponent.h"
 #include "editor/Editor.h"
 #include "editor/event/EditorEvents.h"
 #include "editor/MockEditorApp.h"
+#include "event/BaseComponentEvents.h"
 #include "event/EventBuffer.h"
 #include "lua/LuaGameContext.h"
+#include "LuaGameObject.h"
 #include "system/KeyboardInput.h"
 #include "test/MockApp.h"
 #include "test/TestGUIHook.h"
@@ -53,6 +57,20 @@ namespace EditorTests {
       app->update(0.f);
 
       _assertToolboxExists(*gui);
+    }
+
+    TEST_METHOD(SingleObject_EnterPlayState_ObjectExists) {
+      MockEditorApp app;
+      //Create an object with a unique name
+      const LuaGameObject& object = app.createNewObject();
+      NameComponent nameComponent(object.getHandle());
+      nameComponent.setName("testobj");
+      nameComponent.sync(*app->getMessageQueue());
+
+      //Enter play state
+      app.pressKeyAndProcessInput(Key::F5);
+
+      app.findGameObjectOrAssert("testobj");
     }
   };
 }

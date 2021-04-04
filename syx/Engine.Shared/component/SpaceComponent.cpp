@@ -46,13 +46,14 @@ namespace {
     //Create object
     if(fireAddEvent) {
       //TODO: how is this supposed to work if you're trying to load the same same scene into two different spaces?
-      if(auto claimedID = idRegistry.tryClaimKnownID(obj.mUniqueID)) {
-        msg.get().push(AddGameObjectEvent(obj.mRuntimeID, std::move(claimedID)));
+      auto claimedID = idRegistry.tryClaimKnownID(obj.mUniqueID);
+      //Generate a new key if the desired one is taken
+      //TODO: once object relationships exist, a mapping would need to be updated here to preserve relationships
+      if(!claimedID) {
+        claimedID = idRegistry.generateNewUniqueID();
+        printf("Remapped object with duplicate id %s to %s", std::to_string(obj.mUniqueID).c_str(), std::to_string(**claimedID).c_str());
       }
-      else {
-        printf("Unable to create object %s, it already exists", std::to_string(obj.mUniqueID).c_str());
-        return;
-      }
+      msg.get().push(AddGameObjectEvent(obj.mRuntimeID, std::move(claimedID)));
     }
 
     //Copy components
