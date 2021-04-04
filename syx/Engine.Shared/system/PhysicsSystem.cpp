@@ -3,6 +3,7 @@
 
 #include "asset/Model.h"
 #include "asset/PhysicsModel.h"
+#include "editor/event/EditorEvents.h"
 #include "system/AssetRepo.h"
 #include "system/GraphicsSystem.h"
 #include "event/BaseComponentEvents.h"
@@ -31,6 +32,7 @@
 namespace Syx {
   namespace Interface {
     extern ::IDebugDrawer* gDrawer;
+    extern SyxOptions gOptions;
   }
 }
 
@@ -38,7 +40,6 @@ const std::string PhysicsSystem::CUBE_MODEL_NAME = "CubeCollider";
 const std::string PhysicsSystem::SPHERE_MODEL_NAME = "SphereCollider";
 const std::string PhysicsSystem::CAPSULE_MODEL_NAME = "CapsuleCollider";
 const std::string PhysicsSystem::DEFAULT_MATERIAL_NAME = "DefaultPhysicsMaterial";
-
 
 PhysicsSystem::PhysicsSystem(const SystemArgs& args)
   : System(args, _typeId<PhysicsSystem>()) {
@@ -84,6 +85,14 @@ void PhysicsSystem::init() {
   SYSTEM_EVENT_HANDLER(RemoveComponentEvent, _removeComponentEvent);
   SYSTEM_EVENT_HANDLER(SetTimescaleEvent, _setTimescaleEvent);
   mEventHandler->registerEventHandler(CallbackEvent::getHandler(typeId<PhysicsSystem>()));
+  mEventHandler->registerEventHandler([](const SetPlayStateEvent& e) {
+    if(e.mState == PlayState::Playing) {
+      Syx::Interface::gOptions.mDebugFlags = 0;
+    }
+    else {
+      Syx::Interface::gOptions.mDebugFlags = Syx::SyxOptions::Debug::DrawModels;
+    }
+  });
 }
 
 void PhysicsSystem::queueTasks(float dt, IWorkerPool& pool, std::shared_ptr<Task> frameTask) {

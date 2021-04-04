@@ -29,9 +29,9 @@ namespace Syx {
       DrawJoints = 1 << 11
     };
 
-    int mSimdFlags;
-    int mDebugFlags;
-    int mTest;
+    int mSimdFlags = 0;
+    int mDebugFlags = 0;
+    int mTest = 0;
   };
 
   namespace Interface {

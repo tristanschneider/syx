@@ -6,12 +6,10 @@
 namespace Syx {
   namespace Interface {
     ::IDebugDrawer* gDrawer = nullptr;
+    SyxOptions gOptions;
 
     SyxOptions getOptions(void) {
-      SyxOptions result;
-      result.mDebugFlags = SyxOptions::DrawModels;
-      result.mSimdFlags = 0;
-      return result;
+      return gOptions;
     }
 
     void setColor(float r, float g, float b) {

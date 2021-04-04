@@ -117,7 +117,9 @@ Editor::Editor(const SystemArgs& args)
 Editor::~Editor() = default;
 
 void Editor::init() {
+  //If the editor system is registered, inform any listeners that play state is defaulting to stopped
   mCurrentState = PlayState::Stopped;
+  mArgs.mMessages->getMessageQueue()->push(SetPlayStateEvent(PlayState::Stopped));
   mEventHandler = std::make_unique<EventHandler>();
 
   mSavedScene = std::make_unique<FilePath>(mArgs.mProjectLocator->transform("scene.json", PathSpace::Project, PathSpace::Full));
