@@ -17,8 +17,13 @@ MockApp::MockApp(std::unique_ptr<AppPlatform> appPlatform, std::unique_ptr<AppRe
   mApp->update(0.f);
 }
 
+MockApp::MockApp(MockApp&&) = default;
+
+
 MockApp::~MockApp() {
-  mApp->uninit();
+  if(mApp) {
+    mApp->uninit();
+  }
 }
 
 App& MockApp::get() {

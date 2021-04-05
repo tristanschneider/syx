@@ -16,6 +16,7 @@
 #include "system/AssetRepo.h"
 #include "system/KeyboardInput.h"
 #include "system/LuaGameSystem.h"
+#include "system/PhysicsSystem.h"
 #include "test/TestListenerSystem.h"
 
 size_t LuaRegistration::TEST_CALLBACK_ID = typeId<TestListenerSystem>();
@@ -93,6 +94,17 @@ namespace TestRegistration {
 
       void registerComponents(IComponentRegistry& registry) override {
         LuaRegistration::registerComponents(registry);
+      }
+    };
+
+    return std::make_unique<Reg>();
+  }
+
+  std::unique_ptr<AppRegistration> createPhysicsRegistration() {
+    struct Reg : public LuaRegistration {
+      void registerSystems(const SystemArgs& args, ISystemRegistry& registry) override {
+        LuaRegistration::registerSystems(args, registry);
+        registry.registerSystem(std::make_unique<PhysicsSystem>(args));
       }
     };
 

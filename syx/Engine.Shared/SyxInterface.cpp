@@ -13,15 +13,21 @@ namespace Syx {
     }
 
     void setColor(float r, float g, float b) {
-      gDrawer->setColor(Vec3(r, g, b));
+      if(gDrawer) {
+        gDrawer->setColor(Vec3(r, g, b));
+      }
     }
 
     void drawLine(const Vec3& start, const Vec3& end) {
-      gDrawer->drawLine(start, end);
+      if(gDrawer) {
+        gDrawer->drawLine(start, end);
+      }
     }
 
     void drawVector(const Vec3& start, const Vec3& direction) {
-      gDrawer->drawVector(start, direction);
+      if(gDrawer) {
+        gDrawer->drawVector(start, direction);
+      }
     }
 
     void drawSphere(const Vec3& center, float radius, const Vec3&, const Vec3&) {
@@ -62,13 +68,8 @@ namespace Syx {
 
     // Simple representation of a point, like a cross where size is the length from one side to the other
     void drawPoint(const Vec3& point, float size) {
-      float hSize = size*0.5f;
-      for(int i = 0; i < 3; ++i) {
-        Vec3 start, end;
-        start = end = point;
-        start[i] -= hSize;
-        end[i] += hSize;
-        gDrawer->drawLine(start, end);
+      if(gDrawer) {
+        gDrawer->DrawPoint(point, size);
       }
     }
 

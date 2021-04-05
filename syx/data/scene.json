@@ -11,11 +11,135 @@ scene = {
     "CubeCollider",
     "SphereCollider",
     "textures/test.bmp",
+    "scripts/firstPersonCamera.lc",
     "models/car.obj",
     "models/cube.obj"
   },
   name = "scene",
   objects = {
+    {
+      components = {
+        {
+          props = {
+            angVel = Vec3.new3(0.000000, 0.000000, 0.000000),
+            hasCollider = true,
+            hasRigidbody = false,
+            linVel = Vec3.new3(0.000000, 0.000000, 0.000000),
+            material = 916610062,
+            model = 3191119156,
+            physToModel = {
+              2,
+              0,
+              0,
+              0,
+              0,
+              2,
+              0,
+              0,
+              0,
+              0,
+              2,
+              0,
+              0,
+              0,
+              0,
+              1
+            }
+          },
+          type = "Physics"
+        },
+        {
+          props = {
+            diffuseTexture = 1088482667,
+            model = 140062738
+          },
+          type = "Renderable"
+        },
+        {
+          props = {
+            matrix = {
+              10,
+              0,
+              0,
+              1,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              10,
+              0,
+              0,
+              0,
+              0,
+              1
+            }
+          },
+          type = "Transform"
+        },
+        {
+          props = {
+            id = 0
+          },
+          type = "Space"
+        },
+        {
+          props = {
+            name = "Ground"
+          },
+          type = "Name"
+        }
+      },
+      uniqueID = 67534065781473
+    },
+    {
+      components = {
+        {
+          props = {
+            diffuseTexture = 1088482667,
+            model = 2263845287
+          },
+          type = "Renderable"
+        },
+        {
+          props = {
+            matrix = {
+              0.100000,
+              0,
+              0,
+              0,
+              0,
+              0.100000,
+              0,
+              5,
+              0,
+              0,
+              0.100000,
+              0,
+              0,
+              0,
+              0,
+              1
+            }
+          },
+          type = "Transform"
+        },
+        {
+          props = {
+            id = 0
+          },
+          type = "Space"
+        },
+        {
+          props = {
+            name = "Bowser"
+          },
+          type = "Name"
+        }
+      },
+      uniqueID = 113816633350334
+    },
     {
       components = {
         {
@@ -201,71 +325,30 @@ scene = {
       components = {
         {
           props = {
-            diffuseTexture = 1088482667,
-            model = 2263845287
+            viewport = "game"
           },
-          type = "Renderable"
+          type = "Camera"
         },
-        {
-          props = {
-            matrix = {
-              0.100000,
-              0,
-              0,
-              0,
-              0,
-              0.100000,
-              0,
-              5,
-              0,
-              0,
-              0.100000,
-              0,
-              0,
-              0,
-              0,
-              1
-            }
-          },
-          type = "Transform"
-        },
-        {
-          props = {
-            id = 0
-          },
-          type = "Space"
-        },
-        {
-          props = {
-            name = "Bowser"
-          },
-          type = "Name"
-        }
-      },
-      uniqueID = 113816633350334
-    },
-    {
-      components = {
         {
           props = {
             angVel = Vec3.new3(0.000000, 0.000000, 0.000000),
             hasCollider = true,
-            hasRigidbody = false,
+            hasRigidbody = true,
             linVel = Vec3.new3(0.000000, 0.000000, 0.000000),
-            material = 916610062,
-            model = 3191119156,
+            material = 0,
+            model = 0,
             physToModel = {
-              2,
+              1,
               0,
               0,
               0,
               0,
-              2,
+              1,
               0,
               0,
               0,
               0,
-              2,
+              1,
               0,
               0,
               0,
@@ -277,26 +360,28 @@ scene = {
         },
         {
           props = {
-            diffuseTexture = 1088482667,
-            model = 140062738
+            props = {
+              speed = 1
+            },
+            script = 375910579
           },
-          type = "Renderable"
+          type = "Script"
         },
         {
           props = {
             matrix = {
-              10,
-              0,
-              0,
-              1,
-              0,
               1,
               0,
               0,
               0,
               0,
-              10,
+              1,
               0,
+              3,
+              0,
+              0,
+              1,
+              4,
               0,
               0,
               0,
@@ -313,53 +398,7 @@ scene = {
         },
         {
           props = {
-            name = "Ground"
-          },
-          type = "Name"
-        }
-      },
-      uniqueID = 67534065781473
-    },
-    {
-      components = {
-        {
-          props = {
-            viewport = "game"
-          },
-          type = "Camera"
-        },
-        {
-          props = {
-            matrix = {
-              1,
-              0,
-              0,
-              1,
-              0,
-              1,
-              0,
-              0,
-              0,
-              0,
-              1,
-              20,
-              0,
-              0,
-              0,
-              1
-            }
-          },
-          type = "Transform"
-        },
-        {
-          props = {
-            id = 0
-          },
-          type = "Space"
-        },
-        {
-          props = {
-            name = "camera"
+            name = "player"
           },
           type = "Name"
         }

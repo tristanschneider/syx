@@ -87,6 +87,7 @@ void LuaComponent::init(Lua::IState& state, int) {
   Lua::StackAssert sa(state);
   assert(mScript && "Need a script to initilize");
   mSandbox = std::make_unique<Lua::Sandbox>(state, std::to_string(mOwner) + "_" + std::to_string(mScript));
+  mHasError = false;
 
   {
     auto sandbox = Lua::Sandbox::ScopedState(*mSandbox);
@@ -157,11 +158,12 @@ void LuaComponent::_writePropsToLua(lua_State* s) {
   });
 }
 
-bool LuaComponent::_callFunc(lua_State* s, const char* funcName, int arguments, int returns) const {
+bool LuaComponent::_callFunc(lua_State* s, const char* funcName, int arguments, int returns) {
   if(int error = lua_pcall(s, arguments, returns, 0)) {
     //Error message is on top of the stack. Display then pop it
     printf("Error calling %s on object %i script %i: %s\n", funcName, static_cast<int>(mOwner), static_cast<int>(mScript), lua_tostring(s, -1));
     lua_pop(s, 1);
+    mHasError = true;
     return false;
   }
   return true;
@@ -173,6 +175,10 @@ void LuaComponent::uninit() {
 
 bool LuaComponent::needsInit() const {
   return mSandbox == nullptr;
+}
+
+bool LuaComponent::hasError() const {
+  return mHasError;
 }
 
 const Lua::Variant& LuaComponent::getPropVariant() const {

@@ -1,0 +1,23 @@
+speed = 1;
+
+function initialize(self)
+
+end
+
+function update(self, dt)
+  local moveDir = Vec3.new3(0, 0, 0);
+  local moveSpeed = speed;
+  local localX = Vec3.unitX();
+  local localY = Vec3.unitY();
+  local lozalZ = Vec3.unitZ();
+  local DOWN = Keyboard.down();
+  if Keyboard.getKeyState("w") == DOWN then moveDir = moveDir:add(localX:mulScalar(moveSpeed)); end
+  if Keyboard.getKeyState("s") == DOWN then moveDir = moveDir:sub(localX:mulScalar(moveSpeed)); end
+
+  if moveDir:len2() > 0.001 then
+    print("moving " .. tostring(moveDir));
+    -- TODO: This should modify the rigidbody instead
+    local transform = self.transform;
+    transform:setTranslate(transform:getTranslate():add(moveDir:mulScalar(dt)));
+  end
+end

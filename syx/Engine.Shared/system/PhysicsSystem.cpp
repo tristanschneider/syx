@@ -52,7 +52,9 @@ PhysicsSystem::~PhysicsSystem() {
 
 void PhysicsSystem::init() {
   mTimescale = 0;
-  Syx::Interface::gDrawer = &mArgs.mSystems->getSystem<GraphicsSystem>()->getDebugDrawer();
+  if(GraphicsSystem* graphics = mArgs.mSystems->getSystem<GraphicsSystem>()) {
+    Syx::Interface::gDrawer = &graphics->getDebugDrawer();
+  }
   mSystem = std::make_unique<Syx::PhysicsSystem>();
 
   AssetRepo* assets = mArgs.mSystems->getSystem<AssetRepo>();
@@ -90,7 +92,8 @@ void PhysicsSystem::init() {
       Syx::Interface::gOptions.mDebugFlags = 0;
     }
     else {
-      Syx::Interface::gOptions.mDebugFlags = Syx::SyxOptions::Debug::DrawModels;
+      Syx::Interface::gOptions.mDebugFlags = Syx::SyxOptions::Debug::DrawModels
+        | Syx::SyxOptions::Debug::DisableCollision;
     }
   });
 }
@@ -122,7 +125,7 @@ void PhysicsSystem::_processSyxEvents() {
     for(const Syx::UpdateEvent& e : updates->mEvents) {
       auto it = mFromSyx.find(e.mHandle);
       if(it != mFromSyx.end()) {
-        const SyxData& data = mToSyx[it->second];
+        const SyxData& data = mToSyx.at(it->second);
         _updateObject(it->second, data, e);
       }
       else
@@ -257,6 +260,20 @@ Syx::Handle PhysicsSystem::_createObject(Handle gameobject, bool hasRigidbody, b
   d.mHandle = result;
   mToSyx[gameobject] = d;
   mFromSyx[result] = gameobject;
+
+  //Now that we care about this object, request transform data for it
+  ComponentDataRequest req(gameobject, Transform::singleton().getFullType());
+  req.then(typeId<PhysicsSystem>(), [gameobject, this](const ComponentDataResponse& res) {
+    if(!res.mBuffer.empty()) {
+      Transform t(gameobject);
+      if(const Lua::Node* props = t.getLuaProps()) {
+        props->copyFromBuffer(&t, res.mBuffer.data());
+        _updateTransform(gameobject, t.get());
+      }
+    }
+  });
+  getMessageQueueProvider().getMessageQueue()->push(std::move(req));
+
   return result;
 }
 

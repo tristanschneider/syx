@@ -44,9 +44,9 @@ public:
 
 private:
   struct SyxData {
-    Syx::Handle mHandle;
+    Syx::Handle mHandle = 0;
     //Transform from syx to model space
-    Syx::Mat4 mSyxToModel;
+    Syx::Mat4 mSyxToModel = Syx::Mat4::identity();
   };
 
   void _processSyxEvents();

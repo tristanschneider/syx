@@ -53,8 +53,8 @@ namespace Syx {
   private:
     SAlign Vec3 mLocalInertia;
     SAlign Mat3 mInvInertia;
-    float mInvMass;
-    int mFlags;
+    float mInvMass = 1.f;
+    int mFlags = 0;
 
     PhysicsObject* mOwner;
   };

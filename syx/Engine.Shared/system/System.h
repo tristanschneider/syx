@@ -1,4 +1,5 @@
 #pragma once
+#include "event/EventHandler.h"
 #include "util/TypeId.h"
 
 class App;
@@ -63,11 +64,11 @@ protected:
   template<class T>
   static size_t _typeId() { return typeId<T, System>(); }
 
-  template<class EventT>
-  std::function<void(Event)> _registerSystemEventHandler(void(System::* handler)(const EventT&)) {
-    return [this, handler](const Event& event) {
-      this.*handler(static_cast<const EventT&>(event));
-    };
+  template<class EventT, class Derived>
+  void _registerSystemEventHandler(void(Derived::* handler)(const EventT&)) {
+    mEventHandler->registerEventHandler([this, handler](const EventT& event) {
+      (static_cast<Derived*>(this)->*handler)(static_cast<const EventT&>(event));
+    });
   }
 
   SystemArgs mArgs;

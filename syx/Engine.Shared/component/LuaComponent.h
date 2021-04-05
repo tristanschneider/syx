@@ -47,10 +47,11 @@ public:
   void update(Lua::IState& state, float dt, int selfIndex);
   void uninit();
   bool needsInit() const;
+  bool hasError() const;
   const Lua::Variant& getPropVariant() const;
 
 private:
-  bool _callFunc(lua_State* s, const char* funcName, int arguments, int returns) const;
+  bool _callFunc(lua_State* s, const char* funcName, int arguments, int returns);
   std::unique_ptr<Lua::Node> _buildLuaProps() const;
   void _readPropsFromLua(lua_State* s);
   void _writePropsToLua(lua_State* s);
@@ -61,4 +62,5 @@ private:
   bool mPropsNeedWriteToLua = false;
   //If scripts init function hasn't been called yet
   bool mNeedsInit = true;
+  bool mHasError = false;
 };

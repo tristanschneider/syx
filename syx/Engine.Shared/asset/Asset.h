@@ -71,7 +71,8 @@ public:
   }
   template<class T>
   bool isOfType() const {
-    assert(mInfo.mType && "Type should have been set on construction");
+    //TODO: this assert only makes sense if mType is an optional, otherwise 0 may be a valid type
+    //assert(mInfo.mType && "Type should have been set on construction");
     return mInfo.mType == Asset::typeId<T>();
   }
   template<class T>

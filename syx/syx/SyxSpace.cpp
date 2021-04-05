@@ -123,13 +123,17 @@ namespace Syx {
       AutoProfileBlock draw(mProfiler, "Debug Draw");
       Vec3 color = Vec3::Zero;
       color[mMyHandle % 3] = 1.0f;
-      if(Interface::getOptions().mDebugFlags & (SyxOptions::Debug::DrawModels | SyxOptions::Debug::DrawPersonalBBs))
+      if(Interface::getOptions().mDebugFlags & (SyxOptions::Debug::DrawModels | SyxOptions::Debug::DrawPersonalBBs | SyxOptions::Debug::DrawCenterOfMass))
         for(auto it = mObjects.begin(); it != mObjects.end(); ++it) {
           PhysicsObject& obj = *it;
           d.setColor(color.x, color.y, color.z);
           obj.drawModel();
           if((Interface::getOptions().mDebugFlags & SyxOptions::Debug::DrawSleeping) && obj.getAsleep()) {
             d.setColor(1.0f, 1.0f, 1.0f);
+            d.drawPoint(obj.getTransform().mPos, 0.1f);
+          }
+          if((Interface::getOptions().mDebugFlags & SyxOptions::Debug::DrawCenterOfMass)) {
+            d.setColor(1.0f, 1.0f, 0.0f);
             d.drawPoint(obj.getTransform().mPos, 0.1f);
           }
         }
@@ -225,6 +229,9 @@ namespace Syx {
   void Space::setRigidbodyEnabled(PhysicsObject& obj, bool enabled) {
     //Will probably soon have the same initialization as collider
     obj.setRigidbodyEnabled(enabled);
+    if(Rigidbody* body = obj.getRigidbody()) {
+      body->calculateMass();
+    }
   }
 
   Manifold* Space::getManifold(PhysicsObject& a, PhysicsObject& b, ModelInstance& instA, ModelInstance& instB) {

@@ -19,7 +19,7 @@ namespace Lua {
       { "triggered", triggered },
       { "released", released },
       { "getMousePos", getMousePos },
-      { "getMouseDetla", getMouseDelta },
+      { "getMouseDelta", getMouseDelta },
       { "getWheelDelta", getWheelDelta },
       { nullptr, nullptr }
     };

@@ -14,6 +14,7 @@ class AssetPreview;
 class AssetRepo;
 class ClearSpaceEvent;
 class Component;
+struct ComponentDataRequest;
 class ComponentRegistryProvider;
 class FilePath;
 class GameObjectHandleProvider;
@@ -118,6 +119,7 @@ private:
   void _onSpaceSave(const SaveSpaceEvent& e);
   void _onSpaceLoad(const LoadSpaceEvent& e);
   void _onSetTimescale(const SetTimescaleEvent& e);
+  void _onComponentDataRequest(const ComponentDataRequest& e);
 
   HandleMap<std::shared_ptr<LuaGameObject>> mObjects;
   std::unique_ptr<Lua::LuaLibGroup> mLibs;

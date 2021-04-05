@@ -98,5 +98,5 @@ private:
   KeyState _noShift(Key key) const;
   KeyState _or(KeyState a, KeyState b) const;
 
-  KeyboardInputImpl* mPlatform;
+  KeyboardInputImpl* mPlatform = nullptr;
 };

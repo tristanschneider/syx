@@ -8,6 +8,7 @@ class EventHandler;
 struct MockApp {
   MockApp();
   MockApp(std::unique_ptr<AppPlatform> appPlatform, std::unique_ptr<AppRegistration> registration);
+  MockApp(MockApp&&);
   virtual ~MockApp();
 
   App& get();
@@ -16,6 +17,10 @@ struct MockApp {
 
   App* operator->() {
     return mApp.get();
+  }
+
+  App& operator*() {
+    return *mApp;
   }
 
   std::unique_ptr<App> mApp;

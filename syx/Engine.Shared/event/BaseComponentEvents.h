@@ -60,3 +60,21 @@ public:
   const Lua::Node* mProp;
   std::vector<uint8_t> mBuffer;
 };
+
+struct ComponentDataResponse : public TypedEvent<ComponentDataResponse> {
+  ComponentDataResponse(std::vector<uint8_t> buffer)
+    : mBuffer(std::move(buffer)) {
+  }
+
+  std::vector<uint8_t> mBuffer;
+};
+
+struct ComponentDataRequest : public RequestEvent<ComponentDataRequest, ComponentDataResponse> {
+  ComponentDataRequest(Handle obj, ComponentType type)
+    : mObj(obj)
+    , mType(type) {
+  }
+
+  Handle mObj;
+  ComponentType mType;
+};

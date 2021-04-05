@@ -11,4 +11,5 @@ struct LuaRegistration : public AppRegistration {
 
 namespace TestRegistration {
   std::unique_ptr<AppRegistration> createEditorRegistration();
+  std::unique_ptr<AppRegistration> createPhysicsRegistration();
 }

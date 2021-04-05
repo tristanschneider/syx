@@ -61,6 +61,7 @@ void LuaGameSystem::init() {
   SYSTEM_EVENT_HANDLER(LoadSpaceEvent, _onSpaceLoad);
   SYSTEM_EVENT_HANDLER(SetTimescaleEvent, _onSetTimescale);
   mEventHandler->registerEventHandler(CallbackEvent::getHandler(typeId<LuaGameSystem>()));
+  _registerSystemEventHandler(&LuaGameSystem::_onComponentDataRequest);
 
   mLibs = std::make_unique<Lua::AllLuaLibs>();
 
@@ -303,6 +304,20 @@ void LuaGameSystem::_onSpaceLoad(const LoadSpaceEvent& e) {
 
 void LuaGameSystem::_onSetTimescale(const SetTimescaleEvent& e) {
   getSpace(e.mSpace).setTimescale(e.mTimescale);
+}
+
+void LuaGameSystem::_onComponentDataRequest(const ComponentDataRequest& e) {
+  std::vector<uint8_t> result;
+  if(const LuaGameObject* obj = _getObj(e.mObj)) {
+    if(const Component* component = obj->getComponent(e.mType)) {
+      if(const Lua::Node* props = component->getLuaProps()) {
+        result.resize(props->size());
+        props->copyToBuffer(component, result.data());
+      }
+    }
+  }
+
+  e.respond(*getMessageQueue(), ComponentDataResponse{ std::move(result) });
 }
 
 LuaGameObject* LuaGameSystem::_getObj(Handle h) const {

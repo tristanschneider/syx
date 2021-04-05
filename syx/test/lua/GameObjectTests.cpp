@@ -75,6 +75,19 @@ namespace LuaTests {
       return nullptr;
     }
 
+    void _assertNoScriptErrors(Handle obj, const std::string& script, MockApp& app) {
+      const LuaGameObject* gameObject = app.get().getSystem<LuaGameSystem>()->getObject(obj);
+      Assert::IsNotNull(gameObject, L"Game object should exist", LINE_INFO());
+      if(obj) {
+        AssetInfo info(script);
+        info.fill();
+        const LuaComponent* comp = gameObject->getLuaComponent(info.mId);
+        Assert::IsNotNull(comp, L"Game object should have a LuaComponent", LINE_INFO());
+        Assert::IsFalse(comp->needsInit(), L"Initialization should be complete", LINE_INFO());
+        Assert::IsFalse(comp->hasError(), L"Script should have no errors", LINE_INFO());
+      }
+    }
+
     TEST_METHOD(GameObject_EmptyGame_DoesntCrash) {
       MockApp().get().update(1.0f);
     }
@@ -193,6 +206,25 @@ namespace LuaTests {
           }
         }
       }
+    }
+
+    TEST_METHOD(SingleProperty_AccessInInitialize_HasValue) {
+      MockApp app;
+      const Handle objHandle = _addObjectWithScript(app.get(), "script", R"(
+        test=Vec3.unitX();
+        function initialize(self)
+          assert(test, "Property should be found");
+        end
+        )");
+
+      //Make timescale nonzero so scripts update
+      app.mApp->getMessageQueue().get().push(SetTimescaleEvent(0, 1.0f));
+      //Initialize script component
+      app.get().update(1.0f);
+      //Call initialize function
+      app.get().update(1.0f);
+
+      _assertNoScriptErrors(objHandle, "script", app);
     }
 
     TEST_METHOD(GameObject_SetTransformMat_TransformIsUpdated) {

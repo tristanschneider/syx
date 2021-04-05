@@ -26,7 +26,8 @@ namespace Syx {
       DrawBroadphase = 1 << 8,
       DrawIslands = 1 << 9,
       DrawSleeping = 1 << 10,
-      DrawJoints = 1 << 11
+      DrawJoints = 1 << 11,
+      DrawCenterOfMass = 1 << 11,
     };
 
     int mSimdFlags = 0;
