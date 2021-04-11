@@ -198,11 +198,12 @@ void GraphicsSystem::_processRemoveEvent(const RemoveComponentEvent& e) {
 }
 
 void GraphicsSystem::_processTransformEvent(const TransformEvent& e) {
-  LocalRenderable* obj = mLocalRenderables.get(e.mHandle);
-  if(obj) {
+  if(LocalRenderable* obj = mLocalRenderables.get(e.mHandle)) {
     obj->mTransform = e.mTransform;
   }
-  //TODO camera transform update
+  else if(Camera* camera = _getCamera(e.mHandle)) {
+    camera->setTransform(e.mTransform);
+  }
 }
 
 void GraphicsSystem::_processRenderableEvent(const RenderableUpdateEvent& e) {
