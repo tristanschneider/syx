@@ -53,7 +53,6 @@ void LuaGameSystem::init() {
   SYSTEM_EVENT_HANDLER(RemoveGameObjectEvent, _onRemoveGameObject);
   SYSTEM_EVENT_HANDLER(RenderableUpdateEvent, _onRenderableUpdate);
   SYSTEM_EVENT_HANDLER(TransformEvent, _onTransformUpdate);
-  SYSTEM_EVENT_HANDLER(PhysicsCompUpdateEvent, _onPhysicsUpdate);
   SYSTEM_EVENT_HANDLER(SetComponentPropsEvent, _onSetComponentProps);
   SYSTEM_EVENT_HANDLER(AllSystemsInitialized, _onAllSystemsInit);
   SYSTEM_EVENT_HANDLER(ClearSpaceEvent, _onSpaceClear);
@@ -241,14 +240,6 @@ void LuaGameSystem::_onRenderableUpdate(const RenderableUpdateEvent& e) {
 void LuaGameSystem::_onTransformUpdate(const TransformEvent& e) {
   if(LuaGameObject* obj = _getObj(e.mHandle))
     obj->getTransform().set(e.mTransform);
-}
-
-void LuaGameSystem::_onPhysicsUpdate(const PhysicsCompUpdateEvent& e) {
-  if(LuaGameObject* obj = _getObj(e.mOwner)) {
-    if(Physics* c = obj->getComponent<Physics>()) {
-      c->setData(e.mData);
-    }
-  }
 }
 
 void LuaGameSystem::_onSetComponentProps(const SetComponentPropsEvent& e) {

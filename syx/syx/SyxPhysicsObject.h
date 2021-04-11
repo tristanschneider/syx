@@ -29,8 +29,11 @@ namespace Syx {
     Rigidbody* getRigidbody() { return mRigidbody.getFlag(RigidbodyFlags::Disabled) ? nullptr : &mRigidbody; }
     Transform& getTransform() { return mTransform; }
 
+    void setTransform(const Transform& transform);
+
     bool isStatic();
 
+    //Sets the raw sleep state, awaken is needed if wanting to wake up a sleeping object
     void setAsleep(bool asleep);
     bool getAsleep();
     //If this is inactive enough that it could go to sleep if everything else was in place
@@ -50,6 +53,8 @@ namespace Syx {
 
     bool shouldIntegrate();
 
+    std::weak_ptr<bool> getExistenceTracker();
+
   private:
     SAlign Transform mTransform;
     SAlign Collider mCollider;
@@ -57,5 +62,6 @@ namespace Syx {
     int mFlags;
     Handle mMyHandle;
     std::unordered_set<Handle> mConstraints;
+    std::shared_ptr<bool> mExistenceTracker;
   };
 }

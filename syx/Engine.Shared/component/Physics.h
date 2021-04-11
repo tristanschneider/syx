@@ -1,7 +1,9 @@
 #pragma once
 #include "Component.h"
-#include "event/Event.h"
 
+#include "event/Event.h"
+#include <optional>
+#include <variant>
 #include "SyxMat4.h"
 #include "SyxVec3.h"
 
@@ -18,12 +20,38 @@ struct PhysicsData {
   Syx::Mat4 mPhysToModel;
 };
 
-class PhysicsCompUpdateEvent : public Event {
-public:
-  PhysicsCompUpdateEvent(const PhysicsData& data, Handle owner);
+//Directly setting the velocity would cancel out a physics update, use these events to apply forces
+//in-line with the physics simulation
+//TODO: is some kind of generic transaction mechanism needed for property update issues like this?
+struct ApplyForceEvent : public TypedEvent<ApplyForceEvent> {
+  enum class Mode : uint8_t {
+    Force,
+    Impulse,
+  };
+  struct ForceAtPoint {
+    Syx::Vec3 mPoint;
+    Syx::Vec3 mForce;
+  };
+  struct Force {
+    Syx::Vec3 mLinear;
+    Syx::Vec3 mAngular;
+  };
 
-  PhysicsData mData;
-  Handle mOwner;
+  ApplyForceEvent(Handle obj, const ForceAtPoint& atPoint, Mode mode)
+    : mForce(atPoint)
+    , mMode(mode)
+    , mObj(obj) {
+  }
+
+  ApplyForceEvent(Handle obj, const Force& plainForce, Mode mode)
+    : mForce(plainForce)
+    , mMode(mode)
+    , mObj(obj) {
+  }
+
+  std::variant<Force, ForceAtPoint> mForce;
+  Handle mObj = 0;
+  Mode mMode = Mode::Force;
 };
 
 class Physics : public TypedComponent<Physics> {

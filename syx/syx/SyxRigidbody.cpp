@@ -78,4 +78,21 @@ namespace Syx {
     //No angular acceleration, so it's just this
     return mAngVel;
   }
+
+  void Rigidbody::applyImpulse(const Vec3& linear, const Vec3& angular, Space& space) {
+    mLinVel += mInvMass * linear;;
+    mAngVel += mInvInertia * angular;
+    if(mOwner) {
+      space.wakeObject(*mOwner);
+    }
+  }
+
+  void Rigidbody::applyImpulseAtPoint(const Vec3& impulse, const Vec3& point, Space& space) {
+    const Vec3 toPoint = point - getCenterOfMass();
+    applyImpulse(impulse, toPoint.cross(impulse), space);
+  }
+
+  const Vec3& Rigidbody::getCenterOfMass() const {
+    return mOwner->getTransform().mPos;
+  }
 }

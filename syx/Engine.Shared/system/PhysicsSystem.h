@@ -2,12 +2,14 @@
 #include "System.h"
 
 namespace Syx {
+  struct IPhysicsObject;
   class PhysicsSystem;
   typedef size_t Handle;
   struct Material;
   struct UpdateEvent;
 };
 
+struct ApplyForceEvent;
 class ClearSpaceEvent;
 class Model;
 class EventBuffer;
@@ -44,25 +46,30 @@ public:
 
 private:
   struct SyxData {
+    //TODO: do lifetime management through IPhysicsObject os that handle usage can be removed
     Syx::Handle mHandle = 0;
     //Transform from syx to model space
     Syx::Mat4 mSyxToModel = Syx::Mat4::identity();
+    std::shared_ptr<Syx::IPhysicsObject> mObj;
   };
 
   void _processSyxEvents();
   void _updateObject(Handle obj, const SyxData& data, const Syx::UpdateEvent& e);
-  void _compUpdateEvent(const PhysicsCompUpdateEvent& e);
   void _transformEvent(const TransformEvent& e);
   void _updateTransform(Handle handle, const Syx::Mat4& mat);
   void _setComponentPropsEvent(const SetComponentPropsEvent& e);
   void _clearSpaceEvent(const ClearSpaceEvent& e);
   void _removeComponentEvent(const RemoveComponentEvent& e);
   void _setTimescaleEvent(const SetTimescaleEvent& e);
+  void _onApplyForce(const ApplyForceEvent& e);
 
   Syx::Handle _createObject(Handle gameobject, bool hasRigidbody, bool hasCollider);
 
   SyxData& _getSyxData(Handle obj, bool hasRigidbody, bool hasCollider);
-  void _updateFromData(Handle obj, const PhysicsData& data);
+  SyxData* _tryGetSyxData(Handle gameHandle);
+  Syx::IPhysicsObject* _tryGetValidPhysicsObject(Handle gameHandle);
+
+  float _getExpectedDeltaTime() const;
 
   std::unique_ptr<Syx::PhysicsSystem> mSystem;
   std::unique_ptr<EventBuffer> mTransformUpdates;

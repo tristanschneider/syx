@@ -4,16 +4,15 @@
 
 namespace Syx {
   PhysicsObject::PhysicsObject()
-    : mRigidbody(this)
-    , mCollider(this)
-    , mFlags(0) {
+    : PhysicsObject(0) {
   }
 
   PhysicsObject::PhysicsObject(Handle myHandle)
     : mRigidbody(this)
     , mCollider(this)
     , mFlags(0)
-    , mMyHandle(myHandle) {
+    , mMyHandle(myHandle)
+    , mExistenceTracker(std::make_shared<bool>()) {
   }
 
   void PhysicsObject::setRigidbodyEnabled(bool enabled) {
@@ -67,6 +66,11 @@ namespace Syx {
       collider->updateModelInst(mTransform);
   }
 
+  void PhysicsObject::setTransform(const Transform& transform) {
+    //TODO: probably recompute some stuff here
+    mTransform = transform;
+  }
+
   bool PhysicsObject::isStatic() {
     //Might want to include rigidbodies with infinite mass, but I'm not sure what the pros and cons are
     return getRigidbody() == nullptr;
@@ -112,5 +116,9 @@ namespace Syx {
   bool PhysicsObject::shouldIntegrate() {
     Rigidbody* rb = getRigidbody();
     return !getAsleep() && rb && rb->mInvMass > 0.0f;
+  }
+
+  std::weak_ptr<bool> PhysicsObject::getExistenceTracker() {
+    return mExistenceTracker;
   }
 }

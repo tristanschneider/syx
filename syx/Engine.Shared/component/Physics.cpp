@@ -2,13 +2,39 @@
 #include "component/Physics.h"
 
 #include "editor/InspectorFactory.h"
+#include "lua/LuaGameContext.h"
 #include "lua/LuaNode.h"
 #include "lua/LuaUtil.h"
+#include "lua/lib/LuaVec3.h"
 #include <lua.hpp>
 
-DEFINE_EVENT(PhysicsCompUpdateEvent, const PhysicsData& data, Handle owner)
-  , mData(data)
-  , mOwner(owner) {
+#include "provider/MessageQueueProvider.h"
+
+namespace {
+  IComponent& _checkSelf(lua_State* l) {
+    return Component::_checkSelf(l, Physics::singleton().getTypeInfo().mTypeName);
+  }
+
+  //TODO: this has the odd side-effect of not reflecting in the velocity properties until later frames. Is that weird?
+  int _applyForce(lua_State* l) {
+    IComponent& self = _checkSelf(l);
+    Lua::checkGameContext(l).getMessageProvider().getMessageQueue()->push(ApplyForceEvent(
+      self.get().getOwner(),
+      ApplyForceEvent::Force{ Lua::Vec3::_getVec(l, 2), Lua::Vec3::_getVec(l, 3) },
+      ApplyForceEvent::Mode::Force)
+    );
+    return 0;
+  }
+
+  int _applyForceAtPoint(lua_State* l) {
+    IComponent& self = _checkSelf(l);
+    Lua::checkGameContext(l).getMessageProvider().getMessageQueue()->push(ApplyForceEvent(
+      self.get().getOwner(),
+      ApplyForceEvent::ForceAtPoint{ Lua::Vec3::_getVec(l, 2), Lua::Vec3::_getVec(l, 3) },
+      ApplyForceEvent::Mode::Force)
+    );
+    return 0;
+  }
 }
 
 PhysicsData::PhysicsData()
@@ -74,7 +100,9 @@ void Physics::openLib(lua_State* l) const {
   };
   luaL_Reg members[] = {
     COMPONENT_LUA_BASE_REGS,
-    { nullptr, nullptr }
+    { "applyForce", _applyForce },
+    { "applyForceAtPoint", _applyForceAtPoint },
+    { nullptr, nullptr },
   };
   Lua::Util::registerClass(l, statics, members, getTypeInfo().mTypeName.c_str());
 }

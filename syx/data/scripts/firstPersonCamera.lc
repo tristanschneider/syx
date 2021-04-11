@@ -1,4 +1,8 @@
 speed = 1;
+jumpForce = 200;
+
+local DOWN = Keyboard.down();
+local TRIGGERED = Keyboard.triggered();
 
 function initialize(self)
 
@@ -9,15 +13,24 @@ function update(self, dt)
   local moveSpeed = speed;
   local localX = Vec3.unitX();
   local localY = Vec3.unitY();
-  local lozalZ = Vec3.unitZ();
-  local DOWN = Keyboard.down();
-  if Keyboard.getKeyState("w") == DOWN then moveDir = moveDir:add(localX:mulScalar(moveSpeed)); end
-  if Keyboard.getKeyState("s") == DOWN then moveDir = moveDir:sub(localX:mulScalar(moveSpeed)); end
+  local localZ = Vec3.unitZ();
+  if Keyboard.getKeyState("w") == DOWN then moveDir = moveDir:sub(localZ:mulScalar(moveSpeed)); end
+  if Keyboard.getKeyState("s") == DOWN then moveDir = moveDir:add(localZ:mulScalar(moveSpeed)); end
+  if Keyboard.getKeyState("d") == DOWN then moveDir = moveDir:add(localX:mulScalar(moveSpeed)); end
+  if Keyboard.getKeyState("a") == DOWN then moveDir = moveDir:sub(localX:mulScalar(moveSpeed)); end
+
+  -- TODO: raycast or something
+  local isOnGround = true;
+  if isOnGround and Keyboard.getKeyState("space") == TRIGGERED then
+    print("jumping");
+    moveDir = moveDir:add(localY:mulScalar(jumpForce));
+  end
 
   if moveDir:len2() > 0.001 then
-    print("moving " .. tostring(moveDir));
-    -- TODO: This should modify the rigidbody instead
     local transform = self.transform;
-    transform:setTranslate(transform:getTranslate():add(moveDir:mulScalar(dt)));
+    print("moving " .. tostring(transform:modelToWorld(moveDir)));
+    self.physics:applyForce(transform:modelToWorld(moveDir), Vec3.zero());
+  else
+    print("pos: " .. tostring(self.transform:getTranslate()));
   end
 end

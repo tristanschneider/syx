@@ -251,5 +251,10 @@ namespace SystemTests {
       Assert::IsTrue(newPos.y < originalPos.y, L"Gravity should have moved the rigidbody below its original position", LINE_INFO());
     }
 
+    //TODO:
+    //Test to prove that applying forces doesn't cancel out physics updates
+    //GameObjectWithRigidbody_ApplyForce_ObjectMoves
+    //GameObjectWithRigidbody_ApplyForce_GravityUnaffected
+    //SleepingRigidbody_ApplyForce_ObjectMoves
   };
 }

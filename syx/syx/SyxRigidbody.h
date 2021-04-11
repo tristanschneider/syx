@@ -50,6 +50,11 @@ namespace Syx {
     Vec3 getUnintegratedLinearVelocity();
     Vec3 getUnintegratedAngularVelocity();
 
+    void applyImpulse(const Vec3& linear, const Vec3& angular, Space& space);
+    void applyImpulseAtPoint(const Vec3& impulse, const Vec3& point, Space& space);
+
+    const Vec3& getCenterOfMass() const;
+
   private:
     SAlign Vec3 mLocalInertia;
     SAlign Mat3 mInvInertia;

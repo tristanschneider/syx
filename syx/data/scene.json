@@ -361,7 +361,8 @@ scene = {
         {
           props = {
             props = {
-              speed = 1
+              jumpForce = 200,
+              speed = 10
             },
             script = 375910579
           },

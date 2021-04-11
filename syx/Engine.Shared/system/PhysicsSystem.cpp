@@ -23,6 +23,7 @@
 #include <SyxIntrusive.h>
 #include <SyxHandles.h>
 #include <SyxHandleMap.h>
+#include <SyxIPhysicsObject.h>
 #include <SyxPhysicsSystem.h>
 #include <SyxModelParam.h>
 #include "Util.h"
@@ -81,7 +82,6 @@ void PhysicsSystem::init() {
   mEventHandler = std::make_unique<EventHandler>();
 
   SYSTEM_EVENT_HANDLER(TransformEvent, _transformEvent);
-  SYSTEM_EVENT_HANDLER(PhysicsCompUpdateEvent, _compUpdateEvent);
   SYSTEM_EVENT_HANDLER(SetComponentPropsEvent, _setComponentPropsEvent);
   SYSTEM_EVENT_HANDLER(ClearSpaceEvent, _clearSpaceEvent);
   SYSTEM_EVENT_HANDLER(RemoveComponentEvent, _removeComponentEvent);
@@ -96,6 +96,7 @@ void PhysicsSystem::init() {
         | Syx::SyxOptions::Debug::DisableCollision;
     }
   });
+  _registerSystemEventHandler(&PhysicsSystem::_onApplyForce);
 }
 
 void PhysicsSystem::queueTasks(float dt, IWorkerPool& pool, std::shared_ptr<Task> frameTask) {
@@ -208,8 +209,19 @@ void PhysicsSystem::_setTimescaleEvent(const SetTimescaleEvent& e) {
   mTimescale = e.mTimescale;
 }
 
-void PhysicsSystem::_compUpdateEvent(const PhysicsCompUpdateEvent& e) {
-  _updateFromData(e.mOwner, e.mData);
+void PhysicsSystem::_onApplyForce(const ApplyForceEvent& e) {
+  if(Syx::IPhysicsObject* obj = _tryGetValidPhysicsObject(e.mObj)) {
+    if(Syx::IRigidbody* rigidbody = obj->tryGetRigidbody()) {
+      const float dt = e.mMode == ApplyForceEvent::Mode::Force ? _getExpectedDeltaTime() : 1.f;
+
+      if(auto force = std::get_if<ApplyForceEvent::Force>(&e.mForce)) {
+        rigidbody->applyImpulse(force->mLinear * dt, force->mAngular * dt);
+      }
+      else if(auto forceAtPoint = std::get_if<ApplyForceEvent::ForceAtPoint>(&e.mForce)) {
+        rigidbody->applyImpulseAtPoint(forceAtPoint->mForce * dt, forceAtPoint->mPoint);
+      }
+    }
+  }
 }
 
 PhysicsSystem::SyxData& PhysicsSystem::_getSyxData(Handle obj, bool hasRigidbody, bool hasCollider) {
@@ -220,18 +232,19 @@ PhysicsSystem::SyxData& PhysicsSystem::_getSyxData(Handle obj, bool hasRigidbody
   return mToSyx.find(obj)->second;
 }
 
-void PhysicsSystem::_updateFromData(Handle obj, const PhysicsData& data) {
-  SyxData& syxData = _getSyxData(obj, data.mHasRigidbody, data.mHasCollider);
-  Syx::Handle h = syxData.mHandle;
+PhysicsSystem::SyxData* PhysicsSystem::_tryGetSyxData(Handle gameHandle) {
+  auto it = mToSyx.find(gameHandle);
+  return it != mToSyx.end() ? &it->second : nullptr;
+}
 
-  syxData.mSyxToModel = data.mPhysToModel;
+Syx::IPhysicsObject* PhysicsSystem::_tryGetValidPhysicsObject(Handle gameHandle) {
+  auto data = _tryGetSyxData(gameHandle);
+  return data && data->mObj && data->mObj->isValid() ? data->mObj.get() : nullptr;
+}
 
-  mSystem->setVelocity(mDefaultSpace, h, data.mLinVel);
-  mSystem->setAngularVelocity(mDefaultSpace, h, data.mAngVel);
-  mSystem->setHasCollider(data.mHasCollider, mDefaultSpace, h);
-  mSystem->setHasRigidbody(data.mHasRigidbody, mDefaultSpace, h);
-  mSystem->setObjectModel(mDefaultSpace, h, data.mModel);
-  mSystem->setObjectMaterial(mDefaultSpace, h, data.mMaterial);
+float PhysicsSystem::_getExpectedDeltaTime() const {
+  //TODO: not sure if this is accurate but it's good enough for now
+  return 1.f/60.f * mTimescale;
 }
 
 void PhysicsSystem::_transformEvent(const TransformEvent& e) {
@@ -258,6 +271,7 @@ Syx::Handle PhysicsSystem::_createObject(Handle gameobject, bool hasRigidbody, b
   Syx::Handle result = mSystem->addPhysicsObject(hasRigidbody, hasCollider, mDefaultSpace);
   SyxData d;
   d.mHandle = result;
+  d.mObj = mSystem->getPhysicsObject(mDefaultSpace, result);
   mToSyx[gameobject] = d;
   mFromSyx[result] = gameobject;
 

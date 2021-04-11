@@ -11,6 +11,7 @@ namespace Syx {
   class CompositeModelParam;
   class NarrowphaseTest;
   class DistanceOps;
+  struct IPhysicsObject;
 
   class PhysicsSystem {
   public:
@@ -89,6 +90,11 @@ namespace Syx {
 
     const std::string* getProfileReport(Handle space, const std::string& indent);
     const std::vector<ProfileResult>* getProfileHistory(Handle space);
+
+    //TODO: all of the handle nonsense above should be removed in favor of this interface
+    //TODO: This interface probably makes sense as lifetime management. Right now it is not,
+    //and the expiration of this does not affect the underlying physics object
+    std::shared_ptr<IPhysicsObject> getPhysicsObject(Handle space, Handle object);
 
   private:
     Handle _addModel(const Model& newModel);

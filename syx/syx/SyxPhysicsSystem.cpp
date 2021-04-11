@@ -1,5 +1,7 @@
 #include "Precompile.h"
 #include "SyxPhysicsSystem.h"
+
+#include "SyxIPhysicsObject.h"
 #include "SyxModelParam.h"
 
 namespace Syx {
@@ -398,6 +400,14 @@ namespace Syx {
       return nullptr;
 
     return &s->getProfileHistory();
+  }
+
+  std::shared_ptr<IPhysicsObject> PhysicsSystem::getPhysicsObject(Handle space, Handle object) {
+    if(Space* pSpace = mSpaces.get(space)) {
+      PhysicsObject* obj = pSpace->getObject(object);
+      return obj ? createPhysicsObjectRef(*obj, obj->getExistenceTracker(), *pSpace) : nullptr;
+    }
+    return nullptr;
   }
 
   void PhysicsSystem::getAABB(Handle space, Handle object, Vec3& min, Vec3& max) {
