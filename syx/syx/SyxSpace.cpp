@@ -1,6 +1,8 @@
 #include "Precompile.h"
 #include "SyxSpace.h"
+
 #include "SyxAABBTree.h"
+#include "SyxIPhysicsObject.h"
 
 namespace Syx {
   Space::Space(Handle handle)
@@ -287,8 +289,13 @@ namespace Syx {
     mConstraintSystem.removeConstraint(handle);
   }
 
-  const EventListener<UpdateEvent>& Space::getUpdateEvents() {
+  const EventListener<UpdateEvent>& Space::getUpdateEvents() const {
     return mUpdateEvents;
+  }
+
+  std::shared_ptr<IPhysicsObject> Space::createPhysicsObject() {
+    //TODO: implement
+    return nullptr;
   }
 
   bool Space::_fillOps(ConstraintOptions& ops) {
@@ -376,6 +383,11 @@ namespace Syx {
     e.mRot = obj.getTransform().mRot;
     e.mHandle = obj.getHandle();
     mUpdateEvents.mEvents.push_back(e);
+  }
+
+  std::shared_ptr<IPhysicsObject> Space::getPhysicsObject(Handle object) {
+    PhysicsObject* obj = getObject(object);
+    return obj ? createPhysicsObjectRef(*obj, obj->getExistenceTracker(), *this) : nullptr;
   }
 
 #else

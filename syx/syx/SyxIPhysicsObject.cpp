@@ -99,6 +99,10 @@ namespace Syx {
       return mRigidbodyStorage ? &*mRigidbodyStorage : nullptr;
     }
 
+    std::shared_ptr<CollisionEventSubscription> addCollisionEventSubscription() override {
+      return mObj.addCollisionEventSubscription();
+    }
+
     void _updateColliderStorage() {
       Collider* collider = mObj.getCollider();
       mColliderStorage = collider ? std::make_optional(ColliderWrapper(*collider)) : std::nullopt;

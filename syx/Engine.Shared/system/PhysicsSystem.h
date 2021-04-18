@@ -3,9 +3,10 @@
 
 namespace Syx {
   struct IPhysicsObject;
+  struct ISpace;
+  struct Material;
   class PhysicsSystem;
   typedef size_t Handle;
-  struct Material;
   struct UpdateEvent;
 };
 
@@ -76,6 +77,6 @@ private:
 
   std::unordered_map<Handle, SyxData> mToSyx;
   std::unordered_map<Syx::Handle, Handle> mFromSyx;
-  Syx::Handle mDefaultSpace;
+  std::shared_ptr<Syx::ISpace> mDefaultSpace;
   float mTimescale;
 };

@@ -26,6 +26,7 @@
 #include <SyxIPhysicsObject.h>
 #include <SyxPhysicsSystem.h>
 #include <SyxModelParam.h>
+#include <SyxSpace.h>
 #include "Util.h"
 
 #include <SyxIslandTests.h>
@@ -76,7 +77,7 @@ void PhysicsSystem::init() {
   mod->mSyxHandle = mSystem->getDefaultMaterial();
   assets->addAsset(std::move(mod));
 
-  mDefaultSpace = mSystem->addSpace();
+  mDefaultSpace = mSystem->createSpace();
 
   mTransformUpdates = std::make_unique<EventBuffer>();
   mEventHandler = std::make_unique<EventHandler>();
@@ -121,20 +122,16 @@ void PhysicsSystem::queueTasks(float dt, IWorkerPool& pool, std::shared_ptr<Task
 
 void PhysicsSystem::_processSyxEvents() {
   mTransformUpdates->clear();
-  const Syx::EventListener<Syx::UpdateEvent>* updates = mSystem->getUpdateEvents(mDefaultSpace);
-  if(updates) {
-    for(const Syx::UpdateEvent& e : updates->mEvents) {
-      auto it = mFromSyx.find(e.mHandle);
-      if(it != mFromSyx.end()) {
-        const SyxData& data = mToSyx.at(it->second);
-        _updateObject(it->second, data, e);
-      }
-      else
-        printf("Failed to map physics object %u\n", e.mHandle);
+  const Syx::EventListener<Syx::UpdateEvent>& updates = mDefaultSpace->getUpdateEvents();
+  for(const Syx::UpdateEvent& e : updates.mEvents) {
+    auto it = mFromSyx.find(e.mHandle);
+    if(it != mFromSyx.end()) {
+      const SyxData& data = mToSyx.at(it->second);
+      _updateObject(it->second, data, e);
     }
+    else
+      printf("Failed to map physics object %u\n", e.mHandle);
   }
-  else
-    printf("Failed to get physics update events\n");
 
   {
     MessageQueue m = mArgs.mMessages->getMessageQueue();
@@ -157,14 +154,14 @@ void PhysicsSystem::_setComponentPropsEvent(const SetComponentPropsEvent& e) {
     const PhysicsData& data = comp.getData();
     e.mProp->forEachDiff(e.mDiff, &comp, [&data, &syxData, this, h](const Lua::Node& node, const void*) {
       switch(Util::constHash(node.getName().c_str())) {
-        case Util::constHash("hasRigidbody"): mSystem->setHasRigidbody(data.mHasRigidbody, mDefaultSpace, h); break;
-        case Util::constHash("hasCollider"): mSystem->setHasCollider(data.mHasCollider, mDefaultSpace, h); break;
-        case Util::constHash("linVel"): mSystem->setVelocity(mDefaultSpace, h, data.mLinVel); break;
-        case Util::constHash("angVel"): mSystem->setAngularVelocity(mDefaultSpace, h, data.mAngVel); break;
+        case Util::constHash("hasRigidbody"): mSystem->setHasRigidbody(data.mHasRigidbody, mDefaultSpace->_getHandle(), h); break;
+        case Util::constHash("hasCollider"): mSystem->setHasCollider(data.mHasCollider, mDefaultSpace->_getHandle(), h); break;
+        case Util::constHash("linVel"): mSystem->setVelocity(mDefaultSpace->_getHandle(), h, data.mLinVel); break;
+        case Util::constHash("angVel"): mSystem->setAngularVelocity(mDefaultSpace->_getHandle(), h, data.mAngVel); break;
         case Util::constHash("model"): {
           if(auto modelAsset = mArgs.mSystems->getSystem<AssetRepo>()->getAsset(AssetInfo(data.mModel))) {
             if(const PhysicsModel* pmod = modelAsset->cast<PhysicsModel>()) {
-              mSystem->setObjectModel(mDefaultSpace, h, pmod->getSyxHandle());
+              mSystem->setObjectModel(mDefaultSpace->_getHandle(), h, pmod->getSyxHandle());
             }
           }
           break;
@@ -172,7 +169,7 @@ void PhysicsSystem::_setComponentPropsEvent(const SetComponentPropsEvent& e) {
         case Util::constHash("material"): {
           if(auto materialAsset = mArgs.mSystems->getSystem<AssetRepo>()->getAsset(AssetInfo(data.mMaterial))) {
             if(const PhysicsModel* pmat = materialAsset->cast<PhysicsModel>()) {
-              mSystem->setObjectMaterial(mDefaultSpace, h, pmat->getSyxHandle());
+              mSystem->setObjectMaterial(mDefaultSpace->_getHandle(), h, pmat->getSyxHandle());
             }
           }
           break;
@@ -193,14 +190,14 @@ void PhysicsSystem::_clearSpaceEvent(const ClearSpaceEvent&) {
   //TODO: use scene id
   mToSyx.clear();
   mFromSyx.clear();
-  mSystem->clearSpace(mDefaultSpace);
+  mDefaultSpace->clear();
 }
 
 void PhysicsSystem::_removeComponentEvent(const RemoveComponentEvent& e) {
   if(e.mCompType == Component::typeId<Physics>()) {
     const auto& it = mToSyx.find(e.mObj);
     if(it != mToSyx.end()) {
-      mSystem->removePhysicsObject(mDefaultSpace, it->second.mHandle);
+      mSystem->removePhysicsObject(mDefaultSpace->_getHandle(), it->second.mHandle);
     }
   }
 }
@@ -261,17 +258,17 @@ void PhysicsSystem::_updateTransform(Handle handle, const Syx::Mat4& mat) {
     //Move the transform into syx space then decompose it
     (mat * it->second.mSyxToModel.affineInverse()).decompose(scale, rot, pos);
     Syx::Handle h = it->second.mHandle;
-    mSystem->setPosition(mDefaultSpace, h, pos);
-    mSystem->setRotation(mDefaultSpace, h, rot.toQuat());
-    mSystem->setScale(mDefaultSpace, h, scale);
+    mSystem->setPosition(mDefaultSpace->_getHandle(), h, pos);
+    mSystem->setRotation(mDefaultSpace->_getHandle(), h, rot.toQuat());
+    mSystem->setScale(mDefaultSpace->_getHandle(), h, scale);
   }
 }
 
 Syx::Handle PhysicsSystem::_createObject(Handle gameobject, bool hasRigidbody, bool hasCollider) {
-  Syx::Handle result = mSystem->addPhysicsObject(hasRigidbody, hasCollider, mDefaultSpace);
+  Syx::Handle result = mSystem->addPhysicsObject(hasRigidbody, hasCollider, mDefaultSpace->_getHandle());
   SyxData d;
   d.mHandle = result;
-  d.mObj = mSystem->getPhysicsObject(mDefaultSpace, result);
+  d.mObj = mDefaultSpace->getPhysicsObject(result);
   mToSyx[gameobject] = d;
   mFromSyx[result] = gameobject;
 

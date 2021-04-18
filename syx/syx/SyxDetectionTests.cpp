@@ -289,17 +289,19 @@ namespace Syx {
 
   bool NarrowphaseTest::run(void) {
     PhysicsSystem system;
-    Handle space = system.addSpace();
+    auto spacePtr = system.createSpace();
+    const Handle space = spacePtr->_getHandle();
+
     Handle a = system.addPhysicsObject(true, true, space);
     Handle b = system.addPhysicsObject(true, true, space);
     Handle sphere = system.getSphere();
     system.setObjectModel(space, a, sphere);
     system.setObjectModel(space, b, sphere);
 
-    Space& s = *system.mSpaces.get(space);
+    auto s = *system._getSpace(space);
     PhysicsObject& objA = *s.mObjects.get(a);
     PhysicsObject& objB = *s.mObjects.get(b);
-    Narrowphase& narrow = system.mSpaces.get(space)->mNarrowphase;
+    Narrowphase& narrow = system._getSpace(space)->mNarrowphase;
     narrow.mA = &objA;
     narrow.mB = &objB;
     narrow.mInstA = &objA.getCollider()->getModelInstance();

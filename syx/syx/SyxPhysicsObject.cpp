@@ -1,5 +1,7 @@
 #include "Precompile.h"
 #include "SyxPhysicsObject.h"
+
+#include "SyxEvents.h"
 #include "SyxModel.h"
 
 namespace Syx {
@@ -77,12 +79,12 @@ namespace Syx {
   }
 
   void PhysicsObject::setAsleep(bool asleep) {
-    setBits(mFlags, static_cast<int>(PhysicsObjectFlags::Asleep), asleep);
+    mFlags.set(static_cast<size_t>(PhysicsObjectFlags::Asleep), asleep);
     //Need to inform broadphase that these nodes can be skipped...
   }
 
   bool PhysicsObject::getAsleep() {
-    return (mFlags & PhysicsObjectFlags::Asleep) != 0;
+    return mFlags.test(static_cast<size_t>(PhysicsObjectFlags::Asleep));
   }
 
   bool PhysicsObject::isInactive() {
@@ -120,5 +122,18 @@ namespace Syx {
 
   std::weak_ptr<bool> PhysicsObject::getExistenceTracker() {
     return mExistenceTracker;
+  }
+
+  std::shared_ptr<CollisionEventSubscription> PhysicsObject::addCollisionEventSubscription() {
+    if(auto result = mCollisionEventToken.lock()) {
+      return result;
+    }
+    auto result = std::make_shared<CollisionEventSubscription>();
+    mCollisionEventToken = result;
+    return result;
+  }
+
+  bool PhysicsObject::emitsCollisionEvents() const {
+    return !mCollisionEventToken.expired();
   }
 }

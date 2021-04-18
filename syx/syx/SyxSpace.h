@@ -10,14 +10,26 @@
 namespace Syx {
   class Broadphase;
   class BroadphaseContext;
-  class Rigidbody;
-  class PhysicsObject;
   class Collider;
+  struct IPhysicsObject;
   class Manifold;
-  class NarrowphaseTest;
   class ModelInstance;
+  class NarrowphaseTest;
+  class PhysicsObject;
+  class Rigidbody;
 
-  class Space {
+  struct ISpace {
+    virtual ~ISpace() = default;
+
+    virtual const EventListener<UpdateEvent>& getUpdateEvents() const = 0;
+    virtual void clear() = 0;
+    //TODO: this should be removed once all necessary operations are possible through ISpace
+    virtual Handle _getHandle() const = 0;
+    virtual std::shared_ptr<IPhysicsObject> createPhysicsObject() = 0;
+    virtual std::shared_ptr<IPhysicsObject> getPhysicsObject(Handle object) = 0;
+  };
+
+  class Space : public ISpace {
   public:
     friend Rigidbody;
     friend PhysicsObject;
@@ -33,7 +45,8 @@ namespace Syx {
     Space& operator=(const Space& rhs);
     bool operator<(Handle rhs) { return mMyHandle < rhs; }
     bool operator==(Handle rhs) { return mMyHandle == rhs; }
-    Handle getHandle(void) { return mMyHandle; }
+    Handle getHandle() const { return mMyHandle; }
+    Handle _getHandle() const override { return getHandle(); }
 
     PhysicsObject* createObject(void);
     void destroyObject(Handle handle);
@@ -44,7 +57,8 @@ namespace Syx {
 
     CastResult lineCastAll(const Vec3& start, const Vec3& end);
 
-    void clear(void);
+    std::shared_ptr<IPhysicsObject> getPhysicsObject(Handle object) override;
+    void clear(void) override;
     void update(float dt);
 
     void wakeObject(PhysicsObject& obj);
@@ -61,7 +75,8 @@ namespace Syx {
 
     void removeConstraint(Handle handle);
 
-    const EventListener<UpdateEvent>& getUpdateEvents();
+    const EventListener<UpdateEvent>& getUpdateEvents() const override;
+    std::shared_ptr<IPhysicsObject> createPhysicsObject() override;
 
   private:
     bool _fillOps(ConstraintOptions& ops);

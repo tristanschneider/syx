@@ -1,6 +1,7 @@
 #pragma once
 
 namespace Syx {
+  struct CollisionEventSubscription;
   class PhysicsObject;
   class Space;
   struct Transform;
@@ -39,6 +40,8 @@ namespace Syx {
 
     virtual ICollider* tryGetCollider() = 0;
     virtual IRigidbody* tryGetRigidbody() = 0;
+
+    virtual std::shared_ptr<CollisionEventSubscription> addCollisionEventSubscription() = 0;
   };
 
   //Existence tracker will do for now. Better would be an invalidation mechanism

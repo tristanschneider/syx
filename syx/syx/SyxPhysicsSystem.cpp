@@ -31,8 +31,11 @@ namespace Syx {
     while(accumulated >= sSimRate && updates++ < maxUpdates) {
       drawer.clear();
       accumulated -= sSimRate;
-      for(auto it = mSpaces.begin(); it != mSpaces.end(); ++it)
-        (*it).update(sSimRate);
+      for(auto space : mSpaces) {
+        if(auto strongSpace = space.lock()) {
+          strongSpace->update(sSimRate);
+        }
+      }
     }
 
     //Subtract off the rest of the rest of the time if we hit the update cap to keep time from building up
@@ -42,11 +45,17 @@ namespace Syx {
     //Update when game is paused to populate debug drawing
     if(dt == 0.0f) {
       drawer.clear();
-      for(auto it = mSpaces.begin(); it != mSpaces.end(); ++it)
-        (*it).update(0.0f);
+      for(auto space : mSpaces) {
+        if(auto strongSpace = space.lock()) {
+          strongSpace->update(0.f);
+        }
+      }
     }
 
     drawer.draw();
+
+    //Remove all expired spaces
+    mSpaces.erase(std::partition(mSpaces.begin(), mSpaces.end(), [](auto&& s) { return !s.expired(); }), mSpaces.end());
   }
 
   Handle PhysicsSystem::addModel(const ModelParam& newModel) {
@@ -94,7 +103,7 @@ namespace Syx {
   }
 
 #define AddConstraint(func)\
-    Space* space = mSpaces.get(ops.mSpace);\
+    auto space = _getSpace(ops.mSpace);\
     if(!space)\
       return SyxInvalidHandle;\
     return space->func(ops)
@@ -116,10 +125,9 @@ namespace Syx {
   }
 
   void PhysicsSystem::removeConstraint(Handle space, Handle constraint) {
-    Space* pSpace = mSpaces.get(space);
-    if(!pSpace)
-      return;
-    pSpace->removeConstraint(constraint);
+    if(auto pSpace = _getSpace(space)) {
+      pSpace->removeConstraint(constraint);
+    }
   }
 
   void PhysicsSystem::updateModel(Handle handle, const Model& updated) {
@@ -156,23 +164,25 @@ namespace Syx {
     mMaterials.remove(handle);
   }
 
-  Handle PhysicsSystem::addSpace(void) {
-    Space* newSpace = mSpaces.add();
-    return newSpace->getHandle();
-  }
+  std::shared_ptr<ISpace> PhysicsSystem::createSpace() {
+    //Arbitrary selection of new unique id
+    const Handle newID = [this] {
+      Handle result = 0;
+      for(const auto& space : mSpaces) {
+        if(const auto s = space.lock()) {
+          result = std::max(result, s->getHandle());
+        }
+      }
+      return result + 1;
+    }();
 
-  void PhysicsSystem::removeSpace(Handle handle) {
-    mSpaces.remove(handle);
-  }
-
-  void PhysicsSystem::clearSpace(Handle handle) {
-    Space* space = mSpaces.get(handle);
-    if(space)
-      space->clear();
+    auto result = std::make_shared<Space>(newID);
+    mSpaces.push_back(result);
+    return result;
   }
 
   Handle PhysicsSystem::addPhysicsObject(bool hasRigidbody, bool hasCollider, Handle space) {
-    Space* pSpace = mSpaces.get(space);
+    auto pSpace = _getSpace(space);
     if(!pSpace)
       return SyxInvalidHandle;
 
@@ -202,15 +212,13 @@ namespace Syx {
   }
 
   void PhysicsSystem::removePhysicsObject(Handle space, Handle object) {
-    Space* pSpace = mSpaces.get(space);
-    if(!pSpace)
-      return;
-
-    pSpace->destroyObject(object);
+    if(auto pSpace = _getSpace(space)) {
+      pSpace->destroyObject(object);
+    }
   }
 
   PhysicsObject* PhysicsSystem::_getObject(Handle space, Handle object) {
-    Space* pSpace = mSpaces.get(space);
+    auto pSpace = _getSpace(space);
     if(!pSpace)
       return nullptr;
     return pSpace->getObject(object);
@@ -230,8 +238,18 @@ namespace Syx {
     return obj->getCollider();
   }
 
+  std::shared_ptr<Space> PhysicsSystem::_getSpace(Handle space) {
+    auto it = std::find_if(mSpaces.begin(), mSpaces.end(), [s(space)](const auto& space) {
+      if(auto strongSpace = space.lock()) {
+        return strongSpace->getHandle() == s;
+      }
+      return false;
+    });
+    return it != mSpaces.end() ? it->lock() : nullptr;
+  }
+
   void PhysicsSystem::setHasRigidbody(bool has, Handle space, Handle object) {
-    if(Space* s = mSpaces.get(space)) {
+    if(auto s = _getSpace(space)) {
       if(PhysicsObject* obj = _getObject(space, object)) {
         s->setRigidbodyEnabled(*obj, has);
       }
@@ -239,7 +257,7 @@ namespace Syx {
   }
 
   void PhysicsSystem::setHasCollider(bool has, Handle space, Handle object) {
-    if(Space* s = mSpaces.get(space)) {
+    if(auto s = _getSpace(space)) {
       if(PhysicsObject* obj = _getObject(space, object)) {
         s->setColliderEnabled(*obj, has);
       }
@@ -270,10 +288,12 @@ namespace Syx {
       return;
 
     collider->setModel(*pModel);
-    mSpaces.get(space)->updateMovedObject(*collider->getOwner());
-    Rigidbody* rb = collider->getOwner()->getRigidbody();
-    if(rb)
+    if(auto s = _getSpace(space)) {
+      s->updateMovedObject(*collider->getOwner());
+    }
+    if(Rigidbody* rb = collider->getOwner()->getRigidbody()) {
       rb->calculateMass();
+    }
   }
 
   void PhysicsSystem::setObjectMaterial(Handle space, Handle object, Handle material) {
@@ -297,7 +317,9 @@ namespace Syx {
       return;
 
     obj->getRigidbody()->mLinVel = vel;
-    mSpaces.get(space)->wakeObject(*obj);
+    if(auto s = _getSpace(space)) {
+      s->wakeObject(*obj);
+    }
   }
 
   Vec3 PhysicsSystem::getVelocity(Handle space, Handle object) {
@@ -314,7 +336,9 @@ namespace Syx {
       return;
 
     obj->getRigidbody()->mAngVel = angVel;
-    mSpaces.get(space)->wakeObject(*obj);
+    if(auto s = _getSpace(space)) {
+      s->wakeObject(*obj);
+    }
   }
 
   Vec3 PhysicsSystem::getAngularVelocity(Handle space, Handle object) {
@@ -331,9 +355,10 @@ namespace Syx {
       return;
 
     obj->getTransform().mPos = pos;
-    Space* s = mSpaces.get(space);
-    s->updateMovedObject(*obj);
-    s->wakeObject(*obj);
+    if(auto s = _getSpace(space)) {
+      s->updateMovedObject(*obj);
+      s->wakeObject(*obj);
+    }
   }
 
   Vec3 PhysicsSystem::getPosition(Handle space, Handle object) {
@@ -350,9 +375,10 @@ namespace Syx {
       return;
 
     obj->getTransform().mRot = rot;
-    Space* s = mSpaces.get(space);
-    s->updateMovedObject(*obj);
-    s->wakeObject(*obj);
+    if(auto s = _getSpace(space)) {
+      s->updateMovedObject(*obj);
+      s->wakeObject(*obj);
+    }
   }
 
   Quat PhysicsSystem::getRotation(Handle space, Handle object) {
@@ -373,9 +399,10 @@ namespace Syx {
     Rigidbody* rb = obj->getRigidbody();
     if(rb)
       rb->calculateMass();
-    Space* s = mSpaces.get(space);
-    s->updateMovedObject(*obj);
-    s->wakeObject(*obj);
+    if(auto s = _getSpace(space)) {
+      s->updateMovedObject(*obj);
+      s->wakeObject(*obj);
+    }
   }
 
   Vec3 PhysicsSystem::getScale(Handle space, Handle object) {
@@ -387,27 +414,16 @@ namespace Syx {
   }
 
   const std::string* PhysicsSystem::getProfileReport(Handle space, const std::string& indent) {
-    Space* s = mSpaces.get(space);
-    if(!s)
-      return nullptr;
-
-    return &s->getProfileReport(indent);
+    auto s = _getSpace(space);
+    return s ? &s->getProfileReport(indent) : nullptr;
   }
 
   const std::vector<ProfileResult>* PhysicsSystem::getProfileHistory(Handle space) {
-    Space* s = mSpaces.get(space);
+    auto s = _getSpace(space);
     if(!s)
       return nullptr;
 
     return &s->getProfileHistory();
-  }
-
-  std::shared_ptr<IPhysicsObject> PhysicsSystem::getPhysicsObject(Handle space, Handle object) {
-    if(Space* pSpace = mSpaces.get(space)) {
-      PhysicsObject* obj = pSpace->getObject(object);
-      return obj ? createPhysicsObjectRef(*obj, obj->getExistenceTracker(), *pSpace) : nullptr;
-    }
-    return nullptr;
   }
 
   void PhysicsSystem::getAABB(Handle space, Handle object, Vec3& min, Vec3& max) {
@@ -420,13 +436,13 @@ namespace Syx {
   }
 
   const EventListener<UpdateEvent>* PhysicsSystem::getUpdateEvents(Handle space) {
-    if(Space* s = mSpaces.get(space))
+    if(auto s = _getSpace(space))
       return &s->getUpdateEvents();
     return nullptr;
   }
 
   CastResult PhysicsSystem::lineCastAll(Handle space, const Vec3& start, const Vec3& end) {
-    Space* s = mSpaces.get(space);
+    auto s = _getSpace(space);
     if(!s)
       return CastResult();
     SAlign Vec3 sStart = start;

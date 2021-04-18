@@ -4,12 +4,13 @@
 #include "SyxCollider.h"
 
 namespace Syx {
-  namespace PhysicsObjectFlags {
-    enum {
-      Disabled = 1 << 0,
-      Asleep = 1 << 1
-    };
-  }
+  enum class PhysicsObjectFlags : uint8_t {
+    Disabled = 0,
+    Asleep,
+    Count,
+  };
+
+  struct CollisionEventSubscription;
 
   SAlign class PhysicsObject {
   public:
@@ -55,13 +56,18 @@ namespace Syx {
 
     std::weak_ptr<bool> getExistenceTracker();
 
+    std::shared_ptr<CollisionEventSubscription> addCollisionEventSubscription();
+    bool emitsCollisionEvents() const;
+
   private:
     SAlign Transform mTransform;
     SAlign Collider mCollider;
     SAlign Rigidbody mRigidbody;
-    int mFlags;
+    std::bitset<static_cast<size_t>(PhysicsObjectFlags::Count)> mFlags;
     Handle mMyHandle;
     std::unordered_set<Handle> mConstraints;
     std::shared_ptr<bool> mExistenceTracker;
+    //As long as someone is holding on to one of these the object will emit collision events
+    std::weak_ptr<CollisionEventSubscription> mCollisionEventToken;
   };
 }
