@@ -5,6 +5,9 @@
 #include "SyxAABBTree.h"
 
 namespace Syx {
+  const Model Model::NONE;
+
+
 #ifdef SENABLED
   SFloats Model::sGetSupport(SFloats dir) const {
     switch(mType) {

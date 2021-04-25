@@ -11,6 +11,10 @@ namespace Syx {
       : mObj(&obj) {
     }
 
+    virtual void setMaterial(const IMaterialHandle& handle) override {
+      mObj->setMaterial(handle.get());
+    }
+
   private:
     Collider* mObj = nullptr;
   };

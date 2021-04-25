@@ -164,6 +164,7 @@
       <PrecompiledHeaderFile>Precompile.h</PrecompiledHeaderFile>
     </ClCompile>
     <ClCompile Include="system\PhysicsSystemTests.cpp" />
+    <ClCompile Include="SyxResourceHandleTests.cpp" />
     <ClCompile Include="syx\BroadphaseTest.cpp" />
     <ClCompile Include="test\MockApp.cpp" />
     <ClCompile Include="test\TestAppPlatform.cpp" />

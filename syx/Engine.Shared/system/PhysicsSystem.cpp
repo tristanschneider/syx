@@ -59,6 +59,8 @@ void PhysicsSystem::init() {
   }
   mSystem = std::make_unique<Syx::PhysicsSystem>();
 
+  mDefaultMaterial = mSystem->addMaterial({});
+
   AssetRepo* assets = mArgs.mSystems->getSystem<AssetRepo>();
   std::unique_ptr<PhysicsModel> mod = AssetRepo::createAsset<PhysicsModel>(AssetInfo(CUBE_MODEL_NAME));
   mod->mSyxHandle = mSystem->getCube();
@@ -73,9 +75,9 @@ void PhysicsSystem::init() {
   assets->addAsset(std::move(mod));
 
   //Not actually a model, but all that's needed is a handle
-  mod = AssetRepo::createAsset<PhysicsModel>(AssetInfo(DEFAULT_MATERIAL_NAME));
-  mod->mSyxHandle = mSystem->getDefaultMaterial();
-  assets->addAsset(std::move(mod));
+  auto mat = AssetRepo::createAsset<PhysicsMaterial>(AssetInfo(DEFAULT_MATERIAL_NAME));
+  mat->mSyxHandle = mDefaultMaterial;
+  assets->addAsset(std::move(mat));
 
   mDefaultSpace = mSystem->createSpace();
 
@@ -168,8 +170,10 @@ void PhysicsSystem::_setComponentPropsEvent(const SetComponentPropsEvent& e) {
         }
         case Util::constHash("material"): {
           if(auto materialAsset = mArgs.mSystems->getSystem<AssetRepo>()->getAsset(AssetInfo(data.mMaterial))) {
-            if(const PhysicsModel* pmat = materialAsset->cast<PhysicsModel>()) {
-              mSystem->setObjectMaterial(mDefaultSpace->_getHandle(), h, pmat->getSyxHandle());
+            if(const auto* pmat = materialAsset->cast<PhysicsMaterial>()) {
+              if(Syx::ICollider* collider = syxData.mObj->tryGetCollider()) {
+                collider->setMaterial(pmat->getSyxHandle());
+              }
             }
           }
           break;
@@ -265,7 +269,7 @@ void PhysicsSystem::_updateTransform(Handle handle, const Syx::Mat4& mat) {
 }
 
 Syx::Handle PhysicsSystem::_createObject(Handle gameobject, bool hasRigidbody, bool hasCollider) {
-  Syx::Handle result = mSystem->addPhysicsObject(hasRigidbody, hasCollider, mDefaultSpace->_getHandle());
+  Syx::Handle result = mSystem->addPhysicsObject(hasRigidbody, hasCollider, mDefaultSpace->_getHandle(), *mDefaultMaterial);
   SyxData d;
   d.mHandle = result;
   d.mObj = mDefaultSpace->getPhysicsObject(result);
@@ -305,12 +309,4 @@ Handle PhysicsSystem::addModel(const Model& model, bool environment) {
 
 void PhysicsSystem::removeModel(Handle handle) {
   mSystem->removeModel(handle);
-}
-
-Handle PhysicsSystem::addMaterial(const Syx::Material& mat) {
-  return mSystem->addMaterial(mat);
-}
-
-void PhysicsSystem::removeMaterial(Handle handle) {
-  mSystem->removeMaterial(handle);
 }

@@ -15,8 +15,6 @@ namespace Syx {
     mCylinderModel = _addModel(Model(ModelType::Cylinder));
     mCapsuleModel = _addModel(Model(ModelType::Capsule));
     mConeModel = _addModel(Model(ModelType::Cone));
-
-    mDefaultMaterial = addMaterial(Material());
   }
 
   void PhysicsSystem::update(float dt) {
@@ -94,12 +92,10 @@ namespace Syx {
     return handle;
   }
 
-  Handle PhysicsSystem::addMaterial(const Material& newMaterial) {
-    Material* material = mMaterials.add();
-    Handle handle = material->mHandle;
-    *material = newMaterial;
-    material->mHandle = handle;
-    return handle;
+  std::unique_ptr<IMaterialHandle> PhysicsSystem::addMaterial(const Material& newMaterial) {
+    auto result = std::make_unique<MaterialHandle>();
+    mMaterials.push_back(std::make_unique<OwnedMaterial>(newMaterial, *result));
+    return result;
   }
 
 #define AddConstraint(func)\
@@ -139,29 +135,12 @@ namespace Syx {
     model->mHandle = handle;
   }
 
-  void PhysicsSystem::updateMaterial(Handle handle, const Material& updated) {
-    Material* material = mMaterials.get(handle);
-    if(!material)
-      return;
-
-    *material = updated;
-    material->mHandle = handle;
-  }
-
   const Model* PhysicsSystem::getModel(Handle handle) {
     return mModels.get(handle);
   }
 
-  const Material* PhysicsSystem::getMaterial(Handle handle) {
-    return mMaterials.get(handle);
-  }
-
   void PhysicsSystem::removeModel(Handle handle) {
     mModels.remove(handle);
-  }
-
-  void PhysicsSystem::removeMaterial(Handle handle) {
-    mMaterials.remove(handle);
   }
 
   std::shared_ptr<ISpace> PhysicsSystem::createSpace() {
@@ -181,7 +160,7 @@ namespace Syx {
     return result;
   }
 
-  Handle PhysicsSystem::addPhysicsObject(bool hasRigidbody, bool hasCollider, Handle space) {
+  Handle PhysicsSystem::addPhysicsObject(bool hasRigidbody, bool hasCollider, Handle space, const IMaterialHandle& material) {
     auto pSpace = _getSpace(space);
     if(!pSpace)
       return SyxInvalidHandle;
@@ -190,7 +169,7 @@ namespace Syx {
 
     //Enable so we can set defaults
     newObj->setColliderEnabled(true);
-    newObj->getCollider()->setMaterial(*mMaterials.get(getDefaultMaterial()));
+    newObj->getCollider()->setMaterial(material.get());
     newObj->getCollider()->setModel(*mModels.get(getCube()));
     newObj->updateModelInst();
     newObj->setColliderEnabled(hasCollider);
@@ -294,21 +273,6 @@ namespace Syx {
     if(Rigidbody* rb = collider->getOwner()->getRigidbody()) {
       rb->calculateMass();
     }
-  }
-
-  void PhysicsSystem::setObjectMaterial(Handle space, Handle object, Handle material) {
-    Collider* collider = _getCollider(space, object);
-    if(!collider)
-      return;
-
-    Material* pMat = mMaterials.get(material);
-    if(!pMat)
-      return;
-
-    collider->setMaterial(*pMat);
-    Rigidbody* rb = collider->getOwner()->getRigidbody();
-    if(rb)
-      rb->calculateMass();
   }
 
   void PhysicsSystem::setVelocity(Handle space, Handle object, const Vec3& vel) {

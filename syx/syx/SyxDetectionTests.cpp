@@ -291,9 +291,10 @@ namespace Syx {
     PhysicsSystem system;
     auto spacePtr = system.createSpace();
     const Handle space = spacePtr->_getHandle();
+    auto mat = system.addMaterial({});
 
-    Handle a = system.addPhysicsObject(true, true, space);
-    Handle b = system.addPhysicsObject(true, true, space);
+    Handle a = system.addPhysicsObject(true, true, space, *mat);
+    Handle b = system.addPhysicsObject(true, true, space, *mat);
     Handle sphere = system.getSphere();
     system.setObjectModel(space, a, sphere);
     system.setObjectModel(space, b, sphere);

@@ -28,7 +28,7 @@ namespace Syx {
     //which is probably what should happen to reduce dependencies
     Handle addModel(const ModelParam& newModel);
     Handle addCompositeModel(const CompositeModelParam& newModel);
-    Handle addMaterial(const Material& newMaterial);
+    std::unique_ptr<IMaterialHandle> addMaterial(const Material& newMaterial);
 
     Handle addDistanceConstraint(DistanceOps ops);
     Handle addSphericalConstraint(SphericalOps ops);
@@ -38,17 +38,14 @@ namespace Syx {
     void removeConstraint(Handle space, Handle constraint);
 
     void updateModel(Handle handle, const Model& updated);
-    void updateMaterial(Handle handle, const Material& updated);
 
     const Model* getModel(Handle handle);
-    const Material* getMaterial(Handle handle);
 
     void removeModel(Handle handle);
-    void removeMaterial(Handle handle);
 
     std::shared_ptr<ISpace> createSpace();
 
-    Handle addPhysicsObject(bool hasRigidbody, bool hasCollider, Handle space);
+    Handle addPhysicsObject(bool hasRigidbody, bool hasCollider, Handle space, const IMaterialHandle& material);
     void removePhysicsObject(Handle space, Handle object);
 
     void setHasRigidbody(bool has, Handle space, Handle object);
@@ -57,7 +54,6 @@ namespace Syx {
     bool getHasCollider(Handle space, Handle object);
 
     void setObjectModel(Handle space, Handle object, Handle model);
-    void setObjectMaterial(Handle space, Handle object, Handle material);
 
     void setVelocity(Handle space, Handle object, const Vec3& vel);
     Vec3 getVelocity(Handle space, Handle object);
@@ -85,7 +81,6 @@ namespace Syx {
     Handle getCylinder(void) { return mCylinderModel; }
     Handle getCapsule(void) { return mCapsuleModel; }
     Handle getCone(void) { return mConeModel; }
-    Handle getDefaultMaterial(void) { return mDefaultMaterial; }
 
     const std::string* getProfileReport(Handle space, const std::string& indent);
     const std::vector<ProfileResult>* getProfileHistory(Handle space);
@@ -98,7 +93,8 @@ namespace Syx {
     Collider* _getCollider(Handle space, Handle object);
     std::shared_ptr<Space> _getSpace(Handle space);
 
-    HandleMap<Material> mMaterials;
+    //TODO: deal with deferred deletion of these
+    std::vector<std::unique_ptr<OwnedMaterial>> mMaterials;
     HandleMap<Model> mModels;
     //Lifetimes are managed by external strong references to ISpace
     std::vector<std::weak_ptr<Space>> mSpaces;
@@ -108,6 +104,5 @@ namespace Syx {
     Handle mCylinderModel;
     Handle mCapsuleModel;
     Handle mConeModel;
-    Handle mDefaultMaterial;
   };
 }

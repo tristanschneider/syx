@@ -128,5 +128,11 @@
     <ClCompile Include="editor\EditorToolboxTests.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="system\PhysicsSystemTests.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SyxResourceHandleTests.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

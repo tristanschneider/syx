@@ -1,26 +1,40 @@
 #pragma once
+#include "SyxResourceHandle.h"
 
 namespace Syx {
+  struct Material;
   class PhysicsSystem;
 
+  struct IMaterialHandle {
+    virtual ~IMaterialHandle() = default;
+    virtual const Material& get() const = 0;
+  };
+
   struct Material {
-    friend class PhysicsSystem;
-    DeclareHandleMapNode(Material);
-
-    Material(float density, float restitution, float friction, Handle handle = SyxInvalidHandle) :
-      mDensity(density), mRestitution(restitution), mFriction(friction), mHandle(handle) {
+    Material() = default;
+    Material(float density, float restitution, float friction)
+      : mDensity(density)
+      , mRestitution(restitution)
+      , mFriction(friction) {
     }
+    Material(const Material&) = default;
+    Material& operator=(const Material&) = default;
 
-    //Arbitrary default values that probably don't matter because they'll probably be set after the constructor if this is used
-    Material(Handle handle) : mHandle(handle), mDensity(1.0f), mRestitution(0.0f), mFriction(0.9f) {}
-    Material() : mHandle(SyxInvalidHandle), mDensity(1.0f), mRestitution(0.0f), mFriction(0.9f) {}
+    float mDensity = 1.f;
+    float mRestitution = 0.f;
+    float mFriction = 0.9f;
+  };
 
-    bool operator==(Handle handle) { return mHandle == handle; }
-    bool operator<(Handle handle) { return mHandle < handle; }
+  struct OwnedMaterial : public EnableDeferredDeletion<OwnedMaterial>, public Material {
+    OwnedMaterial(const Material& material, DeferredDeleteResourceHandle<OwnedMaterial>& handle)
+      : Material(material)
+      , EnableDeferredDeletion(handle) {
+    }
+  };
 
-    float mDensity;
-    float mRestitution;
-    float mFriction;
-    Handle mHandle;
+  struct MaterialHandle : public IMaterialHandle, public DeferredDeleteResourceHandle<OwnedMaterial> {
+    const Material& get() const override {
+      return _get();
+    }
   };
 }

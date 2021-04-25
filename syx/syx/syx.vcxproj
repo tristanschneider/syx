@@ -221,6 +221,7 @@
     <ClInclude Include="SyxPrimitiveNarrowphase.h" />
     <ClInclude Include="SyxProfiler.h" />
     <ClInclude Include="SyxQuat.h" />
+    <ClInclude Include="SyxResourceHandle.h" />
     <ClInclude Include="SyxRevoluteConstraint.h" />
     <ClInclude Include="SyxRigidbody.h" />
     <ClInclude Include="SyxSConstraintMath.h" />

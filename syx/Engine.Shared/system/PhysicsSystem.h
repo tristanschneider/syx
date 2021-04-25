@@ -4,6 +4,7 @@
 namespace Syx {
   struct IPhysicsObject;
   struct ISpace;
+  struct IMaterialHandle;
   struct Material;
   class PhysicsSystem;
   typedef size_t Handle;
@@ -42,9 +43,6 @@ public:
   Handle addModel(const Model& model, bool environment);
   void removeModel(Handle handle);
 
-  Handle addMaterial(const Syx::Material& mat);
-  void removeMaterial(Handle handle);
-
 private:
   struct SyxData {
     //TODO: do lifetime management through IPhysicsObject os that handle usage can be removed
@@ -78,5 +76,6 @@ private:
   std::unordered_map<Handle, SyxData> mToSyx;
   std::unordered_map<Syx::Handle, Handle> mFromSyx;
   std::shared_ptr<Syx::ISpace> mDefaultSpace;
+  std::shared_ptr<Syx::IMaterialHandle> mDefaultMaterial;
   float mTimescale;
 };

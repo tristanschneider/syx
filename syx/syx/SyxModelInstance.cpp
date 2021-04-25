@@ -6,7 +6,7 @@ namespace Syx {
   HandleGenerator ModelInstance::sHandleGen;
 
   ModelInstance::ModelInstance(Model* model)
-      : mModel(model)
+      : mModel(model ? model : &Model::NONE)
       , mMaterialSource(nullptr)
       , mHandle(sHandleGen.next()) {
     if(model) {

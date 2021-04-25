@@ -11,6 +11,7 @@ namespace Syx {
 
   namespace ModelType {
     enum {
+      Invalid,
       Mesh,
       Cube,
       Sphere,
@@ -34,6 +35,8 @@ namespace Syx {
   public:
     friend class PhysicsSystem;
     DeclareHandleMapNode(Model);
+
+    static const Model NONE;
 
     Model() {}
     ~Model();
@@ -114,8 +117,8 @@ namespace Syx {
     Vec3Vec mPoints;
     Vec3Vec mTriangles;
     AABB mAABB;
-    int mType;
-    Handle mHandle;
+    int mType = ModelType::Invalid;
+    Handle mHandle = 0;
 
     //Only for composite models
     std::vector<ModelInstance, AlignmentAllocator<ModelInstance>> mInstances;

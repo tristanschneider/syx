@@ -45,7 +45,7 @@ namespace Syx {
     SFloats sGetSupport(SFloats dir);
 
   private:
-    const Model* mModel;
+    const Model* mModel = nullptr;
     //Since materials are so small, keep a local version to avoid cache misses and only use the pointer if we need to update our local version
     const Material* mMaterialSource;
     Material mLocalMaterial;
@@ -54,7 +54,7 @@ namespace Syx {
     Transformer mModelToWorld;
     Transformer mWorldToModel;
     AABB mAABB;
-    Handle mHandle;
+    Handle mHandle = 0;
     std::vector<Handle> mSubmodelInstHandles;
   };
 }

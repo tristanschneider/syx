@@ -2,12 +2,15 @@
 
 namespace Syx {
   struct CollisionEventSubscription;
+  struct IMaterialHandle;
   class PhysicsObject;
   class Space;
   struct Transform;
 
   struct ICollider {
     virtual ~ICollider() = default;
+
+    virtual void setMaterial(const IMaterialHandle& handle) = 0;
   };
 
   struct IRigidbody {
