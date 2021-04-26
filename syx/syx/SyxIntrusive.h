@@ -176,8 +176,6 @@ namespace Syx {
   public:
     VecList(size_t size = 100)
       : mPageSize(size)
-      , mPages(0)
-      , mPagePool(0)
       , mInUse(0)
 #ifdef VECLIST_TRAVERSAL_TRACKING
       , mNoOfSamples(0)
@@ -200,8 +198,6 @@ namespace Syx {
         mTraversalSum = 0;
 #endif
         mInUse = 0;
-        mPagePool = 0;
-        mPages = 0;
         mObjects = rhs.mObjects;
         mFree = rhs.mFree;
         mPageSize = rhs.mPageSize;
@@ -214,27 +210,27 @@ namespace Syx {
     }
 
     void deletePages() {
+      for(auto it = begin(); it != end();) {
+        T& obj = *it;
+        ++it;
+        obj.~T();
+      }
       //delete the pages themselves
-      for(size_t i = 0; i < mPages; ++i) {
-        //Need to explicitly call destructors since malloc won't do it
-        for(size_t j = 0; j < mPageSize; ++j)
-          mPagePool[i][j].~T();
-        AlignedFree(mPagePool[i]);
+      for(uint8_t* page : mPagePool) {
+        AlignedFree(page);
       }
       //delete the pointers to the pages
-      delete[] mPagePool;
-
-      mPagePool = 0;
-      mPages = 0;
+      mPagePool.clear();
     }
 
     ~VecList() {
       deletePages();
     }
 
-    void initializePage(T* page) {
+    void initializePage(uint8_t* page) {
+      std::memset(page, 0, mPageSize * sizeof(T));
       for(size_t i = 0; i < mPageSize; ++i)
-        mFree.pushBack(&page[i]);
+        mFree.pushBack(reinterpret_cast<T*>(&page[i * sizeof(T)]));
     }
 
     bool empty() { return mInUse == 0; }
@@ -319,6 +315,11 @@ namespace Syx {
           mFree.pushFront(toFree);
       }
       --mInUse;
+
+      //Call destructor but preserve intrusive values
+      auto temp = toFree->mIntrusiveNode;
+      toFree->~T();
+      toFree->mIntrusiveNode = temp;
     }
 
     void freeObj(IntrusiveIterator<T> it) {
@@ -353,33 +354,24 @@ namespace Syx {
 #endif
   private:
     void addPage() {
-      T** temp = mPagePool;
-      //Allocate new set of pointers to point at pages
-      mPagePool = new T*[mPages + 1];
-      //Copy old pages over to new pointers
-      for(size_t i = 0; i < mPages; ++i)
-        mPagePool[i] = temp[i];
       //Put new page in last slot
-      mPagePool[mPages] = reinterpret_cast<T*>(Interface::allocAligned(sizeof(T)*mPageSize));
+      mPagePool.push_back(static_cast<uint8_t*>(Interface::allocAligned(sizeof(T)*mPageSize)));
 
-      //Call constructors
-      for(unsigned i = 0; i < mPageSize; ++i)
-        new (&mPagePool[mPages][i]) T();
-
-      //Now that the old page pointers have been copied, they can be deleted,
-      //or if there was none, this is 0, which is safe too
-      delete[] temp;
       //Add new page to free list
-      initializePage(mPagePool[mPages]);
-      //Indicate the use of another page
-      ++mPages;
+      initializePage(mPagePool.back());
     }
 
     //Get a node from the free pool to add to your list (calling this does not add it to anything)
-    T* get(void) {
+    T* get() {
       if(mFree.empty())
         addPage();
       T* newNode = mFree.front();
+
+      //Now that the object is going to be used, call its constructor, but be sure to preserve the intrusive node value
+      auto temp = newNode->mIntrusiveNode;
+      new (newNode) T();
+      newNode->mIntrusiveNode = temp;
+
       mFree.remove(newNode);
       ++mInUse;
       return newNode;
@@ -432,28 +424,33 @@ namespace Syx {
       return nullptr;
     }
 
-    size_t getIndexInPage(const T& obj, int page) {
+    size_t getIndexInPage(const T& obj, int page) const {
       //Caller's responsibility to make sure it is actually within this page
-      return &obj - mPagePool[page];
+      return (static_cast<size_t>(reinterpret_cast<const uint8_t*>(&obj) - mPagePool[page])) / sizeof(T);
     }
 
     T& getObjectAtIndex(int page, int index) {
-      return mPagePool[page][index];
+      return *reinterpret_cast<T*>(mPagePool[page][index * sizeof(T)]);
     }
 
     int getPage(const T& obj) {
       uintptr_t objAddr = reinterpret_cast<uintptr_t>(&obj);
-      for(unsigned i = 0; i < mPages; ++i)
+      for(size_t i = 0; i < mPagePool.size(); ++i) {
+        const uint8_t* page = mPagePool[i];
         //If object is in this page
-        if(objAddr >= reinterpret_cast<uintptr_t>(mPagePool[i]) && objAddr <= reinterpret_cast<uintptr_t>(mPagePool[i]) + mPageSize*sizeof(T))
+        if(objAddr >= reinterpret_cast<uintptr_t>(page) && objAddr <= reinterpret_cast<uintptr_t>(page) + mPageSize*sizeof(T)) {
           return static_cast<int>(i);
+        }
+      }
       return -1;
     }
 
-    bool isPageHead(const T& obj) {
-      for(unsigned i = 0; i < mPages; ++i)
-        if(&obj == mPagePool[i])
+    bool isPageHead(const T& obj) const {
+      for(const uint8_t* page : mPagePool) {
+        if(reinterpret_cast<const uint8_t*>(&obj) == page) {
           return true;
+        }
+      }
       return false;
     }
 
@@ -492,14 +489,13 @@ namespace Syx {
 
     IntrusiveList<T> mObjects;
     IntrusiveList<T> mFree;
-    //Array of pages, which are arrays of Ts
-    T** mPagePool;
-    size_t mPageSize;
-    size_t mPages;
-    size_t mInUse;
+    //Vector of pointers to pages, which are buffers of uint8_t in which the Ts are placed
+    std::vector<uint8_t*> mPagePool;
+    size_t mPageSize = 0;
+    size_t mInUse = 0;
 #ifdef VECLIST_TRAVERSAL_TRACKING
-    unsigned mTraversalSum;
-    unsigned mNoOfSamples;
+    unsigned mTraversalSum = 0;
+    unsigned mNoOfSamples = 0;
 #endif
   };
 }

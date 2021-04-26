@@ -32,7 +32,7 @@ namespace Syx {
     mModelInst.setModel(model);
   }
 
-  void Collider::setMaterial(const Material& material) {
+  void Collider::setMaterial(const IMaterialHandle& material) {
     mModelInst.setMaterial(material);
     if(Rigidbody* rb = mOwner ? mOwner->getRigidbody() : nullptr) {
       rb->calculateMass();

@@ -1,4 +1,5 @@
 #pragma once
+#include <optional>
 
 namespace Syx {
   template<class DerivedT, class ExistenceTracker>
@@ -53,23 +54,85 @@ namespace Syx {
     EnableDeferredDeletion& operator=(const EnableDeferredDeletion& rhs) {
       _assertTrackerMatches(rhs);
       mExistenceTracker = rhs.mExistenceTracker;
+      return *this;
     }
     EnableDeferredDeletion& operator=(EnableDeferredDeletion&& rhs) {
       _assertTrackerMatches(rhs);
       mExistenceTracker = std::move(rhs.mExistenceTracker);
+      return *this;
     }
 
     bool isMarkedForDeletion() const {
       return mExistenceTracker.expired();
     }
 
-    template<class Container>
-    static void performDeferredDeletions(Container& container) {
+    std::optional<DeferredDeleteResourceHandle<DerivedT, ExistenceTracker>> duplicateHandle() {
+      if(auto token = mExistenceTracker.lock()) {
+        auto result = std::make_optional(DeferredDeleteResourceHandle<DerivedT, ExistenceTracker>());
+        result->mResource = static_cast<DerivedT*>(this);
+        result->mToken = token;
+        return result;
+      }
+      return std::nullopt;
+    }
+
+    //Container of EnableDeferredDeletions
+    template<class ValueT, class Container
+      , std::enable_if_t<std::is_same_v<ValueT, DerivedT>, bool> = true>
+    static void _performDeferredDeletions(Container& container) {
       container.erase(std::partition(container.begin(), container.end(), [](auto& e) { return !e.isMarkedForDeletion(); }), container.end());
     }
 
+    //Container of pointers to EnableDeferredDeletions
+    template<class ValueT, class Container
+      , std::enable_if_t<std::is_pointer_v<ValueT> && std::is_same_v<std::remove_pointer_t<ValueT>, DerivedT>, bool> = true>
+    static void _performDeferredDeletions(Container& container) {
+      container.erase(std::partition(container.begin(), container.end(), [](auto& e) { return !e->isMarkedForDeletion(); }), container.end());
+    }
+
+    //Container of smart pointers to EnableDeferredDeletions
+    template<class ValueT, class Container
+      , std::enable_if_t<std::is_same_v<typename ValueT::element_type, DerivedT>, bool> = true>
+    static void _performDeferredDeletions(Container& container) {
+      container.erase(std::partition(container.begin(), container.end(), [](auto& e) { return !e->isMarkedForDeletion(); }), container.end());
+    }
+
+    //Map of something to EnableDeferredDeletions
+    template<class ValueT, class Container
+      , std::enable_if_t<std::is_same_v<typename ValueT::second_type, DerivedT>, bool> = true>
+    static void _performDeferredDeletions(Container& c) {
+      for(auto it = c.begin(); it != c.end();) {
+        if(it->second.isMarkedForDeletion()) {
+          it = c.erase(it);
+        }
+        else {
+          ++it;
+        }
+      }
+    }
+
+    //Map of something to smart pointers to EnableDeferredDeletions
+    template<class ValueT, class Container
+      , std::enable_if_t<std::is_same_v<typename ValueT::second_type::element_type, DerivedT>, bool> = true>
+    static void _performDeferredDeletions(Container& c) {
+      for(auto it = c.begin(); it != c.end();) {
+        if(it->second->isMarkedForDeletion()) {
+          it = c.erase(it);
+        }
+        else {
+          ++it;
+        }
+      }
+    }
+
+
+    template<class Container>
+    static void performDeferredDeletions(Container& container) {
+      _performDeferredDeletions<Container::value_type>(container);
+    }
+
   private:
-    void _assertTrackerMatches(EnableDeferredDeletion& rhs) {
+    void _assertTrackerMatches(const EnableDeferredDeletion& rhs) {
       assert(mExistenceTracker.lock().get() == rhs.mExistenceTracker.lock().get() && "Ownership of existence tracker should not change");
     }
 

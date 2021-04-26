@@ -7,21 +7,17 @@ namespace Syx {
 
   ModelInstance::ModelInstance(Model* model)
       : mModel(model ? model : &Model::NONE)
-      , mMaterialSource(nullptr)
       , mHandle(sHandleGen.next()) {
     if(model) {
       setModel(*model);
     }
   }
 
-  ModelInstance::ModelInstance(const Model& model, const Transformer& toWorld, const Transformer& toModel) 
+  ModelInstance::ModelInstance(const Model& model, const Transformer& toWorld, const Transformer& toModel)
     : mModel(&model)
     , mModelToWorld(toWorld)
-    , mWorldToModel(toModel)
-    , mMaterialSource(nullptr) {
-    //Expecting user to re-use this for multiple instances by setting handle
+    , mWorldToModel(toModel) {
   }
-
 
   void ModelInstance::updateTransformers(const Transform& parentTrans) {
     mModelToWorld = parentTrans.getModelToWorld(mLocalTransform);
@@ -51,9 +47,10 @@ namespace Syx {
     }
   }
 
-  void ModelInstance::setMaterial(const Material& material) {
-    mMaterialSource = &material;
-    mLocalMaterial = material;
+  void ModelInstance::setMaterial(const IMaterialHandle& material) {
+    //A bit of a hack to downcast here but it allows avoiding allocation of another handle
+    mMaterialSource = static_cast<const MaterialHandle&>(material);
+    mLocalMaterial = material.get();
   }
 
   void ModelInstance::setLocalTransform(const Transform& transform) {

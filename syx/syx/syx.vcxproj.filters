@@ -162,6 +162,9 @@
     <ClCompile Include="SyxIPhysicsObject.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="SyxMaterialRepository.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="SyxAABB.h">
@@ -363,6 +366,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="SyxIPhysicsObject.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="SyxResourceHandle.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="SyxMaterialRepository.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

@@ -34,7 +34,7 @@ namespace Syx {
     void updateModelInst(const Transform& parentTransform);
 
     void setModel(const Model& model);
-    void setMaterial(const Material& material);
+    void setMaterial(const IMaterialHandle& material);
 
     int getModelType();
 

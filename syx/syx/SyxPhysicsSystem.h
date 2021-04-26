@@ -7,6 +7,7 @@
 namespace Syx {
   class CompositeModelParam;
   class DistanceOps;
+  struct IMaterialRepository;
   struct IPhysicsObject;
   struct ISpace;
   class ModelParam;
@@ -20,7 +21,9 @@ namespace Syx {
 
     static float sSimRate;
 
+    PhysicsSystem(std::unique_ptr<IMaterialRepository> materials);
     PhysicsSystem();
+    ~PhysicsSystem();
 
     void update(float dt);
 
@@ -28,7 +31,8 @@ namespace Syx {
     //which is probably what should happen to reduce dependencies
     Handle addModel(const ModelParam& newModel);
     Handle addCompositeModel(const CompositeModelParam& newModel);
-    std::unique_ptr<IMaterialHandle> addMaterial(const Material& newMaterial);
+
+    IMaterialRepository& getMaterialRepository();
 
     Handle addDistanceConstraint(DistanceOps ops);
     Handle addSphericalConstraint(SphericalOps ops);
@@ -93,8 +97,7 @@ namespace Syx {
     Collider* _getCollider(Handle space, Handle object);
     std::shared_ptr<Space> _getSpace(Handle space);
 
-    //TODO: deal with deferred deletion of these
-    std::vector<std::unique_ptr<OwnedMaterial>> mMaterials;
+    std::unique_ptr<IMaterialRepository> mMaterials;
     HandleMap<Model> mModels;
     //Lifetimes are managed by external strong references to ISpace
     std::vector<std::weak_ptr<Space>> mSpaces;

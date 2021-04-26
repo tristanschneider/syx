@@ -73,5 +73,19 @@ namespace SyxTests {
       handleB.reset();
       Assert::IsTrue(resourceA.isMarkedForDeletion(), L"A should be marked for deletion once no handles reference it anymore", LINE_INFO());
     }
+
+    TEST_METHOD(PerformDeferredDeletions_Compiles) {
+      std::vector<std::shared_ptr<TestResource>> a;
+      std::vector<TestResource> b;
+      std::vector<TestResource*> c;
+      std::unordered_map<int, TestResource> d;
+      std::unordered_map<int, std::unique_ptr<TestResource>> e;
+
+      TestResource::performDeferredDeletions(a);
+      TestResource::performDeferredDeletions(b);
+      TestResource::performDeferredDeletions(c);
+      TestResource::performDeferredDeletions(d);
+      TestResource::performDeferredDeletions(e);
+    }
   };
 }

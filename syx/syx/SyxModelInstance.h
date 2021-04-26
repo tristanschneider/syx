@@ -20,7 +20,7 @@ namespace Syx {
     static ModelInstance combined(const ModelInstance& parent, const ModelInstance& child, const ModelInstance& modelInfo, Handle handle);
 
     void setModel(const Model& model);
-    void setMaterial(const Material& material);
+    void setMaterial(const IMaterialHandle& material);
     void setLocalTransform(const Transform& transform);
 
     void setSubmodelInstLocalTransform(const Transform& transform);
@@ -47,7 +47,7 @@ namespace Syx {
   private:
     const Model* mModel = nullptr;
     //Since materials are so small, keep a local version to avoid cache misses and only use the pointer if we need to update our local version
-    const Material* mMaterialSource;
+    std::optional<MaterialHandle> mMaterialSource;
     Material mLocalMaterial;
     //Offset relative to parent physics object
     Transform mLocalTransform;

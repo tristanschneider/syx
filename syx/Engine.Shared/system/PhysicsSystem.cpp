@@ -25,6 +25,7 @@
 #include <SyxHandleMap.h>
 #include <SyxIPhysicsObject.h>
 #include <SyxPhysicsSystem.h>
+#include <SyxMaterialRepository.h>
 #include <SyxModelParam.h>
 #include <SyxSpace.h>
 #include "Util.h"
@@ -59,7 +60,7 @@ void PhysicsSystem::init() {
   }
   mSystem = std::make_unique<Syx::PhysicsSystem>();
 
-  mDefaultMaterial = mSystem->addMaterial({});
+  mDefaultMaterial = mSystem->getMaterialRepository().addMaterial({});
 
   AssetRepo* assets = mArgs.mSystems->getSystem<AssetRepo>();
   std::unique_ptr<PhysicsModel> mod = AssetRepo::createAsset<PhysicsModel>(AssetInfo(CUBE_MODEL_NAME));
@@ -169,7 +170,7 @@ void PhysicsSystem::_setComponentPropsEvent(const SetComponentPropsEvent& e) {
           break;
         }
         case Util::constHash("material"): {
-          if(auto materialAsset = mArgs.mSystems->getSystem<AssetRepo>()->getAsset(AssetInfo(data.mMaterial))) {
+          if(const auto materialAsset = mArgs.mSystems->getSystem<AssetRepo>()->getAsset(AssetInfo(data.mMaterial))) {
             if(const auto* pmat = materialAsset->cast<PhysicsMaterial>()) {
               if(Syx::ICollider* collider = syxData.mObj->tryGetCollider()) {
                 collider->setMaterial(pmat->getSyxHandle());

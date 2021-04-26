@@ -12,7 +12,7 @@ namespace Syx {
     }
 
     virtual void setMaterial(const IMaterialHandle& handle) override {
-      mObj->setMaterial(handle.get());
+      mObj->setMaterial(handle);
     }
 
   private:

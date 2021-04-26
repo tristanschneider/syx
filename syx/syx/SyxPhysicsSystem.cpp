@@ -2,6 +2,7 @@
 #include "SyxPhysicsSystem.h"
 
 #include "SyxIPhysicsObject.h"
+#include "SyxMaterialRepository.h"
 #include "SyxModelParam.h"
 
 namespace Syx {
@@ -9,13 +10,20 @@ namespace Syx {
 
   float PhysicsSystem::sSimRate = 1.0f/60.0f;
 
-  PhysicsSystem::PhysicsSystem() {
+  PhysicsSystem::PhysicsSystem(std::unique_ptr<IMaterialRepository> materials)
+    : mMaterials(std::move(materials)) {
     mCubeModel = _addModel(Model(ModelType::Cube));
     mSphereModel = _addModel(Model(ModelType::Sphere));
     mCylinderModel = _addModel(Model(ModelType::Cylinder));
     mCapsuleModel = _addModel(Model(ModelType::Capsule));
     mConeModel = _addModel(Model(ModelType::Cone));
   }
+
+  PhysicsSystem::PhysicsSystem()
+    : PhysicsSystem(Create::defaultMaterialRepository()) {
+  }
+
+  PhysicsSystem::~PhysicsSystem() = default;
 
   void PhysicsSystem::update(float dt) {
     static float accumulated = 0.0f;
@@ -54,6 +62,7 @@ namespace Syx {
 
     //Remove all expired spaces
     mSpaces.erase(std::partition(mSpaces.begin(), mSpaces.end(), [](auto&& s) { return !s.expired(); }), mSpaces.end());
+    mMaterials->garbageCollect();
   }
 
   Handle PhysicsSystem::addModel(const ModelParam& newModel) {
@@ -92,10 +101,8 @@ namespace Syx {
     return handle;
   }
 
-  std::unique_ptr<IMaterialHandle> PhysicsSystem::addMaterial(const Material& newMaterial) {
-    auto result = std::make_unique<MaterialHandle>();
-    mMaterials.push_back(std::make_unique<OwnedMaterial>(newMaterial, *result));
-    return result;
+  IMaterialRepository& PhysicsSystem::getMaterialRepository() {
+    return *mMaterials;
   }
 
 #define AddConstraint(func)\
@@ -169,7 +176,7 @@ namespace Syx {
 
     //Enable so we can set defaults
     newObj->setColliderEnabled(true);
-    newObj->getCollider()->setMaterial(material.get());
+    newObj->getCollider()->setMaterial(material);
     newObj->getCollider()->setModel(*mModels.get(getCube()));
     newObj->updateModelInst();
     newObj->setColliderEnabled(hasCollider);

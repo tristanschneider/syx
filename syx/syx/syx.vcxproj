@@ -143,6 +143,7 @@
     <ClCompile Include="SyxIslandTests.cpp" />
     <ClCompile Include="SyxManifold.cpp" />
     <ClCompile Include="SyxMat4.cpp" />
+    <ClCompile Include="SyxMaterialRepository.cpp" />
     <ClCompile Include="SyxMath.cpp" />
     <ClCompile Include="SyxMathTests.cpp" />
     <ClCompile Include="SyxMat2.cpp" />
@@ -205,6 +206,7 @@
     <ClInclude Include="SyxManifold.h" />
     <ClInclude Include="SyxMat4.h" />
     <ClInclude Include="SyxMaterial.h" />
+    <ClInclude Include="SyxMaterialRepository.h" />
     <ClInclude Include="SyxMath.h" />
     <ClInclude Include="SyxMathDefines.h" />
     <ClInclude Include="SyxMathIncludes.h" />

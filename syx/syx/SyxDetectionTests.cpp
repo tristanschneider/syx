@@ -7,6 +7,7 @@
 #include "SyxNarrowphase.h"
 #include "SyxSpace.h"
 #include "SyxPhysicsSystem.h"
+#include "SyxMaterialRepository.h"
 
 namespace Syx {
   extern bool TEST_FAILED;
@@ -291,7 +292,7 @@ namespace Syx {
     PhysicsSystem system;
     auto spacePtr = system.createSpace();
     const Handle space = spacePtr->_getHandle();
-    auto mat = system.addMaterial({});
+    auto mat = system.getMaterialRepository().addMaterial({});
 
     Handle a = system.addPhysicsObject(true, true, space, *mat);
     Handle b = system.addPhysicsObject(true, true, space, *mat);
