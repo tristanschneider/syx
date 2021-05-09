@@ -38,8 +38,9 @@ namespace SyxTests {
     TEST_METHOD(SingleMaterialDeadButInUse_GarbageCollect_NoneDeleted) {
       PhysicsSystemWithMaterials system;
       auto mat = system.mRepository->addMaterial({});
+      auto mod = std::make_shared<Syx::Model>(Syx::ModelType::Cube);
       auto space = system.mSystem->createSpace();
-      system.mSystem->addPhysicsObject(false, true, space->_getHandle(), *mat);
+      system.mSystem->addPhysicsObject(false, true, space->_getHandle(), *mat, mod);
 
       mat.reset();
       Assert::AreEqual(system.mRepository->garbageCollect(), size_t(0), L"Material should still be alive because a physics object is using it", LINE_INFO());
@@ -48,8 +49,9 @@ namespace SyxTests {
     TEST_METHOD(SingleMaterialDeadAndNotInUse_GarbageCollect_OneDeleted) {
       PhysicsSystemWithMaterials system;
       auto mat = system.mRepository->addMaterial({});
+      auto mod = std::make_shared<Syx::Model>(Syx::ModelType::Cube);
       auto space = system.mSystem->createSpace();
-      auto obj = system.mSystem->addPhysicsObject(false, true, space->_getHandle(), *mat);
+      auto obj = system.mSystem->addPhysicsObject(false, true, space->_getHandle(), *mat, mod);
 
       system.mSystem->removePhysicsObject(space->_getHandle(), obj);
       mat.reset();

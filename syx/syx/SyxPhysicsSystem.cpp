@@ -12,11 +12,6 @@ namespace Syx {
 
   PhysicsSystem::PhysicsSystem(std::unique_ptr<IMaterialRepository> materials)
     : mMaterials(std::move(materials)) {
-    mCubeModel = _addModel(Model(ModelType::Cube));
-    mSphereModel = _addModel(Model(ModelType::Sphere));
-    mCylinderModel = _addModel(Model(ModelType::Cylinder));
-    mCapsuleModel = _addModel(Model(ModelType::Capsule));
-    mConeModel = _addModel(Model(ModelType::Cone));
   }
 
   PhysicsSystem::PhysicsSystem()
@@ -65,42 +60,6 @@ namespace Syx {
     mMaterials->garbageCollect();
   }
 
-  Handle PhysicsSystem::addModel(const ModelParam& newModel) {
-    return _addModel(newModel.toModel());
-  }
-
-  Handle PhysicsSystem::addCompositeModel(const CompositeModelParam& newModel) {
-    Model* model = mModels.add();
-    Handle handle = model->getHandle();
-    *model = Model(ModelType::Composite);
-    model->mHandle = handle;
-
-    model->initComposite(newModel, mModels);
-
-    //Force model to be centered around its center of mass. I should ultimately support off-center models instead
-    MassInfo info = model->_computeMasses(Vec3::Identity);
-    model->_offset(-info.mCenterOfMass);
-
-    return handle;
-  }
-
-  Handle PhysicsSystem::_addModel(const Model& newModel) {
-    Model* model = mModels.add();
-    Handle handle = model->getHandle();
-    *model = newModel;
-    model->mHandle = handle;
-
-    if(model->getType() == ModelType::Environment) {
-      model->initEnvironment();
-    }
-    else {
-      //Force model to be centered around its center of mass. I should ultimately support off-center models instead
-      MassInfo info = model->_computeMasses(Vec3::Identity);
-      model->_offset(-info.mCenterOfMass);
-    }
-    return handle;
-  }
-
   IMaterialRepository& PhysicsSystem::getMaterialRepository() {
     return *mMaterials;
   }
@@ -133,23 +92,6 @@ namespace Syx {
     }
   }
 
-  void PhysicsSystem::updateModel(Handle handle, const Model& updated) {
-    Model* model = mModels.get(handle);
-    if(!model)
-      return;
-
-    *model = updated;
-    model->mHandle = handle;
-  }
-
-  const Model* PhysicsSystem::getModel(Handle handle) {
-    return mModels.get(handle);
-  }
-
-  void PhysicsSystem::removeModel(Handle handle) {
-    mModels.remove(handle);
-  }
-
   std::shared_ptr<ISpace> PhysicsSystem::createSpace() {
     //Arbitrary selection of new unique id
     const Handle newID = [this] {
@@ -167,7 +109,7 @@ namespace Syx {
     return result;
   }
 
-  Handle PhysicsSystem::addPhysicsObject(bool hasRigidbody, bool hasCollider, Handle space, const IMaterialHandle& material) {
+  Handle PhysicsSystem::addPhysicsObject(bool hasRigidbody, bool hasCollider, Handle space, const IMaterialHandle& material, std::shared_ptr<const Model> model) {
     auto pSpace = _getSpace(space);
     if(!pSpace)
       return SyxInvalidHandle;
@@ -177,7 +119,7 @@ namespace Syx {
     //Enable so we can set defaults
     newObj->setColliderEnabled(true);
     newObj->getCollider()->setMaterial(material);
-    newObj->getCollider()->setModel(*mModels.get(getCube()));
+    newObj->getCollider()->setModel(std::move(model));
     newObj->updateModelInst();
     newObj->setColliderEnabled(hasCollider);
     if(hasCollider)
@@ -262,24 +204,6 @@ namespace Syx {
     if(!obj)
       return false;
     return obj->getCollider() != nullptr;
-  }
-
-  void PhysicsSystem::setObjectModel(Handle space, Handle object, Handle model) {
-    Collider* collider = _getCollider(space, object);
-    if(!collider)
-      return;
-
-    Model* pModel = mModels.get(model);
-    if(!pModel)
-      return;
-
-    collider->setModel(*pModel);
-    if(auto s = _getSpace(space)) {
-      s->updateMovedObject(*collider->getOwner());
-    }
-    if(Rigidbody* rb = collider->getOwner()->getRigidbody()) {
-      rb->calculateMass();
-    }
   }
 
   void PhysicsSystem::setVelocity(Handle space, Handle object, const Vec3& vel) {

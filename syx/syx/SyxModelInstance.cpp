@@ -5,18 +5,17 @@
 namespace Syx {
   HandleGenerator ModelInstance::sHandleGen;
 
-  ModelInstance::ModelInstance(Model* model)
-      : mModel(model ? model : &Model::NONE)
-      , mHandle(sHandleGen.next()) {
+  ModelInstance::ModelInstance(std::shared_ptr<const Model> model) 
+   : mHandle(sHandleGen.next()) {
     if(model) {
-      setModel(*model);
+      setModel(model);
     }
   }
 
-  ModelInstance::ModelInstance(const Model& model, const Transformer& toWorld, const Transformer& toModel)
-    : mModel(&model)
-    , mModelToWorld(toWorld)
-    , mWorldToModel(toModel) {
+  ModelInstance::ModelInstance(std::shared_ptr<const Model> model, const Transformer& toWorld, const Transformer& toModel)
+    : ModelInstance(std::move(model)) {
+    mModelToWorld = toWorld;
+    mWorldToModel = toModel;
   }
 
   void ModelInstance::updateTransformers(const Transform& parentTrans) {
@@ -38,13 +37,17 @@ namespace Syx {
     return mModel->getType();
   }
 
-  void ModelInstance::setModel(const Model& model) {
-    mModel = &model;
+  void ModelInstance::setModel(std::shared_ptr<const Model> model) {
+    mModel = model;
     mSubmodelInstHandles.clear();
     if(mModel->getType() == ModelType::Composite) {
       for(size_t i = 0; i < mModel->getSubmodelInstances().size(); ++i)
         mSubmodelInstHandles.push_back(sHandleGen.next());
     }
+  }
+
+  const Model& ModelInstance::getModel() const {
+    return mModel ? *mModel : Model::NONE;
   }
 
   void ModelInstance::setMaterial(const IMaterialHandle& material) {

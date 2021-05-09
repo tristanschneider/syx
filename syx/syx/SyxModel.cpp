@@ -5,7 +5,7 @@
 #include "SyxAABBTree.h"
 
 namespace Syx {
-  const Model Model::NONE;
+  const Model Model::NONE(ModelType::Invalid);
 
 
 #ifdef SENABLED
@@ -108,16 +108,18 @@ namespace Syx {
   }
 #endif
 
-  Model::Model(int type, const Vec3Vec& points, const Vec3Vec& triangles, std::unique_ptr<Broadphase> broadphase, const AABB& aabb)
+  Model::Model(int type, Vec3Vec points, Vec3Vec triangles, std::unique_ptr<Broadphase> broadphase, const AABB& aabb)
     : mType(type)
-    , mPoints(points)
-    , mTriangles(triangles)
+    , mPoints(std::move(points))
+    , mTriangles(std::move(triangles))
     , mAABB(aabb) {
+    init();
   }
 
 
-  Model::Model(const Vec3Vec& points, const Vec3Vec& triangles, bool environment)
-    : Model(environment ? ModelType::Environment : ModelType::Mesh, points, triangles, Create::aabbTree(), AABB(points)) {
+  Model::Model(Vec3Vec points, Vec3Vec triangles, bool environment)
+    : Model(environment ? ModelType::Environment : ModelType::Mesh, std::move(points), std::move(triangles), Create::aabbTree(), AABB(points)) {
+    init();
   }
 
   //All primitives are from -1.0 to 1.0 so I don't need to multiply by 0.5 when getting support points
@@ -131,6 +133,7 @@ namespace Syx {
         mAABB = AABB(Vec3(-1.0f, -2.0f, -1.0f), Vec3(1.0f, 2.0f, 1.0f));
         break;
     }
+    init();
   }
 
   Model::~Model() = default;
@@ -476,47 +479,12 @@ namespace Syx {
     mAABB.move(offset);
   }
 
-  Model::Model(const Model& rhs)
-    : mPoints(rhs.mPoints)
-    , mTriangles(rhs.mTriangles)
-    , mAABB(rhs.mAABB)
-    , mType(rhs.mType)
-    , mHandle(rhs.mHandle)
-    , mInstances(rhs.mInstances)
-    , mSubmodels(rhs.mSubmodels)
-    , mBroadphase(Create::aabbTree()) {
-  }
-
-  Model& Model::operator=(const Model& rhs) {
-    mPoints = rhs.mPoints;
-    mTriangles = rhs.mTriangles;
-    mAABB = rhs.mAABB;
-    mType = rhs.mType;
-    mHandle = rhs.mHandle;
-    mInstances = rhs.mInstances;
-    mSubmodels = rhs.mSubmodels;
-    mBroadphase = Create::aabbTree();
-    return *this;
-  }
-
-  void Model::initComposite(const CompositeModelParam& param, const HandleMap<Model>& modelMap) {
-    mSubmodels.resize(param.mSubmodels.size());
+  void Model::initComposite(const CompositeModelParam& param) {
     mInstances.reserve(param.mInstances.size());
-
-    for(auto pair : param.mSubmodels) {
-      mSubmodels[pair.first] = pair.second.toModel();
-    }
 
     for(size_t i = 0; i < param.mInstances.size(); ++i) {
       const CompositeModelParam::SubmodelInstance& instance = param.mInstances[i];
-      Model* model;
-      if(instance.mLocal)
-        model = &mSubmodels[instance.mHandle];
-      else {
-        model = modelMap.get(instance.mHandle);
-        SyxAssertError(model, "Tried to add submodel that didn't exist");
-      }
-      ModelInstance newInstance(model);
+      ModelInstance newInstance(instance.mModel);
       newInstance.setSubmodelInstLocalTransform(instance.mTransform);
 
       //Accumulate aabbs of all submodel instances
@@ -527,6 +495,8 @@ namespace Syx {
 
       mInstances.push_back(newInstance);
     }
+
+    init();
   }
 
   void Model::initEnvironment() {
@@ -545,5 +515,17 @@ namespace Syx {
       mTriangles[i].w = *reinterpret_cast<float*>(&handle);
     }
     mBroadphase->buildStatic(params);
+  }
+
+  void Model::init() {
+    switch(getType()) {
+      case ModelType::Environment:
+        initEnvironment();
+        break;
+      default:
+        //Force model to be centered around its center of mass.
+        _offset(-_computeMasses(Vec3::Identity).mCenterOfMass);
+        break;
+    }
   }
 }

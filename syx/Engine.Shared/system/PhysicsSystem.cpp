@@ -27,6 +27,7 @@
 #include <SyxPhysicsSystem.h>
 #include <SyxMaterialRepository.h>
 #include <SyxModelParam.h>
+#include <SyxModel.h>
 #include <SyxSpace.h>
 #include "Util.h"
 
@@ -64,15 +65,16 @@ void PhysicsSystem::init() {
 
   AssetRepo* assets = mArgs.mSystems->getSystem<AssetRepo>();
   std::unique_ptr<PhysicsModel> mod = AssetRepo::createAsset<PhysicsModel>(AssetInfo(CUBE_MODEL_NAME));
-  mod->mSyxHandle = mSystem->getCube();
+
+  mod->mSyxHandle = mDefaultModel = std::make_shared<Syx::Model>(Syx::ModelType::Cube);
   assets->addAsset(std::move(mod));
 
   mod = AssetRepo::createAsset<PhysicsModel>(AssetInfo(SPHERE_MODEL_NAME));
-  mod->mSyxHandle = mSystem->getSphere();
+  mod->mSyxHandle = std::make_shared<Syx::Model>(Syx::ModelType::Sphere);
   assets->addAsset(std::move(mod));
 
   mod = AssetRepo::createAsset<PhysicsModel>(AssetInfo(CAPSULE_MODEL_NAME));
-  mod->mSyxHandle = mSystem->getCapsule();
+  mod->mSyxHandle = std::make_shared<Syx::Model>(Syx::ModelType::Capsule);
   assets->addAsset(std::move(mod));
 
   //Not actually a model, but all that's needed is a handle
@@ -164,7 +166,9 @@ void PhysicsSystem::_setComponentPropsEvent(const SetComponentPropsEvent& e) {
         case Util::constHash("model"): {
           if(auto modelAsset = mArgs.mSystems->getSystem<AssetRepo>()->getAsset(AssetInfo(data.mModel))) {
             if(const PhysicsModel* pmod = modelAsset->cast<PhysicsModel>()) {
-              mSystem->setObjectModel(mDefaultSpace->_getHandle(), h, pmod->getSyxHandle());
+              if(Syx::ICollider* collider = syxData.mObj->tryGetCollider()) {
+                collider->setModel(pmod->getSyxHandle());
+              }
             }
           }
           break;
@@ -270,7 +274,7 @@ void PhysicsSystem::_updateTransform(Handle handle, const Syx::Mat4& mat) {
 }
 
 Syx::Handle PhysicsSystem::_createObject(Handle gameobject, bool hasRigidbody, bool hasCollider) {
-  Syx::Handle result = mSystem->addPhysicsObject(hasRigidbody, hasCollider, mDefaultSpace->_getHandle(), *mDefaultMaterial);
+  Syx::Handle result = mSystem->addPhysicsObject(hasRigidbody, hasCollider, mDefaultSpace->_getHandle(), *mDefaultMaterial, mDefaultModel);
   SyxData d;
   d.mHandle = result;
   d.mObj = mDefaultSpace->getPhysicsObject(result);
@@ -294,20 +298,4 @@ Syx::Handle PhysicsSystem::_createObject(Handle gameobject, bool hasRigidbody, b
 }
 
 void PhysicsSystem::uninit() {
-}
-
-Handle PhysicsSystem::addModel(const Model& model, bool environment) {
-  Syx::ModelParam p;
-  p.reserve(model.mVerts.size(), model.mIndices.size());
-
-  for(const Vertex& vert : model.mVerts)
-    p.addVertex(Syx::Vec3(vert.mPos[0], vert.mPos[1], vert.mPos[2]));
-  for(size_t i : model.mIndices)
-    p.addIndex(i);
-  p.setEnvironment(environment);
-  return mSystem->addModel(p);
-}
-
-void PhysicsSystem::removeModel(Handle handle) {
-  mSystem->removeModel(handle);
 }

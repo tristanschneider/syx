@@ -12,14 +12,14 @@ namespace Syx {
     //Maybe this should be on the space. I don't really think it matters though, as it's just used as a unique identifier for contact pairs
     static HandleGenerator sHandleGen;
 
-    ModelInstance(Model* model = nullptr);
-    ModelInstance(const Model& model, const Transformer& toWorld, const Transformer& toModel);
+    ModelInstance(std::shared_ptr<const Model> model = {});
+    ModelInstance(std::shared_ptr<const Model> model, const Transformer& toWorld, const Transformer& toModel);
 
     //Returns a model instance with the concatenated transforms of parent and child, and model/material info of modelInfo
     //AABB and localtransform won't be meaningful on the returned object
     static ModelInstance combined(const ModelInstance& parent, const ModelInstance& child, const ModelInstance& modelInfo, Handle handle);
 
-    void setModel(const Model& model);
+    void setModel(std::shared_ptr<const Model> model);
     void setMaterial(const IMaterialHandle& material);
     void setLocalTransform(const Transform& transform);
 
@@ -27,7 +27,7 @@ namespace Syx {
     Handle getSubmodelInstHandle(size_t index) const;
 
     const Transform& getLocalTransform() const { return mLocalTransform; }
-    const Model& getModel(void) const { return *mModel; }
+    const Model& getModel() const;
     int getModelType(void) const;
     const Material& getMaterial(void) const { return mLocalMaterial; }
     const Transformer& getModelToWorld() const { return mModelToWorld; }
@@ -45,7 +45,7 @@ namespace Syx {
     SFloats sGetSupport(SFloats dir);
 
   private:
-    const Model* mModel = nullptr;
+    std::shared_ptr<const Model> mModel;
     //Since materials are so small, keep a local version to avoid cache misses and only use the pointer if we need to update our local version
     std::optional<MaterialHandle> mMaterialSource;
     Material mLocalMaterial;

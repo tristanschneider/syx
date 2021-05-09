@@ -6,6 +6,7 @@ namespace Syx {
   struct ISpace;
   struct IMaterialHandle;
   struct Material;
+  class Model;
   class PhysicsSystem;
   typedef size_t Handle;
   struct UpdateEvent;
@@ -39,9 +40,6 @@ public:
   void init() override;
   void queueTasks(float dt, IWorkerPool& pool, std::shared_ptr<Task> frameTask) override;
   void uninit() override;
-
-  Handle addModel(const Model& model, bool environment);
-  void removeModel(Handle handle);
 
 private:
   struct SyxData {
@@ -77,5 +75,6 @@ private:
   std::unordered_map<Syx::Handle, Handle> mFromSyx;
   std::shared_ptr<Syx::ISpace> mDefaultSpace;
   std::shared_ptr<Syx::IMaterialHandle> mDefaultMaterial;
+  std::shared_ptr<Syx::Model> mDefaultModel;
   float mTimescale;
 };

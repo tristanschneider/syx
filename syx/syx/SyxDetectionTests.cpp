@@ -8,6 +8,7 @@
 #include "SyxSpace.h"
 #include "SyxPhysicsSystem.h"
 #include "SyxMaterialRepository.h"
+#include "SyxIPhysicsObject.h"
 
 namespace Syx {
   extern bool TEST_FAILED;
@@ -293,12 +294,12 @@ namespace Syx {
     auto spacePtr = system.createSpace();
     const Handle space = spacePtr->_getHandle();
     auto mat = system.getMaterialRepository().addMaterial({});
+    auto sphere = std::make_shared<Model>(ModelType::Sphere);
 
-    Handle a = system.addPhysicsObject(true, true, space, *mat);
-    Handle b = system.addPhysicsObject(true, true, space, *mat);
-    Handle sphere = system.getSphere();
-    system.setObjectModel(space, a, sphere);
-    system.setObjectModel(space, b, sphere);
+    Handle a = system.addPhysicsObject(true, true, space, *mat, sphere);
+    Handle b = system.addPhysicsObject(true, true, space, *mat, sphere);
+    spacePtr->getPhysicsObject(a)->tryGetCollider()->setModel(sphere);
+    spacePtr->getPhysicsObject(b)->tryGetCollider()->setModel(sphere);
 
     auto s = *system._getSpace(space);
     PhysicsObject& objA = *s.mObjects.get(a);

@@ -99,7 +99,7 @@ namespace Syx {
     std::vector<SupportEdge, AlignmentAllocator<SupportEdge>> mEdges;
     std::vector<SupportPoint, AlignmentAllocator<SupportPoint>> mVerts;
     std::unique_ptr<BroadphaseContext> mBroadphaseContext;
-    Model mTempTri;
+    std::shared_ptr<Model> mTempTri;
 
     static const int sHandlerCount = ModelType::Count*ModelType::Count;
     static const int sHandlerRowCount = ModelType::Count;

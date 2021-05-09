@@ -39,19 +39,10 @@ namespace Syx {
   }
 
   void CompositeModelParam::reserve(size_t submodels, size_t instances) {
-    mSubmodels.reserve(submodels);
     mInstances.reserve(instances);
   }
 
-  Handle CompositeModelParam::addSubmodel(const ModelParam& model, bool addInstance) {
-    Handle result = mHandleGen.next();
-    mSubmodels[result] = model;
-    if(addInstance)
-      addSubmodelInstance(SubmodelInstance(result, true, Transform()));
-    return result;
-  }
-
-  void CompositeModelParam::addSubmodelInstance(const SubmodelInstance& instance) {
-    mInstances.push_back(instance);
+  void CompositeModelParam::addSubmodelInstance(SubmodelInstance instance) {
+    mInstances.emplace_back(std::move(instance));
   }
 }

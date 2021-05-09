@@ -17,7 +17,7 @@ namespace Syx {
   float Narrowphase::sepaEpsilon = SYX_EPSILON;
 
   Narrowphase::Narrowphase()
-    : mTempTri(ModelType::Triangle) {
+    : mTempTri(std::make_shared<Model>(ModelType::Triangle)) {
     _initHandlers();
   }
 
@@ -406,7 +406,7 @@ namespace Syx {
       Handle instHandle = *reinterpret_cast<const Handle*>(&a.w);
 
       tempInst.setHandle(instHandle);
-      mTempTri.setTriangle(a, tris[triIndex + 1], tris[triIndex + 2]);
+      mTempTri->setTriangle(a, tris[triIndex + 1], tris[triIndex + 2]);
       mInstA = &tempInst;
       mPrimitive.set(mInstA, mInstB, mSpace, this);
       _handlePair();
@@ -450,7 +450,7 @@ namespace Syx {
         Handle instHandle = *reinterpret_cast<const Handle*>(&a.w);
 
         tempTriInst.setHandle(instHandle);
-        mTempTri.setTriangle(a, tris[triIndex + 1], tris[triIndex + 2]);
+        mTempTri->setTriangle(a, tris[triIndex + 1], tris[triIndex + 2]);
         mInstA = &tempTriInst;
         mPrimitive.set(mInstA, mInstB, mSpace, this);
         _handlePair();

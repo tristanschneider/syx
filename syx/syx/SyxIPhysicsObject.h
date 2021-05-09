@@ -3,6 +3,7 @@
 namespace Syx {
   struct CollisionEventSubscription;
   struct IMaterialHandle;
+  class Model;
   class PhysicsObject;
   class Space;
   struct Transform;
@@ -11,6 +12,7 @@ namespace Syx {
     virtual ~ICollider() = default;
 
     virtual void setMaterial(const IMaterialHandle& handle) = 0;
+    virtual void setModel(std::shared_ptr<const Model> model) = 0;
   };
 
   struct IRigidbody {

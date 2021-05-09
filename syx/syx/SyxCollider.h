@@ -33,7 +33,8 @@ namespace Syx {
 
     void updateModelInst(const Transform& parentTransform);
 
-    void setModel(const Model& model);
+    void setModel(std::shared_ptr<const Model> model);
+    void setModel(std::shared_ptr<const Model> model, Space& space);
     void setMaterial(const IMaterialHandle& material);
 
     int getModelType();

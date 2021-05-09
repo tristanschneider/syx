@@ -1,7 +1,7 @@
 #pragma once
-#include "SyxModelParam.h"
-#include "SyxModelInstance.h"
 #include "SyxAABBTree.h"
+#include "SyxModelInstance.h"
+#include "SyxModelParam.h"
 
 namespace Syx {
   class Broadphase;
@@ -26,7 +26,7 @@ namespace Syx {
   };
 
   struct MassInfo {
-    float mMass;
+    float mMass = 0.f;
     Vec3 mInertia;
     Vec3 mCenterOfMass;
   };
@@ -34,30 +34,21 @@ namespace Syx {
   class Model {
   public:
     friend class PhysicsSystem;
-    DeclareHandleMapNode(Model);
 
     static const Model NONE;
 
-    Model() {}
     ~Model();
-    Model(int type, const Vec3Vec& points, const Vec3Vec& triangles, std::unique_ptr<Broadphase> broadphase, const AABB& aabb);
-    Model(const Vec3Vec& points, const Vec3Vec& triangles, bool environment);
+    Model(int type, Vec3Vec points, Vec3Vec triangles, std::unique_ptr<Broadphase> broadphase, const AABB& aabb);
+    Model(Vec3Vec points, Vec3Vec triangles, bool environment);
     Model(int type);
-    Model(Handle handle): mType(ModelType::Mesh), mHandle(handle) {}
 
-    Model(const Model& rhs);
-    Model& operator=(const Model& rhs);
-
-    //Links pointers to local objects, so this needs to be at its final location
-    void initComposite(const CompositeModelParam& param, const HandleMap<Model>& modelMap);
+    //TODO: harden this so that the caller can't forget to initialize
+    void initComposite(const CompositeModelParam& param);
     void initEnvironment();
+    void init();
 
     void draw(const Transformer& toWorld) const;
 
-    bool operator<(Handle handle) { return mHandle < handle; }
-    bool operator==(Handle handle) { return mHandle == handle; }
-
-    Handle getHandle(void) { return mHandle; }
     int getType(void) const { return mType; }
     const std::vector<ModelInstance, AlignmentAllocator<ModelInstance>>& getSubmodelInstances() const { return mInstances; }
     const Broadphase& getBroadphase() const { return *mBroadphase; }
@@ -118,11 +109,9 @@ namespace Syx {
     Vec3Vec mTriangles;
     AABB mAABB;
     int mType = ModelType::Invalid;
-    Handle mHandle = 0;
 
     //Only for composite models
     std::vector<ModelInstance, AlignmentAllocator<ModelInstance>> mInstances;
-    std::vector<Model, AlignmentAllocator<Model>> mSubmodels;
     //Composite and environment
     std::unique_ptr<Broadphase> mBroadphase;
   };

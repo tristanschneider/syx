@@ -28,8 +28,18 @@ namespace Syx {
     return mOwner;
   }
 
-  void Collider::setModel(const Model& model) {
-    mModelInst.setModel(model);
+  void Collider::setModel(std::shared_ptr<const Model> model) {
+    mModelInst.setModel(std::move(model));
+  }
+
+  void Collider::setModel(std::shared_ptr<const Model> model, Space& space) {
+    setModel(std::move(model));
+    if(PhysicsObject* owner = getOwner()) {
+      space.updateMovedObject(*owner);
+      if(Rigidbody* rigidbody = owner->getRigidbody()) {
+        rigidbody->calculateMass();
+      }
+    }
   }
 
   void Collider::setMaterial(const IMaterialHandle& material) {

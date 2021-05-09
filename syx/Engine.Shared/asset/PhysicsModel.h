@@ -3,6 +3,7 @@
 
 namespace Syx {
   struct IMaterialHandle;
+  class Model;
 };
 
 class PhysicsSystem;
@@ -25,8 +26,10 @@ public:
   friend class PhysicsSystem;
   using Asset::Asset;
 
-  Handle getSyxHandle() const;
+  std::shared_ptr<const Syx::Model> getSyxHandle() const {
+    return mSyxHandle;
+  }
 
 private:
-  Handle mSyxHandle;
+  std::shared_ptr<const Syx::Model> mSyxHandle;
 };

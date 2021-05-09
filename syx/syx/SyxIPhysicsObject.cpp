@@ -7,16 +7,22 @@
 
 namespace Syx {
   struct ColliderWrapper : public ICollider {
-    ColliderWrapper(Collider& obj)
-      : mObj(&obj) {
+    ColliderWrapper(Collider& obj, Space& space)
+      : mObj(&obj)
+      , mSpace(&space) {
     }
 
     virtual void setMaterial(const IMaterialHandle& handle) override {
       mObj->setMaterial(handle);
     }
 
+    virtual void setModel(std::shared_ptr<const Model> model) override {
+      mObj->setModel(std::move(model), *mSpace);
+    }
+
   private:
     Collider* mObj = nullptr;
+    Space* mSpace = nullptr;
   };
 
   struct RigidbodyWrapper : public IRigidbody {
@@ -109,7 +115,7 @@ namespace Syx {
 
     void _updateColliderStorage() {
       Collider* collider = mObj.getCollider();
-      mColliderStorage = collider ? std::make_optional(ColliderWrapper(*collider)) : std::nullopt;
+      mColliderStorage = collider ? std::make_optional(ColliderWrapper(*collider, mSpace)) : std::nullopt;
     }
 
     void _updateRigidbodyStorage() {
