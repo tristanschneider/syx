@@ -62,8 +62,8 @@ namespace Syx {
 
   void WeldConstraint::lockRelativeTransform() {
     //Store local translation and orientation differences in local space so we can transform to world to check error
-    LocalObject a(*mA);
-    LocalObject b(*mB);
+    LocalObject a(*getObjA());
+    LocalObject b(*getObjB());
 
     //Use center of mass as the pivot point, as this most accurately simulates a composite object like this
     Vec3 com;

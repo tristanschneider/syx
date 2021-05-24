@@ -278,8 +278,8 @@ namespace Syx {
   void Narrowphase::processPairQuery(const std::vector<std::pair<ResultNode, ResultNode>>& pairs, Space& space) {
     mSpace = &space;
     for(auto& pair : pairs) {
-      mA = reinterpret_cast<PhysicsObject*>(pair.first.mUserdata);
-      mB = reinterpret_cast<PhysicsObject*>(pair.second.mUserdata);
+      mA = PhysicsObject::_fromUserdata(pair.first.mUserdata);
+      mB = PhysicsObject::_fromUserdata(pair.second.mUserdata);
       //Eventually broadphase shouldn't even return these in the query
       if(mA->getAsleep() && mB->getAsleep())
         continue;

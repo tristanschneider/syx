@@ -5,16 +5,35 @@
 #include "SyxModel.h"
 
 namespace Syx {
-  PhysicsObject::PhysicsObject()
-    : PhysicsObject(0) {
-  }
-
-  PhysicsObject::PhysicsObject(Handle myHandle)
-    : mRigidbody(this)
+  PhysicsObject::PhysicsObject(Handle myHandle, HandleT handle)
+    : EnableDeferredDeletion(std::move(handle))
+    , mRigidbody(this)
     , mCollider(this)
     , mFlags(0)
-    , mMyHandle(myHandle)
-    , mExistenceTracker(std::make_shared<bool>()) {
+    , mMyHandle(myHandle) {
+  }
+
+  PhysicsObject::PhysicsObject(PhysicsObject&& rhs)
+    : EnableDeferredDeletion(rhs)
+    , mRigidbody(rhs.mRigidbody, this)
+    , mCollider(rhs.mCollider, this)
+    , mTransform(rhs.mTransform)
+    , mFlags(rhs.mFlags)
+    , mMyHandle(rhs.mMyHandle)
+    , mConstraints(std::move(rhs.mConstraints))
+    , mCollisionEventToken(std::move(rhs.mCollisionEventToken)) {
+  }
+
+  PhysicsObject& PhysicsObject::operator=(PhysicsObject&& rhs) {
+    mRigidbody._reassign(rhs.mRigidbody, this);
+    mCollider._reassign(rhs.mCollider, this);
+    mTransform = rhs.mTransform;
+    mFlags = rhs.mFlags;
+    mMyHandle = rhs.mMyHandle;
+    mConstraints = std::move(rhs.mConstraints);
+    mCollisionEventToken = std::move(rhs.mCollisionEventToken);
+    EnableDeferredDeletion::operator=(std::move(rhs));
+    return *this;
   }
 
   void PhysicsObject::setRigidbodyEnabled(bool enabled) {
@@ -118,10 +137,6 @@ namespace Syx {
   bool PhysicsObject::shouldIntegrate() {
     Rigidbody* rb = getRigidbody();
     return !getAsleep() && rb && rb->mInvMass > 0.0f;
-  }
-
-  std::weak_ptr<bool> PhysicsObject::getExistenceTracker() {
-    return mExistenceTracker;
   }
 
   std::shared_ptr<CollisionEventSubscription> PhysicsObject::addCollisionEventSubscription() {

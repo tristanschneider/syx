@@ -69,34 +69,33 @@ namespace Syx {
   };
 
   struct PhysicsObjectReference : public IPhysicsObject {
-    PhysicsObjectReference(PhysicsObject& obj, std::weak_ptr<bool> existenceTracker, Space& space)
-      : mObj(obj)
-      , mExistence(std::move(existenceTracker))
+    PhysicsObjectReference(PhysicsObjectInternalHandle handle, Space& space)
+      : mHandle(std::move(handle))
       , mSpace(space) {
     }
 
     bool isValid() const override {
-      return !mExistence.expired();
+      return mHandle;
     }
 
     Handle getHandle() const override {
-      return mObj.getHandle();
+      return mHandle->getHandle();
     }
 
     const Transform& getTransform() const override {
-      return mObj.getTransform();
+      return mHandle->getTransform();
     }
 
     void setTransform(const Transform& transform) override {
-      mObj.setTransform(transform);
+      mHandle->setTransform(transform);
     }
 
     void setRigidbodyEnabled(bool enabled) override {
-      mObj.setRigidbodyEnabled(enabled);
+      mHandle->setRigidbodyEnabled(enabled);
     }
 
     void setColliderEnabled(bool enabled) override {
-      mObj.setColliderEnabled(enabled);
+      mHandle->setColliderEnabled(enabled);
     }
 
     ICollider* tryGetCollider() override {
@@ -110,27 +109,26 @@ namespace Syx {
     }
 
     std::shared_ptr<CollisionEventSubscription> addCollisionEventSubscription() override {
-      return mObj.addCollisionEventSubscription();
+      return mHandle->addCollisionEventSubscription();
     }
 
     void _updateColliderStorage() {
-      Collider* collider = mObj.getCollider();
+      Collider* collider = mHandle->getCollider();
       mColliderStorage = collider ? std::make_optional(ColliderWrapper(*collider, mSpace)) : std::nullopt;
     }
 
     void _updateRigidbodyStorage() {
-      Rigidbody* rigidbody = mObj.getRigidbody();
+      Rigidbody* rigidbody = mHandle->getRigidbody();
       mRigidbodyStorage = rigidbody ? std::make_optional(RigidbodyWrapper(*rigidbody, mSpace)) : std::nullopt;
     }
 
-    PhysicsObject& mObj;
-    std::weak_ptr<bool> mExistence;
+    PhysicsObjectInternalHandle mHandle;
     std::optional<ColliderWrapper> mColliderStorage;
     std::optional<RigidbodyWrapper> mRigidbodyStorage;
     Space& mSpace;
   };
 
-  std::shared_ptr<IPhysicsObject> createPhysicsObjectRef(PhysicsObject& obj, std::weak_ptr<bool> existenceTracker, Space& space) {
-    return std::make_shared<PhysicsObjectReference>(obj, existenceTracker, space);
+  std::shared_ptr<IPhysicsObject> createPhysicsObjectRef(PhysicsObjectInternalHandle handle, Space& space) {
+    return std::make_shared<PhysicsObjectReference>(std::move(handle), space);
   }
 }

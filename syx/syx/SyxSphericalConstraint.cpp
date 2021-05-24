@@ -21,7 +21,7 @@ namespace Syx {
     void SphericalConstraint::setSwingFrame(const Quat& aFrame) {
       mRefA = aFrame;
       //Transform reference A to world then into local b
-      mRefB = mB->getTransform().mRot.inversed() * mA->getTransform().mRot * mRefA;
+      mRefB = getObjB()->getTransform().mRot.inversed() * getObjA()->getTransform().mRot * mRefA;
     }
 
     void SphericalConstraint::getAngularReferences(Quat& ra, Quat& rb) const {

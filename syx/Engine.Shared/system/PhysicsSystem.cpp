@@ -206,7 +206,8 @@ void PhysicsSystem::_removeComponentEvent(const RemoveComponentEvent& e) {
   if(e.mCompType == Component::typeId<Physics>()) {
     const auto& it = mToSyx.find(e.mObj);
     if(it != mToSyx.end()) {
-      mSystem->removePhysicsObject(mDefaultSpace->_getHandle(), it->second.mHandle);
+      mFromSyx.erase(it->second.mHandle);
+      mToSyx.erase(it);
     }
   }
 }
@@ -274,12 +275,11 @@ void PhysicsSystem::_updateTransform(Handle handle, const Syx::Mat4& mat) {
 }
 
 Syx::Handle PhysicsSystem::_createObject(Handle gameobject, bool hasRigidbody, bool hasCollider) {
-  Syx::Handle result = mSystem->addPhysicsObject(hasRigidbody, hasCollider, mDefaultSpace->_getHandle(), *mDefaultMaterial, mDefaultModel);
   SyxData d;
-  d.mHandle = result;
-  d.mObj = mDefaultSpace->getPhysicsObject(result);
+  d.mObj = mDefaultSpace->addPhysicsObject(hasRigidbody, hasCollider, *mDefaultMaterial, mDefaultModel);
+  d.mHandle = d.mObj->getHandle();
   mToSyx[gameobject] = d;
-  mFromSyx[result] = gameobject;
+  mFromSyx[d.mHandle] = gameobject;
 
   //Now that we care about this object, request transform data for it
   ComponentDataRequest req(gameobject, Transform::singleton().getFullType());
@@ -294,7 +294,7 @@ Syx::Handle PhysicsSystem::_createObject(Handle gameobject, bool hasRigidbody, b
   });
   getMessageQueueProvider().getMessageQueue()->push(std::move(req));
 
-  return result;
+  return d.mHandle;
 }
 
 void PhysicsSystem::uninit() {

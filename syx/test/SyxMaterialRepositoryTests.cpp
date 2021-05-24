@@ -40,7 +40,7 @@ namespace SyxTests {
       auto mat = system.mRepository->addMaterial({});
       auto mod = std::make_shared<Syx::Model>(Syx::ModelType::Cube);
       auto space = system.mSystem->createSpace();
-      system.mSystem->addPhysicsObject(false, true, space->_getHandle(), *mat, mod);
+      auto obj = space->addPhysicsObject(false, true, *mat, mod);
 
       mat.reset();
       Assert::AreEqual(system.mRepository->garbageCollect(), size_t(0), L"Material should still be alive because a physics object is using it", LINE_INFO());
@@ -51,11 +51,12 @@ namespace SyxTests {
       auto mat = system.mRepository->addMaterial({});
       auto mod = std::make_shared<Syx::Model>(Syx::ModelType::Cube);
       auto space = system.mSystem->createSpace();
-      auto obj = system.mSystem->addPhysicsObject(false, true, space->_getHandle(), *mat, mod);
+      space->addPhysicsObject(false, true, *mat, mod);
 
-      system.mSystem->removePhysicsObject(space->_getHandle(), obj);
       mat.reset();
 
+      //Garbage collect physics object
+      space->garbageCollect();
       Assert::AreEqual(system.mRepository->garbageCollect(), size_t(1), L"Material should be deleted because it has no handle and is not in use by physics objects", LINE_INFO());
     }
 

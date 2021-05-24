@@ -531,7 +531,7 @@ namespace LuaTests {
       }
 
       static std::unique_ptr<Node> getNode() {
-        const OwnedNodeObject obj;
+        const OwnedNodeObject obj{};
         auto root = std::make_unique<OwnerRootNode<OwnedNodeObject>>(Lua::NodeOps("root"));
         auto& strPtr = makeNode<UniquePtrNode<std::string>>(Lua::NodeOps(*root, "mStr", Util::offsetOf(obj, obj.mStr)));
         makeNode<StringNode>(Lua::NodeOps(strPtr, "value", 0));

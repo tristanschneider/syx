@@ -11,6 +11,10 @@ namespace Syx {
   }
 #endif
 
+  Rigidbody::Rigidbody(const Rigidbody& rb, PhysicsObject* owner) {
+    _reassign(rb, owner);
+  }
+
   void Rigidbody::updateInertia(void) {
     Mat3 rot = mOwner->getTransform().mRot.toMatrix();
     mInvInertia = rot.scaled(mLocalInertia) * rot.transposed();
@@ -94,5 +98,13 @@ namespace Syx {
 
   const Vec3& Rigidbody::getCenterOfMass() const {
     return mOwner->getTransform().mPos;
+  }
+
+  void Rigidbody::_reassign(const Rigidbody& rb, PhysicsObject* newOwner) {
+    mLocalInertia = rb.mLocalInertia;
+    mInvInertia = rb.mInvInertia;
+    mInvMass = rb.mInvMass;
+    mFlags = rb.mFlags;
+    mOwner = newOwner;
   }
 }

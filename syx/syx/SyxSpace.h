@@ -1,4 +1,5 @@
 #pragma once
+#include "SyxAlignmentAllocator.h"
 #include "SyxPhysicsObject.h"
 #include "SyxConstraintSystem.h"
 #include "SyxNarrowphase.h"
@@ -25,8 +26,8 @@ namespace Syx {
     virtual void clear() = 0;
     //TODO: this should be removed once all necessary operations are possible through ISpace
     virtual Handle _getHandle() const = 0;
-    virtual std::shared_ptr<IPhysicsObject> createPhysicsObject() = 0;
-    virtual std::shared_ptr<IPhysicsObject> getPhysicsObject(Handle object) = 0;
+    virtual std::shared_ptr<IPhysicsObject> addPhysicsObject(bool hasRigidbody, bool hasCollider, const IMaterialHandle& material, std::shared_ptr<const Model> model) = 0;
+    virtual void garbageCollect() = 0;
   };
 
   class Space : public ISpace {
@@ -48,8 +49,6 @@ namespace Syx {
     Handle getHandle() const { return mMyHandle; }
     Handle _getHandle() const override { return getHandle(); }
 
-    PhysicsObject* createObject(void);
-    void destroyObject(Handle handle);
     PhysicsObject* getObject(Handle handle);
 
     const std::string& getProfileReport(const std::string& indent) { return mProfiler.getReport(indent); }
@@ -57,7 +56,8 @@ namespace Syx {
 
     CastResult lineCastAll(const Vec3& start, const Vec3& end);
 
-    std::shared_ptr<IPhysicsObject> getPhysicsObject(Handle object) override;
+    std::shared_ptr<IPhysicsObject> addPhysicsObject(bool hasRigidbody, bool hasCollider, const IMaterialHandle& material, std::shared_ptr<const Model> model) override;
+
     void clear(void) override;
     void update(float dt);
 
@@ -76,10 +76,13 @@ namespace Syx {
     void removeConstraint(Handle handle);
 
     const EventListener<UpdateEvent>& getUpdateEvents() const override;
-    std::shared_ptr<IPhysicsObject> createPhysicsObject() override;
+
+    void garbageCollect() override;
 
   private:
+    void _destroyObject(PhysicsObject& obj);
     bool _fillOps(ConstraintOptions& ops);
+    void _garbageCollect();
 
     void _integrateVelocity(float dt);
     void _integratePosition(float dt);
@@ -94,7 +97,7 @@ namespace Syx {
 
     void _fireUpdateEvent(PhysicsObject& obj);
 
-    HandleMap<PhysicsObject> mObjects;
+    std::vector<PhysicsObject, AlignmentAllocator<PhysicsObject>> mObjects;
     Handle mMyHandle;
     std::unique_ptr<Broadphase> mBroadphase;
     std::unique_ptr<BroadphaseContext> mBroadphaseContext;

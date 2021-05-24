@@ -1,4 +1,5 @@
 #pragma once
+#include "SyxResourceHandle.h"
 
 namespace Syx {
   class PhysicsObject;
@@ -71,25 +72,15 @@ namespace Syx {
 
   class Constraint {
   public:
+    using PhysicsObjectHandle = WeakDeferredDeleteResourceHandle<PhysicsObject>;
 
     // Updated by solve loop and static for easy access wherever it's needed
     static float sDT;
 
-    Constraint(ConstraintType type, PhysicsObject* a = nullptr, PhysicsObject* b = nullptr, Handle handle = SyxInvalidHandle)
-      : mA(a)
-      , mB(b)
-      , mShouldRemove(false)
-      , mHandle(handle)
-      , mType(type)
-      , mBlacklistCollision(true) {
-    }
+    Constraint(ConstraintType type, PhysicsObject* a = nullptr, PhysicsObject* b = nullptr, Handle handle = SyxInvalidHandle);
 
-    PhysicsObject* getObjA() {
-      return mA;
-    }
-    PhysicsObject* getObjB() {
-      return mB;
-    }
+    PhysicsObject* getObjA();
+    PhysicsObject* getObjB();
     PhysicsObject* getObj(ConstraintObj obj) {
       return obj == ConstraintObj::A ? getObjA() : getObjB();
     }
@@ -115,8 +106,8 @@ namespace Syx {
 
   protected:
     //These are objects instead of rigidbodies to support rigidbodyless colliders to act as infinite mass
-    PhysicsObject* mA;
-    PhysicsObject* mB;
+    WeakDeferredDeleteResourceHandle<PhysicsObject> mA;
+    WeakDeferredDeleteResourceHandle<PhysicsObject> mB;
     bool mShouldRemove;
   private:
     Handle mHandle;

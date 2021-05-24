@@ -46,14 +46,6 @@ namespace Syx {
       _aligned_free(p);
     }
 
-    inline void construct(pointer p, const value_type& wert) {
-      new (p) value_type(wert);
-    }
-
-    inline void destroy(pointer p) {
-      p->~value_type();
-    }
-
     inline size_type max_size() const throw () {
       return size_type(-1) / sizeof(value_type);
     }

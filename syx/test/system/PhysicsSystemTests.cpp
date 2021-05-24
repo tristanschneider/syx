@@ -103,7 +103,7 @@ namespace SystemTests {
 
     const Command& getLastCommandOfType(Command::Type type) {
       auto it = std::find_if(mCommands.rbegin(), mCommands.rend(), [type](const auto& c) { return c.mType == type; });
-      static const Command dummy;
+      static const Command dummy{};
       return it != mCommands.rend() ? *it : dummy;
     }
 

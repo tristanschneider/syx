@@ -5,6 +5,9 @@
 #include "SyxIPhysicsObject.h"
 
 namespace Syx {
+  //Temporary until handle access is removed in favor of using IPhysicsObject directly
+  HandleGenerator HANDLE_GEN;
+
   Space::Space(Handle handle)
     : mMyHandle(handle)
     , mBroadphase(Create::aabbTree())
@@ -29,7 +32,8 @@ namespace Syx {
     mConstraintSystem = rhs.mConstraintSystem;
     mMyHandle = rhs.mMyHandle;
     mNarrowphase = rhs.mNarrowphase;
-    mObjects = rhs.mObjects;
+    //TODO: either implement or delete assignment
+    //mObjects = rhs.mObjects;
     mProfiler = rhs.mProfiler;
     mConstraintSystem.setIslandGraph(mIslandGraph);
     mBroadphase = Create::aabbTree();
@@ -38,24 +42,21 @@ namespace Syx {
     return *this;
   }
 
-  PhysicsObject* Space::createObject(void) {
-    return mObjects.add();
-  }
-
-  void Space::destroyObject(Handle handle) {
-    if(PhysicsObject* obj = mObjects.get(handle)) {
-      mIslandGraph.remove(*obj, [this](Constraint& c) {
-        mConstraintSystem.removeConstraint(c);
-      });
-      if(Collider* c = obj->getCollider()) {
-        c->uninitialize(*this);
-      }
+  void Space::_destroyObject(PhysicsObject& obj) {
+    mIslandGraph.remove(obj, [this](Constraint& c) {
+      mConstraintSystem.removeConstraint(c);
+    });
+    //TODO: sketchy, should be part of destructor or otherwise properly scoped
+    if(Collider* c = obj.getCollider()) {
+      c->uninitialize(*this);
     }
-    mObjects.remove(handle);
   }
 
   PhysicsObject* Space::getObject(Handle handle) {
-    return mObjects.get(handle);
+    auto it = std::find_if(mObjects.begin(), mObjects.end(), [handle](const PhysicsObject& obj) {
+      return obj.getHandle() == handle;
+    });
+    return it != mObjects.end() ? &*it : nullptr;
   }
 
   void Space::clear(void) {
@@ -65,9 +66,27 @@ namespace Syx {
     mIslandGraph.clear();
   }
 
+  void Space::_garbageCollect() {
+    AutoProfileBlock block(mProfiler, "GC");
+    for(size_t i = 0; i < mObjects.size(); ++i) {
+      if(PhysicsObject& curObj = mObjects[i]; curObj.isMarkedForDeletion()) {
+        _destroyObject(curObj);
+        //Swap remove
+        if(mObjects.size() > 1 && i + 1 != mObjects.size()) {
+           curObj = std::move(mObjects.back());
+        }
+        mObjects.pop_back();
+      }
+      else {
+        ++i;
+      }
+    }
+  }
+
   void Space::update(float dt) {
     AutoProfileBlock block(mProfiler, "Update Space");
 
+    _garbageCollect();
     _integrateVelocity(dt);
     if((Interface::getOptions().mDebugFlags & SyxOptions::DisableCollision) == 0)
       _collisionDetection();
@@ -208,7 +227,7 @@ namespace Syx {
     mCasterContext.clearResults();
 
     for(const ResultNode& obj : mBroadphaseContext->get()) {
-      PhysicsObject* pObj = reinterpret_cast<PhysicsObject*>(obj.mUserdata);
+      PhysicsObject* pObj = PhysicsObject::_fromUserdata(obj.mUserdata);
       mCaster.lineCast(*pObj, start, end, mCasterContext);
     }
 
@@ -250,8 +269,8 @@ namespace Syx {
   }
 
   Handle Space::addSphericalConstraint(SphericalOps& ops) {
-    ops.mObjA = mObjects.get(ops.mA);
-    ops.mObjB = mObjects.get(ops.mB);
+    ops.mObjA = getObject(ops.mA);
+    ops.mObjB = getObject(ops.mB);
     if(!ops.mObjA || !ops.mObjB)
       return false;
     if(ops.mWorldAnchors) {
@@ -270,8 +289,8 @@ namespace Syx {
   }
 
   Handle Space::addRevoluteConstraint(RevoluteOps& ops) {
-    ops.mObjA = mObjects.get(ops.mA);
-    ops.mObjB = mObjects.get(ops.mB);
+    ops.mObjA = getObject(ops.mA);
+    ops.mObjB = getObject(ops.mB);
     if(!ops.mObjA || !ops.mObjB)
       return false;
     if(ops.mWorldAnchors) {
@@ -293,14 +312,13 @@ namespace Syx {
     return mUpdateEvents;
   }
 
-  std::shared_ptr<IPhysicsObject> Space::createPhysicsObject() {
-    //TODO: implement
-    return nullptr;
+  void Space::garbageCollect() {
+    _garbageCollect();
   }
 
   bool Space::_fillOps(ConstraintOptions& ops) {
-    ops.mObjA = mObjects.get(ops.mA);
-    ops.mObjB = mObjects.get(ops.mB);
+    ops.mObjA = getObject(ops.mA);
+    ops.mObjB = getObject(ops.mB);
     if(!ops.mObjA || !ops.mObjB)
       return false;
     if(ops.mWorldAnchors) {
@@ -385,9 +403,29 @@ namespace Syx {
     mUpdateEvents.mEvents.push_back(e);
   }
 
-  std::shared_ptr<IPhysicsObject> Space::getPhysicsObject(Handle object) {
-    PhysicsObject* obj = getObject(object);
-    return obj ? createPhysicsObjectRef(*obj, obj->getExistenceTracker(), *this) : nullptr;
+  std::shared_ptr<IPhysicsObject> Space::addPhysicsObject(bool hasRigidbody, bool hasCollider, const IMaterialHandle& material, std::shared_ptr<const Model> model) {
+    DeferredDeleteResourceHandle<PhysicsObject> handle;
+    mObjects.emplace_back(HANDLE_GEN.next(), handle);
+    PhysicsObject& newObj = mObjects.back();
+
+    //Enable so we can set defaults
+    newObj.setColliderEnabled(true);
+    newObj.getCollider()->setMaterial(material);
+    newObj.getCollider()->setModel(std::move(model));
+    newObj.updateModelInst();
+    newObj.setColliderEnabled(hasCollider);
+    if(hasCollider)
+      newObj.getCollider()->initialize(*this);
+
+    setRigidbodyEnabled(newObj, hasRigidbody);
+
+    newObj.updateModelInst();
+
+    if(hasRigidbody) {
+      newObj.getRigidbody()->calculateMass();
+    }
+
+    return createPhysicsObjectRef(handle, *this);
   }
 
 #else

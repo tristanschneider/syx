@@ -5,6 +5,7 @@ namespace Syx {
   struct IMaterialHandle;
   class Model;
   class PhysicsObject;
+  struct PhysicsObjectInternalHandle;
   class Space;
   struct Transform;
 
@@ -49,6 +50,5 @@ namespace Syx {
     virtual std::shared_ptr<CollisionEventSubscription> addCollisionEventSubscription() = 0;
   };
 
-  //Existence tracker will do for now. Better would be an invalidation mechanism
-  std::shared_ptr<IPhysicsObject> createPhysicsObjectRef(PhysicsObject& obj, std::weak_ptr<bool> existenceTracker, Space& space);
+  std::shared_ptr<IPhysicsObject> createPhysicsObjectRef(PhysicsObjectInternalHandle handle, Space& space);
 }

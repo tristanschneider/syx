@@ -23,8 +23,7 @@ namespace Syx {
     friend class Space;
 
     Rigidbody(PhysicsObject* owner = nullptr): mOwner(owner), mFlags(0), mLinVel(Vec3::Zero), mAngVel(Vec3::Zero) {}
-    // Don't copy because of owner*
-    Rigidbody(const Rigidbody&) = delete;
+    Rigidbody(const Rigidbody& rb, PhysicsObject* owner);
     Rigidbody& operator=(const Rigidbody&) = delete;
 
     void sCalculateMass(void);
@@ -56,11 +55,13 @@ namespace Syx {
     const Vec3& getCenterOfMass() const;
 
   private:
+    void _reassign(const Rigidbody& rb, PhysicsObject* newOwner);
+
     SAlign Vec3 mLocalInertia;
     SAlign Mat3 mInvInertia;
     float mInvMass = 1.f;
     int mFlags = 0;
 
-    PhysicsObject* mOwner;
+    PhysicsObject* mOwner = nullptr;
   };
 }

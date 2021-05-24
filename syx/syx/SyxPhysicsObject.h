@@ -2,6 +2,7 @@
 #include "SyxTransform.h"
 #include "SyxRigidbody.h"
 #include "SyxCollider.h"
+#include "SyxResourceHandle.h"
 
 namespace Syx {
   enum class PhysicsObjectFlags : uint8_t {
@@ -12,23 +13,25 @@ namespace Syx {
 
   struct CollisionEventSubscription;
 
-  SAlign class PhysicsObject {
+  SAlign class PhysicsObject : public EnableDeferredDeletion<PhysicsObject> {
   public:
-    DeclareHandleMapNode(PhysicsObject);
+    using HandleT = DeferredDeleteResourceHandle<PhysicsObject>;
 
-    PhysicsObject();
-    PhysicsObject(Handle myHandle);
-    PhysicsObject(const PhysicsObject& obj) { *this = obj; }
+    PhysicsObject(Handle myHandle, HandleT handle);
+    PhysicsObject(PhysicsObject&& rhs);
+
+    PhysicsObject& operator=(PhysicsObject&& rhs);
 
     bool operator<(Handle rhs) { return mMyHandle < rhs; }
     bool operator==(Handle rhs) { return mMyHandle == rhs; }
     PhysicsObject& operator=(const PhysicsObject& rhs);
-    Handle getHandle() { return mMyHandle; }
+    Handle getHandle() const { return mMyHandle; }
 
     //Always use these so the location of them can easily be swapped out for cache coherency where it's needed
     Collider* getCollider() { return mCollider.getFlag(ColliderFlags::Disabled) ? nullptr : &mCollider; }
     Rigidbody* getRigidbody() { return mRigidbody.getFlag(RigidbodyFlags::Disabled) ? nullptr : &mRigidbody; }
     Transform& getTransform() { return mTransform; }
+    const Transform& getTransform() const { return mTransform; }
 
     void setTransform(const Transform& transform);
 
@@ -54,8 +57,6 @@ namespace Syx {
 
     bool shouldIntegrate();
 
-    std::weak_ptr<bool> getExistenceTracker();
-
     std::shared_ptr<CollisionEventSubscription> addCollisionEventSubscription();
     bool emitsCollisionEvents() const;
 
@@ -66,8 +67,18 @@ namespace Syx {
     std::bitset<static_cast<size_t>(PhysicsObjectFlags::Count)> mFlags;
     Handle mMyHandle;
     std::unordered_set<Handle> mConstraints;
-    std::shared_ptr<bool> mExistenceTracker;
     //As long as someone is holding on to one of these the object will emit collision events
     std::weak_ptr<CollisionEventSubscription> mCollisionEventToken;
+  };
+  //constexpr size_t asdf = sizeof(PhysicsObject);
+  struct PhysicsObjectInternalHandle : public DeferredDeleteResourceHandle<PhysicsObject> {
+    using DeferredDeleteResourceHandle::DeferredDeleteResourceHandle;
+    PhysicsObjectInternalHandle(DeferredDeleteResourceHandle<PhysicsObject> obj)
+      : DeferredDeleteResourceHandle(std::move(obj)) {
+    }
+    const PhysicsObject* operator->() const { return &_get(); }
+    PhysicsObject* operator->() { return &_get(); }
+    PhysicsObject& operator*() { return _get(); }
+    const PhysicsObject& operator*() const { return _get(); }
   };
 }

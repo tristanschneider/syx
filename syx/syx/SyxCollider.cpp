@@ -7,6 +7,10 @@ namespace Syx {
   Collider::Collider(PhysicsObject* owner): mOwner(owner), mFlags(0), mBroadHandle(SyxInvalidHandle) {
   }
 
+  Collider::Collider(const Collider& collider, PhysicsObject* owner) {
+    _reassign(collider, owner);
+  }
+
   void Collider::setFlag(int flag, bool value) {
     setBits(mFlags, flag, value);
   }
@@ -54,7 +58,7 @@ namespace Syx {
   }
 
   void Collider::initialize(Space& space) {
-    mBroadHandle = space.mBroadphase->insert(BoundingVolume(getAABB()), reinterpret_cast<void*>(mOwner));
+    mBroadHandle = space.mBroadphase->insert(BoundingVolume(getAABB()), mOwner->_toUserdata());
   }
 
   void Collider::uninitialize(Space& space) {
@@ -69,4 +73,11 @@ namespace Syx {
 #else
 
 #endif
+
+  void Collider::_reassign(const Collider& collider, PhysicsObject* newOwner) {
+    mBroadHandle = collider.mBroadHandle;
+    mModelInst = collider.mModelInst;
+    mOwner = newOwner;
+  }
+
 }

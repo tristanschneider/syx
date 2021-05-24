@@ -26,7 +26,7 @@ namespace Syx {
     freeAxis.getBasis(mBasisA[0], mBasisA[1]);
 
     // Transform from local a to world to local b
-    Mat3 rb = mB->getTransform().mRot.inversed().toMatrix() * mA->getTransform().mRot.toMatrix();
+    Mat3 rb = getObjB()->getTransform().mRot.inversed().toMatrix() * getObjA()->getTransform().mRot.toMatrix();
     for(int i = 0; i < 2; ++i)
       mBasisB[i] = rb * mBasisA[i];
   }

@@ -38,9 +38,6 @@ namespace Syx {
 
     std::shared_ptr<ISpace> createSpace();
 
-    Handle addPhysicsObject(bool hasRigidbody, bool hasCollider, Handle space, const IMaterialHandle& material, std::shared_ptr<const Model> model);
-    void removePhysicsObject(Handle space, Handle object);
-
     void setHasRigidbody(bool has, Handle space, Handle object);
     void setHasCollider(bool has, Handle space, Handle object);
     bool getHasRigidbody(Handle space, Handle object);

@@ -109,42 +109,6 @@ namespace Syx {
     return result;
   }
 
-  Handle PhysicsSystem::addPhysicsObject(bool hasRigidbody, bool hasCollider, Handle space, const IMaterialHandle& material, std::shared_ptr<const Model> model) {
-    auto pSpace = _getSpace(space);
-    if(!pSpace)
-      return SyxInvalidHandle;
-
-    PhysicsObject* newObj = pSpace->createObject();
-
-    //Enable so we can set defaults
-    newObj->setColliderEnabled(true);
-    newObj->getCollider()->setMaterial(material);
-    newObj->getCollider()->setModel(std::move(model));
-    newObj->updateModelInst();
-    newObj->setColliderEnabled(hasCollider);
-    if(hasCollider)
-      newObj->getCollider()->initialize(*pSpace);
-
-    pSpace->setRigidbodyEnabled(*newObj, hasRigidbody);
-
-    Transform& t = newObj->getTransform();
-    t.mPos = Vec3::Zero;
-    t.mRot = Quat::Identity;
-    t.mScale = Vec3::Identity;
-    newObj->updateModelInst();
-
-    if(hasRigidbody)
-      newObj->getRigidbody()->calculateMass();
-
-    return newObj->getHandle();
-  }
-
-  void PhysicsSystem::removePhysicsObject(Handle space, Handle object) {
-    if(auto pSpace = _getSpace(space)) {
-      pSpace->destroyObject(object);
-    }
-  }
-
   PhysicsObject* PhysicsSystem::_getObject(Handle space, Handle object) {
     auto pSpace = _getSpace(space);
     if(!pSpace)

@@ -9,6 +9,25 @@ namespace Syx {
 
   float Constraint::sDT;
 
+  Constraint::Constraint(ConstraintType type, PhysicsObject* a, PhysicsObject* b, Handle handle)
+    : mA(a ? PhysicsObjectHandle(a->duplicateHandle().value_or(PhysicsObject::HandleT())) : PhysicsObjectHandle())
+    , mB(b ? PhysicsObjectHandle(b->duplicateHandle().value_or(PhysicsObject::HandleT())) : PhysicsObjectHandle())
+    , mShouldRemove(false)
+    , mHandle(handle)
+    , mType(type)
+    , mBlacklistCollision(true) {
+  }
+
+  PhysicsObject* Constraint::getObjA() {
+    PhysicsObjectInternalHandle ptr(mA.lock());
+    return ptr ? &*ptr : nullptr;
+  }
+
+  PhysicsObject* Constraint::getObjB() {
+    PhysicsObjectInternalHandle ptr(mB.lock());
+    return ptr ? &*ptr : nullptr;
+  }
+
   LocalObject::LocalObject()
     : mOwner(nullptr) {}
 

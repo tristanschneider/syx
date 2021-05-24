@@ -7,7 +7,7 @@
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
-namespace LuaTests {
+namespace ThreadingTests {
   TEST_CLASS(WorkerPoolTests) {
   public:
     void _awaitWithTimeout(const std::function<bool()> condition, std::chrono::milliseconds timeout) {
@@ -23,7 +23,7 @@ namespace LuaTests {
     void _awaitAsyncCompletion(const Task* task) {
       //If task is provided, wait until it's done or time out
       if(task) {
-        _awaitWithTimeout([task]() { return task->getState() == TaskState::Done; }, std::chrono::milliseconds(100));
+        _awaitWithTimeout([task]() { return task->getState() == TaskState::Done; }, std::chrono::milliseconds(1000));
       }
       //If task isn't provided, we don't know what to wait for, so wait an arbitrary amount that should be long enough
       else {

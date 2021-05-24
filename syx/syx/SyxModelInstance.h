@@ -14,6 +14,10 @@ namespace Syx {
 
     ModelInstance(std::shared_ptr<const Model> model = {});
     ModelInstance(std::shared_ptr<const Model> model, const Transformer& toWorld, const Transformer& toModel);
+    ModelInstance(ModelInstance&&) = default;
+    ModelInstance(const ModelInstance&) = default;
+    ModelInstance& operator=(const ModelInstance&) = default;
+    ModelInstance& operator=(ModelInstance&&) = default;
 
     //Returns a model instance with the concatenated transforms of parent and child, and model/material info of modelInfo
     //AABB and localtransform won't be meaningful on the returned object

@@ -17,8 +17,7 @@ namespace Syx {
     friend class PhysicsObject;
 
     Collider(PhysicsObject* owner = nullptr);
-    //Don't want to copy this way because of owner*
-    Collider(const Collider&) = delete;
+    Collider(const Collider& collider, PhysicsObject* owner);
     Collider& operator=(const Collider&) = delete;
 
     void initialize(Space& space);
@@ -43,10 +42,12 @@ namespace Syx {
     ModelInstance& getModelInstance() { return mModelInst; }
     const AABB& getAABB() { return mModelInst.getAABB(); }
 
-    Handle mBroadHandle;
+    Handle mBroadHandle = 0;
   private:
+    void _reassign(const Collider& collider, PhysicsObject* newOwner);
+
     SAlign ModelInstance mModelInst;
-    int mFlags;
-    PhysicsObject* mOwner;
+    int mFlags = 0;
+    PhysicsObject* mOwner = nullptr;
   };
 }

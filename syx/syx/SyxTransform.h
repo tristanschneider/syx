@@ -37,6 +37,8 @@ namespace Syx {
   struct Transform {
     Transform(const Vec3& scale, const Quat& rot, const Vec3& pos): mScale(scale), mRot(rot), mPos(pos) {}
     Transform(void): mPos(Vec3::Zero), mScale(Vec3::Identity), mRot(Quat::Identity) {}
+    Transform(const Transform&) = default;
+    Transform& operator=(const Transform&) = default;
 
     //For one offs, use these
     Vec3 modelToWorld(const Vec3& point) const;

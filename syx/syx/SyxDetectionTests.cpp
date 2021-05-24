@@ -296,21 +296,21 @@ namespace Syx {
     auto mat = system.getMaterialRepository().addMaterial({});
     auto sphere = std::make_shared<Model>(ModelType::Sphere);
 
-    Handle a = system.addPhysicsObject(true, true, space, *mat, sphere);
-    Handle b = system.addPhysicsObject(true, true, space, *mat, sphere);
-    spacePtr->getPhysicsObject(a)->tryGetCollider()->setModel(sphere);
-    spacePtr->getPhysicsObject(b)->tryGetCollider()->setModel(sphere);
+    auto a = spacePtr->addPhysicsObject(true, true, *mat, sphere);
+    auto b = spacePtr->addPhysicsObject(true, true, *mat, sphere);
+    a->tryGetCollider()->setModel(sphere);
+    b->tryGetCollider()->setModel(sphere);
 
     auto s = *system._getSpace(space);
-    PhysicsObject& objA = *s.mObjects.get(a);
-    PhysicsObject& objB = *s.mObjects.get(b);
+    PhysicsObject& objA = *std::find_if(s.mObjects.begin(), s.mObjects.end(), [h(a->getHandle())](auto&& o) { return o.getHandle() == h; });
+    PhysicsObject& objB = *std::find_if(s.mObjects.begin(), s.mObjects.end(), [h(b->getHandle())](auto&& o) { return o.getHandle() == h; });
     Narrowphase& narrow = system._getSpace(space)->mNarrowphase;
     narrow.mA = &objA;
     narrow.mB = &objB;
     narrow.mInstA = &objA.getCollider()->getModelInstance();
     narrow.mInstB = &objB.getCollider()->getModelInstance();
     float diameter = 2.0f;
-    system.setPosition(space, a, Vec3(0.0f));
+    system.setPosition(space, a->getHandle(), Vec3(0.0f));
     int numTests = 100000;
 
     //Non colliding tests
@@ -318,7 +318,7 @@ namespace Syx {
       float randRadius = randFloat(diameter + SYX_EPSILON, 1000.0f);
       Vec3 randSphere = randOnSphere();
       Vec3 randPos = randSphere*randRadius;
-      system.setPosition(space, b, randPos);
+      system.setPosition(space, b->getHandle(), randPos);
       //CheckResult(narrow.SGJK() == false);
       checkResult(narrow._gjk() == false);
     }
@@ -328,7 +328,7 @@ namespace Syx {
       float randRadius = randFloat(0.0f, diameter);
       Vec3 randSphere = randOnSphere();
       Vec3 randPos = randSphere*randRadius;
-      system.setPosition(space, b, randPos);
+      system.setPosition(space, b->getHandle(), randPos);
       //CheckResult(narrow.SGJK() == true);
       checkResult(narrow._gjk() == true);
     }

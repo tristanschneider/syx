@@ -35,16 +35,17 @@ namespace Syx {
   TEST_FUNC(islandTests, testIslandAdd) {
     TEST_FAILED = false;
     Handle id = 0;
-    PhysicsObject a(id++);
-    PhysicsObject b(id++);
-    PhysicsObject c(id++);
-    PhysicsObject d(id++);
-    PhysicsObject e(id++);
-    PhysicsObject f(id++);
-    PhysicsObject g(id++);
+    PhysicsObject::HandleT ha, hb, hc, hd, he, hf, hg, sa, sb;
+    PhysicsObject a(id++, ha);
+    PhysicsObject b(id++, hb);
+    PhysicsObject c(id++, hc);
+    PhysicsObject d(id++, hd);
+    PhysicsObject e(id++, he);
+    PhysicsObject f(id++, hf);
+    PhysicsObject g(id++, hg);
 
-    PhysicsObject staticA(id++);
-    PhysicsObject staticB(id++);
+    PhysicsObject staticA(id++, sa);
+    PhysicsObject staticB(id++, sb);
     staticA.setRigidbodyEnabled(false);
     staticB.setRigidbodyEnabled(false);
 
@@ -172,15 +173,16 @@ namespace Syx {
   TEST_FUNC(islandTests, testIslandRemoveConstraint) {
     TEST_FAILED = false;
     Handle id = 0;
-    PhysicsObject a(id++);
-    PhysicsObject b(id++);
-    PhysicsObject c(id++);
-    PhysicsObject d(id++);
-    PhysicsObject e(id++);
-    PhysicsObject f(id++);
-    PhysicsObject g(id++);
+    PhysicsObject::HandleT ha, hb, hc, hd, he, hf, hg, sa;
+    PhysicsObject a(id++, ha);
+    PhysicsObject b(id++, hb);
+    PhysicsObject c(id++, hc);
+    PhysicsObject d(id++, hd);
+    PhysicsObject e(id++, he);
+    PhysicsObject f(id++, hf);
+    PhysicsObject g(id++, hg);
 
-    PhysicsObject staticA(id++);
+    PhysicsObject staticA(id++, sa);
     staticA.setRigidbodyEnabled(false);
 
     IslandContents contentsA, contentsB;
@@ -350,15 +352,16 @@ namespace Syx {
   TEST_FUNC(islandTests, testIslandRemoveObject) {
     TEST_FAILED = false;
     Handle id = 0;
-    PhysicsObject a(id++);
-    PhysicsObject b(id++);
-    PhysicsObject c(id++);
-    PhysicsObject d(id++);
-    PhysicsObject e(id++);
-    PhysicsObject f(id++);
+    PhysicsObject::HandleT ha, hb, hc, hd, he, hf, sa, sb;
+    PhysicsObject a(id++, ha);
+    PhysicsObject b(id++, hb);
+    PhysicsObject c(id++, hc);
+    PhysicsObject d(id++, hd);
+    PhysicsObject e(id++, he);
+    PhysicsObject f(id++, hf);
 
-    PhysicsObject staticA(id++);
-    PhysicsObject staticB(id++);
+    PhysicsObject staticA(id++, sa);
+    PhysicsObject staticB(id++, sb);
     staticA.setRigidbodyEnabled(false);
     staticB.setRigidbodyEnabled(false);
 
@@ -413,9 +416,10 @@ namespace Syx {
 
   TEST_FUNC(islandTests, island_remove_static_object_from_pair_island_is_removed) {
     Handle id = 0;
-    PhysicsObject staticObj(id++);
+    PhysicsObject::HandleT ha, hb;
+    PhysicsObject staticObj(id++, ha);
     staticObj.setRigidbodyEnabled(false);
-    PhysicsObject dynamicObj(id++);
+    PhysicsObject dynamicObj(id++, hb);
     Constraint c(ConstraintType::Invalid, &staticObj, &dynamicObj, id++);
     IslandGraph graph;
     IslandContents contents;
@@ -430,12 +434,13 @@ namespace Syx {
   TEST_FUNC(islandTests, testIslandSleep) {
     TEST_FAILED = false;
     Handle id = 0;
-    PhysicsObject a(id++);
-    PhysicsObject b(id++);
-    PhysicsObject c(id++);
-    PhysicsObject d(id++);
+    PhysicsObject::HandleT ha, hb, hc, hd, sa;
+    PhysicsObject a(id++, ha);
+    PhysicsObject b(id++, hb);
+    PhysicsObject c(id++, hc);
+    PhysicsObject d(id++, hd);
 
-    PhysicsObject staticA(id++);
+    PhysicsObject staticA(id++, sa);
     staticA.setRigidbodyEnabled(false);
 
     IslandContents contents;
