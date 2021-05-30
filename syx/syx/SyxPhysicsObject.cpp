@@ -14,7 +14,7 @@ namespace Syx {
   }
 
   PhysicsObject::PhysicsObject(PhysicsObject&& rhs)
-    : EnableDeferredDeletion(rhs)
+    : EnableDeferredDeletion(std::move(rhs))
     , mRigidbody(rhs.mRigidbody, this)
     , mCollider(rhs.mCollider, this)
     , mTransform(rhs.mTransform)

@@ -31,6 +31,14 @@ namespace Syx {
       , mSpace(&space) {
     }
 
+    void setAxisRotationLocked(Axis axis, bool locked) override {
+      switch(axis) {
+        case Axis::X: mObj->setFlag(RigidbodyFlags::LockAngX, locked); break;
+        case Axis::Y: mObj->setFlag(RigidbodyFlags::LockAngY, locked); break;
+        case Axis::Z: mObj->setFlag(RigidbodyFlags::LockAngZ, locked); break;
+      }
+    }
+
     const Vec3& getLinearVelocity() const override {
       return mObj->mLinVel;
     }
@@ -56,7 +64,7 @@ namespace Syx {
     }
 
     void applyImpulse(const Vec3& linear, const Vec3& angular) override {
-      mObj->applyImpulse(linear, angular, *mSpace);
+      mObj->applyImpulse(linear, angular, mSpace);
     }
 
     void applyImpulseAtPoint(const Vec3& impulse, const Vec3& point) override {

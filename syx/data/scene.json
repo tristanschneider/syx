@@ -23,131 +23,11 @@ scene = {
           props = {
             angVel = Vec3.new3(0.000000, 0.000000, 0.000000),
             hasCollider = true,
-            hasRigidbody = false,
-            linVel = Vec3.new3(0.000000, 0.000000, 0.000000),
-            material = 916610062,
-            model = 3191119156,
-            physToModel = {
-              2,
-              0,
-              0,
-              0,
-              0,
-              2,
-              0,
-              0,
-              0,
-              0,
-              2,
-              0,
-              0,
-              0,
-              0,
-              1
-            }
-          },
-          type = "Physics"
-        },
-        {
-          props = {
-            diffuseTexture = 1088482667,
-            model = 140062738
-          },
-          type = "Renderable"
-        },
-        {
-          props = {
-            matrix = {
-              10,
-              0,
-              0,
-              1,
-              0,
-              1,
-              0,
-              0,
-              0,
-              0,
-              10,
-              0,
-              0,
-              0,
-              0,
-              1
-            }
-          },
-          type = "Transform"
-        },
-        {
-          props = {
-            id = 0
-          },
-          type = "Space"
-        },
-        {
-          props = {
-            name = "Ground"
-          },
-          type = "Name"
-        }
-      },
-      uniqueID = 67534065781473
-    },
-    {
-      components = {
-        {
-          props = {
-            diffuseTexture = 1088482667,
-            model = 2263845287
-          },
-          type = "Renderable"
-        },
-        {
-          props = {
-            matrix = {
-              0.100000,
-              0,
-              0,
-              0,
-              0,
-              0.100000,
-              0,
-              5,
-              0,
-              0,
-              0.100000,
-              0,
-              0,
-              0,
-              0,
-              1
-            }
-          },
-          type = "Transform"
-        },
-        {
-          props = {
-            id = 0
-          },
-          type = "Space"
-        },
-        {
-          props = {
-            name = "Bowser"
-          },
-          type = "Name"
-        }
-      },
-      uniqueID = 113816633350334
-    },
-    {
-      components = {
-        {
-          props = {
-            angVel = Vec3.new3(3.000000, 3.000000, 3.000000),
-            hasCollider = true,
             hasRigidbody = true,
             linVel = Vec3.new3(0.000000, 0.000000, 0.000000),
+            lockXRotation = false,
+            lockYRotation = false,
+            lockZRotation = false,
             material = 916610062,
             model = 3191119156,
             physToModel = {
@@ -249,6 +129,85 @@ scene = {
       components = {
         {
           props = {
+            angVel = Vec3.new3(0.000000, 0.000000, 0.000000),
+            hasCollider = true,
+            hasRigidbody = false,
+            linVel = Vec3.new3(0.000000, 0.000000, 0.000000),
+            lockXRotation = false,
+            lockYRotation = false,
+            lockZRotation = false,
+            material = 916610062,
+            model = 3191119156,
+            physToModel = {
+              2,
+              0,
+              0,
+              0,
+              0,
+              2,
+              0,
+              0,
+              0,
+              0,
+              2,
+              0,
+              0,
+              0,
+              0,
+              1
+            }
+          },
+          type = "Physics"
+        },
+        {
+          props = {
+            diffuseTexture = 1088482667,
+            model = 140062738
+          },
+          type = "Renderable"
+        },
+        {
+          props = {
+            matrix = {
+              10,
+              0,
+              0,
+              1,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              10,
+              0,
+              0,
+              0,
+              0,
+              1
+            }
+          },
+          type = "Transform"
+        },
+        {
+          props = {
+            id = 0
+          },
+          type = "Space"
+        },
+        {
+          props = {
+            name = "Ground"
+          },
+          type = "Name"
+        }
+      },
+      uniqueID = 67534065781473
+    },
+    {
+      components = {
+        {
+          props = {
             diffuseTexture = 1088482667,
             model = 2775790889
           },
@@ -325,6 +284,53 @@ scene = {
       components = {
         {
           props = {
+            diffuseTexture = 1088482667,
+            model = 2263845287
+          },
+          type = "Renderable"
+        },
+        {
+          props = {
+            matrix = {
+              0.100000,
+              0,
+              0,
+              0,
+              0,
+              0.100000,
+              0,
+              5,
+              0,
+              0,
+              0.100000,
+              0,
+              0,
+              0,
+              0,
+              1
+            }
+          },
+          type = "Transform"
+        },
+        {
+          props = {
+            id = 0
+          },
+          type = "Space"
+        },
+        {
+          props = {
+            name = "Bowser"
+          },
+          type = "Name"
+        }
+      },
+      uniqueID = 113816633350334
+    },
+    {
+      components = {
+        {
+          props = {
             viewport = "game"
           },
           type = "Camera"
@@ -335,6 +341,9 @@ scene = {
             hasCollider = true,
             hasRigidbody = true,
             linVel = Vec3.new3(0.000000, 0.000000, 0.000000),
+            lockXRotation = true,
+            lockYRotation = true,
+            lockZRotation = true,
             material = 0,
             model = 0,
             physToModel = {
@@ -361,8 +370,9 @@ scene = {
         {
           props = {
             props = {
+              decellerationScalar = 5,
               jumpForce = 200,
-              speed = 10
+              speed = 15
             },
             script = 375910579
           },

@@ -79,7 +79,7 @@ namespace Syx {
       : mExistenceTracker(owner.mToken) {
       *owner.mToken = static_cast<DerivedT*>(this);
     }
-    EnableDeferredDeletion(const EnableDeferredDeletion& rhs) {
+    EnableDeferredDeletion(EnableDeferredDeletion&& rhs) {
       mExistenceTracker = std::move(rhs.mExistenceTracker);
       _reassignTracker();
     }

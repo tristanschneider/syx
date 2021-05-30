@@ -12,6 +12,9 @@ struct PhysicsData {
 
   bool mHasRigidbody;
   bool mHasCollider;
+  bool mLockXRotation = false;
+  bool mLockYRotation = false;
+  bool mLockZRotation = false;
   Syx::Vec3 mLinVel;
   Syx::Vec3 mAngVel;
   Handle mModel;

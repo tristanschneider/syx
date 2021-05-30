@@ -9,6 +9,12 @@ namespace Syx {
   class Space;
   struct Transform;
 
+  enum class Axis : uint8_t {
+    X,
+    Y,
+    Z
+  };
+
   struct ICollider {
     virtual ~ICollider() = default;
 
@@ -18,6 +24,8 @@ namespace Syx {
 
   struct IRigidbody {
     virtual ~IRigidbody() = default;
+
+    virtual void setAxisRotationLocked(Axis axis, bool locked) = 0;
 
     virtual const Vec3& getLinearVelocity() const = 0;
     virtual void setLinearVelocity(const Vec3& velocity) = 0;

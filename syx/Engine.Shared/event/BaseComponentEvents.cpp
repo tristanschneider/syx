@@ -42,12 +42,13 @@ DEFINE_EVENT(RemoveGameObjectEvent, Handle obj)
   , mObj(obj) {
 }
 
-DEFINE_EVENT(SetComponentPropsEvent, Handle obj, ComponentType compType, const Lua::Node* prop, Lua::NodeDiff diff, std::vector<uint8_t>&& buffer)
+DEFINE_EVENT(SetComponentPropsEvent, Handle obj, ComponentType compType, const Lua::Node* prop, Lua::NodeDiff diff, std::vector<uint8_t>&& buffer, size_t fromSystem)
   , mObj(obj)
   , mCompType(compType)
   , mDiff(diff)
   , mProp(prop)
-  , mBuffer(std::move(buffer)) {
+  , mBuffer(std::move(buffer))
+  , mFromSystem(fromSystem) {
 }
 
 SetComponentPropsEvent::SetComponentPropsEvent(const SetComponentPropsEvent& other) 

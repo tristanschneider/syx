@@ -53,11 +53,13 @@ namespace Syx {
 #endif
 
   template <typename Flag>
-  void setBits(Flag& flag, const Flag& bits, bool on) {
+  bool setBits(Flag& flag, const Flag& bits, bool on) {
+    const auto prev = flag;
     if(on)
       flag |= bits;
     else
       flag &= ~bits;
+    return bits != prev;
   }
 
   template <typename T>

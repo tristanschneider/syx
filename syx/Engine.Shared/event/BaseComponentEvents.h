@@ -46,7 +46,7 @@ public:
 class SetComponentPropsEvent : public Event {
 public:
   //TODO: emplace such that no allocations are required to use this
-  SetComponentPropsEvent(Handle obj, ComponentType compType, const Lua::Node* prop, Lua::NodeDiff diff, std::vector<uint8_t>&& buffer);
+  SetComponentPropsEvent(Handle obj, ComponentType compType, const Lua::Node* prop, Lua::NodeDiff diff, std::vector<uint8_t>&& buffer, size_t fromSystem = 0);
   SetComponentPropsEvent(const SetComponentPropsEvent& other);
   SetComponentPropsEvent(SetComponentPropsEvent&& other);
 
@@ -59,6 +59,7 @@ public:
   Lua::NodeDiff mDiff;
   const Lua::Node* mProp;
   std::vector<uint8_t> mBuffer;
+  size_t mFromSystem = 0;
 };
 
 struct ComponentDataResponse : public TypedEvent<ComponentDataResponse> {

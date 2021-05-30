@@ -1,7 +1,7 @@
 #pragma once
+#include "SyxVec3.h"
 
 namespace Syx {
-  struct Vec3;
   struct Quat;
 
   struct Mat3 {

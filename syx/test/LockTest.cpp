@@ -64,7 +64,7 @@ namespace LockTest {
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
       Assert::AreEqual(value, 0, L"Read lock should prevent write from starting", LINE_INFO());
       rw.readUnlock();
-      sleepMS(15);
+      sleepMS(30);
       Assert::AreEqual(value, 2, L"Value should have been written by other thread by now", LINE_INFO());
       rw.readLock();
       rw.readUnlock();

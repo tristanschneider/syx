@@ -1,5 +1,8 @@
 #pragma once
 
+#include "SyxMat3.h"
+#include "SyxSIMD.h"
+
 namespace Syx {
   class PhysicsObject;
   class Space;
@@ -36,7 +39,7 @@ namespace Syx {
 
     PhysicsObject* getOwner(void);
 
-    void setFlag(int flag, bool value) { setBits(mFlags, flag, value); }
+    void setFlag(int flag, bool value);
     bool getFlag(int flag) { return (mFlags & flag) != 0; }
 
     const Mat3& getInertia(void) { return mInvInertia; }
@@ -49,7 +52,7 @@ namespace Syx {
     Vec3 getUnintegratedLinearVelocity();
     Vec3 getUnintegratedAngularVelocity();
 
-    void applyImpulse(const Vec3& linear, const Vec3& angular, Space& space);
+    void applyImpulse(const Vec3& linear, const Vec3& angular, Space* space);
     void applyImpulseAtPoint(const Vec3& impulse, const Vec3& point, Space& space);
 
     const Vec3& getCenterOfMass() const;

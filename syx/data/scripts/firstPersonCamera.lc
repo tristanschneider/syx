@@ -1,8 +1,10 @@
 speed = 1;
 jumpForce = 200;
+decellerationScalar = 0.1;
 
 local DOWN = Keyboard.down();
 local TRIGGERED = Keyboard.triggered();
+local Y_INDEX = 2;
 
 function initialize(self)
 
@@ -28,9 +30,16 @@ function update(self, dt)
 
   if moveDir:len2() > 0.001 then
     local transform = self.transform;
-    print("moving " .. tostring(transform:modelToWorld(moveDir)));
     self.physics:applyForce(transform:modelToWorld(moveDir), Vec3.zero());
   else
-    print("pos: " .. tostring(self.transform:getTranslate()));
+    local vel = self.physics.linVel;
+    print("vel " .. tostring(vel));
+    -- Decellerate when not moving in any direction
+    if isOnGround and vel:len2() > 0.05 then
+      -- This should be scaled by mass but that's not currently exposed
+      local decelleration = vel:mulScalar(-decellerationScalar);
+      decelleration[Y_INDEX] = 0.0;
+      self.physics:applyForce(decelleration, Vec3.zero());
+    end
   end
 end

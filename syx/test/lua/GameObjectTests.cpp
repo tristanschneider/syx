@@ -8,6 +8,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 #include "AppPlatform.h"
 #include "AppRegistration.h"
 #include "component/CameraComponent.h"
+#include "component/ComponentPublisher.h"
 #include "component/LuaComponent.h"
 #include "component/LuaComponentRegistry.h"
 #include "component/NameComponent.h"
@@ -312,6 +313,55 @@ namespace LuaTests {
         Assert::IsNotNull(obj->getComponent<CameraComponent>(), L"Camera should have been added by index assignment", LINE_INFO());
         Assert::IsNotNull(obj->getComponent<Renderable>(), L"Viewport should have been added via addComponent call", LINE_INFO());
       }
+    }
+
+    TEST_METHOD(GameObject_ChangeTransform_HasNewValue) {
+      MockApp app;
+      const Handle objHandle = _addObjectWithScript(app.get(), "script", R"(
+        local iteration = 0;
+        function update(self, dt)
+          if iteration == 1 then
+            assert(self.transform:getTranslate():len2() > 0.1, "Object should have moved");
+          end
+          iteration = iteration + 1;
+        end
+      )");
+
+      app.mApp->getMessageQueue().get().push(SetTimescaleEvent(0, 1.0f));
+      //First to initialize, second to do first tick
+      app.mApp->update(1.f);
+      app.mApp->update(1.f);
+      Transform t(objHandle);
+      t.set(Syx::Mat4::transform(Syx::Quat::Identity, Syx::Vec3(10)));
+      ComponentPublisher::forcePublish(t, app.mApp->getMessageQueue().get());
+      app.mApp->update(1.f);
+      _assertNoScriptErrors(objHandle, "script", app);
+    }
+
+    TEST_METHOD(GameObject_ChangeProperty_HasNewValue) {
+      MockApp app;
+      const Handle objHandle = _addObjectWithScript(app.get(), "script", R"(
+        local iteration = 0;
+        function initialize(self)
+          self.camera = {}
+        end
+        function update(self, dt)
+          if iteration == 1 then
+            assert(self.camera.viewport == "newvalue", "Value should have been updated");
+          end
+          iteration = iteration + 1;
+        end
+      )");
+
+      app.mApp->getMessageQueue().get().push(SetTimescaleEvent(0, 1.0f));
+      //First to initialize, second to do first tick
+      app.mApp->update(1.f);
+      app.mApp->update(1.f);
+      CameraComponent c(objHandle);
+      c.setViewport("newvalue");
+      ComponentPublisher::forcePublish(c, app.mApp->getMessageQueue().get());
+      app.mApp->update(1.f);
+      _assertNoScriptErrors(objHandle, "script", app);
     }
   };
 }

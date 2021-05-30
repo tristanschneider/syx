@@ -5,6 +5,7 @@
 #include "SyxPhysicsSystem.h"
 
 namespace Syx {
+  const float MASS_EPSILON = 0.000001f;
 #ifdef SENABLED
   void Rigidbody::sCalculateMass(void) {
 
@@ -34,14 +35,24 @@ namespace Syx {
     mInvMass = info.mMass;
     mLocalInertia = info.mInertia;
 
+    if(getFlag(RigidbodyFlags::LockAngX)) {
+      mLocalInertia.x = 0;
+    }
+    if(getFlag(RigidbodyFlags::LockAngY)) {
+      mLocalInertia.y = 0;
+    }
+    if(getFlag(RigidbodyFlags::LockAngZ)) {
+      mLocalInertia.z = 0;
+    }
+
     float density = collider->getModelInstance().getMaterial().mDensity;
     mInvMass *= density;
     mLocalInertia *= density;
 
     // Use no epsilon. Masses can get tiny and still be okay
-    mInvMass = safeDivide(1.0f, mInvMass, 0.0f);
+    mInvMass = safeDivide(1.0f, mInvMass, MASS_EPSILON);
     for(int i = 0; i < 3; ++i)
-      mLocalInertia[i] = safeDivide(1.0f, mLocalInertia[i], 0.0f);
+      mLocalInertia[i] = safeDivide(1.0f, mLocalInertia[i], MASS_EPSILON);
 
     updateInertia();
   }
@@ -70,6 +81,14 @@ namespace Syx {
     return mOwner;
   }
 
+  void Rigidbody::setFlag(int flag, bool value) {
+    if(setBits(mFlags, flag, value)) {
+      if(flag & (RigidbodyFlags::LockAngX | RigidbodyFlags::LockAngY | RigidbodyFlags::LockAngZ)) {
+          calculateMass();
+      }
+    }
+  }
+
   Vec3 Rigidbody::getGravity() {
     return Vec3(0.0f, -10.0f, 0.0f);
   }
@@ -83,17 +102,17 @@ namespace Syx {
     return mAngVel;
   }
 
-  void Rigidbody::applyImpulse(const Vec3& linear, const Vec3& angular, Space& space) {
-    mLinVel += mInvMass * linear;;
+  void Rigidbody::applyImpulse(const Vec3& linear, const Vec3& angular, Space* space) {
+    mLinVel += mInvMass * linear;
     mAngVel += mInvInertia * angular;
-    if(mOwner) {
-      space.wakeObject(*mOwner);
+    if(mOwner && space) {
+      space->wakeObject(*mOwner);
     }
   }
 
   void Rigidbody::applyImpulseAtPoint(const Vec3& impulse, const Vec3& point, Space& space) {
     const Vec3 toPoint = point - getCenterOfMass();
-    applyImpulse(impulse, toPoint.cross(impulse), space);
+    applyImpulse(impulse, toPoint.cross(impulse), &space);
   }
 
   const Vec3& Rigidbody::getCenterOfMass() const {

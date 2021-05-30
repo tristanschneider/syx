@@ -74,6 +74,25 @@ namespace SyxTests {
       Assert::IsTrue(resourceA.isMarkedForDeletion(), L"A should be marked for deletion once no handles reference it anymore", LINE_INFO());
     }
 
+    TEST_METHOD(DeferredDeleteHandle_MoveResource_HandlePointsAtNewResource) {
+      TestResourceHandle handle;
+      TestResource resource(handle);
+
+      TestResource replaceResource(std::move(resource));
+
+      Assert::IsTrue(&handle.get() == &replaceResource, L"Handle should be redirected to moved resource", LINE_INFO());
+    }
+
+    TEST_METHOD(DeferredDeleteHandle_DestroyMovedResource_HandleStillPointsAtNewResource) {
+      TestResourceHandle handle;
+      auto resource = std::make_unique<TestResource>(handle);
+      TestResource replaceResource(std::move(*resource));
+
+      resource.reset();
+
+      Assert::IsTrue(&handle.get() == &replaceResource, L"Handle should be redirected to moved resource", LINE_INFO());
+    }
+
     TEST_METHOD(PerformDeferredDeletions_Compiles) {
       std::vector<std::shared_ptr<TestResource>> a;
       std::vector<TestResource> b;

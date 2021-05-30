@@ -137,5 +137,8 @@
     <ClCompile Include="SyxMaterialRepositoryTests.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="SyxRigidbodyTests.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

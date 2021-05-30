@@ -1,6 +1,7 @@
 #pragma once
 
 class Component;
+class EventBuffer;
 struct lua_State;
 class MessageQueueProvider;
 
@@ -21,6 +22,7 @@ public:
 
   void publish(const Component& component, lua_State* l) const;
   void publish(const Component& component, MessageQueueProvider& msg) const;
+  static void forcePublish(const Component& component, EventBuffer& events, uint64_t diff = ~0, size_t fromSystem = 0);
 
 private:
   const Component* mComponent = nullptr;

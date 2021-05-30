@@ -195,7 +195,7 @@ int Component::_getProp(lua_State* l, const std::string& type) {
   if(const Lua::Node* props = self.get().getLuaProps()) {
     //TODO: support a way to get children several levels deep?
     if(const Lua::Node* foundProp = props->getChild(propName)) {
-      foundProp->writeToLua(l, &self.get());
+      foundProp->writeToLua(l, foundProp->_translateBaseToNode(&self.get()));
       return 1;
     }
   }

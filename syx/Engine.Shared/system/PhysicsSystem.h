@@ -17,7 +17,6 @@ class ClearSpaceEvent;
 class Model;
 class EventBuffer;
 class TransformEvent;
-class PhysicsCompUpdateEvent;
 class SetComponentPropEvent;
 class SetComponentPropsEvent;
 class SetTimescaleEvent;

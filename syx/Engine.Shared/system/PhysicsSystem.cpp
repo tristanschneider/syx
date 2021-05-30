@@ -3,6 +3,7 @@
 
 #include "asset/Model.h"
 #include "asset/PhysicsModel.h"
+#include "component/ComponentPublisher.h"
 #include "editor/event/EditorEvents.h"
 #include "system/AssetRepo.h"
 #include "system/GraphicsSystem.h"
@@ -51,8 +52,7 @@ PhysicsSystem::PhysicsSystem(const SystemArgs& args)
   assert(!Syx::testIslandAll() && "Physics tests failed");
 }
 
-PhysicsSystem::~PhysicsSystem() {
-}
+PhysicsSystem::~PhysicsSystem() = default;
 
 void PhysicsSystem::init() {
   mTimescale = 0;
@@ -87,11 +87,11 @@ void PhysicsSystem::init() {
   mTransformUpdates = std::make_unique<EventBuffer>();
   mEventHandler = std::make_unique<EventHandler>();
 
-  SYSTEM_EVENT_HANDLER(TransformEvent, _transformEvent);
-  SYSTEM_EVENT_HANDLER(SetComponentPropsEvent, _setComponentPropsEvent);
-  SYSTEM_EVENT_HANDLER(ClearSpaceEvent, _clearSpaceEvent);
-  SYSTEM_EVENT_HANDLER(RemoveComponentEvent, _removeComponentEvent);
-  SYSTEM_EVENT_HANDLER(SetTimescaleEvent, _setTimescaleEvent);
+  _registerSystemEventHandler(&PhysicsSystem::_transformEvent);
+  _registerSystemEventHandler(&PhysicsSystem::_setComponentPropsEvent);
+  _registerSystemEventHandler(&PhysicsSystem::_clearSpaceEvent);
+  _registerSystemEventHandler(&PhysicsSystem::_removeComponentEvent);
+  _registerSystemEventHandler(&PhysicsSystem::_setTimescaleEvent);
   mEventHandler->registerEventHandler(CallbackEvent::getHandler(typeId<PhysicsSystem>()));
   mEventHandler->registerEventHandler([](const SetPlayStateEvent& e) {
     if(e.mState == PlayState::Playing) {
@@ -128,11 +128,26 @@ void PhysicsSystem::queueTasks(float dt, IWorkerPool& pool, std::shared_ptr<Task
 void PhysicsSystem::_processSyxEvents() {
   mTransformUpdates->clear();
   const Syx::EventListener<Syx::UpdateEvent>& updates = mDefaultSpace->getUpdateEvents();
+  static const Lua::Node* props = Physics::singleton().getLuaProps();
+  //Precompute diff ids for velocity fields
+  static const Lua::NodeDiff velocityDiff = props->getChild("linVel")->_getDiffId() | props->getChild("angVel")->_getDiffId();
+
   for(const Syx::UpdateEvent& e : updates.mEvents) {
     auto it = mFromSyx.find(e.mHandle);
     if(it != mFromSyx.end()) {
       const SyxData& data = mToSyx.at(it->second);
       _updateObject(it->second, data, e);
+
+      //Send updates about only the velocity fields
+      //TODO: only do this if it actually changed
+      if(auto rigidbody = data.mObj->tryGetRigidbody()) {
+        Physics component(it->second);
+        ::PhysicsData componentData;
+        componentData.mLinVel = e.mLinVel;
+        componentData.mAngVel = e.mAngVel;
+        component.setData(componentData);
+        ComponentPublisher::forcePublish(component, *mTransformUpdates, velocityDiff, typeId<PhysicsSystem>());
+      }
     }
     else
       printf("Failed to map physics object %u\n", e.mHandle);
@@ -151,13 +166,19 @@ void PhysicsSystem::_updateObject(Handle obj, const SyxData& data, const Syx::Up
 }
 
 void PhysicsSystem::_setComponentPropsEvent(const SetComponentPropsEvent& e) {
-  if(e.mCompType.id == Component::typeId<Physics>()) {
+  if(e.mCompType.id == Component::typeId<Physics>() && e.mFromSystem != typeId<PhysicsSystem>()) {
     SyxData& syxData = _getSyxData(e.mObj, false, false);
     Syx::Handle h = syxData.mHandle;
     Physics comp(0);
     e.mProp->copyFromBuffer(&comp, e.mBuffer.data());
     const PhysicsData& data = comp.getData();
     e.mProp->forEachDiff(e.mDiff, &comp, [&data, &syxData, this, h](const Lua::Node& node, const void*) {
+      auto setRotationLocked = [&syxData](Syx::Axis axis, bool locked) {
+        if(auto rigidbody = syxData.mObj->tryGetRigidbody()) {
+          rigidbody->setAxisRotationLocked(axis, locked);
+        }
+      };
+
       switch(Util::constHash(node.getName().c_str())) {
         case Util::constHash("hasRigidbody"): mSystem->setHasRigidbody(data.mHasRigidbody, mDefaultSpace->_getHandle(), h); break;
         case Util::constHash("hasCollider"): mSystem->setHasCollider(data.mHasCollider, mDefaultSpace->_getHandle(), h); break;
@@ -184,6 +205,9 @@ void PhysicsSystem::_setComponentPropsEvent(const SetComponentPropsEvent& e) {
           break;
         }
         case Util::constHash("physToModel"): syxData.mSyxToModel = data.mPhysToModel; break;
+        case Util::constHash("lockXRotation"): setRotationLocked(Syx::Axis::X, data.mLockXRotation); break;
+        case Util::constHash("lockYRotation"): setRotationLocked(Syx::Axis::Y, data.mLockYRotation); break;
+        case Util::constHash("lockZRotation"): setRotationLocked(Syx::Axis::Z, data.mLockZRotation); break;
         default: assert(false && "Unhandled property setter"); break;
       }
     });

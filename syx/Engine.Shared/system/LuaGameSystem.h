@@ -113,7 +113,6 @@ private:
   void _onRemoveGameObject(const RemoveGameObjectEvent& e);
   void _onRenderableUpdate(const RenderableUpdateEvent& e);
   void _onTransformUpdate(const TransformEvent& e);
-  void _onPhysicsUpdate(const PhysicsCompUpdateEvent& e);
   void _onSetComponentProps(const SetComponentPropsEvent& e);
   void _onSpaceClear(const ClearSpaceEvent& e);
   void _onSpaceSave(const SaveSpaceEvent& e);

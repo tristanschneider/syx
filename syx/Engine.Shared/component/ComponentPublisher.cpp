@@ -37,3 +37,11 @@ void ComponentPublisher::publish(const Component& component, MessageQueueProvide
     }
   }
 }
+
+void ComponentPublisher::forcePublish(const Component& component, EventBuffer& events, uint64_t diff, size_t fromSystem) {
+  if(const Lua::Node* props = component.getLuaProps(); props) {
+    std::vector<uint8_t> buff(props->size());
+    props->copyConstructToBuffer(&component, buff.data());
+    events.push(SetComponentPropsEvent(component.getOwner(), component.getFullType(), props, diff, std::move(buff), fromSystem));
+  }
+}

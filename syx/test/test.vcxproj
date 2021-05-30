@@ -166,6 +166,7 @@
     <ClCompile Include="system\PhysicsSystemTests.cpp" />
     <ClCompile Include="SyxMaterialRepositoryTests.cpp" />
     <ClCompile Include="SyxResourceHandleTests.cpp" />
+    <ClCompile Include="SyxRigidbodyTests.cpp" />
     <ClCompile Include="syx\BroadphaseTest.cpp" />
     <ClCompile Include="test\MockApp.cpp" />
     <ClCompile Include="test\TestAppPlatform.cpp" />

@@ -122,5 +122,8 @@ std::unique_ptr<Lua::Node> Physics::_buildLuaProps() const {
   makeNode<LightUserdataSizetNode>(NodeOps(*root, "model", ::Util::offsetOf(*this, mData.mModel)));
   makeNode<LightUserdataSizetNode>(NodeOps(*root, "material", ::Util::offsetOf(*this, mData.mMaterial)));
   makeNode<Mat4Node>(NodeOps(*root, "physToModel", ::Util::offsetOf(*this, mData.mPhysToModel))).setInspector(Inspector::wrap(Inspector::inspectTransform));
+  makeNode<BoolNode>(NodeOps(*root, "lockXRotation", ::Util::offsetOf(*this, mData.mLockXRotation)));
+  makeNode<BoolNode>(NodeOps(*root, "lockYRotation", ::Util::offsetOf(*this, mData.mLockYRotation)));
+  makeNode<BoolNode>(NodeOps(*root, "lockZRotation", ::Util::offsetOf(*this, mData.mLockZRotation)));
   return root;
 }
