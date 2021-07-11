@@ -33,20 +33,20 @@ namespace Syx {
     return Vec3::Zero;
   }
 
-  void Simplex::_discard(int id) {
+  void Simplex::_discard(size_t id) {
     --mSize;
     for(size_t i = static_cast<size_t>(id); i < mSize; ++i)
       mSupports[i] = mSupports[i + 1];
   }
 
-  void Simplex::_discard(int a, int b) {
+  void Simplex::_discard(size_t a, size_t b) {
     if(a > b)
       std::swap(a, b);
     _discard(b);
     _discard(a);
   }
 
-  void Simplex::_discard(int a, int b, int c) {
+  void Simplex::_discard(size_t a, size_t b, size_t c) {
     orderAscending(a, b, c);
     _discard(c);
     _discard(b);
@@ -57,7 +57,7 @@ namespace Syx {
     Vec3 normal = triangleNormal(get(SupportID::A), get(SupportID::B), get(SupportID::C));
     float dot = normal.dot(-get(SupportID::A));
     if(dot > 0.0f)
-      std::swap(getSupport(SupportID::B), getSupport(SupportID::C));
+      std::swap(getSupport(size_t(SupportID::B)), getSupport(size_t(SupportID::C)));
   }
 
   Vec3 Simplex::_solveLine(void) {
@@ -129,14 +129,14 @@ namespace Syx {
     //Point is within triangle, verify winding
     Vec3 normal = aToB.cross(aToC);
     if(aToO.dot(normal) > 0.0f)
-      std::swap(getSupport(SupportID::A), getSupport(SupportID::B));
+      std::swap(getSupport(size_t(SupportID::A)), getSupport(size_t(SupportID::B)));
     return -closestToOrigin;
   }
 
   //Triangle indices
   struct TriI {
-    TriI(int _a, int _b, int _c, int d): a(_a), b(_b), c(_c), unused(d) {}
-    int a, b, c, unused;
+    TriI(SupportID _a, SupportID _b, SupportID _c, SupportID d): a(_a), b(_b), c(_c), unused(d) {}
+    SupportID a, b, c, unused;
   };
 
   //Tetrahedron like this. We came from abc, so don't care about that side
@@ -151,7 +151,7 @@ namespace Syx {
                           TriI(SupportID::C, SupportID::B, SupportID::D, SupportID::A),
                           TriI(SupportID::A, SupportID::C, SupportID::D, SupportID::B)};
 
-    int inFrontDiscard = -1;
+    SupportID inFrontDiscard = SupportID::None;
     for(int i = 0; i < 3; ++i) {
       const TriI& tri = tris[i];
       const Vec3& a = get(tri.a);
@@ -183,7 +183,7 @@ namespace Syx {
     }
 
     //Will be set if origin was in front of triangle(s) but not contained by any, in which case we can discard the unused vertex of one of those triangles
-    if(inFrontDiscard != -1) {
+    if(inFrontDiscard != SupportID::None) {
       _discard(inFrontDiscard);
       return _solveTriangle();
     }
@@ -396,7 +396,7 @@ namespace Syx {
         //Line BC
       case SRegion::AC: _discard(SupportID::A); break;
         //In front of triangle, but fix winding
-      case SRegion::FaceToO: std::swap(getSupport(SupportID::B), getSupport(SupportID::C)); break;
+      case SRegion::FaceToO: std::swap(getSupport(size_t(SupportID::B)), getSupport(size_t(SupportID::C))); break;
         //Don't need to do anything for FaceAwayO
     }
 
@@ -526,17 +526,17 @@ namespace Syx {
     if(bdc && acd && adb)
       result = _sThreeTriCase(bdcNorm, acdNorm, badNorm);
     else if(bdc && acd)
-      result = _sTwoTriCase(SupportID::D, SupportID::C, SupportID::B, SupportID::A, bdcNorm, acdNorm);
+      result = _sTwoTriCase(size_t(SupportID::D), size_t(SupportID::C), size_t(SupportID::B), size_t(SupportID::A), bdcNorm, acdNorm);
     else if(bdc && adb)
-      result = _sTwoTriCase(SupportID::D, SupportID::B, SupportID::A, SupportID::C, badNorm, bdcNorm);
+      result = _sTwoTriCase(size_t(SupportID::D), size_t(SupportID::B), size_t(SupportID::A), size_t(SupportID::C), badNorm, bdcNorm);
     else if(acd && adb)
-      result = _sTwoTriCase(SupportID::D, SupportID::A, SupportID::C, SupportID::B, acdNorm, badNorm);
+      result = _sTwoTriCase(size_t(SupportID::D), size_t(SupportID::A), size_t(SupportID::C), size_t(SupportID::B), acdNorm, badNorm);
     else if(bdc)
-      result = _sOneTriCase(SupportID::D, SupportID::C, SupportID::B, SupportID::A, bdcNorm);
+      result = _sOneTriCase(size_t(SupportID::D), size_t(SupportID::C), size_t(SupportID::B), size_t(SupportID::A), bdcNorm);
     else if(acd)
-      result = _sOneTriCase(SupportID::D, SupportID::A, SupportID::C, SupportID::B, acdNorm);
+      result = _sOneTriCase(size_t(SupportID::D), size_t(SupportID::A), size_t(SupportID::C), size_t(SupportID::B), acdNorm);
     else if(adb)
-      result = _sOneTriCase(SupportID::D, SupportID::B, SupportID::A, SupportID::C, badNorm);
+      result = _sOneTriCase(size_t(SupportID::D), size_t(SupportID::B), size_t(SupportID::A), size_t(SupportID::C), badNorm);
     else {
       //Not in front of any face. Collision.
       mContainsOrigin = true;
@@ -547,7 +547,7 @@ namespace Syx {
     return result;
   }
 
-  SFloats Simplex::_sOneTriCase(int a, int b, int c, int d, const SFloats& norm) {
+  SFloats Simplex::_sOneTriCase(size_t a, size_t b, size_t c, size_t d, const SFloats& norm) {
     //For this case the origin is in front of only the abc triangle, so solve for that
     SFloats pointA = SLoadAll(&get(a).x);
     SFloats pointB = SLoadAll(&get(b).x);
@@ -559,7 +559,7 @@ namespace Syx {
     return result;
   }
 
-  SFloats Simplex::_sTwoTriCase(int a, int b, int c, int d, const SFloats& abcNorm, const SFloats& adbNorm) {
+  SFloats Simplex::_sTwoTriCase(size_t a, size_t b, size_t c, size_t d, const SFloats& abcNorm, const SFloats& adbNorm) {
     //For two face cases it should either be within one of them or on the line between them,
     //in which case it doesn't matter which closest we pick
     SFloats pointA = SLoadAll(&get(a).x);
@@ -600,21 +600,21 @@ namespace Syx {
     adbResult = _sSolveTriangle(SSubAll(a, d), SSubAll(b, d), SVec3::neg(d), badNorm, d, b, a, adbReg, false);
     if(bdcReg == SRegion::Face) {
       result = bdcResult;
-      _sDiscardTetrahedron(SupportID::D, SupportID::C, SupportID::B, SupportID::A, bdcReg);
+      _sDiscardTetrahedron(size_t(SupportID::D), size_t(SupportID::C), size_t(SupportID::B), size_t(SupportID::A), bdcReg);
     }
     else if(acdReg == SRegion::Face) {
       result = acdResult;
-      _sDiscardTetrahedron(SupportID::D, SupportID::A, SupportID::C, SupportID::B, acdReg);
+      _sDiscardTetrahedron(size_t(SupportID::D), size_t(SupportID::A), size_t(SupportID::C), size_t(SupportID::B), acdReg);
     }
     else {
       result = adbResult;
-      _sDiscardTetrahedron(SupportID::D, SupportID::B, SupportID::A, SupportID::C, adbReg);
+      _sDiscardTetrahedron(size_t(SupportID::D), size_t(SupportID::B), size_t(SupportID::A), size_t(SupportID::C), adbReg);
     }
 
     return result;
   }
 
-  void Simplex::_sDiscardTetrahedron(int, int b, int c, int d, int region) {
+  void Simplex::_sDiscardTetrahedron(size_t, size_t b, size_t c, size_t d, size_t region) {
     //A is never thrown away in the tetrahedron case
     switch(region) {
       case SRegion::A: _discard(b, c, d); break;

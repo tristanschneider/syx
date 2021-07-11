@@ -5,22 +5,22 @@ namespace Syx {
   struct SupportPoint;
 
   struct SupportEdge {
-    SupportEdge(void) : mFrom(-1), mTo(-1) {}
-    SupportEdge(int from, int to) : mFrom(from), mTo(to) {}
+    SupportEdge(void) : mFrom(SupportID::None), mTo(SupportID::None) {}
+    SupportEdge(SupportID from, SupportID to) : mFrom(from), mTo(to) {}
 
-    int mFrom, mTo;
+    SupportID mFrom, mTo;
   };
 
   typedef std::vector<SupportPoint, AlignmentAllocator<SupportPoint>> SupportPoints;
 
   SAlign struct SupportTri {
-    int mVerts[3];
+    SupportID mVerts[3];
     int mPadding;
     SAlign Vec3 mHalfPlane;
 
     SupportTri(void);
-    SupportTri(int a, int b, int c, SupportPoints& pts);
-    SupportTri(int a, int b, int c, const Vec3& halfPlane);
+    SupportTri(SupportID a, SupportID b, SupportID c, SupportPoints& pts);
+    SupportTri(SupportID a, SupportID b, SupportID c, const Vec3& halfPlane);
 
     float signedNormalDist(const Vec3& point) const;
     float originDist(void) const;

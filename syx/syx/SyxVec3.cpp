@@ -36,6 +36,14 @@ namespace Syx {
     return *(&x + index);
   }
 
+  const float& Vec3::operator[](size_t index) const {
+    return *(&x + index);
+  }
+
+  float& Vec3::operator[](size_t index) {
+    return *(&x + index);
+  }
+
   Vec3& Vec3::operator+=(const Vec3& rhs) {
     x += rhs.x;
     y += rhs.y;
@@ -283,8 +291,8 @@ namespace Syx {
 
   float Vec3::getScalarT(const Vec3& start, const Vec3& end, const Vec3& pointOnLine) {
     Vec3 startToEnd = end - start;
-    unsigned nonZeroAxis = 0;
-    for(unsigned i = 0; i < 3; ++i)
+    size_t nonZeroAxis = 0;
+    for(size_t i = 0; i < 3; ++i)
       if(std::abs(startToEnd[i]) > SYX_EPSILON) {
         nonZeroAxis = i;
         break;

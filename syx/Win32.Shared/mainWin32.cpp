@@ -14,8 +14,7 @@
 #include "system/KeyboardInput.h"
 #include "AppPlatformWin32.h"
 
-#include <gl/glew.h>
-
+#include "GL/glew.h"
 
 using namespace Syx;
 
@@ -110,8 +109,8 @@ void registerWindow(HINSTANCE inst) {
   wc.hIcon = NULL; // predefined app. icon 
   wc.hCursor = LoadCursor(NULL, IDC_ARROW); // predefined arrow 
   wc.hbrBackground = CreateSolidBrush(COLOR_ACTIVEBORDER);
-  wc.lpszMenuName = L"MainMenu";    // name of menu resource 
-  wc.lpszClassName = L"MainClass";  // name of window class 
+  wc.lpszMenuName = "MainMenu";    // name of menu resource 
+  wc.lpszClassName = "MainClass";  // name of window class 
   wc.hIconSm = NULL; // small class icon 
   // Register the window class.
   RegisterClassEx(&wc);
@@ -226,7 +225,7 @@ int WINAPI WinMain(HINSTANCE hinstance, HINSTANCE, LPSTR lpCmdLine, int nCmdShow
   createConsole();
 
   registerWindow(hinstance);
-  HWND wnd = CreateWindow(L"MainClass", L"SYX",
+  HWND wnd = CreateWindow("MainClass", "SYX",
     WS_OVERLAPPEDWINDOW | CS_OWNDC,
     CW_USEDEFAULT,
     CW_USEDEFAULT,
