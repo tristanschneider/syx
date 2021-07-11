@@ -91,7 +91,7 @@ namespace Lua {
 
   //Number size()
   int NumVec::size(lua_State* l) {
-    lua_pushnumber(l, _getVec(l, 1)->mVec.size());
+    lua_pushnumber(l, lua_Number(_getVec(l, 1)->mVec.size()));
     return 1;
   }
 
@@ -132,7 +132,7 @@ namespace Lua {
     NumVec* v = _getVec(l, 1);
     float val = _getValue(l, 2);
     auto it = std::find(v->mVec.begin(), v->mVec.end(), val);
-    lua_pushnumber(l, it != v->mVec.end() ? it - v->mVec.begin() + 1 : 0);
+    lua_pushnumber(l, static_cast<lua_Number>(it != v->mVec.end() ? it - v->mVec.begin() + 1 : 0));
     return 1;
   }
 

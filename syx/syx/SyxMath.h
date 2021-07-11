@@ -97,7 +97,7 @@ namespace Syx {
   }
 
   template <typename Container>
-  void swapRemove(Container& container, int index) {
+  void swapRemove(Container& container, size_t index) {
     std::swap(container[index], container[container.size() - 1]);
     container.pop_back();
   }

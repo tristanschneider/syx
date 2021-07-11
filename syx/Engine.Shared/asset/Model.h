@@ -24,7 +24,7 @@ public:
   void draw() const;
 
   std::vector<Vertex> mVerts;
-  std::vector<size_t> mIndices;
+  std::vector<uint32_t> mIndices;
   Handle mHandle;
   GLHandle mVB;
   GLHandle mIB;

@@ -30,7 +30,7 @@ void Texture::loadGpu() {
 
   glGenTextures(1, &mTexture);
   glBindTexture(GL_TEXTURE_2D, mTexture);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, mWidth, mHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, get().data());
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, GLsizei(mWidth), GLsizei(mHeight), 0, GL_RGBA, GL_UNSIGNED_BYTE, get().data());
   //Define sampling mode, no mip maps snap to nearest
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);

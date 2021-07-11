@@ -197,7 +197,7 @@ size_t ModelOBJLoader::_getVertIndex(const VertLookup& lookup) {
 }
 
 void ModelOBJLoader::_addTri(size_t a, size_t b, size_t c) {
-  mModel->mIndices.push_back(a);
-  mModel->mIndices.push_back(b);
-  mModel->mIndices.push_back(c);
+  mModel->mIndices.push_back(static_cast<uint32_t>(a));
+  mModel->mIndices.push_back(static_cast<uint32_t>(b));
+  mModel->mIndices.push_back(static_cast<uint32_t>(c));
 }

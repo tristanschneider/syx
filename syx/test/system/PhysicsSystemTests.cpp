@@ -36,6 +36,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 #include "test/TestAppPlatform.h"
 #include "test/TestAppRegistration.h"
 
+#include "SyxInterface.h"
+
 namespace Syx {
   namespace Interface {
     extern ::IDebugDrawer* gDrawer;

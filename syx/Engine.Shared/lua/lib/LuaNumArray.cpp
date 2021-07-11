@@ -9,7 +9,7 @@ namespace Lua {
   const char* NumArray::CLASS_NAME = "NumArray";
 
   NumArray::NumArray(size_t size)
-    : mSize(size) {
+    : mSize(static_cast<int>(size)) {
     std::memset(mData, 0, sizeof(float)*mSize);
   }
 

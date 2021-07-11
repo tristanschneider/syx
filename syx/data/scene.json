@@ -1,15 +1,15 @@
 scene = {
   assets = {
-    "models/bowserlow.obj",
-    "shaders/phong.vs",
-    "shaders/fullScreenQuad.vs",
-    "DefaultPhysicsMaterial",
-    "shaders/flatColor.vs",
-    "scripts/test.lc",
     "CapsuleCollider",
-    "shaders/debug.vs",
     "CubeCollider",
+    "shaders/phong.vs",
     "SphereCollider",
+    "shaders/fullScreenQuad.vs",
+    "shaders/flatColor.vs",
+    "shaders/debug.vs",
+    "DefaultPhysicsMaterial",
+    "models/bowserlow.obj",
+    "scripts/test.lc",
     "textures/test.bmp",
     "scripts/firstPersonCamera.lc",
     "models/car.obj",
@@ -53,8 +53,8 @@ scene = {
         },
         {
           props = {
-            diffuseTexture = 1088482667,
-            model = 140062738
+            diffuseTexture = 1780226639206776171,
+            model = 5143398171086256114
           },
           type = "Renderable"
         },
@@ -83,7 +83,7 @@ scene = {
                 }
               }
             },
-            script = 3676084395
+            script = 0
           },
           type = "Script"
         },
@@ -129,6 +129,53 @@ scene = {
       components = {
         {
           props = {
+            diffuseTexture = 1780226639206776171,
+            model = 2555962790139019559
+          },
+          type = "Renderable"
+        },
+        {
+          props = {
+            matrix = {
+              0.100000,
+              0,
+              0,
+              0,
+              0,
+              0.100000,
+              0,
+              5,
+              0,
+              0,
+              0.100000,
+              0,
+              0,
+              0,
+              0,
+              1
+            }
+          },
+          type = "Transform"
+        },
+        {
+          props = {
+            id = 0
+          },
+          type = "Space"
+        },
+        {
+          props = {
+            name = "Bowser"
+          },
+          type = "Name"
+        }
+      },
+      uniqueID = 113816633350334
+    },
+    {
+      components = {
+        {
+          props = {
             angVel = Vec3.new3(0.000000, 0.000000, 0.000000),
             hasCollider = true,
             hasRigidbody = false,
@@ -161,8 +208,8 @@ scene = {
         },
         {
           props = {
-            diffuseTexture = 1088482667,
-            model = 140062738
+            diffuseTexture = 1780226639206776171,
+            model = 5143398171086256114
           },
           type = "Renderable"
         },
@@ -208,8 +255,8 @@ scene = {
       components = {
         {
           props = {
-            diffuseTexture = 1088482667,
-            model = 2775790889
+            diffuseTexture = 1780226639206776171,
+            model = 4234212108091459049
           },
           type = "Renderable"
         },
@@ -284,53 +331,6 @@ scene = {
       components = {
         {
           props = {
-            diffuseTexture = 1088482667,
-            model = 2263845287
-          },
-          type = "Renderable"
-        },
-        {
-          props = {
-            matrix = {
-              0.100000,
-              0,
-              0,
-              0,
-              0,
-              0.100000,
-              0,
-              5,
-              0,
-              0,
-              0.100000,
-              0,
-              0,
-              0,
-              0,
-              1
-            }
-          },
-          type = "Transform"
-        },
-        {
-          props = {
-            id = 0
-          },
-          type = "Space"
-        },
-        {
-          props = {
-            name = "Bowser"
-          },
-          type = "Name"
-        }
-      },
-      uniqueID = 113816633350334
-    },
-    {
-      components = {
-        {
-          props = {
             viewport = "game"
           },
           type = "Camera"
@@ -370,11 +370,11 @@ scene = {
         {
           props = {
             props = {
-              decellerationScalar = 5,
+              decellerationScalar = 1,
               jumpForce = 200,
-              speed = 15
+              speed = 39
             },
-            script = 375910579
+            script = 2382505274827815987
           },
           type = "Script"
         },

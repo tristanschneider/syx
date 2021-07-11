@@ -141,7 +141,7 @@ namespace Syx {
     do {
       //We're given the first one, but after that we need to throw away the invalid one and get a new one
       if(!first) {
-        int index = bestTri - &*mTris.begin();
+        auto index = bestTri - &*mTris.begin();
         swapRemove(mTris, index);
         bestTri = _getClosestTri();
       }
@@ -152,9 +152,9 @@ namespace Syx {
         return Vec3::Zero;
       }
 
-      a = &mVerts[bestTri->mVerts[0]];
-      b = &mVerts[bestTri->mVerts[1]];
-      c = &mVerts[bestTri->mVerts[2]];
+      a = &mVerts[size_t(bestTri->mVerts[0])];
+      b = &mVerts[size_t(bestTri->mVerts[1])];
+      c = &mVerts[size_t(bestTri->mVerts[2])];
 
       originOnTri = bestTri->project(Vec3::Zero);
       bary = pointToBarycentric(a->mSupport, b->mSupport, c->mSupport, originOnTri);
@@ -242,7 +242,7 @@ namespace Syx {
         continue;
 
       //Construct a triangle out of this edge with the new vertex
-      mTris.push_back(SupportTri(curEdge.mFrom, curEdge.mTo, mVerts.size() - 1, mVerts));
+      mTris.push_back(SupportTri(SupportID(curEdge.mFrom), SupportID(curEdge.mTo), SupportID(mVerts.size() - 1), mVerts));
       ++i;
     }
 
@@ -321,9 +321,9 @@ namespace Syx {
     bestTri = bestTri;
     d.setColor(1.0f, 0.0f, 0.0f);
     for(auto& tri : mTris) {
-      Vec3 a = mVerts[tri.mVerts[0]].mSupport;
-      Vec3 b = mVerts[tri.mVerts[1]].mSupport;
-      Vec3 c = mVerts[tri.mVerts[2]].mSupport;
+      Vec3 a = mVerts[size_t(tri.mVerts[0])].mSupport;
+      Vec3 b = mVerts[size_t(tri.mVerts[1])].mSupport;
+      Vec3 c = mVerts[size_t(tri.mVerts[2])].mSupport;
       drawTriangle(a, b, c, true);
     }
 
@@ -630,8 +630,8 @@ namespace Syx {
         continue;
 
       //Construct a triangle out of this edge with the new vertex
-      SFloats a = SLoadAll(&mVerts[curEdge.mFrom].mSupport.x);
-      SFloats b = SLoadAll(&mVerts[curEdge.mTo].mSupport.x);
+      SFloats a = SLoadAll(&mVerts[size_t(curEdge.mFrom)].mSupport.x);
+      SFloats b = SLoadAll(&mVerts[size_t(curEdge.mTo)].mSupport.x);
 
       SFloats normal = SVec3::safeNormalized(SVec3::ccwTriangleNormal(a, b, newSupport));
       SFloats wTerm = SVec3::neg(SVec3::dot(a, normal));
@@ -641,7 +641,7 @@ namespace Syx {
       SStoreAll(&plane.x, normal);
       plane.w = w.x;
 
-      mTris.push_back(SupportTri(curEdge.mFrom, curEdge.mTo, mVerts.size() - 1, plane));
+      mTris.push_back(SupportTri(SupportID(curEdge.mFrom), SupportID(curEdge.mTo), SupportID(mVerts.size() - 1), plane));
       ++i;
     }
 

@@ -29,7 +29,7 @@ void AssetPreview::editorUpdate() {
     ImGui::Text(mPreview->getInfo().mUri.c_str());
     //TODO: Might need separate thumbnail asset for previews that aren't textures
     if(mPreview->isOfType<Texture>()) {
-      ImGui::Image(reinterpret_cast<ImTextureID>(static_cast<Texture&>(*mPreview).mTexture), ImVec2(100, 100));
+      ImGui::Image(reinterpret_cast<ImTextureID>(static_cast<size_t>(static_cast<Texture&>(*mPreview).mTexture)), ImVec2(100, 100));
     }
   }
   else {

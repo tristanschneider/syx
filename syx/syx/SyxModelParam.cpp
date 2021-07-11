@@ -38,7 +38,7 @@ namespace Syx {
     return Model(mPoints, mTriangles, mEnvironment);
   }
 
-  void CompositeModelParam::reserve(size_t submodels, size_t instances) {
+  void CompositeModelParam::reserve(size_t, size_t instances) {
     mInstances.reserve(instances);
   }
 

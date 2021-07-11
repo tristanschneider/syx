@@ -381,7 +381,7 @@ namespace Syx {
     SyxAssertError(false, "Tried to discard point that wasn't in simplex");
   }
 
-  void DebugSimplex::_discard(int id) {
+  void DebugSimplex::_discard(size_t id) {
     mHistory += "Discard " + _getIndexName(id);
     mHistory += "\n";
 
@@ -390,14 +390,14 @@ namespace Syx {
       mSupports[i] = mSupports[i + 1];
   }
 
-  void DebugSimplex::_discard(int a, int b) {
+  void DebugSimplex::_discard(size_t a, size_t b) {
     if(a > b)
       std::swap(a, b);
     _discard(b);
     _discard(a);
   }
 
-  void DebugSimplex::_discard(int a, int b, int c) {
+  void DebugSimplex::_discard(size_t a, size_t b, size_t c) {
     orderAscending(a, b, c);
     _discard(c);
     _discard(b);
@@ -422,7 +422,7 @@ namespace Syx {
     }
   }
 
-  std::string DebugSimplex::_getIndexName(int index) {
+  std::string DebugSimplex::_getIndexName(size_t index) {
     switch(index) {
     case 0: return "A";
     case 1: return "B";

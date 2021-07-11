@@ -4,19 +4,19 @@
 
 namespace Syx {
   SupportTri::SupportTri(void) {
-    mVerts[0] = mVerts[1] = mVerts[2] = -1;
+    mVerts[0] = mVerts[1] = mVerts[2] = SupportID::None;
   }
 
-  SupportTri::SupportTri(int a, int b, int c, SupportPoints& pts) : mVerts{ a, b, c } {
-    Vec3 pa = pts[mVerts[0]].mSupport;
-    Vec3 pb = pts[mVerts[1]].mSupport;
-    Vec3 pc = pts[mVerts[2]].mSupport;
+  SupportTri::SupportTri(SupportID a, SupportID b, SupportID c, SupportPoints& pts) : mVerts{ a, b, c } {
+    Vec3 pa = pts[size_t(mVerts[0])].mSupport;
+    Vec3 pb = pts[size_t(mVerts[1])].mSupport;
+    Vec3 pc = pts[size_t(mVerts[2])].mSupport;
 
     mHalfPlane = triangleNormal(pa, pb, pc).safeNormalized();
     mHalfPlane.w = -pa.dot(mHalfPlane);
   }
 
-  SupportTri::SupportTri(int a, int b, int c, const Vec3& halfPlane) : mVerts{ a, b, c }, mHalfPlane(halfPlane) {}
+  SupportTri::SupportTri(SupportID a, SupportID b, SupportID c, const Vec3& halfPlane) : mVerts{ a, b, c }, mHalfPlane(halfPlane) {}
 
   float SupportTri::signedNormalDist(const Vec3& point) const {
     return mHalfPlane.dot4(point);

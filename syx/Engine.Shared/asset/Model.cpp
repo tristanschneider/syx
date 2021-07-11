@@ -64,7 +64,7 @@ void Model::loadGpu() {
 
   //Define vertex attributes
   glEnableVertexAttribArray(0);
-  size_t stride = sizeof(Vertex);
+  GLsizei stride = sizeof(Vertex);
   size_t start = 0;
   //Position
   glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<void*>(start));
@@ -93,5 +93,5 @@ void Model::unloadGpu() {
 }
 
 void Model::draw() const {
-  glDrawElements(GL_TRIANGLES, mIndices.size(), GL_UNSIGNED_INT, nullptr);
+  glDrawElements(GL_TRIANGLES, GLsizei(mIndices.size()), GL_UNSIGNED_INT, nullptr);
 }

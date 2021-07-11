@@ -57,7 +57,7 @@ void EventBuffer::_growBuffer(size_t bytes) {
     return;
   }
 
-  size_t newCap = std::max(1u, mBufferCapacity*2);
+  size_t newCap = std::max(size_t(1), mBufferCapacity*2);
   while(newCap < newSize)
     newCap *= 2;
   uint8_t* newBuff = new uint8_t[newCap];

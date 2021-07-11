@@ -1,6 +1,8 @@
 #pragma once
 #include "util/Variant.h"
 
+#include <stack>
+
 class ScratchPad {
 public:
   ScratchPad(uint8_t defaultLifetime);

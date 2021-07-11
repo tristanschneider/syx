@@ -21,16 +21,14 @@ namespace Syx {
     SAlign Vec3 mSupport;
   };
 
-  namespace SupportID {
-    //In increasing order of age, so A was added first, followed by B, etc.
-    enum {
-      A,
-      B,
-      C,
-      D,
-      None
-    };
-  }
+  //In increasing order of age, so A was added first, followed by B, etc.
+  enum class SupportID {
+    A,
+    B,
+    C,
+    D,
+    None
+  };
 
   namespace SRegion {
     enum {
@@ -64,10 +62,12 @@ namespace Syx {
 
     void draw(const Vec3& searchDir);
 
-    //Used like Get(SupportID::B)
-    const Vec3& get(int id) const { return mSupports[id].mSupport; }
-    SupportPoint& getSupport(int id) { return mSupports[id]; }
-    const SupportPoint& getSupport(int id) const { return mSupports[id]; }
+    const Vec3& get(size_t id) const { return mSupports[id].mSupport; }
+    const Vec3& get(SupportID id) const { return mSupports[size_t(id)].mSupport; }
+    SupportPoint& getSupport(size_t id) { return mSupports[id]; }
+    const SupportPoint& getSupport(size_t id) const { return mSupports[id]; }
+    SupportPoint& getSupport(SupportID id) { return mSupports[size_t(id)]; }
+    const SupportPoint& getSupport(SupportID id) const { return mSupports[size_t(id)]; }
     size_t size(void) const { return mSize; }
 
     bool sIsDegenerate(void);
@@ -75,9 +75,12 @@ namespace Syx {
     bool sMakesProgress(SFloats newPoint, SFloats searchDir);
 
   private:
-    void _discard(int id);
-    void _discard(int a, int b);
-    void _discard(int a, int b, int c);
+    void _discard(size_t id);
+    void _discard(size_t a, size_t b);
+    void _discard(size_t a, size_t b, size_t c);
+    void _discard(SupportID id) { _discard(size_t(id)); };
+    void _discard(SupportID a, SupportID b) { _discard(size_t(a), size_t(b)); }
+    void _discard(SupportID a, SupportID b, SupportID c) { _discard(size_t(a), size_t(b), size_t(c)); }
     void _fixWinding(void);
 
     Vec3 _solveLine(void);
@@ -89,12 +92,12 @@ namespace Syx {
     //The letters don't refer to the SupportID but rather with a being the only vertex the origin could be in front of
     SFloats _sSolveTriangle(const SFloats& aToC, const SFloats& aToB, const SFloats& aToO, const SFloats& normal, const SFloats& a, const SFloats& b, const SFloats& c, int& resultRegion, bool checkWinding);
     SFloats _sSolveTetrahedron(void);
-    void _sDiscardTetrahedron(int a, int b, int c, int d, int region);
+    void _sDiscardTetrahedron(size_t a, size_t b, size_t c, size_t d, size_t region);
     //Cases within tetrahedron, origin visible by one or two triangles
     //a is the vertex the origin could be in front of, and d is the vertex that isn't part of the triangle
-    SFloats _sOneTriCase(int a, int b, int c, int d, const SFloats& norm);
+    SFloats _sOneTriCase(size_t a, size_t b, size_t c, size_t d, const SFloats& norm);
     //first triangle is abc, second is adb
-    SFloats _sTwoTriCase(int a, int b, int c, int d, const SFloats& abcNorm, const SFloats& adbNorm);
+    SFloats _sTwoTriCase(size_t a, size_t b, size_t c, size_t d, const SFloats& abcNorm, const SFloats& adbNorm);
     SFloats _sThreeTriCase(const SFloats& bdcNorm, const SFloats& acdNorm, const SFloats& badNorm);
 
     SAlign SupportPoint mSupports[SIMPLEX_MAX];

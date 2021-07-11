@@ -42,7 +42,7 @@ namespace Lua {
 
     void _writeToLua(lua_State* s, const void* base) const override {
       const std::vector<WrappedNode::WrappedType>& vec = *static_cast<const std::vector<WrappedNode::WrappedType>*>(base);
-      lua_createtable(s, vec.size(), 0);
+      lua_createtable(s, static_cast<int>(vec.size()), 0);
       for(size_t i = 0; i < vec.size(); ++i) {
         auto&& obj = vec[i];
         lua_pushinteger(s, static_cast<lua_Integer>(i + 1));

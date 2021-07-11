@@ -223,7 +223,7 @@ void ImGuiImpl::render(float dt, Syx::Vec2 display) {
 
       for(int cmd = 0; cmd < cmdList->CmdBuffer.Size; ++cmd) {
         const ImDrawCmd* pcmd = &cmdList->CmdBuffer[cmd];
-        GLuint curTex = reinterpret_cast<GLuint>(pcmd->TextureId);
+        GLuint curTex = static_cast<GLuint>(reinterpret_cast<size_t>(pcmd->TextureId));
 
         glScissor((int)pcmd->ClipRect.x, (int)(fbHeight - pcmd->ClipRect.w), (int)(pcmd->ClipRect.z - pcmd->ClipRect.x), (int)(pcmd->ClipRect.w - pcmd->ClipRect.y));
         if(curTex != boundTex) {

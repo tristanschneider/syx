@@ -112,7 +112,7 @@ void DebugDrawer::_render(const Syx::Mat4& wvp) {
   {
     Shader::Binder b(shader);
     glUniformMatrix4fv(shader.getUniform("wvp"), 1, GL_FALSE, wvp.mData);
-    glDrawArrays(GL_LINES, 0, mVerts.size());
+    glDrawArrays(GL_LINES, 0, GLsizei(mVerts.size()));
   }
   glBindVertexArray(0);
 

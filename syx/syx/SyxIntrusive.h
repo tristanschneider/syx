@@ -291,7 +291,7 @@ namespace Syx {
           return newNode;
         }
         //Get last index of previous list
-        leftNeighbor = &getObjectAtIndex(page - 1, mPageSize - 1);
+        leftNeighbor = &getObjectAtIndex(page - 1, int(mPageSize) - 1);
       }
       else
         leftNeighbor = newNode - 1;

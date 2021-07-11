@@ -16,6 +16,8 @@ namespace Syx {
     Vec3 operator/(float rhs) const;
     const float& operator[](int index) const;
     float& operator[](int index);
+    const float& operator[](size_t index) const;
+    float& operator[](size_t index);
 
     Vec3& operator+=(const Vec3& rhs);
     Vec3& operator-=(const Vec3& rhs);

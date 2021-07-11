@@ -14,8 +14,7 @@
 #include "system/KeyboardInput.h"
 #include "AppPlatformWin32.h"
 
-#include <gl/glew.h>
-
+#include "GL/glew.h"
 
 using namespace Syx;
 
@@ -56,7 +55,7 @@ LRESULT _handleDragDrop(HWND wnd, UINT msg, WPARAM w, LPARAM l) {
 
   std::array<char, FilePath::MAX_FILE_PATH> buffer;
   for(UINT i = 0; i < fileCount; ++i) {
-    if(::DragQueryFileA(drop, i, buffer.data(), buffer.size())) {
+    if(::DragQueryFileA(drop, i, buffer.data(), UINT(buffer.size()))) {
       printf("Receiving file %s\n", buffer.data());
       files.emplace_back(FilePath(buffer.data()));
     }
@@ -110,8 +109,8 @@ void registerWindow(HINSTANCE inst) {
   wc.hIcon = NULL; // predefined app. icon 
   wc.hCursor = LoadCursor(NULL, IDC_ARROW); // predefined arrow 
   wc.hbrBackground = CreateSolidBrush(COLOR_ACTIVEBORDER);
-  wc.lpszMenuName = L"MainMenu";    // name of menu resource 
-  wc.lpszClassName = L"MainClass";  // name of window class 
+  wc.lpszMenuName = "MainMenu";    // name of menu resource 
+  wc.lpszClassName = "MainClass";  // name of window class 
   wc.hIconSm = NULL; // small class icon 
   // Register the window class.
   RegisterClassEx(&wc);
@@ -213,7 +212,7 @@ int mainLoop(const char* launchUri) {
   }
   sApp->uninit();
 
-  return msg.wParam;
+  return static_cast<int>(msg.wParam);
 }
 
 void createConsole() {
@@ -226,7 +225,7 @@ int WINAPI WinMain(HINSTANCE hinstance, HINSTANCE, LPSTR lpCmdLine, int nCmdShow
   createConsole();
 
   registerWindow(hinstance);
-  HWND wnd = CreateWindow(L"MainClass", L"SYX",
+  HWND wnd = CreateWindow("MainClass", "SYX",
     WS_OVERLAPPEDWINDOW | CS_OWNDC,
     CW_USEDEFAULT,
     CW_USEDEFAULT,

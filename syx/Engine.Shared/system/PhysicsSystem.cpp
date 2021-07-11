@@ -150,7 +150,7 @@ void PhysicsSystem::_processSyxEvents() {
       }
     }
     else
-      printf("Failed to map physics object %u\n", e.mHandle);
+      printf("Failed to map physics object %zu\n", e.mHandle);
   }
 
   {

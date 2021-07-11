@@ -6,7 +6,7 @@
 
 namespace Syx {
   PhysicsObject::PhysicsObject(Handle myHandle, HandleT handle)
-    : EnableDeferredDeletion(std::move(handle))
+    : EnableDeferredDeletion(handle)
     , mRigidbody(this)
     , mCollider(this)
     , mFlags(0)

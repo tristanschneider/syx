@@ -192,7 +192,6 @@ namespace Syx {
       PhysicsObject& obj = *it;
       if(obj.getAsleep())
         continue;
-      Rigidbody* rigidbody = obj.getRigidbody();
       if(obj.shouldIntegrate()) {
         obj.getRigidbody()->integratePosition(dt);
         _fireUpdateEvent(obj);

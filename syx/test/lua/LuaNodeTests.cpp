@@ -137,34 +137,34 @@ namespace LuaTests {
     }
     virtual size_t defaultCtorCount() const {
       const auto values = getValues();
-      return std::accumulate(values.begin(), values.end(), 0, [](size_t result, const Tracker* v) { return result + v->defaultCtors; });
+      return std::accumulate(values.begin(), values.end(), size_t(0), [](size_t result, const Tracker* v) { return result + v->defaultCtors; });
     }
     virtual size_t copyCtorCount() const {
       const auto values = getValues();
-      return std::accumulate(values.begin(), values.end(), 0, [](size_t result, const Tracker* v) { return result + v->copyCtors; });
+      return std::accumulate(values.begin(), values.end(), size_t(0), [](size_t result, const Tracker* v) { return result + v->copyCtors; });
     }
     virtual size_t moveCtorCount() const {
       const auto values = getValues();
-      return std::accumulate(values.begin(), values.end(), 0, [](size_t result, const Tracker* v) { return result + v->moveCtors; });
+      return std::accumulate(values.begin(), values.end(), size_t(0), [](size_t result, const Tracker* v) { return result + v->moveCtors; });
     }
     virtual size_t copyCount() const {
       const auto values = getValues();
-      return std::accumulate(values.begin(), values.end(), 0, [](size_t result, const Tracker* v) { return result + v->copies; });
+      return std::accumulate(values.begin(), values.end(), size_t(0), [](size_t result, const Tracker* v) { return result + v->copies; });
     }
     virtual size_t moveCount() const {
       const auto values = getValues();
-      return std::accumulate(values.begin(), values.end(), 0, [](size_t result, const Tracker* v) { return result + v->moves; });
+      return std::accumulate(values.begin(), values.end(), size_t(0), [](size_t result, const Tracker* v) { return result + v->moves; });
     }
     virtual size_t dtorCount() const {
       return Tracker::globalDtors;
     }
     virtual size_t luaReadCount() const {
       const auto values = getValues();
-      return std::accumulate(values.begin(), values.end(), 0, [](size_t result, const Tracker* v) { return result + v->luaReads; });
+      return std::accumulate(values.begin(), values.end(), size_t(0), [](size_t result, const Tracker* v) { return result + v->luaReads; });
     }
     virtual size_t luaWriteCount() const {
       const auto values = getValues();
-      return std::accumulate(values.begin(), values.end(), 0, [](size_t result, const Tracker* v) { return result + v->luaWrites; });
+      return std::accumulate(values.begin(), values.end(), size_t(0), [](size_t result, const Tracker* v) { return result + v->luaWrites; });
     }
     virtual std::vector<const Tracker*> getValues() const {
       const std::vector<Tracker*> values = const_cast<NodeTestObject*>(this)->getValues();
