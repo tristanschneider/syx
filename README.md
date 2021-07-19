@@ -1,8 +1,8 @@
 # syx
 To run:
-- Open the solution.
-- Select Win32.App as the startup project.
-- Enter the following as command arguments in Win32.App project settings for running through visual studio `projectRoot=D:\syx\syx\data loadScene=D:\syx\syx\data\scene.json`
+- `cd syx`
+- `cmake .`
+- `start syx.sln`
 
 # Communication between systems
 Systems should be able to replicate the state they care about via subscribing to relevant messages in the message queue. At the moment systems can still access other systems directly, but ultimately this should  be phased out in favor of improving message channels to the point that it's easy to request whatever is needed from other systems. All messages are pushed to a global message queue that is swapped every frame. This means any messages sent during a frame will be processed the next frame. Whenever any state is changed that any other system may care about, like Transform, messages should be used to request the change to state, then the message handler on the relevant system should apply the change. If desired, the system could also proactively apply the change and ignore messages from itself.
