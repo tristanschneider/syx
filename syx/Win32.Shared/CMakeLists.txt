@@ -9,6 +9,8 @@ target_link_libraries(win32 PUBLIC engine_shared)
 target_link_libraries(win32 PRIVATE glew)
 target_link_libraries(win32 PRIVATE opengl32.lib)
 
+target_include_directories(win32 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+
 copy_glew_to_target(win32)
 copy_data_to_target(win32)
 

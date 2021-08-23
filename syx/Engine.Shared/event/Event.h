@@ -87,11 +87,13 @@ public:
   }
 
   static std::function<void(const CallbackEvent&)> getHandler(size_t systemId) {
-    return [systemId](const CallbackEvent& e) {
-      if(e.mDestId == systemId) {
-        e.mCallback();
-      }
-    };
+    return [systemId](const CallbackEvent& e) { e.tryHandle(systemId); };
+  }
+
+  void tryHandle(size_t systemId) const {
+    if(mDestId == systemId) {
+      mCallback();
+    }
   }
 
 private:

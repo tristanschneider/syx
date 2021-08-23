@@ -1,6 +1,7 @@
 #pragma once
 
 class EventHandler;
+struct EventListener;
 class GameObjectHandleProvider;
 class KeyboardInput;
 class LuaGameObject;
@@ -25,6 +26,7 @@ private:
   void _drawSelected();
   void _broadcastSelection() const;
 
+  std::vector<std::shared_ptr<EventListener>> mListeners;
   MessageQueueProvider* mMsg;
   GameObjectHandleProvider* mHandleGen;
   KeyboardInput* mInput;

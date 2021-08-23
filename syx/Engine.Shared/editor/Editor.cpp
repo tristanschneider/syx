@@ -130,26 +130,10 @@ void Editor::init() {
   mDragDropAssetLoader = std::make_unique<DragDropAssetLoader>(*mArgs.mSystems->getSystem<AssetRepo>(), *mArgs.mPool, *mArgs.mProjectLocator, *mArgs.mFileSystem);
   mArgs.mAppPlatform->addDragDropObserver(*mDragDropAssetLoader);
 
-  mEventHandler->registerEventHandler([this](const AllSystemsInitialized&) {
-    mGameObserver = std::make_unique<EditorGameObserver>(std::bind(&Editor::_editorUpdate, this));
-    mArgs.mSystems->getSystem<LuaGameSystem>()->addObserver(*mGameObserver);
-  });
-
-  mEventHandler->registerEventHandler([this](const UriActivated& e) {
-    const auto it = e.mParams.find("loadScene");
-    if(it != e.mParams.end() && mArgs.mFileSystem->fileExists(it->second.c_str())) {
-      //TODO: should this path be kept seperate from mSavedScene?
-      *mSavedScene = FilePath(it->second.c_str());
-      MessageQueue msg = mArgs.mMessages->getMessageQueue();
-      msg.get().push(ClearSpaceEvent(_getEditorSpace()));
-      msg.get().push(LoadSpaceEvent(_getEditorSpace(), *mSavedScene));
-    }
-  });
-
-  mEventHandler->registerEventHandler([this](const SetPlayStateEvent& e) {
-    _updateState(e.mState);
-  });
-  mEventHandler->registerEventHandler(CallbackEvent::getHandler(typeId<Editor>()));
+  _registerSystemEventHandler(&Editor::onAllSystemsInitialized);
+  _registerSystemEventHandler(&Editor::onUriActivated);
+  _registerSystemEventHandler(&Editor::onSetPlayStateEvent);
+  _registerCallbackEventHandler(*this);
 
   //TODO: make this less confusing and error prone
   MessageQueue msg = mArgs.mMessages->getMessageQueue();
@@ -164,10 +148,27 @@ void Editor::init() {
   cc->setViewport("editor");
   cc->addSync(msg.get());
   mCamera->addComponent(std::move(cc));
+}
 
-  mEventHandler->registerEventHandler([this](const AllSystemsInitialized&) {
-    mAssetWatcher = std::make_unique<AssetWatcher>(*mArgs.mMessages, *mEventHandler, *mArgs.mAppPlatform, *mArgs.mSystems->getSystem<AssetRepo>(), *mArgs.mProjectLocator);
-  });
+void Editor::onAllSystemsInitialized(const AllSystemsInitialized&) {
+  mGameObserver = std::make_unique<EditorGameObserver>(std::bind(&Editor::_editorUpdate, this));
+  mArgs.mSystems->getSystem<LuaGameSystem>()->addObserver(*mGameObserver);
+  mAssetWatcher = std::make_unique<AssetWatcher>(*mArgs.mMessages, *mEventHandler, *mArgs.mAppPlatform, *mArgs.mSystems->getSystem<AssetRepo>(), *mArgs.mProjectLocator);
+}
+
+void Editor::onUriActivated(const UriActivated& e) {
+  const auto it = e.mParams.find("loadScene");
+  if(it != e.mParams.end() && mArgs.mFileSystem->fileExists(it->second.c_str())) {
+    //TODO: should this path be kept seperate from mSavedScene?
+    *mSavedScene = FilePath(it->second.c_str());
+    MessageQueue msg = mArgs.mMessages->getMessageQueue();
+    msg.get().push(ClearSpaceEvent(_getEditorSpace()));
+    msg.get().push(LoadSpaceEvent(_getEditorSpace(), *mSavedScene));
+  }
+}
+
+void Editor::onSetPlayStateEvent(const SetPlayStateEvent& e) {
+  _updateState(e.mState);
 }
 
 void Editor::uninit() {

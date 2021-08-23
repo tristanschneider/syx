@@ -14,13 +14,13 @@ Toolbox::Toolbox(MessageQueueProvider& msg, EventHandler& handler)
   , mCurrentPlayState(PlayState::Stopped)
   , mPostStepState(PlayState::Invalid) {
 
-  handler.registerEventHandler([this](const SetPlayStateEvent& e) {
+  mListeners.push_back(handler.registerEventListener([this](const SetPlayStateEvent& e) {
     mCurrentPlayState = e.mState;
     if(mCurrentPlayState == PlayState::Stepping && mPostStepState != PlayState::Invalid) {
       _requestPlayStateChange(mPostStepState);
       mPostStepState = PlayState::Invalid;
     }
-  });
+  }));
 }
 
 void Toolbox::update(const KeyboardInput& input) {

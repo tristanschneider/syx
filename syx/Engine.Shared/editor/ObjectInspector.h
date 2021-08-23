@@ -4,6 +4,7 @@ class Component;
 class ComponentRegistryProvider;
 class DefaultInspectors;
 class EventHandler;
+struct EventListener;
 class LuaGameObject;
 class LuaGameObjectProvider;
 class MessageQueueProvider;
@@ -34,6 +35,7 @@ private:
   void _showComponentPicker() const;
   void _deleteComponentButton(const Component& component);
 
+  std::vector<std::shared_ptr<EventListener>> mListeners;
   MessageQueueProvider& mMsg;
   std::vector<Handle> mSelected;
   std::vector<Handle> mPrevSelected;

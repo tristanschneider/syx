@@ -41,7 +41,7 @@ public:
   System* _getSystem(size_t id) override;
 
 private:
-  std::vector<std::unique_ptr<System>> mSystems;
+  std::vector<std::shared_ptr<System>> mSystems;
   std::unique_ptr<IWorkerPool> mWorkerPool;
   std::unique_ptr<AppPlatform> mAppPlatform;
   //Message queue is what is pushed to every frame, frozen is what all systems look at each frame to read from

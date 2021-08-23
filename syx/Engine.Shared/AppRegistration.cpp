@@ -65,4 +65,27 @@ namespace Registration {
   std::unique_ptr<AppRegistration> createDefaultApp() {
     return std::make_unique<DefaultAppRegistration>();
   }
+
+  std::unique_ptr<AppRegistration> compose(std::shared_ptr<AppRegistration> a, std::shared_ptr<AppRegistration> b) {
+    struct Composer : public AppRegistration {
+      void registerSystems(const SystemArgs& args, ISystemRegistry& registry) override {
+        for(auto&& reg : mRegistration) {
+          reg->registerSystems(args, registry);
+        }
+      }
+
+      void registerComponents(IComponentRegistry& registry) override {
+        for(auto&& reg : mRegistration) {
+          reg->registerComponents(registry);
+        }
+      }
+
+      std::vector<std::shared_ptr<AppRegistration>> mRegistration;
+    };
+
+    auto result = std::make_unique<Composer>();
+    result->mRegistration.push_back(std::move(a));
+    result->mRegistration.push_back(std::move(b));
+    return result;
+  }
 };

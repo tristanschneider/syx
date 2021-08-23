@@ -10,14 +10,16 @@
 #include "ImGuiImpl.h"
 #include <imgui/imgui.h>
 
+AssetPreview::~AssetPreview() = default;
+
 AssetPreview::AssetPreview(MessageQueueProvider& msg, EventHandler& handler, AssetRepo& assets)
   : mMsg(msg)
   , mAssets(assets) {
 
-  handler.registerEventHandler([this](const PreviewAssetEvent& e) {
+  mListeners.push_back(handler.registerEventListener([this](const PreviewAssetEvent& e) {
     mPreview = !e.mAsset.isEmpty() ? mAssets.getAsset(e.mAsset) : nullptr;
     //TODO: request asset thumbnail if necessary
-  });
+  }));
 
   //TODO: register for a response event to generate assets for previews
 }

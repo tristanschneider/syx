@@ -14,4 +14,5 @@ public:
 
 namespace Registration {
   std::unique_ptr<AppRegistration> createDefaultApp();
+  std::unique_ptr<AppRegistration> compose(std::shared_ptr<AppRegistration> a, std::shared_ptr<AppRegistration> b);
 };

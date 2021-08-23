@@ -19,6 +19,7 @@ class EventBuffer;
 class TransformEvent;
 class SetComponentPropEvent;
 class SetComponentPropsEvent;
+class SetPlayStateEvent;
 class SetTimescaleEvent;
 class RemoveComponentEvent;
 class Gameobject;
@@ -58,6 +59,7 @@ private:
   void _removeComponentEvent(const RemoveComponentEvent& e);
   void _setTimescaleEvent(const SetTimescaleEvent& e);
   void _onApplyForce(const ApplyForceEvent& e);
+  void _onSetPlayState(const SetPlayStateEvent& e);
 
   Syx::Handle _createObject(Handle gameobject, bool hasRigidbody, bool hasCollider);
 

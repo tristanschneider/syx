@@ -23,6 +23,7 @@ public:
   virtual void onDrop(const std::vector<FilePath>& files) = 0;
 };
 
+// TODO: this interface could instead be replaced by request/response messages handled by platform specific systems
 class AppPlatform {
 public:
   virtual ~AppPlatform() = default;

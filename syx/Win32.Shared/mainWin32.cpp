@@ -11,6 +11,7 @@
 #include "file/FilePath.h"
 #include "KeyboardInputWin32.h"
 #include "system/GraphicsSystem.h"
+#include "system/InputSystemWin32.h"
 #include "system/KeyboardInput.h"
 #include "AppPlatformWin32.h"
 
@@ -18,10 +19,22 @@
 
 using namespace Syx;
 
+struct Win32Systems : public AppRegistration {
+  virtual void registerSystems(const SystemArgs& args, ISystemRegistry& registry) override {
+    registry.registerSystem(mInput = std::make_shared<InputSystemWin32>(args));
+  }
+
+  virtual void registerComponents(IComponentRegistry&) override {
+  }
+
+  std::shared_ptr<InputSystemWin32> mInput;
+};
+
 namespace {
   HDC sDeviceContext = NULL;
   HGLRC sGLContext = NULL;
   std::unique_ptr<App> sApp;
+  std::shared_ptr<Win32Systems> sWin32Systems;
   int sWidth, sHeight;
 }
 
@@ -67,6 +80,13 @@ LRESULT _handleDragDrop(HWND wnd, UINT msg, WPARAM w, LPARAM l) {
 }
 
 LRESULT CALLBACK mainProc(HWND wnd, UINT msg, WPARAM w, LPARAM l) {
+  //TODO: if there's more than one of these, make a win32 message handler interface to iterate over here.
+  if(sWin32Systems && sWin32Systems->mInput) {
+    //TODO: avoid calling this after app is terminated
+    if(const std::optional<LRESULT> maybeResult = sWin32Systems->mInput->_mainProc(wnd, msg, w, l)) {
+      return *maybeResult;
+    }
+  }
   switch(msg) {
     case WM_DESTROY:
       PostQuitMessage(0);
@@ -176,7 +196,8 @@ int mainLoop(const char* launchUri) {
   float nsToMS = 1.0f/1000000.0f;
   float msToNS = 1000000.0f;
   int targetFrameTimeNS = 16*static_cast<int>(msToNS);
-  sApp = std::make_unique<App>(std::make_unique<AppPlatformWin32>(), Registration::createDefaultApp());
+  sWin32Systems = std::make_shared<Win32Systems>();
+  sApp = std::make_unique<App>(std::make_unique<AppPlatformWin32>(), Registration::compose(Registration::createDefaultApp(), sWin32Systems));
 
   sApp->onUriActivated(launchUri);
   sApp->init();

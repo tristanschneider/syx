@@ -2,6 +2,7 @@
 #include "Handle.h"
 #include "system/System.h"
 
+class AllSystemsInitialized;
 class AssetPreview;
 class AssetWatcher;
 class DragDropAssetLoader;
@@ -11,8 +12,10 @@ class LuaGameObject;
 class LuaGameSystemObserver;
 class ObjectInspector;
 enum class PlayState : uint8_t;
+class SetPlayStateEvent;
 class SceneBrowser;
 class Toolbox;
+class UriActivated;
 
 class Editor : public System {
 public:
@@ -23,6 +26,10 @@ public:
   void init() override;
   void uninit() override;
   void update(float dt, IWorkerPool& pool, std::shared_ptr<Task> frameTask) override;
+
+  void onAllSystemsInitialized(const AllSystemsInitialized& e);
+  void onUriActivated(const UriActivated& e);
+  void onSetPlayStateEvent(const SetPlayStateEvent& e);
 
 private:
   void _updateInput(float dt);

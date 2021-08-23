@@ -32,10 +32,10 @@ SceneBrowser::SceneBrowser(MessageQueueProvider& msg, GameObjectHandleProvider& 
   , mInput(&input)
   , mMouseDownPos(INVALID_MOUSE) {
   //Selection is predictively set when the events originate from here, either way, obey any messages that change selection
-  handler.registerEventHandler([this](const SetSelectionEvent& e) {
+  mListeners.push_back(handler.registerEventListener([this](const SetSelectionEvent& e) {
     mSelected.clear();
     mSelected.insert(e.mObjects.begin(), e.mObjects.end());
-  });
+  }));
 }
 
 void SceneBrowser::editorUpdate(const HandleMap<std::shared_ptr<LuaGameObject>>& objects) {
@@ -115,9 +115,9 @@ void SceneBrowser::_updatePick() {
     const Syx::Vec2 mouseDownPos = mMouseDownPos;
     const Syx::Vec2 mouseUpPos = mInput->getMousePos();
     //Get the camera at the mouse, then pick with that camera
-    mMsg->getMessageQueue().get().push(GetCameraRequest(mouseDownPos, GetCameraRequest::CoordSpace::Pixel).then(typeId<Editor>(), [this, space, mouseDownPos, mouseUpPos](const GetCameraResponse& getCam) {
+    mMsg->getMessageQueue().get().push(GetCameraRequest(mouseDownPos, GetCameraRequest::CoordSpace::Pixel).then(typeId<Editor, System>(), [this, space, mouseDownPos, mouseUpPos](const GetCameraResponse& getCam) {
       if(getCam.mCamera.isValid()) {
-        mMsg->getMessageQueue().get().push(ScreenPickRequest(PICK_ID, getCam.mCamera.getOps().mOwner, space, mouseDownPos, mouseUpPos).then(typeId<Editor>(), [this](const ScreenPickResponse& res) {
+        mMsg->getMessageQueue().get().push(ScreenPickRequest(PICK_ID, getCam.mCamera.getOps().mOwner, space, mouseDownPos, mouseUpPos).then(typeId<Editor, System>(), [this](const ScreenPickResponse& res) {
           _clearForNewSelection();
           for(Handle obj : res.mObjects) {
             mSelected.insert(obj);

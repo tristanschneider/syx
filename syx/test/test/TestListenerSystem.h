@@ -43,7 +43,10 @@ private:
     size_t mEventType = 0;
   };
 
+  void onEvent(const Event& e) override;
+
   //The event buffer is cleared at the end of the frame. For tests to be able to look at what was sent it is copied into this
   std::unique_ptr<EventBuffer> mEventBufferCopy;
   std::vector<TestEventHandler> mHandlers;
+  std::vector<std::shared_ptr<EventListener>> mListeners;
 };

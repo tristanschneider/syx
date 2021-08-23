@@ -44,22 +44,23 @@ LuaGameSystem::~LuaGameSystem() = default;
 
 void LuaGameSystem::init() {
   mEventHandler = std::make_unique<EventHandler>();
-  SYSTEM_EVENT_HANDLER(AddComponentEvent, _onAddComponent);
-  SYSTEM_EVENT_HANDLER(RemoveComponentEvent, _onRemoveComponent);
+  _registerSystemEventHandler(&LuaGameSystem::_onAddComponent);
+  _registerSystemEventHandler(&LuaGameSystem::_onRemoveComponent);
   //TODO: can this be removed? I think addcomponent does the same thing
-  SYSTEM_EVENT_HANDLER(AddLuaComponentEvent, _onAddLuaComponent);
-  SYSTEM_EVENT_HANDLER(RemoveLuaComponentEvent, _onRemoveLuaComponent)
-  SYSTEM_EVENT_HANDLER(AddGameObjectEvent, _onAddGameObject);
-  SYSTEM_EVENT_HANDLER(RemoveGameObjectEvent, _onRemoveGameObject);
-  SYSTEM_EVENT_HANDLER(RenderableUpdateEvent, _onRenderableUpdate);
-  SYSTEM_EVENT_HANDLER(TransformEvent, _onTransformUpdate);
-  SYSTEM_EVENT_HANDLER(SetComponentPropsEvent, _onSetComponentProps);
-  SYSTEM_EVENT_HANDLER(AllSystemsInitialized, _onAllSystemsInit);
-  SYSTEM_EVENT_HANDLER(ClearSpaceEvent, _onSpaceClear);
-  SYSTEM_EVENT_HANDLER(SaveSpaceEvent, _onSpaceSave);
-  SYSTEM_EVENT_HANDLER(LoadSpaceEvent, _onSpaceLoad);
-  SYSTEM_EVENT_HANDLER(SetTimescaleEvent, _onSetTimescale);
-  mEventHandler->registerEventHandler(CallbackEvent::getHandler(typeId<LuaGameSystem>()));
+  _registerSystemEventHandler(&LuaGameSystem::_onAddLuaComponent);
+  _registerSystemEventHandler(&LuaGameSystem::_onRemoveLuaComponent);
+  _registerSystemEventHandler(&LuaGameSystem::_onAddGameObject);
+  _registerSystemEventHandler(&LuaGameSystem::_onRemoveGameObject);
+  _registerSystemEventHandler(&LuaGameSystem::_onRenderableUpdate);
+  _registerSystemEventHandler(&LuaGameSystem::_onTransformUpdate);
+  _registerSystemEventHandler(&LuaGameSystem::_onSetComponentProps);
+  _registerSystemEventHandler(&LuaGameSystem::_onAllSystemsInit);
+  _registerSystemEventHandler(&LuaGameSystem::_onSpaceClear);
+  _registerSystemEventHandler(&LuaGameSystem::_onSpaceSave);
+  _registerSystemEventHandler(&LuaGameSystem::_onSpaceLoad);
+  _registerSystemEventHandler(&LuaGameSystem::_onSetTimescale);
+
+  _registerCallbackEventHandler(*this);
   _registerSystemEventHandler(&LuaGameSystem::_onComponentDataRequest);
 
   mLibs = std::make_unique<Lua::AllLuaLibs>();

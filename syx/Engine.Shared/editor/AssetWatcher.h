@@ -7,17 +7,11 @@
 class AssetRepo;
 class DirectoryWatcher;
 class EventHandler;
+struct EventListener;
 class MessageQueueProvider;
 enum class PlayState : uint8_t;
 class ProjectLocator;
 
-
-/*
-namespace std {
-  template<>
-  struct hash<FilePath>;
-}
-*/
 class AssetWatcher : public DirectoryObserver, public FocusEvents {
 public:
   AssetWatcher(MessageQueueProvider& msg, EventHandler& handler, class AppPlatform& platform, AssetRepo& repo, const ProjectLocator& locator);
@@ -49,4 +43,5 @@ private:
   std::unordered_map<FilePath, Action> mActions;
   std::unique_ptr<DirectoryWatcher> mDirectoryWatcher;
   PlayState mPlayState;
+  std::vector<std::shared_ptr<EventListener>> mEventListeners;
 };

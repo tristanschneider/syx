@@ -7,16 +7,16 @@
 
 class SystemRegistry : public ISystemRegistry {
 public:
-  void registerSystem(std::unique_ptr<System> system) override {
+  void registerSystem(std::shared_ptr<System> system) override {
     mSystems.emplace_back(std::move(system));
   }
 
-  std::vector<std::unique_ptr<System>> takeSystems() override {
+  std::vector<std::shared_ptr<System>> takeSystems() override {
     return std::move(mSystems);
   }
 
 private:
-  std::vector<std::unique_ptr<System>> mSystems;
+  std::vector<std::shared_ptr<System>> mSystems;
 };
 
 System::System(const SystemArgs& args, size_t type)

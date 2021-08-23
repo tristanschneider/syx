@@ -92,23 +92,24 @@ void GraphicsSystem::init() {
   mDebugDrawer = std::make_unique<::DebugDrawer>(*mArgs.mSystems->getSystem<AssetRepo>());
 
   mEventHandler = std::make_unique<EventHandler>();
-  SYSTEM_EVENT_HANDLER(AddComponentEvent, _processAddEvent);
-  SYSTEM_EVENT_HANDLER(RemoveComponentEvent, _processRemoveEvent);
-  SYSTEM_EVENT_HANDLER(RenderableUpdateEvent, _processRenderableEvent);
-  SYSTEM_EVENT_HANDLER(TransformEvent, _processTransformEvent);
-  SYSTEM_EVENT_HANDLER(DrawLineEvent, _processDebugDrawEvent);
-  SYSTEM_EVENT_HANDLER(DrawVectorEvent, _processDebugDrawEvent);
-  SYSTEM_EVENT_HANDLER(DrawPointEvent, _processDebugDrawEvent);
-  SYSTEM_EVENT_HANDLER(DrawCubeEvent, _processDebugDrawEvent);
-  SYSTEM_EVENT_HANDLER(DrawSphereEvent, _processDebugDrawEvent);
-  SYSTEM_EVENT_HANDLER(SetComponentPropsEvent, _processSetCompPropsEvent);
-  SYSTEM_EVENT_HANDLER(ClearSpaceEvent, _processClearSpaceEvent);
-  SYSTEM_EVENT_HANDLER(ScreenPickRequest, _processScreenPickRequest);
-  SYSTEM_EVENT_HANDLER(RenderCommandEvent, _processRenderCommandEvent);
-  SYSTEM_EVENT_HANDLER(SetViewportEvent, _processSetViewportEvent);
-  SYSTEM_EVENT_HANDLER(RemoveViewportEvent, _processRemoveViewportEvent);
-  SYSTEM_EVENT_HANDLER(GetCameraRequest, _processGetCameraRequest);
-  mEventHandler->registerEventHandler(CallbackEvent::getHandler(typeId<GraphicsSystem>()));
+  auto self = _getWeakThis(*this);
+  mEventHandler->registerEventListener(self, &GraphicsSystem::_processAddEvent);
+  mEventHandler->registerEventListener(self, &GraphicsSystem::_processRemoveEvent);
+  mEventHandler->registerEventListener(self, &GraphicsSystem::_processRenderableEvent);
+  mEventHandler->registerEventListener(self, &GraphicsSystem::_processTransformEvent);
+  mEventHandler->registerEventListener<DrawLineEvent>(self, &GraphicsSystem::_processDebugDrawEvent);
+  mEventHandler->registerEventListener<DrawVectorEvent>(self, &GraphicsSystem::_processDebugDrawEvent);
+  mEventHandler->registerEventListener<DrawPointEvent>(self, &GraphicsSystem::_processDebugDrawEvent);
+  mEventHandler->registerEventListener<DrawCubeEvent>(self, &GraphicsSystem::_processDebugDrawEvent);
+  mEventHandler->registerEventListener<DrawSphereEvent>(self, &GraphicsSystem::_processDebugDrawEvent);
+  mEventHandler->registerEventListener(self, &GraphicsSystem::_processSetCompPropsEvent);
+  mEventHandler->registerEventListener(self, &GraphicsSystem::_processClearSpaceEvent);
+  mEventHandler->registerEventListener(self, &GraphicsSystem::_processScreenPickRequest);
+  mEventHandler->registerEventListener(self, &GraphicsSystem::_processRenderCommandEvent);
+  mEventHandler->registerEventListener(self, &GraphicsSystem::_processSetViewportEvent);
+  mEventHandler->registerEventListener(self, &GraphicsSystem::_processRemoveViewportEvent);
+  mEventHandler->registerEventListener(self, &GraphicsSystem::_processGetCameraRequest);
+  _registerCallbackEventHandler(*this);
 }
 
 void GraphicsSystem::update(float dt, IWorkerPool&, std::shared_ptr<Task>) {

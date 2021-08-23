@@ -4,9 +4,7 @@ namespace Syx {
   //All operations safe against division by zero
   struct Vector2 {
     Vector2(float inX, float inY): x(inX), y(inY) {}
-    Vector2(float splat): x(splat), y(splat) {}
-    //Doesn't initialize anything
-    Vector2(void) {}
+    Vector2(float splat = 0.f): x(splat), y(splat) {}
 
     Vector2 operator+(const Vector2& rhs) const;
     Vector2 operator-(const Vector2& rhs) const;

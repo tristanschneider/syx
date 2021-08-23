@@ -14,8 +14,11 @@ TestListenerSystem::~TestListenerSystem() = default;
 
 void TestListenerSystem::init() {
   mEventHandler = std::make_unique<EventHandler>();
-  mEventHandler->registerEventHandler(CallbackEvent::getHandler(LuaRegistration::TEST_CALLBACK_ID));
-  mEventHandler->registerGlobalHandler([this](const Event& e) {
+  mListeners.push_back(mEventHandler->registerEventListener(CallbackEvent::getHandler(LuaRegistration::TEST_CALLBACK_ID)));
+  mEventHandler->registerGlobalListener(shared_from_this());
+}
+
+void TestListenerSystem::onEvent(const Event& e) {
     //Go through all handlers that match the type, removing if single-use, and preventing further handlers if they have a "Stop" response.
     for(auto it = mHandlers.begin(); it != mHandlers.end();) {
       if(it->mEventType == e.getType()) {
@@ -39,7 +42,6 @@ void TestListenerSystem::init() {
         ++it;
       }
     }
-  });
 }
 
 void TestListenerSystem::update(float, IWorkerPool&, std::shared_ptr<Task>) {

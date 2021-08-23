@@ -18,9 +18,9 @@ AssetWatcher::AssetWatcher(MessageQueueProvider&, EventHandler& handler, class A
   mDirectoryWatcher->addObserver(*this);
   platform.addFocusObserver(*this);
 
-  handler.registerEventHandler([this](const SetPlayStateEvent& e) {
+  mEventListeners.push_back(handler.registerEventListener([this](const SetPlayStateEvent& e) {
     mPlayState = e.mState;
-  });
+  }));
 }
 
 AssetWatcher::~AssetWatcher() = default;

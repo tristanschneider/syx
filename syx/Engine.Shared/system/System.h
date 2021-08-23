@@ -1,4 +1,5 @@
 #pragma once
+#include "event/Event.h"
 #include "event/EventHandler.h"
 #include "util/TypeId.h"
 
@@ -20,11 +21,6 @@ namespace FileSystem {
   struct IFileSystem;
 }
 
-//TODO: Update all uses to use template
-#define SYSTEM_EVENT_HANDLER(eventType, handler) mEventHandler->registerEventHandler(Event::typeId<eventType>(), [this](const Event& e) {\
-    handler(static_cast<const eventType&>(e));\
-  });
-
 //This contains information that should be available to all systems. Anything exposed here should be safe for the system to use as it sees fit
 //TODO: this is a bit clunky. It would probably be better to have a more formal mechanism to do this
 struct SystemArgs {
@@ -39,7 +35,7 @@ struct SystemArgs {
   IIDRegistry* mIDRegistry = nullptr;
 };
 
-class System {
+class System : public std::enable_shared_from_this<System>, public EventListener {
 public:
   DECLARE_TYPE_CATEGORY
   System(const SystemArgs& args, size_t type);
@@ -64,11 +60,24 @@ protected:
   template<class T>
   static size_t _typeId() { return typeId<T, System>(); }
 
+  template<class T>
+  static std::weak_ptr<T> _getWeakThis(T& self) {
+    return std::static_pointer_cast<T>(self.shared_from_this());
+  }
+
   template<class EventT, class Derived>
   void _registerSystemEventHandler(void(Derived::* handler)(const EventT&)) {
-    mEventHandler->registerEventHandler([this, handler](const EventT& event) {
-      (static_cast<Derived*>(this)->*handler)(static_cast<const EventT&>(event));
-    });
+    mEventHandler->registerEventListener(std::weak_ptr<Derived>(std::static_pointer_cast<Derived>(shared_from_this())), handler);
+  }
+
+  template<class SystemT>
+  void _onCallbackEvent(const CallbackEvent& e) {
+    e.tryHandle(_typeId<SystemT>());
+  }
+
+  template<class Self>
+  static void _registerCallbackEventHandler(Self& self) {
+    self.mEventHandler->registerEventListener<CallbackEvent, Self>(_getWeakThis(self), &Self::_onCallbackEvent<Self>);
   }
 
   SystemArgs mArgs;
@@ -82,8 +91,8 @@ class LuaGameSystem;
 class ISystemRegistry {
 public:
   virtual ~ISystemRegistry() = default;
-  virtual void registerSystem(std::unique_ptr<System> system) = 0;
-  virtual std::vector<std::unique_ptr<System>> takeSystems() = 0;
+  virtual void registerSystem(std::shared_ptr<System> system) = 0;
+  virtual std::vector<std::shared_ptr<System>> takeSystems() = 0;
 };
 
 namespace Registry {

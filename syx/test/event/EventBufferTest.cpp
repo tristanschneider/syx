@@ -92,7 +92,7 @@ namespace EventTests {
       EventTester tester;
 
       bool handled = false;
-      tester.mHandlerA.registerEventHandler([&handled](const TestPlainEvent&) {
+      auto reg = tester.mHandlerA.registerEventListener([&handled](const TestPlainEvent&) {
         handled = true;
       });
 
@@ -111,8 +111,8 @@ namespace EventTests {
         ++handled;
         Assert::IsTrue(res.value == 10, L"Value on response should have been preserved", LINE_INFO());
       });
-      tester.mHandlerA.registerEventHandler(CallbackEvent::getHandler(0));
-      tester.mHandlerB.registerEventHandler([&tester](const TestRequestEvent& e) mutable {
+      auto regA = tester.mHandlerA.registerEventListener(CallbackEvent::getHandler(0));
+      auto regB = tester.mHandlerB.registerEventListener([&tester](const TestRequestEvent& e) mutable {
         TestResponseEvent res;
         res.value = 10;
         e.respond(tester.mWriteBuffer, std::move(res));
@@ -135,10 +135,10 @@ namespace EventTests {
         ++handled;
         Assert::IsTrue(res, L"Value on response should have been preserved", LINE_INFO());
       });
-      tester.mHandlerA.registerEventHandler(CallbackEvent::getHandler(0));
+      auto regA = tester.mHandlerA.registerEventListener(CallbackEvent::getHandler(0));
       //Register this to make sure it doesn't trigger a double response
-      tester.mHandlerB.registerEventHandler(CallbackEvent::getHandler(1));
-      tester.mHandlerB.registerEventHandler([&tester](const TestRequestPlainResponse& e) mutable {
+      auto regB = tester.mHandlerB.registerEventListener(CallbackEvent::getHandler(1));
+      auto regC = tester.mHandlerB.registerEventListener([&tester](const TestRequestPlainResponse& e) mutable {
         e.respond(tester.mWriteBuffer, true);
       });
 
@@ -148,6 +148,36 @@ namespace EventTests {
       Assert::IsTrue(!handled, L"Request should not be finished yet since the response should still be in flight", LINE_INFO());
       tester.dispatchAndProcessMessages();
       Assert::IsTrue(handled == 1, L"Request should have been handled exactly once", LINE_INFO());
+    }
+
+    TEST_METHOD(EventBuffer_invokeExpiredCallback_NotCalled) {
+      EventTester tester;
+      auto l = tester.mHandlerA.registerEventListener([](const TestPlainEvent&) {
+        Assert::Fail(L"Expired listeners should not be invoked");
+      });
+      l.reset();
+
+      tester.mWriteBuffer.push(TestPlainEvent());
+      tester.dispatchAndProcessMessages();
+    }
+
+    TEST_METHOD(EventBuffer_InvokeExpiredListener_NotCalled) {
+      struct TestListener : public EventListener {
+        void onEvent(const Event&) override {
+          Assert::Fail(L"Generic event listener should not have triggered for expired listener");
+        }
+
+        void onPlainEvent(const TestPlainEvent&) {
+          Assert::Fail(L"Custom event listener should not be triggered for expired listeners");
+        }
+      };
+      EventTester tester;
+      auto listener = std::make_shared<TestListener>();
+      tester.mHandlerA.registerEventListener(listener, &TestListener::onPlainEvent);
+
+      listener.reset();
+      tester.mWriteBuffer.push(TestPlainEvent());
+      tester.dispatchAndProcessMessages();
     }
   };
 }

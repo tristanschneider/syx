@@ -92,16 +92,8 @@ void PhysicsSystem::init() {
   _registerSystemEventHandler(&PhysicsSystem::_clearSpaceEvent);
   _registerSystemEventHandler(&PhysicsSystem::_removeComponentEvent);
   _registerSystemEventHandler(&PhysicsSystem::_setTimescaleEvent);
-  mEventHandler->registerEventHandler(CallbackEvent::getHandler(typeId<PhysicsSystem>()));
-  mEventHandler->registerEventHandler([](const SetPlayStateEvent& e) {
-    if(e.mState == PlayState::Playing) {
-      Syx::Interface::gOptions.mDebugFlags = 0;
-    }
-    else {
-      Syx::Interface::gOptions.mDebugFlags = Syx::SyxOptions::Debug::DrawModels
-        | Syx::SyxOptions::Debug::DisableCollision;
-    }
-  });
+  _registerCallbackEventHandler(*this);
+  _registerSystemEventHandler(&PhysicsSystem::_onSetPlayState);
   _registerSystemEventHandler(&PhysicsSystem::_onApplyForce);
 }
 
@@ -216,6 +208,16 @@ void PhysicsSystem::_setComponentPropsEvent(const SetComponentPropsEvent& e) {
     Transform t(0);
     e.mProp->copyFromBuffer(&t, e.mBuffer.data(), e.mDiff);
     _updateTransform(e.mObj, t.get());
+  }
+}
+
+void PhysicsSystem::_onSetPlayState(const SetPlayStateEvent& e) {
+  if(e.mState == PlayState::Playing) {
+    Syx::Interface::gOptions.mDebugFlags = 0;
+  }
+  else {
+    Syx::Interface::gOptions.mDebugFlags = Syx::SyxOptions::Debug::DrawModels
+      | Syx::SyxOptions::Debug::DisableCollision;
   }
 }
 

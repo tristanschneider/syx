@@ -162,6 +162,6 @@ DeferredMessageQueue App::getDeferredMessageQueue() {
 }
 
 System* App::_getSystem(size_t id) {
-  auto found = std::find_if(mSystems.begin(), mSystems.end(), [id](const std::unique_ptr<System>& system) { return system->getType() == id; });
+  auto found = std::find_if(mSystems.begin(), mSystems.end(), [id](const std::shared_ptr<System>& system) { return system->getType() == id; });
   return found != mSystems.end() ? found->get() : nullptr;
 }

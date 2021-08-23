@@ -3,6 +3,7 @@
 enum class PlayState : uint8_t;
 
 class EventHandler;
+struct EventListener;
 class KeyboardInput;
 class MessageQueueProvider;
 
@@ -27,6 +28,7 @@ private:
   void _step();
   void _requestPlayStateChange(PlayState newState) const;
 
+  std::vector<std::shared_ptr<EventListener>> mListeners;
   MessageQueueProvider& mMsg;
   PlayState mCurrentPlayState;
   //State to return to after step if it was initiated by Toolbox
