@@ -1,6 +1,9 @@
 #pragma once
 
 #include <event/EventBuffer.h>
+#include "util/TypeId.h"
+
+class System;
 
 #define REGISTER_EVENT(type) namespace {\
   Event::Registry::Registrar type##_registrar(Event::typeId<type>(), [](const Event& e, uint8_t* buffer) {\
@@ -81,23 +84,23 @@ public:
 // Used to deliver a callback to a given system id. For a system to get the callback it must add the handler to its message handler.
 class CallbackEvent : public TypedEvent<CallbackEvent> {
 public:
-  CallbackEvent(size_t destinationId, std::function<void()>&& callback)
+  CallbackEvent(typeId_t<System> destinationId, std::function<void()>&& callback)
     : mDestId(destinationId)
     , mCallback(std::move(callback)) {
   }
 
-  static std::function<void(const CallbackEvent&)> getHandler(size_t systemId) {
+  static std::function<void(const CallbackEvent&)> getHandler(typeId_t<System> systemId) {
     return [systemId](const CallbackEvent& e) { e.tryHandle(systemId); };
   }
 
-  void tryHandle(size_t systemId) const {
+  void tryHandle(typeId_t<System> systemId) const {
     if(mDestId == systemId) {
       mCallback();
     }
   }
 
 private:
-  size_t mDestId;
+  typeId_t<System> mDestId;
   std::function<void()> mCallback;
 };
 
@@ -107,7 +110,7 @@ class RequestEvent : public TypedEvent<Req> {
 public:
   using ResponseHandler = std::function<void(const Res&)>;
 
-  Req& then(size_t requesterType, ResponseHandler&& responseHandler) {
+  Req& then(typeId_t<System> requesterType, ResponseHandler&& responseHandler) {
     mRequesterType = requesterType;
     mHandler = std::move(responseHandler);
     return static_cast<Req&>(*this);
@@ -127,6 +130,6 @@ public:
   }
 
 private:
-  size_t mRequesterType;
+  typeId_t<System> mRequesterType;
   mutable ResponseHandler mHandler;
 };

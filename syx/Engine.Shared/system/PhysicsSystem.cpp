@@ -138,7 +138,7 @@ void PhysicsSystem::_processSyxEvents() {
         componentData.mLinVel = e.mLinVel;
         componentData.mAngVel = e.mAngVel;
         component.setData(componentData);
-        ComponentPublisher::forcePublish(component, *mTransformUpdates, velocityDiff, typeId<PhysicsSystem>());
+        ComponentPublisher::forcePublish(component, *mTransformUpdates, velocityDiff, _typeId<PhysicsSystem>());
       }
     }
     else
@@ -154,11 +154,11 @@ void PhysicsSystem::_processSyxEvents() {
 
 void PhysicsSystem::_updateObject(Handle obj, const SyxData& data, const Syx::UpdateEvent& e) {
   Syx::Mat4 newTransform = Syx::Mat4::transform(data.mSyxToModel.getScale().reciprocal(), e.mRot, e.mPos) * data.mSyxToModel;
-  mTransformUpdates->push(TransformEvent(obj, newTransform, typeId<PhysicsSystem>()));
+  mTransformUpdates->push(TransformEvent(obj, newTransform, _typeId<PhysicsSystem>()));
 }
 
 void PhysicsSystem::_setComponentPropsEvent(const SetComponentPropsEvent& e) {
-  if(e.mCompType.id == Component::typeId<Physics>() && e.mFromSystem != typeId<PhysicsSystem>()) {
+  if(e.mCompType.id == Component::typeId<Physics>() && e.mFromSystem != _typeId<PhysicsSystem>()) {
     SyxData& syxData = _getSyxData(e.mObj, false, false);
     Syx::Handle h = syxData.mHandle;
     Physics comp(0);
@@ -281,7 +281,7 @@ float PhysicsSystem::_getExpectedDeltaTime() const {
 }
 
 void PhysicsSystem::_transformEvent(const TransformEvent& e) {
-  if(e.mFromSystem == typeId<PhysicsSystem>())
+  if(e.mFromSystem == _typeId<PhysicsSystem>())
     return;
   _updateTransform(e.mHandle, e.mTransform);
 }
@@ -309,7 +309,7 @@ Syx::Handle PhysicsSystem::_createObject(Handle gameobject, bool hasRigidbody, b
 
   //Now that we care about this object, request transform data for it
   ComponentDataRequest req(gameobject, Transform::singleton().getFullType());
-  req.then(typeId<PhysicsSystem>(), [gameobject, this](const ComponentDataResponse& res) {
+  req.then(_typeId<PhysicsSystem>(), [gameobject, this](const ComponentDataResponse& res) {
     if(!res.mBuffer.empty()) {
       Transform t(gameobject);
       if(const Lua::Node* props = t.getLuaProps()) {

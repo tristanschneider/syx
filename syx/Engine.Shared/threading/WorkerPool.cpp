@@ -29,14 +29,19 @@ WorkerPool::~WorkerPool() {
   mWorkers = nullptr;
 }
 
+//When the task is queued it has one placeholder dependency that is decremented here upon queueing
+//Thist prevents the tasks from triggering before they are queued
 void WorkerPool::queueTask(std::shared_ptr<Task> task) {
   assert(!task->hasWorkerPool() && "Task should only be queued once");
   if(!task->hasWorkerPool()) {
-    std::lock_guard<std::mutex> lock(mTaskMutex);
-    task->setWorkerPool(*this);
-    if(!task->hasDependencies()) {
-      _taskReady(task);
+    {
+      //Protect worker pool check in case taskReady gets called while setting this
+      //Release the lock before _completeDependency, which may call taskReady
+      std::lock_guard<std::mutex> lock(mTaskMutex);
+      task->setWorkerPool(*this);
     }
+
+    task->_completeDependency();
   }
 }
 

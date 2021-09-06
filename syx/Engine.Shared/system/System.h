@@ -38,7 +38,7 @@ struct SystemArgs {
 class System : public std::enable_shared_from_this<System>, public EventListener {
 public:
   DECLARE_TYPE_CATEGORY
-  System(const SystemArgs& args, size_t type);
+  System(const SystemArgs& args, typeId_t<System> type);
   virtual ~System();
 
   virtual void init() {}
@@ -54,11 +54,11 @@ public:
   SystemProvider& getSystemProvider() const;
   MessageQueueProvider& getMessageQueueProvider() const;
 
-  size_t getType() const { return mType; };
+  typeId_t<System> getType() const { return mType; };
 
 protected:
   template<class T>
-  static size_t _typeId() { return typeId<T, System>(); }
+  static typeId_t<System> _typeId() { return typeId<T, System>(); }
 
   template<class T>
   static std::weak_ptr<T> _getWeakThis(T& self) {
@@ -83,7 +83,7 @@ protected:
   SystemArgs mArgs;
   const EventBuffer* mEventBuffer;
   std::unique_ptr<EventHandler> mEventHandler;
-  const size_t mType;
+  const typeId_t<System> mType;
 };
 
 class LuaGameSystem;

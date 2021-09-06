@@ -2,6 +2,7 @@
 #include "event/EventHandler.h"
 
 class EventHandler;
+struct FrameStart;
 struct KeyEvent;
 enum class Key : uint8_t;
 enum class KeyState : uint8_t;
@@ -13,7 +14,9 @@ struct MouseWheelEvent;
 //It is expected to be used by the one responsible for event handling and as such is not thread safe if used on a different thread during event handling
 class InputStore : public EventListener, public std::enable_shared_from_this<InputStore> {
 public:
-  InputStore(EventHandler& handler);
+  InputStore() = default;
+
+  void init(EventHandler& handler);
 
   KeyState getKeyState(const std::string& key) const;
   KeyState getKeyState(Key key) const;
@@ -34,6 +37,7 @@ private:
   void onMouseKeyEvent(const MouseKeyEvent& e);
   void onMouseMoveEvent(const MouseMoveEvent& e);
   void onMouseWheelEvent(const MouseWheelEvent& e);
+  void onFrameStart(const FrameStart&);
 
   KeyState _shiftAnd(Key key) const;
   KeyState _noShift(Key key) const;

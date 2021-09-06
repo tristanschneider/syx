@@ -5,10 +5,14 @@
 Task::Task()
   : mPool(nullptr)
   , mState(TaskState::Waiting)
-  , mDependencies(0) {
+  //Reserve one "dependency" that is a placeholder decremented upon WorkerPool::queueTask
+  , mDependencies(1) {
 }
 
 Task::~Task() {
+  assert(mPool);
+  assert(mState == TaskState::Done);
+  assert(mDependencies == 0);
 }
 
 void Task::run() {
@@ -21,11 +25,7 @@ void Task::run() {
   //Now that this task is complete, remove it as a dependency for all tasks waiting on it
   for(Task* dep : mDependents) {
     //If this was the last dependency on the task, it can run now
-    const int prevDependencyCount = dep->mDependencies.fetch_sub(1);
-    assert(prevDependencyCount > 0 && "Dependency count should always be positive otherwise bookeeping has failed");
-    if(prevDependencyCount == 1) {
-      mPool->taskReady(dep->shared_from_this());
-    }
+    dep->_completeDependency();
   }
   mDependentsMutex.unlock();
 
@@ -69,10 +69,6 @@ std::shared_ptr<Task> Task::then(std::shared_ptr<Task> next) {
   return next;
 }
 
-bool Task::hasDependencies() {
-  return mDependencies != 0;
-}
-
 void Task::setQueued() {
   //Won't do anything if already queued
   TaskState expected = TaskState::Waiting;
@@ -92,4 +88,16 @@ bool Task::hasBeenQueued() {
 
 TaskState Task::getState() const {
   return mState;
+}
+
+void Task::_addDependency() {
+  mDependencies.fetch_add(1);
+}
+
+void Task::_completeDependency() {
+  const int prevDependencyCount = mDependencies.fetch_sub(1);
+  assert(prevDependencyCount > 0 && "Dependency count should always be positive otherwise bookeeping has failed");
+  if(prevDependencyCount == 1) {
+    mPool->taskReady(shared_from_this());
+  }
 }

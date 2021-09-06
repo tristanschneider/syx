@@ -19,7 +19,7 @@
 #include "system/PhysicsSystem.h"
 #include "test/TestListenerSystem.h"
 
-size_t LuaRegistration::TEST_CALLBACK_ID = typeId<TestListenerSystem>();
+typeId_t<System> LuaRegistration::TEST_CALLBACK_ID = typeId<TestListenerSystem, System>();
 
 //TODO: move to its own file
 #include "imgui/imgui.h"

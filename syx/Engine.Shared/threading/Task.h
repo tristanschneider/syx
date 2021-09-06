@@ -30,10 +30,14 @@ public:
   void addDependency(std::shared_ptr<Task> dependency);
   //Compose dependencies like a.then(b).then(c)
   std::shared_ptr<Task> then(std::shared_ptr<Task> next);
-  bool hasDependencies();
   void setQueued();
   bool hasBeenQueued();
   TaskState getState() const;
+
+  //Increment dependency count, preventing execution of this task until the count reaches zero
+  void _addDependency();
+  //Decrement dependency count and attempt executing the task if this was the last one
+  void _completeDependency();
 
 protected:
   virtual void _run() {}

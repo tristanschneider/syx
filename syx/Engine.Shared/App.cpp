@@ -104,7 +104,11 @@ void App::init() {
 void App::update(float dt) {
   //Freeze message state by swapping them into freeze. Systems will look at this, while pushing to non-frozen queue
   mMessageLock->lock();
+  //Push an event for the end of the last frame
+  mMessageQueue->push(FrameEnd());
   mMessageQueue.swap(mFrozenMessageQueue);
+  //The empty frozen queue just got swapped into mMessageQueue, push the first event: FrameStart
+  mMessageQueue->push(FrameStart());
   mMessageLock->unlock();
 
   auto frameTask = std::make_shared<SyncTask>();

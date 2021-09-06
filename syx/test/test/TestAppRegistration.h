@@ -1,8 +1,12 @@
 #include "Precompile.h"
 #include "AppRegistration.h"
 
+#include "util/TypeId.h"
+
+class System;
+
 struct LuaRegistration : public AppRegistration {
-  static size_t TEST_CALLBACK_ID;
+  static typeId_t<System> TEST_CALLBACK_ID;
 
   virtual ~LuaRegistration() = default;
   virtual void registerSystems(const SystemArgs& args, ISystemRegistry& registry) override;

@@ -286,7 +286,7 @@ void LuaGameSystem::_onSpaceLoad(const LoadSpaceEvent& e) {
   std::shared_ptr<ILuaGameContext> context = _createGameContext();
   SpaceComponent::_load(context->getLuaState(), e.mSpace, e.mFile)->then([context, e, this](IAsyncHandle<bool>& result) {
     //Send an event to ourselves after a tick to make sure that the events caused by loading the scene have been processed
-    CallbackEvent response(typeId<LuaGameSystem>(), [this, e, result(*result.getResult())] {
+    CallbackEvent response(_typeId<LuaGameSystem>(), [this, e, result(*result.getResult())] {
       e.respond(*getMessageQueueProvider().getMessageQueue(), result);
     });
 

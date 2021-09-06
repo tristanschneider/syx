@@ -140,7 +140,7 @@ namespace LuaTests {
       Assert::IsTrue(assets.getAsset(AssetInfo(testAssetInfo.mId)) == nullptr, L"Asset should be gone after it's removed", LINE_INFO());
 
       auto loadTask = _loadSpace(0, "testspace", app);
-      app.waitUntil([&loadTask] { return loadTask->getStatus() == AsyncStatus::Complete; });
+      app.waitUntil([&loadTask] { return loadTask->getStatus() == AsyncStatus::Complete; }, std::chrono::milliseconds(10000));
 
       Assert::IsTrue(assets.getAsset(AssetInfo(testAssetInfo.mId)) != nullptr, L"Asset load should have been triggered by loading a scene that was saved with it");
     }

@@ -107,11 +107,11 @@ namespace EventTests {
 
       size_t handled = 0;
       TestRequestEvent request;
-      request.then(0, [&handled](const TestResponseEvent& res) {
+      request.then(typeId<EventTester, System>(), [&handled](const TestResponseEvent& res) {
         ++handled;
         Assert::IsTrue(res.value == 10, L"Value on response should have been preserved", LINE_INFO());
       });
-      auto regA = tester.mHandlerA.registerEventListener(CallbackEvent::getHandler(0));
+      auto regA = tester.mHandlerA.registerEventListener(CallbackEvent::getHandler(typeId<EventTester, System>()));
       auto regB = tester.mHandlerB.registerEventListener([&tester](const TestRequestEvent& e) mutable {
         TestResponseEvent res;
         res.value = 10;
@@ -131,13 +131,13 @@ namespace EventTests {
 
       size_t handled = 0;
       TestRequestPlainResponse request;
-      request.then(0, [&handled](bool res) {
+      request.then(typeId<EventTester, System>(), [&handled](bool res) {
         ++handled;
         Assert::IsTrue(res, L"Value on response should have been preserved", LINE_INFO());
       });
-      auto regA = tester.mHandlerA.registerEventListener(CallbackEvent::getHandler(0));
+      auto regA = tester.mHandlerA.registerEventListener(CallbackEvent::getHandler(typeId<EventTester, System>()));
       //Register this to make sure it doesn't trigger a double response
-      auto regB = tester.mHandlerB.registerEventListener(CallbackEvent::getHandler(1));
+      auto regB = tester.mHandlerB.registerEventListener(CallbackEvent::getHandler(typeId<int, System>()));
       auto regC = tester.mHandlerB.registerEventListener([&tester](const TestRequestPlainResponse& e) mutable {
         e.respond(tester.mWriteBuffer, true);
       });

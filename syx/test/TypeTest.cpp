@@ -9,8 +9,8 @@ namespace TypeTests {
   TEST_CLASS(TypeTest) {
   public:
     TEST_METHOD(Type_DefaultGen) {
-      Assert::AreEqual(typeId<bool>(), typeId<bool>(), L"Same type should have same id", LINE_INFO());
-      Assert::AreNotEqual(typeId<bool>(), typeId<int>(), L"Different types should have different ids", LINE_INFO());
+      Assert::IsTrue(typeId<bool>() == typeId<bool>(), L"Same type should have same id", LINE_INFO());
+      Assert::IsTrue(typeId<bool>() != typeId<int>(), L"Different types should have different ids", LINE_INFO());
     }
 
     struct CategoryA {
@@ -22,9 +22,9 @@ namespace TypeTests {
     };
 
     TEST_METHOD(Type_Category) {
-      Assert::AreEqual(typeId<bool, CategoryA>(), typeId<bool, CategoryB>(), L"Both have different categories, so should generate 0", LINE_INFO());
-      Assert::AreNotEqual(typeId<int, CategoryA>(), typeId<bool, CategoryA>(), L"Different types should have different ids", LINE_INFO());
-      Assert::AreEqual(typeId<int, CategoryA>(), typeId<int, CategoryB>(), L"Both have different categories, so should generate 1", LINE_INFO());
+      Assert::AreEqual((uint32_t)typeId<bool, CategoryA>(), (uint32_t)typeId<bool, CategoryB>(), L"Both have different categories, so should generate 0", LINE_INFO());
+      Assert::IsTrue(typeId<int, CategoryA>() != typeId<bool, CategoryA>(), L"Different types should have different ids", LINE_INFO());
+      Assert::AreEqual((uint32_t)typeId<int, CategoryA>(), (uint32_t)typeId<int, CategoryB>(), L"Both have different categories, so should generate 1", LINE_INFO());
     }
 
     TEST_METHOD(Type_Map) {

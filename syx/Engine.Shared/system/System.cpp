@@ -19,7 +19,7 @@ private:
   std::vector<std::shared_ptr<System>> mSystems;
 };
 
-System::System(const SystemArgs& args, size_t type)
+System::System(const SystemArgs& args, typeId_t<System> type)
   : mArgs(args)
   , mType(type) {
 }

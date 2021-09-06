@@ -2,6 +2,7 @@
 #include "input/InputStore.h"
 
 #include "event/EventHandler.h"
+#include "event/LifecycleEvents.h"
 #include "event/InputEvents.h"
 
 namespace {
@@ -76,7 +77,7 @@ namespace {
   }
 }
 
-InputStore::InputStore(EventHandler& handler) {
+void InputStore::init(EventHandler& handler) {
   _registerEventHandlers(handler);
 }
 
@@ -86,6 +87,7 @@ void InputStore::_registerEventHandlers(EventHandler& handler) {
   handler.registerEventListener(self, &InputStore::onMouseKeyEvent);
   handler.registerEventListener(self, &InputStore::onMouseMoveEvent);
   handler.registerEventListener(self, &InputStore::onMouseWheelEvent);
+  handler.registerEventListener(self, &InputStore::onFrameStart);
 }
 
 void InputStore::onKeyStateChange(Key key, KeyState state) {
@@ -120,6 +122,25 @@ void InputStore::onMouseMoveEvent(const MouseMoveEvent& e) {
 
 void InputStore::onMouseWheelEvent(const MouseWheelEvent& e) {
   mWheelDelta = e.mAmount;
+}
+
+void InputStore::onFrameStart(const FrameStart&) {
+  mWheelDelta = 0;
+  mMouseDelta = Syx::Vec2(0);
+  for(auto it = mKeyStates.begin(); it != mKeyStates.end();) {
+    switch(it->second) {
+      case KeyState::Up:
+      case KeyState::Released:
+        it = mKeyStates.erase(it);
+        break;
+
+      case KeyState::Triggered:
+      default:
+        it->second = KeyState::Down;
+        ++it;
+        break;
+    }
+  }
 }
 
 KeyState InputStore::getKeyState(const std::string& key) const {

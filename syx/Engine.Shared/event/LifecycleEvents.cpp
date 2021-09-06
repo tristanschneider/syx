@@ -3,10 +3,7 @@
 
 #include "Util.h"
 
-DEFINE_EVENT(AllSystemsInitialized) {
-}
-
-DEFINE_EVENT(UriActivated, std::string_view uri) {
+UriActivated::UriActivated(std::string_view uri) {
   const std::vector<std::string_view> params = Util::split(uri, " ");
   for(std::string_view param : params) {
     const std::vector<std::string_view> keyValue = Util::split(param, "=");
