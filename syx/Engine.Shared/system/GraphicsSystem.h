@@ -10,6 +10,7 @@ class Camera;
 class ClearSpaceEvent;
 class ComponentEvent;
 class DebugDrawer;
+struct DispatchToRenderThreadEvent;
 class DrawCubeEvent;
 class DrawLineEvent;
 class DrawPointEvent;
@@ -28,6 +29,7 @@ class RemoveViewportEvent;
 class RenderCommandEvent;
 class RenderableUpdateEvent;
 class ScreenPickRequest;
+class ScreenSizeStore;
 class SetComponentPropEvent;
 class SetComponentPropsEvent;
 class SetViewportEvent;
@@ -35,6 +37,7 @@ class Shader;
 class Texture;
 class TransformEvent;
 class Viewport;
+struct WindowResize;
 
 struct RenderCommand;
 struct RenderableData;
@@ -52,8 +55,6 @@ public:
   IDebugDrawer& getDebugDrawer();
 
   void dispatchToRenderThread(std::function<void()> func);
-
-  void onResize(int width, int height);
 
 private:
   struct LocalRenderable {
@@ -88,6 +89,10 @@ private:
   void _processSetViewportEvent(const SetViewportEvent& e);
   void _processRemoveViewportEvent(const RemoveViewportEvent& e);
   void _processGetCameraRequest(const GetCameraRequest& e);
+  void _processDispatchToRenderThreadEvent(const DispatchToRenderThreadEvent& e);
+
+  //When mScreenSizeStore changes
+  void _onWindowResized();
 
   void _processRenderThreadTasks();
 
@@ -112,7 +117,7 @@ private:
   std::unique_ptr<FullScreenQuad> mFullScreenQuad;
   std::unique_ptr<FrameBuffer> mFrameBuffer;
   std::unique_ptr<PixelBuffer> mPixelPackBuffer;
-  Syx::Vec2 mScreenSize;
+  std::shared_ptr<ScreenSizeStore> mScreenSizeStore;
 
   //Tasks queued for execution on render thread
   std::vector<std::function<void()>> mTasks;

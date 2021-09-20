@@ -38,8 +38,6 @@ public:
   virtual void setWorkingDirectory(const char* working) = 0;
   virtual std::unique_ptr<DirectoryWatcher> createDirectoryWatcher(FilePath root) = 0;
 
-  virtual KeyboardInputImpl& getKeyboardInput() = 0;
-
   virtual std::unique_ptr<FileSystem::IFileSystem> createFileSystem();
 
 protected:

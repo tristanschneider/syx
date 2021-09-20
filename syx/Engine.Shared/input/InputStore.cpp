@@ -82,7 +82,7 @@ void InputStore::init(EventHandler& handler) {
 }
 
 void InputStore::_registerEventHandlers(EventHandler& handler) {
-  auto self = shared_from_this();
+  auto self = _sharedFromThis();
   handler.registerEventListener(self, &InputStore::onKeyEvent);
   handler.registerEventListener(self, &InputStore::onMouseKeyEvent);
   handler.registerEventListener(self, &InputStore::onMouseMoveEvent);
@@ -92,18 +92,20 @@ void InputStore::_registerEventHandlers(EventHandler& handler) {
 
 void InputStore::onKeyStateChange(Key key, KeyState state) {
   //Update the state in the map, removing (or preventing creation) if the state is up, since absence from the map implies up
-  auto it = mKeyStates.find(key);
-  if(it != mKeyStates.end()) {
-    if(state != KeyState::Up) {
-      it->second = state;
+  _set([key, state](InputState& s) {
+    auto it = s.mKeyStates.find(key);
+    if(it != s.mKeyStates.end()) {
+      if(state != KeyState::Up) {
+        it->second = state;
+      }
+      else {
+        s.mKeyStates.erase(it);
+      }
     }
-    else {
-      mKeyStates.erase(it);
+    else if(state != KeyState::Up) {
+      s.mKeyStates[key] = state;
     }
-  }
-  else if(state != KeyState::Up) {
-    mKeyStates[key] = state;
-  }
+  });
 }
 
 void InputStore::onKeyEvent(const KeyEvent& e) {
@@ -112,35 +114,43 @@ void InputStore::onKeyEvent(const KeyEvent& e) {
 
 void InputStore::onMouseKeyEvent(const MouseKeyEvent& e) {
   onKeyStateChange(e.mKey, e.mState);
-  mMousePos = e.mPos;
+  _set([&e](InputState& s) {
+    s.mMousePos = e.mPos;
+  });
 }
 
 void InputStore::onMouseMoveEvent(const MouseMoveEvent& e) {
-  mMousePos = e.mPos;
-  mMouseDelta = e.mDelta;
+  _set([&e](InputState& s) {
+    s.mMousePos = e.mPos;
+    s.mMouseDelta = e.mDelta;
+  });
 }
 
 void InputStore::onMouseWheelEvent(const MouseWheelEvent& e) {
-  mWheelDelta = e.mAmount;
+  _set([&e](InputState& s) {
+    s.mWheelDelta = e.mAmount;
+  });
 }
 
 void InputStore::onFrameStart(const FrameStart&) {
-  mWheelDelta = 0;
-  mMouseDelta = Syx::Vec2(0);
-  for(auto it = mKeyStates.begin(); it != mKeyStates.end();) {
-    switch(it->second) {
-      case KeyState::Up:
-      case KeyState::Released:
-        it = mKeyStates.erase(it);
-        break;
+  _set([&](InputState& s) {
+    s.mWheelDelta = 0;
+    s.mMouseDelta = Syx::Vec2(0);
+    for(auto it = s.mKeyStates.begin(); it != s.mKeyStates.end();) {
+      switch(it->second) {
+        case KeyState::Up:
+        case KeyState::Released:
+          it = s.mKeyStates.erase(it);
+          break;
 
-      case KeyState::Triggered:
-      default:
-        it->second = KeyState::Down;
-        ++it;
-        break;
+        case KeyState::Triggered:
+        default:
+          it->second = KeyState::Down;
+          ++it;
+          break;
+      }
     }
-  }
+  });
 }
 
 KeyState InputStore::getKeyState(const std::string& key) const {
@@ -149,8 +159,12 @@ KeyState InputStore::getKeyState(const std::string& key) const {
 }
 
 KeyState InputStore::getKeyState(Key key) const {
-  const auto it = mKeyStates.find(key);
-  return it != mKeyStates.end() ? it->second : KeyState::Up;
+  KeyState result;
+  view([&result, key](const InputState& s) {
+    const auto it = s.mKeyStates.find(key);
+    result = it != s.mKeyStates.end() ? it->second : KeyState::Up;
+  });
+  return result;
 }
 
 bool InputStore::getKeyDown(Key key) const {
@@ -227,15 +241,21 @@ KeyState InputStore::getAsciiState(char c) const {
 }
 
 Syx::Vec2 InputStore::getMousePos() const {
-  return mMousePos;
+  Syx::Vec2 result;
+  view([&result](const InputState& s) { result = s.mMousePos; });
+  return result;
 }
 
 Syx::Vec2 InputStore::getMouseDelta() const {
-  return mMouseDelta;
+  Syx::Vec2 result;
+  view([&result](const InputState& s) { result = s.mMouseDelta; });
+  return result;
 }
 
 float InputStore::getWheelDelta() const {
-  return mWheelDelta;
+  float result = 0;
+  view([&result](const InputState& s) { result = s.mWheelDelta; });
+  return result;
 }
 
 KeyState InputStore::_shiftAnd(Key key) const {

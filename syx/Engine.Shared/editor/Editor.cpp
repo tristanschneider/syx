@@ -15,18 +15,19 @@
 #include "event/EditorEvents.h"
 #include <event/EventBuffer.h>
 #include <event/EventHandler.h>
+#include "event/InputEvents.h"
 #include "event/LifecycleEvents.h"
 #include "event/SpaceEvents.h"
 #include "event/ViewportEvents.h"
 #include "file/FilePath.h"
 #include "file/FileSystem.h"
+#include "input/InputStore.h"
 #include "LuaGameObject.h"
 #include "ProjectLocator.h"
 #include "provider/GameObjectHandleProvider.h"
 #include "provider/SystemProvider.h"
 #include "registry/IDRegistry.h"
 #include "system/AssetRepo.h"
-#include "system/KeyboardInput.h"
 #include "system/LuaGameSystem.h"
 #include "system/GraphicsSystem.h"
 #include <threading/FunctionTask.h>
@@ -66,8 +67,7 @@ public:
   }
 
   void onDrop(const std::vector<FilePath>& files) override {
-    std::vector<FilePath> myFiles = files;
-    mPool.queueTask(std::make_shared<FunctionTask>([this, myFiles = std::move(files)]() mutable {
+    mPool.queueTask(std::make_shared<FunctionTask>([this, myFiles(files)]() mutable {
       _expandDirectories(myFiles);
       _loadAssets(myFiles);
     }));
@@ -121,9 +121,11 @@ void Editor::init() {
   mCurrentState = PlayState::Stopped;
   mArgs.mMessages->getMessageQueue()->push(SetPlayStateEvent(PlayState::Stopped));
   mEventHandler = std::make_unique<EventHandler>();
+  mInput = std::make_shared<InputStore>();
+  mInput->init(*mEventHandler);
 
   mSavedScene = std::make_unique<FilePath>(mArgs.mProjectLocator->transform("scene.json", PathSpace::Project, PathSpace::Full));
-  mSceneBrowser = std::make_unique<SceneBrowser>(*mArgs.mMessages, *mArgs.mGameObjectGen, *mArgs.mSystems->getSystem<KeyboardInput>(), *mEventHandler);
+  mSceneBrowser = std::make_unique<SceneBrowser>(*mArgs.mMessages, *mArgs.mGameObjectGen, mInput, *mEventHandler);
   mObjectInspector = std::make_unique<ObjectInspector>(*mArgs.mMessages, *mEventHandler, *mArgs.mComponentRegistry);
   mAssetPreview = std::make_unique<AssetPreview>(*mArgs.mMessages, *mEventHandler, *mArgs.mSystems->getSystem<AssetRepo>());
   mToolbox = std::make_unique<Toolbox>(*mArgs.mMessages, *mEventHandler);
@@ -175,16 +177,23 @@ void Editor::uninit() {
   mEventHandler = nullptr;
 }
 
-void Editor::update(float dt, IWorkerPool&, std::shared_ptr<Task> frameTask) {
-  mEventHandler->handleEvents(*mEventBuffer);
-
-  if(_shouldUpdateEditor(mCurrentState)) {
-    _updateInput(dt);
+void Editor::update(float, IWorkerPool&, std::shared_ptr<Task>) {
+  //Do event updates here until onAllSystemsInitialized at which point all updates are in _editorUpdate
+  if(!mGameObserver) {
+    mEventHandler->handleEvents(*mEventBuffer);
   }
-  mToolbox->update(*mArgs.mSystems->getSystem<KeyboardInput>());
 }
 
 void Editor::_editorUpdate() {
+  mEventHandler->handleEvents(*mEventBuffer);
+
+  if(_shouldUpdateEditor(mCurrentState)) {
+    _updateInput(1.f/60.f);
+  }
+  if(mInput) {
+    mToolbox->update(*mInput);
+  }
+
   if(!_shouldUpdateEditor(mCurrentState)) {
     return;
   }
@@ -193,7 +202,7 @@ void Editor::_editorUpdate() {
   mSceneBrowser->editorUpdate(game.getObjects());
   mObjectInspector->editorUpdate(game);
   mAssetPreview->editorUpdate();
-  mToolbox->editorUpdate(*mArgs.mSystems->getSystem<KeyboardInput>());
+  mToolbox->editorUpdate(*mInput);
 
   Component::EditorUpdateArgs args{ game,
     _getDebugDrawer(),
@@ -267,7 +276,7 @@ void Editor::_updateInput(float dt) {
     return;
   }
 
-  const KeyboardInput& in = *mArgs.mSystems->getSystem<KeyboardInput>();
+  const InputStore& in = *mInput;
   Vec3 move = Vec3::Zero;
   Mat4 camTransform = mCamera->getComponent<Transform>()->get();
   Vec3 camPos;

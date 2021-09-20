@@ -147,6 +147,9 @@ void ObjectInspector::_updateSelection(const LuaGameObjectProvider& objects) {
     if(const LuaGameObject* obj = objects.getObject(h)) {
       mSelectedData.emplace_back(obj->clone());
     }
+    else {
+      mSelectedData.emplace_back(nullptr);
+    }
   }
 }
 

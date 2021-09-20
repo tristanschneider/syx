@@ -8,11 +8,10 @@
 #include "AppRegistration.h"
 #include "asset/Shader.h"
 #include "App.h"
+#include "event/LifecycleEvents.h"
 #include "file/FilePath.h"
-#include "KeyboardInputWin32.h"
 #include "system/GraphicsSystem.h"
 #include "system/InputSystemWin32.h"
-#include "system/KeyboardInput.h"
 #include "AppPlatformWin32.h"
 
 #include "GL/glew.h"
@@ -44,7 +43,7 @@ void setWindowSize(int width, int height) {
   sWidth = width;
   sHeight = height;
   if(sApp) {
-    sApp->getSystem<GraphicsSystem>()->onResize(width, height);
+    sApp->getMessageQueue()->push(WindowResize(width, height));
   }
 }
 
@@ -104,12 +103,6 @@ LRESULT CALLBACK mainProc(HWND wnd, UINT msg, WPARAM w, LPARAM l) {
 
     case WM_ACTIVATEAPP:
       onFocusChanged(w);
-      break;
-
-    case WM_MOUSEWHEEL:
-      if(sApp) {
-        static_cast<KeyboardInputWin32&>(sApp->getAppPlatform().getKeyboardInput()).feedWheelDelta(static_cast<float>(GET_WHEEL_DELTA_WPARAM(w))/static_cast<float>(WHEEL_DELTA));
-      }
       break;
 
     case WM_DROPFILES:

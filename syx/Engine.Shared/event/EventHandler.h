@@ -1,5 +1,6 @@
 #pragma once
 #include "util/FunctionTraits.h"
+#include "threading/NoLock.h"
 
 class Event;
 class EventBuffer;
@@ -7,6 +8,68 @@ class EventBuffer;
 struct EventListener {
   virtual ~EventListener() = default;
   virtual void onEvent(const Event&) {}
+};
+
+class EventHandler;
+
+//Convenience class for wrappers that listen to events to cache latest state
+template<class StoredT>
+struct EventStore : public EventListener {
+  virtual ~EventStore() = default;
+  virtual void init(EventHandler& handler) = 0;
+  //Get the latest version of the value. Return by value to allow thread-safe implementations if desired
+  virtual StoredT get() const = 0;
+  //View for still allowing optional thread safety while preventing copies of the viewed object
+  virtual void view(const std::function<void(const StoredT&)>& viewer) const = 0;
+  //Clears the dirty flag and returns the previous value. Can be used to know if the value changed
+  virtual bool tryClearDirty() = 0;
+};
+
+//Another convenience class to implement value get/set with optional thread safety
+template<class DerivedT, class StoredT, class LockT = NoLock>
+struct EventStoreImpl : public EventStore<StoredT>, public std::enable_shared_from_this<EventStoreImpl<DerivedT, StoredT, LockT>> {
+  using LockGuard = std::lock_guard<LockT>;
+
+  StoredT get() const override {
+    LockGuard lock(mMutex);
+    return mValue;
+  }
+
+  virtual void view(const std::function<void(const StoredT&)>& viewer) const override {
+    LockGuard lock(mMutex);
+    viewer(mValue);
+  }
+
+  bool tryClearDirty() override {
+    LockGuard lock(mMutex);
+    const bool result = mDirty;
+    mDirty = false;
+    return result;
+  }
+
+protected:
+  void _set(StoredT value) {
+    LockGuard lock(mMutex);
+    mValue = std::move(value);
+    mDirty = true;
+  }
+
+  //Set the value through a lambda that takes the value by reference
+  template<class Setter>
+  void _set(const Setter& setter) {
+    LockGuard lock(mMutex);
+    setter(mValue);
+    mDirty = true;
+  }
+
+  std::shared_ptr<DerivedT> _sharedFromThis() {
+    return std::static_pointer_cast<DerivedT>(shared_from_this());
+  }
+
+private:
+  StoredT mValue;
+  mutable LockT mMutex;
+  bool mDirty = false;
 };
 
 class EventHandler {

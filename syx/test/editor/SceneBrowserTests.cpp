@@ -22,7 +22,6 @@
 #include "test/TestAppRegistration.h"
 #include "test/TestFileSystem.h"
 #include "test/TestGUIHook.h"
-#include "test/TestKeyboardInput.h"
 #include "test/TestListenerSystem.h"
 #include "threading/AsyncHandle.h"
 

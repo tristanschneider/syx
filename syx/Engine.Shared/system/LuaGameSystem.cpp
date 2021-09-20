@@ -14,6 +14,7 @@
 #include "event/LifecycleEvents.h"
 #include "event/SpaceEvents.h"
 #include "event/TransformEvent.h"
+#include "input/InputStore.h"
 #include <lua.hpp>
 #include "lua/AllLuaLibs.h"
 #include "lua/LuaGameContext.h"
@@ -64,6 +65,9 @@ void LuaGameSystem::init() {
   _registerSystemEventHandler(&LuaGameSystem::_onComponentDataRequest);
 
   mLibs = std::make_unique<Lua::AllLuaLibs>();
+
+  mInput = std::make_shared<InputStore>();
+  mInput->init(*mEventHandler);
 
   //Arbitrarily create a static amount of contexts to load balance with
   constexpr size_t numContexts = 4;
@@ -162,6 +166,10 @@ IIDRegistry& LuaGameSystem::getIDRegistry() const {
 
 FileSystem::IFileSystem& LuaGameSystem::getFileSystem() {
   return *mArgs.mFileSystem;
+}
+
+const InputStore& LuaGameSystem::getInput() const {
+  return *mInput;
 }
 
 const LuaGameObject* LuaGameSystem::getObject(Handle handle) const {

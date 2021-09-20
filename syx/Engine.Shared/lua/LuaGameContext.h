@@ -8,6 +8,7 @@ struct ComponentType;
 class GameObjectHandleProvider;
 struct IGameObject;
 struct IIDRegistry;
+class InputStore;
 class IWorkerPool;
 class LuaComponentRegistry;
 class LuaGameObject;
@@ -104,6 +105,7 @@ struct ILuaGameContext {
   virtual const ComponentRegistryProvider& getComponentRegistry() const = 0;
   virtual FileSystem::IFileSystem& getFileSystem() = 0;
   virtual IIDRegistry& getIDRegistry() = 0;
+  virtual const InputStore& getInput() const = 0;
 };
 
 namespace Lua {

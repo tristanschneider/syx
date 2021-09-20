@@ -19,7 +19,6 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 #include "file/FilePath.h"
 #include "file/DirectoryWatcher.h"
 #include "system/AssetRepo.h"
-#include "system/KeyboardInput.h"
 #include "system/LuaGameSystem.h"
 #include "SyxVec2.h"
 #include "asset/LuaScript.h"

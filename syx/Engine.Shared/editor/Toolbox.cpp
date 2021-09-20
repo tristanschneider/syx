@@ -4,10 +4,11 @@
 #include "editor/event/EditorEvents.h"
 #include <event/EventBuffer.h>
 #include <event/EventHandler.h>
+#include "event/InputEvents.h"
 #include <imgui/imgui.h>
 #include "ImGuiImpl.h"
+#include "input/InputStore.h"
 #include "provider/MessageQueueProvider.h"
-#include "system/KeyboardInput.h"
 
 Toolbox::Toolbox(MessageQueueProvider& msg, EventHandler& handler)
   : mMsg(msg)
@@ -23,11 +24,11 @@ Toolbox::Toolbox(MessageQueueProvider& msg, EventHandler& handler)
   }));
 }
 
-void Toolbox::update(const KeyboardInput& input) {
+void Toolbox::update(const InputStore& input) {
   _updateInput(input);
 }
 
-void Toolbox::editorUpdate(const KeyboardInput& input) {
+void Toolbox::editorUpdate(const InputStore& input) {
   _updateGui();
   _updateInput(input);
 }
@@ -73,7 +74,7 @@ void Toolbox::_updateGui() {
   ImGui::End();
 }
 
-void Toolbox::_updateInput(const KeyboardInput& input) {
+void Toolbox::_updateInput(const InputStore& input) {
   const bool ctrl = input.getKeyDownOrTriggered(Key::LeftCtrl) || input.getKeyDownOrTriggered(Key::RightCtrl);
   const bool shift = input.getKeyDownOrTriggered(Key::Shift);
   if(mCurrentPlayState == PlayState::Playing) {

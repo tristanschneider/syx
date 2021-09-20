@@ -8,6 +8,7 @@ class AssetWatcher;
 class DragDropAssetLoader;
 class FilePath;
 struct IDebugDrawer;
+class InputStore;
 class LuaGameObject;
 class LuaGameSystemObserver;
 class ObjectInspector;
@@ -49,4 +50,6 @@ private:
   std::unique_ptr<DragDropAssetLoader> mDragDropAssetLoader;
   std::unique_ptr<LuaGameObject> mCamera;
   std::unique_ptr<AssetWatcher> mAssetWatcher;
+  std::shared_ptr<InputStore> mInput;
+  int mFrameCount = 0;
 };

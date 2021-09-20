@@ -1,15 +1,20 @@
 #include "Precompile.h"
 #include "lua/lib/LuaKeyboardInput.h"
 
+#include "event/InputEvents.h"
+#include "input/InputStore.h"
 #include "lua/LuaGameContext.h"
 #include "lua/lib/LuaVec3.h"
 #include "lua/LuaUtil.h"
 #include <lua.hpp>
 #include "provider/SystemProvider.h"
-#include "system/KeyboardInput.h"
 
 namespace Lua {
   const char* CLASS_NAME = "Keyboard";
+
+  const InputStore& _getInput(lua_State* l) {
+    return Lua::checkGameContext(l).getInput();;
+  }
 
   void KeyboardInput::openLib(lua_State* l) {
     luaL_Reg statics[] = {
@@ -68,9 +73,5 @@ namespace Lua {
   int KeyboardInput::getWheelDelta(lua_State* l) {
     lua_pushnumber(l, static_cast<lua_Number>(_getInput(l).getWheelDelta()));
     return 1;
-  }
-
-  ::KeyboardInput& KeyboardInput::_getInput(lua_State* l) {
-    return *Lua::checkGameContext(l).getSystemProvider().getSystem<::KeyboardInput>();
   }
 }

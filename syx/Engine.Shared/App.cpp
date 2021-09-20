@@ -98,6 +98,7 @@ void App::init() {
   }
   mMessageLock->lock();
   mMessageQueue->push(AllSystemsInitialized());
+  mMessageQueue->push(FrameStart());
   mMessageLock->unlock();
 }
 
@@ -113,8 +114,12 @@ void App::update(float dt) {
 
   auto frameTask = std::make_shared<SyncTask>();
 
+  //Must be done separately incase queueTasks causes cross-system communication
   for(auto& system : mSystems) {
     system->setEventBuffer(mFrozenMessageQueue.get());
+  }
+
+  for(auto& system : mSystems) {
     system->queueTasks(dt, *mWorkerPool, frameTask);
   }
 

@@ -3,7 +3,6 @@
 #include "AppPlatform.h"
 
 class DirectoryWatcher32;
-class KeyboardInputWin32;
 
 class AppPlatformWin32 : public AppPlatform {
 public:
@@ -12,9 +11,6 @@ public:
 
   std::string getExePath() override;
   void setWorkingDirectory(const char* working) override;
+  //TODO: should be a system that listens to and fires events
   std::unique_ptr<DirectoryWatcher> createDirectoryWatcher(FilePath root) override;
-  KeyboardInputImpl& getKeyboardInput() override;
-
-private:
-  std::unique_ptr<KeyboardInputWin32> mKeyboardInput;
 };

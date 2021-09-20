@@ -1,5 +1,5 @@
 #pragma once
-#include <event/Event.h>
+#include "event/Event.h"
 
 struct RenderCommand {
   enum class Type : uint8_t {
@@ -33,9 +33,17 @@ struct RenderCommand {
 };
 
 
-class RenderCommandEvent : public Event {
+class RenderCommandEvent : public TypedEvent<RenderCommandEvent> {
 public:
   RenderCommandEvent(const RenderCommand& cmd);
 
   RenderCommand mCmd;
+};
+
+struct DispatchToRenderThreadEvent : public TypedEvent<DispatchToRenderThreadEvent> {
+  DispatchToRenderThreadEvent(std::function<void()> callback)
+    : mCallback(std::move(callback)) {
+  }
+
+  std::function<void()> mCallback;
 };

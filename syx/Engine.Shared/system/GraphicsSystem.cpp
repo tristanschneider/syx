@@ -13,10 +13,12 @@
 #include "editor/event/EditorEvents.h"
 #include "event/EventBuffer.h"
 #include "event/EventHandler.h"
+#include "event/LifecycleEvents.h"
 #include "event/TransformEvent.h"
 #include "event/BaseComponentEvents.h"
 #include "event/DebugDrawEvent.h"
 #include "event/SpaceEvents.h"
+#include "event/store/ScreenSizeStore.h"
 #include "event/ViewportEvents.h"
 #include "provider/MessageQueueProvider.h"
 #include "provider/SystemProvider.h"
@@ -26,11 +28,8 @@
 #include "graphics/PixelBuffer.h"
 #include "graphics/RenderCommand.h"
 #include "graphics/Viewport.h"
-#include "ImGuiImpl.h"
 #include "lua/LuaNode.h"
 #include "system/AssetRepo.h"
-#include "system/ImGuiSystem.h"
-#include "system/KeyboardInput.h"
 #include "util/Finally.h"
 #include "Util.h"
 
@@ -109,11 +108,18 @@ void GraphicsSystem::init() {
   mEventHandler->registerEventListener(self, &GraphicsSystem::_processSetViewportEvent);
   mEventHandler->registerEventListener(self, &GraphicsSystem::_processRemoveViewportEvent);
   mEventHandler->registerEventListener(self, &GraphicsSystem::_processGetCameraRequest);
+  mEventHandler->registerEventListener(self, &GraphicsSystem::_processDispatchToRenderThreadEvent);
   _registerCallbackEventHandler(*this);
+
+  mScreenSizeStore = std::make_shared<ScreenSizeStore>();
+  mScreenSizeStore->init(*mEventHandler);
 }
 
-void GraphicsSystem::update(float dt, IWorkerPool&, std::shared_ptr<Task>) {
+void GraphicsSystem::update(float, IWorkerPool&, std::shared_ptr<Task>) {
   mEventHandler->handleEvents(*mEventBuffer);
+  if(mScreenSizeStore->tryClearDirty()) {
+    _onWindowResized();
+  }
 
   bool updatePick = mPickRequests.size() && mFrameBuffer;
   if(updatePick) {
@@ -144,13 +150,6 @@ void GraphicsSystem::update(float dt, IWorkerPool&, std::shared_ptr<Task>) {
     mPickRequests.clear();
   }
 
-  if(IImGuiSystem* gui = mArgs.mSystems->getSystem<IImGuiSystem>()) {
-    if(IImGuiImpl* impl = gui->_getImpl()) {
-      impl->render(dt, mScreenSize);
-      //TODO: can this input responsibility be moved to the ImGuiSystem?
-      impl->updateInput(*mArgs.mSystems->getSystem<KeyboardInput>());
-    }
-  }
   _processRenderThreadTasks();
   mRenderCommands.clear();
 }
@@ -464,14 +463,15 @@ void GraphicsSystem::_quad2d(const RenderCommand& c, const Camera&, const Viewpo
 
   //Flip origin from top left to bottom right
   //TODO: This should transform to be relative to the viewport
-  min.y = mScreenSize.y - min.y;
-  max.y = mScreenSize.y - max.y;
+  const Syx::Vec2 screenSize = mScreenSizeStore->get().mSize;
+  min.y = screenSize.y - min.y;
+  max.y = screenSize.y - max.y;
   if(min.y > max.y)
     std::swap(min.y, max.y);
 
   Vec2 origin = (min + max)*0.5f;
   Vec2 scale = (max - min)*0.5f;
-  mvp = Mat4::translate(Vec3(-1, -1, 0)) * Mat4::scale(Vec3(2.0f/mScreenSize.x, 2.0f/mScreenSize.y, 0.0f)) * Mat4::translate(Vec3(origin.x, origin.y, 0.0f)) * Mat4::scale(Vec3(scale.x, scale.y, 0.0f));
+  mvp = Mat4::translate(Vec3(-1, -1, 0)) * Mat4::scale(Vec3(2.0f/screenSize.x, 2.0f/screenSize.y, 0.0f)) * Mat4::translate(Vec3(origin.x, origin.y, 0.0f)) * Mat4::scale(Vec3(scale.x, scale.y, 0.0f));
 
   if(q.mColor[3] != 0 && q.mColor[3] != 1) {
     glEnable(GL_BLEND);
@@ -592,9 +592,10 @@ void GraphicsSystem::_processPickRequests(const std::vector<uint8_t> pickScene, 
 
     Syx::Vec2 reqMin = req.mMin;
     Syx::Vec2 reqMax = req.mMax;
+    const Syx::Vec2 screenSize = mScreenSizeStore->get().mSize;
     //Flip y from top left to bottom left
-    reqMin.y = mScreenSize.y - reqMin.y;
-    reqMax.y = mScreenSize.y - reqMax.y;
+    reqMin.y = screenSize.y - reqMin.y;
+    reqMax.y = screenSize.y - reqMax.y;
 
     size_t min[2];
     size_t max[2];
@@ -605,7 +606,7 @@ void GraphicsSystem::_processPickRequests(const std::vector<uint8_t> pickScene, 
 
     //rgba
     const int pixelStride = 4;
-    const int rowStride = pixelStride*static_cast<int>(mScreenSize.x);
+    const int rowStride = pixelStride*static_cast<int>(screenSize.x);
     Handle lastFound = 0;
     for(size_t x = min[0]; x <= max[0]; ++x) {
       for(size_t y = min[1]; y <= max[1]; ++y) {
@@ -647,23 +648,30 @@ Viewport* GraphicsSystem::_getViewport(const std::string& name) {
   return it != mViewports.end() ? &*it : nullptr;
 }
 
-void GraphicsSystem::onResize(int width, int height) {
-  glViewport(0, 0, width, height);
-  mScreenSize = Syx::Vec2(static_cast<float>(width), static_cast<float>(height));
+void GraphicsSystem::_onWindowResized() {
+  const Syx::Vec2 size = mScreenSizeStore->get().mSize;
+  glViewport(0, 0, (GLsizei)size.x, (GLsizei)size.y);
 
-  TextureDescription desc(width, height, TextureFormat::RGBA8, TextureSampleMode::Nearest);
+  TextureDescription desc((GLsizei)size.x, (GLsizei)size.y, TextureFormat::RGBA8, TextureSampleMode::Nearest);
   mFrameBuffer = std::make_unique<FrameBuffer>(desc);
   mPixelPackBuffer = std::make_unique<PixelBuffer>(desc, PixelBuffer::Type::Pack);
 }
 
+void GraphicsSystem::_processDispatchToRenderThreadEvent(const DispatchToRenderThreadEvent& e) {
+  dispatchToRenderThread(e.mCallback);
+}
+
 void GraphicsSystem::_glViewport(const Viewport& viewport) const {
-  glViewport(static_cast<int>(viewport.getMin().x*mScreenSize.x),
-    static_cast<int>(viewport.getMin().y*mScreenSize.y),
-    static_cast<int>((viewport.getMax().x - viewport.getMin().x)*mScreenSize.x),
-    static_cast<int>((viewport.getMax().y - viewport.getMin().y)*mScreenSize.y)
+  const Syx::Vec2 size = mScreenSizeStore->get().mSize;
+  glViewport(static_cast<int>(viewport.getMin().x*size.x),
+    static_cast<int>(viewport.getMin().y*size.y),
+    static_cast<int>((viewport.getMax().x - viewport.getMin().x)*size.x),
+    static_cast<int>((viewport.getMax().y - viewport.getMin().y)*size.y)
   );
 }
 
 Syx::Vec2 GraphicsSystem::_pixelToNDC(const Syx::Vec2 point) const {
-  return Syx::Vec2(point.x/mScreenSize.x, point.y/mScreenSize.y);
+  const Syx::Vec2 size = mScreenSizeStore->get().mSize;
+  const float e = 0.00001f;
+  return Syx::Vec2(Syx::safeDivide(point.x, size.x, e), Syx::safeDivide(point.y, size.y, e));
 }

@@ -19,6 +19,7 @@ class ComponentRegistryProvider;
 class FilePath;
 class GameObjectHandleProvider;
 struct IIDRegistry;
+class InputStore;
 struct ILuaGameContext;
 class LoadSpaceEvent;
 class LuaGameObject;
@@ -92,6 +93,7 @@ public:
   GameObjectHandleProvider& getGameObjectGen() const;
   IIDRegistry& getIDRegistry() const;
   FileSystem::IFileSystem& getFileSystem();
+  const InputStore& getInput() const;
 
   const LuaGameObject* getObject(Handle handle) const;
 
@@ -131,4 +133,5 @@ private:
   std::thread::id mEventHandlerThread;
   LuaGameSystemObserver::SubjectType mSubject;
   std::vector<std::unique_ptr<ILuaGameContext>> mLuaContexts;
+  std::shared_ptr<InputStore> mInput;
 };

@@ -9,9 +9,9 @@
 #include "editor/MockEditorApp.h"
 #include "event/BaseComponentEvents.h"
 #include "event/EventBuffer.h"
+#include "event/InputEvents.h"
 #include "lua/LuaGameContext.h"
 #include "LuaGameObject.h"
-#include "system/KeyboardInput.h"
 #include "test/MockApp.h"
 #include "test/TestGUIHook.h"
 

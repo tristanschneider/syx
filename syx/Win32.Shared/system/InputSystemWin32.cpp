@@ -7,6 +7,8 @@
 #include "threading/FunctionTask.h"
 #include "threading/IWorkerPool.h"
 
+extern HWND gHwnd;
+
 InputSystemWin32::InputSystemWin32(const SystemArgs& args)
   : System(args, System::_typeId<InputSystemWin32>())
   , mPendingMessages(std::make_unique<EventBuffer>()) {
@@ -91,11 +93,11 @@ std::optional<LRESULT> InputSystemWin32::_mainProc(HWND, UINT msg, WPARAM w, LPA
     return std::make_optional(LRESULT(0));
 
   case WM_LBUTTONDOWN:
-    _enqueueMouseKeyEvent(Key::Left, KeyState::Triggered, _toPos(l));
+    _enqueueMouseKeyEvent(Key::LeftMouse, KeyState::Triggered, _toPos(l));
     break;
 
   case WM_LBUTTONUP:
-    _enqueueMouseKeyEvent(Key::Left, KeyState::Released, _toPos(l));
+    _enqueueMouseKeyEvent(Key::LeftMouse, KeyState::Released, _toPos(l));
     break;
 
   case WM_RBUTTONDOWN:
@@ -127,7 +129,6 @@ std::optional<LRESULT> InputSystemWin32::_mainProc(HWND, UINT msg, WPARAM w, LPA
     break;
 
   case WM_MOUSEMOVE:
-    printf("mousemove\n");
     break;
 
   case WM_INPUT: {
@@ -142,17 +143,41 @@ std::optional<LRESULT> InputSystemWin32::_mainProc(HWND, UINT msg, WPARAM w, LPA
         if(input->header.dwType == RIM_TYPEMOUSE) {
           const RAWMOUSE& mouseInput = input->data.mouse;
           Syx::Vec2 mousePos, mouseDelta;
+          std::optional<bool> newIsRelative;
           //This is a bitfield but RELATIVE is 0, so I'm assuming that relative movement is never combined with other values
           if(mouseInput.usFlags == MOUSE_MOVE_RELATIVE) {
+            newIsRelative = true;
             mouseDelta = Syx::Vec2(static_cast<float>(mouseInput.lLastX), static_cast<float>(mouseInput.lLastY));
             POINT result;
             ::GetCursorPos(&result);
             mousePos = Syx::Vec2(static_cast<float>(result.x), static_cast<float>(result.y));
           }
           else if(mouseInput.usFlags & MOUSE_MOVE_ABSOLUTE) {
+            newIsRelative = false;
             mousePos = Syx::Vec2(static_cast<float>(mouseInput.lLastX), static_cast<float>(mouseInput.lLastY));
-            //TODO: compute delta by storing previous position? Could lead to edge cases when mouse snaps or leaves client area
           }
+
+          if(newIsRelative) {
+            POINT p{ (LONG)mousePos.x, (LONG)mousePos.y };
+            if(::ScreenToClient(gHwnd, &p)) {
+              mousePos.x = (float)p.x;
+              mousePos.y = (float)p.y;
+            }
+
+            //If relative mode was the same as last time, compute the delta normally
+            if(*newIsRelative == mIsRelativeMouse) {
+              if(!mIsRelativeMouse) {
+                mouseDelta = mousePos - mLastMousePos;
+                mLastMousePos = mousePos;
+              }
+            }
+            //Relative mouse mode changed, don't compute a delta as it may be dramatic, set last pos for potential use next input
+            else {
+              mLastMousePos = mousePos;
+              mIsRelativeMouse = *newIsRelative;
+            }
+          }
+          _enqueueMouseMove(mousePos, mouseDelta);
         }
 
         //Documentation says this does nothing. Call it because it seems reasonable

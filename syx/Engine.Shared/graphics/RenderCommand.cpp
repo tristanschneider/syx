@@ -11,6 +11,6 @@ RenderCommand RenderCommand::quad2d(const Syx::Vec2& min, const Syx::Vec2& max, 
   return cmd;
 }
 
-DEFINE_EVENT(RenderCommandEvent, const RenderCommand& cmd)
-  , mCmd(cmd) {
+RenderCommandEvent::RenderCommandEvent(const RenderCommand& cmd)
+  : mCmd(cmd) {
 }

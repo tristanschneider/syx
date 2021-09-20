@@ -18,7 +18,6 @@
 #include "system/AssetRepo.h"
 #include "system/GraphicsSystem.h"
 #include "system/ImGuiSystem.h"
-#include "system/KeyboardInput.h"
 #include "system/LuaGameSystem.h"
 #include "system/PhysicsSystem.h"
 #include "loader/AssetLoader.h"
@@ -35,7 +34,6 @@ public:
     registry.registerSystem(std::make_unique<ImGuiSystem>(args));
     registry.registerSystem(std::make_unique<AssetRepo>(args, std::move(loaders)));
     registry.registerSystem(std::make_unique<GraphicsSystem>(args));
-    registry.registerSystem(std::make_unique<KeyboardInput>(args));
     registry.registerSystem(std::make_unique<LuaGameSystem>(args));
     registry.registerSystem(std::make_unique<PhysicsSystem>(args));
     registry.registerSystem(std::make_unique<Editor>(args));

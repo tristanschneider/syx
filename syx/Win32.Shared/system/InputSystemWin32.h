@@ -1,6 +1,7 @@
 #pragma once
 
 #include "system/System.h"
+#include "SyxVec2.h"
 
 enum class KeyState : uint8_t;
 enum class Key : uint8_t;
@@ -22,4 +23,6 @@ private:
   //Messages pending from the win32 update until the next engine update
   std::unique_ptr<EventBuffer> mPendingMessages;
   std::mutex mPendingMessagesMutex;
+  bool mIsRelativeMouse = false;
+  Syx::Vec2 mLastMousePos;
 };

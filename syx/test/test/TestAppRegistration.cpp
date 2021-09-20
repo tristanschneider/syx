@@ -14,7 +14,6 @@
 #include "event/EventHandler.h"
 #include "loader/AssetLoader.h"
 #include "system/AssetRepo.h"
-#include "system/KeyboardInput.h"
 #include "system/LuaGameSystem.h"
 #include "system/PhysicsSystem.h"
 #include "test/TestListenerSystem.h"
@@ -87,9 +86,10 @@ namespace TestRegistration {
     struct Reg : public LuaRegistration {
       void registerSystems(const SystemArgs& args, ISystemRegistry& registry) override {
         registry.registerSystem(std::make_unique<TestImGuiSystem>(args));
+        //Needed for _editorUpdate, TODO: should be removable once _editorUpdate is solved with events
+        registry.registerSystem(std::make_unique<LuaGameSystem>(args));
         LuaRegistration::registerSystems(args, registry);
         registry.registerSystem(std::make_unique<Editor>(args));
-        registry.registerSystem(std::make_unique<KeyboardInput>(args));
       }
 
       void registerComponents(IComponentRegistry& registry) override {

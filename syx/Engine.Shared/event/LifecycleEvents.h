@@ -17,3 +17,13 @@ struct FrameStart : public TypedEvent<FrameStart> {
 
 struct FrameEnd : public TypedEvent<FrameEnd> {
 };
+
+struct WindowResize : public TypedEvent<WindowResize> {
+  WindowResize(int width, int height)
+    : mWidth(width)
+    , mHeight(height) {
+  }
+
+  int mWidth = 0;
+  int mHeight = 0;
+};

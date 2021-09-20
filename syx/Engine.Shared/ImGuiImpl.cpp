@@ -1,8 +1,9 @@
 #include "Precompile.h"
 #include "ImGuiImpl.h"
 #include "asset/Shader.h"
+#include "event/InputEvents.h"
 #include "imgui/imgui.h"
-#include "system/KeyboardInput.h"
+#include "input/InputStore.h"
 #include "util/ScratchPad.h"
 
 #include <gl/glew.h>
@@ -12,7 +13,7 @@ public:
   ImGuiImpl();
   ~ImGuiImpl();
 
-  void updateInput(KeyboardInput& input) override;
+  void updateInput(const InputStore& input) override;
   void render(float dt, Syx::Vec2 display) override;
 
 private:
@@ -141,7 +142,7 @@ ImGuiImpl::~ImGuiImpl() {
   mShader->unload();
 }
 
-void ImGuiImpl::updateInput(KeyboardInput& input) {
+void ImGuiImpl::updateInput(const InputStore& input) {
   ImGuiIO& io = ImGui::GetIO();
 
   io.KeyCtrl = input.getKeyDown(Key::Control);

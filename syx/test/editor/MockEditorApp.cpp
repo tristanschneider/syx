@@ -8,12 +8,12 @@
 #include "editor/ObjectInspector.h"
 #include "editor/SceneBrowser.h"
 #include "event/BaseComponentEvents.h"
+#include "event/InputEvents.h"
 #include "LuaGameObject.h"
 #include "system/LuaGameSystem.h"
 #include "test/TestAppPlatform.h"
 #include "test/TestAppRegistration.h"
 #include "test/TestGUIHook.h"
-#include "test/TestKeyboardInput.h"
 #include "test/TestListenerSystem.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -45,14 +45,15 @@ namespace EditorTests {
   }
 
   void MockEditorApp::pressKeysAndProcessInput(const std::initializer_list<Key>& keys) {
-    auto& input = static_cast<TestKeyboardInputImpl&>(mApp->getAppPlatform().getKeyboardInput());
+    auto& events = *mApp->getMessageQueue();
     for(auto key : keys) {
-      input.clearInputAfterOneFrame().mKeyStates[key] = KeyState::Triggered;
+      events.push(KeyEvent(key, KeyState::Triggered));
     }
     mApp->update(1.f);
     for(auto key : keys) {
-      input.clearInputAfterOneFrame().mKeyStates[key] = KeyState::Released;
+      events.push(KeyEvent(key, KeyState::Released));
     }
+    mApp->update(1.f);
   }
 
   //Set a selection and propagate the change to the editor
@@ -147,6 +148,12 @@ namespace EditorTests {
     Assert::IsTrue(listener.hasEventOfType(Event::typeId<ScreenPickRequest>()), L"GetCameraResponse should have triggered the ScreenPickRequest", LINE_INFO());
     _updateForEventResponse();
     auto* selection = static_cast<const SetSelectionEvent*>(listener.tryGetEventOfType(Event::typeId<SetSelectionEvent>()));
+    for(int i = 0; i < 3 && !selection; ++i) {
+      //Selection is deferred, try a few frames
+      mApp->update(0.f);
+      selection = static_cast<const SetSelectionEvent*>(listener.tryGetEventOfType(Event::typeId<SetSelectionEvent>()));
+    }
+
     Assert::IsNotNull(selection, L"SetSelectionEvent should have been triggered by the ScreenPickResponse", LINE_INFO());
 
     return selection->mObjects;

@@ -2,6 +2,8 @@
 #include "system/System.h"
 
 struct IImGuiImpl;
+class InputStore;
+class ScreenSizeStore;
 
 struct IImGuiSystem : public System {
   virtual ~IImGuiSystem() = default;
@@ -23,4 +25,6 @@ public:
 
 private:
   std::unique_ptr<IImGuiImpl> mImpl;
+  std::shared_ptr<InputStore> mInputStore;
+  std::shared_ptr<ScreenSizeStore> mScreenSizeStore;
 };

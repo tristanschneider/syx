@@ -514,6 +514,10 @@ public:
     return mSystem.getIDRegistry();
   }
 
+  const InputStore& getInput() const override {
+    return mSystem.getInput();
+  }
+
 private:
   const LuaGameObject* _getObject(Handle handle) {
     //Present local pending state as the truth within this context

@@ -22,8 +22,5 @@ namespace Lua {
     static int getMouseDelta(lua_State* l);
     // number getWheelDelta()
     static int getWheelDelta(lua_State* l);
-
-  private:
-    static ::KeyboardInput& _getInput(lua_State* l);
   };
 };

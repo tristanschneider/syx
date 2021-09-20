@@ -10,13 +10,21 @@ struct MouseKeyEvent;
 struct MouseMoveEvent;
 struct MouseWheelEvent;
 
+struct InputState {
+  //All key states with abscence implying released
+  std::unordered_map<Key, KeyState> mKeyStates;
+  Syx::Vec2 mMousePos;
+  Syx::Vec2 mMouseDelta;
+  float mWheelDelta = 0.f;
+};
+
 //Listens to input events and stores the most recent state for users that prefer to query input rather than use the events directly
 //It is expected to be used by the one responsible for event handling and as such is not thread safe if used on a different thread during event handling
-class InputStore : public EventListener, public std::enable_shared_from_this<InputStore> {
+class InputStore : public EventStoreImpl<InputStore, InputState, std::mutex> {
 public:
   InputStore() = default;
 
-  void init(EventHandler& handler);
+  void init(EventHandler& handler) override;
 
   KeyState getKeyState(const std::string& key) const;
   KeyState getKeyState(Key key) const;
@@ -43,10 +51,4 @@ private:
   KeyState _noShift(Key key) const;
   KeyState _or(KeyState a, KeyState b) const;
   void _registerEventHandlers(EventHandler& handler);
-
-  //All key states with abscence implying released
-  std::unordered_map<Key, KeyState> mKeyStates;
-  Syx::Vec2 mMousePos;
-  Syx::Vec2 mMouseDelta;
-  float mWheelDelta = 0.f;
 };

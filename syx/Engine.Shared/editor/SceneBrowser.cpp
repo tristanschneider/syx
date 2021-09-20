@@ -6,14 +6,16 @@
 #include "editor/event/EditorEvents.h"
 #include <event/EventHandler.h>
 #include "event/BaseComponentEvents.h"
+#include "event/DeferredEventBuffer.h"
 #include "event/eventBuffer.h"
+#include "event/InputEvents.h"
 #include "graphics/RenderCommand.h"
 #include "imgui/imgui.h"
 #include "ImGuiImpl.h"
+#include "input/InputStore.h"
 #include "LuaGameObject.h"
 #include "provider/GameObjectHandleProvider.h"
 #include "provider/MessageQueueProvider.h"
-#include "system/KeyboardInput.h"
 
 namespace {
   const Syx::Vec2 INVALID_MOUSE(-1);
@@ -26,10 +28,10 @@ const char* SceneBrowser::NEW_OBJECT_LABEL = "New Object";
 const char* SceneBrowser::DELETE_OBJECT_LABEL = "Delete Object";
 const char* SceneBrowser::OBJECT_LIST_NAME = "ScrollView";
 
-SceneBrowser::SceneBrowser(MessageQueueProvider& msg, GameObjectHandleProvider& handleGen, KeyboardInput& input, EventHandler& handler)
+SceneBrowser::SceneBrowser(MessageQueueProvider& msg, GameObjectHandleProvider& handleGen, std::shared_ptr<InputStore> input, EventHandler& handler)
   : mMsg(&msg)
   , mHandleGen(&handleGen)
-  , mInput(&input)
+  , mInput(std::move(input))
   , mMouseDownPos(INVALID_MOUSE) {
   //Selection is predictively set when the events originate from here, either way, obey any messages that change selection
   mListeners.push_back(handler.registerEventListener([this](const SetSelectionEvent& e) {
@@ -140,5 +142,6 @@ void SceneBrowser::_broadcastSelection() const {
   std::vector<Handle> selection;
   selection.reserve(mSelected.size());
   selection.insert(selection.begin(), mSelected.begin(), mSelected.end());
-  mMsg->getMessageQueue()->push(SetSelectionEvent(std::move(selection)));
+  //Defer by one tick to ensure object can be created if trying to select a newly created object
+  mMsg->getDeferredMessageQueue()->push(SetSelectionEvent(std::move(selection)), DeferredEventBuffer::Condition::waitTicks(1));
 }

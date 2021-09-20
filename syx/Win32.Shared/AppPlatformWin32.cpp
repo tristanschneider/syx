@@ -3,15 +3,11 @@
 
 #include "DirectoryWatcher32.h"
 #include "file/FilePath.h"
-#include "KeyboardInputWin32.h"
 #include <Windows.h>
 
-AppPlatformWin32::AppPlatformWin32()
-  : mKeyboardInput(std::make_unique<KeyboardInputWin32>()) {
-}
+AppPlatformWin32::AppPlatformWin32() = default;
 
-AppPlatformWin32::~AppPlatformWin32() {
-}
+AppPlatformWin32::~AppPlatformWin32() = default;
 
 std::string AppPlatformWin32::getExePath() {
   const size_t buffSize = _MAX_FNAME;
@@ -30,8 +26,4 @@ void AppPlatformWin32::setWorkingDirectory(const char* working) {
 
 std::unique_ptr<DirectoryWatcher> AppPlatformWin32::createDirectoryWatcher(FilePath root) {
   return std::make_unique<DirectoryWatcher32>(root);
-}
-
-KeyboardInputImpl& AppPlatformWin32::getKeyboardInput() {
-  return *mKeyboardInput;
 }
