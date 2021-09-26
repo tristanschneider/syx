@@ -16,6 +16,11 @@ struct AssetInfo;
 enum class AssetLoadResult : uint8_t;
 class IAssetLoaderRegistry;
 
+struct AddAssetRequest;
+struct GetAssetRequest;
+struct ReloadAssetRequest;
+struct AssetQueryRequest;
+
 class AssetRepo : public System {
 public:
   template<typename AssetType>
@@ -28,11 +33,6 @@ public:
   AssetRepo(const SystemArgs& args, std::unique_ptr<IAssetLoaderRegistry> loaderRegistry);
   ~AssetRepo();
 
-  //TODO: find a better way to make this available
-  static AssetRepo* get() {
-    return sSingleton;
-  }
-
   //If uri is provided it will be loaded if it doesn't exist. If only id is provided, only an existing asset will be returned
   std::shared_ptr<Asset> getAsset(AssetInfo info);
   template<typename AssetType>
@@ -40,6 +40,9 @@ public:
     return std::static_pointer_cast<AssetType>(getAsset(info));
   }
   void getAssetsByCategory(std::string_view category, std::vector<std::shared_ptr<Asset>>& assets) const;
+
+  void init() override;
+  void queueTasks(float, IWorkerPool&, std::shared_ptr<Task>) override;
 
   void reloadAsset(std::shared_ptr<Asset> asset);
   void setBasePath(const std::string& basePath);
@@ -56,6 +59,11 @@ private:
   std::shared_ptr<Asset> _find(AssetInfo& info);
   void _queueLoad(std::shared_ptr<Asset> asset);
 
+  void _onAssetRequest(const GetAssetRequest& e);
+  void _onReloadRequest(const ReloadAssetRequest& e);
+  void _onAssetQueryRequest(const AssetQueryRequest& e);
+  void _onAddAssetRequest(const AddAssetRequest& e);
+
   static const size_t sMaxLoaders = 5;
 
   std::string mBasePath;
@@ -63,8 +71,6 @@ private:
   mutable RWLock mAssetLock;
   ThreadLocal<std::unordered_map<std::string, std::unique_ptr<AssetLoader>>> mLoaderPool;
   std::unique_ptr<IAssetLoaderRegistry> mLoaderRegistry;
-  //TODO: find a better way to make this available
-  static AssetRepo* sSingleton;
 };
 
 class IAssetLoaderRegistry {

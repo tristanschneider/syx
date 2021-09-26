@@ -56,7 +56,6 @@ App::App(std::unique_ptr<AppPlatform> appPlatform, std::unique_ptr<AppRegistrati
   SystemArgs args = {
     mWorkerPool.get(),
     this,
-    this,
     mGameObjectGen.get(),
     mProjectLocator.get(),
     mAppPlatform.get(),
@@ -169,7 +168,7 @@ DeferredMessageQueue App::getDeferredMessageQueue() {
   return DeferredMessageQueue(*mDeferredEventBuffer, mDeferredEventMutex);
 }
 
-System* App::_getSystem(size_t id) {
+System* App::_getSystem(typeId_t<System> id) {
   auto found = std::find_if(mSystems.begin(), mSystems.end(), [id](const std::shared_ptr<System>& system) { return system->getType() == id; });
   return found != mSystems.end() ? found->get() : nullptr;
 }

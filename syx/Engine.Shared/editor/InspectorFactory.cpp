@@ -2,21 +2,25 @@
 #include "InspectorFactory.h"
 
 #include "asset/Asset.h"
+#include "asset/ImmediateAssetWrapper.h"
 #include "editor/DefaultInspectors.h"
+#include "editor/Editor.h"
 #include "editor/event/EditorEvents.h"
 #include "editor/util/ScopedImGui.h"
+#include "event/AssetEvents.h"
 #include <event/EventBuffer.h>
 #include <imgui/imgui.h>
 #include "ImGuiImpl.h"
 #include "lua/LuaNode.h"
 #include "lua/LuaVariant.h"
 #include "provider/MessageQueueProvider.h"
-#include "system/AssetRepo.h"
 #include "util/Finally.h"
 #include "util/ScratchPad.h"
 #include "util/Variant.h"
 
 namespace Inspector {
+  const std::string_view MSG_KEY = "msg";
+
   bool inspectString(const char* prop, std::string& str) {
     const size_t textLimit = 100;
     str.reserve(textLimit);
@@ -100,15 +104,46 @@ namespace Inspector {
     return false;
   }
 
-  bool inspectAsset(const char* prop, size_t& data, AssetRepo& repo, std::string_view category) {
+  struct InspectAssetContext : public VariantOwned {
+    struct CategoryQuery {
+      std::string mCategory;
+      std::vector<std::shared_ptr<Asset>> mResults;
+    };
+
+    std::shared_ptr<Asset> mCurrentAsset;
+    CategoryQuery mCategoryQuery;
+  };
+
+  bool inspectAsset(const char* prop, size_t& data, std::string_view category) {
     ScratchPad& pad = IImGuiImpl::getPad();
+
+    //The caller is responsible for settings this
+    MessageQueueProvider* msg = static_cast<MessageQueueProvider*>(std::get<void*>(pad.read(MSG_KEY)->mData));
+
     //Left side label for property
     ImGui::Text(prop);
 
+    //Get the previously selected item
+    pad.push(prop);
+    auto popPad = finally([&pad]() { pad.pop(); });
+    const std::string_view contextKey = "context";
+    Variant* contextVariant = pad.read(contextKey);
+    std::shared_ptr<InspectAssetContext> context;
+    if(contextVariant) {
+      context = std::static_pointer_cast<InspectAssetContext>(std::get<std::shared_ptr<VariantOwned>>(contextVariant->mData));
+    }
+    else {
+      context = std::make_shared<InspectAssetContext>();
+      pad.write(contextKey, Variant{ std::static_pointer_cast<VariantOwned>(context) });
+    }
+
     //Button with name of current asset
     const char* valueName = "none";
-    if(std::shared_ptr<Asset> asset = repo.getAsset(AssetInfo(data))) {
-      valueName = asset->getInfo().mUri.c_str();
+    if (!context->mCurrentAsset || context->mCurrentAsset->getInfo().mId != data) {
+      context->mCurrentAsset = ImmediateAsset::create(AssetInfo(data), msg->getMessageQueue(), typeId<Editor, System>());
+    }
+    if(!context->mCurrentAsset->getInfo().mUri.empty()) {
+      valueName = context->mCurrentAsset->getInfo().mUri.c_str();
     }
     ImGui::SameLine();
     //Open selection modal on button press
@@ -125,31 +160,37 @@ namespace Inspector {
       if(ImGui::Button("Close")) {
         ImGui::CloseCurrentPopup();
         //Clear preview
-        repo.getMessageQueueProvider().getMessageQueue().get().push(PreviewAssetEvent(AssetInfo(0)));
+        msg->getMessageQueue().get().push(PreviewAssetEvent(AssetInfo(0)));
         return false;
       }
       //Scroll view for asset list
       ImGui::BeginChild("assets", ImVec2(200, 200));
       auto endAssets = finally([]() { ImGui::EndChild(); });
-      std::vector<std::shared_ptr<Asset>> assets;
-      repo.getAssetsByCategory(category, assets);
 
-      //Get the previously selected item
-      pad.push(prop);
-      auto popPad = finally([&pad]() { pad.pop(); });
+      //Start a new query for the asset category if none exists yet
+      if(context->mCategoryQuery.mCategory != category) {
+        context->mCategoryQuery.mCategory = category;
+        msg->getMessageQueue()->push(AssetQueryRequest(std::string(category)).then(typeId<Editor, System>(), [context, requestedCategory(std::string(category))](const AssetQueryResponse& e) {
+          //Make sure not to ionvalidate a more recent request
+          if(requestedCategory == context->mCategoryQuery.mCategory) {
+            context->mCategoryQuery.mResults = e.mResults;
+          }
+        }));
+      }
+
       std::string_view selectedKey = "selectedAsset";
       Variant* selected = pad.read(selectedKey);
-      size_t selectedId = selected ? selected->get<size_t>() : 0;
+      size_t selectedId = selected ? std::get<size_t>(selected->mData) : 0;
 
-      for(const auto& asset : assets) {
+      for(const auto& asset : context->mCategoryQuery.mResults) {
         bool thisSelected = asset->getInfo().mId == selectedId;
         bool wasSelected = thisSelected;
         ImGui::Selectable(asset->getInfo().mUri.c_str(), &thisSelected);
         //If selection changed this frame, write the new selected item to the pad
         if(thisSelected != wasSelected) {
           size_t newSelection = thisSelected ? asset->getInfo().mId : 0;
-          pad.write(selectedKey, newSelection);
-          repo.getMessageQueueProvider().getMessageQueue().get().push(PreviewAssetEvent(asset->getInfo()));
+          pad.write(selectedKey, Variant{ newSelection });
+          msg->getMessageQueue().get().push(PreviewAssetEvent(asset->getInfo()));
         }
 
         if(ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(0)) {
@@ -163,9 +204,9 @@ namespace Inspector {
     return valueChanged;
   }
 
-  std::function<bool(const char*, void*)> getAssetInspector(AssetRepo& repo, std::string_view category) {
-    return [&repo, category](const char* prop, void* data) {
-      return inspectAsset(prop, *reinterpret_cast<size_t*>(data), repo, category);
+  std::function<bool(const char*, void*)> getAssetInspector(std::string_view category) {
+    return [category](const char* prop, void* data) {
+      return inspectAsset(prop, *reinterpret_cast<size_t*>(data), category);
     };
   }
 

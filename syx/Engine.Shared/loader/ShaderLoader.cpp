@@ -4,7 +4,7 @@
 #include "asset/Shader.h"
 #include "graphics/RenderCommand.h"
 #include "provider/MessageQueueProvider.h"
-#include "system/AssetRepo.h"
+#include "system/System.h"
 
 ShaderLoader::~ShaderLoader() = default;
 

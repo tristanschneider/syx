@@ -2,17 +2,17 @@
 #include "editor/AssetWatcher.h"
 
 #include "asset/Asset.h"
+#include "editor/Editor.h"
+#include "event/AssetEvents.h"
+#include "event/EditorEvents.h"
+#include "event/EventHandler.h"
 #include "file/FilePath.h"
 #include "ProjectLocator.h"
-#include "system/AssetRepo.h"
+#include "provider/MessageQueueProvider.h"
 
-#include "event/EditorEvents.h"
-
-#include <event/EventHandler.h>
-
-AssetWatcher::AssetWatcher(MessageQueueProvider&, EventHandler& handler, class AppPlatform& platform, AssetRepo& repo, const ProjectLocator& locator)
+AssetWatcher::AssetWatcher(MessageQueueProvider& msg, EventHandler& handler, class AppPlatform& platform, const ProjectLocator& locator)
   : mLocator(locator)
-  , mAssetRepo(repo)
+  , mMsg(msg)
   , mPlayState(PlayState::Stopped)
   , mDirectoryWatcher(platform.createDirectoryWatcher(locator.transform("", PathSpace::Project, PathSpace::Full))) {
   mDirectoryWatcher->addObserver(*this);
@@ -84,15 +84,17 @@ void AssetWatcher::_processActions() {
       case Action::Modify: {
         AssetInfo info(pair.first.cstr());
         info.fill();
-        if(auto existingAsset = mAssetRepo.getAsset(AssetInfo(info.mId))) {
-          printf("Reloading asset %s\n", info.mUri.c_str());
-          mAssetRepo.reloadAsset(existingAsset);
-          //TODO: tell users of this asset to reload it somehow
-        }
-        else {
-          printf("Adding asset %s\n", info.mUri.c_str());
-          mAssetRepo.getAsset(info);
-        }
+        mMsg.getMessageQueue()->push(ReloadAssetRequest(info).then(typeId<Editor, System>(), [](const ReloadAssetResponse& e) {
+          if(e.mAsset) {
+            if(!e.mWasNewlyCreated) {
+              printf("Reloading asset %s\n",  e.mAsset->getInfo().mUri.c_str());
+              //TODO: tell users of this asset to reload it somehow
+            }
+            else {
+              printf("Adding asset %s\n", e.mAsset->getInfo().mUri.c_str());
+            }
+          }
+        }));
       }
 
       case Action::Remove:

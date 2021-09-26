@@ -22,7 +22,7 @@ namespace Picker {
       auto endAssets = finally([]() { ImGui::EndChild(); });
 
       Variant* selected = IImGuiImpl::getPad().read(info.padKey);
-      const size_t selectedId = selected ? selected->get<size_t>() : 0;
+      const size_t selectedId = selected ? std::get<size_t>(selected->mData) : 0;
       bool exited = false;
       info.forEachItem([selected, selectedId, &info, &exited](const char* itemName, size_t itemId, const void* item) {
         if(exited)
@@ -34,7 +34,7 @@ namespace Picker {
         //If selection changed this frame, write the new selected item to the pad
         if(thisSelected != wasSelected) {
           const size_t newSelection = itemId;
-          IImGuiImpl::getPad().write(info.padKey, newSelection);
+          IImGuiImpl::getPad().write(info.padKey, Variant{ newSelection });
           if(info.onItemPreviewed)
             info.onItemPreviewed(item);
         }

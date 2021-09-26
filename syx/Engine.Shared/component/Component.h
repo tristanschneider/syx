@@ -2,7 +2,6 @@
 #include "Handle.h"
 #include "util/TypeId.h"
 
-class AssetRepo;
 class Camera;
 class ComponentPublisher;
 struct IDebugDrawer;
@@ -109,7 +108,6 @@ public:
 
   void setSystem(System& system);
   System* getSystem() const;
-  AssetRepo* getAssetRepo() const;
 
   //Push lua component onto stack
   static int push(lua_State* l, IComponent& component);

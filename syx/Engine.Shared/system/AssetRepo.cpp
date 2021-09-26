@@ -1,11 +1,12 @@
 #include "Precompile.h"
 #include "system/AssetRepo.h"
 #include "asset/Asset.h"
+#include "event/AssetEvents.h"
+#include "event/EventBuffer.h"
 #include "loader/AssetLoader.h"
+#include "provider/MessageQueueProvider.h"
 #include "threading/FunctionTask.h"
 #include "threading/IWorkerPool.h"
-
-AssetRepo* AssetRepo::sSingleton = nullptr;
 
 class AssetLoaderRegistry : public IAssetLoaderRegistry {
 public:
@@ -32,11 +33,9 @@ private:
 AssetRepo::AssetRepo(const SystemArgs& args, std::unique_ptr<IAssetLoaderRegistry> loaderRegistry)
   : System(args, _typeId<AssetRepo>())
   , mLoaderRegistry(std::move(loaderRegistry)) {
-  sSingleton = this;
 }
 
 AssetRepo::~AssetRepo() {
-  sSingleton = nullptr;
 }
 
 std::shared_ptr<Asset> AssetRepo::getAsset(AssetInfo info) {
@@ -73,6 +72,22 @@ std::shared_ptr<Asset> AssetRepo::getAsset(AssetInfo info) {
 
   _queueLoad(newAsset);
   return newAsset;
+}
+
+void AssetRepo::init() {
+  mEventHandler = std::make_unique<EventHandler>();
+  _registerSystemEventHandler(&AssetRepo::_onAssetRequest);
+  _registerSystemEventHandler(&AssetRepo::_onReloadRequest);
+  _registerSystemEventHandler(&AssetRepo::_onAssetQueryRequest);
+  _registerSystemEventHandler(&AssetRepo::_onAddAssetRequest);
+}
+
+void AssetRepo::queueTasks(float, IWorkerPool& pool, std::shared_ptr<Task> frameTask) {
+  auto handleEvents = std::make_shared<FunctionTask>([this] {
+    mEventHandler->handleEvents(*mEventBuffer);
+  });
+  handleEvents->then(frameTask);
+  pool.queueTask(std::move(handleEvents));
 }
 
 void AssetRepo::getAssetsByCategory(std::string_view category, std::vector<std::shared_ptr<Asset>>& assets) const {
@@ -133,6 +148,37 @@ void AssetRepo::_queueLoad(std::shared_ptr<Asset> asset) {
       _assetLoaded(result, asset, *loader);
     }
   }));
+}
+
+void AssetRepo::_onAssetRequest(const GetAssetRequest& e) {
+  e.respond(mArgs.mMessages->getMessageQueue(), GetAssetResponse(getAsset(e.mInfo)));
+}
+
+void AssetRepo::_onReloadRequest(const ReloadAssetRequest& e) {
+  auto existingAsset = getAsset(AssetInfo(e.mInfo.mId));
+  const bool isNewAsset = !existingAsset;
+  if(isNewAsset) {
+    existingAsset = getAsset(e.mInfo);
+  }
+  e.respond(mArgs.mMessages->getMessageQueue(), ReloadAssetResponse(existingAsset, isNewAsset));
+}
+
+void AssetRepo::_onAssetQueryRequest(const AssetQueryRequest& e) {
+  AssetQueryResponse result;
+  //Empty is a special case that means get them all
+  if(e.mCategory.empty()) {
+    forEachAsset([&result](std::shared_ptr<Asset> asset) {
+      result.mResults.emplace_back(asset);
+    });
+  }
+  else {
+    getAssetsByCategory(e.mCategory, result.mResults);
+  }
+  e.respond(mArgs.mMessages->getMessageQueue(), std::move(result));
+}
+
+void AssetRepo::_onAddAssetRequest(const AddAssetRequest& e) {
+  addAsset(e.mAsset);
 }
 
 void AssetRepo::reloadAsset(std::shared_ptr<Asset> asset) {

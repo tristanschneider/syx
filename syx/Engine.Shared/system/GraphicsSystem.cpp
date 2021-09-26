@@ -1,6 +1,7 @@
 #include "Precompile.h"
 #include "system/GraphicsSystem.h"
 
+#include "asset/ImmediateAssetWrapper.h"
 #include "asset/Model.h"
 #include "asset/Shader.h"
 #include "asset/Texture.h"
@@ -11,6 +12,7 @@
 #include "component/Transform.h"
 #include "DebugDrawer.h"
 #include "editor/event/EditorEvents.h"
+#include "event/AssetEvents.h"
 #include "event/EventBuffer.h"
 #include "event/EventHandler.h"
 #include "event/LifecycleEvents.h"
@@ -29,7 +31,6 @@
 #include "graphics/RenderCommand.h"
 #include "graphics/Viewport.h"
 #include "lua/LuaNode.h"
-#include "system/AssetRepo.h"
 #include "util/Finally.h"
 #include "Util.h"
 
@@ -79,16 +80,21 @@ void GraphicsSystem::init() {
 
   mFullScreenQuad = std::make_unique<FullScreenQuad>();
 
-  AssetRepo& assets = *mArgs.mSystems->getSystem<AssetRepo>();
-  mGeometry = assets.getAsset<Shader>(AssetInfo("shaders/phong.vs"));
-  mFSQShader = assets.getAsset<Shader>(AssetInfo("shaders/fullScreenQuad.vs"));
-  mFlatColorShader = assets.getAsset<Shader>(AssetInfo("shaders/flatColor.vs"));
+  auto loadShader = [this](std::shared_ptr<Shader>& shader, AssetInfo info) {
+    mArgs.mMessages->getMessageQueue()->push(GetAssetRequest(std::move(info)).then(getType(), [&shader](const GetAssetResponse& e) {
+      shader = std::static_pointer_cast<Shader>(e.mAsset);
+    }));
+  };
+
+  loadShader(mGeometry, AssetInfo("shaders/phong.vs"));
+  loadShader(mFSQShader, AssetInfo("shaders/fullScreenQuad.vs"));
+  loadShader(mFlatColorShader, AssetInfo("shaders/flatColor.vs"));
 
   Mat4 ct = defaultCamera.getTransform();
   ct.setTranslate(Vec3(0.0f, 0.0f, -3.0f));
   ct.setRot(Quat::lookAt(-Vec3::UnitZ));
   defaultCamera.setTransform(ct);
-  mDebugDrawer = std::make_unique<::DebugDrawer>(*mArgs.mSystems->getSystem<AssetRepo>());
+  mDebugDrawer = std::make_unique<::DebugDrawer>(ImmediateAsset::create(DebugDrawer::SHADER_ASSET, *mArgs.mMessages->getMessageQueue(), getType()));
 
   mEventHandler = std::make_unique<EventHandler>();
   auto self = _getWeakThis(*this);
@@ -243,12 +249,11 @@ void GraphicsSystem::_processSetCompPropsEvent(const SetComponentPropsEvent& e) 
       //Make a local renderable that has the new properties
       Renderable renderable(0);
       e.mProp->copyFromBuffer(&renderable, e.mBuffer.data());
-      AssetRepo& repo = *mArgs.mSystems->getSystem<AssetRepo>();
       //Assign the properties that changed, pulling the desired asset given the handle
-      e.mProp->forEachDiff(e.mDiff, &renderable, [&obj, &renderable, &repo](const Lua::Node& node, const void*) {
+      e.mProp->forEachDiff(e.mDiff, &renderable, [&obj, &renderable, this](const Lua::Node& node, const void*) {
         switch(Util::constHash(node.getName().c_str())) {
-          case Util::constHash("model"): obj->mModel = repo.getAsset(AssetInfo(renderable.get().mModel)); break;
-          case Util::constHash("diffuseTexture"): obj->mDiffTex = repo.getAsset(AssetInfo(renderable.get().mDiffTex)); break;
+          case Util::constHash("model"): obj->mModel = ImmediateAsset::create(AssetInfo(renderable.get().mModel), *mArgs.mMessages->getMessageQueue(), getType()); break;
+          case Util::constHash("diffuseTexture"): obj->mDiffTex = ImmediateAsset::create(AssetInfo(renderable.get().mDiffTex), *mArgs.mMessages->getMessageQueue(), getType()); break;
         }
       });
     }
@@ -308,9 +313,8 @@ void GraphicsSystem::_processRenderThreadTasks() {
 }
 
 void GraphicsSystem::_setFromData(LocalRenderable& renderable, const RenderableData& data) {
-  AssetRepo& repo = *mArgs.mSystems->getSystem<AssetRepo>();
-  renderable.mModel = repo.getAsset(AssetInfo(data.mModel));
-  renderable.mDiffTex = repo.getAsset(AssetInfo(data.mDiffTex));
+  renderable.mModel = ImmediateAsset::create(AssetInfo(data.mModel), *mArgs.mMessages->getMessageQueue(), getType());
+  renderable.mDiffTex = ImmediateAsset::create(AssetInfo(data.mDiffTex), *mArgs.mMessages->getMessageQueue(), getType());
 }
 
 void GraphicsSystem::_render(const Camera& camera, const Viewport& viewport) {
@@ -363,11 +367,11 @@ void GraphicsSystem::_render(const Camera& camera, const Viewport& viewport) {
       const Mat4 mvp = wvp * mw;
 
       {
-        Texture::Binder tb(obj.mDiffTex && obj.mDiffTex->getState() == AssetState::PostProcessed ? static_cast<Texture&>(*obj.mDiffTex) : emptyTexture, 0);
+        Texture::Binder tb(obj.mDiffTex && obj.mDiffTex->getState() == AssetState::PostProcessed ? *obj.mDiffTex->cast<Texture>() : emptyTexture, 0);
         //Tell the sampler uniform to use the given texture slot
         glUniform1i(geometry.getUniform("uTex"), 0);
         {
-          Model& model = static_cast<Model&>(*obj.mModel);
+          Model& model = *obj.mModel->cast<Model>();
           Model::Binder mb(model);
 
           glUniformMatrix4fv(geometry.getUniform("uMVP"), 1, GL_FALSE, mvp.mData);
@@ -409,7 +413,7 @@ void GraphicsSystem::_outline(const RenderCommand& c, const Camera& camera, cons
   glEnable(GL_STENCIL_TEST);
 
   const Shader::Binder sb(*mFlatColorShader);
-  const Model& model = static_cast<Model&>(*obj->mModel);
+  const Model& model = *obj->mModel->cast<Model>();
   const Model::Binder mb(model);
 
   //TODO: also needs to factor in the viewport
@@ -531,7 +535,7 @@ void GraphicsSystem::_drawPickScene(const FrameBuffer& destination, const Camera
 
       const Mat4 mw = obj.mTransform;
       const Mat4 mvp = wvp * mw;
-      const Model& model = static_cast<Model&>(*obj.mModel);
+      const Model& model = *obj.mModel->cast<Model>();
       const Model::Binder mb(model);
       glUniformMatrix4fv(mFlatColorShader->getUniform("mvp"), 1, GL_FALSE, mvp.mData);
       const Vec3 handleColor = encodeHandle(obj.getHandle())*(1.0f/255.0f);

@@ -1,6 +1,5 @@
 #include "Precompile.h"
 #include "loader/AssetLoader.h"
-#include "system/AssetRepo.h"
 #include "asset/Asset.h"
 
 AssetLoader::AssetLoader(FileSystem::IFileSystem& fileSystem, const std::string& category)

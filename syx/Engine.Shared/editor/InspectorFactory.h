@@ -1,6 +1,7 @@
 #pragma once
 
 class AssetRepo;
+class MessageQueueProvider;
 
 namespace Lua {
   class Node;
@@ -8,6 +9,9 @@ namespace Lua {
 }
 
 namespace Inspector {
+  // Inspect callbacks can expect the MessageQueueProvider* to be on the scratchpad with this key
+  extern const std::string_view MSG_KEY;
+
   template<class T>
   std::function<bool(const char*, void*)> wrap(bool (*inspector)(const char*, T&)) {
     return [inspector](const char* prop, void* data) {
@@ -23,7 +27,7 @@ namespace Inspector {
   bool inspectSizeT(const char* prop, size_t& data);
   bool inspectFloat(const char* prop, float& data);
   bool inspectDouble(const char* prop, double& data);
-  bool inspectAsset(const char* prop, size_t& data, AssetRepo& repo, std::string_view category);
-  std::function<bool(const char*, void*)> getAssetInspector(AssetRepo& repo, std::string_view category);
+  bool inspectAsset(const char* prop, size_t& data, std::string_view category);
+  std::function<bool(const char*, void*)> getAssetInspector(std::string_view category);
   bool inspectLuaVariant(const char* prop, Lua::Variant& data);
 }

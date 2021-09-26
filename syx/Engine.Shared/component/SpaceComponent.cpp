@@ -3,6 +3,7 @@
 
 #include "asset/Asset.h"
 #include "component/LuaComponent.h"
+#include "event/AssetEvents.h"
 #include "event/BaseComponentEvents.h"
 #include "event/EventBuffer.h"
 #include "event/SpaceEvents.h"
@@ -23,7 +24,6 @@
 #include "provider/MessageQueueProvider.h"
 #include "registry/IDRegistry.h"
 #include "Space.h"
-#include "system/AssetRepo.h"
 #include "system/LuaGameSystem.h"
 #include "threading/AsyncHandle.h"
 #include "threading/FunctionTask.h"
@@ -136,15 +136,13 @@ int SpaceComponent::cloneTo(lua_State* l) {
   return 0;
 }
 
-void SpaceComponent::_save(lua_State* l, Handle space, const char* filename) {
+std::shared_ptr<IAsyncHandle<bool>> SpaceComponent::_save(lua_State* l, Handle space, const char* filename) {
   ILuaGameContext& game = Lua::checkGameContext(l);
-  LuaSceneDescription scene;
-  scene.mName = FilePath(filename).getFileNameWithoutExtension();
-  scene.mObjects.reserve(game.getObjects().size());
-  //TODO: only save the assets that are used by this collection of objects
-  game.getAssetRepo().forEachAsset([&scene](std::shared_ptr<Asset> asset) {
-    scene.mAssets.emplace_back(asset->getInfo().mUri);
-  });
+  auto scene = std::make_shared<LuaSceneDescription>();
+  scene->mName = FilePath(filename).getFileNameWithoutExtension();
+  scene->mObjects.reserve(game.getObjects().size());
+
+  auto result = Async::createAsyncHandle<bool>();
 
   for(const auto& obj : game.getObjects()) {
     const LuaGameObject& o = *obj.second;
@@ -159,18 +157,31 @@ void SpaceComponent::_save(lua_State* l, Handle space, const char* filename) {
     o.forEachComponent([&o, &desc](const Component& c) {
       desc.mComponents.emplace_back(std::move(c.clone()));
     });
-    scene.mObjects.emplace_back(std::move(desc));
+    scene->mObjects.emplace_back(std::move(desc));
   }
 
-  Lua::StackAssert sa(l);
-  scene.getMetadata().writeToLua(l, &scene, Lua::Node::SourceType::FromGlobal);
-  std::string serialized;
-  Lua::Util::getDefaultSerializer().serializeGlobal(l, scene.ROOT_KEY, serialized);
-  //Remove scene from global
-  lua_pushnil(l);
-  lua_setglobal(l, scene.ROOT_KEY);
+  //No query means all assets
+  //TODO: only save the assets that are used by this collection of objects
+  game.getMessageProvider().getMessageQueue()->push(AssetQueryRequest({}).then(::typeId<LuaGameSystem, System>(),
+    [file(std::string(filename)), scene, result, &game](const AssetQueryResponse& e) {
+    scene->mAssets.reserve(e.mResults.size());
+    for(const auto& asset : e.mResults) {
+      scene->mAssets.emplace_back(asset->getInfo().mUri);
+    }
 
-  game.getFileSystem().writeFile(filename, serialized);
+    auto l = game.createLuaState();
+    Lua::StackAssert sa(*l);
+    scene->getMetadata().writeToLua(*l, scene.get(), Lua::Node::SourceType::FromGlobal);
+    std::string serialized;
+    Lua::Util::getDefaultSerializer().serializeGlobal(*l, scene->ROOT_KEY, serialized);
+    //Remove scene from global
+    lua_pushnil(*l);
+    lua_setglobal(*l, scene->ROOT_KEY);
+
+    Async::setComplete(*result, game.getFileSystem().writeFile(file.c_str(), serialized) == FileSystem::FileResult::Success);
+  }));
+
+  return result;
 }
 
 int SpaceComponent::save(lua_State* l) {
@@ -229,10 +240,9 @@ void SpaceComponent::_loadSceneFromDescription(ILuaGameContext& game, LuaSceneDe
   //game.getMessageQueue().get().push(ClearSpaceEvent(space));
   SpaceComponent destSpaceComp(0);
   destSpaceComp.set(space);
-  AssetRepo& repo = game.getAssetRepo();
   //Cause loading of all necessary assets
   for(const std::string& asset : scene.mAssets) {
-    repo.getAsset(AssetInfo(asset));
+    game.getMessageProvider().getMessageQueue()->push(GetAssetRequest(AssetInfo(asset)));
   }
   GameObjectHandleProvider& objGen = game.getGameObjectGen();
   for(LuaGameObjectDescription& obj : scene.mObjects) {

@@ -36,7 +36,7 @@ public:
 
   MessageQueue getMessageQueue() override;
   DeferredMessageQueue getDeferredMessageQueue() override;
-  System* _getSystem(size_t id) override;
+  System* _getSystem(typeId_t<System> id) override;
 
 private:
   std::vector<std::shared_ptr<System>> mSystems;

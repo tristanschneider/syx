@@ -6,6 +6,7 @@
 #include "component/ComponentPublisher.h"
 #include "editor/event/EditorEvents.h"
 #include "system/AssetRepo.h"
+#include "event/AssetEvents.h"
 #include "event/BaseComponentEvents.h"
 #include "event/Event.h"
 #include "event/EventBuffer.h"
@@ -60,24 +61,27 @@ void PhysicsSystem::init() {
 
   mDefaultMaterial = mSystem->getMaterialRepository().addMaterial({});
 
-  AssetRepo* assets = mArgs.mSystems->getSystem<AssetRepo>();
   std::unique_ptr<PhysicsModel> mod = AssetRepo::createAsset<PhysicsModel>(AssetInfo(CUBE_MODEL_NAME));
 
+  auto addAsset = [this](std::shared_ptr<Asset> asset) {
+    mArgs.mMessages->getMessageQueue()->push(AddAssetRequest(std::move(asset)));
+  };
+
   mod->mSyxHandle = mDefaultModel = std::make_shared<Syx::Model>(Syx::ModelType::Cube);
-  assets->addAsset(std::move(mod));
+  addAsset(std::move(mod));
 
   mod = AssetRepo::createAsset<PhysicsModel>(AssetInfo(SPHERE_MODEL_NAME));
   mod->mSyxHandle = std::make_shared<Syx::Model>(Syx::ModelType::Sphere);
-  assets->addAsset(std::move(mod));
+  addAsset(std::move(mod));
 
   mod = AssetRepo::createAsset<PhysicsModel>(AssetInfo(CAPSULE_MODEL_NAME));
   mod->mSyxHandle = std::make_shared<Syx::Model>(Syx::ModelType::Capsule);
-  assets->addAsset(std::move(mod));
+  addAsset(std::move(mod));
 
   //Not actually a model, but all that's needed is a handle
   auto mat = AssetRepo::createAsset<PhysicsMaterial>(AssetInfo(DEFAULT_MATERIAL_NAME));
   mat->mSyxHandle = mDefaultMaterial;
-  assets->addAsset(std::move(mat));
+  addAsset(std::move(mat));
 
   mDefaultSpace = mSystem->createSpace();
 
@@ -174,23 +178,23 @@ void PhysicsSystem::_setComponentPropsEvent(const SetComponentPropsEvent& e) {
         case Util::constHash("linVel"): mSystem->setVelocity(mDefaultSpace->_getHandle(), h, data.mLinVel); break;
         case Util::constHash("angVel"): mSystem->setAngularVelocity(mDefaultSpace->_getHandle(), h, data.mAngVel); break;
         case Util::constHash("model"): {
-          if(auto modelAsset = mArgs.mSystems->getSystem<AssetRepo>()->getAsset(AssetInfo(data.mModel))) {
-            if(const PhysicsModel* pmod = modelAsset->cast<PhysicsModel>()) {
-              if(Syx::ICollider* collider = syxData.mObj->tryGetCollider()) {
+          mArgs.mMessages->getMessageQueue()->push(GetAssetRequest(AssetInfo(data.mModel)).then(getType(), [obj(syxData.mObj)](const GetAssetResponse& e) {
+            if(const PhysicsModel* pmod = e.mAsset ? e.mAsset->cast<PhysicsModel>() : nullptr) {
+              if(Syx::ICollider* collider = obj->tryGetCollider()) {
                 collider->setModel(pmod->getSyxHandle());
               }
             }
-          }
+          }));
           break;
         }
         case Util::constHash("material"): {
-          if(const auto materialAsset = mArgs.mSystems->getSystem<AssetRepo>()->getAsset(AssetInfo(data.mMaterial))) {
-            if(const auto* pmat = materialAsset->cast<PhysicsMaterial>()) {
-              if(Syx::ICollider* collider = syxData.mObj->tryGetCollider()) {
-                collider->setMaterial(pmat->getSyxHandle());
+          mArgs.mMessages->getMessageQueue()->push(GetAssetRequest(AssetInfo(data.mMaterial)).then(getType(), [obj(syxData.mObj)](const GetAssetResponse& e) {
+            if(const PhysicsMaterial* pmod = e.mAsset ? e.mAsset->cast<PhysicsMaterial>() : nullptr) {
+              if(Syx::ICollider* collider = obj->tryGetCollider()) {
+                collider->setMaterial(pmod->getSyxHandle());
               }
             }
-          }
+          }));
           break;
         }
         case Util::constHash("physToModel"): syxData.mSyxToModel = data.mPhysToModel; break;

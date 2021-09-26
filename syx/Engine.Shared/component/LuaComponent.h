@@ -2,6 +2,8 @@
 #include "Component.h"
 #include "event/Event.h"
 
+class Asset;
+
 namespace Lua {
   class Sandbox;
   struct IState;
@@ -49,6 +51,8 @@ public:
   bool needsInit() const;
   bool hasError() const;
   const Lua::Variant& getPropVariant() const;
+
+  std::shared_ptr<Asset> mScriptAsset;
 
 private:
   bool _callFunc(lua_State* s, const char* funcName, int arguments, int returns);

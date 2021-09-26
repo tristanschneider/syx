@@ -11,5 +11,5 @@ public:
     return static_cast<T*>(_getSystem(typeId<T, System>()));
   }
 
-  virtual System* _getSystem(size_t id) = 0;
+  virtual System* _getSystem(typeId_t<System> id) = 0;
 };

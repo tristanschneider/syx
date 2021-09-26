@@ -11,10 +11,12 @@
 #include "editor/ObjectInspector.h"
 #include "editor/SceneBrowser.h"
 #include "editor/Toolbox.h"
+#include "event/AssetEvents.h"
 #include "event/BaseComponentEvents.h"
 #include "event/EditorEvents.h"
 #include <event/EventBuffer.h>
 #include <event/EventHandler.h>
+#include "event/GameEvents.h"
 #include "event/InputEvents.h"
 #include "event/LifecycleEvents.h"
 #include "event/SpaceEvents.h"
@@ -27,7 +29,6 @@
 #include "provider/GameObjectHandleProvider.h"
 #include "provider/SystemProvider.h"
 #include "registry/IDRegistry.h"
-#include "system/AssetRepo.h"
 #include "system/LuaGameSystem.h"
 #include <threading/FunctionTask.h>
 #include <threading/IWorkerPool.h>
@@ -43,23 +44,23 @@ namespace {
 
 class EditorGameObserver : public LuaGameSystemObserver {
 public:
-  EditorGameObserver(std::function<void()> update)
+  EditorGameObserver(std::function<void(const LuaGameSystem&)> update)
     : mUpdate(std::move(update)) {
   }
 
   virtual ~EditorGameObserver() {}
-  void preUpdate(const LuaGameSystem&) override {
-    mUpdate();
+  void preUpdate(const LuaGameSystem& game) override {
+    mUpdate(game);
   }
 
 private:
-  std::function<void()> mUpdate;
+  std::function<void(const LuaGameSystem&)> mUpdate;
 };
 
 class DragDropAssetLoader : public DragDropObserver {
 public:
-  DragDropAssetLoader(AssetRepo& repo, IWorkerPool& workerPool, const ProjectLocator& locator, FileSystem::IFileSystem& fileSystem)
-    : mAssets(repo)
+  DragDropAssetLoader(MessageQueueProvider& msg, IWorkerPool& workerPool, const ProjectLocator& locator, FileSystem::IFileSystem& fileSystem)
+    : mMsg(msg)
     , mPool(workerPool)
     , mLocator(locator)
     , mFileSystem(fileSystem) {
@@ -90,12 +91,14 @@ private:
       const FilePath relativePath = mLocator.transform(file.cstr(), PathSpace::Full, PathSpace::Project);
       //Skip paths that aren't under the project
       if(relativePath != file) {
-        if(mAssets.getAsset(AssetInfo(relativePath.cstr()))) {
-          printf("Loading asset %s\n", relativePath.cstr());
-        }
-        else {
-          printf("Unsupported asset type %s\n", relativePath.cstr());
-        }
+        mMsg.getMessageQueue()->push(GetAssetRequest(AssetInfo(relativePath.cstr())).then(typeId<Editor, System>(), [relativePath](const GetAssetResponse& e) {
+          if(e.mAsset) {
+            printf("Loading asset %s\n", e.mAsset->getInfo().mUri.c_str());
+          }
+          else {
+            printf("Unsupported asset type %s\n", relativePath.cstr());
+          }
+        }));
       }
       else {
         printf("Ignoring asset not under project root %s\n", file.cstr());
@@ -103,7 +106,7 @@ private:
     }
   }
 
-  AssetRepo& mAssets;
+  MessageQueueProvider& mMsg;
   IWorkerPool& mPool;
   const ProjectLocator& mLocator;
   FileSystem::IFileSystem& mFileSystem;
@@ -126,9 +129,9 @@ void Editor::init() {
   mSavedScene = std::make_unique<FilePath>(mArgs.mProjectLocator->transform("scene.json", PathSpace::Project, PathSpace::Full));
   mSceneBrowser = std::make_unique<SceneBrowser>(*mArgs.mMessages, *mArgs.mGameObjectGen, mInput, *mEventHandler);
   mObjectInspector = std::make_unique<ObjectInspector>(*mArgs.mMessages, *mEventHandler, *mArgs.mComponentRegistry);
-  mAssetPreview = std::make_unique<AssetPreview>(*mArgs.mMessages, *mEventHandler, *mArgs.mSystems->getSystem<AssetRepo>());
+  mAssetPreview = std::make_unique<AssetPreview>(*mArgs.mMessages, *mEventHandler);
   mToolbox = std::make_unique<Toolbox>(*mArgs.mMessages, *mEventHandler);
-  mDragDropAssetLoader = std::make_unique<DragDropAssetLoader>(*mArgs.mSystems->getSystem<AssetRepo>(), *mArgs.mPool, *mArgs.mProjectLocator, *mArgs.mFileSystem);
+  mDragDropAssetLoader = std::make_unique<DragDropAssetLoader>(*mArgs.mMessages, *mArgs.mPool, *mArgs.mProjectLocator, *mArgs.mFileSystem);
   mArgs.mAppPlatform->addDragDropObserver(*mDragDropAssetLoader);
 
   _registerSystemEventHandler(&Editor::onAllSystemsInitialized);
@@ -152,9 +155,9 @@ void Editor::init() {
 }
 
 void Editor::onAllSystemsInitialized(const AllSystemsInitialized&) {
-  mGameObserver = std::make_unique<EditorGameObserver>(std::bind(&Editor::_editorUpdate, this));
-  mArgs.mSystems->getSystem<LuaGameSystem>()->addObserver(*mGameObserver);
-  mAssetWatcher = std::make_unique<AssetWatcher>(*mArgs.mMessages, *mEventHandler, *mArgs.mAppPlatform, *mArgs.mSystems->getSystem<AssetRepo>(), *mArgs.mProjectLocator);
+  mGameObserver = std::make_unique<EditorGameObserver>(std::bind(&Editor::_editorUpdate, this, std::placeholders::_1));
+  mArgs.mMessages->getMessageQueue()->push(AddGameObserver(mGameObserver));
+  mAssetWatcher = std::make_unique<AssetWatcher>(*mArgs.mMessages, *mEventHandler, *mArgs.mAppPlatform, *mArgs.mProjectLocator);
 }
 
 void Editor::onUriActivated(const UriActivated& e) {
@@ -183,7 +186,7 @@ void Editor::update(float, IWorkerPool&, std::shared_ptr<Task>) {
   }
 }
 
-void Editor::_editorUpdate() {
+void Editor::_editorUpdate(const LuaGameSystem& game) {
   mEventHandler->handleEvents(*mEventBuffer);
 
   if(_shouldUpdateEditor(mCurrentState)) {
@@ -197,7 +200,6 @@ void Editor::_editorUpdate() {
     return;
   }
 
-  const LuaGameSystem& game = *mArgs.mSystems->getSystem<LuaGameSystem>();
   mSceneBrowser->editorUpdate(game.getObjects());
   mObjectInspector->editorUpdate(game);
   mAssetPreview->editorUpdate();

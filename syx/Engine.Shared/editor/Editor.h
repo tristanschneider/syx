@@ -10,6 +10,7 @@ class FilePath;
 struct IDebugDrawer;
 class InputStore;
 class LuaGameObject;
+class LuaGameSystem;
 class LuaGameSystemObserver;
 class ObjectInspector;
 enum class PlayState : uint8_t;
@@ -34,12 +35,12 @@ public:
 
 private:
   void _updateInput(float dt);
-  void _editorUpdate();
+  void _editorUpdate(const LuaGameSystem& game);
   void _updateState(PlayState state);
   Handle _getEditorSpace() const;
   Handle _getPlaySpace() const;
 
-  std::unique_ptr<LuaGameSystemObserver> mGameObserver;
+  std::shared_ptr<LuaGameSystemObserver> mGameObserver;
   std::unique_ptr<SceneBrowser> mSceneBrowser;
   std::unique_ptr<ObjectInspector> mObjectInspector;
   std::unique_ptr<AssetPreview> mAssetPreview;

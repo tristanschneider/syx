@@ -2,11 +2,14 @@
 #include "lua/lib/LuaAssetRepo.h"
 
 #include "asset/Asset.h"
-#include "system/AssetRepo.h"
 #include "lua/LuaGameContext.h"
 #include "lua/LuaUtil.h"
 
 #include <lua.hpp>
+
+#include "event/AssetEvents.h"
+#include "event/EventBuffer.h"
+#include "provider/MessageQueueProvider.h"
 
 namespace Lua {
   const char* AssetRepo::CLASS_NAME = "AssetRepo";
@@ -24,16 +27,11 @@ namespace Lua {
 
   int AssetRepo::getOrLoadAsset(lua_State* l) {
     const char* assetName = luaL_checkstring(l, 1);
-    if(std::shared_ptr<Asset> asset = _getRepo(l).getAsset(AssetInfo(assetName))) {
-      lua_pushlightuserdata(l, reinterpret_cast<void*>(asset->getInfo().mId));
-      //TODO: Do something to indicate shared pointer ownership? Right now this relies on the repo retaining it
-    }
-    else
-      lua_pushnil(l);
+    const AssetInfo info(assetName);
+    Lua::checkGameContext(l).getMessageProvider().getMessageQueue()->push(GetAssetRequest(info));
+    lua_pushlightuserdata(l, reinterpret_cast<void*>(info.mId));
+    //TODO: Do something to indicate shared pointer ownership? Right now this relies on the repo retaining it
+    //TODO: indicate null if asset doesn't exist? Can't be known immediately
     return 1;
-  }
-
-  ::AssetRepo& AssetRepo::_getRepo(lua_State* l) {
-    return Lua::checkGameContext(l).getAssetRepo();
   }
 }

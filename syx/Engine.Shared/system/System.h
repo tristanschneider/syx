@@ -14,7 +14,6 @@ struct IIDRegistry;
 class IWorkerPool;
 class MessageQueueProvider;
 class ProjectLocator;
-class SystemProvider;
 class Task;
 
 namespace FileSystem {
@@ -25,7 +24,6 @@ namespace FileSystem {
 //TODO: this is a bit clunky. It would probably be better to have a more formal mechanism to do this
 struct SystemArgs {
   IWorkerPool* mPool = nullptr;
-  SystemProvider* mSystems = nullptr;
   MessageQueueProvider* mMessages = nullptr;
   GameObjectHandleProvider* mGameObjectGen = nullptr;
   const ProjectLocator* mProjectLocator = nullptr;
@@ -51,7 +49,6 @@ public:
   //Each frame this is updated to point at the message queue for that frame.
   void setEventBuffer(const EventBuffer* buffer);
 
-  SystemProvider& getSystemProvider() const;
   MessageQueueProvider& getMessageQueueProvider() const;
 
   typeId_t<System> getType() const { return mType; };

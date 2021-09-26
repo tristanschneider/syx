@@ -63,7 +63,7 @@ std::unique_ptr<Lua::Node> Renderable::_buildLuaProps() const {
   using namespace Lua;
   using namespace Inspector;
   auto root = makeRootNode(NodeOps(LUA_PROPS_KEY));
-  makeNode<LightUserdataSizetNode>(NodeOps(*root, "model", ::Util::offsetOf(*this, mData.mModel))).setInspector(getAssetInspector(*getAssetRepo(), "obj"));
-  makeNode<LightUserdataSizetNode>(NodeOps(*root, "diffuseTexture", ::Util::offsetOf(*this, mData.mDiffTex))).setInspector(getAssetInspector(*getAssetRepo(), "bmp"));
+  makeNode<LightUserdataSizetNode>(NodeOps(*root, "model", ::Util::offsetOf(*this, mData.mModel))).setInspector(getAssetInspector("obj"));
+  makeNode<LightUserdataSizetNode>(NodeOps(*root, "diffuseTexture", ::Util::offsetOf(*this, mData.mDiffTex))).setInspector(getAssetInspector("bmp"));
   return root;
 }

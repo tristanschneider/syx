@@ -94,14 +94,12 @@ struct ILuaGameContext {
   virtual Lua::ScopedCacheInstance& getGameobjectCache() = 0;
   virtual Lua::ScopedCacheInstance& getComponentCache() = 0;
 
-  virtual AssetRepo& getAssetRepo() = 0;
   virtual const HandleMap<std::shared_ptr<LuaGameObject>>& getObjects() const = 0;
   virtual const ProjectLocator& getProjectLocator() const = 0;
   virtual GameObjectHandleProvider& getGameObjectGen() = 0;
   virtual const Space& getOrCreateSpace(Handle id) const = 0;
   virtual IWorkerPool& getWorkerPool() = 0;
   virtual std::unique_ptr<Lua::IState> createLuaState() = 0;
-  virtual SystemProvider& getSystemProvider() = 0;
   virtual const ComponentRegistryProvider& getComponentRegistry() const = 0;
   virtual FileSystem::IFileSystem& getFileSystem() = 0;
   virtual IIDRegistry& getIDRegistry() = 0;

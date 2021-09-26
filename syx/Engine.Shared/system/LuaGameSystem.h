@@ -9,9 +9,9 @@
 class AddComponentEvent;
 class AddGameObjectEvent;
 class AddLuaComponentEvent;
+struct AddGameObserver;
 class AllSystemsInitialized;
 class AssetPreview;
-class AssetRepo;
 class ClearSpaceEvent;
 class Component;
 struct ComponentDataRequest;
@@ -79,11 +79,11 @@ public:
 
   LuaGameObject* _getObj(Handle h) const;
 
+  //TODO: this dependency should likely be solved in a different way, maybe making it easier to maintain your own game context
   void addObserver(LuaGameSystemObserver& observer);
 
   MessageQueue getMessageQueue();
   MessageQueueProvider& getMessageQueueProvider();
-  AssetRepo& getAssetRepo();
   ComponentRegistryProvider& getComponentRegistry() const;
   //Safe to access lock free for any task queued as a dependency or dependent of event processing
   const HandleMap<std::shared_ptr<LuaGameObject>>& getObjects() const;
@@ -121,6 +121,7 @@ private:
   void _onSpaceLoad(const LoadSpaceEvent& e);
   void _onSetTimescale(const SetTimescaleEvent& e);
   void _onComponentDataRequest(const ComponentDataRequest& e);
+  void _onAddGameObserver(const AddGameObserver& e);
 
   HandleMap<std::shared_ptr<LuaGameObject>> mObjects;
   std::unique_ptr<Lua::LuaLibGroup> mLibs;

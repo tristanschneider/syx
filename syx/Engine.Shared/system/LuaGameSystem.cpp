@@ -11,6 +11,7 @@
 #include "event/DeferredEventBuffer.h"
 #include "event/EventBuffer.h"
 #include "event/EventHandler.h"
+#include "event/GameEvents.h"
 #include "event/LifecycleEvents.h"
 #include "event/SpaceEvents.h"
 #include "event/TransformEvent.h"
@@ -30,7 +31,6 @@
 #include "provider/SystemProvider.h"
 #include "registry/IDRegistry.h"
 #include "Space.h"
-#include "system/AssetRepo.h"
 #include "threading/AsyncHandle.h"
 #include "threading/FunctionTask.h"
 #include "threading/IWorkerPool.h"
@@ -60,6 +60,7 @@ void LuaGameSystem::init() {
   _registerSystemEventHandler(&LuaGameSystem::_onSpaceSave);
   _registerSystemEventHandler(&LuaGameSystem::_onSpaceLoad);
   _registerSystemEventHandler(&LuaGameSystem::_onSetTimescale);
+  _registerSystemEventHandler(&LuaGameSystem::_onAddGameObserver);
 
   _registerCallbackEventHandler(*this);
   _registerSystemEventHandler(&LuaGameSystem::_onComponentDataRequest);
@@ -126,10 +127,6 @@ MessageQueue LuaGameSystem::getMessageQueue() {
 
 MessageQueueProvider& LuaGameSystem::getMessageQueueProvider() {
   return *mArgs.mMessages;
-}
-
-AssetRepo& LuaGameSystem::getAssetRepo() {
-  return *mArgs.mSystems->getSystem<AssetRepo>();
 }
 
 ComponentRegistryProvider& LuaGameSystem::getComponentRegistry() const {
@@ -285,8 +282,9 @@ void LuaGameSystem::_onSpaceClear(const ClearSpaceEvent& e) {
 }
 
 void LuaGameSystem::_onSpaceSave(const SaveSpaceEvent& e) {
-  auto context = _createGameContext();
-  SpaceComponent::_save(context->getLuaState(), e.mSpace, e.mFile);
+  std::shared_ptr<ILuaGameContext> context = _createGameContext();
+  // Keep the context alive
+  SpaceComponent::_save(context->getLuaState(), e.mSpace, e.mFile)->then([context](IAsyncHandle<bool>&) {});
 }
 
 void LuaGameSystem::_onSpaceLoad(const LoadSpaceEvent& e) {
@@ -318,6 +316,12 @@ void LuaGameSystem::_onComponentDataRequest(const ComponentDataRequest& e) {
   }
 
   e.respond(*getMessageQueue(), ComponentDataResponse{ std::move(result) });
+}
+
+void LuaGameSystem::_onAddGameObserver(const AddGameObserver& e) {
+  if(e.mObserver) {
+    addObserver(*e.mObserver);
+  }
 }
 
 LuaGameObject* LuaGameSystem::_getObj(Handle h) const {

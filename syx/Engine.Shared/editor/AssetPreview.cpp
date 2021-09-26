@@ -3,21 +3,24 @@
 
 #include "asset/Asset.h"
 #include "asset/Texture.h"
+#include "editor/Editor.h"
 #include "editor/event/EditorEvents.h"
+#include "event/AssetEvents.h"
 #include <event/EventHandler.h>
 #include "provider/MessageQueueProvider.h"
-#include "system/AssetRepo.h"
 #include "ImGuiImpl.h"
 #include <imgui/imgui.h>
 
+
 AssetPreview::~AssetPreview() = default;
 
-AssetPreview::AssetPreview(MessageQueueProvider& msg, EventHandler& handler, AssetRepo& assets)
-  : mMsg(msg)
-  , mAssets(assets) {
+AssetPreview::AssetPreview(MessageQueueProvider& msg, EventHandler& handler)
+  : mMsg(msg) {
 
   mListeners.push_back(handler.registerEventListener([this](const PreviewAssetEvent& e) {
-    mPreview = !e.mAsset.isEmpty() ? mAssets.getAsset(e.mAsset) : nullptr;
+    mMsg.getMessageQueue()->push(GetAssetRequest(e.mAsset).then(typeId<Editor, System>(), [this](const GetAssetResponse& r) {
+      mPreview = r.mAsset;
+    }));
     //TODO: request asset thumbnail if necessary
   }));
 

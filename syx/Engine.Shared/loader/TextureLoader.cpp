@@ -4,7 +4,7 @@
 #include "asset/Texture.h"
 #include "graphics/RenderCommand.h"
 #include "provider/MessageQueueProvider.h"
-#include "system/AssetRepo.h"
+#include "system/System.h"
 
 namespace {
   const int sDataPosOffset = 0x0A;

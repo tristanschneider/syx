@@ -35,7 +35,7 @@ public:
   static int cloneTo(lua_State* l);
   //void save(self, string filename)
   static int save(lua_State* l);
-  static void _save(lua_State* l, Handle space, const char* filename);
+  static std::shared_ptr<IAsyncHandle<bool>> _save(lua_State* l, Handle space, const char* filename);
   //returns true if scene exists
   //bool load(self, string filename)
   static int load(lua_State* l);

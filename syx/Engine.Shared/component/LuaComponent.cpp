@@ -69,7 +69,7 @@ std::unique_ptr<Lua::Node> LuaComponent::_buildLuaProps() const {
   using namespace Lua;
   using namespace Inspector;
   auto root = makeRootNode(Lua::NodeOps(""));
-  makeNode<LightUserdataSizetNode>(Lua::NodeOps(*root, "script", ::Util::offsetOf(*this, mScript))).setInspector(getAssetInspector(*getAssetRepo(), "lc"));
+  makeNode<LightUserdataSizetNode>(Lua::NodeOps(*root, "script", ::Util::offsetOf(*this, mScript))).setInspector(getAssetInspector("lc"));
   Node& propsPtr = makeNode<UniquePtrNode<Variant>>(Lua::NodeOps(*root, "", ::Util::offsetOf(*this, mProps)));
   makeNode<VariantNode>(Lua::NodeOps(propsPtr, "props", 0));
   return std::move(root);

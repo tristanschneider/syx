@@ -4,6 +4,7 @@
 #include "component/LuaComponentRegistry.h"
 #include "editor/DefaultInspectors.h"
 #include "editor/event/EditorEvents.h"
+#include "editor/InspectorFactory.h"
 #include "editor/Picker.h"
 #include "event/BaseComponentEvents.h"
 #include <event/EventBuffer.h>
@@ -70,6 +71,9 @@ void ObjectInspector::editorUpdate(const LuaGameObjectProvider& objects) {
     ImGui::BeginChild(COMPONENT_LIST, ImVec2(0, 0), true);
 
     _showComponentPicker();
+
+    ScratchPad& pad = IImGuiImpl::getPad();
+    pad.write(Inspector::MSG_KEY, Variant{ static_cast<void*>(&mMsg) });
 
     for(size_t i = 0; i < mSelected.size(); ++i) {
       auto& selected = mSelectedData[i];

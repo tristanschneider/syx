@@ -2,6 +2,8 @@
 #include "threading/RWLock.h"
 #include "util/TypeId.h"
 
+class Asset;
+
 struct AssetInfo {
   AssetInfo(std::string location)
     : mUri(std::move(location))
@@ -33,7 +35,7 @@ struct AssetInfo {
   //TODO: change this to FilePath
   std::string mUri;
   size_t mId;
-  size_t mType;
+  typeId_t<Asset> mType;
   std::string mCategory;
 };
 
@@ -57,34 +59,44 @@ public:
   virtual ~Asset() {
   }
 
-  AssetState getState() const {
+  virtual AssetState getState() const {
     return mState;
   }
-  const AssetInfo& getInfo() const {
+  virtual const AssetInfo& getInfo() const {
     return mInfo;
   }
   RWLock& getLock() const {
     return mLock;
   }
-  virtual bool isReady() const {
+  bool isReady() const {
     return mState == AssetState::Loaded || mState == AssetState::PostProcessed;
   }
   template<class T>
   bool isOfType() const {
     //TODO: this assert only makes sense if mType is an optional, otherwise 0 may be a valid type
     //assert(mInfo.mType && "Type should have been set on construction");
-    return mInfo.mType == Asset::typeId<T>();
+    return getInfo().mType == Asset::typeId<T>();
   }
   template<class T>
-  static size_t typeId() {
-    return ::typeId<Asset, T>();
+  static typeId_t<Asset> typeId() {
+    return ::typeId<T, Asset>();
   }
   template<class T>
   const T* cast() const {
-    return isOfType<T>() ? static_cast<const T*>(this) : nullptr;
+    const Asset* self = _tryUnwrap();
+    return self && isOfType<T>() ? static_cast<const T*>(self) : nullptr;
+  }
+  template<class T>
+  T* cast() {
+    Asset* self = const_cast<Asset*>(_tryUnwrap());
+    return self && isOfType<T>() ? static_cast<T*>(self) : nullptr;
   }
 
 protected:
+  virtual const Asset* _tryUnwrap() const {
+    return this;
+  }
+
   AssetState mState;
   mutable RWLock mLock;
 

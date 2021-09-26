@@ -2,16 +2,16 @@
 #include "DebugDrawer.h"
 
 #include "asset/Shader.h"
-#include "system/AssetRepo.h"
-
 #include <gl/glew.h>
 
 namespace {
   const int sStartingSize = 1000;
 }
 
-DebugDrawer::DebugDrawer(AssetRepo& repo) {
-  mShader = repo.getAsset(AssetInfo("shaders/debug.vs"));
+const AssetInfo DebugDrawer::SHADER_ASSET("shaders/debug.vs");
+
+DebugDrawer::DebugDrawer(std::shared_ptr<Asset> shader) {
+  mShader = std::move(shader);
 
   //Generate a vertex buffer name
   glGenBuffers(1, &mVBO);
@@ -92,9 +92,10 @@ void DebugDrawer::setColor(const Syx::Vec3& color) {
 
 void DebugDrawer::_render(const Syx::Mat4& wvp) {
   std::unique_lock<std::mutex> vLock(mVertsMutex);
-  Shader& shader = static_cast<Shader&>(*mShader);
-  if(mVerts.empty() || shader.getState() != AssetState::PostProcessed)
+  auto* shader = mShader->cast<Shader>();
+  if(!shader || mVerts.empty() || shader->getState() != AssetState::PostProcessed) {
     return;
+  }
 
   //Bind buffer so we can update it
   glBindBuffer(GL_ARRAY_BUFFER, mVBO);
@@ -109,8 +110,8 @@ void DebugDrawer::_render(const Syx::Mat4& wvp) {
   //Draw lines
   glBindVertexArray(mVAO);
   {
-    Shader::Binder b(shader);
-    glUniformMatrix4fv(shader.getUniform("wvp"), 1, GL_FALSE, wvp.mData);
+    Shader::Binder b(*shader);
+    glUniformMatrix4fv(shader->getUniform("wvp"), 1, GL_FALSE, wvp.mData);
     glDrawArrays(GL_LINES, 0, GLsizei(mVerts.size()));
   }
   glBindVertexArray(0);

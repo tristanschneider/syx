@@ -3,9 +3,9 @@
 
 #include "asset/Model.h"
 #include "graphics/RenderCommand.h"
-#include "system/AssetRepo.h"
 #include "provider/MessageQueueProvider.h"
 #include "provider/SystemProvider.h"
+#include "system/System.h"
 
 using namespace Syx;
 

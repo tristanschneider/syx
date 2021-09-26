@@ -1,7 +1,6 @@
 #pragma once
 
 struct lua_State;
-class AssetRepo;
 
 namespace Lua {
   class AssetRepo {
@@ -12,7 +11,5 @@ namespace Lua {
 
   private:
     static const char* CLASS_NAME;
-
-    static ::AssetRepo& _getRepo(lua_State* l);
   };
 };

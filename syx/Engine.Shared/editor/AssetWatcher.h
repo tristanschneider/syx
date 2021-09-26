@@ -4,7 +4,6 @@
 #include "file/DirectoryWatcher.h"
 #include "file/FilePath.h"
 
-class AssetRepo;
 class DirectoryWatcher;
 class EventHandler;
 struct EventListener;
@@ -14,7 +13,7 @@ class ProjectLocator;
 
 class AssetWatcher : public DirectoryObserver, public FocusEvents {
 public:
-  AssetWatcher(MessageQueueProvider& msg, EventHandler& handler, class AppPlatform& platform, AssetRepo& repo, const ProjectLocator& locator);
+  AssetWatcher(MessageQueueProvider& msg, EventHandler& handler, class AppPlatform& platform, const ProjectLocator& locator);
   ~AssetWatcher();
 
   void onFileChanged(const std::string& filename) override;
@@ -37,8 +36,8 @@ private:
   //Evaluate resulting action with the highest precedence given the old and new actions
   Action _transformAction(Action oldAction, Action newAction);
 
+  MessageQueueProvider& mMsg;
   const ProjectLocator& mLocator;
-  AssetRepo& mAssetRepo;
   bool mIsAppFocused;
   std::unordered_map<FilePath, Action> mActions;
   std::unique_ptr<DirectoryWatcher> mDirectoryWatcher;

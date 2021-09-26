@@ -1,6 +1,7 @@
 #include "Precompile.h"
 #include "lua/LuaGameContext.h"
 
+#include "asset/ImmediateAssetWrapper.h"
 #include "asset/LuaScript.h"
 #include "component/Component.h"
 #include "component/ComponentPublisher.h"
@@ -12,7 +13,6 @@
 #include "LuaGameObject.h"
 #include "registry/IDRegistry.h"
 #include "Space.h"
-#include "system/AssetRepo.h"
 #include "system/LuaGameSystem.h"
 #include "Util.h"
 
@@ -282,19 +282,22 @@ public:
       obj->forEachLuaComponent([this, selfIndex, doUpdate, dt](LuaComponent& comp) {
         //If the component needs initialization, get the script and initialize it
         if(comp.needsInit()) {
-          std::shared_ptr<Asset> script = mSystem.getAssetRepo().getAsset(AssetInfo(comp.getScript()));
+          if(!comp.mScriptAsset) {
+            comp.mScriptAsset = ImmediateAsset::create(AssetInfo(comp.getScript()), *getMessageProvider().getMessageQueue(), typeId<LuaGameSystem, System>());
+          }
+          const auto* script = comp.mScriptAsset ? comp.mScriptAsset->cast<LuaScript>() : nullptr;
           //If script isn't done loading, wait until later
           if(!script || script->getState() != AssetState::Loaded) {
             return;
           }
 
           //Load the script on to the top of the stack
-          const std::string& scriptSource = static_cast<LuaScript&>(*script).get();
+          const std::string& scriptSource = script->get();
           {
             Lua::StackAssert sa(*mState);
             if(int loadError = luaL_loadstring(*mState, scriptSource.c_str())) {
               //TODO: better error reporting
-              printf("Error loading script %s: %s\n", static_cast<LuaScript&>(*script).getInfo().mUri.c_str(), lua_tostring(*mState, -1));
+              printf("Error loading script %s: %s\n", script->getInfo().mUri.c_str(), lua_tostring(*mState, -1));
             }
             else {
               comp.init(*mState, selfIndex);
@@ -463,10 +466,6 @@ public:
     return *mState;
   }
 
-  virtual AssetRepo& getAssetRepo() override {
-    return mSystem.getAssetRepo();
-  }
-
   virtual const HandleMap<std::shared_ptr<LuaGameObject>>& getObjects() const override {
     return mSystem.getObjects();
   }
@@ -496,10 +495,6 @@ public:
     mSystem._openAllLibs(*state);
     _storeContextInState(*state);
     return state;
-  }
-
-  virtual SystemProvider& getSystemProvider() override {
-    return mSystem.getSystemProvider();
   }
 
   virtual const ComponentRegistryProvider& getComponentRegistry() const override {

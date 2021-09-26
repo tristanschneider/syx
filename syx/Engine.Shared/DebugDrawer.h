@@ -2,8 +2,8 @@
 #include "graphics/GraphicsTypes.h"
 
 class Shader;
-class AssetRepo;
 class Asset;
+struct AssetInfo;
 
 struct IDebugDrawer {
   virtual ~IDebugDrawer() = default;
@@ -23,7 +23,9 @@ struct IDebugDrawer {
 
 class DebugDrawer : public IDebugDrawer {
 public:
-  DebugDrawer(AssetRepo& repo);
+  static const AssetInfo SHADER_ASSET;
+
+  DebugDrawer(std::shared_ptr<Asset> shader);
   ~DebugDrawer();
 
   void drawLine(const Syx::Vec3& a, const Syx::Vec3& b, const Syx::Vec3& colorA, const Syx::Vec3& colorB) override;
