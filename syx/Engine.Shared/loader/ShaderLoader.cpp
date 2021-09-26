@@ -2,12 +2,11 @@
 #include "loader/ShaderLoader.h"
 
 #include "asset/Shader.h"
+#include "graphics/RenderCommand.h"
+#include "provider/MessageQueueProvider.h"
 #include "system/AssetRepo.h"
-#include "system/GraphicsSystem.h"
-#include "provider/SystemProvider.h"
 
-ShaderLoader::~ShaderLoader() {
-}
+ShaderLoader::~ShaderLoader() = default;
 
 AssetLoadResult ShaderLoader::load(const std::string& basePath, Asset& asset) {
   std::string vsPath = basePath + asset.getInfo().mUri;
@@ -21,8 +20,8 @@ AssetLoadResult ShaderLoader::load(const std::string& basePath, Asset& asset) {
   return psResult;
 }
 
-void ShaderLoader::postProcess(const SystemArgs& args, Asset& asset) {
-  args.mSystems->getSystem<GraphicsSystem>()->dispatchToRenderThread([&asset, this]() {
-    static_cast<Shader&>(asset).load();
-  });
+void ShaderLoader::postProcess(const SystemArgs& args, std::shared_ptr<Asset> asset) {
+  args.mMessages->getMessageQueue()->push(DispatchToRenderThreadEvent([asset] {
+    static_cast<Shader&>(*asset).load();
+  }));
 }

@@ -29,7 +29,6 @@
 #include "registry/IDRegistry.h"
 #include "system/AssetRepo.h"
 #include "system/LuaGameSystem.h"
-#include "system/GraphicsSystem.h"
 #include <threading/FunctionTask.h>
 #include <threading/IWorkerPool.h>
 
@@ -205,7 +204,6 @@ void Editor::_editorUpdate() {
   mToolbox->editorUpdate(*mInput);
 
   Component::EditorUpdateArgs args{ game,
-    _getDebugDrawer(),
     *mArgs.mMessages,
     *mCamera,
   };
@@ -262,11 +260,6 @@ Handle Editor::_getEditorSpace() const {
 
 Handle Editor::_getPlaySpace() const {
   return 0;
-}
-
-IDebugDrawer& Editor::_getDebugDrawer() {
-  GraphicsSystem* graphics = mArgs.mSystems->getSystem<GraphicsSystem>();
-  return graphics ? graphics->getDebugDrawer() : DebugDrawerExt::getNullDrawer();
 }
 
 void Editor::_updateInput(float dt) {

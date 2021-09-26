@@ -16,6 +16,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 #include "component/SpaceComponent.h"
 #include "component/Transform.h"
 #include "DebugDrawer.h"
+#include "event/DebugDrawEvent.h"
 #include "file/FilePath.h"
 #include "file/DirectoryWatcher.h"
 #include "system/AssetRepo.h"
@@ -37,15 +38,17 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 #include "SyxInterface.h"
 
+#include "event/DeferredEventBuffer.h"
+
 namespace Syx {
   namespace Interface {
-    extern ::IDebugDrawer* gDrawer;
+    extern ::MessageQueueProvider* gMsg;
     extern SyxOptions gOptions;
   }
 }
 
 namespace SystemTests {
-  struct MockDebugDrawer : IDebugDrawer {
+  struct MockDebugDrawer : public MessageQueueProvider {
     struct Command {
       enum class Type : uint8_t {
         Line,
@@ -61,54 +64,38 @@ namespace SystemTests {
     };
 
     MockDebugDrawer() {
-      Syx::Interface::gDrawer = this;
-      Syx::Interface::gOptions.mDebugFlags |= Syx::SyxOptions::Debug::DrawCenterOfMass;
+      Syx::Interface::gMsg = this;
     }
 
     ~MockDebugDrawer() {
-      Syx::Interface::gDrawer = nullptr;
-      Syx::Interface::gOptions.mDebugFlags &= ~Syx::SyxOptions::Debug::DrawCenterOfMass;
+      Syx::Interface::gMsg = nullptr;
     }
 
-    void drawLine(const Syx::Vec3& a, const Syx::Vec3&, const Syx::Vec3&, const Syx::Vec3&) override {
-      mCommands.push_back({ Command::Type::Line, a });
+    MessageQueue getMessageQueue() override {
+      return MessageQueue(mBuffer, mLock);
     }
 
-    void drawLine(const Syx::Vec3& a, const Syx::Vec3&, const Syx::Vec3&) override {
-      mCommands.push_back({ Command::Type::Line, a });
+    //Provide dummy objects, this isn't used by the physics system
+    DeferredMessageQueue getDeferredMessageQueue() override {
+      static DeferredEventBuffer dummy;
+      static std::mutex mutex;
+      return DeferredMessageQueue(dummy, mutex);
     }
 
-    void drawLine(const Syx::Vec3& a, const Syx::Vec3&) override {
-      mCommands.push_back({ Command::Type::Line, a });
+    template<class E>
+    const E* getLastEventOfType() const {
+      static_assert(std::is_base_of_v<Event, E>, "This should be called with event types");
+      const E* result = nullptr;
+      for(auto&& e : mBuffer) {
+        if(e.getType() == typeId<E, Event>()) {
+          result = static_cast<const E*>(&e);
+        }
+      }
+      return result;
     }
 
-    void drawVector(const Syx::Vec3& point, const Syx::Vec3&) override {
-      mCommands.push_back({ Command::Type::Vector, point });
-    }
-
-    void DrawSphere(const Syx::Vec3& center, float, const Syx::Vec3&, const Syx::Vec3&) override {
-      mCommands.push_back({ Command::Type::Sphere, center });
-    }
-
-    void DrawCube(const Syx::Vec3& center, const Syx::Vec3&, const Syx::Vec3&, const Syx::Vec3&) override {
-      mCommands.push_back({ Command::Type::Cube, center });
-    }
-
-    void DrawPoint(const Syx::Vec3& point, float) override {
-      mCommands.push_back({ Command::Type::Point, point });
-    }
-
-    void setColor(const Syx::Vec3& color) override {
-      mCommands.push_back({ Command::Type::SetColor, color });
-    }
-
-    const Command& getLastCommandOfType(Command::Type type) {
-      auto it = std::find_if(mCommands.rbegin(), mCommands.rend(), [type](const auto& c) { return c.mType == type; });
-      static const Command dummy{};
-      return it != mCommands.rend() ? *it : dummy;
-    }
-
-    std::vector<Command> mCommands;
+    SpinLock mLock;
+    EventBuffer mBuffer;
   };
 
   TEST_CLASS(PhysicsSystemTests) {
@@ -215,7 +202,9 @@ namespace SystemTests {
       //Process the transform data response
       app->update(0.f);
 
-      Assert::IsTrue(debugDrawer.getLastCommandOfType(MockDebugDrawer::Command::Type::Point).mA.distance2(Syx::Vec3(1, 2, 3)) < 0.001f, L"Position of physics object should match transform of gameobject", LINE_INFO());
+      auto e = debugDrawer.getLastEventOfType<DrawPointEvent>();
+      Assert::IsNotNull(e);
+      Assert::IsTrue(e->mPoint.distance2(Syx::Vec3(1, 2, 3)) < 0.001f, L"Position of physics object should match transform of gameobject", LINE_INFO());
     }
 
     TEST_METHOD(RigidbodyWithCollider_Update_GravityApplied) {
@@ -230,7 +219,9 @@ namespace SystemTests {
 
       app->update(1.f);
 
-      Assert::IsTrue(debugDrawer.getLastCommandOfType(MockDebugDrawer::Command::Type::Point).mA.y < 0, L"Gravity should have moved the rigidbody below its original position of 0", LINE_INFO());
+      auto e = debugDrawer.getLastEventOfType<DrawPointEvent>();
+      Assert::IsNotNull(e);
+      Assert::IsTrue(e->mPoint.y < 0, L"Gravity should have moved the rigidbody below its original position of 0", LINE_INFO());
     }
 
     TEST_METHOD(GameobjectWithRigidbody_Update_GravityApplied) {

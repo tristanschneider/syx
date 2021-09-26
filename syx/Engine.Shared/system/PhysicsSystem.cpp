@@ -6,7 +6,6 @@
 #include "component/ComponentPublisher.h"
 #include "editor/event/EditorEvents.h"
 #include "system/AssetRepo.h"
-#include "system/GraphicsSystem.h"
 #include "event/BaseComponentEvents.h"
 #include "event/Event.h"
 #include "event/EventBuffer.h"
@@ -36,7 +35,7 @@
 
 namespace Syx {
   namespace Interface {
-    extern ::IDebugDrawer* gDrawer;
+    extern ::MessageQueueProvider* gMsg;
     extern SyxOptions gOptions;
   }
 }
@@ -56,9 +55,7 @@ PhysicsSystem::~PhysicsSystem() = default;
 
 void PhysicsSystem::init() {
   mTimescale = 0;
-  if(GraphicsSystem* graphics = mArgs.mSystems->getSystem<GraphicsSystem>()) {
-    Syx::Interface::gDrawer = &graphics->getDebugDrawer();
-  }
+  Syx::Interface::gMsg = mArgs.mMessages;
   mSystem = std::make_unique<Syx::PhysicsSystem>();
 
   mDefaultMaterial = mSystem->getMaterialRepository().addMaterial({});

@@ -2,7 +2,6 @@
 #include "graphics/GraphicsTypes.h"
 
 class Shader;
-class GraphicsSystem;
 class AssetRepo;
 class Asset;
 

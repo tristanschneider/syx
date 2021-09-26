@@ -54,15 +54,15 @@ public:
   Event(size_t type, size_t size);
   virtual ~Event();
   size_t getSize() const;
-  size_t getType() const;
+  typeId_t<Event> getType() const;
 
   template<typename T>
-  static size_t typeId() {
+  static typeId_t<Event> typeId() {
     return ::typeId<T, Event>();
   }
 
 private:
-  size_t mType;
+  typeId_t<Event> mType;
   size_t mSize;
 };
 

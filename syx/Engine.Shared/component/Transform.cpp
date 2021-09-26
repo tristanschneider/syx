@@ -4,14 +4,16 @@
 #include "component/ComponentPublisher.h"
 #include "DebugDrawer.h"
 #include "editor/InspectorFactory.h"
+#include "event/DebugDrawEvent.h"
+#include "lua/lib/LuaVec3.h"
+#include "lua/lib/LuaQuat.h"
 #include "lua/LuaGameContext.h"
 #include "lua/LuaNode.h"
 #include "lua/LuaUtil.h"
 #include <lua.hpp>
 #include "LuaGameObject.h"
+#include "provider/MessageQueueProvider.h"
 
-#include "lua/lib/LuaVec3.h"
-#include "lua/lib/LuaQuat.h"
 #include "Util.h"
 
 namespace {
@@ -162,8 +164,7 @@ void Transform::onEditorUpdate(const LuaGameObject&, bool selected, EditorUpdate
     //Arbitrary scale to make it look nice
     const float scalar = 3.0f;
     for(int i = 0; i < 3; ++i) {
-      args.drawer.setColor(colors[i]);
-      args.drawer.drawVector(pos, mMat.getCol(i)*scalar);
+      args.msg.getMessageQueue()->push(DrawVectorEvent(pos, mMat.getCol(i)*scalar, colors[i]));
     }
   }
 }

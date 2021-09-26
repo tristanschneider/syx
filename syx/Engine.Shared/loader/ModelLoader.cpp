@@ -2,8 +2,9 @@
 #include "ModelLoader.h"
 
 #include "asset/Model.h"
-#include "system/GraphicsSystem.h"
+#include "graphics/RenderCommand.h"
 #include "system/AssetRepo.h"
+#include "provider/MessageQueueProvider.h"
 #include "provider/SystemProvider.h"
 
 using namespace Syx;
@@ -174,10 +175,10 @@ AssetLoadResult ModelOBJLoader::_load(Asset& asset) {
   return mResultState;
 }
 
-void ModelOBJLoader::postProcess(const SystemArgs& args, Asset& asset) {
-  args.mSystems->getSystem<GraphicsSystem>()->dispatchToRenderThread([&asset]() {
-    static_cast<Model&>(asset).loadGpu();
-  });
+void ModelOBJLoader::postProcess(const SystemArgs& args, std::shared_ptr<Asset> asset) {
+  args.mMessages->getMessageQueue()->push(DispatchToRenderThreadEvent([asset] {
+    static_cast<Model&>(*asset).loadGpu();
+  }));
 }
 
 size_t ModelOBJLoader::_getVertIndex(const VertLookup& lookup) {

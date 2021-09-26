@@ -2,7 +2,6 @@
 #include "DebugDrawer.h"
 
 #include "asset/Shader.h"
-#include "system/GraphicsSystem.h"
 #include "system/AssetRepo.h"
 
 #include <gl/glew.h>

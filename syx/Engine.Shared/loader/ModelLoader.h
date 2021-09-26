@@ -8,7 +8,7 @@ class ModelOBJLoader : public TextAssetLoader {
 protected:
   using TextAssetLoader::TextAssetLoader;
   AssetLoadResult _load(Asset& asset) override;
-  void postProcess(const SystemArgs& args, Asset& asset) override;
+  void postProcess(const SystemArgs& args, std::shared_ptr<Asset> asset) override;
 
 private:
   struct V3 {
@@ -45,7 +45,7 @@ private:
   size_t _getVertIndex(const VertLookup& lookup);
   void _addTri(size_t a, size_t b, size_t c);
 
-  Model* mModel;
+  Model* mModel = nullptr;
   AssetLoadResult mResultState;
   std::vector<V3> mVerts;
   std::vector<V3> mNormals;

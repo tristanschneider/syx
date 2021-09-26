@@ -6,8 +6,6 @@
 class AppRegistration;
 class ComponentRegistryProvider;
 class GameObjectHandleProvider;
-class GraphicsSystem;
-class KeyboardInput;
 class System;
 enum class SystemId : uint8_t;
 struct IIDRegistry;

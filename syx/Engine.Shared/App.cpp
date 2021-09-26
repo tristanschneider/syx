@@ -14,7 +14,6 @@
 #include "provider/ComponentRegistryProvider.h"
 #include "provider/GameObjectHandleProvider.h"
 #include "registry/IDRegistry.h"
-#include "system/GraphicsSystem.h"
 #include "test/TestRegistry.h"
 #include "threading/FunctionTask.h"
 #include "threading/SpinLock.h"

@@ -33,6 +33,6 @@ size_t Event::getSize() const {
   return mSize;
 }
 
-size_t Event::getType() const {
+typeId_t<Event> Event::getType() const {
   return mType;
 }

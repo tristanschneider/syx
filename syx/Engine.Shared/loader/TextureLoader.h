@@ -5,7 +5,7 @@ class TextureBMPLoader : public BufferAssetLoader {
 public:
   using BufferAssetLoader::BufferAssetLoader;
   AssetLoadResult _load(Asset& asset) override;
-  void postProcess(const SystemArgs& args, Asset& asset) override;
+  void postProcess(const SystemArgs& args, std::shared_ptr<Asset> asset) override;
 
 private:
   //Buffer used temporarily to transform from bgr to rgba

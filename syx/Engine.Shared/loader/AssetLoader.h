@@ -21,7 +21,7 @@ public:
   const std::string& getCategory();
   virtual AssetLoadResult load(const std::string& basePath, Asset& asset) = 0;
   //Not required. Gives a chance to kick off any post processing tasks after successful loading. User is responsible for setting PostProcessed state
-  virtual void postProcess(const SystemArgs&, Asset&) {}
+  virtual void postProcess(const SystemArgs&, std::shared_ptr<Asset>) {}
 
 protected:
 

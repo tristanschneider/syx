@@ -176,7 +176,7 @@ void removeResource(Handle handle, std::unordered_map<Handle, Resource>& resMap,
   resMap.erase(it);
 }
 
-void GraphicsSystem::dispatchToRenderThread(std::function<void()> func) {
+void GraphicsSystem::_dispatchToRenderThread(std::function<void()> func) {
   mTasksMutex.lock();
   mTasks.push_back(func);
   mTasksMutex.unlock();
@@ -658,7 +658,7 @@ void GraphicsSystem::_onWindowResized() {
 }
 
 void GraphicsSystem::_processDispatchToRenderThreadEvent(const DispatchToRenderThreadEvent& e) {
-  dispatchToRenderThread(e.mCallback);
+  _dispatchToRenderThread(e.mCallback);
 }
 
 void GraphicsSystem::_glViewport(const Viewport& viewport) const {

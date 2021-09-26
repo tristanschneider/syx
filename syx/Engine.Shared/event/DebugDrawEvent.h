@@ -1,6 +1,9 @@
 #pragma once
 #include "event/Event.h"
 
+#include "SyxQuat.h"
+#include "SyxVec3.h"
+
 class DrawLineEvent : public Event {
 public:
   DrawLineEvent(const Syx::Vec3& start, const Syx::Vec3& end, const Syx::Vec3& color);

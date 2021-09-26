@@ -77,7 +77,6 @@ public:
 
   struct EditorUpdateArgs {
     const LuaGameObjectProvider& objects;
-    IDebugDrawer& drawer;
     MessageQueueProvider& msg;
     const LuaGameObject& editorCamera;
   };

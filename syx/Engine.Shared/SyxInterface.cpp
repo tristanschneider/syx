@@ -2,31 +2,35 @@
 #include <SyxInterface.h>
 #include <stdlib.h>
 #include "DebugDrawer.h"
+#include "event/DebugDrawEvent.h"
+#include "event/EventBuffer.h"
+#include "provider/MessageQueueProvider.h"
 
 namespace Syx {
   namespace Interface {
-    ::IDebugDrawer* gDrawer = nullptr;
+    ::MessageQueueProvider* gMsg = nullptr;
     SyxOptions gOptions;
+    Vec3 COLOR;
 
     SyxOptions getOptions(void) {
       return gOptions;
     }
 
     void setColor(float r, float g, float b) {
-      if(gDrawer) {
-        gDrawer->setColor(Vec3(r, g, b));
+      if(gMsg) {
+        COLOR = Vec3(r, g, b);
       }
     }
 
     void drawLine(const Vec3& start, const Vec3& end) {
-      if(gDrawer) {
-        gDrawer->drawLine(start, end);
+      if(gMsg) {
+        gMsg->getMessageQueue()->push(DrawLineEvent(start, end, COLOR));
       }
     }
 
     void drawVector(const Vec3& start, const Vec3& direction) {
-      if(gDrawer) {
-        gDrawer->drawVector(start, direction);
+      if(gMsg) {
+        gMsg->getMessageQueue()->push(DrawVectorEvent(start, direction, COLOR));
       }
     }
 
@@ -68,8 +72,8 @@ namespace Syx {
 
     // Simple representation of a point, like a cross where size is the length from one side to the other
     void drawPoint(const Vec3& point, float size) {
-      if(gDrawer) {
-        gDrawer->DrawPoint(point, size);
+      if(gMsg) {
+        gMsg->getMessageQueue()->push(DrawPointEvent(point, size, COLOR));
       }
     }
 

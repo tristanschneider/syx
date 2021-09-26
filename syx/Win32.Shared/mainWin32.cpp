@@ -10,7 +10,6 @@
 #include "App.h"
 #include "event/LifecycleEvents.h"
 #include "file/FilePath.h"
-#include "system/GraphicsSystem.h"
 #include "system/InputSystemWin32.h"
 #include "AppPlatformWin32.h"
 

@@ -50,7 +50,7 @@ public:
 
 private:
   void _fillInfo(AssetInfo& info);
-  void _assetLoaded(AssetLoadResult result, Asset& asset, AssetLoader& loader);
+  void _assetLoaded(AssetLoadResult result, std::shared_ptr<Asset> asset, AssetLoader& loader);
   //Get or create a loader from the pool
   AssetLoader* _getLoader(const std::string& category);
   std::shared_ptr<Asset> _find(AssetInfo& info);

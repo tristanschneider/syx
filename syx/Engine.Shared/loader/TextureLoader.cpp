@@ -2,9 +2,9 @@
 #include "loader/TextureLoader.h"
 
 #include "asset/Texture.h"
+#include "graphics/RenderCommand.h"
+#include "provider/MessageQueueProvider.h"
 #include "system/AssetRepo.h"
-#include "system/GraphicsSystem.h"
-#include "provider/SystemProvider.h"
 
 namespace {
   const int sDataPosOffset = 0x0A;
@@ -60,8 +60,8 @@ AssetLoadResult TextureBMPLoader::_load(Asset& asset) {
   return AssetLoadResult::Success;
 }
 
-void TextureBMPLoader::postProcess(const SystemArgs& args, Asset& asset) {
-  args.mSystems->getSystem<GraphicsSystem>()->dispatchToRenderThread([&asset] {
-    static_cast<Texture&>(asset).loadGpu();
-  });
+void TextureBMPLoader::postProcess(const SystemArgs& args, std::shared_ptr<Asset> asset) {
+  args.mMessages->getMessageQueue()->push(DispatchToRenderThreadEvent([asset] {
+    static_cast<Texture&>(*asset).loadGpu();
+  }));
 }

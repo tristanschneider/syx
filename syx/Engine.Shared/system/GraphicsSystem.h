@@ -54,8 +54,6 @@ public:
   Camera& getPrimaryCamera();
   IDebugDrawer& getDebugDrawer();
 
-  void dispatchToRenderThread(std::function<void()> func);
-
 private:
   struct LocalRenderable {
     LocalRenderable(Handle h = InvalidHandle);
@@ -67,6 +65,8 @@ private:
     std::shared_ptr<Asset> mModel;
     std::shared_ptr<Asset> mDiffTex;
   };
+
+  void _dispatchToRenderThread(std::function<void()> func);
 
   void _render(const Camera& camera, const Viewport& viewport);
   void _renderCommands(const Camera& camera, const Viewport& viewport);

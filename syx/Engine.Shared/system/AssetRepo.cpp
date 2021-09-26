@@ -130,7 +130,7 @@ void AssetRepo::_queueLoad(std::shared_ptr<Asset> asset) {
       //Unlikely to cause blocks as users can check the status of the asset against Loaded or PostProccessed
       auto lock = asset->getLock().getWriter();
       AssetLoadResult result = loader->load(mBasePath, *asset);
-      _assetLoaded(result, *asset, *loader);
+      _assetLoaded(result, asset, *loader);
     }
   }));
 }
@@ -148,19 +148,19 @@ void AssetRepo::setBasePath(const std::string& basePath) {
   mBasePath = basePath;
 }
 
-void AssetRepo::_assetLoaded(AssetLoadResult result, Asset& asset, AssetLoader& loader) {
+void AssetRepo::_assetLoaded(AssetLoadResult result, std::shared_ptr<Asset> asset, AssetLoader& loader) {
   switch(result) {
   case AssetLoadResult::NotFound:
-    printf("Failed to find asset at location %s\n", asset.getInfo().mUri.c_str());
+    printf("Failed to find asset at location %s\n", asset->getInfo().mUri.c_str());
     break;
   case AssetLoadResult::Fail:
-    printf("Failed to load asset at location %s\n", asset.getInfo().mUri.c_str());
+    printf("Failed to load asset at location %s\n", asset->getInfo().mUri.c_str());
     break;
   case AssetLoadResult::IOError:
-    printf("IO error attempting to load asset at location %s\n", asset.getInfo().mUri.c_str());
+    printf("IO error attempting to load asset at location %s\n", asset->getInfo().mUri.c_str());
     break;
   case AssetLoadResult::Success:
-    asset.mState = AssetState::Loaded;
+    asset->mState = AssetState::Loaded;
     loader.postProcess(mArgs, asset);
     break;
   }
