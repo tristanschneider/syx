@@ -10,6 +10,7 @@ target_include_directories(engine_shared INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(engine_shared PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
 # Link dependencies
+target_link_libraries(engine_shared PUBLIC ecx)
 target_link_libraries(engine_shared PUBLIC physics)
 target_link_libraries(engine_shared PUBLIC imgui)
 # Glew should ultimately be extracted to a seperate graphics library

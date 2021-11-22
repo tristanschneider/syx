@@ -33,7 +33,7 @@ if(MSVC)
     )
 endif()
 
-
+add_subdirectory(ecx)
 add_subdirectory(syx)
 add_subdirectory(src-deps)
 add_subdirectory(lua)
