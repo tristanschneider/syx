@@ -9,6 +9,64 @@ namespace ecx {
   template<class EntityT>
   class EntityRegistry {
   public:
+    template<class T>
+    class It {
+    public:
+      using value_type = T;
+      using difference_type = std::ptrdiff_t;
+      using pointer = T*;
+      using reference = T&;
+      using iterator_category = std::forward_iterator_tag;
+
+      It(typename EntityRegistry<EntityT>::ComponentPool* pool, typename SparseSet<EntityT>::Iterator sparseIt)
+        : mPool(pool)
+        , mSparseIt(sparseIt) {
+      }
+
+      It(const It&) = default;
+      It& operator=(const It&) = default;
+
+      It& operator++() {
+        ++mSparseIt;
+        return *this;
+      }
+
+      It& operator++(int) {
+        auto result = mSparseIt;
+        ++(*this);
+        return It(mPool, result);
+      }
+
+      bool operator==(const It& rhs) const {
+        return mSparseIt == rhs.mSparseIt;
+      }
+
+      bool operator!=(const It& rhs) const {
+        return !(*this == rhs);
+      }
+
+      T& operator*() {
+        return component();
+      }
+
+      T* operator->() {
+        return &component();
+      }
+
+      EntityT entity() const {
+        return mSparseIt.value().mSparseId;
+      }
+
+      T& component() {
+        auto slot = static_cast<size_t>(mSparseIt.value().mPackedId);
+        return mPool->mComponents->get<DecayType<T>>()->at(slot);
+      }
+
+    private:
+      typename EntityRegistry<EntityT>::ComponentPool* mPool = nullptr;
+      typename SparseSet<EntityT>::Iterator mSparseIt;
+    };
+
     //Decay a provided type to avoid unexpected behavior for const, reference, and pointer
     //There are probably still ways to bypass this and get weird results but this should cover most cases
     template<class T>
@@ -78,7 +136,28 @@ namespace ecx {
       return tryGetComponent<ComponentT>(entity) != nullptr;
     }
 
-    //TODO: view
+    template<class ComponentT>
+    It<ComponentT> begin() {
+      ComponentPool& pool = _getPool<ComponentT>();
+      return It<ComponentT>(&pool, pool.mEntities.begin());
+    }
+
+    template<class ComponentT>
+    It<ComponentT> end() {
+      ComponentPool& pool = _getPool<ComponentT>();
+      return It<ComponentT>(&pool, pool.mEntities.end());
+    }
+
+    template<class ComponentT>
+    It<ComponentT> find(EntityT entity) {
+      ComponentPool& pool = _getPool<ComponentT>();
+      return It<ComponentT>(&pool, pool.mEntities.find(entity));
+    }
+
+    template<class ComponentT>
+    size_t size() {
+      return _getPool<ComponentT>().mComponents->size();
+    }
 
   private:
     struct ComponentPool {

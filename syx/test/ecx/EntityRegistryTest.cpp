@@ -101,5 +101,88 @@ namespace ecx {
       Assert::IsTrue(registry.hasComponent<int>(entityB));
       Assert::AreEqual(12, registry.getComponent<int>(entityB));
     }
+
+    TEST_METHOD(EntityRegistry_AddRemoveEmptyComponent_Compiles) {
+      TestEntityRegistry registry;
+      auto entity = registry.createEntity();
+      struct EmptyComponent {};
+
+      registry.addComponent<EmptyComponent>(entity);
+      Assert::IsTrue(registry.hasComponent<EmptyComponent>(entity));
+      registry.removeComponent<EmptyComponent>(entity);
+    }
+
+    TEST_METHOD(EntityRegistry_BeginEmpty_EqualsEnd) {
+      TestEntityRegistry registry;
+
+      Assert::IsTrue(registry.begin<int>() == registry.end<int>());
+    }
+
+    TEST_METHOD(EntityRegistry_BeginNoneOfType_EqualsEnd) {
+      TestEntityRegistry registry;
+      auto entity = registry.createEntity();
+      registry.addComponent<int>(entity);
+
+      Assert::IsTrue(registry.begin<short>() == registry.end<short>());
+    }
+
+    TEST_METHOD(EntityRegistry_BeginOne_IsEntity) {
+      TestEntityRegistry registry;
+      auto entity = registry.createEntity();
+      registry.addComponent<int>(entity, 10);
+      auto begin = registry.begin<int>();
+
+      Assert::IsFalse(begin == registry.end<int>());
+      Assert::AreEqual(entity, begin.entity());
+      Assert::AreEqual(10, begin.component());
+    }
+
+    TEST_METHOD(EntityRegistry_IterateWithHoles_AllEntitiesFound) {
+      TestEntityRegistry registry;
+      registry.createEntity();
+      auto b = registry.createEntity();
+      auto c = registry.createEntity();
+      auto d = registry.createEntity();
+      registry.addComponent<int>(b, 3);
+      registry.addComponent<char>(c, 'a');
+      registry.addComponent<int>(d, 4);
+
+      std::unordered_set<uint32_t> foundEntities;
+      for(auto it = registry.begin<int>(); it != registry.end<int>(); ++it) {
+        foundEntities.insert(it.entity());
+      }
+
+      Assert::IsTrue(foundEntities == std::unordered_set<uint32_t>({ b, d }));
+    }
+
+    TEST_METHOD(EntityRegistry_FindNonexistent_NotFound) {
+      TestEntityRegistry registry;
+      auto entity = registry.createEntity();
+
+      auto it = registry.find<int>(++entity);
+
+      Assert::IsTrue(it == registry.end<int>());
+    }
+
+    TEST_METHOD(EntityRegistry_FindNoComponent_NotFound) {
+      TestEntityRegistry registry;
+      auto entity = registry.createEntity();
+
+      auto it = registry.find<int>(entity);
+
+      Assert::IsTrue(it == registry.end<int>());
+    }
+
+    TEST_METHOD(EntityRegistry_FIndWithComponent_Found) {
+      TestEntityRegistry registry;
+      auto entity = registry.createEntity();
+      registry.addComponent<int>(entity, 7);
+
+      auto it = registry.find<int>(entity);
+
+      Assert::IsFalse(it == registry.end<int>());
+      Assert::AreEqual(entity, it.entity());
+      Assert::AreEqual(7, it.component());
+    }
   };
 }
