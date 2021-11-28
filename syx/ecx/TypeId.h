@@ -24,6 +24,10 @@ namespace ecx {
       return mId;
     }
 
+    bool operator<(const typeId_t<Category>& rhs) const {
+      return mId < rhs.mId;
+    }
+
     template<class T>
     static constexpr typeId_t<Category> get() {
       static typeId_t<Category> t(idgen++);

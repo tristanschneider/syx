@@ -191,5 +191,22 @@ namespace ecx {
       Assert::AreEqual(entity, (*it).entity());
       Assert::AreEqual(10, (*it).get<const int>());
     }
+
+    TEST_METHOD(View_RangeIterator_AllFound) {
+      TestEntityRegistry registry;
+      for(int i = 0; i < 2; ++i) {
+        auto entity = registry.createEntity();
+        registry.addComponent<int>(entity, i);
+      }
+      int found = 0;
+      auto view = TestView<Write<int>>(registry);
+
+      for(auto entity : view) {
+        Assert::IsTrue(entity.hasComponent<int>());
+        ++found;
+      }
+
+      Assert::AreEqual(2, found);
+    }
   };
 }

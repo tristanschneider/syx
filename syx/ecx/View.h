@@ -84,7 +84,7 @@ namespace ecx {
     //True if view.tryGet<Component> should result in a value
     template<class Component>
     struct IsViewable {
-      static_assert(sizeof(Component) == -1, "Should have been speccialized below");
+      static_assert(sizeof(Component) == -1, "Should have been specialized below");
     };
 
     template<class T>
@@ -260,7 +260,7 @@ namespace ecx {
       It& operator=(const It&) = default;
 
       It& operator++() {
-        if(std::optional<EntityT> entity = _findNextEntity(_findSmallestIterator())) {
+        if(std::optional<EntityT> entity = _findNextEntity(_findSmallestIterator(), false)) {
           _setEntity(*entity);
         }
         else {
