@@ -20,6 +20,8 @@ namespace ecx {
     std::vector<typeId_t<SystemInfo>> mFactoryTypes;
     //If this can create or destroy entities (EntityFactory<>)
     bool mUsesEntityFactory = false;
+    //Name of the system
+    std::string mName;
   };
 
   //List of Views, Factories, and entity factory. Values must be specified here for them to be accessible in get
@@ -44,10 +46,19 @@ namespace ecx {
     static SystemInfo buildInfo() {
       SystemInfo result;
       (typename InfoBuilder<Accessors>::build(result), ...);
+      _removeDuplicates(result.mExistenceTypes);
+      _removeDuplicates(result.mFactoryTypes);
+      _removeDuplicates(result.mReadTypes);
+      _removeDuplicates(result.mWriteTypes);
       return result;
     }
 
   private:
+    static void _removeDuplicates(std::vector<typeId_t<SystemInfo>>& info) {
+      std::sort(info.begin(), info.end());
+      info.erase(std::unique(info.begin(), info.end()), info.end());
+    }
+
     //Specialization to deduce accessor types
     template<class T>
     struct InfoBuilder {
@@ -147,7 +158,7 @@ namespace ecx {
       _tick(context);
     }
 
-    SystemInfo getInfo() const final {
+    SystemInfo getInfo() const override {
       return typename Context::buildInfo();
     }
 
@@ -156,23 +167,31 @@ namespace ecx {
 
   //Create a system from a function that takes the desired context: [](Context<uint32_t, View<Read<int>>, EntityFactory>& context) { ... }
   template<class Fn>
-  auto makeSystem(Fn fn) {
+  auto makeSystem(std::string name, Fn fn) {
     //The function's first argument should be the context type. Member functions not supported
     using ContextType = std::decay_t<typename FunctionTraits<Fn>::argument<0>::type>;
     using EntityT = typename ContextType::EntityType;
 
     struct FnSystem : public System<ContextType, EntityT> {
-      FnSystem(Fn fn)
-        : mFn(std::move(fn)) {
+      FnSystem(Fn fn, std::string name)
+        : mFn(std::move(fn))
+        , mName(std::move(name)) {
       }
 
       void _tick(ContextType& context) const override {
         mFn(context);
       }
 
+      SystemInfo getInfo() const final {
+        SystemInfo info = System<ContextType, EntityT>::getInfo();
+        info.mName = mName;
+        return info;
+      }
+
       Fn mFn;
+      std::string mName;
     };
 
-    return std::make_unique<FnSystem>(fn);
+    return std::make_unique<FnSystem>(fn, std::move(name));
   }
 }

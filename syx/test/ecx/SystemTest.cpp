@@ -61,6 +61,18 @@ namespace ecx {
       Assert::IsFalse(info.mUsesEntityFactory);
     }
 
+    TEST_METHOD(SystemContext_BuildInfoWithDuplicates_NoDuplicates) {
+      TestEntityRegistry registry;
+      TestSystemContext<TestView<Read<int>, Write<int>, Include<int>, OptionalRead<int>, OptionalWrite<int>, Exclude<int>>, TestEntityModifier<int>> context(registry);
+
+      const SystemInfo info = context.buildInfo();
+
+      assertListsMatchOrderless(info.mExistenceTypes, { typeId<int, SystemInfo>() });
+      assertListsMatchOrderless(info.mReadTypes, { typeId<int, SystemInfo>() });
+      assertListsMatchOrderless(info.mWriteTypes, { typeId<int, SystemInfo>() });
+      assertListsMatchOrderless(info.mFactoryTypes, { typeId<int, SystemInfo>() });
+    }
+
     TEST_METHOD(SystemContext_BuildInfoExclude_InExistenceTypes) {
       TestEntityRegistry registry;
       TestSystemContext<TestView<Read<int>, Exclude<short>>> context(registry);
@@ -170,7 +182,7 @@ namespace ecx {
     }
 
     TEST_METHOD(System_MakeSystem_BuildsSystemWithInfo) {
-      auto system = makeSystem([](TestSystemContext<TestView<Read<int>>>&) {
+      auto system = makeSystem("", [](TestSystemContext<TestView<Read<int>>>&) {
       });
 
       const SystemInfo info = system->getInfo();
@@ -202,7 +214,7 @@ namespace ecx {
       TestEntityRegistry registry;
       auto entity = registry.createEntity();
       registry.addComponent<int>(entity, 11);
-      auto system = makeSystem([](TestSystemContext<TestView<Write<int>>>& context) {
+      auto system = makeSystem("test", [](TestSystemContext<TestView<Write<int>>>& context) {
         for(auto entity : context.get<TestView<Write<int>>>()) {
           entity.get<int>()++;
         }
@@ -211,6 +223,14 @@ namespace ecx {
       system->tick(registry);
 
       Assert::AreEqual(12, registry.getComponent<int>(entity));
+    }
+
+    TEST_METHOD(System_MakeSystem_HasName) {
+      auto system = makeSystem("test", [](TestSystemContext<TestEntityFactory>&) {});
+
+      const SystemInfo& info = system->getInfo();
+
+      Assert::AreEqual(std::string("test"), info.mName);
     }
   };
 }
