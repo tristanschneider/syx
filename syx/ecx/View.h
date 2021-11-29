@@ -238,9 +238,6 @@ namespace ecx {
 
     class It {
     public:
-      template<class...>
-      struct Testa {};
-
       using value_type = typename ViewTraits::template ApplyAllowedTypes<ViewedEntityT>::type;
       using difference_type = std::ptrdiff_t;
       using pointer = value_type*;

@@ -159,6 +159,10 @@ namespace ecx {
       return _getPool<ComponentT>().mComponents->size();
     }
 
+    size_t size() {
+      return mEntities.size();
+    }
+
   private:
     struct ComponentPool {
       std::unique_ptr<TypeErasedContainer<std::vector>> mComponents;

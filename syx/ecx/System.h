@@ -1,5 +1,7 @@
 #pragma once
 
+#include "EntityFactory.h"
+#include "EntityModifier.h"
 #include "EntityRegistry.h"
 #include "FunctionTraits.h"
 #include "View.h"
@@ -14,9 +16,9 @@ namespace ecx {
     std::vector<typeId_t<SystemInfo>> mReadTypes;
     //Components that are written to (Write<>)
     std::vector<typeId_t<SystemInfo>> mWriteTypes;
-    //Components that are created or destroyed (TODO)
+    //Components that are created or destroyed (EntityModifier<>)
     std::vector<typeId_t<SystemInfo>> mFactoryTypes;
-    //If this can create or destroy entities (TODO)
+    //If this can create or destroy entities (EntityFactory<>)
     bool mUsesEntityFactory = false;
   };
 
@@ -54,6 +56,27 @@ namespace ecx {
       }
     };
 
+    //EntityModifier deduction
+    template<class... Components>
+    struct InfoBuilder<EntityModifier<EntityT, Components...>> {
+      static void build(SystemInfo& info) {
+        auto toAdd = { typeId<Components, SystemInfo>()... };
+        info.mExistenceTypes.insert(info.mExistenceTypes.end(), toAdd);
+        info.mReadTypes.insert(info.mReadTypes.end(), toAdd);
+        info.mWriteTypes.insert(info.mWriteTypes.end(), toAdd);
+        info.mFactoryTypes.insert(info.mFactoryTypes.end(), toAdd);
+      }
+    };
+
+    //EntityFactory deduction
+    template<>
+    struct InfoBuilder<EntityFactory<EntityT>> {
+      static void build(SystemInfo& info) {
+        info.mUsesEntityFactory = true;
+      }
+    };
+
+    //View deduction
     template<template<class...> class ViewT, class... ViewArgs>
     struct InfoBuilder<ViewT<EntityT, ViewArgs...>> {
       template<class T>
@@ -106,6 +129,8 @@ namespace ecx {
     EntityRegistry<EntityT>* mRegistry = nullptr;
   };
 
+  //Base system interface intended for storing registered systems.
+  //Implementations are expected to go through the System below, not inhert directly from this
   template<class EntityT>
   struct ISystem {
     virtual ~ISystem() = default;
@@ -129,7 +154,7 @@ namespace ecx {
     virtual void _tick(Context& context) const = 0;
   };
 
-  //Create a system from a function that takes the desired context
+  //Create a system from a function that takes the desired context: [](Context<uint32_t, View<Read<int>>, EntityFactory>& context) { ... }
   template<class Fn>
   auto makeSystem(Fn fn) {
     //The function's first argument should be the context type. Member functions not supported

@@ -1,6 +1,8 @@
 #include "Precompile.h"
 #include "CppUnitTest.h"
 
+#include "EntityFactory.h"
+#include "EntityModifier.h"
 #include "System.h"
 #include "View.h"
 
@@ -14,6 +16,9 @@ namespace ecx {
     using TestSystemContext = SystemContext<TestEntity, Args...>;
     template<class... Args>
     using TestView = View<TestEntity, Args...>;
+    using TestEntityFactory = EntityFactory<TestEntity>;
+    template<class... Components>
+    using TestEntityModifier = EntityModifier<TestEntity, Components...>;
 
     TEST_METHOD(SystemContext_GetView_ViewWorks) {
       TestEntityRegistry registry;
@@ -119,6 +124,49 @@ namespace ecx {
       assertListsMatchOrderless(info.mWriteTypes, { typeId<int, SystemInfo>(), typeId<short, SystemInfo>() });
       Assert::IsTrue(info.mFactoryTypes.empty());
       Assert::IsFalse(info.mUsesEntityFactory);
+    }
+
+    TEST_METHOD(SystemContext_BuildInfoEntityFactory_UsesEntityFactory) {
+      TestEntityRegistry registry;
+      TestSystemContext<TestEntityFactory> context(registry);
+
+      const SystemInfo info = context.buildInfo();
+
+      Assert::IsTrue(info.mUsesEntityFactory);
+    }
+
+    TEST_METHOD(SystemContext_BuildInfoEntityModifier_InfoModifyReadWriteExistence) {
+      TestEntityRegistry registry;
+      TestSystemContext<TestEntityModifier<int>> context(registry);
+
+      const SystemInfo info = context.buildInfo();
+
+      assertListsMatchOrderless(info.mExistenceTypes, { typeId<int, SystemInfo>() });
+      assertListsMatchOrderless(info.mReadTypes, { typeId<int, SystemInfo>() });
+      assertListsMatchOrderless(info.mWriteTypes, { typeId<int, SystemInfo>() });
+      assertListsMatchOrderless(info.mFactoryTypes, { typeId<int, SystemInfo>() });
+      Assert::IsFalse(info.mUsesEntityFactory);
+    }
+
+    TEST_METHOD(SystemContext_UseEntityModifier_Works) {
+      TestEntityRegistry registry;
+      TestSystemContext<TestEntityModifier<int>> context(registry);
+      auto entity = registry.createEntity();
+
+      context.get<TestEntityModifier<int>>().addComponent<int>(entity, 6);
+
+      const int* added = registry.tryGetComponent<int>(entity);
+      Assert::IsNotNull(added);
+      Assert::AreEqual(6, *added);
+    }
+
+    TEST_METHOD(SystemContext_GetEntityFactory_FactoryWorks) {
+      TestEntityRegistry registry;
+      TestSystemContext<TestEntityFactory> context(registry);
+
+      context.get<TestEntityFactory>().createEntity();
+
+      Assert::AreEqual(size_t(1), registry.size());
     }
 
     TEST_METHOD(System_MakeSystem_BuildsSystemWithInfo) {
