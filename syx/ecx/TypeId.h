@@ -24,6 +24,10 @@ namespace ecx {
       return mId;
     }
 
+    size_t operator()() const {
+      return std::hash<size_t>()(mId);
+    }
+
     bool operator<(const typeId_t<Category>& rhs) const {
       return mId < rhs.mId;
     }
@@ -48,3 +52,10 @@ namespace ecx {
     return typeId_t<Category>::get<T>();
   }
 }
+
+template<class T>
+struct std::hash<ecx::typeId_t<T>> {
+  size_t operator()(const ecx::typeId_t<T>& id) const {
+    return id();
+  }
+};
