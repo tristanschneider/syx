@@ -178,7 +178,7 @@ namespace ecx {
 
       context.get<TestEntityFactory>().createEntity();
 
-      Assert::AreEqual(size_t(1), registry.size());
+      Assert::AreEqual(size_t(2), registry.size(), L"Created and singleton entities should exist");
     }
 
     TEST_METHOD(System_MakeSystem_BuildsSystemWithInfo) {

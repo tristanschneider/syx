@@ -5,6 +5,8 @@
 #include "TypeId.h"
 
 namespace ecx {
+  //A component on the singleton entity so that it can be viewed
+  struct SingletonComponent {};
   //Registry using EntityT for entity id storage, expected to be some integral type
   template<class EntityT>
   class EntityRegistry {
@@ -71,6 +73,13 @@ namespace ecx {
     //There are probably still ways to bypass this and get weird results but this should cover most cases
     template<class T>
     using DecayType = std::remove_pointer_t<std::decay_t<T>>;
+
+    EntityRegistry() {
+      addComponent<SingletonComponent>(mSingletonEntity);
+    }
+
+    EntityRegistry(EntityRegistry&&) = default;
+    EntityRegistry& operator=(EntityRegistry&&) = default;
 
     EntityT createEntity() {
       //TODO: free list would be more efficient, this will never re-use old pages
@@ -159,8 +168,12 @@ namespace ecx {
       return _getPool<ComponentT>().mComponents->size();
     }
 
-    size_t size() {
+    size_t size() const {
       return mEntities.size();
+    }
+
+    EntityT getSingleton() const {
+      return mSingletonEntity;
     }
 
   private:
@@ -202,5 +215,6 @@ namespace ecx {
     SparseSet<EntityT> mEntities;
     std::vector<ComponentPool> mComponentPools;
     EntityT mIdGen = 0;
+    EntityT mSingletonEntity = createEntity();
   };
 }

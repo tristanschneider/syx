@@ -173,7 +173,7 @@ namespace ecx {
       Assert::IsTrue(it == registry.end<int>());
     }
 
-    TEST_METHOD(EntityRegistry_FIndWithComponent_Found) {
+    TEST_METHOD(EntityRegistry_FindWithComponent_Found) {
       TestEntityRegistry registry;
       auto entity = registry.createEntity();
       registry.addComponent<int>(entity, 7);
@@ -183,6 +183,23 @@ namespace ecx {
       Assert::IsFalse(it == registry.end<int>());
       Assert::AreEqual(entity, it.entity());
       Assert::AreEqual(7, it.component());
+    }
+
+    TEST_METHOD(EntityRegistry_SingletonEntity_HasSingletonComponent) {
+      TestEntityRegistry registry;
+
+      Assert::IsTrue(registry.find<SingletonComponent>(registry.getSingleton()) != registry.end<SingletonComponent>());
+    }
+
+    TEST_METHOD(EntityRegistry_SingletonAddComponent_HasComponent) {
+      TestEntityRegistry registry;
+      auto entity = registry.getSingleton();
+      registry.addComponent<int>(entity, 10);
+
+      auto it = registry.find<int>(entity);
+
+      Assert::IsFalse(it == registry.end<int>());
+      Assert::AreEqual(it.component(), 10);
     }
   };
 }
