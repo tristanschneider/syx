@@ -24,15 +24,6 @@ namespace ecx {
       return makeSystem("test", [](SystemContext<TestEntity, ContextArgs...>&) {});
     };
 
-    struct GraphBuilder {
-      GraphBuilder addEdge(GraphBuilder& rhs) {
-        mJob->mDependents.push_back(rhs.mJob);
-        rhs.mJob->mDependencies++;
-      }
-
-      std::shared_ptr<JobInfo<TestEntity>> mJob;
-    };
-
     auto buildGraph(std::initializer_list<std::shared_ptr<TestSystem>> systems) {
       SystemList s(systems);
       return JobGraph::build(s);
