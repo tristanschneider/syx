@@ -1,6 +1,17 @@
 #pragma once
 
 namespace ecx {
+  template<class T>
+  struct typeIdCategoryTraits {
+    inline static size_t idGen = 0;
+
+    template<class T>
+    static constexpr size_t getId() {
+      static size_t result = idGen++;
+      return result;
+    }
+  };
+
   template<class Category>
   struct typeId_t {
     typeId_t() = default;
@@ -34,7 +45,7 @@ namespace ecx {
 
     template<class T>
     static constexpr typeId_t<Category> get() {
-      static typeId_t<Category> t(idgen++);
+      static typeId_t<Category> t(typename typeIdCategoryTraits<Category>::getId<T>());
       return t;
     }
 

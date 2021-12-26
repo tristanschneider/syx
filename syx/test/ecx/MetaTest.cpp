@@ -18,7 +18,7 @@ namespace ecx {
     }
 
     struct Tracker {
-      Tracker(int* counter)
+      Tracker(int* counter = nullptr)
         : mCounter(counter) {
       }
       ~Tracker() {

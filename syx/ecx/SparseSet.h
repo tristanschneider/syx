@@ -95,6 +95,17 @@ namespace ecx {
         return result;
       }
 
+      Iterator& operator--() {
+        --mIndex;
+        return *this;
+      }
+
+      Iterator operator--(int) {
+        auto result = *this;
+        --(*this);
+        return result;
+      }
+
       bool operator==(const Iterator& other) const {
         return address() == other.address();
       }
@@ -156,6 +167,10 @@ namespace ecx {
     Iterator find(T value) const {
       const T* found = mSparse.tryGet(static_cast<size_t>(value));
       return found ? Iterator{ mPacked.data(), T(*found) } : end();
+    }
+
+    Iterator reverseLookup(size_t index) const {
+      return index < mPacked.size() ? Iterator{ mPacked.data(), T(index) } : end();
     }
 
     void clear() {

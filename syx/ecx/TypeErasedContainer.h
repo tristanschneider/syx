@@ -13,6 +13,8 @@ struct TypeErasedContainer {
     virtual void swap(void* data, size_t indexA, size_t indexB) const = 0;
     virtual void pop_back(void* data) const = 0;
     virtual size_t size(const void* data) const = 0;
+    virtual void moveIntoFromIndex(size_t index, void* from, void* to) const = 0;
+    virtual void push_back(void* data) const = 0;
   };
 
   template<class T>
@@ -44,6 +46,14 @@ struct TypeErasedContainer {
 
     virtual size_t size(const void* data) const override {
       return _cast(data).size();
+    }
+
+    virtual void moveIntoFromIndex(size_t index, void* from, void* to) const override {
+      _cast(to).push_back(std::move(_cast(from)[index]));
+    }
+
+    virtual void push_back(void* data) const override {
+      _cast(data).push_back(T{});
     }
 
     ContainerT<T>& _cast(void* data) const {
@@ -118,6 +128,21 @@ struct TypeErasedContainer {
 
   size_t size() const {
     return mTraits->size(mData);
+  }
+
+  TypeErasedContainer createEmptyCopy() const {
+    return TypeErasedContainer(*mTraits);
+  }
+
+  //Move an element in this at `myIndex` into the back of `into`
+  void moveIntoFromIndex(size_t myIndex, TypeErasedContainer& into) {
+    assert(mTraits == into.mTraits && "Should only be used when types match");
+    mTraits->moveIntoFromIndex(myIndex, mData, into.mData);
+  }
+
+  //Push a default constructed value
+  void push_back() {
+    mTraits->push_back(mData);
   }
 
 private:
