@@ -5,6 +5,7 @@
 #include <type_traits>
 
 namespace ecx {
+  struct LinearEntity;
   //Type tags to specify desired access in a view
 
   //Component must be present but it will not be accessed
@@ -232,6 +233,8 @@ namespace ecx {
   template<class EntityT, class... Args>
   class View {
   public:
+    static_assert(!std::is_same_v<LinearEntity, EntityT>, "LinearEntity uses a specialized view, check your include order for LinearView.h");
+
     using ViewTraits = typename ViewDeducer::ViewTraits<Args...>;
     template<class... Args>
     using ViewedEntityT = ViewedEntity<EntityT, Args...>;

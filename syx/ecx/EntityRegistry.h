@@ -5,12 +5,15 @@
 #include "TypeId.h"
 
 namespace ecx {
+  struct LinearEntity;
   //A component on the singleton entity so that it can be viewed
   struct SingletonComponent {};
   //Registry using EntityT for entity id storage, expected to be some integral type
   template<class EntityT>
   class EntityRegistry {
   public:
+    static_assert(!std::is_same_v<LinearEntity, EntityT>, "LinearEntity uses a specialized registry, check your include order for LinearEntityRegistry.h");
+
     template<class T>
     class It {
     public:

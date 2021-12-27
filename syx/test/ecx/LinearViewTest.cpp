@@ -1,9 +1,8 @@
 #include "Precompile.h"
 #include "CppUnitTest.h"
 
-#include "LinearEntityRegistry.h"
-
 #include "LinearView.h"
+#include "LinearEntityRegistry.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -257,7 +256,7 @@ namespace ecx {
       TestEntityRegistry registry;
       auto view = TestView<Read<int>>(registry);
 
-      Assert::IsTrue(view.begin() == view.end());
+      Assert::IsTrue(view.chunksBegin() == view.chunksEnd());
     }
 
     TEST_METHOD(ChunkView_RecentlyEmptyView_BeginIsEnd) {
@@ -267,7 +266,7 @@ namespace ecx {
       registry.destroyEntity(e);
       auto view = TestView<Read<int>>(registry);
 
-      Assert::IsTrue(view.begin() == view.end());
+      Assert::IsTrue(view.chunksBegin() == view.chunksEnd());
     }
   };
 }

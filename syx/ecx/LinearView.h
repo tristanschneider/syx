@@ -260,7 +260,10 @@ namespace ecx {
     }
 
     ChunkIt chunksBegin() {
-      return mChunks.begin();
+      //Ensure begin is pointing at a valid entity by skipping empty chunks
+      return ChunkIt(std::find_if(mChunks.begin(), mChunks.end(), [](const std::shared_ptr<EntityChunk>& chunk) {
+        return chunk->size() != 0;
+      }));
     }
 
     ChunkIt chunksEnd() {
