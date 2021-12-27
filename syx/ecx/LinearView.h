@@ -234,12 +234,24 @@ namespace ecx {
       std::vector<typeId_t<LinearEntity>> mOptionals;
     };
 
-    View(EntityRegistry<LinearEntity>& registry) {
+    static View recycleView(View&& view, EntityRegistry<LinearEntity>& registry) {
+      //If cached view is still valid, re-use it
+      if(view.mCachedChunkCount == registry.chunkCount()) {
+        return std::move(view);
+      }
+      //Cached view is invalid, compute a new one
+      return View(registry);
+    }
+
+    View(EntityRegistry<LinearEntity>& registry)
+      : mCachedChunkCount(registry.chunkCount()) {
       DependencyDeduce<Args...> dependencies;
       registry.getAllChunksSatisfyingConditions(mChunks, dependencies.mIncludes, dependencies.mExcludes, dependencies.mOptionals);
     }
     View(const View&) = default;
+    View(View&&) = default;
     View& operator=(const View&) = default;
+    View& operator=(View&&) = default;
 
     It begin() {
       //Ensure begin is pointing at a valid entity by skipping empty chunks
@@ -272,5 +284,7 @@ namespace ecx {
 
   private:
     std::vector<std::shared_ptr<EntityChunk>> mChunks;
+    //Count of chunks in the registry the last time the view was computed. Used to invalidate cached views
+    size_t mCachedChunkCount = 0;
   };
 }

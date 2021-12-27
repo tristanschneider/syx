@@ -239,6 +239,11 @@ namespace ecx {
     template<class... Args>
     using ViewedEntityT = ViewedEntity<EntityT, Args...>;
 
+    //Default view cannot be recycled, always create a new one
+    static View recycleView(View&&, EntityRegistry<EntityT>& registry) {
+      return View(registry);
+    }
+
     class It {
     public:
       using value_type = typename ViewTraits::template ApplyAllowedTypes<ViewedEntityT>::type;

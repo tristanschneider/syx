@@ -20,6 +20,17 @@ namespace ecx {
     template<class... Components>
     using TestEntityModifier = EntityModifier<TestEntity, Components...>;
 
+    using IntViewContext = SystemContext<TestEntity, TestView<Read<int>>>;
+    static_assert(std::is_same_v<std::tuple<TestView<Read<int>>>, IntViewContext::AllViewsTuple::TupleT>);
+    static_assert(IntViewContext::AllViewsTuple::HasType<TestView<Read<int>>>::value);
+    static_assert(!IntViewContext::AllViewsTuple::HasType<TestView<Read<short>>>::value);
+
+    using MultiViewContext = SystemContext<TestEntity, TestView<Read<int>>, TestView<Write<short>>, TestEntityFactory>;
+    static_assert(std::is_same_v<std::tuple<TestView<Read<int>>, TestView<Write<short>>>, MultiViewContext::AllViewsTuple::TupleT>);
+    static_assert(MultiViewContext::AllViewsTuple::HasType<TestView<Read<int>>>::value);
+    static_assert(MultiViewContext::AllViewsTuple::HasType<TestView<Write<short>>>::value);
+    static_assert(!MultiViewContext::AllViewsTuple::HasType<TestView<Write<std::string>>>::value);
+
     TEST_METHOD(SystemContext_GetView_ViewWorks) {
       TestEntityRegistry registry;
       auto entity = registry.createEntity();

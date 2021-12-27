@@ -30,17 +30,62 @@ namespace ecx {
   public:
     using EntityType = EntityT;
 
+    //Deduction for TupleT which is a tuple of all the views in `Accessors`
+    struct AllViewsTuple {
+      template<class T>
+      struct IsView : public std::false_type {};
+      template<class... Args>
+      struct IsView<View<Args...>> : public std::true_type {};
+
+      template<class... Args>
+      struct TypeList {};
+      template<class... A>
+      static TypeList<A...> combine(TypeList<A...>);
+      template<class... A, class... B>
+      static TypeList<A..., B...> combine(TypeList<A...>, TypeList<B...>);
+
+      template<class... A, class... B, class... C>
+      static decltype(combine(TypeList<A..., B...>(), std::declval<C>()...)) combine(TypeList<A...>, TypeList<B...>, C...);
+
+      template<class T, class... A>
+      static std::disjunction<std::is_same<T, A>...> typeListContains(TypeList<A...>);
+
+      template<template<class...> class To, class... Args>
+      static To<Args...> changeType(TypeList<Args...>);
+
+      template<class... Args>
+      using ViewTypeListT = decltype(combine(std::declval<std::conditional_t<IsView<Args>::value, TypeList<Args>, TypeList<>>>()...));
+
+      using ViewTypeList = ViewTypeListT<Accessors...>;
+
+      using TupleT = decltype(changeType<std::tuple>(std::declval<ViewTypeList>()));
+
+      template<class T>
+      using HasType = decltype(typeListContains<T>(ViewTypeList()));
+
+      template<class... TupleArgs>
+      static TupleT _create(EntityRegistry<EntityT>& registry, TypeList<TupleArgs...>) {
+        return TupleT{ TupleArgs(registry)... };
+      }
+
+      static TupleT create(EntityRegistry<EntityT>& registry) {
+        return _create(registry, ViewTypeList{});
+      }
+    };
+    using ViewTuple = typename AllViewsTuple::TupleT;
+
     SystemContext(EntityRegistry<EntityT>& registry)
-      : mRegistry(&registry) {
+      : mRegistry(&registry)
+      , mViewStore(AllViewsTuple::create(registry)) {
     }
     SystemContext(const SystemContext&) = default;
     SystemContext& operator=(const SystemContext&) = default;
 
     //Get values declared by the context
     template<class T>
-    T get() {
+    std::conditional_t<AllViewsTuple::HasType<T>::value, T&, T> get() {
       static_assert(std::disjunction_v<std::is_same<T, Accessors>...>, "Type must be declared by the context to be accessible");
-      return T(*mRegistry);
+      return DeduceGet<T>::get(*mRegistry, mViewStore);
     }
 
     static SystemInfo buildInfo() {
@@ -54,6 +99,24 @@ namespace ecx {
     }
 
   private:
+    template<class T, class dummy = void>
+    struct DeduceGet {
+      static T get(EntityRegistry<EntityT>& registry, ViewTuple&) {
+        return T(registry);
+      }
+    };
+
+    template<class... Args>
+    struct DeduceGet<View<Args...>, std::enable_if_t<AllViewsTuple::HasType<View<Args...>>::value>> {
+      static View<Args...>& get(EntityRegistry<EntityT>& registry, ViewTuple& storage) {
+        //Get the old stored one
+        auto& oldView = std::get<View<Args...>>(storage);
+        //Try to recycle the previous view
+        oldView = View<Args...>::recycleView(std::move(oldView), registry);
+        return oldView;
+      }
+    };
+
     static void _removeDuplicates(std::vector<typeId_t<SystemInfo>>& info) {
       std::sort(info.begin(), info.end());
       info.erase(std::unique(info.begin(), info.end()), info.end());
@@ -138,6 +201,7 @@ namespace ecx {
     };
 
     EntityRegistry<EntityT>* mRegistry = nullptr;
+    ViewTuple mViewStore;
   };
 
   //Base system interface intended for storing registered systems.
@@ -154,8 +218,11 @@ namespace ecx {
   template<class Context, class EntityT>
   struct System : public ISystem<EntityT> {
     void tick(EntityRegistry<EntityT>& registry) const final {
-      Context context(registry);
-      _tick(context);
+      if(!mCachedContext || &registry != mLastRegistry) {
+        mLastRegistry = &registry;
+        mCachedContext = Context(registry);
+      }
+      _tick(*mCachedContext);
     }
 
     SystemInfo getInfo() const override {
@@ -163,6 +230,11 @@ namespace ecx {
     }
 
     virtual void _tick(Context& context) const = 0;
+
+  private:
+    //Cached context allows re-use of computed views
+    mutable std::optional<Context> mCachedContext;
+    mutable void* mLastRegistry = nullptr;
   };
 
   //Create a system from a function that takes the desired context: [](Context<uint32_t, View<Read<int>>, EntityFactory>& context) { ... }

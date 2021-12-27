@@ -182,6 +182,33 @@ namespace ecx {
       Assert::AreEqual(size_t(2), registry.size(), L"Created and singleton entities should exist");
     }
 
+    TEST_METHOD(SystemContext_ReUseView_SameValue) {
+      TestEntityRegistry registry;
+      TestSystemContext<TestView<Read<int>>> context(registry);
+      auto e = registry.createEntity();
+      registry.addComponent<int>(e, 1);
+      auto view = context.get<TestView<Read<int>>>();
+      view = context.get<TestView<Read<int>>>();
+
+      Assert::IsTrue((*view.begin()).entity() == e);
+    }
+
+    TEST_METHOD(SystemContext_InvalidatedReUseView_ContainsNewValues) {
+      TestEntityRegistry registry;
+      TestSystemContext<TestView<Read<int>>> context(registry);
+      auto e = registry.createEntity();
+      registry.addComponent<int>(e, 1);
+      auto& view = context.get<TestView<Read<int>>>();
+
+      //Invalidate view
+      registry.addComponent<short>(e, short(2));
+
+      auto& newView = context.get<TestView<Read<int>>>();
+
+      Assert::IsTrue(&view == &newView);
+      Assert::IsTrue((*view.begin()).entity().mData.mParts.mEntityId == e.mData.mParts.mEntityId);
+    }
+
     TEST_METHOD(System_MakeSystem_BuildsSystemWithInfo) {
       auto system = makeSystem("", [](TestSystemContext<TestView<Read<int>>>&) {
       });

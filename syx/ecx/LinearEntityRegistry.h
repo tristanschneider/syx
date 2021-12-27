@@ -49,7 +49,8 @@ namespace ecx {
     }
 
     bool operator==(const LinearEntity& rhs) const {
-      return mData.mRawId == rhs.mData.mRawId;
+      //Entity id is the actual identity, chunk id helps in look ups but doesn't need to be compared
+      return mData.mParts.mEntityId == rhs.mData.mParts.mEntityId;
     }
 
     bool operator!=(const LinearEntity& rhs) const {
@@ -549,6 +550,10 @@ namespace ecx {
       return std::accumulate(chunks.begin(), chunks.end(), size_t(0), [](size_t cur, const std::shared_ptr<EntityChunk>& chunk) {
         return cur + chunk->size();
       });
+    }
+
+    size_t chunkCount() const {
+      return mChunkTypeToChunks.size();
     }
 
   private:
