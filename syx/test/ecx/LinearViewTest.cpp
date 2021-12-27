@@ -1,17 +1,18 @@
 #include "Precompile.h"
 #include "CppUnitTest.h"
 
-#include "EntityRegistry.h"
+#include "LinearEntityRegistry.h"
 
-#include "View.h"
+#include "LinearView.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 namespace ecx {
-  TEST_CLASS(ViewTest) {
-    using TestEntityRegistry = EntityRegistry<uint32_t>;
+  TEST_CLASS(LinearViewTest) {
+    using TestEntity = LinearEntity;
+    using TestEntityRegistry = EntityRegistry<LinearEntity>;
     template<class... Args>
-    using TestView = View<uint32_t, Args...>;
+    using TestView = View<LinearEntity, Args...>;
 
     template<class... Args>
     struct Test;
@@ -64,7 +65,7 @@ namespace ecx {
 
       auto it = view.begin();
       Assert::IsTrue(it != view.end());
-      Assert::AreEqual(entity, (*it).entity());
+      Assert::AreEqual(entity.mData.mParts.mEntityId, (*it).entity().mData.mParts.mEntityId);
       Assert::AreEqual(10, (*it).get<const int>());
     }
 
@@ -76,7 +77,7 @@ namespace ecx {
 
       auto it = view.begin();
       Assert::IsTrue(it != view.end());
-      Assert::AreEqual(entity, (*it).entity());
+      Assert::AreEqual(entity.mData.mParts.mEntityId, (*it).entity().mData.mParts.mEntityId);
       Assert::AreEqual(10, (*it).get<int>());
     }
 
@@ -104,7 +105,7 @@ namespace ecx {
 
       auto it = view.begin();
       Assert::IsTrue(it != view.end());
-      Assert::AreEqual(entity, (*it).entity());
+      Assert::AreEqual(entity.mData.mParts.mEntityId, (*it).entity().mData.mParts.mEntityId);
       Assert::AreEqual(10, (*it).get<const int>());
     }
 
@@ -116,7 +117,7 @@ namespace ecx {
 
       auto it = view.begin();
       Assert::IsTrue(it != view.end());
-      Assert::AreEqual(entity, (*it).entity());
+      Assert::AreEqual(entity.mData.mParts.mEntityId, (*it).entity().mData.mParts.mEntityId);
       Assert::AreEqual(10, (*it).get<const int>());
     }
 
@@ -129,7 +130,7 @@ namespace ecx {
 
       auto it = view.begin();
       Assert::IsTrue(it != view.end());
-      Assert::AreEqual(entity, (*it).entity());
+      Assert::AreEqual(entity.mData.mParts.mEntityId, (*it).entity().mData.mParts.mEntityId);
       Assert::AreEqual(10, (*it).get<const int>());
       Assert::AreEqual(short(5), (*it).get<const short>());
     }
@@ -143,7 +144,7 @@ namespace ecx {
 
       auto it = view.begin();
       Assert::IsTrue(it != view.end());
-      Assert::AreEqual(entity, (*it).entity());
+      Assert::AreEqual(entity.mData.mParts.mEntityId, (*it).entity().mData.mParts.mEntityId);
       Assert::AreEqual(10, (*it).get<const int>());
       Assert::AreEqual(short(5), (*it).get<short>());
     }
@@ -166,7 +167,7 @@ namespace ecx {
 
       auto it = view.begin();
       Assert::IsTrue(it != view.end());
-      Assert::AreEqual(entity, (*it).entity());
+      Assert::AreEqual(entity.mData.mParts.mEntityId, (*it).entity().mData.mParts.mEntityId);
       Assert::AreEqual(10, (*it).get<const int>());
     }
 
@@ -188,7 +189,7 @@ namespace ecx {
 
       auto it = view.begin();
       Assert::IsTrue(it != view.end());
-      Assert::AreEqual(entity, (*it).entity());
+      Assert::AreEqual(entity.mData.mParts.mEntityId, (*it).entity().mData.mParts.mEntityId);
       Assert::AreEqual(10, (*it).get<const int>());
     }
 
@@ -207,6 +208,66 @@ namespace ecx {
       }
 
       Assert::AreEqual(2, found);
+    }
+
+    TEST_METHOD(ChunkView_EntitiesAcrossChunks_AllFound) {
+      TestEntityRegistry registry;
+      auto a = registry.createEntity();
+      registry.addComponent<int>(a, 1);
+      auto b = registry.createEntity();
+      registry.addComponent<int>(b, 2);
+      registry.addComponent<short>(b, short(1));
+      auto view = TestView<Read<int>>(registry);
+
+      auto chunkIt = view.chunksBegin();
+      const std::vector<int>* storageA = (*chunkIt).tryGet<const int>();
+      const std::vector<int>* storageB = (*++chunkIt).tryGet<const int>();
+
+      Assert::IsNotNull(storageA);
+      Assert::IsNotNull(storageB);
+      Assert::AreEqual(size_t(1), storageA->size());
+      Assert::AreEqual(size_t(1), storageB->size());
+      Assert::AreEqual(1, storageA->at(0));
+      Assert::AreEqual(2, storageB->at(0));
+    }
+
+    TEST_METHOD(ChunkView_MultipleInSameChunk_ContiguousValues) {
+      TestEntityRegistry registry;
+      std::vector<LinearEntity> entities;
+      for(int i = 0; i < 10; ++i) {
+        auto e = registry.createEntity();
+        registry.addComponent<int>(e, i);
+        entities.push_back(e);
+      }
+      auto view = TestView<Read<int>>(registry);
+      auto chunkIt = view.chunksBegin();
+
+      const std::vector<int>* storage = (*chunkIt).tryGet<const int>();
+      Assert::IsNotNull(storage);
+      Assert::AreEqual(size_t(10), storage->size());
+      for(int i = 0; i < 10; ++i) {
+        Assert::AreEqual(i, storage->at(i));
+        Assert::AreEqual(entities[i].mData.mParts.mEntityId, (*chunkIt).indexToEntity(size_t(i)).mData.mParts.mEntityId);
+        Assert::AreEqual(size_t(i), (*chunkIt).entityToIndex(entities[i]));
+        Assert::AreEqual(i, *(*chunkIt).tryGetComponent<const int>(entities[i]));
+      }
+    }
+
+    TEST_METHOD(ChunkView_EmptyView_BeginIsEnd) {
+      TestEntityRegistry registry;
+      auto view = TestView<Read<int>>(registry);
+
+      Assert::IsTrue(view.begin() == view.end());
+    }
+
+    TEST_METHOD(ChunkView_RecentlyEmptyView_BeginIsEnd) {
+      TestEntityRegistry registry;
+      auto e = registry.createEntity();
+      registry.addComponent<int>(e, 1);
+      registry.destroyEntity(e);
+      auto view = TestView<Read<int>>(registry);
+
+      Assert::IsTrue(view.begin() == view.end());
     }
   };
 }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "EntityRegistry.h"
+#include <numeric>
 #include <optional>
 #include <shared_mutex>
 
@@ -83,7 +84,7 @@ namespace ecx {
   class EntityChunk {
   public:
     template<class T>
-    std::vector<T>* tryGet() {
+    std::vector<std::decay_t<T>>* tryGet() {
       if(auto it = mComponents.find(typeId<std::decay_t<T>, LinearEntity>()); it != mComponents.end()) {
         return it->second.get<std::decay_t<T>>();
       }
@@ -95,7 +96,7 @@ namespace ecx {
     }
 
     size_t size() const {
-      return mComponents.empty() ? 0 : mComponents.begin()->second.size();
+      return mEntityMapping.size();
     }
 
     LinearEntity indexToEntity(size_t index) const {
@@ -275,6 +276,7 @@ namespace ecx {
     //Iterator for a single component type. Chunks should be iterated over directly for more complex queries
     //For simple single type queries this is fine, although it requires allocations to create
     //Partly only here for parity with basic EntityRegistry type
+    //TODO: remove allocations by evaluating chunks during iteration instead of upfront
     template<class T>
     class It {
     public:
@@ -527,6 +529,26 @@ namespace ecx {
     LinearEntity updateEntity(const LinearEntity& entity) {
       auto chunk = _tryGetChunkForEntity(entity);
       return chunk.second ? LinearEntity(entity.mData.mParts.mEntityId, chunk.first) : LinearEntity(0);
+    }
+
+    size_t size() {
+      std::shared_lock<std::shared_mutex> lock(mChunkMutex);
+      return std::accumulate(mChunkTypeToChunks.begin(), mChunkTypeToChunks.end(), size_t(0), [](size_t cur, const auto& pair) {
+        return cur + pair.second->size();
+      });
+    }
+
+    template<class ComponentT>
+    size_t size() {
+      std::vector<std::shared_ptr<EntityChunk>> chunks;
+      std::array<typeId_t<LinearEntity>, 0> empty;
+      std::array<typeId_t<LinearEntity>, 1> query{ typeId<std::decay_t<ComponentT>, LinearEntity>() };
+
+      getAllChunksSatisfyingConditions(chunks, query, empty, empty);
+
+      return std::accumulate(chunks.begin(), chunks.end(), size_t(0), [](size_t cur, const std::shared_ptr<EntityChunk>& chunk) {
+        return cur + chunk->size();
+      });
     }
 
   private:
