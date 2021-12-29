@@ -93,6 +93,7 @@ namespace ecx {
             updatedAnything = true;
           }
         }
+        updateTickCredits = false;
 
         //Execute the graph containing all systems that should run
         if(std::shared_ptr<JobInfo<EntityT>>& jobGraph = mJobConfigurations[jobConfiguration]) {

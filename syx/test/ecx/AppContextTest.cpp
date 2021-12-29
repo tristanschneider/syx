@@ -9,8 +9,11 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 namespace ecx {
   TEST_CLASS(AppContextTest) {
     inline static std::chrono::time_point<std::chrono::high_resolution_clock> currentTime;
+    inline static size_t timeIncrement = 0;
     static std::chrono::time_point<std::chrono::high_resolution_clock> mockGetTime() {
-      return currentTime;
+      auto result = currentTime;
+      currentTime += std::chrono::milliseconds(timeIncrement);
+      return result;
     }
 
     static void setTimeMS(size_t ms) {
@@ -147,6 +150,21 @@ namespace ecx {
       Assert::IsFalse(updated);
     }
 
+    TEST_METHOD(AppContextSinglePhase_TwoTicksWithIncrement_TickedTwice) {
+      RegistryWithPhaseTracker registry;
+      TestAppContext context(registry.mScheduler);
+      context.registerUpdatePhase(TestStage::A, buildSystems<PhaseTrackerSystem<TestStage::A>>(), 1000);
+      context.buildExecutionGraph();
+      setTimeMS(2);
+      timeIncrement = 1;
+
+      const bool updated = context.update(registry.mRegistry);
+
+      timeIncrement = 0;
+      registry.assertPhasesTicked({ TestStage::A, TestStage::A });
+      Assert::IsTrue(updated);
+    }
+
     TEST_METHOD(AppContextSinglePhase_HasTicks_Ticked) {
       RegistryWithPhaseTracker registry;
       TestAppContext context(registry.mScheduler);
@@ -158,6 +176,20 @@ namespace ecx {
 
       registry.assertPhasesTicked({ TestStage::A });
       Assert::IsTrue(updated);
+    }
+
+    TEST_METHOD(AppContextSinglePhase_HadTwoTicks_NotTickedAnymore) {
+      RegistryWithPhaseTracker registry;
+      TestAppContext context(registry.mScheduler);
+      context.registerUpdatePhase(TestStage::A, buildSystems<PhaseTrackerSystem<TestStage::A>>(), 1000);
+      context.buildExecutionGraph();
+      setTimeMS(2);
+      context.update(registry.mRegistry);
+
+      const bool updated = context.update(registry.mRegistry);
+
+      registry.assertPhasesTicked({ TestStage::A, TestStage::A });
+      Assert::IsFalse(updated);
     }
 
     TEST_METHOD(AppContextTwoPhases_BothHaveTicks_BothTicked) {
