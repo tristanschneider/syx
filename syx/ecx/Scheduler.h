@@ -44,10 +44,12 @@ namespace ecx {
   //SchedulerExecutor to enqueue immediate work for within that system, like parallel for
   //Due to this constrainted usage, no scoped handle tracking is exposed to reduce overhead
   //Containers are threadsafe queues, TaskContainer<std::function<void()>> JobContainer<std::shared_ptr<JobInfo<EntityT>>>
-  template<class EntityT, class TaskContainer, class JobContainer>
+  template<class EntityT, template<class> class QueueT>
   class Scheduler {
   public:
-    using SelfT = Scheduler<EntityT, TaskContainer, JobContainer>;
+    using SelfT = Scheduler<EntityT, QueueT>;
+    using TaskContainer = QueueT<std::function<void()>>;
+    using JobContainer = QueueT<std::shared_ptr<JobInfo<EntityT>>>;
 
     struct WorkerContext {
       EntityRegistry<EntityT>** mRegistry = nullptr;
@@ -60,10 +62,9 @@ namespace ecx {
       std::atomic_bool* mIsSyncing = nullptr;
     };
 
-    Scheduler(const SchedulerConfig& config, std::shared_ptr<JobInfo<EntityT>> jobGraph, std::unique_ptr<TaskContainer> taskContainer, std::unique_ptr<JobContainer> jobContainer)
-      : mJobGraph(std::move(jobGraph))
-      , mJobContainer(std::move(jobContainer))
-      , mTasks(std::move(taskContainer))
+    Scheduler(const SchedulerConfig& config)
+      : mJobContainer(std::make_unique<JobContainer>())
+      , mTasks(std::make_unique<TaskContainer>())
       , mConfig(config) {
 
       WorkerContext context(createContext());
@@ -93,14 +94,14 @@ namespace ecx {
 
     //Execute the job graph. This call returns after all jobs are complete, while this thread assists execution
     //Do not destroy the scheduler while this is running
-    void execute(EntityRegistry<EntityT>& registry) {
+    void execute(EntityRegistry<EntityT>& registry, JobInfo<EntityT>& jobGraph) {
       //Populate temporary registry pointer for threads to use
       mRegistry = &registry;
 
       //Reset dependency count trackers
-      JobGraph::resetDependencies(*mJobGraph);
+      JobGraph::resetDependencies(jobGraph);
       //Run the root node which will populate the initial tasks
-      JobGraph::runSystems(registry, *mJobGraph, *mJobContainer);
+      JobGraph::runSystems(registry, jobGraph, *mJobContainer);
       //Wake all threads to pick up the work that was just created
       mWorkerCV.notify_all();
 
@@ -238,7 +239,6 @@ namespace ecx {
     }
 
     EntityRegistry<EntityT>* mRegistry = nullptr;
-    std::shared_ptr<JobInfo<EntityT>> mJobGraph;
     std::unique_ptr<TaskContainer> mTasks;
     std::unique_ptr<JobContainer> mJobContainer;
     std::atomic_uint32_t mWorkersActive = 0;
@@ -278,18 +278,10 @@ namespace ecx {
     SchedulerT& mScheduler;
   };
 
-  using DefaultTaskContainer = LockQueue<std::function<void()>>;
   template<class EntityT>
-  using DefaultJobContainer = LockQueue<std::shared_ptr<JobInfo<EntityT>>>;
-  template<class EntityT>
-  using DefaultSchedulerT = Scheduler<EntityT, DefaultTaskContainer, DefaultJobContainer<EntityT>>;
+  using DefaultSchedulerT = Scheduler<EntityT, LockQueue>;
 
   namespace create {
-    template<class EntityT>
-    auto defaultScheduler(const SchedulerConfig& config, std::shared_ptr<JobInfo<EntityT>> jobGraph) {
-      return std::make_unique<DefaultSchedulerT<EntityT>>(config, jobGraph, std::make_unique<DefaultTaskContainer>(), std::make_unique<DefaultJobContainer<EntityT>>());
-    }
-
     template<class SchedulerT>
     auto schedulerExecutor(SchedulerT& scheduler) {
       return SchedulerExecutor<SchedulerT>(scheduler);

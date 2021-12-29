@@ -38,100 +38,6 @@ namespace ecx {
       }
     }
 
-    //Build a graph of JobInfos based on the system dependencies. The root node contains all
-    //jobs that have no dependencies
-    template<class EntityT>
-    static std::shared_ptr<JobInfo<EntityT>> build(std::vector<std::shared_ptr<ISystem<EntityT>>>& systems) {
-      auto root = std::make_shared<JobInfo<EntityT>>();
-      DependencyInfo<EntityT> readers;
-      DependencyInfo<EntityT> writers;
-      DependencyInfo<EntityT> existenceReaders;
-      DependencyInfo<EntityT> componentFactories;
-      DependencyInfo<EntityT> entityFactories;
-      //Key for use in entityFactories so logic for it can look similar to the other dependencyinfos
-      static const auto factoryKey = typeId<void, SystemInfo>();
-
-      for(auto&& system : systems) {
-        auto job = std::make_shared<JobInfo<EntityT>>();
-        job->mSystem = system;
-        const SystemInfo info = system->getInfo();
-
-        //Add dependents for each type
-        for(auto&& type : info.mExistenceTypes) {
-          componentFactories.addDependent(type, job);
-          entityFactories.addDependent(factoryKey, job);
-        }
-        for(auto&& type : info.mReadTypes) {
-          componentFactories.addDependent(type, job);
-          entityFactories.addDependent(factoryKey, job);
-          writers.addDependent(type, job);
-        }
-        for(auto&& type : info.mWriteTypes) {
-          componentFactories.addDependent(type, job);
-          entityFactories.addDependent(factoryKey, job);
-          readers.addDependent(type, job);
-          writers.addDependent(type, job);
-
-          //Since readers and writers depend on writes the previous ones can be cleared and new ones only need
-          //to take a dependency on this
-          readers.clear(type);
-          writers.clear(type);
-        }
-        for(auto&& type : info.mFactoryTypes) {
-          componentFactories.addDependent(type, job);
-          entityFactories.addDependent(factoryKey, job);
-          readers.addDependent(type, job);
-          writers.addDependent(type, job);
-          existenceReaders.addDependent(type, job);
-
-          //Clear any jobs that point back at this
-          componentFactories.clear(type);
-          readers.clear(type);
-          writers.clear(type);
-          existenceReaders.clear(type);
-        }
-        if(info.mUsesEntityFactory) {
-          componentFactories.addDependentToAllTypes(job);
-          entityFactories.addDependent(factoryKey, job);
-          readers.addDependentToAllTypes(job);
-          writers.addDependentToAllTypes(job);
-          existenceReaders.addDependentToAllTypes(job);
-
-          //Clear any jobs that point back at this
-          componentFactories.clearAllTypes();
-          entityFactories.clear(factoryKey);
-          readers.clearAllTypes();
-          writers.clearAllTypes();
-          existenceReaders.clearAllTypes();
-        }
-
-        //Add jobs for each type in a second phase so this doesn't depend on itself
-        for(auto&& type : info.mExistenceTypes) {
-          existenceReaders.addJob(type, job);
-        }
-        for(auto&& type : info.mReadTypes) {
-          readers.addJob(type, job);
-        }
-        for(auto&& type : info.mWriteTypes) {
-          writers.addJob(type, job);
-        }
-        for(auto&& type : info.mFactoryTypes) {
-          componentFactories.addJob(type, job);
-        }
-        if(info.mUsesEntityFactory) {
-          entityFactories.addJob(factoryKey, job);
-        }
-
-        //If there are no other dependencies, add this to the root so it doesn't get lost
-        if(!job->mTotalDependencies) {
-          root->addDependent(job);
-        }
-      }
-
-      return root;
-    }
-
-  private:
     template<class EntityT>
     struct DependencyInfo {
       void addJob(typeId_t<SystemInfo> info, std::shared_ptr<JobInfo<EntityT>> job) {
@@ -164,5 +70,108 @@ namespace ecx {
 
       std::unordered_map<typeId_t<SystemInfo>, std::vector<std::shared_ptr<JobInfo<EntityT>>>> mJobs;
     };
+
+    template<class EntityT>
+    struct JobGraphBuilder {
+      std::shared_ptr<JobInfo<EntityT>> mRoot;
+      DependencyInfo<EntityT> mReaders;
+      DependencyInfo<EntityT> mWriters;
+      DependencyInfo<EntityT> mExistenceReaders;
+      DependencyInfo<EntityT> mComponentFactories;
+      DependencyInfo<EntityT> mEntityFactories;
+    };
+
+    //Build a graph of JobInfos based on the system dependencies. The root node contains all
+    //jobs that have no dependencies
+    template<class EntityT>
+    static std::shared_ptr<JobInfo<EntityT>> build(std::vector<std::shared_ptr<ISystem<EntityT>>>& systems) {
+      JobGraphBuilder<EntityT> builder;
+      builder.mRoot = std::make_shared<JobInfo<EntityT>>();
+      _build(builder, systems);
+      return builder.mRoot;
+    }
+
+    template<class EntityT>
+    static void _build(JobGraphBuilder<EntityT>& builder, std::vector<std::shared_ptr<ISystem<EntityT>>>& systems) {
+      //Key for use in entityFactories so logic for it can look similar to the other dependencyinfos
+      static const auto factoryKey = typeId<void, SystemInfo>();
+
+      for(auto&& system : systems) {
+        auto job = std::make_shared<JobInfo<EntityT>>();
+        job->mSystem = system;
+        const SystemInfo info = system->getInfo();
+
+        //Add dependents for each type
+        for(auto&& type : info.mExistenceTypes) {
+          builder.mComponentFactories.addDependent(type, job);
+          builder.mEntityFactories.addDependent(factoryKey, job);
+        }
+        for(auto&& type : info.mReadTypes) {
+          builder.mComponentFactories.addDependent(type, job);
+          builder.mEntityFactories.addDependent(factoryKey, job);
+          builder.mWriters.addDependent(type, job);
+        }
+        for(auto&& type : info.mWriteTypes) {
+          builder.mComponentFactories.addDependent(type, job);
+          builder.mEntityFactories.addDependent(factoryKey, job);
+          builder.mReaders.addDependent(type, job);
+          builder.mWriters.addDependent(type, job);
+
+          //Since readers and writers depend on writes the previous ones can be cleared and new ones only need
+          //to take a dependency on this
+          builder.mReaders.clear(type);
+          builder.mWriters.clear(type);
+        }
+        for(auto&& type : info.mFactoryTypes) {
+          builder.mComponentFactories.addDependent(type, job);
+          builder.mEntityFactories.addDependent(factoryKey, job);
+          builder.mReaders.addDependent(type, job);
+          builder.mWriters.addDependent(type, job);
+          builder.mExistenceReaders.addDependent(type, job);
+
+          //Clear any jobs that point back at this
+          builder.mComponentFactories.clear(type);
+          builder.mReaders.clear(type);
+          builder.mWriters.clear(type);
+          builder.mExistenceReaders.clear(type);
+        }
+        if(info.mUsesEntityFactory) {
+          builder.mComponentFactories.addDependentToAllTypes(job);
+          builder.mEntityFactories.addDependent(factoryKey, job);
+          builder.mReaders.addDependentToAllTypes(job);
+          builder.mWriters.addDependentToAllTypes(job);
+          builder.mExistenceReaders.addDependentToAllTypes(job);
+
+          //Clear any jobs that point back at this
+          builder.mComponentFactories.clearAllTypes();
+          builder.mEntityFactories.clear(factoryKey);
+          builder.mReaders.clearAllTypes();
+          builder.mWriters.clearAllTypes();
+          builder.mExistenceReaders.clearAllTypes();
+        }
+
+        //Add jobs for each type in a second phase so this doesn't depend on itself
+        for(auto&& type : info.mExistenceTypes) {
+          builder.mExistenceReaders.addJob(type, job);
+        }
+        for(auto&& type : info.mReadTypes) {
+          builder.mReaders.addJob(type, job);
+        }
+        for(auto&& type : info.mWriteTypes) {
+          builder.mWriters.addJob(type, job);
+        }
+        for(auto&& type : info.mFactoryTypes) {
+          builder.mComponentFactories.addJob(type, job);
+        }
+        if(info.mUsesEntityFactory) {
+          builder.mEntityFactories.addJob(factoryKey, job);
+        }
+
+        //If there are no other dependencies, add this to the root so it doesn't get lost
+        if(!job->mTotalDependencies) {
+          builder.mRoot->addDependent(job);
+        }
+      }
+    }
   };
 }

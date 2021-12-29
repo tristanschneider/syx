@@ -8,8 +8,8 @@ namespace ecx {
   template<class SchedulerT>
   class SchedulerComponent {
   public:
-    template<class EntityT, class... Rest>
-    static EntityT entityTypeFromScheduler(const Scheduler<EntityT, Rest...>&);
+    template<class EntityT, template<class> class Rest>
+    static EntityT entityTypeFromScheduler(const Scheduler<EntityT, Rest>&);
 
     using EntityT = decltype(entityTypeFromScheduler(std::declval<SchedulerT>()));
 

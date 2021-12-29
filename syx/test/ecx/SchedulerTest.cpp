@@ -96,8 +96,8 @@ namespace ecx {
       return sequence;
     }
 
-    std::shared_ptr<TestScheduler> createScheduler(SystemList systems) {
-      return create::defaultScheduler({}, JobGraph::build(systems));
+    std::shared_ptr<TestScheduler> createScheduler() {
+      return std::make_shared<TestScheduler>(SchedulerConfig{});
     }
 
     std::shared_ptr<std::atomic_size_t> createSystemCount() {
@@ -105,10 +105,12 @@ namespace ecx {
     }
 
     TEST_METHOD(Scheduler_NoSystems_ExitsImmediately) {
-      auto scheduler = createScheduler({});
+      SystemList systems;
+      auto scheduler = createScheduler();
       TestEntityRegistry registry;
+      auto jobs = JobGraph::build(systems);
 
-      scheduler->execute(registry);
+      scheduler->execute(registry, *jobs);
 
       //If the function didn't get stuck in an infinite loop or crash then this passed
     }
@@ -117,10 +119,11 @@ namespace ecx {
       SystemList systems;
       auto systemCount = createSystemCount();
       addLinearJobs(systems, 0, nullptr, systemCount, 1);
-      auto scheduler = createScheduler(systems);
+      auto scheduler = createScheduler();
       TestEntityRegistry registry;
+      auto jobs = JobGraph::build(systems);
 
-      scheduler->execute(registry);
+      scheduler->execute(registry, *jobs);
 
       Assert::AreEqual(size_t(1), systemCount->load(), L"All systems should have executed", LINE_INFO());
     }
@@ -129,10 +132,11 @@ namespace ecx {
       SystemList systems;
       auto systemCount = createSystemCount();
       addLinearJobs(systems, 0, nullptr, systemCount, 2);
-      auto scheduler = createScheduler(systems);
+      auto scheduler = createScheduler();
       TestEntityRegistry registry;
+      auto jobs = JobGraph::build(systems);
 
-      scheduler->execute(registry);
+      scheduler->execute(registry, *jobs);
 
       Assert::AreEqual(size_t(2), systemCount->load(), L"All systems should have executed", LINE_INFO());
     }
@@ -141,10 +145,11 @@ namespace ecx {
       SystemList systems;
       auto systemCount = createSystemCount();
       addParallelJobs(systems, 0, nullptr, systemCount, 2);
-      auto scheduler = createScheduler(systems);
+      auto scheduler = createScheduler();
       TestEntityRegistry registry;
+      auto jobs = JobGraph::build(systems);
 
-      scheduler->execute(registry);
+      scheduler->execute(registry, *jobs);
 
       Assert::AreEqual(size_t(2), systemCount->load(), L"All systems should have executed", LINE_INFO());
     }
@@ -153,10 +158,11 @@ namespace ecx {
       SystemList systems;
       auto systemCount = createSystemCount();
       addParallelJobs(systems, 0, nullptr, systemCount, 1000);
-      auto scheduler = createScheduler(systems);
+      auto scheduler = createScheduler();
       TestEntityRegistry registry;
+      auto jobs = JobGraph::build(systems);
 
-      scheduler->execute(registry);
+      scheduler->execute(registry, *jobs);
 
       Assert::AreEqual(size_t(1000), systemCount->load(), L"All systems should have executed", LINE_INFO());
     }
@@ -165,10 +171,11 @@ namespace ecx {
       SystemList systems;
       auto systemCount = createSystemCount();
       addLinearJobs(systems, 0, nullptr, systemCount, 1000);
-      auto scheduler = createScheduler(systems);
+      auto scheduler = createScheduler();
       TestEntityRegistry registry;
+      auto jobs = JobGraph::build(systems);
 
-      scheduler->execute(registry);
+      scheduler->execute(registry, *jobs);
 
       Assert::AreEqual(size_t(1000), systemCount->load(), L"All systems should have executed", LINE_INFO());
     }
@@ -188,10 +195,11 @@ namespace ecx {
       total += 2;
       total += 1000;
 
-      auto scheduler = createScheduler(systems);
+      auto scheduler = createScheduler();
       TestEntityRegistry registry;
+      auto jobs = JobGraph::build(systems);
 
-      scheduler->execute(registry);
+      scheduler->execute(registry, *jobs);
 
       Assert::AreEqual(total, systemCount->load(), L"All systems should have executed", LINE_INFO());
     }
@@ -201,10 +209,11 @@ namespace ecx {
       auto systemCount = createSystemCount();
       addParallelJobsWithTasks(systems, 0, nullptr, systemCount, 1);
       TestEntityRegistry registry;
-      auto scheduler = createScheduler(systems);
+      auto scheduler = createScheduler();
       addSingletonSchedulerComponent(registry, scheduler);
+      auto jobs = JobGraph::build(systems);
 
-      scheduler->execute(registry);
+      scheduler->execute(registry, *jobs);
 
       Assert::AreEqual(size_t(1), systemCount->load(), L"All systems should have executed", LINE_INFO());
     }
@@ -224,10 +233,11 @@ namespace ecx {
       total += 2;
       total += 1000;
       TestEntityRegistry registry;
-      auto scheduler = createScheduler(systems);
+      auto scheduler = createScheduler();
       addSingletonSchedulerComponent(registry, scheduler);
+      auto jobs = JobGraph::build(systems);
 
-      scheduler->execute(registry);
+      scheduler->execute(registry, *jobs);
 
       Assert::AreEqual(total, systemCount->load(), L"All systems should have executed", LINE_INFO());
     }
