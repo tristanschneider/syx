@@ -24,8 +24,10 @@ namespace ecx {
     }
 
     //Run this system from the root and enqueue any unblocked systems after the work into the container
-    template<class EntityT, class WorkContainer>
-    static void runSystems(EntityRegistry<EntityT>& registry, JobInfo<EntityT>& root, WorkContainer& container) {
+    //WorkContainer needs push_back
+    //EnqueueToThread is somethind like a function that takes thread index and the job to queue (size_t, std::shared_ptr<JobInfo<EntityT>>)
+    template<class EntityT, class WorkContainer, class EnqueueToThread>
+    static void runSystems(EntityRegistry<EntityT>& registry, JobInfo<EntityT>& root, WorkContainer& container, const EnqueueToThread& enqueueToThread) {
       if(root.mSystem) {
         root.mSystem->tick(registry);
       }
@@ -33,7 +35,12 @@ namespace ecx {
         if (const uint32_t dependenciesLeft = dependent->mDependencies.fetch_sub(uint32_t(1), std::memory_order_relaxed); dependenciesLeft <= 1) {
           assert(dependenciesLeft == 1 && "This should only hit zero, if it went negative that means there was a bookkeeping error");
           //Work is complete, push them to the container for processing
-          container.push_back(dependent);
+          if(dependent->mThreadRequirement) {
+            enqueueToThread(*dependent->mThreadRequirement, dependent);
+          }
+          else {
+            container.push_back(dependent);
+          }
         }
       }
     }
@@ -98,8 +105,9 @@ namespace ecx {
 
       for(auto&& system : systems) {
         auto job = std::make_shared<JobInfo<EntityT>>();
-        job->mSystem = system;
         const SystemInfo info = system->getInfo();
+        job->mSystem = system;
+        job->mThreadRequirement = info.mThreadRequirement;
 
         //Add dependents for each type
         for(auto&& type : info.mExistenceTypes) {

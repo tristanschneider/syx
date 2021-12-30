@@ -1,5 +1,7 @@
 #pragma once
 
+#include<optional>
+
 namespace ecx {
   template<class EntityT>
   struct ISystem;
@@ -24,5 +26,6 @@ namespace ecx {
     uint32_t mTotalDependencies = 0;
     //Jobs that are waiting for this to complete
     std::vector<std::shared_ptr<JobInfo>> mDependents;
+    std::optional<size_t> mThreadRequirement;
   };
 }

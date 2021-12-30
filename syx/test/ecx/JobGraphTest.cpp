@@ -20,8 +20,8 @@ namespace ecx {
     using SystemList = std::vector<std::shared_ptr<TestSystem>>;
 
     template<class... ContextArgs>
-    std::shared_ptr<TestSystem> createSystem() {
-      return makeSystem("test", [](SystemContext<TestEntity, ContextArgs...>&) {});
+    std::shared_ptr<TestSystem> createSystem(std::optional<size_t> threadRequirement = {}) {
+      return makeSystem("test", [](SystemContext<TestEntity, ContextArgs...>&) {}, threadRequirement);
     };
 
     auto buildGraph(std::initializer_list<std::shared_ptr<TestSystem>> systems) {
@@ -414,10 +414,27 @@ namespace ecx {
           resultOrder.push_back(job->mSystem.get());
         }
 
-        JobGraph::runSystems(registry, *job, jobs);
+        JobGraph::runSystems(registry, *job, jobs, [](auto&&...) { Assert::Fail(); });
       }
 
       Assert::IsTrue(std::vector<TestSystem*>{ a.get(), b.get(), c.get(), d.get(), e.get(), f.get(), g.get() } == resultOrder);
+    }
+
+    TEST_METHOD(JobGraph_RunSystemWithThreadConstraint_IsQueuedToThread) {
+      TestEntityRegistry registry;
+      std::deque<std::shared_ptr<JobInfo<TestEntity>>> jobs;
+      std::vector<TestSystem*> resultOrder;
+      auto a = createSystem<TestView<Write<int>>>(std::make_optional(size_t(1)));
+      auto root = buildGraph({ a });
+      JobGraph::resetDependencies(*root);
+      int wasQueued = 0;
+
+      JobGraph::runSystems(registry, *root, jobs, [&wasQueued](size_t index, std::shared_ptr<JobInfo<TestEntity>> job) {
+        Assert::AreEqual(size_t(1), index);
+        ++wasQueued;
+      });
+
+      Assert::AreEqual(1, wasQueued, L"Should have been queed once", LINE_INFO());
     }
   };
 }

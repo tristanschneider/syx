@@ -61,21 +61,27 @@ namespace ecx {
       return sequence;
     }
 
-    std::shared_ptr<size_t> addParallelJobs(SystemList& systems, size_t expectedSequence, std::shared_ptr<size_t> curSequence, std::shared_ptr<std::atomic_size_t> completed, size_t count) {
+    std::shared_ptr<size_t> addParallelJobs(SystemList& systems, size_t expectedSequence, std::shared_ptr<size_t> curSequence, std::shared_ptr<std::atomic_size_t> completed, size_t count, std::optional<size_t> threadConstraint = {}, TestScheduler* scheduler = nullptr) {
       std::shared_ptr<size_t> sequence = curSequence ? curSequence : std::make_shared<size_t>(size_t(0));
+      auto expectedThread = threadConstraint && scheduler ? scheduler->getThreadId(*threadConstraint) : std::thread::id();
       for(size_t i = 0; i < count; ++i) {
-        systems.push_back(makeSystem("test", [seq(expectedSequence), curSequence(sequence), completed](TestSystemContext<TestView<Read<int>>>&) {
+        systems.push_back(makeSystem("test", [threadConstraint, expectedThread, seq(expectedSequence), curSequence(sequence), completed](TestSystemContext<TestView<Read<int>>>&) {
           Assert::AreEqual(seq, *curSequence, L"All parallel systems should have executed before sequence advanced");
           ++(*completed);
-        }));
+          if(threadConstraint) {
+            Assert::IsTrue(std::this_thread::get_id() == expectedThread);
+          }
+        }, threadConstraint));
       }
       return sequence;
     }
 
-    std::shared_ptr<size_t> addParallelJobsWithTasks(SystemList& systems, size_t expectedSequence, std::shared_ptr<size_t> curSequence, std::shared_ptr<std::atomic_size_t> completed, size_t count) {
+    std::shared_ptr<size_t> addParallelJobsWithTasks(SystemList& systems, size_t expectedSequence, std::shared_ptr<size_t> curSequence, std::shared_ptr<std::atomic_size_t> completed, size_t count, bool addThreadConstraints = false, TestScheduler* scheduler = nullptr) {
       std::shared_ptr<size_t> sequence = curSequence ? curSequence : std::make_shared<size_t>(size_t(0));
       for(size_t i = 0; i < count; ++i) {
-        systems.push_back(makeSystem("test", [seq(expectedSequence), curSequence(sequence), completed](TestSystemContext<TestView<Read<int>>, TestView<Read<TestSchedulerComponent>>>& context) {
+        auto expectedThreadIndex = addThreadConstraints ? std::make_optional(size_t(i % 3)) : std::nullopt;
+        auto expectedThread = addThreadConstraints && scheduler ? scheduler->getThreadId(*expectedThreadIndex) : std::thread::id();
+        systems.push_back(makeSystem("test", [expectedThread, addThreadConstraints, seq(expectedSequence), curSequence(sequence), completed](TestSystemContext<TestView<Read<int>>, TestView<Read<TestSchedulerComponent>>>& context) {
           Assert::AreEqual(seq, *curSequence, L"All parallel systems should have executed before sequence advanced");
 
           auto executor = TestSchedulerComponent::createExecutorFromContext(context);
@@ -91,7 +97,10 @@ namespace ecx {
           Assert::AreEqual(100, workCounter->load());
 
           ++(*completed);
-        }));
+          if(addThreadConstraints) {
+            Assert::IsTrue(std::this_thread::get_id() == expectedThread);
+          }
+        }, expectedThreadIndex));
       }
       return sequence;
     }
@@ -146,6 +155,19 @@ namespace ecx {
       auto systemCount = createSystemCount();
       addParallelJobs(systems, 0, nullptr, systemCount, 2);
       auto scheduler = createScheduler();
+      TestEntityRegistry registry;
+      auto jobs = JobGraph::build(systems);
+
+      scheduler->execute(registry, *jobs);
+
+      Assert::AreEqual(size_t(2), systemCount->load(), L"All systems should have executed", LINE_INFO());
+    }
+
+    TEST_METHOD(Scheduler_TwoParallelSystemsWithThreadConstraint_RunOnThread) {
+      SystemList systems;
+      auto systemCount = createSystemCount();
+      auto scheduler = createScheduler();
+      addParallelJobs(systems, 0, nullptr, systemCount, 2, std::make_optional(size_t(1)), scheduler.get());
       TestEntityRegistry registry;
       auto jobs = JobGraph::build(systems);
 
@@ -221,19 +243,19 @@ namespace ecx {
     TEST_METHOD(Scheduler_ParallelLinearMixWithTasks_TasksComplete) {
       SystemList systems;
       auto systemCount = createSystemCount();
+      auto scheduler = createScheduler();
       size_t total = 0;
       auto sequence = addLinearJobs(systems, 0, nullptr, systemCount, 100);
       total += 100;
       addParallelJobsWithTasks(systems, total, sequence, systemCount, 2);
       addLinearJobsWithTasks(systems, total, sequence, systemCount, 1);
       total += 1;
-      addParallelJobsWithTasks(systems, total, sequence, systemCount, 1000);
+      addParallelJobsWithTasks(systems, total, sequence, systemCount, 1000, true, scheduler.get());
       addLinearJobsWithTasks(systems, total, sequence, systemCount, 100);
       total += 100;
       total += 2;
       total += 1000;
       TestEntityRegistry registry;
-      auto scheduler = createScheduler();
       addSingletonSchedulerComponent(registry, scheduler);
       auto jobs = JobGraph::build(systems);
 

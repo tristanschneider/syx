@@ -51,15 +51,25 @@ namespace ecx {
     using TaskContainer = QueueT<std::function<void()>>;
     using JobContainer = QueueT<std::shared_ptr<JobInfo<EntityT>>>;
 
+    struct WorkerContext;
+
+    struct ThreadContext {
+      std::thread mThread;
+      std::unique_ptr<WorkerContext> mContext;
+    };
+
     struct WorkerContext {
       EntityRegistry<EntityT>** mRegistry = nullptr;
       TaskContainer* mTasks = nullptr;
       JobContainer* mJobs = nullptr;
+      //Exists for background workers but not the main sync thread
+      std::unique_ptr<JobContainer> mWorkerSpecificJobs;
       std::atomic_uint32_t* mWorkersActive = nullptr;
       std::condition_variable* mWorkerCV = nullptr;
       std::atomic_bool* mIsRunning = nullptr;
       std::mutex* mMutex = nullptr;
       std::atomic_bool* mIsSyncing = nullptr;
+      std::vector<ThreadContext>* mThreads = nullptr;
     };
 
     Scheduler(const SchedulerConfig& config)
@@ -67,12 +77,13 @@ namespace ecx {
       , mTasks(std::make_unique<TaskContainer>())
       , mConfig(config) {
 
-      WorkerContext context(createContext());
       mThreads.reserve(mConfig.mNumThreads);
       for(size_t i = 0; i < mConfig.mNumThreads; ++i) {
-        mThreads.push_back(std::thread([context]() mutable {
-          workerLoop(context);
-        }));
+        auto context = std::make_unique<WorkerContext>(createContext());
+        context->mWorkerSpecificJobs = std::make_unique<JobContainer>();
+        mThreads.push_back({ std::thread([ctx(context.get())]() mutable {
+          workerLoop(*ctx);
+        }), std::move(context)});
       }
     }
 
@@ -88,8 +99,12 @@ namespace ecx {
         mWorkerCV.notify_all();
       }
       for(auto&& thread : mThreads) {
-        thread.join();
+        thread.mThread.join();
       }
+    }
+
+    std::thread::id getThreadId(size_t workerIndex) const {
+      return workerIndex < mThreads.size() ? mThreads[workerIndex].mThread.get_id() : std::thread::id();
     }
 
     //Execute the job graph. This call returns after all jobs are complete, while this thread assists execution
@@ -101,12 +116,12 @@ namespace ecx {
       //Reset dependency count trackers
       JobGraph::resetDependencies(jobGraph);
       //Run the root node which will populate the initial tasks
-      JobGraph::runSystems(registry, jobGraph, *mJobContainer);
+      WorkerContext context(createContext());
+      _runSystems(jobGraph, context);
       //Wake all threads to pick up the work that was just created
       mWorkerCV.notify_all();
 
       //Make this thread work until all work is complete
-      WorkerContext context(createContext());
       syncLoop(context);
 
       //Clear registry pointer. At this point all worker threads are asleep
@@ -151,7 +166,14 @@ namespace ecx {
         (*immediateWork)();
       }
       else if(auto job = context.mJobs->pop()) {
-        JobGraph::runSystems(**context.mRegistry, **job, *context.mJobs);
+        _runSystems(**job, context);
+      }
+      else if(context.mWorkerSpecificJobs) {
+        if(auto workerJob = context.mWorkerSpecificJobs->pop()) {
+          _runSystems(**workerJob, context);
+          return true;
+        }
+        return false;
       }
       else {
         return false;
@@ -164,7 +186,10 @@ namespace ecx {
     static void syncLoop(WorkerContext& context) {
       auto isDone = [&context] {
         //Done if jobs are complete and all workers went to sleep. Checking tasks is redundant because it would only be filled while workers are active
-        return context.mJobs->empty() && !context.mWorkersActive->load();
+        return context.mJobs->empty() && !context.mWorkersActive->load() &&
+          std::all_of(context.mThreads->begin(), context.mThreads->end(), [](const ThreadContext& thread) {
+            return thread.mContext->mWorkerSpecificJobs->empty();
+          });
       };
       while(true) {
         while(doWork(context)) {
@@ -224,6 +249,16 @@ namespace ecx {
       --(*context.mWorkersActive);
     }
 
+    static void _runSystems(JobInfo<EntityT>& jobGraph, WorkerContext& context) {
+      auto queueToThread = [&context](size_t index, std::shared_ptr<JobInfo<EntityT>> job) {
+        assert(index < context.mThreads->size());
+        if(index < context.mThreads->size()) {
+          context.mThreads->at(index).mContext->mWorkerSpecificJobs->push_back(std::move(job));
+        }
+      };
+      JobGraph::runSystems(**context.mRegistry, jobGraph, *context.mJobs, queueToThread);
+    }
+
   private:
     WorkerContext createContext() {
       WorkerContext result;
@@ -235,6 +270,7 @@ namespace ecx {
       result.mIsRunning = &mIsRunning;
       result.mMutex = &mMutex;
       result.mIsSyncing = &mIsSyncing;
+      result.mThreads = &mThreads;
       return result;
     }
 
@@ -246,7 +282,7 @@ namespace ecx {
     std::atomic_bool mIsSyncing = false;
     std::condition_variable mWorkerCV;
     std::mutex mMutex;
-    std::vector<std::thread> mThreads;
+    std::vector<ThreadContext> mThreads;
     const SchedulerConfig mConfig;
   };
 

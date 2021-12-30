@@ -22,6 +22,8 @@ namespace ecx {
     bool mUsesEntityFactory = false;
     //Name of the system
     std::string mName;
+    //Thread index that this system must run on. Empty if any is fine
+    std::optional<size_t> mThreadRequirement;
   };
 
   //List of Views, Factories, and entity factory. Values must be specified here for them to be accessible in get
@@ -239,15 +241,16 @@ namespace ecx {
 
   //Create a system from a function that takes the desired context: [](Context<uint32_t, View<Read<int>>, EntityFactory>& context) { ... }
   template<class Fn>
-  auto makeSystem(std::string name, Fn fn) {
+  auto makeSystem(std::string name, Fn fn, std::optional<size_t> threadRequirement = {}) {
     //The function's first argument should be the context type. Member functions not supported
     using ContextType = std::decay_t<typename FunctionTraits<Fn>::argument<0>::type>;
     using EntityT = typename ContextType::EntityType;
 
     struct FnSystem : public System<ContextType, EntityT> {
-      FnSystem(Fn fn, std::string name)
+      FnSystem(Fn fn, std::string name, std::optional<size_t> thread)
         : mFn(std::move(fn))
-        , mName(std::move(name)) {
+        , mName(std::move(name))
+        , mThread(thread) {
       }
 
       void _tick(ContextType& context) const override {
@@ -257,13 +260,15 @@ namespace ecx {
       SystemInfo getInfo() const final {
         SystemInfo info = System<ContextType, EntityT>::getInfo();
         info.mName = mName;
+        info.mThreadRequirement = mThread;
         return info;
       }
 
       Fn mFn;
       std::string mName;
+      std::optional<size_t> mThread;
     };
 
-    return std::make_unique<FnSystem>(fn, std::move(name));
+    return std::make_unique<FnSystem>(fn, std::move(name), threadRequirement);
   }
 }
