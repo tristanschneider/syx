@@ -1,5 +1,7 @@
 #pragma once
 
+#include "ecs/EngineAppContext.h"
+
 struct IComponentRegistry;
 class ISystemRegistry;
 class IAssetLoaderRegistry;
@@ -8,6 +10,8 @@ struct SystemArgs;
 class AppRegistration {
 public:
   virtual ~AppRegistration() = default;
+  virtual void registerAppContext(Engine::AppContext& context) = 0;
+
   virtual void registerSystems(const SystemArgs& args, ISystemRegistry& registry) = 0;
   virtual void registerComponents(IComponentRegistry& registry) = 0;
 };

@@ -18,6 +18,10 @@
 using namespace Syx;
 
 struct Win32Systems : public AppRegistration {
+  virtual void registerAppContext(Engine::AppContext&) override {
+    //TODO: Win32 platform systems
+  }
+
   virtual void registerSystems(const SystemArgs& args, ISystemRegistry& registry) override {
     registry.registerSystem(mInput = std::make_shared<InputSystemWin32>(args));
   }

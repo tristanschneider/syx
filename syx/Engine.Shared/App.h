@@ -1,4 +1,5 @@
 #pragma once
+#include "ecs/EngineAppContext.h"
 #include "system/System.h"
 #include "provider/MessageQueueProvider.h"
 #include "provider/SystemProvider.h"
@@ -54,4 +55,8 @@ private:
   std::unique_ptr<FileSystem::IFileSystem> mFileSystem;
   std::unique_ptr<IIDRegistry> mIDRegistry;
   uint64_t mCurrentTick = 0;
+
+  std::shared_ptr<Engine::Scheduler> mScheduler;
+  std::unique_ptr<Engine::AppContext> mAppContext;
+  std::unique_ptr<Engine::EntityRegistry> mEntityRegistry;
 };

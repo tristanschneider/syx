@@ -36,6 +36,10 @@ namespace ecx {
       return ticks;
     }
 
+    size_t getTargetFPS() const {
+      return mTargetFPS;
+    }
+
   private:
     size_t mTargetFPS = 0;
     TimePoint mLastTime;
@@ -71,12 +75,34 @@ namespace ecx {
       }
     }
 
+    struct PhaseContainer {
+      std::vector<std::shared_ptr<ISystem<EntityT>>> mSystems;
+      size_t mTargetFPS;
+    };
+
+    PhaseContainer getUpdatePhase(const StageIdT& stage) {
+      PhaseContainer result;
+      auto it = std::find_if(mUpdatePhases.begin(), mUpdatePhases.end(), [&stage](const UpdatePhase& phase) {
+        return phase.mPhaseId == stage;
+      });
+      if(it != mUpdatePhases.end()) {
+        result.mSystems = it->mSystems;
+        result.mTargetFPS = it->mTimer.getTargetFPS();
+      }
+      return result;
+    }
+
     //Execute all available updates as dictated by each phase's timer
     //If multiple phases have multiple ticks they all tick in order, as in A B C A B C, not AA BB CC
     //That is assuming they have dependencies, if they don't the phases may run in parallel as determined
     //by their job graphs
     bool update(EntityRegistry<EntityT>& registry) {
       assert(mJobConfigurations.size() == (2 << (mUpdatePhases.size() - 1)) && "buildExecutionGraph must be calleed before the first call to update since changing system registration");
+      //Can happen if this is updated without any registered phases
+      if(mJobConfigurations.empty()) {
+        return false;
+      }
+
       bool updatedAnything = false;
       bool updateTickCredits = true;
       while(true) {

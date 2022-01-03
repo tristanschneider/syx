@@ -68,6 +68,12 @@ App::App(std::unique_ptr<AppPlatform> appPlatform, std::unique_ptr<AppRegistrati
   registration->registerComponents(mComponentRegistry->getWriter().first);
   mSystems = systems->takeSystems();
 
+  ecx::SchedulerConfig config;
+  mScheduler = std::make_shared<Engine::Scheduler>(config);
+  mAppContext = std::make_unique<Engine::AppContext>(mScheduler);
+  mEntityRegistry = std::make_unique<Engine::EntityRegistry>();
+  registration->registerAppContext(*mAppContext);
+
   //TODO: move this to test project
   TestRegistry::get().run();
 }
@@ -134,6 +140,8 @@ void App::update(float dt) {
     auto msg = getMessageQueue();
     deferredMsg->enqueueDeferredEvents(*msg, mCurrentTick);
   }
+
+  mAppContext->update(*mEntityRegistry);
 
   frameTask->sync();
   //All readers should have either looked at this in update or in a frameTask dependent task, so clear now.

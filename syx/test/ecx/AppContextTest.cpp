@@ -138,6 +138,17 @@ namespace ecx {
       return { makeSystem("test", &Systems::tick)... };
     }
 
+    TEST_METHOD(EmptyAppContext_Update_NothingHappens) {
+      RegistryWithPhaseTracker registry;
+      TestAppContext context(registry.mScheduler);
+      context.buildExecutionGraph();
+
+      const bool updated = context.update(registry.mRegistry);
+
+      registry.assertPhasesTicked({});
+      Assert::IsFalse(updated);
+    }
+
     TEST_METHOD(AppContextSinglePhase_NoTicks_NotTicked) {
       RegistryWithPhaseTracker registry;
       TestAppContext context(registry.mScheduler);
