@@ -4,6 +4,10 @@
 #include "AppPlatform.h"
 #include "AppRegistration.h"
 #include "component/LuaComponentRegistry.h"
+#include "ecs/component/FileSystemComponent.h"
+#include "ecs/component/MessageComponent.h"
+#include "ecs/component/ProjectLocatorComponent.h"
+#include "ecs/component/UriActivationComponent.h"
 #include "event/DeferredEventBuffer.h"
 #include "event/EventBuffer.h"
 #include "event/LifecycleEvents.h"
@@ -41,7 +45,6 @@ App::App(std::unique_ptr<AppPlatform> appPlatform, std::unique_ptr<AppRegistrati
   , mFrozenMessageQueue(std::make_unique<EventBuffer>())
   , mDeferredEventBuffer(std::make_unique<DeferredEventBuffer>())
   , mAppPlatform(std::move(appPlatform))
-  , mProjectLocator(std::make_unique<ProjectLocator>())
   , mMessageLock(std::make_unique<SpinLock>())
   , mGameObjectGen(std::make_unique<GameObjectGen>())
   , mComponentRegistry(Registry::createComponentRegistryProvider())
@@ -49,18 +52,19 @@ App::App(std::unique_ptr<AppPlatform> appPlatform, std::unique_ptr<AppRegistrati
   FilePath path, file, ext;
   FilePath exePath(mAppPlatform->getExePath().c_str());
   exePath.getParts(path, file, ext);
-  mProjectLocator->setPathRoot(path, PathSpace::Project);
+  auto projectLocator = std::make_unique<ProjectLocator>();
+  projectLocator->setPathRoot(path, PathSpace::Project);
 
-  mFileSystem = mAppPlatform->createFileSystem();
+  auto fileSystem = mAppPlatform->createFileSystem();
 
   SystemArgs args = {
     mWorkerPool.get(),
     this,
     mGameObjectGen.get(),
-    mProjectLocator.get(),
+    projectLocator.get(),
     mAppPlatform.get(),
     mComponentRegistry.get(),
-    mFileSystem.get(),
+    fileSystem.get(),
     mIDRegistry.get(),
   };
   auto systems = Registry::createSystemRegistry();
@@ -74,6 +78,10 @@ App::App(std::unique_ptr<AppPlatform> appPlatform, std::unique_ptr<AppRegistrati
   mEntityRegistry = std::make_unique<Engine::EntityRegistry>();
   registration->registerAppContext(*mAppContext);
 
+  auto globalEntity = mEntityRegistry->getSingleton();
+  mEntityRegistry->addComponent<FileSystemComponent>(globalEntity, std::move(fileSystem));
+  mEntityRegistry->addComponent<ProjectLocatorComponent>(globalEntity, std::move(projectLocator));
+
   //TODO: move this to test project
   TestRegistry::get().run();
 }
@@ -84,14 +92,21 @@ App::~App() {
 }
 
 void App::onUriActivated(std::string uri) {
+  auto message = mEntityRegistry->createEntity();
+  mEntityRegistry->addComponent<MessageComponent>(message);
+  mEntityRegistry->addComponent<UriActivationComponent>(message, UriActivationComponent{ uri });
+
+  //TODO: move all handlers of this to ecs
   UriActivated activated(uri);
-  //TODO: where should this go?
+
+  //TODO: This is already handled by ProjectLocatorSystem but can't be removed until UriActivated usages are migrated due to timing requirements
   const auto it = activated.mParams.find("projectRoot");
-  if(it != activated.mParams.end() && mFileSystem->isDirectory(it->second.c_str())) {
+  if(it != activated.mParams.end() && getFileSystem().isDirectory(it->second.c_str())) {
     printf("Project root set to %s\n", it->second.c_str());
-    mProjectLocator->setPathRoot(it->second.c_str(), PathSpace::Project);
+    mEntityRegistry->begin<ProjectLocatorComponent>()->get().setPathRoot(it->second.c_str(), PathSpace::Project);
     mAppPlatform->setWorkingDirectory(it->second.c_str());
   }
+
   mMessageQueue->push(std::move(activated));
 }
 
@@ -165,7 +180,7 @@ AppPlatform& App::getAppPlatform() {
 }
 
 FileSystem::IFileSystem& App::getFileSystem() {
-  return *mFileSystem;
+  return mEntityRegistry->begin<FileSystemComponent>()->get();
 }
 
 MessageQueue App::getMessageQueue() {

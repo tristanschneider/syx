@@ -10,6 +10,7 @@ namespace Engine {
     Simulation,
     Physics,
     Graphics,
+    Cleanup,
   };
 
   inline static auto getTimeImpl() {

@@ -178,6 +178,15 @@ namespace ecx {
       Assert::AreEqual(10, begin.component());
     }
 
+    TEST_METHOD(EntityRegistry_BeginOnEmptyChunk_StartsOnSecondChunk) {
+      TestEntityRegistry registry;
+      auto entity = registry.createEntity();
+      registry.addComponent<int>(entity, 10);
+      registry.addComponent<char>(entity, true);
+
+      Assert::AreEqual(10, *registry.begin<int>());
+    }
+
     TEST_METHOD(EntityRegistry_IterateWithHoles_AllEntitiesFound) {
       TestEntityRegistry registry;
       registry.createEntity();

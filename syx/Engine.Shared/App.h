@@ -48,11 +48,9 @@ private:
   std::unique_ptr<EventBuffer> mFrozenMessageQueue;
   std::unique_ptr<DeferredEventBuffer> mDeferredEventBuffer;
   std::mutex mDeferredEventMutex;
-  std::unique_ptr<ProjectLocator> mProjectLocator;
   std::unique_ptr<GameObjectHandleProvider> mGameObjectGen;
   std::unique_ptr<SpinLock> mMessageLock;
   std::unique_ptr<ComponentRegistryProvider> mComponentRegistry;
-  std::unique_ptr<FileSystem::IFileSystem> mFileSystem;
   std::unique_ptr<IIDRegistry> mIDRegistry;
   uint64_t mCurrentTick = 0;
 

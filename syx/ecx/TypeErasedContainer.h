@@ -15,6 +15,7 @@ struct TypeErasedContainer {
     virtual size_t size(const void* data) const = 0;
     virtual void moveIntoFromIndex(size_t index, void* from, void* to) const = 0;
     virtual void push_back(void* data) const = 0;
+    virtual void clear(void* data) const = 0;
   };
 
   template<class T>
@@ -54,6 +55,10 @@ struct TypeErasedContainer {
 
     virtual void push_back(void* data) const override {
       _cast(data).push_back(T{});
+    }
+
+    virtual void clear(void* data) const override {
+      _cast(data).clear();
     }
 
     ContainerT<T>& _cast(void* data) const {
@@ -143,6 +148,10 @@ struct TypeErasedContainer {
   //Push a default constructed value
   void push_back() {
     mTraits->push_back(mData);
+  }
+
+  void clear() {
+    mTraits->clear(mData);
   }
 
 private:

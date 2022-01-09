@@ -5,21 +5,37 @@
 #include <io.h>
 #include <fcntl.h>
 
+#include "AppPlatformWin32.h"
 #include "AppRegistration.h"
 #include "asset/Shader.h"
 #include "App.h"
+#include "ecs/component/AppPlatformComponents.h"
+#include "ecs/ECS.h"
 #include "event/LifecycleEvents.h"
 #include "file/FilePath.h"
 #include "system/InputSystemWin32.h"
-#include "AppPlatformWin32.h"
 
 #include "GL/glew.h"
 
 using namespace Syx;
 
 struct Win32Systems : public AppRegistration {
-  virtual void registerAppContext(Engine::AppContext&) override {
-    //TODO: Win32 platform systems
+  using SetDirView = Engine::View<Engine::Read<SetWorkingDirectoryComponent>>;
+  static void tickSetCurrentDirectory(Engine::SystemContext<SetDirView>& context) {
+    auto& view = context.get<SetDirView>();
+    for(auto chunk = view.chunksBegin(); chunk != view.chunksEnd(); ++chunk) {
+      for(const auto& setDir : *(*chunk).tryGet<const SetWorkingDirectoryComponent>()) {
+        ::SetCurrentDirectoryA(setDir.mDirectory.cstr());
+      }
+    }
+  }
+
+  virtual void registerAppContext(Engine::AppContext& context) override {
+    Engine::SystemList simulation;
+
+    simulation.push_back(ecx::makeSystem("SetWorkingDirectory", &tickSetCurrentDirectory));
+
+    context.registerUpdatePhase(Engine::AppPhase::Simulation, std::move(simulation), 20);
   }
 
   virtual void registerSystems(const SystemArgs& args, ISystemRegistry& registry) override {

@@ -4,6 +4,9 @@
 #include "View.h"
 
 namespace ecx {
+  template<class EntityT>
+  class EntityFactory;
+
   //This is unforgiving when it comes to const, a write type cannot be accessed with const T
   template<class... Components>
   struct ViewIsAllowedType {
@@ -49,6 +52,11 @@ namespace ecx {
 
     bool contains(const LinearEntity& entity) {
       return mChunk->contains(entity);
+    }
+
+    //Take the factory to force the system to indicate that it will be destroying entities
+    void clear(EntityFactory<LinearEntity>&) {
+      mChunk->clearEntities();
     }
 
   private:

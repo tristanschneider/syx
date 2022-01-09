@@ -6,6 +6,9 @@
 #include "asset/PhysicsModel.h"
 #include "asset/Shader.h"
 #include "asset/Texture.h"
+#include "ecs/component/MessageComponent.h"
+#include "ecs/system/ProjectLocatorSystem.h"
+#include "ecs/system/RemoveEntitiesSystem.h"
 #include "editor/Editor.h"
 #include "component/CameraComponent.h"
 #include "component/LuaComponent.h"
@@ -15,28 +18,33 @@
 #include "component/Renderable.h"
 #include "component/SpaceComponent.h"
 #include "component/Transform.h"
-#include "system/AssetRepo.h"
-#include "system/GraphicsSystem.h"
-#include "system/ImGuiSystem.h"
-#include "system/LuaGameSystem.h"
-#include "system/PhysicsSystem.h"
 #include "loader/AssetLoader.h"
 #include "loader/LuaScriptLoader.h"
 #include "loader/ModelLoader.h"
 #include "loader/ShaderLoader.h"
 #include "loader/TextureLoader.h"
+#include "system/AssetRepo.h"
+#include "system/GraphicsSystem.h"
+#include "system/ImGuiSystem.h"
+#include "system/LuaGameSystem.h"
+#include "system/PhysicsSystem.h"
 
 class DefaultAppRegistration : public AppRegistration {
 public:
   void registerAppContext(Engine::AppContext& context) override {
-    Engine::SystemList input, simulation, graphics, physics;
+    using namespace Engine;
+    SystemList input, simulation, graphics, physics, cleanup;
 
-    //TODO: register systems here
+    simulation.push_back(ProjectLocatorSystem::createUriListener());
 
-    context.registerUpdatePhase(Engine::AppPhase::Input, std::move(input), 60);
-    context.registerUpdatePhase(Engine::AppPhase::Simulation, std::move(simulation), 20);
-    context.registerUpdatePhase(Engine::AppPhase::Physics, std::move(physics), 60);
-    context.registerUpdatePhase(Engine::AppPhase::Graphics, std::move(graphics), 60);
+    //Clear messages at the end of the frame
+    cleanup.push_back(RemoveEntitiesSystem<View<Read<MessageComponent>>>::create());
+
+    context.registerUpdatePhase(AppPhase::Input, std::move(input), 60);
+    context.registerUpdatePhase(AppPhase::Simulation, std::move(simulation), 20);
+    context.registerUpdatePhase(AppPhase::Physics, std::move(physics), 60);
+    context.registerUpdatePhase(AppPhase::Graphics, std::move(graphics), 60);
+    context.registerUpdatePhase(AppPhase::Cleanup, std::move(cleanup), 0);
 
     context.buildExecutionGraph();
   }
@@ -80,13 +88,14 @@ namespace Registration {
   std::unique_ptr<AppRegistration> compose(std::shared_ptr<AppRegistration> a, std::shared_ptr<AppRegistration> b) {
     struct Composer : public AppRegistration {
       void registerAppContext(Engine::AppContext& context) override {
-        Engine::AppContext::PhaseContainer input, simulation, graphics, physics;
+        Engine::AppContext::PhaseContainer input, simulation, graphics, physics, cleanup;
         Engine::SystemList empty;
         auto foreachPhase = [&](auto func) {
           func(Engine::AppPhase::Input, input);
           func(Engine::AppPhase::Simulation, simulation);
           func(Engine::AppPhase::Physics, physics);
           func(Engine::AppPhase::Graphics, graphics);
+          func(Engine::AppPhase::Cleanup, cleanup);
         };
         auto resetRegisteredPhases = [&foreachPhase, &empty, &context] {
           foreachPhase([&empty, &context](Engine::AppPhase phase, const Engine::AppContext::PhaseContainer&) {

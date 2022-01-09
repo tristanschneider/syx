@@ -123,6 +123,13 @@ namespace ecx {
       return mEntityMapping.find(entity.mData.mParts.mEntityId) != mEntityMapping.end();
     }
 
+    void clearEntities() {
+      mEntityMapping.clear();
+      for(auto& pair : mComponents) {
+        pair.second.clear();
+      }
+    }
+
     void erase(const LinearEntity& entity) {
       if(auto it = mEntityMapping.find(entity.mData.mParts.mEntityId); it != mEntityMapping.end()) {
         //This swap removes the entity, do the same with component storage below
@@ -477,8 +484,15 @@ namespace ecx {
       std::array<typeId_t<LinearEntity>, 1> query{ typeId<ComponentT, LinearEntity>() };
 
       getAllChunksSatisfyingConditions(chunkIds, query, empty, empty);
+      auto foundIt = std::find_if(chunkIds.begin(), chunkIds.end(), [](const std::shared_ptr<EntityChunk>& chunk) {
+        return chunk->size() > 0;
+      });
+      if(foundIt == chunkIds.end()) {
+        return end<ComponentT>();
+      }
+      const size_t chunkIndex = static_cast<size_t>(foundIt - chunkIds.begin());
 
-      return It<ComponentT>(std::move(chunkIds), 0, 0);
+      return It<ComponentT>(std::move(chunkIds), 0, chunkIndex);
     }
 
     template<class ComponentT>
