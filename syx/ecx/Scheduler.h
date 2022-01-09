@@ -224,7 +224,10 @@ namespace ecx {
       ++(*context.mWorkersActive);
       while(*context.mIsRunning) {
         //Do all possible work
-        while(doWork(context)) {}
+        bool didWork = false;
+        while(doWork(context)) {
+          didWork = true;
+        }
         //All work is done, get the lock to go to sleep
         std::unique_lock<std::mutex> lock(*context.mMutex);
         //See if work appeared while acquiring the lock
@@ -233,6 +236,11 @@ namespace ecx {
           //Mutex is needed to make sure notification doesn't happen between a thread's work check and going to sleep
           context.mWorkerCV->notify_all();
           continue;
+        }
+        else if(didWork) {
+          //Hack to wake up any syncing workers that might have been waiting on work that this completed
+          //Ideally this could be more targeted
+          context.mWorkerCV->notify_all();
         }
         if(context.mWorkersActive->fetch_sub(1, std::memory_order_relaxed) == 1) {
           //If this is the last worker and all work is done, wake the sync thread if it's waiting
