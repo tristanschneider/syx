@@ -5,9 +5,6 @@
 #include "ecs/component/ProjectLocatorComponent.h"
 #include "ecs/component/UriActivationComponent.h"
 
-//TODO: only inclduded for the uri parsing, move somewhere else
-#include "event/LifecycleEvents.h"
-
 namespace {
   using namespace Engine;
   void tickPLUriListener(SystemContext
@@ -33,9 +30,9 @@ namespace {
       const std::vector<UriActivationComponent>& components = *(*chunks).tryGet<const UriActivationComponent>();
       //AddComponent moves the entity to another chunk with a swap remove, in which case `i` doesn't need to be advanced
       for(size_t i = 0; i < components.size();) {
-        UriActivated activated(components[i].mUri);
-        const auto it = activated.mParams.find("projectRoot");
-        if(it != activated.mParams.end() && fileSystem.get().isDirectory(it->second.c_str())) {
+        auto params = UriActivationComponent::parseUri(components[i].mUri);
+        const auto it = params.find("projectRoot");
+        if(it != params.end() && fileSystem.get().isDirectory(it->second.c_str())) {
           printf("Project root set to %s\n", it->second.c_str());
           projectLocator.get().setPathRoot(it->second.c_str(), PathSpace::Project);
 

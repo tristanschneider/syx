@@ -23,6 +23,11 @@ namespace ecx {
     }
 
     template<class Component>
+    Component& addDeducedComponent(const EntityT& entity, Component&& component) {
+      return addComponent<Component>(entity, std::move(component));
+    }
+
+    template<class Component>
     Component& getOrAddComponent(const EntityT& entity) {
       _assertAllowedComponent<Component>();
       Component* result = mRegistry->tryGetComponent<Component>(entity);

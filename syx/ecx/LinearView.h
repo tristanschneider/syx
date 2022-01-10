@@ -117,6 +117,7 @@ namespace ecx {
     using ViewTraits = typename ViewDeducer::ViewTraits<Args...>;
     template<class... Args>
     using ViewedEntityT = ViewedEntity<LinearEntity, Args...>;
+    using SelfT = View<LinearEntity, Args...>;
 
     class It {
     public:
@@ -288,6 +289,29 @@ namespace ecx {
 
     ChunkIt chunksEnd() {
       return mChunks.end();
+    }
+
+    //Wrapper to allow range based for loops using for(auto&& chunk : view.chunks())
+    struct Chunks {
+      ChunkIt begin() {
+        return mSelf->chunksBegin();
+      }
+
+      ChunkIt end() {
+        return mSelf->chunksEnd();
+      }
+
+      SelfT* mSelf;
+    };
+
+    Chunks chunks() {
+      return Chunks{ this };
+    }
+
+    //Intended for use with the singleton entity where only one is expected
+    std::optional<typename It::value_type> tryGetFirst() {
+      auto it = begin();
+      return it != end() ? std::make_optional(*it) : std::nullopt;
     }
 
   private:
