@@ -6,6 +6,7 @@
 #include "asset/PhysicsModel.h"
 #include "asset/Shader.h"
 #include "asset/Texture.h"
+#include "ecs/system/EditorSystem.h"
 #include "ecs/component/MessageComponent.h"
 #include "ecs/system/ProjectLocatorSystem.h"
 #include "ecs/system/RemoveEntitiesSystem.h"
@@ -33,13 +34,19 @@ class DefaultAppRegistration : public AppRegistration {
 public:
   void registerAppContext(Engine::AppContext& context) override {
     using namespace Engine;
-    SystemList input, simulation, graphics, physics, cleanup;
+    SystemList input, simulation, graphics, physics, cleanup, initializers;
+
+    initializers.push_back(ProjectLocatorSystem::init());
+    //TODO: only if editor features should be enabled
+    initializers.push_back(EditorSystem::init());
 
     simulation.push_back(ProjectLocatorSystem::createUriListener());
+    simulation.push_back(EditorSystem::createUriListener());
 
     //Clear messages at the end of the frame
     cleanup.push_back(RemoveEntitiesSystem<View<Read<MessageComponent>>>::create());
 
+    context.registerInitializer(std::move(initializers));
     context.registerUpdatePhase(AppPhase::Input, std::move(input), 60);
     context.registerUpdatePhase(AppPhase::Simulation, std::move(simulation), 20);
     context.registerUpdatePhase(AppPhase::Physics, std::move(physics), 60);
@@ -89,7 +96,7 @@ namespace Registration {
     struct Composer : public AppRegistration {
       void registerAppContext(Engine::AppContext& context) override {
         Engine::AppContext::PhaseContainer input, simulation, graphics, physics, cleanup;
-        Engine::SystemList empty;
+        Engine::SystemList empty, initializers;
         auto foreachPhase = [&](auto func) {
           func(Engine::AppPhase::Input, input);
           func(Engine::AppPhase::Simulation, simulation);
@@ -101,6 +108,7 @@ namespace Registration {
           foreachPhase([&empty, &context](Engine::AppPhase phase, const Engine::AppContext::PhaseContainer&) {
             context.registerUpdatePhase(phase, empty, 0);
           });
+          context.registerInitializer(empty);
         };
 
         for(auto&& reg : mRegistration) {
@@ -119,10 +127,13 @@ namespace Registration {
               container.mSystems.insert(container.mSystems.end(), registeredPhase.mSystems.begin(), registeredPhase.mSystems.end());
             }
           });
+          Engine::SystemList newInitializers = context.getInitializers().mSystems;
+          initializers.insert(initializers.end(), newInitializers.begin(), newInitializers.end());
         }
 
         //Register the final gathered systems
         resetRegisteredPhases();
+        context.registerInitializer(std::move(initializers));
         foreachPhase([&context](Engine::AppPhase phase, const Engine::AppContext::PhaseContainer& container) {
           context.registerUpdatePhase(phase, container.mSystems, container.mTargetFPS);
         });

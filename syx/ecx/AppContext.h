@@ -59,6 +59,12 @@ namespace ecx {
       : mScheduler(scheduler) {
     }
 
+    //Arbitrary list of systems outside of the normal tick group intended to be invoked once for initizliation
+    //TODO: if more use cases arise, use StageIdT sort of approach to register and manually run certain groups of actions
+    void registerInitializer(std::vector<std::shared_ptr<ISystem<EntityT>>> system) {
+      mInitializers = std::move(system);
+    }
+
     //Register the phase in order as determined by stage. If a phase already exists with this id it is replaced
     void registerUpdatePhase(StageIdT stage, std::vector<std::shared_ptr<ISystem<EntityT>>> systems, size_t targetFPS) {
       auto it = std::lower_bound(mUpdatePhases.begin(), mUpdatePhases.end(), stage, [](const UpdatePhase& phase, const StageIdT& stage) {
@@ -90,6 +96,16 @@ namespace ecx {
         result.mTargetFPS = it->mTimer.getTargetFPS();
       }
       return result;
+    }
+
+    PhaseContainer getInitializers() {
+      return PhaseContainer{ mInitializers, size_t(0) };
+    }
+
+    void initialize(EntityRegistry<EntityT>& registry) {
+      for(auto&& system : mInitializers) {
+        system->tick(registry);
+      }
     }
 
     //Execute all available updates as dictated by each phase's timer
@@ -164,6 +180,7 @@ namespace ecx {
       size_t mTickCredits = 0;
     };
 
+    std::vector<std::shared_ptr<ISystem<EntityT>>> mInitializers;
     std::shared_ptr<SchedulerT> mScheduler;
     std::vector<UpdatePhase> mUpdatePhases;
     //All possible execution graphs for when a subset of systems needs to update

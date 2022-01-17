@@ -5,6 +5,28 @@
 #include "ecs/component/SpaceComponents.h"
 #include "ecs/component/UriActivationComponent.h"
 
+std::shared_ptr<Engine::System> EditorSystem::init() {
+  using namespace Engine;
+  using Modifier = EntityModifier<EditorContextComponent,
+    EditorSavedSceneComponent,
+    EditorSceneReferenceComponent,
+    SpaceTagComponent
+  >;
+
+  return ecx::makeSystem("EditorInit", [](SystemContext<EntityFactory, Modifier>& context) {
+    auto factory = context.get<EntityFactory>();
+    auto modifier = context.get<Modifier>();
+
+    auto editorSpace = factory.createEntity();
+    modifier.addComponent<SpaceTagComponent>(editorSpace);
+
+    auto editorContext = factory.createEntity();
+    modifier.addComponent<EditorContextComponent>(editorContext);
+    modifier.addComponent<EditorSavedSceneComponent>(editorContext);
+    modifier.addComponent<EditorSceneReferenceComponent>(editorContext, EditorSceneReferenceComponent{ editorSpace });
+  });
+}
+
 std::shared_ptr<Engine::System> EditorSystem::createUriListener() {
   using namespace Engine;
   using SpaceView = View<Include<SpaceTagComponent>, OptionalRead<DefaultPlaySpaceComponent>>;

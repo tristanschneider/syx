@@ -47,6 +47,23 @@ namespace {
   }
 }
 
+namespace initPL {
+  using namespace Engine;
+  void tick(SystemContext<EntityFactory, EntityModifier<ProjectLocatorComponent>>& context) {
+    //Add an entity with the project locator
+    auto factory = context.get<EntityFactory>();
+    auto modifier = context.get<EntityModifier<ProjectLocatorComponent>>();
+    //Arbitrary entity to hold the project locator
+    auto entity = factory.createEntity();
+    modifier.addDeducedComponent(entity, ProjectLocatorComponent{ std::make_unique<ProjectLocator>() });
+  }
+}
+
+std::unique_ptr<Engine::System> ProjectLocatorSystem::init() {
+  return ecx::makeSystem("InitProjectLocator", &initPL::tick);
+}
+
+
 std::unique_ptr<Engine::System> ProjectLocatorSystem::createUriListener() {
   return ecx::makeSystem("ProjectLocatorUriSystem", &tickPLUriListener);
 }

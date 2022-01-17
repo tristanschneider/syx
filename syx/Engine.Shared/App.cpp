@@ -52,16 +52,28 @@ App::App(std::unique_ptr<AppPlatform> appPlatform, std::unique_ptr<AppRegistrati
   FilePath path, file, ext;
   FilePath exePath(mAppPlatform->getExePath().c_str());
   exePath.getParts(path, file, ext);
-  auto projectLocator = std::make_unique<ProjectLocator>();
-  projectLocator->setPathRoot(path, PathSpace::Project);
 
   auto fileSystem = mAppPlatform->createFileSystem();
+
+  ecx::SchedulerConfig config;
+  mScheduler = std::make_shared<Engine::Scheduler>(config);
+  mAppContext = std::make_unique<Engine::AppContext>(mScheduler);
+  mEntityRegistry = std::make_unique<Engine::EntityRegistry>();
+  registration->registerAppContext(*mAppContext);
+
+  mAppContext->initialize(*mEntityRegistry);
+  auto projectLocator = mEntityRegistry->begin<ProjectLocatorComponent>();
+  assert(projectLocator != mEntityRegistry->end<ProjectLocatorComponent>() && "Should have been added by AppContext::initialize");
+  projectLocator->get().setPathRoot(path, PathSpace::Project);
+
+  auto globalEntity = mEntityRegistry->getSingleton();
+  mEntityRegistry->addComponent<FileSystemComponent>(globalEntity, std::move(fileSystem));
 
   SystemArgs args = {
     mWorkerPool.get(),
     this,
     mGameObjectGen.get(),
-    projectLocator.get(),
+    &projectLocator->get(),
     mAppPlatform.get(),
     mComponentRegistry.get(),
     fileSystem.get(),
@@ -71,16 +83,6 @@ App::App(std::unique_ptr<AppPlatform> appPlatform, std::unique_ptr<AppRegistrati
   registration->registerSystems(args, *systems);
   registration->registerComponents(mComponentRegistry->getWriter().first);
   mSystems = systems->takeSystems();
-
-  ecx::SchedulerConfig config;
-  mScheduler = std::make_shared<Engine::Scheduler>(config);
-  mAppContext = std::make_unique<Engine::AppContext>(mScheduler);
-  mEntityRegistry = std::make_unique<Engine::EntityRegistry>();
-  registration->registerAppContext(*mAppContext);
-
-  auto globalEntity = mEntityRegistry->getSingleton();
-  mEntityRegistry->addComponent<FileSystemComponent>(globalEntity, std::move(fileSystem));
-  mEntityRegistry->addComponent<ProjectLocatorComponent>(globalEntity, std::move(projectLocator));
 
   //TODO: move this to test project
   TestRegistry::get().run();
