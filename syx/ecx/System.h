@@ -4,6 +4,7 @@
 #include "EntityModifier.h"
 #include "EntityRegistry.h"
 #include "FunctionTraits.h"
+#include "TypeList.h"
 #include "View.h"
 
 namespace ecx {
@@ -38,22 +39,6 @@ namespace ecx {
       struct IsView : public std::false_type {};
       template<class... Args>
       struct IsView<View<Args...>> : public std::true_type {};
-
-      template<class... Args>
-      struct TypeList {};
-      template<class... A>
-      static TypeList<A...> combine(TypeList<A...>);
-      template<class... A, class... B>
-      static TypeList<A..., B...> combine(TypeList<A...>, TypeList<B...>);
-
-      template<class... A, class... B, class... C>
-      static decltype(combine(TypeList<A..., B...>(), std::declval<C>()...)) combine(TypeList<A...>, TypeList<B...>, C...);
-
-      template<class T, class... A>
-      static std::disjunction<std::is_same<T, A>...> typeListContains(TypeList<A...>);
-
-      template<template<class...> class To, class... Args>
-      static To<Args...> changeType(TypeList<Args...>);
 
       template<class... Args>
       using ViewTypeListT = decltype(combine(std::declval<std::conditional_t<IsView<Args>::value, TypeList<Args>, TypeList<>>>()...));
