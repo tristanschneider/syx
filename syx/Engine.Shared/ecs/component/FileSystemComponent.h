@@ -1,5 +1,6 @@
 #pragma once
 
+#include "file/FilePath.h"
 #include "file/FileSystem.h"
 
 class FileSystemComponent {
@@ -22,4 +23,27 @@ public:
 
 private:
   std::unique_ptr<FileSystem::IFileSystem> mFile;
+};
+
+//Put on an entity to request loading of a file
+struct FileReadRequest {
+  FilePath mToRead;
+};
+
+struct FileReadSuccessResponse {
+  std::vector<uint8_t> mBuffer;
+};
+
+struct FileReadFailureResponse {
+};
+
+struct FileWriteRequest {
+  FilePath mToWrite;
+  std::vector<uint8_t> mBuffer;
+};
+
+struct FileWriteSuccessResponse {
+};
+
+struct FileWriteFailureResponse {
 };

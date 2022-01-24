@@ -4,6 +4,7 @@
 #include "file/FilePath.h"
 #include "Handle.h"
 
+//A component on a space to designate it as a space
 struct SpaceTagComponent {
 };
 
@@ -21,4 +22,35 @@ struct LoadSpaceComponent {
   Engine::Entity mSpace;
   //File to load space from
   FilePath mToLoad;
+};
+
+//The space that this entity is in
+struct InSpaceComponent {
+  Engine::Entity mSpace;
+};
+
+//On the space from the time the LoadSpaceComponent is processed until all entities are filled in
+struct SpaceLoadingComponent {
+};
+
+//On the space after the file has been parsed until space loading is complete
+struct ParsedSpaceContentsComponent {
+  struct Section {
+    std::vector<uint8_t> mBuffer;
+  };
+  std::vector<Engine::Entity> mNewEntities;
+  //Section intended for each component type or group
+  std::unordered_map<typeId_t<Section>, Section> mSections;
+};
+
+//On the space after all entities have created until their components have been filled in
+struct SpaceFillingEntitiesComponent {
+};
+
+struct SaveSpaceComponent {
+  Engine::Entity mSpace;
+  FilePath mToSave;
+};
+
+struct SpaceSavingComponent {
 };
