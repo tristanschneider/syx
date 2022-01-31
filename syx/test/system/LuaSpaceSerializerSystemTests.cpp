@@ -9,6 +9,10 @@
 #include "lua.hpp"
 
 struct TestComponent {
+  bool operator==(const TestComponent& rhs) const {
+    return value == rhs.value;
+  }
+
   int value = 0;
 };
 
@@ -40,11 +44,59 @@ namespace SystemTests {
       std::vector<uint8_t> buffer = Serializer::serialize(components);
       assertBufferMatches(buffer,
 R"({
-  e = 0,
-  p = {
-    value = 1
+  {
+    e = 0,
+    p = {
+      value = 1
+    }
   }
 })");
+    }
+
+    TEST_METHOD(LuaComponentSerialize_SingleComponentRoundTrip_Matches) {
+      using Serializer = LuaComponentSerialize<TestComponent>;
+      Serializer::Components components;
+      components.push_back(std::make_pair(Entity(0), TestComponent{1}));
+
+      Serializer::Components result = Serializer::deserialize(Serializer::serialize(components));
+
+      Assert::IsTrue(components == result);
+    }
+
+    TEST_METHOD(LuaComponentSerialize_SerializeTwoComponents_AreSerialized) {
+      using Serializer = LuaComponentSerialize<TestComponent>;
+      Serializer::Components components;
+      components.push_back(std::make_pair(Entity(0), TestComponent{1}));
+      components.push_back(std::make_pair(Entity(99), TestComponent{2}));
+
+      std::vector<uint8_t> buffer = Serializer::serialize(components);
+
+      assertBufferMatches(buffer,
+R"({
+  {
+    e = 0,
+    p = {
+      value = 1
+    }
+  },
+  {
+    e = 99,
+    p = {
+      value = 2
+    }
+  }
+})");
+    }
+
+    TEST_METHOD(LuaComponentSerialize_TwoComponentsRoundTrip_Matches) {
+      using Serializer = LuaComponentSerialize<TestComponent>;
+      Serializer::Components components;
+      components.push_back(std::make_pair(Entity(50), TestComponent{11}));
+      components.push_back(std::make_pair(Entity(12), TestComponent{13}));
+
+      Serializer::Components result = Serializer::deserialize(Serializer::serialize(components));
+
+      Assert::IsTrue(components == result);
     }
   };
 }
