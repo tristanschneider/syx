@@ -18,6 +18,13 @@ struct Two {
 struct Empty {
 };
 
+struct CustomTagA {};
+struct CustomTagB {};
+
+struct BasicTagged {
+  int a;
+};
+
 namespace ecx {
   template<>
   struct StaticTypeInfo<Basic> : StructTypeInfo<StaticTypeInfo<Basic>
@@ -43,12 +50,46 @@ namespace ecx {
     , ecx::AutoTypeList<>
   > {
   };
+
+  template<>
+  struct StaticTypeInfo<BasicTagged> : StructTypeInfo<StaticTypeInfo<BasicTagged>
+    , ecx::TypeList<ecx::TaggedType<&BasicTagged::a, CustomTagA, CustomTagB>>
+    , ecx::TypeList<>
+  > {
+    inline static const std::array<std::string, 1> MemberNames = { "a" };
+  };
 }
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 namespace ecx {
+  static_assert(!std::is_integral<void>::value);
+  static_assert(std::is_integral<int>::value);
+  static_assert(!std::is_integral<std::string>::value);
+  static_assert(std::is_same_v<TypeList<int>,
+    std::conditional_t<std::is_integral<int>::value, TypeList<int>, TypeList<>>>);
+
+
   TEST_CLASS(TypeInfoTests) {
+    static_assert(std::is_same_v<
+      ecx::TypeList<int>,
+      decltype(ecx::typeListFilter<std::is_integral>(ecx::TypeList<void, int, std::string>{}))>
+    );
+
+    template<class T>
+    struct RemapInt {
+      using type = T;
+    };
+
+    template<>
+    struct RemapInt<int> {
+      using type = bool;
+    };
+
+    static_assert(std::is_same_v<
+      ecx::TypeList<bool, bool, std::string>,
+      decltype(ecx::typeListTransform<RemapInt>(ecx::TypeList<int, bool, std::string>{}))>);
+
     TEST_METHOD(StaticTypeInfoEmpty_InfoMatches) {
       using Info = StaticTypeInfo<Empty>;
 
@@ -70,7 +111,19 @@ namespace ecx {
       static_assert(decltype(b)::FunctionCount == 1);
       static_assert(std::is_same_v<ecx::TypeList<StaticTypeInfo<int>>, decltype(b)::MemberTypeList>);
       Assert::AreEqual(std::string("a"), b.getMemberName<0>());
-      Assert::AreEqual(std::string("fn"), b.getMemberName<0>());
+      Assert::AreEqual(std::string("fn"), b.getFunctionName<0>());
+    }
+
+    TEST_METHOD(StaticTypeInfoBasicTagged_InfoMatches) {
+      auto b = StaticTypeInfo<BasicTagged>{};
+
+      static_assert(decltype(b)::MemberCount == 1);
+      static_assert(decltype(b)::FunctionCount == 0);
+      static_assert(std::is_same_v<ecx::TypeList<StaticTypeInfo<int>>, decltype(b)::MemberTypeList>);
+      static_assert(decltype(b)::memberHasTags<0, CustomTagA, CustomTagB>());
+      static_assert(!decltype(b)::memberHasTags<0, int>());
+      static_assert(std::is_same_v<StaticTypeInfo<int>, decltype(decltype(b)::getStaticTypeInfo<0>())>);
+      Assert::AreEqual(std::string("a"), b.getMemberName<0>());
     }
 
     TEST_METHOD(StaticTypeInfoBasic_Visit_VisitsMember) {
@@ -111,21 +164,21 @@ namespace ecx {
 
       static_assert(decltype(c)::MemberCount == 2);
       static_assert(decltype(c)::FunctionCount == 2);
-      Assert::AreEqual(std::string("b"), c.getMemberName<0>());
-      Assert::AreEqual(std::string("c"), c.getMemberName<1>());
+      Assert::AreEqual(std::string("a"), c.getMemberName<0>());
+      Assert::AreEqual(std::string("b"), c.getMemberName<1>());
       Assert::AreEqual(std::string("f1"), c.getFunctionName<0>());
-      Assert::AreEqual(std::string("f2"), c.getMemberName<1>());
+      Assert::AreEqual(std::string("f2"), c.getFunctionName<1>());
     }
 
     TEST_METHOD(StaticTypeInfoTwo_Visit_VisitsMembers) {
       auto b = StaticTypeInfo<Two>{};
       struct Visitor {
         void operator()(const std::string& name, StaticTypeInfo<int>) const {
-          Assert::AreEqual(std::string("b"), name);
+          Assert::AreEqual(std::string("a"), name);
           ++mInvocations;
         };
         void operator()(const std::string& name, StaticTypeInfo<bool>) const {
-          Assert::AreEqual(std::string("c"), name);
+          Assert::AreEqual(std::string("b"), name);
           ++mInvocations;
         };
         mutable int mInvocations = 0;

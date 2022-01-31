@@ -64,6 +64,7 @@ namespace Lua {
     }
   };
 
+  //TODO: may want to use void* and metatable with index instead of always pushing up all fields
   template<class T>
   struct LuaTypeInfo<T, std::enable_if_t<(ecx::StaticTypeInfo<T>::MemberCount > 0)>> {
     static int push(lua_State* l, const T& value) {

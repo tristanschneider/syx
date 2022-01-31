@@ -24,11 +24,20 @@ namespace ecx {
   struct StructTypeInfo {
   };
 
-  template<class C, auto... Members, auto... Functions>
-  struct StructTypeInfo<StaticTypeInfo<C>, ecx::AutoTypeList<Members...>, ecx::AutoTypeList<Functions...>> {
+  template<auto MemberT, class... TagsT>
+  struct TaggedType {
+    static inline constexpr auto Member = MemberT;
+    using TagList = ecx::TypeList<TagsT...>;
+  };
+
+  //Type lists of TaggedType<&C::mMember, TagA, TagB> or
+  //AutoTypeList<&C::mMember> if no tags are desired
+  //Where tags indicate desired metadata, like serialization, public vs private, or whatever else
+  template<class C, class Members, class Functions, class MemberTags, class FunctionTags>
+  struct StructTypeInfoImpl {
     using SelfT = C;
-    static constexpr size_t MemberCount = sizeof...(Members);
-    static constexpr size_t FunctionCount = sizeof...(Functions);
+    static constexpr size_t MemberCount = Members::Size;
+    static constexpr size_t FunctionCount = Functions::Size;
 
     using StaticSelfT = StaticTypeInfo<C>;
 
@@ -37,12 +46,15 @@ namespace ecx {
     template<class T>
     static T memberPointerToMemberType(T);
 
-    using MemberTypeList = ecx::TypeList<StaticTypeInfo<decltype(memberPointerToMemberType(Members))>...>;
+    template<auto... ToApply>
+    using MemberTypeListTemplate = ecx::TypeList<StaticTypeInfo<decltype(memberPointerToMemberType(ToApply))>...>;
+    using MemberTypeList = decltype(ecx::changeType<MemberTypeListTemplate>(Members{}));
     using StaticMemberTypesTuple = decltype(ecx::changeType<std::tuple>(MemberTypeList{}));
-    //using MemberPointerTuple = std::tuple
 
-    using MemberTupleT = std::tuple<decltype(Members)...>;
-    inline static const MemberTupleT MemberTuple = MemberTupleT{ Members... };
+    template<auto... ToApply>
+    using MemberTupleTemplate = std::tuple<decltype(ToApply)...>;
+    using MemberTupleT = decltype(ecx::changeType<MemberTupleTemplate>(Members{}));
+    inline static const MemberTupleT MemberTuple = ecx::changeType<MemberTupleT>(Members{});
 
     template<size_t I>
     static const std::string& getMemberName() {
@@ -59,8 +71,16 @@ namespace ecx {
     }
 
     template<size_t I>
-    static auto getStaticTypeInfo() {
+    static constexpr auto getStaticTypeInfo() {
       return std::tuple_element_t<I, StaticMemberTypesTuple>{};
+    }
+
+    template<size_t I, class... Tags>
+    static constexpr bool memberHasTags() {
+      // Turn type list of type lists into tuple of type lists
+      using TupleT = decltype(changeType<std::tuple>(MemberTags{}));
+      // See if the type list at the member's index contains the types
+      return (decltype(ecx::typeListContains<Tags>(std::tuple_element_t<I, TupleT>{}))::value && ...);
     }
 
     template<size_t I>
@@ -116,5 +136,18 @@ namespace ecx {
     static void _visitOne(const Visitor& visitor) {
       visitor(getMemberName<I>(), getStaticTypeInfo<I>());
     }
+  };
+
+  //Default if no tags are provided : StructTypeInfo<T, ecx::AutoTypeList<&T::mValue>, ecx::AutoTypeList<&T::func>>
+  template<class C, auto... Members, auto... Functions>
+  struct StructTypeInfo<StaticTypeInfo<C>, ecx::AutoTypeList<Members...>, ecx::AutoTypeList<Functions...>>
+    : StructTypeInfoImpl<C, ecx::AutoTypeList<Members...>, ecx::AutoTypeList<Functions...>, ecx::TypeList<>, ecx::TypeList<>> {
+  };
+
+  //Tagged type form : StructTypeInfo<T, ecx::TypeList<ecx::TaggedType<&T::mValue, TagA>>, ecx::TypeList<ecx::TaggedType<&T::func, TagB>>>
+  template<class C, class... TaggedMembers, class... TaggedFunctions>
+  struct StructTypeInfo<StaticTypeInfo<C>, ecx::TypeList<TaggedMembers...>, ecx::TypeList<TaggedFunctions...>>
+    : StructTypeInfoImpl<C, ecx::AutoTypeList<TaggedMembers::Member...>, ecx::AutoTypeList<TaggedFunctions::Member...>,
+    ecx::TypeList<typename TaggedMembers::TagList...>, ecx::TypeList<typename TaggedFunctions::TagList...>> {
   };
 }
