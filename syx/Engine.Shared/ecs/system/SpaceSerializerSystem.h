@@ -18,14 +18,14 @@ template<class ComponentT, class SerializerT>
 struct ComponentSerializeSystem {
   static std::shared_ptr<Engine::System> createSerializer() {
     using namespace Engine;
-    using SpaceView = View<Include<SpaceSavingComponent>, Include<SpaceFillingEntitiesComponent>, Write<ParsedSpaceContentsComponent>;
+    using SpaceView = View<Include<SpaceSavingComponent>, Include<SpaceFillingEntitiesComponent>, Write<ParsedSpaceContentsComponent>>;
     using EntityView = View<Read<ComponentT>>;
 
     return ecx::makeSystem("SerializeComponent", [](SystemContext<SpaceView, EntityView>& context) {
       EntityView& entities = context.get<EntityView>();
       //Iterate over all spaces that need to be serialized
       for(auto spaceChunk : context.get<SpaceView>().chunks()) {
-        for(auto& spaceContents : *spaceChunk.tryGet<const ParsedSpaceContentsComponent>()) {
+        for(auto& spaceContents : *spaceChunk.tryGet<ParsedSpaceContentsComponent>()) {
           //Build the list of components to pass to the serializer
           typename ComponentSerialize<ComponentT>::Components components;
           components.reserve(spaceContents.mNewEntities.size());
@@ -33,13 +33,13 @@ struct ComponentSerializeSystem {
           //TODO: this is a high price to pay for uncommon components, might make more sense to iterate over entities with the component
           for(const Entity& entity : spaceContents.mNewEntities) {
             if(auto found = entities.find(entity); found != entities.end()) {
-              components.push_back(std::make_pair(entity, find.get<const ComponentT>()));
+              components.push_back(std::make_pair(entity, (*found).get<const ComponentT>()));
             }
           }
 
           //Save the serialized section in the ParsedSpaceContentsComponent
           //TODO, split this out from the serialization step so that serializers don't need write access to the component for as long
-          spaceContents[typeId<ComponentT, ParsedSpaceContentsComponent:::Section>()] = SerializerT::serialize(components):
+          spaceContents.mSections[ecx::StaticTypeInfo<ComponentT>::getTypeName()] = ParsedSpaceContentsComponent::Section{ SerializerT::serialize(components) };
         }
       }
     });
@@ -47,7 +47,7 @@ struct ComponentSerializeSystem {
 
   static std::shared_ptr<Engine::System> createDeserializer() {
     using namespace Engine;
-    using SpaceView = View<Include<SpaceLoadingComponent>, Include<SpaceFillingEntitiesComponent>;
+    using SpaceView = View<Include<SpaceLoadingComponent>, Read<ParsedSpaceContentsComponent>, Include<SpaceFillingEntitiesComponent>>;
     using Modifier = EntityModifier<ComponentT>;
 
     return ecx::makeSystem("DeserializeComponent", [](SystemContext<SpaceView, Modifier>& context) {
@@ -56,7 +56,7 @@ struct ComponentSerializeSystem {
       for(auto spaceChunk : context.get<SpaceView>().chunks()) {
         for(auto& spaceContents : *spaceChunk.tryGet<const ParsedSpaceContentsComponent>()) {
           //See if the section for this component exists
-          if(auto foundSection = spaceContents.mSections.find(typeId<ComponentT, ParsedSpaceContentsComponent::Section>()); foundSection != spaceContents.mSections.end()) {
+          if(auto foundSection = spaceContents.mSections.find(ecx::StaticTypeInfo<ComponentT>::getTypeName()); foundSection != spaceContents.mSections.end()) {
             //Deserialize section into a list of components
             //TODO: split this to its own step to avoid doing the work while holding the Modifier
             typename ComponentSerialize<ComponentT>::Components components = SerializerT::deserialize(foundSection->second.mBuffer);

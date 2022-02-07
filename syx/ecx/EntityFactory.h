@@ -19,6 +19,20 @@ namespace ecx {
       return mRegistry->createEntity();
     }
 
+    std::optional<EntityT> tryCreateEntity(const EntityT& entity) {
+      return mRegistry->tryCreateEntity(entity);
+    }
+
+    template<class... Components>
+    std::optional<EntityT> tryCreateEntityWithComponents(const EntityT& entity) {
+      return mRegistry->tryCreateEntityWithComponents<Components...>(entity);
+    }
+
+    template<class... Components>
+    EntityT createEntityWithComponents() {
+      return mRegistry->createEntityWithComponents<Components...>();
+    }
+
     void destroyEntity(const EntityT& entity) {
       mRegistry->destroyEntity(entity);
     }

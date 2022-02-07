@@ -23,9 +23,11 @@ namespace ecx {
     LinearEntity(const LinearEntity&) = default;
     LinearEntity& operator=(const LinearEntity&) = default;
 
-    template<class ComponentT>
+    template<class... Components>
     static uint32_t buildChunkId() {
-      return buildChunkId<ComponentT>(0);
+      uint32_t current = 0;
+      ((current = buildChunkId<Components>(current)), ...);
+      return current;
     }
 
     template<class ComponentT>
@@ -351,10 +353,45 @@ namespace ecx {
     }
 
     LinearEntity createEntity() {
-      LinearEntity result(++mIDGen, LinearEntity::buildChunkId<EmptyTag>());
+      LinearEntity result(_getAvailableId(), LinearEntity::buildChunkId<EmptyTag>());
+
       //Empty chunk should always exist
       _getEmptyChunk()->addDefaultConstructedEntity(result);
       return result;
+    }
+
+    template<class... Components>
+    LinearEntity createEntityWithComponents() {
+      return *tryCreateEntityWithComponents<Components...>(LinearEntity(_getAvailableId()));
+    }
+
+    template<class... Components>
+    std::optional<LinearEntity> tryCreateEntityWithComponents(const LinearEntity& desiredId) {
+      //Need to include the empty tag to end up with the same chunks as when built one by one
+      auto chunkId = LinearEntity::buildChunkId<EmptyTag, Components...>();
+      std::shared_ptr<EntityChunk> chunk = _getChunk(chunkId);
+      if(!chunk) {
+        chunk = std::make_shared<EntityChunk>();
+        chunk->addComponentType<EmptyTag>();
+        (chunk->addComponentType<Components>(), ...);
+        chunk = _addChunk(std::move(chunk), chunkId);
+      }
+
+      LinearEntity result(desiredId.mData.mParts.mEntityId, chunkId);
+      chunk->addDefaultConstructedEntity(result);
+      return result;
+    }
+
+    std::optional<LinearEntity> tryCreateEnity(const LinearEntity& desiredId) {
+      //Ensure the entity doesn't already exist
+      if(!_tryGetChunkForEntity(desiredId).second) {
+        //Construct in default chunk. This could also attempt to use the chunk id to create all the desired
+        //components, but that's a bit awkward because if the chunk doesn't already exist there isn't enough
+        //information to create it
+        _getEmptyChunk()->addDefaultConstructedEntity(desiredId);
+        return LinearEntity(desiredId.mData.mParts.mEntityId, LinearEntity::buildChunkId<EmptyTag>());
+      }
+      return {};
     }
 
     void destroyEntity(const LinearEntity& entity) {
@@ -382,6 +419,7 @@ namespace ecx {
       }
 
       assert(fromChunk && "From chunk should exist");
+      assert(fromChunk && !fromChunk->hasType(ecx::typeId<ComponentT, ecx::LinearEntity>()) && "Should only add new types");
       //If chunk for this component combination doesn't exist, create it
       if(!toChunk) {
         std::shared_ptr<EntityChunk> cloned = fromChunk->cloneEmpty();
@@ -390,7 +428,7 @@ namespace ecx {
         toChunk = _addChunk(std::move(cloned), newChunk);
       }
 
-      toChunk->migrateEntity(entity, *fromChunk, ComponentT(std::forward<Args>(args)...));
+      toChunk->migrateEntity(entity, *fromChunk, ComponentT{std::forward<Args>(args)...});
       std::vector<DecayT>* components = toChunk->tryGet<DecayT>();
       return components->back();
     }
@@ -571,8 +609,22 @@ namespace ecx {
     }
 
   private:
+    uint32_t _getAvailableId() {
+      //TODO: needed because specific entities can be requested. Is there a more efficient way to deal with this
+      //Maybe change idgen in tryCreateEntity?
+      while(_tryGetChunkForEntity(LinearEntity(++mIDGen, 0)).second) {
+      }
+      return mIDGen;
+    }
+
     std::shared_ptr<EntityChunk> _getEmptyChunk() {
-      return mChunkTypeToChunks.at(LinearEntity::buildChunkId<EmptyTag>());
+      return _getChunk(LinearEntity::buildChunkId<EmptyTag>());
+    }
+
+    std::shared_ptr<EntityChunk> _getChunk(uint32_t chunkId) {
+      std::shared_lock<std::shared_mutex> lock(mChunkMutex);
+      auto it = mChunkTypeToChunks.find(chunkId);
+      return it != mChunkTypeToChunks.end() ? it->second : nullptr;
     }
 
     std::pair<uint32_t, std::shared_ptr<EntityChunk>> _tryGetChunkForEntity(const LinearEntity& entity) {

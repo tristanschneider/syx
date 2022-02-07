@@ -98,5 +98,16 @@ R"({
 
       Assert::IsTrue(components == result);
     }
+
+    TEST_METHOD(LuaComponentSerialize_MaxEntityRoundTrip_Matches) {
+      using Serializer = LuaComponentSerialize<TestComponent>;
+      Serializer::Components components;
+      components.push_back(std::make_pair(Entity(std::numeric_limits<uint64_t>().max()), TestComponent{11}));
+      components.push_back(std::make_pair(Entity(std::numeric_limits<uint64_t>().max() - 1), TestComponent{11}));
+      components.push_back(std::make_pair(Entity(uint64_t(2889685629182935042)), TestComponent{11}));
+      Serializer::Components result = Serializer::deserialize(Serializer::serialize(components));
+
+      Assert::IsTrue(components == result);
+    }
   };
 }

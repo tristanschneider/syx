@@ -251,5 +251,47 @@ namespace ecx {
       Assert::IsFalse(it == registry.end<int>());
       Assert::AreEqual(it.component(), 10);
     }
+
+    TEST_METHOD(EntityRegistry_TryCreateEntityNew_IsCreated) {
+      TestEntityRegistry registry;
+
+      Assert::IsTrue(registry.tryCreateEnity(LinearEntity(10, 0)).has_value());
+    }
+
+    TEST_METHOD(EntityRegistry_TryCreateTaken_NotCreated) {
+      TestEntityRegistry registry;
+      auto first = registry.createEntity();
+
+      Assert::IsFalse(registry.tryCreateEnity(first).has_value());
+    }
+
+    TEST_METHOD(EntityRegistry_CreateNewWithSlotTaken_NewSlotChosen) {
+      TestEntityRegistry registry;
+      //This is the first id that will attempt to be generated
+      registry.tryCreateEnity(LinearEntity(1, 0));
+
+      auto entity = registry.createEntity();
+
+      Assert::AreNotEqual(uint32_t(1), entity.mData.mParts.mEntityId);
+    }
+
+    TEST_METHOD(EntityRegistry_CreateWithComponents_HasComponents) {
+      TestEntityRegistry registry;
+      auto entity = registry.createEntityWithComponents<int, std::string>();
+
+      Assert::IsTrue(registry.hasComponent<int>(entity));
+      Assert::IsTrue(registry.hasComponent<std::string>(entity));
+    }
+
+    TEST_METHOD(EntityRegistry_TryCreateWithComponents_HasComponents) {
+      TestEntityRegistry registry;
+      LinearEntity desired(100, 0);
+      auto entity = registry.tryCreateEntityWithComponents<int, std::string>(desired);
+
+      Assert::IsTrue(entity.has_value());
+      Assert::IsTrue(*entity == desired);
+      Assert::IsTrue(registry.hasComponent<int>(*entity));
+      Assert::IsTrue(registry.hasComponent<std::string>(*entity));
+    }
   };
 }

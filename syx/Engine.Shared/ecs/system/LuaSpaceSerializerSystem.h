@@ -29,7 +29,7 @@ struct LuaComponentSerialize {
       //Table of entity and component value
       lua_createtable(state.get(), 0, 2);
       //Write entity to "e"
-      lua_pushinteger(state.get(), static_cast<LUA_INTEGER>(pair.first.mData.mRawId));
+      lua_pushinteger(state.get(), static_cast<LUA_INTEGER>(pair.first.mData.mParts.mEntityId));
       lua_setfield(state.get(), -2, "e");
 
       //Write properties to "p"

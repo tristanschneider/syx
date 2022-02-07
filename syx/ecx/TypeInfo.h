@@ -70,6 +70,11 @@ namespace ecx {
       return StaticSelfT::FunctionNames[I];
     }
 
+    static const std::string& getTypeName() {
+      static_assert(std::is_same_v<std::string, std::decay_t<decltype(StaticSelfT::SelfName)>>, "Derived type should have a self identifier (SelfName)");
+      return StaticSelfT::SelfName;
+    }
+
     template<size_t I>
     static constexpr auto getStaticTypeInfo() {
       return std::tuple_element_t<I, StaticMemberTypesTuple>{};

@@ -40,7 +40,8 @@ struct ParsedSpaceContentsComponent {
   };
   std::vector<Engine::Entity> mNewEntities;
   //Section intended for each component type or group
-  std::unordered_map<typeId_t<Section>, Section> mSections;
+  std::unordered_map<std::string, Section> mSections;
+  FilePath mFile;
 };
 
 //On the space after all entities have created until their components have been filled in

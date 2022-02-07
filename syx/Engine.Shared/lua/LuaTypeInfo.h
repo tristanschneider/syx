@@ -2,6 +2,7 @@
 
 #include "lua.hpp"
 #include "lua/LuaStackAssert.h"
+#include "SyxMat4.h"
 #include "TypeInfo.h"
 
 //Uses ecx::TypeInfo to provide LuaTypeInfo<T> which can be used to read or write to lua
@@ -61,6 +62,35 @@ namespace Lua {
 
     static T fromTop(lua_State* l) {
       return static_cast<T>(lua_tointeger(l, -1));
+    }
+  };
+
+  template<>
+  struct LuaTypeInfo<Syx::Mat4> {
+    static int push(lua_State* l, const Syx::Mat4& m) {
+      lua_createtable(l, 16, 0);
+      for(int r = 0; r < 4; ++r) {
+        for(int c = 0; c < 4; ++c) {
+          lua_pushinteger(l, (r * 4) + c + 1);
+          lua_pushnumber(l, m[c][r]);
+          lua_settable(l, -3);
+        }
+      }
+      return 1;
+    }
+
+    static Syx::Mat4 fromTop(lua_State* l) {
+      Syx::Mat4 m;
+      //The visual layout is [c0.x, c1.x, c2.x, c3.x] but the data layout is [c0.x, c0.y, c0.z, c0.w] so have columns in the inner loop
+      for(int r = 0; r < 4; ++r) {
+        for(int c = 0; c < 4; ++c) {
+          lua_pushinteger(l, (r * 4) + c + 1);
+          lua_gettable(l, -2);
+          m[c][r] = static_cast<float>(lua_tonumber(l, -1));
+          lua_pop(l, 1);
+        }
+      }
+      return m;
     }
   };
 

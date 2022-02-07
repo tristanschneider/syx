@@ -1,5 +1,6 @@
 #pragma once
 
+#include <optional>
 #include "SparseSet.h"
 #include "TypeErasedContainer.h"
 #include "TypeId.h"

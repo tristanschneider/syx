@@ -7,7 +7,7 @@ namespace ecx {
   template<class EntityT>
   class SystemRegistry {
   public:
-    void registerSystem(std::unique_ptr<ISystem<EntityT>> system) {
+    void registerSystem(std::shared_ptr<ISystem<EntityT>> system) {
       mSystems.push_back(std::move(system));
     }
 
@@ -18,6 +18,6 @@ namespace ecx {
     }
 
   private:
-    std::vector<std::unique_ptr<ISystem<EntityT>>> mSystems;
+    std::vector<std::shared_ptr<ISystem<EntityT>>> mSystems;
   };
 };
