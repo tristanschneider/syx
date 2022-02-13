@@ -3,7 +3,6 @@
 
 #include <charconv>
 #include "ecs/component/FileSystemComponent.h"
-#include "ecs/component/MessageComponent.h"
 #include "ecs/component/SpaceComponents.h"
 #include "ecs/system/RemoveFromAllEntitiesSystem.h"
 
@@ -40,12 +39,12 @@ namespace {
       return {};
     }
     std::string_view strBuffer(reinterpret_cast<const char*>(&buffer[index]), buffer.size() - index);
-    if(const size_t sectionDelimiter = strBuffer.find_first_of(SECTION_DELIMITER, 0); sectionDelimiter != std::string_view::npos) {
+    if(const size_t sectionDelimiter = strBuffer.find(SECTION_DELIMITER, 0); sectionDelimiter != std::string_view::npos) {
       const size_t nameBegin = sectionDelimiter + SECTION_DELIMITER.size();
-      if(const size_t nameDelimiter = strBuffer.find_first_of(SECTION_DELIMITER, nameBegin); nameDelimiter != std::string_view::npos) {
+      if(const size_t nameDelimiter = strBuffer.find(SECTION_DELIMITER, nameBegin); nameDelimiter != std::string_view::npos) {
         const size_t nameEnd = nameDelimiter;
         const size_t sectionBegin = nameEnd + SECTION_DELIMITER.size();
-        if(const size_t sectionEndDelimiter = strBuffer.find_first_of(SECTION_DELIMITER, sectionBegin); sectionEndDelimiter != std::string_view::npos) {
+        if(const size_t sectionEndDelimiter = strBuffer.find(SECTION_DELIMITER, sectionBegin); sectionEndDelimiter != std::string_view::npos) {
           ParsedSection result;
           result.mName = strBuffer.substr(nameBegin, nameEnd - nameBegin);
           result.mContents = strBuffer.substr(sectionBegin, sectionEndDelimiter - sectionBegin);
@@ -87,18 +86,22 @@ namespace {
 
   std::vector<Engine::Entity> readHeader(const std::vector<uint8_t>& buffer, size_t& index) {
     //Don't keep searching on name mismatch, file must begin with this section
-    if(auto section = parseSection(buffer, index); section && section->mName != ENTITIES_SECTION) {
+    if(auto section = parseSection(buffer, index); section && section->mName == ENTITIES_SECTION) {
       std::vector<Engine::Entity> result;
       while(!section->mContents.empty()) {
         size_t idEnd = section->mContents.find_first_of(',');
         uint32_t entity = 0;
-        if(auto convResult = std::from_chars(&section->mContents[0], idEnd == std::string_view::npos ? &section->mContents.back() : &section->mContents[idEnd], entity); convResult.ec == std::errc()) {
+        const char* idBeginStr = &section->mContents.front();
+        const char* idEndStr = idEnd == std::string_view::npos ? ((&section->mContents.back()) + 1) : &section->mContents[idEnd];
+        std::string test(idBeginStr, size_t(idEndStr - idBeginStr));
+        if(auto convResult = std::from_chars(idBeginStr, idEndStr, entity); convResult.ec == std::errc()) {
           result.push_back(Engine::Entity(entity, uint32_t(0)));
         }
 
         section->mContents = idEnd == std::string_view::npos ? std::string_view() : section->mContents.substr(idEnd + 1);
       }
 
+      index = section->mEndIndex;
       return result;
     }
     return {};
@@ -146,13 +149,17 @@ std::shared_ptr<Engine::System> SpaceSystem::clearSpaceSystem() {
 std::shared_ptr<Engine::System> SpaceSystem::beginLoadSpaceSystem() {
   using namespace Engine;
   using MessageView = View<Read<LoadSpaceComponent>>;
+  using AlreadyLoadingView = View<Include<SpaceLoadingComponent>>;
   using Modifier = EntityModifier<SpaceLoadingComponent, FileReadRequest>;
-  return ecx::makeSystem("beginLoadSpace", [](SystemContext<MessageView, Modifier>& context) {
+  return ecx::makeSystem("beginLoadSpace", [](SystemContext<MessageView, Modifier, AlreadyLoadingView>& context) {
     auto modifier = context.get<Modifier>();
+    auto& alreadyLoading = context.get<AlreadyLoadingView>();
     for(auto messageChunk : context.get<MessageView>().chunks()) {
       for(const auto& message : *messageChunk.tryGet<const LoadSpaceComponent>()) {
-        modifier.addDeducedComponent(message.mSpace, FileReadRequest{ message.mToLoad });
-        modifier.addComponent<SpaceLoadingComponent>(message.mSpace);
+        if(alreadyLoading.find(message.mSpace) == alreadyLoading.end()) {
+          modifier.addDeducedComponent(message.mSpace, FileReadRequest{ message.mToLoad });
+          modifier.addComponent<SpaceLoadingComponent>(message.mSpace);
+        }
       }
     }
   });
@@ -161,7 +168,7 @@ std::shared_ptr<Engine::System> SpaceSystem::beginLoadSpaceSystem() {
 std::shared_ptr<Engine::System> SpaceSystem::parseSceneSystem() {
   using namespace Engine;
   //TODO: what about failure?
-  using SpaceView = View<Read<FileReadSuccessResponse>, Read<FileReadRequest>, Include<SpaceLoadingComponent>>;
+  using SpaceView = View<Read<FileReadSuccessResponse>, Read<FileReadRequest>, Include<SpaceLoadingComponent>, Exclude<ParsedSpaceContentsComponent>>;
   using Modifier = EntityModifier<ParsedSpaceContentsComponent>;
   return ecx::makeSystem("parseScene", [](SystemContext<SpaceView, Modifier>& context) {
     auto modifier = context.get<Modifier>();
@@ -169,10 +176,9 @@ std::shared_ptr<Engine::System> SpaceSystem::parseSceneSystem() {
     for(auto chunk : view.chunks()) {
       const auto& spaces = *chunk.tryGet<const FileReadSuccessResponse>();
 
-      while(!spaces.empty()) {
-        const FileReadSuccessResponse& file = spaces[0];
+      for(size_t i = 0; i < spaces.size();) {
         size_t index = 0;
-        const std::vector<uint8_t>& buffer = file.mBuffer;
+        const std::vector<uint8_t>& buffer = spaces[i].mBuffer;
         ParsedSpaceContentsComponent newContents;
         newContents.mFile = chunk.tryGet<const FileReadRequest>()->front().mToRead;
         newContents.mNewEntities = readHeader(buffer, index);
@@ -182,6 +188,7 @@ std::shared_ptr<Engine::System> SpaceSystem::parseSceneSystem() {
             newContents.mSections.emplace(std::move(*section));
           }
         }
+        modifier.addComponent<ParsedSpaceContentsComponent>(chunk.indexToEntity(i), std::move(newContents));
       }
     }
   });
@@ -190,20 +197,20 @@ std::shared_ptr<Engine::System> SpaceSystem::parseSceneSystem() {
 std::shared_ptr<Engine::System> SpaceSystem::createSpaceEntitiesSystem() {
   using namespace Engine;
   using Modifier = EntityModifier<InSpaceComponent, SpaceFillingEntitiesComponent>;
-  using SpaceView = View<Write<ParsedSpaceContentsComponent>>;
+  using SpaceView = View<Write<ParsedSpaceContentsComponent>, Exclude<SpaceFillingEntitiesComponent>>;
   return ecx::makeSystem("createSpaceEntities", [](SystemContext<EntityFactory, Modifier, SpaceView>& context) {
     auto modifier = context.get<Modifier>();
     auto factory = context.get<EntityFactory>();
 
     for(auto spaceChunk : context.get<SpaceView>().chunks()) {
       //Create all entities
-      for(auto& parsedSpaceContent : *spaceChunk.tryGet<ParsedSpaceContentsComponent>()) {
-
-        //TODO: fill mNewEntities here with some parsed data
-        (void)parsedSpaceContent;
-        for(const Entity& entity : parsedSpaceContent.mNewEntities) {
+      auto& parsedSpaceContent = *spaceChunk.tryGet<ParsedSpaceContentsComponent>();
+      for(size_t i = 0; i < parsedSpaceContent.size(); ++i) {
+        for(const Entity& entity : parsedSpaceContent[i].mNewEntities) {
           //TODO: what if this fails? Remap entity id?
-          factory.tryCreateEntityWithComponents(entity);
+          if(std::optional<Entity> created = factory.tryCreateEntityWithComponents(entity)) {
+            modifier.addComponent<InSpaceComponent>(*created, spaceChunk.indexToEntity(i));
+          }
         }
       }
 
@@ -219,26 +226,32 @@ std::shared_ptr<Engine::System> SpaceSystem::completeSpaceLoadSystem() {
   using namespace Engine;
   //Remove intermediate loading components from space at the end of the tick that it had SpaceFillingEntitiesComponent
   //In the future there may need to be a mechanism to delay the destruction for multiple frames to allow deferred loading
-  return removeFomAllEntitiesInView<View<Include<SpaceLoadingComponent>, Include<SpaceFillingEntitiesComponent>>
+  //TODO read failure response
+  return removeFomAllEntitiesInView<View<Include<SpaceLoadingComponent>, Include<SpaceFillingEntitiesComponent>, Include<FileReadSuccessResponse>>
     , SpaceLoadingComponent
     , ParsedSpaceContentsComponent
     , SpaceFillingEntitiesComponent
+    , FileReadRequest
+    , FileReadSuccessResponse
   >();
 }
 
 std::shared_ptr<Engine::System> SpaceSystem::beginSaveSpaceSystem() {
   using namespace Engine;
   using RequestView = View<Read<SaveSpaceComponent>>;
+  using SpaceView = View<Include<SpaceTagComponent>, Exclude<FileWriteRequest>>;
   using Modifier = EntityModifier<SpaceSavingComponent, SpaceFillingEntitiesComponent, ParsedSpaceContentsComponent>;
-  return ecx::makeSystem("beginSaveSpace", [](SystemContext<RequestView, Modifier>& context) {
+  return ecx::makeSystem("beginSaveSpace", [](SystemContext<RequestView, Modifier, SpaceView>& context) {
     auto modifier = context.get<Modifier>();
+    auto& spaceView = context.get<SpaceView>();
     for(auto chunks : context.get<RequestView>().chunks()) {
       for(const SaveSpaceComponent& saveRequest : *chunks.tryGet<const SaveSpaceComponent>()) {
-        const Entity space = saveRequest.mSpace;
-        //TODO: should this check if it's a valid path before adding the components
-        modifier.addComponent<ParsedSpaceContentsComponent>(space).mFile = saveRequest.mToSave;
-        modifier.addComponent<SpaceFillingEntitiesComponent>(space);
-        modifier.addComponent<SpaceSavingComponent>(space);
+        if(const Entity space = saveRequest.mSpace; spaceView.find(space) != spaceView.end()) {
+          //TODO: should this check if it's a valid path before adding the components
+          modifier.addComponent<ParsedSpaceContentsComponent>(space).mFile = saveRequest.mToSave;
+          modifier.addComponent<SpaceFillingEntitiesComponent>(space);
+          modifier.addComponent<SpaceSavingComponent>(space);
+        }
       }
     }
   });
@@ -246,7 +259,7 @@ std::shared_ptr<Engine::System> SpaceSystem::beginSaveSpaceSystem() {
 
 std::shared_ptr<Engine::System> SpaceSystem::createSerializedEntitiesSystem() {
   using namespace Engine;
-  using SpaceView = View<Include<SpaceFillingEntitiesComponent>, Write<ParsedSpaceContentsComponent>>;
+  using SpaceView = View<Include<SpaceFillingEntitiesComponent>, Write<ParsedSpaceContentsComponent>, Exclude<FileWriteRequest>>;
   using EntityView = View<Read<InSpaceComponent>>;
   return ecx::makeSystem("createSerializedEntities", [](SystemContext<SpaceView, EntityView>& context) {
     for(auto request : context.get<SpaceView>()) {
@@ -265,8 +278,8 @@ std::shared_ptr<Engine::System> SpaceSystem::createSerializedEntitiesSystem() {
 
 std::shared_ptr<Engine::System> SpaceSystem::serializeSpaceSystem() {
   using namespace Engine;
-  using SpaceView = View<Read<ParsedSpaceContentsComponent>>;
-  using Modifier = EntityModifier<FileWriteRequest, MessageComponent>;
+  using SpaceView = View<Read<ParsedSpaceContentsComponent>, Exclude<FileWriteRequest>>;
+  using Modifier = EntityModifier<FileWriteRequest>;
   return ecx::makeSystem("serializeSpace", [](SystemContext<SpaceView, Modifier, EntityFactory>& context) {
     for(auto space : context.get<SpaceView>()) {
       //Coalesce all sections into a single buffer to submit the file write request
@@ -283,9 +296,8 @@ std::shared_ptr<Engine::System> SpaceSystem::serializeSpaceSystem() {
       append(buffer, SECTION_DELIMITER);
 
       //Submit the file write request
-      Entity request = context.get<EntityFactory>().createEntity();
+      Entity request = space.entity();
       auto modifier = context.get<Modifier>();
-      modifier.addComponent<MessageComponent>(request);
       modifier.addComponent<FileWriteRequest>(request, contents.mFile, std::move(buffer));
     }
   });
@@ -293,9 +305,12 @@ std::shared_ptr<Engine::System> SpaceSystem::serializeSpaceSystem() {
 
 std::shared_ptr<Engine::System> SpaceSystem::completeSpaceSaveSystem() {
   using namespace Engine;
-  return removeFomAllEntitiesInView<View<Include<SpaceSavingComponent>, Include<SpaceFillingEntitiesComponent>>
+  //TODO file write failure
+  return removeFomAllEntitiesInView<View<Include<SpaceSavingComponent>, Include<SpaceFillingEntitiesComponent>, Include<FileWriteSuccessResponse>>
     , SpaceSavingComponent
     , ParsedSpaceContentsComponent
     , SpaceFillingEntitiesComponent
+    , FileWriteRequest
+    , FileWriteSuccessResponse
   >();
 }

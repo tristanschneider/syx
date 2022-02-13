@@ -181,3 +181,7 @@ FilePath FilePath::join(const FilePath& lhs, const FilePath& rhs) {
   result._append(rhs);
   return result;
 }
+
+bool FilePath::operator==(const FilePath& rhs) const {
+  return mSize == rhs.mSize && !std::memcmp(mPath.data(), rhs.mPath.data(), mSize);
+}

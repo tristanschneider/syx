@@ -129,8 +129,9 @@ namespace ecx {
 
       using ChunkIt = std::vector<std::shared_ptr<EntityChunk>>::iterator;
 
-      It(ChunkIt chunkIt, size_t entityIndex)
+      It(ChunkIt chunkIt, ChunkIt end, size_t entityIndex)
         : mChunkIt(chunkIt)
+        , mEndIt(end)
         , mEntityIndex(entityIndex) {
       }
 
@@ -139,7 +140,7 @@ namespace ecx {
 
       It& operator++() {
         ++mEntityIndex;
-        if(mEntityIndex >= (*mChunkIt)->size()) {
+        while(mChunkIt != mEndIt && mEntityIndex >= (*mChunkIt)->size()) {
           ++mChunkIt;
           mEntityIndex = 0;
         }
@@ -167,6 +168,7 @@ namespace ecx {
     private:
       //Current chunk iterator
       ChunkIt mChunkIt;
+      ChunkIt mEndIt;
       //Index of current entity in current chunk
       size_t mEntityIndex = 0;
     };
@@ -266,18 +268,18 @@ namespace ecx {
       //Ensure begin is pointing at a valid entity by skipping empty chunks
       return It(std::find_if(mChunks.begin(), mChunks.end(), [](const std::shared_ptr<EntityChunk>& chunk) {
         return chunk->size() != 0;
-      }), 0);
+      }), mChunks.end(), 0);
     }
 
     It end() {
-      return It(mChunks.end(), size_t(0));
+      return It(mChunks.end(), mChunks.end(), size_t(0));
     }
 
     It find(const LinearEntity& entity) {
       auto it = std::find_if(mChunks.begin(), mChunks.end(), [&entity](const std::shared_ptr<EntityChunk>& chunk) {
         return chunk->contains(entity);
       });
-      return it != mChunks.end() ? It(it, (*it)->entityToIndex(entity)) : It(it, size_t(0));
+      return it != mChunks.end() ? It(it, mChunks.end(), (*it)->entityToIndex(entity)) : It(it, mChunks.end(), size_t(0));
     }
 
     ChunkIt chunksBegin() {

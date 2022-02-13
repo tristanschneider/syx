@@ -209,6 +209,23 @@ namespace ecx {
       Assert::AreEqual(2, found);
     }
 
+    TEST_METHOD(ViewWithEmptyChunk_Iterate_AllFound) {
+      TestEntityRegistry registry;
+      TestEntity entity = registry.createEntity();
+      registry.addComponent<int>(entity, 1);
+      entity = registry.createEntityWithComponents<int, uint64_t>();
+      registry.removeComponent<uint64_t>(entity);
+      registry.getComponent<int>(entity) = 1;
+
+      TestView<Read<int>> view(registry);
+      size_t found = 0;
+      for(auto e : view) {
+        Assert::AreEqual(1, e.get<const int>());
+        ++found;
+      }
+      Assert::AreEqual(size_t(2), found);
+    }
+
     TEST_METHOD(ChunkView_EntitiesAcrossChunks_AllFound) {
       TestEntityRegistry registry;
       auto a = registry.createEntity();

@@ -29,6 +29,8 @@ public:
   void getParts(FilePath& path, FilePath& file, FilePath& extension) const;
   static FilePath join(const FilePath& lhs, const FilePath& rhs);
 
+  bool operator==(const FilePath& rhs) const;
+
 private:
   bool _beginsWithSlash() const;
   bool _endsWithSlash() const;
