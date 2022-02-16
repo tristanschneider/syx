@@ -90,6 +90,49 @@ namespace ecx {
       ecx::TypeList<bool, bool, std::string>,
       decltype(ecx::typeListTransform<RemapInt>(ecx::TypeList<int, bool, std::string>{}))>);
 
+    static int singleArgByValue(bool) { return 1; }
+    static int singleArgByRef(bool&) { return 2; }
+    static void voidFn() { }
+    static int& singleArgByValueReturnRef(int) { static int i = 0; return i; }
+    int memberFn(bool) { return 3; }
+    int constMemberFn(bool) const { return 4; }
+
+    static_assert(std::is_same_v<int, ecx::FunctionTypeInfo<&singleArgByValue>::ReturnT>);
+    static_assert(std::is_same_v<ecx::TypeList<bool>, ecx::FunctionTypeInfo<&singleArgByValue>::ArgsTypeList>);
+    static_assert(!ecx::FunctionTypeInfo<&singleArgByValue>::IsMemberFn);
+
+    static_assert(std::is_same_v<int, ecx::FunctionTypeInfo<&singleArgByRef>::ReturnT>);
+    static_assert(std::is_same_v<ecx::TypeList<bool&>, ecx::FunctionTypeInfo<&singleArgByRef>::ArgsTypeList>);
+    static_assert(!ecx::FunctionTypeInfo<&singleArgByRef>::IsMemberFn);
+
+    static_assert(std::is_same_v<void, ecx::FunctionTypeInfo<&voidFn>::ReturnT>);
+    static_assert(std::is_same_v<ecx::TypeList<>, ecx::FunctionTypeInfo<&voidFn>::ArgsTypeList>);
+    static_assert(!ecx::FunctionTypeInfo<&voidFn>::IsMemberFn);
+
+    static_assert(std::is_same_v<int&, ecx::FunctionTypeInfo<&singleArgByValueReturnRef>::ReturnT>);
+    static_assert(std::is_same_v<ecx::TypeList<int>, ecx::FunctionTypeInfo<&singleArgByValueReturnRef>::ArgsTypeList>);
+    static_assert(!ecx::FunctionTypeInfo<&singleArgByValueReturnRef>::IsMemberFn);
+
+    static_assert(std::is_same_v<int, ecx::FunctionTypeInfo<&TypeInfoTests::memberFn>::ReturnT>);
+    static_assert(std::is_same_v<ecx::TypeList<TypeInfoTests*, bool>, ecx::FunctionTypeInfo<&memberFn>::ArgsTypeList>);
+    static_assert(ecx::FunctionTypeInfo<&memberFn>::IsMemberFn);
+
+    static_assert(std::is_same_v<int, ecx::FunctionTypeInfo<&TypeInfoTests::constMemberFn>::ReturnT>);
+    static_assert(std::is_same_v<ecx::TypeList<const TypeInfoTests*, bool>, ecx::FunctionTypeInfo<&constMemberFn>::ArgsTypeList>);
+    static_assert(!ecx::FunctionTypeInfo<&singleArgByValue>::IsMemberFn);
+
+    TEST_METHOD(FunctionInfoTest_InvokeReturnMatches) {
+      Assert::AreEqual(1, ecx::FunctionTypeInfo<&singleArgByValue>::InfoT::invoke(true));
+      bool bref = false;
+      Assert::AreEqual(2, ecx::FunctionTypeInfo<&singleArgByRef>::InfoT::invoke(bref));
+      ecx::FunctionTypeInfo<&voidFn>::InfoT::invoke();
+      int& iref = ecx::FunctionTypeInfo<&singleArgByValueReturnRef>::InfoT::invoke(1);
+      Assert::AreEqual(0, iref);
+      Assert::AreEqual(3, ecx::FunctionTypeInfo<&TypeInfoTests::memberFn>::InfoT::invoke(this, true));
+      const TypeInfoTests* constSelf = this;
+      Assert::AreEqual(4, ecx::FunctionTypeInfo<&TypeInfoTests::constMemberFn>::InfoT::invoke(constSelf, true));
+    }
+
     TEST_METHOD(StaticTypeInfoEmpty_InfoMatches) {
       using Info = StaticTypeInfo<Empty>;
 
@@ -112,6 +155,12 @@ namespace ecx {
       static_assert(std::is_same_v<ecx::TypeList<StaticTypeInfo<int>>, decltype(b)::MemberTypeList>);
       Assert::AreEqual(std::string("a"), b.getMemberName<0>());
       Assert::AreEqual(std::string("fn"), b.getFunctionName<0>());
+
+      Basic self;
+      auto info = decltype(b)::getFunctionInfo<0>();
+      info.invoker().invoke(&self);
+      static_assert(std::is_same_v<void, decltype(info)::ReturnT>);
+      static_assert(std::is_same_v<ecx::TypeList<Basic*>, decltype(info)::ArgsTypeList>);
     }
 
     TEST_METHOD(StaticTypeInfoBasicTagged_InfoMatches) {

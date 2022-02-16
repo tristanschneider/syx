@@ -30,6 +30,57 @@ namespace ecx {
     using TagList = ecx::TypeList<TagsT...>;
   };
 
+  template<auto Fn>
+  struct FunctionTypeInfo {
+    template<class Ret, class... Args>
+    struct FreeFunctionInfo {
+      using ReturnT = Ret;
+      using ArgsList = ecx::TypeList<Args...>;
+      using IsMemberFn = std::false_type;
+
+      static Ret invoke(Args&&... args) {
+        return Fn(std::forward<Args>(args)...);
+      }
+    };
+    template<class Ret, class Class, class... Args>
+    struct MemberFunctionInfo {
+      using ReturnT = Ret;
+      using ArgsList = ecx::TypeList<Class*, Args...>;
+      using IsMemberFn = std::true_type;
+
+      static Ret invoke(Class* self, Args&&... args) {
+        return (self->*Fn)(std::forward<Args>(args)...);
+      }
+    };
+    template<class Ret, class Class, class... Args>
+    struct ConstMemberFunctionInfo {
+      using ReturnT = Ret;
+      using ArgsList = ecx::TypeList<const Class*, Args...>;
+      using IsMemberFn = std::true_type;
+
+      static Ret invoke(const Class* self, Args&&... args) {
+        return (self->*Fn)(std::forward<Args>(args)...);
+      }
+    };
+
+    template<class Ret, class... Args>
+    static FreeFunctionInfo<Ret, Args...> _deduceFnPointer(Ret(*)(Args...));
+    template<class Ret, class Class, class... Args>
+    static MemberFunctionInfo<Ret, Class, Args...> _deduceFnPointer(Ret(Class::*)(Args...));
+    template<class Ret, class Class, class... Args>
+    static ConstMemberFunctionInfo<Ret, Class, Args...> _deduceFnPointer(Ret(Class::* fn)(Args...) const);
+
+    using InfoT = decltype(_deduceFnPointer(Fn));
+    using ReturnT = typename InfoT::ReturnT;
+    using ArgsTypeList = typename InfoT::ArgsList;
+    static inline constexpr bool IsMemberFn = typename InfoT::IsMemberFn::value;
+
+    //Allows info.invoker().invoke() syntax
+    static InfoT invoker() {
+      return InfoT{};
+    }
+  };
+
   //Type lists of TaggedType<&C::mMember, TagA, TagB> or
   //AutoTypeList<&C::mMember> if no tags are desired
   //Where tags indicate desired metadata, like serialization, public vs private, or whatever else
@@ -46,10 +97,14 @@ namespace ecx {
     template<class T>
     static T memberPointerToMemberType(T);
 
+    template<auto... Fns>
+    using FunctionInfoTupleT = std::tuple<FunctionTypeInfo<Fns>...>;
+
     template<auto... ToApply>
     using MemberTypeListTemplate = ecx::TypeList<StaticTypeInfo<decltype(memberPointerToMemberType(ToApply))>...>;
     using MemberTypeList = decltype(ecx::changeType<MemberTypeListTemplate>(Members{}));
     using StaticMemberTypesTuple = decltype(ecx::changeType<std::tuple>(MemberTypeList{}));
+    inline static const decltype(ecx::changeType<FunctionInfoTupleT>(Functions{})) FunctionInfoTuple;
 
     template<auto... ToApply>
     using MemberTupleTemplate = std::tuple<decltype(ToApply)...>;
@@ -78,6 +133,11 @@ namespace ecx {
     template<size_t I>
     static constexpr auto getStaticTypeInfo() {
       return std::tuple_element_t<I, StaticMemberTypesTuple>{};
+    }
+
+    template<size_t I>
+    static constexpr auto getFunctionInfo() {
+      return std::tuple_element_t<I, decltype(FunctionInfoTuple)>{};
     }
 
     template<size_t I, class... Tags>
