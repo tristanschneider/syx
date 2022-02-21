@@ -20,7 +20,7 @@ namespace ecx {
 
   //StructTypeInfo is the way for multi-member classes to delcare their information
   //This is the unspecialized template that shouldn't be instantiated
-  template<class C, class Members, class Functions>
+  template<class C, class Members, class Functions, class Tags = ecx::TypeList<>>
   struct StructTypeInfo {
   };
 
@@ -84,9 +84,10 @@ namespace ecx {
   //Type lists of TaggedType<&C::mMember, TagA, TagB> or
   //AutoTypeList<&C::mMember> if no tags are desired
   //Where tags indicate desired metadata, like serialization, public vs private, or whatever else
-  template<class C, class Members, class Functions, class MemberTags, class FunctionTags>
+  template<class C, class Members, class Functions, class MemberTags, class FunctionTags, class SelfTags>
   struct StructTypeInfoImpl {
     using SelfT = C;
+    using TagsList = SelfTags;
     static constexpr size_t MemberCount = Members::Size;
     static constexpr size_t FunctionCount = Functions::Size;
 
@@ -140,6 +141,10 @@ namespace ecx {
       return std::tuple_element_t<I, decltype(FunctionInfoTuple)>{};
     }
 
+    static constexpr auto getFunctionCount() {
+      return std::tuple_size_v<decltype(FunctionInfoTuple)>;
+    }
+
     template<size_t I, class... Tags>
     static constexpr bool memberHasTags() {
       // Turn type list of type lists into tuple of type lists
@@ -148,10 +153,19 @@ namespace ecx {
       return (decltype(ecx::typeListContains<Tags>(std::tuple_element_t<I, TupleT>{}))::value && ...);
     }
 
+    //For some reason this works in enable_if when calling hasTags doesn't
+    template<class... Tags>
+    using HasTagsT = std::conjunction<decltype(ecx::typeListContains<Tags>(SelfTags{}))...>;
+
+    template<class... Tags>
+    static constexpr bool hasTags() {
+      return (decltype(ecx::typeListContains<Tags>(SelfTags{}))::value && ...);
+    }
+
     template<size_t I>
     static auto getMemberPointer() {
-      // For some reason, using a static tuple here works, but rebuilding it as std::make_tuple(Members...) doesn't,
-      // resulting in tuple<int, int> when it's supposed to be tuple<int Two::*, int Two::*>
+      //For some reason, using a static tuple here works, but rebuilding it as std::make_tuple(Members...) doesn't,
+      //resulting in tuple<int, int> when it's supposed to be tuple<int Two::*, int Two::*>
       return std::get<I>(MemberTuple);
     }
 
@@ -205,14 +219,22 @@ namespace ecx {
 
   //Default if no tags are provided : StructTypeInfo<T, ecx::AutoTypeList<&T::mValue>, ecx::AutoTypeList<&T::func>>
   template<class C, auto... Members, auto... Functions>
-  struct StructTypeInfo<StaticTypeInfo<C>, ecx::AutoTypeList<Members...>, ecx::AutoTypeList<Functions...>>
-    : StructTypeInfoImpl<C, ecx::AutoTypeList<Members...>, ecx::AutoTypeList<Functions...>, ecx::TypeList<>, ecx::TypeList<>> {
+  struct StructTypeInfo<StaticTypeInfo<C>, ecx::AutoTypeList<Members...>, ecx::AutoTypeList<Functions...>, ecx::TypeList<>>
+    : StructTypeInfoImpl<C, ecx::AutoTypeList<Members...>, ecx::AutoTypeList<Functions...>, ecx::TypeList<>, ecx::TypeList<>, ecx::TypeList<>> {
   };
 
   //Tagged type form : StructTypeInfo<T, ecx::TypeList<ecx::TaggedType<&T::mValue, TagA>>, ecx::TypeList<ecx::TaggedType<&T::func, TagB>>>
   template<class C, class... TaggedMembers, class... TaggedFunctions>
-  struct StructTypeInfo<StaticTypeInfo<C>, ecx::TypeList<TaggedMembers...>, ecx::TypeList<TaggedFunctions...>>
+  struct StructTypeInfo<StaticTypeInfo<C>, ecx::TypeList<TaggedMembers...>, ecx::TypeList<TaggedFunctions...>, ecx::TypeList<>>
     : StructTypeInfoImpl<C, ecx::AutoTypeList<TaggedMembers::Member...>, ecx::AutoTypeList<TaggedFunctions::Member...>,
-    ecx::TypeList<typename TaggedMembers::TagList...>, ecx::TypeList<typename TaggedFunctions::TagList...>> {
+    ecx::TypeList<typename TaggedMembers::TagList...>, ecx::TypeList<typename TaggedFunctions::TagList...>, ecx::TypeList<>> {
+  };
+
+  //Same as above with self tags
+  template<class C, class... TaggedMembers, class... TaggedFunctions, class... SelfTags>
+  struct StructTypeInfo<StaticTypeInfo<C>, ecx::TypeList<TaggedMembers...>, ecx::TypeList<TaggedFunctions...>, ecx::TypeList<SelfTags...>>
+    : StructTypeInfoImpl<C, ecx::AutoTypeList<TaggedMembers::Member...>, ecx::AutoTypeList<TaggedFunctions::Member...>,
+    ecx::TypeList<typename TaggedMembers::TagList...>, ecx::TypeList<typename TaggedFunctions::TagList...>,
+    ecx::TypeList<SelfTags...>> {
   };
 }

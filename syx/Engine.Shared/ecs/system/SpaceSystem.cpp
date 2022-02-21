@@ -93,7 +93,6 @@ namespace {
         uint32_t entity = 0;
         const char* idBeginStr = &section->mContents.front();
         const char* idEndStr = idEnd == std::string_view::npos ? ((&section->mContents.back()) + 1) : &section->mContents[idEnd];
-        std::string test(idBeginStr, size_t(idEndStr - idBeginStr));
         if(auto convResult = std::from_chars(idBeginStr, idEndStr, entity); convResult.ec == std::errc()) {
           result.push_back(Engine::Entity(entity, uint32_t(0)));
         }

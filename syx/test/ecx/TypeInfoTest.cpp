@@ -25,6 +25,11 @@ struct BasicTagged {
   int a;
 };
 
+struct TaggedSelf {
+  struct MyTag {};
+  int v;
+};
+
 namespace ecx {
   template<>
   struct StaticTypeInfo<Basic> : StructTypeInfo<StaticTypeInfo<Basic>
@@ -58,6 +63,15 @@ namespace ecx {
   > {
     inline static const std::array<std::string, 1> MemberNames = { "a" };
   };
+
+  template<>
+  struct StaticTypeInfo<TaggedSelf> : StructTypeInfo<StaticTypeInfo<TaggedSelf>
+    , ecx::TypeList<ecx::TaggedType<&BasicTagged::a>>
+    , ecx::TypeList<>
+    , ecx::TypeList<TaggedSelf::MyTag>
+  > {
+    inline static const std::array<std::string, 1> MemberNames = { "a" };
+  };
 }
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -68,7 +82,6 @@ namespace ecx {
   static_assert(!std::is_integral<std::string>::value);
   static_assert(std::is_same_v<TypeList<int>,
     std::conditional_t<std::is_integral<int>::value, TypeList<int>, TypeList<>>>);
-
 
   TEST_CLASS(TypeInfoTests) {
     static_assert(std::is_same_v<
@@ -173,6 +186,14 @@ namespace ecx {
       static_assert(!decltype(b)::memberHasTags<0, int>());
       static_assert(std::is_same_v<StaticTypeInfo<int>, decltype(decltype(b)::getStaticTypeInfo<0>())>);
       Assert::AreEqual(std::string("a"), b.getMemberName<0>());
+    }
+
+    TEST_METHOD(StaticTypeInfoSelfTagged_InfoMatches) {
+      using Info = StaticTypeInfo<TaggedSelf>;
+      static_assert(Info::HasTagsT<TaggedSelf::MyTag>::value);
+      static_assert(!Info::HasTagsT<int>::value);
+      static_assert(Info::hasTags<TaggedSelf::MyTag>());
+      static_assert(!Info::hasTags<int>());
     }
 
     TEST_METHOD(StaticTypeInfoBasic_Visit_VisitsMember) {

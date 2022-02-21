@@ -8,6 +8,13 @@
 //Uses ecx::TypeInfo to provide LuaTypeInfo<T> which can be used to read or write to lua
 //Types can specialize to expose their lua functionality
 namespace Lua {
+  struct BindReference {};
+
+  template<class C, class Enabled = void>
+  struct IsReferenceBound : std::false_type {};
+  template<class C>
+  struct IsReferenceBound<C, std::enable_if_t<ecx::StaticTypeInfo<C>::template HasTagsT<Lua::BindReference>::value>> : std::true_type {};
+
   template<class T, class Enabled = void>
   struct LuaTypeInfo {
     static_assert(sizeof(T) == -1, "Should have specialized");
@@ -94,9 +101,23 @@ namespace Lua {
     }
   };
 
-  //TODO: may want to use void* and metatable with index instead of always pushing up all fields
+  //TODO: might need to be able to do both reference and copy
   template<class T>
-  struct LuaTypeInfo<T, std::enable_if_t<(ecx::StaticTypeInfo<T>::MemberCount > 0)>> {
+  struct LuaTypeInfo<T, std::enable_if_t<ecx::StaticTypeInfo<T>::template HasTagsT<Lua::BindReference>::value>> {
+    static int push(lua_State* l, const T& value) {
+      auto binding = (const T**)lua_newuserdata(l, sizeof(T*));
+      *binding = &value;
+      luaL_setmetatable(l, ecx::StaticTypeInfo<T>::getTypeName().c_str());
+      return 1;
+    }
+    
+    static T* fromTop(lua_State* l) {
+      return *static_cast<T**>(luaL_checkudata(l, -1, ecx::StaticTypeInfo<T>::getTypeName().c_str()));
+    }
+  };
+
+  template<class T>
+  struct LuaTypeInfo<T, std::enable_if_t<(ecx::StaticTypeInfo<T>::MemberCount > 0) && std::is_same_v<ecx::TypeList<>, typename ecx::StaticTypeInfo<T>::TagsList>>> {
     static int push(lua_State* l, const T& value) {
       Lua::StackAssert a(l, 1);
       lua_newtable(l);
@@ -124,6 +145,185 @@ namespace Lua {
       }, result);
 
       return result;
+    }
+  };
+
+  //Exposes openLib which creates the registry entry for all functions declared by ecx::TypeInfo<T>
+  //Limitations:
+  //- Pointer/reference types only allowed on argument types and only for reference bound arguments
+  //- No by-value returns of BindReference types
+  //- Reference types for primitives won't change the caller's value (lua)
+  template<class T>
+  struct LuaBinder {
+    //Creates a `callNative` method which uses ecx::TypeInfo to pull the arguments from the lua stack and call the wrapped method
+    template<class FunctionInfoT>
+    struct FunctionBinder {
+      template<class A, class Enabled = void>
+      struct Applier {
+        static_assert(sizeof(A) == -1, "Should have specialized one of the below");
+      };
+
+      //Common implementation for value types
+      template<class A>
+      struct ApplyArgumentByValue {
+        static A applyArgument(lua_State* l, size_t index) {
+          lua_pushvalue(l, static_cast<int>(index));
+          A result = LuaTypeInfo<std::decay_t<A>>::fromTop(l);
+          lua_pop(l, 1);
+          return result;
+        }
+      };
+
+      template<class A>
+      struct ApplyReferenceBoundArgumentByPointer {
+        static A applyArgument(lua_State* l, size_t index) {
+          //Allow nil as nullptr
+          if(lua_isnil(l, static_cast<int>(index))) {
+            return nullptr;
+          }
+          lua_pushvalue(l, static_cast<int>(index));
+          A result = LuaTypeInfo<std::decay_t<std::remove_pointer_t<A>>>::fromTop(l);
+          lua_pop(l, 1);
+          return result;
+        }
+      };
+
+      template<class A>
+      using IsByValueT = std::is_same<A, std::decay_t<std::remove_pointer_t<A>>>;
+
+      //Reference bound types by value
+      template<class A>
+      struct Applier<A, std::enable_if_t<!IsReferenceBound<A>::value && IsByValueT<A>::value>> : ApplyArgumentByValue<A> {
+      };
+
+      //Reference bound types by const value
+      template<class A>
+      struct Applier<const A, std::enable_if_t<!IsReferenceBound<A>::value>> : ApplyArgumentByValue<A> {
+      };
+
+      //Same as above for reference types that should be copied
+      template<class A>
+      struct Applier<A, std::enable_if_t<IsReferenceBound<A>::value>> {
+        static A applyArgument(lua_State* l, size_t index) {
+          lua_pushvalue(l, static_cast<int>(index));
+          A result = *LuaTypeInfo<std::decay_t<A>>::fromTop(l);
+          lua_pop(l, 1);
+          return result;
+        }
+      };
+
+      //Pointer arguments enabled for reference types
+      template<class A>
+      struct Applier<A*, std::enable_if_t<IsReferenceBound<A>::value>> : ApplyReferenceBoundArgumentByPointer<A*> {
+      };
+
+      //Const pointer arguments enabled for reference types
+      template<class A>
+      struct Applier<const A*, std::enable_if_t<IsReferenceBound<A>::value>> : ApplyReferenceBoundArgumentByPointer<const A*> {
+      };
+
+      //Reference arguments enabled for reference types
+      template<class A>
+      struct Applier<A&, std::enable_if_t<IsReferenceBound<A>::value>> {
+        static A& applyArgument(lua_State* l, size_t index) {
+          lua_pushvalue(l, static_cast<int>(index));
+          A& result = *LuaTypeInfo<std::decay_t<A>>::fromTop(l);
+          lua_pop(l, 1);
+          return result;
+        }
+      };
+
+      //const reference arguments enabled for reference types
+      template<class A>
+      struct Applier<const A&, std::enable_if_t<IsReferenceBound<A>::value>> {
+        static const A& applyArgument(lua_State* l, size_t index) {
+          lua_pushvalue(l, static_cast<int>(index));
+          const A& result = *LuaTypeInfo<std::decay_t<A>>::fromTop(l);
+          lua_pop(l, 1);
+          return result;
+        }
+      };
+
+      template<class A>
+      // Explicit return to preserve references, type list to allow overload resolution of template type
+      static decltype(LuaTypeInfo<std::decay_t<A>>::fromTop(nullptr)) applyArgument(lua_State* l, ecx::TypeList<A>, size_t index) {
+        lua_pushvalue(l, static_cast<int>(index));
+        auto result = LuaTypeInfo<std::decay_t<A>>::fromTop(l);
+        lua_pop(l, 1);
+        return result;
+      }
+
+      template<class ReturnT, class... Args, size_t... Indices>
+      static ReturnT _applyArguments(lua_State* l, ecx::TypeList<Args...>, std::index_sequence<Indices...>) {
+        if constexpr(!std::is_same_v<void, ReturnT>) {
+          //Pull each value down from lua then use that to call the function. +1 to convert from 0 based index to lua stack index starting at 1
+          return FunctionInfoT::invoker().invoke(Applier<Args>::applyArgument(l, Indices + 1)...);
+        }
+        else {
+          FunctionInfoT::invoker().invoke(Applier<Args>::applyArgument(l, Indices + 1)...);
+        }
+      }
+
+      using ArgsList = typename FunctionInfoT::ArgsTypeList;
+
+      template<class ReturnT>
+      static int _callNative(lua_State* l, ecx::TypeList<ReturnT>) {
+        if constexpr(std::is_pointer_v<ReturnT>) {
+          if(ReturnT ptr = _applyArguments<ReturnT>(l, ArgsList{}, std::make_index_sequence<ecx::typeListSize(ArgsList{})>())) {
+            return LuaTypeInfo<std::decay_t<std::remove_pointer_t<ReturnT>>>::push(l, *ptr);
+          }
+          lua_pushnil(l);
+          return 1;
+        }
+        else {
+          return LuaTypeInfo<std::decay_t<ReturnT>>::push(l,
+            _applyArguments<ReturnT>(l, ArgsList{}, std::make_index_sequence<ecx::typeListSize(ArgsList{})>()));
+        }
+      }
+
+      static int _callNative(lua_State* l, ecx::TypeList<void>) {
+        _applyArguments<void>(l, typename FunctionInfoT::ArgsTypeList{}, std::make_index_sequence<ecx::typeListSize(ArgsList{})>());
+        return 0;
+      }
+
+      static int callNative(lua_State* l) {
+        return _callNative(l, ecx::TypeList<typename FunctionInfoT::ReturnT>{});
+      };
+    };
+
+    template<bool MemberFns, size_t I>
+    static void _bindLibEntry(luaL_Reg*& entry) {
+      using FunctionInfoT = decltype(ecx::StaticTypeInfo<T>::getFunctionInfo<I>());
+      if constexpr(FunctionInfoT::IsMemberFn == MemberFns) {
+        entry->name = ecx::StaticTypeInfo<T>::getFunctionName<I>().c_str();
+        entry->func = &FunctionBinder<FunctionInfoT>::callNative;
+        ++entry;
+      }
+    }
+
+    template<bool MemberFns, size_t FnCount, size_t... Indices>
+    static void _bindLibEntries(std::array<luaL_Reg, FnCount>& entries, std::index_sequence<Indices...>) {
+      luaL_Reg* currentEntry = &entries[0];
+      (_bindLibEntry<MemberFns, Indices>(currentEntry), ...);
+    }
+
+    static void openLib(lua_State* l) {
+      //Make a full array for all functions, only some of them will be used
+      constexpr size_t functionCount = ecx::StaticTypeInfo<T>::getFunctionCount();
+      std::array<luaL_Reg, functionCount> members{ { nullptr, nullptr } };
+      std::array<luaL_Reg, functionCount> statics{ { nullptr, nullptr } };
+      _bindLibEntries<true>(members, std::make_index_sequence<functionCount>());
+      _bindLibEntries<false>(statics, std::make_index_sequence<functionCount>());
+
+      Lua::StackAssert sa(l);
+      const std::string& selfName = ecx::StaticTypeInfo<T>::getTypeName();
+      luaL_newmetatable(l, selfName.c_str());
+      luaL_setfuncs(l, members.data(), 0);
+      lua_pushvalue(l, -1);
+      lua_setfield(l, -2, "__index");
+      lua_pop(l, 1);
+      luaL_newlib(l, statics.data());
+      lua_setglobal(l, selfName.c_str());
     }
   };
 };
