@@ -79,8 +79,9 @@ struct LuaComponentSerialize {
       if(lua_getfield(state.get(), -1, "e") == LUA_TNUMBER) {
         Engine::Entity entity(static_cast<uint32_t>(lua_tonumber(state.get(), -1)), uint32_t(0));
         if(lua_getfield(state.get(), -2, "p") == LUA_TTABLE) {
-          //TODO: what if the read value is garbage?
-          result.push_back(std::make_pair(entity, Lua::LuaTypeInfo<ComponentT>::fromTop(state.get())));
+          if(auto top = Lua::LuaTypeInfo<ComponentT>::fromTop(state.get())) {
+            result.push_back(std::make_pair(entity, std::move(*top)));
+          }
         }
         lua_pop(state.get(), 1);
       }

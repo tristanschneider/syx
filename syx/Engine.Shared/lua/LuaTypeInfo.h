@@ -2,6 +2,7 @@
 
 #include "lua.hpp"
 #include "lua/LuaStackAssert.h"
+#include <optional>
 #include "SyxMat4.h"
 #include "TypeInfo.h"
 
@@ -20,7 +21,7 @@ namespace Lua {
     static_assert(sizeof(T) == -1, "Should have specialized");
     static int push(lua_State* l, const T& value);
 
-    static T fromTop(lua_State* l);
+    static std::optional<T> fromTop(lua_State* l);
   };
 
   template<>
@@ -30,8 +31,8 @@ namespace Lua {
       return 1;
     }
 
-    static bool fromTop(lua_State* l) {
-      return lua_toboolean(l, -1);
+    static std::optional<bool> fromTop(lua_State* l) {
+      return lua_isboolean(l, -1) ? std::make_optional(static_cast<bool>(lua_toboolean(l, -1))) : std::nullopt;
     }
   };
 
@@ -42,9 +43,8 @@ namespace Lua {
       return 1;
     }
 
-    static std::string fromTop(lua_State* l) {
-      const char* result = lua_tostring(l, -1);
-      return result ? std::string(result) : std::string();
+    static std::optional<std::string> fromTop(lua_State* l) {
+      return lua_isstring(l, -1) ? std::make_optional(std::string(lua_tostring(l, -1))) : std::nullopt;
     }
   };
 
@@ -55,8 +55,8 @@ namespace Lua {
       return 1;
     }
 
-    static T fromTop(lua_State* l) {
-      return static_cast<T>(lua_tonumber(l, -1));
+    static std::optional<T> fromTop(lua_State* l) {
+      return lua_isnumber(l, -1) ? std::make_optional(static_cast<T>(lua_tonumber(l, -1))) : std::nullopt;
     }
   };
 
@@ -67,9 +67,41 @@ namespace Lua {
       return 1;
     }
 
-    static T fromTop(lua_State* l) {
-      return static_cast<T>(lua_tointeger(l, -1));
+    static std::optional<T> fromTop(lua_State* l) {
+      return lua_isinteger(l, -1) ? std::make_optional(static_cast<T>(lua_tointeger(l, -1))) : std::nullopt;
     }
+  };
+
+  template<class T>
+  struct PtrTypeInfo {
+    static int push(lua_State* l, const T* value) {
+      if(!value) {
+        lua_pushnil(l);
+      }
+      else {
+        LuaTypeInfo<T>::push(l, *value);
+      }
+      return 1;
+    }
+
+    //Outer optional indicates if the type was valid, inner optional indicate if the value was present
+    static std::optional<std::optional<T>> fromTop(lua_State* l) {
+      if(lua_isnil(l, -1)) {
+        return std::make_optional(std::optional<T>());
+      }
+      if(auto result = LuaTypeInfo<T>::fromTop(l)) {
+        return std::make_optional(result);
+      }
+      return std::nullopt;
+    }
+  };
+
+  template<class T>
+  struct LuaTypeInfo<T*, void> : PtrTypeInfo<std::decay_t<T>> {
+  };
+
+  template<class T>
+  struct LuaTypeInfo<const T*, void> : PtrTypeInfo<std::decay_t<T>> {
   };
 
   template<>
@@ -86,18 +118,24 @@ namespace Lua {
       return 1;
     }
 
-    static Syx::Mat4 fromTop(lua_State* l) {
+    static std::optional<Syx::Mat4> fromTop(lua_State* l) {
+      if(!lua_istable(l, -1)) {
+        return {};
+      }
       Syx::Mat4 m;
       //The visual layout is [c0.x, c1.x, c2.x, c3.x] but the data layout is [c0.x, c0.y, c0.z, c0.w] so have columns in the inner loop
       for(int r = 0; r < 4; ++r) {
         for(int c = 0; c < 4; ++c) {
           lua_pushinteger(l, (r * 4) + c + 1);
-          lua_gettable(l, -2);
+          if(lua_gettable(l, -2) != LUA_TNUMBER) {
+            lua_pop(l, 1);
+            return {};
+          }
           m[c][r] = static_cast<float>(lua_tonumber(l, -1));
           lua_pop(l, 1);
         }
       }
-      return m;
+      return std::make_optional(m);
     }
   };
 
@@ -110,9 +148,10 @@ namespace Lua {
       luaL_setmetatable(l, ecx::StaticTypeInfo<T>::getTypeName().c_str());
       return 1;
     }
-    
-    static T* fromTop(lua_State* l) {
-      return *static_cast<T**>(luaL_checkudata(l, -1, ecx::StaticTypeInfo<T>::getTypeName().c_str()));
+
+    static std::optional<T*> fromTop(lua_State* l) {
+      void* result = luaL_testudata(l, -1, ecx::StaticTypeInfo<T>::getTypeName().c_str());
+      return result ? std::make_optional(*static_cast<T**>(result)) : std::nullopt;
     }
   };
 
@@ -133,15 +172,21 @@ namespace Lua {
       return 1;
     }
 
-    static T fromTop(lua_State* l) {
+    static std::optional<T> fromTop(lua_State* l) {
       Lua::StackAssert a(l);
       T result;
-      ecx::StaticTypeInfo<T>::visitShallow([l](const std::string& name, auto& value) {
+      bool allFound = true;
+      ecx::StaticTypeInfo<T>::visitShallow([l, &allFound](const std::string& name, auto& value) {
         //If the value was found, get the type info for this member and use it to read the value
+        bool foundThis = false;
         if(lua_getfield(l, -1, name.c_str()) != LUA_TNONE) {
-          value = LuaTypeInfo<std::decay_t<decltype(value)>>::fromTop(l);
+          if(auto top = LuaTypeInfo<std::decay_t<decltype(value)>>::fromTop(l)) {
+            value = std::move(*top);
+            foundThis = true;
+          }
           lua_pop(l, 1);
         }
+        allFound = allFound && foundThis;
       }, result);
 
       return result;
@@ -163,12 +208,22 @@ namespace Lua {
         static_assert(sizeof(A) == -1, "Should have specialized one of the below");
       };
 
+      template<class T>
+      static T _checkError(lua_State* l, std::optional<T>&& value) {
+        if(value) {
+          return std::move(*value);
+        }
+        luaL_error(l, "Invalid method argument");
+        //lua error won't return
+        return *value;
+      }
+
       //Common implementation for value types
       template<class A>
       struct ApplyArgumentByValue {
         static A applyArgument(lua_State* l, size_t index) {
           lua_pushvalue(l, static_cast<int>(index));
-          A result = LuaTypeInfo<std::decay_t<A>>::fromTop(l);
+          A result = _checkError(l, LuaTypeInfo<std::decay_t<A>>::fromTop(l));
           lua_pop(l, 1);
           return result;
         }
@@ -182,7 +237,7 @@ namespace Lua {
             return nullptr;
           }
           lua_pushvalue(l, static_cast<int>(index));
-          A result = LuaTypeInfo<std::decay_t<std::remove_pointer_t<A>>>::fromTop(l);
+          A result = _checkError(l, LuaTypeInfo<std::decay_t<std::remove_pointer_t<A>>>::fromTop(l));
           lua_pop(l, 1);
           return result;
         }
@@ -206,7 +261,7 @@ namespace Lua {
       struct Applier<A, std::enable_if_t<IsReferenceBound<A>::value>> {
         static A applyArgument(lua_State* l, size_t index) {
           lua_pushvalue(l, static_cast<int>(index));
-          A result = *LuaTypeInfo<std::decay_t<A>>::fromTop(l);
+          A result = *_checkError(l, LuaTypeInfo<std::decay_t<A>>::fromTop(l));
           lua_pop(l, 1);
           return result;
         }
@@ -227,7 +282,7 @@ namespace Lua {
       struct Applier<A&, std::enable_if_t<IsReferenceBound<A>::value>> {
         static A& applyArgument(lua_State* l, size_t index) {
           lua_pushvalue(l, static_cast<int>(index));
-          A& result = *LuaTypeInfo<std::decay_t<A>>::fromTop(l);
+          A& result = *_checkError(l, LuaTypeInfo<std::decay_t<A>>::fromTop(l));
           lua_pop(l, 1);
           return result;
         }
@@ -238,7 +293,7 @@ namespace Lua {
       struct Applier<const A&, std::enable_if_t<IsReferenceBound<A>::value>> {
         static const A& applyArgument(lua_State* l, size_t index) {
           lua_pushvalue(l, static_cast<int>(index));
-          const A& result = *LuaTypeInfo<std::decay_t<A>>::fromTop(l);
+          const A& result = *_checkError(l, LuaTypeInfo<std::decay_t<A>>::fromTop(l));
           lua_pop(l, 1);
           return result;
         }
@@ -248,7 +303,7 @@ namespace Lua {
       // Explicit return to preserve references, type list to allow overload resolution of template type
       static decltype(LuaTypeInfo<std::decay_t<A>>::fromTop(nullptr)) applyArgument(lua_State* l, ecx::TypeList<A>, size_t index) {
         lua_pushvalue(l, static_cast<int>(index));
-        auto result = LuaTypeInfo<std::decay_t<A>>::fromTop(l);
+        auto result = _checkError(l, LuaTypeInfo<std::decay_t<A>>::fromTop(l));
         lua_pop(l, 1);
         return result;
       }
@@ -326,4 +381,49 @@ namespace Lua {
       lua_setglobal(l, selfName.c_str());
     }
   };
+
+  //Call a method on the top of the stack. Returns optional<Return> or bool if void is provided
+  template<class Return, class... Args>
+  auto tryCallMethod(lua_State* l, const Args&... args) {
+    const int argCount = sizeof...(args);
+    //Expecting to pop the function from the stack
+    Lua::StackAssert sa(l, -1);
+    (LuaTypeInfo<std::decay_t<Args>>::push(l, args), ...);
+
+    if constexpr(std::is_same_v<void, Return>) {
+      if(int error = lua_pcall(l, argCount, 0, 0)) {
+        lua_pop(l, 1);
+        return false;
+      }
+      return true;
+    }
+    else {
+      if(int error = lua_pcall(l, argCount, 1, 0)) {
+        lua_pop(l, 1);
+        return decltype(LuaTypeInfo<Return>::fromTop(l)){};
+      }
+      auto result = LuaTypeInfo<Return>::fromTop(l);
+      lua_pop(l, 1);
+      return result;
+    }
+  }
+
+  template<class T>
+  auto returnEmptyResult() {
+    if constexpr(std::is_same_v<void, T>) {
+      return false;
+    }
+    else {
+      return decltype(LuaTypeInfo<T>::fromTop(nullptr)){};
+    }
+  }
+
+  template<class Return, class... Args>
+  auto tryCallGlobalMethod(lua_State* l, const char* name, const Args&... args) {
+    StackAssert sa(l);
+    if(lua_getglobal(l, name) == LUA_TFUNCTION) {
+      return tryCallMethod<Return>(l, args...);
+    }
+    return returnEmptyResult<Return>();
+  }
 };

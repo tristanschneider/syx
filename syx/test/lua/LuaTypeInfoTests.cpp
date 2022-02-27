@@ -82,6 +82,9 @@ struct WithMethods {
     return 7;
   }
 
+  static void intMethod(int) {
+  }
+
   WithMethods* getNothing() const {
     return nullptr;
   }
@@ -129,11 +132,12 @@ namespace ecx {
         ecx::TaggedType<&WithMethods::getPtr>,
         ecx::TaggedType<&WithMethods::constGetPtr>,
         ecx::TaggedType<&WithMethods::getNothing>,
-        ecx::TaggedType<&WithMethods::getValue>
+        ecx::TaggedType<&WithMethods::getValue>,
+        ecx::TaggedType<&WithMethods::intMethod>
     >
     , ecx::TypeList<Lua::BindReference>
   > {
-    inline static const std::array<std::string, 14> FunctionNames {
+    inline static const std::array<std::string, 15> FunctionNames {
       "increment",
       "incrementOne",
       "get7",
@@ -147,7 +151,8 @@ namespace ecx {
       "getPtr",
       "constGetPtr",
       "getNothing",
-      "getValue"
+      "getValue",
+      "intMethod"
     };
     inline static const std::string SelfName = "WithMethods";
   };
@@ -191,6 +196,25 @@ namespace LuaTests {
       else {
         Assert::Fail((L"Script execution failed " + Util::toWide(std::string(lua_tostring(l, -1)))).c_str(), LINE_INFO());
       }
+    }
+
+    TEST_METHOD(StaticMemberFunction_CallIncorrectly_IsError) {
+      Lua::State state;
+      const char* script = R"(
+        function test()
+          WithMethods.intMethod("seven")
+        end
+      )";
+
+      Lua::LuaBinder<WithMethods>::openLib(state.get());
+      if(!luaL_dostring(state.get(), script)) {
+        int func = lua_getglobal(state.get(), "test");
+        if(func == LUA_TFUNCTION) {
+          Assert::IsTrue(0 != lua_pcall(state.get(), 0, 0, 0), L"Should trigger error", LINE_INFO());
+          return;
+        }
+      }
+      Assert::Fail(L"Test authoring issue");
     }
 
     TEST_METHOD(StaticMemberFunction_Call_ReturnsValue) {
@@ -382,9 +406,10 @@ namespace LuaTests {
       Lua::State state;
       Lua::LuaTypeInfo<Basic>::push(state.get(), b);
 
-      Basic restored = Lua::LuaTypeInfo<Basic>::fromTop(state.get());
+      std::optional<Basic> restored = Lua::LuaTypeInfo<Basic>::fromTop(state.get());
 
-      Assert::AreEqual(b.a, restored.a);
+      Assert::IsTrue(restored.has_value());
+      Assert::AreEqual(b.a, restored->a);
     }
 
     TEST_METHOD(LuaTypeInfoTwo_Push_MembersPushed) {
@@ -418,11 +443,93 @@ namespace LuaTests {
       Lua::State state;
       Lua::LuaTypeInfo<Composite>::push(state.get(), c);
 
-      Composite restored = Lua::LuaTypeInfo<Composite>::fromTop(state.get());
+      std::optional<Composite> restored = Lua::LuaTypeInfo<Composite>::fromTop(state.get());
 
-      Assert::AreEqual(c.self, restored.self);
-      Assert::AreEqual(c.t.a, restored.t.a);
-      Assert::AreEqual(c.t.b, restored.t.b);
+      Assert::IsTrue(restored.has_value());
+      Assert::AreEqual(c.self, restored->self);
+      Assert::AreEqual(c.t.a, restored->t.a);
+      Assert::AreEqual(c.t.b, restored->t.b);
+    }
+
+    void executedAndPushTestMethod(lua_State* l, const char* script) {
+      if(!luaL_dostring(l, script)) {
+        int func = lua_getglobal(l, "test");
+        Assert::AreEqual(LUA_TFUNCTION, func);
+      }
+      else {
+        Assert::Fail((L"Script execution failed " + Util::toWide(std::string(lua_tostring(l, -1)))).c_str(), LINE_INFO());
+      }
+    }
+
+    TEST_METHOD(LuaEmptyMethod_tryCallMethod_ReturnsTrue) {
+      Lua::State state;
+      executedAndPushTestMethod(state.get(), R"(
+        function test() end
+      )");
+
+      Assert::IsTrue(Lua::tryCallMethod<void>(state.get()));
+    }
+
+    TEST_METHOD(LuaReturnMethod_tryCallMethod_ReturnsValue) {
+      Lua::State state;
+      executedAndPushTestMethod(state.get(), R"(
+        function test() return 5 end
+      )");
+
+      auto result = Lua::tryCallMethod<int>(state.get());
+
+      Assert::IsTrue(result.has_value());
+      Assert::AreEqual(5, *result);
+    }
+
+    TEST_METHOD(LuaArgMethod_tryCallMethod_ReturnsTrue) {
+      Lua::State state;
+      executedAndPushTestMethod(state.get(), R"(
+        function test(num) assert(num == 5) end
+      )");
+
+      Assert::IsTrue(Lua::tryCallMethod<void>(state.get(), 5));
+    }
+
+    TEST_METHOD(LuaArgMethod_tryCallMethodWithNull_IsNilArg) {
+      Lua::State state;
+      executedAndPushTestMethod(state.get(), R"(
+        function test(arg) assert(arg == nil) end
+      )");
+
+      Assert::IsTrue(Lua::tryCallMethod<void>(state.get(), static_cast<int*>(nullptr)));
+    }
+
+    TEST_METHOD(LuaOptionalReturnMethod_tryCallMethod_IsNilArg) {
+      Lua::State state;
+      executedAndPushTestMethod(state.get(), R"(
+        function test() end
+      )");
+
+      std::optional<std::optional<int>> result = Lua::tryCallMethod<int*>(state.get(), static_cast<int*>(nullptr));
+
+      Assert::IsTrue(result.has_value());
+      Assert::IsFalse(result->has_value());
+    }
+
+    TEST_METHOD(LuaOptionalReturnMethod_tryCallMethod_ReturnsValue) {
+      Lua::State state;
+      executedAndPushTestMethod(state.get(), R"(
+        function test() return 5 end
+      )");
+
+      std::optional<std::optional<int>> result = Lua::tryCallMethod<int*>(state.get(), static_cast<int*>(nullptr));
+
+      Assert::IsTrue(result.has_value());
+      Assert::IsTrue(result->has_value());
+      Assert::AreEqual(5, **result);
+    }
+
+    TEST_METHOD(LuaEmptyMEthod_tryCallGlobalMethod_ReturnsTrue) {
+      Lua::State state;
+      luaL_dostring(state.get(), "function test() end");
+
+      Assert::IsTrue(Lua::tryCallGlobalMethod<void>(state.get(), "test"));
     }
   };
 }
