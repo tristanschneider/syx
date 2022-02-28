@@ -8,8 +8,13 @@
 #include "asset/Texture.h"
 #include "ecs/system/EditorSystem.h"
 #include "ecs/component/MessageComponent.h"
+#include "ecs/component/TransformComponent.h"
+#include "ecs/system/FileSystemSystem.h"
+#include "ecs/system/LuaSpaceSerializerSystem.h"
 #include "ecs/system/ProjectLocatorSystem.h"
 #include "ecs/system/RemoveEntitiesSystem.h"
+#include "ecs/system/SpaceSerializerSystem.h"
+#include "ecs/system/SpaceSystem.h"
 #include "editor/Editor.h"
 #include "component/CameraComponent.h"
 #include "component/LuaComponent.h"
@@ -37,11 +42,38 @@ public:
     SystemList input, simulation, graphics, physics, cleanup, initializers;
 
     initializers.push_back(ProjectLocatorSystem::init());
+    initializers.push_back(FileSystemSystem::addFileSystemComponent(FileSystem::createStd()));
     //TODO: only if editor features should be enabled
     initializers.push_back(EditorSystem::init());
 
     simulation.push_back(ProjectLocatorSystem::createUriListener());
     simulation.push_back(EditorSystem::createUriListener());
+
+    using TransformT = ComponentSerializeSystem<TransformComponent, LuaComponentSerialize<TransformComponent>>;
+    //Load space
+    simulation.push_back(SpaceSystem::clearSpaceSystem());
+    simulation.push_back(SpaceSystem::beginLoadSpaceSystem());
+    simulation.push_back(SpaceSystem::parseSceneSystem());
+    simulation.push_back(SpaceSystem::createSpaceEntitiesSystem());
+
+    //Per-component deserializers
+    simulation.push_back(TransformT::createDeserializer());
+
+    simulation.push_back(SpaceSystem::completeSpaceLoadSystem());
+
+    //Save space
+    simulation.push_back(SpaceSystem::beginSaveSpaceSystem());
+    simulation.push_back(SpaceSystem::createSerializedEntitiesSystem());
+
+    //Per-component serializers
+    simulation.push_back(TransformT::createSerializer());
+
+    simulation.push_back(SpaceSystem::serializeSpaceSystem());
+    simulation.push_back(SpaceSystem::completeSpaceSaveSystem());
+
+    //Towards the end so it can get any messages before they are cleared
+    simulation.push_back(FileSystemSystem::fileReader());
+    simulation.push_back(FileSystemSystem::fileWriter());
 
     //Clear messages at the end of the frame
     cleanup.push_back(RemoveEntitiesSystem<View<Read<MessageComponent>>>::create());

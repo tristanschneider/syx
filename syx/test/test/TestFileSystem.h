@@ -1,5 +1,6 @@
 #pragma once
 #include "file/FileSystem.h"
+#include <optional>
 
 namespace FileSystem {
   struct TestFileSystem : public IFileSystem {
@@ -18,5 +19,6 @@ namespace FileSystem {
     //Needs to be recursive because of foreach callback
     std::recursive_mutex mMutex;
     using Lock = std::lock_guard<decltype(mMutex)>;
+    std::optional<FileResult> mResultOverride;
   };
 }

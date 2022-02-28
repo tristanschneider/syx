@@ -27,5 +27,6 @@ namespace ecx {
     //Jobs that are waiting for this to complete
     std::vector<std::shared_ptr<JobInfo>> mDependents;
     std::optional<size_t> mThreadRequirement;
+    std::string mName;
   };
 }

@@ -170,6 +170,13 @@ namespace ecx {
       }
     }
 
+    //Hack for testing or forcing ticks
+    void addTickToAllPhases() {
+      for(UpdatePhase& phase : mUpdatePhases) {
+        phase.mTickCredits++;
+      }
+    }
+
     //TODO: start/stop for app suspend?
 
   private:

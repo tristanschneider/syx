@@ -108,6 +108,7 @@ namespace ecx {
         const SystemInfo info = system->getInfo();
         job->mSystem = system;
         job->mThreadRequirement = info.mThreadRequirement;
+        job->mName = info.mName;
 
         //Add dependents for each type
         for(auto&& type : info.mExistenceTypes) {

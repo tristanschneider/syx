@@ -5,6 +5,9 @@
 namespace FileSystem {
   FileResult TestFileSystem::readFile(const char* filename, std::vector<uint8_t>& buffer) {
     Lock lock(mMutex);
+    if(mResultOverride) {
+      return *mResultOverride;
+    }
     if(isDirectory(filename)) {
       return FileResult::NotFound;
     }
@@ -20,6 +23,9 @@ namespace FileSystem {
 
   FileResult TestFileSystem::writeFile(const char* filename, std::string_view buffer) {
     Lock lock(mMutex);
+    if(mResultOverride) {
+      return *mResultOverride;
+    }
     mFiles[std::string(filename)] = std::string(buffer);
     return FileResult::Success;
   }

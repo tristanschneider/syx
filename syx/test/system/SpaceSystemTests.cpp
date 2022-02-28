@@ -1,6 +1,7 @@
 #include "Precompile.h"
 #include "CppUnitTest.h"
 
+#include "AppRegistration.h"
 #include "ecs/component/FileSystemComponent.h"
 #include "ecs/component/MessageComponent.h"
 #include "ecs/component/SpaceComponents.h"
@@ -9,6 +10,7 @@
 #include "ecs/system/RemoveEntitiesSystem.h"
 #include "ecs/system/SpaceSystem.h"
 #include "SystemRegistry.h"
+#include "test/TestFileSystem.h"
 #include "TypeInfo.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -164,7 +166,46 @@ namespace SystemTests {
       Assert::AreEqual(size_t(2), registry.size<InSpaceComponent>(), L"Restored entity should have in space component", LINE_INFO());
     }
 
-    //TODO: test with AppRegistration and TestFileSystem
+    TEST_METHOD(AppRegistration_RoundTrip_MatchesOriginal) {
+      auto app = Registration::createDefaultApp();
+      Engine::AppContext context(std::make_shared<Scheduler>(ecx::SchedulerConfig{}));
+      app->registerAppContext(context);
+      EntityRegistry registry;
+      context.initialize(registry);
+      //Replace real file system with test one
+      auto it = registry.begin<FileSystemComponent>();
+      Assert::IsTrue(it != registry.end<FileSystemComponent>());
+      *it = FileSystemComponent{ std::make_unique<FileSystem::TestFileSystem>() };
+
+      //Create space
+      auto space = registry.createEntityWithComponents<SpaceTagComponent>();
+
+      //Create an arbitrary entity
+      auto entity = addEntity(registry, space);
+      registry.getComponent<TransformComponent>(entity).mValue[0][0] = 2.f;
+
+      //Create the initial save request
+      auto message = registry.createEntityWithComponents<MessageComponent>();
+      registry.addComponent<SaveSpaceComponent>(message, space, FilePath("test"));
+
+      //Tick to save, then again to clear the message when the write succeeds
+      context.addTickToAllPhases();
+      context.addTickToAllPhases();
+      context.update(registry);
+
+      message = registry.createEntityWithComponents<MessageComponent>();
+      registry.addComponent<ClearSpaceComponent>(message, space);
+      registry.addComponent<LoadSpaceComponent>(message, space, FilePath("test"));
+      //Tick to clear and load. First tick queues the write request, second tick processes the results
+      context.addTickToAllPhases();
+      context.addTickToAllPhases();
+      context.update(registry);
+
+      auto restored = registry.begin<TransformComponent>();
+      Assert::IsTrue(restored != registry.end<TransformComponent>());
+      Assert::AreEqual(2.f, restored->mValue[0][0]);
+    }
+
     //TODO: test failure cases
   };
 }
