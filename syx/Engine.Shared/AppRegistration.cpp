@@ -9,9 +9,11 @@
 #include "ecs/system/EditorSystem.h"
 #include "ecs/component/MessageComponent.h"
 #include "ecs/component/TransformComponent.h"
+#include "ecs/system/DeltaTimeSystem.h"
 #include "ecs/system/FileSystemSystem.h"
 #include "ecs/system/LuaSpaceSerializerSystem.h"
 #include "ecs/system/ProjectLocatorSystem.h"
+#include "ecs/system/RawInputSystem.h"
 #include "ecs/system/RemoveEntitiesSystem.h"
 #include "ecs/system/SpaceSerializerSystem.h"
 #include "ecs/system/SpaceSystem.h"
@@ -43,8 +45,14 @@ public:
 
     initializers.push_back(ProjectLocatorSystem::init());
     initializers.push_back(FileSystemSystem::addFileSystemComponent(FileSystem::createStd()));
+    initializers.push_back(DeltaTimeSystem::init());
+    initializers.push_back(RawInputSystem::init());
     //TODO: only if editor features should be enabled
     initializers.push_back(EditorSystem::init());
+
+    //DT update a bit arbitrary, uses input since it's the first 60fps system group
+    input.push_back(DeltaTimeSystem::update());
+    input.push_back(RawInputSystem::update());
 
     simulation.push_back(ProjectLocatorSystem::createUriListener());
     simulation.push_back(EditorSystem::createUriListener());

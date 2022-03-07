@@ -19,6 +19,7 @@ namespace ecx {
   static TypeList<A...> combine(TypeList<A...>);
   template<class... A, class... B>
   static TypeList<A..., B...> combine(TypeList<A...>, TypeList<B...>);
+  TypeList<> combine();
 
   template<class... A, class... B, class... C>
   static decltype(combine(TypeList<A..., B...>(), std::declval<C>()...)) combine(TypeList<A...>, TypeList<B...>, C...);

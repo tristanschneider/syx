@@ -11,6 +11,7 @@
 #include "App.h"
 #include "ecs/component/AppPlatformComponents.h"
 #include "ecs/ECS.h"
+#include "ecs/system/RawInputSystemWin32.h"
 #include "event/LifecycleEvents.h"
 #include "file/FilePath.h"
 #include "system/InputSystemWin32.h"
@@ -31,33 +32,46 @@ struct Win32Systems : public AppRegistration {
   }
 
   virtual void registerAppContext(Engine::AppContext& context) override {
-    Engine::SystemList simulation;
+    //Register base first then slot the platform specifics in
+    mDefaultApp->registerAppContext(context);
 
-    simulation.push_back(ecx::makeSystem("SetWorkingDirectory", &tickSetCurrentDirectory));
+    Engine::AppContext::PhaseContainer initializers = context.getInitializers();
+    initializers.mSystems.push_back(RawInputSystemWin32::init());
 
-    context.registerUpdatePhase(Engine::AppPhase::Simulation, std::move(simulation), 20);
+    Engine::AppContext::PhaseContainer input = context.getUpdatePhase(Engine::AppPhase::Input);
+    //Push before the input system that reads from the input event buffer that the win32 system is populating
+    input.mSystems.insert(input.mSystems.begin(), RawInputSystemWin32::update());
+
+    Engine::AppContext::PhaseContainer simulation = context.getUpdatePhase(Engine::AppPhase::Simulation);
+    simulation.mSystems.push_back(ecx::makeSystem("SetWorkingDirectory", &tickSetCurrentDirectory));
+
+    context.registerInitializer(std::move(initializers.mSystems));
+    context.registerUpdatePhase(Engine::AppPhase::Simulation, std::move(simulation.mSystems), simulation.mTargetFPS);
+    context.registerUpdatePhase(Engine::AppPhase::Input, std::move(input.mSystems), input.mTargetFPS);
   }
 
+  //TODO: get rid of this legacy non-ecs stuff
   virtual void registerSystems(const SystemArgs& args, ISystemRegistry& registry) override {
-    registry.registerSystem(mInput = std::make_shared<InputSystemWin32>(args));
+    mDefaultApp->registerSystems(args, registry);
   }
 
-  virtual void registerComponents(IComponentRegistry&) override {
+  virtual void registerComponents(IComponentRegistry& reg) override {
+    mDefaultApp->registerComponents(reg);
   }
 
-  std::shared_ptr<InputSystemWin32> mInput;
+  std::unique_ptr<AppRegistration> mDefaultApp = Registration::createDefaultApp();
 };
 
 namespace {
   HDC sDeviceContext = NULL;
   HGLRC sGLContext = NULL;
   std::unique_ptr<App> sApp;
-  std::shared_ptr<Win32Systems> sWin32Systems;
   int sWidth, sHeight;
 }
 
 HWND gHwnd = NULL;
 
+//TODO: turn into an entity with a message component that the graphics system handles
 void setWindowSize(int width, int height) {
   sWidth = width;
   sHeight = height;
@@ -99,12 +113,10 @@ LRESULT _handleDragDrop(HWND wnd, UINT msg, WPARAM w, LPARAM l) {
 
 LRESULT CALLBACK mainProc(HWND wnd, UINT msg, WPARAM w, LPARAM l) {
   //TODO: if there's more than one of these, make a win32 message handler interface to iterate over here.
-  if(sWin32Systems && sWin32Systems->mInput) {
-    //TODO: avoid calling this after app is terminated
-    if(const std::optional<LRESULT> maybeResult = sWin32Systems->mInput->_mainProc(wnd, msg, w, l)) {
-      return *maybeResult;
-    }
+  if(const std::optional<LRESULT> maybeResult = RawInputSystemWin32::mainProc(wnd, msg, w, l)) {
+    return *maybeResult;
   }
+
   switch(msg) {
     case WM_DESTROY:
       PostQuitMessage(0);
@@ -208,8 +220,7 @@ int mainLoop(const char* launchUri) {
   float nsToMS = 1.0f/1000000.0f;
   float msToNS = 1000000.0f;
   int targetFrameTimeNS = 16*static_cast<int>(msToNS);
-  sWin32Systems = std::make_shared<Win32Systems>();
-  sApp = std::make_unique<App>(std::make_unique<AppPlatformWin32>(), Registration::compose(Registration::createDefaultApp(), sWin32Systems));
+  sApp = std::make_unique<App>(std::make_unique<AppPlatformWin32>(), std::make_unique<Win32Systems>());
 
   sApp->onUriActivated(launchUri);
   sApp->init();
