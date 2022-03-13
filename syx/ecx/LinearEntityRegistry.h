@@ -366,6 +366,15 @@ namespace ecx {
     }
 
     template<class... Components>
+    std::tuple<LinearEntity, std::reference_wrapper<Components>...> createAndGetEntityWithComponents() {
+      LinearEntity result = *tryCreateEntityWithComponents<Components...>(LinearEntity(_getAvailableId()));
+      std::shared_ptr<EntityChunk> chunk = _getChunk(result.mData.mParts.mChunkId);
+      assert(chunk && "Chunk should always exist for a new entity");
+      size_t index = chunk->entityToIndex(result);
+      return std::make_tuple(result, std::ref(chunk->tryGet<Components>()->at(index))...);
+    }
+
+    template<class... Components>
     std::optional<LinearEntity> tryCreateEntityWithComponents(const LinearEntity& desiredId) {
       //Need to include the empty tag to end up with the same chunks as when built one by one
       auto chunkId = LinearEntity::buildChunkId<EmptyTag, Components...>();

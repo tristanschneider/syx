@@ -62,4 +62,7 @@ namespace ecx {
   static constexpr To changeType(AutoTypeList<Args...>) {
     return To{ Args... };
   }
+
+  template<class To, class...Args>
+  using changeTypeT = decltype(changeType<To>(TypeList<Args...>{}));
 }

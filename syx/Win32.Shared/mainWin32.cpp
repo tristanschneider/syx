@@ -11,6 +11,9 @@
 #include "App.h"
 #include "ecs/component/AppPlatformComponents.h"
 #include "ecs/ECS.h"
+#include "ecs/system/ogl/GraphicsSystemOGL.h"
+#include "ecs/system/ogl/ImGuiSystem.h"
+#include "ecs/system/PlatformMessageSystemWin32.h"
 #include "ecs/system/RawInputSystemWin32.h"
 #include "event/LifecycleEvents.h"
 #include "file/FilePath.h"
@@ -37,17 +40,32 @@ struct Win32Systems : public AppRegistration {
 
     Engine::AppContext::PhaseContainer initializers = context.getInitializers();
     initializers.mSystems.push_back(RawInputSystemWin32::init());
+    initializers.mSystems.push_back(GraphicsSystemOGL::init());
+    initializers.mSystems.push_back(ImGuiSystems::init());
 
     Engine::AppContext::PhaseContainer input = context.getUpdatePhase(Engine::AppPhase::Input);
     //Push before the input system that reads from the input event buffer that the win32 system is populating
     input.mSystems.insert(input.mSystems.begin(), RawInputSystemWin32::update());
+    //Input starts the imgui frame, render ends it
+    input.mSystems.push_back(ImGuiSystems::updateInput());
 
     Engine::AppContext::PhaseContainer simulation = context.getUpdatePhase(Engine::AppPhase::Simulation);
+    //Push first so more systems can respond to it
+    simulation.mSystems.insert(simulation.mSystems.begin(), PlatformMessageSystemWin32::applyQueuedMessages());
     simulation.mSystems.push_back(ecx::makeSystem("SetWorkingDirectory", &tickSetCurrentDirectory));
+
+    Engine::AppContext::PhaseContainer graphics = context.getUpdatePhase(Engine::AppPhase::Graphics);
+    graphics.mSystems.push_back(GraphicsSystemOGL::onWindowResized());
+    graphics.mSystems.push_back(GraphicsSystemOGL::render());
+    graphics.mSystems.push_back(ImGuiSystems::render());
+    graphics.mSystems.push_back(GraphicsSystemOGL::swapBuffers());
 
     context.registerInitializer(std::move(initializers.mSystems));
     context.registerUpdatePhase(Engine::AppPhase::Simulation, std::move(simulation.mSystems), simulation.mTargetFPS);
     context.registerUpdatePhase(Engine::AppPhase::Input, std::move(input.mSystems), input.mTargetFPS);
+    context.registerUpdatePhase(Engine::AppPhase::Graphics, std::move(graphics.mSystems), graphics.mTargetFPS);
+
+    context.buildExecutionGraph();
   }
 
   //TODO: get rid of this legacy non-ecs stuff
@@ -63,8 +81,6 @@ struct Win32Systems : public AppRegistration {
 };
 
 namespace {
-  HDC sDeviceContext = NULL;
-  HGLRC sGLContext = NULL;
   std::unique_ptr<App> sApp;
   int sWidth, sHeight;
 }
@@ -75,17 +91,15 @@ HWND gHwnd = NULL;
 void setWindowSize(int width, int height) {
   sWidth = width;
   sHeight = height;
-  if(sApp) {
-    sApp->getMessageQueue()->push(WindowResize(width, height));
-  }
+  PlatformMessageSystemWin32::enqueueMessage(OnWindowResizeMessageComponent{ Syx::Vec2(static_cast<float>(width), static_cast<float>(height)) });
 }
 
 void onFocusChanged(WPARAM w) {
-  if(sApp) {
-    if(LOWORD(w) == TRUE)
-      sApp->getAppPlatform().onFocusGained();
-    else
-      sApp->getAppPlatform().onFocusLost();
+  if(LOWORD(w) == TRUE) {
+    PlatformMessageSystemWin32::enqueueMessage(OnFocusGainedMessageComponent{});
+  }
+  else {
+    PlatformMessageSystemWin32::enqueueMessage(OnFocusLostMessageComponent{});
   }
 }
 
@@ -107,7 +121,7 @@ LRESULT _handleDragDrop(HWND wnd, UINT msg, WPARAM w, LPARAM l) {
   }
 
   ::DragFinish(drop);
-  sApp->getAppPlatform().onDrop(files);
+  PlatformMessageSystemWin32::enqueueMessage(OnFilesDroppedMessageComponent{ std::move(files) });
   return ::DefWindowProc(wnd, msg, w, l);
 }
 
@@ -160,46 +174,6 @@ void registerWindow(HINSTANCE inst) {
   RegisterClassEx(&wc);
 }
 
-void initDeviceContext(HDC context, BYTE colorBits, BYTE depthBits, BYTE stencilBits, BYTE auxBuffers) {
-  PIXELFORMATDESCRIPTOR pfd = {
-    sizeof(PIXELFORMATDESCRIPTOR),
-    1,
-    PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER,
-    //The kind of framebuffer. RGBA or palette.
-    PFD_TYPE_RGBA,
-    colorBits,
-    0, 0, 0, 0, 0, 0,
-    0,
-    0,
-    0,
-    0, 0, 0, 0,
-    depthBits,
-    stencilBits,
-    auxBuffers,
-    PFD_MAIN_PLANE,
-    0,
-    0, 0, 0
-  };
-  //Ask for appropriate format
-  int format = ChoosePixelFormat(context, &pfd);
-  //Store format in device context
-  SetPixelFormat(context, format, &pfd);
-}
-
-HGLRC createGLContext(HDC dc) {
-  //Use format to create and opengl context
-  HGLRC context = wglCreateContext(dc);
-  //Make the opengl context current for this thread
-  wglMakeCurrent(dc, context);
-  return context;
-}
-
-void destroyContext() {
-  //To destroy the context, it must be made not current
-  wglMakeCurrent(sDeviceContext, NULL);
-  wglDeleteContext(sGLContext);
-}
-
 void sleepNS(int ns) {
   //Would probably be best to process coroutines or something here instead of sleep
   //sleep_for is pretty erratic, so yield in a loop instead
@@ -245,7 +219,6 @@ int mainLoop(const char* launchUri) {
       break;
 
     sApp->update(static_cast<float>(dtNS)*nsToMS*0.001f);
-    SwapBuffers(sDeviceContext);
 
     int frameTimeNS = static_cast<int>(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - frameStart).count());
     //If frame time was greater than target time then we're behind, start the next frame immediately
@@ -254,7 +227,9 @@ int mainLoop(const char* launchUri) {
       continue;
     sleepNS(timeToNextFrameNS);
   }
-  sApp->uninit();
+  //TODO: deal with shutdown
+  sApp.release();
+  //sApp->uninit();
 
   return static_cast<int>(msg.wParam);
 }
@@ -283,17 +258,10 @@ int WINAPI WinMain(HINSTANCE hinstance, HINSTANCE, LPSTR lpCmdLine, int nCmdShow
 
   _registerDragDrop(wnd);
 
-  sDeviceContext = GetDC(wnd);
-  initDeviceContext(sDeviceContext, 32, 24, 8, 0);
-  sGLContext = createGLContext(sDeviceContext);
-  glewInit();
-
   UpdateWindow(wnd);
 
   gHwnd = wnd;
   int exitCode = mainLoop(lpCmdLine);
-
-  destroyContext();
 
   return exitCode;
 }

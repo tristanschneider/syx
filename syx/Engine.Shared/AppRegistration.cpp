@@ -11,6 +11,7 @@
 #include "ecs/component/TransformComponent.h"
 #include "ecs/system/DeltaTimeSystem.h"
 #include "ecs/system/FileSystemSystem.h"
+#include "ecs/system/GraphicsSystemBase.h"
 #include "ecs/system/LuaSpaceSerializerSystem.h"
 #include "ecs/system/ProjectLocatorSystem.h"
 #include "ecs/system/RawInputSystem.h"
@@ -49,6 +50,7 @@ public:
     initializers.push_back(RawInputSystem::init());
     //TODO: only if editor features should be enabled
     initializers.push_back(EditorSystem::init());
+    initializers.push_back(GraphicsSystemBase::init());
 
     //DT update a bit arbitrary, uses input since it's the first 60fps system group
     input.push_back(DeltaTimeSystem::update());
@@ -83,6 +85,8 @@ public:
     simulation.push_back(FileSystemSystem::fileReader());
     simulation.push_back(FileSystemSystem::fileWriter());
 
+    graphics.push_back(GraphicsSystemBase::screenSizeListener());
+
     //Clear messages at the end of the frame
     cleanup.push_back(RemoveEntitiesSystem<View<Read<MessageComponent>>>::create());
 
@@ -97,33 +101,36 @@ public:
   }
 
   void registerSystems(const SystemArgs& args, ISystemRegistry& registry) override {
-    auto loaders = Registry::createAssetLoaderRegistry();
-    registerAssetLoaders(*loaders);
-    registry.registerSystem(std::make_unique<ImGuiSystem>(args));
-    registry.registerSystem(std::make_unique<AssetRepo>(args, std::move(loaders)));
-    registry.registerSystem(std::make_unique<GraphicsSystem>(args));
-    registry.registerSystem(std::make_unique<LuaGameSystem>(args));
-    registry.registerSystem(std::make_unique<PhysicsSystem>(args));
-    registry.registerSystem(std::make_unique<Editor>(args));
+    registry;args;
+    //auto loaders = Registry::createAssetLoaderRegistry();
+    //registerAssetLoaders(*loaders);
+    //registry.registerSystem(std::make_unique<ImGuiSystem>(args));
+    //registry.registerSystem(std::make_unique<AssetRepo>(args, std::move(loaders)));
+    //registry.registerSystem(std::make_unique<GraphicsSystem>(args));
+    //registry.registerSystem(std::make_unique<LuaGameSystem>(args));
+    //registry.registerSystem(std::make_unique<PhysicsSystem>(args));
+    //registry.registerSystem(std::make_unique<Editor>(args));
   }
 
   void registerAssetLoaders(IAssetLoaderRegistry& registry) {
-    registry.registerLoader<BufferAsset, BufferAssetLoader>("buff");
-    registry.registerLoader<TextAsset, TextAssetLoader>("txt");
-    registry.registerLoader<LuaScript, LuaScriptLoader>("lc");
-    registry.registerLoader<Model, ModelOBJLoader>("obj");
-    registry.registerLoader<Shader, ShaderLoader>("vs");
-    registry.registerLoader<Texture, TextureBMPLoader>("bmp");
+    registry;
+    //registry.registerLoader<BufferAsset, BufferAssetLoader>("buff");
+    //registry.registerLoader<TextAsset, TextAssetLoader>("txt");
+    //registry.registerLoader<LuaScript, LuaScriptLoader>("lc");
+    //registry.registerLoader<Model, ModelOBJLoader>("obj");
+    //registry.registerLoader<Shader, ShaderLoader>("vs");
+    //registry.registerLoader<Texture, TextureBMPLoader>("bmp");
   }
 
   void registerComponents(IComponentRegistry& registry) override {
-    registry.registerComponent<CameraComponent>();
-    registry.registerComponent<LuaComponent>();
-    registry.registerComponent<NameComponent>();
-    registry.registerComponent<Physics>();
-    registry.registerComponent<Renderable>();
-    registry.registerComponent<SpaceComponent>();
-    registry.registerComponent<Transform>();
+    registry;
+    //registry.registerComponent<CameraComponent>();
+    //registry.registerComponent<LuaComponent>();
+    //registry.registerComponent<NameComponent>();
+    //registry.registerComponent<Physics>();
+    //registry.registerComponent<Renderable>();
+    //registry.registerComponent<SpaceComponent>();
+    //registry.registerComponent<Transform>();
   }
 };
 

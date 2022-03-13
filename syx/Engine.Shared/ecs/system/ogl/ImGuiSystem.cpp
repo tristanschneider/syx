@@ -3,6 +3,8 @@
 
 #include "asset/Shader.h"
 #include "ecs/component/DeltaTimeComponent.h"
+#include "ecs/component/ImGuiContextComponent.h"
+#include "ecs/component/ogl/OGLContextComponent.h"
 #include "ecs/component/ScreenSizeComponent.h"
 #include "ecs/system/RawInputSystem.h"
 #include "event/InputEvents.h"
@@ -19,6 +21,8 @@ struct ImGuiImplContextComponent {
 
 namespace ImGuiSystemsImpl {
   using namespace Engine;
+
+  using OGLView = View<Write<OGLContextComponent>>;
 
   void _initKeyMap() {
     int* map = ImGui::GetIO().KeyMap;
@@ -43,9 +47,10 @@ namespace ImGuiSystemsImpl {
     map[ImGuiKey_Z] = (int)Key::KeyZ;
   }
 
-  void tickInit(SystemContext<EntityFactory, EntityModifier<ImGuiImplContextComponent>>& context) {
+  void tickInit(SystemContext<EntityFactory, EntityModifier<ImGuiImplContextComponent>, OGLView>& context) {
     Entity entity = context.get<EntityFactory>().createEntity();
     auto& imGuiContext = context.get<EntityModifier<ImGuiImplContextComponent>>().addComponent<ImGuiImplContextComponent>(entity);
+    context.get<EntityFactory>().createEntityWithComponents<ImGuiContextComponent>();
 
     std::string vsSrc =
         "#version 330\n"
@@ -128,10 +133,14 @@ namespace ImGuiSystemsImpl {
     ImGui::NewFrame();
   }
 
+  using ImGuiView = View<Write<ImGuiContextComponent>>;
+
   void tickRender(SystemContext<
     View<Write<ImGuiImplContextComponent>>,
     View<Read<DeltaTimeComponent>>,
-    View<Read<ScreenSizeComponent>>
+    View<Read<ScreenSizeComponent>>,
+    OGLView,
+    ImGuiView
     >& context) {
     auto maybeImpl = context.get<View<Write<ImGuiImplContextComponent>>>().tryGetFirst();
     auto maybeDT = context.get<View<Read<DeltaTimeComponent>>>().tryGetFirst();
@@ -145,6 +154,10 @@ namespace ImGuiSystemsImpl {
     //Avoid rendering when minimized, scale coordinates for retina displays (screen coordinates != framebuffer coordinates)
     ImGuiIO& io = ImGui::GetIO();
     io.DisplaySize = ImVec2(display.mScreenSize.x, display.mScreenSize.y);
+    if(io.DisplaySize.x * io.DisplaySize.y == 0.f) {
+      // Imgui asserts if any size element is zero
+      return;
+    }
     io.DisplayFramebufferScale = ImVec2(1.0f, 1.0f);
     io.DeltaTime = maybeDT->get<const DeltaTimeComponent>().mSeconds;
 
@@ -220,7 +233,7 @@ namespace ImGuiSystemsImpl {
     glBindTexture(GL_TEXTURE_2D, 0);
   }
 
-  void tickInput(SystemContext<View<Read<RawInputComponent>>>& context) {
+  void tickInput(SystemContext<View<Read<RawInputComponent>>, ImGuiView>& context) {
     auto maybeInput = context.get<View<Read<RawInputComponent>>>().tryGetFirst();
     if(!maybeInput) {
       return;

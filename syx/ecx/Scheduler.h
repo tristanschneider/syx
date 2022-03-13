@@ -72,6 +72,7 @@ namespace ecx {
       std::vector<ThreadContext>* mThreads = nullptr;
     };
 
+    //TODO: work stealing job scheduler
     Scheduler(const SchedulerConfig& config)
       : mJobContainer(std::make_unique<JobContainer>())
       , mTasks(std::make_unique<TaskContainer>())
@@ -235,6 +236,10 @@ namespace ecx {
           //Some kind of work happened, notify all threads in case new work is unblocked
           //Mutex is needed to make sure notification doesn't happen between a thread's work check and going to sleep
           context.mWorkerCV->notify_all();
+          continue;
+        }
+        //New thread specific work for this thread appeared
+        else if(!context.mWorkerSpecificJobs->empty()) {
           continue;
         }
         else if(didWork) {

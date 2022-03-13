@@ -103,8 +103,8 @@ namespace ecx {
     }
 
     void initialize(EntityRegistry<EntityT>& registry) {
-      for(auto&& system : mInitializers) {
-        system->tick(registry);
+      if(mInitializerJob) {
+        mScheduler->execute(registry, *mInitializerJob);
       }
     }
 
@@ -168,6 +168,8 @@ namespace ecx {
 
         mJobConfigurations[i] = !systems.empty() ? JobGraph::build(systems) : nullptr;
       }
+
+      mInitializerJob = mInitializers.size() ? JobGraph::build(mInitializers) : nullptr;
     }
 
     //Hack for testing or forcing ticks
@@ -194,5 +196,6 @@ namespace ecx {
     //Ordered by using the bitfield as an index. There are 2^n of these, where n is the number of phases
     //This is under the assumption that there aren't more than a few phases
     std::vector<std::shared_ptr<JobInfo<EntityT>>> mJobConfigurations;
+    std::shared_ptr<JobInfo<EntityT>> mInitializerJob;
   };
 }

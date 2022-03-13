@@ -29,6 +29,11 @@ namespace ecx {
     }
 
     template<class... Components>
+    std::tuple<LinearEntity, std::reference_wrapper<Components>...> createAndGetEntityWithComponents() {
+      return mRegistry->createAndGetEntityWithComponents<Components...>();
+    }
+
+    template<class... Components>
     EntityT createEntityWithComponents() {
       return mRegistry->createEntityWithComponents<Components...>();
     }
