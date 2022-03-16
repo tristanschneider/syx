@@ -201,11 +201,9 @@ namespace ecx {
             context.mWorkerCV->notify_all();
           }
         }
-        //If all work is complete, acquire the lock to check again and make sure
-        if(isDone()) {
-          return;
-        }
 
+        //No more work is possible, either it's in progress on another thread with nothing to pick up on this thread yet,
+        //or it's completely done. Acquire the lock to see which case it is
         std::unique_lock<std::mutex> lock(*context.mMutex);
         //If work came in while acquiring the lock, keep cycling
         if(isDone()) {
