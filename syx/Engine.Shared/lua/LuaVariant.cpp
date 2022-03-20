@@ -204,6 +204,7 @@ namespace Lua {
   void Variant::_moveData(std::vector<uint8_t>& from) {
     const uint8_t* orig = from.data();
     mData = std::move(from);
+    orig;
     assert(mData.data() == orig && "Move should always transfer memory, if not, this is unsafe and a copy must be used");
   }
 }

@@ -43,6 +43,12 @@ namespace ecx {
       mRegistry->removeComponent<Component>(entity);
     }
 
+    template<class... Components>
+    void removeComponentsFromAllEntities() {
+      (_assertAllowedComponent<Components>(), ...);
+      mRegistry->removeComponentsFromAllEntities<Components...>();
+    }
+
   private:
     template<class T>
     void _assertAllowedComponent() const {

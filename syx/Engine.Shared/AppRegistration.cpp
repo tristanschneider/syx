@@ -85,6 +85,9 @@ public:
     simulation.push_back(FileSystemSystem::fileReader());
     simulation.push_back(FileSystemSystem::fileWriter());
 
+    //Editor
+    graphics.push_back(EditorSystem::sceneBrowser());
+
     graphics.push_back(GraphicsSystemBase::screenSizeListener());
 
     //Clear messages at the end of the frame

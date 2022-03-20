@@ -2,8 +2,74 @@
 
 #include "ecs/component/EditorComponents.h"
 #include "ecs/component/FileSystemComponent.h"
+#include "ecs/component/GameobjectComponent.h"
+#include "ecs/component/ImGuiContextComponent.h"
 #include "ecs/component/SpaceComponents.h"
 #include "ecs/component/UriActivationComponent.h"
+
+#include "imgui/imgui.h"
+
+const char* EditorSystem::WINDOW_NAME = "Objects";
+const char* EditorSystem::NEW_OBJECT_LABEL = "New Object";
+const char* EditorSystem::DELETE_OBJECT_LABEL = "Delete Object";
+const char* EditorSystem::OBJECT_LIST_NAME = "ScrollView";
+
+namespace EditorImpl {
+  using namespace Engine;
+  using ImGuiView = View<Write<ImGuiContextComponent>>;
+  using SelectedView = View<Read<SelectedComponent>>;
+  using ObjectsView = View<Read<GameobjectComponent>, OptionalRead<NameTagComponent>>;
+  using BrowserModifier = EntityModifier<SelectedComponent>;
+
+  void tickSceneBrowser(SystemContext<ImGuiView, SelectedView, ObjectsView, EntityFactory, BrowserModifier>& context) {
+    if(!context.get<ImGuiView>().tryGetFirst()) {
+      return;
+    }
+    ImGui::Begin(EditorSystem::WINDOW_NAME);
+    auto& selected = context.get<SelectedView>();
+    auto& objects = context.get<ObjectsView>();
+    auto modifier = context.get<BrowserModifier>();
+    auto factory = context.get<EntityFactory>();
+
+    if(ImGui::Button(EditorSystem::NEW_OBJECT_LABEL)) {
+      modifier.removeComponentsFromAllEntities<SelectedComponent>();
+      auto&& [entity, a, b, nameTag ] = factory.createAndGetEntityWithComponents<GameobjectComponent, SelectedComponent, NameTagComponent>();
+      nameTag.get().mName = "New Object";
+    }
+
+    if(ImGui::Button(EditorSystem::DELETE_OBJECT_LABEL)) {
+      //Delete all selected entities, meaning any in these chunks
+      for(auto chunk : selected.chunks()) {
+        chunk.clear(factory);
+      }
+    }
+
+    ImGui::BeginChild(EditorSystem::OBJECT_LIST_NAME, ImVec2(0, 0), true);
+
+    std::string name;
+    for(auto obj : objects) {
+      const auto* nameTag = obj.tryGet<const NameTagComponent>();
+      const Entity entity = obj.entity();
+      const uint64_t entityID = obj.entity().mData.mRawId;
+      //Make handle a hidden part of the id
+      name = (nameTag ? nameTag->mName : std::to_string(entityID)) + "##" + std::to_string(entityID);
+
+      if(ImGui::Selectable(name.c_str(), selected.find(obj.entity()) != selected.end())) {
+        //If a new item is selected, clear the selection and select the new one
+        modifier.removeComponentsFromAllEntities<SelectedComponent>();
+        //TODO: I think this will invalidate the iterator
+        modifier.addComponent<SelectedComponent>(entity);
+      }
+    }
+    ImGui::EndChild();
+
+    ImGui::End();
+  }
+}
+
+std::shared_ptr<Engine::System> EditorSystem::sceneBrowser() {
+  return ecx::makeSystem("SceneBrowser", &EditorImpl::tickSceneBrowser, 0);
+}
 
 std::shared_ptr<Engine::System> EditorSystem::init() {
   using namespace Engine;

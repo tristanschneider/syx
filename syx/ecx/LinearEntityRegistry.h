@@ -471,6 +471,45 @@ namespace ecx {
       toChunk->migrateEntity(entity, *fromChunk);
     }
 
+    template<class... Components>
+    void removeComponentsFromAllEntities() {
+      std::shared_lock<std::shared_mutex> lock(mChunkMutex);
+      //Iterate over all non-empty chunks that have the components
+      for(const auto& pair : mChunkTypeToChunks) {
+        std::shared_ptr<EntityChunk> fromChunk = pair.second;
+        if(!fromChunk->size()) {
+          continue;
+        }
+        const uint32_t fromID = pair.first;
+        uint32_t toID = fromID;
+        //Remove the components from the chunk ID, which means subtracting them if in the chunk
+        ((toID = (fromChunk->hasType(ecx::typeId<Components, ecx::LinearEntity>()) ? LinearEntity::removeFromChunkId<Components>(toID) : toID)), ...);
+
+        //If the chunk ID changed it means it had one of the components to remove
+        if(fromID != toID) {
+          //Get or create the destination chunk
+          std::shared_ptr<EntityChunk> toChunk;
+          if(auto foundIt = mChunkTypeToChunks.find(toID); foundIt != mChunkTypeToChunks.end()) {
+            toChunk = foundIt->second;
+          }
+          else {
+            //Create the desired chunk
+            lock.unlock();
+            toChunk = pair.second->cloneEmpty();
+            (toChunk->removeComponentType<Components>(), ...);
+
+            toChunk = _addChunk(std::move(toChunk), toID);
+            lock.lock();
+          }
+
+          //Migrate all entities now that the destination chunk has been found
+          while(fromChunk->size()) {
+            toChunk->migrateEntity(fromChunk->indexToEntity(0), *fromChunk);
+          }
+        }
+      }
+    }
+
     EntityChunk* tryGetChunkForEntity(const LinearEntity& entity) {
       return _tryGetChunkForEntity(entity).second.get();
     }

@@ -24,7 +24,12 @@ namespace ecx {
     using TestEntityRegistry = EntityRegistry<TestEntity>;
     using TestEntityFactory = EntityFactory<TestEntity>;
     using TestScheduler = Scheduler<TestEntity, LockQueue>;
-    using TestTimer = Timer<100, &mockGetTime>;
+    struct TestTimer : public Timer<100, &mockGetTime> {
+      using Timer::Timer;
+      size_t _redeemTicks() {
+        return redeemTicks(mockGetTime());
+      }
+    };
     template<class... Rest>
     using TestView = View<TestEntity, Rest...>;
 
@@ -39,7 +44,7 @@ namespace ecx {
     TEST_METHOD(Timer_DefaultConstruct_NoTicks) {
       TestTimer timer(1000);
 
-      Assert::AreEqual(size_t(0), timer.redeemTicks());
+      Assert::AreEqual(size_t(0), timer._redeemTicks());
     }
 
     TEST_METHOD(Timer_LessTimeElapsed_NoTicks) {
@@ -47,7 +52,7 @@ namespace ecx {
       TestTimer timer(100);
       setTimeMS(5);
 
-      Assert::AreEqual(size_t(0), timer.redeemTicks());
+      Assert::AreEqual(size_t(0), timer._redeemTicks());
     }
 
     TEST_METHOD(Timer_TickTimeElapsed_OneTick) {
@@ -55,8 +60,8 @@ namespace ecx {
       TestTimer timer(100);
       setTimeMS(10);
 
-      Assert::AreEqual(size_t(1), timer.redeemTicks());
-      Assert::AreEqual(size_t(0), timer.redeemTicks());
+      Assert::AreEqual(size_t(1), timer._redeemTicks());
+      Assert::AreEqual(size_t(0), timer._redeemTicks());
     }
 
     TEST_METHOD(Timer_TwoTicksElapsed_TwoTicks) {
@@ -64,26 +69,26 @@ namespace ecx {
       TestTimer timer(100);
       setTimeMS(20);
 
-      Assert::AreEqual(size_t(2), timer.redeemTicks());
-      Assert::AreEqual(size_t(0), timer.redeemTicks());
+      Assert::AreEqual(size_t(2), timer._redeemTicks());
+      Assert::AreEqual(size_t(0), timer._redeemTicks());
     }
 
     TEST_METHOD(Timer_TickWithRemainder_RedeemedOnSecondTick) {
       setTimeMS(0);
       TestTimer timer(100);
       setTimeMS(15);
-      timer.redeemTicks();
+      timer._redeemTicks();
       setTimeMS(20);
 
-      Assert::AreEqual(size_t(1), timer.redeemTicks());
-      Assert::AreEqual(size_t(0), timer.redeemTicks());
+      Assert::AreEqual(size_t(1), timer._redeemTicks());
+      Assert::AreEqual(size_t(0), timer._redeemTicks());
     }
 
     TEST_METHOD(Timer_ZeroTarget_AlwaysOneTick) {
       TestTimer timer(0);
 
-      Assert::AreEqual(size_t(1), timer.redeemTicks());
-      Assert::AreEqual(size_t(1), timer.redeemTicks());
+      Assert::AreEqual(size_t(1), timer._redeemTicks());
+      Assert::AreEqual(size_t(1), timer._redeemTicks());
     }
 
     TEST_METHOD(Timer_OverCap_RedeemedOnNextTick) {
@@ -91,9 +96,9 @@ namespace ecx {
       TestTimer timer(1000);
       setTimeMS(101);
 
-      Assert::AreEqual(size_t(100), timer.redeemTicks());
-      Assert::AreEqual(size_t(1), timer.redeemTicks());
-      Assert::AreEqual(size_t(0), timer.redeemTicks());
+      Assert::AreEqual(size_t(100), timer._redeemTicks());
+      Assert::AreEqual(size_t(1), timer._redeemTicks());
+      Assert::AreEqual(size_t(0), timer._redeemTicks());
     }
 
     struct PhaseTracker {

@@ -43,6 +43,7 @@ namespace Lua {
       lua_getfield(*mState, -1, CHUNK_ID);
       lua_pushvalue(*mState, -2);
       const char* set = lua_setupvalue(*mState, -2, 1);
+      set;
       assert(strcmp(set, "_ENV") == 0 && "Should have set environment");
       lua_pop(*mState, 1);
     }
@@ -63,6 +64,7 @@ namespace Lua {
     //set metatable to { __index = _G }
     lua_newtable(l);
     int globalType = lua_getglobal(l, "_G");
+    globalType;
     assert(globalType != LUA_TNIL && "No global table to forward sandbox index calls to");
     lua_setfield(l, -2, "__index");
     lua_setmetatable(l, -2);
@@ -88,6 +90,7 @@ namespace Lua {
     lua_getglobal(*mState, mId.c_str());
     //Set _ENV on the top function to our sandbox table
     const char* up = lua_setupvalue(*mState, -2, 1);
+    up;
     assert(strcmp(up, "_ENV") == 0 && "Should have been a function with _ENV upvalue on top of stack"); 
   }
 

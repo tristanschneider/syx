@@ -243,8 +243,11 @@ namespace ecx {
       Assert::IsNotNull(storageB);
       Assert::AreEqual(size_t(1), storageA->size());
       Assert::AreEqual(size_t(1), storageB->size());
-      Assert::AreEqual(1, storageA->at(0));
-      Assert::AreEqual(2, storageB->at(0));
+      //Order isn't important, make sure both values are found
+      const int storedA = storageA->at(0);
+      const int storedB = storageB->at(0);
+      Assert::IsTrue(storedA == 1 || storedA == 2);
+      Assert::IsTrue(storedB == 1 || storedB == 2);
     }
 
     TEST_METHOD(ChunkView_MultipleInSameChunk_ContiguousValues) {

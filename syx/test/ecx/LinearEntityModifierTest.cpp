@@ -57,5 +57,32 @@ namespace ecx {
 
       Assert::AreEqual(size_t(0), registry.size<int>());
     }
+
+    TEST_METHOD(EntityModifierNewChunk_RemoveComponentFromAllEntities_IsRemoved) {
+      TestEntityRegistry registry;
+      registry.createEntityWithComponents<uint8_t, uint16_t, uint32_t>();
+      registry.createEntityWithComponents<uint8_t, uint32_t>();
+      registry.createEntityWithComponents<uint16_t, uint64_t>();
+      TestEntityModifier<uint8_t, uint32_t> modifier(registry);
+
+      modifier.removeComponentsFromAllEntities<uint8_t, uint32_t>();
+
+      Assert::AreEqual(size_t(0), registry.size<uint8_t>());
+      Assert::AreEqual(size_t(0), registry.size<uint32_t>());
+    }
+
+    TEST_METHOD(EntityModifierExistingChunk_RemoveComponentFromAllEntities_IsRemoved) {
+      TestEntityRegistry registry;
+      registry.createEntityWithComponents<uint8_t, uint16_t, uint32_t>();
+      registry.createEntityWithComponents<uint8_t, uint16_t>();
+      registry.createEntityWithComponents<uint16_t, uint64_t>();
+      TestEntityModifier<uint8_t, uint32_t> modifier(registry);
+
+      modifier.removeComponentsFromAllEntities<uint8_t, uint32_t>();
+
+      Assert::AreEqual(size_t(0), registry.size<uint8_t>());
+      Assert::AreEqual(size_t(0), registry.size<uint32_t>());
+    }
+
   };
 }

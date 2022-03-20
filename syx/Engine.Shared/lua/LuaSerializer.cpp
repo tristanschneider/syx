@@ -67,6 +67,7 @@ namespace Lua {
         int pre = lua_gettop(s);
         keys.push_back(lua_tostring(s, -2));
         int post = lua_gettop(s);
+        pre;post;
         assert(pre == post);
         lua_pop(s, 1);
       }

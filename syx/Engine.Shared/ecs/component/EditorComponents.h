@@ -13,3 +13,7 @@ struct EditorSceneReferenceComponent {
 struct EditorSavedSceneComponent {
   FilePath mFilename;
 };
+
+//On objects that are currently selected
+struct SelectedComponent {
+};

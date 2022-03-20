@@ -44,10 +44,10 @@ struct Win32Systems : public AppRegistration {
     initializers.mSystems.push_back(ImGuiSystems::init());
 
     Engine::AppContext::PhaseContainer input = context.getUpdatePhase(Engine::AppPhase::Input);
+    //Input starts the imgui frame, render ends it
+    input.mSystems.insert(input.mSystems.begin(), ImGuiSystems::updateInput());
     //Push before the input system that reads from the input event buffer that the win32 system is populating
     input.mSystems.insert(input.mSystems.begin(), RawInputSystemWin32::update());
-    //Input starts the imgui frame, render ends it
-    input.mSystems.push_back(ImGuiSystems::updateInput());
 
     Engine::AppContext::PhaseContainer simulation = context.getUpdatePhase(Engine::AppPhase::Simulation);
     //Push first so more systems can respond to it

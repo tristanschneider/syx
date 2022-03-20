@@ -12,6 +12,7 @@ namespace Lua {
 
   StackAssert::~StackAssert() {
     int top = lua_gettop(&mState);
+    top;
     assert(mExpectedStack == top && "Stack size should be back to mStartStack size");
   }
 }

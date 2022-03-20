@@ -11,17 +11,20 @@ namespace ecx {
   public:
     using TimePoint = decltype(GetTime());
 
+    static auto getTime() {
+      return GetTime();
+    }
+
     Timer(size_t targetFPS)
       : mTargetFPS(targetFPS)
       , mLastTime(GetTime()) {
     }
 
     //Advance the timer and redeem all available ticks based on the target FPS
-    size_t redeemTicks() {
+    size_t redeemTicks(TimePoint now) {
       if(!mTargetFPS) {
         return size_t(1);
       }
-      auto now = GetTime();
       auto elapsed = now - mLastTime;
       mLastTime = now;
       mRemainder += std::chrono::duration_cast<std::chrono::milliseconds>(elapsed);
@@ -123,11 +126,12 @@ namespace ecx {
       bool updateTickCredits = true;
       while(true) {
         uint64_t jobConfiguration = 0;
+        auto now = TimerT::getTime();
         //Figure out which job configuration to run and update tick credits
         for(size_t i = 0; i < mUpdatePhases.size(); ++i) {
           UpdatePhase& phase = mUpdatePhases[i];
           if(updateTickCredits) {
-            phase.mTickCredits += phase.mTimer.redeemTicks();
+            phase.mTickCredits += phase.mTimer.redeemTicks(now);
           }
           if(phase.mTickCredits) {
             jobConfiguration |= (uint64_t(1) << i);
