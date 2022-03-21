@@ -14,11 +14,40 @@
 #include "test/TestAppPlatform.h"
 #include "test/TestAppRegistration.h"
 #include "test/TestGUIHook.h"
+#include "test/TestImGuiSystem.h"
 #include "test/TestListenerSystem.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 namespace EditorTests {
+  TestApp::TestApp() {
+    Registration::createDefaultApp()->registerAppContext(mContext);
+
+    Engine::AppContext::PhaseContainer initializers = mContext.getInitializers();
+    initializers.mSystems.push_back(TestImGuiSystem::init());
+
+    Engine::AppContext::PhaseContainer input = mContext.getUpdatePhase(Engine::AppPhase::Input);
+    input.mSystems.insert(input.mSystems.begin(), TestImGuiSystem::update());
+
+    mContext.registerInitializer(std::move(initializers.mSystems));
+    mContext.registerUpdatePhase(Engine::AppPhase::Input, std::move(input.mSystems), input.mTargetFPS);
+
+    mContext.buildExecutionGraph();
+
+    mContext.initialize(mRegistry);
+  }
+
+  void TestApp::pressButtonAndProcessInput(const std::string& label) {
+    auto gui = Create::createAndRegisterTestGuiHook();
+    auto press = gui->addScopedButtonPress(label);
+    update();
+  }
+
+  void TestApp::update() {
+    mContext.addTickToAllPhases();
+    mContext.update(mRegistry, size_t(1));
+  }
+
   MockEditorApp::MockEditorApp()
     : MockApp(std::make_unique<TestAppPlatform>(), TestRegistration::createEditorRegistration()) {
   }

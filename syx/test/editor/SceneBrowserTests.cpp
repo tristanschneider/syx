@@ -27,25 +27,18 @@
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
+#include "ecs/component/GameobjectComponent.h"
+
 namespace EditorTests {
   TEST_CLASS(SceneBrowserTests) {
-    TEST_METHOD(Editor_Update_NothingHappens) {
-      MockEditorApp app;
-      Assert::IsNotNull(app->getSystem<Editor>(), L"Editor should exist", LINE_INFO());
-
-      app->update(0.f);
-    }
-
-    /* TODO: fix
     TEST_METHOD(EmptyScene_PressNewObject_ObjectIsAdded) {
-      MockEditorApp app;
-      auto assertion = app.createScopedNetObjectCountAssertion(1, L"A new object should have been created");
+      TestApp app;
 
       app.pressButtonAndProcessInput(SceneBrowser::NEW_OBJECT_LABEL);
 
-      Assert::IsTrue(app->getSystem<TestListenerSystem>()->hasEventOfType(Event::typeId<AddGameObjectEvent>()), L"Pressing new object should have sent an AddGameObjectEvent");
+      Assert::AreEqual(size_t(1), app.mRegistry.size<GameobjectComponent>());
     }
-
+    /* TODO: fix
     TEST_METHOD(NewlyCreatedObject_PressDeleteObject_ObjectIsDeleted) {
       MockEditorApp app;
       auto net = app.createScopedNetObjectCountAssertion(0, L"In the end the object count should be the same because an object was added and removed");

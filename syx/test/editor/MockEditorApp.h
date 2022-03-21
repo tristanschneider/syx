@@ -1,4 +1,6 @@
 #pragma once
+#include "ecs/ECS.h"
+#include "ecs/EngineAppContext.h"
 #include "Handle.h"
 #include "test/MockApp.h"
 
@@ -44,5 +46,14 @@ namespace EditorTests {
     static void findOrAssert(const ITestGuiQueryContext& query, const std::string& name, const std::function<void(const ITestGuiQueryContext&)> callback, const std::wstring& assertMsg);
     //Find a shallow child node whose name contains the given string
     static void findContainsOrAssert(const ITestGuiQueryContext& query, const std::string& name, const std::function<void(const ITestGuiQueryContext&)> callback, const std::wstring& assertMsg);
+  };
+
+  struct TestApp {
+    TestApp();
+    void pressButtonAndProcessInput(const std::string& label);
+    void update();
+
+    Engine::AppContext mContext{ std::make_shared<Engine::Scheduler>(ecx::SchedulerConfig{}) };
+    Engine::EntityRegistry mRegistry;
   };
 }

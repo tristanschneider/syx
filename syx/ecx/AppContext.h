@@ -115,7 +115,7 @@ namespace ecx {
     //If multiple phases have multiple ticks they all tick in order, as in A B C A B C, not AA BB CC
     //That is assuming they have dependencies, if they don't the phases may run in parallel as determined
     //by their job graphs
-    bool update(EntityRegistry<EntityT>& registry) {
+    bool update(EntityRegistry<EntityT>& registry, std::optional<size_t> cap = {}) {
       assert(mJobConfigurations.size() == (2 << (mUpdatePhases.size() - 1)) && "buildExecutionGraph must be calleed before the first call to update since changing system registration");
       //Can happen if this is updated without any registered phases
       if(mJobConfigurations.empty()) {
@@ -124,7 +124,8 @@ namespace ecx {
 
       bool updatedAnything = false;
       bool updateTickCredits = true;
-      while(true) {
+      size_t iterationCount = 0;
+      while(cap.value_or(std::numeric_limits<size_t>::max()) > iterationCount++) {
         uint64_t jobConfiguration = 0;
         auto now = TimerT::getTime();
         //Figure out which job configuration to run and update tick credits
