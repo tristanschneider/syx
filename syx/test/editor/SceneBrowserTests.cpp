@@ -114,5 +114,47 @@ namespace EditorTests {
         }, L"Objects scroll view should exist");
       }, L"Objects window should have been found");
     }
+
+    TEST_METHOD(SceneBrowserTwoObjects_QueryObjectList_SortedByEntityID) {
+      TestApp app;
+      const std::string objectName = "name";
+      app.createNewObjectWithName(objectName);
+      const std::string secondName = objectName + "second";
+      app.createNewObjectWithName(secondName);
+      auto gui = Create::createAndRegisterTestGuiHook();
+      app.update();
+
+      MockEditorApp::findOrAssert(*MockEditorApp::getOrAssertQueryContext(*gui), SceneBrowser::WINDOW_NAME, [&](const ITestGuiQueryContext& objects) {
+        MockEditorApp::findContainsOrAssert(objects, SceneBrowser::OBJECT_LIST_NAME, [&](const ITestGuiQueryContext& scrollView) {
+          std::vector<std::string> orderedElements;
+          MockEditorApp::findAllContainsOrAssert(2, scrollView, objectName, [&](const ITestGuiQueryContext& objectEntry) {
+            orderedElements.push_back(objectEntry.getName());
+          }, L"Created object should be in the object list");
+          Assert::IsTrue(orderedElements[1].find(secondName) != std::string::npos);
+        }, L"Objects scroll view should exist");
+      }, L"Objects window should have been found");
+    }
+
+    //Selecting an object moves it between chunks in the registry but ui order should be preserved
+    TEST_METHOD(SceneBrowserTwoObjects_SelectThenQueryObjectList_SortedByEntityID) {
+      TestApp app;
+      const std::string objectName = "name";
+      auto firstObj = app.createNewObjectWithName(objectName);
+      const std::string secondName = objectName + "second";
+      app.createNewObjectWithName(secondName);
+      auto gui = Create::createAndRegisterTestGuiHook();
+      app.setAndUpdateSelection({ firstObj });
+      app.update();
+
+      MockEditorApp::findOrAssert(*MockEditorApp::getOrAssertQueryContext(*gui), SceneBrowser::WINDOW_NAME, [&](const ITestGuiQueryContext& objects) {
+        MockEditorApp::findContainsOrAssert(objects, SceneBrowser::OBJECT_LIST_NAME, [&](const ITestGuiQueryContext& scrollView) {
+          std::vector<std::string> orderedElements;
+          MockEditorApp::findAllContainsOrAssert(2, scrollView, objectName, [&](const ITestGuiQueryContext& objectEntry) {
+            orderedElements.push_back(objectEntry.getName());
+          }, L"Created object should be in the object list");
+          Assert::IsTrue(orderedElements[1].find(secondName) != std::string::npos);
+        }, L"Objects scroll view should exist");
+      }, L"Objects window should have been found");
+    }
   };
 }

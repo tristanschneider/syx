@@ -47,7 +47,22 @@ namespace EditorImpl {
     ImGui::BeginChild(EditorSystem::OBJECT_LIST_NAME, ImVec2(0, 0), true);
 
     std::string name;
+    //Sort manually otherwise UI order will change as entity moves between chunks
+    std::vector<Entity> sortedObjects;
     for(auto obj : objects) {
+      sortedObjects.push_back(obj.entity());
+    }
+    std::sort(sortedObjects.begin(), sortedObjects.end(), [](const Entity& l, const Entity& r) {
+      return l.mData.mParts.mEntityId < r.mData.mParts.mEntityId;
+    });
+
+    for(auto sortedObj : sortedObjects) {
+      auto found = objects.find(sortedObj);
+      if(found == objects.end()) {
+        continue;
+      }
+      auto obj = *found;
+
       const auto* nameTag = obj.tryGet<const NameTagComponent>();
       const Entity entity = obj.entity();
       const uint64_t entityID = obj.entity().mData.mRawId;

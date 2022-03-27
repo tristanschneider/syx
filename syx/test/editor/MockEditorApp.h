@@ -46,6 +46,7 @@ namespace EditorTests {
     static void findOrAssert(const ITestGuiQueryContext& query, const std::string& name, const std::function<void(const ITestGuiQueryContext&)> callback, const std::wstring& assertMsg);
     //Find a shallow child node whose name contains the given string
     static void findContainsOrAssert(const ITestGuiQueryContext& query, const std::string& name, const std::function<void(const ITestGuiQueryContext&)> callback, const std::wstring& assertMsg);
+    static void findAllContainsOrAssert(size_t expectedCount, const ITestGuiQueryContext& query, const std::string& name, const std::function<void(const ITestGuiQueryContext&)> callback, const std::wstring& assertMsg);
   };
 
   struct TestApp {

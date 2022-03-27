@@ -257,4 +257,19 @@ namespace EditorTests {
       return true;
     }, assertMsg);
   }
+
+  void MockEditorApp::findAllContainsOrAssert(size_t expectedCount, const ITestGuiQueryContext& query, const std::string& name, const std::function<void(const ITestGuiQueryContext&)> callback, const std::wstring& assertMsg) {
+    size_t actualCount = 0;
+    query.visitChildrenShallow([&actualCount, &name, &callback](const ITestGuiQueryContext& child) {
+      if(child.getName().find(name) != std::string::npos) {
+        ++actualCount;
+        if(callback) {
+          callback(child);
+        }
+      }
+      return true;
+    });
+    Assert::AreEqual(expectedCount, actualCount, assertMsg.c_str());
+  }
+
 }
