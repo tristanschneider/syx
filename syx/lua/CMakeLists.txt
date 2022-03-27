@@ -9,8 +9,11 @@ add_library(lua STATIC ${source_files})
 target_include_directories(lua INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
 
 if(MSVC)
+    get_target_property(props lua COMPILE_OPTIONS)
     set_target_properties(lua PROPERTIES COMPILE_OPTIONS
      # Conversion from int to X possible loss of data
-     "/wd4244"
-     )
+     # unreachable code
+     # cast runcates constant value
+     "${props};/wd4244;/wd4702;/wd4310"
+    )
 endif()

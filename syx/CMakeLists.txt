@@ -10,6 +10,9 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/build_output)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED)
 
+# Always disable because it's mega slow
+add_definitions(-DNDEBUG)
+
 if(MSVC)
     add_compile_definitions(
         _HAS_EXCEPTIONS=0
@@ -27,6 +30,8 @@ if(MSVC)
         /wd4324
         # Truncation of constant value
         /wd4309
+        # Always stl non-debug for speed
+        /MT
     )
     add_link_options(
         /WX

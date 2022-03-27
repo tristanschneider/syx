@@ -283,7 +283,7 @@ namespace Lua {
 
   const void* Node::_translateBaseToNode(const void* base) const {
     //From the child build a top down stack of parents
-    std::stack<const Node*, std::vector<const Node*, LIFOAllocator<const Node*>>> parents;
+    std::stack<const Node*> parents;
     const Node* node = this;
     while(node) {
       parents.push(node);
@@ -332,7 +332,7 @@ namespace Lua {
 
   void Node::_forEachDepthFirstToChild(void (Node::* func)(const Node&, void*) const, void* data) const {
     //From the child build a top down stack of parents
-    std::stack<const Node*, std::vector<const Node*, LIFOAllocator<const Node*>>> parents;
+    std::stack<const Node*> parents;
     const Node* node = this;
     while(node) {
       parents.push(node);
