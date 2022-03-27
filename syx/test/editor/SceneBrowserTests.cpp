@@ -38,65 +38,60 @@ namespace EditorTests {
 
       Assert::AreEqual(size_t(1), app.mRegistry.size<GameobjectComponent>());
     }
-    /* TODO: fix
-    TEST_METHOD(NewlyCreatedObject_PressDeleteObject_ObjectIsDeleted) {
-      MockEditorApp app;
-      auto net = app.createScopedNetObjectCountAssertion(0, L"In the end the object count should be the same because an object was added and removed");
-      {
-        auto button = app.createScopedNetObjectCountAssertion(1, L"The add button should have created a new object");
-        //This also selects the newly created object, so pressing delete immediately will destroy the newly created object
-        app.pressButtonAndProcessInput(SceneBrowser::NEW_OBJECT_LABEL);
-      }
 
+    TEST_METHOD(NewlyCreatedObject_PressDeleteObject_ObjectIsDeleted) {
+      TestApp app;
+
+      app.pressButtonAndProcessInput(SceneBrowser::NEW_OBJECT_LABEL);
       app.pressButtonAndProcessInput(SceneBrowser::DELETE_OBJECT_LABEL);
-      Assert::IsTrue(app->getSystem<TestListenerSystem>()->hasEventOfType(Event::typeId<RemoveGameObjectEvent>()), L"Pressing delete object should have sent the corresponding message");
+
+      Assert::AreEqual(size_t(0), app.mRegistry.size<GameobjectComponent>());
     }
 
     TEST_METHOD(MockEditorApp_CreateObject_DoesNotAssert) {
-      MockEditorApp().createNewObject();
+      TestApp().createNewObject();
     }
 
     TEST_METHOD(TwoObjectsFirstSelected_PressDeleteObject_FirstIsDeleted) {
-      MockEditorApp app;
-      auto net = app.createScopedNetObjectCountAssertion(1, L"1 should remain after adding 2 and removing 1");
-      const Handle firstHandle = app.createNewObject().getHandle();
-      const Handle secondHandle = app.createNewObject().getHandle();
+      TestApp app;
+      const auto firstHandle = app.createNewObject();
+      const auto secondHandle = app.createNewObject();
 
-      app.setAndUpdateSelection(std::vector<size_t>{ firstHandle });
+      app.setAndUpdateSelection({ firstHandle });
       app.pressButtonAndProcessInput(SceneBrowser::DELETE_OBJECT_LABEL);
 
-      LuaGameSystem* game = app->getSystem<LuaGameSystem>();
-      Assert::IsNull(game->getObject(firstHandle), L"First object should have been deleted when the delete button was pressed", LINE_INFO());
-      Assert::IsNotNull(game->getObject(secondHandle), L"Second object should remain because it was not selected when delete was pressed", LINE_INFO());
+      Assert::IsFalse(app.mRegistry.isValid(firstHandle), L"First object should have been deleted when the delete button was pressed", LINE_INFO());
+      Assert::IsTrue(app.mRegistry.isValid(secondHandle), L"Second object should remain because it was not selected when delete was pressed", LINE_INFO());
     }
 
     TEST_METHOD(TwoObjectsBothSelected_PressDeleteObject_AllDeleted) {
-      MockEditorApp app;
-      auto net = app.createScopedNetObjectCountAssertion(0, L"All selected objects should have been destroyed upon pressing the destroy button");
-      std::vector<Handle> allObjects;
+      TestApp app;
+      std::vector<Engine::Entity> allObjects;
       for(int i = 0; i < 2; ++i) {
-        allObjects.push_back(app.createNewObject().getHandle());
+        allObjects.push_back(app.createNewObject());
       }
       app.setAndUpdateSelection(std::move(allObjects));
 
       app.pressButtonAndProcessInput(SceneBrowser::DELETE_OBJECT_LABEL);
 
-      //Scope exits here, asserting that everything was deleted
+      Assert::AreEqual(size_t(0), app.mRegistry.size<GameobjectComponent>());
     }
 
+    /* TODO:
     TEST_METHOD(SingleObject_PickWithMouse_IsSelected) {
-      MockEditorApp app;
+      TestApp app;
       const std::vector<size_t> expectedSelection { app.createNewObject().getHandle() };
 
       const std::vector<Handle> newSelection = app.simulateMousePick(expectedSelection);
 
       Assert::IsTrue(expectedSelection == newSelection, L"Picked objects should have been selected", LINE_INFO());
     }
+    */
 
     TEST_METHOD(SceneBrowser_QueryObjectsWindow_HasStaticButtons) {
-      MockEditorApp app;
+      TestApp app;
       auto gui = Create::createAndRegisterTestGuiHook();
-      app->update(0.f);
+      app.update();
 
       MockEditorApp::findOrAssert(*MockEditorApp::getOrAssertQueryContext(*gui), SceneBrowser::WINDOW_NAME, [](const ITestGuiQueryContext& child) {
         MockEditorApp::findOrAssert(child, SceneBrowser::NEW_OBJECT_LABEL, nullptr, L"New object button should exist");
@@ -105,10 +100,11 @@ namespace EditorTests {
     }
 
     TEST_METHOD(SceneBrowserOneObject_QueryObjectList_IsInObjectList) {
-      MockEditorApp app;
-      const std::string objectName(app.createNewObject().getName().getName());
+      TestApp app;
+      const std::string objectName = "name";
+      app.createNewObjectWithName(objectName);
       auto gui = Create::createAndRegisterTestGuiHook();
-      app->update(0.f);
+      app.update();
 
       MockEditorApp::findOrAssert(*MockEditorApp::getOrAssertQueryContext(*gui), SceneBrowser::WINDOW_NAME, [&objectName](const ITestGuiQueryContext& objects) {
         MockEditorApp::findContainsOrAssert(objects, SceneBrowser::OBJECT_LIST_NAME, [&objectName](const ITestGuiQueryContext& scrollView) {
@@ -118,6 +114,5 @@ namespace EditorTests {
         }, L"Objects scroll view should exist");
       }, L"Objects window should have been found");
     }
-    */
   };
 }

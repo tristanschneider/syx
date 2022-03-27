@@ -4,6 +4,8 @@
 #include "App.h"
 #include "Camera.h"
 #include "CppUnitTest.h"
+#include "ecs/component/EditorComponents.h"
+#include "ecs/component/GameobjectComponent.h"
 #include "editor/event/EditorEvents.h"
 #include "editor/ObjectInspector.h"
 #include "editor/SceneBrowser.h"
@@ -46,6 +48,23 @@ namespace EditorTests {
   void TestApp::update() {
     mContext.addTickToAllPhases();
     mContext.update(mRegistry, size_t(1));
+  }
+
+  Engine::Entity TestApp::createNewObject() {
+    return mRegistry.createEntityWithComponents<GameobjectComponent>();
+  }
+
+  Engine::Entity TestApp::createNewObjectWithName(std::string name) {
+    auto&& [entity, a, nameTag ] = mRegistry.createAndGetEntityWithComponents<GameobjectComponent, NameTagComponent>();
+    nameTag.get().mName = std::move(name);
+    return entity;
+  }
+
+  void TestApp::setAndUpdateSelection(const std::vector<Engine::Entity>& entities) {
+    mRegistry.removeComponentsFromAllEntities<SelectedComponent>();
+    for(const Engine::Entity& entity : entities) {
+      mRegistry.addComponent<SelectedComponent>(entity);
+    }
   }
 
   MockEditorApp::MockEditorApp()
