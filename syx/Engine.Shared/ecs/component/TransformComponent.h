@@ -1,5 +1,7 @@
 #pragma once
 
+#include "ecs/system/editor/ObjectInspectorTraits.h"
+#include "editor/InspectorFactory.h"
 #include "SyxMat4.h"
 #include "TypeInfo.h"
 
@@ -16,3 +18,10 @@ namespace ecx {
     static inline const std::string SelfName = "Transform";
   };
 }
+
+template<>
+struct ObjectInspectorTraits<TransformComponent, Syx::Mat4> {
+  static void inspect(const char* name, Syx::Mat4& transform) {
+    Inspector::inspectTransform(name, transform);
+  }
+};

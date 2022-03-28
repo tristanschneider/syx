@@ -6,9 +6,11 @@
 #include "asset/PhysicsModel.h"
 #include "asset/Shader.h"
 #include "asset/Texture.h"
-#include "ecs/system/EditorSystem.h"
+#include "ecs/component/GameobjectComponent.h"
 #include "ecs/component/MessageComponent.h"
 #include "ecs/component/TransformComponent.h"
+#include "ecs/system/editor/EditorSystem.h"
+#include "ecs/system/editor/ObjectInspectorSystem.h"
 #include "ecs/system/DeltaTimeSystem.h"
 #include "ecs/system/FileSystemSystem.h"
 #include "ecs/system/GraphicsSystemBase.h"
@@ -40,6 +42,30 @@
 
 class DefaultAppRegistration : public AppRegistration {
 public:
+  using ReflectedComponents = ecx::TypeList<
+    NameTagComponent,
+    TransformComponent
+  >;
+
+  template<class T>
+  struct CommonRegistration {
+  };
+
+  template<class... Components>
+  struct CommonRegistration<ecx::TypeList<Components...>> {
+    static void registerSerializers(Engine::SystemList& list) {
+      (list.push_back(ComponentSerializeSystem<Components, LuaComponentSerialize<Components>>::createSerializer()), ...);
+    }
+
+    static void registerDeserializers(Engine::SystemList& list) {
+      (list.push_back(ComponentSerializeSystem<Components, LuaComponentSerialize<Components>>::createDeserializer()), ...);
+    }
+
+    static void registerInspectors(Engine::SystemList& list) {
+      list.push_back(ObjectInspectorSystem<ecx::TypeList<Components...>>::tick());
+    }
+  };
+
   void registerAppContext(Engine::AppContext& context) override {
     using namespace Engine;
     SystemList input, simulation, graphics, physics, cleanup, initializers;
@@ -59,7 +85,7 @@ public:
     simulation.push_back(ProjectLocatorSystem::createUriListener());
     simulation.push_back(EditorSystem::createUriListener());
 
-    using TransformT = ComponentSerializeSystem<TransformComponent, LuaComponentSerialize<TransformComponent>>;
+    using CommonReg = CommonRegistration<ReflectedComponents>;
     //Load space
     simulation.push_back(SpaceSystem::clearSpaceSystem());
     simulation.push_back(SpaceSystem::beginLoadSpaceSystem());
@@ -67,7 +93,7 @@ public:
     simulation.push_back(SpaceSystem::createSpaceEntitiesSystem());
 
     //Per-component deserializers
-    simulation.push_back(TransformT::createDeserializer());
+    CommonReg::registerDeserializers(simulation);
 
     simulation.push_back(SpaceSystem::completeSpaceLoadSystem());
 
@@ -76,7 +102,7 @@ public:
     simulation.push_back(SpaceSystem::createSerializedEntitiesSystem());
 
     //Per-component serializers
-    simulation.push_back(TransformT::createSerializer());
+    CommonReg::registerSerializers(simulation);
 
     simulation.push_back(SpaceSystem::serializeSpaceSystem());
     simulation.push_back(SpaceSystem::completeSpaceSaveSystem());
@@ -87,6 +113,7 @@ public:
 
     //Editor
     graphics.push_back(EditorSystem::sceneBrowser());
+    CommonReg::registerInspectors(graphics);
 
     graphics.push_back(GraphicsSystemBase::screenSizeListener());
 

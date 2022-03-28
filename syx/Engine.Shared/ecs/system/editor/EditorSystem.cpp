@@ -1,4 +1,4 @@
-#include "ecs/system/EditorSystem.h"
+#include "ecs/system/editor/EditorSystem.h"
 
 #include "ecs/component/EditorComponents.h"
 #include "ecs/component/FileSystemComponent.h"

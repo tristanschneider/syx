@@ -49,7 +49,7 @@ namespace {
           result.mName = strBuffer.substr(nameBegin, nameEnd - nameBegin);
           result.mContents = strBuffer.substr(sectionBegin, sectionEndDelimiter - sectionBegin);
           //This starts at the ending delimiter (not after) because that doubles as the start of the next section
-          result.mEndIndex = sectionEndDelimiter;
+          result.mEndIndex = sectionEndDelimiter + index;
           return result;
         }
       }

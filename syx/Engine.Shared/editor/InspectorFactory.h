@@ -1,4 +1,6 @@
 #pragma once
+#include "SyxMat4.h"
+#include "SyxVec3.h"
 
 class AssetRepo;
 class MessageQueueProvider;
