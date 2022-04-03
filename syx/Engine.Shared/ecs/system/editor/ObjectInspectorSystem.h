@@ -89,6 +89,8 @@ struct ObjectInspectorSystem<ecx::TypeList<Components...>> {
       ObjectInspectorTraits<ComponentT, PropT>::inspect(memberName.c_str(), propValue);
     }, *value);
 
+    //TODO: delete component button
+
     //End of this component's properties
     ImGui::EndGroup();
     ImGui::Separator();

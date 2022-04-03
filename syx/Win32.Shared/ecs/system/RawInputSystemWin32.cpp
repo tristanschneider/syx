@@ -60,6 +60,11 @@ namespace Input32Impl {
     input.mEvents.push_back({ RawInputEvent::KeyEvent{ key, state } });
   }
 
+  void _enqueueTextEvent(InputContext& input, std::string text) {
+    std::scoped_lock<std::mutex> lock(input.mMutex);
+    input.mEvents.push_back({ RawInputEvent::TextEvent{ std::move(text) } });
+  }
+
   void _enqueueMouseKeyEvent(InputContext& input, Key key, KeyState state, const Syx::Vec2& position) {
     std::scoped_lock<std::mutex> lock(input.mMutex);
     input.mEvents.push_back({ RawInputEvent::MouseKeyEvent{ key, state, position } });
@@ -105,6 +110,13 @@ std::optional<LRESULT> RawInputSystemWin32::mainProc(HWND, UINT msg, WPARAM w, L
   case WM_KEYUP:
     _enqueueKeyEvent(context, _mapWin32Key(w), KeyState::Released);
     return std::make_optional(LRESULT(0));
+
+  case WM_CHAR: {
+    std::string str;
+    str.push_back(static_cast<char>(w));
+    _enqueueTextEvent(context, std::move(str));
+    break;
+  }
 
   case WM_LBUTTONDOWN:
     _enqueueMouseKeyEvent(context, Key::LeftMouse, KeyState::Triggered, _toPos(l));

@@ -83,7 +83,11 @@ struct RawInputEvent {
     float mAmount = 0;
   };
 
-  std::variant<KeyEvent, MouseKeyEvent, MouseMoveEvent, MouseWheelEvent> mData;
+  struct TextEvent {
+    std::string mText;
+  };
+
+  std::variant<KeyEvent, MouseKeyEvent, MouseMoveEvent, MouseWheelEvent, TextEvent> mData;
 };
 
 //Updated by the OS, processed into the RawInputComponent by the InputSystem
@@ -107,4 +111,6 @@ struct RawInputComponent {
   Syx::Vec2 mMousePos;
   Syx::Vec2 mMouseDelta;
   float mWheelDelta = 0.f;
+  //The text enqueued this frame, cleared every frame
+  std::string mText;
 };

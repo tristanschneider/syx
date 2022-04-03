@@ -253,11 +253,8 @@ namespace ImGuiSystemsImpl {
     const float sensitivity = 0.3f;
     io.MouseWheel = input.mWheelDelta*sensitivity;
 
-    for(size_t i = 0; i < 128; ++i) {
-      char c = static_cast<char>(i);
-      if(RawInputSystem::getAsciiState(input, c) == KeyState::Triggered) {
-        io.AddInputCharacter(c);
-      }
+    for(char c : input.mText) {
+      io.AddInputCharacter(static_cast<ImWchar>(c));
     }
 
     for(size_t i = 0; i < static_cast<size_t>(Key::Count); ++i) {
