@@ -10,10 +10,12 @@
 #include "asset/Shader.h"
 #include "App.h"
 #include "ecs/component/AppPlatformComponents.h"
+#include "ecs/component/UriActivationComponent.h"
 #include "ecs/ECS.h"
 #include "ecs/system/ogl/GraphicsSystemOGL.h"
 #include "ecs/system/ogl/ImGuiSystem.h"
 #include "ecs/system/PlatformMessageSystemWin32.h"
+#include "ecs/system/ProjectLocatorSystem.h"
 #include "ecs/system/RawInputSystemWin32.h"
 #include "event/LifecycleEvents.h"
 #include "file/FilePath.h"
@@ -194,6 +196,12 @@ int mainLoop(const char* launchUri) {
   float nsToMS = 1.0f/1000000.0f;
   float msToNS = 1000000.0f;
   int targetFrameTimeNS = 16*static_cast<int>(msToNS);
+
+  //Hard coded initial set of working directory so initialization can rely on a stable working directory
+  if(auto setDir = ProjectLocatorSystem::tryParseSetWorkingDirectory(UriActivationComponent{ launchUri })) {
+    ::SetCurrentDirectoryA(setDir->mDirectory.cstr());
+  }
+
   sApp = std::make_unique<App>(std::make_unique<AppPlatformWin32>(), std::make_unique<Win32Systems>());
 
   sApp->onUriActivated(launchUri);

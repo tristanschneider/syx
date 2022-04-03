@@ -7,36 +7,33 @@
 
 namespace {
   using namespace Engine;
+
   void tickPLUriListener(SystemContext
-    < View<Write<FileSystemComponent>, Write<ProjectLocatorComponent>>
+    < View<Write<FileSystemComponent>>
+    , View<Write<ProjectLocatorComponent>>
     , View<Read<UriActivationComponent>>
     , EntityModifier<SetWorkingDirectoryComponent>
     > context) {
 
-    auto& global = context.get<View<Write<FileSystemComponent>, Write<ProjectLocatorComponent>>>();
+    auto fs = context.get<View<Write<FileSystemComponent>>>().tryGetFirst();
+    auto pl = context.get<View<Write<ProjectLocatorComponent>>>().tryGetFirst();
     auto& view = context.get<View<Read<UriActivationComponent>>>();
     auto modifier = context.get<EntityModifier<SetWorkingDirectoryComponent>>();
 
-    if(global.begin() == global.end()) {
+    if(!fs || !pl) {
       //Global components missing, can't do anything
       return;
     }
-
-    auto ge = *global.begin();
-    auto& fileSystem = ge.get<FileSystemComponent>();
-    auto& projectLocator = ge.get<ProjectLocatorComponent>();
 
     for(auto chunks = view.chunksBegin(); chunks != view.chunksEnd(); ++chunks) {
       const std::vector<UriActivationComponent>& components = *(*chunks).tryGet<const UriActivationComponent>();
       //AddComponent moves the entity to another chunk with a swap remove, in which case `i` doesn't need to be advanced
       for(size_t i = 0; i < components.size();) {
-        auto params = UriActivationComponent::parseUri(components[i].mUri);
-        const auto it = params.find("projectRoot");
-        if(it != params.end() && fileSystem.get().isDirectory(it->second.c_str())) {
-          printf("Project root set to %s\n", it->second.c_str());
-          projectLocator.get().setPathRoot(it->second.c_str(), PathSpace::Project);
-
-          modifier.addComponent<SetWorkingDirectoryComponent>((*chunks).indexToEntity(i), SetWorkingDirectoryComponent{ FilePath(it->second) });
+        std::optional<SetWorkingDirectoryComponent> setDir = ProjectLocatorSystem::tryParseSetWorkingDirectory(components[i]);
+        if(setDir && fs->get<FileSystemComponent>().get().isDirectory(setDir->mDirectory)) {
+          printf("Project root set to %s\n", setDir->mDirectory.cstr());
+          pl->get<ProjectLocatorComponent>().get().setPathRoot(setDir->mDirectory.cstr(), PathSpace::Project);
+          modifier.addComponent<SetWorkingDirectoryComponent>((*chunks).indexToEntity(i), std::move(*setDir));
         }
         else {
           //Component wasn't added, meaning entity is still in this chunk, so advance `i` manually
@@ -57,6 +54,15 @@ namespace initPL {
     auto entity = factory.createEntity();
     modifier.addDeducedComponent(entity, ProjectLocatorComponent{ std::make_unique<ProjectLocator>() });
   }
+}
+
+std::optional<SetWorkingDirectoryComponent> ProjectLocatorSystem::tryParseSetWorkingDirectory(const UriActivationComponent& uri) {
+  auto params = UriActivationComponent::parseUri(uri.mUri);
+  const auto it = params.find("projectRoot");
+  if(it != params.end()) {
+    return SetWorkingDirectoryComponent{ FilePath(it->second) };
+  }
+  return {};
 }
 
 std::unique_ptr<Engine::System> ProjectLocatorSystem::init() {

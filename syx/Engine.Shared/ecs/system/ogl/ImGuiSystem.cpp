@@ -127,7 +127,8 @@ namespace ImGuiSystemsImpl {
     _initKeyMap();
 
     //Arbitrary values to initialize the frame with so that commands can immediately start being accepted
-    io.DisplaySize = ImVec2(100.f, 100.f);
+    //Must be bigger than the screen since otherwise it will truncate saved window positions
+    io.DisplaySize = ImVec2(10000.f, 10000.f);
     io.DisplayFramebufferScale = ImVec2(1.f, 1.f);
     io.DeltaTime = 0.01f;
     ImGui::NewFrame();
@@ -154,6 +155,7 @@ namespace ImGuiSystemsImpl {
     //Avoid rendering when minimized, scale coordinates for retina displays (screen coordinates != framebuffer coordinates)
     ImGuiIO& io = ImGui::GetIO();
     io.DisplaySize = ImVec2(display.mScreenSize.x, display.mScreenSize.y);
+
     if(io.DisplaySize.x * io.DisplaySize.y == 0.f) {
       // Imgui asserts if any size element is zero
       return;
