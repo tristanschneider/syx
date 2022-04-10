@@ -101,6 +101,17 @@ namespace EditorTests {
         }, L"Scale should be inspected");
       });
     }
+
+    TEST_METHOD(NewObject_AddTransformFromPicker_IsAdded) {
+      TestApp app;
+      Engine::Entity entity = app.createNewObject();
+      app.setAndUpdateSelection({ entity });
+
+      app.addComponentFromUI("Transform");
+
+      Assert::IsTrue(app.mRegistry.hasComponent<TransformComponent>(entity));
+    }
+
     /*
     TEST_METHOD(NewObject_QueryInspectorWindow_InspectsSpace) {
       MockEditorApp app;

@@ -77,6 +77,7 @@ public:
     //TODO: only if editor features should be enabled
     initializers.push_back(EditorSystem::init());
     initializers.push_back(GraphicsSystemBase::init());
+    initializers.push_back(ObjectInspectorSystemBase::init());
 
     //DT update a bit arbitrary, uses input since it's the first 60fps system group
     input.push_back(DeltaTimeSystem::update());

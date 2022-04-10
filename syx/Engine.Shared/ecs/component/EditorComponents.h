@@ -17,3 +17,9 @@ struct EditorSavedSceneComponent {
 //On objects that are currently selected
 struct SelectedComponent {
 };
+
+struct PickerContextComponent {
+  std::optional<size_t> mSelectedID;
+};
+
+struct ObjectInspectorContextComponent {};

@@ -4,6 +4,7 @@
 #include "ecs/component/ImGuiContextComponent.h"
 #include "ecs/system/editor/ObjectInspectorTraits.h"
 #include "ecs/ECS.h"
+#include "editor/Picker.h"
 #include "imgui/imgui.h"
 #include "TypeInfo.h"
 
@@ -13,6 +14,8 @@ struct ObjectInspectorSystemBase {
   static const char* ADD_COMPONENT_BUTTON;
   static const char* REMOVE_COMPONENT_BUTTON;
   static const char* COMPONENT_PICKER_MODAL;
+
+  static std::shared_ptr<Engine::System> init();
 };
 
 template<class T>
@@ -22,13 +25,16 @@ struct ObjectInspectorSystem {
 template<class... Components>
 struct ObjectInspectorSystem<ecx::TypeList<Components...>> {
   using ImGuiView = Engine::View<Engine::Include<ImGuiContextComponent>>;
+  using Modifier = Engine::EntityModifier<Components...>;
   using SelectedView = Engine::View<Engine::Include<SelectedComponent>, Engine::OptionalWrite<Components>...>;
+  using ContextView = Engine::View<Engine::Include<ObjectInspectorContextComponent>, Engine::Write<PickerContextComponent>>;
+  using Context = Engine::SystemContext<ImGuiView, SelectedView, ContextView, Modifier>;
 
   static std::shared_ptr<Engine::System> tick() {
     return ecx::makeSystem("InspectorTick", &_tick, IMGUI_THREAD);
   }
 
-  static void _tick(Engine::SystemContext<ImGuiView, SelectedView>& context) {
+  static void _tick(Context& context) {
     using namespace Engine;
     if(!context.get<ImGuiView>().tryGetFirst()) {
       return;
@@ -54,15 +60,14 @@ struct ObjectInspectorSystem<ecx::TypeList<Components...>> {
     //Only start components list section if something is selected
     ImGui::BeginChild(ObjectInspectorSystemBase::COMPONENT_LIST, ImVec2(0, 0), true);
 
+    _showComponentPicker(context, entities);
+
     //Populate inspector for each entity
     for(const Entity& entity : entities) {
       ImGui::PushID(static_cast<int>(entity.mData.mParts.mEntityId));
       //Inspect all components for this entity
-      if(auto it = selected.find(entity); it != selected.end()) {
-        auto viewedEntity = *it;
-        int indexID = 0;
-        (_inspectComponent<Components>(viewedEntity, indexID++), ...);
-      }
+      int indexID = 0;
+      (_inspectComponent<Components>(context, entity, indexID++), ...);
       //End of this entity
       ImGui::PopID();
     }
@@ -71,10 +76,69 @@ struct ObjectInspectorSystem<ecx::TypeList<Components...>> {
     ImGui::End();
   }
 
+  static void _showComponentPicker(Context& context, const std::vector<Engine::Entity>& selectedEntities) {
+    auto pickerContext = context.get<ContextView>().tryGetFirst();
+    if(!pickerContext) {
+      return;
+    }
+
+    Picker::ImmediatePickerInfo picker;
+    picker.name = ObjectInspectorSystemBase::COMPONENT_PICKER_MODAL;
+
+    //Present pick options for all component types
+    picker.forEachItem = [&context, &selectedEntities](const Picker::ImmediatePickerInfo::ForEachCallback& callback) {
+      std::optional<size_t> index = 0;
+      (_tryPickItem<Components>(context, callback, index, selectedEntities), ...);
+    };
+
+    if(ImGui::Button(ObjectInspectorSystemBase::ADD_COMPONENT_BUTTON)) {
+      ImGui::OpenPopup(picker.name);
+    }
+
+    Picker::createModal(picker, pickerContext->get<PickerContextComponent>());
+  }
+
+  template<class ComponentT>
+  static void _tryPickItem(Context& context, const Picker::ImmediatePickerInfo::ForEachCallback& presentPick, std::optional<size_t>& index, const std::vector<Engine::Entity>& selectedEntities) {
+    //Track context across all the _tryPickItem calls through this optional
+    if(!index) {
+      return;
+    }
+    else {
+      ++(*index);
+    }
+
+    //Show this pick option only if none of the selected objects have it
+    auto& view = context.get<SelectedView>();
+    if(std::any_of(selectedEntities.begin(), selectedEntities.end(), [&view](auto&& entity) {
+      auto it = view.find(entity);
+      return it != view.end() && (*it).tryGet<ComponentT>() != nullptr;
+    })) {
+      return;
+    }
+
+    switch(presentPick(ecx::StaticTypeInfo<ComponentT>::getTypeName().c_str(), *index)) {
+      //No preview for component picker
+      case Picker::PickItemResult::ItemPreviewed:
+      case Picker::PickItemResult::Continue:
+        break;
+      case Picker::PickItemResult::ItemSelected: {
+        Modifier modifier = context.get<Modifier>();
+        for(auto&& entity : selectedEntities) {
+          modifier.addComponent<ComponentT>(entity);
+        }
+        //Stop iteration in the picker
+        index.reset();
+      }
+    }
+  }
+
   //Inspect a component for this entity
-  template<class ComponentT, class ViewedEntityT>
-  static void _inspectComponent(ViewedEntityT& entity, int indexID) {
-    ComponentT* value = entity.tryGet<ComponentT>();
+  template<class ComponentT>
+  static void _inspectComponent(Context& context, const Engine::Entity& entity, int indexID) {
+    auto& selectedView = context.get<SelectedView>();
+    auto foundEntity = selectedView.find(entity);
+    ComponentT* value = foundEntity != selectedView.end() ? (*foundEntity).tryGet<ComponentT>() : nullptr;
     if(!value) {
       return;
     }
@@ -89,7 +153,9 @@ struct ObjectInspectorSystem<ecx::TypeList<Components...>> {
       ObjectInspectorTraits<ComponentT, PropT>::inspect(memberName.c_str(), propValue);
     }, *value);
 
-    //TODO: delete component button
+    if(ImGui::Button(ObjectInspectorSystemBase::REMOVE_COMPONENT_BUTTON)) {
+      context.get<Modifier>().removeComponent<ComponentT>(entity);
+    }
 
     //End of this component's properties
     ImGui::EndGroup();

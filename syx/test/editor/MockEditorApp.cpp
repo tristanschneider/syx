@@ -60,6 +60,14 @@ namespace EditorTests {
     return entity;
   }
 
+  void TestApp::addComponentFromUI(const std::string& name) {
+    auto gui = Create::createAndRegisterTestGuiHook();
+    auto addComponent = gui->addScopedButtonPress(ObjectInspector::ADD_COMPONENT_BUTTON);
+    update();
+    auto pick = gui->addScopedPickerPick(name);
+    update();
+  }
+
   void TestApp::setAndUpdateSelection(const std::vector<Engine::Entity>& entities) {
     mRegistry.removeComponentsFromAllEntities<SelectedComponent>();
     for(const Engine::Entity& entity : entities) {

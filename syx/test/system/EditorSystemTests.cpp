@@ -7,7 +7,7 @@
 #include "ecs/component/FileSystemComponent.h"
 #include "ecs/component/SpaceComponents.h"
 #include "ecs/component/UriActivationComponent.h"
-#include "ecs/system/EditorSystem.h"
+#include "ecs/system/editor/EditorSystem.h"
 #include "test/TestAppContext.h"
 #include "test/TestFileSystem.h"
 
