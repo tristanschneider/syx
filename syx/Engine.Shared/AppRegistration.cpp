@@ -9,6 +9,7 @@
 #include "ecs/component/GameobjectComponent.h"
 #include "ecs/component/MessageComponent.h"
 #include "ecs/component/TransformComponent.h"
+#include "ecs/system/AssetSystem.h"
 #include "ecs/system/editor/EditorSystem.h"
 #include "ecs/system/editor/ObjectInspectorSystem.h"
 #include "ecs/system/DeltaTimeSystem.h"
@@ -85,6 +86,12 @@ public:
 
     simulation.push_back(ProjectLocatorSystem::createUriListener());
     simulation.push_back(EditorSystem::createUriListener());
+    simulation.push_back(EditorSystem::createPlatformListener());
+
+    //Delete before processing new ones so a system could view the failed request before it's gone
+    simulation.push_back(AssetSystem::deleteFailedAssets());
+    //Convenient to go after EditorSystem's platform listener since that queues the load requests
+    simulation.push_back(AssetSystem::processLoadRequests());
 
     using CommonReg = CommonRegistration<ReflectedComponents>;
     //Load space

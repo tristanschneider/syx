@@ -1,9 +1,11 @@
 #include "ecs/system/editor/EditorSystem.h"
 
+#include "ecs/component/AssetComponent.h"
 #include "ecs/component/EditorComponents.h"
 #include "ecs/component/FileSystemComponent.h"
 #include "ecs/component/GameobjectComponent.h"
 #include "ecs/component/ImGuiContextComponent.h"
+#include "ecs/component/PlatformMessageComponents.h"
 #include "ecs/component/SpaceComponents.h"
 #include "ecs/component/UriActivationComponent.h"
 
@@ -80,6 +82,17 @@ namespace EditorImpl {
 
     ImGui::End();
   }
+
+  using DropView = View<Read<OnFilesDroppedMessageComponent>>;
+  void tickPlatformListener(SystemContext<DropView, EntityFactory>& context) {
+    auto factory = context.get<EntityFactory>();
+    for(auto&& drop : context.get<DropView>()) {
+      for(const FilePath& file : drop.get<const OnFilesDroppedMessageComponent>().mFiles) {
+        auto&& [ entity, asset ] = factory.createAndGetEntityWithComponents<AssetLoadRequestComponent>();
+        asset.get().mPath = file;
+      }
+    }
+  }
 }
 
 std::shared_ptr<Engine::System> EditorSystem::sceneBrowser() {
@@ -150,3 +163,8 @@ std::shared_ptr<Engine::System> EditorSystem::createUriListener() {
     }
   });
 }
+
+std::shared_ptr<Engine::System> EditorSystem::createPlatformListener() {
+  return ecx::makeSystem("EditorPlatformListener", &EditorImpl::tickPlatformListener);
+}
+
