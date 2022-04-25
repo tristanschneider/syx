@@ -31,7 +31,8 @@ struct ObjectInspectorSystem<ecx::TypeList<Components...>> {
   using ContextView = Engine::View<Engine::Include<ObjectInspectorContextComponent>, Engine::Write<PickerContextComponent>>;
   using AssetView = Engine::View<Engine::Read<AssetInfoComponent>>;
   using ModalView = Engine::View<Engine::Read<InspectedAssetModalComponent>>;
-  using Context = Engine::SystemContext<Engine::EntityFactory, ImGuiView, SelectedView, ContextView, Modifier, AssetView, ModalView>;
+  using AnyModalView = Engine::View<Engine::Include<ModalComponent>>;
+  using Context = Engine::SystemContext<Engine::EntityFactory, ImGuiView, SelectedView, ContextView, Modifier, AssetView, ModalView, AnyModalView>;
 
   static std::shared_ptr<Engine::System> tick() {
     return ecx::makeSystem("InspectorTick", &_tick, IMGUI_THREAD);
@@ -192,19 +193,21 @@ struct ObjectInspectorSystem<ecx::TypeList<Components...>> {
     ImGui::Text(memberName.c_str());
 
     ImGui::SameLine();
-    //Open selection modal on button press
-    if(ImGui::Button(valueName.cstr())) {
+    //Open selection modal on button press if a modal isn't already open
+    if(ImGui::Button(valueName.cstr()) && !context.get<AnyModalView>().tryGetFirst()) {
       //Create the entity that the AssetInspectorSystem will populate when viewed
-      auto&& [ modalEntity, modal ] = factory.createAndGetEntityWithComponents<InspectedAssetModalComponent>();
+      auto&& [ modalEntity, modal, assetPreview, modalTag ] = factory.createAndGetEntityWithComponents<InspectedAssetModalComponent, AssetPreviewDialogComponent, ModalComponent>();
       modal.get().mCurrentSelection = memberValue;
       modal.get().mInspectedEntity = self;
       modal.get().mModalName = memberName;
+      assetPreview.get().mAsset = memberValue;
     }
     ImGui::NewLine();
 
     //Check to see if the value has been set
     //Would be a bit more efficient to have selection on its own component. Presumably the number of dialogs is small
     for(auto&& dialog : context.get<ModalView>()) {
+      //TODO: could clear these when selection is cleared
       const InspectedAssetModalComponent& modal = dialog.get<const InspectedAssetModalComponent>();
       if(modal.mInspectedEntity == self) {
         if(modal.mConfirmedSelection != Entity{}) {

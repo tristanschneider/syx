@@ -30,7 +30,7 @@ struct AssetInspectorModal {
   using AssetTy = AssetT;
 };
 
-// Create an entity with this to open an asset picker
+//Create an entity with this to open an asset picker
 struct InspectedAssetModalComponent {
   Engine::Entity mInspectedEntity{};
   Engine::Entity mCurrentSelection{};
@@ -38,3 +38,11 @@ struct InspectedAssetModalComponent {
   std::string mModalName;
   bool mNeedsInit = true;
 };
+
+struct AssetPreviewDialogComponent {
+  Engine::Entity mAsset;
+};
+
+//Indicates that there should only be one of this type of dialog. Any creation of an entity with this should first
+//check if it already exists
+struct ModalComponent {};

@@ -9,14 +9,10 @@
 
 namespace ogl {
   using namespace Engine;
-  using OGLView = View<Include<OGLContextComponent>>;
+  using OGLView = View<Write<OGLContextComponent>>;
   using TextureView = View<Include<NeedsGpuUploadComponent>, Read<TextureComponent>>;
   using TextureModifier = EntityModifier<NeedsGpuUploadComponent, AssetComponent, TextureHandleOGLComponent, AssetLoadFailedComponent>;
   void uploadTextures(SystemContext<TextureView, TextureModifier, OGLView>& context) {
-    if(!context.get<OGLView>().tryGetFirst()) {
-      return;
-    }
-
     auto& view = context.get<TextureView>();
     auto modifier = context.get<TextureModifier>();
     while(auto tex = view.tryGetFirst()) {

@@ -12,6 +12,7 @@
 #include "ecs/component/AppPlatformComponents.h"
 #include "ecs/component/UriActivationComponent.h"
 #include "ecs/ECS.h"
+#include "ecs/system/ogl/AssetPreviewSystemOGL.h"
 #include "ecs/system/ogl/AssetSystemOGL.h"
 #include "ecs/system/ogl/GraphicsSystemOGL.h"
 #include "ecs/system/ogl/ImGuiSystem.h"
@@ -57,6 +58,7 @@ struct Win32Systems : public AppRegistration {
     simulation.mSystems.insert(simulation.mSystems.begin(), PlatformMessageSystemWin32::applyQueuedMessages());
     simulation.mSystems.push_back(ecx::makeSystem("SetWorkingDirectory", &tickSetCurrentDirectory));
     Engine::AppContext::PhaseContainer graphics = context.getUpdatePhase(Engine::AppPhase::Graphics);
+    graphics.mSystems.insert(graphics.mSystems.begin(), AssetPreviewSystemOGL::previewTexture());
     graphics.mSystems.push_back(GraphicsSystemOGL::onWindowResized());
     graphics.mSystems.push_back(GraphicsSystemOGL::render());
     graphics.mSystems.push_back(ImGuiSystems::render());

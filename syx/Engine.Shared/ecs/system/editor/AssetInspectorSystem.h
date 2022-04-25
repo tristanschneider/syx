@@ -14,8 +14,9 @@ template<class AssetT>
 struct AssetInspectorSystem {
   using ImGuiView = Engine::View<Engine::Include<ImGuiContextComponent>>;
   using Modifier = Engine::EntityModifier<SelectedComponent>;
-  using AssetView = Engine::View<Engine::Include<AssetT>, Engine::Read<AssetInfoComponent>>;
-  using ContextView = Engine::View<Engine::Write<InspectedAssetModalComponent>>;
+  //Filter on AssetComponent because that indicates the asset is done loading, not so for only AssetInfoComponent or the specific asset type
+  using AssetView = Engine::View<Engine::Include<AssetComponent>, Engine::Include<AssetT>, Engine::Read<AssetInfoComponent>>;
+  using ContextView = Engine::View<Engine::Write<InspectedAssetModalComponent>, Engine::Write<AssetPreviewDialogComponent>>;
   using Context = Engine::SystemContext<ImGuiView, Modifier, AssetView, ContextView, Engine::EntityFactory>;
 
   static std::shared_ptr<Engine::System> create() {
@@ -37,15 +38,14 @@ struct AssetInspectorSystem {
         modal.mNeedsInit = false;
       }
 
-      //TODO this auto resize means it's not manually resizeable which may be annoying
-      if(ImGui::BeginPopupModal(modal.mModalName.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-        auto endPopup = finally([]() { ImGui::EndPopup(); });
+      if(ImGui::Begin(modal.mModalName.c_str())) {
+        auto endPopup = finally([]() { ImGui::End(); });
         //Button to close modal
         if(ImGui::Button("Close")) {
           ImGui::CloseCurrentPopup();
           //TODO: Clear preview
           toRemove.push_back(dialog.entity());
-          return;
+          break;
         }
         //Scroll view for asset list
         ImGui::BeginChild("assets", ImVec2(400, 200));
@@ -59,6 +59,7 @@ struct AssetInspectorSystem {
           //If selection changed this frame, set this as the selected asset
           if(thisSelected != wasSelected) {
             modal.mCurrentSelection = asset.entity();
+            dialog.get<AssetPreviewDialogComponent>().mAsset = asset.entity();
           }
 
           if(ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(0)) {
