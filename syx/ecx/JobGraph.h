@@ -16,7 +16,9 @@ namespace ecx {
         current->mDependencies = current->mTotalDependencies;
 
         for(const auto& dependent : current->mDependents) {
-          todo.push(dependent.get());
+          if(dependent->mDependencies != dependent->mTotalDependencies) {
+            todo.push(dependent.get());
+          }
         }
 
         todo.pop();

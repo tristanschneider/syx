@@ -1,5 +1,7 @@
 #pragma once
 
+#include "ecs/ECS.h"
+#include "file/FilePath.h"
 #include "lua.hpp"
 #include "lua/LuaStackAssert.h"
 #include <optional>
@@ -45,6 +47,31 @@ namespace Lua {
 
     static std::optional<std::string> fromTop(lua_State* l) {
       return lua_isstring(l, -1) ? std::make_optional(std::string(lua_tostring(l, -1))) : std::nullopt;
+    }
+  };
+
+  template<>
+  struct LuaTypeInfo<FilePath> {
+    static int push(lua_State* l, const FilePath& value) {
+      lua_pushstring(l, value.cstr());
+      return 1;
+    }
+
+    static std::optional<FilePath> fromTop(lua_State* l) {
+      return lua_isstring(l, -1) ? std::make_optional(FilePath(lua_tostring(l, -1))) : std::nullopt;
+    }
+  };
+
+  template<>
+  struct LuaTypeInfo<Engine::Entity> {
+    static int push(lua_State* l, const Engine::Entity& value) {
+      //Encode entity id in void*
+      lua_pushlightuserdata(l, reinterpret_cast<void*>(reinterpret_cast<uint64_t*>(value.mData.mRawId)));
+      return 1;
+    }
+
+    static std::optional<Engine::Entity> fromTop(lua_State* l) {
+      return lua_islightuserdata(l, -1) ? std::make_optional(Engine::Entity(reinterpret_cast<uint64_t>(reinterpret_cast<uint64_t*>(lua_touserdata(l, -1))))) : std::nullopt;
     }
   };
 

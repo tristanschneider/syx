@@ -7,9 +7,11 @@
 #include "asset/Shader.h"
 #include "asset/Texture.h"
 #include "ecs/component/GameobjectComponent.h"
+#include "ecs/component/GraphicsComponents.h"
 #include "ecs/component/MessageComponent.h"
 #include "ecs/component/TransformComponent.h"
 #include "ecs/system/AssetSystem.h"
+#include "ecs/system/editor/AssetInspectorSystem.h"
 #include "ecs/system/editor/EditorSystem.h"
 #include "ecs/system/editor/ObjectInspectorSystem.h"
 #include "ecs/system/DeltaTimeSystem.h"
@@ -43,17 +45,25 @@
 
 class DefaultAppRegistration : public AppRegistration {
 public:
+  //Type list order is UI order so alphabetical is nice
   using ReflectedComponents = ecx::TypeList<
+    //TODO: need to update scene loader to request load of all asset created with this component
+    AssetInfoComponent,
     NameTagComponent,
-    TransformComponent
+    TransformComponent,
+    TextureRefComponent
   >;
 
-  template<class T>
+  using AssetTypes = ecx::TypeList<
+    TextureComponent
+  >;
+
+  template<class T, class S>
   struct CommonRegistration {
   };
 
-  template<class... Components>
-  struct CommonRegistration<ecx::TypeList<Components...>> {
+  template<class... Components, class... Assets>
+  struct CommonRegistration<ecx::TypeList<Components...>, ecx::TypeList<Assets...>> {
     static void registerSerializers(Engine::SystemList& list) {
       (list.push_back(ComponentSerializeSystem<Components, LuaComponentSerialize<Components>>::createSerializer()), ...);
     }
@@ -64,6 +74,7 @@ public:
 
     static void registerInspectors(Engine::SystemList& list) {
       list.push_back(ObjectInspectorSystem<ecx::TypeList<Components...>>::tick());
+      (list.push_back(AssetInspectorSystem<Assets>::create()), ...);
     }
   };
 
@@ -93,7 +104,9 @@ public:
     //Convenient to go after EditorSystem's platform listener since that queues the load requests
     simulation.push_back(AssetSystem::processLoadRequests());
 
-    using CommonReg = CommonRegistration<ReflectedComponents>;
+    simulation.push_back(AssetSystem::createTextureLoader());
+
+    using CommonReg = CommonRegistration<ReflectedComponents, AssetTypes>;
     //Load space
     simulation.push_back(SpaceSystem::clearSpaceSystem());
     simulation.push_back(SpaceSystem::beginLoadSpaceSystem());

@@ -32,12 +32,12 @@ namespace SystemTests {
         mContext.buildExecutionGraph();
       }
 
-      static std::optional<TestAsset> testAssetLoader(std::vector<uint8_t>&) {
+      static AssetLoadResultV<TestAsset> testAssetLoader(const AssetInfoComponent&, std::vector<uint8_t>&) {
         return TestAsset{};
       }
 
-      static std::optional<TestAsset> testFailAssetLoader(std::vector<uint8_t>&) {
-        return {};
+      static AssetLoadResultV<TestAsset> testFailAssetLoader(const AssetInfoComponent&, std::vector<uint8_t>&) {
+        return FailedAssetTag{};
       }
     };
 

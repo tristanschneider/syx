@@ -7,6 +7,7 @@
 #include "component/Renderable.h"
 #include "CppUnitTest.h"
 #include "ecs/component/TransformComponent.h"
+#include "ecs/system/editor/ObjectInspectorTraits.h"
 #include "editor/MockEditorApp.h"
 #include "editor/ObjectInspector.h"
 #include "LuaGameObject.h"
@@ -16,6 +17,16 @@
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 namespace EditorTests {
+  template<class> struct TestTemplateA {};
+  template<class, class> struct TestTemplateB {};
+
+  static_assert(IsTemplateOfType<TestTemplateA<int>, TestTemplateA>::value);
+  static_assert(IsTemplateOfType<TestTemplateB<int, bool>, TestTemplateB>::value);
+  static_assert(!IsTemplateOfType<TestTemplateA<int>, TestTemplateB>::value);
+
+  static_assert(IsModalInspectorT<ModalInspectorImpl<int>>::value);
+  static_assert(!IsModalInspectorT<int>::value);
+
   TEST_CLASS(ObjectInspectorTests) {
     static void getOrAssertObjectInspector(TestApp& app, const std::function<void(const ITestGuiQueryContext&)>& callback) {
       auto hook = Create::createAndRegisterTestGuiHook();
