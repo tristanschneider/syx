@@ -8,6 +8,7 @@
 #include "imgui/imgui.h"
 
 namespace Preview {
+  //TODO: update for model support
   using namespace Engine;
   using ImGuiView = View<Include<ImGuiContextComponent>>;
   using DialogView = View<Read<AssetPreviewDialogComponent>>;

@@ -50,11 +50,13 @@ public:
     //TODO: need to update scene loader to request load of all asset created with this component
     AssetInfoComponent,
     NameTagComponent,
+    GraphicsModelRefComponent,
     TransformComponent,
     TextureRefComponent
   >;
 
   using AssetTypes = ecx::TypeList<
+    GraphicsModelComponent,
     TextureComponent
   >;
 
@@ -105,6 +107,7 @@ public:
     simulation.push_back(AssetSystem::processLoadRequests());
 
     simulation.push_back(AssetSystem::createTextureLoader());
+    simulation.push_back(AssetSystem::createGraphicsModelLoader());
 
     using CommonReg = CommonRegistration<ReflectedComponents, AssetTypes>;
     //Load space

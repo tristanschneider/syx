@@ -13,6 +13,20 @@ set(CMAKE_CXX_STANDARD_REQUIRED)
 # Always disable because it's mega slow
 add_definitions(-DNDEBUG)
 
+set(CMAKE_TOOLCHAIN_FILE "${CMAKE_SOURCE_DIR}/vcpkg/scripts/buildsystems/vcpkg.cmake")
+
+#TODO: less platform specific
+function(vcpkg_install package)
+    set(vcpkg_base "${CMAKE_SOURCE_DIR}/vcpkg")
+    set(vcpkg_path "${vcpkg_base}/vcpkg.exe")
+
+    if(NOT EXISTS "${vcpkg_path}")
+        execute_process(COMMAND git clone https://github.com/microsoft/vcpkg.git)
+        execute_process(COMMAND "${vcpkg_base}/bootstrap-vcpkg.bat")
+    endif()
+    execute_process(COMMAND "${vcpkg_path}" --triplet x64-windows install "${package}")
+endfunction()
+
 if(MSVC)
     add_compile_definitions(
         _HAS_EXCEPTIONS=0

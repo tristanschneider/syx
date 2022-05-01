@@ -17,6 +17,11 @@ target_link_libraries(engine_shared PUBLIC imgui)
 target_link_libraries(engine_shared PRIVATE glew)
 target_link_libraries(engine_shared PUBLIC lua)
 
+# Asset Importer
+vcpkg_install("assimp")
+find_package(assimp CONFIG REQUIRED)
+target_link_libraries(engine_shared PRIVATE assimp::assimp)
+
 target_precompile_headers(engine_shared PRIVATE Precompile.h)
 
 # Intended to be called by the executable that imports this directly or indirectly

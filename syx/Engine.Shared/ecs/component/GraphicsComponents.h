@@ -7,6 +7,14 @@
 #include "TypeInfo.h"
 
 struct GraphicsModelComponent {
+  struct Vertex {
+    std::array<float, 3> mPos{};
+    std::array<float, 3> mNormal{};
+    std::array<float, 2> mUV{};
+  };
+
+  std::vector<Vertex> mVertices;
+  std::vector<uint32_t> mIndices;
 };
 
 struct ShaderComponent {
@@ -38,8 +46,20 @@ namespace ecx {
     static inline const std::array<std::string, 1> MemberNames = { "texture" };
     static inline const std::string SelfName = "TextureRef";
   };
+
+  template<>
+  struct StaticTypeInfo<GraphicsModelRefComponent> : StructTypeInfo<StaticTypeInfo<GraphicsModelRefComponent>,
+    AutoTypeList<&GraphicsModelRefComponent::mModel>,
+    AutoTypeList<>> {
+    static inline const std::array<std::string, 1> MemberNames = { "model" };
+    static inline const std::string SelfName = "GraphicsModelRef";
+  };
 }
 
 template<>
 struct ObjectInspectorTraits<TextureRefComponent, Engine::Entity> :
   ModalInspectorImpl<AssetInspectorModal<TextureComponent>> {};
+
+template<>
+struct ObjectInspectorTraits<GraphicsModelRefComponent, Engine::Entity> :
+  ModalInspectorImpl<AssetInspectorModal<GraphicsModelComponent>> {};

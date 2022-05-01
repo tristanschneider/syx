@@ -1,6 +1,9 @@
 #include "Precompile.h"
 #include "ecs/system/AssetSystem.h"
 
+#include "assimp/Importer.hpp"
+#include "assimp/postprocess.h"
+#include "assimp/scene.h"
 #include "ecs/component/GraphicsComponents.h"
 
 namespace Assets {
@@ -30,6 +33,68 @@ namespace Assets {
       modifier.addComponent<FileReadRequest>(entity, path);
       modifier.addComponent<AssetInfoComponent>(entity, std::move(path));
     }
+  }
+
+  AssetLoadResultV<GraphicsModelComponent> loadModel(const AssetInfoComponent& info, std::vector<uint8_t>& buffer) {
+    //TODO: maybe store this somewhere so it doesn't need to be reallocated every time
+    Assimp::Importer importer;
+    if(!importer.IsExtensionSupported(info.mPath.getExtensionWithDot())) {
+      return UnsupportedAssetTag{};
+    }
+    const aiScene* scene = importer.ReadFileFromMemory(buffer.data(), buffer.size(), unsigned int(aiProcess_JoinIdenticalVertices
+      | aiProcess_Triangulate
+      | aiProcess_GenNormals
+      // Flatten hierarchy since hierarchy support not implemented yet
+      | aiProcess_PreTransformVertices
+      | aiProcess_GenUVCoords
+      | aiProcess_GenBoundingBoxes)
+    );
+
+    if(!scene || !scene->mNumMeshes) {
+      printf("Error loading model %s, [%s]\n", info.mPath.cstr(), importer.GetErrorString());
+      return FailedAssetTag{};
+    }
+
+    GraphicsModelComponent result;
+    const auto [ totalVerts, totalIndices ] = std::invoke([&]{
+      std::pair<size_t, size_t> result{ 0, 0 };
+      for(unsigned int i = 0; i < scene->mNumMeshes; ++i) {
+        const aiMesh* mesh = scene->mMeshes[i];
+        result.first += static_cast<size_t>(mesh->mNumVertices);
+        result.second += static_cast<size_t>(mesh->mNumFaces * 3);
+      }
+      return result;
+    });
+    if(!totalVerts && !totalIndices) {
+      printf("No model data found %s\n", info.mPath.cstr());
+      return FailedAssetTag{};
+    }
+    result.mVertices.reserve(totalVerts);
+    result.mIndices.reserve(totalIndices);
+
+    for(unsigned int i = 0; i < scene->mNumMeshes; ++i) {
+      const aiMesh* mesh = scene->mMeshes[i];
+      const uint32_t baseVertex = static_cast<uint32_t>(result.mVertices.size());
+      for(unsigned int v = 0; v < mesh->mNumVertices; ++v) {
+        GraphicsModelComponent::Vertex vert;
+        constexpr size_t VERT_SIZE = sizeof(float) * 3;
+        static_assert(sizeof(aiVector3D) == VERT_SIZE);
+
+        std::memcpy(&vert.mPos[0], &mesh->mVertices[v], VERT_SIZE);
+        std::memcpy(&vert.mNormal[0], &mesh->mNormals[v], VERT_SIZE);
+        std::memcpy(&vert.mUV[0], &mesh->mTextureCoords[v], sizeof(float) * 2);
+        result.mVertices.push_back(vert);
+      }
+      for(unsigned int f = 0; f < mesh->mNumFaces; ++f) {
+        const aiFace& face = mesh->mFaces[f];
+        assert(face.mNumIndices == 3 && "aiProcess_Triangulate is supposed to result in triangles only");
+        for(unsigned int vi = 0; vi < face.mNumIndices; ++vi) {
+          result.mIndices.push_back(static_cast<uint32_t>(face.mIndices[vi] + baseVertex));
+        }
+      }
+    }
+
+    return result;
   }
 
   constexpr int sDataPosOffset = 0x0A;
@@ -99,8 +164,7 @@ std::shared_ptr<Engine::System> AssetSystem::deleteFailedAssets() {
 }
 
 std::shared_ptr<Engine::System> AssetSystem::createGraphicsModelLoader() {
-  //TODO:
-  return nullptr;
+  return intermediateAssetLoadSystem<&Assets::loadModel, NeedsGpuUploadComponent>("modelLoader");
 }
 
 std::shared_ptr<Engine::System> AssetSystem::createShaderLoader() {
