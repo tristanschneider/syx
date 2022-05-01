@@ -87,6 +87,86 @@ namespace ogl {
       modifier.addComponent<AssetComponent>(entity);
     }
   }
+
+  void _getStatusWithInfo(GLuint handle, GLenum status, GLint& logLen, GLint& result) {
+    result = GL_FALSE;
+    glGetShaderiv(handle, status, &result);
+    glGetShaderiv(handle, GL_INFO_LOG_LENGTH, &logLen);
+  }
+
+  void _compileShader(GLuint shaderHandle, const std::string& source) {
+    //Compile Shader
+    const char* cstr = source.c_str();
+    glShaderSource(shaderHandle, 1, &cstr, NULL);
+    glCompileShader(shaderHandle);
+
+    GLint result, logLen;
+    _getStatusWithInfo(shaderHandle, GL_COMPILE_STATUS, logLen, result);
+    //Check Shader
+    if(logLen > 0) {
+      std::string error(logLen + 1, 0);
+      glGetShaderInfoLog(shaderHandle, logLen, NULL, &error[0]);
+      printf("%s\n", error.c_str());
+    }
+  }
+
+  //TODO: why is exclude failed necessary? Asset fail deletion should be deleting it before it gets back here
+  using ShaderProgramView = View<Include<NeedsGpuUploadComponent>, Read<ShaderProgramComponent>, Exclude<AssetLoadFailedComponent>>;
+  using ShaderView = View<Include<AssetComponent>, Read<ShaderComponent>>;
+  using ShaderModifier = EntityModifier<NeedsGpuUploadComponent, AssetComponent, ShaderProgramHandleOGLComponent, AssetLoadFailedComponent>;
+  void compileShaders(SystemContext<ShaderProgramView, ShaderView, ShaderModifier, OGLView>& context) {
+    auto& view = context.get<ShaderProgramView>();
+    auto& shaders = context.get<ShaderView>();
+    auto modifier = context.get<ShaderModifier>();
+    for(auto chunk : view.chunks()) {
+      for(size_t programIndex = 0; programIndex < chunk.size();) {
+        const ShaderProgramComponent& program = chunk.tryGet<const ShaderProgramComponent>()->at(programIndex);
+        auto pixelShader = shaders.find(program.mPixelShader);
+        auto vertexShader = shaders.find(program.mVertexShader);
+        if(pixelShader != shaders.end() && vertexShader != shaders.end()) {
+          const Entity programEntity = chunk.indexToEntity(programIndex);
+
+          GLuint vs = glCreateShader(GL_VERTEX_SHADER);
+          GLuint ps = glCreateShader(GL_FRAGMENT_SHADER);
+
+          _compileShader(vs, (*vertexShader).get<const ShaderComponent>().mContents);
+          _compileShader(ps, (*pixelShader).get<const ShaderComponent>().mContents);
+
+          //Link the program
+          ShaderProgramHandleOGLComponent result{ glCreateProgram() };
+          glAttachShader(result.mProgram, vs);
+          glAttachShader(result.mProgram, ps);
+          glLinkProgram(result.mProgram);
+          glValidateProgram(result.mProgram);
+
+          GLint glValidationStatus{};
+          glGetProgramiv(result.mProgram, GL_VALIDATE_STATUS, &glValidationStatus);
+          if(glValidationStatus == GL_FALSE) {
+            printf("Error linking shader\n");
+
+            //TODO: maybe also delete the shaders?
+            modifier.addComponent<AssetLoadFailedComponent>(programEntity);
+          }
+          else {
+            //Once program is linked we can get rid of the individual shaders
+            glDetachShader(result.mProgram, vs);
+            glDetachShader(result.mProgram, ps);
+
+            glDeleteShader(vs);
+            glDeleteShader(ps);
+
+            modifier.addComponent<AssetComponent>(programEntity);
+            modifier.removeComponent<NeedsGpuUploadComponent>(programEntity);
+            modifier.addComponent<ShaderProgramHandleOGLComponent>(programEntity, result);
+          }
+        }
+        else {
+          //TODO: how to know if shader load failed?
+          ++programIndex;
+        }
+      }
+    }
+  }
 };
 
 std::shared_ptr<Engine::System> AssetSystemOGL::uploadTextures() {
@@ -95,4 +175,8 @@ std::shared_ptr<Engine::System> AssetSystemOGL::uploadTextures() {
 
 std::shared_ptr<Engine::System> AssetSystemOGL::uploadModels() {
   return ecx::makeSystem("uploadModels", &ogl::uploadModels, OGL_THREAD);
+}
+
+std::shared_ptr<Engine::System> AssetSystemOGL::compileShaders() {
+  return ecx::makeSystem("compileShaders", &ogl::compileShaders, OGL_THREAD);
 }

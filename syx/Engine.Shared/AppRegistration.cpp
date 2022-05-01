@@ -108,6 +108,7 @@ public:
 
     simulation.push_back(AssetSystem::createTextureLoader());
     simulation.push_back(AssetSystem::createGraphicsModelLoader());
+    simulation.push_back(AssetSystem::createShaderLoader());
 
     using CommonReg = CommonRegistration<ReflectedComponents, AssetTypes>;
     //Load space

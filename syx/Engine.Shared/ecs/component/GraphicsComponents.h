@@ -21,6 +21,11 @@ struct ShaderComponent {
   std::string mContents;
 };
 
+struct ShaderProgramComponent {
+  Engine::Entity mVertexShader;
+  Engine::Entity mPixelShader;
+};
+
 struct TextureComponent {
   size_t mWidth = 0;
   size_t mHeight = 0;

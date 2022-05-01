@@ -1,7 +1,10 @@
 #include "Precompile.h"
 #include "ecs/system/ogl/GraphicsSystemOGL.h"
 
+#include "ecs/component/AssetComponent.h"
+#include "ecs/component/GraphicsComponents.h"
 #include "ecs/component/ogl/OGLContextComponent.h"
+#include "ecs/component/ogl/OGLHandleComponents.h"
 #include "ecs/component/PlatformMessageComponents.h"
 #include "ecs/component/ScreenSizeComponent.h"
 
@@ -26,6 +29,9 @@ namespace OGLImpl {
     std::unique_ptr<PixelBuffer> mPixelPackBuffer;
     HGLRC mGLContext{};
     HDC mDeviceContext{};
+    Engine::Entity mPhongShader;
+    Engine::Entity mFullScreenQuadShader;
+    Engine::Entity mFlatColorShader;
   };
 
   using ContextView = View<Write<OGLContext>>;
@@ -65,14 +71,26 @@ namespace OGLImpl {
     return context;
   }
 
-  void tickInit(SystemContext<EntityFactory, OGLView>& context) {
-    auto&& [entity, ctx] = context.get<EntityFactory>().createAndGetEntityWithComponents<OGLContext>();
+  Engine::Entity _queueShaderProgramLoad(const FilePath& vsPath, const FilePath& psPath, EntityFactory& factory) {
+    auto&& [ vs, vsReq ] = factory.createAndGetEntityWithComponents<AssetLoadRequestComponent>();
+    vsReq.get().mPath = vsPath;
+    auto&& [ ps, psReq ] = factory.createAndGetEntityWithComponents<AssetLoadRequestComponent>();
+    psReq.get().mPath = psPath;
+    auto&& [ result, program, n ] = factory.createAndGetEntityWithComponents<ShaderProgramComponent, NeedsGpuUploadComponent>();
+    program.get().mPixelShader = ps;
+    program.get().mVertexShader = vs;
+    return result;
+  }
 
-    ctx.get().mDeviceContext = GetDC(gHwnd);
-    initDeviceContext(ctx.get().mDeviceContext, 32, 24, 8, 0);
-    ctx.get().mGLContext = createGLContext(ctx.get().mDeviceContext);
+  void tickInit(SystemContext<EntityFactory, OGLView>& systemContext) {
+    EntityFactory factory = systemContext.get<EntityFactory>();
+    auto&& [entity, ctx] = factory.createAndGetEntityWithComponents<OGLContext>();
+
+    OGLContext& context = ctx.get();
+    context.mDeviceContext = GetDC(gHwnd);
+    initDeviceContext(context.mDeviceContext, 32, 24, 8, 0);
+    context.mGLContext = createGLContext(ctx.get().mDeviceContext);
     glewInit();
-
 
     //Init is called on the graphics thread, move the context from the platform created thread to this
     //TODO: less goofy once context creation is here
@@ -80,6 +98,14 @@ namespace OGLImpl {
       //TODO: how to deal with this?
       printf(("Failed to create context + " + std::to_string(GetLastError())).c_str());
     }
+
+    context.mPhongShader = _queueShaderProgramLoad("shaders/phong.vs", "shaders/phong.ps", factory);
+    context.mFlatColorShader = _queueShaderProgramLoad("shaders/flatColor.vs", "shaders/flatColor.ps", factory);
+    context.mFullScreenQuadShader = _queueShaderProgramLoad("shaders/fullScreenQuad.vs", "shaders/fullScreenQuad.ps", factory);
+
+    const char* versionGL =  (char*)glGetString(GL_VERSION);
+    printf("version %s", versionGL);
+
   }
 
   //TODO: Graphics system destroy this?
@@ -116,8 +142,9 @@ namespace OGLImpl {
   }
 
   using ScreenSizeView = View<Read<ScreenSizeComponent>>;
+  using ShaderProgramView = View<Include<ShaderProgramComponent>, Include<AssetComponent>, Read<ShaderProgramHandleOGLComponent>>;
 
-  void tickRender(SystemContext<ContextView, ScreenSizeView, OGLView>& context) {
+  void tickRender(SystemContext<ContextView, ScreenSizeView, ShaderProgramView, OGLView>& context) {
     auto ogl = context.get<ContextView>().tryGetFirst();
     auto screen = context.get<ScreenSizeView>().tryGetFirst();
     if(!ogl || !screen) {
@@ -136,7 +163,13 @@ namespace OGLImpl {
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
 
-    //TODO: actual rendering
+    auto& shaders = context.get<ShaderProgramView>();
+    const OGLContext& oglContext = ogl->get<OGLContext>();
+    if(auto phong = shaders.find(oglContext.mPhongShader); phong != shaders.end()) {
+      const ShaderProgramHandleOGLComponent& program = (*phong).get<const ShaderProgramHandleOGLComponent>();
+      //TODO: actual rendering
+      program;
+    }
   }
 
   void tickSwapBuffers(SystemContext<ContextView, OGLView>& context) {

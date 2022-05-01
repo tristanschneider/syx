@@ -11,3 +11,8 @@ struct GraphicsModelHandleOGLComponent {
   GLHandle mIndexBuffer{};
   GLHandle mVertexArray{};
 };
+
+struct ShaderProgramHandleOGLComponent {
+  GLHandle mProgram{};
+  std::unordered_map<std::string, GLHandle> mUniforms;
+};

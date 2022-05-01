@@ -65,6 +65,7 @@ struct Win32Systems : public AppRegistration {
     graphics.mSystems.push_back(GraphicsSystemOGL::swapBuffers());
     graphics.mSystems.push_back(AssetSystemOGL::uploadTextures());
     graphics.mSystems.push_back(AssetSystemOGL::uploadModels());
+    graphics.mSystems.push_back(AssetSystemOGL::compileShaders());
 
     context.registerInitializer(std::move(initializers.mSystems));
     context.registerUpdatePhase(Engine::AppPhase::Simulation, std::move(simulation.mSystems), simulation.mTargetFPS);

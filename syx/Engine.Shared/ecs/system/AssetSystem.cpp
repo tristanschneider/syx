@@ -153,6 +153,14 @@ namespace Assets {
     result.mBuffer = std::move(temp);
     return result;
   }
+
+  // Loading the shader itself always succeeds, creating the program might not
+  AssetLoadResultV<ShaderComponent> loadShader(const AssetInfoComponent&, std::vector<uint8_t>& buffer) {
+    ShaderComponent result;
+    result.mContents.resize(buffer.size());
+    std::memcpy(result.mContents.data(), buffer.data(), buffer.size());
+    return result;
+  }
 }
 
 std::shared_ptr<Engine::System> AssetSystem::processLoadRequests() {
@@ -168,8 +176,7 @@ std::shared_ptr<Engine::System> AssetSystem::createGraphicsModelLoader() {
 }
 
 std::shared_ptr<Engine::System> AssetSystem::createShaderLoader() {
-  //TODO:
-  return nullptr;
+  return instantAssetLoadSystem<&Assets::loadShader>("shaderLoader");
 }
 
 std::shared_ptr<Engine::System> AssetSystem::createTextureLoader() {
