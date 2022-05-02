@@ -57,6 +57,7 @@ namespace ogl {
       glGenBuffers(1, &oglModel.mIndexBuffer);
       glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, oglModel.mIndexBuffer);
       glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(size_t)*baseModel.mIndices.size(), baseModel.mIndices.data(), GL_STATIC_DRAW);
+      oglModel.mIndexCount = static_cast<GLHandle>(baseModel.mIndices.size());
 
       //Generate vertex array
       glGenVertexArrays(1, &oglModel.mVertexArray);

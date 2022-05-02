@@ -35,8 +35,14 @@ struct InspectedAssetModalComponent {
   Engine::Entity mInspectedEntity{};
   Engine::Entity mCurrentSelection{};
   Engine::Entity mConfirmedSelection{};
+  //TODO: hacky that this is needed
+  typeId_t<InspectedAssetModalComponent> mID{};
   std::string mModalName;
   bool mNeedsInit = true;
+};
+
+template<class AssetT>
+struct InspectAssetModalTagComponent {
 };
 
 struct AssetPreviewDialogComponent {

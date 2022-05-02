@@ -10,6 +10,7 @@ struct GraphicsModelHandleOGLComponent {
   GLHandle mVertexBuffer{};
   GLHandle mIndexBuffer{};
   GLHandle mVertexArray{};
+  GLHandle mIndexCount{};
 };
 
 struct ShaderProgramHandleOGLComponent {

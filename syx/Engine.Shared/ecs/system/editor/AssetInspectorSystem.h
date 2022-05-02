@@ -16,7 +16,7 @@ struct AssetInspectorSystem {
   using Modifier = Engine::EntityModifier<SelectedComponent>;
   //Filter on AssetComponent because that indicates the asset is done loading, not so for only AssetInfoComponent or the specific asset type
   using AssetView = Engine::View<Engine::Include<AssetComponent>, Engine::Include<AssetT>, Engine::Read<AssetInfoComponent>>;
-  using ContextView = Engine::View<Engine::Write<InspectedAssetModalComponent>, Engine::Write<AssetPreviewDialogComponent>>;
+  using ContextView = Engine::View<Engine::Write<InspectedAssetModalComponent>, Engine::Include<InspectAssetModalTagComponent<AssetT>>, Engine::Write<AssetPreviewDialogComponent>>;
   using Context = Engine::SystemContext<ImGuiView, Modifier, AssetView, ContextView, Engine::EntityFactory>;
 
   static std::shared_ptr<Engine::System> create() {

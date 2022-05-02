@@ -7,6 +7,7 @@
 #include "ecs/component/ogl/OGLHandleComponents.h"
 #include "ecs/component/PlatformMessageComponents.h"
 #include "ecs/component/ScreenSizeComponent.h"
+#include "ecs/component/TransformComponent.h"
 
 #include "GL/glew.h"
 #include "graphics/FrameBuffer.h"
@@ -143,19 +144,30 @@ namespace OGLImpl {
 
   using ScreenSizeView = View<Read<ScreenSizeComponent>>;
   using ShaderProgramView = View<Include<ShaderProgramComponent>, Include<AssetComponent>, Read<ShaderProgramHandleOGLComponent>>;
+  using RenderablesView = View<Read<GraphicsModelRefComponent>, Read<TextureRefComponent>, Read<TransformComponent>>;
+  using ModelsView = View<Read<GraphicsModelHandleOGLComponent>>;
+  using TexturesView = View<Read<TextureHandleOGLComponent>>;
 
-  void tickRender(SystemContext<ContextView, ScreenSizeView, ShaderProgramView, OGLView>& context) {
+  void tickRender(SystemContext<ContextView, ScreenSizeView, ShaderProgramView, OGLView, RenderablesView, ModelsView, TexturesView>& context) {
     auto ogl = context.get<ContextView>().tryGetFirst();
     auto screen = context.get<ScreenSizeView>().tryGetFirst();
     if(!ogl || !screen) {
       return;
     }
 
+    auto& modelsView = context.get<ModelsView>();
+    auto& texturesView = context.get<TexturesView>();
+
     //TODO: viewport component and camera
     Viewport viewport({}, Syx::Vec2(0.f), Syx::Vec2(1.f));
     _glViewport(viewport, screen->get<const ScreenSizeComponent>().mScreenSize);
     glClearColor(0.0f, 0.0f, 1.0f, 0.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+
+    auto& renderables = context.get<RenderablesView>();
+    if(!renderables.tryGetFirst()) {
+      return;
+    }
 
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LESS);
@@ -167,8 +179,75 @@ namespace OGLImpl {
     const OGLContext& oglContext = ogl->get<OGLContext>();
     if(auto phong = shaders.find(oglContext.mPhongShader); phong != shaders.end()) {
       const ShaderProgramHandleOGLComponent& program = (*phong).get<const ShaderProgramHandleOGLComponent>();
-      //TODO: actual rendering
-      program;
+
+      glUseProgram(program.mProgram);
+
+      const Syx::Vec3 camPos(0);
+      const Syx::Mat4 wvp = Syx::Mat4::perspective(1.396f, 1.396f, 0.1f, 100.0f);
+      const Syx::Vec3 mDiff(1.0f);
+      const Syx::Vec3 mSpec(0.6f, 0.6f, 0.6f, 2.5f);
+      const Syx::Vec3 mAmb(0.22f, 0.22f, 0.22f);
+      const Syx::Vec3 sunDir = -Syx::Vec3::Identity.normalized();
+      const Syx::Vec3 sunColor = Syx::Vec3::Identity;
+
+      auto cp = glGetUniformLocation(program.mProgram, "uCamPos");
+      auto diffuse = glGetUniformLocation(program.mProgram, "uDiffuse");
+      auto ambient = glGetUniformLocation(program.mProgram, "uAmbient");
+      auto specular = glGetUniformLocation(program.mProgram, "uSpecular");
+      auto sunDirU = glGetUniformLocation(program.mProgram, "uSunDir");
+      auto sunColorU = glGetUniformLocation(program.mProgram, "uSunColor");
+      auto texU = glGetUniformLocation(program.mProgram, "uTex");
+      auto mvpU = glGetUniformLocation(program.mProgram, "uMVP");
+      auto mwU = glGetUniformLocation(program.mProgram, "uMW");
+
+      glUniform3f(cp, camPos.x, camPos.y, camPos.z);
+      glUniform3f(diffuse, mDiff.x, mDiff.y, mDiff.z);
+      glUniform3f(ambient, mAmb.x, mAmb.y, mAmb.z);
+      glUniform4f(specular, mSpec.x, mSpec.y, mSpec.z, mSpec.w);
+      glUniform3f(sunDirU, sunDir.x, sunDir.y, sunDir.z);
+      glUniform3f(sunColorU, sunColor.x, sunColor.y, sunColor.z);
+
+      //TODO: sort to reduce individual binds
+      for(auto chunk : renderables.chunks()) {
+        for(size_t i = 0; i < chunk.size(); ++i) {
+          const std::vector<TransformComponent>* transforms = chunk.tryGet<const TransformComponent>();
+          const std::vector<TextureRefComponent>* textures = chunk.tryGet<const TextureRefComponent>();
+          const std::vector<GraphicsModelRefComponent>* models = chunk.tryGet<const GraphicsModelRefComponent>();
+          for(size_t t = 0; t < transforms->size(); ++t) {
+            auto texture = texturesView.find(textures->at(t).mTexture);
+            auto model = modelsView.find(models->at(t).mModel);
+            //TODO: exclude entities with missing textures or models
+            if(texture == texturesView.end() || model == modelsView.end()) {
+              continue;
+            }
+
+            glActiveTexture(GL_TEXTURE0);
+            auto texID = (*texture).get<const TextureHandleOGLComponent>().mTexture;
+            glBindTexture(GL_TEXTURE_2D, texID);
+            //TODO: can probably be above with other uniforms if this doesn't require bound texture
+            glUniform1i(texU, 0);
+
+            //TODO: flag entities when they move so this can be precomputed
+            const Syx::Mat4 mw = transforms->at(t).mValue;
+            const Syx::Mat4 mvp = wvp * mw;
+            glUniformMatrix4fv(mvpU, 1, GL_FALSE, mvp.mData);
+            glUniformMatrix4fv(mwU, 1, GL_FALSE, mw.mData);
+
+            const auto& modelGL = (*model).get<const GraphicsModelHandleOGLComponent>();
+            glBindVertexArray(modelGL.mVertexArray);
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, modelGL.mIndexBuffer);
+
+            glDrawElements(GL_TRIANGLES, GLsizei(modelGL.mIndexCount), GL_UNSIGNED_INT, nullptr);
+          }
+        }
+      }
+
+      //Unbind affer all looping is done
+      glBindVertexArray(0);
+      glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+      glBindTexture(GL_TEXTURE_2D, 0);
+
+      glUseProgram(0);
     }
   }
 

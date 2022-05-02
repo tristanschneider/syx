@@ -178,6 +178,7 @@ struct ObjectInspectorSystem<ecx::TypeList<Components...>> {
   static void _inspectModalProperty(AssetInspectorModal<AssetT>, const std::string& memberName, Engine::Entity self, Engine::Entity& memberValue, Context& context) {
     using namespace Engine;
     EntityFactory factory = context.get<EntityFactory>();
+    const auto expectedTypeID = typeId<AssetT, InspectedAssetModalComponent>();
 
     AssetView& assets = context.get<AssetView>();
 
@@ -196,7 +197,8 @@ struct ObjectInspectorSystem<ecx::TypeList<Components...>> {
     //Open selection modal on button press if a modal isn't already open
     if(ImGui::Button(valueName.cstr()) && !context.get<AnyModalView>().tryGetFirst()) {
       //Create the entity that the AssetInspectorSystem will populate when viewed
-      auto&& [ modalEntity, modal, assetPreview, modalTag ] = factory.createAndGetEntityWithComponents<InspectedAssetModalComponent, AssetPreviewDialogComponent, ModalComponent>();
+      auto&& [ modalEntity, modal, u, assetPreview, modalTag ] = factory.createAndGetEntityWithComponents<InspectedAssetModalComponent, InspectAssetModalTagComponent<AssetT>, AssetPreviewDialogComponent, ModalComponent>();
+      modal.get().mID = expectedTypeID;
       modal.get().mCurrentSelection = memberValue;
       modal.get().mInspectedEntity = self;
       modal.get().mModalName = memberName;
@@ -209,7 +211,7 @@ struct ObjectInspectorSystem<ecx::TypeList<Components...>> {
     for(auto&& dialog : context.get<ModalView>()) {
       //TODO: could clear these when selection is cleared
       const InspectedAssetModalComponent& modal = dialog.get<const InspectedAssetModalComponent>();
-      if(modal.mInspectedEntity == self) {
+      if(modal.mID == expectedTypeID && modal.mInspectedEntity == self) {
         if(modal.mConfirmedSelection != Entity{}) {
           memberValue = modal.mConfirmedSelection;
           factory.destroyEntity(dialog.entity());
