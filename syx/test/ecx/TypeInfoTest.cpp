@@ -134,6 +134,39 @@ namespace ecx {
     static_assert(std::is_same_v<ecx::TypeList<const TypeInfoTests*, bool>, ecx::FunctionTypeInfo<&constMemberFn>::ArgsTypeList>);
     static_assert(!ecx::FunctionTypeInfo<&singleArgByValue>::IsMemberFn);
 
+    static_assert(std::is_same_v<ecx::TypeList<int, char>, ecx::RemoveType<bool, ecx::TypeList<int, bool, char>>>);
+    static_assert(std::is_same_v<ecx::TypeList<int, char>, ecx::RemoveType<bool, ecx::TypeList<int, char>>>);
+    static_assert(std::is_same_v<ecx::TypeList<char>, ecx::RemoveType<int, ecx::TypeList<int, char>>>);
+    static_assert(std::is_same_v<ecx::TypeList<>, ecx::RemoveType<char, ecx::TypeList<char>>>);
+    static_assert(std::is_same_v<ecx::TypeList<int, char>, ecx::RemoveType<bool, ecx::TypeList<bool, int, char>>>);
+
+    template<class L, class R>
+    struct SizeSort {
+      constexpr static bool value = sizeof(L) < sizeof(R);
+    };
+
+    static_assert(std::is_same_v<uint8_t, SmallestTypeInList<ecx::TypeList<uint32_t, uint8_t, uint16_t>, SizeSort>>);
+    static_assert(std::is_same_v<uint8_t, SmallestTypeInList<ecx::TypeList<uint8_t, uint16_t>, SizeSort>>);
+    static_assert(std::is_same_v<uint8_t, SmallestTypeInList<ecx::TypeList<uint16_t, uint8_t>, SizeSort>>);
+    static_assert(std::is_same_v<uint8_t, SmallestTypeInList<ecx::TypeList<uint32_t, uint8_t, uint16_t>, SizeSort>>);
+    static_assert(std::is_same_v<uint8_t, SmallestTypeInList<ecx::TypeList<uint8_t, int8_t, uint32_t>, SizeSort>>);
+    static_assert(std::is_same_v<int8_t, SmallestTypeInList<ecx::TypeList<int8_t, uint8_t, uint32_t>, SizeSort>>);
+    static_assert(std::is_same_v<uint8_t, SmallestTypeInList<ecx::TypeList<uint8_t>, SizeSort>>);
+    static_assert(std::is_same_v<uint8_t, SmallestTypeInList<ecx::TypeList<uint16_t, uint32_t, uint8_t>, SizeSort>>);
+
+    static_assert(std::is_same_v<ecx::TypeList<>, SortUniqueTypes<ecx::TypeList<>, SizeSort>>);
+    static_assert(std::is_same_v<
+      ecx::TypeList<uint8_t, uint16_t, uint32_t>,
+      SortUniqueTypes<ecx::TypeList<uint8_t, uint16_t, uint32_t>, SizeSort>>);
+    static_assert(std::is_same_v<
+      ecx::TypeList<uint8_t, uint16_t, uint32_t>,
+      SortUniqueTypes<ecx::TypeList<uint16_t, uint32_t, uint8_t>, SizeSort>>);
+
+    static_assert(std::is_same_v<ecx::TypeList<>, TypeListUnique<ecx::TypeList<>>>);
+    static_assert(std::is_same_v<ecx::TypeList<int>, TypeListUnique<ecx::TypeList<int>>>);
+    static_assert(std::is_same_v<ecx::TypeList<int>, TypeListUnique<ecx::TypeList<int, int>>>);
+    static_assert(std::is_same_v<ecx::TypeList<int, bool, uint16_t>, TypeListUnique<ecx::TypeList<int, bool, int, uint16_t>>>);
+
     TEST_METHOD(FunctionInfoTest_InvokeReturnMatches) {
       Assert::AreEqual(1, ecx::FunctionTypeInfo<&singleArgByValue>::InfoT::invoke(true));
       bool bref = false;
