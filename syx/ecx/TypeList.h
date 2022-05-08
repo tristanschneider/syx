@@ -162,6 +162,32 @@ namespace ecx {
   template<class List>
   using TypeListUnique = typename TypeListUniqueT<List>::Type;
 
+  template<class List, size_t Begin, size_t Count>
+  struct TypeListSubListT {};
+  template<class... List, size_t Begin, size_t Count>
+  struct TypeListSubListT<TypeList<List...>, Begin, Count> {
+    template<class Built, class Todo, size_t Current, class Enabled = void>
+    struct ResultT {
+      using type = std::string;
+    };
+    //Recursive case, build up type list, adding an element if it's within the type list
+    template<class... Built, class One, class... Todo, size_t Current>
+    struct ResultT<TypeList<Built...>, TypeList<One, Todo...>, Current> :
+      std::conditional<Current >= Begin && Current - Begin < Count,
+        typename ResultT<TypeList<Built..., One>, TypeList<Todo...>, Current + 1>::type,
+        typename ResultT<TypeList<Built...>, TypeList<Todo...>, Current + 1>::type
+      > {};
+    //End of recursion if index goes beyond type list
+    template<class... Built, size_t Current>
+    struct ResultT<TypeList<Built...>, TypeList<>, Current, std::enable_if_t<Current >= sizeof...(List)>> {
+      using type = TypeList<Built...>;
+    };
+
+    using Type = typename ResultT<TypeList<>, TypeList<List...>, 0>::type;
+  };
+  template<class List, size_t Begin, size_t Count>
+  using TypeListSubList = typename TypeListSubListT<List, Begin, Count>::Type;
+
   //End of recursion, nothing left to evaluate
   template<template<class> class Filter, class... Results>
   TypeList<int> _typeListFilter(TypeList<Results...>, TypeList<>);
@@ -197,7 +223,4 @@ namespace ecx {
   static constexpr To changeType(AutoTypeList<Args...>) {
     return To{ Args... };
   }
-
-  template<class To, class...Args>
-  using changeTypeT = decltype(changeType<To>(TypeList<Args...>{}));
 }

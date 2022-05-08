@@ -167,6 +167,14 @@ namespace ecx {
     static_assert(std::is_same_v<ecx::TypeList<int>, TypeListUnique<ecx::TypeList<int, int>>>);
     static_assert(std::is_same_v<ecx::TypeList<int, bool, uint16_t>, TypeListUnique<ecx::TypeList<int, bool, int, uint16_t>>>);
 
+    static_assert(std::is_same_v<ecx::TypeList<bool>, TypeListSubList<ecx::TypeList<int, bool>, 1, 1>>);
+    static_assert(std::is_same_v<ecx::TypeList<int>, TypeListSubList<ecx::TypeList<int, bool>, 0, 1>>);
+    static_assert(std::is_same_v<ecx::TypeList<int, bool>, TypeListSubList<ecx::TypeList<int, bool>, 0, 2>>);
+    static_assert(std::is_same_v<ecx::TypeList<int, bool>, TypeListSubList<ecx::TypeList<int, bool>, 0, 3>>);
+    static_assert(std::is_same_v<ecx::TypeList<>, TypeListSubList<ecx::TypeList<int, bool>, 0, 0>>);
+    static_assert(std::is_same_v<ecx::TypeList<>, TypeListSubList<ecx::TypeList<int, bool>, 5, 0>>);
+    static_assert(std::is_same_v<ecx::TypeList<>, TypeListSubList<ecx::TypeList<int, bool>, 5, 5>>);
+
     TEST_METHOD(FunctionInfoTest_InvokeReturnMatches) {
       Assert::AreEqual(1, ecx::FunctionTypeInfo<&singleArgByValue>::InfoT::invoke(true));
       bool bref = false;
