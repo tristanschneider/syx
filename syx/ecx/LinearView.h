@@ -20,8 +20,8 @@ namespace ecx {
     template<class T>
     using IsAllowedType = typename ViewIsAllowedType<Components...>::type<T>;
 
-    ViewedEntityChunk(EntityChunk& chunk)
-      : mChunk(&chunk) {
+    ViewedEntityChunk(VersionedEntityChunk chunk)
+      : mChunk(std::move(chunk)) {
     }
     ViewedEntityChunk(const ViewedEntityChunk&) = default;
     ViewedEntityChunk& operator=(const ViewedEntityChunk&) = default;
@@ -29,47 +29,47 @@ namespace ecx {
     template<class T>
     std::conditional_t<std::is_const_v<T>, const std::vector<std::decay_t<T>>*, std::vector<T>*> tryGet() {
       static_assert(IsAllowedType<T>::value);
-      return mChunk->tryGet<T>();
+      return mChunk.tryGet<T>();
     }
 
     size_t size() const {
-      return mChunk->size();
+      return mChunk.size();
     }
 
     LinearEntity indexToEntity(size_t index) const {
-      return mChunk->indexToEntity(index);
+      return mChunk.indexToEntity(index);
     }
 
     size_t entityToIndex(const LinearEntity& entity) const {
-      return mChunk->entityToIndex(entity);
+      return mChunk.entityToIndex(entity);
     }
 
     template<class ComponentT>
     ComponentT* tryGetComponent(const LinearEntity& entity) {
       static_assert(IsAllowedType<ComponentT>::value);
-      return mChunk->tryGetComponent<ComponentT>(entity);
+      return mChunk.tryGetComponent<ComponentT>(entity);
     }
 
     bool contains(const LinearEntity& entity) {
-      return mChunk->contains(entity);
+      return mChunk.contains(entity);
     }
 
     //Take the factory to force the system to indicate that it will be destroying entities
     void clear(EntityFactory<LinearEntity>&) {
-      mChunk->clearEntities();
+      mChunk.clearEntities();
     }
 
   private:
-    EntityChunk* mChunk = nullptr;
+    VersionedEntityChunk mChunk = nullptr;
   };
 
   //A wrapper around access for a particular entity during iteration within a View
   template<class... Components>
   class ViewedEntity<LinearEntity, Components...> {
   public:
-    ViewedEntity(EntityChunk& chunk, size_t index)
+    ViewedEntity(VersionedEntityChunk chunk, size_t index)
       : mContainers{ chunk.tryGet<std::decay_t<Components>>()... }
-      , mChunk(&chunk)
+      , mChunk(std::move(chunk))
       , mIndex(index) {
     }
 
@@ -95,7 +95,7 @@ namespace ecx {
     }
 
     LinearEntity entity() {
-      return mChunk->indexToEntity(mIndex);
+      return mChunk.indexToEntity(mIndex);
     }
 
   private:
@@ -106,7 +106,8 @@ namespace ecx {
 
     //Tuple of vector of all viewable components
     std::tuple<std::vector<std::decay_t<Components>>*...> mContainers;
-    EntityChunk* mChunk = nullptr;
+    //TODO: looks like this is only needed for entity, could be a LinearEntity instead of the entire chunk
+    VersionedEntityChunk mChunk;
     size_t mIndex = 0;
   };
 
@@ -127,7 +128,7 @@ namespace ecx {
       using reference = value_type&;
       using iterator_category = std::forward_iterator_tag;
 
-      using ChunkIt = std::vector<std::shared_ptr<EntityChunk>>::iterator;
+      using ChunkIt = std::vector<VersionedEntityChunk>::iterator;
 
       It(ChunkIt chunkIt, ChunkIt end, size_t entityIndex)
         : mChunkIt(chunkIt)
@@ -140,7 +141,7 @@ namespace ecx {
 
       It& operator++() {
         ++mEntityIndex;
-        while(mChunkIt != mEndIt && mEntityIndex >= (*mChunkIt)->size()) {
+        while(mChunkIt != mEndIt && mEntityIndex >= (*mChunkIt).size()) {
           ++mChunkIt;
           mEntityIndex = 0;
         }
@@ -162,7 +163,7 @@ namespace ecx {
       }
 
       value_type operator*() {
-        return value_type(**mChunkIt, mEntityIndex);
+        return value_type(*mChunkIt, mEntityIndex);
       }
 
     private:
@@ -181,7 +182,7 @@ namespace ecx {
       using reference = value_type&;
       using iterator_category = std::forward_iterator_tag;
 
-      using RawIt = std::vector<std::shared_ptr<EntityChunk>>::iterator;
+      using RawIt = std::vector<VersionedEntityChunk>::iterator;
 
       ChunkIt(RawIt chunkIt)
         : mChunkIt(chunkIt) {
@@ -210,7 +211,7 @@ namespace ecx {
       }
 
       value_type operator*() {
-        return value_type(**mChunkIt);
+        return value_type(*mChunkIt);
       }
 
     private:
@@ -266,8 +267,8 @@ namespace ecx {
 
     It begin() {
       //Ensure begin is pointing at a valid entity by skipping empty chunks
-      return It(std::find_if(mChunks.begin(), mChunks.end(), [](const std::shared_ptr<EntityChunk>& chunk) {
-        return chunk->size() != 0;
+      return It(std::find_if(mChunks.begin(), mChunks.end(), [](const VersionedEntityChunk& chunk) {
+        return chunk.size() != 0;
       }), mChunks.end(), 0);
     }
 
@@ -276,16 +277,16 @@ namespace ecx {
     }
 
     It find(const LinearEntity& entity) {
-      auto it = std::find_if(mChunks.begin(), mChunks.end(), [&entity](const std::shared_ptr<EntityChunk>& chunk) {
-        return chunk->contains(entity);
+      auto it = std::find_if(mChunks.begin(), mChunks.end(), [&entity](const VersionedEntityChunk& chunk) {
+        return chunk.contains(entity);
       });
-      return it != mChunks.end() ? It(it, mChunks.end(), (*it)->entityToIndex(entity)) : It(it, mChunks.end(), size_t(0));
+      return it != mChunks.end() ? It(it, mChunks.end(), (*it).entityToIndex(entity)) : It(it, mChunks.end(), size_t(0));
     }
 
     ChunkIt chunksBegin() {
       //Ensure begin is pointing at a valid entity by skipping empty chunks
-      return ChunkIt(std::find_if(mChunks.begin(), mChunks.end(), [](const std::shared_ptr<EntityChunk>& chunk) {
-        return chunk->size() != 0;
+      return ChunkIt(std::find_if(mChunks.begin(), mChunks.end(), [](const VersionedEntityChunk& chunk) {
+        return chunk.size() != 0;
       }));
     }
 
@@ -317,7 +318,7 @@ namespace ecx {
     }
 
   private:
-    std::vector<std::shared_ptr<EntityChunk>> mChunks;
+    std::vector<VersionedEntityChunk> mChunks;
     //Count of chunks in the registry the last time the view was computed. Used to invalidate cached views
     size_t mCachedChunkCount = 0;
   };

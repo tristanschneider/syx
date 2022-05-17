@@ -37,6 +37,18 @@ namespace ecx {
       return nullptr;
     }
 
+    T* tryGet(size_t index) {
+      const size_t pageIndex = index / PageSize;
+      if(pageIndex < mPages.size()) {
+        if(Page& page = mPages[pageIndex]) {
+          if(T& result = (*page)[index % PageSize]; result != EmptyValue) {
+            return &result;
+          }
+        }
+      }
+      return nullptr;
+    }
+
     T& getOrCreate(size_t index) {
       const size_t pageIndex = index / PageSize;
       if(mPages.size() <= pageIndex) {
@@ -167,6 +179,20 @@ namespace ecx {
     Iterator find(T value) const {
       const T* found = mSparse.tryGet(static_cast<size_t>(value));
       return found ? Iterator{ mPacked.data(), T(*found) } : end();
+    }
+
+    //Swap the order of these two values in packed storage.
+    //Returns the swapped iterators: <b, a>
+    std::pair<Iterator, Iterator> swap(T a, T b) {
+      T* foundA = mSparse.tryGet(static_cast<size_t>(a));
+      T* foundB = mSparse.tryGet(static_cast<size_t>(b));
+      if(foundA && foundB) {
+        std::swap(*foundA, *foundB);
+        std::swap(mPacked[*foundA], mPacked[*foundB]);
+        return std::make_pair(Iterator{ mPacked.data(), *foundA }, Iterator{ mPacked.data(), *foundB });
+      }
+      //Ignore the case where one was found since that's still nonsense for a swap
+      return std::make_pair(end(), end());
     }
 
     Iterator reverseLookup(size_t index) const {

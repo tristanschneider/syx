@@ -41,6 +41,8 @@ struct ParsedSpaceContentsComponent {
   std::vector<Engine::Entity> mNewEntities;
   //Section intended for each component type or group
   std::unordered_map<std::string, Section> mSections;
+  //If entities couldn't be created with the original ids they are remapped through this
+  std::unordered_map<Engine::Entity, Engine::Entity> mRemappings;
   FilePath mFile;
 };
 

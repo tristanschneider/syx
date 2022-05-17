@@ -210,5 +210,39 @@ namespace ecx {
       Assert::IsFalse(valueFound);
       Assert::IsTrue(set.empty());
     }
+
+    TEST_METHOD(SparseSetTwoValues_Swap_AreSwapped) {
+      SparseSet<int> set;
+      set.insert(0);
+      set.insert(1);
+
+      auto [b, a] = set.swap(0, 1);
+
+      auto it = set.begin();
+      Assert::AreEqual(1, it.value().mSparseId);
+      ++it;
+      Assert::AreEqual(0, it.value().mSparseId);
+      Assert::AreEqual(0, b.value().mSparseId);
+      Assert::AreEqual(1, a.value().mSparseId);
+    }
+
+    TEST_METHOD(SparseSetOneValue_SwapSelf_NothingHappens) {
+      SparseSet<int> set;
+      set.insert(0);
+
+      set.swap(0, 0);
+
+      auto it = set.begin();
+      Assert::AreEqual(0, it.value().mSparseId);
+    }
+
+    TEST_METHOD(SparseSetNoValues_SwapNonexistent_ReturnsEnd) {
+      SparseSet<int> set;
+
+      auto [a, b] = set.swap(7, 99);
+
+      Assert::IsTrue(a == set.end());
+      Assert::IsTrue(b == set.end());
+    }
   };
 }

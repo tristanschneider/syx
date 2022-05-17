@@ -63,6 +63,9 @@ struct ComponentSerializeSystem {
             //Add deserialized component list to the real entities
             //TODO: registry support to add these all at once
             for(auto& pair : components) {
+              if(auto remapping = spaceContents.mRemappings.find(pair.first); remapping != spaceContents.mRemappings.end()) {
+                pair.first = remapping->second;
+              }
               modifier.addComponent<ComponentT>(pair.first, pair.second);
             }
           }

@@ -59,6 +59,10 @@ namespace ecx {
       return buildChunkId<ComponentT>(current);
     }
 
+    operator bool() const {
+      return *this != LinearEntity();
+    }
+
     bool operator==(const LinearEntity& rhs) const {
       return mData.mRawId == rhs.mData.mRawId;
     }
@@ -78,6 +82,14 @@ namespace ecx {
         uint32_t mVersion;
       } mParts;
     } mData;
+  };
+
+  struct LinearEntityGenerator {
+    //Sequential ID generator
+    uint32_t mEntityGen = 0;
+    //Entity info chunk is partitioned array of entity info with all free ids first. This is one past the end index of that free partition
+    //That means if it's 0 there are no free elements
+    size_t mFreeListEndIndex = 0;
   };
 
   template<>
@@ -116,6 +128,20 @@ namespace ecx {
 
     size_t size() const {
       return mEntityMapping.size();
+    }
+
+    //Swap the order of these two entities by index in the storage
+    void swap(const LinearEntity& a, const LinearEntity& b) {
+      //Swap entity mapping lookup
+      //End is either returned in both or none, so only check A for end
+      if(auto [itB, itA] = mEntityMapping.swap(a.mData.mParts.mEntityId, b.mData.mParts.mEntityId); itA != mEntityMapping.end()) {
+        //Swap storage
+        const size_t newIndexB = itB.value().mPackedId;
+        const size_t newIndexA = itA.value().mPackedId;
+        for(auto& storage : mComponents) {
+          storage.second.swap(newIndexA, newIndexB);
+        }
+      }
     }
 
     LinearEntity indexToEntity(size_t index) const {
@@ -318,10 +344,11 @@ namespace ecx {
  class VersionedEntityChunk {
   public:
     VersionedEntityChunk() = default;
-    VersionedEntityChunk(std::shared_ptr<EntityChunk> chunk, std::shared_ptr<EntityChunk> entityInfo)
+    VersionedEntityChunk(std::shared_ptr<EntityChunk> chunk, std::shared_ptr<EntityChunk> entityInfo, LinearEntityGenerator& entityGenerator)
       : mChunk(std::move(chunk))
       , mEntityInfo(std::move(entityInfo))
-      , mChunkID(mChunk->getId()) {
+      , mChunkID(mChunk->getId())
+      , mEntityGenerator(&entityGenerator) {
     }
     VersionedEntityChunk(VersionedEntityChunk&&) = default;
     VersionedEntityChunk(const VersionedEntityChunk&) = default;
@@ -330,6 +357,10 @@ namespace ecx {
 
     bool operator==(const EntityChunk& rhs) const {
       return mChunk.get() == &rhs;
+    }
+
+    bool operator==(const VersionedEntityChunk& rhs) const {
+      return mChunk.get() == rhs.mChunk.get();
     }
 
     operator bool() const {
@@ -382,7 +413,7 @@ namespace ecx {
       return contains(entity) ? mChunk->tryGetComponent<ComponentT>(entity) : nullptr;
     }
 
-    bool contains(const LinearEntity& entity) {
+    bool contains(const LinearEntity& entity) const {
       return _getInfoIfContains(entity) != nullptr;
     }
 
@@ -392,7 +423,7 @@ namespace ecx {
           info->mChunkID = BaseEntityComponent::NO_CHUNK_ID;
           info->mVersion++;
         }
-        mEntityInfo->erase(LinearEntity(entity.mSparseId, {}));
+        _addToFreeList(LinearEntity(entity.mSparseId, {}));
       }
       mChunk->clearEntities();
     }
@@ -402,6 +433,7 @@ namespace ecx {
         if(mChunk->erase(entity)) {
           info->mChunkID = BaseEntityComponent::NO_CHUNK_ID;
           info->mVersion++;
+          _addToFreeList(entity);
           return true;
         }
       }
@@ -413,20 +445,14 @@ namespace ecx {
       return mChunk->cloneEmpty();
     }
 
-    //Caller is responsible for ensuring version is set
-    void addDefaultConstructedEntity(const LinearEntity& entity) {
-      //If the version is 0 this is a new id, add it. If it is nonzero it is expected to already be in mEntityInfo since it already exists
-      if(entity.mData.mParts.mVersion == 0) {
-        mEntityInfo->addDefaultConstructedEntity(entity);
-      }
-      if(BaseEntityComponent* info = mEntityInfo->tryGetComponent<BaseEntityComponent>(entity)) {
-        info->mChunkID = mChunkID;
-        info->mVersion = entity.mData.mParts.mVersion;
-        mChunk->addDefaultConstructedEntity(entity);
-      }
-      else {
-        assert(false && "Caller should ensure that entity already exists if trying to increment its version");
-      }
+    LinearEntity addDefaultConstructedEntity() {
+      //Should always return a valid entity if no existing id is requested
+      return _tryAddDefaultConstructedEntity({});
+    }
+
+    std::optional<LinearEntity> tryAddDefaultConstructedEntity(const LinearEntity& entity) {
+      LinearEntity result = _tryAddDefaultConstructedEntity(entity);
+      return result ? std::make_optional(result) : std::nullopt;
     }
 
     //Migrate an entity from `fromChunk` to this chunk with the new component
@@ -460,8 +486,80 @@ namespace ecx {
       return info && info->mChunkID == mChunkID && info->mVersion == entity.mData.mParts.mVersion ? info : nullptr;
     }
 
+    LinearEntity _tryAddDefaultConstructedEntity(LinearEntity entity) {
+      BaseEntityComponent* info = nullptr;
+      //Check validity of requested ID
+      if(entity) {
+        entity.mData.mParts.mVersion = 0;
+        //Only allow requested versions of 0 because otherwise it opens up more confusing edge cases than it's worth
+        info = mEntityInfo->tryGetComponent<BaseEntityComponent>(entity);
+        //If the entity already exists and is in a chunk then the ID is taken, exit
+        if(info && info->mChunkID != BaseEntityComponent::NO_CHUNK_ID) {
+          return {};
+        }
+      }
+      else {
+        //Try to find an id on the free list first
+        entity = _tryPopFromFreeList();
+        //If that's not found, generate a new one
+        if(!entity) {
+          //Generate new ids until one is found that isn't taken
+          //It is not necessary to check if this generated id is in the free list because
+          //a new id is only generated if the free list is empty
+          do {
+            entity = LinearEntity(++mEntityGenerator->mEntityGen, 0);
+            info = mEntityInfo->tryGetComponent<BaseEntityComponent>(entity);
+          }
+          while(info && info->mChunkID != BaseEntityComponent::NO_CHUNK_ID);
+        }
+        else {
+          //Try to populate info so all entity id generation approaches result in `info` if it exists
+          info = mEntityInfo->tryGetComponent<BaseEntityComponent>(entity);
+        }
+      }
+
+      //At this point an available entity id has been found and `info` populated if it exists
+      //If this is a new entity id, add the info for it
+      if(!info) {
+        mEntityInfo->addDefaultConstructedEntity(entity);
+        info = mEntityInfo->tryGetComponent<BaseEntityComponent>(entity);
+      }
+
+      //Now entity id is available and info is generated, update info to point at this chunk
+      info->mChunkID = mChunkID;
+      //The version of the free list entity was incremented upon freeing, so this is now the new version
+      entity.mData.mParts.mVersion = info->mVersion;
+
+      //Now that info and entity are up to date, add the stored component data
+      mChunk->addDefaultConstructedEntity(entity);
+      return entity;
+    }
+
+    //Caller is expected to have incremented the version of the BaseENtityInfo this will be pointing at
+    void _addToFreeList(const LinearEntity& entity) {
+      //Swap this entity that was not in the free list to one past the end, then increment the end,
+      //meaning this entity is the new end of the list
+      if(const LinearEntity endEntity = mEntityInfo->indexToEntity(mEntityGenerator->mFreeListEndIndex); entity.mData.mParts.mEntityId != endEntity.mData.mParts.mEntityId) {
+        mEntityInfo->swap(entity, endEntity);
+      }
+      mEntityGenerator->mFreeListEndIndex++;
+    }
+
+    LinearEntity _tryPopFromFreeList() {
+      if(mEntityGenerator->mFreeListEndIndex > 0) {
+        //Move end of list back for element we're about to take
+        const size_t newIndex = --(mEntityGenerator->mFreeListEndIndex);
+        //Look up version
+        const BaseEntityComponent& newInfo = mEntityInfo->tryGet<const BaseEntityComponent>()->at(newIndex);
+        //Fill in reverse lookup id and version
+        return LinearEntity(mEntityInfo->indexToEntity(newIndex).mData.mParts.mEntityId, newInfo.mVersion);
+      }
+      return {};
+    }
+
     std::shared_ptr<EntityChunk> mChunk;
     std::shared_ptr<EntityChunk> mEntityInfo;
+    LinearEntityGenerator* mEntityGenerator = nullptr;
     //Pulled out of the mChunk to avoid having to access the pointer when not needed
     uint32_t mChunkID = 0;
   };
@@ -478,7 +576,7 @@ namespace ecx {
     template<class T>
     class It {
     public:
-      It(std::vector<std::shared_ptr<EntityChunk>> chunks, size_t entityIndex, size_t chunkIndex)
+      It(std::vector<VersionedEntityChunk> chunks, size_t entityIndex, size_t chunkIndex)
         : mChunks(std::move(chunks))
         , mEntityIndex(entityIndex)
         , mChunkIndex(chunkIndex) {
@@ -486,7 +584,7 @@ namespace ecx {
 
       It& operator++() {
         ++mEntityIndex;
-        if(mEntityIndex >= mChunks[mChunkIndex]->size()) {
+        if(mEntityIndex >= mChunks[mChunkIndex].size()) {
           ++mChunkIndex;
           mEntityIndex = 0;
         }
@@ -517,15 +615,15 @@ namespace ecx {
       }
 
       LinearEntity entity() const {
-        return mChunks[mChunkIndex]->indexToEntity(mEntityIndex);
+        return mChunks[mChunkIndex].indexToEntity(mEntityIndex);
       }
 
       T& component() {
-        return mChunks[mChunkIndex]->tryGet<T>()->at(mEntityIndex);
+        return mChunks[mChunkIndex].tryGet<T>()->at(mEntityIndex);
       }
 
     private:
-      std::vector<std::shared_ptr<EntityChunk>> mChunks;
+      std::vector<VersionedEntityChunk> mChunks;
       size_t mChunkIndex = 0;
       size_t mEntityIndex = 0;
     };
@@ -542,21 +640,18 @@ namespace ecx {
     }
 
     LinearEntity createEntity() {
-      LinearEntity result(_getAvailableId());
-
       //Empty chunk should always exist
-      _getEmptyChunk().addDefaultConstructedEntity(result);
-      return result;
+      return _getEmptyChunk().addDefaultConstructedEntity();
     }
 
     template<class... Components>
     LinearEntity createEntityWithComponents() {
-      return *tryCreateEntityWithComponents<Components...>(LinearEntity(_getAvailableId()));
+      return *tryCreateEntityWithComponents<Components...>({});
     }
 
     template<class... Components>
     std::tuple<LinearEntity, std::reference_wrapper<Components>...> createAndGetEntityWithComponents() {
-      LinearEntity result = *tryCreateEntityWithComponents<Components...>(LinearEntity(_getAvailableId()));
+      LinearEntity result = *tryCreateEntityWithComponents<Components...>({});
       VersionedEntityChunk chunk = _getChunk(LinearEntity::buildChunkId<EmptyTag, Components...>());
       assert(chunk && "Chunk should always exist for a new entity");
       size_t index = chunk.entityToIndex(result);
@@ -575,22 +670,11 @@ namespace ecx {
         chunk = _addChunk(std::move(newChunk), chunkId);
       }
 
-      chunk.addDefaultConstructedEntity(desiredId);
-      return desiredId;
+      return desiredId ? chunk.tryAddDefaultConstructedEntity(desiredId) : std::make_optional(chunk.addDefaultConstructedEntity());
     }
 
-    std::optional<LinearEntity> tryCreateEnity(LinearEntity desiredId) {
-      //Only allowed to create base version, otherwise this function opens confusing edge cases
-      desiredId.mData.mParts.mVersion = 0;
-      //Ensure the entity doesn't already exist
-      if(!_tryGetChunkForEntity(desiredId)) {
-        //Construct in default chunk. This could also attempt to use the chunk id to create all the desired
-        //components, but that's a bit awkward because if the chunk doesn't already exist there isn't enough
-        //information to create it
-        _getEmptyChunk().addDefaultConstructedEntity(desiredId);
-        return desiredId;
-      }
-      return {};
+    std::optional<LinearEntity> tryCreateEntity(const LinearEntity& desiredId) {
+      return _getEmptyChunk().tryAddDefaultConstructedEntity(desiredId);
     }
 
     void destroyEntity(const LinearEntity& entity) {
@@ -613,15 +697,12 @@ namespace ecx {
       const uint32_t newChunk = LinearEntity::buildChunkId<ComponentT>(oldChunk);
       auto tryGetChunk = [this](uint32_t chunk) {
         auto it = mChunkTypeToChunks.find(chunk);
-        return it != mChunkTypeToChunks.end() ? VersionedEntityChunk(it->second, mEntityInfo) : VersionedEntityChunk();
+        return it != mChunkTypeToChunks.end() ? _getVersionedChunk(it->second) : VersionedEntityChunk();
       };
 
       VersionedEntityChunk fromChunk, toChunk;
-      {
-        std::shared_lock<std::shared_mutex> lock(mChunkMutex);
-        fromChunk = tryGetChunk(oldChunk);
-        toChunk = tryGetChunk(newChunk);
-      }
+      fromChunk = tryGetChunk(oldChunk);
+      toChunk = tryGetChunk(newChunk);
 
       assert(fromChunk && "From chunk should exist");
       const bool alreadyHasType = fromChunk && fromChunk.hasType(ecx::typeId<ComponentT, ecx::LinearEntity>());
@@ -652,15 +733,12 @@ namespace ecx {
       const uint32_t newChunk = LinearEntity::removeFromChunkId<ComponentT>(oldChunk);
       auto tryGetChunk = [this](uint32_t chunk) {
         auto it = mChunkTypeToChunks.find(chunk);
-        return it != mChunkTypeToChunks.end() ? VersionedEntityChunk(it->second, mEntityInfo) : VersionedEntityChunk();
+        return it != mChunkTypeToChunks.end() ? _getVersionedChunk(it->second) : VersionedEntityChunk();
       };
 
       VersionedEntityChunk fromChunk, toChunk;
-      {
-        std::shared_lock<std::shared_mutex> lock(mChunkMutex);
-        fromChunk = tryGetChunk(oldChunk);
-        toChunk = tryGetChunk(newChunk);
-      }
+      fromChunk = tryGetChunk(oldChunk);
+      toChunk = tryGetChunk(newChunk);
 
       const bool hasType = fromChunk && fromChunk.hasType(typeId<ComponentT, LinearEntity>());
       if(!hasType) {
@@ -681,10 +759,9 @@ namespace ecx {
 
     template<class... Components>
     void removeComponentsFromAllEntities() {
-      std::shared_lock<std::shared_mutex> lock(mChunkMutex);
       //Iterate over all non-empty chunks that have the components
       for(const auto& pair : mChunkTypeToChunks) {
-        VersionedEntityChunk fromChunk = VersionedEntityChunk(pair.second, mEntityInfo);
+        VersionedEntityChunk fromChunk = _getVersionedChunk(pair.second);
         if(!fromChunk.size()) {
           continue;
         }
@@ -698,16 +775,14 @@ namespace ecx {
           //Get or create the destination chunk
           VersionedEntityChunk toChunk;
           if(auto foundIt = mChunkTypeToChunks.find(toID); foundIt != mChunkTypeToChunks.end()) {
-            toChunk = VersionedEntityChunk(foundIt->second, mEntityInfo);
+            toChunk = _getVersionedChunk(foundIt->second);
           }
           else {
             //Create the desired chunk
-            lock.unlock();
             auto newChunk = pair.second->cloneEmpty();
             (newChunk->removeComponentType<Components>(), ...);
 
             toChunk = _addChunk(std::move(newChunk), toID);
-            lock.lock();
           }
 
           //Migrate all entities now that the destination chunk has been found
@@ -742,7 +817,6 @@ namespace ecx {
     //ResultStore is a container of std::shared_ptr<EntityChunk>, the other containers are of typeId<LinearEntity>
     template<class ResultStore, class IncludeT, class ExcludeT, class OptionalT>
     void getAllChunksSatisfyingConditions(ResultStore& results, const IncludeT& includes, const ExcludeT& excludes, const OptionalT& optionals) {
-      std::shared_lock<std::shared_mutex> lock(mChunkMutex);
       for(auto& pair : mChunkTypeToChunks) {
         const std::shared_ptr<EntityChunk>& chunk = pair.second;
         auto chunkHasType = [&chunk](const typeId_t<LinearEntity>& include) {
@@ -762,20 +836,20 @@ namespace ecx {
           }
         }
 
-        results.push_back(pair.second);
+        results.push_back(_getVersionedChunk(pair.second));
       }
     }
 
     //TODO: Very inefficient, should either cache queries or prefer direct use of chunks
     template<class ComponentT>
     It<ComponentT> begin() {
-      std::vector<std::shared_ptr<EntityChunk>> chunkIds;
+      std::vector<VersionedEntityChunk> chunkIds;
       std::array<typeId_t<LinearEntity>, 0> empty;
       std::array<typeId_t<LinearEntity>, 1> query{ typeId<ComponentT, LinearEntity>() };
 
       getAllChunksSatisfyingConditions(chunkIds, query, empty, empty);
-      auto foundIt = std::find_if(chunkIds.begin(), chunkIds.end(), [](const std::shared_ptr<EntityChunk>& chunk) {
-        return chunk->size() > 0;
+      auto foundIt = std::find_if(chunkIds.begin(), chunkIds.end(), [](const VersionedEntityChunk& chunk) {
+        return chunk.size() > 0;
       });
       if(foundIt == chunkIds.end()) {
         return end<ComponentT>();
@@ -787,7 +861,7 @@ namespace ecx {
 
     template<class ComponentT>
     It<ComponentT> end() {
-      std::vector<std::shared_ptr<EntityChunk>> chunkIds;
+      std::vector<VersionedEntityChunk> chunkIds;
       std::array<typeId_t<LinearEntity>, 0> empty;
       std::array<typeId_t<LinearEntity>, 1> query{ typeId<ComponentT, LinearEntity>() };
 
@@ -804,13 +878,13 @@ namespace ecx {
         return end<ComponentT>();
       }
 
-      std::vector<std::shared_ptr<EntityChunk>> chunkIds;
+      std::vector<VersionedEntityChunk> chunkIds;
       std::array<typeId_t<LinearEntity>, 0> empty;
       std::array<typeId_t<LinearEntity>, 1> query{ typeId<ComponentT, LinearEntity>() };
 
       getAllChunksSatisfyingConditions(chunkIds, query, empty, empty);
-      auto foundIt = std::find_if(chunkIds.begin(), chunkIds.end(), [&foundChunk](const std::shared_ptr<EntityChunk>& chunk) {
-        return foundChunk == *chunk;
+      auto foundIt = std::find_if(chunkIds.begin(), chunkIds.end(), [&foundChunk](const VersionedEntityChunk& chunk) {
+        return chunk == foundChunk;
       });
       if(foundIt == chunkIds.end()) {
         return end<ComponentT>();
@@ -831,14 +905,14 @@ namespace ecx {
 
     template<class ComponentT>
     size_t size() {
-      std::vector<std::shared_ptr<EntityChunk>> chunks;
+      std::vector<VersionedEntityChunk> chunks;
       std::array<typeId_t<LinearEntity>, 0> empty;
       std::array<typeId_t<LinearEntity>, 1> query{ typeId<std::decay_t<ComponentT>, LinearEntity>() };
 
       getAllChunksSatisfyingConditions(chunks, query, empty, empty);
 
-      return std::accumulate(chunks.begin(), chunks.end(), size_t(0), [](size_t cur, const std::shared_ptr<EntityChunk>& chunk) {
-        return cur + chunk->size();
+      return std::accumulate(chunks.begin(), chunks.end(), size_t(0), [](size_t cur, const VersionedEntityChunk& chunk) {
+        return cur + chunk.size();
       });
     }
 
@@ -847,27 +921,13 @@ namespace ecx {
     }
 
   private:
-    LinearEntity _getAvailableId() {
-      if(!mFreeList.empty()) {
-        LinearEntity result = mFreeList.back();
-        mFreeList.pop_back();
-        return result;
-      }
-      //TODO: needed because specific entities can be requested. Is there a more efficient way to deal with this
-      //Maybe change idgen in tryCreateEntity?
-      while(mEntityInfo->tryGetComponent<const BaseEntityComponent>(LinearEntity(++mIDGen, 0))) {
-      }
-      return LinearEntity(mIDGen, 0);
-    }
-
     VersionedEntityChunk _getEmptyChunk() {
       return _getChunk(LinearEntity::buildChunkId<EmptyTag>());
     }
 
     VersionedEntityChunk _getChunk(uint32_t chunkId) {
-      std::shared_lock<std::shared_mutex> lock(mChunkMutex);
       auto it = mChunkTypeToChunks.find(chunkId);
-      return it != mChunkTypeToChunks.end() ? VersionedEntityChunk(it->second, mEntityInfo) : VersionedEntityChunk();
+      return it != mChunkTypeToChunks.end() ? _getVersionedChunk(it->second) : VersionedEntityChunk();
     }
 
     VersionedEntityChunk _tryGetChunkForEntity(const LinearEntity& entity) {
@@ -876,38 +936,37 @@ namespace ecx {
         return {};
       }
 
-      std::shared_lock<std::shared_mutex> lock(mChunkMutex);
       auto it = mChunkTypeToChunks.find(info->mChunkID);
       if(it != mChunkTypeToChunks.end()) {
         //Not strictly necessary to check contains due to BaseEntityComponent lookup above but maybe good for safety
         if(it->second->contains(entity)) {
-          return VersionedEntityChunk(it->second, mEntityInfo);
+          return _getVersionedChunk(it->second);
         }
       }
       return {};
     }
 
     VersionedEntityChunk _addChunk(std::shared_ptr<EntityChunk> toAdd, uint32_t chunkId) {
-      //Upgrade to unique lock because container size needs to change
-      std::unique_lock<std::shared_mutex> uniqueLock(mChunkMutex);
-      //Make sure the chunk wasn't recreated while acquiring the lock
-      if(auto found = mChunkTypeToChunks.find(chunkId); found != mChunkTypeToChunks.end()) {
-        return VersionedEntityChunk(found->second, mEntityInfo);
-      }
-
       mChunkTypeToChunks.insert(std::make_pair(chunkId, toAdd));
-      return VersionedEntityChunk(toAdd, mEntityInfo);
+      return _getVersionedChunk(std::move(toAdd));
+    }
+
+    VersionedEntityChunk _getVersionedChunk(std::shared_ptr<EntityChunk> rawChunk) {
+      return VersionedEntityChunk(std::move(rawChunk), mEntityInfo, mEntityGenerator);
     }
 
     std::unordered_map<uint32_t, std::shared_ptr<EntityChunk>> mChunkTypeToChunks;
     std::shared_ptr<EntityChunk> mEntityInfo;
-    //Scheduler is responsible for ensuring components of the same type won't be created at the same time
-    //This is only needed to ensure that the container isn't growing from unrelated types while another is reading
-    //In this way modifying a chunk is fine with shared access, but not adding a chunk
-    std::shared_mutex mChunkMutex;
-    uint32_t mIDGen = 0;
+    LinearEntityGenerator mEntityGenerator;
     LinearEntity mSingletonEntity;
-    //TODO: make intrusive in EntityInfo
-    std::vector<LinearEntity> mFreeList;
+  };
+}
+
+namespace std {
+  template<>
+  struct hash<ecx::LinearEntity> {
+    size_t operator()(const ecx::LinearEntity& rhs) const {
+      return std::hash<uint64_t>()(rhs.mData.mRawId);
+    }
   };
 }

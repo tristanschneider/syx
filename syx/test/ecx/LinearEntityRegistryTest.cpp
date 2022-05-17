@@ -255,20 +255,20 @@ namespace ecx {
     TEST_METHOD(EntityRegistry_TryCreateEntityNew_IsCreated) {
       TestEntityRegistry registry;
 
-      Assert::IsTrue(registry.tryCreateEnity(LinearEntity(10, 0)).has_value());
+      Assert::IsTrue(registry.tryCreateEntity(LinearEntity(10, 0)).has_value());
     }
 
     TEST_METHOD(EntityRegistry_TryCreateTaken_NotCreated) {
       TestEntityRegistry registry;
       auto first = registry.createEntity();
 
-      Assert::IsFalse(registry.tryCreateEnity(first).has_value());
+      Assert::IsFalse(registry.tryCreateEntity(first).has_value());
     }
 
     TEST_METHOD(EntityRegistry_CreateNewWithSlotTaken_NewSlotChosen) {
       TestEntityRegistry registry;
       //This is the first id that will attempt to be generated
-      registry.tryCreateEnity(LinearEntity(1, 0));
+      registry.tryCreateEntity(LinearEntity(1, 0));
 
       auto entity = registry.createEntity();
 
@@ -292,6 +292,56 @@ namespace ecx {
       Assert::IsTrue(*entity == desired);
       Assert::IsTrue(registry.hasComponent<int>(*entity));
       Assert::IsTrue(registry.hasComponent<std::string>(*entity));
+    }
+
+    TEST_METHOD(EntityRegistry_CreateAndDestroyEntity_IsInvalid) {
+      TestEntityRegistry registry;
+      LinearEntity entity = registry.createEntity();
+
+      registry.destroyEntity(entity);
+
+      Assert::IsFalse(registry.isValid(entity));
+    }
+
+    TEST_METHOD(EntityRegistry_CreateDestroyCreate_IDReused) {
+      TestEntityRegistry registry;
+      LinearEntity entity = registry.createEntity();
+
+      registry.destroyEntity(entity);
+      LinearEntity newEntity = registry.createEntity();
+
+      Assert::AreEqual(entity.mData.mParts.mEntityId, newEntity.mData.mParts.mEntityId);
+      Assert::IsTrue(entity != newEntity);
+      Assert::IsFalse(registry.isValid(entity));
+    }
+
+    TEST_METHOD(EntityRegistry_TryCreateReUsedId_Fails) {
+      TestEntityRegistry registry;
+      LinearEntity original = registry.createEntity();
+      registry.destroyEntity(original);
+      registry.createEntity();
+
+      Assert::IsFalse(registry.tryCreateEntity(original).has_value());
+    }
+
+    TEST_METHOD(EntityRegistry_AddExistingComponent_ExistingReturned) {
+      TestEntityRegistry registry;
+      auto&& [ entity, i ] = registry.createAndGetEntityWithComponents<int>();
+      i.get() = 5;
+
+      int& redundant = registry.addComponent<int>(entity, 6);
+
+      Assert::AreEqual(5, redundant);
+      Assert::AreEqual(&i.get(), &redundant);
+    }
+
+    TEST_METHOD(EntityRegistry_RemoveNonexistingComponent_NothingHappens) {
+      TestEntityRegistry registry;
+      LinearEntity entity = registry.createEntity();
+
+      registry.removeComponent<int>(entity);
+
+      Assert::IsFalse(registry.hasComponent<int>(entity));
     }
   };
 }

@@ -206,10 +206,17 @@ std::shared_ptr<Engine::System> SpaceSystem::createSpaceEntitiesSystem() {
       auto& parsedSpaceContent = *spaceChunk.tryGet<ParsedSpaceContentsComponent>();
       for(size_t i = 0; i < parsedSpaceContent.size(); ++i) {
         for(const Entity& entity : parsedSpaceContent[i].mNewEntities) {
-          //TODO: what if this fails? Remap entity id?
-          if(std::optional<Entity> created = factory.tryCreateEntityWithComponents(entity)) {
-            modifier.addComponent<InSpaceComponent>(*created, spaceChunk.indexToEntity(i));
+          std::optional<Entity> created = factory.tryCreateEntityWithComponents(entity);
+          //Either the id was taken or it was available at a different version
+          if(!created || *created != entity) {
+            //If id was taken, make a new one
+            if(!created) {
+              created = factory.createEntity();
+            }
+            //Remap either the version or to the entirely new entity
+            parsedSpaceContent[i].mRemappings[entity] = *created;
           }
+          modifier.addComponent<InSpaceComponent>(*created, spaceChunk.indexToEntity(i));
         }
       }
 
