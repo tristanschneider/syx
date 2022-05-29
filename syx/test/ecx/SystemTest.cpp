@@ -35,7 +35,8 @@ namespace ecx {
       TestEntityRegistry registry;
       auto entity = registry.createEntity();
       registry.addComponent<int>(entity, 10);
-      TestSystemContext<TestView<Read<int>>> context(registry);
+      ThreadLocalContext ctx;
+      TestSystemContext<TestView<Read<int>>> context(registry, ctx);
 
       auto view = context.get<TestView<Read<int>>>();
 
@@ -45,7 +46,8 @@ namespace ecx {
 
     TEST_METHOD(SystemContext_TwoViews_CanGetBoth) {
       TestEntityRegistry registry;
-      TestSystemContext<TestView<Read<int>>, TestView<Write<short>, Read<uint64_t>>> context(registry);
+      ThreadLocalContext ctx;
+      TestSystemContext<TestView<Read<int>>, TestView<Write<short>, Read<uint64_t>>> context(registry, ctx);
 
       context.get<TestView<Read<int>>>();
       context.get<TestView<Write<short>, Read<uint64_t>>>();
@@ -61,7 +63,8 @@ namespace ecx {
 
     TEST_METHOD(SystemContext_BuildInfoInclude_InExistenceTypes) {
       TestEntityRegistry registry;
-      TestSystemContext<TestView<Read<int>, Include<short>>> context(registry);
+      ThreadLocalContext ctx;
+      TestSystemContext<TestView<Read<int>, Include<short>>> context(registry, ctx);
 
       const SystemInfo info = context.buildInfo();
 
@@ -74,7 +77,8 @@ namespace ecx {
 
     TEST_METHOD(SystemContext_BuildInfoWithDuplicates_NoDuplicates) {
       TestEntityRegistry registry;
-      TestSystemContext<TestView<Read<int>, Write<int>, Include<int>, OptionalRead<int>, OptionalWrite<int>, Exclude<int>>, TestEntityModifier<int>> context(registry);
+      ThreadLocalContext ctx;
+      TestSystemContext<TestView<Read<int>, Write<int>, Include<int>, OptionalRead<int>, OptionalWrite<int>, Exclude<int>>, TestEntityModifier<int>> context(registry, ctx);
 
       const SystemInfo info = context.buildInfo();
 
@@ -86,7 +90,8 @@ namespace ecx {
 
     TEST_METHOD(SystemContext_BuildInfoExclude_InExistenceTypes) {
       TestEntityRegistry registry;
-      TestSystemContext<TestView<Read<int>, Exclude<short>>> context(registry);
+      ThreadLocalContext ctx;
+      TestSystemContext<TestView<Read<int>, Exclude<short>>> context(registry, ctx);
 
       const SystemInfo info = context.buildInfo();
 
@@ -99,7 +104,8 @@ namespace ecx {
 
     TEST_METHOD(SystemContext_BuildInfoRead_InExistenceAndReadTypes) {
       TestEntityRegistry registry;
-      TestSystemContext<TestView<Read<int>>> context(registry);
+      ThreadLocalContext ctx;
+      TestSystemContext<TestView<Read<int>>> context(registry, ctx);
 
       const SystemInfo info = context.buildInfo();
 
@@ -112,7 +118,8 @@ namespace ecx {
 
     TEST_METHOD(SystemContext_BuildInfoOptionalRead_InExistenceAndReadTypes) {
       TestEntityRegistry registry;
-      TestSystemContext<TestView<Read<int>, OptionalRead<short>>> context(registry);
+      ThreadLocalContext ctx;
+      TestSystemContext<TestView<Read<int>, OptionalRead<short>>> context(registry, ctx);
 
       const SystemInfo info = context.buildInfo();
 
@@ -125,7 +132,8 @@ namespace ecx {
 
     TEST_METHOD(SystemContext_BuildInfoWrite_InExistenceAndReadAndWriteTypes) {
       TestEntityRegistry registry;
-      TestSystemContext<TestView<Write<int>>> context(registry);
+      ThreadLocalContext ctx;
+      TestSystemContext<TestView<Write<int>>> context(registry, ctx);
 
       const SystemInfo info = context.buildInfo();
 
@@ -138,7 +146,8 @@ namespace ecx {
 
     TEST_METHOD(SystemContext_BuildInfoOptionalWrite_InExistenceAndReadAndWriteTypes) {
       TestEntityRegistry registry;
-      TestSystemContext<TestView<Write<int>, OptionalWrite<short>>> context(registry);
+      ThreadLocalContext ctx;
+      TestSystemContext<TestView<Write<int>, OptionalWrite<short>>> context(registry, ctx);
 
       const SystemInfo info = context.buildInfo();
 
@@ -151,7 +160,8 @@ namespace ecx {
 
     TEST_METHOD(SystemContext_BuildInfoEntityFactory_UsesEntityFactory) {
       TestEntityRegistry registry;
-      TestSystemContext<TestEntityFactory> context(registry);
+      ThreadLocalContext ctx;
+      TestSystemContext<TestEntityFactory> context(registry, ctx);
 
       const SystemInfo info = context.buildInfo();
 
@@ -160,7 +170,8 @@ namespace ecx {
 
     TEST_METHOD(SystemContext_BuildInfoEntityModifier_InfoModifyReadWriteExistence) {
       TestEntityRegistry registry;
-      TestSystemContext<TestEntityModifier<int>> context(registry);
+      ThreadLocalContext ctx;
+      TestSystemContext<TestEntityModifier<int>> context(registry, ctx);
 
       const SystemInfo info = context.buildInfo();
 
@@ -173,7 +184,8 @@ namespace ecx {
 
     TEST_METHOD(SystemContext_UseEntityModifier_Works) {
       TestEntityRegistry registry;
-      TestSystemContext<TestEntityModifier<int>> context(registry);
+      ThreadLocalContext ctx;
+      TestSystemContext<TestEntityModifier<int>> context(registry, ctx);
       auto entity = registry.createEntity();
 
       context.get<TestEntityModifier<int>>().addComponent<int>(entity, 6);
@@ -185,7 +197,8 @@ namespace ecx {
 
     TEST_METHOD(SystemContext_GetEntityFactory_FactoryWorks) {
       TestEntityRegistry registry;
-      TestSystemContext<TestEntityFactory> context(registry);
+      ThreadLocalContext ctx;
+      TestSystemContext<TestEntityFactory> context(registry, ctx);
 
       context.get<TestEntityFactory>().createEntity();
 
@@ -231,7 +244,8 @@ namespace ecx {
         }
       });
 
-      system->tick(registry);
+      ThreadLocalContext ctx;
+      system->tick(registry, ctx);
 
       Assert::AreEqual(12, registry.getComponent<int>(entity));
     }

@@ -255,6 +255,9 @@ namespace ecx {
       return View(registry);
     }
 
+    //Can't be used this way but allows default construction in templates to compile
+    View() = default;
+
     View(EntityRegistry<LinearEntity>& registry)
       : mCachedChunkCount(registry.chunkCount()) {
       DependencyDeduce<Args...> dependencies;

@@ -5,7 +5,7 @@
 //Remove all entities in view
 template<class ViewT>
 struct RemoveEntitiesSystem {
-  static auto create() {
+  static std::unique_ptr<Engine::System> create() {
     return ecx::makeSystem("RemoveEntities", &_tick);
   }
 

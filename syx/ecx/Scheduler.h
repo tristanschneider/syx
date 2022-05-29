@@ -70,6 +70,8 @@ namespace ecx {
       std::mutex* mMutex = nullptr;
       std::atomic_bool* mIsSyncing = nullptr;
       std::vector<ThreadContext>* mThreads = nullptr;
+      //Usually self owned except for when the scheduler does work inline
+      std::shared_ptr<ThreadLocalContext> mLocalContext;
     };
 
     //TODO: work stealing job scheduler
@@ -82,6 +84,7 @@ namespace ecx {
       for(size_t i = 0; i < mConfig.mNumThreads; ++i) {
         auto context = std::make_unique<WorkerContext>(createContext());
         context->mWorkerSpecificJobs = std::make_unique<JobContainer>();
+        context->mLocalContext = std::make_shared<ThreadLocalContext>();
         mThreads.push_back({ std::thread([ctx(context.get())]() mutable {
           workerLoop(*ctx);
         }), std::move(context)});
@@ -118,6 +121,7 @@ namespace ecx {
       JobGraph::resetDependencies(jobGraph);
       //Run the root node which will populate the initial tasks
       WorkerContext context(createContext());
+      context.mLocalContext = mLocalContext;
       _runSystems(jobGraph, context);
       //Wake all threads to pick up the work that was just created
       mWorkerCV.notify_all();
@@ -267,7 +271,7 @@ namespace ecx {
           context.mThreads->at(index).mContext->mWorkerSpecificJobs->push_back(std::move(job));
         }
       };
-      JobGraph::runSystems(**context.mRegistry, jobGraph, *context.mJobs, queueToThread);
+      JobGraph::runSystems(**context.mRegistry, *context.mLocalContext, jobGraph, *context.mJobs, queueToThread);
     }
 
   private:
@@ -294,6 +298,7 @@ namespace ecx {
     std::condition_variable mWorkerCV;
     std::mutex mMutex;
     std::vector<ThreadContext> mThreads;
+    std::shared_ptr<ThreadLocalContext> mLocalContext = std::make_shared<ThreadLocalContext>();
     const SchedulerConfig mConfig;
   };
 

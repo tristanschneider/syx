@@ -1,5 +1,6 @@
 #pragma once
 
+#include "AnyTuple.h"
 #include "EntityFactory.h"
 #include "EntityModifier.h"
 #include "EntityRegistry.h"
@@ -8,6 +9,9 @@
 #include "View.h"
 
 namespace ecx {
+  struct ThreadLocalContextTag {};
+  using ThreadLocalContext = AnyTuple<ThreadLocalContextTag>;
+
   //Describes access patterns for registry
   struct SystemInfo {
     //In ascending order of strictness. Values at the top of the list contain all the types of the lower ones
@@ -50,20 +54,25 @@ namespace ecx {
       template<class T>
       using HasType = decltype(typeListContains<T>(ViewTypeList()));
 
+      //Reserve space in the ThreadLocalContext for all possible views
       template<class... TupleArgs>
-      static TupleT _create(EntityRegistry<EntityT>& registry, TypeList<TupleArgs...>) {
-        return TupleT{ TupleArgs(registry)... };
+      static void _reserve(ThreadLocalContext& context, TypeList<TupleArgs...>) {
+        if constexpr(sizeof...(TupleArgs) > 0) {
+          context.reserve<TupleArgs...>();
+        }
       }
 
-      static TupleT create(EntityRegistry<EntityT>& registry) {
-        return _create(registry, ViewTypeList{});
+      static void reserve(ThreadLocalContext& context) {
+        return _reserve(context, ViewTypeList{});
       }
     };
     using ViewTuple = typename AllViewsTuple::TupleT;
 
-    SystemContext(EntityRegistry<EntityT>& registry)
+    SystemContext(EntityRegistry<EntityT>& registry, ThreadLocalContext& localContext)
       : mRegistry(&registry)
-      , mViewStore(AllViewsTuple::create(registry)) {
+      , mThreadLocalContext(&localContext) {
+      //Reserve space in the context for all views this system needs to ensure no container growth happens during tick
+      AllViewsTuple::reserve(*mThreadLocalContext);
     }
     SystemContext(const SystemContext&) = default;
     SystemContext& operator=(const SystemContext&) = default;
@@ -72,7 +81,7 @@ namespace ecx {
     template<class T>
     std::conditional_t<AllViewsTuple::HasType<T>::value, T&, T> get() {
       static_assert(std::disjunction_v<std::is_same<T, Accessors>...>, "Type must be declared by the context to be accessible");
-      return DeduceGet<T>::get(*mRegistry, mViewStore);
+      return DeduceGet<T>::get(*mRegistry, *mThreadLocalContext);
     }
 
     static SystemInfo buildInfo() {
@@ -88,16 +97,16 @@ namespace ecx {
   private:
     template<class T, class dummy = void>
     struct DeduceGet {
-      static T get(EntityRegistry<EntityT>& registry, ViewTuple&) {
+      static T get(EntityRegistry<EntityT>& registry, ThreadLocalContext&) {
         return T(registry);
       }
     };
 
     template<class... Args>
     struct DeduceGet<View<Args...>, std::enable_if_t<AllViewsTuple::HasType<View<Args...>>::value>> {
-      static View<Args...>& get(EntityRegistry<EntityT>& registry, ViewTuple& storage) {
+      static View<Args...>& get(EntityRegistry<EntityT>& registry, ThreadLocalContext& storage) {
         //Get the old stored one
-        auto& oldView = std::get<View<Args...>>(storage);
+        auto& oldView = storage.emplace<View<Args...>>(registry);
         //Try to recycle the previous view
         oldView = View<Args...>::recycleView(std::move(oldView), registry);
         return oldView;
@@ -188,7 +197,7 @@ namespace ecx {
     };
 
     EntityRegistry<EntityT>* mRegistry = nullptr;
-    ViewTuple mViewStore;
+    ThreadLocalContext* mThreadLocalContext = nullptr;
   };
 
   //Base system interface intended for storing registered systems.
@@ -196,7 +205,12 @@ namespace ecx {
   template<class EntityT>
   struct ISystem {
     virtual ~ISystem() = default;
-    virtual void tick(EntityRegistry<EntityT>& registry) const = 0;
+    virtual void tick(EntityRegistry<EntityT>& registry, ThreadLocalContext& localContext) const = 0;
+    //Hack for convenience in tests
+    void tick(EntityRegistry<EntityT>& registry) {
+      ThreadLocalContext context;
+      tick(registry, context);
+    }
     virtual SystemInfo getInfo() const = 0;
   };
 
@@ -204,12 +218,9 @@ namespace ecx {
   //Implementation goes in derived _tick
   template<class Context, class EntityT>
   struct System : public ISystem<EntityT> {
-    void tick(EntityRegistry<EntityT>& registry) const final {
-      if(!mCachedContext || &registry != mLastRegistry) {
-        mLastRegistry = &registry;
-        mCachedContext = Context(registry);
-      }
-      _tick(*mCachedContext);
+    void tick(EntityRegistry<EntityT>& registry, ThreadLocalContext& threadContext) const final {
+      Context context(registry, threadContext);
+      _tick(context);
     }
 
     SystemInfo getInfo() const override {
@@ -217,11 +228,6 @@ namespace ecx {
     }
 
     virtual void _tick(Context& context) const = 0;
-
-  private:
-    //Cached context allows re-use of computed views
-    mutable std::optional<Context> mCachedContext;
-    mutable void* mLastRegistry = nullptr;
   };
 
   //Create a system from a function that takes the desired context: [](Context<uint32_t, View<Read<int>>, EntityFactory>& context) { ... }

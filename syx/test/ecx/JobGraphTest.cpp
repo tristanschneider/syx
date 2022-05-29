@@ -414,7 +414,8 @@ namespace ecx {
           resultOrder.push_back(job->mSystem.get());
         }
 
-        JobGraph::runSystems(registry, *job, jobs, [](auto&&...) { Assert::Fail(); });
+        ThreadLocalContext context;
+        JobGraph::runSystems(registry, context, *job, jobs, [](auto&&...) { Assert::Fail(); });
       }
 
       Assert::IsTrue(std::vector<TestSystem*>{ a.get(), b.get(), c.get(), d.get(), e.get(), f.get(), g.get() } == resultOrder);
@@ -429,7 +430,8 @@ namespace ecx {
       JobGraph::resetDependencies(*root);
       int wasQueued = 0;
 
-      JobGraph::runSystems(registry, *root, jobs, [&wasQueued](size_t index, std::shared_ptr<JobInfo<TestEntity>> job) {
+      ThreadLocalContext context;
+      JobGraph::runSystems(registry, context, *root, jobs, [&wasQueued](size_t index, std::shared_ptr<JobInfo<TestEntity>> job) {
         Assert::AreEqual(size_t(1), index);
         ++wasQueued;
       });

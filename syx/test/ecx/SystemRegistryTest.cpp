@@ -20,7 +20,7 @@ namespace ecx {
 
     TEST_METHOD(SystemRegistry_TickRegisteredSystem_IsTicked) {
       struct TestSystem : public ISystem<TestEntity> {
-        void tick(TestEntityRegistry&) const override {
+        void tick(TestEntityRegistry&, ThreadLocalContext&) const override {
           (*mInvocations)++;
         }
 

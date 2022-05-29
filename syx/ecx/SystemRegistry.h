@@ -11,13 +11,14 @@ namespace ecx {
       mSystems.push_back(std::move(system));
     }
 
-    void tick(EntityRegistry<EntityT>& registry) const {
+    void tick(EntityRegistry<EntityT>& registry) {
       for(auto&& system : mSystems) {
-        system->tick(registry);
+        system->tick(registry, mLocalContext);
       }
     }
 
   private:
     std::vector<std::shared_ptr<ISystem<EntityT>>> mSystems;
+    ThreadLocalContext mLocalContext;
   };
 };

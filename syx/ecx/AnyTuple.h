@@ -37,6 +37,18 @@ namespace ecx {
       return result.get<T>();
     }
 
+    template<class... Args>
+    void reserve() {
+      //Static so runtime cost of computing max is once per template instantiation
+      static size_t maxTypeId = std::max({ static_cast<size_t>(ecx::typeId<Args, Category>())... });
+      //+1 because the type id is the index
+      reserve(maxTypeId + 1);
+    }
+
+    void reserve(size_t size) {
+      mValues.reserve(size);
+    }
+
   private:
     template<class T>
     static TypeIdT _getId() {

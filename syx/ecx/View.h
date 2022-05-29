@@ -388,6 +388,9 @@ namespace ecx {
       EntityIterators mIterators;
     };
 
+    //Can't be used this way but allows default construction in templates to compile
+    View() = default;
+
     View(EntityRegistry<EntityT>& registry)
       : mRegistry(&registry) {
     }

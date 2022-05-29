@@ -29,9 +29,9 @@ namespace ecx {
     //WorkContainer needs push_back
     //EnqueueToThread is somethind like a function that takes thread index and the job to queue (size_t, std::shared_ptr<JobInfo<EntityT>>)
     template<class EntityT, class WorkContainer, class EnqueueToThread>
-    static void runSystems(EntityRegistry<EntityT>& registry, JobInfo<EntityT>& root, WorkContainer& container, const EnqueueToThread& enqueueToThread) {
+    static void runSystems(EntityRegistry<EntityT>& registry, ThreadLocalContext& localContext, JobInfo<EntityT>& root, WorkContainer& container, const EnqueueToThread& enqueueToThread) {
       if(root.mSystem) {
-        root.mSystem->tick(registry);
+        root.mSystem->tick(registry, localContext);
       }
       for(auto dependent : root.mDependents) {
         if (const uint32_t dependenciesLeft = dependent->mDependencies.fetch_sub(uint32_t(1), std::memory_order_relaxed); dependenciesLeft <= 1) {
