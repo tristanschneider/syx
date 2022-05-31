@@ -1,19 +1,33 @@
 #pragma once
 
+#include "AnyTuple.h"
 #include <optional>
 #include "SparseSet.h"
 #include "TypeErasedContainer.h"
 #include "TypeId.h"
 
 namespace ecx {
+  struct ComponentPoolTupleTag {};
+  using ComponentPoolTuple = AnyTuple<ComponentPoolTupleTag>;
   struct LinearEntity;
   //A component on the singleton entity so that it can be viewed
   struct SingletonComponent {};
   //Registry using EntityT for entity id storage, expected to be some integral type
   template<class EntityT>
   class EntityRegistry {
+    struct ComponentPool {
+      std::unique_ptr<TypeErasedContainer<std::vector>> mComponents;
+      SparseSet<EntityT> mEntities;
+      ComponentPoolTuple mSharedComponents;
+    };
+
   public:
     static_assert(!std::is_same_v<LinearEntity, EntityT>, "LinearEntity uses a specialized registry, check your include order for LinearEntityRegistry.h");
+
+    //Decay a provided type to avoid unexpected behavior for const, reference, and pointer
+    //There are probably still ways to bypass this and get weird results but this should cover most cases
+    template<class T>
+    using DecayType = std::remove_pointer_t<std::decay_t<T>>;
 
     template<class T>
     class It {
@@ -63,6 +77,10 @@ namespace ecx {
         return mSparseIt.value().mSparseId;
       }
 
+      size_t packedID() const {
+        return mSparseIt.value().mPackedId;
+      }
+
       T& component() {
         auto slot = static_cast<size_t>(mSparseIt.value().mPackedId);
         return mPool->mComponents->get<DecayType<T>>()->at(slot);
@@ -73,10 +91,141 @@ namespace ecx {
       typename SparseSet<EntityT>::Iterator mSparseIt;
     };
 
-    //Decay a provided type to avoid unexpected behavior for const, reference, and pointer
-    //There are probably still ways to bypass this and get weird results but this should cover most cases
-    template<class T>
-    using DecayType = std::remove_pointer_t<std::decay_t<T>>;
+    class PoolIt {
+    public:
+      using difference_type = std::ptrdiff_t;
+      using iterator_category = std::forward_iterator_tag;
+
+      using InternalIt = typename std::vector<typename EntityRegistry<EntityT>::ComponentPool>::iterator;
+
+      PoolIt(InternalIt pool)
+        : mPool(pool) {
+      }
+
+      PoolIt(const PoolIt&) = default;
+      PoolIt(PoolIt&&) = default;
+      PoolIt& operator=(const PoolIt&) = default;
+      PoolIt& operator=(PoolIt&&) = default;
+
+      bool operator==(const PoolIt& rhs) const {
+        return mPool == rhs.mPool;
+      }
+
+      bool operator!=(const PoolIt& rhs) const {
+        return !(*this == rhs);
+      }
+
+      PoolIt& operator++() {
+        ++mPool;
+        return *this;
+      }
+
+      PoolIt& operator++(int) {
+        PoolIt result = *this;
+        ++(*this);
+        return result;
+      }
+
+      size_t size() const {
+        return mPool->mEntities.size();
+      }
+
+      const SparseSet<EntityT>& getEntities() const {
+        return mPool->mEntities;
+      }
+
+      ComponentPoolTuple& getSharedComponents() {
+        return mPool->mSharedComponents;
+      }
+
+      template<class ComponentT, class... Args>
+      ComponentT& addComponent(EntityT entity, Args&&... args) {
+        using CompT = DecayType<ComponentT>;
+        assert(mEntities.find(entity) != mEntities.end() && "Entity should exist");
+
+        ComponentPool& pool = *mPool;
+        const EntityT newSlot = pool.mEntities.insert(entity).mPackedId;
+        std::vector<CompT>& storage = *pool.mComponents->get<CompT>();
+        CompT& newComponent = _getOrResize(storage, static_cast<size_t>(newSlot));
+        newComponent = CompT(std::forward<Args>(args)...);
+        return newComponent;
+      }
+
+      template<class ComponentT>
+      void removeComponent(EntityT entity) {
+        _removeComponent(*mPool, entity);
+      }
+
+      template<class ComponentT>
+      DecayType<ComponentT>* tryGetComponent(EntityT entity) {
+        ComponentPool& pool = *mPool;
+        if(auto it = pool.mEntities.find(entity); it != pool.mEntities.end()) {
+          const auto slot = static_cast<size_t>(it.value().mPackedId);
+          return &pool.mComponents->get<DecayType<ComponentT>>()->at(slot);
+        }
+        return nullptr;
+      }
+
+      template<class ComponentT>
+      ComponentT& getComponent(EntityT entity) {
+        return *tryGetComponent<ComponentT>(entity);
+      }
+
+      template<class ComponentT>
+      bool hasComponent(EntityT entity) {
+        return tryGetComponent<ComponentT>(entity) != nullptr;
+      }
+
+      template<class ComponentT>
+      It<ComponentT> begin() {
+        ComponentPool& pool = *mPool;
+        return It<ComponentT>(&pool, pool.mEntities.begin());
+      }
+
+      template<class ComponentT>
+      It<ComponentT> end() {
+        ComponentPool& pool = *mPool;
+        return It<ComponentT>(&pool, pool.mEntities.end());
+      }
+
+      template<class ComponentT>
+      It<ComponentT> find(EntityT entity) {
+        ComponentPool& pool = *mPool;
+        return It<ComponentT>(&pool, pool.mEntities.find(entity));
+      }
+
+      template<class ComponentT>
+      size_t size() {
+        return mPool->mComponents->size();
+      }
+
+      void clear() {
+        mPool->mComponents->clear();
+        mPool->mEntities.clear();
+      }
+
+    private:
+      template<class Container>
+      static typename Container::reference _getOrResize(Container& container, size_t index) {
+        if(container.size() <= index) {
+          container.resize(index + 1);
+        }
+        return container[index];
+      }
+
+      static void _removeComponent(ComponentPool& pool, const EntityT& entity) {
+        if(auto componentIt = pool.mEntities.find(entity); componentIt != pool.mEntities.end()) {
+          //Removal will do a swap remove in the sparse set, do the same for the components
+          const EntityT prevSlot = componentIt.value().mPackedId;
+          if(auto newComponentIt = pool.mEntities.erase(componentIt); newComponentIt != pool.mEntities.end()) {
+            pool.mComponents->swap(static_cast<size_t>(prevSlot), pool.mComponents->size() - 1);
+          }
+          pool.mComponents->pop_back();
+        }
+      }
+
+      InternalIt mPool;
+    };
 
     EntityRegistry() {
       addComponent<SingletonComponent>(mSingletonEntity);
@@ -92,16 +241,31 @@ namespace ecx {
       return result;
     }
 
-    void destroyEntity(EntityT entity) {
-      //Make sure it exists in the first place
-      if(auto it = mEntities.find(entity); it != mEntities.end()) {
-        //Remove from all component pools
-        for(ComponentPool& pool : mComponentPools) {
-          _removeComponent(pool, entity);
-        }
+    std::optional<EntityT> tryCreateEntity(const EntityT& desiredId) {
+      if(mEntities.find(desiredId) == mEntities.end()) {
+        mEntities.insert(desiredId);
+        return std::make_optional(desiredId);
+      }
+      return std::nullopt;
+    }
 
+    void destroyEntity(EntityT entity) {
+      //Remove all components except nothing, so all of them
+      if(auto it = _removeAllComponentsExcept<>(entity); it != mEntities.end()) {
         //Remove from global list
         mEntities.erase(it);
+      }
+    }
+
+    template<class... Components>
+    void removeAllComponentsExcept(const EntityT& entity) {
+      _removeAllComponentsExcept<Components...>(entity);
+    }
+
+    void clear() {
+      mEntities.clear();
+      for(auto pool = poolsBegin(); pool != poolsEnd(); ++pool) {
+        pool.clear();
       }
     }
 
@@ -110,33 +274,21 @@ namespace ecx {
       return it != mEntities.end();
     }
 
-    //TODO: optimization for zero size components
     template<class ComponentT, class... Args>
     ComponentT& addComponent(EntityT entity, Args&&... args) {
       using CompT = DecayType<ComponentT>;
       assert(mEntities.find(entity) != mEntities.end() && "Entity should exist");
-
-      ComponentPool& pool = _getPool<CompT>();
-      const EntityT newSlot = pool.mEntities.insert(entity).mPackedId;
-      std::vector<CompT>& storage = *pool.mComponents->get<CompT>();
-      CompT& newComponent = _getOrResize(storage, static_cast<size_t>(newSlot));
-      newComponent = CompT(std::forward<Args>(args)...);
-      return newComponent;
+      return _getPool<CompT>().addComponent<CompT>(entity, std::forward<Args>(args)...);
     }
 
     template<class ComponentT>
     void removeComponent(EntityT entity) {
-      _removeComponent(_getPool<ComponentT>(), entity);
+      _getPool<ComponentT>().removeComponent<ComponentT>(entity);
     }
 
     template<class ComponentT>
     DecayType<ComponentT>* tryGetComponent(EntityT entity) {
-      ComponentPool& pool = _getPool<ComponentT>();
-      if(auto it = pool.mEntities.find(entity); it != pool.mEntities.end()) {
-        const auto slot = static_cast<size_t>(it.value().mPackedId);
-        return &pool.mComponents->get<DecayType<ComponentT>>()->at(slot);
-      }
-      return nullptr;
+      return _getPool<ComponentT>().tryGetComponent<ComponentT>(entity);
     }
 
     template<class ComponentT>
@@ -151,25 +303,45 @@ namespace ecx {
 
     template<class ComponentT>
     It<ComponentT> begin() {
-      ComponentPool& pool = _getPool<ComponentT>();
-      return It<ComponentT>(&pool, pool.mEntities.begin());
+      return _getPool<ComponentT>().begin<ComponentT>();
     }
 
     template<class ComponentT>
     It<ComponentT> end() {
-      ComponentPool& pool = _getPool<ComponentT>();
-      return It<ComponentT>(&pool, pool.mEntities.end());
+      return _getPool<ComponentT>().end<ComponentT>();
     }
 
     template<class ComponentT>
     It<ComponentT> find(EntityT entity) {
-      ComponentPool& pool = _getPool<ComponentT>();
-      return It<ComponentT>(&pool, pool.mEntities.find(entity));
+      return _getPool<ComponentT>().find<ComponentT>(entity);
     }
 
     template<class ComponentT>
     size_t size() {
-      return _getPool<ComponentT>().mComponents->size();
+      return _getPool<ComponentT>().size();
+    }
+
+    template<class ComponentT>
+    PoolIt findPool() {
+      using Type = DecayType<ComponentT>;
+      size_t index = static_cast<size_t>(typeId<Type, decltype(*this)>());
+      return PoolIt(mComponentPools.size() > index ? mComponentPools.begin() + index : mComponentPools.end());
+    }
+
+    template<class ComponentT>
+    PoolIt getOrCreatePool() {
+      using Type = DecayType<ComponentT>;
+      size_t index = static_cast<size_t>(typeId<Type, decltype(*this)>());
+      _getOrResize(mComponentPools, index);
+      return { mComponentPools.begin() + index };
+    }
+
+    PoolIt poolsBegin() {
+      return { mComponentPools.begin() };
+    }
+
+    PoolIt poolsEnd() {
+      return { mComponentPools.end() };
     }
 
     size_t size() const {
@@ -181,11 +353,6 @@ namespace ecx {
     }
 
   private:
-    struct ComponentPool {
-      std::unique_ptr<TypeErasedContainer<std::vector>> mComponents;
-      SparseSet<EntityT> mEntities;
-    };
-
     static void _removeComponent(ComponentPool& pool, const EntityT& entity) {
       if(auto componentIt = pool.mEntities.find(entity); componentIt != pool.mEntities.end()) {
         //Removal will do a swap remove in the sparse set, do the same for the components
@@ -197,8 +364,25 @@ namespace ecx {
       }
     }
 
-    template<class Container>
-    static typename Container::reference _getOrResize(Container& container, size_t index) {
+    template<class... Components>
+    auto _removeAllComponentsExcept(const EntityT& entity) {
+      auto it = mEntities.find(entity);
+      if(it != mEntities.end()) {
+        //Remove from all component pools
+        for(ComponentPool& pool : mComponentPools) {
+          if constexpr(sizeof...(Components) > 0) {
+            //If this is an ignored type, skip it
+            if(((typeId<std::decay_t<Components>, TypeErasedTag>() == pool.mComponents->type()) || ...)) {
+              continue;
+            }
+          }
+          _removeComponent(pool, entity);
+        }
+      }
+      return it;
+    }
+
+    ComponentPool& _getOrResize(std::vector<ComponentPool>& container, size_t index) {
       if(container.size() <= index) {
         container.resize(index + 1);
       }
@@ -206,14 +390,14 @@ namespace ecx {
     }
 
     template<class T>
-    ComponentPool& _getPool() {
+    PoolIt _getPool() {
       using Type = DecayType<T>;
       auto id = typeId<Type, decltype(*this)>();
       ComponentPool& pool = _getOrResize(mComponentPools, static_cast<size_t>(id));
       if(!pool.mComponents) {
         pool.mComponents = std::make_unique<TypeErasedContainer<std::vector>>(TypeErasedContainer<std::vector>::create<Type>());
       }
-      return pool;
+      return { mComponentPools.begin() + static_cast<size_t>(id) };
     }
 
     SparseSet<EntityT> mEntities;

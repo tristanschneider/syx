@@ -113,6 +113,10 @@ struct TypeErasedContainer {
     _reset();
   }
 
+  typeId_t<TypeErasedTag> type() const {
+    return mTraits->type();
+  }
+
   template<class T>
   ContainerT<T>* get() {
     return _assertCorrectType<T>() ? static_cast<ContainerT<T>*>(mData) : nullptr;

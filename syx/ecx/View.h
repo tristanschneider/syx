@@ -265,6 +265,7 @@ namespace ecx {
       It& operator=(const It&) = default;
 
       It& operator++() {
+        //TODO: mega inefficient to find the smallest every time. Find it once and store the index for later use
         if(std::optional<EntityT> entity = _findNextEntity(_findSmallestIterator(), false)) {
           _setEntity(*entity);
         }
