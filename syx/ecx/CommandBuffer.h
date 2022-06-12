@@ -32,8 +32,8 @@ namespace ecx {
       chunk.mCreateChunk = [](DestinationRegistry& registry) {
         return registry.getOrCreateChunk<Components...>();
       };
-      mCommandEntities.addComponent<CreateCommandChunkID>(entity, std::move(chunk));
-      mCommandEntities.addComponent<EntityAddRemoveFilterTag>(entity);
+      mCommandEntities.addComponent<CreateCommandChunkID>(entity.mData.mRawId, std::move(chunk));
+      mCommandEntities.addComponent<EntityAddRemoveFilterTag>(entity.mData.mRawId);
       //These are all `AssignComponent` cases because the entity command will add it to the chunk which will default construct all component types,
       //then they will be filled in by assignments
       return std::make_tuple(entity, _addComponentCommand<Components>(entity.mData.mRawId, ComponentCommandType::AssignComponent)...);
@@ -48,21 +48,25 @@ namespace ecx {
             return;
           case EntityCommandType::CreateAndAddComponents:
             //If this was a fresh entity, then the command for it can be removed
-            _setComponentCommandOnAllComponents(entity, ComponentCommandType::SkipCommand);
+            _setComponentCommandOnAllComponents(entity.mData.mRawId, ComponentCommandType::SkipCommand);
             *existingCommand = EntityCommandType::SkipCommand;
             return;
           case EntityCommandType::AddRemoveComponents:
             //If this command was for adding some components, erase the add/remove commands and replace with a remove entity command
-            _setComponentCommandOnAllComponents(entity, ComponentCommandType::SkipCommand);
+            _setComponentCommandOnAllComponents(entity.mData.mRawId, ComponentCommandType::SkipCommand);
             *existingCommand = EntityCommandType::RemoveEntity;
             return;
+            //Recycle processed command slot into a new remove command
+          case EntityCommandType::SkipCommand:
+            *existingCommand = EntityCommandType::RemoveEntity;
+            break;
         }
       }
       else {
         //A command does not already exist for this, create it
         _createCommandEntity(entity, EntityCommandType::RemoveEntity);
       }
-      mCommandEntities.addComponent<EntityAddRemoveFilterTag>(entity);
+      mCommandEntities.addComponent<EntityAddRemoveFilterTag>(entity.mData.mRawId);
     }
 
     template<class Component>
@@ -143,11 +147,11 @@ namespace ecx {
 
     struct ComponentCommandProcessor {
       void (*processCommands)(CommandRegistry&, DestinationRegistry&) = nullptr;
-      void (*setComponentCommand)(CommandRegistry&, ComponentCommandType, const CommandEntity&);
+      void (*setComponentCommand)(CommandRegistry&, ComponentCommandType, const CommandEntity&) = nullptr;
     };
 
     template<class Component>
-    void _updateComponentCommandForAddRemove(const CommandEntity& entity, EntityCommandType existingCommand, ComponentCommandType& type) {
+    void _updateComponentCommandForAddRemove(const CommandEntity& entity, EntityCommandType& existingCommand, ComponentCommandType& type) {
       ComponentCommand<Component>* existingComponentCommand = mCommandEntities.tryGetComponent<ComponentCommand<Component>>(entity);
       switch(existingCommand) {
       //If this is already an add/remove case then nothing special needed
@@ -167,17 +171,20 @@ namespace ecx {
               case ComponentCommandType::SkipCommand:
                 assert(false && "unexpected type");
                 break;
-                //Fall through to return
-              case ComponentCommandType::AddComponent:
-                return registry.getOrCreateChunkAddedComponent<Component>(prev(registry));
-              case ComponentCommandType::RemoveComponent:
-                return registry.getOrCreateChunkRemovedComponent<Component>(prev(registry));
+              case ComponentCommandType::AddComponent: {
+                auto prevChunkIt = prev(registry);
+                return prevChunkIt.hasComponents<Component>() ? prevChunkIt : registry.getOrCreateChunkAddedComponent<Component>(prevChunkIt);
+              }
+              case ComponentCommandType::RemoveComponent: {
+                auto prevChunkIt = prev(registry);
+                return prevChunkIt.hasComponents<Component>() ? registry.getOrCreateChunkRemovedComponent<Component>(prev(registry)) : prevChunkIt;
+              }
             }
             return registry.endChunks();
           };
         }
         //Since chunk was updated above, component will be added upon creation, and needs to be assigned
-        type = ComponentCommandType::AssignComponent;
+        type = type == ComponentCommandType::RemoveComponent ? ComponentCommandType::RemoveComponent : ComponentCommandType::AssignComponent;
         break;
       }
       case EntityCommandType::RemoveEntity:
@@ -185,9 +192,12 @@ namespace ecx {
           //Calling remove component on a removed entity is fine I guess, otherwise fall through to assert
           break;
         }
-      case EntityCommandType::SkipCommand:
         assert(false && "Invalid state");
-        //TODO: what to do about the skip case?
+        break;
+      case EntityCommandType::SkipCommand:
+        //Recycle skipped command into the new command
+        existingCommand = EntityCommandType::AddRemoveComponents;
+        break;
       }
     }
 
@@ -290,7 +300,7 @@ namespace ecx {
           break;
         }
         case EntityCommandType::AddRemoveComponents:
-          assert(false && "Command shouldn't have EntityAddRemoveFilterTag if it's a command to add and remove components");
+          //This can happen if an entity command gets recycled from a create command to add/remove before clearing
           break;
       }
       //Mark as processed
@@ -308,6 +318,7 @@ namespace ecx {
       //Add new or replace existing type
       mCommandEntities.addComponent<ComponentCommand<ComponentT>>(entity, ComponentCommand<ComponentT>{ type });
       auto pool = mCommandEntities.findPool<ComponentT>();
+      const bool isExistingPool = pool != mCommandEntities.poolsEnd();
       ComponentT* result = nullptr;
       //Add the command based on type
       switch(type) {
@@ -323,7 +334,7 @@ namespace ecx {
           break;
       }
 
-      if(pool != mCommandEntities.poolsEnd()) {
+      if(isExistingPool) {
         return result;
       }
       //If this is a new pool, initialize the shared component on it

@@ -141,7 +141,6 @@ namespace ecx {
       template<class ComponentT, class... Args>
       ComponentT& addComponent(EntityT entity, Args&&... args) {
         using CompT = DecayType<ComponentT>;
-        assert(mEntities.find(entity) != mEntities.end() && "Entity should exist");
 
         ComponentPool& pool = *mPool;
         const EntityT newSlot = pool.mEntities.insert(entity).mPackedId;
@@ -196,7 +195,8 @@ namespace ecx {
 
       template<class ComponentT>
       size_t size() {
-        return mPool->mComponents->size();
+        auto& components = mPool->mComponents;
+        return components ? components->size() : size_t(0);
       }
 
       void clear() {
@@ -303,22 +303,26 @@ namespace ecx {
 
     template<class ComponentT>
     It<ComponentT> begin() {
-      return _getPool<ComponentT>().begin<ComponentT>();
+      auto pool = _tryGetPool<ComponentT>();
+      return pool != poolsEnd() ? pool.begin<ComponentT>() : createEmptyIt<ComponentT>();
     }
 
     template<class ComponentT>
     It<ComponentT> end() {
-      return _getPool<ComponentT>().end<ComponentT>();
+      auto pool = _tryGetPool<ComponentT>();
+      return pool != poolsEnd() ? pool.end<ComponentT>() : createEmptyIt<ComponentT>();
     }
 
     template<class ComponentT>
     It<ComponentT> find(EntityT entity) {
-      return _getPool<ComponentT>().find<ComponentT>(entity);
+      auto pool = _tryGetPool<ComponentT>();
+      return pool != poolsEnd() ? pool.find<ComponentT>(entity) : createEmptyIt<ComponentT>();
     }
 
     template<class ComponentT>
     size_t size() {
-      return _getPool<ComponentT>().size();
+      auto pool = _tryGetPool<ComponentT>();
+      return pool != poolsEnd() ? pool.size<ComponentT>() : size_t(0);
     }
 
     template<class ComponentT>
@@ -382,11 +386,24 @@ namespace ecx {
       return it;
     }
 
+    //Create an empty iterator for if there is no pool to point at should only need comparison since begin != end should immediately exit
+    template<class ComponentT>
+    It<ComponentT> createEmptyIt() {
+      return { nullptr, mEntities.end() };
+    }
+
     ComponentPool& _getOrResize(std::vector<ComponentPool>& container, size_t index) {
       if(container.size() <= index) {
         container.resize(index + 1);
       }
       return container[index];
+    }
+
+    template<class T>
+    PoolIt _tryGetPool() {
+      using Type = DecayType<T>;
+      const size_t index = static_cast<size_t>(typeId<Type, decltype(*this)>());
+      return mComponentPools.size() > index ? mComponentPools.begin() + index : mComponentPools.end();
     }
 
     template<class T>

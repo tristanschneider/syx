@@ -59,7 +59,7 @@ namespace ecx {
       return buildChunkId<ComponentT>(current);
     }
 
-    operator bool() const {
+    explicit operator bool() const {
       return *this != LinearEntity();
     }
 
@@ -676,7 +676,7 @@ namespace ecx {
 
       template<class... Components>
       bool hasComponents() {
-        return (mChunk->second->hasType<std::decay_t<Components>>() && ...);
+        return (mChunk->second->hasType(typeId<std::decay_t<Components>, LinearEntity>()) && ...);
       }
 
       std::optional<LinearEntity> tryAddDefaultConstructedEntity(const LinearEntity& entity) {

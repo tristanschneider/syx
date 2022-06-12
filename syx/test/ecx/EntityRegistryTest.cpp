@@ -2,11 +2,13 @@
 #include "CppUnitTest.h"
 
 #include "EntityRegistry.h"
+#include "View.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 namespace ecx {
   TEST_CLASS(EntityRegistryTest) {
+    using TestEntity = uint32_t;
     using TestEntityRegistry = EntityRegistry<uint32_t>;
 
     TEST_METHOD(EntityRegistry_CreateEntity_IsValid) {
@@ -200,6 +202,40 @@ namespace ecx {
 
       Assert::IsFalse(it == registry.end<int>());
       Assert::AreEqual(it.component(), 10);
+    }
+
+    TEST_METHOD(EntityRegistry_PoolsForLoop_Ends) {
+      TestEntityRegistry registry;
+      int counter = 0;
+
+      for(auto it = registry.poolsBegin(); it != registry.poolsEnd() && counter++ < 100; ++it) {
+      }
+
+      Assert::IsTrue(counter < 100);
+    }
+
+    static size_t getPoolCount(TestEntityRegistry& registry) {
+      size_t count = 0;
+      for(auto it = registry.poolsBegin(); it != registry.poolsEnd(); ++it) {
+        ++count;
+      }
+      return count;
+    }
+
+    TEST_METHOD(EntityRegistry_IteratePoolAndView_NoNewPoolsCreated) {
+      TestEntityRegistry registry;
+      const size_t originalPoolCount = getPoolCount(registry);
+      Assert::IsTrue(originalPoolCount > 0, L"This test assumes there's some default pool");
+
+      for(auto it = registry.poolsBegin(); it != registry.poolsEnd(); ++it) {
+        ecx::View<TestEntity, Read<int>> view(registry);
+        for(auto&& thing : view) {
+          (void)thing;
+        }
+      }
+
+      const size_t newPoolCount = getPoolCount(registry);
+      Assert::AreEqual(originalPoolCount, newPoolCount);
     }
   };
 }
