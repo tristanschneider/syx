@@ -7,7 +7,27 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 namespace ecx {
   TEST_CLASS(LinearEntityRegistryTest) {
-    using TestEntityRegistry = EntityRegistry<LinearEntity>;
+    struct TestEntityRegistry : public EntityRegistry<LinearEntity> {
+      using Base = EntityRegistry<LinearEntity>;
+
+      LinearEntity createEntity() {
+        return Base::createEntity(*getDefaultEntityGenerator());
+      }
+
+      void destroyEntity(LinearEntity entity) {
+        Base::destroyEntity(entity, *getDefaultEntityGenerator());
+      }
+
+      template<class... Args>
+      auto createEntityWithComponents() {
+        return Base::createEntityWithComponents<Args...>(*getDefaultEntityGenerator());
+      }
+
+      template<class... Args>
+      auto createAndGetEntityWithComponents() {
+        return Base::createAndGetEntityWithComponents<Args...>(*getDefaultEntityGenerator());
+      }
+    };
 
     TEST_METHOD(LinearEntity_TwoTypes_NotSame) {
       const uint32_t i = LinearEntity::buildChunkId<int>();
@@ -252,46 +272,12 @@ namespace ecx {
       Assert::AreEqual(it.component(), 10);
     }
 
-    TEST_METHOD(EntityRegistry_TryCreateEntityNew_IsCreated) {
-      TestEntityRegistry registry;
-
-      Assert::IsTrue(registry.tryCreateEntity(LinearEntity(10, 0)).has_value());
-    }
-
-    TEST_METHOD(EntityRegistry_TryCreateTaken_NotCreated) {
-      TestEntityRegistry registry;
-      auto first = registry.createEntity();
-
-      Assert::IsFalse(registry.tryCreateEntity(first).has_value());
-    }
-
-    TEST_METHOD(EntityRegistry_CreateNewWithSlotTaken_NewSlotChosen) {
-      TestEntityRegistry registry;
-      //This is the first id that will attempt to be generated
-      registry.tryCreateEntity(LinearEntity(1, 0));
-
-      auto entity = registry.createEntity();
-
-      Assert::AreNotEqual(uint32_t(1), entity.mData.mParts.mEntityId);
-    }
-
     TEST_METHOD(EntityRegistry_CreateWithComponents_HasComponents) {
       TestEntityRegistry registry;
       auto entity = registry.createEntityWithComponents<int, std::string>();
 
       Assert::IsTrue(registry.hasComponent<int>(entity));
       Assert::IsTrue(registry.hasComponent<std::string>(entity));
-    }
-
-    TEST_METHOD(EntityRegistry_TryCreateWithComponents_HasComponents) {
-      TestEntityRegistry registry;
-      LinearEntity desired(100, 0);
-      auto entity = registry.tryCreateEntityWithComponents<int, std::string>(desired);
-
-      Assert::IsTrue(entity.has_value());
-      Assert::IsTrue(*entity == desired);
-      Assert::IsTrue(registry.hasComponent<int>(*entity));
-      Assert::IsTrue(registry.hasComponent<std::string>(*entity));
     }
 
     TEST_METHOD(EntityRegistry_CreateAndDestroyEntity_IsInvalid) {
@@ -313,15 +299,6 @@ namespace ecx {
       Assert::AreEqual(entity.mData.mParts.mEntityId, newEntity.mData.mParts.mEntityId);
       Assert::IsTrue(entity != newEntity);
       Assert::IsFalse(registry.isValid(entity));
-    }
-
-    TEST_METHOD(EntityRegistry_TryCreateReUsedId_Fails) {
-      TestEntityRegistry registry;
-      LinearEntity original = registry.createEntity();
-      registry.destroyEntity(original);
-      registry.createEntity();
-
-      Assert::IsFalse(registry.tryCreateEntity(original).has_value());
     }
 
     TEST_METHOD(EntityRegistry_AddExistingComponent_ExistingReturned) {

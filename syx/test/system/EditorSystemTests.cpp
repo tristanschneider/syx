@@ -16,6 +16,27 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 namespace SystemTests {
   using namespace Engine;
   TEST_CLASS(EditorSystemTests) {
+    struct TestEntityRegistry : public Engine::EntityRegistry {
+      using Base = Engine::EntityRegistry;
+
+      auto createEntity() {
+        return Base::createEntity(*getDefaultEntityGenerator());
+      }
+
+      void destroyEntity(Engine::Entity entity) {
+        Base::destroyEntity(entity, *getDefaultEntityGenerator());
+      }
+
+      template<class... Args>
+      auto createEntityWithComponents() {
+        return Base::createEntityWithComponents<Args...>(*getDefaultEntityGenerator());
+      }
+
+      template<class... Args>
+      auto createAndGetEntityWithComponents() {
+        return Base::createAndGetEntityWithComponents<Args...>(*getDefaultEntityGenerator());
+      }
+    };
     struct TestRegistry {
       TestRegistry() {
         //Set up default components needed for the system similar to how App.cpp does
@@ -27,15 +48,15 @@ namespace SystemTests {
         EditorSystem::init()->tick(mRegistry);
       }
 
-      EntityRegistry* operator->() {
+      TestEntityRegistry* operator->() {
         return &mRegistry;
       }
 
-      EntityRegistry& operator*() {
+      TestEntityRegistry& operator*() {
         return mRegistry;
       }
 
-      EntityRegistry mRegistry;
+      TestEntityRegistry mRegistry;
       FileSystem::TestFileSystem* mFileSystem = nullptr;
     };
 

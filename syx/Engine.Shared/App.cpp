@@ -94,7 +94,7 @@ App::~App() {
 }
 
 void App::onUriActivated(std::string uri) {
-  auto message = mEntityRegistry->createEntity();
+  auto message = mEntityRegistry->createEntity(*mEntityRegistry->getDefaultEntityGenerator());
   mEntityRegistry->addComponent<MessageComponent>(message);
   mEntityRegistry->addComponent<UriActivationComponent>(message, UriActivationComponent{ uri });
 

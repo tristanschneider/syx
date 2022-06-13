@@ -9,9 +9,30 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 namespace ecx {
   TEST_CLASS(LinearViewTest) {
     using TestEntity = LinearEntity;
-    using TestEntityRegistry = EntityRegistry<LinearEntity>;
     template<class... Args>
     using TestView = View<LinearEntity, Args...>;
+
+    struct TestEntityRegistry : public EntityRegistry<LinearEntity> {
+      using Base = EntityRegistry<LinearEntity>;
+
+      LinearEntity createEntity() {
+        return Base::createEntity(*getDefaultEntityGenerator());
+      }
+
+      void destroyEntity(LinearEntity entity) {
+        Base::destroyEntity(entity, *getDefaultEntityGenerator());
+      }
+
+      template<class... Args>
+      auto createEntityWithComponents() {
+        return Base::createEntityWithComponents<Args...>(*getDefaultEntityGenerator());
+      }
+
+      template<class... Args>
+      auto createAndGetEntityWithComponents() {
+        return Base::createAndGetEntityWithComponents<Args...>(*getDefaultEntityGenerator());
+      }
+    };
 
     template<class... Args>
     struct Test;

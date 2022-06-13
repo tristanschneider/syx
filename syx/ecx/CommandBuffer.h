@@ -20,8 +20,8 @@ namespace ecx {
     using CommandView = View<CommandEntity, Args...>;
     using DestinationRegistry = EntityRegistry<LinearEntity>;
 
-    CommandBuffer(IDGenerator idGen)
-      : mIDGen(std::move(idGen)) {
+    CommandBuffer(DestinationRegistry& registry)
+      : mEntityGenerator(registry.createEntityGenerator()) {
     }
 
     template<class... Components>
@@ -81,10 +81,11 @@ namespace ecx {
 
     void processAllCommands(EntityRegistry<LinearEntity>& registry) {
       EntityCommandView entityCommands(mCommandEntities);
+      IndependentEntityGenerator& generator = *mEntityGenerator;
       //First ensure all necessary entities have been created or removed
       for(auto it = entityCommands.begin(); it != entityCommands.end(); ++it) {
         EntityCommandType& type = (*it).get<EntityCommandType>();
-        _processEntityCommand(registry, type, it);
+        _processEntityCommand(registry, type, it, generator);
       }
 
       //Process per-component commands of each pool
@@ -100,7 +101,7 @@ namespace ecx {
     //This can include creation commands which affect other component types
     template<class Component>
     void processCommandsForComponent(DestinationRegistry& registry) {
-      _processAllEntityCommands(mCommandEntities, registry);
+      _processAllEntityCommands(mCommandEntities, registry, *mEntityGenerator);
       _processAllComponentCommands<Component>(mCommandEntities, registry);
     }
 
@@ -262,23 +263,23 @@ namespace ecx {
       commandEntities.findPool<ComponentCommand<Component>>().clear();
     }
 
-    static void _processAllEntityCommands(CommandRegistry& commandEntities, DestinationRegistry& registry) {
+    static void _processAllEntityCommands(CommandRegistry& commandEntities, DestinationRegistry& registry, IndependentEntityGenerator& generator) {
       EntityCommandView entityCommands(commandEntities);
       //First ensure all necessary entities have been created or removed
       for(auto it = entityCommands.begin(); it != entityCommands.end(); ++it) {
         EntityCommandType& type = (*it).get<EntityCommandType>();
-        _processEntityCommand(registry, type, it);
+        _processEntityCommand(registry, type, it, generator);
       }
     }
 
-    static void _processEntityCommand(DestinationRegistry& registry, EntityCommandType& type, EntityCommandView::It& commandIt) {
+    static void _processEntityCommand(DestinationRegistry& registry, EntityCommandType& type, EntityCommandView::It& commandIt, IndependentEntityGenerator& generator) {
       switch(type) {
         //If add/remove has already been processed, move on
         case EntityCommandType::SkipCommand:
           break;
         //This is an unprocessed remove entity command. Remove the entity then mark this command as processed
         case EntityCommandType::RemoveEntity:
-          registry.destroyEntity((*commandIt).entity());
+          registry.destroyEntity((*commandIt).entity(), generator);
           type = EntityCommandType::SkipCommand;
           break;
         //This is an unprocessed add entity command add the entity into its chunk. This means it will have all
@@ -294,7 +295,7 @@ namespace ecx {
           }
 
           //Add the entity to the existing or newly created chunk
-          if(!chunk.tryAddDefaultConstructedEntity((*commandIt).entity())) {
+          if(!chunk.tryAddDefaultConstructedEntity((*commandIt).entity(), generator)) {
             assert(false && "generated id should always result in new entities");
           }
           break;
@@ -308,7 +309,7 @@ namespace ecx {
     }
 
     LinearEntity _createCommandEntity(EntityCommandType command) {
-      const LinearEntity result = mIDGen();
+      const LinearEntity result = mEntityGenerator->getOrCreateId();
       _createCommandEntity(result, command);
       return result;
     }
@@ -379,6 +380,8 @@ namespace ecx {
     //Use the sparse style registry because chunk approach isn't important here and command order is desired
     //which will be provided by packed component order
     EntityRegistry<CommandEntity> mCommandEntities;
-    IDGenerator mIDGen;
+    std::shared_ptr<IndependentEntityGenerator> mEntityGenerator;
   };
+
+
 };

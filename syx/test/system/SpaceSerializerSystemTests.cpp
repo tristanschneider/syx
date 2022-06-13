@@ -11,9 +11,30 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 namespace SystemTests {
   using namespace Engine;
+  struct TestEntityRegistry : public Engine::EntityRegistry {
+    using Base = Engine::EntityRegistry;
+
+    auto createEntity() {
+      return Base::createEntity(*getDefaultEntityGenerator());
+    }
+
+    void destroyEntity(Engine::Entity entity) {
+      Base::destroyEntity(entity, *getDefaultEntityGenerator());
+    }
+
+    template<class... Args>
+    auto createEntityWithComponents() {
+      return Base::createEntityWithComponents<Args...>(*getDefaultEntityGenerator());
+    }
+
+    template<class... Args>
+    auto createAndGetEntityWithComponents() {
+      return Base::createAndGetEntityWithComponents<Args...>(*getDefaultEntityGenerator());
+    }
+  };
 
   TEST_CLASS(SpaceSerializerSystemTests) {
-    Entity createSavingSpace(EntityRegistry& registry, ParsedSpaceContentsComponent parsed) {
+    Entity createSavingSpace(TestEntityRegistry& registry, ParsedSpaceContentsComponent parsed) {
       auto space = registry.createEntity();
       registry.addComponent<SpaceSavingComponent>(space);
       registry.addComponent<SpaceFillingEntitiesComponent>(space);
@@ -21,7 +42,7 @@ namespace SystemTests {
       return space;
     }
 
-    Entity createLoadingSpace(EntityRegistry& registry, ParsedSpaceContentsComponent parsed) {
+    Entity createLoadingSpace(TestEntityRegistry& registry, ParsedSpaceContentsComponent parsed) {
       auto space = registry.createEntity();
       registry.addComponent<SpaceLoadingComponent>(space);
       registry.addComponent<SpaceFillingEntitiesComponent>(space);
@@ -29,7 +50,7 @@ namespace SystemTests {
       return space;
     }
 
-    Entity addEntity(EntityRegistry& registry) {
+    Entity addEntity(TestEntityRegistry& registry) {
       auto entity = registry.createEntity();
       registry.addComponent<TransformComponent>(entity);
       return entity;
@@ -44,21 +65,21 @@ namespace SystemTests {
     }
 
     TEST_METHOD(EmptySpaceSerialize_Tick_NothingHappens) {
-      EntityRegistry registry;
+      TestEntityRegistry registry;
       auto space = createSavingSpace(registry, {});
 
       createTestSystems().tick(registry);
     }
 
     TEST_METHOD(EmptySpaceDeserialize_Tick_NothingHappens) {
-      EntityRegistry registry;
+      TestEntityRegistry registry;
       auto space = createLoadingSpace(registry, {});
 
       createTestSystems().tick(registry);
     }
 
     TEST_METHOD(SingleEntitySerialize_Tick_IsSerialized) {
-      EntityRegistry registry;
+      TestEntityRegistry registry;
       ParsedSpaceContentsComponent contents;
       contents.mNewEntities.push_back(addEntity(registry));
       auto space = createSavingSpace(registry, contents);
@@ -69,7 +90,7 @@ namespace SystemTests {
     }
 
     TEST_METHOD(TwoEntitySerialize_Tick_AreSerialized) {
-      EntityRegistry registry;
+      TestEntityRegistry registry;
       ParsedSpaceContentsComponent contents;
       contents.mNewEntities.push_back(addEntity(registry));
       contents.mNewEntities.push_back(addEntity(registry));
@@ -81,7 +102,7 @@ namespace SystemTests {
     }
 
     TEST_METHOD(SingleEntity_TickRoundTrip_IsSame) {
-      EntityRegistry registry;
+      TestEntityRegistry registry;
       ParsedSpaceContentsComponent contents;
       auto entity = addEntity(registry);
       registry.getComponent<TransformComponent>(entity).mValue[0][0] = 3.f;

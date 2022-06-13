@@ -16,9 +16,35 @@
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 namespace SystemTests {
-  using namespace Engine;
-
   TEST_CLASS(SpaceSystemTests) {
+    using Entity = Engine::Entity;
+    template<class... Args>
+    using View = Engine::View<Args...>;
+    template<class T>
+    using Read = Engine::Read<T>;
+    using Scheduler = Engine::Scheduler;
+    struct EntityRegistry : public Engine::EntityRegistry {
+      using Base = Engine::EntityRegistry;
+
+      auto createEntity() {
+        return Base::createEntity(*getDefaultEntityGenerator());
+      }
+
+      void destroyEntity(Engine::Entity entity) {
+        Base::destroyEntity(entity, *getDefaultEntityGenerator());
+      }
+
+      template<class... Args>
+      auto createEntityWithComponents() {
+        return Base::createEntityWithComponents<Args...>(*getDefaultEntityGenerator());
+      }
+
+      template<class... Args>
+      auto createAndGetEntityWithComponents() {
+        return Base::createAndGetEntityWithComponents<Args...>(*getDefaultEntityGenerator());
+      }
+    };
+
     Entity addEntity(EntityRegistry& registry, Entity space) {
       auto entity = registry.createEntity();
       registry.addComponent<TransformComponent>(entity);

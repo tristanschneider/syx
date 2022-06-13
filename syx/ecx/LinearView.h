@@ -55,8 +55,9 @@ namespace ecx {
     }
 
     //Take the factory to force the system to indicate that it will be destroying entities
-    void clear(EntityFactory<LinearEntity>&) {
-      mChunk.clearEntities();
+    void clear(EntityFactory<LinearEntity>& factory) {
+      //TODO: replace with version that goes through the command buffer
+      mChunk.clearEntities(*factory.mRegistry->getDefaultEntityGenerator());
     }
 
   private:

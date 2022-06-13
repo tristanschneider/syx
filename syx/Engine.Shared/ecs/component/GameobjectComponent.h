@@ -8,6 +8,10 @@ struct NameTagComponent {
   std::string mName;
 };
 
+struct SerializeIDComponent {
+  uint32_t mId{};
+};
+
 namespace ecx {
   template<>
   struct StaticTypeInfo<NameTagComponent> : StructTypeInfo<

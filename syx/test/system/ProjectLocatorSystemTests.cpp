@@ -16,6 +16,27 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 namespace SystemTests {
   using namespace Engine;
   TEST_CLASS(ProjectLocatorSystemTests) {
+    struct TestEntityRegistry : public Engine::EntityRegistry {
+      using Base = Engine::EntityRegistry;
+
+      auto createEntity() {
+        return Base::createEntity(*getDefaultEntityGenerator());
+      }
+
+      void destroyEntity(Engine::Entity entity) {
+        Base::destroyEntity(entity, *getDefaultEntityGenerator());
+      }
+
+      template<class... Args>
+      auto createEntityWithComponents() {
+        return Base::createEntityWithComponents<Args...>(*getDefaultEntityGenerator());
+      }
+
+      template<class... Args>
+      auto createAndGetEntityWithComponents() {
+        return Base::createAndGetEntityWithComponents<Args...>(*getDefaultEntityGenerator());
+      }
+    };
     struct TestRegistry {
       TestRegistry() {
         //Set up default components needed for the system similar to how App.cpp does
@@ -28,20 +49,19 @@ namespace SystemTests {
         mRegistry.addComponent<ProjectLocatorComponent>(global, std::move(pl));
       }
 
-      EntityRegistry* operator->() {
+      TestEntityRegistry* operator->() {
         return &mRegistry;
       }
 
-      EntityRegistry& operator*() {
+      TestEntityRegistry& operator*() {
         return mRegistry;
       }
 
-      EntityRegistry mRegistry;
+      TestEntityRegistry mRegistry;
       ProjectLocator* mProjectLocator = nullptr;
       FileSystem::TestFileSystem* mFileSystem = nullptr;
     };
 
-    //projectRoot=C:/syx/syx/data/ loadScene=C:/syx/syx/data//scene.json
     TEST_METHOD(ProjectLocatorSystem_ProjectRootUri_ProjectLocatorUpdated) {
       TestRegistry reg;
       reg.mFileSystem->addDirectory("test/dir/t.txt");

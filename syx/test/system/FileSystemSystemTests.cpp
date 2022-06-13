@@ -11,6 +11,27 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 namespace SystemTests {
   using namespace Engine;
   TEST_CLASS(FileSystemSystemTests) {
+    struct TestEntityRegistry : public Engine::EntityRegistry {
+      using Base = Engine::EntityRegistry;
+
+      auto createEntity() {
+        return Base::createEntity(*getDefaultEntityGenerator());
+      }
+
+      void destroyEntity(Engine::Entity entity) {
+        Base::destroyEntity(entity, *getDefaultEntityGenerator());
+      }
+
+      template<class... Args>
+      auto createEntityWithComponents() {
+        return Base::createEntityWithComponents<Args...>(*getDefaultEntityGenerator());
+      }
+
+      template<class... Args>
+      auto createAndGetEntityWithComponents() {
+        return Base::createAndGetEntityWithComponents<Args...>(*getDefaultEntityGenerator());
+      }
+    };
     struct Registry {
       Registry() {
         mSystems.registerSystem(FileSystemSystem::fileReader());
@@ -24,12 +45,12 @@ namespace SystemTests {
         mSystems.tick(mRegistry);
       }
 
-      EntityRegistry* operator->() {
+      TestEntityRegistry* operator->() {
         return &mRegistry;
       }
 
       ecx::SystemRegistry<Entity> mSystems;
-      EntityRegistry mRegistry;
+      TestEntityRegistry mRegistry;
       FileSystem::TestFileSystem* mFS = nullptr;
     };
 

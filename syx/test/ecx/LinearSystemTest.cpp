@@ -12,7 +12,6 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 namespace ecx {
   TEST_CLASS(LinearSystemTest) {
     using TestEntity = LinearEntity;
-    using TestEntityRegistry = EntityRegistry<TestEntity>;
     template<class... Args>
     using TestSystemContext = SystemContext<TestEntity, Args...>;
     template<class... Args>
@@ -20,6 +19,28 @@ namespace ecx {
     using TestEntityFactory = EntityFactory<TestEntity>;
     template<class... Components>
     using TestEntityModifier = EntityModifier<TestEntity, Components...>;
+
+    struct TestEntityRegistry : public EntityRegistry<LinearEntity> {
+      using Base = EntityRegistry<LinearEntity>;
+
+      LinearEntity createEntity() {
+        return Base::createEntity(*getDefaultEntityGenerator());
+      }
+
+      void destroyEntity(LinearEntity entity) {
+        Base::destroyEntity(entity, *getDefaultEntityGenerator());
+      }
+
+      template<class... Args>
+      auto createEntityWithComponents() {
+        return Base::createEntityWithComponents<Args...>(*getDefaultEntityGenerator());
+      }
+
+      template<class... Args>
+      auto createAndGetEntityWithComponents() {
+        return Base::createAndGetEntityWithComponents<Args...>(*getDefaultEntityGenerator());
+      }
+    };
 
     TEST_METHOD(SystemContext_GetView_ViewWorks) {
       TestEntityRegistry registry;

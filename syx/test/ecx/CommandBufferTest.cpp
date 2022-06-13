@@ -48,7 +48,7 @@ namespace ecx {
 
       Mode mMode = Mode::All;
       TestRegistry mRegistry;
-      TestBuffer mBuffer{ createIDGenerator() };
+      TestBuffer mBuffer{ mRegistry };
     };
 
     std::unique_ptr<Registry> mAllRegistry;

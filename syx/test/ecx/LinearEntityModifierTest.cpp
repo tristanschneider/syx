@@ -9,7 +9,17 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 namespace ecx {
   TEST_CLASS(LinearEntityModifierTest) {
     using TestEntity = LinearEntity;
-    using TestEntityRegistry = EntityRegistry<TestEntity>;
+    struct TestEntityRegistry : public EntityRegistry<TestEntity> {
+      TestEntity createEntity() {
+        return EntityRegistry<TestEntity>::createEntity(*getDefaultEntityGenerator());
+      }
+
+      template<class... Args>
+      auto createEntityWithComponents() {
+        return EntityRegistry<TestEntity>::createEntityWithComponents<Args...>(*getDefaultEntityGenerator());
+      }
+    };
+
     template<class... Components>
     using TestEntityModifier = EntityModifier<TestEntity, Components...>;
 

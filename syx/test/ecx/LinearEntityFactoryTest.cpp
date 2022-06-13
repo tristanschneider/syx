@@ -24,7 +24,7 @@ namespace ecx {
 
     TEST_METHOD(EntityFactory_DestroyEntity_IsDestroyed) {
       TestEntityRegistry registry;
-      auto entity = registry.createEntity();
+      auto entity = registry.createEntity(*registry.getDefaultEntityGenerator());
       registry.addComponent<int>(entity, 99);
       EntityFactory factory(registry);
 

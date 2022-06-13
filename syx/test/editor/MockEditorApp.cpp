@@ -51,11 +51,11 @@ namespace EditorTests {
   }
 
   Engine::Entity TestApp::createNewObject() {
-    return mRegistry.createEntityWithComponents<GameobjectComponent>();
+    return mRegistry.createEntityWithComponents<GameobjectComponent>(*mRegistry.getDefaultEntityGenerator());
   }
 
   Engine::Entity TestApp::createNewObjectWithName(std::string name) {
-    auto&& [entity, a, nameTag ] = mRegistry.createAndGetEntityWithComponents<GameobjectComponent, NameTagComponent>();
+    auto&& [entity, a, nameTag ] = mRegistry.createAndGetEntityWithComponents<GameobjectComponent, NameTagComponent>(*mRegistry.getDefaultEntityGenerator());
     nameTag.get().mName = std::move(name);
     return entity;
   }

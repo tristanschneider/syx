@@ -7,6 +7,28 @@
 
 //Creates an Engine::AppContext with default app registration applied
 struct TestAppContext {
+  struct TestEntityRegistry : public Engine::EntityRegistry {
+    using Base = Engine::EntityRegistry;
+
+    auto createEntity() {
+      return Base::createEntity(*getDefaultEntityGenerator());
+    }
+
+    void destroyEntity(Engine::Entity entity) {
+      Base::destroyEntity(entity, *getDefaultEntityGenerator());
+    }
+
+    template<class... Args>
+    auto createEntityWithComponents() {
+      return Base::createEntityWithComponents<Args...>(*getDefaultEntityGenerator());
+    }
+
+    template<class... Args>
+    auto createAndGetEntityWithComponents() {
+      return Base::createAndGetEntityWithComponents<Args...>(*getDefaultEntityGenerator());
+    }
+  };
+
   TestAppContext() {
     Registration::createDefaultApp()->registerAppContext(mContext);
 
@@ -34,6 +56,6 @@ struct TestAppContext {
 
   std::shared_ptr<Engine::Scheduler> mScheduler = std::make_shared<Engine::Scheduler>(ecx::SchedulerConfig{});
   Engine::AppContext mContext = Engine::AppContext(mScheduler);
-  Engine::EntityRegistry mRegistry;
+  TestEntityRegistry mRegistry;
   FileSystem::TestFileSystem* mFS = nullptr;
 };
