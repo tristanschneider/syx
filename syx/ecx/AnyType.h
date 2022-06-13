@@ -40,7 +40,13 @@ namespace ecx {
       }
 
       void* createInPlace(void* dst, const void* src) const override {
-        return new (dst) T (_cast(src));
+        if constexpr(std::is_copy_assignable_v<T>) {
+          return new (dst) T (_cast(src));
+        }
+        else {
+          assert(false && "Type must be copy constructible");
+          return new (dst) T();
+        }
       }
 
       //Caller responsible for delete, this is only supposed to call destructor in case memory should be re-used
@@ -49,11 +55,22 @@ namespace ecx {
       }
 
       void* copyConstruct(const void* src) const override {
-        return new T(_cast(src));
+        if constexpr(std::is_copy_constructible_v<T>) {
+          return new T(_cast(src));
+        }
+        else {
+          assert(false && "Type must be copy constructible");
+          return new T();
+        }
       }
 
       void copyAssign(void* dst, const void* src) const override {
-        _cast(dst) = _cast(src);
+        if constexpr(std::is_copy_assignable_v<T>) {
+          _cast(dst) = _cast(src);
+        }
+        else {
+          assert(false && "Type must be assignable");
+        }
       }
 
       bool areEqual(const void* a, const void* b) const override {

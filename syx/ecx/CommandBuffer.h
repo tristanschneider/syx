@@ -1,6 +1,7 @@
 #pragma once
 
 #include "LinearEntityRegistry.h"
+#include "View.h"
 
 namespace ecx {
   //Command buffer for deferred creation/destruction of components and entities
@@ -19,6 +20,9 @@ namespace ecx {
     template<class... Args>
     using CommandView = View<CommandEntity, Args...>;
     using DestinationRegistry = EntityRegistry<LinearEntity>;
+
+    CommandBuffer() = default;
+    CommandBuffer(CommandBuffer&&) = default;
 
     CommandBuffer(DestinationRegistry& registry)
       : mEntityGenerator(registry.createEntityGenerator()) {

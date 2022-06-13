@@ -107,6 +107,14 @@ namespace ecx {
       }
     }
 
+    void forEachThreadLocalContext(const std::function<void(ThreadLocalContext&)>& callback) {
+      assert(!mRegistry && "No work should be in progress while viewing thread local contexts");
+      for(ThreadContext& context : mThreads) {
+        callback(*context.mContext->mLocalContext);
+      }
+      callback(*mLocalContext);
+    }
+
     std::thread::id getThreadId(size_t workerIndex) const {
       return workerIndex < mThreads.size() ? mThreads[workerIndex].mThread.get_id() : std::thread::id();
     }

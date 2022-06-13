@@ -1,5 +1,6 @@
 #pragma once
 
+#include "CommandBuffer.h"
 #include "JobGraph.h"
 
 namespace ecx {
@@ -106,6 +107,9 @@ namespace ecx {
     }
 
     void initialize(EntityRegistry<EntityT>& registry) {
+      mScheduler->forEachThreadLocalContext([&registry](ThreadLocalContext& context) {
+        context.emplace<CommandBuffer<EntityT>>(registry);
+      });
       if(mInitializerJob) {
         mScheduler->execute(registry, *mInitializerJob);
       }
