@@ -1,6 +1,7 @@
 #pragma once
 
 #include "AnyTuple.h"
+#include "EntityCommandBuffer.h"
 #include "EntityFactory.h"
 #include "EntityModifier.h"
 #include "EntityRegistry.h"
@@ -23,8 +24,13 @@ namespace ecx {
     std::vector<typeId_t<SystemInfo>> mWriteTypes;
     //Components that are created or destroyed (EntityModifier<>)
     std::vector<typeId_t<SystemInfo>> mFactoryTypes;
+    //Components created or destroyed through a command buffer
+    std::vector<typeId_t<SystemInfo>> mCommandBufferTypes;
     //If this can create or destroy entities (EntityFactory<>)
-    bool mUsesEntityFactory = false;
+    bool mIsBlocking = false;
+    bool mIsCommandProcessor = false;
+    //If it uses the command buffer to destroy entities
+    bool mDeferDestroysEntities = false;
     //Name of the system
     std::string mName;
     //Thread index that this system must run on. Empty if any is fine
@@ -89,6 +95,7 @@ namespace ecx {
       (typename InfoBuilder<Accessors>::build(result), ...);
       _removeDuplicates(result.mExistenceTypes);
       _removeDuplicates(result.mFactoryTypes);
+      _removeDuplicates(result.mFactoryTypes);
       _removeDuplicates(result.mReadTypes);
       _removeDuplicates(result.mWriteTypes);
       return result;
@@ -138,11 +145,21 @@ namespace ecx {
       }
     };
 
+    template<class... Components>
+    struct InfoBuilder<EntityCommandBuffer<EntityT, Components...>> {
+      static void build(SystemInfo& info) {
+        if(EntityCommandBuffer<EntityT, Components...>::HasDestroyCapability) {
+          info.mDeferDestroysEntities = true;
+        }
+        info.mCommandBufferTypes.insert(info.mCommandBufferTypes.end(), { typeId<Components, SystemInfo>()... });
+      }
+    };
+
     //EntityFactory deduction
     template<>
     struct InfoBuilder<EntityFactory<EntityT>> {
       static void build(SystemInfo& info) {
-        info.mUsesEntityFactory = true;
+        info.mIsBlocking = true;
       }
     };
 

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "CommandBufferSystem.h"
 #include "EntityRegistry.h"
 #include "JobInfo.h"
 #include "System.h"
@@ -88,6 +89,7 @@ namespace ecx {
       DependencyInfo<EntityT> mExistenceReaders;
       DependencyInfo<EntityT> mComponentFactories;
       DependencyInfo<EntityT> mEntityFactories;
+      DependencyInfo<EntityT> mCommandPublishers;
     };
 
     //Build a graph of JobInfos based on the system dependencies. The root node contains all
@@ -105,24 +107,47 @@ namespace ecx {
       //Key for use in entityFactories so logic for it can look similar to the other dependencyinfos
       static const auto factoryKey = typeId<void, SystemInfo>();
 
-      for(auto&& system : systems) {
+      std::unordered_set<typeId_t<SystemInfo>> commandProcessTypes;
+      auto tryProcessCommandsForType = [&commandProcessTypes, &builder](typeId_t<SystemInfo> type) {
+        if(const auto& it = builder.mCommandPublishers.mJobs.find(type); it != builder.mCommandPublishers.mJobs.end()) {
+          commandProcessTypes.insert(type);
+        }
+      };
+
+      //Always process at the end of the frame
+      systems.push_back(std::make_shared<ProcessEntireCommandBufferSystem<EntityT>>());
+
+      for(size_t i = 0; i < systems.size(); ++i) {
+        auto system = systems[i];
         auto job = std::make_shared<JobInfo<EntityT>>();
         const SystemInfo info = system->getInfo();
         job->mSystem = system;
         job->mThreadRequirement = info.mThreadRequirement;
         job->mName = info.mName;
 
+        commandProcessTypes.clear();
+
+        bool processAllCommands = false;
         //Add dependents for each type
         for(auto&& type : info.mExistenceTypes) {
+          tryProcessCommandsForType(type);
+          builder.mComponentFactories.addDependent(type, job);
+          builder.mEntityFactories.addDependent(factoryKey, job);
+        }
+        //Command buffer publishers are similar to existence. Any entity/component additions/removals should finish,
+        //while the component values don't mattter because they aren't accessible through the command buffer
+        for(auto&& type : info.mCommandBufferTypes) {
           builder.mComponentFactories.addDependent(type, job);
           builder.mEntityFactories.addDependent(factoryKey, job);
         }
         for(auto&& type : info.mReadTypes) {
+          tryProcessCommandsForType(type);
           builder.mComponentFactories.addDependent(type, job);
           builder.mEntityFactories.addDependent(factoryKey, job);
           builder.mWriters.addDependent(type, job);
         }
         for(auto&& type : info.mWriteTypes) {
+          tryProcessCommandsForType(type);
           builder.mComponentFactories.addDependent(type, job);
           builder.mEntityFactories.addDependent(factoryKey, job);
           builder.mReaders.addDependent(type, job);
@@ -134,6 +159,7 @@ namespace ecx {
           builder.mWriters.clear(type);
         }
         for(auto&& type : info.mFactoryTypes) {
+          tryProcessCommandsForType(type);
           builder.mComponentFactories.addDependent(type, job);
           builder.mEntityFactories.addDependent(factoryKey, job);
           builder.mReaders.addDependent(type, job);
@@ -146,7 +172,14 @@ namespace ecx {
           builder.mWriters.clear(type);
           builder.mExistenceReaders.clear(type);
         }
-        if(info.mUsesEntityFactory) {
+        //Removing an entity could affect any component depending on what happens to be on the entity, so immediately process all commands after the system runs
+        if(info.mDeferDestroysEntities) {
+          processAllCommands = true;
+        }
+        if(info.mIsBlocking) {
+          if(!info.mIsCommandProcessor && !commandProcessTypes.empty()) {
+            processAllCommands = true;
+          }
           builder.mComponentFactories.addDependentToAllTypes(job);
           builder.mEntityFactories.addDependent(factoryKey, job);
           builder.mReaders.addDependentToAllTypes(job);
@@ -159,6 +192,15 @@ namespace ecx {
           builder.mReaders.clearAllTypes();
           builder.mWriters.clearAllTypes();
           builder.mExistenceReaders.clearAllTypes();
+          builder.mCommandPublishers.clearAllTypes();
+        }
+        auto injectCommandSystem = [&systems, &i](std::shared_ptr<ISystem<EntityT>> system) {
+          systems.insert(systems.begin() + i, system);
+        };
+
+        //TODO: ideally commands to process could be on a per-component type basis. That would currently require a compile time component type which isn't available here
+        if(processAllCommands || !commandProcessTypes.empty()) {
+          injectCommandSystem(std::make_shared<ProcessEntireCommandBufferSystem<EntityT>>());
         }
 
         //Add jobs for each type in a second phase so this doesn't depend on itself
@@ -174,7 +216,10 @@ namespace ecx {
         for(auto&& type : info.mFactoryTypes) {
           builder.mComponentFactories.addJob(type, job);
         }
-        if(info.mUsesEntityFactory) {
+        for(auto&& type : info.mCommandBufferTypes) {
+          builder.mCommandPublishers.addJob(type, job);
+        }
+        if(info.mIsBlocking) {
           builder.mEntityFactories.addJob(factoryKey, job);
         }
 

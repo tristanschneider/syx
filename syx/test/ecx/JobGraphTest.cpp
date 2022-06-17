@@ -3,12 +3,14 @@
 
 #include "JobGraph.h"
 #include "JobInfo.h"
+#include "LinearEntityRegistry.h"
+#include "LinearView.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 namespace ecx {
   TEST_CLASS(JobGraphTest) {
-    using TestEntity = uint32_t;
+    using TestEntity = LinearEntity;
     using TestEntityRegistry = EntityRegistry<TestEntity>;
     using TestSystem = ISystem<TestEntity>;
     using TestEntityFactory = EntityFactory<TestEntity>;

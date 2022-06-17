@@ -72,7 +72,7 @@ namespace ecx {
       Assert::AreEqual(size_t(1), info.mReadTypes.size());
       Assert::IsTrue(info.mWriteTypes.empty());
       Assert::IsTrue(info.mFactoryTypes.empty());
-      Assert::IsFalse(info.mUsesEntityFactory);
+      Assert::IsFalse(info.mIsBlocking);
     }
 
     TEST_METHOD(SystemContext_BuildInfoWithDuplicates_NoDuplicates) {
@@ -99,7 +99,7 @@ namespace ecx {
       Assert::AreEqual(size_t(1), info.mReadTypes.size());
       Assert::IsTrue(info.mWriteTypes.empty());
       Assert::IsTrue(info.mFactoryTypes.empty());
-      Assert::IsFalse(info.mUsesEntityFactory);
+      Assert::IsFalse(info.mIsBlocking);
     }
 
     TEST_METHOD(SystemContext_BuildInfoRead_InExistenceAndReadTypes) {
@@ -113,7 +113,7 @@ namespace ecx {
       assertListsMatchOrderless(info.mReadTypes, { typeId<int, SystemInfo>() });
       Assert::IsTrue(info.mWriteTypes.empty());
       Assert::IsTrue(info.mFactoryTypes.empty());
-      Assert::IsFalse(info.mUsesEntityFactory);
+      Assert::IsFalse(info.mIsBlocking);
     }
 
     TEST_METHOD(SystemContext_BuildInfoOptionalRead_InExistenceAndReadTypes) {
@@ -127,7 +127,7 @@ namespace ecx {
       assertListsMatchOrderless(info.mReadTypes, { typeId<int, SystemInfo>(), typeId<short, SystemInfo>() });
       Assert::IsTrue(info.mWriteTypes.empty());
       Assert::IsTrue(info.mFactoryTypes.empty());
-      Assert::IsFalse(info.mUsesEntityFactory);
+      Assert::IsFalse(info.mIsBlocking);
     }
 
     TEST_METHOD(SystemContext_BuildInfoWrite_InExistenceAndReadAndWriteTypes) {
@@ -141,7 +141,7 @@ namespace ecx {
       assertListsMatchOrderless(info.mReadTypes, { typeId<int, SystemInfo>() });
       assertListsMatchOrderless(info.mWriteTypes, { typeId<int, SystemInfo>() });
       Assert::IsTrue(info.mFactoryTypes.empty());
-      Assert::IsFalse(info.mUsesEntityFactory);
+      Assert::IsFalse(info.mIsBlocking);
     }
 
     TEST_METHOD(SystemContext_BuildInfoOptionalWrite_InExistenceAndReadAndWriteTypes) {
@@ -155,7 +155,7 @@ namespace ecx {
       assertListsMatchOrderless(info.mReadTypes, { typeId<int, SystemInfo>(), typeId<short, SystemInfo>() });
       assertListsMatchOrderless(info.mWriteTypes, { typeId<int, SystemInfo>(), typeId<short, SystemInfo>() });
       Assert::IsTrue(info.mFactoryTypes.empty());
-      Assert::IsFalse(info.mUsesEntityFactory);
+      Assert::IsFalse(info.mIsBlocking);
     }
 
     TEST_METHOD(SystemContext_BuildInfoEntityFactory_UsesEntityFactory) {
@@ -165,7 +165,7 @@ namespace ecx {
 
       const SystemInfo info = context.buildInfo();
 
-      Assert::IsTrue(info.mUsesEntityFactory);
+      Assert::IsTrue(info.mIsBlocking);
     }
 
     TEST_METHOD(SystemContext_BuildInfoEntityModifier_InfoModifyReadWriteExistence) {
@@ -179,7 +179,7 @@ namespace ecx {
       assertListsMatchOrderless(info.mReadTypes, { typeId<int, SystemInfo>() });
       assertListsMatchOrderless(info.mWriteTypes, { typeId<int, SystemInfo>() });
       assertListsMatchOrderless(info.mFactoryTypes, { typeId<int, SystemInfo>() });
-      Assert::IsFalse(info.mUsesEntityFactory);
+      Assert::IsFalse(info.mIsBlocking);
     }
 
     TEST_METHOD(SystemContext_UseEntityModifier_Works) {
@@ -215,7 +215,7 @@ namespace ecx {
       assertListsMatchOrderless(info.mReadTypes, { typeId<int, SystemInfo>() });
       Assert::IsTrue(info.mWriteTypes.empty());
       Assert::IsTrue(info.mFactoryTypes.empty());
-      Assert::IsFalse(info.mUsesEntityFactory);
+      Assert::IsFalse(info.mIsBlocking);
     }
 
     TEST_METHOD(System_ExplicitSystem_BuildsSystemWithInfo) {
@@ -231,7 +231,7 @@ namespace ecx {
       assertListsMatchOrderless(info.mReadTypes, { typeId<int, SystemInfo>() });
       Assert::IsTrue(info.mWriteTypes.empty());
       Assert::IsTrue(info.mFactoryTypes.empty());
-      Assert::IsFalse(info.mUsesEntityFactory);
+      Assert::IsFalse(info.mIsBlocking);
     }
 
     TEST_METHOD(System_Tick_ComponentValueChanges) {
