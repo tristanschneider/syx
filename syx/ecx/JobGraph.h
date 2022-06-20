@@ -109,7 +109,7 @@ namespace ecx {
 
       std::unordered_set<typeId_t<SystemInfo>> commandProcessTypes;
       auto tryProcessCommandsForType = [&commandProcessTypes, &builder](typeId_t<SystemInfo> type) {
-        if(const auto& it = builder.mCommandPublishers.mJobs.find(type); it != builder.mCommandPublishers.mJobs.end()) {
+        if(const auto& it = builder.mCommandPublishers.mJobs.find(type); it != builder.mCommandPublishers.mJobs.end() && !it->second.empty()) {
           commandProcessTypes.insert(type);
         }
       };
@@ -117,7 +117,9 @@ namespace ecx {
       //Always process at the end of the frame
       systems.push_back(std::make_shared<ProcessEntireCommandBufferSystem<EntityT>>());
 
-      for(size_t i = 0; i < systems.size(); ++i) {
+      //Hack to skip over injecting a system for which a command processor has already been injected
+      size_t skipInject = std::numeric_limits<size_t>::max();
+      for(size_t i = 0; i < systems.size();) {
         auto system = systems[i];
         auto job = std::make_shared<JobInfo<EntityT>>();
         const SystemInfo info = system->getInfo();
@@ -128,63 +130,111 @@ namespace ecx {
         commandProcessTypes.clear();
 
         bool processAllCommands = false;
+        if(skipInject != i) {
+          for(auto&& type : info.mExistenceTypes) {
+            tryProcessCommandsForType(type);
+          }
+          for(auto&& type : info.mReadTypes) {
+            tryProcessCommandsForType(type);
+          }
+          for(auto&& type : info.mWriteTypes) {
+            tryProcessCommandsForType(type);
+          }
+          for(auto&& type : info.mFactoryTypes) {
+            tryProcessCommandsForType(type);
+          }
+          if(info.mIsBlocking) {
+            if(!info.mIsCommandProcessor && !commandProcessTypes.empty()) {
+              processAllCommands = true;
+            }
+          }
+          //Defer destroy injects after this system
+          if(info.mDeferDestroysEntities) {
+            systems.insert(systems.begin() + i + 1, std::make_shared<ProcessEntireCommandBufferSystem<EntityT>>());
+          }
+        }
+        //TODO: ideally commands to process could be on a per-component type basis. That would currently require a compile time component type which isn't available here
+        if(processAllCommands || !commandProcessTypes.empty()) {
+          systems.insert(systems.begin() + i, std::make_shared<ProcessEntireCommandBufferSystem<EntityT>>());
+          //Inject the system and start over the dependency gathering before adding this one to the job graph
+          //Then skip injection checking for this system the next time around
+          skipInject = i + 1;
+          continue;
+        }
+        else {
+          ++i;
+        }
+
         //Add dependents for each type
         for(auto&& type : info.mExistenceTypes) {
-          tryProcessCommandsForType(type);
           builder.mComponentFactories.addDependent(type, job);
           builder.mEntityFactories.addDependent(factoryKey, job);
-        }
-        //Command buffer publishers are similar to existence. Any entity/component additions/removals should finish,
-        //while the component values don't mattter because they aren't accessible through the command buffer
-        for(auto&& type : info.mCommandBufferTypes) {
-          builder.mComponentFactories.addDependent(type, job);
-          builder.mEntityFactories.addDependent(factoryKey, job);
+          builder.mCommandPublishers.addDependent(type, job);
         }
         for(auto&& type : info.mReadTypes) {
-          tryProcessCommandsForType(type);
           builder.mComponentFactories.addDependent(type, job);
           builder.mEntityFactories.addDependent(factoryKey, job);
           builder.mWriters.addDependent(type, job);
+          builder.mCommandPublishers.addDependent(type, job);
         }
         for(auto&& type : info.mWriteTypes) {
-          tryProcessCommandsForType(type);
           builder.mComponentFactories.addDependent(type, job);
           builder.mEntityFactories.addDependent(factoryKey, job);
           builder.mReaders.addDependent(type, job);
           builder.mWriters.addDependent(type, job);
+          builder.mCommandPublishers.addDependent(type, job);
 
           //Since readers and writers depend on writes the previous ones can be cleared and new ones only need
           //to take a dependency on this
           builder.mReaders.clear(type);
           builder.mWriters.clear(type);
         }
+        //Command buffer publishers change existence and can create entities that readers and writers would see so shouldn't be ordered past them
+        for(auto&& type : info.mCommandBufferTypes) {
+          builder.mComponentFactories.addDependent(type, job);
+          builder.mEntityFactories.addDependent(factoryKey, job);
+          builder.mReaders.addDependent(type, job);
+          builder.mWriters.addDependent(type, job);
+          builder.mCommandPublishers.addDependent(type, job);
+          builder.mExistenceReaders.addDependent(type, job);
+
+          builder.mReaders.clear(type);
+          builder.mWriters.clear(type);
+          builder.mCommandPublishers.clear(type);
+        }
+        //TODO: I think this is wrong and should be blocking since it moves entities between chunks.
+        //should anyway be replaced by command buffer usage
         for(auto&& type : info.mFactoryTypes) {
-          tryProcessCommandsForType(type);
           builder.mComponentFactories.addDependent(type, job);
           builder.mEntityFactories.addDependent(factoryKey, job);
           builder.mReaders.addDependent(type, job);
           builder.mWriters.addDependent(type, job);
           builder.mExistenceReaders.addDependent(type, job);
+          builder.mCommandPublishers.addDependent(type, job);
 
           //Clear any jobs that point back at this
           builder.mComponentFactories.clear(type);
           builder.mReaders.clear(type);
           builder.mWriters.clear(type);
           builder.mExistenceReaders.clear(type);
+          builder.mCommandPublishers.clear(type);
         }
         //Removing an entity could affect any component depending on what happens to be on the entity, so immediately process all commands after the system runs
         if(info.mDeferDestroysEntities) {
-          processAllCommands = true;
-        }
-        if(info.mIsBlocking) {
-          if(!info.mIsCommandProcessor && !commandProcessTypes.empty()) {
-            processAllCommands = true;
-          }
           builder.mComponentFactories.addDependentToAllTypes(job);
           builder.mEntityFactories.addDependent(factoryKey, job);
           builder.mReaders.addDependentToAllTypes(job);
           builder.mWriters.addDependentToAllTypes(job);
           builder.mExistenceReaders.addDependentToAllTypes(job);
+          builder.mCommandPublishers.addDependentToAllTypes(job);
+        }
+        if(info.mIsBlocking) {
+          builder.mComponentFactories.addDependentToAllTypes(job);
+          builder.mEntityFactories.addDependent(factoryKey, job);
+          builder.mReaders.addDependentToAllTypes(job);
+          builder.mWriters.addDependentToAllTypes(job);
+          builder.mExistenceReaders.addDependentToAllTypes(job);
+          builder.mCommandPublishers.addDependentToAllTypes(job);
 
           //Clear any jobs that point back at this
           builder.mComponentFactories.clearAllTypes();
@@ -193,14 +243,6 @@ namespace ecx {
           builder.mWriters.clearAllTypes();
           builder.mExistenceReaders.clearAllTypes();
           builder.mCommandPublishers.clearAllTypes();
-        }
-        auto injectCommandSystem = [&systems, &i](std::shared_ptr<ISystem<EntityT>> system) {
-          systems.insert(systems.begin() + i, system);
-        };
-
-        //TODO: ideally commands to process could be on a per-component type basis. That would currently require a compile time component type which isn't available here
-        if(processAllCommands || !commandProcessTypes.empty()) {
-          injectCommandSystem(std::make_shared<ProcessEntireCommandBufferSystem<EntityT>>());
         }
 
         //Add jobs for each type in a second phase so this doesn't depend on itself

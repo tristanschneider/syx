@@ -110,6 +110,13 @@ namespace ecx {
     };
 
     template<class... Args>
+    struct DeduceGet<EntityCommandBuffer<EntityT, Args...>> {
+      static EntityCommandBuffer<EntityT, Args...> get(EntityRegistry<EntityT>&, ThreadLocalContext& ctx) {
+        return { ctx.getOrCreate<CommandBuffer<EntityT>>() };
+      }
+    };
+
+    template<class... Args>
     struct DeduceGet<View<Args...>, std::enable_if_t<AllViewsTuple::HasType<View<Args...>>::value>> {
       static View<Args...>& get(EntityRegistry<EntityT>& registry, ThreadLocalContext& storage) {
         //Get the old stored one

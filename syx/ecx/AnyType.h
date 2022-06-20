@@ -102,12 +102,12 @@ namespace ecx {
       }
     }
 
-    AnyType(const AnyType& other)
+    AnyType(const AnyType& other) noexcept
       : mTraits(other.mTraits)
       , mData(mTraits ? mTraits->copyConstruct(other.mData) : nullptr) {
     }
 
-    AnyType(AnyType&& other)
+    AnyType(AnyType&& other) noexcept
       : mTraits(other.mTraits)
       , mData(other.mData) {
       other._release();

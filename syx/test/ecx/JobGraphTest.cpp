@@ -18,8 +18,84 @@ namespace ecx {
     using TestEntityModifier = EntityModifier<TestEntity, Args...>;
     template<class... Args>
     using TestView = View<TestEntity, Args...>;
+    template<class... Args>
+    using TestCommandBuffer = EntityCommandBuffer<TestEntity, Args...>;
 
     using SystemList = std::vector<std::shared_ptr<TestSystem>>;
+
+    bool tryRunInOrder(std::vector<std::shared_ptr<TestSystem>> systems, std::vector<std::shared_ptr<TestSystem>> order) {
+      auto root = JobGraph::build(systems);
+      JobGraph::resetDependencies(*root);
+      ThreadLocalContext tlc;
+      TestEntityRegistry registry;
+      //Normally AppContext::initialize would do this
+      tlc.emplace<ecx::CommandBuffer<TestEntity>>(registry);
+      std::vector<std::shared_ptr<JobInfo<TestEntity>>> work;
+      auto queueToThread = [&work](size_t, std::shared_ptr<JobInfo<TestEntity>> job) {
+        work.push_back(std::move(job));
+      };
+
+      work.push_back(root);
+      while(!order.empty() && !work.empty()) {
+        //First try to find the next item in the desired order
+        auto findDesired = std::find_if(work.begin(), work.end(), [next(order.front())](const auto& job) { return job->mSystem == next; });
+        if(findDesired != work.end()) {
+          order.erase(order.begin());
+          auto job = *findDesired;
+          work.erase(findDesired);
+
+          JobGraph::runSystems(registry, tlc, *job, work, queueToThread);
+          continue;
+        }
+
+        //If desired work can't be found, pick an arbitrary one that wouldn't violate the desired order
+        std::shared_ptr<JobInfo<TestEntity>> todo;
+        for(auto it = work.begin(); it != work.end(); ++it) {
+          auto foundInOrder = std::find_if(order.begin(), order.end(), [&it](const auto& system) {
+            return (*it)->mSystem == system;
+          });
+          //If this wasn't in the order list, it can be taken as the current work item because it wouldn't violate the order
+          if(foundInOrder == order.end()) {
+            todo = *it;
+            work.erase(it);
+            break;
+          }
+        }
+
+        if(todo) {
+          JobGraph::runSystems(registry, tlc, *todo, work, queueToThread);
+        }
+        else {
+          //No work could be found meaning the desired order is impossible
+          return false;
+        }
+      }
+      return order.empty();
+    }
+
+    struct Permuter {
+      bool operator<(const Permuter& rhs) {
+        return mOrder < rhs.mOrder;
+      }
+
+      static std::vector<Permuter> build(const std::vector<std::shared_ptr<TestSystem>>& systems) {
+        std::vector<Permuter> result;
+        result.reserve(systems.size());
+        for(size_t i = 0; i < systems.size(); ++i) {
+          result.push_back({ systems[i], i });
+        }
+        return result;
+      }
+
+      static std::vector<std::shared_ptr<TestSystem>> toSystemList(std::vector<Permuter> systems) {
+        std::vector<std::shared_ptr<TestSystem>> result;
+        std::transform(systems.begin(), systems.end(), std::back_inserter(result), [](auto& p) { return p.mSystem; });
+        return result;
+      }
+
+      std::shared_ptr<TestSystem> mSystem;
+      size_t mOrder = 0;
+    };
 
     template<class... ContextArgs>
     std::shared_ptr<TestSystem> createSystem(std::optional<size_t> threadRequirement = {}) {
@@ -32,35 +108,28 @@ namespace ecx {
     }
 
     void testSystemsExpectParallel(std::initializer_list<std::shared_ptr<TestSystem>> systems) {
-      auto root = buildGraph(systems);
-
-      Assert::IsTrue(root != nullptr);
-      Assert::AreEqual(uint32_t(0), root->mTotalDependencies);
-      Assert::AreEqual(systems.size(), root->mDependents.size());
-
-      size_t i = 0;
-      for(const auto& system : systems) {
-        Assert::IsTrue(system.get() == root->mDependents[i]->mSystem.get());
-        ++i;
+      auto permuter = Permuter::build(systems);
+      std::vector<std::shared_ptr<TestSystem>> systemList(systems);
+      do {
+        Assert::IsTrue(tryRunInOrder(systemList, Permuter::toSystemList(permuter)));
       }
+      while(std::next_permutation(permuter.begin(), permuter.end()));
     }
 
     void testSystemsExpectSequential(std::initializer_list<std::shared_ptr<TestSystem>> systems) {
-      auto root = buildGraph(systems);
-      Assert::IsTrue(root != nullptr);
-      Assert::AreEqual(size_t(1), root->mDependents.size(), L"Systems should have been sequential, meaning a single element chain", LINE_INFO());
-
-      auto curNode = root;
-      for(auto&& system : systems) {
-        Assert::IsTrue(curNode != nullptr);
-        auto it = std::find_if(curNode->mDependents.begin(), curNode->mDependents.end(), [&system](std::shared_ptr<JobInfo<TestEntity>>& info) {
-          return system.get() == info->mSystem.get();
-        });
-        Assert::IsTrue(it != curNode->mDependents.end());
-
-        curNode = *it;
+      auto permuter = Permuter::build(systems);
+      std::vector<std::shared_ptr<TestSystem>> systemList(systems);
+      bool originalOrder = true;
+      do {
+        if(originalOrder) {
+          Assert::IsTrue(tryRunInOrder(systemList, Permuter::toSystemList(permuter)), L"Original order should work");
+          originalOrder = false;
+        }
+        else {
+          Assert::IsFalse(tryRunInOrder(systemList, Permuter::toSystemList(permuter)), L"No other orders should work");
+        }
       }
-      Assert::IsTrue(curNode->mDependents.empty(), L"There should have been no trailing systems", LINE_INFO());
+      while(std::next_permutation(permuter.begin(), permuter.end()));
     }
 
     TEST_METHOD(JobGraph_NoSystems_EmptyRoot) {
@@ -69,7 +138,7 @@ namespace ecx {
 
       Assert::IsTrue(job != nullptr);
       Assert::AreEqual(job->mTotalDependencies, uint32_t(0));
-      Assert::IsTrue(job->mDependents.empty());
+      Assert::AreEqual(size_t(1), job->mDependents.size(), L"Should only contain command buffer processing system");
     }
 
     TEST_METHOD(JobGraph_TwoExistenceChecks_Parallel) {
@@ -344,11 +413,11 @@ namespace ecx {
       //Validate j
       auto jNode = node->mDependents[8];
       // k
-      Assert::AreEqual(size_t(1), jNode->mDependents.size());
+      Assert::AreEqual(size_t(2), jNode->mDependents.size(), L"Should point at J and a final command buffer processor system");
       Assert::IsTrue(k.get() == jNode->mDependents[0]->mSystem.get());
 
       //Validate k
-      Assert::IsTrue(jNode->mDependents[0]->mDependents.empty());
+      Assert::AreEqual(size_t(1), jNode->mDependents[0]->mDependents.size(), L"Should only depend on final command buffer processor system");
     }
 
     TEST_METHOD(JobGraph_ResetSingleDependency_IsReset) {
@@ -404,9 +473,8 @@ namespace ecx {
         }
         return sizes;
       });
-
       jobs.push_back(root);
-      while(!jobs.empty()) {
+      while(!jobs.empty() && !expectedSizes.empty()) {
         Assert::AreEqual(expectedSizes.front(), jobs.size());
         expectedSizes.pop();
         auto job = jobs.front();
@@ -420,7 +488,8 @@ namespace ecx {
         JobGraph::runSystems(registry, context, *job, jobs, [](auto&&...) { Assert::Fail(); });
       }
 
-      Assert::IsTrue(std::vector<TestSystem*>{ a.get(), b.get(), c.get(), d.get(), e.get(), f.get(), g.get() } == resultOrder);
+      auto expected = std::vector<TestSystem*>{ a.get(), b.get(), c.get(), d.get(), e.get(), f.get(), g.get() };
+      Assert::IsTrue(expected == resultOrder);
     }
 
     TEST_METHOD(JobGraph_RunSystemWithThreadConstraint_IsQueuedToThread) {
@@ -439,6 +508,91 @@ namespace ecx {
       });
 
       Assert::AreEqual(1, wasQueued, L"Should have been queed once", LINE_INFO());
+    }
+
+    TEST_METHOD(JobGraph_ReadWriteFactoryPermutations_OrdersWork) {
+      auto a = createSystem<TestView<Read<int>>>();
+      auto b = createSystem<TestView<Read<int>>>();
+      auto c = createSystem<TestView<Read<double>>>();
+      auto d = createSystem<TestView<Write<double>>>();
+      auto e = createSystem<TestEntityFactory>();
+      std::vector systems{ a, b, c, d, e };
+      Assert::IsTrue(tryRunInOrder(systems, { a, b, c, d, e }));
+      Assert::IsTrue(tryRunInOrder(systems, { b, a, c, d, e }));
+      Assert::IsTrue(tryRunInOrder(systems, { a, c, b, d, e }));
+      Assert::IsTrue(tryRunInOrder(systems, { c, d, a, b, e }));
+      Assert::IsFalse(tryRunInOrder(systems, { d, c, a, b, e }), L"Shouldn't be able to put a write before a read");
+      Assert::IsTrue(tryRunInOrder(systems, { c, b, a, d, e }));
+      Assert::IsFalse(tryRunInOrder(systems, { a, b, c, e, d }), L"Shouldn't be possible to run entity factory before anything else");
+      Assert::IsFalse(tryRunInOrder(systems, { a, b, e, c, d }));
+      Assert::IsFalse(tryRunInOrder(systems, { a, e, b, c, d }));
+      Assert::IsFalse(tryRunInOrder(systems, { e, a, b, c, d }));
+    }
+
+    TEST_METHOD(JobGraph_CommandBufferOrder_IsCorrect) {
+      auto a = createSystem<TestView<Read<int>>>();
+      auto b = createSystem<TestCommandBuffer<int>>();
+      auto c = createSystem<TestView<Read<double>>>();
+      auto d = createSystem<TestView<Write<int>>>();
+      std::vector systems{ a, b, c, d };
+
+      Assert::IsTrue(tryRunInOrder(systems, { a, b, c, d }));
+      Assert::IsTrue(tryRunInOrder(systems, { a, c, b, d }));
+      Assert::IsFalse(tryRunInOrder(systems, { b, a, c, d }));
+      Assert::IsFalse(tryRunInOrder(systems, { a, c, d, b }));
+    }
+
+    TEST_METHOD(JobGraph_CommandBufferRemoveOrder_IsCorrect) {
+      auto a = createSystem<TestView<Read<int>>>();
+      auto b = createSystem<TestCommandBuffer<ecx::EntityDestroyTag>>();
+      auto c = createSystem<TestView<Read<double>>>();
+      std::vector systems{ a, b, c };
+
+      Assert::IsTrue(tryRunInOrder(systems, { a, b, c }));
+      Assert::IsFalse(tryRunInOrder(systems, { b, a, c }));
+      Assert::IsFalse(tryRunInOrder(systems, { a, c, b }));
+    }
+
+    TEST_METHOD(JobGraph_CommandBufferAdd_VisibleByNextSystem) {
+      std::shared_ptr<TestSystem> a = ecx::makeSystem("", [](SystemContext<TestEntity, TestCommandBuffer<int>>& ctx) {
+        auto buffer = ctx.get<TestCommandBuffer<int>>();
+        auto&& [entity, i] = buffer.createAndGetEntityWithComponents<int>();
+        *i = 7;
+      });
+      std::shared_ptr<TestSystem> b = ecx::makeSystem("", [](SystemContext<TestEntity, TestView<Read<int>>>& ctx) {
+        auto& view = ctx.get<TestView<Read<int>>>();
+        Assert::IsTrue(view.begin() != view.end());
+        Assert::AreEqual(7, (*view.begin()).get<const int>());
+      });
+      std::vector systems{ a, b };
+
+      Assert::IsTrue(tryRunInOrder(systems, { a, b }));
+    }
+
+    TEST_METHOD(JobGraph_CommandBufferAddRemove_VisibleByNextSystem) {
+      TestEntity e;
+      std::shared_ptr<TestSystem> a = ecx::makeSystem("", [&e](SystemContext<TestEntity, TestCommandBuffer<int>>& ctx) {
+        auto buffer = ctx.get<TestCommandBuffer<int>>();
+        auto&& [entity, i] = buffer.createAndGetEntityWithComponents<int>();
+        e = entity;
+        *i = 7;
+      });
+      std::shared_ptr<TestSystem> b = ecx::makeSystem("", [](SystemContext<TestEntity, TestView<Read<int>>>& ctx) {
+        auto& view = ctx.get<TestView<Read<int>>>();
+        Assert::IsTrue(view.begin() != view.end());
+        Assert::AreEqual(7, (*view.begin()).get<const int>());
+      });
+      std::shared_ptr<TestSystem> c = ecx::makeSystem("", [&e](SystemContext<TestEntity, TestCommandBuffer<ecx::EntityDestroyTag>>& ctx) {
+        auto buffer = ctx.get<TestCommandBuffer<ecx::EntityDestroyTag>>();
+        buffer.destroyEntity(e);
+      });
+      std::shared_ptr<TestSystem> d = ecx::makeSystem("", [](SystemContext<TestEntity, TestView<Read<int>>>& ctx) {
+        auto& view = ctx.get<TestView<Read<int>>>();
+        Assert::IsTrue(view.begin() == view.end());
+      });
+      std::vector systems{ a, b, c, d };
+
+      Assert::IsTrue(tryRunInOrder(systems, { a, b, c, d }));
     }
   };
 }
