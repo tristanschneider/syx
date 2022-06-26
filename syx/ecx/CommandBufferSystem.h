@@ -5,6 +5,30 @@
 #include "System.h"
 
 namespace ecx {
+  class CommandBuffersProvider {
+  public:
+    using EachCallback = std::function<void(CommandBuffer<LinearEntity>&)>;
+    using Provider = std::function<void(const EachCallback&)>;
+
+    CommandBuffersProvider() = default;
+    CommandBuffersProvider(Provider provider)
+      : mProvider(std::move(provider)) {
+    }
+    CommandBuffersProvider(CommandBuffersProvider&&) noexcept = default;
+    CommandBuffersProvider(const CommandBuffersProvider&) noexcept = default;
+    CommandBuffersProvider& operator=(const CommandBuffersProvider&) noexcept = default;
+    CommandBuffersProvider& operator=(CommandBuffersProvider&&) noexcept = default;
+
+    void foreachCommandBuffer(const EachCallback& callback) {
+      if(mProvider) {
+        mProvider(callback);
+      }
+    }
+
+  private:
+    Provider mProvider;
+  };
+
   //No-op by default
   template<class EntityT, class... ToProcess>
   struct ProcessCommandBufferSystem : ISystem<EntityT> {
@@ -19,8 +43,10 @@ namespace ecx {
   template<class... ToProcess>
   struct ProcessCommandBufferSystem<LinearEntity, ToProcess...> : ISystem<LinearEntity> {
     void tick(EntityRegistry<LinearEntity>& registry, ThreadLocalContext& localContext) const override {
-      auto& buffer = localContext.getOrCreate<CommandBuffer<LinearEntity>>();
-      (buffer.processCommandsForComponent<ToProcess>(registry), ...);
+      auto& provider = localContext.getOrCreate<CommandBuffersProvider>();
+      provider.foreachCommandBuffer([&registry](CommandBuffer<LinearEntity>& buffer) {
+        (buffer.processCommandsForComponent<ToProcess>(registry), ...);
+      });
     }
 
     SystemInfo getInfo() const override {
@@ -47,9 +73,11 @@ namespace ecx {
   template<>
   struct ProcessEntireCommandBufferSystem<LinearEntity> : ISystem<LinearEntity> {
     void tick(EntityRegistry<LinearEntity>& registry, ThreadLocalContext& localContext) const override {
-      auto& buffer = localContext.getOrCreate<CommandBuffer<LinearEntity>>();
-      buffer.processAllCommands(registry);
-      buffer.clear();
+      auto& provider = localContext.getOrCreate<CommandBuffersProvider>();
+      provider.foreachCommandBuffer([&registry](CommandBuffer<LinearEntity>& buffer) {
+        buffer.processAllCommands(registry);
+        buffer.clear();
+      });
     }
 
     SystemInfo getInfo() const override {

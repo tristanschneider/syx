@@ -30,6 +30,9 @@ namespace ecx {
       TestEntityRegistry registry;
       //Normally AppContext::initialize would do this
       tlc.emplace<ecx::CommandBuffer<TestEntity>>(registry);
+      tlc.emplace<CommandBuffersProvider>(CommandBuffersProvider([&tlc](const CommandBuffersProvider::EachCallback& callback) {
+        callback(tlc.getOrCreate<CommandBuffer<TestEntity>>());
+      }));
       std::vector<std::shared_ptr<JobInfo<TestEntity>>> work;
       auto queueToThread = [&work](size_t, std::shared_ptr<JobInfo<TestEntity>> job) {
         work.push_back(std::move(job));

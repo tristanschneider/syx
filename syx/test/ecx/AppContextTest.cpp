@@ -2,7 +2,10 @@
 #include "CppUnitTest.h"
 
 #include "AppContext.h"
+#include "CommandBuffer.h"
+#include "LinearView.h"
 #include "Scheduler.h"
+#include "System.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -20,7 +23,7 @@ namespace ecx {
       currentTime = std::chrono::time_point<std::chrono::high_resolution_clock>(std::chrono::milliseconds(ms));
     }
 
-    using TestEntity = uint32_t;
+    using TestEntity = LinearEntity;
     using TestEntityRegistry = EntityRegistry<TestEntity>;
     using TestEntityFactory = EntityFactory<TestEntity>;
     using TestScheduler = Scheduler<TestEntity, LockQueue>;
@@ -32,6 +35,7 @@ namespace ecx {
     };
     template<class... Rest>
     using TestView = View<TestEntity, Rest...>;
+    using TestSystem = std::shared_ptr<ISystem<TestEntity>>;
 
     enum class TestStage {
       A,
@@ -120,7 +124,7 @@ namespace ecx {
     struct RegistryWithPhaseTracker {
       RegistryWithPhaseTracker() {
         setTimeMS(0);
-        mEntity = mRegistry.createEntity();
+        mEntity = mRegistry.createEntity(*mRegistry.getDefaultEntityGenerator());
         mRegistry.addComponent<PhaseTracker>(mEntity);
       }
 
@@ -285,5 +289,28 @@ namespace ecx {
       Assert::IsTrue(updated);
     }
 
+    //Test to ensure that the systems injected to process command buffers properly gather all thread local command buffers
+    TEST_METHOD(MultipleCommandBuffers_CreateEntities_AllCreated) {
+      RegistryWithPhaseTracker registry;
+      TestAppContext context(registry.mScheduler);
+      std::vector<TestSystem> systems;
+      using CommandT = EntityCommandBuffer<TestEntity, int, float>;
+      systems.push_back(ecx::makeSystem("", [](SystemContext<TestEntity, CommandT>& context) {
+        CommandT cmd = context.get<CommandT>();
+        cmd.createAndGetEntityWithComponents<int>();
+      }, uint64_t(1)));
+      systems.push_back(ecx::makeSystem("", [](SystemContext<TestEntity, CommandT>& context) {
+        context.get<CommandT>().createAndGetEntityWithComponents<float>();
+      }, uint64_t(2)));
+      context.registerUpdatePhase(TestStage::A, std::move(systems), 1000);
+      context.buildExecutionGraph();
+      context.initialize(registry.mRegistry);
+      setTimeMS(1);
+
+      context.update(registry.mRegistry);
+
+      Assert::AreEqual(size_t(1), registry.mRegistry.size<int>(), L"Thread 1 command should have been processed");
+      Assert::AreEqual(size_t(1), registry.mRegistry.size<float>(), L"Thread 2 command should have been processed");
+    }
   };
 }

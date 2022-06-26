@@ -106,13 +106,26 @@ namespace ecx {
       return PhaseContainer{ mInitializers, size_t(0) };
     }
 
-    void initialize(EntityRegistry<EntityT>& registry) {
-      mScheduler->forEachThreadLocalContext([&registry](ThreadLocalContext& context) {
-        context.emplace<CommandBuffer<EntityT>>(registry);
+    static void _initialize(EntityRegistry<EntityT>& registry, SchedulerT& scheduler, JobInfo<EntityT>* initializerJob) {
+      //Expose access to all command buffers for use in the systems that process them
+      CommandBuffersProvider provider([&scheduler](const CommandBuffersProvider::EachCallback& callback) {
+        //TODO: assert unique access (is guaranteed by scheduler)
+        scheduler.forEachThreadLocalContext([&callback](ThreadLocalContext& context) {
+          callback(context.getOrCreate<CommandBuffer<EntityT>>());
+        }, false);
       });
-      if(mInitializerJob) {
-        mScheduler->execute(registry, *mInitializerJob);
+
+      scheduler.forEachThreadLocalContext([&registry, &provider](ThreadLocalContext& context) {
+        context.emplace<CommandBuffer<EntityT>>(registry);
+        context.emplace<CommandBuffersProvider>(provider);
+      });
+      if(initializerJob) {
+        scheduler.execute(registry, *initializerJob);
       }
+    }
+
+    void initialize(EntityRegistry<EntityT>& registry) {
+      _initialize(registry, *mScheduler, mInitializerJob.get());
     }
 
     //Execute all available updates as dictated by each phase's timer

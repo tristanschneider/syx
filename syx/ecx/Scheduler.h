@@ -107,8 +107,9 @@ namespace ecx {
       }
     }
 
-    void forEachThreadLocalContext(const std::function<void(ThreadLocalContext&)>& callback) {
-      assert(!mRegistry && "No work should be in progress while viewing thread local contexts");
+    void forEachThreadLocalContext(const std::function<void(ThreadLocalContext&)>& callback, bool safetyCheck = true) {
+      //Caller can ignore the assert if they know what they're doing. Hacky, but needed for the exclusive system that processes all command buffers
+      assert(!safetyCheck || (!mRegistry && "No work should be in progress while viewing thread local contexts"));
       for(ThreadContext& context : mThreads) {
         callback(*context.mContext->mLocalContext);
       }

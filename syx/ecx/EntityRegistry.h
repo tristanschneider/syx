@@ -200,7 +200,9 @@ namespace ecx {
       }
 
       void clear() {
-        mPool->mComponents->clear();
+        if(mPool->mComponents) {
+          mPool->mComponents->clear();
+        }
         mPool->mEntities.clear();
       }
 
