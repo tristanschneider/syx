@@ -1,6 +1,7 @@
 #pragma once
 
 #include <variant>
+#include "SyxVec2.h"
 
 //Same as windows keys, but this way you don't have to include windows.h to query key states
 enum class Key : uint8_t {
@@ -104,6 +105,15 @@ struct RawInputComponent {
 
   bool getKeyDown(Key key) const {
     return getKeyState(key) == KeyState::Down;
+  }
+
+  bool getKeyTriggered(Key key) const {
+    return getKeyState(key) == KeyState::Triggered;
+  }
+
+  bool getKeyDownOrTriggered(Key key) const {
+    const KeyState state = getKeyState(key);
+    return state == KeyState::Down || state == KeyState::Triggered;
   }
 
   //All key states with abscence implying released

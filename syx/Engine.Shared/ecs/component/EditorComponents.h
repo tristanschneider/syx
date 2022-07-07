@@ -6,6 +6,19 @@
 //Type tag for an editor entity to store entity state
 struct EditorContextComponent {};
 
+enum class EditorPlayState : uint8_t {
+  Invalid,
+  Stopped,
+  Paused,
+  Stepping,
+  Playing,
+};
+
+struct EditorPlayStateComponent {
+  EditorPlayState mLastState{};
+  EditorPlayState mCurrentState{};
+};
+
 struct EditorSceneReferenceComponent {
   Engine::Entity mScene;
 };

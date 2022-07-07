@@ -9,9 +9,7 @@ namespace TestImGui {
   using namespace Engine;
   using ImGuiView = View<Write<ImGuiContextComponent>>;
 
-  void tickInit(SystemContext<EntityFactory>& context) {
-    context.get<EntityFactory>().createEntityWithComponents<ImGuiContextComponent>();
-
+  void tickInit(SystemContext<EntityFactory>&) {
     ImGuiIO& io = ImGui::GetIO();
     //Prevent saving anything to disk during tests
     io.IniFilename = nullptr;

@@ -57,6 +57,7 @@ namespace EditorTests {
     Engine::Entity createNewObjectWithName(std::string name);
     void addComponentFromUI(const std::string& name);
     void setAndUpdateSelection(const std::vector<Engine::Entity>& entities);
+    void pressKeysAndProcessInput(const ::std::initializer_list<Key>& keys);
 
     Engine::AppContext mContext{ std::make_shared<Engine::Scheduler>(ecx::SchedulerConfig{}) };
     Engine::EntityRegistry mRegistry;

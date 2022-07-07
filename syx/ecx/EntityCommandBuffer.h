@@ -35,13 +35,13 @@ namespace ecx {
 
     template<class Component>
     Component& addComponent(const LinearEntity& entity) {
-      static_assert(AreAllowedTypes<Components>);
+      static_assert(AreAllowedTypes<Component>);
       return mBuffer->addComponent<Component>(entity);
     }
 
     template<class Component>
     void removeComponent(const LinearEntity& entity) {
-      static_assert(AreAllowedTypes<Components>);
+      static_assert(AreAllowedTypes<Component>);
       return mBuffer->removeComponent<Component>(entity);
     }
 

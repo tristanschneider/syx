@@ -138,6 +138,8 @@ public:
 
     //Editor
     graphics.push_back(EditorSystem::sceneBrowser());
+    graphics.push_back(EditorSystem::toolbox());
+    graphics.push_back(EditorSystem::playStateUpdate());
     CommonReg::registerInspectors(graphics);
 
     graphics.push_back(GraphicsSystemBase::screenSizeListener());

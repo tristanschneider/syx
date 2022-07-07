@@ -8,6 +8,7 @@
 #include "ecs/component/SpaceComponents.h"
 #include "ecs/component/UriActivationComponent.h"
 #include "ecs/system/editor/EditorSystem.h"
+#include "CommandBufferSystem.h"
 #include "test/TestAppContext.h"
 #include "test/TestFileSystem.h"
 
@@ -44,8 +45,15 @@ namespace SystemTests {
         auto fs = std::make_unique<FileSystem::TestFileSystem>();
         mFileSystem = fs.get();
         mRegistry.addComponent<FileSystemComponent>(global, std::move(fs));
+        //Normally AppContext::initialize would do this
+        ecx::ThreadLocalContext tlc;
+        tlc.emplace<ecx::CommandBuffer<ecx::LinearEntity>>(mRegistry);
+        tlc.emplace<ecx::CommandBuffersProvider>(ecx::CommandBuffersProvider([&tlc](const ecx::CommandBuffersProvider::EachCallback& callback) {
+          callback(tlc.getOrCreate<ecx::CommandBuffer<ecx::LinearEntity>>());
+        }));
 
-        EditorSystem::init()->tick(mRegistry);
+        EditorSystem::init()->tick(mRegistry, tlc);
+        ecx::ProcessEntireCommandBufferSystem<ecx::LinearEntity>().tick(mRegistry, tlc);
       }
 
       TestEntityRegistry* operator->() {

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "EntityCommandBuffer.h"
 #include "EntityFactory.h"
 #include "LinearEntityRegistry.h"
 #include "LinearView.h"
@@ -24,4 +25,6 @@ namespace Engine {
   using System = ecx::ISystem<Entity>;
   template<class... Args>
   using SystemContext = ecx::SystemContext<Entity, Args...>;
+  template<class... Args>
+  using CommandBuffer = ecx::EntityCommandBuffer<Entity, Args...>;
 }

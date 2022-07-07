@@ -37,6 +37,8 @@ namespace EditorTests {
     mContext.buildExecutionGraph();
 
     mContext.initialize(mRegistry);
+    //Update once which makes the play state system add the imgui context
+    update();
   }
 
   void TestApp::pressButtonAndProcessInput(const std::string& label) {
@@ -72,6 +74,18 @@ namespace EditorTests {
     mRegistry.removeComponentsFromAllEntities<SelectedComponent>();
     for(const Engine::Entity& entity : entities) {
       mRegistry.addComponent<SelectedComponent>(entity);
+    }
+  }
+
+  void TestApp::pressKeysAndProcessInput(const ::std::initializer_list<Key>& keys) {
+    auto inputBuffer = mRegistry.begin<RawInputBufferComponent>();
+    assert(inputBuffer != mRegistry.end<RawInputBufferComponent>());
+    for(Key key : keys) {
+      inputBuffer.component().mEvents.push_back({ RawInputEvent::KeyEvent{ key, KeyState::Triggered } });
+    }
+    update();
+    for(Key key : keys) {
+      inputBuffer.component().mEvents.push_back({ RawInputEvent::KeyEvent{ key, KeyState::Released } });
     }
   }
 

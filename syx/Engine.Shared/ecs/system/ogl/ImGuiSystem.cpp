@@ -50,7 +50,6 @@ namespace ImGuiSystemsImpl {
   void tickInit(SystemContext<EntityFactory, EntityModifier<ImGuiImplContextComponent>, OGLView>& context) {
     Entity entity = context.get<EntityFactory>().createEntity();
     auto& imGuiContext = context.get<EntityModifier<ImGuiImplContextComponent>>().addComponent<ImGuiImplContextComponent>(entity);
-    context.get<EntityFactory>().createEntityWithComponents<ImGuiContextComponent>();
 
     std::string vsSrc =
         "#version 330\n"

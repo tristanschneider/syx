@@ -11,6 +11,8 @@ struct EditorSystem {
   static std::shared_ptr<Engine::System> init();
 
   static std::shared_ptr<Engine::System> sceneBrowser();
+  static std::shared_ptr<Engine::System> toolbox();
+  static std::shared_ptr<Engine::System> playStateUpdate();
 
   static std::shared_ptr<Engine::System> createUriListener();
   static std::shared_ptr<Engine::System> createPlatformListener();

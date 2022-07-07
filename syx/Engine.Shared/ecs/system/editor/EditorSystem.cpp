@@ -6,6 +6,7 @@
 #include "ecs/component/GameobjectComponent.h"
 #include "ecs/component/ImGuiContextComponent.h"
 #include "ecs/component/PlatformMessageComponents.h"
+#include "ecs/component/RawInputComponent.h"
 #include "ecs/component/SpaceComponents.h"
 #include "ecs/component/UriActivationComponent.h"
 
@@ -93,31 +94,211 @@ namespace EditorImpl {
       }
     }
   }
+
+  using PlayStateView = View<Write<EditorPlayStateComponent>>;
+  using InputView = View<Read<RawInputComponent>>;
+  using ToolboxSystemContext = SystemContext<ImGuiView, PlayStateView, InputView>;
+  void _open(ToolboxSystemContext&) {
+  }
+
+  void _save(ToolboxSystemContext&) {
+  }
+
+  void _saveAs(ToolboxSystemContext&) {
+  }
+
+  void _play(EditorPlayState& state) {
+    state = EditorPlayState::Playing;
+  }
+
+  void _pause(EditorPlayState& state) {
+    state = EditorPlayState::Paused;
+  }
+
+  void _stop(EditorPlayState& state) {
+    state = EditorPlayState::Stopped;
+  }
+
+  void _step(EditorPlayState& state) {
+    state = EditorPlayState::Stepping;
+  }
+
+  void tickToolboxInput(const RawInputComponent& input, EditorPlayStateComponent& playState) {
+    const bool ctrl = input.getKeyDownOrTriggered(Key::LeftCtrl) || input.getKeyDownOrTriggered(Key::RightCtrl);
+    const bool shift = input.getKeyDownOrTriggered(Key::Shift);
+    if(playState.mCurrentState == EditorPlayState::Playing) {
+      if(shift && input.getKeyTriggered(Key::F5))
+        _stop(playState.mCurrentState);
+      else if(input.getKeyTriggered(Key::F6)) {
+        _pause(playState.mCurrentState);
+      }
+    }
+    else {
+      if(ctrl && shift && input.getKeyTriggered(Key::KeyS)) {
+        //_saveAs();
+      }
+      else if(ctrl && input.getKeyTriggered(Key::KeyS)) {
+        //_save();
+      }
+      else if(ctrl && input.getKeyTriggered(Key::KeyO)) {
+        //_open();
+      }
+      else if(input.getKeyTriggered(Key::F5)) {
+        _play(playState.mCurrentState);
+      }
+      else if(input.getKeyTriggered(Key::F6) && playState.mCurrentState == EditorPlayState::Paused) {
+        _step(playState.mCurrentState);
+      }
+    }
+  }
+
+  void tickToolbox(ToolboxSystemContext& context) {
+    auto playState = context.get<PlayStateView>().tryGetFirst();
+    auto imgui = context.get<ImGuiView>().tryGetFirst();
+    auto input = context.get<InputView>().tryGetFirst();
+    if(!playState || !input) {
+      return;
+    }
+    EditorPlayStateComponent& state = playState->get<EditorPlayStateComponent>();
+    EditorPlayState& currentState = state.mCurrentState;
+    const RawInputComponent& rawInput = input->get<const RawInputComponent>();
+
+    tickToolboxInput(rawInput, state);
+
+    if(!imgui) {
+      return;
+    }
+
+    ImGui::Begin("Toolbox", nullptr, ImGuiWindowFlags_MenuBar);
+    if(ImGui::BeginMenuBar()) {
+        if(ImGui::BeginMenu("File")) {
+            if(ImGui::MenuItem("Open", "Ctrl+O")) {
+              _open(context);
+            }
+            if(ImGui::MenuItem("Save", "Ctrl+S")) {
+              _save(context);
+            }
+            if(ImGui::MenuItem("Save As", "Ctrl+Shift+S")) {
+              _saveAs(context);
+            }
+            ImGui::EndMenu();
+        }
+        ImGui::EndMenuBar();
+    }
+
+    if(currentState == EditorPlayState::Stopped || currentState == EditorPlayState::Paused) {
+      if(ImGui::Button("Play")) {
+        _play(currentState);
+      }
+    }
+    //TODO: some of these with the playing state don't make sense since all imgui is disabled during play state
+    if(currentState == EditorPlayState::Stepping || currentState == EditorPlayState::Playing) {
+      if(ImGui::Button("Pause")) {
+        _pause(currentState);
+      }
+    }
+    if(currentState == EditorPlayState::Paused) {
+      ImGui::SameLine();
+      if(ImGui::Button("Step")) {
+        _step(currentState);
+      }
+    }
+    if(currentState == EditorPlayState::Playing || currentState == EditorPlayState::Stepping || currentState == EditorPlayState::Paused) {
+      ImGui::SameLine();
+      if(ImGui::Button("Stop")) {
+        _stop(currentState);
+      }
+    }
+
+    ImGui::End();
+  }
+
+  using PlayStateCmd = CommandBuffer<ImGuiContextComponent>;
+  void tickPlayStateUpdate(SystemContext<PlayStateView, PlayStateCmd>& context) {
+    for(auto state : context.get<PlayStateView>()) {
+      EditorPlayStateComponent& s = state.get<EditorPlayStateComponent>();
+      const bool stateChanged = s.mCurrentState != s.mLastState;
+      EditorPlayState newState = s.mCurrentState;
+      if(stateChanged) {
+        auto cmd = context.get<PlayStateCmd>();
+
+        switch(s.mCurrentState) {
+          case EditorPlayState::Playing:
+            //Remove imgui context from the editor entity, preventing all imgui rendering during play state
+            if(s.mLastState == EditorPlayState::Stopped) {
+              cmd.removeComponent<ImGuiContextComponent>(state.entity());
+            }
+            break;
+          case EditorPlayState::Stopped:
+            if(s.mLastState == EditorPlayState::Playing || s.mLastState == EditorPlayState::Invalid) {
+              cmd.addComponent<ImGuiContextComponent>(state.entity());
+            }
+            break;
+          case EditorPlayState::Paused:
+            break;
+          case EditorPlayState::Stepping:
+            break;
+          case EditorPlayState::Invalid:
+            break;
+        }
+      }
+      //No state changed
+      else {
+        switch(s.mCurrentState) {
+          case EditorPlayState::Playing:
+          case EditorPlayState::Stopped:
+          case EditorPlayState::Paused:
+          case EditorPlayState::Invalid:
+            break;
+          case EditorPlayState::Stepping:
+              //If stepping and one step has elapsed, go back to paused
+              if(s.mLastState == EditorPlayState::Stepping) {
+                newState = EditorPlayState::Paused;
+              }
+              break;
+        }
+      }
+
+      s.mLastState = s.mCurrentState;
+      s.mCurrentState = newState;
+    }
+  }
 }
 
 std::shared_ptr<Engine::System> EditorSystem::sceneBrowser() {
-  return ecx::makeSystem("SceneBrowser", &EditorImpl::tickSceneBrowser, 0);
+  return ecx::makeSystem("SceneBrowser", &EditorImpl::tickSceneBrowser, IMGUI_THREAD);
+}
+
+std::shared_ptr<Engine::System> EditorSystem::toolbox() {
+  return ecx::makeSystem("Toolbox", &EditorImpl::tickToolbox, IMGUI_THREAD);
+}
+
+std::shared_ptr<Engine::System> EditorSystem::playStateUpdate() {
+  return ecx::makeSystem("PlayStateUpdate", &EditorImpl::tickPlayStateUpdate);
 }
 
 std::shared_ptr<Engine::System> EditorSystem::init() {
   using namespace Engine;
-  using Modifier = EntityModifier<EditorContextComponent,
+  using Commands = CommandBuffer<EditorContextComponent,
     EditorSavedSceneComponent,
     EditorSceneReferenceComponent,
-    SpaceTagComponent
+    SpaceTagComponent,
+    EditorPlayStateComponent
   >;
 
-  return ecx::makeSystem("EditorInit", [](SystemContext<EntityFactory, Modifier>& context) {
-    auto factory = context.get<EntityFactory>();
-    auto modifier = context.get<Modifier>();
+  return ecx::makeSystem("EditorInit", [](SystemContext<Commands>& context) {
+    auto cmd = context.get<Commands>();
 
-    auto editorSpace = factory.createEntity();
-    modifier.addComponent<SpaceTagComponent>(editorSpace);
+    auto&& [spaceEntity, spaceComponent] = cmd.createAndGetEntityWithComponents<SpaceTagComponent>();
 
-    auto editorContext = factory.createEntity();
-    modifier.addComponent<EditorContextComponent>(editorContext);
-    modifier.addComponent<EditorSavedSceneComponent>(editorContext);
-    modifier.addComponent<EditorSceneReferenceComponent>(editorContext, EditorSceneReferenceComponent{ editorSpace });
+    auto&& [contextEntity, editorContext, savedScene, sceneReference, playState] = cmd.createAndGetEntityWithComponents<
+      EditorContextComponent,
+      EditorSavedSceneComponent,
+      EditorSceneReferenceComponent,
+      EditorPlayStateComponent>();
+    sceneReference->mScene = spaceEntity;
+    playState->mCurrentState = EditorPlayState::Stopped;
+    playState->mLastState = EditorPlayState::Invalid;
   });
 }
 
