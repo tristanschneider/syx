@@ -5,6 +5,8 @@
 #include "ecs/component/GameobjectComponent.h"
 #include "ecs/component/ImGuiContextComponent.h"
 #include "ecs/component/RawInputComponent.h"
+#include "ecs/component/SpaceComponents.h"
+#include "ecs/system/editor/EditorSystem.h"
 #include "editor/MockEditorApp.h"
 #include "test/TestGUIHook.h"
 
@@ -38,6 +40,8 @@ namespace EditorTests {
 
       auto gui = Create::createAndRegisterTestGuiHook();
       auto press = gui->addScopedButtonPress("Play");
+      //Takes two ticks, one to enqueue the command, another to process the global command queue
+      app.update();
       app.update();
 
       Assert::AreEqual(size_t(0), app.mRegistry.size<ImGuiContextComponent>(), L"Imgui context should be removed");
@@ -50,7 +54,7 @@ namespace EditorTests {
 
       app.pressKeysAndProcessInput({ Key::F5, Key::Shift });
       auto gui = Create::createAndRegisterTestGuiHook();
-      //One update to process the play state change, another to populate the editor ui
+      app.update();
       app.update();
 
       _assertToolboxExists(*gui);
@@ -73,14 +77,32 @@ namespace EditorTests {
     TEST_METHOD(SingleObject_EnterPlayState_ObjectExists) {
       TestApp app;
       //Create an object with a unique name
-      app.createNewObjectWithName("obj");
+      app.pressButtonAndProcessInput(EditorSystem::NEW_OBJECT_LABEL);
+      auto name = app.mRegistry.begin<NameTagComponent>();
+      auto nameEntity = name.entity();
+      Assert::IsTrue(name != app.mRegistry.end<NameTagComponent>());
+      name->mName = "obj";
+      auto space = app.mRegistry.find<InSpaceComponent>(name.entity());
+      Assert::IsTrue(space != app.mRegistry.end<InSpaceComponent>());
+      const Engine::Entity editorSpace = space.component().mSpace;
 
       //Enter play state
       app.pressKeysAndProcessInput({ Key::F5 });
+      //Give several ticks to load
+      for(int i = 0; i < 15; ++i) {
+        app.update();
+      }
 
       _assertPlayStateMatches(app, EditorPlayState::Playing);
+      Assert::AreEqual(size_t(1), app.mRegistry.size<NameTagComponent>());
       for(auto it = app.mRegistry.begin<NameTagComponent>(); it != app.mRegistry.end<NameTagComponent>(); ++it) {
         if(it->mName == "obj") {
+          space = app.mRegistry.find<InSpaceComponent>(it.entity());
+          Assert::IsTrue(it.entity() != nameEntity, L"Entity should be different than original because it's in the play space than the editor space");
+          Assert::IsTrue(space != app.mRegistry.end<InSpaceComponent>());
+          const Engine::Entity inSpace = space.component().mSpace;
+          Assert::IsTrue(app.mRegistry.isValid(inSpace));
+          Assert::IsTrue(app.mRegistry.find<DefaultPlaySpaceComponent>(space.component().mSpace) != app.mRegistry.end<DefaultPlaySpaceComponent>(), L"Entity should be in play space");
           return;
         }
       }

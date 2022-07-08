@@ -12,6 +12,11 @@ struct SpaceTagComponent {
 struct DefaultPlaySpaceComponent {
 };
 
+//Timescale used for simulation of all entities in the space
+struct TimescaleComponent {
+  float mScale = 1.f;
+};
+
 //Messages
 struct ClearSpaceComponent {
   Engine::Entity mSpace;
@@ -30,6 +35,7 @@ struct InSpaceComponent {
 };
 
 //On the space from the time the LoadSpaceComponent is processed until all entities are filled in
+//Viewing a space with this excluded can be done to know when space loading is complete
 struct SpaceLoadingComponent {
 };
 
@@ -55,5 +61,6 @@ struct SaveSpaceComponent {
   FilePath mToSave;
 };
 
+//Viewing a space with this excluded can be done to know when space saving is complete
 struct SpaceSavingComponent {
 };

@@ -16,6 +16,8 @@
 #include "ecs/system/editor/ObjectInspectorSystem.h"
 #include "ecs/system/DeltaTimeSystem.h"
 #include "ecs/system/FileSystemSystem.h"
+#include "ecs/system/GameobjectInitializerSystem.h"
+#include "ecs/system/GlobalCommandBufferSystem.h"
 #include "ecs/system/GraphicsSystemBase.h"
 #include "ecs/system/LuaSpaceSerializerSystem.h"
 #include "ecs/system/ProjectLocatorSystem.h"
@@ -92,11 +94,14 @@ public:
     initializers.push_back(EditorSystem::init());
     initializers.push_back(GraphicsSystemBase::init());
     initializers.push_back(ObjectInspectorSystemBase::init());
+    initializers.push_back(GlobalCommandBufferSystem::init());
 
     //DT update a bit arbitrary, uses input since it's the first 60fps system group
     input.push_back(DeltaTimeSystem::update());
     input.push_back(RawInputSystem::update());
 
+    //Process global commands at the top of the simulation frame
+    simulation.push_back(GlobalCommandBufferSystem::processCommands());
     simulation.push_back(ProjectLocatorSystem::createUriListener());
     simulation.push_back(EditorSystem::createUriListener());
     simulation.push_back(EditorSystem::createPlatformListener());
@@ -135,16 +140,18 @@ public:
     //Towards the end so it can get any messages before they are cleared
     simulation.push_back(FileSystemSystem::fileReader());
     simulation.push_back(FileSystemSystem::fileWriter());
+    simulation.push_back(GameobjectInitializerSystem::create());
 
     //Editor
     graphics.push_back(EditorSystem::sceneBrowser());
     graphics.push_back(EditorSystem::toolbox());
-    graphics.push_back(EditorSystem::playStateUpdate());
     CommonReg::registerInspectors(graphics);
+    //Since this can add or remove the imgui context it should come last so the context doesn't appear mid-frame
+    graphics.push_back(EditorSystem::playStateUpdate());
 
     graphics.push_back(GraphicsSystemBase::screenSizeListener());
 
-    //Clear messages at the end of the frame
+    //Clear messages at the end of the frame in the slowest tick rate
     cleanup.push_back(RemoveEntitiesSystem<View<Read<MessageComponent>>>::create());
 
     context.registerInitializer(std::move(initializers));
@@ -152,7 +159,8 @@ public:
     context.registerUpdatePhase(AppPhase::Simulation, std::move(simulation), 20);
     context.registerUpdatePhase(AppPhase::Physics, std::move(physics), 60);
     context.registerUpdatePhase(AppPhase::Graphics, std::move(graphics), 60);
-    context.registerUpdatePhase(AppPhase::Cleanup, std::move(cleanup), 0);
+    //The slowest of all so it runs after everyone has a chance to view
+    context.registerUpdatePhase(AppPhase::Cleanup, std::move(cleanup), 20);
 
     context.buildExecutionGraph();
   }

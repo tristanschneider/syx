@@ -4,12 +4,13 @@
 #include "ecs/component/EditorComponents.h"
 #include "ecs/component/FileSystemComponent.h"
 #include "ecs/component/GameobjectComponent.h"
+#include "ecs/component/GlobalCommandBufferComponent.h"
 #include "ecs/component/ImGuiContextComponent.h"
+#include "ecs/component/MessageComponent.h"
 #include "ecs/component/PlatformMessageComponents.h"
 #include "ecs/component/RawInputComponent.h"
 #include "ecs/component/SpaceComponents.h"
 #include "ecs/component/UriActivationComponent.h"
-
 #include "imgui/imgui.h"
 
 const char* EditorSystem::WINDOW_NAME = "Objects";
@@ -23,8 +24,9 @@ namespace EditorImpl {
   using SelectedView = View<Read<SelectedComponent>>;
   using ObjectsView = View<Read<GameobjectComponent>, OptionalRead<NameTagComponent>>;
   using BrowserModifier = EntityModifier<SelectedComponent>;
+  using EditorSceneRefView = View<Read<EditorSceneReferenceComponent>>;
 
-  void tickSceneBrowser(SystemContext<ImGuiView, SelectedView, ObjectsView, EntityFactory, BrowserModifier>& context) {
+  void tickSceneBrowser(SystemContext<ImGuiView, SelectedView, ObjectsView, EntityFactory, BrowserModifier, EditorSceneRefView>& context) {
     if(!context.get<ImGuiView>().tryGetFirst()) {
       return;
     }
@@ -36,8 +38,11 @@ namespace EditorImpl {
 
     if(ImGui::Button(EditorSystem::NEW_OBJECT_LABEL)) {
       modifier.removeComponentsFromAllEntities<SelectedComponent>();
-      auto&& [entity, a, b, nameTag ] = factory.createAndGetEntityWithComponents<GameobjectComponent, SelectedComponent, NameTagComponent>();
+      auto&& [entity, a, b, nameTag, inSpace] = factory.createAndGetEntityWithComponents<GameobjectComponent, SelectedComponent, NameTagComponent, InSpaceComponent>();
       nameTag.get().mName = "New Object";
+      if(auto ref = context.get<EditorSceneRefView>().tryGetFirst()) {
+        inSpace.get().mSpace = ref->get<const EditorSceneReferenceComponent>().mEditorScene;
+      }
     }
 
     if(ImGui::Button(EditorSystem::DELETE_OBJECT_LABEL)) {
@@ -95,7 +100,7 @@ namespace EditorImpl {
     }
   }
 
-  using PlayStateView = View<Write<EditorPlayStateComponent>>;
+  using PlayStateView = View<Write<EditorPlayStateComponent>, Write<EditorPlayStateActionQueueComponent>>;
   using InputView = View<Read<RawInputComponent>>;
   using ToolboxSystemContext = SystemContext<ImGuiView, PlayStateView, InputView>;
   void _open(ToolboxSystemContext&) {
@@ -213,25 +218,155 @@ namespace EditorImpl {
     ImGui::End();
   }
 
-  using PlayStateCmd = CommandBuffer<ImGuiContextComponent>;
-  void tickPlayStateUpdate(SystemContext<PlayStateView, PlayStateCmd>& context) {
-    for(auto state : context.get<PlayStateView>()) {
+  using SpaceView = View<Include<SpaceTagComponent>, Write<TimescaleComponent>>;
+  using SpaceCompleteView = View<Include<SpaceTagComponent>, Exclude<SpaceLoadingComponent>, Exclude<SpaceSavingComponent>>;
+  using SceneRefView = View<Read<EditorSceneReferenceComponent>, Read<EditorSavedSceneComponent>>;
+  using MessageView = View<Include<MessageComponent>>;
+  using GlobalCommandView = View<Write<GlobalCommandBufferComponent>>;
+  using PlayStateContext = SystemContext<PlayStateView, GlobalCommandView, SpaceView, SceneRefView, SpaceCompleteView, MessageView>;
+
+  bool _isMessageProcessed(PlayStateContext& context, const Entity& message) {
+    auto& view = context.get<MessageView>();
+    return view.find(message) == view.end();
+  }
+
+  void _clearSpace(PlayStateContext& context, const Entity& space, EditorPlayStateActionQueueComponent& queue) {
+    switch(queue.mState) {
+    case EditorPlayStateActionQueueComponent::ActionState::Init: {
+      if(auto cmd = context.get<GlobalCommandView>().tryGetFirst()) {
+        auto c = cmd->get<GlobalCommandBufferComponent>().get<ClearSpaceComponent, MessageComponent>();
+        auto&& [e, clearSpace, m] = c.createAndGetEntityWithComponents<ClearSpaceComponent, MessageComponent>();
+        clearSpace->mSpace = space;
+        queue.mPendingMessage = e;
+      }
+      break;
+    }
+    case EditorPlayStateActionQueueComponent::ActionState::Update:
+      //Clear is complete once the message has been consumed
+      if(_isMessageProcessed(context, queue.mPendingMessage)) {
+        queue.mActions.pop();
+      }
+      break;
+    }
+  }
+
+  void _clearPlaySpaceAction(void* data, EditorPlayStateActionQueueComponent& queue) {
+    auto* context = reinterpret_cast<PlayStateContext*>(data);
+    if(auto editor = context->get<SceneRefView>().tryGetFirst()) {
+      _clearSpace(*context, editor->get<const EditorSceneReferenceComponent>().mPlayScene, queue);
+    }
+  }
+
+  void _clearEditorSpaceAction(void* data, EditorPlayStateActionQueueComponent& queue) {
+    auto* context = reinterpret_cast<PlayStateContext*>(data);
+    if(auto editor = context->get<SceneRefView>().tryGetFirst()) {
+      _clearSpace(*context, editor->get<const EditorSceneReferenceComponent>().mEditorScene, queue);
+    }
+  }
+
+  //Await completion of a space save/load operation
+  void _awaitSpaceCompletion(PlayStateContext& context, const Entity& space, EditorPlayStateActionQueueComponent& queue) {
+    //View excludes pending coponents, so once it's found in this view the operation is complete and the action can be popped
+    auto& view = context.get<SpaceCompleteView>();
+    if(_isMessageProcessed(context, queue.mPendingMessage) && view.find(space) != view.end()) {
+      queue.mActions.pop();
+    }
+  }
+
+  void _saveEditorSpaceAction(void* data, EditorPlayStateActionQueueComponent& queue) {
+    auto* context = reinterpret_cast<PlayStateContext*>(data);
+    if(auto editor = context->get<SceneRefView>().tryGetFirst()) {
+      switch(queue.mState) {
+        case EditorPlayStateActionQueueComponent::ActionState::Init: {
+          if(auto cmd = context->get<GlobalCommandView>().tryGetFirst()) {
+            auto c = cmd->get<GlobalCommandBufferComponent>().get<SaveSpaceComponent, MessageComponent>();
+            auto&& [e, save, m] = c.createAndGetEntityWithComponents<SaveSpaceComponent, MessageComponent>();
+            save->mSpace = editor->get<const EditorSceneReferenceComponent>().mEditorScene;
+            save->mToSave = editor->get<const EditorSavedSceneComponent>().mFilename;
+            queue.mPendingMessage = e;
+          }
+          break;
+        }
+        case EditorPlayStateActionQueueComponent::ActionState::Update: {
+          _awaitSpaceCompletion(*context, editor->get<const EditorSceneReferenceComponent>().mEditorScene, queue);
+          break;
+        }
+      }
+    }
+  }
+
+  void _loadSpace(PlayStateContext& context, const Entity& space, EditorPlayStateActionQueueComponent& queue) {
+    if(auto editor = context.get<SceneRefView>().tryGetFirst()) {
+      switch(queue.mState) {
+        case EditorPlayStateActionQueueComponent::ActionState::Init: {
+          if(auto cmd = context.get<GlobalCommandView>().tryGetFirst()) {
+            auto c = cmd->get<GlobalCommandBufferComponent>().get<LoadSpaceComponent, MessageComponent>();
+            auto&& [e, load, m] = c.createAndGetEntityWithComponents<LoadSpaceComponent, MessageComponent>();
+            load->mSpace = space;
+            load->mToLoad = editor->get<const EditorSavedSceneComponent>().mFilename;
+            queue.mPendingMessage = e;
+          }
+          break;
+        }
+        case EditorPlayStateActionQueueComponent::ActionState::Update: {
+          _awaitSpaceCompletion(context, space, queue);
+          break;
+        }
+      }
+    }
+  }
+
+  void _loadPlaySpaceAction(void* data, EditorPlayStateActionQueueComponent& queue) {
+    auto* context = reinterpret_cast<PlayStateContext*>(data);
+    if(auto editor = context->get<SceneRefView>().tryGetFirst()) {
+      _loadSpace(*context, editor->get<const EditorSceneReferenceComponent>().mPlayScene, queue);
+    }
+  }
+
+  void _loadEditorSpaceAction(void* data, EditorPlayStateActionQueueComponent& queue) {
+    auto* context = reinterpret_cast<PlayStateContext*>(data);
+    if(auto editor = context->get<SceneRefView>().tryGetFirst()) {
+      _loadSpace(*context, editor->get<const EditorSceneReferenceComponent>().mEditorScene, queue);
+    }
+  }
+
+  void tickPlayStateUpdate(PlayStateContext& context) {
+    auto& view = context.get<PlayStateView>();
+    if(view.begin() == view.end()) {
+      return;
+    }
+    auto cmd = context.get<GlobalCommandView>().tryGetFirst();
+    if(!cmd) {
+      return;
+    }
+    auto c = cmd->get<GlobalCommandBufferComponent>().get<ImGuiContextComponent>();
+
+    for(auto state : view) {
       EditorPlayStateComponent& s = state.get<EditorPlayStateComponent>();
       const bool stateChanged = s.mCurrentState != s.mLastState;
       EditorPlayState newState = s.mCurrentState;
-      if(stateChanged) {
-        auto cmd = context.get<PlayStateCmd>();
+      auto& actions = state.get<EditorPlayStateActionQueueComponent>();
 
+      if(stateChanged) {
         switch(s.mCurrentState) {
           case EditorPlayState::Playing:
             //Remove imgui context from the editor entity, preventing all imgui rendering during play state
             if(s.mLastState == EditorPlayState::Stopped) {
-              cmd.removeComponent<ImGuiContextComponent>(state.entity());
+              c.removeComponent<ImGuiContextComponent>(state.entity());
+              actions.mActions.push(&_saveEditorSpaceAction);
+              actions.mActions.push(&_clearPlaySpaceAction);
+              actions.mActions.push(&_clearEditorSpaceAction);
+              actions.mActions.push(&_loadPlaySpaceAction);
             }
             break;
           case EditorPlayState::Stopped:
             if(s.mLastState == EditorPlayState::Playing || s.mLastState == EditorPlayState::Invalid) {
-              cmd.addComponent<ImGuiContextComponent>(state.entity());
+              c.addComponent<ImGuiContextComponent>(state.entity());
+              if(s.mLastState == EditorPlayState::Playing) {
+                actions.mActions.push(&_clearEditorSpaceAction);
+                actions.mActions.push(&_clearPlaySpaceAction);
+                actions.mActions.push(&_loadEditorSpaceAction);
+              }
             }
             break;
           case EditorPlayState::Paused:
@@ -261,6 +396,17 @@ namespace EditorImpl {
 
       s.mLastState = s.mCurrentState;
       s.mCurrentState = newState;
+
+      if(!actions.mActions.empty()) {
+        const size_t beforeSize = actions.mActions.size();
+        actions.mActions.front()(&context, actions);
+        if(beforeSize != actions.mActions.size()) {
+          actions.mState = EditorPlayStateActionQueueComponent::ActionState::Init;
+        }
+        else {
+          actions.mState = EditorPlayStateActionQueueComponent::ActionState::Update;
+        }
+      }
     }
   }
 }
@@ -283,20 +429,27 @@ std::shared_ptr<Engine::System> EditorSystem::init() {
     EditorSavedSceneComponent,
     EditorSceneReferenceComponent,
     SpaceTagComponent,
-    EditorPlayStateComponent
+    EditorPlayStateComponent,
+    EditorPlayStateActionQueueComponent,
+    DefaultPlaySpaceComponent
   >;
 
   return ecx::makeSystem("EditorInit", [](SystemContext<Commands>& context) {
     auto cmd = context.get<Commands>();
 
-    auto&& [spaceEntity, spaceComponent] = cmd.createAndGetEntityWithComponents<SpaceTagComponent>();
+    auto&& [editorSpace, spaceComponent] = cmd.createAndGetEntityWithComponents<SpaceTagComponent>();
+    auto&& [playSpace, sp, tag] = cmd.createAndGetEntityWithComponents<SpaceTagComponent, DefaultPlaySpaceComponent>();
 
-    auto&& [contextEntity, editorContext, savedScene, sceneReference, playState] = cmd.createAndGetEntityWithComponents<
+    auto&& [contextEntity, editorContext, savedScene, sceneReference, playState, q] = cmd.createAndGetEntityWithComponents<
       EditorContextComponent,
       EditorSavedSceneComponent,
       EditorSceneReferenceComponent,
-      EditorPlayStateComponent>();
-    sceneReference->mScene = spaceEntity;
+      EditorPlayStateComponent,
+      EditorPlayStateActionQueueComponent>();
+    sceneReference->mEditorScene = editorSpace;
+    sceneReference->mPlayScene = playSpace;
+    //Default to temp until explicitly changed
+    savedScene->mFilename = "temp";
     playState->mCurrentState = EditorPlayState::Stopped;
     playState->mLastState = EditorPlayState::Invalid;
   });
@@ -320,7 +473,7 @@ std::shared_ptr<Engine::System> EditorSystem::createUriListener() {
     FileSystemComponent& fs = global->get<FileSystemComponent>();
     EditorSavedSceneComponent& savedScene = editorContext->get<EditorSavedSceneComponent>();
     auto modifier = context.get<Modifier>();
-    const Entity editorSpace = editorContext->get<const EditorSceneReferenceComponent>().mScene;
+    const Entity editorSpace = editorContext->get<const EditorSceneReferenceComponent>().mEditorScene;
 
     for(auto&& chunk : context.get<UriView>().chunks()) {
       const std::vector<UriActivationComponent>& uris = *chunk.tryGet<const UriActivationComponent>();

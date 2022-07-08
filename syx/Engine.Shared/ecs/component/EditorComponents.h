@@ -19,8 +19,24 @@ struct EditorPlayStateComponent {
   EditorPlayState mCurrentState{};
 };
 
+struct EditorPlayStateActionQueueComponent {
+  using Action = void(*)(void*, EditorPlayStateActionQueueComponent&);
+  //State for an action to indicate what phase it's in
+  enum class ActionState {
+    //This is the value the first time a new action is invoked
+    Init,
+    //Every time after the first invocation this is the value
+    Update,
+  };
+
+  ActionState mState = ActionState::Init;
+  Engine::Entity mPendingMessage;
+  std::queue<Action> mActions;
+};
+
 struct EditorSceneReferenceComponent {
-  Engine::Entity mScene;
+  Engine::Entity mEditorScene;
+  Engine::Entity mPlayScene;
 };
 
 struct EditorSavedSceneComponent {

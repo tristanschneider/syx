@@ -120,6 +120,7 @@ namespace SystemTests {
       auto message = reg->createEntity();
       reg->addComponent<UriActivationComponent>(message, UriActivationComponent{ "projectRoot=test/dir/" });
       reg->addComponent<MessageComponent>(message);
+      context.addTickToAllPhases();
 
       context.update(*reg);
 

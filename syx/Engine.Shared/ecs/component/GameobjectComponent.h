@@ -4,6 +4,9 @@
 struct GameobjectComponent {
 };
 
+struct GameobjectInitializedComponent {
+};
+
 struct NameTagComponent {
   std::string mName;
 };

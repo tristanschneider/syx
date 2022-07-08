@@ -321,6 +321,11 @@ namespace ecx {
       return it != end() ? std::make_optional(*it) : std::nullopt;
     }
 
+    LinearEntity tryGetFirstEntity() {
+      auto it = begin();
+      return it != end() ? it.entity() : LinearEntity();
+    }
+
   private:
     std::vector<VersionedEntityChunk> mChunks;
     //Count of chunks in the registry the last time the view was computed. Used to invalidate cached views

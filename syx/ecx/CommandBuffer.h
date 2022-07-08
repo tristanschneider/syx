@@ -27,6 +27,9 @@ namespace ecx {
     CommandBuffer(DestinationRegistry& registry)
       : mEntityGenerator(registry.createEntityGenerator()) {
     }
+    CommandBuffer(std::shared_ptr<IndependentEntityGenerator> gen)
+      : mEntityGenerator(std::move(gen)) {
+    }
 
     template<class... Components>
     auto createAndGetEntityWithComponents() {

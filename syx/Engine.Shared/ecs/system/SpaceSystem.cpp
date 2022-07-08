@@ -207,7 +207,7 @@ std::shared_ptr<Engine::System> SpaceSystem::createSpaceEntitiesSystem() {
       auto& parsedSpaceContent = *spaceChunk.tryGet<ParsedSpaceContentsComponent>();
       for(size_t i = 0; i < parsedSpaceContent.size(); ++i) {
         for(const Entity& entity : parsedSpaceContent[i].mNewEntities) {
-          auto&& [created, inSpace, serializedId] = factory.createAndGetEntityWithComponents<InSpaceComponent, SerializeIDComponent>();
+          auto&& [created, inSpace, g] = factory.createAndGetEntityWithComponents<InSpaceComponent, GameobjectComponent>();
           //Remap either the version or to the entirely new entity
           parsedSpaceContent[i].mRemappings[entity] = created;
           inSpace.get().mSpace = spaceChunk.indexToEntity(i);

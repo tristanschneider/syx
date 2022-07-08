@@ -39,6 +39,8 @@ namespace EditorTests {
     mContext.initialize(mRegistry);
     //Update once which makes the play state system add the imgui context
     update();
+    //Once more to process global command buffer
+    update();
   }
 
   void TestApp::pressButtonAndProcessInput(const std::string& label) {
