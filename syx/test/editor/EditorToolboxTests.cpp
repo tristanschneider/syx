@@ -108,5 +108,39 @@ namespace EditorTests {
       }
       Assert::Fail(L"Created object should be found in play state");
     }
+
+    TEST_METHOD(SingleObject_ExitPlayState_ObjectReverted) {
+      TestApp app;
+      //Create an object with a unique name
+      app.pressButtonAndProcessInput(EditorSystem::NEW_OBJECT_LABEL);
+      auto name = app.mRegistry.begin<NameTagComponent>();
+      Assert::IsTrue(name != app.mRegistry.end<NameTagComponent>());
+      name->mName = "obj";
+
+      //Enter play state
+      app.pressKeysAndProcessInput({ Key::F5 });
+      //Give several ticks to load
+      for(int i = 0; i < 15; ++i) {
+        app.update();
+      }
+
+      Assert::AreEqual(size_t(1), app.mRegistry.size<NameTagComponent>());
+      auto it = app.mRegistry.begin<NameTagComponent>();
+      //Change the name so the revert can be observed when exiting the play state
+      it->mName = "something else";
+
+      _assertPlayStateMatches(app, EditorPlayState::Playing);
+
+      //Exit play state
+      app.pressKeysAndProcessInput({ Key::Shift, Key::F5 });
+
+      for(int i = 0; i < 15; ++i) {
+        app.update();
+      }
+
+      Assert::AreEqual(size_t(1), app.mRegistry.size<NameTagComponent>());
+      it = app.mRegistry.begin<NameTagComponent>();
+      Assert::AreEqual(std::string("obj"), it->mName, L"Change in play state should have been reverted");
+    }
   };
 }
