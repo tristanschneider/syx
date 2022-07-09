@@ -11,7 +11,7 @@
 //}
 namespace ecx {
   //Base type info, this is what is looked up and also what is declared for plain types
-  template<class T>
+  template<class T, class Enabled = void>
   struct StaticTypeInfo {
     using SelfT = T;
     static constexpr size_t MemberCount = 0;
@@ -70,6 +70,7 @@ namespace ecx {
     template<class Ret, class Class, class... Args>
     static ConstMemberFunctionInfo<Ret, Class, Args...> _deduceFnPointer(Ret(Class::* fn)(Args...) const);
 
+    using RawFnT = decltype(Fn);
     using InfoT = decltype(_deduceFnPointer(Fn));
     using ReturnT = typename InfoT::ReturnT;
     using ArgsTypeList = typename InfoT::ArgsList;
@@ -126,8 +127,8 @@ namespace ecx {
       return StaticSelfT::FunctionNames[I];
     }
 
-    static const std::string& getTypeName() {
-      static_assert(std::is_same_v<std::string, std::decay_t<decltype(StaticSelfT::SelfName)>>, "Derived type should have a self identifier (SelfName)");
+    static const char* getTypeName() {
+      static_assert(std::is_convertible_v<std::decay_t<decltype(StaticSelfT::SelfName)>, std::string>, "Derived type should have a self identifier (SelfName)");
       return StaticSelfT::SelfName;
     }
 

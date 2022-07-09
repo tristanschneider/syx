@@ -172,12 +172,12 @@ namespace Lua {
     static int push(lua_State* l, const T& value) {
       auto binding = (const T**)lua_newuserdata(l, sizeof(T*));
       *binding = &value;
-      luaL_setmetatable(l, ecx::StaticTypeInfo<T>::getTypeName().c_str());
+      luaL_setmetatable(l, ecx::StaticTypeInfo<T>::getTypeName());
       return 1;
     }
 
     static std::optional<T*> fromTop(lua_State* l) {
-      void* result = luaL_testudata(l, -1, ecx::StaticTypeInfo<T>::getTypeName().c_str());
+      void* result = luaL_testudata(l, -1, ecx::StaticTypeInfo<T>::getTypeName());
       return result ? std::make_optional(*static_cast<T**>(result)) : std::nullopt;
     }
   };
@@ -228,7 +228,7 @@ namespace Lua {
   template<class T>
   struct LuaBinder {
     //Creates a `callNative` method which uses ecx::TypeInfo to pull the arguments from the lua stack and call the wrapped method
-    template<class FunctionInfoT>
+    template<class FunctionInfoT, class Enabled = void>
     struct FunctionBinder {
       template<class A, class Enabled = void>
       struct Applier {
@@ -373,6 +373,15 @@ namespace Lua {
       };
     };
 
+    //Forward straight through if the function is already written as a native lua function
+    template<class T>
+    struct FunctionBinder<T, std::enable_if_t<std::is_same_v<typename T::RawFnT, int(*)(lua_State*)>>> {
+      static int callNative(lua_State* l) {
+        //Type deduction results in lua_State*&& for some reason
+        return T::invoker().invoke(std::move(l));
+      }
+    };
+
     template<bool MemberFns, size_t I>
     static void _bindLibEntry(luaL_Reg*& entry) {
       using FunctionInfoT = decltype(ecx::StaticTypeInfo<T>::getFunctionInfo<I>());
@@ -385,27 +394,28 @@ namespace Lua {
 
     template<bool MemberFns, size_t FnCount, size_t... Indices>
     static void _bindLibEntries(std::array<luaL_Reg, FnCount>& entries, std::index_sequence<Indices...>) {
-      luaL_Reg* currentEntry = &entries[0];
+      [[maybe_unused]] luaL_Reg* currentEntry = &entries[0];
       (_bindLibEntry<MemberFns, Indices>(currentEntry), ...);
     }
 
     static void openLib(lua_State* l) {
       //Make a full array for all functions, only some of them will be used
       constexpr size_t functionCount = ecx::StaticTypeInfo<T>::getFunctionCount();
-      std::array<luaL_Reg, functionCount> members{ { nullptr, nullptr } };
-      std::array<luaL_Reg, functionCount> statics{ { nullptr, nullptr } };
+      //+1 to ensure null termination
+      std::array<luaL_Reg, functionCount + 1> members{ { nullptr, nullptr } };
+      std::array<luaL_Reg, functionCount + 1> statics{ { nullptr, nullptr } };
       _bindLibEntries<true>(members, std::make_index_sequence<functionCount>());
       _bindLibEntries<false>(statics, std::make_index_sequence<functionCount>());
 
       Lua::StackAssert sa(l);
-      const std::string& selfName = ecx::StaticTypeInfo<T>::getTypeName();
-      luaL_newmetatable(l, selfName.c_str());
+      const char* selfName = ecx::StaticTypeInfo<T>::getTypeName();
+      luaL_newmetatable(l, selfName);
       luaL_setfuncs(l, members.data(), 0);
       lua_pushvalue(l, -1);
       lua_setfield(l, -2, "__index");
       lua_pop(l, 1);
       luaL_newlib(l, statics.data());
-      lua_setglobal(l, selfName.c_str());
+      lua_setglobal(l, selfName);
     }
   };
 

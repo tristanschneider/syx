@@ -121,7 +121,7 @@ struct ObjectInspectorSystem<ecx::TypeList<Components...>> {
       return;
     }
 
-    switch(presentPick(ecx::StaticTypeInfo<ComponentT>::getTypeName().c_str(), *index)) {
+    switch(presentPick(ecx::StaticTypeInfo<ComponentT>::getTypeName(), *index)) {
       //No preview for component picker
       case Picker::PickItemResult::ItemPreviewed:
       case Picker::PickItemResult::Continue:
@@ -148,7 +148,7 @@ struct ObjectInspectorSystem<ecx::TypeList<Components...>> {
     }
     using TypeInfoT = ecx::StaticTypeInfo<ComponentT>;
     ImGui::PushID(indexID);
-    ImGui::Text(TypeInfoT::getTypeName().c_str());
+    ImGui::Text(TypeInfoT::getTypeName());
     ImGui::BeginGroup();
 
     //Visit all properties on this component and inspect them

@@ -49,7 +49,7 @@ namespace ecx {
     AutoTypeList<&TextureRefComponent::mTexture>,
     AutoTypeList<>> {
     static inline const std::array<std::string, 1> MemberNames = { "texture" };
-    static inline const std::string SelfName = "TextureRef";
+    static inline constexpr const char* SelfName = "TextureRef";
   };
 
   template<>
@@ -57,7 +57,7 @@ namespace ecx {
     AutoTypeList<&GraphicsModelRefComponent::mModel>,
     AutoTypeList<>> {
     static inline const std::array<std::string, 1> MemberNames = { "model" };
-    static inline const std::string SelfName = "GraphicsModelRef";
+    static inline constexpr const char* SelfName = "GraphicsModelRef";
   };
 }
 

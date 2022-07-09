@@ -154,7 +154,7 @@ namespace ecx {
       "getValue",
       "intMethod"
     };
-    inline static const std::string SelfName = "WithMethods";
+    static inline constexpr const char* SelfName = "WithMethods";
   };
 }
 

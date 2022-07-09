@@ -32,6 +32,6 @@ namespace ecx {
     AutoTypeList<&AssetInfoComponent::mPath>,
     AutoTypeList<>> {
     static inline const std::array<std::string, 1> MemberNames = { "path" };
-    static inline const std::string SelfName = "AssetInfo";
+    static inline constexpr const char* SelfName = "AssetInfo";
   };
 }

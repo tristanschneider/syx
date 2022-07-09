@@ -11,6 +11,7 @@ namespace Engine {
   using EntityRegistry = ecx::EntityRegistry<Entity>;
   template<class... Args>
   using View = ecx::View<Entity, Args...>;
+  using RuntimeView = ecx::RuntimeView<Entity>;
 
   template<class T> using Include = ecx::Include<T>;
   template<class T> using Exclude = ecx::Exclude<T>;

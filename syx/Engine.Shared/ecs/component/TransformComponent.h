@@ -15,7 +15,7 @@ namespace ecx {
     AutoTypeList<&TransformComponent::mValue>,
     AutoTypeList<>> {
     static inline const std::array<std::string, 1> MemberNames = { "value" };
-    static inline const std::string SelfName = "Transform";
+    static inline constexpr const char* SelfName = "Transform";
   };
 }
 

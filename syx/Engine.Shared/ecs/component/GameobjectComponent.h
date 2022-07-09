@@ -23,6 +23,6 @@ namespace ecx {
     AutoTypeList<>
   > {
     static inline const std::array<std::string, 1> MemberNames = { "name" };
-    static inline const std::string SelfName = "NameTag";
+    static inline constexpr const char* SelfName = "NameTag";
   };
 }

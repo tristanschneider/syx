@@ -112,6 +112,33 @@ namespace ecx {
     size_t mIndex = 0;
   };
 
+  template<class EntityT>
+  class RuntimeView {
+  };
+
+  struct ViewedTypes {
+    using TypeId = ecx::typeId_t<DefaultTypeCategory>;
+    std::vector<TypeId> mIncludes;
+    std::vector<TypeId> mExcludes;
+    std::vector<TypeId> mReads;
+    std::vector<TypeId> mWrites;
+  };
+
+  template<>
+  class RuntimeView<LinearEntity> {
+  public:
+    RuntimeView(ViewedTypes viewed)
+      : mViewed(std::move(viewed)) {
+    }
+    RuntimeView(RuntimeView&&) noexcept = default;
+    RuntimeView(const RuntimeView&) = default;
+    RuntimeView& operator=(const RuntimeView&) = default;
+    RuntimeView& operator=(RuntimeView&&) noexcept = default;
+
+  private:
+    ViewedTypes mViewed;
+  };
+
   //A combination of registry iterators to allow viewing entities that satisfy conditions as specified by the tags above
   template<class... Args>
   class View<LinearEntity, Args...> {
