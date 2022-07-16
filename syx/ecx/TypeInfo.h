@@ -102,6 +102,8 @@ namespace ecx {
     template<auto... Fns>
     using FunctionInfoTupleT = std::tuple<FunctionTypeInfo<Fns>...>;
 
+    inline static constexpr Members MembersList{};
+
     template<auto... ToApply>
     using MemberTypeListTemplate = ecx::TypeList<StaticTypeInfo<decltype(memberPointerToMemberType(ToApply))>...>;
     using MemberTypeList = decltype(ecx::changeType<MemberTypeListTemplate>(Members{}));
@@ -118,6 +120,12 @@ namespace ecx {
       static_assert(I < MemberCount);
       static_assert(MemberCount == StaticSelfT::MemberNames.size(), "Derived type must have a member names array containing names for all members");
       return StaticSelfT::MemberNames[I];
+    }
+
+    //template<class T = StaticSelfT, std::enable_if_t<MemberCount == T::MemberNames.size()>>
+    static const std::string& getMemberName(size_t i) {
+      assert(i < MemberCount);
+      return StaticSelfT::MemberNames[i];
     }
 
     template<size_t I>

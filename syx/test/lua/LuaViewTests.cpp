@@ -26,6 +26,19 @@ namespace {
   struct ISafeLightUserdata {
     virtual ~ISafeLightUserdata() = default;
     virtual ecx::typeId_t<ISafeLightUserdata> getType() const = 0;
+
+    template<class T>
+    static const T& checkUserdata(lua_State* l, int index) {
+      if(!lua_islightuserdata(l, index)) {
+        luaL_error("Unexpected type, should be light userdata");
+      }
+      void* data = lua_touserdata(l, i);
+      auto* checker = (ISafeLightUserdata*)data;
+      if(!checker || checker->getType() != ecx::typeId<T, ISafeLightUserdata>()) {
+        luaL_error("Unexpected light userdata type");
+      }
+      return *(const T*)data;
+    }
   };
 
   template<class SelfT>
@@ -70,6 +83,52 @@ namespace {
       : mView(std::move(types)) {
     }
     Engine::RuntimeView mView;
+  };
+
+  struct IComponentProperty : ISafeLightUserdata {
+    virtual ~IComponentProperty() = default;
+
+    //virtual int set(lua_State* l, int index) const = 0;
+  };
+
+  template<auto>
+  struct ComponentProperty {};
+  template<class ComponentT, class MemberT, MemberT ComponentT::*Ptr>
+  struct ComponentProperty<Ptr> : IComponentProperty {
+    ecx::typeId_t<ISafeLightUserdata> getType() const override {
+      return ecx::typeId<IComponentProperty, ISafeLightUserdata>();
+    }
+
+    //int set(lua_State* l, LuaRuntimeView& view, int index) const override {
+    //  
+    //}
+  };
+
+  template<class T>
+  struct PropertyReflector {
+    using TypeInfoT = ecx::StaticTypeInfo<T>;
+
+    template<auto Ptr>
+    static constexpr const IComponentProperty& _getProperty() {
+      static ComponentProperty<Ptr> singleton;
+      return singleton;
+    }
+
+    template<auto... M>
+    static constexpr auto _membersToProperties(ecx::AutoTypeList<M...>) {
+      return ecx::AutoTypeList<&_getProperty<M>...>{};
+    }
+
+    static auto getMemberNames() {
+      std::array<std::string, ecx::typeListSize(typename TypeInfoT::MemberTypeList{})> result;
+      for(size_t i = 0; i < result.size(); ++i) {
+        result[i] = TypeInfoT::getMemberName(i);
+      }
+      return result;
+    }
+
+    //AutoTypeList of function pointers that return IComponentProperty objects
+    inline static constexpr auto MemberProperties = _membersToProperties(TypeInfoT::MembersList);
   };
 
   //Holds the native objects that the script uses so that everything in lua can use light userdata
@@ -163,6 +222,14 @@ namespace {
       context.mViews.push_back(std::move(view));
       return 1;
     }
+
+    //static int set(lua_State* l) {
+    //  if(int args = lua_gettop(l); args != 2) {
+    //    luaL_error(l, "Expected 2 arguments, got %d", args);
+    //    return 0;
+    //  }
+    //  ISafeLightUserdata::checkUserdata<IComponentProperty>(l, 1);
+    //}
   };
 }
 
@@ -184,22 +251,33 @@ namespace ecx {
     inline static constexpr const char* SelfName = "DemoComponentB";
   };
 
+  template<size_t Size, class... Rest>
+  std::array<std::string, Size + sizeof...(Rest)> combineNames(const std::array<std::string, Size>& l, Rest&&... r) {
+    std::array<std::string, Size + sizeof...(Rest)> result;
+    size_t i = 0;
+    for(const std::string& s : l) {
+      result[i++] = s;
+    }
+    ((result[i++] = std::forward<Rest>(r)), ...);
+    return result;
+  }
+
   template<class T>
   struct StaticTypeInfo<LuaViewableComponent<T>> : StructTypeInfo<StaticTypeInfo<LuaViewableComponent<T>>
     , ecx::AutoTypeList<>
-    , ecx::AutoTypeList<
+    , decltype(ecx::combine(PropertyReflector<T>::MemberProperties, ecx::AutoTypeList<
         &LuaViewableComponent<T>::read
       , &LuaViewableComponent<T>::write
       , &LuaViewableComponent<T>::include
-      , &LuaViewableComponent<T>::exclude>
+      , &LuaViewableComponent<T>::exclude>{}))
   > {
     inline static constexpr const char* SelfName = StaticTypeInfo<T>::SelfName;
-    inline static const std::array FunctionNames = {
-      std::string("read"),
-      std::string("write"),
-      std::string("include"),
-      std::string("exclude"),
-    };
+    inline static const std::array FunctionNames = combineNames(PropertyReflector<T>::getMemberNames(),
+      "read",
+      "write",
+      "include",
+      "exclude"
+    );
   };
 
   template<>
@@ -217,25 +295,31 @@ namespace ecx {
 
 namespace Lua {
   //These are singletons, so forward them around as light userdata (pointers)
-  template<>
-  struct LuaTypeInfo<IViewableComponent> {
-    static int push(lua_State* l, const IViewableComponent& value) {
+
+  template<class T>
+  struct LuaSafeLightUserdataTypeInfoImpl {
+    static int push(lua_State* l, const T& value) {
       lua_pushlightuserdata(l, (void*)&value);
       return 1;
     }
 
-    static std::optional<const IViewableComponent*> fromTop(lua_State* l) {
+    static std::optional<const T*> fromTop(lua_State* l) {
       if(lua_islightuserdata(l, -1)) {
         void* data = lua_touserdata(l, -1);
         const auto* checker = (const ISafeLightUserdata*)data;
-        if(checker && checker->getType() == ecx::typeId<IViewableComponent, ISafeLightUserdata>()) {
-          return std::make_optional((const IViewableComponent*)data);
+        if(checker && checker->getType() == ecx::typeId<T, ISafeLightUserdata>()) {
+          return std::make_optional((const T*)data);
         }
       }
-      luaL_error(l, "Expected ViwableComponent type");
+      luaL_error(l, "Unexpected type");
       return {};
     }
   };
+
+  template<>
+  struct LuaTypeInfo<IViewableComponent> : LuaSafeLightUserdataTypeInfoImpl<IViewableComponent> {};
+  template<>
+  struct LuaTypeInfo<IComponentProperty> : LuaSafeLightUserdataTypeInfoImpl<IComponentProperty> {};
 }
 
 namespace {
@@ -248,19 +332,24 @@ namespace {
     local i = View.create(DemoComponentA.include());
     local e = View.create(DemoComponentA.include(), DemoComponentB.exclude());
     local b = View.create(DemoComponentB.write());
-    let it = View.begin(w);
-    let endIt = View.end(w);
+    local it = View.begin(w);
+    local endIt = View.end(w);
+    local valueAKey = DemoComponentA.mValue();
+    local valueBKey = DemoCOmponentB.mB();
 
-    while it ~= endIt do
-      local value = View.getValue(it, "DemoComponentA", "mValue");
-      View.setValue(it, "DemoComponentA", "mValue", value + 1);
+    -- Iterate over each entity in the view
+    -- It's an iterator in the view, so it's only valid for accessing values in the view
+    for entity in View.each(w) do
+      -- Values can be accessed by these keys, to which only keys contained in the view will work
+      local value = View.getValue(entity, valueAKey);
+      View.setValue(entity, valueAKey, value + 1);
     end
 
-    it = View.begin(r);
-    local itB = View.find(it, b);
-    if itB ~= View.end(b) then
-      View.setValue(itB, "DemoComponentB", "mB", 2)
-    end
+    local entityInR = View.begin(r);
+    -- An iterator from one view can be used to get another view's iterator of the same entity with `find`
+    local entityInB = View.find(b, entityInR);
+    -- That iterator can then be used the same as before to access values
+    View.setValue(entityInB, valueBKey, 2);
   )";
 }
 
@@ -300,6 +389,12 @@ namespace LuaTests {
       Lua::State s;
       DemoABinder::openLib(s.get());
       assertScriptExecutes(s.get(), "local t = DemoComponentA.exclude()");
+    }
+
+    TEST_METHOD(Component_GetPropertyAccessor_Executes) {
+      Lua::State s;
+      DemoABinder::openLib(s.get());
+      assertScriptExecutes(s.get(), "local t = DemoComponentA.mValue()");
     }
 
     TEST_METHOD(View_Create_Executes) {

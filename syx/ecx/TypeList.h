@@ -136,6 +136,16 @@ namespace ecx {
   template<class... A, class... B, class... C>
   static decltype(combine(TypeList<A..., B...>(), std::declval<C>()...)) combine(TypeList<A...>, TypeList<B...>, C...);
 
+  template<auto... A>
+  static constexpr auto combine(AutoTypeList<A...> result) {
+    return result;
+  }
+
+  template<auto... A, auto... B, class... C>
+  static constexpr auto combine(AutoTypeList<A...>, AutoTypeList<B...>, C... c) {
+    return combine(AutoTypeList<A..., B...>{}, std::forward<C>(c)...);
+  }
+
   template<class T, class... A>
   static std::disjunction<std::is_same<T, A>...> typeListContains(TypeList<A...>);
 

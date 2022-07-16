@@ -140,6 +140,8 @@ namespace ecx {
     static_assert(std::is_same_v<ecx::TypeList<>, ecx::RemoveType<char, ecx::TypeList<char>>>);
     static_assert(std::is_same_v<ecx::TypeList<int, char>, ecx::RemoveType<bool, ecx::TypeList<bool, int, char>>>);
 
+    static_assert(std::is_same_v<ecx::AutoTypeList<1, 2>, decltype(ecx::combine(ecx::AutoTypeList<1>{}, ecx::AutoTypeList<2>{}))>);
+
     template<class L, class R>
     struct SizeSort {
       constexpr static bool value = sizeof(L) < sizeof(R);
