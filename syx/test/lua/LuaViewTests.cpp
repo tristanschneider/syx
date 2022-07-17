@@ -131,6 +131,14 @@ namespace {
     inline static constexpr auto MemberProperties = _membersToProperties(TypeInfoT::MembersList);
   };
 
+  struct LuaViewIterator : SafeLightUserdata<LuaViewIterator> {
+    LuaViewIterator(const Engine::RuntimeView::It& it)
+      : mIterator(it) {
+    }
+
+    Engine::RuntimeView::It mIterator;
+  };
+
   //Holds the native objects that the script uses so that everything in lua can use light userdata
   struct LuaSystemContext {
     constexpr static inline const char* KEY = "lc";
@@ -155,6 +163,8 @@ namespace {
 
     //Needs pointer stability since they'll be passed around by pointer in lua
     std::vector<std::unique_ptr<ViewInfo>> mViews;
+    //TODO: use frame allocator or something, these are only needed during a system tick and can be discarded afterwards
+    std::vector<std::unique_ptr<LuaViewIterator>> mIterators;
     Engine::EntityRegistry* mRegistry = nullptr;
   };
 
@@ -174,6 +184,7 @@ namespace {
     }
   };
 
+  //The interface to view related functions, does not represent an instance of a view
   struct LuaView {
     //Construct a view out of the access types indicated in the argument list
     static int create(lua_State* l) {
@@ -219,9 +230,21 @@ namespace {
       //Store the view in the local cache for this script and return a pointer to it
       LuaSystemContext::ViewInfo info{ LuaRuntimeView{ *context.mRegistry, std::move(types) } };
       auto view = std::make_unique<LuaSystemContext::ViewInfo>(std::move(info));
-      lua_pushlightuserdata(l, view.get());
+      lua_pushlightuserdata(l, &view->mView);
       context.mViews.push_back(std::move(view));
       return 1;
+    }
+
+    static LuaViewIterator* begin(LuaRuntimeView& view, lua_State* l) {
+      auto it = view.mView.begin();
+      if(it == view.mView.end()) {
+        return nullptr;
+      }
+      auto& context = LuaSystemContext::get(l);
+      auto storedIt = std::make_unique<LuaViewIterator>(it);
+      LuaViewIterator* result = storedIt.get();
+      context.mIterators.push_back(std::move(storedIt));
+      return result;
     }
 
     //static int set(lua_State* l) {
@@ -284,14 +307,23 @@ namespace ecx {
   template<>
   struct StaticTypeInfo<LuaView> : StructTypeInfo<StaticTypeInfo<LuaView>
     , ecx::AutoTypeList<>
-    , ecx::AutoTypeList
-      <&LuaView::create>
+    , ecx::AutoTypeList<
+      &LuaView::create,
+      &LuaView::begin>
   > {
     inline static constexpr const char* SelfName = "View";
     inline static const std::array FunctionNames = {
       std::string("create"),
+      std::string("begin")
     };
   };
+
+  template<>
+  struct StaticTypeInfo<LuaViewIterator> : StructTypeInfo<StaticTypeInfo<LuaViewIterator>
+    , ecx::AutoTypeList<>, ecx::AutoTypeList<>, ecx::TypeList<Lua::BindReference>> {};
+  template<>
+  struct StaticTypeInfo<LuaRuntimeView> : StructTypeInfo<StaticTypeInfo<LuaRuntimeView>
+    , ecx::AutoTypeList<>, ecx::AutoTypeList<>, ecx::TypeList<Lua::BindReference>> {};
 }
 
 namespace Lua {
@@ -304,23 +336,33 @@ namespace Lua {
       return 1;
     }
 
-    static std::optional<const T*> fromTop(lua_State* l) {
+    static std::optional<T*> fromTop(lua_State* l) {
       if(lua_islightuserdata(l, -1)) {
         void* data = lua_touserdata(l, -1);
         const auto* checker = (const ISafeLightUserdata*)data;
         if(checker && checker->getType() == ecx::typeId<T, ISafeLightUserdata>()) {
-          return std::make_optional((const T*)data);
+          return std::make_optional((T*)data);
         }
       }
       luaL_error(l, "Unexpected type");
       return {};
     }
   };
+  //ecx::StaticTypeInfo<LuaView>::HasTagsT
+  static_assert(ecx::StaticTypeInfo<LuaViewIterator>::HasTagsT<Lua::BindReference>::value);
+  //static_assert(ecx::StaticTypeInfo<LuaViewIterator>::getFunctionCount());
+
+
+  //static_assert(Lua::IsReferenceBound<LuaViewIterator>::value);
 
   template<>
   struct LuaTypeInfo<IViewableComponent> : LuaSafeLightUserdataTypeInfoImpl<IViewableComponent> {};
   template<>
   struct LuaTypeInfo<IComponentProperty> : LuaSafeLightUserdataTypeInfoImpl<IComponentProperty> {};
+  template<>
+  struct LuaTypeInfo<LuaViewIterator> : LuaSafeLightUserdataTypeInfoImpl<LuaViewIterator> {};
+  template<>
+  struct LuaTypeInfo<LuaRuntimeView> : LuaSafeLightUserdataTypeInfoImpl<LuaRuntimeView> {};
 }
 
 namespace {
@@ -333,17 +375,15 @@ namespace {
     local i = View.create(DemoComponentA.include());
     local e = View.create(DemoComponentA.include(), DemoComponentB.exclude());
     local b = View.create(DemoComponentB.write());
-    local it = View.begin(w);
-    local endIt = View.end(w);
     local valueAKey = DemoComponentA.mValue();
     local valueBKey = DemoCOmponentB.mB();
 
     -- Iterate over each entity in the view
     -- It's an iterator in the view, so it's only valid for accessing values in the view
-    for entity in View.each(w) do
+    for it in View.each(w) do
       -- Values can be accessed by these keys, to which only keys contained in the view will work
-      local value = View.getValue(entity, valueAKey);
-      View.setValue(entity, valueAKey, value + 1);
+      local value = View.getValue(it, valueAKey);
+      View.setValue(it, valueAKey, value + 1);
     end
 
     local entityInR = View.begin(r);
@@ -398,15 +438,39 @@ namespace LuaTests {
       assertScriptExecutes(s.get(), "local t = DemoComponentA.mValue()");
     }
 
+    struct LuaStateWithContext {
+      LuaStateWithContext() {
+        mContext.mRegistry = &mRegistry;
+        mGenerator = mRegistry.createEntityGenerator();
+        LuaSystemContext::set(mState.get(), mContext);
+        ViewBinder::openLib(mState.get());
+        DemoABinder::openLib(mState.get());
+      }
+
+      lua_State* operator&() {
+        return mState.get();
+      }
+
+      Lua::State mState;
+      Engine::EntityRegistry mRegistry;
+      LuaSystemContext mContext;
+      std::shared_ptr<ecx::IndependentEntityGenerator> mGenerator;
+    };
+
     TEST_METHOD(View_Create_Executes) {
-      Lua::State s;
-      DemoABinder::openLib(s.get());
-      ViewBinder::openLib(s.get());
-      LuaSystemContext ctx;
-      Engine::EntityRegistry reg;
-      ctx.mRegistry = &reg;
-      LuaSystemContext::set(s.get(), ctx);
-      assertScriptExecutes(s.get(), "local t = View.create(DemoComponentA.read())");
+      LuaStateWithContext s;
+      assertScriptExecutes(&s, "local t = View.create(DemoComponentA.read())");
+    }
+
+    TEST_METHOD(EmptyView_Begin_IsNil) {
+      LuaStateWithContext s;
+      assertScriptExecutes(&s, "assert(View.begin(View.create(DemoComponentA.read())) == nil)");
+    }
+
+    TEST_METHOD(View_Begin_Executes) {
+      LuaStateWithContext s;
+      s.mRegistry.createEntityWithComponents<DemoComponentA>(*s.mGenerator);
+      assertScriptExecutes(&s, "assert(View.begin(View.create(DemoComponentA.read())) ~= nil)");
     }
   };
 }

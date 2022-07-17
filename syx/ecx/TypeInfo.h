@@ -227,9 +227,9 @@ namespace ecx {
   };
 
   //Default if no tags are provided : StructTypeInfo<T, ecx::AutoTypeList<&T::mValue>, ecx::AutoTypeList<&T::func>>
-  template<class C, auto... Members, auto... Functions>
-  struct StructTypeInfo<StaticTypeInfo<C>, ecx::AutoTypeList<Members...>, ecx::AutoTypeList<Functions...>, ecx::TypeList<>>
-    : StructTypeInfoImpl<C, ecx::AutoTypeList<Members...>, ecx::AutoTypeList<Functions...>, ecx::TypeList<>, ecx::TypeList<>, ecx::TypeList<>> {
+  template<class C, auto... Members, auto... Functions, class... Tags>
+  struct StructTypeInfo<StaticTypeInfo<C>, ecx::AutoTypeList<Members...>, ecx::AutoTypeList<Functions...>, ecx::TypeList<Tags...>>
+    : StructTypeInfoImpl<C, ecx::AutoTypeList<Members...>, ecx::AutoTypeList<Functions...>, ecx::TypeList<>, ecx::TypeList<>, ecx::TypeList<Tags...>> {
   };
 
   //Tagged type form : StructTypeInfo<T, ecx::TypeList<ecx::TaggedType<&T::mValue, TagA>>, ecx::TypeList<ecx::TaggedType<&T::func, TagB>>>

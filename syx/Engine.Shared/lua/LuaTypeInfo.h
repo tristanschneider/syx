@@ -326,6 +326,15 @@ namespace Lua {
         }
       };
 
+      //Special case for if a function wants lua_state, pass it through
+      //TODO: a bit of a hack since state must be last for it not to mess up stack index of other arguments
+      template<>
+      struct Applier<lua_State*> {
+        static lua_State* applyArgument(lua_State* l, size_t) {
+          return l;
+        }
+      };
+
       template<class A>
       // Explicit return to preserve references, type list to allow overload resolution of template type
       static decltype(LuaTypeInfo<std::decay_t<A>>::fromTop(nullptr)) applyArgument(lua_State* l, ecx::TypeList<A>, size_t index) {
