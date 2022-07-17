@@ -309,5 +309,154 @@ namespace ecx {
 
       Assert::IsTrue(view.chunksBegin() == view.chunksEnd());
     }
+
+    TEST_METHOD(RuntimeView_Empty_BeginIsEnd) {
+      TestEntityRegistry registry;
+      ViewedTypes t;
+      t.mIncludes.push_back(ecx::typeId<int, LinearEntity>());
+      RuntimeView<TestEntity, true> view(registry, t);
+
+      Assert::IsTrue(view.begin() == view.end());
+    }
+
+    TEST_METHOD(RuntimeView_FindExisting_IsFound) {
+      TestEntityRegistry registry;
+      ViewedTypes t;
+      t.mIncludes.push_back(ecx::typeId<int, LinearEntity>());
+      auto entity = registry.createEntityWithComponents<int, unsigned>();
+      RuntimeView<TestEntity, true> view(registry, t);
+
+      auto it = view.find(entity);
+
+      Assert::IsTrue(it != view.end());
+    }
+
+    TEST_METHOD(RuntimeView_FindNotExisting_IsEnd) {
+      TestEntityRegistry registry;
+      ViewedTypes t;
+      t.mIncludes.push_back(ecx::typeId<int, LinearEntity>());
+      auto entity = registry.createEntityWithComponents<int, unsigned>();
+      auto unrelated = registry.createEntityWithComponents<unsigned>();
+      RuntimeView<TestEntity, true> view(registry, t);
+
+      auto it = view.find(unrelated);
+
+      Assert::IsTrue(it == view.end());
+    }
+
+    TEST_METHOD(RuntimeView_TryGetRead_ReturnsValues) {
+      TestEntityRegistry registry;
+      ViewedTypes t;
+      t.mReads.push_back(ecx::typeId<int, LinearEntity>());
+      t.mOptionalReads.push_back(ecx::typeId<unsigned, LinearEntity>());
+      auto entityA = registry.createEntityWithComponents<int, unsigned>();
+      auto entityB = registry.createEntityWithComponents<int>();
+      RuntimeView<TestEntity, true> view(registry, t);
+
+      auto it = view.find(entityA);
+      Assert::IsNotNull(it.tryGet<const int>());
+      Assert::IsNotNull(it.tryGet<const unsigned>());
+      Assert::IsNull(it.tryGet<const float>());
+      it = view.find(entityB);
+      Assert::IsNotNull(it.tryGet<const int>());
+      Assert::IsNull(it.tryGet<const unsigned>());
+      Assert::IsNull(it.tryGet<const float>());
+    }
+
+    TEST_METHOD(RuntimeView_TryGetWrite_ReturnsValues) {
+      TestEntityRegistry registry;
+      ViewedTypes t;
+      t.mWrites.push_back(ecx::typeId<int, LinearEntity>());
+      t.mOptionalWrites.push_back(ecx::typeId<unsigned, LinearEntity>());
+      auto entityA = registry.createEntityWithComponents<int, unsigned>();
+      auto entityB = registry.createEntityWithComponents<int>();
+      RuntimeView<TestEntity, true> view(registry, t);
+
+      auto it = view.find(entityA);
+      Assert::IsNotNull(it.tryGet<const int>());
+      Assert::IsNotNull(it.tryGet<const unsigned>());
+      Assert::IsNull(it.tryGet<const float>());
+      Assert::IsNotNull(it.tryGet<int>());
+      Assert::IsNotNull(it.tryGet<unsigned>());
+      Assert::IsNull(it.tryGet<float>());
+      it = view.find(entityB);
+      Assert::IsNotNull(it.tryGet<const int>());
+      Assert::IsNull(it.tryGet<const unsigned>());
+      Assert::IsNull(it.tryGet<const float>());
+      Assert::IsNotNull(it.tryGet<int>());
+      Assert::IsNull(it.tryGet<unsigned>());
+      Assert::IsNull(it.tryGet<float>());
+    }
+
+    TEST_METHOD(RuntimeViewNoSafety_TryGetRead_ReturnsValues) {
+      TestEntityRegistry registry;
+      ViewedTypes t;
+      t.mReads.push_back(ecx::typeId<int, LinearEntity>());
+      t.mOptionalReads.push_back(ecx::typeId<unsigned, LinearEntity>());
+      auto entityA = registry.createEntityWithComponents<int, unsigned>();
+      auto entityB = registry.createEntityWithComponents<int>();
+      RuntimeView<TestEntity, false> view(registry, t);
+
+      auto it = view.find(entityA);
+      Assert::IsNotNull(it.tryGet<const int>());
+      Assert::IsNotNull(it.tryGet<const unsigned>());
+      Assert::IsNull(it.tryGet<const float>());
+      it = view.find(entityB);
+      Assert::IsNotNull(it.tryGet<const int>());
+      Assert::IsNull(it.tryGet<const unsigned>());
+      Assert::IsNull(it.tryGet<const float>());
+    }
+
+    TEST_METHOD(RuntimeViewNoSafety_TryGetWrite_ReturnsValues) {
+      TestEntityRegistry registry;
+      ViewedTypes t;
+      t.mWrites.push_back(ecx::typeId<int, LinearEntity>());
+      t.mOptionalWrites.push_back(ecx::typeId<unsigned, LinearEntity>());
+      auto entityA = registry.createEntityWithComponents<int, unsigned>();
+      auto entityB = registry.createEntityWithComponents<int>();
+      RuntimeView<TestEntity, false> view(registry, t);
+
+      auto it = view.find(entityA);
+      Assert::IsNotNull(it.tryGet<const int>());
+      Assert::IsNotNull(it.tryGet<const unsigned>());
+      Assert::IsNull(it.tryGet<const float>());
+      Assert::IsNotNull(it.tryGet<int>());
+      Assert::IsNotNull(it.tryGet<unsigned>());
+      Assert::IsNull(it.tryGet<float>());
+      it = view.find(entityB);
+      Assert::IsNotNull(it.tryGet<const int>());
+      Assert::IsNull(it.tryGet<const unsigned>());
+      Assert::IsNull(it.tryGet<const float>());
+      Assert::IsNotNull(it.tryGet<int>());
+      Assert::IsNull(it.tryGet<unsigned>());
+      Assert::IsNull(it.tryGet<float>());
+    }
+
+    TEST_METHOD(RuntimeView_Iterate_ExposesAllValues) {
+      TestEntityRegistry registry;
+      ViewedTypes t;
+      t.mReads.push_back(ecx::typeId<int, LinearEntity>());
+      std::unordered_set<int> expected;
+      for(int i = 0; i < 10; ++i) {
+        auto e = registry.createEntityWithComponents<int>();
+        registry.getComponent<int>(e) = i;
+
+        //Put the values in multiple chunks
+        if(i % 2) {
+          registry.addComponent<unsigned>(e);
+        }
+        expected.insert(i);
+      }
+
+      RuntimeView<TestEntity, false> view(registry, t);
+      std::unordered_set<int> found;
+      for(auto it = view.begin(); it != view.end(); ++it) {
+        const int* value = it.tryGet<const int>();
+        Assert::IsNotNull(value);
+        found.insert(*value);
+      }
+
+      Assert::IsTrue(expected == found);
+    }
   };
 }

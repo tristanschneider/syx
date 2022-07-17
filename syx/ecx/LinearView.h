@@ -112,31 +112,162 @@ namespace ecx {
     size_t mIndex = 0;
   };
 
-  template<class EntityT>
+  template<class EntityT, bool ENABLE_SAFETY_CHECKS>
   class RuntimeView {
   };
 
   struct ViewedTypes {
-    using TypeId = ecx::typeId_t<DefaultTypeCategory>;
+    using TypeId = ecx::typeId_t<LinearEntity>;
     std::vector<TypeId> mIncludes;
     std::vector<TypeId> mExcludes;
     std::vector<TypeId> mReads;
     std::vector<TypeId> mWrites;
+    std::vector<TypeId> mOptionalReads;
+    std::vector<TypeId> mOptionalWrites;
   };
 
-  template<>
-  class RuntimeView<LinearEntity> {
+  template<bool ENABLE_SAFETY_CHECKS>
+  class RuntimeView<LinearEntity, ENABLE_SAFETY_CHECKS> {
   public:
-    RuntimeView(ViewedTypes viewed)
-      : mViewed(std::move(viewed)) {
+    struct AllowedTypes {
+      std::vector<ViewedTypes::TypeId> mReads;
+      std::vector<ViewedTypes::TypeId> mWrites;
+    };
+
+    RuntimeView(EntityRegistry<LinearEntity> registry, const ViewedTypes& viewed) {
+      std::vector<ViewedTypes::TypeId> optionals;
+      std::vector<ViewedTypes::TypeId> requirements;
+      requirements.reserve(viewed.mReads.size() + viewed.mWrites.size() + viewed.mIncludes.size());
+      requirements.insert(requirements.end(), viewed.mReads.begin(), viewed.mReads.end());
+      requirements.insert(requirements.end(), viewed.mWrites.begin(), viewed.mWrites.end());
+      requirements.insert(requirements.end(), viewed.mIncludes.begin(), viewed.mIncludes.end());
+
+      optionals.reserve(viewed.mOptionalReads.size() + viewed.mOptionalWrites.size());
+      optionals.insert(optionals.begin(), viewed.mOptionalReads.begin(), viewed.mOptionalReads.end());
+      optionals.insert(optionals.begin(), viewed.mOptionalWrites.begin(), viewed.mOptionalWrites.end());
+
+      registry.getAllChunksSatisfyingConditions(mChunks, requirements, viewed.mExcludes, optionals);
+
+      mViewed.mWrites.reserve(viewed.mOptionalWrites.size() + viewed.mWrites.size());
+      mViewed.mWrites.insert(mViewed.mWrites.end(), viewed.mWrites.begin(), viewed.mWrites.end());
+      mViewed.mWrites.insert(mViewed.mWrites.end(), viewed.mOptionalWrites.begin(), viewed.mOptionalWrites.end());
+
+      //All allowed write types plus the read types: everything allowed to access with write access
+      mViewed.mReads.reserve(viewed.mOptionalReads.size() + viewed.mReads.size() + mViewed.mWrites.size());
+      mViewed.mReads.insert(mViewed.mReads.end(), viewed.mReads.begin(), viewed.mReads.end());
+      mViewed.mReads.insert(mViewed.mReads.end(), viewed.mOptionalReads.begin(), viewed.mOptionalReads.end());
+      mViewed.mReads.insert(mViewed.mReads.end(), mViewed.mWrites.begin(), mViewed.mWrites.end());
+
+      //Sort to allow binary search
+      std::sort(mViewed.mReads.begin(), mViewed.mReads.end());
+      std::sort(mViewed.mWrites.begin(), mViewed.mWrites.end());
     }
+
     RuntimeView(RuntimeView&&) noexcept = default;
     RuntimeView(const RuntimeView&) = default;
     RuntimeView& operator=(const RuntimeView&) = default;
     RuntimeView& operator=(RuntimeView&&) noexcept = default;
 
+    class It {
+    public:
+      using value_type = LinearEntity;
+      using difference_type = std::ptrdiff_t;
+      using pointer = value_type*;
+      using reference = value_type&;
+      using iterator_category = std::forward_iterator_tag;
+
+      using ChunkIt = std::vector<VersionedEntityChunk>::iterator;
+
+      It(ChunkIt chunkIt, ChunkIt end, size_t entityIndex, const AllowedTypes& allowedTypes)
+        : mChunkIt(chunkIt)
+        , mEndIt(end)
+        , mEntityIndex(entityIndex)
+        , mAllowedTypes(&allowedTypes) {
+      }
+
+      It(const It&) = default;
+      It& operator=(const It&) = default;
+
+      It& operator++() {
+        ++mEntityIndex;
+        while(mChunkIt != mEndIt && mEntityIndex >= (*mChunkIt).size()) {
+          ++mChunkIt;
+          mEntityIndex = 0;
+        }
+        return *this;
+      }
+
+      It& operator++(int) {
+        It result = *this;
+        ++(*this);
+        return result;
+      }
+
+      bool operator==(const It& rhs) const {
+        return mChunkIt == rhs.mChunkIt && mEntityIndex == rhs.mEntityIndex;
+      }
+
+      bool operator!=(const It& rhs) const {
+        return !(*this == rhs);
+      }
+
+      value_type operator*() {
+        return entity();
+      }
+
+      LinearEntity entity() const {
+        return mChunkIt->indexToEntity(mEntityIndex);
+      }
+
+      template<class T>
+      T* tryGet() {
+        if constexpr(ENABLE_SAFETY_CHECKS) {
+          if constexpr(std::is_const_v<T>) {
+            //TODO: report access violation somehow?
+            if(std::lower_bound(mAllowedTypes->mReads.begin(), mAllowedTypes->mReads.end(), ecx::typeId<std::decay_t<T>, ecx::DefaultTypeCategory>()) == mAllowedTypes->mReads.end()) {
+              return nullptr;
+            }
+          }
+          else if(std::lower_bound(mAllowedTypes->mWrites.begin(), mAllowedTypes->mWrites.end(), ecx::typeId<std::decay_t<T>, ecx::DefaultTypeCategory>()) == mAllowedTypes->mWrites.end()) {
+            return nullptr;
+          }
+        }
+        auto* container = mChunkIt->tryGet<std::decay_t<T>>();
+        return container ? &container->at(mEntityIndex) : nullptr;
+      }
+
+    private:
+      //Current chunk iterator
+      ChunkIt mChunkIt;
+      ChunkIt mEndIt;
+      //Index of current entity in current chunk
+      size_t mEntityIndex = 0;
+      const AllowedTypes* mAllowedTypes = nullptr;
+    };
+
+    It begin() {
+      return It(mChunks.begin(), mChunks.end(), size_t(0), mViewed);
+    }
+
+    It find(const LinearEntity& entity) {
+      //TODO: inefficient. Could use chunk id to look up particular chunk, but then how to get the iterator of it?
+      for(auto it = mChunks.begin(); it != mChunks.end(); ++it) {
+        if(it->contains(entity)) {
+          return It(it, mChunks.begin(), it->entityToIndex(entity), mViewed);
+        }
+      }
+      return end();
+    }
+
+    It end() {
+      return It(mChunks.end(), mChunks.end(), size_t(0), mViewed);
+    }
+
   private:
-    ViewedTypes mViewed;
+    std::vector<VersionedEntityChunk> mChunks;
+    //Count of chunks in the registry the last time the view was computed. Used to invalidate cached views
+    size_t mCachedChunkCount = 0;
+    AllowedTypes mViewed;
   };
 
   //A combination of registry iterators to allow viewing entities that satisfy conditions as specified by the tags above

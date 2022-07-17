@@ -68,7 +68,7 @@ namespace {
     }
 
     TypeIdT getViewedType() const override {
-      return ecx::typeId<std::decay_t<T>, ecx::DefaultTypeCategory>();
+      return ecx::typeId<std::decay_t<T>, ecx::LinearEntity>();
     }
 
     //For the purposes of argument validation say this is an IViewableComponent, not the derived type
@@ -79,8 +79,8 @@ namespace {
 
   //Wrapper for the sake of type safety when validating lua arguments
   struct LuaRuntimeView : SafeLightUserdata<LuaRuntimeView> {
-    LuaRuntimeView(ecx::ViewedTypes types)
-      : mView(std::move(types)) {
+    LuaRuntimeView(Engine::EntityRegistry& registry, ecx::ViewedTypes types)
+      : mView(registry, std::move(types)) {
     }
     Engine::RuntimeView mView;
   };
@@ -155,6 +155,7 @@ namespace {
 
     //Needs pointer stability since they'll be passed around by pointer in lua
     std::vector<std::unique_ptr<ViewInfo>> mViews;
+    Engine::EntityRegistry* mRegistry = nullptr;
   };
 
   template<class T>
@@ -216,7 +217,7 @@ namespace {
       }
 
       //Store the view in the local cache for this script and return a pointer to it
-      LuaSystemContext::ViewInfo info{ LuaRuntimeView{ std::move(types) } };
+      LuaSystemContext::ViewInfo info{ LuaRuntimeView{ *context.mRegistry, std::move(types) } };
       auto view = std::make_unique<LuaSystemContext::ViewInfo>(std::move(info));
       lua_pushlightuserdata(l, view.get());
       context.mViews.push_back(std::move(view));
@@ -402,6 +403,8 @@ namespace LuaTests {
       DemoABinder::openLib(s.get());
       ViewBinder::openLib(s.get());
       LuaSystemContext ctx;
+      Engine::EntityRegistry reg;
+      ctx.mRegistry = &reg;
       LuaSystemContext::set(s.get(), ctx);
       assertScriptExecutes(s.get(), "local t = View.create(DemoComponentA.read())");
     }

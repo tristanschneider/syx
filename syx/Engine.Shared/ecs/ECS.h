@@ -7,11 +7,13 @@
 #include "System.h"
 
 namespace Engine {
+  constexpr inline static bool ENABLE_VIEW_SAFETY_CHECKS = true;
+
   using Entity = ecx::LinearEntity;
   using EntityRegistry = ecx::EntityRegistry<Entity>;
   template<class... Args>
   using View = ecx::View<Entity, Args...>;
-  using RuntimeView = ecx::RuntimeView<Entity>;
+  using RuntimeView = ecx::RuntimeView<Entity, ENABLE_VIEW_SAFETY_CHECKS>;
 
   template<class T> using Include = ecx::Include<T>;
   template<class T> using Exclude = ecx::Exclude<T>;
