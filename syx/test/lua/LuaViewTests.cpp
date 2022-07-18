@@ -91,6 +91,8 @@ namespace {
     }
 
     Engine::RuntimeView::It mIterator;
+    //Goofy hack to make the first _iterate call no-op
+    bool mNeedsInit = true;
   };
 
   struct IComponentProperty : ISafeLightUserdata {
@@ -265,7 +267,6 @@ namespace {
       return _returnResultIterator(view, view.mView.begin(), l);
     }
 
-    //TODO: iterator safety checks
     static LuaViewIterator* find(LuaRuntimeView& view, LuaViewIterator& toFind, lua_State* l) {
       return _returnResultIterator(view, view.mView.find(toFind.mIterator.entity()), l);
     }
@@ -294,6 +295,43 @@ namespace {
       IComponentProperty& property = ISafeLightUserdata::checkUserdata<IComponentProperty>(l, 2);
       //Third parameter is the top of the stack which is what this will set from
       return property.setValue(l, it);
+    }
+
+    // for it in View.each(view) do end
+    static int each(lua_State* l) {
+      LuaRuntimeView& view = ISafeLightUserdata::checkUserdata<LuaRuntimeView>(l, 1);
+      //From the Lua Reference:
+      //> The loop starts by evaluating explist to produce four values:
+      //> an iterator function, a state, an initial value for the control variable, and a closing value.
+      lua_pushcfunction(l, &_iterate);
+      //No state, everything is in the iterator
+      lua_pushnil(l);
+      lua_pushlightuserdata(l, begin(view, l));
+      return 3;
+    }
+
+    //From the Lua Reference:
+    //>Then, at each iteration, Lua calls the iterator function with two arguments:
+    //>the state and the control variable. The results from this call are then assigned to the loop variables, following the rules of multiple assignments
+    static int _iterate(lua_State* l) {
+      LuaViewIterator& it = ISafeLightUserdata::checkUserdata<LuaViewIterator>(l, 2);
+      //First call comes straight from the initialization function, do nothing
+      if(it.mNeedsInit) {
+        it.mNeedsInit = false;
+      }
+      else {
+        ++it.mIterator;
+      }
+
+      if(it.mIterator.isValid()) {
+        //If it's still valid, return the passed in iterator that has been advanced
+        lua_pushlightuserdata(l, &it);
+      }
+      else {
+        //Otherwise iteration is over, return nil to end iteration
+        lua_pushnil(l);
+      }
+      return 1;
     }
   };
 }
@@ -352,6 +390,7 @@ namespace ecx {
       &LuaView::create,
       &LuaView::begin,
       &LuaView::find,
+      &LuaView::each,
       &LuaView::getValue,
       &LuaView::setValue
     >
@@ -361,6 +400,7 @@ namespace ecx {
       std::string("create"),
       std::string("begin"),
       std::string("find"),
+      std::string("each"),
       std::string("getValue"),
       std::string("setValue")
     };
@@ -407,9 +447,6 @@ namespace Lua {
 }
 
 namespace {
-  //TODO: the string identifiers needed to specify the property and particularly the class name seem expensive
-  //Could do indices but that is confusing to read.
-  //Perhaps the component type info could be used, like DemoComponentA.type(), or even DemoComponentA.mValue()
   const char* DEMO = R"(
     local r = View.create(DemoComponentA.read());
     local w = View.create(DemoComponentA.write());
@@ -538,6 +575,22 @@ namespace LuaTests {
       auto&& [entity, a, b] = s.mRegistry.createAndGetEntityWithComponents<DemoComponentA, DemoComponentB>(*s.mGenerator);
 
       assertScriptExecutes(&s, "assert(View.find(View.create(DemoComponentB.read()), View.begin(View.create(DemoComponentA.read()))) ~= nil)");
+    }
+
+    TEST_METHOD(View_Each_Iterates) {
+      LuaStateWithContext s;
+      auto&& [entity, a] = s.mRegistry.createAndGetEntityWithComponents<DemoComponentA>(*s.mGenerator);
+      a.get().mValue = 7;
+
+      assertScriptExecutes(&s, R"(
+        local view = View.create(DemoComponentA.read());
+        local count = 0;
+        for entity in View.each(view) do
+          assert(View.getValue(entity, DemoComponentA.mValue()) == 7, "Component value should match");
+          count = count + 1;
+        end
+        assert(count == 1, "Components should have been found " .. count);
+      )");
     }
   };
 }

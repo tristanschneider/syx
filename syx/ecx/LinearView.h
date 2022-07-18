@@ -219,6 +219,10 @@ namespace ecx {
         return mChunkIt->indexToEntity(mEntityIndex);
       }
 
+      bool isValid() const {
+        return mChunkIt != mEndIt;
+      }
+
       template<class T>
       T* tryGet() {
         if constexpr(ENABLE_SAFETY_CHECKS) {
