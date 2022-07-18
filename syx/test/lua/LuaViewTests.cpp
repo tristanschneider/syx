@@ -97,6 +97,7 @@ namespace {
     virtual ~IComponentProperty() = default;
 
     virtual int getValue(lua_State* l, LuaViewIterator& it) const = 0;
+    virtual int setValue(lua_State* l, LuaViewIterator& it) const = 0;
   };
 
   template<auto>
@@ -115,9 +116,25 @@ namespace {
        Lua::LuaTypeInfo<MemberTy>::push(l, result->*Ptr);
       }
       else {
-        lua_pushnil(l);
+        luaL_error(l, "Invalid component type for View in getValue");
       }
       return 1;
+    }
+
+    int setValue(lua_State* l, LuaViewIterator& it) const override {
+      if(auto* result = it.mIterator.tryGet<ComponentTy>()) {
+        if(auto toSet = Lua::LuaTypeInfo<MemberTy>::fromTop(l)) {
+          result->*Ptr = std::move(*toSet);
+          return 0;
+        }
+        else {
+          luaL_error(l, "Invalid property value type for setValue");
+        }
+      }
+      else {
+        luaL_error(l, "Invalid component type for View in setValue");
+      }
+      return 0;
     }
   };
 
@@ -256,19 +273,20 @@ namespace {
       return result;
     }
 
+    // ResultType getValue(iterator, property)
     static int getValue(lua_State* l) {
       LuaViewIterator& it = ISafeLightUserdata::checkUserdata<LuaViewIterator>(l, 1);
       IComponentProperty& property = ISafeLightUserdata::checkUserdata<IComponentProperty>(l, 2);
       return property.getValue(l, it);
     }
 
-    //static int set(lua_State* l) {
-    //  if(int args = lua_gettop(l); args != 2) {
-    //    luaL_error(l, "Expected 2 arguments, got %d", args);
-    //    return 0;
-    //  }
-    //  ISafeLightUserdata::checkUserdata<IComponentProperty>(l, 1);
-    //}
+    // void setValue(iterator, property, value)
+    static int setValue(lua_State* l) {
+      LuaViewIterator& it = ISafeLightUserdata::checkUserdata<LuaViewIterator>(l, 1);
+      IComponentProperty& property = ISafeLightUserdata::checkUserdata<IComponentProperty>(l, 2);
+      //Third parameter is the top of the stack which is what this will set from
+      return property.setValue(l, it);
+    }
   };
 }
 
@@ -325,14 +343,16 @@ namespace ecx {
     , ecx::AutoTypeList<
       &LuaView::create,
       &LuaView::begin,
-      &LuaView::getValue
+      &LuaView::getValue,
+      &LuaView::setValue
     >
   > {
     inline static constexpr const char* SelfName = "View";
     inline static const std::array FunctionNames = {
       std::string("create"),
       std::string("begin"),
-      std::string("getValue")
+      std::string("getValue"),
+      std::string("setValue")
     };
   };
 
@@ -489,6 +509,15 @@ namespace LuaTests {
       auto&& [entity, component] = s.mRegistry.createAndGetEntityWithComponents<DemoComponentA>(*s.mGenerator);
       component.get().mValue = 2;
       assertScriptExecutes(&s, "assert(View.getValue(View.begin(View.create(DemoComponentA.read())), DemoComponentA.mValue()) == 2)");
+    }
+
+    TEST_METHOD(View_SetValue_IsSet) {
+      LuaStateWithContext s;
+      auto&& [entity, component] = s.mRegistry.createAndGetEntityWithComponents<DemoComponentA>(*s.mGenerator);
+
+      assertScriptExecutes(&s, "View.setValue(View.begin(View.create(DemoComponentA.write())), DemoComponentA.mValue(), 2)");
+
+      Assert::AreEqual(2, component.get().mValue);
     }
   };
 }
