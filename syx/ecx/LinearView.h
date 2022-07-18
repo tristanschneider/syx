@@ -246,7 +246,10 @@ namespace ecx {
     };
 
     It begin() {
-      return It(mChunks.begin(), mChunks.end(), size_t(0), mViewed);
+      //Ensure begin is pointing at a valid entity by skipping empty chunks
+      return It(std::find_if(mChunks.begin(), mChunks.end(), [](const VersionedEntityChunk& chunk) {
+        return chunk.size() != 0;
+      }), mChunks.end(), 0, mViewed);
     }
 
     It find(const LinearEntity& entity) {

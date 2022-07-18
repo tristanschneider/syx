@@ -262,7 +262,15 @@ namespace {
     }
 
     static LuaViewIterator* begin(LuaRuntimeView& view, lua_State* l) {
-      auto it = view.mView.begin();
+      return _returnResultIterator(view, view.mView.begin(), l);
+    }
+
+    //TODO: iterator safety checks
+    static LuaViewIterator* find(LuaRuntimeView& view, LuaViewIterator& toFind, lua_State* l) {
+      return _returnResultIterator(view, view.mView.find(toFind.mIterator.entity()), l);
+    }
+
+    static LuaViewIterator* _returnResultIterator(LuaRuntimeView& view, const Engine::RuntimeView::It& it, lua_State* l) {
       if(it == view.mView.end()) {
         return nullptr;
       }
@@ -343,6 +351,7 @@ namespace ecx {
     , ecx::AutoTypeList<
       &LuaView::create,
       &LuaView::begin,
+      &LuaView::find,
       &LuaView::getValue,
       &LuaView::setValue
     >
@@ -351,6 +360,7 @@ namespace ecx {
     inline static const std::array FunctionNames = {
       std::string("create"),
       std::string("begin"),
+      std::string("find"),
       std::string("getValue"),
       std::string("setValue")
     };
@@ -437,6 +447,8 @@ namespace LuaTests {
 
     using DemoA = LuaViewableComponent<DemoComponentA>;
     using DemoABinder = Lua::LuaBinder<DemoA>;
+    using DemoB = LuaViewableComponent<DemoComponentB>;
+    using DemoBBinder = Lua::LuaBinder<DemoB>;
     using ViewBinder = Lua::LuaBinder<LuaView>;
 
     TEST_METHOD(ViewableComponent_Read_Executes) {
@@ -476,6 +488,7 @@ namespace LuaTests {
         LuaSystemContext::set(mState.get(), mContext);
         ViewBinder::openLib(mState.get());
         DemoABinder::openLib(mState.get());
+        DemoBBinder::openLib(mState.get());
       }
 
       lua_State* operator&() {
@@ -518,6 +531,13 @@ namespace LuaTests {
       assertScriptExecutes(&s, "View.setValue(View.begin(View.create(DemoComponentA.write())), DemoComponentA.mValue(), 2)");
 
       Assert::AreEqual(2, component.get().mValue);
+    }
+
+    TEST_METHOD(View_Find_IsFound) {
+      LuaStateWithContext s;
+      auto&& [entity, a, b] = s.mRegistry.createAndGetEntityWithComponents<DemoComponentA, DemoComponentB>(*s.mGenerator);
+
+      assertScriptExecutes(&s, "assert(View.find(View.create(DemoComponentB.read()), View.begin(View.create(DemoComponentA.read()))) ~= nil)");
     }
   };
 }
