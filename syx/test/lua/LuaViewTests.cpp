@@ -28,16 +28,16 @@ namespace {
     virtual ecx::typeId_t<ISafeLightUserdata> getType() const = 0;
 
     template<class T>
-    static const T& checkUserdata(lua_State* l, int index) {
+    static T& checkUserdata(lua_State* l, int index) {
       if(!lua_islightuserdata(l, index)) {
-        luaL_error("Unexpected type, should be light userdata");
+        luaL_error(l, "Unexpected type, should be light userdata");
       }
-      void* data = lua_touserdata(l, i);
+      void* data = lua_touserdata(l, index);
       auto* checker = (ISafeLightUserdata*)data;
       if(!checker || checker->getType() != ecx::typeId<T, ISafeLightUserdata>()) {
-        luaL_error("Unexpected light userdata type");
+        luaL_error(l, "Unexpected light userdata type");
       }
-      return *(const T*)data;
+      return *(T*)data;
     }
   };
 
@@ -85,23 +85,40 @@ namespace {
     Engine::RuntimeView mView;
   };
 
+  struct LuaViewIterator : SafeLightUserdata<LuaViewIterator> {
+    LuaViewIterator(const Engine::RuntimeView::It& it)
+      : mIterator(it) {
+    }
+
+    Engine::RuntimeView::It mIterator;
+  };
+
   struct IComponentProperty : ISafeLightUserdata {
     virtual ~IComponentProperty() = default;
 
-    //virtual int set(lua_State* l, int index) const = 0;
+    virtual int getValue(lua_State* l, LuaViewIterator& it) const = 0;
   };
 
   template<auto>
   struct ComponentProperty {};
   template<class ComponentT, class MemberT, MemberT ComponentT::*Ptr>
   struct ComponentProperty<Ptr> : IComponentProperty {
+    using MemberTy = std::decay_t<MemberT>;
+    using ComponentTy = std::decay_t<ComponentT>;
+
     ecx::typeId_t<ISafeLightUserdata> getType() const override {
       return ecx::typeId<IComponentProperty, ISafeLightUserdata>();
     }
 
-    //int set(lua_State* l, LuaRuntimeView& view, int index) const override {
-    //  
-    //}
+    int getValue(lua_State* l, LuaViewIterator& it) const override {
+      if(const auto* result = it.mIterator.tryGet<const ComponentTy>()) {
+       Lua::LuaTypeInfo<MemberTy>::push(l, result->*Ptr);
+      }
+      else {
+        lua_pushnil(l);
+      }
+      return 1;
+    }
   };
 
   template<class T>
@@ -129,14 +146,6 @@ namespace {
 
     //AutoTypeList of function pointers that return IComponentProperty objects
     inline static constexpr auto MemberProperties = _membersToProperties(TypeInfoT::MembersList);
-  };
-
-  struct LuaViewIterator : SafeLightUserdata<LuaViewIterator> {
-    LuaViewIterator(const Engine::RuntimeView::It& it)
-      : mIterator(it) {
-    }
-
-    Engine::RuntimeView::It mIterator;
   };
 
   //Holds the native objects that the script uses so that everything in lua can use light userdata
@@ -247,6 +256,12 @@ namespace {
       return result;
     }
 
+    static int getValue(lua_State* l) {
+      LuaViewIterator& it = ISafeLightUserdata::checkUserdata<LuaViewIterator>(l, 1);
+      IComponentProperty& property = ISafeLightUserdata::checkUserdata<IComponentProperty>(l, 2);
+      return property.getValue(l, it);
+    }
+
     //static int set(lua_State* l) {
     //  if(int args = lua_gettop(l); args != 2) {
     //    luaL_error(l, "Expected 2 arguments, got %d", args);
@@ -309,12 +324,15 @@ namespace ecx {
     , ecx::AutoTypeList<>
     , ecx::AutoTypeList<
       &LuaView::create,
-      &LuaView::begin>
+      &LuaView::begin,
+      &LuaView::getValue
+    >
   > {
     inline static constexpr const char* SelfName = "View";
     inline static const std::array FunctionNames = {
       std::string("create"),
-      std::string("begin")
+      std::string("begin"),
+      std::string("getValue")
     };
   };
 
@@ -328,7 +346,6 @@ namespace ecx {
 
 namespace Lua {
   //These are singletons, so forward them around as light userdata (pointers)
-
   template<class T>
   struct LuaSafeLightUserdataTypeInfoImpl {
     static int push(lua_State* l, const T& value) {
@@ -348,12 +365,6 @@ namespace Lua {
       return {};
     }
   };
-  //ecx::StaticTypeInfo<LuaView>::HasTagsT
-  static_assert(ecx::StaticTypeInfo<LuaViewIterator>::HasTagsT<Lua::BindReference>::value);
-  //static_assert(ecx::StaticTypeInfo<LuaViewIterator>::getFunctionCount());
-
-
-  //static_assert(Lua::IsReferenceBound<LuaViewIterator>::value);
 
   template<>
   struct LuaTypeInfo<IViewableComponent> : LuaSafeLightUserdataTypeInfoImpl<IViewableComponent> {};
@@ -471,6 +482,13 @@ namespace LuaTests {
       LuaStateWithContext s;
       s.mRegistry.createEntityWithComponents<DemoComponentA>(*s.mGenerator);
       assertScriptExecutes(&s, "assert(View.begin(View.create(DemoComponentA.read())) ~= nil)");
+    }
+
+    TEST_METHOD(View_GetValue_ReturnsValue) {
+      LuaStateWithContext s;
+      auto&& [entity, component] = s.mRegistry.createAndGetEntityWithComponents<DemoComponentA>(*s.mGenerator);
+      component.get().mValue = 2;
+      assertScriptExecutes(&s, "assert(View.getValue(View.begin(View.create(DemoComponentA.read())), DemoComponentA.mValue()) == 2)");
     }
   };
 }
