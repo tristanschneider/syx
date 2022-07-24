@@ -259,5 +259,27 @@ namespace ecx {
       Assert::IsNotNull(found, L"Found should exist since the entity is created in the proper chunk, but no value assigned yet");
       Assert::AreEqual(TestTypeA{}, *found, L"Value shouldn't be assigned yet");
     }
+
+    TEST_METHOD(RuntimeCommandBuffer_AllowedCommands_Work) {
+      Registry reg;
+      CommandBufferTypes types;
+      types.mAllowDestroyEntity = true;
+      types.mTypes.push_back(ecx::typeId<int, LinearEntity>());
+      types.mTypes.push_back(ecx::typeId<unsigned, LinearEntity>());
+      RuntimeEntityCommandBuffer<LinearEntity, true> r(reg.mBuffer, std::move(types));
+
+      LinearEntity entity = r.createEntity();
+      r.addComponent<int>(entity);
+      r.removeComponent<int>(entity);
+      r.addComponent<unsigned>(entity);
+      LinearEntity destroyed = r.createEntity();
+      r.addComponent<int>(destroyed);
+      r.destroyEntity(destroyed);
+
+      reg.processAllCommands();
+
+      Assert::AreEqual(size_t(0), reg.mRegistry.size<int>(), L"First should have had int removed, second entity was destroyed");
+      Assert::AreEqual(size_t(1), reg.mRegistry.size<unsigned>(), L"Unsigned should exist from addComponent call");
+    }
   };
 }

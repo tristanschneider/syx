@@ -212,6 +212,13 @@ namespace {
     }
   };
 
+  //Interface for command buffer related functions, does not represent and instance of a command buffer
+  struct LuaCommandBuffer {
+    //static int create(lua_State* l) {
+    //  int argCount = lua_gettop(l);
+    //}
+  };
+
   //The interface to view related functions, does not represent an instance of a view
   struct LuaView {
     //Construct a view out of the access types indicated in the argument list
@@ -447,14 +454,14 @@ namespace Lua {
 }
 
 namespace {
-  const char* DEMO = R"(
+  const char* VIEW_DEMO = R"(
     local r = View.create(DemoComponentA.read());
     local w = View.create(DemoComponentA.write());
     local i = View.create(DemoComponentA.include());
     local e = View.create(DemoComponentA.include(), DemoComponentB.exclude());
     local b = View.create(DemoComponentB.write());
     local valueAKey = DemoComponentA.mValue();
-    local valueBKey = DemoCOmponentB.mB();
+    local valueBKey = DemoComponentB.mB();
 
     -- Iterate over each entity in the view
     -- It's an iterator in the view, so it's only valid for accessing values in the view
@@ -469,6 +476,26 @@ namespace {
     local entityInB = View.find(b, entityInR);
     -- That iterator can then be used the same as before to access values
     View.setValue(entityInB, valueBKey, 2);
+  )";
+
+  const char* CMD_DEMO = R"(
+    -- Command buffer is created using the same type information from views. In this case the access type doesn't matter
+    -- This command buffer is then allowed to create entities, and add or remove components of type DemoComponentA
+    local cmd = CommandBuffer.create(DemoComponentA.write(), DemoComponentB.write());
+    -- Special type to grant the command buffer permission to remove entities. Removal is special because
+    -- removing an entity could remove components of any type since it's whatever that entity had
+    local rem = CommandBuffer.create(RemoveComponentTag.write());
+
+    local e = cmd.createEntityWithComponents(DemoComponentA.write(), DemoComponentB.write());
+    -- To set values of a new entity, the command buffer functino must be used because the command processing is deferred
+    -- so at this point the only thing that knows about the new entity is the command buffer itself
+    -- No getValue is exposed this way and this is only intended for use with entities created from the command buffer
+    cmd.setValue(DemoComponentA.mValue(), 5);
+    -- Components can be added or removed
+    cmd.addComponents(e, DemoComponentA.write());
+    cmd.removeComponents(e, DemoComponentA.write());
+    -- Destruction requires a command buffer created from `RemoveComponentTag`
+    rem.destroyEntity(e);
   )";
 }
 

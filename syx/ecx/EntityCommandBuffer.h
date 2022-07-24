@@ -28,24 +28,85 @@ namespace ecx {
       return mBuffer->createAndGetEntityWithComponents<Components...>();
     }
 
-    void destroyEntity(const LinearEntity& entity) {
+    void destroyEntity(const EntityT& entity) {
       static_assert(HasDestroyCapability);
       return mBuffer->destroyEntity(entity);
     }
 
     template<class Component>
-    Component& addComponent(const LinearEntity& entity) {
+    Component& addComponent(const EntityT& entity) {
       static_assert(AreAllowedTypes<Component>);
       return mBuffer->addComponent<Component>(entity);
     }
 
     template<class Component>
-    void removeComponent(const LinearEntity& entity) {
+    void removeComponent(const EntityT& entity) {
       static_assert(AreAllowedTypes<Component>);
-      return mBuffer->removeComponent<Component>(entity);
+      mBuffer->removeComponent<Component>(entity);
     }
 
   private:
     CommandBuffer<EntityT>* mBuffer = nullptr;
+  };
+
+  struct CommandBufferTypes {
+    using TypeId = ecx::typeId_t<LinearEntity>;
+    std::vector<TypeId> mTypes;
+    bool mAllowDestroyEntity = false;
+  };
+
+  template<class, bool>
+  class RuntimeEntityCommandBuffer {};
+
+  template<bool ENABLE_SAFETY_CHECKS>
+  class RuntimeEntityCommandBuffer<LinearEntity, ENABLE_SAFETY_CHECKS> {
+  public:
+    RuntimeEntityCommandBuffer(CommandBuffer<LinearEntity>& buffer, CommandBufferTypes allowedTypes)
+      : mBuffer(&buffer)
+      , mAllowedTypes(std::move(allowedTypes)) {
+      //Sort so binary search is possible
+      std::sort(mAllowedTypes.mTypes.begin(), mAllowedTypes.mTypes.end());
+    }
+    RuntimeEntityCommandBuffer(const RuntimeEntityCommandBuffer&) = default;
+    RuntimeEntityCommandBuffer& operator=(const RuntimeEntityCommandBuffer&) = default;
+
+    auto createEntity() {
+      return std::get<0>(mBuffer->createAndGetEntityWithComponents<>());
+    }
+
+    void destroyEntity(const LinearEntity& entity) {
+      if constexpr(ENABLE_SAFETY_CHECKS) {
+        if(!mAllowedTypes.mAllowDestroyEntity) {
+          return;
+        }
+      }
+      return mBuffer->destroyEntity(entity);
+    }
+
+    template<class Component>
+    Component* addComponent(const LinearEntity& entity) {
+      return _isAllowedType<Component>() ? &mBuffer->addComponent<Component>(entity) : nullptr;
+    }
+
+    template<class Component>
+    void removeComponent(const LinearEntity& entity) {
+      if (_isAllowedType<Component>()) {
+        mBuffer->removeComponent<Component>(entity);
+      }
+    }
+
+  private:
+    template<class T>
+    bool _isAllowedType() const {
+      if constexpr(ENABLE_SAFETY_CHECKS) {
+        return std::lower_bound(mAllowedTypes.mTypes.begin(), mAllowedTypes.mTypes.end(), typeId<std::decay_t<T>, LinearEntity>()) != mAllowedTypes.mTypes.end();
+      }
+      else {
+        return true;
+      }
+    }
+
+    CommandBuffer<LinearEntity>* mBuffer = nullptr;
+    CommandBufferTypes mAllowedTypes;
   };
 };
