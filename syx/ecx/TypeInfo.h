@@ -122,7 +122,6 @@ namespace ecx {
       return StaticSelfT::MemberNames[I];
     }
 
-    //template<class T = StaticSelfT, std::enable_if_t<MemberCount == T::MemberNames.size()>>
     static const std::string& getMemberName(size_t i) {
       assert(i < MemberCount);
       return StaticSelfT::MemberNames[i];

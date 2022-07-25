@@ -48,12 +48,22 @@ namespace {
     }
   };
 
+  struct LuaRuntimeCommandBuffer : SafeLightUserdata<LuaRuntimeCommandBuffer> {
+    LuaRuntimeCommandBuffer(ecx::CommandBuffer<ecx::LinearEntity>& buffer)
+      : mBuffer(buffer, {}) {
+    }
+    Engine::RuntimeCommandBuffer mBuffer;
+  };
+
+
   //Scripts create these and pass them to the view constructor to indicate the desired component and access
   struct IViewableComponent : ISafeLightUserdata {
     using TypeIdT = ecx::ViewedTypes::TypeId;
     virtual ~IViewableComponent() = default;
     virtual ViewableAccessType getAccessType() const = 0;
     virtual TypeIdT getViewedType() const = 0;
+    virtual void addComponent(LuaRuntimeCommandBuffer& cmd, const ecx::LinearEntity& entity) const = 0;
+    virtual void removeComponent(LuaRuntimeCommandBuffer& cmd, const ecx::LinearEntity& entity) const = 0;
   };
 
   template<class T, ViewableAccessType A>
@@ -75,6 +85,14 @@ namespace {
     ecx::typeId_t<ISafeLightUserdata> getType() const override {
       return ecx::typeId<IViewableComponent, ISafeLightUserdata>();
     }
+
+    void addComponent(LuaRuntimeCommandBuffer& cmd, const ecx::LinearEntity& entity) const override {
+      cmd.mBuffer.addComponent<T>(entity);
+    }
+
+    void removeComponent(LuaRuntimeCommandBuffer& cmd, const ecx::LinearEntity& entity) const override {
+      cmd.mBuffer.removeComponent<T>(entity);
+    }
   };
 
   //Wrapper for the sake of type safety when validating lua arguments
@@ -93,6 +111,11 @@ namespace {
     Engine::RuntimeView::It mIterator;
     //Goofy hack to make the first _iterate call no-op
     bool mNeedsInit = true;
+  };
+
+  //An entity created through the command buffer that doesn't fully exist yet
+  struct LuaPendingEntity : SafeLightUserdata<LuaPendingEntity> {
+    Engine::Entity mEntity;
   };
 
   struct IComponentProperty : ISafeLightUserdata {
@@ -156,9 +179,12 @@ namespace {
     }
 
     static auto getMemberNames() {
-      std::array<std::string, ecx::typeListSize(typename TypeInfoT::MemberTypeList{})> result;
-      for(size_t i = 0; i < result.size(); ++i) {
-        result[i] = TypeInfoT::getMemberName(i);
+      constexpr size_t memberCount = ecx::typeListSize(typename TypeInfoT::MemberTypeList{});
+      std::array<std::string, memberCount> result;
+      if constexpr(memberCount > 0) {
+        for(size_t i = 0; i < result.size(); ++i) {
+          result[i] = TypeInfoT::getMemberName(i);
+        }
       }
       return result;
     }
@@ -193,7 +219,10 @@ namespace {
     std::vector<std::unique_ptr<ViewInfo>> mViews;
     //TODO: use frame allocator or something, these are only needed during a system tick and can be discarded afterwards
     std::vector<std::unique_ptr<LuaViewIterator>> mIterators;
+    std::vector<std::unique_ptr<LuaPendingEntity>> mPendingEntities;
     Engine::EntityRegistry* mRegistry = nullptr;
+    ecx::CommandBuffer<ecx::LinearEntity>* mInternalCommandBuffer = nullptr;
+    std::optional<LuaRuntimeCommandBuffer> mCmd;
   };
 
   template<class T>
@@ -214,9 +243,59 @@ namespace {
 
   //Interface for command buffer related functions, does not represent and instance of a command buffer
   struct LuaCommandBuffer {
-    //static int create(lua_State* l) {
-    //  int argCount = lua_gettop(l);
-    //}
+    static int create(lua_State* l) {
+      int argCount = lua_gettop(l);
+      LuaSystemContext& context = LuaSystemContext::get(l);
+      //Create the command buffer if it doesn't exist already. This does mean if the call fails it still results
+      //in creating a command buffer with no types, but at that point the script execution should stop so it doesn't matter
+      if(!context.mCmd) {
+        context.mCmd.emplace(*context.mInternalCommandBuffer);
+      }
+
+      //Internally only a single command buffer is used with the combined permissions of all requested types
+      //Append these types to the existing (or newly created) command buffer
+      //TODO: is this memory leaked if a lua error jumps out of here?
+      ecx::CommandBufferTypes types = context.mCmd->mBuffer.getAllowedTypes();
+      for(int i = 1; i <= argCount; ++i) {
+        IViewableComponent& component = ISafeLightUserdata::checkUserdata<IViewableComponent>(l, i);
+        const auto type = component.getViewedType();
+        //Special case for destroy tag, otherwise add type to the list
+        //The list will eliminate duplicates if applicable in `setAllowedTypes`
+        if(type == ecx::typeId<ecx::EntityDestroyTag, ecx::LinearEntity>()) {
+          types.mAllowDestroyEntity = true;
+        }
+        else {
+          types.mTypes.push_back(component.getViewedType());
+        }
+      }
+
+      context.mCmd->mBuffer.setAllowedTypes(std::move(types));
+
+      lua_pushlightuserdata(l, &*context.mCmd);
+      return 1;
+    }
+
+    // local entity = CommandBuffer(cmd, TypeA.write()...);
+    static int createEntityWithComponents(lua_State* l) {
+      int argCount = lua_gettop(l);
+      if(argCount < 1) {
+        luaL_error(l, "Expected at least one argument");
+      }
+
+      LuaRuntimeCommandBuffer& cmd = ISafeLightUserdata::checkUserdata<LuaRuntimeCommandBuffer>(l, 1);
+      auto entity = cmd.mBuffer.createEntity();
+      //TODO: what happens to entity if there's a type error?
+      for(int i = 2; i <= argCount; ++i) {
+        ISafeLightUserdata::checkUserdata<IViewableComponent>(l, i).addComponent(cmd, entity);
+      }
+
+      LuaSystemContext& context = LuaSystemContext::get(l);
+      LuaPendingEntity p;
+      p.mEntity = entity;
+      context.mPendingEntities.push_back(std::make_unique<LuaPendingEntity>(p));
+      lua_pushlightuserdata(l, context.mPendingEntities.back().get());
+      return 1;
+    }
   };
 
   //The interface to view related functions, does not represent an instance of a view
@@ -360,6 +439,13 @@ namespace ecx {
     inline static const std::array<std::string, 1> MemberNames = { "mB" };
     inline static constexpr const char* SelfName = "DemoComponentB";
   };
+  template<>
+  struct StaticTypeInfo<ecx::EntityDestroyTag> : StructTypeInfo<StaticTypeInfo<ecx::EntityDestroyTag>
+    , ecx::AutoTypeList<>
+    , ecx::AutoTypeList<>
+  > {
+    inline static constexpr const char* SelfName = "EntityDestroyTag";
+  };
 
   template<size_t Size, class... Rest>
   std::array<std::string, Size + sizeof...(Rest)> combineNames(const std::array<std::string, Size>& l, Rest&&... r) {
@@ -414,10 +500,31 @@ namespace ecx {
   };
 
   template<>
+  struct StaticTypeInfo<LuaCommandBuffer> : StructTypeInfo<StaticTypeInfo<LuaCommandBuffer>
+    , ecx::AutoTypeList<>
+    , ecx::AutoTypeList<
+      &LuaCommandBuffer::create,
+      &LuaCommandBuffer::createEntityWithComponents
+    >
+  > {
+    inline static constexpr const char* SelfName = "CommandBuffer";
+    inline static const std::array FunctionNames = {
+      std::string("create"),
+      std::string("createEntityWithComponents")
+    };
+  };
+
+  template<>
   struct StaticTypeInfo<LuaViewIterator> : StructTypeInfo<StaticTypeInfo<LuaViewIterator>
     , ecx::AutoTypeList<>, ecx::AutoTypeList<>, ecx::TypeList<Lua::BindReference>> {};
   template<>
   struct StaticTypeInfo<LuaRuntimeView> : StructTypeInfo<StaticTypeInfo<LuaRuntimeView>
+    , ecx::AutoTypeList<>, ecx::AutoTypeList<>, ecx::TypeList<Lua::BindReference>> {};
+  template<>
+  struct StaticTypeInfo<LuaPendingEntity> : StructTypeInfo<StaticTypeInfo<LuaPendingEntity>
+    , ecx::AutoTypeList<>, ecx::AutoTypeList<>, ecx::TypeList<Lua::BindReference>> {};
+  template<>
+  struct StaticTypeInfo<LuaRuntimeCommandBuffer> : StructTypeInfo<StaticTypeInfo<LuaRuntimeCommandBuffer>
     , ecx::AutoTypeList<>, ecx::AutoTypeList<>, ecx::TypeList<Lua::BindReference>> {};
 }
 
@@ -451,6 +558,8 @@ namespace Lua {
   struct LuaTypeInfo<LuaViewIterator> : LuaSafeLightUserdataTypeInfoImpl<LuaViewIterator> {};
   template<>
   struct LuaTypeInfo<LuaRuntimeView> : LuaSafeLightUserdataTypeInfoImpl<LuaRuntimeView> {};
+  template<>
+  struct LuaTypeInfo<LuaRuntimeCommandBuffer> : LuaSafeLightUserdataTypeInfoImpl<LuaRuntimeCommandBuffer> {};
 }
 
 namespace {
@@ -484,18 +593,18 @@ namespace {
     local cmd = CommandBuffer.create(DemoComponentA.write(), DemoComponentB.write());
     -- Special type to grant the command buffer permission to remove entities. Removal is special because
     -- removing an entity could remove components of any type since it's whatever that entity had
-    local rem = CommandBuffer.create(RemoveComponentTag.write());
+    local rem = CommandBuffer.create(EntityDestroyTag.write());
 
-    local e = cmd.createEntityWithComponents(DemoComponentA.write(), DemoComponentB.write());
+    local e = CommandBuffer.createEntityWithComponents(cmd, DemoComponentA.write(), DemoComponentB.write());
     -- To set values of a new entity, the command buffer functino must be used because the command processing is deferred
     -- so at this point the only thing that knows about the new entity is the command buffer itself
     -- No getValue is exposed this way and this is only intended for use with entities created from the command buffer
-    cmd.setValue(DemoComponentA.mValue(), 5);
+    CommandBuffer.setValue(cmd, DemoComponentA.mValue(), 5);
     -- Components can be added or removed
-    cmd.addComponents(e, DemoComponentA.write());
-    cmd.removeComponents(e, DemoComponentA.write());
-    -- Destruction requires a command buffer created from `RemoveComponentTag`
-    rem.destroyEntity(e);
+    CommandBuffer.addComponents(cmd, e, DemoComponentA.write());
+    CommandBuffer.removeComponents(cmd, e, DemoComponentA.write());
+    -- Destruction requires a command buffer created from `EntityDestroyTag`
+    CommandBuffer.destroyEntity(rem, e);
   )";
 }
 
@@ -514,6 +623,7 @@ namespace LuaTests {
     using DemoB = LuaViewableComponent<DemoComponentB>;
     using DemoBBinder = Lua::LuaBinder<DemoB>;
     using ViewBinder = Lua::LuaBinder<LuaView>;
+    using CommandBinder = Lua::LuaBinder<LuaCommandBuffer>;
 
     TEST_METHOD(ViewableComponent_Read_Executes) {
       Lua::State s;
@@ -546,13 +656,17 @@ namespace LuaTests {
     }
 
     struct LuaStateWithContext {
-      LuaStateWithContext() {
+      LuaStateWithContext()
+        : mInternalBuffer(mRegistry) {
         mContext.mRegistry = &mRegistry;
         mGenerator = mRegistry.createEntityGenerator();
+        mContext.mInternalCommandBuffer = &mInternalBuffer;
         LuaSystemContext::set(mState.get(), mContext);
         ViewBinder::openLib(mState.get());
         DemoABinder::openLib(mState.get());
         DemoBBinder::openLib(mState.get());
+        CommandBinder::openLib(mState.get());
+        Lua::LuaBinder<LuaViewableComponent<ecx::EntityDestroyTag>>::openLib(mState.get());
       }
 
       lua_State* operator&() {
@@ -563,6 +677,7 @@ namespace LuaTests {
       Engine::EntityRegistry mRegistry;
       LuaSystemContext mContext;
       std::shared_ptr<ecx::IndependentEntityGenerator> mGenerator;
+      ecx::CommandBuffer<ecx::LinearEntity> mInternalBuffer;
     };
 
     TEST_METHOD(View_Create_Executes) {
@@ -618,6 +733,28 @@ namespace LuaTests {
         end
         assert(count == 1, "Components should have been found " .. count);
       )");
+    }
+
+    TEST_METHOD(CommandBuffer_Create_Executes) {
+      LuaStateWithContext s;
+
+      assertScriptExecutes(&s, "local c = CommandBuffer.create(DemoComponentA.write(), EntityDestroyTag.write())");
+
+      Assert::IsTrue(s.mContext.mCmd.has_value());
+      Assert::AreEqual(size_t(1), s.mContext.mCmd->mBuffer.getAllowedTypes().mTypes.size());
+      Assert::AreEqual(ecx::typeId<DemoComponentA, ecx::LinearEntity>().mId, s.mContext.mCmd->mBuffer.getAllowedTypes().mTypes.front().mId);
+      Assert::IsTrue(s.mContext.mCmd->mBuffer.getAllowedTypes().mAllowDestroyEntity);
+    }
+
+    TEST_METHOD(CommandBuffer_CreateEntityWithComponents_Executes) {
+      LuaStateWithContext s;
+
+      assertScriptExecutes(&s, R"(local c = CommandBuffer.create(DemoComponentA.write());
+        local e = CommandBuffer.createEntityWithComponents(c, DemoComponentA.write());
+      )");
+      s.mContext.mInternalCommandBuffer->processAllCommands(s.mRegistry);
+
+      Assert::AreEqual(size_t(1), s.mRegistry.size<DemoComponentA>());
     }
   };
 }

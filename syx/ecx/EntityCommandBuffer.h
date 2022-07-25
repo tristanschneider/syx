@@ -62,10 +62,8 @@ namespace ecx {
   class RuntimeEntityCommandBuffer<LinearEntity, ENABLE_SAFETY_CHECKS> {
   public:
     RuntimeEntityCommandBuffer(CommandBuffer<LinearEntity>& buffer, CommandBufferTypes allowedTypes)
-      : mBuffer(&buffer)
-      , mAllowedTypes(std::move(allowedTypes)) {
-      //Sort so binary search is possible
-      std::sort(mAllowedTypes.mTypes.begin(), mAllowedTypes.mTypes.end());
+      : mBuffer(&buffer) {
+      setAllowedTypes(std::move(allowedTypes));
     }
     RuntimeEntityCommandBuffer(const RuntimeEntityCommandBuffer&) = default;
     RuntimeEntityCommandBuffer& operator=(const RuntimeEntityCommandBuffer&) = default;
@@ -93,6 +91,17 @@ namespace ecx {
       if (_isAllowedType<Component>()) {
         mBuffer->removeComponent<Component>(entity);
       }
+    }
+
+    const CommandBufferTypes& getAllowedTypes() {
+      return mAllowedTypes;
+    }
+
+    void setAllowedTypes(CommandBufferTypes types) {
+      mAllowedTypes = std::move(types);
+      //Sort so binary search is possible, remove duplicates
+      std::sort(mAllowedTypes.mTypes.begin(), mAllowedTypes.mTypes.end());
+      mAllowedTypes.mTypes.erase(std::unique(mAllowedTypes.mTypes.begin(), mAllowedTypes.mTypes.end()), mAllowedTypes.mTypes.end());
     }
 
   private:

@@ -14,6 +14,7 @@ namespace Engine {
   template<class... Args>
   using View = ecx::View<Entity, Args...>;
   using RuntimeView = ecx::RuntimeView<Entity, ENABLE_VIEW_SAFETY_CHECKS>;
+  using RuntimeCommandBuffer = ecx::RuntimeEntityCommandBuffer<Entity, ENABLE_VIEW_SAFETY_CHECKS>;
 
   template<class T> using Include = ecx::Include<T>;
   template<class T> using Exclude = ecx::Exclude<T>;
