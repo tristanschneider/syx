@@ -727,7 +727,7 @@ namespace {
     -- To set values of a new entity, the command buffer functino must be used because the command processing is deferred
     -- so at this point the only thing that knows about the new entity is the command buffer itself
     -- No getValue is exposed this way and this is only intended for use with entities created from the command buffer
-    CommandBuffer.setValue(cmd, DemoComponentA.mValue(), 5);
+    CommandBuffer.setValue(cmd, e, DemoComponentA.mValue(), 5);
     -- Components can be added or removed
     CommandBuffer.addComponents(cmd, e, DemoComponentA.write());
     CommandBuffer.removeComponents(cmd, e, DemoComponentA.write());

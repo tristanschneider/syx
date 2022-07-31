@@ -16,7 +16,7 @@ namespace ecx {
   template<class EntityT>
   class EntityRegistry {
     struct ComponentPool {
-      std::unique_ptr<TypeErasedContainer<std::vector>> mComponents;
+      std::unique_ptr<TypeErasedContainer> mComponents;
       SparseSet<EntityT> mEntities;
       ComponentPoolTuple mSharedComponents;
     };
@@ -83,7 +83,7 @@ namespace ecx {
 
       T& component() {
         auto slot = static_cast<size_t>(mSparseIt.value().mPackedId);
-        return mPool->mComponents->get<DecayType<T>>()->at(slot);
+        return mPool->mComponents->get<std::vector<DecayType<T>>>()->at(slot);
       }
 
     private:
@@ -144,7 +144,7 @@ namespace ecx {
 
         ComponentPool& pool = *mPool;
         const EntityT newSlot = pool.mEntities.insert(entity).mPackedId;
-        std::vector<CompT>& storage = *pool.mComponents->get<CompT>();
+        std::vector<CompT>& storage = *pool.mComponents->get<std::vector<CompT>>();
         CompT& newComponent = _getOrResize(storage, static_cast<size_t>(newSlot));
         newComponent = CompT(std::forward<Args>(args)...);
         return newComponent;
@@ -160,7 +160,7 @@ namespace ecx {
         ComponentPool& pool = *mPool;
         if(auto it = pool.mEntities.find(entity); it != pool.mEntities.end()) {
           const auto slot = static_cast<size_t>(it.value().mPackedId);
-          return &pool.mComponents->get<DecayType<ComponentT>>()->at(slot);
+          return &pool.mComponents->get<std::vector<DecayType<ComponentT>>>()->at(slot);
         }
         return nullptr;
       }
@@ -414,7 +414,7 @@ namespace ecx {
       auto id = typeId<Type, decltype(*this)>();
       ComponentPool& pool = _getOrResize(mComponentPools, static_cast<size_t>(id));
       if(!pool.mComponents) {
-        pool.mComponents = std::make_unique<TypeErasedContainer<std::vector>>(TypeErasedContainer<std::vector>::create<Type>());
+        pool.mComponents = std::make_unique<TypeErasedContainer>(TypeErasedContainer::create<Type, std::vector>());
       }
       return { mComponentPools.begin() + static_cast<size_t>(id) };
     }

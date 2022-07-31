@@ -153,7 +153,7 @@ namespace ecx {
     template<class T>
     std::vector<std::decay_t<T>>* tryGet() {
       if(auto it = mComponents.find(typeId<std::decay_t<T>, LinearEntity>()); it != mComponents.end()) {
-        return it->second.get<std::decay_t<T>>();
+        return it->second.get<std::vector<std::decay_t<T>>>();
       }
       return nullptr;
     }
@@ -161,7 +161,7 @@ namespace ecx {
     template<class T>
     const std::vector<std::decay_t<T>>* tryGet() const {
       if(auto it = mComponents.find(typeId<std::decay_t<T>, LinearEntity>()); it != mComponents.end()) {
-        return it->second.get<std::decay_t<T>>();
+        return it->second.get<std::vector<std::decay_t<T>>>();
       }
       return nullptr;
     }
@@ -265,7 +265,7 @@ namespace ecx {
         //For each component type, swap remove from `fromChunk` and copy it to `toChunk`
         for(auto& pair : fromChunk.mComponents) {
           if(auto newIt = mComponents.find(pair.first); newIt != mComponents.end()) {
-            TypeErasedContainer<std::vector>& fromContainer = pair.second;
+            TypeErasedContainer& fromContainer = pair.second;
             //Move component to end of destination container
             fromContainer.moveIntoFromIndex(fromComponentIndex, newIt->second);
             //Swap remove moved element
@@ -280,7 +280,7 @@ namespace ecx {
         //Add the new type
         using NewDecayT = std::decay_t<NewComponent>;
         if(auto newType = mComponents.find(typeId<NewDecayT, LinearEntity>()); newType != mComponents.end()) {
-          std::vector<NewDecayT>* container = newType->second.get<NewDecayT>();
+          std::vector<NewDecayT>* container = newType->second.get<std::vector<NewDecayT>>();
           container->push_back(std::move(newComponent));
         }
         else {
@@ -304,7 +304,7 @@ namespace ecx {
 
         //For each component type, swap remove from `fromChunk` and copy it to `toChunk`
         for(auto& fromPair : fromChunk.mComponents) {
-          TypeErasedContainer<std::vector>& fromContainer = fromPair.second;
+          TypeErasedContainer& fromContainer = fromPair.second;
           if(auto toIt = mComponents.find(fromPair.first); toIt != mComponents.end()) {
             //Move component to end of destination container
             fromContainer.moveIntoFromIndex(fromComponentIndex, toIt->second);
@@ -324,7 +324,7 @@ namespace ecx {
     void addComponentType() {
       assert(mEntityMapping.empty() && "Component types should only be added during creation of a chunk");
       using DecayT = std::decay_t<ComponentT>;
-      mComponents.insert(std::make_pair(typeId<DecayT, LinearEntity>(), TypeErasedContainer<std::vector>::create<DecayT>()));
+      mComponents.insert(std::make_pair(typeId<DecayT, LinearEntity>(), TypeErasedContainer::create<DecayT, std::vector>()));
       mChunkId = _computeChunkId();
     }
 
@@ -366,7 +366,7 @@ namespace ecx {
         mEntityMapping.erase(it);
 
         for(auto& pair : mComponents) {
-          TypeErasedContainer<std::vector>& container = pair.second;
+          TypeErasedContainer& container = pair.second;
           const size_t indexToRemove = it.value().mPackedId;
           //Swap remove
           const size_t lastIndex = container.size() - 1;
@@ -379,7 +379,7 @@ namespace ecx {
 
     //Map of component type to vector of those components
     //Each vector should be the same size since all entities have the same set of components
-    std::unordered_map<typeId_t<LinearEntity>, TypeErasedContainer<std::vector>> mComponents;
+    std::unordered_map<typeId_t<LinearEntity>, TypeErasedContainer> mComponents;
     //Set of entities in this chunk where the packed index is the same as in mComponents
     SparseSet<uint32_t> mEntityMapping;
     uint32_t mChunkId = 0;

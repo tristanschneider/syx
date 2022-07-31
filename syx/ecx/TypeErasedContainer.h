@@ -3,7 +3,6 @@
 struct TypeErasedTag {};
 
 // Own a container but without requiring a template argument to depend on the element type
-template<template<class> class ContainerT>
 struct TypeErasedContainer {
   struct ITraits {
     virtual ~ITraits() = default;
@@ -18,7 +17,7 @@ struct TypeErasedContainer {
     virtual void clear(void* data) const = 0;
   };
 
-  template<class T>
+  template<class T, template<class> class ContainerT>
   struct Traits : public ITraits {
     static const Traits& singleton() {
       static Traits result;
@@ -26,7 +25,7 @@ struct TypeErasedContainer {
     }
 
     typeId_t<TypeErasedTag> type() const {
-      return typeId<T, TypeErasedTag>();
+      return typeId<ContainerT<T>, TypeErasedTag>();
     }
 
     void* create() const override {
@@ -76,9 +75,9 @@ struct TypeErasedContainer {
     Traits(const Traits&) = delete;
   };
 
-  template<class T>
+  template<class T, template<class> class ContainerT>
   static TypeErasedContainer create() {
-    return TypeErasedContainer(Traits<T>::singleton());
+    return TypeErasedContainer(Traits<T, ContainerT>::singleton());
   }
 
   //Needs to be public to allow make_unique, but intended to be used only through create<T>()
@@ -118,13 +117,13 @@ struct TypeErasedContainer {
   }
 
   template<class T>
-  ContainerT<T>* get() {
-    return _assertCorrectType<T>() ? static_cast<ContainerT<T>*>(mData) : nullptr;
+  T* get() {
+    return _assertCorrectType<T>() ? static_cast<T*>(mData) : nullptr;
   }
 
   template<class T>
-  const ContainerT<T>* get() const {
-    return _assertCorrectType<T>() ? static_cast<const ContainerT<T>*>(mData) : nullptr;
+  const T* get() const {
+    return _assertCorrectType<T>() ? static_cast<T*>(mData) : nullptr;
   }
 
   void swap(size_t indexA, size_t indexB) {
