@@ -25,7 +25,9 @@ namespace {
   //Allows validating type of light userdata parameters
   struct ISafeLightUserdata {
     virtual ~ISafeLightUserdata() = default;
-    virtual ecx::typeId_t<ISafeLightUserdata> getType() const = 0;
+    //Returns a void* that can be cast to the given type if possible, otherwise nullptr
+    //Presumably returns `this` but allows for composition if desired
+    virtual void* tryCast(const ecx::typeId_t<ISafeLightUserdata>& destinationType) = 0;
 
     template<class T>
     static T& checkUserdata(lua_State* l, int index) {
@@ -34,17 +36,34 @@ namespace {
       }
       void* data = lua_touserdata(l, index);
       auto* checker = (ISafeLightUserdata*)data;
-      if(!checker || checker->getType() != ecx::typeId<T, ISafeLightUserdata>()) {
+      data = checker ? checker->tryCast(ecx::typeId<T, ISafeLightUserdata>()) : nullptr;
+      if(!data) {
         luaL_error(l, "Unexpected light userdata type");
       }
       return *(T*)data;
     }
   };
 
-  template<class SelfT>
+  template<class... SelfT>
   struct SafeLightUserdata : ISafeLightUserdata {
-    ecx::typeId_t<ISafeLightUserdata> getType() const override {
-      return ecx::typeId<SelfT, ISafeLightUserdata>();
+    template<class Current, class... Rest>
+    void* _tryCastOne(const ecx::typeId_t<ISafeLightUserdata>& destinationType) {
+      //Try this one
+      if(ecx::typeId<Current, ISafeLightUserdata>() == destinationType) {
+        return this;
+      }
+      //Try the next, if there are any
+      if constexpr(sizeof...(Rest) > 0) {
+        return _tryCastOne<Rest...>(destinationType);
+      }
+      //None left, return null
+      else {
+        return nullptr;
+      }
+    }
+
+    void* tryCast(const ecx::typeId_t<ISafeLightUserdata>& destinationType) override {
+      return _tryCastOne<SelfT...>(destinationType);
     }
   };
 
@@ -54,7 +73,6 @@ namespace {
     }
     Engine::RuntimeCommandBuffer mBuffer;
   };
-
 
   //Scripts create these and pass them to the view constructor to indicate the desired component and access
   struct IViewableComponent : ISafeLightUserdata {
@@ -82,8 +100,8 @@ namespace {
     }
 
     //For the purposes of argument validation say this is an IViewableComponent, not the derived type
-    ecx::typeId_t<ISafeLightUserdata> getType() const override {
-      return ecx::typeId<IViewableComponent, ISafeLightUserdata>();
+    void* tryCast(const ecx::typeId_t<ISafeLightUserdata>& destinationType) override {
+      return destinationType == ecx::typeId<IViewableComponent, ISafeLightUserdata>() ? this : nullptr;
     }
 
     void addComponent(LuaRuntimeCommandBuffer& cmd, const ecx::LinearEntity& entity) const override {
@@ -95,17 +113,31 @@ namespace {
     }
   };
 
+  struct ILuaEntity : ISafeLightUserdata {
+    virtual Engine::Entity getEntity() const = 0;
+  };
+
   //Wrapper for the sake of type safety when validating lua arguments
   struct LuaRuntimeView : SafeLightUserdata<LuaRuntimeView> {
     LuaRuntimeView(Engine::EntityRegistry& registry, ecx::ViewedTypes types)
       : mView(registry, std::move(types)) {
     }
+
     Engine::RuntimeView mView;
   };
 
-  struct LuaViewIterator : SafeLightUserdata<LuaViewIterator> {
+  struct LuaViewIterator : ILuaEntity {
     LuaViewIterator(const Engine::RuntimeView::It& it)
       : mIterator(it) {
+    }
+
+    void* tryCast(const ecx::typeId_t<ISafeLightUserdata>& destinationType) override {
+      return destinationType == ecx::typeId<LuaViewIterator, ISafeLightUserdata>() ||
+        destinationType == ecx::typeId<ILuaEntity, ISafeLightUserdata>() ? this : nullptr;
+    }
+
+    Engine::Entity getEntity() const override {
+      return mIterator.entity();
     }
 
     Engine::RuntimeView::It mIterator;
@@ -114,7 +146,15 @@ namespace {
   };
 
   //An entity created through the command buffer that doesn't fully exist yet
-  struct LuaPendingEntity : SafeLightUserdata<LuaPendingEntity> {
+  struct LuaPendingEntity : ILuaEntity {
+    void* tryCast(const ecx::typeId_t<ISafeLightUserdata>& destinationType) override {
+      return destinationType == ecx::typeId<ILuaEntity, ISafeLightUserdata>() ? this : nullptr;
+    }
+
+    Engine::Entity getEntity() const override {
+      return mEntity;
+    }
+
     Engine::Entity mEntity;
   };
 
@@ -132,8 +172,8 @@ namespace {
     using MemberTy = std::decay_t<MemberT>;
     using ComponentTy = std::decay_t<ComponentT>;
 
-    ecx::typeId_t<ISafeLightUserdata> getType() const override {
-      return ecx::typeId<IComponentProperty, ISafeLightUserdata>();
+    void* tryCast(const ecx::typeId_t<ISafeLightUserdata>& destinationType) override {
+      return destinationType == ecx::typeId<IComponentProperty, ISafeLightUserdata>() ? this : nullptr;
     }
 
     int getValue(lua_State* l, LuaViewIterator& it) const override {
@@ -275,7 +315,7 @@ namespace {
       return 1;
     }
 
-    // local entity = CommandBuffer(cmd, TypeA.write()...);
+    // local entity = CommandBuffer.createEntityWithComponents(cmd, TypeA.write()...);
     static int createEntityWithComponents(lua_State* l) {
       int argCount = lua_gettop(l);
       if(argCount < 1) {
@@ -296,6 +336,23 @@ namespace {
       lua_pushlightuserdata(l, context.mPendingEntities.back().get());
       return 1;
     }
+
+    // CommandBuffer.addComponents(cmd, entity, TypeA.write()...)
+    static int addComponents(lua_State* l) {
+      const int argCount = lua_gettop(l);
+      if(argCount < 3) {
+        luaL_error(l, "Expected at least 3 arguments");
+      }
+
+      LuaRuntimeCommandBuffer& cmd = ISafeLightUserdata::checkUserdata<LuaRuntimeCommandBuffer>(l, 1);
+      ILuaEntity& entity = ISafeLightUserdata::checkUserdata<ILuaEntity>(l, 2);
+      const Engine::Entity e = entity.getEntity();
+      for(int i = 3; i <= argCount; ++i) {
+        ISafeLightUserdata::checkUserdata<IViewableComponent>(l, i).addComponent(cmd, e);
+      }
+
+      return 0;
+    }
   };
 
   //The interface to view related functions, does not represent an instance of a view
@@ -311,33 +368,21 @@ namespace {
 
       ecx::ViewedTypes types;
       for(int i = 1; i <= argCount; ++i) {
-        if(lua_islightuserdata(l, i)) {
-          void* data = lua_touserdata(l, i);
-          auto* checker = (ISafeLightUserdata*)data;
-          if(checker && checker->getType() == ecx::typeId<IViewableComponent, ISafeLightUserdata>()) {
-            auto& viewable = *(IViewableComponent*)data;
-            auto type = viewable.getViewedType();
-            switch(viewable.getAccessType()) {
-            case ViewableAccessType::Exclude:
-              types.mExcludes.push_back(type);
-              break;
-            case ViewableAccessType::Include:
-              types.mIncludes.push_back(type);
-              break;
-            case ViewableAccessType::Read:
-              types.mReads.push_back(type);
-              break;
-            case ViewableAccessType::Write:
-              types.mWrites.push_back(type);
-              break;
-            }
-          }
-          else {
-            luaL_error(l, "Expected viewable component type at %d", i);
-          }
-        }
-        else {
-          luaL_error(l, "Expected viewable component type at %d was type %d", i, lua_type(l, i));
+        IViewableComponent& viewable = ISafeLightUserdata::checkUserdata<IViewableComponent>(l, i);
+        auto type = viewable.getViewedType();
+        switch(viewable.getAccessType()) {
+        case ViewableAccessType::Exclude:
+          types.mExcludes.push_back(type);
+          break;
+        case ViewableAccessType::Include:
+          types.mIncludes.push_back(type);
+          break;
+        case ViewableAccessType::Read:
+          types.mReads.push_back(type);
+          break;
+        case ViewableAccessType::Write:
+          types.mWrites.push_back(type);
+          break;
         }
       }
 
@@ -504,13 +549,15 @@ namespace ecx {
     , ecx::AutoTypeList<>
     , ecx::AutoTypeList<
       &LuaCommandBuffer::create,
-      &LuaCommandBuffer::createEntityWithComponents
+      &LuaCommandBuffer::createEntityWithComponents,
+      &LuaCommandBuffer::addComponents
     >
   > {
     inline static constexpr const char* SelfName = "CommandBuffer";
     inline static const std::array FunctionNames = {
       std::string("create"),
-      std::string("createEntityWithComponents")
+      std::string("createEntityWithComponents"),
+      std::string("addComponents")
     };
   };
 
@@ -540,8 +587,9 @@ namespace Lua {
     static std::optional<T*> fromTop(lua_State* l) {
       if(lua_islightuserdata(l, -1)) {
         void* data = lua_touserdata(l, -1);
-        const auto* checker = (const ISafeLightUserdata*)data;
-        if(checker && checker->getType() == ecx::typeId<T, ISafeLightUserdata>()) {
+        auto* checker = (ISafeLightUserdata*)data;
+        data = checker ? checker->tryCast(ecx::typeId<T, ISafeLightUserdata>()) : nullptr;
+        if(data) {
           return std::make_optional((T*)data);
         }
       }
@@ -755,6 +803,44 @@ namespace LuaTests {
       s.mContext.mInternalCommandBuffer->processAllCommands(s.mRegistry);
 
       Assert::AreEqual(size_t(1), s.mRegistry.size<DemoComponentA>());
+    }
+
+    TEST_METHOD(CommandBuffer_CreateEmptyEntity_EntityExists) {
+      LuaStateWithContext s;
+      const size_t preSize = s.mRegistry.size();
+
+      assertScriptExecutes(&s, R"(local c = CommandBuffer.create();
+        local e = CommandBuffer.createEntityWithComponents(c);
+      )");
+      s.mContext.mInternalCommandBuffer->processAllCommands(s.mRegistry);
+
+      Assert::AreEqual(preSize + 1, s.mRegistry.size());
+    }
+
+    TEST_METHOD(CommandBuffer_AddComponentToCreatedEntity_HasComponents) {
+      LuaStateWithContext s;
+
+      assertScriptExecutes(&s, R"(local c = CommandBuffer.create(DemoComponentA.write(), DemoComponentB.write());
+        local e = CommandBuffer.createEntityWithComponents(c, DemoComponentA.write());
+        CommandBuffer.addComponents(c, e, DemoComponentB.write());
+      )");
+      s.mContext.mInternalCommandBuffer->processAllCommands(s.mRegistry);
+
+      Assert::AreEqual(size_t(1), s.mRegistry.size<DemoComponentA>());
+      Assert::AreEqual(size_t(1), s.mRegistry.size<DemoComponentB>());
+    }
+
+    TEST_METHOD(CommandBuffer_AddComponentToExistingEntity_HasComponents) {
+      LuaStateWithContext s;
+      auto entity = s.mRegistry.createEntityWithComponents<DemoComponentA>(*s.mGenerator);
+
+      assertScriptExecutes(&s, R"(local c = CommandBuffer.create(DemoComponentB.write());
+        local e = View.begin(View.create(DemoComponentA.include()));
+        CommandBuffer.addComponents(c, e, DemoComponentB.write());
+      )");
+      s.mContext.mInternalCommandBuffer->processAllCommands(s.mRegistry);
+
+      Assert::IsTrue(s.mRegistry.hasComponent<DemoComponentB>(entity));
     }
   };
 }
