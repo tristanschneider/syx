@@ -337,7 +337,7 @@ namespace {
       return 1;
     }
 
-    // CommandBuffer.addComponents(cmd, entity, TypeA.write()...)
+    //CommandBuffer.addComponents(cmd, entity, TypeA.write()...)
     static int addComponents(lua_State* l) {
       const int argCount = lua_gettop(l);
       if(argCount < 3) {
@@ -349,6 +349,23 @@ namespace {
       const Engine::Entity e = entity.getEntity();
       for(int i = 3; i <= argCount; ++i) {
         ISafeLightUserdata::checkUserdata<IViewableComponent>(l, i).addComponent(cmd, e);
+      }
+
+      return 0;
+    }
+
+    //CommandBuffer.removeComponents(cmd, entity, TypeA.write())
+    static int removeComponents(lua_State* l) {
+      const int argCount = lua_gettop(l);
+      if(argCount < 3) {
+        luaL_error(l, "Expected at least 3 arguments");
+      }
+
+      LuaRuntimeCommandBuffer& cmd = ISafeLightUserdata::checkUserdata<LuaRuntimeCommandBuffer>(l, 1);
+      ILuaEntity& entity = ISafeLightUserdata::checkUserdata<ILuaEntity>(l, 2);
+      const Engine::Entity e = entity.getEntity();
+      for(int i = 3; i <= argCount; ++i) {
+        ISafeLightUserdata::checkUserdata<IViewableComponent>(l, i).removeComponent(cmd, e);
       }
 
       return 0;
@@ -550,14 +567,16 @@ namespace ecx {
     , ecx::AutoTypeList<
       &LuaCommandBuffer::create,
       &LuaCommandBuffer::createEntityWithComponents,
-      &LuaCommandBuffer::addComponents
+      &LuaCommandBuffer::addComponents,
+      &LuaCommandBuffer::removeComponents
     >
   > {
     inline static constexpr const char* SelfName = "CommandBuffer";
     inline static const std::array FunctionNames = {
       std::string("create"),
       std::string("createEntityWithComponents"),
-      std::string("addComponents")
+      std::string("addComponents"),
+      std::string("removeComponents")
     };
   };
 
@@ -841,6 +860,32 @@ namespace LuaTests {
       s.mContext.mInternalCommandBuffer->processAllCommands(s.mRegistry);
 
       Assert::IsTrue(s.mRegistry.hasComponent<DemoComponentB>(entity));
+    }
+
+    TEST_METHOD(CommandBuffer_RemoveComponentFromCreatedEntity_IsRemoved) {
+      LuaStateWithContext s;
+
+      assertScriptExecutes(&s, R"(local c = CommandBuffer.create(DemoComponentA.write(), DemoComponentB.write());
+        local e = CommandBuffer.createEntityWithComponents(c, DemoComponentA.write(), DemoComponentB.write());
+        CommandBuffer.removeComponents(c, e, DemoComponentB.write());
+      )");
+      s.mContext.mInternalCommandBuffer->processAllCommands(s.mRegistry);
+
+      Assert::AreEqual(size_t(1), s.mRegistry.size<DemoComponentA>());
+      Assert::AreEqual(size_t(0), s.mRegistry.size<DemoComponentB>());
+    }
+
+    TEST_METHOD(CommandBuffer_RemoveComponentFromExistingEntity_IsRemoved) {
+      LuaStateWithContext s;
+      auto entity = s.mRegistry.createEntityWithComponents<DemoComponentA>(*s.mGenerator);
+
+      assertScriptExecutes(&s, R"(local c = CommandBuffer.create(DemoComponentA.write());
+        local e = View.begin(View.create(DemoComponentA.include()));
+        CommandBuffer.removeComponents(c, e, DemoComponentA.write());
+      )");
+      s.mContext.mInternalCommandBuffer->processAllCommands(s.mRegistry);
+
+      Assert::IsFalse(s.mRegistry.hasComponent<DemoComponentA>(entity));
     }
   };
 }
