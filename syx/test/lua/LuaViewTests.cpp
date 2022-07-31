@@ -162,7 +162,9 @@ namespace {
     virtual ~IComponentProperty() = default;
 
     virtual int getValue(lua_State* l, LuaViewIterator& it) const = 0;
+    virtual int getValue(lua_State* l, LuaRuntimeCommandBuffer& buffer, const Engine::Entity& entity) const = 0;
     virtual int setValue(lua_State* l, LuaViewIterator& it) const = 0;
+    virtual int setValue(lua_State* l, LuaRuntimeCommandBuffer& buffer, const Engine::Entity& entity) const = 0;
   };
 
   template<auto>
@@ -186,6 +188,16 @@ namespace {
       return 1;
     }
 
+    int getValue(lua_State* l, LuaRuntimeCommandBuffer& buffer, const Engine::Entity& entity) const override {
+      if(const auto* result = buffer.mBuffer.tryGetComponent<const ComponentTy>(entity)) {
+       Lua::LuaTypeInfo<MemberTy>::push(l, result->*Ptr);
+      }
+      else {
+        luaL_error(l, "Invalid component type for CommandBuffer in getValue");
+      }
+      return 1;
+    }
+
     int setValue(lua_State* l, LuaViewIterator& it) const override {
       if(auto* result = it.mIterator.tryGet<ComponentTy>()) {
         if(auto toSet = Lua::LuaTypeInfo<MemberTy>::fromTop(l)) {
@@ -198,6 +210,22 @@ namespace {
       }
       else {
         luaL_error(l, "Invalid component type for View in setValue");
+      }
+      return 0;
+    }
+
+    int setValue(lua_State* l, LuaRuntimeCommandBuffer& buffer, const Engine::Entity& entity) const override {
+      if(auto* result = buffer.mBuffer.tryGetComponent<ComponentTy>(entity)) {
+        if(auto toSet = Lua::LuaTypeInfo<MemberTy>::fromTop(l)) {
+          result->*Ptr = std::move(*toSet);
+          return 0;
+        }
+        else {
+          luaL_error(l, "Invalid property value type for setValue");
+        }
+      }
+      else {
+        luaL_error(l, "Invalid component type for CommandBuffer in setValue");
       }
       return 0;
     }
@@ -369,6 +397,24 @@ namespace {
       }
 
       return 0;
+    }
+
+    //Only for use with pending entities created through the command buffer
+    //ResultType CommandBuffer.getValue(cmd, entity, property)
+    static int getValue(lua_State* l) {
+      LuaRuntimeCommandBuffer& cmd = ISafeLightUserdata::checkUserdata<LuaRuntimeCommandBuffer>(l, 1);
+      ILuaEntity& entity = ISafeLightUserdata::checkUserdata<ILuaEntity>(l, 2);
+      IComponentProperty& property = ISafeLightUserdata::checkUserdata<IComponentProperty>(l, 3);
+      return property.getValue(l, cmd, entity.getEntity());
+    }
+
+    //Only for use with pending entities created through the command buffer
+    //ResultType CommandBuffer.setValue(cmd, entity, property)
+    static int setValue(lua_State* l) {
+      LuaRuntimeCommandBuffer& cmd = ISafeLightUserdata::checkUserdata<LuaRuntimeCommandBuffer>(l, 1);
+      ILuaEntity& entity = ISafeLightUserdata::checkUserdata<ILuaEntity>(l, 2);
+      IComponentProperty& property = ISafeLightUserdata::checkUserdata<IComponentProperty>(l, 3);
+      return property.setValue(l, cmd, entity.getEntity());
     }
   };
 
@@ -568,7 +614,9 @@ namespace ecx {
       &LuaCommandBuffer::create,
       &LuaCommandBuffer::createEntityWithComponents,
       &LuaCommandBuffer::addComponents,
-      &LuaCommandBuffer::removeComponents
+      &LuaCommandBuffer::removeComponents,
+      &LuaCommandBuffer::setValue,
+      &LuaCommandBuffer::getValue
     >
   > {
     inline static constexpr const char* SelfName = "CommandBuffer";
@@ -576,7 +624,9 @@ namespace ecx {
       std::string("create"),
       std::string("createEntityWithComponents"),
       std::string("addComponents"),
-      std::string("removeComponents")
+      std::string("removeComponents"),
+      std::string("setValue"),
+      std::string("getValue")
     };
   };
 
@@ -886,6 +936,38 @@ namespace LuaTests {
       s.mContext.mInternalCommandBuffer->processAllCommands(s.mRegistry);
 
       Assert::IsFalse(s.mRegistry.hasComponent<DemoComponentA>(entity));
+    }
+
+    TEST_METHOD(CommandBuffer_AddComponentSetValueFromCreatedEntity_IsSet) {
+      LuaStateWithContext s;
+
+      assertScriptExecutes(&s, R"(local c = CommandBuffer.create(DemoComponentA.write());
+        local e = CommandBuffer.createEntityWithComponents(c, DemoComponentA.write());
+        CommandBuffer.setValue(c, e, DemoComponentA.mValue(), 2);
+        assert(2 == CommandBuffer.getValue(c, e, DemoComponentA.mValue()));
+      )");
+      s.mContext.mInternalCommandBuffer->processAllCommands(s.mRegistry);
+
+      auto it = s.mRegistry.begin<DemoComponentA>();
+      Assert::IsTrue(it != s.mRegistry.end<DemoComponentA>());
+      Assert::AreEqual(2, it->mValue);
+    }
+
+    TEST_METHOD(CommandBuffer_AddComponentSetValueFromExistingEntity_IsSet) {
+      LuaStateWithContext s;
+      auto entity = s.mRegistry.createEntityWithComponents<DemoComponentB>(*s.mGenerator);
+
+      assertScriptExecutes(&s, R"(local c = CommandBuffer.create(DemoComponentA.write());
+        local e = View.begin(View.create(DemoComponentB.include()));
+        CommandBuffer.addComponents(c, e, DemoComponentA.write());
+        CommandBuffer.setValue(c, e, DemoComponentA.mValue(), 2);
+        assert(2 == CommandBuffer.getValue(c, e, DemoComponentA.mValue()));
+      )");
+      s.mContext.mInternalCommandBuffer->processAllCommands(s.mRegistry);
+
+      const DemoComponentA* a = s.mRegistry.tryGetComponent<DemoComponentA>(entity);
+      Assert::IsNotNull(a);
+      Assert::AreEqual(2, a->mValue);
     }
   };
 }

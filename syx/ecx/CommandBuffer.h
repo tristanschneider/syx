@@ -82,6 +82,11 @@ namespace ecx {
     }
 
     template<class Component>
+    Component* tryGetPendingComponent(const LinearEntity& entity) {
+      return mCommandEntities.tryGetComponent<Component>(entity.mData.mRawId);
+    }
+
+    template<class Component>
     void removeComponent(const LinearEntity& entity) {
       _addOrRemoveCommandComponent<Component>(entity, ComponentCommandType::RemoveComponent);
     }

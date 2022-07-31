@@ -87,6 +87,11 @@ namespace ecx {
     }
 
     template<class Component>
+    Component* tryGetComponent(const LinearEntity& entity) {
+      return _isAllowedType<Component>() ? mBuffer->tryGetPendingComponent<Component>(entity) : nullptr;
+    }
+
+    template<class Component>
     void removeComponent(const LinearEntity& entity) {
       if (_isAllowedType<Component>()) {
         mBuffer->removeComponent<Component>(entity);
