@@ -343,7 +343,7 @@ namespace {
       return 1;
     }
 
-    // local entity = CommandBuffer.createEntityWithComponents(cmd, TypeA.write()...);
+    //local entity = CommandBuffer.createEntityWithComponents(cmd, TypeA.write()...);
     static int createEntityWithComponents(lua_State* l) {
       int argCount = lua_gettop(l);
       if(argCount < 1) {
@@ -363,6 +363,15 @@ namespace {
       context.mPendingEntities.push_back(std::make_unique<LuaPendingEntity>(p));
       lua_pushlightuserdata(l, context.mPendingEntities.back().get());
       return 1;
+    }
+
+    //CommandBuffer.destroyEntity(cmd, entity)
+    static int destroyEntity(lua_State* l) {
+      LuaRuntimeCommandBuffer& cmd = ISafeLightUserdata::checkUserdata<LuaRuntimeCommandBuffer>(l, 1);
+      ILuaEntity& entity = ISafeLightUserdata::checkUserdata<ILuaEntity>(l, 2);
+
+      cmd.mBuffer.destroyEntity(entity.getEntity());
+      return 0;
     }
 
     //CommandBuffer.addComponents(cmd, entity, TypeA.write()...)
@@ -616,7 +625,8 @@ namespace ecx {
       &LuaCommandBuffer::addComponents,
       &LuaCommandBuffer::removeComponents,
       &LuaCommandBuffer::setValue,
-      &LuaCommandBuffer::getValue
+      &LuaCommandBuffer::getValue,
+      &LuaCommandBuffer::destroyEntity
     >
   > {
     inline static constexpr const char* SelfName = "CommandBuffer";
@@ -626,7 +636,8 @@ namespace ecx {
       std::string("addComponents"),
       std::string("removeComponents"),
       std::string("setValue"),
-      std::string("getValue")
+      std::string("getValue"),
+      std::string("destroyEntity")
     };
   };
 
@@ -968,6 +979,29 @@ namespace LuaTests {
       const DemoComponentA* a = s.mRegistry.tryGetComponent<DemoComponentA>(entity);
       Assert::IsNotNull(a);
       Assert::AreEqual(2, a->mValue);
+    }
+
+    TEST_METHOD(CommandBuffer_DestroyCreatedEntity_IsDestroyed) {
+      LuaStateWithContext s;
+
+      assertScriptExecutes(&s, R"(local c = CommandBuffer.create(DemoComponentA.write(), EntityDestroyTag.write());
+        CommandBuffer.destroyEntity(c, CommandBuffer.createEntityWithComponents(c, DemoComponentA.write()));
+      )");
+      s.mContext.mInternalCommandBuffer->processAllCommands(s.mRegistry);
+
+      Assert::AreEqual(size_t(0), s.mRegistry.size<DemoComponentA>());
+    }
+
+    TEST_METHOD(CommandBuffer_DestroyExistingEntity_IsDestroyed) {
+      LuaStateWithContext s;
+      auto entity = s.mRegistry.createEntityWithComponents<DemoComponentA>(*s.mGenerator);
+
+      assertScriptExecutes(&s, R"(local c = CommandBuffer.create(EntityDestroyTag.write());
+        CommandBuffer.destroyEntity(c, View.begin(View.create(DemoComponentA.include())));
+      )");
+      s.mContext.mInternalCommandBuffer->processAllCommands(s.mRegistry);
+
+      Assert::IsFalse(s.mRegistry.isValid(entity));
     }
   };
 }
