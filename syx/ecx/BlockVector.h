@@ -8,6 +8,8 @@ namespace ecx {
     virtual void defaultConstruct(void* target) const = 0;
     virtual void moveConstruct(void* from, void* to) const = 0;
     virtual void copyConstruct(const void* from, void* to) const = 0;
+    virtual void moveAssign(void* from, void* to) const = 0;
+    virtual void copyAssign(void* from, void* to) const = 0;
   };
 
   //Vector where each object is a block of a consistent size
@@ -207,6 +209,10 @@ namespace ecx {
       std::swap(mTraits, rhs.mTraits);
     }
 
+    const ITraits* getTraits() const {
+      return mTraits;
+    }
+
   private:
     void _grow(size_t newBytes) {
       auto alloc = _getAllocator();
@@ -270,6 +276,14 @@ namespace ecx {
 
     void copyConstruct(const void* from, void* to) const override {
       new (to) T(*static_cast<const T*>(from));
+    }
+
+    void moveAssign(void* from, void* to) const override {
+      *static_cast<T*>(to) = std::move(*static_cast<T*>(from));
+    }
+
+    void copyAssign(void* from, void* to) const override {
+      *static_cast<T*>(to) = *static_cast<T*>(from);
     }
   };
 
@@ -347,6 +361,14 @@ namespace ecx {
 
     void copyConstruct(const void* from, void* to) const override {
       std::memcpy(to, from, mSize);
+    }
+
+    void moveAssign(void* from, void* to) const override {
+      copyConstruct(from, to);
+    }
+
+    void copyAssign(void* from, void* to) const override {
+      copyConstruct(from, to);
     }
 
     const size_t mSize = 0;

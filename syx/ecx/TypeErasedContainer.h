@@ -1,6 +1,10 @@
 #pragma once
 
+#include "TypeId.h"
+
 struct TypeErasedTag {};
+
+namespace ecx {
 
 // Own a container but without requiring a template argument to depend on the element type
 struct TypeErasedContainer {
@@ -185,3 +189,4 @@ private:
   void* mData = nullptr;
   const ITraits* mTraits = nullptr;
 };
+}

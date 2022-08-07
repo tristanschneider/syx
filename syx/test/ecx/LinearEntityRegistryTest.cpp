@@ -3,6 +3,8 @@
 
 #include "LinearEntityRegistry.h"
 
+#include "BlockVectorTypeErasedContainerTraits.h"
+
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 namespace ecx {
@@ -319,6 +321,24 @@ namespace ecx {
       registry.removeComponent<int>(entity);
 
       Assert::IsFalse(registry.hasComponent<int>(entity));
+    }
+
+    struct TestComponent {
+      int mInt = 7;
+      std::string mStr = "str";
+    };
+
+    TEST_METHOD(EntityRegistry_AddComponentCustomStorage_IsAdded) {
+      BlockVectorTraits<TestComponent> bvTraits;
+      BlockVectorTypeErasedContainerTraits<> containerTraits(bvTraits);
+      TestEntityRegistry registry;
+      auto entity = registry.createEntity();
+      auto customId = claimTypeId<LinearEntity>();
+
+      TestComponent* result = static_cast<TestComponent*>(registry.addRuntimeComponent(entity, customId, &BlockVectorTypeErasedContainerTraits<>::createStorage, &containerTraits).second);
+
+      Assert::AreEqual(7, result->mInt);
+      Assert::AreEqual("str", result->mStr.c_str());
     }
   };
 }

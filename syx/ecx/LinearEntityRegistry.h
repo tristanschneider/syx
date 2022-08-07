@@ -12,7 +12,7 @@
 namespace ecx {
   template<class T>
   struct DefaultComponentTraits {
-    static TypeErasedContainer createStorage() {
+    static TypeErasedContainer createStorage(void*) {
       return TypeErasedContainer::create<T, std::vector>();
     }
   };
@@ -155,6 +155,10 @@ namespace ecx {
       //Hash to spread out type ids so buildChunkId doesn't collide
       static const size_t result = std::hash<size_t>()(idGen++);
       return result;
+    }
+
+    static size_t claimId() {
+      return std::hash<size_t>()(idGen++);
     }
   };
 
@@ -842,7 +846,7 @@ namespace ecx {
     template<class ComponentT, class... Args>
     ComponentT& addComponent(const LinearEntity& entity, Args&&... args) {
       using DecayT = std::decay_t<ComponentT>;
-      std::pair<bool, void*> result = addRuntimeComponent<&ComponentTraits<DecayT>::createStorage>(entity, typeId<DecayT, LinearEntity>());
+      std::pair<bool, void*> result = addRuntimeComponent(entity, typeId<DecayT, LinearEntity>(), &ComponentTraits<DecayT>::createStorage, nullptr);
       static DecayT empty;
       assert(result.second && "result should be valid");
       if(result.second) {
@@ -858,8 +862,7 @@ namespace ecx {
     }
 
     //Bool indicates if it was newly added or not
-    template<auto CreateStorage, std::enable_if_t<std::is_same_v<TypeErasedContainer, decltype(CreateStorage())>, void*> = nullptr>
-    std::pair<bool, void*> addRuntimeComponent(const LinearEntity& entity, const typeId_t<LinearEntity>& type) {
+    std::pair<bool, void*> addRuntimeComponent(const LinearEntity& entity, const typeId_t<LinearEntity>& type, TypeErasedContainer(*createStorage)(void*), void* storageData) {
       const BaseEntityComponent* info = mEntityInfo->tryGetComponent<const BaseEntityComponent>(entity);
       if(!info || info->mVersion != entity.mData.mParts.mVersion) {
         assert(false && "Should only add components to valid entities");
@@ -885,7 +888,7 @@ namespace ecx {
       //If chunk for this component combination doesn't exist, create it
       if(!toChunk) {
         std::shared_ptr<EntityChunk> cloned = fromChunk.cloneEmpty();
-        cloned->addComponentType(type, CreateStorage());
+        cloned->addComponentType(type, createStorage(storageData));
 
         toChunk = _addChunk(std::move(cloned), newChunk);
       }

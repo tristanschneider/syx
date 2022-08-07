@@ -1,6 +1,7 @@
 #include "Precompile.h"
 #include "CppUnitTest.h"
 
+#include "BlockVectorTypeErasedContainerTraits.h"
 #include "LinearView.h"
 #include "LinearEntityRegistry.h"
 
@@ -457,6 +458,45 @@ namespace ecx {
       }
 
       Assert::IsTrue(expected == found);
+    }
+
+    struct TestComponent {
+      int mInt = 7;
+      std::string mStr = "str";
+    };
+
+    TEST_METHOD(RuntimeView_ViewCustomStorage_ValuesFound) {
+      BlockVectorTraits<TestComponent> bvTraits;
+      BlockVectorTypeErasedContainerTraits<> containerTraits(bvTraits);
+      TestEntityRegistry registry;
+      auto entity = registry.createEntity();
+      auto customIdA = claimTypeId<LinearEntity>();
+      auto customIdB = claimTypeId<LinearEntity>();
+      TestComponent* resultA = static_cast<TestComponent*>(registry.addRuntimeComponent(entity, customIdA, &BlockVectorTypeErasedContainerTraits<>::createStorage, &containerTraits).second);
+      resultA->mInt = 1;
+      resultA->mStr = "a";
+      TestComponent* resultB = static_cast<TestComponent*>(registry.addRuntimeComponent(entity, customIdB, &BlockVectorTypeErasedContainerTraits<>::createStorage, &containerTraits).second);
+      resultB->mInt = 2;
+      resultB->mStr = "b";
+      ecx::ViewedTypes types;
+      types.mReads.push_back(customIdA);
+      RuntimeView<TestEntity, true> viewA(registry, types);
+      types.mReads[0] = customIdB;
+      RuntimeView<TestEntity, true> viewB(registry, types);
+
+      auto it = viewA.begin();
+      Assert::IsFalse(it == viewA.end());
+      resultA = static_cast<TestComponent*>(it.tryGet(customIdA, ViewAccessMode::Read));
+      Assert::IsNotNull(resultA);
+      Assert::AreEqual(1, resultA->mInt);
+      Assert::AreEqual("a", resultA->mStr.c_str());
+
+      it = viewB.begin();
+      Assert::IsFalse(it == viewB.end());
+      resultB = static_cast<TestComponent*>(it.tryGet(customIdB, ViewAccessMode::Read));
+      Assert::IsNotNull(resultB);
+      Assert::AreEqual(2, resultB->mInt);
+      Assert::AreEqual("b", resultB->mStr.c_str());
     }
   };
 }

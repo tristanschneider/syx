@@ -135,6 +135,11 @@ namespace ecx {
     std::vector<TypeId> mOptionalWrites;
   };
 
+  enum class ViewAccessMode {
+    Read,
+    Write,
+  };
+
   template<bool ENABLE_SAFETY_CHECKS>
   class RuntimeView<LinearEntity, ENABLE_SAFETY_CHECKS> {
   public:
@@ -234,19 +239,23 @@ namespace ecx {
 
       template<class T>
       T* tryGet() {
+        return static_cast<T*>(tryGet(typeId<std::decay_t<T>, LinearEntity>(), std::is_const_v<T> ? ViewAccessMode::Read : ViewAccessMode::Write));
+      }
+
+      void* tryGet(const typeId_t<LinearEntity>& type, ViewAccessMode mode) {
         if constexpr(ENABLE_SAFETY_CHECKS) {
-          if constexpr(std::is_const_v<T>) {
+          if (mode == ViewAccessMode::Read) {
             //TODO: report access violation somehow?
-            if(std::lower_bound(mAllowedTypes->mReads.begin(), mAllowedTypes->mReads.end(), ecx::typeId<std::decay_t<T>, ecx::DefaultTypeCategory>()) == mAllowedTypes->mReads.end()) {
+            if(std::lower_bound(mAllowedTypes->mReads.begin(), mAllowedTypes->mReads.end(), type) == mAllowedTypes->mReads.end()) {
               return nullptr;
             }
           }
-          else if(std::lower_bound(mAllowedTypes->mWrites.begin(), mAllowedTypes->mWrites.end(), ecx::typeId<std::decay_t<T>, ecx::DefaultTypeCategory>()) == mAllowedTypes->mWrites.end()) {
+          else if(std::lower_bound(mAllowedTypes->mWrites.begin(), mAllowedTypes->mWrites.end(), type) == mAllowedTypes->mWrites.end()) {
             return nullptr;
           }
         }
-        auto* container = mChunkIt->tryGetContainer(typeId<std::decay_t<T>, LinearEntity>());
-        return container ? static_cast<T*>(container->at(mEntityIndex)) : nullptr;
+        auto* container = mChunkIt->tryGetContainer(type);
+        return container ? container->at(mEntityIndex) : nullptr;
       }
 
     private:
