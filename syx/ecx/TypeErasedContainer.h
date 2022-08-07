@@ -15,6 +15,7 @@ struct TypeErasedContainer {
     virtual void moveIntoFromIndex(size_t index, void* from, void* to) const = 0;
     virtual void push_back(void* data) const = 0;
     virtual void clear(void* data) const = 0;
+    virtual void* at(void* data, size_t index) const = 0;
   };
 
   template<class T, template<class> class ContainerT>
@@ -58,6 +59,10 @@ struct TypeErasedContainer {
 
     virtual void clear(void* data) const override {
       _cast(data).clear();
+    }
+
+    virtual void* at(void* data, size_t index) const override {
+      return &_cast(data).at(index);
     }
 
     ContainerT<T>& _cast(void* data) const {
@@ -132,6 +137,10 @@ struct TypeErasedContainer {
 
   void pop_back() {
     mTraits->pop_back(mData);
+  }
+
+  void* at(size_t index) {
+    return mTraits->at(mData, index);
   }
 
   size_t size() const {

@@ -10,6 +10,16 @@
 //memory. This allows for more efficient iteration at the cost of more expensive addition and removal of
 //components, since changing the components on an entity causes them to be moved to a different chunk.
 namespace ecx {
+  template<class T>
+  struct DefaultComponentTraits {
+    static TypeErasedContainer createStorage() {
+      return TypeErasedContainer::create<T, std::vector>();
+    }
+  };
+
+  template<class T>
+  struct ComponentTraits : DefaultComponentTraits<T> {};
+
   //Base component all entities have
   struct BaseEntityComponent {
     uint32_t mVersion = 0;
@@ -152,16 +162,26 @@ namespace ecx {
   public:
     template<class T>
     std::vector<std::decay_t<T>>* tryGet() {
-      if(auto it = mComponents.find(typeId<std::decay_t<T>, LinearEntity>()); it != mComponents.end()) {
-        return it->second.get<std::vector<std::decay_t<T>>>();
-      }
-      return nullptr;
+      TypeErasedContainer* result = tryGetContainer(typeId<std::decay_t<T>, LinearEntity>());
+      return result ? result->get<std::vector<T>>() : nullptr;
     }
 
     template<class T>
     const std::vector<std::decay_t<T>>* tryGet() const {
-      if(auto it = mComponents.find(typeId<std::decay_t<T>, LinearEntity>()); it != mComponents.end()) {
-        return it->second.get<std::vector<std::decay_t<T>>>();
+      const TypeErasedContainer* result = tryGetContainer(typeId<std::decay_t<T>, LinearEntity>());
+      return result ? result->get<std::vector<T>>() : nullptr;
+    }
+
+    TypeErasedContainer* tryGetContainer(const typeId_t<LinearEntity>& type) {
+      if(auto it = mComponents.find(type); it != mComponents.end()) {
+        return &it->second;
+      }
+      return nullptr;
+    }
+
+    const TypeErasedContainer* tryGetContainer(const typeId_t<LinearEntity>& type) const {
+      if(auto it = mComponents.find(type); it != mComponents.end()) {
+        return &it->second;
       }
       return nullptr;
     }
@@ -203,9 +223,14 @@ namespace ecx {
 
     template<class ComponentT>
     std::decay_t<ComponentT>* tryGetComponent(const LinearEntity& entity) {
-      if(std::vector<std::decay_t<ComponentT>>* components = tryGet<std::decay_t<ComponentT>>()) {
+      using ResultT = std::decay_t<ComponentT>;
+      return static_cast<ResultT*>(tryGetComponent(entity, typeId<ResultT, LinearEntity>()));
+    }
+
+    void* tryGetComponent(const LinearEntity& entity, const typeId_t<LinearEntity>& type) {
+      if(TypeErasedContainer* components = tryGetContainer(type)) {
         if(auto it = mEntityMapping.find(entity.mData.mParts.mEntityId); it != mEntityMapping.end()) {
-          return &components->at(it.value().mPackedId);
+          return components->at(it.value().mPackedId);
         }
       }
       return nullptr;
@@ -251,8 +276,7 @@ namespace ecx {
 
     //Migrate an entity from `fromChunk` to this chunk with the new component
     //Caller must ensure that the entity with the new component would have all components in the new chunk
-    template<class NewComponent>
-    bool migrateEntity(const LinearEntity& entity, EntityChunk& fromChunk, NewComponent&& newComponent) {
+    bool migrateEntity(const LinearEntity& entity, EntityChunk& fromChunk, const typeId_t<LinearEntity>& newTypeId) {
       assert(fromChunk.mComponents.size() + 1 == mComponents.size() && "Entity should only migrate if it would have all compnents");
 
       if(auto it = fromChunk.mEntityMapping.find(entity.mData.mParts.mEntityId); it != fromChunk.mEntityMapping.end()) {
@@ -278,10 +302,8 @@ namespace ecx {
         }
 
         //Add the new type
-        using NewDecayT = std::decay_t<NewComponent>;
-        if(auto newType = mComponents.find(typeId<NewDecayT, LinearEntity>()); newType != mComponents.end()) {
-          std::vector<NewDecayT>* container = newType->second.get<std::vector<NewDecayT>>();
-          container->push_back(std::move(newComponent));
+        if(auto newType = mComponents.find(newTypeId); newType != mComponents.end()) {
+          newType->second.push_back();
         }
         else {
           assert(false && "Caller should enshure that new component exists");
@@ -322,9 +344,13 @@ namespace ecx {
     //once it's in use it shouldn't be used as it could result in not all entities in a chunk having all components
     template<class ComponentT>
     void addComponentType() {
-      assert(mEntityMapping.empty() && "Component types should only be added during creation of a chunk");
       using DecayT = std::decay_t<ComponentT>;
-      mComponents.insert(std::make_pair(typeId<DecayT, LinearEntity>(), TypeErasedContainer::create<DecayT, std::vector>()));
+      addComponentType(typeId<DecayT, LinearEntity>(), TypeErasedContainer::create<DecayT, std::vector>());
+    }
+
+    void addComponentType(const typeId_t<LinearEntity>& id, TypeErasedContainer container) {
+      assert(mEntityMapping.empty() && "Component types should only be added during creation of a chunk");
+      mComponents.insert(std::make_pair(id, std::move(container)));
       mChunkId = _computeChunkId();
     }
 
@@ -410,14 +436,12 @@ namespace ecx {
       return mChunk && mEntityInfo;
     }
 
-    template<class T>
-    std::vector<std::decay_t<T>>* tryGet() {
-      return mChunk->tryGet<T>();
+    TypeErasedContainer* tryGetContainer(const typeId_t<LinearEntity>& type) {
+      return mChunk->tryGetContainer(type);
     }
 
-    template<class T>
-    const std::vector<std::decay_t<T>>* tryGet() const {
-      return mChunk->tryGet<T>();
+    const TypeErasedContainer* tryGetContainer(const typeId_t<LinearEntity>& type) const {
+      return mChunk->tryGetContainer(type);
     }
 
     bool hasType(const typeId_t<LinearEntity> type) const {
@@ -458,6 +482,10 @@ namespace ecx {
     template<class ComponentT>
     std::decay_t<ComponentT>* tryGetComponent(const LinearEntity& entity) {
       return contains(entity) ? mChunk->tryGetComponent<ComponentT>(entity) : nullptr;
+    }
+
+    void* tryGetComponent(const LinearEntity& entity, const typeId_t<LinearEntity>& type) {
+      return contains(entity) ? mChunk->tryGetComponent(entity, type) : nullptr;
     }
 
     bool contains(const LinearEntity& entity) const {
@@ -504,9 +532,8 @@ namespace ecx {
 
     //Migrate an entity from `fromChunk` to this chunk with the new component
     //Caller must ensure that the entity with the new component would have all components in the new chunk
-    template<class NewComponent>
-    bool migrateEntity(const LinearEntity& entity, VersionedEntityChunk& fromChunk, NewComponent&& newComponent) {
-      if(BaseEntityComponent* info = fromChunk._getInfoIfContains(entity); info && mChunk->migrateEntity<NewComponent>(entity, *fromChunk.mChunk, std::forward<NewComponent&&>(newComponent))) {
+    bool migrateEntity(const LinearEntity& entity, VersionedEntityChunk& fromChunk, const typeId_t<LinearEntity>& newType) {
+      if(BaseEntityComponent* info = fromChunk._getInfoIfContains(entity); info && mChunk->migrateEntity(entity, *fromChunk.mChunk, newType)) {
         info->mChunkID = mChunkID;
         return true;
       }
@@ -640,7 +667,7 @@ namespace ecx {
       }
 
       T& component() {
-        return mChunks[mChunkIndex].tryGet<T>()->at(mEntityIndex);
+        return *static_cast<T*>(mChunks[mChunkIndex].tryGetContainer(typeId<T, LinearEntity>())->at(mEntityIndex));
       }
 
     private:
@@ -815,15 +842,32 @@ namespace ecx {
     template<class ComponentT, class... Args>
     ComponentT& addComponent(const LinearEntity& entity, Args&&... args) {
       using DecayT = std::decay_t<ComponentT>;
+      std::pair<bool, void*> result = addRuntimeComponent<&ComponentTraits<DecayT>::createStorage>(entity, typeId<DecayT, LinearEntity>());
+      static DecayT empty;
+      assert(result.second && "result should be valid");
+      if(result.second) {
+        ComponentT* r = static_cast<ComponentT*>(result.second);
+        //Emplace through a different code path would be a bit faster but more complicated than it's worth
+        //Construct if it was newly created
+        if(result.first) {
+          *r = ComponentT{std::forward<Args>(args)...};
+        }
+        return *r;
+      }
+      return empty;
+    }
+
+    //Bool indicates if it was newly added or not
+    template<auto CreateStorage, std::enable_if_t<std::is_same_v<TypeErasedContainer, decltype(CreateStorage())>, void*> = nullptr>
+    std::pair<bool, void*> addRuntimeComponent(const LinearEntity& entity, const typeId_t<LinearEntity>& type) {
       const BaseEntityComponent* info = mEntityInfo->tryGetComponent<const BaseEntityComponent>(entity);
       if(!info || info->mVersion != entity.mData.mParts.mVersion) {
         assert(false && "Should only add components to valid entities");
-        static ComponentT empty;
-        return empty;
+        return std::pair<bool, void*>(false, nullptr);
       }
 
       const uint32_t oldChunk = info->mChunkID;
-      const uint32_t newChunk = LinearEntity::buildChunkId<ComponentT>(oldChunk);
+      const uint32_t newChunk = LinearEntity::buildChunkId(oldChunk, type);
       auto tryGetChunk = [this](uint32_t chunk) {
         auto it = mChunkTypeToChunks.find(chunk);
         return it != mChunkTypeToChunks.end() ? _getVersionedChunk(it->second) : VersionedEntityChunk();
@@ -834,21 +878,23 @@ namespace ecx {
       toChunk = tryGetChunk(newChunk);
 
       assert(fromChunk && "From chunk should exist");
-      const bool alreadyHasType = fromChunk && fromChunk.hasType(ecx::typeId<ComponentT, ecx::LinearEntity>());
+      const bool alreadyHasType = fromChunk && fromChunk.hasType(type);
       if(alreadyHasType) {
-        return *fromChunk.tryGetComponent<ComponentT>(entity);
+        return std::make_pair(false, fromChunk.tryGetComponent(entity, type));
       }
       //If chunk for this component combination doesn't exist, create it
       if(!toChunk) {
         std::shared_ptr<EntityChunk> cloned = fromChunk.cloneEmpty();
-        cloned->addComponentType<DecayT>();
+        cloned->addComponentType(type, CreateStorage());
 
         toChunk = _addChunk(std::move(cloned), newChunk);
       }
 
-      toChunk.migrateEntity(entity, fromChunk, ComponentT{std::forward<Args>(args)...});
-      std::vector<DecayT>* components = toChunk.tryGet<DecayT>();
-      return components->back();
+      toChunk.migrateEntity(entity, fromChunk, type);
+      TypeErasedContainer* components = toChunk.tryGetContainer(type);
+      const size_t componentsSize = components->size();
+      void* result = componentsSize > 0 ? components->at(componentsSize - 1) : nullptr;
+      return std::make_pair(true, result);
     }
 
     template<class ComponentT>

@@ -92,7 +92,7 @@ namespace ecx {
       }
 
       mEnd = mBegin + _elementSize()*newSize;
-      for(size_t i = 0; i < newSize) {
+      for(size_t i = 0; i < newSize; ++i) {
         mTraits->copyConstruct(rhs.at(i), at(i));
       }
 
@@ -148,9 +148,9 @@ namespace ecx {
       return (mEnd - mBegin) / mTraits->size();
     }
 
-    void reserve(size_t size) {
-      if(size > size()) {
-        _grow(size * mTraits->size());
+    void reserve(size_t sz) {
+      if(sz > capacity()) {
+        _grow(sz * mTraits->size());
       }
     }
 
@@ -248,6 +248,84 @@ namespace ecx {
     uint8_t* mBegin = nullptr;
     uint8_t* mEnd = nullptr;
     uint8_t* mCapacity = nullptr;
+  };
+
+  template<class T>
+  struct BlockVectorTraits : public IBlockVectorTraits {
+    size_t size() const override {
+      return sizeof(T);
+    }
+
+    void destruct(void* target) const override {
+      static_cast<T*>(target)->~T();
+    }
+
+    void defaultConstruct(void* target) const override {
+      new (target) T();
+    }
+
+    void moveConstruct(void* from, void* to) const override {
+      new (to) T(std::move(*static_cast<T*>(from)));
+    }
+
+    void copyConstruct(const void* from, void* to) const override {
+      new (to) T(*static_cast<const T*>(from));
+    }
+  };
+
+  struct CompositeBlockVectorTraits : public IBlockVectorTraits {
+    CompositeBlockVectorTraits(const std::vector<const IBlockVectorTraits*>& traits)
+      : mTraits(traits.size()) {
+      for(size_t i = 0; i < traits.size(); ++i) {
+        //TODO: padding for alignment?
+        mTraits[i].mOffset = mTotalSize;
+        mTraits[i].mTraits = traits[i];
+        mTotalSize += traits[i]->size();
+      }
+    }
+
+    size_t size() const override {
+      return mTotalSize;
+    }
+
+    void destruct(void* target) const override {
+      for(const Traits& t : mTraits) {
+        t.mTraits->destruct(_offset(target, t.mOffset));
+      }
+    }
+
+    void defaultConstruct(void* target) const override {
+      for(const Traits& t : mTraits) {
+        t.mTraits->defaultConstruct(_offset(target, t.mOffset));
+      }
+    }
+
+    void moveConstruct(void* from, void* to) const override {
+      for(const Traits& t : mTraits) {
+        t.mTraits->moveConstruct(_offset(from, t.mOffset), _offset(to, t.mOffset));
+      }
+    }
+
+    void copyConstruct(const void* from, void* to) const override {
+      for(const Traits& t : mTraits) {
+        t.mTraits->copyConstruct(_offset(from, t.mOffset), _offset(to, t.mOffset));
+      }
+    }
+
+    static void* _offset(void* ptr, size_t o) {
+      return static_cast<uint8_t*>(ptr) + o;
+    }
+
+    static const void* _offset(const void* ptr, size_t o) {
+      return static_cast<const uint8_t*>(ptr) + o;
+    }
+
+    struct Traits {
+      size_t mOffset = 0;
+      const IBlockVectorTraits* mTraits = nullptr;
+    };
+    std::vector<Traits> mTraits;
+    size_t mTotalSize = 0;
   };
 
   struct MemCopyTraits : IBlockVectorTraits {

@@ -29,7 +29,8 @@ namespace ecx {
     template<class T>
     std::conditional_t<std::is_const_v<T>, const std::vector<std::decay_t<T>>*, std::vector<T>*> tryGet() {
       static_assert(IsAllowedType<T>::value);
-      return mChunk.tryGet<T>();
+      TypeErasedContainer* c = mChunk.tryGetContainer(typeId<std::decay_t<T>, LinearEntity>());
+      return c ? c->get<std::vector<std::decay_t<T>>>() : nullptr;
     }
 
     size_t size() const {
@@ -67,9 +68,17 @@ namespace ecx {
   //A wrapper around access for a particular entity during iteration within a View
   template<class... Components>
   class ViewedEntity<LinearEntity, Components...> {
+    template<class ComponentT>
+    static std::vector<std::decay_t<ComponentT>>* _unwrapContainer(VersionedEntityChunk& chunk) {
+      using ResultT = std::decay_t<ComponentT>;
+      TypeErasedContainer* c = chunk.tryGetContainer(typeId<ResultT, LinearEntity>());
+      return c ? c->get<std::vector<ResultT>>() : nullptr;
+    }
+
   public:
     ViewedEntity(VersionedEntityChunk chunk, size_t index)
-      : mContainers{ chunk.tryGet<std::decay_t<Components>>()... }
+      //This is assuming for now that all types viewed through this context will use std::vector storage
+      : mContainers{ _unwrapContainer<Components>(chunk)... }
       , mChunk(std::move(chunk))
       , mIndex(index) {
     }
@@ -236,8 +245,8 @@ namespace ecx {
             return nullptr;
           }
         }
-        auto* container = mChunkIt->tryGet<std::decay_t<T>>();
-        return container ? &container->at(mEntityIndex) : nullptr;
+        auto* container = mChunkIt->tryGetContainer(typeId<std::decay_t<T>, LinearEntity>());
+        return container ? static_cast<T*>(container->at(mEntityIndex)) : nullptr;
       }
 
     private:

@@ -10,6 +10,10 @@ namespace ecx {
       static size_t result = idGen++;
       return result;
     }
+
+    static size_t claimId() {
+      return idGen++;
+    }
   };
 
   template<class Category>
@@ -49,7 +53,6 @@ namespace ecx {
       return t;
     }
 
-    inline static size_t idgen = 0;
     size_t mId = std::numeric_limits<size_t>::max();
   };
 
@@ -61,6 +64,12 @@ namespace ecx {
   template<typename T, typename Category = DefaultTypeCategory>
   typeId_t<Category> typeId() {
     return typeId_t<Category>::get<T>();
+  }
+
+  //Generate a new id in the given category. Used to generate runtime ids of types in the same number space as the static ones
+  template<typename Category = DefaultTypeCategory>
+  typeId_t<Category> claimTypeId() {
+    return typeIdCategoryTraits<Category>::claimId();
   }
 }
 
