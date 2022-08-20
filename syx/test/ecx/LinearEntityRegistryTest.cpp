@@ -329,13 +329,18 @@ namespace ecx {
     };
 
     TEST_METHOD(EntityRegistry_AddComponentCustomStorage_IsAdded) {
-      BlockVectorTraits<TestComponent> bvTraits;
+      BasicRuntimeTraits<TestComponent> bvTraits;
       BlockVectorTypeErasedContainerTraits<> containerTraits(bvTraits);
       TestEntityRegistry registry;
       auto entity = registry.createEntity();
       auto customId = claimTypeId<LinearEntity>();
+      StorageInfo<LinearEntity> storage;
+      storage.mComponentTraits = &bvTraits;
+      storage.mCreateStorage = &BlockVectorTypeErasedContainerTraits<>::createStorage;
+      storage.mType = customId;
+      storage.mStorageData = &containerTraits;
 
-      TestComponent* result = static_cast<TestComponent*>(registry.addRuntimeComponent(entity, customId, &BlockVectorTypeErasedContainerTraits<>::createStorage, &containerTraits).second);
+      TestComponent* result = static_cast<TestComponent*>(registry.addRuntimeComponent(entity, storage, nullptr).second);
 
       Assert::AreEqual(7, result->mInt);
       Assert::AreEqual("str", result->mStr.c_str());

@@ -6,7 +6,7 @@
 namespace ecx {
   template<class Allocator = std::allocator<uint8_t>>
   struct BlockVectorTypeErasedContainerTraits : TypeErasedContainer::ITraits {
-    BlockVectorTypeErasedContainerTraits(const IBlockVectorTraits& traits)
+    BlockVectorTypeErasedContainerTraits(const IRuntimeTraits& traits)
       : mTraits(&traits) {
     }
 
@@ -69,6 +69,10 @@ namespace ecx {
       return _cast(data)->at(index);
     }
 
+    void resize(void* data, size_t size) const override {
+      _cast(data)->resize(size);
+    }
+
     static BlockVector<Allocator>* _cast(void* data) {
       return static_cast<BlockVector<Allocator>*>(data);
     }
@@ -77,6 +81,6 @@ namespace ecx {
       return static_cast<const BlockVector<Allocator>*>(data);
     }
 
-    const IBlockVectorTraits* mTraits = nullptr;
+    const IRuntimeTraits* mTraits = nullptr;
   };
 }

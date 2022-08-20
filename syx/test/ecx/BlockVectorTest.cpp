@@ -8,7 +8,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 namespace ecx {
   TEST_CLASS(BlockVectorTest) {
     TEST_METHOD(BlockVector_DefaultConstruct_IsEmpty) {
-      MemCopyTraits traits(sizeof(int));
+      MemCopyRuntimeTraits traits(sizeof(int));
 
       BlockVector v(traits);
 
@@ -18,7 +18,7 @@ namespace ecx {
     }
 
     TEST_METHOD(BlockVector_Emplace_HasElement) {
-      MemCopyTraits traits(sizeof(int));
+      MemCopyRuntimeTraits traits(sizeof(int));
       BlockVector v(traits);
 
       int* i = static_cast<int*>(v.emplace_back());
@@ -33,7 +33,7 @@ namespace ecx {
     }
 
     TEST_METHOD(BlockVector_Clear_IsEmpty) {
-      MemCopyTraits traits(sizeof(int));
+      MemCopyRuntimeTraits traits(sizeof(int));
       BlockVector v(traits);
 
       v.emplace_back();
@@ -44,7 +44,7 @@ namespace ecx {
     }
 
     TEST_METHOD(BlockVector_Resize_IsSize) {
-      MemCopyTraits traits(sizeof(int));
+      MemCopyRuntimeTraits traits(sizeof(int));
       BlockVector v(traits);
 
       v.resize(10);
@@ -54,7 +54,7 @@ namespace ecx {
     }
 
     TEST_METHOD(BlockVector_Reserve_IsCapacity) {
-      MemCopyTraits traits(sizeof(int));
+      MemCopyRuntimeTraits traits(sizeof(int));
       BlockVector v(traits);
 
       v.reserve(10);
@@ -66,7 +66,7 @@ namespace ecx {
     }
 
     TEST_METHOD(BlockVector_ShrinkToFit_Shrinks) {
-      MemCopyTraits traits(sizeof(int));
+      MemCopyRuntimeTraits traits(sizeof(int));
       BlockVector v(traits);
 
       v.reserve(10);
@@ -78,7 +78,7 @@ namespace ecx {
     }
 
     TEST_METHOD(BlockVector_PopBack_IsRemoved) {
-      MemCopyTraits traits(sizeof(int));
+      MemCopyRuntimeTraits traits(sizeof(int));
       BlockVector v(traits);
 
       v.emplace_back();
@@ -88,7 +88,7 @@ namespace ecx {
     }
 
     TEST_METHOD(BlockVector_Swap_IsSwapped) {
-      MemCopyTraits traits(sizeof(int));
+      MemCopyRuntimeTraits traits(sizeof(int));
       BlockVector v(traits);
       *static_cast<int*>(v.emplace_back()) = 1;
       *static_cast<int*>(v.emplace_back()) = 2;
@@ -103,7 +103,7 @@ namespace ecx {
     }
 
     TEST_METHOD(BlockVector_CopyAssign_IsCopied) {
-      MemCopyTraits traits(sizeof(int));
+      MemCopyRuntimeTraits traits(sizeof(int));
       BlockVector v(traits);
       *static_cast<int*>(v.emplace_back()) = 1;
       *static_cast<int*>(v.emplace_back()) = 2;
@@ -120,7 +120,7 @@ namespace ecx {
     }
 
     TEST_METHOD(BlockVector_MoveAssign_IsMoved) {
-      MemCopyTraits traits(sizeof(int));
+      MemCopyRuntimeTraits traits(sizeof(int));
       BlockVector v(traits);
       *static_cast<int*>(v.emplace_back()) = 1;
       *static_cast<int*>(v.emplace_back()) = 2;
@@ -134,7 +134,7 @@ namespace ecx {
     }
 
     TEST_METHOD(BlockVector_Iterate_HasValues) {
-      MemCopyTraits traits(sizeof(int));
+      MemCopyRuntimeTraits traits(sizeof(int));
       BlockVector v(traits);
       *static_cast<int*>(v.emplace_back()) = 1;
       *static_cast<int*>(v.emplace_back()) = 2;

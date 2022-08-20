@@ -20,6 +20,7 @@ struct TypeErasedContainer {
     virtual void push_back(void* data) const = 0;
     virtual void clear(void* data) const = 0;
     virtual void* at(void* data, size_t index) const = 0;
+    virtual void resize(void* data, size_t size) const = 0;
   };
 
   template<class T, template<class> class ContainerT>
@@ -67,6 +68,10 @@ struct TypeErasedContainer {
 
     virtual void* at(void* data, size_t index) const override {
       return &_cast(data).at(index);
+    }
+
+    virtual void resize(void* data, size_t size) const override {
+      _cast(data).resize(size);
     }
 
     ContainerT<T>& _cast(void* data) const {
@@ -168,6 +173,10 @@ struct TypeErasedContainer {
 
   void clear() {
     mTraits->clear(mData);
+  }
+
+  void resize(size_t size) {
+    mTraits->resize(mData, size);
   }
 
 private:

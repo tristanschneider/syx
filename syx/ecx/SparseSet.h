@@ -152,9 +152,16 @@ namespace ecx {
     }
 
     SparseValuePair<T> insert(T value) {
+      auto& packedIndex = mSparse.getOrCreate(static_cast<size_t>(value));
+      //If value already exists, return as-is
+      if(packedIndex != EMPTY_VALUE) {
+        return { value, packedIndex };
+      }
+
+      //Value doesn't already exist, add a new packed value
       SparseValuePair<T> result{ value, static_cast<T>(mPacked.size()) };
       mPacked.push_back(value);
-      mSparse.set(static_cast<size_t>(value), result.mPackedId);
+      packedIndex = result.mPackedId;
       return result;
     }
 

@@ -4,6 +4,7 @@
 #include "ecs/component/FileSystemComponent.h"
 #include "ecs/ECS.h"
 #include "test/TestFileSystem.h"
+#include "test/TestImGuiSystem.h"
 
 //Creates an Engine::AppContext with default app registration applied
 struct TestAppContext {
@@ -31,6 +32,18 @@ struct TestAppContext {
 
   TestAppContext() {
     Registration::createDefaultApp()->registerAppContext(mContext);
+
+    //Hack to get this to work, same as MockEditorApp. Should have better handling for when imgui implementation isn't registered
+    Engine::AppContext::PhaseContainer initializers = mContext.getInitializers();
+    initializers.mSystems.push_back(TestImGuiSystem::init());
+
+    Engine::AppContext::PhaseContainer input = mContext.getUpdatePhase(Engine::AppPhase::Input);
+    input.mSystems.insert(input.mSystems.begin(), TestImGuiSystem::update());
+
+    mContext.registerInitializer(std::move(initializers.mSystems));
+    mContext.registerUpdatePhase(Engine::AppPhase::Input, std::move(input.mSystems), input.mTargetFPS);
+
+    mContext.buildExecutionGraph();
 
     mContext.initialize(mRegistry);
     //Replace real file system with test one

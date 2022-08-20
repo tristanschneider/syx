@@ -1,6 +1,7 @@
 #pragma once
 
 #include "EntityRegistry.h"
+#include "RuntimeTraits.h"
 #include <numeric>
 #include <optional>
 #include <shared_mutex>
@@ -10,16 +11,6 @@
 //memory. This allows for more efficient iteration at the cost of more expensive addition and removal of
 //components, since changing the components on an entity causes them to be moved to a different chunk.
 namespace ecx {
-  template<class T>
-  struct DefaultComponentTraits {
-    static TypeErasedContainer createStorage(void*) {
-      return TypeErasedContainer::create<T, std::vector>();
-    }
-  };
-
-  template<class T>
-  struct ComponentTraits : DefaultComponentTraits<T> {};
-
   //Base component all entities have
   struct BaseEntityComponent {
     uint32_t mVersion = 0;
@@ -67,6 +58,10 @@ namespace ecx {
     template<class ComponentT>
     static uint32_t removeFromChunkId(uint32_t current) {
       return buildChunkId<ComponentT>(current);
+    }
+
+    static uint32_t removeFromChunkId(uint32_t current, const typeId_t<LinearEntity>& type) {
+      return buildChunkId(current, type);
     }
 
     explicit operator bool() const {
@@ -360,8 +355,12 @@ namespace ecx {
 
     template<class ComponentT>
     void removeComponentType() {
+      removeComponentType(typeId<ComponentT, LinearEntity>());
+    }
+
+    void removeComponentType(const typeId_t<LinearEntity>& type) {
       assert(mEntityMapping.empty() && "Component types should only be removed during creation of a chunk");
-      if(auto it = mComponents.find(typeId<std::decay_t<ComponentT>, LinearEntity>()); it != mComponents.end()) {
+      if(auto it = mComponents.find(type); it != mComponents.end()) {
         mComponents.erase(it);
       }
       mChunkId = _computeChunkId();
@@ -727,6 +726,10 @@ namespace ecx {
         return (mChunk->second->hasType(typeId<std::decay_t<Components>, LinearEntity>()) && ...);
       }
 
+      bool hasComponent(const typeId_t<LinearEntity>& type) {
+        return mChunk->second->hasType(type);
+      }
+
       std::optional<LinearEntity> tryAddDefaultConstructedEntity(const LinearEntity& entity, IndependentEntityGenerator& generator) {
         auto chunk = _getVersionedChunk();
         return chunk.tryAddDefaultConstructedEntity(entity, generator);
@@ -776,6 +779,11 @@ namespace ecx {
       std::decay_t<ComponentT>* tryGetComponent(const LinearEntity& entity) {
         auto chunk = _getVersionedChunk();
         return chunk.tryGetComponent<ComponentT>(entity);
+      }
+
+      void* tryGetComponent(const LinearEntity& entity, const typeId_t<LinearEntity>& type) {
+        auto chunk = _getVersionedChunk();
+        return chunk.tryGetComponent(entity, type);
       }
 
       bool contains(const LinearEntity& entity) {
@@ -846,8 +854,7 @@ namespace ecx {
     template<class ComponentT, class... Args>
     ComponentT& addComponent(const LinearEntity& entity, Args&&... args) {
       using DecayT = std::decay_t<ComponentT>;
-      std::pair<bool, void*> result = addRuntimeComponent(entity, typeId<DecayT, LinearEntity>(), &ComponentTraits<DecayT>::createStorage, nullptr);
-      static DecayT empty;
+      std::pair<bool, void*> result = addRuntimeComponent(entity, typename ComponentTraits<DecayT>::getStorageInfo<LinearEntity>(), nullptr);
       assert(result.second && "result should be valid");
       if(result.second) {
         ComponentT* r = static_cast<ComponentT*>(result.second);
@@ -858,11 +865,12 @@ namespace ecx {
         }
         return *r;
       }
+      static DecayT empty;
       return empty;
     }
 
     //Bool indicates if it was newly added or not
-    std::pair<bool, void*> addRuntimeComponent(const LinearEntity& entity, const typeId_t<LinearEntity>& type, TypeErasedContainer(*createStorage)(void*), void* storageData) {
+    std::pair<bool, void*> addRuntimeComponent(const LinearEntity& entity, const StorageInfo<LinearEntity>& storage, void* arg) {
       const BaseEntityComponent* info = mEntityInfo->tryGetComponent<const BaseEntityComponent>(entity);
       if(!info || info->mVersion != entity.mData.mParts.mVersion) {
         assert(false && "Should only add components to valid entities");
@@ -870,7 +878,7 @@ namespace ecx {
       }
 
       const uint32_t oldChunk = info->mChunkID;
-      const uint32_t newChunk = LinearEntity::buildChunkId(oldChunk, type);
+      const uint32_t newChunk = LinearEntity::buildChunkId(oldChunk, storage.mType);
       auto tryGetChunk = [this](uint32_t chunk) {
         auto it = mChunkTypeToChunks.find(chunk);
         return it != mChunkTypeToChunks.end() ? _getVersionedChunk(it->second) : VersionedEntityChunk();
@@ -881,34 +889,41 @@ namespace ecx {
       toChunk = tryGetChunk(newChunk);
 
       assert(fromChunk && "From chunk should exist");
-      const bool alreadyHasType = fromChunk && fromChunk.hasType(type);
+      const bool alreadyHasType = fromChunk && fromChunk.hasType(storage.mType);
       if(alreadyHasType) {
-        return std::make_pair(false, fromChunk.tryGetComponent(entity, type));
+        return std::make_pair(false, fromChunk.tryGetComponent(entity, storage.mType));
       }
       //If chunk for this component combination doesn't exist, create it
       if(!toChunk) {
         std::shared_ptr<EntityChunk> cloned = fromChunk.cloneEmpty();
-        cloned->addComponentType(type, createStorage(storageData));
+        cloned->addComponentType(storage.mType, storage.mCreateStorage(storage.mStorageData));
 
         toChunk = _addChunk(std::move(cloned), newChunk);
       }
 
-      toChunk.migrateEntity(entity, fromChunk, type);
-      TypeErasedContainer* components = toChunk.tryGetContainer(type);
+      toChunk.migrateEntity(entity, fromChunk, storage.mType);
+      TypeErasedContainer* components = toChunk.tryGetContainer(storage.mType);
       const size_t componentsSize = components->size();
       void* result = componentsSize > 0 ? components->at(componentsSize - 1) : nullptr;
+      if(result && arg) {
+        storage.mComponentTraits->moveAssign(arg, result);
+      }
       return std::make_pair(true, result);
     }
 
     template<class ComponentT>
     void removeComponent(const LinearEntity& entity) {
+      removeComponent(entity, typeId<ComponentT, LinearEntity>());
+    }
+
+    void removeComponent(const LinearEntity& entity, const typeId_t<LinearEntity>& type) {
       const BaseEntityComponent* info = mEntityInfo->tryGetComponent<const BaseEntityComponent>(entity);
       if(!info || info->mVersion != entity.mData.mParts.mVersion) {
         assert(false && "Should only remove components from valid entities");
         return;
       }
       const uint32_t oldChunk = info->mChunkID;
-      const uint32_t newChunk = LinearEntity::removeFromChunkId<ComponentT>(oldChunk);
+      const uint32_t newChunk = LinearEntity::removeFromChunkId(oldChunk, type);
       auto tryGetChunk = [this](uint32_t chunk) {
         auto it = mChunkTypeToChunks.find(chunk);
         return it != mChunkTypeToChunks.end() ? _getVersionedChunk(it->second) : VersionedEntityChunk();
@@ -918,7 +933,7 @@ namespace ecx {
       fromChunk = tryGetChunk(oldChunk);
       toChunk = tryGetChunk(newChunk);
 
-      const bool hasType = fromChunk && fromChunk.hasType(typeId<ComponentT, LinearEntity>());
+      const bool hasType = fromChunk && fromChunk.hasType(type);
       if(!hasType) {
         //It's already gone, return
         return;
@@ -927,7 +942,7 @@ namespace ecx {
       //If chunk for this component combination doesn't exist, create it
       if(!toChunk) {
         std::shared_ptr<EntityChunk> cloned = fromChunk.cloneEmpty();
-        cloned->removeComponentType<ComponentT>();
+        cloned->removeComponentType(type);
 
         toChunk = _addChunk(std::move(cloned), newChunk);
       }
@@ -982,6 +997,11 @@ namespace ecx {
       return chunk != endChunks() ? chunk.tryGetComponent<ComponentT>(entity) : nullptr;
     }
 
+    void* tryGetComponent(const LinearEntity& entity, const typeId_t<LinearEntity>& type) {
+      auto chunk = findChunkFromEntity(entity);
+      return chunk != endChunks() ? chunk.tryGetComponent(entity, type) : nullptr;
+    }
+
     template<class ComponentT>
     ComponentT& getComponent(const LinearEntity& entity) {
       return *tryGetComponent<ComponentT>(entity);
@@ -1032,30 +1052,38 @@ namespace ecx {
     //Get the chunk that has all the same components as the provided one plus ComponentT
     template<class ComponentT>
     ChunkIterator getOrCreateChunkAddedComponent(ChunkIterator chunk) {
-      assert(!chunk.hasComponents<ComponentT>());
-      const uint32_t newId = LinearEntity::buildChunkId<ComponentT>(chunk.chunkID());
+      return getOrCreateChunkAddedComponent(chunk, typename ComponentTraits<ComponentT>::getStorageInfo<LinearEntity>());
+    }
+
+    ChunkIterator getOrCreateChunkAddedComponent(ChunkIterator chunk, const StorageInfo<LinearEntity>& info) {
+      assert(!chunk.hasComponent(info.mType));
+      const uint32_t newId = LinearEntity::buildChunkId(chunk.chunkID(), info.mType);
       if(auto found = findChunk(newId); found != endChunks()) {
-        assert(found.hasComponents<ComponentT>());
+        assert(found.hasComponent(info.mType));
         return found;
       }
 
       auto newChunk = chunk.mChunk->second->cloneEmpty();
-      newChunk->addComponentType<ComponentT>();
+      newChunk->addComponentType(info.mType, info.mCreateStorage(info.mStorageData));
       return { mChunkTypeToChunks.insert(std::make_pair(newId, newChunk)).first, *this };
     }
 
     //Get the chunk that has all the same components as the provided one minus ComponentT
     template<class ComponentT>
     ChunkIterator getOrCreateChunkRemovedComponent(ChunkIterator chunk) {
-      assert(chunk.hasComponents<ComponentT>());
-      const uint32_t newId = LinearEntity::buildChunkId<ComponentT>(chunk.chunkID());
+      return getOrCreateChunkRemovedComponent(chunk, typename ComponentTraits<ComponentT>::getStorageInfo<LinearEntity>());
+    }
+
+    ChunkIterator getOrCreateChunkRemovedComponent(ChunkIterator chunk, const StorageInfo<LinearEntity>& info) {
+      assert(chunk.hasComponent(info.mType));
+      const uint32_t newId = LinearEntity::buildChunkId(chunk.chunkID(), info.mType);
       if(auto found = findChunk(newId); found != endChunks()) {
-        assert(!found.hasComponents<ComponentT>());
+        assert(!found.hasComponent(info.mType));
         return found;
       }
 
       auto newChunk = chunk.mChunk->second->cloneEmpty();
-      newChunk->removeComponentType<ComponentT>();
+      newChunk->removeComponentType(info.mType);
       return { mChunkTypeToChunks.insert(std::make_pair(newId, newChunk)).first, *this };
     }
 

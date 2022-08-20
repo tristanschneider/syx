@@ -244,5 +244,15 @@ namespace ecx {
       Assert::IsTrue(a == set.end());
       Assert::IsTrue(b == set.end());
     }
+
+    TEST_METHOD(SparseSet_InsertDuplicate_ReturnsOriginal) {
+      SparseSet<int> set;
+
+      auto original = set.insert(10);
+      auto duplicate = set.insert(10);
+
+      Assert::AreEqual(original.mPackedId, duplicate.mPackedId);
+      Assert::AreEqual(original.mSparseId, duplicate.mSparseId);
+    }
   };
 }
