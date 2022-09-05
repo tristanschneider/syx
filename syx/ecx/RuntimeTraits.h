@@ -51,6 +51,18 @@ namespace ecx {
       }
     }
 
+    void moveAssign(void* from, void* to) const override {
+      for(const Traits& t : mTraits) {
+        t.mTraits->moveAssign(_offset(from, t.mOffset), _offset(to, t.mOffset));
+      }
+    }
+
+    void copyAssign(void* from, void* to) const override {
+      for(const Traits& t : mTraits) {
+        t.mTraits->copyAssign(_offset(from, t.mOffset), _offset(to, t.mOffset));
+      }
+    }
+
     static void* _offset(void* ptr, size_t o) {
       return static_cast<uint8_t*>(ptr) + o;
     }

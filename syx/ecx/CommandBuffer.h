@@ -123,6 +123,13 @@ namespace ecx {
       return mCommandEntities.tryGetComponent<Component>(entity.mData.mRawId);
     }
 
+    void* tryGetPendingRuntimeComponent(const LinearEntity& entity, const StorageInfo<LinearEntity>& info) {
+      RuntimeComponentTypes types = _convertTypeId(info.mType);
+      const StorageInfo<CommandEntity> storage = _toCommandStorage(info, types.mComponentType, *info.mComponentTraits);
+
+      return mCommandEntities.tryGetComponent(entity.mData.mRawId, storage);
+    }
+
     template<class Component>
     void removeComponent(const LinearEntity& entity) {
       _addOrRemoveCommandComponent<Component>(entity, ComponentCommandType::RemoveComponent);

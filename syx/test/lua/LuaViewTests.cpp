@@ -1,6 +1,8 @@
 #include "Precompile.h"
 #include "CppUnitTest.h"
 
+#include "BlockVector.h"
+#include "BlockVectorTypeErasedContainerTraits.h"
 #include "lua/LuaTypeInfo.h"
 #include "lua/LuaSerializer.h"
 #include "lua/LuaState.h"
@@ -163,8 +165,12 @@ namespace {
 
     virtual int getValue(lua_State* l, LuaViewIterator& it) const = 0;
     virtual int getValue(lua_State* l, LuaRuntimeCommandBuffer& buffer, const Engine::Entity& entity) const = 0;
+    //void* versions assume that the caller already got the value out and uses IComponentProperty to interpret its type
+    virtual int getValue(lua_State* l, const void* value) const = 0;
     virtual int setValue(lua_State* l, LuaViewIterator& it) const = 0;
     virtual int setValue(lua_State* l, LuaRuntimeCommandBuffer& buffer, const Engine::Entity& entity) const = 0;
+    virtual int setValue(lua_State* l, void* value) const = 0;
+    virtual const ecx::IRuntimeTraits* getTraits() const = 0;
   };
 
   template<auto>
@@ -179,18 +185,28 @@ namespace {
     }
 
     int getValue(lua_State* l, LuaViewIterator& it) const override {
-      if(const auto* result = it.mIterator.tryGet<const ComponentTy>()) {
-       Lua::LuaTypeInfo<MemberTy>::push(l, result->*Ptr);
-      }
-      else {
-        luaL_error(l, "Invalid component type for View in getValue");
-      }
-      return 1;
+      const auto* result = it.mIterator.tryGet<const ComponentTy>();
+      return getValue(l, result ? &(result->*Ptr) : nullptr);
     }
 
     int getValue(lua_State* l, LuaRuntimeCommandBuffer& buffer, const Engine::Entity& entity) const override {
-      if(const auto* result = buffer.mBuffer.tryGetComponent<const ComponentTy>(entity)) {
-       Lua::LuaTypeInfo<MemberTy>::push(l, result->*Ptr);
+      const auto* result = buffer.mBuffer.tryGetComponent<const ComponentTy>(entity);
+      return getValue(l, result ? &(result->*Ptr) : nullptr);
+    }
+
+    int setValue(lua_State* l, LuaViewIterator& it) const override {
+      auto* result = it.mIterator.tryGet<ComponentTy>();
+      return setValue(l, result ? &(result->*Ptr) : nullptr);
+    }
+
+    int setValue(lua_State* l, LuaRuntimeCommandBuffer& buffer, const Engine::Entity& entity) const override {
+      auto* result = buffer.mBuffer.tryGetComponent<ComponentTy>(entity);
+      return setValue(l, result ? &(result->*Ptr) : nullptr);
+    }
+
+    int getValue(lua_State* l, const void* value) const override {
+      if(value) {
+       Lua::LuaTypeInfo<MemberTy>::push(l, *static_cast<const MemberTy*>(value));
       }
       else {
         luaL_error(l, "Invalid component type for CommandBuffer in getValue");
@@ -198,26 +214,10 @@ namespace {
       return 1;
     }
 
-    int setValue(lua_State* l, LuaViewIterator& it) const override {
-      if(auto* result = it.mIterator.tryGet<ComponentTy>()) {
+    int setValue(lua_State* l, void* value) const override {
+      if(value) {
         if(auto toSet = Lua::LuaTypeInfo<MemberTy>::fromTop(l)) {
-          result->*Ptr = std::move(*toSet);
-          return 0;
-        }
-        else {
-          luaL_error(l, "Invalid property value type for setValue");
-        }
-      }
-      else {
-        luaL_error(l, "Invalid component type for View in setValue");
-      }
-      return 0;
-    }
-
-    int setValue(lua_State* l, LuaRuntimeCommandBuffer& buffer, const Engine::Entity& entity) const override {
-      if(auto* result = buffer.mBuffer.tryGetComponent<ComponentTy>(entity)) {
-        if(auto toSet = Lua::LuaTypeInfo<MemberTy>::fromTop(l)) {
-          result->*Ptr = std::move(*toSet);
+          *static_cast<MemberTy*>(value) = std::move(*toSet);
           return 0;
         }
         else {
@@ -228,6 +228,10 @@ namespace {
         luaL_error(l, "Invalid component type for CommandBuffer in setValue");
       }
       return 0;
+    }
+
+    const ecx::IRuntimeTraits* getTraits() const override {
+      return &ecx::BasicRuntimeTraits<ComponentTy>::singleton();
     }
   };
 
@@ -261,6 +265,8 @@ namespace {
     inline static constexpr auto MemberProperties = _membersToProperties(TypeInfoT::MembersList);
   };
 
+  struct LuaCustomComponent;
+
   //Holds the native objects that the script uses so that everything in lua can use light userdata
   struct LuaSystemContext {
     constexpr static inline const char* KEY = "lc";
@@ -291,6 +297,8 @@ namespace {
     Engine::EntityRegistry* mRegistry = nullptr;
     ecx::CommandBuffer<ecx::LinearEntity>* mInternalCommandBuffer = nullptr;
     std::optional<LuaRuntimeCommandBuffer> mCmd;
+    //TODO: who should own this?
+    std::vector<std::unique_ptr<LuaCustomComponent>> mCustomComponents;
   };
 
   template<class T>
@@ -537,6 +545,256 @@ namespace {
       return 1;
     }
   };
+
+  struct RuntimeViewableComponent : IViewableComponent {
+    RuntimeViewableComponent(ViewableAccessType accessType, const ecx::StorageInfo<ecx::LinearEntity>& storageInfo)
+      : mAccessType(accessType)
+      , mStorageInfo(storageInfo) {
+    }
+
+    void* tryCast(const ecx::typeId_t<ISafeLightUserdata>& destinationType) override {
+      return destinationType == ecx::typeId<IViewableComponent, ISafeLightUserdata>() ? this : nullptr;
+    }
+
+    ViewableAccessType getAccessType() const override {
+      return mAccessType;
+    }
+
+    TypeIdT getViewedType() const override {
+      return mStorageInfo.mType;
+    }
+
+    void addComponent(LuaRuntimeCommandBuffer& cmd, const ecx::LinearEntity& entity) const override {
+      cmd.mBuffer.addRuntimeComponent(entity, mStorageInfo);
+    }
+
+    void removeComponent(LuaRuntimeCommandBuffer& cmd, const ecx::LinearEntity& entity) const override {
+      cmd.mBuffer.removeRuntimeComponent(entity, mStorageInfo);
+    }
+
+    ViewableAccessType mAccessType{};
+    ecx::StorageInfo<ecx::LinearEntity> mStorageInfo;
+  };
+
+  struct LuaCustomComponentProperty;
+
+  struct LuaCustomComponent {
+    template<size_t... I>
+    static std::array<int(*)(lua_State*), sizeof...(I)> _getMemberSlots(std::index_sequence<I...>) {
+      return { &getMemberSlot<I>... };
+    }
+
+    static auto _getMemberSlots() {
+      return _getMemberSlots(std::make_index_sequence<100>());
+    }
+
+    template<size_t Slot>
+    static int getMemberSlot(lua_State* l) {
+      lua_pushlightuserdata(l, _get(l).mProperties[Slot].mProperty.get());
+      return 1;
+    }
+
+    void openLib(lua_State* l) {
+      std::vector<luaL_Reg> statics;
+      statics.reserve(mProperties.size() + 4);
+
+      statics.push_back({ "include", &include });
+      statics.push_back({ "exclude", &exclude });
+      statics.push_back({ "read", &read });
+      statics.push_back({ "write", &write });
+      assert(mProperties.size() <= 100 && "Max of 100 properties supported");
+      auto memberAccessors = _getMemberSlots();
+      for(size_t i = 0; i < mProperties.size(); ++i) {
+        statics.push_back({ mProperties[i].mName.c_str(), memberAccessors[i] });
+      }
+      //Null terminate
+      statics.push_back({ nullptr, nullptr });
+
+      Lua::StackAssert sa(l);
+      //Table for static methods
+      lua_createtable(l, 0, static_cast<int>(statics.size()));
+      //Set this as upvalue
+      lua_pushlightuserdata(l, this);
+      //Put static methods in table with upvalue
+      luaL_setfuncs(l, statics.data(), 1);
+      //Put table in global namespace as the type name
+      lua_setglobal(l, mTypeName.c_str());
+    }
+
+    static LuaCustomComponent& _get(lua_State* l) {
+      //TODO: which index is it?
+      void* result = nullptr;
+      if(lua_getupvalue(l, 1, 1)) {
+        if(lua_islightuserdata(l, -1)) {
+          result = lua_touserdata(l, -1);
+        }
+        lua_pop(l, 1);
+      }
+      if(!result) {
+        luaL_error(l, "Custom component should exist as upvalue to its methods");
+      }
+      return *static_cast<LuaCustomComponent*>(result);
+    }
+
+    static int read(lua_State* l) {
+      lua_pushlightuserdata(l, _get(l).mRead.get());
+      return 1;
+    }
+
+    static int write(lua_State* l) {
+      lua_pushlightuserdata(l, _get(l).mWrite.get());
+      return 1;
+    }
+
+    static int include(lua_State* l) {
+      lua_pushlightuserdata(l, _get(l).mInclude.get());
+      return 1;
+    }
+
+    static int exclude(lua_State* l) {
+      lua_pushlightuserdata(l, _get(l).mExclude.get());
+      return 1;
+    }
+
+    ecx::StorageInfo<ecx::LinearEntity> mStorageInfo{};
+    std::string mTypeName;
+    struct Property {
+      //The inner value accessor in the composite mTraits object
+      const ecx::IRuntimeTraits* mTypeTraits = nullptr;
+      //Lua type information for this property
+      std::unique_ptr<LuaCustomComponentProperty> mProperty;
+      std::string mName;
+    };
+    //The indices of these match those of the objects in mTraits
+    std::vector<Property> mProperties;
+    std::unique_ptr<IViewableComponent> mRead;
+    std::unique_ptr<IViewableComponent> mWrite;
+    std::unique_ptr<IViewableComponent> mInclude;
+    std::unique_ptr<IViewableComponent> mExclude;
+    //The composite traits object pointing at all the subtraits in mProperties
+    std::unique_ptr<ecx::CompositeRuntimeTraits> mTraits;
+    std::unique_ptr<ecx::BlockVectorTypeErasedContainerTraits<>> mStorageTraits;
+  };
+
+  struct LuaCustomComponentProperty : IComponentProperty {
+    LuaCustomComponentProperty(const LuaCustomComponent& component, size_t index, const IComponentProperty& wrappedType)
+      : mComponent(&component)
+      , mPropertyIndex(index)
+      , mWrappedComponent(&wrappedType) {
+    }
+
+    void* tryCast(const ecx::typeId_t<ISafeLightUserdata>& destinationType) override {
+      return destinationType == ecx::typeId<IComponentProperty, ISafeLightUserdata>() ? this : nullptr;
+    }
+
+    int getValue(lua_State* l, LuaViewIterator& it) const override {
+      void* componentData = it.mIterator.tryGet(mComponent->mStorageInfo.mType, ecx::ViewAccessMode::Read);
+      return mWrappedComponent->getValue(l, _componentToProperty(componentData));
+    }
+
+    int getValue(lua_State* l, LuaRuntimeCommandBuffer& buffer, const Engine::Entity& entity) const override {
+      void* componentData = buffer.mBuffer.tryGetRuntimeComponent(entity, mComponent->mStorageInfo);
+      return mWrappedComponent->getValue(l, _componentToProperty(componentData));
+    }
+
+    int getValue(lua_State* l, const void* value) const override {
+      //TODO: does this need to offset the input pointer?
+      return mWrappedComponent->getValue(l, value);
+    }
+
+    int setValue(lua_State* l, LuaViewIterator& it) const override {
+      void* component = it.mIterator.tryGet(mComponent->mStorageInfo.mType, ecx::ViewAccessMode::Write);
+      return mWrappedComponent->setValue(l, _componentToProperty(component));
+    }
+
+    int setValue(lua_State* l, LuaRuntimeCommandBuffer& buffer, const Engine::Entity& entity) const override {
+      void* component = buffer.mBuffer.tryGetRuntimeComponent(entity, mComponent->mStorageInfo);
+      return mWrappedComponent->setValue(l, _componentToProperty(component));
+    }
+
+    int setValue(lua_State* l, void* value) const override {
+      return mWrappedComponent->setValue(l, value);
+    }
+
+    const ecx::IRuntimeTraits* getTraits() const override {
+      return mWrappedComponent->getTraits();
+    }
+
+    const LuaCustomComponent::Property& _getProperty() const {
+      return mComponent->mProperties[mPropertyIndex];
+    }
+
+    const ecx::CompositeRuntimeTraits::Traits& _getTraits() const {
+      return mComponent->mTraits->mTraits[mPropertyIndex];
+    }
+
+    static void* _offset(void* ptr, size_t amount) {
+      return static_cast<uint8_t*>(ptr) + amount;
+    }
+
+    void* _componentToProperty(void* component) const {
+      return _offset(component, _getTraits().mOffset);
+    }
+
+    const LuaCustomComponent* mComponent = nullptr;
+    size_t mPropertyIndex = 0;
+    //The underlying type of this property
+    const IComponentProperty* mWrappedComponent = nullptr;
+  };
+
+  struct LuaRegistry {
+    static int registerComponent(lua_State* l) {
+      const char* typeName = luaL_checkstring(l, 1);
+      if(!lua_istable(l, 2)) {
+        luaL_error(l, "Expected table at argument 2");
+      }
+      if(lua_gettop(l) > 2) {
+        luaL_error(l, "Expected 2 arguments, got %d", lua_gettop(l));
+      }
+
+      //TODO: is this leaked on failure?
+      std::unique_ptr<LuaCustomComponent> component = std::make_unique<LuaCustomComponent>();
+      component->mTypeName = typeName;
+      lua_pushnil(l);
+      //Gather properties
+      while(lua_next(l, 2)) {
+        const char* propertyName = luaL_checkstring(l, -2);
+        IComponentProperty& prop = ISafeLightUserdata::checkUserdata<IComponentProperty>(l, -1);
+        component->mProperties.push_back({
+          prop.getTraits(),
+          std::make_unique<LuaCustomComponentProperty>(*component, component->mProperties.size(), prop),
+          std::string(propertyName)
+        });
+      }
+
+      //Generate composite traits object to contain all properties
+      std::vector<const ecx::IRuntimeTraits*> c(component->mProperties.size());
+      std::transform(component->mProperties.begin(), component->mProperties.end(), c.begin(), [](const LuaCustomComponent::Property& p) {
+        return p.mTypeTraits;
+      });
+      component->mTraits = std::make_unique<ecx::CompositeRuntimeTraits>(c);
+      //Use the composite traits to create the storage traits: blocks of memory of this size
+      component->mStorageTraits = std::make_unique<ecx::BlockVectorTypeErasedContainerTraits<>>(*component->mTraits);
+      component->mStorageInfo = ecx::StorageInfo<ecx::LinearEntity>{
+        //TODO: do these need to be assigned differently to avoid regenerating ids?
+        ecx::claimTypeId<ecx::LinearEntity>(),
+        &ecx::BlockVectorTypeErasedContainerTraits<>::createStorage,
+        component->mTraits.get(),
+        component->mStorageTraits.get()
+      };
+      //Create the viewable components for all access types
+      component->mInclude = std::make_unique<RuntimeViewableComponent>(ViewableAccessType::Include, component->mStorageInfo);
+      component->mExclude = std::make_unique<RuntimeViewableComponent>(ViewableAccessType::Exclude, component->mStorageInfo);
+      component->mRead = std::make_unique<RuntimeViewableComponent>(ViewableAccessType::Read, component->mStorageInfo);
+      component->mWrite = std::make_unique<RuntimeViewableComponent>(ViewableAccessType::Write, component->mStorageInfo);
+
+      //Reflect the accessors for this component
+      component->openLib(l);
+
+      //Store the result in the global context
+      LuaSystemContext::get(l).mCustomComponents.push_back(std::move(component));
+    }
+  };
 }
 
 namespace ecx {
@@ -734,6 +992,18 @@ namespace {
     -- Destruction requires a command buffer created from `EntityDestroyTag`
     CommandBuffer.destroyEntity(rem, e);
   )";
+
+  const char* REG_DEMO = R"(
+    Registry.RegisterComponent("Custom", {
+      a : DemoComponentA.mValue(),
+      b : Pod.int()
+    });
+
+    let ta = Custom.read();
+    let tb = Custom.a();
+    let tc = Custom.b();
+  )";
+
 }
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;

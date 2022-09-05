@@ -86,14 +86,28 @@ namespace ecx {
       return _isAllowedType<Component>() ? &mBuffer->addComponent<Component>(entity) : nullptr;
     }
 
+    void* addRuntimeComponent(const LinearEntity& entity, const StorageInfo<LinearEntity>& info) {
+      return _isAllowedType(info.mType) ? mBuffer->addRuntimeComponent(entity, info) : nullptr;
+    }
+
+    void removeRuntimeComponent(const LinearEntity& entity, const StorageInfo<LinearEntity>& info) {
+      if(_isAllowedType(info.mType)) {
+        mBuffer->removeRuntimeComponent(entity, info);
+      }
+    }
+
     template<class Component>
     Component* tryGetComponent(const LinearEntity& entity) {
       return _isAllowedType<Component>() ? mBuffer->tryGetPendingComponent<Component>(entity) : nullptr;
     }
 
+    void* tryGetRuntimeComponent(const LinearEntity& entity, const StorageInfo<LinearEntity>& info) {
+      return _isAllowedType(info.mType) ? mBuffer->tryGetPendingRuntimeComponent(entity, info) : nullptr;
+    }
+
     template<class Component>
     void removeComponent(const LinearEntity& entity) {
-      if (_isAllowedType<Component>()) {
+      if(_isAllowedType<Component>()) {
         mBuffer->removeComponent<Component>(entity);
       }
     }
@@ -112,8 +126,12 @@ namespace ecx {
   private:
     template<class T>
     bool _isAllowedType() const {
+      return _isAllowedType(typeId<std::decay_t<T>, LinearEntity>());
+    }
+
+    bool _isAllowedType(const typeId_t<LinearEntity>& type) const {
       if constexpr(ENABLE_SAFETY_CHECKS) {
-        return std::lower_bound(mAllowedTypes.mTypes.begin(), mAllowedTypes.mTypes.end(), typeId<std::decay_t<T>, LinearEntity>()) != mAllowedTypes.mTypes.end();
+        return std::lower_bound(mAllowedTypes.mTypes.begin(), mAllowedTypes.mTypes.end(), type) != mAllowedTypes.mTypes.end();
       }
       else {
         return true;
