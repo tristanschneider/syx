@@ -231,7 +231,7 @@ namespace {
     }
 
     const ecx::IRuntimeTraits* getTraits() const override {
-      return &ecx::BasicRuntimeTraits<ComponentTy>::singleton();
+      return &ecx::BasicRuntimeTraits<MemberTy>::singleton();
     }
   };
 
@@ -622,13 +622,10 @@ namespace {
     }
 
     static LuaCustomComponent& _get(lua_State* l) {
-      //TODO: which index is it?
       void* result = nullptr;
-      if(lua_getupvalue(l, 1, 1)) {
-        if(lua_islightuserdata(l, -1)) {
-          result = lua_touserdata(l, -1);
-        }
-        lua_pop(l, 1);
+      const int selfIndex = lua_upvalueindex(1);
+      if(lua_islightuserdata(l, selfIndex)) {
+        result = lua_touserdata(l, selfIndex);
       }
       if(!result) {
         luaL_error(l, "Custom component should exist as upvalue to its methods");
@@ -765,6 +762,8 @@ namespace {
           std::make_unique<LuaCustomComponentProperty>(*component, component->mProperties.size(), prop),
           std::string(propertyName)
         });
+
+        lua_pop(l, 1);
       }
 
       //Generate composite traits object to contain all properties
@@ -793,6 +792,7 @@ namespace {
 
       //Store the result in the global context
       LuaSystemContext::get(l).mCustomComponents.push_back(std::move(component));
+      return 0;
     }
   };
 }
@@ -900,6 +900,19 @@ namespace ecx {
   };
 
   template<>
+  struct StaticTypeInfo<LuaRegistry> : StructTypeInfo<StaticTypeInfo<LuaRegistry>
+    , ecx::AutoTypeList<>
+    , ecx::AutoTypeList<
+      &LuaRegistry::registerComponent
+    >
+  > {
+    inline static constexpr const char* SelfName = "Registry";
+    inline static const std::array FunctionNames = {
+      std::string("registerComponent")
+    };
+  };
+
+  template<>
   struct StaticTypeInfo<LuaViewIterator> : StructTypeInfo<StaticTypeInfo<LuaViewIterator>
     , ecx::AutoTypeList<>, ecx::AutoTypeList<>, ecx::TypeList<Lua::BindReference>> {};
   template<>
@@ -936,6 +949,13 @@ namespace Lua {
     }
   };
 
+  struct Types {
+    int mInt{};
+    float mFloat{};
+    std::string mString{};
+    bool mBool{};
+  };
+
   template<>
   struct LuaTypeInfo<IViewableComponent> : LuaSafeLightUserdataTypeInfoImpl<IViewableComponent> {};
   template<>
@@ -946,6 +966,27 @@ namespace Lua {
   struct LuaTypeInfo<LuaRuntimeView> : LuaSafeLightUserdataTypeInfoImpl<LuaRuntimeView> {};
   template<>
   struct LuaTypeInfo<LuaRuntimeCommandBuffer> : LuaSafeLightUserdataTypeInfoImpl<LuaRuntimeCommandBuffer> {};
+}
+
+namespace ecx {
+  template<>
+  struct StaticTypeInfo<Lua::Types> : StructTypeInfo<StaticTypeInfo<Lua::Types>
+    , ecx::AutoTypeList<
+      &Lua::Types::mInt,
+      &Lua::Types::mFloat,
+      &Lua::Types::mString,
+      &Lua::Types::mBool
+    >
+    , ecx::AutoTypeList<>
+    > {
+    inline static const std::array<std::string, 4> MemberNames = {
+      "int",
+      "float",
+      "string",
+      "bool"
+    };
+    inline static constexpr const char* SelfName = "Types";
+  };
 }
 
 namespace {
@@ -994,9 +1035,9 @@ namespace {
   )";
 
   const char* REG_DEMO = R"(
-    Registry.RegisterComponent("Custom", {
+    Registry.registerComponent("Custom", {
       a : DemoComponentA.mValue(),
-      b : Pod.int()
+      b : Types.int()
     });
 
     let ta = Custom.read();
@@ -1064,6 +1105,8 @@ namespace LuaTests {
         DemoABinder::openLib(mState.get());
         DemoBBinder::openLib(mState.get());
         CommandBinder::openLib(mState.get());
+        Lua::LuaBinder<LuaViewableComponent<Lua::Types>>::openLib(mState.get());
+        Lua::LuaBinder<LuaRegistry>::openLib(mState.get());
         Lua::LuaBinder<LuaViewableComponent<ecx::EntityDestroyTag>>::openLib(mState.get());
       }
 
@@ -1272,6 +1315,41 @@ namespace LuaTests {
       s.mContext.mInternalCommandBuffer->processAllCommands(s.mRegistry);
 
       Assert::IsFalse(s.mRegistry.isValid(entity));
+    }
+
+    TEST_METHOD(Types_AccessType_Executes) {
+      LuaStateWithContext s;
+
+      assertScriptExecutes(&s, "local a = Types.float();");
+    }
+
+    TEST_METHOD(Registry_RegisterComponent_Executes) {
+      LuaStateWithContext s;
+
+      assertScriptExecutes(&s, R"(
+        Registry.registerComponent("Custom", {
+          a = Types.float(),
+          b = Types.int()
+        });
+      )");
+    }
+
+    TEST_METHOD(Registry_AccessRegisteredType_Exists) {
+      LuaStateWithContext s;
+
+      assertScriptExecutes(&s, R"(
+        Registry.registerComponent("Custom", { a = Types.float() });
+        local v = Custom.include();
+      )");
+    }
+
+    TEST_METHOD(Registry_AccessRegisteredProperty_Exists) {
+      LuaStateWithContext s;
+
+      assertScriptExecutes(&s, R"(
+        Registry.registerComponent("Custom", { a = Types.float() });
+        local v = Custom.a();
+      )");
     }
   };
 }
