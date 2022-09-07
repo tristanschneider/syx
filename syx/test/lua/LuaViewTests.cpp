@@ -1351,5 +1351,65 @@ namespace LuaTests {
         local v = Custom.a();
       )");
     }
+
+    TEST_METHOD(Registry_AddRegisteredComponentReadCommand_IsAdded) {
+      LuaStateWithContext s;
+
+      assertScriptExecutes(&s, R"(
+        Registry.registerComponent("Custom", { a = Types.float() });
+        local c = CommandBuffer.create(Custom.write());
+        local e = CommandBuffer.createEntityWithComponents(c, Custom.write());
+        CommandBuffer.setValue(c, e, Custom.a(), 2.0);
+        assert(2.0 == CommandBuffer.getValue(c, e, Custom.a()));
+      )");
+    }
+
+    TEST_METHOD(Registry_AddRegisteredComponentProcessRead_IsAdded) {
+      LuaStateWithContext s;
+
+      assertScriptExecutes(&s, R"(
+        Registry.registerComponent("Custom", { a = Types.float() });
+        local c = CommandBuffer.create(Custom.write());
+        local e = CommandBuffer.createEntityWithComponents(c, Custom.write());
+        CommandBuffer.setValue(c, e, Custom.a(), 2.0);
+      )");
+
+      s.mInternalBuffer.processAllCommands(s.mRegistry);
+
+      assertScriptExecutes(&s, R"(
+        local v = View.create(Custom.read());
+        local e = View.begin(v);
+        assert(2.0 == View.getValue(e, Custom.a()));
+      )");
+    }
+
+    TEST_METHOD(Registry_AddCustomComponentToExistingEntity_HasBoth) {
+      LuaStateWithContext s;
+      auto entity = s.mRegistry.createEntityWithComponents<DemoComponentA>(*s.mGenerator);
+
+      assertScriptExecutes(&s, R"(
+        Registry.registerComponent("Custom", { a = Types.float(), b = Types.float() });
+        local c = CommandBuffer.create(Custom.write());
+        local e = View.begin(View.create(DemoComponentA.include()));
+        CommandBuffer.addComponents(c, e, Custom.write());
+        CommandBuffer.setValue(c, e, Custom.a(), 1.0);
+        CommandBuffer.setValue(c, e, Custom.b(), 3.0);
+      )");
+
+      s.mInternalBuffer.processAllCommands(s.mRegistry);
+
+      Assert::IsTrue(s.mRegistry.hasComponent<DemoComponentA>(entity), L"Original component should remain");
+      Assert::AreEqual(size_t(1), s.mContext.mCustomComponents.size(), L"A single component should have been registered");
+      Assert::AreEqual(size_t(2), s.mContext.mCustomComponents.front()->mProperties.size(), L"Should have both properties");
+      void* component = s.mRegistry.tryGetComponent(entity, s.mContext.mCustomComponents.front()->mStorageInfo.mType);
+      Assert::IsNotNull(component);
+      std::vector<std::pair<std::string, float>> results;
+      results.push_back(std::make_pair(s.mContext.mCustomComponents.front()->mProperties[0].mName, *static_cast<float*>(component)));
+      component = static_cast<float*>(component) + 1;
+      results.push_back(std::make_pair(s.mContext.mCustomComponents.front()->mProperties[1].mName, *static_cast<float*>(component)));
+
+      Assert::IsTrue(std::find(results.begin(), results.end(), std::make_pair(std::string("a"), 1.0f)) != results.end());
+      Assert::IsTrue(std::find(results.begin(), results.end(), std::make_pair(std::string("b"), 3.0f)) != results.end());
+    }
   };
 }

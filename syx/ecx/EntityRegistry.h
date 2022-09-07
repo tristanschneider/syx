@@ -392,12 +392,11 @@ namespace ecx {
 
     template<class ComponentT>
     PoolIt findPool() {
-      return findPool(typeId<DecayType<ComponentT>, TypeIDCategory>());
+      return _tryGetPool<ComponentT>();
     }
 
     PoolIt findPool(const TypeID& type) {
-      size_t index = static_cast<size_t>(type);
-      return PoolIt(mComponentPools.size() > index ? mComponentPools.begin() + index : mComponentPools.end());
+      return _tryGetPool(type);
     }
 
     template<class ComponentT>
@@ -471,19 +470,30 @@ namespace ecx {
         result.mInfo = info;
         return result;
       }
-      return container[index];
+      ComponentPool& result = container[index];
+      if(!result.mComponents) {
+        result.mComponents = std::make_unique<TypeErasedContainer>(info.mCreateStorage(info.mStorageData));
+        result.mInfo = info;
+      }
+      return result;
     }
 
     template<class T>
     PoolIt _tryGetPool() {
       using Type = DecayType<T>;
       const size_t index = static_cast<size_t>(typeId<Type, TypeIDCategory>());
-      return mComponentPools.size() > index ? mComponentPools.begin() + index : mComponentPools.end();
+      return _tryGetPool(typeId<Type, TypeIDCategory>());
     }
 
     PoolIt _tryGetPool(const TypeID& type) {
       const size_t index = static_cast<size_t>(type);
-      return mComponentPools.size() > index ? mComponentPools.begin() + index : mComponentPools.end();
+      if(mComponentPools.size() > index) {
+        PoolIt result = mComponentPools.begin() + index;
+        if (mComponentPools[index].mComponents) {
+          return result;
+        }
+      }
+      return mComponentPools.end();
     }
 
     template<class T>
