@@ -6,8 +6,8 @@
 namespace GlobalCmd {
   using namespace Engine;
   struct BlockingSystem : System {
-    ecx::SystemInfo getInfo() const override {
-      ecx::SystemInfo info;
+    ecx::SystemInfo<Entity> getInfo() const override {
+      ecx::SystemInfo<Entity> info;
       info.mIsBlocking = true;
       return info;
     }

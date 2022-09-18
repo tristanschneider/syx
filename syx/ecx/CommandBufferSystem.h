@@ -35,7 +35,7 @@ namespace ecx {
     void tick(EntityRegistry<EntityT>&, ThreadLocalContext&) const override {
     }
 
-    SystemInfo getInfo() const override {
+    SystemInfo<EntityT> getInfo() const override {
       return {};
     }
   };
@@ -49,8 +49,8 @@ namespace ecx {
       });
     }
 
-    SystemInfo getInfo() const override {
-      SystemInfo info;
+    SystemInfo<LinearEntity> getInfo() const override {
+      SystemInfo<LinearEntity> info;
       //Used to make functionality blocking
       info.mIsBlocking = true;
       info.mIsCommandProcessor = true;
@@ -65,7 +65,7 @@ namespace ecx {
     void tick(EntityRegistry<EntityT>&, ThreadLocalContext&) const override {
     }
 
-    SystemInfo getInfo() const override {
+    SystemInfo<EntityT> getInfo() const override {
       return {};
     }
   };
@@ -80,8 +80,8 @@ namespace ecx {
       });
     }
 
-    SystemInfo getInfo() const override {
-      SystemInfo info;
+    SystemInfo<LinearEntity> getInfo() const override {
+      SystemInfo<LinearEntity> info;
       //Used to make functionality blocking
       info.mIsBlocking = true;
       info.mIsCommandProcessor = true;

@@ -300,6 +300,10 @@ namespace ecx {
       return It(mChunks.end(), mChunks.end(), size_t(0), mViewed);
     }
 
+    const AllowedTypes& getTypes() const {
+      return mViewed;
+    }
+
   private:
     std::vector<VersionedEntityChunk> mChunks;
     //Count of chunks in the registry the last time the view was computed. Used to invalidate cached views

@@ -24,7 +24,7 @@ namespace ecx {
           (*mInvocations)++;
         }
 
-        SystemInfo getInfo() const override { return {}; }
+        SystemInfo<TestEntity> getInfo() const override { return {}; }
 
         std::shared_ptr<int> mInvocations = std::make_shared<int>(0);
       };

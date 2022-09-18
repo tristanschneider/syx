@@ -50,12 +50,12 @@ namespace ecx {
 
     template<class EntityT>
     struct DependencyInfo {
-      void addJob(typeId_t<SystemInfo> info, std::shared_ptr<JobInfo<EntityT>> job) {
+      void addJob(typeId_t<EntityT> info, std::shared_ptr<JobInfo<EntityT>> job) {
         mJobs[info].push_back(std::move(job));
       }
 
       //All of the jobs of this type must finish before dependent can run
-      void addDependent(typeId_t<SystemInfo> info, std::shared_ptr<JobInfo<EntityT>> dependent) {
+      void addDependent(typeId_t<EntityT> info, std::shared_ptr<JobInfo<EntityT>> dependent) {
         for(auto& job : mJobs[info]) {
           job->addDependentNoDuplicate(dependent);
         }
@@ -69,7 +69,7 @@ namespace ecx {
         }
       }
 
-      void clear(typeId_t<SystemInfo> info) {
+      void clear(typeId_t<EntityT> info) {
         //Would construct an empty container if there wasn't one, which is fine
         mJobs[info].clear();
       }
@@ -78,7 +78,7 @@ namespace ecx {
         mJobs.clear();
       }
 
-      std::unordered_map<typeId_t<SystemInfo>, std::vector<std::shared_ptr<JobInfo<EntityT>>>> mJobs;
+      std::unordered_map<typeId_t<EntityT>, std::vector<std::shared_ptr<JobInfo<EntityT>>>> mJobs;
     };
 
     template<class EntityT>
@@ -105,10 +105,10 @@ namespace ecx {
     template<class EntityT>
     static void _build(JobGraphBuilder<EntityT>& builder, std::vector<std::shared_ptr<ISystem<EntityT>>>& systems) {
       //Key for use in entityFactories so logic for it can look similar to the other dependencyinfos
-      static const auto factoryKey = typeId<void, SystemInfo>();
+      static const auto factoryKey = typeId<void, EntityT>();
 
-      std::unordered_set<typeId_t<SystemInfo>> commandProcessTypes;
-      auto tryProcessCommandsForType = [&commandProcessTypes, &builder](typeId_t<SystemInfo> type) {
+      std::unordered_set<typeId_t<EntityT>> commandProcessTypes;
+      auto tryProcessCommandsForType = [&commandProcessTypes, &builder](typeId_t<EntityT> type) {
         if(const auto& it = builder.mCommandPublishers.mJobs.find(type); it != builder.mCommandPublishers.mJobs.end() && !it->second.empty()) {
           commandProcessTypes.insert(type);
         }
@@ -122,7 +122,7 @@ namespace ecx {
       for(size_t i = 0; i < systems.size();) {
         auto system = systems[i];
         auto job = std::make_shared<JobInfo<EntityT>>();
-        const SystemInfo info = system->getInfo();
+        const SystemInfo<EntityT> info = system->getInfo();
         job->mSystem = system;
         job->mThreadRequirement = info.mThreadRequirement;
         job->mName = info.mName;

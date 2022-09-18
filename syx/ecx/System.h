@@ -14,18 +14,26 @@ namespace ecx {
   using ThreadLocalContext = AnyTuple<ThreadLocalContextTag>;
 
   //Describes access patterns for registry
+  template<class EntityT>
   struct SystemInfo {
+    using IDT = typeId_t<EntityT>;
+
+    template<class T>
+    static void typeId() {
+      return typeId<std::decay_t<T>(), EntityT>();
+    }
+
     //In ascending order of strictness. Values at the top of the list contain all the types of the lower ones
     //Components whose existence is checked (Include<> Exclude<>)
-    std::vector<typeId_t<SystemInfo>> mExistenceTypes;
+    std::vector<typeId_t<EntityT>> mExistenceTypes;
     //Components that are read from (Read<>)
-    std::vector<typeId_t<SystemInfo>> mReadTypes;
+    std::vector<typeId_t<EntityT>> mReadTypes;
     //Components that are written to (Write<>)
-    std::vector<typeId_t<SystemInfo>> mWriteTypes;
+    std::vector<typeId_t<EntityT>> mWriteTypes;
     //Components that are created or destroyed (EntityModifier<>)
-    std::vector<typeId_t<SystemInfo>> mFactoryTypes;
+    std::vector<typeId_t<EntityT>> mFactoryTypes;
     //Components created or destroyed through a command buffer
-    std::vector<typeId_t<SystemInfo>> mCommandBufferTypes;
+    std::vector<typeId_t<EntityT>> mCommandBufferTypes;
     //If this can create or destroy entities (EntityFactory<>)
     bool mIsBlocking = false;
     bool mIsCommandProcessor = false;
@@ -90,8 +98,8 @@ namespace ecx {
       return DeduceGet<T>::get(*mRegistry, *mThreadLocalContext);
     }
 
-    static SystemInfo buildInfo() {
-      SystemInfo result;
+    static SystemInfo<EntityT> buildInfo() {
+      SystemInfo<EntityT> result;
       (typename InfoBuilder<Accessors>::build(result), ...);
       _removeDuplicates(result.mExistenceTypes);
       _removeDuplicates(result.mFactoryTypes);
@@ -127,7 +135,7 @@ namespace ecx {
       }
     };
 
-    static void _removeDuplicates(std::vector<typeId_t<SystemInfo>>& info) {
+    static void _removeDuplicates(std::vector<typeId_t<EntityT>>& info) {
       std::sort(info.begin(), info.end());
       info.erase(std::unique(info.begin(), info.end()), info.end());
     }
@@ -135,7 +143,7 @@ namespace ecx {
     //Specialization to deduce accessor types
     template<class T>
     struct InfoBuilder {
-      static void build(SystemInfo& info) {
+      static void build(SystemInfo<EntityT>& info) {
         static_assert(sizeof(T) == -1, "Accessor should have specialized below");
       }
     };
@@ -143,8 +151,8 @@ namespace ecx {
     //EntityModifier deduction
     template<class... Components>
     struct InfoBuilder<EntityModifier<EntityT, Components...>> {
-      static void build(SystemInfo& info) {
-        auto toAdd = { typeId<Components, SystemInfo>()... };
+      static void build(SystemInfo<EntityT>& info) {
+        auto toAdd = { typeId<Components, EntityT>()... };
         info.mExistenceTypes.insert(info.mExistenceTypes.end(), toAdd);
         info.mReadTypes.insert(info.mReadTypes.end(), toAdd);
         info.mWriteTypes.insert(info.mWriteTypes.end(), toAdd);
@@ -154,18 +162,18 @@ namespace ecx {
 
     template<class... Components>
     struct InfoBuilder<EntityCommandBuffer<EntityT, Components...>> {
-      static void build(SystemInfo& info) {
+      static void build(SystemInfo<EntityT>& info) {
         if(EntityCommandBuffer<EntityT, Components...>::HasDestroyCapability) {
           info.mDeferDestroysEntities = true;
         }
-        info.mCommandBufferTypes.insert(info.mCommandBufferTypes.end(), { typeId<Components, SystemInfo>()... });
+        info.mCommandBufferTypes.insert(info.mCommandBufferTypes.end(), { typeId<Components, EntityT>()... });
       }
     };
 
     //EntityFactory deduction
     template<>
     struct InfoBuilder<EntityFactory<EntityT>> {
-      static void build(SystemInfo& info) {
+      static void build(SystemInfo<EntityT>& info) {
         info.mIsBlocking = true;
       }
     };
@@ -174,47 +182,47 @@ namespace ecx {
     template<template<class...> class ViewT, class... ViewArgs>
     struct InfoBuilder<ViewT<EntityT, ViewArgs...>> {
       template<class T>
-      static void _addOne(SystemInfo&, T) {
+      static void _addOne(SystemInfo<EntityT>&, T) {
         static_cast(sizeof(T) == -1, "One of the overloads below should have been chosen");
       }
 
       template<class T>
-      static void _addOne(SystemInfo& info, Read<T>) {
-        info.mExistenceTypes.push_back(typeId<T, SystemInfo>());
-        info.mReadTypes.push_back(typeId<T, SystemInfo>());
+      static void _addOne(SystemInfo<EntityT>& info, Read<T>) {
+        info.mExistenceTypes.push_back(typeId<T, EntityT>());
+        info.mReadTypes.push_back(typeId<T, EntityT>());
       }
 
       template<class T>
-      static void _addOne(SystemInfo& info, Write<T>) {
-        info.mExistenceTypes.push_back(typeId<T, SystemInfo>());
-        info.mReadTypes.push_back(typeId<T, SystemInfo>());
-        info.mWriteTypes.push_back(typeId<T, SystemInfo>());
+      static void _addOne(SystemInfo<EntityT>& info, Write<T>) {
+        info.mExistenceTypes.push_back(typeId<T, EntityT>());
+        info.mReadTypes.push_back(typeId<T, EntityT>());
+        info.mWriteTypes.push_back(typeId<T, EntityT>());
       }
 
       template<class T>
-      static void _addOne(SystemInfo& info, Include<T>) {
-        info.mExistenceTypes.push_back(typeId<T, SystemInfo>());
+      static void _addOne(SystemInfo<EntityT>& info, Include<T>) {
+        info.mExistenceTypes.push_back(typeId<T, EntityT>());
       }
 
       template<class T>
-      static void _addOne(SystemInfo& info, Exclude<T>) {
-        info.mExistenceTypes.push_back(typeId<T, SystemInfo>());
+      static void _addOne(SystemInfo<EntityT>& info, Exclude<T>) {
+        info.mExistenceTypes.push_back(typeId<T, EntityT>());
       }
 
       template<class T>
-      static void _addOne(SystemInfo& info, OptionalRead<T>) {
-        info.mExistenceTypes.push_back(typeId<T, SystemInfo>());
-        info.mReadTypes.push_back(typeId<T, SystemInfo>());
+      static void _addOne(SystemInfo<EntityT>& info, OptionalRead<T>) {
+        info.mExistenceTypes.push_back(typeId<T, EntityT>());
+        info.mReadTypes.push_back(typeId<T, EntityT>());
       }
 
       template<class T>
-      static void _addOne(SystemInfo& info, OptionalWrite<T>) {
-        info.mExistenceTypes.push_back(typeId<T, SystemInfo>());
-        info.mReadTypes.push_back(typeId<T, SystemInfo>());
-        info.mWriteTypes.push_back(typeId<T, SystemInfo>());
+      static void _addOne(SystemInfo<EntityT>& info, OptionalWrite<T>) {
+        info.mExistenceTypes.push_back(typeId<T, EntityT>());
+        info.mReadTypes.push_back(typeId<T, EntityT>());
+        info.mWriteTypes.push_back(typeId<T, EntityT>());
       }
 
-      static void build(SystemInfo& info) {
+      static void build(SystemInfo<EntityT>& info) {
         //Default construct an object of each ViewArg type for the sake of using overload resolution to deduce the type
         (_addOne(info, ViewArgs{}), ...);
       }
@@ -235,7 +243,7 @@ namespace ecx {
       ThreadLocalContext context;
       tick(registry, context);
     }
-    virtual SystemInfo getInfo() const = 0;
+    virtual SystemInfo<EntityT> getInfo() const = 0;
   };
 
   //Wrapper that scopes access of registry down to what is specified by the context
@@ -247,7 +255,7 @@ namespace ecx {
       _tick(context);
     }
 
-    SystemInfo getInfo() const override {
+    SystemInfo<EntityT> getInfo() const override {
       return typename Context::buildInfo();
     }
 
@@ -272,8 +280,8 @@ namespace ecx {
         mFn(context);
       }
 
-      SystemInfo getInfo() const final {
-        SystemInfo info = System<ContextType, EntityT>::getInfo();
+      SystemInfo<EntityT> getInfo() const final {
+        SystemInfo<EntityT> info = System<ContextType, EntityT>::getInfo();
         info.mName = mName;
         info.mThreadRequirement = mThread;
         return info;

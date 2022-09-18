@@ -299,7 +299,7 @@ namespace {
     };
     struct SystemContainer {
       std::string mKey;
-      size_t mSystemCount = 0;
+      std::vector<ecx::SystemInfo<Engine::Entity>> mInfos;
     };
 
     //Needs pointer stability since they'll be passed around by pointer in lua
@@ -312,8 +312,8 @@ namespace {
     std::optional<LuaRuntimeCommandBuffer> mCmd;
     //TODO: who should own this?
     std::vector<std::unique_ptr<LuaCustomComponent>> mCustomComponents;
-    SystemContainer mInitContainer{ std::to_string(std::hash<void*>()(this)) + "init", size_t(0) };
-    SystemContainer mUpdateContainer{ std::to_string(std::hash<void*>()(this)) + "update", size_t(0) };
+    SystemContainer mInitContainer{ std::to_string(std::hash<void*>()(this)) + "init" };
+    SystemContainer mUpdateContainer{ std::to_string(std::hash<void*>()(this)) + "update" };
   };
 
   template<class T>
@@ -857,15 +857,44 @@ namespace {
 
       //Create a table containing the objects needed for this system. Function, then all the arguments
       lua_createtable(l, argCount, 0);
+      ecx::SystemInfo<Engine::Entity> info;
       for(int i = 1; i <= argCount; ++i) {
         //Push the argument to store in the table
         lua_pushvalue(l, i);
+        //First argument is the function
+        if(i > 1) {
+          ISafeLightUserdata* data = static_cast<ISafeLightUserdata*>(lua_touserdata(l, i));
+          if(!data) {
+            luaL_error(l, "Unexpected system parameter at index %d", i);
+          }
+          else if(data->tryCast(ecx::typeId<LuaRuntimeView, ISafeLightUserdata>())) {
+            const Engine::RuntimeView::AllowedTypes& types = static_cast<LuaRuntimeView*>(data)->mView.getTypes();
+            //TODO: also expose existence
+            info.mReadTypes.insert(info.mReadTypes.end(), types.mReads.begin(), types.mReads.end());
+            info.mWriteTypes.insert(info.mWriteTypes.end(), types.mWrites.begin(), types.mWrites.end());
+          }
+          else if(data->tryCast(ecx::typeId<LuaRuntimeCommandBuffer, ISafeLightUserdata>())) {
+            const ecx::CommandBufferTypes& types = static_cast<LuaRuntimeCommandBuffer*>(data)->mBuffer.getAllowedTypes();
+            info.mCommandBufferTypes.insert(info.mCommandBufferTypes.end(), types.mTypes.begin(), types.mTypes.end());
+            if(types.mAllowDestroyEntity) {
+              info.mDeferDestroysEntities = true;
+            }
+          }
+        }
         //Assign the value to the i'th index
         lua_seti(l, -2, i);
       }
       //Store the created sytsem table in the context's table
       lua_seti(l, systemTable, index);
-      ++systemContainer.mSystemCount;
+
+      auto removeDuplicates = [](auto& container) {
+        std::sort(container.begin(), container.end());
+        container.erase(std::unique(container.begin(), container.end()), container.end());
+      };
+      removeDuplicates(info.mCommandBufferTypes);
+      removeDuplicates(info.mReadTypes);
+      removeDuplicates(info.mWriteTypes);
+      systemContainer.mInfos.push_back(std::move(info));
       //Pop system table
       lua_pop(l, 1);
       return 0;
@@ -1580,9 +1609,10 @@ namespace LuaTests {
 
       assertScriptExecutes(&s, SYS_DEMO);
 
-      Assert::AreEqual(size_t(1), s.mContext.mInitContainer.mSystemCount);
-      Assert::AreEqual(size_t(1), s.mContext.mUpdateContainer.mSystemCount);
-
+      Assert::AreEqual(size_t(1), s.mContext.mInitContainer.mInfos.size());
+      Assert::IsTrue(ecx::typeId<DemoComponentA, Engine::Entity>() == s.mContext.mInitContainer.mInfos.front().mCommandBufferTypes[0]);
+      Assert::AreEqual(size_t(1), s.mContext.mUpdateContainer.mInfos.size());
+      Assert::IsTrue(ecx::typeId<DemoComponentA, Engine::Entity>() == s.mContext.mUpdateContainer.mInfos.front().mReadTypes[0]);
       Assert::IsTrue(LuaRegistry::tickInit(s.mState.get(), 1));
       s.mInternalBuffer.processAllCommands(s.mRegistry);
       s.mContext.refreshViews();

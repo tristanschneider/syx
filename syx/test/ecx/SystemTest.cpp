@@ -53,9 +53,9 @@ namespace ecx {
       context.get<TestView<Write<short>, Read<uint64_t>>>();
     }
 
-    static void assertListsMatchOrderless(std::vector<typeId_t<SystemInfo>> info, const std::initializer_list<typeId_t<SystemInfo>>& expected) {
+    static void assertListsMatchOrderless(std::vector<typeId_t<TestEntity>> info, const std::initializer_list<typeId_t<TestEntity>>& expected) {
       std::sort(info.begin(), info.end());
-      std::vector<typeId_t<SystemInfo>> ex{ expected };
+      std::vector<typeId_t<TestEntity>> ex{ expected };
       std::sort(ex.begin(), ex.end());
 
       Assert::IsTrue(ex == info);
@@ -68,7 +68,7 @@ namespace ecx {
 
       const SystemInfo info = context.buildInfo();
 
-      assertListsMatchOrderless(info.mExistenceTypes, { typeId<int, SystemInfo>(), typeId<short, SystemInfo>() });
+      assertListsMatchOrderless(info.mExistenceTypes, { typeId<int, TestEntity>(), typeId<short, TestEntity>() });
       Assert::AreEqual(size_t(1), info.mReadTypes.size());
       Assert::IsTrue(info.mWriteTypes.empty());
       Assert::IsTrue(info.mFactoryTypes.empty());
@@ -82,10 +82,10 @@ namespace ecx {
 
       const SystemInfo info = context.buildInfo();
 
-      assertListsMatchOrderless(info.mExistenceTypes, { typeId<int, SystemInfo>() });
-      assertListsMatchOrderless(info.mReadTypes, { typeId<int, SystemInfo>() });
-      assertListsMatchOrderless(info.mWriteTypes, { typeId<int, SystemInfo>() });
-      assertListsMatchOrderless(info.mFactoryTypes, { typeId<int, SystemInfo>() });
+      assertListsMatchOrderless(info.mExistenceTypes, { typeId<int, TestEntity>() });
+      assertListsMatchOrderless(info.mReadTypes, { typeId<int, TestEntity>() });
+      assertListsMatchOrderless(info.mWriteTypes, { typeId<int, TestEntity>() });
+      assertListsMatchOrderless(info.mFactoryTypes, { typeId<int, TestEntity>() });
     }
 
     TEST_METHOD(SystemContext_BuildInfoExclude_InExistenceTypes) {
@@ -95,7 +95,7 @@ namespace ecx {
 
       const SystemInfo info = context.buildInfo();
 
-      assertListsMatchOrderless(info.mExistenceTypes, { typeId<int, SystemInfo>(), typeId<short, SystemInfo>() });
+      assertListsMatchOrderless(info.mExistenceTypes, { typeId<int, TestEntity>(), typeId<short, TestEntity>() });
       Assert::AreEqual(size_t(1), info.mReadTypes.size());
       Assert::IsTrue(info.mWriteTypes.empty());
       Assert::IsTrue(info.mFactoryTypes.empty());
@@ -109,8 +109,8 @@ namespace ecx {
 
       const SystemInfo info = context.buildInfo();
 
-      assertListsMatchOrderless(info.mExistenceTypes, { typeId<int, SystemInfo>() });
-      assertListsMatchOrderless(info.mReadTypes, { typeId<int, SystemInfo>() });
+      assertListsMatchOrderless(info.mExistenceTypes, { typeId<int, TestEntity>() });
+      assertListsMatchOrderless(info.mReadTypes, { typeId<int, TestEntity>() });
       Assert::IsTrue(info.mWriteTypes.empty());
       Assert::IsTrue(info.mFactoryTypes.empty());
       Assert::IsFalse(info.mIsBlocking);
@@ -123,8 +123,8 @@ namespace ecx {
 
       const SystemInfo info = context.buildInfo();
 
-      assertListsMatchOrderless(info.mExistenceTypes, { typeId<int, SystemInfo>(), typeId<short, SystemInfo>() });
-      assertListsMatchOrderless(info.mReadTypes, { typeId<int, SystemInfo>(), typeId<short, SystemInfo>() });
+      assertListsMatchOrderless(info.mExistenceTypes, { typeId<int, TestEntity>(), typeId<short, TestEntity>() });
+      assertListsMatchOrderless(info.mReadTypes, { typeId<int, TestEntity>(), typeId<short, TestEntity>() });
       Assert::IsTrue(info.mWriteTypes.empty());
       Assert::IsTrue(info.mFactoryTypes.empty());
       Assert::IsFalse(info.mIsBlocking);
@@ -137,9 +137,9 @@ namespace ecx {
 
       const SystemInfo info = context.buildInfo();
 
-      assertListsMatchOrderless(info.mExistenceTypes, { typeId<int, SystemInfo>() });
-      assertListsMatchOrderless(info.mReadTypes, { typeId<int, SystemInfo>() });
-      assertListsMatchOrderless(info.mWriteTypes, { typeId<int, SystemInfo>() });
+      assertListsMatchOrderless(info.mExistenceTypes, { typeId<int, TestEntity>() });
+      assertListsMatchOrderless(info.mReadTypes, { typeId<int, TestEntity>() });
+      assertListsMatchOrderless(info.mWriteTypes, { typeId<int, TestEntity>() });
       Assert::IsTrue(info.mFactoryTypes.empty());
       Assert::IsFalse(info.mIsBlocking);
     }
@@ -151,9 +151,9 @@ namespace ecx {
 
       const SystemInfo info = context.buildInfo();
 
-      assertListsMatchOrderless(info.mExistenceTypes, { typeId<int, SystemInfo>(), typeId<short, SystemInfo>() });
-      assertListsMatchOrderless(info.mReadTypes, { typeId<int, SystemInfo>(), typeId<short, SystemInfo>() });
-      assertListsMatchOrderless(info.mWriteTypes, { typeId<int, SystemInfo>(), typeId<short, SystemInfo>() });
+      assertListsMatchOrderless(info.mExistenceTypes, { typeId<int, TestEntity>(), typeId<short, TestEntity>() });
+      assertListsMatchOrderless(info.mReadTypes, { typeId<int, TestEntity>(), typeId<short, TestEntity>() });
+      assertListsMatchOrderless(info.mWriteTypes, { typeId<int, TestEntity>(), typeId<short, TestEntity>() });
       Assert::IsTrue(info.mFactoryTypes.empty());
       Assert::IsFalse(info.mIsBlocking);
     }
@@ -175,10 +175,10 @@ namespace ecx {
 
       const SystemInfo info = context.buildInfo();
 
-      assertListsMatchOrderless(info.mExistenceTypes, { typeId<int, SystemInfo>() });
-      assertListsMatchOrderless(info.mReadTypes, { typeId<int, SystemInfo>() });
-      assertListsMatchOrderless(info.mWriteTypes, { typeId<int, SystemInfo>() });
-      assertListsMatchOrderless(info.mFactoryTypes, { typeId<int, SystemInfo>() });
+      assertListsMatchOrderless(info.mExistenceTypes, { typeId<int, TestEntity>() });
+      assertListsMatchOrderless(info.mReadTypes, { typeId<int, TestEntity>() });
+      assertListsMatchOrderless(info.mWriteTypes, { typeId<int, TestEntity>() });
+      assertListsMatchOrderless(info.mFactoryTypes, { typeId<int, TestEntity>() });
       Assert::IsFalse(info.mIsBlocking);
     }
 
@@ -211,8 +211,8 @@ namespace ecx {
 
       const SystemInfo info = system->getInfo();
 
-      assertListsMatchOrderless(info.mExistenceTypes, { typeId<int, SystemInfo>() });
-      assertListsMatchOrderless(info.mReadTypes, { typeId<int, SystemInfo>() });
+      assertListsMatchOrderless(info.mExistenceTypes, { typeId<int, TestEntity>() });
+      assertListsMatchOrderless(info.mReadTypes, { typeId<int, TestEntity>() });
       Assert::IsTrue(info.mWriteTypes.empty());
       Assert::IsTrue(info.mFactoryTypes.empty());
       Assert::IsFalse(info.mIsBlocking);
@@ -227,8 +227,8 @@ namespace ecx {
 
       const SystemInfo info = TestSystem().getInfo();
 
-      assertListsMatchOrderless(info.mExistenceTypes, { typeId<int, SystemInfo>() });
-      assertListsMatchOrderless(info.mReadTypes, { typeId<int, SystemInfo>() });
+      assertListsMatchOrderless(info.mExistenceTypes, { typeId<int, TestEntity>() });
+      assertListsMatchOrderless(info.mReadTypes, { typeId<int, TestEntity>() });
       Assert::IsTrue(info.mWriteTypes.empty());
       Assert::IsTrue(info.mFactoryTypes.empty());
       Assert::IsFalse(info.mIsBlocking);
@@ -253,7 +253,7 @@ namespace ecx {
     TEST_METHOD(System_MakeSystem_HasName) {
       auto system = makeSystem("test", [](TestSystemContext<TestEntityFactory>&) {});
 
-      const SystemInfo& info = system->getInfo();
+      const SystemInfo<TestEntity>& info = system->getInfo();
 
       Assert::AreEqual(std::string("test"), info.mName);
     }

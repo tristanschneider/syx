@@ -79,8 +79,8 @@ std::shared_ptr<Engine::System> FileSystemSystem::addFileSystemComponent(std::un
       }
     }
 
-    ecx::SystemInfo getInfo() const override {
-      ecx::SystemInfo info = ecx::System<ContextType, Entity>::getInfo();
+    ecx::SystemInfo<Entity> getInfo() const override {
+      ecx::SystemInfo<Entity> info = ecx::System<ContextType, Entity>::getInfo();
       info.mName = "FileSystemInit";
       return info;
     }
