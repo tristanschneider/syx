@@ -148,7 +148,7 @@ namespace ecx {
       std::vector<ViewedTypes::TypeId> mWrites;
     };
 
-    RuntimeView(EntityRegistry<LinearEntity> registry, const ViewedTypes& viewed) {
+    RuntimeView(EntityRegistry<LinearEntity>& registry, ViewedTypes viewed) {
       std::vector<ViewedTypes::TypeId> optionals;
       std::vector<ViewedTypes::TypeId> requirements;
       requirements.reserve(viewed.mReads.size() + viewed.mWrites.size() + viewed.mIncludes.size());
@@ -161,6 +161,7 @@ namespace ecx {
       optionals.insert(optionals.begin(), viewed.mOptionalWrites.begin(), viewed.mOptionalWrites.end());
 
       registry.getAllChunksSatisfyingConditions(mChunks, requirements, viewed.mExcludes, optionals);
+      mCachedChunkCount = registry.chunkCount();
 
       mViewed.mWrites.reserve(viewed.mOptionalWrites.size() + viewed.mWrites.size());
       mViewed.mWrites.insert(mViewed.mWrites.end(), viewed.mWrites.begin(), viewed.mWrites.end());
@@ -175,12 +176,23 @@ namespace ecx {
       //Sort to allow binary search
       std::sort(mViewed.mReads.begin(), mViewed.mReads.end());
       std::sort(mViewed.mWrites.begin(), mViewed.mWrites.end());
+
+      mRawTypes = std::move(viewed);
     }
 
     RuntimeView(RuntimeView&&) noexcept = default;
     RuntimeView(const RuntimeView&) = default;
     RuntimeView& operator=(const RuntimeView&) = default;
     RuntimeView& operator=(RuntimeView&&) noexcept = default;
+
+    static RuntimeView recycleView(RuntimeView&& view, EntityRegistry<LinearEntity>& registry) {
+      //If cached view is still valid, re-use it
+      if(view.mCachedChunkCount == registry.chunkCount()) {
+        return std::move(view);
+      }
+      //Cached view is invalid, compute a new one
+      return RuntimeView(registry, std::move(view.mRawTypes));
+    }
 
     class It {
     public:
@@ -293,6 +305,8 @@ namespace ecx {
     //Count of chunks in the registry the last time the view was computed. Used to invalidate cached views
     size_t mCachedChunkCount = 0;
     AllowedTypes mViewed;
+    //Only needed for recycling
+    ViewedTypes mRawTypes;
   };
 
   //A combination of registry iterators to allow viewing entities that satisfy conditions as specified by the tags above

@@ -285,8 +285,21 @@ namespace {
       return *result;
     }
 
+    void refreshViews() {
+      if(mRegistry) {
+        for(auto&& view : mViews) {
+          Engine::RuntimeView& v = view->mView.mView;
+          v = Engine::RuntimeView::recycleView(std::move(v), *mRegistry);
+        }
+      }
+    }
+
     struct ViewInfo {
       LuaRuntimeView mView;
+    };
+    struct SystemContainer {
+      std::string mKey;
+      size_t mSystemCount = 0;
     };
 
     //Needs pointer stability since they'll be passed around by pointer in lua
@@ -299,6 +312,8 @@ namespace {
     std::optional<LuaRuntimeCommandBuffer> mCmd;
     //TODO: who should own this?
     std::vector<std::unique_ptr<LuaCustomComponent>> mCustomComponents;
+    SystemContainer mInitContainer{ std::to_string(std::hash<void*>()(this)) + "init", size_t(0) };
+    SystemContainer mUpdateContainer{ std::to_string(std::hash<void*>()(this)) + "update", size_t(0) };
   };
 
   template<class T>
@@ -517,7 +532,13 @@ namespace {
       lua_pushcfunction(l, &_iterate);
       //No state, everything is in the iterator
       lua_pushnil(l);
-      lua_pushlightuserdata(l, begin(view, l));
+      LuaViewIterator* it = begin(view, l);
+      if(it) {
+        lua_pushlightuserdata(l, it);
+      }
+      else {
+        lua_pushnil(l);
+      }
       return 3;
     }
 
@@ -525,6 +546,11 @@ namespace {
     //>Then, at each iteration, Lua calls the iterator function with two arguments:
     //>the state and the control variable. The results from this call are then assigned to the loop variables, following the rules of multiple assignments
     static int _iterate(lua_State* l) {
+      //Happens if the view is initially empty
+      if(lua_isnil(l, 2)) {
+        lua_pushnil(l);
+        return 1;
+      }
       LuaViewIterator& it = ISafeLightUserdata::checkUserdata<LuaViewIterator>(l, 2);
       //First call comes straight from the initialization function, do nothing
       if(it.mNeedsInit) {
@@ -794,6 +820,112 @@ namespace {
       LuaSystemContext::get(l).mCustomComponents.push_back(std::move(component));
       return 0;
     }
+
+    static int _registerSystem(lua_State* l, LuaSystemContext::SystemContainer(LuaSystemContext::*container)) {
+      const int argCount = lua_gettop(l);
+      if(argCount < 2) {
+        luaL_error(l, "Should have at least two arguments");
+      }
+      luaL_checktype(l, 1, LUA_TFUNCTION);
+
+      LuaSystemContext& context = LuaSystemContext::get(l);
+      LuaSystemContext::SystemContainer& systemContainer = context.*container;
+      const std::string& key = systemContainer.mKey;
+
+      luaL_checktype(l, LUA_REGISTRYINDEX, LUA_TTABLE);
+      lua_pushstring(l, key.c_str());
+      //Look up the system context's table, creating it if it doesn't exist
+      if(lua_gettable(l, LUA_REGISTRYINDEX) != LUA_TTABLE) {
+        //Create a new empty table
+        lua_newtable(l);
+        //Assign the new table to the key, and keep the new table on top of the stack
+        lua_pushstring(l, key.c_str());
+        lua_pushvalue(l, -2);
+        lua_settable(l, LUA_REGISTRYINDEX);
+      }
+      const int systemTable = lua_gettop(l);
+
+      //Find the next index
+      int index = 1;
+      lua_pushnil(l);
+      while(lua_next(l, -2)) {
+        if(int k = static_cast<int>(lua_tonumber(l, -2))) {
+          index = k;
+        }
+        lua_pop(l, 1);
+      }
+
+      //Create a table containing the objects needed for this system. Function, then all the arguments
+      lua_createtable(l, argCount, 0);
+      for(int i = 1; i <= argCount; ++i) {
+        //Push the argument to store in the table
+        lua_pushvalue(l, i);
+        //Assign the value to the i'th index
+        lua_seti(l, -2, i);
+      }
+      //Store the created sytsem table in the context's table
+      lua_seti(l, systemTable, index);
+      ++systemContainer.mSystemCount;
+      //Pop system table
+      lua_pop(l, 1);
+      return 0;
+    }
+
+    static int registerSystem(lua_State* l) {
+      return _registerSystem(l, &LuaSystemContext::mUpdateContainer);
+    }
+
+    static int registerInitSystem(lua_State* l) {
+      return _registerSystem(l, &LuaSystemContext::mInitContainer);
+    }
+
+    static bool tickSystem(lua_State* l, size_t systemIndex) {
+      return _tickSystem(l, systemIndex, &LuaSystemContext::mUpdateContainer);
+    }
+
+    static bool tickInit(lua_State* l, size_t systemIndex) {
+      return _tickSystem(l, systemIndex, &LuaSystemContext::mInitContainer);
+    }
+
+    static bool _tickSystem(lua_State* l, size_t systemIndex, LuaSystemContext::SystemContainer(LuaSystemContext::*container)) {
+      LuaSystemContext& context = LuaSystemContext::get(l);
+      LuaSystemContext::SystemContainer& systemContainer = context.*container;
+      const std::string& key = systemContainer.mKey;
+      bool success = false;
+
+      //Make sure the registry table exists
+      luaL_checktype(l, LUA_REGISTRYINDEX, LUA_TTABLE);
+      //Get the table for this system context
+      lua_pushstring(l, key.c_str());
+      if(lua_gettable(l, LUA_REGISTRYINDEX) == LUA_TTABLE) {
+        //Get the table for the system at the desired index
+        if(lua_geti(l, -1, static_cast<LUA_INTEGER>(systemIndex)) == LUA_TTABLE) {
+          const int systemTableIndex = lua_gettop(l);
+          //Get the system function and make sure it's a function
+          lua_geti(l, systemTableIndex, 1);
+          luaL_checktype(l, -1, LUA_TFUNCTION);
+
+          //Push all system arguments
+          size_t argCount = 0;
+          while(lua_geti(l, systemTableIndex, argCount + 2) != LUA_TNIL) {
+            ++argCount;
+          }
+          //Pop the last nil value
+          lua_pop(l, 1);
+
+          //Call the function with all arguments
+          if(lua_pcall(l, static_cast<int>(argCount), 0, 0) == LUA_OK) {
+            success = true;
+          }
+          else {
+            lua_pop(l, 1);
+          }
+        }
+        lua_pop(l, 1);
+      }
+      lua_pop(l, 1);
+      return success;
+    }
   };
 }
 
@@ -903,12 +1035,16 @@ namespace ecx {
   struct StaticTypeInfo<LuaRegistry> : StructTypeInfo<StaticTypeInfo<LuaRegistry>
     , ecx::AutoTypeList<>
     , ecx::AutoTypeList<
-      &LuaRegistry::registerComponent
+      &LuaRegistry::registerComponent,
+      &LuaRegistry::registerInitSystem,
+      &LuaRegistry::registerSystem
     >
   > {
     inline static constexpr const char* SelfName = "Registry";
     inline static const std::array FunctionNames = {
-      std::string("registerComponent")
+      std::string("registerComponent"),
+      std::string("registerInitSystem"),
+      std::string("registerSystem")
     };
   };
 
@@ -1045,6 +1181,24 @@ namespace {
     let tc = Custom.b();
   )";
 
+  const char* SYS_DEMO = R"(
+    local function init(cmd)
+      local e = CommandBuffer.createEntityWithComponents(cmd, DemoComponentA.write());
+      CommandBuffer.setValue(cmd, e, DemoComponentA.mValue(), 2);
+    end
+
+    local function update(view)
+      local count = 0;
+      for e in View.each(view) do
+        count = count + 1;
+        assert(2 == View.getValue(e, DemoComponentA.mValue()), "Value should match");
+      end
+      assert(1 == count, "Entity should be found");
+    end
+
+    Registry.registerInitSystem(init, CommandBuffer.create(DemoComponentA.write()));
+    Registry.registerSystem(update, View.create(DemoComponentA.read()));
+  )";
 }
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -1173,6 +1327,15 @@ namespace LuaTests {
           count = count + 1;
         end
         assert(count == 1, "Components should have been found " .. count);
+      )");
+    }
+
+    TEST_METHOD(ViewEmpty_Each_Executes) {
+      LuaStateWithContext s;
+
+      assertScriptExecutes(&s, R"(
+        local view = View.create(DemoComponentA.read());
+        for e in View.each(view) do end
       )");
     }
 
@@ -1410,6 +1573,20 @@ namespace LuaTests {
 
       Assert::IsTrue(std::find(results.begin(), results.end(), std::make_pair(std::string("a"), 1.0f)) != results.end());
       Assert::IsTrue(std::find(results.begin(), results.end(), std::make_pair(std::string("b"), 3.0f)) != results.end());
+    }
+
+    TEST_METHOD(Registry_ExecuteSysDemo_Executes) {
+      LuaStateWithContext s;
+
+      assertScriptExecutes(&s, SYS_DEMO);
+
+      Assert::AreEqual(size_t(1), s.mContext.mInitContainer.mSystemCount);
+      Assert::AreEqual(size_t(1), s.mContext.mUpdateContainer.mSystemCount);
+
+      Assert::IsTrue(LuaRegistry::tickInit(s.mState.get(), 1));
+      s.mInternalBuffer.processAllCommands(s.mRegistry);
+      s.mContext.refreshViews();
+      Assert::IsTrue(LuaRegistry::tickSystem(s.mState.get(), 1));
     }
   };
 }
