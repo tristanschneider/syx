@@ -11,6 +11,8 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED)
 
 set(CMAKE_TOOLCHAIN_FILE "${CMAKE_SOURCE_DIR}/vcpkg/scripts/buildsystems/vcpkg.cmake")
+set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} "${CMAKE_SOURCE_DIR}/vcpkg/packages")
+set(VCPKG_TARGET_TRIPLE "x64-windows")
 
 #TODO: less platform specific
 function(vcpkg_install package)
@@ -51,6 +53,8 @@ if(MSVC)
     )
 endif()
 
+add_subdirectory(ispc)
+add_subdirectory(poa)
 add_subdirectory(ecx)
 add_subdirectory(syx)
 add_subdirectory(src-deps)

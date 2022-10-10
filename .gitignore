@@ -9,6 +9,7 @@
 syx/build_output
 **/CMakeCache.txt
 *.sln
+**/out_ispc/
 
 # User-specific files
 *.suo
