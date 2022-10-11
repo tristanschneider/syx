@@ -6,7 +6,10 @@ echo off
     set outdir=%1
     shift
 
-    echo "output to %outdir%"
+    if exist %outdir%\ (
+        echo "Deleting output %outdir%"
+        call rd "%outdir%\" /s /q
+    )
 
     for %%i in (%*) do (
         :: Remove the extension
@@ -16,7 +19,6 @@ goto end
 
 :compile
     set outdir=%1
-    set basePath=%2
     set fileName=%3
     set extension=%4
     set fileWithExtension=""
@@ -26,6 +28,9 @@ goto end
     set outheader="%outBase%.h"
 
     echo "Compiling %fileName%..."
+    :: Create directory for output
+    call mkdir "%1"
+    :: Compile the file
     call ispc %infile% -o %outfile% -h %outheader%
 goto :end
 
