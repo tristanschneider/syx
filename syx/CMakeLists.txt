@@ -13,6 +13,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED)
 set(CMAKE_TOOLCHAIN_FILE "${CMAKE_SOURCE_DIR}/vcpkg/scripts/buildsystems/vcpkg.cmake")
 set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} "${CMAKE_SOURCE_DIR}/vcpkg/packages")
 set(VCPKG_TARGET_TRIPLE "x64-windows")
+set(VCPKG_BASE "${CMAKE_SOURCE_DIR}/vcpkg")
+set(VCPKG_ARCH "x64-windows")
 
 #TODO: less platform specific
 function(vcpkg_install package)
@@ -23,7 +25,7 @@ function(vcpkg_install package)
         execute_process(COMMAND git clone https://github.com/microsoft/vcpkg.git)
         execute_process(COMMAND "${vcpkg_base}/bootstrap-vcpkg.bat")
     endif()
-    execute_process(COMMAND "${vcpkg_path}" --triplet x64-windows install "${package}")
+    execute_process(COMMAND "${vcpkg_path}" --triplet ${VCPKG_ARCH} install "${package}")
 endfunction()
 
 if(MSVC)

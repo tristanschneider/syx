@@ -816,7 +816,7 @@ namespace ecx {
     std::shared_ptr<IndependentEntityGenerator> createEntityGenerator() {
       auto slot = static_cast<uint16_t>(mGenerators.size());
       assert(size_t(slot) < IndependentEntityGenerator::MAX_SLOTS);
-      auto result = std::make_shared<IndependentEntityGenerator>(static_cast<uint16_t>(mGenerators.size()));
+      auto result = std::make_shared<IndependentEntityGenerator>(static_cast<uint16_t>(slot));
       mGenerators.push_back(result);
       return result;
     }
