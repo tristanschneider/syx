@@ -10,7 +10,7 @@ template<auto Fn>
 struct TestHarness;
 
 //Holds what is needed to apply the argument and convert from the stored type to the parameter type
-template<class T>
+template<class T, class Enabled = void>
 struct ArgumentHolder {
   void setSize(size_t) {};
 
@@ -19,6 +19,74 @@ struct ArgumentHolder {
   }
 
   T mValue;
+};
+
+struct UniformSymmetricMatrixHolderImpl {
+  void setSize(size_t size) {
+    a.resize(size);
+    b.resize(size);
+    c.resize(size);
+    d.resize(size);
+    e.resize(size);
+    f.resize(size);
+  }
+
+  ispc::UniformSymmetricMatrix& getValue() {
+    mValue.a = a.data();
+    mValue.b = b.data();
+    mValue.c = c.data();
+    mValue.d = d.data();
+    mValue.e = e.data();
+    mValue.f = f.data();
+    return mValue;
+  }
+
+  std::vector<float> a, b, c, d, e, f;
+  ispc::UniformSymmetricMatrix mValue;
+};
+
+template<class T>
+struct ArgumentHolder<T, std::enable_if_t<std::is_same_v<ispc::UniformSymmetricMatrix, std::decay_t<T>>>>
+  : UniformSymmetricMatrixHolderImpl {};
+
+template<class T>
+struct ArgumentHolder<T, std::enable_if_t<std::is_same_v<ispc::UniformQuat, std::decay_t<T>>>> {
+  void setSize(size_t size) {
+    i.resize(size);
+    j.resize(size);
+    k.resize(size);
+    w.resize(size);
+  }
+
+  ispc::UniformQuat& getValue() {
+    mValue.i = i.data();
+    mValue.j = j.data();
+    mValue.k = k.data();
+    mValue.w = w.data();
+    return mValue;
+  }
+
+  std::vector<float> i, j, k, w;
+  ispc::UniformQuat mValue;
+};
+
+template<class T>
+struct ArgumentHolder<T, std::enable_if_t<std::is_same_v<ispc::UniformVec3, std::decay_t<T>>>> {
+  void setSize(size_t size) {
+    x.resize(size);
+    y.resize(size);
+    z.resize(size);
+  }
+
+  ispc::UniformVec3& getValue() {
+    mValue.x = x.data();
+    mValue.y = y.data();
+    mValue.z = z.data();
+    return mValue;
+  }
+
+  std::vector<float> x, y, z;
+  ispc::UniformVec3 mValue;
 };
 
 template<class T>
@@ -129,12 +197,10 @@ int main() {
   const size_t VALUES = 10000;
 
   for (size_t i = 0; i < 3; ++i) {
-
   runAndSummarize<&ispc::integrateLinearPosition>("integrateLinearPosition", ITERATIONS, VALUES);
   runAndSummarize<&ispc::integrateLinearVelocityGlobalAccelleration>("integrateVelocity", ITERATIONS, VALUES);
   runAndSummarize<&ispc::integrateRotation>("integrateRotation", ITERATIONS, VALUES);
   runAndSummarize<&ispc::recomputeInertiaTensor>("recomputeInertiaTensor", ITERATIONS, VALUES);
-
   printf("\n");
   }
 }
