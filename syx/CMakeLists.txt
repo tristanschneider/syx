@@ -4,6 +4,7 @@ cmake_minimum_required(VERSION 3.10)
 project(syx)
 
 option(TEST_ENABLED "Include test projects" ON)
+option(PERFTEST_ENABLED "Include performance tests" ON)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/build_output)
 
@@ -65,6 +66,10 @@ add_subdirectory(Engine.Shared)
 
 if(TEST_ENABLED)
     add_subdirectory(test)
+endif()
+
+if(PERFTEST_ENABLED)
+    add_subdirectory(perftest)
 endif()
 
 if(WIN32)
