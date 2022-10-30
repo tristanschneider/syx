@@ -1,4 +1,3 @@
-#pragma once
 
 struct UniformSymmetricMatrix {
   uniform float* a; uniform float* b; uniform float* c;

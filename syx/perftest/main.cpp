@@ -4,6 +4,7 @@
 #include <chrono>
 #include <string>
 
+#include "out_ispc/CollisionDetection.h"
 #include "out_ispc/Inertia.h"
 #include "out_ispc/Integrator.h"
 
@@ -166,7 +167,6 @@ struct TestHarness<Func> {
 
 template<auto Fn>
 uint64_t runIterations(size_t iterations, size_t valueCount) {
-
   uint64_t total = 0;
   for(size_t i = 0; i < iterations; ++i) {
     // While it's slower to put the allocation in the loop like this, the changing memory seems to lead to more consistent averages
@@ -193,6 +193,7 @@ void runAndSummarize(const char* name, size_t iterations, size_t valueCount) {
   summarize(name, iterations, valueCount, runIterations<Fn>(iterations, valueCount));
 }
 
+
 int main() {
   const size_t ITERATIONS = 1000;
   const size_t VALUES = 10000;
@@ -202,6 +203,9 @@ int main() {
     runAndSummarize<&ispc::integrateLinearVelocityGlobalAccelleration>("integrateVelocity", ITERATIONS, VALUES);
     runAndSummarize<&ispc::integrateRotation>("integrateRotation", ITERATIONS, VALUES);
     runAndSummarize<&ispc::recomputeInertiaTensor>("recomputeInertiaTensor", ITERATIONS, VALUES);
+    runAndSummarize<&ispc::computeSphereMass>("sphereMass", ITERATIONS, VALUES);
+    runAndSummarize<&ispc::invertMass>("invertMass", ITERATIONS, VALUES);
+    runAndSummarize<&ispc::computeContactSphereSphere>("sphereContact", ITERATIONS, VALUES);
     printf("\n");
   }
 }
