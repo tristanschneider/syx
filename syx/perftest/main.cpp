@@ -4,6 +4,7 @@
 #include <chrono>
 #include <string>
 
+#include "out_ispc/Inertia.h"
 #include "out_ispc/Integrator.h"
 
 template<auto Fn>
@@ -196,11 +197,11 @@ int main() {
   const size_t ITERATIONS = 1000;
   const size_t VALUES = 10000;
 
-  for (size_t i = 0; i < 3; ++i) {
-  runAndSummarize<&ispc::integrateLinearPosition>("integrateLinearPosition", ITERATIONS, VALUES);
-  runAndSummarize<&ispc::integrateLinearVelocityGlobalAccelleration>("integrateVelocity", ITERATIONS, VALUES);
-  runAndSummarize<&ispc::integrateRotation>("integrateRotation", ITERATIONS, VALUES);
-  runAndSummarize<&ispc::recomputeInertiaTensor>("recomputeInertiaTensor", ITERATIONS, VALUES);
-  printf("\n");
+  for(size_t i = 0; i < 3; ++i) {
+    runAndSummarize<&ispc::integrateLinearPosition>("integrateLinearPosition", ITERATIONS, VALUES);
+    runAndSummarize<&ispc::integrateLinearVelocityGlobalAccelleration>("integrateVelocity", ITERATIONS, VALUES);
+    runAndSummarize<&ispc::integrateRotation>("integrateRotation", ITERATIONS, VALUES);
+    runAndSummarize<&ispc::recomputeInertiaTensor>("recomputeInertiaTensor", ITERATIONS, VALUES);
+    printf("\n");
   }
 }

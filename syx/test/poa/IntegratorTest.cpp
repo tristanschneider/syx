@@ -1,6 +1,7 @@
 #include "Precompile.h"
 #include "CppUnitTest.h"
 
+#include "out_ispc/Inertia.h"
 #include "out_ispc/Integrator.h"
 
 #include "SyxMat3.h"
@@ -53,35 +54,27 @@ namespace poa {
     }
 
     TEST_METHOD(Integrator_IntegrateRotation_Integrates) {
-      FloatArray orientationI, orientationJ, orientationK, orientationW,
-        angVelX, angVelY, angVelZ;
+      QuatHolder resultOrientation;
+      Vec3Holder resultAngVel;
       const auto orientation = Syx::Quat::axisAngle(Syx::Vec3(1, 0, 0), 2.f);
       const Syx::Vec3 angVel(1, 1, 1);
       const float dt = 0.5f;
       const Syx::Quat expected = (orientation + 0.5f*Syx::Quat(angVel.x, angVel.y, angVel.z, 0.0f)*orientation*dt).normalized();
-      orientationI[0] = orientation.mV.x;
-      orientationJ[0] = orientation.mV.y;
-      orientationK[0] = orientation.mV.z;
-      orientationW[0] = orientation.mV.w;
-      angVelX[0] = angVel.x;
-      angVelY[0] = angVel.y;
-      angVelZ[0] = angVel.z;
+      resultOrientation.i[0] = orientation.mV.x;
+      resultOrientation.j[0] = orientation.mV.y;
+      resultOrientation.k[0] = orientation.mV.z;
+      resultOrientation.w[0] = orientation.mV.w;
+      resultAngVel.x[0] = angVel.x;
+      resultAngVel.y[0] = angVel.y;
+      resultAngVel.z[0] = angVel.z;
 
-      ispc::integrateRotation(orientationI.data(),
-        orientationJ.data(),
-        orientationK.data(),
-        orientationW.data(),
-        angVelX.data(),
-        angVelY.data(),
-        angVelZ.data(),
-        dt,
-        SIZE);
+      ispc::integrateRotation(resultOrientation.mValue,  resultAngVel.mValue, dt, SIZE);
 
       constexpr float e = 0.0001f;
-      Assert::AreEqual(expected.mV.x, orientationI[0], e);
-      Assert::AreEqual(expected.mV.y, orientationJ[0], e);
-      Assert::AreEqual(expected.mV.z, orientationK[0], e);
-      Assert::AreEqual(expected.mV.w, orientationW[0], e);
+      Assert::AreEqual(expected.mV.x, resultOrientation.i[0], e);
+      Assert::AreEqual(expected.mV.y, resultOrientation.j[0], e);
+      Assert::AreEqual(expected.mV.z, resultOrientation.k[0], e);
+      Assert::AreEqual(expected.mV.w, resultOrientation.w[0], e);
     }
 
     TEST_METHOD(Integrator_IntegrateAccelleration_Integrates) {
@@ -106,7 +99,7 @@ namespace poa {
       localInertiaHolder.set(0, localInertia.x, localInertia.y, localInertia.z);
       const Syx::Mat3 expected = orientation.toMatrix().scaled(localInertia) * orientation.toMatrix().transposed();
 
-      ispc::recomputeInertiaTensor4(orientationHolder.mValue, localInertiaHolder.mValue, result.mValue, SIZE);
+      ispc::recomputeInertiaTensor(orientationHolder.mValue, localInertiaHolder.mValue, result.mValue, SIZE);
 
       const float e = 0.0001f;
       Assert::AreEqual(expected.get(0, 0), result.a[0], e);
