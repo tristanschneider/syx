@@ -20,6 +20,7 @@
 #include "ecs/system/GlobalCommandBufferSystem.h"
 #include "ecs/system/GraphicsSystemBase.h"
 #include "ecs/system/LuaSpaceSerializerSystem.h"
+#include "ecs/system/physics/PhysicsSystem.h"
 #include "ecs/system/ProjectLocatorSystem.h"
 #include "ecs/system/RawInputSystem.h"
 #include "ecs/system/RemoveEntitiesSystem.h"
@@ -150,6 +151,11 @@ public:
     graphics.push_back(EditorSystem::playStateUpdate());
 
     graphics.push_back(GraphicsSystemBase::screenSizeListener());
+
+    for(auto&& system : PhysicsSystems::createDefault()) {
+      physics.push_back(system);
+    }
+
 
     //Clear messages at the end of the frame in the slowest tick rate
     cleanup.push_back(RemoveEntitiesSystem<View<Read<MessageComponent>>>::create());
