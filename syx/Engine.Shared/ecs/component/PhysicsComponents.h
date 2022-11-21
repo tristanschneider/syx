@@ -2,6 +2,9 @@
 
 #include "ecs/ECS.h"
 
+//All request components go on the physics entity unless otherwise noted
+
+//These requests go on the owner entity
 //Put this on an entity an the physics system will create a PhysicsObject and link the current
 //entity to it with a PhysicsOwnerComponent
 struct CreatePhysicsObjectRequestComponent {};
@@ -23,7 +26,24 @@ struct PhysicsObject {
 
 //Compute the local mass (mass and inertia) for the object
 struct ComputeMassRequestComponent {};
+//Recompute the inertia tensor based on the local inertia
 struct ComputeInertiaRequestComponent {};
+
+//Request that the transform of the owner entity is written to the physics entity
+struct SyncTransformRequestComponent {};
+//Request that the model of the owner entity is written to the physics entity
+struct SyncModelRequestComponent {};
+//Request that the ViewedVelocityComponent of the owner entity is written to the physics entity
+struct SyncVelocityRequestComponent {};
+
+struct ViewedVelocityComponent {
+  float mLinearX = 0.0f;
+  float mLinearY = 0.0f;
+  float mLinearZ = 0.0f;
+  float mAngularX = 0.0f;
+  float mAngularY = 0.0f;
+  float mAngularZ = 0.0f;
+};
 
 template<class Tag, class Element>
 struct FloatComponent {
