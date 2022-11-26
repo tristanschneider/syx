@@ -1,255 +1,89 @@
 #include "Precompile.h"
 #include "CppUnitTest.h"
 
-
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
-#include "App.h"
-#include "AppPlatform.h"
-#include "AppRegistration.h"
-#include "component/CameraComponent.h"
-#include "component/LuaComponent.h"
-#include "component/LuaComponentRegistry.h"
-#include "component/NameComponent.h"
-#include "component/Physics.h"
-#include "component/Renderable.h"
-#include "component/SpaceComponent.h"
-#include "component/Transform.h"
-#include "DebugDrawer.h"
-#include "event/DebugDrawEvent.h"
-#include "file/FilePath.h"
-#include "file/DirectoryWatcher.h"
-#include "system/AssetRepo.h"
-#include "system/LuaGameSystem.h"
-#include "system/PhysicsSystem.h"
-#include "SyxVec2.h"
-#include "asset/LuaScript.h"
-#include "event/BaseComponentEvents.h"
-#include "event/SpaceEvents.h"
-#include "event/EventBuffer.h"
-#include "LuaGameObject.h"
-#include "lua/LuaGameContext.h"
-#include "lua/LuaState.h"
-#include "lua/LuaVariant.h"
-#include "test/MockApp.h"
-
-#include "test/TestAppPlatform.h"
-#include "test/TestAppRegistration.h"
-
-#include "SyxInterface.h"
-
-#include "event/DeferredEventBuffer.h"
-
-namespace Syx {
-  namespace Interface {
-    extern ::MessageQueueProvider* gMsg;
-    extern SyxOptions gOptions;
-  }
-}
+#include "ecs/component/PhysicsComponents.h"
+#include "ecs/component/TransformComponent.h"
+#include "ecs/system/physics/PhysicsSystem.h"
+#include "SyxQuat.h"
+#include "test/TestAppContext.h"
 
 namespace SystemTests {
-  struct MockDebugDrawer : public MessageQueueProvider {
-    struct Command {
-      enum class Type : uint8_t {
-        Line,
-        Vector,
-        Sphere,
-        Cube,
-        Point,
-        SetColor,
-      };
-
-      Type mType;
-      Syx::Vec3 mA;
+  using namespace Engine;
+  TEST_CLASS(PhysicsSystemTests) {
+    struct PhysicsPair {
+      Entity mOwner, mPhysicsObject;
     };
 
-    MockDebugDrawer() {
-      Syx::Interface::gMsg = this;
-    }
-
-    ~MockDebugDrawer() {
-      Syx::Interface::gMsg = nullptr;
-    }
-
-    MessageQueue getMessageQueue() override {
-      return MessageQueue(mBuffer, mLock);
-    }
-
-    //Provide dummy objects, this isn't used by the physics system
-    DeferredMessageQueue getDeferredMessageQueue() override {
-      static DeferredEventBuffer dummy;
-      static std::mutex mutex;
-      return DeferredMessageQueue(dummy, mutex);
-    }
-
-    template<class E>
-    const E* getLastEventOfType() const {
-      static_assert(std::is_base_of_v<Event, E>, "This should be called with event types");
-      const E* result = nullptr;
-      for(auto&& e : mBuffer) {
-        if(e.getType() == typeId<E, Event>()) {
-          result = static_cast<const E*>(&e);
-        }
+    static void tickPhysicsSystems(EntityRegistry& registry) {
+      for(auto&& system : PhysicsSystems::createDefault()) {
+        system->tick(registry);
       }
+    }
+
+    static PhysicsPair createOwnedPhysicsObject(TestAppContext& app, Entity entity) {
+      PhysicsPair result;
+      result.mOwner = entity;
+
+      app.update();
+
+      PhysicsOwner* owner = app.mRegistry.tryGetComponent<PhysicsOwner>(result.mOwner);
+      Assert::IsNotNull(owner);
+      result.mPhysicsObject = owner->mPhysicsObject;
+      Assert::IsNotNull(app.mRegistry.tryGetComponent<PhysicsObject>(result.mPhysicsObject));
+
       return result;
     }
 
-    SpinLock mLock;
-    EventBuffer mBuffer;
-  };
-
-  TEST_CLASS(PhysicsSystemTests) {
-  public:
-    std::unique_ptr<ILuaGameContext> _createGameContext(App& app) {
-      return Lua::createGameContext(*app.getSystem<LuaGameSystem>());
+    static PhysicsPair createPhysicsPair(TestAppContext& app) {
+      return createOwnedPhysicsObject(app, app.mRegistry.createEntityWithComponents<CreatePhysicsObjectRequestComponent, TransformComponent>());
     }
 
-    MockApp _createApp() {
-      MockApp app(std::make_unique<TestAppPlatform>(), TestRegistration::createPhysicsRegistration());
-      app->getMessageQueue()->push(SetTimescaleEvent(0, 1.f));
-      return app;
+    TEST_METHOD(PhysicsOwnerWithCreateRequest_Tick_PhysicsObjectCreated) {
+      TestAppContext app;
+      PhysicsPair pair = createPhysicsPair(app);
+
+      PhysicsObject* obj = app.mRegistry.tryGetComponent<PhysicsObject>(pair.mPhysicsObject);
+      PhysicsOwner* owner = app.mRegistry.tryGetComponent<PhysicsOwner>(pair.mOwner);
+      Assert::IsNotNull(obj);
+      Assert::IsNotNull(owner);
+      Assert::IsTrue(obj->mPhysicsOwner == pair.mOwner);
+      Assert::IsTrue(owner->mPhysicsObject == pair.mPhysicsObject);
+      Assert::IsFalse(app.mRegistry.hasComponent<CreatePhysicsObjectRequestComponent>(pair.mOwner));
     }
 
-    struct GameObjectBuilder {
-      GameObjectBuilder(ILuaGameContext& context)
-        : mContext(&context) {
-      }
-      GameObjectBuilder(GameObjectBuilder&) = default;
+    TEST_METHOD(PhysicsOwnerWithTransformAndCreate_Tick_PhysicsObjectCreatedAtPosition) {
+      TestAppContext app;
+      auto& reg = app.mRegistry;
+      auto&& [ entity, req, transform ] = reg.createAndGetEntityWithComponents<CreatePhysicsObjectRequestComponent, TransformComponent>();
+      Syx::Quat rot = Syx::Quat::axisAngle(Syx::Vec3(1, 0, 0), 2.9f);
+      Syx::Vec3 pos(1, 2, 3);
+      transform.get().mValue = Syx::Mat4::transform(rot, pos);
+      PhysicsPair pair = createOwnedPhysicsObject(app, entity);
 
-      GameObjectBuilder& createGameObject() {
-        mCurrentObj = &mContext->addGameObject();
-        return *this;
-      }
-
-      GameObjectBuilder& setTransform(const Syx::Mat4& transform) {
-        if(mCurrentObj) {
-          Transform newTransform(mCurrentObj->getRuntimeID());
-          newTransform.set(transform);
-          mCurrentObj->getComponent(newTransform.getFullType())->set(newTransform);
-        }
-        return *this;
-      }
-
-      GameObjectBuilder& addPhysicsComponent() {
-        if(mCurrentObj) {
-          mCurrentObj->addComponent("Physics");
-        }
-        return *this;
-      }
-
-      GameObjectBuilder& enableCollider(const std::string& modelName) {
-        if(mCurrentObj) {
-          if(IComponent* component = mCurrentObj->getComponent(Physics::singleton().getFullType())) {
-            Physics physics = component->get<Physics>();
-            PhysicsData data = physics.getData();
-            data.mHasCollider = true;
-            AssetInfo cubeInfo(modelName);
-            cubeInfo.fill();
-            data.mModel = cubeInfo.mId;
-
-            physics.setData(data);
-            component->set(physics);
-          }
-        }
-        return *this;
-      }
-
-      GameObjectBuilder& enableRigidbody() {
-        if(mCurrentObj) {
-          if(IComponent* component = mCurrentObj->getComponent(Physics::singleton().getFullType())) {
-            Physics physics = component->get<Physics>();
-            PhysicsData data = physics.getData();
-            data.mHasRigidbody = true;
-
-            physics.setData(data);
-            component->set(physics);
-          }
-        }
-        return *this;
-      }
-
-      GameObjectBuilder& refreshComponents() {
-        const Handle h = mCurrentObj ? mCurrentObj->getRuntimeID() : InvalidHandle;
-        mContext->clearCache();
-        mCurrentObj = mContext->getGameObject(h);
-        return *this;
-      }
-
-      ILuaGameContext* mContext = nullptr;
-      IGameObject* mCurrentObj = nullptr;
-    };
-
-    TEST_METHOD(EmptyScene_Update_NothingHappens) {
-      _createApp()->update(1.f);
-    }
-    /* TODO: fix or delete
-    TEST_METHOD(SingleObject_AddPhysicsComponent_PositionsMatch) {
-      auto app = _createApp();
-      auto context = _createGameContext(*app);
-      auto builder = GameObjectBuilder(*context)
-        .createGameObject()
-        //Set at a nonzero position
-        .setTransform(Syx::Mat4::transform(Syx::Quat::Zero, Syx::Vec3(1, 2, 3)))
-        .addPhysicsComponent()
-        .enableCollider(PhysicsSystem::CUBE_MODEL_NAME)
-        .enableRigidbody();
-      MockDebugDrawer debugDrawer;
-
-      //Create the object and send the transform data request
-      app->update(0.f);
-      //Respond to the transform data request
-      app->update(0.f);
-      //Process the transform data response
-      app->update(0.f);
-
-      auto e = debugDrawer.getLastEventOfType<DrawPointEvent>();
-      Assert::IsNotNull(e);
-      Assert::IsTrue(e->mPoint.distance2(Syx::Vec3(1, 2, 3)) < 0.001f, L"Position of physics object should match transform of gameobject", LINE_INFO());
+      using namespace Tags;
+      Assert::AreEqual(pos.x, reg.getComponent<FloatComponent<Position, X>>(pair.mPhysicsObject).mValue);
+      Assert::AreEqual(pos.y, reg.getComponent<FloatComponent<Position, Y>>(pair.mPhysicsObject).mValue);
+      Assert::AreEqual(pos.z, reg.getComponent<FloatComponent<Position, Z>>(pair.mPhysicsObject).mValue);
+      Assert::AreEqual(rot.mV.x, reg.getComponent<FloatComponent<Rotation, I>>(pair.mPhysicsObject).mValue, 0.001f);
+      Assert::AreEqual(rot.mV.y, reg.getComponent<FloatComponent<Rotation, J>>(pair.mPhysicsObject).mValue, 0.001f);
+      Assert::AreEqual(rot.mV.z, reg.getComponent<FloatComponent<Rotation, K>>(pair.mPhysicsObject).mValue, 0.001f);
+      Assert::AreEqual(rot.mV.w, reg.getComponent<FloatComponent<Rotation, W>>(pair.mPhysicsObject).mValue, 0.001f);
     }
 
-    TEST_METHOD(RigidbodyWithCollider_Update_GravityApplied) {
-      auto app = _createApp();
-      auto context = _createGameContext(*app);
-      auto builder = GameObjectBuilder(*context)
-        .createGameObject()
-        .addPhysicsComponent()
-        .enableRigidbody()
-        .enableCollider(PhysicsSystem::CUBE_MODEL_NAME);
-      MockDebugDrawer debugDrawer;
+    TEST_METHOD(PhysicsOwnerWithDestroyRequest_Tick_PhysicsObjectDestroyed) {
+      TestAppContext app;
+      auto& reg = app.mRegistry;
+      PhysicsPair pair = createPhysicsPair(app);
+      reg.addComponent<DestroyPhysicsObjectRequestComponent>(pair.mOwner);
 
-      app->update(1.f);
+      app.update();
 
-      auto e = debugDrawer.getLastEventOfType<DrawPointEvent>();
-      Assert::IsNotNull(e);
-      Assert::IsTrue(e->mPoint.y < 0, L"Gravity should have moved the rigidbody below its original position of 0", LINE_INFO());
+      Assert::IsFalse(reg.isValid(pair.mPhysicsObject));
+      Assert::IsTrue(reg.isValid(pair.mOwner));
+      Assert::IsFalse(reg.hasComponent<PhysicsOwner>(pair.mOwner));
+      Assert::IsFalse(reg.hasComponent<DestroyPhysicsObjectRequestComponent>(pair.mOwner));
     }
-    */
-
-    /* TODO: fails in release sometimes
-    TEST_METHOD(GameobjectWithRigidbody_Update_GravityApplied) {
-      auto app = _createApp();
-      auto context = _createGameContext(*app);
-      auto builder = GameObjectBuilder(*context)
-        .createGameObject()
-        .addPhysicsComponent()
-        .enableRigidbody();
-      const Syx::Vec3 originalPos = builder.mCurrentObj->getComponent(Transform::singleton().getFullType())->get<Transform>().get().getTranslate();
-
-      //Physics system will broadcast new positions at the end of this update
-      app->update(1.f);
-      //Results will be processed by gameplay on this update
-      app->update(0.f);
-
-      builder.refreshComponents();
-      const Syx::Vec3 newPos = builder.mCurrentObj->getComponent(Transform::singleton().getFullType())->get<Transform>().get().getTranslate();
-      Assert::IsTrue(newPos.y < originalPos.y, L"Gravity should have moved the rigidbody below its original position", LINE_INFO());
-    }
-    */
-
-    //TODO:
-    //Test to prove that applying forces doesn't cancel out physics updates
-    //GameObjectWithRigidbody_ApplyForce_ObjectMoves
-    //GameObjectWithRigidbody_ApplyForce_GravityUnaffected
-    //SleepingRigidbody_ApplyForce_ObjectMoves
   };
 }
