@@ -11,9 +11,22 @@ struct UniformVec3 {
   uniform float* z;
 };
 
+struct UniformConstVec3 {
+  uniform const float* x;
+  uniform const float* y;
+  uniform const float* z;
+};
+
 struct UniformQuat {
   uniform float* i;
   uniform float* j;
   uniform float* k;
   uniform float* w;
+};
+
+struct UniformConstQuat {
+  uniform const float* i;
+  uniform const float* j;
+  uniform const float* k;
+  uniform const float* w;
 };

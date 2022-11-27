@@ -22,7 +22,7 @@ namespace poa {
       localInertiaHolder.set(0, localInertia.x, localInertia.y, localInertia.z);
       const Syx::Mat3 expected = orientation.toMatrix().scaled(localInertia) * orientation.toMatrix().transposed();
 
-      ispc::recomputeInertiaTensor(orientationHolder.mValue, localInertiaHolder.mValue, result.mValue, SIZE);
+      ispc::recomputeInertiaTensor(orientationHolder.mConstValue, localInertiaHolder.mConstValue, result.mValue, SIZE);
 
       const float e = 0.0001f;
       Assert::AreEqual(expected.get(0, 0), result.a[0], e);

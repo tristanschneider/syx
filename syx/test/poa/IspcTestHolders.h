@@ -21,6 +21,7 @@ namespace poa {
 
     FloatArray x, y, z;
     ispc::UniformVec3 mValue{ x.data(), y.data(), z.data() };
+    ispc::UniformConstVec3 mConstValue{ x.data(), y.data(), z.data() };
   };
 
   struct QuatHolder {
@@ -33,5 +34,6 @@ namespace poa {
 
     FloatArray i, j, k, w;
     ispc::UniformQuat mValue{ i.data(), j.data(), k.data(), w.data() };
+    ispc::UniformConstQuat mConstValue{ i.data(), j.data(), k.data(), w.data() };
   };
 }

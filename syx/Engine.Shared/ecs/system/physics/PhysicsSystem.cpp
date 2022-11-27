@@ -125,6 +125,12 @@ namespace Impl {
     _removeFromAllInView(context);
   }
 
+  struct SOAConstVec3s {
+    const float* x = nullptr;
+    const float* y = nullptr;
+    const float* z = nullptr;
+  };
+
   struct SOAVec3s {
     void set(size_t index, float inX, float inY, float inZ) {
       x[index] = inX;
@@ -135,6 +141,13 @@ namespace Impl {
     float* x = nullptr;
     float* y = nullptr;
     float* z = nullptr;
+  };
+
+  struct SOAConstQuats {
+    const float* i = nullptr;
+    const float* j = nullptr;
+    const float* k = nullptr;
+    const float* w = nullptr;
   };
 
   struct SOAQuats {
@@ -151,6 +164,18 @@ namespace Impl {
     float* w = nullptr;
   };
 
+  // a b c
+  //   d e
+  //     f
+  struct SOASymmetricMatrix {
+    float* a = nullptr;
+    float* b = nullptr;
+    float* c = nullptr;
+    float* d = nullptr;
+    float* e = nullptr;
+    float* f = nullptr;
+  };
+
   template<class TagT, class TagV, class FromChunk>
   float* _unwrapFloat(FromChunk& chunk) {
     return reinterpret_cast<float*>(chunk.tryGet<FloatComponent<TagT, TagV>>()->data());
@@ -159,6 +184,18 @@ namespace Impl {
   template<class TagT, class TagV, class FromChunk>
   const float* _unwrapConstFloat(FromChunk& chunk) {
     return reinterpret_cast<const float*>(chunk.tryGet<const FloatComponent<TagT, TagV>>()->data());
+  }
+
+  template<class TagT, class FromChunk>
+  SOASymmetricMatrix _unwrapSymmetricMatrix(FromChunk& chunk) {
+    return SOASymmetricMatrix {
+      reinterpret_cast<float*>(chunk.tryGet<FloatComponent<TagT, A>>()->data()),
+      reinterpret_cast<float*>(chunk.tryGet<FloatComponent<TagT, B>>()->data()),
+      reinterpret_cast<float*>(chunk.tryGet<FloatComponent<TagT, C>>()->data()),
+      reinterpret_cast<float*>(chunk.tryGet<FloatComponent<TagT, D>>()->data()),
+      reinterpret_cast<float*>(chunk.tryGet<FloatComponent<TagT, E>>()->data()),
+      reinterpret_cast<float*>(chunk.tryGet<FloatComponent<TagT, F>>()->data())
+    };
   }
 
   template<class TagT, class FromChunk>
@@ -171,12 +208,31 @@ namespace Impl {
   }
 
   template<class TagT, class FromChunk>
+  SOAConstVec3s _unwrapConstVec3(FromChunk& chunk) {
+    return SOAConstVec3s {
+      reinterpret_cast<const float*>(chunk.tryGet<const FloatComponent<TagT, X>>()->data()),
+      reinterpret_cast<const float*>(chunk.tryGet<const FloatComponent<TagT, Y>>()->data()),
+      reinterpret_cast<const float*>(chunk.tryGet<const FloatComponent<TagT, Z>>()->data())
+    };
+  }
+
+  template<class TagT, class FromChunk>
   SOAQuats _unwrapQuat(FromChunk& chunk) {
     return {
       reinterpret_cast<float*>(chunk.tryGet<FloatComponent<TagT, I>>()->data()),
       reinterpret_cast<float*>(chunk.tryGet<FloatComponent<TagT, J>>()->data()),
       reinterpret_cast<float*>(chunk.tryGet<FloatComponent<TagT, K>>()->data()),
       reinterpret_cast<float*>(chunk.tryGet<FloatComponent<TagT, W>>()->data())
+    };
+  }
+
+  template<class TagT, class FromChunk>
+  SOAConstQuats _unwrapConstQuat(FromChunk& chunk) {
+    return {
+      reinterpret_cast<const float*>(chunk.tryGet<const FloatComponent<TagT, I>>()->data()),
+      reinterpret_cast<const float*>(chunk.tryGet<const FloatComponent<TagT, J>>()->data()),
+      reinterpret_cast<const float*>(chunk.tryGet<const FloatComponent<TagT, K>>()->data()),
+      reinterpret_cast<const float*>(chunk.tryGet<const FloatComponent<TagT, W>>()->data())
     };
   }
 
@@ -275,6 +331,34 @@ namespace Impl {
       ispc::invertMass(inertia.z, density, count);
     }
   }
+
+  using ComputeInertiaView = View<
+    Include<ComputeInertiaRequestComponent>,
+    Read<FloatComponent<Rotation, I>>,
+    Read<FloatComponent<Rotation, J>>,
+    Read<FloatComponent<Rotation, K>>,
+    Read<FloatComponent<Rotation, W>>,
+    Read<FloatComponent<LocalInertia, X>>,
+    Read<FloatComponent<LocalInertia, Y>>,
+    Read<FloatComponent<LocalInertia, Z>>,
+    Write<FloatComponent<Inertia, A>>,
+    Write<FloatComponent<Inertia, B>>,
+    Write<FloatComponent<Inertia, C>>,
+    Write<FloatComponent<Inertia, D>>,
+    Write<FloatComponent<Inertia, E>>,
+    Write<FloatComponent<Inertia, F>>
+  >;
+  void _recomputeInertia(SystemContext<ComputeInertiaView>& context) {
+    for(auto&& chunk : context.get<ComputeInertiaView>().chunks()) {
+      SOASymmetricMatrix result = _unwrapSymmetricMatrix<Inertia>(chunk);
+      SOAConstVec3s localInertia = _unwrapConstVec3<LocalInertia>(chunk);
+      SOAConstQuats rot = _unwrapConstQuat<Rotation>(chunk);
+      const ispc::UniformConstVec3 uInertia{ localInertia.x, localInertia.y, localInertia.z };
+      const ispc::UniformConstQuat uRot{ rot.i, rot.j, rot.k, rot.w };
+      ispc::UniformSymmetricMatrix uResult{ result.a, result.b, result.c, result.d, result.e, result.f };
+      ispc::recomputeInertiaTensor(uRot, uInertia, uResult, static_cast<uint32_t>(chunk.size()));
+    }
+  }
 }
 
 std::vector<std::shared_ptr<Engine::System>> PhysicsSystems::createDefault() {
@@ -290,8 +374,13 @@ std::vector<std::shared_ptr<Engine::System>> PhysicsSystems::createDefault() {
   systems.push_back(ecx::makeSystem("SyncModel", &Impl::_syncModel));
   systems.push_back(ecx::makeSystem("SphereMass", &Impl::_computeSphereMass));
   systems.push_back(ecx::makeSystem("InvertMass", &Impl::_invertMass));
+
+  // Both for initialization and the common case when objects move
+  systems.push_back(ecx::makeSystem("ComputeInertia", &Impl::_recomputeInertia));
+
   systems.push_back(ecx::makeSystem("ClearRequests", &Impl::_removeAllComponentsSystem<SyncTransformRequestComponent>));
   systems.push_back(ecx::makeSystem("ClearRequests", &Impl::_removeAllComponentsSystem<SyncModelRequestComponent>));
   systems.push_back(ecx::makeSystem("ClearRequests", &Impl::_removeAllComponentsSystem<SyncVelocityRequestComponent>));
+  systems.push_back(ecx::makeSystem("ClearRequests", &Impl::_removeAllComponentsSystem<ComputeInertiaRequestComponent>));
   return systems;
 }

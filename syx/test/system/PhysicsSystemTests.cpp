@@ -125,7 +125,7 @@ namespace SystemTests {
       Assert::IsFalse(reg.hasComponent<SyncModelRequestComponent>(pair.mOwner));
     }
 
-    TEST_METHOD(PhysicsOwnerSphere_Tick_HassMass) {
+    TEST_METHOD(PhysicsOwnerSphere_Tick_HasMass) {
       TestAppContext app;
       auto& reg = app.mRegistry;
       const float radius = 2.0f;
@@ -142,6 +142,31 @@ namespace SystemTests {
       Assert::AreEqual(1.0f/expectedInertia, reg.getComponent<FloatComponent<LocalInertia, X>>(pair.mPhysicsObject).mValue, e);
       Assert::AreEqual(1.0f/expectedInertia, reg.getComponent<FloatComponent<LocalInertia, Y>>(pair.mPhysicsObject).mValue, e);
       Assert::AreEqual(1.0f/expectedInertia, reg.getComponent<FloatComponent<LocalInertia, Z>>(pair.mPhysicsObject).mValue, e);
+    }
+
+    TEST_METHOD(PhysicsOwnerSphere_Tick_InertiaUpdated) {
+      const float radius = 1.5f;
+      const float pi = 3.14159265358979323846f;
+      const float density = 3.0f;
+      const float mass = (4.0f*pi/3.0f)*radius*radius*radius*density;
+      //Moment of inertia of a sphere is this along the diagonal
+      const float expected = 1.f/((2.0f/5.0f)*mass*radius*radius);
+      TestAppContext app;
+      auto& reg = app.mRegistry;
+      PhysicsPair pair = createPhysicsPairSphere(app, radius, density);
+
+      app.update();
+
+      const float e = 0.0001f;
+      using namespace Tags;
+      //Verify diagonal
+      Assert::AreEqual(expected, reg.getComponent<FloatComponent<Inertia, A>>(pair.mPhysicsObject).mValue, e);
+      Assert::AreEqual(expected, reg.getComponent<FloatComponent<Inertia, D>>(pair.mPhysicsObject).mValue, e);
+      Assert::AreEqual(expected, reg.getComponent<FloatComponent<Inertia, F>>(pair.mPhysicsObject).mValue, e);
+      //Verify non-diagonal
+      Assert::AreEqual(0.f, reg.getComponent<FloatComponent<Inertia, B>>(pair.mPhysicsObject).mValue, e);
+      Assert::AreEqual(0.f, reg.getComponent<FloatComponent<Inertia, C>>(pair.mPhysicsObject).mValue, e);
+      Assert::AreEqual(0.f, reg.getComponent<FloatComponent<Inertia, E>>(pair.mPhysicsObject).mValue, e);
     }
   };
 }

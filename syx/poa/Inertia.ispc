@@ -37,8 +37,8 @@ Matrix quat_to_matrix(float<4> q) {
 //[dx, ey, fz] * [b, e, h] = [               , ddx + eey + ffz, dgx + ehy + fiz]
 //[gx, hy, iz]   [c, f, i]   [               ,                , ggx + hhy + iiz]
 export void recomputeInertiaTensor(
-  const uniform UniformQuat& orientation,
-  const uniform UniformVec3& localInertia,
+  const uniform UniformConstQuat& orientation,
+  const uniform UniformConstVec3& localInertia,
   uniform UniformSymmetricMatrix& inertia,
   uniform uint32 count) {
   foreach(i = 0 ... count) {
