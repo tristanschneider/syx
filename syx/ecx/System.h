@@ -230,6 +230,12 @@ namespace ecx {
 
     EntityRegistry<EntityT>* mRegistry = nullptr;
     ThreadLocalContext* mThreadLocalContext = nullptr;
+
+  public:
+    //Get all accessors at once. Down here since it relies on DeduceGet definition
+    std::tuple<decltype(DeduceGet<Accessors>::get(std::declval<EntityRegistry<EntityT>&>(), std::declval<ThreadLocalContext&>()))...> get() {
+      return { DeduceGet<Accessors>::get(*mRegistry, *mThreadLocalContext)... };
+    }
   };
 
   //Base system interface intended for storing registered systems.

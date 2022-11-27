@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ecs/ECS.h"
+#include <variant>
 
 //All request components go on the physics entity unless otherwise noted
 
@@ -24,14 +25,13 @@ struct PhysicsObject {
   Engine::Entity mPhysicsOwner;
 };
 
-//Compute the local mass (mass and inertia) for the object
-struct ComputeMassRequestComponent {};
 //Recompute the inertia tensor based on the local inertia
 struct ComputeInertiaRequestComponent {};
 
 //Request that the transform of the owner entity is written to the physics entity
 struct SyncTransformRequestComponent {};
 //Request that the model of the owner entity is written to the physics entity
+//This will also cause the local mass to be recomputed
 struct SyncModelRequestComponent {};
 //Request that the ViewedVelocityComponent of the owner entity is written to the physics entity
 struct SyncVelocityRequestComponent {};
@@ -58,6 +58,8 @@ namespace Tags {
   struct Inertia{};
   struct LocalInertia{};
   struct Mass{};
+  struct SphereModel{};
+  struct Density{};
 
   //Vec3
   struct X{};
@@ -76,4 +78,19 @@ namespace Tags {
   struct E{};
   struct F{};
   struct Value{};
+  struct Radius{};
+};
+
+// This is put on the owner to indicate what type of model should correspond to the physics object
+struct PhysicsModelComponent {
+  // Note that this is used instead of scale from transform to avoid needing to recompute model
+  // mass any time transform changes because only a scale change would change the mass
+  struct Sphere {
+    float mRadius = 0.0f;
+  };
+
+  using Variant = std::variant<Sphere>;
+
+  float mDensity = 1.f;
+  Variant mModel;
 };

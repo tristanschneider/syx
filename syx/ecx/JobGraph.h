@@ -143,6 +143,9 @@ namespace ecx {
           for(auto&& type : info.mFactoryTypes) {
             tryProcessCommandsForType(type);
           }
+          for(auto&& type : info.mCommandBufferTypes) {
+            tryProcessCommandsForType(type);
+          }
           if(info.mIsBlocking) {
             if(!info.mIsCommandProcessor && !commandProcessTypes.empty()) {
               processAllCommands = true;

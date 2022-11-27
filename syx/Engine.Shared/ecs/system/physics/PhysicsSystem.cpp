@@ -4,12 +4,13 @@
 #include "ecs/component/PhysicsComponents.h"
 #include "ecs/component/TransformComponent.h"
 
+#include "out_ispc/Inertia.h"
+
 namespace Impl {
   using namespace Tags;
   using namespace Engine;
   using FactoryCommands = CommandBuffer<
     CreatePhysicsObjectRequestComponent,
-    ComputeMassRequestComponent,
     ComputeInertiaRequestComponent,
     PhysicsOwner,
     PhysicsObject,
@@ -38,7 +39,8 @@ namespace Impl {
     FloatComponent<Inertia, D>,
     FloatComponent<Inertia, E>,
     FloatComponent<Inertia, F>,
-    FloatComponent<Mass, Value>
+    FloatComponent<Mass, Value>,
+    FloatComponent<Density, Value>
   >;
 
   using CreateView = View<Include<CreatePhysicsObjectRequestComponent>>;
@@ -49,7 +51,6 @@ namespace Impl {
         const Entity owner = chunk.indexToEntity(i);
         auto tuple = cmd.createAndGetEntityWithComponents<
           PhysicsObject,
-          ComputeMassRequestComponent,
           ComputeInertiaRequestComponent,
           SyncTransformRequestComponent,
           SyncModelRequestComponent,
@@ -76,7 +77,8 @@ namespace Impl {
           FloatComponent<Inertia, D>,
           FloatComponent<Inertia, E>,
           FloatComponent<Inertia, F>,
-          FloatComponent<Mass, Value>
+          FloatComponent<Mass, Value>,
+          FloatComponent<Density, Value>
         >();
 
         //Link the new object to its owner
@@ -106,16 +108,21 @@ namespace Impl {
   }
 
   //Remove these components from all entities that have them
-  template<class... ToRemove>
-  void _removeAllComponentsSystem(SystemContext<CommandBuffer<ToRemove...>, View<Include<ToRemove>...>>& context) {
-    auto cmd = context.get<CommandBuffer<ToRemove...>>();
+  template<class RemoveView, class ToRemove>
+  void _removeFromAllInView(SystemContext<CommandBuffer<ToRemove>, RemoveView>& context) {
+    auto&& [ cmd, view ] = context.get();
     //TODO: remove from all in chunk support would help here
-    for(auto&& chunk : context.get<View<Include<ToRemove>...>>().chunks()) {
+    for(auto&& chunk : view.chunks()) {
       for(size_t i = 0; i < chunk.size(); ++i) {
         const auto entity = chunk.indexToEntity(i);
-        (cmd.removeComponent<ToRemove>(entity), ...);
+        cmd.removeComponent<ToRemove>(entity);
       }
     }
+  }
+
+  template<class ToRemove>
+  void _removeAllComponentsSystem(SystemContext<CommandBuffer<ToRemove>, View<Include<ToRemove>>>& context) {
+    _removeFromAllInView(context);
   }
 
   struct SOAVec3s {
@@ -143,6 +150,16 @@ namespace Impl {
     float* k = nullptr;
     float* w = nullptr;
   };
+
+  template<class TagT, class TagV, class FromChunk>
+  float* _unwrapFloat(FromChunk& chunk) {
+    return reinterpret_cast<float*>(chunk.tryGet<FloatComponent<TagT, TagV>>()->data());
+  }
+
+  template<class TagT, class TagV, class FromChunk>
+  const float* _unwrapConstFloat(FromChunk& chunk) {
+    return reinterpret_cast<const float*>(chunk.tryGet<const FloatComponent<TagT, TagV>>()->data());
+  }
 
   template<class TagT, class FromChunk>
   SOAVec3s _unwrapVec3(FromChunk& chunk) {
@@ -183,7 +200,7 @@ namespace Impl {
         //Find physics entity's paired owner and get their transform
         if(auto ownerIt = source.find(destObjs->at(i).mPhysicsOwner); ownerIt != source.end()) {
           const TransformComponent& sourceTransform = (*ownerIt).get<const TransformComponent>();
-          //TODO: use scale
+          //Scale isn't used from the transform, it's only applied as appropriate from the PhysicsModelComponent
           Syx::Vec3 translate, scale;
           Syx::Mat3 rotate;
           sourceTransform.mValue.decompose(scale, rotate, translate);
@@ -196,13 +213,85 @@ namespace Impl {
       }
     }
   }
+
+  using SyncModelSource = View<Read<PhysicsModelComponent>>;
+  using SyncModelDest = View<Include<SyncModelRequestComponent>, Read<PhysicsObject>, Write<FloatComponent<Density, Value>>>;
+  using SyncModelCmd = CommandBuffer<FloatComponent<SphereModel, Radius>>;
+  void visitModel(const PhysicsModelComponent::Sphere& model, const Entity& physicsObject, SyncModelCmd& cmd) {
+    cmd.addComponent<FloatComponent<SphereModel, Radius>>(physicsObject).mValue = model.mRadius;
+  }
+
+  //Add appropriate model to physics object assuming whatever it previously was has already been cleared
+  void _syncModel(SystemContext<SyncModelSource, SyncModelDest, SyncModelCmd>& context) {
+    auto& src = context.get<SyncModelSource>();
+    auto cmd = context.get<SyncModelCmd>();
+    for(auto&& chunk : context.get<SyncModelDest>().chunks()) {
+      const auto* objects = chunk.tryGet<const PhysicsObject>();
+      float* densities = _unwrapFloat<Density, Value>(chunk);
+      for(size_t i = 0; i < chunk.size(); ++i) {
+        if(auto it = src.find(objects->at(i).mPhysicsOwner); it != src.end()) {
+          const PhysicsModelComponent& sourceModel = (*it).get<const PhysicsModelComponent>();
+          std::visit([&](auto&& model) { visitModel(model, chunk.indexToEntity(i), cmd); }, sourceModel.mModel);
+          densities[i] = sourceModel.mDensity;
+        }
+      }
+    }
+  }
+
+  using SphereMassView = View<Include<SyncModelRequestComponent>,
+    Read<FloatComponent<SphereModel, Radius>>,
+    Write<FloatComponent<Mass, Value>>,
+    Write<FloatComponent<LocalInertia, X>>,
+    Write<FloatComponent<LocalInertia, Y>>,
+    Write<FloatComponent<LocalInertia, Z>>
+  >;
+  void _computeSphereMass(SystemContext<SphereMassView>& context) {
+    for(auto&& chunk : context.get<SphereMassView>().chunks()) {
+      SOAVec3s inertia = _unwrapVec3<LocalInertia>(chunk);
+      const float* radius = _unwrapConstFloat<SphereModel, Radius>(chunk);
+      float* resultMass = _unwrapFloat<Mass, Value>(chunk);
+      ispc::UniformVec3 uInertia{ inertia.x, inertia.y, inertia.z };
+      ispc::computeSphereMass(radius, resultMass, uInertia, static_cast<uint32_t>(chunk.size()));
+    }
+  }
+
+  //Invert the result of the mass calculation from the previous system. Done as a separate step since this doesn't depend on model type
+  using InvertMassView = View<Include<SyncModelRequestComponent>,
+    Read<FloatComponent<Density, Value>>,
+    Write<FloatComponent<Mass, Value>>,
+    Write<FloatComponent<LocalInertia, X>>,
+    Write<FloatComponent<LocalInertia, Y>>,
+    Write<FloatComponent<LocalInertia, Z>>
+  >;
+  void _invertMass(SystemContext<InvertMassView>& context) {
+    for(auto&& chunk : context.get<InvertMassView>().chunks()) {
+      SOAVec3s inertia = _unwrapVec3<LocalInertia>(chunk);
+      const float* density = _unwrapConstFloat<Density, Value>(chunk);
+      float* mass = _unwrapFloat<Mass, Value>(chunk);
+      const uint32_t count = static_cast<uint32_t>(chunk.size());
+      ispc::invertMass(mass, density, count);
+      ispc::invertMass(inertia.x, density, count);
+      ispc::invertMass(inertia.y, density, count);
+      ispc::invertMass(inertia.z, density, count);
+    }
+  }
 }
 
 std::vector<std::shared_ptr<Engine::System>> PhysicsSystems::createDefault() {
+  using namespace Engine;
   std::vector<std::shared_ptr<Engine::System>> systems;
   systems.push_back(ecx::makeSystem("CreatePhysicsObjects", &Impl::_createPhysicsObjects));
   systems.push_back(ecx::makeSystem("DestroyPhysicsObjects", &Impl::_destroyPhysicsObjects));
   systems.push_back(ecx::makeSystem("SyncTransform", &Impl::_syncTransform));
+  systems.push_back(ecx::makeSystem("ClearOldModel", &Impl::_removeFromAllInView<
+    View<Include<SyncModelRequestComponent>, Include<FloatComponent<Tags::SphereModel, Tags::Radius>>>,
+    FloatComponent<Tags::SphereModel, Tags::Radius>
+  >));
+  systems.push_back(ecx::makeSystem("SyncModel", &Impl::_syncModel));
+  systems.push_back(ecx::makeSystem("SphereMass", &Impl::_computeSphereMass));
+  systems.push_back(ecx::makeSystem("InvertMass", &Impl::_invertMass));
   systems.push_back(ecx::makeSystem("ClearRequests", &Impl::_removeAllComponentsSystem<SyncTransformRequestComponent>));
+  systems.push_back(ecx::makeSystem("ClearRequests", &Impl::_removeAllComponentsSystem<SyncModelRequestComponent>));
+  systems.push_back(ecx::makeSystem("ClearRequests", &Impl::_removeAllComponentsSystem<SyncVelocityRequestComponent>));
   return systems;
 }
