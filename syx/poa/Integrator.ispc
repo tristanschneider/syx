@@ -2,7 +2,7 @@
 #include "Uniforms.ispc"
 
 //Special case for constant accelleration because the most likely use case is gravity which is constant for all instances
-export void integrateLinearVelocityGlobalAccelleration(uniform float velocity[], uniform float accelleration, uniform float dt, uniform uint32 count) {
+export void integrateLinearVelocityGlobalAcceleration(uniform float velocity[], uniform float accelleration, uniform float dt, uniform uint32 count) {
   const float scaledAccelleration = accelleration*dt;
   foreach(i = 0 ... count) {
     velocity[i] += scaledAccelleration;
@@ -10,7 +10,7 @@ export void integrateLinearVelocityGlobalAccelleration(uniform float velocity[],
 }
 
 export void integrateLinearPosition(uniform float position[],
-  uniform float velocity[],
+  uniform const float velocity[],
   uniform float dt,
   uniform uint32 count) {
   foreach(i = 0 ... count) {
@@ -22,7 +22,7 @@ export void integrateLinearPosition(uniform float position[],
 //W is the imaginary component
 export void integrateRotation(
   uniform UniformQuat& orientation,
-  uniform UniformVec3& angVel,
+  uniform const UniformConstVec3& angVel,
   uniform float dt,
   uniform uint32 count) {
   // Integration is:

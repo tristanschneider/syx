@@ -73,6 +73,28 @@ struct ArgumentHolder<T, std::enable_if_t<std::is_same_v<ispc::UniformQuat, std:
 };
 
 template<class T>
+struct ArgumentHolder<T, std::enable_if_t<std::is_same_v<ispc::UniformConstQuat, std::decay_t<T>>>> {
+  void setSize(size_t size) {
+    i.resize(size);
+    j.resize(size);
+    k.resize(size);
+    w.resize(size);
+  }
+
+  ispc::UniformConstQuat& getValue() {
+    mValue.i = i.data();
+    mValue.j = j.data();
+    mValue.k = k.data();
+    mValue.w = w.data();
+    return mValue;
+  }
+
+  std::vector<float> i, j, k, w;
+  ispc::UniformConstQuat mValue;
+};
+
+
+template<class T>
 struct ArgumentHolder<T, std::enable_if_t<std::is_same_v<ispc::UniformVec3, std::decay_t<T>>>> {
   void setSize(size_t size) {
     x.resize(size);
@@ -90,6 +112,26 @@ struct ArgumentHolder<T, std::enable_if_t<std::is_same_v<ispc::UniformVec3, std:
   std::vector<float> x, y, z;
   ispc::UniformVec3 mValue;
 };
+
+template<class T>
+struct ArgumentHolder<T, std::enable_if_t<std::is_same_v<ispc::UniformConstVec3, std::decay_t<T>>>> {
+  void setSize(size_t size) {
+    x.resize(size);
+    y.resize(size);
+    z.resize(size);
+  }
+
+  ispc::UniformConstVec3& getValue() {
+    mValue.x = x.data();
+    mValue.y = y.data();
+    mValue.z = z.data();
+    return mValue;
+  }
+
+  std::vector<float> x, y, z;
+  ispc::UniformConstVec3 mValue;
+};
+
 
 template<class T>
 struct ArgumentHolder<T*> {
@@ -200,7 +242,7 @@ int main() {
 
   for(size_t i = 0; i < 3; ++i) {
     runAndSummarize<&ispc::integrateLinearPosition>("integrateLinearPosition", ITERATIONS, VALUES);
-    runAndSummarize<&ispc::integrateLinearVelocityGlobalAccelleration>("integrateVelocity", ITERATIONS, VALUES);
+    runAndSummarize<&ispc::integrateLinearVelocityGlobalAcceleration>("integrateVelocity", ITERATIONS, VALUES);
     runAndSummarize<&ispc::integrateRotation>("integrateRotation", ITERATIONS, VALUES);
     runAndSummarize<&ispc::recomputeInertiaTensor>("recomputeInertiaTensor", ITERATIONS, VALUES);
     runAndSummarize<&ispc::computeSphereMass>("sphereMass", ITERATIONS, VALUES);

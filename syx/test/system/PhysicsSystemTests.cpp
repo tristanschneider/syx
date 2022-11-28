@@ -168,5 +168,52 @@ namespace SystemTests {
       Assert::AreEqual(0.f, reg.getComponent<FloatComponent<Inertia, C>>(pair.mPhysicsObject).mValue, e);
       Assert::AreEqual(0.f, reg.getComponent<FloatComponent<Inertia, E>>(pair.mPhysicsObject).mValue, e);
     }
+
+    TEST_METHOD(PhysicsOwnerSphere_Tick_GravityAppliedToVelocity) {
+      TestAppContext app;
+      auto& reg = app.mRegistry;
+      PhysicsPair pair = createPhysicsPairSphere(app, 1.0f, 1.0f);
+      const float gravity = -9.8f;
+      const float dt = 1.0f/60.0f;
+      const float expectedVelocity = gravity*dt + gravity*dt;
+
+      app.update();
+      app.update();
+
+      Assert::AreEqual(expectedVelocity, reg.getComponent<FloatComponent<Tags::LinearVelocity, Tags::Y>>(pair.mPhysicsObject).mValue, 0.0001f);
+    }
+
+    TEST_METHOD(PhysicsOwnerSphere_Tick_GravityAppliedToPosition) {
+      TestAppContext app;
+      auto& reg = app.mRegistry;
+      PhysicsPair pair = createPhysicsPairSphere(app, 1.0f, 1.0f);
+      const float gravity = -9.8f;
+      const float dt = 1.0f/60.0f;
+      const float t = dt*60.0f;
+      //Kinetic equation dx = v0*t + (1/2)at^2, no initial velocity in this case, 'a' is gravity
+      const float expectedPos = 0.5f*gravity*t*t;
+
+      for(int i = 0; i < 60; ++i) {
+        app.update();
+      }
+
+      Assert::AreEqual(expectedPos, reg.getComponent<TransformComponent>(pair.mOwner).mValue.getTranslate().y, 0.1f);
+    }
+
+    TEST_METHOD(PhysicsObjectWithAngularRotation_Tick_IsRotated) {
+      TestAppContext app;
+      auto& reg = app.mRegistry;
+      PhysicsPair pair = createPhysicsPairSphere(app, 1.0f, 1.0f);
+      const float dt = 1.0f/60.0f;
+      const float angularVelocity = 1.0f;
+      const Syx::Vec3 forward = reg.getComponent<TransformComponent>(pair.mOwner).mValue.getCol(2);
+      const Syx::Vec3 expectedForward = Syx::Quat::axisAngle(Syx::Vec3::UnitY, angularVelocity*dt) * forward;
+      reg.getComponent<FloatComponent<Tags::AngularVelocity, Tags::Y>>(pair.mPhysicsObject).mValue = angularVelocity;
+
+      app.update();
+
+      const Syx::Vec3 newForward = reg.getComponent<TransformComponent>(pair.mOwner).mValue.getCol(2);
+      Assert::IsTrue(expectedForward.equal(newForward, 0.0001f));
+    }
   };
 }

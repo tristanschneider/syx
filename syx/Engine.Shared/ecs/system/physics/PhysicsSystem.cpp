@@ -5,6 +5,7 @@
 #include "ecs/component/TransformComponent.h"
 
 #include "out_ispc/Inertia.h"
+#include "out_ispc/Integrator.h"
 
 namespace Impl {
   using namespace Tags;
@@ -123,6 +124,18 @@ namespace Impl {
   template<class ToRemove>
   void _removeAllComponentsSystem(SystemContext<CommandBuffer<ToRemove>, View<Include<ToRemove>>>& context) {
     _removeFromAllInView(context);
+  }
+
+  template<class AddView, class ToAdd>
+  void _addToAllInView(SystemContext<CommandBuffer<ToAdd>, AddView>& context) {
+    auto&& [ cmd, view ] = context.get();
+    //TODO: add to all in chunk support would help here
+    for(auto&& chunk : view.chunks()) {
+      for(size_t i = 0; i < chunk.size(); ++i) {
+        const auto entity = chunk.indexToEntity(i);
+        cmd.addComponent<ToAdd>(entity);
+      }
+    }
   }
 
   struct SOAConstVec3s {
@@ -246,6 +259,7 @@ namespace Impl {
     Write<FloatComponent<Rotation, J>>,
     Write<FloatComponent<Rotation, K>>,
     Write<FloatComponent<Rotation, W>>>;
+  //Write transform to physics object
   void _syncTransform(SystemContext<SyncTransformSource, SyncTransformDest>& context) {
     auto& source = context.get<SyncTransformSource>();
     for(auto&& chunk : context.get<SyncTransformDest>().chunks()) {
@@ -265,6 +279,41 @@ namespace Impl {
           //Write owner values to physics entity
           destPos.set(i, translate.x, translate.y, translate.z);
           destRot.set(i, qRotate.mV.x, qRotate.mV.y, qRotate.mV.z, qRotate.mV.w);
+        }
+      }
+    }
+  }
+
+  using PublishTransformDest = View<Write<TransformComponent>>;
+  //Syncs all physics objects. Could optimize here for ones that didn't move/rotate
+  using PublishTransformSource = View<
+    Read<PhysicsObject>,
+    Read<FloatComponent<Position, X>>,
+    Read<FloatComponent<Position, Y>>,
+    Read<FloatComponent<Position, Z>>,
+    Read<FloatComponent<Rotation, I>>,
+    Read<FloatComponent<Rotation, J>>,
+    Read<FloatComponent<Rotation, K>>,
+    Read<FloatComponent<Rotation, W>>
+  >;
+  //Write physics object to transform
+  void _publishTransform(SystemContext<PublishTransformSource, PublishTransformDest>& context) {
+    auto& dstView = context.get<PublishTransformDest>();
+    for(auto&& chunk : context.get<PublishTransformSource>().chunks()) {
+      const SOAConstQuats rot = _unwrapConstQuat<Rotation>(chunk);
+      const SOAConstVec3s pos = _unwrapConstVec3<Position>(chunk);
+      const PhysicsObject* objects = chunk.tryGet<const PhysicsObject>()->data();
+      for(size_t i = 0; i < chunk.size(); ++i) {
+        //TODO: could build multiple transforms at the same time with ispc, output is awkward since it wouldn't be SOA
+        if(auto ownerIt = dstView.find(objects[i].mPhysicsOwner); ownerIt != dstView.end()) {
+          Syx::Mat4& transform = (*ownerIt).get<TransformComponent>().mValue;
+          //Pull out scale
+          //TODO: this is a bummer, maybe should copy it out so it can be copied back more easily. Or not bake scale into the matrix
+          Syx::Vec3 unused, scale;
+          Syx::Mat3 unusedMat;
+          transform.decompose(scale, unusedMat, unused);
+
+          transform = Syx::Mat4::transform(scale, Syx::Quat(rot.i[i], rot.j[i], rot.k[i], rot.w[i]), Syx::Vec3(pos.x[i], pos.y[i], pos.z[i]));
         }
       }
     }
@@ -359,11 +408,93 @@ namespace Impl {
       ispc::recomputeInertiaTensor(uRot, uInertia, uResult, static_cast<uint32_t>(chunk.size()));
     }
   }
+
+  template<class Axis>
+  using AccelerationView = View<Read<FloatComponent<GlobalAcceleration, Axis>>>;
+  using DTView = View<Read<FloatComponent<GlobalDeltaTime, Value>>>;
+  template<class Axis>
+  using IntegrateAccelerationView = View<Write<FloatComponent<LinearVelocity, Axis>>>;
+  template<class Axis>
+  void _integrateGlobalVelocity(SystemContext<AccelerationView<Axis>, DTView, IntegrateAccelerationView<Axis>>& context) {
+    for(auto&& dtEntity : context.get<DTView>()) {
+      const float dt = dtEntity.get<const FloatComponent<GlobalDeltaTime, Value>>().mValue;
+      for(auto&& accelEntity : context.get<AccelerationView<Axis>>()) {
+        const float acceleration = accelEntity.get<const FloatComponent<GlobalAcceleration, Axis>>().mValue;
+        for(auto&& chunk : context.get<IntegrateAccelerationView<Axis>>().chunks()) {
+          float* velocity = _unwrapFloat<LinearVelocity, Axis>(chunk);
+          ispc::integrateLinearVelocityGlobalAcceleration(velocity, acceleration, dt, static_cast<uint32_t>(chunk.size()));
+        }
+      }
+    }
+  }
+
+  template<class Axis>
+  using IntegratePositionView = View<Read<FloatComponent<LinearVelocity, Axis>>, Write<FloatComponent<Position, Axis>>>;
+  template<class Axis>
+  void _integratePosition(SystemContext<DTView, IntegratePositionView<Axis>>& context) {
+    for(auto&& dtEntity : context.get<DTView>()) {
+      const float dt = dtEntity.get<const FloatComponent<GlobalDeltaTime, Value>>().mValue;
+      for(auto&& chunk : context.get<IntegratePositionView<Axis>>().chunks()) {
+        float* position = _unwrapFloat<Position, Axis>(chunk);
+        const float* velocity = _unwrapConstFloat<LinearVelocity, Axis>(chunk);
+        ispc::integrateLinearPosition(position, velocity, dt, static_cast<uint32_t>(chunk.size()));
+      }
+    }
+  }
+
+  using IntegrateRotationView = View<
+    Write<FloatComponent<Rotation, I>>,
+    Write<FloatComponent<Rotation, J>>,
+    Write<FloatComponent<Rotation, K>>,
+    Write<FloatComponent<Rotation, W>>,
+    Read<FloatComponent<AngularVelocity, X>>,
+    Read<FloatComponent<AngularVelocity, Y>>,
+    Read<FloatComponent<AngularVelocity, Z>>
+  >;
+  void _integrateRotation(SystemContext<DTView, IntegrateRotationView>& context) {
+    for(auto&& dtEntity : context.get<DTView>()) {
+      const float dt = dtEntity.get<const FloatComponent<GlobalDeltaTime, Value>>().mValue;
+      for(auto&& chunk : context.get<IntegrateRotationView>().chunks()) {
+        const SOAConstVec3s angVel = _unwrapConstVec3<AngularVelocity>(chunk);
+        SOAQuats rot = _unwrapQuat<Rotation>(chunk);
+        ispc::UniformQuat uRot{ rot.i, rot.j, rot.k, rot.w };
+        ispc::UniformConstVec3 uAngVel{ angVel.x, angVel.y, angVel.z };
+        ispc::integrateRotation(uRot, uAngVel, dt, static_cast<uint32_t>(chunk.size()));
+      }
+    }
+  }
+
+  using InitCmd = CommandBuffer<
+    FloatComponent<GlobalAcceleration, Y>,
+    FloatComponent<GlobalDeltaTime, Value>
+  >;
+  void _init(SystemContext<InitCmd>& context) {
+    auto cmd = context.get<InitCmd>();
+    std::get<1>(cmd.createAndGetEntityWithComponents<FloatComponent<GlobalAcceleration, Y>>())->mValue = -9.8f;
+    //Default to fixed update, can update per-frame if variable rate is desired
+    std::get<1>(cmd.createAndGetEntityWithComponents<FloatComponent<GlobalDeltaTime, Value>>())->mValue = 1.0f/60.0f;
+  }
+}
+
+std::shared_ptr<Engine::System> PhysicsSystems::createInit() {
+  return ecx::makeSystem("PhysicsInit", &Impl::_init);
 }
 
 std::vector<std::shared_ptr<Engine::System>> PhysicsSystems::createDefault() {
   using namespace Engine;
   std::vector<std::shared_ptr<Engine::System>> systems;
+
+  //Default only gravity on y axis
+  systems.push_back(ecx::makeSystem("IntegrateVelocity", &Impl::_integrateGlobalVelocity<Tags::Y>));
+
+  systems.push_back(ecx::makeSystem("IntegratePositionX", &Impl::_integratePosition<Tags::X>));
+  systems.push_back(ecx::makeSystem("IntegratePositionY", &Impl::_integratePosition<Tags::Y>));
+  systems.push_back(ecx::makeSystem("IntegratePositionZ", &Impl::_integratePosition<Tags::Z>));
+  systems.push_back(ecx::makeSystem("IntegrateRotation", &Impl::_integrateRotation));
+
+  //For now, add to all every frame. Can ultimately account for sleeping entities and shapes that don't require recomputing inertia
+  systems.push_back(ecx::makeSystem("FlagForInertiaUpdate", &Impl::_addToAllInView<View<Include<PhysicsObject>>, ComputeInertiaRequestComponent>));
+
   systems.push_back(ecx::makeSystem("CreatePhysicsObjects", &Impl::_createPhysicsObjects));
   systems.push_back(ecx::makeSystem("DestroyPhysicsObjects", &Impl::_destroyPhysicsObjects));
   systems.push_back(ecx::makeSystem("SyncTransform", &Impl::_syncTransform));
@@ -375,12 +506,16 @@ std::vector<std::shared_ptr<Engine::System>> PhysicsSystems::createDefault() {
   systems.push_back(ecx::makeSystem("SphereMass", &Impl::_computeSphereMass));
   systems.push_back(ecx::makeSystem("InvertMass", &Impl::_invertMass));
 
-  // Both for initialization and the common case when objects move
+  //Both for initialization and the common case when objects move
   systems.push_back(ecx::makeSystem("ComputeInertia", &Impl::_recomputeInertia));
 
   systems.push_back(ecx::makeSystem("ClearRequests", &Impl::_removeAllComponentsSystem<SyncTransformRequestComponent>));
   systems.push_back(ecx::makeSystem("ClearRequests", &Impl::_removeAllComponentsSystem<SyncModelRequestComponent>));
   systems.push_back(ecx::makeSystem("ClearRequests", &Impl::_removeAllComponentsSystem<SyncVelocityRequestComponent>));
   systems.push_back(ecx::makeSystem("ClearRequests", &Impl::_removeAllComponentsSystem<ComputeInertiaRequestComponent>));
+
+  //Publish transform as late as possible
+  systems.push_back(ecx::makeSystem("PublishTransform", &Impl::_publishTransform));
+
   return systems;
 }

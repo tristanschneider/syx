@@ -60,6 +60,12 @@ namespace Tags {
   struct Mass{};
   struct SphereModel{};
   struct Density{};
+  //For all of these X Y Z accelleration is applied to all physics objects
+  //Default case a single one on Y for gravity
+  struct GlobalAcceleration{};
+  //For operations like integration that depend on time, time is advanced by
+  //this amount for each entity with it. Default case a single one at the intended framerate
+  struct GlobalDeltaTime{};
 
   //Vec3
   struct X{};

@@ -39,7 +39,7 @@ namespace poa {
       resultAngVel.y[0] = angVel.y;
       resultAngVel.z[0] = angVel.z;
 
-      ispc::integrateRotation(resultOrientation.mValue,  resultAngVel.mValue, dt, SIZE);
+      ispc::integrateRotation(resultOrientation.mValue,  resultAngVel.mConstValue, dt, SIZE);
 
       constexpr float e = 0.0001f;
       Assert::AreEqual(expected.mV.x, resultOrientation.i[0], e);
@@ -48,14 +48,14 @@ namespace poa {
       Assert::AreEqual(expected.mV.w, resultOrientation.w[0], e);
     }
 
-    TEST_METHOD(Integrator_IntegrateAccelleration_Integrates) {
+    TEST_METHOD(Integrator_IntegrateAcceleration_Integrates) {
       FloatArray velocity;
       const float gravity = -9.8f;
       const float dt = 0.5f;
       velocity[0] = 1.f;
       const float expected = velocity[0] + gravity*dt;
 
-      ispc::integrateLinearVelocityGlobalAccelleration(velocity.data(), gravity, dt, SIZE);
+      ispc::integrateLinearVelocityGlobalAcceleration(velocity.data(), gravity, dt, SIZE);
 
       Assert::AreEqual(expected, velocity[0], 0.0001f);
     }

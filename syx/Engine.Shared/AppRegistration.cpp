@@ -152,10 +152,10 @@ public:
 
     graphics.push_back(GraphicsSystemBase::screenSizeListener());
 
+    initializers.push_back(PhysicsSystems::createInit());
     for(auto&& system : PhysicsSystems::createDefault()) {
       physics.push_back(system);
     }
-
 
     //Clear messages at the end of the frame in the slowest tick rate
     cleanup.push_back(RemoveEntitiesSystem<View<Read<MessageComponent>>>::create());
