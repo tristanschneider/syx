@@ -1,3 +1,5 @@
+#pragma once
+
 // Multiply two quaternions, imaginary element is last
 static float<4> quat_mul_one(float<4> l, float<4> r) {
   float<4> result = {

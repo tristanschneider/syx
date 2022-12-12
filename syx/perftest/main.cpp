@@ -4,9 +4,7 @@
 #include <chrono>
 #include <string>
 
-#include "out_ispc/CollisionDetection.h"
-#include "out_ispc/Inertia.h"
-#include "out_ispc/Integrator.h"
+#include "out_ispc/unity.h"
 
 template<auto Fn>
 struct TestHarness;

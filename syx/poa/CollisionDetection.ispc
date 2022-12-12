@@ -1,5 +1,5 @@
-#include "IspcMath.ispc"
-#include "Uniforms.ispc"
+#include "IspcMath.h"
+#include "Uniforms.h"
 
 //Given overlap `o` between spheres of radius `a` and `b` separated by distance `d`:
 //d = a + b - o;

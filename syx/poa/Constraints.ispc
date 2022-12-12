@@ -1,5 +1,5 @@
-#include "IspcMath.ispc"
-#include "Uniforms.ispc"
+#include "IspcMath.h"
+#include "Uniforms.h"
 
 struct UniformJacobian {
   //Linear component for both objects, negated for B

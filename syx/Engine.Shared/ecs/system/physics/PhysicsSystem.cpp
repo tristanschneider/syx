@@ -4,8 +4,7 @@
 #include "ecs/component/PhysicsComponents.h"
 #include "ecs/component/TransformComponent.h"
 
-#include "out_ispc/Inertia.h"
-#include "out_ispc/Integrator.h"
+#include "out_ispc/unity.h"
 
 namespace Impl {
   using namespace Tags;

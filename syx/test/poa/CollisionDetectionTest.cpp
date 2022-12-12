@@ -2,9 +2,7 @@
 #include "CppUnitTest.h"
 
 #include "IspcTestHolders.h"
-#include "out_ispc/CollisionDetection.h"
-#include "out_ispc/Inertia.h"
-#include "out_ispc/Integrator.h"
+#include "out_ispc/unity.h"
 
 #include "SyxMat3.h"
 #include "SyxQuat.h"

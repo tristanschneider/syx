@@ -1,5 +1,5 @@
-#include "IspcMath.ispc"
-#include "Uniforms.ispc"
+#include "IspcMath.h"
+#include "Uniforms.h"
 
 struct Matrix {
   float a, b, c,

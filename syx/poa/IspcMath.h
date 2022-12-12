@@ -1,3 +1,5 @@
+#pragma once
+
 //Arbitrary, maybe should be configurable?
 static const float EPSILON = 0.0000001f;
 

@@ -1,5 +1,5 @@
-#include "Quaternion.ispc"
-#include "Uniforms.ispc"
+#include "Quaternion.h"
+#include "Uniforms.h"
 
 //Special case for constant accelleration because the most likely use case is gravity which is constant for all instances
 export void integrateLinearVelocityGlobalAcceleration(uniform float velocity[], uniform float accelleration, uniform float dt, uniform uint32 count) {

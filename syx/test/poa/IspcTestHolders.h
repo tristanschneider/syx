@@ -1,7 +1,6 @@
 #pragma once
 
-#include "out_ispc/Inertia.h"
-#include "out_ispc/Integrator.h"
+#include "out_ispc/unity.h"
 
 namespace poa {
   static constexpr inline uint32_t SIZE = 5;
