@@ -82,7 +82,9 @@ namespace Assets {
 
         std::memcpy(&vert.mPos[0], &mesh->mVertices[v], VERT_SIZE);
         std::memcpy(&vert.mNormal[0], &mesh->mNormals[v], VERT_SIZE);
-        std::memcpy(&vert.mUV[0], &mesh->mTextureCoords[0][v], sizeof(float) * 2);
+        if(mesh->mTextureCoords[0]) {
+          std::memcpy(&vert.mUV[0], &mesh->mTextureCoords[0][v], sizeof(float) * 2);
+        }
         result.mVertices.push_back(vert);
       }
       for(unsigned int f = 0; f < mesh->mNumFaces; ++f) {

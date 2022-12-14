@@ -85,10 +85,76 @@ namespace {
       events.clear();
     }
   }
+
+  using RawInputView = View<Read<RawInputBufferComponent>>;
+  using MappingsView = View<Write<InputMappingComponent>>;
+  void tickUpdateInputMappings(SystemContext<RawInputView, MappingsView>& context) {
+    struct MappingsVisitor {
+      static void visit(const RawInputEvent::KeyEvent& e, InputMappingComponent& mappings) {
+        for(auto&& m : mappings.mKeyMappings) {
+          if(e.mKey == m.mFrom && e.mState == m.mState) {
+            mappings.mKeyEvents.push_back({ m.mActionIndex });
+          }
+        }
+      }
+
+      static void visit(const RawInputEvent::MouseKeyEvent& e, InputMappingComponent& mappings) {
+        for(auto&& m : mappings.mKeyMappings) {
+          if(e.mKey == m.mFrom && e.mState == m.mState) {
+            mappings.mKeyEvents.push_back({ m.mActionIndex });
+          }
+        }
+      }
+
+      static void visit(const RawInputEvent::MouseMoveEvent& e, InputMappingComponent& mappings) {
+        for(auto&& m : mappings.mMappings2D) {
+          //TODO: this doesn't really make any sense
+          if(m.mSource == &RawInputComponent::mMouseDelta) {
+            mappings.mEvents2D.push_back({ e.mDelta, m.mActionIndex });
+          }
+          else if(m.mSource == &RawInputComponent::mMousePos) {
+            mappings.mEvents2D.push_back({ e.mPos, m.mActionIndex });
+          }
+        }
+      }
+
+      static void visit(const RawInputEvent::MouseWheelEvent& e, InputMappingComponent& mappings) {
+        for(auto&& m : mappings.mMappings1D) {
+          if(m.mSource == &RawInputComponent::mWheelDelta) {
+            mappings.mEvents1D.push_back({ e.mAmount, m.mActionIndex });
+          }
+        }
+      }
+
+      static void visit(const RawInputEvent::TextEvent&, InputMappingComponent&) {}
+    };
+
+    //For each input source, process all mappings
+    //If there's enough input and mappings there's likely a more clever way to do this but at current volume it doesn't matter
+    for(auto inputEntity : context.get<RawInputView>()) {
+      const RawInputBufferComponent& inputBuffer = inputEntity.get<const RawInputBufferComponent>();
+      if(inputBuffer.mEvents.empty()) {
+        continue;
+      }
+
+      for(auto entity : context.get<MappingsView>()) {
+        InputMappingComponent& mappings = entity.get<InputMappingComponent>();
+        for(const auto& input : inputBuffer.mEvents) {
+          std::visit([&](const auto& e) {
+            MappingsVisitor::visit(e, mappings);
+          }, input.mData);
+        }
+      }
+    }
+  }
 }
 
 std::shared_ptr<Engine::System> RawInputSystem::init() {
   return ecx::makeSystem("InitInput", &tickInit);
+}
+
+std::shared_ptr<Engine::System> RawInputSystem::updateInputMappings() {
+  return ecx::makeSystem("UpdateInputMappings", &tickUpdateInputMappings);
 }
 
 std::shared_ptr<Engine::System> RawInputSystem::update() {

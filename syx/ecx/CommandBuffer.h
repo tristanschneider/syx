@@ -165,6 +165,10 @@ namespace ecx {
       mCommandEntities.clear();
     }
 
+    std::shared_ptr<IndependentEntityGenerator> getGenerator() {
+      return mEntityGenerator;
+    }
+
   private:
 
     enum class EntityCommandType : uint8_t {

@@ -5,6 +5,9 @@
 struct RawInputSystem {
   //Creates an entity with RawInputBufferComponent and RawInputComponent
   static std::shared_ptr<Engine::System> init();
+
+  static std::shared_ptr<Engine::System> updateInputMappings();
+
   //Updates RawInputComponent state with the new events from the RawInputBufferComponent
   //OS specific systems are expected to have populated the buffer with events
   static std::shared_ptr<Engine::System> update();

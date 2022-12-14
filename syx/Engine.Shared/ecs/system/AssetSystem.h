@@ -42,7 +42,7 @@ struct AssetSystem {
   template<auto loader, class... ToAdd>
   static std::shared_ptr<Engine::System> intermediateAssetLoadSystem(std::string name) {
     using AssetT = decltype(_getLoadResult(loader));
-    using View = Engine::View<Engine::Include<AssetLoadRequestComponent>, Engine::Read<AssetInfoComponent>, Engine::Write<FileReadSuccessResponse>, Engine::Exclude<AssetT>, Engine::Exclude<AssetLoadFailedComponent>>;
+    using View = Engine::View<Engine::Include<AssetLoadRequestComponent>, Engine::Read<AssetInfoComponent>, Engine::Write<FileReadSuccessResponse>, Engine::Exclude<AssetT>, Engine::Exclude<AssetComponent>, Engine::Exclude<AssetLoadFailedComponent>>;
     using Modifier = Engine::EntityModifier<AssetComponent, AssetLoadFailedComponent, AssetT, ToAdd...>;
     return ecx::makeSystem(std::move(name), [](Engine::SystemContext<View, Modifier>& context) {
       View& view = context.get<View>();

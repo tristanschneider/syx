@@ -24,6 +24,7 @@
 #include "ecs/system/ProjectLocatorSystem.h"
 #include "ecs/system/RawInputSystem.h"
 #include "ecs/system/RemoveEntitiesSystem.h"
+#include "ecs/system/SandboxSystem.h"
 #include "ecs/system/SpaceSerializerSystem.h"
 #include "ecs/system/SpaceSystem.h"
 #include "editor/Editor.h"
@@ -99,6 +100,7 @@ public:
 
     //DT update a bit arbitrary, uses input since it's the first 60fps system group
     input.push_back(DeltaTimeSystem::update());
+    input.push_back(RawInputSystem::updateInputMappings());
     input.push_back(RawInputSystem::update());
 
     //Process global commands at the top of the simulation frame
@@ -138,11 +140,12 @@ public:
     simulation.push_back(SpaceSystem::serializeSpaceSystem());
     simulation.push_back(SpaceSystem::completeSpaceSaveSystem());
 
+    simulation.push_back(SandboxSystem::create());
+
     //Towards the end so it can get any messages before they are cleared
     simulation.push_back(FileSystemSystem::fileReader());
     simulation.push_back(FileSystemSystem::fileWriter());
     simulation.push_back(GameobjectInitializerSystem::create());
-
     //Editor
     graphics.push_back(EditorSystem::sceneBrowser());
     graphics.push_back(EditorSystem::toolbox());

@@ -188,7 +188,13 @@ void sleepNS(int ns) {
   int slept = 0;
   int yieldSlop = 300;
   while(slept + yieldSlop < ns) {
-    std::this_thread::yield();
+    auto remaining = ns - slept;
+    if(remaining > static_cast<int>(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::milliseconds(1)).count())) {
+      std::this_thread::sleep_for(std::chrono::microseconds(500));
+    }
+    else {
+      std::this_thread::yield();
+    }
     auto after = std::chrono::high_resolution_clock::now();
     slept = static_cast<int>(std::chrono::duration_cast<std::chrono::nanoseconds>(after - before).count());
   }

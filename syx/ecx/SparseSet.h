@@ -27,44 +27,67 @@ namespace ecx {
 
     const T* tryGet(size_t index) const {
       const size_t pageIndex = index / PageSize;
-      if(pageIndex < mPages.size()) {
-        if(const Page& page = mPages[pageIndex]) {
-          if(const T& result = (*page)[index % PageSize]; result != EmptyValue) {
-            return &result;
-          }
+      if(const Page* page = tryGetPage(index)) {
+        if(const T& result = page->mData->at(index % PageSize); result != EmptyValue) {
+          return &result;
         }
       }
       return nullptr;
     }
 
     T* tryGet(size_t index) {
-      const size_t pageIndex = index / PageSize;
-      if(pageIndex < mPages.size()) {
-        if(Page& page = mPages[pageIndex]) {
-          if(T& result = (*page)[index % PageSize]; result != EmptyValue) {
-            return &result;
-          }
+      if(Page* page = tryGetPage(index)) {
+        if(T& result = page->mData->at(index % PageSize); result != EmptyValue) {
+          return &result;
         }
       }
       return nullptr;
     }
 
     T& getOrCreate(size_t index) {
-      const size_t pageIndex = index / PageSize;
-      if(mPages.size() <= pageIndex) {
-        mPages.resize(pageIndex + 1);
-      }
-
-      Page& page = mPages[pageIndex];
-      if (!page) {
-        page = std::make_unique<std::array<T, PageSize>>();
-        page->fill(EmptyValue);
-      }
-      return (*page)[index % PageSize];
+      const size_t accessIndex = index % PageSize;
+      return getOrCreatePage(index).mData->at(accessIndex);
     }
 
   private:
-    using Page = std::unique_ptr<std::array<T, PageSize>>;
+    struct Page {
+      size_t mIndex = 0;
+      std::unique_ptr<std::array<T, PageSize>> mData;
+    };
+
+    Page* tryGetPage(size_t index) {
+      const size_t pageIndex = index / PageSize;
+      auto it = std::lower_bound(mPages.begin(), mPages.end(), pageIndex, [](const Page& p, size_t index) {
+        return p.mIndex < index;
+      });
+      return it != mPages.end() && it->mIndex == pageIndex ? &*it : nullptr;
+    }
+
+    const Page* tryGetPage(size_t index) const {
+      const size_t pageIndex = index / PageSize;
+      auto it = std::lower_bound(mPages.begin(), mPages.end(), pageIndex, [](const Page& p, size_t index) {
+        return p.mIndex < index;
+      });
+      return it != mPages.end() && it->mIndex == pageIndex ? &*it : nullptr;
+    }
+
+    Page& getOrCreatePage(size_t index) {
+      const size_t pageIndex = index / PageSize;
+      auto it = std::lower_bound(mPages.begin(), mPages.end(), pageIndex, [](const Page& p, size_t index) {
+        return p.mIndex < index;
+      });
+      //If it already exists, return that
+      if(it != mPages.end() && it->mIndex == pageIndex) {
+        return *it;
+      }
+      //It's new, add in sorted order
+      Page& newPage = *mPages.insert(it, Page{});
+      newPage.mData = std::make_unique<std::array<T, PageSize>>();
+      newPage.mData->fill(EmptyValue);
+      newPage.mIndex = pageIndex;
+      return newPage;
+    }
+
     std::vector<Page> mPages;
   };
 
@@ -207,8 +230,11 @@ namespace ecx {
     }
 
     void clear() {
+      //Set to empty but don't remove the allocated pages
+      for(const T& t : mPacked) {
+        mSparse.set(t, EMPTY_VALUE);
+      }
       mPacked.clear();
-      mSparse.clear();
     }
 
     size_t size() const {

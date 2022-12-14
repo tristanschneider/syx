@@ -124,3 +124,51 @@ struct RawInputComponent {
   //The text enqueued this frame, cleared every frame
   std::string mText;
 };
+
+struct KeyMapping {
+  Key mFrom{};
+  KeyState mState{};
+  size_t mActionIndex{};
+};
+
+struct MappedKeyEvent {
+  size_t mActionIndex{};
+};
+
+struct Direction2DMapping {
+  //Not really sure what shape this identifier should take, pointer is fine for the limited options at the moment
+  Syx::Vec2 (RawInputComponent::* mSource) = nullptr;
+  size_t mActionIndex{};
+};
+
+struct Mapped2DEvent {
+  Syx::Vec2 mValue;
+  size_t mAction{};
+};
+
+struct Direction1DMapping {
+  float (RawInputComponent::* mSource) = nullptr;
+  size_t mActionIndex{};
+};
+
+struct Mapped1DEvent {
+  float mValue{};
+  size_t mAction{};
+};
+
+//Consumers interested in input add this component add fill mMappings, then the input system will fill the events buffers for matching events
+//It is the responsibility of the consumer to then process and clear the event buffers
+struct InputMappingComponent {
+  void clearEvents() {
+    mKeyEvents.clear();
+    mEvents1D.clear();
+    mEvents2D.clear();
+  }
+
+  std::vector<KeyMapping> mKeyMappings;
+  std::vector<Direction1DMapping> mMappings1D;
+  std::vector<Direction2DMapping> mMappings2D;
+  std::vector<MappedKeyEvent> mKeyEvents;
+  std::vector<Mapped1DEvent> mEvents1D;
+  std::vector<Mapped2DEvent> mEvents2D;
+};

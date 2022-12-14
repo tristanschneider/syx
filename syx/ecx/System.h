@@ -13,6 +13,27 @@ namespace ecx {
   struct ThreadLocalContextTag {};
   using ThreadLocalContext = AnyTuple<ThreadLocalContextTag>;
 
+  template<class EntityT>
+  struct SystemCommon {
+    template<class... Accessors>
+    static ecx::View<EntityT, Accessors...>& getOrCreateView(EntityRegistry<EntityT>& reg, ThreadLocalContext& context) {
+        //Get the old stored one
+        auto& oldView = context.emplace<View<EntityT, Accessors...>>(reg);
+        //Try to recycle the previous view
+        oldView = ecx::View<EntityT, Accessors...>::recycleView(std::move(oldView), reg);
+        return oldView;
+    }
+
+    template<class... Accessors>
+    static EntityCommandBuffer<EntityT, Accessors...> getCommandBuffer(ThreadLocalContext& ctx) {
+      return { ctx.getOrCreate<CommandBuffer<EntityT>>() };
+    }
+
+    static std::shared_ptr<IndependentEntityGenerator> getEntityGenerator(ThreadLocalContext& ctx) {
+      return ctx.getOrCreate<CommandBuffer<EntityT>>().getGenerator();
+    }
+  };
+
   //Describes access patterns for registry
   template<class EntityT>
   struct SystemInfo {
@@ -120,18 +141,14 @@ namespace ecx {
     template<class... Args>
     struct DeduceGet<EntityCommandBuffer<EntityT, Args...>> {
       static EntityCommandBuffer<EntityT, Args...> get(EntityRegistry<EntityT>&, ThreadLocalContext& ctx) {
-        return { ctx.getOrCreate<CommandBuffer<EntityT>>() };
+        return SystemCommon<EntityT>::getCommandBuffer<Args...>(ctx);
       }
     };
 
-    template<class... Args>
-    struct DeduceGet<View<Args...>, std::enable_if_t<AllViewsTuple::HasType<View<Args...>>::value>> {
-      static View<Args...>& get(EntityRegistry<EntityT>& registry, ThreadLocalContext& storage) {
-        //Get the old stored one
-        auto& oldView = storage.emplace<View<Args...>>(registry);
-        //Try to recycle the previous view
-        oldView = View<Args...>::recycleView(std::move(oldView), registry);
-        return oldView;
+    template<class E, class... Args>
+    struct DeduceGet<View<E, Args...>, std::enable_if_t<AllViewsTuple::HasType<View<E, Args...>>::value>> {
+      static ecx::View<E, Args...>& get(EntityRegistry<EntityT>& registry, ThreadLocalContext& storage) {
+        return SystemCommon<EntityT>::getOrCreateView<Args...>(registry, storage);
       }
     };
 
