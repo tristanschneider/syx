@@ -3,6 +3,7 @@
 
 #include "ecs/component/AssetComponent.h"
 #include "ecs/component/PhysicsComponents.h"
+#include "ecs/component/GameobjectComponent.h"
 #include "ecs/component/GraphicsComponents.h"
 #include "ecs/component/RawInputComponent.h"
 #include "ecs/component/TransformComponent.h"
@@ -30,8 +31,14 @@ namespace {
       if(auto globals = Common::getOrCreateView<Write<SandboxGlobals>>(args.registry, args.context).tryGetFirst()) {
         return globals->get<SandboxGlobals>();
       }
+      auto entityGen = Common::getEntityGenerator(args.context);
+      if(!entityGen) {
+        //Shouldn't happen outside of tests
+        static SandboxGlobals none;
+        return none;
+      }
 
-      auto&& [entity, globals, mappings] = args.registry.createAndGetEntityWithComponents<SandboxGlobals, InputMappingComponent>(*Common::getEntityGenerator(args.context));
+      auto&& [entity, globals, mappings] = args.registry.createAndGetEntityWithComponents<SandboxGlobals, InputMappingComponent>(*entityGen);
       mappings.get().mKeyMappings.push_back(KeyMapping{ Key::KeyR, KeyState::Triggered, REFRESH_KEY });
       globals.get().globalEntity = entity;
       return globals.get();
@@ -50,11 +57,16 @@ namespace {
         ModelInfo{ "textures/test.bmp", &globals.defaultTexture }
       };
 
+      auto gen = Common::getEntityGenerator(args.context);
+      if(!gen) {
+        return false;
+      }
+
       globals.assetsLoaded = true;
       for(const ModelInfo& info : toLoad) {
         //If it hasn't been requested yet, request it
         if(!*info.storage) {
-          auto&& [entity, request] = args.registry.createAndGetEntityWithComponents<AssetLoadRequestComponent>(*Common::getEntityGenerator(args.context));
+          auto&& [entity, request] = args.registry.createAndGetEntityWithComponents<AssetLoadRequestComponent>(*gen);
           *info.storage = entity;
           request.get().mPath = info.filename;
         }
@@ -65,7 +77,7 @@ namespace {
         //If it failed, requeue
         else if(args.registry.tryGetComponent<AssetLoadFailedComponent>(*info.storage)) {
           printf("Failed to load sphere\n");
-          args.registry.destroyEntity(*info.storage, *Common::getEntityGenerator(args.context));
+          args.registry.destroyEntity(*info.storage, *gen);
           *info.storage = {};
         }
         //Only the continue case above should keep the success state
@@ -80,6 +92,9 @@ namespace {
       }
 
       auto gen = Common::getEntityGenerator(args.context);
+      if(!gen) {
+        return false;
+      }
       for(size_t i = 0; i < 10; ++ i) {
         auto&& [entity,
           transform,
@@ -113,10 +128,12 @@ namespace {
 
     static void resetObjects(SandboxGlobals& globals, Args& args) {
       auto gen = Common::getEntityGenerator(args.context);
+      if(!gen) {
+        return;
+      }
       //Destroy all the entities, they will be recreated next frame by tryInitScene
       for(Entity e : globals.objects) {
-        //TODO: the physics objects will get stuck this way
-        args.registry.destroyEntity(e, *gen);
+        args.registry.addComponent<DestroyGameobjectComponent>(e);
       }
       globals.objects.clear();
     }

@@ -481,7 +481,7 @@ namespace ecx {
       processor.processCommands = &_processAllRuntimeComponentCommands;
       processor.mTypes = runtimeTypes;
       processor.setComponentCommand = _setComponentCommand;
-      pool.getSharedComponents().emplace<ComponentCommandProcessor>(processor);
+      pool.getSharedComponents().emplace<ComponentCommandProcessor>() = processor;
       return result;
     }
 

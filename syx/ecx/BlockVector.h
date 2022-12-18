@@ -78,11 +78,12 @@ namespace ecx {
     }
 
     BlockVector& operator=(const BlockVector& rhs) {
+      assert(mTraits == rhs.mTraits);
       clear();
 
       const size_t newSize = rhs.size();
       if(newSize > capacity()) {
-        _grow(newSize);
+        _grow(newSize * mTraits->size());
       }
 
       mEnd = mBegin + _elementSize()*newSize;
@@ -186,11 +187,22 @@ namespace ecx {
     }
 
     void resize(size_t newSize) {
-      _grow(newSize * _elementSize());
-      const size_t oldSize = size();
-      mEnd = mBegin + _elementSize()*newSize;
-      for (size_t i = oldSize; i < newSize; ++i) {
-        mTraits->defaultConstruct(at(i));
+      if(newSize <= size()) {
+        const size_t eSize = _elementSize();
+        //Destroy all the elements past the old end
+        for(size_t i = newSize; i < size(); ++i) {
+          mTraits->destruct(mBegin + eSize*i);
+        }
+        //Move the end marker back to the new smaller end
+        mEnd = mBegin + eSize*newSize;
+      }
+      else {
+        _grow(newSize * _elementSize());
+        const size_t oldSize = size();
+        mEnd = mBegin + _elementSize()*newSize;
+        for (size_t i = oldSize; i < newSize; ++i) {
+          mTraits->defaultConstruct(at(i));
+        }
       }
     }
 
@@ -207,13 +219,14 @@ namespace ecx {
 
   private:
     void _grow(size_t newBytes) {
+      assert((newBytes % mTraits->size()) == 0);
       auto alloc = _getAllocator();
       //Multiply by growth factor or start at MIN_SIZE
       const size_t elementSize = _elementSize();
       const size_t newBytesSize = newBytes;
       const size_t sz = size();
       auto newBegin = alloc.allocate(newBytesSize);
-      auto newEnd = newBegin + sz * elementSize;
+      auto newEnd = newBegin + std::min(sz * elementSize, newBytes);
 
       //TODO: optimization for if traits support memcpy
       for(size_t i = 0; i < sz; ++i) {
@@ -231,7 +244,9 @@ namespace ecx {
       mEnd = newEnd;
       mCapacity = mBegin + newBytesSize;
 
-      alloc.deallocate(toDelete, oldBytes);
+      if(toDelete) {
+        alloc.deallocate(toDelete, oldBytes);
+      }
     }
 
     Allocator _getAllocator() const {

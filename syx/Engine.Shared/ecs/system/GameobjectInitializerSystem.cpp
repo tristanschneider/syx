@@ -1,6 +1,7 @@
 #include "Precompile.h"
 
 #include "ecs/component/GameobjectComponent.h"
+#include "ecs/component/PhysicsComponents.h"
 #include "ecs/component/SpaceComponents.h"
 #include "ecs/system/GameobjectInitializerSystem.h"
 #include <random>
@@ -49,8 +50,28 @@ namespace Initializer {
       cmd.addComponent<GameobjectInitializedComponent>(entity);
     }
   }
+
+  //Right now this manually manages the only cross-entity dependency on physics. If it gets more complicated
+  //a more generic one tick delay could be done by this system and the other systems look for the component present during that delay
+  using BeginDestroyView = View<Include<DestroyGameobjectComponent>, Read<PhysicsOwner>>;
+  using ReadyToDestroyView = View<Include<DestroyGameobjectComponent>, Exclude<PhysicsOwner>>;
+  using DestroyCmd = CommandBuffer<ecx::EntityDestroyTag, DestroyPhysicsObjectRequestComponent>;
+  void tickDestroyRequests(SystemContext<BeginDestroyView, ReadyToDestroyView, DestroyCmd>& context) {
+    DestroyCmd cmd = context.get<DestroyCmd>();
+    for(auto entity : context.get<BeginDestroyView>()) {
+      cmd.addComponent<DestroyPhysicsObjectRequestComponent>(entity.entity());
+    }
+
+    for(auto entity : context.get<ReadyToDestroyView>()) {
+      cmd.destroyEntity(entity.entity());
+    }
+  }
 }
 
 std::shared_ptr<Engine::System> GameobjectInitializerSystem::create() {
   return ecx::makeSystem("GameobjectInit", &Initializer::tickInit);
+}
+
+std::shared_ptr<Engine::System> GameobjectInitializerSystem::createDestructionProcessor() {
+  return ecx::makeSystem("GameobjectDestroy", &Initializer::tickDestroyRequests);
 }

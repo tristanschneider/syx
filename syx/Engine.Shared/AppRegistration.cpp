@@ -162,6 +162,7 @@ public:
 
     //Clear messages at the end of the frame in the slowest tick rate
     cleanup.push_back(RemoveEntitiesSystem<View<Read<MessageComponent>>>::create());
+    cleanup.push_back(GameobjectInitializerSystem::createDestructionProcessor());
 
     context.registerInitializer(std::move(initializers));
     context.registerUpdatePhase(AppPhase::Input, std::move(input), 60);

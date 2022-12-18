@@ -49,6 +49,31 @@ namespace ecx {
     }
 
     template<class EntityT>
+    static std::string print(const JobInfo<EntityT>& info) {
+      std::string result;
+      std::unordered_set<const JobInfo<EntityT>*> done;
+      std::queue<const JobInfo<EntityT>*> todo;
+      todo.push(&info);
+      auto ptrname = [](auto ptr) {
+        return std::to_string(std::hash<const void*>()(static_cast<const void*>(ptr)));
+      };
+      while(!todo.empty()) {
+        const JobInfo<EntityT>* current = todo.front();
+        todo.pop();
+        if(!done.insert(current).second) {
+          continue;
+        }
+        result += std::to_string(current->mTotalDependencies) + " " + current->mName + ptrname(current) + " -> ";
+        for(const std::shared_ptr<JobInfo<EntityT>>& child : current->mDependents) {
+          result += child->mName + ptrname(child.get()) + ", ";
+          todo.push(&*child);
+        }
+        result += "\n";
+      }
+      return result;
+    }
+
+    template<class EntityT>
     struct DependencyInfo {
       void addJob(typeId_t<EntityT> info, std::shared_ptr<JobInfo<EntityT>> job) {
         mJobs[info].push_back(std::move(job));

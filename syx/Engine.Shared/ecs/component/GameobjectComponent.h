@@ -7,6 +7,11 @@ struct GameobjectComponent {
 struct GameobjectInitializedComponent {
 };
 
+//Added by a system that wants to destroy the game object. This gives other systems a chance to act before the entity is destroyed
+//by GameobjectInitializerSystem
+struct DestroyGameobjectComponent {
+};
+
 struct NameTagComponent {
   std::string mName;
 };

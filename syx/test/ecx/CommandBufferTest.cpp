@@ -61,6 +61,11 @@ namespace ecx {
       mSpecificRegistry->mMode = Registry::Mode::Specific;
     }
 
+    TEST_METHOD_CLEANUP(cleanup) {
+      mAllRegistry.reset();
+      mSpecificRegistry.reset();
+    }
+
     void _commandBuffer_CreateEmptyEntity_Exists(Registry& registry) {
       auto&& [entity] = registry.mBuffer.createAndGetEntityWithComponents<>();
 
@@ -258,6 +263,28 @@ namespace ecx {
       TestTypeA* found = reg.mRegistry.tryGetComponent<TestTypeA>(entity);
       Assert::IsNotNull(found, L"Found should exist since the entity is created in the proper chunk, but no value assigned yet");
       Assert::AreEqual(TestTypeA{}, *found, L"Value shouldn't be assigned yet");
+    }
+
+    TEST_METHOD(CommandBuffer_RemoveTypeWithLowerTypeId_IsRemoved) {
+      Registry reg;
+      auto&& [entity] = reg.mBuffer.createAndGetEntityWithComponents<>();
+      reg.mBuffer.processAllCommands(reg.mRegistry);
+      TestBuffer extraBuffer{ reg.mRegistry };
+      //This statically claims type ids used for storage pools
+      extraBuffer.addComponent<uint8_t>(entity);
+      extraBuffer.addComponent<uint16_t>(entity);
+      extraBuffer.addComponent<uint32_t>(entity);
+      extraBuffer.addComponent<uint64_t>(entity);
+      extraBuffer.processAllCommands(reg.mRegistry);
+
+      //First remove a component with a high type id in the other registry
+      reg.mBuffer.removeComponent<uint64_t>(entity);
+      //Then a lower id in the other registry
+      reg.mBuffer.removeComponent<uint8_t>(entity);
+      reg.mBuffer.processAllCommands(reg.mRegistry);
+
+      Assert::IsFalse(reg.mRegistry.hasComponent<uint64_t>(entity));
+      Assert::IsFalse(reg.mRegistry.hasComponent<uint8_t>(entity));
     }
 
     TEST_METHOD(RuntimeCommandBuffer_AllowedCommands_Work) {
