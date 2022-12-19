@@ -199,7 +199,7 @@ public:
 
   void registerComponents(IComponentRegistry& registry) override {
     registry;
-    //registry.registerComponent<CameraComponent>();
+    //registry.registerComponent<OldCameraComponent>();
     //registry.registerComponent<LuaComponent>();
     //registry.registerComponent<NameComponent>();
     //registry.registerComponent<Physics>();

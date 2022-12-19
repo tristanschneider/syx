@@ -86,7 +86,7 @@ namespace {
     }
   }
 
-  using RawInputView = View<Read<RawInputBufferComponent>>;
+  using RawInputView = View<Read<RawInputBufferComponent>, Read<RawInputComponent>>;
   using MappingsView = View<Write<InputMappingComponent>>;
   void tickUpdateInputMappings(SystemContext<RawInputView, MappingsView>& context) {
     struct MappingsVisitor {
@@ -133,6 +133,31 @@ namespace {
     //If there's enough input and mappings there's likely a more clever way to do this but at current volume it doesn't matter
     for(auto inputEntity : context.get<RawInputView>()) {
       const RawInputBufferComponent& inputBuffer = inputEntity.get<const RawInputBufferComponent>();
+      const RawInputComponent& inputState = inputEntity.get<const RawInputComponent>();
+
+      for(auto entity : context.get<MappingsView>()) {
+        //Down events are unique because they are the lack of a change to input state.
+        //For that, look at the stored raw input to see if mapped keys are down
+        //Since this is before the RawInputSystem it's last frame's input which allows
+        //The first "Down" event to come the frame before the triggered event
+        //TODO: this also means Down and Released mappings would trigger on the same frame
+        InputMappingComponent& mappings = entity.get<InputMappingComponent>();
+        for(const KeyMapping& mapping : mappings.mKeyMappings) {
+          switch(mapping.mState) {
+          case KeyState::Down:
+          case KeyState::Up:
+            if(inputState.getKeyState(mapping.mFrom) == mapping.mState) {
+              mappings.mKeyEvents.push_back({ mapping.mActionIndex });
+            }
+            break;
+          case KeyState::Invalid:
+          case KeyState::Triggered:
+          case KeyState::Released:
+            break;
+          }
+        }
+      }
+
       if(inputBuffer.mEvents.empty()) {
         continue;
       }

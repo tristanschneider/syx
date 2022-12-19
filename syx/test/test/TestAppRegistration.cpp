@@ -72,7 +72,7 @@ void LuaRegistration::registerSystems(const SystemArgs& args, ISystemRegistry& r
 }
 
 void LuaRegistration::registerComponents(IComponentRegistry& registry) {
-  registry.registerComponent<CameraComponent>();
+  registry.registerComponent<OldCameraComponent>();
   registry.registerComponent<LuaComponent>();
   registry.registerComponent<NameComponent>();
   registry.registerComponent<Physics>();

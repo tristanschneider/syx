@@ -148,7 +148,7 @@ void Editor::init() {
   mCamera->getComponent<SpaceComponent>()->set(std::hash<std::string>()("editor"));
   mCamera->getComponent<SpaceComponent>()->sync(msg.get());
 
-  auto cc = std::make_unique<CameraComponent>(mCamera->getHandle());
+  auto cc = std::make_unique<OldCameraComponent>(mCamera->getHandle());
   cc->setViewport("editor");
   cc->addSync(msg.get());
   mCamera->addComponent(std::move(cc));

@@ -6,22 +6,22 @@
 #include <lua.hpp>
 #include "Util.h"
 
-CameraComponent::CameraComponent(const CameraComponent& rhs)
+OldCameraComponent::OldCameraComponent(const OldCameraComponent& rhs)
   : TypedComponent(rhs)
   , mViewportName(rhs.mViewportName) {
 }
 
-std::unique_ptr<Component> CameraComponent::clone() const {
-  return std::make_unique<CameraComponent>(*this);
+std::unique_ptr<Component> OldCameraComponent::clone() const {
+  return std::make_unique<OldCameraComponent>(*this);
 }
 
-void CameraComponent::set(const Component& component) {
+void OldCameraComponent::set(const Component& component) {
   assert(getType() == component.getType() && "set type should match");
-  const CameraComponent& rhs = static_cast<const CameraComponent&>(component);
+  const OldCameraComponent& rhs = static_cast<const OldCameraComponent&>(component);
   mViewportName = rhs.mViewportName;
 }
 
-const Lua::Node* CameraComponent::getLuaProps() const {
+const Lua::Node* OldCameraComponent::getLuaProps() const {
   static std::unique_ptr<Lua::Node> props = [this]() {
     using namespace Lua;
     std::unique_ptr<Node> root = makeRootNode(NodeOps(LUA_PROPS_KEY));
@@ -31,7 +31,7 @@ const Lua::Node* CameraComponent::getLuaProps() const {
   return props.get();
 }
 
-void CameraComponent::openLib(lua_State* l) const {
+void OldCameraComponent::openLib(lua_State* l) const {
   luaL_Reg statics[] = {
     { nullptr, nullptr }
   };
@@ -42,15 +42,15 @@ void CameraComponent::openLib(lua_State* l) const {
   Lua::Util::registerClass(l, statics, members, getTypeInfo().mTypeName.c_str());
 }
 
-const ComponentTypeInfo& CameraComponent::getTypeInfo() const {
+const ComponentTypeInfo& OldCameraComponent::getTypeInfo() const {
   static ComponentTypeInfo result("Camera");
   return result;
 }
 
-void CameraComponent::setViewport(const std::string& viewport) {
+void OldCameraComponent::setViewport(const std::string& viewport) {
   mViewportName = viewport;
 }
 
-const std::string& CameraComponent::getViewport() const {
+const std::string& OldCameraComponent::getViewport() const {
   return mViewportName;
 }

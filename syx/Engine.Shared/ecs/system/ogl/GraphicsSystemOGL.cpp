@@ -147,8 +147,18 @@ namespace OGLImpl {
   using RenderablesView = View<Read<GraphicsModelRefComponent>, Read<TextureRefComponent>, Read<TransformComponent>>;
   using ModelsView = View<Read<GraphicsModelHandleOGLComponent>>;
   using TexturesView = View<Read<TextureHandleOGLComponent>>;
+  using ViewportView = View<Read<ViewportComponent>>;
+  using CameraView = View<Read<CameraComponent>, Read<TransformComponent>>;
 
-  void tickRender(SystemContext<ContextView, ScreenSizeView, ShaderProgramView, OGLView, RenderablesView, ModelsView, TexturesView>& context) {
+  void tickRender(SystemContext<ContextView,
+    ScreenSizeView,
+    ShaderProgramView,
+    OGLView,
+    RenderablesView,
+    ModelsView,
+    TexturesView,
+    ViewportView,
+    CameraView>& context) {
     auto ogl = context.get<ContextView>().tryGetFirst();
     auto screen = context.get<ScreenSizeView>().tryGetFirst();
     if(!ogl || !screen) {
@@ -158,32 +168,45 @@ namespace OGLImpl {
     auto& modelsView = context.get<ModelsView>();
     auto& texturesView = context.get<TexturesView>();
 
-    //TODO: viewport component and camera
-    Viewport viewport({}, Syx::Vec2(0.f), Syx::Vec2(1.f));
-    _glViewport(viewport, screen->get<const ScreenSizeComponent>().mScreenSize);
-    glClearColor(0.0f, 0.0f, 1.0f, 0.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+    for(auto viewEntity : context.get<ViewportView>()) {
+      const ViewportComponent& viewportComponent = viewEntity.get<const ViewportComponent>();
+      Viewport viewport({}, Syx::Vec2(viewportComponent.mMinX, viewportComponent.mMinY), Syx::Vec2(viewportComponent.mMaxX, viewportComponent.mMaxY));
 
-    auto& renderables = context.get<RenderablesView>();
-    if(!renderables.tryGetFirst()) {
-      return;
-    }
+      _glViewport(viewport, screen->get<const ScreenSizeComponent>().mScreenSize);
+      //Write clear color before any early outs due to missing components
+      glClearColor(0.0f, 0.0f, 1.0f, 0.0f);
+      glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
-    glEnable(GL_DEPTH_TEST);
-    glDepthFunc(GL_LESS);
+      auto& renderables = context.get<RenderablesView>();
+      if(!renderables.tryGetFirst()) {
+        return;
+      }
+      CameraView& cameraView = context.get<CameraView>();
+      auto camera = cameraView.find(viewportComponent.mCamera);
+      if(camera == cameraView.end()) {
+        continue;
+      }
+      const TransformComponent& cameraTransform = (*camera).get<const TransformComponent>();
+      const CameraComponent& cameraComponent = (*camera).get<const CameraComponent>();
 
-    glEnable(GL_CULL_FACE);
-    glCullFace(GL_BACK);
+      glEnable(GL_DEPTH_TEST);
+      glDepthFunc(GL_LESS);
 
-    auto& shaders = context.get<ShaderProgramView>();
-    const OGLContext& oglContext = ogl->get<OGLContext>();
-    if(auto phong = shaders.find(oglContext.mPhongShader); phong != shaders.end()) {
+      glEnable(GL_CULL_FACE);
+      glCullFace(GL_BACK);
+
+      auto& shaders = context.get<ShaderProgramView>();
+      const OGLContext& oglContext = ogl->get<OGLContext>();
+      auto phong = shaders.find(oglContext.mPhongShader);
+      if(phong == shaders.end()) {
+        break;
+      }
       const ShaderProgramHandleOGLComponent& program = (*phong).get<const ShaderProgramHandleOGLComponent>();
 
       glUseProgram(program.mProgram);
 
-      const Syx::Vec3 camPos(0);
-      const Syx::Mat4 wvp = Syx::Mat4::perspective(1.396f, 1.396f, 0.1f, 100.0f);
+      const Syx::Vec3 camPos(cameraTransform.mValue.getTranslate());
+      const Syx::Mat4 wvp = Syx::Mat4::perspective(cameraComponent.mFOVX, cameraComponent.mFOVY, cameraComponent.mNear, cameraComponent.mFar) * cameraTransform.mValue.affineInverse();
       const Syx::Vec3 mDiff(1.0f);
       const Syx::Vec3 mSpec(0.6f, 0.6f, 0.6f, 2.5f);
       const Syx::Vec3 mAmb(0.22f, 0.22f, 0.22f);

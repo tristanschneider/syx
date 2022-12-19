@@ -146,7 +146,7 @@ namespace EditorTests {
     TEST_METHOD(NewObject_AddCameraFromPicker_CameraIsAdded) {
       MockEditorApp app;
 
-      app.createComponent(app.createNewObject(), CameraComponent::singleton().getTypeInfo());
+      app.createComponent(app.createNewObject(), OldCameraComponent::singleton().getTypeInfo());
     }
 
     TEST_METHOD(NewObject_AddPhysicsFromPicker_PhysicsIsAdded) {

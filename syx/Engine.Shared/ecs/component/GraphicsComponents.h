@@ -43,6 +43,30 @@ struct TextureRefComponent {
 struct NeedsGpuUploadComponent {
 };
 
+//Graphics system doesn't care what "default" means as it will render them all
+//this is inteded for external systems that want to change the "default"
+struct DefaultViewportComponent {
+};
+
+struct CameraComponent {
+  //Radians
+  float mFOVX = 1.396f;
+  float mFOVY = 1.396f;
+  //Meters
+  float mNear = 0.1f;
+  float mFar = 100.0f;
+};
+
+struct ViewportComponent {
+  //Points at an entity with at least a OldCameraComponent and TransformComponent
+  Engine::Entity mCamera;
+  //[0,1] in percentage of screen size from top left
+  float mMinX = 0;
+  float mMinY = 0;
+  float mMaxX = 1;
+  float mMaxY = 1;
+};
+
 namespace ecx {
   template<>
   struct StaticTypeInfo<TextureRefComponent> : StructTypeInfo<StaticTypeInfo<TextureRefComponent>,

@@ -310,7 +310,7 @@ namespace LuaTests {
       const LuaGameObject* obj = app.mApp->getSystem<LuaGameSystem>()->getObject(objHandle);
       Assert::IsNotNull(obj, L"Gameobject should exist", LINE_INFO());
       if(obj) {
-        Assert::IsNotNull(obj->getComponent<CameraComponent>(), L"Camera should have been added by index assignment", LINE_INFO());
+        Assert::IsNotNull(obj->getComponent<OldCameraComponent>(), L"Camera should have been added by index assignment", LINE_INFO());
         Assert::IsNotNull(obj->getComponent<Renderable>(), L"Viewport should have been added via addComponent call", LINE_INFO());
       }
     }
@@ -358,7 +358,7 @@ namespace LuaTests {
       //First to initialize, second to do first tick
       app.mApp->update(1.f);
       app.mApp->update(1.f);
-      CameraComponent c(objHandle);
+      OldCameraComponent c(objHandle);
       c.setViewport("newvalue");
       ComponentPublisher::forcePublish(c, app.mApp->getMessageQueue().get());
       app.mApp->update(1.f);

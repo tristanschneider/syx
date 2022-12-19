@@ -191,14 +191,14 @@ void GraphicsSystem::_dispatchToRenderThread(std::function<void()> func) {
 void GraphicsSystem::_processAddEvent(const AddComponentEvent& e) {
   if(e.mCompType == Component::typeId<Renderable>() && !mLocalRenderables.get(e.mObj))
     mLocalRenderables.pushBack(LocalRenderable(e.mObj));
-  else if(e.mCompType == Component::typeId<CameraComponent>() && !_getCamera(e.mObj))
+  else if(e.mCompType == Component::typeId<OldCameraComponent>() && !_getCamera(e.mObj))
     mCameras.push_back(createCamera(e.mObj));
 }
 
 void GraphicsSystem::_processRemoveEvent(const RemoveComponentEvent& e) {
   if(e.mCompType == Component::typeId<Renderable>())
     mLocalRenderables.erase(e.mObj);
-  else if(e.mCompType == Component::typeId<CameraComponent>()) {
+  else if(e.mCompType == Component::typeId<OldCameraComponent>()) {
     //TODO: remove
   }
 }
@@ -278,11 +278,11 @@ void GraphicsSystem::_processSetCompPropsEvent(const SetComponentPropsEvent& e) 
       obj->mSpace = s.get();
     }
   }
-  else if(e.mCompType.id == Component::typeId<CameraComponent>()) {
+  else if(e.mCompType.id == Component::typeId<OldCameraComponent>()) {
     if(Camera* camera = _getCamera(e.mObj)) {
-      CameraComponent c(0);
+      OldCameraComponent c(0);
       c.getLuaProps()->copyFromBuffer(&c, e.mBuffer.data(), e.mDiff);
-      CameraComponent(0).getLuaProps()->forEachDiff(e.mDiff, &c, [camera](const Lua::Node& node, const void* data) {
+      OldCameraComponent(0).getLuaProps()->forEachDiff(e.mDiff, &c, [camera](const Lua::Node& node, const void* data) {
         switch(Util::constHash(node.getName().c_str())) {
           case Util::constHash("viewport"): camera->setViewport(*static_cast<const std::string*>(data));
           default: break;

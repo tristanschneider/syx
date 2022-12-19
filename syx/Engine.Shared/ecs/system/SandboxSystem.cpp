@@ -12,6 +12,12 @@ namespace {
   using namespace Engine;
   struct Sandbox : public Engine::System {
     static constexpr size_t REFRESH_KEY = 1;
+    static constexpr size_t UP_KEY = 2;
+    static constexpr size_t DOWN_KEY = 3;
+    static constexpr size_t LEFT_KEY = 4;
+    static constexpr size_t RIGHT_KEY = 5;
+    static constexpr size_t CAMERA_DRAG_KEY = 6;
+    static constexpr size_t CAMERA_MOVE_AMOUNT = 7;
 
     using Common = ecx::SystemCommon<Engine::Entity>;
     struct SandboxGlobals {
@@ -40,6 +46,12 @@ namespace {
 
       auto&& [entity, globals, mappings] = args.registry.createAndGetEntityWithComponents<SandboxGlobals, InputMappingComponent>(*entityGen);
       mappings.get().mKeyMappings.push_back(KeyMapping{ Key::KeyR, KeyState::Triggered, REFRESH_KEY });
+      mappings.get().mKeyMappings.push_back(KeyMapping{ Key::KeyW, KeyState::Down, UP_KEY });
+      mappings.get().mKeyMappings.push_back(KeyMapping{ Key::KeyS, KeyState::Down, DOWN_KEY });
+      mappings.get().mKeyMappings.push_back(KeyMapping{ Key::KeyA, KeyState::Down, LEFT_KEY });
+      mappings.get().mKeyMappings.push_back(KeyMapping{ Key::KeyD, KeyState::Down, RIGHT_KEY });
+      mappings.get().mKeyMappings.push_back(KeyMapping{ Key::RightMouse, KeyState::Down, CAMERA_DRAG_KEY });
+      mappings.get().mMappings2D.push_back(Direction2DMapping{ &RawInputComponent::mMouseDelta, CAMERA_MOVE_AMOUNT });
       globals.get().globalEntity = entity;
       return globals.get();
     }
@@ -140,12 +152,51 @@ namespace {
 
     static void tickScene(SandboxGlobals& globals, Args& args) {
       if(InputMappingComponent* input = args.registry.tryGetComponent<InputMappingComponent>(globals.globalEntity)) {
+        Syx::Vec2 move;
+        Syx::Vec2 rotateInput;
+        bool doRotate = false;
         for(const MappedKeyEvent& e : input->mKeyEvents) {
           switch(e.mActionIndex) {
-          case REFRESH_KEY: resetObjects(globals, args); break;
-          default: break;
+            case REFRESH_KEY: resetObjects(globals, args); break;
+            case UP_KEY: move.y = 1; break;
+            case DOWN_KEY: move.y = -1; break;
+            case LEFT_KEY: move.x = -1; break;
+            case RIGHT_KEY: move.x = 1; break;
+            case CAMERA_DRAG_KEY: doRotate = true; break;
+            default: break;
           }
         }
+        for(const Mapped2DEvent& e : input->mEvents2D) {
+          switch(e.mAction) {
+            case CAMERA_MOVE_AMOUNT: rotateInput = e.mValue; break;
+            default: break;
+          }
+        }
+
+        if(auto viewport = View<Read<ViewportComponent>, Include<DefaultViewportComponent>>(args.registry).tryGetFirst()) {
+          View<Write<TransformComponent>, Read<CameraComponent>> cameraView(args.registry);
+          //Move camera based on input
+          if(auto cameraEntity = cameraView.find(viewport->get<const ViewportComponent>().mCamera); cameraEntity != cameraView.end()) {
+            TransformComponent& cameraTransform = (*cameraEntity).get<TransformComponent>();
+            Syx::Mat3 rotate;
+            Syx::Vec3 translate;
+            cameraTransform.mValue.decompose(rotate, translate);
+            //Translation along camera's right and forward vectors
+            const float speed = 0.1f;
+            translate += rotate.getCol(0)*(move.x*speed);
+            translate -= rotate.getCol(2)*(move.y*speed);
+
+            if(doRotate) {
+              const float rotateSpeed = 0.1f;
+              rotateInput *= rotateSpeed;
+              rotate = Syx::Mat3::axisAngle(Syx::Vec3(0, 1, 0), -rotateInput.x) * rotate;
+              rotate = Syx::Mat3::axisAngle(rotate.getCol(0), -rotateInput.y) * rotate;
+            }
+
+            cameraTransform.mValue = Syx::Mat4::transform(rotate, translate);
+          }
+        }
+
 
         input->clearEvents();
       }

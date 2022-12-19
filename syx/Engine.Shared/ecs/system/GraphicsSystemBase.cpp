@@ -1,15 +1,28 @@
 #include "Precompile.h"
 #include "ecs/system/GraphicsSystemBase.h"
 
+#include "ecs/component/GraphicsComponents.h"
 #include "ecs/component/ScreenSizeComponent.h"
+#include "ecs/component/TransformComponent.h"
 #include "ecs/component/PlatformMessageComponents.h"
 
 namespace GraphicsBaseImpl {
   using namespace Engine;
 
-  void init(SystemContext<EntityFactory>& context) {
-    EntityFactory factory = context.get<EntityFactory>();
-    factory.createEntityWithComponents<ScreenSizeComponent>();
+  using InitCmd = CommandBuffer<TransformComponent,
+    DefaultViewportComponent,
+    ViewportComponent,
+    CameraComponent,
+    ScreenSizeComponent>;
+
+  void init(SystemContext<EntityFactory, InitCmd>& context) {
+    //Default full screen viewport with a camera
+    InitCmd cmd = context.get<InitCmd>();
+    auto&& [viewportEntity, viewport, x] = cmd.createAndGetEntityWithComponents<ViewportComponent, DefaultViewportComponent>();
+    auto&& [cameraEntity, OldCameraComponent, cameraTransform] = cmd.createAndGetEntityWithComponents<CameraComponent, TransformComponent>();
+    viewport->mCamera = cameraEntity;
+
+    cmd.createAndGetEntityWithComponents<ScreenSizeComponent>();
   }
 
   using ScreenSizeMessageView = View<Read<OnWindowResizeMessageComponent>>;
