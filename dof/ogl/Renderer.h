@@ -2,10 +2,24 @@
 
 #include "Simulation.h"
 #include <Windows.h>
+#include "GL/glew.h"
+
+struct TextureSamplerUniform {
+  GLuint uniformID, texture, buffer;
+};
+
+struct QuadUniforms {
+  TextureSamplerUniform posX, posY, rot, uv;
+  GLuint worldToView;
+  GLuint texture;
+};
 
 struct OGLState {
   HGLRC mGLContext{};
   HDC mDeviceContext{};
+  GLuint mQuadShader{};
+  GLuint mQuadVertexBuffer{};
+  QuadUniforms mQuadUniforms;
 };
 
 struct WindowData {
@@ -15,13 +29,27 @@ struct WindowData {
   bool mFocused{};
 };
 
+struct TextureGLHandle {
+  GLuint mHandle{};
+};
+
+struct TextureGameHandle {
+  size_t mID = 0;
+};
+
+using TexturesTable = Table<
+  Row<TextureGLHandle>,
+  Row<TextureGameHandle>
+>;
+
 using GraphicsContext = Table<
   Row<OGLState>,
   Row<WindowData>
 >;
 
 using RendererDatabase = Database<
-  GraphicsContext
+  GraphicsContext,
+  TexturesTable
 >;
 
 struct Renderer {

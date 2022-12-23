@@ -37,6 +37,7 @@ if(MSVC)
     )
 endif()
 
+add_subdirectory(stb)
 add_subdirectory(table)
 add_subdirectory(ispc)
 add_subdirectory(physics)

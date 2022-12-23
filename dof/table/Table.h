@@ -30,6 +30,39 @@ struct BasicRow {
   std::vector<Element> mElements;
 };
 
+//For sharing a value between all elements in a table\
+//Keeps track of size for consistency but doesn't mean anything
+//Value must be set explicitly with at
+template<class Element>
+struct SharedRow {
+  using ElementT = Element;
+  using ElementPtr = Element*;
+
+  size_t size() const {
+    return mSize;
+  }
+
+  Element& at(size_t = 0) {
+    return mValue;
+  }
+
+  const Element& at(size_t = 0) const {
+    return mValue;
+  }
+
+  template<class... Args>
+  Element& emplaceBack(Args&&...) {
+    ++mSize;
+  }
+
+  void resize(size_t size) {
+    mSize = size;
+  }
+
+  Element mValue;
+  size_t mSize = 0;
+};
+
 template<class T>
 using Row = BasicRow<T>;
 

@@ -145,5 +145,18 @@ namespace Test {
 
       Assert::AreEqual(3, total);
     }
+
+    TEST_METHOD(TableWithSharedRow_GetValue_IsSameForAll) {
+      Table<Row<int>, SharedRow<int>> table;
+      std::get<1>(table.mRows).at() = 5;
+      TableOperations::addToTable(table);
+      TableOperations::addToTable(table);
+
+      const int a = std::get<1>(table.mRows).at(0);
+      const int b = std::get<1>(table.mRows).at(0);
+
+      Assert::AreEqual(5, a);
+      Assert::AreEqual(5, b);
+    }
   };
 }

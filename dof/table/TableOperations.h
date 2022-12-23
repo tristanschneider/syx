@@ -9,6 +9,13 @@ struct TableOperations {
   }
 
   template<class TableT>
+  static void resizeTable(TableT& table, size_t newSize) {
+    table.visitOne([newSize](auto& row) {
+      row.resize(newSize);
+    });
+  }
+
+  template<class TableT>
   static size_t size(const TableT& table) {
     //They're all the same size, so getting any will be the correct size
     return std::get<0>(table.mRows).size();
