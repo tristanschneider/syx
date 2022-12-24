@@ -12,6 +12,7 @@ target_include_directories(ogl PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_precompile_headers(ogl PRIVATE Precompile.h)
 
 # Link dependencies
+target_link_libraries(ogl PRIVATE glm)
 target_link_libraries(ogl PRIVATE table)
 target_link_libraries(ogl PRIVATE game)
 target_link_libraries(ogl PRIVATE glew)

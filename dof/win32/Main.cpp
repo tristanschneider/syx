@@ -11,6 +11,8 @@
 #include "TableOperations.h"
 #include "Renderer.h"
 
+#include "glm/gtx/norm.hpp"
+
 struct AppDatabase {
   GameDatabase mGame;
   RendererDatabase mRenderer;
@@ -42,15 +44,46 @@ enum class KeyState : uint8_t {
 
 void onKey(WPARAM key, GameDatabase& db, KeyState state) {
   const float moveAmount = state == KeyState::Triggered ? 1.0f : 0.0f;
+  const bool isDown = state == KeyState::Triggered;
 
   PlayerTable& players = std::get<PlayerTable>(db.mTables);
-  for(PlayerInput& input : std::get<Row<PlayerInput>>(players.mRows).mElements) {
+  for(size_t i = 0; i < TableOperations::size(players); ++i) {
+    PlayerKeyboardInput& keyboard = std::get<Row<PlayerKeyboardInput>>(players.mRows).at(i);
+    PlayerInput& input = std::get<Row<PlayerInput>>(players.mRows).at(i);
     switch(key) {
-      case 'W': input.mMoveY = moveAmount; break;
-      case 'A': input.mMoveX = -moveAmount; break;
-      case 'S': input.mMoveY = -moveAmount; break;
-      case 'D': input.mMoveX = moveAmount; break;
-      default: return;
+      case 'W': keyboard.mKeys.set((size_t)PlayerKeyboardInput::Key::Up, isDown); break;
+      case 'A':keyboard.mKeys.set((size_t)PlayerKeyboardInput::Key::Left, isDown); break;
+      case 'S': keyboard.mKeys.set((size_t)PlayerKeyboardInput::Key::Down, isDown); break;
+      case 'D': keyboard.mKeys.set((size_t)PlayerKeyboardInput::Key::Right, isDown); break;
+      default: break;
+    }
+    input.mMoveX = input.mMoveY = 0.0f;
+    if(keyboard.mKeys.test((size_t)PlayerKeyboardInput::Key::Up)) {
+      input.mMoveY += 1.0f;
+    }
+    if(keyboard.mKeys.test((size_t)PlayerKeyboardInput::Key::Down)) {
+      input.mMoveY -= 1.0f;
+    }
+    if(keyboard.mKeys.test((size_t)PlayerKeyboardInput::Key::Left)) {
+      input.mMoveX -= 1.0f;
+    }
+    if(keyboard.mKeys.test((size_t)PlayerKeyboardInput::Key::Right)) {
+      input.mMoveX += 1.0f;
+    }
+    glm::vec2 normalized = glm::vec2(input.mMoveX, input.mMoveY);
+    if(float len = glm::length(normalized); len > 0.0001f) {
+      normalized /= len;
+      input.mMoveX = normalized.x;
+      input.mMoveY = normalized.y;
+    }
+  }
+
+  CameraTable& cameras = std::get<CameraTable>(db.mTables);
+  for(DebugCameraControl& camera : std::get<Row<DebugCameraControl>>(cameras.mRows).mElements) {
+    switch(key) {
+      case VK_ADD: camera.mAdjustZoom = moveAmount; break;
+      case VK_SUBTRACT: camera.mAdjustZoom = -moveAmount; break;
+      default: break;
     }
   }
 }

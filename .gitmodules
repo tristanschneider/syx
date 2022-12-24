@@ -1,0 +1,3 @@
+[submodule "dof/glm/glm"]
+	path = dof/glm/glm
+	url = https://github.com/g-truc/glm.git

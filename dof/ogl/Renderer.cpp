@@ -5,25 +5,22 @@
 #include "STBInterface.h"
 #include "Table.h"
 
-namespace {
-  struct Mat3 {
-    float* data() {
-      return reinterpret_cast<float*>(this);
-    }
-    float a = 0; float b = 0; float c = 0;
-    float d = 0; float e = 0; float f = 0;
-    float g = 0; float h = 0; float i = 0;
-  };
+#include "glm/mat3x3.hpp"
+#include "glm/ext/matrix_float3x3.hpp"
 
+#include "glm/gtx/transform.hpp"
+
+namespace {
   struct QuadShader {
     static constexpr const char* vs = R"(
       #version 330 core
       layout(location = 0) in vec2 aPosition;
 
-      uniform mat3 uWorldToView;
+      uniform mat4 uWorldToView;
       uniform samplerBuffer uPosX;
       uniform samplerBuffer uPosY;
-      uniform samplerBuffer uRot;
+      uniform samplerBuffer uRotX;
+      uniform samplerBuffer uRotY;
       uniform samplerBuffer uUV;
 
       out vec2 oUV;
@@ -33,16 +30,15 @@ namespace {
 
         //TODO: should build transform on CPU to avoid per-vertex waste
         int i = gl_InstanceID;
-        float angle = texelFetch(uRot, i).r;
-        float cosAngle = cos(angle);
-        float sinAngle = sin(angle);
+        float cosAngle = texelFetch(uRotX, i).r;
+        float sinAngle = texelFetch(uRotY, i).r;
         vec2 pos = aPosition;
         //2d rotation matrix multiply
         pos = vec2(pos.x*cosAngle - pos.y*sinAngle,
           pos.x*sinAngle + pos.y*cosAngle);
         pos += vec2(texelFetch(uPosX, i).r, texelFetch(uPosY, i).r);
 
-        pos = (uWorldToView*vec3(pos, 1)).xy;
+        pos = (uWorldToView*vec4(pos, 0, 1)).xy;
 
         //Order of uUV data is uMin, vMin, uMax, vMax
         //Order of vertices in quad is:
@@ -209,7 +205,8 @@ namespace {
     QuadUniforms result;
     result.posX = _createTextureSamplerUniform(quadShader, "uPosX");
     result.posY = _createTextureSamplerUniform(quadShader, "uPosY");
-    result.rot = _createTextureSamplerUniform(quadShader, "uRot");
+    result.rotX = _createTextureSamplerUniform(quadShader, "uRotX");
+    result.rotY = _createTextureSamplerUniform(quadShader, "uRotY");
     result.uv = _createTextureSamplerUniform(quadShader, "uUV");
     result.worldToView = glGetUniformLocation(quadShader, "uWorldToView");
     result.texture = glGetUniformLocation(quadShader, "uTex");
@@ -217,7 +214,8 @@ namespace {
   }
 
   void _loadTexture(TextureLoadRequest& request, TexturesTable& textures) {
-    ImageData data = STBInterface::loadImageFromFile(request.mFileName.c_str(), 3);
+    //Don't care about alpha for the moment but images get skewed strangely unless loaded as 4 components
+    ImageData data = STBInterface::loadImageFromFile(request.mFileName.c_str(), 4);
     if(!data.mBytes) {
       request.mStatus = RequestStatus::Failed;
       return;
@@ -226,7 +224,7 @@ namespace {
     GLuint textureHandle;
     glGenTextures(1, &textureHandle);
     glBindTexture(GL_TEXTURE_2D, textureHandle);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, GLsizei(data.mWidth), GLsizei(data.mHeight), 0, GL_RGB, GL_UNSIGNED_BYTE, data.mBytes);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, GLsizei(data.mWidth), GLsizei(data.mHeight), 0, GL_RGBA, GL_UNSIGNED_BYTE, data.mBytes);
     //Define sampling mode, no mip maps snap to nearest
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
@@ -303,62 +301,71 @@ void Renderer::render(GameDatabase& db, RendererDatabase& renderDB) {
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
   glUseProgram(state.mQuadShader);
+  Queries::viewEachRow<Row<Camera>>(db, [&](Row<Camera>& cameras) {
+    for(const Camera& camera : cameras.mElements) {
+      Queries::viewEachRow<FloatRow<Tags::Pos, Tags::X>,
+        FloatRow<Tags::Pos, Tags::Y>,
+        FloatRow<Tags::Rot, Tags::CosAngle>,
+        FloatRow<Tags::Rot, Tags::SinAngle>,
+        Row<CubeSprite>,
+        SharedRow<TextureReference>>(db,
+          [&](FloatRow<Tags::Pos, Tags::X>& posX,
+            FloatRow<Tags::Pos, Tags::Y>& posY,
+            FloatRow<Tags::Rot, Tags::CosAngle>& rotationX,
+            FloatRow<Tags::Rot, Tags::SinAngle>& rotationY,
+            Row<CubeSprite>& sprite,
+            SharedRow<TextureReference>& texture) {
 
-  Queries::viewEachRow<FloatRow<Tags::Pos, Tags::X>,
-    FloatRow<Tags::Pos, Tags::Y>,
-    FloatRow<Tags::Rot, Tags::Angle>,
-    Row<CubeSprite>,
-    SharedRow<TextureReference>>(db,
-      [&](FloatRow<Tags::Pos, Tags::X>& posX,
-        FloatRow<Tags::Pos, Tags::Y>& posY,
-        FloatRow<Tags::Rot, Tags::Angle>& rotation,
-        Row<CubeSprite>& sprite,
-        SharedRow<TextureReference>& texture) {
+          size_t count = posX.size();
+          if(!count) {
+            return;
+          }
 
-      size_t count = posX.size();
-      if(!count) {
-        return;
-      }
+          GLuint oglTexture = _getTextureByID(texture.at().mId, std::get<TexturesTable>(renderDB.mTables));
+          if(!oglTexture) {
+            return;
+          }
 
-      GLuint oglTexture = _getTextureByID(texture.at().mId, std::get<TexturesTable>(renderDB.mTables));
-      if(!oglTexture) {
-        return;
-      }
+          glBindBuffer(GL_TEXTURE_BUFFER, state.mQuadUniforms.posX.buffer);
+          glBufferData(GL_TEXTURE_BUFFER, sizeof(float)*count, posX.mElements.data(), GL_STATIC_DRAW);
+          glBindBuffer(GL_TEXTURE_BUFFER, state.mQuadUniforms.posY.buffer);
+          glBufferData(GL_TEXTURE_BUFFER, sizeof(float)*count, posY.mElements.data(), GL_STATIC_DRAW);
+          glBindBuffer(GL_TEXTURE_BUFFER, state.mQuadUniforms.rotX.buffer);
+          glBufferData(GL_TEXTURE_BUFFER, sizeof(float)*count, rotationX.mElements.data(), GL_STATIC_DRAW);
+          glBindBuffer(GL_TEXTURE_BUFFER, state.mQuadUniforms.rotY.buffer);
+          glBufferData(GL_TEXTURE_BUFFER, sizeof(float)*count, rotationY.mElements.data(), GL_STATIC_DRAW);
 
-      glBindBuffer(GL_TEXTURE_BUFFER, state.mQuadUniforms.posX.buffer);
-      glBufferData(GL_TEXTURE_BUFFER, sizeof(float)*count, posX.mElements.data(), GL_STATIC_DRAW);
-      glBindBuffer(GL_TEXTURE_BUFFER, state.mQuadUniforms.posY.buffer);
-      glBufferData(GL_TEXTURE_BUFFER, sizeof(float)*count, posY.mElements.data(), GL_STATIC_DRAW);
-      glBindBuffer(GL_TEXTURE_BUFFER, state.mQuadUniforms.rot.buffer);
-      glBufferData(GL_TEXTURE_BUFFER, sizeof(float)*count, rotation.mElements.data(), GL_STATIC_DRAW);
-      //TODO: doesn't change every frame
-      glBindBuffer(GL_TEXTURE_BUFFER, state.mQuadUniforms.uv.buffer);
-      glBufferData(GL_TEXTURE_BUFFER, sizeof(float)*count*4, sprite.mElements.data(), GL_STATIC_DRAW);
+          //TODO: doesn't change every frame
+          glBindBuffer(GL_TEXTURE_BUFFER, state.mQuadUniforms.uv.buffer);
+          glBufferData(GL_TEXTURE_BUFFER, sizeof(float)*count*4, sprite.mElements.data(), GL_STATIC_DRAW);
 
-      glBindBuffer(GL_ARRAY_BUFFER, state.mQuadVertexBuffer);
-      //Could tie these to a vao, but that would also require and index buffer all of which seems like overkill
-      glEnableVertexAttribArray(0);
-      //First attribute, 2 float elements that shouldn't be normalized, tightly packed, no offset
-      glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, 0);
+          glBindBuffer(GL_ARRAY_BUFFER, state.mQuadVertexBuffer);
+          //Could tie these to a vao, but that would also require and index buffer all of which seems like overkill
+          glEnableVertexAttribArray(0);
+          //First attribute, 2 float elements that shouldn't be normalized, tightly packed, no offset
+          glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, 0);
 
-      Mat3 worldToView;
-      const float scale = 0.015f;
-      const float camPosX = 0.0f;
-      const float camPosY = 0.0f;
-      worldToView.a = scale;                      ; worldToView.c = -camPosX;
-      ;                    worldToView.e = scale; ; worldToView.f = -camPosY;
-                                                    worldToView.i = 1.0f;
+          glm::mat4 worldToView = glm::inverse(
+            glm::translate(glm::vec3(camera.x, camera.y, 0.0f)) *
+            glm::rotate(camera.angle, glm::vec3(0, 0, -1)) *
+            glm::scale(glm::vec3(camera.zoom))
+          );
 
-      glUniformMatrix3fv(state.mQuadUniforms.worldToView, 1, GL_FALSE, worldToView.data());
-      _bindTextureSamplerUniform(state.mQuadUniforms.posX, GL_R32F, 0);
-      _bindTextureSamplerUniform(state.mQuadUniforms.posY, GL_R32F, 1);
-      _bindTextureSamplerUniform(state.mQuadUniforms.rot, GL_R32F, 2);
-      _bindTextureSamplerUniform(state.mQuadUniforms.uv, GL_RGBA32F, 3);
-      glActiveTexture(GL_TEXTURE0 + 4);
-      glBindTexture(GL_TEXTURE_2D, oglTexture);
-      glUniform1i(state.mQuadUniforms.texture, 4);
+          rotationX;rotationY;
+          glUniformMatrix4fv(state.mQuadUniforms.worldToView, 1, GL_FALSE, &worldToView[0][0]);
+          int textureIndex = 0;
+          _bindTextureSamplerUniform(state.mQuadUniforms.posX, GL_R32F, textureIndex++);
+          _bindTextureSamplerUniform(state.mQuadUniforms.posY, GL_R32F, textureIndex++);
+          _bindTextureSamplerUniform(state.mQuadUniforms.rotX, GL_R32F, textureIndex++);
+          _bindTextureSamplerUniform(state.mQuadUniforms.rotY, GL_R32F, textureIndex++);
+          _bindTextureSamplerUniform(state.mQuadUniforms.uv, GL_RGBA32F, textureIndex++);
+          glActiveTexture(GL_TEXTURE0 + textureIndex);
+          glBindTexture(GL_TEXTURE_2D, oglTexture);
+          glUniform1i(state.mQuadUniforms.texture, textureIndex++);
 
-      glDrawArraysInstanced(GL_TRIANGLES, 0, 6, GLsizei(count));
+          glDrawArraysInstanced(GL_TRIANGLES, 0, 6, GLsizei(count));
+      });
+    }
   });
 
   SwapBuffers(state.mDeviceContext);

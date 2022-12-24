@@ -53,6 +53,7 @@ struct SharedRow {
   template<class... Args>
   Element& emplaceBack(Args&&...) {
     ++mSize;
+    return mValue;
   }
 
   void resize(size_t size) {

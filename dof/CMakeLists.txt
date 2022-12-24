@@ -10,6 +10,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED)
 
 option(TEST_ENABLED "Include test projects" ON)
 
+add_compile_options(/wd4309 /wd4324 /wd4389 /wd4127 /wd4267 /wd4146 /wd4201 /wd4464 /wd4514 /wd4701 /wd4820 /wd4365)
+
 if(MSVC)
     add_compile_definitions(
         _HAS_EXCEPTIONS=0
@@ -37,6 +39,7 @@ if(MSVC)
     )
 endif()
 
+add_subdirectory(glm)
 add_subdirectory(stb)
 add_subdirectory(table)
 add_subdirectory(ispc)
@@ -48,6 +51,7 @@ add_subdirectory(ogl)
 if(TEST_ENABLED)
     add_subdirectory(test)
 endif()
+
 
 if(WIN32)
     add_subdirectory(win32)

@@ -9,7 +9,7 @@ struct TextureSamplerUniform {
 };
 
 struct QuadUniforms {
-  TextureSamplerUniform posX, posY, rot, uv;
+  TextureSamplerUniform posX, posY, rotX, rotY, uv;
   GLuint worldToView;
   GLuint texture;
 };
