@@ -35,6 +35,26 @@ void onFocusChanged(WPARAM w) {
   }
 }
 
+enum class KeyState : uint8_t {
+  Triggered,
+  Released
+};
+
+void onKey(WPARAM key, GameDatabase& db, KeyState state) {
+  const float moveAmount = state == KeyState::Triggered ? 1.0f : 0.0f;
+
+  PlayerTable& players = std::get<PlayerTable>(db.mTables);
+  for(PlayerInput& input : std::get<Row<PlayerInput>>(players.mRows).mElements) {
+    switch(key) {
+      case 'W': input.mMoveY = moveAmount; break;
+      case 'A': input.mMoveX = -moveAmount; break;
+      case 'S': input.mMoveY = -moveAmount; break;
+      case 'D': input.mMoveX = moveAmount; break;
+      default: return;
+    }
+  }
+}
+
 LRESULT CALLBACK mainProc(HWND wnd, UINT msg, WPARAM w, LPARAM l) {
   switch(msg) {
     case WM_DESTROY:
@@ -54,6 +74,18 @@ LRESULT CALLBACK mainProc(HWND wnd, UINT msg, WPARAM w, LPARAM l) {
     case WM_ACTIVATEAPP:
       onFocusChanged(w);
       break;
+
+    case WM_KEYDOWN:
+      if(APP) {
+        onKey(w, APP->mGame, KeyState::Triggered);
+      }
+      return 0;
+
+    case WM_KEYUP:
+      if(APP) {
+        onKey(w, APP->mGame, KeyState::Released);
+      }
+      return 0;
   }
   return DefWindowProc(wnd, msg, w, l);
 }

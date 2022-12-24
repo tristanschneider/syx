@@ -50,6 +50,7 @@ struct SceneState {
   };
   State mState = State::InitRequestAssets;
   size_t mBackgroundImage = 0;
+  size_t mPlayerImage = 0;
 };
 
 using TextureRequestTable = Table<
@@ -68,10 +69,25 @@ using GameObjectTable = Table<
   SharedRow<TextureReference>
 >;
 
+struct PlayerInput {
+  float mMoveX{};
+  float mMoveY{};
+};
+
+using PlayerTable = Table<
+  FloatRow<Tags::Pos, Tags::X>,
+  FloatRow<Tags::Pos, Tags::Y>,
+  FloatRow<Tags::Rot, Tags::Angle>,
+  Row<CubeSprite>,
+  Row<PlayerInput>,
+  SharedRow<TextureReference>
+>;
+
 using GameDatabase = Database<
   GameObjectTable,
   GlobalGameData,
-  TextureRequestTable
+  TextureRequestTable,
+  PlayerTable
 >;
 
 struct Simulation {
