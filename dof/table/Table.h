@@ -6,6 +6,8 @@ struct BasicRow {
   using ElementT = Element;
   using ElementPtr = Element*;
 
+  using IteratorT = typename std::vector<Element>::iterator;
+
   size_t size() const {
     return mElements.size();
   }
@@ -23,8 +25,25 @@ struct BasicRow {
     return mElements.emplace_back(std::forward<Args>(args)...);
   }
 
+  template<class T, class... Args>
+  Element& insert(const T& atIt, Args&&... args) {
+    return *mElements.insert(atIt, std::forward<Args>(args)...);
+  }
+
+  void erase(const IteratorT& it) {
+    mElements.erase(it);
+  }
+
   void resize(size_t size) {
     mElements.resize(size);
+  }
+
+  IteratorT begin() {
+    return mElements.begin();
+  }
+
+  IteratorT end() {
+    return mElements.end();
   }
 
   std::vector<Element> mElements;
@@ -58,6 +77,26 @@ struct SharedRow {
 
   void resize(size_t size) {
     mSize = size;
+  }
+
+  using NoOpIterator = size_t;
+
+  template<class... Args>
+  Element& insert(NoOpIterator, Args&&...) {
+    ++mSize;
+    return mValue;
+  }
+
+  void erase(NoOpIterator) {
+    --mSize;
+  }
+
+  NoOpIterator begin() {
+    return {};
+  }
+
+  NoOpIterator end() {
+    return {};
   }
 
   Element mValue;

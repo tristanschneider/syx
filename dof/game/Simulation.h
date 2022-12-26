@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Database.h"
+#include "Physics.h"
 #include "Table.h"
 
 #include "glm/vec2.hpp"
@@ -135,12 +136,16 @@ using CameraTable = Table<
   Row<DebugCameraControl>
 >;
 
+using BroadphaseTable = GridBroadphase::BroadphaseTable;
+
 using GameDatabase = Database<
   GameObjectTable,
   GlobalGameData,
   TextureRequestTable,
   PlayerTable,
-  CameraTable
+  CameraTable,
+  BroadphaseTable,
+  CollisionPairsTable
 >;
 
 struct Simulation {
