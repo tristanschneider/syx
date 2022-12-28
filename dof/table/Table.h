@@ -56,6 +56,8 @@ template<class Element>
 struct SharedRow {
   using ElementT = Element;
   using ElementPtr = Element*;
+  using NoOpIterator = size_t;
+  using IteratorT = NoOpIterator;
 
   size_t size() const {
     return mSize;
@@ -78,8 +80,6 @@ struct SharedRow {
   void resize(size_t size) {
     mSize = size;
   }
-
-  using NoOpIterator = size_t;
 
   template<class... Args>
   Element& insert(NoOpIterator, Args&&...) {

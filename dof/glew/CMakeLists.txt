@@ -12,6 +12,9 @@ set(dll_location "${CMAKE_CURRENT_SOURCE_DIR}/lib/Release/x64/glew32.dll")
 set_target_properties(glew PROPERTIES IMPORTED_LOCATION "${dll_location}")
 set_target_properties(glew PROPERTIES IMPORTED_IMPLIB "${CMAKE_CURRENT_SOURCE_DIR}/lib/Release/x64/glew32.lib")
 
+# glew will include wglew on windows to which we want to disable the min max macros to avoid collision with stl
+add_compile_definitions(NOMINMAX)
+
 function(copy_glew_to_target target)
     add_custom_command(TARGET ${target} COMMAND ${CMAKE_COMMAND} -E copy_if_different
         $<TARGET_FILE:glew>

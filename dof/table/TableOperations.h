@@ -15,12 +15,21 @@ struct TableOperations {
     });
   }
 
-  //Sorted and unique
+  //Insert in the table before the iterator relative to the LeadingRow
+  template<class LeadingRow, class TableT>
+  static auto addToTableAt(TableT& table, LeadingRow& row, const typename LeadingRow::IteratorT& at) {
+    const auto insertIndex = std::distance(row.begin(), at);
+    return table.visitAll([&](auto&... rows) {
+      return make_duple(&rows.insert(rows.begin() + insertIndex, typename std::decay_t<decltype(rows)>::ElementT{})...);
+    });
+  }
+
   template<class LeadingRow, class TableT, class T>
-  static auto addToSortedTable(TableT& table, T value) {
+  static auto addToSortedUniqueTable(TableT& table, T value) {
     auto& row = std::get<LeadingRow>(table.mRows);
     //Find the sorted insert position by the leading row
     auto it = std::lower_bound(row.begin(), row.end(), value);
+
     //Get the relative offset of that sorted position to use for all other rows
     const auto insertIndex = std::distance(row.begin(), it);
 
@@ -29,20 +38,26 @@ struct TableOperations {
       return getElement(table, insertIndex);
     }
 
-    //Sorted insert using the found index, with special case to move in value for leading storage
-    auto insertOne = [&](auto& row) {
-      using RowT = std::decay_t<decltype(row)>;
-      if constexpr(std::is_same_v<LeadingRow, RowT>) {
-        return &row.insert(row.begin() + insertIndex, std::move(value));
-      }
-      else {
-        //Insert a default constructed element
-        return &row.insert(row.begin() + insertIndex, typename RowT::ElementT{});
-      }
-    };
-    return table.visitAll([&](auto&... rows) -> TableT::ElementRef {
-      return make_duple(insertOne(rows)...);
-    });
+    auto result = addToTableAt(table, row, it);
+
+    row.at(size_t(insertIndex)) = std::move(value);
+
+    return result;
+  }
+
+  template<class LeadingRow, class TableT, class T>
+  static auto addToSortedTable(TableT& table, T value) {
+    auto& row = std::get<LeadingRow>(table.mRows);
+    //Find the sorted insert position by the leading row
+    auto it = std::lower_bound(row.begin(), row.end(), value);
+    //Get the relative offset of that sorted position to use for all other rows
+    const auto insertIndex = std::distance(row.begin(), it);
+
+    auto result = addToTableAt(table, row, it);
+
+    row.at(size_t(insertIndex)) = std::move(value);
+
+    return result;
   }
 
   template<class TableT>

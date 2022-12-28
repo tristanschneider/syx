@@ -202,12 +202,20 @@ namespace Test {
       Assert::IsTrue(std::vector<size_t>{ size_t(4), size_t(6) } == std::get<Row<size_t>>(table.mRows).mElements);
     }
 
-    TEST_METHOD(SortedTable_AddDuplicate_IsNotAdded) {
+    TEST_METHOD(SortedUniqueTable_AddDuplicate_IsNotAdded) {
+      Table<Row<int>> table;
+      TableOperations::addToSortedUniqueTable<Row<int>>(table, 1);
+      TableOperations::addToSortedUniqueTable<Row<int>>(table, 1);
+
+      Assert::AreEqual(size_t(1), TableOperations::size(table));
+    }
+
+    TEST_METHOD(SortedTable_AddDuplicate_IsAdded) {
       Table<Row<int>> table;
       TableOperations::addToSortedTable<Row<int>>(table, 1);
       TableOperations::addToSortedTable<Row<int>>(table, 1);
 
-      Assert::AreEqual(size_t(1), TableOperations::size(table));
+      Assert::AreEqual(size_t(2), TableOperations::size(table));
     }
 
     using TestDB = Database<Table<Row<int>>, Table<Row<size_t>>>;
@@ -298,5 +306,101 @@ namespace Test {
 
       Assert::AreEqual(size_t(0), TableOperations::size(pairs));
     }
+
+    TEST_METHOD(TwoPairsSameObject_GenerateCollisionPairs_HasPairs) {
+      GameDatabase db;
+      auto& gameobjects = std::get<GameObjectTable>(db.mTables);
+      TableOperations::resizeTable(gameobjects, 3);
+      auto& broadphase = std::get<BroadphaseTable>(db.mTables);
+      auto& dimensions = std::get<SharedRow<GridBroadphase::RequestedDimensions>>(broadphase.mRows).at();
+      dimensions.mMin.x = 0;
+      dimensions.mMax.x = 10;
+      dimensions.mMax.y = 9;
+      dimensions.mMin.y = -1;
+      auto& posX = std::get<FloatRow<Tags::Pos, Tags::X>>(gameobjects.mRows);
+      auto& posY = std::get<FloatRow<Tags::Pos, Tags::Y>>(gameobjects.mRows);
+      auto& pairs = std::get<CollisionPairsTable>(db.mTables);
+      //This one to collide with both
+      posX.at(0) = 5.0f;
+      //This one to the left to collide with 1 but not 2
+      posX.at(1) = 4.0f;
+      //To the right, colliding with 0 but not 1
+      posX.at(2) = 6.0f;
+
+      Physics::allocateBroadphase(broadphase);
+      Physics::rebuildBroadphase(db.getTableIndex<GameObjectTable>().mValue, posX.mElements.data(), posY.mElements.data(), broadphase, posX.size());
+      Physics::generateCollisionPairs(broadphase, pairs);
+
+      Assert::AreEqual(size_t(2), TableOperations::size(pairs));
+      std::pair<size_t, size_t> a, b;
+      auto pairA = TableOperations::getElement(pairs, 0);
+      auto pairB = TableOperations::getElement(pairs, 1);
+      //These asserts are enforcing a result order but that's not a requirement, rather it's easier to write the test that way
+      Assert::AreEqual(size_t(0), pairB.get<0>());
+      Assert::AreEqual(size_t(1), pairB.get<1>());
+      Assert::AreEqual(size_t(0), pairA.get<0>());
+      Assert::AreEqual(size_t(2), pairA.get<1>());
+    }
+
+    TEST_METHOD(CollidingPair_GenerateContacts_AreGenerated) {
+      GameDatabase db;
+      auto& gameobjects = std::get<GameObjectTable>(db.mTables);
+      TableOperations::resizeTable(gameobjects, 2);
+      auto& broadphase = std::get<BroadphaseTable>(db.mTables);
+      auto& dimensions = std::get<SharedRow<GridBroadphase::RequestedDimensions>>(broadphase.mRows).at();
+      dimensions.mMin.x = 0;
+      dimensions.mMax.x = 10;
+      dimensions.mMax.y = 9;
+      dimensions.mMin.y = -1;
+      auto& posX = std::get<FloatRow<Tags::Pos, Tags::X>>(gameobjects.mRows);
+      auto& posY = std::get<FloatRow<Tags::Pos, Tags::Y>>(gameobjects.mRows);
+      auto& pairs = std::get<CollisionPairsTable>(db.mTables);
+      const float expectedOverlap = 0.1f;
+      posX.at(0) = 5.0f;
+      posX.at(1) = 6.0f - expectedOverlap;
+
+      Physics::allocateBroadphase(broadphase);
+      Physics::rebuildBroadphase(db.getTableIndex<GameObjectTable>().mValue, posX.mElements.data(), posY.mElements.data(), broadphase, posX.size());
+      Physics::generateCollisionPairs(broadphase, pairs);
+      _fillNarrowphaseData(db);
+      Physics::generateContacts(pairs);
+
+      Assert::AreEqual(size_t(1), TableOperations::size(pairs));
+      const float e = 0.00001f;
+      Assert::AreEqual(expectedOverlap, std::get<ContactPoint<ContactOne>::Overlap>(pairs.mRows).at(0), e);
+      Assert::AreEqual(5.5f, std::get<ContactPoint<ContactOne>::PosX>(pairs.mRows).at(0), e);
+      Assert::AreEqual(-1.0f, std::get<SharedNormal::X>(pairs.mRows).at(0), e);
+    }
+
+    TEST_METHOD(CollidingPair_SolveConstraints_AreSeparated) {
+      GameDatabase db;
+      auto& gameobjects = std::get<GameObjectTable>(db.mTables);
+      TableOperations::resizeTable(gameobjects, 2);
+      auto& broadphase = std::get<BroadphaseTable>(db.mTables);
+      auto& dimensions = std::get<SharedRow<GridBroadphase::RequestedDimensions>>(broadphase.mRows).at();
+      dimensions.mMin.x = 0;
+      dimensions.mMax.x = 10;
+      dimensions.mMax.y = 9;
+      dimensions.mMin.y = -1;
+      auto& posX = std::get<FloatRow<Tags::Pos, Tags::X>>(gameobjects.mRows);
+      auto& posY = std::get<FloatRow<Tags::Pos, Tags::Y>>(gameobjects.mRows);
+      auto& pairs = std::get<CollisionPairsTable>(db.mTables);
+      const float expectedOverlap = 0.1f;
+      posX.at(0) = 5.0f;
+      posX.at(1) = 6.0f - expectedOverlap;
+
+      Physics::allocateBroadphase(broadphase);
+      Physics::rebuildBroadphase(db.getTableIndex<GameObjectTable>().mValue, posX.mElements.data(), posY.mElements.data(), broadphase, posX.size());
+      Physics::generateCollisionPairs(broadphase, pairs);
+      _fillNarrowphaseData(db);
+      Physics::generateContacts(pairs);
+
+      Assert::AreEqual(size_t(1), TableOperations::size(pairs));
+      const float e = 0.00001f;
+      Assert::AreEqual(expectedOverlap, std::get<ContactPoint<ContactOne>::Overlap>(pairs.mRows).at(0), e);
+      Assert::AreEqual(5.5f, std::get<ContactPoint<ContactOne>::PosX>(pairs.mRows).at(0), e);
+      Assert::AreEqual(-1.0f, std::get<SharedNormal::X>(pairs.mRows).at(0), e);
+    }
+
   };
 }
