@@ -11,9 +11,10 @@ struct GridBroadphase {
   static constexpr size_t EMPTY_ID = std::numeric_limits<size_t>::max();
   struct Cell {
     //These are GameDatabase::ElementIDs
+    //TODO: this doesn't seem to work well at all, it overflows so easily even with much space
     //4 is the maximum expected amount of expected objects that could fit in a cell
     //If the cell is full they will go into overflow
-    std::array<size_t, 4> mElements;
+    std::array<size_t, 10> mElements;
   };
   //Broadphase degrades into n^2 lookup if cells are full
   struct Overflow {
@@ -274,6 +275,24 @@ struct Physics {
         last = id;
       }
     }
+
+    static void _integratePositionAxis(float* velocity, float* position, size_t count);
+    static void _integrateRotation(float* rotX, float* rotY, float* velocity, size_t count);
+    static void _applyDampingMultiplier(float* velocity, float amount, size_t count);
+
+    template<class Velocity, class Position, class DatabaseT>
+    static void integratePositionAxis(DatabaseT& db) {
+      Queries::viewEachRow<Velocity, Position>(db, [](Velocity& velocity, Position& position) {
+        _integratePositionAxis(velocity.mElements.data(), position.mElements.data(), velocity.size());
+      });
+    }
+
+    template<class Axis, class DatabaseT>
+    static void applyDampingMultiplierAxis(DatabaseT& db, float multiplier) {
+      Queries::viewEachRow<Axis>(db, [multiplier](Axis& axis) {
+        _applyDampingMultiplier(axis.mElements.data(), multiplier, axis.size());
+      });
+    }
   };
 
   //Populates narrowphase data by fetching it from the provided input using the indices stored by the broadphase
@@ -327,4 +346,22 @@ struct Physics {
     details::storeToRow<ConstraintObject<ConstraintObjB>::AngVel, AngVel>(constraints, db, indices.mMappingsB);
   }
 
+  template<class LinVelX, class LinVelY, class PosX, class PosY, class DatabaseT>
+  static void integratePosition(DatabaseT& db) {
+    details::integratePositionAxis<LinVelX, PosX>(db);
+    details::integratePositionAxis<LinVelY, PosY>(db);
+  }
+
+  template<class CosAngle, class SinAngle, class AngVel, class DatabaseT>
+  static void integrateRotation(DatabaseT& db) {
+    Queries::viewEachRow<CosAngle, SinAngle, AngVel>(db, [](CosAngle& cosAngle, SinAngle& sinAngle, AngVel& angVel) {
+      details::_integrateRotation(cosAngle.mElements.data(), sinAngle.mElements.data(), angVel.mElements.data(), cosAngle.size());
+    });
+  }
+
+  template<class LinVelX, class LinVelY, class DatabaseT>
+  static void applyDampingMultiplier(DatabaseT& db, float multiplier) {
+    details::applyDampingMultiplierAxis<LinVelX>(db, multiplier);
+    details::applyDampingMultiplierAxis<LinVelY>(db, multiplier);
+  }
 };

@@ -51,9 +51,19 @@ namespace {
     return SceneState::State::SetupScene;
   }
 
+  void _allocateBroadphaseFromScene(const SceneState& scene, BroadphaseTable& broadphase) {
+    auto& requestedDimensions = std::get<SharedRow<GridBroadphase::RequestedDimensions>>(broadphase.mRows).at();
+    const int broadphasePadding = 5;
+    requestedDimensions.mMin.x = int(scene.mBoundaryMin.x) - broadphasePadding;
+    requestedDimensions.mMin.y = int(scene.mBoundaryMin.y) - broadphasePadding;
+    requestedDimensions.mMax.x = int(scene.mBoundaryMax.x) + broadphasePadding;
+    requestedDimensions.mMax.y = int(scene.mBoundaryMax.y) + broadphasePadding;
+    Physics::allocateBroadphase(broadphase);
+  }
+
   SceneState::State _setupScene(GameDatabase& db) {
     GameObjectTable& gameobjects = std::get<GameObjectTable>(db.mTables);
-    const SceneState& scene = std::get<0>(std::get<GlobalGameData>(db.mTables).mRows).at();
+    SceneState& scene = std::get<0>(std::get<GlobalGameData>(db.mTables).mRows).at();
 
     CameraTable& camera = std::get<CameraTable>(db.mTables);
     TableOperations::addToTable(camera);
@@ -77,6 +87,8 @@ namespace {
     float startX = -float(columns)/2.0f;
     float startY = -float(rows)/2.0f;
     float scale = 1.0f/float(rows);
+    auto& posX = std::get<FloatRow<Pos, X>>(gameobjects.mRows);
+    auto& posY = std::get<FloatRow<Pos, Y>>(gameobjects.mRows);
     for(size_t i = 0; i < total; ++i) {
       CubeSprite& sprite = std::get<Row<CubeSprite>>(gameobjects.mRows).at(i);
       const size_t row = i / columns;
@@ -86,19 +98,24 @@ namespace {
       sprite.uMax = sprite.uMin + scale;
       sprite.vMax = sprite.vMin + scale;
 
-      std::get<FloatRow<Pos, X>>(gameobjects.mRows).at(i) = startX + sprite.uMin*float(columns);
-      std::get<FloatRow<Pos, Y>>(gameobjects.mRows).at(i) = startY + sprite.vMin*float(rows);
+      posX.at(i) = startX + sprite.uMin*float(columns);
+      posY.at(i) = startY + sprite.vMin*float(rows);
 
       std::get<FloatRow<Rot, CosAngle>>(gameobjects.mRows).at(i) = 1.0f;
     }
 
+    const float boundaryPadding = 5.0f;
+    const size_t first = 0;
+    const size_t last = total - 1;
+    scene.mBoundaryMin = glm::vec2(posX.at(first), posY.at(first)) - glm::vec2(boundaryPadding);
+    scene.mBoundaryMax = glm::vec2(posX.at(last), posY.at(last)) + glm::vec2(boundaryPadding);
+
+    _allocateBroadphaseFromScene(scene, std::get<BroadphaseTable>(db.mTables));
+
     return SceneState::State::Update;
   }
 
-  SceneState::State _update(GameDatabase& db) {
-    using namespace Tags;
-
-    PlayerTable& players = std::get<PlayerTable>(db.mTables);
+  void _updatePlayerInput(PlayerTable& players) {
     for(size_t i = 0; i < TableOperations::size(players); ++i) {
       const PlayerInput& input = std::get<Row<PlayerInput>>(players.mRows).at(i);
       glm::vec2 move(input.mMoveX, input.mMoveY);
@@ -109,7 +126,7 @@ namespace {
       float& vy = std::get<FloatRow<LinVel, Y>>(players.mRows).at(i);
       glm::vec2 velocity(vx, vy);
 
-      const float maxStoppingForce = 0.1f;
+      const float maxStoppingForce = 0.05f;
       //Apply a stopping force if there is no input. This is a flat amount so it doesn't negate physics
       const float epsilon = 0.0001f;
       const float velocityLen2 = glm::length2(velocity);
@@ -128,29 +145,21 @@ namespace {
       vx = velocity.x;
       vy = velocity.y;
     }
+  }
 
-    CameraTable& cameras = std::get<CameraTable>(db.mTables);
+  void _updateDebugCamera(CameraTable& cameras) {
     for(size_t i = 0; i < TableOperations::size(cameras); ++i) {
       const DebugCameraControl& input = std::get<Row<DebugCameraControl>>(cameras.mRows).at(i);
       const float speed = 0.3f;
       float& zoom = std::get<Row<Camera>>(cameras.mRows).at(i).zoom;
       zoom = std::max(0.0f, zoom + input.mAdjustZoom * speed);
     }
+  }
 
-    GameObjectTable& gameobjects = std::get<GameObjectTable>(db.mTables);
-    for(size_t i = 0; i < TableOperations::size(gameobjects); ++i) {
-      float* cosAngle = &std::get<FloatRow<Rot, CosAngle>>(gameobjects.mRows).at(i);
-      float* sinAngle = &std::get<FloatRow<Rot, SinAngle>>(gameobjects.mRows).at(i);
-      float angularImpulse = 0.01f * (i % 2 ? 1.0f : -1.f);
-      ispc::integrateRotation(cosAngle, sinAngle, &angularImpulse, 1);
-      float a = asin(*sinAngle);
-      float b = acos(*cosAngle);
-      a;b;
-    }
-
-    //World boundary
-    const glm::vec2 boundaryMin(-30.0f, -50.0f);
-    const glm::vec2 boundaryMax(50.0f, 50.0f);
+  void _enforceWorldBoundary(GameDatabase& db) {
+    SceneState& scene = std::get<0>(std::get<GlobalGameData>(db.mTables).mRows).at();
+    const glm::vec2 boundaryMin = scene.mBoundaryMin;
+    const glm::vec2 boundaryMax = scene.mBoundaryMax;
     const float boundarySpringConstant = 1.0f*0.01f;
     Queries::viewEachRow<FloatRow<Pos, X>,
       FloatRow<LinVel, X>>(db,
@@ -162,37 +171,66 @@ namespace {
         [&](FloatRow<Pos, Y>& pos, FloatRow<LinVel, Y>& linVel) {
       ispc::repelWorldBoundary(pos.mElements.data(), linVel.mElements.data(), boundaryMin.y, boundaryMax.y, boundarySpringConstant, (uint32_t)pos.mElements.size());
     });
+  }
 
+  void _updatePhysics(GameDatabase& db) {
+    using PosX = FloatRow<Pos, X>;
+    using PosY = FloatRow<Pos, Y>;
+    using LinVelX = FloatRow<LinVel, X>;
+    using LinVelY = FloatRow<LinVel, Y>;
+    using AngVel = FloatRow<AngVel, Angle>;
+    using RotX = FloatRow<Rot, CosAngle>;
+    using RotY = FloatRow<Rot, SinAngle>;
+    //For now use the existence of this row to indicate that the given object should participate in collision
+    using HasCollision = Row<CubeSprite>;
 
-    //Apply drag
-    const float dragMultiplier = 0.95f;
-    Queries::viewEachRow<FloatRow<LinVel, X>>(db,
-        [&](FloatRow<LinVel, X>& linVel) {
-      ispc::applyDampingMultiplier(linVel.mElements.data(), dragMultiplier, (uint32_t)linVel.mElements.size());
-    });
-    Queries::viewEachRow<FloatRow<LinVel, Y>>(db,
-        [&](FloatRow<LinVel, Y>& linVel) {
-      ispc::applyDampingMultiplier(linVel.mElements.data(), dragMultiplier, (uint32_t)linVel.mElements.size());
+    auto& broadphase = std::get<BroadphaseTable>(db.mTables);
+    auto& collisionPairs = std::get<CollisionPairsTable>(db.mTables);
+    auto& constraints = std::get<ConstraintsTable>(db.mTables);
+
+    const float dragMultiplier = 0.96f;
+    Physics::applyDampingMultiplier<LinVelX, LinVelY>(db, dragMultiplier);
+
+    //TODO: don't rebuild every frame
+    Physics::clearBroadphase(broadphase);
+    //Gather collision pairs in any table that is interested.
+    //This passes the table id forward to the physics tables which is used during the fill/store functions
+    //to figure out which table to refer to when moving data to/from physics
+    Queries::viewEachRowWithTableID<PosX, PosY, HasCollision>(db,
+      [&](GameDatabase::ElementID tableId, PosX& posX, PosY& posY, HasCollision&) {
+        Physics::rebuildBroadphase(tableId.mValue, posX.mElements.data(), posY.mElements.data(), broadphase, posX.mElements.size());
     });
 
-    //Integrate position
-    Queries::viewEachRow<FloatRow<Pos, X>,
-      FloatRow<LinVel, X>>(db,
-        [&](FloatRow<Pos, X>& pos, FloatRow<LinVel, X>& linVel) {
-      ispc::integratePosition(pos.mElements.data(), linVel.mElements.data(), (uint32_t)pos.mElements.size());
-    });
-    Queries::viewEachRow<FloatRow<Pos, Y>,
-      FloatRow<LinVel, Y>>(db,
-        [&](FloatRow<Pos, Y>& pos, FloatRow<LinVel, Y>& linVel) {
-      ispc::integratePosition(pos.mElements.data(), linVel.mElements.data(), (uint32_t)pos.mElements.size());
-    });
-    //Integrate rotation
-    Queries::viewEachRow<FloatRow<Rot, CosAngle>,
-      FloatRow<Rot, SinAngle>,
-      FloatRow<AngVel, Angle>>(db,
-        [&](FloatRow<Rot, CosAngle>& rotX, FloatRow<Rot, SinAngle>& rotY, FloatRow<AngVel, Angle>& velocity) {
-      ispc::integrateRotation(rotX.mElements.data(), rotY.mElements.data(), velocity.mElements.data(), (uint32_t)rotX.mElements.size());
-    });
+    Physics::generateCollisionPairs(broadphase, collisionPairs);
+
+    Physics::fillNarrowphaseData<PosX, PosY, RotX, RotY>(collisionPairs, db);
+
+    Physics::generateContacts(collisionPairs);
+
+    Physics::buildConstraintsTable(collisionPairs, constraints);
+    Physics::fillConstraintVelocities<LinVelX, LinVelY, AngVel>(constraints, db);
+    Physics::setupConstraints(constraints);
+
+    const int solveIterations = 5;
+    //TODO: stop early if global lambda sum falls below tolerance
+    for(int i = 0; i < solveIterations; ++i) {
+      Physics::solveConstraints(constraints);
+    }
+
+    Physics::storeConstraintVelocities<LinVelX, LinVelY, AngVel>(constraints, db);
+
+    Physics::integratePosition<LinVelX, LinVelY, PosX, PosY>(db);
+    Physics::integrateRotation<RotX, RotY, AngVel>(db);
+  }
+
+  SceneState::State _update(GameDatabase& db) {
+    using namespace Tags;
+
+    _updatePlayerInput(std::get<PlayerTable>(db.mTables));
+    _updateDebugCamera(std::get<CameraTable>(db.mTables));
+
+    _enforceWorldBoundary(db);
+    _updatePhysics(db);
 
     return SceneState::State::Update;
   }

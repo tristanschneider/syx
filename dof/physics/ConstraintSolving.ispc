@@ -33,7 +33,22 @@ export void setupConstraintsSharedMass(
     const float angularConstraintMass = constraints.angularImpulseA[i] + constraints.angularImpulseB[i];
     constraints.constraintMass[i] = safeDivide(1.0f, linearConstraintMass + angularConstraintMass);
 
-    constraints.bias[i] = -max(0.0f, contactOverlap[i]*biasMultiplier);
+    //Still solve constraint if the objects are only slightly separated
+    if(contactOverlap[i] >= -0.01f) {
+      //If overlap is positive, there is collision, use the bias to resolve the overlap
+      constraints.bias[i] = -max(0.0f, contactOverlap[i]*biasMultiplier);
+    }
+    else {
+      //If the overlap is negative the objects are not colliding.
+      //The constraint can be effectively ignored by setting the bias to a large positive amount
+      //This will mean that the lambda sum would only become positive if the two objects were moving towards
+      //each other larger than that amount, which is impossible if large enough
+      //Similarly, this could also be used to try to prevent objects from colliding next frame by avoiding
+      //a velocity large enough to close the gap between them.
+      //The problem is it could equally well lead to false collisions if it turns out the two wouldn't have collided
+      //For now, ignore solving for this case
+      constraints.bias[i] = 999999.0f;
+    }
   }
 }
 

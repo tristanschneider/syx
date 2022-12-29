@@ -50,8 +50,8 @@ namespace {
   }
 
   size_t _toIndex(int x, int y, const GridBroadphase::AllocatedDimensions& dimensions) {
-    const size_t cx = glm::clamp(x, dimensions.mOriginX, int(dimensions.mCellsX));
-    const size_t cy = glm::clamp(y, dimensions.mOriginY, int(dimensions.mCellsY));
+    const int cx = glm::clamp(x, dimensions.mOriginX, dimensions.mOriginX + int(dimensions.mCellsX));
+    const int cy = glm::clamp(y, dimensions.mOriginY, dimensions.mOriginY + int(dimensions.mCellsY));
     return size_t(cx - dimensions.mOriginX) + size_t(cy - dimensions.mOriginY)*dimensions.mCellsX;
   }
 
@@ -79,6 +79,18 @@ namespace {
     result.get<0>() = self;
     result.get<1>() = other;
   }
+}
+
+void Physics::details::_integratePositionAxis(float* velocity, float* position, size_t count) {
+  ispc::integratePosition(position, velocity, uint32_t(count));
+}
+
+void Physics::details::_integrateRotation(float* rotX, float* rotY, float* velocity, size_t count) {
+  ispc::integrateRotation(rotX, rotY, velocity, uint32_t(count));
+}
+
+void Physics::details::_applyDampingMultiplier(float* velocity, float amount, size_t count) {
+  ispc::applyDampingMultiplier(velocity, amount, uint32_t(count));
 }
 
 void Physics::allocateBroadphase(GridBroadphase::BroadphaseTable& table) {
@@ -112,7 +124,7 @@ void Physics::rebuildBroadphase(
 
   //Vector to max extents of the shape regardless of rotation
   const float centerToEdge = 0.5f;
-  const glm::vec2 extents(std::sqrt(centerToEdge*centerToEdge)*2);
+  const glm::vec2 extents(std::sqrt(centerToEdge*centerToEdge*2));
   for(size_t i = 0; i < insertCount; ++i) {
     const glm::vec2 center{ xPositions[i], yPositions[i] };
     const IRect rect = _buildRect(center - extents, center + extents);
@@ -122,9 +134,15 @@ void Physics::rebuildBroadphase(
     for(int x = rect.mMin.x; x < rect.mMax.x; ++x) {
       for(int y = rect.mMin.y; y < rect.mMax.y; ++y) {
         bool slotFound = false;
-        for(size_t& storedIndex : cells[_toIndex(x, y, dimensions)].mElements) {
+        const size_t cellIndex = _toIndex(x, y, dimensions);
+        for(size_t& storedIndex : cells[cellIndex].mElements) {
           if(storedIndex == GridBroadphase::EMPTY_ID) {
             storedIndex = indexToStore;
+            slotFound = true;
+            break;
+          }
+          //Don't put self in list multiple times. Shouldn't generally happen unless index is getting clamped due to being outside the boundaries
+          else if(storedIndex == indexToStore) {
             slotFound = true;
             break;
           }
@@ -146,11 +164,15 @@ void Physics::clearBroadphase(GridBroadphase::BroadphaseTable& broadphase) {
   for(GridBroadphase::Cell& cell : std::get<Row<GridBroadphase::Cell>>(broadphase.mRows).mElements) {
     cell.mElements.fill(GridBroadphase::EMPTY_ID);
   }
+  std::get<SharedRow<GridBroadphase::Overflow>>(broadphase.mRows).at().mElements.clear();
 }
 
 //TODO: this is a bit clunky to do separately from generation and update because most of the time all collision pairs from last frame would have been fine
 void Physics::generateCollisionPairs(const GridBroadphase::BroadphaseTable& broadphase, CollisionPairsTable& pairs) {
   const GridBroadphase::Overflow& overflow = std::get<SharedRow<GridBroadphase::Overflow>>(broadphase.mRows).at();
+
+  //TODO: retain pairs for a while then remove them occasionally if far away
+  TableOperations::resizeTable(pairs, 0);
 
   //There could be a way to optimize for empty cells but the assumption is that most cells are not empty
   for(const GridBroadphase::Cell& cell : std::get<Row<GridBroadphase::Cell>>(broadphase.mRows).mElements) {
@@ -163,7 +185,7 @@ void Physics::generateCollisionPairs(const GridBroadphase::BroadphaseTable& broa
       for(size_t other = self + 1; other < cell.mElements.size(); ++other) {
         const size_t otherID = cell.mElements[other];
         if(otherID == GridBroadphase::EMPTY_ID) {
-          continue;
+          break;
         }
         //TODO: optimization here for avoiding pairs of static objects and for doing all inserts at once
         _addCollisionPair(selfID, otherID, pairs);
@@ -289,12 +311,15 @@ struct VisitAttempt {
 };
 
 void _setVisitDataAndTrySetSyncPoint(std::vector<ConstraintData::VisitData>& visited, VisitAttempt& attempt,
-  std::vector<int>& syncIndex,
-  std::vector<int>& syncType,
+  ConstraintObject<ConstraintObjA>::SyncIndex& syncIndexA,
+  ConstraintObject<ConstraintObjA>::SyncType& syncTypeA,
+  ConstraintObject<ConstraintObjB>::SyncIndex& syncIndexB,
+  ConstraintObject<ConstraintObjB>::SyncType& syncTypeB,
   ConstraintData::VisitData::Location location,
   VisitAttempt* dependentAttempt) {
   //Set it to nosync for now, later iteration might set this as new constraints are visited
-  syncType[attempt.mDesiredConstraintIndex] = ispc::NoSync;
+  syncTypeA.at(attempt.mDesiredConstraintIndex) = ispc::NoSync;
+  syncTypeB.at(attempt.mDesiredConstraintIndex) = ispc::NoSync;
   if(attempt.mIt == visited.end() || attempt.mIt->mObjectIndex != attempt.mDesiredObjectIndex) {
     //Goofy hack here, if there's another iterator for object B, make sure the iterator is still valid after the new element is inserted
     //Needs to be rebuilt if it is after the insert location, as everything would have shifted over
@@ -315,12 +340,18 @@ void _setVisitDataAndTrySetSyncPoint(std::vector<ConstraintData::VisitData>& vis
   }
   else {
     //A has been visited before, add a sync index
-    switch(attempt.mIt->mLocation) {
-      case ConstraintData::VisitData::Location::InA: syncType[attempt.mDesiredConstraintIndex] = ispc::SyncToIndexA; break;
-      case ConstraintData::VisitData::Location::InB: syncType[attempt.mDesiredConstraintIndex] = ispc::SyncToIndexB; break;
-    }
+    const int newLocation = location == ConstraintData::VisitData::Location::InA ? ispc::SyncToIndexA : ispc::SyncToIndexB;
     //Make the previously visited constraint publish the velocity forward to this one
-    syncIndex[attempt.mIt->mConstraintIndex] =  attempt.mDesiredConstraintIndex;
+    switch(attempt.mIt->mLocation) {
+      case ConstraintData::VisitData::Location::InA:
+        syncTypeA.at(attempt.mIt->mConstraintIndex) = newLocation;
+        syncIndexA.at(attempt.mIt->mConstraintIndex) = attempt.mDesiredConstraintIndex;
+        break;
+      case ConstraintData::VisitData::Location::InB:
+        syncTypeB.at(attempt.mIt->mConstraintIndex) = newLocation;
+        syncIndexB.at(attempt.mIt->mConstraintIndex) = attempt.mDesiredConstraintIndex;
+        break;
+    }
     //Now that the latest instance of this object is at this visit location, update the visit data
     attempt.mIt->mConstraintIndex = attempt.mDesiredConstraintIndex;
     attempt.mIt->mLocation = location;
@@ -420,8 +451,8 @@ void Physics::buildConstraintsTable(CollisionPairsTable& pairs, ConstraintsTable
 
     _syncConstraintData(data, currentConstraintIndex, indexToFill, desiredA, desiredB);
 
-    _setVisitDataAndTrySetSyncPoint(visited, visitA, data.mSyncIndexA.mElements, data.mSyncTypeA.mElements, ConstraintData::VisitData::Location::InA, &visitB);
-    _setVisitDataAndTrySetSyncPoint(visited, visitB, data.mSyncIndexB.mElements, data.mSyncTypeB.mElements, ConstraintData::VisitData::Location::InB, nullptr);
+    _setVisitDataAndTrySetSyncPoint(visited, visitA, data.mSyncIndexA, data.mSyncTypeA, data.mSyncIndexB, data.mSyncTypeB, ConstraintData::VisitData::Location::InA, &visitB);
+    _setVisitDataAndTrySetSyncPoint(visited, visitB, data.mSyncIndexA, data.mSyncTypeA, data.mSyncIndexB, data.mSyncTypeB, ConstraintData::VisitData::Location::InB, nullptr);
 
     ++currentConstraintIndex;
     failedPlacements = 0;
@@ -440,9 +471,10 @@ void Physics::buildConstraintsTable(CollisionPairsTable& pairs, ConstraintsTable
     //If no padding is required that means the previous iteration made space, add the constraint here
     if(!padding) {
       _syncConstraintData(data, currentConstraintIndex, indexToFill, desiredA, desiredB);
-      _setVisitDataAndTrySetSyncPoint(visited, visitA, data.mSyncIndexA.mElements, data.mSyncTypeA.mElements, ConstraintData::VisitData::Location::InA, &visitB);
-      _setVisitDataAndTrySetSyncPoint(visited, visitB, data.mSyncIndexB.mElements, data.mSyncTypeB.mElements, ConstraintData::VisitData::Location::InB, nullptr);
+      _setVisitDataAndTrySetSyncPoint(visited, visitA, data.mSyncIndexA, data.mSyncTypeA, data.mSyncIndexB, data.mSyncTypeB, ConstraintData::VisitData::Location::InA, &visitB);
+      _setVisitDataAndTrySetSyncPoint(visited, visitB, data.mSyncIndexA, data.mSyncTypeA, data.mSyncIndexB, data.mSyncTypeB, ConstraintData::VisitData::Location::InB, nullptr);
       indicesToFill.pop_front();
+      ++currentConstraintIndex;
     }
     //Space needs to be made, add padding then let the iteration contine which will attempt the index again with the new space
     else {
@@ -497,7 +529,14 @@ void Physics::setupConstraints(ConstraintsTable& constraints) {
   float* overlap = _unwrapRow<ContactPoint<ContactOne>::Overlap>(constraints);
   ispc::UniformConstraintData data = _unwrapUniformConstraintData(constraints);
 
+  //TODO: don't clear this here and use it for warm start
+  float* sums = _unwrapRow<ConstraintData::LambdaSum>(constraints);
+  for(size_t i = 0; i < TableOperations::size(constraints); ++i) {
+    sums[i] = 0.0f;
+  }
+
   ispc::setupConstraintsSharedMass(invMass, invInertia, bias, normal, aToContact, bToContact, overlap, data, uint32_t(TableOperations::size(constraints)));
+
 }
 
 void Physics::solveConstraints(ConstraintsTable& constraints) {

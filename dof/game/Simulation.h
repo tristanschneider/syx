@@ -66,6 +66,7 @@ struct SceneState {
   State mState = State::InitRequestAssets;
   size_t mBackgroundImage = 0;
   size_t mPlayerImage = 0;
+  glm::vec2 mBoundaryMin, mBoundaryMax;
 };
 
 using TextureRequestTable = Table<
