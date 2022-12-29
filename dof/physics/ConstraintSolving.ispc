@@ -12,9 +12,9 @@ export void setupConstraintsSharedMass(
   uniform UniformConstraintData& constraints,
   uniform uint32 count
 ) {
-  //This is dot(linearAxisA*massA, linearAxisB*massB)
-  //Since the axes are normalized it simplifies to massA*massB, and they both have the same mass
-  const float linearConstraintMass = mass * mass;
+  //This is length(linearAxisA*massA) + length(linearAxisB*massB)
+  //Since the axes are normalized it simplifies to massA + massB, and they both have the same mass
+  const float linearConstraintMass = mass + mass;
   foreach(i = 0 ... count) {
     const float nx = contactNormal.x[i];
     const float ny = contactNormal.y[i];
@@ -33,7 +33,7 @@ export void setupConstraintsSharedMass(
     const float angularConstraintMass = constraints.angularImpulseA[i] + constraints.angularImpulseB[i];
     constraints.constraintMass[i] = safeDivide(1.0f, linearConstraintMass + angularConstraintMass);
 
-    constraints.bias[i] = max(0.0f, contactOverlap[i]*biasMultiplier);
+    constraints.bias[i] = -max(0.0f, contactOverlap[i]*biasMultiplier);
   }
 }
 

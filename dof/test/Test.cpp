@@ -255,6 +255,22 @@ namespace Test {
         FloatRow<Tags::Rot, Tags::CosAngle>>(pairs, db);
     }
 
+    static void _fillConstraintVelocities(GameDatabase& db) {
+      auto& constraints = std::get<ConstraintsTable>(db.mTables);
+      Physics::fillConstraintVelocities<
+        FloatRow<Tags::LinVel, Tags::X>,
+        FloatRow<Tags::LinVel, Tags::Y>,
+        FloatRow<Tags::AngVel, Tags::Angle>>(constraints, db);
+    }
+
+    static void _storeConstraintVelocities(GameDatabase& db) {
+      auto& constraints = std::get<ConstraintsTable>(db.mTables);
+      Physics::storeConstraintVelocities<
+        FloatRow<Tags::LinVel, Tags::X>,
+        FloatRow<Tags::LinVel, Tags::Y>,
+        FloatRow<Tags::AngVel, Tags::Angle>>(constraints, db);
+    }
+
     TEST_METHOD(CollidingPair_PopulateNarrowphase_IsPopulated) {
       GameDatabase db;
       auto& gameobjects = std::get<GameObjectTable>(db.mTables);
@@ -378,29 +394,41 @@ namespace Test {
       TableOperations::resizeTable(gameobjects, 2);
       auto& broadphase = std::get<BroadphaseTable>(db.mTables);
       auto& dimensions = std::get<SharedRow<GridBroadphase::RequestedDimensions>>(broadphase.mRows).at();
+      auto& constraints = std::get<ConstraintsTable>(db.mTables);
+      auto& pairs = std::get<CollisionPairsTable>(db.mTables);
       dimensions.mMin.x = 0;
       dimensions.mMax.x = 10;
       dimensions.mMax.y = 9;
       dimensions.mMin.y = -1;
       auto& posX = std::get<FloatRow<Tags::Pos, Tags::X>>(gameobjects.mRows);
       auto& posY = std::get<FloatRow<Tags::Pos, Tags::Y>>(gameobjects.mRows);
-      auto& pairs = std::get<CollisionPairsTable>(db.mTables);
+      auto& velX = std::get<FloatRow<Tags::LinVel, Tags::X>>(gameobjects.mRows);
       const float expectedOverlap = 0.1f;
       posX.at(0) = 5.0f;
+      velX.at(0) = 1.0f;
       posX.at(1) = 6.0f - expectedOverlap;
+      velX.at(1) = -1.0f;
 
       Physics::allocateBroadphase(broadphase);
       Physics::rebuildBroadphase(db.getTableIndex<GameObjectTable>().mValue, posX.mElements.data(), posY.mElements.data(), broadphase, posX.size());
       Physics::generateCollisionPairs(broadphase, pairs);
       _fillNarrowphaseData(db);
       Physics::generateContacts(pairs);
+      Physics::buildConstraintsTable(pairs, constraints);
+      _fillConstraintVelocities(db);
 
-      Assert::AreEqual(size_t(1), TableOperations::size(pairs));
-      const float e = 0.00001f;
-      Assert::AreEqual(expectedOverlap, std::get<ContactPoint<ContactOne>::Overlap>(pairs.mRows).at(0), e);
-      Assert::AreEqual(5.5f, std::get<ContactPoint<ContactOne>::PosX>(pairs.mRows).at(0), e);
-      Assert::AreEqual(-1.0f, std::get<SharedNormal::X>(pairs.mRows).at(0), e);
+      Physics::setupConstraints(constraints);
+      Physics::solveConstraints(constraints);
+      _storeConstraintVelocities(db);
+
+      const float e = 0.001f;
+      const float expectedBias = 0.1f;
+      //Velocity of 0 going towards 1 should instead turn into a velocity of the two going away from each-other
+      //by the overlap multiplied by the bias resolution amount. Since it's the relative velocity between the two,
+      //each of them should have half of that bias amount
+      const float expectedVelocity = expectedOverlap*expectedBias*0.5f;
+      Assert::AreEqual(-expectedVelocity, velX.at(0), e);
+      Assert::AreEqual(expectedVelocity, velX.at(1), e);
     }
-
   };
 }

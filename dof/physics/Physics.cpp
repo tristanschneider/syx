@@ -291,12 +291,27 @@ struct VisitAttempt {
 void _setVisitDataAndTrySetSyncPoint(std::vector<ConstraintData::VisitData>& visited, VisitAttempt& attempt,
   std::vector<int>& syncIndex,
   std::vector<int>& syncType,
-  ConstraintData::VisitData::Location location) {
+  ConstraintData::VisitData::Location location,
+  VisitAttempt* dependentAttempt) {
   //Set it to nosync for now, later iteration might set this as new constraints are visited
   syncType[attempt.mDesiredConstraintIndex] = ispc::NoSync;
   if(attempt.mIt == visited.end() || attempt.mIt->mObjectIndex != attempt.mDesiredObjectIndex) {
+    //Goofy hack here, if there's another iterator for object B, make sure the iterator is still valid after the new element is inserted
+    //Needs to be rebuilt if it is after the insert location, as everything would have shifted over
+    const bool needRebuiltDependent = dependentAttempt && dependentAttempt->mDesiredObjectIndex > attempt.mDesiredObjectIndex;
+
     //If this is the first time visiting this object, no need to sync anything, but note it for later
-    visited.insert(attempt.mIt, ConstraintData::VisitData{ attempt.mDesiredObjectIndex, attempt.mDesiredConstraintIndex, location });
+    visited.insert(attempt.mIt, ConstraintData::VisitData{
+      attempt.mDesiredObjectIndex,
+      attempt.mDesiredConstraintIndex,
+      location,
+      attempt.mDesiredConstraintIndex,
+      location
+    });
+
+    if(needRebuiltDependent) {
+      dependentAttempt->mIt = std::lower_bound(visited.begin(), visited.end(), dependentAttempt->mDesiredObjectIndex);
+    }
   }
   else {
     //A has been visited before, add a sync index
@@ -309,6 +324,34 @@ void _setVisitDataAndTrySetSyncPoint(std::vector<ConstraintData::VisitData>& vis
     //Now that the latest instance of this object is at this visit location, update the visit data
     attempt.mIt->mConstraintIndex = attempt.mDesiredConstraintIndex;
     attempt.mIt->mLocation = location;
+  }
+}
+
+//If an object shows up in multiple constraints, sync the velocity data from the last constraint back to the first
+void _trySetFinalSyncPoint(const ConstraintData::VisitData& visited,
+  ConstraintObject<ConstraintObjA>::SyncIndex& syncIndexA,
+  ConstraintObject<ConstraintObjA>::SyncType& syncTypeA,
+  ConstraintObject<ConstraintObjB>::SyncIndex& syncIndexB,
+  ConstraintObject<ConstraintObjB>::SyncType& syncTypeB) {
+  //If the first is the latest, there is only one instance of this object meaning its velocity was never copied
+  if(visited.mFirstConstraintIndex == visited.mConstraintIndex) {
+    return;
+  }
+
+  //The container to sync from, meaning the final visited entry where the most recent velocity is
+  std::vector<int>* syncFromIndex = &syncIndexA.mElements;
+  std::vector<int>* syncFromType = &syncTypeA.mElements;
+  if(visited.mLocation == ConstraintData::VisitData::Location::InB) {
+    syncFromIndex = &syncIndexB.mElements;
+    syncFromType = &syncTypeB.mElements;
+  }
+
+  //Sync from this visited entry back to the first element
+  syncFromIndex->at(visited.mConstraintIndex) = visited.mFirstConstraintIndex;
+  //Write from the location of the final entry to the location of the first
+  switch(visited.mFirstLocation) {
+    case ConstraintData::VisitData::Location::InA: syncFromType->at(visited.mConstraintIndex) = ispc::SyncToIndexA; break;
+    case ConstraintData::VisitData::Location::InB: syncFromType->at(visited.mConstraintIndex) = ispc::SyncToIndexB; break;
   }
 }
 
@@ -328,18 +371,28 @@ VisitAttempt _tryVisit(std::vector<ConstraintData::VisitData>& visited, size_t t
 //maybe this complicated shuffling wouldn't be needed. Or maybe even a giant matrix for all objects
 
 void Physics::buildConstraintsTable(CollisionPairsTable& pairs, ConstraintsTable& constraints) {
-  //TODO: only rebuild if collision pairs changed
+  //TODO: only rebuild if collision pairs changed. Could be really lazy about it since solving stale constraints should result in no changes to velocity
   TableOperations::resizeTable(constraints, TableOperations::size(pairs));
 
-  std::vector<ConstraintData::VisitData>& visited = std::get<ConstraintData::SharedVisitData>(constraints.mRows).at();
+  ConstraintData::SharedVisitData& visitData = std::get<ConstraintData::SharedVisitDataRow>(constraints.mRows).at();
+  std::vector<ConstraintData::VisitData>& visited = visitData.mVisited;
   visited.clear();
+  //Need to reserve big enough because visited vector growth would cause iterator invalidation for visitA/visitB cases below
+  //Size of pairs is bigger than necessary, it only needs to be the number of objects, but that's not known here and over-allocating
+  //a bit isn't a problem
+  visited.reserve(TableOperations::size(pairs));
   ConstraintSyncData data(pairs, constraints);
+
+  //Specifically from the collision table not the constraints table, to be used before the indices in the collision table have been created yet
+  auto& srcPairIndexA = std::get<CollisionPairIndexA>(pairs.mRows);
+  auto& srcPairIndexB = std::get<CollisionPairIndexB>(pairs.mRows);
 
   //The same object can't be within this many indices of itself since the velocity needs to be seen immediately by the next constraint
   //which wouldn't be the case if it was being solved in another simd lane
   const size_t targetWidth = size_t(ispc::getTargetWidth());
   //Figure out sync indices
-  std::deque<size_t> indicesToFill(TableOperations::size(pairs));
+  std::deque<size_t>& indicesToFill = visitData.mIndicesToFill;
+  indicesToFill.resize(TableOperations::size(pairs));
   for(size_t i = 0; i < TableOperations::size(pairs); ++i) {
     indicesToFill[i] = i;
   }
@@ -350,8 +403,8 @@ void Physics::buildConstraintsTable(CollisionPairsTable& pairs, ConstraintsTable
   while(!indicesToFill.empty()) {
     const size_t indexToFill = indicesToFill.front();
     indicesToFill.pop_front();
-    const size_t desiredA = data.mPairIndexA.at(indexToFill);
-    const size_t desiredB = data.mPairIndexB.at(indexToFill);
+    const size_t desiredA = srcPairIndexA.at(indexToFill);
+    const size_t desiredB = srcPairIndexB.at(indexToFill);
     VisitAttempt visitA = _tryVisit(visited, desiredA, currentConstraintIndex, targetWidth);
     VisitAttempt visitB = _tryVisit(visited, desiredB, currentConstraintIndex, targetWidth);
 
@@ -367,8 +420,8 @@ void Physics::buildConstraintsTable(CollisionPairsTable& pairs, ConstraintsTable
 
     _syncConstraintData(data, currentConstraintIndex, indexToFill, desiredA, desiredB);
 
-    _setVisitDataAndTrySetSyncPoint(visited, visitA, data.mSyncIndexA.mElements, data.mSyncTypeA.mElements, ConstraintData::VisitData::Location::InA);
-    _setVisitDataAndTrySetSyncPoint(visited, visitB, data.mSyncIndexB.mElements, data.mSyncTypeB.mElements, ConstraintData::VisitData::Location::InB);
+    _setVisitDataAndTrySetSyncPoint(visited, visitA, data.mSyncIndexA.mElements, data.mSyncTypeA.mElements, ConstraintData::VisitData::Location::InA, &visitB);
+    _setVisitDataAndTrySetSyncPoint(visited, visitB, data.mSyncIndexB.mElements, data.mSyncTypeB.mElements, ConstraintData::VisitData::Location::InB, nullptr);
 
     ++currentConstraintIndex;
     failedPlacements = 0;
@@ -378,8 +431,8 @@ void Physics::buildConstraintsTable(CollisionPairsTable& pairs, ConstraintsTable
   //Add padding between these remaining elements to solve the problem.
   while(!indicesToFill.empty()) {
     const size_t indexToFill = indicesToFill.front();
-    const size_t desiredA = data.mPairIndexA.at(indexToFill);
-    const size_t desiredB = data.mPairIndexB.at(indexToFill);
+    const size_t desiredA = srcPairIndexA.at(indexToFill);
+    const size_t desiredB = srcPairIndexB.at(indexToFill);
     VisitAttempt visitA = _tryVisit(visited, desiredA, currentConstraintIndex, targetWidth);
     VisitAttempt visitB = _tryVisit(visited, desiredB, currentConstraintIndex, targetWidth);
     const size_t padding = std::max(visitA.mRequiredPadding, visitB.mRequiredPadding);
@@ -387,8 +440,8 @@ void Physics::buildConstraintsTable(CollisionPairsTable& pairs, ConstraintsTable
     //If no padding is required that means the previous iteration made space, add the constraint here
     if(!padding) {
       _syncConstraintData(data, currentConstraintIndex, indexToFill, desiredA, desiredB);
-      _setVisitDataAndTrySetSyncPoint(visited, visitA, data.mSyncIndexA.mElements, data.mSyncTypeA.mElements, ConstraintData::VisitData::Location::InA);
-      _setVisitDataAndTrySetSyncPoint(visited, visitB, data.mSyncIndexB.mElements, data.mSyncTypeB.mElements, ConstraintData::VisitData::Location::InB);
+      _setVisitDataAndTrySetSyncPoint(visited, visitA, data.mSyncIndexA.mElements, data.mSyncTypeA.mElements, ConstraintData::VisitData::Location::InA, &visitB);
+      _setVisitDataAndTrySetSyncPoint(visited, visitB, data.mSyncIndexB.mElements, data.mSyncTypeB.mElements, ConstraintData::VisitData::Location::InB, nullptr);
       indicesToFill.pop_front();
     }
     //Space needs to be made, add padding then let the iteration contine which will attempt the index again with the new space
@@ -409,6 +462,12 @@ void Physics::buildConstraintsTable(CollisionPairsTable& pairs, ConstraintsTable
   finalData.mMappingsA.clear();
   finalData.mMappingsB.clear();
   for(const ConstraintData::VisitData& v : visited) {
+    //Link the final constraint entry back to the velocity data of the first that uses the objects if velocity was duplicated
+    //This matters from one iteration to the next to avoid working on stale data, doesn't matter for the last iteration
+    //since the final results will be copied from the end locations stored in mappings below
+    _trySetFinalSyncPoint(v, data.mSyncIndexA, data.mSyncTypeA, data.mSyncIndexB, data.mSyncTypeB);
+
+    //Store the final location mapping
     switch(v.mLocation) {
       case ConstraintData::VisitData::Location::InA: {
         finalData.mMappingsA.emplace_back(FinalSyncIndices::Mapping{ v.mObjectIndex, v.mConstraintIndex });

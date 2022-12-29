@@ -145,7 +145,8 @@ using GameDatabase = Database<
   PlayerTable,
   CameraTable,
   BroadphaseTable,
-  CollisionPairsTable
+  CollisionPairsTable,
+  ConstraintsTable
 >;
 
 struct Simulation {

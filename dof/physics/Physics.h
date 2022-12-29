@@ -146,12 +146,21 @@ struct ConstraintData {
     bool operator<(size_t r) const {
       return mObjectIndex < r;
     }
+    //Gameobject table entry that this is referring to
+    size_t mObjectIndex{};
+    //The latest constraint entry/location during population of constraints table that the object was found in
+    size_t mConstraintIndex{};
+    Location mLocation{};
 
-    size_t mObjectIndex;
-    size_t mConstraintIndex;
-    Location mLocation;
+    //The initial constraint entry/location, used to publish the final results back to the beginning for following iterations
+    size_t mFirstConstraintIndex{};
+    Location mFirstLocation{};
   };
-  using SharedVisitData = SharedRow<std::vector<VisitData>>;
+  struct SharedVisitData {
+    std::vector<VisitData> mVisited;
+    std::deque<size_t> mIndicesToFill;
+  };
+  using SharedVisitDataRow = SharedRow<SharedVisitData>;
 };
 
 //These are used to migrate final solved velocities constraint table back to the gameobjects
@@ -203,7 +212,7 @@ using ConstraintsTable = Table<
   ConstraintData::Bias,
   ConstraintData::LambdaSum,
   SharedRow<FinalSyncIndices>,
-  ConstraintData::SharedVisitData
+  ConstraintData::SharedVisitDataRow
 >;
 
 struct Physics {
@@ -227,9 +236,9 @@ struct Physics {
   static void generateCollisionPairs(const GridBroadphase::BroadphaseTable& broadphase, CollisionPairsTable& pairs);
 
   struct details {
-    template<class SrcRow, class DstRow, class DatabaseT>
-    static void fillRow(CollisionPairsTable& pairs, DatabaseT& db, std::vector<size_t>& ids) {
-      DstRow& dst = std::get<DstRow>(pairs.mRows);
+    template<class SrcRow, class DstRow, class DatabaseT, class DstTableT>
+    static void fillRow(DstTableT& table, DatabaseT& db, std::vector<size_t>& ids) {
+      DstRow& dst = std::get<DstRow>(table.mRows);
       SrcRow* src = nullptr;
       DatabaseT::ElementID last;
       for(size_t i = 0; i < ids.size(); ++i) {
@@ -302,6 +311,9 @@ struct Physics {
     details::fillRow<AngVel, ConstraintObject<ConstraintObjB>::AngVel>(constraints, db, idsB);
   }
 
+  static void setupConstraints(ConstraintsTable& constraints);
+  static void solveConstraints(ConstraintsTable& constraints);
+
   //Migrate velocity data from constraint table to db
   template<class LinVelX, class LinVelY, class AngVel, class DatabaseT>
   static void storeConstraintVelocities(ConstraintsTable& constraints, DatabaseT& db) {
@@ -315,7 +327,4 @@ struct Physics {
     details::storeToRow<ConstraintObject<ConstraintObjB>::AngVel, AngVel>(constraints, db, indices.mMappingsB);
   }
 
-  static void setupConstraints(ConstraintsTable& constraints);
-  static void solveConstraints(ConstraintsTable& constraints);
-  static void storeWarmStarts(ConstraintsTable& constraints, CollisionPairsTable& pairs);
 };
