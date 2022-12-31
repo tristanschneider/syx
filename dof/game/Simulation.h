@@ -5,6 +5,7 @@
 #include "Table.h"
 
 #include "glm/vec2.hpp"
+#include "glm/vec3.hpp"
 
 #include <bitset>
 
@@ -137,6 +138,13 @@ using CameraTable = Table<
   Row<DebugCameraControl>
 >;
 
+struct DebugPoint {
+  glm::vec2 mPos;
+  glm::vec3 mColor;
+};
+
+using DebugLineTable = Table<Row<DebugPoint>>;
+
 using BroadphaseTable = GridBroadphase::BroadphaseTable;
 
 using GameDatabase = Database<
@@ -147,7 +155,8 @@ using GameDatabase = Database<
   CameraTable,
   BroadphaseTable,
   CollisionPairsTable,
-  ConstraintsTable
+  ConstraintsTable,
+  DebugLineTable
 >;
 
 struct Simulation {

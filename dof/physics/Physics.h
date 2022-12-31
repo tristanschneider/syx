@@ -24,10 +24,8 @@ struct GridBroadphase {
     glm::ivec2 mMin, mMax;
   };
   struct AllocatedDimensions {
-    int mOriginX{};
-    int mOriginY{};
-    size_t mCellsX{};
-    size_t mCellsY{};
+    glm::ivec2 mMin, mMax;
+    size_t mStride{};
   };
 
   using BroadphaseTable = Table<
@@ -182,6 +180,7 @@ using ConstraintsTable = Table<
   //it's easier to copy the data into the constraints table
   ContactPoint<ContactOne>::Overlap,
   ContactPoint<ContactTwo>::Overlap,
+  //Normal going towards A
   SharedNormal::X,
   SharedNormal::Y,
 

@@ -92,6 +92,29 @@ namespace {
     )";
   };
 
+  struct DebugShader {
+    static constexpr const char* vs = R"(
+      #version 330 core
+      layout(location = 0) in vec2 aPosition;
+      layout(location = 1) in vec3 aColor;
+      uniform mat4 wvp;
+      out vec3 vertColor;
+      void main() {
+        gl_Position = wvp * vec4(aPosition.xy, 0.0, 1.0);
+        vertColor = aColor;
+      }
+    )";
+
+    static constexpr const char* ps = R"(
+      #version 330 core
+      in vec3 vertColor;
+      out vec3 oColor;
+      void main() {
+        oColor = vertColor;
+      }
+    )";
+  };
+
   void _initDevice(HDC context, BYTE colorBits, BYTE depthBits, BYTE stencilBits, BYTE auxBuffers) {
     PIXELFORMATDESCRIPTOR pfd = {
       sizeof(PIXELFORMATDESCRIPTOR),
@@ -193,6 +216,29 @@ namespace {
     return result;
   }
 
+  DebugDrawer _createDebugDrawer() {
+    DebugDrawer drawer;
+    drawer.mShader = _loadShader(DebugShader::vs, DebugShader::ps);
+
+    drawer.mWVPUniform = glGetUniformLocation(drawer.mShader, "wvp");
+
+    glGenBuffers(1, &drawer.mVBO);
+    glBindBuffer(GL_ARRAY_BUFFER, drawer.mVBO);
+    glGenVertexArrays(1, &drawer.mVAO);
+    glBindVertexArray(drawer.mVAO);
+
+    glEnableVertexAttribArray(0);
+    //Position
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(DebugPoint), nullptr);
+    //Color
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(DebugPoint), reinterpret_cast<void*>(sizeof(float)*2));
+    glBindVertexArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+    return drawer;
+  }
+
   TextureSamplerUniform _createTextureSamplerUniform(GLuint quadShader, const char* name) {
     TextureSamplerUniform result;
     result.uniformID = glGetUniformLocation(quadShader, name);
@@ -281,23 +327,61 @@ void Renderer::initDeviceContext(GraphicsContext::ElementRef& context) {
   state.mQuadShader = _loadShader(QuadShader::vs, QuadShader::ps);
   state.mQuadVertexBuffer = _createQuadBuffers();
   state.mQuadUniforms = _createQuadUniforms(state.mQuadShader);
+  state.mDebug = _createDebugDrawer();
+}
+
+void _renderDebug(GameDatabase& db, RendererDatabase& renderDB) {
+  OGLState& state = std::get<Row<OGLState>>(std::get<GraphicsContext>(renderDB.mTables).mRows).at(0);
+  DebugDrawer& debug = state.mDebug;
+  auto& lineTable = std::get<DebugLineTable>(db.mTables);
+  auto& linesToDraw = std::get<Row<DebugPoint>>(lineTable.mRows);
+  if(linesToDraw.size()) {
+    auto e =  glGetError();
+    glBindBuffer(GL_ARRAY_BUFFER, debug.mVBO);
+    e =  glGetError();
+    if(debug.mLastSize < linesToDraw.size()) {
+      glBufferData(GL_ARRAY_BUFFER, sizeof(DebugPoint)*linesToDraw.size(), nullptr, GL_DYNAMIC_DRAW);
+      e =  glGetError();
+      debug.mLastSize = linesToDraw.size();
+    }
+    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(DebugPoint)*linesToDraw.size(), linesToDraw.mElements.data());
+    e =  glGetError();
+    glBindVertexArray(debug.mVAO);
+    e =  glGetError();
+    glUseProgram(debug.mShader);
+    e =  glGetError();
+    Queries::viewEachRow<Row<Camera>>(db, [&](Row<Camera>& cameras) {
+      for(const Camera& camera : cameras.mElements) {
+        glm::mat4 worldToView = glm::inverse(
+          glm::translate(glm::vec3(camera.x, camera.y, 0.0f)) *
+          glm::rotate(camera.angle, glm::vec3(0, 0, -1)) *
+          glm::scale(glm::vec3(camera.zoom))
+        );
+        glUniformMatrix4fv(debug.mWVPUniform, 1, GL_FALSE, &worldToView[0][0]);
+
+        e =  glGetError();
+        glDrawArrays(GL_LINES, 0, linesToDraw.size());
+        e =  glGetError();
+      }
+    });
+
+    glBindVertexArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+  }
+
+  TableOperations::resizeTable(lineTable, 0);
 }
 
 void Renderer::render(GameDatabase& db, RendererDatabase& renderDB) {
   //TODO: separate step
   _processRequests(db, renderDB);
 
-  db;
   OGLState& state = std::get<Row<OGLState>>(std::get<GraphicsContext>(renderDB.mTables).mRows).at(0);
   const WindowData& window = std::get<Row<WindowData>>(std::get<GraphicsContext>(renderDB.mTables).mRows).at(0);
 
   glViewport(0, 0, window.mWidth, window.mHeight);
 
-  static float hack = 0.f;
-  hack += 0.001f;
-  if(hack > 1.0f) hack = 0;
-
-  glClearColor(0.0f, 0.0f, hack, 0.0f);
+  glClearColor(0.0f, 0.0f, 1.0f, 0.0f);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
   glUseProgram(state.mQuadShader);
@@ -351,7 +435,6 @@ void Renderer::render(GameDatabase& db, RendererDatabase& renderDB) {
             glm::scale(glm::vec3(camera.zoom))
           );
 
-          rotationX;rotationY;
           glUniformMatrix4fv(state.mQuadUniforms.worldToView, 1, GL_FALSE, &worldToView[0][0]);
           int textureIndex = 0;
           _bindTextureSamplerUniform(state.mQuadUniforms.posX, GL_R32F, textureIndex++);
@@ -367,6 +450,8 @@ void Renderer::render(GameDatabase& db, RendererDatabase& renderDB) {
       });
     }
   });
+
+  _renderDebug(db, renderDB);
 
   SwapBuffers(state.mDeviceContext);
 }

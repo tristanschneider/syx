@@ -50,9 +50,9 @@ namespace {
   }
 
   size_t _toIndex(int x, int y, const GridBroadphase::AllocatedDimensions& dimensions) {
-    const int cx = glm::clamp(x, dimensions.mOriginX, dimensions.mOriginX + int(dimensions.mCellsX));
-    const int cy = glm::clamp(y, dimensions.mOriginY, dimensions.mOriginY + int(dimensions.mCellsY));
-    return size_t(cx - dimensions.mOriginX) + size_t(cy - dimensions.mOriginY)*dimensions.mCellsX;
+    const int cx = glm::clamp(x, dimensions.mMin.x, dimensions.mMax.x);
+    const int cy = glm::clamp(y, dimensions.mMin.y, dimensions.mMax.y);
+    return size_t(cx - dimensions.mMin.x) + size_t(cy - dimensions.mMin.y)*dimensions.mStride;
   }
 
   void _addCollisionPair(size_t self, size_t other, CollisionPairsTable& table) {
@@ -102,13 +102,13 @@ void Physics::allocateBroadphase(GridBroadphase::BroadphaseTable& table) {
 
   const IRect rect = _buildRect(dimensions.mMin, dimensions.mMax);
 
-  allocatedDimensions.mOriginX = size_t(rect.mMin.x);
-  allocatedDimensions.mOriginY = size_t(rect.mMin.y);
-  allocatedDimensions.mCellsX = std::max(size_t(1), size_t(rect.mMax.x) - allocatedDimensions.mOriginX);
-  allocatedDimensions.mCellsY = std::max(size_t(1), size_t(rect.mMax.y) - allocatedDimensions.mOriginY);
+  allocatedDimensions.mMin = rect.mMin;
+  allocatedDimensions.mMax = rect.mMax;
+  allocatedDimensions.mStride = std::max(size_t(1), size_t(rect.mMax.x - rect.mMin.x));
+  size_t sizeY = size_t(allocatedDimensions.mMax.y - allocatedDimensions.mMin.y) + size_t(1);
 
   //Allocate desired space
-  TableOperations::resizeTable(table, allocatedDimensions.mCellsY * allocatedDimensions.mCellsX);
+  TableOperations::resizeTable(table, sizeY * allocatedDimensions.mStride);
   clearBroadphase(table);
 }
 
@@ -204,14 +204,33 @@ void Physics::generateCollisionPairs(const GridBroadphase::BroadphaseTable& broa
 
 void Physics::generateContacts(CollisionPairsTable& pairs) {
   ispc::UniformConstVec2 positionsA{ _unwrapRow<NarrowphaseData<PairA>::PosX>(pairs), _unwrapRow<NarrowphaseData<PairA>::PosY>(pairs) };
+  ispc::UniformRotation rotationsA{ _unwrapRow<NarrowphaseData<PairA>::CosAngle>(pairs), _unwrapRow<NarrowphaseData<PairA>::SinAngle>(pairs) };
   ispc::UniformConstVec2 positionsB{ _unwrapRow<NarrowphaseData<PairB>::PosX>(pairs), _unwrapRow<NarrowphaseData<PairB>::PosY>(pairs) };
+  ispc::UniformRotation rotationsB{ _unwrapRow<NarrowphaseData<PairB>::CosAngle>(pairs), _unwrapRow<NarrowphaseData<PairB>::SinAngle>(pairs) };
   ispc::UniformVec2 normals{ std::get<SharedNormal::X>(pairs.mRows).mElements.data(), std::get<SharedNormal::Y>(pairs.mRows).mElements.data() };
-  ispc::UniformContact contacts{
+
+  ispc::UniformContact contactsOne{
     _unwrapRow<ContactPoint<ContactOne>::PosX>(pairs),
     _unwrapRow<ContactPoint<ContactOne>::PosY>(pairs),
     _unwrapRow<ContactPoint<ContactOne>::Overlap>(pairs)
   };
-  ispc::generateUnitSphereSphereContacts(positionsA, positionsB, normals, contacts, uint32_t(TableOperations::size(pairs)));
+  ispc::UniformContact contactsTwo{
+    _unwrapRow<ContactPoint<ContactTwo>::PosX>(pairs),
+    _unwrapRow<ContactPoint<ContactTwo>::PosY>(pairs),
+    _unwrapRow<ContactPoint<ContactTwo>::Overlap>(pairs)
+  };
+  ispc::generateUnitCubeCubeContacts(positionsA, rotationsA, positionsB, rotationsB, normals, contactsOne, contactsTwo, uint32_t(TableOperations::size(pairs)));
+  //ispc::generateUnitSphereSphereContacts(positionsA, positionsB, normals, contacts, uint32_t(TableOperations::size(pairs)));
+
+  //ispc::UniformConstVec2 positionsA{ _unwrapRow<NarrowphaseData<PairA>::PosX>(pairs), _unwrapRow<NarrowphaseData<PairA>::PosY>(pairs) };
+  //ispc::UniformConstVec2 positionsB{ _unwrapRow<NarrowphaseData<PairB>::PosX>(pairs), _unwrapRow<NarrowphaseData<PairB>::PosY>(pairs) };
+  //ispc::UniformVec2 normals{ std::get<SharedNormal::X>(pairs.mRows).mElements.data(), std::get<SharedNormal::Y>(pairs.mRows).mElements.data() };
+  //ispc::UniformContact contacts{
+  //  _unwrapRow<ContactPoint<ContactOne>::PosX>(pairs),
+  //  _unwrapRow<ContactPoint<ContactOne>::PosY>(pairs),
+  //  _unwrapRow<ContactPoint<ContactOne>::Overlap>(pairs)
+  //};
+  //ispc::generateUnitSphereSphereContacts(positionsA, positionsB, normals, contacts, uint32_t(TableOperations::size(pairs)));
 }
 
 template<class PosRowA, class PosRowB, class ContactRow, class DstRowA, class DstRowB>
@@ -514,12 +533,16 @@ void Physics::buildConstraintsTable(CollisionPairsTable& pairs, ConstraintsTable
 }
 
 void Physics::setupConstraints(ConstraintsTable& constraints) {
-  //Currently computing as sphere
-  const float pi = 3.14159265359f;
-  const float r = 0.5f;
-  const float density = 1.0f;
-  const float mass = pi*r*r;
-  const float inertia = pi*(r*r*r*r)*0.25f;
+  //Currently computing as square
+  //const float pi = 3.14159265359f;
+  //const float r = 0.5f;
+  //const float density = 1.0f;
+  //const float mass = pi*r*r;
+  //const float inertia = pi*(r*r*r*r)*0.25f;
+  const float w = 0.5f;
+  const float h = 0.5f;
+  const float mass = w*h;
+  const float inertia = (2.0f*w)*(2.0f*w)*(2.0f*w)*(2.0f*w)/12.0f;
   const float invMass = 1.0f/mass;
   const float invInertia = 1.0f/inertia;
   const float bias = 0.1f;
@@ -536,7 +559,6 @@ void Physics::setupConstraints(ConstraintsTable& constraints) {
   }
 
   ispc::setupConstraintsSharedMass(invMass, invInertia, bias, normal, aToContact, bToContact, overlap, data, uint32_t(TableOperations::size(constraints)));
-
 }
 
 void Physics::solveConstraints(ConstraintsTable& constraints) {

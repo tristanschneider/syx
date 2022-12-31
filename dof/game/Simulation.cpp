@@ -79,8 +79,8 @@ namespace {
     std::get<SharedRow<TextureReference>>(gameobjects.mRows).at().mId = scene.mBackgroundImage;
 
     //Add some arbitrary objects for testing
-    const size_t rows = 100;
-    const size_t columns = 100;
+    const size_t rows = 1;
+    const size_t columns = 1;
     const size_t total = rows*columns;
     TableOperations::resizeTable(gameobjects, total);
 
@@ -119,7 +119,7 @@ namespace {
     for(size_t i = 0; i < TableOperations::size(players); ++i) {
       const PlayerInput& input = std::get<Row<PlayerInput>>(players.mRows).at(i);
       glm::vec2 move(input.mMoveX, input.mMoveY);
-      const float speed = 0.05f;
+      const float speed = 0.005f;
       move *= speed;
 
       float& vx = std::get<FloatRow<LinVel, X>>(players.mRows).at(i);
@@ -211,13 +211,45 @@ namespace {
     Physics::fillConstraintVelocities<LinVelX, LinVelY, AngVel>(constraints, db);
     Physics::setupConstraints(constraints);
 
-    const int solveIterations = 5;
-    //TODO: stop early if global lambda sum falls below tolerance
-    for(int i = 0; i < solveIterations; ++i) {
-      Physics::solveConstraints(constraints);
+    auto& debug = std::get<DebugLineTable>(db.mTables);
+    auto addLine = [&debug](glm::vec2 a, glm::vec2 b, glm::vec3 color) {
+      DebugLineTable::ElementRef e = TableOperations::addToTable(debug);
+      e.get<0>().mPos = a;
+      e.get<0>().mColor = color;
+      e = TableOperations::addToTable(debug);
+      e.get<0>().mPos = b;
+      e.get<0>().mColor = color;
+    };
+
+
+    for(size_t i = 0; i < TableOperations::size(collisionPairs); ++i) {
+      CollisionPairsTable::ElementRef e = TableOperations::getElement(collisionPairs, i);
+      float overlapOne = e.get<12>();
+      float overlapTwo = e.get<15>();
+      glm::vec2 posA{ e.get<2>(), e.get<3>() };
+      glm::vec2 posB{ e.get<6>(), e.get<7>() };
+      glm::vec2 contactOne{ e.get<10>(), e.get<11>() };
+      glm::vec2 contactTwo{ e.get<13>(), e.get<14>() };
+      glm::vec2 normal{ e.get<16>(), e.get<17>() };
+      if(overlapOne >= 0.0f) {
+        addLine(posA, contactOne, glm::vec3(1.0f, 0.0f, 0.0f));
+        addLine(contactOne, contactOne + normal*0.25f, glm::vec3(0.0f, 1.0f, 0.0f));
+        addLine(contactOne, contactOne + normal*overlapOne, glm::vec3(1.0f, 1.0f, 0.0f));
+      }
+      if(overlapTwo >= 0.0f) {
+        addLine(posA, contactTwo, glm::vec3(1.0f, 0.0f, 1.0f));
+        addLine(contactOne, contactTwo + normal*0.25f, glm::vec3(0.0f, 1.0f, 1.0f));
+        addLine(contactOne, contactTwo + normal*overlapOne, glm::vec3(1.0f, 1.0f, 1.0f));
+      }
     }
 
-    Physics::storeConstraintVelocities<LinVelX, LinVelY, AngVel>(constraints, db);
+    const int solveIterations = 1;
+    //TODO: stop early if global lambda sum falls below tolerance
+    for(int i = 0; i < solveIterations; ++i) {
+      //Physics::solveConstraints(constraints);
+    }
+
+    //Physics::storeConstraintVelocities<LinVelX, LinVelY, AngVel>(constraints, db);
 
     Physics::integratePosition<LinVelX, LinVelY, PosX, PosY>(db);
     Physics::integrateRotation<RotX, RotY, AngVel>(db);

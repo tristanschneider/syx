@@ -22,7 +22,7 @@ export void setupConstraintsSharedMass(
     constraints.linearAxisY[i] = ny;
 
     constraints.angularAxisA[i] = crossProduct(aToContact.x[i], aToContact.y[i], nx, ny);
-    constraints.angularAxisB[i] = crossProduct(bToContact.x[i], bToContact.y[i], nx, ny);
+    constraints.angularAxisB[i] = crossProduct(bToContact.x[i], bToContact.y[i], -nx, -ny);
 
     constraints.linearImpulseX[i] = nx*mass;
     constraints.linearImpulseY[i] = ny*mass;
@@ -30,7 +30,8 @@ export void setupConstraintsSharedMass(
     constraints.angularImpulseA[i] = constraints.angularAxisA[i]*inertia;
     constraints.angularImpulseB[i] = constraints.angularAxisB[i]*inertia;
 
-    const float angularConstraintMass = constraints.angularImpulseA[i] + constraints.angularImpulseB[i];
+    //Normally dot product of angular axis with itself, resulting in the square magnitude. In 2D it's always a rotation around the z axis, so it's the z component of rotation times itself
+    const float angularConstraintMass = constraints.angularImpulseA[i]*constraints.angularImpulseA[i] + constraints.angularImpulseB[i]*constraints.angularImpulseB[i];
     constraints.constraintMass[i] = safeDivide(1.0f, linearConstraintMass + angularConstraintMass);
 
     //Still solve constraint if the objects are only slightly separated

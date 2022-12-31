@@ -251,8 +251,8 @@ namespace Test {
       Physics::fillNarrowphaseData<
         FloatRow<Tags::Pos, Tags::X>,
         FloatRow<Tags::Pos, Tags::Y>,
-        FloatRow<Tags::Rot, Tags::SinAngle>,
-        FloatRow<Tags::Rot, Tags::CosAngle>>(pairs, db);
+        FloatRow<Tags::Rot, Tags::CosAngle>,
+        FloatRow<Tags::Rot, Tags::SinAngle>>(pairs, db);
     }
 
     static void _fillConstraintVelocities(GameDatabase& db) {
@@ -370,6 +370,9 @@ namespace Test {
       dimensions.mMin.y = -1;
       auto& posX = std::get<FloatRow<Tags::Pos, Tags::X>>(gameobjects.mRows);
       auto& posY = std::get<FloatRow<Tags::Pos, Tags::Y>>(gameobjects.mRows);
+      auto& cosAngle = std::get<FloatRow<Tags::Rot, Tags::CosAngle>>(gameobjects.mRows);
+      cosAngle.at(0) = 1.0f;
+      cosAngle.at(1) = 1.0f;
       auto& pairs = std::get<CollisionPairsTable>(db.mTables);
       const float expectedOverlap = 0.1f;
       posX.at(0) = 5.0f;
@@ -400,6 +403,9 @@ namespace Test {
       dimensions.mMax.x = 10;
       dimensions.mMax.y = 9;
       dimensions.mMin.y = -1;
+      auto& cosAngle = std::get<FloatRow<Tags::Rot, Tags::CosAngle>>(gameobjects.mRows);
+      cosAngle.at(0) = 1.0f;
+      cosAngle.at(1) = 1.0f;
       auto& posX = std::get<FloatRow<Tags::Pos, Tags::X>>(gameobjects.mRows);
       auto& posY = std::get<FloatRow<Tags::Pos, Tags::Y>>(gameobjects.mRows);
       auto& velX = std::get<FloatRow<Tags::LinVel, Tags::X>>(gameobjects.mRows);

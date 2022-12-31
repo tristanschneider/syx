@@ -14,12 +14,21 @@ struct QuadUniforms {
   GLuint texture;
 };
 
+struct DebugDrawer {
+  GLuint mShader{};
+  GLuint mVBO{};
+  GLuint mVAO{};
+  GLuint mWVPUniform{};
+  size_t mLastSize{};
+};
+
 struct OGLState {
   HGLRC mGLContext{};
   HDC mDeviceContext{};
   GLuint mQuadShader{};
   GLuint mQuadVertexBuffer{};
   QuadUniforms mQuadUniforms;
+  DebugDrawer mDebug;
 };
 
 struct WindowData {
@@ -46,6 +55,7 @@ using GraphicsContext = Table<
   Row<OGLState>,
   Row<WindowData>
 >;
+
 
 using RendererDatabase = Database<
   GraphicsContext,
