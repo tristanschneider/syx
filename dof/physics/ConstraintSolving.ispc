@@ -101,19 +101,63 @@ export void solveContactConstraints(
   uniform uint32 count
 ) {
   foreach(i = 0 ... count) {
-    //Solve contact one. Can't be combined with the above unless they are block solved because the velocities affect each-other
-    //It might be possible to do friction and contact at the same time since they're orthogonal, not sure about the rotation in that case though
     const float nx = constraints.linearAxisX[i];
     const float ny = constraints.linearAxisY[i];
+
+    //Solve friction first. This is a bit silly for the first iteration because the lambda sum is based on the contact sums
+    //However, later solved constraints are more likely to be satisfied and contacs are more important than friction
+    const float<2> frictionNormal = orthogonal(nx, ny);
+    const float jvFrictionOne = dotProduct(objectA.linVelX[i], objectA.linVelY[i], frictionNormal.x, frictionNormal.y) - dotProduct(objectB.linVelX[i], objectB.linVelY[i], frictionNormal.x, frictionNormal.y)
+      + objectA.angVel[i]*constraints.angularFrictionAxisOneA[i] + objectB.angVel[i]*constraints.angularFrictionAxisOneB[i];
+
+    //Friction has no bias
+    float frictionLambdaOne = -jvFrictionOne*constraints.frictionConstraintMassOne[i];
+
+    //Limit of friction constraint is the normal force from the contact constraint, so the contact's lambda
+    float originalLambdaSum = frictionLambdaSumOne[i];
+    //Since contact sums are always positive the negative here is known to actually be negative
+    const float frictionLimitOne = lambdaSumOne[i]*frictionCoeff;
+    float newLambdaSum = clamp(frictionLambdaOne + originalLambdaSum, -frictionLimitOne, frictionLimitOne);
+    frictionLambdaOne = newLambdaSum - originalLambdaSum;
+    frictionLambdaSumOne[i] = newLambdaSum;
+
+    const float<2> frictionLinearImpulse = orthogonal(constraints.linearImpulseX[i], constraints.linearImpulseY[i]);
+    objectA.linVelX[i] += frictionLambdaOne*frictionLinearImpulse.x;
+    objectA.linVelY[i] += frictionLambdaOne*frictionLinearImpulse.y;
+    objectB.linVelX[i] -= frictionLambdaOne*frictionLinearImpulse.x;
+    objectB.linVelY[i] -= frictionLambdaOne*frictionLinearImpulse.y;
+    objectA.angVel[i] += frictionLambdaOne*constraints.angularFrictionImpulseOneA[i];
+    objectB.angVel[i] += frictionLambdaOne*constraints.angularFrictionImpulseOneB[i];
+
+    const float jvFrictionTwo = dotProduct(objectA.linVelX[i], objectA.linVelY[i], frictionNormal.x, frictionNormal.y) - dotProduct(objectB.linVelX[i], objectB.linVelY[i], frictionNormal.x, frictionNormal.y)
+      + objectA.angVel[i]*constraints.angularFrictionAxisTwoA[i] + objectB.angVel[i]*constraints.angularFrictionAxisTwoB[i];
+
+    float frictionLambdaTwo = -jvFrictionTwo*constraints.frictionConstraintMassTwo[i];
+
+    originalLambdaSum = frictionLambdaSumTwo[i];
+    const float frictionLimitTwo = lambdaSumTwo[i]*frictionCoeff;
+    newLambdaSum = clamp(frictionLambdaTwo + originalLambdaSum, -frictionLimitTwo, frictionLimitTwo);
+    frictionLambdaTwo = newLambdaSum - originalLambdaSum;
+    frictionLambdaSumTwo[i] = newLambdaSum;
+
+    objectA.linVelX[i] += frictionLambdaTwo*frictionLinearImpulse.x;
+    objectA.linVelY[i] += frictionLambdaTwo*frictionLinearImpulse.y;
+    objectB.linVelX[i] -= frictionLambdaTwo*frictionLinearImpulse.x;
+    objectB.linVelY[i] -= frictionLambdaTwo*frictionLinearImpulse.y;
+    objectA.angVel[i] += frictionLambdaTwo*constraints.angularFrictionImpulseTwoA[i];
+    objectB.angVel[i] += frictionLambdaTwo*constraints.angularFrictionImpulseTwoB[i];
+
+    //Solve contact one. Can't be combined with the above unless they are block solved because the velocities affect each-other
+    //It might be possible to do friction and contact at the same time since they're orthogonal, not sure about the rotation in that case though
     const float jvOne = dotProduct(objectA.linVelX[i], objectA.linVelY[i], nx, ny) - dotProduct(objectB.linVelX[i], objectB.linVelY[i], nx, ny)
       + objectA.angVel[i]*constraints.angularAxisOneA[i] + objectB.angVel[i]*constraints.angularAxisOneB[i];
 
     //Compute the impulse multiplier
     float lambdaOne = -(jvOne + constraints.biasOne[i])*constraints.constraintMassOne[i];
 
-    float originalLambdaSum = lambdaSumOne[i];
+    originalLambdaSum = lambdaSumOne[i];
     //Clamp lambda bounds, which for a contact constraint means > 0
-    float newLambdaSum = max(0.0f, lambdaOne + originalLambdaSum);
+    newLambdaSum = max(0.0f, lambdaOne + originalLambdaSum);
     lambdaOne = newLambdaSum - originalLambdaSum;
     //Store for next iteration
     lambdaSumOne[i] = newLambdaSum;
@@ -143,48 +187,6 @@ export void solveContactConstraints(
     objectB.linVelY[i] -= lambdaTwo*constraints.linearImpulseY[i];
     objectA.angVel[i] += lambdaTwo*constraints.angularImpulseTwoA[i];
     objectB.angVel[i] += lambdaTwo*constraints.angularImpulseTwoB[i];
-
-    //Solve friction one. Friction should be after contacts since the contacts determine friction limits
-    const float<2> frictionNormal = orthogonal(nx, ny);
-    const float jvFrictionOne = dotProduct(objectA.linVelX[i], objectA.linVelY[i], frictionNormal.x, frictionNormal.y) - dotProduct(objectB.linVelX[i], objectB.linVelY[i], frictionNormal.x, frictionNormal.y)
-      + objectA.angVel[i]*constraints.angularFrictionAxisOneA[i] + objectB.angVel[i]*constraints.angularFrictionAxisOneB[i];
-
-    //Friction has no bias
-    float frictionLambdaOne = -jvFrictionOne*constraints.frictionConstraintMassOne[i];
-
-    //Limit of friction constraint is the normal force from the contact constraint, so the contact's lambda
-    originalLambdaSum = frictionLambdaSumOne[i];
-    //Since contact sums are always positive the negative here is known to actually be negative
-    const float frictionLimitOne = lambdaSumOne[i]*frictionCoeff;
-    newLambdaSum = clamp(frictionLambdaOne + originalLambdaSum, -frictionLimitOne, frictionLimitOne);
-    frictionLambdaOne = newLambdaSum - originalLambdaSum;
-    frictionLambdaSumOne[i] = newLambdaSum;
-
-    const float<2> frictionLinearImpulse = orthogonal(constraints.linearImpulseX[i], constraints.linearImpulseY[i]);
-    objectA.linVelX[i] += frictionLambdaOne*frictionLinearImpulse.x;
-    objectA.linVelY[i] += frictionLambdaOne*frictionLinearImpulse.y;
-    objectB.linVelX[i] -= frictionLambdaOne*frictionLinearImpulse.x;
-    objectB.linVelY[i] -= frictionLambdaOne*frictionLinearImpulse.y;
-    objectA.angVel[i] += frictionLambdaOne*constraints.angularFrictionImpulseOneA[i];
-    objectB.angVel[i] += frictionLambdaOne*constraints.angularFrictionImpulseOneB[i];
-
-    const float jvFrictionTwo = dotProduct(objectA.linVelX[i], objectA.linVelY[i], frictionNormal.x, frictionNormal.y) - dotProduct(objectB.linVelX[i], objectB.linVelY[i], frictionNormal.x, frictionNormal.y)
-      + objectA.angVel[i]*constraints.angularFrictionAxisTwoA[i] + objectB.angVel[i]*constraints.angularFrictionAxisTwoB[i];
-
-    float frictionLambdaTwo = -jvFrictionTwo*constraints.frictionConstraintMassTwo[i];
-
-    originalLambdaSum = frictionLambdaSumTwo[i];
-    const float frictionLimitTwo = lambdaSumTwo[i]*frictionCoeff;
-    newLambdaSum = clamp(frictionLambdaTwo + originalLambdaSum, -frictionLimitTwo, frictionLimitTwo);
-    frictionLambdaTwo = newLambdaSum - originalLambdaSum;
-    frictionLambdaSumTwo[i] = newLambdaSum;
-
-    objectA.linVelX[i] += frictionLambdaTwo*frictionLinearImpulse.x;
-    objectA.linVelY[i] += frictionLambdaTwo*frictionLinearImpulse.y;
-    objectB.linVelX[i] -= frictionLambdaTwo*frictionLinearImpulse.x;
-    objectB.linVelY[i] -= frictionLambdaTwo*frictionLinearImpulse.y;
-    objectA.angVel[i] += frictionLambdaTwo*constraints.angularFrictionImpulseTwoA[i];
-    objectB.angVel[i] += frictionLambdaTwo*constraints.angularFrictionImpulseTwoB[i];
 
     //This is the inefficient unavoidable part. Hopefully the caller can sort the pairs so that this happens as little as possible
     //This allows duplicate pairs to exist by copying the data forward to the next duplicate occurrence. This duplication is ordered

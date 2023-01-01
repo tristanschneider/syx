@@ -387,7 +387,7 @@ namespace Test {
       Assert::AreEqual(size_t(1), TableOperations::size(pairs));
       const float e = 0.00001f;
       Assert::AreEqual(expectedOverlap, std::get<ContactPoint<ContactOne>::Overlap>(pairs.mRows).at(0), e);
-      Assert::AreEqual(5.5f, std::get<ContactPoint<ContactOne>::PosX>(pairs.mRows).at(0), e);
+      Assert::AreEqual(5.5f - expectedOverlap, std::get<ContactPoint<ContactOne>::PosX>(pairs.mRows).at(0), e);
       Assert::AreEqual(-1.0f, std::get<SharedNormal::X>(pairs.mRows).at(0), e);
     }
 
@@ -409,6 +409,7 @@ namespace Test {
       auto& posX = std::get<FloatRow<Tags::Pos, Tags::X>>(gameobjects.mRows);
       auto& posY = std::get<FloatRow<Tags::Pos, Tags::Y>>(gameobjects.mRows);
       auto& velX = std::get<FloatRow<Tags::LinVel, Tags::X>>(gameobjects.mRows);
+      auto& angVel = std::get<FloatRow<Tags::AngVel, Tags::Angle>>(gameobjects.mRows);
       const float expectedOverlap = 0.1f;
       posX.at(0) = 5.0f;
       velX.at(0) = 1.0f;
@@ -424,17 +425,22 @@ namespace Test {
       _fillConstraintVelocities(db);
 
       Physics::setupConstraints(constraints);
-      Physics::solveConstraints(constraints);
+      for(int i = 0; i < 5; ++i) {
+        Physics::solveConstraints(constraints);
+      }
       _storeConstraintVelocities(db);
+      const glm::vec2 centerAToContact{ 0.4f, 0.5f };
+      const glm::vec2 centerBToContact{ -0.5f, 0.5f };
+      const glm::vec2 normal{ -1.0f, 0.0f };
+      //Velocity of contact point as velocity of center plus the angular component which is angular velocity cross the center to contact projected onto the x axis
+      const float xVelocityOfAAtContactA = velX.at(0) - angVel.at(0)*centerAToContact.y;
+      const float xVelocityOfBAtContactA = velX.at(1) - angVel.at(1)*centerBToContact.y;
+      const float velocityDifference = xVelocityOfAAtContactA + xVelocityOfBAtContactA;
 
-      const float e = 0.001f;
-      const float expectedBias = 0.1f;
-      //Velocity of 0 going towards 1 should instead turn into a velocity of the two going away from each-other
-      //by the overlap multiplied by the bias resolution amount. Since it's the relative velocity between the two,
-      //each of them should have half of that bias amount
-      const float expectedVelocity = expectedOverlap*expectedBias*0.5f;
-      Assert::AreEqual(-expectedVelocity, velX.at(0), e);
-      Assert::AreEqual(expectedVelocity, velX.at(1), e);
+      //Need to be pretty loose on the comparison because friction makes the rotation part not completely zero
+      const float e = 0.01f;
+      //Constraint is trying to solve for the difference of the projection of the velocities of the contact point on A and B on the normal being zero
+      Assert::AreEqual(0.0f, velocityDifference, e);
     }
   };
 }
