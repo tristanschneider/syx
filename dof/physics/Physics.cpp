@@ -21,14 +21,24 @@ namespace {
       _unwrapRow<ConstraintData::AngularAxisOneB>(constraints),
       _unwrapRow<ConstraintData::AngularAxisTwoA>(constraints),
       _unwrapRow<ConstraintData::AngularAxisTwoB>(constraints),
+      _unwrapRow<ConstraintData::AngularFrictionAxisOneA>(constraints),
+      _unwrapRow<ConstraintData::AngularFrictionAxisOneB>(constraints),
+      _unwrapRow<ConstraintData::AngularFrictionAxisTwoA>(constraints),
+      _unwrapRow<ConstraintData::AngularFrictionAxisTwoB>(constraints),
       _unwrapRow<ConstraintData::ConstraintMassOne>(constraints),
       _unwrapRow<ConstraintData::ConstraintMassTwo>(constraints),
+      _unwrapRow<ConstraintData::FrictionConstraintMassOne>(constraints),
+      _unwrapRow<ConstraintData::FrictionConstraintMassTwo>(constraints),
       _unwrapRow<ConstraintData::LinearImpulseX>(constraints),
       _unwrapRow<ConstraintData::LinearImpulseY>(constraints),
       _unwrapRow<ConstraintData::AngularImpulseOneA>(constraints),
       _unwrapRow<ConstraintData::AngularImpulseOneB>(constraints),
       _unwrapRow<ConstraintData::AngularImpulseTwoA>(constraints),
       _unwrapRow<ConstraintData::AngularImpulseTwoB>(constraints),
+      _unwrapRow<ConstraintData::FrictionAngularImpulseOneA>(constraints),
+      _unwrapRow<ConstraintData::FrictionAngularImpulseOneB>(constraints),
+      _unwrapRow<ConstraintData::FrictionAngularImpulseTwoA>(constraints),
+      _unwrapRow<ConstraintData::FrictionAngularImpulseTwoB>(constraints),
       _unwrapRow<ConstraintData::BiasOne>(constraints),
       _unwrapRow<ConstraintData::BiasTwo>(constraints)
     };
@@ -878,8 +888,10 @@ void Physics::setupConstraints(ConstraintsTable& constraints) {
   //TODO: don't clear this here and use it for warm start
   float* sumsOne = _unwrapRow<ConstraintData::LambdaSumOne>(constraints);
   float* sumsTwo = _unwrapRow<ConstraintData::LambdaSumTwo>(constraints);
+  float* frictionSumsOne = _unwrapRow<ConstraintData::FrictionLambdaSumOne>(constraints);
+  float* frictionSumsTwo = _unwrapRow<ConstraintData::FrictionLambdaSumTwo>(constraints);
   for(size_t i = 0; i < TableOperations::size(constraints); ++i) {
-    sumsOne[i] = sumsTwo[i] = 0.0f;
+    sumsOne[i] = sumsTwo[i] = frictionSumsOne[i] = frictionSumsTwo[i] = 0.0f;
   }
 
   ispc::setupConstraintsSharedMass(invMass, invInertia, bias, normal, aToContactOne, aToContactTwo, bToContactOne, bToContactTwo, overlapOne, overlapTwo, data, uint32_t(TableOperations::size(constraints)));
@@ -891,6 +903,9 @@ void Physics::solveConstraints(ConstraintsTable& constraints) {
   ispc::UniformConstraintObject objectB = _unwrapUniformConstraintObject<ConstraintObjB>(constraints);
   float* lambdaSumOne = _unwrapRow<ConstraintData::LambdaSumOne>(constraints);
   float* lambdaSumTwo = _unwrapRow<ConstraintData::LambdaSumTwo>(constraints);
+  float* frictionLambdaSumOne = _unwrapRow<ConstraintData::FrictionLambdaSumOne>(constraints);
+  float* frictionLambdaSumTwo = _unwrapRow<ConstraintData::FrictionLambdaSumTwo>(constraints);
+  const float frictionCoeff = 0.8f;
 
-  ispc::solveContactConstraints(data, objectA, objectB, lambdaSumOne, lambdaSumTwo, uint32_t(TableOperations::size(constraints)));
+  ispc::solveContactConstraints(data, objectA, objectB, lambdaSumOne, lambdaSumTwo, frictionLambdaSumOne, frictionLambdaSumTwo, frictionCoeff, uint32_t(TableOperations::size(constraints)));
 }

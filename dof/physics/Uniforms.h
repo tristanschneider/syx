@@ -56,8 +56,14 @@ struct UniformContactConstraintPairData {
   uniform float* angularAxisOneB;
   uniform float* angularAxisTwoA;
   uniform float* angularAxisTwoB;
+  uniform float* angularFrictionAxisOneA;
+  uniform float* angularFrictionAxisOneB;
+  uniform float* angularFrictionAxisTwoA;
+  uniform float* angularFrictionAxisTwoB;
   uniform float* constraintMassOne;
   uniform float* constraintMassTwo;
+  uniform float* frictionConstraintMassOne;
+  uniform float* frictionConstraintMassTwo;
   //linear axis multiplied by inverse mass, used to apply the impulses
   //Since the mass of both is the same only one premultiplied vector is needed
   uniform float* linearImpulseX;
@@ -67,6 +73,10 @@ struct UniformContactConstraintPairData {
   uniform float* angularImpulseOneB;
   uniform float* angularImpulseTwoA;
   uniform float* angularImpulseTwoB;
+  uniform float* angularFrictionImpulseOneA;
+  uniform float* angularFrictionImpulseOneB;
+  uniform float* angularFrictionImpulseTwoA;
+  uniform float* angularFrictionImpulseTwoB;
   uniform float* biasOne;
   uniform float* biasTwo;
 };

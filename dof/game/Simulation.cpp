@@ -82,8 +82,8 @@ namespace {
     std::get<SharedRow<TextureReference>>(gameobjects.mRows).at().mId = scene.mBackgroundImage;
 
     //Add some arbitrary objects for testing
-    const size_t rows = 1;
-    const size_t columns = 1;
+    const size_t rows = 10;
+    const size_t columns = 10;
     const size_t total = rows*columns;
     TableOperations::resizeTable(gameobjects, total);
 
@@ -193,8 +193,10 @@ namespace {
     auto& collisionPairs = std::get<CollisionPairsTable>(db.mTables);
     auto& constraints = std::get<ConstraintsTable>(db.mTables);
 
-    const float dragMultiplier = 0.96f;
-    Physics::applyDampingMultiplier<LinVelX, LinVelY>(db, dragMultiplier);
+    const float linearDragMultiplier = 0.96f;
+    Physics::applyDampingMultiplier<LinVelX, LinVelY>(db, linearDragMultiplier);
+    const float angularDragMultiplier = 0.99f;
+    Physics::details::applyDampingMultiplierAxis<AngVel>(db, angularDragMultiplier);
 
     //TODO: don't rebuild every frame
     Physics::clearBroadphase(broadphase);

@@ -37,6 +37,15 @@ float crossProduct(float ax, float ay, float bx, float by) {
   return ax*by - ay*bx;
 }
 
+float<2> orthogonal(float x, float y) {
+  //Cross product with unit Z since everything in 2D is orthogonal to Z
+  //[x] [0] [ y]
+  //[y]x[0]=[-x]
+  //[0] [1] [ 0]
+  float<2> result = { y, -x };
+  return result;
+}
+
 float dotProduct(float ax, float ay, float bx, float by) {
   return ax*bx + ay*by;
 }

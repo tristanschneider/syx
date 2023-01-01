@@ -132,18 +132,30 @@ struct ConstraintData {
   struct AngularAxisOneB : Row<float> {};
   struct AngularAxisTwoA : Row<float> {};
   struct AngularAxisTwoB : Row<float> {};
+  struct AngularFrictionAxisOneA : Row<float> {};
+  struct AngularFrictionAxisOneB : Row<float> {};
+  struct AngularFrictionAxisTwoA : Row<float> {};
+  struct AngularFrictionAxisTwoB : Row<float> {};
   struct ConstraintMassOne : Row<float> {};
   struct ConstraintMassTwo : Row<float> {};
+  struct FrictionConstraintMassOne : Row<float> {};
+  struct FrictionConstraintMassTwo : Row<float> {};
   struct LinearImpulseX : Row<float> {};
   struct LinearImpulseY : Row<float> {};
   struct AngularImpulseOneA : Row<float> {};
   struct AngularImpulseOneB : Row<float> {};
   struct AngularImpulseTwoA : Row<float> {};
   struct AngularImpulseTwoB : Row<float> {};
+  struct FrictionAngularImpulseOneA : Row<float> {};
+  struct FrictionAngularImpulseOneB : Row<float> {};
+  struct FrictionAngularImpulseTwoA : Row<float> {};
+  struct FrictionAngularImpulseTwoB : Row<float> {};
   struct BiasOne : Row<float> {};
   struct BiasTwo : Row<float> {};
   struct LambdaSumOne : Row<float> {};
   struct LambdaSumTwo : Row<float> {};
+  struct FrictionLambdaSumOne : Row<float> {};
+  struct FrictionLambdaSumTwo : Row<float> {};
 
   //Temporarily used while building constraint list
   struct VisitData {
@@ -219,18 +231,30 @@ using ConstraintsTable = Table<
   ConstraintData::AngularAxisTwoA,
   ConstraintData::AngularAxisOneB,
   ConstraintData::AngularAxisTwoB,
+  ConstraintData::AngularFrictionAxisOneA,
+  ConstraintData::AngularFrictionAxisTwoA,
+  ConstraintData::AngularFrictionAxisOneB,
+  ConstraintData::AngularFrictionAxisTwoB,
   ConstraintData::ConstraintMassOne,
   ConstraintData::ConstraintMassTwo,
+  ConstraintData::FrictionConstraintMassOne,
+  ConstraintData::FrictionConstraintMassTwo,
   ConstraintData::LinearImpulseX,
   ConstraintData::LinearImpulseY,
   ConstraintData::AngularImpulseOneA,
   ConstraintData::AngularImpulseOneB,
   ConstraintData::AngularImpulseTwoA,
   ConstraintData::AngularImpulseTwoB,
+  ConstraintData::FrictionAngularImpulseOneA,
+  ConstraintData::FrictionAngularImpulseOneB,
+  ConstraintData::FrictionAngularImpulseTwoA,
+  ConstraintData::FrictionAngularImpulseTwoB,
   ConstraintData::BiasOne,
   ConstraintData::BiasTwo,
   ConstraintData::LambdaSumOne,
   ConstraintData::LambdaSumTwo,
+  ConstraintData::FrictionLambdaSumOne,
+  ConstraintData::FrictionLambdaSumTwo,
   SharedRow<FinalSyncIndices>,
   ConstraintData::SharedVisitDataRow
 >;
