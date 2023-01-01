@@ -13,18 +13,24 @@ namespace {
     return std::get<RowT>(t.mRows).mElements.data();
   }
 
-  ispc::UniformConstraintData _unwrapUniformConstraintData(ConstraintsTable& constraints) {
+  ispc::UniformContactConstraintPairData _unwrapUniformConstraintData(ConstraintsTable& constraints) {
     return {
       _unwrapRow<ConstraintData::LinearAxisX>(constraints),
       _unwrapRow<ConstraintData::LinearAxisY>(constraints),
-      _unwrapRow<ConstraintData::AngularAxisA>(constraints),
-      _unwrapRow<ConstraintData::AngularAxisB>(constraints),
-      _unwrapRow<ConstraintData::ConstraintMass>(constraints),
+      _unwrapRow<ConstraintData::AngularAxisOneA>(constraints),
+      _unwrapRow<ConstraintData::AngularAxisOneB>(constraints),
+      _unwrapRow<ConstraintData::AngularAxisTwoA>(constraints),
+      _unwrapRow<ConstraintData::AngularAxisTwoB>(constraints),
+      _unwrapRow<ConstraintData::ConstraintMassOne>(constraints),
+      _unwrapRow<ConstraintData::ConstraintMassTwo>(constraints),
       _unwrapRow<ConstraintData::LinearImpulseX>(constraints),
       _unwrapRow<ConstraintData::LinearImpulseY>(constraints),
-      _unwrapRow<ConstraintData::AngularImpulseA>(constraints),
-      _unwrapRow<ConstraintData::AngularImpulseB>(constraints),
-      _unwrapRow<ConstraintData::Bias>(constraints)
+      _unwrapRow<ConstraintData::AngularImpulseOneA>(constraints),
+      _unwrapRow<ConstraintData::AngularImpulseOneB>(constraints),
+      _unwrapRow<ConstraintData::AngularImpulseTwoA>(constraints),
+      _unwrapRow<ConstraintData::AngularImpulseTwoB>(constraints),
+      _unwrapRow<ConstraintData::BiasOne>(constraints),
+      _unwrapRow<ConstraintData::BiasTwo>(constraints)
     };
   }
 
@@ -553,19 +559,25 @@ struct ConstraintSyncData {
     : mSyncIndexA(std::get<ConstraintObject<ConstraintObjA>::SyncIndex>(constraints.mRows))
     , mSyncTypeA(std::get<ConstraintObject<ConstraintObjA>::SyncType>(constraints.mRows))
     , mPairIndexA(std::get<CollisionPairIndexA>(constraints.mRows))
-    , mCenterToContactXA(std::get<ConstraintObject<ConstraintObjA>::CenterToContactX>(constraints.mRows))
-    , mCenterToContactYA(std::get<ConstraintObject<ConstraintObjA>::CenterToContactY>(constraints.mRows))
+    , mCenterToContactOneXA(std::get<ConstraintObject<ConstraintObjA>::CenterToContactOneX>(constraints.mRows))
+    , mCenterToContactOneYA(std::get<ConstraintObject<ConstraintObjA>::CenterToContactOneY>(constraints.mRows))
+    , mCenterToContactTwoXA(std::get<ConstraintObject<ConstraintObjA>::CenterToContactTwoX>(constraints.mRows))
+    , mCenterToContactTwoYA(std::get<ConstraintObject<ConstraintObjA>::CenterToContactTwoY>(constraints.mRows))
     , mSyncIndexB(std::get<ConstraintObject<ConstraintObjB>::SyncIndex>(constraints.mRows))
     , mSyncTypeB(std::get<ConstraintObject<ConstraintObjB>::SyncType>(constraints.mRows))
     , mPairIndexB(std::get<CollisionPairIndexB>(constraints.mRows))
-    , mCenterToContactXB(std::get<ConstraintObject<ConstraintObjB>::CenterToContactX>(constraints.mRows))
-    , mCenterToContactYB(std::get<ConstraintObject<ConstraintObjB>::CenterToContactY>(constraints.mRows))
+    , mCenterToContactOneXB(std::get<ConstraintObject<ConstraintObjB>::CenterToContactOneX>(constraints.mRows))
+    , mCenterToContactOneYB(std::get<ConstraintObject<ConstraintObjB>::CenterToContactOneY>(constraints.mRows))
+    , mCenterToContactTwoXB(std::get<ConstraintObject<ConstraintObjB>::CenterToContactTwoX>(constraints.mRows))
+    , mCenterToContactTwoYB(std::get<ConstraintObject<ConstraintObjB>::CenterToContactTwoY>(constraints.mRows))
     , mDestContactOneOverlap(std::get<ContactPoint<ContactOne>::Overlap>(constraints.mRows))
     , mDestContactTwoOverlap(std::get<ContactPoint<ContactTwo>::Overlap>(constraints.mRows))
     , mDestNormalX(std::get<SharedNormal::X>(constraints.mRows))
     , mDestNormalY(std::get<SharedNormal::Y>(constraints.mRows))
     , mContactOneX(std::get<ContactPoint<ContactOne>::PosX>(pairs.mRows))
     , mContactOneY(std::get<ContactPoint<ContactOne>::PosY>(pairs.mRows))
+    , mContactTwoX(std::get<ContactPoint<ContactTwo>::PosX>(pairs.mRows))
+    , mContactTwoY(std::get<ContactPoint<ContactTwo>::PosY>(pairs.mRows))
     , mPosAX(std::get<NarrowphaseData<PairA>::PosX>(pairs.mRows))
     , mPosAY(std::get<NarrowphaseData<PairA>::PosY>(pairs.mRows))
     , mPosBX(std::get<NarrowphaseData<PairB>::PosX>(pairs.mRows))
@@ -579,14 +591,18 @@ struct ConstraintSyncData {
   ConstraintObject<ConstraintObjA>::SyncIndex& mSyncIndexA;
   ConstraintObject<ConstraintObjA>::SyncType& mSyncTypeA;
   CollisionPairIndexA& mPairIndexA;
-  ConstraintObject<ConstraintObjA>::CenterToContactX& mCenterToContactXA;
-  ConstraintObject<ConstraintObjA>::CenterToContactY& mCenterToContactYA;
+  ConstraintObject<ConstraintObjA>::CenterToContactOneX& mCenterToContactOneXA;
+  ConstraintObject<ConstraintObjA>::CenterToContactOneY& mCenterToContactOneYA;
+  ConstraintObject<ConstraintObjA>::CenterToContactTwoX& mCenterToContactTwoXA;
+  ConstraintObject<ConstraintObjA>::CenterToContactTwoY& mCenterToContactTwoYA;
 
   ConstraintObject<ConstraintObjB>::SyncIndex& mSyncIndexB;
   ConstraintObject<ConstraintObjB>::SyncType& mSyncTypeB;
   CollisionPairIndexB& mPairIndexB;
-  ConstraintObject<ConstraintObjB>::CenterToContactX& mCenterToContactXB;
-  ConstraintObject<ConstraintObjB>::CenterToContactY& mCenterToContactYB;
+  ConstraintObject<ConstraintObjB>::CenterToContactOneX& mCenterToContactOneXB;
+  ConstraintObject<ConstraintObjB>::CenterToContactOneY& mCenterToContactOneYB;
+  ConstraintObject<ConstraintObjB>::CenterToContactTwoX& mCenterToContactTwoXB;
+  ConstraintObject<ConstraintObjB>::CenterToContactTwoY& mCenterToContactTwoYB;
 
   ContactPoint<ContactOne>::Overlap& mDestContactOneOverlap;
   ContactPoint<ContactTwo>::Overlap& mDestContactTwoOverlap;
@@ -595,6 +611,8 @@ struct ConstraintSyncData {
 
   ContactPoint<ContactOne>::PosX& mContactOneX;
   ContactPoint<ContactOne>::PosY& mContactOneY;
+  ContactPoint<ContactTwo>::PosX& mContactTwoX;
+  ContactPoint<ContactTwo>::PosY& mContactTwoY;
 
   NarrowphaseData<PairA>::PosX& mPosAX;
   NarrowphaseData<PairA>::PosY& mPosAY;
@@ -610,10 +628,14 @@ struct ConstraintSyncData {
 void _syncConstraintData(ConstraintSyncData& data, size_t constraintIndex, size_t objectIndex, size_t indexA, size_t indexB) {
   data.mPairIndexA.at(constraintIndex) = indexA;
   data.mPairIndexB.at(constraintIndex) = indexB;
-  data.mCenterToContactXA.at(constraintIndex) = data.mContactOneX.at(objectIndex) - data.mPosAX.at(objectIndex);
-  data.mCenterToContactYA.at(constraintIndex) = data.mContactOneY.at(objectIndex) - data.mPosAY.at(objectIndex);
-  data.mCenterToContactXB.at(constraintIndex) = data.mContactOneX.at(objectIndex) - data.mPosBX.at(objectIndex);
-  data.mCenterToContactYB.at(constraintIndex) = data.mContactOneY.at(objectIndex) - data.mPosBY.at(objectIndex);
+  data.mCenterToContactOneXA.at(constraintIndex) = data.mContactOneX.at(objectIndex) - data.mPosAX.at(objectIndex);
+  data.mCenterToContactOneYA.at(constraintIndex) = data.mContactOneY.at(objectIndex) - data.mPosAY.at(objectIndex);
+  data.mCenterToContactOneXB.at(constraintIndex) = data.mContactOneX.at(objectIndex) - data.mPosBX.at(objectIndex);
+  data.mCenterToContactOneYB.at(constraintIndex) = data.mContactOneY.at(objectIndex) - data.mPosBY.at(objectIndex);
+  data.mCenterToContactTwoXA.at(constraintIndex) = data.mContactTwoX.at(objectIndex) - data.mPosAX.at(objectIndex);
+  data.mCenterToContactTwoYA.at(constraintIndex) = data.mContactTwoY.at(objectIndex) - data.mPosAY.at(objectIndex);
+  data.mCenterToContactTwoXB.at(constraintIndex) = data.mContactTwoX.at(objectIndex) - data.mPosBX.at(objectIndex);
+  data.mCenterToContactTwoYB.at(constraintIndex) = data.mContactTwoY.at(objectIndex) - data.mPosBY.at(objectIndex);
   data.mDestContactOneOverlap.at(constraintIndex) = data.mSourceContactOneOverlap.at(objectIndex);
   data.mDestContactTwoOverlap.at(constraintIndex) = data.mSourceContactTwoOverlap.at(objectIndex);
   data.mDestNormalX.at(constraintIndex) = data.mSourceNormalX.at(objectIndex);
@@ -845,25 +867,30 @@ void Physics::setupConstraints(ConstraintsTable& constraints) {
   const float invInertia = 1.0f/inertia;
   const float bias = 0.1f;
   ispc::UniformVec2 normal{ _unwrapRow<SharedNormal::X>(constraints), _unwrapRow<SharedNormal::Y>(constraints) };
-  ispc::UniformVec2 aToContact{ _unwrapRow<ConstraintObject<ConstraintObjA>::CenterToContactX>(constraints), _unwrapRow<ConstraintObject<ConstraintObjA>::CenterToContactY>(constraints) };
-  ispc::UniformVec2 bToContact{ _unwrapRow<ConstraintObject<ConstraintObjB>::CenterToContactX>(constraints), _unwrapRow<ConstraintObject<ConstraintObjB>::CenterToContactY>(constraints) };
-  float* overlap = _unwrapRow<ContactPoint<ContactOne>::Overlap>(constraints);
-  ispc::UniformConstraintData data = _unwrapUniformConstraintData(constraints);
+  ispc::UniformVec2 aToContactOne{ _unwrapRow<ConstraintObject<ConstraintObjA>::CenterToContactOneX>(constraints), _unwrapRow<ConstraintObject<ConstraintObjA>::CenterToContactOneY>(constraints) };
+  ispc::UniformVec2 bToContactOne{ _unwrapRow<ConstraintObject<ConstraintObjB>::CenterToContactOneX>(constraints), _unwrapRow<ConstraintObject<ConstraintObjB>::CenterToContactOneY>(constraints) };
+  ispc::UniformVec2 aToContactTwo{ _unwrapRow<ConstraintObject<ConstraintObjA>::CenterToContactTwoX>(constraints), _unwrapRow<ConstraintObject<ConstraintObjA>::CenterToContactTwoY>(constraints) };
+  ispc::UniformVec2 bToContactTwo{ _unwrapRow<ConstraintObject<ConstraintObjB>::CenterToContactTwoX>(constraints), _unwrapRow<ConstraintObject<ConstraintObjB>::CenterToContactTwoY>(constraints) };
+  float* overlapOne = _unwrapRow<ContactPoint<ContactOne>::Overlap>(constraints);
+  float* overlapTwo = _unwrapRow<ContactPoint<ContactTwo>::Overlap>(constraints);
+  ispc::UniformContactConstraintPairData data = _unwrapUniformConstraintData(constraints);
 
   //TODO: don't clear this here and use it for warm start
-  float* sums = _unwrapRow<ConstraintData::LambdaSum>(constraints);
+  float* sumsOne = _unwrapRow<ConstraintData::LambdaSumOne>(constraints);
+  float* sumsTwo = _unwrapRow<ConstraintData::LambdaSumTwo>(constraints);
   for(size_t i = 0; i < TableOperations::size(constraints); ++i) {
-    sums[i] = 0.0f;
+    sumsOne[i] = sumsTwo[i] = 0.0f;
   }
 
-  ispc::setupConstraintsSharedMass(invMass, invInertia, bias, normal, aToContact, bToContact, overlap, data, uint32_t(TableOperations::size(constraints)));
+  ispc::setupConstraintsSharedMass(invMass, invInertia, bias, normal, aToContactOne, aToContactTwo, bToContactOne, bToContactTwo, overlapOne, overlapTwo, data, uint32_t(TableOperations::size(constraints)));
 }
 
 void Physics::solveConstraints(ConstraintsTable& constraints) {
-  ispc::UniformConstraintData data = _unwrapUniformConstraintData(constraints);
+  ispc::UniformContactConstraintPairData data = _unwrapUniformConstraintData(constraints);
   ispc::UniformConstraintObject objectA = _unwrapUniformConstraintObject<ConstraintObjA>(constraints);
   ispc::UniformConstraintObject objectB = _unwrapUniformConstraintObject<ConstraintObjB>(constraints);
-  float* lambdaSum = _unwrapRow<ConstraintData::LambdaSum>(constraints);
+  float* lambdaSumOne = _unwrapRow<ConstraintData::LambdaSumOne>(constraints);
+  float* lambdaSumTwo = _unwrapRow<ConstraintData::LambdaSumTwo>(constraints);
 
-  ispc::solveContactConstraints(data, objectA, objectB, lambdaSum, uint32_t(TableOperations::size(constraints)));
+  ispc::solveContactConstraints(data, objectA, objectB, lambdaSumOne, lambdaSumTwo, uint32_t(TableOperations::size(constraints)));
 }

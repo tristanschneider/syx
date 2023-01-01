@@ -47,20 +47,26 @@ struct UniformConstraintObject {
   uniform int* syncType;
 };
 
-struct UniformConstraintData {
+struct UniformContactConstraintPairData {
   //Linear axis the constraint is limiting motion on. Same for both objects but flipped
   uniform float* linearAxisX;
   uniform float* linearAxisY;
   //Angular axis the constraint is limiting motion on, different for A and B
-  uniform float* angularAxisA;
-  uniform float* angularAxisB;
-  uniform float* constraintMass;
+  uniform float* angularAxisOneA;
+  uniform float* angularAxisOneB;
+  uniform float* angularAxisTwoA;
+  uniform float* angularAxisTwoB;
+  uniform float* constraintMassOne;
+  uniform float* constraintMassTwo;
   //linear axis multiplied by inverse mass, used to apply the impulses
   //Since the mass of both is the same only one premultiplied vector is needed
   uniform float* linearImpulseX;
   uniform float* linearImpulseY;
   //angular axis multiplied by inertia, used to apply the impulses. The inertia for both objects is the same but the vector isn't
-  uniform float* angularImpulseA;
-  uniform float* angularImpulseB;
-  uniform float* bias;
+  uniform float* angularImpulseOneA;
+  uniform float* angularImpulseOneB;
+  uniform float* angularImpulseTwoA;
+  uniform float* angularImpulseTwoB;
+  uniform float* biasOne;
+  uniform float* biasTwo;
 };

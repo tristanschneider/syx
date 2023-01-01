@@ -116,8 +116,10 @@ struct ConstraintObject {
   struct SyncType : Row<int> {};
 
   //Used briefly to build the constraint axis
-  struct CenterToContactX : Row<float> {};
-  struct CenterToContactY : Row<float> {};
+  struct CenterToContactOneX : Row<float> {};
+  struct CenterToContactOneY : Row<float> {};
+  struct CenterToContactTwoX : Row<float> {};
+  struct CenterToContactTwoY : Row<float> {};
 };
 struct ConstraintObjA {};
 struct ConstraintObjB {};
@@ -126,15 +128,22 @@ struct ConstraintObjB {};
 struct ConstraintData {
   struct LinearAxisX : Row<float> {};
   struct LinearAxisY : Row<float> {};
-  struct AngularAxisA : Row<float> {};
-  struct AngularAxisB : Row<float> {};
-  struct ConstraintMass : Row<float> {};
+  struct AngularAxisOneA : Row<float> {};
+  struct AngularAxisOneB : Row<float> {};
+  struct AngularAxisTwoA : Row<float> {};
+  struct AngularAxisTwoB : Row<float> {};
+  struct ConstraintMassOne : Row<float> {};
+  struct ConstraintMassTwo : Row<float> {};
   struct LinearImpulseX : Row<float> {};
   struct LinearImpulseY : Row<float> {};
-  struct AngularImpulseA : Row<float> {};
-  struct AngularImpulseB : Row<float> {};
-  struct Bias : Row<float> {};
-  struct LambdaSum : Row<float> {};
+  struct AngularImpulseOneA : Row<float> {};
+  struct AngularImpulseOneB : Row<float> {};
+  struct AngularImpulseTwoA : Row<float> {};
+  struct AngularImpulseTwoB : Row<float> {};
+  struct BiasOne : Row<float> {};
+  struct BiasTwo : Row<float> {};
+  struct LambdaSumOne : Row<float> {};
+  struct LambdaSumTwo : Row<float> {};
 
   //Temporarily used while building constraint list
   struct VisitData {
@@ -189,28 +198,39 @@ using ConstraintsTable = Table<
   ConstraintObject<ConstraintObjA>::AngVel,
   ConstraintObject<ConstraintObjA>::SyncIndex,
   ConstraintObject<ConstraintObjA>::SyncType,
-  ConstraintObject<ConstraintObjA>::CenterToContactX,
-  ConstraintObject<ConstraintObjA>::CenterToContactY,
+  ConstraintObject<ConstraintObjA>::CenterToContactOneX,
+  ConstraintObject<ConstraintObjA>::CenterToContactOneY,
+  ConstraintObject<ConstraintObjA>::CenterToContactTwoX,
+  ConstraintObject<ConstraintObjA>::CenterToContactTwoY,
 
   ConstraintObject<ConstraintObjB>::LinVelX,
   ConstraintObject<ConstraintObjB>::LinVelY,
   ConstraintObject<ConstraintObjB>::AngVel,
   ConstraintObject<ConstraintObjB>::SyncIndex,
   ConstraintObject<ConstraintObjB>::SyncType,
-  ConstraintObject<ConstraintObjB>::CenterToContactX,
-  ConstraintObject<ConstraintObjB>::CenterToContactY,
+  ConstraintObject<ConstraintObjB>::CenterToContactOneX,
+  ConstraintObject<ConstraintObjB>::CenterToContactOneY,
+  ConstraintObject<ConstraintObjB>::CenterToContactTwoX,
+  ConstraintObject<ConstraintObjB>::CenterToContactTwoY,
 
   ConstraintData::LinearAxisX,
   ConstraintData::LinearAxisY,
-  ConstraintData::AngularAxisA,
-  ConstraintData::AngularAxisB,
-  ConstraintData::ConstraintMass,
+  ConstraintData::AngularAxisOneA,
+  ConstraintData::AngularAxisTwoA,
+  ConstraintData::AngularAxisOneB,
+  ConstraintData::AngularAxisTwoB,
+  ConstraintData::ConstraintMassOne,
+  ConstraintData::ConstraintMassTwo,
   ConstraintData::LinearImpulseX,
   ConstraintData::LinearImpulseY,
-  ConstraintData::AngularImpulseA,
-  ConstraintData::AngularImpulseB,
-  ConstraintData::Bias,
-  ConstraintData::LambdaSum,
+  ConstraintData::AngularImpulseOneA,
+  ConstraintData::AngularImpulseOneB,
+  ConstraintData::AngularImpulseTwoA,
+  ConstraintData::AngularImpulseTwoB,
+  ConstraintData::BiasOne,
+  ConstraintData::BiasTwo,
+  ConstraintData::LambdaSumOne,
+  ConstraintData::LambdaSumTwo,
   SharedRow<FinalSyncIndices>,
   ConstraintData::SharedVisitDataRow
 >;
