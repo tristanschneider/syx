@@ -7,6 +7,9 @@
 
 #include "glm/gtx/norm.hpp"
 
+extern std::vector<float> DEBUG_HACK;
+
+
 namespace {
   using namespace Tags;
   size_t _requestTextureLoad(TextureRequestTable& requests, const char* filename) {
@@ -104,7 +107,7 @@ namespace {
       std::get<FloatRow<Rot, CosAngle>>(gameobjects.mRows).at(i) = 1.0f;
     }
 
-    const float boundaryPadding = 5.0f;
+    const float boundaryPadding = 1.0f;
     const size_t first = 0;
     const size_t last = total - 1;
     scene.mBoundaryMin = glm::vec2(posX.at(first), posY.at(first)) - glm::vec2(boundaryPadding);
@@ -119,11 +122,13 @@ namespace {
     for(size_t i = 0; i < TableOperations::size(players); ++i) {
       const PlayerInput& input = std::get<Row<PlayerInput>>(players.mRows).at(i);
       glm::vec2 move(input.mMoveX, input.mMoveY);
-      const float speed = 0.005f;
+      const float speed = 0.05f;
       move *= speed;
 
       float& vx = std::get<FloatRow<LinVel, X>>(players.mRows).at(i);
       float& vy = std::get<FloatRow<LinVel, Y>>(players.mRows).at(i);
+      //Debug hack to slowly rotate player
+      //std::get<FloatRow<AngVel, Angle>>(players.mRows).at(i) = input.mAction1 ? 0.01f : 0.0f;
       glm::vec2 velocity(vx, vy);
 
       const float maxStoppingForce = 0.05f;
@@ -211,6 +216,7 @@ namespace {
     Physics::fillConstraintVelocities<LinVelX, LinVelY, AngVel>(constraints, db);
     Physics::setupConstraints(constraints);
 
+    /*
     auto& debug = std::get<DebugLineTable>(db.mTables);
     auto addLine = [&debug](glm::vec2 a, glm::vec2 b, glm::vec3 color) {
       DebugLineTable::ElementRef e = TableOperations::addToTable(debug);
@@ -238,18 +244,42 @@ namespace {
       }
       if(overlapTwo >= 0.0f) {
         addLine(posA, contactTwo, glm::vec3(1.0f, 0.0f, 1.0f));
-        addLine(contactOne, contactTwo + normal*0.25f, glm::vec3(0.0f, 1.0f, 1.0f));
-        addLine(contactOne, contactTwo + normal*overlapOne, glm::vec3(1.0f, 1.0f, 1.0f));
+        addLine(contactTwo, contactTwo + normal*0.25f, glm::vec3(0.0f, 1.0f, 1.0f));
+        addLine(contactTwo, contactTwo + normal*overlapTwo, glm::vec3(1.0f, 1.0f, 1.0f));
       }
     }
 
-    const int solveIterations = 1;
+    glm::vec2 first, last;
+    bool anyFound = false;
+    for(size_t i = 0; i + 1 < DEBUG_HACK.size(); i += 2) {
+      glm::vec2 p{ DEBUG_HACK[i], DEBUG_HACK[i + 1] };
+      if(std::abs(p.x - 1000.0f) < 0.001f) {
+        break;
+      }
+      anyFound = true;
+      for(int j = 0; j < 1; ++j) {
+        DebugLineTable::ElementRef e = TableOperations::addToTable(debug);
+        e.get<0>().mPos = p;
+        e.get<0>().mColor = glm::vec3(1.0f);
+        if(!i) {
+          first = p;
+          break;
+        }
+      }
+      last = p;
+    }
+    //if(anyFound) {
+    //  addLine(first, last, glm::vec3(1.0f));
+    //}
+    */
+
+    const int solveIterations = 5;
     //TODO: stop early if global lambda sum falls below tolerance
     for(int i = 0; i < solveIterations; ++i) {
-      //Physics::solveConstraints(constraints);
+      Physics::solveConstraints(constraints);
     }
 
-    //Physics::storeConstraintVelocities<LinVelX, LinVelY, AngVel>(constraints, db);
+    Physics::storeConstraintVelocities<LinVelX, LinVelY, AngVel>(constraints, db);
 
     Physics::integratePosition<LinVelX, LinVelY, PosX, PosY>(db);
     Physics::integrateRotation<RotX, RotY, AngVel>(db);

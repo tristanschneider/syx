@@ -37,6 +37,9 @@ int addIndexWrapped(int index, int toAdd, int size) {
   return result;
 }
 
+//TODO: this ended up pretty messy. It could be optimized in small ways by changing back to single-axis based computations
+//It is likely possible to take better advantage of ispc by splitting each plane clipping phase into its own pass,
+//like clipping all points across all collision pairs along the x axes
 export void generateUnitCubeCubeContacts(
   uniform UniformConstVec2& positionsA,
   uniform UniformRotation& rotationsA,
@@ -48,8 +51,6 @@ export void generateUnitCubeCubeContacts(
   uniform uint32 count
 ) {
   uniform const float<2> aNormals[4] = { { 0.0f, 1.0f }, { 0.0f, -1.0f }, { 1.0f, 0.0f }, { -1.0f, 0.0f } };
-  uniform const float aEdges[4] = { 0.5f, -0.5f, 0.5f, -0.5f };
-  uniform const float aNormals1D[4] = { 1.0f, -1.0f, 1.0f, -1.0f };
 
   foreach(i = 0 ... count) {
     //Transpose to undo the rotation of A
@@ -86,23 +87,19 @@ export void generateUnitCubeCubeContacts(
     float inputPointsX[8];
     float inputPointsY[8];
     int inputCount = 0;
-    float bestOverlap = 99999.0f;
-    float secondBestOverlap = bestOverlap;
+    float bestOverlap = 999.9f;
     float<2> bestNormal = aNormals[0];
-    float<2> bestPoint = { 0.0f, 0.0f };
-    float<2> secondBestPoint = { 0.0f, 0.0f };
-    float<2> lastPoint = outputPoints[3];
-    bool lastInside = false;
-    float lastOverlap = 0.0f;
 
     bool allPointsInside = true;
+      uniform int di = 0;
 
     for(uniform int edgeA = 0; edgeA < 4; ++edgeA) {
       //Copy previous output to current input
       inputCount = outputCount;
+      float<2> lastPoint;
       for(int j = 0; j < inputCount; ++j) {
-        inputPointsX[j] = outputPoints[j].x;
-        inputPointsY[j] = outputPoints[j].y;
+        lastPoint.x = inputPointsX[j] = outputPoints[j].x;
+        lastPoint.y = inputPointsY[j] = outputPoints[j].y;
       }
       //This will happen as soon as a separating axis is found as all points will land outside the clip edge and get discarded
       if(!outputCount) {
@@ -111,35 +108,33 @@ export void generateUnitCubeCubeContacts(
       outputCount = 0;
 
       //ispc doesn't like reading varying from array by index
-      uniform float aEdge = aEdges[edgeA];
-      uniform float aNormal1D = aNormals1D[edgeA];
+      uniform float<2> aNormal = aNormals[edgeA];
 
       //Last inside is invalidated when the edges change since it's inside relative to a given edge
-      lastOverlap = (aEdge - (edgeA < 2 ? lastPoint.y : lastPoint.x))*aNormal1D;
-      lastInside = lastOverlap >= 0.0f;
+      float lastOverlap = 0.5f - dotProduct(aNormal.x, aNormal.y, lastPoint.x, lastPoint.y);
+      bool lastInside = lastOverlap >= 0.0f;
 
+      float currentEdgeOverlap = 0.0f;
       for(int j = 0; j < inputCount; ++j) {
         const float<2> currentPoint = { inputPointsX[j], inputPointsY[j] };
-        //TODO: wasted subtraction for the last iteration that did this already
-        const float currentOnNormal = edgeA < 2 ? currentPoint.y : currentPoint.x;
-        const float lastOnNormal = edgeA < 2 ? lastPoint.y : lastPoint.x;
-        //Subtraction with a point on the plane then dot product with the normal
-        //TODO: use overlaps to compute intersection instead of an unrelated computation
-        const float currentOverlap = (aEdge - currentOnNormal)*aNormal1D;
+        //(e-p).n
+        const float currentOverlap = 0.5f - dotProduct(aNormal.x, aNormal.y, currentPoint.x, currentPoint.y);
         const bool currentInside = currentOverlap >= 0;
+        const float<2> lastToCurrent = vec2Sub(currentPoint, lastPoint);
+        //Might be division by zero but if so the intersect won't be used because currentInside would match lastInside
+        //(e-p).n/(e-s).n
+        const float t = 1.0 - (abs(currentOverlap)/abs(dotProduct(aNormal.x, aNormal.y, lastToCurrent.x, lastToCurrent.y)));
+        const float<2> intersect = vec2Add(lastPoint, vec2Multiply(lastToCurrent, t));
 
-        float overlapThisEdge = 99999.9f;
+        currentEdgeOverlap = max(currentOverlap, currentEdgeOverlap);
+
         //TODO: re-use subtraction above in intersect calculation below
-        float<2> currentIntersectPoint;
         if(currentInside) {
           allPointsInside = false;
           if(!lastInside) {
             //Went from outside to inside, add intersect
-            const float<2> intersect = getSegmentLineIntersectTimeAndOverlapAlongAxis1D(aEdge, lastOnNormal, currentOnNormal);
-            overlapThisEdge = intersect.y;
-            currentIntersectPoint = vec2Add(lastPoint, vec2Multiply(vec2Sub(currentPoint, lastPoint), intersect.x));
             #pragma ignore warning(perf)
-            outputPoints[outputCount] = currentIntersectPoint;
+            outputPoints[outputCount] = intersect;
             ++outputCount;
           }
           //Is inside, add current
@@ -148,26 +143,20 @@ export void generateUnitCubeCubeContacts(
           ++outputCount;
         }
         else if(lastInside) {
-          //Went from inside to outside, add intersect. Compute it backwards so that the line is always going into the shape, which makes the overlap computation simpler
-          const float<2> intersect = getSegmentLineIntersectTimeAndOverlapAlongAxis1D(aEdge, currentOnNormal, lastOnNormal);
-          overlapThisEdge = intersect.y;
-          currentIntersectPoint = vec2Add(currentPoint, vec2Multiply(vec2Sub(lastPoint, currentPoint), intersect.x));
+          //Went from inside to outside, add intersect.
           #pragma ignore warning(perf)
-          outputPoints[outputCount] = currentIntersectPoint;
+          outputPoints[outputCount] = intersect;
           ++outputCount;
         }
 
-        //Keep track of the least positive overlap for the final results
-        if(overlapThisEdge >= 0.0f && overlapThisEdge < bestOverlap) {
-          secondBestPoint = bestPoint;
-          secondBestOverlap = bestOverlap;
-
-          bestOverlap = overlapThisEdge;
-          bestNormal = aNormals[edgeA];
-          bestPoint = currentIntersectPoint;
-        }
         lastPoint = currentPoint;
         lastInside = currentInside;
+      }
+
+      //Keep track of the least positive overlap for the final results
+      if(currentEdgeOverlap < bestOverlap) {
+        bestOverlap = currentEdgeOverlap;
+        bestNormal = aNormal;
       }
     }
 
@@ -188,23 +177,78 @@ export void generateUnitCubeCubeContacts(
       resultNormals.x[i] = 0.0f;
     }
     else {
-      const float<2> bestNormalInA = bestNormal;
-      float<2> resultNormal = bestNormalInA;
-      //Transform normal to world
-      bestNormal = multiplyVec2ByRotation(rotA.x, rotA.y, resultNormal.x, resultNormal.y);
-      //Flip from being a face on A to going towards A
-      resultNormals.x[i] = -resultNormal.x;
-      resultNormals.y[i] = -resultNormal.y;
+      //TODO: need to figure out a better way to do this
+      //Also need to try the axes of B to see if they produce a better normal than what was found through clipping
+      float<2> candidateNormals[3] = { bestNormal, getUpFromRotation(rotBInA.x, rotBInA.y), getRightFromRotation(rotBInA.x, rotBInA.y) };
+      const float<2> originalBestNormal = bestNormal;
+      float bestNormalDiff = 99.0f;
+      //Figuring out the best normal has two parts:
+      // - Determining which results  in the least overlap along the normal, which is the distance between the two extremes of projections of all clipped points onto normal
+      // - Determine the sign of the normal
+      // This loop will do the former by determining all the projections on the normal and picking the normal that has the greatest difference
+      // Then the result can be flipped so it's pointing in the same direction as the original best
+      // This is a hacky assumption based on that either the original best will be chosen or one not far off from it
+      for(uniform int j = 0; j < 3; ++j) {
+        float thisMin = 999.0f;
+        float thisMax = -thisMin;
+        float<2> normal = candidateNormals[j];
+        for(uniform int k = 0; k < outputCount; ++k) {
+          float thisOverlap = dotProduct2(normal, outputPoints[k]);
+          thisMin = min(thisMin, thisOverlap);
+          thisMax = max(thisMax, thisOverlap);
+        }
+        //This is the absolute value of the total amount of overlap along this axis, we're looking for the normal with the smallest overlap
+        const float thisNormalDiff = thisMax - thisMin;
+        if(thisNormalDiff < bestNormalDiff) {
+          bestNormalDiff = thisNormalDiff;
+          bestNormal = normal;
+        }
+      }
+
+      //Now the best normal is known, make sure it's pointing in a similar direction to the original
+      if(dotProduct2(originalBestNormal, bestNormal) < 0.0f) {
+        bestNormal = vec2Negate(bestNormal);
+      }
+
+      //Now find the two best contact points. The normal is going away from A, so the smallest projection is the one with the most overlap, since it's going most against the normal
+      //The overlap for any point is the distance of its projection from the greatest projection: the point furthest away from A
+      float<2> bestPoint;
+      float<2> secondBestPoint;
+      float minProjection = 999.0f;
+      float secondMinProjection = minProjection;
+      float maxProjection = -1;
+      for(uniform int j = 0; j < outputCount; ++j) {
+        const float<2> thisPoint = outputPoints[j];
+        const float thisProjection = dotProduct2(bestNormal, thisPoint);
+        maxProjection = max(maxProjection, thisProjection);
+        if(thisProjection < minProjection) {
+          secondMinProjection = minProjection;
+          secondBestPoint = bestPoint;
+
+          minProjection = thisProjection;
+          bestPoint = thisPoint;
+        }
+        else if(thisProjection < secondMinProjection) {
+          secondMinProjection = thisProjection;
+          secondBestPoint = thisPoint;
+        }
+      }
 
       //Contacts are the two most overlapping points along the normal axis
       float<2> contactOne = bestPoint;
       float<2> contactTwo = secondBestPoint;
-      float contactTwoOverlap = secondBestOverlap;
-      float contactOneOverlap = bestOverlap;
+      float contactTwoOverlap = maxProjection - secondMinProjection;
+      float contactOneOverlap = maxProjection - minProjection;
 
       //Transform the contacts back to world
       contactOne = vec2Add(posA, multiplyVec2ByRotation(rotA.x, rotA.y, contactOne.x, contactOne.y));
       contactTwo = vec2Add(posA, multiplyVec2ByRotation(rotA.x, rotA.y, contactTwo.x, contactTwo.y));
+
+      //Transform normal to world
+      bestNormal = multiplyVec2ByRotation(rotA.x, rotA.y, bestNormal.x, bestNormal.y);
+      //Flip from being a face on A to going towards A
+      resultNormals.x[i] = -bestNormal.x;
+      resultNormals.y[i] = -bestNormal.y;
 
       //Store the final results
       resultContactOne.x[i] = contactOne.x;

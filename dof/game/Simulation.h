@@ -94,6 +94,7 @@ using GameObjectTable = Table<
 struct PlayerInput {
   float mMoveX{};
   float mMoveY{};
+  bool mAction1{};
 };
 
 //Intermediate keyboard state used to compute final state

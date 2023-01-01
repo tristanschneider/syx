@@ -5,6 +5,8 @@
 #include "out_ispc/unity.h"
 #include "TableOperations.h"
 
+#include "glm/detail/func_geometric.inl"
+
 namespace {
   template<class RowT, class TableT>
   auto* _unwrapRow(TableT& t) {
@@ -202,6 +204,301 @@ void Physics::generateCollisionPairs(const GridBroadphase::BroadphaseTable& broa
   }
 }
 
+std::vector<float> DEBUG_HACK;
+
+namespace notispc {
+glm::vec2 transposeRotation(float cosAngle, float sinAngle) {
+  //Rotation matrix is
+  //[cos(x), -sin(x)]
+  //[sin(x), cos(x)]
+  //So the transpose given cos and sin is negating sin
+  glm::vec2 result = { cosAngle, -sinAngle };
+  return result;
+}
+
+//Multiply rotation matrices A*B represented by cos and sin since they're symmetric
+glm::vec2 multiplyRotationMatrices(float cosAngleA, float sinAngleA, float cosAngleB, float sinAngleB) {
+  //[cosAngleA, -sinAngleA]*[cosAngleB, -sinAngleB] = [cosAngleA*cosAngleB - sinAngleA*sinAngleB, ...]
+  //[sinAngleA, cosAngleA]  [sinAngleB, cosAngleB]    [sinAngleA*cosAngleB + cosAngleA*sinAngleB, ...]
+  glm::vec2 result = { cosAngleA*cosAngleB - sinAngleA*sinAngleB, sinAngleA*cosAngleB + cosAngleA*sinAngleB };
+  return result;
+}
+
+//Multiply M*V where M is the rotation matrix represented by cos/sinangle and V is a vector
+glm::vec2 multiplyVec2ByRotation(float cosAngle, float sinAngle, float vx, float vy) {
+  //[cosAngle, -sinAngle]*[vx] = [cosAngle*vx - sinAngle*vy]
+  //[sinAngle,  cosAngle] [vy]   [sinAngle*vx + cosAngle*vy]
+  glm::vec2 result = { cosAngle*vx - sinAngle*vy, sinAngle*vx + cosAngle*vy };
+  return result;
+}
+
+//Get the relative right represented by this rotation matrix, in other words the first basis vector (first column of matrix)
+glm::vec2 getRightFromRotation(float cosAngle, float sinAngle) {
+  //It already is the first column
+  glm::vec2 result = { cosAngle, sinAngle };
+  return result;
+}
+
+//Get the second basis vector (column)
+glm::vec2 getUpFromRotation(float cosAngle, float sinAngle) {
+  //[cosAngle, -sinAngle]
+  //[sinAngle,  cosAngle]
+  glm::vec2 result = { -sinAngle, cosAngle };
+  return result;
+}
+
+void generateUnitCubeCubeContacts(
+  ispc::UniformConstVec2& positionsA,
+  ispc::UniformRotation& rotationsA,
+  ispc::UniformConstVec2& positionsB,
+  ispc::UniformRotation& rotationsB,
+  ispc::UniformVec2& resultNormals,
+  ispc::UniformContact& resultContactOne,
+  ispc::UniformContact& resultContactTwo,
+  float debug[],
+  uint32_t count
+) {
+        int d = 0;
+
+  const glm::vec2 aNormals[4] = { { 0.0f, 1.0f }, { 0.0f, -1.0f }, { 1.0f, 0.0f }, { -1.0f, 0.0f } };
+
+  for(uint32_t i = 0; i < count; ++i) {
+    //Transpose to undo the rotation of A
+    const glm::vec2 rotA = { rotationsA.cosAngle[i], rotationsA.sinAngle[i] };
+    const glm::vec2 rotAInverse = transposeRotation(rotA.x, rotA.y);
+    const glm::vec2 posA = { positionsA.x[i], positionsA.y[i] };
+
+    const glm::vec2 rotB = { rotationsB.cosAngle[i], rotationsB.sinAngle[i] };
+    const glm::vec2 posB = { positionsB.x[i], positionsB.y[i] };
+    //B's rotation in A's local space. Transforming to local space A allows this to be solved as computing
+    //contacts between an AABB and an OBB instead of OBB to OBB
+    const glm::vec2 rotBInA = multiplyRotationMatrices(rotB.x, rotB.y, rotAInverse.x, rotAInverse.y);
+    //Get basis vectors with the lengths of B so that they go from the center to the extents
+    const glm::vec2 upB = getUpFromRotation(rotBInA.x, rotBInA.y) * 0.5f;
+    const glm::vec2 rightB = getRightFromRotation(rotBInA.x, rotBInA.y) * 0.5f;
+    glm::vec2 posBInA = posB - posA;
+    posBInA = multiplyVec2ByRotation(rotAInverse.x, rotAInverse.y, posBInA.x, posBInA.y);
+
+    const float extentAX = 0.5f;
+    const float extentAY = 0.5f;
+    //Sutherland hodgman clipping of B in the space of A, meaning all the clipping planes are cardinal axes
+    int outputCount = 0;
+    //8 should be the maximum amount of points that can result from clipping a square against another, which is when they are inside each-other and all corners of one intersect the edges of the other
+    glm::vec2 outputPoints[8];
+
+    //Upper right, lower right, lower left, upper left
+    outputPoints[0] = posBInA + upB + rightB;
+    outputPoints[1] = posBInA - upB + rightB;
+    outputPoints[2] = posBInA - upB - rightB;
+    outputPoints[3] = posBInA + upB - rightB;
+    outputCount = 4;
+
+    //ispc prefers single floats even here to avoid "gather required to load value" performance warnings
+    float inputPointsX[8];
+    float inputPointsY[8];
+    int inputCount = 0;
+    float bestOverlap = 9999.0f;
+    glm::vec2 bestNormal = aNormals[0];
+
+    bool allPointsInside = true;
+    for(int edgeA = 0; edgeA < 4; ++edgeA) {
+      //Copy previous output to current input
+      inputCount = outputCount;
+      glm::vec2 lastPoint;
+      for(int j = 0; j < inputCount; ++j) {
+        lastPoint.x = inputPointsX[j] = outputPoints[j].x;
+        lastPoint.y = inputPointsY[j] = outputPoints[j].y;
+      }
+      //This will happen as soon as a separating axis is found as all points will land outside the clip edge and get discarded
+      if(!outputCount) {
+        break;
+      }
+      outputCount = 0;
+
+      //ispc doesn't like reading varying from array by index
+      glm::vec2 aNormal = aNormals[edgeA];
+
+      //Last inside is invalidated when the edges change since it's inside relative to a given edge
+      float lastOverlap = 0.5f - glm::dot(aNormal, lastPoint);
+      bool lastInside = lastOverlap >= 0.0f;
+
+      float currentEdgeOverlap = 0.0f;
+      for(int j = 0; j < inputCount; ++j) {
+        const glm::vec2 currentPoint = { inputPointsX[j], inputPointsY[j] };
+        //(e-p).n
+        const float currentOverlap = 0.5f - glm::dot(aNormal, currentPoint);
+        const bool currentInside = currentOverlap >= 0;
+        const glm::vec2 lastToCurrent = currentPoint - lastPoint;
+        //Might be division by zero but if so the intersect won't be used because currentInside would match lastInside
+        //(e-p).n/(e-s).n
+        const float t = 1.0f - (abs(currentOverlap)/std::abs(glm::dot(aNormal, lastToCurrent)));
+        const glm::vec2 intersect = lastPoint + lastToCurrent*t;
+
+        currentEdgeOverlap = std::max(currentOverlap, currentEdgeOverlap);
+
+        //TODO: re-use subtraction above in intersect calculation below
+        if(currentInside) {
+          allPointsInside = false;
+          if(!lastInside) {
+            //Went from outside to inside, add intersect
+            outputPoints[outputCount] = intersect;
+            ++outputCount;
+          }
+          //Is inside, add current
+          outputPoints[outputCount] = currentPoint;
+          ++outputCount;
+        }
+        else if(lastInside) {
+          //Went from inside to outside, add intersect.
+          outputPoints[outputCount] = intersect;
+          ++outputCount;
+        }
+
+        lastPoint = currentPoint;
+        lastInside = currentInside;
+      }
+
+      //Keep track of the least positive overlap for the final results
+      if(currentEdgeOverlap < bestOverlap) {
+        bestOverlap = currentEdgeOverlap;
+        bestNormal = aNormal;
+      }
+    }
+
+    if(outputCount == 0) {
+      //No collision, store negative overlap to indicate this
+      resultContactOne.overlap[i] = -1.0f;
+      resultContactTwo.overlap[i] = -1.0f;
+    }
+    else if(allPointsInside) {
+      //Niche case where one shape is entirely inside another. Overlap is only determined
+      //for intersect points which is fine for all cases except this one
+      //Return arbitrary contacts here. Not too worried about accuracy because collision resolution has broken down if this happened
+      resultContactOne.overlap[i] = 0.5f;
+      resultContactOne.x[i] = posB.x;
+      resultContactOne.y[i] = posB.y;
+      resultContactTwo.overlap[i] = -1.0f;
+      resultNormals.x[i] = 1.0f;
+      resultNormals.x[i] = 0.0f;
+    }
+    else {
+      //TODO: need to figure out a better way to do this
+      //Also need to try the axes of B to see if they produce a better normal than what was found through clipping
+      glm::vec2 candidateNormals[3] = { bestNormal, getUpFromRotation(rotBInA.x, rotBInA.y), getRightFromRotation(rotBInA.x, rotBInA.y) };
+
+      debug[d++] = posB.x;
+      debug[d++] = posB.y;
+      debug[d++] = posB.x + candidateNormals[1].x;
+      debug[d++] = posB.y + candidateNormals[1].y;
+      debug[d++] = posB.x;
+      debug[d++] = posB.y;
+      debug[d++] = posB.x + candidateNormals[2].x;
+      debug[d++] = posB.y + candidateNormals[2].y;
+
+
+      const glm::vec2 originalBestNormal = bestNormal;
+      float bestNormalDiff = 99.0f;
+      //Figuring out the best normal has two parts:
+      // - Determining which results  in the least overlap along the normal, which is the distance between the two extremes of projections of all clipped points onto normal
+      // - Determine the sign of the normal
+      // This loop will do the former by determining all the projections on the normal and picking the normal that has the greatest difference
+      // Then the result can be flipped so it's pointing in the same direction as the original best
+      // This is a hacky assumption based on that either the original best will be chosen or one not far off from it
+      for(int j = 0; j < 3; ++j) {
+        float thisMin = 999.0f;
+        float thisMax = -thisMin;
+        glm::vec2 normal = candidateNormals[j];
+        normal = glm::normalize(normal);
+        float l = glm::length(normal);
+        l;
+
+        for(int k = 0; k < outputCount; ++k) {
+          float thisOverlap = glm::dot(normal, outputPoints[k]);
+          thisMin = std::min(thisMin, thisOverlap);
+          thisMax = std::max(thisMax, thisOverlap);
+        }
+        //This is the absolute value of the total amount of overlap along this axis, we're looking for the normal with the smallest overlap
+        const float thisNormalDiff = thisMax - thisMin;
+        if(thisNormalDiff < bestNormalDiff) {
+          bestNormalDiff = thisNormalDiff;
+          bestNormal = normal;
+        }
+      }
+
+      //Now the best normal is known, make sure it's pointing in a similar direction to the original
+      if(glm::dot(originalBestNormal, bestNormal) < 0.0f) {
+        bestNormal = -bestNormal;
+      }
+
+      //Now find the two best contact points. The normal is going away from A, so the smallest projection is the one with the most overlap, since it's going most against the normal
+      //The overlap for any point is the distance of its projection from the greatest projection: the point furthest away from A
+      glm::vec2 bestPoint{};
+      glm::vec2 secondBestPoint;
+      float minProjection = 999.0f;
+      float secondMinProjection = minProjection;
+      float maxProjection = -1;
+      for(int j = 0; j < outputCount; ++j) {
+        const glm::vec2 thisPoint = outputPoints[j];
+        const float thisProjection = glm::dot(bestNormal, thisPoint);
+        maxProjection = std::max(maxProjection, thisProjection);
+        if(thisProjection < minProjection) {
+          secondMinProjection = minProjection;
+          secondBestPoint = bestPoint;
+
+          minProjection = thisProjection;
+          bestPoint = thisPoint;
+        }
+        else if(thisProjection < secondMinProjection) {
+          secondMinProjection = thisProjection;
+          secondBestPoint = thisPoint;
+        }
+      }
+
+      //Contacts are the two most overlapping points along the normal axis
+      glm::vec2 contactOne = bestPoint;
+      glm::vec2 contactTwo = secondBestPoint;
+      float contactTwoOverlap = maxProjection - secondMinProjection;
+      float contactOneOverlap = maxProjection - minProjection;
+
+      //Transform the contacts back to world
+      contactOne = posA + multiplyVec2ByRotation(rotA.x, rotA.y, contactOne.x, contactOne.y);
+      contactTwo = posA + multiplyVec2ByRotation(rotA.x, rotA.y, contactTwo.x, contactTwo.y);
+
+      //Transform normal to world
+      bestNormal = multiplyVec2ByRotation(rotA.x, rotA.y, bestNormal.x, bestNormal.y);
+      //Flip from being a face on A to going towards A
+      resultNormals.x[i] = -bestNormal.x;
+      resultNormals.y[i] = -bestNormal.y;
+
+      //Store the final results
+      resultContactOne.x[i] = contactOne.x;
+      resultContactOne.y[i] = contactOne.y;
+      resultContactOne.overlap[i] = contactOneOverlap;
+
+      resultContactTwo.x[i] = contactTwo.x;
+      resultContactTwo.y[i] = contactTwo.y;
+      resultContactTwo.overlap[i] = contactTwoOverlap;
+
+      for(int j = 0; j < outputCount; ++j) {
+        glm::vec2& thisPoint = outputPoints[j];
+        thisPoint = posA + multiplyVec2ByRotation(rotA.x, rotA.y, thisPoint.x, thisPoint.y);
+      }
+      debug[d++] = outputPoints[outputCount - 1].x;
+      debug[d++] = outputPoints[outputCount - 1].y;
+      for(int k = 0; k < outputCount; ++k) {
+        debug[d++] = outputPoints[k].x;
+        debug[d++] = outputPoints[k].y;
+        debug[d++] = outputPoints[k].x;
+        debug[d++] = outputPoints[k].y;
+      }
+      debug[d++] = outputPoints[0].x;
+      debug[d++] = outputPoints[0].y;
+    }
+    debug[d] = 1000.0f;
+  }
+}
+}
+
 void Physics::generateContacts(CollisionPairsTable& pairs) {
   ispc::UniformConstVec2 positionsA{ _unwrapRow<NarrowphaseData<PairA>::PosX>(pairs), _unwrapRow<NarrowphaseData<PairA>::PosY>(pairs) };
   ispc::UniformRotation rotationsA{ _unwrapRow<NarrowphaseData<PairA>::CosAngle>(pairs), _unwrapRow<NarrowphaseData<PairA>::SinAngle>(pairs) };
@@ -219,6 +516,7 @@ void Physics::generateContacts(CollisionPairsTable& pairs) {
     _unwrapRow<ContactPoint<ContactTwo>::PosY>(pairs),
     _unwrapRow<ContactPoint<ContactTwo>::Overlap>(pairs)
   };
+  //DEBUG_HACK.resize(1000);
   ispc::generateUnitCubeCubeContacts(positionsA, rotationsA, positionsB, rotationsB, normals, contactsOne, contactsTwo, uint32_t(TableOperations::size(pairs)));
   //ispc::generateUnitSphereSphereContacts(positionsA, positionsB, normals, contacts, uint32_t(TableOperations::size(pairs)));
 
@@ -539,10 +837,10 @@ void Physics::setupConstraints(ConstraintsTable& constraints) {
   //const float density = 1.0f;
   //const float mass = pi*r*r;
   //const float inertia = pi*(r*r*r*r)*0.25f;
-  const float w = 0.5f;
-  const float h = 0.5f;
+  const float w = 1.0f;
+  const float h = 1.0f;
   const float mass = w*h;
-  const float inertia = (2.0f*w)*(2.0f*w)*(2.0f*w)*(2.0f*w)/12.0f;
+  const float inertia = mass*(h*h + w*w)/12.0f;
   const float invMass = 1.0f/mass;
   const float invInertia = 1.0f/inertia;
   const float bias = 0.1f;

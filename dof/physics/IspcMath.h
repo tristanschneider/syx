@@ -4,6 +4,11 @@ float vec2Length(float<2> v) {
   return sqrt(v.x*v.x + v.y*v.y);
 }
 
+float<2> vec2Negate(float<2> v) {
+  float<2> result = { -v.x, -v.y };
+  return result;
+}
+
 float<2> vec2Sub(float<2> l, float<2> r) {
   float<2> result = { l.x - r.x, l.y - r.y };
   return result;

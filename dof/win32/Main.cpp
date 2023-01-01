@@ -55,6 +55,7 @@ void onKey(WPARAM key, GameDatabase& db, KeyState state) {
       case 'A':keyboard.mKeys.set((size_t)PlayerKeyboardInput::Key::Left, isDown); break;
       case 'S': keyboard.mKeys.set((size_t)PlayerKeyboardInput::Key::Down, isDown); break;
       case 'D': keyboard.mKeys.set((size_t)PlayerKeyboardInput::Key::Right, isDown); break;
+      case VK_SPACE: input.mAction1 = isDown; break;
       default: break;
     }
     input.mMoveX = input.mMoveY = 0.0f;
