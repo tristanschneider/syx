@@ -65,6 +65,12 @@ namespace {
   }
 
   SceneState::State _setupScene(GameDatabase& db) {
+    PhysicsTableIds& physicsTables = std::get<SharedRow<PhysicsTableIds>>(std::get<GlobalGameData>(db.mTables).mRows).at();
+    physicsTables.mTableIDMask = GameDatabase::ElementID::TABLE_INDEX_MASK;
+    physicsTables.mSharedMassTable = GameDatabase::getTableIndex<GameObjectTable>().mValue;
+    physicsTables.mZeroMassTable = GameDatabase::getTableIndex<StaticGameObjectTable>().mValue;
+
+    StaticGameObjectTable& staticObjects = std::get<StaticGameObjectTable>(db.mTables);
     GameObjectTable& gameobjects = std::get<GameObjectTable>(db.mTables);
     SceneState& scene = std::get<0>(std::get<GlobalGameData>(db.mTables).mRows).at();
 
@@ -80,6 +86,7 @@ namespace {
 
     //Make all the objects use the background image as their texture
     std::get<SharedRow<TextureReference>>(gameobjects.mRows).at().mId = scene.mBackgroundImage;
+    std::get<SharedRow<TextureReference>>(staticObjects.mRows).at().mId = scene.mBackgroundImage;
 
     //Add some arbitrary objects for testing
     const size_t rows = 10;
@@ -114,6 +121,8 @@ namespace {
     scene.mBoundaryMax = glm::vec2(posX.at(last), posY.at(last)) + glm::vec2(boundaryPadding);
 
     _allocateBroadphaseFromScene(scene, std::get<BroadphaseTable>(db.mTables));
+
+    TableOperations::migrateOne(gameobjects, std::get<StaticGameObjectTable>(db.mTables), 0);
 
     return SceneState::State::Update;
   }
@@ -192,6 +201,9 @@ namespace {
     auto& broadphase = std::get<BroadphaseTable>(db.mTables);
     auto& collisionPairs = std::get<CollisionPairsTable>(db.mTables);
     auto& constraints = std::get<ConstraintsTable>(db.mTables);
+    auto& staticConstraints = std::get<ContactConstraintsToStaticObjectsTable>(db.mTables);
+    auto& constraintsCommon = std::get<ConstraintCommonTable>(db.mTables);
+    const PhysicsTableIds& physicsTables = std::get<SharedRow<PhysicsTableIds>>(std::get<GlobalGameData>(db.mTables).mRows).at();
 
     const float linearDragMultiplier = 0.96f;
     Physics::applyDampingMultiplier<LinVelX, LinVelY>(db, linearDragMultiplier);
@@ -208,15 +220,15 @@ namespace {
         Physics::rebuildBroadphase(tableId.mValue, posX.mElements.data(), posY.mElements.data(), broadphase, posX.mElements.size());
     });
 
-    Physics::generateCollisionPairs(broadphase, collisionPairs);
+    Physics::generateCollisionPairs(broadphase, collisionPairs, physicsTables);
 
     Physics::fillNarrowphaseData<PosX, PosY, RotX, RotY>(collisionPairs, db);
 
     Physics::generateContacts(collisionPairs);
 
-    Physics::buildConstraintsTable(collisionPairs, constraints);
-    Physics::fillConstraintVelocities<LinVelX, LinVelY, AngVel>(constraints, db);
-    Physics::setupConstraints(constraints);
+    Physics::buildConstraintsTable(collisionPairs, constraints, staticConstraints, constraintsCommon, physicsTables);
+    Physics::fillConstraintVelocities<LinVelX, LinVelY, AngVel>(constraintsCommon, db);
+    Physics::setupConstraints(constraints, staticConstraints);
 
     /*
     auto& debug = std::get<DebugLineTable>(db.mTables);
@@ -278,10 +290,10 @@ namespace {
     const int solveIterations = 5;
     //TODO: stop early if global lambda sum falls below tolerance
     for(int i = 0; i < solveIterations; ++i) {
-      Physics::solveConstraints(constraints);
+      Physics::solveConstraints(constraints, staticConstraints, constraintsCommon);
     }
 
-    Physics::storeConstraintVelocities<LinVelX, LinVelY, AngVel>(constraints, db);
+    Physics::storeConstraintVelocities<LinVelX, LinVelY, AngVel>(constraintsCommon, db);
 
     Physics::integratePosition<LinVelX, LinVelY, PosX, PosY>(db);
     Physics::integrateRotation<RotX, RotY, AngVel>(db);

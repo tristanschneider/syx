@@ -9,11 +9,17 @@
 
 namespace {
   template<class RowT, class TableT>
-  auto* _unwrapRow(TableT& t) {
-    return std::get<RowT>(t.mRows).mElements.data();
+  decltype(std::declval<RowT&>().mElements.data()) _unwrapRow(TableT& t) {
+    if constexpr(TableOperations::hasRow<RowT, TableT>()) {
+      return std::get<RowT>(t.mRows).mElements.data();
+    }
+    else {
+      return nullptr;
+    }
   }
 
-  ispc::UniformContactConstraintPairData _unwrapUniformConstraintData(ConstraintsTable& constraints) {
+  template<class TableT>
+  ispc::UniformContactConstraintPairData _unwrapUniformConstraintData(TableT& constraints) {
     return {
       _unwrapRow<ConstraintData::LinearAxisX>(constraints),
       _unwrapRow<ConstraintData::LinearAxisY>(constraints),
@@ -45,7 +51,7 @@ namespace {
   }
 
   template<class CObj>
-  ispc::UniformConstraintObject _unwrapUniformConstraintObject(ConstraintsTable& constraints) {
+  ispc::UniformConstraintObject _unwrapUniformConstraintObject(ConstraintCommonTable& constraints) {
     using ConstraintT = ConstraintObject<CObj>;
     return {
       _unwrapRow<ConstraintT::LinVelX>(constraints),
@@ -73,7 +79,23 @@ namespace {
     return size_t(cx - dimensions.mMin.x) + size_t(cy - dimensions.mMin.y)*dimensions.mStride;
   }
 
-  void _addCollisionPair(size_t self, size_t other, CollisionPairsTable& table) {
+  bool _tryOrderCollisionPair(size_t& pairA, size_t& pairB, const PhysicsTableIds& tables) {
+    //Always make zero mass object 'B' in a pair for simplicity
+    if((pairA & tables.mTableIDMask) == tables.mZeroMassTable) {
+      if((pairB & tables.mTableIDMask) == tables.mZeroMassTable) {
+        //If they're both static, skip this pair
+        return false;
+      }
+      std::swap(pairA, pairB);
+    }
+    return true;
+  }
+
+  void _addCollisionPair(size_t self, size_t other, CollisionPairsTable& table, const PhysicsTableIds& tableIds) {
+    if(!_tryOrderCollisionPair(self, other, tableIds)) {
+      return;
+    }
+
     CollisionPairIndexA& rowA = std::get<CollisionPairIndexA>(table.mRows);
     CollisionPairIndexB& rowB = std::get<CollisionPairIndexB>(table.mRows);
     //Table is sorted by index A, so find A first
@@ -186,7 +208,7 @@ void Physics::clearBroadphase(GridBroadphase::BroadphaseTable& broadphase) {
 }
 
 //TODO: this is a bit clunky to do separately from generation and update because most of the time all collision pairs from last frame would have been fine
-void Physics::generateCollisionPairs(const GridBroadphase::BroadphaseTable& broadphase, CollisionPairsTable& pairs) {
+void Physics::generateCollisionPairs(const GridBroadphase::BroadphaseTable& broadphase, CollisionPairsTable& pairs, const PhysicsTableIds& tableIds) {
   const GridBroadphase::Overflow& overflow = std::get<SharedRow<GridBroadphase::Overflow>>(broadphase.mRows).at();
 
   //TODO: retain pairs for a while then remove them occasionally if far away
@@ -206,14 +228,14 @@ void Physics::generateCollisionPairs(const GridBroadphase::BroadphaseTable& broa
           break;
         }
         //TODO: optimization here for avoiding pairs of static objects and for doing all inserts at once
-        _addCollisionPair(selfID, otherID, pairs);
+        _addCollisionPair(selfID, otherID, pairs, tableIds);
       }
 
       //Add pairs with cell-less overflow objects
       //The hope is that overflow is rare/never happens
       for(size_t other : overflow.mElements) {
         if(other != selfID) {
-          _addCollisionPair(selfID, other, pairs);
+          _addCollisionPair(selfID, other, pairs,tableIds);
         }
       }
     }
@@ -565,91 +587,111 @@ void _toRVector(CollisionPairsTable& pairs, ConstraintsTable& constraints) {
 }
 
 struct ConstraintSyncData {
-  ConstraintSyncData(CollisionPairsTable& pairs, ConstraintsTable& constraints)
-    : mSyncIndexA(std::get<ConstraintObject<ConstraintObjA>::SyncIndex>(constraints.mRows))
-    , mSyncTypeA(std::get<ConstraintObject<ConstraintObjA>::SyncType>(constraints.mRows))
-    , mPairIndexA(std::get<CollisionPairIndexA>(constraints.mRows))
-    , mCenterToContactOneXA(std::get<ConstraintObject<ConstraintObjA>::CenterToContactOneX>(constraints.mRows))
-    , mCenterToContactOneYA(std::get<ConstraintObject<ConstraintObjA>::CenterToContactOneY>(constraints.mRows))
-    , mCenterToContactTwoXA(std::get<ConstraintObject<ConstraintObjA>::CenterToContactTwoX>(constraints.mRows))
-    , mCenterToContactTwoYA(std::get<ConstraintObject<ConstraintObjA>::CenterToContactTwoY>(constraints.mRows))
-    , mSyncIndexB(std::get<ConstraintObject<ConstraintObjB>::SyncIndex>(constraints.mRows))
-    , mSyncTypeB(std::get<ConstraintObject<ConstraintObjB>::SyncType>(constraints.mRows))
-    , mPairIndexB(std::get<CollisionPairIndexB>(constraints.mRows))
-    , mCenterToContactOneXB(std::get<ConstraintObject<ConstraintObjB>::CenterToContactOneX>(constraints.mRows))
-    , mCenterToContactOneYB(std::get<ConstraintObject<ConstraintObjB>::CenterToContactOneY>(constraints.mRows))
-    , mCenterToContactTwoXB(std::get<ConstraintObject<ConstraintObjB>::CenterToContactTwoX>(constraints.mRows))
-    , mCenterToContactTwoYB(std::get<ConstraintObject<ConstraintObjB>::CenterToContactTwoY>(constraints.mRows))
-    , mDestContactOneOverlap(std::get<ContactPoint<ContactOne>::Overlap>(constraints.mRows))
-    , mDestContactTwoOverlap(std::get<ContactPoint<ContactTwo>::Overlap>(constraints.mRows))
-    , mDestNormalX(std::get<SharedNormal::X>(constraints.mRows))
-    , mDestNormalY(std::get<SharedNormal::Y>(constraints.mRows))
-    , mContactOneX(std::get<ContactPoint<ContactOne>::PosX>(pairs.mRows))
-    , mContactOneY(std::get<ContactPoint<ContactOne>::PosY>(pairs.mRows))
-    , mContactTwoX(std::get<ContactPoint<ContactTwo>::PosX>(pairs.mRows))
-    , mContactTwoY(std::get<ContactPoint<ContactTwo>::PosY>(pairs.mRows))
-    , mPosAX(std::get<NarrowphaseData<PairA>::PosX>(pairs.mRows))
-    , mPosAY(std::get<NarrowphaseData<PairA>::PosY>(pairs.mRows))
-    , mPosBX(std::get<NarrowphaseData<PairB>::PosX>(pairs.mRows))
-    , mPosBY(std::get<NarrowphaseData<PairB>::PosY>(pairs.mRows))
-    , mSourceContactOneOverlap(std::get<ContactPoint<ContactOne>::Overlap>(pairs.mRows))
-    , mSourceContactTwoOverlap(std::get<ContactPoint<ContactTwo>::Overlap>(pairs.mRows))
-    , mSourceNormalX(std::get<SharedNormal::X>(pairs.mRows))
-    , mSourceNormalY(std::get<SharedNormal::Y>(pairs.mRows)) {
+  template<class T, class TableT>
+  T* _tryGetRow(TableT& table) {
+    if constexpr(TableOperations::hasRow<T, TableT>()) {
+      return &std::get<T>(table.mRows);
+    }
+    else {
+      return nullptr;
+    }
+  }
+
+  template<class TableT>
+  ConstraintSyncData(CollisionPairsTable& pairs, ConstraintCommonTable& common, TableT& constraints)
+    : mSyncIndexA(std::get<ConstraintObject<ConstraintObjA>::SyncIndex>(common.mRows))
+    , mSyncTypeA(std::get<ConstraintObject<ConstraintObjA>::SyncType>(common.mRows))
+    , mPairIndexA(std::get<CollisionPairIndexA>(common.mRows))
+    , mCenterToContactOneXA(_tryGetRow<ConstraintObject<ConstraintObjA>::CenterToContactOneX>(constraints))
+    , mCenterToContactOneYA(_tryGetRow<ConstraintObject<ConstraintObjA>::CenterToContactOneY>(constraints))
+    , mCenterToContactTwoXA(_tryGetRow<ConstraintObject<ConstraintObjA>::CenterToContactTwoX>(constraints))
+    , mCenterToContactTwoYA(_tryGetRow<ConstraintObject<ConstraintObjA>::CenterToContactTwoY>(constraints))
+    , mSyncIndexB(std::get<ConstraintObject<ConstraintObjB>::SyncIndex>(common.mRows))
+    , mSyncTypeB(std::get<ConstraintObject<ConstraintObjB>::SyncType>(common.mRows))
+    , mPairIndexB(std::get<CollisionPairIndexB>(common.mRows))
+    , mCenterToContactOneXB(_tryGetRow<ConstraintObject<ConstraintObjB>::CenterToContactOneX>(constraints))
+    , mCenterToContactOneYB(_tryGetRow<ConstraintObject<ConstraintObjB>::CenterToContactOneY>(constraints))
+    , mCenterToContactTwoXB(_tryGetRow<ConstraintObject<ConstraintObjB>::CenterToContactTwoX>(constraints))
+    , mCenterToContactTwoYB(_tryGetRow<ConstraintObject<ConstraintObjB>::CenterToContactTwoY>(constraints))
+    , mDestContactOneOverlap(_tryGetRow<ContactPoint<ContactOne>::Overlap>(constraints))
+    , mDestContactTwoOverlap(_tryGetRow<ContactPoint<ContactTwo>::Overlap>(constraints))
+    , mDestNormalX(_tryGetRow<SharedNormal::X>(constraints))
+    , mDestNormalY(_tryGetRow<SharedNormal::Y>(constraints))
+    , mContactOneX(_tryGetRow<ContactPoint<ContactOne>::PosX>(pairs))
+    , mContactOneY(_tryGetRow<ContactPoint<ContactOne>::PosY>(pairs))
+    , mContactTwoX(_tryGetRow<ContactPoint<ContactTwo>::PosX>(pairs))
+    , mContactTwoY(_tryGetRow<ContactPoint<ContactTwo>::PosY>(pairs))
+    , mPosAX(_tryGetRow<NarrowphaseData<PairA>::PosX>(pairs))
+    , mPosAY(_tryGetRow<NarrowphaseData<PairA>::PosY>(pairs))
+    , mPosBX(_tryGetRow<NarrowphaseData<PairB>::PosX>(pairs))
+    , mPosBY(_tryGetRow<NarrowphaseData<PairB>::PosY>(pairs))
+    , mSourceContactOneOverlap(_tryGetRow<ContactPoint<ContactOne>::Overlap>(pairs))
+    , mSourceContactTwoOverlap(_tryGetRow<ContactPoint<ContactTwo>::Overlap>(pairs))
+    , mSourceNormalX(_tryGetRow<SharedNormal::X>(pairs))
+    , mSourceNormalY(_tryGetRow<SharedNormal::Y>(pairs)) {
   }
 
   ConstraintObject<ConstraintObjA>::SyncIndex& mSyncIndexA;
   ConstraintObject<ConstraintObjA>::SyncType& mSyncTypeA;
   CollisionPairIndexA& mPairIndexA;
-  ConstraintObject<ConstraintObjA>::CenterToContactOneX& mCenterToContactOneXA;
-  ConstraintObject<ConstraintObjA>::CenterToContactOneY& mCenterToContactOneYA;
-  ConstraintObject<ConstraintObjA>::CenterToContactTwoX& mCenterToContactTwoXA;
-  ConstraintObject<ConstraintObjA>::CenterToContactTwoY& mCenterToContactTwoYA;
-
   ConstraintObject<ConstraintObjB>::SyncIndex& mSyncIndexB;
   ConstraintObject<ConstraintObjB>::SyncType& mSyncTypeB;
   CollisionPairIndexB& mPairIndexB;
-  ConstraintObject<ConstraintObjB>::CenterToContactOneX& mCenterToContactOneXB;
-  ConstraintObject<ConstraintObjB>::CenterToContactOneY& mCenterToContactOneYB;
-  ConstraintObject<ConstraintObjB>::CenterToContactTwoX& mCenterToContactTwoXB;
-  ConstraintObject<ConstraintObjB>::CenterToContactTwoY& mCenterToContactTwoYB;
 
-  ContactPoint<ContactOne>::Overlap& mDestContactOneOverlap;
-  ContactPoint<ContactTwo>::Overlap& mDestContactTwoOverlap;
-  SharedNormal::X& mDestNormalX;
-  SharedNormal::Y& mDestNormalY;
+  ConstraintObject<ConstraintObjA>::CenterToContactOneX* mCenterToContactOneXA{};
+  ConstraintObject<ConstraintObjA>::CenterToContactOneY* mCenterToContactOneYA{};
+  ConstraintObject<ConstraintObjA>::CenterToContactTwoX* mCenterToContactTwoXA{};
+  ConstraintObject<ConstraintObjA>::CenterToContactTwoY* mCenterToContactTwoYA{};
 
-  ContactPoint<ContactOne>::PosX& mContactOneX;
-  ContactPoint<ContactOne>::PosY& mContactOneY;
-  ContactPoint<ContactTwo>::PosX& mContactTwoX;
-  ContactPoint<ContactTwo>::PosY& mContactTwoY;
+  ConstraintObject<ConstraintObjB>::CenterToContactOneX* mCenterToContactOneXB{};
+  ConstraintObject<ConstraintObjB>::CenterToContactOneY* mCenterToContactOneYB{};
+  ConstraintObject<ConstraintObjB>::CenterToContactTwoX* mCenterToContactTwoXB{};
+  ConstraintObject<ConstraintObjB>::CenterToContactTwoY* mCenterToContactTwoYB{};
 
-  NarrowphaseData<PairA>::PosX& mPosAX;
-  NarrowphaseData<PairA>::PosY& mPosAY;
-  NarrowphaseData<PairB>::PosX& mPosBX;
-  NarrowphaseData<PairB>::PosY& mPosBY;
+  ContactPoint<ContactOne>::Overlap* mDestContactOneOverlap{};
+  ContactPoint<ContactTwo>::Overlap* mDestContactTwoOverlap{};
+  SharedNormal::X* mDestNormalX{};
+  SharedNormal::Y* mDestNormalY{};
 
-  ContactPoint<ContactOne>::Overlap& mSourceContactOneOverlap;
-  ContactPoint<ContactTwo>::Overlap& mSourceContactTwoOverlap;
-  SharedNormal::X& mSourceNormalX;
-  SharedNormal::Y& mSourceNormalY;
+  ContactPoint<ContactOne>::PosX* mContactOneX{};
+  ContactPoint<ContactOne>::PosY* mContactOneY{};
+  ContactPoint<ContactTwo>::PosX* mContactTwoX{};
+  ContactPoint<ContactTwo>::PosY* mContactTwoY{};
+
+  NarrowphaseData<PairA>::PosX* mPosAX{};
+  NarrowphaseData<PairA>::PosY* mPosAY{};
+  NarrowphaseData<PairB>::PosX* mPosBX{};
+  NarrowphaseData<PairB>::PosY* mPosBY{};
+
+  ContactPoint<ContactOne>::Overlap* mSourceContactOneOverlap{};
+  ContactPoint<ContactTwo>::Overlap* mSourceContactTwoOverlap{};
+  SharedNormal::X* mSourceNormalX{};
+  SharedNormal::Y* mSourceNormalY{};
 };
 
-void _syncConstraintData(ConstraintSyncData& data, size_t constraintIndex, size_t objectIndex, size_t indexA, size_t indexB) {
-  data.mPairIndexA.at(constraintIndex) = indexA;
-  data.mPairIndexB.at(constraintIndex) = indexB;
-  data.mCenterToContactOneXA.at(constraintIndex) = data.mContactOneX.at(objectIndex) - data.mPosAX.at(objectIndex);
-  data.mCenterToContactOneYA.at(constraintIndex) = data.mContactOneY.at(objectIndex) - data.mPosAY.at(objectIndex);
-  data.mCenterToContactOneXB.at(constraintIndex) = data.mContactOneX.at(objectIndex) - data.mPosBX.at(objectIndex);
-  data.mCenterToContactOneYB.at(constraintIndex) = data.mContactOneY.at(objectIndex) - data.mPosBY.at(objectIndex);
-  data.mCenterToContactTwoXA.at(constraintIndex) = data.mContactTwoX.at(objectIndex) - data.mPosAX.at(objectIndex);
-  data.mCenterToContactTwoYA.at(constraintIndex) = data.mContactTwoY.at(objectIndex) - data.mPosAY.at(objectIndex);
-  data.mCenterToContactTwoXB.at(constraintIndex) = data.mContactTwoX.at(objectIndex) - data.mPosBX.at(objectIndex);
-  data.mCenterToContactTwoYB.at(constraintIndex) = data.mContactTwoY.at(objectIndex) - data.mPosBY.at(objectIndex);
-  data.mDestContactOneOverlap.at(constraintIndex) = data.mSourceContactOneOverlap.at(objectIndex);
-  data.mDestContactTwoOverlap.at(constraintIndex) = data.mSourceContactTwoOverlap.at(objectIndex);
-  data.mDestNormalX.at(constraintIndex) = data.mSourceNormalX.at(objectIndex);
-  data.mDestNormalY.at(constraintIndex) = data.mSourceNormalY.at(objectIndex);
+void _syncConstraintData(ConstraintSyncData& data, size_t globalConstraintIndex, size_t constraintIndex, size_t objectIndex, size_t indexA, size_t indexB) {
+  data.mPairIndexA.at(globalConstraintIndex) = indexA;
+
+  //Assume that if one row of A exist they all do
+  if(data.mCenterToContactOneXA) {
+    data.mCenterToContactOneXA->at(constraintIndex) = data.mContactOneX->at(objectIndex) - data.mPosAX->at(objectIndex);
+    data.mCenterToContactOneYA->at(constraintIndex) = data.mContactOneY->at(objectIndex) - data.mPosAY->at(objectIndex);
+    data.mCenterToContactTwoXA->at(constraintIndex) = data.mContactTwoX->at(objectIndex) - data.mPosAX->at(objectIndex);
+    data.mCenterToContactTwoYA->at(constraintIndex) = data.mContactTwoY->at(objectIndex) - data.mPosAY->at(objectIndex);
+  }
+
+  data.mDestContactOneOverlap->at(constraintIndex) = data.mSourceContactOneOverlap->at(objectIndex);
+  data.mDestContactTwoOverlap->at(constraintIndex) = data.mSourceContactTwoOverlap->at(objectIndex);
+  data.mDestNormalX->at(constraintIndex) = data.mSourceNormalX->at(objectIndex);
+  data.mDestNormalY->at(constraintIndex) = data.mSourceNormalY->at(objectIndex);
+
+  data.mPairIndexB.at(globalConstraintIndex) = indexB;
+  if(data.mCenterToContactOneXB) {
+    data.mCenterToContactOneXB->at(constraintIndex) = data.mContactOneX->at(objectIndex) - data.mPosBX->at(objectIndex);
+    data.mCenterToContactOneYB->at(constraintIndex) = data.mContactOneY->at(objectIndex) - data.mPosBY->at(objectIndex);
+    data.mCenterToContactTwoXB->at(constraintIndex) = data.mContactTwoX->at(objectIndex) - data.mPosBX->at(objectIndex);
+    data.mCenterToContactTwoYB->at(constraintIndex) = data.mContactTwoY->at(objectIndex) - data.mPosBY->at(objectIndex);
+  }
 }
 
 struct VisitAttempt {
@@ -750,18 +792,29 @@ VisitAttempt _tryVisit(std::vector<ConstraintData::VisitData>& visited, size_t t
 //TODO: what if all the constraints were block solved? If they were solved in blocks as wide as simd lanes then
 //maybe this complicated shuffling wouldn't be needed. Or maybe even a giant matrix for all objects
 
-void Physics::buildConstraintsTable(CollisionPairsTable& pairs, ConstraintsTable& constraints) {
+void Physics::buildConstraintsTable(
+  CollisionPairsTable& pairs,
+  ConstraintsTable& constraints,
+  ContactConstraintsToStaticObjectsTable& staticConstraints,
+  ConstraintCommonTable& constraintsCommon,
+  const PhysicsTableIds& tableIds) {
+  const size_t tableIDMask = tableIds.mTableIDMask;
+  const size_t sharedMassTableId = tableIds.mSharedMassTable;
+  const size_t zeroMassTableId = tableIds.mZeroMassTable;
+
   //TODO: only rebuild if collision pairs changed. Could be really lazy about it since solving stale constraints should result in no changes to velocity
   TableOperations::resizeTable(constraints, TableOperations::size(pairs));
+  TableOperations::resizeTable(staticConstraints, TableOperations::size(pairs));
+  TableOperations::resizeTable(constraintsCommon, TableOperations::size(pairs));
 
-  ConstraintData::SharedVisitData& visitData = std::get<ConstraintData::SharedVisitDataRow>(constraints.mRows).at();
+  ConstraintData::SharedVisitData& visitData = std::get<ConstraintData::SharedVisitDataRow>(constraintsCommon.mRows).at();
   std::vector<ConstraintData::VisitData>& visited = visitData.mVisited;
   visited.clear();
   //Need to reserve big enough because visited vector growth would cause iterator invalidation for visitA/visitB cases below
   //Size of pairs is bigger than necessary, it only needs to be the number of objects, but that's not known here and over-allocating
   //a bit isn't a problem
   visited.reserve(TableOperations::size(pairs));
-  ConstraintSyncData data(pairs, constraints);
+  ConstraintSyncData data(pairs, constraintsCommon, constraints);
 
   //Specifically from the collision table not the constraints table, to be used before the indices in the collision table have been created yet
   auto& srcPairIndexA = std::get<CollisionPairIndexA>(pairs.mRows);
@@ -772,19 +825,31 @@ void Physics::buildConstraintsTable(CollisionPairsTable& pairs, ConstraintsTable
   const size_t targetWidth = size_t(ispc::getTargetWidth());
   //Figure out sync indices
   std::deque<size_t>& indicesToFill = visitData.mIndicesToFill;
+  std::deque<size_t>& nextToFill = visitData.mNextToFill;
+  nextToFill.clear();
   indicesToFill.resize(TableOperations::size(pairs));
   for(size_t i = 0; i < TableOperations::size(pairs); ++i) {
     indicesToFill[i] = i;
   }
   size_t currentConstraintIndex = 0;
   size_t failedPlacements = 0;
+  //First fill shared mass pairs
   //Fill each element in the constraints table one by one, trying the latest in indicesToFill each type
   //If it fails, swap it to back and hope it works later. If it doesn't work this will break out with remaining indices
+  const size_t sharedMassStart = currentConstraintIndex;
+  std::get<ConstraintData::CommonTableStartIndex>(constraints.mRows).at() = sharedMassStart;
   while(!indicesToFill.empty()) {
     const size_t indexToFill = indicesToFill.front();
     indicesToFill.pop_front();
     const size_t desiredA = srcPairIndexA.at(indexToFill);
     const size_t desiredB = srcPairIndexB.at(indexToFill);
+    //This loop is for shared mass, store the rest for the next pass
+    //TODO: this is a bit weird. != shared mass would be nice but that means players get excluded
+    if((desiredA & tableIDMask) == zeroMassTableId || (desiredB & tableIDMask) == zeroMassTableId) {
+      nextToFill.push_back(indexToFill);
+      continue;
+    }
+
     VisitAttempt visitA = _tryVisit(visited, desiredA, currentConstraintIndex, targetWidth);
     VisitAttempt visitB = _tryVisit(visited, desiredB, currentConstraintIndex, targetWidth);
 
@@ -798,7 +863,7 @@ void Physics::buildConstraintsTable(CollisionPairsTable& pairs, ConstraintsTable
       continue;
     }
 
-    _syncConstraintData(data, currentConstraintIndex, indexToFill, desiredA, desiredB);
+    _syncConstraintData(data, currentConstraintIndex, currentConstraintIndex - sharedMassStart, indexToFill, desiredA, desiredB);
 
     _setVisitDataAndTrySetSyncPoint(visited, visitA, data.mSyncIndexA, data.mSyncTypeA, data.mSyncIndexB, data.mSyncTypeB, ConstraintData::VisitData::Location::InA, &visitB);
     _setVisitDataAndTrySetSyncPoint(visited, visitB, data.mSyncIndexA, data.mSyncTypeA, data.mSyncIndexB, data.mSyncTypeB, ConstraintData::VisitData::Location::InB, nullptr);
@@ -819,7 +884,7 @@ void Physics::buildConstraintsTable(CollisionPairsTable& pairs, ConstraintsTable
 
     //If no padding is required that means the previous iteration made space, add the constraint here
     if(!padding) {
-      _syncConstraintData(data, currentConstraintIndex, indexToFill, desiredA, desiredB);
+      _syncConstraintData(data, currentConstraintIndex, currentConstraintIndex - sharedMassStart, indexToFill, desiredA, desiredB);
       _setVisitDataAndTrySetSyncPoint(visited, visitA, data.mSyncIndexA, data.mSyncTypeA, data.mSyncIndexB, data.mSyncTypeB, ConstraintData::VisitData::Location::InA, &visitB);
       _setVisitDataAndTrySetSyncPoint(visited, visitB, data.mSyncIndexA, data.mSyncTypeA, data.mSyncIndexB, data.mSyncTypeB, ConstraintData::VisitData::Location::InB, nullptr);
       indicesToFill.pop_front();
@@ -828,6 +893,7 @@ void Physics::buildConstraintsTable(CollisionPairsTable& pairs, ConstraintsTable
     //Space needs to be made, add padding then let the iteration contine which will attempt the index again with the new space
     else {
       TableOperations::resizeTable(constraints, TableOperations::size(constraints) + padding);
+      TableOperations::resizeTable(constraintsCommon, TableOperations::size(constraintsCommon) + padding);
       for(size_t i = 0; i < padding; ++i) {
         //These are nonsense entires that won't be used for anything, at least set them to no sync so they don't try to copy stale data
         data.mSyncTypeA.at(currentConstraintIndex) = ispc::NoSync;
@@ -836,10 +902,89 @@ void Physics::buildConstraintsTable(CollisionPairsTable& pairs, ConstraintsTable
       }
     }
   }
+  //Trim off unused entries
+  TableOperations::resizeTable(constraints, currentConstraintIndex - sharedMassStart);
+
+  //Fill contacts with static objects
+  const size_t zeroMassStart = currentConstraintIndex;
+  std::get<ConstraintData::CommonTableStartIndex>(staticConstraints.mRows).at() = zeroMassStart;
+  ConstraintSyncData staticData(pairs, constraintsCommon, staticConstraints);
+  indicesToFill = nextToFill;
+  nextToFill.clear();
+  while(!indicesToFill.empty()) {
+    const size_t indexToFill = indicesToFill.front();
+    indicesToFill.pop_front();
+    size_t desiredA = srcPairIndexA.at(indexToFill);
+    size_t desiredB = srcPairIndexB.at(indexToFill);
+    //This loop is for zero mass, store the rest for the next pass
+    const bool aZeroMass = (desiredA & tableIDMask) == zeroMassTableId;
+    const bool bZeroMass = (desiredB & tableIDMask) == zeroMassTableId;
+    //If neither is zero mass, push them to the next phase
+    if(!aZeroMass && !bZeroMass) {
+      nextToFill.push_back(indexToFill);
+      continue;
+    }
+    assert(!aZeroMass && "Pair generation should have ensured zero mass object is always B");
+
+    //No visit of static B needed because no velocity syncing is needed
+    VisitAttempt visitA = _tryVisit(visited, desiredA, currentConstraintIndex, targetWidth);
+
+    //If this can't be filled now keep going and hopefully this will work later
+    //No padding needed for B because its velocity will always be zero
+    if(visitA.mRequiredPadding) {
+      indicesToFill.push_back(indexToFill);
+      //If the last few are impossible to fill this way, break
+      if(++failedPlacements >= indicesToFill.size()) {
+        break;
+      }
+      continue;
+    }
+
+    _syncConstraintData(staticData, currentConstraintIndex, currentConstraintIndex - zeroMassStart, indexToFill, desiredA, desiredB);
+
+    _setVisitDataAndTrySetSyncPoint(visited, visitA, staticData.mSyncIndexA, staticData.mSyncTypeA, staticData.mSyncIndexB, staticData.mSyncTypeB, ConstraintData::VisitData::Location::InA, nullptr);
+    staticData.mSyncTypeB.at(currentConstraintIndex) = ispc::NoSync;
+
+    ++currentConstraintIndex;
+    failedPlacements = 0;
+  }
+
+  assert(nextToFill.empty() && "No other categories implemented");
+
+  //If elements remain here it means there wasn't an order of elements possible as-is.
+  //Add padding between these remaining elements to solve the problem.
+  while(!indicesToFill.empty()) {
+    const size_t indexToFill = indicesToFill.front();
+    const size_t desiredA = srcPairIndexA.at(indexToFill);
+    const size_t desiredB = srcPairIndexB.at(indexToFill);
+    VisitAttempt visitA = _tryVisit(visited, desiredA, currentConstraintIndex, targetWidth);
+    const size_t padding = visitA.mRequiredPadding;
+
+    //If no padding is required that means the previous iteration made space, add the constraint here
+    if(!padding) {
+      _syncConstraintData(data, currentConstraintIndex, currentConstraintIndex - zeroMassStart, indexToFill, desiredA, desiredB);
+      _setVisitDataAndTrySetSyncPoint(visited, visitA, staticData.mSyncIndexA, staticData.mSyncTypeA, staticData.mSyncIndexB, staticData.mSyncTypeB, ConstraintData::VisitData::Location::InA, nullptr);
+      staticData.mSyncTypeB.at(currentConstraintIndex) = ispc::NoSync;
+      indicesToFill.pop_front();
+      ++currentConstraintIndex;
+    }
+    //Space needs to be made, add padding then let the iteration contine which will attempt the index again with the new space
+    else {
+      TableOperations::resizeTable(staticConstraints, TableOperations::size(staticConstraints) + padding);
+      TableOperations::resizeTable(constraintsCommon, TableOperations::size(constraintsCommon) + padding);
+      for(size_t i = 0; i < padding; ++i) {
+        //These are nonsense entires that won't be used for anything, at least set them to no sync so they don't try to copy stale data
+        staticData.mSyncTypeA.at(currentConstraintIndex) = ispc::NoSync;
+        staticData.mSyncTypeB.at(currentConstraintIndex) = ispc::NoSync;
+        ++currentConstraintIndex;
+      }
+    }
+  }
+  TableOperations::resizeTable(staticConstraints, currentConstraintIndex - zeroMassStart);
 
   //Store the final indices that the velocity will end up in
   //This is in the visited data since that's been tracking every access
-  FinalSyncIndices& finalData = std::get<SharedRow<FinalSyncIndices>>(constraints.mRows).at();
+  FinalSyncIndices& finalData = std::get<SharedRow<FinalSyncIndices>>(constraintsCommon.mRows).at();
   finalData.mMappingsA.clear();
   finalData.mMappingsB.clear();
   for(const ConstraintData::VisitData& v : visited) {
@@ -862,7 +1007,7 @@ void Physics::buildConstraintsTable(CollisionPairsTable& pairs, ConstraintsTable
   }
 }
 
-void Physics::setupConstraints(ConstraintsTable& constraints) {
+void Physics::setupConstraints(ConstraintsTable& constraints, ContactConstraintsToStaticObjectsTable& staticContacts) {
   //Currently computing as square
   //const float pi = 3.14159265359f;
   //const float r = 0.5f;
@@ -895,17 +1040,45 @@ void Physics::setupConstraints(ConstraintsTable& constraints) {
   }
 
   ispc::setupConstraintsSharedMass(invMass, invInertia, bias, normal, aToContactOne, aToContactTwo, bToContactOne, bToContactTwo, overlapOne, overlapTwo, data, uint32_t(TableOperations::size(constraints)));
+
+  normal = { _unwrapRow<SharedNormal::X>(staticContacts), _unwrapRow<SharedNormal::Y>(staticContacts) };
+  aToContactOne = { _unwrapRow<ConstraintObject<ConstraintObjA>::CenterToContactOneX>(staticContacts), _unwrapRow<ConstraintObject<ConstraintObjA>::CenterToContactOneY>(staticContacts) };
+  aToContactTwo = { _unwrapRow<ConstraintObject<ConstraintObjA>::CenterToContactTwoX>(staticContacts), _unwrapRow<ConstraintObject<ConstraintObjA>::CenterToContactTwoY>(staticContacts) };
+  overlapOne = _unwrapRow<ContactPoint<ContactOne>::Overlap>(staticContacts);
+  overlapTwo = _unwrapRow<ContactPoint<ContactTwo>::Overlap>(staticContacts);
+  data = _unwrapUniformConstraintData(staticContacts);
+
+  sumsOne = _unwrapRow<ConstraintData::LambdaSumOne>(staticContacts);
+  sumsTwo = _unwrapRow<ConstraintData::LambdaSumTwo>(staticContacts);
+  frictionSumsOne = _unwrapRow<ConstraintData::FrictionLambdaSumOne>(staticContacts);
+  frictionSumsTwo = _unwrapRow<ConstraintData::FrictionLambdaSumTwo>(staticContacts);
+  for(size_t i = 0; i < TableOperations::size(staticContacts); ++i) {
+    sumsOne[i] = sumsTwo[i] = frictionSumsOne[i] = frictionSumsTwo[i] = 0.0f;
+  }
+
+  ispc::setupConstraintsSharedMassBZeroMass(invMass, invInertia, bias, normal, aToContactOne, aToContactTwo, overlapOne, overlapTwo, data, uint32_t(TableOperations::size(staticContacts)));
 }
 
-void Physics::solveConstraints(ConstraintsTable& constraints) {
+void Physics::solveConstraints(ConstraintsTable& constraints, ContactConstraintsToStaticObjectsTable& staticContacts, ConstraintCommonTable& common) {
   ispc::UniformContactConstraintPairData data = _unwrapUniformConstraintData(constraints);
-  ispc::UniformConstraintObject objectA = _unwrapUniformConstraintObject<ConstraintObjA>(constraints);
-  ispc::UniformConstraintObject objectB = _unwrapUniformConstraintObject<ConstraintObjB>(constraints);
+  ispc::UniformConstraintObject objectA = _unwrapUniformConstraintObject<ConstraintObjA>(common);
+  ispc::UniformConstraintObject objectB = _unwrapUniformConstraintObject<ConstraintObjB>(common);
   float* lambdaSumOne = _unwrapRow<ConstraintData::LambdaSumOne>(constraints);
   float* lambdaSumTwo = _unwrapRow<ConstraintData::LambdaSumTwo>(constraints);
   float* frictionLambdaSumOne = _unwrapRow<ConstraintData::FrictionLambdaSumOne>(constraints);
   float* frictionLambdaSumTwo = _unwrapRow<ConstraintData::FrictionLambdaSumTwo>(constraints);
-  const float frictionCoeff = 0.8f;
 
-  ispc::solveContactConstraints(data, objectA, objectB, lambdaSumOne, lambdaSumTwo, frictionLambdaSumOne, frictionLambdaSumTwo, frictionCoeff, uint32_t(TableOperations::size(constraints)));
+  const float frictionCoeff = 0.8f;
+  const size_t startContact = std::get<ConstraintData::CommonTableStartIndex>(constraints.mRows).at();
+  const size_t startStatic = std::get<ConstraintData::CommonTableStartIndex>(staticContacts.mRows).at();
+
+  ispc::solveContactConstraints(data, objectA, objectB, lambdaSumOne, lambdaSumTwo, frictionLambdaSumOne, frictionLambdaSumTwo, frictionCoeff, uint32_t(startContact), uint32_t(TableOperations::size(constraints)));
+
+  data = _unwrapUniformConstraintData(staticContacts);
+  lambdaSumOne = _unwrapRow<ConstraintData::LambdaSumOne>(constraints);
+  lambdaSumTwo = _unwrapRow<ConstraintData::LambdaSumTwo>(constraints);
+  frictionLambdaSumOne = _unwrapRow<ConstraintData::FrictionLambdaSumOne>(constraints);
+  frictionLambdaSumTwo = _unwrapRow<ConstraintData::FrictionLambdaSumTwo>(constraints);
+
+  ispc::solveContactConstraintsBZeroMass(data, objectA, lambdaSumOne, lambdaSumTwo, frictionLambdaSumOne, frictionLambdaSumTwo, frictionCoeff, uint32_t(startStatic), uint32_t(TableOperations::size(staticContacts)));
 }

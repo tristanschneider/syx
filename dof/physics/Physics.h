@@ -103,6 +103,12 @@ using CollisionPairsTable = Table<
   SharedNormal::Y
 >;
 
+struct PhysicsTableIds {
+  size_t mZeroMassTable{};
+  size_t mSharedMassTable{};
+  size_t mTableIDMask{};
+};
+
 //Data for one object in a constraint pair
 template<class>
 struct ConstraintObject {
@@ -178,9 +184,13 @@ struct ConstraintData {
   };
   struct SharedVisitData {
     std::vector<VisitData> mVisited;
-    std::deque<size_t> mIndicesToFill;
+    std::deque<size_t> mIndicesToFill, mNextToFill;
   };
   using SharedVisitDataRow = SharedRow<SharedVisitData>;
+  //Each constraint table has one of these which refers to the index into ConstraintCommonTable where the equivalent entries are stored.
+  //The common table contains entries for each of the other tables in order, so only the start index is needed, and from there it's as if
+  //the row is a part of the other table
+  using CommonTableStartIndex = SharedRow<size_t>;
 };
 
 //These are used to migrate final solved velocities constraint table back to the gameobjects
@@ -193,10 +203,29 @@ struct FinalSyncIndices {
   std::vector<Mapping> mMappingsB;
 };
 
-using ConstraintsTable = Table<
+//There are several different tables for different constraint pair types,
+//this is the common table that those methods use so that all object velocity copying happens within one table
+using ConstraintCommonTable = Table<
   CollisionPairIndexA,
   CollisionPairIndexB,
 
+  ConstraintObject<ConstraintObjA>::LinVelX,
+  ConstraintObject<ConstraintObjA>::LinVelY,
+  ConstraintObject<ConstraintObjA>::AngVel,
+  ConstraintObject<ConstraintObjA>::SyncIndex,
+  ConstraintObject<ConstraintObjA>::SyncType,
+
+  ConstraintObject<ConstraintObjB>::LinVelX,
+  ConstraintObject<ConstraintObjB>::LinVelY,
+  ConstraintObject<ConstraintObjB>::AngVel,
+  ConstraintObject<ConstraintObjB>::SyncIndex,
+  ConstraintObject<ConstraintObjB>::SyncType,
+
+  SharedRow<FinalSyncIndices>,
+  ConstraintData::SharedVisitDataRow
+>;
+
+using ConstraintsTable = Table<
   //Pretty clunky that this is needed but since order doesn't match between this table and narrowphase
   //it's easier to copy the data into the constraints table
   ContactPoint<ContactOne>::Overlap,
@@ -205,21 +234,11 @@ using ConstraintsTable = Table<
   SharedNormal::X,
   SharedNormal::Y,
 
-  ConstraintObject<ConstraintObjA>::LinVelX,
-  ConstraintObject<ConstraintObjA>::LinVelY,
-  ConstraintObject<ConstraintObjA>::AngVel,
-  ConstraintObject<ConstraintObjA>::SyncIndex,
-  ConstraintObject<ConstraintObjA>::SyncType,
   ConstraintObject<ConstraintObjA>::CenterToContactOneX,
   ConstraintObject<ConstraintObjA>::CenterToContactOneY,
   ConstraintObject<ConstraintObjA>::CenterToContactTwoX,
   ConstraintObject<ConstraintObjA>::CenterToContactTwoY,
 
-  ConstraintObject<ConstraintObjB>::LinVelX,
-  ConstraintObject<ConstraintObjB>::LinVelY,
-  ConstraintObject<ConstraintObjB>::AngVel,
-  ConstraintObject<ConstraintObjB>::SyncIndex,
-  ConstraintObject<ConstraintObjB>::SyncType,
   ConstraintObject<ConstraintObjB>::CenterToContactOneX,
   ConstraintObject<ConstraintObjB>::CenterToContactOneY,
   ConstraintObject<ConstraintObjB>::CenterToContactTwoX,
@@ -255,8 +274,50 @@ using ConstraintsTable = Table<
   ConstraintData::LambdaSumTwo,
   ConstraintData::FrictionLambdaSumOne,
   ConstraintData::FrictionLambdaSumTwo,
+
+  ConstraintData::CommonTableStartIndex
+>;
+
+using ContactConstraintsToStaticObjectsTable = Table<
+  //Pretty clunky that this is needed but since order doesn't match between this table and narrowphase
+  //it's easier to copy the data into the constraints table
+  ContactPoint<ContactOne>::Overlap,
+  ContactPoint<ContactTwo>::Overlap,
+  //Normal going towards A
+  SharedNormal::X,
+  SharedNormal::Y,
+
+  ConstraintObject<ConstraintObjA>::CenterToContactOneX,
+  ConstraintObject<ConstraintObjA>::CenterToContactOneY,
+  ConstraintObject<ConstraintObjA>::CenterToContactTwoX,
+  ConstraintObject<ConstraintObjA>::CenterToContactTwoY,
+
+  ConstraintData::LinearAxisX,
+  ConstraintData::LinearAxisY,
+  ConstraintData::AngularAxisOneA,
+  ConstraintData::AngularAxisTwoA,
+  ConstraintData::AngularFrictionAxisOneA,
+  ConstraintData::AngularFrictionAxisTwoA,
+  ConstraintData::ConstraintMassOne,
+  ConstraintData::ConstraintMassTwo,
+  ConstraintData::FrictionConstraintMassOne,
+  ConstraintData::FrictionConstraintMassTwo,
+  ConstraintData::LinearImpulseX,
+  ConstraintData::LinearImpulseY,
+  ConstraintData::AngularImpulseOneA,
+  ConstraintData::AngularImpulseTwoA,
+  ConstraintData::FrictionAngularImpulseOneA,
+  ConstraintData::FrictionAngularImpulseTwoA,
+  ConstraintData::BiasOne,
+  ConstraintData::BiasTwo,
+  ConstraintData::LambdaSumOne,
+  ConstraintData::LambdaSumTwo,
+  ConstraintData::FrictionLambdaSumOne,
+  ConstraintData::FrictionLambdaSumTwo,
   SharedRow<FinalSyncIndices>,
-  ConstraintData::SharedVisitDataRow
+  ConstraintData::SharedVisitDataRow,
+
+  ConstraintData::CommonTableStartIndex
 >;
 
 struct Physics {
@@ -277,7 +338,7 @@ struct Physics {
 
   static void clearBroadphase(GridBroadphase::BroadphaseTable& broadphase);
 
-  static void generateCollisionPairs(const GridBroadphase::BroadphaseTable& broadphase, CollisionPairsTable& pairs);
+  static void generateCollisionPairs(const GridBroadphase::BroadphaseTable& broadphase, CollisionPairsTable& pairs, const PhysicsTableIds& tableIds);
 
   struct details {
     template<class SrcRow, class DstRow, class DatabaseT, class DstTableT>
@@ -301,7 +362,7 @@ struct Physics {
     }
 
     template<class SrcRow, class DstRow, class DatabaseT>
-    static void storeToRow(ConstraintsTable& table, DatabaseT& db, const std::vector<FinalSyncIndices::Mapping>& mappings) {
+    static void storeToRow(ConstraintCommonTable& table, DatabaseT& db, const std::vector<FinalSyncIndices::Mapping>& mappings) {
       SrcRow& src = std::get<SrcRow>(table.mRows);
       DstRow* dst = nullptr;
       DatabaseT::ElementID last;
@@ -357,11 +418,16 @@ struct Physics {
   static void generateContacts(CollisionPairsTable& pairs);
 
   //Add the entries in the constraints table and figure out sync indices
-  static void buildConstraintsTable(CollisionPairsTable& pairs, ConstraintsTable& constraints);
+  static void buildConstraintsTable(
+    CollisionPairsTable& pairs,
+    ConstraintsTable& constraints,
+    ContactConstraintsToStaticObjectsTable& staticConstraints,
+    ConstraintCommonTable& constraintsCommon,
+    const PhysicsTableIds& tableIds);
 
   //Migrate velocity data from db to constraint table
   template<class LinVelX, class LinVelY, class AngVel, class DatabaseT>
-  static void fillConstraintVelocities(ConstraintsTable& constraints, DatabaseT& db) {
+  static void fillConstraintVelocities(ConstraintCommonTable& constraints, DatabaseT& db) {
     std::vector<size_t>& idsA = std::get<CollisionPairIndexA>(constraints.mRows).mElements;
     details::fillRow<LinVelX, ConstraintObject<ConstraintObjA>::LinVelX>(constraints, db, idsA);
     details::fillRow<LinVelY, ConstraintObject<ConstraintObjA>::LinVelY>(constraints, db, idsA);
@@ -373,12 +439,12 @@ struct Physics {
     details::fillRow<AngVel, ConstraintObject<ConstraintObjB>::AngVel>(constraints, db, idsB);
   }
 
-  static void setupConstraints(ConstraintsTable& constraints);
-  static void solveConstraints(ConstraintsTable& constraints);
+  static void setupConstraints(ConstraintsTable& constraints, ContactConstraintsToStaticObjectsTable& staticContacts);
+  static void solveConstraints(ConstraintsTable& constraints, ContactConstraintsToStaticObjectsTable& staticContacts, ConstraintCommonTable& common);
 
   //Migrate velocity data from constraint table to db
   template<class LinVelX, class LinVelY, class AngVel, class DatabaseT>
-  static void storeConstraintVelocities(ConstraintsTable& constraints, DatabaseT& db) {
+  static void storeConstraintVelocities(ConstraintCommonTable& constraints, DatabaseT& db) {
     const FinalSyncIndices& indices = std::get<SharedRow<FinalSyncIndices>>(constraints.mRows).at();
     details::storeToRow<ConstraintObject<ConstraintObjA>::LinVelX, LinVelX>(constraints, db, indices.mMappingsA);
     details::storeToRow<ConstraintObject<ConstraintObjA>::LinVelY, LinVelY>(constraints, db, indices.mMappingsA);

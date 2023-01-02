@@ -34,6 +34,7 @@ template<size_t TableCount>
 struct DatabaseElementID {
   static constexpr size_t TABLE_INDEX_BITS = dbDetails::constexprLog2(TableCount);
   static constexpr size_t ELEMENT_INDEX_BITS = sizeof(size_t)*8 - TABLE_INDEX_BITS;
+  static constexpr size_t TABLE_INDEX_MASK = ~dbDetails::maskFirstBits(ELEMENT_INDEX_BITS);
 
   constexpr DatabaseElementID() = default;
   explicit constexpr DatabaseElementID(size_t rawid)

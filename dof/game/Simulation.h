@@ -75,7 +75,8 @@ using TextureRequestTable = Table<
 >;
 
 using GlobalGameData = Table<
-  SharedRow<SceneState>
+  SharedRow<SceneState>,
+  SharedRow<PhysicsTableIds>
 >;
 
 using GameObjectTable = Table<
@@ -86,6 +87,15 @@ using GameObjectTable = Table<
   FloatRow<Tags::LinVel, Tags::X>,
   FloatRow<Tags::LinVel, Tags::Y>,
   FloatRow<Tags::AngVel, Tags::Angle>,
+  Row<CubeSprite>,
+  SharedRow<TextureReference>
+>;
+
+using StaticGameObjectTable = Table<
+  FloatRow<Tags::Pos, Tags::X>,
+  FloatRow<Tags::Pos, Tags::Y>,
+  FloatRow<Tags::Rot, Tags::CosAngle>,
+  FloatRow<Tags::Rot, Tags::SinAngle>,
   Row<CubeSprite>,
   SharedRow<TextureReference>
 >;
@@ -150,6 +160,7 @@ using BroadphaseTable = GridBroadphase::BroadphaseTable;
 
 using GameDatabase = Database<
   GameObjectTable,
+  StaticGameObjectTable,
   GlobalGameData,
   TextureRequestTable,
   PlayerTable,
@@ -157,6 +168,8 @@ using GameDatabase = Database<
   BroadphaseTable,
   CollisionPairsTable,
   ConstraintsTable,
+  ConstraintCommonTable,
+  ContactConstraintsToStaticObjectsTable,
   DebugLineTable
 >;
 
