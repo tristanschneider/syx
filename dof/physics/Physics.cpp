@@ -115,9 +115,10 @@ namespace {
       }
     }
 
-    CollisionPairsTable::ElementRef result = TableOperations::addToTableAt(table, rowA, it);
-    result.get<0>() = self;
-    result.get<1>() = other;
+    //Insert only in this row here, at the end of collision pair gathering there will be a single resize to realign all the rows
+    size_t insertIndex = size_t(std::distance(rowA.begin(), it));
+    rowA.mElements.insert(it, self);
+    rowB.mElements.insert(rowB.begin() + insertIndex, other);
   }
 }
 
@@ -240,6 +241,8 @@ void Physics::generateCollisionPairs(const GridBroadphase::BroadphaseTable& broa
       }
     }
   }
+  //_addCollisionPair modifies the index rows by themselves, after which this single resize fills in the rest of the rows
+  TableOperations::resizeTable(pairs, std::get<CollisionPairIndexA>(pairs.mRows).size());
 }
 
 std::vector<float> DEBUG_HACK;
