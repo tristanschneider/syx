@@ -158,8 +158,6 @@ namespace {
 
     _allocateBroadphaseFromScene(scene, std::get<BroadphaseTable>(db.mTables));
 
-    TableOperations::migrateOne(gameobjects, std::get<StaticGameObjectTable>(db.mTables), 0);
-
     return SceneState::State::Update;
   }
 

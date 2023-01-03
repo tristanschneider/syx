@@ -803,6 +803,10 @@ void Physics::buildConstraintsTable(
   const size_t zeroMassTableId = tableIds.mZeroMassTable;
 
   //TODO: only rebuild if collision pairs changed. Could be really lazy about it since solving stale constraints should result in no changes to velocity
+  //Clear before resize. Shouldn't be necessary but there seems to be a bug somewhere
+  TableOperations::resizeTable(constraints, 0);
+  TableOperations::resizeTable(staticConstraints, 0);
+  TableOperations::resizeTable(constraintsCommon, 0);
   TableOperations::resizeTable(constraints, TableOperations::size(pairs));
   TableOperations::resizeTable(staticConstraints, TableOperations::size(pairs));
   TableOperations::resizeTable(constraintsCommon, TableOperations::size(pairs));
@@ -962,7 +966,7 @@ void Physics::buildConstraintsTable(
 
     //If no padding is required that means the previous iteration made space, add the constraint here
     if(!padding) {
-      _syncConstraintData(data, currentConstraintIndex, currentConstraintIndex - zeroMassStart, indexToFill, desiredA, desiredB);
+      _syncConstraintData(staticData, currentConstraintIndex, currentConstraintIndex - zeroMassStart, indexToFill, desiredA, desiredB);
       _setVisitDataAndTrySetSyncPoint(visited, visitA, staticData.mSyncIndexA, staticData.mSyncTypeA, staticData.mSyncIndexB, staticData.mSyncTypeB, ConstraintData::VisitData::Location::InA, nullptr);
       staticData.mSyncTypeB.at(currentConstraintIndex) = ispc::NoSync;
       indicesToFill.pop_front();
