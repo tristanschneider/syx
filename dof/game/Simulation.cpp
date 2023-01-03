@@ -3,15 +3,29 @@
 
 #include "Queries.h"
 
-#include "out_ispc/unity.h"
+#include "unity.h"
 
 #include "glm/gtx/norm.hpp"
-
-extern std::vector<float> DEBUG_HACK;
-
+#include <random>
 
 namespace {
   using namespace Tags;
+
+  template<class RowT, class TableT>
+  decltype(std::declval<RowT&>().mElements.data()) _unwrapRow(TableT& t) {
+    if constexpr(TableOperations::hasRow<RowT, TableT>()) {
+      return std::get<RowT>(t.mRows).mElements.data();
+    }
+    else {
+      return nullptr;
+    }
+  }
+
+  template<class Tag, class TableT>
+  ispc::UniformConstVec2 _unwrapConstFloatRow(TableT& t) {
+    return { std::get<FloatRow<Tag, X>>(t.mRows).mElements.data(), std::get<FloatRow<Tag, Y>>(t.mRows).mElements.data() };
+  }
+
   size_t _requestTextureLoad(TextureRequestTable& requests, const char* filename) {
     TextureLoadRequest* request = &TableOperations::addToTable(requests).get<0>();
     request->mFileName = filename;
@@ -65,10 +79,10 @@ namespace {
   }
 
   SceneState::State _setupScene(GameDatabase& db) {
-    PhysicsTableIds& physicsTables = std::get<SharedRow<PhysicsTableIds>>(std::get<GlobalGameData>(db.mTables).mRows).at();
-    physicsTables.mTableIDMask = GameDatabase::ElementID::TABLE_INDEX_MASK;
-    physicsTables.mSharedMassTable = GameDatabase::getTableIndex<GameObjectTable>().mValue;
-    physicsTables.mZeroMassTable = GameDatabase::getTableIndex<StaticGameObjectTable>().mValue;
+    std::get<SharedRow<PhysicsTableIds>>(std::get<GlobalGameData>(db.mTables).mRows).at() = Simulation::_getPhysicsTableIds();
+
+    std::random_device device;
+    std::mt19937 generator(device());
 
     StaticGameObjectTable& staticObjects = std::get<StaticGameObjectTable>(db.mTables);
     GameObjectTable& gameobjects = std::get<GameObjectTable>(db.mTables);
@@ -83,14 +97,20 @@ namespace {
     TableOperations::resizeTable(players, 1);
     std::get<SharedRow<TextureReference>>(players.mRows).at().mId = scene.mPlayerImage;
     std::get<FloatRow<Rot, CosAngle>>(players.mRows).at(0) = 1.0f;
+    //Random angle in sort of radians
+    const float playerStartAngle = float(generator() % 360)*6.282f/360.0f;
+    const float playerStartDistance = 25.0f;
+    //Start way off the screen, the world boundary will fling them into the scene
+    std::get<FloatRow<Pos, X>>(players.mRows).at(0) = playerStartDistance*std::cos(playerStartAngle);
+    std::get<FloatRow<Pos, Y>>(players.mRows).at(0) = playerStartDistance*std::sin(playerStartAngle);
 
     //Make all the objects use the background image as their texture
     std::get<SharedRow<TextureReference>>(gameobjects.mRows).at().mId = scene.mBackgroundImage;
     std::get<SharedRow<TextureReference>>(staticObjects.mRows).at().mId = scene.mBackgroundImage;
 
     //Add some arbitrary objects for testing
-    const size_t rows = 10;
-    const size_t columns = 10;
+    const size_t rows = 5;
+    const size_t columns = 5;
     const size_t total = rows*columns;
     TableOperations::resizeTable(gameobjects, total);
 
@@ -99,26 +119,42 @@ namespace {
     float scale = 1.0f/float(rows);
     auto& posX = std::get<FloatRow<Pos, X>>(gameobjects.mRows);
     auto& posY = std::get<FloatRow<Pos, Y>>(gameobjects.mRows);
-    for(size_t i = 0; i < total; ++i) {
-      CubeSprite& sprite = std::get<Row<CubeSprite>>(gameobjects.mRows).at(i);
-      const size_t row = i / columns;
-      const size_t column = i % columns;
+    auto& goalX = std::get<FloatRow<FragmentGoal, X>>(gameobjects.mRows);
+    auto& goalY = std::get<FloatRow<FragmentGoal, Y>>(gameobjects.mRows);
+
+    //Shuffle indices randomly
+    std::vector<size_t> indices(rows*columns);
+    int counter = 0;
+    std::generate(indices.begin(), indices.end(), [&counter] { return counter++; });
+    std::shuffle(indices.begin(), indices.end(), generator);
+
+    for(size_t j = 0; j < total; ++j) {
+      const size_t shuffleIndex = indices[j];
+      CubeSprite& sprite = std::get<Row<CubeSprite>>(gameobjects.mRows).at(j);
+      const size_t row = j / columns;
+      const size_t column = j % columns;
+      const size_t shuffleRow = shuffleIndex / columns;
+      const size_t shuffleColumn = shuffleIndex % columns;
+      //Goal position and uv is based on original index, starting position is based on shuffled index
       sprite.uMin = float(column)/float(columns);
       sprite.vMin = float(row)/float(rows);
       sprite.uMax = sprite.uMin + scale;
       sprite.vMax = sprite.vMin + scale;
 
-      posX.at(i) = startX + sprite.uMin*float(columns);
-      posY.at(i) = startY + sprite.vMin*float(rows);
+      goalX.at(j) = startX + sprite.uMin*float(columns);
+      goalY.at(j) = startY + sprite.vMin*float(rows);
 
-      std::get<FloatRow<Rot, CosAngle>>(gameobjects.mRows).at(i) = 1.0f;
+      posX.at(j) = startX + shuffleColumn;
+      posY.at(j) = startY + shuffleRow;
+
+      std::get<FloatRow<Rot, CosAngle>>(gameobjects.mRows).at(j) = 1.0f;
     }
 
     const float boundaryPadding = 1.0f;
     const size_t first = 0;
     const size_t last = total - 1;
-    scene.mBoundaryMin = glm::vec2(posX.at(first), posY.at(first)) - glm::vec2(boundaryPadding);
-    scene.mBoundaryMax = glm::vec2(posX.at(last), posY.at(last)) + glm::vec2(boundaryPadding);
+    scene.mBoundaryMin = glm::vec2(goalX.at(first), goalY.at(first)) - glm::vec2(boundaryPadding);
+    scene.mBoundaryMax = glm::vec2(goalX.at(last), goalY.at(last)) + glm::vec2(boundaryPadding);
 
     _allocateBroadphaseFromScene(scene, std::get<BroadphaseTable>(db.mTables));
 
@@ -167,6 +203,34 @@ namespace {
       const float speed = 0.3f;
       float& zoom = std::get<Row<Camera>>(cameras.mRows).at(i).zoom;
       zoom = std::max(0.0f, zoom + input.mAdjustZoom * speed);
+    }
+  }
+
+  //Check to see if each fragment has reached its goal
+  void _checkFragmentGoals(GameObjectTable& fragments, StaticGameObjectTable& destinationFragments) {
+    ispc::UniformConstVec2 pos = _unwrapConstFloatRow<Pos>(fragments);
+    ispc::UniformConstVec2 goal = _unwrapConstFloatRow<FragmentGoal>(fragments);
+    uint8_t* goalFound = _unwrapRow<FragmentGoalFoundRow>(fragments);
+    const float minDistance = 0.5f;
+
+    ispc::checkFragmentGoals(pos, goal, goalFound, minDistance, TableOperations::size(fragments));
+
+    //If the goal was found, move them to the destination table.
+    //Do this in reverse so the swap remove doesn't mess up a previous removal
+    const size_t oldTableSize = TableOperations::size(fragments);
+    for(size_t i = 0; i < oldTableSize; ++i) {
+      const size_t reverseIndex = oldTableSize - i - 1;
+      if(goalFound[reverseIndex]) {
+        //Snap to destination
+        //TODO: effects to celebrate transition
+        std::get<FloatRow<Pos, X>>(fragments.mRows).at(reverseIndex) = goal.x[reverseIndex];
+        std::get<FloatRow<Pos, Y>>(fragments.mRows).at(reverseIndex) = goal.y[reverseIndex];
+        //This is no rotation, which will align with the image
+        std::get<FloatRow<Rot, CosAngle>>(fragments.mRows).at(reverseIndex) = 1.0f;
+        std::get<FloatRow<Rot, SinAngle>>(fragments.mRows).at(reverseIndex) = 0.0f;
+
+        TableOperations::migrateOne(fragments, destinationFragments, reverseIndex);
+      }
     }
   }
 
@@ -241,7 +305,6 @@ namespace {
       e.get<0>().mColor = color;
     };
 
-
     for(size_t i = 0; i < TableOperations::size(collisionPairs); ++i) {
       CollisionPairsTable::ElementRef e = TableOperations::getElement(collisionPairs, i);
       float overlapOne = e.get<12>();
@@ -262,29 +325,6 @@ namespace {
         addLine(contactTwo, contactTwo + normal*overlapTwo, glm::vec3(1.0f, 1.0f, 1.0f));
       }
     }
-
-    glm::vec2 first, last;
-    bool anyFound = false;
-    for(size_t i = 0; i + 1 < DEBUG_HACK.size(); i += 2) {
-      glm::vec2 p{ DEBUG_HACK[i], DEBUG_HACK[i + 1] };
-      if(std::abs(p.x - 1000.0f) < 0.001f) {
-        break;
-      }
-      anyFound = true;
-      for(int j = 0; j < 1; ++j) {
-        DebugLineTable::ElementRef e = TableOperations::addToTable(debug);
-        e.get<0>().mPos = p;
-        e.get<0>().mColor = glm::vec3(1.0f);
-        if(!i) {
-          first = p;
-          break;
-        }
-      }
-      last = p;
-    }
-    //if(anyFound) {
-    //  addLine(first, last, glm::vec3(1.0f));
-    //}
     */
 
     const int solveIterations = 5;
@@ -304,6 +344,8 @@ namespace {
 
     _updatePlayerInput(std::get<PlayerTable>(db.mTables));
     _updateDebugCamera(std::get<CameraTable>(db.mTables));
+
+    _checkFragmentGoals(std::get<GameObjectTable>(db.mTables), std::get<StaticGameObjectTable>(db.mTables));
 
     _enforceWorldBoundary(db);
     _updatePhysics(db);
@@ -331,4 +373,12 @@ void Simulation::update(GameDatabase& db) {
       break;
   }
   sceneState.mState = newState;
+}
+
+PhysicsTableIds Simulation::_getPhysicsTableIds() {
+  PhysicsTableIds physicsTables;
+  physicsTables.mTableIDMask = GameDatabase::ElementID::TABLE_INDEX_MASK;
+  physicsTables.mSharedMassTable = GameDatabase::getTableIndex<GameObjectTable>().mValue;
+  physicsTables.mZeroMassTable = GameDatabase::getTableIndex<StaticGameObjectTable>().mValue;
+  return physicsTables;
 }

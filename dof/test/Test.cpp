@@ -256,7 +256,7 @@ namespace Test {
     }
 
     static void _fillConstraintVelocities(GameDatabase& db) {
-      auto& constraints = std::get<ConstraintsTable>(db.mTables);
+      auto& constraints = std::get<ConstraintCommonTable>(db.mTables);
       Physics::fillConstraintVelocities<
         FloatRow<Tags::LinVel, Tags::X>,
         FloatRow<Tags::LinVel, Tags::Y>,
@@ -264,7 +264,7 @@ namespace Test {
     }
 
     static void _storeConstraintVelocities(GameDatabase& db) {
-      auto& constraints = std::get<ConstraintsTable>(db.mTables);
+      auto& constraints = std::get<ConstraintCommonTable>(db.mTables);
       Physics::storeConstraintVelocities<
         FloatRow<Tags::LinVel, Tags::X>,
         FloatRow<Tags::LinVel, Tags::Y>,
@@ -291,7 +291,7 @@ namespace Test {
       Physics::rebuildBroadphase(db.getTableIndex<GameObjectTable>().mValue, posX.mElements.data(), posY.mElements.data(), broadphase, size_t(2));
       Assert::IsTrue(std::get<SharedRow<GridBroadphase::Overflow>>(broadphase.mRows).at().mElements.empty());
 
-      Physics::generateCollisionPairs(broadphase, pairs);
+      Physics::generateCollisionPairs(broadphase, pairs, Simulation::_getPhysicsTableIds());
       _fillNarrowphaseData(db);
 
       Assert::AreEqual(size_t(1), TableOperations::size(pairs));
@@ -318,7 +318,7 @@ namespace Test {
 
       Physics::allocateBroadphase(broadphase);
       Physics::rebuildBroadphase(db.getTableIndex<GameObjectTable>().mValue, posX.mElements.data(), posY.mElements.data(), broadphase, size_t(2));
-      Physics::generateCollisionPairs(broadphase, pairs);
+      Physics::generateCollisionPairs(broadphase, pairs, Simulation::_getPhysicsTableIds());
 
       Assert::AreEqual(size_t(0), TableOperations::size(pairs));
     }
@@ -345,7 +345,7 @@ namespace Test {
 
       Physics::allocateBroadphase(broadphase);
       Physics::rebuildBroadphase(db.getTableIndex<GameObjectTable>().mValue, posX.mElements.data(), posY.mElements.data(), broadphase, posX.size());
-      Physics::generateCollisionPairs(broadphase, pairs);
+      Physics::generateCollisionPairs(broadphase, pairs, Simulation::_getPhysicsTableIds());
 
       Assert::AreEqual(size_t(2), TableOperations::size(pairs));
       std::pair<size_t, size_t> a, b;
@@ -380,7 +380,7 @@ namespace Test {
 
       Physics::allocateBroadphase(broadphase);
       Physics::rebuildBroadphase(db.getTableIndex<GameObjectTable>().mValue, posX.mElements.data(), posY.mElements.data(), broadphase, posX.size());
-      Physics::generateCollisionPairs(broadphase, pairs);
+      Physics::generateCollisionPairs(broadphase, pairs, Simulation::_getPhysicsTableIds());
       _fillNarrowphaseData(db);
       Physics::generateContacts(pairs);
 
@@ -398,6 +398,8 @@ namespace Test {
       auto& broadphase = std::get<BroadphaseTable>(db.mTables);
       auto& dimensions = std::get<SharedRow<GridBroadphase::RequestedDimensions>>(broadphase.mRows).at();
       auto& constraints = std::get<ConstraintsTable>(db.mTables);
+      auto& staticConstraints = std::get<ContactConstraintsToStaticObjectsTable>(db.mTables);
+      auto& commonConstraints = std::get<ConstraintCommonTable>(db.mTables);
       auto& pairs = std::get<CollisionPairsTable>(db.mTables);
       dimensions.mMin.x = 0;
       dimensions.mMax.x = 10;
@@ -418,15 +420,15 @@ namespace Test {
 
       Physics::allocateBroadphase(broadphase);
       Physics::rebuildBroadphase(db.getTableIndex<GameObjectTable>().mValue, posX.mElements.data(), posY.mElements.data(), broadphase, posX.size());
-      Physics::generateCollisionPairs(broadphase, pairs);
+      Physics::generateCollisionPairs(broadphase, pairs, Simulation::_getPhysicsTableIds());
       _fillNarrowphaseData(db);
       Physics::generateContacts(pairs);
-      Physics::buildConstraintsTable(pairs, constraints);
+      Physics::buildConstraintsTable(pairs, constraints, staticConstraints, commonConstraints, Simulation::_getPhysicsTableIds());
       _fillConstraintVelocities(db);
 
-      Physics::setupConstraints(constraints);
+      Physics::setupConstraints(constraints, staticConstraints);
       for(int i = 0; i < 5; ++i) {
-        Physics::solveConstraints(constraints);
+        Physics::solveConstraints(constraints, staticConstraints, commonConstraints);
       }
       _storeConstraintVelocities(db);
       const glm::vec2 centerAToContact{ 0.4f, 0.5f };

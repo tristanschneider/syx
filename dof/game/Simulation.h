@@ -24,12 +24,18 @@ namespace Tags {
   //Angular velocity in Angle
   struct AngVel{};
 
+  //The goal coordinates in X and Y that the given fragment wants to go to which will cause it to change to a static gameobject
+  struct FragmentGoal{};
+
   struct X{};
   struct Y{};
   struct Angle{};
   struct CosAngle{};
   struct SinAngle{};
 };
+
+//1 if found, otherwise 0. Bitset or better would be nice but interop with ispc would be difficult
+struct FragmentGoalFoundRow : Row<uint8_t> {};
 
 enum class RequestStatus : uint8_t {
   InProgress,
@@ -87,7 +93,10 @@ using GameObjectTable = Table<
   FloatRow<Tags::LinVel, Tags::X>,
   FloatRow<Tags::LinVel, Tags::Y>,
   FloatRow<Tags::AngVel, Tags::Angle>,
+  FloatRow<Tags::FragmentGoal, Tags::X>,
+  FloatRow<Tags::FragmentGoal, Tags::Y>,
   Row<CubeSprite>,
+  FragmentGoalFoundRow,
   SharedRow<TextureReference>
 >;
 
@@ -175,4 +184,6 @@ using GameDatabase = Database<
 
 struct Simulation {
   static void update(GameDatabase& db);
+
+  static PhysicsTableIds _getPhysicsTableIds();
 };
