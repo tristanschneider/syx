@@ -1075,7 +1075,7 @@ void Physics::solveConstraints(ConstraintsTable& constraints, ContactConstraints
   float* frictionLambdaSumOne = _unwrapRow<ConstraintData::FrictionLambdaSumOne>(constraints);
   float* frictionLambdaSumTwo = _unwrapRow<ConstraintData::FrictionLambdaSumTwo>(constraints);
 
-  const float frictionCoeff = 0.8f;
+  const float frictionCoeff = 0.5f;
   const size_t startContact = std::get<ConstraintData::CommonTableStartIndex>(constraints.mRows).at();
   const size_t startStatic = std::get<ConstraintData::CommonTableStartIndex>(staticContacts.mRows).at();
 

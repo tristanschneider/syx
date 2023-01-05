@@ -65,9 +65,10 @@ export void setupConstraintsSharedMass(
     //No bias for friction constraints
 
     //Still solve constraint if the objects are only slightly separated
+    uniform const float slop = 0.005f;
     if(contactOverlapOne[i] >= -0.01f) {
       //If overlap is positive, there is collision, use the bias to resolve the overlap
-      constraints.biasOne[i] = -max(0.0f, contactOverlapOne[i]*biasMultiplier);
+      constraints.biasOne[i] = -max(0.0f, contactOverlapOne[i]*biasMultiplier - slop);
     }
     else {
       //If the overlap is negative the objects are not colliding.
@@ -81,7 +82,7 @@ export void setupConstraintsSharedMass(
       constraints.biasOne[i] = 999999.0f;
     }
     if(contactOverlapTwo[i] >= -0.01f) {
-      constraints.biasTwo[i] = -max(0.0f, contactOverlapTwo[i]*biasMultiplier);
+      constraints.biasTwo[i] = -max(0.0f, contactOverlapTwo[i]*biasMultiplier - slop);
     }
     else {
       constraints.biasTwo[i] = 999999.0f;
@@ -142,14 +143,15 @@ export void setupConstraintsSharedMassBZeroMass(
     constraints.frictionConstraintMassTwo[i] = safeDivide(1.0f, linearConstraintMass + angularFrictionConstraintMassTwo);
     //No bias for friction constraints
 
+    uniform const float slop = 0.005f;
     if(contactOverlapOne[i] >= -0.01f) {
-      constraints.biasOne[i] = -max(0.0f, contactOverlapOne[i]*biasMultiplier);
+      constraints.biasOne[i] = -max(0.0f, contactOverlapOne[i]*biasMultiplier - slop);
     }
     else {
       constraints.biasOne[i] = 999999.0f;
     }
     if(contactOverlapTwo[i] >= -0.01f) {
-      constraints.biasTwo[i] = -max(0.0f, contactOverlapTwo[i]*biasMultiplier);
+      constraints.biasTwo[i] = -max(0.0f, contactOverlapTwo[i]*biasMultiplier - slop);
     }
     else {
       constraints.biasTwo[i] = 999999.0f;
@@ -328,7 +330,7 @@ export void solveContactConstraintsBZeroMass(
     //Solve friction first. This is a bit silly for the first iteration because the lambda sum is based on the contact sums
     //However, later solved constraints are more likely to be satisfied and contacs are more important than friction
     const float<2> frictionNormal = orthogonal(nx, ny);
-    const float jvFrictionOne = dotProduct(objectA.linVelX[oi], objectA.linVelY[oi], frictionNormal.x, frictionNormal.y);
+    const float jvFrictionOne = dotProduct(objectA.linVelX[oi], objectA.linVelY[oi], frictionNormal.x, frictionNormal.y)
       + objectA.angVel[oi]*constraints.angularFrictionAxisOneA[i];
 
     //Friction has no bias
