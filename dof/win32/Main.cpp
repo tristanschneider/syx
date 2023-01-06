@@ -161,12 +161,20 @@ void sleepNS(int ns) {
   }
 }
 
-int mainLoop(const char*) {
+int mainLoop(const char* args) {
   BOOL gotMessage;
   MSG msg = { 0 };
   bool exit = false;
   float msToNS = 1000000.0f;
   int targetFrameTimeNS = 16*static_cast<int>(msToNS);
+
+  std::string strArgs(args ? std::string(args) : std::string());
+  if(!strArgs.empty()) {
+    std::get<SharedRow<FileSystem>>(std::get<GlobalGameData>(APP->mGame.mTables).mRows).at().mRoot = strArgs;
+  }
+  else {
+    std::get<SharedRow<FileSystem>>(std::get<GlobalGameData>(APP->mGame.mTables).mRows).at().mRoot = "data/";
+  }
 
   auto lastFrameStart = std::chrono::high_resolution_clock::now();
   while(!exit) {

@@ -36,9 +36,11 @@ namespace {
   SceneState::State _initRequestAssets(GameDatabase& db) {
     TextureRequestTable& textureRequests = std::get<TextureRequestTable>(db.mTables);
 
-    SceneState& scene = std::get<0>(std::get<GlobalGameData>(db.mTables).mRows).at();
-    scene.mBackgroundImage = _requestTextureLoad(textureRequests, "C:/syx/dof/data/background.png");
-    scene.mPlayerImage = _requestTextureLoad(textureRequests, "C:/syx/dof/data/player.png");
+    auto& globals = std::get<GlobalGameData>(db.mTables);
+    SceneState& scene = std::get<0>(globals.mRows).at();
+    const std::string& root = std::get<SharedRow<FileSystem>>(globals.mRows).at().mRoot;
+    scene.mBackgroundImage = _requestTextureLoad(textureRequests, (root + "background.png").c_str());
+    scene.mPlayerImage = _requestTextureLoad(textureRequests, (root + "player.png").c_str());
 
     return SceneState::State::InitAwaitingAssets;
   }

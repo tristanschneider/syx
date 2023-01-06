@@ -76,13 +76,18 @@ struct SceneState {
   glm::vec2 mBoundaryMin, mBoundaryMax;
 };
 
+struct FileSystem {
+  std::string mRoot;
+};
+
 using TextureRequestTable = Table<
   Row<TextureLoadRequest>
 >;
 
 using GlobalGameData = Table<
   SharedRow<SceneState>,
-  SharedRow<PhysicsTableIds>
+  SharedRow<PhysicsTableIds>,
+  SharedRow<FileSystem>
 >;
 
 using GameObjectTable = Table<

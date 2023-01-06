@@ -17,3 +17,7 @@ add_compile_definitions(NOMINMAX)
 copy_glew_to_target(win32)
 
 target_precompile_headers(win32 PRIVATE Precompile.h)
+
+# When debugging, point the default project at src data instead of output data so edits can be made in-place if desired
+set(data_dir "${CMAKE_SOURCE_DIR}/data/")
+set_target_properties(win32 PROPERTIES VS_DEBUGGER_COMMAND_ARGUMENTS "${data_dir}")
