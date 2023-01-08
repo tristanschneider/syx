@@ -3,6 +3,7 @@
 
 #include "Physics.h"
 #include "Simulation.h"
+#include "SweepNPrune.h"
 #include "Table.h"
 #include "TableOperations.h"
 #include "Queries.h"
@@ -443,6 +444,249 @@ namespace Test {
       const float e = 0.01f;
       //Constraint is trying to solve for the difference of the projection of the velocities of the contact point on A and B on the normal being zero
       Assert::AreEqual(0.0f, velocityDifference, e);
+    }
+
+    struct SweepEntry {
+      glm::vec2 mNewBoundaryMin{};
+      glm::vec2 mNewBoundaryMax{};
+      glm::vec2 mOldBoundaryMin{};
+      size_t mKey{};
+    };
+
+    static void _clear(std::vector<SweepCollisionPair>& a, std::vector<SweepCollisionPair>& b) {
+      a.clear();
+      b.clear();
+    }
+
+    static void _insertOne(Sweep2D& sweep, SweepEntry& entry, std::vector<SweepCollisionPair>& gained) {
+      SweepNPrune::insertRange(sweep, &entry.mNewBoundaryMin.x, &entry.mNewBoundaryMin.y, &entry.mNewBoundaryMax.x, &entry.mNewBoundaryMax.y, &entry.mKey, gained, size_t(1));
+      entry.mOldBoundaryMin = entry.mNewBoundaryMin;
+    }
+
+    static void _eraseOne(Sweep2D& sweep, SweepEntry& entry, std::vector<SweepCollisionPair>& lost) {
+      SweepNPrune::eraseRange(sweep, &entry.mOldBoundaryMin.x, &entry.mOldBoundaryMin.y, &entry.mKey, lost, 1);
+    }
+
+    static void _reinsertOne(Sweep2D& sweep, SweepEntry& entry, std::vector<SweepCollisionPair>& gained, std::vector<SweepCollisionPair>& lost) {
+      SweepNPrune::reinsertRange(sweep,
+        &entry.mOldBoundaryMin.x,
+        &entry.mOldBoundaryMin.y,
+        &entry.mNewBoundaryMin.x,
+        &entry.mNewBoundaryMin.y,
+        &entry.mNewBoundaryMax.x,
+        &entry.mNewBoundaryMax.y,
+        &entry.mKey,
+        gained,
+        lost,
+        1);
+      entry.mOldBoundaryMin = entry.mNewBoundaryMin;
+    }
+
+    static bool pairMatches(const SweepCollisionPair& li, const SweepCollisionPair& ri) {
+      SweepCollisionPair l = li;
+      SweepCollisionPair r = ri;
+      if(l.mA > l.mB) {
+        std::swap(l.mA, l.mB);
+      }
+      if(r.mA > r.mB) {
+        std::swap(r.mA, r.mB);
+      }
+      return r.mA == l.mA && r.mB == l.mB;
+    }
+
+    static void assertPairsMatch(const std::vector<SweepCollisionPair>& l, std::initializer_list<SweepCollisionPair> r) {
+      Assert::AreEqual(l.size(), r.size());
+      //Order doesn't matter
+      for(auto it = l.begin(); it != l.end(); ++it) {
+        Assert::IsTrue(std::any_of(r.begin(), r.end(), [&it](const SweepCollisionPair& r) { return pairMatches(*it, r); }));
+      }
+    }
+
+    TEST_METHOD(SweepNPrune_InsertRange) {
+      Sweep2D sweep;
+      std::vector<SweepCollisionPair> pairs;
+      SweepEntry entry;
+      entry.mKey = size_t(1);
+      entry.mNewBoundaryMin = glm::vec2(1.0f, 2.0f);
+      entry.mNewBoundaryMax = glm::vec2(2.0f, 3.0f);
+
+      _insertOne(sweep, entry, pairs);
+      Assert::IsTrue(pairs.empty());
+      //Insert another at the same coordinates, should cause new pair
+      SweepEntry same = entry;
+      same.mKey = size_t(2);
+      _insertOne(sweep, same, pairs);
+      assertPairsMatch(pairs, { SweepCollisionPair{ 1, 2 } });
+      pairs.clear();
+
+      //Insert one to the left of both of the previous ones
+      SweepEntry left;
+      left.mNewBoundaryMin = entry.mNewBoundaryMin - glm::vec2(2.0f);
+      left.mNewBoundaryMax = left.mNewBoundaryMin + glm::vec2(1.0f);
+      left.mKey = 3;
+      _insertOne(sweep, left, pairs);
+      assertPairsMatch(pairs, {});
+
+      //Insert one to the right of all of the previous
+      SweepEntry right;
+      right.mNewBoundaryMin = entry.mNewBoundaryMax + glm::vec2(1.0f);
+      right.mNewBoundaryMax = right.mNewBoundaryMin + glm::vec2(1.0f);
+      right.mKey = 4;
+      _insertOne(sweep, right, pairs);
+      assertPairsMatch(pairs, {});
+
+      //Insert on the boundary of left and center
+      SweepEntry leftToCenter;
+      leftToCenter.mNewBoundaryMin = left.mNewBoundaryMax;
+      leftToCenter.mNewBoundaryMax = entry.mNewBoundaryMin;
+      leftToCenter.mKey = 5;
+      _insertOne(sweep, leftToCenter, pairs);
+      assertPairsMatch(pairs, { SweepCollisionPair{ 5, 1 }, SweepCollisionPair{ 5, 2 }, SweepCollisionPair{ 5, 3 } });
+      pairs.clear();
+
+      //Entirely containing right
+      SweepEntry rightOverlap;
+      rightOverlap.mNewBoundaryMin = right.mNewBoundaryMin - glm::vec2(0.1f);
+      rightOverlap.mNewBoundaryMax = right.mNewBoundaryMax + glm::vec2(0.1f);
+      rightOverlap.mKey = 6;
+      _insertOne(sweep, rightOverlap, pairs);
+      assertPairsMatch(pairs, { SweepCollisionPair{ 6, 4 } });
+      pairs.clear();
+
+      //Contained by right and rightOVerlap
+      SweepEntry rightContained;
+      rightContained.mNewBoundaryMin = right.mNewBoundaryMin + glm::vec2(0.1f);
+      rightContained.mNewBoundaryMax = rightContained.mNewBoundaryMin + glm::vec2(0.1f);
+      rightContained.mKey = 7;
+      _insertOne(sweep, rightContained, pairs);
+      assertPairsMatch(pairs, { SweepCollisionPair{ 7, 4 }, SweepCollisionPair{ 7, 6 } });
+      pairs.clear();
+
+      std::vector<SweepCollisionPair> lostPairs;
+      _eraseOne(sweep, rightContained, lostPairs);
+      assertPairsMatch(lostPairs, { SweepCollisionPair{ 7, 4 }, SweepCollisionPair{ 7, 6 } });
+      lostPairs.clear();
+
+      _eraseOne(sweep, rightOverlap, lostPairs);
+      assertPairsMatch(lostPairs, { SweepCollisionPair{ 6, 4 } });
+      lostPairs.clear();
+
+      _eraseOne(sweep, leftToCenter, lostPairs);
+      assertPairsMatch(lostPairs, { SweepCollisionPair{ 5, 1 }, SweepCollisionPair{ 5, 2 }, SweepCollisionPair{ 5, 3 } });
+      lostPairs.clear();
+
+      _eraseOne(sweep, right, lostPairs);
+      assertPairsMatch(lostPairs, {});
+      lostPairs.clear();
+
+      _eraseOne(sweep, left, lostPairs);
+      assertPairsMatch(lostPairs, {});
+      lostPairs.clear();
+
+      _eraseOne(sweep, same, lostPairs);
+      assertPairsMatch(lostPairs, { SweepCollisionPair{ 1, 2 } });
+      lostPairs.clear();
+
+      _eraseOne(sweep, entry, lostPairs);
+      assertPairsMatch(lostPairs, {});
+      lostPairs.clear();
+    }
+
+    TEST_METHOD(SweepNPrune_ReinsertRange) {
+      Sweep2D sweep;
+      std::vector<SweepCollisionPair> gainedPairs, lostPairs;
+      const float size = 1.0f;
+      const float space = 0.1f;
+
+      SweepEntry upperLeft;
+      upperLeft.mKey = 1;
+      upperLeft.mNewBoundaryMin = glm::vec2(0.0f, size + space);
+      upperLeft.mNewBoundaryMax = upperLeft.mNewBoundaryMin + glm::vec2(size);
+
+      SweepEntry upperRight;
+      upperRight.mKey = 2;
+      upperRight.mNewBoundaryMin = glm::vec2(size + space, size + space);
+      upperRight.mNewBoundaryMax = upperRight.mNewBoundaryMin + glm::vec2(size);
+
+      SweepEntry bottomLeft;
+      bottomLeft.mKey = 3;
+      bottomLeft.mNewBoundaryMin = glm::vec2(0.0f);
+      bottomLeft.mNewBoundaryMax = bottomLeft.mNewBoundaryMin + glm::vec2(size);
+
+      SweepEntry bottomRight;
+      bottomRight.mKey = 4;
+      bottomRight.mNewBoundaryMin = glm::vec2(size + space, 0.0f);
+      bottomRight.mNewBoundaryMax = bottomRight.mNewBoundaryMin + glm::vec2(size);
+
+      _insertOne(sweep, upperLeft, gainedPairs);
+      _insertOne(sweep, upperRight, gainedPairs);
+      _insertOne(sweep, bottomLeft, gainedPairs);
+      _insertOne(sweep, bottomRight, gainedPairs);
+      Assert::IsTrue(gainedPairs.empty());
+
+      //Reinsert in place, nothing should happen
+      _reinsertOne(sweep, upperLeft, gainedPairs, lostPairs);
+      assertPairsMatch(gainedPairs, {});
+      assertPairsMatch(lostPairs, {});
+
+      //Extend upperRight down left to contain all others
+      upperRight.mNewBoundaryMin = glm::vec2(-1.0f);
+      _reinsertOne(sweep, upperRight, gainedPairs, lostPairs);
+      assertPairsMatch(gainedPairs, { SweepCollisionPair{ 2, 1 }, SweepCollisionPair{ 2, 3 }, SweepCollisionPair{ 2, 4 } });
+      assertPairsMatch(lostPairs, {});
+      _clear(gainedPairs, lostPairs);
+
+      //Move bottom left away from all
+      bottomLeft.mNewBoundaryMax -= glm::vec2(100.0f);
+      bottomLeft.mNewBoundaryMin -= glm::vec2(100.0f);
+      _reinsertOne(sweep, bottomLeft, gainedPairs, lostPairs);
+      assertPairsMatch(gainedPairs, {});
+      assertPairsMatch(lostPairs, { SweepCollisionPair{ 3, 2 } });
+      _clear(gainedPairs, lostPairs);
+
+      //Undo the previous move
+      bottomLeft.mNewBoundaryMax += glm::vec2(100.0f);
+      bottomLeft.mNewBoundaryMin += glm::vec2(100.0f);
+      _reinsertOne(sweep, bottomLeft, gainedPairs, lostPairs);
+      assertPairsMatch(gainedPairs, { SweepCollisionPair{ 3, 2 } });
+      assertPairsMatch(lostPairs, {});
+      _clear(gainedPairs, lostPairs);
+
+      //Move right to within lower right, but out of the left two
+      upperRight.mNewBoundaryMin.x = bottomRight.mNewBoundaryMin.x + 0.1f;
+      _reinsertOne(sweep, upperRight, gainedPairs, lostPairs);
+      assertPairsMatch(gainedPairs, {});
+      assertPairsMatch(lostPairs, { SweepCollisionPair{ 2, 1 }, SweepCollisionPair{ 2, 3 } });
+      _clear(gainedPairs, lostPairs);
+
+      //Restore right to how it started
+      upperRight.mNewBoundaryMin = glm::vec2(size + space, size + space);
+      upperRight.mNewBoundaryMax = upperRight.mNewBoundaryMin + glm::vec2(size);
+      _reinsertOne(sweep, upperRight, gainedPairs, lostPairs);
+      assertPairsMatch(gainedPairs, {});
+      assertPairsMatch(lostPairs, { SweepCollisionPair{ 2, 4 } });
+      _clear(gainedPairs, lostPairs);
+
+      //Extend bottom left up into upper right, overlapping with everything
+      bottomLeft.mNewBoundaryMax += glm::vec2(size * 0.5f);
+      _reinsertOne(sweep, bottomLeft, gainedPairs, lostPairs);
+      assertPairsMatch(gainedPairs, { SweepCollisionPair{ 3, 1 }, SweepCollisionPair{ 3, 2 }, SweepCollisionPair{ 3, 4 } });
+      assertPairsMatch(lostPairs, {});
+      _clear(gainedPairs, lostPairs);
+
+      //Shrink it back on top so it's only overlapping with bottom right
+      bottomLeft.mNewBoundaryMax.y = bottomRight.mNewBoundaryMax.y;
+      _reinsertOne(sweep, bottomLeft, gainedPairs, lostPairs);
+      assertPairsMatch(gainedPairs, {});
+      assertPairsMatch(lostPairs, { SweepCollisionPair{ 3, 1 }, SweepCollisionPair{ 3, 2 } });
+      _clear(gainedPairs, lostPairs);
+
+      //Resize and move bottom left to inside of upperRight
+      bottomLeft.mNewBoundaryMin = upperRight.mNewBoundaryMin + glm::vec2(0.1f);
+      bottomLeft.mNewBoundaryMax = bottomLeft.mNewBoundaryMax + glm::vec2(0.1f);
+      _reinsertOne(sweep, bottomLeft, gainedPairs, lostPairs);
+      assertPairsMatch(gainedPairs, { SweepCollisionPair{ 3, 2 } });
+      assertPairsMatch(lostPairs, { SweepCollisionPair{ 3, 4 } });
     }
   };
 }

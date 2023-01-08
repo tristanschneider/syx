@@ -30,6 +30,14 @@ struct SweepElement {
 struct Sweep2D {
   std::vector<SweepElement> mX, mY;
   std::vector<size_t> mGained, mLost, mContaining;
+  //Hack to be able to look up a given boundary by key. Probably a more elegant way to do this
+  struct Bounds {
+    float mMinX{};
+    float mMaxX{};
+    float mMinY{};
+    float mMaxY{};
+  };
+  std::unordered_map<size_t, Bounds> mKeyToBoundaries;
 };
 
 struct SweepCollisionPair {
