@@ -41,8 +41,21 @@ struct Sweep2D {
 };
 
 struct SweepCollisionPair {
+  bool operator==(const SweepCollisionPair& r) {
+    return mA == r.mA && mB == r.mB;
+  }
+
   size_t mA{};
   size_t mB{};
+};
+
+template<>
+struct std::hash<SweepCollisionPair> {
+  std::size_t operator()(const SweepCollisionPair& s) const noexcept {
+    std::hash<size_t> h;
+    //cppreference hash combine example
+    return h(s.mA) ^ (h(s.mB) << 1);
+  }
 };
 
 struct SweepNPrune {
