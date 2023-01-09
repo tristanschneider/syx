@@ -1,6 +1,7 @@
 #include "Precompile.h"
 #include "CppUnitTest.h"
 
+#include "GridBroadphase.h"
 #include "Physics.h"
 #include "Simulation.h"
 #include "SweepNPrune.h"
@@ -288,11 +289,11 @@ namespace Test {
       auto& posY = std::get<FloatRow<Tags::Pos, Tags::Y>>(gameobjects.mRows);
       auto& pairs = std::get<CollisionPairsTable>(db.mTables);
 
-      Physics::allocateBroadphase(broadphase);
-      Physics::rebuildBroadphase(db.getTableIndex<GameObjectTable>().mValue, posX.mElements.data(), posY.mElements.data(), broadphase, size_t(2));
+      GridBroadphase::allocateBroadphase(broadphase);
+      GridBroadphase::rebuildBroadphase(db.getTableIndex<GameObjectTable>().mValue, posX.mElements.data(), posY.mElements.data(), broadphase, size_t(2));
       Assert::IsTrue(std::get<SharedRow<GridBroadphase::Overflow>>(broadphase.mRows).at().mElements.empty());
 
-      Physics::generateCollisionPairs(broadphase, pairs, Simulation::_getPhysicsTableIds());
+      GridBroadphase::generateCollisionPairs(broadphase, pairs, Simulation::_getPhysicsTableIds());
       _fillNarrowphaseData(db);
 
       Assert::AreEqual(size_t(1), TableOperations::size(pairs));
@@ -317,9 +318,9 @@ namespace Test {
       posX.at(0) = 1.0f;
       posX.at(1) = 5.0f;
 
-      Physics::allocateBroadphase(broadphase);
-      Physics::rebuildBroadphase(db.getTableIndex<GameObjectTable>().mValue, posX.mElements.data(), posY.mElements.data(), broadphase, size_t(2));
-      Physics::generateCollisionPairs(broadphase, pairs, Simulation::_getPhysicsTableIds());
+      GridBroadphase::allocateBroadphase(broadphase);
+      GridBroadphase::rebuildBroadphase(db.getTableIndex<GameObjectTable>().mValue, posX.mElements.data(), posY.mElements.data(), broadphase, size_t(2));
+      GridBroadphase::generateCollisionPairs(broadphase, pairs, Simulation::_getPhysicsTableIds());
 
       Assert::AreEqual(size_t(0), TableOperations::size(pairs));
     }
@@ -344,9 +345,9 @@ namespace Test {
       //To the right, colliding with 0 but not 1
       posX.at(2) = 6.0f;
 
-      Physics::allocateBroadphase(broadphase);
-      Physics::rebuildBroadphase(db.getTableIndex<GameObjectTable>().mValue, posX.mElements.data(), posY.mElements.data(), broadphase, posX.size());
-      Physics::generateCollisionPairs(broadphase, pairs, Simulation::_getPhysicsTableIds());
+      GridBroadphase::allocateBroadphase(broadphase);
+      GridBroadphase::rebuildBroadphase(db.getTableIndex<GameObjectTable>().mValue, posX.mElements.data(), posY.mElements.data(), broadphase, posX.size());
+      GridBroadphase::generateCollisionPairs(broadphase, pairs, Simulation::_getPhysicsTableIds());
 
       Assert::AreEqual(size_t(2), TableOperations::size(pairs));
       std::pair<size_t, size_t> a, b;
@@ -379,9 +380,9 @@ namespace Test {
       posX.at(0) = 5.0f;
       posX.at(1) = 6.0f - expectedOverlap;
 
-      Physics::allocateBroadphase(broadphase);
-      Physics::rebuildBroadphase(db.getTableIndex<GameObjectTable>().mValue, posX.mElements.data(), posY.mElements.data(), broadphase, posX.size());
-      Physics::generateCollisionPairs(broadphase, pairs, Simulation::_getPhysicsTableIds());
+      GridBroadphase::allocateBroadphase(broadphase);
+      GridBroadphase::rebuildBroadphase(db.getTableIndex<GameObjectTable>().mValue, posX.mElements.data(), posY.mElements.data(), broadphase, posX.size());
+      GridBroadphase::generateCollisionPairs(broadphase, pairs, Simulation::_getPhysicsTableIds());
       _fillNarrowphaseData(db);
       Physics::generateContacts(pairs);
 
@@ -419,9 +420,9 @@ namespace Test {
       posX.at(1) = 6.0f - expectedOverlap;
       velX.at(1) = -1.0f;
 
-      Physics::allocateBroadphase(broadphase);
-      Physics::rebuildBroadphase(db.getTableIndex<GameObjectTable>().mValue, posX.mElements.data(), posY.mElements.data(), broadphase, posX.size());
-      Physics::generateCollisionPairs(broadphase, pairs, Simulation::_getPhysicsTableIds());
+      GridBroadphase::allocateBroadphase(broadphase);
+      GridBroadphase::rebuildBroadphase(db.getTableIndex<GameObjectTable>().mValue, posX.mElements.data(), posY.mElements.data(), broadphase, posX.size());
+      GridBroadphase::generateCollisionPairs(broadphase, pairs, Simulation::_getPhysicsTableIds());
       _fillNarrowphaseData(db);
       Physics::generateContacts(pairs);
       Physics::buildConstraintsTable(pairs, constraints, staticConstraints, commonConstraints, Simulation::_getPhysicsTableIds());

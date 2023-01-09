@@ -6,7 +6,8 @@
 
 #include "glm/vec2.hpp"
 #include "glm/vec3.hpp"
-
+#include "GridBroadphase.h"
+#include "PhysicsTableIds.h"
 #include <bitset>
 
 template<class, class = void>

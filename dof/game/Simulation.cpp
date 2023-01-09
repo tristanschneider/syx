@@ -77,7 +77,7 @@ namespace {
     requestedDimensions.mMin.y = int(scene.mBoundaryMin.y) - broadphasePadding;
     requestedDimensions.mMax.x = int(scene.mBoundaryMax.x) + broadphasePadding;
     requestedDimensions.mMax.y = int(scene.mBoundaryMax.y) + broadphasePadding;
-    Physics::allocateBroadphase(broadphase);
+    GridBroadphase::allocateBroadphase(broadphase);
   }
 
   SceneState::State _setupScene(GameDatabase& db) {
@@ -111,8 +111,8 @@ namespace {
     std::get<SharedRow<TextureReference>>(staticObjects.mRows).at().mId = scene.mBackgroundImage;
 
     //Add some arbitrary objects for testing
-    const size_t rows = 5;
-    const size_t columns = 5;
+    const size_t rows = 50;
+    const size_t columns = 50;
     const size_t total = rows*columns;
     TableOperations::resizeTable(gameobjects, total);
 
@@ -167,7 +167,7 @@ namespace {
     for(size_t i = 0; i < TableOperations::size(players); ++i) {
       const PlayerInput& input = std::get<Row<PlayerInput>>(players.mRows).at(i);
       glm::vec2 move(input.mMoveX, input.mMoveY);
-      const float speed = 0.05f;
+      const float speed = 0.25f;
       move *= speed;
 
       float& vx = std::get<FloatRow<LinVel, X>>(players.mRows).at(i);
@@ -275,16 +275,16 @@ namespace {
     Physics::details::applyDampingMultiplierAxis<AngVel>(db, angularDragMultiplier);
 
     //TODO: don't rebuild every frame
-    Physics::clearBroadphase(broadphase);
+    GridBroadphase::clearBroadphase(broadphase);
     //Gather collision pairs in any table that is interested.
     //This passes the table id forward to the physics tables which is used during the fill/store functions
     //to figure out which table to refer to when moving data to/from physics
     Queries::viewEachRowWithTableID<PosX, PosY, HasCollision>(db,
       [&](GameDatabase::ElementID tableId, PosX& posX, PosY& posY, HasCollision&) {
-        Physics::rebuildBroadphase(tableId.mValue, posX.mElements.data(), posY.mElements.data(), broadphase, posX.mElements.size());
+        GridBroadphase::rebuildBroadphase(tableId.mValue, posX.mElements.data(), posY.mElements.data(), broadphase, posX.mElements.size());
     });
 
-    Physics::generateCollisionPairs(broadphase, collisionPairs, physicsTables);
+    GridBroadphase::generateCollisionPairs(broadphase, collisionPairs, physicsTables);
 
     Physics::fillNarrowphaseData<PosX, PosY, RotX, RotY>(collisionPairs, db);
 
