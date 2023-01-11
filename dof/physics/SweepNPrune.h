@@ -41,7 +41,7 @@ struct Sweep2D {
 };
 
 struct SweepCollisionPair {
-  bool operator==(const SweepCollisionPair& r) {
+  bool operator==(const SweepCollisionPair& r) const {
     return mA == r.mA && mB == r.mB;
   }
 

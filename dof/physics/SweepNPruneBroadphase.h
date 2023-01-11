@@ -8,6 +8,7 @@
 //this is the wrapper around it to facilitate use within Simulation
 struct SweepNPruneBroadphase {
   //TODO: some of these are only needed temporarily while determining if boundaries need to be updated
+  //It would also be possible to minimize necessary space by using a single point and implied size
   struct OldMinX : Row<float> {};
   struct OldMinY : Row<float> {};
   struct OldMaxX : Row<float> {};
@@ -17,7 +18,8 @@ struct SweepNPruneBroadphase {
   struct NewMaxX : Row<float> {};
   struct NewMaxY : Row<float> {};
   struct Key : Row<size_t> {};
-  struct NeedsReinsert : Row<bool> {};
+  //Byte set to nonzero for true. Hack since std vector bool specialization is tricky with the templates
+  struct NeedsReinsert : Row<uint8_t> {};
 
   struct CollisionPairMappings {
     std::unordered_map<SweepCollisionPair, size_t> mSweepPairToCollisionTableIndex;
@@ -48,13 +50,13 @@ struct SweepNPruneBroadphase {
     float mResizeThreshold = 0.0f;
   };
 
-  bool recomputeBoundaries(const float* oldMinAxis, const float* oldMaxAxis,
+  static bool recomputeBoundaries(const float* oldMinAxis, const float* oldMaxAxis,
     float* newMinAxis, float* newMaxAxis,
     const float* pos,
     const BoundariesConfig& cfg,
     NeedsReinsert& needsReinsert);
 
-  void insertRange(size_t tableID, size_t begin, size_t count,
+  static void insertRange(size_t tableID, size_t begin, size_t count,
     BroadphaseTable& broadphase,
     OldMinX& oldMinX,
     OldMinY& oldMinY,
@@ -66,7 +68,7 @@ struct SweepNPruneBroadphase {
     NewMaxY& newMaxY,
     Key& key);
 
-  void reinsertRange(size_t begin, size_t count,
+  static void reinsertRange(size_t begin, size_t count,
     BroadphaseTable& broadphase,
     OldMinX& oldMinX,
     OldMinY& oldMinY,
@@ -78,7 +80,7 @@ struct SweepNPruneBroadphase {
     NewMaxY& newMaxY,
     Key& key);
 
-  void reinsertRangeAsNeeded(NeedsReinsert& needsReinsert,
+  static void reinsertRangeAsNeeded(NeedsReinsert& needsReinsert,
     BroadphaseTable& broadphase,
     OldMinX& oldMinX,
     OldMinY& oldMinY,
@@ -90,17 +92,17 @@ struct SweepNPruneBroadphase {
     NewMaxY& newMaxY,
     Key& key);
 
-  void eraseRange(size_t begin, size_t count,
+  static void eraseRange(size_t begin, size_t count,
     BroadphaseTable& broadphase,
     OldMinX& oldMinX,
     OldMinY& oldMinY,
     Key& key);
 
-  void informObjectMovedTables(CollisionPairMappings& mappings, size_t key, size_t elementID);
+  static void informObjectMovedTables(CollisionPairMappings& mappings, size_t key, size_t elementID);
 
   //Create and remove based on the changes in PairChanges
-  template<class TableT, class PairIndexA, class PairIndexB>
-  void updateCollisionPairs(PairChanges& changes, CollisionPairMappings& mappings, TableT& table) {
+  template<class PairIndexA, class PairIndexB, class TableT>
+  static void updateCollisionPairs(PairChanges& changes, CollisionPairMappings& mappings, TableT& table) {
     for(SweepCollisionPair loss : changes.mLost) {
       //TODO: order these somewhere else
       if(loss.mA > loss.mB) {
@@ -114,11 +116,22 @@ struct SweepNPruneBroadphase {
         mappings.mCollisionTableIndexToSweepPair.pop_back();
         //Remove reference to this index
         mappings.mSweepPairToCollisionTableIndex.erase(it);
-        //Update mapping of swap removed element
-        mappings.mSweepPairToCollisionTableIndex[mappings.mCollisionTableIndexToSweepPair[removedPairIndex]] = removedPairIndex;
+        //Update mapping of swap removed element. Nothing to do if this was at the end because it was popped off
+        if(removedPairIndex < mappings.mCollisionTableIndexToSweepPair.size()) {
+          mappings.mSweepPairToCollisionTableIndex[mappings.mCollisionTableIndexToSweepPair[removedPairIndex]] = removedPairIndex;
+        }
+      }
+      //If it was gained and lost on the same frame remove it from the gain list. Presumably infrequent enough to not need faster searching
+      else if(auto gained = std::find(changes.mGained.begin(), changes.mGained.end(), loss); gained != changes.mGained.end()) {
+        *gained = changes.mGained.back();
+        changes.mGained.pop_back();
+      }
+      else {
+        assert(false);
       }
     }
 
+    changes.mLost.clear();
     if(changes.mGained.empty()) {
       return;
     }
@@ -137,6 +150,7 @@ struct SweepNPruneBroadphase {
       }
       const size_t addIndex = gainBegin + i;
       //Assign mappings so this can be found above in removal
+      assert(mappings.mSweepPairToCollisionTableIndex.find(gain) == mappings.mSweepPairToCollisionTableIndex.end());
       mappings.mCollisionTableIndexToSweepPair[addIndex] = gain;
       mappings.mSweepPairToCollisionTableIndex[gain] = addIndex;
 
@@ -145,10 +159,11 @@ struct SweepNPruneBroadphase {
       auto elementB = mappings.mKeyToTableElementId.find(gain.mB);
       assert(elementA != mappings.mKeyToTableElementId.end());
       assert(elementB != mappings.mKeyToTableElementId.end());
-      if(elementA != mappings.mKeyToTableElementId && elementB != mappings.mKeyToTableElementId.end()) {
+      if(elementA != mappings.mKeyToTableElementId.end() && elementB != mappings.mKeyToTableElementId.end()) {
         pairA.at(addIndex) = elementA->second;
         pairB.at(addIndex) = elementB->second;
       }
     }
+    changes.mGained.clear();
   }
 };

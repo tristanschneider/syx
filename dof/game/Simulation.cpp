@@ -70,16 +70,6 @@ namespace {
     return SceneState::State::SetupScene;
   }
 
-  void _allocateBroadphaseFromScene(const SceneState& scene, BroadphaseTable& broadphase) {
-    auto& requestedDimensions = std::get<SharedRow<GridBroadphase::RequestedDimensions>>(broadphase.mRows).at();
-    const int broadphasePadding = 5;
-    requestedDimensions.mMin.x = int(scene.mBoundaryMin.x) - broadphasePadding;
-    requestedDimensions.mMin.y = int(scene.mBoundaryMin.y) - broadphasePadding;
-    requestedDimensions.mMax.x = int(scene.mBoundaryMax.x) + broadphasePadding;
-    requestedDimensions.mMax.y = int(scene.mBoundaryMax.y) + broadphasePadding;
-    GridBroadphase::allocateBroadphase(broadphase);
-  }
-
   SceneState::State _setupScene(GameDatabase& db) {
     std::get<SharedRow<PhysicsTableIds>>(std::get<GlobalGameData>(db.mTables).mRows).at() = Simulation::_getPhysicsTableIds();
 
@@ -111,8 +101,8 @@ namespace {
     std::get<SharedRow<TextureReference>>(staticObjects.mRows).at().mId = scene.mBackgroundImage;
 
     //Add some arbitrary objects for testing
-    const size_t rows = 50;
-    const size_t columns = 50;
+    const size_t rows = 2;
+    const size_t columns = 2;
     const size_t total = rows*columns;
     TableOperations::resizeTable(gameobjects, total);
 
@@ -158,7 +148,39 @@ namespace {
     scene.mBoundaryMin = glm::vec2(goalX.at(first), goalY.at(first)) - glm::vec2(boundaryPadding);
     scene.mBoundaryMax = glm::vec2(goalX.at(last), goalY.at(last)) + glm::vec2(boundaryPadding);
 
-    _allocateBroadphaseFromScene(scene, std::get<BroadphaseTable>(db.mTables));
+    auto& broadphase = std::get<BroadphaseTable>(db.mTables);
+    Queries::viewEachRowWithTableID<SweepNPruneBroadphase::OldMinX,
+      SweepNPruneBroadphase::OldMinY,
+      SweepNPruneBroadphase::OldMaxX,
+      SweepNPruneBroadphase::OldMaxY,
+      SweepNPruneBroadphase::NewMinX,
+      SweepNPruneBroadphase::NewMinY,
+      SweepNPruneBroadphase::NewMaxX,
+      SweepNPruneBroadphase::NewMaxY,
+      SweepNPruneBroadphase::Key>(db,
+        [&](GameDatabase::ElementID tableID,
+      SweepNPruneBroadphase::OldMinX& oldMinX,
+      SweepNPruneBroadphase::OldMinY& oldMinY,
+      SweepNPruneBroadphase::OldMaxX& oldMaxX,
+      SweepNPruneBroadphase::OldMaxY& oldMaxY,
+      SweepNPruneBroadphase::NewMinX& newMinX,
+      SweepNPruneBroadphase::NewMinY& newMinY,
+      SweepNPruneBroadphase::NewMaxX& newMaxX,
+      SweepNPruneBroadphase::NewMaxY& newMaxY,
+      SweepNPruneBroadphase::Key& key) {
+
+      SweepNPruneBroadphase::insertRange(tableID.mValue, size_t(0), oldMinX.size(),
+        broadphase,
+        oldMinX,
+        oldMinY,
+        oldMaxX,
+        oldMaxY,
+        newMinX,
+        newMinY,
+        newMaxX,
+        newMaxY,
+        key);
+    });
 
     return SceneState::State::Update;
   }
@@ -167,7 +189,7 @@ namespace {
     for(size_t i = 0; i < TableOperations::size(players); ++i) {
       const PlayerInput& input = std::get<Row<PlayerInput>>(players.mRows).at(i);
       glm::vec2 move(input.mMoveX, input.mMoveY);
-      const float speed = 0.25f;
+      const float speed = 0.05f;
       move *= speed;
 
       float& vx = std::get<FloatRow<LinVel, X>>(players.mRows).at(i);
@@ -274,21 +296,80 @@ namespace {
     const float angularDragMultiplier = 0.99f;
     Physics::details::applyDampingMultiplierAxis<AngVel>(db, angularDragMultiplier);
 
-    //TODO: don't rebuild every frame
-    GridBroadphase::clearBroadphase(broadphase);
-    //Gather collision pairs in any table that is interested.
-    //This passes the table id forward to the physics tables which is used during the fill/store functions
-    //to figure out which table to refer to when moving data to/from physics
-    Queries::viewEachRowWithTableID<PosX, PosY, HasCollision>(db,
-      [&](GameDatabase::ElementID tableId, PosX& posX, PosY& posY, HasCollision&) {
-        GridBroadphase::rebuildBroadphase(tableId.mValue, posX.mElements.data(), posY.mElements.data(), broadphase, posX.mElements.size());
-    });
+    Queries::viewEachRow<SweepNPruneBroadphase::OldMinX,
+      SweepNPruneBroadphase::OldMinY,
+      SweepNPruneBroadphase::OldMaxX,
+      SweepNPruneBroadphase::OldMaxY,
+      SweepNPruneBroadphase::NewMinX,
+      SweepNPruneBroadphase::NewMinY,
+      SweepNPruneBroadphase::NewMaxX,
+      SweepNPruneBroadphase::NewMaxY,
+      SweepNPruneBroadphase::NeedsReinsert,
+      FloatRow<Pos, X>,
+      FloatRow<Pos, Y>,
+      SweepNPruneBroadphase::Key>(db,
+        [&](
+      SweepNPruneBroadphase::OldMinX& oldMinX,
+      SweepNPruneBroadphase::OldMinY& oldMinY,
+      SweepNPruneBroadphase::OldMaxX& oldMaxX,
+      SweepNPruneBroadphase::OldMaxY& oldMaxY,
+      SweepNPruneBroadphase::NewMinX& newMinX,
+      SweepNPruneBroadphase::NewMinY& newMinY,
+      SweepNPruneBroadphase::NewMaxX& newMaxX,
+      SweepNPruneBroadphase::NewMaxY& newMaxY,
+      SweepNPruneBroadphase::NeedsReinsert& needsReinsert,
+      FloatRow<Pos, X>& posX,
+      FloatRow<Pos, Y>& posY,
+      SweepNPruneBroadphase::Key& key) {
 
-    GridBroadphase::generateCollisionPairs(broadphase, collisionPairs, physicsTables);
+      SweepNPruneBroadphase::BoundariesConfig config;
+      const bool needsUpdateX = SweepNPruneBroadphase::recomputeBoundaries(oldMinX.mElements.data(), oldMaxX.mElements.data(), newMinX.mElements.data(), newMaxX.mElements.data(), posX.mElements.data(), config, needsReinsert);
+      const bool needsUpdateY = SweepNPruneBroadphase::recomputeBoundaries(oldMinY.mElements.data(), oldMaxY.mElements.data(), newMinY.mElements.data(), newMaxY.mElements.data(), posY.mElements.data(), config, needsReinsert);
+      if(needsUpdateX || needsUpdateY) {
+        SweepNPruneBroadphase::reinsertRangeAsNeeded(needsReinsert,
+          broadphase,
+          oldMinX,
+          oldMinY,
+          oldMaxX,
+          oldMaxY,
+          newMinX,
+          newMinY,
+          newMaxX,
+          newMaxY,
+          key);
+      }
+
+      SweepNPruneBroadphase::updateCollisionPairs<CollisionPairIndexA, CollisionPairIndexB>(
+        std::get<SharedRow<SweepNPruneBroadphase::PairChanges>>(broadphase.mRows).at(),
+        std::get<SharedRow<SweepNPruneBroadphase::CollisionPairMappings>>(broadphase.mRows).at(),
+        collisionPairs);
+    });
 
     Physics::fillNarrowphaseData<PosX, PosY, RotX, RotY>(collisionPairs, db);
 
     Physics::generateContacts(collisionPairs);
+
+    auto& debug = std::get<DebugLineTable>(db.mTables);
+    auto addLine = [&debug](glm::vec2 a, glm::vec2 b, glm::vec3 color) {
+      DebugLineTable::ElementRef e = TableOperations::addToTable(debug);
+      e.get<0>().mPos = a;
+      e.get<0>().mColor = color;
+      e = TableOperations::addToTable(debug);
+      e.get<0>().mPos = b;
+      e.get<0>().mColor = color;
+    };
+
+    static bool drawCollisionPairs = false;
+    drawCollisionPairs = true;
+    if(drawCollisionPairs) {
+      auto& ax = std::get<NarrowphaseData<PairA>::PosX>(collisionPairs.mRows);
+      auto& ay = std::get<NarrowphaseData<PairA>::PosY>(collisionPairs.mRows);
+      auto& bx = std::get<NarrowphaseData<PairB>::PosX>(collisionPairs.mRows);
+      auto& by = std::get<NarrowphaseData<PairB>::PosY>(collisionPairs.mRows);
+      for(size_t i = 0; i < ax.size(); ++i) {
+        addLine(glm::vec2(ax.at(i), ay.at(i)), glm::vec2(bx.at(i), by.at(i)), glm::vec3(0.0f, 1.0f, 0.0f));
+      }
+    }
 
     Physics::buildConstraintsTable(collisionPairs, constraints, staticConstraints, constraintsCommon, physicsTables);
     Physics::fillConstraintVelocities<LinVelX, LinVelY, AngVel>(constraintsCommon, db);
@@ -345,7 +426,7 @@ namespace {
     _updatePlayerInput(std::get<PlayerTable>(db.mTables));
     _updateDebugCamera(std::get<CameraTable>(db.mTables));
 
-    _checkFragmentGoals(std::get<GameObjectTable>(db.mTables), std::get<StaticGameObjectTable>(db.mTables));
+    //_checkFragmentGoals(std::get<GameObjectTable>(db.mTables), std::get<StaticGameObjectTable>(db.mTables));
 
     _enforceWorldBoundary(db);
     _updatePhysics(db);

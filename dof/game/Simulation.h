@@ -6,7 +6,7 @@
 
 #include "glm/vec2.hpp"
 #include "glm/vec3.hpp"
-#include "GridBroadphase.h"
+#include "SweepNPruneBroadphase.h"
 #include "PhysicsTableIds.h"
 #include <bitset>
 
@@ -101,6 +101,18 @@ using GameObjectTable = Table<
   FloatRow<Tags::AngVel, Tags::Angle>,
   FloatRow<Tags::FragmentGoal, Tags::X>,
   FloatRow<Tags::FragmentGoal, Tags::Y>,
+
+  SweepNPruneBroadphase::OldMinX,
+  SweepNPruneBroadphase::OldMinY,
+  SweepNPruneBroadphase::OldMaxX,
+  SweepNPruneBroadphase::OldMaxY,
+  SweepNPruneBroadphase::NewMinX,
+  SweepNPruneBroadphase::NewMinY,
+  SweepNPruneBroadphase::NewMaxX,
+  SweepNPruneBroadphase::NewMaxY,
+  SweepNPruneBroadphase::Key,
+  SweepNPruneBroadphase::NeedsReinsert,
+
   Row<CubeSprite>,
   FragmentGoalFoundRow,
   SharedRow<TextureReference>
@@ -142,6 +154,18 @@ using PlayerTable = Table<
   FloatRow<Tags::LinVel, Tags::X>,
   FloatRow<Tags::LinVel, Tags::Y>,
   FloatRow<Tags::AngVel, Tags::Angle>,
+
+  SweepNPruneBroadphase::OldMinX,
+  SweepNPruneBroadphase::OldMinY,
+  SweepNPruneBroadphase::OldMaxX,
+  SweepNPruneBroadphase::OldMaxY,
+  SweepNPruneBroadphase::NewMinX,
+  SweepNPruneBroadphase::NewMinY,
+  SweepNPruneBroadphase::NewMaxX,
+  SweepNPruneBroadphase::NewMaxY,
+  SweepNPruneBroadphase::Key,
+  SweepNPruneBroadphase::NeedsReinsert,
+
   Row<CubeSprite>,
   Row<PlayerInput>,
   Row<PlayerKeyboardInput>,
@@ -171,7 +195,7 @@ struct DebugPoint {
 
 using DebugLineTable = Table<Row<DebugPoint>>;
 
-using BroadphaseTable = GridBroadphase::BroadphaseTable;
+using BroadphaseTable = SweepNPruneBroadphase::BroadphaseTable;
 
 using GameDatabase = Database<
   GameObjectTable,
