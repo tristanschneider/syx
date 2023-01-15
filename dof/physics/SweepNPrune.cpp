@@ -106,6 +106,11 @@ namespace {
     }
   }
 
+  void _removeDuplicates(std::vector<size_t>& elements) {
+    std::sort(elements.begin(), elements.end());
+    elements.erase(std::unique(elements.begin(), elements.end()), elements.end());
+  }
+
   std::pair<float, float> moveBoundaryAxis(std::vector<SweepElement>& axis, size_t key, float prevBoundaryMin, float newBoundaryMin, float newBoundaryMax, std::vector<size_t>& containing, std::vector<size_t>& gained, std::vector<size_t>& lost) {
       auto findX = findKey(axis, key, prevBoundaryMin);
       //If new min is lower, swap down and log all gained elements along the way
@@ -122,6 +127,9 @@ namespace {
         moveBoundary(findX, axis.begin(), axis.end(), key, newBoundaryMin, gained, lost, &SweepElement::isEnd, &SweepElement::isEnd);
         moveBoundary(endX, axis.begin(), axis.end(), key, newBoundaryMax, lost, gained, &SweepElement::isStart, &SweepElement::isStart);
       }
+      //Remove duplicates for gain/loss, which means that both boundaries passed entirely over each other
+      _removeDuplicates(lost);
+      _removeDuplicates(gained);
       return std::make_pair(prevXMin, prevXMax);
   }
 
@@ -283,8 +291,32 @@ void SweepNPrune::reinsertRange(Sweep2D& sweep,
     const float prevYMin = prevY.first;
     const float prevYMax = prevY.second;
 
-    //If either axis was lost, the collision pair is lost if that was also previously overlapping on the other axis
+    //If one axis was gained it's only a new pair if the other axis was already overlapping
+    //If two axes were gained it's a new pair
+    //Sort results to put duplicates next to each-other
+    std::sort(gained.begin(), gained.end());
     std::sort(lost.begin(), lost.end());
+
+    //Remove any duplicate occurrences that happend on both axes, in other words a gain and loss on the same frame on different axes
+    //Duplicates are already prevented in moveBoundaryAxis, so conflicting gain/loss here means one axis disagrees with the other
+    //It also means the only possibility in the duplicate case here is gain and loss, not multiple gains to a loss or vice versa
+    //A gain on one axis and loss on another then means nothing. It can't be a full loss because they weren't overlapping on one of
+    //the axes before. It can't be a full gain because we already know they aren't overlapping on both axes
+    for(auto gain = gained.begin(), loss = lost.begin(); gain != gained.end() && loss != lost.end();) {
+      if(*gain < *loss) {
+        ++gain;
+      }
+      else if(*loss < *gain) {
+        ++loss;
+      }
+      else {
+        //This is not a gain or loss, remove it from both
+        gain = gained.erase(gain);
+        loss = lost.erase(loss);
+      }
+    }
+
+    //If either axis was lost, the collision pair is lost if that was also previously overlapping on the other axis
     for(size_t j = 0; j < lost.size();) {
       const size_t& loss = lost[j];
       if(j + 1 < lost.size() && lost[j + 1] == loss) {
@@ -303,10 +335,6 @@ void SweepNPrune::reinsertRange(Sweep2D& sweep,
       ++j;
     }
 
-    //If one axis was gained it's only a new pair if the other axis was already overlapping
-    //If two axes were gained it's a new pair
-    //Sort results to put duplicates next to each-other
-    std::sort(gained.begin(), gained.end());
     bool containingSorted = false;
     for(size_t j = 0; j < gained.size();) {
       //Both axes were gained, it's a new pair
@@ -324,7 +352,7 @@ void SweepNPrune::reinsertRange(Sweep2D& sweep,
         if(auto isContained = std::lower_bound(containing.begin(), containing.end(), gained[j]); isContained != containing.end() && *isContained == gained[j]) {
           newPairs.push_back({ keys[i], gained[j] });
         }
-        //If it wasn't in th econtained list, try the boundary map and check for overlap
+        //If it wasn't in the contained list, try the boundary map and check for overlap
         else if(auto boundsIt = sweep.mKeyToBoundaries.find(gained[j]); boundsIt != sweep.mKeyToBoundaries.end()) {
           const Sweep2D::Bounds& bounds = boundsIt->second;
           if(_isOverlapping(bounds.mMinX, bounds.mMaxX, newBoundaryMinX[i], newBoundaryMaxX[i]) &&

@@ -92,6 +92,9 @@ struct SweepNPruneBroadphase {
     NewMaxY& newMaxY,
     Key& key);
 
+  //Iterates over the entire broadphase and generates all pairs. Inefficient, but useful for debugging
+  static void generateCollisionPairs(BroadphaseTable& broadphase, std::vector<SweepCollisionPair>& results);
+
   static void eraseRange(size_t begin, size_t count,
     BroadphaseTable& broadphase,
     OldMinX& oldMinX,

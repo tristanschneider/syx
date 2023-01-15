@@ -45,6 +45,10 @@ struct SweepCollisionPair {
     return mA == r.mA && mB == r.mB;
   }
 
+  bool operator<(const SweepCollisionPair& r) const {
+    return mA == r.mA ? mB < r.mB : mA < r.mA;
+  }
+
   size_t mA{};
   size_t mB{};
 };

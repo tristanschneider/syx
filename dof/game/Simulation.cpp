@@ -26,6 +26,10 @@ namespace {
     return { std::get<FloatRow<Tag, X>>(t.mRows).mElements.data(), std::get<FloatRow<Tag, Y>>(t.mRows).mElements.data() };
   }
 
+  SweepNPruneBroadphase::BoundariesConfig _getBoundariesConfig() {
+    return {};
+  }
+
   size_t _requestTextureLoad(TextureRequestTable& requests, const char* filename) {
     TextureLoadRequest* request = &TableOperations::addToTable(requests).get<0>();
     request->mFileName = filename;
@@ -101,8 +105,8 @@ namespace {
     std::get<SharedRow<TextureReference>>(staticObjects.mRows).at().mId = scene.mBackgroundImage;
 
     //Add some arbitrary objects for testing
-    const size_t rows = 2;
-    const size_t columns = 2;
+    const size_t rows = 5;
+    const size_t columns = 5;
     const size_t total = rows*columns;
     TableOperations::resizeTable(gameobjects, total);
 
@@ -157,6 +161,7 @@ namespace {
       SweepNPruneBroadphase::NewMinY,
       SweepNPruneBroadphase::NewMaxX,
       SweepNPruneBroadphase::NewMaxY,
+      SweepNPruneBroadphase::NeedsReinsert,
       SweepNPruneBroadphase::Key>(db,
         [&](GameDatabase::ElementID tableID,
       SweepNPruneBroadphase::OldMinX& oldMinX,
@@ -167,7 +172,14 @@ namespace {
       SweepNPruneBroadphase::NewMinY& newMinY,
       SweepNPruneBroadphase::NewMaxX& newMaxX,
       SweepNPruneBroadphase::NewMaxY& newMaxY,
+      SweepNPruneBroadphase::NeedsReinsert& needsReinsert,
       SweepNPruneBroadphase::Key& key) {
+
+      auto config = _getBoundariesConfig();
+      SweepNPruneBroadphase::recomputeBoundaries(oldMinX.mElements.data(), oldMaxX.mElements.data(), newMinX.mElements.data(), newMaxX.mElements.data(), posX.mElements.data(), config, needsReinsert);
+      SweepNPruneBroadphase::recomputeBoundaries(oldMinY.mElements.data(), oldMaxY.mElements.data(), newMinY.mElements.data(), newMaxY.mElements.data(), posY.mElements.data(), config, needsReinsert);
+      //These values were set by recomputeBoundaries but don't matter for the initial insert, reset them
+      std::fill(needsReinsert.begin(), needsReinsert.end(), uint8_t(0));
 
       SweepNPruneBroadphase::insertRange(tableID.mValue, size_t(0), oldMinX.size(),
         broadphase,
@@ -322,9 +334,10 @@ namespace {
       FloatRow<Pos, Y>& posY,
       SweepNPruneBroadphase::Key& key) {
 
-      SweepNPruneBroadphase::BoundariesConfig config;
+      auto config = _getBoundariesConfig();
       const bool needsUpdateX = SweepNPruneBroadphase::recomputeBoundaries(oldMinX.mElements.data(), oldMaxX.mElements.data(), newMinX.mElements.data(), newMaxX.mElements.data(), posX.mElements.data(), config, needsReinsert);
       const bool needsUpdateY = SweepNPruneBroadphase::recomputeBoundaries(oldMinY.mElements.data(), oldMaxY.mElements.data(), newMinY.mElements.data(), newMaxY.mElements.data(), posY.mElements.data(), config, needsReinsert);
+
       if(needsUpdateX || needsUpdateY) {
         SweepNPruneBroadphase::reinsertRangeAsNeeded(needsReinsert,
           broadphase,
@@ -360,7 +373,7 @@ namespace {
     };
 
     static bool drawCollisionPairs = false;
-    drawCollisionPairs = true;
+    static bool drawContacts = false;
     if(drawCollisionPairs) {
       auto& ax = std::get<NarrowphaseData<PairA>::PosX>(collisionPairs.mRows);
       auto& ay = std::get<NarrowphaseData<PairA>::PosY>(collisionPairs.mRows);
@@ -375,38 +388,28 @@ namespace {
     Physics::fillConstraintVelocities<LinVelX, LinVelY, AngVel>(constraintsCommon, db);
     Physics::setupConstraints(constraints, staticConstraints);
 
-    /*
-    auto& debug = std::get<DebugLineTable>(db.mTables);
-    auto addLine = [&debug](glm::vec2 a, glm::vec2 b, glm::vec3 color) {
-      DebugLineTable::ElementRef e = TableOperations::addToTable(debug);
-      e.get<0>().mPos = a;
-      e.get<0>().mColor = color;
-      e = TableOperations::addToTable(debug);
-      e.get<0>().mPos = b;
-      e.get<0>().mColor = color;
-    };
-
-    for(size_t i = 0; i < TableOperations::size(collisionPairs); ++i) {
-      CollisionPairsTable::ElementRef e = TableOperations::getElement(collisionPairs, i);
-      float overlapOne = e.get<12>();
-      float overlapTwo = e.get<15>();
-      glm::vec2 posA{ e.get<2>(), e.get<3>() };
-      glm::vec2 posB{ e.get<6>(), e.get<7>() };
-      glm::vec2 contactOne{ e.get<10>(), e.get<11>() };
-      glm::vec2 contactTwo{ e.get<13>(), e.get<14>() };
-      glm::vec2 normal{ e.get<16>(), e.get<17>() };
-      if(overlapOne >= 0.0f) {
-        addLine(posA, contactOne, glm::vec3(1.0f, 0.0f, 0.0f));
-        addLine(contactOne, contactOne + normal*0.25f, glm::vec3(0.0f, 1.0f, 0.0f));
-        addLine(contactOne, contactOne + normal*overlapOne, glm::vec3(1.0f, 1.0f, 0.0f));
-      }
-      if(overlapTwo >= 0.0f) {
-        addLine(posA, contactTwo, glm::vec3(1.0f, 0.0f, 1.0f));
-        addLine(contactTwo, contactTwo + normal*0.25f, glm::vec3(0.0f, 1.0f, 1.0f));
-        addLine(contactTwo, contactTwo + normal*overlapTwo, glm::vec3(1.0f, 1.0f, 1.0f));
+    if(drawContacts) {
+      for(size_t i = 0; i < TableOperations::size(collisionPairs); ++i) {
+        CollisionPairsTable::ElementRef e = TableOperations::getElement(collisionPairs, i);
+        float overlapOne = e.get<12>();
+        float overlapTwo = e.get<15>();
+        glm::vec2 posA{ e.get<2>(), e.get<3>() };
+        glm::vec2 posB{ e.get<6>(), e.get<7>() };
+        glm::vec2 contactOne{ e.get<10>(), e.get<11>() };
+        glm::vec2 contactTwo{ e.get<13>(), e.get<14>() };
+        glm::vec2 normal{ e.get<16>(), e.get<17>() };
+        if(overlapOne >= 0.0f) {
+          addLine(posA, contactOne, glm::vec3(1.0f, 0.0f, 0.0f));
+          addLine(contactOne, contactOne + normal*0.25f, glm::vec3(0.0f, 1.0f, 0.0f));
+          addLine(contactOne, contactOne + normal*overlapOne, glm::vec3(1.0f, 1.0f, 0.0f));
+        }
+        if(overlapTwo >= 0.0f) {
+          addLine(posA, contactTwo, glm::vec3(1.0f, 0.0f, 1.0f));
+          addLine(contactTwo, contactTwo + normal*0.25f, glm::vec3(0.0f, 1.0f, 1.0f));
+          addLine(contactTwo, contactTwo + normal*overlapTwo, glm::vec3(1.0f, 1.0f, 1.0f));
+        }
       }
     }
-    */
 
     const int solveIterations = 5;
     //TODO: stop early if global lambda sum falls below tolerance

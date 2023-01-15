@@ -277,7 +277,7 @@ namespace Test {
       GameDatabase db;
       auto& gameobjects = std::get<GameObjectTable>(db.mTables);
       TableOperations::resizeTable(gameobjects, 2);
-      auto& broadphase = std::get<BroadphaseTable>(db.mTables);
+      GridBroadphase::BroadphaseTable broadphase;
       auto& dimensions = std::get<SharedRow<GridBroadphase::RequestedDimensions>>(broadphase.mRows).at();
       dimensions.mMin.x = 0;
       dimensions.mMax.x = 10;
@@ -306,7 +306,7 @@ namespace Test {
       GameDatabase db;
       auto& gameobjects = std::get<GameObjectTable>(db.mTables);
       TableOperations::resizeTable(gameobjects, 2);
-      auto& broadphase = std::get<BroadphaseTable>(db.mTables);
+      GridBroadphase::BroadphaseTable broadphase;
       auto& dimensions = std::get<SharedRow<GridBroadphase::RequestedDimensions>>(broadphase.mRows).at();
       dimensions.mMin.x = 0;
       dimensions.mMax.x = 10;
@@ -329,7 +329,7 @@ namespace Test {
       GameDatabase db;
       auto& gameobjects = std::get<GameObjectTable>(db.mTables);
       TableOperations::resizeTable(gameobjects, 3);
-      auto& broadphase = std::get<BroadphaseTable>(db.mTables);
+      GridBroadphase::BroadphaseTable broadphase;
       auto& dimensions = std::get<SharedRow<GridBroadphase::RequestedDimensions>>(broadphase.mRows).at();
       dimensions.mMin.x = 0;
       dimensions.mMax.x = 10;
@@ -364,7 +364,7 @@ namespace Test {
       GameDatabase db;
       auto& gameobjects = std::get<GameObjectTable>(db.mTables);
       TableOperations::resizeTable(gameobjects, 2);
-      auto& broadphase = std::get<BroadphaseTable>(db.mTables);
+      GridBroadphase::BroadphaseTable broadphase;
       auto& dimensions = std::get<SharedRow<GridBroadphase::RequestedDimensions>>(broadphase.mRows).at();
       dimensions.mMin.x = 0;
       dimensions.mMax.x = 10;
@@ -397,7 +397,7 @@ namespace Test {
       GameDatabase db;
       auto& gameobjects = std::get<GameObjectTable>(db.mTables);
       TableOperations::resizeTable(gameobjects, 2);
-      auto& broadphase = std::get<BroadphaseTable>(db.mTables);
+      GridBroadphase::BroadphaseTable broadphase;
       auto& dimensions = std::get<SharedRow<GridBroadphase::RequestedDimensions>>(broadphase.mRows).at();
       auto& constraints = std::get<ConstraintsTable>(db.mTables);
       auto& staticConstraints = std::get<ContactConstraintsToStaticObjectsTable>(db.mTables);
@@ -627,6 +627,27 @@ namespace Test {
 
       //Reinsert in place, nothing should happen
       _reinsertOne(sweep, upperLeft, gainedPairs, lostPairs);
+      assertPairsMatch(gainedPairs, {});
+      assertPairsMatch(lostPairs, {});
+
+      //Put bottom left to the right of top right. This makes it lose and gain an axis at the same time relative to top left
+      bottomLeft.mNewBoundaryMin = upperRight.mNewBoundaryMin + glm::vec2(size + space*2.0f, 0.0f);
+      bottomLeft.mNewBoundaryMax = bottomLeft.mNewBoundaryMin + glm::vec2(size);
+      _reinsertOne(sweep, bottomLeft, gainedPairs, lostPairs);
+      assertPairsMatch(gainedPairs, {});
+      assertPairsMatch(lostPairs, {});
+
+      //Put bottom left to the left of upper left, so it has now completely switched sides on one axis relative to the two top entries
+      bottomLeft.mNewBoundaryMin = upperLeft.mNewBoundaryMin - glm::vec2(size + space*2.0f, 0.0f);
+      bottomLeft.mNewBoundaryMax = bottomLeft.mNewBoundaryMin + glm::vec2(size);
+      _reinsertOne(sweep, bottomLeft, gainedPairs, lostPairs);
+      assertPairsMatch(gainedPairs, {});
+      assertPairsMatch(lostPairs, {});
+
+      //Put it back
+      bottomLeft.mNewBoundaryMin = glm::vec2(0.0f);
+      bottomLeft.mNewBoundaryMax = bottomLeft.mNewBoundaryMin + glm::vec2(size);
+      _reinsertOne(sweep, bottomLeft, gainedPairs, lostPairs);
       assertPairsMatch(gainedPairs, {});
       assertPairsMatch(lostPairs, {});
 
