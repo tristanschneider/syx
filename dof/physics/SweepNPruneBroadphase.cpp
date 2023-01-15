@@ -1,18 +1,6 @@
 #include "Precompile.h"
 #include "SweepNPruneBroadphase.h"
 
-static std::unordered_set<SweepCollisionPair> trackerHack;
-
-void _validatePairs(SweepNPruneBroadphase::BroadphaseTable& broadphase) {
-  std::vector<SweepCollisionPair> results;
-  SweepNPruneBroadphase::generateCollisionPairs(broadphase, results);
-  std::unordered_set<SweepCollisionPair> s;
-  s.insert(results.begin(), results.end());
-  if(s != trackerHack) {
-    printf("mismatched pairs");
-  }
-}
-
 namespace {
   template<class RowT>
   auto _unwrapWithOffset(RowT& r, size_t offset) {
@@ -64,8 +52,6 @@ void SweepNPruneBroadphase::insertRange(size_t tableID, size_t begin, size_t cou
     mappings.mKeyToTableElementId[keys[i]] = tableID + i;
   }
 
-  _validatePairs(broadphase);
-
   //Use new boundaries to insert
   SweepNPrune::insertRange(sweep,
     _unwrapWithOffset(newMinX, begin),
@@ -76,33 +62,12 @@ void SweepNPruneBroadphase::insertRange(size_t tableID, size_t begin, size_t cou
     changes.mGained,
     count);
 
-  for(auto p : changes.mGained) {
-    if(p.mA > p.mB) {
-      std::swap(p.mA, p.mB);
-    }
-    trackerHack.insert(p);
-  }
-  _validatePairs(broadphase);
-
   //Store old boundaries
   _copyRange(_unwrapWithOffset(newMinX, begin), _unwrapWithOffset(oldMinX, begin), count);
   _copyRange(_unwrapWithOffset(newMaxX, begin), _unwrapWithOffset(oldMaxX, begin), count);
   _copyRange(_unwrapWithOffset(newMinY, begin), _unwrapWithOffset(oldMinY, begin), count);
   _copyRange(_unwrapWithOffset(newMaxY, begin), _unwrapWithOffset(oldMaxY, begin), count);
 }
-
-struct Temp {
-  SweepNPruneBroadphase::BroadphaseTable broadphase;
-  SweepNPruneBroadphase::OldMinX oldMinX;
-  SweepNPruneBroadphase::OldMinY oldMinY;
-  SweepNPruneBroadphase::OldMaxX oldMaxX;
-  SweepNPruneBroadphase::OldMaxY oldMaxY;
-  SweepNPruneBroadphase::NewMinX newMinX;
-  SweepNPruneBroadphase::NewMinY newMinY;
-  SweepNPruneBroadphase::NewMaxX newMaxX;
-  SweepNPruneBroadphase::NewMaxY newMaxY;
-  SweepNPruneBroadphase::Key key;
-};
 
 void SweepNPruneBroadphase::reinsertRange(size_t begin, size_t count,
   BroadphaseTable& broadphase,
@@ -115,30 +80,7 @@ void SweepNPruneBroadphase::reinsertRange(size_t begin, size_t count,
   NewMaxX& newMaxX,
   NewMaxY& newMaxY,
   Key& key) {
-  Temp old {
-    broadphase,
-    oldMinX,
-    oldMinY,
-    oldMaxX,
-    oldMaxY,
-    newMinX,
-    newMinY,
-    newMaxX,
-    newMaxY,
-    key
-  };
-
-
-
   PairChanges& changes = std::get<SharedRow<PairChanges>>(broadphase.mRows).at();
-  std::vector<SweepCollisionPair> gainedTemp = changes.mGained;
-  std::vector<SweepCollisionPair> lostTemp = changes.mLost;
-  changes.mGained.clear();
-  changes.mLost.clear();
-
-
-  _validatePairs(broadphase);
-
   Sweep2D& sweep = std::get<SharedRow<Sweep2D>>(broadphase.mRows).at();
   SweepNPrune::reinsertRange(sweep,
     _unwrapWithOffset(oldMinX, begin),
@@ -151,59 +93,6 @@ void SweepNPruneBroadphase::reinsertRange(size_t begin, size_t count,
     changes.mGained,
     changes.mLost,
     count);
-
-  bool redo = false;
-  for(SweepCollisionPair p : changes.mLost) {
-    if(p.mA > p.mB) {
-      std::swap(p.mA, p.mB);
-    }
-    auto l = trackerHack.find(p);
-    if(l == trackerHack.end()) {
-      if(auto it = std::find(changes.mGained.begin(), changes.mGained.end(), p); it != changes.mGained.end()) {
-        changes.mGained.erase(it);
-      }
-      else {
-        redo = true;
-        printf("unexpeced loss\n");
-      }
-    }
-    else {
-      trackerHack.erase(l);
-    }
-  }
-  for(SweepCollisionPair p : changes.mGained) {
-    if(p.mA > p.mB) {
-      std::swap(p.mA, p.mB);
-    }
-    if(trackerHack.find(p) != trackerHack.end()) {
-      redo = true;
-      printf("unexpected addition\n");
-    }
-    trackerHack.insert(p);
-  }
-
-  _validatePairs(broadphase);
-
-  if(redo) {
-    PairChanges& tempchanges = std::get<SharedRow<PairChanges>>(old.broadphase.mRows).at();
-    Sweep2D& tempsweep = std::get<SharedRow<Sweep2D>>(old.broadphase.mRows).at();
-    SweepNPrune::reinsertRange(tempsweep,
-      _unwrapWithOffset(old.oldMinX, begin),
-      _unwrapWithOffset(old.oldMinY, begin),
-      _unwrapWithOffset(old.newMinX, begin),
-      _unwrapWithOffset(old.newMinY, begin),
-      _unwrapWithOffset(old.newMaxX, begin),
-      _unwrapWithOffset(old.newMaxY, begin),
-      _unwrapWithOffset(old.key, begin),
-      tempchanges.mGained,
-      tempchanges.mLost,
-      count);
-  }
-
-  gainedTemp.insert(gainedTemp.end(), changes.mGained.begin(), changes.mGained.end());
-  lostTemp.insert(lostTemp.end(), changes.mLost.begin(), changes.mLost.end());
-  changes.mGained = gainedTemp;
-  changes.mLost = lostTemp;
 
   _copyRange(_unwrapWithOffset(newMinX, begin), _unwrapWithOffset(oldMinX, begin), count);
   _copyRange(_unwrapWithOffset(newMinY, begin), _unwrapWithOffset(oldMinY, begin), count);
