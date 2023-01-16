@@ -9,6 +9,8 @@
 #include "TableOperations.h"
 #include "Queries.h"
 
+#include "StableElementID.h"
+
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 namespace Test {
@@ -354,10 +356,11 @@ namespace Test {
       auto pairA = TableOperations::getElement(pairs, 0);
       auto pairB = TableOperations::getElement(pairs, 1);
       //These asserts are enforcing a result order but that's not a requirement, rather it's easier to write the test that way
-      Assert::AreEqual(size_t(0), pairB.get<0>());
-      Assert::AreEqual(size_t(1), pairB.get<1>());
-      Assert::AreEqual(size_t(0), pairA.get<0>());
-      Assert::AreEqual(size_t(2), pairA.get<1>());
+      const size_t tableIndex = GameDatabase::getTableIndex<GameObjectTable>().mValue;
+      Assert::AreEqual(tableIndex + size_t(0), pairB.get<0>());
+      Assert::AreEqual(tableIndex + size_t(1), pairB.get<1>());
+      Assert::AreEqual(tableIndex + size_t(0), pairA.get<0>());
+      Assert::AreEqual(tableIndex + size_t(2), pairA.get<1>());
     }
 
     TEST_METHOD(CollidingPair_GenerateContacts_AreGenerated) {
@@ -709,6 +712,75 @@ namespace Test {
       _reinsertOne(sweep, bottomLeft, gainedPairs, lostPairs);
       assertPairsMatch(gainedPairs, { SweepCollisionPair{ 3, 2 } });
       assertPairsMatch(lostPairs, { SweepCollisionPair{ 3, 4 } });
+    }
+
+    using StableTableA = Table<
+      Row<int>,
+      StableIDRow
+    >;
+    using StableTableB = Table<
+      Row<uint64_t>,
+      Row<int>,
+      StableIDRow
+    >;
+    using FillerTable = Table<Row<int>>;
+    //Put a filler table at index 0 so the tests aren't testing with table index 0 which can easily cause false passes when the id isn't used.
+    using TestStableDB = Database<FillerTable, StableTableA, StableTableB>;
+
+    template<class TableT>
+    static void verifyAllMappings(TestStableDB& db, TableT& table, StableElementMappings& mappings) {
+      constexpr auto tableIndex = TestStableDB::getTableIndex<TableT>();
+      auto& stableA = std::get<StableIDRow>(table.mRows);
+      for(size_t i = 0; i < stableA.size(); ++i) {
+        const size_t stable = stableA.at(i);
+        const size_t unstable = TestStableDB::ElementID{ tableIndex.getTableIndex(), i }.mValue;
+        Assert::AreEqual(mappings.mStableToUnstable[stable], unstable);
+        StableElementID sid{ unstable, stable };
+        std::optional<StableElementID> resolved = StableOperations::tryResolveStableID(sid, db, mappings);
+        Assert::IsTrue(resolved.has_value());
+        Assert::IsTrue(*resolved == sid);
+      }
+    }
+
+    TEST_METHOD(StableElementID_Operations) {
+      StableElementMappings mappings;
+      TestStableDB db;
+      auto& a = std::get<StableTableA>(db.mTables);
+      auto& b = std::get<StableTableB>(db.mTables);
+      auto& stableA = std::get<StableIDRow>(a.mRows);
+      auto& valueA = std::get<Row<int>>(a.mRows);
+      constexpr auto tableIndexA = TestStableDB::getTableIndex<StableTableA>();
+      constexpr auto tableIndexB = TestStableDB::getTableIndex<StableTableB>();
+      TableOperations::stableResizeTable(a, tableIndexA, 3, mappings);
+
+      verifyAllMappings(db, a, mappings);
+
+      valueA.at(0) = 1;
+      valueA.at(2) = 5;
+      StableElementID elementA = StableOperations::getStableID(stableA, tableIndexA);
+      StableElementID elementC = StableOperations::getStableID(stableA, TestStableDB::ElementID{ tableIndexA.getTableIndex(), 2 });
+      TableOperations::stableSwapRemove(a, TestStableDB::ElementID{ tableIndexA.getTableIndex(), 0 }, mappings);
+
+      verifyAllMappings(db, a, mappings);
+
+      Assert::AreEqual(5, valueA.at(0));
+      Assert::IsFalse(StableOperations::tryResolveStableID(elementA, db, mappings).has_value());
+      TestStableDB::ElementID resolvedC{ StableOperations::tryResolveStableID(elementC, db, mappings)->mUnstableIndex };
+      Assert::AreEqual(5, Queries::getRowInTable<Row<int>>(db, resolvedC)->at(resolvedC.getElementIndex()));
+
+      //Migrate object at index 0 in A which is ElementC
+      TableOperations::stableMigrateOne(a, b, tableIndexA, tableIndexB, mappings);
+
+      verifyAllMappings(db, a, mappings);
+      verifyAllMappings(db, b, mappings);
+
+      resolvedC = TestStableDB::ElementID{ StableOperations::tryResolveStableID(elementC, db, mappings)->mUnstableIndex };
+      Assert::AreEqual(5, Queries::getRowInTable<Row<int>>(db, resolvedC)->at(resolvedC.getElementIndex()));
+
+      TableOperations::stableResizeTable(a, tableIndexA, 0, mappings);
+      TableOperations::stableResizeTable(b, tableIndexB, 0, mappings);
+
+      Assert::IsTrue(mappings.mStableToUnstable.empty());
     }
   };
 }
