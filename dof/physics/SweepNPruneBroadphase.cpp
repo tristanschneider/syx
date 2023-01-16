@@ -185,6 +185,12 @@ void SweepNPruneBroadphase::eraseRange(size_t begin, size_t count,
   }
 }
 
-void SweepNPruneBroadphase::informObjectMovedTables(CollisionPairMappings& mappings, size_t key, size_t elementID) {
+void SweepNPruneBroadphase::informObjectMovedTables(CollisionPairMappings& mappings, PairChanges& changes, size_t key, size_t elementID) {
   mappings.mKeyToTableElementId[key] = elementID;
+  for(const auto& pair : mappings.mCollisionTableIndexToSweepPair) {
+    if(pair.mA == key || pair.mB == key) {
+      changes.mMoved.push_back(pair);
+    }
+  }
+
 }

@@ -30,6 +30,13 @@ namespace {
     return {};
   }
 
+  SweepNPruneBroadphase::BoundariesConfig _getStaticBoundariesConfig() {
+    //Can fit more snugly since they are axis aligned
+    SweepNPruneBroadphase::BoundariesConfig result;
+    result.mPadding = 0.0f;
+    return result;
+  }
+
   size_t _requestTextureLoad(TextureRequestTable& requests, const char* filename) {
     TextureLoadRequest* request = &TableOperations::addToTable(requests).get<0>();
     request->mFileName = filename;
@@ -241,7 +248,7 @@ namespace {
   }
 
   //Check to see if each fragment has reached its goal
-  void _checkFragmentGoals(GameObjectTable& fragments, StaticGameObjectTable& destinationFragments) {
+  void _checkFragmentGoals(GameObjectTable& fragments, StaticGameObjectTable& destinationFragments, BroadphaseTable& broadphase) {
     ispc::UniformConstVec2 pos = _unwrapConstFloatRow<Pos>(fragments);
     ispc::UniformConstVec2 goal = _unwrapConstFloatRow<FragmentGoal>(fragments);
     uint8_t* goalFound = _unwrapRow<FragmentGoalFoundRow>(fragments);
@@ -252,6 +259,8 @@ namespace {
     //If the goal was found, move them to the destination table.
     //Do this in reverse so the swap remove doesn't mess up a previous removal
     const size_t oldTableSize = TableOperations::size(fragments);
+    const size_t oldDestinationEnd = TableOperations::size(destinationFragments);
+
     for(size_t i = 0; i < oldTableSize; ++i) {
       const size_t reverseIndex = oldTableSize - i - 1;
       if(goalFound[reverseIndex]) {
@@ -263,8 +272,80 @@ namespace {
         std::get<FloatRow<Rot, CosAngle>>(fragments.mRows).at(reverseIndex) = 1.0f;
         std::get<FloatRow<Rot, SinAngle>>(fragments.mRows).at(reverseIndex) = 0.0f;
 
+        auto& oldMinX = std::get<SweepNPruneBroadphase::OldMinX>(fragments.mRows);
+        auto& oldMinY = std::get<SweepNPruneBroadphase::OldMinY>(fragments.mRows);
+        auto& keys = std::get<SweepNPruneBroadphase::Key>(fragments.mRows);
+        SweepNPruneBroadphase::eraseRange(reverseIndex, 1, broadphase, oldMinX, oldMinY, keys);
+
         TableOperations::migrateOne(fragments, destinationFragments, reverseIndex);
+        //Update the mapping for the element that got swapped into this location
+        if(reverseIndex < TableOperations::size(fragments)) {
+          SweepNPruneBroadphase::informObjectMovedTables(
+            std::get<SharedRow<SweepNPruneBroadphase::CollisionPairMappings>>(broadphase.mRows).at(),
+            std::get<SharedRow<SweepNPruneBroadphase::PairChanges>>(broadphase.mRows).at(),
+            keys.at(reverseIndex),
+            reverseIndex);
+        }
       }
+    }
+
+    //Update the broadphase mappings in place here
+    //If this becomes a more common occurence this table migration should be deferred so this update
+    //can be done in a less fragile way
+    const size_t newElements = TableOperations::size(destinationFragments) - oldDestinationEnd;
+    if(newElements > 0) {
+      auto& posX = std::get<FloatRow<Pos, X>>(destinationFragments.mRows);
+      auto& posY = std::get<FloatRow<Pos, Y>>(destinationFragments.mRows);
+      auto& keys = std::get<SweepNPruneBroadphase::Key>(destinationFragments.mRows);
+      //Scratch containers used to insert the elements, don't need to be stored since objects won't move after this
+      Table<SweepNPruneBroadphase::NeedsReinsert,
+        SweepNPruneBroadphase::OldMinX,
+        SweepNPruneBroadphase::OldMinY,
+        SweepNPruneBroadphase::OldMaxX,
+        SweepNPruneBroadphase::OldMaxY,
+        SweepNPruneBroadphase::NewMinX,
+        SweepNPruneBroadphase::NewMinY,
+        SweepNPruneBroadphase::NewMaxX,
+        SweepNPruneBroadphase::NewMaxY,
+        SweepNPruneBroadphase::Key> tempTable;
+      TableOperations::resizeTable(tempTable, newElements);
+
+      auto config = _getStaticBoundariesConfig();
+
+      SweepNPruneBroadphase::recomputeBoundaries(
+        _unwrapRow<SweepNPruneBroadphase::OldMinX>(tempTable),
+        _unwrapRow<SweepNPruneBroadphase::OldMaxX>(tempTable),
+        _unwrapRow<SweepNPruneBroadphase::NewMinX>(tempTable),
+        _unwrapRow<SweepNPruneBroadphase::NewMaxX>(tempTable),
+        posX.mElements.data() + oldDestinationEnd,
+        config,
+        std::get<SweepNPruneBroadphase::NeedsReinsert>(tempTable.mRows));
+      SweepNPruneBroadphase::recomputeBoundaries(
+        _unwrapRow<SweepNPruneBroadphase::OldMinY>(tempTable),
+        _unwrapRow<SweepNPruneBroadphase::OldMaxY>(tempTable),
+        _unwrapRow<SweepNPruneBroadphase::NewMinY>(tempTable),
+        _unwrapRow<SweepNPruneBroadphase::NewMaxY>(tempTable),
+        posY.mElements.data() + oldDestinationEnd,
+        config,
+        std::get<SweepNPruneBroadphase::NeedsReinsert>(tempTable.mRows));
+
+      //Table id with built in offset to the start of the index in the destination table, which is different from the temp table
+      SweepNPruneBroadphase::insertRange(GameDatabase::getTableIndex<StaticGameObjectTable>().mValue + oldDestinationEnd,
+        0,
+        newElements,
+        broadphase,
+        std::get<SweepNPruneBroadphase::OldMinX>(tempTable.mRows),
+        std::get<SweepNPruneBroadphase::OldMinY>(tempTable.mRows),
+        std::get<SweepNPruneBroadphase::OldMaxX>(tempTable.mRows),
+        std::get<SweepNPruneBroadphase::OldMaxY>(tempTable.mRows),
+        std::get<SweepNPruneBroadphase::NewMinX>(tempTable.mRows),
+        std::get<SweepNPruneBroadphase::NewMinY>(tempTable.mRows),
+        std::get<SweepNPruneBroadphase::NewMaxX>(tempTable.mRows),
+        std::get<SweepNPruneBroadphase::NewMaxY>(tempTable.mRows),
+        std::get<SweepNPruneBroadphase::Key>(tempTable.mRows));
+
+      //Copy the keys from the temp table to the destination table
+      std::memcpy(keys.mElements.data() + oldDestinationEnd, std::get<SweepNPruneBroadphase::Key>(tempTable.mRows).mElements.data(), sizeof(size_t)*newElements);
     }
   }
 
@@ -355,7 +436,8 @@ namespace {
       SweepNPruneBroadphase::updateCollisionPairs<CollisionPairIndexA, CollisionPairIndexB>(
         std::get<SharedRow<SweepNPruneBroadphase::PairChanges>>(broadphase.mRows).at(),
         std::get<SharedRow<SweepNPruneBroadphase::CollisionPairMappings>>(broadphase.mRows).at(),
-        collisionPairs);
+        collisionPairs,
+        physicsTables);
     });
 
     Physics::fillNarrowphaseData<PosX, PosY, RotX, RotY>(collisionPairs, db);
@@ -429,7 +511,7 @@ namespace {
     _updatePlayerInput(std::get<PlayerTable>(db.mTables));
     _updateDebugCamera(std::get<CameraTable>(db.mTables));
 
-    //_checkFragmentGoals(std::get<GameObjectTable>(db.mTables), std::get<StaticGameObjectTable>(db.mTables));
+    _checkFragmentGoals(std::get<GameObjectTable>(db.mTables), std::get<StaticGameObjectTable>(db.mTables), std::get<BroadphaseTable>(db.mTables));
 
     _enforceWorldBoundary(db);
     _updatePhysics(db);

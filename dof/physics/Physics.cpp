@@ -734,6 +734,8 @@ void Physics::buildConstraintsTable(
         //These are nonsense entires that won't be used for anything, at least set them to no sync so they don't try to copy stale data
         data.mSyncTypeA.at(currentConstraintIndex) = ispc::NoSync;
         data.mSyncTypeB.at(currentConstraintIndex) = ispc::NoSync;
+        data.mPairIndexA.at(currentConstraintIndex) = dbDetails::INVALID_VALUE;
+        data.mPairIndexB.at(currentConstraintIndex) = dbDetails::INVALID_VALUE;
         ++currentConstraintIndex;
       }
     }
@@ -812,6 +814,8 @@ void Physics::buildConstraintsTable(
         //These are nonsense entires that won't be used for anything, at least set them to no sync so they don't try to copy stale data
         staticData.mSyncTypeA.at(currentConstraintIndex) = ispc::NoSync;
         staticData.mSyncTypeB.at(currentConstraintIndex) = ispc::NoSync;
+        data.mPairIndexA.at(currentConstraintIndex) = dbDetails::INVALID_VALUE;
+        data.mPairIndexB.at(currentConstraintIndex) = dbDetails::INVALID_VALUE;
         ++currentConstraintIndex;
       }
     }

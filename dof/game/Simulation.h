@@ -123,6 +123,9 @@ using StaticGameObjectTable = Table<
   FloatRow<Tags::Pos, Tags::Y>,
   FloatRow<Tags::Rot, Tags::CosAngle>,
   FloatRow<Tags::Rot, Tags::SinAngle>,
+  //Only requires broadphase key to know how to remove it, don't need to store boundaries
+  //for efficient updates because it won't move
+  SweepNPruneBroadphase::Key,
   Row<CubeSprite>,
   SharedRow<TextureReference>
 >;
@@ -198,9 +201,9 @@ using DebugLineTable = Table<Row<DebugPoint>>;
 using BroadphaseTable = SweepNPruneBroadphase::BroadphaseTable;
 
 using GameDatabase = Database<
+  GlobalGameData,
   GameObjectTable,
   StaticGameObjectTable,
-  GlobalGameData,
   TextureRequestTable,
   PlayerTable,
   CameraTable,

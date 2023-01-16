@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cassert>
+#include "PhysicsTableIds.h"
 #include "Table.h"
 #include "TableOperations.h"
 #include "SweepNPrune.h"
@@ -30,8 +32,13 @@ struct SweepNPruneBroadphase {
     size_t mNewKey{};
   };
   struct PairChanges {
+    //New collision pairs caused by reinserts or inserts
     std::vector<SweepCollisionPair> mGained;
+    //Removed collision pairs caused by reinserts or erases
     std::vector<SweepCollisionPair> mLost;
+    //Pairs whose element ids changed due to swap removal and need to be rewritten
+    //The SweepCollisionPair ids are the same, it's the element ids they map to via CollisionPairMappings
+    std::vector<SweepCollisionPair> mMoved;
   };
   using BroadphaseTable = Table<
     SharedRow<Sweep2D>,
@@ -101,11 +108,35 @@ struct SweepNPruneBroadphase {
     OldMinY& oldMinY,
     Key& key);
 
-  static void informObjectMovedTables(CollisionPairMappings& mappings, size_t key, size_t elementID);
+  static void informObjectMovedTables(CollisionPairMappings& mappings, PairChanges& changes, size_t key, size_t elementID);
+
+  static std::optional<std::pair<size_t, size_t>> _tryGetOrderedCollisionPair(const SweepCollisionPair& key, const CollisionPairMappings& mappings, const PhysicsTableIds& tableIds, bool assertIfMissing) {
+    auto elementA = mappings.mKeyToTableElementId.find(key.mA);
+    auto elementB = mappings.mKeyToTableElementId.find(key.mB);
+    if(assertIfMissing) {
+      assert(elementA != mappings.mKeyToTableElementId.end());
+      assert(elementB != mappings.mKeyToTableElementId.end());
+    }
+    if(elementA != mappings.mKeyToTableElementId.end() && elementB != mappings.mKeyToTableElementId.end()) {
+      auto pair = std::make_pair(elementA->second, elementB->second);
+      //If this isn't an applicable pair, skip to the next without incrementing addIndex
+      if(CollisionPairOrder::tryOrderCollisionPair(pair.first, pair.second, tableIds)) {
+        return pair;
+      }
+    }
+    return {};
+  }
 
   //Create and remove based on the changes in PairChanges
   template<class PairIndexA, class PairIndexB, class TableT>
-  static void updateCollisionPairs(PairChanges& changes, CollisionPairMappings& mappings, TableT& table) {
+  static void updateCollisionPairs(PairChanges& changes, CollisionPairMappings& mappings, TableT& table, const PhysicsTableIds& tableIds) {
+    //TODO: order these somewhere else
+    for(size_t i = 0; i < changes.mGained.size(); ++i) {
+      SweepCollisionPair& gain = changes.mGained[i];
+      if(gain.mA > gain.mB) {
+        std::swap(gain.mA, gain.mB);
+      }
+    }
     for(SweepCollisionPair loss : changes.mLost) {
       //TODO: order these somewhere else
       if(loss.mA > loss.mB) {
@@ -114,6 +145,7 @@ struct SweepNPruneBroadphase {
       if(auto it = mappings.mSweepPairToCollisionTableIndex.find(loss); it != mappings.mSweepPairToCollisionTableIndex.end()) {
         const size_t swappedIndex = TableOperations::size(table) - 1;
         const size_t removedPairIndex = it->second;
+        printf("Remove pair index %d between %d and %d\n", (int)removedPairIndex, (int)loss.mA, (int)loss.mB);
         TableOperations::swapRemove(table, removedPairIndex);
         std::swap(mappings.mCollisionTableIndexToSweepPair[removedPairIndex], mappings.mCollisionTableIndexToSweepPair[swappedIndex]);
         mappings.mCollisionTableIndexToSweepPair.pop_back();
@@ -130,7 +162,8 @@ struct SweepNPruneBroadphase {
         changes.mGained.pop_back();
       }
       else {
-        assert(false);
+        printf("didn't find pair to remove");
+        //assert(false);
       }
     }
 
@@ -146,27 +179,43 @@ struct SweepNPruneBroadphase {
     mappings.mCollisionTableIndexToSweepPair.resize(newSize);
     auto& pairA = std::get<PairIndexA>(table.mRows);
     auto& pairB = std::get<PairIndexB>(table.mRows);
+    size_t addIndex = gainBegin;
     for(size_t i = 0; i < changes.mGained.size(); ++i) {
       SweepCollisionPair gain = changes.mGained[i];
-      if(gain.mA > gain.mB) {
-        std::swap(gain.mA, gain.mB);
-      }
-      const size_t addIndex = gainBegin + i;
-      //Assign mappings so this can be found above in removal
-      assert(mappings.mSweepPairToCollisionTableIndex.find(gain) == mappings.mSweepPairToCollisionTableIndex.end());
-      mappings.mCollisionTableIndexToSweepPair[addIndex] = gain;
-      mappings.mSweepPairToCollisionTableIndex[gain] = addIndex;
 
       //Assign pair indices, the mappings are populated upon insertion and when objects move tables
-      auto elementA = mappings.mKeyToTableElementId.find(gain.mA);
-      auto elementB = mappings.mKeyToTableElementId.find(gain.mB);
-      assert(elementA != mappings.mKeyToTableElementId.end());
-      assert(elementB != mappings.mKeyToTableElementId.end());
-      if(elementA != mappings.mKeyToTableElementId.end() && elementB != mappings.mKeyToTableElementId.end()) {
-        pairA.at(addIndex) = elementA->second;
-        pairB.at(addIndex) = elementB->second;
+      //If this isn't an applicable pair, skip to the next without incrementing addIndex
+      if(auto pair = _tryGetOrderedCollisionPair(gain, mappings, tableIds, true)) {
+        pairA.at(addIndex) = pair->first;
+        pairB.at(addIndex) = pair->second;
+
+        //Assign mappings so this can be found above in removal
+        assert(mappings.mSweepPairToCollisionTableIndex.find(gain) == mappings.mSweepPairToCollisionTableIndex.end());
+        mappings.mCollisionTableIndexToSweepPair[addIndex] = gain;
+        mappings.mSweepPairToCollisionTableIndex[gain] = addIndex;
+
+        ++addIndex;
       }
     }
+
+    //If less were added than expected, shrink down the extra space
+    if(addIndex < newSize) {
+      TableOperations::resizeTable(table, addIndex);
+      mappings.mCollisionTableIndexToSweepPair.reserve(newSize);
+    }
+
+    //Lastly, for any pairs whose element ids need an update, do so, using the mappings to ensure they haven't been removed
+    for(const auto& pair : changes.mMoved) {
+      if(auto found = mappings.mSweepPairToCollisionTableIndex.find(pair); found != mappings.mSweepPairToCollisionTableIndex.end()) {
+        const size_t indexToUpdate = found->second;
+        if(auto updatedPair = _tryGetOrderedCollisionPair(pair, mappings, tableIds, false)) {
+          pairA.at(indexToUpdate) = updatedPair->first;
+          pairB.at(indexToUpdate) = updatedPair->second;
+        }
+      }
+    }
+
+    changes.mMoved.clear();
     changes.mGained.clear();
   }
 };

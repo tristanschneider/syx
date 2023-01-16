@@ -212,8 +212,6 @@ using ContactConstraintsToStaticObjectsTable = Table<
   ConstraintData::LambdaSumTwo,
   ConstraintData::FrictionLambdaSumOne,
   ConstraintData::FrictionLambdaSumTwo,
-  SharedRow<FinalSyncIndices>,
-  ConstraintData::SharedVisitDataRow,
 
   ConstraintData::CommonTableStartIndex
 >;
@@ -227,6 +225,9 @@ struct Physics {
       DatabaseT::ElementID last;
       for(size_t i = 0; i < ids.size(); ++i) {
         const DatabaseT::ElementID id(ids[i]);
+        if(!id.isValid()) {
+          continue;
+        }
         //Retreive the rows every time the tables change, which should be rarely
         if(!src || last.getTableIndex() != id.getTableIndex()) {
           src = Queries::getRowInTable<SrcRow>(db, id);

@@ -25,20 +25,8 @@ namespace {
     return size_t(cx - dimensions.mMin.x) + size_t(cy - dimensions.mMin.y)*dimensions.mStride;
   }
 
-  bool _tryOrderCollisionPair(size_t& pairA, size_t& pairB, const PhysicsTableIds& tables) {
-    //Always make zero mass object 'B' in a pair for simplicity
-    if((pairA & tables.mTableIDMask) == tables.mZeroMassTable) {
-      if((pairB & tables.mTableIDMask) == tables.mZeroMassTable) {
-        //If they're both static, skip this pair
-        return false;
-      }
-      std::swap(pairA, pairB);
-    }
-    return true;
-  }
-
   void _addCollisionPair(size_t self, size_t other, CollisionPairsTable& table, const PhysicsTableIds& tableIds) {
-    if(!_tryOrderCollisionPair(self, other, tableIds)) {
+    if(!CollisionPairOrder::tryOrderCollisionPair(self, other, tableIds)) {
       return;
     }
 
