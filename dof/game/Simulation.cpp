@@ -37,6 +37,10 @@ namespace {
     return result;
   }
 
+  StableElementMappings& _getStableMappings(GameDatabase& db) {
+    return std::get<SharedRow<StableElementMappings>>(std::get<GlobalGameData>(db.mTables).mRows).at();
+  }
+
   size_t _requestTextureLoad(TextureRequestTable& requests, const char* filename) {
     TextureLoadRequest* request = &TableOperations::addToTable(requests).get<0>();
     request->mFileName = filename;
@@ -97,7 +101,7 @@ namespace {
     mainCamera.zoom = 15.f;
 
     PlayerTable& players = std::get<PlayerTable>(db.mTables);
-    TableOperations::resizeTable(players, 1);
+    TableOperations::stableResizeTable(players, GameDatabase::getTableIndex<PlayerTable>(), 1, _getStableMappings(db));
     std::get<SharedRow<TextureReference>>(players.mRows).at().mId = scene.mPlayerImage;
     std::get<FloatRow<Rot, CosAngle>>(players.mRows).at(0) = 1.0f;
     //Random angle in sort of radians
@@ -112,10 +116,10 @@ namespace {
     std::get<SharedRow<TextureReference>>(staticObjects.mRows).at().mId = scene.mBackgroundImage;
 
     //Add some arbitrary objects for testing
-    const size_t rows = 5;
-    const size_t columns = 5;
+    const size_t rows = 2;
+    const size_t columns = 2;
     const size_t total = rows*columns;
-    TableOperations::resizeTable(gameobjects, total);
+    TableOperations::stableResizeTable(gameobjects, GameDatabase::getTableIndex<GameObjectTable>(), total, _getStableMappings(db));
 
     float startX = -float(columns)/2.0f;
     float startY = -float(rows)/2.0f;
@@ -248,7 +252,7 @@ namespace {
   }
 
   //Check to see if each fragment has reached its goal
-  void _checkFragmentGoals(GameObjectTable& fragments, StaticGameObjectTable& destinationFragments, BroadphaseTable& broadphase) {
+  void _checkFragmentGoals(GameObjectTable& fragments, StaticGameObjectTable& destinationFragments, BroadphaseTable& broadphase, StableElementMappings& mappings) {
     ispc::UniformConstVec2 pos = _unwrapConstFloatRow<Pos>(fragments);
     ispc::UniformConstVec2 goal = _unwrapConstFloatRow<FragmentGoal>(fragments);
     uint8_t* goalFound = _unwrapRow<FragmentGoalFoundRow>(fragments);
@@ -277,7 +281,9 @@ namespace {
         auto& keys = std::get<SweepNPruneBroadphase::Key>(fragments.mRows);
         SweepNPruneBroadphase::eraseRange(reverseIndex, 1, broadphase, oldMinX, oldMinY, keys);
 
-        TableOperations::migrateOne(fragments, destinationFragments, reverseIndex);
+        GameDatabase::ElementID removeIndex{ GameDatabase::getTableIndex<GameObjectTable>().getTableIndex(), reverseIndex };
+        constexpr GameDatabase::ElementID destinationTableID = GameDatabase::getTableIndex<StaticGameObjectTable>();
+        TableOperations::stableMigrateOne(fragments, destinationFragments, removeIndex, destinationTableID, mappings);
         //Update the mapping for the element that got swapped into this location
         if(reverseIndex < TableOperations::size(fragments)) {
           SweepNPruneBroadphase::informObjectMovedTables(
@@ -455,7 +461,7 @@ namespace {
     };
 
     static bool drawCollisionPairs = false;
-    static bool drawContacts = false;
+    static bool drawContacts = true;
     if(drawCollisionPairs) {
       auto& ax = std::get<NarrowphaseData<PairA>::PosX>(collisionPairs.mRows);
       auto& ay = std::get<NarrowphaseData<PairA>::PosY>(collisionPairs.mRows);
@@ -464,6 +470,10 @@ namespace {
       for(size_t i = 0; i < ax.size(); ++i) {
         addLine(glm::vec2(ax.at(i), ay.at(i)), glm::vec2(bx.at(i), by.at(i)), glm::vec3(0.0f, 1.0f, 0.0f));
       }
+    }
+
+    if(!TableOperations::size(std::get<GameObjectTable>(db.mTables))) {
+      printf("problem case?");
     }
 
     Physics::buildConstraintsTable(collisionPairs, constraints, staticConstraints, constraintsCommon, physicsTables);
@@ -511,7 +521,7 @@ namespace {
     _updatePlayerInput(std::get<PlayerTable>(db.mTables));
     _updateDebugCamera(std::get<CameraTable>(db.mTables));
 
-    _checkFragmentGoals(std::get<GameObjectTable>(db.mTables), std::get<StaticGameObjectTable>(db.mTables), std::get<BroadphaseTable>(db.mTables));
+    _checkFragmentGoals(std::get<GameObjectTable>(db.mTables), std::get<StaticGameObjectTable>(db.mTables), std::get<BroadphaseTable>(db.mTables), _getStableMappings(db));
 
     _enforceWorldBoundary(db);
     _updatePhysics(db);

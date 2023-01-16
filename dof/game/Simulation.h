@@ -7,6 +7,7 @@
 #include "glm/vec2.hpp"
 #include "glm/vec3.hpp"
 #include "SweepNPruneBroadphase.h"
+#include "StableElementID.h"
 #include "PhysicsTableIds.h"
 #include <bitset>
 
@@ -88,7 +89,8 @@ using TextureRequestTable = Table<
 using GlobalGameData = Table<
   SharedRow<SceneState>,
   SharedRow<PhysicsTableIds>,
-  SharedRow<FileSystem>
+  SharedRow<FileSystem>,
+  SharedRow<StableElementMappings>
 >;
 
 using GameObjectTable = Table<
@@ -115,7 +117,9 @@ using GameObjectTable = Table<
 
   Row<CubeSprite>,
   FragmentGoalFoundRow,
-  SharedRow<TextureReference>
+  SharedRow<TextureReference>,
+
+  StableIDRow
 >;
 
 using StaticGameObjectTable = Table<
@@ -127,7 +131,9 @@ using StaticGameObjectTable = Table<
   //for efficient updates because it won't move
   SweepNPruneBroadphase::Key,
   Row<CubeSprite>,
-  SharedRow<TextureReference>
+  SharedRow<TextureReference>,
+
+  StableIDRow
 >;
 
 //Final desired move input state
@@ -172,7 +178,9 @@ using PlayerTable = Table<
   Row<CubeSprite>,
   Row<PlayerInput>,
   Row<PlayerKeyboardInput>,
-  SharedRow<TextureReference>
+  SharedRow<TextureReference>,
+
+  StableIDRow
 >;
 
 struct Camera {

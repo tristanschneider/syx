@@ -275,10 +275,14 @@ namespace Test {
         FloatRow<Tags::AngVel, Tags::Angle>>(constraints, db);
     }
 
+    static StableElementMappings& _getStableMappings(GameDatabase& db) {
+      return std::get<SharedRow<StableElementMappings>>(std::get<GlobalGameData>(db.mTables).mRows).at();
+    }
+
     TEST_METHOD(CollidingPair_PopulateNarrowphase_IsPopulated) {
       GameDatabase db;
       auto& gameobjects = std::get<GameObjectTable>(db.mTables);
-      TableOperations::resizeTable(gameobjects, 2);
+      TableOperations::stableResizeTable(gameobjects, GameDatabase::getTableIndex<GameObjectTable>(), 2, _getStableMappings(db));
       GridBroadphase::BroadphaseTable broadphase;
       auto& dimensions = std::get<SharedRow<GridBroadphase::RequestedDimensions>>(broadphase.mRows).at();
       dimensions.mMin.x = 0;
@@ -307,7 +311,7 @@ namespace Test {
     TEST_METHOD(DistantPair_PopulateNarrowphase_NoPairs) {
       GameDatabase db;
       auto& gameobjects = std::get<GameObjectTable>(db.mTables);
-      TableOperations::resizeTable(gameobjects, 2);
+      TableOperations::stableResizeTable(gameobjects, GameDatabase::getTableIndex<GameObjectTable>(), 2, _getStableMappings(db));
       GridBroadphase::BroadphaseTable broadphase;
       auto& dimensions = std::get<SharedRow<GridBroadphase::RequestedDimensions>>(broadphase.mRows).at();
       dimensions.mMin.x = 0;
@@ -330,7 +334,8 @@ namespace Test {
     TEST_METHOD(TwoPairsSameObject_GenerateCollisionPairs_HasPairs) {
       GameDatabase db;
       auto& gameobjects = std::get<GameObjectTable>(db.mTables);
-      TableOperations::resizeTable(gameobjects, 3);
+      TableOperations::stableResizeTable(gameobjects, GameDatabase::getTableIndex<GameObjectTable>(), 3, _getStableMappings(db));
+
       GridBroadphase::BroadphaseTable broadphase;
       auto& dimensions = std::get<SharedRow<GridBroadphase::RequestedDimensions>>(broadphase.mRows).at();
       dimensions.mMin.x = 0;
@@ -366,7 +371,7 @@ namespace Test {
     TEST_METHOD(CollidingPair_GenerateContacts_AreGenerated) {
       GameDatabase db;
       auto& gameobjects = std::get<GameObjectTable>(db.mTables);
-      TableOperations::resizeTable(gameobjects, 2);
+      TableOperations::stableResizeTable(gameobjects, GameDatabase::getTableIndex<GameObjectTable>(), 2, _getStableMappings(db));
       GridBroadphase::BroadphaseTable broadphase;
       auto& dimensions = std::get<SharedRow<GridBroadphase::RequestedDimensions>>(broadphase.mRows).at();
       dimensions.mMin.x = 0;
@@ -399,7 +404,7 @@ namespace Test {
     TEST_METHOD(CollidingPair_SolveConstraints_AreSeparated) {
       GameDatabase db;
       auto& gameobjects = std::get<GameObjectTable>(db.mTables);
-      TableOperations::resizeTable(gameobjects, 2);
+      TableOperations::stableResizeTable(gameobjects, GameDatabase::getTableIndex<GameObjectTable>(), 2, _getStableMappings(db));
       GridBroadphase::BroadphaseTable broadphase;
       auto& dimensions = std::get<SharedRow<GridBroadphase::RequestedDimensions>>(broadphase.mRows).at();
       auto& constraints = std::get<ConstraintsTable>(db.mTables);
