@@ -1,5 +1,6 @@
 #pragma once
 
+#include "StableElementID.h"
 #include "Table.h"
 
 template<class>
@@ -12,8 +13,8 @@ struct NarrowphaseData {
 struct PairA{};
 struct PairB{};
 
-struct CollisionPairIndexA : Row<size_t> {};
-struct CollisionPairIndexB : Row<size_t> {};
+struct CollisionPairIndexA : Row<StableElementID> {};
+struct CollisionPairIndexB : Row<StableElementID> {};
 
 template<class>
 struct ContactPoint {

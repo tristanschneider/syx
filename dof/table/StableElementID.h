@@ -1,6 +1,5 @@
 #pragma once
 #include "Database.h"
-#include "Queries.h"
 #include "Table.h"
 
 #include <optional>
@@ -12,6 +11,14 @@
 struct StableElementID {
   bool operator==(const StableElementID& id) const {
     return mUnstableIndex == id.mUnstableIndex && mStableID == id.mStableID;
+  }
+
+  bool operator!=(const StableElementID& id) const {
+    return !(*this == id);
+  }
+
+  static constexpr StableElementID invalid() {
+    return { std::numeric_limits<size_t>::max(), std::numeric_limits<size_t>::max() };
   }
 
   //ElementID of database, meaning a combination of the table index and element index
@@ -28,13 +35,25 @@ struct StableIDRow : Row<size_t> {};
 
 struct StableOperations {
   struct details {
+    template<class Row, class DatabaseT>
+    static Row* getRowInTable(DatabaseT& db, typename DatabaseT::ElementID id) {
+      Row* result = nullptr;
+      db.visitOneByIndex(id, [&](auto& table) {
+        using TableT = std::decay_t<decltype(table)>;
+        if constexpr(TableOperations::hasRow<Row, TableT>()) {
+          result = &TableOperations::getRow<Row>(table);
+        }
+      });
+      return result;
+    }
+
     template<class... Tables>
     static bool isUnstableElementValid(Database<Tables...>& db, const StableElementID& id) {
       using ElementIDT = typename Database<Tables...>::ElementID;
       const ElementIDT unstableElement{ id.mUnstableIndex };
       const size_t unstableIndex = unstableElement.getElementIndex();
 
-      const StableIDRow* ids = Queries::getRowInTable<StableIDRow>(db, unstableElement);
+      const StableIDRow* ids = getRowInTable<StableIDRow>(db, unstableElement);
       assert(ids && "Element should at least be pointing at a table that has a stable id row");
       if(!ids) {
         return false;

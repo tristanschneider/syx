@@ -65,6 +65,11 @@ struct TextureReference {
   size_t mId = 0;
 };
 
+struct SceneArgs {
+  size_t mFragmentRows{};
+  size_t mFragmentColumns{};
+};
+
 struct SceneState {
   enum class State : uint8_t {
     InitRequestAssets,
@@ -112,7 +117,6 @@ using GameObjectTable = Table<
   SweepNPruneBroadphase::NewMinY,
   SweepNPruneBroadphase::NewMaxX,
   SweepNPruneBroadphase::NewMaxY,
-  SweepNPruneBroadphase::Key,
   SweepNPruneBroadphase::NeedsReinsert,
 
   Row<CubeSprite>,
@@ -129,7 +133,6 @@ using StaticGameObjectTable = Table<
   FloatRow<Tags::Rot, Tags::SinAngle>,
   //Only requires broadphase key to know how to remove it, don't need to store boundaries
   //for efficient updates because it won't move
-  SweepNPruneBroadphase::Key,
   Row<CubeSprite>,
   SharedRow<TextureReference>,
 
@@ -172,7 +175,6 @@ using PlayerTable = Table<
   SweepNPruneBroadphase::NewMinY,
   SweepNPruneBroadphase::NewMaxX,
   SweepNPruneBroadphase::NewMaxY,
-  SweepNPruneBroadphase::Key,
   SweepNPruneBroadphase::NeedsReinsert,
 
   Row<CubeSprite>,
@@ -225,6 +227,16 @@ using GameDatabase = Database<
 
 struct Simulation {
   static void update(GameDatabase& db);
+
+  static SceneState::State _setupScene(GameDatabase& db, const SceneArgs& args);
+  static void _updatePhysics(GameDatabase& db, const PhysicsConfig& config);
+  //Insert all objects into the broadphase that can be. Doesn't check if they already are, meant for initial insert
+  static void _initialPopulateBroadphase(GameDatabase& db);
+
+  static void _checkFragmentGoals(GameDatabase& db);
+  static void _migrateCompletedFragments(GameDatabase& db);
+  static void _checkFragmentGoals(GameObjectTable& fragments);
+  static void _migrateCompletedFragments(GameObjectTable& fragments, StaticGameObjectTable& destinationFragments, BroadphaseTable& broadphase, StableElementMappings& mappings);
 
   static PhysicsTableIds _getPhysicsTableIds();
 };

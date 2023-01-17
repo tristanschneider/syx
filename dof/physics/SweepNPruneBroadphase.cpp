@@ -29,7 +29,7 @@ bool SweepNPruneBroadphase::recomputeBoundaries(const float* oldMinAxis, const f
   return anyNeedsRecompute;
 }
 
-void SweepNPruneBroadphase::insertRange(size_t tableID, size_t begin, size_t count,
+void SweepNPruneBroadphase::insertRange(size_t begin, size_t count,
   BroadphaseTable& broadphase,
   OldMinX& oldMinX,
   OldMinY& oldMinY,
@@ -42,15 +42,6 @@ void SweepNPruneBroadphase::insertRange(size_t tableID, size_t begin, size_t cou
   Key& key) {
   PairChanges& changes = std::get<SharedRow<PairChanges>>(broadphase.mRows).at();
   Sweep2D& sweep = std::get<SharedRow<Sweep2D>>(broadphase.mRows).at();
-  Keygen& keygen = std::get<SharedRow<Keygen>>(broadphase.mRows).at();
-  CollisionPairMappings& mappings = std::get<SharedRow<CollisionPairMappings>>(broadphase.mRows).at();
-  size_t* keys = _unwrapWithOffset(key, begin);
-  //Assign new keys that will be inserted below
-  for(size_t i = 0; i < count; ++i) {
-    keys[i] = ++keygen.mNewKey;
-    //Store the object index for later use in updateCollisionPairs
-    mappings.mKeyToTableElementId[keys[i]] = tableID + i;
-  }
 
   //Use new boundaries to insert
   SweepNPrune::insertRange(sweep,
@@ -168,29 +159,10 @@ void SweepNPruneBroadphase::eraseRange(size_t begin, size_t count,
   Key& key) {
   PairChanges& changes = std::get<SharedRow<PairChanges>>(broadphase.mRows).at();
   Sweep2D& sweep = std::get<SharedRow<Sweep2D>>(broadphase.mRows).at();
-  CollisionPairMappings& mappings = std::get<SharedRow<CollisionPairMappings>>(broadphase.mRows).at();
   SweepNPrune::eraseRange(sweep,
     _unwrapWithOffset(oldMinX, begin),
     _unwrapWithOffset(oldMinY, begin),
     _unwrapWithOffset(key, begin),
     changes.mLost,
     count);
-
-  //Remove the mappings to these objects now. Their collision pairs will be removed in the next updateCollisionPairs
-  const size_t* keys = _unwrapWithOffset(key, begin);
-  for(size_t i = 0; i < count; ++i) {
-    if(auto it = mappings.mKeyToTableElementId.find(keys[i]); it != mappings.mKeyToTableElementId.end()) {
-      mappings.mKeyToTableElementId.erase(it);
-    }
-  }
-}
-
-void SweepNPruneBroadphase::informObjectMovedTables(CollisionPairMappings& mappings, PairChanges& changes, size_t key, size_t elementID) {
-  mappings.mKeyToTableElementId[key] = elementID;
-  for(const auto& pair : mappings.mCollisionTableIndexToSweepPair) {
-    if(pair.mA == key || pair.mB == key) {
-      changes.mMoved.push_back(pair);
-    }
-  }
-
 }

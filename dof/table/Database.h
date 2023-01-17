@@ -113,8 +113,13 @@ struct Database {
   };
 
   template<class TableT>
+  static constexpr ElementID getElementID(size_t index) {
+    return ElementID(GetIndexImpl::_getTableIndex<TableT, 0, Tables...>(), index);
+  }
+
+  template<class TableT>
   static constexpr ElementID getTableIndex() {
-    return ElementID(GetIndexImpl::_getTableIndex<TableT, 0, Tables...>(), size_t(0));
+    return getElementID<TableT>(0);
   }
 
   template<class Visitor>

@@ -3,6 +3,16 @@
 #include "StableElementID.h"
 
 struct TableOperations {
+  template<class RowT>
+  static auto _unwrapWithOffset(RowT& r, size_t offset) {
+    return r.mElements.data() + offset;
+  }
+
+  template<class RowT, class TableT>
+  static auto _unwrapRowWithOffset(TableT& t, size_t offset) {
+    return _unwrapWithOffset(std::get<RowT>(t.mRows), offset);
+  }
+
   template<class TableT>
   static constexpr bool isStableTable = TableT::HasRow<StableIDRow>;
 

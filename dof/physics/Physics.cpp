@@ -76,297 +76,290 @@ void Physics::details::_applyDampingMultiplier(float* velocity, float amount, si
   ispc::applyDampingMultiplier(velocity, amount, uint32_t(count));
 }
 
+//Hack copy of the ispc code that can be used for debugging
 namespace notispc {
-glm::vec2 transposeRotation(float cosAngle, float sinAngle) {
-  //Rotation matrix is
-  //[cos(x), -sin(x)]
-  //[sin(x), cos(x)]
-  //So the transpose given cos and sin is negating sin
-  glm::vec2 result = { cosAngle, -sinAngle };
-  return result;
-}
+  float crossProduct(float ax, float ay, float bx, float by) {
+    //[ax] x [bx] = [ax*by - ay*bx]
+    //[ay]   [by]
+    return ax*by - ay*bx;
+  }
 
-//Multiply rotation matrices A*B represented by cos and sin since they're symmetric
-glm::vec2 multiplyRotationMatrices(float cosAngleA, float sinAngleA, float cosAngleB, float sinAngleB) {
-  //[cosAngleA, -sinAngleA]*[cosAngleB, -sinAngleB] = [cosAngleA*cosAngleB - sinAngleA*sinAngleB, ...]
-  //[sinAngleA, cosAngleA]  [sinAngleB, cosAngleB]    [sinAngleA*cosAngleB + cosAngleA*sinAngleB, ...]
-  glm::vec2 result = { cosAngleA*cosAngleB - sinAngleA*sinAngleB, sinAngleA*cosAngleB + cosAngleA*sinAngleB };
-  return result;
-}
+  glm::vec2 orthogonal(float x, float y) {
+    //Cross product with unit Z since everything in 2D is orthogonal to Z
+    //[x] [0] [ y]
+    //[y]x[0]=[-x]
+    //[0] [1] [ 0]
+    return { y, -x };
+  }
 
-//Multiply M*V where M is the rotation matrix represented by cos/sinangle and V is a vector
-glm::vec2 multiplyVec2ByRotation(float cosAngle, float sinAngle, float vx, float vy) {
-  //[cosAngle, -sinAngle]*[vx] = [cosAngle*vx - sinAngle*vy]
-  //[sinAngle,  cosAngle] [vy]   [sinAngle*vx + cosAngle*vy]
-  glm::vec2 result = { cosAngle*vx - sinAngle*vy, sinAngle*vx + cosAngle*vy };
-  return result;
-}
+  float dotProduct(float ax, float ay, float bx, float by) {
+    return ax*bx + ay*by;
+  }
 
-//Get the relative right represented by this rotation matrix, in other words the first basis vector (first column of matrix)
-glm::vec2 getRightFromRotation(float cosAngle, float sinAngle) {
-  //It already is the first column
-  glm::vec2 result = { cosAngle, sinAngle };
-  return result;
-}
+  float dotProduct2(glm::vec2 l, glm::vec2 r) {
+    return glm::dot(l, r);
+  }
 
-//Get the second basis vector (column)
-glm::vec2 getUpFromRotation(float cosAngle, float sinAngle) {
-  //[cosAngle, -sinAngle]
-  //[sinAngle,  cosAngle]
-  glm::vec2 result = { -sinAngle, cosAngle };
-  return result;
-}
+  float clamp(float v, float min, float max) {
+    return glm::clamp(v, min, max);
+  }
 
-void generateUnitCubeCubeContacts(
-  ispc::UniformConstVec2& positionsA,
-  ispc::UniformRotation& rotationsA,
-  ispc::UniformConstVec2& positionsB,
-  ispc::UniformRotation& rotationsB,
-  ispc::UniformVec2& resultNormals,
-  ispc::UniformContact& resultContactOne,
-  ispc::UniformContact& resultContactTwo,
-  float debug[],
-  uint32_t count
-) {
-        int d = 0;
+  void solveContactConstraints(
+    ispc::UniformContactConstraintPairData& constraints,
+    ispc::UniformConstraintObject& objectA,
+    ispc::UniformConstraintObject& objectB,
+    float lambdaSumOne[],
+    float lambdaSumTwo[],
+    float frictionLambdaSumOne[],
+    float frictionLambdaSumTwo[],
+    float frictionCoeff,
+    uint32_t objectOffset,
+    uint32_t start,
+    uint32_t count
+  ) {
+    for(int t = 0; t < (int)count; ++t) {
+      const int i = t + start;
+      const int oi = i + objectOffset;
+      const float nx = constraints.linearAxisX[i];
+      const float ny = constraints.linearAxisY[i];
 
-  const glm::vec2 aNormals[4] = { { 0.0f, 1.0f }, { 0.0f, -1.0f }, { 1.0f, 0.0f }, { -1.0f, 0.0f } };
+      //Solve friction first. This is a bit silly for the first iteration because the lambda sum is based on the contact sums
+      //However, later solved constraints are more likely to be satisfied and contacs are more important than friction
+      const glm::vec2 frictionNormal = orthogonal(nx, ny);
+      const float jvFrictionOne = dotProduct(objectA.linVelX[oi], objectA.linVelY[oi], frictionNormal.x, frictionNormal.y) - dotProduct(objectB.linVelX[oi], objectB.linVelY[oi], frictionNormal.x, frictionNormal.y)
+        + objectA.angVel[oi]*constraints.angularFrictionAxisOneA[i] + objectB.angVel[oi]*constraints.angularFrictionAxisOneB[i];
 
-  for(uint32_t i = 0; i < count; ++i) {
-    //Transpose to undo the rotation of A
-    const glm::vec2 rotA = { rotationsA.cosAngle[i], rotationsA.sinAngle[i] };
-    const glm::vec2 rotAInverse = transposeRotation(rotA.x, rotA.y);
-    const glm::vec2 posA = { positionsA.x[i], positionsA.y[i] };
+      //Friction has no bias
+      float frictionLambdaOne = -jvFrictionOne*constraints.frictionConstraintMassOne[i];
 
-    const glm::vec2 rotB = { rotationsB.cosAngle[i], rotationsB.sinAngle[i] };
-    const glm::vec2 posB = { positionsB.x[i], positionsB.y[i] };
-    //B's rotation in A's local space. Transforming to local space A allows this to be solved as computing
-    //contacts between an AABB and an OBB instead of OBB to OBB
-    const glm::vec2 rotBInA = multiplyRotationMatrices(rotB.x, rotB.y, rotAInverse.x, rotAInverse.y);
-    //Get basis vectors with the lengths of B so that they go from the center to the extents
-    const glm::vec2 upB = getUpFromRotation(rotBInA.x, rotBInA.y) * 0.5f;
-    const glm::vec2 rightB = getRightFromRotation(rotBInA.x, rotBInA.y) * 0.5f;
-    glm::vec2 posBInA = posB - posA;
-    posBInA = multiplyVec2ByRotation(rotAInverse.x, rotAInverse.y, posBInA.x, posBInA.y);
+      //Limit of friction constraint is the normal force from the contact constraint, so the contact's lambda
+      float originalLambdaSum = frictionLambdaSumOne[i];
+      //Since contact sums are always positive the negative here is known to actually be negative
+      const float frictionLimitOne = lambdaSumOne[i]*frictionCoeff;
+      float newLambdaSum = clamp(frictionLambdaOne + originalLambdaSum, -frictionLimitOne, frictionLimitOne);
+      frictionLambdaOne = newLambdaSum - originalLambdaSum;
+      frictionLambdaSumOne[i] = newLambdaSum;
 
-    const float extentAX = 0.5f;
-    const float extentAY = 0.5f;
-    //Sutherland hodgman clipping of B in the space of A, meaning all the clipping planes are cardinal axes
-    int outputCount = 0;
-    //8 should be the maximum amount of points that can result from clipping a square against another, which is when they are inside each-other and all corners of one intersect the edges of the other
-    glm::vec2 outputPoints[8];
+      const glm::vec2 frictionLinearImpulse = orthogonal(constraints.linearImpulseX[i], constraints.linearImpulseY[i]);
+      objectA.linVelX[oi] += frictionLambdaOne*frictionLinearImpulse.x;
+      objectA.linVelY[oi] += frictionLambdaOne*frictionLinearImpulse.y;
+      objectB.linVelX[oi] -= frictionLambdaOne*frictionLinearImpulse.x;
+      objectB.linVelY[oi] -= frictionLambdaOne*frictionLinearImpulse.y;
+      objectA.angVel[oi] += frictionLambdaOne*constraints.angularFrictionImpulseOneA[i];
+      objectB.angVel[oi] += frictionLambdaOne*constraints.angularFrictionImpulseOneB[i];
 
-    //Upper right, lower right, lower left, upper left
-    outputPoints[0] = posBInA + upB + rightB;
-    outputPoints[1] = posBInA - upB + rightB;
-    outputPoints[2] = posBInA - upB - rightB;
-    outputPoints[3] = posBInA + upB - rightB;
-    outputCount = 4;
+      const float jvFrictionTwo = dotProduct(objectA.linVelX[oi], objectA.linVelY[oi], frictionNormal.x, frictionNormal.y) - dotProduct(objectB.linVelX[oi], objectB.linVelY[oi], frictionNormal.x, frictionNormal.y)
+        + objectA.angVel[oi]*constraints.angularFrictionAxisTwoA[i] + objectB.angVel[oi]*constraints.angularFrictionAxisTwoB[i];
 
-    //ispc prefers single floats even here to avoid "gather required to load value" performance warnings
-    float inputPointsX[8];
-    float inputPointsY[8];
-    int inputCount = 0;
-    float bestOverlap = 9999.0f;
-    glm::vec2 bestNormal = aNormals[0];
+      float frictionLambdaTwo = -jvFrictionTwo*constraints.frictionConstraintMassTwo[i];
 
-    bool allPointsInside = true;
-    for(int edgeA = 0; edgeA < 4; ++edgeA) {
-      //Copy previous output to current input
-      inputCount = outputCount;
-      glm::vec2 lastPoint;
-      for(int j = 0; j < inputCount; ++j) {
-        lastPoint.x = inputPointsX[j] = outputPoints[j].x;
-        lastPoint.y = inputPointsY[j] = outputPoints[j].y;
+      originalLambdaSum = frictionLambdaSumTwo[i];
+      const float frictionLimitTwo = lambdaSumTwo[i]*frictionCoeff;
+      newLambdaSum = clamp(frictionLambdaTwo + originalLambdaSum, -frictionLimitTwo, frictionLimitTwo);
+      frictionLambdaTwo = newLambdaSum - originalLambdaSum;
+      frictionLambdaSumTwo[i] = newLambdaSum;
+
+      objectA.linVelX[oi] += frictionLambdaTwo*frictionLinearImpulse.x;
+      objectA.linVelY[oi] += frictionLambdaTwo*frictionLinearImpulse.y;
+      objectB.linVelX[oi] -= frictionLambdaTwo*frictionLinearImpulse.x;
+      objectB.linVelY[oi] -= frictionLambdaTwo*frictionLinearImpulse.y;
+      objectA.angVel[oi] += frictionLambdaTwo*constraints.angularFrictionImpulseTwoA[i];
+      objectB.angVel[oi] += frictionLambdaTwo*constraints.angularFrictionImpulseTwoB[i];
+
+      //Solve contact one. Can't be combined with the above unless they are block solved because the velocities affect each-other
+      //It might be possible to do friction and contact at the same time since they're orthogonal, not sure about the rotation in that case though
+      const float jvOne = dotProduct(objectA.linVelX[oi], objectA.linVelY[oi], nx, ny) - dotProduct(objectB.linVelX[oi], objectB.linVelY[oi], nx, ny)
+        + objectA.angVel[oi]*constraints.angularAxisOneA[i] + objectB.angVel[oi]*constraints.angularAxisOneB[i];
+
+      //Compute the impulse multiplier
+      float lambdaOne = -(jvOne + constraints.biasOne[i])*constraints.constraintMassOne[i];
+
+      originalLambdaSum = lambdaSumOne[i];
+      //Clamp lambda bounds, which for a contact constraint means > 0
+      newLambdaSum = std::max(0.0f, lambdaOne + originalLambdaSum);
+      lambdaOne = newLambdaSum - originalLambdaSum;
+      //Store for next iteration
+      //lambdaSumOne[i] = newLambdaSum;
+
+      //Apply the impulse along the constraint axis using the computed multiplier
+      objectA.linVelX[oi] += lambdaOne*constraints.linearImpulseX[i];
+      objectA.linVelY[oi] += lambdaOne*constraints.linearImpulseY[i];
+      objectB.linVelX[oi] -= lambdaOne*constraints.linearImpulseX[i];
+      objectB.linVelY[oi] -= lambdaOne*constraints.linearImpulseY[i];
+      objectA.angVel[oi] += lambdaOne*constraints.angularImpulseOneA[i];
+      objectB.angVel[oi] += lambdaOne*constraints.angularImpulseOneB[i];
+
+      //Solve contact two.
+      const float jvTwo = dotProduct(objectA.linVelX[oi], objectA.linVelY[oi], nx, ny) - dotProduct(objectB.linVelX[oi], objectB.linVelY[oi], nx, ny)
+        + objectA.angVel[oi]*constraints.angularAxisTwoA[i] + objectB.angVel[oi]*constraints.angularAxisTwoB[i];
+
+      float lambdaTwo = -(jvTwo + constraints.biasTwo[i])*constraints.constraintMassTwo[i];
+
+      originalLambdaSum = lambdaSumTwo[i];
+      newLambdaSum = std::max(0.0f, lambdaTwo + originalLambdaSum);
+      lambdaTwo = newLambdaSum - originalLambdaSum;
+      lambdaSumTwo[i] = newLambdaSum;
+
+      objectA.linVelX[oi] += lambdaTwo*constraints.linearImpulseX[i];
+      objectA.linVelY[oi] += lambdaTwo*constraints.linearImpulseY[i];
+      objectB.linVelX[oi] -= lambdaTwo*constraints.linearImpulseX[i];
+      objectB.linVelY[oi] -= lambdaTwo*constraints.linearImpulseY[i];
+      objectA.angVel[oi] += lambdaTwo*constraints.angularImpulseTwoA[i];
+      objectB.angVel[oi] += lambdaTwo*constraints.angularImpulseTwoB[i];
+
+      //This is the inefficient unavoidable part. Hopefully the caller can sort the pairs so that this happens as little as possible
+      //This allows duplicate pairs to exist by copying the data forward to the next duplicate occurrence. This duplication is ordered
+      //carefully to avoid the need to copy within a simd lane
+      const int syncA = objectA.syncIndex[oi];
+      switch (objectA.syncType[oi]) {
+        case ispc::NoSync: break;
+        case ispc::SyncToIndexA: {
+          objectA.linVelX[syncA] = objectA.linVelX[oi];
+          objectA.linVelY[syncA] = objectA.linVelY[oi];
+          objectA.angVel[syncA] = objectA.angVel[oi];
+          break;
+        }
+        case ispc::SyncToIndexB: {
+          objectB.linVelX[syncA] = objectA.linVelX[oi];
+          objectB.linVelY[syncA] = objectA.linVelY[oi];
+          objectB.angVel[syncA] = objectA.angVel[oi];
+          break;
+        }
       }
-      //This will happen as soon as a separating axis is found as all points will land outside the clip edge and get discarded
-      if(!outputCount) {
+
+      const int syncB = objectB.syncIndex[oi];
+      switch (objectB.syncType[oi]) {
+        case ispc::NoSync: break;
+        case ispc::SyncToIndexA: {
+          objectA.linVelX[syncB] = objectB.linVelX[oi];
+          objectA.linVelY[syncB] = objectB.linVelY[oi];
+          objectA.angVel[syncB] = objectB.angVel[oi];
+          break;
+        }
+        case ispc::SyncToIndexB: {
+          objectB.linVelX[syncB] = objectB.linVelX[oi];
+          objectB.linVelY[syncB] = objectB.linVelY[oi];
+          objectB.angVel[syncB] = objectB.angVel[oi];
+          break;
+        }
+      }
+    }
+  }
+
+  void solveContactConstraintsBZeroMass(
+    ispc::UniformContactConstraintPairData& constraints,
+    ispc::UniformConstraintObject& objectA,
+    ispc::UniformConstraintObject& objectB,
+    float lambdaSumOne[],
+    float lambdaSumTwo[],
+    float frictionLambdaSumOne[],
+    float frictionLambdaSumTwo[],
+    float frictionCoeff,
+    uint32_t objectOffset,
+    uint32_t start,
+    uint32_t count
+  ) {
+    for(int t = 0; t < (int)count; ++t) {
+      const int i = start + t;
+      const int oi = i + objectOffset;
+      const float nx = constraints.linearAxisX[i];
+      const float ny = constraints.linearAxisY[i];
+
+      //Solve friction first. This is a bit silly for the first iteration because the lambda sum is based on the contact sums
+      //However, later solved constraints are more likely to be satisfied and contacs are more important than friction
+      const glm::vec2 frictionNormal = orthogonal(nx, ny);
+      const float jvFrictionOne = dotProduct(objectA.linVelX[oi], objectA.linVelY[oi], frictionNormal.x, frictionNormal.y)
+        + objectA.angVel[oi]*constraints.angularFrictionAxisOneA[i];
+
+      //Friction has no bias
+      float frictionLambdaOne = -jvFrictionOne*constraints.frictionConstraintMassOne[i];
+
+      //Limit of friction constraint is the normal force from the contact constraint, so the contact's lambda
+      float originalLambdaSum = frictionLambdaSumOne[i];
+      //Since contact sums are always positive the negative here is known to actually be negative
+      const float frictionLimitOne = lambdaSumOne[i]*frictionCoeff;
+      float newLambdaSum = clamp(frictionLambdaOne + originalLambdaSum, -frictionLimitOne, frictionLimitOne);
+      frictionLambdaOne = newLambdaSum - originalLambdaSum;
+      frictionLambdaSumOne[i] = newLambdaSum;
+
+      const glm::vec2 frictionLinearImpulse = orthogonal(constraints.linearImpulseX[i], constraints.linearImpulseY[i]);
+      objectA.linVelX[oi] += frictionLambdaOne*frictionLinearImpulse.x;
+      objectA.linVelY[oi] += frictionLambdaOne*frictionLinearImpulse.y;
+      objectA.angVel[oi] += frictionLambdaOne*constraints.angularFrictionImpulseOneA[i];
+
+      const float jvFrictionTwo = dotProduct(objectA.linVelX[oi], objectA.linVelY[oi], frictionNormal.x, frictionNormal.y)
+        + objectA.angVel[oi]*constraints.angularFrictionAxisTwoA[i];
+
+      float frictionLambdaTwo = -jvFrictionTwo*constraints.frictionConstraintMassTwo[i];
+
+      originalLambdaSum = frictionLambdaSumTwo[i];
+      const float frictionLimitTwo = lambdaSumTwo[i]*frictionCoeff;
+      newLambdaSum = clamp(frictionLambdaTwo + originalLambdaSum, -frictionLimitTwo, frictionLimitTwo);
+      frictionLambdaTwo = newLambdaSum - originalLambdaSum;
+      frictionLambdaSumTwo[i] = newLambdaSum;
+
+      objectA.linVelX[oi] += frictionLambdaTwo*frictionLinearImpulse.x;
+      objectA.linVelY[oi] += frictionLambdaTwo*frictionLinearImpulse.y;
+      objectA.angVel[oi] += frictionLambdaTwo*constraints.angularFrictionImpulseTwoA[i];
+
+      //Solve contact one. Can't be combined with the above unless they are block solved because the velocities affect each-other
+      //It might be possible to do friction and contact at the same time since they're orthogonal, not sure about the rotation in that case though
+      const float jvOne = dotProduct(objectA.linVelX[oi], objectA.linVelY[oi], nx, ny)
+        + objectA.angVel[oi]*constraints.angularAxisOneA[i];
+
+      //Compute the impulse multiplier
+      float lambdaOne = -(jvOne + constraints.biasOne[i])*constraints.constraintMassOne[i];
+
+      originalLambdaSum = lambdaSumOne[i];
+      //Clamp lambda bounds, which for a contact constraint means > 0
+      newLambdaSum = std::max(0.0f, lambdaOne + originalLambdaSum);
+      lambdaOne = newLambdaSum - originalLambdaSum;
+      //Store for next iteration
+      lambdaSumOne[i] = newLambdaSum;
+
+      //Apply the impulse along the constraint axis using the computed multiplier
+      objectA.linVelX[oi] += lambdaOne*constraints.linearImpulseX[i];
+      objectA.linVelY[oi] += lambdaOne*constraints.linearImpulseY[i];
+      objectA.angVel[oi] += lambdaOne*constraints.angularImpulseOneA[i];
+
+      //Solve contact two.
+      const float jvTwo = dotProduct(objectA.linVelX[oi], objectA.linVelY[oi], nx, ny)
+        + objectA.angVel[oi]*constraints.angularAxisTwoA[i];
+
+      float lambdaTwo = -(jvTwo + constraints.biasTwo[i])*constraints.constraintMassTwo[i];
+
+      originalLambdaSum = lambdaSumTwo[i];
+      newLambdaSum = std::max(0.0f, lambdaTwo + originalLambdaSum);
+      lambdaTwo = newLambdaSum - originalLambdaSum;
+      lambdaSumTwo[i] = newLambdaSum;
+
+      objectA.linVelX[oi] += lambdaTwo*constraints.linearImpulseX[i];
+      objectA.linVelY[oi] += lambdaTwo*constraints.linearImpulseY[i];
+      objectA.angVel[oi] += lambdaTwo*constraints.angularImpulseTwoA[i];
+
+      //This is the inefficient unavoidable part. Hopefully the caller can sort the pairs so that this happens as little as possible
+      //This allows duplicate pairs to exist by copying the data forward to the next duplicate occurrence. This duplication is ordered
+      //carefully to avoid the need to copy within a simd lane
+      const int syncA = objectA.syncIndex[oi];
+      switch (objectA.syncType[oi]) {
+      case ispc::NoSync: break;
+      case ispc::SyncToIndexA: {
+          objectA.linVelX[syncA] = objectA.linVelX[oi];
+          objectA.linVelY[syncA] = objectA.linVelY[oi];
+          objectA.angVel[syncA] = objectA.angVel[oi];
+          break;
+        }
+      //This would only happen at the end of the static objects table to sync this A as a B for a non-static constraint pair
+      case ispc::SyncToIndexB: {
+        objectB.linVelX[syncA] = objectA.linVelX[oi];
+        objectB.linVelY[syncA] = objectA.linVelY[oi];
+        objectB.angVel[syncA] = objectA.angVel[oi];
         break;
       }
-      outputCount = 0;
 
-      //ispc doesn't like reading varying from array by index
-      glm::vec2 aNormal = aNormals[edgeA];
-
-      //Last inside is invalidated when the edges change since it's inside relative to a given edge
-      float lastOverlap = 0.5f - glm::dot(aNormal, lastPoint);
-      bool lastInside = lastOverlap >= 0.0f;
-
-      float currentEdgeOverlap = 0.0f;
-      for(int j = 0; j < inputCount; ++j) {
-        const glm::vec2 currentPoint = { inputPointsX[j], inputPointsY[j] };
-        //(e-p).n
-        const float currentOverlap = 0.5f - glm::dot(aNormal, currentPoint);
-        const bool currentInside = currentOverlap >= 0;
-        const glm::vec2 lastToCurrent = currentPoint - lastPoint;
-        //Might be division by zero but if so the intersect won't be used because currentInside would match lastInside
-        //(e-p).n/(e-s).n
-        const float t = 1.0f - (abs(currentOverlap)/std::abs(glm::dot(aNormal, lastToCurrent)));
-        const glm::vec2 intersect = lastPoint + lastToCurrent*t;
-
-        currentEdgeOverlap = std::max(currentOverlap, currentEdgeOverlap);
-
-        //TODO: re-use subtraction above in intersect calculation below
-        if(currentInside) {
-          allPointsInside = false;
-          if(!lastInside) {
-            //Went from outside to inside, add intersect
-            outputPoints[outputCount] = intersect;
-            ++outputCount;
-          }
-          //Is inside, add current
-          outputPoints[outputCount] = currentPoint;
-          ++outputCount;
-        }
-        else if(lastInside) {
-          //Went from inside to outside, add intersect.
-          outputPoints[outputCount] = intersect;
-          ++outputCount;
-        }
-
-        lastPoint = currentPoint;
-        lastInside = currentInside;
-      }
-
-      //Keep track of the least positive overlap for the final results
-      if(currentEdgeOverlap < bestOverlap) {
-        bestOverlap = currentEdgeOverlap;
-        bestNormal = aNormal;
       }
     }
-
-    if(outputCount == 0) {
-      //No collision, store negative overlap to indicate this
-      resultContactOne.overlap[i] = -1.0f;
-      resultContactTwo.overlap[i] = -1.0f;
-    }
-    else if(allPointsInside) {
-      //Niche case where one shape is entirely inside another. Overlap is only determined
-      //for intersect points which is fine for all cases except this one
-      //Return arbitrary contacts here. Not too worried about accuracy because collision resolution has broken down if this happened
-      resultContactOne.overlap[i] = 0.5f;
-      resultContactOne.x[i] = posB.x;
-      resultContactOne.y[i] = posB.y;
-      resultContactTwo.overlap[i] = -1.0f;
-      resultNormals.x[i] = 1.0f;
-      resultNormals.x[i] = 0.0f;
-    }
-    else {
-      //TODO: need to figure out a better way to do this
-      //Also need to try the axes of B to see if they produce a better normal than what was found through clipping
-      glm::vec2 candidateNormals[3] = { bestNormal, getUpFromRotation(rotBInA.x, rotBInA.y), getRightFromRotation(rotBInA.x, rotBInA.y) };
-
-      debug[d++] = posB.x;
-      debug[d++] = posB.y;
-      debug[d++] = posB.x + candidateNormals[1].x;
-      debug[d++] = posB.y + candidateNormals[1].y;
-      debug[d++] = posB.x;
-      debug[d++] = posB.y;
-      debug[d++] = posB.x + candidateNormals[2].x;
-      debug[d++] = posB.y + candidateNormals[2].y;
-
-
-      const glm::vec2 originalBestNormal = bestNormal;
-      float bestNormalDiff = 99.0f;
-      //Figuring out the best normal has two parts:
-      // - Determining which results  in the least overlap along the normal, which is the distance between the two extremes of projections of all clipped points onto normal
-      // - Determine the sign of the normal
-      // This loop will do the former by determining all the projections on the normal and picking the normal that has the greatest difference
-      // Then the result can be flipped so it's pointing in the same direction as the original best
-      // This is a hacky assumption based on that either the original best will be chosen or one not far off from it
-      for(int j = 0; j < 3; ++j) {
-        float thisMin = 999.0f;
-        float thisMax = -thisMin;
-        glm::vec2 normal = candidateNormals[j];
-        normal = glm::normalize(normal);
-        float l = glm::length(normal);
-        l;
-
-        for(int k = 0; k < outputCount; ++k) {
-          float thisOverlap = glm::dot(normal, outputPoints[k]);
-          thisMin = std::min(thisMin, thisOverlap);
-          thisMax = std::max(thisMax, thisOverlap);
-        }
-        //This is the absolute value of the total amount of overlap along this axis, we're looking for the normal with the smallest overlap
-        const float thisNormalDiff = thisMax - thisMin;
-        if(thisNormalDiff < bestNormalDiff) {
-          bestNormalDiff = thisNormalDiff;
-          bestNormal = normal;
-        }
-      }
-
-      //Now the best normal is known, make sure it's pointing in a similar direction to the original
-      if(glm::dot(originalBestNormal, bestNormal) < 0.0f) {
-        bestNormal = -bestNormal;
-      }
-
-      //Now find the two best contact points. The normal is going away from A, so the smallest projection is the one with the most overlap, since it's going most against the normal
-      //The overlap for any point is the distance of its projection from the greatest projection: the point furthest away from A
-      glm::vec2 bestPoint{};
-      glm::vec2 secondBestPoint;
-      float minProjection = 999.0f;
-      float secondMinProjection = minProjection;
-      float maxProjection = -1;
-      for(int j = 0; j < outputCount; ++j) {
-        const glm::vec2 thisPoint = outputPoints[j];
-        const float thisProjection = glm::dot(bestNormal, thisPoint);
-        maxProjection = std::max(maxProjection, thisProjection);
-        if(thisProjection < minProjection) {
-          secondMinProjection = minProjection;
-          secondBestPoint = bestPoint;
-
-          minProjection = thisProjection;
-          bestPoint = thisPoint;
-        }
-        else if(thisProjection < secondMinProjection) {
-          secondMinProjection = thisProjection;
-          secondBestPoint = thisPoint;
-        }
-      }
-
-      //Contacts are the two most overlapping points along the normal axis
-      glm::vec2 contactOne = bestPoint;
-      glm::vec2 contactTwo = secondBestPoint;
-      float contactTwoOverlap = maxProjection - secondMinProjection;
-      float contactOneOverlap = maxProjection - minProjection;
-
-      //Transform the contacts back to world
-      contactOne = posA + multiplyVec2ByRotation(rotA.x, rotA.y, contactOne.x, contactOne.y);
-      contactTwo = posA + multiplyVec2ByRotation(rotA.x, rotA.y, contactTwo.x, contactTwo.y);
-
-      //Transform normal to world
-      bestNormal = multiplyVec2ByRotation(rotA.x, rotA.y, bestNormal.x, bestNormal.y);
-      //Flip from being a face on A to going towards A
-      resultNormals.x[i] = -bestNormal.x;
-      resultNormals.y[i] = -bestNormal.y;
-
-      //Store the final results
-      resultContactOne.x[i] = contactOne.x;
-      resultContactOne.y[i] = contactOne.y;
-      resultContactOne.overlap[i] = contactOneOverlap;
-
-      resultContactTwo.x[i] = contactTwo.x;
-      resultContactTwo.y[i] = contactTwo.y;
-      resultContactTwo.overlap[i] = contactTwoOverlap;
-
-      for(int j = 0; j < outputCount; ++j) {
-        glm::vec2& thisPoint = outputPoints[j];
-        thisPoint = posA + multiplyVec2ByRotation(rotA.x, rotA.y, thisPoint.x, thisPoint.y);
-      }
-      debug[d++] = outputPoints[outputCount - 1].x;
-      debug[d++] = outputPoints[outputCount - 1].y;
-      for(int k = 0; k < outputCount; ++k) {
-        debug[d++] = outputPoints[k].x;
-        debug[d++] = outputPoints[k].y;
-        debug[d++] = outputPoints[k].x;
-        debug[d++] = outputPoints[k].y;
-      }
-      debug[d++] = outputPoints[0].x;
-      debug[d++] = outputPoints[0].y;
-    }
-    debug[d] = 1000.0f;
   }
-}
 }
 
 void Physics::generateContacts(CollisionPairsTable& pairs) {
@@ -386,7 +379,6 @@ void Physics::generateContacts(CollisionPairsTable& pairs) {
     _unwrapRow<ContactPoint<ContactTwo>::PosY>(pairs),
     _unwrapRow<ContactPoint<ContactTwo>::Overlap>(pairs)
   };
-  //DEBUG_HACK.resize(1000);
   ispc::generateUnitCubeCubeContacts(positionsA, rotationsA, positionsB, rotationsB, normals, contactsOne, contactsTwo, uint32_t(TableOperations::size(pairs)));
   //ispc::generateUnitSphereSphereContacts(positionsA, positionsB, normals, contacts, uint32_t(TableOperations::size(pairs)));
 
@@ -501,7 +493,7 @@ struct ConstraintSyncData {
   SharedNormal::Y* mSourceNormalY{};
 };
 
-void _syncConstraintData(ConstraintSyncData& data, size_t globalConstraintIndex, size_t constraintIndex, size_t objectIndex, size_t indexA, size_t indexB) {
+void _syncConstraintData(ConstraintSyncData& data, size_t globalConstraintIndex, size_t constraintIndex, size_t objectIndex, const StableElementID& indexA, const StableElementID& indexB) {
   data.mPairIndexA.at(globalConstraintIndex) = indexA;
 
   //Assume that if one row of A exist they all do
@@ -527,7 +519,7 @@ void _syncConstraintData(ConstraintSyncData& data, size_t globalConstraintIndex,
 }
 
 struct VisitAttempt {
-  size_t mDesiredObjectIndex{};
+  StableElementID mDesiredObjectIndex{};
   size_t mDesiredConstraintIndex{};
   std::vector<ConstraintData::VisitData>::iterator mIt;
   size_t mRequiredPadding{};
@@ -546,7 +538,7 @@ void _setVisitDataAndTrySetSyncPoint(std::vector<ConstraintData::VisitData>& vis
   if(attempt.mIt == visited.end() || attempt.mIt->mObjectIndex != attempt.mDesiredObjectIndex) {
     //Goofy hack here, if there's another iterator for object B, make sure the iterator is still valid after the new element is inserted
     //Needs to be rebuilt if it is after the insert location, as everything would have shifted over
-    const bool needRebuiltDependent = dependentAttempt && dependentAttempt->mDesiredObjectIndex > attempt.mDesiredObjectIndex;
+    const bool needRebuiltDependent = dependentAttempt && dependentAttempt->mDesiredObjectIndex.mStableID > attempt.mDesiredObjectIndex.mStableID;
 
     //If this is the first time visiting this object, no need to sync anything, but note it for later
     visited.insert(attempt.mIt, ConstraintData::VisitData{
@@ -609,7 +601,7 @@ void _trySetFinalSyncPoint(const ConstraintData::VisitData& visited,
   }
 }
 
-VisitAttempt _tryVisit(std::vector<ConstraintData::VisitData>& visited, size_t toVisit, size_t currentConstraintIndex, size_t targetWidth) {
+VisitAttempt _tryVisit(std::vector<ConstraintData::VisitData>& visited, const StableElementID& toVisit, size_t currentConstraintIndex, size_t targetWidth) {
   VisitAttempt result;
   result.mIt = std::lower_bound(visited.begin(), visited.end(), toVisit);
   if(result.mIt != visited.end() && result.mIt->mObjectIndex == toVisit && 
@@ -629,7 +621,8 @@ void Physics::buildConstraintsTable(
   ConstraintsTable& constraints,
   ContactConstraintsToStaticObjectsTable& staticConstraints,
   ConstraintCommonTable& constraintsCommon,
-  const PhysicsTableIds& tableIds) {
+  const PhysicsTableIds& tableIds,
+  const PhysicsConfig& config) {
   const size_t tableIDMask = tableIds.mTableIDMask;
   const size_t sharedMassTableId = tableIds.mSharedMassTable;
   const size_t zeroMassTableId = tableIds.mZeroMassTable;
@@ -658,7 +651,7 @@ void Physics::buildConstraintsTable(
 
   //The same object can't be within this many indices of itself since the velocity needs to be seen immediately by the next constraint
   //which wouldn't be the case if it was being solved in another simd lane
-  const size_t targetWidth = size_t(ispc::getTargetWidth());
+  const size_t targetWidth = config.mForcedTargetWidth.value_or(size_t(ispc::getTargetWidth()));
   //Figure out sync indices
   std::deque<size_t>& indicesToFill = visitData.mIndicesToFill;
   std::deque<size_t>& nextToFill = visitData.mNextToFill;
@@ -677,11 +670,11 @@ void Physics::buildConstraintsTable(
   while(!indicesToFill.empty()) {
     const size_t indexToFill = indicesToFill.front();
     indicesToFill.pop_front();
-    const size_t desiredA = srcPairIndexA.at(indexToFill);
-    const size_t desiredB = srcPairIndexB.at(indexToFill);
+    const StableElementID desiredA = srcPairIndexA.at(indexToFill);
+    const StableElementID desiredB = srcPairIndexB.at(indexToFill);
     //This loop is for shared mass, store the rest for the next pass
     //TODO: this is a bit weird. != shared mass would be nice but that means players get excluded
-    if((desiredA & tableIDMask) == zeroMassTableId || (desiredB & tableIDMask) == zeroMassTableId) {
+    if((desiredA.mUnstableIndex & tableIDMask) == zeroMassTableId || (desiredB.mUnstableIndex & tableIDMask) == zeroMassTableId) {
       nextToFill.push_back(indexToFill);
       continue;
     }
@@ -712,8 +705,8 @@ void Physics::buildConstraintsTable(
   //Add padding between these remaining elements to solve the problem.
   while(!indicesToFill.empty()) {
     const size_t indexToFill = indicesToFill.front();
-    const size_t desiredA = srcPairIndexA.at(indexToFill);
-    const size_t desiredB = srcPairIndexB.at(indexToFill);
+    const StableElementID desiredA = srcPairIndexA.at(indexToFill);
+    const StableElementID desiredB = srcPairIndexB.at(indexToFill);
     VisitAttempt visitA = _tryVisit(visited, desiredA, currentConstraintIndex, targetWidth);
     VisitAttempt visitB = _tryVisit(visited, desiredB, currentConstraintIndex, targetWidth);
     const size_t padding = std::max(visitA.mRequiredPadding, visitB.mRequiredPadding);
@@ -734,8 +727,8 @@ void Physics::buildConstraintsTable(
         //These are nonsense entires that won't be used for anything, at least set them to no sync so they don't try to copy stale data
         data.mSyncTypeA.at(currentConstraintIndex) = ispc::NoSync;
         data.mSyncTypeB.at(currentConstraintIndex) = ispc::NoSync;
-        data.mPairIndexA.at(currentConstraintIndex) = dbDetails::INVALID_VALUE;
-        data.mPairIndexB.at(currentConstraintIndex) = dbDetails::INVALID_VALUE;
+        data.mPairIndexA.at(currentConstraintIndex) = StableElementID::invalid();
+        data.mPairIndexB.at(currentConstraintIndex) = StableElementID::invalid();
         ++currentConstraintIndex;
       }
     }
@@ -752,11 +745,11 @@ void Physics::buildConstraintsTable(
   while(!indicesToFill.empty()) {
     const size_t indexToFill = indicesToFill.front();
     indicesToFill.pop_front();
-    size_t desiredA = srcPairIndexA.at(indexToFill);
-    size_t desiredB = srcPairIndexB.at(indexToFill);
+    StableElementID desiredA = srcPairIndexA.at(indexToFill);
+    StableElementID desiredB = srcPairIndexB.at(indexToFill);
     //This loop is for zero mass, store the rest for the next pass
-    const bool aZeroMass = (desiredA & tableIDMask) == zeroMassTableId;
-    const bool bZeroMass = (desiredB & tableIDMask) == zeroMassTableId;
+    const bool aZeroMass = (desiredA.mUnstableIndex & tableIDMask) == zeroMassTableId;
+    const bool bZeroMass = (desiredB.mUnstableIndex & tableIDMask) == zeroMassTableId;
     //If neither is zero mass, push them to the next phase
     if(!aZeroMass && !bZeroMass) {
       nextToFill.push_back(indexToFill);
@@ -793,8 +786,8 @@ void Physics::buildConstraintsTable(
   //Add padding between these remaining elements to solve the problem.
   while(!indicesToFill.empty()) {
     const size_t indexToFill = indicesToFill.front();
-    const size_t desiredA = srcPairIndexA.at(indexToFill);
-    const size_t desiredB = srcPairIndexB.at(indexToFill);
+    const StableElementID desiredA = srcPairIndexA.at(indexToFill);
+    const StableElementID desiredB = srcPairIndexB.at(indexToFill);
     VisitAttempt visitA = _tryVisit(visited, desiredA, currentConstraintIndex, targetWidth);
     const size_t padding = visitA.mRequiredPadding;
 
@@ -814,13 +807,15 @@ void Physics::buildConstraintsTable(
         //These are nonsense entires that won't be used for anything, at least set them to no sync so they don't try to copy stale data
         staticData.mSyncTypeA.at(currentConstraintIndex) = ispc::NoSync;
         staticData.mSyncTypeB.at(currentConstraintIndex) = ispc::NoSync;
-        data.mPairIndexA.at(currentConstraintIndex) = dbDetails::INVALID_VALUE;
-        data.mPairIndexB.at(currentConstraintIndex) = dbDetails::INVALID_VALUE;
+        data.mPairIndexA.at(currentConstraintIndex) = StableElementID::invalid();
+        data.mPairIndexB.at(currentConstraintIndex) = StableElementID::invalid();
         ++currentConstraintIndex;
       }
     }
   }
   TableOperations::resizeTable(staticConstraints, currentConstraintIndex - zeroMassStart);
+  //Trim everything else off the end
+  TableOperations::resizeTable(constraintsCommon, currentConstraintIndex);
 
   //Store the final indices that the velocity will end up in
   //This is in the visited data since that's been tracking every access
@@ -899,7 +894,7 @@ void Physics::setupConstraints(ConstraintsTable& constraints, ContactConstraints
   ispc::setupConstraintsSharedMassBZeroMass(invMass, invInertia, bias, normal, aToContactOne, aToContactTwo, overlapOne, overlapTwo, data, uint32_t(TableOperations::size(staticContacts)));
 }
 
-void Physics::solveConstraints(ConstraintsTable& constraints, ContactConstraintsToStaticObjectsTable& staticContacts, ConstraintCommonTable& common) {
+void Physics::solveConstraints(ConstraintsTable& constraints, ContactConstraintsToStaticObjectsTable& staticContacts, ConstraintCommonTable& common, const PhysicsConfig& config) {
   ispc::UniformContactConstraintPairData data = _unwrapUniformConstraintData(constraints);
   ispc::UniformConstraintObject objectA = _unwrapUniformConstraintObject<ConstraintObjA>(common);
   ispc::UniformConstraintObject objectB = _unwrapUniformConstraintObject<ConstraintObjB>(common);
@@ -912,13 +907,29 @@ void Physics::solveConstraints(ConstraintsTable& constraints, ContactConstraints
   const size_t startContact = std::get<ConstraintData::CommonTableStartIndex>(constraints.mRows).at();
   const size_t startStatic = std::get<ConstraintData::CommonTableStartIndex>(staticContacts.mRows).at();
 
-  ispc::solveContactConstraints(data, objectA, objectB, lambdaSumOne, lambdaSumTwo, frictionLambdaSumOne, frictionLambdaSumTwo, frictionCoeff, uint32_t(startContact), uint32_t(TableOperations::size(constraints)));
+  const bool oneAtATime = config.mForcedTargetWidth && *config.mForcedTargetWidth < ispc::getTargetWidth();
+
+  if(oneAtATime) {
+    for(size_t i = 0; i < TableOperations::size(constraints); ++i) {
+      notispc::solveContactConstraints(data, objectA, objectB, lambdaSumOne, lambdaSumTwo, frictionLambdaSumOne, frictionLambdaSumTwo, frictionCoeff, uint32_t(startContact), uint32_t(i), uint32_t(1));
+    }
+  }
+  else {
+    ispc::solveContactConstraints(data, objectA, objectB, lambdaSumOne, lambdaSumTwo, frictionLambdaSumOne, frictionLambdaSumTwo, frictionCoeff, uint32_t(startContact), uint32_t(0), uint32_t(TableOperations::size(constraints)));
+  }
 
   data = _unwrapUniformConstraintData(staticContacts);
-  lambdaSumOne = _unwrapRow<ConstraintData::LambdaSumOne>(constraints);
-  lambdaSumTwo = _unwrapRow<ConstraintData::LambdaSumTwo>(constraints);
-  frictionLambdaSumOne = _unwrapRow<ConstraintData::FrictionLambdaSumOne>(constraints);
-  frictionLambdaSumTwo = _unwrapRow<ConstraintData::FrictionLambdaSumTwo>(constraints);
+  lambdaSumOne = _unwrapRow<ConstraintData::LambdaSumOne>(staticContacts);
+  lambdaSumTwo = _unwrapRow<ConstraintData::LambdaSumTwo>(staticContacts);
+  frictionLambdaSumOne = _unwrapRow<ConstraintData::FrictionLambdaSumOne>(staticContacts);
+  frictionLambdaSumTwo = _unwrapRow<ConstraintData::FrictionLambdaSumTwo>(staticContacts);
 
-  ispc::solveContactConstraintsBZeroMass(data, objectA, lambdaSumOne, lambdaSumTwo, frictionLambdaSumOne, frictionLambdaSumTwo, frictionCoeff, uint32_t(startStatic), uint32_t(TableOperations::size(staticContacts)));
+  if(oneAtATime) {
+    for(size_t i = 0; i < TableOperations::size(staticContacts); ++i) {
+      notispc::solveContactConstraintsBZeroMass(data, objectA, objectB, lambdaSumOne, lambdaSumTwo, frictionLambdaSumOne, frictionLambdaSumTwo, frictionCoeff, uint32_t(startStatic), uint32_t(i), uint32_t(1));
+    }
+  }
+  else {
+    ispc::solveContactConstraintsBZeroMass(data, objectA, objectB, lambdaSumOne, lambdaSumTwo, frictionLambdaSumOne, frictionLambdaSumTwo, frictionCoeff, uint32_t(startStatic), uint32_t(0), uint32_t(TableOperations::size(staticContacts)));
+  }
 }

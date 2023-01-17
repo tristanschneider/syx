@@ -1,4 +1,5 @@
 #pragma once
+#include "StableElementID.h"
 
 struct PhysicsTableIds {
   size_t mZeroMassTable{};
@@ -7,10 +8,10 @@ struct PhysicsTableIds {
 };
 
 struct CollisionPairOrder {
-  static bool tryOrderCollisionPair(size_t& pairA, size_t& pairB, const PhysicsTableIds& tables) {
+  static bool tryOrderCollisionPair(StableElementID& pairA, StableElementID& pairB, const PhysicsTableIds& tables) {
     //Always make zero mass object 'B' in a pair for simplicity
-    if((pairA & tables.mTableIDMask) == tables.mZeroMassTable) {
-      if((pairB & tables.mTableIDMask) == tables.mZeroMassTable) {
+    if((pairA.mUnstableIndex & tables.mTableIDMask) == tables.mZeroMassTable) {
+      if((pairB.mUnstableIndex & tables.mTableIDMask) == tables.mZeroMassTable) {
         //If they're both static, skip this pair
         return false;
       }

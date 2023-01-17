@@ -7,6 +7,10 @@
 
 struct PhysicsTableIds;
 
+struct PhysicsConfig {
+  std::optional<size_t> mForcedTargetWidth;
+};
+
 //Data for one object in a constraint pair
 template<class>
 struct ConstraintObject {
@@ -67,11 +71,11 @@ struct ConstraintData {
       InA,
       InB
     };
-    bool operator<(size_t r) const {
-      return mObjectIndex < r;
+    bool operator<(const StableElementID& r) const {
+      return mObjectIndex.mStableID < r.mStableID;
     }
     //Gameobject table entry that this is referring to
-    size_t mObjectIndex{};
+    StableElementID mObjectIndex{};
     //The latest constraint entry/location during population of constraints table that the object was found in
     size_t mConstraintIndex{};
     Location mLocation{};
@@ -94,7 +98,7 @@ struct ConstraintData {
 //These are used to migrate final solved velocities constraint table back to the gameobjects
 struct FinalSyncIndices {
   struct Mapping {
-    size_t mSourceGamebject{};
+    StableElementID mSourceGamebject{};
     size_t mTargetConstraint{};
   };
   std::vector<Mapping> mMappingsA;
@@ -219,15 +223,17 @@ using ContactConstraintsToStaticObjectsTable = Table<
 struct Physics {
   struct details {
     template<class SrcRow, class DstRow, class DatabaseT, class DstTableT>
-    static void fillRow(DstTableT& table, DatabaseT& db, std::vector<size_t>& ids) {
+    static void fillRow(DstTableT& table, DatabaseT& db, std::vector<StableElementID>& ids) {
       DstRow& dst = std::get<DstRow>(table.mRows);
       SrcRow* src = nullptr;
       DatabaseT::ElementID last;
       for(size_t i = 0; i < ids.size(); ++i) {
-        const DatabaseT::ElementID id(ids[i]);
-        if(!id.isValid()) {
+        if(ids[i] == StableElementID::invalid()) {
           continue;
         }
+
+        //Caller should ensure the unstable indices have been resolved such that now the unstable index is up to date
+        const DatabaseT::ElementID id(ids[i].mUnstableIndex);
         //Retreive the rows every time the tables change, which should be rarely
         if(!src || last.getTableIndex() != id.getTableIndex()) {
           src = Queries::getRowInTable<SrcRow>(db, id);
@@ -247,7 +253,7 @@ struct Physics {
       DstRow* dst = nullptr;
       DatabaseT::ElementID last;
       for(const FinalSyncIndices::Mapping mapping : mappings) {
-        const DatabaseT::ElementID id(mapping.mSourceGamebject);
+        const DatabaseT::ElementID id(mapping.mSourceGamebject.mUnstableIndex);
         if(!dst || last.getTableIndex() != id.getTableIndex()) {
           dst = Queries::getRowInTable<DstRow>(db, id);
         }
@@ -281,14 +287,35 @@ struct Physics {
 
   //Populates narrowphase data by fetching it from the provided input using the indices stored by the broadphase
   template<class PosX, class PosY, class CosAngle, class SinAngle, class DatabaseT>
-  static void fillNarrowphaseData(CollisionPairsTable& pairs, DatabaseT& db) {
-    std::vector<size_t>& idsA = std::get<CollisionPairIndexA>(pairs.mRows).mElements;
+  static void fillNarrowphaseData(CollisionPairsTable& pairs, DatabaseT& db, StableElementMappings& mappings, const PhysicsTableIds& physicsTables) {
+    std::vector<StableElementID>& idsA = std::get<CollisionPairIndexA>(pairs.mRows).mElements;
+    std::vector<StableElementID>& idsB = std::get<CollisionPairIndexB>(pairs.mRows).mElements;
+    for(size_t i = 0; i < idsA.size(); ++i) {
+      auto& a = idsA[i];
+      auto& b = idsB[i];
+      std::optional<StableElementID> newA = StableOperations::tryResolveStableID(a, db, mappings);
+      std::optional<StableElementID> newB = StableOperations::tryResolveStableID(b, db, mappings);
+      //If an id disappeared, invalidate the pair
+      if(!newA || !newB) {
+        a = b = StableElementID::invalid();
+      }
+      //If the ids changes, reorder the collision pair
+      else if(*newA != a || *newB != b) {
+        //Write the newly resolved handles back to the stored ids
+        a = *newA;
+        b = *newB;
+        //Reorder them in case the new element location caused a collision pair order change
+        if(!CollisionPairOrder::tryOrderCollisionPair(a, b, physicsTables)) {
+          a = b = StableElementID::invalid();
+        }
+      }
+    }
+
     details::fillRow<PosX, NarrowphaseData<PairA>::PosX>(pairs, db, idsA);
     details::fillRow<PosY, NarrowphaseData<PairA>::PosY>(pairs, db, idsA);
     details::fillRow<CosAngle, NarrowphaseData<PairA>::CosAngle>(pairs, db, idsA);
     details::fillRow<SinAngle, NarrowphaseData<PairA>::SinAngle>(pairs, db, idsA);
 
-    std::vector<size_t>& idsB = std::get<CollisionPairIndexB>(pairs.mRows).mElements;
     details::fillRow<PosX, NarrowphaseData<PairB>::PosX>(pairs, db, idsB);
     details::fillRow<PosY, NarrowphaseData<PairB>::PosY>(pairs, db, idsB);
     details::fillRow<CosAngle, NarrowphaseData<PairB>::CosAngle>(pairs, db, idsB);
@@ -303,24 +330,25 @@ struct Physics {
     ConstraintsTable& constraints,
     ContactConstraintsToStaticObjectsTable& staticConstraints,
     ConstraintCommonTable& constraintsCommon,
-    const PhysicsTableIds& tableIds);
+    const PhysicsTableIds& tableIds,
+    const PhysicsConfig& config);
 
   //Migrate velocity data from db to constraint table
   template<class LinVelX, class LinVelY, class AngVel, class DatabaseT>
   static void fillConstraintVelocities(ConstraintCommonTable& constraints, DatabaseT& db) {
-    std::vector<size_t>& idsA = std::get<CollisionPairIndexA>(constraints.mRows).mElements;
+    std::vector<StableElementID>& idsA = std::get<CollisionPairIndexA>(constraints.mRows).mElements;
     details::fillRow<LinVelX, ConstraintObject<ConstraintObjA>::LinVelX>(constraints, db, idsA);
     details::fillRow<LinVelY, ConstraintObject<ConstraintObjA>::LinVelY>(constraints, db, idsA);
     details::fillRow<AngVel, ConstraintObject<ConstraintObjA>::AngVel>(constraints, db, idsA);
 
-    std::vector<size_t>& idsB = std::get<CollisionPairIndexB>(constraints.mRows).mElements;
+    std::vector<StableElementID>& idsB = std::get<CollisionPairIndexB>(constraints.mRows).mElements;
     details::fillRow<LinVelX, ConstraintObject<ConstraintObjB>::LinVelX>(constraints, db, idsB);
     details::fillRow<LinVelY, ConstraintObject<ConstraintObjB>::LinVelY>(constraints, db, idsB);
     details::fillRow<AngVel, ConstraintObject<ConstraintObjB>::AngVel>(constraints, db, idsB);
   }
 
   static void setupConstraints(ConstraintsTable& constraints, ContactConstraintsToStaticObjectsTable& staticContacts);
-  static void solveConstraints(ConstraintsTable& constraints, ContactConstraintsToStaticObjectsTable& staticContacts, ConstraintCommonTable& common);
+  static void solveConstraints(ConstraintsTable& constraints, ContactConstraintsToStaticObjectsTable& staticContacts, ConstraintCommonTable& common, const PhysicsConfig& config);
 
   //Migrate velocity data from constraint table to db
   template<class LinVelX, class LinVelY, class AngVel, class DatabaseT>

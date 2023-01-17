@@ -169,9 +169,11 @@ export void solveContactConstraints(
   uniform float frictionLambdaSumTwo[],
   uniform float frictionCoeff,
   uniform uint32 objectOffset,
+  uniform uint32 start,
   uniform uint32 count
 ) {
-  foreach(i = 0 ... count) {
+  foreach(t = 0 ... count) {
+    const int i = t + start;
     const int oi = i + objectOffset;
     const float nx = constraints.linearAxisX[i];
     const float ny = constraints.linearAxisY[i];
@@ -314,15 +316,18 @@ export void solveContactConstraints(
 export void solveContactConstraintsBZeroMass(
   uniform UniformContactConstraintPairData& constraints,
   uniform UniformConstraintObject& objectA,
+  uniform UniformConstraintObject& objectB,
   uniform float lambdaSumOne[],
   uniform float lambdaSumTwo[],
   uniform float frictionLambdaSumOne[],
   uniform float frictionLambdaSumTwo[],
   uniform float frictionCoeff,
   uniform uint32 objectOffset,
+  uniform uint32 start,
   uniform uint32 count
 ) {
-  foreach(i = 0 ... count) {
+  foreach(t = 0 ... count) {
+    const int i = t + start;
     const int oi = i + objectOffset;
     const float nx = constraints.linearAxisX[i];
     const float ny = constraints.linearAxisY[i];
@@ -412,6 +417,16 @@ export void solveContactConstraintsBZeroMass(
         objectA.linVelY[syncA] = objectA.linVelY[oi];
         #pragma ignore warning(perf)
         objectA.angVel[syncA] = objectA.angVel[oi];
+        break;
+      }
+      //This would only happen at the end of the static objects table to sync this A as a B for a non-static constraint pair
+      case SyncToIndexB: {
+        #pragma ignore warning(perf)
+        objectB.linVelX[syncA] = objectA.linVelX[oi];
+        #pragma ignore warning(perf)
+        objectB.linVelY[syncA] = objectA.linVelY[oi];
+        #pragma ignore warning(perf)
+        objectB.angVel[syncA] = objectA.angVel[oi];
         break;
       }
     }
