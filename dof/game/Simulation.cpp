@@ -277,7 +277,7 @@ SceneState::State Simulation::_setupScene(GameDatabase& db, const SceneArgs& arg
   mainCamera.zoom = 15.f;
 
   PlayerTable& players = std::get<PlayerTable>(db.mTables);
-  TableOperations::stableResizeTable(players, GameDatabase::getTableIndex<PlayerTable>(), 1, _getStableMappings(db));
+  TableOperations::stableResizeTable(players, UnpackedDatabaseElementID::fromPacked(GameDatabase::getTableIndex<PlayerTable>()), 1, _getStableMappings(db));
   std::get<SharedRow<TextureReference>>(players.mRows).at().mId = scene.mPlayerImage;
   std::get<FloatRow<Rot, CosAngle>>(players.mRows).at(0) = 1.0f;
   //Random angle in sort of radians
@@ -295,7 +295,7 @@ SceneState::State Simulation::_setupScene(GameDatabase& db, const SceneArgs& arg
   const size_t rows = args.mFragmentRows;
   const size_t columns = args.mFragmentColumns;
   const size_t total = rows*columns;
-  TableOperations::stableResizeTable(gameobjects, GameDatabase::getTableIndex<GameObjectTable>(), total, _getStableMappings(db));
+  TableOperations::stableResizeTable(gameobjects, UnpackedDatabaseElementID::fromPacked(GameDatabase::getTableIndex<GameObjectTable>()), total, _getStableMappings(db));
 
   float startX = -float(columns)/2.0f;
   float startY = -float(rows)/2.0f;
@@ -434,12 +434,15 @@ void Simulation::_updatePhysics(GameDatabase& db, const PhysicsConfig& config) {
   auto& constraints = std::get<ConstraintsTable>(db.mTables);
   auto& staticConstraints = std::get<ContactConstraintsToStaticObjectsTable>(db.mTables);
   auto& constraintsCommon = std::get<ConstraintCommonTable>(db.mTables);
-  const PhysicsTableIds& physicsTables = std::get<SharedRow<PhysicsTableIds>>(std::get<GlobalGameData>(db.mTables).mRows).at();
+  auto& globals = std::get<GlobalGameData>(db.mTables);
+  const PhysicsTableIds& physicsTables = std::get<SharedRow<PhysicsTableIds>>(globals.mRows).at();
+  ConstraintsTableMappings& constraintsMappings = std::get<SharedRow<ConstraintsTableMappings>>(globals.mRows).at();
 
   const float linearDragMultiplier = 0.96f;
   Physics::applyDampingMultiplier<LinVelX, LinVelY>(db, linearDragMultiplier);
   const float angularDragMultiplier = 0.99f;
   Physics::details::applyDampingMultiplierAxis<AngVel>(db, angularDragMultiplier);
+  SweepNPruneBroadphase::ChangedCollisionPairs& changedPairs = std::get<SharedRow<SweepNPruneBroadphase::ChangedCollisionPairs>>(broadphase.mRows).at();
 
   Queries::viewEachRow<SweepNPruneBroadphase::OldMinX,
     SweepNPruneBroadphase::OldMinY,
@@ -485,12 +488,13 @@ void Simulation::_updatePhysics(GameDatabase& db, const PhysicsConfig& config) {
         key);
     }
 
-    SweepNPruneBroadphase::updateCollisionPairs<CollisionPairIndexA, CollisionPairIndexB>(
+    SweepNPruneBroadphase::updateCollisionPairs<CollisionPairIndexA, CollisionPairIndexB, GameDatabase>(
       std::get<SharedRow<SweepNPruneBroadphase::PairChanges>>(broadphase.mRows).at(),
       std::get<SharedRow<SweepNPruneBroadphase::CollisionPairMappings>>(broadphase.mRows).at(),
       collisionPairs,
       physicsTables,
-      _getStableMappings(db));
+      _getStableMappings(db),
+      changedPairs);
   });
 
   Physics::fillNarrowphaseData<PosX, PosY, RotX, RotY>(collisionPairs, db, _getStableMappings(db), physicsTables);
@@ -519,7 +523,7 @@ void Simulation::_updatePhysics(GameDatabase& db, const PhysicsConfig& config) {
     }
   }
 
-  Physics::buildConstraintsTable(collisionPairs, constraints, staticConstraints, constraintsCommon, physicsTables, config);
+  ConstraintsTableBuilder::build(db, changedPairs, _getStableMappings(db), constraintsMappings, physicsTables);
   Physics::fillConstraintVelocities<LinVelX, LinVelY, AngVel>(constraintsCommon, db);
   Physics::setupConstraints(constraints, staticConstraints);
 
@@ -563,5 +567,6 @@ PhysicsTableIds Simulation::_getPhysicsTableIds() {
   physicsTables.mTableIDMask = GameDatabase::ElementID::TABLE_INDEX_MASK;
   physicsTables.mSharedMassTable = GameDatabase::getTableIndex<GameObjectTable>().mValue;
   physicsTables.mZeroMassTable = GameDatabase::getTableIndex<StaticGameObjectTable>().mValue;
+  physicsTables.mElementIDMask = GameDatabase::ElementID::ELEMENT_INDEX_MASK;
   return physicsTables;
 }

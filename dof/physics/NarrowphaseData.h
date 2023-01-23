@@ -16,6 +16,8 @@ struct PairB{};
 struct CollisionPairIndexA : Row<StableElementID> {};
 struct CollisionPairIndexB : Row<StableElementID> {};
 
+struct ConstraintElement : Row<StableElementID> {};
+
 template<class>
 struct ContactPoint {
   //Position of contact point in local space on object A
@@ -65,5 +67,8 @@ using CollisionPairsTable = Table<
   ContactPoint<ContactTwo>::Overlap,
 
   SharedNormal::X,
-  SharedNormal::Y
+  SharedNormal::Y,
+
+  StableIDRow,
+  ConstraintElement
 >;

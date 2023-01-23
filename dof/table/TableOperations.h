@@ -87,8 +87,8 @@ struct TableOperations {
     });
   }
 
-  template<class TableT, size_t S>
-  static void stableResizeTable(TableT& table, const DatabaseElementID<S>& id, size_t newSize, StableElementMappings& mappings) {
+  template<class TableT>
+  static void stableResizeTable(TableT& table, const UnpackedDatabaseElementID& id, size_t newSize, StableElementMappings& mappings) {
     static_assert(isStableTable<TableT>);
     table.visitOne([&](auto& row) {
       using RowT = std::decay_t<decltype(row)>;
@@ -97,6 +97,29 @@ struct TableOperations {
       }
       else {
         row.resize(newSize);
+      }
+    });
+  }
+
+  template<class TableT>
+  static void stableInsertRangeAt(TableT& table, const UnpackedDatabaseElementID& location, size_t count, StableElementMappings& mappings) {
+    const size_t oldSize = TableOperations::size(table);
+    const size_t newSize = oldSize + count;
+    //Add space for the new elements to insert
+    stableResizeTable(table, location, newSize, mappings);
+    //Shift all elements after the range into the newly created space
+    table.visitOne([&](auto& row) {
+      for(size_t i = 0; i < count; ++i) {
+        const size_t dst = newSize - i;
+        const size_t src = location.getElementIndex() + i;
+        using RowT = std::decay_t<decltype(row)>;
+        //Stable needs to swap to preserve the mappings, unstable can assign over
+        if constexpr(std::is_same_v<RowT, StableIDRow>) {
+          StableOperations::swap(row, location.remake(location.getTableIndex(), src), location.remake(location.getElementIndex(), dst), mappings);
+        }
+        else {
+          row.at(dst) = std::move(row.at(src));
+        }
       }
     });
   }

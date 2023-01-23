@@ -34,7 +34,8 @@ template<size_t TableCount>
 struct DatabaseElementID {
   static constexpr size_t TABLE_INDEX_BITS = dbDetails::constexprLog2(TableCount);
   static constexpr size_t ELEMENT_INDEX_BITS = sizeof(size_t)*8 - TABLE_INDEX_BITS;
-  static constexpr size_t TABLE_INDEX_MASK = ~dbDetails::maskFirstBits(ELEMENT_INDEX_BITS);
+  static constexpr size_t ELEMENT_INDEX_MASK = dbDetails::maskFirstBits(ELEMENT_INDEX_BITS);
+  static constexpr size_t TABLE_INDEX_MASK = ~ELEMENT_INDEX_MASK;
 
   constexpr DatabaseElementID() = default;
   explicit constexpr DatabaseElementID(size_t rawid)
@@ -62,6 +63,46 @@ struct DatabaseElementID {
   }
 
   size_t mValue = dbDetails::INVALID_VALUE;
+};
+
+//For when a template DatabaseElementID type is not desired
+struct UnpackedDatabaseElementID {
+  template<size_t S>
+  static constexpr UnpackedDatabaseElementID fromPacked(const DatabaseElementID<S>& id) {
+    return { id.mValue, DatabaseElementID<S>::ELEMENT_INDEX_BITS };
+  }
+
+  static constexpr UnpackedDatabaseElementID fromElementMask(size_t elementMask, size_t tableIndex, size_t elementIndex) {
+    size_t bits = 0;
+    while(elementMask) {
+      elementMask = (elementMask >> 1);
+      ++bits;
+    }
+    return { dbDetails::packTableAndElement(tableIndex, elementIndex, bits) };
+  }
+
+  size_t getTableIndex() const {
+    return dbDetails::unpackTableIndex(mValue, mElementIndexBits);
+  }
+
+  size_t getElementIndex() const {
+    return dbDetails::unpackElementIndex(mValue, mElementIndexBits);
+  }
+
+  size_t getElementMask() const {
+    return dbDetails::maskFirstBits(mElementIndexBits);
+  }
+
+  size_t getTableMask() const {
+    return ~getElementMask();
+  }
+
+  UnpackedDatabaseElementID remake(size_t tableIndex, size_t elementIndex) const {
+    return { dbDetails::packTableAndElement(tableIndex, elementIndex, mElementIndexBits) };
+  }
+
+  size_t mValue = dbDetails::INVALID_VALUE;
+  size_t mElementIndexBits;
 };
 
 template<class... Tables>

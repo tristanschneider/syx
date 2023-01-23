@@ -34,9 +34,14 @@ struct SweepNPruneBroadphase {
     //Removed collision pairs caused by reinserts or erases
     std::vector<SweepCollisionPair> mLost;
   };
+  struct ChangedCollisionPairs {
+    std::vector<StableElementID> mGained;
+    std::vector<StableElementID> mLost;
+  };
   using BroadphaseTable = Table<
     SharedRow<Sweep2D>,
     SharedRow<PairChanges>,
+    SharedRow<ChangedCollisionPairs>,
     SharedRow<CollisionPairMappings>
   >;
 
@@ -121,8 +126,9 @@ struct SweepNPruneBroadphase {
   }
 
   //Create and remove based on the changes in PairChanges
-  template<class PairIndexA, class PairIndexB, class TableT>
-  static void updateCollisionPairs(PairChanges& changes, CollisionPairMappings& mappings, TableT& table, const PhysicsTableIds& tableIds, StableElementMappings& stableMappings) {
+  template<class PairIndexA, class PairIndexB, class DatabaseT, class TableT>
+  static void updateCollisionPairs(PairChanges& changes, CollisionPairMappings& mappings, TableT& table, const PhysicsTableIds& tableIds, StableElementMappings& stableMappings, ChangedCollisionPairs& resultChanges) {
+    auto& stableIds = std::get<StableIDRow>(table.mRows);
     //TODO: order these somewhere else
     for(size_t i = 0; i < changes.mGained.size(); ++i) {
       SweepCollisionPair& gain = changes.mGained[i];
@@ -138,7 +144,12 @@ struct SweepNPruneBroadphase {
       if(auto it = mappings.mSweepPairToCollisionTableIndex.find(loss); it != mappings.mSweepPairToCollisionTableIndex.end()) {
         const size_t swappedIndex = TableOperations::size(table) - 1;
         const size_t removedPairIndex = it->second;
-        TableOperations::swapRemove(table, removedPairIndex);
+
+        auto removeElement = DatabaseT::template getElementID<TableT>(removedPairIndex);
+        const StableElementID lostConstraint = std::get<ConstraintElement>(table.mRows).at(removedPairIndex);
+        resultChanges.mLost.push_back(lostConstraint);
+        //TODO: manual mappings management isn't really necessary anymore sine the stable row
+        TableOperations::stableSwapRemove(table, removeElement, stableMappings);
         std::swap(mappings.mCollisionTableIndexToSweepPair[removedPairIndex], mappings.mCollisionTableIndexToSweepPair[swappedIndex]);
         mappings.mCollisionTableIndexToSweepPair.pop_back();
         //Remove reference to this index
@@ -166,7 +177,8 @@ struct SweepNPruneBroadphase {
     //Resize to fit all the new elements
     const size_t gainBegin = TableOperations::size(table);
     const size_t newSize = gainBegin + changes.mGained.size();
-    TableOperations::resizeTable(table, newSize);
+    constexpr auto tableIndex = UnpackedDatabaseElementID::fromPacked(DatabaseT::template getTableIndex<TableT>());
+    TableOperations::stableResizeTable(table, tableIndex, newSize, stableMappings);
     //Should always match the size of the collision table
     mappings.mCollisionTableIndexToSweepPair.resize(newSize);
     auto& pairA = std::get<PairIndexA>(table.mRows);
@@ -186,13 +198,16 @@ struct SweepNPruneBroadphase {
         mappings.mCollisionTableIndexToSweepPair[addIndex] = gain;
         mappings.mSweepPairToCollisionTableIndex[gain] = addIndex;
 
+        auto addElement = DatabaseT::template getElementID<TableT>(addIndex);
+        resultChanges.mGained.push_back(StableOperations::getStableID(stableIds, addElement));
+
         ++addIndex;
       }
     }
 
     //If less were added than expected, shrink down the extra space
     if(addIndex < newSize) {
-      TableOperations::resizeTable(table, addIndex);
+      TableOperations::stableResizeTable(table, tableIndex, addIndex, stableMappings);
       mappings.mCollisionTableIndexToSweepPair.reserve(newSize);
     }
 

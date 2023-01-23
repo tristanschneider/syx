@@ -321,8 +321,9 @@ namespace Test {
       BroadphaseTable& broadphase = std::get<BroadphaseTable>(db.mTables);
       auto& changes = std::get<SharedRow<SweepNPruneBroadphase::PairChanges>>(broadphase.mRows).at();
       auto& mappings = std::get<SharedRow<SweepNPruneBroadphase::CollisionPairMappings>>(broadphase.mRows).at();
-      SweepNPruneBroadphase::updateCollisionPairs<CollisionPairIndexA, CollisionPairIndexB>
-        (changes, mappings, std::get<CollisionPairsTable>(db.mTables), Simulation::_getPhysicsTableIds(), _getStableMappings(db));
+      SweepNPruneBroadphase::ChangedCollisionPairs resultChanges;
+      SweepNPruneBroadphase::updateCollisionPairs<CollisionPairIndexA, CollisionPairIndexB, GameDatabase>
+        (changes, mappings, std::get<CollisionPairsTable>(db.mTables), Simulation::_getPhysicsTableIds(), _getStableMappings(db), resultChanges);
     }
 
     template<class TableT>
@@ -340,10 +341,19 @@ namespace Test {
       Physics::generateContacts(std::get<CollisionPairsTable>(db.mTables));
     }
 
+    static void _buildConstraintsTable(GameDatabase& db) {
+      auto& globals = std::get<GlobalGameData>(db.mTables);
+      ConstraintsTableBuilder::build(db,
+        std::get<SharedRow<SweepNPruneBroadphase::ChangedCollisionPairs>>(std::get<BroadphaseTable>(db.mTables).mRows).at(),
+        std::get<SharedRow<StableElementMappings>>(globals.mRows).at(),
+        std::get<SharedRow<ConstraintsTableMappings>>(globals.mRows).at(),
+        Simulation::_getPhysicsTableIds());
+    }
+
     TEST_METHOD(CollidingPair_PopulateNarrowphase_IsPopulated) {
       GameDatabase db;
       auto& gameobjects = std::get<GameObjectTable>(db.mTables);
-      TableOperations::stableResizeTable(gameobjects, GameDatabase::getTableIndex<GameObjectTable>(), 2, _getStableMappings(db));
+      TableOperations::stableResizeTable(gameobjects, UnpackedDatabaseElementID::fromPacked(GameDatabase::getTableIndex<GameObjectTable>()), 2, _getStableMappings(db));
       auto& posX = std::get<FloatRow<Tags::Pos, Tags::X>>(gameobjects.mRows);
       posX.at(0) = 1.1f;
       posX.at(1) = 1.2f;
@@ -360,7 +370,7 @@ namespace Test {
     TEST_METHOD(DistantPair_PopulateNarrowphase_NoPairs) {
       GameDatabase db;
       auto& gameobjects = std::get<GameObjectTable>(db.mTables);
-      TableOperations::stableResizeTable(gameobjects, GameDatabase::getTableIndex<GameObjectTable>(), 2, _getStableMappings(db));
+      TableOperations::stableResizeTable(gameobjects, UnpackedDatabaseElementID::fromPacked(GameDatabase::getTableIndex<GameObjectTable>()), 2, _getStableMappings(db));
       auto& posX = std::get<FloatRow<Tags::Pos, Tags::X>>(gameobjects.mRows);
       auto& pairs = std::get<CollisionPairsTable>(db.mTables);
       posX.at(0) = 1.0f;
@@ -374,7 +384,7 @@ namespace Test {
     TEST_METHOD(TwoPairsSameObject_GenerateCollisionPairs_HasPairs) {
       GameDatabase db;
       auto& gameobjects = std::get<GameObjectTable>(db.mTables);
-      TableOperations::stableResizeTable(gameobjects, GameDatabase::getTableIndex<GameObjectTable>(), 3, _getStableMappings(db));
+      TableOperations::stableResizeTable(gameobjects, UnpackedDatabaseElementID::fromPacked(GameDatabase::getTableIndex<GameObjectTable>()), 3, _getStableMappings(db));
 
       auto& posX = std::get<FloatRow<Tags::Pos, Tags::X>>(gameobjects.mRows);
       auto& pairs = std::get<CollisionPairsTable>(db.mTables);
@@ -403,7 +413,7 @@ namespace Test {
     TEST_METHOD(CollidingPair_GenerateContacts_AreGenerated) {
       GameDatabase db;
       auto& gameobjects = std::get<GameObjectTable>(db.mTables);
-      TableOperations::stableResizeTable(gameobjects, GameDatabase::getTableIndex<GameObjectTable>(), 2, _getStableMappings(db));
+      TableOperations::stableResizeTable(gameobjects, UnpackedDatabaseElementID::fromPacked(GameDatabase::getTableIndex<GameObjectTable>()), 2, _getStableMappings(db));
       auto& posX = std::get<FloatRow<Tags::Pos, Tags::X>>(gameobjects.mRows);
       auto& cosAngle = std::get<FloatRow<Tags::Rot, Tags::CosAngle>>(gameobjects.mRows);
       cosAngle.at(0) = 1.0f;
@@ -413,38 +423,24 @@ namespace Test {
       posX.at(0) = 5.0f;
       posX.at(1) = 6.0f - expectedOverlap;
 
-      int tmp = _CrtSetDbgFlag(_CRTDBG_REPORT_FLAG);
-      tmp |= _CRTDBG_CHECK_ALWAYS_DF;
-      _CrtSetDbgFlag(tmp);
-
-      if(!_CrtCheckMemory()) {
-        __debugbreak();
-      }
-
       _insertBroadphaseAndFillNarrowphase(db, gameobjects, { 0, 1 });
 
-      if(!_CrtCheckMemory()) {
-        __debugbreak();
-      }
+      Physics::generateContacts(pairs);
 
-      pairs;
-      //Physics::generateContacts(pairs);
-      //
-      //Assert::AreEqual(size_t(1), TableOperations::size(pairs));
-      //const float e = 0.00001f;
-      //Assert::AreEqual(expectedOverlap, std::get<ContactPoint<ContactOne>::Overlap>(pairs.mRows).at(0), e);
-      //Assert::AreEqual(5.5f - expectedOverlap, std::get<ContactPoint<ContactOne>::PosX>(pairs.mRows).at(0), e);
-      //Assert::AreEqual(-1.0f, std::get<SharedNormal::X>(pairs.mRows).at(0), e);
+      Assert::AreEqual(size_t(1), TableOperations::size(pairs));
+      const float e = 0.00001f;
+      Assert::AreEqual(expectedOverlap, std::get<ContactPoint<ContactOne>::Overlap>(pairs.mRows).at(0), e);
+      Assert::AreEqual(5.5f - expectedOverlap, std::get<ContactPoint<ContactOne>::PosX>(pairs.mRows).at(0), e);
+      Assert::AreEqual(-1.0f, std::get<SharedNormal::X>(pairs.mRows).at(0), e);
     }
 
     TEST_METHOD(CollidingPair_SolveConstraints_AreSeparated) {
       GameDatabase db;
       auto& gameobjects = std::get<GameObjectTable>(db.mTables);
-      TableOperations::stableResizeTable(gameobjects, GameDatabase::getTableIndex<GameObjectTable>(), 2, _getStableMappings(db));
+      TableOperations::stableResizeTable(gameobjects, UnpackedDatabaseElementID::fromPacked(GameDatabase::getTableIndex<GameObjectTable>()), 2, _getStableMappings(db));
       auto& constraints = std::get<ConstraintsTable>(db.mTables);
       auto& staticConstraints = std::get<ContactConstraintsToStaticObjectsTable>(db.mTables);
       auto& commonConstraints = std::get<ConstraintCommonTable>(db.mTables);
-      auto& pairs = std::get<CollisionPairsTable>(db.mTables);
       auto& cosAngle = std::get<FloatRow<Tags::Rot, Tags::CosAngle>>(gameobjects.mRows);
       cosAngle.at(0) = 1.0f;
       cosAngle.at(1) = 1.0f;
@@ -459,7 +455,7 @@ namespace Test {
 
       _insertBroadphaseAndFillNarrowphaseAndContacts(db, gameobjects, { 0, 1 });
 
-      Physics::buildConstraintsTable(pairs, constraints, staticConstraints, commonConstraints, Simulation::_getPhysicsTableIds(), {});
+      _buildConstraintsTable(db);
       _fillConstraintVelocities(db);
 
       Physics::setupConstraints(constraints, staticConstraints);
@@ -780,8 +776,8 @@ namespace Test {
       auto& b = std::get<StableTableB>(db.mTables);
       auto& stableA = std::get<StableIDRow>(a.mRows);
       auto& valueA = std::get<Row<int>>(a.mRows);
-      constexpr auto tableIndexA = TestStableDB::getTableIndex<StableTableA>();
-      constexpr auto tableIndexB = TestStableDB::getTableIndex<StableTableB>();
+      constexpr auto tableIndexA = UnpackedDatabaseElementID::fromPacked(TestStableDB::getTableIndex<StableTableA>());
+      constexpr auto tableIndexB = UnpackedDatabaseElementID::fromPacked(TestStableDB::getTableIndex<StableTableB>());
       TableOperations::stableResizeTable(a, tableIndexA, 3, mappings);
 
       verifyAllMappings(db, a, mappings);
@@ -800,7 +796,7 @@ namespace Test {
       Assert::AreEqual(5, Queries::getRowInTable<Row<int>>(db, resolvedC)->at(resolvedC.getElementIndex()));
 
       //Migrate object at index 0 in A which is ElementC
-      TableOperations::stableMigrateOne(a, b, tableIndexA, tableIndexB, mappings);
+      TableOperations::stableMigrateOne(a, b, TestStableDB::getTableIndex<StableTableA>(), TestStableDB::getTableIndex<StableTableB>(), mappings);
 
       verifyAllMappings(db, a, mappings);
       verifyAllMappings(db, b, mappings);

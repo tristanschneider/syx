@@ -1,7 +1,7 @@
 #pragma once
 
+#include "ConstraintsTableBuilder.h"
 #include "Database.h"
-#include "Physics.h"
 #include "Table.h"
 
 #include "glm/vec2.hpp"
@@ -95,7 +95,8 @@ using GlobalGameData = Table<
   SharedRow<SceneState>,
   SharedRow<PhysicsTableIds>,
   SharedRow<FileSystem>,
-  SharedRow<StableElementMappings>
+  SharedRow<StableElementMappings>,
+  SharedRow<ConstraintsTableMappings>
 >;
 
 using GameObjectTable = Table<

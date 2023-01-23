@@ -64,6 +64,17 @@ struct ConstraintData {
   struct LambdaSumTwo : Row<float> {};
   struct FrictionLambdaSumOne : Row<float> {};
   struct FrictionLambdaSumTwo : Row<float> {};
+  //Byte that incates the constraint should be solved 
+  struct IsEnabled : Row<uint8_t> {};
+  //Contact pair this constraint came from
+  struct ConstraintContactPair : Row<StableElementID> {};
+
+  //The destination in the common constraints table these should sync to.
+  //They are the same as what SyncIndex will end up as but used during constraint table updates
+  //to ensure those indices are pointing at the right elements
+  struct PreSyncElements {
+    StableElementID mASyncDest, mBSyncDest;
+  };
 
   //Temporarily used while building constraint list
   struct VisitData {
@@ -110,6 +121,7 @@ struct FinalSyncIndices {
 using ConstraintCommonTable = Table<
   CollisionPairIndexA,
   CollisionPairIndexB,
+  ConstraintData::ConstraintContactPair,
 
   ConstraintObject<ConstraintObjA>::LinVelX,
   ConstraintObject<ConstraintObjA>::LinVelY,
@@ -122,6 +134,10 @@ using ConstraintCommonTable = Table<
   ConstraintObject<ConstraintObjB>::AngVel,
   ConstraintObject<ConstraintObjB>::SyncIndex,
   ConstraintObject<ConstraintObjB>::SyncType,
+
+  ConstraintData::IsEnabled,
+
+  StableIDRow,
 
   SharedRow<FinalSyncIndices>,
   ConstraintData::SharedVisitDataRow
@@ -223,12 +239,12 @@ using ContactConstraintsToStaticObjectsTable = Table<
 struct Physics {
   struct details {
     template<class SrcRow, class DstRow, class DatabaseT, class DstTableT>
-    static void fillRow(DstTableT& table, DatabaseT& db, std::vector<StableElementID>& ids) {
+    static void fillRow(DstTableT& table, DatabaseT& db, std::vector<StableElementID>& ids, const uint8_t* isEnabled = nullptr) {
       DstRow& dst = std::get<DstRow>(table.mRows);
       SrcRow* src = nullptr;
       DatabaseT::ElementID last;
       for(size_t i = 0; i < ids.size(); ++i) {
-        if(ids[i] == StableElementID::invalid()) {
+        if(ids[i] == StableElementID::invalid() || (isEnabled && !*(isEnabled + i))) {
           continue;
         }
 
@@ -324,27 +340,19 @@ struct Physics {
 
   static void generateContacts(CollisionPairsTable& pairs);
 
-  //Add the entries in the constraints table and figure out sync indices
-  static void buildConstraintsTable(
-    CollisionPairsTable& pairs,
-    ConstraintsTable& constraints,
-    ContactConstraintsToStaticObjectsTable& staticConstraints,
-    ConstraintCommonTable& constraintsCommon,
-    const PhysicsTableIds& tableIds,
-    const PhysicsConfig& config);
-
   //Migrate velocity data from db to constraint table
   template<class LinVelX, class LinVelY, class AngVel, class DatabaseT>
   static void fillConstraintVelocities(ConstraintCommonTable& constraints, DatabaseT& db) {
     std::vector<StableElementID>& idsA = std::get<CollisionPairIndexA>(constraints.mRows).mElements;
-    details::fillRow<LinVelX, ConstraintObject<ConstraintObjA>::LinVelX>(constraints, db, idsA);
-    details::fillRow<LinVelY, ConstraintObject<ConstraintObjA>::LinVelY>(constraints, db, idsA);
-    details::fillRow<AngVel, ConstraintObject<ConstraintObjA>::AngVel>(constraints, db, idsA);
+    const uint8_t* isEnabled = std::get<ConstraintData::IsEnabled>(constraints.mRows).mElements.data();
+    details::fillRow<LinVelX, ConstraintObject<ConstraintObjA>::LinVelX>(constraints, db, idsA, isEnabled);
+    details::fillRow<LinVelY, ConstraintObject<ConstraintObjA>::LinVelY>(constraints, db, idsA, isEnabled);
+    details::fillRow<AngVel, ConstraintObject<ConstraintObjA>::AngVel>(constraints, db, idsA, isEnabled);
 
     std::vector<StableElementID>& idsB = std::get<CollisionPairIndexB>(constraints.mRows).mElements;
-    details::fillRow<LinVelX, ConstraintObject<ConstraintObjB>::LinVelX>(constraints, db, idsB);
-    details::fillRow<LinVelY, ConstraintObject<ConstraintObjB>::LinVelY>(constraints, db, idsB);
-    details::fillRow<AngVel, ConstraintObject<ConstraintObjB>::AngVel>(constraints, db, idsB);
+    details::fillRow<LinVelX, ConstraintObject<ConstraintObjB>::LinVelX>(constraints, db, idsB, isEnabled);
+    details::fillRow<LinVelY, ConstraintObject<ConstraintObjB>::LinVelY>(constraints, db, idsB, isEnabled);
+    details::fillRow<AngVel, ConstraintObject<ConstraintObjB>::AngVel>(constraints, db, idsB, isEnabled);
   }
 
   static void setupConstraints(ConstraintsTable& constraints, ContactConstraintsToStaticObjectsTable& staticContacts);
