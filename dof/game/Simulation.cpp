@@ -26,6 +26,10 @@ namespace {
     return { std::get<FloatRow<Tag, X>>(t.mRows).mElements.data(), std::get<FloatRow<Tag, Y>>(t.mRows).mElements.data() };
   }
 
+  PhysicsConfig _getPhysicsConfig() {
+    return {};
+  }
+
   SweepNPruneBroadphase::BoundariesConfig _getBoundariesConfig() {
     return {};
   }
@@ -153,7 +157,7 @@ namespace {
     Simulation::_migrateCompletedFragments(std::get<GameObjectTable>(db.mTables), std::get<StaticGameObjectTable>(db.mTables), std::get<BroadphaseTable>(db.mTables), _getStableMappings(db));
 
     _enforceWorldBoundary(db);
-    Simulation::_updatePhysics(db, {});
+    Simulation::_updatePhysics(db, _getPhysicsConfig());
 
     return SceneState::State::Update;
   }
@@ -523,7 +527,7 @@ void Simulation::_updatePhysics(GameDatabase& db, const PhysicsConfig& config) {
     }
   }
 
-  ConstraintsTableBuilder::build(db, changedPairs, _getStableMappings(db), constraintsMappings, physicsTables);
+  ConstraintsTableBuilder::build(db, changedPairs, _getStableMappings(db), constraintsMappings, physicsTables, config);
   Physics::fillConstraintVelocities<LinVelX, LinVelY, AngVel>(constraintsCommon, db);
   Physics::setupConstraints(constraints, staticConstraints);
 

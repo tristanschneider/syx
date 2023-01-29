@@ -341,13 +341,15 @@ namespace Test {
       Physics::generateContacts(std::get<CollisionPairsTable>(db.mTables));
     }
 
-    static void _buildConstraintsTable(GameDatabase& db) {
-      auto& globals = std::get<GlobalGameData>(db.mTables);
-      ConstraintsTableBuilder::build(db,
-        std::get<SharedRow<SweepNPruneBroadphase::ChangedCollisionPairs>>(std::get<BroadphaseTable>(db.mTables).mRows).at(),
-        std::get<SharedRow<StableElementMappings>>(globals.mRows).at(),
-        std::get<SharedRow<ConstraintsTableMappings>>(globals.mRows).at(),
-        Simulation::_getPhysicsTableIds());
+    static PhysicsConfig _configWithPadding(size_t padding) {
+      PhysicsConfig result;
+      result.mForcedTargetWidth = padding;
+      return result;
+    }
+
+    static void _buildConstraintsTable(GameDatabase& db, const PhysicsConfig& config) {
+      DBReader reader(db);
+      ConstraintsTableBuilder::build(db, reader.mChangedPairs, reader.mStableMappings, reader.mConstraintsMappings, Simulation::_getPhysicsTableIds(), config);
     }
 
     TEST_METHOD(CollidingPair_PopulateNarrowphase_IsPopulated) {
@@ -455,7 +457,7 @@ namespace Test {
 
       _insertBroadphaseAndFillNarrowphaseAndContacts(db, gameobjects, { 0, 1 });
 
-      _buildConstraintsTable(db);
+      _buildConstraintsTable(db, _configWithPadding(0));
       _fillConstraintVelocities(db);
 
       Physics::setupConstraints(constraints, staticConstraints);
@@ -834,10 +836,19 @@ namespace Test {
         , mGameObjectIDs(std::get<StableIDRow>(mGameObjects.mRows))
         , mStaticGameObjectIDs(std::get<StableIDRow>(mStaticGameObjects.mRows))
         , mPlayerIDs(std::get<StableIDRow>(mPlayers.mRows))
+        , mCollisionPairIDs(std::get<StableIDRow>(mCollisionPairs.mRows))
+        , mConstraintIDs(std::get<StableIDRow>(mConstraintsCommon.mRows))
         , mCollisionPairA(std::get<CollisionPairIndexA>(mCollisionPairs.mRows))
         , mCollisionPairB(std::get<CollisionPairIndexB>(mCollisionPairs.mRows))
         , mConstraintPairA(std::get<CollisionPairIndexA>(mConstraintsCommon.mRows))
         , mConstraintPairB(std::get<CollisionPairIndexB>(mConstraintsCommon.mRows))
+        , mSyncIndexA(std::get<ConstraintObject<ConstraintObjA>::SyncIndex>(mConstraintsCommon.mRows))
+        , mSyncIndexB(std::get<ConstraintObject<ConstraintObjB>::SyncIndex>(mConstraintsCommon.mRows))
+        , mSyncTypeA(std::get<ConstraintObject<ConstraintObjA>::SyncType>(mConstraintsCommon.mRows))
+        , mSyncTypeB(std::get<ConstraintObject<ConstraintObjB>::SyncType>(mConstraintsCommon.mRows))
+        , mIsConstraintEnabled(std::get<ConstraintData::IsEnabled>(mConstraintsCommon.mRows))
+        , mChangedPairs(std::get<SharedRow<SweepNPruneBroadphase::ChangedCollisionPairs>>(mBroadphase.mRows).at())
+        , mConstraintsMappings(std::get<SharedRow<ConstraintsTableMappings>>(mGlobals.mRows).at())
         , mStableMappings(std::get<SharedRow<StableElementMappings>>(mGlobals.mRows).at())
       {
       }
@@ -851,6 +862,8 @@ namespace Test {
       ContactConstraintsToStaticObjectsTable& mStaticConstraints;
       PlayerTable& mPlayers;
       GlobalGameData& mGlobals;
+
+      SweepNPruneBroadphase::ChangedCollisionPairs& mChangedPairs;
 
       FloatRow<Tags::Pos, Tags::X>& mPosX;
       FloatRow<Tags::Pos, Tags::X>& mStaticPosX;
@@ -867,7 +880,16 @@ namespace Test {
       StableIDRow& mGameObjectIDs;
       StableIDRow& mStaticGameObjectIDs;
       StableIDRow& mPlayerIDs;
+      StableIDRow& mCollisionPairIDs;
+      StableIDRow& mConstraintIDs;
       StableElementMappings& mStableMappings;
+      ConstraintsTableMappings& mConstraintsMappings;
+      ConstraintData::IsEnabled& mIsConstraintEnabled;
+
+      ConstraintObject<ConstraintObjA>::SyncIndex& mSyncIndexA;
+      ConstraintObject<ConstraintObjB>::SyncIndex& mSyncIndexB;
+      ConstraintObject<ConstraintObjA>::SyncType& mSyncTypeA;
+      ConstraintObject<ConstraintObjB>::SyncType& mSyncTypeB;
 
       CollisionPairIndexA& mCollisionPairA;
       CollisionPairIndexA& mConstraintPairA;
@@ -914,6 +936,32 @@ namespace Test {
       Simulation::_updatePhysics(db, config);
     }
 
+    static void _assertEnabledContactConstraintCount(GameDatabase& db, size_t expected) {
+      DBReader reader(db);
+      const size_t contactCount = reader.mConstraintsMappings.mZeroMassStartIndex;
+      size_t enabled = 0;
+      for(size_t i = 0; i < contactCount; ++i) {
+        if(reader.mIsConstraintEnabled.at(i)) {
+          ++enabled;
+        }
+      }
+      Assert::AreEqual(expected, enabled);
+      Assert::AreEqual(contactCount, TableOperations::size(reader.mConstraints));
+    }
+
+    static void _assertEnabledStaticContactConstraintCount(GameDatabase& db, size_t expected) {
+      DBReader reader(db);
+      const size_t staticCount = TableOperations::size(reader.mConstraintsCommon) - reader.mConstraintsMappings.mZeroMassStartIndex;
+      size_t enabled = 0;
+      for(size_t i = 0; i < staticCount; ++i) {
+        if(reader.mIsConstraintEnabled.at(i + reader.mConstraintsMappings.mZeroMassStartIndex)) {
+          ++enabled;
+        }
+      }
+      Assert::AreEqual(expected, enabled);
+      Assert::AreEqual(staticCount, TableOperations::size(reader.mStaticConstraints));
+    }
+
     TEST_METHOD(GameOneObject_Migrate_PhysicsDataPreserved) {
       GameDatabase db;
       SceneArgs args{ 1, 1 };
@@ -937,9 +985,8 @@ namespace Test {
 
       auto assertInitialResolution = [&] {
         Assert::AreEqual(size_t(1), TableOperations::size(reader.mCollisionPairs));
-        Assert::AreEqual(size_t(1), TableOperations::size(reader.mConstraints));
-        Assert::AreEqual(size_t(0), TableOperations::size(reader.mStaticConstraints));
-        Assert::AreEqual(size_t(1), TableOperations::size(reader.mConstraintsCommon));
+        _assertEnabledContactConstraintCount(db, 1);
+        _assertEnabledStaticContactConstraintCount(db, 0);
         Assert::IsTrue(reader.mCollisionPairA.at(0) == playerId);
         Assert::IsTrue(reader.mConstraintPairA.at(0) == playerId);
         Assert::IsTrue(reader.mCollisionPairB.at(0) == objectId);
@@ -955,9 +1002,8 @@ namespace Test {
 
       auto assertNoPairs = [&] {
         Assert::AreEqual(size_t(0), TableOperations::size(reader.mCollisionPairs));
-        Assert::AreEqual(size_t(0), TableOperations::size(reader.mConstraints));
-        Assert::AreEqual(size_t(0), TableOperations::size(reader.mStaticConstraints));
-        Assert::AreEqual(size_t(0), TableOperations::size(reader.mConstraintsCommon));
+        _assertEnabledContactConstraintCount(db, 0);
+        _assertEnabledStaticContactConstraintCount(db, 0);
       };
       assertNoPairs();
 
@@ -985,9 +1031,8 @@ namespace Test {
         //Pair order is the same, both because player has lower stable id (0) than object (1) but also because object is now static,
         //and static objects always order B in pairs
         Assert::AreEqual(size_t(1), TableOperations::size(reader.mCollisionPairs));
-        Assert::AreEqual(size_t(0), TableOperations::size(reader.mConstraints));
-        Assert::AreEqual(size_t(1), TableOperations::size(reader.mStaticConstraints));
-        Assert::AreEqual(size_t(1), TableOperations::size(reader.mConstraintsCommon));
+        _assertEnabledContactConstraintCount(db, 0);
+        _assertEnabledStaticContactConstraintCount(db, 1);
         Assert::IsTrue(reader.mCollisionPairA.at(0) == playerId);
         Assert::IsTrue(reader.mConstraintPairA.at(0) == playerId);
         Assert::IsTrue(reader.mCollisionPairB.at(0) == objectId);
@@ -1102,6 +1147,166 @@ namespace Test {
       _updatePhysics(db);
 
       assertStaticCollision();
+    }
+
+    template<class TableT>
+    static constexpr UnpackedDatabaseElementID _getUnpackedID(size_t index = 0) {
+      return UnpackedDatabaseElementID::fromPacked(GameDatabase::getElementID<TableT>(index));
+    }
+
+    template<class TableT>
+    static void _stableResize(TableT& table, size_t newSize, StableElementMappings& mappings) {
+      TableOperations::stableResizeTable(table, _getUnpackedID<TableT>(), newSize, mappings);
+    }
+
+    static StableElementID _addCollisionPair(GameDatabase& db, StableElementID a, StableElementID b) {
+      DBReader reader(db);
+      const size_t oldSize = TableOperations::size(reader.mCollisionPairs);
+      _stableResize(reader.mCollisionPairs, oldSize + 1, reader.mStableMappings);
+      reader.mCollisionPairA.at(oldSize) = a;
+      reader.mCollisionPairB.at(oldSize) = b;
+      StableElementID result = StableOperations::getStableID(reader.mCollisionPairIDs, _getUnpackedID<CollisionPairsTable>(oldSize));
+
+      reader.mChangedPairs.mGained.push_back(result);
+
+      return result;
+    }
+
+    static StableElementID _getGameobjectID(GameDatabase& db, size_t index) {
+      DBReader reader(db);
+      return StableOperations::getStableID(reader.mGameObjectIDs, _getUnpackedID<GameObjectTable>(index));
+    }
+
+    //Hack to match ispc enum
+    static constexpr int NO_SYNC = 0;
+    static constexpr int SYNC_TO_A = 1;
+    static constexpr int SYNC_TO_B = 2;
+
+    TEST_METHOD(ConstraintsTableBuilder_Integration) {
+      GameDatabase db;
+      DBReader reader(db);
+      TableOperations::stableResizeTable(reader.mGameObjects, UnpackedDatabaseElementID::fromPacked(GameDatabase::getTableIndex<GameObjectTable>()), 5, reader.mStableMappings);
+      const PhysicsConfig config = _configWithPadding(1);
+
+      StableElementID a = _getGameobjectID(db, 0);
+      StableElementID b = _getGameobjectID(db, 1);
+      StableElementID pair = _addCollisionPair(db, a, b);
+
+      _buildConstraintsTable(db, config);
+
+      Assert::AreEqual(size_t(2), TableOperations::size(reader.mConstraintsCommon), L"Should have one real element and one padding");
+      Assert::AreEqual(NO_SYNC, reader.mSyncTypeA.at(0));
+      Assert::AreEqual(NO_SYNC, reader.mSyncTypeB.at(0));
+    }
+
+    static auto getTargetElementRange(GameDatabase& db, size_t tableId) {
+      DBReader reader(db);
+      return ctbdetails::getTargetElementRange(tableId, Simulation::_getPhysicsTableIds(), reader.mConstraintsMappings, TableOperations::size(reader.mConstraintsCommon));
+    }
+
+    static StableElementID tryTakeSuitableFreeSlot(GameDatabase& db, size_t tableId, const StableElementID& a, const StableElementID& b, size_t width) {
+      DBReader reader(db);
+      StableElementID result = ctbdetails::tryTakeSuitableFreeSlot(0,
+        tableId,
+        getTargetElementRange(db, tableId),
+        reader.mConstraintsMappings,
+        reader.mStableMappings,
+        Simulation::_getPhysicsTableIds(),
+        a,
+        b,
+        reader.mConstraintPairA,
+        reader.mConstraintPairB,
+        reader.mConstraintIDs,
+        width);
+
+      if(result != StableElementID::invalid()) {
+        StableElementID p = _addCollisionPair(db, a, b);
+        ctbdetails::assignConstraint(p, a, b, result, reader.mCollisionPairs, reader.mConstraintsCommon, Simulation::_getPhysicsTableIds());
+      }
+      return result;
+    }
+
+    void addPaddingToTable(GameDatabase& db, size_t table, size_t amount) {
+      DBReader reader(db);
+      ctbdetails::addPaddingToTable(table, amount, reader.mConstraintsCommon, reader.mStableMappings, Simulation::_getPhysicsTableIds(), reader.mConstraintsMappings);
+    }
+
+    TEST_METHOD(CTBDetails) {
+      GameDatabase db;
+      DBReader reader(db);
+      const PhysicsTableIds tableIds = Simulation::_getPhysicsTableIds();
+      const PhysicsConfig config = _configWithPadding(2);
+
+      _stableResize(reader.mGameObjects, 5, reader.mStableMappings);
+      StableElementID a = _getGameobjectID(db, 0);
+      StableElementID b  = _getGameobjectID(db, 1);
+      StableElementID c = _getGameobjectID(db, 2);
+      StableElementID d = _getGameobjectID(db, 3);
+
+      auto range = getTargetElementRange(db, tableIds.mSharedMassTable);
+      Assert::IsTrue(range == std::make_pair(size_t(0), size_t(0)));
+      range = getTargetElementRange(db, tableIds.mZeroMassTable);
+      Assert::IsTrue(range == std::make_pair(size_t(0), size_t(0)));
+
+      //Should fail because nothing is there
+      Assert::IsTrue(StableElementID::invalid() == tryTakeSuitableFreeSlot(db, tableIds.mSharedMassTable, a, b, *config.mForcedTargetWidth));
+      Assert::IsTrue(StableElementID::invalid() == tryTakeSuitableFreeSlot(db, tableIds.mZeroMassTable, a, b, *config.mForcedTargetWidth));
+
+      addPaddingToTable(db, tableIds.mZeroMassTable, 1);
+
+      //Should fail because the space was added to the zero mass table
+      Assert::IsTrue(StableElementID::invalid() == tryTakeSuitableFreeSlot(db, tableIds.mSharedMassTable, a, b, *config.mForcedTargetWidth));
+      StableElementID ab = tryTakeSuitableFreeSlot(db, tableIds.mZeroMassTable, a, b, *config.mForcedTargetWidth);
+      Assert::AreEqual(size_t(0), ab.mUnstableIndex & tableIds.mElementIDMask);
+
+      addPaddingToTable(db, tableIds.mZeroMassTable, 1);
+
+      Assert::IsTrue(StableElementID::invalid() == tryTakeSuitableFreeSlot(db, tableIds.mZeroMassTable, a, c, *config.mForcedTargetWidth), L"Should not accept slots within target width of non-static object");
+      StableElementID cb = tryTakeSuitableFreeSlot(db, tableIds.mZeroMassTable, c, b, *config.mForcedTargetWidth);
+      Assert::AreEqual(size_t(1), cb.mUnstableIndex & tableIds.mElementIDMask, L"Static elements should ignore padding rules");
+
+      addPaddingToTable(db, tableIds.mSharedMassTable, 1);
+
+      StableElementID ad = tryTakeSuitableFreeSlot(db, tableIds.mSharedMassTable, a, d, *config.mForcedTargetWidth);
+      Assert::AreEqual(size_t(0), ad.mUnstableIndex & tableIds.mElementIDMask, L"Elements in dynamic section should ignore padding rules in neighboring sections");
+
+      addPaddingToTable(db, tableIds.mSharedMassTable, 1);
+
+      Assert::IsTrue(StableElementID::invalid() == tryTakeSuitableFreeSlot(db, tableIds.mSharedMassTable, a, b, *config.mForcedTargetWidth), L"Object A should obey padding rules");
+      Assert::IsTrue(StableElementID::invalid() == tryTakeSuitableFreeSlot(db, tableIds.mSharedMassTable, b, d, *config.mForcedTargetWidth), L"Object B should obey padding rules");
+      StableElementID bc = tryTakeSuitableFreeSlot(db, tableIds.mSharedMassTable, b, c, *config.mForcedTargetWidth);
+      Assert::AreEqual(size_t(1), bc.mUnstableIndex & tableIds.mElementIDMask, L"Object passing padding rules should find free slot");
+    }
+
+    TEST_METHOD(StableInsert) {
+      TestStableDB db;
+      StableTableA& table = std::get<StableTableA>(db.mTables);
+      Row<int>& values = std::get<Row<int>>(table.mRows);
+      StableIDRow& ids = std::get<StableIDRow>(table.mRows);
+      StableElementMappings mappings;
+
+      TableOperations::stableInsertRangeAt(table, UnpackedDatabaseElementID::fromPacked(TestStableDB::getElementID<StableTableA>(1)), 5, mappings);
+
+      Assert::AreEqual(size_t(5), TableOperations::size(table));
+      for(int i = 0; i < 5; ++i) {
+        values.at(i) = i;
+      }
+
+      TableOperations::stableInsertRangeAt(table, UnpackedDatabaseElementID::fromPacked(TestStableDB::getElementID<StableTableA>(5)), 1, mappings);
+      Assert::AreEqual(size_t(6), TableOperations::size(table));
+      Assert::AreEqual(4, values.at(4));
+      values.at(5) = 5;
+      StableElementID stable = StableOperations::getStableID(ids, UnpackedDatabaseElementID::fromPacked(TestStableDB::getElementID<StableTableA>(3)));
+
+      TableOperations::stableInsertRangeAt(table, UnpackedDatabaseElementID::fromPacked(TestStableDB::getElementID<StableTableA>(0)), 5, mappings);
+      Assert::AreEqual(size_t(11), TableOperations::size(table));
+      for(size_t i = 0; i < 5; ++i) {
+        Assert::AreEqual(int(i), values.at(i + 5), L"Values should have been shifted over by previous insertion");
+      }
+      std::optional<StableElementID> resolved = StableOperations::tryResolveStableIDWithinTable<TestStableDB>(stable, ids, mappings);
+      Assert::IsTrue(resolved.has_value());
+      constexpr size_t elementMask = TestStableDB::ElementID::ELEMENT_INDEX_MASK;
+      Assert::AreEqual(3, values.at(resolved->mUnstableIndex & elementMask));
     }
   };
 }

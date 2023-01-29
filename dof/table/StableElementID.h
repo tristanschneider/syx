@@ -138,7 +138,7 @@ struct StableOperations {
 
   template<class DatabaseT>
   static std::optional<StableElementID> tryResolveStableIDWithinTable(const StableElementID& id, const StableIDRow& ids, const StableElementMappings& mappings) {
-    tryResolveStableIDWithinTable(id, ids, mappings, getElementMask<DatabaseT>());
+    return tryResolveStableIDWithinTable(id, ids, mappings, getElementMask<DatabaseT>());
   }
 
   template<size_t S>

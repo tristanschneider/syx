@@ -3,7 +3,7 @@
 
 #include "out_ispc/unity.h"
 
-namespace {
+namespace ctbdetails {
   //True if the given element is within a target element in either direction of startIndex
   bool isWithinTargetWidth(const std::vector<StableElementID>& ids, const StableElementID& id, size_t startIndex, size_t targetWidth) {
     const size_t start = startIndex > targetWidth ? startIndex - targetWidth : 0;
@@ -20,9 +20,13 @@ namespace {
     size_t location,
     const StableElementID& desiredA,
     const StableElementID& desiredB,
-    size_t targetWidth) {
+    size_t targetWidth,
+    const PhysicsTableIds& tableIds,
+    size_t targetTable) {
+    //Suitable if neither can be found within the target width, except B can ignore it if B is static
+    //Only B would be static due to the way collision pairs are ordered
     return !isWithinTargetWidth(idA.mElements, desiredA, location, targetWidth)
-      && !isWithinTargetWidth(idB.mElements, desiredB, location, targetWidth);
+      && (targetTable == tableIds.mZeroMassTable || !isWithinTargetWidth(idB.mElements, desiredB, location, targetWidth));
   }
 
   std::optional<size_t> getTargetConstraintTable(const StableElementID& a, const StableElementID& b, const PhysicsTableIds& tables) {
@@ -72,6 +76,69 @@ namespace {
     constraintIndexA.at(element) = constraintIndexB.at(element) = StableElementID::invalid();
     constraintsMappings.mConstraintFreeList.push_back(toAdd);
   }
+
+  StableElementID tryTakeSuitableFreeSlot(size_t startIndex,
+    size_t targetTable,
+    const std::pair<size_t, size_t>& range,
+    ConstraintsTableMappings& mappings,
+    const StableElementMappings& stableMappings,
+    const PhysicsTableIds& tables,
+    const StableElementID& a,
+    const StableElementID& b,
+    const CollisionPairIndexA& constraintIndexA,
+    const CollisionPairIndexB& constraintIndexB,
+    const StableIDRow& constraintPairIds,
+    size_t targetWidth) {
+    for(size_t f = startIndex; f < mappings.mConstraintFreeList.size(); ++f) {
+      auto freeSlot = StableOperations::tryResolveStableIDWithinTable(mappings.mConstraintFreeList[f], constraintPairIds, stableMappings, tables.mElementIDMask);
+      assert(freeSlot.has_value() && "Constraint entries shouldn't disappear");
+      if(freeSlot) {
+        const size_t freeElement = freeSlot->mUnstableIndex & tables.mElementIDMask;
+        if(freeElement >= range.first && freeElement < range.second && isSuitablePairLocation(constraintIndexA, constraintIndexB, freeElement, a, b, targetWidth, tables, targetTable)) {
+          //Found one, use this and swap remove it from the free list
+          mappings.mConstraintFreeList[f] = mappings.mConstraintFreeList.back();
+          mappings.mConstraintFreeList.pop_back();
+          return *freeSlot;
+        }
+      }
+    }
+    return StableElementID::invalid();
+  }
+
+  void addPaddingToTable(size_t targetTable,
+    size_t amount,
+    ConstraintCommonTable& table,
+    StableElementMappings& stableMappings,
+    const PhysicsTableIds& tableIds,
+    ConstraintsTableMappings& constraintMappings) {
+    size_t oldSize = TableOperations::size(table);
+    size_t startIndex = 0;
+
+    //This is the last table, meaning it can resize off the end
+    if(targetTable == tableIds.mZeroMassTable) {
+      startIndex = oldSize;
+      TableOperations::stableResizeTable(table, UnpackedDatabaseElementID::fromElementMask(tableIds.mElementIDMask, tableIds.mZeroMassTable, size_t(0)), oldSize + amount, stableMappings);
+    }
+    else if(targetTable == tableIds.mSharedMassTable) {
+      //This needs to shift over the start index by adding new entries to the middle
+      startIndex = constraintMappings.mZeroMassStartIndex;
+      TableOperations::stableInsertRangeAt(table, UnpackedDatabaseElementID::fromElementMask(tableIds.mElementIDMask, tableIds.mSharedMassTable, startIndex), amount, stableMappings);
+      constraintMappings.mZeroMassStartIndex += amount;
+    }
+    else {
+      assert("unhandled case");
+    }
+
+    //Add all the newly created entries to the free list
+    CollisionPairIndexA& constraintIndexA = std::get<CollisionPairIndexA>(table.mRows);
+    CollisionPairIndexB& constraintIndexB = std::get<CollisionPairIndexB>(table.mRows);
+    ConstraintData::IsEnabled& isEnabled = std::get<ConstraintData::IsEnabled>(table.mRows);
+    StableIDRow& constraintPairIds = std::get<StableIDRow>(table.mRows);
+    for(size_t i = startIndex; i < startIndex + amount; ++i) {
+      UnpackedDatabaseElementID unstable = UnpackedDatabaseElementID::fromElementMask(tableIds.mElementIDMask, targetTable, i);
+      addToFreeList(constraintMappings, StableOperations::getStableID(constraintPairIds, unstable), isEnabled, constraintIndexA, constraintIndexB, tableIds);
+    }
+  }
 }
 
 void ConstraintsTableBuilder::removeCollisionPairs(const StableElementID* toRemove, size_t count, StableElementMappings& mappings, ConstraintCommonTable& common, ConstraintsTableMappings& constraintsMappings, const PhysicsTableIds& tableIds) {
@@ -83,81 +150,20 @@ void ConstraintsTableBuilder::removeCollisionPairs(const StableElementID* toRemo
 
   for(size_t i = 0; i < count; ++i) {
     if(auto commonElement = StableOperations::tryResolveStableIDWithinTable(toRemove[i], commonStableIds, mappings, elementMask)) {
-      addToFreeList(constraintsMappings, *commonElement, isEnabled, constraintIndexA, constraintIndexB, tableIds);
+      ctbdetails::addToFreeList(constraintsMappings, *commonElement, isEnabled, constraintIndexA, constraintIndexB, tableIds);
     }
   }
 }
 
-StableElementID tryTakeSuitableFreeSlot(size_t startIndex,
-  const std::pair<size_t, size_t>& range,
-  ConstraintsTableMappings& mappings,
-  const StableElementMappings& stableMappings,
-  const PhysicsTableIds& tables,
-  const StableElementID& a,
-  const StableElementID& b,
-  const CollisionPairIndexA& constraintIndexA,
-  const CollisionPairIndexB& constraintIndexB,
-  const StableIDRow& constraintPairIds,
-  size_t targetWidth) {
-  for(size_t f = startIndex; f < mappings.mConstraintFreeList.size(); ++f) {
-    auto freeSlot = StableOperations::tryResolveStableIDWithinTable(mappings.mConstraintFreeList[f], constraintPairIds, stableMappings, tables.mElementIDMask);
-    assert(freeSlot.has_value() && "Constraint entries shouldn't disappear");
-    if(freeSlot) {
-      const size_t freeElement = freeSlot->mUnstableIndex & tables.mElementIDMask;
-      if(freeElement >= range.first && freeElement < range.second && isSuitablePairLocation(constraintIndexA, constraintIndexB, freeElement, a, b, targetWidth)) {
-        //Found one, use this and swap remove it from the free list
-        mappings.mConstraintFreeList[f] = mappings.mConstraintFreeList.back();
-        mappings.mConstraintFreeList.pop_back();
-        return *freeSlot;
-      }
-    }
-  }
-  return StableElementID::invalid();
-}
-
-void addPaddingToTable(size_t targetTable,
-  size_t amount,
-  ConstraintCommonTable& table,
-  StableElementMappings& stableMappings,
-  const PhysicsTableIds& tableIds,
-  ConstraintsTableMappings& constraintMappings) {
-  size_t oldSize = TableOperations::size(table);
-  size_t startIndex = 0;
-
-  //This is the last table, meaning it can resize off the end
-  if(targetTable == tableIds.mZeroMassTable) {
-    startIndex = oldSize;
-    TableOperations::stableResizeTable(table, UnpackedDatabaseElementID::fromElementMask(tableIds.mElementIDMask, tableIds.mZeroMassTable, size_t(0)), oldSize + amount, stableMappings);
-  }
-  else if(targetTable == tableIds.mSharedMassTable) {
-    //This needs to shift over the start index by adding new entries to the middle
-    startIndex = constraintMappings.mZeroMassStartIndex;
-    TableOperations::stableInsertRangeAt(table, UnpackedDatabaseElementID::fromElementMask(tableIds.mElementIDMask, tableIds.mZeroMassTable, startIndex), amount, stableMappings);
-    constraintMappings.mZeroMassStartIndex += amount;
-  }
-  else {
-    assert("unhandled case");
-  }
-
-  //Add all the newly created entries to the free list
-  CollisionPairIndexA& constraintIndexA = std::get<CollisionPairIndexA>(table.mRows);
-  CollisionPairIndexB& constraintIndexB = std::get<CollisionPairIndexB>(table.mRows);
-  ConstraintData::IsEnabled& isEnabled = std::get<ConstraintData::IsEnabled>(table.mRows);
-  StableIDRow& constraintPairIds = std::get<StableIDRow>(table.mRows);
-  for(size_t i = startIndex; i < startIndex + amount; ++i) {
-    UnpackedDatabaseElementID unstable = UnpackedDatabaseElementID::fromElementMask(tableIds.mElementIDMask, tableIds.mConstriantsCommonTable, i);
-    addToFreeList(constraintMappings, StableOperations::getStableID(constraintPairIds, unstable), isEnabled, constraintIndexA, constraintIndexB, tableIds);
-  }
-}
-
-void ConstraintsTableBuilder::addCollisionPairs(const StableElementID* toAdd, size_t count, StableElementMappings& mappings, ConstraintCommonTable& common, ConstraintsTableMappings& constraintsMappings, const PhysicsTableIds& tableIds, CollisionPairsTable& pairs) {
+void ConstraintsTableBuilder::addCollisionPairs(const StableElementID* toAdd, size_t count, StableElementMappings& mappings, ConstraintCommonTable& common, ConstraintsTableMappings& constraintsMappings, const PhysicsTableIds& tableIds, CollisionPairsTable& pairs, const PhysicsConfig& config) {
+  using namespace ctbdetails;
   StableIDRow& pairIds = std::get<StableIDRow>(pairs.mRows);
   CollisionPairIndexA& pairIndexA = std::get<CollisionPairIndexA>(pairs.mRows);
   CollisionPairIndexB& pairIndexB = std::get<CollisionPairIndexB>(pairs.mRows);
   CollisionPairIndexA& constraintIndexA = std::get<CollisionPairIndexA>(common.mRows);
   CollisionPairIndexB& constraintIndexB = std::get<CollisionPairIndexB>(common.mRows);
   StableIDRow& constraintPairIds = std::get<StableIDRow>(common.mRows);
-  const size_t targetWidth = ispc::getTargetWidth();
+  const size_t targetWidth = config.mForcedTargetWidth.value_or(ispc::getTargetWidth());
 
   for(size_t i = 0; i < count; ++i) {
     auto pairId = StableOperations::tryResolveStableIDWithinTable(toAdd[i], pairIds, mappings, tableIds.mElementIDMask);
@@ -178,13 +184,13 @@ void ConstraintsTableBuilder::addCollisionPairs(const StableElementID* toAdd, si
     const std::pair<size_t, size_t> range = getTargetElementRange(*targetTable, tableIds, constraintsMappings, TableOperations::size(common));
     std::optional<StableElementID> foundSlot;
     //Try the free list for suitable entries
-    StableElementID found = tryTakeSuitableFreeSlot(0, range, constraintsMappings, mappings, tableIds, a, b, constraintIndexA, constraintIndexB, constraintPairIds, targetWidth);
+    StableElementID found = tryTakeSuitableFreeSlot(0, *targetTable, range, constraintsMappings, mappings, tableIds, a, b, constraintIndexA, constraintIndexB, constraintPairIds, targetWidth);
     //If that didn't work, make space then try again in the newly created free list entries
     if(found == StableElementID::invalid()) {
       const size_t oldEnd = constraintsMappings.mConstraintFreeList.size();
-      addPaddingToTable(*targetTable, targetWidth*2, common, mappings, tableIds, constraintsMappings);
+      addPaddingToTable(*targetTable, std::max(size_t(1), targetWidth*2), common, mappings, tableIds, constraintsMappings);
       const std::pair<size_t, size_t> newRange = getTargetElementRange(*targetTable, tableIds, constraintsMappings, TableOperations::size(common));
-      found = tryTakeSuitableFreeSlot(oldEnd, newRange, constraintsMappings, mappings, tableIds, a, b, constraintIndexA, constraintIndexB, constraintPairIds, targetWidth);
+      found = tryTakeSuitableFreeSlot(oldEnd, *targetTable, newRange, constraintsMappings, mappings, tableIds, a, b, constraintIndexA, constraintIndexB, constraintPairIds, targetWidth);
       assert(found != StableElementID::invalid() && "Space should exist after making space for the element");
     }
 
@@ -342,7 +348,7 @@ void ConstraintsTableBuilder::buildSyncIndices(ConstraintCommonTable& constraint
 }
 
 template<class RowT, class TableT>
-void fillConstraintRow(size_t begin, size_t end, const ConstraintCommonTable& common, TableT& constraints, const CollisionPairsTable& pairs) {
+void fillConstraintRow(size_t begin, size_t end, const ConstraintCommonTable& common, TableT& constraints, const CollisionPairsTable& pairs, const PhysicsTableIds& tableIds) {
   auto& isEnabled = std::get<ConstraintData::IsEnabled>(common.mRows);
   const auto& src = std::get<RowT>(pairs.mRows);
   auto& dst = std::get<RowT>(constraints.mRows);
@@ -351,13 +357,13 @@ void fillConstraintRow(size_t begin, size_t end, const ConstraintCommonTable& co
   for(size_t i = begin; i < end && isEnabled.at(i); ++i) {
     const StableElementID& pairId = pairIds.at(i);
     //dst is the specific constraint table while i is iterating over common table indices. Subtracting begin gets the local index into the table
-    dst.at(i - begin) = src.at(pairId.mUnstableIndex);
+    dst.at(i - begin) = src.at(pairId.mUnstableIndex & tableIds.mElementIDMask);
   }
 }
 
 //Fill a row that contains contact points and in the process convert them to rvectors, meaning subtracting the position
 template<class ContactT, class PosT, class DstT, class TableT>
-void fillRVectorRow(size_t begin, size_t end, const ConstraintCommonTable& common, TableT& constraints, const CollisionPairsTable& pairs) {
+void fillRVectorRow(size_t begin, size_t end, const ConstraintCommonTable& common, TableT& constraints, const CollisionPairsTable& pairs, const PhysicsTableIds& tableIds) {
   auto& isEnabled = std::get<ConstraintData::IsEnabled>(common.mRows);
   const auto& srcContact = std::get<ContactT>(pairs.mRows);
   const auto& srcCenter = std::get<PosT>(pairs.mRows);
@@ -368,41 +374,41 @@ void fillRVectorRow(size_t begin, size_t end, const ConstraintCommonTable& commo
     const StableElementID& pairId = pairIds.at(i);
     const size_t d = i - begin;
     //dst is the specific constraint table while i is iterating over common table indices. Subtracting begin gets the local index into the table
-    dst.at(i - begin) = srcContact.at(pairId.mUnstableIndex) - srcCenter.at(pairId.mUnstableIndex);
+    dst.at(i - begin) = srcContact.at(pairId.mUnstableIndex & tableIds.mElementIDMask) - srcCenter.at(pairId.mUnstableIndex & tableIds.mElementIDMask);
   }
 }
 
 template<class TableT>
-void fillCommonContactData(size_t begin, size_t end, const ConstraintCommonTable& common, TableT& constraints, const CollisionPairsTable& pairs) {
-  fillConstraintRow<ContactPoint<ContactOne>::Overlap>(begin, end, common, constraints, pairs);
-  fillConstraintRow<ContactPoint<ContactTwo>::Overlap>(begin, end, common, constraints, pairs);
+void fillCommonContactData(size_t begin, size_t end, const ConstraintCommonTable& common, TableT& constraints, const CollisionPairsTable& pairs, const PhysicsTableIds& tableIds) {
+  fillConstraintRow<ContactPoint<ContactOne>::Overlap>(begin, end, common, constraints, pairs, tableIds);
+  fillConstraintRow<ContactPoint<ContactTwo>::Overlap>(begin, end, common, constraints, pairs, tableIds);
 
-  fillConstraintRow<SharedNormal::X>(begin, end, common, constraints, pairs);
-  fillConstraintRow<SharedNormal::Y>(begin, end, common, constraints, pairs);
+  fillConstraintRow<SharedNormal::X>(begin, end, common, constraints, pairs, tableIds);
+  fillConstraintRow<SharedNormal::Y>(begin, end, common, constraints, pairs, tableIds);
 
-  fillRVectorRow<ContactPoint<ContactOne>::PosX, NarrowphaseData<PairA>::PosX, ConstraintObject<ConstraintObjA>::CenterToContactOneX>(begin, end, common, constraints, pairs);
-  fillRVectorRow<ContactPoint<ContactOne>::PosY, NarrowphaseData<PairA>::PosY, ConstraintObject<ConstraintObjA>::CenterToContactOneY>(begin, end, common, constraints, pairs);
-  fillRVectorRow<ContactPoint<ContactTwo>::PosX, NarrowphaseData<PairA>::PosX, ConstraintObject<ConstraintObjA>::CenterToContactTwoX>(begin, end, common, constraints, pairs);
-  fillRVectorRow<ContactPoint<ContactTwo>::PosY, NarrowphaseData<PairA>::PosY, ConstraintObject<ConstraintObjA>::CenterToContactTwoY>(begin, end, common, constraints, pairs);
+  fillRVectorRow<ContactPoint<ContactOne>::PosX, NarrowphaseData<PairA>::PosX, ConstraintObject<ConstraintObjA>::CenterToContactOneX>(begin, end, common, constraints, pairs, tableIds);
+  fillRVectorRow<ContactPoint<ContactOne>::PosY, NarrowphaseData<PairA>::PosY, ConstraintObject<ConstraintObjA>::CenterToContactOneY>(begin, end, common, constraints, pairs, tableIds);
+  fillRVectorRow<ContactPoint<ContactTwo>::PosX, NarrowphaseData<PairA>::PosX, ConstraintObject<ConstraintObjA>::CenterToContactTwoX>(begin, end, common, constraints, pairs, tableIds);
+  fillRVectorRow<ContactPoint<ContactTwo>::PosY, NarrowphaseData<PairA>::PosY, ConstraintObject<ConstraintObjA>::CenterToContactTwoY>(begin, end, common, constraints, pairs, tableIds);
 }
 
-void ConstraintsTableBuilder::fillConstraintNarrowphaseData(const ConstraintCommonTable& constraints, ConstraintsTable& contacts, const CollisionPairsTable& pairs, const ConstraintsTableMappings& constraintsMappings) {
+void ConstraintsTableBuilder::fillConstraintNarrowphaseData(const ConstraintCommonTable& constraints, ConstraintsTable& contacts, const CollisionPairsTable& pairs, const ConstraintsTableMappings& constraintsMappings, const PhysicsTableIds& tableIds) {
   const size_t begin = constraintsMappings.SHARED_MASS_START_INDEX;
   const size_t end = constraintsMappings.mZeroMassStartIndex;
 
-  fillCommonContactData(begin, end, constraints, contacts, pairs);
+  fillCommonContactData(begin, end, constraints, contacts, pairs, tableIds);
 
-  fillRVectorRow<ContactPoint<ContactOne>::PosX, NarrowphaseData<PairB>::PosX, ConstraintObject<ConstraintObjB>::CenterToContactOneX>(begin, end, constraints, contacts, pairs);
-  fillRVectorRow<ContactPoint<ContactOne>::PosY, NarrowphaseData<PairB>::PosY, ConstraintObject<ConstraintObjB>::CenterToContactOneY>(begin, end, constraints, contacts, pairs);
-  fillRVectorRow<ContactPoint<ContactTwo>::PosX, NarrowphaseData<PairB>::PosX, ConstraintObject<ConstraintObjB>::CenterToContactTwoX>(begin, end, constraints, contacts, pairs);
-  fillRVectorRow<ContactPoint<ContactTwo>::PosY, NarrowphaseData<PairB>::PosY, ConstraintObject<ConstraintObjB>::CenterToContactTwoY>(begin, end, constraints, contacts, pairs);
+  fillRVectorRow<ContactPoint<ContactOne>::PosX, NarrowphaseData<PairB>::PosX, ConstraintObject<ConstraintObjB>::CenterToContactOneX>(begin, end, constraints, contacts, pairs, tableIds);
+  fillRVectorRow<ContactPoint<ContactOne>::PosY, NarrowphaseData<PairB>::PosY, ConstraintObject<ConstraintObjB>::CenterToContactOneY>(begin, end, constraints, contacts, pairs, tableIds);
+  fillRVectorRow<ContactPoint<ContactTwo>::PosX, NarrowphaseData<PairB>::PosX, ConstraintObject<ConstraintObjB>::CenterToContactTwoX>(begin, end, constraints, contacts, pairs, tableIds);
+  fillRVectorRow<ContactPoint<ContactTwo>::PosY, NarrowphaseData<PairB>::PosY, ConstraintObject<ConstraintObjB>::CenterToContactTwoY>(begin, end, constraints, contacts, pairs, tableIds);
 }
 
-void ConstraintsTableBuilder::fillConstraintNarrowphaseData(const ConstraintCommonTable& constraints, ContactConstraintsToStaticObjectsTable& contacts, const CollisionPairsTable& pairs, const ConstraintsTableMappings& constraintsMappings) {
+void ConstraintsTableBuilder::fillConstraintNarrowphaseData(const ConstraintCommonTable& constraints, ContactConstraintsToStaticObjectsTable& contacts, const CollisionPairsTable& pairs, const ConstraintsTableMappings& constraintsMappings, const PhysicsTableIds& tableIds) {
   const size_t begin = constraintsMappings.mZeroMassStartIndex;
   const size_t end = TableOperations::size(constraints);
 
-  fillCommonContactData(begin, end, constraints, contacts, pairs);
+  fillCommonContactData(begin, end, constraints, contacts, pairs, tableIds);
 }
 
 void ConstraintsTableBuilder::createConstraintTables(const ConstraintCommonTable& common,

@@ -26,6 +26,38 @@ struct ConstraintsTableMappings {
   size_t mZeroMassStartIndex{};
 };
 
+namespace ctbdetails {
+  void addPaddingToTable(size_t targetTable,
+    size_t amount,
+    ConstraintCommonTable& table,
+    StableElementMappings& stableMappings,
+    const PhysicsTableIds& tableIds,
+    ConstraintsTableMappings& constraintMappings);
+
+  StableElementID tryTakeSuitableFreeSlot(size_t startIndex,
+    size_t targetTable,
+    const std::pair<size_t, size_t>& range,
+    ConstraintsTableMappings& mappings,
+    const StableElementMappings& stableMappings,
+    const PhysicsTableIds& tables,
+    const StableElementID& a,
+    const StableElementID& b,
+    const CollisionPairIndexA& constraintIndexA,
+    const CollisionPairIndexB& constraintIndexB,
+    const StableIDRow& constraintPairIds,
+    size_t targetWidth);
+
+  void assignConstraint(const StableElementID& collisionPair,
+    const StableElementID& a,
+    const StableElementID& b,
+    const StableElementID& constraintLocation,
+    CollisionPairsTable& pairs,
+    ConstraintCommonTable& constraints,
+    const PhysicsTableIds& tables);
+
+  std::pair<size_t, size_t> getTargetElementRange(size_t targetTable, const PhysicsTableIds& tables, const ConstraintsTableMappings& mappings, size_t totalElements);
+}
+
 struct ConstraintsTableBuilder {
   //Mark the given constraints identified by their element ids as removed
   //The id is pointing at the elements in the constraint common table
@@ -33,13 +65,13 @@ struct ConstraintsTableBuilder {
   //Given ids of a bunch of collision pairs, add entries for them in the constraints table
   //This will try to use the free list and ensures that the insertion location is not within a target width of objects of the same indices
   //Doing so may cause padding or a shift in where the start index of a given constraint table is in the common constraints table
-  static void addCollisionPairs(const StableElementID* toAdd, size_t count, StableElementMappings& mappings, ConstraintCommonTable& common, ConstraintsTableMappings& constraintsMappings, const PhysicsTableIds& tableIds, CollisionPairsTable& pairs);
+  static void addCollisionPairs(const StableElementID* toAdd, size_t count, StableElementMappings& mappings, ConstraintCommonTable& common, ConstraintsTableMappings& constraintsMappings, const PhysicsTableIds& tableIds, CollisionPairsTable& pairs, const PhysicsConfig& config);
 
   //Resolve the object handles in the constraints common table, making them ready for the upcoming row by row extraction of velocity data
   //For any objects that moved tables, the constraint entry is reinserted
   //For this to work properly the handles on the contact entry should be up to date so that upon reinsertion the StableElementID of the pair is resolved.
   template<class DatabaseT>
-  static void resolveObjectHandles(DatabaseT& db, StableElementMappings& mappings, ConstraintCommonTable& common, ConstraintsTableMappings& constraintsMappings, const PhysicsTableIds& tableIds, CollisionPairsTable& pairs) {
+  static void resolveObjectHandles(DatabaseT& db, StableElementMappings& mappings, ConstraintCommonTable& common, ConstraintsTableMappings& constraintsMappings, const PhysicsTableIds& tableIds, CollisionPairsTable& pairs, const PhysicsConfig& config) {
     const auto& isEnabled = std::get<ConstraintData::IsEnabled>(common.mRows);
     auto& objA = std::get<CollisionPairIndexA>(common.mRows);
     auto& objB = std::get<CollisionPairIndexB>(common.mRows);
@@ -86,7 +118,7 @@ struct ConstraintsTableBuilder {
         //Reinsert if desired. This should be able to use the entry that was just added to the free list,
         //meaning that the table size shouldn't have to change. Reinsert vs modifying the entry is used for simplicity
         [[maybe_unused]] const size_t prev = objA.size();
-        addCollisionPairs(&contact, 1, mappings, common,constraintsMappings, tableIds, pairs);
+        addCollisionPairs(&contact, 1, mappings, common,constraintsMappings, tableIds, pairs, config);
         assert(prev == objA.size());
       }
     }
@@ -107,8 +139,8 @@ struct ConstraintsTableBuilder {
     ConstraintsTable& contacts,
     ContactConstraintsToStaticObjectsTable& staticContacts,
     const ConstraintsTableMappings& mappings);
-  static void fillConstraintNarrowphaseData(const ConstraintCommonTable& constraints, ConstraintsTable& contacts, const CollisionPairsTable& pairs, const ConstraintsTableMappings& constraintsMappings);
-  static void fillConstraintNarrowphaseData(const ConstraintCommonTable& constraints, ContactConstraintsToStaticObjectsTable& contacts, const CollisionPairsTable& pairs, const ConstraintsTableMappings& constraintsMappings);
+  static void fillConstraintNarrowphaseData(const ConstraintCommonTable& constraints, ConstraintsTable& contacts, const CollisionPairsTable& pairs, const ConstraintsTableMappings& constraintsMappings, const PhysicsTableIds& tableIds);
+  static void fillConstraintNarrowphaseData(const ConstraintCommonTable& constraints, ContactConstraintsToStaticObjectsTable& contacts, const CollisionPairsTable& pairs, const ConstraintsTableMappings& constraintsMappings, const PhysicsTableIds& tableIds);
 
   //Do all of the above to end up with constraints ready to solve except for filling in velocity
   template<class DatabaseT>
@@ -116,23 +148,24 @@ struct ConstraintsTableBuilder {
     SweepNPruneBroadphase::ChangedCollisionPairs& changedCollisionPairs,
     StableElementMappings& stableMappings,
     ConstraintsTableMappings& constraintMappings,
-    const PhysicsTableIds& tableIds) {
+    const PhysicsTableIds& tableIds,
+    const PhysicsConfig& config) {
     auto& common = std::get<ConstraintCommonTable>(db.mTables);
     auto& pairs = std::get<CollisionPairsTable>(db.mTables);
     auto& contacts = std::get<ConstraintsTable>(db.mTables);
     auto& staticContacts = std::get<ContactConstraintsToStaticObjectsTable>(db.mTables);
 
-    addCollisionPairs(changedCollisionPairs.mGained.data(), changedCollisionPairs.mGained.size(), stableMappings, common, constraintMappings, tableIds, pairs);
+    addCollisionPairs(changedCollisionPairs.mGained.data(), changedCollisionPairs.mGained.size(), stableMappings, common, constraintMappings, tableIds, pairs, config);
     removeCollisionPairs(changedCollisionPairs.mLost.data(), changedCollisionPairs.mLost.size(), stableMappings, common, constraintMappings, tableIds);
 
-    resolveObjectHandles(db, stableMappings, common, constraintMappings, tableIds, pairs);
+    resolveObjectHandles(db, stableMappings, common, constraintMappings, tableIds, pairs, config);
 
     buildSyncIndices(common, constraintMappings);
 
     createConstraintTables(common, contacts, staticContacts, constraintMappings);
 
-    fillConstraintNarrowphaseData(common, contacts, pairs, constraintMappings);
-    fillConstraintNarrowphaseData(common, staticContacts, pairs, constraintMappings);
+    fillConstraintNarrowphaseData(common, contacts, pairs, constraintMappings, tableIds);
+    fillConstraintNarrowphaseData(common, staticContacts, pairs, constraintMappings, tableIds);
 
     changedCollisionPairs.mGained.clear();
     changedCollisionPairs.mLost.clear();
