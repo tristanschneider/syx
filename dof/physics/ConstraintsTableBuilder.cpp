@@ -5,9 +5,9 @@
 
 namespace ctbdetails {
   //True if the given element is within a target element in either direction of startIndex
-  bool isWithinTargetWidth(const std::vector<StableElementID>& ids, const StableElementID& id, size_t startIndex, size_t targetWidth) {
-    const size_t start = startIndex > targetWidth ? startIndex - targetWidth : 0;
-    const size_t end = std::min(ids.size(), startIndex + targetWidth);
+  bool isWithinTargetWidth(const std::vector<StableElementID>& ids, const StableElementID& id, size_t startIndex, size_t targetWidth, const std::pair<size_t, size_t>& range) {
+    const size_t start = std::max(range.first, startIndex > targetWidth ? startIndex - targetWidth : 0);
+    const size_t end = std::min(range.second, startIndex + targetWidth);
     for(size_t i = start; i < end; ++i) {
       if(ids[i].mStableID == id.mStableID) {
         return true;
@@ -22,11 +22,12 @@ namespace ctbdetails {
     const StableElementID& desiredB,
     size_t targetWidth,
     const PhysicsTableIds& tableIds,
-    size_t targetTable) {
+    size_t targetTable,
+    const std::pair<size_t, size_t>& range) {
     //Suitable if neither can be found within the target width, except B can ignore it if B is static
     //Only B would be static due to the way collision pairs are ordered
-    return !isWithinTargetWidth(idA.mElements, desiredA, location, targetWidth)
-      && (targetTable == tableIds.mZeroMassTable || !isWithinTargetWidth(idB.mElements, desiredB, location, targetWidth));
+    return !isWithinTargetWidth(idA.mElements, desiredA, location, targetWidth, range)
+      && (targetTable == tableIds.mZeroMassTable || !isWithinTargetWidth(idB.mElements, desiredB, location, targetWidth, range));
   }
 
   std::optional<size_t> getTargetConstraintTable(const StableElementID& a, const StableElementID& b, const PhysicsTableIds& tables) {
@@ -94,7 +95,7 @@ namespace ctbdetails {
       assert(freeSlot.has_value() && "Constraint entries shouldn't disappear");
       if(freeSlot) {
         const size_t freeElement = freeSlot->mUnstableIndex & tables.mElementIDMask;
-        if(freeElement >= range.first && freeElement < range.second && isSuitablePairLocation(constraintIndexA, constraintIndexB, freeElement, a, b, targetWidth, tables, targetTable)) {
+        if(freeElement >= range.first && freeElement < range.second && isSuitablePairLocation(constraintIndexA, constraintIndexB, freeElement, a, b, targetWidth, tables, targetTable, range)) {
           //Found one, use this and swap remove it from the free list
           mappings.mConstraintFreeList[f] = mappings.mConstraintFreeList.back();
           mappings.mConstraintFreeList.pop_back();
@@ -135,7 +136,7 @@ namespace ctbdetails {
     ConstraintData::IsEnabled& isEnabled = std::get<ConstraintData::IsEnabled>(table.mRows);
     StableIDRow& constraintPairIds = std::get<StableIDRow>(table.mRows);
     for(size_t i = startIndex; i < startIndex + amount; ++i) {
-      UnpackedDatabaseElementID unstable = UnpackedDatabaseElementID::fromElementMask(tableIds.mElementIDMask, targetTable, i);
+      UnpackedDatabaseElementID unstable = UnpackedDatabaseElementID::fromElementMask(tableIds.mElementIDMask, tableIds.mConstriantsCommonTable, i);
       addToFreeList(constraintMappings, StableOperations::getStableID(constraintPairIds, unstable), isEnabled, constraintIndexA, constraintIndexB, tableIds);
     }
   }
@@ -354,10 +355,12 @@ void fillConstraintRow(size_t begin, size_t end, const ConstraintCommonTable& co
   auto& dst = std::get<RowT>(constraints.mRows);
   const auto& pairIds = std::get<ConstraintData::ConstraintContactPair>(common.mRows);
 
-  for(size_t i = begin; i < end && isEnabled.at(i); ++i) {
-    const StableElementID& pairId = pairIds.at(i);
-    //dst is the specific constraint table while i is iterating over common table indices. Subtracting begin gets the local index into the table
-    dst.at(i - begin) = src.at(pairId.mUnstableIndex & tableIds.mElementIDMask);
+  for(size_t i = begin; i < end; ++i) {
+    if(isEnabled.at(i)) {
+      const StableElementID& pairId = pairIds.at(i);
+      //dst is the specific constraint table while i is iterating over common table indices. Subtracting begin gets the local index into the table
+      dst.at(i - begin) = src.at(pairId.mUnstableIndex & tableIds.mElementIDMask);
+    }
   }
 }
 
@@ -370,11 +373,13 @@ void fillRVectorRow(size_t begin, size_t end, const ConstraintCommonTable& commo
   auto& dst = std::get<DstT>(constraints.mRows);
   const auto& pairIds = std::get<ConstraintData::ConstraintContactPair>(common.mRows);
 
-  for(size_t i = begin; i < end && isEnabled.at(i); ++i) {
-    const StableElementID& pairId = pairIds.at(i);
-    const size_t d = i - begin;
-    //dst is the specific constraint table while i is iterating over common table indices. Subtracting begin gets the local index into the table
-    dst.at(i - begin) = srcContact.at(pairId.mUnstableIndex & tableIds.mElementIDMask) - srcCenter.at(pairId.mUnstableIndex & tableIds.mElementIDMask);
+  for(size_t i = begin; i < end; ++i) {
+    if(isEnabled.at(i)) {
+      const StableElementID& pairId = pairIds.at(i);
+      const size_t d = i - begin;
+      //dst is the specific constraint table while i is iterating over common table indices. Subtracting begin gets the local index into the table
+      dst.at(i - begin) = srcContact.at(pairId.mUnstableIndex & tableIds.mElementIDMask) - srcCenter.at(pairId.mUnstableIndex & tableIds.mElementIDMask);
+    }
   }
 }
 

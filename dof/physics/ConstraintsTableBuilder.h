@@ -126,9 +126,11 @@ struct ConstraintsTableBuilder {
     //Any removals can invalidate the ids of collision pairs, so require another pass to re-resolve
     //This shouldn't be required more than once. Resolving object handles again is unnecessary since they aren't affected by collision pair removal
     if(anyRemovals) {
-      for(size_t i = 0; i < objA.size() && isEnabled.at(i); ++i) {
-        StableElementID& contact = contacts.at(i);
-        contact = *StableOperations::tryResolveStableIDWithinTable(contact, contactStableIds, mappings, tableIds.mElementIDMask);
+      for(size_t i = 0; i < objA.size(); ++i) {
+        if(isEnabled.at(i)) {
+          StableElementID& contact = contacts.at(i);
+          contact = *StableOperations::tryResolveStableIDWithinTable(contact, contactStableIds, mappings, tableIds.mElementIDMask);
+        }
       }
     }
   }

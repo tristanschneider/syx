@@ -850,6 +850,7 @@ namespace Test {
         , mChangedPairs(std::get<SharedRow<SweepNPruneBroadphase::ChangedCollisionPairs>>(mBroadphase.mRows).at())
         , mConstraintsMappings(std::get<SharedRow<ConstraintsTableMappings>>(mGlobals.mRows).at())
         , mStableMappings(std::get<SharedRow<StableElementMappings>>(mGlobals.mRows).at())
+        , mContactPairedConstraint(std::get<ConstraintElement>(mCollisionPairs.mRows))
       {
       }
 
@@ -885,6 +886,8 @@ namespace Test {
       StableElementMappings& mStableMappings;
       ConstraintsTableMappings& mConstraintsMappings;
       ConstraintData::IsEnabled& mIsConstraintEnabled;
+
+      ConstraintElement& mContactPairedConstraint;
 
       ConstraintObject<ConstraintObjA>::SyncIndex& mSyncIndexA;
       ConstraintObject<ConstraintObjB>::SyncIndex& mSyncIndexB;
@@ -962,6 +965,12 @@ namespace Test {
       Assert::AreEqual(staticCount, TableOperations::size(reader.mStaticConstraints));
     }
 
+    static size_t _getConstraintIndexFromContact(GameDatabase& db, size_t contact) {
+      DBReader reader(db);
+      StableElementID id = reader.mContactPairedConstraint.at(contact);
+      return StableOperations::tryResolveStableID(id, db, reader.mStableMappings)->mUnstableIndex & GameDatabase::ElementID::ELEMENT_INDEX_MASK;
+    }
+
     TEST_METHOD(GameOneObject_Migrate_PhysicsDataPreserved) {
       GameDatabase db;
       SceneArgs args{ 1, 1 };
@@ -988,9 +997,10 @@ namespace Test {
         _assertEnabledContactConstraintCount(db, 1);
         _assertEnabledStaticContactConstraintCount(db, 0);
         Assert::IsTrue(reader.mCollisionPairA.at(0) == playerId);
-        Assert::IsTrue(reader.mConstraintPairA.at(0) == playerId);
+        const size_t c = _getConstraintIndexFromContact(db, 0);
+        Assert::IsTrue(reader.mConstraintPairA.at(c) == playerId);
         Assert::IsTrue(reader.mCollisionPairB.at(0) == objectId);
-        Assert::IsTrue(reader.mConstraintPairB.at(0) == objectId);
+        Assert::IsTrue(reader.mConstraintPairB.at(c) == objectId);
 
         Assert::IsTrue(reader.mPlayerLinVelX.at(0) > -0.5f + minCorrection, L"Player should be pushed away from object");
         Assert::IsTrue(reader.mLinVelX.at(0) < 0.5f - minCorrection, L"Object should be pushed away from player");
@@ -1033,10 +1043,11 @@ namespace Test {
         Assert::AreEqual(size_t(1), TableOperations::size(reader.mCollisionPairs));
         _assertEnabledContactConstraintCount(db, 0);
         _assertEnabledStaticContactConstraintCount(db, 1);
+        const size_t c = _getConstraintIndexFromContact(db, 0);
         Assert::IsTrue(reader.mCollisionPairA.at(0) == playerId);
-        Assert::IsTrue(reader.mConstraintPairA.at(0) == playerId);
+        Assert::IsTrue(reader.mConstraintPairA.at(c) == playerId);
         Assert::IsTrue(reader.mCollisionPairB.at(0) == objectId);
-        Assert::IsTrue(reader.mConstraintPairB.at(0) == objectId);
+        Assert::IsTrue(reader.mConstraintPairB.at(c) == objectId);
 
         Assert::IsTrue(reader.mPlayerLinVelX.at(0) > -0.5f, L"Player should be pushed away from object");
       };
@@ -1307,6 +1318,19 @@ namespace Test {
       Assert::IsTrue(resolved.has_value());
       constexpr size_t elementMask = TestStableDB::ElementID::ELEMENT_INDEX_MASK;
       Assert::AreEqual(3, values.at(resolved->mUnstableIndex & elementMask));
+    }
+
+    TEST_METHOD(UnpackedDBElementID) {
+      auto id = GameDatabase::getElementID<GameObjectTable>(5);
+      UnpackedDatabaseElementID unpacked = UnpackedDatabaseElementID::fromPacked(id);
+      Assert::AreEqual(id.getElementIndex(), unpacked.getElementIndex());
+      Assert::AreEqual(id.getTableIndex(), unpacked.getTableIndex());
+      Assert::AreEqual(id.ELEMENT_INDEX_MASK, unpacked.getElementMask());
+
+      unpacked = UnpackedDatabaseElementID::fromElementMask(id.ELEMENT_INDEX_MASK, id.getTableIndex(), id.getElementIndex());
+      Assert::AreEqual(id.getElementIndex(), unpacked.getElementIndex());
+      Assert::AreEqual(id.getTableIndex(), unpacked.getTableIndex());
+      Assert::AreEqual(id.ELEMENT_INDEX_MASK, unpacked.getElementMask());
     }
   };
 }

@@ -72,13 +72,14 @@ struct UnpackedDatabaseElementID {
     return { id.mValue, DatabaseElementID<S>::ELEMENT_INDEX_BITS };
   }
 
-  static constexpr UnpackedDatabaseElementID fromElementMask(size_t elementMask, size_t tableIndex, size_t elementIndex) {
+  //TableIndex comes from DB::getTableIndex<X>() which is already shifted
+  static constexpr UnpackedDatabaseElementID fromElementMask(size_t elementMask, size_t shiftedTableIndex, size_t elementIndex) {
     size_t bits = 0;
     while(elementMask) {
       elementMask = (elementMask >> 1);
       ++bits;
     }
-    return { dbDetails::packTableAndElement(tableIndex, elementIndex, bits) };
+    return { shiftedTableIndex | elementIndex, bits };
   }
 
   size_t getTableIndex() const {

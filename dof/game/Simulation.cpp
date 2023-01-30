@@ -569,8 +569,9 @@ void Simulation::_updatePhysics(GameDatabase& db, const PhysicsConfig& config) {
 PhysicsTableIds Simulation::_getPhysicsTableIds() {
   PhysicsTableIds physicsTables;
   physicsTables.mTableIDMask = GameDatabase::ElementID::TABLE_INDEX_MASK;
-  physicsTables.mSharedMassTable = GameDatabase::getTableIndex<GameObjectTable>().mValue;
-  physicsTables.mZeroMassTable = GameDatabase::getTableIndex<StaticGameObjectTable>().mValue;
+  physicsTables.mSharedMassTable = GameDatabase::getTableIndex<ConstraintsTable>().mValue;
+  physicsTables.mZeroMassTable = GameDatabase::getTableIndex<ContactConstraintsToStaticObjectsTable>().mValue;
+  physicsTables.mConstriantsCommonTable = GameDatabase::getTableIndex<ConstraintCommonTable>().mValue;
   physicsTables.mElementIDMask = GameDatabase::ElementID::ELEMENT_INDEX_MASK;
   return physicsTables;
 }
