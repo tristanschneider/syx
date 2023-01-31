@@ -453,6 +453,7 @@ void Physics::solveConstraints(ConstraintsTable& constraints, ContactConstraints
   float* lambdaSumTwo = _unwrapRow<ConstraintData::LambdaSumTwo>(constraints);
   float* frictionLambdaSumOne = _unwrapRow<ConstraintData::FrictionLambdaSumOne>(constraints);
   float* frictionLambdaSumTwo = _unwrapRow<ConstraintData::FrictionLambdaSumTwo>(constraints);
+  uint8_t* enabled = _unwrapRow<ConstraintData::IsEnabled>(common);
 
   const float frictionCoeff = 0.5f;
   const size_t startContact = std::get<ConstraintData::CommonTableStartIndex>(constraints.mRows).at();
@@ -462,11 +463,11 @@ void Physics::solveConstraints(ConstraintsTable& constraints, ContactConstraints
 
   if(oneAtATime) {
     for(size_t i = 0; i < TableOperations::size(constraints); ++i) {
-      notispc::solveContactConstraints(data, objectA, objectB, lambdaSumOne, lambdaSumTwo, frictionLambdaSumOne, frictionLambdaSumTwo, frictionCoeff, uint32_t(startContact), uint32_t(i), uint32_t(1));
+      ispc::solveContactConstraints(data, objectA, objectB, lambdaSumOne, lambdaSumTwo, frictionLambdaSumOne, frictionLambdaSumTwo, enabled, frictionCoeff, uint32_t(startContact), uint32_t(i), uint32_t(1));
     }
   }
   else {
-    ispc::solveContactConstraints(data, objectA, objectB, lambdaSumOne, lambdaSumTwo, frictionLambdaSumOne, frictionLambdaSumTwo, frictionCoeff, uint32_t(startContact), uint32_t(0), uint32_t(TableOperations::size(constraints)));
+    ispc::solveContactConstraints(data, objectA, objectB, lambdaSumOne, lambdaSumTwo, frictionLambdaSumOne, frictionLambdaSumTwo, enabled, frictionCoeff, uint32_t(startContact), uint32_t(0), uint32_t(TableOperations::size(constraints)));
   }
 
   data = _unwrapUniformConstraintData(staticContacts);
@@ -477,7 +478,7 @@ void Physics::solveConstraints(ConstraintsTable& constraints, ContactConstraints
 
   if(oneAtATime) {
     for(size_t i = 0; i < TableOperations::size(staticContacts); ++i) {
-      notispc::solveContactConstraintsBZeroMass(data, objectA, objectB, lambdaSumOne, lambdaSumTwo, frictionLambdaSumOne, frictionLambdaSumTwo, frictionCoeff, uint32_t(startStatic), uint32_t(i), uint32_t(1));
+      ispc::solveContactConstraintsBZeroMass(data, objectA, objectB, lambdaSumOne, lambdaSumTwo, frictionLambdaSumOne, frictionLambdaSumTwo, frictionCoeff, uint32_t(startStatic), uint32_t(i), uint32_t(1));
     }
   }
   else {
