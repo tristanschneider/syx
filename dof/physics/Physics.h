@@ -96,7 +96,7 @@ struct ConstraintData {
     Location mFirstLocation{};
   };
   struct SharedVisitData {
-    std::vector<VisitData> mVisited;
+    std::unordered_map<size_t, VisitData> mVisited;
     std::deque<size_t> mIndicesToFill, mNextToFill;
   };
   using SharedVisitDataRow = SharedRow<SharedVisitData>;

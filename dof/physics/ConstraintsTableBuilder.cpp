@@ -202,7 +202,7 @@ void ConstraintsTableBuilder::addCollisionPairs(const StableElementID* toAdd, si
 struct VisitAttempt {
   StableElementID mDesiredObjectIndex{};
   size_t mDesiredConstraintIndex{};
-  std::vector<ConstraintData::VisitData>::iterator mIt;
+  std::unordered_map<size_t, ConstraintData::VisitData>::iterator mIt;
 };
 
 struct ConstraintSyncData {
@@ -211,48 +211,48 @@ struct ConstraintSyncData {
   StableElementID* mObject{};
 };
 
-VisitAttempt _tryVisit(std::vector<ConstraintData::VisitData>& visited, const StableElementID& toVisit, size_t currentConstraintIndex) {
+VisitAttempt _tryVisit(std::unordered_map<size_t, ConstraintData::VisitData>& visited, const StableElementID& toVisit, size_t currentConstraintIndex) {
   VisitAttempt result;
-  result.mIt = std::lower_bound(visited.begin(), visited.end(), toVisit);
+  result.mIt = visited.find(toVisit.mStableID);
   result.mDesiredConstraintIndex = currentConstraintIndex;
   result.mDesiredObjectIndex = toVisit;
   return result;
 }
 
-void _setVisitDataAndTrySetSyncPoint(std::vector<ConstraintData::VisitData>& visited, VisitAttempt& attempt,
+void _setVisitDataAndTrySetSyncPoint(std::unordered_map<size_t, ConstraintData::VisitData>& visited, VisitAttempt& attempt,
   ConstraintSyncData& syncA,
   ConstraintSyncData& syncB,
   ConstraintData::VisitData::Location location) {
   //Set it to nosync for now, later iteration might set this as new constraints are visited
   *(syncA.mSyncType + attempt.mDesiredConstraintIndex) = ispc::NoSync;
   *(syncB.mSyncType + attempt.mDesiredConstraintIndex) = ispc::NoSync;
-  if(attempt.mIt == visited.end() || attempt.mIt->mObjectIndex != attempt.mDesiredObjectIndex) {
+  if(attempt.mIt == visited.end() || attempt.mIt->second.mObjectIndex != attempt.mDesiredObjectIndex) {
     //If this is the first time visiting this object, no need to sync anything, but note it for later
-    visited.insert(attempt.mIt, ConstraintData::VisitData{
+    visited.insert(attempt.mIt, std::make_pair(attempt.mDesiredObjectIndex.mStableID, ConstraintData::VisitData{
       attempt.mDesiredObjectIndex,
       attempt.mDesiredConstraintIndex,
       location,
       attempt.mDesiredConstraintIndex,
       location
-    });
+    }));
   }
   else {
     //A has been visited before, add a sync index
     const int newLocation = location == ConstraintData::VisitData::Location::InA ? ispc::SyncToIndexA : ispc::SyncToIndexB;
     //Make the previously visited constraint publish the velocity forward to this one
-    switch(attempt.mIt->mLocation) {
+    switch(attempt.mIt->second.mLocation) {
       case ConstraintData::VisitData::Location::InA:
-        *(syncA.mSyncType + attempt.mIt->mConstraintIndex) = newLocation;
-        *(syncA.mSyncIndex + attempt.mIt->mConstraintIndex) = attempt.mDesiredConstraintIndex;
+        *(syncA.mSyncType + attempt.mIt->second.mConstraintIndex) = newLocation;
+        *(syncA.mSyncIndex + attempt.mIt->second.mConstraintIndex) = attempt.mDesiredConstraintIndex;
         break;
       case ConstraintData::VisitData::Location::InB:
-        *(syncB.mSyncType + attempt.mIt->mConstraintIndex) = newLocation;
-        *(syncB.mSyncIndex + attempt.mIt->mConstraintIndex) = attempt.mDesiredConstraintIndex;
+        *(syncB.mSyncType + attempt.mIt->second.mConstraintIndex) = newLocation;
+        *(syncB.mSyncIndex + attempt.mIt->second.mConstraintIndex) = attempt.mDesiredConstraintIndex;
         break;
     }
     //Now that the latest instance of this object is at this visit location, update the visit data
-    attempt.mIt->mConstraintIndex = attempt.mDesiredConstraintIndex;
-    attempt.mIt->mLocation = location;
+    attempt.mIt->second.mConstraintIndex = attempt.mDesiredConstraintIndex;
+    attempt.mIt->second.mLocation = location;
   }
 }
 
@@ -297,7 +297,7 @@ void _trySetFinalSyncPoint(const ConstraintData::VisitData& visited, ConstraintS
 //Fills in syncIndex and syncType. The required padding and target width should already be in place from the previous steps, and object handles resolved
 void ConstraintsTableBuilder::buildSyncIndices(ConstraintCommonTable& constraints, const ConstraintsTableMappings& constraintsMappings) {
   ConstraintData::SharedVisitData& visitData = std::get<ConstraintData::SharedVisitDataRow>(constraints.mRows).at();
-  std::vector<ConstraintData::VisitData>& visited = visitData.mVisited;
+  std::unordered_map<size_t, ConstraintData::VisitData>& visited = visitData.mVisited;
   visited.clear();
   //Need to reserve big enough because visited vector growth would cause iterator invalidation for visitA/visitB cases below
   //Size of pairs is bigger than necessary, it only needs to be the number of objects, but that's not known here and over-allocating
@@ -328,7 +328,8 @@ void ConstraintsTableBuilder::buildSyncIndices(ConstraintCommonTable& constraint
   FinalSyncIndices& finalData = std::get<SharedRow<FinalSyncIndices>>(constraints.mRows).at();
   finalData.mMappingsA.clear();
   finalData.mMappingsB.clear();
-  for(const ConstraintData::VisitData& v : visited) {
+  for(const auto& pair : visited) {
+    auto& v = pair.second;
     //Link the final constraint entry back to the velocity data of the first that uses the objects if velocity was duplicated
     //This matters from one iteration to the next to avoid working on stale data, doesn't matter for the last iteration
     //since the final results will be copied from the end locations stored in mappings below
