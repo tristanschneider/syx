@@ -902,13 +902,14 @@ namespace Test {
 
     static bool _unorderedIdsMatch(const CollisionPairIndexA& actualA, const CollisionPairIndexB& actualB,
       std::vector<StableElementID> expectedA,
-      std::vector<StableElementID> expectedB) {
-      if(actualA.size() != expectedA.size()) {
-        return false;
-      }
+      std::vector<StableElementID> expectedB,
+      const ConstraintData::IsEnabled* isEnabled) {
       Assert::AreEqual(expectedA.size(), expectedB.size());
 
       for(size_t i = 0; i < actualA.size(); ++i) {
+        if(isEnabled && !isEnabled->at(i)) {
+          continue;
+        }
         const StableElementID& toFindA = actualA.at(i);
         const StableElementID& toFindB = actualB.at(i);
         bool found = false;
@@ -925,12 +926,12 @@ namespace Test {
           return false;
         }
       }
-      return true;
+      return expectedA.empty();
     }
 
     static bool _unorderedCollisionPairsMatch(DBReader& db, std::vector<StableElementID> expectedA, std::vector<StableElementID> expectedB) {
-      return _unorderedIdsMatch(db.mCollisionPairA, db.mCollisionPairB, expectedA, expectedB) &&
-        _unorderedIdsMatch(db.mConstraintPairA, db.mConstraintPairB, expectedA, expectedB);
+      return _unorderedIdsMatch(db.mCollisionPairA, db.mCollisionPairB, expectedA, expectedB, nullptr) &&
+        _unorderedIdsMatch(db.mConstraintPairA, db.mConstraintPairB, expectedA, expectedB, &db.mIsConstraintEnabled);
     }
 
     static void _updatePhysics(GameDatabase& db) {
@@ -1094,9 +1095,8 @@ namespace Test {
       _updatePhysics(db);
 
       Assert::AreEqual(size_t(3), TableOperations::size(reader.mCollisionPairs));
-      Assert::AreEqual(size_t(3), TableOperations::size(reader.mConstraints));
-      Assert::AreEqual(size_t(0), TableOperations::size(reader.mStaticConstraints));
-      Assert::AreEqual(size_t(3), TableOperations::size(reader.mConstraintsCommon));
+      _assertEnabledContactConstraintCount(db, 3);
+      _assertEnabledStaticContactConstraintCount(db, 0);
       Assert::IsTrue(_unorderedCollisionPairsMatch(reader,
         { playerId, playerId, objectLeftId },
         { objectLeftId, objectRightId, objectRightId }
@@ -1127,9 +1127,8 @@ namespace Test {
 
       auto assertStaticCollision = [&] {
       Assert::AreEqual(size_t(3), TableOperations::size(reader.mCollisionPairs));
-      Assert::AreEqual(size_t(1), TableOperations::size(reader.mConstraints));
-      Assert::AreEqual(size_t(2), TableOperations::size(reader.mStaticConstraints));
-      Assert::AreEqual(size_t(3), TableOperations::size(reader.mConstraintsCommon));
+      _assertEnabledContactConstraintCount(db, 1);
+      _assertEnabledStaticContactConstraintCount(db, 2);
       //Now left is the B object always since it's static
       Assert::IsTrue(_unorderedCollisionPairsMatch(reader,
         { playerId, playerId, objectRightId },
@@ -1146,9 +1145,8 @@ namespace Test {
       _updatePhysics(db);
 
       Assert::AreEqual(size_t(1), TableOperations::size(reader.mCollisionPairs));
-      Assert::AreEqual(size_t(0), TableOperations::size(reader.mConstraints));
-      Assert::AreEqual(size_t(1), TableOperations::size(reader.mStaticConstraints));
-      Assert::AreEqual(size_t(1), TableOperations::size(reader.mConstraintsCommon));
+      _assertEnabledContactConstraintCount(db, 0);
+      _assertEnabledStaticContactConstraintCount(db, 1);
       Assert::IsTrue(_unorderedCollisionPairsMatch(reader,
         { objectRightId },
         { objectLeftId }
@@ -1254,38 +1252,38 @@ namespace Test {
       StableElementID c = _getGameobjectID(db, 2);
       StableElementID d = _getGameobjectID(db, 3);
 
-      auto range = getTargetElementRange(db, tableIds.mSharedMassTable);
+      auto range = getTargetElementRange(db, tableIds.mSharedMassConstraintTable);
       Assert::IsTrue(range == std::make_pair(size_t(0), size_t(0)));
-      range = getTargetElementRange(db, tableIds.mZeroMassTable);
+      range = getTargetElementRange(db, tableIds.mZeroMassConstraintTable);
       Assert::IsTrue(range == std::make_pair(size_t(0), size_t(0)));
 
       //Should fail because nothing is there
-      Assert::IsTrue(StableElementID::invalid() == tryTakeSuitableFreeSlot(db, tableIds.mSharedMassTable, a, b, *config.mForcedTargetWidth));
-      Assert::IsTrue(StableElementID::invalid() == tryTakeSuitableFreeSlot(db, tableIds.mZeroMassTable, a, b, *config.mForcedTargetWidth));
+      Assert::IsTrue(StableElementID::invalid() == tryTakeSuitableFreeSlot(db, tableIds.mSharedMassConstraintTable, a, b, *config.mForcedTargetWidth));
+      Assert::IsTrue(StableElementID::invalid() == tryTakeSuitableFreeSlot(db, tableIds.mZeroMassConstraintTable, a, b, *config.mForcedTargetWidth));
 
-      addPaddingToTable(db, tableIds.mZeroMassTable, 1);
+      addPaddingToTable(db, tableIds.mZeroMassConstraintTable, 1);
 
       //Should fail because the space was added to the zero mass table
-      Assert::IsTrue(StableElementID::invalid() == tryTakeSuitableFreeSlot(db, tableIds.mSharedMassTable, a, b, *config.mForcedTargetWidth));
-      StableElementID ab = tryTakeSuitableFreeSlot(db, tableIds.mZeroMassTable, a, b, *config.mForcedTargetWidth);
+      Assert::IsTrue(StableElementID::invalid() == tryTakeSuitableFreeSlot(db, tableIds.mSharedMassConstraintTable, a, b, *config.mForcedTargetWidth));
+      StableElementID ab = tryTakeSuitableFreeSlot(db, tableIds.mZeroMassConstraintTable, a, b, *config.mForcedTargetWidth);
       Assert::AreEqual(size_t(0), ab.mUnstableIndex & tableIds.mElementIDMask);
 
-      addPaddingToTable(db, tableIds.mZeroMassTable, 1);
+      addPaddingToTable(db, tableIds.mZeroMassConstraintTable, 1);
 
-      Assert::IsTrue(StableElementID::invalid() == tryTakeSuitableFreeSlot(db, tableIds.mZeroMassTable, a, c, *config.mForcedTargetWidth), L"Should not accept slots within target width of non-static object");
-      StableElementID cb = tryTakeSuitableFreeSlot(db, tableIds.mZeroMassTable, c, b, *config.mForcedTargetWidth);
+      Assert::IsTrue(StableElementID::invalid() == tryTakeSuitableFreeSlot(db, tableIds.mZeroMassConstraintTable, a, c, *config.mForcedTargetWidth), L"Should not accept slots within target width of non-static object");
+      StableElementID cb = tryTakeSuitableFreeSlot(db, tableIds.mZeroMassConstraintTable, c, b, *config.mForcedTargetWidth);
       Assert::AreEqual(size_t(1), cb.mUnstableIndex & tableIds.mElementIDMask, L"Static elements should ignore padding rules");
 
-      addPaddingToTable(db, tableIds.mSharedMassTable, 1);
+      addPaddingToTable(db, tableIds.mSharedMassConstraintTable, 1);
 
-      StableElementID ad = tryTakeSuitableFreeSlot(db, tableIds.mSharedMassTable, a, d, *config.mForcedTargetWidth);
+      StableElementID ad = tryTakeSuitableFreeSlot(db, tableIds.mSharedMassConstraintTable, a, d, *config.mForcedTargetWidth);
       Assert::AreEqual(size_t(0), ad.mUnstableIndex & tableIds.mElementIDMask, L"Elements in dynamic section should ignore padding rules in neighboring sections");
 
-      addPaddingToTable(db, tableIds.mSharedMassTable, 1);
+      addPaddingToTable(db, tableIds.mSharedMassConstraintTable, 1);
 
-      Assert::IsTrue(StableElementID::invalid() == tryTakeSuitableFreeSlot(db, tableIds.mSharedMassTable, a, b, *config.mForcedTargetWidth), L"Object A should obey padding rules");
-      Assert::IsTrue(StableElementID::invalid() == tryTakeSuitableFreeSlot(db, tableIds.mSharedMassTable, b, d, *config.mForcedTargetWidth), L"Object B should obey padding rules");
-      StableElementID bc = tryTakeSuitableFreeSlot(db, tableIds.mSharedMassTable, b, c, *config.mForcedTargetWidth);
+      Assert::IsTrue(StableElementID::invalid() == tryTakeSuitableFreeSlot(db, tableIds.mSharedMassConstraintTable, a, b, *config.mForcedTargetWidth), L"Object A should obey padding rules");
+      Assert::IsTrue(StableElementID::invalid() == tryTakeSuitableFreeSlot(db, tableIds.mSharedMassConstraintTable, b, d, *config.mForcedTargetWidth), L"Object B should obey padding rules");
+      StableElementID bc = tryTakeSuitableFreeSlot(db, tableIds.mSharedMassConstraintTable, b, c, *config.mForcedTargetWidth);
       Assert::AreEqual(size_t(1), bc.mUnstableIndex & tableIds.mElementIDMask, L"Object passing padding rules should find free slot");
     }
 
@@ -1327,7 +1325,7 @@ namespace Test {
       Assert::AreEqual(id.getTableIndex(), unpacked.getTableIndex());
       Assert::AreEqual(id.ELEMENT_INDEX_MASK, unpacked.getElementMask());
 
-      unpacked = UnpackedDatabaseElementID::fromElementMask(id.ELEMENT_INDEX_MASK, id.getTableIndex(), id.getElementIndex());
+      unpacked = UnpackedDatabaseElementID::fromElementMask(id.ELEMENT_INDEX_MASK, id.getShiftedTableIndex(), id.getElementIndex());
       Assert::AreEqual(id.getElementIndex(), unpacked.getElementIndex());
       Assert::AreEqual(id.getTableIndex(), unpacked.getTableIndex());
       Assert::AreEqual(id.ELEMENT_INDEX_MASK, unpacked.getElementMask());

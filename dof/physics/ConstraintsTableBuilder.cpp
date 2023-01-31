@@ -27,24 +27,24 @@ namespace ctbdetails {
     //Suitable if neither can be found within the target width, except B can ignore it if B is static
     //Only B would be static due to the way collision pairs are ordered
     return !isWithinTargetWidth(idA.mElements, desiredA, location, targetWidth, range)
-      && (targetTable == tableIds.mZeroMassTable || !isWithinTargetWidth(idB.mElements, desiredB, location, targetWidth, range));
+      && (targetTable == tableIds.mZeroMassConstraintTable || !isWithinTargetWidth(idB.mElements, desiredB, location, targetWidth, range));
   }
 
   std::optional<size_t> getTargetConstraintTable(const StableElementID& a, const StableElementID& b, const PhysicsTableIds& tables) {
-    if((a.mUnstableIndex & tables.mTableIDMask) == tables.mZeroMassTable) {
+    if((b.mUnstableIndex & tables.mTableIDMask) == tables.mZeroMassObjectTable) {
       //If they're both zero mass no constraint is needed
-      if((b.mUnstableIndex & tables.mTableIDMask) == tables.mZeroMassTable) {
+      if((a.mUnstableIndex & tables.mTableIDMask) == tables.mZeroMassObjectTable) {
         return {};
       }
       //One is zero mass, solve in zero mass table
-      return tables.mZeroMassTable;
+      return tables.mZeroMassConstraintTable;
     }
     //Neither is zero mass, solve in shared table
-    return tables.mSharedMassTable;
+    return tables.mSharedMassConstraintTable;
   }
 
   std::pair<size_t, size_t> getTargetElementRange(size_t targetTable, const PhysicsTableIds& tables, const ConstraintsTableMappings& mappings, size_t totalElements) {
-    return targetTable == tables.mSharedMassTable ? std::make_pair(size_t(0), mappings.mZeroMassStartIndex) : std::make_pair(mappings.mZeroMassStartIndex, totalElements);
+    return targetTable == tables.mSharedMassConstraintTable ? std::make_pair(size_t(0), mappings.mZeroMassStartIndex) : std::make_pair(mappings.mZeroMassStartIndex, totalElements);
   }
 
   void assignConstraint(const StableElementID& collisionPair,
@@ -116,14 +116,14 @@ namespace ctbdetails {
     size_t startIndex = 0;
 
     //This is the last table, meaning it can resize off the end
-    if(targetTable == tableIds.mZeroMassTable) {
+    if(targetTable == tableIds.mZeroMassConstraintTable) {
       startIndex = oldSize;
-      TableOperations::stableResizeTable(table, UnpackedDatabaseElementID::fromElementMask(tableIds.mElementIDMask, tableIds.mZeroMassTable, size_t(0)), oldSize + amount, stableMappings);
+      TableOperations::stableResizeTable(table, UnpackedDatabaseElementID::fromElementMask(tableIds.mElementIDMask, tableIds.mZeroMassConstraintTable, size_t(0)), oldSize + amount, stableMappings);
     }
-    else if(targetTable == tableIds.mSharedMassTable) {
+    else if(targetTable == tableIds.mSharedMassConstraintTable) {
       //This needs to shift over the start index by adding new entries to the middle
       startIndex = constraintMappings.mZeroMassStartIndex;
-      TableOperations::stableInsertRangeAt(table, UnpackedDatabaseElementID::fromElementMask(tableIds.mElementIDMask, tableIds.mSharedMassTable, startIndex), amount, stableMappings);
+      TableOperations::stableInsertRangeAt(table, UnpackedDatabaseElementID::fromElementMask(tableIds.mElementIDMask, tableIds.mSharedMassConstraintTable, startIndex), amount, stableMappings);
       constraintMappings.mZeroMassStartIndex += amount;
     }
     else {

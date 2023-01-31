@@ -54,6 +54,10 @@ struct DatabaseElementID {
     return dbDetails::unpackTableIndex(mValue, ELEMENT_INDEX_BITS);
   }
 
+  size_t getShiftedTableIndex() const {
+    return mValue & TABLE_INDEX_MASK;
+  }
+
   size_t getElementIndex() const {
     return dbDetails::unpackElementIndex(mValue, ELEMENT_INDEX_BITS);
   }
