@@ -145,6 +145,7 @@ struct PlayerInput {
   float mMoveX{};
   float mMoveY{};
   bool mAction1{};
+  bool mAction2{};
 };
 
 //Intermediate keyboard state used to compute final state
@@ -211,6 +212,18 @@ using DebugLineTable = Table<Row<DebugPoint>>;
 
 using BroadphaseTable = SweepNPruneBroadphase::BroadphaseTable;
 
+struct ForceData {
+  struct Lifetime : Row<size_t> {};
+  struct Strength : Row<float> {};
+};
+
+using GlobalPointForceTable = Table<
+  FloatRow<Tags::Pos, Tags::X>,
+  FloatRow<Tags::Pos, Tags::Y>,
+  ForceData::Lifetime,
+  ForceData::Strength
+>;
+
 using GameDatabase = Database<
   GlobalGameData,
   GameObjectTable,
@@ -223,7 +236,8 @@ using GameDatabase = Database<
   ConstraintsTable,
   ConstraintCommonTable,
   ContactConstraintsToStaticObjectsTable,
-  DebugLineTable
+  DebugLineTable,
+  GlobalPointForceTable
 >;
 
 struct Simulation {

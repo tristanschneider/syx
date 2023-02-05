@@ -27,7 +27,8 @@ namespace {
   }
 
   PhysicsConfig _getPhysicsConfig() {
-    return {};
+    PhysicsConfig result;
+    return result;
   }
 
   SweepNPruneBroadphase::BoundariesConfig _getBoundariesConfig() {
@@ -89,17 +90,15 @@ namespace {
     return SceneState::State::SetupScene;
   }
 
-  void _updatePlayerInput(PlayerTable& players) {
+  void _updatePlayerInput(PlayerTable& players, GlobalPointForceTable& pointForces) {
     for(size_t i = 0; i < TableOperations::size(players); ++i) {
-      const PlayerInput& input = std::get<Row<PlayerInput>>(players.mRows).at(i);
+      PlayerInput& input = std::get<Row<PlayerInput>>(players.mRows).at(i);
       glm::vec2 move(input.mMoveX, input.mMoveY);
       const float speed = 0.05f;
       move *= speed;
 
       float& vx = std::get<FloatRow<LinVel, X>>(players.mRows).at(i);
       float& vy = std::get<FloatRow<LinVel, Y>>(players.mRows).at(i);
-      //Debug hack to slowly rotate player
-      //std::get<FloatRow<AngVel, Angle>>(players.mRows).at(i) = input.mAction1 ? 0.01f : 0.0f;
       glm::vec2 velocity(vx, vy);
 
       const float maxStoppingForce = 0.05f;
@@ -120,6 +119,156 @@ namespace {
 
       vx = velocity.x;
       vy = velocity.y;
+
+      if(input.mAction1) {
+        input.mAction1 = false;
+        const size_t lifetime = 5;
+        const float strength = 0.05f;
+        const size_t f = TableOperations::size(pointForces);
+        TableOperations::addToTable(pointForces);
+        std::get<FloatRow<Tags::Pos, Tags::X>>(pointForces.mRows).at(f) = std::get<FloatRow<Tags::Pos, Tags::X>>(players.mRows).at(i);
+        std::get<FloatRow<Tags::Pos, Tags::Y>>(pointForces.mRows).at(f) = std::get<FloatRow<Tags::Pos, Tags::Y>>(players.mRows).at(i);
+        std::get<ForceData::Strength>(pointForces.mRows).at(f) = strength;
+        std::get<ForceData::Lifetime>(pointForces.mRows).at(f) = lifetime;
+      }
+    }
+  }
+
+  void _tickForceLifetimes(GlobalPointForceTable& table) {
+    auto& lifetime = std::get<ForceData::Lifetime>(table.mRows);
+    for(size_t i = 0; i < lifetime.size();) {
+      size_t& current = lifetime.at(i);
+      if(!current) {
+        TableOperations::swapRemove(table, i);
+      }
+      else {
+        --current;
+        ++i;
+      }
+    }
+  }
+
+  struct PositionReader {
+    template<class TableT>
+    PositionReader(TableT& t)
+      : x(std::get<FloatRow<Tags::Pos, Tags::X>>(t.mRows))
+      , y(std::get<FloatRow<Tags::Pos, Tags::Y>>(t.mRows)) {
+    }
+
+    glm::vec2 at(size_t i) const {
+      return { x.at(i), y.at(i) };
+    }
+
+    FloatRow<Tags::Pos, Tags::X>& x;
+    FloatRow<Tags::Pos, Tags::Y>& y;
+  };
+
+  struct RotationReader {
+    template<class TableT>
+    RotationReader(TableT& t)
+      : sinAngle(std::get<FloatRow<Tags::Rot, Tags::SinAngle>>(t.mRows))
+      , cosAngle(std::get<FloatRow<Tags::Rot, Tags::CosAngle>>(t.mRows)) {
+    }
+
+    FloatRow<Tags::Rot, Tags::CosAngle>& cosAngle;
+    FloatRow<Tags::Rot, Tags::SinAngle>& sinAngle;
+  };
+
+  struct VelocityReader {
+    template<class TableT>
+    VelocityReader(TableT& t)
+      : linVelX(std::get<FloatRow<Tags::LinVel, Tags::X>>(t.mRows))
+      , linVelY(std::get<FloatRow<Tags::LinVel, Tags::Y>>(t.mRows))
+      , angVel(std::get<FloatRow<Tags::AngVel, Tags::Angle>>(t.mRows)) {
+    }
+
+    glm::vec2 getLinVel(size_t i) const {
+      return { linVelX.at(i), linVelY.at(i) };
+    }
+
+    float getAngVel(size_t i) const {
+      return angVel.at(i);
+    }
+
+    void setAngVel(size_t i, float value) {
+      angVel.at(i) = value;
+    }
+
+    void setLinVel(size_t i, const glm::vec2& value) {
+      linVelX.at(i) = value.x;
+      linVelY.at(i) = value.y;
+    }
+
+    FloatRow<Tags::LinVel, Tags::X>& linVelX;
+    FloatRow<Tags::LinVel, Tags::Y>& linVelY;
+    FloatRow<Tags::AngVel, Tags::Angle>& angVel;
+  };
+
+  struct FragmentForceEdge {
+    glm::vec2 point{};
+    float contribution{};
+  };
+
+  FragmentForceEdge _getEdge(const glm::vec2& normalizedForceDir, const glm::vec2& fragmentNormal, const glm::vec2& fragmentPos, float size) {
+    const float cosAngle = glm::dot(normalizedForceDir, fragmentNormal);
+    //Constribution is how close to aligned the force and normal are, point is position then normal in direction of force
+    if(cosAngle >= 0.0f) {
+      return { fragmentPos - fragmentNormal*size, 1.0f - cosAngle };
+    }
+    return { fragmentPos + fragmentNormal*size, 1.0f + cosAngle };
+  }
+
+  float crossProduct(const glm::vec2& a, const glm::vec2& b) {
+    //[ax] x [bx] = [ax*by - ay*bx]
+    //[ay]   [by]
+    return a.x*b.y - a.y*b.x;
+  }
+
+  void _applyForces(GlobalPointForceTable& forces, GameObjectTable& fragments) {
+    PositionReader forcePosition(forces);
+    PositionReader fragmentPosition(fragments);
+    RotationReader fragmentRotation(fragments);
+    VelocityReader fragmentVelocity(fragments);
+
+    auto& strength = std::get<ForceData::Strength>(forces.mRows);
+    for(size_t i = 0; i < TableOperations::size(fragments); ++i) {
+      glm::vec2 right{ fragmentRotation.cosAngle.at(i), fragmentRotation.sinAngle.at(i) };
+      glm::vec2 up{ right.y, -right.x };
+      glm::vec2 fragmentPos = fragmentPosition.at(i);
+      glm::vec2 fragmentLinVel = fragmentVelocity.getLinVel(i);
+      float fragmentAngVel = fragmentVelocity.getAngVel(i);
+      for(size_t f = 0; f < TableOperations::size(forces); ++f) {
+        glm::vec2 forcePos = forcePosition.at(f);
+        glm::vec2 impulse = fragmentPos - forcePos;
+        float distance = glm::length(impulse);
+        if(distance < 0.0001f) {
+          impulse = glm::vec2(1.0f, 0.0f);
+          distance = 1.0f;
+        }
+        //Linear falloff for now
+        //TODO: something like easing for more interesting forces
+        const float scalar = strength.at(f)/distance;
+        //Normalize and scale to strength
+        const glm::vec2 impulseDir = impulse/distance;
+        impulse *= scalar;
+
+        //Determine point to apply force at. Realistically this would be something like the center of pressure
+        //Computing that is confusing so I'll hack at it instead
+        //Take the two leading edges facing the force direction, then weight them based on their angle against the force
+        //If the edge is head on that means only the one edge would matter
+        //If the two edges were exactly 45 degrees from the force direction then the center of the two edges is chosen
+        const float size = 0.5f;
+        FragmentForceEdge edgeA = _getEdge(impulseDir, right, fragmentPos, size);
+        FragmentForceEdge edgeB = _getEdge(impulseDir, right, fragmentPos, size);
+        const glm::vec2 impulsePoint = edgeA.point*edgeA.contribution + edgeB.point*edgeB.contribution;
+
+        fragmentLinVel += impulse;
+        glm::vec2 r = impulsePoint - fragmentPos;
+        fragmentAngVel += crossProduct(r, impulse);
+      }
+
+      fragmentVelocity.setLinVel(i, fragmentLinVel);
+      fragmentVelocity.setAngVel(i, fragmentAngVel);
     }
   }
 
@@ -150,13 +299,16 @@ namespace {
   }
 
   SceneState::State _update(GameDatabase& db) {
-    _updatePlayerInput(std::get<PlayerTable>(db.mTables));
+    _updatePlayerInput(std::get<PlayerTable>(db.mTables), std::get<GlobalPointForceTable>(db.mTables));
     _updateDebugCamera(std::get<CameraTable>(db.mTables));
 
     Simulation::_checkFragmentGoals(std::get<GameObjectTable>(db.mTables));
     Simulation::_migrateCompletedFragments(std::get<GameObjectTable>(db.mTables), std::get<StaticGameObjectTable>(db.mTables), std::get<BroadphaseTable>(db.mTables), _getStableMappings(db));
 
     _enforceWorldBoundary(db);
+    _applyForces(std::get<GlobalPointForceTable>(db.mTables), std::get<GameObjectTable>(db.mTables));
+    _tickForceLifetimes(std::get<GlobalPointForceTable>(db.mTables));
+
     Simulation::_updatePhysics(db, _getPhysicsConfig());
 
     return SceneState::State::Update;
@@ -410,8 +562,8 @@ void Simulation::update(GameDatabase& db) {
       break;
     case SceneState::State::SetupScene: {
       SceneArgs args;
-      args.mFragmentRows = 5;
-      args.mFragmentColumns = 5;
+      args.mFragmentRows = 4;
+      args.mFragmentColumns = 4;
       newState = _setupScene(db, args);
       break;
     }
