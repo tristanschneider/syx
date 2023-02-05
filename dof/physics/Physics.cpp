@@ -112,6 +112,7 @@ namespace notispc {
     float lambdaSumTwo[],
     float frictionLambdaSumOne[],
     float frictionLambdaSumTwo[],
+    uint8_t isEnabled[],
     float frictionCoeff,
     uint32_t objectOffset,
     uint32_t start,
@@ -120,6 +121,9 @@ namespace notispc {
     for(int t = 0; t < (int)count; ++t) {
       const int i = t + start;
       const int oi = i + objectOffset;
+      if(!isEnabled[oi]) {
+        continue;
+      }
       const float nx = constraints.linearAxisX[i];
       const float ny = constraints.linearAxisY[i];
 
@@ -478,10 +482,10 @@ void Physics::solveConstraints(ConstraintsTable& constraints, ContactConstraints
 
   if(oneAtATime) {
     for(size_t i = 0; i < TableOperations::size(staticContacts); ++i) {
-      ispc::solveContactConstraintsBZeroMass(data, objectA, objectB, lambdaSumOne, lambdaSumTwo, frictionLambdaSumOne, frictionLambdaSumTwo, frictionCoeff, uint32_t(startStatic), uint32_t(i), uint32_t(1));
+      ispc::solveContactConstraintsBZeroMass(data, objectA, objectB, lambdaSumOne, lambdaSumTwo, frictionLambdaSumOne, frictionLambdaSumTwo, enabled, frictionCoeff, uint32_t(startStatic), uint32_t(i), uint32_t(1));
     }
   }
   else {
-    ispc::solveContactConstraintsBZeroMass(data, objectA, objectB, lambdaSumOne, lambdaSumTwo, frictionLambdaSumOne, frictionLambdaSumTwo, frictionCoeff, uint32_t(startStatic), uint32_t(0), uint32_t(TableOperations::size(staticContacts)));
+    ispc::solveContactConstraintsBZeroMass(data, objectA, objectB, lambdaSumOne, lambdaSumTwo, frictionLambdaSumOne, frictionLambdaSumTwo, enabled, frictionCoeff, uint32_t(startStatic), uint32_t(0), uint32_t(TableOperations::size(staticContacts)));
   }
 }

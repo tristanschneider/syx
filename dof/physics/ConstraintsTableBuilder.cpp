@@ -423,4 +423,7 @@ void ConstraintsTableBuilder::createConstraintTables(const ConstraintCommonTable
   const ConstraintsTableMappings& mappings) {
   TableOperations::resizeTable(contacts, mappings.mZeroMassStartIndex - mappings.SHARED_MASS_START_INDEX);
   TableOperations::resizeTable(staticContacts, TableOperations::size(common) - mappings.mZeroMassStartIndex);
+
+  std::get<ConstraintData::CommonTableStartIndex>(contacts.mRows).at() = mappings.SHARED_MASS_START_INDEX;
+  std::get<ConstraintData::CommonTableStartIndex>(staticContacts.mRows).at() = mappings.mZeroMassStartIndex;
 }

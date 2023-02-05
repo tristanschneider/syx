@@ -325,6 +325,7 @@ export void solveContactConstraintsBZeroMass(
   uniform float lambdaSumTwo[],
   uniform float frictionLambdaSumOne[],
   uniform float frictionLambdaSumTwo[],
+  uniform uint8 isEnabled[],
   uniform float frictionCoeff,
   uniform uint32 objectOffset,
   uniform uint32 start,
@@ -333,6 +334,9 @@ export void solveContactConstraintsBZeroMass(
   foreach(t = 0 ... count) {
     const int i = t + start;
     const int oi = i + objectOffset;
+    if(!isEnabled[oi]) {
+      continue;
+    }
     const float nx = constraints.linearAxisX[i];
     const float ny = constraints.linearAxisY[i];
 
