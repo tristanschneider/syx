@@ -111,7 +111,7 @@ struct ConstraintsTableBuilder {
 
       //Remove this if necessary, adding to the free list
       if(needsRemove || needsReinsert) {
-        removeCollisionPairs(&contact, 1, mappings, common, constraintsMappings, tableIds);
+        removeCollisionPairs(&thisConstraint, 1, mappings, common, constraintsMappings, tableIds);
         anyRemovals = true;
       }
       if(needsReinsert) {
