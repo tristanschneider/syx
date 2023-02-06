@@ -97,7 +97,6 @@ struct ConstraintData {
   };
   struct SharedVisitData {
     std::unordered_map<size_t, VisitData> mVisited;
-    std::deque<size_t> mIndicesToFill, mNextToFill;
   };
   using SharedVisitDataRow = SharedRow<SharedVisitData>;
   //Each constraint table has one of these which refers to the index into ConstraintCommonTable where the equivalent entries are stored.

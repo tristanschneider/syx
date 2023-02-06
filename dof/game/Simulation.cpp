@@ -7,6 +7,7 @@
 
 #include "glm/gtx/norm.hpp"
 #include <random>
+#include "Serializer.h"
 
 namespace {
   using namespace Tags;
@@ -61,6 +62,14 @@ namespace {
     const std::string& root = std::get<SharedRow<FileSystem>>(globals.mRows).at().mRoot;
     scene.mBackgroundImage = _requestTextureLoad(textureRequests, (root + "background.png").c_str());
     scene.mPlayerImage = _requestTextureLoad(textureRequests, (root + "player.png").c_str());
+
+    StaticGameObjectTable& staticObjects = std::get<StaticGameObjectTable>(db.mTables);
+    GameObjectTable& gameobjects = std::get<GameObjectTable>(db.mTables);
+    PlayerTable& players = std::get<PlayerTable>(db.mTables);
+    std::get<SharedRow<TextureReference>>(players.mRows).at().mId = scene.mPlayerImage;
+    //Make all the objects use the background image as their texture
+    std::get<SharedRow<TextureReference>>(gameobjects.mRows).at().mId = scene.mBackgroundImage;
+    std::get<SharedRow<TextureReference>>(staticObjects.mRows).at().mId = scene.mBackgroundImage;
 
     return SceneState::State::InitAwaitingAssets;
   }
@@ -272,12 +281,23 @@ namespace {
     }
   }
 
-  void _updateDebugCamera(CameraTable& cameras) {
+  void _updateDebugCamera(GameDatabase& db, CameraTable& cameras) {
+    constexpr const char* snapshotFilename = "debug.snap";
+    bool loadSnapshot = false;
     for(size_t i = 0; i < TableOperations::size(cameras); ++i) {
-      const DebugCameraControl& input = std::get<Row<DebugCameraControl>>(cameras.mRows).at(i);
+      DebugCameraControl& input = std::get<Row<DebugCameraControl>>(cameras.mRows).at(i);
       const float speed = 0.3f;
       float& zoom = std::get<Row<Camera>>(cameras.mRows).at(i).zoom;
       zoom = std::max(0.0f, zoom + input.mAdjustZoom * speed);
+      loadSnapshot = loadSnapshot || input.mLoadSnapshot;
+      input.mLoadSnapshot = false;
+      if(input.mTakeSnapshot) {
+        Simulation::writeSnapshot(db, snapshotFilename);
+      }
+      input.mTakeSnapshot = false;
+    }
+    if(loadSnapshot) {
+      Simulation::loadFromSnapshot(db, snapshotFilename);
     }
   }
 
@@ -300,7 +320,7 @@ namespace {
 
   SceneState::State _update(GameDatabase& db) {
     _updatePlayerInput(std::get<PlayerTable>(db.mTables), std::get<GlobalPointForceTable>(db.mTables));
-    _updateDebugCamera(std::get<CameraTable>(db.mTables));
+    _updateDebugCamera(db, std::get<CameraTable>(db.mTables));
 
     Simulation::_checkFragmentGoals(std::get<GameObjectTable>(db.mTables));
     Simulation::_migrateCompletedFragments(std::get<GameObjectTable>(db.mTables), std::get<StaticGameObjectTable>(db.mTables), std::get<BroadphaseTable>(db.mTables), _getStableMappings(db));
@@ -423,7 +443,6 @@ SceneState::State Simulation::_setupScene(GameDatabase& db, const SceneArgs& arg
   std::random_device device;
   std::mt19937 generator(device());
 
-  StaticGameObjectTable& staticObjects = std::get<StaticGameObjectTable>(db.mTables);
   GameObjectTable& gameobjects = std::get<GameObjectTable>(db.mTables);
   SceneState& scene = std::get<0>(std::get<GlobalGameData>(db.mTables).mRows).at();
 
@@ -434,7 +453,6 @@ SceneState::State Simulation::_setupScene(GameDatabase& db, const SceneArgs& arg
 
   PlayerTable& players = std::get<PlayerTable>(db.mTables);
   TableOperations::stableResizeTable(players, UnpackedDatabaseElementID::fromPacked(GameDatabase::getTableIndex<PlayerTable>()), 1, _getStableMappings(db));
-  std::get<SharedRow<TextureReference>>(players.mRows).at().mId = scene.mPlayerImage;
   std::get<FloatRow<Rot, CosAngle>>(players.mRows).at(0) = 1.0f;
   //Random angle in sort of radians
   const float playerStartAngle = float(generator() % 360)*6.282f/360.0f;
@@ -442,10 +460,6 @@ SceneState::State Simulation::_setupScene(GameDatabase& db, const SceneArgs& arg
   //Start way off the screen, the world boundary will fling them into the scene
   std::get<FloatRow<Pos, X>>(players.mRows).at(0) = playerStartDistance*std::cos(playerStartAngle);
   std::get<FloatRow<Pos, Y>>(players.mRows).at(0) = playerStartDistance*std::sin(playerStartAngle);
-
-  //Make all the objects use the background image as their texture
-  std::get<SharedRow<TextureReference>>(gameobjects.mRows).at().mId = scene.mBackgroundImage;
-  std::get<SharedRow<TextureReference>>(staticObjects.mRows).at().mId = scene.mBackgroundImage;
 
   //Add some arbitrary objects for testing
   const size_t rows = args.mFragmentRows;
@@ -549,7 +563,32 @@ void Simulation::_initialPopulateBroadphase(GameDatabase& db) {
   });
 }
 
+void Simulation::loadFromSnapshot(GameDatabase& db, const char* snapshotFilename) {
+  if(std::basic_ifstream<uint8_t> stream(snapshotFilename, std::ios::binary); stream.good()) {
+    DeserializeStream s(stream.rdbuf());
+    Serializer<GameDatabase>::deserialize(s, db);
+  }
+}
+
+void Simulation::snapshotInitGraphics(GameDatabase& db) {
+  //Synchronously do the asset loading steps now which will load the assets and update any existing objects to point at them
+  while(_initRequestAssets(db) != SceneState::State::InitAwaitingAssets) {}
+  while(_awaitAssetLoading(db) != SceneState::State::SetupScene) {}
+}
+
+void Simulation::writeSnapshot(GameDatabase& db, const char* snapshotFilename) {
+  if(std::basic_ofstream<uint8_t> stream(snapshotFilename, std::ios::binary); stream.good()) {
+    SerializeStream s(stream.rdbuf());
+    Serializer<GameDatabase>::serialize(db, s);
+  }
+}
+
 void Simulation::update(GameDatabase& db) {
+  constexpr bool enableDebugSnapshot = true;
+  if(enableDebugSnapshot) {
+    writeSnapshot(db, "recovery.snap");
+  }
+
   GlobalGameData& globals = std::get<GlobalGameData>(db.mTables);
   SceneState& sceneState = std::get<0>(globals.mRows).at();
   SceneState::State newState = sceneState.mState;

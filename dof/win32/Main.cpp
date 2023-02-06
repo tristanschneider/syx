@@ -86,6 +86,8 @@ void onKey(WPARAM key, GameDatabase& db, KeyState state) {
     switch(key) {
       case VK_ADD: camera.mAdjustZoom = moveAmount; break;
       case VK_SUBTRACT: camera.mAdjustZoom = -moveAmount; break;
+      case 'O': camera.mTakeSnapshot = camera.mTakeSnapshot || isDown; break;
+      case 'P': camera.mLoadSnapshot = camera.mLoadSnapshot || isDown; break;
       default: break;
     }
   }

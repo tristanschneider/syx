@@ -18,6 +18,17 @@ namespace Test {
   static_assert(std::is_same_v<std::tuple<DupleElement<0, int>>, Duple<int>::TupleT>);
 
   TEST_CLASS(Tests) {
+    //Paste a snapshot and update the link to reproduce a problem case in a test
+    TEST_METHOD(ReplaySavedSnapshot) {
+      constexpr bool debuggingSnapshot = false;
+      if(debuggingSnapshot) {
+        const char* path = "C:/syx/dof/bugs/recovery.snap";
+        GameDatabase db;
+        Simulation::loadFromSnapshot(db, path);
+        Simulation::update(db);
+      }
+    }
+
     TEST_METHOD(Table_AddElement_SizeIncreases) {
       Table<Row<int>> table;
 

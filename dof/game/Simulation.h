@@ -196,6 +196,8 @@ struct Camera {
 
 struct DebugCameraControl {
   float mAdjustZoom{};
+  bool mTakeSnapshot{};
+  bool mLoadSnapshot{};
 };
 
 using CameraTable = Table<
@@ -241,6 +243,11 @@ using GameDatabase = Database<
 >;
 
 struct Simulation {
+  static void loadFromSnapshot(GameDatabase& db, const char* snapshotFilename);
+  //Weird special case since graphics static is the one part that's not in the database
+  static void snapshotInitGraphics(GameDatabase& db);
+  static void writeSnapshot(GameDatabase& db, const char* snapshotFilename);
+
   static void update(GameDatabase& db);
 
   static SceneState::State _setupScene(GameDatabase& db, const SceneArgs& args);

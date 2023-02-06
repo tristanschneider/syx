@@ -5,6 +5,7 @@ template<class Element>
 struct BasicRow {
   using ElementT = Element;
   using ElementPtr = Element*;
+  using IsBasicRow = std::true_type;
 
   using IteratorT = typename std::vector<Element>::iterator;
 
@@ -58,6 +59,7 @@ struct SharedRow {
   using ElementPtr = Element*;
   using NoOpIterator = size_t;
   using IteratorT = NoOpIterator;
+  using IsSharedRow = std::true_type;
 
   size_t size() const {
     return mSize;
