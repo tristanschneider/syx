@@ -208,7 +208,7 @@ struct SweepNPruneBroadphase {
     //If less were added than expected, shrink down the extra space
     if(addIndex < newSize) {
       TableOperations::stableResizeTable(table, tableIndex, addIndex, stableMappings);
-      mappings.mCollisionTableIndexToSweepPair.reserve(newSize);
+      mappings.mCollisionTableIndexToSweepPair.resize(addIndex);
     }
 
     changes.mGained.clear();
