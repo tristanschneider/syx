@@ -10,6 +10,19 @@ namespace {
     }
   };
 
+  void _gatherDuplicates(size_t firstKey, std::vector<size_t>& toGather, std::vector<SweepCollisionPair>& results) {
+    std::sort(toGather.begin(), toGather.end());
+    for(size_t j = 0; j < toGather.size();) {
+      if(j + 1 < toGather.size() && toGather[j] == toGather[j + 1]) {
+        results.push_back({ firstKey, toGather[j] });
+        j += 2;
+      }
+      else {
+        ++j;
+      }
+    }
+  }
+
   auto findLowerBoundaryFirstEqual(std::vector<SweepElement>& axis, float value) {
     auto it = std::lower_bound(axis.begin(), axis.end(), value, FindByBoundary{});
     return it;
@@ -193,11 +206,8 @@ void SweepNPrune::eraseRange(Sweep2D& sweep,
     sweep.mY.erase(endY);
     sweep.mY.erase(findY);
 
-    std::sort(sweep.mLost.begin(), sweep.mLost.end());
-    sweep.mLost.erase(std::unique(sweep.mLost.begin(), sweep.mLost.end()), sweep.mLost.end());
-    for(const size_t& loss : sweep.mLost) {
-      lostPairs.push_back({ keys[i], loss });
-    }
+    //If they were overlapping on both axes (duplicate) then they were losses, gather those
+    _gatherDuplicates(keys[i], sweep.mLost, lostPairs);
 
     if(auto it = sweep.mKeyToBoundaries.find(keys[i]); it != sweep.mKeyToBoundaries.end()) {
       sweep.mKeyToBoundaries.erase(it);
@@ -244,16 +254,7 @@ void SweepNPrune::insertRange(Sweep2D& sweep,
     sweep.mY.insert(next, SweepElement::createEnd(newBoundaryMaxY[i], keys[i]));
 
     //Duplicates indicate they were added on both axes, meaning they are collision pairs
-    std::sort(sweep.mGained.begin(), sweep.mGained.end());
-    for(size_t j = 0; j < sweep.mGained.size();) {
-      if(j + 1 < sweep.mGained.size() && sweep.mGained[j] == sweep.mGained[j + 1]) {
-        newPairs.push_back({ keys[i], sweep.mGained[j] });
-        j += 2;
-      }
-      else {
-        ++j;
-      }
-    }
+    _gatherDuplicates(keys[i], sweep.mGained, newPairs);
 
     Sweep2D::Bounds& bounds = sweep.mKeyToBoundaries[keys[i]];
     bounds.mMinX = newBoundaryMinX[i];

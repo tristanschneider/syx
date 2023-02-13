@@ -546,6 +546,28 @@ namespace Test {
       }
     }
 
+    TEST_METHOD(SweepNPrune_EraseOneOverlappingAxis_NoLoss) {
+      Sweep2D sweep;
+      std::vector<SweepCollisionPair> pairs;
+      SweepEntry entry;
+      entry.mKey = size_t(1);
+      entry.mNewBoundaryMin = glm::vec2(1.0f, 2.0f);
+      entry.mNewBoundaryMax = glm::vec2(2.0f, 3.0f);
+      _insertOne(sweep, entry, pairs);
+      Assert::IsTrue(pairs.empty());
+
+      //Move out of contact on one axis
+      entry.mNewBoundaryMax.x += 5.0f;
+      entry.mNewBoundaryMin.x += 5.0f;
+      entry.mKey = size_t(2);
+      _insertOne(sweep, entry, pairs);
+      Assert::IsTrue(pairs.empty());
+
+      _eraseOne(sweep, entry, pairs);
+
+      Assert::IsTrue(pairs.empty());
+    }
+
     TEST_METHOD(SweepNPrune_InsertRange) {
       Sweep2D sweep;
       std::vector<SweepCollisionPair> pairs;
@@ -1084,7 +1106,7 @@ namespace Test {
       StableElementID objectRightId = StableOperations::getStableID(reader.mGameObjectIDs, GameDatabase::getElementID<GameObjectTable>(1));
 
       auto& goalX = std::get<FloatRow<Tags::FragmentGoal, Tags::X>>(reader.mGameObjects.mRows);
-      auto& goalY = std::get<FloatRow<Tags::FragmentGoal, Tags::X>>(reader.mGameObjects.mRows);
+      auto& goalY = std::get<FloatRow<Tags::FragmentGoal, Tags::Y>>(reader.mGameObjects.mRows);
       glm::vec2 avg{ 0.0f };
       for(size_t i = 0; i < 2; ++i) {
         reader.mPosX.at(i) = goalX.at(i);
@@ -1098,7 +1120,7 @@ namespace Test {
 
       auto setInitialPlayerPos = [&] {
         reader.mPlayerPosX.at(0) = avg.x;
-        reader.mPlayerPosY.at(0) = avg.y + 0.5f;
+        reader.mPlayerPosY.at(0) = avg.y + 0.75f;
         reader.mPlayerLinVelY.at(0) = -0.5f;
       };
       setInitialPlayerPos();
