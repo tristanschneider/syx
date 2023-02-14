@@ -8,6 +8,7 @@
 #include "glm/gtx/norm.hpp"
 #include <random>
 #include "Serializer.h"
+#include "Profile.h"
 
 namespace {
   using namespace Tags;
@@ -33,7 +34,8 @@ namespace {
   }
 
   SweepNPruneBroadphase::BoundariesConfig _getBoundariesConfig() {
-    return {};
+    SweepNPruneBroadphase::BoundariesConfig result;
+    return result;
   }
 
   SweepNPruneBroadphase::BoundariesConfig _getStaticBoundariesConfig() {
@@ -100,6 +102,7 @@ namespace {
   }
 
   void _updatePlayerInput(PlayerTable& players, GlobalPointForceTable& pointForces) {
+    PROFILE_SCOPE("simulation", "playerinput");
     for(size_t i = 0; i < TableOperations::size(players); ++i) {
       PlayerInput& input = std::get<Row<PlayerInput>>(players.mRows).at(i);
       glm::vec2 move(input.mMoveX, input.mMoveY);
@@ -144,6 +147,7 @@ namespace {
   }
 
   void _tickForceLifetimes(GlobalPointForceTable& table) {
+    PROFILE_SCOPE("simulation", "forcelifetime");
     auto& lifetime = std::get<ForceData::Lifetime>(table.mRows);
     for(size_t i = 0; i < lifetime.size();) {
       size_t& current = lifetime.at(i);
@@ -234,6 +238,7 @@ namespace {
   }
 
   void _applyForces(GlobalPointForceTable& forces, GameObjectTable& fragments) {
+    PROFILE_SCOPE("simulation", "forces");
     PositionReader forcePosition(forces);
     PositionReader fragmentPosition(fragments);
     RotationReader fragmentRotation(fragments);
@@ -282,6 +287,7 @@ namespace {
   }
 
   void _updateDebugCamera(GameDatabase& db, CameraTable& cameras) {
+    PROFILE_SCOPE("simulation", "debugcamera");
     constexpr const char* snapshotFilename = "debug.snap";
     bool loadSnapshot = false;
     for(size_t i = 0; i < TableOperations::size(cameras); ++i) {
@@ -302,6 +308,7 @@ namespace {
   }
 
   void _enforceWorldBoundary(GameDatabase& db) {
+    PROFILE_SCOPE("simulation", "boundary");
     SceneState& scene = std::get<0>(std::get<GlobalGameData>(db.mTables).mRows).at();
     const glm::vec2 boundaryMin = scene.mBoundaryMin;
     const glm::vec2 boundaryMax = scene.mBoundaryMax;
@@ -337,6 +344,7 @@ namespace {
 
 //Check to see if each fragment has reached its goal
 void Simulation::_checkFragmentGoals(GameObjectTable& fragments) {
+  PROFILE_SCOPE("simulation", "fragmentgoals");
   ispc::UniformConstVec2 pos = _unwrapConstFloatRow<Pos>(fragments);
   ispc::UniformConstVec2 goal = _unwrapConstFloatRow<FragmentGoal>(fragments);
   uint8_t* goalFound = _unwrapRow<FragmentGoalFoundRow>(fragments);
@@ -354,6 +362,7 @@ void Simulation::_migrateCompletedFragments(GameDatabase& db) {
 }
 
 void Simulation::_migrateCompletedFragments(GameObjectTable& fragments, StaticGameObjectTable& destinationFragments, BroadphaseTable& broadphase, StableElementMappings& mappings) {
+  PROFILE_SCOPE("simulation", "migratefragments");
   //If the goal was found, move them to the destination table.
   //Do this in reverse so the swap remove doesn't mess up a previous removal
   const size_t oldTableSize = TableOperations::size(fragments);
@@ -584,8 +593,10 @@ void Simulation::writeSnapshot(GameDatabase& db, const char* snapshotFilename) {
 }
 
 void Simulation::update(GameDatabase& db) {
-  constexpr bool enableDebugSnapshot = true;
+  PROFILE_SCOPE("simulation", "update");
+  constexpr bool enableDebugSnapshot = false;
   if(enableDebugSnapshot) {
+    PROFILE_SCOPE("simulation", "snapshot");
     writeSnapshot(db, "recovery.snap");
   }
 
@@ -614,6 +625,7 @@ void Simulation::update(GameDatabase& db) {
 }
 
 void Simulation::_updatePhysics(GameDatabase& db, const PhysicsConfig& config) {
+  PROFILE_SCOPE("physics", "update");
   using PosX = FloatRow<Pos, X>;
   using PosY = FloatRow<Pos, Y>;
   using LinVelX = FloatRow<LinVel, X>;
@@ -634,9 +646,15 @@ void Simulation::_updatePhysics(GameDatabase& db, const PhysicsConfig& config) {
   ConstraintsTableMappings& constraintsMappings = std::get<SharedRow<ConstraintsTableMappings>>(globals.mRows).at();
 
   const float linearDragMultiplier = 0.96f;
-  Physics::applyDampingMultiplier<LinVelX, LinVelY>(db, linearDragMultiplier);
+  {
+    PROFILE_SCOPE("physics", "lineardamping");
+    Physics::applyDampingMultiplier<LinVelX, LinVelY>(db, linearDragMultiplier);
+  }
   const float angularDragMultiplier = 0.99f;
-  Physics::details::applyDampingMultiplierAxis<AngVel>(db, angularDragMultiplier);
+  {
+    PROFILE_SCOPE("physics", "angulardamping");
+    Physics::details::applyDampingMultiplierAxis<AngVel>(db, angularDragMultiplier);
+  }
   SweepNPruneBroadphase::ChangedCollisionPairs& changedPairs = std::get<SharedRow<SweepNPruneBroadphase::ChangedCollisionPairs>>(broadphase.mRows).at();
 
   Queries::viewEachRow<SweepNPruneBroadphase::OldMinX,
@@ -664,6 +682,7 @@ void Simulation::_updatePhysics(GameDatabase& db, const PhysicsConfig& config) {
     FloatRow<Pos, X>& posX,
     FloatRow<Pos, Y>& posY,
     SweepNPruneBroadphase::Key& key) {
+    PROFILE_SCOPE("physics", "broadphase");
 
     auto config = _getBoundariesConfig();
     const bool needsUpdateX = SweepNPruneBroadphase::recomputeBoundaries(oldMinX.mElements.data(), oldMaxX.mElements.data(), newMinX.mElements.data(), newMaxX.mElements.data(), posX.mElements.data(), config, needsReinsert);
@@ -692,9 +711,15 @@ void Simulation::_updatePhysics(GameDatabase& db, const PhysicsConfig& config) {
       changedPairs);
   });
 
-  Physics::fillNarrowphaseData<PosX, PosY, RotX, RotY>(collisionPairs, db, _getStableMappings(db), physicsTables);
+  {
+    PROFILE_SCOPE("physics", "fill narrowphase");
+    Physics::fillNarrowphaseData<PosX, PosY, RotX, RotY>(collisionPairs, db, _getStableMappings(db), physicsTables);
+  }
 
-  Physics::generateContacts(collisionPairs);
+  {
+    PROFILE_SCOPE("physics", "generate contacts");
+    Physics::generateContacts(collisionPairs);
+  }
 
   auto& debug = std::get<DebugLineTable>(db.mTables);
   auto addLine = [&debug](glm::vec2 a, glm::vec2 b, glm::vec3 color) {
@@ -718,9 +743,18 @@ void Simulation::_updatePhysics(GameDatabase& db, const PhysicsConfig& config) {
     }
   }
 
-  ConstraintsTableBuilder::build(db, changedPairs, _getStableMappings(db), constraintsMappings, physicsTables, config);
-  Physics::fillConstraintVelocities<LinVelX, LinVelY, AngVel>(constraintsCommon, db);
-  Physics::setupConstraints(constraints, staticConstraints);
+  {
+    PROFILE_SCOPE("physics", "build constraints table");
+    ConstraintsTableBuilder::build(db, changedPairs, _getStableMappings(db), constraintsMappings, physicsTables, config);
+  }
+  {
+    PROFILE_SCOPE("physics", "fill constraint velocities");
+    Physics::fillConstraintVelocities<LinVelX, LinVelY, AngVel>(constraintsCommon, db);
+  }
+  {
+    PROFILE_SCOPE("physics", "setup constraints");
+    Physics::setupConstraints(constraints, staticConstraints);
+  }
 
   if(drawContacts) {
     for(size_t i = 0; i < TableOperations::size(collisionPairs); ++i) {
@@ -748,13 +782,23 @@ void Simulation::_updatePhysics(GameDatabase& db, const PhysicsConfig& config) {
   const int solveIterations = 5;
   //TODO: stop early if global lambda sum falls below tolerance
   for(int i = 0; i < solveIterations; ++i) {
+    PROFILE_SCOPE("physics", "solve constraints");
     Physics::solveConstraints(constraints, staticConstraints, constraintsCommon, config);
   }
 
-  Physics::storeConstraintVelocities<LinVelX, LinVelY, AngVel>(constraintsCommon, db);
+  {
+    PROFILE_SCOPE("physics", "store constraint velocities");
+    Physics::storeConstraintVelocities<LinVelX, LinVelY, AngVel>(constraintsCommon, db);
+  }
 
-  Physics::integratePosition<LinVelX, LinVelY, PosX, PosY>(db);
-  Physics::integrateRotation<RotX, RotY, AngVel>(db);
+  {
+    PROFILE_SCOPE("physics", "integrate position");
+    Physics::integratePosition<LinVelX, LinVelY, PosX, PosY>(db);
+  }
+  {
+    PROFILE_SCOPE("physics", "integrate rotation");
+    Physics::integrateRotation<RotX, RotY, AngVel>(db);
+  }
 }
 
 PhysicsTableIds Simulation::_getPhysicsTableIds() {

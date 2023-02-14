@@ -2,6 +2,7 @@
 
 #include "Physics.h"
 #include "PhysicsTableIds.h"
+#include "Profile.h"
 #include "SweepNPruneBroadphase.h"
 
 //First inserted and removed collision pairs are populated from the broadphase
@@ -72,6 +73,7 @@ struct ConstraintsTableBuilder {
   //For this to work properly the handles on the contact entry should be up to date so that upon reinsertion the StableElementID of the pair is resolved.
   template<class DatabaseT>
   static void resolveObjectHandles(DatabaseT& db, StableElementMappings& mappings, ConstraintCommonTable& common, ConstraintsTableMappings& constraintsMappings, const PhysicsTableIds& tableIds, CollisionPairsTable& pairs, const PhysicsConfig& config) {
+    PROFILE_SCOPE("physics", "resolveobjecthandles");
     const auto& isEnabled = std::get<ConstraintData::IsEnabled>(common.mRows);
     auto& objA = std::get<CollisionPairIndexA>(common.mRows);
     auto& objB = std::get<CollisionPairIndexB>(common.mRows);
@@ -166,8 +168,14 @@ struct ConstraintsTableBuilder {
 
     createConstraintTables(common, contacts, staticContacts, constraintMappings);
 
-    fillConstraintNarrowphaseData(common, contacts, pairs, constraintMappings, tableIds);
-    fillConstraintNarrowphaseData(common, staticContacts, pairs, constraintMappings, tableIds);
+    {
+      PROFILE_SCOPE("physics", "fillSharedMass");
+      fillConstraintNarrowphaseData(common, contacts, pairs, constraintMappings, tableIds);
+    }
+    {
+      PROFILE_SCOPE("physics", "fillZeroMass");
+      fillConstraintNarrowphaseData(common, staticContacts, pairs, constraintMappings, tableIds);
+    }
 
     changedCollisionPairs.mGained.clear();
     changedCollisionPairs.mLost.clear();

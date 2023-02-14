@@ -1,6 +1,8 @@
 #include "Precompile.h"
 #include "SweepNPruneBroadphase.h"
 
+#include "Profile.h"
+
 namespace {
   template<class RowT>
   auto _unwrapWithOffset(RowT& r, size_t offset) {
@@ -13,6 +15,7 @@ namespace {
 }
 
 bool SweepNPruneBroadphase::recomputeBoundaries(const float* oldMinAxis, const float* oldMaxAxis, float* newMinAxis, float* newMaxAxis, const float* pos, const SweepNPruneBroadphase::BoundariesConfig& cfg, SweepNPruneBroadphase::NeedsReinsert& needsReinsert) {
+  PROFILE_SCOPE("physics", "recomputeBoundaries");
   bool anyNeedsRecompute = false;
   for(size_t i = 0; i < needsReinsert.size(); ++i) {
     //TODO: ispc
@@ -102,6 +105,7 @@ void SweepNPruneBroadphase::reinsertRangeAsNeeded(NeedsReinsert& needsReinsert,
   NewMaxX& newMaxX,
   NewMaxY& newMaxY,
   Key& key) {
+  PROFILE_SCOPE("physics", "reinsertAsNeeded");
   for(size_t i = 0; i < needsReinsert.size(); ++i) {
     if(needsReinsert.mElements[i]) {
       //TODO: more clever about combining neighbors

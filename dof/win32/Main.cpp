@@ -12,6 +12,7 @@
 #include "Renderer.h"
 
 #include "glm/gtx/norm.hpp"
+#include "Profile.h"
 
 struct AppDatabase {
   GameDatabase mGame;
@@ -182,6 +183,7 @@ int mainLoop(const char* args) {
 
   auto lastFrameStart = std::chrono::high_resolution_clock::now();
   while(!exit) {
+    PROFILE_SCOPE("app", "update");
     auto frameStart = std::chrono::high_resolution_clock::now();
     lastFrameStart = frameStart;
 
@@ -198,8 +200,15 @@ int mainLoop(const char* args) {
       break;
 
     //TODO: scheduling
-    Simulation::update(APP->mGame);
-    Renderer::render(APP->mGame, APP->mRenderer);
+    {
+      PROFILE_SCOPE("app", "simulation");
+      Simulation::update(APP->mGame);
+    }
+    {
+      PROFILE_SCOPE("app", "render");
+      Renderer::render(APP->mGame, APP->mRenderer);
+    }
+    PROFILE_UPDATE(nullptr);
 
     int frameTimeNS = static_cast<int>(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - frameStart).count());
     //If frame time was greater than target time then we're behind, start the next frame immediately

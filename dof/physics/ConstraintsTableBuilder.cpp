@@ -143,6 +143,7 @@ namespace ctbdetails {
 }
 
 void ConstraintsTableBuilder::removeCollisionPairs(const StableElementID* toRemove, size_t count, StableElementMappings& mappings, ConstraintCommonTable& common, ConstraintsTableMappings& constraintsMappings, const PhysicsTableIds& tableIds) {
+  PROFILE_SCOPE("physics", "removeCollisionPairs");
   ConstraintData::IsEnabled& isEnabled = std::get<ConstraintData::IsEnabled>(common.mRows);
   StableIDRow& commonStableIds = std::get<StableIDRow>(common.mRows);
   CollisionPairIndexA& constraintIndexA = std::get<CollisionPairIndexA>(common.mRows);
@@ -157,6 +158,7 @@ void ConstraintsTableBuilder::removeCollisionPairs(const StableElementID* toRemo
 }
 
 void ConstraintsTableBuilder::addCollisionPairs(const StableElementID* toAdd, size_t count, StableElementMappings& mappings, ConstraintCommonTable& common, ConstraintsTableMappings& constraintsMappings, const PhysicsTableIds& tableIds, CollisionPairsTable& pairs, const PhysicsConfig& config) {
+  PROFILE_SCOPE("physics", "addCollisionPairs");
   using namespace ctbdetails;
   StableIDRow& pairIds = std::get<StableIDRow>(pairs.mRows);
   CollisionPairIndexA& pairIndexA = std::get<CollisionPairIndexA>(pairs.mRows);
@@ -296,6 +298,7 @@ void _trySetFinalSyncPoint(const ConstraintData::VisitData& visited, ConstraintS
 
 //Fills in syncIndex and syncType. The required padding and target width should already be in place from the previous steps, and object handles resolved
 void ConstraintsTableBuilder::buildSyncIndices(ConstraintCommonTable& constraints, const ConstraintsTableMappings& constraintsMappings) {
+  PROFILE_SCOPE("physics", "buildSyncIndices");
   ConstraintData::SharedVisitData& visitData = std::get<ConstraintData::SharedVisitDataRow>(constraints.mRows).at();
   std::unordered_map<size_t, ConstraintData::VisitData>& visited = visitData.mVisited;
   visited.clear();
@@ -421,6 +424,7 @@ void ConstraintsTableBuilder::createConstraintTables(const ConstraintCommonTable
   ConstraintsTable& contacts,
   ContactConstraintsToStaticObjectsTable& staticContacts,
   const ConstraintsTableMappings& mappings) {
+  PROFILE_SCOPE("physics", "createConstraintTables");
   TableOperations::resizeTable(contacts, mappings.mZeroMassStartIndex - mappings.SHARED_MASS_START_INDEX);
   TableOperations::resizeTable(staticContacts, TableOperations::size(common) - mappings.mZeroMassStartIndex);
 

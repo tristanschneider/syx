@@ -9,6 +9,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED)
 
 option(TEST_ENABLED "Include test projects" ON)
+option(PROFILE_ENABLED "Include profiler" ON)
 
 add_compile_options(/wd4309 /wd4324 /wd4389 /wd4127 /wd4267 /wd4146 /wd4201 /wd4464 /wd4514 /wd4701 /wd4820 /wd4365)
 
@@ -39,6 +40,7 @@ if(MSVC)
     )
 endif()
 
+add_subdirectory(profile)
 add_subdirectory(glm)
 add_subdirectory(stb)
 add_subdirectory(table)
