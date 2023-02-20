@@ -10,6 +10,7 @@ file(GLOB_RECURSE source_files *.cpp *.h *.ispc)
 
 add_library(physics STATIC ${source_files})
 
+target_link_libraries(physics scheduler)
 target_link_libraries(physics ${ispc_objs})
 target_link_libraries(physics glm)
 target_link_libraries(physics table)

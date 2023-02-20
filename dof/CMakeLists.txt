@@ -40,6 +40,7 @@ if(MSVC)
     )
 endif()
 
+add_subdirectory(scheduler)
 add_subdirectory(profile)
 add_subdirectory(glm)
 add_subdirectory(stb)

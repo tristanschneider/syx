@@ -4,3 +4,6 @@
 [submodule "dof/profile/microprofile"]
 	path = dof/profile/microprofile
 	url = https://github.com/jonasmr/microprofile.git
+[submodule "dof/scheduler/enkiTS"]
+	path = dof/scheduler/enkiTS
+	url = https://github.com/dougbinks/enkiTS.git

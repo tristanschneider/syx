@@ -20,6 +20,7 @@ target_include_directories(game
 target_precompile_headers(game PRIVATE Precompile.h)
 
 # Link dependencies
+target_link_libraries(game PUBLIC scheduler)
 target_link_libraries(game PUBLIC glm)
 target_link_libraries(game PUBLIC physics)
 target_link_libraries(game PUBLIC table)
