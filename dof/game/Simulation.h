@@ -8,6 +8,7 @@
 #include "glm/vec3.hpp"
 #include "SweepNPruneBroadphase.h"
 #include "StableElementID.h"
+#include "Scheduler.h"
 #include "PhysicsTableIds.h"
 #include <bitset>
 
@@ -96,7 +97,8 @@ using GlobalGameData = Table<
   SharedRow<PhysicsTableIds>,
   SharedRow<FileSystem>,
   SharedRow<StableElementMappings>,
-  SharedRow<ConstraintsTableMappings>
+  SharedRow<ConstraintsTableMappings>,
+  SharedRow<Scheduler>
 >;
 
 using GameObjectTable = Table<
@@ -261,4 +263,5 @@ struct Simulation {
   static void _migrateCompletedFragments(GameObjectTable& fragments, StaticGameObjectTable& destinationFragments, BroadphaseTable& broadphase, StableElementMappings& mappings);
 
   static PhysicsTableIds _getPhysicsTableIds();
+  static Scheduler& _getScheduler(GameDatabase& db);
 };

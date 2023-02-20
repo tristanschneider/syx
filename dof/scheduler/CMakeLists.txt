@@ -11,4 +11,10 @@ endif()
 
 add_subdirectory(enkiTS)
 
-add_library(scheduler ALIAS enkiTS)
+add_library(scheduler INTERFACE)
+
+target_link_libraries(scheduler INTERFACE enkiTS)
+
+target_include_directories(scheduler INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+file(GLOB_RECURSE source *.h)
+target_sources(scheduler PUBLIC ${source})

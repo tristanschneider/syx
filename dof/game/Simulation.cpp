@@ -325,18 +325,39 @@ namespace {
     });
   }
 
-  SceneState::State _update(GameDatabase& db) {
-    _updatePlayerInput(std::get<PlayerTable>(db.mTables), std::get<GlobalPointForceTable>(db.mTables));
-    _updateDebugCamera(db, std::get<CameraTable>(db.mTables));
+  SceneState::State _update(GameDatabase& db, Scheduler& scheduler, DependencyContext context) {
+    //Synchronous because it takes snapshots
+    context = TaskBuilder::addDependencyAndEnqueue(std::make_unique<DependencyTask>([&db](...) {
+      _updateDebugCamera(db, std::get<CameraTable>(db.mTables));
+    }), context, scheduler.mTasks);
 
-    Simulation::_checkFragmentGoals(std::get<GameObjectTable>(db.mTables));
-    Simulation::_migrateCompletedFragments(std::get<GameObjectTable>(db.mTables), std::get<StaticGameObjectTable>(db.mTables), std::get<BroadphaseTable>(db.mTables), _getStableMappings(db));
+    std::vector<OwnedTask> tasks;
+    tasks.push_back(std::make_unique<enki::TaskSet>([&db](...) {
+      _updatePlayerInput(std::get<PlayerTable>(db.mTables), std::get<GlobalPointForceTable>(db.mTables));
+    }));
 
-    _enforceWorldBoundary(db);
-    _applyForces(std::get<GlobalPointForceTable>(db.mTables), std::get<GameObjectTable>(db.mTables));
-    _tickForceLifetimes(std::get<GlobalPointForceTable>(db.mTables));
+    tasks.push_back(std::make_unique<enki::TaskSet>([&db](...) {
+      Simulation::_checkFragmentGoals(std::get<GameObjectTable>(db.mTables));
+      Simulation::_migrateCompletedFragments(std::get<GameObjectTable>(db.mTables), std::get<StaticGameObjectTable>(db.mTables), std::get<BroadphaseTable>(db.mTables), _getStableMappings(db));
+    }));
 
-    Simulation::_updatePhysics(db, _getPhysicsConfig());
+    //Input and goals can happen at the same time. Input needs to finish before applyForces using point force table
+    //Fragment goals need to finish before enforceWorldBoundary because it might remove objects with velocity
+    context = TaskBuilder::runInParallel(scheduler, context, std::move(tasks));
+
+    context = TaskBuilder::addDependencyAndEnqueue(std::make_unique<DependencyTask>([&db](...) {
+      _enforceWorldBoundary(db);
+      _applyForces(std::get<GlobalPointForceTable>(db.mTables), std::get<GameObjectTable>(db.mTables));
+      _tickForceLifetimes(std::get<GlobalPointForceTable>(db.mTables));
+    }), context, scheduler.mTasks);
+
+    context = TaskBuilder::addDependencyAndEnqueue(std::make_unique<DependencyTask>([&db](...) {
+      Simulation::_updatePhysics(db, _getPhysicsConfig());
+    }), context, scheduler.mTasks);
+
+    auto end = std::make_unique<DependencyTask>([](...){});
+    context = TaskBuilder::addDependency(*end, context);
+    scheduler.mFinalTask = std::move(end);
 
     return SceneState::State::Update;
   }
@@ -593,35 +614,54 @@ void Simulation::writeSnapshot(GameDatabase& db, const char* snapshotFilename) {
 }
 
 void Simulation::update(GameDatabase& db) {
+  Scheduler& scheduler = _getScheduler(db);
+  if(scheduler.mRootTask) {
+    scheduler.mScheduler.AddTaskSetToPipe(scheduler.mRootTask.get());
+    scheduler.mScheduler.WaitforTask(scheduler.mFinalTask.get());
+    return;
+  }
+  scheduler.mScheduler.Initialize();
+
+  auto root = std::make_unique<DependencyTask>([](...) {});
+  DependencyContext context = TaskBuilder::fromDependencyTask(*root);
+  scheduler.mRootTask = std::move(root);
+
   PROFILE_SCOPE("simulation", "update");
   constexpr bool enableDebugSnapshot = false;
-  if(enableDebugSnapshot) {
-    PROFILE_SCOPE("simulation", "snapshot");
-    writeSnapshot(db, "recovery.snap");
+  if constexpr(enableDebugSnapshot) {
+    auto snapshot = std::make_unique<DependencyTask>([&db](...) {
+      PROFILE_SCOPE("simulation", "snapshot");
+      writeSnapshot(db, "recovery.snap");
+    });
+    context = TaskBuilder::addDependency(*snapshot, context);
+    scheduler.mTasks.push_back(std::move(snapshot));
   }
 
   GlobalGameData& globals = std::get<GlobalGameData>(db.mTables);
   SceneState& sceneState = std::get<0>(globals.mRows).at();
-  SceneState::State newState = sceneState.mState;
-  switch(sceneState.mState) {
-    case SceneState::State::InitRequestAssets:
-      newState = _initRequestAssets(db);
-      break;
-    case SceneState::State::InitAwaitingAssets:
-      newState = _awaitAssetLoading(db);
-      break;
-    case SceneState::State::SetupScene: {
+
+  context = TaskBuilder::addDependencyAndEnqueue(std::make_unique<DependencyTask>([&globals, &sceneState, &db](...) {
+    if(sceneState.mState == SceneState::State::InitRequestAssets) {
+      sceneState.mState = _initRequestAssets(db);
+    }
+  }), context, scheduler.mTasks);
+
+  context = TaskBuilder::addDependencyAndEnqueue(std::make_unique<DependencyTask>([&globals, &sceneState, &db](...) {
+    if(sceneState.mState == SceneState::State::InitAwaitingAssets) {
+      sceneState.mState = _awaitAssetLoading(db);
+    }
+  }), context, scheduler.mTasks);
+
+  context = TaskBuilder::addDependencyAndEnqueue(std::make_unique<DependencyTask>([&globals, &sceneState, &db](...) {
+    if(sceneState.mState == SceneState::State::SetupScene) {
       SceneArgs args;
       args.mFragmentRows = 4;
       args.mFragmentColumns = 4;
-      newState = _setupScene(db, args);
-      break;
+      sceneState.mState = _setupScene(db, args);
     }
-    case SceneState::State::Update:
-      newState = _update(db);
-      break;
-  }
-  sceneState.mState = newState;
+  }), context, scheduler.mTasks);
+
+  _update(db, scheduler, context);
 }
 
 void Simulation::_updatePhysics(GameDatabase& db, const PhysicsConfig& config) {
@@ -811,4 +851,8 @@ PhysicsTableIds Simulation::_getPhysicsTableIds() {
   physicsTables.mConstriantsCommonTable = GameDatabase::getTableIndex<ConstraintCommonTable>().mValue;
   physicsTables.mElementIDMask = GameDatabase::ElementID::ELEMENT_INDEX_MASK;
   return physicsTables;
+}
+
+Scheduler& Simulation::_getScheduler(GameDatabase& db) {
+  return std::get<SharedRow<Scheduler>>(std::get<GlobalGameData>(db.mTables).mRows).at();
 }

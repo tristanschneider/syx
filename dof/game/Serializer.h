@@ -162,6 +162,7 @@ namespace details {
 template<> struct Serializer<SharedRow<SceneState>> : MemCpySingleSerializer<SharedRow<SceneState>>{};
 template<> struct Serializer<SharedRow<PhysicsTableIds>> : MemCpySingleSerializer<SharedRow<PhysicsTableIds>>{};
 
+template<> struct Serializer<SharedRow<Scheduler>> : NoOpSerializer<SharedRow<Scheduler>>{};
 template<> struct Serializer<Row<CubeSprite>> : MemCpySerializer<Row<CubeSprite>> {};
 template<> struct Serializer<SharedRow<TextureReference>> : NoOpSerializer<SharedRow<TextureReference>>{};
 template<> struct Serializer<Row<PlayerInput>> : MemCpySerializer<Row<PlayerInput>> {};
