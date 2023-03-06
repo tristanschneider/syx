@@ -272,8 +272,8 @@ namespace {
     glBindTexture(GL_TEXTURE_2D, textureHandle);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, GLsizei(data.mWidth), GLsizei(data.mHeight), 0, GL_RGBA, GL_UNSIGNED_BYTE, data.mBytes);
     //Define sampling mode, no mip maps snap to nearest
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 
     TexturesTable::ElementRef element = TableOperations::addToTable(textures);
     element.get<0>().mHandle = textureHandle;
@@ -380,6 +380,7 @@ void Renderer::render(GameDatabase& db, RendererDatabase& renderDB) {
   const WindowData& window = std::get<Row<WindowData>>(std::get<GraphicsContext>(renderDB.mTables).mRows).at(0);
 
   glViewport(0, 0, window.mWidth, window.mHeight);
+  const float aspectRatio = window.mHeight ? float(window.mWidth)/float(window.mHeight) : 1.0f;
 
   glClearColor(0.0f, 0.0f, 1.0f, 0.0f);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
@@ -429,10 +430,12 @@ void Renderer::render(GameDatabase& db, RendererDatabase& renderDB) {
           //First attribute, 2 float elements that shouldn't be normalized, tightly packed, no offset
           glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, 0);
 
+          glm::vec3 scale = glm::vec3(camera.zoom);
+          scale.x *= aspectRatio;
           glm::mat4 worldToView = glm::inverse(
             glm::translate(glm::vec3(camera.x, camera.y, 0.0f)) *
             glm::rotate(camera.angle, glm::vec3(0, 0, -1)) *
-            glm::scale(glm::vec3(camera.zoom))
+            glm::scale(scale)
           );
 
           glUniformMatrix4fv(state.mQuadUniforms.worldToView, 1, GL_FALSE, &worldToView[0][0]);

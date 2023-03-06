@@ -499,7 +499,8 @@ SceneState::State Simulation::_setupScene(GameDatabase& db, const SceneArgs& arg
 
   float startX = -float(columns)/2.0f;
   float startY = -float(rows)/2.0f;
-  float scale = 1.0f/float(rows);
+  float scaleX = 1.0f/float(columns);
+  float scaleY = 1.0f/float(rows);
   auto& posX = std::get<FloatRow<Pos, X>>(gameobjects.mRows);
   auto& posY = std::get<FloatRow<Pos, Y>>(gameobjects.mRows);
   auto& goalX = std::get<FloatRow<FragmentGoal, X>>(gameobjects.mRows);
@@ -521,8 +522,8 @@ SceneState::State Simulation::_setupScene(GameDatabase& db, const SceneArgs& arg
     //Goal position and uv is based on original index, starting position is based on shuffled index
     sprite.uMin = float(column)/float(columns);
     sprite.vMin = float(row)/float(rows);
-    sprite.uMax = sprite.uMin + scale;
-    sprite.vMax = sprite.vMin + scale;
+    sprite.uMax = sprite.uMin + scaleX;
+    sprite.vMax = sprite.vMin + scaleY;
 
     goalX.at(j) = startX + sprite.uMin*float(columns);
     goalY.at(j) = startY + sprite.vMin*float(rows);
