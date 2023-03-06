@@ -253,7 +253,7 @@ struct Simulation {
   static void update(GameDatabase& db);
 
   static SceneState::State _setupScene(GameDatabase& db, const SceneArgs& args);
-  static void _updatePhysics(GameDatabase& db, const PhysicsConfig& config);
+  static TaskRange _updatePhysics(GameDatabase& db, const PhysicsConfig& config);
   //Insert all objects into the broadphase that can be. Doesn't check if they already are, meant for initial insert
   static void _initialPopulateBroadphase(GameDatabase& db);
 

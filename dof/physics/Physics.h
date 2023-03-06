@@ -1,7 +1,9 @@
 #pragma once
 
+#include "Profile.h"
 #include "glm/vec2.hpp"
 #include "Queries.h"
+#include "Scheduler.h"
 #include "Table.h"
 #include "NarrowphaseData.h"
 
@@ -238,47 +240,53 @@ using ContactConstraintsToStaticObjectsTable = Table<
 struct Physics {
   struct details {
     template<class SrcRow, class DstRow, class DatabaseT, class DstTableT>
-    static void fillRow(DstTableT& table, DatabaseT& db, std::vector<StableElementID>& ids, const uint8_t* isEnabled = nullptr) {
-      DstRow& dst = std::get<DstRow>(table.mRows);
-      SrcRow* src = nullptr;
-      DatabaseT::ElementID last;
-      for(size_t i = 0; i < ids.size(); ++i) {
-        if(ids[i] == StableElementID::invalid() || (isEnabled && !*(isEnabled + i))) {
-          continue;
-        }
+    static std::shared_ptr<TaskNode> fillRow(DstTableT& table, DatabaseT& db, std::vector<StableElementID>& ids, const std::vector<uint8_t>* isEnabled = nullptr) {
+      return TaskNode::create([&table, &db, &ids, isEnabled](...) {
+        PROFILE_SCOPE("physics", "fillRow");
+        DstRow& dst = std::get<DstRow>(table.mRows);
+        SrcRow* src = nullptr;
+        DatabaseT::ElementID last;
+        for(size_t i = 0; i < ids.size(); ++i) {
+          if(ids[i] == StableElementID::invalid() || (isEnabled && !isEnabled->at(i))) {
+            continue;
+          }
 
-        //Caller should ensure the unstable indices have been resolved such that now the unstable index is up to date
-        const DatabaseT::ElementID id(ids[i].mUnstableIndex);
-        //Retreive the rows every time the tables change, which should be rarely
-        if(!src || last.getTableIndex() != id.getTableIndex()) {
-          src = Queries::getRowInTable<SrcRow>(db, id);
-        }
+          //Caller should ensure the unstable indices have been resolved such that now the unstable index is up to date
+          const DatabaseT::ElementID id(ids[i].mUnstableIndex);
+          //Retreive the rows every time the tables change, which should be rarely
+          if(!src || last.getTableIndex() != id.getTableIndex()) {
+            src = Queries::getRowInTable<SrcRow>(db, id);
+          }
 
-        if(src) {
-          dst.at(i) = src->at(id.getElementIndex());
-        }
+          if(src) {
+            dst.at(i) = src->at(id.getElementIndex());
+          }
 
-        last = id;
-      }
+          last = id;
+        }
+      });
     }
 
     template<class SrcRow, class DstRow, class DatabaseT>
-    static void storeToRow(ConstraintCommonTable& table, DatabaseT& db, const std::vector<FinalSyncIndices::Mapping>& mappings) {
-      SrcRow& src = std::get<SrcRow>(table.mRows);
-      DstRow* dst = nullptr;
-      DatabaseT::ElementID last;
-      for(const FinalSyncIndices::Mapping mapping : mappings) {
-        const DatabaseT::ElementID id(mapping.mSourceGamebject.mUnstableIndex);
-        if(!dst || last.getTableIndex() != id.getTableIndex()) {
-          dst = Queries::getRowInTable<DstRow>(db, id);
-        }
+    static std::shared_ptr<TaskNode> storeToRow(ConstraintCommonTable& table, DatabaseT& db, const std::vector<FinalSyncIndices::Mapping>& mappings) {
+      return TaskNode::create([&table, &db, &mappings](...) {
+        PROFILE_SCOPE("physics", "storeToRow");
+        SrcRow& src = std::get<SrcRow>(table.mRows);
+        DstRow* dst = nullptr;
+        DatabaseT::ElementID last;
+        for(const FinalSyncIndices::Mapping mapping : mappings) {
+          const DatabaseT::ElementID id(mapping.mSourceGamebject.mUnstableIndex);
+          if(!dst || last.getTableIndex() != id.getTableIndex()) {
+            dst = Queries::getRowInTable<DstRow>(db, id);
+          }
 
-        if(dst) {
-          dst->at(id.getElementIndex()) = src.at(mapping.mTargetConstraint);
-        }
+          if(dst) {
+            dst->at(id.getElementIndex()) = src.at(mapping.mTargetConstraint);
+          }
 
-        last = id;
-      }
+          last = id;
+        }
+      });
     }
 
     static void _integratePositionAxis(float* velocity, float* position, size_t count);
@@ -286,23 +294,26 @@ struct Physics {
     static void _applyDampingMultiplier(float* velocity, float amount, size_t count);
 
     template<class Velocity, class Position, class DatabaseT>
-    static void integratePositionAxis(DatabaseT& db) {
-      Queries::viewEachRow<Velocity, Position>(db, [](Velocity& velocity, Position& position) {
-        _integratePositionAxis(velocity.mElements.data(), position.mElements.data(), velocity.size());
+    static void integratePositionAxis(DatabaseT& db, std::vector<std::shared_ptr<TaskNode>>& tasks) {
+      Queries::viewEachRow<Velocity, Position>(db, [&db, &tasks](Velocity& velocity, Position& position) {
+        tasks.push_back(TaskNode::create([&velocity, &position](...) {
+          _integratePositionAxis(velocity.mElements.data(), position.mElements.data(), velocity.size());
+        }));
       });
     }
 
     template<class Axis, class DatabaseT>
-    static void applyDampingMultiplierAxis(DatabaseT& db, float multiplier) {
-      Queries::viewEachRow<Axis>(db, [multiplier](Axis& axis) {
-        _applyDampingMultiplier(axis.mElements.data(), multiplier, axis.size());
+    static void applyDampingMultiplierAxis(DatabaseT& db, float multiplier, std::vector<std::shared_ptr<TaskNode>>& tasks) {
+      Queries::viewEachRow<Axis>(db, [multiplier, &tasks](Axis& axis) {
+        tasks.push_back(TaskNode::create([multiplier, &axis](...) {
+          _applyDampingMultiplier(axis.mElements.data(), multiplier, axis.size());
+        }));
       });
     }
   };
 
-  //Populates narrowphase data by fetching it from the provided input using the indices stored by the broadphase
-  template<class PosX, class PosY, class CosAngle, class SinAngle, class DatabaseT>
-  static void fillNarrowphaseData(CollisionPairsTable& pairs, DatabaseT& db, StableElementMappings& mappings, const PhysicsTableIds& physicsTables) {
+  template<class DatabaseT>
+  static void resolveCollisionTableIds(CollisionPairsTable& pairs, DatabaseT& db, StableElementMappings& mappings, const PhysicsTableIds& physicsTables) {
     std::vector<StableElementID>& idsA = std::get<CollisionPairIndexA>(pairs.mRows).mElements;
     std::vector<StableElementID>& idsB = std::get<CollisionPairIndexB>(pairs.mRows).mElements;
     for(size_t i = 0; i < idsA.size(); ++i) {
@@ -325,67 +336,94 @@ struct Physics {
         }
       }
     }
+  }
 
-    details::fillRow<PosX, NarrowphaseData<PairA>::PosX>(pairs, db, idsA);
-    details::fillRow<PosY, NarrowphaseData<PairA>::PosY>(pairs, db, idsA);
-    details::fillRow<CosAngle, NarrowphaseData<PairA>::CosAngle>(pairs, db, idsA);
-    details::fillRow<SinAngle, NarrowphaseData<PairA>::SinAngle>(pairs, db, idsA);
+  //Populates narrowphase data by fetching it from the provided input using the indices stored by the broadphase
+  template<class PosX, class PosY, class CosAngle, class SinAngle, class DatabaseT>
+  static TaskRange fillNarrowphaseData(CollisionPairsTable& pairs, DatabaseT& db, StableElementMappings& mappings, const PhysicsTableIds& physicsTables) {
+    //Id resolution must complete before the fill bundle starts
+    auto root = TaskNode::create([&](...) {
+      PROFILE_SCOPE("physics", "resolveCollisionTableIds");
+      resolveCollisionTableIds(pairs, db, mappings, physicsTables);
+    });
+    std::vector<StableElementID>& idsA = std::get<CollisionPairIndexA>(pairs.mRows).mElements;
+    std::vector<StableElementID>& idsB = std::get<CollisionPairIndexB>(pairs.mRows).mElements;
 
-    details::fillRow<PosX, NarrowphaseData<PairB>::PosX>(pairs, db, idsB);
-    details::fillRow<PosY, NarrowphaseData<PairB>::PosY>(pairs, db, idsB);
-    details::fillRow<CosAngle, NarrowphaseData<PairB>::CosAngle>(pairs, db, idsB);
-    details::fillRow<SinAngle, NarrowphaseData<PairB>::SinAngle>(pairs, db, idsB);
+    root->mChildren.push_back(details::fillRow<PosX, NarrowphaseData<PairA>::PosX>(pairs, db, idsA));
+    root->mChildren.push_back(details::fillRow<PosY, NarrowphaseData<PairA>::PosY>(pairs, db, idsA));
+    root->mChildren.push_back(details::fillRow<CosAngle, NarrowphaseData<PairA>::CosAngle>(pairs, db, idsA));
+    root->mChildren.push_back(details::fillRow<SinAngle, NarrowphaseData<PairA>::SinAngle>(pairs, db, idsA));
+
+    root->mChildren.push_back(details::fillRow<PosX, NarrowphaseData<PairB>::PosX>(pairs, db, idsB));
+    root->mChildren.push_back(details::fillRow<PosY, NarrowphaseData<PairB>::PosY>(pairs, db, idsB));
+    root->mChildren.push_back(details::fillRow<CosAngle, NarrowphaseData<PairB>::CosAngle>(pairs, db, idsB));
+    root->mChildren.push_back(details::fillRow<SinAngle, NarrowphaseData<PairB>::SinAngle>(pairs, db, idsB));
+
+    return TaskBuilder::addEndSync(root);
   }
 
   static void generateContacts(CollisionPairsTable& pairs);
 
   //Migrate velocity data from db to constraint table
   template<class LinVelX, class LinVelY, class AngVel, class DatabaseT>
-  static void fillConstraintVelocities(ConstraintCommonTable& constraints, DatabaseT& db) {
+  static TaskRange fillConstraintVelocities(ConstraintCommonTable& constraints, DatabaseT& db) {
+    auto result = std::make_shared<TaskNode>();
     std::vector<StableElementID>& idsA = std::get<CollisionPairIndexA>(constraints.mRows).mElements;
-    const uint8_t* isEnabled = std::get<ConstraintData::IsEnabled>(constraints.mRows).mElements.data();
-    details::fillRow<LinVelX, ConstraintObject<ConstraintObjA>::LinVelX>(constraints, db, idsA, isEnabled);
-    details::fillRow<LinVelY, ConstraintObject<ConstraintObjA>::LinVelY>(constraints, db, idsA, isEnabled);
-    details::fillRow<AngVel, ConstraintObject<ConstraintObjA>::AngVel>(constraints, db, idsA, isEnabled);
+    const std::vector<uint8_t>* isEnabled = &std::get<ConstraintData::IsEnabled>(constraints.mRows).mElements;
+    result->mChildren.push_back(details::fillRow<LinVelX, ConstraintObject<ConstraintObjA>::LinVelX>(constraints, db, idsA, isEnabled));
+    result->mChildren.push_back(details::fillRow<LinVelY, ConstraintObject<ConstraintObjA>::LinVelY>(constraints, db, idsA, isEnabled));
+    result->mChildren.push_back(details::fillRow<AngVel, ConstraintObject<ConstraintObjA>::AngVel>(constraints, db, idsA, isEnabled));
 
     std::vector<StableElementID>& idsB = std::get<CollisionPairIndexB>(constraints.mRows).mElements;
-    details::fillRow<LinVelX, ConstraintObject<ConstraintObjB>::LinVelX>(constraints, db, idsB, isEnabled);
-    details::fillRow<LinVelY, ConstraintObject<ConstraintObjB>::LinVelY>(constraints, db, idsB, isEnabled);
-    details::fillRow<AngVel, ConstraintObject<ConstraintObjB>::AngVel>(constraints, db, idsB, isEnabled);
+    result->mChildren.push_back(details::fillRow<LinVelX, ConstraintObject<ConstraintObjB>::LinVelX>(constraints, db, idsB, isEnabled));
+    result->mChildren.push_back(details::fillRow<LinVelY, ConstraintObject<ConstraintObjB>::LinVelY>(constraints, db, idsB, isEnabled));
+    result->mChildren.push_back(details::fillRow<AngVel, ConstraintObject<ConstraintObjB>::AngVel>(constraints, db, idsB, isEnabled));
+    return TaskBuilder::addEndSync(result);
   }
 
-  static void setupConstraints(ConstraintsTable& constraints, ContactConstraintsToStaticObjectsTable& staticContacts);
-  static void solveConstraints(ConstraintsTable& constraints, ContactConstraintsToStaticObjectsTable& staticContacts, ConstraintCommonTable& common, const PhysicsConfig& config);
+  static TaskRange setupConstraints(ConstraintsTable& constraints, ContactConstraintsToStaticObjectsTable& staticContacts);
+  static TaskRange solveConstraints(ConstraintsTable& constraints, ContactConstraintsToStaticObjectsTable& staticContacts, ConstraintCommonTable& common, const PhysicsConfig& config);
 
   //Migrate velocity data from constraint table to db
   template<class LinVelX, class LinVelY, class AngVel, class DatabaseT>
-  static void storeConstraintVelocities(ConstraintCommonTable& constraints, DatabaseT& db) {
+  static TaskRange storeConstraintVelocities(ConstraintCommonTable& constraints, DatabaseT& db) {
     const FinalSyncIndices& indices = std::get<SharedRow<FinalSyncIndices>>(constraints.mRows).at();
-    details::storeToRow<ConstraintObject<ConstraintObjA>::LinVelX, LinVelX>(constraints, db, indices.mMappingsA);
-    details::storeToRow<ConstraintObject<ConstraintObjA>::LinVelY, LinVelY>(constraints, db, indices.mMappingsA);
-    details::storeToRow<ConstraintObject<ConstraintObjA>::AngVel, AngVel>(constraints, db, indices.mMappingsA);
+    auto result = std::make_shared<TaskNode>();
+    result->mChildren.push_back(details::storeToRow<ConstraintObject<ConstraintObjA>::LinVelX, LinVelX>(constraints, db, indices.mMappingsA));
+    result->mChildren.push_back(details::storeToRow<ConstraintObject<ConstraintObjA>::LinVelY, LinVelY>(constraints, db, indices.mMappingsA));
+    result->mChildren.push_back(details::storeToRow<ConstraintObject<ConstraintObjA>::AngVel, AngVel>(constraints, db, indices.mMappingsA));
 
-    details::storeToRow<ConstraintObject<ConstraintObjB>::LinVelX, LinVelX>(constraints, db, indices.mMappingsB);
-    details::storeToRow<ConstraintObject<ConstraintObjB>::LinVelY, LinVelY>(constraints, db, indices.mMappingsB);
-    details::storeToRow<ConstraintObject<ConstraintObjB>::AngVel, AngVel>(constraints, db, indices.mMappingsB);
+    result->mChildren.push_back(details::storeToRow<ConstraintObject<ConstraintObjB>::LinVelX, LinVelX>(constraints, db, indices.mMappingsB));
+    result->mChildren.push_back(details::storeToRow<ConstraintObject<ConstraintObjB>::LinVelY, LinVelY>(constraints, db, indices.mMappingsB));
+    result->mChildren.push_back(details::storeToRow<ConstraintObject<ConstraintObjB>::AngVel, AngVel>(constraints, db, indices.mMappingsB));
+    return TaskBuilder::addEndSync(result);
   }
 
   template<class LinVelX, class LinVelY, class PosX, class PosY, class DatabaseT>
-  static void integratePosition(DatabaseT& db) {
-    details::integratePositionAxis<LinVelX, PosX>(db);
-    details::integratePositionAxis<LinVelY, PosY>(db);
+  static TaskRange integratePosition(DatabaseT& db) {
+    auto result = std::make_shared<TaskNode>();
+    details::integratePositionAxis<LinVelX, PosX>(db, result->mChildren);
+    details::integratePositionAxis<LinVelY, PosY>(db, result->mChildren);
+    return TaskBuilder::addEndSync(result);
   }
 
   template<class CosAngle, class SinAngle, class AngVel, class DatabaseT>
-  static void integrateRotation(DatabaseT& db) {
-    Queries::viewEachRow<CosAngle, SinAngle, AngVel>(db, [](CosAngle& cosAngle, SinAngle& sinAngle, AngVel& angVel) {
-      details::_integrateRotation(cosAngle.mElements.data(), sinAngle.mElements.data(), angVel.mElements.data(), cosAngle.size());
+  static TaskRange integrateRotation(DatabaseT& db) {
+    auto begin = std::make_shared<TaskNode>();
+    Queries::viewEachRow<CosAngle, SinAngle, AngVel>(db, [begin](CosAngle& cosAngle, SinAngle& sinAngle, AngVel& angVel) {
+      begin->mChildren.push_back(TaskNode::create([&cosAngle, &sinAngle, &angVel](...) {
+        details::_integrateRotation(cosAngle.mElements.data(), sinAngle.mElements.data(), angVel.mElements.data(), cosAngle.size());
+      }));
     });
+    return TaskBuilder::addEndSync(begin);
   }
 
   template<class LinVelX, class LinVelY, class DatabaseT>
-  static void applyDampingMultiplier(DatabaseT& db, float multiplier) {
-    details::applyDampingMultiplierAxis<LinVelX>(db, multiplier);
-    details::applyDampingMultiplierAxis<LinVelY>(db, multiplier);
+  static TaskRange applyDampingMultiplier(DatabaseT& db, float multiplier) {
+    std::vector<OwnedTask> tasks;
+    auto begin = std::make_shared<TaskNode>();
+    details::applyDampingMultiplierAxis<LinVelX>(db, multiplier, begin->mChildren);
+    details::applyDampingMultiplierAxis<LinVelY>(db, multiplier, begin->mChildren);
+    return TaskBuilder::addEndSync(begin);
   }
 };

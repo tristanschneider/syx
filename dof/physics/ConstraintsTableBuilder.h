@@ -4,6 +4,7 @@
 #include "PhysicsTableIds.h"
 #include "Profile.h"
 #include "SweepNPruneBroadphase.h"
+#include "Scheduler.h"
 
 //First inserted and removed collision pairs are populated from the broadphase
 //Insertions update the common constraints table and ensure no two velocities are within the target width of each other
@@ -143,12 +144,12 @@ struct ConstraintsTableBuilder {
     ConstraintsTable& contacts,
     ContactConstraintsToStaticObjectsTable& staticContacts,
     const ConstraintsTableMappings& mappings);
-  static void fillConstraintNarrowphaseData(const ConstraintCommonTable& constraints, ConstraintsTable& contacts, const CollisionPairsTable& pairs, const ConstraintsTableMappings& constraintsMappings, const PhysicsTableIds& tableIds);
-  static void fillConstraintNarrowphaseData(const ConstraintCommonTable& constraints, ContactConstraintsToStaticObjectsTable& contacts, const CollisionPairsTable& pairs, const ConstraintsTableMappings& constraintsMappings, const PhysicsTableIds& tableIds);
+  static TaskRange fillConstraintNarrowphaseData(const ConstraintCommonTable& constraints, ConstraintsTable& contacts, const CollisionPairsTable& pairs, const ConstraintsTableMappings& constraintsMappings, const PhysicsTableIds& tableIds);
+  static TaskRange fillConstraintNarrowphaseData(const ConstraintCommonTable& constraints, ContactConstraintsToStaticObjectsTable& contacts, const CollisionPairsTable& pairs, const ConstraintsTableMappings& constraintsMappings, const PhysicsTableIds& tableIds);
 
   //Do all of the above to end up with constraints ready to solve except for filling in velocity
   template<class DatabaseT>
-  static void build(DatabaseT& db,
+  static TaskRange build(DatabaseT& db,
     SweepNPruneBroadphase::ChangedCollisionPairs& changedCollisionPairs,
     StableElementMappings& stableMappings,
     ConstraintsTableMappings& constraintMappings,
@@ -159,25 +160,24 @@ struct ConstraintsTableBuilder {
     auto& contacts = std::get<ConstraintsTable>(db.mTables);
     auto& staticContacts = std::get<ContactConstraintsToStaticObjectsTable>(db.mTables);
 
-    addCollisionPairs(changedCollisionPairs.mGained.data(), changedCollisionPairs.mGained.size(), stableMappings, common, constraintMappings, tableIds, pairs, config);
-    removeCollisionPairs(changedCollisionPairs.mLost.data(), changedCollisionPairs.mLost.size(), stableMappings, common, constraintMappings, tableIds);
+    auto processPairs = TaskNode::create([&db, &changedCollisionPairs, &common, &pairs, &contacts, &staticContacts, &stableMappings, &constraintMappings, tableIds, config](enki::TaskSetPartition, uint32_t) {
+      PROFILE_SCOPE("physics", "processPairs");
+      addCollisionPairs(changedCollisionPairs.mGained.data(), changedCollisionPairs.mGained.size(), stableMappings, common, constraintMappings, tableIds, pairs, config);
+      removeCollisionPairs(changedCollisionPairs.mLost.data(), changedCollisionPairs.mLost.size(), stableMappings, common, constraintMappings, tableIds);
+      changedCollisionPairs.mGained.clear();
+      changedCollisionPairs.mLost.clear();
 
-    resolveObjectHandles(db, stableMappings, common, constraintMappings, tableIds, pairs, config);
+      resolveObjectHandles(db, stableMappings, common, constraintMappings, tableIds, pairs, config);
 
-    buildSyncIndices(common, constraintMappings);
+      //These last two steps could be done in parallel although createConstraintTables should be fast
+      buildSyncIndices(common, constraintMappings);
 
-    createConstraintTables(common, contacts, staticContacts, constraintMappings);
+      createConstraintTables(common, contacts, staticContacts, constraintMappings);
+    });
 
-    {
-      PROFILE_SCOPE("physics", "fillSharedMass");
-      fillConstraintNarrowphaseData(common, contacts, pairs, constraintMappings, tableIds);
-    }
-    {
-      PROFILE_SCOPE("physics", "fillZeroMass");
-      fillConstraintNarrowphaseData(common, staticContacts, pairs, constraintMappings, tableIds);
-    }
-
-    changedCollisionPairs.mGained.clear();
-    changedCollisionPairs.mLost.clear();
+    //It would also be possible to call setup on the individual constraint tables instead of waiting for them both to complete
+    processPairs->mChildren.push_back(fillConstraintNarrowphaseData(common, contacts, pairs, constraintMappings, tableIds).mBegin);
+    processPairs->mChildren.push_back(fillConstraintNarrowphaseData(common, staticContacts, pairs, constraintMappings, tableIds).mBegin);
+    return TaskBuilder::addEndSync(processPairs);
   }
 };

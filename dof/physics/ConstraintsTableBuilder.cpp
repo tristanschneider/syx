@@ -4,6 +4,11 @@
 #include "out_ispc/unity.h"
 
 namespace ctbdetails {
+  struct WorkOffset {
+    size_t mOffset{};
+    bool mHasWork{};
+  };
+
   //True if the given element is within a target element in either direction of startIndex
   bool isWithinTargetWidth(const std::vector<StableElementID>& ids, const StableElementID& id, size_t startIndex, size_t targetWidth, const std::pair<size_t, size_t>& range) {
     const size_t start = std::max(range.first, startIndex > targetWidth ? startIndex - targetWidth : 0);
@@ -353,71 +358,121 @@ void ConstraintsTableBuilder::buildSyncIndices(ConstraintCommonTable& constraint
 }
 
 template<class RowT, class TableT>
-void fillConstraintRow(size_t begin, size_t end, const ConstraintCommonTable& common, TableT& constraints, const CollisionPairsTable& pairs, const PhysicsTableIds& tableIds) {
-  auto& isEnabled = std::get<ConstraintData::IsEnabled>(common.mRows);
-  const auto& src = std::get<RowT>(pairs.mRows);
-  auto& dst = std::get<RowT>(constraints.mRows);
-  const auto& pairIds = std::get<ConstraintData::ConstraintContactPair>(common.mRows);
+std::shared_ptr<TaskNode> fillConstraintRow(std::shared_ptr<ctbdetails::WorkOffset> offset, const ConstraintCommonTable& common, TableT& constraints, const CollisionPairsTable& pairs, const PhysicsTableIds& tableIds) {
+  return TaskNode::create([offset, &common, &constraints, &pairs, mask{tableIds.mElementIDMask}](enki::TaskSetPartition range, uint32_t) {
+    PROFILE_SCOPE("physics", "fillConstraintRow");
+    auto& isEnabled = std::get<ConstraintData::IsEnabled>(common.mRows);
+    const auto& src = std::get<RowT>(pairs.mRows);
+    auto& dst = std::get<RowT>(constraints.mRows);
+    const auto& pairIds = std::get<ConstraintData::ConstraintContactPair>(common.mRows);
 
-  for(size_t i = begin; i < end; ++i) {
-    if(isEnabled.at(i)) {
-      const StableElementID& pairId = pairIds.at(i);
-      //dst is the specific constraint table while i is iterating over common table indices. Subtracting begin gets the local index into the table
-      dst.at(i - begin) = src.at(pairId.mUnstableIndex & tableIds.mElementIDMask);
+    const auto& o = *offset;
+    if(!o.mHasWork) {
+      return;
     }
-  }
+    const size_t begin = range.start + o.mOffset;
+    const size_t end = range.end + o.mOffset;
+    for(size_t i = begin; i < end; ++i) {
+      if(isEnabled.at(i)) {
+        const StableElementID& pairId = pairIds.at(i);
+        //dst is the specific constraint table while i is iterating over common table indices. Subtracting begin gets the local index into the table
+        dst.at(i - o.mOffset) = src.at(pairId.mUnstableIndex & mask);
+      }
+    }
+  });
 }
 
 //Fill a row that contains contact points and in the process convert them to rvectors, meaning subtracting the position
 template<class ContactT, class PosT, class DstT, class TableT>
-void fillRVectorRow(size_t begin, size_t end, const ConstraintCommonTable& common, TableT& constraints, const CollisionPairsTable& pairs, const PhysicsTableIds& tableIds) {
-  auto& isEnabled = std::get<ConstraintData::IsEnabled>(common.mRows);
-  const auto& srcContact = std::get<ContactT>(pairs.mRows);
-  const auto& srcCenter = std::get<PosT>(pairs.mRows);
-  auto& dst = std::get<DstT>(constraints.mRows);
-  const auto& pairIds = std::get<ConstraintData::ConstraintContactPair>(common.mRows);
+std::shared_ptr<TaskNode> fillRVectorRow(std::shared_ptr<ctbdetails::WorkOffset> offset, const ConstraintCommonTable& common, TableT& constraints, const CollisionPairsTable& pairs, const PhysicsTableIds& tableIds) {
+  return TaskNode::create([offset, &common, &constraints, &pairs, mask{tableIds.mElementIDMask}](enki::TaskSetPartition range, uint32_t) {
+    PROFILE_SCOPE("physics", "fillRVectorRow");
+    auto& isEnabled = std::get<ConstraintData::IsEnabled>(common.mRows);
+    const auto& srcContact = std::get<ContactT>(pairs.mRows);
+    const auto& srcCenter = std::get<PosT>(pairs.mRows);
+    auto& dst = std::get<DstT>(constraints.mRows);
+    const auto& pairIds = std::get<ConstraintData::ConstraintContactPair>(common.mRows);
 
-  for(size_t i = begin; i < end; ++i) {
-    if(isEnabled.at(i)) {
-      const StableElementID& pairId = pairIds.at(i);
-      const size_t d = i - begin;
-      //dst is the specific constraint table while i is iterating over common table indices. Subtracting begin gets the local index into the table
-      dst.at(i - begin) = srcContact.at(pairId.mUnstableIndex & tableIds.mElementIDMask) - srcCenter.at(pairId.mUnstableIndex & tableIds.mElementIDMask);
+    const auto& o = *offset;
+    if(!o.mHasWork) {
+      return;
     }
-  }
+    const size_t begin = range.start + o.mOffset;
+    const size_t end = range.end + o.mOffset;
+    for(size_t i = begin; i < end; ++i) {
+      if(isEnabled.at(i)) {
+        const StableElementID& pairId = pairIds.at(i);
+        //dst is the specific constraint table while i is iterating over common table indices. Subtracting begin gets the local index into the table
+        dst.at(i - o.mOffset) = srcContact.at(pairId.mUnstableIndex & mask) - srcCenter.at(pairId.mUnstableIndex & mask);
+      }
+    }
+  });
 }
 
 template<class TableT>
-void fillCommonContactData(size_t begin, size_t end, const ConstraintCommonTable& common, TableT& constraints, const CollisionPairsTable& pairs, const PhysicsTableIds& tableIds) {
-  fillConstraintRow<ContactPoint<ContactOne>::Overlap>(begin, end, common, constraints, pairs, tableIds);
-  fillConstraintRow<ContactPoint<ContactTwo>::Overlap>(begin, end, common, constraints, pairs, tableIds);
+void fillCommonContactData(std::shared_ptr<ctbdetails::WorkOffset> begin, const ConstraintCommonTable& common, TableT& constraints, const CollisionPairsTable& pairs, const PhysicsTableIds& tableIds, std::vector<std::shared_ptr<TaskNode>>& tasks) {
+  tasks.push_back(fillConstraintRow<ContactPoint<ContactOne>::Overlap>(begin, common, constraints, pairs, tableIds));
+  tasks.push_back(fillConstraintRow<ContactPoint<ContactTwo>::Overlap>(begin, common, constraints, pairs, tableIds));
 
-  fillConstraintRow<SharedNormal::X>(begin, end, common, constraints, pairs, tableIds);
-  fillConstraintRow<SharedNormal::Y>(begin, end, common, constraints, pairs, tableIds);
+  tasks.push_back(fillConstraintRow<SharedNormal::X>(begin, common, constraints, pairs, tableIds));
+  tasks.push_back(fillConstraintRow<SharedNormal::Y>(begin, common, constraints, pairs, tableIds));
 
-  fillRVectorRow<ContactPoint<ContactOne>::PosX, NarrowphaseData<PairA>::PosX, ConstraintObject<ConstraintObjA>::CenterToContactOneX>(begin, end, common, constraints, pairs, tableIds);
-  fillRVectorRow<ContactPoint<ContactOne>::PosY, NarrowphaseData<PairA>::PosY, ConstraintObject<ConstraintObjA>::CenterToContactOneY>(begin, end, common, constraints, pairs, tableIds);
-  fillRVectorRow<ContactPoint<ContactTwo>::PosX, NarrowphaseData<PairA>::PosX, ConstraintObject<ConstraintObjA>::CenterToContactTwoX>(begin, end, common, constraints, pairs, tableIds);
-  fillRVectorRow<ContactPoint<ContactTwo>::PosY, NarrowphaseData<PairA>::PosY, ConstraintObject<ConstraintObjA>::CenterToContactTwoY>(begin, end, common, constraints, pairs, tableIds);
+  tasks.push_back(fillRVectorRow<ContactPoint<ContactOne>::PosX, NarrowphaseData<PairA>::PosX, ConstraintObject<ConstraintObjA>::CenterToContactOneX>(begin, common, constraints, pairs, tableIds));
+  tasks.push_back(fillRVectorRow<ContactPoint<ContactOne>::PosY, NarrowphaseData<PairA>::PosY, ConstraintObject<ConstraintObjA>::CenterToContactOneY>(begin, common, constraints, pairs, tableIds));
+  tasks.push_back(fillRVectorRow<ContactPoint<ContactTwo>::PosX, NarrowphaseData<PairA>::PosX, ConstraintObject<ConstraintObjA>::CenterToContactTwoX>(begin, common, constraints, pairs, tableIds));
+  tasks.push_back(fillRVectorRow<ContactPoint<ContactTwo>::PosY, NarrowphaseData<PairA>::PosY, ConstraintObject<ConstraintObjA>::CenterToContactTwoY>(begin, common, constraints, pairs, tableIds));
 }
 
-void ConstraintsTableBuilder::fillConstraintNarrowphaseData(const ConstraintCommonTable& constraints, ConstraintsTable& contacts, const CollisionPairsTable& pairs, const ConstraintsTableMappings& constraintsMappings, const PhysicsTableIds& tableIds) {
-  const size_t begin = constraintsMappings.SHARED_MASS_START_INDEX;
-  const size_t end = constraintsMappings.mZeroMassStartIndex;
+TaskRange ConstraintsTableBuilder::fillConstraintNarrowphaseData(const ConstraintCommonTable& constraints, ConstraintsTable& contacts, const CollisionPairsTable& pairs, const ConstraintsTableMappings& constraintsMappings, const PhysicsTableIds& tableIds) {
+  auto root = std::make_shared<TaskNode>();
 
-  fillCommonContactData(begin, end, constraints, contacts, pairs, tableIds);
+  //Root task configures the sizes that the child tasks will work off of
+  auto sharedBegin = std::make_shared<ctbdetails::WorkOffset>();
+  root->mTask = std::make_unique<enki::TaskSet>([self{std::weak_ptr<TaskNode>{root}}, &constraintsMappings, sharedBegin](...) {
+    const size_t begin = constraintsMappings.SHARED_MASS_START_INDEX;
+    const size_t end = constraintsMappings.mZeroMassStartIndex;
+    const size_t size = end - begin;
 
-  fillRVectorRow<ContactPoint<ContactOne>::PosX, NarrowphaseData<PairB>::PosX, ConstraintObject<ConstraintObjB>::CenterToContactOneX>(begin, end, constraints, contacts, pairs, tableIds);
-  fillRVectorRow<ContactPoint<ContactOne>::PosY, NarrowphaseData<PairB>::PosY, ConstraintObject<ConstraintObjB>::CenterToContactOneY>(begin, end, constraints, contacts, pairs, tableIds);
-  fillRVectorRow<ContactPoint<ContactTwo>::PosX, NarrowphaseData<PairB>::PosX, ConstraintObject<ConstraintObjB>::CenterToContactTwoX>(begin, end, constraints, contacts, pairs, tableIds);
-  fillRVectorRow<ContactPoint<ContactTwo>::PosY, NarrowphaseData<PairB>::PosY, ConstraintObject<ConstraintObjB>::CenterToContactTwoY>(begin, end, constraints, contacts, pairs, tableIds);
+    sharedBegin->mOffset = begin;
+    sharedBegin->mHasWork = size != 0;
+    if(auto s = self.lock()) {
+      for(auto& child : s->mChildren) {
+        child->mTask->m_SetSize = end - begin;
+        child->mTask->m_MinRange = 100;
+      }
+    }
+  });
+  fillCommonContactData(sharedBegin, constraints, contacts, pairs, tableIds, root->mChildren);
+
+  root->mChildren.push_back(fillRVectorRow<ContactPoint<ContactOne>::PosX, NarrowphaseData<PairB>::PosX, ConstraintObject<ConstraintObjB>::CenterToContactOneX>(sharedBegin, constraints, contacts, pairs, tableIds));
+  root->mChildren.push_back(fillRVectorRow<ContactPoint<ContactOne>::PosY, NarrowphaseData<PairB>::PosY, ConstraintObject<ConstraintObjB>::CenterToContactOneY>(sharedBegin, constraints, contacts, pairs, tableIds));
+  root->mChildren.push_back(fillRVectorRow<ContactPoint<ContactTwo>::PosX, NarrowphaseData<PairB>::PosX, ConstraintObject<ConstraintObjB>::CenterToContactTwoX>(sharedBegin, constraints, contacts, pairs, tableIds));
+  root->mChildren.push_back(fillRVectorRow<ContactPoint<ContactTwo>::PosY, NarrowphaseData<PairB>::PosY, ConstraintObject<ConstraintObjB>::CenterToContactTwoY>(sharedBegin, constraints, contacts, pairs, tableIds));
+  return TaskBuilder::addEndSync(root);
 }
 
-void ConstraintsTableBuilder::fillConstraintNarrowphaseData(const ConstraintCommonTable& constraints, ContactConstraintsToStaticObjectsTable& contacts, const CollisionPairsTable& pairs, const ConstraintsTableMappings& constraintsMappings, const PhysicsTableIds& tableIds) {
-  const size_t begin = constraintsMappings.mZeroMassStartIndex;
-  const size_t end = TableOperations::size(constraints);
+TaskRange ConstraintsTableBuilder::fillConstraintNarrowphaseData(const ConstraintCommonTable& constraints, ContactConstraintsToStaticObjectsTable& contacts, const CollisionPairsTable& pairs, const ConstraintsTableMappings& constraintsMappings, const PhysicsTableIds& tableIds) {
+  auto root = std::make_shared<TaskNode>();
 
-  fillCommonContactData(begin, end, constraints, contacts, pairs, tableIds);
+  //Root task configures the sizes that the child tasks will work off of
+  auto sharedBegin = std::make_shared<ctbdetails::WorkOffset>();
+  root->mTask = std::make_unique<enki::TaskSet>([self{std::weak_ptr<TaskNode>{root}}, &constraintsMappings, sharedBegin, &constraints](...) {
+    const size_t begin = constraintsMappings.mZeroMassStartIndex;
+    const size_t end = TableOperations::size(constraints);
+    const size_t size = end - begin;
+
+    sharedBegin->mOffset = begin;
+    sharedBegin->mHasWork = size != 0;
+    if(auto s = self.lock()) {
+      for(auto& child : s->mChildren) {
+        child->mTask->m_SetSize = end - begin;
+        child->mTask->m_MinRange = 100;
+      }
+    }
+  });
+
+  fillCommonContactData(sharedBegin, constraints, contacts, pairs, tableIds, root->mChildren);
+  return TaskBuilder::addEndSync(root);
 }
 
 void ConstraintsTableBuilder::createConstraintTables(const ConstraintCommonTable& common,
