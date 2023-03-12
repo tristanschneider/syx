@@ -9,6 +9,8 @@
 #include "glm/ext/matrix_float3x3.hpp"
 
 #include "glm/gtx/transform.hpp"
+#include "ParticleRenderer.h"
+#include "Shader.h"
 
 namespace {
   struct QuadShader {
@@ -149,56 +151,6 @@ namespace {
     return context;
   }
 
-  void _getStatusWithInfo(GLuint handle, GLenum status, GLint& logLen, GLint& result) {
-    result = GL_FALSE;
-    glGetShaderiv(handle, status, &result);
-    glGetShaderiv(handle, GL_INFO_LOG_LENGTH, &logLen);
-  }
-
-  void _compileShader(GLuint shaderHandle, const char* source) {
-    //Compile Shader
-    glShaderSource(shaderHandle, 1, &source, NULL);
-    glCompileShader(shaderHandle);
-
-    GLint result, logLen;
-    _getStatusWithInfo(shaderHandle, GL_COMPILE_STATUS, logLen, result);
-    //Check Shader
-    if(logLen > 0) {
-      std::string error(logLen + 1, 0);
-      glGetShaderInfoLog(shaderHandle, logLen, NULL, &error[0]);
-      printf("%s\n", error.c_str());
-    }
-  }
-
-  GLuint _loadShader(const char* vsSource, const char* psSource) {
-    GLuint vs = glCreateShader(GL_VERTEX_SHADER);
-    GLuint ps = glCreateShader(GL_FRAGMENT_SHADER);
-    _compileShader(vs, vsSource);
-    _compileShader(ps, psSource);
-
-    GLuint result{ glCreateProgram() };
-    glAttachShader(result, vs);
-    glAttachShader(result, ps);
-    glLinkProgram(result);
-    glValidateProgram(result);
-
-    GLint glValidationStatus{};
-    glGetProgramiv(result, GL_VALIDATE_STATUS, &glValidationStatus);
-    if(glValidationStatus == GL_FALSE) {
-      printf("Error linking shader\n");
-      return 0;
-    }
-
-    //Once program is linked we can get rid of the individual shaders
-    glDetachShader(result, vs);
-    glDetachShader(result, ps);
-
-    glDeleteShader(vs);
-    glDeleteShader(ps);
-
-    return result;
-  }
-
   GLuint _createQuadBuffers() {
     GLuint result;
     const float verts[] = { 0.5f, -0.5f,
@@ -218,7 +170,7 @@ namespace {
 
   DebugDrawer _createDebugDrawer() {
     DebugDrawer drawer;
-    drawer.mShader = _loadShader(DebugShader::vs, DebugShader::ps);
+    drawer.mShader = Shader::loadShader(DebugShader::vs, DebugShader::ps);
 
     drawer.mWVPUniform = glGetUniformLocation(drawer.mShader, "wvp");
 
@@ -312,6 +264,19 @@ namespace {
   }
 }
 
+namespace {
+  void debugCallback(GLenum source,
+            GLenum type,
+            GLuint id,
+            GLenum severity,
+            GLsizei length,
+            const GLchar *message,
+            const void *userParam) {
+    source;type;id;severity;length;message;userParam;
+    printf("Error [%s]\n", message);
+  }
+}
+
 void Renderer::initDeviceContext(GraphicsContext::ElementRef& context) {
   OGLState& state = context.get<0>();
   WindowData& window = context.get<1>();
@@ -321,10 +286,12 @@ void Renderer::initDeviceContext(GraphicsContext::ElementRef& context) {
   state.mGLContext = createGLContext(state.mDeviceContext);
   glewInit();
 
+  //glEnable(GL_DEBUG_OUTPUT);
+  //glDebugMessageCallback(&debugCallback, nullptr);
   const char* versionGL =  (char*)glGetString(GL_VERSION);
   printf("version %s", versionGL);
 
-  state.mQuadShader = _loadShader(QuadShader::vs, QuadShader::ps);
+  state.mQuadShader = Shader::loadShader(QuadShader::vs, QuadShader::ps);
   state.mQuadVertexBuffer = _createQuadBuffers();
   state.mQuadUniforms = _createQuadUniforms(state.mQuadShader);
   state.mDebug = _createDebugDrawer();
