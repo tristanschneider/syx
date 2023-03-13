@@ -72,3 +72,11 @@ GLuint Shader::loadShader(const char* vsSource, const char* psSource) {
   //Once program is linked we can get rid of the individual shaders
   return _detachAndDestroy(result, vs, ps);
 }
+
+TextureSamplerUniform Shader::_createTextureSamplerUniform(GLuint quadShader, const char* name) {
+  TextureSamplerUniform result;
+  result.uniformID = glGetUniformLocation(quadShader, name);
+  glGenBuffers(1, &result.buffer);
+  glGenTextures(1, &result.texture);
+  return result;
+}
