@@ -659,8 +659,12 @@ void Simulation::update(GameDatabase& db) {
   current->mChildren.push_back(TaskNode::create([&globals, &sceneState, &db](...) {
     if(sceneState.mState == SceneState::State::SetupScene) {
       SceneArgs args;
-      args.mFragmentRows = 50;
-      args.mFragmentColumns = 50;
+      //args.mFragmentRows = 50;
+      //args.mFragmentColumns = 44;
+      //args.mFragmentRows = 25;
+      //args.mFragmentColumns = 22;
+      args.mFragmentRows = 10;
+      args.mFragmentColumns = 9;
       sceneState.mState = _setupScene(db, args);
     }
   }));

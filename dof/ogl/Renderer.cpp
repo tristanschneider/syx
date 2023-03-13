@@ -10,7 +10,7 @@
 
 #include "glm/gtx/transform.hpp"
 #include "ParticleRenderer.h"
-#include "Shader.h"
+#include "Debug.h"
 
 namespace {
   struct QuadShader {
@@ -191,21 +191,13 @@ namespace {
     return drawer;
   }
 
-  TextureSamplerUniform _createTextureSamplerUniform(GLuint quadShader, const char* name) {
-    TextureSamplerUniform result;
-    result.uniformID = glGetUniformLocation(quadShader, name);
-    glGenBuffers(1, &result.buffer);
-    glGenTextures(1, &result.texture);
-    return result;
-  }
-
   QuadUniforms _createQuadUniforms(GLuint quadShader) {
     QuadUniforms result;
-    result.posX = _createTextureSamplerUniform(quadShader, "uPosX");
-    result.posY = _createTextureSamplerUniform(quadShader, "uPosY");
-    result.rotX = _createTextureSamplerUniform(quadShader, "uRotX");
-    result.rotY = _createTextureSamplerUniform(quadShader, "uRotY");
-    result.uv = _createTextureSamplerUniform(quadShader, "uUV");
+    result.posX = Shader::_createTextureSamplerUniform(quadShader, "uPosX");
+    result.posY = Shader::_createTextureSamplerUniform(quadShader, "uPosY");
+    result.rotX = Shader::_createTextureSamplerUniform(quadShader, "uRotX");
+    result.rotY = Shader::_createTextureSamplerUniform(quadShader, "uRotY");
+    result.uv = Shader::_createTextureSamplerUniform(quadShader, "uUV");
     result.worldToView = glGetUniformLocation(quadShader, "uWorldToView");
     result.texture = glGetUniformLocation(quadShader, "uTex");
     return result;
@@ -273,7 +265,14 @@ namespace {
             const GLchar *message,
             const void *userParam) {
     source;type;id;severity;length;message;userParam;
-    printf("Error [%s]\n", message);
+    switch(severity) {
+    case GL_DEBUG_SEVERITY_MEDIUM:
+    case GL_DEBUG_SEVERITY_NOTIFICATION:
+      return;
+    default:
+      printf("Error [%s]\n", message);
+      break;
+    }
   }
 }
 
@@ -286,8 +285,8 @@ void Renderer::initDeviceContext(GraphicsContext::ElementRef& context) {
   state.mGLContext = createGLContext(state.mDeviceContext);
   glewInit();
 
-  //glEnable(GL_DEBUG_OUTPUT);
-  //glDebugMessageCallback(&debugCallback, nullptr);
+  glEnable(GL_DEBUG_OUTPUT);
+  glDebugMessageCallback(&debugCallback, nullptr);
   const char* versionGL =  (char*)glGetString(GL_VERSION);
   printf("version %s", versionGL);
 
@@ -339,9 +338,29 @@ void _renderDebug(GameDatabase& db, RendererDatabase& renderDB) {
   TableOperations::resizeTable(lineTable, 0);
 }
 
+glm::mat4 _getWorldToView(const Camera& camera, float aspectRatio) {
+  glm::vec3 scale = glm::vec3(camera.zoom);
+  scale.x *= aspectRatio;
+  return glm::inverse(
+    glm::translate(glm::vec3(camera.x, camera.y, 0.0f)) *
+    glm::rotate(camera.angle, glm::vec3(0, 0, -1)) *
+    glm::scale(scale)
+  );
+}
+
 void Renderer::render(GameDatabase& db, RendererDatabase& renderDB) {
   //TODO: separate step
   _processRequests(db, renderDB);
+
+  static bool first = true;
+  static ParticleData data;
+  static size_t frameIndex{};
+  static DebugRenderData debug = Debug::init();
+  ++frameIndex;
+  if(first) {
+    ParticleRenderer::init(data);
+    first = false;
+  }
 
   OGLState& state = std::get<Row<OGLState>>(std::get<GraphicsContext>(renderDB.mTables).mRows).at(0);
   const WindowData& window = std::get<Row<WindowData>>(std::get<GraphicsContext>(renderDB.mTables).mRows).at(0);
@@ -351,7 +370,7 @@ void Renderer::render(GameDatabase& db, RendererDatabase& renderDB) {
 
   glClearColor(0.0f, 0.0f, 1.0f, 0.0f);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-
+  /*
   glUseProgram(state.mQuadShader);
   Queries::viewEachRow<Row<Camera>>(db, [&](Row<Camera>& cameras) {
     for(const Camera& camera : cameras.mElements) {
@@ -397,13 +416,7 @@ void Renderer::render(GameDatabase& db, RendererDatabase& renderDB) {
           //First attribute, 2 float elements that shouldn't be normalized, tightly packed, no offset
           glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, 0);
 
-          glm::vec3 scale = glm::vec3(camera.zoom);
-          scale.x *= aspectRatio;
-          glm::mat4 worldToView = glm::inverse(
-            glm::translate(glm::vec3(camera.x, camera.y, 0.0f)) *
-            glm::rotate(camera.angle, glm::vec3(0, 0, -1)) *
-            glm::scale(scale)
-          );
+          const glm::mat4 worldToView = _getWorldToView(camera, aspectRatio);
 
           glUniformMatrix4fv(state.mQuadUniforms.worldToView, 1, GL_FALSE, &worldToView[0][0]);
           int textureIndex = 0;
@@ -420,8 +433,31 @@ void Renderer::render(GameDatabase& db, RendererDatabase& renderDB) {
       });
     }
   });
+  */
+  //_renderDebug(db, renderDB);
 
-  _renderDebug(db, renderDB);
+  Queries::viewEachRow<Row<Camera>>(db, [&](Row<Camera>& cameras) {
+    for(const Camera& camera : cameras.mElements) {
+      ParticleUniforms uniforms;
+      uniforms.worldToView = _getWorldToView(camera, aspectRatio);
+
+      //TODO: need all the buffer data not just the last one
+      CubeSpriteInfo info;
+      info.count = 1;
+      info.posX = state.mQuadUniforms.posX;
+      info.posY = state.mQuadUniforms.posY;
+      info.quadVertexBuffer = state.mQuadVertexBuffer;
+      info.rotX = state.mQuadUniforms.rotX;
+      info.rotY = state.mQuadUniforms.rotY;
+      //ParticleRenderer::renderNormals(data, uniforms, info);
+
+      uniforms.worldToView = glm::identity<glm::mat4>();
+      ParticleRenderer::update(data, uniforms, frameIndex);
+      ParticleRenderer::render(data, uniforms, frameIndex);
+    }
+  });
+
+ // Debug::pictureInPicture(debug, { 50, 50 }, { 350, 350 }, data.mSceneTexture);
 
   SwapBuffers(state.mDeviceContext);
 }

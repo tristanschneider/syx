@@ -4,9 +4,7 @@
 #include <Windows.h>
 #include "GL/glew.h"
 
-struct TextureSamplerUniform {
-  GLuint uniformID, texture, buffer;
-};
+#include "Shader.h"
 
 struct QuadUniforms {
   TextureSamplerUniform posX, posY, rotX, rotY, uv;
