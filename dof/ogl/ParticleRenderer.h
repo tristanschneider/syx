@@ -19,7 +19,7 @@ struct ParticleData {
   std::array<GLuint, 2> mFeedbackBuffers;
   struct UpdateShader {
     GLuint program{};
-    GLuint worldToView{};
+    GLint sceneTexture{};
   };
   struct RenderShader {
     GLuint program{};
@@ -33,7 +33,11 @@ struct ParticleData {
     GLuint posX, posY, rotX, rotY;
     GLuint worldToView;
   };
+  struct ParticleSceneShader {
+    GLuint mProgram{};
+  };
   SceneShader mSceneShader;
+  ParticleSceneShader mParticleSceneShader;
   GLuint mSceneFBO{};
   GLuint mSceneTexture{};
 
@@ -50,11 +54,15 @@ struct CubeSpriteInfo {
 
 struct ParticleUniforms {
   glm::mat4 worldToView{};
+  //Transform world space to particle space, where particle space is centered around zero
+  glm::mat4 worldToParticle;
+  glm::mat4 particleToWorld;
 };
 
 struct ParticleRenderer {
   static void init(ParticleData& data);
   static void update(const ParticleData& data, const ParticleUniforms& uniforms, size_t frameIndex);
   static void renderNormals(const ParticleData& data, const ParticleUniforms& uniforms, const CubeSpriteInfo& sprites);
+  static void renderParticleNormals(const ParticleData& data, const ParticleUniforms& uniforms, size_t frameIndex);
   static void render(const ParticleData& data, const ParticleUniforms& uniforms, size_t frameIndex);
 };

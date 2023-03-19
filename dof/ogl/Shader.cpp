@@ -46,13 +46,15 @@ bool Shader::_linkAndValidate(GLuint program) {
   return program;
 }
 
+GLuint Shader::_detachAndDestroy(GLuint program, GLuint s) {
+  glDetachShader(program, s);
+  glDeleteShader(s);
+  return program;
+}
+
 GLuint Shader::_detachAndDestroy(GLuint program, GLuint vs, GLuint ps) {
-  glDetachShader(program, vs);
-  glDetachShader(program, ps);
-
-  glDeleteShader(vs);
-  glDeleteShader(ps);
-
+  _detachAndDestroy(program, vs);
+  _detachAndDestroy(program, ps);
   return program;
 }
 

@@ -13,22 +13,16 @@ namespace {
     layout(location = 1) in vec2 mVelocity;
     layout(location = 2) in float mType;
 
-    //uniform mat4 uWorldToView;
+    uniform sampler2D uSceneTex;
 
     out vec2 mPosition0;
     out vec2 mVelocity0;
     out float mType0;
 
     void main() {
-      //mPosition0 = vec2((uWorldToView*vec4(mPosition + mVelocity, 0.0, 1.0)).xy);
-      //mPosition0.x = clamp(mPosition0.x, 0.0f, 1.0f);
-      //mPosition0.y = clamp(mPosition0.y, 0.0f, 1.0f);
-
-      //mPosition0.x = 0.15f;
-      //mPosition0.y = 0.15f;
-
-      mPosition0 = mPosition + mVelocity;
-      mVelocity0 = mVelocity;
+      vec2 v = (mVelocity + texture(uSceneTex, vec2(mPosition.x, mPosition.y)).rg) * 0.99f;
+      mPosition0 = mPosition + v;
+      mVelocity0 = v;
       mType0 = mType;
     }
   )";
@@ -61,15 +55,36 @@ namespace {
   const char* particleRenderVS = R"(
     #version 330
     layout(location = 0) in vec2 mPosition;
-    //uniform mat4 uWorldToView;
-    //void main() { gl_Position = uWorldToView*vec4(mPosition, 0.0, 1.0); }
-    void main() { gl_Position = vec4(mPosition, 0.0, 1.0); }
+    uniform mat4 uWorldToView;
+    void main() { gl_Position = uWorldToView*vec4(mPosition, 0.0, 1.0); }
   )";
 
   const char* particleRenderPS = R"(
     #version 330 core
     out vec3 oColor;
     void main() { oColor = vec3(1, 0, 0); }
+  )";
+
+  const char* particleNormalRenderVS = R"(
+    #version 330
+    layout(location = 0) in vec2 mPosition;
+    layout(location = 1) in vec2 mVelocity;
+
+    out vec2 mVelocity1;
+    //Prevent self-collisions by always writing to previous position, and offset by one pixel to prevent collision when not moving
+    void main() {
+      //gl_Position = vec4(mPosition.x + 0.01f + mVelocity.x, mPosition.y + mVelocity.y, 0.0, 1.0);
+      gl_Position = vec4(mPosition, 0.0f, 1.0f);
+      mVelocity1 = mVelocity;
+    }
+  )";
+
+  const char* particleNormalRenderPS = R"(
+    #version 330 core
+
+    in vec2 mVelocity1;
+    out vec3 oColor;
+    void main() { oColor = vec3(1, 0, 0); } //vec3(mVelocity1, 0); }
   )";
 
   const char* quadNormalVS = R"(
@@ -176,38 +191,30 @@ namespace {
 
   void bindForUpdate(const ParticleData& data, const TransformTargets& targets, const ParticleUniforms& uniforms) {
     glUseProgram(data.mUpdateShader.program);
-  e = glGetError();
 
     glEnable(GL_RASTERIZER_DISCARD);
-  e = glGetError();
 
     glBindBuffer(GL_ARRAY_BUFFER, data.mFeedbackBuffers[targets.src]);
-  e = glGetError();
 
     glBindTransformFeedback(GL_TRANSFORM_FEEDBACK, data.mFeedbacks[targets.dst]);
-    //glBindBuffer(GL_TRANSFORM_FEEDBACK_BUFFER, data.mFeedbacks[targets.dst]);
-    //Should only be necessary upon intial creation of feedback buffer. NVidia bug?
-    //glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 0, data.mFeedbackBuffers[targets.src]);
 
     glBeginTransformFeedback(GL_POINTS);
-    e = glGetError();
 
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(ParticleData::Particle), (const void*)0);
-  e = glGetError();
-
     glEnableVertexAttribArray(1);
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(ParticleData::Particle), (const void*)(sizeof(float)*2));
-  e = glGetError();
-
     glEnableVertexAttribArray(2);
     glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, sizeof(ParticleData::Particle), (const void*)(sizeof(float)*4));
-  e = glGetError();
+
+    data.mSceneTexture;
+    int textureIndex = 0;
+    glActiveTexture(GL_TEXTURE0 + textureIndex);
+    glBindTexture(GL_TEXTURE_2D, data.mSceneTexture);
+    glUniform1i(data.mUpdateShader.sceneTexture, textureIndex++);
 
     uniforms;
     //glUniformMatrix4fv(data.mUpdateShader.worldToView, 1, GL_FALSE, &uniforms.worldToView[0][0]);
-
-  e = glGetError();
 
   }
 
@@ -227,7 +234,6 @@ namespace {
 }
 
 void ParticleRenderer::init(ParticleData& data) {
-  e = glGetError();
   constexpr size_t particleCount = 10000;
 
   glGenTransformFeedbacks(data.mFeedbacks.size(), data.mFeedbacks.data());
@@ -243,51 +249,34 @@ void ParticleRenderer::init(ParticleData& data) {
 
   for(size_t i = 0; i < data.mFeedbackBuffers.size(); ++i) {
     glBindTransformFeedback(GL_TRANSFORM_FEEDBACK, data.mFeedbacks[i]);
-
-    std::vector<uint8_t> a,b;
-    Debug::readBuffer(GL_TRANSFORM_FEEDBACK_BUFFER, data.mFeedbacks[i], a);
-    Debug::readBuffer(GL_ARRAY_BUFFER, data.mFeedbackBuffers[i], b);
-
     glBindBuffer(GL_ARRAY_BUFFER, data.mFeedbackBuffers[i]);
     glBufferData(GL_ARRAY_BUFFER, sizeof(ParticleData::Particle)*particles.size(), particles.data(), GL_DYNAMIC_DRAW);
     glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 0, data.mFeedbackBuffers[i]);
-
-    //glBindBuffer(GL_ARRAY_BUFFER, 0);
-    //glBindTransformFeedback(GL_TRANSFORM_FEEDBACK, 0);
-    //glBindBuffer(GL_TRANSFORM_FEEDBACK_BUFFER, 0);
-
-    Debug::readBuffer(GL_TRANSFORM_FEEDBACK_BUFFER, data.mFeedbacks[i], a);
-    Debug::readBuffer(GL_ARRAY_BUFFER, data.mFeedbackBuffers[i], b);
-    ParticleData::Particle* pa = (ParticleData::Particle*)b.data();
-    pa;
-
   }
 
   GLuint vs = glCreateShader(GL_VERTEX_SHADER);
-  GLuint gs = glCreateShader(GL_GEOMETRY_SHADER);
   Shader::compileShader(vs, particleVS);
-  Shader::compileShader(gs, particleGS);
 
   data.mUpdateShader.program = glCreateProgram();
   glAttachShader(data.mUpdateShader.program, vs);
-  glAttachShader(data.mUpdateShader.program, gs);
+  //glAttachShader(data.mUpdateShader.program, gs);
   const GLchar* varyings[] = {
-    "mPosition1",
-    "mVelocity1",
-    "mType1"
+    "mPosition0",
+    "mVelocity0",
+    "mType0"
   };
   glTransformFeedbackVaryings(data.mUpdateShader.program, 3, varyings, GL_INTERLEAVED_ATTRIBS);
-  e = glGetError();
-  e = glGetError();
 
   if(!Shader::_linkAndValidate(data.mUpdateShader.program)) {
     printf("failed to created particle shader");
   }
-  Shader::_detachAndDestroy(data.mUpdateShader.program, vs, gs);
-  //data.mUpdateShader.worldToView = glGetUniformLocation(data.mUpdateShader.program, "uWorldToView");
+  Shader::_detachAndDestroy(data.mUpdateShader.program, vs);
+  data.mUpdateShader.sceneTexture = glGetUniformLocation(data.mUpdateShader.program, "uSceneTex");
 
   data.mRenderShader.program = Shader::loadShader(particleRenderVS, particleRenderPS);
-  //data.mRenderShader.worldToView = glGetUniformLocation(data.mRenderShader.program, "uWorldToView");
+  data.mRenderShader.worldToView = glGetUniformLocation(data.mRenderShader.program, "uWorldToView");
+
+  data.mParticleSceneShader.mProgram = Shader::loadShader(particleNormalRenderVS, particleNormalRenderPS);
 
   //Populate initial feedback data
   ParticleUniforms uniforms;
@@ -296,100 +285,43 @@ void ParticleRenderer::init(ParticleData& data) {
     0.0f, 0.0f, 1.0f, 0.0f,
     0.0f, 0.0f, 0.0f, 1.0f);
   for(size_t i = 0; i < data.mFeedbackBuffers.size(); ++i) {
-    std::vector<uint8_t> a,b,c,d;
     TransformTargets target(i);
-    Debug::readBuffer(GL_TRANSFORM_FEEDBACK_BUFFER, data.mFeedbacks[target.src], a);
-    Debug::readBuffer(GL_TRANSFORM_FEEDBACK_BUFFER, data.mFeedbacks[target.dst], b);
-    Debug::readBuffer(GL_ARRAY_BUFFER, data.mFeedbackBuffers[target.src], c);
-    Debug::readBuffer(GL_ARRAY_BUFFER, data.mFeedbackBuffers[target.dst], d);
 
     bindForUpdate(data, TransformTargets(i), uniforms);
-    e = glGetError();
     glDrawArrays(GL_POINTS, 0, particles.size());
-    e = glGetError();
     unbindForUpdate();
-    e = glGetError();
-
-    Debug::readBuffer(GL_TRANSFORM_FEEDBACK_BUFFER, data.mFeedbacks[target.src], a);
-    Debug::readBuffer(GL_TRANSFORM_FEEDBACK_BUFFER, data.mFeedbacks[target.dst], b);
-    Debug::readBuffer(GL_ARRAY_BUFFER, data.mFeedbackBuffers[target.src], c);
-    Debug::readBuffer(GL_ARRAY_BUFFER, data.mFeedbackBuffers[target.dst], d);
-    ParticleData::Particle* pa = (ParticleData::Particle*)c.data();
-    ParticleData::Particle* pb = (ParticleData::Particle*)d.data();
-    pa;pb;
-  }
-  for(size_t i = 0; i < 10; ++i) {
-    update(data, uniforms, 0);
-    update(data, uniforms, 1);
   }
 
   glGenFramebuffers(1, &data.mSceneFBO);
-  e = glGetError();
-
   glBindFramebuffer(GL_FRAMEBUFFER, data.mSceneFBO);
-  e = glGetError();
-
   glGenTextures(1, &data.mSceneTexture);
-  e = glGetError();
-
   glBindTexture(GL_TEXTURE_2D, data.mSceneTexture);
-  e = glGetError();
-
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, ParticleData::SCENE_WIDTH, ParticleData::SCENE_HEIGHT, 0, GL_RGB, GL_FLOAT, nullptr);
-  e = glGetError();
-
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-  e = glGetError();
-
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-  e = glGetError();
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
   glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, data.mSceneTexture, 0);
-  e = glGetError();
 
   GLenum drawBuffer = GL_COLOR_ATTACHMENT0;
   glDrawBuffers(1, &drawBuffer);
-  e = glGetError();
 
   data.mSceneShader.mProgram = Shader::loadShader(quadNormalVS, quadNormalPS);
-  e = glGetError();
-
   data.mSceneShader.posX = glGetUniformLocation(data.mSceneShader.mProgram, "uPosX");
-  e = glGetError();
-
   data.mSceneShader.posY = glGetUniformLocation(data.mSceneShader.mProgram, "uPosY");
-  e = glGetError();
-
   data.mSceneShader.rotX = glGetUniformLocation(data.mSceneShader.mProgram, "uRotX");
-  e = glGetError();
-
   data.mSceneShader.rotY = glGetUniformLocation(data.mSceneShader.mProgram, "uRotY");
-  e = glGetError();
-
   data.mSceneShader.worldToView = glGetUniformLocation(data.mSceneShader.mProgram, "uWorldToView");
-  e = glGetError();
 
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
 }
 
 void ParticleRenderer::update(const ParticleData& data, const ParticleUniforms& uniforms, size_t frameIndex) {
-  e = glGetError();
   const TransformTargets target(frameIndex);
-
   bindForUpdate(data, target, uniforms);
-  e = glGetError();
   glDrawTransformFeedback(GL_POINTS, data.mFeedbacks[target.src]);
-  e = glGetError();
   unbindForUpdate();
-  e = glGetError();
-
-  std::vector<uint8_t> a,b;
-  Debug::readBuffer(GL_ARRAY_BUFFER, data.mFeedbackBuffers[0], a);
-  Debug::readBuffer(GL_ARRAY_BUFFER, data.mFeedbackBuffers[1], b);
-  ParticleData::Particle* pa = (ParticleData::Particle*)a.data();
-  ParticleData::Particle* pb = (ParticleData::Particle*)b.data();
-  printf("%f %f -> %f %f\n", pa->pos.x, pa->pos.y, pb->pos.x, pb->pos.y);
 }
 
 namespace {
@@ -403,85 +335,68 @@ namespace {
 
 void ParticleRenderer::renderNormals(const ParticleData& data, const ParticleUniforms& uniforms, const CubeSpriteInfo& sprites) {
   data;sprites;uniforms;
-  e = glGetError();
 
   glUseProgram(data.mSceneShader.mProgram);
-  e = glGetError();
-
   glBindFramebuffer(GL_FRAMEBUFFER, data.mSceneFBO);
-  e = glGetError();
-
   glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
   glClear(GL_COLOR_BUFFER_BIT);
-  e = glGetError();
-
   glBindBuffer(GL_ARRAY_BUFFER, sprites.quadVertexBuffer);
-  e = glGetError();
-
   glEnableVertexAttribArray(0);
   glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, 0);
-  e = glGetError();
-
-  glUniformMatrix4fv(data.mSceneShader.worldToView, 1, GL_FALSE, &uniforms.worldToView[0][0]);
-  e = glGetError();
-
+  glUniformMatrix4fv(data.mSceneShader.worldToView, 1, GL_FALSE, &uniforms.worldToParticle[0][0]);
   int textureIndex = 0;
   _bindTextureSamplerUniform(sprites.posX, GL_R32F, textureIndex++, data.mSceneShader.posX);
-  e = glGetError();
-
   _bindTextureSamplerUniform(sprites.posY, GL_R32F, textureIndex++, data.mSceneShader.posY);
-  e = glGetError();
-
   _bindTextureSamplerUniform(sprites.rotX, GL_R32F, textureIndex++, data.mSceneShader.rotX);
-  e = glGetError();
-
   _bindTextureSamplerUniform(sprites.rotY, GL_R32F, textureIndex++, data.mSceneShader.rotY);
-  e = glGetError();
 
   glDrawArraysInstanced(GL_TRIANGLES, 0, 6, GLsizei(sprites.count));
-  e = glGetError();
 
   glUseProgram(0);
-  e = glGetError();
-
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
-  e = glGetError();
+}
 
+void ParticleRenderer::renderParticleNormals(const ParticleData& data, const ParticleUniforms& uniforms, size_t frameIndex) {
+  frameIndex;uniforms;
+  const TransformTargets target(0);
+
+  glUseProgram(data.mParticleSceneShader.mProgram);
+  glBindFramebuffer(GL_FRAMEBUFFER, data.mSceneFBO);
+  glBindBuffer(GL_ARRAY_BUFFER, data.mFeedbackBuffers[target.dst]);
+
+  // Position
+  glEnableVertexAttribArray(0);
+  glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(ParticleData::Particle), 0);
+  // Velocity
+  glEnableVertexAttribArray(1);
+  glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(ParticleData::Particle), (void*)(sizeof(float)*2));
+
+  glDrawTransformFeedback(GL_POINTS, data.mFeedbacks[target.dst]);
+
+  glDisableVertexAttribArray(0);
+  glDisableVertexAttribArray(1);
+  glUseProgram(0);
+  glBindBuffer(GL_ARRAY_BUFFER, 0);
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 void ParticleRenderer::render(const ParticleData& data, const ParticleUniforms& uniforms, size_t frameIndex) {
   frameIndex;
   const TransformTargets target(0);
-  e = glGetError();
+
+  glPointSize(2.0f);
 
   glUseProgram(data.mRenderShader.program);
-  e = glGetError();
-
-  //glBindTransformFeedback(GL_TRANSFORM_FEEDBACK, data.mFeedbacks[target.dst]);
-  //e = glGetError();
-  //
-  //glBindBuffer(GL_TRANSFORM_FEEDBACK_BUFFER, data.mFeedbacks[target.dst]);
-  //e = glGetError();
-
   glBindBuffer(GL_ARRAY_BUFFER, data.mFeedbackBuffers[target.dst]);
-  
-  e = glGetError();
-  //glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 0, data.mFeedbackBuffers[target.dst]);
 
   glEnableVertexAttribArray(0);
-  e = glGetError();
-
   glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(ParticleData::Particle), 0);
-  e = glGetError();
 
-  uniforms;
-  //glUniformMatrix4fv(data.mRenderShader.worldToView, 1, GL_FALSE, &uniforms.worldToView[0][0]);
-
+  glm::mat4 particleToView = uniforms.worldToView * uniforms.particleToWorld;
+  glUniformMatrix4fv(data.mRenderShader.worldToView, 1, GL_FALSE, &particleToView[0][0]);
   glDrawTransformFeedback(GL_POINTS, data.mFeedbacks[target.dst]);
-  e = glGetError();
 
   glDisableVertexAttribArray(0);
   glUseProgram(0);
   glBindBuffer(GL_ARRAY_BUFFER, 0);
-  //glBindTransformFeedback(GL_TRANSFORM_FEEDBACK, 0);
 }

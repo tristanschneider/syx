@@ -370,7 +370,7 @@ void Renderer::render(GameDatabase& db, RendererDatabase& renderDB) {
 
   glClearColor(0.0f, 0.0f, 1.0f, 0.0f);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-  /*
+
   glUseProgram(state.mQuadShader);
   Queries::viewEachRow<Row<Camera>>(db, [&](Row<Camera>& cameras) {
     for(const Camera& camera : cameras.mElements) {
@@ -433,13 +433,18 @@ void Renderer::render(GameDatabase& db, RendererDatabase& renderDB) {
       });
     }
   });
-  */
-  //_renderDebug(db, renderDB);
+
+  _renderDebug(db, renderDB);
 
   Queries::viewEachRow<Row<Camera>>(db, [&](Row<Camera>& cameras) {
     for(const Camera& camera : cameras.mElements) {
       ParticleUniforms uniforms;
       uniforms.worldToView = _getWorldToView(camera, aspectRatio);
+      const SceneState& scene = std::get<SharedRow<SceneState>>(std::get<GlobalGameData>(db.mTables).mRows).at();
+      const glm::vec2 origin = (scene.mBoundaryMin + scene.mBoundaryMax) * 0.5f;
+      const glm::vec2 scale = (scene.mBoundaryMax - scene.mBoundaryMin);// * 1.2f;
+      uniforms.particleToWorld = glm::translate(glm::vec3(origin.x, origin.y, 0.0f)) * glm::scale(glm::vec3(scale.x, scale.y, 1.0f));
+      uniforms.worldToParticle = glm::inverse(uniforms.particleToWorld);
 
       //TODO: need all the buffer data not just the last one
       CubeSpriteInfo info;
@@ -449,15 +454,15 @@ void Renderer::render(GameDatabase& db, RendererDatabase& renderDB) {
       info.quadVertexBuffer = state.mQuadVertexBuffer;
       info.rotX = state.mQuadUniforms.rotX;
       info.rotY = state.mQuadUniforms.rotY;
-      //ParticleRenderer::renderNormals(data, uniforms, info);
+      ParticleRenderer::renderNormals(data, uniforms, info);
+      ParticleRenderer::renderParticleNormals(data, uniforms, frameIndex);
 
-      uniforms.worldToView = glm::identity<glm::mat4>();
       ParticleRenderer::update(data, uniforms, frameIndex);
       ParticleRenderer::render(data, uniforms, frameIndex);
     }
   });
 
- // Debug::pictureInPicture(debug, { 50, 50 }, { 350, 350 }, data.mSceneTexture);
+  Debug::pictureInPicture(debug, { 50, 50 }, { 350, 350 }, data.mSceneTexture);
 
   SwapBuffers(state.mDeviceContext);
 }
