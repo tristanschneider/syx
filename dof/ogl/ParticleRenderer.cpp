@@ -262,17 +262,13 @@ void ParticleRenderer::init(ParticleData& data) {
   glGenBuffers(data.mFeedbackBuffers.size(), data.mFeedbackBuffers.data());
 
   std::vector<ParticleData::Particle> particles(particleCount);
+  const int rowCols = static_cast<int>(std::sqrt(float(particleCount)));
   for(size_t i = 0; i < particles.size(); ++i) {
-    particles[i].pos.x = float(i)*0.001f;
-    particles[i].pos.y = float(i)*0.001f;
-    particles[i].vel.y = (i % 2) ? 0.001f : -0.001f;
+    const int r = i % rowCols;
+    const int c = i / rowCols;
+    particles[i].pos.x = float(r)/float(rowCols);
+    particles[i].pos.y = float(c)/float(rowCols);
   }
-  const float ext = 0.95f;
-  particles[0].pos = glm::vec2(ext, ext);
-  particles[1].pos = glm::vec2(ext, -ext);
-  particles[2].pos = glm::vec2(-ext, -ext);
-  particles[3].pos = glm::vec2(-ext, ext);
-  for(int i = 0; i < 4; ++i) { particles[i].vel = glm::vec2(0.0f); }
 
   for(size_t i = 0; i < data.mFeedbackBuffers.size(); ++i) {
     glBindTransformFeedback(GL_TRANSFORM_FEEDBACK, data.mFeedbacks[i]);
@@ -386,18 +382,25 @@ namespace {
   }
 }
 
-void ParticleRenderer::renderNormals(const ParticleData& data, const ParticleUniforms& uniforms, const CubeSpriteInfo& sprites) {
-  data;sprites;uniforms;
+void ParticleRenderer::renderNormalsBegin(const ParticleData& data) {
   glViewport(0, 0, ParticleData::SCENE_WIDTH, ParticleData::SCENE_HEIGHT);
   //Leave the one pixel border to make particles go back into the scene
   glEnable(GL_SCISSOR_TEST);
   glScissor(1, 1, ParticleData::SCENE_WIDTH - 2, ParticleData::SCENE_HEIGHT - 2);
-
   glUseProgram(data.mSceneShader.mProgram);
   glBindFramebuffer(GL_FRAMEBUFFER, data.mSceneFBO);
   //Normals are stored in color in the range [0, 1] but shifted and used as [-0.5, 0.5], meaning that 0.5 raw color has the meaning of 0
   glClearColor(0.5f, 0.5f, 1.0f, 0.0f);
   glClear(GL_COLOR_BUFFER_BIT);
+}
+
+void ParticleRenderer::renderNormalsEnd() {
+  glUseProgram(0);
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  glDisable(GL_SCISSOR_TEST);
+}
+
+void ParticleRenderer::renderNormals(const ParticleData& data, const ParticleUniforms& uniforms, const CubeSpriteInfo& sprites) {
   glBindBuffer(GL_ARRAY_BUFFER, sprites.quadVertexBuffer);
   glEnableVertexAttribArray(0);
   glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, 0);
@@ -407,12 +410,7 @@ void ParticleRenderer::renderNormals(const ParticleData& data, const ParticleUni
   _bindTextureSamplerUniform(sprites.posY, GL_R32F, textureIndex++, data.mSceneShader.posY);
   _bindTextureSamplerUniform(sprites.rotX, GL_R32F, textureIndex++, data.mSceneShader.rotX);
   _bindTextureSamplerUniform(sprites.rotY, GL_R32F, textureIndex++, data.mSceneShader.rotY);
-
   glDrawArraysInstanced(GL_TRIANGLES, 0, 6, GLsizei(sprites.count));
-
-  glUseProgram(0);
-  glBindFramebuffer(GL_FRAMEBUFFER, 0);
-  glDisable(GL_SCISSOR_TEST);
 }
 
 void ParticleRenderer::renderParticleNormals(const ParticleData& data, const ParticleUniforms& uniforms, size_t frameIndex) {

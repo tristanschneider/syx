@@ -20,12 +20,18 @@ struct DebugDrawer {
   size_t mLastSize{};
 };
 
+struct QuadPass {
+  size_t mLastCount{};
+  QuadUniforms mQuadUniforms;
+};
+
 struct OGLState {
   HGLRC mGLContext{};
   HDC mDeviceContext{};
   GLuint mQuadShader{};
   GLuint mQuadVertexBuffer{};
-  QuadUniforms mQuadUniforms;
+  //One pass for each viewEachRow of quads. Could be compile time
+  std::vector<QuadPass> mQuadPasses;
   DebugDrawer mDebug;
 };
 
@@ -62,5 +68,6 @@ using RendererDatabase = Database<
 
 struct Renderer {
   static void initDeviceContext(GraphicsContext::ElementRef& context);
+  static void initGame(GameDatabase& db, RendererDatabase& renderDB);
   static void render(GameDatabase& db, RendererDatabase& renderDB);
 };

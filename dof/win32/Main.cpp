@@ -252,6 +252,7 @@ int WINAPI WinMain(HINSTANCE hinstance, HINSTANCE, LPSTR lpCmdLine, int nCmdShow
 
   context.get<1>().mWindow = wnd;
   Renderer::initDeviceContext(context);
+  Renderer::initGame(app.mGame, app.mRenderer);
   int exitCode = mainLoop(lpCmdLine);
 
   APP = nullptr;

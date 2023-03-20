@@ -262,6 +262,7 @@ struct Simulation {
   static void _checkFragmentGoals(GameObjectTable& fragments);
   static void _migrateCompletedFragments(GameObjectTable& fragments, StaticGameObjectTable& destinationFragments, BroadphaseTable& broadphase, StableElementMappings& mappings);
 
+  static const SceneState& _getSceneState(GameDatabase& db);
   static PhysicsTableIds _getPhysicsTableIds();
   static Scheduler& _getScheduler(GameDatabase& db);
 };

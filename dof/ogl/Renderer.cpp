@@ -302,8 +302,16 @@ void Renderer::initDeviceContext(GraphicsContext::ElementRef& context) {
 
   state.mQuadShader = Shader::loadShader(QuadShader::vs, QuadShader::ps);
   state.mQuadVertexBuffer = _createQuadBuffers();
-  state.mQuadUniforms = _createQuadUniforms(state.mQuadShader);
+
   state.mDebug = _createDebugDrawer();
+}
+
+void Renderer::initGame(GameDatabase& db, RendererDatabase& renderDB) {
+  OGLState& state = std::get<Row<OGLState>>(std::get<GraphicsContext>(renderDB.mTables).mRows).at(0);
+  //Create buffers for each pass. The count of passes won't change
+  Queries::viewEachRow<Row<CubeSprite>>(db, [&](Row<CubeSprite>&) {
+    state.mQuadPasses.push_back({ 0, _createQuadUniforms(state.mQuadShader) });
+  });
 }
 
 void _renderDebug(GameDatabase& db, RendererDatabase& renderDB, float aspectRatio) {
@@ -337,6 +345,8 @@ void _renderDebug(GameDatabase& db, RendererDatabase& renderDB, float aspectRati
 }
 
 void Renderer::render(GameDatabase& db, RendererDatabase& renderDB) {
+  glGetError();
+
   //TODO: separate step
   _processRequests(db, renderDB);
 
@@ -359,7 +369,47 @@ void Renderer::render(GameDatabase& db, RendererDatabase& renderDB) {
   glClearColor(0.0f, 0.0f, 1.0f, 0.0f);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
+  Queries::viewEachRow<Row<Camera>>(db, [&](Row<Camera>& cameras) {
+    for(const Camera& camera : cameras.mElements) {
+      ParticleUniforms uniforms;
+      uniforms.worldToView = _getWorldToView(camera, aspectRatio);
+      const SceneState& scene = std::get<SharedRow<SceneState>>(std::get<GlobalGameData>(db.mTables).mRows).at();
+      const glm::vec2 origin = (scene.mBoundaryMin + scene.mBoundaryMax) * 0.5f;
+      const float extraSpaceScalar = 2.5f;
+      //*2 because particle space is NDC, meaning scale of 2: [-1,1]
+      const glm::vec2 scale = (scene.mBoundaryMax - scene.mBoundaryMin) * 0.5f * extraSpaceScalar;
+      uniforms.particleToWorld = glm::translate(glm::vec3(origin.x, origin.y, 0.0f)) * glm::scale(glm::vec3(scale.x, scale.y, 1.0f));
+      uniforms.worldToParticle = glm::inverse(uniforms.particleToWorld);
+
+      ParticleRenderer::renderNormalsBegin(data);
+      for(const QuadPass& pass : state.mQuadPasses) {
+        //Hack to use the last count since it renders before the buffers are updated by quad drawing.
+        if(pass.mLastCount) {
+          CubeSpriteInfo info;
+          info.count = pass.mLastCount;
+          info.posX = pass.mQuadUniforms.posX;
+          info.posY = pass.mQuadUniforms.posY;
+          info.quadVertexBuffer = state.mQuadVertexBuffer;
+          info.rotX = pass.mQuadUniforms.rotX;
+          info.rotY = pass.mQuadUniforms.rotY;
+
+          ParticleRenderer::renderNormals(data, uniforms, info);
+        }
+      }
+      //ParticleRenderer::renderParticleNormals(data, uniforms, frameIndex);
+      ParticleRenderer::renderNormalsEnd();
+
+      static bool dewit = false;
+      if (dewit) {
+      ParticleRenderer::update(data, uniforms, frameIndex);
+      }
+      glViewport(0, 0, window.mWidth, window.mHeight);
+      ParticleRenderer::render(data, uniforms, frameIndex);
+    }
+  });
+
   glUseProgram(state.mQuadShader);
+  int quadPass = 0;
   Queries::viewEachRow<Row<Camera>>(db, [&](Row<Camera>& cameras) {
     for(const Camera& camera : cameras.mElements) {
       Queries::viewEachRow<FloatRow<Tags::Pos, Tags::X>,
@@ -374,8 +424,10 @@ void Renderer::render(GameDatabase& db, RendererDatabase& renderDB) {
             FloatRow<Tags::Rot, Tags::SinAngle>& rotationY,
             Row<CubeSprite>& sprite,
             SharedRow<TextureReference>& texture) {
+          QuadPass& pass = state.mQuadPasses[quadPass++];
 
           size_t count = posX.size();
+          pass.mLastCount = count;
           if(!count) {
             return;
           }
@@ -385,17 +437,17 @@ void Renderer::render(GameDatabase& db, RendererDatabase& renderDB) {
             return;
           }
 
-          glBindBuffer(GL_TEXTURE_BUFFER, state.mQuadUniforms.posX.buffer);
+          glBindBuffer(GL_TEXTURE_BUFFER, pass.mQuadUniforms.posX.buffer);
           glBufferData(GL_TEXTURE_BUFFER, sizeof(float)*count, posX.mElements.data(), GL_STATIC_DRAW);
-          glBindBuffer(GL_TEXTURE_BUFFER, state.mQuadUniforms.posY.buffer);
+          glBindBuffer(GL_TEXTURE_BUFFER, pass.mQuadUniforms.posY.buffer);
           glBufferData(GL_TEXTURE_BUFFER, sizeof(float)*count, posY.mElements.data(), GL_STATIC_DRAW);
-          glBindBuffer(GL_TEXTURE_BUFFER, state.mQuadUniforms.rotX.buffer);
+          glBindBuffer(GL_TEXTURE_BUFFER, pass.mQuadUniforms.rotX.buffer);
           glBufferData(GL_TEXTURE_BUFFER, sizeof(float)*count, rotationX.mElements.data(), GL_STATIC_DRAW);
-          glBindBuffer(GL_TEXTURE_BUFFER, state.mQuadUniforms.rotY.buffer);
+          glBindBuffer(GL_TEXTURE_BUFFER, pass.mQuadUniforms.rotY.buffer);
           glBufferData(GL_TEXTURE_BUFFER, sizeof(float)*count, rotationY.mElements.data(), GL_STATIC_DRAW);
 
           //TODO: doesn't change every frame
-          glBindBuffer(GL_TEXTURE_BUFFER, state.mQuadUniforms.uv.buffer);
+          glBindBuffer(GL_TEXTURE_BUFFER, pass.mQuadUniforms.uv.buffer);
           glBufferData(GL_TEXTURE_BUFFER, sizeof(float)*count*4, sprite.mElements.data(), GL_STATIC_DRAW);
 
           glBindBuffer(GL_ARRAY_BUFFER, state.mQuadVertexBuffer);
@@ -406,16 +458,16 @@ void Renderer::render(GameDatabase& db, RendererDatabase& renderDB) {
 
           const glm::mat4 worldToView = _getWorldToView(camera, aspectRatio);
 
-          glUniformMatrix4fv(state.mQuadUniforms.worldToView, 1, GL_FALSE, &worldToView[0][0]);
+          glUniformMatrix4fv(pass.mQuadUniforms.worldToView, 1, GL_FALSE, &worldToView[0][0]);
           int textureIndex = 0;
-          _bindTextureSamplerUniform(state.mQuadUniforms.posX, GL_R32F, textureIndex++);
-          _bindTextureSamplerUniform(state.mQuadUniforms.posY, GL_R32F, textureIndex++);
-          _bindTextureSamplerUniform(state.mQuadUniforms.rotX, GL_R32F, textureIndex++);
-          _bindTextureSamplerUniform(state.mQuadUniforms.rotY, GL_R32F, textureIndex++);
-          _bindTextureSamplerUniform(state.mQuadUniforms.uv, GL_RGBA32F, textureIndex++);
+          _bindTextureSamplerUniform(pass.mQuadUniforms.posX, GL_R32F, textureIndex++);
+          _bindTextureSamplerUniform(pass.mQuadUniforms.posY, GL_R32F, textureIndex++);
+          _bindTextureSamplerUniform(pass.mQuadUniforms.rotX, GL_R32F, textureIndex++);
+          _bindTextureSamplerUniform(pass.mQuadUniforms.rotY, GL_R32F, textureIndex++);
+          _bindTextureSamplerUniform(pass.mQuadUniforms.uv, GL_RGBA32F, textureIndex++);
           glActiveTexture(GL_TEXTURE0 + textureIndex);
           glBindTexture(GL_TEXTURE_2D, oglTexture);
-          glUniform1i(state.mQuadUniforms.texture, textureIndex++);
+          glUniform1i(pass.mQuadUniforms.texture, textureIndex++);
 
           glDrawArraysInstanced(GL_TRIANGLES, 0, 6, GLsizei(count));
       });
@@ -431,9 +483,7 @@ void Renderer::render(GameDatabase& db, RendererDatabase& renderDB) {
     const glm::vec2 ur = scene.mBoundaryMax;
     const glm::vec2 br = glm::vec2(scene.mBoundaryMax.x, scene.mBoundaryMin.y);
 
-    auto& players = std::get<PlayerTable>(db.mTables);
-    const glm::vec2 asdf = TableOperations::size(players) ? glm::vec2{ std::get<FloatRow<Tags::Pos, Tags::X>>(players.mRows).at(0), std::get<FloatRow<Tags::Pos, Tags::Y>>(players.mRows).at(0) } : glm::vec2{};
-    std::array points{ bl, ul, ul, ur, ur, br, br, bl, asdf, asdf + glm::vec2(1.0f, 0.0f) };
+    std::array points{ bl, ul, ul, ur, ur, br, br, bl };
     for(const auto& p : points) {
       TableOperations::addToTable(debugTable).get<0>().mPos = p;
     }
@@ -441,39 +491,8 @@ void Renderer::render(GameDatabase& db, RendererDatabase& renderDB) {
 
   _renderDebug(db, renderDB, aspectRatio);
 
-  Queries::viewEachRow<Row<Camera>>(db, [&](Row<Camera>& cameras) {
-    for(const Camera& camera : cameras.mElements) {
-      ParticleUniforms uniforms;
-      uniforms.worldToView = _getWorldToView(camera, aspectRatio);
-      const SceneState& scene = std::get<SharedRow<SceneState>>(std::get<GlobalGameData>(db.mTables).mRows).at();
-      const glm::vec2 origin = (scene.mBoundaryMin + scene.mBoundaryMax) * 0.5f;
-      const float extraSpaceScalar = 1.5f;
-      //*2 because particle space is NDC, meaning scale of 2: [-1,1]
-      const glm::vec2 scale = (scene.mBoundaryMax - scene.mBoundaryMin) * 0.5f * extraSpaceScalar;
-      uniforms.particleToWorld = glm::translate(glm::vec3(origin.x, origin.y, 0.0f)) * glm::scale(glm::vec3(scale.x, scale.y, 1.0f));
-      uniforms.worldToParticle = glm::inverse(uniforms.particleToWorld);
-
-      auto test = uniforms.worldToParticle * glm::vec4(scene.mBoundaryMin.x, scene.mBoundaryMin.y, 0.0f, 1.0f);
-      test;
-
-      //TODO: need all the buffer data not just the last one
-      CubeSpriteInfo info;
-      info.count = 1;
-      info.posX = state.mQuadUniforms.posX;
-      info.posY = state.mQuadUniforms.posY;
-      info.quadVertexBuffer = state.mQuadVertexBuffer;
-      info.rotX = state.mQuadUniforms.rotX;
-      info.rotY = state.mQuadUniforms.rotY;
-      ParticleRenderer::renderNormals(data, uniforms, info);
-      //ParticleRenderer::renderParticleNormals(data, uniforms, frameIndex);
-
-      ParticleRenderer::update(data, uniforms, frameIndex);
-      glViewport(0, 0, window.mWidth, window.mHeight);
-      ParticleRenderer::render(data, uniforms, frameIndex);
-    }
-  });
-
   Debug::pictureInPicture(debug, { 50, 50 }, { 350, 350 }, data.mSceneTexture);
 
+  glGetError();
   SwapBuffers(state.mDeviceContext);
 }
