@@ -4,8 +4,6 @@
 #include "Debug.h"
 #include "Shader.h"
 
-GLenum e{};
-
 namespace {
   const char* particleVS = R"(
     #version 330
@@ -19,9 +17,24 @@ namespace {
     out vec2 mVelocity0;
     out float mType0;
 
+    //Float precision is a bit wonky so snap it down so that zero velocity doesn't cause small drift
+    float roundNearZero(float v) {
+      int precisionI = 100;
+      float precisionF = float(precisionI);
+      int i = int(v*precisionF);
+      return float(i)/precisionF;
+    }
+
     void main() {
-      vec2 v = (mVelocity + texture(uSceneTex, vec2(mPosition.x, mPosition.y)).rg) * 0.99f;
-      mPosition0 = mPosition + v;
+      //Texture position transform from NDC to texture coordinate space
+      vec2 texCoord = vec2(mPosition.x*0.5f + 0.5f, mPosition.y*0.5f + 0.5f);
+      //Fetch value and shift from range [0, 1] back to [-0.5, 0.5]
+      vec2 texVelocity = texture(uSceneTex, texCoord).rg - vec2(0.5f, 0.5f);
+      texVelocity = vec2(roundNearZero(texVelocity.x), roundNearZero(texVelocity.y));
+
+      vec2 v = (mVelocity + texVelocity) * 0.99f;
+      float dt = 0.016f;
+      mPosition0 = mPosition + v*dt;
       mVelocity0 = v;
       mType0 = mType;
     }
@@ -62,7 +75,7 @@ namespace {
   const char* particleRenderPS = R"(
     #version 330 core
     out vec3 oColor;
-    void main() { oColor = vec3(1, 0, 0); }
+    void main() { oColor = vec3(0.9, 0.9, 0.9); }
   )";
 
   const char* particleNormalRenderVS = R"(
@@ -160,20 +173,29 @@ namespace {
 
       void main() {
         //Pick correct normal based on uv coordinates
+        vec2 normal;
         if(abs(oUV.x) > abs(oUV.y)) {
-          //X is the dominant coordinate, use it as the normal in whichever direction it is, extended to length 1 at the max extent
-          color = vec3(oUV.x*2.0f, 0.0f, 0.0f);
+          //X is the dominant coordinate, use it as the normal in whichever direction it is, length is up to 0.5
+          normal = vec2(oUV.x, 0.0f);
         }
         else {
-          color = vec3(0.0f, oUV.y*2.0f, 0.0f);
+          normal = vec2(0.0f, oUV.y);
         }
 
         //Rotate computed normal to world space then write it down as a color
         float cosAngle = texelFetch(uRotX, oInstanceID).r;
         float sinAngle = texelFetch(uRotY, oInstanceID).r;
         //2d rotation matrix multiply
-        color = vec3(color.x*cosAngle - color.y*sinAngle,
-          color.x*sinAngle + color.y*cosAngle, 0.0f);
+        normal = vec2(normal.x*cosAngle - normal.y*sinAngle,
+          normal.x*sinAngle + normal.y*cosAngle);
+        //Go from world scale to particle scale
+        float scale = 1.0f;
+        normal *= scale;
+        //shift from range [-0.5, 0.5] to [0, 1] since that's what colors get clamped to
+        normal += vec2(0.5, 0.5);
+
+        //Store normal as color in texture
+        color = vec3(normal, 0.0f);
       }
   )";
 }
@@ -234,7 +256,7 @@ namespace {
 }
 
 void ParticleRenderer::init(ParticleData& data) {
-  constexpr size_t particleCount = 10000;
+  constexpr size_t particleCount = 100000;
 
   glGenTransformFeedbacks(data.mFeedbacks.size(), data.mFeedbacks.data());
   glGenBuffers(data.mFeedbackBuffers.size(), data.mFeedbackBuffers.data());
@@ -245,7 +267,12 @@ void ParticleRenderer::init(ParticleData& data) {
     particles[i].pos.y = float(i)*0.001f;
     particles[i].vel.y = (i % 2) ? 0.001f : -0.001f;
   }
-  particles[0].type = 1;
+  const float ext = 0.95f;
+  particles[0].pos = glm::vec2(ext, ext);
+  particles[1].pos = glm::vec2(ext, -ext);
+  particles[2].pos = glm::vec2(-ext, -ext);
+  particles[3].pos = glm::vec2(-ext, ext);
+  for(int i = 0; i < 4; ++i) { particles[i].vel = glm::vec2(0.0f); }
 
   for(size_t i = 0; i < data.mFeedbackBuffers.size(); ++i) {
     glBindTransformFeedback(GL_TRANSFORM_FEEDBACK, data.mFeedbacks[i]);
@@ -307,6 +334,32 @@ void ParticleRenderer::init(ParticleData& data) {
   GLenum drawBuffer = GL_COLOR_ATTACHMENT0;
   glDrawBuffers(1, &drawBuffer);
 
+  constexpr float zero = 0.5f;
+  constexpr float unused = 0.0f;
+  constexpr float edgeBias = 0.5f;
+  glClearColor(zero, zero, unused, unused);
+  glClear(GL_COLOR_BUFFER_BIT);
+
+  glEnable(GL_SCISSOR_TEST);
+  //Put a one pixel border into the texture on the edges pointing back towards the middle
+  //Left edge
+  glScissor(0, 0, 1, ParticleData::SCENE_HEIGHT);
+  glClearColor(zero + edgeBias, zero, unused, unused);
+  glClear(GL_COLOR_BUFFER_BIT);
+  //Right edge
+  glScissor(ParticleData::SCENE_WIDTH - 1, 0, 1, ParticleData::SCENE_HEIGHT);
+  glClearColor(zero - edgeBias, zero, unused, unused);
+  glClear(GL_COLOR_BUFFER_BIT);
+  //Top edge
+  glScissor(0, ParticleData::SCENE_HEIGHT - 1, ParticleData::SCENE_WIDTH, 1);
+  glClearColor(zero, zero - edgeBias, unused, unused);
+  glClear(GL_COLOR_BUFFER_BIT);
+  //Bottom edge
+  glScissor(0, 0, ParticleData::SCENE_WIDTH, 1);
+  glClearColor(zero, zero + edgeBias, unused, unused);
+  glClear(GL_COLOR_BUFFER_BIT);
+  glDisable(GL_SCISSOR_TEST);
+
   data.mSceneShader.mProgram = Shader::loadShader(quadNormalVS, quadNormalPS);
   data.mSceneShader.posX = glGetUniformLocation(data.mSceneShader.mProgram, "uPosX");
   data.mSceneShader.posY = glGetUniformLocation(data.mSceneShader.mProgram, "uPosY");
@@ -335,10 +388,15 @@ namespace {
 
 void ParticleRenderer::renderNormals(const ParticleData& data, const ParticleUniforms& uniforms, const CubeSpriteInfo& sprites) {
   data;sprites;uniforms;
+  glViewport(0, 0, ParticleData::SCENE_WIDTH, ParticleData::SCENE_HEIGHT);
+  //Leave the one pixel border to make particles go back into the scene
+  glEnable(GL_SCISSOR_TEST);
+  glScissor(1, 1, ParticleData::SCENE_WIDTH - 2, ParticleData::SCENE_HEIGHT - 2);
 
   glUseProgram(data.mSceneShader.mProgram);
   glBindFramebuffer(GL_FRAMEBUFFER, data.mSceneFBO);
-  glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+  //Normals are stored in color in the range [0, 1] but shifted and used as [-0.5, 0.5], meaning that 0.5 raw color has the meaning of 0
+  glClearColor(0.5f, 0.5f, 1.0f, 0.0f);
   glClear(GL_COLOR_BUFFER_BIT);
   glBindBuffer(GL_ARRAY_BUFFER, sprites.quadVertexBuffer);
   glEnableVertexAttribArray(0);
@@ -354,6 +412,7 @@ void ParticleRenderer::renderNormals(const ParticleData& data, const ParticleUni
 
   glUseProgram(0);
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  glDisable(GL_SCISSOR_TEST);
 }
 
 void ParticleRenderer::renderParticleNormals(const ParticleData& data, const ParticleUniforms& uniforms, size_t frameIndex) {
@@ -381,11 +440,10 @@ void ParticleRenderer::renderParticleNormals(const ParticleData& data, const Par
 }
 
 void ParticleRenderer::render(const ParticleData& data, const ParticleUniforms& uniforms, size_t frameIndex) {
-  frameIndex;
-  const TransformTargets target(0);
+  frameIndex;uniforms;
+  const TransformTargets target(frameIndex);
 
   glPointSize(2.0f);
-
   glUseProgram(data.mRenderShader.program);
   glBindBuffer(GL_ARRAY_BUFFER, data.mFeedbackBuffers[target.dst]);
 

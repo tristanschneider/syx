@@ -117,6 +117,16 @@ namespace {
     )";
   };
 
+  glm::mat4 _getWorldToView(const Camera& camera, float aspectRatio) {
+    glm::vec3 scale = glm::vec3(camera.zoom);
+    scale.x *= aspectRatio;
+    return glm::inverse(
+      glm::translate(glm::vec3(camera.x, camera.y, 0.0f)) *
+      glm::rotate(camera.angle, glm::vec3(0, 0, -1)) *
+      glm::scale(scale)
+    );
+  }
+
   void _initDevice(HDC context, BYTE colorBits, BYTE depthBits, BYTE stencilBits, BYTE auxBuffers) {
     PIXELFORMATDESCRIPTOR pfd = {
       sizeof(PIXELFORMATDESCRIPTOR),
@@ -296,38 +306,26 @@ void Renderer::initDeviceContext(GraphicsContext::ElementRef& context) {
   state.mDebug = _createDebugDrawer();
 }
 
-void _renderDebug(GameDatabase& db, RendererDatabase& renderDB) {
+void _renderDebug(GameDatabase& db, RendererDatabase& renderDB, float aspectRatio) {
   OGLState& state = std::get<Row<OGLState>>(std::get<GraphicsContext>(renderDB.mTables).mRows).at(0);
   DebugDrawer& debug = state.mDebug;
   auto& lineTable = std::get<DebugLineTable>(db.mTables);
   auto& linesToDraw = std::get<Row<DebugPoint>>(lineTable.mRows);
   if(linesToDraw.size()) {
-    auto e =  glGetError();
     glBindBuffer(GL_ARRAY_BUFFER, debug.mVBO);
-    e =  glGetError();
     if(debug.mLastSize < linesToDraw.size()) {
       glBufferData(GL_ARRAY_BUFFER, sizeof(DebugPoint)*linesToDraw.size(), nullptr, GL_DYNAMIC_DRAW);
-      e =  glGetError();
       debug.mLastSize = linesToDraw.size();
     }
     glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(DebugPoint)*linesToDraw.size(), linesToDraw.mElements.data());
-    e =  glGetError();
     glBindVertexArray(debug.mVAO);
-    e =  glGetError();
     glUseProgram(debug.mShader);
-    e =  glGetError();
     Queries::viewEachRow<Row<Camera>>(db, [&](Row<Camera>& cameras) {
       for(const Camera& camera : cameras.mElements) {
-        glm::mat4 worldToView = glm::inverse(
-          glm::translate(glm::vec3(camera.x, camera.y, 0.0f)) *
-          glm::rotate(camera.angle, glm::vec3(0, 0, -1)) *
-          glm::scale(glm::vec3(camera.zoom))
-        );
+        glm::mat4 worldToView = _getWorldToView(camera, aspectRatio);
         glUniformMatrix4fv(debug.mWVPUniform, 1, GL_FALSE, &worldToView[0][0]);
 
-        e =  glGetError();
         glDrawArrays(GL_LINES, 0, linesToDraw.size());
-        e =  glGetError();
       }
     });
 
@@ -336,16 +334,6 @@ void _renderDebug(GameDatabase& db, RendererDatabase& renderDB) {
   }
 
   TableOperations::resizeTable(lineTable, 0);
-}
-
-glm::mat4 _getWorldToView(const Camera& camera, float aspectRatio) {
-  glm::vec3 scale = glm::vec3(camera.zoom);
-  scale.x *= aspectRatio;
-  return glm::inverse(
-    glm::translate(glm::vec3(camera.x, camera.y, 0.0f)) *
-    glm::rotate(camera.angle, glm::vec3(0, 0, -1)) *
-    glm::scale(scale)
-  );
 }
 
 void Renderer::render(GameDatabase& db, RendererDatabase& renderDB) {
@@ -434,7 +422,24 @@ void Renderer::render(GameDatabase& db, RendererDatabase& renderDB) {
     }
   });
 
-  _renderDebug(db, renderDB);
+  static bool renderBorders = true;
+  if(renderBorders) {
+    auto& debugTable = std::get<DebugLineTable>(db.mTables);
+    const SceneState& scene = Simulation::_getSceneState(db);
+    const glm::vec2 bl = scene.mBoundaryMin;
+    const glm::vec2 ul = glm::vec2(scene.mBoundaryMin.x, scene.mBoundaryMax.y);
+    const glm::vec2 ur = scene.mBoundaryMax;
+    const glm::vec2 br = glm::vec2(scene.mBoundaryMax.x, scene.mBoundaryMin.y);
+
+    auto& players = std::get<PlayerTable>(db.mTables);
+    const glm::vec2 asdf = TableOperations::size(players) ? glm::vec2{ std::get<FloatRow<Tags::Pos, Tags::X>>(players.mRows).at(0), std::get<FloatRow<Tags::Pos, Tags::Y>>(players.mRows).at(0) } : glm::vec2{};
+    std::array points{ bl, ul, ul, ur, ur, br, br, bl, asdf, asdf + glm::vec2(1.0f, 0.0f) };
+    for(const auto& p : points) {
+      TableOperations::addToTable(debugTable).get<0>().mPos = p;
+    }
+  }
+
+  _renderDebug(db, renderDB, aspectRatio);
 
   Queries::viewEachRow<Row<Camera>>(db, [&](Row<Camera>& cameras) {
     for(const Camera& camera : cameras.mElements) {
@@ -442,9 +447,14 @@ void Renderer::render(GameDatabase& db, RendererDatabase& renderDB) {
       uniforms.worldToView = _getWorldToView(camera, aspectRatio);
       const SceneState& scene = std::get<SharedRow<SceneState>>(std::get<GlobalGameData>(db.mTables).mRows).at();
       const glm::vec2 origin = (scene.mBoundaryMin + scene.mBoundaryMax) * 0.5f;
-      const glm::vec2 scale = (scene.mBoundaryMax - scene.mBoundaryMin);// * 1.2f;
+      const float extraSpaceScalar = 1.5f;
+      //*2 because particle space is NDC, meaning scale of 2: [-1,1]
+      const glm::vec2 scale = (scene.mBoundaryMax - scene.mBoundaryMin) * 0.5f * extraSpaceScalar;
       uniforms.particleToWorld = glm::translate(glm::vec3(origin.x, origin.y, 0.0f)) * glm::scale(glm::vec3(scale.x, scale.y, 1.0f));
       uniforms.worldToParticle = glm::inverse(uniforms.particleToWorld);
+
+      auto test = uniforms.worldToParticle * glm::vec4(scene.mBoundaryMin.x, scene.mBoundaryMin.y, 0.0f, 1.0f);
+      test;
 
       //TODO: need all the buffer data not just the last one
       CubeSpriteInfo info;
@@ -455,9 +465,10 @@ void Renderer::render(GameDatabase& db, RendererDatabase& renderDB) {
       info.rotX = state.mQuadUniforms.rotX;
       info.rotY = state.mQuadUniforms.rotY;
       ParticleRenderer::renderNormals(data, uniforms, info);
-      ParticleRenderer::renderParticleNormals(data, uniforms, frameIndex);
+      //ParticleRenderer::renderParticleNormals(data, uniforms, frameIndex);
 
       ParticleRenderer::update(data, uniforms, frameIndex);
+      glViewport(0, 0, window.mWidth, window.mHeight);
       ParticleRenderer::render(data, uniforms, frameIndex);
     }
   });

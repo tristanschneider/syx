@@ -978,3 +978,8 @@ PhysicsTableIds Simulation::_getPhysicsTableIds() {
 Scheduler& Simulation::_getScheduler(GameDatabase& db) {
   return std::get<SharedRow<Scheduler>>(std::get<GlobalGameData>(db.mTables).mRows).at();
 }
+
+const SceneState& Simulation::_getSceneState(GameDatabase& db) {
+  return std::get<SharedRow<SceneState>>(std::get<GlobalGameData>(db.mTables).mRows).at();
+}
+
