@@ -8,6 +8,7 @@
 #include "TableOperations.h"
 #include "Queries.h"
 
+#include "Scheduler.h"
 #include "StableElementID.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -260,29 +261,39 @@ namespace Test {
       Assert::IsTrue(&std::get<Row<int>>(std::get<TestTable2>(database.mTables).mRows) == row);
     }
 
+    static void _execute(TaskRange task) {
+      if(task.mBegin) {
+        enki::TaskScheduler scheduler;
+        scheduler.Initialize();
+        TaskRange toRun = TaskBuilder::buildDependencies(task.mBegin);
+        scheduler.AddTaskSetToPipe(toRun.mBegin->mTask.get());
+        scheduler.WaitforAll();
+      }
+    }
+
     static void _fillNarrowphaseData(GameDatabase& db) {
       auto& pairs = std::get<CollisionPairsTable>(db.mTables);
-      Physics::fillNarrowphaseData<
+      _execute(Physics::fillNarrowphaseData<
         FloatRow<Tags::Pos, Tags::X>,
         FloatRow<Tags::Pos, Tags::Y>,
         FloatRow<Tags::Rot, Tags::CosAngle>,
-        FloatRow<Tags::Rot, Tags::SinAngle>>(pairs, db, _getStableMappings(db), Simulation::_getPhysicsTableIds());
+        FloatRow<Tags::Rot, Tags::SinAngle>>(pairs, db, _getStableMappings(db), Simulation::_getPhysicsTableIds()));
     }
 
     static void _fillConstraintVelocities(GameDatabase& db) {
       auto& constraints = std::get<ConstraintCommonTable>(db.mTables);
-      Physics::fillConstraintVelocities<
+      _execute(Physics::fillConstraintVelocities<
         FloatRow<Tags::LinVel, Tags::X>,
         FloatRow<Tags::LinVel, Tags::Y>,
-        FloatRow<Tags::AngVel, Tags::Angle>>(constraints, db);
+        FloatRow<Tags::AngVel, Tags::Angle>>(constraints, db));
     }
 
     static void _storeConstraintVelocities(GameDatabase& db) {
       auto& constraints = std::get<ConstraintCommonTable>(db.mTables);
-      Physics::storeConstraintVelocities<
+      _execute(Physics::storeConstraintVelocities<
         FloatRow<Tags::LinVel, Tags::X>,
         FloatRow<Tags::LinVel, Tags::Y>,
-        FloatRow<Tags::AngVel, Tags::Angle>>(constraints, db);
+        FloatRow<Tags::AngVel, Tags::Angle>>(constraints, db));
     }
 
     static StableElementMappings& _getStableMappings(GameDatabase& db) {
@@ -360,7 +371,7 @@ namespace Test {
 
     static void _buildConstraintsTable(GameDatabase& db, const PhysicsConfig& config) {
       DBReader reader(db);
-      ConstraintsTableBuilder::build(db, reader.mChangedPairs, reader.mStableMappings, reader.mConstraintsMappings, Simulation::_getPhysicsTableIds(), config);
+      _execute(ConstraintsTableBuilder::build(db, reader.mChangedPairs, reader.mStableMappings, reader.mConstraintsMappings, Simulation::_getPhysicsTableIds(), config));
     }
 
     TEST_METHOD(CollidingPair_PopulateNarrowphase_IsPopulated) {
@@ -970,7 +981,7 @@ namespace Test {
     static void _updatePhysics(GameDatabase& db) {
       PhysicsConfig config;
       config.mForcedTargetWidth = size_t(1);
-      Simulation::_updatePhysics(db, config);
+      _execute(Simulation::_updatePhysics(db, config));
     }
 
     static void _assertEnabledContactConstraintCount(GameDatabase& db, size_t expected) {
