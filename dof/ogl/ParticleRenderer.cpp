@@ -2,6 +2,7 @@
 #include "ParticleRenderer.h"
 
 #include "Debug.h"
+#include "Quad.h"
 #include "Shader.h"
 
 namespace {
@@ -222,12 +223,7 @@ namespace {
 
     glBeginTransformFeedback(GL_POINTS);
 
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(ParticleData::Particle), (const void*)0);
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(ParticleData::Particle), (const void*)(sizeof(float)*2));
-    glEnableVertexAttribArray(2);
-    glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, sizeof(ParticleData::Particle), (const void*)(sizeof(float)*4));
+    ParticleData::ParticleAttributes::bind();
 
     data.mSceneTexture;
     int textureIndex = 0;
@@ -242,9 +238,7 @@ namespace {
 
   void unbindForUpdate() {
     glEndTransformFeedback();
-    glDisableVertexAttribArray(0);
-    glDisableVertexAttribArray(1);
-    glDisableVertexAttribArray(2);
+    ParticleData::ParticleAttributes::unbind();
 
     //glBindTransformFeedback(GL_TRANSFORM_FEEDBACK, 0);
     //glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -402,8 +396,7 @@ void ParticleRenderer::renderNormalsEnd() {
 
 void ParticleRenderer::renderNormals(const ParticleData& data, const ParticleUniforms& uniforms, const CubeSpriteInfo& sprites) {
   glBindBuffer(GL_ARRAY_BUFFER, sprites.quadVertexBuffer);
-  glEnableVertexAttribArray(0);
-  glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, 0);
+  QuadVertexAttributes::bind();
   glUniformMatrix4fv(data.mSceneShader.worldToView, 1, GL_FALSE, &uniforms.worldToParticle[0][0]);
   int textureIndex = 0;
   _bindTextureSamplerUniform(sprites.posX, GL_R32F, textureIndex++, data.mSceneShader.posX);
@@ -421,17 +414,11 @@ void ParticleRenderer::renderParticleNormals(const ParticleData& data, const Par
   glBindFramebuffer(GL_FRAMEBUFFER, data.mSceneFBO);
   glBindBuffer(GL_ARRAY_BUFFER, data.mFeedbackBuffers[target.dst]);
 
-  // Position
-  glEnableVertexAttribArray(0);
-  glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(ParticleData::Particle), 0);
-  // Velocity
-  glEnableVertexAttribArray(1);
-  glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(ParticleData::Particle), (void*)(sizeof(float)*2));
+  ParticleData::ParticleAttributes::bind();
 
   glDrawTransformFeedback(GL_POINTS, data.mFeedbacks[target.dst]);
 
-  glDisableVertexAttribArray(0);
-  glDisableVertexAttribArray(1);
+  ParticleData::ParticleAttributes::unbind();
   glUseProgram(0);
   glBindBuffer(GL_ARRAY_BUFFER, 0);
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -445,14 +432,14 @@ void ParticleRenderer::render(const ParticleData& data, const ParticleUniforms& 
   glUseProgram(data.mRenderShader.program);
   glBindBuffer(GL_ARRAY_BUFFER, data.mFeedbackBuffers[target.dst]);
 
-  glEnableVertexAttribArray(0);
-  glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(ParticleData::Particle), 0);
+  //Bind only position
+  ParticleData::ParticleAttributes::bindRange(0, 1);
 
   glm::mat4 particleToView = uniforms.worldToView * uniforms.particleToWorld;
   glUniformMatrix4fv(data.mRenderShader.worldToView, 1, GL_FALSE, &particleToView[0][0]);
   glDrawTransformFeedback(GL_POINTS, data.mFeedbacks[target.dst]);
 
-  glDisableVertexAttribArray(0);
+  ParticleData::ParticleAttributes::unbind();
   glUseProgram(0);
   glBindBuffer(GL_ARRAY_BUFFER, 0);
 }

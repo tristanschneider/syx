@@ -4,6 +4,7 @@
 #include "glm/vec2.hpp"
 #include "glm/mat4x4.hpp"
 #include "Shader.h"
+#include "VertexAttributes.h"
 
 struct ParticleData {
   struct Particle {
@@ -11,6 +12,8 @@ struct ParticleData {
     glm::vec2 vel{};
     float type{};
   };
+
+  struct ParticleAttributes : VertexAttributes<&Particle::pos, &Particle::vel, &Particle::type> {};
 
   //Two because feedback must read from and write to different locations, so they swap each frame
   //The transform feedback buffer

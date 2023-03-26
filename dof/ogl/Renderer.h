@@ -4,13 +4,8 @@
 #include <Windows.h>
 #include "GL/glew.h"
 
+#include "Quad.h"
 #include "Shader.h"
-
-struct QuadUniforms {
-  TextureSamplerUniform posX, posY, rotX, rotY, uv;
-  GLuint worldToView;
-  GLuint texture;
-};
 
 struct DebugDrawer {
   GLuint mShader{};
@@ -18,11 +13,6 @@ struct DebugDrawer {
   GLuint mVAO{};
   GLuint mWVPUniform{};
   size_t mLastSize{};
-};
-
-struct QuadPass {
-  size_t mLastCount{};
-  QuadUniforms mQuadUniforms;
 };
 
 struct OGLState {
@@ -59,7 +49,6 @@ using GraphicsContext = Table<
   Row<OGLState>,
   Row<WindowData>
 >;
-
 
 using RendererDatabase = Database<
   GraphicsContext,

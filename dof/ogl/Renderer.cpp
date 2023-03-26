@@ -399,10 +399,7 @@ void Renderer::render(GameDatabase& db, RendererDatabase& renderDB) {
       //ParticleRenderer::renderParticleNormals(data, uniforms, frameIndex);
       ParticleRenderer::renderNormalsEnd();
 
-      static bool dewit = false;
-      if (dewit) {
       ParticleRenderer::update(data, uniforms, frameIndex);
-      }
       glViewport(0, 0, window.mWidth, window.mHeight);
       ParticleRenderer::render(data, uniforms, frameIndex);
     }
@@ -452,9 +449,7 @@ void Renderer::render(GameDatabase& db, RendererDatabase& renderDB) {
 
           glBindBuffer(GL_ARRAY_BUFFER, state.mQuadVertexBuffer);
           //Could tie these to a vao, but that would also require and index buffer all of which seems like overkill
-          glEnableVertexAttribArray(0);
-          //First attribute, 2 float elements that shouldn't be normalized, tightly packed, no offset
-          glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, 0);
+          QuadVertexAttributes::bind();
 
           const glm::mat4 worldToView = _getWorldToView(camera, aspectRatio);
 
