@@ -15,4 +15,5 @@ struct Shader {
   static GLuint _detachAndDestroy(GLuint program, GLuint s);
   static GLuint _detachAndDestroy(GLuint program, GLuint vs, GLuint ps);
   static TextureSamplerUniform _createTextureSamplerUniform(GLuint quadShader, const char* name);
+  static TextureSamplerUniform _createTextureSampler();
 };

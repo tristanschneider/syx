@@ -210,6 +210,9 @@ namespace {
     result.uv = Shader::_createTextureSamplerUniform(quadShader, "uUV");
     result.worldToView = glGetUniformLocation(quadShader, "uWorldToView");
     result.texture = glGetUniformLocation(quadShader, "uTex");
+    result.velX = Shader::_createTextureSampler();
+    result.velY = Shader::_createTextureSampler();
+    result.angVel = Shader::_createTextureSampler();
     return result;
   }
 
@@ -392,6 +395,9 @@ void Renderer::render(GameDatabase& db, RendererDatabase& renderDB) {
           info.quadVertexBuffer = state.mQuadVertexBuffer;
           info.rotX = pass.mQuadUniforms.rotX;
           info.rotY = pass.mQuadUniforms.rotY;
+          info.velX = pass.mQuadUniforms.velX;
+          info.velY = pass.mQuadUniforms.velY;
+          info.velA = pass.mQuadUniforms.angVel;
 
           ParticleRenderer::renderNormals(data, uniforms, info);
         }
@@ -409,13 +415,14 @@ void Renderer::render(GameDatabase& db, RendererDatabase& renderDB) {
   int quadPass = 0;
   Queries::viewEachRow<Row<Camera>>(db, [&](Row<Camera>& cameras) {
     for(const Camera& camera : cameras.mElements) {
-      Queries::viewEachRow<FloatRow<Tags::Pos, Tags::X>,
+      Queries::viewEachRowWithTableID<FloatRow<Tags::Pos, Tags::X>,
         FloatRow<Tags::Pos, Tags::Y>,
         FloatRow<Tags::Rot, Tags::CosAngle>,
         FloatRow<Tags::Rot, Tags::SinAngle>,
         Row<CubeSprite>,
         SharedRow<TextureReference>>(db,
-          [&](FloatRow<Tags::Pos, Tags::X>& posX,
+          [&](GameDatabase::ElementID id,
+            FloatRow<Tags::Pos, Tags::X>& posX,
             FloatRow<Tags::Pos, Tags::Y>& posY,
             FloatRow<Tags::Rot, Tags::CosAngle>& rotationX,
             FloatRow<Tags::Rot, Tags::SinAngle>& rotationY,
@@ -434,14 +441,38 @@ void Renderer::render(GameDatabase& db, RendererDatabase& renderDB) {
             return;
           }
 
+          const size_t floatSize = sizeof(float)*count;
           glBindBuffer(GL_TEXTURE_BUFFER, pass.mQuadUniforms.posX.buffer);
-          glBufferData(GL_TEXTURE_BUFFER, sizeof(float)*count, posX.mElements.data(), GL_STATIC_DRAW);
+          glBufferData(GL_TEXTURE_BUFFER, floatSize, posX.mElements.data(), GL_STATIC_DRAW);
           glBindBuffer(GL_TEXTURE_BUFFER, pass.mQuadUniforms.posY.buffer);
-          glBufferData(GL_TEXTURE_BUFFER, sizeof(float)*count, posY.mElements.data(), GL_STATIC_DRAW);
+          glBufferData(GL_TEXTURE_BUFFER, floatSize, posY.mElements.data(), GL_STATIC_DRAW);
           glBindBuffer(GL_TEXTURE_BUFFER, pass.mQuadUniforms.rotX.buffer);
-          glBufferData(GL_TEXTURE_BUFFER, sizeof(float)*count, rotationX.mElements.data(), GL_STATIC_DRAW);
+          glBufferData(GL_TEXTURE_BUFFER, floatSize, rotationX.mElements.data(), GL_STATIC_DRAW);
           glBindBuffer(GL_TEXTURE_BUFFER, pass.mQuadUniforms.rotY.buffer);
-          glBufferData(GL_TEXTURE_BUFFER, sizeof(float)*count, rotationY.mElements.data(), GL_STATIC_DRAW);
+          glBufferData(GL_TEXTURE_BUFFER, floatSize, rotationY.mElements.data(), GL_STATIC_DRAW);
+
+          auto velX = Queries::getRowInTable<FloatRow<Tags::LinVel, Tags::X>>(db, id);
+          auto velY = Queries::getRowInTable<FloatRow<Tags::LinVel, Tags::Y>>(db, id);
+          auto velA = Queries::getRowInTable<FloatRow<Tags::AngVel, Tags::Angle>>(db, id);
+          if(velX && velY && velA) {
+            glBindBuffer(GL_TEXTURE_BUFFER, pass.mQuadUniforms.velX.buffer);
+            glBufferData(GL_TEXTURE_BUFFER, floatSize, velX->mElements.data(), GL_STATIC_DRAW);
+            glBindBuffer(GL_TEXTURE_BUFFER, pass.mQuadUniforms.velY.buffer);
+            glBufferData(GL_TEXTURE_BUFFER, floatSize, velY->mElements.data(), GL_STATIC_DRAW);
+            glBindBuffer(GL_TEXTURE_BUFFER, pass.mQuadUniforms.angVel.buffer);
+            glBufferData(GL_TEXTURE_BUFFER, floatSize, velA->mElements.data(), GL_STATIC_DRAW);
+          }
+          else {
+            //TODO: only ever write once but make sure it's the right size
+            static std::vector<float> empty;
+            empty.resize(count, 0.0f);
+            glBindBuffer(GL_TEXTURE_BUFFER, pass.mQuadUniforms.velX.buffer);
+            glBufferData(GL_TEXTURE_BUFFER, floatSize, empty.data(), GL_STATIC_DRAW);
+            glBindBuffer(GL_TEXTURE_BUFFER, pass.mQuadUniforms.velY.buffer);
+            glBufferData(GL_TEXTURE_BUFFER, floatSize, empty.data(), GL_STATIC_DRAW);
+            glBindBuffer(GL_TEXTURE_BUFFER, pass.mQuadUniforms.angVel.buffer);
+            glBufferData(GL_TEXTURE_BUFFER, floatSize, empty.data(), GL_STATIC_DRAW);
+          }
 
           //TODO: doesn't change every frame
           glBindBuffer(GL_TEXTURE_BUFFER, pass.mQuadUniforms.uv.buffer);

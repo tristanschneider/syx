@@ -33,7 +33,7 @@ struct ParticleData {
 
   struct SceneShader {
     GLuint mProgram{};
-    GLuint posX, posY, rotX, rotY;
+    GLuint posX, posY, rotX, rotY, velX, velY, angVel;
     GLuint worldToView;
   };
   struct ParticleSceneShader {
@@ -50,7 +50,7 @@ struct ParticleData {
 
 struct CubeSpriteInfo {
   //Sampler buffers for quads used during normal rendering
-  TextureSamplerUniform posX, posY, rotX, rotY;
+  TextureSamplerUniform posX, posY, rotX, rotY, velX, velY, velA;
   GLuint quadVertexBuffer;
   size_t count{};
 };

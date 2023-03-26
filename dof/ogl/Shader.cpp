@@ -82,3 +82,10 @@ TextureSamplerUniform Shader::_createTextureSamplerUniform(GLuint quadShader, co
   glGenTextures(1, &result.texture);
   return result;
 }
+
+TextureSamplerUniform Shader::_createTextureSampler() {
+  TextureSamplerUniform result;
+  glGenBuffers(1, &result.buffer);
+  glGenTextures(1, &result.texture);
+  return result;
+}

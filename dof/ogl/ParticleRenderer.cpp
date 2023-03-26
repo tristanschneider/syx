@@ -20,7 +20,7 @@ namespace {
 
     //Float precision is a bit wonky so snap it down so that zero velocity doesn't cause small drift
     float roundNearZero(float v) {
-      int precisionI = 100;
+      int precisionI = 255;
       float precisionF = float(precisionI);
       int i = int(v*precisionF);
       return float(i)/precisionF;
@@ -30,39 +30,22 @@ namespace {
       //Texture position transform from NDC to texture coordinate space
       vec2 texCoord = vec2(mPosition.x*0.5f + 0.5f, mPosition.y*0.5f + 0.5f);
       //Fetch value and shift from range [0, 1] back to [-0.5, 0.5]
-      vec2 texVelocity = texture(uSceneTex, texCoord).rg - vec2(0.5f, 0.5f);
-      texVelocity = vec2(roundNearZero(texVelocity.x), roundNearZero(texVelocity.y));
+      vec3 sceneData = texture(uSceneTex, texCoord).rgb;
+      vec2 collisionNormal = sceneData.rg - vec2(0.5f, 0.5f);
+      //Velocity of object the particle is colliding with along normal
+      float collidingVelocity = sceneData.b;
+      collisionNormal = vec2(roundNearZero(collisionNormal.x), roundNearZero(collisionNormal.y));
 
-      vec2 v = (mVelocity + texVelocity) * 0.99f;
+      vec2 v = mVelocity;
+      float particleVel = dot(collisionNormal, mVelocity);
+      float impulse = max(0, collidingVelocity - particleVel);
+      v += collisionNormal*impulse;
+
+      v *= 0.995f;
       float dt = 0.016f;
       mPosition0 = mPosition + v*dt;
       mVelocity0 = v;
       mType0 = mType;
-    }
-  )";
-
-  const char* particleGS = R"(
-    #version 330
-    layout(points) in;
-    layout(points) out;
-    layout(max_vertices = 100000) out;
-
-    in vec2 mPosition0[];
-    in vec2 mVelocity0[];
-    in float mType0[];
-
-    out vec2 mPosition1;
-    out vec2 mVelocity1;
-    out float mType1;
-
-    void main() {
-      mPosition1 = mPosition0[0];
-      mVelocity1 = mVelocity0[0];
-      mType1 = mType0[0];
-      //if(mType0[0] == 1.0) {
-        EmitVertex();
-        EndPrimitive();
-      //}
     }
   )";
 
@@ -110,6 +93,7 @@ namespace {
     uniform samplerBuffer uPosY;
     uniform samplerBuffer uRotX;
     uniform samplerBuffer uRotY;
+
     flat out int oInstanceID;
     out vec2 oUV;
 
@@ -125,14 +109,15 @@ namespace {
 
         pos = (uWorldToView*vec4(pos, 0, 1)).xy;
 
+        vec2 scale = vec2(0.5f, 0.5f);
         //Order of uUV data is uMin, vMin, uMax, vMax
         //Order of vertices in quad is:
         //1   5 4
         //2 0   3
         //Manually figure out which vertex this is to pick out the uv
         //An easier way would be duplicating the uv data per vertex
-        vec2 uvMin = vec2(-0.5f, -0.5f);
-        vec2 uvMax = vec2(0.5f, 0.5f);
+        vec2 uvMin = -scale;
+        vec2 uvMax = scale;
         switch(gl_VertexID) {
           //Bottom right
           case 0:
@@ -167,6 +152,9 @@ namespace {
       #version 330 core
       uniform samplerBuffer uRotX;
       uniform samplerBuffer uRotY;
+      uniform samplerBuffer uVelX;
+      uniform samplerBuffer uVelY;
+      uniform samplerBuffer uVelA;
 
       flat in int oInstanceID;
       in vec2 oUV;
@@ -175,13 +163,17 @@ namespace {
       void main() {
         //Pick correct normal based on uv coordinates
         vec2 normal;
+        float depth = 0.0f;
         if(abs(oUV.x) > abs(oUV.y)) {
           //X is the dominant coordinate, use it as the normal in whichever direction it is, length is up to 0.5
-          normal = vec2(oUV.x, 0.0f);
+          normal = vec2(sign(oUV.x), 0.0f);
+          depth = oUV.x;
         }
         else {
-          normal = vec2(0.0f, oUV.y);
+          normal = vec2(0.0f, sign(oUV.y));
+          depth = oUV.y;
         }
+        depth = 0.5 - abs(depth);
 
         //Rotate computed normal to world space then write it down as a color
         float cosAngle = texelFetch(uRotX, oInstanceID).r;
@@ -189,14 +181,24 @@ namespace {
         //2d rotation matrix multiply
         normal = vec2(normal.x*cosAngle - normal.y*sinAngle,
           normal.x*sinAngle + normal.y*cosAngle);
-        //Go from world scale to particle scale
-        float scale = 1.0f;
-        normal *= scale;
+
+        vec2 linVel = vec2(texelFetch(uVelX, oInstanceID).r, texelFetch(uVelY, oInstanceID).r);
+        float vA = texelFetch(uVelA, oInstanceID).r;
+        //UV is vector from center to point, so the same rVector that can be used for angular velocity
+        //cross product of [0,0,a]x[rx,ry,0]
+        vec2 angularPortion = vec2(-oUV.y, oUV.x)*vA;
+        vec2 velocityAtPoint = linVel + angularPortion;
+        float velocityAlongNormal = dot(velocityAtPoint, normal);
+
+        float contactBias = 0.01f;
+        float velocityScalar = 40.0f;
+        float outVelocity = contactBias*depth + velocityAlongNormal*velocityScalar;
+
         //shift from range [-0.5, 0.5] to [0, 1] since that's what colors get clamped to
         normal += vec2(0.5, 0.5);
 
         //Store normal as color in texture
-        color = vec3(normal, 0.0f);
+        color = vec3(normal, outVelocity);
       }
   )";
 }
@@ -262,6 +264,7 @@ void ParticleRenderer::init(ParticleData& data) {
     const int c = i / rowCols;
     particles[i].pos.x = float(r)/float(rowCols);
     particles[i].pos.y = float(c)/float(rowCols);
+    particles[i].vel = glm::vec2(-0.1f);
   }
 
   for(size_t i = 0; i < data.mFeedbackBuffers.size(); ++i) {
@@ -327,6 +330,7 @@ void ParticleRenderer::init(ParticleData& data) {
   constexpr float zero = 0.5f;
   constexpr float unused = 0.0f;
   constexpr float edgeBias = 0.5f;
+  constexpr float borderForce = 0.5f;
   glClearColor(zero, zero, unused, unused);
   glClear(GL_COLOR_BUFFER_BIT);
 
@@ -334,19 +338,19 @@ void ParticleRenderer::init(ParticleData& data) {
   //Put a one pixel border into the texture on the edges pointing back towards the middle
   //Left edge
   glScissor(0, 0, 1, ParticleData::SCENE_HEIGHT);
-  glClearColor(zero + edgeBias, zero, unused, unused);
+  glClearColor(zero + edgeBias, zero, borderForce, unused);
   glClear(GL_COLOR_BUFFER_BIT);
   //Right edge
   glScissor(ParticleData::SCENE_WIDTH - 1, 0, 1, ParticleData::SCENE_HEIGHT);
-  glClearColor(zero - edgeBias, zero, unused, unused);
+  glClearColor(zero - edgeBias, zero, borderForce, unused);
   glClear(GL_COLOR_BUFFER_BIT);
   //Top edge
   glScissor(0, ParticleData::SCENE_HEIGHT - 1, ParticleData::SCENE_WIDTH, 1);
-  glClearColor(zero, zero - edgeBias, unused, unused);
+  glClearColor(zero, zero - edgeBias, borderForce, unused);
   glClear(GL_COLOR_BUFFER_BIT);
   //Bottom edge
   glScissor(0, 0, ParticleData::SCENE_WIDTH, 1);
-  glClearColor(zero, zero + edgeBias, unused, unused);
+  glClearColor(zero, zero + edgeBias, borderForce, unused);
   glClear(GL_COLOR_BUFFER_BIT);
   glDisable(GL_SCISSOR_TEST);
 
@@ -355,6 +359,9 @@ void ParticleRenderer::init(ParticleData& data) {
   data.mSceneShader.posY = glGetUniformLocation(data.mSceneShader.mProgram, "uPosY");
   data.mSceneShader.rotX = glGetUniformLocation(data.mSceneShader.mProgram, "uRotX");
   data.mSceneShader.rotY = glGetUniformLocation(data.mSceneShader.mProgram, "uRotY");
+  data.mSceneShader.velX = glGetUniformLocation(data.mSceneShader.mProgram, "uVelX");
+  data.mSceneShader.velY = glGetUniformLocation(data.mSceneShader.mProgram, "uVelY");
+  data.mSceneShader.angVel = glGetUniformLocation(data.mSceneShader.mProgram, "uVelA");
   data.mSceneShader.worldToView = glGetUniformLocation(data.mSceneShader.mProgram, "uWorldToView");
 
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -403,6 +410,9 @@ void ParticleRenderer::renderNormals(const ParticleData& data, const ParticleUni
   _bindTextureSamplerUniform(sprites.posY, GL_R32F, textureIndex++, data.mSceneShader.posY);
   _bindTextureSamplerUniform(sprites.rotX, GL_R32F, textureIndex++, data.mSceneShader.rotX);
   _bindTextureSamplerUniform(sprites.rotY, GL_R32F, textureIndex++, data.mSceneShader.rotY);
+  _bindTextureSamplerUniform(sprites.velX, GL_R32F, textureIndex++, data.mSceneShader.velX);
+  _bindTextureSamplerUniform(sprites.velY, GL_R32F, textureIndex++, data.mSceneShader.velY);
+  _bindTextureSamplerUniform(sprites.velA, GL_R32F, textureIndex++, data.mSceneShader.angVel);
   glDrawArraysInstanced(GL_TRIANGLES, 0, 6, GLsizei(sprites.count));
 }
 
