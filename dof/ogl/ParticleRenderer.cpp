@@ -30,15 +30,22 @@ namespace {
       //Texture position transform from NDC to texture coordinate space
       vec2 texCoord = vec2(mPosition.x*0.5f + 0.5f, mPosition.y*0.5f + 0.5f);
       //Fetch value and shift from range [0, 1] back to [-0.5, 0.5]
-      vec3 sceneData = texture(uSceneTex, texCoord).rgb;
+      vec4 sceneData = texture(uSceneTex, texCoord).rgba;
       vec2 collisionNormal = sceneData.rg - vec2(0.5f, 0.5f);
       //Velocity of object the particle is colliding with along normal
       float collidingVelocity = sceneData.b;
       collisionNormal = vec2(roundNearZero(collisionNormal.x), roundNearZero(collisionNormal.y));
 
+      const float packID = 1.0f/255.0f;
+      float myID = roundNearZero(float((gl_VertexID % 254) + 1)*packID);
+      float collidingID = roundNearZero(sceneData.a);
+
       vec2 v = mVelocity;
       float particleVel = dot(collisionNormal, mVelocity);
       float impulse = max(0, collidingVelocity - particleVel);
+      if(myID == collidingID) {
+        impulse = 0.0f;
+      }
       v += collisionNormal*impulse;
 
       v *= 0.995f;
@@ -68,11 +75,14 @@ namespace {
     layout(location = 1) in vec2 mVelocity;
 
     out vec2 mVelocity1;
-    //Prevent self-collisions by always writing to previous position, and offset by one pixel to prevent collision when not moving
+    //Vertex id is encoded in alpha channel to allow preventing self-collisions
+    flat out float mID;
+
     void main() {
-      //gl_Position = vec4(mPosition.x + 0.01f + mVelocity.x, mPosition.y + mVelocity.y, 0.0, 1.0);
       gl_Position = vec4(mPosition, 0.0f, 1.0f);
       mVelocity1 = mVelocity;
+      const float packID = 1.0f/255.0f;
+      mID = float((gl_VertexID % 254) + 1)*packID;
     }
   )";
 
@@ -80,8 +90,22 @@ namespace {
     #version 330 core
 
     in vec2 mVelocity1;
-    out vec3 oColor;
-    void main() { oColor = vec3(1, 0, 0); } //vec3(mVelocity1, 0); }
+    flat in float mID;
+    out vec4 oColor;
+    void main() {
+      //Get position in rasterized point from top left origin and subtract center to get outward facing normal
+      vec2 normal = gl_PointCoord - vec2(0.5f, 0.5f);
+      //Flip from top left origin to bottom  left origin
+      normal.y = -normal.y;
+
+      float len = max(0.001f, length(normal));
+      normal *= 1.0f/len;
+      const float particleCollisionBias = 0.01f;
+      float velocityAlongNormal = dot(normal, mVelocity1) + particleCollisionBias;
+      //Shift normal from [-1,1] to [0, 1]
+      vec2 packedNormal = normal*0.5f + vec2(0.5f, 0.5f);
+      oColor = vec4(packedNormal, velocityAlongNormal, mID);
+    }
   )";
 
   const char* quadNormalVS = R"(
@@ -254,6 +278,10 @@ namespace {
 void ParticleRenderer::init(ParticleData& data) {
   constexpr size_t particleCount = 100000;
 
+  std::array<GLfloat, 2> range;
+  glGetFloatv(GL_POINT_SIZE_RANGE, range.data());
+  printf("Point size range %f to %f", range[0], range[1]);
+
   glGenTransformFeedbacks(data.mFeedbacks.size(), data.mFeedbacks.data());
   glGenBuffers(data.mFeedbackBuffers.size(), data.mFeedbackBuffers.data());
 
@@ -316,7 +344,7 @@ void ParticleRenderer::init(ParticleData& data) {
   glBindFramebuffer(GL_FRAMEBUFFER, data.mSceneFBO);
   glGenTextures(1, &data.mSceneTexture);
   glBindTexture(GL_TEXTURE_2D, data.mSceneTexture);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, ParticleData::SCENE_WIDTH, ParticleData::SCENE_HEIGHT, 0, GL_RGB, GL_FLOAT, nullptr);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, ParticleData::SCENE_WIDTH, ParticleData::SCENE_HEIGHT, 0, GL_RGBA, GL_FLOAT, nullptr);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -388,18 +416,25 @@ void ParticleRenderer::renderNormalsBegin(const ParticleData& data) {
   //Leave the one pixel border to make particles go back into the scene
   glEnable(GL_SCISSOR_TEST);
   glScissor(1, 1, ParticleData::SCENE_WIDTH - 2, ParticleData::SCENE_HEIGHT - 2);
-  glUseProgram(data.mSceneShader.mProgram);
   glBindFramebuffer(GL_FRAMEBUFFER, data.mSceneFBO);
   //Normals are stored in color in the range [0, 1] but shifted and used as [-0.5, 0.5], meaning that 0.5 raw color has the meaning of 0
   glClearColor(0.5f, 0.5f, 1.0f, 0.0f);
   glClear(GL_COLOR_BUFFER_BIT);
 }
 
+void ParticleRenderer::renderQuadNormalsBegin(const ParticleData& data) {
+  glUseProgram(data.mSceneShader.mProgram);
+}
+
 void ParticleRenderer::renderNormalsEnd() {
-  glUseProgram(0);
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
   glDisable(GL_SCISSOR_TEST);
 }
+
+void ParticleRenderer::renderQuadNormalsEnd() {
+  glUseProgram(0);
+}
+
 
 void ParticleRenderer::renderNormals(const ParticleData& data, const ParticleUniforms& uniforms, const CubeSpriteInfo& sprites) {
   glBindBuffer(GL_ARRAY_BUFFER, sprites.quadVertexBuffer);
@@ -420,6 +455,9 @@ void ParticleRenderer::renderParticleNormals(const ParticleData& data, const Par
   frameIndex;uniforms;
   const TransformTargets target(0);
 
+  //Required for gl_PointCoord to be nonzero
+  glEnable(GL_POINT_SPRITE);
+  glPointSize(3.0f);
   glUseProgram(data.mParticleSceneShader.mProgram);
   glBindFramebuffer(GL_FRAMEBUFFER, data.mSceneFBO);
   glBindBuffer(GL_ARRAY_BUFFER, data.mFeedbackBuffers[target.dst]);
@@ -431,7 +469,7 @@ void ParticleRenderer::renderParticleNormals(const ParticleData& data, const Par
   ParticleData::ParticleAttributes::unbind();
   glUseProgram(0);
   glBindBuffer(GL_ARRAY_BUFFER, 0);
-  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  glDisable(GL_POINT_SPRITE);
 }
 
 void ParticleRenderer::render(const ParticleData& data, const ParticleUniforms& uniforms, size_t frameIndex) {

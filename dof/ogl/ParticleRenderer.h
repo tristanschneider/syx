@@ -65,8 +65,10 @@ struct ParticleUniforms {
 struct ParticleRenderer {
   static void init(ParticleData& data);
   static void update(const ParticleData& data, const ParticleUniforms& uniforms, size_t frameIndex);
+  static void renderQuadNormalsBegin(const ParticleData& data);
   static void renderNormalsBegin(const ParticleData& data);
   static void renderNormalsEnd();
+  static void renderQuadNormalsEnd();
   static void renderNormals(const ParticleData& data, const ParticleUniforms& uniforms, const CubeSpriteInfo& sprites);
   static void renderParticleNormals(const ParticleData& data, const ParticleUniforms& uniforms, size_t frameIndex);
   static void render(const ParticleData& data, const ParticleUniforms& uniforms, size_t frameIndex);

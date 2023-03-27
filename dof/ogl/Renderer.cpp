@@ -385,6 +385,9 @@ void Renderer::render(GameDatabase& db, RendererDatabase& renderDB) {
       uniforms.worldToParticle = glm::inverse(uniforms.particleToWorld);
 
       ParticleRenderer::renderNormalsBegin(data);
+      //Render particles first so that quads can stomp them and take precedence
+      ParticleRenderer::renderParticleNormals(data, uniforms, frameIndex);
+      ParticleRenderer::renderQuadNormalsBegin(data);
       for(const QuadPass& pass : state.mQuadPasses) {
         //Hack to use the last count since it renders before the buffers are updated by quad drawing.
         if(pass.mLastCount) {
@@ -402,7 +405,7 @@ void Renderer::render(GameDatabase& db, RendererDatabase& renderDB) {
           ParticleRenderer::renderNormals(data, uniforms, info);
         }
       }
-      //ParticleRenderer::renderParticleNormals(data, uniforms, frameIndex);
+      ParticleRenderer::renderQuadNormalsEnd();
       ParticleRenderer::renderNormalsEnd();
 
       ParticleRenderer::update(data, uniforms, frameIndex);
@@ -517,7 +520,7 @@ void Renderer::render(GameDatabase& db, RendererDatabase& renderDB) {
 
   _renderDebug(db, renderDB, aspectRatio);
 
-  Debug::pictureInPicture(debug, { 50, 50 }, { 350, 350 }, data.mSceneTexture);
+  //Debug::pictureInPicture(debug, { 50, 50 }, { 350, 350 }, data.mSceneTexture);
 
   glGetError();
   SwapBuffers(state.mDeviceContext);
