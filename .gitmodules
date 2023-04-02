@@ -7,3 +7,6 @@
 [submodule "dof/scheduler/enkiTS"]
 	path = dof/scheduler/enkiTS
 	url = https://github.com/dougbinks/enkiTS.git
+[submodule "dof/imgui/imgui"]
+	path = dof/imgui/imgui
+	url = https://github.com/ocornut/imgui.git
