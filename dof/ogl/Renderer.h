@@ -59,4 +59,5 @@ struct Renderer {
   static void initDeviceContext(GraphicsContext::ElementRef& context);
   static void initGame(GameDatabase& db, RendererDatabase& renderDB);
   static void render(GameDatabase& db, RendererDatabase& renderDB);
+  static void swapBuffers(RendererDatabase& renderDB);
 };

@@ -6,6 +6,9 @@ add_executable(win32 WIN32 ${source_files})
 # Link with dependencies
 target_link_libraries(win32 PUBLIC game)
 target_link_libraries(win32 PUBLIC ogl)
+if(IMGUI_ENABLED)
+    target_link_libraries(win32 PUBLIC imgui)
+endif()
 
 target_link_libraries(win32 PRIVATE glew)
 target_link_libraries(win32 PRIVATE opengl32.lib)

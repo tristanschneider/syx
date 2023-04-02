@@ -150,6 +150,11 @@ struct PlayerInput {
   bool mAction2{};
 };
 
+enum class KeyState : uint8_t {
+  Triggered,
+  Released
+};
+
 //Intermediate keyboard state used to compute final state
 struct PlayerKeyboardInput {
   enum class Key : uint8_t {
@@ -160,6 +165,12 @@ struct PlayerKeyboardInput {
     Count,
   };
   std::bitset<(size_t)Key::Count> mKeys;
+  glm::vec2 mRawMousePixels{};
+  glm::vec2 mRawMouseDeltaPixels{};
+  glm::vec2 mLastMousePos{};
+  bool mIsRelativeMouse{};
+  float mRawWheelDelta{};
+  std::vector<std::pair<KeyState, int>> mRawKeys;
 };
 
 using PlayerTable = Table<

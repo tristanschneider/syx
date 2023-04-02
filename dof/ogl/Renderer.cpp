@@ -371,7 +371,6 @@ void Renderer::render(GameDatabase& db, RendererDatabase& renderDB) {
 
   glClearColor(0.0f, 0.0f, 1.0f, 0.0f);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-
   Queries::viewEachRow<Row<Camera>>(db, [&](Row<Camera>& cameras) {
     for(const Camera& camera : cameras.mElements) {
       ParticleUniforms uniforms;
@@ -517,11 +516,13 @@ void Renderer::render(GameDatabase& db, RendererDatabase& renderDB) {
       TableOperations::addToTable(debugTable).get<0>().mPos = p;
     }
   }
-
   _renderDebug(db, renderDB, aspectRatio);
 
   //Debug::pictureInPicture(debug, { 50, 50 }, { 350, 350 }, data.mSceneTexture);
-
   glGetError();
+}
+
+void Renderer::swapBuffers(RendererDatabase& renderDB) {
+  OGLState& state = std::get<Row<OGLState>>(std::get<GraphicsContext>(renderDB.mTables).mRows).at(0);
   SwapBuffers(state.mDeviceContext);
 }
