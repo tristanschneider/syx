@@ -4,6 +4,7 @@
 #include "Database.h"
 #include "Table.h"
 
+#include "Config.h"
 #include "glm/vec2.hpp"
 #include "glm/vec3.hpp"
 #include "SweepNPruneBroadphase.h"
@@ -253,8 +254,12 @@ using GameDatabase = Database<
   ConstraintCommonTable,
   ContactConstraintsToStaticObjectsTable,
   DebugLineTable,
-  GlobalPointForceTable
+  GlobalPointForceTable,
+  ConfigTable
 >;
+
+//For allowing forward declarations where GameDatabase is desired
+struct GameDB { GameDatabase& db; };
 
 struct Simulation {
   static void loadFromSnapshot(GameDatabase& db, const char* snapshotFilename);
@@ -271,7 +276,7 @@ struct Simulation {
 
   static void _checkFragmentGoals(GameDatabase& db);
   static void _migrateCompletedFragments(GameDatabase& db);
-  static void _checkFragmentGoals(GameObjectTable& fragments);
+  static void _checkFragmentGoals(GameObjectTable& fragments, const GameConfig& config);
   static void _migrateCompletedFragments(GameObjectTable& fragments, StaticGameObjectTable& destinationFragments, BroadphaseTable& broadphase, StableElementMappings& mappings);
 
   static const SceneState& _getSceneState(GameDatabase& db);

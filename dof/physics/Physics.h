@@ -2,16 +2,13 @@
 
 #include "Profile.h"
 #include "glm/vec2.hpp"
+#include "PhysicsConfig.h"
 #include "Queries.h"
 #include "Scheduler.h"
 #include "Table.h"
 #include "NarrowphaseData.h"
 
 struct PhysicsTableIds;
-
-struct PhysicsConfig {
-  std::optional<size_t> mForcedTargetWidth;
-};
 
 //Data for one object in a constraint pair
 template<class>
@@ -303,9 +300,9 @@ struct Physics {
     }
 
     template<class Axis, class DatabaseT>
-    static void applyDampingMultiplierAxis(DatabaseT& db, float multiplier, std::vector<std::shared_ptr<TaskNode>>& tasks) {
-      Queries::viewEachRow<Axis>(db, [multiplier, &tasks](Axis& axis) {
-        tasks.push_back(TaskNode::create([multiplier, &axis](...) {
+    static void applyDampingMultiplierAxis(DatabaseT& db, const float& multiplier, std::vector<std::shared_ptr<TaskNode>>& tasks) {
+      Queries::viewEachRow<Axis>(db, [&multiplier, &tasks](Axis& axis) {
+        tasks.push_back(TaskNode::create([&multiplier, &axis](...) {
           _applyDampingMultiplier(axis.mElements.data(), multiplier, axis.size());
         }));
       });
@@ -419,7 +416,7 @@ struct Physics {
   }
 
   template<class LinVelX, class LinVelY, class DatabaseT>
-  static TaskRange applyDampingMultiplier(DatabaseT& db, float multiplier) {
+  static TaskRange applyDampingMultiplier(DatabaseT& db, const float& multiplier) {
     std::vector<OwnedTask> tasks;
     auto begin = std::make_shared<TaskNode>();
     details::applyDampingMultiplierAxis<LinVelX>(db, multiplier, begin->mChildren);

@@ -6,6 +6,11 @@
 #include "Shader.h"
 #include "glm/mat4x4.hpp"
 
+#include "GameModule.h"
+#include "PhysicsModule.h"
+#include "GraphicsModule.h"
+#include "DebugModule.h"
+
 ImguiData::~ImguiData() = default;
 ImguiData::ImguiData() = default;
 
@@ -156,7 +161,12 @@ namespace {
     }
   }
 
-  void updateModules(GameDatabase&) {
+  void updateModules(GameDatabase& db) {
+    GameDB gdb{ db };
+    GameModule::update(gdb);
+    DebugModule::update(gdb);
+    GraphicsModule::update(gdb);
+    PhysicsModule::update(gdb);
   }
 
   void render(ImguiImpl& imgui) {
@@ -254,30 +264,6 @@ void ImguiModule::update(ImguiData& data, GameDatabase& db, RendererDatabase& re
   if(enabled) {
     updateInput(db);
     updateModules(db);
-
-    ImGui::Begin("Hello, world!");
-
-    static bool show_demo_window{};
-    static bool show_another_window{};
-    static int counter{};
-    auto& io = ImGui::GetIO();
-    ImGui::Text("This is some useful text.");
-    ImGui::Checkbox("Demo Window", &show_demo_window);
-    ImGui::Checkbox("Another Window", &show_another_window);
-
-    if (ImGui::Button("Button")) {
-        counter++;
-    }
-    ImGui::SameLine();
-    ImGui::Text("counter = %d", counter);
-    static std::string str(100, 0);
-    ImGui::InputText("input", str.data(), str.size());
-
-    ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
-    ImGui::End();
-
-    ImGui::EndFrame();
-
     render(*data.mImpl);
   }
 }

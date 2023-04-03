@@ -173,6 +173,8 @@ template<> struct Serializer<Row<DebugCameraControl>> : MemCpySerializer<Row<Deb
 
 template<> struct Serializer<SharedRow<FileSystem>> : NoOpSerializer<SharedRow<FileSystem>>{};
 template<> struct Serializer<Row<TextureLoadRequest>> : NoOpSerializer<Row<TextureLoadRequest>>{};
+template<> struct Serializer<ConfigTable> : NoOpSerializer<ConfigTable>{};
+
 
 template<>
 struct Serializer<SharedRow<StableElementMappings>> {

@@ -8,6 +8,7 @@
 #include "glm/gtx/norm.hpp"
 #include <random>
 #include "Serializer.h"
+#include "TableAdapters.h"
 #include "Profile.h"
 
 namespace {
@@ -28,9 +29,8 @@ namespace {
     return { std::get<FloatRow<Tag, X>>(t.mRows).mElements.data(), std::get<FloatRow<Tag, Y>>(t.mRows).mElements.data() };
   }
 
-  PhysicsConfig _getPhysicsConfig() {
-    PhysicsConfig result;
-    return result;
+  PhysicsConfig& _getPhysicsConfig(GameDatabase& db) {
+    return *TableAdapters::getConfig({ db }).physics;
   }
 
   SweepNPruneBroadphase::BoundariesConfig _getBoundariesConfig() {
@@ -85,7 +85,7 @@ namespace {
           any = true;
         }
         else if(r.mStatus == RequestStatus::Failed) {
-          printf("falied to load texture %s", r.mFileName.c_str());
+          printf("failed to load texture %s", r.mFileName.c_str());
         }
       }
     });
@@ -101,19 +101,19 @@ namespace {
     return SceneState::State::SetupScene;
   }
 
-  void _updatePlayerInput(PlayerTable& players, GlobalPointForceTable& pointForces) {
+  void _updatePlayerInput(PlayerTable& players, GlobalPointForceTable& pointForces, const GameConfig& config) {
     PROFILE_SCOPE("simulation", "playerinput");
     for(size_t i = 0; i < TableOperations::size(players); ++i) {
       PlayerInput& input = std::get<Row<PlayerInput>>(players.mRows).at(i);
       glm::vec2 move(input.mMoveX, input.mMoveY);
-      const float speed = 0.05f;
+      const float speed = config.playerSpeed;
       move *= speed;
 
       float& vx = std::get<FloatRow<LinVel, X>>(players.mRows).at(i);
       float& vy = std::get<FloatRow<LinVel, Y>>(players.mRows).at(i);
       glm::vec2 velocity(vx, vy);
 
-      const float maxStoppingForce = 0.05f;
+      const float maxStoppingForce = config.playerMaxStoppingForce;
       //Apply a stopping force if there is no input. This is a flat amount so it doesn't negate physics
       const float epsilon = 0.0001f;
       const float velocityLen2 = glm::length2(velocity);
@@ -134,8 +134,8 @@ namespace {
 
       if(input.mAction1) {
         input.mAction1 = false;
-        const size_t lifetime = 5;
-        const float strength = 0.05f;
+        const size_t lifetime = config.explodeLifetime;
+        const float strength = config.explodeStrength;
         const size_t f = TableOperations::size(pointForces);
         TableOperations::addToTable(pointForces);
         std::get<FloatRow<Tags::Pos, Tags::X>>(pointForces.mRows).at(f) = std::get<FloatRow<Tags::Pos, Tags::X>>(players.mRows).at(i);
@@ -290,9 +290,10 @@ namespace {
     PROFILE_SCOPE("simulation", "debugcamera");
     constexpr const char* snapshotFilename = "debug.snap";
     bool loadSnapshot = false;
+    const GameConfig* config = TableAdapters::getConfig({ db }).game;
     for(size_t i = 0; i < TableOperations::size(cameras); ++i) {
       DebugCameraControl& input = std::get<Row<DebugCameraControl>>(cameras.mRows).at(i);
-      const float speed = 0.3f;
+      const float speed = config->cameraZoomSpeed;
       float& zoom = std::get<Row<Camera>>(cameras.mRows).at(i).zoom;
       zoom = std::max(0.0f, zoom + input.mAdjustZoom * speed);
       loadSnapshot = loadSnapshot || input.mLoadSnapshot;
@@ -312,7 +313,8 @@ namespace {
     SceneState& scene = std::get<0>(std::get<GlobalGameData>(db.mTables).mRows).at();
     const glm::vec2 boundaryMin = scene.mBoundaryMin;
     const glm::vec2 boundaryMax = scene.mBoundaryMax;
-    const float boundarySpringConstant = 1.0f*0.01f;
+    const GameConfig* config = TableAdapters::getConfig({ db }).game;
+    const float boundarySpringConstant = config->boundarySpringConstant;
     Queries::viewEachRow<FloatRow<Pos, X>,
       FloatRow<LinVel, X>>(db,
         [&](FloatRow<Pos, X>& pos, FloatRow<LinVel, X>& linVel) {
@@ -336,11 +338,11 @@ namespace {
 
     std::vector<OwnedTask> tasks;
     current->mChildren.push_back(TaskNode::create([&db](...) {
-      _updatePlayerInput(std::get<PlayerTable>(db.mTables), std::get<GlobalPointForceTable>(db.mTables));
+      _updatePlayerInput(std::get<PlayerTable>(db.mTables), std::get<GlobalPointForceTable>(db.mTables), *TableAdapters::getConfig({ db }).game);
     }));
 
     current->mChildren.push_back(TaskNode::create([&db](...) {
-      Simulation::_checkFragmentGoals(std::get<GameObjectTable>(db.mTables));
+      Simulation::_checkFragmentGoals(db);
       Simulation::_migrateCompletedFragments(std::get<GameObjectTable>(db.mTables), std::get<StaticGameObjectTable>(db.mTables), std::get<BroadphaseTable>(db.mTables), _getStableMappings(db));
     }));
 
@@ -357,7 +359,7 @@ namespace {
     }));
     current = current->mChildren.back();
 
-    TaskRange physics = Simulation::_updatePhysics(db, _getPhysicsConfig());
+    TaskRange physics = Simulation::_updatePhysics(db, _getPhysicsConfig(db));
     current->mChildren.push_back(physics.mBegin);
     current = physics.mEnd;
 
@@ -366,18 +368,18 @@ namespace {
 }
 
 //Check to see if each fragment has reached its goal
-void Simulation::_checkFragmentGoals(GameObjectTable& fragments) {
+void Simulation::_checkFragmentGoals(GameObjectTable& fragments, const GameConfig& config) {
   PROFILE_SCOPE("simulation", "fragmentgoals");
   ispc::UniformConstVec2 pos = _unwrapConstFloatRow<Pos>(fragments);
   ispc::UniformConstVec2 goal = _unwrapConstFloatRow<FragmentGoal>(fragments);
   uint8_t* goalFound = _unwrapRow<FragmentGoalFoundRow>(fragments);
-  const float minDistance = 0.5f;
+  const float minDistance = config.fragmentGoalDistance;
 
   ispc::checkFragmentGoals(pos, goal, goalFound, minDistance, TableOperations::size(fragments));
 }
 
 void Simulation::_checkFragmentGoals(GameDatabase& db) {
-  Simulation::_checkFragmentGoals(std::get<GameObjectTable>(db.mTables));
+  Simulation::_checkFragmentGoals(std::get<GameObjectTable>(db.mTables), *TableAdapters::getConfig({ db }).game);
 }
 
 void Simulation::_migrateCompletedFragments(GameDatabase& db) {
@@ -663,8 +665,9 @@ void Simulation::update(GameDatabase& db) {
       //args.mFragmentColumns = 44;
       //args.mFragmentRows = 25;
       //args.mFragmentColumns = 22;
-      args.mFragmentRows = 10;
-      args.mFragmentColumns = 9;
+      const GameConfig* config = TableAdapters::getConfig({ db }).game;
+      args.mFragmentRows = config->fragmentRows;
+      args.mFragmentColumns = config->fragmentColumns;
       sceneState.mState = _setupScene(db, args);
     }
   }));
@@ -698,14 +701,13 @@ namespace PhysicsSimulation {
   using RotX = FloatRow<Rot, CosAngle>;
   using RotY = FloatRow<Rot, SinAngle>;
 
-  TaskRange _applyDamping(GameDatabase& db, const PhysicsConfig&) {
-    constexpr float linearDragMultiplier = 0.96f;
+  TaskRange _applyDamping(GameDatabase& db, const PhysicsConfig& config) {
+    const float linearDragMultiplier = config.linearDragMultiplier;
     auto result = std::make_shared<TaskNode>();
-    result->mChildren.push_back(Physics::applyDampingMultiplier<LinVelX, LinVelY>(db, linearDragMultiplier).mBegin);
+    result->mChildren.push_back(Physics::applyDampingMultiplier<LinVelX, LinVelY>(db, config.linearDragMultiplier).mBegin);
 
     std::vector<OwnedTask> tasks;
-    constexpr float angularDragMultiplier = 0.99f;
-    Physics::details::applyDampingMultiplierAxis<AngVel>(db, angularDragMultiplier, result->mChildren);
+    Physics::details::applyDampingMultiplierAxis<AngVel>(db, config.angularDragMultiplier, result->mChildren);
 
     return TaskBuilder::addEndSync(result);
   }
@@ -830,8 +832,8 @@ namespace PhysicsSimulation {
     return { root, contacts };
   }
 
-  TaskRange _debugUpdate(GameDatabase& db, const PhysicsConfig&) {
-    auto task = TaskNode::create([&db](...) {
+  TaskRange _debugUpdate(GameDatabase& db, const PhysicsConfig& config) {
+    auto task = TaskNode::create([&db, &config](...) {
       auto& debug = std::get<DebugLineTable>(db.mTables);
       auto& collisionPairs = std::get<CollisionPairsTable>(db.mTables);
 
@@ -844,8 +846,8 @@ namespace PhysicsSimulation {
         e.get<0>().mColor = color;
       };
 
-      static bool drawCollisionPairs = false;
-      static bool drawContacts = false;
+      const bool drawCollisionPairs = config.drawCollisionPairs;
+      const bool drawContacts = config.drawContacts;
       if(drawCollisionPairs) {
         auto& ax = std::get<NarrowphaseData<PairA>::PosX>(collisionPairs.mRows);
         auto& ay = std::get<NarrowphaseData<PairA>::PosY>(collisionPairs.mRows);
@@ -936,7 +938,7 @@ TaskRange Simulation::_updatePhysics(GameDatabase& db, const PhysicsConfig& conf
   auto solving = std::make_shared<TaskNode>();
   TaskBuilder::_addSyncDependency(*root, solving);
 
-  const int solveIterations = 5;
+  const int solveIterations = config.solveIterations;
   //TODO: stop early if global lambda sum falls below tolerance
   for(int i = 0; i < solveIterations; ++i) {
     auto solver = Physics::solveConstraints(constraints, staticConstraints, constraintsCommon, config);

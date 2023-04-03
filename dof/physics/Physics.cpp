@@ -173,7 +173,7 @@ TaskRange Physics::setupConstraints(ConstraintsTable& constraints, ContactConstr
 
 TaskRange Physics::solveConstraints(ConstraintsTable& constraints, ContactConstraintsToStaticObjectsTable& staticContacts, ConstraintCommonTable& common, const PhysicsConfig& config) {
   //Everything in one since all velocities might depend on the previous ones. Can be more parallel with islands
-  auto result = TaskNode::create([&constraints, &staticContacts, &common, config](...) {
+  auto result = TaskNode::create([&constraints, &staticContacts, &common, &config](...) {
     PROFILE_SCOPE("physics", "solve constraints");
     ispc::UniformContactConstraintPairData data = _unwrapUniformConstraintData(constraints);
     ispc::UniformConstraintObject objectA = _unwrapUniformConstraintObject<ConstraintObjA>(common);
@@ -184,7 +184,7 @@ TaskRange Physics::solveConstraints(ConstraintsTable& constraints, ContactConstr
     float* frictionLambdaSumTwo = _unwrapRow<ConstraintData::FrictionLambdaSumTwo>(constraints);
     uint8_t* enabled = _unwrapRow<ConstraintData::IsEnabled>(common);
 
-    const float frictionCoeff = 0.5f;
+    const float frictionCoeff = config.frictionCoeff;
     const size_t startContact = std::get<ConstraintData::CommonTableStartIndex>(constraints.mRows).at();
     const size_t startStatic = std::get<ConstraintData::CommonTableStartIndex>(staticContacts.mRows).at();
 
