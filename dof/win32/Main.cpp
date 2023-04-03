@@ -162,11 +162,25 @@ LRESULT onWMInput(GameDatabase& db, HWND wnd, LPARAM l) {
   return 0;
 }
 
+void onChar(GameDatabase& db, WPARAM w) {
+  PlayerTable& players = std::get<PlayerTable>(db.mTables);
+  auto& keyboards = std::get<Row<PlayerKeyboardInput>>(players.mRows);
+  if(!keyboards.size()) {
+    return;
+  }
+  PlayerKeyboardInput& keyboard = keyboards.at(0);
+
+  if(std::isprint(static_cast<int>(w))) {
+    keyboard.mRawText.push_back(static_cast<char>(w));
+  }
+}
+
 void resetInput(GameDatabase& db) {
   for(PlayerKeyboardInput& input : std::get<Row<PlayerKeyboardInput>>(std::get<PlayerTable>(db.mTables).mRows).mElements) {
     input.mRawKeys.clear();
     input.mRawWheelDelta = 0.0f;
     input.mRawMouseDeltaPixels = glm::vec2{ 0.0f };
+    input.mRawText.clear();
   }
 }
 
@@ -214,7 +228,13 @@ LRESULT CALLBACK mainProc(HWND wnd, UINT msg, WPARAM w, LPARAM l) {
       if(APP && w == RIM_INPUT) {
         return onWMInput(APP->mGame, wnd, l);
       }
+      break;
 
+    case WM_CHAR:
+      if(APP) {
+        onChar(APP->mGame, w);
+      }
+      break;
   }
   return DefWindowProc(wnd, msg, w, l);
 }

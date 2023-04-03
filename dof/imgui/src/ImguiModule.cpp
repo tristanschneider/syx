@@ -50,26 +50,6 @@ namespace {
       "Out_Color.w += alphaOffset;\n"
       "}\n";
 
-  void initKeyMap() {
-    int* map = ImGui::GetIO().KeyMap;
-    map[ImGuiKey_Tab] = VK_TAB;
-    map[ImGuiKey_LeftArrow] = VK_LEFT;
-    map[ImGuiKey_RightArrow] = VK_RIGHT;
-    map[ImGuiKey_UpArrow] = VK_UP;
-    map[ImGuiKey_DownArrow] = VK_DOWN;
-    map[ImGuiKey_PageUp] = VK_PRIOR;
-    map[ImGuiKey_PageDown] = VK_NEXT;
-    map[ImGuiKey_Home] = VK_HOME;
-    map[ImGuiKey_End] = VK_END;
-    map[ImGuiKey_Delete] = VK_DELETE;
-    map[ImGuiKey_Backspace] = VK_BACK;
-    map[ImGuiKey_Enter] = VK_RETURN;
-    map[ImGuiKey_Escape] = VK_ESCAPE;
-    for(int i = ImGuiKey_A; i <= ImGuiKey_Z; ++i) {
-      map[i] = 'a' + (i - ImGuiKey_A);
-    }
-  }
-
   //This should only be necessary when creating the vertex array object but for some reason they get cleared after every render
   void enableAttributes() {
     glEnableVertexAttribArray(0);
@@ -154,11 +134,23 @@ namespace {
           case VK_LBUTTON: io.AddMouseButtonEvent(ImGuiMouseButton_Left, down); break;
           case VK_RBUTTON: io.AddMouseButtonEvent(ImGuiMouseButton_Right, down); break;
           case VK_MBUTTON: io.AddMouseButtonEvent(ImGuiMouseButton_Middle, down); break;
-          //TODO:
-          default: //io.AddKeyEvent((ImGuiKey)key.second, down);
+          case VK_TAB: io.AddKeyEvent(ImGuiKey_Tab, down); break;
+          case VK_LEFT: io.AddKeyEvent(ImGuiKey_LeftArrow, down); break;
+          case VK_RIGHT: io.AddKeyEvent(ImGuiKey_RightArrow, down); break;
+          case VK_UP: io.AddKeyEvent(ImGuiKey_UpArrow, down); break;
+          case VK_DOWN: io.AddKeyEvent(ImGuiKey_DownArrow, down); break;
+          case VK_PRIOR: io.AddKeyEvent(ImGuiKey_PageUp, down); break;
+          case VK_HOME: io.AddKeyEvent(ImGuiKey_Home, down); break;
+          case VK_END: io.AddKeyEvent(ImGuiKey_End, down); break;
+          case VK_DELETE: io.AddKeyEvent(ImGuiKey_Delete, down); break;
+          case VK_BACK: io.AddKeyEvent(ImGuiKey_Backspace, down); break;
+          case VK_RETURN: io.AddKeyEvent(ImGuiKey_Enter, down); break;
+          case VK_ESCAPE: io.AddKeyEvent(ImGuiKey_Escape, down); break;
+          default:
             break;
         }
       }
+      io.AddInputCharactersUTF8(keyboard.mRawText.c_str());
       io.AddMousePosEvent(keyboard.mRawMousePixels.x, keyboard.mRawMousePixels.y);
       io.AddMouseWheelEvent(0.0f, keyboard.mRawWheelDelta);
     }
@@ -249,7 +241,6 @@ void ImguiModule::update(ImguiData& data, GameDatabase& db, RendererDatabase& re
   if(!ImGui::GetCurrentContext() || !data.mImpl) {
     data.mImpl = std::make_unique<ImguiImpl>();
     ImGui::CreateContext();
-    initKeyMap();
   }
 
   const bool enabled = data.mImpl->mEnabled;
@@ -279,6 +270,8 @@ void ImguiModule::update(ImguiData& data, GameDatabase& db, RendererDatabase& re
     }
     ImGui::SameLine();
     ImGui::Text("counter = %d", counter);
+    static std::string str(100, 0);
+    ImGui::InputText("input", str.data(), str.size());
 
     ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
     ImGui::End();

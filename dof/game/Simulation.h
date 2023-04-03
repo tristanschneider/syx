@@ -171,6 +171,7 @@ struct PlayerKeyboardInput {
   bool mIsRelativeMouse{};
   float mRawWheelDelta{};
   std::vector<std::pair<KeyState, int>> mRawKeys;
+  std::string mRawText;
 };
 
 using PlayerTable = Table<
