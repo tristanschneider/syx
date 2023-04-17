@@ -2,20 +2,66 @@
 
 #include "TaskScheduler.h"
 
-using OwnedTask = std::unique_ptr<enki::ITaskSet>;
+#include <variant>
+
 using OwnedDependency = std::unique_ptr<enki::Dependency>;
+
+struct OwnedTask {
+  enki::ICompletable* get() {
+    return std::visit([](auto& task) -> enki::ICompletable* { return task.get(); }, mTask);
+  }
+
+  const enki::ICompletable* get() const {
+    return std::visit([](const auto& task) -> const enki::ICompletable*{ return task.get(); }, mTask);
+  }
+
+  void addToPipe(enki::TaskScheduler& scheduler) {
+    struct Adapter {
+      void operator()(std::unique_ptr<enki::ITaskSet>& task) const {
+        scheduler->AddTaskSetToPipe(task.get());
+      }
+      void operator()(std::unique_ptr<enki::IPinnedTask>& task) const {
+        scheduler->AddPinnedTask(task.get());
+      }
+      enki::TaskScheduler* scheduler{};
+    };
+    std::visit(Adapter{ &scheduler }, mTask);
+  }
+
+  void setSize(uint32_t size, uint32_t minRange) {
+    std::visit([=]([[maybe_unused]] auto& task) {
+      if constexpr(std::is_same_v<enki::ITaskSet, std::decay_t<decltype(*task)>>) {
+        task->m_SetSize = size;
+        task->m_MinRange = minRange;
+      }
+    }, mTask);
+  }
+
+  operator bool() const {
+    return get() != nullptr;
+  }
+
+  std::variant<std::unique_ptr<enki::ITaskSet>, std::unique_ptr<enki::IPinnedTask>> mTask;
+};
 
 struct TaskNode {
   static std::shared_ptr<TaskNode> create(enki::TaskSetFunction f) {
     assert(f);
     auto result = std::make_shared<TaskNode>();
-    result->mTask = std::make_unique<enki::TaskSet>(std::move(f));
+    result->mTask.mTask = { std::make_unique<enki::TaskSet>(std::move(f)) };
+    return result;
+  }
+
+  static std::shared_ptr<TaskNode> createMainThreadPinned(enki::PinnedTaskFunction f) {
+    assert(f);
+    auto result = std::make_shared<TaskNode>();
+    result->mTask.mTask = { std::make_unique<enki::LambdaPinnedTask>(std::move(f)) };
     return result;
   }
 
   OwnedTask mTask;
   std::vector<std::shared_ptr<TaskNode>> mChildren;
-  std::vector<enki::Dependency> mDependencies;
+  std::vector<std::unique_ptr<enki::Dependency>> mDependencies;
 };
 
 struct TaskRange {
@@ -29,24 +75,22 @@ struct Scheduler {
 
 struct TaskBuilder {
   static void _buildDependencies(std::shared_ptr<TaskNode> root) {
+    const size_t existingDeps = root->mDependencies.size();
+    assert(root->mChildren.size() >= existingDeps && "Dependencies should not be removed");
+    const size_t newDeps = root->mChildren.size() - existingDeps;
     root->mDependencies.resize(root->mChildren.size());
     if(!root->mTask) {
-      root->mTask = std::make_unique<enki::TaskSet>([](...){});
+      root->mTask = { std::make_unique<enki::TaskSet>([](...){}) };
     }
     for(size_t i = 0; i < root->mChildren.size(); ++i) {
-      //Only recurse if dependencies for that haven't been built yet
-      //Would be false for diamond dependencies:
-      //  A
-      // / \
-      //B   C
-      // \ /
-      //  D
-      //D would be visited by B and then shouldn't recurse when visited again by C
       auto child = root->mChildren[i];
-      if(child->mDependencies.empty()) {
-        _buildDependencies(root->mChildren[i]);
+      //Always recurse in case new dependencies are somewhere below. Very inefficient
+      _buildDependencies(child);
+      if(i >= existingDeps) {
+        auto dependency = std::make_unique<enki::Dependency>();
+        dependency->SetDependency(root->mTask.get(), child->mTask.get());
+        root->mDependencies[i] = std::move(dependency);
       }
-      root->mDependencies[i].SetDependency(root->mTask.get(), child->mTask.get());
     }
   }
 
@@ -71,7 +115,7 @@ struct TaskBuilder {
 
   static TaskRange buildDependencies(std::shared_ptr<TaskNode> root) {
     auto finalNode = std::make_shared<TaskNode>();
-    finalNode->mTask = std::make_unique<enki::TaskSet>([](...){});
+    finalNode->mTask = { std::make_unique<enki::TaskSet>([](...){}) };
     _addSyncDependency(*root, finalNode);
     _buildDependencies(root);
     return { root, finalNode };

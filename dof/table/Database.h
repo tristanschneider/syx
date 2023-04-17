@@ -120,9 +120,19 @@ struct Database {
     (visitor(std::get<Tables>(mTables), args...), ...);
   }
 
+  template<class Visitor, class... Args>
+  constexpr void visitOne(const Visitor& visitor, Args&&... args) const {
+    (visitor(std::get<Tables>(mTables), args...), ...);
+  }
+
   //Call a multi-argument visitor with all rows
   template<class Visitor, class... Args>
   constexpr auto visitAll(const Visitor& visitor, Args&&... args) {
+    return visitor(args..., std::get<Tables>(mTables)...);
+  }
+
+  template<class Visitor, class... Args>
+  constexpr auto visitAll(const Visitor& visitor, Args&&... args) const {
     return visitor(args..., std::get<Tables>(mTables)...);
   }
 
@@ -135,9 +145,20 @@ struct Database {
       visitor(std::get<I>(tuple));
     }
 
+    template<size_t I>
+    static void _constVisitX(const std::tuple<Tables...>& tuple, const Visitor& visitor) {
+      visitor(std::get<I>(tuple));
+    }
+
     using VisitFn = void(*)(std::tuple<Tables...>&, const Visitor&);
     static VisitFn getVisitFn(size_t index) {
       static std::array<VisitFn, sizeof...(Indices)> functions{ &_visitX<Indices>... };
+      return functions[index];
+    }
+
+    using ConstVisitFn = void(*)(const std::tuple<Tables...>&, const Visitor&);
+    static ConstVisitFn getConstVisitFn(size_t index) {
+      static std::array<ConstVisitFn, sizeof...(Indices)> functions{ &_constVisitX<Indices>... };
       return functions[index];
     }
   };
@@ -171,6 +192,11 @@ struct Database {
   template<class Visitor>
   constexpr void visitOneByIndex(ElementID id, const Visitor& visitor) {
     Impl<Visitor, std::index_sequence_for<Tables...>>::getVisitFn(id.getTableIndex())(mTables, visitor);
+  }
+
+  template<class Visitor>
+  constexpr void visitOneByIndex(ElementID id, const Visitor& visitor) const {
+    Impl<Visitor, std::index_sequence_for<Tables...>>::getConstVisitFn(id.getTableIndex())(mTables, visitor);
   }
 
   std::tuple<Tables...> mTables;

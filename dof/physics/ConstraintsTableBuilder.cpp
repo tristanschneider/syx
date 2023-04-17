@@ -428,7 +428,7 @@ TaskRange ConstraintsTableBuilder::fillConstraintNarrowphaseData(const Constrain
 
   //Root task configures the sizes that the child tasks will work off of
   auto sharedBegin = std::make_shared<ctbdetails::WorkOffset>();
-  root->mTask = std::make_unique<enki::TaskSet>([self{std::weak_ptr<TaskNode>{root}}, &constraintsMappings, sharedBegin](...) {
+  root->mTask = { std::make_unique<enki::TaskSet>([self{std::weak_ptr<TaskNode>{root}}, &constraintsMappings, sharedBegin](...) {
     const size_t begin = constraintsMappings.SHARED_MASS_START_INDEX;
     const size_t end = constraintsMappings.mZeroMassStartIndex;
     const size_t size = end - begin;
@@ -437,11 +437,10 @@ TaskRange ConstraintsTableBuilder::fillConstraintNarrowphaseData(const Constrain
     sharedBegin->mHasWork = size != 0;
     if(auto s = self.lock()) {
       for(auto& child : s->mChildren) {
-        child->mTask->m_SetSize = end - begin;
-        child->mTask->m_MinRange = 100;
+        child->mTask.setSize(end - begin, 100);
       }
     }
-  });
+  }) };
   fillCommonContactData(sharedBegin, constraints, contacts, pairs, tableIds, root->mChildren);
 
   root->mChildren.push_back(fillRVectorRow<ContactPoint<ContactOne>::PosX, NarrowphaseData<PairB>::PosX, ConstraintObject<ConstraintObjB>::CenterToContactOneX>(sharedBegin, constraints, contacts, pairs, tableIds));
@@ -456,7 +455,7 @@ TaskRange ConstraintsTableBuilder::fillConstraintNarrowphaseData(const Constrain
 
   //Root task configures the sizes that the child tasks will work off of
   auto sharedBegin = std::make_shared<ctbdetails::WorkOffset>();
-  root->mTask = std::make_unique<enki::TaskSet>([self{std::weak_ptr<TaskNode>{root}}, &constraintsMappings, sharedBegin, &constraints](...) {
+  root->mTask = { std::make_unique<enki::TaskSet>([self{std::weak_ptr<TaskNode>{root}}, &constraintsMappings, sharedBegin, &constraints](...) {
     const size_t begin = constraintsMappings.mZeroMassStartIndex;
     const size_t end = TableOperations::size(constraints);
     const size_t size = end - begin;
@@ -465,11 +464,10 @@ TaskRange ConstraintsTableBuilder::fillConstraintNarrowphaseData(const Constrain
     sharedBegin->mHasWork = size != 0;
     if(auto s = self.lock()) {
       for(auto& child : s->mChildren) {
-        child->mTask->m_SetSize = end - begin;
-        child->mTask->m_MinRange = 100;
+        child->mTask.setSize(end - begin, 100);
       }
     }
-  });
+  }) };
 
   fillCommonContactData(sharedBegin, constraints, contacts, pairs, tableIds, root->mChildren);
   return TaskBuilder::addEndSync(root);

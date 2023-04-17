@@ -266,7 +266,7 @@ namespace Test {
         enki::TaskScheduler scheduler;
         scheduler.Initialize();
         TaskRange toRun = TaskBuilder::buildDependencies(task.mBegin);
-        scheduler.AddTaskSetToPipe(toRun.mBegin->mTask.get());
+        toRun.mBegin->mTask.addToPipe(scheduler);
         scheduler.WaitforAll();
       }
     }

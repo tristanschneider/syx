@@ -102,6 +102,8 @@ using GlobalGameData = Table<
   SharedRow<Scheduler>
 >;
 
+struct IsImmobile : SharedRow<char>{};
+
 using GameObjectTable = Table<
   FloatRow<Tags::Pos, Tags::X>,
   FloatRow<Tags::Pos, Tags::Y>,
@@ -139,6 +141,7 @@ using StaticGameObjectTable = Table<
   //for efficient updates because it won't move
   Row<CubeSprite>,
   SharedRow<TextureReference>,
+  IsImmobile,
 
   StableIDRow
 >;
@@ -261,6 +264,20 @@ using GameDatabase = Database<
 //For allowing forward declarations where GameDatabase is desired
 struct GameDB { GameDatabase& db; };
 
+struct SimulationPhases {
+  //Root, no dependencies
+  TaskRange root;
+  //Process and delete render requets
+  TaskRange renderRequests;
+  //Graphics reads from sprites
+  TaskRange renderExtraction;
+  TaskRange simulation;
+  //Do the rendering. Does not require access to GameDB
+  TaskRange render;
+  TaskRange imgui;
+  TaskRange swapBuffers;
+};
+
 struct Simulation {
   static void loadFromSnapshot(GameDatabase& db, const char* snapshotFilename);
   //Weird special case since graphics static is the one part that's not in the database
@@ -268,6 +285,7 @@ struct Simulation {
   static void writeSnapshot(GameDatabase& db, const char* snapshotFilename);
 
   static void update(GameDatabase& db);
+  static void buildUpdateTasks(GameDatabase& db, SimulationPhases& phases);
 
   static SceneState::State _setupScene(GameDatabase& db, const SceneArgs& args);
   static TaskRange _updatePhysics(GameDatabase& db, const PhysicsConfig& config);

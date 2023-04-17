@@ -291,46 +291,79 @@ int mainLoop(const char* args) {
     std::get<SharedRow<FileSystem>>(std::get<GlobalGameData>(APP->mGame.mTables).mRows).at().mRoot = "data/";
   }
 
-  auto lastFrameStart = std::chrono::high_resolution_clock::now();
-  while(!exit) {
-    PROFILE_SCOPE("app", "update");
-    auto frameStart = std::chrono::high_resolution_clock::now();
-    lastFrameStart = frameStart;
-
-    while((gotMessage = PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) > 0) {
-      if(msg.message == WM_QUIT) {
-        exit = true;
-        break;
-      }
-      TranslateMessage(&msg);
-      DispatchMessage(&msg);
-    }
-
-    if(exit)
-      break;
-
-    //TODO: scheduling
-    {
-      PROFILE_SCOPE("app", "simulation");
-      Simulation::update(APP->mGame);
-    }
-    {
-      PROFILE_SCOPE("app", "render");
-      Renderer::render(APP->mGame, APP->mRenderer);
-    }
-    {
+  Scheduler& scheduler = Simulation::_getScheduler(APP->mGame);
+  scheduler.mScheduler.Initialize();
+  SimulationPhases phases;
+  phases.root = TaskBuilder::addEndSync(TaskNode::create([](...){}));
+  phases.renderRequests = std::invoke([] {
+    PROFILE_SCOPE("app", "render requests");
+    auto root = TaskNode::createMainThreadPinned([] {
+      Renderer::processRequests(APP->mGame, APP->mRenderer);
+    });
+    TaskRange clear = Renderer::clearRenderRequests(APP->mGame);
+    root->mChildren.push_back(clear.mBegin);
+    return TaskBuilder::buildDependencies(root);
+  });
+  phases.renderExtraction = Renderer::extractRenderables(APP->mGame, APP->mRenderer);
+  phases.render = TaskBuilder::addEndSync(TaskNode::createMainThreadPinned([] {
+    PROFILE_SCOPE("app", "render");
+    Renderer::render(APP->mRenderer);
+  }));
+  phases.imgui = TaskBuilder::addEndSync(TaskNode::createMainThreadPinned([] {
 #ifdef IMGUI_ENABLED
       PROFILE_SCOPE("app", "imgui");
       static ImguiData imguidata;
       ImguiModule::update(imguidata, APP->mGame, APP->mRenderer);
+      resetInput(APP->mGame);
 #endif
-    }
-    {
+  }));
+  phases.swapBuffers = TaskBuilder::addEndSync(TaskNode::createMainThreadPinned([] {
       PROFILE_SCOPE("app", "swap");
       Renderer::swapBuffers(APP->mRenderer);
+  }));
+
+  //Allow the simulation to prepend or append to any of the phases
+  Simulation::buildUpdateTasks(APP->mGame, phases);
+  assert(phases.simulation.mBegin && "Simulation should be filled by buildUpdateTasks");
+
+  //Link inter-phase dependencies
+  //First process requests, then extract renderables
+  phases.root.mEnd->mChildren.push_back(phases.renderRequests.mBegin);
+  phases.renderRequests.mEnd->mChildren.push_back(phases.renderExtraction.mBegin);
+  //Then do primary rendering
+  phases.renderExtraction.mEnd->mChildren.push_back(phases.render.mBegin);
+  //Then render imgui, which currently also depends on simulation being complete due to requiring access to DB
+  phases.render.mEnd->mChildren.push_back(phases.imgui.mBegin);
+  phases.simulation.mEnd->mChildren.push_back(phases.imgui.mBegin);
+  //Once imgui is complete, buffers can be swapped
+  phases.imgui.mEnd->mChildren.push_back(phases.swapBuffers.mBegin);
+
+  TaskRange appTasks = TaskBuilder::buildDependencies(phases.root.mBegin);
+
+  auto lastFrameStart = std::chrono::high_resolution_clock::now();
+  while(!exit) {
+    std::chrono::steady_clock::time_point frameStart;
+    {
+      PROFILE_SCOPE("app", "update");
+      frameStart = std::chrono::high_resolution_clock::now();
+      lastFrameStart = frameStart;
+
+      while((gotMessage = PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) > 0) {
+        if(msg.message == WM_QUIT) {
+          exit = true;
+          break;
+        }
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+      }
+
+      if(exit)
+        break;
+
+      appTasks.mBegin->mTask.addToPipe(scheduler.mScheduler);
+      scheduler.mScheduler.WaitforTask(appTasks.mEnd->mTask.get());
+      PROFILE_UPDATE(nullptr);
     }
-    resetInput(APP->mGame);
-    PROFILE_UPDATE(nullptr);
 
     int frameTimeNS = static_cast<int>(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - frameStart).count());
     //If frame time was greater than target time then we're behind, start the next frame immediately

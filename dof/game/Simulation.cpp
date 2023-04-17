@@ -616,35 +616,52 @@ void Simulation::writeSnapshot(GameDatabase& db, const char* snapshotFilename) {
   }
 }
 
+
 void Simulation::update(GameDatabase& db) {
   Scheduler& scheduler = _getScheduler(db);
-  if(scheduler.mNodeRange.mBegin) {
-    scheduler.mScheduler.AddTaskSetToPipe(scheduler.mNodeRange.mBegin->mTask.get());
-    scheduler.mScheduler.WaitforTask(scheduler.mNodeRange.mEnd->mTask.get());
-    return;
-  }
-  scheduler.mScheduler.Initialize();
+  auto createEmpty = [] { return TaskBuilder::addEndSync(TaskNode::create([](...){})); };
+  SimulationPhases phases {
+    createEmpty(),
+    createEmpty(),
+    createEmpty(),
+    createEmpty(),
+    createEmpty(),
+    createEmpty(),
+    createEmpty()
+  };
 
+  buildUpdateTasks(db, phases);
+
+  if(scheduler.mNodeRange.mBegin) {
+    phases.simulation.mBegin->mTask.addToPipe(scheduler.mScheduler);
+    scheduler.mScheduler.WaitforTask(phases.simulation.mEnd->mTask.get());
+  }
+}
+
+void Simulation::buildUpdateTasks(GameDatabase& db, SimulationPhases& phases) {
+  Scheduler& scheduler = _getScheduler(db);
   std::get<SharedRow<PhysicsTableIds>>(std::get<GlobalGameData>(db.mTables).mRows).at() = Simulation::_getPhysicsTableIds();
 
   auto root = TaskNode::create([](...){});
 
-  auto current = root;
 
   PROFILE_SCOPE("simulation", "update");
   constexpr bool enableDebugSnapshot = false;
   if constexpr(enableDebugSnapshot) {
     auto snapshot = std::make_shared<TaskNode>();
-    snapshot->mTask = std::make_unique<enki::TaskSet>([&db](...) {
+    snapshot->mTask = { std::make_unique<enki::TaskSet>([&db](...) {
       PROFILE_SCOPE("simulation", "snapshot");
       writeSnapshot(db, "recovery.snap");
-    });
-    current->mChildren.push_back(snapshot);
-    current = snapshot;
+    }) };
+    phases.root.mEnd->mChildren.push_back(snapshot);
+    phases.root.mEnd = snapshot;
   }
 
   GlobalGameData& globals = std::get<GlobalGameData>(db.mTables);
   SceneState& sceneState = std::get<0>(globals.mRows).at();
+
+  auto current = root;
+  phases.renderRequests.mEnd->mChildren.push_back(current);
 
   current->mChildren.push_back(TaskNode::create([&globals, &sceneState, &db](...) {
     if(sceneState.mState == SceneState::State::InitRequestAssets) {
@@ -661,10 +678,6 @@ void Simulation::update(GameDatabase& db) {
   current->mChildren.push_back(TaskNode::create([&globals, &sceneState, &db](...) {
     if(sceneState.mState == SceneState::State::SetupScene) {
       SceneArgs args;
-      //args.mFragmentRows = 50;
-      //args.mFragmentColumns = 44;
-      //args.mFragmentRows = 25;
-      //args.mFragmentColumns = 22;
       const GameConfig* config = TableAdapters::getConfig({ db }).game;
       args.mFragmentRows = config->fragmentRows;
       args.mFragmentColumns = config->fragmentColumns;
@@ -676,10 +689,10 @@ void Simulation::update(GameDatabase& db) {
   current->mChildren.push_back(TaskNode::create([&sceneState, &scheduler, update](...) {
     //Either run the update or skip to the end
     if(sceneState.mState == SceneState::State::Update) {
-      scheduler.mScheduler.AddTaskSetToPipe(update.mBegin->mTask.get());
+      update.mBegin->mTask.addToPipe(scheduler.mScheduler);
     }
     else {
-      scheduler.mScheduler.AddTaskSetToPipe(update.mEnd->mTask.get());
+      update.mEnd->mTask.addToPipe(scheduler.mScheduler);
     }
   }));
   auto endOfFrame = TaskNode::create([](...) {});
@@ -688,8 +701,11 @@ void Simulation::update(GameDatabase& db) {
   //or be just the end if skipped above
   update.mEnd->mChildren.push_back(endOfFrame);
 
-  scheduler.mNodeRange = TaskBuilder::buildDependencies(root);
+  //Neet to manually build these since they are queued in the above task rather than being a child in the tree
   TaskBuilder::buildDependencies(update.mBegin);
+
+  phases.simulation.mBegin = root;
+  phases.simulation.mEnd = endOfFrame;
 }
 
 namespace PhysicsSimulation {

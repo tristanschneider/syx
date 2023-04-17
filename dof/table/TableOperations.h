@@ -138,6 +138,11 @@ struct TableOperations {
     return std::get<RowT>(table.mRows);
   }
 
+  template<class RowT, class TableT>
+  static const auto& getRow(const TableT& table) {
+    return std::get<RowT>(table.mRows);
+  }
+
   template<class TableT>
   static void swapRemove(TableT& table, size_t index) {
     static_assert(!isStableTable<TableT>);
