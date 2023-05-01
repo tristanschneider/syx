@@ -28,6 +28,22 @@ struct dbDetails {
   static constexpr size_t INVALID_VALUE = std::numeric_limits<size_t>::max();
 };
 
+struct DatabaseDescription {
+  constexpr size_t getElementIndexBits() const {
+    return elementIndexBits;
+  }
+
+  constexpr size_t getElementIndexMask() const {
+    return dbDetails::maskFirstBits(getElementIndexBits());
+  }
+
+  constexpr size_t getTableIndexMask() const {
+    return ~getElementIndexMask();
+  }
+
+  size_t elementIndexBits{};
+};
+
 //Like a poor-man's Entity id as it represents a particular entry somewhere in the database but care needs to be taken
 //not to move the desired element as that would cause the id to no longer point at it
 template<size_t TableCount>
@@ -86,6 +102,10 @@ struct UnpackedDatabaseElementID {
     return { shiftedTableIndex | elementIndex, bits };
   }
 
+  static constexpr UnpackedDatabaseElementID fromDescription(size_t index, const DatabaseDescription& description) {
+    return { index, description.elementIndexBits };
+  }
+
   size_t getTableIndex() const {
     return dbDetails::unpackTableIndex(mValue, mElementIndexBits);
   }
@@ -113,6 +133,12 @@ struct UnpackedDatabaseElementID {
 template<class... Tables>
 struct Database {
   using ElementID = DatabaseElementID<sizeof...(Tables)>;
+
+  constexpr static DatabaseDescription getDescription() {
+    return {
+      ElementID::ELEMENT_INDEX_BITS
+    };
+  }
 
   //Call a single argument visitor for each row
   template<class Visitor, class... Args>
@@ -186,6 +212,11 @@ struct Database {
 
   template<class TableT>
   static constexpr ElementID getTableIndex() {
+    return getElementID<TableT>(0);
+  }
+
+  template<class TableT>
+  static constexpr ElementID getTableIndex(const TableT&) {
     return getElementID<TableT>(0);
   }
 

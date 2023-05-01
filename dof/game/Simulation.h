@@ -28,6 +28,11 @@ namespace Tags {
   //Angular velocity in Angle
   struct AngVel{};
 
+  struct GPos{};
+  struct GRot{};
+  struct GLinVel{};
+  struct GAngVel{};
+
   //The goal coordinates in X and Y that the given fragment wants to go to which will cause it to change to a static gameobject
   struct FragmentGoal{};
 
@@ -89,9 +94,29 @@ struct FileSystem {
   std::string mRoot;
 };
 
+struct ThreadLocals;
+struct ThreadLocalsInstance {
+  ThreadLocalsInstance();
+  ~ThreadLocalsInstance();
+
+  std::unique_ptr<ThreadLocals> instance;
+};
+
+struct ThreadLocalsRow : SharedRow<ThreadLocalsInstance> {};
+
 using TextureRequestTable = Table<
   Row<TextureLoadRequest>
 >;
+
+struct StatEffectDBOwned;
+
+struct ExternalDatabases {
+  ExternalDatabases();
+  ~ExternalDatabases();
+
+  std::unique_ptr<StatEffectDBOwned> statEffects;
+};
+struct ExternalDatabasesRow : SharedRow<ExternalDatabases> {};
 
 using GlobalGameData = Table<
   SharedRow<SceneState>,
@@ -99,12 +124,15 @@ using GlobalGameData = Table<
   SharedRow<FileSystem>,
   SharedRow<StableElementMappings>,
   SharedRow<ConstraintsTableMappings>,
-  SharedRow<Scheduler>
+  SharedRow<Scheduler>,
+  ThreadLocalsRow,
+  ExternalDatabasesRow
 >;
 
 struct IsImmobile : SharedRow<char>{};
 
 using GameObjectTable = Table<
+  //Data viewed by physics, not to be used by gameplay
   FloatRow<Tags::Pos, Tags::X>,
   FloatRow<Tags::Pos, Tags::Y>,
   FloatRow<Tags::Rot, Tags::CosAngle>,
@@ -112,6 +140,16 @@ using GameObjectTable = Table<
   FloatRow<Tags::LinVel, Tags::X>,
   FloatRow<Tags::LinVel, Tags::Y>,
   FloatRow<Tags::AngVel, Tags::Angle>,
+
+  //Gameplay data extracted from above
+  FloatRow<Tags::GPos, Tags::X>,
+  FloatRow<Tags::GPos, Tags::Y>,
+  FloatRow<Tags::GRot, Tags::CosAngle>,
+  FloatRow<Tags::GRot, Tags::SinAngle>,
+  FloatRow<Tags::GLinVel, Tags::X>,
+  FloatRow<Tags::GLinVel, Tags::Y>,
+  FloatRow<Tags::GAngVel, Tags::Angle>,
+
   FloatRow<Tags::FragmentGoal, Tags::X>,
   FloatRow<Tags::FragmentGoal, Tags::Y>,
 
@@ -284,7 +322,8 @@ struct Simulation {
   static void snapshotInitGraphics(GameDatabase& db);
   static void writeSnapshot(GameDatabase& db, const char* snapshotFilename);
 
-  static void update(GameDatabase& db);
+  static void init(GameDatabase& db);
+
   static void buildUpdateTasks(GameDatabase& db, SimulationPhases& phases);
 
   static SceneState::State _setupScene(GameDatabase& db, const SceneArgs& args);

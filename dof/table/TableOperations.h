@@ -153,8 +153,8 @@ struct TableOperations {
     });
   }
 
-  template<class TableT, size_t S>
-  static void stableSwapRemove(TableT& table, const DatabaseElementID<S>& id, StableElementMappings& mappings) {
+  template<class TableT>
+  static void stableSwapRemove(TableT& table, const UnpackedDatabaseElementID& id, StableElementMappings& mappings) {
     static_assert(isStableTable<TableT>);
     const size_t myLast = size(table) - 1;
     table.visitOne([&](auto& row) {
@@ -167,6 +167,22 @@ struct TableOperations {
         row.resize(myLast);
       }
     });
+  }
+
+  using StableSwapRemover = void(*)(void*, const UnpackedDatabaseElementID& id, StableElementMappings& mappings);
+  template<class TableT>
+  static constexpr StableSwapRemover getStableSwapRemove() {
+    struct Adapter {
+      static void f(void* table, const UnpackedDatabaseElementID& id, StableElementMappings& mappings) {
+        stableSwapRemove(*static_cast<TableT*>(table), id, mappings);
+      }
+    };
+    return &Adapter::f;
+  }
+
+  template<class TableT, size_t S>
+  static void stableSwapRemove(TableT& table, const DatabaseElementID<S>& id, StableElementMappings& mappings) {
+    stableSwapRemove(table, UnpackedDatabaseElementID::fromPacked(id), mappings);
   }
 
   template<class TableT>

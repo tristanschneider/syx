@@ -13,6 +13,7 @@
 
 #include "Simulation.h"
 #include "TableOperations.h"
+#include "ThreadLocals.h"
 #include "Renderer.h"
 
 #include "glm/gtx/norm.hpp"
@@ -284,15 +285,16 @@ int mainLoop(const char* args) {
   int targetFrameTimeNS = 16*static_cast<int>(msToNS);
 
   std::string strArgs(args ? std::string(args) : std::string());
+  GlobalGameData& globals = std::get<GlobalGameData>(APP->mGame.mTables);
   if(!strArgs.empty()) {
-    std::get<SharedRow<FileSystem>>(std::get<GlobalGameData>(APP->mGame.mTables).mRows).at().mRoot = strArgs;
+    std::get<SharedRow<FileSystem>>(globals.mRows).at().mRoot = strArgs;
   }
   else {
-    std::get<SharedRow<FileSystem>>(std::get<GlobalGameData>(APP->mGame.mTables).mRows).at().mRoot = "data/";
+    std::get<SharedRow<FileSystem>>(globals.mRows).at().mRoot = "data/";
   }
 
-  Scheduler& scheduler = Simulation::_getScheduler(APP->mGame);
-  scheduler.mScheduler.Initialize();
+  Simulation::init(APP->mGame);
+
   SimulationPhases phases;
   phases.root = TaskBuilder::addEndSync(TaskNode::create([](...){}));
   phases.renderRequests = std::invoke([] {
@@ -338,6 +340,7 @@ int mainLoop(const char* args) {
   //Once imgui is complete, buffers can be swapped
   phases.imgui.mEnd->mChildren.push_back(phases.swapBuffers.mBegin);
 
+  Scheduler& scheduler = Simulation::_getScheduler(APP->mGame);
   TaskRange appTasks = TaskBuilder::buildDependencies(phases.root.mBegin);
 
   auto lastFrameStart = std::chrono::high_resolution_clock::now();

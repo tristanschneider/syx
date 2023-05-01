@@ -8,7 +8,9 @@
 #include "glm/gtx/norm.hpp"
 #include <random>
 #include "Serializer.h"
+#include "stat/AllStatEffects.h"
 #include "TableAdapters.h"
+#include "ThreadLocals.h"
 #include "Profile.h"
 
 namespace {
@@ -363,9 +365,36 @@ namespace {
     current->mChildren.push_back(physics.mBegin);
     current = physics.mEnd;
 
+    StatEffectDBOwned& statEffects = TableAdapters::getStatEffects({ db });
+    AllStatTasks statTasks = StatEffect::createTasks({ db }, statEffects.db);
+    //Synchronous transfer from all thread local stats to the central stats database
+    ThreadLocals& locals = TableAdapters::getThreadLocals({ db });
+    for(size_t i = 0; i < locals.getThreadCount(); ++i) {
+      TaskRange migradeThread = StatEffect::moveTo(locals.get(i).statEffects->db, statEffects.db);
+      current->mChildren.push_back(migradeThread.mBegin);
+      current = migradeThread.mEnd;
+    }
+
+    //Do these at the same time
+    current->mChildren.push_back(statTasks.positionSetters.mBegin);
+    current->mChildren.push_back(statTasks.velocitySetters.mBegin);
+    //Sync back for the synchronous stat update
+    TaskBuilder::_addSyncDependency(*current, statTasks.synchronous.mBegin);
+    current = statTasks.synchronous.mEnd;
+
     return { root, current };
   }
 }
+
+ExternalDatabases::ExternalDatabases()
+  : statEffects(std::make_unique<StatEffectDBOwned>()) {
+}
+
+ExternalDatabases::~ExternalDatabases() = default;
+
+ThreadLocalsInstance::ThreadLocalsInstance() = default;
+ThreadLocalsInstance::~ThreadLocalsInstance() = default;
+
 
 //Check to see if each fragment has reached its goal
 void Simulation::_checkFragmentGoals(GameObjectTable& fragments, const GameConfig& config) {
@@ -613,28 +642,6 @@ void Simulation::writeSnapshot(GameDatabase& db, const char* snapshotFilename) {
   if(std::basic_ofstream<uint8_t> stream(snapshotFilename, std::ios::binary); stream.good()) {
     SerializeStream s(stream.rdbuf());
     Serializer<GameDatabase>::serialize(db, s);
-  }
-}
-
-
-void Simulation::update(GameDatabase& db) {
-  Scheduler& scheduler = _getScheduler(db);
-  auto createEmpty = [] { return TaskBuilder::addEndSync(TaskNode::create([](...){})); };
-  SimulationPhases phases {
-    createEmpty(),
-    createEmpty(),
-    createEmpty(),
-    createEmpty(),
-    createEmpty(),
-    createEmpty(),
-    createEmpty()
-  };
-
-  buildUpdateTasks(db, phases);
-
-  if(scheduler.mNodeRange.mBegin) {
-    phases.simulation.mBegin->mTask.addToPipe(scheduler.mScheduler);
-    scheduler.mScheduler.WaitforTask(phases.simulation.mEnd->mTask.get());
   }
 }
 
@@ -1001,3 +1008,9 @@ const SceneState& Simulation::_getSceneState(GameDatabase& db) {
   return std::get<SharedRow<SceneState>>(std::get<GlobalGameData>(db.mTables).mRows).at();
 }
 
+void Simulation::init(GameDatabase& db) {
+  Scheduler& scheduler = Simulation::_getScheduler(db);
+  scheduler.mScheduler.Initialize();
+  GlobalGameData& globals = std::get<GlobalGameData>(db.mTables);
+  std::get<ThreadLocalsRow>(globals.mRows).at().instance = std::make_unique<ThreadLocals>(scheduler.mScheduler.GetNumTaskThreads());
+}

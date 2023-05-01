@@ -5,6 +5,25 @@
 #include <optional>
 #include <unordered_map>
 
+struct StableIDRow : Row<size_t> {};
+
+struct StableElementMappings {
+  std::unordered_map<size_t, size_t> mStableToUnstable;
+  size_t mKeygen{};
+};
+
+struct StableInfo {
+  StableIDRow* row{};
+  StableElementMappings* mappings{};
+  DatabaseDescription description{};
+};
+
+struct ConstStableInfo {
+  const StableIDRow* row{};
+  const StableElementMappings* mappings{};
+  const DatabaseDescription description{};
+};
+
 //A stable id is used to reference an element in a table that might move
 //If the id is still valid the unstable index can be used to look it up
 //Otherwise, the stable id is used to ubdate the unstable index using the global mappings
@@ -21,17 +40,24 @@ struct StableElementID {
     return { std::numeric_limits<size_t>::max(), std::numeric_limits<size_t>::max() };
   }
 
+  //For if the caller wants to get the stable element at the index that they know is correct
+  static StableElementID fromStableRow(size_t index, const StableIDRow& row) {
+    return { index, row.at(index) };
+  }
+
+  UnpackedDatabaseElementID toUnpacked(const DatabaseDescription& description) const {
+    return { mUnstableIndex, description.elementIndexBits };
+  }
+
+  template<class DB>
+  typename DB::ElementID toPacked() const {
+    return DB::ElementID{ mUnstableIndex };
+  }
+
   //ElementID of database, meaning a combination of the table index and element index
   size_t mUnstableIndex{};
   size_t mStableID{};
 };
-
-struct StableElementMappings {
-  std::unordered_map<size_t, size_t> mStableToUnstable;
-  size_t mKeygen{};
-};
-
-struct StableIDRow : Row<size_t> {};
 
 struct StableOperations {
   struct details {
@@ -141,19 +167,27 @@ struct StableOperations {
     return tryResolveStableIDWithinTable(id, ids, mappings, getElementMask<DatabaseT>());
   }
 
+  static std::optional<StableElementID> tryResolveStableIDWithinTable(const StableElementID& id, const StableInfo& info) {
+    return tryResolveStableIDWithinTable(id, *info.row, *info.mappings, info.description.getElementIndexMask());
+  }
+
   template<size_t S>
   static void swapRemove(StableIDRow& row, const DatabaseElementID<S>& id, StableElementMappings& mappings) {
+    swapRemove(row, UnpackedDatabaseElementID::fromPacked(id), mappings);
+  }
+
+  static void swapRemove(StableIDRow& row, const UnpackedDatabaseElementID& id, StableElementMappings& mappings) {
     const size_t newSize = row.size() - 1;
     const size_t removeIndex = id.getElementIndex();
     size_t& stableIDToRemove = row.at(removeIndex);
 
     //Erase old mapping if valid. Case for invalid is in the reuse case for migrateOne below
-    if(DatabaseElementID<S>{ stableIDToRemove }.isValid()) {
+    if(stableIDToRemove != dbDetails::INVALID_VALUE) {
       auto it = mappings.mStableToUnstable.find(stableIDToRemove);
       assert(it != mappings.mStableToUnstable.end());
       if(it != mappings.mStableToUnstable.end()) {
         //Assert mapping matched what it was pointing at
-        assert((it->second == DatabaseElementID<S>{ id.getTableIndex(), removeIndex}.mValue));
+        assert((it->second == id.remake(id.getTableIndex(), removeIndex).mValue));
         mappings.mStableToUnstable.erase(it);
       }
     }
@@ -164,7 +198,7 @@ struct StableOperations {
 
     //Update mapping for swapped element
     if(removeIndex < newSize) {
-      mappings.mStableToUnstable[stableIDToRemove] = DatabaseElementID<S>{ id.getTableIndex(), removeIndex }.mValue;
+      mappings.mStableToUnstable[stableIDToRemove] = id.remake(id.getTableIndex(), removeIndex).mValue;
     }
   }
 

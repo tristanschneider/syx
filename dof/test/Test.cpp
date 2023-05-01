@@ -1,6 +1,7 @@
 #include "Precompile.h"
 #include "CppUnitTest.h"
 
+#include "stat/AllStatEffects.h"
 #include "Physics.h"
 #include "Simulation.h"
 #include "SweepNPrune.h"
@@ -10,6 +11,8 @@
 
 #include "Scheduler.h"
 #include "StableElementID.h"
+#include "TableAdapters.h"
+#include "ThreadLocals.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -18,15 +21,51 @@ namespace Test {
   static_assert(std::is_same_v<Table<Row<int>>::ElementRef, decltype(make_duple((int*)nullptr))>);
   static_assert(std::is_same_v<std::tuple<DupleElement<0, int>>, Duple<int>::TupleT>);
 
+  struct TestGame {
+    TestGame() {
+      Scheduler& scheduler = Simulation::_getScheduler(db);
+      auto createEmpty = [] { return TaskBuilder::addEndSync(TaskNode::create([](...){})); };
+      SimulationPhases phases {
+        createEmpty(),
+        createEmpty(),
+        createEmpty(),
+        createEmpty(),
+        createEmpty(),
+        createEmpty(),
+        createEmpty()
+      };
+
+      scheduler.mScheduler.Initialize({});
+
+      Simulation::buildUpdateTasks(db, phases);
+      Simulation::init(db);
+      task = TaskBuilder::buildDependencies(phases.root.mBegin);
+    }
+
+    operator GameDB() {
+      return { db };
+    }
+
+    void update() {
+      Scheduler& scheduler = Simulation::_getScheduler(db);
+      task.mBegin->mTask.addToPipe(scheduler.mScheduler);
+      scheduler.mScheduler.WaitforTask(task.mEnd->mTask.get());
+    }
+
+    GameDatabase db;
+    TaskRange task;
+  };
+
+
   TEST_CLASS(Tests) {
     //Paste a snapshot and update the link to reproduce a problem case in a test
     TEST_METHOD(ReplaySavedSnapshot) {
       constexpr bool debuggingSnapshot = false;
       if(debuggingSnapshot) {
         const char* path = "C:/syx/dof/bugs/recovery.snap";
-        GameDatabase db;
-        Simulation::loadFromSnapshot(db, path);
-        Simulation::update(db);
+        TestGame game;
+        Simulation::loadFromSnapshot(game.db, path);
+        game.update();
       }
     }
 
@@ -1373,6 +1412,54 @@ namespace Test {
       Assert::AreEqual(id.getElementIndex(), unpacked.getElementIndex());
       Assert::AreEqual(id.getTableIndex(), unpacked.getTableIndex());
       Assert::AreEqual(id.ELEMENT_INDEX_MASK, unpacked.getElementMask());
+    }
+
+    TEST_METHOD(Stats) {
+      TestGame game;
+      auto& stats = TableAdapters::getStatEffects(game);
+      GameObjectTable& objs =  std::get<GameObjectTable>(game.db.mTables);
+      const UnpackedDatabaseElementID tableId = UnpackedDatabaseElementID::fromPacked(GameDatabase::getTableIndex<GameObjectTable>());
+      StableElementMappings& stable = TableAdapters::getStableMappings(game);
+      constexpr size_t OBJ_COUNT = 3;
+      TableOperations::stableResizeTable(objs, tableId, OBJ_COUNT, stable);
+      auto& lambdaStat = std::get<LambdaStatEffectTable>(stats.db.mTables);
+      auto& posStat = std::get<PositionStatEffectTable>(stats.db.mTables);
+      auto& velStat = std::get<VelocityStatEffectTable>(stats.db.mTables);
+      LambdaStatEffectAdapter lambda = TableAdapters::getLambdaEffects(game, 0);
+      PositionStatEffectAdapter pos = TableAdapters::getPositionEffects(game, 0);
+      VelocityStatEffectAdapter vel = TableAdapters::getVelocityEffects(game, 0);
+      ThreadLocalData tls = TableAdapters::getThreadLocal(game, 0);
+      GameObjectAdapter gameobjects = TableAdapters::getGameObjects(game);
+      StableIDRow& objsStable = *gameobjects.stable;
+      constexpr auto desc = GameDatabase::getDescription();
+
+      for(size_t i = 0; OBJ_COUNT; ++i) {
+
+      }
+
+      StatEffect::addEffects(1, lambdaStat, tls.statEffects->db);
+      lambda.base.lifetime->at(0) = 0;
+      lambda.base.owner->at(0) = StableOperations::getStableID(objsStable, UnpackedDatabaseElementID::fromDescription(0, desc));
+      int lambdaInvocations = 0;
+      lambda.command->at(0) = [&](LambdaStatEffect::Args& args) {
+        ++lambdaInvocations;
+      };
+
+      StatEffect::addEffects(1, velStat, tls.statEffects->db);
+      vel.base.lifetime->at(0) = 1;
+      vel.base.owner->at(0) = StableOperations::getStableID(objsStable, UnpackedDatabaseElementID::fromDescription(1, desc));
+      VelocityStatEffect::VelocityCommand& vcmd = vel.command->at(0);
+      vcmd.linearImpulse = glm::vec2(1.0f);
+      vcmd.angularImpulse = 1.0f;
+
+      StatEffect::addEffects(1, posStat, tls.statEffects->db);
+      pos.base.lifetime->at(0) = 0;
+      pos.base.owner->at(0) = StableOperations::getStableID(objsStable, UnpackedDatabaseElementID::fromDescription(2, desc));
+      PositionStatEffect::PositionCommand& pcmd = pos.command->at(0);
+      pcmd.pos = glm::vec2(5.0f);
+      pcmd.rot = glm::vec2(0.0f, 1.0f);
+
+      game.update();
     }
   };
 }

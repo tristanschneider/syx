@@ -170,6 +170,8 @@ template<> struct Serializer<Row<PlayerKeyboardInput>> : MemCpySerializer<Row<Pl
 template<> struct Serializer<Row<DebugPoint>> : MemCpySerializer<Row<DebugPoint>> {};
 template<> struct Serializer<Row<Camera>> : MemCpySerializer<Row<Camera>> {};
 template<> struct Serializer<Row<DebugCameraControl>> : MemCpySerializer<Row<DebugCameraControl>> {};
+template<> struct Serializer<ThreadLocalsRow> : MemCpySerializer<ThreadLocalsRow> {};
+template<> struct Serializer<ExternalDatabasesRow> : MemCpySerializer<ExternalDatabasesRow> {};
 
 template<> struct Serializer<SharedRow<FileSystem>> : NoOpSerializer<SharedRow<FileSystem>>{};
 template<> struct Serializer<Row<TextureLoadRequest>> : NoOpSerializer<Row<TextureLoadRequest>>{};
