@@ -81,6 +81,32 @@ struct GameObjectAdapter {
   StableIDRow* stable{};
 };
 
+struct SceneState;
+struct PhysicsTableIds;
+struct FileSystem;
+struct StableElementMappings;
+struct ConstraintsTableMappings;
+struct Scheduler;
+struct ExternalDatabases;
+struct ThreadLocals;
+
+struct GlobalsAdapter {
+  SceneState* scene{};
+  PhysicsTableIds* physicsTables{};
+  FileSystem* fileSystem{};
+  StableElementMappings* stableMappings{};
+  ConstraintsTableMappings* constraintsMappings{};
+  Scheduler* scheduler{};
+  ExternalDatabases* externalDB{};
+  ThreadLocals* threadLocals{};
+};
+
+struct CentralStatEffectAdapter {
+  PositionStatEffectAdapter position;
+  VelocityStatEffectAdapter velocity;
+  LambdaStatEffectAdapter lambda;
+};
+
 struct TableAdapters {
   static ConfigAdapter getConfig(GameDB db);
   static StableElementMappings& getStableMappings(GameDB db);
@@ -92,6 +118,8 @@ struct TableAdapters {
   static PositionStatEffectAdapter getPositionEffects(GameDB db, size_t thread);
   static VelocityStatEffectAdapter getVelocityEffects(GameDB db, size_t thread);
   static LambdaStatEffectAdapter getLambdaEffects(GameDB db, size_t thread);
+  static CentralStatEffectAdapter getCentralStatEffects(GameDB db);
 
   static GameObjectAdapter getGameObjects(GameDB db);
+  static GlobalsAdapter getGlobals(GameDB db);
 };

@@ -328,17 +328,7 @@ int mainLoop(const char* args) {
   Simulation::buildUpdateTasks(APP->mGame, phases);
   assert(phases.simulation.mBegin && "Simulation should be filled by buildUpdateTasks");
 
-  //Link inter-phase dependencies
-  //First process requests, then extract renderables
-  phases.root.mEnd->mChildren.push_back(phases.renderRequests.mBegin);
-  phases.renderRequests.mEnd->mChildren.push_back(phases.renderExtraction.mBegin);
-  //Then do primary rendering
-  phases.renderExtraction.mEnd->mChildren.push_back(phases.render.mBegin);
-  //Then render imgui, which currently also depends on simulation being complete due to requiring access to DB
-  phases.render.mEnd->mChildren.push_back(phases.imgui.mBegin);
-  phases.simulation.mEnd->mChildren.push_back(phases.imgui.mBegin);
-  //Once imgui is complete, buffers can be swapped
-  phases.imgui.mEnd->mChildren.push_back(phases.swapBuffers.mBegin);
+  Simulation::linkUpdateTasks(phases);
 
   Scheduler& scheduler = Simulation::_getScheduler(APP->mGame);
   TaskRange appTasks = TaskBuilder::buildDependencies(phases.root.mBegin);

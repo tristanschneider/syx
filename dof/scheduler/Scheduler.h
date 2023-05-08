@@ -70,39 +70,68 @@ struct TaskRange {
 
 struct Scheduler {
   enki::TaskScheduler mScheduler;
-  TaskRange mNodeRange;
 };
 
 struct TaskBuilder {
   static void _buildDependencies(std::shared_ptr<TaskNode> root) {
-    const size_t existingDeps = root->mDependencies.size();
-    assert(root->mChildren.size() >= existingDeps && "Dependencies should not be removed");
-    const size_t newDeps = root->mChildren.size() - existingDeps;
-    root->mDependencies.resize(root->mChildren.size());
-    if(!root->mTask) {
+    std::unordered_set<TaskNode*> visited;
+    std::deque<TaskNode*> toVisit;
+    toVisit.push_back(root.get());
+
+    if(root && !root->mTask) {
       root->mTask = { std::make_unique<enki::TaskSet>([](...){}) };
     }
-    for(size_t i = 0; i < root->mChildren.size(); ++i) {
-      auto child = root->mChildren[i];
-      //Always recurse in case new dependencies are somewhere below. Very inefficient
-      _buildDependencies(child);
-      if(i >= existingDeps) {
-        auto dependency = std::make_unique<enki::Dependency>();
-        dependency->SetDependency(root->mTask.get(), child->mTask.get());
-        root->mDependencies[i] = std::move(dependency);
+
+    while(!toVisit.empty()) {
+      TaskNode* current = toVisit.front();
+      toVisit.pop_front();
+      if(!visited.insert(current).second) {
+        continue;
+      }
+
+      const size_t existingDeps = current->mDependencies.size();
+      assert(current->mChildren.size() >= existingDeps && "Dependencies should not be removed");
+      const size_t newDeps = current->mChildren.size() - existingDeps;
+      current->mDependencies.resize(current->mChildren.size());
+
+      for(size_t i = 0; i < current->mChildren.size(); ++i) {
+        auto child = current->mChildren[i];
+        if(!child->mTask) {
+          child->mTask = { std::make_unique<enki::TaskSet>([](...){}) };
+        }
+
+        //Always recurse in case new dependencies are somewhere below. Very inefficient
+        toVisit.push_back(child.get());
+        if(i >= existingDeps) {
+          auto dependency = std::make_unique<enki::Dependency>();
+          dependency->SetDependency(current->mTask.get(), child->mTask.get());
+          current->mDependencies[i] = std::move(dependency);
+        }
       }
     }
   }
 
   //Add dependency to all leaf nodes
-  static void _addSyncDependency(TaskNode& current, std::shared_ptr<TaskNode> toAdd) {
-    if(current.mChildren.empty()) {
-      current.mChildren.push_back(toAdd);
-    }
-    //Traverse into children unless another recursion case already got there
-    else if(current.mChildren.front() != toAdd) {
-      for(std::shared_ptr<TaskNode>& child : current.mChildren) {
-        _addSyncDependency(*child, toAdd);
+  static void _addSyncDependency(TaskNode& root, std::shared_ptr<TaskNode> toAdd) {
+    std::deque<TaskNode*> toVisit;
+    std::unordered_set<TaskNode*> visited;
+    toVisit.push_back(&root);
+
+    while(!toVisit.empty()) {
+      TaskNode& current = *toVisit.front();
+      toVisit.pop_front();
+      if(!visited.insert(&current).second) {
+        continue;
+      }
+
+      if(current.mChildren.empty()) {
+        current.mChildren.push_back(toAdd);
+      }
+      //Traverse into children unless another recursion case already got there
+      else if(current.mChildren.front() != toAdd) {
+        for(std::shared_ptr<TaskNode>& child : current.mChildren) {
+          toVisit.push_back(child.get());
+        }
       }
     }
   }
@@ -119,5 +148,47 @@ struct TaskBuilder {
     _addSyncDependency(*root, finalNode);
     _buildDependencies(root);
     return { root, finalNode };
+  }
+
+  //Brute force search for debugging
+  static bool hasCycle(const TaskNode& node) {
+    std::deque<const TaskNode*> toVisit;
+    std::unordered_set<const TaskNode*> visited;
+    std::deque<const TaskNode*> toSearch;
+    std::unordered_set<const TaskNode*> searched;
+
+    toVisit.push_back(&node);
+    auto takeFront = [](auto& queue) {
+      auto result = queue.front();
+      queue.pop_front();
+      return result;
+    };
+    auto pushChildren = [](auto& queue, const TaskNode* node) {
+      for(const auto& child : node->mChildren) {
+        queue.push_back(child.get());
+      }
+    };
+    while(!toVisit.empty()) {
+      const TaskNode* visitedNode = takeFront(toVisit);
+      if(!visited.insert(visitedNode).second) {
+        continue;
+      }
+      //Traverse all from here to see if any nodes lead back to this
+      pushChildren(toSearch, visitedNode);
+
+      while(!toSearch.empty()) {
+        const TaskNode* current = takeFront(toSearch);
+        if(!searched.insert(current).second) {
+          continue;
+        }
+        if(current == visitedNode) {
+          return true;
+        }
+        pushChildren(toSearch, current);
+      }
+
+      pushChildren(toVisit, visitedNode);
+    }
+    return false;
   }
 };

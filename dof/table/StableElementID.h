@@ -42,7 +42,8 @@ struct StableElementID {
 
   //For if the caller wants to get the stable element at the index that they know is correct
   static StableElementID fromStableRow(size_t index, const StableIDRow& row) {
-    return { index, row.at(index) };
+    //Table index is not known here, so a resolve will be needed to compute it
+    return { dbDetails::INVALID_VALUE, row.at(index) };
   }
 
   UnpackedDatabaseElementID toUnpacked(const DatabaseDescription& description) const {
@@ -205,15 +206,15 @@ struct StableOperations {
   static void swap(StableIDRow& row, const UnpackedDatabaseElementID& a, const UnpackedDatabaseElementID& b, StableElementMappings& mappings) {
     size_t& stableA = row.at(a.getElementIndex());
     size_t& stableB = row.at(b.getElementIndex());
-    std::swap(stableA, stableB);
     auto it = mappings.mStableToUnstable.find(stableA);
     if(it != mappings.mStableToUnstable.end()) {
-      it->second = b.getElementIndex();
+      it->second = b.mValue;
     }
     it = mappings.mStableToUnstable.find(stableB);
     if(it != mappings.mStableToUnstable.end()) {
-      it->second = a.getElementIndex();
+      it->second = a.mValue;
     }
+    std::swap(stableA, stableB);
   }
 
   //ElementID is needed to get the table ID, index doesn't matter

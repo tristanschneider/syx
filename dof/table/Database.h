@@ -14,7 +14,7 @@ struct dbDetails {
   }
 
   static constexpr size_t packTableAndElement(size_t tableIndex, size_t elementIndex, size_t elementBits) {
-    return (tableIndex << elementBits) | (elementIndex);
+    return (tableIndex << elementBits) | elementIndex;
   }
 
   static size_t unpackElementIndex(size_t packed, size_t elementBits) {
@@ -102,10 +102,6 @@ struct UnpackedDatabaseElementID {
     return { shiftedTableIndex | elementIndex, bits };
   }
 
-  static constexpr UnpackedDatabaseElementID fromDescription(size_t index, const DatabaseDescription& description) {
-    return { index, description.elementIndexBits };
-  }
-
   size_t getTableIndex() const {
     return dbDetails::unpackTableIndex(mValue, mElementIndexBits);
   }
@@ -123,7 +119,11 @@ struct UnpackedDatabaseElementID {
   }
 
   UnpackedDatabaseElementID remake(size_t tableIndex, size_t elementIndex) const {
-    return { dbDetails::packTableAndElement(tableIndex, elementIndex, mElementIndexBits) };
+    return { dbDetails::packTableAndElement(tableIndex, elementIndex, mElementIndexBits), mElementIndexBits };
+  }
+
+  UnpackedDatabaseElementID remakeElement(size_t elementIndex) {
+    return remake(getTableIndex(), elementIndex);
   }
 
   size_t mValue = dbDetails::INVALID_VALUE;

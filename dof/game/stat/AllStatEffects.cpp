@@ -28,8 +28,15 @@ namespace StatEffect {
 
   template<class T>
   void visitMoveToRow(const Row<T>& src, Row<T>& dst, size_t dstStart) {
-    if(size_t size = src.size()) {
-      std::memcpy(&dst.at(dstStart), &src.at(0), sizeof(T)*size);
+    if constexpr(std::is_trivially_copyable_v<T>) {
+      if(size_t size = src.size()) {
+        std::memcpy(&dst.at(dstStart), &src.at(0), sizeof(T)*size);
+      }
+    }
+    else {
+      for(size_t i = 0; i < src.size(); ++i) {
+        dst.at(i) = std::move(src.at(i));
+      }
     }
   }
 
@@ -111,15 +118,18 @@ namespace StatEffect {
     result.positionSetters = StatEffect::processStat(std::get<PositionStatEffectTable>(stats.mTables), db);
     result.velocitySetters = StatEffect::processStat(std::get<VelocityStatEffectTable>(stats.mTables), db);
     TaskRange lambdaRange = StatEffect::processStat(std::get<LambdaStatEffectTable>(stats.mTables), db);
-    //Start sync with lambda
-    auto syncBegin = lambdaRange.mBegin;
+    //Empty root
+    auto syncBegin = TaskNode::create([](...){});
     //Then process all lifetimes
     auto& globals = getGlobals(stats);
     visitStats(stats, [syncBegin](auto& table) {
       syncBegin->mChildren.push_back(visitTickLifetime(table));
     });
+
+    TaskBuilder::_addSyncDependency(*syncBegin, lambdaRange.mBegin);
+    auto currentSync = lambdaRange.mEnd;
+
     //After ticking lifetimes, synchronously do removal. Could be parallel if stable mappings were locked
-    auto currentSync = TaskNode::create([](...){});
     TaskBuilder::_addSyncDependency(*syncBegin, currentSync);
     visitStats(stats, [&currentSync, &globals](auto& table) {
       currentSync->mChildren.push_back(visitRemoveLifetime(table, globals));
@@ -129,12 +139,15 @@ namespace StatEffect {
     visitStats(stats, [currentSync, db](auto& table) {
       currentSync->mChildren.push_back(visitResolveOwners(table, db));
     });
-    result.synchronous = TaskBuilder::addEndSync(syncBegin);
+
+    auto syncEnd = TaskNode::create([](...){});
+    TaskBuilder::_addSyncDependency(*currentSync, syncEnd);
 
     //Once the synchronous tasks are complete, start parallel tasks
-    result.synchronous.mEnd->mChildren.push_back(result.positionSetters.mBegin);
-    result.synchronous.mEnd->mChildren.push_back(result.velocitySetters.mBegin);
+    syncEnd->mChildren.push_back(result.positionSetters.mBegin);
+    syncEnd->mChildren.push_back(result.velocitySetters.mBegin);
 
+    result.synchronous = TaskBuilder::addEndSync(syncBegin);
     return result;
   }
 }

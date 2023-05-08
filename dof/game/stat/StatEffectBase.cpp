@@ -8,11 +8,12 @@ namespace StatEffect {
   std::shared_ptr<TaskNode> tickLifetime(Lifetime& lifetime, const StableIDRow& stableIDs, std::vector<StableElementID>& toRemove) {
     return TaskNode::create([&lifetime, &stableIDs, &toRemove](...) {
       for(size_t i = 0; i < lifetime.size(); ++i) {
-        size_t remaining = lifetime.at(i);
-        if(!remaining) {
+        size_t& remaining = lifetime.at(i);
+        if(remaining) {
           --remaining;
         }
         else {
+          //Let the removal processing resolve he unstable id, set invalid here
           toRemove.push_back(StableElementID::fromStableRow(i, stableIDs));
         }
       }

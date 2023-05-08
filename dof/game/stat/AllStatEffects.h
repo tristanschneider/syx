@@ -54,9 +54,7 @@ namespace StatEffect {
     return startIndex;
   }
 
-  AllStatEffects::Globals& getGlobals(StatEffectDatabase& db) {
-    return std::get<AllStatEffects::GlobalRow>(std::get<AllStatEffects::GlobalTable>(db.mTables).mRows).at();
-  }
+  AllStatEffects::Globals& getGlobals(StatEffectDatabase& db);
 
   template<class TableT>
   size_t addEffects(size_t countToAdd, TableT& table, StatEffectDatabase& db) {

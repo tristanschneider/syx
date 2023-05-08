@@ -118,7 +118,7 @@ struct TableOperations {
         using RowT = std::decay_t<decltype(row)>;
         //Stable needs to swap to preserve the mappings, unstable can assign over
         if constexpr(std::is_same_v<RowT, StableIDRow>) {
-          StableOperations::swap(row, location.remake(location.getTableIndex(), src), location.remake(location.getElementIndex(), dst), mappings);
+          StableOperations::swap(row, location.remake(location.getTableIndex(), src), location.remake(location.getTableIndex(), dst), mappings);
         }
         else {
           row.at(dst) = std::move(row.at(src));

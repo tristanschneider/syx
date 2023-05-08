@@ -325,6 +325,7 @@ struct Simulation {
   static void init(GameDatabase& db);
 
   static void buildUpdateTasks(GameDatabase& db, SimulationPhases& phases);
+  static void linkUpdateTasks(SimulationPhases& phases);
 
   static SceneState::State _setupScene(GameDatabase& db, const SceneArgs& args);
   static TaskRange _updatePhysics(GameDatabase& db, const PhysicsConfig& config);

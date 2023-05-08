@@ -375,10 +375,6 @@ namespace {
       current = migradeThread.mEnd;
     }
 
-    //Do these at the same time
-    current->mChildren.push_back(statTasks.positionSetters.mBegin);
-    current->mChildren.push_back(statTasks.velocitySetters.mBegin);
-    //Sync back for the synchronous stat update
     TaskBuilder::_addSyncDependency(*current, statTasks.synchronous.mBegin);
     current = statTasks.synchronous.mEnd;
 
@@ -651,7 +647,6 @@ void Simulation::buildUpdateTasks(GameDatabase& db, SimulationPhases& phases) {
 
   auto root = TaskNode::create([](...){});
 
-
   PROFILE_SCOPE("simulation", "update");
   constexpr bool enableDebugSnapshot = false;
   if constexpr(enableDebugSnapshot) {
@@ -693,6 +688,7 @@ void Simulation::buildUpdateTasks(GameDatabase& db, SimulationPhases& phases) {
   }));
 
   TaskRange update = _update(db);
+
   current->mChildren.push_back(TaskNode::create([&sceneState, &scheduler, update](...) {
     //Either run the update or skip to the end
     if(sceneState.mState == SceneState::State::Update) {
@@ -703,16 +699,31 @@ void Simulation::buildUpdateTasks(GameDatabase& db, SimulationPhases& phases) {
     }
   }));
   auto endOfFrame = TaskNode::create([](...) {});
+
   TaskBuilder::_addSyncDependency(*current, endOfFrame);
+
   //Tie completion of update to the end of the frame. This will either run through the entire update via begin
   //or be just the end if skipped above
   update.mEnd->mChildren.push_back(endOfFrame);
 
-  //Neet to manually build these since they are queued in the above task rather than being a child in the tree
+  //Need to manually build these since they are queued in the above task rather than being a child in the tree
   TaskBuilder::buildDependencies(update.mBegin);
 
   phases.simulation.mBegin = root;
   phases.simulation.mEnd = endOfFrame;
+}
+
+void Simulation::linkUpdateTasks(SimulationPhases& phases) {
+  //First process requests, then extract renderables
+  phases.root.mEnd->mChildren.push_back(phases.renderRequests.mBegin);
+  phases.renderRequests.mEnd->mChildren.push_back(phases.renderExtraction.mBegin);
+  //Then do primary rendering
+  phases.renderExtraction.mEnd->mChildren.push_back(phases.render.mBegin);
+  //Then render imgui, which currently also depends on simulation being complete due to requiring access to DB
+  phases.render.mEnd->mChildren.push_back(phases.imgui.mBegin);
+  phases.simulation.mEnd->mChildren.push_back(phases.imgui.mBegin);
+  //Once imgui is complete, buffers can be swapped
+  phases.imgui.mEnd->mChildren.push_back(phases.swapBuffers.mBegin);
 }
 
 namespace PhysicsSimulation {
@@ -934,6 +945,7 @@ TaskRange Simulation::_updatePhysics(GameDatabase& db, const PhysicsConfig& conf
   TaskRange velocityTasks = PhysicsSimulation::_applyDamping(db, config);
   TaskRange broadphaseUpdate = PhysicsSimulation::_updateBroadphase(db, config);
   TaskRange narrowphase = PhysicsSimulation::_updateNarrowphase(db, config);
+
   //Narrowphase depends on completion of the broadphase
   current->mChildren.push_back(velocityTasks.mBegin);
   current = velocityTasks.mEnd;
@@ -1013,4 +1025,5 @@ void Simulation::init(GameDatabase& db) {
   scheduler.mScheduler.Initialize();
   GlobalGameData& globals = std::get<GlobalGameData>(db.mTables);
   std::get<ThreadLocalsRow>(globals.mRows).at().instance = std::make_unique<ThreadLocals>(scheduler.mScheduler.GetNumTaskThreads());
+  StatEffect::initGlobals(TableAdapters::getStatEffects({ db }).db);
 }

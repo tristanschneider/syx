@@ -63,31 +63,42 @@ namespace {
       &std::get<FloatRow<Tags::AngVel, Tags::Angle>>(table.mRows)
     };
   }
+
+  PositionStatEffectAdapter getPositionEffects(StatEffectDatabase& db) {
+    auto& table = std::get<PositionStatEffectTable>(db.mTables);
+    return {
+      getStatBase(table),
+      &std::get<PositionStatEffect::CommandRow>(table.mRows),
+    };
+  }
+
+  VelocityStatEffectAdapter getVelocityEffects(StatEffectDatabase& db) {
+    auto& table = std::get<VelocityStatEffectTable>(db.mTables);
+    return {
+      getStatBase(table),
+      &std::get<VelocityStatEffect::CommandRow>(table.mRows),
+    };
+  }
+
+  LambdaStatEffectAdapter getLambdaEffects(StatEffectDatabase& db) {
+    auto& table = std::get<LambdaStatEffectTable>(db.mTables);
+    return {
+      getStatBase(table),
+      &std::get<LambdaStatEffect::LambdaRow>(table.mRows),
+    };
+  }
 }
 
 PositionStatEffectAdapter TableAdapters::getPositionEffects(GameDB db, size_t thread) {
-  auto& table = std::get<PositionStatEffectTable>(getThreadLocal(db, thread).statEffects->db.mTables);
-  return {
-    getStatBase(table),
-    &std::get<PositionStatEffect::CommandRow>(table.mRows),
-  };
+  return ::getPositionEffects(getThreadLocal(db, thread).statEffects->db);
 }
 
 VelocityStatEffectAdapter TableAdapters::getVelocityEffects(GameDB db, size_t thread) {
-  auto& table = std::get<VelocityStatEffectTable>(getThreadLocal(db, thread).statEffects->db.mTables);
-  return {
-    getStatBase(table),
-    &std::get<VelocityStatEffect::CommandRow>(table.mRows),
-  };
-
+  return ::getVelocityEffects(getThreadLocal(db, thread).statEffects->db);
 }
 
 LambdaStatEffectAdapter TableAdapters::getLambdaEffects(GameDB db, size_t thread) {
-  auto& table = std::get<LambdaStatEffectTable>(getThreadLocal(db, thread).statEffects->db.mTables);
-  return {
-    getStatBase(table),
-    &std::get<LambdaStatEffect::LambdaRow>(table.mRows),
-  };
+  return ::getLambdaEffects(getThreadLocal(db, thread).statEffects->db);
 }
 
 GameObjectAdapter TableAdapters::getGameObjects(GameDB db) {
@@ -96,5 +107,28 @@ GameObjectAdapter TableAdapters::getGameObjects(GameDB db) {
     getTransform(table),
     getPhysics(table),
     &std::get<StableIDRow>(table.mRows)
+  };
+}
+
+GlobalsAdapter TableAdapters::getGlobals(GameDB db) {
+  auto& table = std::get<GlobalGameData>(db.db.mTables);
+  return {
+    &std::get<SharedRow<SceneState>>(table.mRows).at(),
+    &std::get<SharedRow<PhysicsTableIds>>(table.mRows).at(),
+    &std::get<SharedRow<FileSystem>>(table.mRows).at(),
+    &std::get<SharedRow<StableElementMappings>>(table.mRows).at(),
+    &std::get<SharedRow<ConstraintsTableMappings>>(table.mRows).at(),
+    &std::get<SharedRow<Scheduler>>(table.mRows).at(),
+    &std::get<ExternalDatabasesRow>(table.mRows).at(),
+    std::get<ThreadLocalsRow>(table.mRows).at().instance.get()
+  };
+}
+
+CentralStatEffectAdapter TableAdapters::getCentralStatEffects(GameDB db) {
+  auto& stats = getStatEffects(db);
+  return {
+    ::getPositionEffects(stats.db),
+    ::getVelocityEffects(stats.db),
+    ::getLambdaEffects(stats.db)
   };
 }

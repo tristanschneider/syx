@@ -35,10 +35,11 @@ namespace Test {
         createEmpty()
       };
 
-      scheduler.mScheduler.Initialize({});
+      scheduler.mScheduler.Initialize(enki::TaskSchedulerConfig{});
 
-      Simulation::buildUpdateTasks(db, phases);
       Simulation::init(db);
+      Simulation::buildUpdateTasks(db, phases);
+      Simulation::linkUpdateTasks(phases);
       task = TaskBuilder::buildDependencies(phases.root.mBegin);
     }
 
@@ -52,8 +53,8 @@ namespace Test {
       scheduler.mScheduler.WaitforTask(task.mEnd->mTask.get());
     }
 
-    GameDatabase db;
     TaskRange task;
+    GameDatabase db;
   };
 
 
@@ -1416,15 +1417,15 @@ namespace Test {
 
     TEST_METHOD(Stats) {
       TestGame game;
-      auto& stats = TableAdapters::getStatEffects(game);
+      auto stats = TableAdapters::getThreadLocal(game, 0).statEffects;
       GameObjectTable& objs =  std::get<GameObjectTable>(game.db.mTables);
       const UnpackedDatabaseElementID tableId = UnpackedDatabaseElementID::fromPacked(GameDatabase::getTableIndex<GameObjectTable>());
       StableElementMappings& stable = TableAdapters::getStableMappings(game);
       constexpr size_t OBJ_COUNT = 3;
       TableOperations::stableResizeTable(objs, tableId, OBJ_COUNT, stable);
-      auto& lambdaStat = std::get<LambdaStatEffectTable>(stats.db.mTables);
-      auto& posStat = std::get<PositionStatEffectTable>(stats.db.mTables);
-      auto& velStat = std::get<VelocityStatEffectTable>(stats.db.mTables);
+      auto& lambdaStat = std::get<LambdaStatEffectTable>(stats->db.mTables);
+      auto& posStat = std::get<PositionStatEffectTable>(stats->db.mTables);
+      auto& velStat = std::get<VelocityStatEffectTable>(stats->db.mTables);
       LambdaStatEffectAdapter lambda = TableAdapters::getLambdaEffects(game, 0);
       PositionStatEffectAdapter pos = TableAdapters::getPositionEffects(game, 0);
       VelocityStatEffectAdapter vel = TableAdapters::getVelocityEffects(game, 0);
@@ -1432,34 +1433,73 @@ namespace Test {
       GameObjectAdapter gameobjects = TableAdapters::getGameObjects(game);
       StableIDRow& objsStable = *gameobjects.stable;
       constexpr auto desc = GameDatabase::getDescription();
+      auto tableBase = UnpackedDatabaseElementID::fromPacked(GameDatabase::getTableIndex<GameObjectTable>());
 
-      for(size_t i = 0; OBJ_COUNT; ++i) {
+      GlobalsAdapter globals = TableAdapters::getGlobals(game);
+      globals.scene->mState = SceneState::State::Update;
+      globals.scene->mBoundaryMin = glm::vec2(-100);
+      globals.scene->mBoundaryMax = glm::vec2(100);
 
+      auto asdf = GameDatabase::getElementID<GameObjectTable>(0);
+      asdf;
+      auto asdf2 = tableBase.remakeElement(0);
+      auto asdf3 = tableBase.remakeElement(1);
+      //Assert::AreEqual(asdf == asdf2);
+
+      for(size_t i = 0; i < OBJ_COUNT; ++i) {
+        //Need to move them away from the fragment completion location
+        gameobjects.transform.posX->at(i) = 4.0f;
       }
+      Simulation::_initialPopulateBroadphase(game.db);
 
       StatEffect::addEffects(1, lambdaStat, tls.statEffects->db);
-      lambda.base.lifetime->at(0) = 0;
-      lambda.base.owner->at(0) = StableOperations::getStableID(objsStable, UnpackedDatabaseElementID::fromDescription(0, desc));
+      lambda.base.lifetime->at(0) = 1;
+      lambda.base.owner->at(0) = StableOperations::getStableID(objsStable, tableBase.remakeElement(0));
       int lambdaInvocations = 0;
       lambda.command->at(0) = [&](LambdaStatEffect::Args& args) {
+        auto ei = args.resolvedID.toPacked<GameDatabase>().getElementIndex();
+        ei;
+        Assert::AreEqual(size_t(0), args.resolvedID.toPacked<GameDatabase>().getElementIndex());
         ++lambdaInvocations;
       };
 
       StatEffect::addEffects(1, velStat, tls.statEffects->db);
-      vel.base.lifetime->at(0) = 1;
-      vel.base.owner->at(0) = StableOperations::getStableID(objsStable, UnpackedDatabaseElementID::fromDescription(1, desc));
+      vel.base.lifetime->at(0) = 2;
+      vel.base.owner->at(0) = StableOperations::getStableID(objsStable, tableBase.remakeElement(1));
       VelocityStatEffect::VelocityCommand& vcmd = vel.command->at(0);
       vcmd.linearImpulse = glm::vec2(1.0f);
       vcmd.angularImpulse = 1.0f;
 
       StatEffect::addEffects(1, posStat, tls.statEffects->db);
-      pos.base.lifetime->at(0) = 0;
-      pos.base.owner->at(0) = StableOperations::getStableID(objsStable, UnpackedDatabaseElementID::fromDescription(2, desc));
+      pos.base.lifetime->at(0) = 1;
+      pos.base.owner->at(0) = StableOperations::getStableID(objsStable, tableBase.remakeElement(2));
       PositionStatEffect::PositionCommand& pcmd = pos.command->at(0);
       pcmd.pos = glm::vec2(5.0f);
       pcmd.rot = glm::vec2(0.0f, 1.0f);
 
+      auto globalStats = TableAdapters::getCentralStatEffects(game);
+      auto& lambdaLifetime = *globalStats.lambda.base.lifetime;
+      auto& velLifetime = *globalStats.velocity.base.lifetime;
+      auto& posLifetime = *globalStats.position.base.lifetime;
+
       game.update();
+
+      Assert::AreEqual(1, lambdaInvocations);
+      Assert::AreEqual(size_t(1), lambdaLifetime.size());
+      Assert::AreEqual(size_t(0), lambdaLifetime.at(0));
+
+      Assert::AreEqual(1.0f, gameobjects.physics.linVelX->at(1), 0.1f);
+      Assert::AreEqual(1.0f, gameobjects.physics.linVelY->at(1), 0.1f);
+      Assert::AreEqual(1.0f, gameobjects.physics.angVel->at(1), 0.1f);
+      Assert::AreEqual(size_t(1), velLifetime.size());
+      Assert::AreEqual(size_t(1), velLifetime.at(0));
+
+      Assert::AreEqual(5.0f, gameobjects.transform.posX->at(2));
+      Assert::AreEqual(5.0f, gameobjects.transform.posY->at(2));
+      Assert::AreEqual(0.0f, gameobjects.transform.rotX->at(2));
+      Assert::AreEqual(1.0f, gameobjects.transform.rotY->at(2));
+      Assert::AreEqual(size_t(1), posLifetime.size());
+      Assert::AreEqual(size_t(0), posLifetime.at(0));
     }
   };
 }
