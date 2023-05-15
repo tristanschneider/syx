@@ -2,15 +2,15 @@
 
 struct DebugConfig;
 struct ExternalDatabases;
-struct PhysicsConfig;
 struct GameConfig;
 struct GraphicsConfig;
 struct GameDB;
+struct PhysicsConfig;
 struct StableElementMappings;
+struct StableIDRow;
 struct StatEffectDBOwned;
 struct ThreadLocalData;
 struct ThreadLocals;
-struct StableIDRow;
 
 template<class Element>
 struct BasicRow;
@@ -81,6 +81,15 @@ struct GameObjectAdapter {
   StableIDRow* stable{};
 };
 
+struct PlayerInput;
+struct PlayerKeyboardInput;
+
+struct PlayerAdapter {
+  GameObjectAdapter object;
+  BasicRow<PlayerInput>* input{};
+  BasicRow<PlayerKeyboardInput>* keyboardInput{};
+};
+
 struct SceneState;
 struct PhysicsTableIds;
 struct FileSystem;
@@ -121,5 +130,12 @@ struct TableAdapters {
   static CentralStatEffectAdapter getCentralStatEffects(GameDB db);
 
   static GameObjectAdapter getGameObjects(GameDB db);
+  static GameObjectAdapter getStaticGameObjects(GameDB db);
+  static PlayerAdapter getPlayer(GameDB db);
+  //The gameplay extracted versions of the above
+  static GameObjectAdapter getGameplayGameObjects(GameDB db);
+  static GameObjectAdapter getGameplayStaticGameObjects(GameDB db);
+  static PlayerAdapter getGameplayPlayer(GameDB db);
+
   static GlobalsAdapter getGlobals(GameDB db);
 };

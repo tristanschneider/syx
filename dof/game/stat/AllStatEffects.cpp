@@ -1,6 +1,7 @@
 #include "Precompile.h"
 #include "stat/AllStatEffects.h"
 
+#include "CommonTasks.h"
 #include "Simulation.h"
 #include "TableAdapters.h"
 
@@ -28,16 +29,7 @@ namespace StatEffect {
 
   template<class T>
   void visitMoveToRow(const Row<T>& src, Row<T>& dst, size_t dstStart) {
-    if constexpr(std::is_trivially_copyable_v<T>) {
-      if(size_t size = src.size()) {
-        std::memcpy(&dst.at(dstStart), &src.at(0), sizeof(T)*size);
-      }
-    }
-    else {
-      for(size_t i = 0; i < src.size(); ++i) {
-        dst.at(i) = std::move(src.at(i));
-      }
-    }
+    CommonTasks::Now::moveOrCopyRow(src, dst, dstStart);
   }
 
   void visitMoveToRow(const StableIDRow&, StableIDRow&, size_t) {

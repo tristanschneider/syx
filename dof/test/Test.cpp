@@ -23,6 +23,16 @@ namespace Test {
   static_assert(std::is_same_v<Table<Row<int>>::ElementRef, decltype(make_duple((int*)nullptr))>);
   static_assert(std::is_same_v<std::tuple<DupleElement<0, int>>, Duple<int>::TupleT>);
 
+  struct GameArgs {
+    size_t fragmentCount{};
+    size_t completedFragmentCount{};
+    //Optionally create a player, and if so, at this position
+    std::optional<glm::vec2> playerPos;
+    //Boundary of broadphase and forces. Default should be enough to keep it out of the way
+    glm::vec2 boundaryMin{ -100 };
+    glm::vec2 boundaryMax{ 100 };
+  };
+
   struct TestGame {
     TestGame() {
       Scheduler& scheduler = Simulation::_getScheduler(db);
@@ -45,8 +55,42 @@ namespace Test {
       task = TaskBuilder::buildDependencies(phases.root.mBegin);
     }
 
+    TestGame(const GameArgs& args)
+      : TestGame() {
+      init(args);
+    }
+
     operator GameDB() {
       return { db };
+    }
+
+    void init(const GameArgs& args) {
+      StableElementMappings& stable = TableAdapters::getStableMappings(*this);
+
+      TableOperations::stableResizeTableDB<GameObjectTable>(db, args.fragmentCount, stable);
+      TableOperations::stableResizeTableDB<StaticGameObjectTable>(db, args.completedFragmentCount, stable);
+
+      GlobalsAdapter globals = TableAdapters::getGlobals(*this);
+      globals.scene->mState = SceneState::State::Update;
+      globals.scene->mBoundaryMin = glm::vec2(-100);
+      globals.scene->mBoundaryMax = glm::vec2(100);
+
+      if(args.playerPos) {
+        createPlayer(*args.playerPos);
+      }
+
+      PhysicsSimulation::initialPopulateBroadphase(*this);
+    }
+
+    void createPlayer(const glm::vec2& pos) {
+      PlayerAdapter player = TableAdapters::getPlayer(*this);
+      auto& stable = TableAdapters::getStableMappings(*this);
+      TableOperations::stableResizeTableDB<PlayerTable>(db, 1, stable);
+
+      player.object.transform.posX->at(0) = pos.x;
+      player.object.transform.posY->at(0) = pos.y;
+      player.object.transform.rotX->at(0) = 1.0f;
+      player.object.transform.rotY->at(0) = 0.0f;
     }
 
     void update() {
@@ -1419,13 +1463,11 @@ namespace Test {
     }
 
     TEST_METHOD(Stats) {
-      TestGame game;
-      auto stats = TableAdapters::getThreadLocal(game, 0).statEffects;
-      GameObjectTable& objs =  std::get<GameObjectTable>(game.db.mTables);
-      const UnpackedDatabaseElementID tableId = UnpackedDatabaseElementID::fromPacked(GameDatabase::getTableIndex<GameObjectTable>());
-      StableElementMappings& stable = TableAdapters::getStableMappings(game);
+      GameArgs args;
       constexpr size_t OBJ_COUNT = 3;
-      TableOperations::stableResizeTable(objs, tableId, OBJ_COUNT, stable);
+      args.fragmentCount = OBJ_COUNT;
+      TestGame game{ args };
+      auto stats = TableAdapters::getThreadLocal(game, 0).statEffects;
       auto& lambdaStat = std::get<LambdaStatEffectTable>(stats->db.mTables);
       auto& posStat = std::get<PositionStatEffectTable>(stats->db.mTables);
       auto& velStat = std::get<VelocityStatEffectTable>(stats->db.mTables);
@@ -1435,33 +1477,18 @@ namespace Test {
       ThreadLocalData tls = TableAdapters::getThreadLocal(game, 0);
       GameObjectAdapter gameobjects = TableAdapters::getGameObjects(game);
       StableIDRow& objsStable = *gameobjects.stable;
-      constexpr auto desc = GameDatabase::getDescription();
       auto tableBase = UnpackedDatabaseElementID::fromPacked(GameDatabase::getTableIndex<GameObjectTable>());
-
-      GlobalsAdapter globals = TableAdapters::getGlobals(game);
-      globals.scene->mState = SceneState::State::Update;
-      globals.scene->mBoundaryMin = glm::vec2(-100);
-      globals.scene->mBoundaryMax = glm::vec2(100);
-
-      auto asdf = GameDatabase::getElementID<GameObjectTable>(0);
-      asdf;
-      auto asdf2 = tableBase.remakeElement(0);
-      auto asdf3 = tableBase.remakeElement(1);
-      //Assert::AreEqual(asdf == asdf2);
 
       for(size_t i = 0; i < OBJ_COUNT; ++i) {
         //Need to move them away from the fragment completion location
         gameobjects.transform.posX->at(i) = 4.0f;
       }
-      PhysicsSimulation::initialPopulateBroadphase(game);
 
       StatEffect::addEffects(1, lambdaStat, tls.statEffects->db);
       lambda.base.lifetime->at(0) = 1;
       lambda.base.owner->at(0) = StableOperations::getStableID(objsStable, tableBase.remakeElement(0));
       int lambdaInvocations = 0;
       lambda.command->at(0) = [&](LambdaStatEffect::Args& args) {
-        auto ei = args.resolvedID.toPacked<GameDatabase>().getElementIndex();
-        ei;
         Assert::AreEqual(size_t(0), args.resolvedID.toPacked<GameDatabase>().getElementIndex());
         ++lambdaInvocations;
       };
@@ -1503,6 +1530,62 @@ namespace Test {
       Assert::AreEqual(1.0f, gameobjects.transform.rotY->at(2));
       Assert::AreEqual(size_t(1), posLifetime.size());
       Assert::AreEqual(size_t(0), posLifetime.at(0));
+    }
+
+    TEST_METHOD(PlayerInput) {
+      GameArgs args;
+      args.playerPos = glm::vec2{ 0.0f };
+      TestGame game{ args };
+      PlayerAdapter player = TableAdapters::getPlayer(game);
+      player.input->at(0).mMoveX = 1.0f;
+
+      game.update();
+
+      Assert::IsTrue(player.object.transform.posX->at(0) > 0.0f);
+    }
+
+    TEST_METHOD(GameplayExtract) {
+      GameArgs args;
+      args.fragmentCount = 1;
+      args.completedFragmentCount = 1;
+      args.playerPos = glm::vec2{ 0.0f };
+      TestGame game{ args };
+      GameObjectAdapter fragment = TableAdapters::getGameObjects(game);
+      GameObjectAdapter completedFragment = TableAdapters::getStaticGameObjects(game);
+      PlayerAdapter player = TableAdapters::getPlayer(game);
+      auto setValues = [](GameObjectAdapter obj, float offset) {
+        obj.transform.posX->at(0) = 1.0f + offset;
+        obj.transform.posY->at(0) = 2.0f + offset;
+        obj.transform.rotX->at(0) = std::cos(3.0f + offset);
+        obj.transform.rotY->at(0) = std::sin(3.0f + offset);
+        if(obj.physics.linVelX) {
+          obj.physics.linVelX->at(0) = 0.1f + offset;
+          obj.physics.linVelY->at(0) = 0.2f + offset;
+          obj.physics.angVel->at(0) = 0.3f + offset;
+        }
+      };
+
+      setValues(TableAdapters::getGameObjects(game), 1.0f);
+      setValues(TableAdapters::getStaticGameObjects(game), 2.0f);
+      setValues(TableAdapters::getPlayer(game).object, 3.0f);
+
+      game.update();
+
+      auto assertValues = [](GameObjectAdapter obj, float offset) {
+        Assert::AreEqual(1.0f + offset, obj.transform.posX->at(0));
+        Assert::AreEqual(2.0f + offset, obj.transform.posY->at(0));
+        Assert::AreEqual(std::cos(3.0f + offset), obj.transform.rotX->at(0));
+        Assert::AreEqual(std::sin(3.0f + offset), obj.transform.rotY->at(0));
+        if(obj.physics.linVelX) {
+          Assert::AreEqual(0.1f + offset, obj.physics.linVelX->at(0));
+          Assert::AreEqual(0.2f + offset, obj.physics.linVelY->at(0));
+          Assert::AreEqual(0.3f + offset, obj.physics.angVel->at(0));
+        }
+      };
+
+      assertValues(TableAdapters::getGameplayGameObjects(game), 1.0f);
+      assertValues(TableAdapters::getGameplayStaticGameObjects(game), 2.0f);
+      assertValues(TableAdapters::getGameplayPlayer(game).object, 3.0f);
     }
   };
 }

@@ -52,6 +52,10 @@ struct TaskNode {
     return result;
   }
 
+  static std::shared_ptr<TaskNode> createEmpty() {
+    return create([](...){});
+  }
+
   static std::shared_ptr<TaskNode> createMainThreadPinned(enki::PinnedTaskFunction f) {
     assert(f);
     auto result = std::make_shared<TaskNode>();

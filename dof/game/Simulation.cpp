@@ -7,6 +7,7 @@
 
 #include "glm/gtx/norm.hpp"
 #include "Fragment.h"
+#include "GameplayExtract.h"
 #include "Serializer.h"
 #include "stat/AllStatEffects.h"
 #include "TableAdapters.h"
@@ -154,8 +155,6 @@ void Simulation::writeSnapshot(GameDatabase& db, const char* snapshotFilename) {
 void Simulation::buildUpdateTasks(GameDatabase& db, SimulationPhases& phases) {
   Scheduler& scheduler = _getScheduler(db);
 
-  auto root = TaskNode::create([](...){});
-
   PROFILE_SCOPE("simulation", "update");
   //TODO: move to DebugInput
   constexpr bool enableDebugSnapshot = false;
@@ -172,7 +171,12 @@ void Simulation::buildUpdateTasks(GameDatabase& db, SimulationPhases& phases) {
   GlobalGameData& globals = std::get<GlobalGameData>(db.mTables);
   SceneState& sceneState = std::get<0>(globals.mRows).at();
 
-  auto current = root;
+  //Gameplay extraction can start at the same time as render extraction but render extraction doesn't need to wait on gameplay to finish
+  TaskRange gameplayExtract = GameplayExtract::extractGameplayData({ db });
+  auto root = gameplayExtract.mBegin;
+  phases.renderExtraction.mBegin->mChildren.push_back(root);
+  auto current = gameplayExtract.mEnd;
+  //Wait for gameplay extract and render request processing before continuing
   phases.renderRequests.mEnd->mChildren.push_back(current);
 
   //TODO: generalize this so varied scene types can be supplied

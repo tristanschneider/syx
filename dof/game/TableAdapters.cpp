@@ -56,12 +56,36 @@ namespace {
   }
 
   template<class TableT>
+  TransformAdapter getGameplayTransform(TableT& table) {
+    return {
+      &std::get<FloatRow<Tags::GPos, Tags::X>>(table.mRows),
+      &std::get<FloatRow<Tags::GPos, Tags::Y>>(table.mRows),
+      &std::get<FloatRow<Tags::GRot, Tags::CosAngle>>(table.mRows),
+      &std::get<FloatRow<Tags::GRot, Tags::SinAngle>>(table.mRows)
+    };
+  }
+
+  template<class TableT>
   PhysicsObjectAdapter getPhysics(TableT& table) {
     return {
       &std::get<FloatRow<Tags::LinVel, Tags::X>>(table.mRows),
       &std::get<FloatRow<Tags::LinVel, Tags::Y>>(table.mRows),
       &std::get<FloatRow<Tags::AngVel, Tags::Angle>>(table.mRows)
     };
+  }
+
+  template<class TableT>
+  PhysicsObjectAdapter getGameplayPhysics(TableT& table) {
+    return {
+      &std::get<FloatRow<Tags::GLinVel, Tags::X>>(table.mRows),
+      &std::get<FloatRow<Tags::GLinVel, Tags::Y>>(table.mRows),
+      &std::get<FloatRow<Tags::GAngVel, Tags::Angle>>(table.mRows)
+    };
+  }
+
+  template<class TableT>
+  StableIDRow* getStableRow(TableT& table) {
+    return &std::get<StableIDRow>(table.mRows);
   }
 
   PositionStatEffectAdapter getPositionEffects(StatEffectDatabase& db) {
@@ -106,7 +130,34 @@ GameObjectAdapter TableAdapters::getGameObjects(GameDB db) {
   return {
     getTransform(table),
     getPhysics(table),
-    &std::get<StableIDRow>(table.mRows)
+    getStableRow(table)
+  };
+}
+
+GameObjectAdapter TableAdapters::getGameplayGameObjects(GameDB db) {
+  auto& table = std::get<GameObjectTable>(db.db.mTables);
+  return {
+    getGameplayTransform(table),
+    getGameplayPhysics(table),
+    getStableRow(table)
+  };
+}
+
+GameObjectAdapter TableAdapters::getStaticGameObjects(GameDB db) {
+  auto& table = std::get<StaticGameObjectTable>(db.db.mTables);
+  return {
+    getTransform(table),
+    PhysicsObjectAdapter{},
+    getStableRow(table)
+  };
+}
+
+GameObjectAdapter TableAdapters::getGameplayStaticGameObjects(GameDB db) {
+  auto& table = std::get<StaticGameObjectTable>(db.db.mTables);
+  return {
+    getGameplayTransform(table),
+    PhysicsObjectAdapter{},
+    getStableRow(table)
   };
 }
 
@@ -121,6 +172,32 @@ GlobalsAdapter TableAdapters::getGlobals(GameDB db) {
     &std::get<SharedRow<Scheduler>>(table.mRows).at(),
     &std::get<ExternalDatabasesRow>(table.mRows).at(),
     std::get<ThreadLocalsRow>(table.mRows).at().instance.get()
+  };
+}
+
+PlayerAdapter TableAdapters::getPlayer(GameDB db) {
+  auto& table = std::get<PlayerTable>(db.db.mTables);
+  return {
+    GameObjectAdapter{
+      getTransform(table),
+      getPhysics(table),
+      getStableRow(table),
+    },
+    &std::get<Row<PlayerInput>>(table.mRows),
+    &std::get<Row<PlayerKeyboardInput>>(table.mRows)
+  };
+}
+
+PlayerAdapter TableAdapters::getGameplayPlayer(GameDB db) {
+  auto& table = std::get<PlayerTable>(db.db.mTables);
+  return {
+    GameObjectAdapter{
+      getGameplayTransform(table),
+      getGameplayPhysics(table),
+      getStableRow(table),
+    },
+    &std::get<Row<PlayerInput>>(table.mRows),
+    &std::get<Row<PlayerKeyboardInput>>(table.mRows)
   };
 }
 

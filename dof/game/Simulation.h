@@ -170,6 +170,14 @@ using StaticGameObjectTable = Table<
   FloatRow<Tags::Pos, Tags::Y>,
   FloatRow<Tags::Rot, Tags::CosAngle>,
   FloatRow<Tags::Rot, Tags::SinAngle>,
+
+  //Gameplay data extracted from above
+  //TODO: take advantage of immobility to avoid the need for this
+  FloatRow<Tags::GPos, Tags::X>,
+  FloatRow<Tags::GPos, Tags::Y>,
+  FloatRow<Tags::GRot, Tags::CosAngle>,
+  FloatRow<Tags::GRot, Tags::SinAngle>,
+
   //Only requires broadphase key to know how to remove it, don't need to store boundaries
   //for efficient updates because it won't move
   Row<CubeSprite>,
@@ -219,6 +227,15 @@ using PlayerTable = Table<
   FloatRow<Tags::LinVel, Tags::X>,
   FloatRow<Tags::LinVel, Tags::Y>,
   FloatRow<Tags::AngVel, Tags::Angle>,
+
+  //Gameplay data extracted from above
+  FloatRow<Tags::GPos, Tags::X>,
+  FloatRow<Tags::GPos, Tags::Y>,
+  FloatRow<Tags::GRot, Tags::CosAngle>,
+  FloatRow<Tags::GRot, Tags::SinAngle>,
+  FloatRow<Tags::GLinVel, Tags::X>,
+  FloatRow<Tags::GLinVel, Tags::Y>,
+  FloatRow<Tags::GAngVel, Tags::Angle>,
 
   SweepNPruneBroadphase::OldMinX,
   SweepNPruneBroadphase::OldMinY,

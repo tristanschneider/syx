@@ -111,6 +111,16 @@ struct TableOperations {
     });
   }
 
+  template<class DB, class TableT>
+  static void stableResizeTable(TableT& table, size_t newSize, StableElementMappings& mappings) {
+    stableResizeTable(table, UnpackedDatabaseElementID::fromPacked(DB::getTableIndex<TableT>()), newSize, mappings);
+  }
+
+  template<class TableT, class DB>
+  static void stableResizeTableDB(DB& db, size_t newSize, StableElementMappings& mappings) {
+    stableResizeTable<DB>(std::get<TableT>(db.mTables), newSize, mappings);
+  }
+
   //Insert before location, meaning the value of location will be after the newly created gap
   template<class TableT>
   static void stableInsertRangeAt(TableT& table, const UnpackedDatabaseElementID& location, size_t count, StableElementMappings& mappings) {
