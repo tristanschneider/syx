@@ -10,7 +10,7 @@
 
 //SweepNPrune is the base data structure containing no dependencies on table,
 //this is the wrapper around it to facilitate use within Simulation
-struct SweepNPruneBroadphase {
+namespace SweepNPruneBroadphase {
   //TODO: some of these are only needed temporarily while determining if boundaries need to be updated
   //It would also be possible to minimize necessary space by using a single point and implied size
   struct OldMinX : Row<float> {};
@@ -56,13 +56,13 @@ struct SweepNPruneBroadphase {
     float mResizeThreshold = 0.0f;
   };
 
-  static bool recomputeBoundaries(const float* oldMinAxis, const float* oldMaxAxis,
+  bool recomputeBoundaries(const float* oldMinAxis, const float* oldMaxAxis,
     float* newMinAxis, float* newMaxAxis,
     const float* pos,
     const BoundariesConfig& cfg,
     NeedsReinsert& needsReinsert);
 
-  static void insertRange(size_t begin, size_t count,
+  void insertRange(size_t begin, size_t count,
     BroadphaseTable& broadphase,
     OldMinX& oldMinX,
     OldMinY& oldMinY,
@@ -74,7 +74,7 @@ struct SweepNPruneBroadphase {
     NewMaxY& newMaxY,
     Key& key);
 
-  static void reinsertRange(size_t begin, size_t count,
+  void reinsertRange(size_t begin, size_t count,
     BroadphaseTable& broadphase,
     OldMinX& oldMinX,
     OldMinY& oldMinY,
@@ -86,7 +86,7 @@ struct SweepNPruneBroadphase {
     NewMaxY& newMaxY,
     Key& key);
 
-  static void reinsertRangeAsNeeded(NeedsReinsert& needsReinsert,
+  void reinsertRangeAsNeeded(NeedsReinsert& needsReinsert,
     BroadphaseTable& broadphase,
     OldMinX& oldMinX,
     OldMinY& oldMinY,
@@ -99,36 +99,19 @@ struct SweepNPruneBroadphase {
     Key& key);
 
   //Iterates over the entire broadphase and generates all pairs. Inefficient, but useful for debugging
-  static void generateCollisionPairs(BroadphaseTable& broadphase, std::vector<SweepCollisionPair>& results);
+  void generateCollisionPairs(BroadphaseTable& broadphase, std::vector<SweepCollisionPair>& results);
 
-  static void eraseRange(size_t begin, size_t count,
+  void eraseRange(size_t begin, size_t count,
     BroadphaseTable& broadphase,
     OldMinX& oldMinX,
     OldMinY& oldMinY,
     Key& key);
 
-  static std::optional<std::pair<StableElementID, StableElementID>> _tryGetOrderedCollisionPair(const SweepCollisionPair& key, const PhysicsTableIds& tableIds, StableElementMappings& stableMappings, bool assertIfMissing) {
-    auto elementA = stableMappings.mStableToUnstable.find(key.mA);
-    auto elementB = stableMappings.mStableToUnstable.find(key.mB);
-    if(assertIfMissing) {
-      assert(elementA != stableMappings.mStableToUnstable.end());
-      assert(elementB != stableMappings.mStableToUnstable.end());
-    }
-    if(elementA != stableMappings.mStableToUnstable.end() && elementB != stableMappings.mStableToUnstable.end()) {
-      const StableElementID originalA{ elementA->second, elementA->first };
-      const StableElementID originalB{ elementB->second, elementB->first };
-      auto pair = std::make_pair(originalA, originalB);
-      //If this isn't an applicable pair, skip to the next without incrementing addIndex
-      if(CollisionPairOrder::tryOrderCollisionPair(pair.first, pair.second, tableIds)) {
-        return pair;
-      }
-    }
-    return {};
-  }
+  std::optional<std::pair<StableElementID, StableElementID>> _tryGetOrderedCollisionPair(const SweepCollisionPair& key, const PhysicsTableIds& tableIds, StableElementMappings& stableMappings, bool assertIfMissing);
 
   //Create and remove based on the changes in PairChanges
   template<class PairIndexA, class PairIndexB, class DatabaseT, class TableT>
-  static void updateCollisionPairs(PairChanges& changes, CollisionPairMappings& mappings, TableT& table, const PhysicsTableIds& tableIds, StableElementMappings& stableMappings, ChangedCollisionPairs& resultChanges) {
+  void updateCollisionPairs(PairChanges& changes, CollisionPairMappings& mappings, TableT& table, const PhysicsTableIds& tableIds, StableElementMappings& stableMappings, ChangedCollisionPairs& resultChanges) {
     PROFILE_SCOPE("physics", "updateCollisionPairs");
     auto& stableIds = std::get<StableIDRow>(table.mRows);
     //TODO: order these somewhere else

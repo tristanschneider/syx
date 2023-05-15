@@ -9,10 +9,12 @@
 #include "TableOperations.h"
 #include "Queries.h"
 
+#include "PhysicsSimulation.h"
 #include "Scheduler.h"
 #include "StableElementID.h"
 #include "TableAdapters.h"
 #include "ThreadLocals.h"
+#include "Fragment.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -317,7 +319,7 @@ namespace Test {
         FloatRow<Tags::Pos, Tags::X>,
         FloatRow<Tags::Pos, Tags::Y>,
         FloatRow<Tags::Rot, Tags::CosAngle>,
-        FloatRow<Tags::Rot, Tags::SinAngle>>(pairs, db, _getStableMappings(db), Simulation::_getPhysicsTableIds()));
+        FloatRow<Tags::Rot, Tags::SinAngle>>(pairs, db, _getStableMappings(db), PhysicsSimulation::_getPhysicsTableIds()));
     }
 
     static void _fillConstraintVelocities(GameDatabase& db) {
@@ -385,7 +387,7 @@ namespace Test {
       auto& mappings = std::get<SharedRow<SweepNPruneBroadphase::CollisionPairMappings>>(broadphase.mRows).at();
       SweepNPruneBroadphase::ChangedCollisionPairs resultChanges;
       SweepNPruneBroadphase::updateCollisionPairs<CollisionPairIndexA, CollisionPairIndexB, GameDatabase>
-        (changes, mappings, std::get<CollisionPairsTable>(db.mTables), Simulation::_getPhysicsTableIds(), _getStableMappings(db), resultChanges);
+        (changes, mappings, std::get<CollisionPairsTable>(db.mTables), PhysicsSimulation::_getPhysicsTableIds(), _getStableMappings(db), resultChanges);
     }
 
     template<class TableT>
@@ -411,7 +413,7 @@ namespace Test {
 
     static void _buildConstraintsTable(GameDatabase& db, const PhysicsConfig& config) {
       DBReader reader(db);
-      _execute(ConstraintsTableBuilder::build(db, reader.mChangedPairs, reader.mStableMappings, reader.mConstraintsMappings, Simulation::_getPhysicsTableIds(), config));
+      _execute(ConstraintsTableBuilder::build(db, reader.mChangedPairs, reader.mStableMappings, reader.mConstraintsMappings, PhysicsSimulation::_getPhysicsTableIds(), config));
     }
 
     TEST_METHOD(CollidingPair_PopulateNarrowphase_IsPopulated) {
@@ -1021,7 +1023,7 @@ namespace Test {
     static void _updatePhysics(GameDatabase& db) {
       PhysicsConfig config;
       config.mForcedTargetWidth = size_t(1);
-      _execute(Simulation::_updatePhysics(db, config));
+      _execute(PhysicsSimulation::updatePhysics({ db }));
     }
 
     static void _assertEnabledContactConstraintCount(GameDatabase& db, size_t expected) {
@@ -1058,8 +1060,8 @@ namespace Test {
 
     TEST_METHOD(GameOneObject_Migrate_PhysicsDataPreserved) {
       GameDatabase db;
-      SceneArgs args{ 1, 1 };
-      Simulation::_setupScene(db, args);
+      Fragment::SceneArgs args{ 1, 1 };
+      Fragment::_setupScene({ db }, args);
       DBReader reader(db);
       StableElementID playerId = StableOperations::getStableID(reader.mPlayerIDs, GameDatabase::getElementID<PlayerTable>(0));
       StableElementID objectId = StableOperations::getStableID(reader.mGameObjectIDs, GameDatabase::getElementID<GameObjectTable>(0));
@@ -1107,7 +1109,8 @@ namespace Test {
       assertInitialResolution();
 
       std::get<FragmentGoalFoundRow>(reader.mGameObjects.mRows).at(0) = true;
-      Simulation::_migrateCompletedFragments(db);
+
+      Fragment::_migrateCompletedFragments({ db });
 
       //Migrate will also snap the fragment to its goal, so recenter the player in collision with the new location
       auto setNewPos = [&] {
@@ -1149,8 +1152,8 @@ namespace Test {
 
     TEST_METHOD(GameTwoObjects_Migrate_PhysicsDataPreserved) {
       GameDatabase db;
-      SceneArgs args{ 1, 2 };
-      Simulation::_setupScene(db, args);
+      Fragment::SceneArgs args{ 1, 2 };
+      Fragment::_setupScene({ db }, args);
       DBReader reader(db);
       StableElementID playerId = StableOperations::getStableID(reader.mPlayerIDs, GameDatabase::getElementID<PlayerTable>(0));
       StableElementID objectLeftId = StableOperations::getStableID(reader.mGameObjectIDs, GameDatabase::getElementID<GameObjectTable>(0));
@@ -1193,7 +1196,7 @@ namespace Test {
       Assert::IsTrue(reader.mLinVelY.at(1) < 0.5f - minCorrection, L"Object should be pushed away from player");
 
       std::get<FragmentGoalFoundRow>(reader.mGameObjects.mRows).at(0) = true;
-      Simulation::_migrateCompletedFragments(db);
+      Fragment::_migrateCompletedFragments({ db });
 
       //Need to update both since one moved and the other was affected by swap removal
       objectLeftId = *StableOperations::tryResolveStableID(objectLeftId, db, reader.mStableMappings);
@@ -1294,7 +1297,7 @@ namespace Test {
 
     static auto getTargetElementRange(GameDatabase& db, size_t tableId) {
       DBReader reader(db);
-      return ctbdetails::getTargetElementRange(tableId, Simulation::_getPhysicsTableIds(), reader.mConstraintsMappings, TableOperations::size(reader.mConstraintsCommon));
+      return ctbdetails::getTargetElementRange(tableId, PhysicsSimulation::_getPhysicsTableIds(), reader.mConstraintsMappings, TableOperations::size(reader.mConstraintsCommon));
     }
 
     static StableElementID tryTakeSuitableFreeSlot(GameDatabase& db, size_t tableId, const StableElementID& a, const StableElementID& b, size_t width) {
@@ -1304,7 +1307,7 @@ namespace Test {
         getTargetElementRange(db, tableId),
         reader.mConstraintsMappings,
         reader.mStableMappings,
-        Simulation::_getPhysicsTableIds(),
+        PhysicsSimulation::_getPhysicsTableIds(),
         a,
         b,
         reader.mConstraintPairA,
@@ -1314,20 +1317,20 @@ namespace Test {
 
       if(result != StableElementID::invalid()) {
         StableElementID p = _addCollisionPair(db, a, b);
-        ctbdetails::assignConstraint(p, a, b, result, reader.mCollisionPairs, reader.mConstraintsCommon, Simulation::_getPhysicsTableIds());
+        ctbdetails::assignConstraint(p, a, b, result, reader.mCollisionPairs, reader.mConstraintsCommon, PhysicsSimulation::_getPhysicsTableIds());
       }
       return result;
     }
 
     void addPaddingToTable(GameDatabase& db, size_t table, size_t amount) {
       DBReader reader(db);
-      ctbdetails::addPaddingToTable(table, amount, reader.mConstraintsCommon, reader.mStableMappings, Simulation::_getPhysicsTableIds(), reader.mConstraintsMappings);
+      ctbdetails::addPaddingToTable(table, amount, reader.mConstraintsCommon, reader.mStableMappings, PhysicsSimulation::_getPhysicsTableIds(), reader.mConstraintsMappings);
     }
 
     TEST_METHOD(CTBDetails) {
       GameDatabase db;
       DBReader reader(db);
-      const PhysicsTableIds tableIds = Simulation::_getPhysicsTableIds();
+      const PhysicsTableIds tableIds = PhysicsSimulation::_getPhysicsTableIds();
       const PhysicsConfig config = _configWithPadding(2);
 
       _stableResize(reader.mGameObjects, 5, reader.mStableMappings);
@@ -1450,7 +1453,7 @@ namespace Test {
         //Need to move them away from the fragment completion location
         gameobjects.transform.posX->at(i) = 4.0f;
       }
-      Simulation::_initialPopulateBroadphase(game.db);
+      PhysicsSimulation::initialPopulateBroadphase(game);
 
       StatEffect::addEffects(1, lambdaStat, tls.statEffects->db);
       lambda.base.lifetime->at(0) = 1;

@@ -9,8 +9,18 @@ struct TableOperations {
   }
 
   template<class RowT, class TableT>
-  static auto _unwrapRowWithOffset(TableT& t, size_t offset) {
-    return _unwrapWithOffset(std::get<RowT>(t.mRows), offset);
+  static decltype(std::declval<RowT&>().mElements.data()) _unwrapRowWithOffset(TableT& t, size_t offset) {
+    if constexpr(TableOperations::hasRow<RowT, TableT>()) {
+      return _unwrapWithOffset(std::get<RowT>(t.mRows), offset);
+    }
+    else {
+      return nullptr;
+    }
+  }
+
+  template<class RowT, class TableT>
+  static auto unwrapRow(TableT& t, size_t offset = 0) {
+    return _unwrapRowWithOffset<RowT, TableT>(t, offset);
   }
 
   template<class TableT>
