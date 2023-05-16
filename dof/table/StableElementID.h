@@ -90,10 +90,14 @@ struct StableElementID {
     return { std::numeric_limits<size_t>::max(), std::numeric_limits<size_t>::max() };
   }
 
+  static StableElementID fromStableID(size_t stableId) {
+    //Table index is not known here, so a resolve will be needed to compute it
+    return { dbDetails::INVALID_VALUE, stableId };
+  }
+
   //For if the caller wants to get the stable element at the index that they know is correct
   static StableElementID fromStableRow(size_t index, const StableIDRow& row) {
-    //Table index is not known here, so a resolve will be needed to compute it
-    return { dbDetails::INVALID_VALUE, row.at(index) };
+    return fromStableID(row.at(index));
   }
 
   UnpackedDatabaseElementID toUnpacked(const DatabaseDescription& description) const {

@@ -15,18 +15,16 @@ namespace World {
     const glm::vec2 boundaryMax = scene.mBoundaryMax;
     const GameConfig* config = TableAdapters::getConfig({ db }).game;
     const float boundarySpringConstant = config->boundarySpringConstant;
-    Queries::viewEachRow<FloatRow<Pos, X>,
-      FloatRow<LinVel, X>>(db,
-        [&](FloatRow<Pos, X>& pos, FloatRow<LinVel, X>& linVel) {
+    Queries::viewEachRow(db, [&](FloatRow<GPos, X>& pos, FloatRow<GLinImpulse, X>& linVel) {
       ispc::repelWorldBoundary(pos.mElements.data(), linVel.mElements.data(), boundaryMin.x, boundaryMax.x, boundarySpringConstant, (uint32_t)pos.mElements.size());
     });
-    Queries::viewEachRow<FloatRow<Pos, Y>,
-      FloatRow<LinVel, Y>>(db,
-        [&](FloatRow<Pos, Y>& pos, FloatRow<LinVel, Y>& linVel) {
+    Queries::viewEachRow(db, [&](FloatRow<GPos, Y>& pos, FloatRow<GLinImpulse, Y>& linVel) {
       ispc::repelWorldBoundary(pos.mElements.data(), linVel.mElements.data(), boundaryMin.y, boundaryMax.y, boundarySpringConstant, (uint32_t)pos.mElements.size());
     });
   }
 
+  //Read GPos, GlobalGameData
+  //Write GLinImpulse
   void enforceWorldBoundary(GameDB db) {
     _enforceWorldBoundary(db.db);
   }

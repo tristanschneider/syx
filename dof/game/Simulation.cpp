@@ -102,6 +102,10 @@ namespace {
     }));
     current = current->mChildren.back();
 
+    TaskRange applyGameplayImpulse = GameplayExtract::applyGameplayImpulses({ db });
+    current->mChildren.push_back(applyGameplayImpulse.mBegin);
+    current = applyGameplayImpulse.mEnd;
+
     TaskRange physics = PhysicsSimulation::updatePhysics({ db });
     current->mChildren.push_back(physics.mBegin);
     current = physics.mEnd;

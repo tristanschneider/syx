@@ -14,9 +14,8 @@ namespace Player {
   //Modify thread locals
   //Read gameplay extracted values
   //Write PlayerInput
-  void _updatePlayerInput(const PlayerAdapter& players,
+  void _updatePlayerInput(PlayerAdapter players,
     const GameConfig& config,
-    VelocityStatEffectAdapter velocityEffect,
     LambdaStatEffectAdapter lambdaEffect
   ) {
     PROFILE_SCOPE("simulation", "playerinput");
@@ -46,12 +45,8 @@ namespace Player {
       }
 
       if(impulse != glm::vec2{ 0 }) {
-        const size_t effectID = velocityEffect.command->size();
-        auto& velocityModifier = velocityEffect.base.modifier;
-        velocityModifier.modifier.resize(velocityModifier.table, effectID + 1, *velocityModifier.stableMappings);
-        velocityEffect.base.lifetime->at(effectID) = StatEffect::INSTANT;
-        velocityEffect.base.owner->at(effectID) = StableElementID::fromStableRow(i, *players.object.stable);
-        velocityEffect.command->at(effectID).linearImpulse = impulse;
+        players.object.physics.linImpulseX->at(i) = impulse.x;
+        players.object.physics.linImpulseY->at(i) = impulse.y;
       }
 
       if(input.mAction1) {
@@ -85,7 +80,6 @@ namespace Player {
       _updatePlayerInput(
         TableAdapters::getPlayer(db),
         *TableAdapters::getConfig({ db }).game,
-        TableAdapters::getVelocityEffects(db, thread),
         TableAdapters::getLambdaEffects(db, thread)
       );
     });

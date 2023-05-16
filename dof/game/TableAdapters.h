@@ -76,6 +76,10 @@ struct PhysicsObjectAdapter {
   BasicRow<float>* linVelX{};
   BasicRow<float>* linVelY{};
   BasicRow<float>* angVel{};
+
+  BasicRow<float>* linImpulseX{};
+  BasicRow<float>* linImpulseY{};
+  BasicRow<float>* angImpulse{};
 };
 
 struct GameObjectAdapter {
@@ -139,6 +143,8 @@ struct TableAdapters {
   static GameObjectAdapter getGameplayGameObjects(GameDB db);
   static GameObjectAdapter getGameplayStaticGameObjects(GameDB db);
   static PlayerAdapter getGameplayPlayer(GameDB db);
+
+  static size_t addStatEffectsSharedLifetime(StatEffectBaseAdapter& base, size_t lifetime, const size_t* stableIds, size_t count);
 
   static GlobalsAdapter getGlobals(GameDB db);
 };

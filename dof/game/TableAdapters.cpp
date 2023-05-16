@@ -71,7 +71,10 @@ namespace {
     return {
       &std::get<FloatRow<Tags::LinVel, Tags::X>>(table.mRows),
       &std::get<FloatRow<Tags::LinVel, Tags::Y>>(table.mRows),
-      &std::get<FloatRow<Tags::AngVel, Tags::Angle>>(table.mRows)
+      &std::get<FloatRow<Tags::AngVel, Tags::Angle>>(table.mRows),
+      &std::get<FloatRow<Tags::GLinImpulse, Tags::X>>(table.mRows),
+      &std::get<FloatRow<Tags::GLinImpulse, Tags::Y>>(table.mRows),
+      &std::get<FloatRow<Tags::GAngImpulse, Tags::Angle>>(table.mRows),
     };
   }
 
@@ -209,4 +212,13 @@ CentralStatEffectAdapter TableAdapters::getCentralStatEffects(GameDB db) {
     ::getVelocityEffects(stats.db),
     ::getLambdaEffects(stats.db)
   };
+}
+
+size_t TableAdapters::addStatEffectsSharedLifetime(StatEffectBaseAdapter& base, size_t lifetime, const size_t* stableIds, size_t count) {
+  const size_t firstIndex = base.modifier.addElements(count);
+  for(size_t i = 0; i < count; ++i) {
+    base.lifetime->at(i + firstIndex) = lifetime;
+    base.owner->at(i + firstIndex) = StableElementID::fromStableID(stableIds[i]);
+  }
+  return firstIndex;
 }

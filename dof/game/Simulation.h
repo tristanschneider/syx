@@ -33,6 +33,11 @@ namespace Tags {
   struct GLinVel{};
   struct GAngVel{};
 
+  //Impulses from gameplay to apply. In other words a desired change to LinVel
+  //Equivalent to making a velocity stat effect targeting this elemtn of lifetime 1
+  struct GLinImpulse{};
+  struct GAngImpulse{};
+
   //The goal coordinates in X and Y that the given fragment wants to go to which will cause it to change to a static gameobject
   struct FragmentGoal{};
 
@@ -145,6 +150,11 @@ using GameObjectTable = Table<
   FloatRow<Tags::GLinVel, Tags::Y>,
   FloatRow<Tags::GAngVel, Tags::Angle>,
 
+  //Impulses requested from gameplay
+  FloatRow<Tags::GLinImpulse, Tags::X>,
+  FloatRow<Tags::GLinImpulse, Tags::Y>,
+  FloatRow<Tags::GAngImpulse, Tags::Angle>,
+
   FloatRow<Tags::FragmentGoal, Tags::X>,
   FloatRow<Tags::FragmentGoal, Tags::Y>,
 
@@ -236,6 +246,11 @@ using PlayerTable = Table<
   FloatRow<Tags::GLinVel, Tags::X>,
   FloatRow<Tags::GLinVel, Tags::Y>,
   FloatRow<Tags::GAngVel, Tags::Angle>,
+
+  //Impulses requested from gameplay
+  FloatRow<Tags::GLinImpulse, Tags::X>,
+  FloatRow<Tags::GLinImpulse, Tags::Y>,
+  FloatRow<Tags::GAngImpulse, Tags::Angle>,
 
   SweepNPruneBroadphase::OldMinX,
   SweepNPruneBroadphase::OldMinY,

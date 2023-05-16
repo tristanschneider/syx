@@ -295,14 +295,20 @@ struct StableTableModifier {
       static void resize(void* table, size_t newSize, StableElementMappings& mappings) {
         TableOperations::stableResizeTable<DB, TableT>(*static_cast<TableT*>(table), newSize, mappings);
       }
+
+      static size_t size(const void* table) {
+        return TableOperations::size(*static_cast<const TableT*>(table));
+      }
     };
 
     return {
-      &Adapter::resize
+      &Adapter::resize,
+      &Adapter::size
     };
   }
 
-  void (*resize)(void* table, size_t newSize, StableElementMappings& mappings){};
+  void(*resize)(void* table, size_t newSize, StableElementMappings& mappings){};
+  size_t(*size)(const void* table){};
 };
 
 //Wraps the operations needed to modify any table with an included instance
@@ -320,6 +326,13 @@ struct StableTableModifierInstance {
   template<class TableT, class DB>
   static StableTableModifierInstance getDB(DB& db, StableElementMappings& mappings) {
     return get<DB, TableT>(std::get<TableT>(db.mTables), mappings);
+  }
+
+  //Add the requested amount of elements and return the index of the first new one
+  size_t addElements(size_t count) {
+    const size_t first = modifier.size(table);
+    modifier.resize(table, count + first, *stableMappings);
+    return first;
   }
 
   //Currently several function pointers on each instance, modifier could be a singleton if it matters
