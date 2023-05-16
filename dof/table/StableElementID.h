@@ -8,9 +8,58 @@
 
 struct StableIDRow : Row<size_t> {};
 
+//This is clunky, it shouldn't need thread safety since the use cases are unrelated, but they all share the same map
+//This could likely be improved with more individual local stable mappings, but that would also make their use more confusing
 struct StableElementMappings {
+public:
+  size_t createKey() {
+    return mKeygen.fetch_add(1, std::memory_order_relaxed) + 1;
+  }
+
+  using LockGuard = std::lock_guard<std::mutex>;
+
+  void insertKey(size_t stable, size_t unstable) {
+    LockGuard guard{ mMutex };
+    mStableToUnstable[stable] = unstable;
+  }
+
+  bool tryUpdateKey(size_t stable, size_t unstable) {
+    LockGuard gaurd{ mMutex };
+    if(auto it = mStableToUnstable.find(stable); it != mStableToUnstable.end()) {
+      it->second = unstable;
+      return true;
+    }
+    return false;
+  }
+
+  bool tryEraseKey(size_t stable) {
+    LockGuard guard{ mMutex };
+    if(auto it = mStableToUnstable.find(stable); it != mStableToUnstable.end()) {
+      mStableToUnstable.erase(it);
+      return true;
+    }
+    return false;
+  }
+
+  std::optional<std::pair<size_t, size_t>> findKey(size_t stable) const {
+    LockGuard guard{ mMutex };
+    auto it = mStableToUnstable.find(stable);
+    return it != mStableToUnstable.end() ? std::make_optional(std::make_pair(stable, it->second)) : std::nullopt;
+  }
+
+  size_t size() const {
+    LockGuard guard{ mMutex };
+    return mStableToUnstable.size();
+  }
+
+  bool empty() const {
+    return size() != 0;
+  }
+
+private:
   std::unordered_map<size_t, size_t> mStableToUnstable;
-  size_t mKeygen{};
+  std::atomic_size_t mKeygen{};
+  mutable std::mutex mMutex;
 };
 
 struct StableInfo {
@@ -133,9 +182,9 @@ struct StableOperations {
     }
 
     //ID is wrong, update it from mappings
-    auto it = mappings.mStableToUnstable.find(id.mStableID);
+    auto it = mappings.findKey(id.mStableID);
     //If it isn't found that should mean the element has been removed, so return nothing
-    if(it == mappings.mStableToUnstable.end()) {
+    if(!it) {
       return {};
     }
 
@@ -153,9 +202,9 @@ struct StableOperations {
       return id;
     }
     //ID is wrong, update it from mappings
-    auto it = mappings.mStableToUnstable.find(id.mStableID);
+    auto it = mappings.findKey(id.mStableID);
     //If it isn't found that should mean the element has been removed, so return nothing
-    if(it == mappings.mStableToUnstable.end()) {
+    if(!it) {
       return {};
     }
 
@@ -188,12 +237,12 @@ struct StableOperations {
 
     //Erase old mapping if valid. Case for invalid is in the reuse case for migrateOne below
     if(stableIDToRemove != dbDetails::INVALID_VALUE) {
-      auto it = mappings.mStableToUnstable.find(stableIDToRemove);
-      assert(it != mappings.mStableToUnstable.end());
-      if(it != mappings.mStableToUnstable.end()) {
+      auto it = mappings.findKey(stableIDToRemove);
+      assert(it);
+      if(it) {
         //Assert mapping matched what it was pointing at
         assert((it->second == id.remake(id.getTableIndex(), removeIndex).mValue));
-        mappings.mStableToUnstable.erase(it);
+        mappings.tryEraseKey(it->first);
       }
     }
 
@@ -203,21 +252,15 @@ struct StableOperations {
 
     //Update mapping for swapped element
     if(removeIndex < newSize) {
-      mappings.mStableToUnstable[stableIDToRemove] = id.remake(id.getTableIndex(), removeIndex).mValue;
+      mappings.tryUpdateKey(stableIDToRemove, id.remake(id.getTableIndex(), removeIndex).mValue);
     }
   }
 
   static void swap(StableIDRow& row, const UnpackedDatabaseElementID& a, const UnpackedDatabaseElementID& b, StableElementMappings& mappings) {
     size_t& stableA = row.at(a.getElementIndex());
     size_t& stableB = row.at(b.getElementIndex());
-    auto it = mappings.mStableToUnstable.find(stableA);
-    if(it != mappings.mStableToUnstable.end()) {
-      it->second = b.mValue;
-    }
-    it = mappings.mStableToUnstable.find(stableB);
-    if(it != mappings.mStableToUnstable.end()) {
-      it->second = a.mValue;
-    }
+    mappings.tryUpdateKey(stableA, b.mValue);
+    mappings.tryUpdateKey(stableB, a.mValue);
     std::swap(stableA, stableB);
   }
 
@@ -234,19 +277,17 @@ struct StableOperations {
     size_t oldSize = row.size();
     //Remove mappings for elements about to be removed
     for(size_t i = newSize; i < oldSize; ++i) {
-      auto it = mappings.mStableToUnstable.find(row.at(i));
-      assert(it != mappings.mStableToUnstable.end());
-      if(it != mappings.mStableToUnstable.end()) {
-        mappings.mStableToUnstable.erase(it);
-      }
+      [[maybe_unused]] const bool erased = mappings.tryEraseKey(row.at(i));
+      assert(erased);
     }
 
     row.resize(newSize);
     for(size_t i = oldSize; i < newSize; ++i) {
       //Assign new id
-      row.at(i) = ++mappings.mKeygen;
+      row.at(i) = mappings.createKey();
+
       //Add mapping for new id
-      mappings.mStableToUnstable[row.at(i)] = id.remake(id.getTableIndex(), i).mValue;
+      mappings.insertKey(row.at(i), id.remake(id.getTableIndex(), i).mValue);
     }
   }
 
@@ -260,8 +301,8 @@ struct StableOperations {
     dst.emplaceBack(stableIDToMove);
 
     //Update old mapping to point at new table
-    assert(mappings.mStableToUnstable.find(stableIDToMove) != mappings.mStableToUnstable.end());
-    mappings.mStableToUnstable[stableIDToMove] = dstID.mValue;
+    [[maybe_unused]] const bool updated = mappings.tryUpdateKey(stableIDToMove, dstID.mValue);
+    assert(updated);
     //Invalidate
     stableIDToMove = DatabaseElementID<S>{}.mValue;
 

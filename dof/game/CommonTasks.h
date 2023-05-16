@@ -16,7 +16,7 @@ namespace CommonTasks {
       }
       else {
         for(size_t i = 0; i < src.size(); ++i) {
-          dst.at(i) = std::move(src.at(i));
+          dst.at(dstStart + i) = std::move(src.at(i));
         }
       }
     }

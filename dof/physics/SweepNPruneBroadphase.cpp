@@ -33,13 +33,13 @@ bool SweepNPruneBroadphase::recomputeBoundaries(const float* oldMinAxis, const f
 }
 
 std::optional<std::pair<StableElementID, StableElementID>> SweepNPruneBroadphase::_tryGetOrderedCollisionPair(const SweepCollisionPair& key, const PhysicsTableIds& tableIds, StableElementMappings& stableMappings, bool assertIfMissing) {
-  auto elementA = stableMappings.mStableToUnstable.find(key.mA);
-  auto elementB = stableMappings.mStableToUnstable.find(key.mB);
+  auto elementA = stableMappings.findKey(key.mA);
+  auto elementB = stableMappings.findKey(key.mB);
   if(assertIfMissing) {
-    assert(elementA != stableMappings.mStableToUnstable.end());
-    assert(elementB != stableMappings.mStableToUnstable.end());
+    assert(elementA);
+    assert(elementB);
   }
-  if(elementA != stableMappings.mStableToUnstable.end() && elementB != stableMappings.mStableToUnstable.end()) {
+  if(elementA && elementB) {
     const StableElementID originalA{ elementA->second, elementA->first };
     const StableElementID originalB{ elementB->second, elementB->first };
     auto pair = std::make_pair(originalA, originalB);

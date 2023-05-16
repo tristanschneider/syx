@@ -16,5 +16,5 @@ namespace Fragment {
   void updateFragmentForces(GameDB db);
 
   void _setupScene(GameDB db, SceneArgs args);
-  void _migrateCompletedFragments(GameDB db);
+  void _migrateCompletedFragments(GameDB db, size_t thread);
 }

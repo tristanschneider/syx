@@ -893,7 +893,7 @@ namespace Test {
       for(size_t i = 0; i < stableA.size(); ++i) {
         const size_t stable = stableA.at(i);
         const size_t unstable = TestStableDB::ElementID{ tableIndex.getTableIndex(), i }.mValue;
-        Assert::AreEqual(mappings.mStableToUnstable[stable], unstable);
+        Assert::AreEqual(mappings.findKey(stable)->second, unstable);
         StableElementID sid{ unstable, stable };
         std::optional<StableElementID> resolved = StableOperations::tryResolveStableID(sid, db, mappings);
         Assert::IsTrue(resolved.has_value());
@@ -939,7 +939,7 @@ namespace Test {
       TableOperations::stableResizeTable(a, tableIndexA, 0, mappings);
       TableOperations::stableResizeTable(b, tableIndexB, 0, mappings);
 
-      Assert::IsTrue(mappings.mStableToUnstable.empty());
+      Assert::IsTrue(mappings.empty());
     }
 
     struct DBReader {
@@ -1154,7 +1154,7 @@ namespace Test {
 
       std::get<FragmentGoalFoundRow>(reader.mGameObjects.mRows).at(0) = true;
 
-      Fragment::_migrateCompletedFragments({ db });
+      Fragment::_migrateCompletedFragments({ db }, 0);
 
       //Migrate will also snap the fragment to its goal, so recenter the player in collision with the new location
       auto setNewPos = [&] {
@@ -1240,7 +1240,7 @@ namespace Test {
       Assert::IsTrue(reader.mLinVelY.at(1) < 0.5f - minCorrection, L"Object should be pushed away from player");
 
       std::get<FragmentGoalFoundRow>(reader.mGameObjects.mRows).at(0) = true;
-      Fragment::_migrateCompletedFragments({ db });
+      Fragment::_migrateCompletedFragments({ db }, 0);
 
       //Need to update both since one moved and the other was affected by swap removal
       objectLeftId = *StableOperations::tryResolveStableID(objectLeftId, db, reader.mStableMappings);

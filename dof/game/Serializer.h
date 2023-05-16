@@ -178,19 +178,20 @@ template<> struct Serializer<Row<TextureLoadRequest>> : NoOpSerializer<Row<Textu
 template<> struct Serializer<ConfigTable> : NoOpSerializer<ConfigTable>{};
 
 
+//TODO: restore this
 template<>
 struct Serializer<SharedRow<StableElementMappings>> {
   using SelfT = SharedRow<StableElementMappings>;
-  static void serialize(const SelfT& mappings, SerializeStream& stream) {
-    const StableElementMappings& m = mappings.at();
-    details::memCpySerialize(m.mKeygen, stream);
-    details::memCpySerialize(m.mStableToUnstable, stream);
+  static void serialize(const SelfT& mappings,[[maybe_unused]] SerializeStream& stream) {
+    [[maybe_unused]] const StableElementMappings& m = mappings.at();
+    //details::memCpySerialize(m.mKeygen, stream);
+    //details::memCpySerialize(m.mStableToUnstable, stream);
   }
 
-  static bool deserialize(DeserializeStream& stream, SelfT& mappings) {
-    StableElementMappings& m = mappings.at();
-    details::memCpyDeserialize(stream, m.mKeygen);
-    details::memCpyDeserialize(stream, m.mStableToUnstable);
+  static bool deserialize([[maybe_unused]] DeserializeStream& stream, SelfT& mappings) {
+    [[maybe_unused]] StableElementMappings& m = mappings.at();
+    //details::memCpyDeserialize(stream, m.mKeygen);
+    //details::memCpyDeserialize(stream, m.mStableToUnstable);
     return true;
   }
 };
