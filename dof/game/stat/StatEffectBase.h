@@ -7,6 +7,9 @@
 struct GameDB;
 
 namespace StatEffect {
+  //Lifetime of a single frame instant effect
+  constexpr size_t INSTANT = 1;
+
   struct Globals {
     std::vector<StableElementID> toRemove;
   };

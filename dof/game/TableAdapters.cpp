@@ -37,11 +37,12 @@ StatEffectDBOwned& TableAdapters::getStatEffects(GameDB db) {
 
 namespace {
   template<class TableT>
-  StatEffectBaseAdapter getStatBase(TableT& table) {
+  StatEffectBaseAdapter getStatBase(TableT& table, StatEffectDatabase& db) {
     return {
       &std::get<StatEffect::Owner>(table.mRows),
       &std::get<StatEffect::Lifetime>(table.mRows),
-      &std::get<StatEffect::Global>(table.mRows)
+      &std::get<StatEffect::Global>(table.mRows),
+      StableTableModifierInstance::get<StatEffectDatabase>(table, StatEffect::getGlobals(db).stableMappings)
     };
   }
 
@@ -91,7 +92,7 @@ namespace {
   PositionStatEffectAdapter getPositionEffects(StatEffectDatabase& db) {
     auto& table = std::get<PositionStatEffectTable>(db.mTables);
     return {
-      getStatBase(table),
+      getStatBase(table, db),
       &std::get<PositionStatEffect::CommandRow>(table.mRows),
     };
   }
@@ -99,7 +100,7 @@ namespace {
   VelocityStatEffectAdapter getVelocityEffects(StatEffectDatabase& db) {
     auto& table = std::get<VelocityStatEffectTable>(db.mTables);
     return {
-      getStatBase(table),
+      getStatBase(table, db),
       &std::get<VelocityStatEffect::CommandRow>(table.mRows),
     };
   }
@@ -107,7 +108,7 @@ namespace {
   LambdaStatEffectAdapter getLambdaEffects(StatEffectDatabase& db) {
     auto& table = std::get<LambdaStatEffectTable>(db.mTables);
     return {
-      getStatBase(table),
+      getStatBase(table, db),
       &std::get<LambdaStatEffect::LambdaRow>(table.mRows),
     };
   }

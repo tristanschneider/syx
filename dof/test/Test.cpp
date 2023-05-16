@@ -1539,6 +1539,8 @@ namespace Test {
       PlayerAdapter player = TableAdapters::getPlayer(game);
       player.input->at(0).mMoveX = 1.0f;
 
+      //Once to compute the impulse, next frame updates position with it
+      game.update();
       game.update();
 
       Assert::IsTrue(player.object.transform.posX->at(0) > 0.0f);

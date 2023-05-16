@@ -286,3 +286,44 @@ struct TableOperations {
     }
   }
 };
+
+//Wraps the operations needed to modify any table in a single type, with the table itself passed through via void*
+struct StableTableModifier {
+  template<class DB, class TableT>
+  static StableTableModifier get() {
+    struct Adapter {
+      static void resize(void* table, size_t newSize, StableElementMappings& mappings) {
+        TableOperations::stableResizeTable<DB, TableT>(*static_cast<TableT*>(table), newSize, mappings);
+      }
+    };
+
+    return {
+      &Adapter::resize
+    };
+  }
+
+  void (*resize)(void* table, size_t newSize, StableElementMappings& mappings){};
+};
+
+//Wraps the operations needed to modify any table with an included instance
+//Sort of manual vtable, although trying to keep inheritance out of tables
+struct StableTableModifierInstance {
+  template<class DB, class TableT>
+  static StableTableModifierInstance get(TableT& table, StableElementMappings& mappings) {
+    return {
+      StableTableModifier::get<DB, TableT>(),
+      &table,
+      &mappings
+    };
+  }
+
+  template<class TableT, class DB>
+  static StableTableModifierInstance getDB(DB& db, StableElementMappings& mappings) {
+    return get<DB, TableT>(std::get<TableT>(db.mTables), mappings);
+  }
+
+  //Currently several function pointers on each instance, modifier could be a singleton if it matters
+  StableTableModifier modifier;
+  void* table{};
+  StableElementMappings* stableMappings{};
+};

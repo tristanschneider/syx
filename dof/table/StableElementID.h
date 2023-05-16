@@ -2,6 +2,7 @@
 #include "Database.h"
 #include "Table.h"
 
+#include <cassert>
 #include <optional>
 #include <unordered_map>
 
@@ -82,6 +83,9 @@ struct StableOperations {
 
     template<class... Tables>
     static bool isUnstableElementValid(Database<Tables...>& db, const StableElementID& id) {
+      if(id.mUnstableIndex == dbDetails::INVALID_VALUE) {
+        return false;
+      }
       using ElementIDT = typename Database<Tables...>::ElementID;
       const ElementIDT unstableElement{ id.mUnstableIndex };
       const size_t unstableIndex = unstableElement.getElementIndex();

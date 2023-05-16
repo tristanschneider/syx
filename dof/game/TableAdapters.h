@@ -1,5 +1,7 @@
 #pragma once
 
+#include "TableOperations.h"
+
 struct DebugConfig;
 struct ExternalDatabases;
 struct GameConfig;
@@ -45,6 +47,7 @@ struct StatEffectBaseAdapter {
   StatEffect::Owner* owner{};
   StatEffect::Lifetime* lifetime{};
   StatEffect::Global* global{};
+  StableTableModifierInstance modifier;
 };
 
 struct PositionStatEffectAdapter {
