@@ -69,6 +69,12 @@ struct TaskNode {
 };
 
 struct TaskRange {
+  //Chain this range with the next range and return one containing them both
+  TaskRange then(TaskRange next) const {
+    mEnd->mChildren.push_back(next.mBegin);
+    return { mBegin, next.mEnd };
+  }
+
   std::shared_ptr<TaskNode> mBegin, mEnd;
 };
 

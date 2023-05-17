@@ -13,83 +13,6 @@
 namespace Fragment {
   using namespace Tags;
 
-  //TODO: generalize this in a way that it can be used like TableAdapters. Probably requires runtime abstraction for Table types
-  struct PositionReader {
-    template<class TableT>
-    PositionReader(TableT& t)
-      : x(std::get<FloatRow<Tags::Pos, Tags::X>>(t.mRows))
-      , y(std::get<FloatRow<Tags::Pos, Tags::Y>>(t.mRows)) {
-    }
-
-    glm::vec2 at(size_t i) const {
-      return { x.at(i), y.at(i) };
-    }
-
-    FloatRow<Tags::Pos, Tags::X>& x;
-    FloatRow<Tags::Pos, Tags::Y>& y;
-  };
-
-  struct RotationReader {
-    template<class TableT>
-    RotationReader(TableT& t)
-      : sinAngle(std::get<FloatRow<Tags::Rot, Tags::SinAngle>>(t.mRows))
-      , cosAngle(std::get<FloatRow<Tags::Rot, Tags::CosAngle>>(t.mRows)) {
-    }
-
-    FloatRow<Tags::Rot, Tags::CosAngle>& cosAngle;
-    FloatRow<Tags::Rot, Tags::SinAngle>& sinAngle;
-  };
-
-  struct VelocityReader {
-    template<class TableT>
-    VelocityReader(TableT& t)
-      : linVelX(std::get<FloatRow<Tags::LinVel, Tags::X>>(t.mRows))
-      , linVelY(std::get<FloatRow<Tags::LinVel, Tags::Y>>(t.mRows))
-      , angVel(std::get<FloatRow<Tags::AngVel, Tags::Angle>>(t.mRows)) {
-    }
-
-    glm::vec2 getLinVel(size_t i) const {
-      return { linVelX.at(i), linVelY.at(i) };
-    }
-
-    float getAngVel(size_t i) const {
-      return angVel.at(i);
-    }
-
-    void setAngVel(size_t i, float value) {
-      angVel.at(i) = value;
-    }
-
-    void setLinVel(size_t i, const glm::vec2& value) {
-      linVelX.at(i) = value.x;
-      linVelY.at(i) = value.y;
-    }
-
-    FloatRow<Tags::LinVel, Tags::X>& linVelX;
-    FloatRow<Tags::LinVel, Tags::Y>& linVelY;
-    FloatRow<Tags::AngVel, Tags::Angle>& angVel;
-  };
-
-  struct FragmentForceEdge {
-    glm::vec2 point{};
-    float contribution{};
-  };
-
-  FragmentForceEdge _getEdge(const glm::vec2& normalizedForceDir, const glm::vec2& fragmentNormal, const glm::vec2& fragmentPos, float size) {
-    const float cosAngle = glm::dot(normalizedForceDir, fragmentNormal);
-    //Constribution is how close to aligned the force and normal are, point is position then normal in direction of force
-    if(cosAngle >= 0.0f) {
-      return { fragmentPos - fragmentNormal*size, 1.0f - cosAngle };
-    }
-    return { fragmentPos + fragmentNormal*size, 1.0f + cosAngle };
-  }
-
-  float crossProduct(const glm::vec2& a, const glm::vec2& b) {
-    //[ax] x [bx] = [ax*by - ay*bx]
-    //[ay]   [by]
-    return a.x*b.y - a.y*b.x;
-  }
-
   template<class Tag, class TableT>
   ispc::UniformConstVec2 _unwrapConstFloatRow(TableT& t) {
     return { std::get<FloatRow<Tag, X>>(t.mRows).mElements.data(), std::get<FloatRow<Tag, Y>>(t.mRows).mElements.data() };
@@ -176,9 +99,8 @@ namespace Fragment {
     //If the goal was found, move them to the destination table.
     //Do this in reverse so the swap remove doesn't mess up a previous removal
     const size_t oldTableSize = TableOperations::size(fragments);
-    uint8_t* goalFound = TableOperations::unwrapRow<FragmentGoalFoundRow>(fragments);
-    ispc::UniformConstVec2 goal = _unwrapConstFloatRow<FragmentGoal>(fragments);
-    auto& stableRow = std::get<StableIDRow>(fragments.mRows);
+    const uint8_t* goalFound = TableOperations::unwrapRow<FragmentGoalFoundRow>(fragments);
+    const auto& stableRow = std::get<StableIDRow>(fragments.mRows);
 
     for(size_t i = 0; i < oldTableSize; ++i) {
       const size_t reverseIndex = oldTableSize - i - 1;
@@ -297,6 +219,9 @@ namespace Fragment {
     _setupScene(db, args);
   }
 
+
+  //Read FragmentGoalFoundRow, StableIDRow
+  //Modify thread locals
   void _migrateCompletedFragments(GameDB game, size_t thread) {
     auto& gameObjects = std::get<GameObjectTable>(game.db.mTables);
     _migrateCompletedFragments(gameObjects, TableAdapters::getLambdaEffects(game, thread));
@@ -312,76 +237,5 @@ namespace Fragment {
       _migrateCompletedFragments({ db }, thread);
     });
     return TaskBuilder::addEndSync(task);
-  }
-
-  void _tickForceLifetimes(GlobalPointForceTable& table) {
-    PROFILE_SCOPE("simulation", "forcelifetime");
-    auto& lifetime = std::get<ForceData::Lifetime>(table.mRows);
-    for(size_t i = 0; i < lifetime.size();) {
-      size_t& current = lifetime.at(i);
-      if(!current) {
-        TableOperations::swapRemove(table, i);
-      }
-      else {
-        --current;
-        ++i;
-      }
-    }
-  }
-
-  void _applyForces(GlobalPointForceTable& forces, GameObjectTable& fragments) {
-    PROFILE_SCOPE("simulation", "forces");
-    PositionReader forcePosition(forces);
-    PositionReader fragmentPosition(fragments);
-    RotationReader fragmentRotation(fragments);
-    VelocityReader fragmentVelocity(fragments);
-
-    auto& strength = std::get<ForceData::Strength>(forces.mRows);
-    for(size_t i = 0; i < TableOperations::size(fragments); ++i) {
-      glm::vec2 right{ fragmentRotation.cosAngle.at(i), fragmentRotation.sinAngle.at(i) };
-      glm::vec2 up{ right.y, -right.x };
-      glm::vec2 fragmentPos = fragmentPosition.at(i);
-      glm::vec2 fragmentLinVel = fragmentVelocity.getLinVel(i);
-      float fragmentAngVel = fragmentVelocity.getAngVel(i);
-      for(size_t f = 0; f < TableOperations::size(forces); ++f) {
-        glm::vec2 forcePos = forcePosition.at(f);
-        glm::vec2 impulse = fragmentPos - forcePos;
-        float distance = glm::length(impulse);
-        if(distance < 0.0001f) {
-          impulse = glm::vec2(1.0f, 0.0f);
-          distance = 1.0f;
-        }
-        //Linear falloff for now
-        //TODO: something like easing for more interesting forces
-        const float scalar = strength.at(f)/distance;
-        //Normalize and scale to strength
-        const glm::vec2 impulseDir = impulse/distance;
-        impulse *= scalar;
-
-        //Determine point to apply force at. Realistically this would be something like the center of pressure
-        //Computing that is confusing so I'll hack at it instead
-        //Take the two leading edges facing the force direction, then weight them based on their angle against the force
-        //If the edge is head on that means only the one edge would matter
-        //If the two edges were exactly 45 degrees from the force direction then the center of the two edges is chosen
-        const float size = 0.5f;
-        FragmentForceEdge edgeA = _getEdge(impulseDir, right, fragmentPos, size);
-        FragmentForceEdge edgeB = _getEdge(impulseDir, right, fragmentPos, size);
-        const glm::vec2 impulsePoint = edgeA.point*edgeA.contribution + edgeB.point*edgeB.contribution;
-
-        fragmentLinVel += impulse;
-        glm::vec2 r = impulsePoint - fragmentPos;
-        fragmentAngVel += crossProduct(r, impulse);
-      }
-
-      fragmentVelocity.setLinVel(i, fragmentLinVel);
-      fragmentVelocity.setAngVel(i, fragmentAngVel);
-    }
-  }
-
-  void updateFragmentForces(GameDB game) {
-    auto& forces = std::get<GlobalPointForceTable>(game.db.mTables);
-    auto& gameObjects = std::get<GameObjectTable>(game.db.mTables);
-    _applyForces(forces, gameObjects);
-    _tickForceLifetimes(forces);
   }
 }

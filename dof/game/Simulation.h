@@ -297,18 +297,6 @@ using DebugLineTable = Table<Row<DebugPoint>>;
 
 using BroadphaseTable = SweepNPruneBroadphase::BroadphaseTable;
 
-struct ForceData {
-  struct Lifetime : Row<size_t> {};
-  struct Strength : Row<float> {};
-};
-
-using GlobalPointForceTable = Table<
-  FloatRow<Tags::Pos, Tags::X>,
-  FloatRow<Tags::Pos, Tags::Y>,
-  ForceData::Lifetime,
-  ForceData::Strength
->;
-
 using GameDatabase = Database<
   GlobalGameData,
   GameObjectTable,
@@ -322,7 +310,6 @@ using GameDatabase = Database<
   ConstraintCommonTable,
   ContactConstraintsToStaticObjectsTable,
   DebugLineTable,
-  GlobalPointForceTable,
   ConfigTable
 >;
 

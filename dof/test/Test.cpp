@@ -1589,5 +1589,24 @@ namespace Test {
       assertValues(TableAdapters::getGameplayStaticGameObjects(game), 2.0f);
       assertValues(TableAdapters::getGameplayPlayer(game).object, 3.0f);
     }
+
+    TEST_METHOD(GlobalPointForce) {
+      GameArgs args;
+      args.fragmentCount = 1;
+      TestGame game{ args };
+
+      GameObjectAdapter fragment = TableAdapters::getGameObjects(game);
+      fragment.transform.posX->at(0) = 5.0f;
+
+      AreaForceStatEffectAdapter effect = TableAdapters::getAreaForceEffects(game, 0);
+      const size_t id = TableAdapters::addStatEffectsSharedLifetime(effect.base, StatEffect::INSTANT, nullptr, 1);
+      effect.pointX->at(0) = 4.0f;
+      effect.strength->at(0) = 10.0f;
+
+      game.update();
+
+      Assert::IsTrue(fragment.physics.linVelX->at(0) > 0.0f);
+      Assert::AreEqual(size_t(0), effect.strength->size());
+    }
   };
 }

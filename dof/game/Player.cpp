@@ -11,12 +11,9 @@
 namespace Player {
   using namespace Tags;
 
-  //Modify thread locals
-  //Read gameplay extracted values
-  //Write PlayerInput
   void _updatePlayerInput(PlayerAdapter players,
     const GameConfig& config,
-    LambdaStatEffectAdapter lambdaEffect
+    AreaForceStatEffectAdapter areaEffect
   ) {
     PROFILE_SCOPE("simulation", "playerinput");
     for(size_t i = 0; i < players.input->size(); ++i) {
@@ -51,26 +48,10 @@ namespace Player {
 
       if(input.mAction1) {
         input.mAction1 = false;
-        const size_t effectID = lambdaEffect.command->size();
-        auto& modifier = lambdaEffect.base.modifier;
-        modifier.modifier.resize(modifier.table, effectID + 1, *modifier.stableMappings);
-        lambdaEffect.base.owner->at(effectID) = StableElementID::fromStableRow(i, *players.object.stable);
-        lambdaEffect.base.lifetime->at(effectID) = StatEffect::INSTANT;
-        lambdaEffect.command->at(effectID) = [](LambdaStatEffect::Args& args) {
-          const GameConfig& config = *TableAdapters::getConfig(*args.db).game;
-          GlobalPointForceTable& pointForces = std::get<GlobalPointForceTable>(args.db->db.mTables);
-          PlayerAdapter players = TableAdapters::getPlayer(*args.db);
-          const size_t pid = GameDatabase::ElementID{ args.resolvedID.mUnstableIndex }.getElementIndex();
-
-          const size_t lifetime = config.explodeLifetime;
-          const float strength = config.explodeStrength;
-          const size_t f = TableOperations::size(pointForces);
-          TableOperations::addToTable(pointForces);
-          std::get<FloatRow<Tags::Pos, Tags::X>>(pointForces.mRows).at(f) = players.object.transform.posX->at(pid);
-          std::get<FloatRow<Tags::Pos, Tags::Y>>(pointForces.mRows).at(f) = players.object.transform.posY->at(pid);
-          std::get<ForceData::Strength>(pointForces.mRows).at(f) = strength;
-          std::get<ForceData::Lifetime>(pointForces.mRows).at(f) = lifetime;
-        };
+        const size_t effect = TableAdapters::addStatEffectsSharedLifetime(areaEffect.base, config.explodeLifetime, nullptr, 1);
+        areaEffect.pointX->at(effect) = players.object.transform.posX->at(i);
+        areaEffect.pointY->at(effect) = players.object.transform.posY->at(i);
+        areaEffect.strength->at(effect) = config.explodeStrength;
       }
     }
   }
@@ -80,7 +61,7 @@ namespace Player {
       _updatePlayerInput(
         TableAdapters::getPlayer(db),
         *TableAdapters::getConfig({ db }).game,
-        TableAdapters::getLambdaEffects(db, thread)
+        TableAdapters::getAreaForceEffects(db, thread)
       );
     });
     return TaskBuilder::addEndSync(task);

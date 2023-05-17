@@ -11,9 +11,10 @@ namespace Fragment {
   };
 
   void setupScene(GameDB db);
+  //Read GPos, FragmentGoal, FragmentGoalFoundRow, StableIDRow
+  //Write FragmentGoalFoundRow
+  //Modify thread locals
   TaskRange updateFragmentGoals(GameDB db);
-  //TODO: task range and make parallel
-  void updateFragmentForces(GameDB db);
 
   void _setupScene(GameDB db, SceneArgs args);
   void _migrateCompletedFragments(GameDB db, size_t thread);

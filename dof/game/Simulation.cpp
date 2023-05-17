@@ -98,7 +98,6 @@ namespace {
 
     current->mChildren.push_back(TaskNode::create([&db](...) {
       World::enforceWorldBoundary({ db });
-      Fragment::updateFragmentForces({ db });
     }));
     current = current->mChildren.back();
 

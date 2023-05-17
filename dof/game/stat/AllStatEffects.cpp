@@ -109,6 +109,7 @@ namespace StatEffect {
     AllStatTasks result;
     result.positionSetters = StatEffect::processStat(std::get<PositionStatEffectTable>(stats.mTables), db);
     result.velocitySetters = StatEffect::processStat(std::get<VelocityStatEffectTable>(stats.mTables), db);
+    result.posGetVelSet = StatEffect::processStat(std::get<AreaForceStatEffectTable>(stats.mTables), db);
     TaskRange lambdaRange = StatEffect::processStat(std::get<LambdaStatEffectTable>(stats.mTables), db);
     //Empty root
     auto syncBegin = TaskNode::create([](...){});
@@ -138,6 +139,10 @@ namespace StatEffect {
     //Once the synchronous tasks are complete, start parallel tasks
     syncEnd->mChildren.push_back(result.positionSetters.mBegin);
     syncEnd->mChildren.push_back(result.velocitySetters.mBegin);
+
+    //Position and velocity need to be done before both can be used together
+    result.positionSetters.mEnd->mChildren.push_back(result.posGetVelSet.mBegin);
+    result.velocitySetters.mEnd->mChildren.push_back(result.posGetVelSet.mBegin);
 
     result.synchronous = TaskBuilder::addEndSync(syncBegin);
     return result;

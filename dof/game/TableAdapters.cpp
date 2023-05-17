@@ -115,6 +115,16 @@ namespace {
       &std::get<LambdaStatEffect::LambdaRow>(table.mRows),
     };
   }
+
+  AreaForceStatEffectAdapter getAreaForceEffects(StatEffectDatabase& db) {
+    auto& table = std::get<AreaForceStatEffectTable>(db.mTables);
+    return {
+      getStatBase(table, db),
+      &std::get<AreaForceStatEffect::PointX>(table.mRows),
+      &std::get<AreaForceStatEffect::PointY>(table.mRows),
+      &std::get<AreaForceStatEffect::Strength>(table.mRows),
+    };
+  }
 }
 
 PositionStatEffectAdapter TableAdapters::getPositionEffects(GameDB db, size_t thread) {
@@ -127,6 +137,10 @@ VelocityStatEffectAdapter TableAdapters::getVelocityEffects(GameDB db, size_t th
 
 LambdaStatEffectAdapter TableAdapters::getLambdaEffects(GameDB db, size_t thread) {
   return ::getLambdaEffects(getThreadLocal(db, thread).statEffects->db);
+}
+
+AreaForceStatEffectAdapter TableAdapters::getAreaForceEffects(GameDB db, size_t thread) {
+  return ::getAreaForceEffects(getThreadLocal(db, thread).statEffects->db);
 }
 
 GameObjectAdapter TableAdapters::getGameObjects(GameDB db) {
@@ -218,7 +232,7 @@ size_t TableAdapters::addStatEffectsSharedLifetime(StatEffectBaseAdapter& base, 
   const size_t firstIndex = base.modifier.addElements(count);
   for(size_t i = 0; i < count; ++i) {
     base.lifetime->at(i + firstIndex) = lifetime;
-    base.owner->at(i + firstIndex) = StableElementID::fromStableID(stableIds[i]);
+    base.owner->at(i + firstIndex) = stableIds ? StableElementID::fromStableID(stableIds[i]) : StableElementID::invalid();
   }
   return firstIndex;
 }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "stat/AreaForceStatEffect.h"
 #include "stat/LambdaStatEffect.h"
 #include "stat/PositionStatEffect.h"
 #include "stat/VelocityStatEffect.h"
@@ -17,7 +18,8 @@ using StatEffectDatabase = Database<
   AllStatEffects::GlobalTable,
   LambdaStatEffectTable,
   PositionStatEffectTable,
-  VelocityStatEffectTable
+  VelocityStatEffectTable,
+  AreaForceStatEffectTable
 >;
 
 // To allow forward declarations
@@ -34,6 +36,8 @@ struct AllStatTasks {
   TaskRange positionSetters;
   //Requires mutable access to linear and angular velocity
   TaskRange velocitySetters;
+  //Read position set velocity
+  TaskRange posGetVelSet;
   //Requires exclusive access to the gameplay portion of the database, can add/remove elements
   TaskRange synchronous;
 };

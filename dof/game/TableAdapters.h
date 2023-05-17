@@ -43,6 +43,12 @@ namespace LambdaStatEffect {
   struct LambdaRow;
 };
 
+namespace AreaForceStatEffect {
+  struct PointX;
+  struct PointY;
+  struct Strength;
+};
+
 struct StatEffectBaseAdapter {
   StatEffect::Owner* owner{};
   StatEffect::Lifetime* lifetime{};
@@ -63,6 +69,13 @@ struct VelocityStatEffectAdapter {
 struct LambdaStatEffectAdapter {
   StatEffectBaseAdapter base;
   LambdaStatEffect::LambdaRow* command{};
+};
+
+struct AreaForceStatEffectAdapter {
+  StatEffectBaseAdapter base;
+  AreaForceStatEffect::PointX* pointX{};
+  AreaForceStatEffect::PointY* pointY{};
+  AreaForceStatEffect::Strength* strength{};
 };
 
 struct TransformAdapter {
@@ -134,6 +147,7 @@ struct TableAdapters {
   static PositionStatEffectAdapter getPositionEffects(GameDB db, size_t thread);
   static VelocityStatEffectAdapter getVelocityEffects(GameDB db, size_t thread);
   static LambdaStatEffectAdapter getLambdaEffects(GameDB db, size_t thread);
+  static AreaForceStatEffectAdapter getAreaForceEffects(GameDB db, size_t thread);
   static CentralStatEffectAdapter getCentralStatEffects(GameDB db);
 
   static GameObjectAdapter getGameObjects(GameDB db);
