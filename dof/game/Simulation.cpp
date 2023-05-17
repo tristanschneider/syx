@@ -85,29 +85,35 @@ namespace {
     root->mChildren.push_back(debugInput.mBegin);
     current = debugInput.mEnd;
 
-    std::vector<OwnedTask> tasks;
-    current->mChildren.push_back(Player::updateInput({ db }).mBegin);
-
+    //Write to GLinImpulse
+    TaskRange playerInput = Player::updateInput({ db });
+    current->mChildren.push_back(playerInput.mBegin);
+    //Write to fragment FragmentGoalFoundRow
     current->mChildren.push_back(Fragment::updateFragmentGoals({ db }).mBegin);
 
-    //Input and goals can happen at the same time. Input needs to finish before applyForces using point force table
-    //Fragment goals need to finish before enforceWorldBoundary because it might remove objects with velocity
+    //Write GLinImpulse
+    auto worldBoundary = World::enforceWorldBoundary({ db });
+    //Let player velocity write finish before all others start, which may include players
+    playerInput.mEnd->mChildren.push_back(worldBoundary.mBegin);
+
     auto sync = std::make_shared<TaskNode>();
     TaskBuilder::_addSyncDependency(*current, sync);
     current = sync;
 
-    current->mChildren.push_back(TaskNode::create([&db](...) {
-      World::enforceWorldBoundary({ db });
-    }));
-    current = current->mChildren.back();
-
+    //At the end of gameplay, turn any gameplay impulses into stat effects
+    //Write (clear) GLinImpulse
     TaskRange applyGameplayImpulse = GameplayExtract::applyGameplayImpulses({ db });
     current->mChildren.push_back(applyGameplayImpulse.mBegin);
     current = applyGameplayImpulse.mEnd;
 
     TaskRange physics = PhysicsSimulation::updatePhysics({ db });
-    current->mChildren.push_back(physics.mBegin);
-    current = physics.mEnd;
+    //Physics can start immediately in parallel with gameplay
+    //Thread local stat effects and the GPos style values are used to avoid gameplay reading or
+    //modifying position and velocity that physics looks at
+    //Physics needs to finish before stat effects are processed which is what will apply the desired
+    //position and/or velocity changes from gameplay, and updates that require unique access
+    root->mChildren.push_back(physics.mBegin);
+    physics.mEnd->mChildren.push_back(current);
 
     StatEffectDBOwned& statEffects = TableAdapters::getStatEffects({ db });
     AllStatTasks statTasks = StatEffect::createTasks({ db }, statEffects.db);

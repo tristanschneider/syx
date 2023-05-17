@@ -1,8 +1,8 @@
 #pragma once
 
 struct GameDB;
+struct TaskRange;
 
 namespace World {
-  //TODO TaskRange and parallel
-  void enforceWorldBoundary(GameDB db);
+  TaskRange enforceWorldBoundary(GameDB db);
 }
