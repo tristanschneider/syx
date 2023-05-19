@@ -136,29 +136,29 @@ struct CentralStatEffectAdapter {
   LambdaStatEffectAdapter lambda;
 };
 
-struct TableAdapters {
-  static ConfigAdapter getConfig(GameDB db);
-  static StableElementMappings& getStableMappings(GameDB db);
-  static ThreadLocals& getThreadLocals(GameDB db);
-  static ThreadLocalData getThreadLocal(GameDB db, size_t thread);
-  static ExternalDatabases& getExternalDBs(GameDB db);
-  static StatEffectDBOwned& getStatEffects(GameDB db);
+namespace TableAdapters {
+  ConfigAdapter getConfig(GameDB db);
+  StableElementMappings& getStableMappings(GameDB db);
+  ThreadLocals& getThreadLocals(GameDB db);
+  ThreadLocalData getThreadLocal(GameDB db, size_t thread);
+  ExternalDatabases& getExternalDBs(GameDB db);
+  StatEffectDBOwned& getStatEffects(GameDB db);
 
-  static PositionStatEffectAdapter getPositionEffects(GameDB db, size_t thread);
-  static VelocityStatEffectAdapter getVelocityEffects(GameDB db, size_t thread);
-  static LambdaStatEffectAdapter getLambdaEffects(GameDB db, size_t thread);
-  static AreaForceStatEffectAdapter getAreaForceEffects(GameDB db, size_t thread);
-  static CentralStatEffectAdapter getCentralStatEffects(GameDB db);
+  PositionStatEffectAdapter getPositionEffects(GameDB db, size_t thread);
+  VelocityStatEffectAdapter getVelocityEffects(GameDB db, size_t thread);
+  LambdaStatEffectAdapter getLambdaEffects(GameDB db, size_t thread);
+  AreaForceStatEffectAdapter getAreaForceEffects(GameDB db, size_t thread);
+  CentralStatEffectAdapter getCentralStatEffects(GameDB db);
 
-  static GameObjectAdapter getGameObjects(GameDB db);
-  static GameObjectAdapter getStaticGameObjects(GameDB db);
-  static PlayerAdapter getPlayer(GameDB db);
+  GameObjectAdapter getGameObjects(GameDB db);
+  GameObjectAdapter getStaticGameObjects(GameDB db);
+  PlayerAdapter getPlayer(GameDB db);
   //The gameplay extracted versions of the above
-  static GameObjectAdapter getGameplayGameObjects(GameDB db);
-  static GameObjectAdapter getGameplayStaticGameObjects(GameDB db);
-  static PlayerAdapter getGameplayPlayer(GameDB db);
+  GameObjectAdapter getGameplayGameObjects(GameDB db);
+  GameObjectAdapter getGameplayStaticGameObjects(GameDB db);
+  PlayerAdapter getGameplayPlayer(GameDB db);
 
-  static size_t addStatEffectsSharedLifetime(StatEffectBaseAdapter& base, size_t lifetime, const size_t* stableIds, size_t count);
+  size_t addStatEffectsSharedLifetime(StatEffectBaseAdapter& base, size_t lifetime, const size_t* stableIds, size_t count);
 
-  static GlobalsAdapter getGlobals(GameDB db);
+  GlobalsAdapter getGlobals(GameDB db);
 };

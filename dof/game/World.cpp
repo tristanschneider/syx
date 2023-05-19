@@ -13,15 +13,14 @@ namespace World {
     PROFILE_SCOPE("simulation", "boundary");
     SceneState& scene = std::get<0>(std::get<GlobalGameData>(db.mTables).mRows).at();
     const GameConfig* config = TableAdapters::getConfig({ db }).game;
-    const float boundarySpringConstant = config->boundarySpringConstant;
     Queries::viewEachRow(db, [&](FloatRow<GPos, X>& pos, FloatRow<GLinImpulse, X>& linVel) {
       root->mChildren.push_back(TaskNode::create([&pos, &linVel, &scene, config](...) {
-        ispc::repelWorldBoundary(pos.mElements.data(), linVel.mElements.data(), scene.mBoundaryMin.x, scene.mBoundaryMax.x, config->boundarySpringConstant, (uint32_t)pos.mElements.size());
+        ispc::repelWorldBoundary(pos.mElements.data(), linVel.mElements.data(), scene.mBoundaryMin.x, scene.mBoundaryMax.x, config->world.boundarySpringConstant, (uint32_t)pos.mElements.size());
       }));
     });
     Queries::viewEachRow(db, [&](FloatRow<GPos, Y>& pos, FloatRow<GLinImpulse, Y>& linVel) {
       root->mChildren.push_back(TaskNode::create([&pos, &linVel, &scene, config](...) {
-        ispc::repelWorldBoundary(pos.mElements.data(), linVel.mElements.data(), scene.mBoundaryMin.y, scene.mBoundaryMax.y, config->boundarySpringConstant, (uint32_t)pos.mElements.size());
+        ispc::repelWorldBoundary(pos.mElements.data(), linVel.mElements.data(), scene.mBoundaryMin.y, scene.mBoundaryMax.y, config->world.boundarySpringConstant, (uint32_t)pos.mElements.size());
       }));
     });
 

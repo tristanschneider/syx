@@ -206,7 +206,7 @@ namespace Fragment {
     ispc::UniformConstVec2 pos = _unwrapConstFloatRow<GPos>(fragments);
     ispc::UniformConstVec2 goal = _unwrapConstFloatRow<FragmentGoal>(fragments);
     uint8_t* goalFound = TableOperations::unwrapRow<FragmentGoalFoundRow>(fragments);
-    const float minDistance = config.fragmentGoalDistance;
+    const float minDistance = config.fragment.fragmentGoalDistance;
 
     ispc::checkFragmentGoals(pos, goal, goalFound, minDistance, TableOperations::size(fragments));
   }
@@ -214,8 +214,8 @@ namespace Fragment {
   void setupScene(GameDB db) {
     SceneArgs args;
     const GameConfig* config = TableAdapters::getConfig({ db }).game;
-    args.mFragmentRows = config->fragmentRows;
-    args.mFragmentColumns = config->fragmentColumns;
+    args.mFragmentRows = config->fragment.fragmentRows;
+    args.mFragmentColumns = config->fragment.fragmentColumns;
     _setupScene(db, args);
   }
 

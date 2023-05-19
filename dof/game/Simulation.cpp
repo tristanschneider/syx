@@ -263,4 +263,5 @@ void Simulation::init(GameDatabase& db) {
   std::get<ThreadLocalsRow>(globals.mRows).at().instance = std::make_unique<ThreadLocals>(scheduler.mScheduler.GetNumTaskThreads());
   StatEffect::initGlobals(TableAdapters::getStatEffects({ db }).db);
   PhysicsSimulation::init({ db });
+  Player::init({ db });
 }
