@@ -14,11 +14,18 @@ namespace Player {
 
   void init(GameDB db) {
     PlayerConfig& player = TableAdapters::getConfig({ db }).game->player;
-    player.linearMoveCurve.params.duration = 1.0f;
-    player.linearMoveCurve.params.scale = 0.05f;
+    player.linearMoveCurve.params.duration = 0.4f;
+    player.linearMoveCurve.params.scale = 0.012f;
+    player.linearMoveCurve.function = CurveMath::getFunction(CurveMath::CurveType::ExponentialEaseOut);
+
     player.angularMoveCurve.params.duration = 1.0f;
-    player.linearStoppingCurve.params.duration = 1.0f;
+    player.angularMoveCurve.params.scale = 0.1f;
+    player.angularMoveCurve.function = CurveMath::getFunction(CurveMath::CurveType::SineEaseIn);
+
+    player.linearStoppingCurve.params.duration = 0.5f;
     player.linearStoppingCurve.params.scale = 0.1f;
+    player.linearStoppingCurve.params.flipInput = true;
+    player.linearStoppingCurve.function = CurveMath::getFunction(CurveMath::CurveType::QuadraticEaseIn);
   }
 
   void _updatePlayerInput(PlayerAdapter players,
@@ -38,7 +45,7 @@ namespace Player {
       glm::vec2 impulse{ 0 };
       constexpr CurveSolver::CurveUniforms curveUniforms{ 1 };
       float curveOutput{};
-      CurveSolver::CurveVaryings curveVaryings{ &input.moveT, &curveOutput, nullptr, nullptr };
+      CurveSolver::CurveVaryings curveVaryings{ &input.moveT, &curveOutput };
 
       //Apply a stopping force if there is no input. This is a flat amount so it doesn't negate physics
       if(!hasMoveInput) {

@@ -83,6 +83,10 @@ namespace CurveMath {
     ispc::linearInterpolation(inT, outT, count);
   }
 
+  void one(const float * inT, float * outT, int32_t count) {
+    ispc::one(inT, outT, count);
+  }
+
   void quadraticEaseIn(const float * inT, float * outT, int32_t count) {
     ispc::quadraticEaseIn(inT, outT, count);
   }
@@ -131,39 +135,50 @@ namespace CurveMath {
     ispc::sineEaseOut(inT, outT, count);
   }
 
+  void zero(const float * inT, float * outT, int32_t count) {
+    ispc::zero(inT, outT, count);
+  }
+
+  CurveFunction tryGetFunction(CurveType type) {
+    assert(static_cast<int>(type) < static_cast<int>(CurveType::Count));
+    return getFunction(type);
+  }
+
   CurveFunction getFunction(CurveType type) {
     static std::array functions {
-      CurveFunction{ &backEaseIn, "BackEaseIn" },
-      CurveFunction{ &backEaseInOut, "BackEaseInOut" },
-      CurveFunction{ &backEaseOut, "BackEaseOut" },
-      CurveFunction{ &bounceEaseIn, "BounceEaseIn" },
-      CurveFunction{ &bounceEaseInOut, "BounceEaseInOut" },
-      CurveFunction{ &bounceEaseOut, "BounceEaseOut" },
-      CurveFunction{ &circularEaseIn, "CircularEaseIn" },
-      CurveFunction{ &circularEaseInOut, "CircularEaseInOut" },
-      CurveFunction{ &circularEaseOut, "CircularEaseOut" },
-      CurveFunction{ &cubicEaseIn, "CubicEaseIn" },
-      CurveFunction{ &cubicEaseInOut, "CubicEaseInOut" },
-      CurveFunction{ &cubicEaseOut, "CubicEaseOut" },
-      CurveFunction{ &elasticEaseIn, "ElasticEaseIn" },
-      CurveFunction{ &elasticEaseInOut, "ElasticEaseInOut" },
-      CurveFunction{ &elasticEaseOut, "ElasticEaseOut" },
-      CurveFunction{ &exponentialEaseIn, "ExponentialEaseIn" },
-      CurveFunction{ &exponentialEaseInOut, "ExponentialEaseInOut" },
-      CurveFunction{ &exponentialEaseOut, "ExponentialEaseOut" },
-      CurveFunction{ &linearInterpolation, "LinearInterpolation" },
-      CurveFunction{ &quadraticEaseIn, "QuadraticEaseIn" },
-      CurveFunction{ &quadraticEaseInOut, "QuadraticEaseInOut" },
-      CurveFunction{ &quadraticEaseOut, "QuadraticEaseOut" },
-      CurveFunction{ &quarticEaseIn, "QuarticEaseIn" },
-      CurveFunction{ &quarticEaseInOut, "QuarticEaseInOut" },
-      CurveFunction{ &quarticEaseOut, "QuarticEaseOut" },
-      CurveFunction{ &quinticEaseIn, "QuinticEaseIn" },
-      CurveFunction{ &quinticEaseInOut, "QuinticEaseInOut" },
-      CurveFunction{ &quinticEaseOut, "QuinticEaseOut" },
-      CurveFunction{ &sineEaseIn, "SineEaseIn" },
-      CurveFunction{ &sineEaseInOut, "SineEaseInOut" },
-      CurveFunction{ &sineEaseOut, "SineEaseOut" }
+      CurveFunction{ &backEaseIn, "BackEaseIn", CurveType::BackEaseIn },
+      CurveFunction{ &backEaseInOut, "BackEaseInOut", CurveType::BackEaseInOut },
+      CurveFunction{ &backEaseOut, "BackEaseOut", CurveType::BackEaseOut },
+      CurveFunction{ &bounceEaseIn, "BounceEaseIn", CurveType::BounceEaseIn },
+      CurveFunction{ &bounceEaseInOut, "BounceEaseInOut", CurveType::BounceEaseInOut },
+      CurveFunction{ &bounceEaseOut, "BounceEaseOut", CurveType::BounceEaseOut },
+      CurveFunction{ &circularEaseIn, "CircularEaseIn", CurveType::CircularEaseIn },
+      CurveFunction{ &circularEaseInOut, "CircularEaseInOut", CurveType::CircularEaseInOut },
+      CurveFunction{ &circularEaseOut, "CircularEaseOut", CurveType::CircularEaseOut },
+      CurveFunction{ &cubicEaseIn, "CubicEaseIn", CurveType::CubicEaseIn },
+      CurveFunction{ &cubicEaseInOut, "CubicEaseInOut", CurveType::CubicEaseInOut },
+      CurveFunction{ &cubicEaseOut, "CubicEaseOut", CurveType::CubicEaseOut },
+      CurveFunction{ &elasticEaseIn, "ElasticEaseIn", CurveType::ElasticEaseIn },
+      CurveFunction{ &elasticEaseInOut, "ElasticEaseInOut", CurveType::ElasticEaseInOut },
+      CurveFunction{ &elasticEaseOut, "ElasticEaseOut", CurveType::ElasticEaseOut },
+      CurveFunction{ &exponentialEaseIn, "ExponentialEaseIn", CurveType::ExponentialEaseIn },
+      CurveFunction{ &exponentialEaseInOut, "ExponentialEaseInOut", CurveType::ExponentialEaseInOut },
+      CurveFunction{ &exponentialEaseOut, "ExponentialEaseOut", CurveType::ExponentialEaseOut },
+      CurveFunction{ &linearInterpolation, "LinearInterpolation", CurveType::LinearInterpolation },
+      CurveFunction{ &one, "One", CurveType::One },
+      CurveFunction{ &quadraticEaseIn, "QuadraticEaseIn", CurveType::QuadraticEaseIn },
+      CurveFunction{ &quadraticEaseInOut, "QuadraticEaseInOut", CurveType::QuadraticEaseInOut },
+      CurveFunction{ &quadraticEaseOut, "QuadraticEaseOut", CurveType::QuadraticEaseOut },
+      CurveFunction{ &quarticEaseIn, "QuarticEaseIn", CurveType::QuarticEaseIn },
+      CurveFunction{ &quarticEaseInOut, "QuarticEaseInOut", CurveType::QuarticEaseInOut },
+      CurveFunction{ &quarticEaseOut, "QuarticEaseOut", CurveType::QuarticEaseOut },
+      CurveFunction{ &quinticEaseIn, "QuinticEaseIn", CurveType::QuinticEaseIn },
+      CurveFunction{ &quinticEaseInOut, "QuinticEaseInOut", CurveType::QuinticEaseInOut },
+      CurveFunction{ &quinticEaseOut, "QuinticEaseOut", CurveType::QuinticEaseOut },
+      CurveFunction{ &sineEaseIn, "SineEaseIn", CurveType::SineEaseIn },
+      CurveFunction{ &sineEaseInOut, "SineEaseInOut", CurveType::SineEaseInOut },
+      CurveFunction{ &sineEaseOut, "SineEaseOut", CurveType::SineEaseOut },
+      CurveFunction{ &zero, "Zero", CurveType::Zero },
     };
     const size_t index = static_cast<size_t>(type);
     assert(index < functions.size());

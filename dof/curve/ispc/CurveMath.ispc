@@ -2,6 +2,18 @@
 
 // Reference: https://github.com/warrenm/AHEasing/blob/master/AHEasing/easing.c
 
+EXPORT void zero(const UNIFORM float inT[], UNIFORM float outT[], UNIFORM int count) {
+    FOREACH(i, 0, count) {
+        outT[i] = 0.0f;
+    }
+}
+
+EXPORT void one(const UNIFORM float inT[], UNIFORM float outT[], UNIFORM int count) {
+    FOREACH(i, 0, count) {
+        outT[i] = 1.0f;
+    }
+}
+
 EXPORT void linearInterpolation(const UNIFORM float inT[], UNIFORM float outT[], UNIFORM int count) {
     FOREACH(i, 0, count) {
         outT[i] = inT[i];

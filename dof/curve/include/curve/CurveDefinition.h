@@ -11,6 +11,8 @@ struct CurveParameters {
   std::optional<float> offset;
   //How long it should take for time to go from 0 to 1
   std::optional<float> duration;
+  bool flipInput{};
+  bool flipOutput{};
 };
 
 //This represents everything needed to solve a curve that is common across all instances of the same curve

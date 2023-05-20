@@ -64,10 +64,28 @@ namespace CurveSolver {
     scaleAndOffset(definition, varyings.inT, varyings.outT, uniforms.count);
   }
 
-  void solve(const CurveDefinition& definition, const CurveUniforms& uniforms, CurveVaryings& varyings) {
+  void flip(const float* input, float* output, size_t count) {
+    for(size_t i = 0; i < count; ++i) {
+      output[i] = 1.0f - input[i];
+    }
+  }
+
+  void solve(const CurveDefinition& definition, const CurveUniforms& uniforms, CurveVaryings varyings) {
     //Still need to write something even if the function is missing in case the output buffer was uninitialized
     auto fn = definition.function.function ? definition.function.function : CurveMath::getFunction(CurveMath::CurveType::LinearInterpolation).function;
+    if(definition.params.flipInput) {
+      flip(varyings.inT, varyings.outT, uniforms.count);
+      //Do the rest in place now that the flipped values are there
+      varyings.inT = varyings.outT;
+    }
+
     fn(varyings.inT, varyings.outT, uniforms.count);
+
+    //In place edit the output
+    varyings.inT = varyings.outT;
+    if(definition.params.flipOutput) {
+      flip(varyings.inT, varyings.outT, uniforms.count);
+    }
     scaleAndOffset(definition, uniforms, varyings);
   }
 }

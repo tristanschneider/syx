@@ -11,9 +11,6 @@ namespace CurveSolver {
   struct CurveVaryings {
     const float* inT{};
     float* outT{};
-    //TODO: use if needed
-    const float* toInterpolate{};
-    float* interpolated{};
   };
 
   float getDeltaTime(float curveDuration, float realTimeSeconds);
@@ -21,5 +18,5 @@ namespace CurveSolver {
   void advanceTime(const CurveDefinition& definition, const CurveUniforms& uniforms, CurveVaryings& varyings, float realTimeSeconds);
   void advanceTimeDT(float deltaTime, const CurveUniforms& uniforms, CurveVaryings& varyings);
 
-  void solve(const CurveDefinition& definition, const CurveUniforms& uniforms, CurveVaryings& varyings);
+  void solve(const CurveDefinition& definition, const CurveUniforms& uniforms, CurveVaryings varyings);
 }

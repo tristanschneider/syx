@@ -20,6 +20,7 @@ namespace CurveMath {
   void exponentialEaseInOut(const float * inT, float * outT, int32_t count);
   void exponentialEaseOut(const float * inT, float * outT, int32_t count);
   void linearInterpolation(const float * inT, float * outT, int32_t count);
+  void one(const float * inT, float * outT, int32_t count);
   void quadraticEaseIn(const float * inT, float * outT, int32_t count);
   void quadraticEaseInOut(const float * inT, float * outT, int32_t count);
   void quadraticEaseOut(const float * inT, float * outT, int32_t count);
@@ -32,6 +33,7 @@ namespace CurveMath {
   void sineEaseIn(const float * inT, float * outT, int32_t count);
   void sineEaseInOut(const float * inT, float * outT, int32_t count);
   void sineEaseOut(const float * inT, float * outT, int32_t count);
+  void zero(const float * inT, float * outT, int32_t count);
 
   enum class CurveType : uint8_t {
     BackEaseIn,
@@ -53,6 +55,7 @@ namespace CurveMath {
     ExponentialEaseInOut,
     ExponentialEaseOut,
     LinearInterpolation,
+    One,
     QuadraticEaseIn,
     QuadraticEaseInOut,
     QuadraticEaseOut,
@@ -65,6 +68,7 @@ namespace CurveMath {
     SineEaseIn,
     SineEaseInOut,
     SineEaseOut,
+    Zero,
 
     Count
   };
@@ -72,6 +76,8 @@ namespace CurveMath {
   struct CurveFunction {
     void(*function)(const float*, float*, int32_t){};
     const char* name{};
+    CurveType type{};
   };
   CurveFunction getFunction(CurveType type);
+  CurveFunction tryGetFunction(CurveType type);
 }
