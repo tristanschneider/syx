@@ -1,6 +1,7 @@
 #include "Precompile.h"
 #include "CppUnitTest.h"
 
+#include "config/ConfigIO.h"
 #include "stat/AllStatEffects.h"
 #include "Physics.h"
 #include "Simulation.h"
@@ -1607,6 +1608,19 @@ namespace Test {
 
       Assert::IsTrue(fragment.physics.linVelX->at(0) > 0.0f);
       Assert::AreEqual(size_t(0), effect.strength->size());
+    }
+
+    TEST_METHOD(Config) {
+      GameConfig gameConfig;
+      gameConfig.fragment.fragmentColumns = 5;
+
+      std::string serialized = ConfigIO::serializeJSON(ConfigConvert::toConfig(gameConfig));
+      ConfigIO::Result r = ConfigIO::deserializeJson(serialized);
+      ConfigIO::Result r2 = ConfigIO::deserializeJson("test");
+
+      Assert::AreEqual(size_t(0), r.value.index(), L"Parse should succeed");
+      Assert::AreEqual(size_t(1), r2.value.index(), L"Parse should fail");
+      Assert::AreEqual(size_t(5), std::get<0>(r.value).fragment.fragmentColumns);
     }
   };
 }

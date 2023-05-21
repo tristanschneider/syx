@@ -345,4 +345,6 @@ struct Simulation {
 
   static const SceneState& _getSceneState(GameDatabase& db);
   static Scheduler& _getScheduler(GameDatabase& db);
+
+  static const char* getConfigName();
 };

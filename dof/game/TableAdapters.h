@@ -17,12 +17,9 @@ struct ThreadLocals;
 template<class Element>
 struct BasicRow;
 
-
 struct ConfigAdapter {
-  DebugConfig* debug{};
   PhysicsConfig* physics{};
   GameConfig* game{};
-  GraphicsConfig* graphics{};
 };
 
 namespace StatEffect {

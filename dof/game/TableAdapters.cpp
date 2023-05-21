@@ -6,12 +6,11 @@
 #include "ThreadLocals.h"
 
 ConfigAdapter TableAdapters::getConfig(GameDB db) {
-  auto& c = std::get<ConfigTable>(db.db.mTables);
+  auto& c = std::get<GlobalGameData>(db.db.mTables);
+  GameConfig& g = std::get<SharedRow<GameConfig>>(c.mRows).at();
   return {
-    &std::get<SharedRow<DebugConfig>>(c.mRows).at(),
-    &std::get<SharedRow<PhysicsConfig>>(c.mRows).at(),
-    &std::get<SharedRow<GameConfig>>(c.mRows).at(),
-    &std::get<SharedRow<GraphicsConfig>>(c.mRows).at()
+    &g.physics,
+    &g
   };
 }
 

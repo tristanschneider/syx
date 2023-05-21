@@ -5,6 +5,8 @@
 
 #include "unity.h"
 
+#include "config/ConfigIO.h"
+#include "File.h"
 #include "glm/gtx/norm.hpp"
 #include "Fragment.h"
 #include "GameplayExtract.h"
@@ -255,6 +257,20 @@ const SceneState& Simulation::_getSceneState(GameDatabase& db) {
   return std::get<SharedRow<SceneState>>(std::get<GlobalGameData>(db.mTables).mRows).at();
 }
 
+void tryInitFromConfig(GameConfig&, const ConfigIO::Result::Error& error) {
+  printf("Error reading config file, initializing with defaults. [%s]\n", error.message.c_str());
+}
+
+void tryInitFromConfig(GameConfig& toSet, const Config::RawGameConfig& loaded) {
+  printf("Config found, initializing from file.\n");
+  toSet = ConfigConvert::toGame(loaded);
+}
+
+const char* Simulation::getConfigName() {
+  return "config.json";
+}
+
+
 void Simulation::init(GameDatabase& db) {
   Scheduler& scheduler = Simulation::_getScheduler(db);
   scheduler.mScheduler.Initialize();
@@ -264,4 +280,11 @@ void Simulation::init(GameDatabase& db) {
   StatEffect::initGlobals(TableAdapters::getStatEffects({ db }).db);
   PhysicsSimulation::init({ db });
   Player::init({ db });
+
+  GameConfig* gameConfig = TableAdapters::getConfig({ db }).game;
+  FileSystem* fileSystem = TableAdapters::getGlobals({ db }).fileSystem;
+  if(std::optional<std::string> buffer = File::readEntireFile(*fileSystem, getConfigName())) {
+    ConfigIO::Result result = ConfigIO::deserializeJson(*buffer);
+    std::visit([&](const auto& r) { tryInitFromConfig(*gameConfig, r); }, result.value);
+  }
 }

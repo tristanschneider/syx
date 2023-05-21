@@ -6,10 +6,30 @@
 #include "imgui.h"
 #include "ImguiExt.h"
 #include "TableAdapters.h"
+#include "File.h"
+#include "config/ConfigIO.h"
+
+namespace Toolbox {
+  void update(GameDB db) {
+    GameConfig* config = TableAdapters::getConfig(db).game;
+    FileSystem* fileSystem = TableAdapters::getGlobals(db).fileSystem;
+    if(ImGui::Button("Save Configuration")) {
+      std::string buffer = ConfigIO::serializeJSON(ConfigConvert::toConfig(*config));
+      if(File::writeEntireFile(*fileSystem, Simulation::getConfigName(), buffer)) {
+        printf("Configuration saved\n");
+      }
+      else {
+        printf("Failed to save configuration\n");
+      }
+    }
+  }
+}
 
 void GameModule::update(GameDB db) {
   GameConfig& config = *TableAdapters::getConfig(db).game;
   ImGui::Begin("Game");
+
+  Toolbox::update(db);
 
   {
     static ImguiExt::CurveSliders sliders;

@@ -1,12 +1,12 @@
-set(BUILD_DOC OFF)
-set(BUILD_SANDBOX OFF)
-set(SKIP_PERFORMANCE_COMPARISON ON)
-set(JUST_INSTALL_CEREAL ON)
+set(BUILD_DOC OFF CACHE BOOL "" FORCE)
+set(BUILD_SANDBOX OFF CACHE BOOL "" FORCE)
+set(SKIP_PERFORMANCE_COMPARISON ON CACHE BOOL "" FORCE)
+set(JUST_INSTALL_CEREAL ON CACHE BOOL "" FORCE)
 
 add_subdirectory(cereal)
 
 # Gather files matching pattern into source_files
-file(GLOB_RECURSE source_files *.cpp *.h *.ispc)
+file(GLOB_RECURSE source_files src/*.cpp src/*.h include/*.h)
 
 add_library(config STATIC ${source_files})
 

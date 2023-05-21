@@ -2,6 +2,8 @@
 
 #include "config/Config.h"
 
+#include <variant>
+
 namespace ConfigIO {
   struct Result {
     struct Error {

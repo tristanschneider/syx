@@ -42,7 +42,7 @@ namespace ConfigConvert {
       def.params.duration,
       def.params.flipInput,
       def.params.flipOutput,
-      def.function.name
+      std::string(def.function.name ? def.function.name : "")
     };
   }
 
