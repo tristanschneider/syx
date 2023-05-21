@@ -139,12 +139,7 @@ namespace CurveMath {
     ispc::zero(inT, outT, count);
   }
 
-  CurveFunction tryGetFunction(CurveType type) {
-    assert(static_cast<int>(type) < static_cast<int>(CurveType::Count));
-    return getFunction(type);
-  }
-
-  CurveFunction getFunction(CurveType type) {
+  const auto& getFunctions() {
     static std::array functions {
       CurveFunction{ &backEaseIn, "BackEaseIn", CurveType::BackEaseIn },
       CurveFunction{ &backEaseInOut, "BackEaseInOut", CurveType::BackEaseInOut },
@@ -180,8 +175,24 @@ namespace CurveMath {
       CurveFunction{ &sineEaseOut, "SineEaseOut", CurveType::SineEaseOut },
       CurveFunction{ &zero, "Zero", CurveType::Zero },
     };
+    return functions;
+  }
+
+  CurveFunction tryGetFunction(CurveType type) {
+    assert(static_cast<int>(type) < static_cast<int>(CurveType::Count));
+    return getFunction(type);
+  }
+
+  CurveFunction getFunction(CurveType type) {
+    const auto& functions = getFunctions();
     const size_t index = static_cast<size_t>(type);
     assert(index < functions.size());
     return index < functions.size() ? functions[index] : CurveFunction{};
+  }
+
+  CurveFunction tryGetFunction(const std::string& name) {
+    const auto& functions = getFunctions();
+    auto it = std::find_if(functions.begin(), functions.end(), [&](const CurveFunction& fn) { return fn.name == name; });
+    return it != functions.end() ? *it : CurveFunction{};
   }
 }

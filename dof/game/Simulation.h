@@ -125,6 +125,7 @@ using GlobalGameData = Table<
   SharedRow<StableElementMappings>,
   SharedRow<ConstraintsTableMappings>,
   SharedRow<Scheduler>,
+  SharedRow<GameConfig>,
   ThreadLocalsRow,
   ExternalDatabasesRow
 >;
@@ -311,8 +312,7 @@ using GameDatabase = Database<
   ConstraintsTable,
   ConstraintCommonTable,
   ContactConstraintsToStaticObjectsTable,
-  DebugLineTable,
-  ConfigTable
+  DebugLineTable
 >;
 
 //For allowing forward declarations where GameDatabase is desired

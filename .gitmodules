@@ -10,3 +10,6 @@
 [submodule "dof/imgui/imgui"]
 	path = dof/imgui/imgui
 	url = https://github.com/ocornut/imgui.git
+[submodule "dof/config/cereal"]
+	path = dof/config/cereal
+	url = https://github.com/USCiLab/cereal.git

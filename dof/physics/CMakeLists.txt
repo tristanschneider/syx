@@ -10,11 +10,14 @@ file(GLOB_RECURSE source_files *.cpp *.h *.ispc)
 
 add_library(physics STATIC ${source_files})
 
-target_link_libraries(physics scheduler)
-target_link_libraries(physics ${ispc_objs})
-target_link_libraries(physics glm)
-target_link_libraries(physics table)
-target_link_libraries(physics profile)
+target_link_libraries(physics
+    scheduler
+    ${ispc_objs}
+    glm
+    table
+    profile
+    config
+)
 
 # Include this directory to anyone that includes this cmakelists
 target_include_directories(physics INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})

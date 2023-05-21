@@ -20,10 +20,15 @@ target_include_directories(game
 target_precompile_headers(game PRIVATE Precompile.h)
 
 # Link dependencies
-target_link_libraries(game PUBLIC scheduler)
-target_link_libraries(game PUBLIC glm)
-target_link_libraries(game PUBLIC physics)
-target_link_libraries(game PUBLIC table)
-target_link_libraries(game PRIVATE ${ispc_objs})
-target_link_libraries(game PRIVATE profile)
-target_link_libraries(game PUBLIC curve)
+target_link_libraries(game PUBLIC
+    scheduler
+    glm
+    physics
+    table
+    curve
+    config
+)
+target_link_libraries(game PRIVATE
+    ${ispc_objs}
+    profile
+)

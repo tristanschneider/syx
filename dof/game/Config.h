@@ -4,8 +4,7 @@
 #include "PhysicsConfig.h"
 #include "Table.h"
 
-struct DebugConfig {
-};
+//Plain data config is in config library, any types that contain dependencies on other projects are converted from plain data here
 
 struct PlayerConfig {
   CurveDefinition linearMoveCurve;
@@ -13,42 +12,75 @@ struct PlayerConfig {
   CurveDefinition linearStoppingCurve;
 };
 
-struct PlayerAbilityConfig {
-  size_t explodeLifetime = 5;
-  float explodeStrength = 0.05f;
-};
-
-struct CameraConfig {
-  float cameraZoomSpeed = 0.3f;
-};
-
-struct FragmentConfig {
-  float fragmentGoalDistance = 0.5f;
-
-  size_t fragmentRows = 10;
-  size_t fragmentColumns = 9;
-};
-
-struct WorldConfig {
-  float deltaTime = 1.0f/60.0f;
-  float boundarySpringConstant = 0.01f;
-};
-
-struct GraphicsConfig {
-};
-
 struct GameConfig {
   PlayerConfig player;
-  PlayerAbilityConfig ability;
-  CameraConfig camera;
-  FragmentConfig fragment;
-  WorldConfig world;
+  Config::PlayerAbilityConfig ability;
+  Config::CameraConfig camera;
+  Config::FragmentConfig fragment;
+  Config::WorldConfig world;
+  PhysicsConfig physics;
 };
 
+namespace ConfigConvert {
+  inline CurveDefinition toGame(const Config::CurveConfig& cfg) {
+    return {
+      CurveParameters {
+        cfg.scale,
+        cfg.offset,
+        cfg.duration,
+        cfg.flipInput,
+        cfg.flipOutput
+      },
+      CurveMath::tryGetFunction(cfg.curveFunction)
+    };
+  }
 
-using ConfigTable = Table<
-  SharedRow<DebugConfig>,
-  SharedRow<PhysicsConfig>,
-  SharedRow<GameConfig>,
-  SharedRow<GraphicsConfig>
->;
+  inline Config::CurveConfig toConfig(const CurveDefinition& def) {
+    return {
+      def.params.scale,
+      def.params.offset,
+      def.params.duration,
+      def.params.flipInput,
+      def.params.flipOutput,
+      def.function.name
+    };
+  }
+
+  inline PlayerConfig toGame(const Config::PlayerConfig& cfg) {
+    return {
+      toGame(cfg.linearMoveCurve),
+      toGame(cfg.angularMoveCurve),
+      toGame(cfg.linearStoppingCurve)
+    };
+  }
+
+  inline Config::PlayerConfig toConfig(const PlayerConfig& cfg) {
+    return {
+      toConfig(cfg.linearMoveCurve),
+      toConfig(cfg.angularMoveCurve),
+      toConfig(cfg.linearStoppingCurve)
+    };
+  }
+
+  inline GameConfig toGame(const Config::RawGameConfig& cfg) {
+    return {
+      toGame(cfg.player),
+      cfg.ability,
+      cfg.camera,
+      cfg.fragment,
+      cfg.world,
+      cfg.physics
+    };
+  }
+
+  inline Config::RawGameConfig toConfig(const GameConfig& cfg) {
+    return {
+      toConfig(cfg.player),
+      cfg.ability,
+      cfg.camera,
+      cfg.fragment,
+      cfg.world,
+      cfg.physics
+    };
+  }
+}

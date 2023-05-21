@@ -80,4 +80,5 @@ namespace CurveMath {
   };
   CurveFunction getFunction(CurveType type);
   CurveFunction tryGetFunction(CurveType type);
+  CurveFunction tryGetFunction(const std::string& name);
 }
