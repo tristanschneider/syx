@@ -302,7 +302,7 @@ void _trySetFinalSyncPoint(const ConstraintData::VisitData& visited, ConstraintS
 }
 
 //Fills in syncIndex and syncType. The required padding and target width should already be in place from the previous steps, and object handles resolved
-void ConstraintsTableBuilder::buildSyncIndices(ConstraintCommonTable& constraints, const ConstraintsTableMappings& constraintsMappings) {
+void ConstraintsTableBuilder::buildSyncIndices(ConstraintCommonTable& constraints, const ConstraintsTableMappings&) {
   PROFILE_SCOPE("physics", "buildSyncIndices");
   ConstraintData::SharedVisitData& visitData = std::get<ConstraintData::SharedVisitDataRow>(constraints.mRows).at();
   std::unordered_map<size_t, ConstraintData::VisitData>& visited = visitData.mVisited;
@@ -320,7 +320,6 @@ void ConstraintsTableBuilder::buildSyncIndices(ConstraintCommonTable& constraint
       continue;
     }
 
-    const size_t localConstraintIndex = i - (i >= constraintsMappings.mZeroMassStartIndex ? constraintsMappings.mZeroMassStartIndex : size_t(0));
     const size_t globalConstraintIndex = i;
 
     //Sync for A

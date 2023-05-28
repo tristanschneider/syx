@@ -41,7 +41,6 @@ namespace PhysicsSimulation {
   }
 
   TaskRange _applyDamping(GameDatabase& db, const PhysicsConfig& config) {
-    const float linearDragMultiplier = config.linearDragMultiplier;
     auto result = std::make_shared<TaskNode>();
     result->mChildren.push_back(Physics::applyDampingMultiplier<LinVelX, LinVelY>(db, config.linearDragMultiplier).mBegin);
 

@@ -101,7 +101,6 @@ struct TaskBuilder {
 
       const size_t existingDeps = current->mDependencies.size();
       assert(current->mChildren.size() >= existingDeps && "Dependencies should not be removed");
-      const size_t newDeps = current->mChildren.size() - existingDeps;
       current->mDependencies.resize(current->mChildren.size());
 
       for(size_t i = 0; i < current->mChildren.size(); ++i) {

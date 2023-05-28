@@ -455,8 +455,6 @@ EXPORT void generateUnitCubeCubeContacts(
     FLOAT2 posBInA = vec2Sub(posB, posA);
     posBInA = multiplyVec2ByRotation(rotAInverse.x, rotAInverse.y, posBInA.x, posBInA.y);
 
-    const float extentAX = 0.5f;
-    const float extentAY = 0.5f;
     //Sutherland hodgman clipping of B in the space of A, meaning all the clipping planes are cardinal axes
     int outputCount = 0;
     //8 should be the maximum amount of points that can result from clipping a square against another, which is when they are inside each-other and all corners of one intersect the edges of the other

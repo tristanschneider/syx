@@ -1600,7 +1600,7 @@ namespace Test {
       fragment.transform.posX->at(0) = 5.0f;
 
       AreaForceStatEffectAdapter effect = TableAdapters::getAreaForceEffects(game, 0);
-      const size_t id = TableAdapters::addStatEffectsSharedLifetime(effect.base, StatEffect::INSTANT, nullptr, 1);
+      TableAdapters::addStatEffectsSharedLifetime(effect.base, StatEffect::INSTANT, nullptr, 1);
       effect.pointX->at(0) = 4.0f;
       effect.strength->at(0) = 10.0f;
 
