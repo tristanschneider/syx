@@ -315,7 +315,7 @@ void ParticleRenderer::init(ParticleData& data) {
   };
   glTransformFeedbackVaryings(data.mUpdateShader.program, 3, varyings, GL_INTERLEAVED_ATTRIBS);
 
-  if(!Shader::_linkAndValidate(data.mUpdateShader.program)) {
+  if(!Shader::_link(data.mUpdateShader.program)) {
     printf("failed to created particle shader");
   }
   Shader::_detachAndDestroy(data.mUpdateShader.program, vs);

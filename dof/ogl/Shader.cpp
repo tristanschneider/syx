@@ -22,7 +22,7 @@ void Shader::compileShader(GLuint shaderHandle, const char* source) {
   }
 }
 
-bool Shader::_linkAndValidate(GLuint program) {
+bool Shader::_link(GLuint program) {
   std::string str;
   glLinkProgram(program);
 
@@ -34,16 +34,23 @@ bool Shader::_linkAndValidate(GLuint program) {
     printf("Error linking shader [%s]\n", str.c_str());
     return false;
   }
+  return true;
+}
+
+bool Shader::_validate(GLuint program) {
+  std::string str;
+  GLint success{};
 
   glValidateProgram(program);
+
   glGetProgramiv(program, GL_VALIDATE_STATUS, &success);
   if(success == GL_FALSE) {
     str.resize(1000);
     glGetProgramInfoLog(program, str.size(), nullptr, str.data());
     printf("Error validating shader\n [%s]", str.c_str());
-    return 0;
+    return false;
   }
-  return program;
+  return true;
 }
 
 GLuint Shader::_detachAndDestroy(GLuint program, GLuint s) {
@@ -67,7 +74,7 @@ GLuint Shader::loadShader(const char* vsSource, const char* psSource) {
   GLuint result{ glCreateProgram() };
   glAttachShader(result, vs);
   glAttachShader(result, ps);
-  if(!_linkAndValidate(result)) {
+  if(!_link(result)) {
     return 0;
   }
 
