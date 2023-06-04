@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.26)
 
 # Project name
 project(dof)
@@ -40,6 +40,18 @@ if(MSVC)
         /WX
     )
 endif()
+
+# Intended to be called by the executable that imports this directly or indirectly
+function(copy_data_to_target target)
+    # Build file list
+    set(data_dir "${CMAKE_SOURCE_DIR}/data/")
+
+    # Copy list to target
+    add_custom_command(TARGET ${target} COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
+        "${data_dir}"
+        "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIGURATION>/data"
+    )
+endfunction()
 
 add_subdirectory(scheduler)
 add_subdirectory(profile)

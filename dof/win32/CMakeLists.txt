@@ -18,6 +18,7 @@ target_include_directories(win32 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 add_compile_definitions(NOMINMAX)
 
 copy_glew_to_target(win32)
+copy_data_to_target(win32)
 
 target_precompile_headers(win32 PRIVATE Precompile.h)
 
