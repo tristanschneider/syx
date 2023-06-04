@@ -168,6 +168,8 @@ namespace {
 
         gl_Position.x = pos.x;
         gl_Position.y = pos.y;
+        gl_Position.z = 0.0f;
+        gl_Position.w = 1.0f;
         oInstanceID = i;
       }
   )";
