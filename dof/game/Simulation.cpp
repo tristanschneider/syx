@@ -238,10 +238,11 @@ void Simulation::buildUpdateTasks(GameDatabase& db, SimulationPhases& phases) {
 
 void Simulation::linkUpdateTasks(SimulationPhases& phases) {
   //First process requests, then extract renderables
-  phases.root.mEnd->mChildren.push_back(phases.renderRequests.mBegin);
-  phases.renderRequests.mEnd->mChildren.push_back(phases.renderExtraction.mBegin);
+  phases.root.mEnd->mChildren.push_back(phases.renderExtraction.mBegin);
+  //Then requests because they might rely on extracted data
+  phases.renderExtraction.mEnd->mChildren.push_back(phases.renderRequests.mBegin);
   //Then do primary rendering
-  phases.renderExtraction.mEnd->mChildren.push_back(phases.render.mBegin);
+  phases.renderRequests.mEnd->mChildren.push_back(phases.render.mBegin);
   //Then render imgui, which currently also depends on simulation being complete due to requiring access to DB
   phases.render.mEnd->mChildren.push_back(phases.imgui.mBegin);
   phases.simulation.mEnd->mChildren.push_back(phases.imgui.mBegin);

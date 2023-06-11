@@ -82,7 +82,10 @@ namespace {
     return {
       &std::get<FloatRow<Tags::GLinVel, Tags::X>>(table.mRows),
       &std::get<FloatRow<Tags::GLinVel, Tags::Y>>(table.mRows),
-      &std::get<FloatRow<Tags::GAngVel, Tags::Angle>>(table.mRows)
+      &std::get<FloatRow<Tags::GAngVel, Tags::Angle>>(table.mRows),
+      &std::get<FloatRow<Tags::GLinImpulse, Tags::X>>(table.mRows),
+      &std::get<FloatRow<Tags::GLinImpulse, Tags::Y>>(table.mRows),
+      &std::get<FloatRow<Tags::GAngImpulse, Tags::Angle>>(table.mRows)
     };
   }
 
@@ -234,4 +237,12 @@ size_t TableAdapters::addStatEffectsSharedLifetime(StatEffectBaseAdapter& base, 
     base.owner->at(i + firstIndex) = stableIds ? StableElementID::fromStableID(stableIds[i]) : StableElementID::invalid();
   }
   return firstIndex;
+}
+
+DebugLineAdapter TableAdapters::getDebugLines(GameDB db) {
+  auto& debug = std::get<DebugLineTable>(db.db.mTables);
+  return {
+    &std::get<Row<DebugPoint>>(debug.mRows),
+    TableModifierInstance::get(debug)
+  };
 }

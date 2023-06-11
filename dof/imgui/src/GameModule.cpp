@@ -33,28 +33,71 @@ void GameModule::update(GameDB db) {
 
   {
     static ImguiExt::CurveSliders sliders;
-    sliders.label = "Linear Player Acceleration";
+    sliders.label = "Linear Speed";
     sliders.durationRange = { 0.0f, 1.0f };
-    sliders.offsetRange = { -0.1f, 0.24f };
-    sliders.scaleRange = { 0.0f, 0.15f };
-    ImguiExt::curve(config.player.linearMoveCurve, sliders);
+    sliders.offsetRange = { 0.0f, 1.24f };
+    sliders.scaleRange = { 0.0f, 5.0f };
+    ImguiExt::curve(config.player.linearSpeedCurve, sliders);
   }
   {
     static ImguiExt::CurveSliders sliders;
-    sliders.label = "Linear Player Deceleration";
+    sliders.label = "Linear Force";
     sliders.durationRange = { 0.0f, 1.0f };
-    sliders.offsetRange = { -0.1f, 0.24f };
-    sliders.scaleRange = { 0.0f, 0.15f };
-    ImguiExt::curve(config.player.linearStoppingCurve, sliders);
-  }
-  {
-    static ImguiExt::CurveSliders sliders;
-    sliders.label = "Angular Player Acceleration";
-    sliders.durationRange = { 0.0f, 1.0f };
-    sliders.offsetRange = { -0.1f, 0.5f };
+    sliders.offsetRange = { 0.0f, 0.5f };
     sliders.scaleRange = { 0.0f, 1.0f };
-    ImguiExt::curve(config.player.angularMoveCurve, sliders);
+    ImguiExt::curve(config.player.linearForceCurve, sliders);
   }
+  {
+    static ImguiExt::CurveSliders sliders;
+    sliders.label = "Linear Stopping Speed";
+    sliders.durationRange = { 0.0f, 1.0f };
+    sliders.offsetRange = { 0.0f, 1.24f };
+    sliders.scaleRange = { 0.0f, 5.0f };
+    ImguiExt::curve(config.player.linearStoppingSpeedCurve, sliders);
+  }
+  {
+    static ImguiExt::CurveSliders sliders;
+    sliders.label = "Linear Stopping Force";
+    sliders.durationRange = { 0.0f, 1.0f };
+    sliders.offsetRange = { 0.0f, 0.0f };
+    sliders.scaleRange = { 0.0f, 0.25f };
+    ImguiExt::curve(config.player.linearStoppingForceCurve, sliders);
+  }
+
+  {
+    static ImguiExt::CurveSliders sliders;
+    sliders.label = "Angular Speed";
+    sliders.durationRange = { 0.0f, 1.0f };
+    sliders.offsetRange = { 0.0f, 1.24f };
+    sliders.scaleRange = { 0.0f, 5.0f };
+    ImguiExt::curve(config.player.angularSpeedCurve, sliders);
+  }
+  {
+    static ImguiExt::CurveSliders sliders;
+    sliders.label = "Angular Force";
+    sliders.durationRange = { 0.0f, 1.0f };
+    sliders.offsetRange = { 0.0f, 0.5f };
+    sliders.scaleRange = { 0.0f, 1.0f };
+    ImguiExt::curve(config.player.angularForceCurve, sliders);
+  }
+  {
+    static ImguiExt::CurveSliders sliders;
+    sliders.label = "Angular Stopping Speed";
+    sliders.durationRange = { 0.0f, 1.0f };
+    sliders.offsetRange = { 0.0f, 0.5f };
+    sliders.scaleRange = { 0.0f, 1.0f };
+    ImguiExt::curve(config.player.angularStoppingSpeedCurve, sliders);
+  }
+  {
+    static ImguiExt::CurveSliders sliders;
+    sliders.label = "Angular Stopping Force";
+    sliders.durationRange = { 0.0f, 1.0f };
+    sliders.offsetRange = { 0.0f, 0.5f };
+    sliders.scaleRange = { 0.0f, 1.0f };
+    ImguiExt::curve(config.player.angularStoppingForceCurve, sliders);
+  }
+  ImGui::Checkbox("Draw Move", &config.player.drawMove);
+
 
   ImguiExt::inputSizeT("Explode Lifetime", &config.ability.explodeLifetime);
   ImGui::SliderFloat("Explode Strength", &config.ability.explodeStrength, 0.0f, 1.0f);

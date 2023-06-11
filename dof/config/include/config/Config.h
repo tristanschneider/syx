@@ -21,9 +21,15 @@ namespace Config {
   };
 
   struct PlayerConfig {
-    CurveConfig linearMoveCurve;
-    CurveConfig angularMoveCurve;
-    CurveConfig linearStoppingCurve;
+    bool drawMove{};
+    CurveConfig linearSpeedCurve;
+    CurveConfig linearForceCurve;
+    CurveConfig angularSpeedCurve;
+    CurveConfig angularForceCurve;
+    CurveConfig linearStoppingSpeedCurve;
+    CurveConfig linearStoppingForceCurve;
+    CurveConfig angularStoppingSpeedCurve;
+    CurveConfig angularStoppingForceCurve;
   };
 
   struct PlayerAbilityConfig {

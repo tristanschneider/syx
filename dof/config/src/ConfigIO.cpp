@@ -45,9 +45,15 @@ namespace cereal {
   template<class Archive>
   void serialize(Archive& archive, Config::PlayerConfig& value) {
     ARCHIVE(archive,
-      value.linearMoveCurve,
-      value.angularMoveCurve,
-      value.linearStoppingCurve
+      value.drawMove,
+      value.linearSpeedCurve,
+      value.linearForceCurve,
+      value.angularSpeedCurve,
+      value.angularForceCurve,
+      value.linearStoppingSpeedCurve,
+      value.linearStoppingForceCurve,
+      value.angularStoppingSpeedCurve,
+      value.angularStoppingForceCurve
     );
   }
 

@@ -17,6 +17,8 @@ namespace CurveSolver {
   float getDeltaTime(const CurveDefinition& definition, float realTimeSeconds);
   void advanceTime(const CurveDefinition& definition, const CurveUniforms& uniforms, CurveVaryings& varyings, float realTimeSeconds);
   void advanceTimeDT(float deltaTime, const CurveUniforms& uniforms, CurveVaryings& varyings);
+  float advanceTimeDT(float toAdvance, float deltaTime);
 
   void solve(const CurveDefinition& definition, const CurveUniforms& uniforms, CurveVaryings varyings);
+  float solve(float t, const CurveDefinition& definition);
 }

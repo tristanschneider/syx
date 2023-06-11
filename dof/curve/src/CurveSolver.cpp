@@ -26,6 +26,14 @@ namespace CurveSolver {
     }
   }
 
+  float advanceTimeDT(float toAdvance, float deltaTime) {
+    float result{};
+    CurveVaryings varyings{ &toAdvance, &result };
+    CurveUniforms uniforms{ 1 };
+    advanceTimeDT(deltaTime, uniforms, varyings);
+    return result;
+  }
+
   void advanceTime(const CurveDefinition& definition, const CurveUniforms& uniforms, CurveVaryings& varyings, float realTimeSeconds) {
     advanceTimeDT(getDeltaTime(definition, realTimeSeconds), uniforms, varyings);
   }
@@ -87,5 +95,13 @@ namespace CurveSolver {
       flip(varyings.inT, varyings.outT, uniforms.count);
     }
     scaleAndOffset(definition, uniforms, varyings);
+  }
+
+  float solve(float t, const CurveDefinition& definition) {
+    float result{};
+    CurveVaryings varyings{ &t, &result };
+    CurveUniforms uniforms{ 1 };
+    solve(definition, uniforms, varyings);
+    return result;
   }
 }

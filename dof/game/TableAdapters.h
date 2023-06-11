@@ -116,6 +116,15 @@ struct Scheduler;
 struct ExternalDatabases;
 struct ThreadLocals;
 
+struct DebugPoint;
+
+using DebugLineTable = Table<Row<DebugPoint>>;
+
+struct DebugLineAdapter {
+  BasicRow<DebugPoint>* points{};
+  TableModifierInstance modifier;
+};
+
 struct GlobalsAdapter {
   SceneState* scene{};
   PhysicsTableIds* physicsTables{};
@@ -154,6 +163,8 @@ namespace TableAdapters {
   GameObjectAdapter getGameplayGameObjects(GameDB db);
   GameObjectAdapter getGameplayStaticGameObjects(GameDB db);
   PlayerAdapter getGameplayPlayer(GameDB db);
+
+  DebugLineAdapter getDebugLines(GameDB db);
 
   size_t addStatEffectsSharedLifetime(StatEffectBaseAdapter& base, size_t lifetime, const size_t* stableIds, size_t count);
 

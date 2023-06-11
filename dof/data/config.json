@@ -24,26 +24,27 @@
             "frictionCoeff": 0.5
         },
         "player": {
-            "linearMoveCurve": {
+            "drawMove": false,
+            "linearSpeedCurve": {
                 "scale": {
                     "nullopt": false,
-                    "data": 0.012000000104308129
+                    "data": 0.16200000047683717
                 },
                 "offset": {
                     "nullopt": true
                 },
                 "duration": {
                     "nullopt": false,
-                    "data": 0.4000000059604645
+                    "data": 0.6909999847412109
                 },
                 "flipInput": false,
                 "flipOutput": false,
-                "curveFunction": "ExponentialEaseOut"
+                "curveFunction": "ElasticEaseOut"
             },
-            "angularMoveCurve": {
+            "linearForceCurve": {
                 "scale": {
                     "nullopt": false,
-                    "data": 0.10000000149011612
+                    "data": 0.020999999716877939
                 },
                 "offset": {
                     "nullopt": true
@@ -54,28 +55,102 @@
                 },
                 "flipInput": false,
                 "flipOutput": false,
-                "curveFunction": "SineEaseIn"
+                "curveFunction": "One"
             },
-            "linearStoppingCurve": {
+            "angularSpeedCurve": {
                 "scale": {
                     "nullopt": false,
-                    "data": 0.10000000149011612
+                    "data": 0.22100000083446504
                 },
                 "offset": {
                     "nullopt": true
                 },
                 "duration": {
                     "nullopt": false,
-                    "data": 0.5
+                    "data": 0.22100000083446504
                 },
-                "flipInput": true,
+                "flipInput": false,
                 "flipOutput": false,
-                "curveFunction": "QuadraticEaseIn"
+                "curveFunction": "One"
+            },
+            "angularForceCurve": {
+                "scale": {
+                    "nullopt": false,
+                    "data": 0.6240000128746033
+                },
+                "offset": {
+                    "nullopt": true
+                },
+                "duration": {
+                    "nullopt": true
+                },
+                "flipInput": false,
+                "flipOutput": false,
+                "curveFunction": "One"
+            },
+            "linearStoppingSpeedCurve": {
+                "scale": {
+                    "nullopt": false,
+                    "data": 0.8970000147819519
+                },
+                "offset": {
+                    "nullopt": false,
+                    "data": 0.010999999940395356
+                },
+                "duration": {
+                    "nullopt": true
+                },
+                "flipInput": false,
+                "flipOutput": false,
+                "curveFunction": "Zero"
+            },
+            "linearStoppingForceCurve": {
+                "scale": {
+                    "nullopt": false,
+                    "data": 0.061000000685453418
+                },
+                "offset": {
+                    "nullopt": true
+                },
+                "duration": {
+                    "nullopt": true
+                },
+                "flipInput": false,
+                "flipOutput": true,
+                "curveFunction": "QuinticEaseIn"
+            },
+            "angularStoppingSpeedCurve": {
+                "scale": {
+                    "nullopt": true
+                },
+                "offset": {
+                    "nullopt": true
+                },
+                "duration": {
+                    "nullopt": true
+                },
+                "flipInput": false,
+                "flipOutput": false,
+                "curveFunction": ""
+            },
+            "angularStoppingForceCurve": {
+                "scale": {
+                    "nullopt": true
+                },
+                "offset": {
+                    "nullopt": true
+                },
+                "duration": {
+                    "nullopt": true
+                },
+                "flipInput": false,
+                "flipOutput": false,
+                "curveFunction": ""
             }
         },
         "world": {
             "deltaTime": 0.01666666753590107,
-            "boundarySpringConstant": 0.009999999776482582
+            "boundarySpringConstant": 0.003000000026077032
         }
     }
 }

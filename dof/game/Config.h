@@ -7,9 +7,16 @@
 //Plain data config is in config library, any types that contain dependencies on other projects are converted from plain data here
 
 struct PlayerConfig {
-  CurveDefinition linearMoveCurve;
-  CurveDefinition angularMoveCurve;
-  CurveDefinition linearStoppingCurve;
+  bool drawMove{};
+  CurveDefinition linearSpeedCurve;
+  CurveDefinition linearForceCurve;
+  CurveDefinition angularSpeedCurve;
+  CurveDefinition angularForceCurve;
+
+  CurveDefinition linearStoppingSpeedCurve;
+  CurveDefinition linearStoppingForceCurve;
+  CurveDefinition angularStoppingSpeedCurve;
+  CurveDefinition angularStoppingForceCurve;
 };
 
 struct GameConfig {
@@ -48,17 +55,29 @@ namespace ConfigConvert {
 
   inline PlayerConfig toGame(const Config::PlayerConfig& cfg) {
     return {
-      toGame(cfg.linearMoveCurve),
-      toGame(cfg.angularMoveCurve),
-      toGame(cfg.linearStoppingCurve)
+      cfg.drawMove,
+      toGame(cfg.linearSpeedCurve),
+      toGame(cfg.linearForceCurve),
+      toGame(cfg.angularSpeedCurve),
+      toGame(cfg.angularForceCurve),
+      toGame(cfg.linearStoppingSpeedCurve),
+      toGame(cfg.linearStoppingForceCurve),
+      toGame(cfg.angularStoppingSpeedCurve),
+      toGame(cfg.angularStoppingForceCurve)
     };
   }
 
   inline Config::PlayerConfig toConfig(const PlayerConfig& cfg) {
     return {
-      toConfig(cfg.linearMoveCurve),
-      toConfig(cfg.angularMoveCurve),
-      toConfig(cfg.linearStoppingCurve)
+      cfg.drawMove,
+      toConfig(cfg.linearSpeedCurve),
+      toConfig(cfg.linearForceCurve),
+      toConfig(cfg.angularSpeedCurve),
+      toConfig(cfg.angularForceCurve),
+      toConfig(cfg.linearStoppingSpeedCurve),
+      toConfig(cfg.linearStoppingForceCurve),
+      toConfig(cfg.angularStoppingSpeedCurve),
+      toConfig(cfg.angularStoppingForceCurve)
     };
   }
 

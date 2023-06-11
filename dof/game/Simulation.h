@@ -206,6 +206,7 @@ struct PlayerInput {
   bool mAction2{};
   //Goes from 0 to 1 when starting input in a direction, then back down to zero when stopping
   float moveT{};
+  float angularMoveT{};
 };
 
 enum class KeyState : uint8_t {

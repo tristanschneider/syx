@@ -14,10 +14,9 @@ namespace StatEffect {
         const StableElementID unresolved = owner.at(i);
         //Normal stats could rely on resolving upfront before processing stat but since lambda has
         //access to the entire database it could cause table migrations
-        if(auto resolved = StableOperations::tryResolveStableID(unresolved, db.db, mappings)) {
-          args.resolvedID = *resolved;
-          row.at(i)(args);
-        }
+        auto resolved = StableOperations::tryResolveStableID(unresolved, db.db, mappings);
+        args.resolvedID = resolved.value_or(StableElementID::invalid());
+        row.at(i)(args);
       }
     });
     return TaskBuilder::addEndSync(task);
