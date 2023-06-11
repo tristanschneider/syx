@@ -111,7 +111,7 @@ namespace Player {
         lambda.command->at(l) = [pos, c, velocity, impulse, move, linearSpeed](LambdaStatEffect::Args& args) {
           const float scale = 8.0f;
           auto debug = TableAdapters::getDebugLines(*args.db);
-          DebugDrawer::drawVector(debug, pos, velocity*scale, { 1, 0, 0});
+          DebugDrawer::drawVector(debug, pos, velocity*scale, { 1, 0, 0 });
           DebugDrawer::drawVector(debug, pos, -c.jacobian.a.linear*c.limits.bias*scale, { 0, 1, 0 });
           DebugDrawer::drawVector(debug, pos, impulse.linear*scale, { 0, 0, 1 });
         };
