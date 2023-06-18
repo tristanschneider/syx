@@ -1,6 +1,7 @@
 #pragma once
 
 #include "stat/AreaForceStatEffect.h"
+#include "stat/FollowTargetByPositionEffect.h"
 #include "stat/LambdaStatEffect.h"
 #include "stat/PositionStatEffect.h"
 #include "stat/VelocityStatEffect.h"
@@ -19,7 +20,8 @@ using StatEffectDatabase = Database<
   LambdaStatEffectTable,
   PositionStatEffectTable,
   VelocityStatEffectTable,
-  AreaForceStatEffectTable
+  AreaForceStatEffectTable,
+  FollowTargetByPositionStatEffectTable
 >;
 
 // To allow forward declarations

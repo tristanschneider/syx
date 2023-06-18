@@ -275,8 +275,6 @@ using PlayerTable = Table<
 >;
 
 struct Camera {
-  float x{};
-  float y{};
   float angle{};
   float zoom{};
 };
@@ -289,7 +287,10 @@ struct DebugCameraControl {
 
 using CameraTable = Table<
   Row<Camera>,
-  Row<DebugCameraControl>
+  FloatRow<Tags::Pos, Tags::X>,
+  FloatRow<Tags::Pos, Tags::Y>,
+  Row<DebugCameraControl>,
+  StableIDRow
 >;
 
 struct DebugPoint {

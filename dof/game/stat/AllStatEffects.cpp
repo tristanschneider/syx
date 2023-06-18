@@ -2,6 +2,7 @@
 #include "stat/AllStatEffects.h"
 
 #include "CommonTasks.h"
+#include "curve/CurveSolver.h"
 #include "Simulation.h"
 #include "TableAdapters.h"
 
@@ -96,27 +97,75 @@ namespace StatEffect {
     return StatEffect::processRemovals(table, stable);
   }
 
+  template<class T>
+  constexpr void getCurveTag(const T&);
+  template<class T>
+  constexpr auto getCurveTag(const CurveInput<T>&) -> T;
+
+  std::shared_ptr<TaskNode> solveCurves(Row<float>& curveInput, Row<float>& curveOutput, Row<CurveDefinition*>& definition, const float* dt) {
+    auto root = TaskNode::create([&, dt](...) {
+      for(size_t i = 0; i < curveInput.size(); ++i) {
+        //Another possibility would be scanning forward to look for matching definitions so they can be solved in groups
+        CurveSolver::CurveUniforms uniforms{ 1 };
+        //Update input time in place
+        CurveSolver::CurveVaryings varyings{ &curveInput.at(i), &curveInput.at(i) };
+        CurveSolver::advanceTime(*definition.at(i), uniforms, varyings, *dt);
+      }
+    });
+    root->mChildren.push_back(TaskNode::create([&](...) {
+      for(size_t i = 0; i < curveInput.size(); ++i) {
+        CurveSolver::CurveUniforms uniforms{ 1 };
+        CurveSolver::CurveVaryings varyings{ &curveInput.at(i), &curveOutput.at(i) };
+        CurveSolver::solve(*definition.at(i), uniforms, varyings);
+      }
+    }));
+    return root;
+  }
+
   template<class TableT>
-  std::shared_ptr<TaskNode> visitResolveOwners(TableT& table, GameDB db) {
+  void visitSolveCurves(TableT& table, const float* dt, [[maybe_unused]] std::vector<std::shared_ptr<TaskNode>>& results) {
+    table.visitOne([&](auto& row) {
+      using Tag = decltype(getCurveTag(row));
+      if constexpr(!std::is_same_v<void, Tag>) {
+        results.push_back(solveCurves(
+          TableOperations::getRow<CurveInput<Tag>>(table),
+          TableOperations::getRow<CurveOutput<Tag>>(table),
+          TableOperations::getRow<CurveDef<Tag>>(table),
+          dt
+        ));
+      }
+    });
+  }
+
+  template<class TableT>
+  void visitResolveOwners(TableT& table, GameDB db, std::vector<std::shared_ptr<TaskNode>>& results) {
     //Stable info for the owners that the stats are pointing to
     StableInfo stable;
     stable.description = GameDatabase::getDescription();
     stable.mappings = &TableAdapters::getStableMappings(db);
-    return StatEffect::resolveOwners(db, std::get<StatEffect::Owner>(table.mRows), stable);
+
+    if(StatEffect::Target* target = TableOperations::tryGetRow<StatEffect::Target>(table)) {
+      results.push_back(StatEffect::resolveOwners(db, *target, stable));
+    }
+    results.push_back(StatEffect::resolveOwners(db, std::get<StatEffect::Owner>(table.mRows), stable));
   }
 
   AllStatTasks createTasks(GameDB db, StatEffectDatabase& stats) {
     AllStatTasks result;
-    result.positionSetters = StatEffect::processStat(std::get<PositionStatEffectTable>(stats.mTables), db);
+    result.positionSetters = StatEffect::processStat(std::get<PositionStatEffectTable>(stats.mTables), db)
+      .then(StatEffect::processStat(std::get<FollowTargetByPositionStatEffectTable>(stats.mTables), db));
     result.velocitySetters = StatEffect::processStat(std::get<VelocityStatEffectTable>(stats.mTables), db);
     result.posGetVelSet = StatEffect::processStat(std::get<AreaForceStatEffectTable>(stats.mTables), db);
     TaskRange lambdaRange = StatEffect::processStat(std::get<LambdaStatEffectTable>(stats.mTables), db);
+    const float* dt = &TableAdapters::getConfig(db).game->world.deltaTime;
     //Empty root
     auto syncBegin = TaskNode::create([](...){});
     //Then process all lifetimes
     auto& globals = getGlobals(stats);
-    visitStats(stats, [syncBegin](auto& table) {
+    visitStats(stats, [syncBegin, dt](auto& table) {
       syncBegin->mChildren.push_back(visitTickLifetime(table));
+      //Curves only depend on themselves so can be solved here
+      visitSolveCurves(table, dt, syncBegin->mChildren);
     });
 
     TaskBuilder::_addSyncDependency(*syncBegin, lambdaRange.mBegin);
@@ -130,7 +179,7 @@ namespace StatEffect {
     });
     //Next, pre-resolve all handles
     visitStats(stats, [currentSync, db](auto& table) {
-      currentSync->mChildren.push_back(visitResolveOwners(table, db));
+      visitResolveOwners(table, db, currentSync->mChildren);
     });
 
     auto syncEnd = TaskNode::create([](...){});

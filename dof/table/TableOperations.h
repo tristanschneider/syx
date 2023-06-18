@@ -223,6 +223,26 @@ struct TableOperations {
     return TableT::template HasRow<T>;
   }
 
+  template<class T, class TableT>
+  constexpr static T* tryGetRow(TableT& t) {
+    if constexpr(hasRow<T, TableT>()) {
+      return &getRow<T>(t);
+    }
+    else {
+      return nullptr;
+    }
+  }
+
+  template<class T, class TableT>
+  constexpr static const T* tryGetRow(const TableT& t) {
+    if constexpr(hasRow<T>(t)) {
+      return &getRow<T>(t);
+    }
+    else {
+      return nullptr;
+    }
+  }
+
   template<class SrcTable, class DstTable>
   static void migrateOne(SrcTable& src, DstTable& dst, size_t index) {
     static_assert(!isStableTable<SrcTable> && !isStableTable<DstTable>);

@@ -19,10 +19,16 @@ struct PlayerConfig {
   CurveDefinition angularStoppingForceCurve;
 };
 
+struct CameraConfig {
+  float cameraZoomSpeed = 0.3f;
+  float zoom = 1.0f;
+  CurveDefinition followCurve;
+};
+
 struct GameConfig {
   PlayerConfig player;
   Config::PlayerAbilityConfig ability;
-  Config::CameraConfig camera;
+  CameraConfig camera;
   Config::FragmentConfig fragment;
   Config::WorldConfig world;
   PhysicsConfig physics;
@@ -81,11 +87,27 @@ namespace ConfigConvert {
     };
   }
 
+  inline CameraConfig toGame(const Config::CameraConfig& cfg) {
+    return {
+      cfg.cameraZoomSpeed,
+      cfg.zoom,
+      toGame(cfg.followCurve)
+    };
+  }
+
+  inline Config::CameraConfig toConfig(const CameraConfig& cfg) {
+    return {
+      cfg.cameraZoomSpeed,
+      cfg.zoom,
+      toConfig(cfg.followCurve)
+    };
+  }
+
   inline GameConfig toGame(const Config::RawGameConfig& cfg) {
     return {
       toGame(cfg.player),
       cfg.ability,
-      cfg.camera,
+      toGame(cfg.camera),
       cfg.fragment,
       cfg.world,
       cfg.physics
@@ -96,7 +118,7 @@ namespace ConfigConvert {
     return {
       toConfig(cfg.player),
       cfg.ability,
-      cfg.camera,
+      toConfig(cfg.camera),
       cfg.fragment,
       cfg.world,
       cfg.physics

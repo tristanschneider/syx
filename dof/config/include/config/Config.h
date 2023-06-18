@@ -39,6 +39,8 @@ namespace Config {
 
   struct CameraConfig {
     float cameraZoomSpeed = 0.3f;
+    float zoom = 1.0f;
+    CurveConfig followCurve;
   };
 
   struct FragmentConfig {

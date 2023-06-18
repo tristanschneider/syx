@@ -27,9 +27,12 @@ namespace Fragment {
     GameObjectTable& gameobjects = std::get<GameObjectTable>(db.mTables);
     SceneState& scene = std::get<0>(std::get<GlobalGameData>(db.mTables).mRows).at();
 
-    CameraTable& camera = std::get<CameraTable>(db.mTables);
-    TableOperations::addToTable(camera);
-    Camera& mainCamera = std::get<Row<Camera>>(camera.mRows).at(0);
+    CameraAdapater camera = TableAdapters::getCamera(game);
+
+    CameraTable& cameraTable = std::get<CameraTable>(db.mTables);
+    TableOperations::stableResizeTable<GameDatabase>(cameraTable, 1, stableMappings);
+    const size_t cameraIndex = 0;
+    Camera& mainCamera = std::get<Row<Camera>>(cameraTable.mRows).at(0);
     mainCamera.zoom = 15.f;
 
     PlayerTable& players = std::get<PlayerTable>(db.mTables);
@@ -41,6 +44,13 @@ namespace Fragment {
     //Start way off the screen, the world boundary will fling them into the scene
     std::get<FloatRow<Pos, X>>(players.mRows).at(0) = playerStartDistance*std::cos(playerStartAngle);
     std::get<FloatRow<Pos, Y>>(players.mRows).at(0) = playerStartDistance*std::sin(playerStartAngle);
+
+    //Usually this would be done with a thread local but this setup is synchronous
+    auto follow = TableAdapters::getCentralStatEffects(game).followTargetByPosition;
+    const size_t id = TableAdapters::addStatEffectsSharedLifetime(follow.base, StatEffect::INFINITE, &camera.object.stable->at(cameraIndex), 1);
+    follow.command->at(id).mode = FollowTargetByPositionStatEffect::FollowMode::Interpolation;
+    follow.base.target->at(id) = StableElementID::fromStableID(TableAdapters::getPlayer(game).object.stable->at(0));
+    follow.base.curveDefinition->at(id) = &TableAdapters::getConfig(game).game->camera.followCurve;
 
     //Add some arbitrary objects for testing
     const size_t rows = args.mFragmentRows;

@@ -81,7 +81,9 @@ namespace cereal {
   template<class Archive>
   void serialize(Archive& archive, Config::CameraConfig& value) {
     ARCHIVE(archive,
-      value.cameraZoomSpeed
+      value.cameraZoomSpeed,
+      value.followCurve,
+      value.zoom
     );
   }
   

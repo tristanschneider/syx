@@ -2,6 +2,7 @@
 
 #include "TableOperations.h"
 
+struct CurveDefinition;
 struct DebugConfig;
 struct ExternalDatabases;
 struct GameConfig;
@@ -26,6 +27,7 @@ namespace StatEffect {
   struct Owner;
   struct Lifetime;
   struct Global;
+  struct Target;
 }
 
 namespace PositionStatEffect {
@@ -46,11 +48,21 @@ namespace AreaForceStatEffect {
   struct Strength;
 };
 
+namespace FollowTargetByPositionStatEffect {
+  struct CommandRow;
+}
+
 struct StatEffectBaseAdapter {
   StatEffect::Owner* owner{};
   StatEffect::Lifetime* lifetime{};
   StatEffect::Global* global{};
   StableTableModifierInstance modifier;
+
+  //Optionals
+  StatEffect::Target* target{};
+  Row<float>* curveInput{};
+  Row<float>* curveOutput{};
+  Row<CurveDefinition*>* curveDefinition{};
 };
 
 struct PositionStatEffectAdapter {
@@ -73,6 +85,11 @@ struct AreaForceStatEffectAdapter {
   AreaForceStatEffect::PointX* pointX{};
   AreaForceStatEffect::PointY* pointY{};
   AreaForceStatEffect::Strength* strength{};
+};
+
+struct FollowTargetByPositionStatEffectAdapter {
+  StatEffectBaseAdapter base;
+  FollowTargetByPositionStatEffect::CommandRow* command{};
 };
 
 struct TransformAdapter {
@@ -105,6 +122,10 @@ struct PlayerAdapter {
   GameObjectAdapter object;
   BasicRow<PlayerInput>* input{};
   BasicRow<PlayerKeyboardInput>* keyboardInput{};
+};
+
+struct CameraAdapater {
+  GameObjectAdapter object;
 };
 
 struct SceneState;
@@ -140,6 +161,7 @@ struct CentralStatEffectAdapter {
   PositionStatEffectAdapter position;
   VelocityStatEffectAdapter velocity;
   LambdaStatEffectAdapter lambda;
+  FollowTargetByPositionStatEffectAdapter followTargetByPosition;
 };
 
 namespace TableAdapters {
@@ -154,7 +176,9 @@ namespace TableAdapters {
   VelocityStatEffectAdapter getVelocityEffects(GameDB db, size_t thread);
   LambdaStatEffectAdapter getLambdaEffects(GameDB db, size_t thread);
   AreaForceStatEffectAdapter getAreaForceEffects(GameDB db, size_t thread);
+  FollowTargetByPositionStatEffectAdapter getFollowTargetByPositionEffects(GameDB db, size_t thread);
   CentralStatEffectAdapter getCentralStatEffects(GameDB db);
+
 
   GameObjectAdapter getGameObjects(GameDB db);
   GameObjectAdapter getStaticGameObjects(GameDB db);
@@ -163,6 +187,7 @@ namespace TableAdapters {
   GameObjectAdapter getGameplayGameObjects(GameDB db);
   GameObjectAdapter getGameplayStaticGameObjects(GameDB db);
   PlayerAdapter getGameplayPlayer(GameDB db);
+  CameraAdapater getCamera(GameDB db);
 
   DebugLineAdapter getDebugLines(GameDB db);
 

@@ -10,7 +10,9 @@ namespace StatEffect {
       for(size_t i = 0; i < lifetime.size(); ++i) {
         size_t& remaining = lifetime.at(i);
         if(remaining) {
-          --remaining;
+          if(remaining != INFINITE) {
+            --remaining;
+          }
         }
         else {
           //Let the removal processing resolve he unstable id, set invalid here
@@ -31,13 +33,11 @@ namespace StatEffect {
     });
   }
 
-  std::shared_ptr<TaskNode> resolveOwners(GameDB db, Owner& owners, StableInfo stable) {
+  std::shared_ptr<TaskNode> resolveOwners(GameDB db, Row<StableElementID>& owners, StableInfo stable) {
     return TaskNode::create([&owners, db, stable](...) {
       StableElementMappings& mappings = *stable.mappings;
       for(size_t i = 0; i < owners.size(); ++i) {
         StableElementID& toResolve = owners.at(i);
-        //Normal stats could rely on resolving upfront before processing stat but since lambda has
-        //access to the entire database it could cause table migrations
         toResolve = StableOperations::tryResolveStableID(toResolve, db.db, mappings).value_or(StableElementID::invalid());
       }
     });

@@ -25,12 +25,31 @@ namespace Toolbox {
   }
 }
 
+namespace CameraModule {
+  void update(GameDB db) {
+    GameConfig& config = *TableAdapters::getConfig(db).game;
+    ImGui::Begin("Camera");
+    {
+      static ImguiExt::CurveSliders sliders;
+      sliders.label = "Follow";
+      sliders.durationRange = { 0.0f, 1.0f };
+      sliders.offsetRange = { 0.0f, 1.24f };
+      sliders.scaleRange = { 0.0f, 5.0f };
+      ImguiExt::curve(config.camera.followCurve, sliders);
+      //TODO: hook this up
+      //ImGui::DragFloat("Zoom", &config.camera.zoom, 1.0f, 0.01f);
+    }
+    ImGui::End();
+  }
+}
+
 void GameModule::update(GameDB db) {
+  CameraModule::update(db);
+
   GameConfig& config = *TableAdapters::getConfig(db).game;
   ImGui::Begin("Game");
 
   Toolbox::update(db);
-
   {
     static ImguiExt::CurveSliders sliders;
     sliders.label = "Linear Speed";

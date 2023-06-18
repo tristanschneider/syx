@@ -18,6 +18,7 @@ struct DebugDrawer {
 };
 
 struct RendererCamera {
+  glm::vec2 pos{};
   Camera camera;
 };
 

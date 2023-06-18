@@ -5,7 +5,23 @@
             "explodeStrength": 0.05000000074505806
         },
         "camera": {
-            "cameraZoomSpeed": 0.30000001192092898
+            "cameraZoomSpeed": 0.30000001192092898,
+            "followCurve": {
+                "scale": {
+                    "nullopt": false,
+                    "data": 0.09200000017881394
+                },
+                "offset": {
+                    "nullopt": true
+                },
+                "duration": {
+                    "nullopt": true
+                },
+                "flipInput": false,
+                "flipOutput": false,
+                "curveFunction": "One"
+            },
+            "zoom": 1.0
         },
         "fragment": {
             "fragmentColumns": 9,

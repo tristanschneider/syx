@@ -118,12 +118,12 @@ namespace {
     )";
   };
 
-  glm::mat4 _getWorldToView(const Camera& camera, float aspectRatio) {
-    glm::vec3 scale = glm::vec3(camera.zoom);
+  glm::mat4 _getWorldToView(const RendererCamera& camera, float aspectRatio) {
+    glm::vec3 scale = glm::vec3(camera.camera.zoom);
     scale.x *= aspectRatio;
     return glm::inverse(
-      glm::translate(glm::vec3(camera.x, camera.y, 0.0f)) *
-      glm::rotate(camera.angle, glm::vec3(0, 0, -1)) *
+      glm::translate(glm::vec3(camera.pos.x, camera.pos.y, 0.0f)) *
+      glm::rotate(camera.camera.angle, glm::vec3(0, 0, -1)) *
       glm::scale(scale)
     );
   }
@@ -343,7 +343,7 @@ void _renderDebug(RendererDatabase& renderDB, float aspectRatio) {
     glBindVertexArray(debug.mVAO);
     glUseProgram(debug.mShader);
     for(const auto& renderCamera : state.mCameras) {
-      glm::mat4 worldToView = _getWorldToView(renderCamera.camera, aspectRatio);
+      glm::mat4 worldToView = _getWorldToView(renderCamera, aspectRatio);
       glUniformMatrix4fv(debug.mWVPUniform, 1, GL_FALSE, &worldToView[0][0]);
 
       glDrawArrays(GL_LINES, 0, linesToDraw.size());
@@ -431,10 +431,14 @@ TaskRange Renderer::extractRenderables(const GameDatabase& db, RendererDatabase&
   root->mChildren.push_back(TaskNode::create([&renderCameras, &db](...) {
     //Lazy since presumably there's just one
     renderCameras.clear();
-    Queries::viewEachRow<Row<Camera>>(db, [&](const Row<Camera>& cameras) {
-      for(const Camera& camera : cameras.mElements) {
-        renderCameras.push_back({ camera });
-      }
+    Queries::viewEachRow(db, [&](
+        const Row<Camera>& cameras,
+        const FloatRow<Tags::Pos, Tags::X>& posX,
+        const FloatRow<Tags::Pos, Tags::Y>& posY
+      ) {
+        for(size_t i = 0; i < cameras.size(); ++i) {
+          renderCameras.push_back({ glm::vec2{ posX.at(i), posY.at(i) }, cameras.at(i) });
+        }
     });
   }));
 
@@ -484,9 +488,8 @@ void Renderer::render(RendererDatabase& renderDB) {
   for(const auto& renderCamera : cameras) {
     PROFILE_SCOPE("renderer", "particles");
 
-    const Camera& camera = renderCamera.camera;
     ParticleUniforms uniforms;
-    uniforms.worldToView = _getWorldToView(camera, aspectRatio);
+    uniforms.worldToView = _getWorldToView(renderCamera, aspectRatio);
     const SceneState& scene = state.mSceneState;
     const glm::vec2 origin = (scene.mBoundaryMin + scene.mBoundaryMax) * 0.5f;
     const float extraSpaceScalar = 2.5f;
@@ -528,7 +531,6 @@ void Renderer::render(RendererDatabase& renderDB) {
   glUseProgram(state.mQuadShader);
   for(const auto& renderCamera : cameras) {
     PROFILE_SCOPE("renderer", "geometry");
-    const Camera& camera = renderCamera.camera;
     for(auto& passTable : state.mQuadPasses) {
       auto passAdapter = RendererTableAdapters::getQuadPass(passTable);
       auto& posX = *passAdapter.posX;
@@ -578,7 +580,7 @@ void Renderer::render(RendererDatabase& renderDB) {
       //Could tie these to a vao, but that would also require and index buffer all of which seems like overkill
       QuadVertexAttributes::bind();
 
-      const glm::mat4 worldToView = _getWorldToView(camera, aspectRatio);
+      const glm::mat4 worldToView = _getWorldToView(renderCamera, aspectRatio);
 
       glUniformMatrix4fv(pass.mQuadUniforms.worldToView, 1, GL_FALSE, &worldToView[0][0]);
       int textureIndex = 0;

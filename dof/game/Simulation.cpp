@@ -118,6 +118,8 @@ namespace {
     physics.mEnd->mChildren.push_back(current);
 
     StatEffectDBOwned& statEffects = TableAdapters::getStatEffects({ db });
+    //TODO: It probably makes sense to extend this idea into a category of effects that can happen earlier in the frame
+    //after gameplay has finished moving anything around but before physics is done
     AllStatTasks statTasks = StatEffect::createTasks({ db }, statEffects.db);
     //Synchronous transfer from all thread local stats to the central stats database
     ThreadLocals& locals = TableAdapters::getThreadLocals({ db });
