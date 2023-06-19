@@ -131,6 +131,7 @@ using GlobalGameData = Table<
 >;
 
 struct IsImmobile : SharedRow<char>{};
+struct IsFragment : SharedRow<char>{};
 
 using GameObjectTable = Table<
   //Data viewed by physics, not to be used by gameplay
@@ -172,6 +173,7 @@ using GameObjectTable = Table<
   Row<CubeSprite>,
   FragmentGoalFoundRow,
   SharedRow<TextureReference>,
+  IsFragment,
 
   StableIDRow
 >;
@@ -194,6 +196,7 @@ using StaticGameObjectTable = Table<
   Row<CubeSprite>,
   SharedRow<TextureReference>,
   IsImmobile,
+  IsFragment,
 
   StableIDRow
 >;

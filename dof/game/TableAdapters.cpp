@@ -126,9 +126,7 @@ namespace {
     auto& table = std::get<AreaForceStatEffectTable>(db.mTables);
     return {
       getStatBase(table, db),
-      &std::get<AreaForceStatEffect::PointX>(table.mRows),
-      &std::get<AreaForceStatEffect::PointY>(table.mRows),
-      &std::get<AreaForceStatEffect::Strength>(table.mRows),
+      &std::get<AreaForceStatEffect::CommandRow>(table.mRows)
     };
   }
 

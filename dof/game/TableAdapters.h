@@ -43,9 +43,7 @@ namespace LambdaStatEffect {
 };
 
 namespace AreaForceStatEffect {
-  struct PointX;
-  struct PointY;
-  struct Strength;
+  struct CommandRow;
 };
 
 namespace FollowTargetByPositionStatEffect {
@@ -82,9 +80,7 @@ struct LambdaStatEffectAdapter {
 
 struct AreaForceStatEffectAdapter {
   StatEffectBaseAdapter base;
-  AreaForceStatEffect::PointX* pointX{};
-  AreaForceStatEffect::PointY* pointY{};
-  AreaForceStatEffect::Strength* strength{};
+  AreaForceStatEffect::CommandRow* command{};
 };
 
 struct FollowTargetByPositionStatEffectAdapter {

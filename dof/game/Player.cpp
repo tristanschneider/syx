@@ -144,9 +144,16 @@ namespace Player {
       if(input.mAction1) {
         input.mAction1 = false;
         const size_t effect = TableAdapters::addStatEffectsSharedLifetime(areaEffect.base, config.ability.explodeLifetime, nullptr, 1);
-        areaEffect.pointX->at(effect) = players.object.transform.posX->at(i);
-        areaEffect.pointY->at(effect) = players.object.transform.posY->at(i);
-        areaEffect.strength->at(effect) = config.ability.explodeStrength;
+        AreaForceStatEffect::Command& cmd = areaEffect.command->at(effect);
+        cmd.origin = glm::vec2{ players.object.transform.posX->at(i), players.object.transform.posY->at(i) };
+        cmd.direction = glm::vec2{ players.object.transform.rotX->at(i), players.object.transform.rotY->at(i) };
+        cmd.dynamicPiercing = 3.0f;
+        cmd.terrainPiercing = 0.0f;
+        cmd.rayCount = 4;
+        AreaForceStatEffect::Command::Cone cone;
+        cone.halfAngle = 0.25f;
+        cone.length = 15.0f;
+        cmd.shape = cone;
       }
     }
   }

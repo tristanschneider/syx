@@ -41,4 +41,12 @@ namespace DebugDrawer {
     setLine(debug, p + 2, lineEnd, tipBase + ortho, color);
     setLine(debug, p + 4, lineEnd, tipBase - ortho, color);
   }
+
+  void drawPoint(DebugLineAdapter& debug, const glm::vec2& p, float size, const glm::vec3& color) {
+    const size_t index = debug.modifier.addElements(4);
+    const glm::vec2 x{ size, 0.0f };
+    const glm::vec2 y{ 0.0f, size };
+    setLine(debug, index, p - x, p + x, color);
+    setLine(debug, index + 2, p - y, p + y, color);
+  }
 }
