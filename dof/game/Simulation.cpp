@@ -19,6 +19,15 @@
 #include "Player.h"
 #include "DebugInput.h"
 #include "World.h"
+#include "ability/PlayerAbility.h"
+
+PlayerInput::PlayerInput()
+  : ability1(std::make_unique<Ability::AbilityInput>()) {
+}
+
+PlayerInput::PlayerInput(PlayerInput&&) = default;
+
+PlayerInput::~PlayerInput() = default;
 
 namespace {
   using namespace Tags;

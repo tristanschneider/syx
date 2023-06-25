@@ -13,6 +13,10 @@
 #include "PhysicsTableIds.h"
 #include <bitset>
 
+namespace Ability {
+  struct AbilityInput;
+}
+
 template<class, class = void>
 struct FloatRow : Row<float> {};
 
@@ -204,6 +208,10 @@ using StaticGameObjectTable = Table<
 
 //Final desired move input state
 struct PlayerInput {
+  PlayerInput();
+  PlayerInput(PlayerInput&&);
+  ~PlayerInput();
+
   float mMoveX{};
   float mMoveY{};
   bool mAction1{};
@@ -211,6 +219,8 @@ struct PlayerInput {
   //Goes from 0 to 1 when starting input in a direction, then back down to zero when stopping
   float moveT{};
   float angularMoveT{};
+
+  std::unique_ptr<Ability::AbilityInput> ability1;
 };
 
 enum class KeyState : uint8_t {

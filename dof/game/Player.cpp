@@ -1,6 +1,7 @@
 #include "Precompile.h"
 #include "Player.h"
 
+#include "ability/PlayerAbility.h"
 #include "curve/CurveSolver.h"
 #include "Simulation.h"
 #include "TableAdapters.h"
@@ -30,6 +31,8 @@ namespace Player {
     player.linearStoppingSpeedCurve.params.scale = 0.1f;
     player.linearStoppingSpeedCurve.params.flipInput = true;
     player.linearStoppingSpeedCurve.function = CurveMath::getFunction(CurveMath::CurveType::QuadraticEaseIn);
+
+    //TODO: assign a default ability
   }
 
   using namespace Math;
@@ -141,7 +144,18 @@ namespace Player {
         players.object.physics.angImpulse->at(i) = impulse.angular;
       }
 
-      if(input.mAction1) {
+      Ability::TriggerResult shouldTrigger = Ability::DontTrigger{};
+      if(input.ability1) {
+        Ability::AbilityInput& ability = *input.ability1;
+        if(Ability::isOnCooldown(ability.cooldown)) {
+          Ability::updateCooldown(ability.cooldown, { rawDT });
+        }
+        else {
+          shouldTrigger = Ability::tryTrigger(ability.trigger, { rawDT, input.mAction1 });
+        }
+      }
+
+      if(const auto withPower = std::get_if<Ability::TriggerWithPower>(&shouldTrigger)) {
         input.mAction1 = false;
         const size_t effect = TableAdapters::addStatEffectsSharedLifetime(areaEffect.base, config.ability.explodeLifetime, nullptr, 1);
         AreaForceStatEffect::Command& cmd = areaEffect.command->at(effect);
@@ -154,7 +168,7 @@ namespace Player {
         cone.halfAngle = 0.25f;
         cone.length = 15.0f;
         cmd.shape = cone;
-        AreaForceStatEffect::Command::FlatImpulse impulseType{ config.ability.explodeStrength };
+        AreaForceStatEffect::Command::FlatImpulse impulseType{ withPower->power };
         cmd.impulseType = impulseType;
       }
     }

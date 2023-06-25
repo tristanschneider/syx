@@ -34,6 +34,10 @@ namespace CurveSolver {
     return result;
   }
 
+  float advanceTime(const CurveDefinition& definition, float toAdvance, float realTimeSeconds) {
+    return advanceTimeDT(toAdvance, getDeltaTime(definition, realTimeSeconds));
+  }
+
   void advanceTime(const CurveDefinition& definition, const CurveUniforms& uniforms, CurveVaryings& varyings, float realTimeSeconds) {
     advanceTimeDT(getDeltaTime(definition, realTimeSeconds), uniforms, varyings);
   }
