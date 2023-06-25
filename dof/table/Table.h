@@ -101,7 +101,7 @@ struct SharedRow {
     return {};
   }
 
-  Element mValue;
+  Element mValue{};
   size_t mSize = 0;
 };
 

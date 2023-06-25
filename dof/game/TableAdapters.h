@@ -1,5 +1,6 @@
 #pragma once
 
+#include <glm/vec2.hpp>
 #include "TableOperations.h"
 
 struct CurveDefinition;
@@ -175,7 +176,7 @@ namespace TableAdapters {
   FollowTargetByPositionStatEffectAdapter getFollowTargetByPositionEffects(GameDB db, size_t thread);
   CentralStatEffectAdapter getCentralStatEffects(GameDB db);
 
-
+  GameObjectAdapter getGameplayObjectInTable(GameDB db, size_t tableIndex);
   GameObjectAdapter getGameObjects(GameDB db);
   GameObjectAdapter getStaticGameObjects(GameDB db);
   PlayerAdapter getPlayer(GameDB db);
@@ -190,4 +191,18 @@ namespace TableAdapters {
   size_t addStatEffectsSharedLifetime(StatEffectBaseAdapter& base, size_t lifetime, const size_t* stableIds, size_t count);
 
   GlobalsAdapter getGlobals(GameDB db);
+
+  inline glm::vec2 read(size_t i, const Row<float>& a, const Row<float>& b) {
+    return { a.at(i), b.at(i) };
+  }
+
+  inline void write(size_t i, const glm::vec2& v, Row<float>& x, Row<float>& y) {
+    x.at(i) = v.x;
+    y.at(i) = v.y;
+  }
+
+  inline void add(size_t i, const glm::vec2& v, Row<float>& x, Row<float>& y) {
+    x.at(i) += v.x;
+    y.at(i) += v.y;
+  }
 };

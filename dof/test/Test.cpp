@@ -1598,16 +1598,30 @@ namespace Test {
 
       GameObjectAdapter fragment = TableAdapters::getGameObjects(game);
       fragment.transform.posX->at(0) = 5.0f;
+      fragment.transform.rotX->at(0) = 1.0f;
 
       AreaForceStatEffectAdapter effect = TableAdapters::getAreaForceEffects(game, 0);
       TableAdapters::addStatEffectsSharedLifetime(effect.base, StatEffect::INSTANT, nullptr, 1);
-      effect.pointX->at(0) = 4.0f;
-      effect.strength->at(0) = 10.0f;
 
+      AreaForceStatEffect::Command& cmd = effect.command->at(0);
+      cmd.origin = glm::vec2{ 4.0f, 0.0f };
+      cmd.direction = glm::vec2{ 1.0f, 0.0f };
+      cmd.dynamicPiercing = 3.0f;
+      cmd.terrainPiercing = 0.0f;
+      cmd.rayCount = 4;
+      AreaForceStatEffect::Command::Cone cone;
+      cone.halfAngle = 0.25f;
+      cone.length = 15.0f;
+      cmd.shape = cone;
+      AreaForceStatEffect::Command::FlatImpulse impulseType{ 1.0f };
+      cmd.impulseType = impulseType;
+
+      //One update to request the impulse, then the next to apply it
+      game.update();
       game.update();
 
       Assert::IsTrue(fragment.physics.linVelX->at(0) > 0.0f);
-      Assert::AreEqual(size_t(0), effect.strength->size());
+      Assert::AreEqual(size_t(0), effect.command->size());
     }
 
     TEST_METHOD(Config) {

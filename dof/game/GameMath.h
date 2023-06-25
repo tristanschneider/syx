@@ -69,6 +69,10 @@ namespace Math {
     return computeQuadMass(1.0f, 1.0f, 1.0f);
   }
 
+  constexpr Mass computeFragmentMass() {
+    return computeQuadMass(1.0f, 1.0f, 1.0f);
+  }
+
   constexpr float cross(const glm::vec2& a, const glm::vec2& b) {
     return a.x*b.y - a.y*b.x;
   }
@@ -145,6 +149,9 @@ namespace Math {
   inline bool between(float v, float min, float max) {
     return v >= min && v <= max;
   }
+
+  Impulse computeImpulseAtPoint(const glm::vec2& r, const glm::vec2& impulse, const Mass& mass);
+  Impulse computeImpulseAtPoint(const glm::vec2& centerOfMass, const glm::vec2& impulsePoint, const glm::vec2& impulse, const Mass& mass);
 
   Impulse computeSpringImpulse(const glm::vec2& objectAttach, const glm::vec2& objectCenter, const glm::vec2& springAttach, float springConstant);
 

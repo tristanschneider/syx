@@ -52,8 +52,8 @@ namespace {
   template<class TableT>
   TransformAdapter getTransform(TableT& table) {
     return {
-      &std::get<FloatRow<Tags::Pos, Tags::X>>(table.mRows),
-      &std::get<FloatRow<Tags::Pos, Tags::Y>>(table.mRows),
+      TableOperations::tryGetRow<FloatRow<Tags::Pos, Tags::X>>(table),
+      TableOperations::tryGetRow<FloatRow<Tags::Pos, Tags::Y>>(table),
       TableOperations::tryGetRow<FloatRow<Tags::Rot, Tags::CosAngle>>(table),
       TableOperations::tryGetRow<FloatRow<Tags::Rot, Tags::SinAngle>>(table)
     };
@@ -62,40 +62,40 @@ namespace {
   template<class TableT>
   TransformAdapter getGameplayTransform(TableT& table) {
     return {
-      &std::get<FloatRow<Tags::GPos, Tags::X>>(table.mRows),
-      &std::get<FloatRow<Tags::GPos, Tags::Y>>(table.mRows),
-      &std::get<FloatRow<Tags::GRot, Tags::CosAngle>>(table.mRows),
-      &std::get<FloatRow<Tags::GRot, Tags::SinAngle>>(table.mRows)
+      TableOperations::tryGetRow<FloatRow<Tags::GPos, Tags::X>>(table),
+      TableOperations::tryGetRow<FloatRow<Tags::GPos, Tags::Y>>(table),
+      TableOperations::tryGetRow<FloatRow<Tags::GRot, Tags::CosAngle>>(table),
+      TableOperations::tryGetRow<FloatRow<Tags::GRot, Tags::SinAngle>>(table)
     };
   }
 
   template<class TableT>
   PhysicsObjectAdapter getPhysics(TableT& table) {
     return {
-      &std::get<FloatRow<Tags::LinVel, Tags::X>>(table.mRows),
-      &std::get<FloatRow<Tags::LinVel, Tags::Y>>(table.mRows),
-      &std::get<FloatRow<Tags::AngVel, Tags::Angle>>(table.mRows),
-      &std::get<FloatRow<Tags::GLinImpulse, Tags::X>>(table.mRows),
-      &std::get<FloatRow<Tags::GLinImpulse, Tags::Y>>(table.mRows),
-      &std::get<FloatRow<Tags::GAngImpulse, Tags::Angle>>(table.mRows),
+      TableOperations::tryGetRow<FloatRow<Tags::LinVel, Tags::X>>(table),
+      TableOperations::tryGetRow<FloatRow<Tags::LinVel, Tags::Y>>(table),
+      TableOperations::tryGetRow<FloatRow<Tags::AngVel, Tags::Angle>>(table),
+      TableOperations::tryGetRow<FloatRow<Tags::GLinImpulse, Tags::X>>(table),
+      TableOperations::tryGetRow<FloatRow<Tags::GLinImpulse, Tags::Y>>(table),
+      TableOperations::tryGetRow<FloatRow<Tags::GAngImpulse, Tags::Angle>>(table),
     };
   }
 
   template<class TableT>
   PhysicsObjectAdapter getGameplayPhysics(TableT& table) {
     return {
-      &std::get<FloatRow<Tags::GLinVel, Tags::X>>(table.mRows),
-      &std::get<FloatRow<Tags::GLinVel, Tags::Y>>(table.mRows),
-      &std::get<FloatRow<Tags::GAngVel, Tags::Angle>>(table.mRows),
-      &std::get<FloatRow<Tags::GLinImpulse, Tags::X>>(table.mRows),
-      &std::get<FloatRow<Tags::GLinImpulse, Tags::Y>>(table.mRows),
-      &std::get<FloatRow<Tags::GAngImpulse, Tags::Angle>>(table.mRows)
+      TableOperations::tryGetRow<FloatRow<Tags::GLinVel, Tags::X>>(table),
+      TableOperations::tryGetRow<FloatRow<Tags::GLinVel, Tags::Y>>(table),
+      TableOperations::tryGetRow<FloatRow<Tags::GAngVel, Tags::Angle>>(table),
+      TableOperations::tryGetRow<FloatRow<Tags::GLinImpulse, Tags::X>>(table),
+      TableOperations::tryGetRow<FloatRow<Tags::GLinImpulse, Tags::Y>>(table),
+      TableOperations::tryGetRow<FloatRow<Tags::GAngImpulse, Tags::Angle>>(table)
     };
   }
 
   template<class TableT>
   StableIDRow* getStableRow(TableT& table) {
-    return &std::get<StableIDRow>(table.mRows);
+    return TableOperations::tryGetRow<StableIDRow>(table);
   }
 
   PositionStatEffectAdapter getPositionEffects(StatEffectDatabase& db) {
@@ -157,6 +157,18 @@ AreaForceStatEffectAdapter TableAdapters::getAreaForceEffects(GameDB db, size_t 
 
 FollowTargetByPositionStatEffectAdapter TableAdapters::getFollowTargetByPositionEffects(GameDB db, size_t thread) {
   return ::getFollowTargetByPositionEffects(getThreadLocal(db, thread).statEffects->db);
+}
+
+GameObjectAdapter TableAdapters::getGameplayObjectInTable(GameDB db, size_t tableIndex) {
+  GameObjectAdapter result;
+  db.db.visitOneByIndex(GameDatabase::ElementID{ tableIndex, 0 }, [&result](auto& table) {
+    result = GameObjectAdapter {
+      getGameplayTransform(table),
+      getGameplayPhysics(table),
+      getStableRow(table)
+    };
+  });
+  return result;
 }
 
 GameObjectAdapter TableAdapters::getGameObjects(GameDB db) {

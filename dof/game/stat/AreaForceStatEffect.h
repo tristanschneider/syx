@@ -15,12 +15,18 @@ namespace AreaForceStatEffect {
     };
     using Variant = std::variant<Cone>;
 
+    struct FlatImpulse {
+      float multiplier{};
+    };
+    using ImpulseType = std::variant<FlatImpulse>;
+
     glm::vec2 origin{};
     glm::vec2 direction{};
     //The shape describes the area that will be subdivided into many rays where the base of
     //the shape is at the given position and oriented in the direction, then several rays
     //are tested along the shape in the direction
     Variant shape;
+    ImpulseType impulseType;
     //The amount of distance that a ray can go through before objects behind it cannot be affected
     //Split between moving objects an terrain
     float dynamicPiercing{};

@@ -115,4 +115,16 @@ namespace Math {
     }
     return true;
   }
+
+  Impulse computeImpulseAtPoint(const glm::vec2& r, const glm::vec2& impulse, const Mass& mass) {
+    return {
+      impulse * mass.inverseMass,
+      cross(r, impulse) * mass.inverseInertia
+    };
+  }
+
+  Impulse computeImpulseAtPoint(const glm::vec2& centerOfMass, const glm::vec2& impulsePoint, const glm::vec2& impulse, const Mass& mass) {
+    return computeImpulseAtPoint(impulsePoint - centerOfMass, impulse, mass);
+  }
+
 }

@@ -17,20 +17,6 @@
 namespace StatEffect {
   using namespace AreaForceStatEffect;
 
-  struct FragmentForceEdge {
-    glm::vec2 point{};
-    float contribution{};
-  };
-
-  FragmentForceEdge _getEdge(const glm::vec2& normalizedForceDir, const glm::vec2& fragmentNormal, const glm::vec2& fragmentPos, float size) {
-    const float cosAngle = glm::dot(normalizedForceDir, fragmentNormal);
-    //Constribution is how close to aligned the force and normal are, point is position then normal in direction of force
-    if(cosAngle >= 0.0f) {
-      return { fragmentPos - fragmentNormal*size, 1.0f - cosAngle };
-    }
-    return { fragmentPos + fragmentNormal*size, 1.0f + cosAngle };
-  }
-
   float crossProduct(const glm::vec2& a, const glm::vec2& b) {
     //[ax] x [bx] = [ax*by - ay*bx]
     //[ay]   [by]
@@ -104,8 +90,6 @@ namespace StatEffect {
         anyRaysLeft = true;
         const glm::vec2 localRayBegin = Math::transformPoint(invTransform, ray.origin);
         const glm::vec2 localRayDirection = Math::transformVector(invTransform, ray.direction);
-        [[maybe_unused]]auto asdf = Math::transformPoint(transform, localRayBegin);
-        [[maybe_unused]]auto asdf2 = Math::transformVector(transform, localRayDirection);
 
         float tMin, tMax;
         if(Math::unitAABBLineIntersect(localRayBegin, localRayDirection, &tMin, &tMax)) {
@@ -216,12 +200,28 @@ namespace StatEffect {
     });
   }
 
+  void debugDraw(GameDB db, const Command& command, const std::vector<ShapeResult>& shapes, const std::vector<HitResult>& hits, const std::vector<Ray>& rays) {
+    auto debug = TableAdapters::getDebugLines(db);
+    for(const Ray& ray : rays) {
+      DebugDrawer::drawVector(debug, ray.origin, ray.direction, glm::vec3(0, 1, 0));
+    }
+    for(const HitResult& hit : hits) {
+      DebugDrawer::drawDirectedLine(debug, command.origin, hit.hitPoint, glm::vec3(1, 0, 0));
+    }
+    for(const ShapeResult& shape : shapes) {
+      DebugDrawer::drawPoint(debug, shape.pos, 0.25f, glm::vec3(1, 1, 0));
+    }
+  }
+
+  glm::vec2 computeImpulseType(const AreaForceStatEffect::Command::FlatImpulse& i, const HitResult& hit) {
+    return hit.impulse * i.multiplier * static_cast<float>(hit.hitCount);
+  }
+
   //Read position, write velocity
   TaskRange processStat(AreaForceStatEffectTable& table, GameDB db) {
     auto task = TaskNode::create([&table, db](...) {
       PROFILE_SCOPE("simulation", "forces");
 
-      GameObjectAdapter obj = TableAdapters::getGameObjects(db);
       auto& cmd = std::get<CommandRow>(table.mRows);
       if(!cmd.size()) {
         return;
@@ -244,65 +244,41 @@ namespace StatEffect {
           ray.remainingPiercingTerrain = command.terrainPiercing;
           ray.remainingPiercingDynamic = command.dynamicPiercing;
         }
-        auto temp = shapes;
-        castRays(rays, temp, hits);
 
-        auto debug = TableAdapters::getDebugLines(db);
-        for(const Ray& ray : rays) {
-          DebugDrawer::drawVector(debug, ray.origin, ray.direction, glm::vec3(0, 1, 0));
+        const bool doDebugDraw = true;
+        std::vector<StatEffect::ShapeResult> drawShapes;
+        if(doDebugDraw) {
+          drawShapes = shapes;
         }
+        castRays(rays, shapes, hits);
+
+        constexpr Math::Mass objMass = Math::computeFragmentMass();
+        size_t currentTable = dbDetails::INVALID_VALUE;
+        GameObjectAdapter obj;
         for(const HitResult& hit : hits) {
-          DebugDrawer::drawDirectedLine(debug, command.origin, hit.hitPoint, glm::vec3(1, 0, 0));
-        }
-        for(const ShapeResult& shape : shapes) {
-          DebugDrawer::drawPoint(debug, shape.pos, 0.25f, glm::vec3(1, 1, 0));
-        }
-      }
-
-      /*
-      auto& forcePointX = std::get<PointX>(table.mRows);
-      auto& forcePointY = std::get<PointY>(table.mRows);
-
-      for(size_t i = 0; i < obj.stable->size(); ++i) {
-        glm::vec2 right{ obj.transform.rotX->at(i), obj.transform.rotY->at(i) };
-        glm::vec2 up{ right.y, -right.x };
-        glm::vec2 fragmentPos{ obj.transform.posX->at(i), obj.transform.posY->at(i) };
-        glm::vec2 fragmentLinVel{ obj.physics.linVelX->at(i), obj.physics.linVelY->at(i) };
-        float fragmentAngVel = obj.physics.angVel->at(i);
-        for(size_t f = 0; f < strength.size(); ++f) {
-          glm::vec2 forcePos{ forcePointX.at(f), forcePointY.at(f) };
-          glm::vec2 impulse = fragmentPos - forcePos;
-          float distance = glm::length(impulse);
-          if(distance < 0.0001f) {
-            impulse = glm::vec2(1.0f, 0.0f);
-            distance = 1.0f;
+          //Look up table, reusing last one if it's the same
+          if(hit.id.getTableIndex() != currentTable) {
+            currentTable = hit.id.getTableIndex();
+            obj = TableAdapters::getGameplayObjectInTable(db, currentTable);
+            //Skip these if they don't have the required elements
+            if(!obj.transform.posX || !obj.physics.linImpulseX || !obj.physics.angImpulse) {
+              currentTable = dbDetails::INVALID_VALUE;
+              continue;
+            }
           }
-          //Linear falloff for now
-          //TODO: something like easing for more interesting forces
-          const float scalar = strength.at(f)/distance;
-          //Normalize and scale to strength
-          const glm::vec2 impulseDir = impulse/distance;
-          impulse *= scalar;
 
-          //Determine point to apply force at. Realistically this would be something like the center of pressure
-          //Computing that is confusing so I'll hack at it instead
-          //Take the two leading edges facing the force direction, then weight them based on their angle against the force
-          //If the edge is head on that means only the one edge would matter
-          //If the two edges were exactly 45 degrees from the force direction then the center of the two edges is chosen
-          const float size = 0.5f;
-          FragmentForceEdge edgeA = _getEdge(impulseDir, right, fragmentPos, size);
-          FragmentForceEdge edgeB = _getEdge(impulseDir, right, fragmentPos, size);
-          const glm::vec2 impulsePoint = edgeA.point*edgeA.contribution + edgeB.point*edgeB.contribution;
+          //Compute and apply impulse
+          const size_t id = hit.id.getElementIndex();
+          const glm::vec2 pos = TableAdapters::read(id, *obj.transform.posX, *obj.transform.posY);
+          const glm::vec2 baseImpulse = std::visit([&hit](const auto& type) { return computeImpulseType(type, hit); }, command.impulseType);
 
-          fragmentLinVel += impulse;
-          glm::vec2 r = impulsePoint - fragmentPos;
-          fragmentAngVel += crossProduct(r, impulse);
+          const Math::Impulse impulse = Math::computeImpulseAtPoint(pos, hit.hitPoint, baseImpulse, objMass);
+          TableAdapters::add(id, impulse.linear, *obj.physics.linImpulseX, *obj.physics.linImpulseY);
+          obj.physics.angImpulse->at(id) += impulse.angular;
         }
 
-        obj.physics.linVelX->at(i) = fragmentLinVel.x;
-        obj.physics.linVelY->at(i) = fragmentLinVel.y;
-        obj.physics.angVel->at(i) = fragmentAngVel;
-      }*/
+        debugDraw(db, command, drawShapes, hits, rays);
+      }
     });
 
     return TaskBuilder::addEndSync(task);

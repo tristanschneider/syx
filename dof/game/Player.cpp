@@ -154,6 +154,8 @@ namespace Player {
         cone.halfAngle = 0.25f;
         cone.length = 15.0f;
         cmd.shape = cone;
+        AreaForceStatEffect::Command::FlatImpulse impulseType{ config.ability.explodeStrength };
+        cmd.impulseType = impulseType;
       }
     }
   }
