@@ -185,12 +185,20 @@ void resetInput(GameDatabase& db) {
   }
 }
 
+void doKey(WPARAM w, LPARAM l) {
+  const WORD keyFlags = HIWORD(l);
+  const BOOL wasKeyDown = (keyFlags & KF_REPEAT) == KF_REPEAT;
+  const BOOL isKeyReleased = (keyFlags & KF_UP) == KF_UP;
+  if(isKeyReleased) {
+    onKey(w, APP->mGame, KeyState::Released);
+  }
+  //Only send if key wasn't already down, thereby ignoring repeat inputs
+  else if(!wasKeyDown) {
+    onKey(w, APP->mGame, KeyState::Triggered);
+  }
+}
+
 LRESULT CALLBACK mainProc(HWND wnd, UINT msg, WPARAM w, LPARAM l) {
-  auto doKey = [](WPARAM w, KeyState state) {
-    if(APP) {
-      onKey(w, APP->mGame, state);
-    }
-  };
   switch(msg) {
     case WM_DESTROY:
       PostQuitMessage(0);
@@ -210,14 +218,22 @@ LRESULT CALLBACK mainProc(HWND wnd, UINT msg, WPARAM w, LPARAM l) {
       onFocusChanged(w);
       break;
 
-    case WM_LBUTTONDOWN: doKey(VK_LBUTTON, KeyState::Triggered); return 0;
-    case WM_LBUTTONUP: doKey(VK_LBUTTON, KeyState::Released); return 0;
-    case WM_RBUTTONDOWN: doKey(VK_RBUTTON, KeyState::Triggered); return 0;
-    case WM_RBUTTONUP: doKey(VK_RBUTTON, KeyState::Released); return 0;
-    case WM_MBUTTONDOWN: doKey(VK_MBUTTON, KeyState::Triggered); return 0;
-    case WM_MBUTTONUP: doKey(VK_MBUTTON, KeyState::Released); return 0;
-    case WM_KEYDOWN: doKey(w, KeyState::Triggered); return 0;
-    case WM_KEYUP: doKey(w, KeyState::Released); return 0;
+    case WM_LBUTTONDOWN:
+    case WM_LBUTTONUP:
+      doKey(VK_LBUTTON, l);
+      return 0;
+    case WM_RBUTTONDOWN:
+    case WM_RBUTTONUP:
+      doKey(VK_RBUTTON, l);
+      return 0;
+    case WM_MBUTTONDOWN:
+    case WM_MBUTTONUP:
+      doKey(VK_MBUTTON, l);
+      return 0;
+    case WM_KEYDOWN:
+    case WM_KEYUP:
+      doKey(w, l);
+      return 0;
 
     case WM_MOUSEWHEEL:
       if(APP) {
