@@ -40,7 +40,7 @@ namespace PhysicsSimulation {
     return result;
   }
 
-  TaskRange _applyDamping(GameDatabase& db, const PhysicsConfig& config) {
+  TaskRange _applyDamping(GameDatabase& db, const Config::PhysicsConfig& config) {
     auto result = std::make_shared<TaskNode>();
     result->mChildren.push_back(Physics::applyDampingMultiplier<LinVelX, LinVelY>(db, config.linearDragMultiplier).mBegin);
 
@@ -50,7 +50,7 @@ namespace PhysicsSimulation {
     return TaskBuilder::addEndSync(result);
   }
 
-  TaskRange _updateBroadphase(GameDatabase& db, const PhysicsConfig&) {
+  TaskRange _updateBroadphase(GameDatabase& db, const Config::PhysicsConfig&) {
     auto& broadphase = std::get<BroadphaseTable>(db.mTables);
     auto& collisionPairs = std::get<CollisionPairsTable>(db.mTables);
     auto& globals = std::get<GlobalGameData>(db.mTables);
@@ -138,7 +138,7 @@ namespace PhysicsSimulation {
     return { root, finalize };
   }
 
-  TaskRange _updateNarrowphase(GameDatabase& db, const PhysicsConfig&) {
+  TaskRange _updateNarrowphase(GameDatabase& db, const Config::PhysicsConfig&) {
     auto& collisionPairs = std::get<CollisionPairsTable>(db.mTables);
     auto& globals = std::get<GlobalGameData>(db.mTables);
     const PhysicsTableIds& physicsTables = std::get<SharedRow<PhysicsTableIds>>(globals.mRows).at();
@@ -170,7 +170,7 @@ namespace PhysicsSimulation {
     return { root, contacts };
   }
 
-  TaskRange _debugUpdate(GameDatabase& db, const PhysicsConfig& config) {
+  TaskRange _debugUpdate(GameDatabase& db, const Config::PhysicsConfig& config) {
     auto task = TaskNode::create([&db, &config](...) {
       auto& debug = std::get<DebugLineTable>(db.mTables);
       auto& collisionPairs = std::get<CollisionPairsTable>(db.mTables);
@@ -230,7 +230,7 @@ namespace PhysicsSimulation {
     PROFILE_SCOPE("physics", "update");
 
     GameDatabase& db = game.db;
-    const PhysicsConfig& config = *TableAdapters::getConfig(game).physics;
+    const Config::PhysicsConfig& config = *TableAdapters::getConfig(game).physics;
     auto& broadphase = std::get<BroadphaseTable>(db.mTables);
     auto& constraints = std::get<ConstraintsTable>(db.mTables);
     auto& staticConstraints = std::get<ContactConstraintsToStaticObjectsTable>(db.mTables);

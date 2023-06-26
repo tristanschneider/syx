@@ -11,10 +11,10 @@
 
 namespace Toolbox {
   void update(GameDB db) {
-    GameConfig* config = TableAdapters::getConfig(db).game;
+    Config::GameConfig* config = TableAdapters::getConfig(db).game;
     FileSystem* fileSystem = TableAdapters::getGlobals(db).fileSystem;
     if(ImGui::Button("Save Configuration")) {
-      std::string buffer = ConfigIO::serializeJSON(ConfigConvert::toConfig(*config));
+      std::string buffer = ConfigIO::serializeJSON(*config);
       if(File::writeEntireFile(*fileSystem, Simulation::getConfigName(), buffer)) {
         printf("Configuration saved\n");
       }
@@ -27,7 +27,7 @@ namespace Toolbox {
 
 namespace CameraModule {
   void update(GameDB db) {
-    GameConfig& config = *TableAdapters::getConfig(db).game;
+    Config::GameConfig& config = *TableAdapters::getConfig(db).game;
     ImGui::Begin("Camera");
     {
       static ImguiExt::CurveSliders sliders;
@@ -46,7 +46,7 @@ namespace CameraModule {
 void GameModule::update(GameDB db) {
   CameraModule::update(db);
 
-  GameConfig& config = *TableAdapters::getConfig(db).game;
+  Config::GameConfig& config = *TableAdapters::getConfig(db).game;
   ImGui::Begin("Game");
 
   Toolbox::update(db);

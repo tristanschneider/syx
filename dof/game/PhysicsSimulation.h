@@ -1,6 +1,5 @@
 #pragma once
 
-struct PhysicsConfig;
 struct TaskRange;
 struct GameDB;
 struct PhysicsTableIds;

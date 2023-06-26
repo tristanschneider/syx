@@ -9,10 +9,10 @@ namespace ConfigIO {
     struct Error {
       std::string message;
     };
-    using Variant = std::variant<Config::RawGameConfig, Error>;
+    using Variant = std::variant<Config::GameConfig, Error>;
     Variant value;
   };
 
-  std::string serializeJSON(const Config::RawGameConfig& config);
-  Result deserializeJson(const std::string& buffer);
+  std::string serializeJSON(const Config::GameConfig& config);
+  Result deserializeJson(const std::string& buffer, const Config::IFactory& factory);
 }

@@ -2,6 +2,7 @@
 
 #include "ImguiExt.h"
 
+#include "Config.h"
 #include "curve/CurveDefinition.h"
 #include "curve/CurveSolver.h"
 #include "imgui.h"
@@ -31,6 +32,10 @@ bool ImguiExt::optionalSliderFloat(const char* label, std::optional<float>& v, f
     return true;
   }
   return false;
+}
+
+void ImguiExt::curve(Config::CurveConfigExt& curve, CurveSliders& sliders) {
+  ImguiExt::curve(Config::getCurve(curve), sliders);
 }
 
 void ImguiExt::curve(CurveDefinition& curve, CurveSliders& sliders) {

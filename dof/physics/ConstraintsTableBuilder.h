@@ -67,13 +67,13 @@ struct ConstraintsTableBuilder {
   //Given ids of a bunch of collision pairs, add entries for them in the constraints table
   //This will try to use the free list and ensures that the insertion location is not within a target width of objects of the same indices
   //Doing so may cause padding or a shift in where the start index of a given constraint table is in the common constraints table
-  static void addCollisionPairs(const StableElementID* toAdd, size_t count, StableElementMappings& mappings, ConstraintCommonTable& common, ConstraintsTableMappings& constraintsMappings, const PhysicsTableIds& tableIds, CollisionPairsTable& pairs, const PhysicsConfig& config);
+  static void addCollisionPairs(const StableElementID* toAdd, size_t count, StableElementMappings& mappings, ConstraintCommonTable& common, ConstraintsTableMappings& constraintsMappings, const PhysicsTableIds& tableIds, CollisionPairsTable& pairs, const Config::PhysicsConfig& config);
 
   //Resolve the object handles in the constraints common table, making them ready for the upcoming row by row extraction of velocity data
   //For any objects that moved tables, the constraint entry is reinserted
   //For this to work properly the handles on the contact entry should be up to date so that upon reinsertion the StableElementID of the pair is resolved.
   template<class DatabaseT>
-  static void resolveObjectHandles(DatabaseT& db, StableElementMappings& mappings, ConstraintCommonTable& common, ConstraintsTableMappings& constraintsMappings, const PhysicsTableIds& tableIds, CollisionPairsTable& pairs, const PhysicsConfig& config) {
+  static void resolveObjectHandles(DatabaseT& db, StableElementMappings& mappings, ConstraintCommonTable& common, ConstraintsTableMappings& constraintsMappings, const PhysicsTableIds& tableIds, CollisionPairsTable& pairs, const Config::PhysicsConfig& config) {
     PROFILE_SCOPE("physics", "resolveobjecthandles");
     const auto& isEnabled = std::get<ConstraintData::IsEnabled>(common.mRows);
     auto& objA = std::get<CollisionPairIndexA>(common.mRows);
@@ -154,7 +154,7 @@ struct ConstraintsTableBuilder {
     StableElementMappings& stableMappings,
     ConstraintsTableMappings& constraintMappings,
     const PhysicsTableIds& tableIds,
-    const PhysicsConfig& config) {
+    const Config::PhysicsConfig& config) {
     auto& common = std::get<ConstraintCommonTable>(db.mTables);
     auto& pairs = std::get<CollisionPairsTable>(db.mTables);
     auto& contacts = std::get<ConstraintsTable>(db.mTables);

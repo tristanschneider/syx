@@ -1,42 +1,25 @@
 #pragma once
 
 #include "curve/CurveDefinition.h"
-#include "PhysicsConfig.h"
+#include "config/Config.h"
+#include <memory>
 #include "Table.h"
 
 //Plain data config is in config library, any types that contain dependencies on other projects are converted from plain data here
-
-struct PlayerConfig {
-  bool drawMove{};
-  CurveDefinition linearSpeedCurve;
-  CurveDefinition linearForceCurve;
-  CurveDefinition angularSpeedCurve;
-  CurveDefinition angularForceCurve;
-
-  CurveDefinition linearStoppingSpeedCurve;
-  CurveDefinition linearStoppingForceCurve;
-  CurveDefinition angularStoppingSpeedCurve;
-  CurveDefinition angularStoppingForceCurve;
-};
-
-struct CameraConfig {
-  float cameraZoomSpeed = 0.3f;
-  float zoom = 1.0f;
-  CurveDefinition followCurve;
-};
-
-struct GameConfig {
-  PlayerConfig player;
-  Config::PlayerAbilityConfig ability;
-  CameraConfig camera;
-  Config::FragmentConfig fragment;
-  Config::WorldConfig world;
-  PhysicsConfig physics;
-};
-
-namespace ConfigConvert {
-  inline CurveDefinition toGame(const Config::CurveConfig& cfg) {
+struct GameCurveConfig : Config::ICurveAdapter {
+  Config::CurveConfig read() const override {
     return {
+      definition.params.scale,
+      definition.params.offset,
+      definition.params.duration,
+      definition.params.flipInput,
+      definition.params.flipOutput,
+      std::string(definition.function.name ? definition.function.name : "")
+    };
+  }
+
+  void write(const Config::CurveConfig& cfg) override {
+    definition = {
       CurveParameters {
         cfg.scale,
         cfg.offset,
@@ -48,80 +31,23 @@ namespace ConfigConvert {
     };
   }
 
-  inline Config::CurveConfig toConfig(const CurveDefinition& def) {
-    return {
-      def.params.scale,
-      def.params.offset,
-      def.params.duration,
-      def.params.flipInput,
-      def.params.flipOutput,
-      std::string(def.function.name ? def.function.name : "")
-    };
-  }
+  CurveDefinition definition;
+};
 
-  inline PlayerConfig toGame(const Config::PlayerConfig& cfg) {
-    return {
-      cfg.drawMove,
-      toGame(cfg.linearSpeedCurve),
-      toGame(cfg.linearForceCurve),
-      toGame(cfg.angularSpeedCurve),
-      toGame(cfg.angularForceCurve),
-      toGame(cfg.linearStoppingSpeedCurve),
-      toGame(cfg.linearStoppingForceCurve),
-      toGame(cfg.angularStoppingSpeedCurve),
-      toGame(cfg.angularStoppingForceCurve)
-    };
+namespace Config {
+  inline CurveDefinition& getCurve(CurveConfigExt& ext) {
+    if(!ext.adapter) {
+      ext.adapter = std::make_unique<GameCurveConfig>();
+    }
+    return static_cast<GameCurveConfig&>(*ext.adapter).definition;
   }
-
-  inline Config::PlayerConfig toConfig(const PlayerConfig& cfg) {
-    return {
-      cfg.drawMove,
-      toConfig(cfg.linearSpeedCurve),
-      toConfig(cfg.linearForceCurve),
-      toConfig(cfg.angularSpeedCurve),
-      toConfig(cfg.angularForceCurve),
-      toConfig(cfg.linearStoppingSpeedCurve),
-      toConfig(cfg.linearStoppingForceCurve),
-      toConfig(cfg.angularStoppingSpeedCurve),
-      toConfig(cfg.angularStoppingForceCurve)
-    };
-  }
-
-  inline CameraConfig toGame(const Config::CameraConfig& cfg) {
-    return {
-      cfg.cameraZoomSpeed,
-      cfg.zoom,
-      toGame(cfg.followCurve)
-    };
-  }
-
-  inline Config::CameraConfig toConfig(const CameraConfig& cfg) {
-    return {
-      cfg.cameraZoomSpeed,
-      cfg.zoom,
-      toConfig(cfg.followCurve)
-    };
-  }
-
-  inline GameConfig toGame(const Config::RawGameConfig& cfg) {
-    return {
-      toGame(cfg.player),
-      cfg.ability,
-      toGame(cfg.camera),
-      cfg.fragment,
-      cfg.world,
-      cfg.physics
-    };
-  }
-
-  inline Config::RawGameConfig toConfig(const GameConfig& cfg) {
-    return {
-      toConfig(cfg.player),
-      cfg.ability,
-      toConfig(cfg.camera),
-      cfg.fragment,
-      cfg.world,
-      cfg.physics
-    };
+  inline const CurveDefinition& getCurve(const CurveConfigExt& ext) {
+    return static_cast<const GameCurveConfig&>(*ext.adapter).definition;
   }
 }
+
+struct GameConfigFactory : Config::IFactory {
+  virtual Config::CurveConfigExt createCurve() const override {
+    return { std::make_unique<GameCurveConfig>() };
+  }
+};

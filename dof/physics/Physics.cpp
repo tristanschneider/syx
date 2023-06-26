@@ -16,7 +16,7 @@ namespace {
     if constexpr(TableOperations::hasRow<RowT, TableT>()) {
       return std::get<RowT>(t.mRows).mElements.data();
     }
-    else {
+   else {
       return nullptr;
     }
   }
@@ -171,7 +171,7 @@ TaskRange Physics::setupConstraints(ConstraintsTable& constraints, ContactConstr
   return TaskBuilder::addEndSync(result);
 }
 
-TaskRange Physics::solveConstraints(ConstraintsTable& constraints, ContactConstraintsToStaticObjectsTable& staticContacts, ConstraintCommonTable& common, const PhysicsConfig& config) {
+TaskRange Physics::solveConstraints(ConstraintsTable& constraints, ContactConstraintsToStaticObjectsTable& staticContacts, ConstraintCommonTable& common, const Config::PhysicsConfig& config) {
   //Everything in one since all velocities might depend on the previous ones. Can be more parallel with islands
   auto result = TaskNode::create([&constraints, &staticContacts, &common, &config](...) {
     PROFILE_SCOPE("physics", "solve constraints");

@@ -9,7 +9,7 @@ namespace DebugInput {
     PROFILE_SCOPE("simulation", "debugcamera");
     constexpr const char* snapshotFilename = "debug.snap";
     bool loadSnapshot = false;
-    const GameConfig* config = TableAdapters::getConfig({ db }).game;
+    const Config::GameConfig* config = TableAdapters::getConfig({ db }).game;
     for(size_t i = 0; i < TableOperations::size(cameras); ++i) {
       DebugCameraControl& input = std::get<Row<DebugCameraControl>>(cameras.mRows).at(i);
       const float speed = config->camera.cameraZoomSpeed;

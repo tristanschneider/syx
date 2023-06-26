@@ -50,7 +50,7 @@ namespace Fragment {
     const size_t id = TableAdapters::addStatEffectsSharedLifetime(follow.base, StatEffect::INFINITE, &camera.object.stable->at(cameraIndex), 1);
     follow.command->at(id).mode = FollowTargetByPositionStatEffect::FollowMode::Interpolation;
     follow.base.target->at(id) = StableElementID::fromStableID(TableAdapters::getPlayer(game).object.stable->at(0));
-    follow.base.curveDefinition->at(id) = &TableAdapters::getConfig(game).game->camera.followCurve;
+    follow.base.curveDefinition->at(id) = &Config::getCurve(TableAdapters::getConfig(game).game->camera.followCurve);
 
     //Add some arbitrary objects for testing
     const size_t rows = args.mFragmentRows;
@@ -211,7 +211,7 @@ namespace Fragment {
   //Read GPos, FragmentGoal
   //Write FragmentGoalFoundRow
   //Check to see if each fragment has reached its goal
-  void _checkFragmentGoals(GameObjectTable& fragments, const GameConfig& config) {
+  void _checkFragmentGoals(GameObjectTable& fragments, const Config::GameConfig& config) {
     PROFILE_SCOPE("simulation", "fragmentgoals");
     ispc::UniformConstVec2 pos = _unwrapConstFloatRow<GPos>(fragments);
     ispc::UniformConstVec2 goal = _unwrapConstFloatRow<FragmentGoal>(fragments);
@@ -223,7 +223,7 @@ namespace Fragment {
 
   void setupScene(GameDB db) {
     SceneArgs args;
-    const GameConfig* config = TableAdapters::getConfig({ db }).game;
+    const Config::GameConfig* config = TableAdapters::getConfig({ db }).game;
     args.mFragmentRows = config->fragment.fragmentRows;
     args.mFragmentColumns = config->fragment.fragmentColumns;
     _setupScene(db, args);

@@ -20,6 +20,7 @@
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 namespace Test {
+  using namespace Config;
   static_assert(std::is_same_v<Duple<int*>, Table<Row<int>>::ElementRef>);
   static_assert(std::is_same_v<Table<Row<int>>::ElementRef, decltype(make_duple((int*)nullptr))>);
   static_assert(std::is_same_v<std::tuple<DupleElement<0, int>>, Duple<int>::TupleT>);
@@ -1628,9 +1629,9 @@ namespace Test {
       GameConfig gameConfig;
       gameConfig.fragment.fragmentColumns = 5;
 
-      std::string serialized = ConfigIO::serializeJSON(ConfigConvert::toConfig(gameConfig));
-      ConfigIO::Result r = ConfigIO::deserializeJson(serialized);
-      ConfigIO::Result r2 = ConfigIO::deserializeJson("test");
+      std::string serialized = ConfigIO::serializeJSON(gameConfig);
+      ConfigIO::Result r = ConfigIO::deserializeJson(serialized, GameConfigFactory{});
+      ConfigIO::Result r2 = ConfigIO::deserializeJson("test", GameConfigFactory{});
 
       Assert::AreEqual(size_t(0), r.value.index(), L"Parse should succeed");
       Assert::AreEqual(size_t(1), r2.value.index(), L"Parse should fail");

@@ -162,7 +162,7 @@ void ConstraintsTableBuilder::removeCollisionPairs(const StableElementID* toRemo
   }
 }
 
-void ConstraintsTableBuilder::addCollisionPairs(const StableElementID* toAdd, size_t count, StableElementMappings& mappings, ConstraintCommonTable& common, ConstraintsTableMappings& constraintsMappings, const PhysicsTableIds& tableIds, CollisionPairsTable& pairs, const PhysicsConfig& config) {
+void ConstraintsTableBuilder::addCollisionPairs(const StableElementID* toAdd, size_t count, StableElementMappings& mappings, ConstraintCommonTable& common, ConstraintsTableMappings& constraintsMappings, const PhysicsTableIds& tableIds, CollisionPairsTable& pairs, const Config::PhysicsConfig& config) {
   PROFILE_SCOPE("physics", "addCollisionPairs");
   using namespace ctbdetails;
   StableIDRow& pairIds = std::get<StableIDRow>(pairs.mRows);

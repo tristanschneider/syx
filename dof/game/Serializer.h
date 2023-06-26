@@ -175,7 +175,7 @@ template<> struct Serializer<ExternalDatabasesRow> : MemCpySerializer<ExternalDa
 
 template<> struct Serializer<SharedRow<FileSystem>> : NoOpSerializer<SharedRow<FileSystem>>{};
 template<> struct Serializer<Row<TextureLoadRequest>> : NoOpSerializer<Row<TextureLoadRequest>>{};
-template<> struct Serializer<SharedRow<GameConfig>> : NoOpSerializer<SharedRow<GameConfig>>{};
+template<> struct Serializer<SharedRow<Config::GameConfig>> : NoOpSerializer<SharedRow<Config::GameConfig>>{};
 
 
 //TODO: restore this

@@ -6,10 +6,8 @@
 struct CurveDefinition;
 struct DebugConfig;
 struct ExternalDatabases;
-struct GameConfig;
 struct GraphicsConfig;
 struct GameDB;
-struct PhysicsConfig;
 struct StableElementMappings;
 struct StableIDRow;
 struct StatEffectDBOwned;
@@ -19,9 +17,14 @@ struct ThreadLocals;
 template<class Element>
 struct BasicRow;
 
+namespace Config {
+  struct GameConfig;
+  struct PhysicsConfig;
+}
+
 struct ConfigAdapter {
-  PhysicsConfig* physics{};
-  GameConfig* game{};
+  Config::PhysicsConfig* physics{};
+  Config::GameConfig* game{};
 };
 
 namespace StatEffect {

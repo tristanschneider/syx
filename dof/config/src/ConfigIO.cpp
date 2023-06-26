@@ -8,6 +8,24 @@ namespace cereal {
   //This macro will archive all the input arguments while also using their member name as the key in the output, so ARCHIVE(archive, obj.member) has "member" as a key
   #define ARCHIVE(A, ...) archiveAllWithName(A, #__VA_ARGS__, __VA_ARGS__);
 
+  struct ArchiverData {
+    bool isDeserialize{};
+    const Config::IFactory* factory{};
+  };
+
+  //An implementation of archiver that passes along some extra information for use during the archival
+  //It does an unsafe downcast that only makes sense if all archive usages use this wrapper
+  template<class Archiver>
+  struct ArchiverWithData : Archiver {
+    using Archiver::Archiver;
+
+    static ArchiverData& get(Archiver& archiver) {
+      return static_cast<ArchiverWithData&>(archiver).data;
+    }
+
+    ArchiverData data;
+  };
+
   template<class Archiver, size_t... S, class... Args>
   void archiveAllWithName(Archiver& archiver, const char* names, std::index_sequence<S...>, Args&... args) {
     std::string buffer{ names };
@@ -105,19 +123,34 @@ namespace cereal {
   }
   
   template<class Archive>
-  void serialize(Archive& archive, Config::CurveConfig& value) {
+  void serialize(Archive& archive, Config::CurveConfigExt& value) {
+    const ArchiverData& data = ArchiverWithData<Archive>::get(archive);
+    //If this is a serialize call, take the value from the adapter and serialize it
+    Config::CurveConfig v;
+    if(!value.adapter && data.factory) {
+      value = data.factory->createCurve();
+    }
+    if(!data.isDeserialize && value.adapter) {
+      v = value.adapter->read();
+    }
+
     ARCHIVE(archive,
-      value.scale,
-      value.offset,
-      value.duration,
-      value.flipInput,
-      value.flipOutput,
-      value.curveFunction
+      v.scale,
+      v.offset,
+      v.duration,
+      v.flipInput,
+      v.flipOutput,
+      v.curveFunction
     );
+
+    //If this is a deserialize call, take the value from the config and inform the adapter
+    if(data.isDeserialize && value.adapter) {
+      value.adapter->write(v);
+    }
   }
 
   template<class Archive>
-  void serialize(Archive& archive, Config::RawGameConfig& value) {
+  void serialize(Archive& archive, Config::GameConfig& value) {
     ARCHIVE(archive,
       value.ability,
       value.camera,
@@ -130,22 +163,27 @@ namespace cereal {
 }
 
 namespace ConfigIO {
-  std::string serializeJSON(const Config::RawGameConfig& config) {
+  std::string serializeJSON(const Config::GameConfig& config) {
     std::stringstream stream;
     {
-      cereal::JSONOutputArchive archive(stream);
+      cereal::ArchiverWithData<cereal::JSONOutputArchive> archive(stream);
+      archive.data.isDeserialize = false;
+      archive.data.factory = nullptr;
       archive(config);
     }
     return stream.str();
   }
 
-  Result deserializeJson(const std::string& buffer) {
+  Result deserializeJson(const std::string& buffer, const Config::IFactory& factory) {
+    factory;
     std::stringstream stream{ std::string(buffer) };
     Result result;
 
     try {
-      Config::RawGameConfig temp;
-      cereal::JSONInputArchive archive(stream);
+      Config::GameConfig temp;
+      cereal::ArchiverWithData<cereal::JSONInputArchive> archive(stream);
+      archive.data.isDeserialize = true;
+      archive.data.factory = &factory;
       archive(temp);
       result.value = std::move(temp);
     }

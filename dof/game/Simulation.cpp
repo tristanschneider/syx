@@ -269,13 +269,13 @@ const SceneState& Simulation::_getSceneState(GameDatabase& db) {
   return std::get<SharedRow<SceneState>>(std::get<GlobalGameData>(db.mTables).mRows).at();
 }
 
-void tryInitFromConfig(GameConfig&, const ConfigIO::Result::Error& error) {
+void tryInitFromConfig(Config::GameConfig&, const ConfigIO::Result::Error& error) {
   printf("Error reading config file, initializing with defaults. [%s]\n", error.message.c_str());
 }
 
-void tryInitFromConfig(GameConfig& toSet, const Config::RawGameConfig& loaded) {
+void tryInitFromConfig(Config::GameConfig& toSet, Config::GameConfig&& loaded) {
   printf("Config found, initializing from file.\n");
-  toSet = ConfigConvert::toGame(loaded);
+  toSet = std::move(loaded);
 }
 
 const char* Simulation::getConfigName() {
@@ -293,10 +293,10 @@ void Simulation::init(GameDatabase& db) {
   PhysicsSimulation::init({ db });
   Player::init({ db });
 
-  GameConfig* gameConfig = TableAdapters::getConfig({ db }).game;
+  Config::GameConfig* gameConfig = TableAdapters::getConfig({ db }).game;
   FileSystem* fileSystem = TableAdapters::getGlobals({ db }).fileSystem;
   if(std::optional<std::string> buffer = File::readEntireFile(*fileSystem, getConfigName())) {
-    ConfigIO::Result result = ConfigIO::deserializeJson(*buffer);
-    std::visit([&](const auto& r) { tryInitFromConfig(*gameConfig, r); }, result.value);
+    ConfigIO::Result result = ConfigIO::deserializeJson(*buffer, GameConfigFactory{});
+    std::visit([&](auto&& r) { tryInitFromConfig(*gameConfig, std::move(r)); }, std::move(result.value));
   }
 }

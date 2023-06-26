@@ -18,19 +18,22 @@ namespace Player {
 
   void init(GameDB db) {
     db;
-    PlayerConfig& player = TableAdapters::getConfig({ db }).game->player;
-    player.linearForceCurve.params.duration = 0.4f;
-    player.linearForceCurve.params.scale = 0.012f;
-    player.linearForceCurve.function = CurveMath::getFunction(CurveMath::CurveType::ExponentialEaseOut);
+    Config::PlayerConfig& player = TableAdapters::getConfig({ db }).game->player;
+    auto& force = Config::getCurve(player.linearForceCurve);
+    force.params.duration = 0.4f;
+    force.params.scale = 0.012f;
+    force.function = CurveMath::getFunction(CurveMath::CurveType::ExponentialEaseOut);
 
-    player.linearSpeedCurve.params.duration = 1.0f;
-    player.linearSpeedCurve.params.scale = 0.1f;
-    player.linearSpeedCurve.function = CurveMath::getFunction(CurveMath::CurveType::SineEaseIn);
+    auto& speed = Config::getCurve(player.linearSpeedCurve);
+    speed.params.duration = 1.0f;
+    speed.params.scale = 0.1f;
+    speed.function = CurveMath::getFunction(CurveMath::CurveType::SineEaseIn);
 
-    player.linearStoppingSpeedCurve.params.duration = 0.5f;
-    player.linearStoppingSpeedCurve.params.scale = 0.1f;
-    player.linearStoppingSpeedCurve.params.flipInput = true;
-    player.linearStoppingSpeedCurve.function = CurveMath::getFunction(CurveMath::CurveType::QuadraticEaseIn);
+    auto& stopping = Config::getCurve(player.linearStoppingSpeedCurve);
+    stopping.params.duration = 0.5f;
+    stopping.params.scale = 0.1f;
+    stopping.params.flipInput = true;
+    stopping.function = CurveMath::getFunction(CurveMath::CurveType::QuadraticEaseIn);
 
     //TODO: assign a default ability
   }
@@ -38,7 +41,7 @@ namespace Player {
   using namespace Math;
 
   void _updatePlayerInput(PlayerAdapter players,
-    const GameConfig& config,
+    const Config::GameConfig& config,
     AreaForceStatEffectAdapter areaEffect,
     LambdaStatEffectAdapter lambda
   ) {
@@ -62,18 +65,18 @@ namespace Player {
       const glm::vec2 forward(players.object.transform.rotX->at(i), players.object.transform.rotY->at(i));
       const float speed = glm::length(velocity);
 
-      const CurveDefinition* linearSpeedCurve = &config.player.linearSpeedCurve;
-      const CurveDefinition* linearForceCurve = &config.player.linearForceCurve;
-      const CurveDefinition* angularSpeedCurve = &config.player.angularSpeedCurve;
-      const CurveDefinition* angularForceCurve = &config.player.angularForceCurve;
+      const CurveDefinition* linearSpeedCurve = &Config::getCurve(config.player.linearSpeedCurve);
+      const CurveDefinition* linearForceCurve = &Config::getCurve(config.player.linearForceCurve);
+      const CurveDefinition* angularSpeedCurve = &Config::getCurve(config.player.angularSpeedCurve);
+      const CurveDefinition* angularForceCurve = &Config::getCurve(config.player.angularForceCurve);
       float timeScale = 1.0f;
       glm::vec2 desiredForward = move;
       if(!hasMoveInput) {
         timeScale = -1.0f;
-        linearSpeedCurve = &config.player.linearStoppingSpeedCurve;
-        linearForceCurve = &config.player.linearStoppingForceCurve;
-        angularSpeedCurve = &config.player.angularStoppingSpeedCurve;
-        angularForceCurve = &config.player.angularStoppingForceCurve;
+        linearSpeedCurve = &Config::getCurve(config.player.linearStoppingSpeedCurve);
+        linearForceCurve = &Config::getCurve(config.player.linearStoppingForceCurve);
+        angularSpeedCurve = &Config::getCurve(config.player.angularStoppingSpeedCurve);
+        angularForceCurve = &Config::getCurve(config.player.angularStoppingForceCurve);
 
         //If stopping, the desired input direction opposes the current velocity, bringing the player to a stop
         if(speed > 0.00001f) {

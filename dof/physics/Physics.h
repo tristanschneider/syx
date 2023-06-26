@@ -2,7 +2,7 @@
 
 #include "Profile.h"
 #include "glm/vec2.hpp"
-#include "PhysicsConfig.h"
+#include "config/Config.h"
 #include "Queries.h"
 #include "Scheduler.h"
 #include "Table.h"
@@ -379,7 +379,7 @@ struct Physics {
   }
 
   static TaskRange setupConstraints(ConstraintsTable& constraints, ContactConstraintsToStaticObjectsTable& staticContacts);
-  static TaskRange solveConstraints(ConstraintsTable& constraints, ContactConstraintsToStaticObjectsTable& staticContacts, ConstraintCommonTable& common, const PhysicsConfig& config);
+  static TaskRange solveConstraints(ConstraintsTable& constraints, ContactConstraintsToStaticObjectsTable& staticContacts, ConstraintCommonTable& common, const Config::PhysicsConfig& config);
 
   //Migrate velocity data from constraint table to db
   template<class LinVelX, class LinVelY, class AngVel, class DatabaseT>

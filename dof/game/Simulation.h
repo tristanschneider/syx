@@ -130,7 +130,7 @@ using GlobalGameData = Table<
   SharedRow<StableElementMappings>,
   SharedRow<ConstraintsTableMappings>,
   SharedRow<Scheduler>,
-  SharedRow<GameConfig>,
+  SharedRow<Config::GameConfig>,
   ThreadLocalsRow,
   ExternalDatabasesRow
 >;

@@ -7,7 +7,7 @@
 
 ConfigAdapter TableAdapters::getConfig(GameDB db) {
   auto& c = std::get<GlobalGameData>(db.db.mTables);
-  GameConfig& g = std::get<SharedRow<GameConfig>>(c.mRows).at();
+  Config::GameConfig& g = std::get<SharedRow<Config::GameConfig>>(c.mRows).at();
   return {
     &g.physics,
     &g

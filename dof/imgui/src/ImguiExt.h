@@ -7,6 +7,10 @@ typedef int ImGuiSliderFlags;
 
 struct CurveDefinition;
 
+namespace Config {
+  struct CurveConfigExt;
+};
+
 namespace ImguiExt {
   struct CurveSliders {
     std::string label;
@@ -19,4 +23,5 @@ namespace ImguiExt {
   void inputSizeT(const char* label, size_t* v, size_t step = 1, size_t step_fast = 100, ImGuiInputTextFlags flags = 0);
   bool optionalSliderFloat(const char* label, std::optional<float>& v, float defaultV, float v_min, float v_max, const char* format = "%.3f", ImGuiSliderFlags flags = 0);
   void curve(CurveDefinition& curve, CurveSliders& sliders);
+  void curve(Config::CurveConfigExt& curve, CurveSliders& sliders);
 };
