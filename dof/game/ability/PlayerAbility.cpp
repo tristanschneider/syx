@@ -13,7 +13,12 @@ namespace Ability {
   }
 
   void updateCooldown(DisabledCooldown& cooldown, const UpdateInfo& info) {
-    cooldown.currentTime = std::min(cooldown.currentTime + info.t, cooldown.maxTime);
+    if(info.abilityActive) {
+      cooldown.currentTime = 0.0f;
+    }
+    else {
+      cooldown.currentTime = std::min(cooldown.currentTime + info.t, cooldown.maxTime);
+    }
   }
 
   void updateCooldown(CooldownType& cooldown, const UpdateInfo& info) {
@@ -22,33 +27,29 @@ namespace Ability {
 
   TriggerResult tryTrigger(InstantTrigger&, const TriggerInfo& info) {
     if(info.isInputDown) {
-      return TriggerWithPower{ 1.0f };
+      return TriggerWithPower{ 1.0f, true };
     }
     return DontTrigger{};
   }
 
   TriggerResult tryTrigger(ChargeTrigger& trigger, const TriggerInfo& info) {
-    assert(trigger.chargeCurve != nullptr && "Charge curve should be set if ability has charge trigger");
-    if(!trigger.chargeCurve) {
-      return DontTrigger{};
-    }
     //Input is down, charge it up
     if(info.isInputDown) {
-      trigger.currentCharge = CurveSolver::advanceTime(*trigger.chargeCurve, trigger.currentCharge, info.t);
-      return DontTrigger{};
+      trigger.currentCharge = CurveSolver::advanceTime(trigger.chargeCurve, trigger.currentCharge, info.t);
+      return DontTrigger{ false };
     }
     //Input is up, reset and potentially trigger ability
     const float storedCharge = trigger.currentCharge;
     trigger.currentCharge = 0.0f;
 
     //Input has been released and was held long enough to trigger ability, trigger it
-    if(trigger.currentCharge >= trigger.minimumCharge) {
-      const float power = CurveSolver::solve(storedCharge, *trigger.chargeCurve);
-      return TriggerWithPower{ power };
+    if(storedCharge >= trigger.minimumCharge) {
+      const float power = CurveSolver::solve(storedCharge, trigger.chargeCurve);
+      return TriggerWithPower{ power, false };
     }
 
     //Input is up and not enough time was banked to trigger an ability, do nothing
-    return DontTrigger{};
+    return DontTrigger{ true };
   }
 
   TriggerResult tryTrigger(TriggerType& trigger, const TriggerInfo& info) {

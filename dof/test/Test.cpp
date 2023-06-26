@@ -1630,8 +1630,8 @@ namespace Test {
       gameConfig.fragment.fragmentColumns = 5;
 
       std::string serialized = ConfigIO::serializeJSON(gameConfig);
-      ConfigIO::Result r = ConfigIO::deserializeJson(serialized, GameConfigFactory{});
-      ConfigIO::Result r2 = ConfigIO::deserializeJson("test", GameConfigFactory{});
+      ConfigIO::Result r = ConfigIO::deserializeJson(serialized, *Config::createFactory());
+      ConfigIO::Result r2 = ConfigIO::deserializeJson("test", *Config::createFactory());
 
       Assert::AreEqual(size_t(0), r.value.index(), L"Parse should succeed");
       Assert::AreEqual(size_t(1), r2.value.index(), L"Parse should fail");

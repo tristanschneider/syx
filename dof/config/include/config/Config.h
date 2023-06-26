@@ -10,21 +10,46 @@ namespace Config {
     std::string curveFunction;
   };
 
-  struct ICurveAdapter {
-    virtual ~ICurveAdapter() = default;
-    virtual CurveConfig read() const = 0;
-    virtual void write(const CurveConfig&) = 0;
+  template<class T>
+  struct IAdapter {
+    virtual ~IAdapter() = default;
+    virtual T read() const = 0;
+    virtual void write(const T&) = 0;
   };
+
+  using ICurveAdapter = IAdapter<CurveConfig>;
 
   //Virtual here is a hacky way to get around dependency issue where this library describes the values
   //for a cuve without knowing what a curve is but adapter can update its infurmation whenever the base config changes
-  struct CurveConfigExt {
-    std::unique_ptr<ICurveAdapter> adapter;
+  template<class Adapter>
+  struct ConfigExt {
+    std::unique_ptr<Adapter> adapter;
   };
+  using CurveConfigExt = ConfigExt<ICurveAdapter>;
+
+  struct AbilityTriggerConfig {
+    std::string type;
+    float minCharge{};
+    CurveConfig chargeCurve;
+  };
+
+  struct AbilityCooldownConfig {
+    std::string type;
+    float maxTime{};
+  };
+
+  struct AbilityConfig {
+    AbilityTriggerConfig trigger;
+    AbilityCooldownConfig cooldown;
+  };
+
+  using IAbilityAdapter = IAdapter<AbilityConfig>;
+  using AbilityConfigExt = ConfigExt<IAbilityAdapter>;
 
   struct IFactory {
     virtual ~IFactory() = default;
-    virtual CurveConfigExt createCurve() const = 0;
+    virtual void init(CurveConfigExt& curve) const = 0;
+    virtual void init(AbilityConfigExt& curve) const = 0;
   };
 
   struct PhysicsConfig {
@@ -38,17 +63,6 @@ namespace Config {
   };
 
   struct PlayerConfig {
-    void init(const IFactory& factory) {
-      linearSpeedCurve = factory.createCurve();
-      linearForceCurve = factory.createCurve();
-      angularSpeedCurve = factory.createCurve();
-      angularForceCurve = factory.createCurve();
-      linearStoppingSpeedCurve = factory.createCurve();
-      linearStoppingForceCurve = factory.createCurve();
-      angularStoppingSpeedCurve = factory.createCurve();
-      angularStoppingForceCurve = factory.createCurve();
-    }
-
     bool drawMove{};
     CurveConfigExt linearSpeedCurve;
     CurveConfigExt linearForceCurve;
@@ -61,8 +75,7 @@ namespace Config {
   };
 
   struct PlayerAbilityConfig {
-    size_t explodeLifetime = 5;
-    float explodeStrength = 0.05f;
+    AbilityConfigExt pushAbility;
   };
 
   struct CameraConfig {

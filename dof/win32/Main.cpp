@@ -58,9 +58,8 @@ void onKey(WPARAM key, GameDatabase& db, KeyState state) {
       case 'A':keyboard.mKeys.set((size_t)PlayerKeyboardInput::Key::Left, isDown); break;
       case 'S': keyboard.mKeys.set((size_t)PlayerKeyboardInput::Key::Down, isDown); break;
       case 'D': keyboard.mKeys.set((size_t)PlayerKeyboardInput::Key::Right, isDown); break;
-      //Set flag so input isn't missed, simulation can unset it once it's read.
-      case VK_SPACE: input.mAction1 = input.mAction1 || isDown; break;
-      case VK_LSHIFT: input.mAction2 = input.mAction2 || isDown; break;
+      case VK_SPACE: input.mAction1 = state; break;
+      case VK_LSHIFT: input.mAction2 = state; break;
       default: break;
     }
     input.mMoveX = input.mMoveY = 0.0f;
@@ -186,6 +185,9 @@ void resetInput(GameDatabase& db) {
 }
 
 void doKey(WPARAM w, LPARAM l) {
+  if(!APP) {
+    return;
+  }
   const WORD keyFlags = HIWORD(l);
   const BOOL wasKeyDown = (keyFlags & KF_REPEAT) == KF_REPEAT;
   const BOOL isKeyReleased = (keyFlags & KF_UP) == KF_UP;
@@ -195,6 +197,12 @@ void doKey(WPARAM w, LPARAM l) {
   //Only send if key wasn't already down, thereby ignoring repeat inputs
   else if(!wasKeyDown) {
     onKey(w, APP->mGame, KeyState::Triggered);
+  }
+}
+
+void doMouseKey(WPARAM w, KeyState state) {
+  if(APP) {
+    onKey(w, APP->mGame, state);
   }
 }
 
@@ -219,16 +227,22 @@ LRESULT CALLBACK mainProc(HWND wnd, UINT msg, WPARAM w, LPARAM l) {
       break;
 
     case WM_LBUTTONDOWN:
+      doMouseKey(VK_LBUTTON, KeyState::Triggered);
+      return 0;
     case WM_LBUTTONUP:
-      doKey(VK_LBUTTON, l);
+      doMouseKey(VK_LBUTTON, KeyState::Released);
       return 0;
     case WM_RBUTTONDOWN:
+      doMouseKey(VK_RBUTTON, KeyState::Triggered);
+      return 0;
     case WM_RBUTTONUP:
-      doKey(VK_RBUTTON, l);
+      doMouseKey(VK_RBUTTON, KeyState::Released);
       return 0;
     case WM_MBUTTONDOWN:
+      doMouseKey(VK_MBUTTON, KeyState::Triggered);
+      return 0;
     case WM_MBUTTONUP:
-      doKey(VK_MBUTTON, l);
+      doMouseKey(VK_MBUTTON, KeyState::Released);
       return 0;
     case WM_KEYDOWN:
     case WM_KEYUP:

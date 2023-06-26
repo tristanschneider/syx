@@ -10,7 +10,7 @@
 
 #include "GameMath.h"
 #include "DebugDrawer.h"
-
+#include <random>
 #include "glm/gtx/norm.hpp"
 
 namespace Player {
@@ -34,8 +34,48 @@ namespace Player {
     stopping.params.scale = 0.1f;
     stopping.params.flipInput = true;
     stopping.function = CurveMath::getFunction(CurveMath::CurveType::QuadraticEaseIn);
+  }
 
-    //TODO: assign a default ability
+  void setupScene(GameDB game) {
+    std::random_device device;
+    std::mt19937 generator(device());
+    auto& db = game.db;
+    auto& stableMappings = TableAdapters::getStableMappings({ db });
+    CameraAdapater camera = TableAdapters::getCamera(game);
+
+    CameraTable& cameraTable = std::get<CameraTable>(db.mTables);
+    TableOperations::stableResizeTable<GameDatabase>(cameraTable, 1, stableMappings);
+    Camera& mainCamera = std::get<Row<Camera>>(cameraTable.mRows).at(0);
+    mainCamera.zoom = 15.f;
+
+    const size_t cameraIndex = 0;
+    PlayerTable& players = std::get<PlayerTable>(db.mTables);
+    TableOperations::stableResizeTable(players, UnpackedDatabaseElementID::fromPacked(GameDatabase::getTableIndex<PlayerTable>()), 1, stableMappings);
+    std::get<FloatRow<Rot, CosAngle>>(players.mRows).at(0) = 1.0f;
+    //Random angle in sort of radians
+    const float playerStartAngle = float(generator() % 360)*6.282f/360.0f;
+    const float playerStartDistance = 25.0f;
+    //Start way off the screen, the world boundary will fling them into the scene
+    std::get<FloatRow<Pos, X>>(players.mRows).at(0) = playerStartDistance*std::cos(playerStartAngle);
+    std::get<FloatRow<Pos, Y>>(players.mRows).at(0) = playerStartDistance*std::sin(playerStartAngle);
+
+    //Usually this would be done with a thread local but this setup is synchronous
+    auto follow = TableAdapters::getCentralStatEffects(game).followTargetByPosition;
+    const size_t id = TableAdapters::addStatEffectsSharedLifetime(follow.base, StatEffect::INFINITE, &camera.object.stable->at(cameraIndex), 1);
+    follow.command->at(id).mode = FollowTargetByPositionStatEffect::FollowMode::Interpolation;
+    follow.base.target->at(id) = StableElementID::fromStableID(TableAdapters::getPlayer(game).object.stable->at(0));
+    follow.base.curveDefinition->at(id) = &Config::getCurve(TableAdapters::getConfig(game).game->camera.followCurve);
+
+    initAbility(game);
+  }
+
+  void initAbility(GameDB db) {
+    ConfigAdapter cfg = TableAdapters::getConfig(db);
+    //cfg.game->ability.pushAbility
+    PlayerAdapter player = TableAdapters::getPlayer(db);
+    for(PlayerInput& input : *player.input) {
+      *input.ability1 = Config::getAbility(cfg.game->ability.pushAbility);
+    }
   }
 
   using namespace Math;
@@ -149,18 +189,33 @@ namespace Player {
 
       Ability::TriggerResult shouldTrigger = Ability::DontTrigger{};
       if(input.ability1) {
+        const bool inputDown = input.mAction1 == KeyState::Triggered || input.mAction1 == KeyState::Down;
         Ability::AbilityInput& ability = *input.ability1;
-        if(Ability::isOnCooldown(ability.cooldown)) {
-          Ability::updateCooldown(ability.cooldown, { rawDT });
+        if(!Ability::isOnCooldown(ability.cooldown)) {
+          shouldTrigger = Ability::tryTrigger(ability.trigger, { rawDT, inputDown });
         }
-        else {
-          shouldTrigger = Ability::tryTrigger(ability.trigger, { rawDT, input.mAction1 });
-        }
+
+        const bool abilityActive = std::get_if<Ability::DontTrigger>(&shouldTrigger) == nullptr;
+        Ability::updateCooldown(ability.cooldown, { rawDT, abilityActive });
       }
 
+      //Hack to advance input here so gameplay doesn't miss it. Should work on the input layer somehow
+      auto advanceState = [](KeyState& state) {
+        switch(state) {
+        case KeyState::Triggered: state = KeyState::Down; break;
+        case KeyState::Released: state = KeyState::Up; break;
+        }
+      };
+      advanceState(input.mAction1);
+      advanceState(input.mAction2);
+      std::visit([&](const auto& t) {
+        if(t.resetInput) {
+          input.mAction1 = KeyState::Up;
+        }
+      }, shouldTrigger);
+
       if(const auto withPower = std::get_if<Ability::TriggerWithPower>(&shouldTrigger)) {
-        input.mAction1 = false;
-        const size_t effect = TableAdapters::addStatEffectsSharedLifetime(areaEffect.base, config.ability.explodeLifetime, nullptr, 1);
+        const size_t effect = TableAdapters::addStatEffectsSharedLifetime(areaEffect.base, StatEffect::INSTANT, nullptr, 1);
         AreaForceStatEffect::Command& cmd = areaEffect.command->at(effect);
         cmd.origin = glm::vec2{ players.object.transform.posX->at(i), players.object.transform.posY->at(i) };
         cmd.direction = glm::vec2{ players.object.transform.rotX->at(i), players.object.transform.rotY->at(i) };

@@ -216,6 +216,7 @@ void Simulation::buildUpdateTasks(GameDatabase& db, SimulationPhases& phases) {
 
   current->mChildren.push_back(TaskNode::create([&globals, &sceneState, &db](...) {
     if(sceneState.mState == SceneState::State::SetupScene) {
+      Player::setupScene({ db });
       Fragment::setupScene({ db });
       sceneState.mState = SceneState::State::Update;
     }
@@ -296,7 +297,7 @@ void Simulation::init(GameDatabase& db) {
   Config::GameConfig* gameConfig = TableAdapters::getConfig({ db }).game;
   FileSystem* fileSystem = TableAdapters::getGlobals({ db }).fileSystem;
   if(std::optional<std::string> buffer = File::readEntireFile(*fileSystem, getConfigName())) {
-    ConfigIO::Result result = ConfigIO::deserializeJson(*buffer, GameConfigFactory{});
+    ConfigIO::Result result = ConfigIO::deserializeJson(*buffer, *Config::createFactory());
     std::visit([&](auto&& r) { tryInitFromConfig(*gameConfig, std::move(r)); }, std::move(result.value));
   }
 }

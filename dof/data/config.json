@@ -1,8 +1,29 @@
 {
     "value0": {
         "ability": {
-            "explodeLifetime": 5,
-            "explodeStrength": 0.05000000074505806
+            "pushAbility": {
+                "cooldown.type": "disabled",
+                "type": 0.43700000643730166,
+                "cooldown.maxTime": "charge",
+                "maxTime": 0.024000000208616258,
+                "trigger.type, v.trigger.minCharge, v.trigger.chargeCurve": {
+                    "scale": {
+                        "nullopt": false,
+                        "data": 0.7620000243186951
+                    },
+                    "offset": {
+                        "nullopt": false,
+                        "data": 0.03999999910593033
+                    },
+                    "duration": {
+                        "nullopt": false,
+                        "data": 1.1779999732971192
+                    },
+                    "flipInput": false,
+                    "flipOutput": false,
+                    "curveFunction": "QuadraticEaseIn"
+                }
+            }
         },
         "camera": {
             "cameraZoomSpeed": 0.30000001192092898,

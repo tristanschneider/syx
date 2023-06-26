@@ -34,15 +34,16 @@ bool ImguiExt::optionalSliderFloat(const char* label, std::optional<float>& v, f
   return false;
 }
 
-void ImguiExt::curve(Config::CurveConfigExt& curve, CurveSliders& sliders) {
-  ImguiExt::curve(Config::getCurve(curve), sliders);
+bool ImguiExt::curve(Config::CurveConfigExt& curve, CurveSliders& sliders) {
+  return ImguiExt::curve(Config::getCurve(curve), sliders);
 }
 
-void ImguiExt::curve(CurveDefinition& curve, CurveSliders& sliders) {
+bool ImguiExt::curve(CurveDefinition& curve, CurveSliders& sliders) {
   if(!ImGui::TreeNode(sliders.label.c_str())) {
-    return;
+    return false;
   }
 
+  bool changed = false;
   std::array<float, 100> plot;
   std::array<float, 100> times;
   const float durationScale = sliders.viewRelative ? 1.0f : (sliders.durationRange.y / std::max(0.001f, curve.params.duration.value_or(1.0f)));
@@ -61,16 +62,18 @@ void ImguiExt::curve(CurveDefinition& curve, CurveSliders& sliders) {
   ImGui::SameLine();
   ImGui::Checkbox("Fit to graph", &sliders.viewRelative);
 
-  ImguiExt::optionalSliderFloat("Scale", curve.params.scale, 1.0f, sliders.scaleRange.x, sliders.scaleRange.y);
-  ImguiExt::optionalSliderFloat("Offset", curve.params.offset, 0.0f, sliders.offsetRange.x, sliders.offsetRange.y);
-  ImguiExt::optionalSliderFloat("Duration", curve.params.duration, 1.0f, sliders.durationRange.x, sliders.durationRange.y);
+  changed |= ImguiExt::optionalSliderFloat("Scale", curve.params.scale, 1.0f, sliders.scaleRange.x, sliders.scaleRange.y);
+  changed |= ImguiExt::optionalSliderFloat("Offset", curve.params.offset, 0.0f, sliders.offsetRange.x, sliders.offsetRange.y);
+  changed |= ImguiExt::optionalSliderFloat("Duration", curve.params.duration, 1.0f, sliders.durationRange.x, sliders.durationRange.y);
   int currentCurve = static_cast<int>(curve.function.type);
   if(ImGui::Combo("Curve Function", &currentCurve, &getCurveType, nullptr, static_cast<int>(CurveMath::CurveType::Count))) {
     curve.function = CurveMath::tryGetFunction(static_cast<CurveMath::CurveType>(currentCurve));
+    changed = true;
   }
-  ImGui::Checkbox("Flip input", &curve.params.flipInput);
+  changed |= ImGui::Checkbox("Flip input", &curve.params.flipInput);
   ImGui::SameLine();
-  ImGui::Checkbox("Flip output", &curve.params.flipOutput);
+  changed |= ImGui::Checkbox("Flip output", &curve.params.flipOutput);
 
   ImGui::TreePop();
+  return changed;
 }

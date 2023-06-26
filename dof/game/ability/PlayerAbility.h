@@ -1,15 +1,33 @@
 #pragma once
 
+#include "curve/CurveDefinition.h"
 #include <variant>
 
 struct CurveDefinition;
 
 namespace Ability {
+  namespace Strings {
+    namespace Trigger {
+      constexpr const char* INSTANT = "instant";
+      constexpr const char* CHARGE = "charge";
+      constexpr std::array<const char*, 2> ALL = {
+        INSTANT,
+        CHARGE
+      };
+    }
+    namespace Cooldown {
+      constexpr const char* DISABLED = "disabled";
+      constexpr std::array<const char*, 1> ALL = {
+        DISABLED
+      };
+    }
+  };
+
   struct InstantTrigger {};
   struct ChargeTrigger {
     float currentCharge{};
     float minimumCharge{};
-    const CurveDefinition* chargeCurve{};
+    CurveDefinition chargeCurve{};
   };
   using TriggerType = std::variant<InstantTrigger, ChargeTrigger>;
 
@@ -29,6 +47,7 @@ namespace Ability {
 
   struct UpdateInfo {
     float t{};
+    bool abilityActive{};
   };
   void updateCooldown(DisabledCooldown& cooldown, const UpdateInfo& info);
   void updateCooldown(CooldownType& cooldown, const UpdateInfo& info);
@@ -39,8 +58,11 @@ namespace Ability {
   };
   struct TriggerWithPower {
     float power{};
+    bool resetInput{};
   };
-  struct DontTrigger {};
+  struct DontTrigger {
+    bool resetInput{};
+  };
   using TriggerResult = std::variant<DontTrigger, TriggerWithPower>;
   TriggerResult tryTrigger(InstantTrigger& trigger, const TriggerInfo& info);
   TriggerResult tryTrigger(ChargeTrigger& trigger, const TriggerInfo& info);

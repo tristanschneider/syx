@@ -51,7 +51,6 @@ namespace cereal {
       }
 
       ((archiver.setNextName(strings[S]), archiver(args)), ...);
-      archiver;names;(args, ...);
     }
   }
 
@@ -78,8 +77,7 @@ namespace cereal {
   template<class Archive>
   void serialize(Archive& archive, Config::PlayerAbilityConfig& value) {
     ARCHIVE(archive,
-      value.explodeLifetime,
-      value.explodeStrength
+      value.pushAbility
     );
   }
   
@@ -121,19 +119,53 @@ namespace cereal {
       value.boundarySpringConstant
     );
   }
-  
-  template<class Archive>
-  void serialize(Archive& archive, Config::CurveConfigExt& value) {
+
+  template<class Archive, class T>
+  T beforeConfigExtArchive(Archive& archive, Config::ConfigExt<Config::IAdapter<T>>& value) {
     const ArchiverData& data = ArchiverWithData<Archive>::get(archive);
+    T v;
     //If this is a serialize call, take the value from the adapter and serialize it
-    Config::CurveConfig v;
     if(!value.adapter && data.factory) {
-      value = data.factory->createCurve();
+      data.factory->init(value);
     }
     if(!data.isDeserialize && value.adapter) {
       v = value.adapter->read();
     }
+    return v;
+  }
 
+  template<class Archive, class T>
+  void afterConfigExtArchive(Archive& archive, Config::ConfigExt<Config::IAdapter<T>>& value, const T& v) {
+    const ArchiverData& data = ArchiverWithData<Archive>::get(archive);
+    //If this is a deserialize call, take the value from the config and inform the adapter
+    if(data.isDeserialize && value.adapter) {
+      value.adapter->write(v);
+    }
+  }
+
+  template<class Archive, class T>
+  void serialize(Archive& archive, Config::ConfigExt<T>& value) {
+    auto v = beforeConfigExtArchive(archive, value);
+
+    //Forward actual serialization to the unwrapped type
+    serialize(archive, v);
+
+    afterConfigExtArchive(archive, value, v);
+  }
+
+  template<class Archive>
+  void serialize(Archive& archive, Config::AbilityConfig& v) {
+    ARCHIVE(archive,
+      v.cooldown.type,
+      v.cooldown.maxTime,
+      v.trigger.type,
+      v.trigger.minCharge,
+      v.trigger.chargeCurve
+    );
+  }
+
+  template<class Archive>
+  void serialize(Archive& archive, Config::CurveConfig& v) {
     ARCHIVE(archive,
       v.scale,
       v.offset,
@@ -142,11 +174,6 @@ namespace cereal {
       v.flipOutput,
       v.curveFunction
     );
-
-    //If this is a deserialize call, take the value from the config and inform the adapter
-    if(data.isDeserialize && value.adapter) {
-      value.adapter->write(v);
-    }
   }
 
   template<class Archive>

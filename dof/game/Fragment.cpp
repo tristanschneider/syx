@@ -27,31 +27,6 @@ namespace Fragment {
     GameObjectTable& gameobjects = std::get<GameObjectTable>(db.mTables);
     SceneState& scene = std::get<0>(std::get<GlobalGameData>(db.mTables).mRows).at();
 
-    CameraAdapater camera = TableAdapters::getCamera(game);
-
-    CameraTable& cameraTable = std::get<CameraTable>(db.mTables);
-    TableOperations::stableResizeTable<GameDatabase>(cameraTable, 1, stableMappings);
-    const size_t cameraIndex = 0;
-    Camera& mainCamera = std::get<Row<Camera>>(cameraTable.mRows).at(0);
-    mainCamera.zoom = 15.f;
-
-    PlayerTable& players = std::get<PlayerTable>(db.mTables);
-    TableOperations::stableResizeTable(players, UnpackedDatabaseElementID::fromPacked(GameDatabase::getTableIndex<PlayerTable>()), 1, stableMappings);
-    std::get<FloatRow<Rot, CosAngle>>(players.mRows).at(0) = 1.0f;
-    //Random angle in sort of radians
-    const float playerStartAngle = float(generator() % 360)*6.282f/360.0f;
-    const float playerStartDistance = 25.0f;
-    //Start way off the screen, the world boundary will fling them into the scene
-    std::get<FloatRow<Pos, X>>(players.mRows).at(0) = playerStartDistance*std::cos(playerStartAngle);
-    std::get<FloatRow<Pos, Y>>(players.mRows).at(0) = playerStartDistance*std::sin(playerStartAngle);
-
-    //Usually this would be done with a thread local but this setup is synchronous
-    auto follow = TableAdapters::getCentralStatEffects(game).followTargetByPosition;
-    const size_t id = TableAdapters::addStatEffectsSharedLifetime(follow.base, StatEffect::INFINITE, &camera.object.stable->at(cameraIndex), 1);
-    follow.command->at(id).mode = FollowTargetByPositionStatEffect::FollowMode::Interpolation;
-    follow.base.target->at(id) = StableElementID::fromStableID(TableAdapters::getPlayer(game).object.stable->at(0));
-    follow.base.curveDefinition->at(id) = &Config::getCurve(TableAdapters::getConfig(game).game->camera.followCurve);
-
     //Add some arbitrary objects for testing
     const size_t rows = args.mFragmentRows;
     const size_t columns = args.mFragmentColumns;

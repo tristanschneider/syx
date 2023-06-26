@@ -206,6 +206,13 @@ using StaticGameObjectTable = Table<
   StableIDRow
 >;
 
+enum class KeyState : uint8_t {
+  Up,
+  Triggered,
+  Released,
+  Down,
+};
+
 //Final desired move input state
 struct PlayerInput {
   PlayerInput();
@@ -214,8 +221,8 @@ struct PlayerInput {
 
   float mMoveX{};
   float mMoveY{};
-  bool mAction1{};
-  bool mAction2{};
+  KeyState mAction1{};
+  KeyState mAction2{};
   //Goes from 0 to 1 when starting input in a direction, then back down to zero when stopping
   float moveT{};
   float angularMoveT{};
@@ -223,10 +230,6 @@ struct PlayerInput {
   std::unique_ptr<Ability::AbilityInput> ability1;
 };
 
-enum class KeyState : uint8_t {
-  Triggered,
-  Released
-};
 
 //Intermediate keyboard state used to compute final state
 struct PlayerKeyboardInput {

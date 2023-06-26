@@ -8,6 +8,8 @@
 #include "TableAdapters.h"
 #include "File.h"
 #include "config/ConfigIO.h"
+#include "ability/PlayerAbility.h"
+#include "Player.h"
 
 namespace Toolbox {
   void update(GameDB db) {
@@ -43,8 +45,86 @@ namespace CameraModule {
   }
 }
 
+namespace AbilityModule {
+  template<size_t S>
+  int findIndex(const std::string& toFind, const std::array<const char*, S>& values) {
+    auto it = std::find(values.begin(), values.end(), toFind);
+    return it != values.end() ? static_cast<int>(std::distance(values.begin(), it)) : 0;
+  }
+
+  bool edit(Ability::InstantTrigger&) {
+    return false;
+  }
+
+  bool edit(Ability::ChargeTrigger& t) {
+    bool changed = false;
+    changed |= ImGui::SliderFloat("Min charge Percent", &t.minimumCharge, 0.0f, t.chargeCurve.params.duration.value_or(1.0f));
+    static ImguiExt::CurveSliders sliders;
+    sliders.label = "Charge";
+    sliders.durationRange = { 0.0f, 5.0f };
+    sliders.offsetRange = { 0.0f, 5.0f };
+    sliders.scaleRange = { 0.0f, 5.0f };
+    changed |= ImguiExt::curve(t.chargeCurve, sliders);
+
+    return changed;
+  }
+
+  bool edit(Ability::DisabledCooldown& c) {
+    return ImGui::SliderFloat("Cooldown Seconds", &c.maxTime, 0.0f, 5.0f);
+  }
+
+  bool editAbility(Config::AbilityConfigExt& ability, const char* name) {
+    if(!ImGui::TreeNode(name)) {
+      return false;
+    }
+
+    Ability::AbilityInput& raw = Config::getAbility(ability);
+    Config::AbilityConfig cfg = ability.adapter->read();
+    auto writeCfgToRaw = [&] {
+      Config::AbilityConfigExt ext;
+      Config::createFactory()->init(ext);
+      ext.adapter->write(cfg);
+      raw = Config::getAbility(ext);
+    };
+
+    int currentTrigger = findIndex(cfg.trigger.type, Ability::Strings::Trigger::ALL);
+    bool changed = false;
+    if(ImGui::Combo("Trigger Type", &currentTrigger, Ability::Strings::Trigger::ALL.data(), static_cast<int>(Ability::Strings::Trigger::ALL.size()))) {
+      cfg.trigger.type = Ability::Strings::Trigger::ALL[currentTrigger];
+      writeCfgToRaw();
+      changed = true;
+    }
+    changed |= std::visit([](auto& t) { return edit(t); }, raw.trigger);
+
+    int currentCooldown = findIndex(cfg.cooldown.type, Ability::Strings::Cooldown::ALL);
+    if(ImGui::Combo("Cooldown Type", &currentCooldown, Ability::Strings::Cooldown::ALL.data(), static_cast<int>(Ability::Strings::Cooldown::ALL.size()))) {
+      cfg.cooldown.type = Ability::Strings::Cooldown::ALL[currentCooldown];
+      writeCfgToRaw();
+      changed = true;
+    }
+    changed |= std::visit([](auto& c) { return edit(c); }, raw.cooldown);
+
+    ImGui::TreePop();
+    return changed;
+  }
+
+  void update(GameDB db) {
+    Config::GameConfig& config = *TableAdapters::getConfig(db).game;
+    bool changed = false;
+
+    ImGui::Begin("Abilities");
+    changed |= editAbility(config.ability.pushAbility, "Push");
+    ImGui::End();
+
+    if(changed) {
+      Player::initAbility(db);
+    }
+  }
+}
+
 void GameModule::update(GameDB db) {
   CameraModule::update(db);
+  AbilityModule::update(db);
 
   Config::GameConfig& config = *TableAdapters::getConfig(db).game;
   ImGui::Begin("Game");
@@ -117,9 +197,6 @@ void GameModule::update(GameDB db) {
   }
   ImGui::Checkbox("Draw Move", &config.player.drawMove);
 
-
-  ImguiExt::inputSizeT("Explode Lifetime", &config.ability.explodeLifetime);
-  ImGui::SliderFloat("Explode Strength", &config.ability.explodeStrength, 0.0f, 1.0f);
   ImGui::SliderFloat("Camera Zoom Speed", &config.camera.cameraZoomSpeed, 0.0f, 1.0f);
   ImGui::SliderFloat("Boundary Spring Force", &config.world.boundarySpringConstant, 0.0f, 1.0f);
   ImGui::SliderFloat("Fragment Goal Distance", &config.fragment.fragmentGoalDistance, 0.0f, 5.0f);
