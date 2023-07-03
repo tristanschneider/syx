@@ -23,7 +23,12 @@ struct BasicRow {
 
   template<class... Args>
   Element& emplaceBack(Args&&... args) {
-    return mElements.emplace_back(std::forward<Args>(args)...);
+    if constexpr(sizeof...(args) > 0) {
+      return mElements.emplace_back(std::forward<Args>(args)...);
+    }
+    else {
+      return mElements.emplace_back(mDefaultValue);
+    }
   }
 
   template<class T, class... Args>
@@ -36,7 +41,12 @@ struct BasicRow {
   }
 
   void resize(size_t size) {
-    mElements.resize(size);
+    if constexpr(std::is_copy_constructible_v<Element>) {
+      mElements.resize(size, mDefaultValue);
+    }
+    else {
+      mElements.resize(size);
+    }
   }
 
   IteratorT begin() {
@@ -48,6 +58,7 @@ struct BasicRow {
   }
 
   std::vector<Element> mElements;
+  Element mDefaultValue{};
 };
 
 //For sharing a value between all elements in a table\

@@ -219,4 +219,18 @@ namespace ConfigIO {
     }
     return result;
   }
+
+  Config::GameConfig defaultInitialize(const Config::IFactory& factory) {
+    Config::GameConfig result;
+    std::stringstream stream;
+    {
+      //This is a hack to re-use the serialization code path to traverse the entire object which in the process initializes all ConfigExt objects
+      //Better would be to provide meaningful defaults, although this at least allows tests to avoid crashing on uninitialized config values
+      cereal::ArchiverWithData<cereal::JSONOutputArchive> archive(stream);
+      archive.data.isDeserialize = false;
+      archive.data.factory = &factory;
+      archive(result);
+    }
+    return result;
+  }
 }

@@ -17,7 +17,6 @@ namespace Player {
   using namespace Tags;
 
   void init(GameDB db) {
-    db;
     Config::PlayerConfig& player = TableAdapters::getConfig({ db }).game->player;
     auto& force = Config::getCurve(player.linearForceCurve);
     force.params.duration = 0.4f;

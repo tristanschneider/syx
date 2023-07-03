@@ -16,6 +16,7 @@
 #include "TableAdapters.h"
 #include "ThreadLocals.h"
 #include "Fragment.h"
+#include "Player.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -1046,7 +1047,8 @@ namespace Test {
         const StableElementID& toFindB = actualB.at(i);
         bool found = false;
         for(size_t j = 0; j < expectedA.size(); ++j) {
-          if(toFindA == expectedA[j] && toFindB == expectedB[j]) {
+          if((toFindA == expectedA[j] && toFindB == expectedB[j]) ||
+            (toFindA == expectedB[j] && toFindB == expectedA[j])) {
             found = true;
             expectedA.erase(expectedA.begin() + j);
             expectedB.erase(expectedB.begin() + j);
@@ -1104,10 +1106,21 @@ namespace Test {
       return StableOperations::tryResolveStableID(id, db, reader.mStableMappings)->mUnstableIndex & GameDatabase::ElementID::ELEMENT_INDEX_MASK;
     }
 
+    template<class T>
+    static bool isUnorderedEqual(const T& expectedA, const T& expectedB, const T& actualA, const T& actualB) {
+      if(expectedA == actualA) {
+        return expectedB == actualB;
+      }
+      return expectedA == actualB && expectedB == actualA;
+    }
+
     TEST_METHOD(GameOneObject_Migrate_PhysicsDataPreserved) {
-      GameDatabase db;
-      Fragment::SceneArgs args{ 1, 1 };
-      Fragment::_setupScene({ db }, args);
+      TestGame game;
+      GameArgs gameArgs;
+      gameArgs.fragmentCount = 1;
+      gameArgs.playerPos = glm::vec2(5, 5);
+      game.init(gameArgs);
+      GameDatabase& db = game.db;
       DBReader reader(db);
       StableElementID playerId = StableOperations::getStableID(reader.mPlayerIDs, GameDatabase::getElementID<PlayerTable>(0));
       StableElementID objectId = StableOperations::getStableID(reader.mGameObjectIDs, GameDatabase::getElementID<GameObjectTable>(0));
@@ -1123,17 +1136,15 @@ namespace Test {
         reader.mLinVelX.at(0) = 0.5f;
       };
       setInitialPos();
-      _updatePhysics(db);
+      game.update();
 
       auto assertInitialResolution = [&] {
         Assert::AreEqual(size_t(1), TableOperations::size(reader.mCollisionPairs));
         _assertEnabledContactConstraintCount(db, 1);
         _assertEnabledStaticContactConstraintCount(db, 0);
-        Assert::IsTrue(reader.mCollisionPairA.at(0) == playerId);
+        Assert::IsTrue(isUnorderedEqual(playerId, objectId, reader.mCollisionPairA.at(0), reader.mCollisionPairB.at(0)));
         const size_t c = _getConstraintIndexFromContact(db, 0);
-        Assert::IsTrue(reader.mConstraintPairA.at(c) == playerId);
-        Assert::IsTrue(reader.mCollisionPairB.at(0) == objectId);
-        Assert::IsTrue(reader.mConstraintPairB.at(c) == objectId);
+        Assert::IsTrue(isUnorderedEqual(playerId, objectId, reader.mConstraintPairA.at(c), reader.mConstraintPairB.at(c)));
 
         Assert::IsTrue(reader.mPlayerLinVelX.at(0) > -0.5f + minCorrection, L"Player should be pushed away from object");
         Assert::IsTrue(reader.mLinVelX.at(0) < 0.5f - minCorrection, L"Object should be pushed away from player");
@@ -1141,7 +1152,7 @@ namespace Test {
       assertInitialResolution();
 
       reader.mPlayerPosX.at(0) = 100.0f;
-      _updatePhysics(db);
+      game.update();
 
       auto assertNoPairs = [&] {
         Assert::AreEqual(size_t(0), TableOperations::size(reader.mCollisionPairs));
@@ -1151,12 +1162,13 @@ namespace Test {
       assertNoPairs();
 
       setInitialPos();
-      _updatePhysics(db);
+      game.update();
       assertInitialResolution();
 
       std::get<FragmentGoalFoundRow>(reader.mGameObjects.mRows).at(0) = true;
 
       Fragment::_migrateCompletedFragments({ db }, 0);
+      game.update();
 
       //Migrate will also snap the fragment to its goal, so recenter the player in collision with the new location
       auto setNewPos = [&] {
@@ -1169,7 +1181,7 @@ namespace Test {
       objectId = *StableOperations::tryResolveStableID(objectId, db, reader.mStableMappings);
       Assert::IsTrue(objectId == StableElementID{ GameDatabase::getElementID<StaticGameObjectTable>(0).mValue, originalObjectStableId });
 
-      _updatePhysics(db);
+      game.update();
       auto assertStaticCollision = [&] {
         //Similar to before, except now the single constraint is in the static table instead of the dynamic one
         //Pair order is the same, both because player has lower stable id (0) than object (1) but also because object is now static,
@@ -1188,44 +1200,43 @@ namespace Test {
       assertStaticCollision();
 
       reader.mPlayerPosX.at(0) = 100.0f;
-      _updatePhysics(db);
+      game.update();
       assertNoPairs();
 
       setNewPos();
-      _updatePhysics(db);
+      game.update();
       assertStaticCollision();
     }
 
     TEST_METHOD(GameTwoObjects_Migrate_PhysicsDataPreserved) {
-      GameDatabase db;
-      Fragment::SceneArgs args{ 1, 2 };
-      Fragment::_setupScene({ db }, args);
+      TestGame game;
+      GameArgs gameArgs;
+      gameArgs.fragmentCount = 2;
+      gameArgs.playerPos = glm::vec2{ 5, 5 };
+      GameDatabase& db = game.db;
+      game.init(gameArgs);
       DBReader reader(db);
       StableElementID playerId = StableOperations::getStableID(reader.mPlayerIDs, GameDatabase::getElementID<PlayerTable>(0));
       StableElementID objectLeftId = StableOperations::getStableID(reader.mGameObjectIDs, GameDatabase::getElementID<GameObjectTable>(0));
       StableElementID objectRightId = StableOperations::getStableID(reader.mGameObjectIDs, GameDatabase::getElementID<GameObjectTable>(1));
 
-      auto& goalX = std::get<FloatRow<Tags::FragmentGoal, Tags::X>>(reader.mGameObjects.mRows);
-      auto& goalY = std::get<FloatRow<Tags::FragmentGoal, Tags::Y>>(reader.mGameObjects.mRows);
-      glm::vec2 avg{ 0.0f };
+      float initialX[] = { 1.0f, 2.0f, 1.5f };
+      float initialY[] = { 1.0f, 1.0f, 1.75f };
       for(size_t i = 0; i < 2; ++i) {
-        reader.mPosX.at(i) = goalX.at(i);
-        reader.mPosY.at(i) = goalY.at(i);
+        reader.mPosX.at(i) = initialX[i];
+        reader.mPosY.at(i) = initialY[i];
         reader.mLinVelY.at(i) = 0.5f;
-        avg.x += reader.mPosX.at(i);
-        avg.y += reader.mPosY.at(i);
       }
-      avg *= 0.5f;
       glm::vec2 initialRight{ reader.mPosX.at(1), reader.mPosY.at(1) };
 
       auto setInitialPlayerPos = [&] {
-        reader.mPlayerPosX.at(0) = avg.x;
-        reader.mPlayerPosY.at(0) = avg.y + 0.75f;
+        reader.mPlayerPosX.at(0) = initialX[2];
+        reader.mPlayerPosY.at(0) = initialY[2];
         reader.mPlayerLinVelY.at(0) = -0.5f;
       };
       setInitialPlayerPos();
 
-      _updatePhysics(db);
+      game.update();
 
       Assert::AreEqual(size_t(3), TableOperations::size(reader.mCollisionPairs));
       _assertEnabledContactConstraintCount(db, 3);
@@ -1243,6 +1254,7 @@ namespace Test {
 
       std::get<FragmentGoalFoundRow>(reader.mGameObjects.mRows).at(0) = true;
       Fragment::_migrateCompletedFragments({ db }, 0);
+      game.update();
 
       //Need to update both since one moved and the other was affected by swap removal
       objectLeftId = *StableOperations::tryResolveStableID(objectLeftId, db, reader.mStableMappings);
@@ -1256,26 +1268,26 @@ namespace Test {
       };
 
       resetStaticPos();
-      _updatePhysics(db);
+      game.update();
 
       auto assertStaticCollision = [&] {
-      Assert::AreEqual(size_t(3), TableOperations::size(reader.mCollisionPairs));
-      _assertEnabledContactConstraintCount(db, 1);
-      _assertEnabledStaticContactConstraintCount(db, 2);
-      //Now left is the B object always since it's static
-      Assert::IsTrue(_unorderedCollisionPairsMatch(reader,
-        { playerId, playerId, objectRightId },
-        { objectLeftId, objectRightId, objectLeftId }
-      ));
+        Assert::AreEqual(size_t(3), TableOperations::size(reader.mCollisionPairs));
+        _assertEnabledContactConstraintCount(db, 1);
+        _assertEnabledStaticContactConstraintCount(db, 2);
+        //Now left is the B object always since it's static
+        Assert::IsTrue(_unorderedCollisionPairsMatch(reader,
+          { playerId, playerId, objectRightId },
+          { objectLeftId, objectRightId, objectLeftId }
+        ));
 
-      Assert::IsTrue(reader.mPlayerLinVelY.at(0) > -0.5f + minCorrection, L"Player should be pushed away from object");
-      Assert::IsTrue(reader.mLinVelY.at(0) < 0.5f - minCorrection, L"Object should be pushed away from player");
+        Assert::IsTrue(reader.mPlayerLinVelY.at(0) > -0.5f + minCorrection, L"Player should be pushed away from object");
+        Assert::IsTrue(reader.mLinVelY.at(0) < 0.5f - minCorrection, L"Object should be pushed away from player");
       };
       assertStaticCollision();
 
       resetStaticPos();
       reader.mPlayerPosX.at(0) = 100.0f;
-      _updatePhysics(db);
+      game.update();
 
       Assert::AreEqual(size_t(1), TableOperations::size(reader.mCollisionPairs));
       _assertEnabledContactConstraintCount(db, 0);
@@ -1286,7 +1298,7 @@ namespace Test {
       ));
 
       resetStaticPos();
-      _updatePhysics(db);
+      game.update();
 
       assertStaticCollision();
     }

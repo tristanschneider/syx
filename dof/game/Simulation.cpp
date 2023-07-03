@@ -270,8 +270,9 @@ const SceneState& Simulation::_getSceneState(GameDatabase& db) {
   return std::get<SharedRow<SceneState>>(std::get<GlobalGameData>(db.mTables).mRows).at();
 }
 
-void tryInitFromConfig(Config::GameConfig&, const ConfigIO::Result::Error& error) {
+void tryInitFromConfig(Config::GameConfig& toSet, const ConfigIO::Result::Error& error) {
   printf("Error reading config file, initializing with defaults. [%s]\n", error.message.c_str());
+  toSet = ConfigIO::defaultInitialize(*Config::createFactory());
 }
 
 void tryInitFromConfig(Config::GameConfig& toSet, Config::GameConfig&& loaded) {
@@ -285,6 +286,13 @@ const char* Simulation::getConfigName() {
 
 
 void Simulation::init(GameDatabase& db) {
+  Queries::viewEachRow(db, [](FloatRow<Tags::Rot, Tags::CosAngle>& r) {
+      r.mDefaultValue = 1.0f;
+  });
+  Queries::viewEachRow(db, [](FloatRow<Tags::GRot, Tags::CosAngle>& r) {
+      r.mDefaultValue = 1.0f;
+  });
+
   Scheduler& scheduler = Simulation::_getScheduler(db);
   scheduler.mScheduler.Initialize();
   GlobalGameData& globals = std::get<GlobalGameData>(db.mTables);
