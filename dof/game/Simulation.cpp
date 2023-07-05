@@ -140,6 +140,13 @@ namespace {
 
     TaskBuilder::_addSyncDependency(*current, statTasks.synchronous.mBegin);
     current = statTasks.synchronous.mEnd;
+    current->mChildren.push_back(TaskNode::create([&db](...) {
+      Events::publishEvents({ db });
+    }));
+    current = current->mChildren.back();
+    TaskRange physicsEvents = PhysicsSimulation::processEvents({ db });
+    current->mChildren.push_back(physicsEvents.mBegin);
+    current = physicsEvents.mEnd;
 
     return { root, current };
   }

@@ -7,40 +7,30 @@
 #include "TableOperations.h"
 #include "StableElementID.h"
 #include "SweepNPrune.h"
+#include "Scheduler.h"
 
 //SweepNPrune is the base data structure containing no dependencies on table,
 //this is the wrapper around it to facilitate use within Simulation
 namespace SweepNPruneBroadphase {
-  //TODO: some of these are only needed temporarily while determining if boundaries need to be updated
-  //It would also be possible to minimize necessary space by using a single point and implied size
-  struct OldMinX : Row<float> {};
-  struct OldMinY : Row<float> {};
-  struct OldMaxX : Row<float> {};
-  struct OldMaxY : Row<float> {};
-  struct NewMinX : Row<float> {};
-  struct NewMinY : Row<float> {};
-  struct NewMaxX : Row<float> {};
-  struct NewMaxY : Row<float> {};
   using Key = StableIDRow;
-  //Byte set to nonzero for true. Hack since std vector bool specialization is tricky with the templates
-  struct NeedsReinsert : Row<uint8_t> {};
+  struct BroadphaseKeys : Row<Broadphase::BroadphaseKey> {};
 
   struct CollisionPairMappings {
-    std::unordered_map<SweepCollisionPair, size_t> mSweepPairToCollisionTableIndex;
-    std::vector<SweepCollisionPair> mCollisionTableIndexToSweepPair;
+    std::unordered_map<Broadphase::SweepCollisionPair, size_t> mSweepPairToCollisionTableIndex;
+    std::vector<Broadphase::SweepCollisionPair> mCollisionTableIndexToSweepPair;
   };
   struct PairChanges {
     //New collision pairs caused by reinserts or inserts
-    std::vector<SweepCollisionPair> mGained;
+    std::vector<Broadphase::SweepCollisionPair> mGained;
     //Removed collision pairs caused by reinserts or erases
-    std::vector<SweepCollisionPair> mLost;
+    std::vector<Broadphase::SweepCollisionPair> mLost;
   };
   struct ChangedCollisionPairs {
     std::vector<StableElementID> mGained;
     std::vector<StableElementID> mLost;
   };
   using BroadphaseTable = Table<
-    SharedRow<Sweep2D>,
+    SharedRow<Broadphase::SweepGrid::Grid>,
     SharedRow<PairChanges>,
     SharedRow<ChangedCollisionPairs>,
     SharedRow<CollisionPairMappings>
@@ -56,79 +46,71 @@ namespace SweepNPruneBroadphase {
     float mResizeThreshold = 0.0f;
   };
 
-  bool recomputeBoundaries(const float* oldMinAxis, const float* oldMaxAxis,
-    float* newMinAxis, float* newMaxAxis,
-    const float* pos,
-    const BoundariesConfig& cfg,
-    NeedsReinsert& needsReinsert);
+  //Update boundaries for existing elements
+  struct BoundariesQuery {
+    const Row<float>* posX{};
+    const Row<float>* posY{};
+    const BroadphaseKeys* keys{};
+  };
+  TaskRange updateBoundaries(Broadphase::SweepGrid::Grid& grid, std::vector<BoundariesQuery> query, const BoundariesConfig& cfg);
+  //Compute collision pair changes
+  TaskRange computeCollisionPairs(BroadphaseTable& broadphase);
 
-  void insertRange(size_t begin, size_t count,
-    BroadphaseTable& broadphase,
-    OldMinX& oldMinX,
-    OldMinY& oldMinY,
-    OldMaxX& oldMaxX,
-    OldMaxY& oldMaxY,
-    NewMinX& newMinX,
-    NewMinY& newMinY,
-    NewMaxX& newMaxX,
-    NewMaxY& newMaxY,
-    Key& key);
+  //New elements are added to the broadphase if they have a broadphase key row
+  //Removed elements are removed from the broadphase
+  //Moved elements are given one final bounds update if they moved to an immobile table, otherwise ignored
+  template<class PosX, class PosY, class Immobile>
+  void processEvents(const DBEvents& events, Broadphase::SweepGrid::Grid& grid, TableResolver<PosX, PosY, BroadphaseKeys, StableIDRow, Immobile> resolver, const BoundariesConfig& cfg, const DatabaseDescription& desc) {
+    //Insert new elements
+    for(const StableElementID& id : events.newElements) {
+      const auto unpacked = id.toUnpacked(desc);
+      auto* keys = resolver.tryGetRow<BroadphaseKeys>(unpacked);
+      auto* stable = resolver.tryGetRow<StableIDRow>(unpacked);
+      if(keys && stable) {
+        Broadphase::BroadphaseKey& key = keys->at(unpacked.getElementIndex());
+        Broadphase::UserKey userKey = stable->at(unpacked.getElementIndex());
+        Broadphase::SweepGrid::insertRange(grid, &userKey, &key, 1);
+      }
+    }
+    //Bounds update elementst that moved to an immobile row
+    for(const StableElementID& id : events.movedElements) {
+      const auto unpacked = id.toUnpacked(desc);
+      if(resolver.tryGetRow<Immobile>(unpacked)) {
+        auto posX = resolver.tryGetRow<PosX>(unpacked);
+        auto posY = resolver.tryGetRow<PosY>(unpacked);
+        auto keys = resolver.tryGetRow<BroadphaseKeys>(unpacked);
+        if(posX && posY) {
+          const float halfSize = cfg.mHalfSize + cfg.mPadding;
+          const size_t i = unpacked.getElementIndex();
+          glm::vec2 min{ posX->at(i) - halfSize, posY->at(i) - halfSize };
+          glm::vec2 max{ posX->at(i) + halfSize, posY->at(i) + halfSize };
+          auto key = keys->at(i);
+          Broadphase::SweepGrid::updateBoundaries(grid, &min.x, &max.x, &min.y, &max.y, &key, 1);
+        }
+      }
+    }
+    //Remove elements that are about to be destroyed
+    for(const StableElementID& id : events.toBeRemovedElements) {
+      const auto unpacked = id.toUnpacked(desc);
+      if(auto keys = resolver.tryGetRow<BroadphaseKeys>(unpacked)) {
+        Broadphase::BroadphaseKey& key = keys->at(unpacked.getElementIndex());
+        Broadphase::SweepGrid::eraseRange(grid, &key, 1);
+        key = {};
+      }
+    }
+  }
 
-  void reinsertRange(size_t begin, size_t count,
-    BroadphaseTable& broadphase,
-    OldMinX& oldMinX,
-    OldMinY& oldMinY,
-    OldMaxX& oldMaxX,
-    OldMaxY& oldMaxY,
-    NewMinX& newMinX,
-    NewMinY& newMinY,
-    NewMaxX& newMaxX,
-    NewMaxY& newMaxY,
-    Key& key);
+  std::optional<std::pair<StableElementID, StableElementID>> _tryGetOrderedCollisionPair(const Broadphase::SweepCollisionPair& key, const PhysicsTableIds& tableIds, StableElementMappings& stableMappings, bool assertIfMissing);
 
-  void reinsertRangeAsNeeded(NeedsReinsert& needsReinsert,
-    BroadphaseTable& broadphase,
-    OldMinX& oldMinX,
-    OldMinY& oldMinY,
-    OldMaxX& oldMaxX,
-    OldMaxY& oldMaxY,
-    NewMinX& newMinX,
-    NewMinY& newMinY,
-    NewMaxX& newMaxX,
-    NewMaxY& newMaxY,
-    Key& key);
-
-  //Iterates over the entire broadphase and generates all pairs. Inefficient, but useful for debugging
-  void generateCollisionPairs(BroadphaseTable& broadphase, std::vector<SweepCollisionPair>& results);
-
-  void eraseRange(size_t begin, size_t count,
-    BroadphaseTable& broadphase,
-    OldMinX& oldMinX,
-    OldMinY& oldMinY,
-    Key& key);
-
-  std::optional<std::pair<StableElementID, StableElementID>> _tryGetOrderedCollisionPair(const SweepCollisionPair& key, const PhysicsTableIds& tableIds, StableElementMappings& stableMappings, bool assertIfMissing);
-
+  //Turn collision pair changes into collision table entries
   //Create and remove based on the changes in PairChanges
   template<class PairIndexA, class PairIndexB, class DatabaseT, class TableT>
   void updateCollisionPairs(PairChanges& changes, CollisionPairMappings& mappings, TableT& table, const PhysicsTableIds& tableIds, StableElementMappings& stableMappings, ChangedCollisionPairs& resultChanges) {
     PROFILE_SCOPE("physics", "updateCollisionPairs");
     auto& stableIds = std::get<StableIDRow>(table.mRows);
-    //TODO: order these somewhere else
-    for(size_t i = 0; i < changes.mGained.size(); ++i) {
-      SweepCollisionPair& gain = changes.mGained[i];
-      if(gain.mA > gain.mB) {
-        std::swap(gain.mA, gain.mB);
-      }
-    }
-
     {
       PROFILE_SCOPE("physics", "losses");
-      for(SweepCollisionPair loss : changes.mLost) {
-        //TODO: order these somewhere else
-        if(loss.mA > loss.mB) {
-          std::swap(loss.mA, loss.mB);
-        }
+      for(Broadphase::SweepCollisionPair loss : changes.mLost) {
         if(auto it = mappings.mSweepPairToCollisionTableIndex.find(loss); it != mappings.mSweepPairToCollisionTableIndex.end()) {
           const size_t swappedIndex = TableOperations::size(table) - 1;
           const size_t removedPairIndex = it->second;
@@ -177,7 +159,7 @@ namespace SweepNPruneBroadphase {
       auto& pairB = std::get<PairIndexB>(table.mRows);
       size_t addIndex = gainBegin;
       for(size_t i = 0; i < changes.mGained.size(); ++i) {
-        SweepCollisionPair gain = changes.mGained[i];
+        Broadphase::SweepCollisionPair gain = changes.mGained[i];
 
         //Assign pair indices, the mappings are populated upon insertion and when objects move tables
         //If this isn't an applicable pair, skip to the next without incrementing addIndex

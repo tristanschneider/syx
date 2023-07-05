@@ -1,0 +1,81 @@
+#include "Precompile.h"
+#include "DBEvents.h"
+
+#include "Simulation.h"
+
+namespace Events {
+  using LockT = std::lock_guard<std::mutex>;
+
+  struct EventsImpl {
+    DBEvents events;
+    std::mutex mutex;
+  };
+
+  EventsInstance::EventsInstance()
+    : impl(std::make_unique<EventsImpl>()) {
+  }
+
+  EventsInstance::~EventsInstance() = default;
+
+  struct EventsContext {
+    EventsImpl& impl;
+    LockT lock;
+  };
+
+  EventsImpl& _get(GameDB game) {
+    return *std::get<Events::EventsRow>(std::get<GlobalGameData>(game.db.mTables).mRows).at().impl;
+  }
+
+  EventsInstance& _getInstance(GameDB game) {
+    return std::get<Events::EventsRow>(std::get<GlobalGameData>(game.db.mTables).mRows).at();
+  }
+
+  EventsContext _getContext(GameDB game) {
+    auto& impl = _get(game);
+    return { impl, LockT{ impl.mutex } };
+  }
+
+  void onNewElement(StableElementID e, GameDB game) {
+    EventsContext ctx{ _getContext(game) };
+    ctx.impl.events.newElements.push_back(e);
+  }
+
+  void onMovedElement(StableElementID e, GameDB game) {
+    EventsContext ctx{ _getContext(game) };
+    ctx.impl.events.movedElements.push_back(e);
+  }
+
+  void onRemovedElement(StableElementID e, GameDB game) {
+    EventsContext ctx{ _getContext(game) };
+    ctx.impl.events.toBeRemovedElements.push_back(e);
+  }
+
+  DBEvents readEvents(GameDB game) {
+    EventsContext ctx{ _getContext(game) };
+    return ctx.impl.events;
+  }
+
+  void clearEvents(GameDB game) {
+    EventsContext ctx{ _getContext(game) };
+    ctx.impl.events.movedElements.clear();
+    ctx.impl.events.newElements.clear();
+    ctx.impl.events.toBeRemovedElements.clear();
+  }
+
+  void publishEvents(GameDB game) {
+    EventsContext ctx{ _getContext(game) };
+    EventsInstance& instance = _getInstance(game);
+    instance.publishedEvents.movedElements.swap(ctx.impl.events.movedElements);
+    instance.publishedEvents.newElements.swap(ctx.impl.events.newElements);
+    instance.publishedEvents.toBeRemovedElements.swap(ctx.impl.events.toBeRemovedElements);
+
+    ctx.impl.events.movedElements.clear();
+    ctx.impl.events.newElements.clear();
+    ctx.impl.events.toBeRemovedElements.clear();
+  }
+
+  const DBEvents& getPublishedEvents(GameDB game) {
+    //Don't need to lock because this is supposed to be during the synchronous portion of the frame
+    return _getInstance(game).publishedEvents;
+  }
+};

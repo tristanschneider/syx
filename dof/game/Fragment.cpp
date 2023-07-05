@@ -32,6 +32,10 @@ namespace Fragment {
     const size_t columns = args.mFragmentColumns;
     const size_t total = rows*columns;
     TableOperations::stableResizeTable(gameobjects, UnpackedDatabaseElementID::fromPacked(GameDatabase::getTableIndex<GameObjectTable>()), total, stableMappings);
+    StableIDRow& stableRow = std::get<StableIDRow>(gameobjects.mRows);
+    for(size_t i = 0; i < total; ++i) {
+      Events::onNewElement(StableElementID::fromStableRow(i, stableRow), game);
+    }
 
     float startX = -float(columns)/2.0f;
     float startY = -float(rows)/2.0f;
@@ -75,8 +79,6 @@ namespace Fragment {
     const size_t last = total - 1;
     scene.mBoundaryMin = glm::vec2(goalX.at(first), goalY.at(first)) - glm::vec2(boundaryPadding);
     scene.mBoundaryMax = glm::vec2(goalX.at(last), goalY.at(last)) + glm::vec2(boundaryPadding);
-
-    PhysicsSimulation::initialPopulateBroadphase({ db });
   }
 
   void _migrateCompletedFragments(GameObjectTable& fragments, LambdaStatEffectAdapter lambdaEffect) {
@@ -101,12 +103,10 @@ namespace Fragment {
           if(fullId.getTableIndex() != GameDatabase::getTableIndex<GameObjectTable>().getTableIndex()) {
             return;
           }
-          //const size_t id = GameDatabase::getElementID
           GameObjectAdapter fragments = TableAdapters::getGameObjects(*args.db);
           const size_t id = fullId.getElementIndex();
           GameObjectAdapter destObjs = TableAdapters::getGameplayStaticGameObjects(*args.db);
           auto& destinationFragments = std::get<StaticGameObjectTable>(args.db->db.mTables);
-          const size_t oldDestinationEnd = destObjs.stable->size();
 
           //Snap to destination
           //TODO: effects to celebrate transition
@@ -118,66 +118,10 @@ namespace Fragment {
           fragments.transform.rotX->at(id) = 1.0f;
           fragments.transform.rotY->at(id) = 0.0f;
 
-          auto& oldMinX = std::get<SweepNPruneBroadphase::OldMinX>(fragmentsTable.mRows);
-          auto& oldMinY = std::get<SweepNPruneBroadphase::OldMinY>(fragmentsTable.mRows);
-          auto& keys = std::get<SweepNPruneBroadphase::Key>(fragmentsTable.mRows);
-          auto& broadphase = std::get<BroadphaseTable>(args.db->db.mTables);
-          SweepNPruneBroadphase::eraseRange(id, 1, broadphase, oldMinX, oldMinY, keys);
-
           constexpr GameDatabase::ElementID destinationTableID = GameDatabase::getTableIndex<StaticGameObjectTable>();
           StableElementMappings& mappings = TableAdapters::getStableMappings(*args.db);
           TableOperations::stableMigrateOne(fragmentsTable, destinationFragments, fullId, destinationTableID, mappings);
-
-          //TODO: having to reinsert this here is awkward, it should be deferred to a particular part of the frame and ideally require less knowledge by the gameplay logic
-          //Update the broadphase mappings in place here
-          //If this becomes a more common occurence this table migration should be deferred so this update
-          //can be done in a less fragile way
-          auto& posX = *destObjs.transform.posX;
-          auto& posY = *destObjs.transform.posY;
-          //Scratch containers used to insert the elements, don't need to be stored since objects won't move after this
-          Table<SweepNPruneBroadphase::NeedsReinsert,
-            SweepNPruneBroadphase::OldMinX,
-            SweepNPruneBroadphase::OldMinY,
-            SweepNPruneBroadphase::OldMaxX,
-            SweepNPruneBroadphase::OldMaxY,
-            SweepNPruneBroadphase::NewMinX,
-            SweepNPruneBroadphase::NewMinY,
-            SweepNPruneBroadphase::NewMaxX,
-            SweepNPruneBroadphase::NewMaxY> tempTable;
-          TableOperations::resizeTable(tempTable, 1);
-
-          auto config = PhysicsSimulation::_getStaticBoundariesConfig();
-
-          SweepNPruneBroadphase::recomputeBoundaries(
-            TableOperations::unwrapRow<SweepNPruneBroadphase::OldMinX>(tempTable),
-            TableOperations::unwrapRow<SweepNPruneBroadphase::OldMaxX>(tempTable),
-            TableOperations::unwrapRow<SweepNPruneBroadphase::NewMinX>(tempTable),
-            TableOperations::unwrapRow<SweepNPruneBroadphase::NewMaxX>(tempTable),
-            posX.mElements.data() + oldDestinationEnd,
-            config,
-            std::get<SweepNPruneBroadphase::NeedsReinsert>(tempTable.mRows));
-          SweepNPruneBroadphase::recomputeBoundaries(
-            TableOperations::unwrapRow<SweepNPruneBroadphase::OldMinY>(tempTable),
-            TableOperations::unwrapRow<SweepNPruneBroadphase::OldMaxY>(tempTable),
-            TableOperations::unwrapRow<SweepNPruneBroadphase::NewMinY>(tempTable),
-            TableOperations::unwrapRow<SweepNPruneBroadphase::NewMaxY>(tempTable),
-            posY.mElements.data() + oldDestinationEnd,
-            config,
-            std::get<SweepNPruneBroadphase::NeedsReinsert>(tempTable.mRows));
-
-          Sweep2D& sweep = std::get<SharedRow<Sweep2D>>(broadphase.mRows).at();
-          SweepNPruneBroadphase::PairChanges& changes = std::get<SharedRow<SweepNPruneBroadphase::PairChanges>>(broadphase.mRows).at();
-
-          SweepNPrune::insertRange(
-            sweep,
-            TableOperations::_unwrapRowWithOffset<SweepNPruneBroadphase::NewMinX>(tempTable, 0),
-            TableOperations::_unwrapRowWithOffset<SweepNPruneBroadphase::NewMinY>(tempTable, 0),
-            TableOperations::_unwrapRowWithOffset<SweepNPruneBroadphase::NewMaxX>(tempTable, 0),
-            TableOperations::_unwrapRowWithOffset<SweepNPruneBroadphase::NewMaxY>(tempTable, 0),
-            //Point at the stable keys already in the destination, the rest comes from the temp table
-            TableOperations::_unwrapRowWithOffset<StableIDRow>(destinationFragments, oldDestinationEnd),
-            changes.mGained,
-            1);
+          Events::onMovedElement(args.resolvedID, *args.db);
         };
       }
     }

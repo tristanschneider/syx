@@ -50,6 +50,9 @@ namespace Player {
     const size_t cameraIndex = 0;
     PlayerTable& players = std::get<PlayerTable>(db.mTables);
     TableOperations::stableResizeTable(players, UnpackedDatabaseElementID::fromPacked(GameDatabase::getTableIndex<PlayerTable>()), 1, stableMappings);
+    StableIDRow& stableRow = std::get<StableIDRow>(players.mRows);
+    Events::onNewElement(StableElementID::fromStableRow(0, stableRow), game);
+
     std::get<FloatRow<Rot, CosAngle>>(players.mRows).at(0) = 1.0f;
     //Random angle in sort of radians
     const float playerStartAngle = float(generator() % 360)*6.282f/360.0f;

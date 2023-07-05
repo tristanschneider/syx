@@ -30,12 +30,6 @@ namespace PhysicsSimulation {
 
   SweepNPruneBroadphase::BoundariesConfig _getBoundariesConfig() {
     SweepNPruneBroadphase::BoundariesConfig result;
-    return result;
-  }
-
-  SweepNPruneBroadphase::BoundariesConfig _getStaticBoundariesConfig() {
-    //Can fit more snugly since they are axis aligned
-    SweepNPruneBroadphase::BoundariesConfig result;
     result.mPadding = 0.0f;
     return result;
   }
@@ -56,86 +50,30 @@ namespace PhysicsSimulation {
     auto& globals = std::get<GlobalGameData>(db.mTables);
     const PhysicsTableIds& physicsTables = std::get<SharedRow<PhysicsTableIds>>(globals.mRows).at();
     SweepNPruneBroadphase::ChangedCollisionPairs& changedPairs = std::get<SharedRow<SweepNPruneBroadphase::ChangedCollisionPairs>>(broadphase.mRows).at();
+    auto& grid = std::get<SharedRow<Broadphase::SweepGrid::Grid>>(broadphase.mRows).at();
+    auto cfg = _getBoundariesConfig();
 
-    auto root = std::make_shared<TaskNode>();
-    struct BroadphaseTasks {
-      std::vector<std::function<void()>> mSyncCallbacks;
-    };
-    auto broadphaseTasks = std::make_shared<BroadphaseTasks>();
-
-    Queries::viewEachRow<SweepNPruneBroadphase::OldMinX,
-      SweepNPruneBroadphase::OldMinY,
-      SweepNPruneBroadphase::OldMaxX,
-      SweepNPruneBroadphase::OldMaxY,
-      SweepNPruneBroadphase::NewMinX,
-      SweepNPruneBroadphase::NewMinY,
-      SweepNPruneBroadphase::NewMaxX,
-      SweepNPruneBroadphase::NewMaxY,
-      SweepNPruneBroadphase::NeedsReinsert,
-      FloatRow<Pos, X>,
-      FloatRow<Pos, Y>,
-      SweepNPruneBroadphase::Key>(db,
-        [&](
-      SweepNPruneBroadphase::OldMinX& oldMinX,
-      SweepNPruneBroadphase::OldMinY& oldMinY,
-      SweepNPruneBroadphase::OldMaxX& oldMaxX,
-      SweepNPruneBroadphase::OldMaxY& oldMaxY,
-      SweepNPruneBroadphase::NewMinX& newMinX,
-      SweepNPruneBroadphase::NewMinY& newMinY,
-      SweepNPruneBroadphase::NewMaxX& newMaxX,
-      SweepNPruneBroadphase::NewMaxY& newMaxY,
-      SweepNPruneBroadphase::NeedsReinsert& needsReinsert,
+    std::vector<SweepNPruneBroadphase::BoundariesQuery> bQuery;
+    Queries::viewEachRow(db, [&](
       FloatRow<Pos, X>& posX,
       FloatRow<Pos, Y>& posY,
-      SweepNPruneBroadphase::Key& key) {
-      auto needsUpdateX = std::make_shared<bool>();
-      auto needsUpdateY = std::make_shared<bool>();
-      root->mChildren.push_back(TaskNode::create([&, needsUpdateX](...) {
-        PROFILE_SCOPE("physics", "recomputeBoundaryX");
-        auto config = _getBoundariesConfig();
-        *needsUpdateX = SweepNPruneBroadphase::recomputeBoundaries(oldMinX.mElements.data(), oldMaxX.mElements.data(), newMinX.mElements.data(), newMaxX.mElements.data(), posX.mElements.data(), config, needsReinsert);
-      }));
-      root->mChildren.push_back(TaskNode::create([&, needsUpdateY](...) {
-        PROFILE_SCOPE("physics", "recomputeBoundaryY");
-        auto config = _getBoundariesConfig();
-        *needsUpdateY = SweepNPruneBroadphase::recomputeBoundaries(oldMinY.mElements.data(), oldMaxY.mElements.data(), newMinY.mElements.data(), newMaxY.mElements.data(), posY.mElements.data(), config, needsReinsert);
-      }));
-      //Final step must be done with exclusive access to broadphase and collision tables
-      broadphaseTasks->mSyncCallbacks.push_back([&, needsUpdateX, needsUpdateY] {
-        PROFILE_SCOPE("physics", "broadphaseSync");
-        if(*needsUpdateX || *needsUpdateY) {
-          SweepNPruneBroadphase::reinsertRangeAsNeeded(needsReinsert,
-            broadphase,
-            oldMinX,
-            oldMinY,
-            oldMaxX,
-            oldMaxY,
-            newMinX,
-            newMinY,
-            newMaxX,
-            newMaxY,
-            key);
-        }
-
-        SweepNPruneBroadphase::updateCollisionPairs<CollisionPairIndexA, CollisionPairIndexB, GameDatabase>(
-          std::get<SharedRow<SweepNPruneBroadphase::PairChanges>>(broadphase.mRows).at(),
-          std::get<SharedRow<SweepNPruneBroadphase::CollisionPairMappings>>(broadphase.mRows).at(),
-          collisionPairs,
-          physicsTables,
-          TableAdapters::getStableMappings({ db } ),
-          changedPairs);
-      });
+      SweepNPruneBroadphase::BroadphaseKeys& keys) {
+        bQuery.push_back({ &posX, &posY, &keys });
     });
 
-    //Once all updates are computed, run the synchronous callbacks
-    auto finalize = TaskNode::create([broadphaseTasks](...) {
-      for(auto&& callback : broadphaseTasks->mSyncCallbacks) {
-        callback();
-      }
+    TaskRange boundaries = SweepNPruneBroadphase::updateBoundaries(grid, std::move(bQuery), cfg);
+    TaskRange computePairs = SweepNPruneBroadphase::computeCollisionPairs(broadphase);
+    auto updatePairs = TaskNode::create([&broadphase, &collisionPairs, &changedPairs, &physicsTables, &db](...) {
+      SweepNPruneBroadphase::updateCollisionPairs<CollisionPairIndexA, CollisionPairIndexB, GameDatabase>(
+        std::get<SharedRow<SweepNPruneBroadphase::PairChanges>>(broadphase.mRows).at(),
+        std::get<SharedRow<SweepNPruneBroadphase::CollisionPairMappings>>(broadphase.mRows).at(),
+        collisionPairs,
+        physicsTables,
+        TableAdapters::getStableMappings({ db } ),
+        changedPairs);
     });
-    TaskBuilder::_addSyncDependency(*root, finalize);
 
-    return { root, finalize };
+    return boundaries.then(computePairs).then(TaskBuilder::addEndSync(updatePairs));
   }
 
   TaskRange _updateNarrowphase(GameDatabase& db, const Config::PhysicsConfig&) {
@@ -224,6 +162,12 @@ namespace PhysicsSimulation {
 
   void init(GameDB game) {
     *TableAdapters::getGlobals(game).physicsTables = _getPhysicsTableIds();
+    auto& grid = std::get<SharedRow<Broadphase::SweepGrid::Grid>>(std::get<BroadphaseTable>(game.db.mTables).mRows).at();
+    grid.definition.bottomLeft = glm::vec2{ -1000.0f, -1000.0f };
+    grid.definition.cellSize = glm::vec2{ 20.0f, 20.0f };
+    grid.definition.cellsX = 100;
+    grid.definition.cellsY = 100;
+    Broadphase::SweepGrid::init(grid);
   }
 
   TaskRange updatePhysics(GameDB game) {
@@ -300,53 +244,13 @@ namespace PhysicsSimulation {
     return { root, postSolve };
   }
 
-  void initialPopulateBroadphase(GameDB game) {
-    GameDatabase& db = game.db;
-    auto& broadphase = std::get<BroadphaseTable>(db.mTables);
-    Queries::viewEachRow<
-      FloatRow<Pos, X>,
-      FloatRow<Pos, Y>,
-      SweepNPruneBroadphase::OldMinX,
-      SweepNPruneBroadphase::OldMinY,
-      SweepNPruneBroadphase::OldMaxX,
-      SweepNPruneBroadphase::OldMaxY,
-      SweepNPruneBroadphase::NewMinX,
-      SweepNPruneBroadphase::NewMinY,
-      SweepNPruneBroadphase::NewMaxX,
-      SweepNPruneBroadphase::NewMaxY,
-      SweepNPruneBroadphase::NeedsReinsert,
-      SweepNPruneBroadphase::Key>(db,
-        [&](
-      FloatRow<Pos, X>& posX,
-      FloatRow<Pos, Y>& posY,
-      SweepNPruneBroadphase::OldMinX& oldMinX,
-      SweepNPruneBroadphase::OldMinY& oldMinY,
-      SweepNPruneBroadphase::OldMaxX& oldMaxX,
-      SweepNPruneBroadphase::OldMaxY& oldMaxY,
-      SweepNPruneBroadphase::NewMinX& newMinX,
-      SweepNPruneBroadphase::NewMinY& newMinY,
-      SweepNPruneBroadphase::NewMaxX& newMaxX,
-      SweepNPruneBroadphase::NewMaxY& newMaxY,
-      SweepNPruneBroadphase::NeedsReinsert& needsReinsert,
-      SweepNPruneBroadphase::Key& key) {
-
-      auto config = _getBoundariesConfig();
-      SweepNPruneBroadphase::recomputeBoundaries(oldMinX.mElements.data(), oldMaxX.mElements.data(), newMinX.mElements.data(), newMaxX.mElements.data(), posX.mElements.data(), config, needsReinsert);
-      SweepNPruneBroadphase::recomputeBoundaries(oldMinY.mElements.data(), oldMaxY.mElements.data(), newMinY.mElements.data(), newMaxY.mElements.data(), posY.mElements.data(), config, needsReinsert);
-      //These values were set by recomputeBoundaries but don't matter for the initial insert, reset them
-      std::fill(needsReinsert.begin(), needsReinsert.end(), uint8_t(0));
-
-      SweepNPruneBroadphase::insertRange(size_t(0), oldMinX.size(),
-        broadphase,
-        oldMinX,
-        oldMinY,
-        oldMaxX,
-        oldMaxY,
-        newMinX,
-        newMinY,
-        newMaxX,
-        newMaxY,
-        key);
+  TaskRange processEvents(GameDB db) {
+    auto root = TaskNode::create([db](...) {
+      auto resolver = TableResolver<PosX, PosY, SweepNPruneBroadphase::BroadphaseKeys, StableIDRow, SharedRow<IsImmobile>>::create(db.db);
+      const DBEvents& events = Events::getPublishedEvents(db);
+      auto& grid = std::get<SharedRow<Broadphase::SweepGrid::Grid>>(std::get<BroadphaseTable>(db.db.mTables).mRows).at();
+      SweepNPruneBroadphase::processEvents(events, grid, resolver, _getBoundariesConfig(), GameDatabase::getDescription());
     });
+    return TaskBuilder::addEndSync(root);
   }
 }

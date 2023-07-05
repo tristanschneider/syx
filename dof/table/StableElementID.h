@@ -314,3 +314,9 @@ struct StableOperations {
     swapRemove(src, fromID, mappings);
   }
 };
+
+struct DBEvents {
+  std::vector<StableElementID> newElements;
+  std::vector<StableElementID> movedElements;
+  std::vector<StableElementID> toBeRemovedElements;
+};

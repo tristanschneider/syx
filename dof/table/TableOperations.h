@@ -409,3 +409,35 @@ struct TableModifierInstance {
   TableModifier modifier;
   void* table{};
 };
+
+template<class... Rows>
+struct TableResolver {
+  //template<class DB>
+  //TableResolver(DB& database)
+  //  : db{ &database }
+  //  , getters{ std::make_tuple(&TableResolver::tryGetRow<Rows, DB>...) } {
+  //}
+
+  template<class DB>
+  static TableResolver create(DB& db) {
+    return {
+      &db,
+      std::make_tuple(&TableResolver::tryGetRow<Rows, DB>...)
+    };
+  }
+
+  template<class Row, class DB>
+  static Row* tryGetRow(void* db, const UnpackedDatabaseElementID& id) {
+    return Queries::getRowInTable<Row>(*static_cast<DB*>(db), typename DB::ElementID{ id.mValue });
+  }
+  template<class Row>
+  using GetRowT = Row*(*)(void*, const UnpackedDatabaseElementID&);
+
+  template<class Row>
+  Row* tryGetRow(const UnpackedDatabaseElementID& id) {
+    return std::get<GetRowT<Row>>(getters)(db, id);
+  }
+
+  void* db{};
+  std::tuple<GetRowT<Rows>...> getters;
+};

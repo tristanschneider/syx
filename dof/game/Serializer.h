@@ -177,6 +177,9 @@ template<> struct Serializer<SharedRow<FileSystem>> : NoOpSerializer<SharedRow<F
 template<> struct Serializer<Row<TextureLoadRequest>> : NoOpSerializer<Row<TextureLoadRequest>>{};
 template<> struct Serializer<SharedRow<Config::GameConfig>> : NoOpSerializer<SharedRow<Config::GameConfig>>{};
 
+template<> struct Serializer<SweepNPruneBroadphase::BroadphaseKeys> : NoOpSerializer<SweepNPruneBroadphase::BroadphaseKeys>{};
+template<> struct Serializer<Events::EventsRow> : NoOpSerializer<Events::EventsRow>{};
+
 
 //TODO: restore this
 template<>
@@ -214,29 +217,7 @@ struct Serializer<SharedRow<ConstraintsTableMappings>> {
 };
 
 template<>
-struct Serializer<SharedRow<Sweep2D>> {
-  using SelfT = SharedRow<Sweep2D>;
-  static void serialize(const SelfT& toWrite, SerializeStream& stream) {
-    const auto& v = toWrite.at();
-    details::memCpySerialize(v.mX, stream);
-    details::memCpySerialize(v.mY, stream);
-    details::memCpySerialize(v.mGained, stream);
-    details::memCpySerialize(v.mLost, stream);
-    details::memCpySerialize(v.mContaining, stream);
-    details::memCpySerialize(v.mKeyToBoundaries, stream);
-  }
-
-  static bool deserialize(DeserializeStream& stream, SelfT& toRead) {
-    auto& v = toRead.at();
-    details::memCpyDeserialize(stream, v.mX);
-    details::memCpyDeserialize(stream, v.mY);
-    details::memCpyDeserialize(stream, v.mGained);
-    details::memCpyDeserialize(stream, v.mLost);
-    details::memCpyDeserialize(stream, v.mContaining);
-    details::memCpyDeserialize(stream, v.mKeyToBoundaries);
-    return true;
-  }
-};
+struct Serializer<SharedRow<Broadphase::SweepGrid::Grid>> : NoOpSerializer<SharedRow<Broadphase::SweepGrid::Grid>>{};
 
 template<>
 struct Serializer<SharedRow<SweepNPruneBroadphase::PairChanges>> {

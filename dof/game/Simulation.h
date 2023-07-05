@@ -12,6 +12,7 @@
 #include "Scheduler.h"
 #include "PhysicsTableIds.h"
 #include <bitset>
+#include "DBEvents.h"
 
 namespace Ability {
   struct AbilityInput;
@@ -131,6 +132,8 @@ using GlobalGameData = Table<
   SharedRow<ConstraintsTableMappings>,
   SharedRow<Scheduler>,
   SharedRow<Config::GameConfig>,
+  Events::EventsRow,
+
   ThreadLocalsRow,
   ExternalDatabasesRow
 >;
@@ -165,15 +168,7 @@ using GameObjectTable = Table<
   FloatRow<Tags::FragmentGoal, Tags::X>,
   FloatRow<Tags::FragmentGoal, Tags::Y>,
 
-  SweepNPruneBroadphase::OldMinX,
-  SweepNPruneBroadphase::OldMinY,
-  SweepNPruneBroadphase::OldMaxX,
-  SweepNPruneBroadphase::OldMaxY,
-  SweepNPruneBroadphase::NewMinX,
-  SweepNPruneBroadphase::NewMinY,
-  SweepNPruneBroadphase::NewMaxX,
-  SweepNPruneBroadphase::NewMaxY,
-  SweepNPruneBroadphase::NeedsReinsert,
+  SweepNPruneBroadphase::BroadphaseKeys,
 
   Row<CubeSprite>,
   FragmentGoalFoundRow,
@@ -195,6 +190,8 @@ using StaticGameObjectTable = Table<
   FloatRow<Tags::GPos, Tags::Y>,
   FloatRow<Tags::GRot, Tags::CosAngle>,
   FloatRow<Tags::GRot, Tags::SinAngle>,
+
+  SweepNPruneBroadphase::BroadphaseKeys,
 
   //Only requires broadphase key to know how to remove it, don't need to store boundaries
   //for efficient updates because it won't move
@@ -273,15 +270,7 @@ using PlayerTable = Table<
   FloatRow<Tags::GLinImpulse, Tags::Y>,
   FloatRow<Tags::GAngImpulse, Tags::Angle>,
 
-  SweepNPruneBroadphase::OldMinX,
-  SweepNPruneBroadphase::OldMinY,
-  SweepNPruneBroadphase::OldMaxX,
-  SweepNPruneBroadphase::OldMaxY,
-  SweepNPruneBroadphase::NewMinX,
-  SweepNPruneBroadphase::NewMinY,
-  SweepNPruneBroadphase::NewMaxX,
-  SweepNPruneBroadphase::NewMaxY,
-  SweepNPruneBroadphase::NeedsReinsert,
+  SweepNPruneBroadphase::BroadphaseKeys,
 
   Row<CubeSprite>,
   Row<PlayerInput>,
