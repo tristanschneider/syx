@@ -1,14 +1,14 @@
 #include "Precompile.h"
 #include "PhysicsModule.h"
 
-#include "PhysicsConfig.h"
+#include "config/Config.h"
 #include "Simulation.h"
 #include "TableAdapters.h"
 #include "imgui.h"
 #include "ImguiExt.h"
 
 void PhysicsModule::update(GameDB db) {
-  PhysicsConfig& config = *TableAdapters::getConfig(db).physics;
+  Config::PhysicsConfig& config = *TableAdapters::getConfig(db).physics;
 
   ImGui::Begin("Physics");
   bool force = config.mForcedTargetWidth.has_value();

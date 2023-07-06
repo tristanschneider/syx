@@ -23,20 +23,24 @@ namespace Broadphase {
     };
   }
 
-  bool isOverlapping(const ElementBounds& l, const ElementBounds& r) {
-    if(l.bounds.second < r.bounds.first) {
+  bool isOverlapping(const std::pair<float, float>& l, const std::pair<float, float>& r) {
+    if(l.second < r.first) {
       //L entirely less than R
       return false;
     }
-    if(l.bounds.first > r.bounds.second) {
+    if(l.first > r.second) {
       //L entirely greater than R
       return false;
     }
     return true;
   }
 
+  bool isOverlapping(const ElementBounds& l, const ElementBounds& r) {
+    return isOverlapping(l.bounds, r.bounds);
+  }
+
   //Left is a start element moving back over right
-  void logSwapBackStart(const ElementBounds& left, SweepElement right, const std::pair<float, float>* bounds, SwapLog& log) {
+  void logSwapBackStart(const ElementBounds& left, SweepElement right, const std::pair<float, float>* bounds, CollisionCandidates& candidates) {
     if(right.isStart()) {
       //Left start passed over right start meaning left end might still be within it, nothing to do yet
     }
@@ -44,13 +48,13 @@ namespace Broadphase {
       //Left start passed over right end, starting to overlap with right edge
       const auto r = unwrapElement(right, bounds);
       if(isOverlapping(left, r)) {
-        log.gains.emplace_back(BroadphaseKey{ left.element.getValue() }, BroadphaseKey{ r.element.getValue() });
+        candidates.pairs.emplace_back(left.element.getValue(), r.element.getValue());
       }
     }
   }
 
   //Left is an end element moving back over right
-  void logSwapBackEnd(const ElementBounds& left, SweepElement right, const std::pair<float, float>* bounds, SwapLog& log) {
+  void logSwapBackEnd(const ElementBounds& left, SweepElement right, const std::pair<float, float>* bounds, CollisionCandidates& candidates) {
     if(right.isEnd()) {
       //Left end moved over right end meaning left end might still be within right start, nothing to do yet
     }
@@ -58,7 +62,7 @@ namespace Broadphase {
       //Left end swapped over right begin, overlap may have ended
       const auto r = unwrapElement(right, bounds);
       if(!isOverlapping(left, r)) {
-        log.losses.emplace_back(BroadphaseKey{ left.element.getValue() }, BroadphaseKey{ r.element.getValue() });
+        candidates.pairs.emplace_back(left.element.getValue(), r.element.getValue());
       }
     }
   }
@@ -66,7 +70,7 @@ namespace Broadphase {
   void insertionSort(SweepElement* first,
     SweepElement* last,
     const std::pair<float, float>* bounds,
-    SwapLog& log) {
+    CollisionCandidates& candidates) {
     if(first == last) {
       return;
     }
@@ -79,11 +83,11 @@ namespace Broadphase {
 
       //Found new earliest element, move to front
       if(valueBounds.value < firstBounds.value) {
-        SweepElement* current = mid - 1;
+        SweepElement* current = mid;
         //Swap this element with all between first and mid, shifting right to make space
         while(current != first) {
-          logSwap(valueBounds, *current, bounds, log);
-          *(current + 1) = *current;
+          logSwap(valueBounds, *current, bounds, candidates);
+          *current = *(current - 1);
           --current;
         }
         //Insert element at beginning
@@ -98,12 +102,12 @@ namespace Broadphase {
             break;
           }
 
-          logSwap(valueBounds, *current, bounds, log);
+          logSwap(valueBounds, *current, bounds, candidates);
           *(current + 1) = *current;
           --current;
         }
         //Insert element at new insertion point
-        *current = value;
+        *(current + 1) = value;
       }
     }
   }
@@ -122,17 +126,20 @@ namespace Broadphase {
       const UserKey* userKeys,
       BroadphaseKey* outKeys,
       size_t count) {
-      size_t newAxisIndex = sweep.axis[0].elements.size();
+      BroadphaseKey newKey = { sweep.userKey.size() };
       if(count > sweep.freeList.size()) {
         const size_t slotsNeeded = count - sweep.freeList.size();
         for(size_t s = 0; s < Sweep2D::S; ++s) {
           sweep.bounds[s].resize(sweep.bounds[s].size() + slotsNeeded);
-          sweep.axis[s].elements.resize(sweep.axis[s].elements.size() + (slotsNeeded * 2));
         }
         sweep.userKey.resize(sweep.userKey.size() + slotsNeeded);
       }
+      //Axis doesn't use the free list, always add to end
+      size_t newAxisIndex = sweep.axis[0].elements.size();
+      for(size_t s = 0; s < Sweep2D::S; ++s) {
+        sweep.axis[s].elements.resize(sweep.axis[s].elements.size() + (count * 2));
+      }
 
-      BroadphaseKey newKey = { sweep.bounds[0].size() };
       for(size_t i = 0; i < count; ++i) {
         const BroadphaseKey k = getOrCreateKey(sweep.freeList, newKey);
 
@@ -142,9 +149,10 @@ namespace Broadphase {
         for(size_t d = 0; d < sweep.axis.size(); ++d) {
           sweep.bounds[d][k.value] = { Sweep2D::NEW, Sweep2D::NEW };
           //These are put at the end now and will be addressed in the next recomputePairs
-          sweep.axis[d].elements[newAxisIndex++] = SweepElement::createBegin(k);
-          sweep.axis[d].elements[newAxisIndex++] = SweepElement::createEnd(k);
+          sweep.axis[d].elements[newAxisIndex] = SweepElement::createBegin(k);
+          sweep.axis[d].elements[newAxisIndex + 1] = SweepElement::createEnd(k);
         }
+        newAxisIndex += 2;
       }
     }
 
@@ -183,13 +191,58 @@ namespace Broadphase {
       }
     }
 
-    void recomputePairs(Sweep2D& sweep, SwapLog& log) {
+    void recomputeCandidates(Sweep2D& sweep, CollisionCandidates& candidates) {
+      PROFILE_SCOPE("physics", "computeCandidates");
+
       for(size_t i = 0; i < Sweep2D::S; ++i) {
-        insertionSort(sweep.axis[i].elements.data(), sweep.axis[i].elements.data() + sweep.axis[i].elements.size(), sweep.bounds[i].data(), log);
+        insertionSort(sweep.axis[i].elements.data(), sweep.axis[i].elements.data() + sweep.axis[i].elements.size(), sweep.bounds[i].data(), candidates);
       }
-      //All removal events should have been logged, now insert removals into free list
-      sweep.freeList.insert(sweep.freeList.end(), sweep.pendingRemoval.begin(), sweep.pendingRemoval.end());
-      sweep.pendingRemoval.clear();
+      //All removal events should have been logged, now insert removals into free list and trim them off the end of the axes
+      //Removals would always be at the end because REMOVED is float max and it was just sorted above
+      if(size_t toRemove = sweep.pendingRemoval.size()) {
+        for(size_t i = 0; i < Sweep2D::S; ++i) {
+          sweep.axis[i].elements.resize(sweep.axis[i].elements.size() - sweep.pendingRemoval.size()*2);
+        }
+        sweep.freeList.insert(sweep.freeList.end(), sweep.pendingRemoval.begin(), sweep.pendingRemoval.end());
+        sweep.pendingRemoval.clear();
+      }
+    }
+
+    void resolveCandidates(Sweep2D& sweep, CollisionCandidates& collisionCandidates, SwapLog log) {
+      PROFILE_SCOPE("physics", "resolveCandidates");
+
+      //Remove duplicates. A side benefit of sorted remove is the memory access of bounds is potentially more linear
+      std::vector<SweepCollisionPair>& candidates = collisionCandidates.pairs;
+      std::sort(candidates.begin(), candidates.end());
+      candidates.erase(std::unique(candidates.begin(), candidates.end()), candidates.end());
+      //Now double check the bounds of the candidates, both to determine if it was a gain and loss and also to confirm in the first place
+      for(const SweepCollisionPair& candidate : candidates) {
+        bool isColliding = true;
+        for(size_t d = 0; d < Sweep2D::S; ++d) {
+          //Candidates res-use SweepCollisionPair for convenience but contain broadphase keys, not user keys, so can be used to get bounds here
+          if(!isOverlapping(sweep.bounds[d][candidate.a], sweep.bounds[d][candidate.b])) {
+            isColliding = false;
+            break;
+          }
+        }
+        const SweepCollisionPair userPair{ sweep.userKey[candidate.a], sweep.userKey[candidate.b] };
+        //The collision information is accurate but it can produce redundant events particular for removals for pairs that weren't colliding in the first place
+        if(isColliding) {
+          if(sweep.trackedPairs.insert(userPair).second) {
+            log.gains.emplace_back(userPair);
+          }
+        }
+        else if(auto it = sweep.trackedPairs.find(userPair); it != sweep.trackedPairs.end()) {
+          sweep.trackedPairs.erase(it);
+          log.losses.emplace_back(userPair);
+        }
+      }
+      candidates.clear();
+    }
+
+    void recomputePairs(Sweep2D& sweep, CollisionCandidates& candidates, SwapLog& log) {
+      recomputeCandidates(sweep, candidates);
+      resolveCandidates(sweep, candidates, log);
     }
   };
 
@@ -204,8 +257,8 @@ namespace Broadphase {
       size_t count) {
       BroadphaseKey newKey{ grid.mappings.mappings.size() };
       if(count > grid.freeList.size()) {
-        grid.mappings.mappings.resize(count - grid.freeList.size());
-        grid.mappings.userKeys.reserve(grid.mappings.mappings.size());
+        grid.mappings.mappings.resize(grid.mappings.mappings.size() + count - grid.freeList.size());
+        grid.mappings.userKeys.resize(grid.mappings.mappings.size());
       }
       //Assign the keys a slot but don't map them to any internal cells yet since bounds aren't known
       //This will happen during updateBoundaries
@@ -321,7 +374,7 @@ namespace Broadphase {
           }
           else {
             Sweep2D& cell = grid.cells[current.cellKey.value];
-            SweepNPrune::eraseRange(cell, &current.cellKey, 1);
+            SweepNPrune::eraseRange(cell, &current.elementKey, 1);
             removeMapping(currentMapping, c);
           }
         }
@@ -337,25 +390,21 @@ namespace Broadphase {
 
         //Now actually write the bounds. This could be split into a separate step if the grid itself kept a copy of all bounds
         for(size_t e = 0; e < c; ++e) {
-          SweepNPrune::updateBoundaries(grid.cells[currentMapping.publicToPrivate[e].cellKey.value],
+          const Broadphase::SweepGrid::CellKey& key = currentMapping.publicToPrivate[e];
+          SweepNPrune::updateBoundaries(grid.cells[key.cellKey.value],
             minX + i,
             maxX + i,
             minY + i,
             maxY + i,
-            keys + i, 1);
+            &key.elementKey, 1);
         }
-      }
-    }
-
-    void recomputePairs(Grid& grid, SwapLog& log) {
-      for(Sweep2D& sweep : grid.cells) {
-        SweepNPrune::recomputePairs(sweep, log);
       }
     }
 
     TaskRange recomputePairs(Grid& grid, SwapLog finalResults) {
       struct TaskData {
         std::vector<Broadphase::SweepCollisionPair> gains, losses;
+        Broadphase::CollisionCandidates candidates;
       };
       struct Tasks {
         std::vector<TaskData> tasks;
@@ -371,7 +420,8 @@ namespace Broadphase {
           };
           log.gains.clear();
           log.losses.clear();
-          SweepNPrune::recomputePairs(grid.cells[i], log);
+          data->tasks[i].candidates.pairs.clear();
+          SweepNPrune::recomputePairs(grid.cells[i], data->tasks[i].candidates, log);
         }
       });
       auto configureTasks = TaskNode::create([processOne, data, &grid](...) {

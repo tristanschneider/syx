@@ -15,38 +15,64 @@ namespace Broadphase {
     bool operator!=(const BroadphaseKey& rhs) const {
       return !(*this == rhs);
     }
+    bool operator<(const BroadphaseKey& rhs) const {
+      return value < rhs.value;
+    }
     size_t value{};
   };
 
   struct SweepCollisionPair {
     SweepCollisionPair() = default;
-    SweepCollisionPair(BroadphaseKey ka, BroadphaseKey kb)
+    SweepCollisionPair(UserKey ka, UserKey kb)
       : a{ ka }
       , b{ kb } {
-      if(a.value > b.value) {
+      if(a > b) {
         std::swap(a, b);
       }
     }
 
     bool operator==(const SweepCollisionPair& r) const {
-      return a.value == r.a.value && b.value == r.b.value;
+      return a == r.a && b == r.b;
     }
 
     bool operator<(const SweepCollisionPair& r) const {
-      return a.value == r.b.value ? b.value < r.b.value : a.value < r.a.value;
+      return a == r.b ? b < r.b : a < r.a;
     }
 
-    BroadphaseKey a{};
-    BroadphaseKey b{};
+    UserKey a{};
+    UserKey b{};
   };
+}
 
+template<>
+struct std::hash<Broadphase::SweepCollisionPair> {
+  std::size_t operator()(const Broadphase::SweepCollisionPair& s) const noexcept {
+    std::hash<size_t> h;
+    //cppreference hash combine example
+    return h(s.a) ^ (h(s.b) << 1);
+  }
+};
+
+namespace Broadphase {
   struct SwapLog {
     std::vector<SweepCollisionPair>& gains;
     std::vector<SweepCollisionPair>& losses;
   };
 
+  struct CollisionCandidates {
+    std::vector<SweepCollisionPair> pairs;
+  };
+
   struct SweepElement {
     static constexpr size_t START_BIT = size_t(1) << (sizeof(size_t)*8 - 1);
+
+    bool operator==(const SweepElement& rhs) const {
+      return value == rhs.value;
+    }
+
+    bool operator<(const SweepElement& rhs) const {
+      return value < rhs.value;
+    }
 
     static SweepElement createBegin(BroadphaseKey v) {
       return { v.value | START_BIT };
@@ -89,6 +115,7 @@ namespace Broadphase {
     std::vector<BroadphaseKey> freeList;
     //Keys recently marked for removal but won't be moved to the free list until the next recomputePairs
     std::vector<BroadphaseKey> pendingRemoval;
+    std::unordered_set<SweepCollisionPair> trackedPairs;
   };
 
   namespace SweepNPrune {
@@ -111,7 +138,9 @@ namespace Broadphase {
       const BroadphaseKey* keys,
       size_t count);
 
-    void recomputePairs(Sweep2D& sweep, SwapLog& log);
+    void recomputeCandidates(Sweep2D& sweep, CollisionCandidates& candidates);
+    void resolveCandidates(Sweep2D& sweep, CollisionCandidates& candidates, SwapLog log);
+    void recomputePairs(Sweep2D& sweep, CollisionCandidates& candidates, SwapLog& log);
   };
 
   //TODO: dealing with keys is complicated
@@ -169,16 +198,5 @@ namespace Broadphase {
       size_t count);
 
     TaskRange recomputePairs(Grid& grid, SwapLog finalResults);
-    void recomputePairs(Grid& sweep, SwapLog& log);
   }
 }
-
-
-template<>
-struct std::hash<Broadphase::SweepCollisionPair> {
-  std::size_t operator()(const Broadphase::SweepCollisionPair& s) const noexcept {
-    std::hash<size_t> h;
-    //cppreference hash combine example
-    return h(s.a.value) ^ (h(s.b.value) << 1);
-  }
-};

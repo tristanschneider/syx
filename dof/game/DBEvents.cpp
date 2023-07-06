@@ -2,6 +2,7 @@
 #include "DBEvents.h"
 
 #include "Simulation.h"
+#include "TableAdapters.h"
 
 namespace Events {
   using LockT = std::lock_guard<std::mutex>;
@@ -62,16 +63,28 @@ namespace Events {
     ctx.impl.events.toBeRemovedElements.clear();
   }
 
-  void publishEvents(GameDB game) {
-    EventsContext ctx{ _getContext(game) };
-    EventsInstance& instance = _getInstance(game);
-    instance.publishedEvents.movedElements.swap(ctx.impl.events.movedElements);
-    instance.publishedEvents.newElements.swap(ctx.impl.events.newElements);
-    instance.publishedEvents.toBeRemovedElements.swap(ctx.impl.events.toBeRemovedElements);
+  void resolve(std::vector<StableElementID>& id, const StableElementMappings& mappings) {
+    for(StableElementID& i : id) {
+      i = StableOperations::tryResolveStableID(i, mappings).value_or(i);
+    }
+  }
 
-    ctx.impl.events.movedElements.clear();
-    ctx.impl.events.newElements.clear();
-    ctx.impl.events.toBeRemovedElements.clear();
+  void publishEvents(GameDB game) {
+    EventsInstance& instance = _getInstance(game);
+    {
+      EventsContext ctx{ _getContext(game) };
+      instance.publishedEvents.movedElements.swap(ctx.impl.events.movedElements);
+      instance.publishedEvents.newElements.swap(ctx.impl.events.newElements);
+      instance.publishedEvents.toBeRemovedElements.swap(ctx.impl.events.toBeRemovedElements);
+
+      ctx.impl.events.movedElements.clear();
+      ctx.impl.events.newElements.clear();
+      ctx.impl.events.toBeRemovedElements.clear();
+    }
+    StableElementMappings& mappings = TableAdapters::getStableMappings(game);
+    resolve(instance.publishedEvents.movedElements, mappings);
+    resolve(instance.publishedEvents.newElements, mappings);
+    resolve(instance.publishedEvents.toBeRemovedElements, mappings);
   }
 
   const DBEvents& getPublishedEvents(GameDB game) {

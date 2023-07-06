@@ -161,6 +161,9 @@ namespace PhysicsSimulation {
   }
 
   void init(GameDB game) {
+    Queries::viewEachRow(game.db, [](SweepNPruneBroadphase::BroadphaseKeys& keys) {
+      keys.mDefaultValue = Broadphase::SweepGrid::EMPTY_KEY;
+    });
     *TableAdapters::getGlobals(game).physicsTables = _getPhysicsTableIds();
     auto& grid = std::get<SharedRow<Broadphase::SweepGrid::Grid>>(std::get<BroadphaseTable>(game.db.mTables).mRows).at();
     grid.definition.bottomLeft = glm::vec2{ -1000.0f, -1000.0f };

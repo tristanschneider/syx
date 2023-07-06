@@ -5,8 +5,8 @@
 
 namespace SweepNPruneBroadphase {
   std::optional<std::pair<StableElementID, StableElementID>> _tryGetOrderedCollisionPair(const Broadphase::SweepCollisionPair& key, const PhysicsTableIds& tableIds, StableElementMappings& stableMappings, bool assertIfMissing) {
-    auto elementA = stableMappings.findKey(key.a.value);
-    auto elementB = stableMappings.findKey(key.b.value);
+    auto elementA = stableMappings.findKey(key.a);
+    auto elementB = stableMappings.findKey(key.b);
     if(assertIfMissing) {
       assert(elementA);
       assert(elementB);

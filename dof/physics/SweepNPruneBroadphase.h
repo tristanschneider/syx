@@ -134,10 +134,6 @@ namespace SweepNPruneBroadphase {
           *gained = changes.mGained.back();
           changes.mGained.pop_back();
         }
-        else {
-          printf("didn't find pair to remove");
-          //assert(false);
-        }
       }
       changes.mLost.clear();
     }
@@ -160,6 +156,9 @@ namespace SweepNPruneBroadphase {
       size_t addIndex = gainBegin;
       for(size_t i = 0; i < changes.mGained.size(); ++i) {
         Broadphase::SweepCollisionPair gain = changes.mGained[i];
+        if(mappings.mSweepPairToCollisionTableIndex.find(gain) != mappings.mSweepPairToCollisionTableIndex.end()) {
+          continue;
+        }
 
         //Assign pair indices, the mappings are populated upon insertion and when objects move tables
         //If this isn't an applicable pair, skip to the next without incrementing addIndex
@@ -168,7 +167,6 @@ namespace SweepNPruneBroadphase {
           pairB.at(addIndex) = pair->second;
 
           //Assign mappings so this can be found above in removal
-          assert(mappings.mSweepPairToCollisionTableIndex.find(gain) == mappings.mSweepPairToCollisionTableIndex.end());
           mappings.mCollisionTableIndexToSweepPair[addIndex] = gain;
           mappings.mSweepPairToCollisionTableIndex[gain] = addIndex;
 

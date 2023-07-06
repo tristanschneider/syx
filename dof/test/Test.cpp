@@ -34,6 +34,7 @@ namespace Test {
     //Boundary of broadphase and forces. Default should be enough to keep it out of the way
     glm::vec2 boundaryMin{ -100 };
     glm::vec2 boundaryMax{ 100 };
+    bool enableFragmentGoals{ false };
   };
 
   struct TestGame {
@@ -70,8 +71,20 @@ namespace Test {
     void init(const GameArgs& args) {
       StableElementMappings& stable = TableAdapters::getStableMappings(*this);
 
+      if(!args.enableFragmentGoals) {
+        TableAdapters::getConfig(*this).game->fragment.fragmentGoalDistance = - 1.0f;
+      }
+
       TableOperations::stableResizeTableDB<GameObjectTable>(db, args.fragmentCount, stable);
       TableOperations::stableResizeTableDB<StaticGameObjectTable>(db, args.completedFragmentCount, stable);
+      StableIDRow* stableRow = TableAdapters::getGameObjects({ db }).stable;
+      for(size_t i = 0; i < args.fragmentCount; ++i) {
+        Events::onNewElement(StableElementID::fromStableRow(i, *stableRow), { db });
+      }
+      stableRow = TableAdapters::getStaticGameObjects({ db }).stable;
+      for(size_t i = 0; i < args.completedFragmentCount; ++i) {
+        Events::onNewElement(StableElementID::fromStableRow(i, *stableRow), { db });
+      }
 
       GlobalsAdapter globals = TableAdapters::getGlobals(*this);
       globals.scene->mState = SceneState::State::Update;
@@ -81,14 +94,15 @@ namespace Test {
       if(args.playerPos) {
         createPlayer(*args.playerPos);
       }
-
-      PhysicsSimulation::initialPopulateBroadphase(*this);
+      //Update once to run events which will populate the broadphase
+      update();
     }
 
     void createPlayer(const glm::vec2& pos) {
       PlayerAdapter player = TableAdapters::getPlayer(*this);
       auto& stable = TableAdapters::getStableMappings(*this);
       TableOperations::stableResizeTableDB<PlayerTable>(db, 1, stable);
+      Events::onNewElement(StableElementID::fromStableRow(player.object.transform.posX->size() - 1, *player.object.stable), *this);
 
       player.object.transform.posX->at(0) = pos.x;
       player.object.transform.posY->at(0) = pos.y;
@@ -360,96 +374,8 @@ namespace Test {
       }
     }
 
-    static void _fillNarrowphaseData(GameDatabase& db) {
-      auto& pairs = std::get<CollisionPairsTable>(db.mTables);
-      _execute(Physics::fillNarrowphaseData<
-        FloatRow<Tags::Pos, Tags::X>,
-        FloatRow<Tags::Pos, Tags::Y>,
-        FloatRow<Tags::Rot, Tags::CosAngle>,
-        FloatRow<Tags::Rot, Tags::SinAngle>>(pairs, db, _getStableMappings(db), PhysicsSimulation::_getPhysicsTableIds()));
-    }
-
-    static void _fillConstraintVelocities(GameDatabase& db) {
-      auto& constraints = std::get<ConstraintCommonTable>(db.mTables);
-      _execute(Physics::fillConstraintVelocities<
-        FloatRow<Tags::LinVel, Tags::X>,
-        FloatRow<Tags::LinVel, Tags::Y>,
-        FloatRow<Tags::AngVel, Tags::Angle>>(constraints, db));
-    }
-
-    static void _storeConstraintVelocities(GameDatabase& db) {
-      auto& constraints = std::get<ConstraintCommonTable>(db.mTables);
-      _execute(Physics::storeConstraintVelocities<
-        FloatRow<Tags::LinVel, Tags::X>,
-        FloatRow<Tags::LinVel, Tags::Y>,
-        FloatRow<Tags::AngVel, Tags::Angle>>(constraints, db));
-    }
-
     static StableElementMappings& _getStableMappings(GameDatabase& db) {
       return std::get<SharedRow<StableElementMappings>>(std::get<GlobalGameData>(db.mTables).mRows).at();
-    }
-
-    template<class TableT>
-    static void _computeBroadphaseBoundaries(size_t index, TableT& table) {
-      //Hack to do it on just the one index since this is what's used to determine element count
-      SweepNPruneBroadphase::NeedsReinsert needsReinsert;
-      needsReinsert.resize(1);
-      SweepNPruneBroadphase::recomputeBoundaries(
-        TableOperations::_unwrapRowWithOffset<SweepNPruneBroadphase::OldMinX>(table, index),
-        TableOperations::_unwrapRowWithOffset<SweepNPruneBroadphase::OldMaxX>(table, index),
-        TableOperations::_unwrapRowWithOffset<SweepNPruneBroadphase::NewMinX>(table, index),
-        TableOperations::_unwrapRowWithOffset<SweepNPruneBroadphase::NewMaxX>(table, index),
-        TableOperations::_unwrapRowWithOffset<FloatRow<Tags::Pos, Tags::X>>(table, index),
-        {},
-        needsReinsert);
-      SweepNPruneBroadphase::recomputeBoundaries(
-        TableOperations::_unwrapRowWithOffset<SweepNPruneBroadphase::OldMinY>(table, index),
-        TableOperations::_unwrapRowWithOffset<SweepNPruneBroadphase::OldMaxY>(table, index),
-        TableOperations::_unwrapRowWithOffset<SweepNPruneBroadphase::NewMinY>(table, index),
-        TableOperations::_unwrapRowWithOffset<SweepNPruneBroadphase::NewMaxY>(table, index),
-        TableOperations::_unwrapRowWithOffset<FloatRow<Tags::Pos, Tags::Y>>(table, index),
-        {},
-        needsReinsert);
-    }
-
-    template<class TableT>
-    static void _insertBroadphase(size_t index, TableT& table, BroadphaseTable& broadphase) {
-      _computeBroadphaseBoundaries(index, table);
-      SweepNPruneBroadphase::insertRange(index, 1,
-        broadphase,
-        std::get<SweepNPruneBroadphase::OldMinX>(table.mRows),
-        std::get<SweepNPruneBroadphase::OldMinY>(table.mRows),
-        std::get<SweepNPruneBroadphase::OldMaxX>(table.mRows),
-        std::get<SweepNPruneBroadphase::OldMaxY>(table.mRows),
-        std::get<SweepNPruneBroadphase::NewMinX>(table.mRows),
-        std::get<SweepNPruneBroadphase::NewMinY>(table.mRows),
-        std::get<SweepNPruneBroadphase::NewMaxX>(table.mRows),
-        std::get<SweepNPruneBroadphase::NewMaxY>(table.mRows),
-        std::get<SweepNPruneBroadphase::Key>(table.mRows));
-    }
-
-    static void _updateCollisionPairs(GameDatabase& db) {
-      BroadphaseTable& broadphase = std::get<BroadphaseTable>(db.mTables);
-      auto& changes = std::get<SharedRow<SweepNPruneBroadphase::PairChanges>>(broadphase.mRows).at();
-      auto& mappings = std::get<SharedRow<SweepNPruneBroadphase::CollisionPairMappings>>(broadphase.mRows).at();
-      SweepNPruneBroadphase::ChangedCollisionPairs resultChanges;
-      SweepNPruneBroadphase::updateCollisionPairs<CollisionPairIndexA, CollisionPairIndexB, GameDatabase>
-        (changes, mappings, std::get<CollisionPairsTable>(db.mTables), PhysicsSimulation::_getPhysicsTableIds(), _getStableMappings(db), resultChanges);
-    }
-
-    template<class TableT>
-    static void _insertBroadphaseAndFillNarrowphase(GameDatabase& db, TableT& table, std::initializer_list<size_t> ids) {
-      for(size_t id : ids) {
-        _insertBroadphase(id, table, std::get<BroadphaseTable>(db.mTables));
-      }
-      _updateCollisionPairs(db);
-      _fillNarrowphaseData(db);
-    }
-
-    template<class TableT>
-    static void _insertBroadphaseAndFillNarrowphaseAndContacts(GameDatabase& db, TableT& table, std::initializer_list<size_t> ids) {
-      _insertBroadphaseAndFillNarrowphase(db, table, ids);
-      Physics::generateContacts(std::get<CollisionPairsTable>(db.mTables));
     }
 
     static PhysicsConfig _configWithPadding(size_t padding) {
@@ -464,15 +390,17 @@ namespace Test {
     }
 
     TEST_METHOD(CollidingPair_PopulateNarrowphase_IsPopulated) {
-      GameDatabase db;
-      auto& gameobjects = std::get<GameObjectTable>(db.mTables);
-      TableOperations::stableResizeTable(gameobjects, UnpackedDatabaseElementID::fromPacked(GameDatabase::getTableIndex<GameObjectTable>()), 2, _getStableMappings(db));
-      auto& posX = std::get<FloatRow<Tags::Pos, Tags::X>>(gameobjects.mRows);
-      posX.at(0) = 1.1f;
-      posX.at(1) = 1.2f;
+      TestGame game;
+      GameArgs args;
+      args.fragmentCount = 2;
+      game.init(args);
+      GameDatabase& db = game.db;
+      auto gameobjects = TableAdapters::getGameObjects(game);
+      gameobjects.transform.posX->at(0) = 1.1f;
+      gameobjects.transform.posX->at(1) = 1.2f;
       auto& pairs = std::get<CollisionPairsTable>(db.mTables);
 
-      _insertBroadphaseAndFillNarrowphase(db, gameobjects, { 0, 1 });
+      game.update();
 
       Assert::AreEqual(size_t(1), TableOperations::size(pairs));
       auto& narrowphasePosX = std::get<NarrowphaseData<PairA>::PosX>(pairs.mRows);
@@ -481,25 +409,29 @@ namespace Test {
     }
 
     TEST_METHOD(DistantPair_PopulateNarrowphase_NoPairs) {
-      GameDatabase db;
-      auto& gameobjects = std::get<GameObjectTable>(db.mTables);
-      TableOperations::stableResizeTable(gameobjects, UnpackedDatabaseElementID::fromPacked(GameDatabase::getTableIndex<GameObjectTable>()), 2, _getStableMappings(db));
-      auto& posX = std::get<FloatRow<Tags::Pos, Tags::X>>(gameobjects.mRows);
+      TestGame game;
+      GameArgs args;
+      args.fragmentCount = 2;
+      game.init(args);
+      GameDatabase& db = game.db;
+      auto& posX = *TableAdapters::getGameObjects(game).transform.posX;
       auto& pairs = std::get<CollisionPairsTable>(db.mTables);
       posX.at(0) = 1.0f;
       posX.at(1) = 5.0f;
 
-      _insertBroadphaseAndFillNarrowphase(db, gameobjects, { 0, 1 });
+      game.update();
 
       Assert::AreEqual(size_t(0), TableOperations::size(pairs));
     }
 
     TEST_METHOD(TwoPairsSameObject_GenerateCollisionPairs_HasPairs) {
-      GameDatabase db;
-      auto& gameobjects = std::get<GameObjectTable>(db.mTables);
-      TableOperations::stableResizeTable(gameobjects, UnpackedDatabaseElementID::fromPacked(GameDatabase::getTableIndex<GameObjectTable>()), 3, _getStableMappings(db));
+      TestGame game;
+      GameArgs args;
+      args.fragmentCount = 3;
+      game.init(args);
+      GameDatabase& db = game.db;
 
-      auto& posX = std::get<FloatRow<Tags::Pos, Tags::X>>(gameobjects.mRows);
+      auto& posX = *TableAdapters::getGameObjects(game).transform.posX;
       auto& pairs = std::get<CollisionPairsTable>(db.mTables);
       //This one to collide with both
       posX.at(0) = 5.0f;
@@ -508,7 +440,7 @@ namespace Test {
       //To the right, colliding with 0 but not 1
       posX.at(2) = 6.0f + SweepNPruneBroadphase::BoundariesConfig{}.mPadding;
 
-      _insertBroadphaseAndFillNarrowphase(db, gameobjects, { 0, 1, 2 });
+      game.update();
 
       Assert::AreEqual(size_t(2), TableOperations::size(pairs));
       std::pair<size_t, size_t> a, b;
@@ -524,21 +456,18 @@ namespace Test {
     }
 
     TEST_METHOD(CollidingPair_GenerateContacts_AreGenerated) {
-      GameDatabase db;
-      auto& gameobjects = std::get<GameObjectTable>(db.mTables);
-      TableOperations::stableResizeTable(gameobjects, UnpackedDatabaseElementID::fromPacked(GameDatabase::getTableIndex<GameObjectTable>()), 2, _getStableMappings(db));
-      auto& posX = std::get<FloatRow<Tags::Pos, Tags::X>>(gameobjects.mRows);
-      auto& cosAngle = std::get<FloatRow<Tags::Rot, Tags::CosAngle>>(gameobjects.mRows);
-      cosAngle.at(0) = 1.0f;
-      cosAngle.at(1) = 1.0f;
+      TestGame game;
+      GameArgs args;
+      args.fragmentCount = 2;
+      game.init(args);
+      GameDatabase& db = game.db;
+      auto& posX = *TableAdapters::getGameObjects(game).transform.posX;
       auto& pairs = std::get<CollisionPairsTable>(db.mTables);
       const float expectedOverlap = 0.1f;
       posX.at(0) = 5.0f;
       posX.at(1) = 6.0f - expectedOverlap;
 
-      _insertBroadphaseAndFillNarrowphase(db, gameobjects, { 0, 1 });
-
-      Physics::generateContacts(pairs);
+      game.update();
 
       Assert::AreEqual(size_t(1), TableOperations::size(pairs));
       const float e = 0.00001f;
@@ -548,40 +477,25 @@ namespace Test {
     }
 
     TEST_METHOD(CollidingPair_SolveConstraints_AreSeparated) {
-      GameDatabase db;
-      auto& gameobjects = std::get<GameObjectTable>(db.mTables);
-      TableOperations::stableResizeTable(gameobjects, UnpackedDatabaseElementID::fromPacked(GameDatabase::getTableIndex<GameObjectTable>()), 2, _getStableMappings(db));
-      auto& constraints = std::get<ConstraintsTable>(db.mTables);
-      auto& staticConstraints = std::get<ContactConstraintsToStaticObjectsTable>(db.mTables);
-      auto& commonConstraints = std::get<ConstraintCommonTable>(db.mTables);
-      auto& cosAngle = std::get<FloatRow<Tags::Rot, Tags::CosAngle>>(gameobjects.mRows);
-      cosAngle.at(0) = 1.0f;
-      cosAngle.at(1) = 1.0f;
-      auto& posX = std::get<FloatRow<Tags::Pos, Tags::X>>(gameobjects.mRows);
-      auto& velX = std::get<FloatRow<Tags::LinVel, Tags::X>>(gameobjects.mRows);
-      auto& angVel = std::get<FloatRow<Tags::AngVel, Tags::Angle>>(gameobjects.mRows);
+      TestGame game;
+      GameArgs args;
+      args.fragmentCount = 2;
+      game.init(args);
+      auto gameobjects = TableAdapters::getGameObjects(game);
       const float expectedOverlap = 0.1f;
-      posX.at(0) = 5.0f;
-      velX.at(0) = 1.0f;
-      posX.at(1) = 6.0f - expectedOverlap;
-      velX.at(1) = -1.0f;
+      gameobjects.transform.posX->at(0) = 5.0f;
+      gameobjects.physics.linVelX->at(0) = 1.0f;
+      gameobjects.transform.posX->at(1) = 6.0f - expectedOverlap;
+      gameobjects.physics.linVelX->at(1) = -1.0f;
 
-      _insertBroadphaseAndFillNarrowphaseAndContacts(db, gameobjects, { 0, 1 });
+      game.update();
 
-      _buildConstraintsTable(db, _configWithPadding(0));
-      _fillConstraintVelocities(db);
-
-      Physics::setupConstraints(constraints, staticConstraints);
-      for(int i = 0; i < 5; ++i) {
-        Physics::solveConstraints(constraints, staticConstraints, commonConstraints, {});
-      }
-      _storeConstraintVelocities(db);
       const glm::vec2 centerAToContact{ 0.4f, 0.5f };
       const glm::vec2 centerBToContact{ -0.5f, 0.5f };
       const glm::vec2 normal{ -1.0f, 0.0f };
       //Velocity of contact point as velocity of center plus the angular component which is angular velocity cross the center to contact projected onto the x axis
-      const float xVelocityOfAAtContactA = velX.at(0) - angVel.at(0)*centerAToContact.y;
-      const float xVelocityOfBAtContactA = velX.at(1) - angVel.at(1)*centerBToContact.y;
+      const float xVelocityOfAAtContactA = gameobjects.physics.linVelX->at(0) - gameobjects.physics.angVel->at(0)*centerAToContact.y;
+      const float xVelocityOfBAtContactA = gameobjects.physics.linVelX->at(1) - gameobjects.physics.angVel->at(1)*centerBToContact.y;
       const float velocityDifference = xVelocityOfAAtContactA + xVelocityOfBAtContactA;
 
       //Need to be pretty loose on the comparison because friction makes the rotation part not completely zero
@@ -593,62 +507,74 @@ namespace Test {
     struct SweepEntry {
       glm::vec2 mNewBoundaryMin{};
       glm::vec2 mNewBoundaryMax{};
-      glm::vec2 mOldBoundaryMin{};
       size_t mKey{};
+      Broadphase::BroadphaseKey broadphaseKey;
     };
 
-    static void _clear(std::vector<SweepCollisionPair>& a, std::vector<SweepCollisionPair>& b) {
+    static void _assertSorted(const Broadphase::Sweep2D& sweep) {
+      std::array<std::vector<float>, Broadphase::Sweep2D::S> values;
+      for(size_t d = 0; d < Broadphase::Sweep2D::S; ++d) {
+        for(size_t i = 0; i < sweep.axis[d].elements.size(); ++i) {
+          const Broadphase::SweepElement& k = sweep.axis[d].elements[i];
+          const auto& pair = sweep.bounds[d][k.getValue()];
+          values[d].push_back(k.isStart() ? pair.first : pair.second);
+        }
+      }
+
+      for(size_t d = 0; d < Broadphase::Sweep2D::S; ++d) {
+        Assert::IsTrue(std::is_sorted(values[d].begin(), values[d].end()), L"All elements should be sorted by bounds");
+        std::vector<Broadphase::SweepElement> elements = sweep.axis[d].elements;
+        std::sort(elements.begin(), elements.end());
+        Assert::IsTrue(std::unique(elements.begin(), elements.end()) == elements.end(), L"There should be no duplicate elements");
+      }
+    }
+
+    static void _clear(std::vector<Broadphase::SweepCollisionPair>& a, std::vector<Broadphase::SweepCollisionPair>& b) {
       a.clear();
       b.clear();
     }
 
-    static void _insertOne(Sweep2D& sweep, SweepEntry& entry, std::vector<SweepCollisionPair>& gained) {
-      SweepNPrune::insertRange(sweep, &entry.mNewBoundaryMin.x, &entry.mNewBoundaryMin.y, &entry.mNewBoundaryMax.x, &entry.mNewBoundaryMax.y, &entry.mKey, gained, size_t(1));
-      entry.mOldBoundaryMin = entry.mNewBoundaryMin;
+    static void _insertOne(Broadphase::Sweep2D& sweep, SweepEntry& entry, std::vector<Broadphase::SweepCollisionPair>& gained) {
+      Broadphase::SweepNPrune::insertRange(sweep, &entry.mKey, &entry.broadphaseKey, size_t(1));
+      Broadphase::SweepNPrune::updateBoundaries(sweep, &entry.mNewBoundaryMin.x, &entry.mNewBoundaryMax.x, &entry.mNewBoundaryMin.y, &entry.mNewBoundaryMax.y, &entry.broadphaseKey, 1);
+      std::vector<Broadphase::SweepCollisionPair> lost;
+      Broadphase::SwapLog log{ gained, lost };
+      Broadphase::CollisionCandidates candidates;
+      Broadphase::SweepNPrune::recomputePairs(sweep, candidates, log);
+      Assert::IsTrue(lost.empty(), L"Nothing should be lost when inserting elements");
+      _assertSorted(sweep);
     }
 
-    static void _eraseOne(Sweep2D& sweep, SweepEntry& entry, std::vector<SweepCollisionPair>& lost) {
-      SweepNPrune::eraseRange(sweep, &entry.mOldBoundaryMin.x, &entry.mOldBoundaryMin.y, &entry.mKey, lost, 1);
+    static void _eraseOne(Broadphase::Sweep2D& sweep, SweepEntry& entry, std::vector<Broadphase::SweepCollisionPair>& lost) {
+      Broadphase::SweepNPrune::eraseRange(sweep, &entry.broadphaseKey, 1);
+      std::vector<Broadphase::SweepCollisionPair> gained;
+      Broadphase::SwapLog log{ gained, lost };
+      Broadphase::CollisionCandidates candidates;
+      Broadphase::SweepNPrune::recomputePairs(sweep, candidates, log);
+      Assert::IsTrue(gained.empty(), L"Nothing should be gained when removing an element");
+      _assertSorted(sweep);
     }
 
-    static void _reinsertOne(Sweep2D& sweep, SweepEntry& entry, std::vector<SweepCollisionPair>& gained, std::vector<SweepCollisionPair>& lost) {
-      SweepNPrune::reinsertRange(sweep,
-        &entry.mOldBoundaryMin.x,
-        &entry.mOldBoundaryMin.y,
-        &entry.mNewBoundaryMin.x,
-        &entry.mNewBoundaryMin.y,
-        &entry.mNewBoundaryMax.x,
-        &entry.mNewBoundaryMax.y,
-        &entry.mKey,
-        gained,
-        lost,
-        1);
-      entry.mOldBoundaryMin = entry.mNewBoundaryMin;
+    static void _reinsertOne(Broadphase::Sweep2D& sweep, SweepEntry& entry, std::vector<Broadphase::SweepCollisionPair>& gained, std::vector<Broadphase::SweepCollisionPair>& lost) {
+      Broadphase::SweepNPrune::updateBoundaries(sweep, &entry.mNewBoundaryMin.x, &entry.mNewBoundaryMax.x, &entry.mNewBoundaryMin.y, &entry.mNewBoundaryMax.y, &entry.broadphaseKey, 1);
+      Broadphase::SwapLog log{ gained, lost };
+      Broadphase::CollisionCandidates candidates;
+      Broadphase::SweepNPrune::recomputePairs(sweep, candidates, log);
+      _assertSorted(sweep);
     }
 
-    static bool pairMatches(const SweepCollisionPair& li, const SweepCollisionPair& ri) {
-      SweepCollisionPair l = li;
-      SweepCollisionPair r = ri;
-      if(l.mA > l.mB) {
-        std::swap(l.mA, l.mB);
-      }
-      if(r.mA > r.mB) {
-        std::swap(r.mA, r.mB);
-      }
-      return r.mA == l.mA && r.mB == l.mB;
+    static bool pairMatches(Broadphase::SweepCollisionPair l, Broadphase::SweepCollisionPair r) {
+      return r == l;
     }
 
-    static void assertPairsMatch(const std::vector<SweepCollisionPair>& l, std::initializer_list<SweepCollisionPair> r) {
+    static void assertPairsMatch(const std::vector<Broadphase::SweepCollisionPair>& l, std::initializer_list<Broadphase::SweepCollisionPair> r) {
       Assert::AreEqual(l.size(), r.size());
-      //Order doesn't matter
-      for(auto it = l.begin(); it != l.end(); ++it) {
-        Assert::IsTrue(std::any_of(r.begin(), r.end(), [&it](const SweepCollisionPair& r) { return pairMatches(*it, r); }));
-      }
+      Assert::IsTrue(l == std::vector<Broadphase::SweepCollisionPair>{ r });
     }
 
     TEST_METHOD(SweepNPrune_EraseOneOverlappingAxis_NoLoss) {
-      Sweep2D sweep;
-      std::vector<SweepCollisionPair> pairs;
+      Broadphase::Sweep2D sweep;
+      std::vector<Broadphase::SweepCollisionPair> pairs;
       SweepEntry entry;
       entry.mKey = size_t(1);
       entry.mNewBoundaryMin = glm::vec2(1.0f, 2.0f);
@@ -668,9 +594,13 @@ namespace Test {
       Assert::IsTrue(pairs.empty());
     }
 
+    static Broadphase::SweepCollisionPair sweepPair(size_t a, size_t b) {
+      return Broadphase::SweepCollisionPair{ a, b };
+    }
+
     TEST_METHOD(SweepNPrune_InsertRange) {
-      Sweep2D sweep;
-      std::vector<SweepCollisionPair> pairs;
+      Broadphase::Sweep2D sweep;
+      std::vector<Broadphase::SweepCollisionPair> pairs;
       SweepEntry entry;
       entry.mKey = size_t(1);
       entry.mNewBoundaryMin = glm::vec2(1.0f, 2.0f);
@@ -682,7 +612,7 @@ namespace Test {
       SweepEntry same = entry;
       same.mKey = size_t(2);
       _insertOne(sweep, same, pairs);
-      assertPairsMatch(pairs, { SweepCollisionPair{ 1, 2 } });
+      assertPairsMatch(pairs, { sweepPair(1, 2) });
       pairs.clear();
 
       //Insert one to the left of both of the previous ones
@@ -707,7 +637,7 @@ namespace Test {
       leftToCenter.mNewBoundaryMax = entry.mNewBoundaryMin;
       leftToCenter.mKey = 5;
       _insertOne(sweep, leftToCenter, pairs);
-      assertPairsMatch(pairs, { SweepCollisionPair{ 5, 1 }, SweepCollisionPair{ 5, 2 }, SweepCollisionPair{ 5, 3 } });
+      assertPairsMatch(pairs, { sweepPair(5, 1), sweepPair(5, 2), sweepPair(5, 3) });
       pairs.clear();
 
       //Entirely containing right
@@ -716,7 +646,7 @@ namespace Test {
       rightOverlap.mNewBoundaryMax = right.mNewBoundaryMax + glm::vec2(0.1f);
       rightOverlap.mKey = 6;
       _insertOne(sweep, rightOverlap, pairs);
-      assertPairsMatch(pairs, { SweepCollisionPair{ 6, 4 } });
+      assertPairsMatch(pairs, { sweepPair(6, 4) });
       pairs.clear();
 
       //Contained by right and rightOVerlap
@@ -725,20 +655,20 @@ namespace Test {
       rightContained.mNewBoundaryMax = rightContained.mNewBoundaryMin + glm::vec2(0.1f);
       rightContained.mKey = 7;
       _insertOne(sweep, rightContained, pairs);
-      assertPairsMatch(pairs, { SweepCollisionPair{ 7, 4 }, SweepCollisionPair{ 7, 6 } });
+      assertPairsMatch(pairs, { sweepPair(7, 4), sweepPair(7, 6) });
       pairs.clear();
 
-      std::vector<SweepCollisionPair> lostPairs;
+      std::vector<Broadphase::SweepCollisionPair> lostPairs;
       _eraseOne(sweep, rightContained, lostPairs);
-      assertPairsMatch(lostPairs, { SweepCollisionPair{ 7, 4 }, SweepCollisionPair{ 7, 6 } });
+      assertPairsMatch(lostPairs, { sweepPair(7, 4), sweepPair(7, 6) });
       lostPairs.clear();
 
       _eraseOne(sweep, rightOverlap, lostPairs);
-      assertPairsMatch(lostPairs, { SweepCollisionPair{ 6, 4 } });
+      assertPairsMatch(lostPairs, { sweepPair(6, 4) });
       lostPairs.clear();
 
       _eraseOne(sweep, leftToCenter, lostPairs);
-      assertPairsMatch(lostPairs, { SweepCollisionPair{ 5, 1 }, SweepCollisionPair{ 5, 2 }, SweepCollisionPair{ 5, 3 } });
+      assertPairsMatch(lostPairs, { sweepPair(5, 1), sweepPair(5, 2), sweepPair(5, 3) });
       lostPairs.clear();
 
       _eraseOne(sweep, right, lostPairs);
@@ -750,7 +680,7 @@ namespace Test {
       lostPairs.clear();
 
       _eraseOne(sweep, same, lostPairs);
-      assertPairsMatch(lostPairs, { SweepCollisionPair{ 1, 2 } });
+      assertPairsMatch(lostPairs, { sweepPair(1, 2) });
       lostPairs.clear();
 
       _eraseOne(sweep, entry, lostPairs);
@@ -759,8 +689,8 @@ namespace Test {
     }
 
     TEST_METHOD(SweepNPrune_ReinsertRange) {
-      Sweep2D sweep;
-      std::vector<SweepCollisionPair> gainedPairs, lostPairs;
+      Broadphase::Sweep2D sweep;
+      std::vector<Broadphase::SweepCollisionPair> gainedPairs, lostPairs;
       const float size = 1.0f;
       const float space = 0.1f;
 
@@ -819,7 +749,7 @@ namespace Test {
       //Extend upperRight down left to contain all others
       upperRight.mNewBoundaryMin = glm::vec2(-1.0f);
       _reinsertOne(sweep, upperRight, gainedPairs, lostPairs);
-      assertPairsMatch(gainedPairs, { SweepCollisionPair{ 2, 1 }, SweepCollisionPair{ 2, 3 }, SweepCollisionPair{ 2, 4 } });
+      assertPairsMatch(gainedPairs, { sweepPair(2, 1), sweepPair(2, 3), sweepPair(2, 4) });
       assertPairsMatch(lostPairs, {});
       _clear(gainedPairs, lostPairs);
 
@@ -828,14 +758,14 @@ namespace Test {
       bottomLeft.mNewBoundaryMin -= glm::vec2(100.0f);
       _reinsertOne(sweep, bottomLeft, gainedPairs, lostPairs);
       assertPairsMatch(gainedPairs, {});
-      assertPairsMatch(lostPairs, { SweepCollisionPair{ 3, 2 } });
+      assertPairsMatch(lostPairs, { sweepPair(3, 2) });
       _clear(gainedPairs, lostPairs);
 
       //Undo the previous move
       bottomLeft.mNewBoundaryMax += glm::vec2(100.0f);
       bottomLeft.mNewBoundaryMin += glm::vec2(100.0f);
       _reinsertOne(sweep, bottomLeft, gainedPairs, lostPairs);
-      assertPairsMatch(gainedPairs, { SweepCollisionPair{ 3, 2 } });
+      assertPairsMatch(gainedPairs, { sweepPair(3, 2) });
       assertPairsMatch(lostPairs, {});
       _clear(gainedPairs, lostPairs);
 
@@ -843,7 +773,7 @@ namespace Test {
       upperRight.mNewBoundaryMin.x = bottomRight.mNewBoundaryMin.x + 0.1f;
       _reinsertOne(sweep, upperRight, gainedPairs, lostPairs);
       assertPairsMatch(gainedPairs, {});
-      assertPairsMatch(lostPairs, { SweepCollisionPair{ 2, 1 }, SweepCollisionPair{ 2, 3 } });
+      assertPairsMatch(lostPairs, { sweepPair(2, 1), sweepPair(2, 3) });
       _clear(gainedPairs, lostPairs);
 
       //Restore right to how it started
@@ -851,13 +781,13 @@ namespace Test {
       upperRight.mNewBoundaryMax = upperRight.mNewBoundaryMin + glm::vec2(size);
       _reinsertOne(sweep, upperRight, gainedPairs, lostPairs);
       assertPairsMatch(gainedPairs, {});
-      assertPairsMatch(lostPairs, { SweepCollisionPair{ 2, 4 } });
+      assertPairsMatch(lostPairs, { sweepPair(2, 4) });
       _clear(gainedPairs, lostPairs);
 
       //Extend bottom left up into upper right, overlapping with everything
       bottomLeft.mNewBoundaryMax += glm::vec2(size * 0.5f);
       _reinsertOne(sweep, bottomLeft, gainedPairs, lostPairs);
-      assertPairsMatch(gainedPairs, { SweepCollisionPair{ 3, 1 }, SweepCollisionPair{ 3, 2 }, SweepCollisionPair{ 3, 4 } });
+      assertPairsMatch(gainedPairs, { sweepPair(3, 1), sweepPair(3, 2), sweepPair(3, 4) });
       assertPairsMatch(lostPairs, {});
       _clear(gainedPairs, lostPairs);
 
@@ -865,15 +795,15 @@ namespace Test {
       bottomLeft.mNewBoundaryMax.y = bottomRight.mNewBoundaryMax.y;
       _reinsertOne(sweep, bottomLeft, gainedPairs, lostPairs);
       assertPairsMatch(gainedPairs, {});
-      assertPairsMatch(lostPairs, { SweepCollisionPair{ 3, 1 }, SweepCollisionPair{ 3, 2 } });
+      assertPairsMatch(lostPairs, { sweepPair(3, 1), sweepPair(3, 2) });
       _clear(gainedPairs, lostPairs);
 
       //Resize and move bottom left to inside of upperRight
       bottomLeft.mNewBoundaryMin = upperRight.mNewBoundaryMin + glm::vec2(0.1f);
       bottomLeft.mNewBoundaryMax = bottomLeft.mNewBoundaryMax + glm::vec2(0.1f);
       _reinsertOne(sweep, bottomLeft, gainedPairs, lostPairs);
-      assertPairsMatch(gainedPairs, { SweepCollisionPair{ 3, 2 } });
-      assertPairsMatch(lostPairs, { SweepCollisionPair{ 3, 4 } });
+      assertPairsMatch(gainedPairs, { sweepPair(3, 2) });
+      assertPairsMatch(lostPairs, { sweepPair(3, 4) });
     }
 
     using StableTableA = Table<

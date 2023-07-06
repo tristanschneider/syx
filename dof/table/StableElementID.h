@@ -220,6 +220,11 @@ struct StableOperations {
     return result;
   }
 
+  static std::optional<StableElementID> tryResolveStableID(const StableElementID& id, const StableElementMappings& mappings) {
+    auto it = mappings.findKey(id.mStableID);
+    return it ? std::make_optional(StableElementID{ it->second, it->first }) : std::nullopt;
+  }
+
   template<class DatabaseT>
   static std::optional<StableElementID> tryResolveStableIDWithinTable(const StableElementID& id, const StableIDRow& ids, const StableElementMappings& mappings) {
     return tryResolveStableIDWithinTable(id, ids, mappings, getElementMask<DatabaseT>());
