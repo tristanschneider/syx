@@ -24,5 +24,6 @@ void PhysicsModule::update(GameDB db) {
   ImGui::InputInt("Solve Iterations", &config.solveIterations);
   ImGui::Checkbox("Draw Collision Pairs", &config.drawCollisionPairs);
   ImGui::Checkbox("Draw Contacts", &config.drawContacts);
+  ImGui::Checkbox("Draw Broadphase", &config.broadphase.draw);
   ImGui::End();
 }

@@ -16,5 +16,5 @@ namespace ConfigIO {
   std::string serializeJSON(const Config::GameConfig& config);
   Result deserializeJson(const std::string& buffer, const Config::IFactory& factory);
   //Provide defined values for config for when deserialization fails
-  Config::GameConfig defaultInitialize(const Config::IFactory& factory);
+  void defaultInitialize(const Config::IFactory& factory, Config::GameConfig& result);
 }

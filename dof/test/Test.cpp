@@ -38,7 +38,7 @@ namespace Test {
   };
 
   struct TestGame {
-    TestGame() {
+    TestGame(Config::GameConfig config = {}, Config::PhysicsConfig physics = {}) {
       Scheduler& scheduler = Simulation::_getScheduler(db);
       auto createEmpty = [] { return TaskBuilder::addEndSync(TaskNode::create([](...){})); };
       SimulationPhases phases {
@@ -52,6 +52,11 @@ namespace Test {
       };
 
       scheduler.mScheduler.Initialize(enki::TaskSchedulerConfig{});
+
+      //Disable loading from config
+      TableAdapters::getGlobals(*this).fileSystem->mRoot = "?invalid?";
+      *TableAdapters::getConfig(*this).game = std::move(config);
+      *TableAdapters::getConfig(*this).physics = std::move(physics);
 
       Simulation::init(db);
       Simulation::buildUpdateTasks(db, phases);
@@ -1138,6 +1143,125 @@ namespace Test {
       assertStaticCollision();
     }
 
+    size_t cellSize(const Broadphase::SweepGrid::Grid& grid, size_t cell) {
+      //Elements don't use the free list but have two entries per object
+      //Another approach would be user keys minus free list size
+      return grid.cells[cell].axis[0].elements.size() / 2;
+    }
+
+    size_t trackedCellPairs(const Broadphase::SweepGrid::Grid& grid, size_t cell) {
+      return grid.cells[cell].trackedPairs.size();
+    }
+
+    TEST_METHOD(BroadphaseBoundaries) {
+      Config::PhysicsConfig cfg;
+      cfg.broadphase.bottomLeftX = 0.0f;
+      cfg.broadphase.bottomLeftY = 0.0f;
+      cfg.broadphase.cellCountX = 2;
+      cfg.broadphase.cellCountY = 1;
+      cfg.broadphase.cellSizeX = 10.0f;
+      cfg.broadphase.cellSizeY = 10.0f;
+      //Use negative padding to make the cell size 0.5 instead of 0.7 so overlapping cells are also colliding
+      cfg.broadphase.cellPadding = 0.5f - SweepNPruneBroadphase::BoundariesConfig::UNIT_CUBE_EXTENTS;
+      TestGame game{ {}, cfg };
+      GameArgs args;
+      args.fragmentCount = 3;
+      game.init(args);
+      const Broadphase::SweepGrid::Grid& grid = std::get<SharedRow<Broadphase::SweepGrid::Grid>>(std::get<SweepNPruneBroadphase::BroadphaseTable>(game.db.mTables).mRows).at();
+
+      GameObjectAdapter objs = TableAdapters::getGameObjects(game);
+      std::array bounds = {
+        glm::vec2{ 50.0f, 0.0f },
+        glm::vec2{ -50.0f, 0.0f },
+        glm::vec2{ 0.0f, 50.0f },
+        glm::vec2{ 0.0f, -50.0f },
+        glm::vec2{ 50.0f, 50.0f },
+        glm::vec2{ -50.0f, -50.0f }
+      };
+      for(const glm::vec2& b : bounds) {
+        //Try putting them outside the grid to make sure it clamps properly
+        for(size_t i = 0; i < args.fragmentCount; ++i) {
+          objs.transform.posX->at(i) = b.x;
+          objs.transform.posY->at(i) = b.y;
+        }
+
+        game.update();
+
+        _assertEnabledContactConstraintCount(game.db, 3);
+      }
+
+      //One in left cell, one in right, and one on the boundary, all touching
+      for(size_t i = 0; i < args.fragmentCount; ++i) {
+        objs.transform.posY->at(i) = 0.0f;
+      }
+      const float halfSize = 0.5f;
+      const float padding = 0.1f;
+      objs.transform.posX->at(0) = cfg.broadphase.cellSizeX - halfSize - padding;
+      objs.transform.posX->at(1) = cfg.broadphase.cellSizeX;
+      objs.transform.posX->at(2) = cfg.broadphase.cellSizeX + halfSize + padding;
+
+      game.update();
+
+      Assert::AreEqual(size_t(2), cellSize(grid, 0));
+      Assert::AreEqual(size_t(2), cellSize(grid, 1));
+      Assert::AreEqual(size_t(1), trackedCellPairs(grid, 0));
+      Assert::AreEqual(size_t(1), trackedCellPairs(grid, 1));
+      _assertEnabledContactConstraintCount(game.db, 2);
+
+      //Move boundary object to the right cell
+      objs.transform.posX->at(1) = cfg.broadphase.cellSizeX + halfSize*2;
+      objs.transform.posX->at(0) = cfg.broadphase.cellSizeX - halfSize - padding;
+      objs.transform.posX->at(2) = cfg.broadphase.cellSizeX + halfSize + padding;
+
+      game.update();
+
+      Assert::AreEqual(size_t(1), cellSize(grid, 0));
+      Assert::AreEqual(size_t(2), cellSize(grid, 1));
+      Assert::AreEqual(size_t(0), trackedCellPairs(grid, 0));
+      Assert::AreEqual(size_t(1), trackedCellPairs(grid, 1));
+      _assertEnabledContactConstraintCount(game.db, 1);
+
+      //Move boundary object to the left cell
+      objs.transform.posX->at(1) = cfg.broadphase.cellSizeX - halfSize*2;
+      objs.transform.posX->at(0) = cfg.broadphase.cellSizeX - halfSize - padding;
+      objs.transform.posX->at(2) = cfg.broadphase.cellSizeX + halfSize + padding;
+
+      game.update();
+
+      Assert::AreEqual(size_t(2), cellSize(grid, 0));
+      Assert::AreEqual(size_t(1), cellSize(grid, 1));
+      Assert::AreEqual(size_t(1), trackedCellPairs(grid, 0));
+      Assert::AreEqual(size_t(0), trackedCellPairs(grid, 1));
+      _assertEnabledContactConstraintCount(game.db, 1);
+
+      //Two objects on a boundary
+      auto setBoundary = [&] {
+        objs.transform.posX->at(0) = cfg.broadphase.cellSizeX;
+        objs.transform.posX->at(1) = cfg.broadphase.cellSizeX;
+        objs.transform.posX->at(2) = 100.0f;
+        game.update();
+      };
+
+      setBoundary();
+
+      Assert::AreEqual(size_t(2), cellSize(grid, 0));
+      Assert::AreEqual(size_t(3), cellSize(grid, 1));
+      Assert::AreEqual(size_t(1), trackedCellPairs(grid, 0));
+      Assert::AreEqual(size_t(1), trackedCellPairs(grid, 1));
+      _assertEnabledContactConstraintCount(game.db, 1);
+
+      setBoundary();
+      objs.transform.posX->at(0) = cfg.broadphase.cellSizeX + halfSize + padding;
+
+      game.update();
+
+      Assert::AreEqual(size_t(1), cellSize(grid, 0));
+      Assert::AreEqual(size_t(3), cellSize(grid, 1));
+      Assert::AreEqual(size_t(0), trackedCellPairs(grid, 0));
+      Assert::AreEqual(size_t(1), trackedCellPairs(grid, 1));
+      _assertEnabledContactConstraintCount(game.db, 1);
+    }
+
     TEST_METHOD(GameTwoObjects_Migrate_PhysicsDataPreserved) {
       TestGame game;
       GameArgs gameArgs;
@@ -1183,6 +1307,8 @@ namespace Test {
       Assert::IsTrue(reader.mLinVelY.at(1) < 0.5f - minCorrection, L"Object should be pushed away from player");
 
       std::get<FragmentGoalFoundRow>(reader.mGameObjects.mRows).at(0) = true;
+      std::get<FloatRow<Tags::FragmentGoal, Tags::X>>(std::get<GameObjectTable>(db.mTables).mRows).at(0) = initialX[0];
+      std::get<FloatRow<Tags::FragmentGoal, Tags::Y>>(std::get<GameObjectTable>(db.mTables).mRows).at(0) = initialY[0];
       Fragment::_migrateCompletedFragments({ db }, 0);
       game.update();
 

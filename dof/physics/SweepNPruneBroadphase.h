@@ -41,9 +41,7 @@ namespace SweepNPruneBroadphase {
     //Distance from pos to extent used to compute where this is relative to its boundaries
     float mHalfSize = UNIT_CUBE_EXTENTS;
     //The amount the boundaries are extended past the size when modifying boundaries
-    float mPadding = 0.3f;
-    //How close an extent is allowed to get to a boundary before it is recomputed
-    float mResizeThreshold = 0.0f;
+    float mPadding = 0.0f;
   };
 
   //Update boundaries for existing elements

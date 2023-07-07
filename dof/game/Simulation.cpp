@@ -279,7 +279,7 @@ const SceneState& Simulation::_getSceneState(GameDatabase& db) {
 
 void tryInitFromConfig(Config::GameConfig& toSet, const ConfigIO::Result::Error& error) {
   printf("Error reading config file, initializing with defaults. [%s]\n", error.message.c_str());
-  toSet = ConfigIO::defaultInitialize(*Config::createFactory());
+  ConfigIO::defaultInitialize(*Config::createFactory(), toSet);
 }
 
 void tryInitFromConfig(Config::GameConfig& toSet, Config::GameConfig&& loaded) {
@@ -315,4 +315,9 @@ void Simulation::init(GameDatabase& db) {
     ConfigIO::Result result = ConfigIO::deserializeJson(*buffer, *Config::createFactory());
     std::visit([&](auto&& r) { tryInitFromConfig(*gameConfig, std::move(r)); }, std::move(result.value));
   }
+  else {
+    tryInitFromConfig(*gameConfig, ConfigIO::Result::Error{});
+  }
+
+  PhysicsSimulation::initFromConfig({ db });
 }

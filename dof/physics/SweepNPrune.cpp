@@ -9,6 +9,11 @@
 
 namespace Broadphase {
   struct ElementBounds {
+    bool operator<(const ElementBounds& rhs) const {
+      //Sort by bounds unless they match in which case preserve key order
+      //Main poitn is this prevents swapping a start and end with itself
+      return value == rhs.value ? element.value < rhs.element.value : value < rhs.value;
+    }
     SweepElement element;
     const std::pair<float, float>& bounds;
     const float value{};
@@ -30,6 +35,10 @@ namespace Broadphase {
     }
     if(l.first > r.second) {
       //L entirely greater than R
+      return false;
+    }
+    if(l.first == Sweep2D::REMOVED && r.first == Sweep2D::REMOVED) {
+      //They were removed, treat this as not overlapping so the pair tracking is removed
       return false;
     }
     return true;
@@ -82,7 +91,7 @@ namespace Broadphase {
       auto logSwap = value.isStart() ? &logSwapBackStart : &logSwapBackEnd;
 
       //Found new earliest element, move to front
-      if(valueBounds.value < firstBounds.value) {
+      if(valueBounds < firstBounds) {
         SweepElement* current = mid;
         //Swap this element with all between first and mid, shifting right to make space
         while(current != first) {
@@ -98,7 +107,7 @@ namespace Broadphase {
         SweepElement* current = mid - 1;
         while(current != first) {
           const ElementBounds c = unwrapElement(*current, bounds);
-          if(c.value < valueBounds.value) {
+          if(c < valueBounds) {
             break;
           }
 
@@ -200,6 +209,13 @@ namespace Broadphase {
       //All removal events should have been logged, now insert removals into free list and trim them off the end of the axes
       //Removals would always be at the end because REMOVED is float max and it was just sorted above
       if(size_t toRemove = sweep.pendingRemoval.size()) {
+        //Log an event for all removal pairs. This is because all removal bounds are equal so their events might be missed if both were removed
+        //resolveCandidates will remove redundancies
+        for(size_t i = 0; i < sweep.pendingRemoval.size(); ++i) {
+          for(size_t j = i + 1; j < sweep.pendingRemoval.size(); ++j) {
+            candidates.pairs.emplace_back(sweep.pendingRemoval[i].value, sweep.pendingRemoval[j].value);
+          }
+        }
         for(size_t i = 0; i < Sweep2D::S; ++i) {
           sweep.axis[i].elements.resize(sweep.axis[i].elements.size() - sweep.pendingRemoval.size()*2);
         }
@@ -315,15 +331,17 @@ namespace Broadphase {
     KeyMapping getKey(const GridDefinition& definition, const Bounds& bounds) {
       //Translate to local space such that each cell is of size 1 and the bottom left cell is at the origin
       const glm::vec2 invScale{ 1.0f/definition.cellSize.x, 1.0f/definition.cellSize.y };
-      const glm::vec2 localMin = glm::max(glm::vec2(0, 0), (bounds.min - definition.bottomLeft)*invScale);
-      const glm::vec2 localMax = glm::min(glm::vec2(definition.cellsX, definition.cellsY), (bounds.max - definition.bottomLeft)*invScale);
+      const glm::vec2 boundaryMin = glm::vec2(0, 0);
+      const glm::vec2 boundaryMax = glm::vec2(definition.cellsX - 1, definition.cellsY - 1);
+      const glm::vec2 localMin = glm::clamp((bounds.min - definition.bottomLeft)*invScale, boundaryMin, boundaryMax);
+      const glm::vec2 localMax = glm::clamp((bounds.max - definition.bottomLeft)*invScale, boundaryMin, boundaryMax);
       //Now that they are in local space truncation to int can be used to find all the desired indices
       int found = 0;
       KeyMapping result;
       for(int x = static_cast<int>(localMin.x); x <= static_cast<int>(localMax.x); ++x) {
-        for(int y = static_cast<int>(localMax.y); y <= static_cast<int>(localMax.y); ++y) {
+        for(int y = static_cast<int>(localMin.y); y <= static_cast<int>(localMax.y); ++y) {
           const BroadphaseKey key{ x + y*definition.cellsX };
-          result.publicToPrivate[found].cellKey = key;
+          result.publicToPrivate[found++].cellKey = key;
         }
       }
       return result;
@@ -408,7 +426,8 @@ namespace Broadphase {
       };
       struct Tasks {
         std::vector<TaskData> tasks;
-        std::unordered_set<Broadphase::SweepCollisionPair> combinedGains, combinedLosses;
+        //Hack to reference count pairs to avoid duplicate events for pairs in multiple cells
+        std::unordered_map<Broadphase::SweepCollisionPair, uint8_t> trackedPairs;
       };
       auto data = std::make_shared<Tasks>();
       auto processOne = TaskNode::create([data, &grid](enki::TaskSetPartition range, uint32_t) {
@@ -430,25 +449,28 @@ namespace Broadphase {
       });
       auto combineResults = TaskNode::create([data, finalResults](...) {
         PROFILE_SCOPE("physics", "combineResults");
-        data->combinedGains.clear();
-        data->combinedLosses.clear();
-        for(const TaskData& t : data->tasks) {
+        finalResults.gains.clear();
+        finalResults.losses.clear();
+
+        for(size_t i = 0; i < data->tasks.size(); ++i) {
+           const TaskData& t = data->tasks[i];
           //Remove duplicates while also ignoring any that show up in both gained and lost
-          data->combinedGains.insert(t.gains.begin(), t.gains.end());
-          for(const auto& l : t.losses) {
-            if(auto it = data->combinedGains.find(l); it != data->combinedGains.end()) {
-              data->combinedGains.erase(it);
+          for(const SweepCollisionPair& g : t.gains) {
+            //If this was a new entry, report the gain
+            if(!data->trackedPairs[g]++) {
+              finalResults.gains.push_back(g);
             }
-            else {
-              data->combinedLosses.insert(l);
+          }
+          for(const SweepCollisionPair& l : t.losses) {
+            if(auto it = data->trackedPairs.find(l); it != data->trackedPairs.end()) {
+              //If reference count hits zero, report the loss and remove the tracking element
+              if(!it->second || !--it->second) {
+                data->trackedPairs.erase(it);
+                finalResults.losses.push_back(l);
+              }
             }
           }
         }
-
-        finalResults.gains.clear();
-        finalResults.losses.clear();
-        finalResults.gains.insert(finalResults.gains.end(), data->combinedGains.begin(), data->combinedGains.end());
-        finalResults.losses.insert(finalResults.losses.end(), data->combinedLosses.begin(), data->combinedLosses.end());
       });
 
       auto root = configureTasks;

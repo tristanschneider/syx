@@ -36,7 +36,7 @@ namespace Broadphase {
     }
 
     bool operator<(const SweepCollisionPair& r) const {
-      return a == r.b ? b < r.b : a < r.a;
+      return a == r.a ? b < r.b : a < r.a;
     }
 
     UserKey a{};
@@ -64,7 +64,7 @@ namespace Broadphase {
   };
 
   struct SweepElement {
-    static constexpr size_t START_BIT = size_t(1) << (sizeof(size_t)*8 - 1);
+    static constexpr size_t END_BIT = size_t(1) << (sizeof(size_t)*8 - 1);
 
     bool operator==(const SweepElement& rhs) const {
       return value == rhs.value;
@@ -74,24 +74,25 @@ namespace Broadphase {
       return value < rhs.value;
     }
 
-    static SweepElement createBegin(BroadphaseKey v) {
-      return { v.value | START_BIT };
+    //Put the bit on the end so that end always comes after start in sort order of the raw value
+    static SweepElement createEnd(BroadphaseKey v) {
+      return { v.value | END_BIT };
     }
 
-    static SweepElement createEnd(BroadphaseKey v) {
+    static SweepElement createBegin(BroadphaseKey v) {
       return { v.value };
     }
 
-    bool isStart() const {
-      return value.value & START_BIT;
+    bool isEnd() const {
+      return value.value & END_BIT;
     }
 
-    bool isEnd() const {
-      return !isStart();
+    bool isStart() const {
+      return !isEnd();
     }
 
     size_t getValue() const {
-      return value.value & (~START_BIT);
+      return value.value & (~END_BIT);
     }
 
     BroadphaseKey value{};

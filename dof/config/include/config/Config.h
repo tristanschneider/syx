@@ -60,6 +60,18 @@ namespace Config {
     bool drawContacts{};
     int solveIterations = 5;
     float frictionCoeff = 0.5f;
+
+    struct Broadphase {
+      float bottomLeftX = -200.0f;
+      float bottomLeftY = -200.0f;
+      float cellSizeX = 20.0f;
+      float cellSizeY = 20.0f;
+      float cellPadding = 0.0f;
+      size_t cellCountX = 20;
+      size_t cellCountY = 20;
+      bool draw{};
+    };
+    Broadphase broadphase;
   };
 
   struct PlayerConfig {

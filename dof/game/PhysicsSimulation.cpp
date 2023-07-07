@@ -3,6 +3,7 @@
 
 #include "Simulation.h"
 #include "TableAdapters.h"
+#include "DebugDrawer.h"
 
 namespace PhysicsSimulation {
   using namespace Tags;
@@ -28,9 +29,9 @@ namespace PhysicsSimulation {
     return physicsTables;
   }
 
-  SweepNPruneBroadphase::BoundariesConfig _getBoundariesConfig() {
+  SweepNPruneBroadphase::BoundariesConfig _getBoundariesConfig(GameDB game) {
     SweepNPruneBroadphase::BoundariesConfig result;
-    result.mPadding = 0.0f;
+    result.mPadding = TableAdapters::getConfig(game).physics->broadphase.cellPadding;
     return result;
   }
 
@@ -51,7 +52,7 @@ namespace PhysicsSimulation {
     const PhysicsTableIds& physicsTables = std::get<SharedRow<PhysicsTableIds>>(globals.mRows).at();
     SweepNPruneBroadphase::ChangedCollisionPairs& changedPairs = std::get<SharedRow<SweepNPruneBroadphase::ChangedCollisionPairs>>(broadphase.mRows).at();
     auto& grid = std::get<SharedRow<Broadphase::SweepGrid::Grid>>(broadphase.mRows).at();
-    auto cfg = _getBoundariesConfig();
+    auto cfg = _getBoundariesConfig({ db });
 
     std::vector<SweepNPruneBroadphase::BoundariesQuery> bQuery;
     Queries::viewEachRow(db, [&](
@@ -156,6 +157,37 @@ namespace PhysicsSimulation {
           }
         }
       }
+      if(config.broadphase.draw) {
+        auto d = TableAdapters::getDebugLines({ db });
+        const auto& grid = std::get<SharedRow<Broadphase::SweepGrid::Grid>>(std::get<BroadphaseTable>(db.mTables).mRows).at();
+        for(size_t i = 0; i < grid.cells.size(); ++i) {
+          const Broadphase::Sweep2D& sweep = grid.cells[i];
+          const glm::vec2 basePos{ static_cast<float>(i % grid.definition.cellsX), static_cast<float>(i / grid.definition.cellsX) };
+          const glm::vec2 min = grid.definition.bottomLeft + basePos*grid.definition.cellSize;
+          const glm::vec2 max = min + grid.definition.cellSize;
+          const glm::vec2 center = (min + max) * 0.5f;
+          glm::vec3 color{ 1.0f, 0.0f, 0.0f };
+          DebugDrawer::drawLine(d, min, { max.x, min.y }, color);
+          DebugDrawer::drawLine(d, { max.x, min.y }, max, color);
+          DebugDrawer::drawLine(d, max, { min.x, max.y }, color);
+          DebugDrawer::drawLine(d, min, { min.x, max.y }, color);
+
+          for(size_t b = 0; b < sweep.bounds[0].size(); ++b) {
+            const auto& x = sweep.bounds[0][b];
+            const auto& y = sweep.bounds[1][b];
+            if(x.first == Broadphase::Sweep2D::REMOVED) {
+              continue;
+            }
+            color = { 0.0f, 1.0f, 1.0f };
+            DebugDrawer::drawLine(d, { x.first, min.y }, { x.first, max.y }, color);
+            DebugDrawer::drawLine(d, { x.second, min.y }, { x.second, max.y }, color);
+            DebugDrawer::drawLine(d, { min.x, y.first }, { max.x, y.first }, color);
+            DebugDrawer::drawLine(d, { min.x, y.second }, { max.x, y.second }, color);
+            color = { 0.0f, 1.0f, 0.0f };
+            DebugDrawer::drawLine(d, center, { (x.first + x.second)*0.5f, (y.first + y.second)*0.5f }, color);
+          }
+        }
+      }
     });
     return { task, task };
   }
@@ -165,11 +197,15 @@ namespace PhysicsSimulation {
       keys.mDefaultValue = Broadphase::SweepGrid::EMPTY_KEY;
     });
     *TableAdapters::getGlobals(game).physicsTables = _getPhysicsTableIds();
+  }
+
+  void initFromConfig(GameDB game) {
+    const Config::PhysicsConfig& config = *TableAdapters::getConfig(game).physics;
     auto& grid = std::get<SharedRow<Broadphase::SweepGrid::Grid>>(std::get<BroadphaseTable>(game.db.mTables).mRows).at();
-    grid.definition.bottomLeft = glm::vec2{ -1000.0f, -1000.0f };
-    grid.definition.cellSize = glm::vec2{ 20.0f, 20.0f };
-    grid.definition.cellsX = 100;
-    grid.definition.cellsY = 100;
+    grid.definition.bottomLeft = { config.broadphase.bottomLeftX, config.broadphase.bottomLeftY };
+    grid.definition.cellSize = { config.broadphase.cellSizeX, config.broadphase.cellSizeY };
+    grid.definition.cellsX = config.broadphase.cellCountX;
+    grid.definition.cellsY = config.broadphase.cellCountY;
     Broadphase::SweepGrid::init(grid);
   }
 
@@ -249,10 +285,10 @@ namespace PhysicsSimulation {
 
   TaskRange processEvents(GameDB db) {
     auto root = TaskNode::create([db](...) {
-      auto resolver = TableResolver<PosX, PosY, SweepNPruneBroadphase::BroadphaseKeys, StableIDRow, SharedRow<IsImmobile>>::create(db.db);
+      auto resolver = TableResolver<PosX, PosY, SweepNPruneBroadphase::BroadphaseKeys, StableIDRow, IsImmobile>::create(db.db);
       const DBEvents& events = Events::getPublishedEvents(db);
       auto& grid = std::get<SharedRow<Broadphase::SweepGrid::Grid>>(std::get<BroadphaseTable>(db.db.mTables).mRows).at();
-      SweepNPruneBroadphase::processEvents(events, grid, resolver, _getBoundariesConfig(), GameDatabase::getDescription());
+      SweepNPruneBroadphase::processEvents(events, grid, resolver, _getBoundariesConfig(db), GameDatabase::getDescription());
     });
     return TaskBuilder::addEndSync(root);
   }

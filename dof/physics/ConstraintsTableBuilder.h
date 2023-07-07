@@ -118,11 +118,10 @@ struct ConstraintsTableBuilder {
         anyRemovals = true;
       }
       if(needsReinsert) {
-        //Reinsert if desired. This should be able to use the entry that was just added to the free list,
-        //meaning that the table size shouldn't have to change. Reinsert vs modifying the entry is used for simplicity
-        [[maybe_unused]] const size_t prev = objA.size();
+        //Reinsert if desired. This may be able to use the entry that was just added to the free list,
+        //meaning that the table size wouldn't have to change.
+        //If this went from nonstatic to static or is no longer satisfying padding then the insert location won't use the free list
         addCollisionPairs(&contact, 1, mappings, common,constraintsMappings, tableIds, pairs, config);
-        assert(prev == objA.size());
       }
     }
 

@@ -220,8 +220,7 @@ namespace ConfigIO {
     return result;
   }
 
-  Config::GameConfig defaultInitialize(const Config::IFactory& factory) {
-    Config::GameConfig result;
+  void defaultInitialize(const Config::IFactory& factory, Config::GameConfig& result) {
     std::stringstream stream;
     {
       //This is a hack to re-use the serialization code path to traverse the entire object which in the process initializes all ConfigExt objects
@@ -231,6 +230,5 @@ namespace ConfigIO {
       archive.data.factory = &factory;
       archive(result);
     }
-    return result;
   }
 }
