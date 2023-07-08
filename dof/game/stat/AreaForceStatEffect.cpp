@@ -2,6 +2,7 @@
 #include "stat/AreaForceStatEffect.h"
 
 #include "Simulation.h"
+#include "stat/DamageStatEffect.h"
 #include "TableAdapters.h"
 
 #include "glm/gtx/norm.hpp"
@@ -217,9 +218,9 @@ namespace StatEffect {
     return hit.impulse * i.multiplier * static_cast<float>(hit.hitCount);
   }
 
-  //Read position, write velocity
+  //Read position, write velocity and thread locals
   TaskRange processStat(AreaForceStatEffectTable& table, GameDB db) {
-    auto task = TaskNode::create([&table, db](...) {
+    auto task = TaskNode::create([&table, db](enki::TaskSetPartition, uint32_t thread) {
       PROFILE_SCOPE("simulation", "forces");
 
       auto& cmd = std::get<CommandRow>(table.mRows);
@@ -227,6 +228,7 @@ namespace StatEffect {
         return;
       }
 
+      auto damageEffect = TableAdapters::getDamageEffects(db, thread);
       std::vector<ShapeResult> shapes;
       std::vector<HitResult> hits;
       std::vector<Ray> rays;
@@ -275,6 +277,9 @@ namespace StatEffect {
           const Math::Impulse impulse = Math::computeImpulseAtPoint(pos, hit.hitPoint, baseImpulse, objMass);
           TableAdapters::add(id, impulse.linear, *obj.physics.linImpulseX, *obj.physics.linImpulseY);
           obj.physics.angImpulse->at(id) += impulse.angular;
+
+          const size_t dmg = TableAdapters::addStatEffectsSharedLifetime(damageEffect.base, StatEffect::INSTANT, &obj.stable->at(id), 1);
+          damageEffect.command->at(dmg).damage = command.damage * static_cast<float>(hit.hitCount);
         }
 
         debugDraw(db, command, drawShapes, hits, rays);

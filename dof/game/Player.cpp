@@ -76,7 +76,7 @@ namespace Player {
     //cfg.game->ability.pushAbility
     PlayerAdapter player = TableAdapters::getPlayer(db);
     for(PlayerInput& input : *player.input) {
-      *input.ability1 = Config::getAbility(cfg.game->ability.pushAbility);
+      *input.ability1 = Config::getAbility(cfg.game->ability.pushAbility.ability);
     }
   }
 
@@ -221,13 +221,14 @@ namespace Player {
         AreaForceStatEffect::Command& cmd = areaEffect.command->at(effect);
         cmd.origin = glm::vec2{ players.object.transform.posX->at(i), players.object.transform.posY->at(i) };
         cmd.direction = glm::vec2{ players.object.transform.rotX->at(i), players.object.transform.rotY->at(i) };
-        cmd.dynamicPiercing = 3.0f;
-        cmd.terrainPiercing = 0.0f;
-        cmd.rayCount = 4;
+        cmd.dynamicPiercing = config.ability.pushAbility.dynamicPiercing;
+        cmd.terrainPiercing = config.ability.pushAbility.terrainPiercing;
+        cmd.rayCount = config.ability.pushAbility.rayCount;
         AreaForceStatEffect::Command::Cone cone;
-        cone.halfAngle = 0.25f;
-        cone.length = 15.0f;
+        cone.halfAngle = config.ability.pushAbility.coneHalfAngle;
+        cone.length = config.ability.pushAbility.coneLength;
         cmd.shape = cone;
+        cmd.damage = withPower->damage;
         AreaForceStatEffect::Command::FlatImpulse impulseType{ withPower->power };
         cmd.impulseType = impulseType;
       }

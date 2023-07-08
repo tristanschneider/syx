@@ -12,6 +12,7 @@ QuadPassAdapter RendererTableAdapters::getQuadPass(QuadPassTable::Type& table) {
     &std::get<QuadPassTable::LinVelX>(table.mRows),
     &std::get<QuadPassTable::LinVelY>(table.mRows),
     &std::get<QuadPassTable::AngVel>(table.mRows),
+    &std::get<QuadPassTable::Tint>(table.mRows),
     &std::get<QuadPassTable::IsImmobile>(table.mRows),
     &std::get<QuadPassTable::UV>(table.mRows),
     &std::get<QuadPassTable::Texture>(table.mRows),

@@ -31,6 +31,7 @@ namespace AreaForceStatEffect {
     //Split between moving objects an terrain
     float dynamicPiercing{};
     float terrainPiercing{};
+    float damage{};
     //Number of rays that the shape is subdivided into
     size_t rayCount{};
   };

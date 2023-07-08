@@ -27,7 +27,7 @@ namespace Ability {
 
   TriggerResult tryTrigger(InstantTrigger&, const TriggerInfo& info) {
     if(info.isInputDown) {
-      return TriggerWithPower{ 1.0f, true };
+      return TriggerWithPower{ 1.0f, 1.0f, true };
     }
     return DontTrigger{};
   }
@@ -36,16 +36,19 @@ namespace Ability {
     //Input is down, charge it up
     if(info.isInputDown) {
       trigger.currentCharge = CurveSolver::advanceTime(trigger.chargeCurve, trigger.currentCharge, info.t);
+      trigger.currentDamageCharge = CurveSolver::advanceTime(trigger.damageChargeCurve, trigger.currentDamageCharge, info.t);
       return DontTrigger{ false };
     }
     //Input is up, reset and potentially trigger ability
     const float storedCharge = trigger.currentCharge;
-    trigger.currentCharge = 0.0f;
+    const float storedDamageCharge = trigger.currentDamageCharge;
+    trigger.currentCharge = trigger.currentDamageCharge = 0.0f;
 
     //Input has been released and was held long enough to trigger ability, trigger it
     if(storedCharge >= trigger.minimumCharge) {
       const float power = CurveSolver::solve(storedCharge, trigger.chargeCurve);
-      return TriggerWithPower{ power, false };
+      const float damage = CurveSolver::solve(storedDamageCharge, trigger.damageChargeCurve);
+      return TriggerWithPower{ power, damage, false };
     }
 
     //Input is up and not enough time was banked to trigger an ability, do nothing

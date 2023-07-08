@@ -31,6 +31,7 @@ namespace Config {
     std::string type;
     float minCharge{};
     CurveConfig chargeCurve;
+    CurveConfig damageCurve;
   };
 
   struct AbilityCooldownConfig {
@@ -86,8 +87,17 @@ namespace Config {
     CurveConfigExt angularStoppingForceCurve;
   };
 
+  struct PushAbility {
+    AbilityConfigExt ability;
+    float dynamicPiercing = 3.0f;
+    float terrainPiercing = 0.0f;
+    float coneHalfAngle = 0.25f;
+    float coneLength = 15.f;
+    size_t rayCount = 4;
+  };
+
   struct PlayerAbilityConfig {
-    AbilityConfigExt pushAbility;
+    PushAbility pushAbility;
   };
 
   struct CameraConfig {

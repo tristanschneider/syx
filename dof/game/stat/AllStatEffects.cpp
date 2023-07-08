@@ -153,7 +153,9 @@ namespace StatEffect {
   AllStatTasks createTasks(GameDB db, StatEffectDatabase& stats) {
     AllStatTasks result;
     result.positionSetters = StatEffect::processStat(std::get<PositionStatEffectTable>(stats.mTables), db)
-      .then(StatEffect::processStat(std::get<FollowTargetByPositionStatEffectTable>(stats.mTables), db));
+      .then(StatEffect::processStat(std::get<FollowTargetByPositionStatEffectTable>(stats.mTables), db))
+      //Modify write health and tint, doesn't matter where this is at the moment
+      .then(StatEffect::processStat(std::get<DamageStatEffectTable>(stats.mTables), db));
     result.velocitySetters = StatEffect::processStat(std::get<VelocityStatEffectTable>(stats.mTables), db);
     result.posGetVelSet = StatEffect::processStat(std::get<AreaForceStatEffectTable>(stats.mTables), db);
     TaskRange lambdaRange = StatEffect::processStat(std::get<LambdaStatEffectTable>(stats.mTables), db);

@@ -35,17 +35,22 @@ namespace cereal {
       std::array<const char*, sizeof...(args)> strings;
       int found = 0;
       char* currentChar = buffer.data();
+      bool lookingForEnd = false;
       while(*currentChar != 0) {
         if(*currentChar == '.') {
-          //Skip the dot
-          strings[found++] = currentChar + 1;
-          if(found >= strings.size()) {
-            break;
+          //Skip the first dot
+          if(!lookingForEnd) {
+            lookingForEnd = true;
+            strings[found++] = currentChar + 1;
+            if(found >= strings.size()) {
+              break;
+            }
           }
         }
         //Null terminate previously found substring
         else if(*currentChar == ',') {
           *currentChar = 0;
+          lookingForEnd = false;
         }
         ++currentChar;
       }
@@ -80,7 +85,19 @@ namespace cereal {
       value.pushAbility
     );
   }
-  
+
+  template<class Archive>
+  void serialize(Archive& archive, Config::PushAbility& value) {
+    ARCHIVE(archive,
+      value.ability,
+      value.dynamicPiercing,
+      value.terrainPiercing,
+      value.coneHalfAngle,
+      value.coneLength,
+      value.rayCount
+    );
+  }
+
   template<class Archive>
   void serialize(Archive& archive, Config::PhysicsConfig& value) {
     ARCHIVE(archive,
@@ -160,7 +177,8 @@ namespace cereal {
       v.cooldown.maxTime,
       v.trigger.type,
       v.trigger.minCharge,
-      v.trigger.chargeCurve
+      v.trigger.chargeCurve,
+      v.trigger.damageCurve
     );
   }
 

@@ -7,6 +7,7 @@
 #include "Config.h"
 #include "glm/vec2.hpp"
 #include "glm/vec3.hpp"
+#include "glm/vec4.hpp"
 #include "SweepNPruneBroadphase.h"
 #include "StableElementID.h"
 #include "Scheduler.h"
@@ -140,6 +141,8 @@ using GlobalGameData = Table<
 
 struct IsImmobile : SharedRow<char>{};
 struct IsFragment : SharedRow<char>{};
+struct DamageTaken : Row<float>{};
+struct Tint : Row<glm::vec4>{};
 
 using GameObjectTable = Table<
   //Data viewed by physics, not to be used by gameplay
@@ -167,6 +170,8 @@ using GameObjectTable = Table<
 
   FloatRow<Tags::FragmentGoal, Tags::X>,
   FloatRow<Tags::FragmentGoal, Tags::Y>,
+  DamageTaken,
+  Tint,
 
   SweepNPruneBroadphase::BroadphaseKeys,
 
@@ -341,11 +346,6 @@ struct SimulationPhases {
 };
 
 struct Simulation {
-  static void loadFromSnapshot(GameDatabase& db, const char* snapshotFilename);
-  //Weird special case since graphics static is the one part that's not in the database
-  static void snapshotInitGraphics(GameDatabase& db);
-  static void writeSnapshot(GameDatabase& db, const char* snapshotFilename);
-
   static void init(GameDatabase& db);
 
   static void buildUpdateTasks(GameDatabase& db, SimulationPhases& phases);

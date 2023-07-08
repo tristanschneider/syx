@@ -125,19 +125,7 @@ namespace Test {
     GameDatabase db;
   };
 
-
   TEST_CLASS(Tests) {
-    //Paste a snapshot and update the link to reproduce a problem case in a test
-    TEST_METHOD(ReplaySavedSnapshot) {
-      constexpr bool debuggingSnapshot = false;
-      if(debuggingSnapshot) {
-        const char* path = "C:/syx/dof/bugs/recovery.snap";
-        TestGame game;
-        Simulation::loadFromSnapshot(game.db, path);
-        game.update();
-      }
-    }
-
     TEST_METHOD(Table_AddElement_SizeIncreases) {
       Table<Row<int>> table;
 

@@ -59,12 +59,22 @@ namespace AbilityModule {
   bool edit(Ability::ChargeTrigger& t) {
     bool changed = false;
     changed |= ImGui::SliderFloat("Min charge Percent", &t.minimumCharge, 0.0f, t.chargeCurve.params.duration.value_or(1.0f));
-    static ImguiExt::CurveSliders sliders;
-    sliders.label = "Charge";
-    sliders.durationRange = { 0.0f, 5.0f };
-    sliders.offsetRange = { 0.0f, 5.0f };
-    sliders.scaleRange = { 0.0f, 5.0f };
-    changed |= ImguiExt::curve(t.chargeCurve, sliders);
+    {
+      static ImguiExt::CurveSliders sliders;
+      sliders.label = "Charge";
+      sliders.durationRange = { 0.0f, 5.0f };
+      sliders.offsetRange = { 0.0f, 5.0f };
+      sliders.scaleRange = { 0.0f, 5.0f };
+      changed |= ImguiExt::curve(t.chargeCurve, sliders);
+    }
+    {
+      static ImguiExt::CurveSliders sliders;
+      sliders.label = "Damage";
+      sliders.durationRange = { 0.0f, 5.0f };
+      sliders.offsetRange = { 0.0f, 50.0f };
+      sliders.scaleRange = { 0.0f, 100.0f };
+      changed |= ImguiExt::curve(t.damageChargeCurve, sliders);
+    }
 
     return changed;
   }
@@ -113,7 +123,7 @@ namespace AbilityModule {
     bool changed = false;
 
     ImGui::Begin("Abilities");
-    changed |= editAbility(config.ability.pushAbility, "Push");
+    changed |= editAbility(config.ability.pushAbility.ability, "Push");
     ImGui::End();
 
     if(changed) {

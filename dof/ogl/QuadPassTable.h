@@ -1,6 +1,7 @@
 #pragma once
 #include "Table.h"
 #include "Quad.h"
+#include "glm/vec4.hpp"
 
 struct QuadPassTable {
   struct QuadUV {
@@ -17,6 +18,7 @@ struct QuadPassTable {
   struct LinVelX : Row<float>{};
   struct LinVelY : Row<float>{};
   struct AngVel : Row<float>{};
+  struct Tint : Row<glm::vec4>{};
   struct IsImmobile : SharedRow<bool>{};
   struct UV : Row<QuadUV>{};
   struct Texture : SharedRow<size_t>{};
@@ -30,6 +32,7 @@ struct QuadPassTable {
     LinVelX,
     LinVelY,
     AngVel,
+    Tint,
     UV,
     Texture,
     IsImmobile,

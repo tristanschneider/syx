@@ -10,7 +10,6 @@
 #include "glm/gtx/norm.hpp"
 #include "Fragment.h"
 #include "GameplayExtract.h"
-#include "Serializer.h"
 #include "stat/AllStatEffects.h"
 #include "TableAdapters.h"
 #include "ThreadLocals.h"
@@ -89,7 +88,6 @@ namespace {
   }
 
   TaskRange _update(GameDatabase& db) {
-    //Synchronous because it takes snapshots
     auto root = std::make_shared<TaskNode>();
     auto current = root;
     TaskRange debugInput = DebugInput::updateDebugCamera({ db });
@@ -161,41 +159,10 @@ ExternalDatabases::~ExternalDatabases() = default;
 ThreadLocalsInstance::ThreadLocalsInstance() = default;
 ThreadLocalsInstance::~ThreadLocalsInstance() = default;
 
-void Simulation::loadFromSnapshot(GameDatabase& db, const char* snapshotFilename) {
-  if(std::basic_ifstream<uint8_t> stream(snapshotFilename, std::ios::binary); stream.good()) {
-    DeserializeStream s(stream.rdbuf());
-    Serializer<GameDatabase>::deserialize(s, db);
-  }
-}
-
-void Simulation::snapshotInitGraphics(GameDatabase& db) {
-  //Synchronously do the asset loading steps now which will load the assets and update any existing objects to point at them
-  while(_initRequestAssets(db) != SceneState::State::InitAwaitingAssets) {}
-  while(_awaitAssetLoading(db) != SceneState::State::SetupScene) {}
-}
-
-void Simulation::writeSnapshot(GameDatabase& db, const char* snapshotFilename) {
-  if(std::basic_ofstream<uint8_t> stream(snapshotFilename, std::ios::binary); stream.good()) {
-    SerializeStream s(stream.rdbuf());
-    Serializer<GameDatabase>::serialize(db, s);
-  }
-}
-
 void Simulation::buildUpdateTasks(GameDatabase& db, SimulationPhases& phases) {
   Scheduler& scheduler = _getScheduler(db);
 
   PROFILE_SCOPE("simulation", "update");
-  //TODO: move to DebugInput
-  constexpr bool enableDebugSnapshot = false;
-  if constexpr(enableDebugSnapshot) {
-    auto snapshot = std::make_shared<TaskNode>();
-    snapshot->mTask = { std::make_unique<enki::TaskSet>([&db](...) {
-      PROFILE_SCOPE("simulation", "snapshot");
-      writeSnapshot(db, "recovery.snap");
-    }) };
-    phases.root.mEnd->mChildren.push_back(snapshot);
-    phases.root.mEnd = snapshot;
-  }
 
   GlobalGameData& globals = std::get<GlobalGameData>(db.mTables);
   SceneState& sceneState = std::get<0>(globals.mRows).at();
@@ -291,7 +258,6 @@ const char* Simulation::getConfigName() {
   return "config.json";
 }
 
-
 void Simulation::init(GameDatabase& db) {
   Queries::viewEachRow(db, [](FloatRow<Tags::Rot, Tags::CosAngle>& r) {
       r.mDefaultValue = 1.0f;
@@ -299,6 +265,9 @@ void Simulation::init(GameDatabase& db) {
   Queries::viewEachRow(db, [](FloatRow<Tags::GRot, Tags::CosAngle>& r) {
       r.mDefaultValue = 1.0f;
   });
+
+  //Fragments in particular start opaque then reveal the texture as they take damage
+  std::get<Tint>(std::get<GameObjectTable>(db.mTables).mRows).mDefaultValue = glm::vec4(0, 0, 0, 1);
 
   Scheduler& scheduler = Simulation::_getScheduler(db);
   scheduler.mScheduler.Initialize();

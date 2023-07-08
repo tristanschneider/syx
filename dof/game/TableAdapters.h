@@ -1,6 +1,7 @@
 #pragma once
 
 #include <glm/vec2.hpp>
+#include <glm/vec4.hpp>
 #include "TableOperations.h"
 
 struct CurveDefinition;
@@ -54,6 +55,10 @@ namespace FollowTargetByPositionStatEffect {
   struct CommandRow;
 }
 
+namespace DamageStatEffect {
+  struct CommandRow;
+};
+
 struct StatEffectBaseAdapter {
   StatEffect::Owner* owner{};
   StatEffect::Lifetime* lifetime{};
@@ -92,6 +97,11 @@ struct FollowTargetByPositionStatEffectAdapter {
   FollowTargetByPositionStatEffect::CommandRow* command{};
 };
 
+struct DamageStatEffectAdapter {
+  StatEffectBaseAdapter base;
+  DamageStatEffect::CommandRow* command{};
+};
+
 struct TransformAdapter {
   BasicRow<float>* posX{};
   BasicRow<float>* posY{};
@@ -126,6 +136,13 @@ struct PlayerAdapter {
 
 struct CameraAdapater {
   GameObjectAdapter object;
+};
+
+struct FragmentAdapter {
+  BasicRow<float>* goalX{};
+  BasicRow<float>* goalY{};
+  BasicRow<float>* damageTaken{};
+  BasicRow<glm::vec4>* tint{};
 };
 
 struct SceneState;
@@ -177,10 +194,13 @@ namespace TableAdapters {
   LambdaStatEffectAdapter getLambdaEffects(GameDB db, size_t thread);
   AreaForceStatEffectAdapter getAreaForceEffects(GameDB db, size_t thread);
   FollowTargetByPositionStatEffectAdapter getFollowTargetByPositionEffects(GameDB db, size_t thread);
+  DamageStatEffectAdapter getDamageEffects(GameDB db, size_t thread);
   CentralStatEffectAdapter getCentralStatEffects(GameDB db);
 
   GameObjectAdapter getGameplayObjectInTable(GameDB db, size_t tableIndex);
   GameObjectAdapter getGameObjects(GameDB db);
+  FragmentAdapter getFragments(GameDB db);
+  FragmentAdapter getFragmentsInTable(GameDB db, size_t tableIndex);
   GameObjectAdapter getStaticGameObjects(GameDB db);
   PlayerAdapter getPlayer(GameDB db);
   //The gameplay extracted versions of the above
@@ -207,5 +227,9 @@ namespace TableAdapters {
   inline void add(size_t i, const glm::vec2& v, Row<float>& x, Row<float>& y) {
     x.at(i) += v.x;
     y.at(i) += v.y;
+  }
+
+  inline void add(size_t i, float v, Row<float>& x) {
+    x.at(i) += v;
   }
 };

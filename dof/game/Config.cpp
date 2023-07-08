@@ -43,7 +43,7 @@ namespace Config {
 
     static void write(const Config::AbilityCooldownConfig& c, Ability::CooldownType& result) {
       if(c.type == Ability::Strings::Cooldown::DISABLED) {
-        result = Ability::DisabledCooldown { c.maxTime };
+        result = Ability::DisabledCooldown { 0.0f, c.maxTime };
       }
     }
 
@@ -54,9 +54,11 @@ namespace Config {
     static void read(const Ability::ChargeTrigger& t, Config::AbilityTriggerConfig& result) {
       result.type = Ability::Strings::Trigger::CHARGE;
       result.minCharge = t.minimumCharge;
-      GameCurveConfig temp;
+      GameCurveConfig temp, tempDamage;
       temp.definition = t.chargeCurve;
-      result.chargeCurve =  temp.read();
+      tempDamage.definition = t.damageChargeCurve;
+      result.chargeCurve = temp.read();
+      result.damageCurve = tempDamage.read();
     }
 
     static void write(const Config::AbilityTriggerConfig& t, Ability::TriggerType& result) {
@@ -64,12 +66,15 @@ namespace Config {
         result = Ability::InstantTrigger{};
       }
       else if(t.type == Ability::Strings::Trigger::CHARGE) {
-        GameCurveConfig temp;
+        GameCurveConfig temp, tempDamage;
         temp.write(t.chargeCurve);
+        tempDamage.write(t.damageCurve);
         result = Ability::ChargeTrigger {
           0.0f,
+          0.0f,
           t.minCharge,
-          temp.definition
+          temp.definition,
+          tempDamage.definition
         };
       }
     }
@@ -118,7 +123,6 @@ namespace Config {
   const auto& getExt(const Config::ConfigExt<T>& ext) {
     return static_cast<const AdapterT&>(*ext.adapter).get();
   }
-
 
   Ability::AbilityInput& getAbility(AbilityConfigExt& ext) {
     return getExt<GameAbilityConfig>(ext);

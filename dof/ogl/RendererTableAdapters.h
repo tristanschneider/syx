@@ -1,6 +1,7 @@
 #pragma once
 #include "DebugLinePassTable.h"
 #include "QuadPassTable.h"
+#include "glm/vec4.hpp"
 
 struct RendererDB;
 
@@ -12,6 +13,7 @@ struct QuadPassAdapter {
   Row<float>* linVelX{};
   Row<float>* linVelY{};
   Row<float>* angVel{};
+  Row<glm::vec4>* tint{};
   SharedRow<bool>* isImmobile{};
   QuadPassTable::UV* uvs{};
   SharedRow<size_t>* texture{};

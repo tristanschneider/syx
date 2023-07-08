@@ -148,7 +148,6 @@ namespace Fragment {
     _setupScene(db, args);
   }
 
-
   //Read FragmentGoalFoundRow, StableIDRow
   //Modify thread locals
   void _migrateCompletedFragments(GameDB game, size_t thread) {

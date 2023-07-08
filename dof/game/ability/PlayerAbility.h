@@ -26,8 +26,10 @@ namespace Ability {
   struct InstantTrigger {};
   struct ChargeTrigger {
     float currentCharge{};
+    float currentDamageCharge{};
     float minimumCharge{};
     CurveDefinition chargeCurve{};
+    CurveDefinition damageChargeCurve{};
   };
   using TriggerType = std::variant<InstantTrigger, ChargeTrigger>;
 
@@ -58,6 +60,7 @@ namespace Ability {
   };
   struct TriggerWithPower {
     float power{};
+    float damage{};
     bool resetInput{};
   };
   struct DontTrigger {

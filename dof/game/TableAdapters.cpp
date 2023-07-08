@@ -94,6 +94,16 @@ namespace {
   }
 
   template<class TableT>
+  FragmentAdapter getFragment(TableT& table) {
+    return {
+      TableOperations::tryGetRow<FloatRow<Tags::FragmentGoal, Tags::X>>(table),
+      TableOperations::tryGetRow<FloatRow<Tags::FragmentGoal, Tags::Y>>(table),
+      TableOperations::tryGetRow<DamageTaken>(table),
+      TableOperations::tryGetRow<Tint>(table)
+    };
+  }
+
+  template<class TableT>
   StableIDRow* getStableRow(TableT& table) {
     return TableOperations::tryGetRow<StableIDRow>(table);
   }
@@ -137,6 +147,14 @@ namespace {
       &std::get<FollowTargetByPositionStatEffect::CommandRow>(table.mRows)
     };
   }
+
+  DamageStatEffectAdapter getDamageEffects(StatEffectDatabase& db) {
+    auto& table = std::get<DamageStatEffectTable>(db.mTables);
+    return {
+      getStatBase(table, db),
+      &std::get<DamageStatEffect::CommandRow>(table.mRows)
+    };
+  }
 }
 
 PositionStatEffectAdapter TableAdapters::getPositionEffects(GameDB db, size_t thread) {
@@ -159,6 +177,10 @@ FollowTargetByPositionStatEffectAdapter TableAdapters::getFollowTargetByPosition
   return ::getFollowTargetByPositionEffects(getThreadLocal(db, thread).statEffects->db);
 }
 
+DamageStatEffectAdapter TableAdapters::getDamageEffects(GameDB db, size_t thread) {
+  return ::getDamageEffects(getThreadLocal(db, thread).statEffects->db);
+}
+
 GameObjectAdapter TableAdapters::getGameplayObjectInTable(GameDB db, size_t tableIndex) {
   GameObjectAdapter result;
   db.db.visitOneByIndex(GameDatabase::ElementID{ tableIndex, 0 }, [&result](auto& table) {
@@ -178,6 +200,19 @@ GameObjectAdapter TableAdapters::getGameObjects(GameDB db) {
     getPhysics(table),
     getStableRow(table)
   };
+}
+
+FragmentAdapter TableAdapters::getFragments(GameDB db) {
+  auto& table = std::get<GameObjectTable>(db.db.mTables);
+  return getFragment(table);
+}
+
+FragmentAdapter TableAdapters::getFragmentsInTable(GameDB db, size_t tableIndex) {
+  FragmentAdapter result;
+  db.db.visitOneByIndex(GameDatabase::ElementID{ tableIndex, 0 }, [&result](auto& table) {
+    result = getFragment(table);
+  });
+  return result;
 }
 
 GameObjectAdapter TableAdapters::getGameplayGameObjects(GameDB db) {

@@ -25,8 +25,10 @@ namespace {
       uniform samplerBuffer uRotX;
       uniform samplerBuffer uRotY;
       uniform samplerBuffer uUV;
+      uniform samplerBuffer uTint;
 
       out vec2 oUV;
+      out vec4 oTint;
 
       void main() {
         gl_Position = vec4(aPosition.xy*0.1, 0, 1.0);
@@ -76,6 +78,8 @@ namespace {
             break;
         }
 
+        oTint = texelFetch(uTint, i);
+
         gl_Position.x = pos.x;
         gl_Position.y = pos.y;
       }
@@ -86,11 +90,13 @@ namespace {
         uniform sampler2D uTex;
 
         in vec2 oUV;
+        in vec4 oTint;
         layout(location = 0) out vec3 color;
 
         void main() {
           //uv flip hack to make the texture look right. uvs are bottom left to top right, picture is loaded top left to bottom right
           color = texture(uTex, vec2(oUV.x, 1.0-oUV.y)).rgb;
+          color = mix(oTint.rgb, color.rgb, 1.0 - oTint.a);
         }
     )";
   };
@@ -208,6 +214,7 @@ namespace {
     result.posY = Shader::_createTextureSamplerUniform(quadShader, "uPosY");
     result.rotX = Shader::_createTextureSamplerUniform(quadShader, "uRotX");
     result.rotY = Shader::_createTextureSamplerUniform(quadShader, "uRotY");
+    result.tint = Shader::_createTextureSamplerUniform(quadShader, "uTint");
     result.uv = Shader::_createTextureSamplerUniform(quadShader, "uUV");
     result.worldToView = glGetUniformLocation(quadShader, "uWorldToView");
     result.texture = glGetUniformLocation(quadShader, "uTex");
@@ -414,6 +421,9 @@ TaskRange Renderer::extractRenderables(const GameDatabase& db, RendererDatabase&
         passRoot->mChildren.push_back(copyDataTask(*velY, *pass.linVelY));
         passRoot->mChildren.push_back(copyDataTask(*velA, *pass.angVel));
       }
+      if(const auto tint = Queries::getRowInTable<Tint>(db, id)) {
+        passRoot->mChildren.push_back(copyDataTask(*tint, *pass.tint));
+      }
   });
 
   //Debug lines
@@ -542,6 +552,7 @@ void Renderer::render(RendererDatabase& renderDB) {
       auto& velX = *passAdapter.linVelX;
       auto& velY = *passAdapter.linVelY;
       auto& velA = *passAdapter.angVel;
+      auto& tint = *passAdapter.tint;
       auto& pass = passAdapter.pass->at();
 
       size_t count = posX.size();
@@ -572,6 +583,9 @@ void Renderer::render(RendererDatabase& renderDB) {
       glBindBuffer(GL_TEXTURE_BUFFER, pass.mQuadUniforms.angVel.buffer);
       glBufferData(GL_TEXTURE_BUFFER, floatSize, velA.mElements.data(), GL_STATIC_DRAW);
 
+      glBindBuffer(GL_TEXTURE_BUFFER, pass.mQuadUniforms.tint.buffer);
+      glBufferData(GL_TEXTURE_BUFFER, floatSize*4, tint.mElements.data(), GL_STATIC_DRAW);
+
       //TODO: doesn't change every frame
       glBindBuffer(GL_TEXTURE_BUFFER, pass.mQuadUniforms.uv.buffer);
       glBufferData(GL_TEXTURE_BUFFER, sizeof(float)*count*4, sprite.mElements.data(), GL_STATIC_DRAW);
@@ -589,6 +603,7 @@ void Renderer::render(RendererDatabase& renderDB) {
       _bindTextureSamplerUniform(pass.mQuadUniforms.rotX, GL_R32F, textureIndex++);
       _bindTextureSamplerUniform(pass.mQuadUniforms.rotY, GL_R32F, textureIndex++);
       _bindTextureSamplerUniform(pass.mQuadUniforms.uv, GL_RGBA32F, textureIndex++);
+      _bindTextureSamplerUniform(pass.mQuadUniforms.tint, GL_RGBA32F, textureIndex++);
       glActiveTexture(GL_TEXTURE0 + textureIndex);
       glBindTexture(GL_TEXTURE_2D, oglTexture);
       glUniform1i(pass.mQuadUniforms.texture, textureIndex++);

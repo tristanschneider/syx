@@ -2,27 +2,51 @@
     "value0": {
         "ability": {
             "pushAbility": {
-                "cooldown.type": "disabled",
-                "type": 0.43700000643730166,
-                "cooldown.maxTime": "charge",
-                "maxTime": 0.024000000208616258,
-                "trigger.type, v.trigger.minCharge, v.trigger.chargeCurve": {
-                    "scale": {
-                        "nullopt": false,
-                        "data": 0.7620000243186951
+                "ability": {
+                    "cooldown.type": "disabled",
+                    "cooldown.maxTime": 0.43,
+                    "trigger.type": "charge",
+                    "trigger.minCharge": 0.024000000208616258,
+                    "trigger.chargeCurve": {
+                        "scale": {
+                            "nullopt": false,
+                            "data": 0.7620000243186951
+                        },
+                        "offset": {
+                            "nullopt": false,
+                            "data": 0.03999999910593033
+                        },
+                        "duration": {
+                            "nullopt": false,
+                            "data": 1.1779999732971192
+                        },
+                        "flipInput": false,
+                        "flipOutput": false,
+                        "curveFunction": "QuadraticEaseIn"
                     },
-                    "offset": {
-                        "nullopt": false,
-                        "data": 0.03999999910593033
-                    },
-                    "duration": {
-                        "nullopt": false,
-                        "data": 1.1779999732971192
-                    },
-                    "flipInput": false,
-                    "flipOutput": false,
-                    "curveFunction": "QuadraticEaseIn"
-                }
+                    "trigger.damageCurve": {
+                        "scale": {
+                            "nullopt": false,
+                            "data": 9.888999938964844
+                        },
+                        "offset": {
+                            "nullopt": false,
+                            "data": 0.03999999910593033
+                        },
+                        "duration": {
+                            "nullopt": false,
+                            "data": 1.1779999732971192
+                        },
+                        "flipInput": false,
+                        "flipOutput": false,
+                        "curveFunction": "QuadraticEaseIn"
+                    }
+                },
+                "dynamicPiercing": 3.0,
+                "terrainPiercing": 0.0,
+                "coneHalfAngle": 0.25,
+                "coneLength": 15.0,
+                "rayCount": 4
             }
         },
         "camera": {
