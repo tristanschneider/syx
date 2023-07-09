@@ -143,6 +143,10 @@ struct IsImmobile : SharedRow<char>{};
 struct IsFragment : SharedRow<char>{};
 struct DamageTaken : Row<float>{};
 struct Tint : Row<glm::vec4>{};
+enum class FragmentFlags : uint8_t {
+  InBounds = 1 << 0,
+};
+struct FragmentFlagsRow : Row<FragmentFlags>{};
 
 using GameObjectTable = Table<
   //Data viewed by physics, not to be used by gameplay
@@ -172,6 +176,7 @@ using GameObjectTable = Table<
   FloatRow<Tags::FragmentGoal, Tags::Y>,
   DamageTaken,
   Tint,
+  FragmentFlagsRow,
 
   SweepNPruneBroadphase::BroadphaseKeys,
 
@@ -205,6 +210,13 @@ using StaticGameObjectTable = Table<
   IsImmobile,
   IsFragment,
 
+  StableIDRow
+>;
+
+//Table to hold positions to be referenced by stable element id
+using TargetPosTable = Table<
+  FloatRow<Tags::Pos, Tags::X>,
+  FloatRow<Tags::Pos, Tags::Y>,
   StableIDRow
 >;
 
@@ -325,7 +337,8 @@ using GameDatabase = Database<
   ConstraintsTable,
   ConstraintCommonTable,
   ContactConstraintsToStaticObjectsTable,
-  DebugLineTable
+  DebugLineTable,
+  TargetPosTable
 >;
 
 //For allowing forward declarations where GameDatabase is desired

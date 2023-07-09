@@ -3,6 +3,7 @@
 #include "stat/AreaForceStatEffect.h"
 #include "stat/DamageStatEffect.h"
 #include "stat/FollowTargetByPositionEffect.h"
+#include "stat/FollowTargetByVelocityEffect.h"
 #include "stat/LambdaStatEffect.h"
 #include "stat/PositionStatEffect.h"
 #include "stat/VelocityStatEffect.h"
@@ -23,6 +24,7 @@ using StatEffectDatabase = Database<
   VelocityStatEffectTable,
   AreaForceStatEffectTable,
   FollowTargetByPositionStatEffectTable,
+  FollowTargetByVelocityStatEffectTable,
   DamageStatEffectTable
 >;
 

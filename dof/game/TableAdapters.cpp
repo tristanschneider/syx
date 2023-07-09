@@ -41,6 +41,7 @@ namespace {
       &std::get<StatEffect::Owner>(table.mRows),
       &std::get<StatEffect::Lifetime>(table.mRows),
       &std::get<StatEffect::Global>(table.mRows),
+      &std::get<StatEffect::Continuations>(table.mRows),
       StableTableModifierInstance::get<StatEffectDatabase>(table, StatEffect::getGlobals(db).stableMappings),
       TableOperations::tryGetRow<StatEffect::Target>(table),
       TableOperations::tryGetRow<StatEffect::CurveInput<>>(table),
@@ -148,6 +149,15 @@ namespace {
     };
   }
 
+  FollowTargetByVelocityStatEffectAdapter getFollowTargetByVelocityEffects(StatEffectDatabase& db) {
+    auto& table = std::get<FollowTargetByVelocityStatEffectTable>(db.mTables);
+    return {
+      getStatBase(table, db),
+      &std::get<FollowTargetByVelocityStatEffect::CommandRow>(table.mRows)
+    };
+  }
+
+
   DamageStatEffectAdapter getDamageEffects(StatEffectDatabase& db) {
     auto& table = std::get<DamageStatEffectTable>(db.mTables);
     return {
@@ -175,6 +185,10 @@ AreaForceStatEffectAdapter TableAdapters::getAreaForceEffects(GameDB db, size_t 
 
 FollowTargetByPositionStatEffectAdapter TableAdapters::getFollowTargetByPositionEffects(GameDB db, size_t thread) {
   return ::getFollowTargetByPositionEffects(getThreadLocal(db, thread).statEffects->db);
+}
+
+FollowTargetByVelocityStatEffectAdapter TableAdapters::getFollowTargetByVelocityEffects(GameDB db, size_t thread) {
+  return ::getFollowTargetByVelocityEffects(getThreadLocal(db, thread).statEffects->db);
 }
 
 DamageStatEffectAdapter TableAdapters::getDamageEffects(GameDB db, size_t thread) {
@@ -293,13 +307,24 @@ CameraAdapater TableAdapters::getCamera(GameDB db) {
   };
 }
 
+TargetPosAdapter TableAdapters::getTargetPos(GameDB db) {
+  auto& table = std::get<TargetPosTable>(db.db.mTables);
+  return {
+    &std::get<FloatRow<Tags::Pos, Tags::X>>(table.mRows),
+    &std::get<FloatRow<Tags::Pos, Tags::Y>>(table.mRows),
+    &std::get<StableIDRow>(table.mRows),
+    StableTableModifierInstance::get<GameDatabase>(table, getStableMappings(db))
+  };
+}
+
 CentralStatEffectAdapter TableAdapters::getCentralStatEffects(GameDB db) {
   auto& stats = getStatEffects(db);
   return {
     ::getPositionEffects(stats.db),
     ::getVelocityEffects(stats.db),
     ::getLambdaEffects(stats.db),
-    ::getFollowTargetByPositionEffects(stats.db)
+    ::getFollowTargetByPositionEffects(stats.db),
+    ::getFollowTargetByVelocityEffects(stats.db)
   };
 }
 

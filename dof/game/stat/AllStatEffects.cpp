@@ -80,6 +80,16 @@ namespace StatEffect {
   }
 
   template<class TableT>
+  StableInfo getStableInfo(TableT& table, AllStatEffects::Globals& globals) {
+    //Stable info for the ids of the stats
+    StableInfo stable;
+    stable.description = globals.description;
+    stable.mappings = &globals.stableMappings;
+    stable.row = &std::get<StableIDRow>(table.mRows);
+    return stable;
+  }
+
+  template<class TableT>
   std::shared_ptr<TaskNode> visitTickLifetime(TableT& table) {
     return StatEffect::tickLifetime(
       std::get<StatEffect::Lifetime>(table.mRows),
@@ -88,13 +98,17 @@ namespace StatEffect {
   }
 
   template<class TableT>
+  std::shared_ptr<TaskNode> visitProcessCompletionContinuation(TableT& table, GameDB db, AllStatEffects::Globals& globals) {
+    return StatEffect::processCompletionContinuation(
+      db,
+      std::get<StatEffect::Continuations>(table.mRows),
+      std::get<StatEffect::Global>(table.mRows).at().toRemove,
+      getStableInfo(table, globals));
+  }
+
+  template<class TableT>
   std::shared_ptr<TaskNode> visitRemoveLifetime(TableT& table, AllStatEffects::Globals& globals) {
-    //Stable info for the ids of the stats
-    StableInfo stable;
-    stable.description = globals.description;
-    stable.mappings = &globals.stableMappings;
-    stable.row = &std::get<StableIDRow>(table.mRows);
-    return StatEffect::processRemovals(table, stable);
+    return StatEffect::processRemovals(table, getStableInfo(table, globals));
   }
 
   template<class T>
@@ -157,15 +171,18 @@ namespace StatEffect {
       //Modify write health and tint, doesn't matter where this is at the moment
       .then(StatEffect::processStat(std::get<DamageStatEffectTable>(stats.mTables), db));
     result.velocitySetters = StatEffect::processStat(std::get<VelocityStatEffectTable>(stats.mTables), db);
-    result.posGetVelSet = StatEffect::processStat(std::get<AreaForceStatEffectTable>(stats.mTables), db);
+    result.posGetVelSet = StatEffect::processStat(std::get<AreaForceStatEffectTable>(stats.mTables), db)
+      .then(StatEffect::processStat(std::get<FollowTargetByVelocityStatEffectTable>(stats.mTables), db));
     TaskRange lambdaRange = StatEffect::processStat(std::get<LambdaStatEffectTable>(stats.mTables), db);
     const float* dt = &TableAdapters::getConfig(db).game->world.deltaTime;
     //Empty root
     auto syncBegin = TaskNode::create([](...){});
     //Then process all lifetimes
     auto& globals = getGlobals(stats);
-    visitStats(stats, [syncBegin, dt](auto& table) {
-      syncBegin->mChildren.push_back(visitTickLifetime(table));
+    visitStats(stats, [syncBegin, dt, &globals, db](auto& table) {
+      std::shared_ptr<TaskNode> lifetime = visitTickLifetime(table);
+      lifetime->mChildren.push_back(visitProcessCompletionContinuation(table, db, globals));
+      syncBegin->mChildren.push_back(lifetime);
       //Curves only depend on themselves so can be solved here
       visitSolveCurves(table, dt, syncBegin->mChildren);
     });

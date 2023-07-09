@@ -4,6 +4,11 @@
 #include "glm/mat3x3.hpp"
 
 namespace Math {
+  template<class T>
+  auto enumCast(T e) {
+    return static_cast<std::underlying_type_t<T>>(e);
+  }
+
   struct Impulse {
     glm::vec2 linear{ 0.0f };
     float angular{};

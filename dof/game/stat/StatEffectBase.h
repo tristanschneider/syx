@@ -16,10 +16,29 @@ namespace StatEffect {
     std::vector<StableElementID> toRemove;
   };
 
+  //This allows chaining together multiple effects. When an effect completes this will be called
+  //which allows creating a follow-up effect. Since the given effect is being destroyed ownership
+  //of the continuation needs to be transferred to the next one if it is desired to preserve the chain
+  //New effects should be added through thread locals
+  struct Continuation {
+    struct Args {
+      //The entire db is exposed yet the intended use would just be to look up any additional information
+      //on the table of the element being removed, and to get the thread locals
+      GameDB& db;
+      //Id of the stat that is about to be removed
+      const UnpackedDatabaseElementID& id;
+      size_t thread{};
+      Continuation&& continuation;
+    };
+    using Callback = std::function<void(Args&)>;
+    std::deque<Callback> onComplete;
+  };
+
   //The gameobject this affects
   struct Owner : Row<StableElementID>{};
   struct Lifetime : Row<size_t>{};
   struct Global : SharedRow<Globals>{};
+  struct Continuations : Row<Continuation>{};
   //Optional for effects that have a target in addition to an owner
   struct Target : Row<StableElementID>{};
 
@@ -44,6 +63,9 @@ namespace StatEffect {
     return processRemovals(&effects, TableOperations::getStableSwapRemove<TableT>(), std::get<Global>(effects.mRows).at().toRemove, stable);
   }
 
+  //Resolves the stable id then calls the continuation if there is any. Resolution is a bit redundant, removal needs to do it again because it's moving them around as part of removal
+  std::shared_ptr<TaskNode> processCompletionContinuation(GameDB db, Continuations& continuations, std::vector<StableElementID>& toRemove, StableInfo stable);
+
   std::shared_ptr<TaskNode> resolveOwners(GameDB db, Row<StableElementID>& owners, StableInfo stable);
 }
 
@@ -52,6 +74,7 @@ struct StatEffectBase : Table<
   StatEffect::Owner,
   StatEffect::Lifetime,
   StatEffect::Global,
+  StatEffect::Continuations,
   StableIDRow,
   Rows...
 > {};

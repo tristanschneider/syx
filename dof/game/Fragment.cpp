@@ -74,7 +74,7 @@ namespace Fragment {
       std::get<FloatRow<Rot, CosAngle>>(gameobjects.mRows).at(j) = 1.0f;
     }
 
-    const float boundaryPadding = 1.0f;
+    const float boundaryPadding = 10.0f;
     const size_t first = 0;
     const size_t last = total - 1;
     scene.mBoundaryMin = glm::vec2(goalX.at(first), goalY.at(first)) - glm::vec2(boundaryPadding);
