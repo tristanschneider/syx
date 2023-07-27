@@ -5,11 +5,11 @@
 #include "TableAdapters.h"
 
 namespace StatEffect {
-  std::shared_ptr<TaskNode> tickLifetime(Lifetime& lifetime, const StableIDRow& stableIDs, std::vector<StableElementID>& toRemove) {
-    return TaskNode::create([&lifetime, &stableIDs, &toRemove](...) {
+  std::shared_ptr<TaskNode> tickLifetime(Lifetime& lifetime, const StableIDRow& stableIDs, std::vector<StableElementID>& toRemove, size_t removeOnTick) {
+    return TaskNode::create([&lifetime, &stableIDs, &toRemove, removeOnTick](...) {
       for(size_t i = 0; i < lifetime.size(); ++i) {
         size_t& remaining = lifetime.at(i);
-        if(remaining) {
+        if(remaining > removeOnTick) {
           if(remaining != INFINITE) {
             --remaining;
           }

@@ -1543,7 +1543,7 @@ namespace Test {
       }
 
       StatEffect::addEffects(1, lambdaStat, tls.statEffects->db);
-      lambda.base.lifetime->at(0) = 1;
+      lambda.base.lifetime->at(0) = StatEffect::INSTANT;
       lambda.base.owner->at(0) = StableOperations::getStableID(objsStable, tableBase.remakeElement(0));
       int lambdaInvocations = 0;
       lambda.command->at(0) = [&](LambdaStatEffect::Args& args) {
@@ -1573,8 +1573,8 @@ namespace Test {
       game.update();
 
       Assert::AreEqual(1, lambdaInvocations);
-      Assert::AreEqual(size_t(1), lambdaLifetime.size());
-      Assert::AreEqual(size_t(0), lambdaLifetime.at(0));
+      //Lambda is removed one tick earlier than others because the callback is processed before removal
+      Assert::AreEqual(size_t(0), lambdaLifetime.size());
 
       Assert::AreEqual(1.0f, gameobjects.physics.linVelX->at(1), 0.1f);
       Assert::AreEqual(1.0f, gameobjects.physics.linVelY->at(1), 0.1f);
@@ -1588,6 +1588,28 @@ namespace Test {
       Assert::AreEqual(1.0f, gameobjects.transform.rotY->at(2));
       Assert::AreEqual(size_t(1), posLifetime.size());
       Assert::AreEqual(size_t(0), posLifetime.at(0));
+
+      //Set the values to something to show they don't change after the next update
+      gameobjects.physics.linVelX->at(1) = 0.0f;
+      gameobjects.transform.posX->at(2) = 10.0f;
+
+      //After this pos and lambda should be removed and should not have executed again before removal
+      game.update();
+
+      Assert::AreEqual(1, lambdaInvocations);
+      Assert::AreEqual(size_t(0), lambdaLifetime.size());
+      Assert::AreEqual(size_t(0), posLifetime.size());
+      //Assert the unchanged values
+      Assert::AreEqual(1.0f, gameobjects.physics.linVelX->at(1), 0.1f);
+      Assert::AreEqual(10.0f, gameobjects.transform.posX->at(2), 0.1f);
+
+      gameobjects.physics.linVelX->at(1) = 0.0f;
+
+      //Should remove velcity
+      game.update();
+
+      Assert::AreEqual(size_t(0), velLifetime.size());
+      Assert::AreEqual(0.0f, gameobjects.physics.linVelX->at(1), 0.1f);
     }
 
     TEST_METHOD(PlayerInput) {

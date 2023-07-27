@@ -91,10 +91,14 @@ namespace StatEffect {
 
   template<class TableT>
   std::shared_ptr<TaskNode> visitTickLifetime(TableT& table) {
+    //Hack to account for lambda processing being the only table that is scheduled before the lifetime update,
+    //so it needs to be removed one tick earlier so that it's only called once instead of twice
+    constexpr bool removeEarly = std::is_same_v<LambdaStatEffectTable, TableT>;
     return StatEffect::tickLifetime(
       std::get<StatEffect::Lifetime>(table.mRows),
       std::get<StableIDRow>(table.mRows),
-      std::get<StatEffect::Global>(table.mRows).at().toRemove);
+      std::get<StatEffect::Global>(table.mRows).at().toRemove,
+      removeEarly ? 1 : 0);
   }
 
   template<class TableT>

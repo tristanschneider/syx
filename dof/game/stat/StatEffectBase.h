@@ -55,7 +55,7 @@ namespace StatEffect {
   template<class CurveTag = DefaultCurveTag>
   struct CurveDef: Row<CurveDefinition*>{};
 
-  std::shared_ptr<TaskNode> tickLifetime(Lifetime& lifetime, const StableIDRow& stableIDs, std::vector<StableElementID>& toRemove);
+  std::shared_ptr<TaskNode> tickLifetime(Lifetime& lifetime, const StableIDRow& stableIDs, std::vector<StableElementID>& toRemove, size_t removeOnTick);
 
   std::shared_ptr<TaskNode> processRemovals(void* table, TableOperations::StableSwapRemover remove, std::vector<StableElementID>& toRemove, StableInfo stable);
   template<class TableT>
