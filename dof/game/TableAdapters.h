@@ -200,6 +200,24 @@ struct CentralStatEffectAdapter {
   FollowTargetByVelocityStatEffectAdapter followTargetByVelocity;
 };
 
+namespace SpatialQuery {
+  struct Globals;
+  struct QueryRow;
+  struct ResultRow;
+  struct NeedsResubmitRow;
+  struct LifetimeRow;
+};
+
+struct SpatialQueryAdapter {
+  SpatialQuery::QueryRow* queries{};
+  SpatialQuery::ResultRow* results{};
+  SpatialQuery::GlobalsRow* globals{};
+  StableIDRow* stable{};
+  StableElementMappings* stableMappings{};
+  SpatialQuery::NeedsResubmitRow* needsResubmit{};
+  SpatialQuery::LifetimeRow* lifetime{};
+};
+
 namespace TableAdapters {
   ConfigAdapter getConfig(GameDB db);
   StableElementMappings& getStableMappings(GameDB db);
@@ -229,6 +247,7 @@ namespace TableAdapters {
   PlayerAdapter getGameplayPlayer(GameDB db);
   CameraAdapater getCamera(GameDB db);
   TargetPosAdapter getTargetPos(GameDB db);
+  SpatialQueryAdapter getSpatialQueries(GameDB db);
 
   DebugLineAdapter getDebugLines(GameDB db);
 

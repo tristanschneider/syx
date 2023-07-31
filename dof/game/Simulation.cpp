@@ -19,6 +19,7 @@
 #include "DebugInput.h"
 #include "World.h"
 #include "ability/PlayerAbility.h"
+#include "TableService.h"
 
 PlayerInput::PlayerInput()
   : ability1(std::make_unique<Ability::AbilityInput>()) {
@@ -138,6 +139,10 @@ namespace {
 
     TaskBuilder::_addSyncDependency(*current, statTasks.synchronous.mBegin);
     current = statTasks.synchronous.mEnd;
+    TaskRange spatialQuery = SpatialQuery::gameplayUpdateQueries({ db });
+    current->mChildren.push_back(spatialQuery.mBegin);
+    current = spatialQuery.mEnd;
+
     current->mChildren.push_back(TaskNode::create([&db](...) {
       Events::publishEvents({ db });
     }));
@@ -145,6 +150,9 @@ namespace {
     TaskRange physicsEvents = PhysicsSimulation::processEvents({ db });
     current->mChildren.push_back(physicsEvents.mBegin);
     current = physicsEvents.mEnd;
+    TaskRange tables = TableService::processEvents({ db });
+    current->mChildren.push_back(tables.mBegin);
+    current = tables.mEnd;
 
     return { root, current };
   }

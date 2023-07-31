@@ -282,7 +282,7 @@ struct StableOperations {
     mappings[newStableID] = DatabaseElementID<S>{ id.getTableIndex(), newUnstableIndex };
   }
 
-  static void resize(StableIDRow& row, const UnpackedDatabaseElementID& id, size_t newSize, StableElementMappings& mappings) {
+  static void resize(StableIDRow& row, const UnpackedDatabaseElementID& id, size_t newSize, StableElementMappings& mappings, const StableElementID* reservedKeys = nullptr) {
     size_t oldSize = row.size();
     //Remove mappings for elements about to be removed
     for(size_t i = newSize; i < oldSize; ++i) {
@@ -293,7 +293,7 @@ struct StableOperations {
     row.resize(newSize);
     for(size_t i = oldSize; i < newSize; ++i) {
       //Assign new id
-      row.at(i) = mappings.createKey();
+      row.at(i) = reservedKeys ? reservedKeys[i].mStableID : mappings.createKey();
 
       //Add mapping for new id
       mappings.insertKey(row.at(i), id.remake(id.getTableIndex(), i).mValue);

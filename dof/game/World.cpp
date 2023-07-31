@@ -53,13 +53,9 @@ namespace World {
     const size_t effect = TableAdapters::addStatEffectsSharedLifetime(lambda.base, StatEffect::INSTANT, &stable.at(i), 1);
     bool called = false;
     lambda.command->at(effect) = [called](LambdaStatEffect::Args& args) mutable {
-      //TODO: hack to prevent this from being called twice. Need to fix callback so this doesn't happen
-      if(!called) {
-        called = true;
-        //Since this is in a lambda callback it's the main thread so use the central stat effects instead of the thread local ones
-        FollowTargetByVelocityStatEffectAdapter follow = TableAdapters::getCentralStatEffects(*args.db).followTargetByVelocity;
-        addDamageStatEffect(*args.db, args.resolvedID, follow);
-      }
+      //Since this is in a lambda callback it's the main thread so use the central stat effects instead of the thread local ones
+      FollowTargetByVelocityStatEffectAdapter follow = TableAdapters::getCentralStatEffects(*args.db).followTargetByVelocity;
+      addDamageStatEffect(*args.db, args.resolvedID, follow);
     };
   }
 

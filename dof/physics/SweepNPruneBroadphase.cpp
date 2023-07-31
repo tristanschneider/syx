@@ -90,6 +90,23 @@ namespace SweepNPruneBroadphase {
     return TaskBuilder::addEndSync(root);
   }
 
+  TaskRange updateBoundaries(Broadphase::SweepGrid::Grid& grid, std::vector<RawBoundariesQuery> query) {
+    auto update = TaskNode::create([&grid, query](...) mutable {
+      PROFILE_SCOPE("physics", "assignRawBoundaries");
+      for(const RawBoundariesQuery& q : query) {
+        Broadphase::SweepGrid::updateBoundaries(grid,
+          q.minX->mElements.data(),
+          q.maxX->mElements.data(),
+          q.minY->mElements.data(),
+          q.maxY->mElements.data(),
+          q.keys->mElements.data(),
+          q.keys->size()
+        );
+      }
+    });
+    return TaskBuilder::addEndSync(update);
+  }
+
   TaskRange computeCollisionPairs(BroadphaseTable& broadphase) {
     auto& grid = std::get<SharedRow<Broadphase::SweepGrid::Grid>>(broadphase.mRows).at();
     auto& pairChanges = std::get<SharedRow<SweepNPruneBroadphase::PairChanges>>(broadphase.mRows).at();

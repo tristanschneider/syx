@@ -8,6 +8,7 @@
 #include "glm/vec2.hpp"
 #include "glm/vec3.hpp"
 #include "glm/vec4.hpp"
+#include "SpatialQueries.h"
 #include "SweepNPruneBroadphase.h"
 #include "StableElementID.h"
 #include "Scheduler.h"
@@ -326,6 +327,7 @@ using DebugLineTable = Table<Row<DebugPoint>>;
 using BroadphaseTable = SweepNPruneBroadphase::BroadphaseTable;
 
 using GameDatabase = Database<
+  SpatialQuery::SpatialQueriesTable,
   GlobalGameData,
   GameObjectTable,
   StaticGameObjectTable,

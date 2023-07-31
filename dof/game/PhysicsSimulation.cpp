@@ -61,8 +61,19 @@ namespace PhysicsSimulation {
       SweepNPruneBroadphase::BroadphaseKeys& keys) {
         bQuery.push_back({ &posX, &posY, &keys });
     });
+    std::vector<SweepNPruneBroadphase::RawBoundariesQuery> bRawQuery;
+    using namespace SpatialQuery;
+    Queries::viewEachRow(db, [&](
+      SpatialQuery::Physics<SpatialQuery::MinX>& minX,
+      SpatialQuery::Physics<SpatialQuery::MinY>& minY,
+      SpatialQuery::Physics<SpatialQuery::MaxX>& maxX,
+      SpatialQuery::Physics<SpatialQuery::MaxY>& maxY,
+      SweepNPruneBroadphase::BroadphaseKeys& keys) {
+        bRawQuery.push_back({ &minX, &minY, &maxX, &maxY, &keys });
+    });
 
     TaskRange boundaries = SweepNPruneBroadphase::updateBoundaries(grid, std::move(bQuery), cfg);
+    TaskRange boundaries2 = SweepNPruneBroadphase::updateBoundaries(grid, bRawQuery);
     TaskRange computePairs = SweepNPruneBroadphase::computeCollisionPairs(broadphase);
     auto updatePairs = TaskNode::create([&broadphase, &collisionPairs, &changedPairs, &physicsTables, &db](...) {
       SweepNPruneBroadphase::updateCollisionPairs<CollisionPairIndexA, CollisionPairIndexB, GameDatabase>(
@@ -74,7 +85,7 @@ namespace PhysicsSimulation {
         changedPairs);
     });
 
-    return boundaries.then(computePairs).then(TaskBuilder::addEndSync(updatePairs));
+    return boundaries.then(boundaries2).then(computePairs).then(TaskBuilder::addEndSync(updatePairs));
   }
 
   TaskRange _updateNarrowphase(GameDatabase& db, const Config::PhysicsConfig&) {
@@ -225,16 +236,23 @@ namespace PhysicsSimulation {
     auto root = std::make_shared<TaskNode>();
     auto current = root;
 
+    TaskRange spatialQueryBounds = SpatialQuery::physicsUpdateBoundaries(game);
+    TaskRange spatialQueryNarrowphase = SpatialQuery::physicsProcessQueries(game);
     TaskRange velocityTasks = PhysicsSimulation::_applyDamping(db, config);
     TaskRange broadphaseUpdate = PhysicsSimulation::_updateBroadphase(db, config);
     TaskRange narrowphase = PhysicsSimulation::_updateNarrowphase(db, config);
 
-    //Narrowphase depends on completion of the broadphase
+    //Spatial query has no dependency to start but should finish before broadphase so the query can write to the broadphase
+    spatialQueryBounds.mEnd->mChildren.push_back(broadphaseUpdate.mBegin);
+
+    current->mChildren.push_back(spatialQueryBounds.mBegin);
     current->mChildren.push_back(velocityTasks.mBegin);
     current = velocityTasks.mEnd;
     current->mChildren.push_back(broadphaseUpdate.mBegin);
     current = broadphaseUpdate.mEnd;
+    //Narrowphase depends on completion of the broadphase
     current->mChildren.push_back(narrowphase.mBegin);
+    current->mChildren.push_back(spatialQueryNarrowphase.mBegin);
     current = narrowphase.mEnd;
 
     SweepNPruneBroadphase::ChangedCollisionPairs& changedPairs = std::get<SharedRow<SweepNPruneBroadphase::ChangedCollisionPairs>>(broadphase.mRows).at();
@@ -268,6 +286,9 @@ namespace PhysicsSimulation {
     TaskRange storeVelocity = Physics::storeConstraintVelocities<LinVelX, LinVelY, AngVel>(constraintsCommon, db);
     postSolve->mChildren.push_back(storeVelocity.mBegin);
     postSolve = storeVelocity.mEnd;
+
+    //Spatial queries must be done before transform changes below
+    spatialQueryNarrowphase.mEnd->mChildren.push_back(postSolve);
 
     TaskRange integratePosition = Physics::integratePosition<LinVelX, LinVelY, PosX, PosY>(db);
     postSolve->mChildren.push_back(integratePosition.mBegin);

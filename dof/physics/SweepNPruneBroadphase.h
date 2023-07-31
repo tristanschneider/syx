@@ -45,12 +45,22 @@ namespace SweepNPruneBroadphase {
   };
 
   //Update boundaries for existing elements
+  //Implies unit cube configured with BoundariesConfig
   struct BoundariesQuery {
     const Row<float>* posX{};
     const Row<float>* posY{};
     const BroadphaseKeys* keys{};
   };
+  //Directly copies the given bounds
+  struct RawBoundariesQuery {
+    const Row<float>* minX{};
+    const Row<float>* minY{};
+    const Row<float>* maxX{};
+    const Row<float>* maxY{};
+    const BroadphaseKeys* keys{};
+  };
   TaskRange updateBoundaries(Broadphase::SweepGrid::Grid& grid, std::vector<BoundariesQuery> query, const BoundariesConfig& cfg);
+  TaskRange updateBoundaries(Broadphase::SweepGrid::Grid& grid, std::vector<RawBoundariesQuery> query);
   //Compute collision pair changes
   TaskRange computeCollisionPairs(BroadphaseTable& broadphase);
 
@@ -105,6 +115,7 @@ namespace SweepNPruneBroadphase {
   template<class PairIndexA, class PairIndexB, class DatabaseT, class TableT>
   void updateCollisionPairs(PairChanges& changes, CollisionPairMappings& mappings, TableT& table, const PhysicsTableIds& tableIds, StableElementMappings& stableMappings, ChangedCollisionPairs& resultChanges) {
     PROFILE_SCOPE("physics", "updateCollisionPairs");
+    TODO: forward spatial query information
     auto& stableIds = std::get<StableIDRow>(table.mRows);
     {
       PROFILE_SCOPE("physics", "losses");

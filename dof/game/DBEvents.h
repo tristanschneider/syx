@@ -17,6 +17,13 @@ namespace Events {
   };
   struct EventsRow : SharedRow<EventsInstance>{};
 
+  struct Publisher {
+    void operator()(StableElementID id);
+    void (*publish)(StableElementID, GameDB);
+    void* db{};
+  };
+
+  Publisher createPublisher(void(*publish)(StableElementID, GameDB), GameDB db);
   void onNewElement(StableElementID e, GameDB game);
   void onMovedElement(StableElementID e, GameDB game);
   void onRemovedElement(StableElementID e, GameDB game);

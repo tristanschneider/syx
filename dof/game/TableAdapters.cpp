@@ -317,6 +317,19 @@ TargetPosAdapter TableAdapters::getTargetPos(GameDB db) {
   };
 }
 
+SpatialQueryAdapter TableAdapters::getSpatialQueries(GameDB db) {
+  auto& table = std::get<SpatialQuery::SpatialQueriesTable>(db.db.mTables);
+  return {
+    &std::get<SpatialQuery::Gameplay<SpatialQuery::QueryRow>>(table.mRows),
+    &std::get<SpatialQuery::Gameplay<SpatialQuery::ResultRow>>(table.mRows),
+    &std::get<SpatialQuery::Gameplay<SpatialQuery::GlobalsRow>>(table.mRows),
+    getStableRow(table),
+    &getStableMappings(db),
+    &std::get<SpatialQuery::Gameplay<SpatialQuery::NeedsResubmitRow>>(table.mRows),
+    &std::get<SpatialQuery::Gameplay<SpatialQuery::LifetimeRow>>(table.mRows)
+  };
+}
+
 CentralStatEffectAdapter TableAdapters::getCentralStatEffects(GameDB db) {
   auto& stats = getStatEffects(db);
   return {

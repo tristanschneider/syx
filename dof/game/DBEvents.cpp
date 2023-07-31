@@ -7,6 +7,15 @@
 namespace Events {
   using LockT = std::lock_guard<std::mutex>;
 
+  void Publisher::operator()(StableElementID id) {
+    GameDatabase* game = static_cast<GameDatabase*>(db);
+    publish(id, { *game });
+  }
+
+  Publisher createPublisher(void(*publish)(StableElementID, GameDB), GameDB db) {
+    return { publish, &db.db };
+  }
+
   struct EventsImpl {
     DBEvents events;
     std::mutex mutex;

@@ -97,13 +97,15 @@ struct TableOperations {
     });
   }
 
+  //Reserved keys can optionally be used to provide a key in the place of newly generated keys that have been created through StableElementMappings
+  //This can be used to immediately reserve keys for elements in tables that are inserted later
   template<class TableT>
-  static void stableResizeTable(TableT& table, const UnpackedDatabaseElementID& id, size_t newSize, StableElementMappings& mappings) {
+  static void stableResizeTable(TableT& table, const UnpackedDatabaseElementID& id, size_t newSize, StableElementMappings& mappings, const StableElementID* reservedKeys = nullptr) {
     static_assert(isStableTable<TableT>);
     table.visitOne([&](auto& row) {
       using RowT = std::decay_t<decltype(row)>;
       if constexpr(std::is_same_v<RowT, StableIDRow>) {
-        StableOperations::resize(row, id, newSize, mappings);
+        StableOperations::resize(row, id, newSize, mappings, reservedKeys);
       }
       else {
         row.resize(newSize);
@@ -112,13 +114,13 @@ struct TableOperations {
   }
 
   template<class DB, class TableT>
-  static void stableResizeTable(TableT& table, size_t newSize, StableElementMappings& mappings) {
-    stableResizeTable(table, UnpackedDatabaseElementID::fromPacked(DB::getTableIndex<TableT>()), newSize, mappings);
+  static void stableResizeTable(TableT& table, size_t newSize, StableElementMappings& mappings, const StableElementID* reservedKeys = nullptr) {
+    stableResizeTable(table, UnpackedDatabaseElementID::fromPacked(DB::getTableIndex<TableT>()), newSize, mappings, reservedKeys);
   }
 
   template<class TableT, class DB>
-  static void stableResizeTableDB(DB& db, size_t newSize, StableElementMappings& mappings) {
-    stableResizeTable<DB>(std::get<TableT>(db.mTables), newSize, mappings);
+  static void stableResizeTableDB(DB& db, size_t newSize, StableElementMappings& mappings, const StableElementID* reservedKeys = nullptr) {
+    stableResizeTable<DB>(std::get<TableT>(db.mTables), newSize, mappings, reservedKeys);
   }
 
   //Insert before location, meaning the value of location will be after the newly created gap
@@ -410,14 +412,9 @@ struct TableModifierInstance {
   void* table{};
 };
 
+//Exposes the ability to query the given rows in any table without a direct dependency on the database
 template<class... Rows>
 struct TableResolver {
-  //template<class DB>
-  //TableResolver(DB& database)
-  //  : db{ &database }
-  //  , getters{ std::make_tuple(&TableResolver::tryGetRow<Rows, DB>...) } {
-  //}
-
   template<class DB>
   static TableResolver create(DB& db) {
     return {
