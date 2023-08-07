@@ -23,6 +23,18 @@ namespace SweepNPruneBroadphase {
     return {};
   }
 
+  SpatialQueryPair getSpatialQueryPair(const std::pair<StableElementID, StableElementID>& orderedCollisionPair) {
+    //Based on the ordering fro tryOrderCollisionPair above
+    SpatialQueryPair result;
+    result.query = orderedCollisionPair.first;
+    result.object = orderedCollisionPair.second;
+    return result;
+  }
+
+  bool isSpatialQueryPair(const std::pair<StableElementID, StableElementID>& orderedCollisionPair, const PhysicsTableIds& tableIds) {
+    return (orderedCollisionPair.first.mUnstableIndex & tableIds.mTableIDMask) == tableIds.mSpatialQueriesTable;
+  }
+
   TaskRange updateBoundaries(Broadphase::SweepGrid::Grid& grid, std::vector<BoundariesQuery> query, const BoundariesConfig& cfg) {
     struct Temp {
       struct Query {

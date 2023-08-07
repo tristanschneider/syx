@@ -207,6 +207,18 @@ GameObjectAdapter TableAdapters::getGameplayObjectInTable(GameDB db, size_t tabl
   return result;
 }
 
+GameObjectAdapter TableAdapters::getObjectInTable(GameDB db, size_t tableIndex) {
+  GameObjectAdapter result;
+  db.db.visitOneByIndex(GameDatabase::ElementID{ tableIndex, 0 }, [&result](auto& table) {
+    result = GameObjectAdapter {
+      getTransform(table),
+      getPhysics(table),
+      getStableRow(table)
+    };
+  });
+  return result;
+}
+
 GameObjectAdapter TableAdapters::getGameObjects(GameDB db) {
   auto& table = std::get<GameObjectTable>(db.db.mTables);
   return {

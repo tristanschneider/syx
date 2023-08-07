@@ -25,6 +25,11 @@ FLOAT2 vec2Multiply(FLOAT2 v, float scalar) {
   return result;
 }
 
+FLOAT2 vec2Scale(FLOAT2 a, FLOAT2 b) {
+  FLOAT2 result = { a.x*b.x, a.y*b.y };
+  return result;
+}
+
 float safeDivide(float num, float denom) {
   if(abs(denom) > 0.00001f) {
     return num/denom;

@@ -114,6 +114,14 @@ struct StableElementID {
   size_t mStableID{};
 };
 
+//For convenience in std::find
+struct StableElementFind {
+  bool operator()(const StableElementID& i) const {
+    return id.mStableID == i.mStableID;
+  }
+  const StableElementID& id;
+};
+
 struct StableOperations {
   struct details {
     template<class Row, class DatabaseT>

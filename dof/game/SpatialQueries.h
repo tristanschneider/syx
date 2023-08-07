@@ -10,6 +10,10 @@ struct SpatialQueryAdapter;
 struct TaskRange;
 
 namespace SpatialQuery {
+  //Single use query will be created at the end of the tick,
+  //Viewable the tick after, then destroyed at the end of it
+  constexpr static size_t SINGLE_USE = 1;
+
   struct RaycastResult {
     StableElementID id;
     glm::vec2 point{};
@@ -23,7 +27,6 @@ namespace SpatialQuery {
   struct Raycast {
     glm::vec2 start{};
     glm::vec2 end{};
-    std::vector<RaycastResult> results;
   };
 
   struct VolumeResult {
@@ -32,12 +35,10 @@ namespace SpatialQuery {
   struct AABB {
     glm::vec2 min{};
     glm::vec2 max{};
-    std::vector<VolumeResult> results;
   };
   struct Circle {
     glm::vec2 pos{};
     float radius{};
-    std::vector<VolumeResult> results;
   };
 
   struct VolumeResults {
@@ -54,6 +55,8 @@ namespace SpatialQuery {
   struct Result {
     using Variant = std::variant<RaycastResults, AABBResults, CircleResults>;
     Variant result;
+    //All nearby objects that aren't necessarily in the shape
+    std::vector<StableElementID> nearbyObjects;
   };
 
   struct QueryRow : Row<Query> {};
@@ -106,7 +109,7 @@ namespace SpatialQuery {
     Gameplay<LifetimeRow>,
     Gameplay<NeedsResubmitRow>,
     Gameplay<GlobalsRow>,
-    StableIDRow,
+    StableIDRow
   > {};
 
   //Physics and gameplay both have their sides of the spatial query table
@@ -132,7 +135,10 @@ namespace SpatialQuery {
   void refreshQuery(size_t index, SpatialQueryAdapter& adapter, Query&& query, size_t newLifetime);
   //Same idea as above but only updates the lifetime. Writing a lifetime of zero would request destruction of the query
   void refreshQuery(size_t index, SpatialQueryAdapter& adapter, size_t newLifetime);
+  void refreshQuery(StableElementID& index, SpatialQueryAdapter& adapter, Query&& query, size_t newLifetime);
+  void refreshQuery(StableElementID& index, SpatialQueryAdapter& adapter, size_t newLifetime);
   const Result& getResult(size_t index, const SpatialQueryAdapter& adapter);
+  const Result* tryGetResult(StableElementID& id, SpatialQueryAdapter& adapter);
 
   //Update boundaries based on query shape before they are updated in the broadphase
   TaskRange physicsUpdateBoundaries(GameDB db);

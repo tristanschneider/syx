@@ -185,7 +185,7 @@ struct TableOperations {
         StableOperations::swapRemove(row, id, mappings);
       }
       else {
-        std::swap(row.at(id.getElementIndex()), row.at(myLast));
+        row.swap(id.getElementIndex(), myLast);
         row.resize(myLast);
       }
     });

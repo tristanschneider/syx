@@ -1715,5 +1715,95 @@ namespace Test {
       Assert::AreEqual(size_t(1), r2.value.index(), L"Parse should fail");
       Assert::AreEqual(size_t(5), std::get<0>(r.value).fragment.fragmentColumns);
     }
+
+    void assertQueryHas(StableElementID query, std::vector<StableElementID> expected, SpatialQueryAdapter& queries) {
+        const SpatialQuery::Result* r = SpatialQuery::tryGetResult(query, queries);
+        Assert::IsNotNull(r);
+
+        std::visit([&expected](const auto& r) {
+          Assert::AreEqual(expected.size(), r.results.size(), L"Size should match");
+          for(size_t i = 0; i < expected.size(); ++i) {
+            Assert::AreEqual(expected[i].mStableID, r.results[i].id.mStableID);
+          }
+        }, r->result);
+    }
+
+    void assertQueryHasObject(StableElementID query, StableElementID object, SpatialQueryAdapter& queries) {
+      assertQueryHas(query, { object }, queries);
+    }
+
+    void assertQueryNoObjects(StableElementID query, SpatialQueryAdapter& queries) {
+      assertQueryHas(query, {}, queries);
+    }
+
+    void tickQueryUpdate(TestGame& game) {
+      //Since the updates are deferred it takes two ticks for the new results to show up
+      game.update();
+      game.update();
+    }
+
+    TEST_METHOD(SpatialQueries) {
+      GameArgs args;
+      args.fragmentCount = 1;
+      TestGame game{ args };
+
+      auto objs = TableAdapters::getGameObjects(game);
+      const StableElementID objID = StableElementID::fromStableID(objs.stable->at(0));
+      auto queries = TableAdapters::getSpatialQueries(game);
+      StableElementID bb = SpatialQuery::createQuery(queries, { SpatialQuery::AABB{ glm::vec2(2.0f), glm::vec2(3.5f) } }, 10);
+      StableElementID circle = SpatialQuery::createQuery(queries, { SpatialQuery::Circle{ glm::vec2(0, 5), 1.5f } }, 10);
+      StableElementID cast = SpatialQuery::createQuery(queries, { SpatialQuery::Raycast{ glm::vec2(-1.0f), glm::vec2(1.0f, -1.0f) } }, 10);
+      //Update to create the queries
+      game.update();
+
+      //Move object into aabb
+      TableAdapters::write(0, glm::vec2(2.5f), *objs.transform.posX, *objs.transform.posY);
+      game.update();
+
+      assertQueryHasObject(bb, objID, queries);
+      assertQueryNoObjects(circle, queries);
+      assertQueryNoObjects(cast, queries);
+
+      //Move aabb out of object and move circle in
+      SpatialQuery::refreshQuery(bb, queries, { SpatialQuery::AABB{ glm::vec2(20), glm::vec2(21) } }, 10);
+      SpatialQuery::refreshQuery(circle, queries, { SpatialQuery::Circle{ glm::vec2(2), 1.0f } }, 10);
+      tickQueryUpdate(game);
+
+      assertQueryNoObjects(bb, queries);
+      assertQueryHasObject(circle, objID, queries);
+      assertQueryNoObjects(cast, queries);
+
+      //Move object to raycast and circle with it
+      TableAdapters::write(0, glm::vec2(2.f, -1.f), *objs.transform.posX, *objs.transform.posY);
+      SpatialQuery::refreshQuery(circle, queries, { SpatialQuery::Circle{ glm::vec2(2, -1), 0.5f } }, 10);
+      tickQueryUpdate(game);
+
+      assertQueryNoObjects(bb, queries);
+      assertQueryHasObject(circle, objID, queries);
+      assertQueryHasObject(cast, objID, queries);
+
+      //Move circle out and turn raycast into an aabb
+      SpatialQuery::refreshQuery(circle, queries, { SpatialQuery::Circle{ glm::vec2(20), 1.0f } }, 10);
+      SpatialQuery::refreshQuery(cast, queries, { SpatialQuery::AABB{ glm::vec2(2.f, -1.f), glm::vec2(2.5f, 0.f) } }, 10);
+      tickQueryUpdate(game);
+
+      assertQueryNoObjects(bb, queries);
+      assertQueryNoObjects(circle, queries);
+      assertQueryHasObject(cast, objID, queries);
+
+      //Try a query with a single tick lifetime
+      StableElementID single = SpatialQuery::createQuery(queries, { SpatialQuery::Circle{ glm::vec2(2, -1), 1.f } }, SpatialQuery::SINGLE_USE);
+      game.update();
+      assertQueryNoObjects(single, queries);
+      auto lambda = TableAdapters::getLambdaEffects(game, 0);
+      //Query should be resolved during physics then viewable later by gameplay but destroyed at the end of the frame.
+      //Catch it in the middle with a lambda stat effect which should execute before the removal but after it's resolved
+      const size_t l = TableAdapters::addStatEffectsSharedLifetime(lambda.base, StatEffect::INSTANT, &objID.mStableID, 1);
+      lambda.command->at(l) = [&](...) {
+        assertQueryHasObject(single, objID, queries);
+      };
+      game.update();
+      Assert::IsFalse(SpatialQuery::getIndex(single, queries).has_value());
+    }
   };
 }

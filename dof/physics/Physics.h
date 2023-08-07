@@ -234,6 +234,32 @@ using ContactConstraintsToStaticObjectsTable = Table<
   ConstraintData::CommonTableStartIndex
 >;
 
+
+struct ContactObjectStore {
+  float* posX{};
+  float* posY{};
+  float* rotX{};
+  float* rotY{};
+};
+
+struct ContactPointStore {
+  float* pointX{};
+  float* pointY{};
+  float* overlap{};
+};
+
+struct ContactNormalStore {
+  float* x{};
+  float* y{};
+};
+
+struct ContactInfo {
+  ContactObjectStore a, b;
+  ContactPointStore one, two;
+  ContactNormalStore normal;
+  size_t count{};
+};
+
 struct Physics {
   struct details {
     template<class SrcRow, class DstRow, class DatabaseT, class DstTableT>
@@ -360,6 +386,7 @@ struct Physics {
   }
 
   static void generateContacts(CollisionPairsTable& pairs);
+  static void generateContacts(ContactInfo& info);
 
   //Migrate velocity data from db to constraint table
   template<class LinVelX, class LinVelY, class AngVel, class DatabaseT>

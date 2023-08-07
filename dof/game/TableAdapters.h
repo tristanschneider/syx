@@ -201,7 +201,7 @@ struct CentralStatEffectAdapter {
 };
 
 namespace SpatialQuery {
-  struct Globals;
+  struct GlobalsRow;
   struct QueryRow;
   struct ResultRow;
   struct NeedsResubmitRow;
@@ -236,6 +236,7 @@ namespace TableAdapters {
   CentralStatEffectAdapter getCentralStatEffects(GameDB db);
 
   GameObjectAdapter getGameplayObjectInTable(GameDB db, size_t tableIndex);
+  GameObjectAdapter getObjectInTable(GameDB db, size_t tableIndex);
   GameObjectAdapter getGameObjects(GameDB db);
   FragmentAdapter getFragments(GameDB db);
   FragmentAdapter getFragmentsInTable(GameDB db, size_t tableIndex);

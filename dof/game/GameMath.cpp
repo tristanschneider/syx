@@ -116,6 +116,27 @@ namespace Math {
     return true;
   }
 
+  //Since it's a unit cube the extents are at 0.5 in each direction.
+  //Intersects would be on the edge but the point could also be entirely inside the shape
+  //In either case the normal is the most extreme axis
+  //Exact center would hit one of the cases, any of which are valid because all normals are equally far to the surface
+  glm::vec2 getNormalFromUnitAABBIntersect(const glm::vec2& intersect) {
+    if(intersect.x > 0.0f) {
+      //Top right quadrant
+      if(intersect.y > 0.0f) {
+        return intersect.x > intersect.y ? glm::vec2{ 1, 0 } : glm::vec2{ 0, 1 };
+      }
+      //Bottom right quadrant
+      return intersect.x > -intersect.y ? glm::vec2{ 1, 0 } : glm::vec2{ 0, -1 };
+    }
+    //Top left quadrant
+    if(intersect.y > 0.0f) {
+      return -intersect.x > intersect.y ? glm::vec2{ -1, 0 } : glm::vec2{ 0, 1 };
+    }
+    //Bottom left quadrant
+    return intersect.x < intersect.y ? glm::vec2{ -1, 0 } : glm::vec2{ 0, -1 };
+  }
+
   Impulse computeImpulseAtPoint(const glm::vec2& r, const glm::vec2& impulse, const Mass& mass) {
     return {
       impulse * mass.inverseMass,

@@ -78,6 +78,10 @@ namespace Math {
     return computeQuadMass(1.0f, 1.0f, 1.0f);
   }
 
+  constexpr glm::vec2 getFragmentExtents() {
+    return glm::vec2{ 0.5f, 0.5f };
+  }
+
   constexpr float cross(const glm::vec2& a, const glm::vec2& b) {
     return a.x*b.y - a.y*b.x;
   }
@@ -165,4 +169,5 @@ namespace Math {
 
 
   bool unitAABBLineIntersect(const glm::vec2& origin, const glm::vec2& dir, float* resultTIn, float* resultTOut);
+  glm::vec2 getNormalFromUnitAABBIntersect(const glm::vec2& intersect);
 }

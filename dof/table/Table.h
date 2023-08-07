@@ -21,6 +21,10 @@ struct BasicRow {
     return mElements.at(i);
   }
 
+  void swap(size_t a, size_t b) {
+    std::swap(at(a), at(b));
+  }
+
   template<class... Args>
   Element& emplaceBack(Args&&... args) {
     if constexpr(sizeof...(args) > 0) {
@@ -82,6 +86,10 @@ struct SharedRow {
 
   const Element& at(size_t = 0) const {
     return mValue;
+  }
+
+  //Has no meaning because there is only one
+  void swap(size_t, size_t) {
   }
 
   template<class... Args>

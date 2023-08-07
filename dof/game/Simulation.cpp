@@ -26,6 +26,7 @@ PlayerInput::PlayerInput()
 }
 
 PlayerInput::PlayerInput(PlayerInput&&) = default;
+PlayerInput& PlayerInput::operator=(PlayerInput&&) = default;
 
 PlayerInput::~PlayerInput() = default;
 

@@ -16,6 +16,8 @@ namespace SweepNPruneBroadphase {
   struct BroadphaseKeys : Row<Broadphase::BroadphaseKey> {};
 
   struct CollisionPairMappings {
+    //Fake index used to indicate if a pair is a spatial query which means it doesn't get a collision table mapping
+    static constexpr size_t SPATIAL_QUERY_INDEX = std::numeric_limits<size_t>::max();
     std::unordered_map<Broadphase::SweepCollisionPair, size_t> mSweepPairToCollisionTableIndex;
     std::vector<Broadphase::SweepCollisionPair> mCollisionTableIndexToSweepPair;
   };
@@ -25,9 +27,15 @@ namespace SweepNPruneBroadphase {
     //Removed collision pairs caused by reinserts or erases
     std::vector<Broadphase::SweepCollisionPair> mLost;
   };
+  struct SpatialQueryPair {
+    StableElementID query{};
+    StableElementID object{};
+  };
   struct ChangedCollisionPairs {
     std::vector<StableElementID> mGained;
     std::vector<StableElementID> mLost;
+    std::vector<SpatialQueryPair> gainedQueries;
+    std::vector<SpatialQueryPair> lostQueries;
   };
   using BroadphaseTable = Table<
     SharedRow<Broadphase::SweepGrid::Grid>,
@@ -109,13 +117,14 @@ namespace SweepNPruneBroadphase {
   }
 
   std::optional<std::pair<StableElementID, StableElementID>> _tryGetOrderedCollisionPair(const Broadphase::SweepCollisionPair& key, const PhysicsTableIds& tableIds, StableElementMappings& stableMappings, bool assertIfMissing);
+  bool isSpatialQueryPair(const std::pair<StableElementID, StableElementID>& orderedCollisionPair, const PhysicsTableIds& tableIds);
+  SpatialQueryPair getSpatialQueryPair(const std::pair<StableElementID, StableElementID>& orderedCollisionPair);
 
   //Turn collision pair changes into collision table entries
   //Create and remove based on the changes in PairChanges
   template<class PairIndexA, class PairIndexB, class DatabaseT, class TableT>
   void updateCollisionPairs(PairChanges& changes, CollisionPairMappings& mappings, TableT& table, const PhysicsTableIds& tableIds, StableElementMappings& stableMappings, ChangedCollisionPairs& resultChanges) {
     PROFILE_SCOPE("physics", "updateCollisionPairs");
-    TODO: forward spatial query information
     auto& stableIds = std::get<StableIDRow>(table.mRows);
     {
       PROFILE_SCOPE("physics", "losses");
@@ -123,19 +132,28 @@ namespace SweepNPruneBroadphase {
         if(auto it = mappings.mSweepPairToCollisionTableIndex.find(loss); it != mappings.mSweepPairToCollisionTableIndex.end()) {
           const size_t swappedIndex = TableOperations::size(table) - 1;
           const size_t removedPairIndex = it->second;
-
-          auto removeElement = DatabaseT::template getElementID<TableT>(removedPairIndex);
-          const StableElementID lostConstraint = std::get<ConstraintElement>(table.mRows).at(removedPairIndex);
-          resultChanges.mLost.push_back(lostConstraint);
-          //TODO: manual mappings management isn't really necessary anymore sine the stable row
-          TableOperations::stableSwapRemove(table, removeElement, stableMappings);
-          std::swap(mappings.mCollisionTableIndexToSweepPair[removedPairIndex], mappings.mCollisionTableIndexToSweepPair[swappedIndex]);
-          mappings.mCollisionTableIndexToSweepPair.pop_back();
-          //Remove reference to this index
-          mappings.mSweepPairToCollisionTableIndex.erase(it);
-          //Update mapping of swap removed element. Nothing to do if this was at the end because it was popped off
-          if(removedPairIndex < mappings.mCollisionTableIndexToSweepPair.size()) {
-            mappings.mSweepPairToCollisionTableIndex[mappings.mCollisionTableIndexToSweepPair[removedPairIndex]] = removedPairIndex;
+          //Spatial queries don't get a collision table entry and are forwarded through the resultChanges
+          if(removedPairIndex == CollisionPairMappings::SPATIAL_QUERY_INDEX) {
+            if(auto pair = _tryGetOrderedCollisionPair(it->first, tableIds, stableMappings, false)) {
+              resultChanges.lostQueries.push_back(getSpatialQueryPair(*pair));
+            }
+            mappings.mSweepPairToCollisionTableIndex.erase(it);
+          }
+          //Everything else has a table entry that must now be removed
+          else {
+            auto removeElement = DatabaseT::template getElementID<TableT>(removedPairIndex);
+            const StableElementID lostConstraint = std::get<ConstraintElement>(table.mRows).at(removedPairIndex);
+            resultChanges.mLost.push_back(lostConstraint);
+            //TODO: manual mappings management isn't really necessary anymore since the stable row
+            TableOperations::stableSwapRemove(table, removeElement, stableMappings);
+            std::swap(mappings.mCollisionTableIndexToSweepPair[removedPairIndex], mappings.mCollisionTableIndexToSweepPair[swappedIndex]);
+            mappings.mCollisionTableIndexToSweepPair.pop_back();
+            //Remove reference to this index
+            mappings.mSweepPairToCollisionTableIndex.erase(it);
+            //Update mapping of swap removed element. Nothing to do if this was at the end because it was popped off
+            if(removedPairIndex < mappings.mCollisionTableIndexToSweepPair.size()) {
+              mappings.mSweepPairToCollisionTableIndex[mappings.mCollisionTableIndexToSweepPair[removedPairIndex]] = removedPairIndex;
+            }
           }
         }
         //If it was gained and lost on the same frame remove it from the gain list. Presumably infrequent enough to not need faster searching
@@ -172,17 +190,22 @@ namespace SweepNPruneBroadphase {
         //Assign pair indices, the mappings are populated upon insertion and when objects move tables
         //If this isn't an applicable pair, skip to the next without incrementing addIndex
         if(auto pair = _tryGetOrderedCollisionPair(gain, tableIds, stableMappings, true)) {
-          pairA.at(addIndex) = pair->first;
-          pairB.at(addIndex) = pair->second;
+          if(isSpatialQueryPair(*pair, tableIds)) {
+            resultChanges.gainedQueries.push_back(getSpatialQueryPair(*pair));
+          }
+          else {
+            pairA.at(addIndex) = pair->first;
+            pairB.at(addIndex) = pair->second;
 
-          //Assign mappings so this can be found above in removal
-          mappings.mCollisionTableIndexToSweepPair[addIndex] = gain;
-          mappings.mSweepPairToCollisionTableIndex[gain] = addIndex;
+            //Assign mappings so this can be found above in removal
+            mappings.mCollisionTableIndexToSweepPair[addIndex] = gain;
+            mappings.mSweepPairToCollisionTableIndex[gain] = addIndex;
 
-          auto addElement = DatabaseT::template getElementID<TableT>(addIndex);
-          resultChanges.mGained.push_back(StableOperations::getStableID(stableIds, addElement));
+            auto addElement = DatabaseT::template getElementID<TableT>(addIndex);
+            resultChanges.mGained.push_back(StableOperations::getStableID(stableIds, addElement));
 
-          ++addIndex;
+            ++addIndex;
+          }
         }
       }
 

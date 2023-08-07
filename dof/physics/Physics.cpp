@@ -78,6 +78,18 @@ void Physics::details::_applyDampingMultiplier(float* velocity, float amount, si
   ispc::applyDampingMultiplier(velocity, amount, uint32_t(count));
 }
 
+void Physics::generateContacts(ContactInfo& info) {
+  ispc::UniformConstVec2 positionsA{ info.a.posX, info.a.posY };
+  ispc::UniformRotation rotationsA{ info.a.rotX, info.a.rotY };
+  ispc::UniformConstVec2 positionsB{ info.b.posX, info.b.posY };
+  ispc::UniformRotation rotationsB{ info.b.rotX, info.b.rotY };
+  ispc::UniformVec2 normals{ info.normal.x, info.normal.y };
+  ispc::UniformContact contactsOne{ info.one.pointX, info.one.pointY, info.one.overlap };
+  ispc::UniformContact contactsTwo{ info.two.pointX, info.two.pointY, info.two.overlap };
+
+  ispc::generateUnitCubeCubeContacts(positionsA, rotationsA, positionsB, rotationsB, normals, contactsOne, contactsTwo, uint32_t(info.count));
+}
+
 void Physics::generateContacts(CollisionPairsTable& pairs) {
   ispc::UniformConstVec2 positionsA{ _unwrapRow<NarrowphaseData<PairA>::PosX>(pairs), _unwrapRow<NarrowphaseData<PairA>::PosY>(pairs) };
   ispc::UniformRotation rotationsA{ _unwrapRow<NarrowphaseData<PairA>::CosAngle>(pairs), _unwrapRow<NarrowphaseData<PairA>::SinAngle>(pairs) };

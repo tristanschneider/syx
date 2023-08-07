@@ -9,6 +9,11 @@
 #include "DBEvents.h"
 
 #include "glm/glm.hpp"
+#include "glm/gtc/matrix_inverse.hpp"
+#include "glm/gtx/norm.hpp"
+
+#include "GameMath.h"
+#include "Physics.h"
 
 namespace SpatialQuery {
   StableElementID createQuery(SpatialQueryAdapter& table, Query&& query, size_t lifetime) {
@@ -47,8 +52,25 @@ namespace SpatialQuery {
     adapter.lifetime->at(index) = newLifetime;
   }
 
+  void refreshQuery(StableElementID& index, SpatialQueryAdapter& adapter, Query&& query, size_t newLifetime) {
+    if(auto i = getIndex(index, adapter)) {
+      refreshQuery(*i, adapter, std::move(query), newLifetime);
+    }
+  }
+
+  void refreshQuery(StableElementID& index, SpatialQueryAdapter& adapter, size_t newLifetime) {
+    if(auto i = getIndex(index, adapter)) {
+      refreshQuery(*i, adapter, newLifetime);
+    }
+  }
+
   const Result& getResult(size_t index, const SpatialQueryAdapter& adapter) {
     return adapter.results->at(index);
+  }
+
+  const Result* tryGetResult(StableElementID& id, SpatialQueryAdapter& adapter) {
+    auto i = getIndex(id, adapter);
+    return i ? &getResult(*i, adapter) : nullptr;
   }
 
   struct VisitBoundsArgs {
@@ -99,9 +121,159 @@ namespace SpatialQuery {
     return TaskBuilder::addEndSync(root);
   }
 
+  struct ObjInfo {
+    StableElementID id;
+    glm::vec2 pos{};
+    glm::vec2 rot{};
+  };
+
+  ObjInfo readObjectInfo(const StableElementID& id, GameObjectAdapter& obj) {
+    const size_t i = id.toPacked<GameDatabase>().getElementIndex();
+    return {
+      id,
+      TableAdapters::read(i, *obj.transform.posX, *obj.transform.posY),
+      //Default to no rotation if row is missing
+      obj.transform.rotX ? TableAdapters::read(i, *obj.transform.rotX, *obj.transform.rotY) : glm::vec2(1.0f, 0.0f)
+    };
+  }
+
+  struct VisitPhysicsGain {
+    bool operator()(const Raycast& raycast) {
+      const glm::mat3 transform = Math::buildTransform(obj->pos, obj->rot, Math::getFragmentExtents());
+      const glm::mat3 invTransform = glm::affineInverse(transform);
+      const glm::vec2 localStart = Math::transformPoint(invTransform, raycast.start);
+      const glm::vec2 localEnd = Math::transformPoint(invTransform, raycast.end);
+      const glm::vec2 dir = localEnd - localStart;
+      float tmin, tmax;
+      if(Math::unitAABBLineIntersect(localStart, dir, &tmin, &tmax)) {
+        const glm::vec2 localPoint = localStart + dir*tmin;
+        const glm::vec2 localNormal = Math::getNormalFromUnitAABBIntersect(localPoint);
+        RaycastResult& r = std::get<RaycastResults>(results->result).results.emplace_back();
+        r.id = obj->id;
+        r.point = Math::transformPoint(transform, localPoint);
+        r.normal = Math::transformVector(transform, localNormal);
+        return true;
+      }
+      return false;
+    }
+
+    bool operator()(const AABB&) {
+      //Since the broadphase already did an AABB test add the results directly.
+      //This will overshoot a bit due to padding, but it should be good enough
+      std::get<AABBResults>(results->result).results.push_back({ obj->id });
+      return true;
+    }
+
+    bool operator()(const Circle& circle) {
+      const glm::vec2 right = obj->rot;
+      const glm::vec2 up = Math::orthogonal(right);
+      constexpr glm::vec2 extents = Math::getFragmentExtents();
+      //Get closest point on square to sphere by projecting onto each axis and clamping
+      //Right and up are unit length so the projection doesn't need the denominator
+      const glm::vec2 toSphere = circle.pos - obj->pos;
+      const glm::vec2 closestOnSquare = right*glm::clamp(glm::dot(right, toSphere), -extents.x, extents.x) +
+        up*glm::clamp(glm::dot(up, toSphere), -extents.y, extents.y);
+      //See if closest point on square is within radius, meaning the circle is touching the square
+      //len(cpos - (closest + pos))
+      //toSphere = cpos - pos
+      //cpos = toSphere - pos
+      //len(toSphere - pos - (closest + pos))
+      //len(toSphere - closest)
+      if(glm::distance2(toSphere, closestOnSquare) <= circle.radius*circle.radius) {
+        std::get<CircleResults>(results->result).results.push_back({ obj->id });
+        return true;
+      }
+      return false;
+    }
+
+    Result* results{};
+    const ObjInfo* obj{};
+  };
+
+  //Copies the new pairs into the query `nearbyObjects` list which is then used in physicsProcessUpdates to see if they actually match
+  void physicsProcessGains(GameDB db, const std::vector<SweepNPruneBroadphase::SpatialQueryPair>& pairs) {
+    auto& table = std::get<SpatialQueriesTable>(db.db.mTables);
+    auto& results = std::get<Physics<ResultRow>>(table.mRows);
+    auto& mappings = TableAdapters::getStableMappings(db);
+    auto& stableRow = std::get<StableIDRow>(table.mRows);
+    for(const auto& pair : pairs) {
+      if(auto q = StableOperations::tryResolveStableIDWithinTable<GameDatabase>(pair.query, stableRow, mappings)) {
+        const GameDatabase::ElementID rawQuery = q->toPacked<GameDatabase>();
+        results.at(rawQuery.getElementIndex()).nearbyObjects.push_back(pair.object);
+      }
+    }
+  }
+
+  //Removes from the `nearbyObjects` list which will prevent these from being put in the results list during physicsProcessUpdates
+  void physicsProcessLosses(GameDB db, const std::vector<SweepNPruneBroadphase::SpatialQueryPair>& pairs) {
+    auto& table = std::get<SpatialQueriesTable>(db.db.mTables);
+    auto& results = std::get<Physics<ResultRow>>(table.mRows);
+    auto& mappings = TableAdapters::getStableMappings(db);
+    auto& stableRow = std::get<StableIDRow>(table.mRows);
+    for(const auto& pair : pairs) {
+      if(auto q = StableOperations::tryResolveStableIDWithinTable<GameDatabase>(pair.query, stableRow, mappings)) {
+        const GameDatabase::ElementID rawQuery = q->toPacked<GameDatabase>();
+        std::vector<StableElementID>& nearby = results.at(rawQuery.getElementIndex()).nearbyObjects;
+        //TODO: probably slow if volumes are too big
+        if(auto it = std::find_if(nearby.begin(), nearby.end(), StableElementFind{ pair.object }); it != nearby.end()) {
+          //Swap remove
+          *it = nearby.back();
+          nearby.pop_back();
+        }
+      }
+    }
+  }
+
+  //Iterates over all existing `nearbyObjects` and makes sure that they are still colliding
+  //Objects are added and removed from that container through gains and losses, so the only results that need to be populated are here
+  void physicsProcessUpdates(GameDB db) {
+    auto& table = std::get<SpatialQueriesTable>(db.db.mTables);
+    auto& queries = std::get<Physics<QueryRow>>(table.mRows);
+    auto& results = std::get<Physics<ResultRow>>(table.mRows);
+    auto& mappings = TableAdapters::getStableMappings(db);
+    auto clearResults = [](auto& r) { r.results.clear(); };
+    for(size_t i = 0; i < results.size(); ++i) {
+      Result& r = results.at(i);
+      //Clear the results completely and repopulate in the list below
+      std::visit(clearResults, r.result);
+
+      Query& query = queries.at(i);
+      VisitPhysicsGain visitor;
+      visitor.results = &r;
+
+      //Check all nearby to see if they're still colliding
+      //If so they will refill the results list
+      //If not, nothing happens, as the list was cleared above so they won't be in the results
+      for(size_t o = 0; o < r.nearbyObjects.size(); ++o) {
+        StableElementID& nearby = r.nearbyObjects[o];
+        if(const auto obj = StableOperations::tryResolveStableID(nearby, db.db, mappings)) {
+          //Update mapping
+          nearby = *obj;
+          GameObjectAdapter object = TableAdapters::getObjectInTable(db, obj->toPacked<GameDatabase>().getTableIndex());
+          ObjInfo info = readObjectInfo(*obj, object);
+          visitor.obj = &info;
+
+          //TODO: visitor would be more efficient if it did the looping to avoid switching on each object
+          std::visit(visitor, query.shape);
+        }
+      }
+    }
+  }
+
+  //View the collision pairs output by the broadphase via updateCollisionPairs, add/remove pairs from narrowphase information for the queries,
+  //then resolve all queries to produce updated results
   TaskRange physicsProcessQueries(GameDB db) {
-    TODO: where to get the pair information and how to get the geometry?
-    Probably not worth copying like narrowphase constraints, so directly from object table
+    auto& pairs = std::get<SharedRow<SweepNPruneBroadphase::ChangedCollisionPairs>>(std::get<BroadphaseTable>(db.db.mTables).mRows).at();
+    auto root = TaskNode::create([&pairs, db](...) {
+      //Each step depend on nearbyObjects so they're all sequential
+      physicsProcessLosses(db, pairs.lostQueries);
+      physicsProcessGains(db, pairs.gainedQueries);
+      physicsProcessUpdates(db);
+
+      pairs.lostQueries.clear();
+      pairs.gainedQueries.clear();
+    });
+    return TaskBuilder::addEndSync(root);
   }
 
   std::shared_ptr<TaskNode> processLiftetime(Globals& globals, LifetimeRow& lifetimes, const StableIDRow& stable) {
@@ -184,7 +356,7 @@ namespace SpatialQuery {
     //Update all separate rows in place in parallel
     root->mChildren.push_back(CommonTasks::copyRowSameSize<Physics<ResultRow>, Gameplay<ResultRow>>(table));
     root->mChildren.push_back(processLiftetime(adapter.globals->at(), *adapter.lifetime, *adapter.stable));
-    root->mChildren.push_back(submitQueryUpdates(std::get<Physics<QueryRow>>(table.mRows), std::get<Gameplay<QueryRow>>(table.mRows), std::get<Gameplay<NeedsResubmitRow>>(table.mRows));
+    root->mChildren.push_back(submitQueryUpdates(std::get<Physics<QueryRow>>(table.mRows), std::get<Gameplay<QueryRow>>(table.mRows), std::get<Gameplay<NeedsResubmitRow>>(table.mRows)));
     //Sync for table additions and removals
     TaskBuilder::_addSyncDependency(*root, processCommandBuffer(table,
       TableAdapters::getStableMappings(db),

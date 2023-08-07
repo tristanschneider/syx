@@ -25,6 +25,7 @@ namespace PhysicsSimulation {
     physicsTables.mSharedMassObjectTable = GameDatabase::getTableIndex<GameObjectTable>().mValue;
     physicsTables.mZeroMassObjectTable = GameDatabase::getTableIndex<StaticGameObjectTable>().mValue;
     physicsTables.mConstriantsCommonTable = GameDatabase::getTableIndex<ConstraintCommonTable>().mValue;
+    physicsTables.mSpatialQueriesTable = GameDatabase::getTableIndex<SpatialQuery::SpatialQueriesTable>().mValue;
     physicsTables.mElementIDMask = GameDatabase::ElementID::ELEMENT_INDEX_MASK;
     return physicsTables;
   }

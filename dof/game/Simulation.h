@@ -234,6 +234,8 @@ struct PlayerInput {
   PlayerInput(PlayerInput&&);
   ~PlayerInput();
 
+  PlayerInput& operator=(PlayerInput&&);
+
   float mMoveX{};
   float mMoveY{};
   KeyState mAction1{};
