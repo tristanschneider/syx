@@ -301,7 +301,7 @@ struct StableOperations {
     row.resize(newSize);
     for(size_t i = oldSize; i < newSize; ++i) {
       //Assign new id
-      row.at(i) = reservedKeys ? reservedKeys[i].mStableID : mappings.createKey();
+      row.at(i) = reservedKeys ? reservedKeys[i - oldSize].mStableID : mappings.createKey();
 
       //Add mapping for new id
       mappings.insertKey(row.at(i), id.remake(id.getTableIndex(), i).mValue);

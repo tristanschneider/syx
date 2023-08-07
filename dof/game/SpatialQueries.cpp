@@ -73,7 +73,25 @@ namespace SpatialQuery {
     return i ? &getResult(*i, adapter) : nullptr;
   }
 
-  struct VisitBoundsArgs {
+  struct BoundaryVisitor {
+    void operator()(const Raycast& shape) {
+      const glm::vec2 min = glm::min(shape.start, shape.end);
+      const glm::vec2 max = glm::max(shape.start, shape.end);
+      TableAdapters::write(index, min, minX, minY);
+      TableAdapters::write(index, max, maxX, maxY);
+    }
+
+    void operator()(const AABB& shape) {
+      TableAdapters::write(index, shape.min, minX, minY);
+      TableAdapters::write(index, shape.max, maxX, maxY);
+    }
+
+    void operator()(const Circle& shape) {
+      const glm::vec2 r{ shape.radius, shape.radius };
+      TableAdapters::write(index, shape.pos - r, minX, minY);
+      TableAdapters::write(index, shape.pos + r, maxX, maxY);
+    }
+
     size_t index;
     MinX& minX;
     MinY& minY;
@@ -81,28 +99,10 @@ namespace SpatialQuery {
     MaxY& maxY;
   };
 
-  void visitUpdateBoundary(const Raycast& shape, VisitBoundsArgs& args) {
-    const glm::vec2 min = glm::min(shape.start, shape.end);
-    const glm::vec2 max = glm::max(shape.start, shape.end);
-    TableAdapters::write(args.index, min, args.minX, args.minY);
-    TableAdapters::write(args.index, max, args.maxX, args.maxY);
-  }
-
-  void visitUpdateBoundary(const AABB& shape, VisitBoundsArgs& args) {
-    TableAdapters::write(args.index, shape.min, args.minX, args.minY);
-    TableAdapters::write(args.index, shape.max, args.maxX, args.maxY);
-  }
-
-  void visitUpdateBoundary(const Circle& shape, VisitBoundsArgs& args) {
-    const glm::vec2 r{ shape.radius, shape.radius };
-    TableAdapters::write(args.index, shape.pos - r, args.minX, args.minY);
-    TableAdapters::write(args.index, shape.pos + r, args.maxX, args.maxY);
-  }
-
   TaskRange physicsUpdateBoundaries(GameDB db) {
     auto root = TaskNode::create([db](...) {
       auto& table = std::get<SpatialQueriesTable>(db.db.mTables);
-      VisitBoundsArgs args {
+      BoundaryVisitor visitor {
         size_t{ 0 },
         std::get<Physics<MinX>>(table.mRows),
         std::get<Physics<MinY>>(table.mRows),
@@ -114,8 +114,8 @@ namespace SpatialQuery {
       //Currently goes over all of them. If the update flags were copied over those could be used to skip unchanged entries
       //Either way all of them will be written to the broadphase
       for(size_t i = 0; i < cmd.size(); ++i) {
-        args.index = i;
-        std::visit([&](const auto& shape) { visitUpdateBoundary(shape, args); }, cmd.at(i).shape);
+        visitor.index = i;
+        std::visit(visitor, cmd.at(i).shape);
       }
     });
     return TaskBuilder::addEndSync(root);
@@ -139,7 +139,7 @@ namespace SpatialQuery {
 
   struct VisitPhysicsGain {
     bool operator()(const Raycast& raycast) {
-      const glm::mat3 transform = Math::buildTransform(obj->pos, obj->rot, Math::getFragmentExtents());
+      const glm::mat3 transform = Math::buildTransform(obj->pos, obj->rot, Math::getFragmentScale());
       const glm::mat3 invTransform = glm::affineInverse(transform);
       const glm::vec2 localStart = Math::transformPoint(invTransform, raycast.start);
       const glm::vec2 localEnd = Math::transformPoint(invTransform, raycast.end);
@@ -148,7 +148,7 @@ namespace SpatialQuery {
       if(Math::unitAABBLineIntersect(localStart, dir, &tmin, &tmax)) {
         const glm::vec2 localPoint = localStart + dir*tmin;
         const glm::vec2 localNormal = Math::getNormalFromUnitAABBIntersect(localPoint);
-        RaycastResult& r = std::get<RaycastResults>(results->result).results.emplace_back();
+        RaycastResult& r = getOrCreate<RaycastResults>(results->result).results.emplace_back();
         r.id = obj->id;
         r.point = Math::transformPoint(transform, localPoint);
         r.normal = Math::transformVector(transform, localNormal);
@@ -160,7 +160,7 @@ namespace SpatialQuery {
     bool operator()(const AABB&) {
       //Since the broadphase already did an AABB test add the results directly.
       //This will overshoot a bit due to padding, but it should be good enough
-      std::get<AABBResults>(results->result).results.push_back({ obj->id });
+      getOrCreate<AABBResults>(results->result).results.push_back({ obj->id });
       return true;
     }
 
@@ -180,10 +180,18 @@ namespace SpatialQuery {
       //len(toSphere - pos - (closest + pos))
       //len(toSphere - closest)
       if(glm::distance2(toSphere, closestOnSquare) <= circle.radius*circle.radius) {
-        std::get<CircleResults>(results->result).results.push_back({ obj->id });
+        getOrCreate<CircleResults>(results->result).results.push_back({ obj->id });
         return true;
       }
       return false;
+    }
+
+    template<class T, class V>
+    static T& getOrCreate(V& variant) {
+      if(T* result = std::get_if<T>(&variant)) {
+        return *result;
+      }
+      return variant.emplace<T>();
     }
 
     Result* results{};
@@ -306,33 +314,33 @@ namespace SpatialQuery {
     });
   }
 
-  struct VisitArgs {
+  struct CommandVisitor {
+    void operator()(const Command::NewQuery& command) {
+      const size_t index = TableOperations::size(queries);
+      TableOperations::stableResizeTable<GameDatabase>(queries, index + 1, mappings, &command.id);
+      //Add to physics and gameplay locations now
+      //Using the NeedsResubmitRow not feasible here because it's after that has already been processed
+      std::get<Physics<QueryRow>>(queries.mRows).at(index) = command.query;
+      std::get<Gameplay<QueryRow>>(queries.mRows).at(index) = command.query;
+      std::get<Gameplay<LifetimeRow>>(queries.mRows).at(index) = command.lifetime;
+      publishNewElement(command.id);
+    }
+
+    void operator()(const Command::DeleteQuery& command) {
+      //Publish the removal event which will cause removal from the broadphase and removal from the table
+      publishRemovedElement(command.id);
+    }
+
     SpatialQueriesTable& queries;
     StableElementMappings& mappings;
     Events::Publisher& publishNewElement;
     Events::Publisher& publishRemovedElement;
   };
 
-  void visitCommand(const Command::NewQuery& command, VisitArgs& args) {
-    const size_t index = TableOperations::size(args.queries);
-    TableOperations::stableResizeTable<GameDatabase>(args.queries, index + 1, args.mappings, &command.id);
-    //Add to physics and gameplay locations now
-    //Using the NeedsResubmitRow not feasible here because it's after that has already been processed
-    std::get<Physics<QueryRow>>(args.queries.mRows).at(index) = command.query;
-    std::get<Gameplay<QueryRow>>(args.queries.mRows).at(index) = command.query;
-    std::get<Gameplay<LifetimeRow>>(args.queries.mRows).at(index) = command.lifetime;
-    args.publishNewElement(command.id);
-  }
-
-  void visitCommand(const Command::DeleteQuery& command, VisitArgs& args) {
-    //Publish the removal event which will cause removal from the broadphase and removal from the table
-    args.publishRemovedElement(command.id);
-  }
-
   std::shared_ptr<TaskNode> processCommandBuffer(SpatialQueriesTable& queries, StableElementMappings& mappings, Events::Publisher publishNewElement, Events::Publisher publishRemovedElement) {
     return TaskNode::create([&, publishNewElement, publishRemovedElement](...) mutable {
       Globals& globals = std::get<Gameplay<GlobalsRow>>(queries.mRows).at();
-      VisitArgs args {
+      CommandVisitor visitor {
         queries,
         mappings,
         publishNewElement,
@@ -341,7 +349,7 @@ namespace SpatialQuery {
 
       //Not necessary to lock because this task is synchronously scheduled
       for(size_t i = 0; i < globals.commandBuffer.size(); ++i) {
-        std::visit([&](const auto& cmd) { visitCommand(cmd, args); }, globals.commandBuffer[i].data);
+        std::visit(visitor, globals.commandBuffer[i].data);
       }
 
       globals.commandBuffer.clear();

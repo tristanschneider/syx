@@ -192,6 +192,7 @@ namespace SweepNPruneBroadphase {
         if(auto pair = _tryGetOrderedCollisionPair(gain, tableIds, stableMappings, true)) {
           if(isSpatialQueryPair(*pair, tableIds)) {
             resultChanges.gainedQueries.push_back(getSpatialQueryPair(*pair));
+            mappings.mSweepPairToCollisionTableIndex[gain] = CollisionPairMappings::SPATIAL_QUERY_INDEX;
           }
           else {
             pairA.at(addIndex) = pair->first;

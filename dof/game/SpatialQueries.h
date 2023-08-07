@@ -12,11 +12,12 @@ struct TaskRange;
 namespace SpatialQuery {
   //Single use query will be created at the end of the tick,
   //Viewable the tick after, then destroyed at the end of it
-  constexpr static size_t SINGLE_USE = 1;
+  constexpr static size_t SINGLE_USE = 0;
 
   struct RaycastResult {
     StableElementID id;
     glm::vec2 point{};
+    //In world space, not normalized
     glm::vec2 normal{};
   };
 

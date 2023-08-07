@@ -138,11 +138,16 @@ namespace {
       current = migradeThread.mEnd;
     }
 
-    TaskBuilder::_addSyncDependency(*current, statTasks.synchronous.mBegin);
-    current = statTasks.synchronous.mEnd;
+    sync = TaskNode::createEmpty();
+    TaskBuilder::_addSyncDependency(*current, sync);
+    current = sync;
+
     TaskRange spatialQuery = SpatialQuery::gameplayUpdateQueries({ db });
     current->mChildren.push_back(spatialQuery.mBegin);
     current = spatialQuery.mEnd;
+
+    current->mChildren.push_back(statTasks.synchronous.mBegin);
+    current = statTasks.synchronous.mEnd;
 
     current->mChildren.push_back(TaskNode::create([&db](...) {
       Events::publishEvents({ db });

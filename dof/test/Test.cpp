@@ -1752,7 +1752,7 @@ namespace Test {
       auto queries = TableAdapters::getSpatialQueries(game);
       StableElementID bb = SpatialQuery::createQuery(queries, { SpatialQuery::AABB{ glm::vec2(2.0f), glm::vec2(3.5f) } }, 10);
       StableElementID circle = SpatialQuery::createQuery(queries, { SpatialQuery::Circle{ glm::vec2(0, 5), 1.5f } }, 10);
-      StableElementID cast = SpatialQuery::createQuery(queries, { SpatialQuery::Raycast{ glm::vec2(-1.0f), glm::vec2(1.0f, -1.0f) } }, 10);
+      StableElementID cast = SpatialQuery::createQuery(queries, { SpatialQuery::Raycast{ glm::vec2(-1.0f), glm::vec2(2.0f, -1.0f) } }, 10);
       //Update to create the queries
       game.update();
 

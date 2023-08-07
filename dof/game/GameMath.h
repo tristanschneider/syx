@@ -82,6 +82,10 @@ namespace Math {
     return glm::vec2{ 0.5f, 0.5f };
   }
 
+  constexpr glm::vec2 getFragmentScale() {
+    return getFragmentExtents() * glm::vec2(2.0f);
+  }
+
   constexpr float cross(const glm::vec2& a, const glm::vec2& b) {
     return a.x*b.y - a.y*b.x;
   }
@@ -115,6 +119,8 @@ namespace Math {
 
   inline glm::mat3 buildTranslate(const glm::vec2& t, float z = 1.0f) {
     glm::mat3 result;
+    result[0] = glm::vec3(1, 0, 0);
+    result[1] = glm::vec3(0, 1, 0);
     result[2] = glm::vec3(t.x, t.y, z);
     return result;
   }
@@ -133,6 +139,7 @@ namespace Math {
     const glm::vec2 basisY = orthogonal(basisX);
     result[0] = glm::vec3(basisX.x, basisX.y, 0.0f);
     result[1] = glm::vec3(basisY.x, basisY.y, 0.0f);
+    result[2] = glm::vec3(0, 0, 1);
     return result;
   }
 
