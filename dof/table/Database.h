@@ -102,6 +102,11 @@ struct UnpackedDatabaseElementID {
     return { shiftedTableIndex | elementIndex, bits };
   }
 
+  //Entire packed bits from an unstable index or DB::GetTableIndex
+  static constexpr UnpackedDatabaseElementID fromDescription(size_t unstableIndex, const DatabaseDescription& desc) {
+    return { unstableIndex, desc.elementIndexBits };
+  }
+
   size_t getTableIndex() const {
     return dbDetails::unpackTableIndex(mValue, mElementIndexBits);
   }

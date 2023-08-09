@@ -179,6 +179,7 @@ using GameObjectTable = Table<
   Tint,
   FragmentFlagsRow,
 
+  CollisionMaskRow,
   SweepNPruneBroadphase::BroadphaseKeys,
 
   Row<CubeSprite>,
@@ -202,6 +203,7 @@ using StaticGameObjectTable = Table<
   FloatRow<Tags::GRot, Tags::CosAngle>,
   FloatRow<Tags::GRot, Tags::SinAngle>,
 
+  CollisionMaskRow,
   SweepNPruneBroadphase::BroadphaseKeys,
 
   //Only requires broadphase key to know how to remove it, don't need to store boundaries
@@ -290,6 +292,7 @@ using PlayerTable = Table<
   FloatRow<Tags::GLinImpulse, Tags::Y>,
   FloatRow<Tags::GAngImpulse, Tags::Angle>,
 
+  CollisionMaskRow,
   SweepNPruneBroadphase::BroadphaseKeys,
 
   Row<CubeSprite>,

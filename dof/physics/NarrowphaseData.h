@@ -17,6 +17,51 @@ struct CollisionPairIndexA : Row<StableElementID> {};
 struct CollisionPairIndexB : Row<StableElementID> {};
 
 struct ConstraintElement : Row<StableElementID> {};
+struct CollisionMaskRow : Row<uint8_t> {};
+
+namespace CollisionMask {
+  using CollisionMaskT = uint8_t;
+  using CombinedCollisionMaskT = uint8_t;
+  using ConstraintEnabledMaskT = uint8_t;
+  constexpr ConstraintEnabledMaskT FREE_LIST_BIT = 1 << 0;
+  constexpr ConstraintEnabledMaskT MASK_MATCH_BIT = 1 << 1;
+
+  constexpr bool shouldTestCollision(CombinedCollisionMaskT m) {
+    return m;
+  }
+
+  constexpr bool shouldSolveConstraint(ConstraintEnabledMaskT m) {
+    //Mask must match and entry must not be on the free list
+    return m == MASK_MATCH_BIT;
+  }
+
+  constexpr bool isConstraintEnabled(ConstraintEnabledMaskT m) {
+    return !(m & FREE_LIST_BIT);
+  }
+
+  constexpr CombinedCollisionMaskT combineForCollisionTable(CollisionMaskT a, CollisionMaskT b) {
+    return a & b;
+  }
+
+  constexpr ConstraintEnabledMaskT combineForConstraintsTable(ConstraintEnabledMaskT constraintEnabled, CombinedCollisionMaskT collision) {
+    //Always preserve the free list bit
+    ConstraintEnabledMaskT result = constraintEnabled & FREE_LIST_BIT;
+    //Add collision bit if any bit in the mask was set
+    if(shouldTestCollision(collision)) {
+      result |= MASK_MATCH_BIT;
+    }
+    return result;
+  }
+
+  constexpr void addToConstraintsFreeList(ConstraintEnabledMaskT& mask) {
+    //Not useful to preserve mask bit and this is simpler for debugging
+    mask = FREE_LIST_BIT;
+  }
+
+  constexpr void removeConstraintFromFreeList(ConstraintEnabledMaskT& mask) {
+    mask &= ~FREE_LIST_BIT;
+  }
+};
 
 template<class>
 struct ContactPoint {
@@ -68,6 +113,8 @@ using CollisionPairsTable = Table<
 
   SharedNormal::X,
   SharedNormal::Y,
+  //Intersection of the collision masks of A and B
+  CollisionMaskRow,
 
   StableIDRow,
   ConstraintElement

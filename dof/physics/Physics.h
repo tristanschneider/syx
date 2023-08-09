@@ -262,7 +262,7 @@ struct ContactInfo {
 
 struct Physics {
   struct details {
-    template<class SrcRow, class DstRow, class DatabaseT, class DstTableT>
+    template<bool(*enabledFn)(uint8_t), class SrcRow, class DstRow, class DatabaseT, class DstTableT>
     static std::shared_ptr<TaskNode> fillRow(DstTableT& table, DatabaseT& db, std::vector<StableElementID>& ids, const std::vector<uint8_t>* isEnabled = nullptr) {
       return TaskNode::create([&table, &db, &ids, isEnabled](...) {
         PROFILE_SCOPE("physics", "fillRow");
@@ -270,7 +270,7 @@ struct Physics {
         SrcRow* src = nullptr;
         DatabaseT::ElementID last;
         for(size_t i = 0; i < ids.size(); ++i) {
-          if(ids[i] == StableElementID::invalid() || (isEnabled && !isEnabled->at(i))) {
+          if(ids[i] == StableElementID::invalid() || (isEnabled && !enabledFn(isEnabled->at(i)))) {
             continue;
           }
 
@@ -290,6 +290,18 @@ struct Physics {
       });
     }
 
+    template<class SrcRow, class DstRow, class DatabaseT, class DstTableT>
+    static std::shared_ptr<TaskNode> fillConstraintRow(DstTableT& table, DatabaseT& db, std::vector<StableElementID>& ids, const std::vector<uint8_t>* isEnabled = nullptr) {
+      return fillRow<&CollisionMask::shouldSolveConstraint, SrcRow, DstRow>(table, db, ids, isEnabled);
+    }
+
+    template<class SrcRow, class DstRow, class DatabaseT, class DstTableT>
+    static std::shared_ptr<TaskNode> fillNarrowphaseRow(DstTableT& table, DatabaseT& db, std::vector<StableElementID>& ids, const std::vector<uint8_t>* isEnabled = nullptr) {
+      return fillRow<&CollisionMask::shouldTestCollision, SrcRow, DstRow>(table, db, ids, isEnabled);
+    }
+
+    static std::shared_ptr<TaskNode> fillCollisionMasks(TableResolver<CollisionMaskRow> resolver, std::vector<StableElementID>& idsA, std::vector<StableElementID>& idsB, const DatabaseDescription& desc, const PhysicsTableIds& tables);
+
     template<class SrcRow, class DstRow, class DatabaseT>
     static std::shared_ptr<TaskNode> storeToRow(ConstraintCommonTable& table, DatabaseT& db, const std::vector<FinalSyncIndices::Mapping>& mappings) {
       return TaskNode::create([&table, &db, &mappings](...) {
@@ -297,7 +309,7 @@ struct Physics {
         SrcRow& src = std::get<SrcRow>(table.mRows);
         DstRow* dst = nullptr;
         DatabaseT::ElementID last;
-        for(const FinalSyncIndices::Mapping mapping : mappings) {
+        for(const FinalSyncIndices::Mapping& mapping : mappings) {
           const DatabaseT::ElementID id(mapping.mSourceGamebject.mUnstableIndex);
           if(!dst || last.getTableIndex() != id.getTableIndex()) {
             dst = Queries::getRowInTable<DstRow>(db, id);
@@ -372,15 +384,15 @@ struct Physics {
     std::vector<StableElementID>& idsA = std::get<CollisionPairIndexA>(pairs.mRows).mElements;
     std::vector<StableElementID>& idsB = std::get<CollisionPairIndexB>(pairs.mRows).mElements;
 
-    root->mChildren.push_back(details::fillRow<PosX, NarrowphaseData<PairA>::PosX>(pairs, db, idsA));
-    root->mChildren.push_back(details::fillRow<PosY, NarrowphaseData<PairA>::PosY>(pairs, db, idsA));
-    root->mChildren.push_back(details::fillRow<CosAngle, NarrowphaseData<PairA>::CosAngle>(pairs, db, idsA));
-    root->mChildren.push_back(details::fillRow<SinAngle, NarrowphaseData<PairA>::SinAngle>(pairs, db, idsA));
+    root->mChildren.push_back(details::fillNarrowphaseRow<PosX, NarrowphaseData<PairA>::PosX>(pairs, db, idsA));
+    root->mChildren.push_back(details::fillNarrowphaseRow<PosY, NarrowphaseData<PairA>::PosY>(pairs, db, idsA));
+    root->mChildren.push_back(details::fillNarrowphaseRow<CosAngle, NarrowphaseData<PairA>::CosAngle>(pairs, db, idsA));
+    root->mChildren.push_back(details::fillNarrowphaseRow<SinAngle, NarrowphaseData<PairA>::SinAngle>(pairs, db, idsA));
 
-    root->mChildren.push_back(details::fillRow<PosX, NarrowphaseData<PairB>::PosX>(pairs, db, idsB));
-    root->mChildren.push_back(details::fillRow<PosY, NarrowphaseData<PairB>::PosY>(pairs, db, idsB));
-    root->mChildren.push_back(details::fillRow<CosAngle, NarrowphaseData<PairB>::CosAngle>(pairs, db, idsB));
-    root->mChildren.push_back(details::fillRow<SinAngle, NarrowphaseData<PairB>::SinAngle>(pairs, db, idsB));
+    root->mChildren.push_back(details::fillNarrowphaseRow<PosX, NarrowphaseData<PairB>::PosX>(pairs, db, idsB));
+    root->mChildren.push_back(details::fillNarrowphaseRow<PosY, NarrowphaseData<PairB>::PosY>(pairs, db, idsB));
+    root->mChildren.push_back(details::fillNarrowphaseRow<CosAngle, NarrowphaseData<PairB>::CosAngle>(pairs, db, idsB));
+    root->mChildren.push_back(details::fillNarrowphaseRow<SinAngle, NarrowphaseData<PairB>::SinAngle>(pairs, db, idsB));
 
     return TaskBuilder::addEndSync(root);
   }
@@ -394,14 +406,14 @@ struct Physics {
     auto result = std::make_shared<TaskNode>();
     std::vector<StableElementID>& idsA = std::get<CollisionPairIndexA>(constraints.mRows).mElements;
     const std::vector<uint8_t>* isEnabled = &std::get<ConstraintData::IsEnabled>(constraints.mRows).mElements;
-    result->mChildren.push_back(details::fillRow<LinVelX, ConstraintObject<ConstraintObjA>::LinVelX>(constraints, db, idsA, isEnabled));
-    result->mChildren.push_back(details::fillRow<LinVelY, ConstraintObject<ConstraintObjA>::LinVelY>(constraints, db, idsA, isEnabled));
-    result->mChildren.push_back(details::fillRow<AngVel, ConstraintObject<ConstraintObjA>::AngVel>(constraints, db, idsA, isEnabled));
+    result->mChildren.push_back(details::fillConstraintRow<LinVelX, ConstraintObject<ConstraintObjA>::LinVelX>(constraints, db, idsA, isEnabled));
+    result->mChildren.push_back(details::fillConstraintRow<LinVelY, ConstraintObject<ConstraintObjA>::LinVelY>(constraints, db, idsA, isEnabled));
+    result->mChildren.push_back(details::fillConstraintRow<AngVel, ConstraintObject<ConstraintObjA>::AngVel>(constraints, db, idsA, isEnabled));
 
     std::vector<StableElementID>& idsB = std::get<CollisionPairIndexB>(constraints.mRows).mElements;
-    result->mChildren.push_back(details::fillRow<LinVelX, ConstraintObject<ConstraintObjB>::LinVelX>(constraints, db, idsB, isEnabled));
-    result->mChildren.push_back(details::fillRow<LinVelY, ConstraintObject<ConstraintObjB>::LinVelY>(constraints, db, idsB, isEnabled));
-    result->mChildren.push_back(details::fillRow<AngVel, ConstraintObject<ConstraintObjB>::AngVel>(constraints, db, idsB, isEnabled));
+    result->mChildren.push_back(details::fillConstraintRow<LinVelX, ConstraintObject<ConstraintObjB>::LinVelX>(constraints, db, idsB, isEnabled));
+    result->mChildren.push_back(details::fillConstraintRow<LinVelY, ConstraintObject<ConstraintObjB>::LinVelY>(constraints, db, idsB, isEnabled));
+    result->mChildren.push_back(details::fillConstraintRow<AngVel, ConstraintObject<ConstraintObjB>::AngVel>(constraints, db, idsB, isEnabled));
     return TaskBuilder::addEndSync(result);
   }
 

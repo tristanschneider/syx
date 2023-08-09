@@ -412,6 +412,20 @@ struct TableModifierInstance {
   void* table{};
 };
 
+
+//Intended for use when iterating over many ids, this reuses the fetched table in the common case,
+//then swaps it out if the id is from a different table. The assumption is that large groups of
+//ids are all from the same table
+template<class T>
+struct CachedRow {
+  operator bool() const { return row; }
+  const T* operator->() const { return row; }
+  T* operator->() { return row; }
+
+  T* row{};
+  size_t tableID{};
+};
+
 //Exposes the ability to query the given rows in any table without a direct dependency on the database
 template<class... Rows>
 struct TableResolver {
@@ -433,6 +447,14 @@ struct TableResolver {
   template<class Row>
   Row* tryGetRow(const UnpackedDatabaseElementID& id) {
     return std::get<GetRowT<Row>>(getters)(db, id);
+  }
+
+  template<class Row>
+  void tryGetOrSwapRow(CachedRow<Row>& row, const UnpackedDatabaseElementID& id) {
+    if(!row.row || row.tableID != id.getTableIndex()) {
+      row.row = tryGetRow<Row>(id);
+      row.tableID = id.getTableIndex();
+    }
   }
 
   void* db{};

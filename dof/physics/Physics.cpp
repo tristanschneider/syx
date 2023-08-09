@@ -66,6 +66,31 @@ namespace {
   }
 }
 
+std::shared_ptr<TaskNode> Physics::details::fillCollisionMasks(TableResolver<CollisionMaskRow> resolver, std::vector<StableElementID>& idsA, std::vector<StableElementID>& idsB, const DatabaseDescription& desc, const PhysicsTableIds& tables) {
+  CollisionMaskRow* dst = resolver.tryGetRow<CollisionMaskRow>(UnpackedDatabaseElementID::fromDescription(tables.mNarrowphaseTable, desc));
+  assert(dst);
+  return TaskNode::create([resolver, &idsA, &idsB, desc, dst](...) mutable {
+    PROFILE_SCOPE("physics", "fillCollisionMasks");
+    CachedRow<CollisionMaskRow> srcA;
+    CachedRow<CollisionMaskRow> srcB;
+    for(size_t i = 0; i < idsA.size(); ++i) {
+      if(idsA[i] == StableElementID::invalid() || idsB[i] == StableElementID::invalid()) {
+        dst->at(i) = 0;
+        continue;
+      }
+
+      //Caller should ensure the unstable indices have been resolved such that now the unstable index is up to date
+      const UnpackedDatabaseElementID idA = idsA[i].toUnpacked(desc);
+      const UnpackedDatabaseElementID idB = idsB[i].toUnpacked(desc);
+      resolver.tryGetOrSwapRow(srcA, idA);
+      resolver.tryGetOrSwapRow(srcB, idB);
+      if(srcA && srcB) {
+        dst->at(i) = CollisionMask::combineForCollisionTable(srcA->at(idA.getElementIndex()), srcB->at(idB.getElementIndex()));
+      }
+    }
+  });
+}
+
 void Physics::details::_integratePositionAxis(float* velocity, float* position, size_t count) {
   ispc::integratePosition(position, velocity, uint32_t(count));
 }

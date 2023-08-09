@@ -128,6 +128,8 @@ struct PhysicsObjectAdapter {
   BasicRow<float>* linImpulseX{};
   BasicRow<float>* linImpulseY{};
   BasicRow<float>* angImpulse{};
+
+  BasicRow<uint8_t>* collisionMask{};
 };
 
 struct TargetPosAdapter {

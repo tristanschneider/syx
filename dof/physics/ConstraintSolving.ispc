@@ -1,6 +1,11 @@
 #include "IspcMath.h"
 #include "Uniforms.h"
 
+bool shouldSolveConstraint(uint8 enabled) {
+  //See CollisionMask::shouldSolveConstraint
+  return enabled == 2;
+}
+
 export void setupConstraintsSharedMass(
   uniform float mass,
   uniform float inertia,
@@ -176,7 +181,7 @@ export void solveContactConstraints(
   foreach(t = 0 ... count) {
     const int i = t + start;
     const int oi = i + objectOffset;
-    if(!isEnabled[oi]) {
+    if(!shouldSolveConstraint(isEnabled[oi])) {
       continue;
     }
     const float nx = constraints.linearAxisX[i];
@@ -334,7 +339,7 @@ export void solveContactConstraintsBZeroMass(
   foreach(t = 0 ... count) {
     const int i = t + start;
     const int oi = i + objectOffset;
-    if(!isEnabled[oi]) {
+    if(!shouldSolveConstraint(isEnabled[oi])) {
       continue;
     }
     const float nx = constraints.linearAxisX[i];

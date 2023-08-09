@@ -86,7 +86,7 @@ struct ConstraintsTableBuilder {
     bool anyRemovals = false;
     for(size_t i = 0; i < objA.size(); ++i) {
       //Skip disabled constraints, meaning padding or free list elements
-      if(!isEnabled.at(i)) {
+      if(!CollisionMask::isConstraintEnabled(isEnabled.at(i))) {
         continue;
       }
       //Resolve the new handles
@@ -143,8 +143,8 @@ struct ConstraintsTableBuilder {
     ConstraintsTable& contacts,
     ContactConstraintsToStaticObjectsTable& staticContacts,
     const ConstraintsTableMappings& mappings);
-  static TaskRange fillConstraintNarrowphaseData(const ConstraintCommonTable& constraints, ConstraintsTable& contacts, const CollisionPairsTable& pairs, const ConstraintsTableMappings& constraintsMappings, const PhysicsTableIds& tableIds);
-  static TaskRange fillConstraintNarrowphaseData(const ConstraintCommonTable& constraints, ContactConstraintsToStaticObjectsTable& contacts, const CollisionPairsTable& pairs, const ConstraintsTableMappings& constraintsMappings, const PhysicsTableIds& tableIds);
+  static TaskRange fillConstraintNarrowphaseData(ConstraintCommonTable& constraints, ConstraintsTable& contacts, const CollisionPairsTable& pairs, const ConstraintsTableMappings& constraintsMappings, const PhysicsTableIds& tableIds);
+  static TaskRange fillConstraintNarrowphaseData(ConstraintCommonTable& constraints, ContactConstraintsToStaticObjectsTable& contacts, const CollisionPairsTable& pairs, const ConstraintsTableMappings& constraintsMappings, const PhysicsTableIds& tableIds);
 
   //Do all of the above to end up with constraints ready to solve except for filling in velocity
   template<class DatabaseT>

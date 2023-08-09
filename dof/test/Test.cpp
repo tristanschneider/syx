@@ -963,7 +963,7 @@ namespace Test {
       Assert::AreEqual(expectedA.size(), expectedB.size());
 
       for(size_t i = 0; i < actualA.size(); ++i) {
-        if(isEnabled && !isEnabled->at(i)) {
+        if(isEnabled && !CollisionMask::shouldSolveConstraint(isEnabled->at(i))) {
           continue;
         }
         const StableElementID& toFindA = actualA.at(i);
@@ -1002,7 +1002,7 @@ namespace Test {
       const size_t contactCount = reader.mConstraintsMappings.mZeroMassStartIndex;
       size_t enabled = 0;
       for(size_t i = 0; i < contactCount; ++i) {
-        if(reader.mIsConstraintEnabled.at(i)) {
+        if(CollisionMask::shouldSolveConstraint(reader.mIsConstraintEnabled.at(i))) {
           ++enabled;
         }
       }
@@ -1015,7 +1015,7 @@ namespace Test {
       const size_t staticCount = TableOperations::size(reader.mConstraintsCommon) - reader.mConstraintsMappings.mZeroMassStartIndex;
       size_t enabled = 0;
       for(size_t i = 0; i < staticCount; ++i) {
-        if(reader.mIsConstraintEnabled.at(i + reader.mConstraintsMappings.mZeroMassStartIndex)) {
+        if(CollisionMask::shouldSolveConstraint(reader.mIsConstraintEnabled.at(i + reader.mConstraintsMappings.mZeroMassStartIndex))) {
           ++enabled;
         }
       }
@@ -1804,6 +1804,30 @@ namespace Test {
       };
       game.update();
       Assert::IsFalse(SpatialQuery::getIndex(single, queries).has_value());
+    }
+
+    TEST_METHOD(CollisionMasks) {
+      GameArgs args;
+      args.fragmentCount = 2;
+      TestGame game{ args };
+      GameObjectAdapter objs = TableAdapters::getGameObjects(game);
+
+      objs.transform.posX->at(0) = 1;
+      objs.transform.posX->at(1) = 1.1f;
+      objs.physics.collisionMask->at(0) = 1 << 2;
+      objs.physics.collisionMask->at(1) = 1 << 1;
+
+      game.update();
+
+      Assert::AreEqual(0.0f, objs.physics.linVelX->at(0));
+      Assert::AreEqual(0.0f, objs.physics.linVelX->at(1));
+
+      objs.physics.collisionMask->at(0) |= 1 << 1;
+
+      game.update();
+
+      Assert::AreNotEqual(0.0f, objs.physics.linVelX->at(0));
+      Assert::AreNotEqual(0.0f, objs.physics.linVelX->at(1));
     }
   };
 }

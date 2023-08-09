@@ -8,6 +8,7 @@ struct PhysicsTableIds {
   size_t mZeroMassConstraintTable{};
   size_t mConstriantsCommonTable{};
   size_t mSpatialQueriesTable{};
+  size_t mNarrowphaseTable{};
   size_t mTableIDMask{};
   size_t mElementIDMask{};
 };

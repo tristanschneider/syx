@@ -79,6 +79,7 @@ namespace {
       TableOperations::tryGetRow<FloatRow<Tags::GLinImpulse, Tags::X>>(table),
       TableOperations::tryGetRow<FloatRow<Tags::GLinImpulse, Tags::Y>>(table),
       TableOperations::tryGetRow<FloatRow<Tags::GAngImpulse, Tags::Angle>>(table),
+      TableOperations::tryGetRow<CollisionMaskRow>(table)
     };
   }
 
@@ -90,7 +91,8 @@ namespace {
       TableOperations::tryGetRow<FloatRow<Tags::GAngVel, Tags::Angle>>(table),
       TableOperations::tryGetRow<FloatRow<Tags::GLinImpulse, Tags::X>>(table),
       TableOperations::tryGetRow<FloatRow<Tags::GLinImpulse, Tags::Y>>(table),
-      TableOperations::tryGetRow<FloatRow<Tags::GAngImpulse, Tags::Angle>>(table)
+      TableOperations::tryGetRow<FloatRow<Tags::GAngImpulse, Tags::Angle>>(table),
+      TableOperations::tryGetRow<CollisionMaskRow>(table)
     };
   }
 

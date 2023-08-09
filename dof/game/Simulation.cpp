@@ -279,6 +279,9 @@ void Simulation::init(GameDatabase& db) {
   Queries::viewEachRow(db, [](FloatRow<Tags::GRot, Tags::CosAngle>& r) {
       r.mDefaultValue = 1.0f;
   });
+  Queries::viewEachRow(db, [](CollisionMaskRow& r) {
+      r.mDefaultValue = uint8_t(~0);
+  });
 
   //Fragments in particular start opaque then reveal the texture as they take damage
   std::get<Tint>(std::get<GameObjectTable>(db.mTables).mRows).mDefaultValue = glm::vec4(0, 0, 0, 1);

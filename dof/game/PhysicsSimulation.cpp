@@ -27,6 +27,7 @@ namespace PhysicsSimulation {
     physicsTables.mConstriantsCommonTable = GameDatabase::getTableIndex<ConstraintCommonTable>().mValue;
     physicsTables.mSpatialQueriesTable = GameDatabase::getTableIndex<SpatialQuery::SpatialQueriesTable>().mValue;
     physicsTables.mElementIDMask = GameDatabase::ElementID::ELEMENT_INDEX_MASK;
+    physicsTables.mNarrowphaseTable = GameDatabase::getTableIndex<CollisionPairsTable>().mValue;
     return physicsTables;
   }
 
@@ -99,17 +100,25 @@ namespace PhysicsSimulation {
       PROFILE_SCOPE("physics", "resolveCollisionTableIds");
       Physics::resolveCollisionTableIds(collisionPairs, db, TableAdapters::getStableMappings({ db }), physicsTables);
     });
+    auto current = root;
 
     std::vector<StableElementID>& idsA = std::get<CollisionPairIndexA>(collisionPairs.mRows).mElements;
     std::vector<StableElementID>& idsB = std::get<CollisionPairIndexB>(collisionPairs.mRows).mElements;
-    root->mChildren.push_back(Physics::details::fillRow<PosX, NarrowphaseData<PairA>::PosX>(collisionPairs, db, idsA));
-    root->mChildren.push_back(Physics::details::fillRow<PosY, NarrowphaseData<PairA>::PosY>(collisionPairs, db, idsA));
-    root->mChildren.push_back(Physics::details::fillRow<RotX, NarrowphaseData<PairA>::CosAngle>(collisionPairs, db, idsA));
-    root->mChildren.push_back(Physics::details::fillRow<RotY, NarrowphaseData<PairA>::SinAngle>(collisionPairs, db, idsA));
-    root->mChildren.push_back(Physics::details::fillRow<PosX, NarrowphaseData<PairB>::PosX>(collisionPairs, db, idsB));
-    root->mChildren.push_back(Physics::details::fillRow<PosY, NarrowphaseData<PairB>::PosY>(collisionPairs, db, idsB));
-    root->mChildren.push_back(Physics::details::fillRow<RotX, NarrowphaseData<PairB>::CosAngle>(collisionPairs, db, idsB));
-    root->mChildren.push_back(Physics::details::fillRow<RotY, NarrowphaseData<PairB>::SinAngle>(collisionPairs, db, idsB));
+
+    //Resolve these first so the result of them can be used to skip the others
+    auto resolveMasks = Physics::details::fillCollisionMasks(TableResolver<CollisionMaskRow>::create(db), idsA, idsB, db.getDescription(), physicsTables);
+    current->mChildren.push_back(resolveMasks);
+    current = resolveMasks;
+    const std::vector<uint8_t>* masks = &std::get<CollisionMaskRow>(collisionPairs.mRows).mElements;
+
+    current->mChildren.push_back(Physics::details::fillNarrowphaseRow<PosX, NarrowphaseData<PairA>::PosX>(collisionPairs, db, idsA, masks));
+    current->mChildren.push_back(Physics::details::fillNarrowphaseRow<PosY, NarrowphaseData<PairA>::PosY>(collisionPairs, db, idsA, masks));
+    current->mChildren.push_back(Physics::details::fillNarrowphaseRow<RotX, NarrowphaseData<PairA>::CosAngle>(collisionPairs, db, idsA, masks));
+    current->mChildren.push_back(Physics::details::fillNarrowphaseRow<RotY, NarrowphaseData<PairA>::SinAngle>(collisionPairs, db, idsA, masks));
+    current->mChildren.push_back(Physics::details::fillNarrowphaseRow<PosX, NarrowphaseData<PairB>::PosX>(collisionPairs, db, idsB, masks));
+    current->mChildren.push_back(Physics::details::fillNarrowphaseRow<PosY, NarrowphaseData<PairB>::PosY>(collisionPairs, db, idsB, masks));
+    current->mChildren.push_back(Physics::details::fillNarrowphaseRow<RotX, NarrowphaseData<PairB>::CosAngle>(collisionPairs, db, idsB, masks));
+    current->mChildren.push_back(Physics::details::fillNarrowphaseRow<RotY, NarrowphaseData<PairB>::SinAngle>(collisionPairs, db, idsB, masks));
 
     //After everything is filled, generate contacts
     auto contacts = TaskNode::create([&](...) {

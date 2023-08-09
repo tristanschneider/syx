@@ -68,7 +68,7 @@ namespace ctbdetails {
     //Assign the two objects. Their sync indices will be decided later
     std::get<CollisionPairIndexA>(constraints.mRows).at(element) = a;
     std::get<CollisionPairIndexB>(constraints.mRows).at(element) = b;
-    std::get<ConstraintData::IsEnabled>(constraints.mRows).at(element) = true;
+    CollisionMask::removeConstraintFromFreeList(std::get<ConstraintData::IsEnabled>(constraints.mRows).at(element));
   }
 
   void addToFreeList(ConstraintsTableMappings& constraintsMappings,
@@ -78,7 +78,7 @@ namespace ctbdetails {
     CollisionPairIndexB& constraintIndexB,
     const PhysicsTableIds& tables) {
     const size_t element = toAdd.mUnstableIndex & tables.mElementIDMask;
-    isEnabled.at(element) = false;
+    CollisionMask::addToConstraintsFreeList(isEnabled.at(element));
     constraintIndexA.at(element) = constraintIndexB.at(element) = StableElementID::invalid();
     constraintsMappings.mConstraintFreeList.push_back(toAdd);
   }
@@ -316,7 +316,8 @@ void ConstraintsTableBuilder::buildSyncIndices(ConstraintCommonTable& constraint
   ConstraintSyncData syncA = getSyncData<ConstraintObjA>(constraints);
   ConstraintSyncData syncB = getSyncData<ConstraintObjB>(constraints);
   for(size_t i = 0; i < isEnabled.size(); ++i) {
-    if(!isEnabled.at(i)) {
+    //This is before the masks are combined
+    if(!CollisionMask::isConstraintEnabled(isEnabled.at(i))) {
       continue;
     }
 
@@ -372,10 +373,34 @@ std::shared_ptr<TaskNode> fillConstraintRow(std::shared_ptr<ctbdetails::WorkOffs
     const size_t begin = range.start + o.mOffset;
     const size_t end = range.end + o.mOffset;
     for(size_t i = begin; i < end; ++i) {
-      if(isEnabled.at(i)) {
+      if(CollisionMask::shouldSolveConstraint(isEnabled.at(i))) {
         const StableElementID& pairId = pairIds.at(i);
         //dst is the specific constraint table while i is iterating over common table indices. Subtracting begin gets the local index into the table
         dst.at(i - o.mOffset) = src.at(pairId.mUnstableIndex & mask);
+      }
+    }
+  });
+}
+
+//Set constraint as disabled if collision mask is empty
+std::shared_ptr<TaskNode> fillCollisionMasks(std::shared_ptr<ctbdetails::WorkOffset> offset, ConstraintCommonTable& common, const CollisionPairsTable& pairs, const PhysicsTableIds& tableIds) {
+  return TaskNode::create([offset, &common, &pairs, mask{tableIds.mElementIDMask}](enki::TaskSetPartition range, uint32_t) {
+    PROFILE_SCOPE("physics", "fillConstraintRow");
+    auto& isEnabled = std::get<ConstraintData::IsEnabled>(common.mRows);
+    const auto& src = std::get<CollisionMaskRow>(pairs.mRows);
+    const auto& pairIds = std::get<ConstraintData::ConstraintContactPair>(common.mRows);
+
+    const auto& o = *offset;
+    if(!o.mHasWork) {
+      return;
+    }
+    const size_t begin = range.start + o.mOffset;
+    const size_t end = range.end + o.mOffset;
+    for(size_t i = begin; i < end; ++i) {
+      uint8_t& enabled = isEnabled.at(i);
+      if(CollisionMask::isConstraintEnabled(enabled)) {
+        const StableElementID& pairId = pairIds.at(i);
+        enabled = CollisionMask::combineForConstraintsTable(enabled, src.at(pairId.mUnstableIndex & mask));
       }
     }
   });
@@ -399,7 +424,7 @@ std::shared_ptr<TaskNode> fillRVectorRow(std::shared_ptr<ctbdetails::WorkOffset>
     const size_t begin = range.start + o.mOffset;
     const size_t end = range.end + o.mOffset;
     for(size_t i = begin; i < end; ++i) {
-      if(isEnabled.at(i)) {
+      if(CollisionMask::shouldSolveConstraint(isEnabled.at(i))) {
         const StableElementID& pairId = pairIds.at(i);
         //dst is the specific constraint table while i is iterating over common table indices. Subtracting begin gets the local index into the table
         dst.at(i - o.mOffset) = srcContact.at(pairId.mUnstableIndex & mask) - srcCenter.at(pairId.mUnstableIndex & mask);
@@ -422,7 +447,7 @@ void fillCommonContactData(std::shared_ptr<ctbdetails::WorkOffset> begin, const 
   tasks.push_back(fillRVectorRow<ContactPoint<ContactTwo>::PosY, NarrowphaseData<PairA>::PosY, ConstraintObject<ConstraintObjA>::CenterToContactTwoY>(begin, common, constraints, pairs, tableIds));
 }
 
-TaskRange ConstraintsTableBuilder::fillConstraintNarrowphaseData(const ConstraintCommonTable& constraints, ConstraintsTable& contacts, const CollisionPairsTable& pairs, const ConstraintsTableMappings& constraintsMappings, const PhysicsTableIds& tableIds) {
+TaskRange ConstraintsTableBuilder::fillConstraintNarrowphaseData(ConstraintCommonTable& constraints, ConstraintsTable& contacts, const CollisionPairsTable& pairs, const ConstraintsTableMappings& constraintsMappings, const PhysicsTableIds& tableIds) {
   auto root = std::make_shared<TaskNode>();
 
   //Root task configures the sizes that the child tasks will work off of
@@ -437,19 +462,27 @@ TaskRange ConstraintsTableBuilder::fillConstraintNarrowphaseData(const Constrain
     if(auto s = self.lock()) {
       for(auto& child : s->mChildren) {
         child->mTask.setSize(end - begin, 100);
+        for(auto& c : child->mChildren) {
+          c->mTask.setSize(end - begin, 100);
+        }
       }
     }
   }) };
-  fillCommonContactData(sharedBegin, constraints, contacts, pairs, tableIds, root->mChildren);
+  auto current = root;
+  auto resolveMasks = fillCollisionMasks(sharedBegin, constraints, pairs, tableIds);
+  current->mChildren.push_back(resolveMasks);
+  current = resolveMasks;
 
-  root->mChildren.push_back(fillRVectorRow<ContactPoint<ContactOne>::PosX, NarrowphaseData<PairB>::PosX, ConstraintObject<ConstraintObjB>::CenterToContactOneX>(sharedBegin, constraints, contacts, pairs, tableIds));
-  root->mChildren.push_back(fillRVectorRow<ContactPoint<ContactOne>::PosY, NarrowphaseData<PairB>::PosY, ConstraintObject<ConstraintObjB>::CenterToContactOneY>(sharedBegin, constraints, contacts, pairs, tableIds));
-  root->mChildren.push_back(fillRVectorRow<ContactPoint<ContactTwo>::PosX, NarrowphaseData<PairB>::PosX, ConstraintObject<ConstraintObjB>::CenterToContactTwoX>(sharedBegin, constraints, contacts, pairs, tableIds));
-  root->mChildren.push_back(fillRVectorRow<ContactPoint<ContactTwo>::PosY, NarrowphaseData<PairB>::PosY, ConstraintObject<ConstraintObjB>::CenterToContactTwoY>(sharedBegin, constraints, contacts, pairs, tableIds));
+  fillCommonContactData(sharedBegin, constraints, contacts, pairs, tableIds, current->mChildren);
+
+  current->mChildren.push_back(fillRVectorRow<ContactPoint<ContactOne>::PosX, NarrowphaseData<PairB>::PosX, ConstraintObject<ConstraintObjB>::CenterToContactOneX>(sharedBegin, constraints, contacts, pairs, tableIds));
+  current->mChildren.push_back(fillRVectorRow<ContactPoint<ContactOne>::PosY, NarrowphaseData<PairB>::PosY, ConstraintObject<ConstraintObjB>::CenterToContactOneY>(sharedBegin, constraints, contacts, pairs, tableIds));
+  current->mChildren.push_back(fillRVectorRow<ContactPoint<ContactTwo>::PosX, NarrowphaseData<PairB>::PosX, ConstraintObject<ConstraintObjB>::CenterToContactTwoX>(sharedBegin, constraints, contacts, pairs, tableIds));
+  current->mChildren.push_back(fillRVectorRow<ContactPoint<ContactTwo>::PosY, NarrowphaseData<PairB>::PosY, ConstraintObject<ConstraintObjB>::CenterToContactTwoY>(sharedBegin, constraints, contacts, pairs, tableIds));
   return TaskBuilder::addEndSync(root);
 }
 
-TaskRange ConstraintsTableBuilder::fillConstraintNarrowphaseData(const ConstraintCommonTable& constraints, ContactConstraintsToStaticObjectsTable& contacts, const CollisionPairsTable& pairs, const ConstraintsTableMappings& constraintsMappings, const PhysicsTableIds& tableIds) {
+TaskRange ConstraintsTableBuilder::fillConstraintNarrowphaseData(ConstraintCommonTable& constraints, ContactConstraintsToStaticObjectsTable& contacts, const CollisionPairsTable& pairs, const ConstraintsTableMappings& constraintsMappings, const PhysicsTableIds& tableIds) {
   auto root = std::make_shared<TaskNode>();
 
   //Root task configures the sizes that the child tasks will work off of
@@ -464,11 +497,18 @@ TaskRange ConstraintsTableBuilder::fillConstraintNarrowphaseData(const Constrain
     if(auto s = self.lock()) {
       for(auto& child : s->mChildren) {
         child->mTask.setSize(end - begin, 100);
+        for(auto& c : child->mChildren) {
+          c->mTask.setSize(end - begin, 100);
+        }
       }
     }
   }) };
+  auto resolveMasks = fillCollisionMasks(sharedBegin, constraints, pairs, tableIds);
+  auto current = root;
+  current->mChildren.push_back(resolveMasks);
+  current = resolveMasks;
 
-  fillCommonContactData(sharedBegin, constraints, contacts, pairs, tableIds, root->mChildren);
+  fillCommonContactData(sharedBegin, constraints, contacts, pairs, tableIds, current->mChildren);
   return TaskBuilder::addEndSync(root);
 }
 
