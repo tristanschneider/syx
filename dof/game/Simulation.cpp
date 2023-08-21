@@ -110,6 +110,10 @@ namespace {
     auto sync = std::make_shared<TaskNode>();
     TaskBuilder::_addSyncDependency(*current, sync);
     current = sync;
+    //Arbitrary place, probably doesn't need to be synchronous
+    TaskRange fsm = FragmentStateMachine::update({ db });
+    current->mChildren.push_back(fsm.mBegin);
+    current = fsm.mEnd;
 
     //At the end of gameplay, turn any gameplay impulses into stat effects
     //Write (clear) GLinImpulse

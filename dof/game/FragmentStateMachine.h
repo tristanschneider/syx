@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Table.h"
+#include "StableElementID.h"
 
 struct TaskRange;
 struct GameDB;
@@ -14,10 +14,28 @@ namespace FragmentStateMachine {
   //repelling all nearby fragments, then go to SeekHome
   struct Stunned {};
   //Navigate towards the destination location, then go back to wander or snap to destination if found
-  struct SeekHome {};
+  struct SeekHome {
+    StableElementID target;
+  };
 
   struct FragmentState {
-    using Variant = std::variant<Idle, Wander, Stunned>;
+    using Variant = std::variant<Idle, Wander, Stunned, SeekHome>;
+
+    FragmentState() = default;
+    FragmentState(const Variant& v)
+      : currentState(v)
+      , desiredState(v) {
+    }
+    FragmentState(FragmentState&& rhs)
+      : currentState(std::move(rhs.currentState))
+      , desiredState(std::move(rhs.desiredState)) {
+    }
+
+    void operator=(FragmentState&& rhs) {
+      currentState = std::move(rhs.currentState);
+      desiredState = std::move(rhs.desiredState);
+    }
+
     //Only used by the state machine itself
     Variant currentState;
     //Used by external logic to request changes for when the state machine updates
@@ -31,6 +49,8 @@ namespace FragmentStateMachine {
   //Can be called while the state machine is updating in which case it's up to timing if
   //it happens this tick or next
   void setState(FragmentState& current, FragmentState::Variant&& desired);
+  //Same as above but locates the element for you
+  void setState(GameDB db, const StableElementID& id, FragmentState::Variant&& desired);
 
   //Process requested state transitions and update the logic of the current state for all
   //tables with `StateRow`s

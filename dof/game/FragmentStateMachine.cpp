@@ -4,6 +4,8 @@
 #include "Simulation.h"
 #include "TableAdapters.h"
 #include "ThreadLocals.h"
+#include "stat/FollowTargetByVelocityEffect.h"
+#include "stat/LambdaStatEffect.h"
 
 namespace FragmentStateMachine {
   void setState(FragmentState& current, FragmentState::Variant&& desired) {
@@ -11,37 +13,116 @@ namespace FragmentStateMachine {
     current.desiredState = std::move(desired);
   }
 
+  void setState(GameDB db, const StableElementID& id, FragmentState::Variant&& desired) {
+    if(auto resolved = StableOperations::tryResolveStableID(id, TableAdapters::getStableMappings(db))) {
+      const auto self = resolved->toPacked<GameDatabase>();
+      if(auto* row = Queries::getRowInTable<StateRow>(db.db, self)) {
+        setState(row->at(self.getElementIndex()), std::move(desired));
+      }
+    }
+  }
+
   std::optional<FragmentState::Variant> tryTakeDesiredState(FragmentState& current) {
     std::lock_guard<std::mutex> lock{ current.desiredStateMutex };
     return current.currentState.index() != current.desiredState.index() ? std::make_optional(current.desiredState) : std::nullopt;
   }
 
-  struct EnterArgs {};
-  struct UpdateArgs {};
-  struct ExitArgs {};
+  struct BaseArgs {
+    UnpackedDatabaseElementID self;
+    GameDB* db{};
+    size_t thread{};
+    ThreadLocalData* tls{};
+  };
+  struct EnterArgs : BaseArgs {};
+  struct UpdateArgs : BaseArgs {};
+  struct ExitArgs : BaseArgs {};
 
   struct Visitor {
-    EnterArgs enter;
-    UpdateArgs update;
-    ExitArgs exit;
+    BaseArgs args;
   };
 
   struct IdleVisitor : Visitor {
+    void init() {}
     void onEnter(Idle&) {}
     void onUpdate(Idle&) {}
     void onExit(Idle&) {}
   };
 
   struct WanderVisitor : Visitor {
+    void init() {}
     void onEnter(Wander&) {}
     void onUpdate(Wander&) {}
     void onExit(Wander&) {}
   };
 
   struct StunnedVisitor : Visitor {
+    void init() {}
     void onEnter(Stunned&) {}
     void onUpdate(Stunned&) {}
     void onExit(Stunned&) {}
+  };
+
+  struct SeekHomeVisitor : Visitor {
+    TargetPosAdapter targets;
+    FollowTargetByVelocityStatEffectAdapter followVelocity;
+    CachedRow<StableIDRow> stable;
+    CachedRow<Tint> tint;
+    TableResolver<StableIDRow, Tint> resolver;
+    LambdaStatEffectAdapter lambda;
+
+    void init() {
+      targets = TableAdapters::getTargetPos(*args.db);
+      followVelocity = TableAdapters::getFollowTargetByVelocityEffects(*args.db, args.thread);
+      lambda = TableAdapters::getLambdaEffects(*args.db, args.thread);
+      resolver = resolver.create(args.db->db);
+    }
+
+    void onEnter(SeekHome& seek) {
+      resolver.tryGetOrSwapRow(stable, args.self);
+      resolver.tryGetOrSwapRow(tint, args.self);
+      //Set color
+      if(tint) {
+        tint->at(args.self.getElementIndex()).r = 1.0f;
+      }
+
+      //Create target for follow behavior
+      const size_t& stableId = stable->at(args.self.getElementIndex());
+      const size_t newTarget = targets.modifier.addElements(1);
+      StableElementID stableTarget = StableElementID::fromStableRow(newTarget, *targets.stable);
+      seek.target = stableTarget;
+
+      const size_t followTime = 100;
+      const float springConstant = 0.001f;
+
+      //Create the follow effect and point it at the target
+      const size_t followEffect = TableAdapters::addStatEffectsSharedLifetime(followVelocity.base, followTime, &stableId, 1);
+      followVelocity.command->at(followEffect).mode = FollowTargetByVelocityStatEffect::SpringFollow{ springConstant };
+      followVelocity.base.target->at(followEffect) = stableTarget;
+      //Enqueue the state transition back to wander
+      followVelocity.base.continuations->at(followEffect).onComplete.push_back([stableId](StatEffect::Continuation::Args& a) {
+        setState(a.db, StableElementID::fromStableID(stableId), { Wander{} });
+      });
+    }
+
+    void onUpdate(SeekHome&) {
+    }
+
+    void onExit(SeekHome& seek) {
+      //Reset color
+      resolver.tryGetOrSwapRow(tint, args.self);
+      if(tint) {
+        tint->at(args.self.getElementIndex()).r = 0.0f;
+      }
+
+      StableElementID toRemove = seek.target;
+      size_t effect = TableAdapters::addStatEffectsSharedLifetime(lambda.base, StatEffect::INSTANT, &toRemove.mStableID, 1);
+      lambda.command->at(effect) = [](LambdaStatEffect::Args& a) {
+        if(a.resolvedID != StableElementID::invalid()) {
+          assert(a.resolvedID.toPacked<GameDatabase>().getTableIndex() == GameDatabase::getTableIndex<TargetPosTable>().getTableIndex());
+          TableOperations::stableSwapRemove(std::get<TargetPosTable>(a.db->db.mTables), a.resolvedID.toPacked<GameDatabase>(), TableAdapters::getStableMappings(*a.db));
+        }
+      };
+    }
   };
 
   namespace VisitorDetails {
@@ -74,65 +155,90 @@ namespace FragmentStateMachine {
     using MatchingVisitorT = decltype(getMatchingVisitor<Visitors...>(std::declval<Value&>()));
   }
 
+  //Mashes together a bunch of visitors by action (enter/exit) and creates a visitor that visits by behavior (idle/wander)
   template<class... Visitors>
-  struct CombinedVisitor {
+  struct CombinedVisitor : Visitor {
+    std::tuple<Visitors...> visitors;
+
     template<class T>
-    using VisitorFor = VisitorDetails::MatchingVisitorT<T, Visitors...>;
+    auto& getVisitor() {
+      return std::get<VisitorDetails::MatchingVisitorT<T, Visitors...>>(visitors);
+    }
 
-    struct EnterVisitor : Visitor {
-      template<class T>
-      void operator()(T& t) {
-        VisitorFor<T> v;
-        v.enter = enter;
-        v.onEnter(t);
-      }
-    };
+    template<class T>
+    auto& getAndUpdateVisitor() {
+      auto& v = getVisitor<T>();
+      v.args.self = args.self;
+      return v;
+    }
 
-    struct UpdateVisitor : Visitor {
-      template<class T>
-      void operator()(T& t) {
-        VisitorFor<T> v;
-        v.update = update;
-        v.onUpdate(t);
-      }
-    };
+    template<class T>
+    void init(T& t) {
+      t.args = args;
+      t.init();
+    }
 
-    struct ExitVisitor : Visitor {
-      template<class T>
-      void operator()(T& t) {
-        VisitorFor<T> v;
-        v.exit = exit;
-        v.onExit(t);
-      }
-    };
+    void init(GameDB& db, ThreadLocalData& tls, size_t thread) {
+      args.db = &db;
+      args.tls = &tls;
+      args.thread = thread;
+      (init(std::get<Visitors>(visitors)), ...);
+    }
+
+    auto getEnter() {
+      return [this](auto& t) { onEnter(t); };
+    }
+
+    auto getUpdate() {
+      return [this](auto& t) { onUpdate(t); };
+    }
+
+    auto getExit() {
+      return [this](auto& t) { onExit(t); };
+    }
+
+    template<class T>
+    void onEnter(T& t) {
+      getAndUpdateVisitor<T>().onEnter(t);
+    }
+
+    template<class T>
+    void onUpdate(T& t) {
+      getAndUpdateVisitor<T>().onUpdate(t);
+    }
+
+    template<class T>
+    void onExit(T& t) {
+      getAndUpdateVisitor<T>().onExit(t);
+    }
   };
 
   using FragmentVisitor = CombinedVisitor<
     IdleVisitor,
     StunnedVisitor,
-    WanderVisitor
+    WanderVisitor,
+    SeekHomeVisitor
   >;
 
-  void updateState(StateRow& row, GameDB db, ThreadLocalData& tls) {
-    db;tls;
-    FragmentVisitor::EnterVisitor enterVisit;
-    FragmentVisitor::UpdateVisitor updateVisit;
-    FragmentVisitor::ExitVisitor exitVisit;
+  void updateState(GameDatabase::ElementID tableId, StateRow& row, GameDB db, ThreadLocalData& tls, size_t thread) {
+    FragmentVisitor visitor;
+    visitor.init(db, tls, thread);
+    auto enterVisit = visitor.getEnter();
+    auto updateVisit = visitor.getUpdate();
+    auto exitVisit = visitor.getExit();
 
     for(size_t i = 0; i < row.size(); ++i) {
+      visitor.args.self = UnpackedDatabaseElementID::fromPacked(tableId).remakeElement(i);
       FragmentState& state = row.at(i);
       //See if there is a desired state transition
       if(std::optional<FragmentState::Variant> desired = tryTakeDesiredState(state)) {
         //Exit the old state
-        exitVisit.exit = {};
         std::visit(exitVisit, state.currentState);
-        enterVisit.enter = {};
         //Swap to new state and enter it
         state.currentState = std::move(*desired);
         std::visit(enterVisit, state.currentState);
       }
       else {
-        updateVisit.update = {};
         std::visit(updateVisit, state.currentState);
       }
     }
@@ -144,8 +250,9 @@ namespace FragmentStateMachine {
   TaskRange update(GameDB db) {
     auto root = TaskNode::create([db](enki::TaskSetPartition, uint32_t thread) {
       ThreadLocalData tls = TableAdapters::getThreadLocal(db, thread);
-      Queries::viewEachRow(db.db, [&db, &tls](StateRow& states) {
-        updateState(states, db, tls);
+      Queries::viewEachRowWithTableID(db.db, [&db, &tls, thread](GameDatabase::ElementID id,
+        StateRow& states) {
+        updateState(id, states, db, tls, static_cast<size_t>(thread));
       });
     });
     return TaskBuilder::addEndSync(root);

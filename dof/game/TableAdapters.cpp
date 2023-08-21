@@ -102,7 +102,8 @@ namespace {
       TableOperations::tryGetRow<FloatRow<Tags::FragmentGoal, Tags::X>>(table),
       TableOperations::tryGetRow<FloatRow<Tags::FragmentGoal, Tags::Y>>(table),
       TableOperations::tryGetRow<DamageTaken>(table),
-      TableOperations::tryGetRow<Tint>(table)
+      TableOperations::tryGetRow<Tint>(table),
+      TableOperations::tryGetRow<FragmentStateMachine::StateRow>(table)
     };
   }
 
