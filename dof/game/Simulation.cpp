@@ -157,12 +157,13 @@ namespace {
       Events::publishEvents({ db });
     }));
     current = current->mChildren.back();
-    TaskRange physicsEvents = PhysicsSimulation::processEvents({ db });
-    current->mChildren.push_back(physicsEvents.mBegin);
-    current = physicsEvents.mEnd;
-    TaskRange tables = TableService::processEvents({ db });
-    current->mChildren.push_back(tables.mBegin);
-    current = tables.mEnd;
+
+    current = TaskBuilder::appendLinearRange(current, PhysicsSimulation::preProcessEvents({ db }));
+    current = TaskBuilder::appendLinearRange(current, Fragment::processEvents({ db }));
+    current = TaskBuilder::appendLinearRange(current, FragmentStateMachine::preProcessEvents({ db }));
+    current = TaskBuilder::appendLinearRange(current, TableService::processEvents({ db }));
+
+    current = TaskBuilder::appendLinearRange(current, PhysicsSimulation::postProcessEvents({ db }));
 
     return { root, current };
   }

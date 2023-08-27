@@ -31,7 +31,12 @@ struct BasicRow {
       return mElements.emplace_back(std::forward<Args>(args)...);
     }
     else {
-      return mElements.emplace_back(mDefaultValue);
+      if constexpr(std::is_copy_constructible_v<ElementT>) {
+        return mElements.emplace_back(mDefaultValue);
+      }
+      else {
+        return mElements.emplace_back();
+      }
     }
   }
 

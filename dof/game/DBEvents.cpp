@@ -16,6 +16,15 @@ namespace Events {
     return { publish, &db.db };
   }
 
+  MovePublisher createMovePublisher(GameDB db) {
+    return { &onMovedElement, &db.db };
+  }
+
+  void MovePublisher::operator()(StableElementID src, UnpackedDatabaseElementID dst) {
+    GameDatabase* game = static_cast<GameDatabase*>(db);
+    publish(src, dst, { *game });
+  }
+
   struct EventsImpl {
     DBEvents events;
     std::mutex mutex;
@@ -50,9 +59,9 @@ namespace Events {
     ctx.impl.events.newElements.push_back(e);
   }
 
-  void onMovedElement(StableElementID e, GameDB game) {
+  void onMovedElement(StableElementID src, UnpackedDatabaseElementID dst, GameDB game) {
     EventsContext ctx{ _getContext(game) };
-    ctx.impl.events.movedElements.push_back(e);
+    ctx.impl.events.toBeMovedElements.push_back({ src, dst });
   }
 
   void onRemovedElement(StableElementID e, GameDB game) {
@@ -67,14 +76,21 @@ namespace Events {
 
   void clearEvents(GameDB game) {
     EventsContext ctx{ _getContext(game) };
-    ctx.impl.events.movedElements.clear();
+    ctx.impl.events.toBeMovedElements.clear();
     ctx.impl.events.newElements.clear();
     ctx.impl.events.toBeRemovedElements.clear();
   }
 
+  //TODO: should these write invalid id on failure instead of leaving it unchaged?
   void resolve(std::vector<StableElementID>& id, const StableElementMappings& mappings) {
     for(StableElementID& i : id) {
       i = StableOperations::tryResolveStableID(i, mappings).value_or(i);
+    }
+  }
+
+  void resolve(std::vector<DBEvents::MoveCommand>& cmd, const StableElementMappings& mappings) {
+    for(auto& c : cmd) {
+      c.source = StableOperations::tryResolveStableID(c.source, mappings).value_or(c.source);
     }
   }
 
@@ -82,16 +98,16 @@ namespace Events {
     EventsInstance& instance = _getInstance(game);
     {
       EventsContext ctx{ _getContext(game) };
-      instance.publishedEvents.movedElements.swap(ctx.impl.events.movedElements);
+      instance.publishedEvents.toBeMovedElements.swap(ctx.impl.events.toBeMovedElements);
       instance.publishedEvents.newElements.swap(ctx.impl.events.newElements);
       instance.publishedEvents.toBeRemovedElements.swap(ctx.impl.events.toBeRemovedElements);
 
-      ctx.impl.events.movedElements.clear();
+      ctx.impl.events.toBeMovedElements.clear();
       ctx.impl.events.newElements.clear();
       ctx.impl.events.toBeRemovedElements.clear();
     }
     StableElementMappings& mappings = TableAdapters::getStableMappings(game);
-    resolve(instance.publishedEvents.movedElements, mappings);
+    resolve(instance.publishedEvents.toBeMovedElements, mappings);
     resolve(instance.publishedEvents.newElements, mappings);
     resolve(instance.publishedEvents.toBeRemovedElements, mappings);
   }

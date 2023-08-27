@@ -17,9 +17,11 @@ namespace FragmentStateMachine {
   struct SeekHome {
     StableElementID target;
   };
+  //State that does nothing. Used by destruction to exit the final state without entering anything new
+  struct Empty {};
 
   struct FragmentState {
-    using Variant = std::variant<Idle, Wander, Stunned, SeekHome>;
+    using Variant = std::variant<Idle, Wander, Stunned, SeekHome, Empty>;
 
     FragmentState() = default;
     FragmentState(const Variant& v)
@@ -55,4 +57,5 @@ namespace FragmentStateMachine {
   //Process requested state transitions and update the logic of the current state for all
   //tables with `StateRow`s
   TaskRange update(GameDB db);
+  TaskRange preProcessEvents(GameDB db);
 };

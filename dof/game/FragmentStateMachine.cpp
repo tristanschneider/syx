@@ -33,9 +33,6 @@ namespace FragmentStateMachine {
     size_t thread{};
     ThreadLocalData* tls{};
   };
-  struct EnterArgs : BaseArgs {};
-  struct UpdateArgs : BaseArgs {};
-  struct ExitArgs : BaseArgs {};
 
   struct Visitor {
     BaseArgs args;
@@ -60,6 +57,13 @@ namespace FragmentStateMachine {
     void onEnter(Stunned&) {}
     void onUpdate(Stunned&) {}
     void onExit(Stunned&) {}
+  };
+
+  struct EmptyVisitor : Visitor {
+    void init() {}
+    void onEnter(Empty&) {}
+    void onUpdate(Empty&) {}
+    void onExit(Empty&) {}
   };
 
   struct SeekHomeVisitor : Visitor {
@@ -217,19 +221,29 @@ namespace FragmentStateMachine {
     IdleVisitor,
     StunnedVisitor,
     WanderVisitor,
-    SeekHomeVisitor
+    SeekHomeVisitor,
+    EmptyVisitor
   >;
+  struct UpdateArgs {
+    size_t begin{};
+    size_t end{};
+    GameDatabase::ElementID tableId;
+    StateRow& row;
+    GameDB db;
+    ThreadLocalData& tls;
+    size_t thread{};
+  };
 
-  void updateState(GameDatabase::ElementID tableId, StateRow& row, GameDB db, ThreadLocalData& tls, size_t thread) {
+  void updateState(UpdateArgs& args) {
     FragmentVisitor visitor;
-    visitor.init(db, tls, thread);
+    visitor.init(args.db, args.tls, args.thread);
     auto enterVisit = visitor.getEnter();
     auto updateVisit = visitor.getUpdate();
     auto exitVisit = visitor.getExit();
 
-    for(size_t i = 0; i < row.size(); ++i) {
-      visitor.args.self = UnpackedDatabaseElementID::fromPacked(tableId).remakeElement(i);
-      FragmentState& state = row.at(i);
+    for(size_t i = args.begin; i < args.end; ++i) {
+      visitor.args.self = UnpackedDatabaseElementID::fromPacked(args.tableId).remakeElement(i);
+      FragmentState& state = args.row.at(i);
       //See if there is a desired state transition
       if(std::optional<FragmentState::Variant> desired = tryTakeDesiredState(state)) {
         //Exit the old state
@@ -252,9 +266,53 @@ namespace FragmentStateMachine {
       ThreadLocalData tls = TableAdapters::getThreadLocal(db, thread);
       Queries::viewEachRowWithTableID(db.db, [&db, &tls, thread](GameDatabase::ElementID id,
         StateRow& states) {
-        updateState(id, states, db, tls, static_cast<size_t>(thread));
+        UpdateArgs args {
+          0, states.size(), id, states, db, tls, static_cast<size_t>(thread)
+        };
+        updateState(args);
       });
     });
     return TaskBuilder::addEndSync(root);
   }
+
+  using EventResolver = TableResolver<
+    StateRow
+  >;
+  void _processMigrations(const DBEvents& events, EventResolver resolver, GameDB db) {
+    CachedRow<StateRow> fromState, toState;
+    for(const DBEvents::MoveCommand& cmd : events.toBeMovedElements) {
+      auto fromTable = UnpackedDatabaseElementID::fromPacked(cmd.source.toPacked<GameDatabase>());
+      auto toTable = cmd.destination;
+      resolver.tryGetOrSwapRow(fromState, fromTable);
+      resolver.tryGetOrSwapRow(toState, toTable);
+      //If a goal would be lost, trigger the exit callback by transitioning to the empty state
+      if(fromState && !toState) {
+        const size_t si = fromTable.getElementIndex();
+        fromState->at(si).desiredState = Empty{};
+        //Any is fine, these are scheduled synchronously
+        const size_t thread = 0;
+        auto tls = TableAdapters::getThreadLocal(db, thread);
+        UpdateArgs args {
+          si,
+          si + 1,
+          cmd.source.toPacked<GameDatabase>(),
+          *fromState,
+          db,
+          tls,
+          thread
+        };
+        updateState(args);
+      }
+    }
+  }
+
+  TaskRange preProcessEvents(GameDB db) {
+    auto root = TaskNode::create([db](...) {
+      auto resolver = EventResolver::create(db.db);
+      const DBEvents& events = Events::getPublishedEvents(db);
+      _processMigrations(events, resolver, db);
+    });
+    return TaskBuilder::addEndSync(root);
+  }
+
 }

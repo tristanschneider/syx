@@ -72,11 +72,12 @@ namespace SweepNPruneBroadphase {
   //Compute collision pair changes
   TaskRange computeCollisionPairs(BroadphaseTable& broadphase);
 
+  //Before table service
   //New elements are added to the broadphase if they have a broadphase key row
   //Removed elements are removed from the broadphase
   //Moved elements are given one final bounds update if they moved to an immobile table, otherwise ignored
   template<class PosX, class PosY, class Immobile>
-  void processEvents(const DBEvents& events, Broadphase::SweepGrid::Grid& grid, TableResolver<PosX, PosY, BroadphaseKeys, StableIDRow, Immobile> resolver, const BoundariesConfig& cfg, const DatabaseDescription& desc) {
+  void preProcessEvents(const DBEvents& events, Broadphase::SweepGrid::Grid& grid, TableResolver<PosX, PosY, BroadphaseKeys, StableIDRow, Immobile> resolver, const BoundariesConfig&, const DatabaseDescription& desc) {
     //Insert new elements
     for(const StableElementID& id : events.newElements) {
       const auto unpacked = id.toUnpacked(desc);
@@ -88,23 +89,6 @@ namespace SweepNPruneBroadphase {
         Broadphase::SweepGrid::insertRange(grid, &userKey, &key, 1);
       }
     }
-    //Bounds update elementst that moved to an immobile row
-    for(const StableElementID& id : events.movedElements) {
-      const auto unpacked = id.toUnpacked(desc);
-      if(resolver.tryGetRow<Immobile>(unpacked)) {
-        auto posX = resolver.tryGetRow<PosX>(unpacked);
-        auto posY = resolver.tryGetRow<PosY>(unpacked);
-        auto keys = resolver.tryGetRow<BroadphaseKeys>(unpacked);
-        if(posX && posY) {
-          const float halfSize = cfg.mHalfSize + cfg.mPadding;
-          const size_t i = unpacked.getElementIndex();
-          glm::vec2 min{ posX->at(i) - halfSize, posY->at(i) - halfSize };
-          glm::vec2 max{ posX->at(i) + halfSize, posY->at(i) + halfSize };
-          auto key = keys->at(i);
-          Broadphase::SweepGrid::updateBoundaries(grid, &min.x, &max.x, &min.y, &max.y, &key, 1);
-        }
-      }
-    }
     //Remove elements that are about to be destroyed
     for(const StableElementID& id : events.toBeRemovedElements) {
       const auto unpacked = id.toUnpacked(desc);
@@ -112,6 +96,35 @@ namespace SweepNPruneBroadphase {
         Broadphase::BroadphaseKey& key = keys->at(unpacked.getElementIndex());
         Broadphase::SweepGrid::eraseRange(grid, &key, 1);
         key = {};
+      }
+    }
+  }
+
+  //After table service
+  template<class PosX, class PosY, class Immobile>
+  void postProcessEvents(const DBEvents& events, Broadphase::SweepGrid::Grid& grid, TableResolver<PosX, PosY, BroadphaseKeys, StableIDRow, Immobile> resolver, const BoundariesConfig& cfg, const DatabaseDescription&, const StableElementMappings& mappings) {
+    //Bounds update elements that moved to an immobile row
+    for(const DBEvents::MoveCommand& cmd : events.toBeMovedElements) {
+      if(auto found = mappings.findKey(cmd.source.mStableID)) {
+        //The stable mappings are pointing at the raw index, then assume that it ended up at the destination table
+        UnpackedDatabaseElementID self{ found->second, cmd.destination.mElementIndexBits };
+        //Should always be the case unless it somehow moved more than once
+        if(self.getTableIndex() == cmd.destination.getTableIndex()) {
+          const auto unpacked = self;
+          if(resolver.tryGetRow<Immobile>(unpacked)) {
+            auto posX = resolver.tryGetRow<PosX>(unpacked);
+            auto posY = resolver.tryGetRow<PosY>(unpacked);
+            auto keys = resolver.tryGetRow<BroadphaseKeys>(unpacked);
+            if(posX && posY) {
+              const float halfSize = cfg.mHalfSize + cfg.mPadding;
+              const size_t i = unpacked.getElementIndex();
+              glm::vec2 min{ posX->at(i) - halfSize, posY->at(i) - halfSize };
+              glm::vec2 max{ posX->at(i) + halfSize, posY->at(i) + halfSize };
+              auto key = keys->at(i);
+              Broadphase::SweepGrid::updateBoundaries(grid, &min.x, &max.x, &min.y, &max.y, &key, 1);
+            }
+          }
+        }
       }
     }
   }

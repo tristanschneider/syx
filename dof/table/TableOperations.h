@@ -170,7 +170,7 @@ struct TableOperations {
     static_assert(!isStableTable<TableT>);
     const size_t myLast = size(table) - 1;
     table.visitOne([index, myLast](auto& row) {
-      std::swap(row.at(index), row.at(myLast));
+      row.swap(index, myLast);
       row.resize(myLast);
     });
   }
@@ -293,7 +293,7 @@ struct TableOperations {
     src.visitOne([index, myLast](auto& row) {
       using RowT = std::decay_t<decltype(row)>;
       if constexpr(!std::is_same_v<RowT, StableIDRow>) {
-        std::swap(row.at(index), row.at(myLast));
+        row.swap(index, myLast);
         row.resize(myLast);
       }
     });
@@ -421,6 +421,8 @@ struct CachedRow {
   operator bool() const { return row; }
   const T* operator->() const { return row; }
   T* operator->() { return row; }
+  const T& operator*() const { return *row; }
+  T& operator*() { return *row; }
 
   T* row{};
   size_t tableID{};

@@ -21,7 +21,7 @@ struct dbDetails {
     return (packed & maskFirstBits(elementBits));
   }
 
-  static size_t unpackTableIndex(size_t packed, size_t elementBits) {
+  constexpr static size_t unpackTableIndex(size_t packed, size_t elementBits) {
     return packed >> elementBits;
   }
 
@@ -66,7 +66,7 @@ struct DatabaseElementID {
   constexpr bool operator==(const DatabaseElementID& id) const { return mValue == id.mValue; }
   constexpr bool operator!=(const DatabaseElementID& id) const { return mValue != id.mValue; }
 
-  size_t getTableIndex() const {
+  constexpr size_t getTableIndex() const {
     return dbDetails::unpackTableIndex(mValue, ELEMENT_INDEX_BITS);
   }
 
@@ -100,6 +100,11 @@ struct UnpackedDatabaseElementID {
       ++bits;
     }
     return { shiftedTableIndex | elementIndex, bits };
+  }
+
+  template<class DB>
+  typename DB::ElementID toPacked() const {
+    return DB::ElementID{ mValue };
   }
 
   //Entire packed bits from an unstable index or DB::GetTableIndex

@@ -1829,5 +1829,30 @@ namespace Test {
       Assert::AreNotEqual(0.0f, objs.physics.linVelX->at(0));
       Assert::AreNotEqual(0.0f, objs.physics.linVelX->at(1));
     }
+
+    TEST_METHOD(FragmentStateMachine) {
+      GameArgs args;
+      args.fragmentCount = 1;
+      TestGame game{ args };
+      FragmentAdapter frag = TableAdapters::getFragments(game);
+      GameObjectAdapter objs = TableAdapters::getGameObjects(game);
+
+      const StableElementID self = StableElementID::fromStableRow(0, *objs.stable);
+      FragmentStateMachine::FragmentState::Variant desiredState{ FragmentStateMachine::SeekHome{} };
+      FragmentStateMachine::setState(game, self, FragmentStateMachine::FragmentState::Variant{ desiredState });
+
+      game.update();
+
+      Assert::AreEqual(desiredState.index(), frag.state->at(0).currentState.index());
+      const StableElementID target = std::get<FragmentStateMachine::SeekHome>(frag.state->at(0).currentState).target;
+
+      std::get<FragmentGoalFoundRow>(std::get<GameObjectTable>(game.db.mTables).mRows).at(0) = true;
+      Fragment::_migrateCompletedFragments(game, 0);
+      game.update();
+      game.update();
+
+      StableElementMappings& mappings = TableAdapters::getStableMappings(game);
+      Assert::IsFalse(mappings.findKey(target.mStableID).has_value(), L"Target created by state should have been destroyed when object was migrated to a table without state");
+    }
   };
 }

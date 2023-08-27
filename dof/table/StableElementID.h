@@ -329,7 +329,11 @@ struct StableOperations {
 };
 
 struct DBEvents {
+  struct MoveCommand {
+    StableElementID source;
+    UnpackedDatabaseElementID destination;
+  };
   std::vector<StableElementID> newElements;
-  std::vector<StableElementID> movedElements;
+  std::vector<MoveCommand> toBeMovedElements;
   std::vector<StableElementID> toBeRemovedElements;
 };

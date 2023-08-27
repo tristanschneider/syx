@@ -20,6 +20,9 @@ namespace Fragment {
   //Modify thread locals
   TaskRange updateFragmentGoals(GameDB db);
 
+  //Process before table service runs
+  TaskRange processEvents(GameDB db);
+
   void _setupScene(GameDB db, SceneArgs args);
   void _migrateCompletedFragments(GameDB db, size_t thread);
 }

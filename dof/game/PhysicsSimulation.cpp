@@ -314,12 +314,22 @@ namespace PhysicsSimulation {
     return { root, postSolve };
   }
 
-  TaskRange processEvents(GameDB db) {
+  TaskRange preProcessEvents(GameDB db) {
     auto root = TaskNode::create([db](...) {
       auto resolver = TableResolver<PosX, PosY, SweepNPruneBroadphase::BroadphaseKeys, StableIDRow, IsImmobile>::create(db.db);
       const DBEvents& events = Events::getPublishedEvents(db);
       auto& grid = std::get<SharedRow<Broadphase::SweepGrid::Grid>>(std::get<BroadphaseTable>(db.db.mTables).mRows).at();
-      SweepNPruneBroadphase::processEvents(events, grid, resolver, _getBoundariesConfig(db), GameDatabase::getDescription());
+      SweepNPruneBroadphase::preProcessEvents(events, grid, resolver, _getBoundariesConfig(db), GameDatabase::getDescription());
+    });
+    return TaskBuilder::addEndSync(root);
+  }
+
+  TaskRange postProcessEvents(GameDB db) {
+    auto root = TaskNode::create([db](...) {
+      auto resolver = TableResolver<PosX, PosY, SweepNPruneBroadphase::BroadphaseKeys, StableIDRow, IsImmobile>::create(db.db);
+      const DBEvents& events = Events::getPublishedEvents(db);
+      auto& grid = std::get<SharedRow<Broadphase::SweepGrid::Grid>>(std::get<BroadphaseTable>(db.db.mTables).mRows).at();
+      SweepNPruneBroadphase::postProcessEvents(events, grid, resolver, _getBoundariesConfig(db), GameDatabase::getDescription(), TableAdapters::getStableMappings(db));
     });
     return TaskBuilder::addEndSync(root);
   }

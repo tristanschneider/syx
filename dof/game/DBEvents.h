@@ -22,10 +22,17 @@ namespace Events {
     void (*publish)(StableElementID, GameDB);
     void* db{};
   };
+  struct MovePublisher {
+    void operator()(StableElementID src, UnpackedDatabaseElementID dst);
+    void (*publish)(StableElementID, UnpackedDatabaseElementID, GameDB);
+    void* db{};
+  };
 
   Publisher createPublisher(void(*publish)(StableElementID, GameDB), GameDB db);
+  MovePublisher createMovePublisher(GameDB db);
+  //TODO: this is simpler to process if they are all "moves" but new is a move from nothing to somthing and remove is the opposite
   void onNewElement(StableElementID e, GameDB game);
-  void onMovedElement(StableElementID e, GameDB game);
+  void onMovedElement(StableElementID src, UnpackedDatabaseElementID dst, GameDB game);
   void onRemovedElement(StableElementID e, GameDB game);
   //Populate publishedEvents and clear the internally stored events
   void publishEvents(GameDB game);

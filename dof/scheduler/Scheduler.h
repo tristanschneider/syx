@@ -145,6 +145,13 @@ struct TaskBuilder {
     }
   }
 
+  //For places that advance a "current" node this can be used to append a task range and return a new "current" after the range
+  //Same as current.then(range) if current were a task range
+  static std::shared_ptr<TaskNode> appendLinearRange(std::shared_ptr<TaskNode> current, TaskRange range) {
+    current->mChildren.push_back(range.mBegin);
+    return range.mEnd;
+  }
+
   static TaskRange addEndSync(std::shared_ptr<TaskNode> current) {
     auto end = std::make_shared<TaskNode>();
     _addSyncDependency(*current, end);
