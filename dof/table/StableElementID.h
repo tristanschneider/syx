@@ -105,6 +105,11 @@ struct StableElementID {
   }
 
   template<class DB>
+  UnpackedDatabaseElementID toUnpacked() const {
+    return toUnpacked(DB::getDescription());
+  }
+
+  template<class DB>
   typename DB::ElementID toPacked() const {
     return DB::ElementID{ mUnstableIndex };
   }
@@ -329,11 +334,18 @@ struct StableOperations {
 };
 
 struct DBEvents {
+  //Creating an element is from an invalid source to a valid destination
+  //Destroying an element is from a valid source to an invalid destination
+  //Moving an element is from a valid source to a valid destination
+  //In the case of moving only the unstable index is used to determine the destination table,
+  //the stable part doesn't matter
   struct MoveCommand {
+    bool isDestroy() const { return destination == StableElementID::invalid(); }
+    bool isCreate() const { return source == StableElementID::invalid(); };
+    bool isMove() const { return source != StableElementID::invalid() && destination.mStableID == dbDetails::INVALID_VALUE; }
+
     StableElementID source;
-    UnpackedDatabaseElementID destination;
+    StableElementID destination;
   };
-  std::vector<StableElementID> newElements;
   std::vector<MoveCommand> toBeMovedElements;
-  std::vector<StableElementID> toBeRemovedElements;
 };

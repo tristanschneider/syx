@@ -78,38 +78,41 @@ namespace SweepNPruneBroadphase {
   //Moved elements are given one final bounds update if they moved to an immobile table, otherwise ignored
   template<class PosX, class PosY, class Immobile>
   void preProcessEvents(const DBEvents& events, Broadphase::SweepGrid::Grid& grid, TableResolver<PosX, PosY, BroadphaseKeys, StableIDRow, Immobile> resolver, const BoundariesConfig&, const DatabaseDescription& desc) {
-    //Insert new elements
-    for(const StableElementID& id : events.newElements) {
-      const auto unpacked = id.toUnpacked(desc);
-      auto* keys = resolver.tryGetRow<BroadphaseKeys>(unpacked);
-      auto* stable = resolver.tryGetRow<StableIDRow>(unpacked);
-      if(keys && stable) {
-        Broadphase::BroadphaseKey& key = keys->at(unpacked.getElementIndex());
-        Broadphase::UserKey userKey = stable->at(unpacked.getElementIndex());
-        Broadphase::SweepGrid::insertRange(grid, &userKey, &key, 1);
+    for(const DBEvents::MoveCommand& cmd : events.toBeMovedElements) {
+      //Insert new elements
+      if(cmd.isCreate()) {
+        const auto unpacked = cmd.destination.toUnpacked(desc);
+        auto* keys = resolver.tryGetRow<BroadphaseKeys>(unpacked);
+        auto* stable = resolver.tryGetRow<StableIDRow>(unpacked);
+        if(keys && stable) {
+          Broadphase::BroadphaseKey& key = keys->at(unpacked.getElementIndex());
+          Broadphase::UserKey userKey = stable->at(unpacked.getElementIndex());
+          Broadphase::SweepGrid::insertRange(grid, &userKey, &key, 1);
+        }
       }
-    }
-    //Remove elements that are about to be destroyed
-    for(const StableElementID& id : events.toBeRemovedElements) {
-      const auto unpacked = id.toUnpacked(desc);
-      if(auto keys = resolver.tryGetRow<BroadphaseKeys>(unpacked)) {
-        Broadphase::BroadphaseKey& key = keys->at(unpacked.getElementIndex());
-        Broadphase::SweepGrid::eraseRange(grid, &key, 1);
-        key = {};
+      else if(cmd.isDestroy()) {
+        //Remove elements that are about to be destroyed
+        const auto unpacked = cmd.source.toUnpacked(desc);
+        if(auto keys = resolver.tryGetRow<BroadphaseKeys>(unpacked)) {
+          Broadphase::BroadphaseKey& key = keys->at(unpacked.getElementIndex());
+          Broadphase::SweepGrid::eraseRange(grid, &key, 1);
+          key = {};
+        }
       }
     }
   }
 
   //After table service
   template<class PosX, class PosY, class Immobile>
-  void postProcessEvents(const DBEvents& events, Broadphase::SweepGrid::Grid& grid, TableResolver<PosX, PosY, BroadphaseKeys, StableIDRow, Immobile> resolver, const BoundariesConfig& cfg, const DatabaseDescription&, const StableElementMappings& mappings) {
+  void postProcessEvents(const DBEvents& events, Broadphase::SweepGrid::Grid& grid, TableResolver<PosX, PosY, BroadphaseKeys, StableIDRow, Immobile> resolver, const BoundariesConfig& cfg, const DatabaseDescription& desc, const StableElementMappings& mappings) {
     //Bounds update elements that moved to an immobile row
     for(const DBEvents::MoveCommand& cmd : events.toBeMovedElements) {
       if(auto found = mappings.findKey(cmd.source.mStableID)) {
         //The stable mappings are pointing at the raw index, then assume that it ended up at the destination table
-        UnpackedDatabaseElementID self{ found->second, cmd.destination.mElementIndexBits };
+        UnpackedDatabaseElementID self{ found->second, desc.elementIndexBits };
+        const UnpackedDatabaseElementID rawDest = cmd.destination.toUnpacked(desc);
         //Should always be the case unless it somehow moved more than once
-        if(self.getTableIndex() == cmd.destination.getTableIndex()) {
+        if(self.getTableIndex() == rawDest.getTableIndex()) {
           const auto unpacked = self;
           if(resolver.tryGetRow<Immobile>(unpacked)) {
             auto posX = resolver.tryGetRow<PosX>(unpacked);

@@ -17,6 +17,7 @@
 #include "ThreadLocals.h"
 #include "Fragment.h"
 #include "Player.h"
+#include "DBEvents.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -1832,19 +1833,19 @@ namespace Test {
 
     TEST_METHOD(FragmentStateMachine) {
       GameArgs args;
-      args.fragmentCount = 1;
+      args.fragmentCount = 2;
       TestGame game{ args };
       FragmentAdapter frag = TableAdapters::getFragments(game);
       GameObjectAdapter objs = TableAdapters::getGameObjects(game);
 
-      const StableElementID self = StableElementID::fromStableRow(0, *objs.stable);
+      StableElementID self = StableElementID::fromStableRow(0, *objs.stable);
       FragmentStateMachine::FragmentState::Variant desiredState{ FragmentStateMachine::SeekHome{} };
       FragmentStateMachine::setState(game, self, FragmentStateMachine::FragmentState::Variant{ desiredState });
 
       game.update();
 
       Assert::AreEqual(desiredState.index(), frag.state->at(0).currentState.index());
-      const StableElementID target = std::get<FragmentStateMachine::SeekHome>(frag.state->at(0).currentState).target;
+      StableElementID target = std::get<FragmentStateMachine::SeekHome>(frag.state->at(0).currentState).target;
 
       std::get<FragmentGoalFoundRow>(std::get<GameObjectTable>(game.db.mTables).mRows).at(0) = true;
       Fragment::_migrateCompletedFragments(game, 0);
@@ -1853,6 +1854,24 @@ namespace Test {
 
       StableElementMappings& mappings = TableAdapters::getStableMappings(game);
       Assert::IsFalse(mappings.findKey(target.mStableID).has_value(), L"Target created by state should have been destroyed when object was migrated to a table without state");
+
+      //Do the same state transition for the second object
+      self = StableElementID::fromStableRow(0, *objs.stable);
+      FragmentStateMachine::setState(game, self, FragmentStateMachine::FragmentState::Variant{ desiredState });
+
+      game.update();
+
+      Assert::AreEqual(desiredState.index(), frag.state->at(0).currentState.index());
+      target = std::get<FragmentStateMachine::SeekHome>(frag.state->at(0).currentState).target;
+
+      //Enqueue removal of the object. The destruction should still remove the target
+      auto tls = TableAdapters::getThreadLocal(game, 0);
+      Events::onRemovedElement(self, game);
+
+      game.update();
+      game.update();
+
+      Assert::IsFalse(mappings.findKey(target.mStableID).has_value(), L"Target created by state should have been destroyed before object was destroyed");
     }
   };
 }

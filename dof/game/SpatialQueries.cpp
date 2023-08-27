@@ -333,11 +333,11 @@ namespace SpatialQuery {
 
     SpatialQueriesTable& queries;
     StableElementMappings& mappings;
-    Events::Publisher& publishNewElement;
-    Events::Publisher& publishRemovedElement;
+    Events::CreatePublisher& publishNewElement;
+    Events::DestroyPublisher& publishRemovedElement;
   };
 
-  std::shared_ptr<TaskNode> processCommandBuffer(SpatialQueriesTable& queries, StableElementMappings& mappings, Events::Publisher publishNewElement, Events::Publisher publishRemovedElement) {
+  std::shared_ptr<TaskNode> processCommandBuffer(SpatialQueriesTable& queries, StableElementMappings& mappings, Events::CreatePublisher publishNewElement, Events::DestroyPublisher publishRemovedElement) {
     return TaskNode::create([&, publishNewElement, publishRemovedElement](...) mutable {
       Globals& globals = std::get<Gameplay<GlobalsRow>>(queries.mRows).at();
       CommandVisitor visitor {
@@ -368,8 +368,8 @@ namespace SpatialQuery {
     //Sync for table additions and removals
     TaskBuilder::_addSyncDependency(*root, processCommandBuffer(table,
       TableAdapters::getStableMappings(db),
-      Events::createPublisher(&Events::onNewElement, db),
-      Events::createPublisher(&Events::onRemovedElement, db)));
+      Events::createCreatePublisher(db),
+      Events::createDestroyPublisher(db)));
 
     return TaskBuilder::addEndSync(root);
   }

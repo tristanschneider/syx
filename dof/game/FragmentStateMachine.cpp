@@ -281,8 +281,8 @@ namespace FragmentStateMachine {
   void _processMigrations(const DBEvents& events, EventResolver resolver, GameDB db) {
     CachedRow<StateRow> fromState, toState;
     for(const DBEvents::MoveCommand& cmd : events.toBeMovedElements) {
-      auto fromTable = UnpackedDatabaseElementID::fromPacked(cmd.source.toPacked<GameDatabase>());
-      auto toTable = cmd.destination;
+      auto fromTable = cmd.source.toUnpacked<GameDatabase>();
+      auto toTable =  cmd.destination.toUnpacked<GameDatabase>();
       resolver.tryGetOrSwapRow(fromState, fromTable);
       resolver.tryGetOrSwapRow(toState, toTable);
       //If a goal would be lost, trigger the exit callback by transitioning to the empty state

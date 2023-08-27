@@ -7,22 +7,31 @@
 namespace Events {
   using LockT = std::lock_guard<std::mutex>;
 
-  void Publisher::operator()(StableElementID id) {
+  void CreatePublisher::operator()(StableElementID id) {
     GameDatabase* game = static_cast<GameDatabase*>(db);
-    publish(id, { *game });
+    onNewElement(id, { *game });
   }
 
-  Publisher createPublisher(void(*publish)(StableElementID, GameDB), GameDB db) {
-    return { publish, &db.db };
+  void DestroyPublisher::operator()(StableElementID id) {
+    GameDatabase* game = static_cast<GameDatabase*>(db);
+    onRemovedElement(id, { *game });
+  }
+
+  void MovePublisher::operator()(StableElementID source, UnpackedDatabaseElementID destination) {
+    GameDatabase* game = static_cast<GameDatabase*>(db);
+    onMovedElement(source, destination, { *game });
+  }
+
+  CreatePublisher createCreatePublisher(GameDB db) {
+    return { &db.db };
+  }
+
+  DestroyPublisher createDestroyPublisher(GameDB db) {
+    return { &db.db };
   }
 
   MovePublisher createMovePublisher(GameDB db) {
-    return { &onMovedElement, &db.db };
-  }
-
-  void MovePublisher::operator()(StableElementID src, UnpackedDatabaseElementID dst) {
-    GameDatabase* game = static_cast<GameDatabase*>(db);
-    publish(src, dst, { *game });
+    return { &db.db };
   }
 
   struct EventsImpl {
@@ -55,18 +64,21 @@ namespace Events {
   }
 
   void onNewElement(StableElementID e, GameDB game) {
-    EventsContext ctx{ _getContext(game) };
-    ctx.impl.events.newElements.push_back(e);
+    onMovedElement(StableElementID::invalid(), e, game);
   }
 
   void onMovedElement(StableElementID src, UnpackedDatabaseElementID dst, GameDB game) {
+    //Create a "stable" id where the stable part is empty but the unstable part has the destination table id
+    onMovedElement(src, StableElementID{ dst.mValue, dbDetails::INVALID_VALUE }, game);
+  }
+
+  void onMovedElement(StableElementID src, StableElementID dst, GameDB game) {
     EventsContext ctx{ _getContext(game) };
     ctx.impl.events.toBeMovedElements.push_back({ src, dst });
   }
 
   void onRemovedElement(StableElementID e, GameDB game) {
-    EventsContext ctx{ _getContext(game) };
-    ctx.impl.events.toBeRemovedElements.push_back(e);
+    onMovedElement(e, StableElementID::invalid(), game);
   }
 
   DBEvents readEvents(GameDB game) {
@@ -77,20 +89,25 @@ namespace Events {
   void clearEvents(GameDB game) {
     EventsContext ctx{ _getContext(game) };
     ctx.impl.events.toBeMovedElements.clear();
-    ctx.impl.events.newElements.clear();
-    ctx.impl.events.toBeRemovedElements.clear();
   }
 
-  //TODO: should these write invalid id on failure instead of leaving it unchaged?
-  void resolve(std::vector<StableElementID>& id, const StableElementMappings& mappings) {
-    for(StableElementID& i : id) {
-      i = StableOperations::tryResolveStableID(i, mappings).value_or(i);
+  void resolve(StableElementID& id, const StableElementMappings& mappings) {
+    //TODO: should these write invalid id on failure instead of leaving it unchaged?
+    //Check explicitly for the stable part to ignore the move special case where a destination unstable type is used
+    //This also ignores the create and destroy cases which contain empty ids
+    if(id.mStableID != dbDetails::INVALID_VALUE) {
+      id = StableOperations::tryResolveStableID(id, mappings).value_or(id);
     }
+  }
+
+  void resolve(DBEvents::MoveCommand& cmd, const StableElementMappings& mappings) {
+      resolve(cmd.source, mappings);
+      resolve(cmd.destination, mappings);
   }
 
   void resolve(std::vector<DBEvents::MoveCommand>& cmd, const StableElementMappings& mappings) {
     for(auto& c : cmd) {
-      c.source = StableOperations::tryResolveStableID(c.source, mappings).value_or(c.source);
+      resolve(c, mappings);
     }
   }
 
@@ -99,17 +116,11 @@ namespace Events {
     {
       EventsContext ctx{ _getContext(game) };
       instance.publishedEvents.toBeMovedElements.swap(ctx.impl.events.toBeMovedElements);
-      instance.publishedEvents.newElements.swap(ctx.impl.events.newElements);
-      instance.publishedEvents.toBeRemovedElements.swap(ctx.impl.events.toBeRemovedElements);
 
       ctx.impl.events.toBeMovedElements.clear();
-      ctx.impl.events.newElements.clear();
-      ctx.impl.events.toBeRemovedElements.clear();
     }
     StableElementMappings& mappings = TableAdapters::getStableMappings(game);
     resolve(instance.publishedEvents.toBeMovedElements, mappings);
-    resolve(instance.publishedEvents.newElements, mappings);
-    resolve(instance.publishedEvents.toBeRemovedElements, mappings);
   }
 
   const DBEvents& getPublishedEvents(GameDB game) {
