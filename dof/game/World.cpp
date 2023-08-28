@@ -7,6 +7,7 @@
 #include "unity.h"
 
 #include <cassert>
+#include "glm/gtx/norm.hpp"
 
 namespace World {
   using namespace Tags;
@@ -40,7 +41,8 @@ namespace World {
           FragmentFlags& flag = flags.at(i);
           //TODO: This is not true, player abilities update before this and would set them
           //Assume that if the impulse changed at all it means it happend from the world boundary
-          if(impulseX.at(i) || impulseY.at(i)) {
+          constexpr float threshold = 0.01f;
+          if(glm::length2(TableAdapters::read(i, impulseX, impulseY)) > threshold) {
             //If it was previously in bounds and is now going out, apply the effect
             if(Math::enumCast(flag) & Math::enumCast(FragmentFlags::InBounds)) {
               //Clear flag

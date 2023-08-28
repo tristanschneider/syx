@@ -7,7 +7,23 @@
 #include "stat/FollowTargetByVelocityEffect.h"
 #include "stat/LambdaStatEffect.h"
 
+#include "glm/glm.hpp"
+#include "glm/gtx/norm.hpp"
+
 namespace FragmentStateMachine {
+  bool tryResolve(StableElementID& id, const StableElementMappings& mappings) {
+    if(auto resolved = StableOperations::tryResolveStableID(id, mappings)) {
+      id = *resolved;
+      return true;
+    }
+    return false;
+  }
+
+  std::optional<StableElementID> tryGetFirstNearby(const SpatialQuery::Result& results, const StableElementID& self) {
+    auto it = std::find_if(results.nearbyObjects.begin(), results.nearbyObjects.end(), [&](const StableElementID& e) { return e.mStableID != self.mStableID; });
+    return it != results.nearbyObjects.end() ? std::make_optional(*it) : std::nullopt;
+  }
+
   void setState(FragmentState& current, FragmentState::Variant&& desired) {
     std::lock_guard<std::mutex> lock{ current.desiredStateMutex };
     current.desiredState = std::move(desired);
@@ -32,6 +48,8 @@ namespace FragmentStateMachine {
     GameDB* db{};
     size_t thread{};
     ThreadLocalData* tls{};
+    //Desired state of the fragment currently being visited
+    FragmentState::Variant* desiredState{};
   };
 
   struct Visitor {
@@ -39,16 +57,109 @@ namespace FragmentStateMachine {
   };
 
   struct IdleVisitor : Visitor {
-    void init() {}
-    void onEnter(Idle&) {}
-    void onUpdate(Idle&) {}
+    using VX = FloatRow<Tags::GLinVel, Tags::X>;
+    using VY = FloatRow<Tags::GLinVel, Tags::Y>;
+    CachedRow<VX> velX;
+    CachedRow<VY> velY;
+    TableResolver<VX, VY, StateRow> resolver;
+
+    void init() {
+      resolver = resolver.create(args.db->db);
+    }
+    void onEnter(Idle&) {
+    }
+    void onUpdate(Idle&) {
+      resolver.tryGetOrSwapRow(velX, args.self);
+      resolver.tryGetOrSwapRow(velY, args.self);
+      if(!velX || !velY) {
+        return;
+      }
+
+      //"wake up" when nudged by something, and start wandering
+      const size_t si = args.self.getElementIndex();
+      constexpr float activationThreshold = 0.0001f;
+      const float speed2 = glm::length2(TableAdapters::read(si, *velX, *velY));
+      if(speed2 > activationThreshold) {
+        *args.desiredState = Wander{};
+      }
+    }
     void onExit(Idle&) {}
   };
 
   struct WanderVisitor : Visitor {
-    void init() {}
-    void onEnter(Wander&) {}
-    void onUpdate(Wander&) {}
+    using LIX = FloatRow<Tags::GLinImpulse, Tags::X>;
+    using LIY = FloatRow<Tags::GLinImpulse, Tags::Y>;
+    using AV = FloatRow<Tags::GAngVel, Tags::Angle>;
+    using AI = FloatRow<Tags::GAngImpulse, Tags::Angle>;
+    using RX = FloatRow<Tags::GRot, Tags::CosAngle>;
+    using RY = FloatRow<Tags::GRot, Tags::SinAngle>;
+    using PX = FloatRow<Tags::GPos, Tags::X>;
+    using PY = FloatRow<Tags::GPos, Tags::Y>;
+    CachedRow<LIX> lix;
+    CachedRow<LIY> liy;
+    CachedRow<RX> rx;
+    CachedRow<RY> ry;
+    CachedRow<PX> px;
+    CachedRow<PY> py;
+    CachedRow<AI> angularImpulse;
+    CachedRow<AV> angularVelocity;
+    CachedRow<StableIDRow> stable;
+    TableResolver<LIX, LIY, RX, RY, AI, StableIDRow, PX, PY, AV> resolver;
+    SpatialQueryAdapter queries;
+    StableElementMappings* mappings{};
+
+    void init() {
+      resolver = resolver.create(args.db->db);
+      queries = TableAdapters::getSpatialQueries(*args.db);
+      mappings = &TableAdapters::getStableMappings(*args.db);
+    }
+
+    void onEnter(Wander& wander) {
+      wander.spatialQuery = SpatialQuery::createQuery(queries, { SpatialQuery::AABB{} }, 2);
+    }
+
+    void onUpdate(Wander& wander) {
+      if(!resolver.tryGetOrSwapAllRows(args.self, lix, liy, rx, ry, px, py, stable, angularImpulse, angularVelocity)
+        || !tryResolve(wander.spatialQuery, *mappings)) {
+        return;
+      }
+      const size_t si = args.self.getElementIndex();
+      const size_t stableID = stable->at(si);
+      const StableElementID stableSelf{ args.self.mValue, stableID };
+      const size_t qi = wander.spatialQuery.toPacked<GameDatabase>().getElementIndex();
+      const SpatialQuery::Result& results = SpatialQuery::getResult(qi, queries);
+
+      constexpr float linearSpeed = 0.003f;
+      constexpr float angularAvoidance = 0.01f;
+      constexpr float maxAngVel = 0.03f;
+      constexpr float minAngVel = 0.001f;
+      constexpr float angularDamping = 0.001f;
+      constexpr float seekAhead = 2.0f;
+
+      //Don't tinker with direction if already spinning out of control
+      const float angVel = angularVelocity->at(si);
+      const float angSpeed =  std::abs(angVel);
+      if(angSpeed < maxAngVel) {
+        //If something is in the way, turn to the right
+        if(tryGetFirstNearby(results, stableSelf)) {
+          angularImpulse->at(si) += angularAvoidance;
+        }
+      }
+      if(angSpeed > minAngVel) {
+        angularImpulse->at(si) += angVel * -angularDamping;
+      }
+
+      const glm::vec2 forward = TableAdapters::read(si, *rx, *ry);
+      TableAdapters::add(si, forward * linearSpeed, *lix, *liy);
+
+      //Put query volume a bit out in front of the fragment with size of 0.5
+      const glm::vec2 pos = TableAdapters::read(si, *px, *py);
+      const glm::vec2 queryPos = pos + forward*seekAhead;
+      constexpr glm::vec2 half{ 0.25f, 0.25f };
+      SpatialQuery::AABB bb{ queryPos - half, queryPos + half };
+      SpatialQuery::refreshQuery(qi, queries, { bb }, 2);
+    }
+    //Cleanup of the query isn't needed because it'll expire after its lifetime
     void onExit(Wander&) {}
   };
 
@@ -173,6 +284,7 @@ namespace FragmentStateMachine {
     auto& getAndUpdateVisitor() {
       auto& v = getVisitor<T>();
       v.args.self = args.self;
+      v.args.desiredState = args.desiredState;
       return v;
     }
 
@@ -242,8 +354,10 @@ namespace FragmentStateMachine {
     auto exitVisit = visitor.getExit();
 
     for(size_t i = args.begin; i < args.end; ++i) {
-      visitor.args.self = UnpackedDatabaseElementID::fromPacked(args.tableId).remakeElement(i);
       FragmentState& state = args.row.at(i);
+      visitor.args.self = UnpackedDatabaseElementID::fromPacked(args.tableId).remakeElement(i);
+      visitor.args.desiredState = &state.desiredState;
+
       //See if there is a desired state transition
       if(std::optional<FragmentState::Variant> desired = tryTakeDesiredState(state)) {
         //Exit the old state

@@ -452,11 +452,23 @@ struct TableResolver {
   }
 
   template<class Row>
-  void tryGetOrSwapRow(CachedRow<Row>& row, const UnpackedDatabaseElementID& id) {
+  bool tryGetOrSwapRow(CachedRow<Row>& row, const UnpackedDatabaseElementID& id) {
     if(!row.row || row.tableID != id.getTableIndex()) {
       row.row = tryGetRow<Row>(id);
       row.tableID = id.getTableIndex();
+      return row.row != nullptr;
     }
+    return row.row != nullptr;
+  }
+
+  template<class... Args>
+  bool tryGetOrSwapAllRows(const UnpackedDatabaseElementID& id, Args&... rows) {
+    return (tryGetOrSwapRow(rows, id) && ...);
+  }
+
+  template<class... Args>
+  bool tryGetOrSwapAnyRows(const UnpackedDatabaseElementID& id, Args&... rows) {
+    return (tryGetOrSwapRow(rows, id) || ...);
   }
 
   void* db{};

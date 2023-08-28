@@ -9,7 +9,9 @@ namespace FragmentStateMachine {
   //Do nothing
   struct Idle {};
   //Navigate around in an arbitrary and varying direction
-  struct Wander {};
+  struct Wander {
+    StableElementID spatialQuery;
+  };
   //Happens when hit by the player, fly in a given direction with collision disabled,
   //repelling all nearby fragments, then go to SeekHome
   struct Stunned {};
