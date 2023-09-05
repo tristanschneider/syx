@@ -1,5 +1,8 @@
 #pragma once
 
+#include <numeric>
+#include <vector>
+
 struct dbDetails {
   static constexpr size_t constexprLog2(size_t input) {
     size_t result = 1;
@@ -242,6 +245,10 @@ struct Database {
     if(auto fn = Impl<Visitor, std::index_sequence_for<Tables...>>::getConstVisitFn(id.getTableIndex())) {
       fn(mTables, visitor);
     }
+  }
+
+  static constexpr size_t size() {
+    return sizeof...(Tables);
   }
 
   std::tuple<Tables...> mTables;

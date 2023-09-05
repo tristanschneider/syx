@@ -380,6 +380,10 @@ struct StableTableModifierInstance {
     return first;
   }
 
+  operator bool() const {
+    return table != nullptr;
+  }
+
   //Currently several function pointers on each instance, modifier could be a singleton if it matters
   StableTableModifier modifier;
   void* table{};
@@ -398,6 +402,10 @@ struct TableModifierInstance {
   template<class TableT, class DB>
   static TableModifierInstance getDB(DB& db) {
     return get(std::get<TableT>(db.mTables));
+  }
+
+  operator bool() const {
+    return table != nullptr;
   }
 
   //Add the requested amount of elements and return the index of the first new one

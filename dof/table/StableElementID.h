@@ -5,6 +5,7 @@
 #include <cassert>
 #include <optional>
 #include <unordered_map>
+#include <mutex>
 
 struct StableIDRow : Row<size_t> {};
 
