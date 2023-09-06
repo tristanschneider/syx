@@ -76,6 +76,11 @@ struct AppTask {
   std::shared_ptr<AppTaskConfig> config;
 };
 
+struct AppTaskNode {
+  AppTask task;
+  std::vector<std::shared_ptr<AppTaskNode>> children;
+};
+
 //Information about the data dependencies of the task
 struct AppTaskMetadata {
   using TypeIDT = DBTypeID;
@@ -142,7 +147,9 @@ private:
 //Top level object used to create all work items in the app
 class IAppBuilder {
 public:
+  virtual ~IAppBuilder() = default;
   //Every work item starts by creating a task, getting the required data accessors, then submitting the task
   virtual RuntimeDatabaseTaskBuilder createTask() = 0;
   virtual void submitTask(AppTaskWithMetadata&& task) = 0;
+  virtual std::shared_ptr<AppTaskNode> finalize()&& = 0;
 };
