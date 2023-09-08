@@ -83,12 +83,12 @@ std::unique_ptr<ITableResolver> RuntimeDatabaseTaskBuilder::getResolver() {
   return TableResolverImpl::create(db);
 }
 
-void RuntimeDatabaseTaskBuilder::logRead(TypeIDT t) {
-  builtTask.data.reads.push_back(t);
+void RuntimeDatabaseTaskBuilder::logRead(const UnpackedDatabaseElementID& table, TypeIDT t) {
+  builtTask.data.reads.push_back({ t, table });
 }
 
-void RuntimeDatabaseTaskBuilder::logWrite(TypeIDT t) {
-  builtTask.data.writes.push_back(t);
+void RuntimeDatabaseTaskBuilder::logWrite(const UnpackedDatabaseElementID& table, TypeIDT t) {
+  builtTask.data.writes.push_back({ t, table });
 }
 
 void RuntimeDatabaseTaskBuilder::logTableModifier(const UnpackedDatabaseElementID& id) {

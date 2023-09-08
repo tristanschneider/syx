@@ -81,13 +81,19 @@ struct AppTaskNode {
   std::vector<std::shared_ptr<AppTaskNode>> children;
 };
 
+struct TableAccess {
+  using TypeIDT = DBTypeID;
+  TypeIDT rowType;
+  UnpackedDatabaseElementID tableID;
+};
+
 //Information about the data dependencies of the task
 struct AppTaskMetadata {
   using TypeIDT = DBTypeID;
 
   //Reads and writes to data in rows, no addition or removal
-  std::vector<TypeIDT> reads;
-  std::vector<TypeIDT> writes;
+  std::vector<TableAccess> reads;
+  std::vector<TableAccess> writes;
   //Addition and removal to particular tables
   std::vector<UnpackedDatabaseElementID> tableModifiers;
 };
@@ -107,14 +113,16 @@ public:
 
   template<class... Rows>
   std::unique_ptr<ITableResolver> getResolver() {
+    //Resolvers don't require all rows to match at once so any tables with any of the rows must be logged
     (log<Rows>(), ...);
     return TableResolverImpl::create(getDB());
   }
 
   template<class... Rows>
   QueryResult<Rows...> query() {
-    (log<Rows>(), ...);
-    getDB().query<std::decay_t<Rows>...>();
+    QueryResult<Rows...> result = getDB().query<std::decay_t<Rows>...>();
+    (log<Rows>(result.matchingTableIDs), ...);
+    return result;
   }
 
   std::unique_ptr<ITableModifier> getModifierForTable(const UnpackedDatabaseElementID& table);
@@ -125,19 +133,27 @@ public:
 private:
   template<class T>
   void log() {
-    [[maybe_unused]] const auto id = TypeIDT::get<std::decay_t<T>>();
-    if constexpr(std::is_const_v<T>) {
-      logRead(id);
-    }
-    else {
-      logWrite(id);
+    log<T>(getDB().query<std::decay_t<T>>().matchingTableIDs);
+  }
+
+  template<class T>
+  void log(const std::vector<UnpackedDatabaseElementID>& tableIds) {
+    using DT = std::decay_t<T>;
+    [[maybe_unused]] const auto id = TypeIDT::get<DT>();
+    for(const UnpackedDatabaseElementID& table : tableIds) {
+      if constexpr(std::is_const_v<T>) {
+        logRead(table, id);
+      }
+      else {
+        logWrite(table, id);
+      }
     }
   }
 
   std::unique_ptr<ITableResolver> getResolver();
 
-  void logRead(TypeIDT t);
-  void logWrite(TypeIDT t);
+  void logRead(const UnpackedDatabaseElementID& table, TypeIDT t);
+  void logWrite(const UnpackedDatabaseElementID& table, TypeIDT t);
   void logTableModifier(const UnpackedDatabaseElementID& id);
 
   RuntimeDatabase& db;

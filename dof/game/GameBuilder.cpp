@@ -110,13 +110,11 @@ namespace GameBuilder {
       for(const UnpackedDatabaseElementID& modifiedTable : task.data.tableModifiers) {
         addTableModifier(dependencies[modifiedTable.getTableIndex()], node);
       }
-      for(TableDependencies& table : dependencies) {
-        for(const IDT& write : task.data.writes) {
-          addTableWrite(table, write, node);
-        }
-        for(const IDT& read : task.data.reads) {
-          addTableRead(table, read, node);
-        }
+      for(const TableAccess& write : task.data.writes) {
+        addTableWrite(dependencies[write.tableID.getTableIndex()], write.rowType, node);
+      }
+      for(const TableAccess& read : task.data.reads) {
+        addTableRead(dependencies[read.tableID.getTableIndex()], read.rowType, node);
       }
     }
 
