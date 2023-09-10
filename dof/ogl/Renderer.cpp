@@ -224,7 +224,12 @@ namespace {
     return result;
   }
 
-  void _loadTexture(TextureLoadRequest& request, TexturesTable& textures) {
+  struct TexturesTuple {
+    Row<TextureGLHandle>* glHandle{};
+    Row<TextureGameHandle>* gameHandle{};
+  };
+
+  void _loadTexture(TextureLoadRequest& request, TexturesTuple textures, ITableModifier& texturesModifier) {
     //Don't care about alpha for the moment but images get skewed strangely unless loaded as 4 components
     ImageData data = STBInterface::loadImageFromFile(request.mFileName.c_str(), 4);
     if(!data.mBytes) {
@@ -240,21 +245,25 @@ namespace {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 
-    TexturesTable::ElementRef element = TableOperations::addToTable(textures);
-    element.get<0>().mHandle = textureHandle;
-    element.get<1>().mID = request.mImageID;
+    size_t element = texturesModifier.addElements(1);
+    textures.glHandle->at(element).mHandle = textureHandle;
+    textures.gameHandle->at(element).mID = request.mImageID;
 
     request.mStatus = RequestStatus::Succeeded;
 
     STBInterface::deallocate(std::move(data));
   }
 
-  void _processRequests(GameDatabase& db, RendererDatabase& renderDB) {
-    Queries::viewEachRow<Row<TextureLoadRequest>>(db, [&](Row<TextureLoadRequest>& row) {
-      for(TextureLoadRequest& req : row.mElements) {
-        if(req.mStatus == RequestStatus::InProgress) {
-          _loadTexture(req, std::get<TexturesTable>(renderDB.mTables));
-        }
+  void _processRequests(QueryResult<Row<TextureLoadRequest>>& requests,
+    QueryResult<Row<TextureGLHandle>, Row<TextureGameHandle>>& textures,
+    ITableModifier& texturesModifier) {
+
+    //Table should always exist and only one
+    TexturesTuple tex{ std::get<0>(textures.rows).at(0), std::get<1>(textures.rows).at(0) };
+    requests;textures;texturesModifier;
+    requests.forEachElement([&](TextureLoadRequest& request) {
+      if(request.mStatus == RequestStatus::InProgress) {
+        _loadTexture(request, tex, texturesModifier);
       }
     });
   }
@@ -461,16 +470,33 @@ TaskRange Renderer::extractRenderables(const GameDatabase& db, RendererDatabase&
   return TaskBuilder::buildDependencies(root);
 }
 
-TaskRange Renderer::clearRenderRequests(GameDatabase& db) {
-  auto root = TaskNode::create([&db](...) {
-    auto& lineTable = std::get<DebugLineTable>(db.mTables);
-    TableOperations::resizeTable(lineTable, 0);
+void Renderer::clearRenderRequests(IAppBuilder& builder) {
+  auto task = builder.createTask();
+  auto debugTables = task.query<const Row<DebugPoint>>();
+  std::vector<std::shared_ptr<ITableModifier>> modifiers(debugTables.matchingTableIDs.size());
+  for(size_t i = 0; i < debugTables.matchingTableIDs.size(); ++i) {
+    modifiers[i] = task.getModifierForTable(debugTables.matchingTableIDs[i]);
+  }
+
+  task.setCallback([modifiers](AppTaskArgs&) {
+    for(auto&& modifier : modifiers) {
+      modifier->resize(0);
+    }
   });
-  return TaskBuilder::buildDependencies(root);
+
+  builder.submitTask(std::move(task));
 }
 
-void Renderer::processRequests(GameDatabase& db, RendererDatabase& renderDB) {
-  _processRequests(db, renderDB);
+void processRequests(IAppBuilder& builder) {
+  auto task = builder.createTask();
+  auto requests = task.query<Row<TextureLoadRequest>>();
+  auto textures = task.query<Row<TextureGLHandle>, Row<TextureGameHandle>>();
+  std::shared_ptr<ITableModifier> modifier{ task.getModifierForTable(textures.matchingTableIDs[0]) };
+  task.setPinning(AppTaskPinning::MainThread{});
+  task.setCallback([=](AppTaskArgs&) mutable {
+    _processRequests(requests, textures, *modifier);
+  });
+  builder.submitTask(std::move(task).finalize());
 }
 
 void Renderer::render(RendererDatabase& renderDB) {

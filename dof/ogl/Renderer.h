@@ -1,5 +1,6 @@
 #pragma once
 
+#include "AppBuilder.h"
 #include "Simulation.h"
 #include <Windows.h>
 #include "GL/glew.h"
@@ -73,9 +74,9 @@ struct RendererDB {
 struct Renderer {
   static void initDeviceContext(GraphicsContext::ElementRef& context);
   static void initGame(GameDatabase& db, RendererDatabase& renderDB);
-  static void processRequests(GameDatabase& db, RendererDatabase& renderDB);
+  static void processRequests(IAppBuilder& builder);
   static TaskRange extractRenderables(const GameDatabase& db, RendererDatabase& renderDB);
-  static TaskRange clearRenderRequests(GameDatabase& db);
+  static void clearRenderRequests(IAppBuilder& builder);
   static void render(RendererDatabase& renderDB);
   static void swapBuffers(RendererDatabase& renderDB);
 };

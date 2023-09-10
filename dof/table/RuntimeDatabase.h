@@ -19,10 +19,83 @@ struct RuntimeTable {
   std::unordered_map<DBTypeID, void*> rows;
 };
 
+namespace details {
+  template<class... T>
+  struct RowList {};
+
+  struct ElementCallbackType {
+    struct TupleNoID {};
+    struct TupleWithID {};
+    struct ElementNoID {};
+    struct ElementWithID {};
+  };
+
+  template<class CB, class Rows, class Enabled = void>
+  struct GetElementCallbackType;
+
+  template<class CB, class... Rows>
+  struct GetElementCallbackType<CB, RowList<Rows...>, std::enable_if_t<
+      std::is_same_v<
+        void,
+        decltype(std::declval<const CB&>()(std::declval<UnpackedDatabaseElementID>(), std::declval<std::tuple<std::vector<Rows>*...>&>()))
+      >>> {
+    using type = typename ElementCallbackType::TupleWithID;
+  };
+
+  template<class CB, class... Rows>
+  struct GetElementCallbackType<CB, RowList<Rows...>, std::enable_if_t<
+    std::is_same_v<
+      void,
+      decltype(std::declval<const CB&>()(std::declval<std::tuple<std::vector<Rows*>...>&>()))
+    >>> {
+    using type = typename ElementCallbackType::TupleNoID;
+  };
+
+  template<class CB, class... Rows>
+  struct GetElementCallbackType<CB, RowList<Rows...>, std::enable_if_t<
+    std::is_same_v<
+      void,
+      decltype(std::declval<const CB&>()(std::declval<UnpackedDatabaseElementID>(), std::declval<Rows&>()...))
+    >>> {
+    using type = typename ElementCallbackType::ElementWithID;
+  };
+
+  template<class CB, class... Rows>
+  struct GetElementCallbackType<CB, RowList<Rows...>, std::enable_if_t<
+    std::is_same_v<
+      void,
+      decltype(std::declval<const CB&>()(std::declval<Rows&>().at(0)...))
+    >>> {
+    using type = typename ElementCallbackType::ElementNoID;
+  };
+};
+
 template<class... Rows>
 struct QueryResult {
+  using TupleT = std::tuple<std::vector<Rows*>...>;
+
+  template<class CB>
+  void forEachElement(const CB& cb) {
+    using CBT = typename details::GetElementCallbackType<CB, details::RowList<Rows...>>::type;
+    for(size_t i = 0; i < matchingTableIDs.size(); ++i) {
+      for(size_t e = 0; e < std::get<0>(rows).size(); ++e) {
+        if constexpr(std::is_same_v<details::ElementCallbackType::ElementNoID, CBT>) {
+          cb(std::get<std::vector<Rows*>>(rows).at(i)->at(e)...);
+        }
+      }
+    }
+  }
+
+  std::tuple<Rows*...> get(size_t i) {
+    return { &std::get<std::vector<Row<Rows>*>>(rows)... };
+  }
+
+  std::tuple<Rows*...> getSingleton() {
+    return get(0);
+  }
+
   std::vector<UnpackedDatabaseElementID> matchingTableIDs;
-  std::tuple<std::vector<Rows*>...> rows;
+  TupleT rows;
 };
 
 struct RuntimeDatabaseArgs {
@@ -51,11 +124,11 @@ public:
       QueryResult<Rows...> result;
       result.matchingTableIDs.reserve(data.tables.size());
       for(size_t i = 0; i < data.tables.size(); ++i) {
-        std::tuple<Rows*...> rows{ data.tables[i].tryGet<Rows>()... };
+        std::tuple<Rows*...> rows{ data.tables[i].tryGet<std::decay_t<Rows>>()... };
         const bool allFound = (std::get<Rows*>(rows) && ...);
         if(allFound) {
           result.matchingTableIDs.push_back(getTableID(i));
-          (std::get<std::vector<Rows*>>(result.rows).push_back(std::get<Rows*>(rows)), ...);
+          (std::get<std::vector<Rows*>>(result.rows).push_back(std::get<std::decay_t<Rows*>>(rows)), ...);
         }
       }
       return result;

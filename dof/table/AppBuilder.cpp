@@ -33,6 +33,10 @@ namespace TableModifierImpl {
       return instance.addElements(count);
     }
 
+    void resize(size_t count) override {
+      instance.resize(count);
+    }
+
     TableModifierInstance instance;
   };
 
@@ -43,6 +47,10 @@ namespace TableModifierImpl {
 
     size_t addElements(size_t count) override {
       return instance.addElements(count);
+    }
+
+    void resize(size_t count) override {
+      instance.resize(count);
     }
 
     StableTableModifierInstance instance;
@@ -118,4 +126,8 @@ std::unique_ptr<IAnyTableModifier> RuntimeDatabaseTaskBuilder::getAnyModifier() 
 
 void RuntimeDatabaseTaskBuilder::setPinning(AppTaskPinning::Variant pinning) {
   builtTask.task.pinning = std::move(pinning);
+}
+
+void RuntimeDatabaseTaskBuilder::setCallback(AppTaskCallback&& callback) {
+  builtTask.task.callback = std::move(callback);
 }

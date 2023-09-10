@@ -380,6 +380,10 @@ struct StableTableModifierInstance {
     return first;
   }
 
+  void resize(size_t count) {
+    modifier.resize(table, count, *stableMappings);
+  }
+
   operator bool() const {
     return table != nullptr;
   }
@@ -413,6 +417,10 @@ struct TableModifierInstance {
     const size_t first = modifier.size(table);
     modifier.resize(table, count + first);
     return first;
+  }
+
+  void resize(size_t count) {
+    modifier.resize(table, count);
   }
 
   //Currently several function pointers on each instance, modifier could be a singleton if it matters

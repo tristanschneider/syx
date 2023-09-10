@@ -15,7 +15,7 @@ class ITableModifier {
 public:
   virtual ~ITableModifier() = default;
   virtual size_t addElements(size_t count) = 0;
-  //TODO: delete?
+  virtual void resize(size_t count) = 0;
 };
 
 class IAnyTableModifier {
@@ -131,12 +131,12 @@ public:
   std::unique_ptr<ITableResolver> getResolver() {
     //Resolvers don't require all rows to match at once so any tables with any of the rows must be logged
     (log<Rows>(), ...);
-    return TableResolverImpl::create(getDB());
+    return TableResolverImpl::create(db);
   }
 
   template<class... Rows>
   QueryResult<Rows...> query() {
-    QueryResult<Rows...> result = getDB().query<std::decay_t<Rows>...>();
+    QueryResult<Rows...> result = db.query<Rows...>();
     (log<Rows>(result.matchingTableIDs), ...);
     return result;
   }
@@ -145,13 +145,14 @@ public:
   std::unique_ptr<IAnyTableModifier> getAnyModifier();
 
   void setPinning(AppTaskPinning::Variant pinning);
+  void setCallback(AppTaskCallback&& callback);
 
   AppTaskWithMetadata finalize()&&;
 
 private:
   template<class T>
   void log() {
-    log<T>(getDB().query<std::decay_t<T>>().matchingTableIDs);
+    log<T>(db.query<std::decay_t<T>>().matchingTableIDs);
   }
 
   template<class T>
@@ -184,6 +185,9 @@ public:
   virtual ~IAppBuilder() = default;
   //Every work item starts by creating a task, getting the required data accessors, then submitting the task
   virtual RuntimeDatabaseTaskBuilder createTask() = 0;
+  void submitTask(RuntimeDatabaseTaskBuilder&& task) {
+    submitTask(std::move(task).finalize());
+  }
   virtual void submitTask(AppTaskWithMetadata&& task) = 0;
   virtual std::shared_ptr<AppTaskNode> finalize()&& = 0;
 };
