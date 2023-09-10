@@ -9,6 +9,8 @@
 #include "TypeId.h"
 #include "RuntimeDatabase.h"
 
+#include <variant>
+
 class ITableModifier {
 public:
   virtual ~ITableModifier() = default;
@@ -58,9 +60,22 @@ private:
   virtual void* tryGetRow(const UnpackedDatabaseElementID id, IDT type) = 0;
 };
 
-struct AppTaskConfig {
+struct AppTaskSize {
   size_t workItemCount{};
   size_t batchSize{};
+};
+
+namespace AppTaskPinning {
+  struct None {};
+  struct MainThread {};
+  using Variant = std::variant<None, MainThread>;
+};
+
+//This is created at configuration time to be used to change configurations at runtime
+struct AppTaskConfig {
+  //This can be used at runtime for tasks to set the sizes of upcoming other tasks
+  //It is set by the builder implementation, not the users of the builders that add tasks
+  std::function<void(const AppTaskSize&)> setSize;
 };
 
 struct AppTaskArgs {
@@ -74,6 +89,7 @@ using AppTaskCallback = std::function<void(AppTaskArgs&)>;
 struct AppTask {
   AppTaskCallback callback;
   std::shared_ptr<AppTaskConfig> config;
+  AppTaskPinning::Variant pinning;
 };
 
 struct AppTaskNode {
@@ -127,6 +143,8 @@ public:
 
   std::unique_ptr<ITableModifier> getModifierForTable(const UnpackedDatabaseElementID& table);
   std::unique_ptr<IAnyTableModifier> getAnyModifier();
+
+  void setPinning(AppTaskPinning::Variant pinning);
 
   AppTaskWithMetadata finalize()&&;
 

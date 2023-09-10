@@ -31,7 +31,6 @@ struct RuntimeDatabaseArgs {
   //TODO: this is a hack to get access to mappings without knowing where they are
   //relationship of table to their mappings should be built into table. Maybe a required row?
   StableElementMappings* mappings{};
-  void* data;
 };
 
 class RuntimeDatabase {
@@ -88,8 +87,8 @@ namespace DBReflect {
     }
 
     template<class DB, class TableT>
-    void reflectTable(TableT& table, RuntimeDatabaseArgs& args) {
-      RuntimeTable& rt = args.tables[DB::getTableIndex<TableT>().getTableIndex()];
+    void reflectTable(size_t baseIndex, TableT& table, RuntimeDatabaseArgs& args) {
+      RuntimeTable& rt = args.tables[baseIndex + DB::getTableIndex<TableT>().getTableIndex()];
       if constexpr(TableOperations::isStableTable<TableT>) {
         rt.stableModifier = StableTableModifierInstance::get<DB>(table, *args.mappings);
       }
@@ -100,12 +99,17 @@ namespace DBReflect {
     }
   }
 
+  //If used for a single database the UnpackedDatabaseElementID will be the same
+  //If multiple are combined the IDs will differ if used/queried via the direct database or
+  //the runtime database, so care must be taken not to mix them
   template<class DB>
   void reflect(DB& db, RuntimeDatabaseArgs& args, StableElementMappings& mappings) {
-    args.elementIndexBits = DB::getDescription().elementIndexBits;
-    args.data = &db;
-    args.tables.resize(db.size());
+    const size_t baseIndex = args.tables.size();
+    const size_t newTables = db.size();
+    args.tables.resize(baseIndex + newTables);
+    //TODO: what if multiple different mappings are desired? The table should probably point at the mappings it uses
     args.mappings = &mappings;
-    db.visitOne([&](auto& table) { details::reflectTable<DB>(table, args); });
+    args.elementIndexBits = dbDetails::constexprLog2(args.tables.size());
+    db.visitOne([&](auto& table) { details::reflectTable<DB>(baseIndex, table, args); });
   }
 }

@@ -115,3 +115,7 @@ std::unique_ptr<IAnyTableModifier> RuntimeDatabaseTaskBuilder::getAnyModifier() 
   }
   return std::make_unique<AnyTableModifier::ATM>(db);
 }
+
+void RuntimeDatabaseTaskBuilder::setPinning(AppTaskPinning::Variant pinning) {
+  builtTask.task.pinning = std::move(pinning);
+}
