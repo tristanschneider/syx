@@ -311,11 +311,11 @@ struct TableOperations {
 
 //Wraps the operations needed to modify any table in a single type, with the table itself passed through via void*
 struct StableTableModifier {
-  template<class DB, class TableT>
+  template<class TableT>
   static StableTableModifier get() {
     struct Adapter {
-      static void resize(void* table, size_t newSize, StableElementMappings& mappings) {
-        TableOperations::stableResizeTable<DB, TableT>(*static_cast<TableT*>(table), newSize, mappings);
+      static void resize(void* table, const UnpackedDatabaseElementID& id, size_t newSize, StableElementMappings& mappings) {
+        TableOperations::stableResizeTable(*static_cast<TableT*>(table), id, newSize, mappings);
       }
 
       static size_t size(const void* table) {
@@ -329,7 +329,7 @@ struct StableTableModifier {
     };
   }
 
-  void(*resize)(void* table, size_t newSize, StableElementMappings& mappings){};
+  void(*resize)(void* table, const UnpackedDatabaseElementID& id, size_t newSize, StableElementMappings& mappings){};
   size_t(*size)(const void* table){};
 };
 
@@ -362,9 +362,20 @@ struct StableTableModifierInstance {
   template<class DB, class TableT>
   static StableTableModifierInstance get(TableT& table, StableElementMappings& mappings) {
     return {
-      StableTableModifier::get<DB, TableT>(),
+      StableTableModifier::get<TableT>(),
       &table,
-      &mappings
+      &mappings,
+      UnpackedDatabaseElementID::fromPacked(DB::getTableIndex<TableT>())
+    };
+  }
+
+  template<class TableT>
+  static StableTableModifierInstance get(TableT& table, const UnpackedDatabaseElementID& id, StableElementMappings& mappings) {
+    return {
+      StableTableModifier::get<TableT>(),
+      &table,
+      &mappings,
+      id
     };
   }
 
@@ -376,12 +387,12 @@ struct StableTableModifierInstance {
   //Add the requested amount of elements and return the index of the first new one
   size_t addElements(size_t count) {
     const size_t first = modifier.size(table);
-    modifier.resize(table, count + first, *stableMappings);
+    modifier.resize(table, tableID, count + first, *stableMappings);
     return first;
   }
 
   void resize(size_t count) {
-    modifier.resize(table, count, *stableMappings);
+    modifier.resize(table, tableID, count, *stableMappings);
   }
 
   operator bool() const {
@@ -392,6 +403,7 @@ struct StableTableModifierInstance {
   StableTableModifier modifier;
   void* table{};
   StableElementMappings* stableMappings{};
+  UnpackedDatabaseElementID tableID;
 };
 
 struct TableModifierInstance {

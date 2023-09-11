@@ -33,7 +33,7 @@ public:
 
   template<class Row>
   Row* tryGetRow(const UnpackedDatabaseElementID& id) {
-    return static_cast<Row*>(tryGetRow(id, IDT::get<Row>()));
+    return static_cast<Row*>(tryGetRow(id, IDT::get<std::decay_t<Row>>()));
   }
 
   template<class Row>
@@ -131,7 +131,7 @@ public:
   std::unique_ptr<ITableResolver> getResolver() {
     //Resolvers don't require all rows to match at once so any tables with any of the rows must be logged
     (log<Rows>(), ...);
-    return TableResolverImpl::create(db);
+    return getResolver();
   }
 
   template<class... Rows>

@@ -326,21 +326,50 @@ void Renderer::initDeviceContext(GraphicsContext::ElementRef& context) {
   state.mDebug = _createDebugDrawer();
 }
 
-void Renderer::initGame(GameDatabase& db, RendererDatabase& renderDB) {
-  OGLState& state = std::get<Row<OGLState>>(std::get<GraphicsContext>(renderDB.mTables).mRows).at(0);
-  //Resize containers upon the first call, they never change
-  RendererGlobalsAdapter globals = RendererTableAdapters::getGlobals({ renderDB });
-  assert(globals.size);
+struct RenderDB : IDatabase {
+  RenderDB(size_t quadPassCount)
+    : runtime(getArgs(quadPassCount)) {
+  }
 
-  auto& quadPasses = globals.state->mQuadPasses;
-  quadPasses.clear();
-  Queries::viewEachRowWithTableID<Row<CubeSprite>>(db,
-      [&](GameDatabase::ElementID id, Row<CubeSprite>&) {
-        quadPasses.push_back({});
-        auto pass = RendererTableAdapters::getQuadPass(quadPasses.back());
-        pass.isImmobile->at(0) = Queries::getRowInTable<IsImmobile>(db, id) != nullptr;
-        pass.pass->at(0).mQuadUniforms = _createQuadUniforms(state.mQuadShader);
+  RuntimeDatabase& getRuntime() override {
+    return runtime;
+  }
+
+  RuntimeDatabaseArgs getArgs(size_t quadPassCount) {
+    RuntimeDatabaseArgs result;
+    DBReflect::reflect(main, result, mappings);
+    quadPasses.resize(quadPassCount);
+    for(QuadPassTable::Type& pass : quadPasses) {
+      DBReflect::addTable(pass, result, mappings);
+    }
+    return result;
+  }
+
+  RendererDatabase main;
+  std::vector<QuadPassTable::Type> quadPasses;
+  StableElementMappings mappings;
+  RuntimeDatabase runtime;
+};
+
+std::unique_ptr<IDatabase> Renderer::initGame(IAppBuilder& builder) {
+  auto temp = builder.createTask();
+  auto sprites = temp.query<const Row<CubeSprite>>();
+  const size_t quadPassCount = sprites.matchingTableIDs.size();
+  //Create the database with the required number of quad pass tables
+  auto result = std::make_unique<RenderDB>(quadPassCount);
+  auto resolver = temp.getResolver<const IsImmobile>();
+
+  //Fill in the quad pass tables
+  sprites.forEachRow([&, i{ size_t(0) }](const UnpackedDatabaseElementID& id, const Row<CubeSprite>&) mutable {
+    auto& pass = result->quadPasses[i];
+    std::get<QuadPassTable::IsImmobile>(pass.mRows).at() = resolver->tryGetRow<const IsImmobile>(id) != nullptr;
+    OGLState& state = std::get<Row<OGLState>>(std::get<GraphicsContext>(result->main.mTables).mRows).at(0);
+    //TODO: mQuadShader needs to be computed by now
+    std::get<QuadPassTable::Pass>(pass.mRows).at().mQuadUniforms = _createQuadUniforms(state.mQuadShader);
+      ++i;
   });
+
+  return result;
 }
 
 void _renderDebug(RendererDatabase& renderDB, float aspectRatio) {
@@ -381,6 +410,32 @@ std::shared_ptr<TaskNode> copyDataTask(const SrcRow& src, DstRow& dst) {
   });
 }
 
+/*
+    std::get<Row<OGLState>>(table.mRows).mElements.data(),
+    std::get<Row<WindowData>>(table.mRows).mElements.data(),
+
+* */
+/*
+void Renderer::extractRenderables(IAppBuilder& builder) {
+  auto temp = builder.createTask();
+  auto sharedTextureSprites = temp.query<const Row<CubeSprite>, const SharedRow<TextureReference>>();
+  auto globals = temp.query<Row<OGLState>>();
+  std::vector<QuadPassTable::Type>& quadPasses = std::get<0>(globals.getSingleton())->at(0).mQuadPasses;
+
+  //First resize the table
+  {
+    auto task = builder.createTask();
+    auto ogl = task.query<Row<OGLState>>();
+    auto sprites = task.query<const Row<CubeSprite>>();
+    task.setCallback([ogl, sprites](AppTaskArgs&) mutable {
+        auto& passes = std::get<0>(ogl.getSingleton())->at(0).mQuadPasses;
+        for(size_t i = 0; i < passes.size(); ++i) {
+         passes[i]. std::get<0>(sprites.get(i))->size():
+        }
+    });
+  }
+}
+*/
 TaskRange Renderer::extractRenderables(const GameDatabase& db, RendererDatabase& renderDB) {
 
   auto root = TaskNode::create([](...){});

@@ -71,12 +71,14 @@ struct RendererDB {
   RendererDatabase& db;
 };
 
-struct Renderer {
-  static void initDeviceContext(GraphicsContext::ElementRef& context);
-  static void initGame(GameDatabase& db, RendererDatabase& renderDB);
-  static void processRequests(IAppBuilder& builder);
-  static TaskRange extractRenderables(const GameDatabase& db, RendererDatabase& renderDB);
-  static void clearRenderRequests(IAppBuilder& builder);
-  static void render(RendererDatabase& renderDB);
-  static void swapBuffers(RendererDatabase& renderDB);
+namespace Renderer {
+  void initDeviceContext(GraphicsContext::ElementRef& context);
+  //Creates the renderer database using information from the game database
+  std::unique_ptr<IDatabase> initGame(IAppBuilder& builder);
+  void processRequests(IAppBuilder& builder);
+  void extractRenderables(IAppBuilder& builder);
+  TaskRange extractRenderables(const GameDatabase& db, RendererDatabase& renderDB);
+  void clearRenderRequests(IAppBuilder& builder);
+  void render(RendererDatabase& renderDB);
+  void swapBuffers(RendererDatabase& renderDB);
 };

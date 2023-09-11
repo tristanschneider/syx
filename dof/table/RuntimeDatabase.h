@@ -30,6 +30,7 @@ namespace details {
     struct ElementWithID {};
   };
 
+  //TODO: replace with is_invokable_v
   template<class CB, class Rows, class Enabled = void>
   struct GetElementCallbackType;
 
@@ -86,8 +87,20 @@ struct QueryResult {
     }
   }
 
+  template<class CB>
+  void forEachRow(CB&& cb) {
+    for(size_t i = 0; i < matchingTableIDs.size(); ++i) {
+      if constexpr(std::is_invocable_v<CB, Rows&...>) {
+        cb(*std::get<std::vector<Rows*>>(rows).at(i)...);
+      }
+      else if constexpr(std::is_invocable_v<CB, UnpackedDatabaseElementID, Rows&...>) {
+        cb(matchingTableIDs[i], *std::get<std::vector<Rows*>>(rows).at(i)...);
+      }
+    }
+  }
+
   std::tuple<Rows*...> get(size_t i) {
-    return { &std::get<std::vector<Row<Rows>*>>(rows)... };
+    return { &std::get<std::vector<Rows*>>(rows)... };
   }
 
   std::tuple<Rows*...> getSingleton() {
@@ -159,9 +172,9 @@ namespace DBReflect {
       table.rows[DBTypeID::get<RowT>()] = &row;
     }
 
-    template<class DB, class TableT>
-    void reflectTable(size_t baseIndex, TableT& table, RuntimeDatabaseArgs& args) {
-      RuntimeTable& rt = args.tables[baseIndex + DB::getTableIndex<TableT>().getTableIndex()];
+    template<class TableT>
+    void reflectTable(const UnpackedDatabaseElementID& tableID, TableT& table, RuntimeDatabaseArgs& args) {
+      RuntimeTable& rt = args.tables[tableID.getTableIndex()];
       if constexpr(TableOperations::isStableTable<TableT>) {
         rt.stableModifier = StableTableModifierInstance::get<DB>(table, *args.mappings);
       }
@@ -183,6 +196,46 @@ namespace DBReflect {
     //TODO: what if multiple different mappings are desired? The table should probably point at the mappings it uses
     args.mappings = &mappings;
     args.elementIndexBits = dbDetails::constexprLog2(args.tables.size());
-    db.visitOne([&](auto& table) { details::reflectTable<DB>(baseIndex, table, args); });
+    db.visitOne([&](auto& table) {
+      const size_t rawIndex = DB::getTableIndex(table).getTableIndex();
+      const auto tableID = UnpackedDatabaseElementID{ 0, args.elementIndexBits }.remake(baseIndex + rawIndex, 0);
+      details::reflectTable(tableID, table, args);
+    });
+  }
+
+  template<class TableT>
+  void addTable(TableT& table, RuntimeDatabaseArgs& args, StableElementMappings& mappings) {
+    const size_t baseIndex = args.tables.size();
+    const size_t newTables = 1;
+    args.tables.resize(baseIndex + newTables);
+    //TODO: what if multiple different mappings are desired? The table should probably point at the mappings it uses
+    args.mappings = &mappings;
+    args.elementIndexBits = dbDetails::constexprLog2(args.tables.size());
+    const auto tableID = UnpackedDatabaseElementID{ 0, args.elementIndexBits }.remake(baseIndex, 0);
+    details::reflectTable(tableID, table, args);
+  }
+
+  template<class DB>
+  std::unique_ptr<IDatabase> createDatabase() {
+    struct Impl : IDatabase {
+      Impl()
+        : runtime(getArgs()) {
+      }
+
+      RuntimeDatabase& getRuntime() override {
+        return runtime;
+      }
+
+      RuntimeDatabaseArgs getArgs() {
+        RuntimeDatabaseArgs result;
+        reflect(db, result, mappings);
+        return result;
+      }
+
+      DB db;
+      StableElementMappings mappings;
+      RuntimeDatabase runtime;
+    };
+    return std::make_unique<Impl>();
   }
 }
