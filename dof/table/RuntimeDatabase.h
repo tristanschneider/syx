@@ -107,6 +107,22 @@ struct QueryResult {
     return get(0);
   }
 
+  //Get the vector of rows
+  template<size_t TupleIndex>
+  auto& get() {
+    return std::get<TupleIndex>(rows);
+  }
+
+  //Get a particular row
+  template<size_t TupleIndex>
+  auto& get(size_t tableIndex) {
+    return *get<TupleIndex>().at(tableIndex);
+  }
+
+  size_t size() const {
+    return matchingTableIDs.size();
+  }
+
   std::vector<UnpackedDatabaseElementID> matchingTableIDs;
   TupleT rows;
 };
@@ -114,9 +130,6 @@ struct QueryResult {
 struct RuntimeDatabaseArgs {
   size_t elementIndexBits;
   std::vector<RuntimeTable> tables;
-  //TODO: this is a hack to get access to mappings without knowing where they are
-  //relationship of table to their mappings should be built into table. Maybe a required row?
-  StableElementMappings* mappings{};
 };
 
 class RuntimeDatabase {
@@ -173,10 +186,10 @@ namespace DBReflect {
     }
 
     template<class TableT>
-    void reflectTable(const UnpackedDatabaseElementID& tableID, TableT& table, RuntimeDatabaseArgs& args) {
+    void reflectTable(const UnpackedDatabaseElementID& tableID, TableT& table, RuntimeDatabaseArgs& args, StableElementMappings& mappings) {
       RuntimeTable& rt = args.tables[tableID.getTableIndex()];
       if constexpr(TableOperations::isStableTable<TableT>) {
-        rt.stableModifier = StableTableModifierInstance::get<DB>(table, *args.mappings);
+        rt.stableModifier = StableTableModifierInstance::get<DB>(table, mappings);
       }
       else {
         rt.modifier = TableModifierInstance::get(table);
@@ -191,15 +204,13 @@ namespace DBReflect {
   template<class DB>
   void reflect(DB& db, RuntimeDatabaseArgs& args, StableElementMappings& mappings) {
     const size_t baseIndex = args.tables.size();
-    const size_t newTables = db.size();
+    constexpr size_t newTables = db.size();
     args.tables.resize(baseIndex + newTables);
-    //TODO: what if multiple different mappings are desired? The table should probably point at the mappings it uses
-    args.mappings = &mappings;
     args.elementIndexBits = dbDetails::constexprLog2(args.tables.size());
     db.visitOne([&](auto& table) {
       const size_t rawIndex = DB::getTableIndex(table).getTableIndex();
       const auto tableID = UnpackedDatabaseElementID{ 0, args.elementIndexBits }.remake(baseIndex + rawIndex, 0);
-      details::reflectTable(tableID, table, args);
+      details::reflectTable(tableID, table, args, mappings);
     });
   }
 
@@ -208,11 +219,9 @@ namespace DBReflect {
     const size_t baseIndex = args.tables.size();
     const size_t newTables = 1;
     args.tables.resize(baseIndex + newTables);
-    //TODO: what if multiple different mappings are desired? The table should probably point at the mappings it uses
-    args.mappings = &mappings;
     args.elementIndexBits = dbDetails::constexprLog2(args.tables.size());
     const auto tableID = UnpackedDatabaseElementID{ 0, args.elementIndexBits }.remake(baseIndex, 0);
-    details::reflectTable(tableID, table, args);
+    details::reflectTable(tableID, table, args, mappings);
   }
 
   template<class DB>
@@ -238,4 +247,6 @@ namespace DBReflect {
     };
     return std::make_unique<Impl>();
   }
+
+  std::unique_ptr<IDatabase> merge(std::unique_ptr<IDatabase> l, std::unique_ptr<IDatabase> r);
 }

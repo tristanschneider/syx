@@ -11,6 +11,8 @@
 #include "ImguiModule.h"
 #endif
 
+#include "GameBuilder.h"
+#include "GameDatabase.h"
 #include "Simulation.h"
 #include "TableOperations.h"
 #include "ThreadLocals.h"
@@ -19,9 +21,18 @@
 #include "glm/gtx/norm.hpp"
 #include "Profile.h"
 
+using InputQueryResult = QueryResult<Row<PlayerKeyboardInput>, Row<PlayerInput>>;
+
+struct InputArgs {
+  InputQueryResult input;
+  QueryResult<Row<DebugCameraControl>> debugCamera;
+};
+
 struct AppDatabase {
-  GameDatabase mGame;
-  RendererDatabase mRenderer;
+  std::unique_ptr<IDatabase> combined;
+  std::unique_ptr<IAppBuilder> builder;
+  Row<WindowData>* window{};
+  InputArgs input;
 };
 
 namespace {
@@ -29,30 +40,30 @@ namespace {
 }
 
 void setWindowSize(int width, int height) {
-  WindowData& data = std::get<Row<WindowData>>(std::get<GraphicsContext>(APP->mRenderer.mTables).mRows).at(0);
+  WindowData& data = APP->window->at(0);
   data.mWidth = width;
   data.mHeight = height;
 }
 
 void onFocusChanged(WPARAM w) {
+  WindowData& data = APP->window->at(0);
   if(LOWORD(w) == TRUE) {
-    std::get<Row<WindowData>>(std::get<GraphicsContext>(APP->mRenderer.mTables).mRows).at(0).mFocused = true;
+    data.mFocused = true;
   }
   else {
-    std::get<Row<WindowData>>(std::get<GraphicsContext>(APP->mRenderer.mTables).mRows).at(0).mFocused = false;
+    data.mFocused = false;
   }
 }
 
-void onKey(WPARAM key, GameDatabase& db, KeyState state) {
+void onKey(WPARAM key, InputArgs& args, KeyState state) {
   const float moveAmount = state == KeyState::Triggered ? 1.0f : 0.0f;
   const bool isDown = state == KeyState::Triggered;
 
-  PlayerTable& players = std::get<PlayerTable>(db.mTables);
-  for(size_t i = 0; i < TableOperations::size(players); ++i) {
-    PlayerKeyboardInput& keyboard = std::get<Row<PlayerKeyboardInput>>(players.mRows).at(i);
+  for(size_t i = 0; i < args.input.size(); ++i) {
+    PlayerKeyboardInput& keyboard = args.input.get<0>(0).at(i);
     keyboard.mRawKeys.push_back(std::make_pair(state, (int)key));
 
-    PlayerInput& input = std::get<Row<PlayerInput>>(players.mRows).at(i);
+    PlayerInput& input = args.input.get<1>(0).at(i);
     switch(key) {
       case 'W': keyboard.mKeys.set((size_t)PlayerKeyboardInput::Key::Up, isDown); break;
       case 'A':keyboard.mKeys.set((size_t)PlayerKeyboardInput::Key::Left, isDown); break;
@@ -83,8 +94,7 @@ void onKey(WPARAM key, GameDatabase& db, KeyState state) {
     }
   }
 
-  CameraTable& cameras = std::get<CameraTable>(db.mTables);
-  for(DebugCameraControl& camera : std::get<Row<DebugCameraControl>>(cameras.mRows).mElements) {
+  args.debugCamera.forEachElement([&](DebugCameraControl& camera) {
     switch(key) {
       case VK_ADD: camera.mAdjustZoom = moveAmount; break;
       case VK_SUBTRACT: camera.mAdjustZoom = -moveAmount; break;
@@ -92,16 +102,15 @@ void onKey(WPARAM key, GameDatabase& db, KeyState state) {
       case 'P': camera.mLoadSnapshot = camera.mLoadSnapshot || isDown; break;
       default: break;
     }
-  }
+  });
 }
 
-void enqueueMouseWheel(GameDatabase& db, float wheelDelta) {
+void enqueueMouseWheel(InputArgs& db, float wheelDelta) {
   db;wheelDelta;
 }
 
-LRESULT onWMInput(GameDatabase& db, HWND wnd, LPARAM l) {
-  PlayerTable& players = std::get<PlayerTable>(db.mTables);
-  auto& keyboards = std::get<Row<PlayerKeyboardInput>>(players.mRows);
+LRESULT onWMInput(InputArgs& args, HWND wnd, LPARAM l) {
+  auto& keyboards = args.input.get<0>(0);
   if(!keyboards.size()) {
     return 0;
   }
@@ -162,9 +171,8 @@ LRESULT onWMInput(GameDatabase& db, HWND wnd, LPARAM l) {
   return 0;
 }
 
-void onChar(GameDatabase& db, WPARAM w) {
-  PlayerTable& players = std::get<PlayerTable>(db.mTables);
-  auto& keyboards = std::get<Row<PlayerKeyboardInput>>(players.mRows);
+void onChar(InputArgs& args, WPARAM w) {
+  auto& keyboards = args.input.get<0>(0);
   if(!keyboards.size()) {
     return;
   }
@@ -175,13 +183,13 @@ void onChar(GameDatabase& db, WPARAM w) {
   }
 }
 
-void resetInput(GameDatabase& db) {
-  for(PlayerKeyboardInput& input : std::get<Row<PlayerKeyboardInput>>(std::get<PlayerTable>(db.mTables).mRows).mElements) {
+void resetInput(InputArgs& args) {
+  args.input.forEachElement([](PlayerKeyboardInput& input, PlayerInput&) {
     input.mRawKeys.clear();
     input.mRawWheelDelta = 0.0f;
     input.mRawMouseDeltaPixels = glm::vec2{ 0.0f };
     input.mRawText.clear();
-  }
+  });
 }
 
 void doKey(WPARAM w, LPARAM l) {
@@ -192,17 +200,17 @@ void doKey(WPARAM w, LPARAM l) {
   const BOOL wasKeyDown = (keyFlags & KF_REPEAT) == KF_REPEAT;
   const BOOL isKeyReleased = (keyFlags & KF_UP) == KF_UP;
   if(isKeyReleased) {
-    onKey(w, APP->mGame, KeyState::Released);
+    onKey(w, APP->input, KeyState::Released);
   }
   //Only send if key wasn't already down, thereby ignoring repeat inputs
   else if(!wasKeyDown) {
-    onKey(w, APP->mGame, KeyState::Triggered);
+    onKey(w, APP->input, KeyState::Triggered);
   }
 }
 
 void doMouseKey(WPARAM w, KeyState state) {
   if(APP) {
-    onKey(w, APP->mGame, state);
+    onKey(w, APP->input, state);
   }
 }
 
@@ -251,19 +259,19 @@ LRESULT CALLBACK mainProc(HWND wnd, UINT msg, WPARAM w, LPARAM l) {
 
     case WM_MOUSEWHEEL:
       if(APP) {
-        enqueueMouseWheel(APP->mGame, static_cast<float>(GET_WHEEL_DELTA_WPARAM(w)));
+        enqueueMouseWheel(APP->input, static_cast<float>(GET_WHEEL_DELTA_WPARAM(w)));
       }
       break;
 
     case WM_INPUT:
       if(APP && w == RIM_INPUT) {
-        return onWMInput(APP->mGame, wnd, l);
+        return onWMInput(APP->input, wnd, l);
       }
       break;
 
     case WM_CHAR:
       if(APP) {
-        onChar(APP->mGame, w);
+        onChar(APP->input, w);
       }
       break;
   }
@@ -314,53 +322,56 @@ int mainLoop(const char* args) {
   float msToNS = 1000000.0f;
   int targetFrameTimeNS = 16*static_cast<int>(msToNS);
 
+  FileSystem& fs = APP->builder->createTask().query<SharedRow<FileSystem>>().get<0>(0).at();
+
   std::string strArgs(args ? std::string(args) : std::string());
-  GlobalGameData& globals = std::get<GlobalGameData>(APP->mGame.mTables);
   if(!strArgs.empty()) {
-    std::get<SharedRow<FileSystem>>(globals.mRows).at().mRoot = strArgs;
+    fs.mRoot = strArgs;
   }
   else {
-    std::get<SharedRow<FileSystem>>(globals.mRows).at().mRoot = "data/";
+    fs.mRoot = "data/";
   }
 
-  Simulation::init(APP->mGame);
+  //Simulation::init(APP->mGame);
 
   SimulationPhases phases;
   phases.root = TaskBuilder::addEndSync(TaskNode::create([](...){}));
-  phases.renderRequests = std::invoke([] {
-    PROFILE_SCOPE("app", "render requests");
-    auto root = TaskNode::createMainThreadPinned([] {
-      Renderer::processRequests(APP->mGame, APP->mRenderer);
-    });
-    TaskRange clear = Renderer::clearRenderRequests(APP->mGame);
-    root->mChildren.push_back(clear.mBegin);
-    return TaskBuilder::buildDependencies(root);
-  });
-  phases.renderExtraction = Renderer::extractRenderables(APP->mGame, APP->mRenderer);
+  //phases.renderRequests = std::invoke([] {
+    //PROFILE_SCOPE("app", "render requests");
+    //auto root = TaskNode::createMainThreadPinned([] {
+
+    //Renderer::processRequests(APP->mGame, APP->mRenderer);
+
+    //});
+    Renderer::clearRenderRequests(*APP->builder);
+    //root->mChildren.push_back(clear.mBegin);
+    //return TaskBuilder::buildDependencies(root);
+  //});
+  //phases.renderExtraction = Renderer::extractRenderables(APP->mGame, APP->mRenderer);
   phases.render = TaskBuilder::addEndSync(TaskNode::createMainThreadPinned([] {
     PROFILE_SCOPE("app", "render");
-    Renderer::render(APP->mRenderer);
+    //Renderer::render(APP->mRenderer);
   }));
   phases.imgui = TaskBuilder::addEndSync(TaskNode::createMainThreadPinned([] {
 #ifdef IMGUI_ENABLED
       PROFILE_SCOPE("app", "imgui");
       static ImguiData imguidata;
-      ImguiModule::update(imguidata, APP->mGame, APP->mRenderer);
-      resetInput(APP->mGame);
+      //ImguiModule::update(imguidata, APP->mGame, APP->mRenderer);
+      //resetInput(APP->mGame);
 #endif
   }));
   phases.swapBuffers = TaskBuilder::addEndSync(TaskNode::createMainThreadPinned([] {
       PROFILE_SCOPE("app", "swap");
-      Renderer::swapBuffers(APP->mRenderer);
+      //Renderer::swapBuffers(APP->mRenderer);
   }));
 
   //Allow the simulation to prepend or append to any of the phases
-  Simulation::buildUpdateTasks(APP->mGame, phases);
+  //Simulation::buildUpdateTasks(APP->mGame, phases);
   assert(phases.simulation.mBegin && "Simulation should be filled by buildUpdateTasks");
 
   Simulation::linkUpdateTasks(phases);
 
-  Scheduler& scheduler = Simulation::_getScheduler(APP->mGame);
+  //Scheduler& scheduler = Simulation::_getScheduler(APP->mGame);
   TaskRange appTasks = TaskBuilder::buildDependencies(phases.root.mBegin);
 
   auto lastFrameStart = std::chrono::high_resolution_clock::now();
@@ -383,8 +394,8 @@ int mainLoop(const char* args) {
       if(exit)
         break;
 
-      appTasks.mBegin->mTask.addToPipe(scheduler.mScheduler);
-      scheduler.mScheduler.WaitforTask(appTasks.mEnd->mTask.get());
+      //appTasks.mBegin->mTask.addToPipe(scheduler.mScheduler);
+      //scheduler.mScheduler.WaitforTask(appTasks.mEnd->mTask.get());
       PROFILE_UPDATE(nullptr);
     }
 
@@ -420,10 +431,20 @@ void enableRawMouseInput() {
   }
 }
 
+std::unique_ptr<IDatabase> createDatabase() {
+  std::unique_ptr<IDatabase> game = GameData::create();
+  std::unique_ptr<IAppBuilder> tempBuilder = GameBuilder::create(*game);
+  std::unique_ptr<IDatabase> renderer = Renderer::createDatabase(tempBuilder->createTask());
+  return DBReflect::merge(std::move(game), std::move(renderer));
+}
+
 int WINAPI WinMain(HINSTANCE hinstance, HINSTANCE, LPSTR lpCmdLine, int nCmdShow) {
   AppDatabase app;
-  //Default construct the graphcis context
-  auto context = TableOperations::addToTable(std::get<GraphicsContext>(app.mRenderer.mTables));
+  app.combined = createDatabase();
+  app.window = &app.combined->getRuntime().query<Row<WindowData>>().get<0>(0);
+  app.builder = GameBuilder::create(*app.combined);
+  app.input.input = app.combined->getRuntime().query<Row<PlayerKeyboardInput>, Row<PlayerInput>>();
+  app.input.debugCamera = app.combined->getRuntime().query<Row<DebugCameraControl>>();
   APP = &app;
 
   createConsole();
@@ -444,9 +465,8 @@ int WINAPI WinMain(HINSTANCE hinstance, HINSTANCE, LPSTR lpCmdLine, int nCmdShow
   UpdateWindow(wnd);
 
   enableRawMouseInput();
-  context.get<1>().mWindow = wnd;
-  Renderer::initDeviceContext(context);
-  Renderer::initGame(app.mGame, app.mRenderer);
+  Renderer::initDeviceContext(wnd, app.builder->createTask());
+  Renderer::initGame(app.builder->createTask());
   int exitCode = mainLoop(lpCmdLine);
 
   APP = nullptr;

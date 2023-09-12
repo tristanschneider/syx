@@ -72,9 +72,11 @@ struct RendererDB {
 };
 
 namespace Renderer {
-  void initDeviceContext(GraphicsContext::ElementRef& context);
   //Creates the renderer database using information from the game database
-  std::unique_ptr<IDatabase> initGame(IAppBuilder& builder);
+  std::unique_ptr<IDatabase> createDatabase(RuntimeDatabaseTaskBuilder&& builder);
+  //Called after creating the database and a window has been created
+  void initDeviceContext(HWND window, RuntimeDatabaseTaskBuilder&& builder);
+  void initGame(RuntimeDatabaseTaskBuilder&& builder);
   void processRequests(IAppBuilder& builder);
   void extractRenderables(IAppBuilder& builder);
   TaskRange extractRenderables(const GameDatabase& db, RendererDatabase& renderDB);

@@ -12,6 +12,10 @@ struct dbDetails {
     return result;
   }
 
+  static constexpr size_t bitsToContain(size_t value) {
+    return constexprLog2(value);
+  }
+
   static constexpr size_t maskFirstBits(size_t numBits) {
     return (size_t(1) << numBits) - 1;
   }

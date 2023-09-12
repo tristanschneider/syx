@@ -306,26 +306,6 @@ namespace {
   }
 }
 
-void Renderer::initDeviceContext(GraphicsContext::ElementRef& context) {
-  OGLState& state = context.get<0>();
-  WindowData& window = context.get<1>();
-
-  state.mDeviceContext = GetDC(window.mWindow);
-  _initDevice(state.mDeviceContext, 32, 24, 8, 0);
-  state.mGLContext = createGLContext(state.mDeviceContext);
-  glewInit();
-
-  glEnable(GL_DEBUG_OUTPUT);
-  glDebugMessageCallback(&debugCallback, nullptr);
-  const char* versionGL =  (char*)glGetString(GL_VERSION);
-  printf("version %s", versionGL);
-
-  state.mQuadShader = Shader::loadShader(QuadShader::vs, QuadShader::ps);
-  state.mQuadVertexBuffer = _createQuadBuffers();
-
-  state.mDebug = _createDebugDrawer();
-}
-
 struct RenderDB : IDatabase {
   RenderDB(size_t quadPassCount)
     : runtime(getArgs(quadPassCount)) {
@@ -351,13 +331,12 @@ struct RenderDB : IDatabase {
   RuntimeDatabase runtime;
 };
 
-std::unique_ptr<IDatabase> Renderer::initGame(IAppBuilder& builder) {
-  auto temp = builder.createTask();
-  auto sprites = temp.query<const Row<CubeSprite>>();
+std::unique_ptr<IDatabase> createDatabase(RuntimeDatabaseTaskBuilder&& builder) {
+  auto sprites = builder.query<const Row<CubeSprite>>();
   const size_t quadPassCount = sprites.matchingTableIDs.size();
   //Create the database with the required number of quad pass tables
   auto result = std::make_unique<RenderDB>(quadPassCount);
-  auto resolver = temp.getResolver<const IsImmobile>();
+  auto resolver = builder.getResolver<const IsImmobile>();
 
   //Fill in the quad pass tables
   sprites.forEachRow([&, i{ size_t(0) }](const UnpackedDatabaseElementID& id, const Row<CubeSprite>&) mutable {
@@ -370,6 +349,46 @@ std::unique_ptr<IDatabase> Renderer::initGame(IAppBuilder& builder) {
   });
 
   return result;
+}
+
+void Renderer::initDeviceContext(HWND window, RuntimeDatabaseTaskBuilder&& builder) {
+  auto q = builder.query<Row<OGLState>, Row<WindowData>>();
+  auto modifier = builder.getAnyModifier();
+  const size_t ctx = modifier->addElements(q.matchingTableIDs.front(), 1);
+
+  OGLState& state = q.get<0>(0).at(ctx);
+  WindowData& windowData = q.get<1>(0).at(ctx);
+  windowData.mWindow = window;
+
+  state.mDeviceContext = GetDC(windowData.mWindow);
+  _initDevice(state.mDeviceContext, 32, 24, 8, 0);
+  state.mGLContext = createGLContext(state.mDeviceContext);
+  glewInit();
+
+  glEnable(GL_DEBUG_OUTPUT);
+  glDebugMessageCallback(&debugCallback, nullptr);
+  const char* versionGL =  (char*)glGetString(GL_VERSION);
+  printf("version %s", versionGL);
+
+  state.mQuadShader = Shader::loadShader(QuadShader::vs, QuadShader::ps);
+  state.mQuadVertexBuffer = _createQuadBuffers();
+
+  state.mDebug = _createDebugDrawer();
+}
+
+void Renderer::initGame(RuntimeDatabaseTaskBuilder&& builder) {
+  auto sprites = builder.query<const Row<CubeSprite>>();
+  auto resolver = builder.getResolver<const IsImmobile>();
+  auto quadPasses = builder.query<QuadPassTable::Pass, QuadPassTable::IsImmobile>();
+  OGLState& ogl = builder.query<Row<OGLState>>().get<0>(0).at(0);
+  //Should match based on createDatabase resizing to this
+  assert(sprites.matchingTableIDs.size() == quadPasses.matchingTableIDs.size());
+
+  //Fill in the quad pass tables
+  for(size_t i = 0 ; i < sprites.matchingTableIDs.size(); ++i) {
+    quadPasses.get<0>(i).at().mQuadUniforms = _createQuadUniforms(ogl.mQuadShader);
+    quadPasses.get<1>(i).at() = resolver->tryGetRow<const IsImmobile>(sprites.matchingTableIDs[i]) != nullptr;
+  }
 }
 
 void _renderDebug(RendererDatabase& renderDB, float aspectRatio) {
