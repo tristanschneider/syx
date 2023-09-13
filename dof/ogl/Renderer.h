@@ -28,6 +28,7 @@ struct OGLState {
   HDC mDeviceContext{};
   GLuint mQuadShader{};
   GLuint mQuadVertexBuffer{};
+  //TODO: remove
   //One pass for each viewEachRow of quads. Could be compile time
   std::vector<QuadPassTable::Type> mQuadPasses;
   //Could be table but the amount of cameras isn't worth it

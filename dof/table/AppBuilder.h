@@ -141,6 +141,16 @@ public:
     return result;
   }
 
+  template<class... Rows>
+  QueryResult<Rows...> query(const UnpackedDatabaseElementID& table) {
+    QueryResult<Rows...> result = db.query<Rows...>(table);
+    if(result.size()) {
+      const std::vector<UnpackedDatabaseElementID> t{ table };
+      (log<Rows>(t), ...);
+    }
+    return result;
+  }
+
   std::unique_ptr<ITableModifier> getModifierForTable(const UnpackedDatabaseElementID& table);
   std::unique_ptr<IAnyTableModifier> getAnyModifier();
 

@@ -1,6 +1,7 @@
 #include "Precompile.h"
 #include "Renderer.h"
 
+#include "CommonTasks.h"
 #include "Queries.h"
 #include "RendererTableAdapters.h"
 #include "STBInterface.h"
@@ -429,32 +430,49 @@ std::shared_ptr<TaskNode> copyDataTask(const SrcRow& src, DstRow& dst) {
   });
 }
 
-/*
-    std::get<Row<OGLState>>(table.mRows).mElements.data(),
-    std::get<Row<WindowData>>(table.mRows).mElements.data(),
 
-* */
-/*
 void Renderer::extractRenderables(IAppBuilder& builder) {
   auto temp = builder.createTask();
   auto sharedTextureSprites = temp.query<const Row<CubeSprite>, const SharedRow<TextureReference>>();
   auto globals = temp.query<Row<OGLState>>();
-  std::vector<QuadPassTable::Type>& quadPasses = std::get<0>(globals.getSingleton())->at(0).mQuadPasses;
+  auto passes = temp.query<Row<QuadPassTable::Pass>>();
+  assert(sharedTextureSprites.size() == passes.size());
 
-  //First resize the table
-  {
-    auto task = builder.createTask();
-    auto ogl = task.query<Row<OGLState>>();
-    auto sprites = task.query<const Row<CubeSprite>>();
-    task.setCallback([ogl, sprites](AppTaskArgs&) mutable {
-        auto& passes = std::get<0>(ogl.getSingleton())->at(0).mQuadPasses;
-        for(size_t i = 0; i < passes.size(); ++i) {
-         passes[i]. std::get<0>(sprites.get(i))->size():
-        }
-    });
+  //Quads
+  for(size_t pass = 0; pass < passes.size(); ++pass) {
+    const UnpackedDatabaseElementID& passID = passes.matchingTableIDs[pass];
+    const UnpackedDatabaseElementID& spriteID = sharedTextureSprites.matchingTableIDs[pass];
+
+    //Resize the quad pass table to match the size of its paired sprite table
+    {
+      auto task = builder.createTask();
+      std::shared_ptr<ITableModifier> modifier = task.getModifierForTable(passes.matchingTableIDs[pass]);
+      auto query = task.query<const Row<CubeSprite>>(spriteID);
+      task.setCallback([modifier, query](AppTaskArgs&) mutable {
+        modifier->resize(query.get<0>(0).size());
+      });
+      builder.submitTask(std::move(task));
+    }
+    //Copy each row of data to resized table
+    CommonTasks::moveOrCopyRowSameSize<FloatRow<Tags::Pos, Tags::X>, QuadPassTable::PosX>(builder, spriteID, passID);
+    CommonTasks::moveOrCopyRowSameSize<FloatRow<Tags::Pos, Tags::Y>, QuadPassTable::PosY>(builder, spriteID, passID);
+    CommonTasks::moveOrCopyRowSameSize<FloatRow<Tags::Rot, Tags::CosAngle>, QuadPassTable::RotX>(builder, spriteID, passID);
+    CommonTasks::moveOrCopyRowSameSize<FloatRow<Tags::Rot, Tags::SinAngle>, QuadPassTable::RotY>(builder, spriteID, passID);
+    CommonTasks::moveOrCopyRowSameSize<Row<CubeSprite>, QuadPassTable::UV>(builder, spriteID, passID);
+    CommonTasks::moveOrCopyRowSameSize<SharedRow<TextureReference>, QuadPassTable::Texture>(builder, spriteID, passID);
+    //If this table has velocity, add those tasks as well
+    if(temp.query<FloatRow<Tags::LinVel, Tags::X>, FloatRow<Tags::Angle, Tags::Angle>>(spriteID).size()) {
+      CommonTasks::moveOrCopyRowSameSize<FloatRow<Tags::LinVel, Tags::X>, QuadPassTable::LinVelX>(builder, spriteID, passID);
+      CommonTasks::moveOrCopyRowSameSize<FloatRow<Tags::LinVel, Tags::Y>, QuadPassTable::LinVelY>(builder, spriteID, passID);
+      CommonTasks::moveOrCopyRowSameSize<FloatRow<Tags::AngVel, Tags::Angle>, QuadPassTable::AngVel>(builder, spriteID, passID);
+    }
+    //Tint is also optional
+    if(temp.query<Tint>(spriteID).size()) {
+      CommonTasks::moveOrCopyRowSameSize<Tint, QuadPassTable::Tint>(builder, spriteID, passID);
+    }
   }
 }
-*/
+/*
 TaskRange Renderer::extractRenderables(const GameDatabase& db, RendererDatabase& renderDB) {
 
   auto root = TaskNode::create([](...){});
@@ -466,48 +484,7 @@ TaskRange Renderer::extractRenderables(const GameDatabase& db, RendererDatabase&
 
   size_t passIndex = 0;
   //Quads
-  Queries::viewEachRowWithTableID<FloatRow<Tags::Pos, Tags::X>,
-    FloatRow<Tags::Pos, Tags::Y>,
-    FloatRow<Tags::Rot, Tags::CosAngle>,
-    FloatRow<Tags::Rot, Tags::SinAngle>,
-    Row<CubeSprite>,
-    SharedRow<TextureReference>>(db,
-      [&](GameDatabase::ElementID id,
-        const FloatRow<Tags::Pos, Tags::X>& posX,
-        const FloatRow<Tags::Pos, Tags::Y>& posY,
-        const FloatRow<Tags::Rot, Tags::CosAngle>& rotationX,
-        const FloatRow<Tags::Rot, Tags::SinAngle>& rotationY,
-        const Row<CubeSprite>& sprite,
-        const SharedRow<TextureReference>& texture) {
 
-      QuadPassTable::Type& passTable = quadPasses[passIndex++];
-      QuadPassAdapter pass = RendererTableAdapters::getQuadPass(passTable);
-      //First resize the table
-      auto passRoot = TaskNode::create([&passTable, &posX](...) {
-         TableOperations::resizeTable(passTable, posX.size());
-      });
-      root->mChildren.push_back(passRoot);
-      //Then copy each row of data to it
-      passRoot->mChildren.push_back(copyDataTask(posX, *pass.posX));
-      passRoot->mChildren.push_back(copyDataTask(posY, *pass.posY));
-      passRoot->mChildren.push_back(copyDataTask(rotationX, *pass.rotX));
-      passRoot->mChildren.push_back(copyDataTask(rotationY, *pass.rotY));
-      passRoot->mChildren.push_back(copyDataTask(sprite, *pass.uvs));
-      passRoot->mChildren.push_back(TaskNode::create([pass, &texture](...) {
-        pass.texture->at(0) = texture.at(0).mId;
-      }));
-      const auto velX = Queries::getRowInTable<FloatRow<Tags::LinVel, Tags::X>>(db, id);
-      const auto velY = Queries::getRowInTable<FloatRow<Tags::LinVel, Tags::Y>>(db, id);
-      const auto velA = Queries::getRowInTable<FloatRow<Tags::AngVel, Tags::Angle>>(db, id);
-      if(velX && velY && velA) {
-        passRoot->mChildren.push_back(copyDataTask(*velX, *pass.linVelX));
-        passRoot->mChildren.push_back(copyDataTask(*velY, *pass.linVelY));
-        passRoot->mChildren.push_back(copyDataTask(*velA, *pass.angVel));
-      }
-      if(const auto tint = Queries::getRowInTable<Tint>(db, id)) {
-        passRoot->mChildren.push_back(copyDataTask(*tint, *pass.tint));
-      }
-  });
 
   //Debug lines
   auto debug = RendererTableAdapters::getDebug({ renderDB });
@@ -543,7 +520,7 @@ TaskRange Renderer::extractRenderables(const GameDatabase& db, RendererDatabase&
 
   return TaskBuilder::buildDependencies(root);
 }
-
+*/
 void Renderer::clearRenderRequests(IAppBuilder& builder) {
   auto task = builder.createTask();
   auto debugTables = task.query<const Row<DebugPoint>>();
@@ -612,6 +589,7 @@ void Renderer::render(RendererDatabase& renderDB) {
     //Render particles first so that quads can stomp them and take precedence
     ParticleRenderer::renderParticleNormals(data, uniforms, frameIndex);
     ParticleRenderer::renderQuadNormalsBegin(data);
+
     for(auto& passTable : state.mQuadPasses) {
       QuadPass& pass = RendererTableAdapters::getQuadPass(passTable).pass->at();
       //Hack to use the last count since it renders before the buffers are updated by quad drawing.

@@ -150,18 +150,33 @@ public:
       QueryResult<Rows...> result;
       result.matchingTableIDs.reserve(data.tables.size());
       for(size_t i = 0; i < data.tables.size(); ++i) {
-        std::tuple<Rows*...> rows{ data.tables[i].tryGet<std::decay_t<Rows>>()... };
-        const bool allFound = (std::get<Rows*>(rows) && ...);
-        if(allFound) {
-          result.matchingTableIDs.push_back(getTableID(i));
-          (std::get<std::vector<Rows*>>(result.rows).push_back(std::get<std::decay_t<Rows*>>(rows)), ...);
-        }
+        _tryAddResult(i, result);
       }
       return result;
     }
   }
 
+  template<class... Rows>
+  QueryResult<Rows...> query(const UnpackedDatabaseElementID& id) {
+    QueryResult<Rows...> result;
+    const size_t index = id.getTableIndex();
+    if(index < data.tables.size()) {
+      _tryAddResult(index, result);
+    }
+    return result;
+  }
+
 private:
+  template<class... Rows>
+  void _tryAddResult(size_t index, QueryResult<Rows...>& result) {
+      std::tuple<Rows*...> rows{ data.tables[index].tryGet<std::decay_t<Rows>>()... };
+      const bool allFound = (std::get<Rows*>(rows) && ...);
+      if(allFound) {
+        result.matchingTableIDs.push_back(getTableID(index));
+        (std::get<std::vector<Rows*>>(result.rows).push_back(std::get<std::decay_t<Rows*>>(rows)), ...);
+      }
+  }
+
   UnpackedDatabaseElementID getTableID(size_t index) const;
 
   RuntimeDatabaseArgs data;
