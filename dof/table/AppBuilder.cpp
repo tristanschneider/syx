@@ -116,6 +116,14 @@ std::unique_ptr<ITableModifier> RuntimeDatabaseTaskBuilder::getModifierForTable(
   return nullptr;
 }
 
+std::vector<std::shared_ptr<ITableModifier>> RuntimeDatabaseTaskBuilder::getModifiersForTables(const std::vector<UnpackedDatabaseElementID>& tables) {
+  std::vector<std::shared_ptr<ITableModifier>> result(tables.size());
+  for(size_t i = 0; i < result.size(); ++i) {
+    result[i] = getModifierForTable(tables[i]);
+  }
+  return result;
+}
+
 std::unique_ptr<IAnyTableModifier> RuntimeDatabaseTaskBuilder::getAnyModifier() {
   QueryResult<> q = db.query();
   for(auto&& t : q.matchingTableIDs) {

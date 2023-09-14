@@ -152,6 +152,7 @@ public:
   }
 
   std::unique_ptr<ITableModifier> getModifierForTable(const UnpackedDatabaseElementID& table);
+  std::vector<std::shared_ptr<ITableModifier>> getModifiersForTables(const std::vector<UnpackedDatabaseElementID>& tables);
   std::unique_ptr<IAnyTableModifier> getAnyModifier();
 
   void setPinning(AppTaskPinning::Variant pinning);

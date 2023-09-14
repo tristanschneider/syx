@@ -119,6 +119,18 @@ struct QueryResult {
     return *get<TupleIndex>().at(tableIndex);
   }
 
+  //Return the first element in the first table
+  template<size_t TupleIndex = 0>
+  auto* tryGetSingletonElement() {
+    decltype(&get<TupleIndex>().at(0)->at(0)) result = nullptr;
+    if(auto& foundRows = get<TupleIndex>(); foundRows.size()) {
+      if(auto* foundRow = foundRows.at(0); foundRow->size()) {
+        result = &foundRow->at(0);
+      }
+    }
+    return result;
+  }
+
   size_t size() const {
     return matchingTableIDs.size();
   }

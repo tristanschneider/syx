@@ -471,56 +471,61 @@ void Renderer::extractRenderables(IAppBuilder& builder) {
       CommonTasks::moveOrCopyRowSameSize<Tint, QuadPassTable::Tint>(builder, spriteID, passID);
     }
   }
-}
-/*
-TaskRange Renderer::extractRenderables(const GameDatabase& db, RendererDatabase& renderDB) {
-
-  auto root = TaskNode::create([](...){});
-
-  RendererGlobalsAdapter globals = RendererTableAdapters::getGlobals({ renderDB });
-  assert(globals.size);
-
-  auto& quadPasses = globals.state->mQuadPasses;
-
-  size_t passIndex = 0;
-  //Quads
-
 
   //Debug lines
-  auto debug = RendererTableAdapters::getDebug({ renderDB });
-  const auto& lineTable = std::get<DebugLineTable>(db.mTables);
-  const auto& linesToDraw = std::get<Row<DebugPoint>>(lineTable.mRows);
-  auto debugRoot = TaskNode::create([table{debug.table}, &linesToDraw](...) {
-    TableOperations::resizeTable(*table, linesToDraw.size());
-  });
-  root->mChildren.push_back(debugRoot);
-  debugRoot->mChildren.push_back(copyDataTask(linesToDraw, *debug.points));
+  {
+    auto task = builder.createTask();
+    auto src = task.query<const Row<DebugPoint>>();
+    auto dst = task.query<DebugLinePassTable::Points>();
+    assert(src.size() == dst.size());
+    auto modifiers = task.getModifiersForTables(dst.matchingTableIDs);
+    task.setCallback([src, dst, modifiers](AppTaskArgs&) mutable {
+      for(size_t i = 0; i < modifiers.size(); ++i) {
+        modifiers[i]->resize(src.size());
+        CommonTasks::Now::moveOrCopyRow(src.get<0>(i), dst.get<0>(i), 0);
+      }
+    });
+    builder.submitTask(std::move(task));
+  }
 
   //Cameras
-  auto& renderCameras = globals.state->mCameras;
-  root->mChildren.push_back(TaskNode::create([&renderCameras, &db](...) {
-    //Lazy since presumably there's just one
-    renderCameras.clear();
-    Queries::viewEachRow(db, [&](
-        const Row<Camera>& cameras,
-        const FloatRow<Tags::Pos, Tags::X>& posX,
-        const FloatRow<Tags::Pos, Tags::Y>& posY
-      ) {
-        for(size_t i = 0; i < cameras.size(); ++i) {
-          renderCameras.push_back({ glm::vec2{ posX.at(i), posY.at(i) }, cameras.at(i) });
-        }
+  {
+    auto task = builder.createTask();
+    auto src = task.query<const Row<Camera>,
+      const FloatRow<Tags::Pos, Tags::X>,
+      const FloatRow<Tags::Pos, Tags::Y>>();
+    auto dst = task.query<Row<OGLState>>();
+    assert(dst.size() == 1);
+    task.setCallback([src, dst](AppTaskArgs&) mutable {
+      //Lazy since presumably there's just one
+      OGLState* state = dst.tryGetSingletonElement();
+      if(!state) {
+        return;
+      }
+      src.forEachElement([state](const Camera& camera, const float& posX, const float& posY) {
+        state->mCameras.push_back({ glm::vec2{ posX, posY }, camera });
+      });
     });
-  }));
+    builder.submitTask(std::move(task));
+  }
 
   //Globals
-  root->mChildren.push_back(TaskNode::create([&db, globals](...) {
-    auto& g = std::get<GlobalGameData>(db.mTables);
-    globals.state->mSceneState = std::get<SharedRow<SceneState>>(g.mRows).at();
-  }));
-
-  return TaskBuilder::buildDependencies(root);
+  {
+    auto task = builder.createTask();
+    auto src = task.query<const SharedRow<SceneState>>();
+    auto dst = task.query<Row<OGLState>>();
+    assert(dst.size() == 1);
+    task.setCallback([src, dst](AppTaskArgs&) mutable {
+      const SceneState* scene = src.tryGetSingletonElement();
+      OGLState* state = dst.tryGetSingletonElement();
+      if(scene && state) {
+        state->mSceneState = *scene;
+      }
+    });
+    builder.submitTask(std::move(task));
+  }
 }
-*/
+
 void Renderer::clearRenderRequests(IAppBuilder& builder) {
   auto task = builder.createTask();
   auto debugTables = task.query<const Row<DebugPoint>>();
