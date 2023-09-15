@@ -94,6 +94,7 @@ namespace CommonTasks {
   template<class SrcRow, class DstRow>
   void moveOrCopyRowSameSize(IAppBuilder& builder, const UnpackedDatabaseElementID& srcTable, const UnpackedDatabaseElementID& dstTable) {
     auto task = builder.createTask();
+    task.setName(FUNC_NAME);
     auto src = task.query<const SrcRow>(srcTable);
     auto dst = task.query<DstRow>(dstTable);
     assert(src.size() && dst.size());

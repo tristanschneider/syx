@@ -112,6 +112,7 @@ struct AppTaskMetadata {
   std::vector<TableAccess> writes;
   //Addition and removal to particular tables
   std::vector<UnpackedDatabaseElementID> tableModifiers;
+  std::string_view name;
 };
 
 struct AppTaskWithMetadata {
@@ -155,8 +156,9 @@ public:
   std::vector<std::shared_ptr<ITableModifier>> getModifiersForTables(const std::vector<UnpackedDatabaseElementID>& tables);
   std::unique_ptr<IAnyTableModifier> getAnyModifier();
 
-  void setPinning(AppTaskPinning::Variant pinning);
-  void setCallback(AppTaskCallback&& callback);
+  RuntimeDatabaseTaskBuilder& setPinning(AppTaskPinning::Variant pinning);
+  RuntimeDatabaseTaskBuilder& setCallback(AppTaskCallback&& callback);
+  RuntimeDatabaseTaskBuilder& setName(std::string_view name);
 
   AppTaskWithMetadata finalize()&&;
 

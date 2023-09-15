@@ -28,9 +28,6 @@ struct OGLState {
   HDC mDeviceContext{};
   GLuint mQuadShader{};
   GLuint mQuadVertexBuffer{};
-  //TODO: remove
-  //One pass for each viewEachRow of quads. Could be compile time
-  std::vector<QuadPassTable::Type> mQuadPasses;
   //Could be table but the amount of cameras isn't worth it
   std::vector<RendererCamera> mCameras;
   SceneState mSceneState;
@@ -42,6 +39,7 @@ struct WindowData {
   int mWidth{};
   int mHeight{};
   bool mFocused{};
+  float aspectRatio{};
 };
 
 struct TextureGLHandle {
@@ -80,8 +78,7 @@ namespace Renderer {
   void initGame(RuntimeDatabaseTaskBuilder&& builder);
   void processRequests(IAppBuilder& builder);
   void extractRenderables(IAppBuilder& builder);
-  TaskRange extractRenderables(const GameDatabase& db, RendererDatabase& renderDB);
   void clearRenderRequests(IAppBuilder& builder);
-  void render(RendererDatabase& renderDB);
-  void swapBuffers(RendererDatabase& renderDB);
+  void render(IAppBuilder& builder);
+  void swapBuffers(IAppBuilder& builder);
 };

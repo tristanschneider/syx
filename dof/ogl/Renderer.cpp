@@ -269,11 +269,13 @@ namespace {
     });
   }
 
-  GLuint _getTextureByID(size_t id, const TexturesTable& textures) {
-    auto& handles = std::get<Row<TextureGameHandle>>(textures.mRows).mElements;
-    for(size_t i = 0; i < handles.size(); ++i) {
-      if(handles[i].mID == id) {
-        return std::get<Row<TextureGLHandle>>(textures.mRows).at(i).mHandle;
+  GLuint _getTextureByID(size_t id, QueryResult<const Row<TextureGameHandle>, const Row<TextureGLHandle>>& textures) {
+    for(size_t i = 0; i < textures.size(); ++i) {
+      const auto& handles = textures.get<0>(i).mElements;
+      for(size_t j = 0; j < handles.size(); ++j) {
+        if(handles[j].mID == id) {
+          return textures.get<1>(i).at(j).mHandle;
+        }
       }
     }
     return {};
@@ -392,31 +394,45 @@ void Renderer::initGame(RuntimeDatabaseTaskBuilder&& builder) {
   }
 }
 
-void _renderDebug(RendererDatabase& renderDB, float aspectRatio) {
-  PROFILE_SCOPE("renderer", "debug");
-  OGLState& state = std::get<Row<OGLState>>(std::get<GraphicsContext>(renderDB.mTables).mRows).at(0);
-  DebugDrawer& debug = state.mDebug;
-  auto renderDebug = RendererTableAdapters::getDebug({ renderDB });
-  auto& linesToDraw = *renderDebug.points;
-  if(linesToDraw.size()) {
-    glBindBuffer(GL_ARRAY_BUFFER, debug.mVBO);
-    if(debug.mLastSize < linesToDraw.size()) {
-      glBufferData(GL_ARRAY_BUFFER, sizeof(DebugPoint)*linesToDraw.size(), nullptr, GL_DYNAMIC_DRAW);
-      debug.mLastSize = linesToDraw.size();
-    }
-    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(DebugPoint)*linesToDraw.size(), linesToDraw.mElements.data());
-    glBindVertexArray(debug.mVAO);
-    glUseProgram(debug.mShader);
-    for(const auto& renderCamera : state.mCameras) {
-      glm::mat4 worldToView = _getWorldToView(renderCamera, aspectRatio);
-      glUniformMatrix4fv(debug.mWVPUniform, 1, GL_FALSE, &worldToView[0][0]);
-
-      glDrawArrays(GL_LINES, 0, linesToDraw.size());
+void _renderDebug(IAppBuilder& builder) {
+  auto task = builder.createTask();
+  task.setName("renderDebug").setPinning(AppTaskPinning::MainThread{});
+  auto globals = task.query<Row<OGLState>, const Row<WindowData>>();
+  auto debugLines = task.query<const DebugLinePassTable::Points>();
+  task.setCallback([globals, debugLines](AppTaskArgs&) mutable {
+    PROFILE_SCOPE("renderer", "debug");
+    OGLState* state = globals.tryGetSingletonElement<0>();
+    const WindowData* window = globals.tryGetSingletonElement<1>();
+    if(!state || !window) {
+      return;
     }
 
-    glBindVertexArray(0);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-  }
+    DebugDrawer& debug = state->mDebug;
+    for(size_t i = 0; i < debugLines.size(); ++i) {
+      const auto& linesToDraw = debugLines.get<0>(i);
+      if(linesToDraw.size()) {
+        glBindBuffer(GL_ARRAY_BUFFER, debug.mVBO);
+        if(debug.mLastSize < linesToDraw.size()) {
+          glBufferData(GL_ARRAY_BUFFER, sizeof(DebugPoint)*linesToDraw.size(), nullptr, GL_DYNAMIC_DRAW);
+          debug.mLastSize = linesToDraw.size();
+        }
+        glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(DebugPoint)*linesToDraw.size(), linesToDraw.mElements.data());
+        glBindVertexArray(debug.mVAO);
+        glUseProgram(debug.mShader);
+        for(const auto& renderCamera : state->mCameras) {
+          glm::mat4 worldToView = _getWorldToView(renderCamera, window->aspectRatio);
+          glUniformMatrix4fv(debug.mWVPUniform, 1, GL_FALSE, &worldToView[0][0]);
+
+          glDrawArrays(GL_LINES, 0, linesToDraw.size());
+        }
+
+        glBindVertexArray(0);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+      }
+    }
+    glGetError();
+  });
+  builder.submitTask(std::move(task));
 }
 
 template<class SrcRow, class DstRow>
@@ -446,6 +462,7 @@ void Renderer::extractRenderables(IAppBuilder& builder) {
     //Resize the quad pass table to match the size of its paired sprite table
     {
       auto task = builder.createTask();
+      task.setName("Resize Renderables");
       std::shared_ptr<ITableModifier> modifier = task.getModifierForTable(passes.matchingTableIDs[pass]);
       auto query = task.query<const Row<CubeSprite>>(spriteID);
       task.setCallback([modifier, query](AppTaskArgs&) mutable {
@@ -475,6 +492,7 @@ void Renderer::extractRenderables(IAppBuilder& builder) {
   //Debug lines
   {
     auto task = builder.createTask();
+    task.setName("extract debug");
     auto src = task.query<const Row<DebugPoint>>();
     auto dst = task.query<DebugLinePassTable::Points>();
     assert(src.size() == dst.size());
@@ -496,6 +514,7 @@ void Renderer::extractRenderables(IAppBuilder& builder) {
       const FloatRow<Tags::Pos, Tags::Y>>();
     auto dst = task.query<Row<OGLState>>();
     assert(dst.size() == 1);
+    task.setName("extract cameras");
     task.setCallback([src, dst](AppTaskArgs&) mutable {
       //Lazy since presumably there's just one
       OGLState* state = dst.tryGetSingletonElement();
@@ -515,6 +534,7 @@ void Renderer::extractRenderables(IAppBuilder& builder) {
     auto src = task.query<const SharedRow<SceneState>>();
     auto dst = task.query<Row<OGLState>>();
     assert(dst.size() == 1);
+    task.setName("extract globals");
     task.setCallback([src, dst](AppTaskArgs&) mutable {
       const SceneState* scene = src.tryGetSingletonElement();
       OGLState* state = dst.tryGetSingletonElement();
@@ -528,6 +548,7 @@ void Renderer::extractRenderables(IAppBuilder& builder) {
 
 void Renderer::clearRenderRequests(IAppBuilder& builder) {
   auto task = builder.createTask();
+  task.setName("clear render requests");
   auto debugTables = task.query<const Row<DebugPoint>>();
   std::vector<std::shared_ptr<ITableModifier>> modifiers(debugTables.matchingTableIDs.size());
   for(size_t i = 0; i < debugTables.matchingTableIDs.size(); ++i) {
@@ -545,6 +566,7 @@ void Renderer::clearRenderRequests(IAppBuilder& builder) {
 
 void processRequests(IAppBuilder& builder) {
   auto task = builder.createTask();
+  task.setName("Process Render Requests");
   auto requests = task.query<Row<TextureLoadRequest>>();
   auto textures = task.query<Row<TextureGLHandle>, Row<TextureGameHandle>>();
   std::shared_ptr<ITableModifier> modifier{ task.getModifierForTable(textures.matchingTableIDs[0]) };
@@ -555,170 +577,200 @@ void processRequests(IAppBuilder& builder) {
   builder.submitTask(std::move(task).finalize());
 }
 
-void Renderer::render(RendererDatabase& renderDB) {
-  glGetError();
+void Renderer::render(IAppBuilder& builder) {
+  auto task = builder.createTask();
+  task.setName("Render");
+  auto globals = task.query<Row<OGLState>, Row<WindowData>>();
+  auto quads = task.query<const QuadPassTable::PosX, const QuadPassTable::PosY,
+    const QuadPassTable::RotX, const QuadPassTable::RotY,
+    const QuadPassTable::UV,
+    const QuadPassTable::Texture,
+    const QuadPassTable::LinVelX, const QuadPassTable::LinVelY,
+    const QuadPassTable::AngVel,
+    const QuadPassTable::Tint,
+    QuadPassTable::Pass>();
+  auto textures = task.query<const Row<TextureGameHandle>, const Row<TextureGLHandle>>();
 
-  static bool first = true;
-  static ParticleData data;
-  static size_t frameIndex{};
-  static DebugRenderData debug = Debug::init();
-  ++frameIndex;
-  if(first) {
-    ParticleRenderer::init(data);
-    first = false;
-  }
-
-  OGLState& state = std::get<Row<OGLState>>(std::get<GraphicsContext>(renderDB.mTables).mRows).at(0);
-  const WindowData& window = std::get<Row<WindowData>>(std::get<GraphicsContext>(renderDB.mTables).mRows).at(0);
-
-  glViewport(0, 0, window.mWidth, window.mHeight);
-  const float aspectRatio = window.mHeight ? float(window.mWidth)/float(window.mHeight) : 1.0f;
-
-  glClearColor(0.0f, 0.0f, 1.0f, 0.0f);
-  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-  auto& cameras = state.mCameras;
-  for(const auto& renderCamera : cameras) {
-    PROFILE_SCOPE("renderer", "particles");
-
-    ParticleUniforms uniforms;
-    uniforms.worldToView = _getWorldToView(renderCamera, aspectRatio);
-    const SceneState& scene = state.mSceneState;
-    const glm::vec2 origin = (scene.mBoundaryMin + scene.mBoundaryMax) * 0.5f;
-    const float extraSpaceScalar = 2.5f;
-    //*2 because particle space is NDC, meaning scale of 2: [-1,1]
-    const glm::vec2 scale = (scene.mBoundaryMax - scene.mBoundaryMin) * 0.5f * extraSpaceScalar;
-    uniforms.particleToWorld = glm::translate(glm::vec3(origin.x, origin.y, 0.0f)) * glm::scale(glm::vec3(scale.x, scale.y, 1.0f));
-    uniforms.worldToParticle = glm::inverse(uniforms.particleToWorld);
-
-    ParticleRenderer::renderNormalsBegin(data);
-    //Render particles first so that quads can stomp them and take precedence
-    ParticleRenderer::renderParticleNormals(data, uniforms, frameIndex);
-    ParticleRenderer::renderQuadNormalsBegin(data);
-
-    for(auto& passTable : state.mQuadPasses) {
-      QuadPass& pass = RendererTableAdapters::getQuadPass(passTable).pass->at();
-      //Hack to use the last count since it renders before the buffers are updated by quad drawing.
-      if(pass.mLastCount) {
-        CubeSpriteInfo info;
-        info.count = pass.mLastCount;
-        info.posX = pass.mQuadUniforms.posX;
-        info.posY = pass.mQuadUniforms.posY;
-        info.quadVertexBuffer = state.mQuadVertexBuffer;
-        info.rotX = pass.mQuadUniforms.rotX;
-        info.rotY = pass.mQuadUniforms.rotY;
-        info.velX = pass.mQuadUniforms.velX;
-        info.velY = pass.mQuadUniforms.velY;
-        info.velA = pass.mQuadUniforms.angVel;
-
-        ParticleRenderer::renderNormals(data, uniforms, info);
-      }
+  task.setPinning(AppTaskPinning::MainThread{});
+  task.setCallback([globals, quads, textures](AppTaskArgs&) mutable {
+    OGLState* state = globals.tryGetSingletonElement<0>();
+    WindowData* window = globals.tryGetSingletonElement<1>();
+    if(!state || !window) {
+      return;
     }
-    ParticleRenderer::renderQuadNormalsEnd();
-    ParticleRenderer::renderNormalsEnd();
 
-    ParticleRenderer::update(data, uniforms, frameIndex);
-    glViewport(0, 0, window.mWidth, window.mHeight);
-    ParticleRenderer::render(data, uniforms, frameIndex);
-  }
+    glGetError();
 
-  glUseProgram(state.mQuadShader);
-  for(const auto& renderCamera : cameras) {
-    PROFILE_SCOPE("renderer", "geometry");
-    for(auto& passTable : state.mQuadPasses) {
-      auto passAdapter = RendererTableAdapters::getQuadPass(passTable);
-      auto& posX = *passAdapter.posX;
-      auto& posY = *passAdapter.posY;
-      auto& rotationX = *passAdapter.rotX;
-      auto& rotationY = *passAdapter.rotY;
-      auto& sprite = *passAdapter.uvs;
-      auto& texture = *passAdapter.texture;
-      auto& velX = *passAdapter.linVelX;
-      auto& velY = *passAdapter.linVelY;
-      auto& velA = *passAdapter.angVel;
-      auto& tint = *passAdapter.tint;
-      auto& pass = passAdapter.pass->at();
+    static bool first = true;
+    static ParticleData data;
+    static size_t frameIndex{};
+    static DebugRenderData debug = Debug::init();
+    ++frameIndex;
+    if(first) {
+      ParticleRenderer::init(data);
+      first = false;
+    }
 
-      size_t count = posX.size();
-      pass.mLastCount = count;
-      if(!count) {
-        continue;
+    glViewport(0, 0, window->mWidth, window->mHeight);
+    const float aspectRatio = window->mHeight ? float(window->mWidth)/float(window->mHeight) : 1.0f;
+    window->aspectRatio = aspectRatio;
+
+    glClearColor(0.0f, 0.0f, 1.0f, 0.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+    auto& cameras = state->mCameras;
+    for(const auto& renderCamera : cameras) {
+      PROFILE_SCOPE("renderer", "particles");
+
+      ParticleUniforms uniforms;
+      uniforms.worldToView = _getWorldToView(renderCamera, aspectRatio);
+      const SceneState& scene = state->mSceneState;
+      const glm::vec2 origin = (scene.mBoundaryMin + scene.mBoundaryMax) * 0.5f;
+      const float extraSpaceScalar = 2.5f;
+      //*2 because particle space is NDC, meaning scale of 2: [-1,1]
+      const glm::vec2 scale = (scene.mBoundaryMax - scene.mBoundaryMin) * 0.5f * extraSpaceScalar;
+      uniforms.particleToWorld = glm::translate(glm::vec3(origin.x, origin.y, 0.0f)) * glm::scale(glm::vec3(scale.x, scale.y, 1.0f));
+      uniforms.worldToParticle = glm::inverse(uniforms.particleToWorld);
+
+      ParticleRenderer::renderNormalsBegin(data);
+      //Render particles first so that quads can stomp them and take precedence
+      ParticleRenderer::renderParticleNormals(data, uniforms, frameIndex);
+      ParticleRenderer::renderQuadNormalsBegin(data);
+
+      for(size_t i = 0; i < quads.size(); ++i) {
+        const QuadPass& pass = quads.get<QuadPassTable::Pass>(i).at();
+        //Hack to use the last count since it renders before the buffers are updated by quad drawing.
+        if(pass.mLastCount) {
+          CubeSpriteInfo info;
+          info.count = pass.mLastCount;
+          info.posX = pass.mQuadUniforms.posX;
+          info.posY = pass.mQuadUniforms.posY;
+          info.quadVertexBuffer = state->mQuadVertexBuffer;
+          info.rotX = pass.mQuadUniforms.rotX;
+          info.rotY = pass.mQuadUniforms.rotY;
+          info.velX = pass.mQuadUniforms.velX;
+          info.velY = pass.mQuadUniforms.velY;
+          info.velA = pass.mQuadUniforms.angVel;
+
+          ParticleRenderer::renderNormals(data, uniforms, info);
+        }
       }
 
-      GLuint oglTexture = _getTextureByID(texture.at(), std::get<TexturesTable>(renderDB.mTables));
-      if(!oglTexture) {
-        continue;
+      ParticleRenderer::renderQuadNormalsEnd();
+      ParticleRenderer::renderNormalsEnd();
+
+      ParticleRenderer::update(data, uniforms, frameIndex);
+      glViewport(0, 0, window->mWidth, window->mHeight);
+      ParticleRenderer::render(data, uniforms, frameIndex);
+    }
+
+    glUseProgram(state->mQuadShader);
+    for(const auto& renderCamera : cameras) {
+      PROFILE_SCOPE("renderer", "geometry");
+      for(size_t i = 0; i < quads.size(); ++i) {
+        //auto passAdapter = RendererTableAdapters::getQuadPass(passTable);
+        auto& posX = quads.get<const QuadPassTable::PosX>(i);
+        auto& posY = quads.get<const QuadPassTable::PosY>(i);
+        auto& rotationX = quads.get<const QuadPassTable::RotX>(i);
+        auto& rotationY = quads.get<const QuadPassTable::RotY>(i);
+        auto& sprite = quads.get<const QuadPassTable::UV>(i);
+        auto& texture = quads.get<const QuadPassTable::Texture>(i);
+        auto& velX = quads.get<const QuadPassTable::LinVelX>(i);
+        auto& velY = quads.get<const QuadPassTable::LinVelY>(i);
+        auto& velA = quads.get<const QuadPassTable::AngVel>(i);
+        auto& tint = quads.get<const QuadPassTable::Tint>(i);
+        QuadPass& pass = quads.get<QuadPassTable::Pass>(i).at();
+
+        size_t count = posX.size();
+        pass.mLastCount = count;
+        if(!count) {
+          continue;
+        }
+
+        GLuint oglTexture = _getTextureByID(texture.at(), textures);
+        if(!oglTexture) {
+          continue;
+        }
+
+        const size_t floatSize = sizeof(float)*count;
+        glBindBuffer(GL_TEXTURE_BUFFER, pass.mQuadUniforms.posX.buffer);
+        glBufferData(GL_TEXTURE_BUFFER, floatSize, posX.mElements.data(), GL_STATIC_DRAW);
+        glBindBuffer(GL_TEXTURE_BUFFER, pass.mQuadUniforms.posY.buffer);
+        glBufferData(GL_TEXTURE_BUFFER, floatSize, posY.mElements.data(), GL_STATIC_DRAW);
+        glBindBuffer(GL_TEXTURE_BUFFER, pass.mQuadUniforms.rotX.buffer);
+        glBufferData(GL_TEXTURE_BUFFER, floatSize, rotationX.mElements.data(), GL_STATIC_DRAW);
+        glBindBuffer(GL_TEXTURE_BUFFER, pass.mQuadUniforms.rotY.buffer);
+        glBufferData(GL_TEXTURE_BUFFER, floatSize, rotationY.mElements.data(), GL_STATIC_DRAW);
+
+        glBindBuffer(GL_TEXTURE_BUFFER, pass.mQuadUniforms.velX.buffer);
+        glBufferData(GL_TEXTURE_BUFFER, floatSize, velX.mElements.data(), GL_STATIC_DRAW);
+        glBindBuffer(GL_TEXTURE_BUFFER, pass.mQuadUniforms.velY.buffer);
+        glBufferData(GL_TEXTURE_BUFFER, floatSize, velY.mElements.data(), GL_STATIC_DRAW);
+        glBindBuffer(GL_TEXTURE_BUFFER, pass.mQuadUniforms.angVel.buffer);
+        glBufferData(GL_TEXTURE_BUFFER, floatSize, velA.mElements.data(), GL_STATIC_DRAW);
+
+        glBindBuffer(GL_TEXTURE_BUFFER, pass.mQuadUniforms.tint.buffer);
+        glBufferData(GL_TEXTURE_BUFFER, floatSize*4, tint.mElements.data(), GL_STATIC_DRAW);
+
+        //TODO: doesn't change every frame
+        glBindBuffer(GL_TEXTURE_BUFFER, pass.mQuadUniforms.uv.buffer);
+        glBufferData(GL_TEXTURE_BUFFER, sizeof(float)*count*4, sprite.mElements.data(), GL_STATIC_DRAW);
+
+        glBindBuffer(GL_ARRAY_BUFFER, state->mQuadVertexBuffer);
+        //Could tie these to a vao, but that would also require and index buffer all of which seems like overkill
+        QuadVertexAttributes::bind();
+
+        const glm::mat4 worldToView = _getWorldToView(renderCamera, aspectRatio);
+
+        glUniformMatrix4fv(pass.mQuadUniforms.worldToView, 1, GL_FALSE, &worldToView[0][0]);
+        int textureIndex = 0;
+        _bindTextureSamplerUniform(pass.mQuadUniforms.posX, GL_R32F, textureIndex++);
+        _bindTextureSamplerUniform(pass.mQuadUniforms.posY, GL_R32F, textureIndex++);
+        _bindTextureSamplerUniform(pass.mQuadUniforms.rotX, GL_R32F, textureIndex++);
+        _bindTextureSamplerUniform(pass.mQuadUniforms.rotY, GL_R32F, textureIndex++);
+        _bindTextureSamplerUniform(pass.mQuadUniforms.uv, GL_RGBA32F, textureIndex++);
+        _bindTextureSamplerUniform(pass.mQuadUniforms.tint, GL_RGBA32F, textureIndex++);
+        glActiveTexture(GL_TEXTURE0 + textureIndex);
+        glBindTexture(GL_TEXTURE_2D, oglTexture);
+        glUniform1i(pass.mQuadUniforms.texture, textureIndex++);
+
+        glDrawArraysInstanced(GL_TRIANGLES, 0, 6, GLsizei(count));
       }
-
-      const size_t floatSize = sizeof(float)*count;
-      glBindBuffer(GL_TEXTURE_BUFFER, pass.mQuadUniforms.posX.buffer);
-      glBufferData(GL_TEXTURE_BUFFER, floatSize, posX.mElements.data(), GL_STATIC_DRAW);
-      glBindBuffer(GL_TEXTURE_BUFFER, pass.mQuadUniforms.posY.buffer);
-      glBufferData(GL_TEXTURE_BUFFER, floatSize, posY.mElements.data(), GL_STATIC_DRAW);
-      glBindBuffer(GL_TEXTURE_BUFFER, pass.mQuadUniforms.rotX.buffer);
-      glBufferData(GL_TEXTURE_BUFFER, floatSize, rotationX.mElements.data(), GL_STATIC_DRAW);
-      glBindBuffer(GL_TEXTURE_BUFFER, pass.mQuadUniforms.rotY.buffer);
-      glBufferData(GL_TEXTURE_BUFFER, floatSize, rotationY.mElements.data(), GL_STATIC_DRAW);
-
-      glBindBuffer(GL_TEXTURE_BUFFER, pass.mQuadUniforms.velX.buffer);
-      glBufferData(GL_TEXTURE_BUFFER, floatSize, velX.mElements.data(), GL_STATIC_DRAW);
-      glBindBuffer(GL_TEXTURE_BUFFER, pass.mQuadUniforms.velY.buffer);
-      glBufferData(GL_TEXTURE_BUFFER, floatSize, velY.mElements.data(), GL_STATIC_DRAW);
-      glBindBuffer(GL_TEXTURE_BUFFER, pass.mQuadUniforms.angVel.buffer);
-      glBufferData(GL_TEXTURE_BUFFER, floatSize, velA.mElements.data(), GL_STATIC_DRAW);
-
-      glBindBuffer(GL_TEXTURE_BUFFER, pass.mQuadUniforms.tint.buffer);
-      glBufferData(GL_TEXTURE_BUFFER, floatSize*4, tint.mElements.data(), GL_STATIC_DRAW);
-
-      //TODO: doesn't change every frame
-      glBindBuffer(GL_TEXTURE_BUFFER, pass.mQuadUniforms.uv.buffer);
-      glBufferData(GL_TEXTURE_BUFFER, sizeof(float)*count*4, sprite.mElements.data(), GL_STATIC_DRAW);
-
-      glBindBuffer(GL_ARRAY_BUFFER, state.mQuadVertexBuffer);
-      //Could tie these to a vao, but that would also require and index buffer all of which seems like overkill
-      QuadVertexAttributes::bind();
-
-      const glm::mat4 worldToView = _getWorldToView(renderCamera, aspectRatio);
-
-      glUniformMatrix4fv(pass.mQuadUniforms.worldToView, 1, GL_FALSE, &worldToView[0][0]);
-      int textureIndex = 0;
-      _bindTextureSamplerUniform(pass.mQuadUniforms.posX, GL_R32F, textureIndex++);
-      _bindTextureSamplerUniform(pass.mQuadUniforms.posY, GL_R32F, textureIndex++);
-      _bindTextureSamplerUniform(pass.mQuadUniforms.rotX, GL_R32F, textureIndex++);
-      _bindTextureSamplerUniform(pass.mQuadUniforms.rotY, GL_R32F, textureIndex++);
-      _bindTextureSamplerUniform(pass.mQuadUniforms.uv, GL_RGBA32F, textureIndex++);
-      _bindTextureSamplerUniform(pass.mQuadUniforms.tint, GL_RGBA32F, textureIndex++);
-      glActiveTexture(GL_TEXTURE0 + textureIndex);
-      glBindTexture(GL_TEXTURE_2D, oglTexture);
-      glUniform1i(pass.mQuadUniforms.texture, textureIndex++);
-
-      glDrawArraysInstanced(GL_TRIANGLES, 0, 6, GLsizei(count));
     }
-  }
 
-  /* TODO: move to simulation with imgui setting
-  static bool renderBorders = true;
-  if(renderBorders) {
-    auto& debugTable = std::get<DebugLineTable>(db.mTables);
-    const SceneState& scene = Simulation::_getSceneState(db);
-    const glm::vec2 bl = scene.mBoundaryMin;
-    const glm::vec2 ul = glm::vec2(scene.mBoundaryMin.x, scene.mBoundaryMax.y);
-    const glm::vec2 ur = scene.mBoundaryMax;
-    const glm::vec2 br = glm::vec2(scene.mBoundaryMax.x, scene.mBoundaryMin.y);
+    /* TODO: move to simulation with imgui setting
+    static bool renderBorders = true;
+    if(renderBorders) {
+      auto& debugTable = std::get<DebugLineTable>(db.mTables);
+      const SceneState& scene = Simulation::_getSceneState(db);
+      const glm::vec2 bl = scene.mBoundaryMin;
+      const glm::vec2 ul = glm::vec2(scene.mBoundaryMin.x, scene.mBoundaryMax.y);
+      const glm::vec2 ur = scene.mBoundaryMax;
+      const glm::vec2 br = glm::vec2(scene.mBoundaryMax.x, scene.mBoundaryMin.y);
 
-    std::array points{ bl, ul, ul, ur, ur, br, br, bl };
-    for(const auto& p : points) {
-      TableOperations::addToTable(debugTable).get<0>().mPos = p;
+      std::array points{ bl, ul, ul, ur, ur, br, br, bl };
+      for(const auto& p : points) {
+        TableOperations::addToTable(debugTable).get<0>().mPos = p;
+      }
     }
-  }
-  */
-  _renderDebug(renderDB, aspectRatio);
+    */
 
-  //Debug::pictureInPicture(debug, { 50, 50 }, { 350, 350 }, data.mSceneTexture);
-  glGetError();
+    //Debug::pictureInPicture(debug, { 50, 50 }, { 350, 350 }, data.mSceneTexture);
+    glGetError();
+  });
+  builder.submitTask(std::move(task));
+
+  _renderDebug(builder);
 }
 
-void Renderer::swapBuffers(RendererDatabase& renderDB) {
-  PROFILE_SCOPE("renderer", "swap");
-  OGLState& state = std::get<Row<OGLState>>(std::get<GraphicsContext>(renderDB.mTables).mRows).at(0);
-  SwapBuffers(state.mDeviceContext);
+void Renderer::swapBuffers(IAppBuilder& builder) {
+  auto task = builder.createTask();
+  task.setName("swapBuffers").setPinning(AppTaskPinning::MainThread{});
+  auto query = task.query<Row<OGLState>>();
+  task.setCallback([query](AppTaskArgs&) mutable {
+    PROFILE_SCOPE("renderer", "swap");
+    if(const OGLState* gl = query.tryGetSingletonElement()) {
+      SwapBuffers(gl->mDeviceContext);
+    }
+  });
+  builder.submitTask(std::move(task));
 }

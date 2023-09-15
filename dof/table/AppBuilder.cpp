@@ -132,10 +132,17 @@ std::unique_ptr<IAnyTableModifier> RuntimeDatabaseTaskBuilder::getAnyModifier() 
   return std::make_unique<AnyTableModifier::ATM>(db);
 }
 
-void RuntimeDatabaseTaskBuilder::setPinning(AppTaskPinning::Variant pinning) {
+RuntimeDatabaseTaskBuilder& RuntimeDatabaseTaskBuilder::setPinning(AppTaskPinning::Variant pinning) {
   builtTask.task.pinning = std::move(pinning);
+  return *this;
 }
 
-void RuntimeDatabaseTaskBuilder::setCallback(AppTaskCallback&& callback) {
+RuntimeDatabaseTaskBuilder& RuntimeDatabaseTaskBuilder::setCallback(AppTaskCallback&& callback) {
   builtTask.task.callback = std::move(callback);
+  return *this;
+}
+
+RuntimeDatabaseTaskBuilder& RuntimeDatabaseTaskBuilder::setName(std::string_view name) {
+  builtTask.data.name = name;
+  return *this;
 }

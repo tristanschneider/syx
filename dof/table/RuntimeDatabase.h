@@ -119,6 +119,12 @@ struct QueryResult {
     return *get<TupleIndex>().at(tableIndex);
   }
 
+  //Get a row by row type
+  template<class RowT>
+  RowT& get(size_t tableIndex) {
+    return *std::get<std::vector<RowT*>>(rows).at(tableIndex);
+  }
+
   //Return the first element in the first table
   template<size_t TupleIndex = 0>
   auto* tryGetSingletonElement() {

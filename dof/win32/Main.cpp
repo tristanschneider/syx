@@ -335,23 +335,15 @@ int mainLoop(const char* args) {
   //Simulation::init(APP->mGame);
 
   SimulationPhases phases;
-  phases.root = TaskBuilder::addEndSync(TaskNode::create([](...){}));
-  //phases.renderRequests = std::invoke([] {
-    //PROFILE_SCOPE("app", "render requests");
-    //auto root = TaskNode::createMainThreadPinned([] {
+  IAppBuilder& builder = *APP->builder;
 
-    //Renderer::processRequests(APP->mGame, APP->mRenderer);
-
-    //});
-    Renderer::clearRenderRequests(*APP->builder);
-    //root->mChildren.push_back(clear.mBegin);
-    //return TaskBuilder::buildDependencies(root);
-  //});
-  //phases.renderExtraction = Renderer::extractRenderables(APP->mGame, APP->mRenderer);
-  phases.render = TaskBuilder::addEndSync(TaskNode::createMainThreadPinned([] {
-    PROFILE_SCOPE("app", "render");
-    //Renderer::render(APP->mRenderer);
-  }));
+  Renderer::processRequests(builder);
+  Renderer::clearRenderRequests(builder);
+  Renderer::extractRenderables(builder);
+  //imgui
+  //gameplay
+  Renderer::render(builder);
+  Renderer::swapBuffers(builder);
   phases.imgui = TaskBuilder::addEndSync(TaskNode::createMainThreadPinned([] {
 #ifdef IMGUI_ENABLED
       PROFILE_SCOPE("app", "imgui");
@@ -359,10 +351,6 @@ int mainLoop(const char* args) {
       //ImguiModule::update(imguidata, APP->mGame, APP->mRenderer);
       //resetInput(APP->mGame);
 #endif
-  }));
-  phases.swapBuffers = TaskBuilder::addEndSync(TaskNode::createMainThreadPinned([] {
-      PROFILE_SCOPE("app", "swap");
-      //Renderer::swapBuffers(APP->mRenderer);
   }));
 
   //Allow the simulation to prepend or append to any of the phases
