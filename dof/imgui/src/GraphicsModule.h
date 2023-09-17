@@ -1,7 +1,7 @@
 #pragma once
 
-struct GameDB;
+class IAppBuilder;
 
-struct GraphicsModule {
-  static void update(GameDB db);
+namespace GraphicsModule {
+  void update(IAppBuilder& builder);
 };

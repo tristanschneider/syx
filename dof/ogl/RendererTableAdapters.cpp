@@ -20,12 +20,11 @@ QuadPassAdapter RendererTableAdapters::getQuadPass(QuadPassTable::Type& table) {
   };
 }
 
-RendererGlobalsAdapter RendererTableAdapters::getGlobals(RendererDB db) {
-  auto& table = std::get<GraphicsContext>(db.db.mTables);
+RendererGlobalsAdapter getGlobals(RuntimeDatabaseTaskBuilder& task) {
+  auto q = task.query<Row<OGLState>, Row<WindowData>>();
   return {
-    std::get<Row<OGLState>>(table.mRows).mElements.data(),
-    std::get<Row<WindowData>>(table.mRows).mElements.data(),
-    TableOperations::size(table)
+    q.tryGetSingletonElement<0>(),
+    q.tryGetSingletonElement<1>()
   };
 }
 

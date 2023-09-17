@@ -10,9 +10,7 @@
 #include "PhysicsModule.h"
 #include "GraphicsModule.h"
 #include "DebugModule.h"
-
-ImguiData::~ImguiData() = default;
-ImguiData::ImguiData() = default;
+#include "RendererTableAdapters.h"
 
 struct ImguiImpl {
   GLuint mShader{};
@@ -23,10 +21,32 @@ struct ImguiImpl {
   GLint mProjMtx{};
   GLint mTexture{};
   GLint mAlphaOffset{};
-  bool mEnabled = false;
 };
 
-namespace {
+struct ImguiEnabled : SharedRow<bool> {};
+struct ImguiData : SharedRow<ImguiImpl> {};
+
+struct AllImgui {
+  bool* enabled{};
+  ImguiImpl* impl{};
+};
+
+AllImgui queryAllImgui(RuntimeDatabaseTaskBuilder& task) {
+  auto q = task.query<ImguiEnabled, ImguiData>();
+  return {
+    q.tryGetSingletonElement<0>(),
+    q.tryGetSingletonElement<1>()
+  };
+}
+
+using ImguiDB = Database<
+  Table<
+    ImguiEnabled,
+    ImguiData
+  >
+>;
+
+namespace ImGuiModule {
   const char* vsSrc =
       "#version 330\n"
       "uniform mat4 ProjMtx;\n"
@@ -68,10 +88,9 @@ namespace {
   #undef OFFSETOF
   }
 
-  void initRendering(ImguiImpl& imgui, const RendererDatabase& db) {
-    const auto& ogl = std::get<Row<OGLState>>(std::get<GraphicsContext>(db.mTables).mRows);
-    if(!ogl.size() || !ogl.at(0).mDeviceContext || !ogl.at(0).mGLContext) {
-      return;
+  bool initRendering(ImguiImpl& imgui, const OGLState& ogl) {
+    if(!ogl.mDeviceContext || !ogl.mGLContext) {
+      return false;
     }
 
     imgui.mShader = Shader::loadShader(vsSrc, psSrc);
@@ -110,63 +129,65 @@ namespace {
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 
-    imgui.mEnabled = true;
+    return true;
   }
 
-  void updateWindow(ImguiImpl& imgui, const RendererDatabase& db) {
+  void updateWindow(AllImgui& imgui, const RendererGlobalsAdapter& globals) {
     auto& io = ImGui::GetIO();
-    if(const auto& windows = std::get<Row<WindowData>>(std::get<GraphicsContext>(db.mTables).mRows); windows.size()) {
-      const auto& window = windows.at(0);
+    if(globals) {
+      const auto& window = *globals.window;
       io.DeltaTime = 1.0f/60.0f;
       io.DisplaySize.x = static_cast<float>(window.mWidth);
       io.DisplaySize.y = static_cast<float>(window.mHeight);
       io.DisplayFramebufferScale = ImVec2(1.f, 1.f);
-      if(!imgui.mEnabled) {
-        initRendering(imgui, db);
-      }
-    }
-  }
-
-  void updateInput(GameDatabase& db) {
-    auto& io = ImGui::GetIO();
-    const PlayerTable& players = std::get<PlayerTable>(db.mTables);
-    const auto& keyboards = std::get<Row<PlayerKeyboardInput>>(players.mRows);
-    if(keyboards.size()) {
-      const PlayerKeyboardInput& keyboard = keyboards.at(0);
-      for(const std::pair<KeyState, int>& key : keyboard.mRawKeys) {
-        const bool down = key.first == KeyState::Triggered;
-        switch(key.second) {
-          case VK_LBUTTON: io.AddMouseButtonEvent(ImGuiMouseButton_Left, down); break;
-          case VK_RBUTTON: io.AddMouseButtonEvent(ImGuiMouseButton_Right, down); break;
-          case VK_MBUTTON: io.AddMouseButtonEvent(ImGuiMouseButton_Middle, down); break;
-          case VK_TAB: io.AddKeyEvent(ImGuiKey_Tab, down); break;
-          case VK_LEFT: io.AddKeyEvent(ImGuiKey_LeftArrow, down); break;
-          case VK_RIGHT: io.AddKeyEvent(ImGuiKey_RightArrow, down); break;
-          case VK_UP: io.AddKeyEvent(ImGuiKey_UpArrow, down); break;
-          case VK_DOWN: io.AddKeyEvent(ImGuiKey_DownArrow, down); break;
-          case VK_PRIOR: io.AddKeyEvent(ImGuiKey_PageUp, down); break;
-          case VK_HOME: io.AddKeyEvent(ImGuiKey_Home, down); break;
-          case VK_END: io.AddKeyEvent(ImGuiKey_End, down); break;
-          case VK_DELETE: io.AddKeyEvent(ImGuiKey_Delete, down); break;
-          case VK_BACK: io.AddKeyEvent(ImGuiKey_Backspace, down); break;
-          case VK_RETURN: io.AddKeyEvent(ImGuiKey_Enter, down); break;
-          case VK_ESCAPE: io.AddKeyEvent(ImGuiKey_Escape, down); break;
-          default:
-            break;
+      if(!*imgui.enabled) {
+        if(initRendering(*imgui.impl, *globals.state)) {
+          *imgui.enabled = true;
         }
       }
-      io.AddInputCharactersUTF8(keyboard.mRawText.c_str());
-      io.AddMousePosEvent(keyboard.mRawMousePixels.x, keyboard.mRawMousePixels.y);
-      io.AddMouseWheelEvent(0.0f, keyboard.mRawWheelDelta);
     }
   }
 
-  void updateModules(GameDatabase& db) {
-    GameDB gdb{ db };
-    GameModule::update(gdb);
-    DebugModule::update(gdb);
-    GraphicsModule::update(gdb);
-    PhysicsModule::update(gdb);
+  void updateInput(IAppBuilder& builder) {
+    auto task = builder.createTask();
+    task.setName("Imgui Input").setPinning(AppTaskPinning::MainThread{});
+    const bool* enabled = ImguiModule::queryIsEnabled(task);
+    auto input = task.query<const Row<PlayerKeyboardInput>>();
+
+    task.setCallback([enabled, input](AppTaskArgs&) mutable {
+      if(!*enabled) {
+        return;
+      }
+      auto& io = ImGui::GetIO();
+      input.forEachElement([&io](const PlayerKeyboardInput& keyboard) {
+        for(const std::pair<KeyState, int>& key : keyboard.mRawKeys) {
+          const bool down = key.first == KeyState::Triggered;
+          switch(key.second) {
+            case VK_LBUTTON: io.AddMouseButtonEvent(ImGuiMouseButton_Left, down); break;
+            case VK_RBUTTON: io.AddMouseButtonEvent(ImGuiMouseButton_Right, down); break;
+            case VK_MBUTTON: io.AddMouseButtonEvent(ImGuiMouseButton_Middle, down); break;
+            case VK_TAB: io.AddKeyEvent(ImGuiKey_Tab, down); break;
+            case VK_LEFT: io.AddKeyEvent(ImGuiKey_LeftArrow, down); break;
+            case VK_RIGHT: io.AddKeyEvent(ImGuiKey_RightArrow, down); break;
+            case VK_UP: io.AddKeyEvent(ImGuiKey_UpArrow, down); break;
+            case VK_DOWN: io.AddKeyEvent(ImGuiKey_DownArrow, down); break;
+            case VK_PRIOR: io.AddKeyEvent(ImGuiKey_PageUp, down); break;
+            case VK_HOME: io.AddKeyEvent(ImGuiKey_Home, down); break;
+            case VK_END: io.AddKeyEvent(ImGuiKey_End, down); break;
+            case VK_DELETE: io.AddKeyEvent(ImGuiKey_Delete, down); break;
+            case VK_BACK: io.AddKeyEvent(ImGuiKey_Backspace, down); break;
+            case VK_RETURN: io.AddKeyEvent(ImGuiKey_Enter, down); break;
+            case VK_ESCAPE: io.AddKeyEvent(ImGuiKey_Escape, down); break;
+            default:
+              break;
+          }
+        }
+        io.AddInputCharactersUTF8(keyboard.mRawText.c_str());
+        io.AddMousePosEvent(keyboard.mRawMousePixels.x, keyboard.mRawMousePixels.y);
+        io.AddMouseWheelEvent(0.0f, keyboard.mRawWheelDelta);
+      });
+    });
+    builder.submitTask(std::move(task));
   }
 
   void render(ImguiImpl& imgui) {
@@ -245,25 +266,64 @@ namespace {
     glUseProgram(0);
     glBindVertexArray(imgui.mVA);
   }
-}
 
-void ImguiModule::update(ImguiData& data, GameDatabase& db, RendererDatabase& renderDB) {
-  if(!ImGui::GetCurrentContext() || !data.mImpl) {
-    data.mImpl = std::make_unique<ImguiImpl>();
-    ImGui::CreateContext();
+  void updateBase(IAppBuilder& builder) {
+    auto task = builder.createTask();
+    task.setName("Imgui Base").setPinning(AppTaskPinning::MainThread{});
+    //Is acquiring mutable access even though it's only used const
+    //Doesn't matter at the moment since the tasks are all main thread pinned anyway
+    RendererGlobalsAdapter globals = RendererTableAdapters::getGlobals(task);
+    AllImgui context = queryAllImgui(task);
+    assert(context.enabled && context.impl && "Context expected to always exist in database");
+    task.setCallback([globals, context](AppTaskArgs&) mutable {
+      if(!ImGui::GetCurrentContext()) {
+        ImGui::CreateContext();
+      }
+
+      if(*context.enabled) {
+        ImGui::NewFrame();
+      }
+
+      updateWindow(context, globals);
+    });
+    builder.submitTask(std::move(task));
   }
 
-  const bool enabled = data.mImpl->mEnabled;
+  void updateModules(IAppBuilder& builder) {
+    updateInput(builder);
 
-  if(enabled) {
-    ImGui::NewFrame();
+    GameModule::update(builder);
+    DebugModule::update(builder);
+    GraphicsModule::update(builder);
+    PhysicsModule::update(builder);
   }
 
-  updateWindow(*data.mImpl, renderDB);
+  void updateRendering(IAppBuilder& builder) {
+    auto task = builder.createTask();
+    task.setName("Imgui Render").setPinning(AppTaskPinning::MainThread{});
+    auto q = task.query<ImguiData>();
+    const bool* enabled = ImguiModule::queryIsEnabled(task);
+    task.setCallback([q, enabled](AppTaskArgs&) mutable {
+      ImguiImpl* impl = q.tryGetSingletonElement();
+      if(impl && *enabled) {
+        render(*impl);
+      }
+    });
+    builder.submitTask(std::move(task));
+  }
 
-  if(enabled) {
-    updateInput(db);
-    updateModules(db);
-    render(*data.mImpl);
+  void update(IAppBuilder& builder) {
+    updateBase(builder);
+    updateModules(builder);
+    updateRendering(builder);
+  }
+
+  const bool* queryIsEnabled(RuntimeDatabaseTaskBuilder& task) {
+    auto q = task.query<const ImguiEnabled>();
+    return q.tryGetSingletonElement();
+  }
+
+  std::unique_ptr<IDatabase> createDatabase(RuntimeDatabaseTaskBuilder&&) {
+    return DBReflect::createDatabase<ImguiDB>();
   }
 }

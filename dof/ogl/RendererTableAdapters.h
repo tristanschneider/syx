@@ -23,10 +23,14 @@ struct QuadPassAdapter {
 struct OGLState;
 struct WindowData;
 
+//Assumes only one window/context exists
 struct RendererGlobalsAdapter {
+  operator bool() const {
+    return state && window;
+  }
+
   OGLState* state{};
   WindowData* window{};
-  size_t size{};
 };
 
 struct RenderDebugAdapter {
@@ -37,6 +41,6 @@ struct RenderDebugAdapter {
 
 struct RendererTableAdapters {
   static QuadPassAdapter getQuadPass(QuadPassTable::Type& table);
-  static RendererGlobalsAdapter getGlobals(RendererDB db);
+  static RendererGlobalsAdapter getGlobals(RuntimeDatabaseTaskBuilder& task);
   static RenderDebugAdapter getDebug(RendererDB db);
 };

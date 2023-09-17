@@ -2,7 +2,6 @@
 #include "DebugModule.h"
 
 #include "imgui.h"
-#include "Simulation.h"
 
-void DebugModule::update(GameDB) {
+void DebugModule::update(IAppBuilder&) {
 }

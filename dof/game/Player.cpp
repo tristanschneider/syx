@@ -12,6 +12,7 @@
 #include "DebugDrawer.h"
 #include <random>
 #include "glm/gtx/norm.hpp"
+#include "AppBuilder.h"
 
 namespace Player {
   using namespace Tags;
@@ -71,12 +72,11 @@ namespace Player {
     initAbility(game);
   }
 
-  void initAbility(GameDB db) {
-    ConfigAdapter cfg = TableAdapters::getConfig(db);
-    //cfg.game->ability.pushAbility
-    PlayerAdapter player = TableAdapters::getPlayer(db);
-    for(PlayerInput& input : *player.input) {
-      *input.ability1 = Config::getAbility(cfg.game->ability.pushAbility.ability);
+  void initAbility(Config::GameConfig& config, QueryResultRow<Row<PlayerInput>>& input) {
+    for(auto&& row : input) {
+      for(PlayerInput& in : *row) {
+        *in.ability1 = Config::getAbility(config.ability.pushAbility.ability);
+      }
     }
   }
 

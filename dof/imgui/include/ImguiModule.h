@@ -3,14 +3,11 @@
 #include "Renderer.h"
 #include "Simulation.h"
 
-struct ImguiImpl;
+namespace ImguiModule {
+  //Used for modules to query if imgui is ready to accept commands
+  const bool* queryIsEnabled(RuntimeDatabaseTaskBuilder& task);
 
-struct ImguiData {
-  ImguiData();
-  ~ImguiData();
-  std::unique_ptr<ImguiImpl> mImpl;
-};
+  std::unique_ptr<IDatabase> createDatabase(RuntimeDatabaseTaskBuilder&& builder);
 
-struct ImguiModule {
-  static void update(ImguiData& data, GameDatabase& db, RendererDatabase& renderDB);
+  void update(IAppBuilder& builder);
 };

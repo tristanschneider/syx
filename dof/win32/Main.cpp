@@ -183,12 +183,17 @@ void onChar(InputArgs& args, WPARAM w) {
   }
 }
 
-void resetInput(InputArgs& args) {
-  args.input.forEachElement([](PlayerKeyboardInput& input, PlayerInput&) {
-    input.mRawKeys.clear();
-    input.mRawWheelDelta = 0.0f;
-    input.mRawMouseDeltaPixels = glm::vec2{ 0.0f };
-    input.mRawText.clear();
+void resetInput(IAppBuilder& builder) {
+  auto task = builder.createTask();
+  task.setName("reset input");
+  auto input = task.query<Row<PlayerKeyboardInput>>();
+  task.setCallback([input](AppTaskArgs&) mutable {
+    input.forEachElement([](PlayerKeyboardInput& input) {
+      input.mRawKeys.clear();
+      input.mRawWheelDelta = 0.0f;
+      input.mRawMouseDeltaPixels = glm::vec2{ 0.0f };
+      input.mRawText.clear();
+    });
   });
 }
 
@@ -340,18 +345,13 @@ int mainLoop(const char* args) {
   Renderer::processRequests(builder);
   Renderer::clearRenderRequests(builder);
   Renderer::extractRenderables(builder);
-  //imgui
   //gameplay
   Renderer::render(builder);
-  Renderer::swapBuffers(builder);
-  phases.imgui = TaskBuilder::addEndSync(TaskNode::createMainThreadPinned([] {
 #ifdef IMGUI_ENABLED
-      PROFILE_SCOPE("app", "imgui");
-      static ImguiData imguidata;
-      //ImguiModule::update(imguidata, APP->mGame, APP->mRenderer);
-      //resetInput(APP->mGame);
+  ImguiModule::update(builder);
 #endif
-  }));
+  resetInput(builder);
+  Renderer::swapBuffers(builder);
 
   //Allow the simulation to prepend or append to any of the phases
   //Simulation::buildUpdateTasks(APP->mGame, phases);
@@ -423,7 +423,11 @@ std::unique_ptr<IDatabase> createDatabase() {
   std::unique_ptr<IDatabase> game = GameData::create();
   std::unique_ptr<IAppBuilder> tempBuilder = GameBuilder::create(*game);
   std::unique_ptr<IDatabase> renderer = Renderer::createDatabase(tempBuilder->createTask());
-  return DBReflect::merge(std::move(game), std::move(renderer));
+  std::unique_ptr<IDatabase> result = DBReflect::merge(std::move(game), std::move(renderer));
+#ifdef IMGUI_ENABLED
+  result = DBReflect::merge(std::move(result), ImguiModule::createDatabase(tempBuilder->createTask()));
+#endif
+  return result;
 }
 
 int WINAPI WinMain(HINSTANCE hinstance, HINSTANCE, LPSTR lpCmdLine, int nCmdShow) {

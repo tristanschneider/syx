@@ -71,9 +71,12 @@ namespace details {
   };
 };
 
+template<class RowT>
+using QueryResultRow = std::vector<RowT*>;
+
 template<class... Rows>
 struct QueryResult {
-  using TupleT = std::tuple<std::vector<Rows*>...>;
+  using TupleT = std::tuple<QueryResultRow<Rows>...>;
 
   template<class CB>
   void forEachElement(const CB& cb) {
