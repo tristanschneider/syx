@@ -435,18 +435,6 @@ void _renderDebug(IAppBuilder& builder) {
   builder.submitTask(std::move(task));
 }
 
-template<class SrcRow, class DstRow>
-std::shared_ptr<TaskNode> copyDataTask(const SrcRow& src, DstRow& dst) {
-  static_assert(sizeof(src.at(0)) == sizeof(dst.at(0)));
-  PROFILE_SCOPE("renderer", "extract row");
-  return TaskNode::create([&src, &dst](...) {
-    assert(src.size() == dst.size());
-    constexpr size_t size = sizeof(src.at(0));
-    std::memcpy(dst.mElements.data(), src.mElements.data(), dst.size()*size);
-  });
-}
-
-
 void Renderer::extractRenderables(IAppBuilder& builder) {
   auto temp = builder.createTask();
   auto sharedTextureSprites = temp.query<const Row<CubeSprite>, const SharedRow<TextureReference>>();

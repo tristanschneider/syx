@@ -104,6 +104,19 @@ namespace CommonTasks {
     builder.submitTask(std::move(task));
   }
 
+  template<class SrcRow, class DstRow>
+  void copyRowSameSize(IAppBuilder& builder, const UnpackedDatabaseElementID& srcTable, const UnpackedDatabaseElementID& dstTable) {
+    auto task = builder.createTask();
+    task.setName(FUNC_NAME);
+    auto src = task.query<const SrcRow>(srcTable);
+    auto dst = task.query<DstRow>(dstTable);
+    assert(src.size() && dst.size());
+    task.setCallback([src, dst](AppTaskArgs&) mutable {
+      CommonTasks::Now::copyRow(src.get<0>(0), dst.get<0>(0), 0);
+    });
+    builder.submitTask(std::move(task));
+  }
+
   template<class T>
   std::shared_ptr<TaskNode> copyRowSameSize(const Row<T>& src, Row<T>& dst) {
     return TaskNode::create([&src, &dst](...) {

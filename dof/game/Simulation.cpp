@@ -20,6 +20,7 @@
 #include "World.h"
 #include "ability/PlayerAbility.h"
 #include "TableService.h"
+#include "AppBuilder.h"
 
 PlayerInput::PlayerInput()
   : ability1(std::make_unique<Ability::AbilityInput>()) {
@@ -37,56 +38,79 @@ namespace {
     return std::get<SharedRow<StableElementMappings>>(std::get<GlobalGameData>(db.mTables).mRows).at();
   }
 
-  size_t _requestTextureLoad(TextureRequestTable& requests, const char* filename) {
-    TextureLoadRequest* request = &TableOperations::addToTable(requests).get<0>();
-    request->mFileName = filename;
-    request->mImageID = std::hash<std::string>()(request->mFileName);
-    return request->mImageID;
+  size_t _requestTextureLoad(Row<TextureLoadRequest>& textures, ITableModifier& textureModifier, const char* filename) {
+    const size_t i = textureModifier.addElements(1);
+    TextureLoadRequest& request = textures.at(i);
+    request.mFileName = filename;
+    request.mImageID = std::hash<std::string>()(request.mFileName);
+    return request.mImageID;
   }
 
-  SceneState::State _initRequestAssets(GameDatabase& db) {
-    TextureRequestTable& textureRequests = std::get<TextureRequestTable>(db.mTables);
+  void _initRequestAssets(IAppBuilder& builder) {
+    auto task = builder.createTask();
+    task.setName("request assets");
+    SceneState* sceneState = task.query<SharedRow<SceneState>>().tryGetSingletonElement();
+    FileSystem* fs = task.query<SharedRow<FileSystem>>().tryGetSingletonElement();
+    auto textureRequests = task.query<Row<TextureLoadRequest>>();
+    std::shared_ptr<ITableModifier> textureRequestModifier = task.getModifierForTable(textureRequests.matchingTableIDs.front());
+    auto playerTextures = task.query<SharedRow<TextureReference>, const Row<PlayerInput>>();
+    auto fragmentTextures = task.query<SharedRow<TextureReference>, const IsFragment>();
 
-    auto& globals = std::get<GlobalGameData>(db.mTables);
-    SceneState& scene = std::get<0>(globals.mRows).at();
-    const std::string& root = std::get<SharedRow<FileSystem>>(globals.mRows).at().mRoot;
-    scene.mBackgroundImage = _requestTextureLoad(textureRequests, (root + "background.png").c_str());
-    scene.mPlayerImage = _requestTextureLoad(textureRequests, (root + "player.png").c_str());
+    task.setCallback([=](AppTaskArgs&) mutable {
+      if(sceneState->mState != SceneState::State::InitRequestAssets) {
+        return;
+      }
 
-    StaticGameObjectTable& staticObjects = std::get<StaticGameObjectTable>(db.mTables);
-    GameObjectTable& gameobjects = std::get<GameObjectTable>(db.mTables);
-    PlayerTable& players = std::get<PlayerTable>(db.mTables);
-    std::get<SharedRow<TextureReference>>(players.mRows).at().mId = scene.mPlayerImage;
-    //Make all the objects use the background image as their texture
-    std::get<SharedRow<TextureReference>>(gameobjects.mRows).at().mId = scene.mBackgroundImage;
-    std::get<SharedRow<TextureReference>>(staticObjects.mRows).at().mId = scene.mBackgroundImage;
+      const std::string& root = fs->mRoot;
+      sceneState->mBackgroundImage = _requestTextureLoad(textureRequests.get<0>(0), *textureRequestModifier, (root + "background.png").c_str());
+      sceneState->mPlayerImage = _requestTextureLoad(textureRequests.get<0>(0), *textureRequestModifier, (root + "player.png").c_str());
 
-    return SceneState::State::InitAwaitingAssets;
+      for(size_t i = 0; i < playerTextures.size(); ++i) {
+        playerTextures.get<0>(i).at().mId = sceneState->mPlayerImage;
+      }
+      //Make all the objects use the background image as their texture
+      for(size_t i = 0; i < fragmentTextures.size(); ++i) {
+        fragmentTextures.get<0>(i).at().mId = sceneState->mBackgroundImage;
+      }
+
+      sceneState->mState = SceneState::State::InitAwaitingAssets;
+    });
+    builder.submitTask(std::move(task));
   }
 
-  SceneState::State _awaitAssetLoading(GameDatabase& db) {
-    //If there are any in progress requests keep waiting
-    bool any = false;
-    Queries::viewEachRow<Row<TextureLoadRequest>>(db, [&any](const Row<TextureLoadRequest>& requests) {
-      for(const TextureLoadRequest& r : requests.mElements) {
-        if(r.mStatus == RequestStatus::InProgress) {
-          any = true;
-        }
-        else if(r.mStatus == RequestStatus::Failed) {
-          printf("failed to load texture %s", r.mFileName.c_str());
+  void _awaitAssetLoading(IAppBuilder& builder) {
+    auto task = builder.createTask();
+    task.setName("Await Assets");
+    auto textureRequests = task.query<const Row<TextureLoadRequest>>();
+    auto requestModifiers = task.getModifiersForTables(textureRequests.matchingTableIDs);
+    SceneState* sceneState = task.query<SharedRow<SceneState>>().tryGetSingletonElement();
+
+    task.setCallback([textureRequests, requestModifiers, sceneState](AppTaskArgs&) mutable {
+      if(sceneState->mState != SceneState::State::InitAwaitingAssets) {
+        return;
+      }
+      for(size_t i = 0; i < textureRequests.size(); ++i) {
+        for(const TextureLoadRequest& request : textureRequests.get<0>(i).mElements) {
+          switch(request.mStatus) {
+            case RequestStatus::InProgress:
+              //If any requests are pending, keep waiting
+              return;
+            case RequestStatus::Failed:
+              printf("failed to load texture %s", request.mFileName.c_str());
+              continue;
+            case RequestStatus::Succeeded:
+              continue;
+          }
         }
       }
+
+      //If they're all done, clear them and continue on to the next phase
+      for(auto&& modifier : requestModifiers) {
+        modifier->resize(0);
+      }
+      sceneState->mState = SceneState::State::SetupScene;
     });
-
-    //If any requests are pending, keep waiting
-    if(any) {
-      return SceneState::State::InitAwaitingAssets;
-    }
-    //If they're all done, clear them and continue on to the next phase
-    //TODO: clear all tables containing row instead?
-    TableOperations::resizeTable(std::get<TextureRequestTable>(db.mTables), 0);
-
-    return SceneState::State::SetupScene;
+    builder.submitTask(std::move(task));
   }
 
   TaskRange _update(GameDatabase& db) {
@@ -117,9 +141,9 @@ namespace {
 
     //At the end of gameplay, turn any gameplay impulses into stat effects
     //Write (clear) GLinImpulse
-    TaskRange applyGameplayImpulse = GameplayExtract::applyGameplayImpulses({ db });
-    current->mChildren.push_back(applyGameplayImpulse.mBegin);
-    current = applyGameplayImpulse.mEnd;
+    //TaskRange applyGameplayImpulse = GameplayExtract::applyGameplayImpulses({ db });
+    //current->mChildren.push_back(applyGameplayImpulse.mBegin);
+    //current = applyGameplayImpulse.mEnd;
 
     TaskRange physics = PhysicsSimulation::updatePhysics({ db });
     //Physics can start immediately in parallel with gameplay
@@ -178,69 +202,34 @@ ExternalDatabases::~ExternalDatabases() = default;
 ThreadLocalsInstance::ThreadLocalsInstance() = default;
 ThreadLocalsInstance::~ThreadLocalsInstance() = default;
 
-void Simulation::buildUpdateTasks(GameDatabase& db, SimulationPhases& phases) {
-  Scheduler& scheduler = _getScheduler(db);
-
-  PROFILE_SCOPE("simulation", "update");
-
-  GlobalGameData& globals = std::get<GlobalGameData>(db.mTables);
-  SceneState& sceneState = std::get<0>(globals.mRows).at();
-
-  //Gameplay extraction can start at the same time as render extraction but render extraction doesn't need to wait on gameplay to finish
-  TaskRange gameplayExtract = GameplayExtract::extractGameplayData({ db });
-  auto root = gameplayExtract.mBegin;
-  phases.renderExtraction.mBegin->mChildren.push_back(root);
-  auto current = gameplayExtract.mEnd;
-  //Wait for gameplay extract and render request processing before continuing
-  phases.renderRequests.mEnd->mChildren.push_back(current);
-
-  //TODO: generalize this so varied scene types can be supplied
-  current->mChildren.push_back(TaskNode::create([&globals, &sceneState, &db](...) {
-    if(sceneState.mState == SceneState::State::InitRequestAssets) {
-      sceneState.mState = _initRequestAssets(db);
+//Currently this runs at the end of the setup steps and assume they all finish in one frame
+void finishSetupState(IAppBuilder& builder) {
+  auto task = builder.createTask();
+  task.setName("Finish Setup");
+  SceneState* state = task.query<SharedRow<SceneState>>().tryGetSingletonElement();
+  task.setCallback([state](AppTaskArgs&) {
+    if(state->mState == SceneState::State::SetupScene) {
+      state->mState = SceneState::State::Update;
     }
-  }));
-
-  current->mChildren.push_back(TaskNode::create([&globals, &sceneState, &db](...) {
-    if(sceneState.mState == SceneState::State::InitAwaitingAssets) {
-      sceneState.mState = _awaitAssetLoading(db);
-    }
-  }));
-
-  current->mChildren.push_back(TaskNode::create([&globals, &sceneState, &db](...) {
-    if(sceneState.mState == SceneState::State::SetupScene) {
-      Player::setupScene({ db });
-      Fragment::setupScene({ db });
-      sceneState.mState = SceneState::State::Update;
-    }
-  }));
-
-  TaskRange update = _update(db);
-
-  current->mChildren.push_back(TaskNode::create([&sceneState, &scheduler, update](...) {
-    //Either run the update or skip to the end
-    if(sceneState.mState == SceneState::State::Update) {
-      update.mBegin->mTask.addToPipe(scheduler.mScheduler);
-    }
-    else {
-      update.mEnd->mTask.addToPipe(scheduler.mScheduler);
-    }
-  }));
-  auto endOfFrame = TaskNode::create([](...) {});
-
-  TaskBuilder::_addSyncDependency(*current, endOfFrame);
-
-  //Tie completion of update to the end of the frame. This will either run through the entire update via begin
-  //or be just the end if skipped above
-  update.mEnd->mChildren.push_back(endOfFrame);
-
-  //Need to manually build these since they are queued in the above task rather than being a child in the tree
-  TaskBuilder::buildDependencies(update.mBegin);
-
-  phases.simulation.mBegin = root;
-  phases.simulation.mEnd = endOfFrame;
+  });
+  builder.submitTask(std::move(task));
 }
 
+void Simulation::buildUpdateTasks(IAppBuilder& builder) {
+  GameplayExtract::extractGameplayData(builder);
+
+  _initRequestAssets(builder);
+  _awaitAssetLoading(builder);
+
+  Player::setupScene(builder);
+  //Fragment::setupScene(builder);
+  finishSetupState(builder);
+  {
+    //Update
+  }
+}
+
+/* TODO: delete, here for order reference right now
 void Simulation::linkUpdateTasks(SimulationPhases& phases) {
   //First process requests, then extract renderables
   phases.root.mEnd->mChildren.push_back(phases.renderExtraction.mBegin);
@@ -254,6 +243,7 @@ void Simulation::linkUpdateTasks(SimulationPhases& phases) {
   //Once imgui is complete, buffers can be swapped
   phases.imgui.mEnd->mChildren.push_back(phases.swapBuffers.mBegin);
 }
+*/
 
 Scheduler& Simulation::_getScheduler(GameDatabase& db) {
   return std::get<SharedRow<Scheduler>>(std::get<GlobalGameData>(db.mTables).mRows).at();

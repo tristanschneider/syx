@@ -22,6 +22,7 @@ namespace Ability {
   struct AbilityInput;
 }
 
+class IAppBuilder;
 
 //1 if found, otherwise 0. Bitset or better would be nice but interop with ispc would be difficult
 struct FragmentGoalFoundRow : Row<uint8_t> {};
@@ -238,7 +239,10 @@ struct PlayerKeyboardInput {
   std::string mRawText;
 };
 
+struct IsPlayer : SharedRow<char> {};
+
 using PlayerTable = Table<
+  IsPlayer,
   FloatRow<Tags::Pos, Tags::X>,
   FloatRow<Tags::Pos, Tags::Y>,
   FloatRow<Tags::Rot, Tags::CosAngle>,
@@ -334,14 +338,13 @@ struct SimulationPhases {
   TaskRange swapBuffers;
 };
 
-struct Simulation {
-  static void init(GameDatabase& db);
+namespace Simulation {
+  void init(GameDatabase& db);
 
-  static void buildUpdateTasks(GameDatabase& db, SimulationPhases& phases);
-  static void linkUpdateTasks(SimulationPhases& phases);
+  void buildUpdateTasks(IAppBuilder& builder);
 
-  static const SceneState& _getSceneState(GameDatabase& db);
-  static Scheduler& _getScheduler(GameDatabase& db);
+  const SceneState& _getSceneState(GameDatabase& db);
+  Scheduler& _getScheduler(GameDatabase& db);
 
-  static const char* getConfigName();
+  const char* getConfigName();
 };

@@ -1,9 +1,17 @@
 #pragma once
 
+struct AppTaskArgs;
 struct StatEffectDBOwned;
 
+namespace Events {
+  struct EventsImpl;
+};
+
 struct ThreadLocalData {
+  static ThreadLocalData& get(AppTaskArgs& args);
+
   StatEffectDBOwned* statEffects{};
+  Events::EventsImpl* events{};
 };
 
 namespace details {

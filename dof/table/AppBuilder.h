@@ -127,6 +127,7 @@ public:
   using TypeIDT = DBTypeID;
 
   RuntimeDatabaseTaskBuilder(RuntimeDatabase& rdb);
+  ~RuntimeDatabaseTaskBuilder();
 
   template<class... Rows>
   std::unique_ptr<ITableResolver> getResolver() {
@@ -161,6 +162,7 @@ public:
   RuntimeDatabaseTaskBuilder& setName(std::string_view name);
 
   AppTaskWithMetadata finalize()&&;
+  void discard();
 
 private:
   template<class T>
@@ -190,6 +192,7 @@ private:
 
   RuntimeDatabase& db;
   AppTaskWithMetadata builtTask;
+  bool submitted{};
 };
 
 //Top level object used to create all work items in the app

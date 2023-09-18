@@ -4,6 +4,7 @@
 #include <glm/vec4.hpp>
 #include "TableOperations.h"
 
+struct AppTaskArgs;
 struct CurveDefinition;
 struct DebugConfig;
 struct ExternalDatabases;
@@ -232,6 +233,14 @@ namespace TableAdapters {
   ThreadLocalData getThreadLocal(GameDB db, size_t thread);
   ExternalDatabases& getExternalDBs(GameDB db);
   StatEffectDBOwned& getStatEffects(GameDB db);
+
+  VelocityStatEffectAdapter getVelocityEffects(AppTaskArgs& args);
+  PositionStatEffectAdapter getPositionEffects(AppTaskArgs& args);
+  LambdaStatEffectAdapter getLambdaEffects(AppTaskArgs& args);
+  AreaForceStatEffectAdapter getAreaForceEffects(AppTaskArgs& args);
+  FollowTargetByPositionStatEffectAdapter getFollowTargetByPositionEffects(AppTaskArgs& args);
+  FollowTargetByVelocityStatEffectAdapter getFollowTargetByVelocityEffects(AppTaskArgs& args);
+  DamageStatEffectAdapter getDamageEffects(AppTaskArgs& args);
 
   PositionStatEffectAdapter getPositionEffects(GameDB db, size_t thread);
   VelocityStatEffectAdapter getVelocityEffects(GameDB db, size_t thread);

@@ -83,7 +83,16 @@ RuntimeDatabaseTaskBuilder::RuntimeDatabaseTaskBuilder(RuntimeDatabase& rdb)
   : db{ rdb } {
 }
 
+RuntimeDatabaseTaskBuilder::~RuntimeDatabaseTaskBuilder() {
+  assert(submitted);
+}
+
+void RuntimeDatabaseTaskBuilder::discard() {
+  submitted = true;
+}
+
 AppTaskWithMetadata RuntimeDatabaseTaskBuilder::finalize()&& {
+  submitted = true;
   return std::move(builtTask);
 }
 

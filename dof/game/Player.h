@@ -6,6 +6,7 @@ namespace Config {
   struct GameConfig;
 }
 
+class IAppBuilder;
 struct PlayerInput;
 struct GameDB;
 struct TaskRange;
@@ -13,7 +14,7 @@ struct TaskRange;
 namespace Player {
   void init(GameDB db);
   void initAbility(Config::GameConfig& config, QueryResultRow<Row<PlayerInput>>& input);
-  void setupScene(GameDB game);
+  void setupScene(IAppBuilder& builder);
   //Modify thread locals
   //Read gameplay extracted values
   //Write PlayerInput

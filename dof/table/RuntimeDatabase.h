@@ -102,8 +102,9 @@ struct QueryResult {
     }
   }
 
+  //Get all rows of a given table.
   std::tuple<Rows*...> get(size_t i) {
-    return { &std::get<std::vector<Rows*>>(rows)... };
+    return std::make_tuple(std::get<std::vector<Rows*>>(rows).at(i)...);
   }
 
   std::tuple<Rows*...> getSingleton() {

@@ -1,6 +1,7 @@
 #include "Precompile.h"
 #include "ThreadLocals.h"
 
+#include "AppBuilder.h"
 #include "stat/AllStatEffects.h"
 
 namespace details {
@@ -26,6 +27,11 @@ ThreadLocals::ThreadLocals(size_t size)
 }
 
 ThreadLocals::~ThreadLocals() = default;
+
+ThreadLocalData& ThreadLocalData::get(AppTaskArgs& args) {
+  //Assumed to be provided by GameScheduler.cpp
+  return *static_cast<ThreadLocalData*>(args.threadLocal);
+}
 
 ThreadLocalData ThreadLocals::get(size_t thread) {
   assert(data->threads.size() > thread);

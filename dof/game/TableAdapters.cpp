@@ -174,28 +174,56 @@ PositionStatEffectAdapter TableAdapters::getPositionEffects(GameDB db, size_t th
   return ::getPositionEffects(getThreadLocal(db, thread).statEffects->db);
 }
 
+PositionStatEffectAdapter TableAdapters::getPositionEffects(AppTaskArgs& args) {
+  return ::getPositionEffects(ThreadLocalData::get(args).statEffects->db);
+}
+
 VelocityStatEffectAdapter TableAdapters::getVelocityEffects(GameDB db, size_t thread) {
   return ::getVelocityEffects(getThreadLocal(db, thread).statEffects->db);
+}
+
+VelocityStatEffectAdapter TableAdapters::getVelocityEffects(AppTaskArgs& args) {
+  return ::getVelocityEffects(ThreadLocalData::get(args).statEffects->db);
 }
 
 LambdaStatEffectAdapter TableAdapters::getLambdaEffects(GameDB db, size_t thread) {
   return ::getLambdaEffects(getThreadLocal(db, thread).statEffects->db);
 }
 
+LambdaStatEffectAdapter TableAdapters::getLambdaEffects(AppTaskArgs& args) {
+  return ::getLambdaEffects(ThreadLocalData::get(args).statEffects->db);
+}
+
 AreaForceStatEffectAdapter TableAdapters::getAreaForceEffects(GameDB db, size_t thread) {
   return ::getAreaForceEffects(getThreadLocal(db, thread).statEffects->db);
+}
+
+AreaForceStatEffectAdapter TableAdapters::getAreaForceEffects(AppTaskArgs& args) {
+  return ::getAreaForceEffects(ThreadLocalData::get(args).statEffects->db);
 }
 
 FollowTargetByPositionStatEffectAdapter TableAdapters::getFollowTargetByPositionEffects(GameDB db, size_t thread) {
   return ::getFollowTargetByPositionEffects(getThreadLocal(db, thread).statEffects->db);
 }
 
+FollowTargetByPositionStatEffectAdapter TableAdapters::getFollowTargetByPositionEffects(AppTaskArgs& args) {
+  return ::getFollowTargetByPositionEffects(ThreadLocalData::get(args).statEffects->db);
+}
+
 FollowTargetByVelocityStatEffectAdapter TableAdapters::getFollowTargetByVelocityEffects(GameDB db, size_t thread) {
   return ::getFollowTargetByVelocityEffects(getThreadLocal(db, thread).statEffects->db);
 }
 
+FollowTargetByVelocityStatEffectAdapter TableAdapters::getFollowTargetByVelocityEffects(AppTaskArgs& args) {
+  return ::getFollowTargetByVelocityEffects(ThreadLocalData::get(args).statEffects->db);
+}
+
 DamageStatEffectAdapter TableAdapters::getDamageEffects(GameDB db, size_t thread) {
   return ::getDamageEffects(getThreadLocal(db, thread).statEffects->db);
+}
+
+DamageStatEffectAdapter TableAdapters::getDamageEffects(AppTaskArgs& args) {
+  return ::getDamageEffects(ThreadLocalData::get(args).statEffects->db);
 }
 
 GameObjectAdapter TableAdapters::getGameplayObjectInTable(GameDB db, size_t tableIndex) {

@@ -36,40 +36,48 @@ namespace Player {
     stopping.function = CurveMath::getFunction(CurveMath::CurveType::QuadraticEaseIn);
   }
 
-  void setupScene(GameDB game) {
-    std::random_device device;
-    std::mt19937 generator(device());
-    auto& db = game.db;
-    auto& stableMappings = TableAdapters::getStableMappings({ db });
-    CameraAdapater camera = TableAdapters::getCamera(game);
+  void setupScene(IAppBuilder& builder) {
+    auto task = builder.createTask();
+    task.setName("Player setup");
+    auto cameras = task.query<Row<Camera>, const StableIDRow>();
+    std::shared_ptr<ITableModifier> cameraModifier = task.getModifierForTable(cameras.matchingTableIDs.front());
+    auto players = task.query<FloatRow<Pos, X>, FloatRow<Pos, Y>, Row<PlayerInput>, const StableIDRow>();
+    Config::GameConfig* config = task.query<SharedRow<Config::GameConfig>>().tryGetSingletonElement();
+    std::shared_ptr<ITableModifier> playerModifier = task.getModifierForTable(players.matchingTableIDs.front());
 
-    CameraTable& cameraTable = std::get<CameraTable>(db.mTables);
-    TableOperations::stableResizeTable<GameDatabase>(cameraTable, 1, stableMappings);
-    Camera& mainCamera = std::get<Row<Camera>>(cameraTable.mRows).at(0);
-    mainCamera.zoom = 15.f;
+    task.setCallback([cameras, cameraModifier, players, playerModifier, config](AppTaskArgs& args) mutable {
+      std::random_device device;
+      std::mt19937 generator(device());
+      cameraModifier->resize(1);
+      const size_t cameraIndex = 0;
+      Camera& mainCamera = cameras.get<0>(0).at(cameraIndex);
+      const size_t cameraStableId = cameras.get<1>(0).at(cameraIndex);
+      mainCamera.zoom = 15.f;
 
-    const size_t cameraIndex = 0;
-    PlayerTable& players = std::get<PlayerTable>(db.mTables);
-    TableOperations::stableResizeTable(players, UnpackedDatabaseElementID::fromPacked(GameDatabase::getTableIndex<PlayerTable>()), 1, stableMappings);
-    StableIDRow& stableRow = std::get<StableIDRow>(players.mRows);
-    Events::onNewElement(StableElementID::fromStableRow(0, stableRow), game);
+      playerModifier->resize(1);
+      const StableIDRow& playerStableRow = players.get<const StableIDRow>(0);
+      //TODO: this could be built into the modifier itself
+      const size_t playerIndex = 0;
+      Events::onNewElement(StableElementID::fromStableRow(playerIndex, playerStableRow), args);
 
-    std::get<FloatRow<Rot, CosAngle>>(players.mRows).at(0) = 1.0f;
-    //Random angle in sort of radians
-    const float playerStartAngle = float(generator() % 360)*6.282f/360.0f;
-    const float playerStartDistance = 25.0f;
-    //Start way off the screen, the world boundary will fling them into the scene
-    std::get<FloatRow<Pos, X>>(players.mRows).at(0) = playerStartDistance*std::cos(playerStartAngle);
-    std::get<FloatRow<Pos, Y>>(players.mRows).at(0) = playerStartDistance*std::sin(playerStartAngle);
+      //Random angle in sort of radians
+      const float playerStartAngle = float(generator() % 360)*6.282f/360.0f;
+      const float playerStartDistance = 25.0f;
+      //Start way off the screen, the world boundary will fling them into the scene
+      players.get<0>(0).at(0) = playerStartDistance*std::cos(playerStartAngle);
+      players.get<1>(0).at(0) = playerStartDistance*std::sin(playerStartAngle);
 
-    //Usually this would be done with a thread local but this setup is synchronous
-    auto follow = TableAdapters::getCentralStatEffects(game).followTargetByPosition;
-    const size_t id = TableAdapters::addStatEffectsSharedLifetime(follow.base, StatEffect::INFINITE, &camera.object.stable->at(cameraIndex), 1);
-    follow.command->at(id).mode = FollowTargetByPositionStatEffect::FollowMode::Interpolation;
-    follow.base.target->at(id) = StableElementID::fromStableID(TableAdapters::getPlayer(game).object.stable->at(0));
-    follow.base.curveDefinition->at(id) = &Config::getCurve(TableAdapters::getConfig(game).game->camera.followCurve);
+      //Make the camera follow the player
+      auto follow = TableAdapters::getFollowTargetByPositionEffects(args);
+      const size_t id = TableAdapters::addStatEffectsSharedLifetime(follow.base, StatEffect::INFINITE, &cameraStableId, 1);
+      follow.command->at(id).mode = FollowTargetByPositionStatEffect::FollowMode::Interpolation;
+      follow.base.target->at(id) = StableElementID::fromStableID(playerStableRow.at(playerIndex));
+      follow.base.curveDefinition->at(id) = &Config::getCurve(config->camera.followCurve);
 
-    initAbility(game);
+      //Load ability from config
+      initAbility(*config, std::get<2>(players.rows));
+    });
+    builder.submitTask(std::move(task));
   }
 
   void initAbility(Config::GameConfig& config, QueryResultRow<Row<PlayerInput>>& input) {
