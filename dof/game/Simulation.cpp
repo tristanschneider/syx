@@ -222,7 +222,7 @@ void Simulation::buildUpdateTasks(IAppBuilder& builder) {
   _awaitAssetLoading(builder);
 
   Player::setupScene(builder);
-  //Fragment::setupScene(builder);
+  Fragment::setupScene(builder);
   finishSetupState(builder);
   {
     //Update

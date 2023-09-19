@@ -3,6 +3,7 @@
 #include "StableElementID.h"
 #include "Table.h"
 
+struct AppTaskArgs;
 struct StableElementID;
 struct GameDB;
 
@@ -40,7 +41,10 @@ namespace Events {
   void resolve(DBEvents::MoveCommand& cmd, const StableElementMappings& mappings);
 
   //TODO: this is simpler to process if they are all "moves" but new is a move from nothing to somthing and remove is the opposite
+  void onNewElement(StableElementID e, AppTaskArgs& args);
   void onNewElement(StableElementID e, GameDB game);
+  void onMovedElement(StableElementID src, StableElementID dst, AppTaskArgs& args);
+  void onMovedElement(StableElementID src, UnpackedDatabaseElementID dst, AppTaskArgs& args);
   void onMovedElement(StableElementID src, StableElementID dst, GameDB game);
   void onMovedElement(StableElementID src, UnpackedDatabaseElementID dst, GameDB game);
   void onRemovedElement(StableElementID e, GameDB game);

@@ -1,5 +1,6 @@
 #pragma once
 
+class IAppBuilder;
 struct TaskRange;
 struct GameDB;
 struct SceneArgs;
@@ -14,7 +15,7 @@ namespace Fragment {
 
   void applyDamage(FragmentAdapter& fragments, size_t i, float damage);
 
-  void setupScene(GameDB db);
+  void setupScene(IAppBuilder& builder);
   //Read GPos, FragmentGoal, FragmentGoalFoundRow, StableIDRow
   //Write FragmentGoalFoundRow
   //Modify thread locals
@@ -23,6 +24,5 @@ namespace Fragment {
   //Process before table service runs
   TaskRange processEvents(GameDB db);
 
-  void _setupScene(GameDB db, SceneArgs args);
   void _migrateCompletedFragments(GameDB db, size_t thread);
 }

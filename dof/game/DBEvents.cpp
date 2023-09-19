@@ -3,6 +3,8 @@
 
 #include "Simulation.h"
 #include "TableAdapters.h"
+#include "AppBuilder.h"
+#include "ThreadLocals.h"
 
 namespace Events {
   using LockT = std::lock_guard<std::mutex>;
@@ -63,13 +65,32 @@ namespace Events {
     return { impl, LockT{ impl.mutex } };
   }
 
+  EventsContext _getContext(AppTaskArgs& args) {
+    EventsImpl* impl = ThreadLocalData::get(args).events;
+    return { *impl, LockT{ impl->mutex } };
+  }
+
+  void onNewElement(StableElementID e, AppTaskArgs& args) {
+    onMovedElement(StableElementID::invalid(), e, args);
+  }
+
   void onNewElement(StableElementID e, GameDB game) {
     onMovedElement(StableElementID::invalid(), e, game);
+  }
+
+  void onMovedElement(StableElementID src, UnpackedDatabaseElementID dst, AppTaskArgs& args) {
+    //Create a "stable" id where the stable part is empty but the unstable part has the destination table id
+    onMovedElement(src, StableElementID{ dst.mValue, dbDetails::INVALID_VALUE }, args);
   }
 
   void onMovedElement(StableElementID src, UnpackedDatabaseElementID dst, GameDB game) {
     //Create a "stable" id where the stable part is empty but the unstable part has the destination table id
     onMovedElement(src, StableElementID{ dst.mValue, dbDetails::INVALID_VALUE }, game);
+  }
+
+  void onMovedElement(StableElementID src, StableElementID dst, AppTaskArgs& args) {
+    EventsContext ctx{ _getContext(args) };
+    ctx.impl.events.toBeMovedElements.push_back({ src, dst });
   }
 
   void onMovedElement(StableElementID src, StableElementID dst, GameDB game) {

@@ -9,6 +9,7 @@
 
 #include "glm/gtx/norm.hpp"
 #include "stat/AllStatEffects.h"
+#include "AppBuilder.h"
 
 namespace Fragment {
   using namespace Tags;
@@ -18,67 +19,82 @@ namespace Fragment {
     return { std::get<FloatRow<Tag, X>>(t.mRows).mElements.data(), std::get<FloatRow<Tag, Y>>(t.mRows).mElements.data() };
   }
 
-  void _setupScene(GameDB game, SceneArgs args) {
-    GameDatabase& db = game.db;
-    std::random_device device;
-    std::mt19937 generator(device());
+  void _setupScene(IAppBuilder& builder, SceneArgs args) {
+    auto task = builder.createTask();
+    task.setName("Fragment Setup");
+    SceneState* scene = task.query<SharedRow<SceneState>>().tryGetSingletonElement();
+    auto fragments = task.query<
+      FloatRow<Pos, X>,
+      FloatRow<Pos, Y>,
+      FloatRow<FragmentGoal, X>,
+      FloatRow<FragmentGoal, Y>,
+      Row<CubeSprite>,
+      const StableIDRow
+    >();
+    auto modifiers = task.getModifiersForTables(fragments.matchingTableIDs);
 
-    auto& stableMappings = TableAdapters::getStableMappings({ db });
-    GameObjectTable& gameobjects = std::get<GameObjectTable>(db.mTables);
-    SceneState& scene = std::get<0>(std::get<GlobalGameData>(db.mTables).mRows).at();
+    task.setCallback([scene, fragments, modifiers, args](AppTaskArgs& taskArgs) mutable {
+      if(scene->mState != SceneState::State::SetupScene) {
+        return;
+      }
 
-    //Add some arbitrary objects for testing
-    const size_t rows = args.mFragmentRows;
-    const size_t columns = args.mFragmentColumns;
-    const size_t total = rows*columns;
-    TableOperations::stableResizeTable(gameobjects, UnpackedDatabaseElementID::fromPacked(GameDatabase::getTableIndex<GameObjectTable>()), total, stableMappings);
-    StableIDRow& stableRow = std::get<StableIDRow>(gameobjects.mRows);
-    for(size_t i = 0; i < total; ++i) {
-      Events::onNewElement(StableElementID::fromStableRow(i, stableRow), game);
-    }
+      std::random_device device;
+      std::mt19937 generator(device());
 
-    float startX = -float(columns)/2.0f;
-    float startY = -float(rows)/2.0f;
-    float scaleX = 1.0f/float(columns);
-    float scaleY = 1.0f/float(rows);
-    auto& posX = std::get<FloatRow<Pos, X>>(gameobjects.mRows);
-    auto& posY = std::get<FloatRow<Pos, Y>>(gameobjects.mRows);
-    auto& goalX = std::get<FloatRow<FragmentGoal, X>>(gameobjects.mRows);
-    auto& goalY = std::get<FloatRow<FragmentGoal, Y>>(gameobjects.mRows);
+      //Add some arbitrary objects for testing
+      const size_t rows = args.mFragmentRows;
+      const size_t columns = args.mFragmentColumns;
+      const size_t total = rows*columns;
+      const float startX = -float(columns)/2.0f;
+      const float startY = -float(rows)/2.0f;
+      const float scaleX = 1.0f/float(columns);
+      const float scaleY = 1.0f/float(rows);
+      for(size_t t = 0; t < fragments.size(); ++t) {
+        modifiers[t]->resize(total);
+        auto tableRows = fragments.get(t);
+        const StableIDRow& stableIDs = fragments.get<const StableIDRow>(t);
+        for(size_t s = 0; s < stableIDs.size(); ++s) {
+          Events::onNewElement(StableElementID::fromStableRow(s, stableIDs), taskArgs);
+        }
 
-    //Shuffle indices randomly
-    std::vector<size_t> indices(rows*columns);
-    int counter = 0;
-    std::generate(indices.begin(), indices.end(), [&counter] { return counter++; });
-    std::shuffle(indices.begin(), indices.end(), generator);
+        auto& posX = *std::get<FloatRow<Pos, X>*>(tableRows);
+        auto& posY = *std::get<FloatRow<Pos, Y>*>(tableRows);
+        auto& goalX = *std::get<FloatRow<FragmentGoal, X>*>(tableRows);
+        auto& goalY = *std::get<FloatRow<FragmentGoal, Y>*>(tableRows);
+        //Shuffle indices randomly
+        std::vector<size_t> indices(rows*columns);
+        int counter = 0;
+        std::generate(indices.begin(), indices.end(), [&counter] { return counter++; });
+        std::shuffle(indices.begin(), indices.end(), generator);
 
-    for(size_t j = 0; j < total; ++j) {
-      const size_t shuffleIndex = indices[j];
-      CubeSprite& sprite = std::get<Row<CubeSprite>>(gameobjects.mRows).at(j);
-      const size_t row = j / columns;
-      const size_t column = j % columns;
-      const size_t shuffleRow = shuffleIndex / columns;
-      const size_t shuffleColumn = shuffleIndex % columns;
-      //Goal position and uv is based on original index, starting position is based on shuffled index
-      sprite.uMin = float(column)/float(columns);
-      sprite.vMin = float(row)/float(rows);
-      sprite.uMax = sprite.uMin + scaleX;
-      sprite.vMax = sprite.vMin + scaleY;
+        for(size_t j = 0; j < total; ++j) {
+          const size_t shuffleIndex = indices[j];
+          CubeSprite& sprite = std::get<Row<CubeSprite>*>(tableRows)->at(j);
+          const size_t row = j / columns;
+          const size_t column = j % columns;
+          const size_t shuffleRow = shuffleIndex / columns;
+          const size_t shuffleColumn = shuffleIndex % columns;
+          //Goal position and uv is based on original index, starting position is based on shuffled index
+          sprite.uMin = float(column)/float(columns);
+          sprite.vMin = float(row)/float(rows);
+          sprite.uMax = sprite.uMin + scaleX;
+          sprite.vMax = sprite.vMin + scaleY;
 
-      goalX.at(j) = startX + sprite.uMin*float(columns);
-      goalY.at(j) = startY + sprite.vMin*float(rows);
+          goalX.at(j) = startX + sprite.uMin*float(columns);
+          goalY.at(j) = startY + sprite.vMin*float(rows);
 
-      posX.at(j) = startX + shuffleColumn;
-      posY.at(j) = startY + shuffleRow;
+          posX.at(j) = startX + shuffleColumn;
+          posY.at(j) = startY + shuffleRow;
+        }
 
-      std::get<FloatRow<Rot, CosAngle>>(gameobjects.mRows).at(j) = 1.0f;
-    }
-
-    const float boundaryPadding = 10.0f;
-    const size_t first = 0;
-    const size_t last = total - 1;
-    scene.mBoundaryMin = glm::vec2(goalX.at(first), goalY.at(first)) - glm::vec2(boundaryPadding);
-    scene.mBoundaryMax = glm::vec2(goalX.at(last), goalY.at(last)) + glm::vec2(boundaryPadding);
+        const float boundaryPadding = 10.0f;
+        const size_t first = 0;
+        const size_t last = total - 1;
+        scene->mBoundaryMin = glm::vec2(goalX.at(first), goalY.at(first)) - glm::vec2(boundaryPadding);
+        scene->mBoundaryMax = glm::vec2(goalX.at(last), goalY.at(last)) + glm::vec2(boundaryPadding);
+      }
+    });
+    builder.submitTask(std::move(task));
   }
 
   void _migrateCompletedFragments(GameObjectTable& fragments, Events::MovePublisher moveElement) {
@@ -161,12 +177,15 @@ namespace Fragment {
     ispc::checkFragmentGoals(pos, goal, goalFound, minDistance, TableOperations::size(fragments));
   }
 
-  void setupScene(GameDB db) {
+  void setupScene(IAppBuilder& builder) {
+    auto temp = builder.createTask();
+    const Config::GameConfig* config = temp.query<const SharedRow<Config::GameConfig>>().tryGetSingletonElement();
+    temp.discard();
+
     SceneArgs args;
-    const Config::GameConfig* config = TableAdapters::getConfig({ db }).game;
     args.mFragmentRows = config->fragment.fragmentRows;
     args.mFragmentColumns = config->fragment.fragmentColumns;
-    _setupScene(db, args);
+    _setupScene(builder, args);
   }
 
   //Read FragmentGoalFoundRow, StableIDRow
