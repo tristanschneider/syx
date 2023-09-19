@@ -1,5 +1,6 @@
 #pragma once
 
+class IAppBuilder;
 struct TaskRange;
 struct GameDB;
 struct PhysicsTableIds;
@@ -13,7 +14,7 @@ namespace PhysicsSimulation {
   void init(GameDB db);
   void initFromConfig(GameDB db);
   //Insert all objects into the broadphase that can be. Doesn't check if they already are, meant for initial insert
-  TaskRange updatePhysics(GameDB db);
+  void updatePhysics(IAppBuilder& builder);
   //Before table service
   TaskRange preProcessEvents(GameDB db);
   //After table service

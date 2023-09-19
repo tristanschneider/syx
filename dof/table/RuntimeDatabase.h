@@ -5,6 +5,35 @@
 
 using DBTypeID = TypeID<struct DBTypeT>;
 
+struct QueryAliasBase {
+  DBTypeID type;
+  bool isConst{};
+};
+
+//Alias for a query whose original type is stored in ID but unkown to the caller,
+//which is cast to ResultT
+template<class ResultT>
+struct QueryAlias : QueryAliasBase {
+  using RowT = ResultT;
+
+  template<class SourceT>
+  static QueryAlias create() {
+    static_assert(std::is_convertible_v<SourceT*, ResultT*>);
+    struct Caster {
+      static ResultT* cast(void* p) {
+        return static_cast<ResultT*>(static_cast<SourceT*>(p));
+      }
+    };
+    QueryAlias result;
+    result.cast = &Caster::cast;
+    result.type = DBTypeID::get<std::decay_t<SourceT>>();
+    result.isConst = std::is_const_v<SourceT>;
+    return result;
+  }
+
+  ResultT*(*cast)(void*){};
+};
+
 struct RuntimeTable {
   using IDT = DBTypeID;
 
@@ -12,6 +41,11 @@ struct RuntimeTable {
   RowT* tryGet() {
     auto it = rows.find(IDT::get<std::decay_t<RowT>>());
     return it != rows.end() ? (RowT*)it->second : nullptr;
+  }
+
+  void* tryGet(DBTypeID id) {
+    auto it = rows.find(id);
+    return it != rows.end() ? it->second : nullptr;
   }
 
   TableModifierInstance modifier;
@@ -188,6 +222,31 @@ public:
     return result;
   }
 
+  template<class... Aliases>
+  auto queryAlias(const Aliases&... aliases) {
+    if constexpr(sizeof...(Aliases) == 0) {
+      return query();
+    }
+    else {
+      QueryResult<typename Aliases::RowT...> result;
+      result.matchingTableIDs.reserve(data.tables.size());
+      for(size_t i = 0; i < data.tables.size(); ++i) {
+        _tryAddAliasResult(i, result, aliases...);
+      }
+      return result;
+    }
+  }
+
+  template<class... Aliases>
+  auto queryAlias(const UnpackedDatabaseElementID& id, const Aliases&... aliases) {
+    QueryResult<typename Aliases::RowT...> result;
+    const size_t index = id.getTableIndex();
+    if(index < data.tables.size()) {
+      _tryAddAliasResult(index, result, aliases...);
+    }
+    return result;
+  }
+
 private:
   template<class... Rows>
   void _tryAddResult(size_t index, QueryResult<Rows...>& result) {
@@ -197,6 +256,26 @@ private:
         result.matchingTableIDs.push_back(getTableID(index));
         (std::get<std::vector<Rows*>>(result.rows).push_back(std::get<std::decay_t<Rows*>>(rows)), ...);
       }
+  }
+
+  template<class Tuple, size_t... I>
+  static bool areAllNotNull(const Tuple& t, std::index_sequence<I...>) {
+    return (std::get<I>(t) && ...);
+  }
+
+  template<class SrcTuple, class DstTuple, size_t... I>
+  static void copyAll(SrcTuple& src, DstTuple& dst, std::index_sequence<I...>) {
+    (std::get<I>(dst).push_back(std::get<I>(src)), ...);
+  }
+
+  template<class... Rows, class... Aliases>
+  void _tryAddAliasResult(size_t index, QueryResult<Rows...>& result, const Aliases&... aliases) {
+    constexpr auto indices = std::index_sequence_for<Rows...>{};
+    std::tuple<Rows*...> rows{ aliases.cast(data.tables[index].tryGet(aliases.type))... };
+    if(areAllNotNull(rows, indices)) {
+      result.matchingTableIDs.push_back(getTableID(index));
+      copyAll(rows, result.rows, indices);
+    }
   }
 
   UnpackedDatabaseElementID getTableID(size_t index) const;

@@ -153,6 +153,23 @@ public:
     return result;
   }
 
+  template<class... Aliases>
+  auto queryAlias(const Aliases&... aliases) {
+    QueryResult<typename Aliases::RowT...> result = db.queryAlias(aliases...);
+    (log(aliases, result.matchingTableIDs), ...);
+    return result;
+  }
+
+  template<class... Aliases>
+  auto queryAlias(const UnpackedDatabaseElementID& table, const Aliases&... aliases) {
+    QueryResult<typename Aliases::RowT...> result = db.queryAlias(table, aliases...);
+    if(result.size()) {
+      const std::vector<UnpackedDatabaseElementID> t{ table };
+      (log(aliases, t), ...);
+    }
+    return result;
+  }
+
   std::unique_ptr<ITableModifier> getModifierForTable(const UnpackedDatabaseElementID& table);
   std::vector<std::shared_ptr<ITableModifier>> getModifiersForTables(const std::vector<UnpackedDatabaseElementID>& tables);
   std::unique_ptr<IAnyTableModifier> getAnyModifier();
@@ -183,6 +200,8 @@ private:
       }
     }
   }
+
+  void log(const QueryAliasBase& alias, const std::vector<UnpackedDatabaseElementID>& tableIds);
 
   std::unique_ptr<ITableResolver> getResolver();
 

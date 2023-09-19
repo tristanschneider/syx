@@ -7,6 +7,7 @@
 #include "Scheduler.h"
 #include "Table.h"
 #include "NarrowphaseData.h"
+#include "AppBuilder.h"
 
 struct PhysicsTableIds;
 
@@ -234,6 +235,17 @@ using ContactConstraintsToStaticObjectsTable = Table<
   ConstraintData::CommonTableStartIndex
 >;
 
+struct PhysicsAliases {
+  using FloatAlias = QueryAlias<Row<float>>;
+
+  FloatAlias posX;
+  FloatAlias posY;
+  FloatAlias rotX;
+  FloatAlias rotY;
+  FloatAlias linVelX;
+  FloatAlias linVelY;
+  FloatAlias angVel;
+};
 
 struct ContactObjectStore {
   float* posX{};
@@ -462,4 +474,6 @@ struct Physics {
     details::applyDampingMultiplierAxis<LinVelY>(db, multiplier, begin->mChildren);
     return TaskBuilder::addEndSync(begin);
   }
+
+  static void applyDampingMultiplier(IAppBuilder& builder, const PhysicsAliases& aliases, const float& linearMultiplier, const float& angularMultiplier);
 };

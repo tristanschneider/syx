@@ -230,88 +230,40 @@ namespace PhysicsSimulation {
     Broadphase::SweepGrid::init(grid);
   }
 
-  TaskRange updatePhysics(GameDB game) {
-    PROFILE_SCOPE("physics", "update");
+  void updatePhysics(IAppBuilder& builder) {
+    PhysicsAliases aliases;
 
-    GameDatabase& db = game.db;
-    const Config::PhysicsConfig& config = *TableAdapters::getConfig(game).physics;
-    auto& broadphase = std::get<BroadphaseTable>(db.mTables);
-    auto& constraints = std::get<ConstraintsTable>(db.mTables);
-    auto& staticConstraints = std::get<ContactConstraintsToStaticObjectsTable>(db.mTables);
-    auto& constraintsCommon = std::get<ConstraintCommonTable>(db.mTables);
-    auto& globals = std::get<GlobalGameData>(db.mTables);
-    const PhysicsTableIds& physicsTables = std::get<SharedRow<PhysicsTableIds>>(globals.mRows).at();
-    ConstraintsTableMappings& constraintsMappings = std::get<SharedRow<ConstraintsTableMappings>>(globals.mRows).at();
+    using FloatAlias = QueryAlias<Row<float>>;
+    aliases.posX = FloatAlias::create<FloatRow<Pos, X>>();
+    aliases.posY = FloatAlias::create<FloatRow<Pos, Y>>();
+    aliases.rotX = FloatAlias::create<FloatRow<Rot, CosAngle>>();
+    aliases.rotY = FloatAlias::create<FloatRow<Rot, SinAngle>>();
+    aliases.linVelX = FloatAlias::create<FloatRow<LinVel, X>>();
+    aliases.linVelY = FloatAlias::create<FloatRow<LinVel, X>>();
+    aliases.angVel = FloatAlias::create<FloatRow<AngVel, Angle>>();
 
-    auto root = std::make_shared<TaskNode>();
-    auto current = root;
+    auto temp = builder.createTask();
+    const Config::PhysicsConfig& config = temp.query<SharedRow<Config::GameConfig>>().tryGetSingletonElement()->physics;
+    temp.discard();
 
-    TaskRange spatialQueryBounds = SpatialQuery::physicsUpdateBoundaries(game);
-    TaskRange spatialQueryNarrowphase = SpatialQuery::physicsProcessQueries(game);
-    TaskRange velocityTasks = PhysicsSimulation::_applyDamping(db, config);
-    TaskRange broadphaseUpdate = PhysicsSimulation::_updateBroadphase(db, config);
-    TaskRange narrowphase = PhysicsSimulation::_updateNarrowphase(db, config);
-
-    //Spatial query has no dependency to start but should finish before broadphase so the query can write to the broadphase
-    spatialQueryBounds.mEnd->mChildren.push_back(broadphaseUpdate.mBegin);
-
-    current->mChildren.push_back(spatialQueryBounds.mBegin);
-    current->mChildren.push_back(velocityTasks.mBegin);
-    current = velocityTasks.mEnd;
-    current->mChildren.push_back(broadphaseUpdate.mBegin);
-    current = broadphaseUpdate.mEnd;
-    //Narrowphase depends on completion of the broadphase
-    current->mChildren.push_back(narrowphase.mBegin);
-    current->mChildren.push_back(spatialQueryNarrowphase.mBegin);
-    current = narrowphase.mEnd;
-
-    SweepNPruneBroadphase::ChangedCollisionPairs& changedPairs = std::get<SharedRow<SweepNPruneBroadphase::ChangedCollisionPairs>>(broadphase.mRows).at();
-
-    //Build can start as soon as broadphase is complete during narrowphase
-    TaskRange buildConstraints = ConstraintsTableBuilder::build(db, changedPairs, TableAdapters::getStableMappings({ db }), constraintsMappings, physicsTables, config);
-    broadphaseUpdate.mEnd->mChildren.push_back(buildConstraints.mBegin);
-    //Fill after build
-    TaskRange fillConstraints = Physics::fillConstraintVelocities<LinVelX, LinVelY, AngVel>(constraintsCommon, db);
-    buildConstraints.mEnd->mChildren.push_back(fillConstraints.mBegin);
-    //Setup in parallel with velocity since it doesn't use velocity, but it requires contact generation to finish
-    TaskRange setupConstraints = Physics::setupConstraints(constraints, staticConstraints);
-    buildConstraints.mEnd->mChildren.push_back(setupConstraints.mBegin);
-    narrowphase.mEnd->mChildren.push_back(setupConstraints.mBegin);
-
-    TaskRange debug = PhysicsSimulation::_debugUpdate(db, config);
-
-    //Sync everything down before doing several sequential solves
-    auto solving = std::make_shared<TaskNode>();
-    TaskBuilder::_addSyncDependency(*root, solving);
-
-    const int solveIterations = config.solveIterations;
-    //TODO: stop early if global lambda sum falls below tolerance
-    for(int i = 0; i < solveIterations; ++i) {
-      auto solver = Physics::solveConstraints(constraints, staticConstraints, constraintsCommon, config);
-      solving->mChildren.push_back(solver.mBegin);
-      solving = solver.mEnd;
-    }
-
-    auto postSolve = solving;
-    TaskRange storeVelocity = Physics::storeConstraintVelocities<LinVelX, LinVelY, AngVel>(constraintsCommon, db);
-    postSolve->mChildren.push_back(storeVelocity.mBegin);
-    postSolve = storeVelocity.mEnd;
-
-    //Spatial queries must be done before transform changes below
-    spatialQueryNarrowphase.mEnd->mChildren.push_back(postSolve);
-
-    TaskRange integratePosition = Physics::integratePosition<LinVelX, LinVelY, PosX, PosY>(db);
-    postSolve->mChildren.push_back(integratePosition.mBegin);
-    postSolve = integratePosition.mEnd;
-
-    TaskRange integrateRotation = Physics::integrateRotation<RotX, RotY, AngVel>(db);
-    postSolve->mChildren.push_back(integrateRotation.mBegin);
-    postSolve = integrateRotation.mEnd;
-
-    postSolve->mChildren.push_back(debug.mBegin);
-    postSolve = debug.mEnd;
-
-    return { root, postSolve };
+    //SpatialQuery::physicsUpdateBoundaries(game);
+    Physics::applyDampingMultiplier(builder, aliases, config.linearDragMultiplier, config.angularDragMultiplier);
+    //PhysicsSimulation::_applyDamping(db, config);
+    //PhysicsSimulation::_updateBroadphase(db, config);
+    //PhysicsSimulation::_updateNarrowphase(db, config);
+    //SpatialQuery::physicsProcessQueries(game);
+    //ConstraintsTableBuilder::build(db, changedPairs, TableAdapters::getStableMappings({ db }), constraintsMappings, physicsTables, config);
+    //Physics::fillConstraintVelocities<LinVelX, LinVelY, AngVel>(constraintsCommon, db);
+    //Physics::setupConstraints(constraints, staticConstraints);
+    //PhysicsSimulation::_debugUpdate(db, config);
+    //const int solveIterations = config.solveIterations;
+    ////TODO: stop early if global lambda sum falls below tolerance
+    //for(int i = 0; i < solveIterations; ++i) {
+    //  Physics::solveConstraints(constraints, staticConstraints, constraintsCommon, config);
+    //}
+    //Physics::storeConstraintVelocities<LinVelX, LinVelY, AngVel>(constraintsCommon, db);
+    //Physics::integratePosition<LinVelX, LinVelY, PosX, PosY>(db);
+    //Physics::integrateRotation<RotX, RotY, AngVel>(db);
   }
 
   TaskRange preProcessEvents(GameDB db) {

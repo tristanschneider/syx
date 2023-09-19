@@ -260,3 +260,28 @@ TaskRange Physics::solveConstraints(ConstraintsTable& constraints, ContactConstr
 
   return { result, result };
 }
+
+namespace PhysicsImpl {
+  void applyDampingMultiplierAxis(IAppBuilder& builder, const QueryAlias<Row<float>>& axis, const float& multiplier) {
+    auto temp = builder.createTask();
+    auto allQuery = temp.queryAlias(axis);
+    temp.discard();
+
+    for(size_t i = 0; i < allQuery.size(); ++i) {
+      auto task = builder.createTask();
+      task.setName("damping");
+      Row<float>* axisRow = &task.queryAlias(allQuery.matchingTableIDs[i], axis).get<0>(0);
+      task.setCallback([axisRow, &multiplier](AppTaskArgs&) {
+        Physics::details::_applyDampingMultiplier(axisRow->mElements.data(), multiplier, axisRow->size());
+      });
+
+      builder.submitTask(std::move(task));
+    }
+  }
+}
+
+void Physics::applyDampingMultiplier(IAppBuilder& builder, const PhysicsAliases& aliases, const float& linearMultiplier, const float& angularMultiplier) {
+  PhysicsImpl::applyDampingMultiplierAxis(builder, aliases.linVelX, linearMultiplier);
+  PhysicsImpl::applyDampingMultiplierAxis(builder, aliases.linVelY, linearMultiplier);
+  PhysicsImpl::applyDampingMultiplierAxis(builder, aliases.angVel, angularMultiplier);
+}

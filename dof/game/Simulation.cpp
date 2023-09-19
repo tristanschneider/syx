@@ -112,85 +112,6 @@ namespace {
     });
     builder.submitTask(std::move(task));
   }
-
-  TaskRange _update(GameDatabase& db) {
-    auto root = std::make_shared<TaskNode>();
-    auto current = root;
-    TaskRange debugInput = DebugInput::updateDebugCamera({ db });
-    root->mChildren.push_back(debugInput.mBegin);
-    current = debugInput.mEnd;
-
-    //Write to GLinImpulse
-    TaskRange playerInput = Player::updateInput({ db });
-    current->mChildren.push_back(playerInput.mBegin);
-    //Write to fragment FragmentGoalFoundRow
-    current->mChildren.push_back(Fragment::updateFragmentGoals({ db }).mBegin);
-
-    //Write GLinImpulse
-    auto worldBoundary = World::enforceWorldBoundary({ db });
-    //Let player velocity write finish before all others start, which may include players
-    playerInput.mEnd->mChildren.push_back(worldBoundary.mBegin);
-
-    auto sync = std::make_shared<TaskNode>();
-    TaskBuilder::_addSyncDependency(*current, sync);
-    current = sync;
-    //Arbitrary place, probably doesn't need to be synchronous
-    TaskRange fsm = FragmentStateMachine::update({ db });
-    current->mChildren.push_back(fsm.mBegin);
-    current = fsm.mEnd;
-
-    //At the end of gameplay, turn any gameplay impulses into stat effects
-    //Write (clear) GLinImpulse
-    //TaskRange applyGameplayImpulse = GameplayExtract::applyGameplayImpulses({ db });
-    //current->mChildren.push_back(applyGameplayImpulse.mBegin);
-    //current = applyGameplayImpulse.mEnd;
-
-    TaskRange physics = PhysicsSimulation::updatePhysics({ db });
-    //Physics can start immediately in parallel with gameplay
-    //Thread local stat effects and the GPos style values are used to avoid gameplay reading or
-    //modifying position and velocity that physics looks at
-    //Physics needs to finish before stat effects are processed which is what will apply the desired
-    //position and/or velocity changes from gameplay, and updates that require unique access
-    root->mChildren.push_back(physics.mBegin);
-    physics.mEnd->mChildren.push_back(current);
-
-    StatEffectDBOwned& statEffects = TableAdapters::getStatEffects({ db });
-    //TODO: It probably makes sense to extend this idea into a category of effects that can happen earlier in the frame
-    //after gameplay has finished moving anything around but before physics is done
-    AllStatTasks statTasks = StatEffect::createTasks({ db }, statEffects.db);
-    //Synchronous transfer from all thread local stats to the central stats database
-    ThreadLocals& locals = TableAdapters::getThreadLocals({ db });
-    for(size_t i = 0; i < locals.getThreadCount(); ++i) {
-      TaskRange migradeThread = StatEffect::moveTo(locals.get(i).statEffects->db, statEffects.db);
-      current->mChildren.push_back(migradeThread.mBegin);
-      current = migradeThread.mEnd;
-    }
-
-    sync = TaskNode::createEmpty();
-    TaskBuilder::_addSyncDependency(*current, sync);
-    current = sync;
-
-    TaskRange spatialQuery = SpatialQuery::gameplayUpdateQueries({ db });
-    current->mChildren.push_back(spatialQuery.mBegin);
-    current = spatialQuery.mEnd;
-
-    current->mChildren.push_back(statTasks.synchronous.mBegin);
-    current = statTasks.synchronous.mEnd;
-
-    current->mChildren.push_back(TaskNode::create([&db](...) {
-      Events::publishEvents({ db });
-    }));
-    current = current->mChildren.back();
-
-    current = TaskBuilder::appendLinearRange(current, PhysicsSimulation::preProcessEvents({ db }));
-    current = TaskBuilder::appendLinearRange(current, Fragment::processEvents({ db }));
-    current = TaskBuilder::appendLinearRange(current, FragmentStateMachine::preProcessEvents({ db }));
-    current = TaskBuilder::appendLinearRange(current, TableService::processEvents({ db }));
-
-    current = TaskBuilder::appendLinearRange(current, PhysicsSimulation::postProcessEvents({ db }));
-
-    return { root, current };
-  }
 }
 
 ExternalDatabases::ExternalDatabases()
@@ -224,26 +145,29 @@ void Simulation::buildUpdateTasks(IAppBuilder& builder) {
   Player::setupScene(builder);
   Fragment::setupScene(builder);
   finishSetupState(builder);
-  {
-    //Update
-  }
-}
 
-/* TODO: delete, here for order reference right now
-void Simulation::linkUpdateTasks(SimulationPhases& phases) {
-  //First process requests, then extract renderables
-  phases.root.mEnd->mChildren.push_back(phases.renderExtraction.mBegin);
-  //Then requests because they might rely on extracted data
-  phases.renderExtraction.mEnd->mChildren.push_back(phases.renderRequests.mBegin);
-  //Then do primary rendering
-  phases.renderRequests.mEnd->mChildren.push_back(phases.render.mBegin);
-  //Then render imgui, which currently also depends on simulation being complete due to requiring access to DB
-  phases.render.mEnd->mChildren.push_back(phases.imgui.mBegin);
-  phases.simulation.mEnd->mChildren.push_back(phases.imgui.mBegin);
-  //Once imgui is complete, buffers can be swapped
-  phases.imgui.mEnd->mChildren.push_back(phases.swapBuffers.mBegin);
+  //PhysicsSimulation::updatePhysics({ db });
+  //DebugInput::updateDebugCamera({ db });
+  //Player::updateInput({ db });
+  //Fragment::updateFragmentGoals({ db }).mBegin);
+  //World::enforceWorldBoundary({ db });
+  //FragmentStateMachine::update({ db });
+  //StatEffect::createTasks({ db }, statEffects.db);
+  ////Synchronous transfer from all thread local stats to the central stats database
+  //ThreadLocals& locals = TableAdapters::getThreadLocals({ db });
+  //for(size_t i = 0; i < locals.getThreadCount(); ++i) {
+  //  StatEffect::moveTo(locals.get(i).statEffects->db, statEffects.db);
+  //}
+  //SpatialQuery::gameplayUpdateQueries({ db });
+  //
+  //Events::publishEvents({ db });
+  //PhysicsSimulation::preProcessEvents({ db });
+  //Fragment::processEvents({ db }));
+  //FragmentStateMachine::preProcessEvents({ db }));
+  //TableService::processEvents({ db }));
+  //
+  //PhysicsSimulation::postProcessEvents({ db }));
 }
-*/
 
 Scheduler& Simulation::_getScheduler(GameDatabase& db) {
   return std::get<SharedRow<Scheduler>>(std::get<GlobalGameData>(db.mTables).mRows).at();

@@ -100,6 +100,17 @@ std::unique_ptr<ITableResolver> RuntimeDatabaseTaskBuilder::getResolver() {
   return TableResolverImpl::create(db);
 }
 
+void RuntimeDatabaseTaskBuilder::log(const QueryAliasBase& alias, const std::vector<UnpackedDatabaseElementID>& tableIds) {
+  for(const UnpackedDatabaseElementID& table : tableIds) {
+    if(alias.isConst) {
+      logRead(table, alias.type);
+    }
+    else {
+      logWrite(table, alias.type);
+    }
+  }
+}
+
 void RuntimeDatabaseTaskBuilder::logRead(const UnpackedDatabaseElementID& table, TypeIDT t) {
   builtTask.data.reads.push_back({ t, table });
 }
