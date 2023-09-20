@@ -18,6 +18,10 @@ UnpackedDatabaseElementID RuntimeDatabase::getTableID(size_t index) const {
   return UnpackedDatabaseElementID{ 0, data.elementIndexBits }.remake(index, 0);
 }
 
+DatabaseDescription RuntimeDatabase::getDescription() {
+  return { data.elementIndexBits };
+}
+
 namespace DBReflect {
   struct MergedDatabase : IDatabase {
     MergedDatabase(std::unique_ptr<IDatabase> l, std::unique_ptr<IDatabase> r) 

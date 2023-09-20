@@ -91,11 +91,11 @@ std::shared_ptr<TaskNode> Physics::details::fillCollisionMasks(TableResolver<Col
   });
 }
 
-void Physics::details::_integratePositionAxis(float* velocity, float* position, size_t count) {
+void Physics::details::_integratePositionAxis(const float* velocity, float* position, size_t count) {
   ispc::integratePosition(position, velocity, uint32_t(count));
 }
 
-void Physics::details::_integrateRotation(float* rotX, float* rotY, float* velocity, size_t count) {
+void Physics::details::_integrateRotation(float* rotX, float* rotY, const float* velocity, size_t count) {
   ispc::integrateRotation(rotX, rotY, velocity, uint32_t(count));
 }
 
@@ -263,20 +263,148 @@ TaskRange Physics::solveConstraints(ConstraintsTable& constraints, ContactConstr
 
 namespace PhysicsImpl {
   void applyDampingMultiplierAxis(IAppBuilder& builder, const QueryAlias<Row<float>>& axis, const float& multiplier) {
-    auto temp = builder.createTask();
-    auto allQuery = temp.queryAlias(axis);
-    temp.discard();
-
-    for(size_t i = 0; i < allQuery.size(); ++i) {
+    for(const UnpackedDatabaseElementID& table : builder.queryAliasTables(axis).matchingTableIDs) {
       auto task = builder.createTask();
       task.setName("damping");
-      Row<float>* axisRow = &task.queryAlias(allQuery.matchingTableIDs[i], axis).get<0>(0);
+      Row<float>* axisRow = &task.queryAlias(table, axis).get<0>(0);
       task.setCallback([axisRow, &multiplier](AppTaskArgs&) {
         Physics::details::_applyDampingMultiplier(axisRow->mElements.data(), multiplier, axisRow->size());
       });
 
       builder.submitTask(std::move(task));
     }
+  }
+
+  void integratePositionAxis(IAppBuilder& builder, const QueryAlias<Row<float>>& position, const QueryAlias<Row<float>>& velocity) {
+    for(const UnpackedDatabaseElementID& table : builder.queryAliasTables(position, velocity).matchingTableIDs) {
+      auto task = builder.createTask();
+      task.setName("Integrate Position");
+      auto query = task.queryAlias(table, position, velocity.read());
+      task.setCallback([query](AppTaskArgs&) mutable {
+        Physics::details::_integratePositionAxis(
+          query.get<1>(0).data(),
+          query.get<0>(0).data(),
+          query.get<0>(0).size()
+        );
+      });
+      builder.submitTask(std::move(task));
+    }
+  }
+
+  void storeToRow(IAppBuilder& builder, const QueryAlias<const Row<float>>& src, const QueryAlias<Row<float>>& dst, bool isA) {
+    auto task = builder.createTask();
+    std::shared_ptr<ITableResolver> dstResolver = task.getAliasResolver(dst);
+    std::shared_ptr<IIDResolver> ids = task.getIDResolver();
+    auto srcQuery = task.queryAlias(src, QueryAlias<SharedRow<FinalSyncIndices>>::create().read());
+    task.setName("store constraint result");
+    task.setCallback([srcQuery, dstResolver, isA, dst, ids](AppTaskArgs&) mutable {
+      for(size_t i = 0; i < srcQuery.size(); ++i) {
+        auto rows = srcQuery.get(i);
+        const Row<float>* srcRow = std::get<const Row<float>*>(rows);
+        const FinalSyncIndices& indices = std::get<1>(rows)->at();
+        const auto& mappings = isA ? indices.mMappingsA : indices.mMappingsB;
+        CachedRow<Row<float>> dstRow;
+
+        for(const FinalSyncIndices::Mapping& mapping : mappings) {
+          const UnpackedDatabaseElementID id = ids->uncheckedUnpack(mapping.mSourceGamebject);
+          if(dstResolver->tryGetOrSwapRowAlias(dst, dstRow, id)) {
+            dstRow->at(id.getElementIndex()) = srcRow->at(mapping.mTargetConstraint);
+          }
+        }
+      }
+    });
+    builder.submitTask(std::move(task));
+  }
+
+  template<bool(*enabledFn)(uint8_t)>
+  void fillRow(IAppBuilder& builder,
+    const QueryAlias<const Row<float>>& src,
+    const QueryAlias<Row<float>>& dst,
+    const QueryAlias<const Row<StableElementID>>& collisionPairIndices) {
+    auto task = builder.createTask();
+    task.setName("fillrow");
+    auto enabledAlias = QueryAlias<const ConstraintData::IsEnabled>::create().read();
+    std::shared_ptr<ITableResolver> srcResolver = task.getAliasResolver(src.read(), enabledAlias);
+    std::shared_ptr<IIDResolver> ids = task.getIDResolver();
+    auto query = task.queryAlias(dst, collisionPairIndices);
+
+    task.setCallback([srcResolver, query, enabledAlias, src, ids](AppTaskArgs&) mutable {
+      for(size_t t = 0; t < query.size(); ++t) {
+        Row<float>& dstRow = query.get<0>(t);
+        const Row<StableElementID>& pairIndicesRow = query.get<1>(t);
+        const ConstraintData::IsEnabled* enabledRow = srcResolver->tryGetRowAlias(enabledAlias, query.matchingTableIDs[t]);
+        CachedRow<const Row<float>> srcRow;
+        for(size_t i = 0; i < dstRow.size(); ++i) {
+          if(pairIndicesRow.at(i) == StableElementID::invalid() || (enabledRow && !enabledFn(enabledRow->at(i)))) {
+            continue;
+          }
+
+          //Caller should ensure the unstable indices have been resolved such that now the unstable index is up to date
+          const UnpackedDatabaseElementID id = ids->uncheckedUnpack(pairIndicesRow.at(i));
+          if(srcResolver->tryGetOrSwapRowAlias(src.read(), srcRow, id)) {
+            dstRow.at(i) = srcRow->at(id.getElementIndex());
+          }
+        }
+      }
+    });
+
+    builder.submitTask(std::move(task));
+  }
+
+  void fillConstraintRow(IAppBuilder& builder,
+    const QueryAlias<const Row<float>>& src,
+    const QueryAlias<Row<float>>& dst,
+    const QueryAlias<const Row<StableElementID>>& collisionPairIndices) {
+    fillRow<&CollisionMask::shouldSolveConstraint>(builder, src, dst, collisionPairIndices);
+  }
+}
+
+void Physics::fillConstraintVelocities(IAppBuilder& builder, const PhysicsAliases& aliases) {
+  using Alias = QueryAlias<Row<float>>;
+  using OA = ConstraintObject<ConstraintObjA>;
+  auto idsA = QueryAlias<Row<StableElementID>>::create<CollisionPairIndexA>().read();
+  PhysicsImpl::fillConstraintRow(builder, aliases.linVelX.read(), Alias::create<OA::LinVelX>(), idsA);
+  PhysicsImpl::fillConstraintRow(builder, aliases.linVelY.read(), Alias::create<OA::LinVelY>(), idsA);
+  PhysicsImpl::fillConstraintRow(builder, aliases.angVel.read(), Alias::create<OA::AngVel>(), idsA);
+
+  using OB = ConstraintObject<ConstraintObjA>;
+  auto idsB = QueryAlias<Row<StableElementID>>::create<CollisionPairIndexB>().read();
+  PhysicsImpl::fillConstraintRow(builder, aliases.linVelX.read(), Alias::create<OB::LinVelX>(), idsB);
+  PhysicsImpl::fillConstraintRow(builder, aliases.linVelY.read(), Alias::create<OB::LinVelY>(), idsB);
+  PhysicsImpl::fillConstraintRow(builder, aliases.angVel.read(), Alias::create<OB::AngVel>(), idsB);
+}
+
+void Physics::storeConstraintVelocities(IAppBuilder& builder, const PhysicsAliases& aliases) {
+  using Alias = QueryAlias<Row<float>>;
+  using OA = ConstraintObject<ConstraintObjA>;
+  PhysicsImpl::storeToRow(builder, Alias::create<OA::LinVelX>().read(), aliases.linVelX, true);
+  PhysicsImpl::storeToRow(builder, Alias::create<OA::LinVelY>().read(), aliases.linVelY, true);
+  PhysicsImpl::storeToRow(builder, Alias::create<OA::AngVel>().read(), aliases.angVel, true);
+
+  using OB = ConstraintObject<ConstraintObjB>;
+  PhysicsImpl::storeToRow(builder, Alias::create<OB::LinVelX>().read(), aliases.linVelX, false);
+  PhysicsImpl::storeToRow(builder, Alias::create<OB::LinVelY>().read(), aliases.linVelY, false);
+  PhysicsImpl::storeToRow(builder, Alias::create<OB::AngVel>().read(), aliases.angVel, false);
+}
+
+void Physics::integratePosition(IAppBuilder& builder, const PhysicsAliases& aliases) {
+  PhysicsImpl::integratePositionAxis(builder, aliases.posX, aliases.linVelX);
+  PhysicsImpl::integratePositionAxis(builder, aliases.posY, aliases.linVelY);
+}
+
+void Physics::integrateRotation(IAppBuilder& builder, const PhysicsAliases& aliases) {
+  for(const UnpackedDatabaseElementID& table : builder.queryAliasTables(aliases.rotX, aliases.rotY, aliases.angVel.read()).matchingTableIDs) {
+    auto task = builder.createTask();
+    auto query = task.queryAlias(table, aliases.rotX, aliases.rotY, aliases.angVel.read());
+    task.setName("integrate rotation");
+    task.setCallback([query](AppTaskArgs&) mutable {
+      Physics::details::_integrateRotation(
+        query.get<0>(0).mElements.data(),
+        query.get<1>(0).mElements.data(),
+        query.get<2>(0).mElements.data(),
+        query.get<0>(0).size());
+    });
+    builder.submitTask(std::move(task));
   }
 }
 

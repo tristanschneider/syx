@@ -57,6 +57,21 @@ namespace TableModifierImpl {
   };
 }
 
+namespace IDResolverImpl {
+  //TODO: is this worth it or should the description be more accessible?
+  struct Impl : IIDResolver {
+    Impl(DatabaseDescription d)
+      : description{ d } {
+    }
+
+    UnpackedDatabaseElementID uncheckedUnpack(const StableElementID& id) const override {
+      return id.toUnpacked(description);
+    }
+
+    DatabaseDescription description;
+  };
+}
+
 namespace AnyTableModifier {
   struct ATM : IAnyTableModifier {
     ATM(RuntimeDatabase& rdb)
@@ -98,6 +113,10 @@ AppTaskWithMetadata RuntimeDatabaseTaskBuilder::finalize()&& {
 
 std::unique_ptr<ITableResolver> RuntimeDatabaseTaskBuilder::getResolver() {
   return TableResolverImpl::create(db);
+}
+
+std::unique_ptr<IIDResolver> RuntimeDatabaseTaskBuilder::getIDResolver() {
+  return std::make_unique<IDResolverImpl::Impl>(db.getDescription());
 }
 
 void RuntimeDatabaseTaskBuilder::log(const QueryAliasBase& alias, const std::vector<UnpackedDatabaseElementID>& tableIds) {

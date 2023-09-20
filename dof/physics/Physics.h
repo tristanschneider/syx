@@ -303,60 +303,15 @@ struct Physics {
     }
 
     template<class SrcRow, class DstRow, class DatabaseT, class DstTableT>
-    static std::shared_ptr<TaskNode> fillConstraintRow(DstTableT& table, DatabaseT& db, std::vector<StableElementID>& ids, const std::vector<uint8_t>* isEnabled = nullptr) {
-      return fillRow<&CollisionMask::shouldSolveConstraint, SrcRow, DstRow>(table, db, ids, isEnabled);
-    }
-
-    template<class SrcRow, class DstRow, class DatabaseT, class DstTableT>
     static std::shared_ptr<TaskNode> fillNarrowphaseRow(DstTableT& table, DatabaseT& db, std::vector<StableElementID>& ids, const std::vector<uint8_t>* isEnabled = nullptr) {
       return fillRow<&CollisionMask::shouldTestCollision, SrcRow, DstRow>(table, db, ids, isEnabled);
     }
 
     static std::shared_ptr<TaskNode> fillCollisionMasks(TableResolver<CollisionMaskRow> resolver, std::vector<StableElementID>& idsA, std::vector<StableElementID>& idsB, const DatabaseDescription& desc, const PhysicsTableIds& tables);
 
-    template<class SrcRow, class DstRow, class DatabaseT>
-    static std::shared_ptr<TaskNode> storeToRow(ConstraintCommonTable& table, DatabaseT& db, const std::vector<FinalSyncIndices::Mapping>& mappings) {
-      return TaskNode::create([&table, &db, &mappings](...) {
-        PROFILE_SCOPE("physics", "storeToRow");
-        SrcRow& src = std::get<SrcRow>(table.mRows);
-        DstRow* dst = nullptr;
-        DatabaseT::ElementID last;
-        for(const FinalSyncIndices::Mapping& mapping : mappings) {
-          const DatabaseT::ElementID id(mapping.mSourceGamebject.mUnstableIndex);
-          if(!dst || last.getTableIndex() != id.getTableIndex()) {
-            dst = Queries::getRowInTable<DstRow>(db, id);
-          }
-
-          if(dst) {
-            dst->at(id.getElementIndex()) = src.at(mapping.mTargetConstraint);
-          }
-
-          last = id;
-        }
-      });
-    }
-
-    static void _integratePositionAxis(float* velocity, float* position, size_t count);
-    static void _integrateRotation(float* rotX, float* rotY, float* velocity, size_t count);
+    static void _integratePositionAxis(const float* velocity, float* position, size_t count);
+    static void _integrateRotation(float* rotX, float* rotY, const float* velocity, size_t count);
     static void _applyDampingMultiplier(float* velocity, float amount, size_t count);
-
-    template<class Velocity, class Position, class DatabaseT>
-    static void integratePositionAxis(DatabaseT& db, std::vector<std::shared_ptr<TaskNode>>& tasks) {
-      Queries::viewEachRow<Velocity, Position>(db, [&db, &tasks](Velocity& velocity, Position& position) {
-        tasks.push_back(TaskNode::create([&velocity, &position](...) {
-          _integratePositionAxis(velocity.mElements.data(), position.mElements.data(), velocity.size());
-        }));
-      });
-    }
-
-    template<class Axis, class DatabaseT>
-    static void applyDampingMultiplierAxis(DatabaseT& db, const float& multiplier, std::vector<std::shared_ptr<TaskNode>>& tasks) {
-      Queries::viewEachRow<Axis>(db, [&multiplier, &tasks](Axis& axis) {
-        tasks.push_back(TaskNode::create([&multiplier, &axis](...) {
-          _applyDampingMultiplier(axis.mElements.data(), multiplier, axis.size());
-        }));
-      });
-    }
   };
 
   template<class DatabaseT>
@@ -413,67 +368,14 @@ struct Physics {
   static void generateContacts(ContactInfo& info);
 
   //Migrate velocity data from db to constraint table
-  template<class LinVelX, class LinVelY, class AngVel, class DatabaseT>
-  static TaskRange fillConstraintVelocities(ConstraintCommonTable& constraints, DatabaseT& db) {
-    auto result = std::make_shared<TaskNode>();
-    std::vector<StableElementID>& idsA = std::get<CollisionPairIndexA>(constraints.mRows).mElements;
-    const std::vector<uint8_t>* isEnabled = &std::get<ConstraintData::IsEnabled>(constraints.mRows).mElements;
-    result->mChildren.push_back(details::fillConstraintRow<LinVelX, ConstraintObject<ConstraintObjA>::LinVelX>(constraints, db, idsA, isEnabled));
-    result->mChildren.push_back(details::fillConstraintRow<LinVelY, ConstraintObject<ConstraintObjA>::LinVelY>(constraints, db, idsA, isEnabled));
-    result->mChildren.push_back(details::fillConstraintRow<AngVel, ConstraintObject<ConstraintObjA>::AngVel>(constraints, db, idsA, isEnabled));
-
-    std::vector<StableElementID>& idsB = std::get<CollisionPairIndexB>(constraints.mRows).mElements;
-    result->mChildren.push_back(details::fillConstraintRow<LinVelX, ConstraintObject<ConstraintObjB>::LinVelX>(constraints, db, idsB, isEnabled));
-    result->mChildren.push_back(details::fillConstraintRow<LinVelY, ConstraintObject<ConstraintObjB>::LinVelY>(constraints, db, idsB, isEnabled));
-    result->mChildren.push_back(details::fillConstraintRow<AngVel, ConstraintObject<ConstraintObjB>::AngVel>(constraints, db, idsB, isEnabled));
-    return TaskBuilder::addEndSync(result);
-  }
+  static void fillConstraintVelocities(IAppBuilder& builder, const PhysicsAliases& aliases);
 
   static TaskRange setupConstraints(ConstraintsTable& constraints, ContactConstraintsToStaticObjectsTable& staticContacts);
   static TaskRange solveConstraints(ConstraintsTable& constraints, ContactConstraintsToStaticObjectsTable& staticContacts, ConstraintCommonTable& common, const Config::PhysicsConfig& config);
 
   //Migrate velocity data from constraint table to db
-  template<class LinVelX, class LinVelY, class AngVel, class DatabaseT>
-  static TaskRange storeConstraintVelocities(ConstraintCommonTable& constraints, DatabaseT& db) {
-    const FinalSyncIndices& indices = std::get<SharedRow<FinalSyncIndices>>(constraints.mRows).at();
-    auto result = std::make_shared<TaskNode>();
-    result->mChildren.push_back(details::storeToRow<ConstraintObject<ConstraintObjA>::LinVelX, LinVelX>(constraints, db, indices.mMappingsA));
-    result->mChildren.push_back(details::storeToRow<ConstraintObject<ConstraintObjA>::LinVelY, LinVelY>(constraints, db, indices.mMappingsA));
-    result->mChildren.push_back(details::storeToRow<ConstraintObject<ConstraintObjA>::AngVel, AngVel>(constraints, db, indices.mMappingsA));
-
-    result->mChildren.push_back(details::storeToRow<ConstraintObject<ConstraintObjB>::LinVelX, LinVelX>(constraints, db, indices.mMappingsB));
-    result->mChildren.push_back(details::storeToRow<ConstraintObject<ConstraintObjB>::LinVelY, LinVelY>(constraints, db, indices.mMappingsB));
-    result->mChildren.push_back(details::storeToRow<ConstraintObject<ConstraintObjB>::AngVel, AngVel>(constraints, db, indices.mMappingsB));
-    return TaskBuilder::addEndSync(result);
-  }
-
-  template<class LinVelX, class LinVelY, class PosX, class PosY, class DatabaseT>
-  static TaskRange integratePosition(DatabaseT& db) {
-    auto result = std::make_shared<TaskNode>();
-    details::integratePositionAxis<LinVelX, PosX>(db, result->mChildren);
-    details::integratePositionAxis<LinVelY, PosY>(db, result->mChildren);
-    return TaskBuilder::addEndSync(result);
-  }
-
-  template<class CosAngle, class SinAngle, class AngVel, class DatabaseT>
-  static TaskRange integrateRotation(DatabaseT& db) {
-    auto begin = std::make_shared<TaskNode>();
-    Queries::viewEachRow<CosAngle, SinAngle, AngVel>(db, [begin](CosAngle& cosAngle, SinAngle& sinAngle, AngVel& angVel) {
-      begin->mChildren.push_back(TaskNode::create([&cosAngle, &sinAngle, &angVel](...) {
-        details::_integrateRotation(cosAngle.mElements.data(), sinAngle.mElements.data(), angVel.mElements.data(), cosAngle.size());
-      }));
-    });
-    return TaskBuilder::addEndSync(begin);
-  }
-
-  template<class LinVelX, class LinVelY, class DatabaseT>
-  static TaskRange applyDampingMultiplier(DatabaseT& db, const float& multiplier) {
-    std::vector<OwnedTask> tasks;
-    auto begin = std::make_shared<TaskNode>();
-    details::applyDampingMultiplierAxis<LinVelX>(db, multiplier, begin->mChildren);
-    details::applyDampingMultiplierAxis<LinVelY>(db, multiplier, begin->mChildren);
-    return TaskBuilder::addEndSync(begin);
-  }
-
+  static void storeConstraintVelocities(IAppBuilder& builder, const PhysicsAliases& aliases);
+  static void integratePosition(IAppBuilder& builder, const PhysicsAliases& aliases);
+  static void integrateRotation(IAppBuilder& builder, const PhysicsAliases& aliases);
   static void applyDampingMultiplier(IAppBuilder& builder, const PhysicsAliases& aliases, const float& linearMultiplier, const float& angularMultiplier);
 };

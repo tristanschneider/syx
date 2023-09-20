@@ -18,6 +18,13 @@ public:
   virtual void resize(size_t count) = 0;
 };
 
+class IIDResolver {
+public :
+  virtual ~IIDResolver() = default;
+  //Unpack without ensuring it's valid
+  virtual UnpackedDatabaseElementID uncheckedUnpack(const StableElementID& id) const = 0;
+};
+
 class IAnyTableModifier {
 public:
   virtual ~IAnyTableModifier() = default;
@@ -37,9 +44,24 @@ public:
   }
 
   template<class Row>
+  Row* tryGetRowAlias(const QueryAlias<Row>& alias, const UnpackedDatabaseElementID& id) {
+    return alias.cast(tryGetRow(id, alias.type));
+  }
+
+  template<class Row>
   bool tryGetOrSwapRow(CachedRow<Row>& row, const UnpackedDatabaseElementID& id) {
     if(!row.row || row.tableID != id.getTableIndex()) {
       row.row = tryGetRow<Row>(id);
+      row.tableID = id.getTableIndex();
+      return row.row != nullptr;
+    }
+    return row.row != nullptr;
+  }
+
+  template<class Row>
+  bool tryGetOrSwapRowAlias(const QueryAlias<Row>& alias, CachedRow<Row>& row, const UnpackedDatabaseElementID& id) {
+    if(!row.row || row.tableID != id.getTableIndex()) {
+      row.row = tryGetRowAlias(alias, id);
       row.tableID = id.getTableIndex();
       return row.row != nullptr;
     }
@@ -129,10 +151,18 @@ public:
   RuntimeDatabaseTaskBuilder(RuntimeDatabase& rdb);
   ~RuntimeDatabaseTaskBuilder();
 
+  std::unique_ptr<IIDResolver> getIDResolver();
+
   template<class... Rows>
   std::unique_ptr<ITableResolver> getResolver() {
     //Resolvers don't require all rows to match at once so any tables with any of the rows must be logged
     (log<Rows>(), ...);
+    return getResolver();
+  }
+
+  template<class... Aliases>
+  std::unique_ptr<ITableResolver> getAliasResolver(const Aliases&... aliases) {
+    (log(aliases), ...);
     return getResolver();
   }
 
@@ -201,6 +231,11 @@ private:
     }
   }
 
+  template<class Alias>
+  void log(const Alias& alias) {
+    log(alias, db.queryAlias(alias).matchingTableIDs);
+  }
+
   void log(const QueryAliasBase& alias, const std::vector<UnpackedDatabaseElementID>& tableIds);
 
   std::unique_ptr<ITableResolver> getResolver();
@@ -225,4 +260,23 @@ public:
   }
   virtual void submitTask(AppTaskWithMetadata&& task) = 0;
   virtual std::shared_ptr<AppTaskNode> finalize()&& = 0;
+
+  //Shorthand to get table ids to use in tasks that want to only access one table at a time
+  template<class... Aliases>
+  QueryResult<> queryAliasTables(const Aliases&... aliases) {
+    auto temp = createTask();
+    QueryResult<> result;
+    result.matchingTableIDs = std::move(temp.queryAlias(aliases...).matchingTableIDs);
+    temp.discard();
+    return result;
+  }
+
+  template<class... Rows>
+  QueryResult<> queryTables() {
+    auto temp = createTask();
+    QueryResult<> result;
+    result.matchingTableIDs = std::move(temp.query<Rows...>().matchingTableIDs);
+    temp.discard();
+    return result;
+  }
 };

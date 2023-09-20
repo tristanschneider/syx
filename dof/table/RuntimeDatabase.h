@@ -19,19 +19,39 @@ struct QueryAlias : QueryAliasBase {
   template<class SourceT>
   static QueryAlias create() {
     static_assert(std::is_convertible_v<SourceT*, ResultT*>);
+    static_assert(std::is_const_v<SourceT> == std::is_const_v<ResultT>);
     struct Caster {
       static ResultT* cast(void* p) {
         return static_cast<ResultT*>(static_cast<SourceT*>(p));
       }
+      static const ResultT* constCast(void* p) {
+        return cast(p);
+      }
     };
     QueryAlias result;
     result.cast = &Caster::cast;
+    result.constCast = &Caster::constCast;
     result.type = DBTypeID::get<std::decay_t<SourceT>>();
-    result.isConst = std::is_const_v<SourceT>;
+    result.isConst = false;
+    return result;
+  }
+
+  //Alias of itself
+  static QueryAlias create() {
+    return create<ResultT>();
+  }
+
+  QueryAlias<const ResultT> read() const {
+    QueryAlias<const ResultT> result;
+    result.cast = constCast;
+    result.constCast = constCast;
+    result.isConst = true;
     return result;
   }
 
   ResultT*(*cast)(void*){};
+  //Hack to enable the convenience of .read
+  const ResultT*(*constCast)(void*){};
 };
 
 struct RuntimeTable {
@@ -246,6 +266,8 @@ public:
     }
     return result;
   }
+
+  DatabaseDescription getDescription();
 
 private:
   template<class... Rows>

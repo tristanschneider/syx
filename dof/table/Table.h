@@ -66,6 +66,14 @@ struct BasicRow {
     return mElements.end();
   }
 
+  Element* data() {
+    return mElements.data();
+  }
+
+  const Element* data() const {
+    return mElements.data();
+  }
+
   std::vector<Element> mElements;
   Element mDefaultValue{};
 };

@@ -1,10 +1,10 @@
-export void integratePosition(uniform float position[], uniform float velocity[], uniform uint32 count) {
+export void integratePosition(uniform float position[], uniform const float velocity[], uniform uint32 count) {
   foreach(i = 0 ... count) {
      position[i] += velocity[i];
   }
 }
 
-export void integrateRotation(uniform float cosAngle[], uniform float sinAngle[], uniform float angularVelocity[], uniform uint32 count) {
+export void integrateRotation(uniform float cosAngle[], uniform float sinAngle[], uniform const float angularVelocity[], uniform uint32 count) {
   foreach(i = 0 ... count) {
     const float sv = sin(angularVelocity[i]);
     const float cv = cos(angularVelocity[i]);
