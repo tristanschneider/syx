@@ -420,13 +420,15 @@ void enableRawMouseInput() {
 }
 
 std::unique_ptr<IDatabase> createDatabase() {
-  std::unique_ptr<IDatabase> game = GameData::create();
+  auto mappings = std::make_unique<StableElementMappings>();
+  std::unique_ptr<IDatabase> game = GameData::create(*mappings);
   std::unique_ptr<IAppBuilder> tempBuilder = GameBuilder::create(*game);
-  std::unique_ptr<IDatabase> renderer = Renderer::createDatabase(tempBuilder->createTask());
+  std::unique_ptr<IDatabase> renderer = Renderer::createDatabase(tempBuilder->createTask(), *mappings);
   std::unique_ptr<IDatabase> result = DBReflect::merge(std::move(game), std::move(renderer));
 #ifdef IMGUI_ENABLED
-  result = DBReflect::merge(std::move(result), ImguiModule::createDatabase(tempBuilder->createTask()));
+  result = DBReflect::merge(std::move(result), ImguiModule::createDatabase(tempBuilder->createTask(), *mappings));
 #endif
+  result = DBReflect::bundle(std::move(result), std::move(mappings));
   return result;
 }
 

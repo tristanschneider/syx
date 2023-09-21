@@ -3,6 +3,8 @@
 #include "StableElementID.h"
 #include "Table.h"
 
+struct NarrowphaseTableTag : SharedRow<char> {};
+
 template<class>
 struct NarrowphaseData {
   struct PosX : Row<float>{};
@@ -82,6 +84,7 @@ struct SharedNormal {
 
 //Sorted by indexA
 using CollisionPairsTable = Table<
+  NarrowphaseTableTag,
   CollisionPairIndexA,
   CollisionPairIndexB,
   //These rows are generated and updated by the broadphase and carried through to narrowphase

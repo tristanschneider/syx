@@ -7,15 +7,15 @@
 #include "Simulation.h"
 
 namespace GameData {
-  RuntimeDatabaseArgs reflectDB(GameDatabase& db) {
+  RuntimeDatabaseArgs reflectDB(GameDatabase& db, StableElementMappings& mappings) {
     RuntimeDatabaseArgs result;
-    DBReflect::reflect(db, result, std::get<SharedRow<StableElementMappings>>(std::get<GlobalGameData>(db.mTables).mRows).at());
+    DBReflect::reflect(db, result, mappings);
     return result;
   }
 
   struct Impl : IDatabase {
-    Impl()
-      : runtime(reflectDB(db)) {
+    Impl(StableElementMappings& mappings)
+      : runtime(reflectDB(db, mappings)) {
     }
 
     RuntimeDatabase& getRuntime() override {
@@ -26,7 +26,7 @@ namespace GameData {
     RuntimeDatabase runtime;
   };
 
-  std::unique_ptr<IDatabase> create() {
-    return std::make_unique<Impl>();
+  std::unique_ptr<IDatabase> create(StableElementMappings& mappings) {
+    return std::make_unique<Impl>(mappings);
   }
 }

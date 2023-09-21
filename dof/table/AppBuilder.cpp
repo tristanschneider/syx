@@ -60,15 +60,41 @@ namespace TableModifierImpl {
 namespace IDResolverImpl {
   //TODO: is this worth it or should the description be more accessible?
   struct Impl : IIDResolver {
-    Impl(DatabaseDescription d)
-      : description{ d } {
+    Impl(RuntimeDatabase& db)
+      : description{ db.getDescription() }
+      , mappings{ db.getMappings() } {
+      auto allTables = db.query<>();
+      auto stableTables = db.query<StableIDRow>();
+      stableIDs.resize(allTables.matchingTableIDs.size());
+      for(size_t i = 0; i < stableTables.size(); ++i) {
+        stableIDs[stableTables.matchingTableIDs[i].getTableIndex()] = &stableTables.get<0>(i);
+      }
     }
 
     UnpackedDatabaseElementID uncheckedUnpack(const StableElementID& id) const override {
       return id.toUnpacked(description);
     }
 
+    std::optional<StableElementID> tryResolveStableID(const StableElementID& id) const override {
+      //TODO: is this actually faster than doing the map lookup always?
+      const UnpackedDatabaseElementID unpacked = id.toUnpacked(description);
+      const size_t table = unpacked.getTableIndex();
+      const size_t index = unpacked.getElementIndex();
+      if(table < stableIDs.size()) {
+        if(const StableIDRow* row = stableIDs[table]) {
+          if(index < row->size() && row->at(index) == id.mStableID) {
+            return id;
+          }
+        }
+      }
+
+      auto it = mappings.findKey(id.mStableID);
+      return it ? std::make_optional(StableElementID{ it->second, it->first }) : std::nullopt;
+    }
+
     DatabaseDescription description;
+    std::vector<const StableIDRow*> stableIDs;
+    StableElementMappings& mappings;
   };
 }
 
@@ -116,7 +142,7 @@ std::unique_ptr<ITableResolver> RuntimeDatabaseTaskBuilder::getResolver() {
 }
 
 std::unique_ptr<IIDResolver> RuntimeDatabaseTaskBuilder::getIDResolver() {
-  return std::make_unique<IDResolverImpl::Impl>(db.getDescription());
+  return std::make_unique<IDResolverImpl::Impl>(db);
 }
 
 void RuntimeDatabaseTaskBuilder::log(const QueryAliasBase& alias, const std::vector<UnpackedDatabaseElementID>& tableIds) {

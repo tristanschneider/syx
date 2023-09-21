@@ -23,6 +23,7 @@ public :
   virtual ~IIDResolver() = default;
   //Unpack without ensuring it's valid
   virtual UnpackedDatabaseElementID uncheckedUnpack(const StableElementID& id) const = 0;
+  virtual std::optional<StableElementID> tryResolveStableID(const StableElementID& id) const = 0;
 };
 
 class IAnyTableModifier {

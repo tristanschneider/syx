@@ -206,6 +206,7 @@ struct QueryResult {
 struct RuntimeDatabaseArgs {
   size_t elementIndexBits;
   std::vector<RuntimeTable> tables;
+  StableElementMappings* mappings{};
 };
 
 class RuntimeDatabase {
@@ -268,6 +269,7 @@ public:
   }
 
   DatabaseDescription getDescription();
+  StableElementMappings& getMappings();
 
 private:
   template<class... Rows>
@@ -324,10 +326,10 @@ namespace DBReflect {
     }
 
     template<class TableT>
-    void reflectTable(const UnpackedDatabaseElementID& tableID, TableT& table, RuntimeDatabaseArgs& args, StableElementMappings& mappings) {
+    void reflectTable(const UnpackedDatabaseElementID& tableID, TableT& table, RuntimeDatabaseArgs& args) {
       RuntimeTable& rt = args.tables[tableID.getTableIndex()];
       if constexpr(TableOperations::isStableTable<TableT>) {
-        rt.stableModifier = StableTableModifierInstance::get<DB>(table, mappings);
+        rt.stableModifier = StableTableModifierInstance::get(table, tableID, *args.mappings);
       }
       else {
         rt.modifier = TableModifierInstance::get(table);
@@ -345,10 +347,11 @@ namespace DBReflect {
     constexpr size_t newTables = db.size();
     args.tables.resize(baseIndex + newTables);
     args.elementIndexBits = dbDetails::constexprLog2(args.tables.size());
+    args.mappings = &mappings;
     db.visitOne([&](auto& table) {
       const size_t rawIndex = DB::getTableIndex(table).getTableIndex();
       const auto tableID = UnpackedDatabaseElementID{ 0, args.elementIndexBits }.remake(baseIndex + rawIndex, 0);
-      details::reflectTable(tableID, table, args, mappings);
+      details::reflectTable(tableID, table, args);
     });
   }
 
@@ -358,33 +361,34 @@ namespace DBReflect {
     const size_t newTables = 1;
     args.tables.resize(baseIndex + newTables);
     args.elementIndexBits = dbDetails::constexprLog2(args.tables.size());
+    args.mappings = &mappings;
     const auto tableID = UnpackedDatabaseElementID{ 0, args.elementIndexBits }.remake(baseIndex, 0);
-    details::reflectTable(tableID, table, args, mappings);
+    details::reflectTable(tableID, table, args);
   }
 
   template<class DB>
-  std::unique_ptr<IDatabase> createDatabase() {
+  std::unique_ptr<IDatabase> createDatabase(StableElementMappings& mappings) {
     struct Impl : IDatabase {
-      Impl()
-        : runtime(getArgs()) {
+      Impl(StableElementMappings& mappings)
+        : runtime(getArgs(mappings)) {
       }
 
       RuntimeDatabase& getRuntime() override {
         return runtime;
       }
 
-      RuntimeDatabaseArgs getArgs() {
+      RuntimeDatabaseArgs getArgs(StableElementMappings& mappings) {
         RuntimeDatabaseArgs result;
         reflect(db, result, mappings);
         return result;
       }
 
       DB db;
-      StableElementMappings mappings;
       RuntimeDatabase runtime;
     };
-    return std::make_unique<Impl>();
+    return std::make_unique<Impl>(mappings);
   }
 
   std::unique_ptr<IDatabase> merge(std::unique_ptr<IDatabase> l, std::unique_ptr<IDatabase> r);
+  std::unique_ptr<IDatabase> bundle(std::unique_ptr<IDatabase> db, std::unique_ptr<StableElementMappings> mappings);
 }

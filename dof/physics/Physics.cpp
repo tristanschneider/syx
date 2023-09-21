@@ -357,6 +357,84 @@ namespace PhysicsImpl {
     const QueryAlias<const Row<StableElementID>>& collisionPairIndices) {
     fillRow<&CollisionMask::shouldSolveConstraint>(builder, src, dst, collisionPairIndices);
   }
+
+  void fillNarrowphaseRow(IAppBuilder& builder,
+    const QueryAlias<const Row<float>>& src,
+    const QueryAlias<Row<float>>& dst,
+    const QueryAlias<const Row<StableElementID>>& collisionPairIndices) {
+    fillRow<&CollisionMask::shouldTestCollision>(builder, src, dst, collisionPairIndices);
+  }
+
+  //TODO: Should probably generalize to query the desired table properties rather than using singleton hardcoded ids
+  PhysicsTableIds getTableIds(IAppBuilder& builder) {
+    PhysicsTableIds ids;
+    const UnpackedDatabaseElementID& someID = builder.queryTables<>().matchingTableIDs.front();
+    ids.mTableIDMask = someID.getTableMask();
+    ids.mElementIDMask = someID.getElementMask();
+    ids.mSharedMassConstraintTable = builder.queryTables<SharedMassConstraintsTableTag>().matchingTableIDs.front().mValue;
+    ids.mZeroMassConstraintTable = builder.queryTables<ZeroMassConstraintsTableTag>().matchingTableIDs.front().mValue;
+    ids.mSharedMassObjectTable = builder.queryTables<SharedMassObjectTableTag>().matchingTableIDs.front().mValue;
+    ids.mZeroMassObjectTable = builder.queryTables<ZeroMassObjectTableTag>().matchingTableIDs.front().mValue;
+    ids.mConstriantsCommonTable = builder.queryTables<ConstraintsCommonTableTag>().matchingTableIDs.front().mValue;
+    ids.mSpatialQueriesTable = builder.queryTables<SpatialQueriesTableTag>().matchingTableIDs.front().mValue;
+    ids.mNarrowphaseTable = builder.queryTables<NarrowphaseTableTag>().matchingTableIDs.front().mValue;
+    return ids;
+  }
+
+  void resolveCollisionTableIds(IAppBuilder& builder) {
+    auto task = builder.createTask();
+    std::shared_ptr<IIDResolver> ids = task.getIDResolver();
+    auto query = task.query<CollisionPairIndexA, CollisionPairIndexB>();
+    task.setName("collision id resolution");
+    const PhysicsTableIds tableIDs = getTableIds(builder);
+    task.setCallback([query, ids, tableIDs](AppTaskArgs&) mutable {
+      for(size_t t = 0; t < query.size(); ++t) {
+        CollisionPairIndexA& rowA = query.get<0>(t);
+        CollisionPairIndexB& rowB = query.get<1>(t);
+        for(size_t i = 0; i < rowA.size(); ++i) {
+          StableElementID& a = rowA.at(i);
+          StableElementID& b = rowB.at(i);
+          std::optional<StableElementID> newA = ids->tryResolveStableID(a);
+          std::optional<StableElementID> newB = ids->tryResolveStableID(b);
+          //If an id disappeared, invalidate the pair
+          if(!newA || !newB) {
+            a = b = StableElementID::invalid();
+          }
+          //If the ids changes, reorder the collision pair
+          else if(*newA != a || *newB != b) {
+            //Write the newly resolved handles back to the stored ids
+            a = *newA;
+            b = *newB;
+            //Reorder them in case the new element location caused a collision pair order change
+            if(!CollisionPairOrder::tryOrderCollisionPair(a, b, tableIDs)) {
+              a = b = StableElementID::invalid();
+            }
+          }
+        }
+      }
+    });
+    builder.submitTask(std::move(task));
+  }
+}
+
+void Physics::fillNarrowphaseData(IAppBuilder& builder, const PhysicsAliases& aliases) {
+  //Id resolution must complete before the fill bundle starts
+  PhysicsImpl::resolveCollisionTableIds(builder);
+
+  using Alias = QueryAlias<Row<float>>;
+  using OA = NarrowphaseData<PairA>;
+  auto idsA = QueryAlias<Row<StableElementID>>::create<CollisionPairIndexA>().read();
+  PhysicsImpl::fillNarrowphaseRow(builder, aliases.posX.read(), Alias::create<OA::PosX>(), idsA);
+  PhysicsImpl::fillNarrowphaseRow(builder, aliases.posY.read(), Alias::create<OA::PosY>(), idsA);
+  PhysicsImpl::fillNarrowphaseRow(builder, aliases.rotX.read(), Alias::create<OA::CosAngle>(), idsA);
+  PhysicsImpl::fillNarrowphaseRow(builder, aliases.rotY.read(), Alias::create<OA::SinAngle>(), idsA);
+
+  using OB = NarrowphaseData<PairB>;
+  auto idsB = QueryAlias<Row<StableElementID>>::create<CollisionPairIndexB>().read();
+  PhysicsImpl::fillNarrowphaseRow(builder, aliases.posX.read(), Alias::create<OB::PosX>(), idsB);
+  PhysicsImpl::fillNarrowphaseRow(builder, aliases.posY.read(), Alias::create<OB::PosY>(), idsB);
+  PhysicsImpl::fillNarrowphaseRow(builder, aliases.rotX.read(), Alias::create<OB::CosAngle>(), idsB);
+  PhysicsImpl::fillNarrowphaseRow(builder, aliases.rotY.read(), Alias::create<OB::SinAngle>(), idsB);
 }
 
 void Physics::fillConstraintVelocities(IAppBuilder& builder, const PhysicsAliases& aliases) {

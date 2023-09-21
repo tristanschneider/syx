@@ -310,15 +310,15 @@ namespace {
 }
 
 struct RenderDB : IDatabase {
-  RenderDB(size_t quadPassCount)
-    : runtime(getArgs(quadPassCount)) {
+  RenderDB(size_t quadPassCount, StableElementMappings& mappings)
+    : runtime(getArgs(quadPassCount, mappings)) {
   }
 
   RuntimeDatabase& getRuntime() override {
     return runtime;
   }
 
-  RuntimeDatabaseArgs getArgs(size_t quadPassCount) {
+  RuntimeDatabaseArgs getArgs(size_t quadPassCount, StableElementMappings& mappings) {
     RuntimeDatabaseArgs result;
     DBReflect::reflect(main, result, mappings);
     quadPasses.resize(quadPassCount);
@@ -334,11 +334,11 @@ struct RenderDB : IDatabase {
   RuntimeDatabase runtime;
 };
 
-std::unique_ptr<IDatabase> createDatabase(RuntimeDatabaseTaskBuilder&& builder) {
+std::unique_ptr<IDatabase> createDatabase(RuntimeDatabaseTaskBuilder&& builder, StableElementMappings& mappings) {
   auto sprites = builder.query<const Row<CubeSprite>>();
   const size_t quadPassCount = sprites.matchingTableIDs.size();
   //Create the database with the required number of quad pass tables
-  auto result = std::make_unique<RenderDB>(quadPassCount);
+  auto result = std::make_unique<RenderDB>(quadPassCount, mappings);
   auto resolver = builder.getResolver<const IsImmobile>();
 
   //Fill in the quad pass tables

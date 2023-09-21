@@ -22,6 +22,10 @@ DatabaseDescription RuntimeDatabase::getDescription() {
   return { data.elementIndexBits };
 }
 
+StableElementMappings& RuntimeDatabase::getMappings() {
+  return *data.mappings;
+}
+
 namespace DBReflect {
   struct MergedDatabase : IDatabase {
     MergedDatabase(std::unique_ptr<IDatabase> l, std::unique_ptr<IDatabase> r) 
@@ -59,4 +63,18 @@ namespace DBReflect {
     return std::make_unique<MergedDatabase>(std::move(l), std::move(r));
   }
 
+  std::unique_ptr<IDatabase> bundle(std::unique_ptr<IDatabase> db, std::unique_ptr<StableElementMappings> mappings) {
+    struct Bundle : IDatabase {
+      RuntimeDatabase& getRuntime() override {
+        return db->getRuntime();
+      }
+
+      std::unique_ptr<IDatabase> db;
+      std::unique_ptr<StableElementMappings> mappings;
+    };
+    auto result = std::make_unique<Bundle>();
+    result->db = std::move(db);
+    result->mappings = std::move(mappings);
+    return result;
+  }
 }

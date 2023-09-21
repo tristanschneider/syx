@@ -105,6 +105,13 @@ struct ConstraintData {
   using CommonTableStartIndex = SharedRow<size_t>;
 };
 
+struct SharedMassConstraintsTableTag : SharedRow<char> {};
+struct ZeroMassConstraintsTableTag : SharedRow<char> {};
+struct SharedMassObjectTableTag : SharedRow<char> {};
+struct ZeroMassObjectTableTag : SharedRow<char> {};
+struct ConstraintsCommonTableTag : SharedRow<char> {};
+struct SpatialQueriesTableTag : SharedRow<char> {};
+
 //These are used to migrate final solved velocities constraint table back to the gameobjects
 struct FinalSyncIndices {
   struct Mapping {
@@ -118,6 +125,7 @@ struct FinalSyncIndices {
 //There are several different tables for different constraint pair types,
 //this is the common table that those methods use so that all object velocity copying happens within one table
 using ConstraintCommonTable = Table<
+  ConstraintsCommonTableTag,
   CollisionPairIndexA,
   CollisionPairIndexB,
   ConstraintData::ConstraintContactPair,
@@ -143,6 +151,7 @@ using ConstraintCommonTable = Table<
 >;
 
 using ConstraintsTable = Table<
+  SharedMassConstraintsTableTag,
   //Pretty clunky that this is needed but since order doesn't match between this table and narrowphase
   //it's easier to copy the data into the constraints table
   ContactPoint<ContactOne>::Overlap,
@@ -196,6 +205,7 @@ using ConstraintsTable = Table<
 >;
 
 using ContactConstraintsToStaticObjectsTable = Table<
+  ZeroMassConstraintsTableTag,
   //Pretty clunky that this is needed but since order doesn't match between this table and narrowphase
   //it's easier to copy the data into the constraints table
   ContactPoint<ContactOne>::Overlap,
@@ -274,39 +284,6 @@ struct ContactInfo {
 
 struct Physics {
   struct details {
-    template<bool(*enabledFn)(uint8_t), class SrcRow, class DstRow, class DatabaseT, class DstTableT>
-    static std::shared_ptr<TaskNode> fillRow(DstTableT& table, DatabaseT& db, std::vector<StableElementID>& ids, const std::vector<uint8_t>* isEnabled = nullptr) {
-      return TaskNode::create([&table, &db, &ids, isEnabled](...) {
-        PROFILE_SCOPE("physics", "fillRow");
-        DstRow& dst = std::get<DstRow>(table.mRows);
-        SrcRow* src = nullptr;
-        DatabaseT::ElementID last;
-        for(size_t i = 0; i < ids.size(); ++i) {
-          if(ids[i] == StableElementID::invalid() || (isEnabled && !enabledFn(isEnabled->at(i)))) {
-            continue;
-          }
-
-          //Caller should ensure the unstable indices have been resolved such that now the unstable index is up to date
-          const DatabaseT::ElementID id(ids[i].mUnstableIndex);
-          //Retreive the rows every time the tables change, which should be rarely
-          if(!src || last.getTableIndex() != id.getTableIndex()) {
-            src = Queries::getRowInTable<SrcRow>(db, id);
-          }
-
-          if(src) {
-            dst.at(i) = src->at(id.getElementIndex());
-          }
-
-          last = id;
-        }
-      });
-    }
-
-    template<class SrcRow, class DstRow, class DatabaseT, class DstTableT>
-    static std::shared_ptr<TaskNode> fillNarrowphaseRow(DstTableT& table, DatabaseT& db, std::vector<StableElementID>& ids, const std::vector<uint8_t>* isEnabled = nullptr) {
-      return fillRow<&CollisionMask::shouldTestCollision, SrcRow, DstRow>(table, db, ids, isEnabled);
-    }
-
     static std::shared_ptr<TaskNode> fillCollisionMasks(TableResolver<CollisionMaskRow> resolver, std::vector<StableElementID>& idsA, std::vector<StableElementID>& idsB, const DatabaseDescription& desc, const PhysicsTableIds& tables);
 
     static void _integratePositionAxis(const float* velocity, float* position, size_t count);
@@ -314,59 +291,11 @@ struct Physics {
     static void _applyDampingMultiplier(float* velocity, float amount, size_t count);
   };
 
-  template<class DatabaseT>
-  static void resolveCollisionTableIds(CollisionPairsTable& pairs, DatabaseT& db, StableElementMappings& mappings, const PhysicsTableIds& physicsTables) {
-    std::vector<StableElementID>& idsA = std::get<CollisionPairIndexA>(pairs.mRows).mElements;
-    std::vector<StableElementID>& idsB = std::get<CollisionPairIndexB>(pairs.mRows).mElements;
-    for(size_t i = 0; i < idsA.size(); ++i) {
-      auto& a = idsA[i];
-      auto& b = idsB[i];
-      std::optional<StableElementID> newA = StableOperations::tryResolveStableID(a, db, mappings);
-      std::optional<StableElementID> newB = StableOperations::tryResolveStableID(b, db, mappings);
-      //If an id disappeared, invalidate the pair
-      if(!newA || !newB) {
-        a = b = StableElementID::invalid();
-      }
-      //If the ids changes, reorder the collision pair
-      else if(*newA != a || *newB != b) {
-        //Write the newly resolved handles back to the stored ids
-        a = *newA;
-        b = *newB;
-        //Reorder them in case the new element location caused a collision pair order change
-        if(!CollisionPairOrder::tryOrderCollisionPair(a, b, physicsTables)) {
-          a = b = StableElementID::invalid();
-        }
-      }
-    }
-  }
-
-  //Populates narrowphase data by fetching it from the provided input using the indices stored by the broadphase
-  template<class PosX, class PosY, class CosAngle, class SinAngle, class DatabaseT>
-  static TaskRange fillNarrowphaseData(CollisionPairsTable& pairs, DatabaseT& db, StableElementMappings& mappings, const PhysicsTableIds& physicsTables) {
-    //Id resolution must complete before the fill bundle starts
-    auto root = TaskNode::create([&](...) {
-      PROFILE_SCOPE("physics", "resolveCollisionTableIds");
-      resolveCollisionTableIds(pairs, db, mappings, physicsTables);
-    });
-    std::vector<StableElementID>& idsA = std::get<CollisionPairIndexA>(pairs.mRows).mElements;
-    std::vector<StableElementID>& idsB = std::get<CollisionPairIndexB>(pairs.mRows).mElements;
-
-    root->mChildren.push_back(details::fillNarrowphaseRow<PosX, NarrowphaseData<PairA>::PosX>(pairs, db, idsA));
-    root->mChildren.push_back(details::fillNarrowphaseRow<PosY, NarrowphaseData<PairA>::PosY>(pairs, db, idsA));
-    root->mChildren.push_back(details::fillNarrowphaseRow<CosAngle, NarrowphaseData<PairA>::CosAngle>(pairs, db, idsA));
-    root->mChildren.push_back(details::fillNarrowphaseRow<SinAngle, NarrowphaseData<PairA>::SinAngle>(pairs, db, idsA));
-
-    root->mChildren.push_back(details::fillNarrowphaseRow<PosX, NarrowphaseData<PairB>::PosX>(pairs, db, idsB));
-    root->mChildren.push_back(details::fillNarrowphaseRow<PosY, NarrowphaseData<PairB>::PosY>(pairs, db, idsB));
-    root->mChildren.push_back(details::fillNarrowphaseRow<CosAngle, NarrowphaseData<PairB>::CosAngle>(pairs, db, idsB));
-    root->mChildren.push_back(details::fillNarrowphaseRow<SinAngle, NarrowphaseData<PairB>::SinAngle>(pairs, db, idsB));
-
-    return TaskBuilder::addEndSync(root);
-  }
-
   static void generateContacts(CollisionPairsTable& pairs);
   static void generateContacts(ContactInfo& info);
 
+  //Populates narrowphase data by fetching it from the provided input using the indices stored by the broadphase
+  static void fillNarrowphaseData(IAppBuilder& builder, const PhysicsAliases& aliases);
   //Migrate velocity data from db to constraint table
   static void fillConstraintVelocities(IAppBuilder& builder, const PhysicsAliases& aliases);
 

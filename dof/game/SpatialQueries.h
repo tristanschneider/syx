@@ -4,6 +4,7 @@
 #include "StableElementID.h"
 #include "SweepNPruneBroadphase.h"
 #include "Table.h"
+#include "Physics.h"
 
 struct GameDB;
 struct SpatialQueryAdapter;
@@ -97,6 +98,7 @@ namespace SpatialQuery {
   struct MaxY : Row<float> {};
 
   struct SpatialQueriesTable : Table<
+    SpatialQueriesTableTag,
     Physics<QueryRow>,
     Physics<ResultRow>,
     SweepNPruneBroadphase::BroadphaseKeys,

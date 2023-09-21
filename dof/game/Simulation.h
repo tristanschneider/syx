@@ -119,6 +119,7 @@ enum class FragmentFlags : uint8_t {
 struct FragmentFlagsRow : Row<FragmentFlags>{};
 
 using GameObjectTable = Table<
+  SharedMassObjectTableTag,
   //Data viewed by physics, not to be used by gameplay
   FloatRow<Tags::Pos, Tags::X>,
   FloatRow<Tags::Pos, Tags::Y>,
@@ -161,6 +162,7 @@ using GameObjectTable = Table<
 >;
 
 using StaticGameObjectTable = Table<
+  ZeroMassObjectTableTag,
   FloatRow<Tags::Pos, Tags::X>,
   FloatRow<Tags::Pos, Tags::Y>,
   FloatRow<Tags::Rot, Tags::CosAngle>,

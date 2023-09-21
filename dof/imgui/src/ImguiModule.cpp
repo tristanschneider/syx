@@ -323,7 +323,7 @@ namespace ImGuiModule {
     return q.tryGetSingletonElement();
   }
 
-  std::unique_ptr<IDatabase> createDatabase(RuntimeDatabaseTaskBuilder&&) {
-    return DBReflect::createDatabase<ImguiDB>();
+  std::unique_ptr<IDatabase> createDatabase(RuntimeDatabaseTaskBuilder&&, StableElementMappings& mappings) {
+    return DBReflect::createDatabase<ImguiDB>(mappings);
   }
 }
