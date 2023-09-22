@@ -299,8 +299,8 @@ struct Physics {
   //Migrate velocity data from db to constraint table
   static void fillConstraintVelocities(IAppBuilder& builder, const PhysicsAliases& aliases);
 
-  static TaskRange setupConstraints(ConstraintsTable& constraints, ContactConstraintsToStaticObjectsTable& staticContacts);
-  static TaskRange solveConstraints(ConstraintsTable& constraints, ContactConstraintsToStaticObjectsTable& staticContacts, ConstraintCommonTable& common, const Config::PhysicsConfig& config);
+  static void setupConstraints(IAppBuilder& builder);
+  static void solveConstraints(IAppBuilder& builder, const Config::PhysicsConfig& config);
 
   //Migrate velocity data from constraint table to db
   static void storeConstraintVelocities(IAppBuilder& builder, const PhysicsAliases& aliases);

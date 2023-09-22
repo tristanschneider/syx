@@ -11,57 +11,185 @@
 #include "Profile.h"
 
 namespace {
-  template<class RowT, class TableT>
-  decltype(std::declval<RowT&>().mElements.data()) _unwrapRow(TableT& t) {
-    if constexpr(TableOperations::hasRow<RowT, TableT>()) {
-      return std::get<RowT>(t.mRows).mElements.data();
-    }
-   else {
-      return nullptr;
-    }
+  template<class RowT>
+  RowT* _unwrapRow(RuntimeDatabaseTaskBuilder& task, const UnpackedDatabaseElementID& table) {
+    QueryResult<RowT> result = task.query<RowT>(table);
+    return result.size() ? &result.get<0>(0) : nullptr;
   }
 
-  template<class TableT>
-  ispc::UniformContactConstraintPairData _unwrapUniformConstraintData(TableT& constraints) {
+  struct UniformContactConstraintPairDataRows {
+    Row<float>* linearAxisX;
+    Row<float>* linearAxisY;
+    Row<float>* angularAxisOneA;
+    Row<float>* angularAxisOneB;
+    Row<float>* angularAxisTwoA;
+    Row<float>* angularAxisTwoB;
+    Row<float>* angularFrictionAxisOneA;
+    Row<float>* angularFrictionAxisOneB;
+    Row<float>* angularFrictionAxisTwoA;
+    Row<float>* angularFrictionAxisTwoB;
+    Row<float>* constraintMassOne;
+    Row<float>* constraintMassTwo;
+    Row<float>* frictionConstraintMassOne;
+    Row<float>* frictionConstraintMassTwo;
+    Row<float>* linearImpulseX;
+    Row<float>* linearImpulseY;
+    Row<float>* angularImpulseOneA;
+    Row<float>* angularImpulseOneB;
+    Row<float>* angularImpulseTwoA;
+    Row<float>* angularImpulseTwoB;
+    Row<float>* angularFrictionImpulseOneA;
+    Row<float>* angularFrictionImpulseOneB;
+    Row<float>* angularFrictionImpulseTwoA;
+    Row<float>* angularFrictionImpulseTwoB;
+    Row<float>* biasOne;
+    Row<float>* biasTwo;
+  };
+
+  ispc::UniformContactConstraintPairData _unwrapUniformConstraintData(UniformContactConstraintPairDataRows& rows) {
     return {
-      _unwrapRow<ConstraintData::LinearAxisX>(constraints),
-      _unwrapRow<ConstraintData::LinearAxisY>(constraints),
-      _unwrapRow<ConstraintData::AngularAxisOneA>(constraints),
-      _unwrapRow<ConstraintData::AngularAxisOneB>(constraints),
-      _unwrapRow<ConstraintData::AngularAxisTwoA>(constraints),
-      _unwrapRow<ConstraintData::AngularAxisTwoB>(constraints),
-      _unwrapRow<ConstraintData::AngularFrictionAxisOneA>(constraints),
-      _unwrapRow<ConstraintData::AngularFrictionAxisOneB>(constraints),
-      _unwrapRow<ConstraintData::AngularFrictionAxisTwoA>(constraints),
-      _unwrapRow<ConstraintData::AngularFrictionAxisTwoB>(constraints),
-      _unwrapRow<ConstraintData::ConstraintMassOne>(constraints),
-      _unwrapRow<ConstraintData::ConstraintMassTwo>(constraints),
-      _unwrapRow<ConstraintData::FrictionConstraintMassOne>(constraints),
-      _unwrapRow<ConstraintData::FrictionConstraintMassTwo>(constraints),
-      _unwrapRow<ConstraintData::LinearImpulseX>(constraints),
-      _unwrapRow<ConstraintData::LinearImpulseY>(constraints),
-      _unwrapRow<ConstraintData::AngularImpulseOneA>(constraints),
-      _unwrapRow<ConstraintData::AngularImpulseOneB>(constraints),
-      _unwrapRow<ConstraintData::AngularImpulseTwoA>(constraints),
-      _unwrapRow<ConstraintData::AngularImpulseTwoB>(constraints),
-      _unwrapRow<ConstraintData::FrictionAngularImpulseOneA>(constraints),
-      _unwrapRow<ConstraintData::FrictionAngularImpulseOneB>(constraints),
-      _unwrapRow<ConstraintData::FrictionAngularImpulseTwoA>(constraints),
-      _unwrapRow<ConstraintData::FrictionAngularImpulseTwoB>(constraints),
-      _unwrapRow<ConstraintData::BiasOne>(constraints),
-      _unwrapRow<ConstraintData::BiasTwo>(constraints)
+      rows.linearAxisX->data(),
+      rows.linearAxisY->data(),
+      rows.angularAxisOneA->data(),
+      rows.angularAxisOneB->data(),
+      rows.angularAxisTwoA->data(),
+      rows.angularAxisTwoB->data(),
+      rows.angularFrictionAxisOneA->data(),
+      rows.angularFrictionAxisOneB->data(),
+      rows.angularFrictionAxisTwoA->data(),
+      rows.angularFrictionAxisTwoB->data(),
+      rows.constraintMassOne->data(),
+      rows.constraintMassTwo->data(),
+      rows.frictionConstraintMassOne->data(),
+      rows.frictionConstraintMassTwo->data(),
+      rows.linearImpulseX->data(),
+      rows.linearImpulseY->data(),
+      rows.angularImpulseOneA->data(),
+      rows.angularImpulseOneB->data(),
+      rows.angularImpulseTwoA->data(),
+      rows.angularImpulseTwoB->data(),
+      rows.angularFrictionImpulseOneA->data(),
+      rows.angularFrictionImpulseOneB->data(),
+      rows.angularFrictionImpulseTwoA->data(),
+      rows.angularFrictionImpulseTwoB->data(),
+      rows.biasOne->data(),
+      rows.biasTwo->data()
+    };
+  }
+
+  UniformContactConstraintPairDataRows _unwrapUniformConstraintDataRows(RuntimeDatabaseTaskBuilder& task, const UnpackedDatabaseElementID& table) {
+    return {
+      _unwrapRow<ConstraintData::LinearAxisX>(task, table),
+      _unwrapRow<ConstraintData::LinearAxisY>(task, table),
+      _unwrapRow<ConstraintData::AngularAxisOneA>(task, table),
+      _unwrapRow<ConstraintData::AngularAxisOneB>(task, table),
+      _unwrapRow<ConstraintData::AngularAxisTwoA>(task, table),
+      _unwrapRow<ConstraintData::AngularAxisTwoB>(task, table),
+      _unwrapRow<ConstraintData::AngularFrictionAxisOneA>(task, table),
+      _unwrapRow<ConstraintData::AngularFrictionAxisOneB>(task, table),
+      _unwrapRow<ConstraintData::AngularFrictionAxisTwoA>(task, table),
+      _unwrapRow<ConstraintData::AngularFrictionAxisTwoB>(task, table),
+      _unwrapRow<ConstraintData::ConstraintMassOne>(task, table),
+      _unwrapRow<ConstraintData::ConstraintMassTwo>(task, table),
+      _unwrapRow<ConstraintData::FrictionConstraintMassOne>(task, table),
+      _unwrapRow<ConstraintData::FrictionConstraintMassTwo>(task, table),
+      _unwrapRow<ConstraintData::LinearImpulseX>(task, table),
+      _unwrapRow<ConstraintData::LinearImpulseY>(task, table),
+      _unwrapRow<ConstraintData::AngularImpulseOneA>(task, table),
+      _unwrapRow<ConstraintData::AngularImpulseOneB>(task, table),
+      _unwrapRow<ConstraintData::AngularImpulseTwoA>(task, table),
+      _unwrapRow<ConstraintData::AngularImpulseTwoB>(task, table),
+      _unwrapRow<ConstraintData::FrictionAngularImpulseOneA>(task, table),
+      _unwrapRow<ConstraintData::FrictionAngularImpulseOneB>(task, table),
+      _unwrapRow<ConstraintData::FrictionAngularImpulseTwoA>(task, table),
+      _unwrapRow<ConstraintData::FrictionAngularImpulseTwoB>(task, table),
+      _unwrapRow<ConstraintData::BiasOne>(task, table),
+      _unwrapRow<ConstraintData::BiasTwo>(task, table)
+    };
+  }
+
+  struct UniformConstraintObjectRows {
+    Row<float>* linVelX;
+    Row<float>* linVelY;
+    Row<float>* angVel;
+    Row<int32_t>* syncIndex;
+    Row<int32_t>* syncType;
+  };
+
+  ispc::UniformConstraintObject _unwrapUniformConstraintObject(UniformConstraintObjectRows& rows) {
+    return {
+      rows.linVelX->data(),
+      rows.linVelY->data(),
+      rows.angVel->data(),
+      rows.syncIndex->data(),
+      rows.syncType->data()
     };
   }
 
   template<class CObj>
-  ispc::UniformConstraintObject _unwrapUniformConstraintObject(ConstraintCommonTable& constraints) {
+  UniformConstraintObjectRows _unwrapUniformConstraintObjectRows(RuntimeDatabaseTaskBuilder& task, const UnpackedDatabaseElementID& table) {
     using ConstraintT = ConstraintObject<CObj>;
     return {
-      _unwrapRow<ConstraintT::LinVelX>(constraints),
-      _unwrapRow<ConstraintT::LinVelY>(constraints),
-      _unwrapRow<ConstraintT::AngVel>(constraints),
-      _unwrapRow<ConstraintT::SyncIndex>(constraints),
-      _unwrapRow<ConstraintT::SyncType>(constraints)
+      _unwrapRow<ConstraintT::LinVelX>(task, table),
+      _unwrapRow<ConstraintT::LinVelY>(task, table),
+      _unwrapRow<ConstraintT::AngVel>(task, table),
+      _unwrapRow<ConstraintT::SyncIndex>(task, table),
+      _unwrapRow<ConstraintT::SyncType>(task, table)
+    };
+  }
+
+  struct LambdaSums {
+    Row<float>* lambdaSumOne;
+    Row<float>* lambdaSumTwo;
+    Row<float>* frictionLambdaSumOne;
+    Row<float>* frictionLambdaSumTwo;
+    ConstraintData::CommonTableStartIndex* startIndex;
+  };
+
+  LambdaSums _unwrapLambdaSums(RuntimeDatabaseTaskBuilder& task, const UnpackedDatabaseElementID& table) {
+    return {
+      _unwrapRow<ConstraintData::LambdaSumOne>(task, table),
+      _unwrapRow<ConstraintData::LambdaSumTwo>(task, table),
+      _unwrapRow<ConstraintData::FrictionLambdaSumOne>(task, table),
+      _unwrapRow<ConstraintData::FrictionLambdaSumTwo>(task, table),
+      _unwrapRow<ConstraintData::CommonTableStartIndex>(task, table)
+    };
+  }
+
+  struct ContactConstraintSetupObjectRows {
+    Row<float>* centerToContactOneX{};
+    Row<float>* centerToContactOneY{};
+    Row<float>* centerToContactTwoX{};
+    Row<float>* centerToContactTwoY{};
+  };
+
+  struct ContactConstraintSetupRows {
+    SharedNormal::X* sharedNormalX;
+    SharedNormal::Y* sharedNormalY;
+    ContactPoint<ContactOne>::Overlap* overlapOne;
+    ContactPoint<ContactTwo>::Overlap* overlapTwo;
+    ContactConstraintSetupObjectRows a;
+    ContactConstraintSetupObjectRows b;
+  };
+
+  template<class Obj>
+  ContactConstraintSetupObjectRows unwrapContactConstraintSetupObjectRows(RuntimeDatabaseTaskBuilder& task, const UnpackedDatabaseElementID& table) {
+    return {
+      _unwrapRow<ConstraintObject<Obj>::CenterToContactOneX>(task, table),
+      _unwrapRow<ConstraintObject<Obj>::CenterToContactOneY>(task, table),
+      _unwrapRow<ConstraintObject<Obj>::CenterToContactTwoX>(task, table),
+      _unwrapRow<ConstraintObject<Obj>::CenterToContactTwoY>(task, table)
+    };
+  }
+
+  ContactConstraintSetupRows unwrapContactConstraintSetupRows(RuntimeDatabaseTaskBuilder& task, const UnpackedDatabaseElementID& table) {
+    return {
+      _unwrapRow<SharedNormal::X>(task, table),
+      _unwrapRow<SharedNormal::Y>(task, table),
+      _unwrapRow<ContactPoint<ContactOne>::Overlap>(task, table),
+      _unwrapRow<ContactPoint<ContactTwo>::Overlap>(task, table),
+      unwrapContactConstraintSetupObjectRows<ConstraintObjA>(task, table),
+      unwrapContactConstraintSetupObjectRows<ConstraintObjB>(task, table)
     };
   }
 }
@@ -102,7 +230,7 @@ void Physics::details::_integrateRotation(float* rotX, float* rotY, const float*
 void Physics::details::_applyDampingMultiplier(float* velocity, float amount, size_t count) {
   ispc::applyDampingMultiplier(velocity, amount, uint32_t(count));
 }
-
+/*
 void Physics::generateContacts(ContactInfo& info) {
   ispc::UniformConstVec2 positionsA{ info.a.posX, info.a.posY };
   ispc::UniformRotation rotationsA{ info.a.rotX, info.a.rotY };
@@ -145,14 +273,20 @@ void Physics::generateContacts(CollisionPairsTable& pairs) {
   //};
   //ispc::generateUnitSphereSphereContacts(positionsA, positionsB, normals, contacts, uint32_t(TableOperations::size(pairs)));
 }
-
-std::shared_ptr<TaskNode> _clearRow(Row<float>& row) {
-  return TaskNode::create([&row](...) {
-    std::memset(row.mElements.data(), 0, sizeof(float)*row.size());
+*/
+void clearRow(IAppBuilder& builder, const QueryAlias<Row<float>> rowAlias) {
+  auto task = builder.createTask();
+  task.setName("clear row");
+  QueryResult<Row<float>> rows = task.queryAlias(rowAlias);
+  task.setCallback([rows](AppTaskArgs&) mutable {
+    rows.forEachRow([](Row<float>& row) {
+      std::memset(row.mElements.data(), 0, sizeof(float)*row.size());
+    });
   });
+  builder.submitTask(std::move(task));
 }
 
-TaskRange Physics::setupConstraints(ConstraintsTable& constraints, ContactConstraintsToStaticObjectsTable& staticContacts) {
+void Physics::setupConstraints(IAppBuilder& builder) {
   //Currently computing as square
   //const float pi = 3.14159265359f;
   //const float r = 0.5f;
@@ -169,96 +303,128 @@ TaskRange Physics::setupConstraints(ConstraintsTable& constraints, ContactConstr
   auto result = std::make_shared<TaskNode>();
 
   //TODO: don't clear this here and use it for warm start
-  result->mChildren.push_back(_clearRow(std::get<ConstraintData::LambdaSumOne>(constraints.mRows)));
-  result->mChildren.push_back(_clearRow(std::get<ConstraintData::LambdaSumTwo>(constraints.mRows)));
-  result->mChildren.push_back(_clearRow(std::get<ConstraintData::FrictionLambdaSumOne>(constraints.mRows)));
-  result->mChildren.push_back(_clearRow(std::get<ConstraintData::FrictionLambdaSumTwo>(constraints.mRows)));
+  using QA = QueryAlias<Row<float>>;
+  clearRow(builder,  QA::create<ConstraintData::LambdaSumOne>());
+  clearRow(builder,  QA::create<ConstraintData::LambdaSumTwo>());
+  clearRow(builder,  QA::create<ConstraintData::FrictionLambdaSumOne>());
+  clearRow(builder,  QA::create<ConstraintData::FrictionLambdaSumOne>());
 
-  result->mChildren.push_back(TaskNode::create([&constraints](...) {
-    PROFILE_SCOPE("physics", "setupsharedmass");
-    ispc::UniformVec2 normal{ _unwrapRow<SharedNormal::X>(constraints), _unwrapRow<SharedNormal::Y>(constraints) };
-    ispc::UniformVec2 aToContactOne{ _unwrapRow<ConstraintObject<ConstraintObjA>::CenterToContactOneX>(constraints), _unwrapRow<ConstraintObject<ConstraintObjA>::CenterToContactOneY>(constraints) };
-    ispc::UniformVec2 bToContactOne{ _unwrapRow<ConstraintObject<ConstraintObjB>::CenterToContactOneX>(constraints), _unwrapRow<ConstraintObject<ConstraintObjB>::CenterToContactOneY>(constraints) };
-    ispc::UniformVec2 aToContactTwo{ _unwrapRow<ConstraintObject<ConstraintObjA>::CenterToContactTwoX>(constraints), _unwrapRow<ConstraintObject<ConstraintObjA>::CenterToContactTwoY>(constraints) };
-    ispc::UniformVec2 bToContactTwo{ _unwrapRow<ConstraintObject<ConstraintObjB>::CenterToContactTwoX>(constraints), _unwrapRow<ConstraintObject<ConstraintObjB>::CenterToContactTwoY>(constraints) };
-    float* overlapOne = _unwrapRow<ContactPoint<ContactOne>::Overlap>(constraints);
-    float* overlapTwo = _unwrapRow<ContactPoint<ContactTwo>::Overlap>(constraints);
-    ispc::UniformContactConstraintPairData data = _unwrapUniformConstraintData(constraints);
+  auto contactTables = builder.queryTables<SharedMassConstraintsTableTag>();
+  auto staticContactTables = builder.queryTables<ZeroMassConstraintsTableTag>();
+  //Currently assuming one for simplicity, ultimately will probably change completely
+  assert(contactTables.size() == staticContactTables.size() == 1);
 
-    ispc::setupConstraintsSharedMass(invMass, invInertia, bias, normal, aToContactOne, aToContactTwo, bToContactOne, bToContactTwo, overlapOne, overlapTwo, data, uint32_t(TableOperations::size(constraints)));
-  }));
+  {
+    auto task = builder.createTask();
+    task.setName("setup contact constraints");
+    ContactConstraintSetupRows setupRows = unwrapContactConstraintSetupRows(task, contactTables.matchingTableIDs[0]);
+    UniformContactConstraintPairDataRows dataRows = _unwrapUniformConstraintDataRows(task, contactTables.matchingTableIDs[0]);
 
-  result->mChildren.push_back(_clearRow(std::get<ConstraintData::LambdaSumOne>(staticContacts.mRows)));
-  result->mChildren.push_back(_clearRow(std::get<ConstraintData::LambdaSumTwo>(staticContacts.mRows)));
-  result->mChildren.push_back(_clearRow(std::get<ConstraintData::FrictionLambdaSumOne>(staticContacts.mRows)));
-  result->mChildren.push_back(_clearRow(std::get<ConstraintData::FrictionLambdaSumTwo>(staticContacts.mRows)));
+    task.setCallback([setupRows, dataRows](AppTaskArgs&) mutable {
+      ispc::UniformVec2 normal{ setupRows.sharedNormalX->data(), setupRows.sharedNormalY->data() };
+      ispc::UniformVec2 aToContactOne{ setupRows.a.centerToContactOneX->data(), setupRows.a.centerToContactOneY->data() };
+      ispc::UniformVec2 bToContactOne{ setupRows.b.centerToContactOneX->data(), setupRows.b.centerToContactOneY->data() };
+      ispc::UniformVec2 aToContactTwo{ setupRows.a.centerToContactTwoX->data(), setupRows.a.centerToContactTwoY->data() };
+      ispc::UniformVec2 bToContactTwo{ setupRows.b.centerToContactTwoX->data(), setupRows.b.centerToContactTwoY->data() };
+      float* overlapOne = setupRows.overlapOne->data();
+      float* overlapTwo = setupRows.overlapTwo->data();
+      ispc::UniformContactConstraintPairData data = _unwrapUniformConstraintData(dataRows);
+      const size_t count = setupRows.sharedNormalX->size();
 
-  result->mChildren.push_back(TaskNode::create([&staticContacts](...) {
-    PROFILE_SCOPE("physics", "setupzeromass");
-    ispc::UniformVec2 normal = { _unwrapRow<SharedNormal::X>(staticContacts), _unwrapRow<SharedNormal::Y>(staticContacts) };
-    ispc::UniformVec2 aToContactOne = { _unwrapRow<ConstraintObject<ConstraintObjA>::CenterToContactOneX>(staticContacts), _unwrapRow<ConstraintObject<ConstraintObjA>::CenterToContactOneY>(staticContacts) };
-    ispc::UniformVec2 aToContactTwo = { _unwrapRow<ConstraintObject<ConstraintObjA>::CenterToContactTwoX>(staticContacts), _unwrapRow<ConstraintObject<ConstraintObjA>::CenterToContactTwoY>(staticContacts) };
-    float* overlapOne = _unwrapRow<ContactPoint<ContactOne>::Overlap>(staticContacts);
-    float* overlapTwo = _unwrapRow<ContactPoint<ContactTwo>::Overlap>(staticContacts);
-    ispc::UniformContactConstraintPairData data = _unwrapUniformConstraintData(staticContacts);
+      ispc::setupConstraintsSharedMass(invMass, invInertia, bias, normal, aToContactOne, aToContactTwo, bToContactOne, bToContactTwo, overlapOne, overlapTwo, data, uint32_t(count));
+    });
+    builder.submitTask(std::move(task));
+  }
 
-    ispc::setupConstraintsSharedMassBZeroMass(invMass, invInertia, bias, normal, aToContactOne, aToContactTwo, overlapOne, overlapTwo, data, uint32_t(TableOperations::size(staticContacts)));
-  }));
+  {
+    auto task = builder.createTask();
+    task.setName("setup static contact constraints");
+    ContactConstraintSetupRows setupRows = unwrapContactConstraintSetupRows(task, staticContactTables.matchingTableIDs[0]);
+    UniformContactConstraintPairDataRows dataRows = _unwrapUniformConstraintDataRows(task, staticContactTables.matchingTableIDs[0]);
 
-  return TaskBuilder::addEndSync(result);
+    task.setCallback([setupRows, dataRows](AppTaskArgs&) mutable {
+      ispc::UniformVec2 normal = { setupRows.sharedNormalX->data(), setupRows.sharedNormalY->data() };
+      ispc::UniformVec2 aToContactOne = { setupRows.a.centerToContactOneX->data(), setupRows.a.centerToContactOneY->data() };
+      ispc::UniformVec2 aToContactTwo = { setupRows.a.centerToContactTwoX->data(), setupRows.a.centerToContactTwoY->data() };
+      float* overlapOne = setupRows.overlapOne->data();
+      float* overlapTwo = setupRows.overlapTwo->data();
+      ispc::UniformContactConstraintPairData data = _unwrapUniformConstraintData(dataRows);
+      const size_t count = setupRows.sharedNormalX->size();
+
+      ispc::setupConstraintsSharedMassBZeroMass(invMass, invInertia, bias, normal, aToContactOne, aToContactTwo, overlapOne, overlapTwo, data, uint32_t(count));
+    });
+    builder.submitTask(std::move(task));
+  }
 }
 
-TaskRange Physics::solveConstraints(ConstraintsTable& constraints, ContactConstraintsToStaticObjectsTable& staticContacts, ConstraintCommonTable& common, const Config::PhysicsConfig& config) {
+void Physics::solveConstraints(IAppBuilder& builder, const Config::PhysicsConfig& config) {
   //Everything in one since all velocities might depend on the previous ones. Can be more parallel with islands
-  auto result = TaskNode::create([&constraints, &staticContacts, &common, &config](...) {
+  auto task = builder.createTask();
+  task.setName("solve constraints");
+  auto contactTables = builder.queryTables<SharedMassConstraintsTableTag>();
+  auto staticContactTables = builder.queryTables<ZeroMassConstraintsTableTag>();
+  auto commonTable = builder.queryTables<ConstraintsCommonTableTag>();
+  //Currently assuming one for simplicity, ultimately will probably change completely
+  assert(contactTables.size() == staticContactTables.size() == commonTable.size() == 1);
+  UniformContactConstraintPairDataRows contactDataRows = _unwrapUniformConstraintDataRows(task, contactTables.matchingTableIDs[0]);
+  UniformContactConstraintPairDataRows staticContactDataRows = _unwrapUniformConstraintDataRows(task, staticContactTables.matchingTableIDs[0]);
+  UniformConstraintObjectRows objectARows = _unwrapUniformConstraintObjectRows<ConstraintObjA>(task, commonTable.matchingTableIDs[0]);
+  UniformConstraintObjectRows objectBRows = _unwrapUniformConstraintObjectRows<ConstraintObjB>(task, commonTable.matchingTableIDs[0]);
+  LambdaSums contactSums = _unwrapLambdaSums(task, contactTables.matchingTableIDs[0]);
+  LambdaSums staticContactSums = _unwrapLambdaSums(task, staticContactTables.matchingTableIDs[0]);
+  ConstraintData::IsEnabled* isEnabled = &task.query<ConstraintData::IsEnabled>(commonTable.matchingTableIDs[0]).get<0>(0);
+
+  task.setCallback([=, &config](AppTaskArgs&) mutable {
     PROFILE_SCOPE("physics", "solve constraints");
-    ispc::UniformContactConstraintPairData data = _unwrapUniformConstraintData(constraints);
-    ispc::UniformConstraintObject objectA = _unwrapUniformConstraintObject<ConstraintObjA>(common);
-    ispc::UniformConstraintObject objectB = _unwrapUniformConstraintObject<ConstraintObjB>(common);
-    float* lambdaSumOne = _unwrapRow<ConstraintData::LambdaSumOne>(constraints);
-    float* lambdaSumTwo = _unwrapRow<ConstraintData::LambdaSumTwo>(constraints);
-    float* frictionLambdaSumOne = _unwrapRow<ConstraintData::FrictionLambdaSumOne>(constraints);
-    float* frictionLambdaSumTwo = _unwrapRow<ConstraintData::FrictionLambdaSumTwo>(constraints);
-    uint8_t* enabled = _unwrapRow<ConstraintData::IsEnabled>(common);
+    ispc::UniformContactConstraintPairData data = _unwrapUniformConstraintData(contactDataRows);
+    ispc::UniformConstraintObject objectA = _unwrapUniformConstraintObject(objectARows);
+    ispc::UniformConstraintObject objectB = _unwrapUniformConstraintObject(objectBRows);
+    float* lambdaSumOne = contactSums.lambdaSumOne->data();
+    float* lambdaSumTwo = contactSums.lambdaSumTwo->data();
+    float* frictionLambdaSumOne = contactSums.frictionLambdaSumOne->data();
+    float* frictionLambdaSumTwo = contactSums.frictionLambdaSumTwo->data();
+    uint8_t* enabled = isEnabled->data();
 
     const float frictionCoeff = config.frictionCoeff;
-    const size_t startContact = std::get<ConstraintData::CommonTableStartIndex>(constraints.mRows).at();
-    const size_t startStatic = std::get<ConstraintData::CommonTableStartIndex>(staticContacts.mRows).at();
+    const size_t startContact = contactSums.startIndex->at();
+    const size_t startStatic = staticContactSums.startIndex->at();
 
     const bool oneAtATime = config.mForcedTargetWidth && *config.mForcedTargetWidth < ispc::getTargetWidth();
 
     {
       PROFILE_SCOPE("physics", "solveshared");
+      const size_t count = contactSums.frictionLambdaSumOne->size();
       if(oneAtATime) {
-        for(size_t i = 0; i < TableOperations::size(constraints); ++i) {
+        for(size_t i = 0; i < count; ++i) {
           ispc::solveContactConstraints(data, objectA, objectB, lambdaSumOne, lambdaSumTwo, frictionLambdaSumOne, frictionLambdaSumTwo, enabled, frictionCoeff, uint32_t(startContact), uint32_t(i), uint32_t(1));
         }
       }
       else {
-        ispc::solveContactConstraints(data, objectA, objectB, lambdaSumOne, lambdaSumTwo, frictionLambdaSumOne, frictionLambdaSumTwo, enabled, frictionCoeff, uint32_t(startContact), uint32_t(0), uint32_t(TableOperations::size(constraints)));
+        ispc::solveContactConstraints(data, objectA, objectB, lambdaSumOne, lambdaSumTwo, frictionLambdaSumOne, frictionLambdaSumTwo, enabled, frictionCoeff, uint32_t(startContact), uint32_t(0), uint32_t(count));
       }
     }
 
-    data = _unwrapUniformConstraintData(staticContacts);
-    lambdaSumOne = _unwrapRow<ConstraintData::LambdaSumOne>(staticContacts);
-    lambdaSumTwo = _unwrapRow<ConstraintData::LambdaSumTwo>(staticContacts);
-    frictionLambdaSumOne = _unwrapRow<ConstraintData::FrictionLambdaSumOne>(staticContacts);
-    frictionLambdaSumTwo = _unwrapRow<ConstraintData::FrictionLambdaSumTwo>(staticContacts);
+    data = _unwrapUniformConstraintData(staticContactDataRows);
+    lambdaSumOne = staticContactSums.lambdaSumOne->data();
+    lambdaSumTwo = staticContactSums.lambdaSumTwo->data();
+    frictionLambdaSumOne = staticContactSums.frictionLambdaSumOne->data();
+    frictionLambdaSumTwo = staticContactSums.frictionLambdaSumTwo->data();
 
     {
       PROFILE_SCOPE("physics", "solvezero");
+      const size_t count = staticContactSums.frictionLambdaSumOne->size();
       if(oneAtATime) {
-        for(size_t i = 0; i < TableOperations::size(staticContacts); ++i) {
+        for(size_t i = 0; i < count; ++i) {
           ispc::solveContactConstraintsBZeroMass(data, objectA, objectB, lambdaSumOne, lambdaSumTwo, frictionLambdaSumOne, frictionLambdaSumTwo, enabled, frictionCoeff, uint32_t(startStatic), uint32_t(i), uint32_t(1));
         }
       }
       else {
-        ispc::solveContactConstraintsBZeroMass(data, objectA, objectB, lambdaSumOne, lambdaSumTwo, frictionLambdaSumOne, frictionLambdaSumTwo, enabled, frictionCoeff, uint32_t(startStatic), uint32_t(0), uint32_t(TableOperations::size(staticContacts)));
+        ispc::solveContactConstraintsBZeroMass(data, objectA, objectB, lambdaSumOne, lambdaSumTwo, frictionLambdaSumOne, frictionLambdaSumTwo, enabled, frictionCoeff, uint32_t(startStatic), uint32_t(0), uint32_t(count));
       }
     }
   });
 
-  return { result, result };
+  builder.submitTask(std::move(task));
 }
 
 namespace PhysicsImpl {

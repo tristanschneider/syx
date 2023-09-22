@@ -315,6 +315,10 @@ struct IDatabase {
 //Specialization that provides all row ids
 template<>
 struct QueryResult<> {
+  size_t size() const {
+    return matchingTableIDs.size();
+  }
+
   std::vector<UnpackedDatabaseElementID> matchingTableIDs;
 };
 
