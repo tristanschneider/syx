@@ -257,54 +257,26 @@ struct PhysicsAliases {
   FloatAlias angVel;
 };
 
-struct ContactObjectStore {
-  float* posX{};
-  float* posY{};
-  float* rotX{};
-  float* rotY{};
-};
-
-struct ContactPointStore {
-  float* pointX{};
-  float* pointY{};
-  float* overlap{};
-};
-
-struct ContactNormalStore {
-  float* x{};
-  float* y{};
-};
-
-struct ContactInfo {
-  ContactObjectStore a, b;
-  ContactPointStore one, two;
-  ContactNormalStore normal;
-  size_t count{};
-};
-
-struct Physics {
-  struct details {
-    static std::shared_ptr<TaskNode> fillCollisionMasks(TableResolver<CollisionMaskRow> resolver, std::vector<StableElementID>& idsA, std::vector<StableElementID>& idsB, const DatabaseDescription& desc, const PhysicsTableIds& tables);
-
-    static void _integratePositionAxis(const float* velocity, float* position, size_t count);
-    static void _integrateRotation(float* rotX, float* rotY, const float* velocity, size_t count);
-    static void _applyDampingMultiplier(float* velocity, float amount, size_t count);
+namespace Physics {
+  namespace details {
+    void _integratePositionAxis(const float* velocity, float* position, size_t count);
+    void _integrateRotation(float* rotX, float* rotY, const float* velocity, size_t count);
+    void _applyDampingMultiplier(float* velocity, float amount, size_t count);
   };
 
-  static void generateContacts(CollisionPairsTable& pairs);
-  static void generateContacts(ContactInfo& info);
+  //TODO: expose createDatabase here rather than having gameplay create the physics tables
 
   //Populates narrowphase data by fetching it from the provided input using the indices stored by the broadphase
-  static void fillNarrowphaseData(IAppBuilder& builder, const PhysicsAliases& aliases);
+  void updateNarrowphase(IAppBuilder& builder, const PhysicsAliases& aliases);
   //Migrate velocity data from db to constraint table
-  static void fillConstraintVelocities(IAppBuilder& builder, const PhysicsAliases& aliases);
+  void fillConstraintVelocities(IAppBuilder& builder, const PhysicsAliases& aliases);
 
-  static void setupConstraints(IAppBuilder& builder);
-  static void solveConstraints(IAppBuilder& builder, const Config::PhysicsConfig& config);
+  void setupConstraints(IAppBuilder& builder);
+  void solveConstraints(IAppBuilder& builder, const Config::PhysicsConfig& config);
 
   //Migrate velocity data from constraint table to db
-  static void storeConstraintVelocities(IAppBuilder& builder, const PhysicsAliases& aliases);
-  static void integratePosition(IAppBuilder& builder, const PhysicsAliases& aliases);
-  static void integrateRotation(IAppBuilder& builder, const PhysicsAliases& aliases);
-  static void applyDampingMultiplier(IAppBuilder& builder, const PhysicsAliases& aliases, const float& linearMultiplier, const float& angularMultiplier);
+  void storeConstraintVelocities(IAppBuilder& builder, const PhysicsAliases& aliases);
+  void integratePosition(IAppBuilder& builder, const PhysicsAliases& aliases);
+  void integrateRotation(IAppBuilder& builder, const PhysicsAliases& aliases);
+  void applyDampingMultiplier(IAppBuilder& builder, const PhysicsAliases& aliases, const float& linearMultiplier, const float& angularMultiplier);
 };

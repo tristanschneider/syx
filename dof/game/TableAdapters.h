@@ -15,6 +15,8 @@ struct StableIDRow;
 struct StatEffectDBOwned;
 struct ThreadLocalData;
 struct ThreadLocals;
+class ITableModifier;
+class RuntimeDatabaseTaskBuilder;
 
 template<class Element>
 struct BasicRow;
@@ -185,13 +187,14 @@ struct DebugPoint;
 using DebugLineTable = Table<Row<DebugPoint>>;
 
 struct DebugLineAdapter {
+  ~DebugLineAdapter();
+
   BasicRow<DebugPoint>* points{};
-  TableModifierInstance modifier;
+  std::shared_ptr<ITableModifier> modifier;
 };
 
 struct GlobalsAdapter {
   SceneState* scene{};
-  PhysicsTableIds* physicsTables{};
   FileSystem* fileSystem{};
   StableElementMappings* stableMappings{};
   ConstraintsTableMappings* constraintsMappings{};
@@ -266,7 +269,7 @@ namespace TableAdapters {
   TargetPosAdapter getTargetPos(GameDB db);
   SpatialQueryAdapter getSpatialQueries(GameDB db);
 
-  DebugLineAdapter getDebugLines(GameDB db);
+  DebugLineAdapter getDebugLines(RuntimeDatabaseTaskBuilder& task);
 
   size_t addStatEffectsSharedLifetime(StatEffectBaseAdapter& base, size_t lifetime, const size_t* stableIds, size_t count);
 

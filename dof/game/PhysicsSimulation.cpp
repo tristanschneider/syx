@@ -17,34 +17,10 @@ namespace PhysicsSimulation {
   //For now use the existence of this row to indicate that the given object should participate in collision
   using HasCollision = Row<CubeSprite>;
 
-  PhysicsTableIds _getPhysicsTableIds() {
-    PhysicsTableIds physicsTables;
-    physicsTables.mTableIDMask = GameDatabase::ElementID::TABLE_INDEX_MASK;
-    physicsTables.mSharedMassConstraintTable = GameDatabase::getTableIndex<ConstraintsTable>().mValue;
-    physicsTables.mZeroMassConstraintTable = GameDatabase::getTableIndex<ContactConstraintsToStaticObjectsTable>().mValue;
-    physicsTables.mSharedMassObjectTable = GameDatabase::getTableIndex<GameObjectTable>().mValue;
-    physicsTables.mZeroMassObjectTable = GameDatabase::getTableIndex<StaticGameObjectTable>().mValue;
-    physicsTables.mConstriantsCommonTable = GameDatabase::getTableIndex<ConstraintCommonTable>().mValue;
-    physicsTables.mSpatialQueriesTable = GameDatabase::getTableIndex<SpatialQuery::SpatialQueriesTable>().mValue;
-    physicsTables.mElementIDMask = GameDatabase::ElementID::ELEMENT_INDEX_MASK;
-    physicsTables.mNarrowphaseTable = GameDatabase::getTableIndex<CollisionPairsTable>().mValue;
-    return physicsTables;
-  }
-
   SweepNPruneBroadphase::BoundariesConfig _getBoundariesConfig(GameDB game) {
     SweepNPruneBroadphase::BoundariesConfig result;
     result.mPadding = TableAdapters::getConfig(game).physics->broadphase.cellPadding;
     return result;
-  }
-
-  TaskRange _applyDamping(GameDatabase& db, const Config::PhysicsConfig& config) {
-    auto result = std::make_shared<TaskNode>();
-    result->mChildren.push_back(Physics::applyDampingMultiplier<LinVelX, LinVelY>(db, config.linearDragMultiplier).mBegin);
-
-    std::vector<OwnedTask> tasks;
-    Physics::details::applyDampingMultiplierAxis<AngVel>(db, config.angularDragMultiplier, result->mChildren);
-
-    return TaskBuilder::addEndSync(result);
   }
 
   TaskRange _updateBroadphase(GameDatabase& db, const Config::PhysicsConfig&) {
@@ -90,134 +66,103 @@ namespace PhysicsSimulation {
     return boundaries.then(boundaries2).then(computePairs).then(TaskBuilder::addEndSync(updatePairs));
   }
 
-  TaskRange _updateNarrowphase(GameDatabase& db, const Config::PhysicsConfig&) {
-    auto& collisionPairs = std::get<CollisionPairsTable>(db.mTables);
-    auto& globals = std::get<GlobalGameData>(db.mTables);
-    const PhysicsTableIds& physicsTables = std::get<SharedRow<PhysicsTableIds>>(globals.mRows).at();
+  void _debugUpdate(IAppBuilder& builder, const Config::PhysicsConfig& config) {
+    auto task = builder.createTask();
+    task.setName("physics debug");
+    DebugLineAdapter debug = TableAdapters::getDebugLines(task);
+    using ObjA = NarrowphaseData<PairA>;
+    using ObjB = NarrowphaseData<PairB>;
+    using COne = ContactPoint<ContactOne>;
+    using CTwo = ContactPoint<ContactTwo>;
+    auto narrowphase = task.query<
+      const ObjA::PosX, const ObjA::PosY,
+      const ObjB::PosX, const ObjB::PosY,
+      const COne::PosX, const COne::PosY, const COne::Overlap,
+      const CTwo::PosX, const CTwo::PosY, const CTwo::Overlap,
+      const SharedNormal::X, const SharedNormal::Y
+    >();
+    auto broadphase = task.query<const SharedRow<Broadphase::SweepGrid::Grid>>();
 
-    //Id resolution must complete before the fill bundle starts
-    auto root = TaskNode::create([&](...) {
-      PROFILE_SCOPE("physics", "resolveCollisionTableIds");
-      Physics::resolveCollisionTableIds(collisionPairs, db, TableAdapters::getStableMappings({ db }), physicsTables);
-    });
-    auto current = root;
-
-    std::vector<StableElementID>& idsA = std::get<CollisionPairIndexA>(collisionPairs.mRows).mElements;
-    std::vector<StableElementID>& idsB = std::get<CollisionPairIndexB>(collisionPairs.mRows).mElements;
-
-    //Resolve these first so the result of them can be used to skip the others
-    auto resolveMasks = Physics::details::fillCollisionMasks(TableResolver<CollisionMaskRow>::create(db), idsA, idsB, db.getDescription(), physicsTables);
-    current->mChildren.push_back(resolveMasks);
-    current = resolveMasks;
-    const std::vector<uint8_t>* masks = &std::get<CollisionMaskRow>(collisionPairs.mRows).mElements;
-
-    current->mChildren.push_back(Physics::details::fillNarrowphaseRow<PosX, NarrowphaseData<PairA>::PosX>(collisionPairs, db, idsA, masks));
-    current->mChildren.push_back(Physics::details::fillNarrowphaseRow<PosY, NarrowphaseData<PairA>::PosY>(collisionPairs, db, idsA, masks));
-    current->mChildren.push_back(Physics::details::fillNarrowphaseRow<RotX, NarrowphaseData<PairA>::CosAngle>(collisionPairs, db, idsA, masks));
-    current->mChildren.push_back(Physics::details::fillNarrowphaseRow<RotY, NarrowphaseData<PairA>::SinAngle>(collisionPairs, db, idsA, masks));
-    current->mChildren.push_back(Physics::details::fillNarrowphaseRow<PosX, NarrowphaseData<PairB>::PosX>(collisionPairs, db, idsB, masks));
-    current->mChildren.push_back(Physics::details::fillNarrowphaseRow<PosY, NarrowphaseData<PairB>::PosY>(collisionPairs, db, idsB, masks));
-    current->mChildren.push_back(Physics::details::fillNarrowphaseRow<RotX, NarrowphaseData<PairB>::CosAngle>(collisionPairs, db, idsB, masks));
-    current->mChildren.push_back(Physics::details::fillNarrowphaseRow<RotY, NarrowphaseData<PairB>::SinAngle>(collisionPairs, db, idsB, masks));
-
-    //After everything is filled, generate contacts
-    auto contacts = TaskNode::create([&](...) {
-      PROFILE_SCOPE("physics", "generate contacts");
-      Physics::generateContacts(collisionPairs);
-    });
-    TaskBuilder::_addSyncDependency(*root, contacts);
-    //Final bundle begins with resolveIds and ends after completion of contact generation
-    return { root, contacts };
-  }
-
-  TaskRange _debugUpdate(GameDatabase& db, const Config::PhysicsConfig& config) {
-    auto task = TaskNode::create([&db, &config](...) {
-      auto& debug = std::get<DebugLineTable>(db.mTables);
-      auto& collisionPairs = std::get<CollisionPairsTable>(db.mTables);
-
-      auto addLine = [&debug](glm::vec2 a, glm::vec2 b, glm::vec3 color) {
-        DebugLineTable::ElementRef e = TableOperations::addToTable(debug);
-        e.get<0>().mPos = a;
-        e.get<0>().mColor = color;
-        e = TableOperations::addToTable(debug);
-        e.get<0>().mPos = b;
-        e.get<0>().mColor = color;
-      };
-
+    task.setCallback([debug, narrowphase, broadphase, &config](AppTaskArgs&) mutable {
       const bool drawCollisionPairs = config.drawCollisionPairs;
       const bool drawContacts = config.drawContacts;
-      if(drawCollisionPairs) {
-        auto& ax = std::get<NarrowphaseData<PairA>::PosX>(collisionPairs.mRows);
-        auto& ay = std::get<NarrowphaseData<PairA>::PosY>(collisionPairs.mRows);
-        auto& bx = std::get<NarrowphaseData<PairB>::PosX>(collisionPairs.mRows);
-        auto& by = std::get<NarrowphaseData<PairB>::PosY>(collisionPairs.mRows);
-        for(size_t i = 0; i < ax.size(); ++i) {
-          addLine(glm::vec2(ax.at(i), ay.at(i)), glm::vec2(bx.at(i), by.at(i)), glm::vec3(0.0f, 1.0f, 0.0f));
-        }
-      }
-
-      if(drawContacts) {
-        for(size_t i = 0; i < TableOperations::size(collisionPairs); ++i) {
-          CollisionPairsTable::ElementRef e = TableOperations::getElement(collisionPairs, i);
-          float overlapOne = e.get<12>();
-          float overlapTwo = e.get<15>();
-          glm::vec2 posA{ e.get<2>(), e.get<3>() };
-          glm::vec2 posB{ e.get<6>(), e.get<7>() };
-          glm::vec2 contactOne{ e.get<10>(), e.get<11>() };
-          glm::vec2 contactTwo{ e.get<13>(), e.get<14>() };
-          glm::vec2 normal{ e.get<16>(), e.get<17>() };
-          if(overlapOne >= 0.0f) {
-            addLine(posA, contactOne, glm::vec3(1.0f, 0.0f, 0.0f));
-            addLine(contactOne, contactOne + normal*0.25f, glm::vec3(0.0f, 1.0f, 0.0f));
-            addLine(contactOne, contactOne + normal*overlapOne, glm::vec3(1.0f, 1.0f, 0.0f));
-          }
-          if(overlapTwo >= 0.0f) {
-            addLine(posA, contactTwo, glm::vec3(1.0f, 0.0f, 1.0f));
-            addLine(contactTwo, contactTwo + normal*0.25f, glm::vec3(0.0f, 1.0f, 1.0f));
-            addLine(contactTwo, contactTwo + normal*overlapTwo, glm::vec3(1.0f, 1.0f, 1.0f));
+      for(size_t t = 0; t < narrowphase.size(); ++t) {
+        auto rows = narrowphase.get(t);
+        const size_t size = std::get<0>(rows)->size();
+        if(drawCollisionPairs) {
+          const auto& ax = *std::get<0>(rows);
+          const auto& ay = *std::get<1>(rows);
+          const auto& bx = *std::get<2>(rows);
+          const auto& by = *std::get<3>(rows);
+          for(size_t i = 0; i < size; ++i) {
+            DebugDrawer::drawLine(debug, glm::vec2(ax.at(i), ay.at(i)), glm::vec2(bx.at(i), by.at(i)), glm::vec3(0.0f, 1.0f, 0.0f));
           }
         }
-      }
-      if(config.broadphase.draw) {
-        auto d = TableAdapters::getDebugLines({ db });
-        const auto& grid = std::get<SharedRow<Broadphase::SweepGrid::Grid>>(std::get<BroadphaseTable>(db.mTables).mRows).at();
-        for(size_t i = 0; i < grid.cells.size(); ++i) {
-          const Broadphase::Sweep2D& sweep = grid.cells[i];
-          const glm::vec2 basePos{ static_cast<float>(i % grid.definition.cellsX), static_cast<float>(i / grid.definition.cellsX) };
-          const glm::vec2 min = grid.definition.bottomLeft + basePos*grid.definition.cellSize;
-          const glm::vec2 max = min + grid.definition.cellSize;
-          const glm::vec2 center = (min + max) * 0.5f;
-          glm::vec3 color{ 1.0f, 0.0f, 0.0f };
-          DebugDrawer::drawLine(d, min, { max.x, min.y }, color);
-          DebugDrawer::drawLine(d, { max.x, min.y }, max, color);
-          DebugDrawer::drawLine(d, max, { min.x, max.y }, color);
-          DebugDrawer::drawLine(d, min, { min.x, max.y }, color);
 
-          for(size_t b = 0; b < sweep.bounds[0].size(); ++b) {
-            const auto& x = sweep.bounds[0][b];
-            const auto& y = sweep.bounds[1][b];
-            if(x.first == Broadphase::Sweep2D::REMOVED) {
-              continue;
+        if(drawContacts) {
+          for(size_t i = 0; i < size; ++i) {
+            float overlapOne = std::get<const COne::Overlap*>(rows)->at(i);
+            float overlapTwo = std::get<const CTwo::Overlap*>(rows)->at(i);
+            glm::vec2 posA = TableAdapters::read(i, *std::get<const ObjA::PosX*>(rows), *std::get<const ObjA::PosY*>(rows));
+            glm::vec2 posB = TableAdapters::read(i, *std::get<const ObjB::PosX*>(rows), *std::get<const ObjB::PosY*>(rows));
+            glm::vec2 contactOne = TableAdapters::read(i, *std::get<const COne::PosX*>(rows), *std::get<const COne::PosY*>(rows));
+            glm::vec2 contactTwo = TableAdapters::read(i, *std::get<const CTwo::PosX*>(rows), *std::get<const CTwo::PosY*>(rows));
+            glm::vec2 normal = TableAdapters::read(i, *std::get<const SharedNormal::X*>(rows), *std::get<const SharedNormal::Y*>(rows));
+            if(overlapOne >= 0.0f) {
+              DebugDrawer::drawLine(debug, posA, contactOne, glm::vec3(1.0f, 0.0f, 0.0f));
+              DebugDrawer::drawLine(debug, contactOne, contactOne + normal*0.25f, glm::vec3(0.0f, 1.0f, 0.0f));
+              DebugDrawer::drawLine(debug, contactOne, contactOne + normal*overlapOne, glm::vec3(1.0f, 1.0f, 0.0f));
             }
-            color = { 0.0f, 1.0f, 1.0f };
-            DebugDrawer::drawLine(d, { x.first, min.y }, { x.first, max.y }, color);
-            DebugDrawer::drawLine(d, { x.second, min.y }, { x.second, max.y }, color);
-            DebugDrawer::drawLine(d, { min.x, y.first }, { max.x, y.first }, color);
-            DebugDrawer::drawLine(d, { min.x, y.second }, { max.x, y.second }, color);
-            color = { 0.0f, 1.0f, 0.0f };
-            DebugDrawer::drawLine(d, center, { (x.first + x.second)*0.5f, (y.first + y.second)*0.5f }, color);
+            if(overlapTwo >= 0.0f) {
+              DebugDrawer::drawLine(debug, posA, contactTwo, glm::vec3(1.0f, 0.0f, 1.0f));
+              DebugDrawer::drawLine(debug, contactTwo, contactTwo + normal*0.25f, glm::vec3(0.0f, 1.0f, 1.0f));
+              DebugDrawer::drawLine(debug, contactTwo, contactTwo + normal*overlapTwo, glm::vec3(1.0f, 1.0f, 1.0f));
+            }
+          }
+        }
+      }
+
+      if(config.broadphase.draw) {
+        for(size_t t = 0; t < broadphase.size(); ++t) {
+          const Broadphase::SweepGrid::Grid& grid = broadphase.get<0>(t).at();
+          for(size_t i = 0; i < grid.cells.size(); ++i) {
+            const Broadphase::Sweep2D& sweep = grid.cells[i];
+            const glm::vec2 basePos{ static_cast<float>(i % grid.definition.cellsX), static_cast<float>(i / grid.definition.cellsX) };
+            const glm::vec2 min = grid.definition.bottomLeft + basePos*grid.definition.cellSize;
+            const glm::vec2 max = min + grid.definition.cellSize;
+            const glm::vec2 center = (min + max) * 0.5f;
+            glm::vec3 color{ 1.0f, 0.0f, 0.0f };
+            DebugDrawer::drawLine(debug, min, { max.x, min.y }, color);
+            DebugDrawer::drawLine(debug, { max.x, min.y }, max, color);
+            DebugDrawer::drawLine(debug, max, { min.x, max.y }, color);
+            DebugDrawer::drawLine(debug, min, { min.x, max.y }, color);
+
+            for(size_t b = 0; b < sweep.bounds[0].size(); ++b) {
+              const auto& x = sweep.bounds[0][b];
+              const auto& y = sweep.bounds[1][b];
+              if(x.first == Broadphase::Sweep2D::REMOVED) {
+                continue;
+              }
+              color = { 0.0f, 1.0f, 1.0f };
+              DebugDrawer::drawLine(debug, { x.first, min.y }, { x.first, max.y }, color);
+              DebugDrawer::drawLine(debug, { x.second, min.y }, { x.second, max.y }, color);
+              DebugDrawer::drawLine(debug, { min.x, y.first }, { max.x, y.first }, color);
+              DebugDrawer::drawLine(debug, { min.x, y.second }, { max.x, y.second }, color);
+              color = { 0.0f, 1.0f, 0.0f };
+              DebugDrawer::drawLine(debug, center, { (x.first + x.second)*0.5f, (y.first + y.second)*0.5f }, color);
+            }
           }
         }
       }
     });
-    return { task, task };
+
+    builder.submitTask(std::move(task));
   }
 
   void init(GameDB game) {
     Queries::viewEachRow(game.db, [](SweepNPruneBroadphase::BroadphaseKeys& keys) {
       keys.mDefaultValue = Broadphase::SweepGrid::EMPTY_KEY;
     });
-    *TableAdapters::getGlobals(game).physicsTables = _getPhysicsTableIds();
   }
 
   void initFromConfig(GameDB game) {
@@ -248,22 +193,21 @@ namespace PhysicsSimulation {
 
     //SpatialQuery::physicsUpdateBoundaries(game);
     Physics::applyDampingMultiplier(builder, aliases, config.linearDragMultiplier, config.angularDragMultiplier);
-    //PhysicsSimulation::_applyDamping(db, config);
     //PhysicsSimulation::_updateBroadphase(db, config);
-    //PhysicsSimulation::_updateNarrowphase(db, config);
+    Physics::updateNarrowphase(builder, aliases);
     //SpatialQuery::physicsProcessQueries(game);
     //ConstraintsTableBuilder::build(db, changedPairs, TableAdapters::getStableMappings({ db }), constraintsMappings, physicsTables, config);
-    //Physics::fillConstraintVelocities<LinVelX, LinVelY, AngVel>(constraintsCommon, db);
-    //Physics::setupConstraints(constraints, staticConstraints);
-    //PhysicsSimulation::_debugUpdate(db, config);
-    //const int solveIterations = config.solveIterations;
-    ////TODO: stop early if global lambda sum falls below tolerance
-    //for(int i = 0; i < solveIterations; ++i) {
-    //  Physics::solveConstraints(constraints, staticConstraints, constraintsCommon, config);
-    //}
-    //Physics::storeConstraintVelocities<LinVelX, LinVelY, AngVel>(constraintsCommon, db);
-    //Physics::integratePosition<LinVelX, LinVelY, PosX, PosY>(db);
-    //Physics::integrateRotation<RotX, RotY, AngVel>(db);
+    Physics::fillConstraintVelocities(builder, aliases);
+    Physics::setupConstraints(builder);
+    PhysicsSimulation::_debugUpdate(builder, config);
+    const int solveIterations = config.solveIterations;
+    //TODO: stop early if global lambda sum falls below tolerance
+    for(int i = 0; i < solveIterations; ++i) {
+      Physics::solveConstraints(builder, config);
+    }
+    Physics::storeConstraintVelocities(builder, aliases);
+    Physics::integratePosition(builder, aliases);
+    Physics::integrateRotation(builder, aliases);
   }
 
   TaskRange preProcessEvents(GameDB db) {

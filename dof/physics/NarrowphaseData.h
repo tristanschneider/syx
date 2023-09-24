@@ -82,9 +82,12 @@ struct SharedNormal {
   struct Y : Row<float> {};
 };
 
+struct UnitCubeCubeTableTag : SharedRow<char> {};
+
 //Sorted by indexA
 using CollisionPairsTable = Table<
   NarrowphaseTableTag,
+  UnitCubeCubeTableTag,
   CollisionPairIndexA,
   CollisionPairIndexB,
   //These rows are generated and updated by the broadphase and carried through to narrowphase

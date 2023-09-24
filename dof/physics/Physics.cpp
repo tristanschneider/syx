@@ -10,7 +10,7 @@
 #include "NotIspc.h"
 #include "Profile.h"
 
-namespace {
+namespace Physics {
   template<class RowT>
   RowT* _unwrapRow(RuntimeDatabaseTaskBuilder& task, const UnpackedDatabaseElementID& table) {
     QueryResult<RowT> result = task.query<RowT>(table);
@@ -192,242 +192,227 @@ namespace {
       unwrapContactConstraintSetupObjectRows<ConstraintObjB>(task, table)
     };
   }
-}
 
-std::shared_ptr<TaskNode> Physics::details::fillCollisionMasks(TableResolver<CollisionMaskRow> resolver, std::vector<StableElementID>& idsA, std::vector<StableElementID>& idsB, const DatabaseDescription& desc, const PhysicsTableIds& tables) {
-  CollisionMaskRow* dst = resolver.tryGetRow<CollisionMaskRow>(UnpackedDatabaseElementID::fromDescription(tables.mNarrowphaseTable, desc));
-  assert(dst);
-  return TaskNode::create([resolver, &idsA, &idsB, desc, dst](...) mutable {
-    PROFILE_SCOPE("physics", "fillCollisionMasks");
-    CachedRow<CollisionMaskRow> srcA;
-    CachedRow<CollisionMaskRow> srcB;
-    for(size_t i = 0; i < idsA.size(); ++i) {
-      if(idsA[i] == StableElementID::invalid() || idsB[i] == StableElementID::invalid()) {
-        dst->at(i) = 0;
-        continue;
-      }
+  void Physics::details::_integratePositionAxis(const float* velocity, float* position, size_t count) {
+    ispc::integratePosition(position, velocity, uint32_t(count));
+  }
 
-      //Caller should ensure the unstable indices have been resolved such that now the unstable index is up to date
-      const UnpackedDatabaseElementID idA = idsA[i].toUnpacked(desc);
-      const UnpackedDatabaseElementID idB = idsB[i].toUnpacked(desc);
-      resolver.tryGetOrSwapRow(srcA, idA);
-      resolver.tryGetOrSwapRow(srcB, idB);
-      if(srcA && srcB) {
-        dst->at(i) = CollisionMask::combineForCollisionTable(srcA->at(idA.getElementIndex()), srcB->at(idB.getElementIndex()));
-      }
-    }
-  });
-}
+  void Physics::details::_integrateRotation(float* rotX, float* rotY, const float* velocity, size_t count) {
+    ispc::integrateRotation(rotX, rotY, velocity, uint32_t(count));
+  }
 
-void Physics::details::_integratePositionAxis(const float* velocity, float* position, size_t count) {
-  ispc::integratePosition(position, velocity, uint32_t(count));
-}
+  void Physics::details::_applyDampingMultiplier(float* velocity, float amount, size_t count) {
+    ispc::applyDampingMultiplier(velocity, amount, uint32_t(count));
+  }
 
-void Physics::details::_integrateRotation(float* rotX, float* rotY, const float* velocity, size_t count) {
-  ispc::integrateRotation(rotX, rotY, velocity, uint32_t(count));
-}
-
-void Physics::details::_applyDampingMultiplier(float* velocity, float amount, size_t count) {
-  ispc::applyDampingMultiplier(velocity, amount, uint32_t(count));
-}
-/*
-void Physics::generateContacts(ContactInfo& info) {
-  ispc::UniformConstVec2 positionsA{ info.a.posX, info.a.posY };
-  ispc::UniformRotation rotationsA{ info.a.rotX, info.a.rotY };
-  ispc::UniformConstVec2 positionsB{ info.b.posX, info.b.posY };
-  ispc::UniformRotation rotationsB{ info.b.rotX, info.b.rotY };
-  ispc::UniformVec2 normals{ info.normal.x, info.normal.y };
-  ispc::UniformContact contactsOne{ info.one.pointX, info.one.pointY, info.one.overlap };
-  ispc::UniformContact contactsTwo{ info.two.pointX, info.two.pointY, info.two.overlap };
-
-  ispc::generateUnitCubeCubeContacts(positionsA, rotationsA, positionsB, rotationsB, normals, contactsOne, contactsTwo, uint32_t(info.count));
-}
-
-void Physics::generateContacts(CollisionPairsTable& pairs) {
-  ispc::UniformConstVec2 positionsA{ _unwrapRow<NarrowphaseData<PairA>::PosX>(pairs), _unwrapRow<NarrowphaseData<PairA>::PosY>(pairs) };
-  ispc::UniformRotation rotationsA{ _unwrapRow<NarrowphaseData<PairA>::CosAngle>(pairs), _unwrapRow<NarrowphaseData<PairA>::SinAngle>(pairs) };
-  ispc::UniformConstVec2 positionsB{ _unwrapRow<NarrowphaseData<PairB>::PosX>(pairs), _unwrapRow<NarrowphaseData<PairB>::PosY>(pairs) };
-  ispc::UniformRotation rotationsB{ _unwrapRow<NarrowphaseData<PairB>::CosAngle>(pairs), _unwrapRow<NarrowphaseData<PairB>::SinAngle>(pairs) };
-  ispc::UniformVec2 normals{ std::get<SharedNormal::X>(pairs.mRows).mElements.data(), std::get<SharedNormal::Y>(pairs.mRows).mElements.data() };
-
-  ispc::UniformContact contactsOne{
-    _unwrapRow<ContactPoint<ContactOne>::PosX>(pairs),
-    _unwrapRow<ContactPoint<ContactOne>::PosY>(pairs),
-    _unwrapRow<ContactPoint<ContactOne>::Overlap>(pairs)
-  };
-  ispc::UniformContact contactsTwo{
-    _unwrapRow<ContactPoint<ContactTwo>::PosX>(pairs),
-    _unwrapRow<ContactPoint<ContactTwo>::PosY>(pairs),
-    _unwrapRow<ContactPoint<ContactTwo>::Overlap>(pairs)
-  };
-  ispc::generateUnitCubeCubeContacts(positionsA, rotationsA, positionsB, rotationsB, normals, contactsOne, contactsTwo, uint32_t(TableOperations::size(pairs)));
-  //ispc::generateUnitSphereSphereContacts(positionsA, positionsB, normals, contacts, uint32_t(TableOperations::size(pairs)));
-
-  //ispc::UniformConstVec2 positionsA{ _unwrapRow<NarrowphaseData<PairA>::PosX>(pairs), _unwrapRow<NarrowphaseData<PairA>::PosY>(pairs) };
-  //ispc::UniformConstVec2 positionsB{ _unwrapRow<NarrowphaseData<PairB>::PosX>(pairs), _unwrapRow<NarrowphaseData<PairB>::PosY>(pairs) };
-  //ispc::UniformVec2 normals{ std::get<SharedNormal::X>(pairs.mRows).mElements.data(), std::get<SharedNormal::Y>(pairs.mRows).mElements.data() };
-  //ispc::UniformContact contacts{
-  //  _unwrapRow<ContactPoint<ContactOne>::PosX>(pairs),
-  //  _unwrapRow<ContactPoint<ContactOne>::PosY>(pairs),
-  //  _unwrapRow<ContactPoint<ContactOne>::Overlap>(pairs)
-  //};
-  //ispc::generateUnitSphereSphereContacts(positionsA, positionsB, normals, contacts, uint32_t(TableOperations::size(pairs)));
-}
-*/
-void clearRow(IAppBuilder& builder, const QueryAlias<Row<float>> rowAlias) {
-  auto task = builder.createTask();
-  task.setName("clear row");
-  QueryResult<Row<float>> rows = task.queryAlias(rowAlias);
-  task.setCallback([rows](AppTaskArgs&) mutable {
-    rows.forEachRow([](Row<float>& row) {
-      std::memset(row.mElements.data(), 0, sizeof(float)*row.size());
-    });
-  });
-  builder.submitTask(std::move(task));
-}
-
-void Physics::setupConstraints(IAppBuilder& builder) {
-  //Currently computing as square
-  //const float pi = 3.14159265359f;
-  //const float r = 0.5f;
-  //const float density = 1.0f;
-  //const float mass = pi*r*r;
-  //const float inertia = pi*(r*r*r*r)*0.25f;
-  constexpr static float w = 1.0f;
-  constexpr static float h = 1.0f;
-  constexpr static float mass = w*h;
-  constexpr static float inertia = mass*(h*h + w*w)/12.0f;
-  constexpr static float invMass = 1.0f/mass;
-  constexpr static float invInertia = 1.0f/inertia;
-  constexpr static float bias = 0.1f;
-  auto result = std::make_shared<TaskNode>();
-
-  //TODO: don't clear this here and use it for warm start
-  using QA = QueryAlias<Row<float>>;
-  clearRow(builder,  QA::create<ConstraintData::LambdaSumOne>());
-  clearRow(builder,  QA::create<ConstraintData::LambdaSumTwo>());
-  clearRow(builder,  QA::create<ConstraintData::FrictionLambdaSumOne>());
-  clearRow(builder,  QA::create<ConstraintData::FrictionLambdaSumOne>());
-
-  auto contactTables = builder.queryTables<SharedMassConstraintsTableTag>();
-  auto staticContactTables = builder.queryTables<ZeroMassConstraintsTableTag>();
-  //Currently assuming one for simplicity, ultimately will probably change completely
-  assert(contactTables.size() == staticContactTables.size() == 1);
-
-  {
+  void generateContacts(IAppBuilder& builder) {
     auto task = builder.createTask();
-    task.setName("setup contact constraints");
-    ContactConstraintSetupRows setupRows = unwrapContactConstraintSetupRows(task, contactTables.matchingTableIDs[0]);
-    UniformContactConstraintPairDataRows dataRows = _unwrapUniformConstraintDataRows(task, contactTables.matchingTableIDs[0]);
+    task.setName("unit cube contacts");
+    using ObjA = NarrowphaseData<PairA>;
+    using ObjB = NarrowphaseData<PairB>;
+    using ContactOne = ContactPoint<ContactOne>;
+    using ContactTwo = ContactPoint<ContactTwo>;
+    auto query = task.query<
+      const ObjA::PosX, const ObjA::PosY,
+      ObjA::CosAngle, ObjA::SinAngle,
+      const ObjB::PosX, const ObjB::PosY,
+      ObjB::CosAngle, ObjB::SinAngle,
+      SharedNormal::X, SharedNormal::Y,
+      ContactOne::PosX, ContactOne::PosY, ContactOne::Overlap,
+      ContactTwo::PosX, ContactTwo::PosY, ContactTwo::Overlap
+    >();
 
-    task.setCallback([setupRows, dataRows](AppTaskArgs&) mutable {
-      ispc::UniformVec2 normal{ setupRows.sharedNormalX->data(), setupRows.sharedNormalY->data() };
-      ispc::UniformVec2 aToContactOne{ setupRows.a.centerToContactOneX->data(), setupRows.a.centerToContactOneY->data() };
-      ispc::UniformVec2 bToContactOne{ setupRows.b.centerToContactOneX->data(), setupRows.b.centerToContactOneY->data() };
-      ispc::UniformVec2 aToContactTwo{ setupRows.a.centerToContactTwoX->data(), setupRows.a.centerToContactTwoY->data() };
-      ispc::UniformVec2 bToContactTwo{ setupRows.b.centerToContactTwoX->data(), setupRows.b.centerToContactTwoY->data() };
-      float* overlapOne = setupRows.overlapOne->data();
-      float* overlapTwo = setupRows.overlapTwo->data();
-      ispc::UniformContactConstraintPairData data = _unwrapUniformConstraintData(dataRows);
-      const size_t count = setupRows.sharedNormalX->size();
+    task.setCallback([query](AppTaskArgs&) mutable {
+      for(size_t t = 0; t < query.size(); ++t) {
+        auto rows = query.get(t);
+        const size_t count = std::get<0>(rows)->size();
+        ispc::UniformConstVec2 positionsA{ std::get<0>(rows)->data(), std::get<1>(rows)->data() };
+        ispc::UniformRotation rotationsA{ std::get<2>(rows)->data(), std::get<3>(rows)->data() };
+        ispc::UniformConstVec2 positionsB{ std::get<4>(rows)->data(), std::get<5>(rows)->data() };
+        ispc::UniformRotation rotationsB{ std::get<6>(rows)->data(), std::get<7>(rows)->data() };
+        ispc::UniformVec2 normals{ std::get<8>(rows)->data(), std::get<9>(rows)->data() };
 
-      ispc::setupConstraintsSharedMass(invMass, invInertia, bias, normal, aToContactOne, aToContactTwo, bToContactOne, bToContactTwo, overlapOne, overlapTwo, data, uint32_t(count));
+        ispc::UniformContact contactsOne{
+          std::get<10>(rows)->data(),
+          std::get<11>(rows)->data(),
+          std::get<12>(rows)->data()
+        };
+        ispc::UniformContact contactsTwo{
+          std::get<13>(rows)->data(),
+          std::get<14>(rows)->data(),
+          std::get<15>(rows)->data()
+        };
+        ispc::generateUnitCubeCubeContacts(positionsA, rotationsA, positionsB, rotationsB, normals, contactsOne, contactsTwo, uint32_t(count));
+      }
+    });
+    builder.submitTask(std::move(task));
+
+    //ispc::generateUnitSphereSphereContacts(positionsA, positionsB, normals, contacts, uint32_t(TableOperations::size(pairs)));
+
+    //ispc::UniformConstVec2 positionsA{ _unwrapRow<NarrowphaseData<PairA>::PosX>(pairs), _unwrapRow<NarrowphaseData<PairA>::PosY>(pairs) };
+    //ispc::UniformConstVec2 positionsB{ _unwrapRow<NarrowphaseData<PairB>::PosX>(pairs), _unwrapRow<NarrowphaseData<PairB>::PosY>(pairs) };
+    //ispc::UniformVec2 normals{ std::get<SharedNormal::X>(pairs.mRows).mElements.data(), std::get<SharedNormal::Y>(pairs.mRows).mElements.data() };
+    //ispc::UniformContact contacts{
+    //  _unwrapRow<ContactPoint<ContactOne>::PosX>(pairs),
+    //  _unwrapRow<ContactPoint<ContactOne>::PosY>(pairs),
+    //  _unwrapRow<ContactPoint<ContactOne>::Overlap>(pairs)
+    //};
+    //ispc::generateUnitSphereSphereContacts(positionsA, positionsB, normals, contacts, uint32_t(TableOperations::size(pairs)));
+  }
+
+  void clearRow(IAppBuilder& builder, const QueryAlias<Row<float>> rowAlias) {
+    auto task = builder.createTask();
+    task.setName("clear row");
+    QueryResult<Row<float>> rows = task.queryAlias(rowAlias);
+    task.setCallback([rows](AppTaskArgs&) mutable {
+      rows.forEachRow([](Row<float>& row) {
+        std::memset(row.mElements.data(), 0, sizeof(float)*row.size());
+      });
     });
     builder.submitTask(std::move(task));
   }
 
-  {
+  void setupConstraints(IAppBuilder& builder) {
+    //Currently computing as square
+    //const float pi = 3.14159265359f;
+    //const float r = 0.5f;
+    //const float density = 1.0f;
+    //const float mass = pi*r*r;
+    //const float inertia = pi*(r*r*r*r)*0.25f;
+    constexpr static float w = 1.0f;
+    constexpr static float h = 1.0f;
+    constexpr static float mass = w*h;
+    constexpr static float inertia = mass*(h*h + w*w)/12.0f;
+    constexpr static float invMass = 1.0f/mass;
+    constexpr static float invInertia = 1.0f/inertia;
+    constexpr static float bias = 0.1f;
+    auto result = std::make_shared<TaskNode>();
+
+    //TODO: don't clear this here and use it for warm start
+    using QA = QueryAlias<Row<float>>;
+    clearRow(builder,  QA::create<ConstraintData::LambdaSumOne>());
+    clearRow(builder,  QA::create<ConstraintData::LambdaSumTwo>());
+    clearRow(builder,  QA::create<ConstraintData::FrictionLambdaSumOne>());
+    clearRow(builder,  QA::create<ConstraintData::FrictionLambdaSumOne>());
+
+    auto contactTables = builder.queryTables<SharedMassConstraintsTableTag>();
+    auto staticContactTables = builder.queryTables<ZeroMassConstraintsTableTag>();
+    //Currently assuming one for simplicity, ultimately will probably change completely
+    assert(contactTables.size() == staticContactTables.size() == 1);
+
+    {
+      auto task = builder.createTask();
+      task.setName("setup contact constraints");
+      ContactConstraintSetupRows setupRows = unwrapContactConstraintSetupRows(task, contactTables.matchingTableIDs[0]);
+      UniformContactConstraintPairDataRows dataRows = _unwrapUniformConstraintDataRows(task, contactTables.matchingTableIDs[0]);
+
+      task.setCallback([setupRows, dataRows](AppTaskArgs&) mutable {
+        ispc::UniformVec2 normal{ setupRows.sharedNormalX->data(), setupRows.sharedNormalY->data() };
+        ispc::UniformVec2 aToContactOne{ setupRows.a.centerToContactOneX->data(), setupRows.a.centerToContactOneY->data() };
+        ispc::UniformVec2 bToContactOne{ setupRows.b.centerToContactOneX->data(), setupRows.b.centerToContactOneY->data() };
+        ispc::UniformVec2 aToContactTwo{ setupRows.a.centerToContactTwoX->data(), setupRows.a.centerToContactTwoY->data() };
+        ispc::UniformVec2 bToContactTwo{ setupRows.b.centerToContactTwoX->data(), setupRows.b.centerToContactTwoY->data() };
+        float* overlapOne = setupRows.overlapOne->data();
+        float* overlapTwo = setupRows.overlapTwo->data();
+        ispc::UniformContactConstraintPairData data = _unwrapUniformConstraintData(dataRows);
+        const size_t count = setupRows.sharedNormalX->size();
+
+        ispc::setupConstraintsSharedMass(invMass, invInertia, bias, normal, aToContactOne, aToContactTwo, bToContactOne, bToContactTwo, overlapOne, overlapTwo, data, uint32_t(count));
+      });
+      builder.submitTask(std::move(task));
+    }
+
+    {
+      auto task = builder.createTask();
+      task.setName("setup static contact constraints");
+      ContactConstraintSetupRows setupRows = unwrapContactConstraintSetupRows(task, staticContactTables.matchingTableIDs[0]);
+      UniformContactConstraintPairDataRows dataRows = _unwrapUniformConstraintDataRows(task, staticContactTables.matchingTableIDs[0]);
+
+      task.setCallback([setupRows, dataRows](AppTaskArgs&) mutable {
+        ispc::UniformVec2 normal = { setupRows.sharedNormalX->data(), setupRows.sharedNormalY->data() };
+        ispc::UniformVec2 aToContactOne = { setupRows.a.centerToContactOneX->data(), setupRows.a.centerToContactOneY->data() };
+        ispc::UniformVec2 aToContactTwo = { setupRows.a.centerToContactTwoX->data(), setupRows.a.centerToContactTwoY->data() };
+        float* overlapOne = setupRows.overlapOne->data();
+        float* overlapTwo = setupRows.overlapTwo->data();
+        ispc::UniformContactConstraintPairData data = _unwrapUniformConstraintData(dataRows);
+        const size_t count = setupRows.sharedNormalX->size();
+
+        ispc::setupConstraintsSharedMassBZeroMass(invMass, invInertia, bias, normal, aToContactOne, aToContactTwo, overlapOne, overlapTwo, data, uint32_t(count));
+      });
+      builder.submitTask(std::move(task));
+    }
+  }
+
+  void solveConstraints(IAppBuilder& builder, const Config::PhysicsConfig& config) {
+    //Everything in one since all velocities might depend on the previous ones. Can be more parallel with islands
     auto task = builder.createTask();
-    task.setName("setup static contact constraints");
-    ContactConstraintSetupRows setupRows = unwrapContactConstraintSetupRows(task, staticContactTables.matchingTableIDs[0]);
-    UniformContactConstraintPairDataRows dataRows = _unwrapUniformConstraintDataRows(task, staticContactTables.matchingTableIDs[0]);
+    task.setName("solve constraints");
+    auto contactTables = builder.queryTables<SharedMassConstraintsTableTag>();
+    auto staticContactTables = builder.queryTables<ZeroMassConstraintsTableTag>();
+    auto commonTable = builder.queryTables<ConstraintsCommonTableTag>();
+    //Currently assuming one for simplicity, ultimately will probably change completely
+    assert(contactTables.size() == staticContactTables.size() == commonTable.size() == 1);
+    UniformContactConstraintPairDataRows contactDataRows = _unwrapUniformConstraintDataRows(task, contactTables.matchingTableIDs[0]);
+    UniformContactConstraintPairDataRows staticContactDataRows = _unwrapUniformConstraintDataRows(task, staticContactTables.matchingTableIDs[0]);
+    UniformConstraintObjectRows objectARows = _unwrapUniformConstraintObjectRows<ConstraintObjA>(task, commonTable.matchingTableIDs[0]);
+    UniformConstraintObjectRows objectBRows = _unwrapUniformConstraintObjectRows<ConstraintObjB>(task, commonTable.matchingTableIDs[0]);
+    LambdaSums contactSums = _unwrapLambdaSums(task, contactTables.matchingTableIDs[0]);
+    LambdaSums staticContactSums = _unwrapLambdaSums(task, staticContactTables.matchingTableIDs[0]);
+    ConstraintData::IsEnabled* isEnabled = &task.query<ConstraintData::IsEnabled>(commonTable.matchingTableIDs[0]).get<0>(0);
 
-    task.setCallback([setupRows, dataRows](AppTaskArgs&) mutable {
-      ispc::UniformVec2 normal = { setupRows.sharedNormalX->data(), setupRows.sharedNormalY->data() };
-      ispc::UniformVec2 aToContactOne = { setupRows.a.centerToContactOneX->data(), setupRows.a.centerToContactOneY->data() };
-      ispc::UniformVec2 aToContactTwo = { setupRows.a.centerToContactTwoX->data(), setupRows.a.centerToContactTwoY->data() };
-      float* overlapOne = setupRows.overlapOne->data();
-      float* overlapTwo = setupRows.overlapTwo->data();
-      ispc::UniformContactConstraintPairData data = _unwrapUniformConstraintData(dataRows);
-      const size_t count = setupRows.sharedNormalX->size();
+    task.setCallback([=, &config](AppTaskArgs&) mutable {
+      PROFILE_SCOPE("physics", "solve constraints");
+      ispc::UniformContactConstraintPairData data = _unwrapUniformConstraintData(contactDataRows);
+      ispc::UniformConstraintObject objectA = _unwrapUniformConstraintObject(objectARows);
+      ispc::UniformConstraintObject objectB = _unwrapUniformConstraintObject(objectBRows);
+      float* lambdaSumOne = contactSums.lambdaSumOne->data();
+      float* lambdaSumTwo = contactSums.lambdaSumTwo->data();
+      float* frictionLambdaSumOne = contactSums.frictionLambdaSumOne->data();
+      float* frictionLambdaSumTwo = contactSums.frictionLambdaSumTwo->data();
+      uint8_t* enabled = isEnabled->data();
 
-      ispc::setupConstraintsSharedMassBZeroMass(invMass, invInertia, bias, normal, aToContactOne, aToContactTwo, overlapOne, overlapTwo, data, uint32_t(count));
+      const float frictionCoeff = config.frictionCoeff;
+      const size_t startContact = contactSums.startIndex->at();
+      const size_t startStatic = staticContactSums.startIndex->at();
+
+      const bool oneAtATime = config.mForcedTargetWidth && *config.mForcedTargetWidth < ispc::getTargetWidth();
+
+      {
+        PROFILE_SCOPE("physics", "solveshared");
+        const size_t count = contactSums.frictionLambdaSumOne->size();
+        if(oneAtATime) {
+          for(size_t i = 0; i < count; ++i) {
+            ispc::solveContactConstraints(data, objectA, objectB, lambdaSumOne, lambdaSumTwo, frictionLambdaSumOne, frictionLambdaSumTwo, enabled, frictionCoeff, uint32_t(startContact), uint32_t(i), uint32_t(1));
+          }
+        }
+        else {
+          ispc::solveContactConstraints(data, objectA, objectB, lambdaSumOne, lambdaSumTwo, frictionLambdaSumOne, frictionLambdaSumTwo, enabled, frictionCoeff, uint32_t(startContact), uint32_t(0), uint32_t(count));
+        }
+      }
+
+      data = _unwrapUniformConstraintData(staticContactDataRows);
+      lambdaSumOne = staticContactSums.lambdaSumOne->data();
+      lambdaSumTwo = staticContactSums.lambdaSumTwo->data();
+      frictionLambdaSumOne = staticContactSums.frictionLambdaSumOne->data();
+      frictionLambdaSumTwo = staticContactSums.frictionLambdaSumTwo->data();
+
+      {
+        PROFILE_SCOPE("physics", "solvezero");
+        const size_t count = staticContactSums.frictionLambdaSumOne->size();
+        if(oneAtATime) {
+          for(size_t i = 0; i < count; ++i) {
+            ispc::solveContactConstraintsBZeroMass(data, objectA, objectB, lambdaSumOne, lambdaSumTwo, frictionLambdaSumOne, frictionLambdaSumTwo, enabled, frictionCoeff, uint32_t(startStatic), uint32_t(i), uint32_t(1));
+          }
+        }
+        else {
+          ispc::solveContactConstraintsBZeroMass(data, objectA, objectB, lambdaSumOne, lambdaSumTwo, frictionLambdaSumOne, frictionLambdaSumTwo, enabled, frictionCoeff, uint32_t(startStatic), uint32_t(0), uint32_t(count));
+        }
+      }
     });
+
     builder.submitTask(std::move(task));
   }
-}
 
-void Physics::solveConstraints(IAppBuilder& builder, const Config::PhysicsConfig& config) {
-  //Everything in one since all velocities might depend on the previous ones. Can be more parallel with islands
-  auto task = builder.createTask();
-  task.setName("solve constraints");
-  auto contactTables = builder.queryTables<SharedMassConstraintsTableTag>();
-  auto staticContactTables = builder.queryTables<ZeroMassConstraintsTableTag>();
-  auto commonTable = builder.queryTables<ConstraintsCommonTableTag>();
-  //Currently assuming one for simplicity, ultimately will probably change completely
-  assert(contactTables.size() == staticContactTables.size() == commonTable.size() == 1);
-  UniformContactConstraintPairDataRows contactDataRows = _unwrapUniformConstraintDataRows(task, contactTables.matchingTableIDs[0]);
-  UniformContactConstraintPairDataRows staticContactDataRows = _unwrapUniformConstraintDataRows(task, staticContactTables.matchingTableIDs[0]);
-  UniformConstraintObjectRows objectARows = _unwrapUniformConstraintObjectRows<ConstraintObjA>(task, commonTable.matchingTableIDs[0]);
-  UniformConstraintObjectRows objectBRows = _unwrapUniformConstraintObjectRows<ConstraintObjB>(task, commonTable.matchingTableIDs[0]);
-  LambdaSums contactSums = _unwrapLambdaSums(task, contactTables.matchingTableIDs[0]);
-  LambdaSums staticContactSums = _unwrapLambdaSums(task, staticContactTables.matchingTableIDs[0]);
-  ConstraintData::IsEnabled* isEnabled = &task.query<ConstraintData::IsEnabled>(commonTable.matchingTableIDs[0]).get<0>(0);
-
-  task.setCallback([=, &config](AppTaskArgs&) mutable {
-    PROFILE_SCOPE("physics", "solve constraints");
-    ispc::UniformContactConstraintPairData data = _unwrapUniformConstraintData(contactDataRows);
-    ispc::UniformConstraintObject objectA = _unwrapUniformConstraintObject(objectARows);
-    ispc::UniformConstraintObject objectB = _unwrapUniformConstraintObject(objectBRows);
-    float* lambdaSumOne = contactSums.lambdaSumOne->data();
-    float* lambdaSumTwo = contactSums.lambdaSumTwo->data();
-    float* frictionLambdaSumOne = contactSums.frictionLambdaSumOne->data();
-    float* frictionLambdaSumTwo = contactSums.frictionLambdaSumTwo->data();
-    uint8_t* enabled = isEnabled->data();
-
-    const float frictionCoeff = config.frictionCoeff;
-    const size_t startContact = contactSums.startIndex->at();
-    const size_t startStatic = staticContactSums.startIndex->at();
-
-    const bool oneAtATime = config.mForcedTargetWidth && *config.mForcedTargetWidth < ispc::getTargetWidth();
-
-    {
-      PROFILE_SCOPE("physics", "solveshared");
-      const size_t count = contactSums.frictionLambdaSumOne->size();
-      if(oneAtATime) {
-        for(size_t i = 0; i < count; ++i) {
-          ispc::solveContactConstraints(data, objectA, objectB, lambdaSumOne, lambdaSumTwo, frictionLambdaSumOne, frictionLambdaSumTwo, enabled, frictionCoeff, uint32_t(startContact), uint32_t(i), uint32_t(1));
-        }
-      }
-      else {
-        ispc::solveContactConstraints(data, objectA, objectB, lambdaSumOne, lambdaSumTwo, frictionLambdaSumOne, frictionLambdaSumTwo, enabled, frictionCoeff, uint32_t(startContact), uint32_t(0), uint32_t(count));
-      }
-    }
-
-    data = _unwrapUniformConstraintData(staticContactDataRows);
-    lambdaSumOne = staticContactSums.lambdaSumOne->data();
-    lambdaSumTwo = staticContactSums.lambdaSumTwo->data();
-    frictionLambdaSumOne = staticContactSums.frictionLambdaSumOne->data();
-    frictionLambdaSumTwo = staticContactSums.frictionLambdaSumTwo->data();
-
-    {
-      PROFILE_SCOPE("physics", "solvezero");
-      const size_t count = staticContactSums.frictionLambdaSumOne->size();
-      if(oneAtATime) {
-        for(size_t i = 0; i < count; ++i) {
-          ispc::solveContactConstraintsBZeroMass(data, objectA, objectB, lambdaSumOne, lambdaSumTwo, frictionLambdaSumOne, frictionLambdaSumTwo, enabled, frictionCoeff, uint32_t(startStatic), uint32_t(i), uint32_t(1));
-        }
-      }
-      else {
-        ispc::solveContactConstraintsBZeroMass(data, objectA, objectB, lambdaSumOne, lambdaSumTwo, frictionLambdaSumOne, frictionLambdaSumTwo, enabled, frictionCoeff, uint32_t(startStatic), uint32_t(0), uint32_t(count));
-      }
-    }
-  });
-
-  builder.submitTask(std::move(task));
-}
-
-namespace PhysicsImpl {
   void applyDampingMultiplierAxis(IAppBuilder& builder, const QueryAlias<Row<float>>& axis, const float& multiplier) {
     for(const UnpackedDatabaseElementID& table : builder.queryAliasTables(axis).matchingTableIDs) {
       auto task = builder.createTask();
@@ -581,79 +566,110 @@ namespace PhysicsImpl {
     });
     builder.submitTask(std::move(task));
   }
-}
 
-void Physics::fillNarrowphaseData(IAppBuilder& builder, const PhysicsAliases& aliases) {
-  //Id resolution must complete before the fill bundle starts
-  PhysicsImpl::resolveCollisionTableIds(builder);
-
-  using Alias = QueryAlias<Row<float>>;
-  using OA = NarrowphaseData<PairA>;
-  auto idsA = QueryAlias<Row<StableElementID>>::create<CollisionPairIndexA>().read();
-  PhysicsImpl::fillNarrowphaseRow(builder, aliases.posX.read(), Alias::create<OA::PosX>(), idsA);
-  PhysicsImpl::fillNarrowphaseRow(builder, aliases.posY.read(), Alias::create<OA::PosY>(), idsA);
-  PhysicsImpl::fillNarrowphaseRow(builder, aliases.rotX.read(), Alias::create<OA::CosAngle>(), idsA);
-  PhysicsImpl::fillNarrowphaseRow(builder, aliases.rotY.read(), Alias::create<OA::SinAngle>(), idsA);
-
-  using OB = NarrowphaseData<PairB>;
-  auto idsB = QueryAlias<Row<StableElementID>>::create<CollisionPairIndexB>().read();
-  PhysicsImpl::fillNarrowphaseRow(builder, aliases.posX.read(), Alias::create<OB::PosX>(), idsB);
-  PhysicsImpl::fillNarrowphaseRow(builder, aliases.posY.read(), Alias::create<OB::PosY>(), idsB);
-  PhysicsImpl::fillNarrowphaseRow(builder, aliases.rotX.read(), Alias::create<OB::CosAngle>(), idsB);
-  PhysicsImpl::fillNarrowphaseRow(builder, aliases.rotY.read(), Alias::create<OB::SinAngle>(), idsB);
-}
-
-void Physics::fillConstraintVelocities(IAppBuilder& builder, const PhysicsAliases& aliases) {
-  using Alias = QueryAlias<Row<float>>;
-  using OA = ConstraintObject<ConstraintObjA>;
-  auto idsA = QueryAlias<Row<StableElementID>>::create<CollisionPairIndexA>().read();
-  PhysicsImpl::fillConstraintRow(builder, aliases.linVelX.read(), Alias::create<OA::LinVelX>(), idsA);
-  PhysicsImpl::fillConstraintRow(builder, aliases.linVelY.read(), Alias::create<OA::LinVelY>(), idsA);
-  PhysicsImpl::fillConstraintRow(builder, aliases.angVel.read(), Alias::create<OA::AngVel>(), idsA);
-
-  using OB = ConstraintObject<ConstraintObjA>;
-  auto idsB = QueryAlias<Row<StableElementID>>::create<CollisionPairIndexB>().read();
-  PhysicsImpl::fillConstraintRow(builder, aliases.linVelX.read(), Alias::create<OB::LinVelX>(), idsB);
-  PhysicsImpl::fillConstraintRow(builder, aliases.linVelY.read(), Alias::create<OB::LinVelY>(), idsB);
-  PhysicsImpl::fillConstraintRow(builder, aliases.angVel.read(), Alias::create<OB::AngVel>(), idsB);
-}
-
-void Physics::storeConstraintVelocities(IAppBuilder& builder, const PhysicsAliases& aliases) {
-  using Alias = QueryAlias<Row<float>>;
-  using OA = ConstraintObject<ConstraintObjA>;
-  PhysicsImpl::storeToRow(builder, Alias::create<OA::LinVelX>().read(), aliases.linVelX, true);
-  PhysicsImpl::storeToRow(builder, Alias::create<OA::LinVelY>().read(), aliases.linVelY, true);
-  PhysicsImpl::storeToRow(builder, Alias::create<OA::AngVel>().read(), aliases.angVel, true);
-
-  using OB = ConstraintObject<ConstraintObjB>;
-  PhysicsImpl::storeToRow(builder, Alias::create<OB::LinVelX>().read(), aliases.linVelX, false);
-  PhysicsImpl::storeToRow(builder, Alias::create<OB::LinVelY>().read(), aliases.linVelY, false);
-  PhysicsImpl::storeToRow(builder, Alias::create<OB::AngVel>().read(), aliases.angVel, false);
-}
-
-void Physics::integratePosition(IAppBuilder& builder, const PhysicsAliases& aliases) {
-  PhysicsImpl::integratePositionAxis(builder, aliases.posX, aliases.linVelX);
-  PhysicsImpl::integratePositionAxis(builder, aliases.posY, aliases.linVelY);
-}
-
-void Physics::integrateRotation(IAppBuilder& builder, const PhysicsAliases& aliases) {
-  for(const UnpackedDatabaseElementID& table : builder.queryAliasTables(aliases.rotX, aliases.rotY, aliases.angVel.read()).matchingTableIDs) {
+  void fillCollisionMasks(IAppBuilder& builder) {
     auto task = builder.createTask();
-    auto query = task.queryAlias(table, aliases.rotX, aliases.rotY, aliases.angVel.read());
-    task.setName("integrate rotation");
-    task.setCallback([query](AppTaskArgs&) mutable {
-      Physics::details::_integrateRotation(
-        query.get<0>(0).mElements.data(),
-        query.get<1>(0).mElements.data(),
-        query.get<2>(0).mElements.data(),
-        query.get<0>(0).size());
+    task.setName("fill collision masks");
+    auto pairs = task.query<const CollisionPairIndexA, const CollisionPairIndexB, CollisionMaskRow>();
+    std::shared_ptr<IIDResolver> ids = task.getIDResolver();
+    std::shared_ptr<ITableResolver> resolver = task.getResolver<const CollisionMaskRow>();
+    task.setCallback([pairs, resolver, ids](AppTaskArgs&) mutable {
+      CachedRow<const CollisionMaskRow> srcA, srcB;
+      pairs.forEachElement([&](const StableElementID& idA, const StableElementID& idB, uint8_t& collisionMask) {
+        if(idA == StableElementID::invalid() || idB == StableElementID::invalid()) {
+          collisionMask = 0;
+          return;
+        }
+
+        //Caller should ensure the unstable indices have been resolved such that now the unstable index is up to date
+        const auto rawA = ids->uncheckedUnpack(idA);
+        const auto rawB = ids->uncheckedUnpack(idB);
+        resolver->tryGetOrSwapRow(srcA, rawA);
+        resolver->tryGetOrSwapRow(srcB, rawB);
+        if(srcA && srcB) {
+          collisionMask = CollisionMask::combineForCollisionTable(srcA->at(rawA.getElementIndex()), srcB->at(rawB.getElementIndex()));
+        }
+      });
     });
     builder.submitTask(std::move(task));
   }
-}
 
-void Physics::applyDampingMultiplier(IAppBuilder& builder, const PhysicsAliases& aliases, const float& linearMultiplier, const float& angularMultiplier) {
-  PhysicsImpl::applyDampingMultiplierAxis(builder, aliases.linVelX, linearMultiplier);
-  PhysicsImpl::applyDampingMultiplierAxis(builder, aliases.linVelY, linearMultiplier);
-  PhysicsImpl::applyDampingMultiplierAxis(builder, aliases.angVel, angularMultiplier);
+  void updateNarrowphase(IAppBuilder& builder, const PhysicsAliases& aliases) {
+    //Id resolution must complete before the fill bundle starts
+    resolveCollisionTableIds(builder);
+
+    fillCollisionMasks(builder);
+
+    using Alias = QueryAlias<Row<float>>;
+    using OA = NarrowphaseData<PairA>;
+    auto idsA = QueryAlias<Row<StableElementID>>::create<CollisionPairIndexA>().read();
+    fillNarrowphaseRow(builder, aliases.posX.read(), Alias::create<OA::PosX>(), idsA);
+    fillNarrowphaseRow(builder, aliases.posY.read(), Alias::create<OA::PosY>(), idsA);
+    fillNarrowphaseRow(builder, aliases.rotX.read(), Alias::create<OA::CosAngle>(), idsA);
+    fillNarrowphaseRow(builder, aliases.rotY.read(), Alias::create<OA::SinAngle>(), idsA);
+
+    using OB = NarrowphaseData<PairB>;
+    auto idsB = QueryAlias<Row<StableElementID>>::create<CollisionPairIndexB>().read();
+    fillNarrowphaseRow(builder, aliases.posX.read(), Alias::create<OB::PosX>(), idsB);
+    fillNarrowphaseRow(builder, aliases.posY.read(), Alias::create<OB::PosY>(), idsB);
+    fillNarrowphaseRow(builder, aliases.rotX.read(), Alias::create<OB::CosAngle>(), idsB);
+    fillNarrowphaseRow(builder, aliases.rotY.read(), Alias::create<OB::SinAngle>(), idsB);
+
+    generateContacts(builder);
+  }
+
+  void fillConstraintVelocities(IAppBuilder& builder, const PhysicsAliases& aliases) {
+    using Alias = QueryAlias<Row<float>>;
+    using OA = ConstraintObject<ConstraintObjA>;
+    auto idsA = QueryAlias<Row<StableElementID>>::create<CollisionPairIndexA>().read();
+    fillConstraintRow(builder, aliases.linVelX.read(), Alias::create<OA::LinVelX>(), idsA);
+    fillConstraintRow(builder, aliases.linVelY.read(), Alias::create<OA::LinVelY>(), idsA);
+    fillConstraintRow(builder, aliases.angVel.read(), Alias::create<OA::AngVel>(), idsA);
+
+    using OB = ConstraintObject<ConstraintObjA>;
+    auto idsB = QueryAlias<Row<StableElementID>>::create<CollisionPairIndexB>().read();
+    fillConstraintRow(builder, aliases.linVelX.read(), Alias::create<OB::LinVelX>(), idsB);
+    fillConstraintRow(builder, aliases.linVelY.read(), Alias::create<OB::LinVelY>(), idsB);
+    fillConstraintRow(builder, aliases.angVel.read(), Alias::create<OB::AngVel>(), idsB);
+  }
+
+  void storeConstraintVelocities(IAppBuilder& builder, const PhysicsAliases& aliases) {
+    using Alias = QueryAlias<Row<float>>;
+    using OA = ConstraintObject<ConstraintObjA>;
+    storeToRow(builder, Alias::create<OA::LinVelX>().read(), aliases.linVelX, true);
+    storeToRow(builder, Alias::create<OA::LinVelY>().read(), aliases.linVelY, true);
+    storeToRow(builder, Alias::create<OA::AngVel>().read(), aliases.angVel, true);
+
+    using OB = ConstraintObject<ConstraintObjB>;
+    storeToRow(builder, Alias::create<OB::LinVelX>().read(), aliases.linVelX, false);
+    storeToRow(builder, Alias::create<OB::LinVelY>().read(), aliases.linVelY, false);
+    storeToRow(builder, Alias::create<OB::AngVel>().read(), aliases.angVel, false);
+  }
+
+  void integratePosition(IAppBuilder& builder, const PhysicsAliases& aliases) {
+    integratePositionAxis(builder, aliases.posX, aliases.linVelX);
+    integratePositionAxis(builder, aliases.posY, aliases.linVelY);
+  }
+
+  void integrateRotation(IAppBuilder& builder, const PhysicsAliases& aliases) {
+    for(const UnpackedDatabaseElementID& table : builder.queryAliasTables(aliases.rotX, aliases.rotY, aliases.angVel.read()).matchingTableIDs) {
+      auto task = builder.createTask();
+      auto query = task.queryAlias(table, aliases.rotX, aliases.rotY, aliases.angVel.read());
+      task.setName("integrate rotation");
+      task.setCallback([query](AppTaskArgs&) mutable {
+        Physics::details::_integrateRotation(
+          query.get<0>(0).mElements.data(),
+          query.get<1>(0).mElements.data(),
+          query.get<2>(0).mElements.data(),
+          query.get<0>(0).size());
+      });
+      builder.submitTask(std::move(task));
+    }
+  }
+
+  void applyDampingMultiplier(IAppBuilder& builder, const PhysicsAliases& aliases, const float& linearMultiplier, const float& angularMultiplier) {
+    applyDampingMultiplierAxis(builder, aliases.linVelX, linearMultiplier);
+    applyDampingMultiplierAxis(builder, aliases.linVelY, linearMultiplier);
+    applyDampingMultiplierAxis(builder, aliases.angVel, angularMultiplier);
+  }
 }

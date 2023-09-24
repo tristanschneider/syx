@@ -4,6 +4,9 @@
 #include "stat/AllStatEffects.h"
 #include "Simulation.h"
 #include "ThreadLocals.h"
+#include "AppBuilder.h"
+
+DebugLineAdapter::~DebugLineAdapter() = default;
 
 ConfigAdapter TableAdapters::getConfig(GameDB db) {
   auto& c = std::get<GlobalGameData>(db.db.mTables);
@@ -303,7 +306,6 @@ GlobalsAdapter TableAdapters::getGlobals(GameDB db) {
   auto& table = std::get<GlobalGameData>(db.db.mTables);
   return {
     &std::get<SharedRow<SceneState>>(table.mRows).at(),
-    &std::get<SharedRow<PhysicsTableIds>>(table.mRows).at(),
     &std::get<SharedRow<FileSystem>>(table.mRows).at(),
     &std::get<SharedRow<StableElementMappings>>(table.mRows).at(),
     &std::get<SharedRow<ConstraintsTableMappings>>(table.mRows).at(),
@@ -393,10 +395,10 @@ size_t TableAdapters::addStatEffectsSharedLifetime(StatEffectBaseAdapter& base, 
   return firstIndex;
 }
 
-DebugLineAdapter TableAdapters::getDebugLines(GameDB db) {
-  auto& debug = std::get<DebugLineTable>(db.db.mTables);
-  return {
-    &std::get<Row<DebugPoint>>(debug.mRows),
-    TableModifierInstance::get(debug)
-  };
+DebugLineAdapter TableAdapters::getDebugLines(RuntimeDatabaseTaskBuilder& task) {
+  auto query = task.query<Row<DebugPoint>>();
+  DebugLineAdapter result;
+  result.points = &query.get<0>(0);
+  result.modifier = task.getModifierForTable(query.matchingTableIDs[0]);
+  return result;
 }
