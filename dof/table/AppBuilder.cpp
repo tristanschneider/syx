@@ -37,6 +37,10 @@ namespace TableModifierImpl {
       instance.resize(count);
     }
 
+    void swapRemove(const UnpackedDatabaseElementID& id) override {
+      instance.modifier.swapRemove(instance.table, id);
+    }
+
     TableModifierInstance instance;
   };
 
@@ -51,6 +55,10 @@ namespace TableModifierImpl {
 
     void resize(size_t count) override {
       instance.resize(count);
+    }
+
+    void swapRemove(const UnpackedDatabaseElementID& id) override {
+      instance.modifier.swapRemove(instance.table, id, *instance.stableMappings);
     }
 
     StableTableModifierInstance instance;
@@ -195,6 +203,13 @@ std::unique_ptr<IAnyTableModifier> RuntimeDatabaseTaskBuilder::getAnyModifier() 
     logTableModifier(t);
   }
   return std::make_unique<AnyTableModifier::ATM>(db);
+}
+
+std::shared_ptr<AppTaskConfig> RuntimeDatabaseTaskBuilder::getConfig() {
+  if(!builtTask.task.config) {
+    builtTask.task.config = std::make_shared<AppTaskConfig>();
+  }
+  return builtTask.task.config;
 }
 
 RuntimeDatabaseTaskBuilder& RuntimeDatabaseTaskBuilder::setPinning(AppTaskPinning::Variant pinning) {

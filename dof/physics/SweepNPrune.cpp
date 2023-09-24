@@ -6,6 +6,8 @@
 #include "glm/common.hpp"
 #include "Scheduler.h"
 #include "Profile.h"
+#include "AppBuilder.h"
+#include "SweepNPruneBroadphase.h"
 
 namespace Broadphase {
   struct ElementBounds {
@@ -419,7 +421,7 @@ namespace Broadphase {
       }
     }
 
-    TaskRange recomputePairs(Grid& grid, SwapLog finalResults) {
+    void recomputePairs(IAppBuilder& builder) {
       struct TaskData {
         std::vector<Broadphase::SweepCollisionPair> gains, losses;
         Broadphase::CollisionCandidates candidates;
@@ -429,55 +431,74 @@ namespace Broadphase {
         //Hack to reference count pairs to avoid duplicate events for pairs in multiple cells
         std::unordered_map<Broadphase::SweepCollisionPair, uint8_t> trackedPairs;
       };
-      auto data = std::make_shared<Tasks>();
-      auto processOne = TaskNode::create([data, &grid](enki::TaskSetPartition range, uint32_t) {
-        PROFILE_SCOPE("physics", "recomputePairs");
-        for(size_t i = range.start; i < range.end; ++i) {
-          SwapLog log {
-            data->tasks[i].gains,
-            data->tasks[i].losses
-          };
-          log.gains.clear();
-          log.losses.clear();
-          data->tasks[i].candidates.pairs.clear();
-          SweepNPrune::recomputePairs(grid.cells[i], data->tasks[i].candidates, log);
-        }
-      });
-      auto configureTasks = TaskNode::create([processOne, data, &grid](...) {
-        static_cast<enki::TaskSet*>(processOne->mTask.get())->m_SetSize = grid.cells.size();
-        data->tasks.resize(grid.cells.size());
-      });
-      auto combineResults = TaskNode::create([data, finalResults](...) {
-        PROFILE_SCOPE("physics", "combineResults");
-        finalResults.gains.clear();
-        finalResults.losses.clear();
 
-        for(size_t i = 0; i < data->tasks.size(); ++i) {
-           const TaskData& t = data->tasks[i];
-          //Remove duplicates while also ignoring any that show up in both gained and lost
-          for(const SweepCollisionPair& g : t.gains) {
-            //If this was a new entry, report the gain
-            if(!data->trackedPairs[g]++) {
-              finalResults.gains.push_back(g);
-            }
+      auto configure = builder.createTask();
+      auto process = builder.createTask();
+      auto combine = builder.createTask();
+      configure.setName("configure broadphase tasks");
+      process.setName("recompute broadphase pairs");
+      combine.setName("combine final broadphse results");
+      auto data = std::make_shared<Tasks>();
+
+      {
+        auto processConfig = process.getConfig();
+        const auto& grid = *configure.query<const SharedRow<Broadphase::SweepGrid::Grid>>().tryGetSingletonElement();
+        configure.setCallback([&grid, processConfig, data](AppTaskArgs&) mutable {
+          AppTaskSize s;
+          s.batchSize = 1;
+          s.workItemCount = grid.cells.size();
+          processConfig->setSize(s);
+          data->tasks.resize(grid.cells.size());
+        });
+        builder.submitTask(std::move(configure));
+      }
+      {
+        auto& grid = *process.query<SharedRow<Broadphase::SweepGrid::Grid>>().tryGetSingletonElement();
+        process.setCallback([&grid, data](AppTaskArgs& args) mutable {
+          for(size_t i = args.begin; i < args.end; ++i) {
+            SwapLog log {
+              data->tasks[i].gains,
+              data->tasks[i].losses
+            };
+            log.gains.clear();
+            log.losses.clear();
+            data->tasks[i].candidates.pairs.clear();
+            SweepNPrune::recomputePairs(grid.cells[i], data->tasks[i].candidates, log);
           }
-          for(const SweepCollisionPair& l : t.losses) {
-            if(auto it = data->trackedPairs.find(l); it != data->trackedPairs.end()) {
-              //If reference count hits zero, report the loss and remove the tracking element
-              if(!it->second || !--it->second) {
-                data->trackedPairs.erase(it);
-                finalResults.losses.push_back(l);
+        });
+        builder.submitTask(std::move(process));
+      }
+      {
+        //Artificial dependency on grid so the previous finishes first
+        combine.query<const SharedRow<Broadphase::SweepGrid::Grid>>();
+        auto& finalResults = *combine.query<SharedRow<SweepNPruneBroadphase::PairChanges>>().tryGetSingletonElement();
+
+        combine.setCallback([&finalResults, data](AppTaskArgs&) mutable {
+          finalResults.mGained.clear();
+          finalResults.mLost.clear();
+
+          for(size_t i = 0; i < data->tasks.size(); ++i) {
+             const TaskData& t = data->tasks[i];
+            //Remove duplicates while also ignoring any that show up in both gained and lost
+            for(const SweepCollisionPair& g : t.gains) {
+              //If this was a new entry, report the gain
+              if(!data->trackedPairs[g]++) {
+                finalResults.mGained.push_back(g);
+              }
+            }
+            for(const SweepCollisionPair& l : t.losses) {
+              if(auto it = data->trackedPairs.find(l); it != data->trackedPairs.end()) {
+                //If reference count hits zero, report the loss and remove the tracking element
+                if(!it->second || !--it->second) {
+                  data->trackedPairs.erase(it);
+                  finalResults.mLost.push_back(l);
+                }
               }
             }
           }
-        }
-      });
-
-      auto root = configureTasks;
-      configureTasks->mChildren.push_back(processOne);
-      processOne->mChildren.push_back(combineResults);
-      return TaskBuilder::addEndSync(root);
+        });
+        builder.submitTask(std::move(combine));
+      }
     }
   }
-
 }

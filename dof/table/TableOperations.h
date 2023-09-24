@@ -321,16 +321,22 @@ struct StableTableModifier {
       static size_t size(const void* table) {
         return TableOperations::size(*static_cast<const TableT*>(table));
       }
+
+      static void swapRemove(void* table const UnpackedDatabaseElementID& id, StableElementMappings& mappings) {
+        TableOperations::stableSwapRemove(*static_cast<TableT*>(table), id, mappings);
+      }
     };
 
     return {
       &Adapter::resize,
-      &Adapter::size
+      &Adapter::size,
+      &Adapter::swapRemove
     };
   }
 
   void(*resize)(void* table, const UnpackedDatabaseElementID& id, size_t newSize, StableElementMappings& mappings){};
   size_t(*size)(const void* table){};
+  void(*swapRemove)(void* table, const UnpackedDatabaseElementID& id, StableElementMappings& mappings){};
 };
 
 struct TableModifier {
@@ -344,16 +350,22 @@ struct TableModifier {
       static size_t size(const void* table) {
         return TableOperations::size(*static_cast<const TableT*>(table));
       }
+
+      static void swapRemove(void* table, const UnpackedDatabaseElementID& id) {
+        TableOperations::swapRemove(*static_cast<TableT*>(table), id.getElementIndex());
+      }
     };
 
     return {
       &Adapter::resize,
-      &Adapter::size
+      &Adapter::size,
+      &Adapter::swapRemove
     };
   }
 
   void(*resize)(void* table, size_t newSize){};
   size_t(*size)(const void* table){};
+  void(*swapRemove)(void* table, const UnpackedDatabaseElementID& id){};
 };
 
 //Wraps the operations needed to modify any table with an included instance

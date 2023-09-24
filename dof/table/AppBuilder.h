@@ -16,6 +16,7 @@ public:
   virtual ~ITableModifier() = default;
   virtual size_t addElements(size_t count) = 0;
   virtual void resize(size_t count) = 0;
+  virtual void swapRemove(const UnpackedDatabaseElementID& id) = 0;
 };
 
 class IIDResolver {
@@ -204,6 +205,7 @@ public:
   std::unique_ptr<ITableModifier> getModifierForTable(const UnpackedDatabaseElementID& table);
   std::vector<std::shared_ptr<ITableModifier>> getModifiersForTables(const std::vector<UnpackedDatabaseElementID>& tables);
   std::unique_ptr<IAnyTableModifier> getAnyModifier();
+  std::shared_ptr<AppTaskConfig> getConfig();
 
   RuntimeDatabaseTaskBuilder& setPinning(AppTaskPinning::Variant pinning);
   RuntimeDatabaseTaskBuilder& setCallback(AppTaskCallback&& callback);

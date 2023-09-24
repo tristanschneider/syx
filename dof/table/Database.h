@@ -139,7 +139,7 @@ struct UnpackedDatabaseElementID {
     return { dbDetails::packTableAndElement(tableIndex, elementIndex, mElementIndexBits), mElementIndexBits };
   }
 
-  UnpackedDatabaseElementID remakeElement(size_t elementIndex) {
+  UnpackedDatabaseElementID remakeElement(size_t elementIndex) const {
     return remake(getTableIndex(), elementIndex);
   }
 

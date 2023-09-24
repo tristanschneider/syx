@@ -131,6 +131,7 @@ using QueryResultRow = std::vector<RowT*>;
 template<class... Rows>
 struct QueryResult {
   using TupleT = std::tuple<QueryResultRow<Rows>...>;
+  using IndicesT = std::index_sequence_for<Rows...>;
 
   template<class CB>
   void forEachElement(const CB& cb) {
@@ -156,9 +157,16 @@ struct QueryResult {
     }
   }
 
+  struct details {
+    template<class TupleT, size_t... I>
+    static auto get(size_t i, TupleT& tuple, std::index_sequence<I...>) {
+      return std::make_tuple(std::get<I>(tuple).at(i)...);
+    }
+  };
+
   //Get all rows of a given table.
   std::tuple<Rows*...> get(size_t i) {
-    return std::make_tuple(std::get<std::vector<Rows*>>(rows).at(i)...);
+    return details::get(i, rows, IndicesT{});
   }
 
   std::tuple<Rows*...> getSingleton() {

@@ -3,6 +3,8 @@
 #include "glm/vec2.hpp"
 #include "Scheduler.h"
 
+class IAppBuilder;
+
 namespace Broadphase {
   //The key provided by the user to identify this object in collision pairs
   using UserKey = size_t;
@@ -198,6 +200,6 @@ namespace Broadphase {
       const BroadphaseKey* keys,
       size_t count);
 
-    TaskRange recomputePairs(Grid& grid, SwapLog finalResults);
+    void recomputePairs(IAppBuilder& builder);
   }
 }

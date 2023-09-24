@@ -17,53 +17,13 @@ namespace PhysicsSimulation {
   //For now use the existence of this row to indicate that the given object should participate in collision
   using HasCollision = Row<CubeSprite>;
 
-  SweepNPruneBroadphase::BoundariesConfig _getBoundariesConfig(GameDB game) {
+  SweepNPruneBroadphase::BoundariesConfig _getBoundariesConfig(IAppBuilder& builder) {
+    auto temp = builder.createTask();
+    const Config::GameConfig& cfg = *temp.query<const SharedRow<Config::GameConfig>>().tryGetSingletonElement();
+    temp.discard();
     SweepNPruneBroadphase::BoundariesConfig result;
-    result.mPadding = TableAdapters::getConfig(game).physics->broadphase.cellPadding;
+    result.mPadding = cfg.physics.broadphase.cellPadding;
     return result;
-  }
-
-  TaskRange _updateBroadphase(GameDatabase& db, const Config::PhysicsConfig&) {
-    auto& broadphase = std::get<BroadphaseTable>(db.mTables);
-    auto& collisionPairs = std::get<CollisionPairsTable>(db.mTables);
-    auto& globals = std::get<GlobalGameData>(db.mTables);
-    const PhysicsTableIds& physicsTables = std::get<SharedRow<PhysicsTableIds>>(globals.mRows).at();
-    SweepNPruneBroadphase::ChangedCollisionPairs& changedPairs = std::get<SharedRow<SweepNPruneBroadphase::ChangedCollisionPairs>>(broadphase.mRows).at();
-    auto& grid = std::get<SharedRow<Broadphase::SweepGrid::Grid>>(broadphase.mRows).at();
-    auto cfg = _getBoundariesConfig({ db });
-
-    std::vector<SweepNPruneBroadphase::BoundariesQuery> bQuery;
-    Queries::viewEachRow(db, [&](
-      FloatRow<Pos, X>& posX,
-      FloatRow<Pos, Y>& posY,
-      SweepNPruneBroadphase::BroadphaseKeys& keys) {
-        bQuery.push_back({ &posX, &posY, &keys });
-    });
-    std::vector<SweepNPruneBroadphase::RawBoundariesQuery> bRawQuery;
-    using namespace SpatialQuery;
-    Queries::viewEachRow(db, [&](
-      SpatialQuery::Physics<SpatialQuery::MinX>& minX,
-      SpatialQuery::Physics<SpatialQuery::MinY>& minY,
-      SpatialQuery::Physics<SpatialQuery::MaxX>& maxX,
-      SpatialQuery::Physics<SpatialQuery::MaxY>& maxY,
-      SweepNPruneBroadphase::BroadphaseKeys& keys) {
-        bRawQuery.push_back({ &minX, &minY, &maxX, &maxY, &keys });
-    });
-
-    TaskRange boundaries = SweepNPruneBroadphase::updateBoundaries(grid, std::move(bQuery), cfg);
-    TaskRange boundaries2 = SweepNPruneBroadphase::updateBoundaries(grid, bRawQuery);
-    TaskRange computePairs = SweepNPruneBroadphase::computeCollisionPairs(broadphase);
-    auto updatePairs = TaskNode::create([&broadphase, &collisionPairs, &changedPairs, &physicsTables, &db](...) {
-      SweepNPruneBroadphase::updateCollisionPairs<CollisionPairIndexA, CollisionPairIndexB, GameDatabase>(
-        std::get<SharedRow<SweepNPruneBroadphase::PairChanges>>(broadphase.mRows).at(),
-        std::get<SharedRow<SweepNPruneBroadphase::CollisionPairMappings>>(broadphase.mRows).at(),
-        collisionPairs,
-        physicsTables,
-        TableAdapters::getStableMappings({ db } ),
-        changedPairs);
-    });
-
-    return boundaries.then(boundaries2).then(computePairs).then(TaskBuilder::addEndSync(updatePairs));
   }
 
   void _debugUpdate(IAppBuilder& builder, const Config::PhysicsConfig& config) {
@@ -186,6 +146,10 @@ namespace PhysicsSimulation {
     aliases.linVelX = FloatAlias::create<FloatRow<LinVel, X>>();
     aliases.linVelY = FloatAlias::create<FloatRow<LinVel, X>>();
     aliases.angVel = FloatAlias::create<FloatRow<AngVel, Angle>>();
+    aliases.broadphaseMinX = FloatAlias::create<SpatialQuery::MinX>();
+    aliases.broadphaseMaxX = FloatAlias::create<SpatialQuery::MaxX>();
+    aliases.broadphaseMinY = FloatAlias::create<SpatialQuery::MinY>();
+    aliases.broadphaseMaxY = FloatAlias::create<SpatialQuery::MaxY>();
 
     auto temp = builder.createTask();
     const Config::PhysicsConfig& config = temp.query<SharedRow<Config::GameConfig>>().tryGetSingletonElement()->physics;
@@ -193,7 +157,7 @@ namespace PhysicsSimulation {
 
     //SpatialQuery::physicsUpdateBoundaries(game);
     Physics::applyDampingMultiplier(builder, aliases, config.linearDragMultiplier, config.angularDragMultiplier);
-    //PhysicsSimulation::_updateBroadphase(db, config);
+    SweepNPruneBroadphase::updateBroadphase(builder, _getBoundariesConfig(builder));
     Physics::updateNarrowphase(builder, aliases);
     //SpatialQuery::physicsProcessQueries(game);
     //ConstraintsTableBuilder::build(db, changedPairs, TableAdapters::getStableMappings({ db }), constraintsMappings, physicsTables, config);
@@ -210,6 +174,7 @@ namespace PhysicsSimulation {
     Physics::integrateRotation(builder, aliases);
   }
 
+  /*
   TaskRange preProcessEvents(GameDB db) {
     auto root = TaskNode::create([db](...) {
       auto resolver = TableResolver<PosX, PosY, SweepNPruneBroadphase::BroadphaseKeys, StableIDRow, IsImmobile>::create(db.db);
@@ -229,4 +194,5 @@ namespace PhysicsSimulation {
     });
     return TaskBuilder::addEndSync(root);
   }
+  */
 }

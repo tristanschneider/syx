@@ -255,6 +255,11 @@ struct PhysicsAliases {
   FloatAlias linVelX;
   FloatAlias linVelY;
   FloatAlias angVel;
+
+  FloatAlias broadphaseMinX;
+  FloatAlias broadphaseMinY;
+  FloatAlias broadphaseMaxX;
+  FloatAlias broadphaseMaxY;
 };
 
 namespace Physics {
@@ -263,6 +268,8 @@ namespace Physics {
     void _integrateRotation(float* rotX, float* rotY, const float* velocity, size_t count);
     void _applyDampingMultiplier(float* velocity, float amount, size_t count);
   };
+
+  PhysicsTableIds getTableIds(IAppBuilder& builder);
 
   //TODO: expose createDatabase here rather than having gameplay create the physics tables
 
