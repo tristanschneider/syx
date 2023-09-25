@@ -41,6 +41,10 @@ namespace TableModifierImpl {
       instance.modifier.swapRemove(instance.table, id);
     }
 
+    void insert(const UnpackedDatabaseElementID& location, size_t count) override {
+      instance.modifier.insert(instance.table, location, count);
+    }
+
     TableModifierInstance instance;
   };
 
@@ -59,6 +63,10 @@ namespace TableModifierImpl {
 
     void swapRemove(const UnpackedDatabaseElementID& id) override {
       instance.modifier.swapRemove(instance.table, id, *instance.stableMappings);
+    }
+
+    void insert(const UnpackedDatabaseElementID& location, size_t count) override {
+      instance.modifier.insert(instance.table, location, count, *instance.stableMappings);
     }
 
     StableTableModifierInstance instance;

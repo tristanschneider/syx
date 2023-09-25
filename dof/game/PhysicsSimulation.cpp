@@ -169,7 +169,7 @@ namespace PhysicsSimulation {
     SweepNPruneBroadphase::updateBroadphase(builder, _getBoundariesConfig(builder));
     Physics::updateNarrowphase(builder, aliases);
     //SpatialQuery::physicsProcessQueries(game);
-    //ConstraintsTableBuilder::build(db, changedPairs, TableAdapters::getStableMappings({ db }), constraintsMappings, physicsTables, config);
+    ConstraintsTableBuilder::build(builder, config);
     Physics::fillConstraintVelocities(builder, aliases);
     Physics::setupConstraints(builder);
     PhysicsSimulation::_debugUpdate(builder, config);

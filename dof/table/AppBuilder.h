@@ -17,6 +17,8 @@ public:
   virtual size_t addElements(size_t count) = 0;
   virtual void resize(size_t count) = 0;
   virtual void swapRemove(const UnpackedDatabaseElementID& id) = 0;
+  //Insert this many before location
+  virtual void insert(const UnpackedDatabaseElementID& location, size_t count) = 0;
 };
 
 class IIDResolver {

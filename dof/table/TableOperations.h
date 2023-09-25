@@ -150,6 +150,25 @@ struct TableOperations {
   }
 
   template<class TableT>
+  static void insertRangeAt(TableT& table, const UnpackedDatabaseElementID& location, size_t count) {
+    const size_t oldSize = TableOperations::size(table);
+    const size_t newSize = oldSize + count;
+    //Add space for the new elements to insert
+    resizeTable(table, newSize);
+    const size_t toSwap = oldSize - std::min(oldSize, location.getElementIndex());
+    //Shift all elements after the range into the newly created space
+    table.visitOne([&](auto& row) {
+      for(size_t i = 0; i < toSwap; ++i) {
+        //From right to left, take the elements from their old end and shift them up by count
+        const size_t src = oldSize - i - 1;
+        const size_t dst = src + count;
+        using RowT = std::decay_t<decltype(row)>;
+        row.at(dst) = std::move(row.at(src));
+      }
+    });
+  }
+
+  template<class TableT>
   static size_t size(const TableT& table) {
     //They're all the same size, so getting any will be the correct size
     return std::get<0>(table.mRows).size();
@@ -325,18 +344,24 @@ struct StableTableModifier {
       static void swapRemove(void* table const UnpackedDatabaseElementID& id, StableElementMappings& mappings) {
         TableOperations::stableSwapRemove(*static_cast<TableT*>(table), id, mappings);
       }
+
+      static void insert(void* table, const UnpackedDatabaseElementID& location, size_t count, StableElementMappings& mappings) {
+        TableOperations::stableInsertRangeAt(static_cast<TableT*>(table), location, count, mappings);
+      }
     };
 
     return {
       &Adapter::resize,
       &Adapter::size,
-      &Adapter::swapRemove
+      &Adapter::swapRemove,
+      &Adapter::insert
     };
   }
 
   void(*resize)(void* table, const UnpackedDatabaseElementID& id, size_t newSize, StableElementMappings& mappings){};
   size_t(*size)(const void* table){};
   void(*swapRemove)(void* table, const UnpackedDatabaseElementID& id, StableElementMappings& mappings){};
+  void(*insert)(void* table, const UnpackedDatabaseElementID& id, size_t count, StableElementMappings& mappings){};
 };
 
 struct TableModifier {
@@ -354,18 +379,24 @@ struct TableModifier {
       static void swapRemove(void* table, const UnpackedDatabaseElementID& id) {
         TableOperations::swapRemove(*static_cast<TableT*>(table), id.getElementIndex());
       }
+
+      static void insert(void* table, const UnpackedDatabaseElementID& location, size_t count) {
+        TableOperations::insertRangeAt(static_cast<TableT*>(table), location, count);
+      }
     };
 
     return {
       &Adapter::resize,
       &Adapter::size,
-      &Adapter::swapRemove
+      &Adapter::swapRemove,
+      &Adapter::insert
     };
   }
 
   void(*resize)(void* table, size_t newSize){};
   size_t(*size)(const void* table){};
   void(*swapRemove)(void* table, const UnpackedDatabaseElementID& id){};
+  void(*insert)(void* table, const UnpackedDatabaseElementID& id, size_t count){};
 };
 
 //Wraps the operations needed to modify any table with an included instance
