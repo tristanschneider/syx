@@ -1,7 +1,6 @@
 #include "Precompile.h"
 #include "DBEvents.h"
 
-#include "Simulation.h"
 #include "TableAdapters.h"
 #include "AppBuilder.h"
 #include "ThreadLocals.h"
@@ -10,30 +9,15 @@ namespace Events {
   using LockT = std::lock_guard<std::mutex>;
 
   void CreatePublisher::operator()(StableElementID id) {
-    GameDatabase* game = static_cast<GameDatabase*>(db);
-    onNewElement(id, { *game });
+    onNewElement(id, *args);
   }
 
   void DestroyPublisher::operator()(StableElementID id) {
-    GameDatabase* game = static_cast<GameDatabase*>(db);
-    onRemovedElement(id, { *game });
+    onRemovedElement(id, *args);
   }
 
   void MovePublisher::operator()(StableElementID source, UnpackedDatabaseElementID destination) {
-    GameDatabase* game = static_cast<GameDatabase*>(db);
-    onMovedElement(source, destination, { *game });
-  }
-
-  CreatePublisher createCreatePublisher(GameDB db) {
-    return { &db.db };
-  }
-
-  DestroyPublisher createDestroyPublisher(GameDB db) {
-    return { &db.db };
-  }
-
-  MovePublisher createMovePublisher(GameDB db) {
-    return { &db.db };
+    onMovedElement(source, destination, *args);
   }
 
   struct EventsImpl {
@@ -52,19 +36,6 @@ namespace Events {
     LockT lock;
   };
 
-  EventsImpl& _get(GameDB game) {
-    return *std::get<Events::EventsRow>(std::get<GlobalGameData>(game.db.mTables).mRows).at().impl;
-  }
-
-  EventsInstance& _getInstance(GameDB game) {
-    return std::get<Events::EventsRow>(std::get<GlobalGameData>(game.db.mTables).mRows).at();
-  }
-
-  EventsContext _getContext(GameDB game) {
-    auto& impl = _get(game);
-    return { impl, LockT{ impl.mutex } };
-  }
-
   EventsContext _getContext(AppTaskArgs& args) {
     EventsImpl* impl = ThreadLocalData::get(args).events;
     return { *impl, LockT{ impl->mutex } };
@@ -74,18 +45,9 @@ namespace Events {
     onMovedElement(StableElementID::invalid(), e, args);
   }
 
-  void onNewElement(StableElementID e, GameDB game) {
-    onMovedElement(StableElementID::invalid(), e, game);
-  }
-
   void onMovedElement(StableElementID src, UnpackedDatabaseElementID dst, AppTaskArgs& args) {
     //Create a "stable" id where the stable part is empty but the unstable part has the destination table id
     onMovedElement(src, StableElementID{ dst.mValue, dbDetails::INVALID_VALUE }, args);
-  }
-
-  void onMovedElement(StableElementID src, UnpackedDatabaseElementID dst, GameDB game) {
-    //Create a "stable" id where the stable part is empty but the unstable part has the destination table id
-    onMovedElement(src, StableElementID{ dst.mValue, dbDetails::INVALID_VALUE }, game);
   }
 
   void onMovedElement(StableElementID src, StableElementID dst, AppTaskArgs& args) {
@@ -93,59 +55,49 @@ namespace Events {
     ctx.impl.events.toBeMovedElements.push_back({ src, dst });
   }
 
-  void onMovedElement(StableElementID src, StableElementID dst, GameDB game) {
-    EventsContext ctx{ _getContext(game) };
-    ctx.impl.events.toBeMovedElements.push_back({ src, dst });
+  void onRemovedElement(StableElementID e, AppTaskArgs& args) {
+    onMovedElement(e, StableElementID::invalid(), args);
   }
 
-  void onRemovedElement(StableElementID e, GameDB game) {
-    onMovedElement(e, StableElementID::invalid(), game);
-  }
-
-  DBEvents readEvents(GameDB game) {
-    EventsContext ctx{ _getContext(game) };
-    return ctx.impl.events;
-  }
-
-  void clearEvents(GameDB game) {
-    EventsContext ctx{ _getContext(game) };
-    ctx.impl.events.toBeMovedElements.clear();
-  }
-
-  void resolve(StableElementID& id, const StableElementMappings& mappings) {
+  void resolve(StableElementID& id, IIDResolver& ids) {
     //TODO: should these write invalid id on failure instead of leaving it unchaged?
     //Check explicitly for the stable part to ignore the move special case where a destination unstable type is used
     //This also ignores the create and destroy cases which contain empty ids
     if(id.mStableID != dbDetails::INVALID_VALUE) {
-      id = StableOperations::tryResolveStableID(id, mappings).value_or(id);
+      id = ids.tryResolveStableID(id).value_or(id);
     }
   }
 
-  void resolve(DBEvents::MoveCommand& cmd, const StableElementMappings& mappings) {
-      resolve(cmd.source, mappings);
-      resolve(cmd.destination, mappings);
+  void resolve(DBEvents::MoveCommand& cmd, IIDResolver& ids) {
+      resolve(cmd.source, ids);
+      resolve(cmd.destination, ids);
   }
 
-  void resolve(std::vector<DBEvents::MoveCommand>& cmd, const StableElementMappings& mappings) {
+  void resolve(std::vector<DBEvents::MoveCommand>& cmd, IIDResolver& ids) {
     for(auto& c : cmd) {
-      resolve(c, mappings);
+      resolve(c, ids);
     }
   }
 
-  void publishEvents(GameDB game) {
-    EventsInstance& instance = _getInstance(game);
-    {
-      EventsContext ctx{ _getContext(game) };
-      instance.publishedEvents.toBeMovedElements.swap(ctx.impl.events.toBeMovedElements);
+  void publishEvents(IAppBuilder& builder) {
+    auto task = builder.createTask();
+    task.setName("publish events");
+    EventsInstance& instance = *task.query<EventsRow>().tryGetSingletonElement();
+    std::shared_ptr<IIDResolver> ids = task.getIDResolver();
 
-      ctx.impl.events.toBeMovedElements.clear();
-    }
-    StableElementMappings& mappings = TableAdapters::getStableMappings(game);
-    resolve(instance.publishedEvents.toBeMovedElements, mappings);
+    task.setCallback([&instance, ids](AppTaskArgs& args) {
+      {
+        EventsContext ctx{ _getContext(args) };
+        instance.publishedEvents.toBeMovedElements.swap(ctx.impl.events.toBeMovedElements);
+
+        ctx.impl.events.toBeMovedElements.clear();
+      }
+      resolve(instance.publishedEvents.toBeMovedElements, *ids);
+    });
+    builder.submitTask(std::move(task));
   }
 
-  const DBEvents& getPublishedEvents(GameDB game) {
-    //Don't need to lock because this is supposed to be during the synchronous portion of the frame
-    return _getInstance(game).publishedEvents;
+  const DBEvents& getPublishedEvents(RuntimeDatabaseTaskBuilder& task) {
+    return task.query<const EventsRow>().tryGetSingletonElement()->publishedEvents;
   }
 };

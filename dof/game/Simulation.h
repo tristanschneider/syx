@@ -109,8 +109,8 @@ using GlobalGameData = Table<
   ExternalDatabasesRow
 >;
 
-struct IsImmobile : SharedRow<char>{};
-struct IsFragment : SharedRow<char>{};
+struct IsImmobile : TagRow{};
+struct IsFragment : TagRow{};
 struct DamageTaken : Row<float>{};
 struct Tint : Row<glm::vec4>{};
 enum class FragmentFlags : uint8_t {

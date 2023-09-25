@@ -4,8 +4,9 @@
 #include "Table.h"
 
 struct AppTaskArgs;
+class IAppBuilder;
+class RuntimeDatabaseTaskBuilder;
 struct StableElementID;
-struct GameDB;
 
 namespace Events {
   struct EventsImpl;
@@ -20,7 +21,7 @@ namespace Events {
 
 
   struct Publisher {
-    void* db{};
+    AppTaskArgs* args{};
   };
   struct CreatePublisher : Publisher {
     void operator()(StableElementID id);
@@ -32,24 +33,18 @@ namespace Events {
     void operator()(StableElementID source, UnpackedDatabaseElementID destination);
   };
 
-  CreatePublisher createCreatePublisher(GameDB db);
-  DestroyPublisher createDestroyPublisher(GameDB db);
-  MovePublisher createMovePublisher(GameDB db);
-
   //Re-resolve the given command ids. This shouldn't be necessary for pre-table service listeners,
   //and is for the table service and any post service listeners since the elements may have moved
   void resolve(DBEvents::MoveCommand& cmd, const StableElementMappings& mappings);
 
   //TODO: this is simpler to process if they are all "moves" but new is a move from nothing to somthing and remove is the opposite
   void onNewElement(StableElementID e, AppTaskArgs& args);
-  void onNewElement(StableElementID e, GameDB game);
   void onMovedElement(StableElementID src, StableElementID dst, AppTaskArgs& args);
   void onMovedElement(StableElementID src, UnpackedDatabaseElementID dst, AppTaskArgs& args);
-  void onMovedElement(StableElementID src, StableElementID dst, GameDB game);
-  void onMovedElement(StableElementID src, UnpackedDatabaseElementID dst, GameDB game);
-  void onRemovedElement(StableElementID e, GameDB game);
+  void onRemovedElement(StableElementID e, AppTaskArgs& args);
   //Populate publishedEvents and clear the internally stored events
-  void publishEvents(GameDB game);
+  void publishEvents(IAppBuilder& builder);
+
   //This should only be done during event processing at the end of the frame
-  const DBEvents& getPublishedEvents(GameDB game);
+  const DBEvents& getPublishedEvents(RuntimeDatabaseTaskBuilder& task);
 };

@@ -135,7 +135,7 @@ namespace PhysicsSimulation {
     Broadphase::SweepGrid::init(grid);
   }
 
-  void updatePhysics(IAppBuilder& builder) {
+  PhysicsAliases getPhysicsAliases() {
     PhysicsAliases aliases;
 
     using FloatAlias = QueryAlias<Row<float>>;
@@ -151,9 +151,18 @@ namespace PhysicsSimulation {
     aliases.broadphaseMinY = FloatAlias::create<SpatialQuery::MinY>();
     aliases.broadphaseMaxY = FloatAlias::create<SpatialQuery::MaxY>();
 
+    using TagAlias = QueryAlias<TagRow>;
+    aliases.isImmobile = TagAlias::create<IsImmobile>();
+
+    return aliases;
+  }
+
+  void updatePhysics(IAppBuilder& builder) {
     auto temp = builder.createTask();
     const Config::PhysicsConfig& config = temp.query<SharedRow<Config::GameConfig>>().tryGetSingletonElement()->physics;
     temp.discard();
+
+    const PhysicsAliases aliases = getPhysicsAliases();
 
     //SpatialQuery::physicsUpdateBoundaries(game);
     Physics::applyDampingMultiplier(builder, aliases, config.linearDragMultiplier, config.angularDragMultiplier);
@@ -174,25 +183,17 @@ namespace PhysicsSimulation {
     Physics::integrateRotation(builder, aliases);
   }
 
-  /*
-  TaskRange preProcessEvents(GameDB db) {
-    auto root = TaskNode::create([db](...) {
-      auto resolver = TableResolver<PosX, PosY, SweepNPruneBroadphase::BroadphaseKeys, StableIDRow, IsImmobile>::create(db.db);
-      const DBEvents& events = Events::getPublishedEvents(db);
-      auto& grid = std::get<SharedRow<Broadphase::SweepGrid::Grid>>(std::get<BroadphaseTable>(db.db.mTables).mRows).at();
-      SweepNPruneBroadphase::preProcessEvents(events, grid, resolver, _getBoundariesConfig(db), GameDatabase::getDescription());
-    });
-    return TaskBuilder::addEndSync(root);
+  void preProcessEvents(IAppBuilder& builder) {
+    auto task = builder.createTask();
+    const DBEvents& events = Events::getPublishedEvents(task);
+    SweepNPruneBroadphase::preProcessEvents(task, events);
+    builder.submitTask(std::move(task));
   }
 
-  TaskRange postProcessEvents(GameDB db) {
-    auto root = TaskNode::create([db](...) {
-      auto resolver = TableResolver<PosX, PosY, SweepNPruneBroadphase::BroadphaseKeys, StableIDRow, IsImmobile>::create(db.db);
-      const DBEvents& events = Events::getPublishedEvents(db);
-      auto& grid = std::get<SharedRow<Broadphase::SweepGrid::Grid>>(std::get<BroadphaseTable>(db.db.mTables).mRows).at();
-      SweepNPruneBroadphase::postProcessEvents(events, grid, resolver, _getBoundariesConfig(db), GameDatabase::getDescription(), TableAdapters::getStableMappings(db));
-    });
-    return TaskBuilder::addEndSync(root);
+  void postProcessEvents(IAppBuilder& builder) {
+    auto task = builder.createTask();
+    const DBEvents& events = Events::getPublishedEvents(task);
+    SweepNPruneBroadphase::postProcessEvents(task, events, getPhysicsAliases(), _getBoundariesConfig(builder));
+    builder.submitTask(std::move(task));
   }
-  */
 }

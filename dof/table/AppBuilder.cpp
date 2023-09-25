@@ -145,11 +145,11 @@ AppTaskWithMetadata RuntimeDatabaseTaskBuilder::finalize()&& {
   return std::move(builtTask);
 }
 
-std::unique_ptr<ITableResolver> RuntimeDatabaseTaskBuilder::getResolver() {
+std::shared_ptr<ITableResolver> RuntimeDatabaseTaskBuilder::getResolver() {
   return TableResolverImpl::create(db);
 }
 
-std::unique_ptr<IIDResolver> RuntimeDatabaseTaskBuilder::getIDResolver() {
+std::shared_ptr<IIDResolver> RuntimeDatabaseTaskBuilder::getIDResolver() {
   return std::make_unique<IDResolverImpl::Impl>(db);
 }
 
@@ -176,7 +176,7 @@ void RuntimeDatabaseTaskBuilder::logTableModifier(const UnpackedDatabaseElementI
   builtTask.data.tableModifiers.push_back(id);
 }
 
-std::unique_ptr<ITableModifier> RuntimeDatabaseTaskBuilder::getModifierForTable(const UnpackedDatabaseElementID& table) {
+std::shared_ptr<ITableModifier> RuntimeDatabaseTaskBuilder::getModifierForTable(const UnpackedDatabaseElementID& table) {
   logTableModifier(table);
   if(RuntimeTable* t = db.tryGet(table)) {
     if(t->modifier) {
@@ -197,7 +197,7 @@ std::vector<std::shared_ptr<ITableModifier>> RuntimeDatabaseTaskBuilder::getModi
   return result;
 }
 
-std::unique_ptr<IAnyTableModifier> RuntimeDatabaseTaskBuilder::getAnyModifier() {
+std::shared_ptr<IAnyTableModifier> RuntimeDatabaseTaskBuilder::getAnyModifier() {
   QueryResult<> q = db.query();
   for(auto&& t : q.matchingTableIDs) {
     logTableModifier(t);

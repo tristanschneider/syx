@@ -153,17 +153,17 @@ public:
   RuntimeDatabaseTaskBuilder(RuntimeDatabase& rdb);
   ~RuntimeDatabaseTaskBuilder();
 
-  std::unique_ptr<IIDResolver> getIDResolver();
+  std::shared_ptr<IIDResolver> getIDResolver();
 
   template<class... Rows>
-  std::unique_ptr<ITableResolver> getResolver() {
+  std::shared_ptr<ITableResolver> getResolver() {
     //Resolvers don't require all rows to match at once so any tables with any of the rows must be logged
     (log<Rows>(), ...);
     return getResolver();
   }
 
   template<class... Aliases>
-  std::unique_ptr<ITableResolver> getAliasResolver(const Aliases&... aliases) {
+  std::shared_ptr<ITableResolver> getAliasResolver(const Aliases&... aliases) {
     (log(aliases), ...);
     return getResolver();
   }
@@ -202,9 +202,9 @@ public:
     return result;
   }
 
-  std::unique_ptr<ITableModifier> getModifierForTable(const UnpackedDatabaseElementID& table);
+  std::shared_ptr<ITableModifier> getModifierForTable(const UnpackedDatabaseElementID& table);
   std::vector<std::shared_ptr<ITableModifier>> getModifiersForTables(const std::vector<UnpackedDatabaseElementID>& tables);
-  std::unique_ptr<IAnyTableModifier> getAnyModifier();
+  std::shared_ptr<IAnyTableModifier> getAnyModifier();
   std::shared_ptr<AppTaskConfig> getConfig();
 
   RuntimeDatabaseTaskBuilder& setPinning(AppTaskPinning::Variant pinning);
@@ -241,7 +241,7 @@ private:
 
   void log(const QueryAliasBase& alias, const std::vector<UnpackedDatabaseElementID>& tableIds);
 
-  std::unique_ptr<ITableResolver> getResolver();
+  std::shared_ptr<ITableResolver> getResolver();
 
   void logRead(const UnpackedDatabaseElementID& table, TypeIDT t);
   void logWrite(const UnpackedDatabaseElementID& table, TypeIDT t);

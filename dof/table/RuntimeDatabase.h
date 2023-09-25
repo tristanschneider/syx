@@ -73,58 +73,6 @@ struct RuntimeTable {
   std::unordered_map<DBTypeID, void*> rows;
 };
 
-namespace details {
-  template<class... T>
-  struct RowList {};
-
-  struct ElementCallbackType {
-    struct TupleNoID {};
-    struct TupleWithID {};
-    struct ElementNoID {};
-    struct ElementWithID {};
-  };
-
-  //TODO: replace with is_invokable_v
-  template<class CB, class Rows, class Enabled = void>
-  struct GetElementCallbackType;
-
-  template<class CB, class... Rows>
-  struct GetElementCallbackType<CB, RowList<Rows...>, std::enable_if_t<
-      std::is_same_v<
-        void,
-        decltype(std::declval<const CB&>()(std::declval<UnpackedDatabaseElementID>(), std::declval<std::tuple<std::vector<Rows>*...>&>()))
-      >>> {
-    using type = typename ElementCallbackType::TupleWithID;
-  };
-
-  template<class CB, class... Rows>
-  struct GetElementCallbackType<CB, RowList<Rows...>, std::enable_if_t<
-    std::is_same_v<
-      void,
-      decltype(std::declval<const CB&>()(std::declval<std::tuple<std::vector<Rows*>...>&>()))
-    >>> {
-    using type = typename ElementCallbackType::TupleNoID;
-  };
-
-  template<class CB, class... Rows>
-  struct GetElementCallbackType<CB, RowList<Rows...>, std::enable_if_t<
-    std::is_same_v<
-      void,
-      decltype(std::declval<const CB&>()(std::declval<UnpackedDatabaseElementID>(), std::declval<Rows&>()...))
-    >>> {
-    using type = typename ElementCallbackType::ElementWithID;
-  };
-
-  template<class CB, class... Rows>
-  struct GetElementCallbackType<CB, RowList<Rows...>, std::enable_if_t<
-    std::is_same_v<
-      void,
-      decltype(std::declval<const CB&>()(std::declval<Rows&>().at(0)...))
-    >>> {
-    using type = typename ElementCallbackType::ElementNoID;
-  };
-};
-
 template<class RowT>
 using QueryResultRow = std::vector<RowT*>;
 
@@ -135,11 +83,14 @@ struct QueryResult {
 
   template<class CB>
   void forEachElement(const CB& cb) {
-    using CBT = typename details::GetElementCallbackType<CB, details::RowList<Rows...>>::type;
     for(size_t i = 0; i < matchingTableIDs.size(); ++i) {
       for(size_t e = 0; e < std::get<0>(rows).size(); ++e) {
-        if constexpr(std::is_same_v<details::ElementCallbackType::ElementNoID, CBT>) {
+        if constexpr(std::is_invocable_v<CB, typename Rows::ElementT&...>) {
           cb(std::get<std::vector<Rows*>>(rows).at(i)->at(e)...);
+        }
+        else if constexpr(std::is_invocable_v<CB, UnpackedDatabaseElementID, typename Rows::ElementT&...>) {
+          UnpackedDatabaseElementID id = matchingTableIDs[i].remakeElement(e);
+          cb(id, std::get<std::vector<Rows*>>(rows).at(i)->at(e)...);
         }
       }
     }

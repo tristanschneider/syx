@@ -16,9 +16,7 @@ namespace PhysicsSimulation {
   //Insert all objects into the broadphase that can be. Doesn't check if they already are, meant for initial insert
   void updatePhysics(IAppBuilder& builder);
   //Before table service
-  TaskRange preProcessEvents(GameDB db);
+  void preProcessEvents(IAppBuilder& builder);
   //After table service
-  TaskRange postProcessEvents(GameDB db);
-
-  PhysicsTableIds _getPhysicsTableIds();
+  void postProcessEvents(IAppBuilder& builder);
 };

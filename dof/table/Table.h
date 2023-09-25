@@ -140,6 +140,9 @@ struct SharedRow {
 template<class T>
 using Row = BasicRow<T>;
 
+//A row whose presence in the table is meaningful bug whose value isn't
+struct TagRow : SharedRow<char>{};
+
 template<size_t I, class T>
 struct DupleElement {
   T mValue;

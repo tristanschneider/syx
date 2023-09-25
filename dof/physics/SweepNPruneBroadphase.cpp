@@ -3,6 +3,7 @@
 
 #include "Physics.h"
 #include "Profile.h"
+#include "AppBuilder.h"
 
 namespace SweepNPruneBroadphase {
   std::optional<std::pair<StableElementID, StableElementID>> _tryGetOrderedCollisionPair(const Broadphase::SweepCollisionPair& key, const PhysicsTableIds& tableIds, IIDResolver& resolver, bool assertIfMissing) {
@@ -43,7 +44,6 @@ namespace SweepNPruneBroadphase {
         std::vector<float> minX, maxX, minY, maxY;
       };
       std::vector<Query> data;
-      std::vector<BoundariesQuery> query;
     };
     auto t = std::make_shared<Temp>();
     //t->query = std::move(query);
@@ -228,8 +228,6 @@ namespace SweepNPruneBroadphase {
         //Resize to fit all the new elements
         const size_t gainBegin = getNarrowphaseSize();
         const size_t newSize = gainBegin + changes.mGained.size();
-        //constexpr auto tableIndex = UnpackedDatabaseElementID::fromPacked(DatabaseT::template getTableIndex<TableT>());
-        //TableOperations::stableResizeTable(table, tableIndex, newSize, stableMappings);
         narrowphaseModifier->resize(newSize);
         //Should always match the size of the collision table
         mappings.mCollisionTableIndexToSweepPair.resize(newSize);
@@ -282,5 +280,84 @@ namespace SweepNPruneBroadphase {
     updateUnitCubeBoundaries(builder, cfg, aliases);
     Broadphase::SweepGrid::recomputePairs(builder);
     updateCollisionPairs(builder);
+  }
+
+  void preProcessEvents(RuntimeDatabaseTaskBuilder& task, const DBEvents& events) {
+    task.setName("physics pre events");
+    auto resolver = task.getResolver<
+      BroadphaseKeys,
+      const StableIDRow
+    >();
+    auto ids = task.getIDResolver();
+    Broadphase::SweepGrid::Grid& grid = *task.query<SharedRow<Broadphase::SweepGrid::Grid>>().tryGetSingletonElement();
+
+    task.setCallback([resolver, ids, &grid, &events](AppTaskArgs&) mutable {
+      CachedRow<BroadphaseKeys> keys;
+      CachedRow<const StableIDRow> stable;
+      for(const DBEvents::MoveCommand& cmd : events.toBeMovedElements) {
+        //Insert new elements
+        if(cmd.isCreate()) {
+          const auto unpacked = ids->uncheckedUnpack(cmd.destination);
+          if(resolver->tryGetOrSwapAllRows(unpacked, keys, stable)) {
+            Broadphase::BroadphaseKey& key = keys->at(unpacked.getElementIndex());
+            const Broadphase::UserKey userKey = stable->at(unpacked.getElementIndex());
+            Broadphase::SweepGrid::insertRange(grid, &userKey, &key, 1);
+          }
+        }
+        else if(cmd.isDestroy()) {
+          //Remove elements that are about to be destroyed
+          const auto unpacked = ids->uncheckedUnpack(cmd.source);
+          if(resolver->tryGetOrSwapRow(keys, unpacked)) {
+            Broadphase::BroadphaseKey& key = keys->at(unpacked.getElementIndex());
+            Broadphase::SweepGrid::eraseRange(grid, &key, 1);
+            key = {};
+          }
+        }
+      }
+    });
+  }
+
+  void postProcessEvents(RuntimeDatabaseTaskBuilder& task, const DBEvents& events, const PhysicsAliases& aliases, const BoundariesConfig& cfg) {
+    task.setName("physics post events");
+    Broadphase::SweepGrid::Grid& grid = *task.query<SharedRow<Broadphase::SweepGrid::Grid>>().tryGetSingletonElement();
+    auto resolver = task.getAliasResolver(
+      aliases.posX.read(),
+      aliases.posY.read(),
+      aliases.isImmobile.read(),
+      QueryAlias<BroadphaseKeys>::create()
+    );
+    auto ids = task.getIDResolver();
+
+    task.setCallback([resolver, &grid, ids, &events, cfg, aliases](AppTaskArgs&) mutable {
+      CachedRow<const Row<float>> posX, posY;
+      CachedRow<const TagRow> isImmobile;
+      CachedRow<BroadphaseKeys> keys;
+      //Bounds update elements that moved to an immobile row
+      for(const DBEvents::MoveCommand& cmd : events.toBeMovedElements) {
+        if(auto found = ids->tryResolveStableID(cmd.source)) {
+          //The stable mappings are pointing at the raw index, then assume that it ended up at the destination table
+          UnpackedDatabaseElementID self{ ids->uncheckedUnpack(*found) };
+          const UnpackedDatabaseElementID rawDest = ids->uncheckedUnpack(cmd.destination);
+          //Should always be the case unless it somehow moved more than once
+          if(self.getTableIndex() == rawDest.getTableIndex()) {
+            const auto unpacked = self;
+            if(resolver->tryGetOrSwapRowAlias(aliases.isImmobile.read(), isImmobile, unpacked)) {
+              resolver->tryGetOrSwapRowAlias(aliases.posX.read(), posX, unpacked);
+              resolver->tryGetOrSwapRowAlias(aliases.posX.read(), posY, unpacked);
+              resolver->tryGetOrSwapRowAlias(QueryAlias<BroadphaseKeys>::create(), keys, unpacked);
+
+              if(posX && posY && keys) {
+                const float halfSize = cfg.mHalfSize + cfg.mPadding;
+                const size_t i = unpacked.getElementIndex();
+                glm::vec2 min{ posX->at(i) - halfSize, posY->at(i) - halfSize };
+                glm::vec2 max{ posX->at(i) + halfSize, posY->at(i) + halfSize };
+                Broadphase::BroadphaseKey& key = keys->at(i);
+                Broadphase::SweepGrid::updateBoundaries(grid, &min.x, &max.x, &min.y, &max.y, &key, 1);
+              }
+            }
+          }
+        }
+      }
+    });
   }
 }

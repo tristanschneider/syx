@@ -247,6 +247,7 @@ using ContactConstraintsToStaticObjectsTable = Table<
 
 struct PhysicsAliases {
   using FloatAlias = QueryAlias<Row<float>>;
+  using TagAlias = QueryAlias<TagRow>;
 
   FloatAlias posX;
   FloatAlias posY;
@@ -260,6 +261,8 @@ struct PhysicsAliases {
   FloatAlias broadphaseMinY;
   FloatAlias broadphaseMaxX;
   FloatAlias broadphaseMaxY;
+
+  TagAlias isImmobile;
 };
 
 namespace Physics {

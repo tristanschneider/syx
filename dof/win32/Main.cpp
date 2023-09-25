@@ -357,7 +357,7 @@ int mainLoop(const char* args) {
   //Simulation::buildUpdateTasks(APP->mGame, phases);
   assert(phases.simulation.mBegin && "Simulation should be filled by buildUpdateTasks");
 
-  Simulation::linkUpdateTasks(phases);
+  //Simulation::linkUpdateTasks(phases);
 
   //Scheduler& scheduler = Simulation::_getScheduler(APP->mGame);
   TaskRange appTasks = TaskBuilder::buildDependencies(phases.root.mBegin);
