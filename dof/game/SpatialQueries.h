@@ -6,6 +6,9 @@
 #include "Table.h"
 #include "Physics.h"
 
+class IAppBuilder;
+class RuntimeDatabaseTaskBuilder;
+
 struct GameDB;
 struct SpatialQueryAdapter;
 struct TaskRange;
@@ -81,8 +84,10 @@ namespace SpatialQuery {
   };
 
   struct Globals {
-    std::vector<Command> commandBuffer;
-    std::mutex mutex;
+    //Mutable is hack to be able to use this as const which makes the scheduler see it as parallel due to manual thread-safety
+    //via mutex. Without it the scheduler will instead avoid overlapping tasks
+    mutable std::vector<Command> commandBuffer;
+    mutable std::mutex mutex;
   };
   struct GlobalsRow : SharedRow<Globals> {};
 
@@ -127,27 +132,40 @@ namespace SpatialQuery {
   //physicsUpdateBoundaries runs before the broadphase update to update the boundaries that will be written to the broadphase
   //physicsProcessQueries then refines the output collision pairs to ensure they fit in the actual volume
 
-  //Enqueues creation of the query whose results will be available in two ticks. At the beginning of next tick the query will be submitted to physics
-  //and the tick after that the results will be extracted to gameplay
-  //The query is not submitted instantly but the stable id is reserved immediately. The ID is pointing at the gameplay extracted version
-  StableElementID createQuery(SpatialQueryAdapter& table, Query&& query, size_t lifetime);
-  //Get raw index for use in the functions below, also updates the stable reference to point where the element is now
-  std::optional<size_t> getIndex(StableElementID& id, SpatialQueryAdapter& table);
-  //Immediately updates the gameplay extracted version of the query and flags it for resubmission to the physics side which happens at the end of the frame
-  //This is safe to do because the only table additions/removals happen during gameplay extract and the end of frame updates
-  void refreshQuery(size_t index, SpatialQueryAdapter& adapter, Query&& query, size_t newLifetime);
-  //Same idea as above but only updates the lifetime. Writing a lifetime of zero would request destruction of the query
-  void refreshQuery(size_t index, SpatialQueryAdapter& adapter, size_t newLifetime);
-  void refreshQuery(StableElementID& index, SpatialQueryAdapter& adapter, Query&& query, size_t newLifetime);
-  void refreshQuery(StableElementID& index, SpatialQueryAdapter& adapter, size_t newLifetime);
-  const Result& getResult(size_t index, const SpatialQueryAdapter& adapter);
-  const Result* tryGetResult(StableElementID& id, SpatialQueryAdapter& adapter);
+  struct ICreator {
+    virtual ~ICreator() = default;
+    //Enqueues creation of the query whose results will be available in two ticks. At the beginning of next tick the query will be submitted to physics
+    //and the tick after that the results will be extracted to gameplay
+    //The query is not submitted instantly but the stable id is reserved immediately. The ID is pointing at the gameplay extracted version
+    virtual StableElementID createQuery(Query&& query, size_t lifetime) = 0;
+  };
+  struct IReader {
+    virtual ~IReader() = default;
+    //Get raw index for use in the functions below, also updates the stable reference to point where the element is now,
+    //equivalent to using an IIDResolver to do this yourself
+    virtual std::optional<size_t> getIndex(StableElementID& id) = 0;
+    virtual const Result& getResult(size_t index) = 0;
+    virtual const Result* tryGetResult(StableElementID& id) = 0;
+  };
+  struct IWriter {
+    virtual ~IWriter() = default;
+    virtual std::optional<size_t> getIndex(StableElementID& id) = 0;
+    virtual void refreshQuery(size_t index, Query&& query, size_t newLifetime) = 0;
+    //Same idea as above but only updates the lifetime. Writing a lifetime of zero would request destruction of the query
+    virtual void refreshQuery(size_t index, size_t newLifetime) = 0;
+    virtual void refreshQuery(StableElementID& index, Query&& query, size_t newLifetime) = 0;
+    virtual void refreshQuery(StableElementID& index, size_t newLifetime) = 0;
+  };
+
+  std::shared_ptr<ICreator> createCreator(RuntimeDatabaseTaskBuilder& task);
+  std::shared_ptr<IReader> createReader(RuntimeDatabaseTaskBuilder& task);
+  std::shared_ptr<IWriter> createWriter(RuntimeDatabaseTaskBuilder& task);
 
   //Update boundaries based on query shape before they are updated in the broadphase
-  TaskRange physicsUpdateBoundaries(GameDB db);
+  void physicsUpdateBoundaries(IAppBuilder& builder);
   //Operates on the collision pair changes output by the broadphase to trim them down further to fit the actual query volumes
   //In other words: narrowphase
-  TaskRange physicsProcessQueries(GameDB db);
+  void physicsProcessQueries(IAppBuilder& builder);
   //Ticks gameplay query lifetimes, copies new results from physics and submits new add/remove requests to physics
-  TaskRange gameplayUpdateQueries(GameDB db);
+  void gameplayUpdateQueries(IAppBuilder& builder);
 };

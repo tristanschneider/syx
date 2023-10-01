@@ -164,11 +164,11 @@ namespace PhysicsSimulation {
 
     const PhysicsAliases aliases = getPhysicsAliases();
 
-    //SpatialQuery::physicsUpdateBoundaries(game);
+    SpatialQuery::physicsUpdateBoundaries(builder);
     Physics::applyDampingMultiplier(builder, aliases, config.linearDragMultiplier, config.angularDragMultiplier);
     SweepNPruneBroadphase::updateBroadphase(builder, _getBoundariesConfig(builder));
     Physics::updateNarrowphase(builder, aliases);
-    //SpatialQuery::physicsProcessQueries(game);
+    SpatialQuery::physicsProcessQueries(builder);
     ConstraintsTableBuilder::build(builder, config);
     Physics::fillConstraintVelocities(builder, aliases);
     Physics::setupConstraints(builder);

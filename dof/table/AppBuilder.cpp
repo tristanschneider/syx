@@ -37,6 +37,10 @@ namespace TableModifierImpl {
       instance.resize(count);
     }
 
+    void resizeWithIDs(size_t, const StableElementID*) {
+      assert(false && "Caller should ensure this is a stable table when using this");
+    }
+
     void swapRemove(const UnpackedDatabaseElementID& id) override {
       instance.modifier.swapRemove(instance.table, id);
     }
@@ -54,11 +58,15 @@ namespace TableModifierImpl {
     }
 
     size_t addElements(size_t count) override {
-      return instance.addElements(count);
+      return instance.addElements(count, nullptr);
     }
 
     void resize(size_t count) override {
-      instance.resize(count);
+      instance.resize(count, nullptr);
+    }
+
+    void resizeWithIDs(size_t count, const StableElementID* reservedIDs) {
+      instance.resize(count, reservedIDs);
     }
 
     void swapRemove(const UnpackedDatabaseElementID& id) override {
@@ -106,6 +114,10 @@ namespace IDResolverImpl {
 
       auto it = mappings.findKey(id.mStableID);
       return it ? std::make_optional(StableElementID{ it->second, it->first }) : std::nullopt;
+    }
+
+    StableElementID createKey() override {
+      return StableElementID::fromStableID(mappings.createKey());
     }
 
     DatabaseDescription description;

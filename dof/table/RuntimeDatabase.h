@@ -124,6 +124,11 @@ struct QueryResult {
     return get(0);
   }
 
+  template<size_t I>
+  auto* getSingleton() {
+    return std::get<I>(getSingleton());
+  }
+
   //Get the vector of rows
   template<size_t TupleIndex>
   auto& get() {

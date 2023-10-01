@@ -16,61 +16,156 @@
 #include "Physics.h"
 
 namespace SpatialQuery {
-  StableElementID createQuery(SpatialQueryAdapter& table, Query&& query, size_t lifetime) {
+  struct CreateData {
+    std::shared_ptr<IIDResolver> ids;
+    const Globals* globals{};
+  };
+  struct ReadData {
+    std::shared_ptr<IIDResolver> ids;
+    const Gameplay<ResultRow>* results{};
+  };
+  struct WriteData {
+    std::shared_ptr<IIDResolver> ids;
+    Gameplay<QueryRow>* queries{};
+    Gameplay<LifetimeRow>* lifetimes{};
+    Gameplay<NeedsResubmitRow>* needsResubmit{};
+  };
+
+  StableElementID createQuery(CreateData& data, Query&& query, size_t lifetime) {
     //Immediately reserve the key, the entry will be created later
-    StableElementID result = StableElementID::fromStableID(table.stableMappings->createKey());
+    StableElementID result = data.ids->createKey();
     {
       //Enqueue the command for the end of the frame.
       //The lock is for multiple tasks submitting requests at the same time which does not
       //overlap with the synchronous processing of commands at the end of the frame
-      SpatialQuery::Globals& globals = table.globals->at();
-      std::lock_guard<std::mutex> lock{ globals.mutex };
-      globals.commandBuffer.push_back({ SpatialQuery::Command::NewQuery{ result, std::move(query), lifetime } });
+      std::lock_guard<std::mutex> lock{ data.globals->mutex };
+      data.globals->commandBuffer.push_back({ SpatialQuery::Command::NewQuery{ result, std::move(query), lifetime } });
     }
     return result;
   }
 
-  std::optional<size_t> getIndex(StableElementID& id, SpatialQueryAdapter& table) {
-    if(std::optional<StableElementID> resolved = StableOperations::tryResolveStableIDWithinTable<GameDatabase>(id, *table.stable, *table.stableMappings)) {
+  std::optional<size_t> getIndex(const IIDResolver& resolver, StableElementID& id) {
+    if(std::optional<StableElementID> resolved = resolver.tryResolveStableID(id)) {
       //Write down for later
       id = *resolved;
       //Return raw index that can be used directly into rows in the table
-      return GameDatabase::ElementID{ resolved->mUnstableIndex }.getElementIndex();
+      return resolver.uncheckedUnpack(id).getElementIndex();
     }
     return {};
   }
 
-  void refreshQuery(size_t index, SpatialQueryAdapter& adapter, Query&& query, size_t newLifetime) {
-    adapter.queries->at(index) = std::move(query);
-    adapter.needsResubmit->at(index) = true;
-    refreshQuery(index, adapter, newLifetime);
+  std::optional<size_t> getIndex(ReadData& data, StableElementID& id) {
+    return getIndex(*data.ids, id);
   }
 
-  void refreshQuery(size_t index, SpatialQueryAdapter& adapter, size_t newLifetime) {
+  void refreshQuery(WriteData& data, size_t index, size_t newLifetime) {
     //Lifetime updates by themselves don't need to set the resubmit flag because all of these are checked
     //anyway during the lifetime update
-    adapter.lifetime->at(index) = newLifetime;
+    data.lifetimes->at(index) = newLifetime;
   }
 
-  void refreshQuery(StableElementID& index, SpatialQueryAdapter& adapter, Query&& query, size_t newLifetime) {
-    if(auto i = getIndex(index, adapter)) {
-      refreshQuery(*i, adapter, std::move(query), newLifetime);
+  void refreshQuery(WriteData& data, size_t index, Query&& query, size_t newLifetime) {
+    data.queries->at(index) = std::move(query);
+    data.needsResubmit->at(index) = true;
+    refreshQuery(data, index, newLifetime);
+  }
+
+  void refreshQuery(WriteData& data, StableElementID& index, Query&& query, size_t newLifetime) {
+    if(auto i = getIndex(*data.ids, index)) {
+      refreshQuery(data, *i, std::move(query), newLifetime);
     }
   }
 
-  void refreshQuery(StableElementID& index, SpatialQueryAdapter& adapter, size_t newLifetime) {
-    if(auto i = getIndex(index, adapter)) {
-      refreshQuery(*i, adapter, newLifetime);
+  void refreshQuery(WriteData& data, StableElementID& index, size_t newLifetime) {
+    if(auto i = getIndex(*data.ids, index)) {
+      refreshQuery(data, *i, newLifetime);
     }
   }
 
-  const Result& getResult(size_t index, const SpatialQueryAdapter& adapter) {
-    return adapter.results->at(index);
+  const Result& getResult(ReadData& data, size_t index) {
+    return data.results->at(index);
   }
 
-  const Result* tryGetResult(StableElementID& id, SpatialQueryAdapter& adapter) {
-    auto i = getIndex(id, adapter);
-    return i ? &getResult(*i, adapter) : nullptr;
+  const Result* tryGetResult(ReadData& data, StableElementID& id) {
+    auto i = getIndex(data, id);
+    return i ? &getResult(data, *i) : nullptr;
+  }
+
+  struct Creator : ICreator {
+    Creator(RuntimeDatabaseTaskBuilder& task) {
+      data.globals = task.query<const Gameplay<GlobalsRow>>().tryGetSingletonElement();
+      data.ids = task.getIDResolver();
+    }
+
+    StableElementID createQuery(Query&& query, size_t lifetime) override {
+      return SpatialQuery::createQuery(data, std::move(query), lifetime);
+    }
+
+    CreateData data;
+  };
+
+  struct Reader : IReader {
+    Reader(RuntimeDatabaseTaskBuilder& task) {
+      data.results = task.query<const Gameplay<ResultRow>>().getSingleton<0>();
+      data.ids = task.getIDResolver();
+    }
+
+    std::optional<size_t> getIndex(StableElementID& id) override {
+      return SpatialQuery::getIndex(data, id);
+    }
+
+    const Result& getResult(size_t index) override {
+      return SpatialQuery::getResult(data, index);
+    }
+
+    const Result* tryGetResult(StableElementID& id) override {
+      return SpatialQuery::tryGetResult(data, id);
+    }
+
+    ReadData data;
+  };
+
+  struct Writer : IWriter {
+    Writer(RuntimeDatabaseTaskBuilder& task) {
+      data.queries = task.query<Gameplay<QueryRow>>().getSingleton<0>();
+      data.lifetimes = task.query<Gameplay<LifetimeRow>>().getSingleton<0>();
+      data.needsResubmit = task.query<Gameplay<NeedsResubmitRow>>().getSingleton<0>();
+      data.ids = task.getIDResolver();
+    }
+
+    std::optional<size_t> getIndex(StableElementID& id) override {
+      return SpatialQuery::getIndex(*data.ids, id);
+    }
+
+    void refreshQuery(size_t index, Query&& query, size_t newLifetime) override {
+      SpatialQuery::refreshQuery(data, index, std::move(query), newLifetime);
+    }
+
+    void refreshQuery(size_t index, size_t newLifetime) override {
+      SpatialQuery::refreshQuery(data, index, newLifetime);
+    }
+
+    void refreshQuery(StableElementID& index, Query&& query, size_t newLifetime) override {
+      SpatialQuery::refreshQuery(data, index, std::move(query), newLifetime);
+    }
+
+    void refreshQuery(StableElementID& index, size_t newLifetime) override {
+      SpatialQuery::refreshQuery(data, index, newLifetime);
+    }
+
+    WriteData data;
+  };
+
+  std::shared_ptr<ICreator> createCreator(RuntimeDatabaseTaskBuilder& task) {
+    return std::make_shared<Creator>(task);
+  }
+
+  std::shared_ptr<IReader> createReader(RuntimeDatabaseTaskBuilder& task) {
+    return std::make_shared<Reader>(task);
+  }
+
+  std::shared_ptr<IWriter> createWriter(RuntimeDatabaseTaskBuilder& task) {
+    return std::make_shared<Writer>(task);
   }
 
   struct BoundaryVisitor {
@@ -99,26 +194,35 @@ namespace SpatialQuery {
     MaxY& maxY;
   };
 
-  TaskRange physicsUpdateBoundaries(GameDB db) {
-    auto root = TaskNode::create([db](...) {
-      auto& table = std::get<SpatialQueriesTable>(db.db.mTables);
-      BoundaryVisitor visitor {
-        size_t{ 0 },
-        std::get<Physics<MinX>>(table.mRows),
-        std::get<Physics<MinY>>(table.mRows),
-        std::get<Physics<MaxX>>(table.mRows),
-        std::get<Physics<MaxY>>(table.mRows)
-      };
+  void physicsUpdateBoundaries(IAppBuilder& builder) {
+    auto task = builder.createTask();
+    task.setName("SQ boundaries");
+    auto query = task.query<
+      const Physics<QueryRow>,
+      Physics<MinX>,
+      Physics<MinY>,
+      Physics<MaxX>,
+      Physics<MaxY>
+    >();
+    task.setCallback([query](AppTaskArgs&) mutable {
+      for(size_t t = 0; t < query.size(); ++t) {
+        auto rows = query.get(t);
+        BoundaryVisitor visitor {
+          size_t{ 0 },
+          *std::get<1>(rows),
+          *std::get<2>(rows),
+          *std::get<3>(rows),
+          *std::get<4>(rows)
+        };
 
-      auto& cmd = std::get<Physics<QueryRow>>(table.mRows);
-      //Currently goes over all of them. If the update flags were copied over those could be used to skip unchanged entries
-      //Either way all of them will be written to the broadphase
-      for(size_t i = 0; i < cmd.size(); ++i) {
-        visitor.index = i;
-        std::visit(visitor, cmd.at(i).shape);
+        const Physics<QueryRow>* queries = std::get<0>(rows);
+        for(size_t i = 0; i < queries->size(); ++i) {
+          visitor.index = i;
+          std::visit(visitor, queries->at(i).shape);
+        }
       }
     });
-    return TaskBuilder::addEndSync(root);
+    builder.submitTask(std::move(task));
   }
 
   struct ObjInfo {
@@ -126,16 +230,6 @@ namespace SpatialQuery {
     glm::vec2 pos{};
     glm::vec2 rot{};
   };
-
-  ObjInfo readObjectInfo(const StableElementID& id, GameObjectAdapter& obj) {
-    const size_t i = id.toPacked<GameDatabase>().getElementIndex();
-    return {
-      id,
-      TableAdapters::read(i, *obj.transform.posX, *obj.transform.posY),
-      //Default to no rotation if row is missing
-      obj.transform.rotX ? TableAdapters::read(i, *obj.transform.rotX, *obj.transform.rotY) : glm::vec2(1.0f, 0.0f)
-    };
-  }
 
   struct VisitPhysicsGain {
     bool operator()(const Raycast& raycast) {
@@ -198,30 +292,29 @@ namespace SpatialQuery {
     const ObjInfo* obj{};
   };
 
+
+  struct PhysicsProcessArgs {
+    IIDResolver& ids;
+    ITableResolver& objResolver;
+    const Physics<QueryRow>& physicsQueries;
+    Physics<ResultRow>& physicsResults;
+    const StableIDRow& stableRow;
+  };
+
   //Copies the new pairs into the query `nearbyObjects` list which is then used in physicsProcessUpdates to see if they actually match
-  void physicsProcessGains(GameDB db, const std::vector<SweepNPruneBroadphase::SpatialQueryPair>& pairs) {
-    auto& table = std::get<SpatialQueriesTable>(db.db.mTables);
-    auto& results = std::get<Physics<ResultRow>>(table.mRows);
-    auto& mappings = TableAdapters::getStableMappings(db);
-    auto& stableRow = std::get<StableIDRow>(table.mRows);
+  void physicsProcessGains(PhysicsProcessArgs& args, const std::vector<SweepNPruneBroadphase::SpatialQueryPair>& pairs) {
     for(const auto& pair : pairs) {
-      if(auto q = StableOperations::tryResolveStableIDWithinTable<GameDatabase>(pair.query, stableRow, mappings)) {
-        const GameDatabase::ElementID rawQuery = q->toPacked<GameDatabase>();
-        results.at(rawQuery.getElementIndex()).nearbyObjects.push_back(pair.object);
+      if(auto q = args.ids.tryResolveStableID(pair.query)) {
+        args.physicsResults.at(args.ids.uncheckedUnpack(*q).getElementIndex()).nearbyObjects.push_back(pair.object);
       }
     }
   }
 
   //Removes from the `nearbyObjects` list which will prevent these from being put in the results list during physicsProcessUpdates
-  void physicsProcessLosses(GameDB db, const std::vector<SweepNPruneBroadphase::SpatialQueryPair>& pairs) {
-    auto& table = std::get<SpatialQueriesTable>(db.db.mTables);
-    auto& results = std::get<Physics<ResultRow>>(table.mRows);
-    auto& mappings = TableAdapters::getStableMappings(db);
-    auto& stableRow = std::get<StableIDRow>(table.mRows);
+  void physicsProcessLosses(PhysicsProcessArgs& args, const std::vector<SweepNPruneBroadphase::SpatialQueryPair>& pairs) {
     for(const auto& pair : pairs) {
-      if(auto q = StableOperations::tryResolveStableIDWithinTable<GameDatabase>(pair.query, stableRow, mappings)) {
-        const GameDatabase::ElementID rawQuery = q->toPacked<GameDatabase>();
-        std::vector<StableElementID>& nearby = results.at(rawQuery.getElementIndex()).nearbyObjects;
+      if(auto q = args.ids.tryResolveStableID(pair.query)) {
+        std::vector<StableElementID>& nearby = args.physicsResults.at(args.ids.uncheckedUnpack(*q).getElementIndex()).nearbyObjects;
         //TODO: probably slow if volumes are too big
         if(auto it = std::find_if(nearby.begin(), nearby.end(), StableElementFind{ pair.object }); it != nearby.end()) {
           //Swap remove
@@ -232,20 +325,23 @@ namespace SpatialQuery {
     }
   }
 
+
   //Iterates over all existing `nearbyObjects` and makes sure that they are still colliding
   //Objects are added and removed from that container through gains and losses, so the only results that need to be populated are here
-  void physicsProcessUpdates(GameDB db) {
-    auto& table = std::get<SpatialQueriesTable>(db.db.mTables);
-    auto& queries = std::get<Physics<QueryRow>>(table.mRows);
-    auto& results = std::get<Physics<ResultRow>>(table.mRows);
-    auto& mappings = TableAdapters::getStableMappings(db);
+  void physicsProcessUpdates(PhysicsProcessArgs& args) {
     auto clearResults = [](auto& r) { r.results.clear(); };
-    for(size_t i = 0; i < results.size(); ++i) {
-      Result& r = results.at(i);
+    using namespace Tags;
+    CachedRow<const FloatRow<GPos, X>> px;
+    CachedRow<const FloatRow<GPos, Y>> py;
+    CachedRow<const FloatRow<GRot, CosAngle>> rx;
+    CachedRow<const FloatRow<GRot, SinAngle>> ry;
+
+    for(size_t i = 0; i < args.physicsResults.size(); ++i) {
+      Result& r = args.physicsResults.at(i);
       //Clear the results completely and repopulate in the list below
       std::visit(clearResults, r.result);
 
-      Query& query = queries.at(i);
+      const Query& query = args.physicsQueries.at(i);
       VisitPhysicsGain visitor;
       visitor.results = &r;
 
@@ -254,11 +350,23 @@ namespace SpatialQuery {
       //If not, nothing happens, as the list was cleared above so they won't be in the results
       for(size_t o = 0; o < r.nearbyObjects.size(); ++o) {
         StableElementID& nearby = r.nearbyObjects[o];
-        if(const auto obj = StableOperations::tryResolveStableID(nearby, db.db, mappings)) {
+        if(const auto obj = args.ids.tryResolveStableID(nearby)) {
           //Update mapping
           nearby = *obj;
-          GameObjectAdapter object = TableAdapters::getObjectInTable(db, obj->toPacked<GameDatabase>().getTableIndex());
-          ObjInfo info = readObjectInfo(*obj, object);
+
+          //Look up object
+          const UnpackedDatabaseElementID rawObj = args.ids.uncheckedUnpack(*obj);
+          const size_t oi = rawObj.getElementIndex();
+          if(!args.objResolver.tryGetOrSwapAnyRows(rawObj, px, py, rx, ry)) {
+            continue;
+          }
+          ObjInfo info {
+            *obj,
+            //Assume position always succeeds to evaluate
+            TableAdapters::read(oi, *px, *py),
+            //Rotation is optional
+            rx && ry ? TableAdapters::read(oi, *rx, *ry) : glm::vec2{ 1.0f, 0.0f }
+          };
           visitor.obj = &info;
 
           //TODO: visitor would be more efficient if it did the looping to avoid switching on each object
@@ -270,59 +378,100 @@ namespace SpatialQuery {
 
   //View the collision pairs output by the broadphase via updateCollisionPairs, add/remove pairs from narrowphase information for the queries,
   //then resolve all queries to produce updated results
-  TaskRange physicsProcessQueries(GameDB db) {
-    auto& pairs = std::get<SharedRow<SweepNPruneBroadphase::ChangedCollisionPairs>>(std::get<BroadphaseTable>(db.db.mTables).mRows).at();
-    auto root = TaskNode::create([&pairs, db](...) {
-      //Each step depend on nearbyObjects so they're all sequential
-      physicsProcessLosses(db, pairs.lostQueries);
-      physicsProcessGains(db, pairs.gainedQueries);
-      physicsProcessUpdates(db);
+  void physicsProcessQueries(IAppBuilder& builder) {
+    auto task = builder.createTask();
+    task.setName("SQ physics queries");
+    SweepNPruneBroadphase::ChangedCollisionPairs* pairs = task.query<SharedRow<SweepNPruneBroadphase::ChangedCollisionPairs>>().tryGetSingletonElement();
+    auto ids = task.getIDResolver();
+    auto queries = task.query<
+      const Physics<QueryRow>,
+      Physics<ResultRow>,
+      const StableIDRow
+    >();
+    using namespace Tags;
+    auto objResolver = task.getResolver<
+      const FloatRow<GPos, X>,
+      const FloatRow<GPos, Y>,
+      const FloatRow<GRot, CosAngle>,
+      const FloatRow<GRot, SinAngle>
+    >();
+    task.setCallback([ids, queries, objResolver, pairs](AppTaskArgs&) mutable {
+      for(size_t t = 0; t < queries.size(); ++t) {
+        auto&& [physicsQuery, physicsResult, stableRow] = queries.get(t);
+        PhysicsProcessArgs args {
+          *ids,
+          *objResolver,
+          *physicsQuery,
+          *physicsResult,
+          *stableRow
+        };
 
-      pairs.lostQueries.clear();
-      pairs.gainedQueries.clear();
+        //Each step depends on nearbyObjects so they're all sequential
+        physicsProcessLosses(args, pairs->lostQueries);
+        physicsProcessGains(args, pairs->gainedQueries);
+        physicsProcessUpdates(args);
+
+        pairs->lostQueries.clear();
+        pairs->gainedQueries.clear();
+      }
     });
-    return TaskBuilder::addEndSync(root);
+    builder.submitTask(std::move(task));
   }
 
-  std::shared_ptr<TaskNode> processLiftetime(Globals& globals, LifetimeRow& lifetimes, const StableIDRow& stable) {
-    return TaskNode::create([&](...) {
-      for(size_t i = 0; i < lifetimes.size(); ++i) {
-        size_t& lifetime = lifetimes.at(i);
+  void processLifetime(IAppBuilder& builder, const UnpackedDatabaseElementID& table) {
+    auto task = builder.createTask();
+    task.setName("SQ lifetimes");
+    Globals* globals = task.query<Gameplay<GlobalsRow>>(table).tryGetSingletonElement();
+    auto lifetimes = task.query<LifetimeRow, const StableIDRow>(table);
+    assert(globals && lifetimes.size());
+    task.setCallback([globals, lifetimes](AppTaskArgs&) mutable {
+      for(size_t i = 0; i < lifetimes.get<0>().size(); ++i) {
+        size_t& lifetime = lifetimes.get<0>(0).at(i);
         if(!lifetime) {
-          const StableElementID id = StableElementID::fromStableRow(i, stable);
+          const StableElementID id = StableElementID::fromStableRow(i, lifetimes.get<1>(0));
           //Not necessary at the moment since it's synchronous but would be if this task was made to operate on ranges
-          std::lock_guard<std::mutex> lock{ globals.mutex };
-          globals.commandBuffer.push_back({ Command::DeleteQuery{ id } });
+          std::lock_guard<std::mutex> lock{ globals->mutex };
+          globals->commandBuffer.push_back({ Command::DeleteQuery{ id } });
         }
         else {
           --lifetime;
         }
       }
     });
+    builder.submitTask(std::move(task));
   }
 
-  std::shared_ptr<TaskNode> submitQueryUpdates(Physics<QueryRow>& physics, const Gameplay<QueryRow>& gameplay, Gameplay<NeedsResubmitRow>& needsResubmit) {
-    return TaskNode::create([&](...) {
-      for(size_t i = 0; i < physics.size(); ++i) {
-        //This assumes resubmits are frequent.
-        //If not, it may be faster to add a command to point at the index of what needs to be resubmitted
-        if(needsResubmit.at(i)) {
-          needsResubmit.at(i) = false;
-          physics.at(i) = gameplay.at(i);
+  void submitQueryUpdates(IAppBuilder& builder, const UnpackedDatabaseElementID& table) {
+    auto task = builder.createTask();
+    task.setName("Spatial query updates");
+    auto query = task.query<
+      const Gameplay<QueryRow>,
+      Physics<QueryRow>,
+      Gameplay<NeedsResubmitRow>
+    >(table);
+    task.setCallback([query](AppTaskArgs&) mutable {
+      auto&& [ gameplay, physics, needsResubmit ] = query.get(0);
+        for(size_t i = 0; i < physics->size(); ++i) {
+          //This assumes resubmits are frequent.
+          //If not, it may be faster to add a command to point at the index of what needs to be resubmitted
+          if(needsResubmit->at(i)) {
+            needsResubmit->at(i) = false;
+            physics->at(i) = gameplay->at(i);
+          }
         }
-      }
     });
+    builder.submitTask(std::move(task));
   }
 
   struct CommandVisitor {
     void operator()(const Command::NewQuery& command) {
-      const size_t index = TableOperations::size(queries);
-      TableOperations::stableResizeTable<GameDatabase>(queries, index + 1, mappings, &command.id);
+      const size_t index = gameplayQueries.size();
+      modifier.resizeWithIDs(index + 1, &command.id);
       //Add to physics and gameplay locations now
       //Using the NeedsResubmitRow not feasible here because it's after that has already been processed
-      std::get<Physics<QueryRow>>(queries.mRows).at(index) = command.query;
-      std::get<Gameplay<QueryRow>>(queries.mRows).at(index) = command.query;
-      std::get<Gameplay<LifetimeRow>>(queries.mRows).at(index) = command.lifetime;
+      gameplayQueries.at(index) = command.query;
+      physicsQueries.at(index) = command.query;
+      gameplayLifetimes.at(index) = command.lifetime;
       publishNewElement(command.id);
     }
 
@@ -331,46 +480,59 @@ namespace SpatialQuery {
       publishRemovedElement(command.id);
     }
 
-    SpatialQueriesTable& queries;
-    StableElementMappings& mappings;
+    ITableModifier& modifier;
+    Gameplay<QueryRow>& gameplayQueries;
+    Gameplay<LifetimeRow>& gameplayLifetimes;
+    Physics<QueryRow>& physicsQueries;
+
     Events::CreatePublisher& publishNewElement;
     Events::DestroyPublisher& publishRemovedElement;
   };
 
-  std::shared_ptr<TaskNode> processCommandBuffer(SpatialQueriesTable& queries, StableElementMappings& mappings, Events::CreatePublisher publishNewElement, Events::DestroyPublisher publishRemovedElement) {
-    return TaskNode::create([&, publishNewElement, publishRemovedElement](...) mutable {
-      Globals& globals = std::get<Gameplay<GlobalsRow>>(queries.mRows).at();
+  void processCommandBuffer(IAppBuilder& builder, const UnpackedDatabaseElementID& table) {
+    auto task = builder.createTask();
+    task.setName("SQ commands");
+    auto modifier = task.getModifierForTable(table);
+    auto query = task.query<
+      Gameplay<GlobalsRow>,
+      Gameplay<QueryRow>,
+      Gameplay<LifetimeRow>,
+      Physics<QueryRow>
+    >(table);
+
+    task.setCallback([query, modifier](AppTaskArgs& args)  mutable {
+      Events::CreatePublisher create({ &args });
+      Events::DestroyPublisher destroy({ &args });
       CommandVisitor visitor {
-        queries,
-        mappings,
-        publishNewElement,
-        publishRemovedElement
+        *modifier,
+        *query.getSingleton<1>(),
+        *query.getSingleton<2>(),
+        *query.getSingleton<3>(),
+        create,
+        destroy
       };
 
-      //Not necessary to lock because this task is synchronously scheduled
-      for(size_t i = 0; i < globals.commandBuffer.size(); ++i) {
-        std::visit(visitor, globals.commandBuffer[i].data);
+      Globals& globals = query.getSingleton<0>()->at();
+      {
+        std::lock_guard<std::mutex> lock{ globals.mutex };
+        for(auto&& cmd : globals.commandBuffer) {
+          std::visit(visitor, cmd.data);
+        }
+        globals.commandBuffer.clear();
       }
-
-      globals.commandBuffer.clear();
     });
+
+    builder.submitTask(std::move(task));
   }
 
-  TaskRange gameplayUpdateQueries(GameDB db) {
-    auto root = TaskNode::createEmpty();
-    SpatialQueryAdapter adapter = TableAdapters::getSpatialQueries(db);
-    auto& table = std::get<SpatialQueriesTable>(db.db.mTables);
-
-    //Update all separate rows in place in parallel
-    root->mChildren.push_back(CommonTasks::copyRowSameSize<Physics<ResultRow>, Gameplay<ResultRow>>(table));
-    root->mChildren.push_back(processLiftetime(adapter.globals->at(), *adapter.lifetime, *adapter.stable));
-    root->mChildren.push_back(submitQueryUpdates(std::get<Physics<QueryRow>>(table.mRows), std::get<Gameplay<QueryRow>>(table.mRows), std::get<Gameplay<NeedsResubmitRow>>(table.mRows)));
-    //Sync for table additions and removals
-    TaskBuilder::_addSyncDependency(*root, processCommandBuffer(table,
-      TableAdapters::getStableMappings(db),
-      Events::createCreatePublisher(db),
-      Events::createDestroyPublisher(db)));
-
-    return TaskBuilder::addEndSync(root);
+  void gameplayUpdateQueries(IAppBuilder& builder) {
+    auto tables = builder.queryTables<SpatialQueriesTableTag>();
+    for(size_t i = 0; i < tables.size(); ++i) {
+      const UnpackedDatabaseElementID& table = tables.matchingTableIDs[i];
+      CommonTasks::tryCopyRowSameSize<Physics<ResultRow>, Gameplay<ResultRow>>(builder, table, table);
+      processLifetime(builder, table);
+      submitQueryUpdates(builder, table);
+      processCommandBuffer(builder, table);
+    }
   }
 }

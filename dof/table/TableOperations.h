@@ -333,8 +333,8 @@ struct StableTableModifier {
   template<class TableT>
   static StableTableModifier get() {
     struct Adapter {
-      static void resize(void* table, const UnpackedDatabaseElementID& id, size_t newSize, StableElementMappings& mappings) {
-        TableOperations::stableResizeTable(*static_cast<TableT*>(table), id, newSize, mappings);
+      static void resize(void* table, const UnpackedDatabaseElementID& id, size_t newSize, StableElementMappings& mappings, const StableElementID* reservedKeys) {
+        TableOperations::stableResizeTable(*static_cast<TableT*>(table), id, newSize, mappings, reservedKeys);
       }
 
       static size_t size(const void* table) {
@@ -358,7 +358,7 @@ struct StableTableModifier {
     };
   }
 
-  void(*resize)(void* table, const UnpackedDatabaseElementID& id, size_t newSize, StableElementMappings& mappings){};
+  void(*resize)(void* table, const UnpackedDatabaseElementID& id, size_t newSize, StableElementMappings& mappings, const StableElementID* reservedKeys){};
   size_t(*size)(const void* table){};
   void(*swapRemove)(void* table, const UnpackedDatabaseElementID& id, StableElementMappings& mappings){};
   void(*insert)(void* table, const UnpackedDatabaseElementID& id, size_t count, StableElementMappings& mappings){};
@@ -428,14 +428,14 @@ struct StableTableModifierInstance {
   }
 
   //Add the requested amount of elements and return the index of the first new one
-  size_t addElements(size_t count) {
+  size_t addElements(size_t count, const StableElementID* reservedIDs) {
     const size_t first = modifier.size(table);
-    modifier.resize(table, tableID, count + first, *stableMappings);
+    modifier.resize(table, tableID, count + first, *stableMappings, reservedIDs);
     return first;
   }
 
-  void resize(size_t count) {
-    modifier.resize(table, tableID, count, *stableMappings);
+  void resize(size_t count, const StableElementID* reservedIDs) {
+    modifier.resize(table, tableID, count, *stableMappings, reservedIDs);
   }
 
   operator bool() const {
