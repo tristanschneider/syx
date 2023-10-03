@@ -151,22 +151,24 @@ void Simulation::buildUpdateTasks(IAppBuilder& builder) {
   Player::updateInput(builder);
   Fragment::updateFragmentGoals(builder);
   World::enforceWorldBoundary(builder);
-  //FragmentStateMachine::update({ db });
+  FragmentStateMachine::update(builder);
   //StatEffect::createTasks({ db }, statEffects.db);
   ////Synchronous transfer from all thread local stats to the central stats database
   //ThreadLocals& locals = TableAdapters::getThreadLocals({ db });
   //for(size_t i = 0; i < locals.getThreadCount(); ++i) {
   //  StatEffect::moveTo(locals.get(i).statEffects->db, statEffects.db);
   //}
-  //SpatialQuery::gameplayUpdateQueries({ db });
-  //
-  //Events::publishEvents({ db });
-  //PhysicsSimulation::preProcessEvents({ db });
-  //Fragment::processEvents({ db }));
-  //FragmentStateMachine::preProcessEvents({ db }));
-  //TableService::processEvents({ db }));
-  //
-  //PhysicsSimulation::postProcessEvents({ db }));
+  SpatialQuery::gameplayUpdateQueries(builder);
+
+  Events::publishEvents(builder);
+
+  PhysicsSimulation::preProcessEvents(builder);
+  Fragment::preProcessEvents(builder);
+  FragmentStateMachine::preProcessEvents(builder);
+
+  //TableService::processEvents(builder);
+
+  PhysicsSimulation::postProcessEvents(builder);
 }
 
 Scheduler& Simulation::_getScheduler(GameDatabase& db) {
@@ -212,7 +214,7 @@ void Simulation::init(GameDatabase& db) {
   std::get<ThreadLocalsRow>(globals.mRows).at().instance = std::make_unique<ThreadLocals>(scheduler.mScheduler.GetNumTaskThreads());
   StatEffect::initGlobals(TableAdapters::getStatEffects({ db }).db);
   PhysicsSimulation::init({ db });
-  Player::init({ db });
+  //Player::init({ db });
 
   Config::GameConfig* gameConfig = TableAdapters::getConfig({ db }).game;
   FileSystem* fileSystem = TableAdapters::getGlobals({ db }).fileSystem;

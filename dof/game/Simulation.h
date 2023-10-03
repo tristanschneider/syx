@@ -191,8 +191,11 @@ using StaticGameObjectTable = Table<
   StableIDRow
 >;
 
+struct TargetTableTag : TagRow{};
+
 //Table to hold positions to be referenced by stable element id
 using TargetPosTable = Table<
+  TargetTableTag,
   FloatRow<Tags::Pos, Tags::X>,
   FloatRow<Tags::Pos, Tags::Y>,
   StableIDRow
