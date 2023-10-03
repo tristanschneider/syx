@@ -6,13 +6,13 @@ namespace Config {
   struct GameConfig;
 }
 
+class RuntimeDatabaseTaskBuilder;
 class IAppBuilder;
 struct PlayerInput;
-struct GameDB;
 struct TaskRange;
 
 namespace Player {
-  void init(GameDB db);
+  void init(RuntimeDatabaseTaskBuilder&& task);
   void initAbility(Config::GameConfig& config, QueryResultRow<Row<PlayerInput>>& input);
   void setupScene(IAppBuilder& builder);
   void updateInput(IAppBuilder& builder);

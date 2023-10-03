@@ -13,16 +13,11 @@ namespace Fragment {
     size_t mFragmentColumns{};
   };
 
-  void applyDamage(FragmentAdapter& fragments, size_t i, float damage);
-
   void setupScene(IAppBuilder& builder);
-  //Read GPos, FragmentGoal, FragmentGoalFoundRow, StableIDRow
-  //Write FragmentGoalFoundRow
-  //Modify thread locals
-  TaskRange updateFragmentGoals(GameDB db);
+  void updateFragmentGoals(IAppBuilder& builder);
 
   //Process before table service runs
-  TaskRange processEvents(GameDB db);
+  void preProcessEvents(IAppBuilder& builder);
 
-  void _migrateCompletedFragments(GameDB db, size_t thread);
+  void _migrateCompletedFragments(IAppBuilder& builder);
 }

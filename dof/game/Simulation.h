@@ -161,8 +161,11 @@ using GameObjectTable = Table<
   StableIDRow
 >;
 
+struct FragmentGoalFoundTableTag : TagRow {};
+
 using StaticGameObjectTable = Table<
   ZeroMassObjectTableTag,
+  FragmentGoalFoundTableTag,
   FloatRow<Tags::Pos, Tags::X>,
   FloatRow<Tags::Pos, Tags::Y>,
   FloatRow<Tags::Rot, Tags::CosAngle>,

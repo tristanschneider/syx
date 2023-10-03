@@ -12,6 +12,10 @@ const Config::GameConfig* TableAdapters::getGameConfig(RuntimeDatabaseTaskBuilde
   return task.query<const SharedRow<Config::GameConfig>>().tryGetSingletonElement();
 }
 
+Config::GameConfig* getGameConfigMutable(RuntimeDatabaseTaskBuilder& task) {
+  return task.query<SharedRow<Config::GameConfig>>().tryGetSingletonElement();
+}
+
 ConfigAdapter TableAdapters::getConfig(GameDB db) {
   auto& c = std::get<GlobalGameData>(db.db.mTables);
   Config::GameConfig& g = std::get<SharedRow<Config::GameConfig>>(c.mRows).at();

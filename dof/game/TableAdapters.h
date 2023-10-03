@@ -231,6 +231,8 @@ struct SpatialQueryAdapter {
 
 namespace TableAdapters {
   const Config::GameConfig* getGameConfig(RuntimeDatabaseTaskBuilder& task);
+  Config::GameConfig* getGameConfigMutable(RuntimeDatabaseTaskBuilder& task);
+
   ConfigAdapter getConfig(GameDB db);
   StableElementMappings& getStableMappings(GameDB db);
   ThreadLocals& getThreadLocals(GameDB db);

@@ -17,8 +17,10 @@
 namespace Player {
   using namespace Tags;
 
-  void init(GameDB db) {
-    Config::PlayerConfig& player = TableAdapters::getConfig({ db }).game->player;
+  void init(RuntimeDatabaseTaskBuilder&& task) {
+    Config::GameConfig* config = TableAdapters::getGameConfigMutable(task);
+
+    Config::PlayerConfig& player = config->player;
     auto& force = Config::getCurve(player.linearForceCurve);
     force.params.duration = 0.4f;
     force.params.scale = 0.012f;

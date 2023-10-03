@@ -14,11 +14,6 @@
 namespace Fragment {
   using namespace Tags;
 
-  template<class Tag, class TableT>
-  ispc::UniformConstVec2 _unwrapConstFloatRow(TableT& t) {
-    return { std::get<FloatRow<Tag, X>>(t.mRows).mElements.data(), std::get<FloatRow<Tag, Y>>(t.mRows).mElements.data() };
-  }
-
   void _setupScene(IAppBuilder& builder, SceneArgs args) {
     auto task = builder.createTask();
     task.setName("Fragment Setup");
@@ -97,57 +92,52 @@ namespace Fragment {
     builder.submitTask(std::move(task));
   }
 
-  void _migrateCompletedFragments(GameObjectTable& fragments, Events::MovePublisher moveElement) {
-    PROFILE_SCOPE("simulation", "migratefragments");
-    //If the goal was found, move them to the destination table.
-    //Do this in reverse so the swap remove doesn't mess up a previous removal
-    const size_t oldTableSize = TableOperations::size(fragments);
-    const uint8_t* goalFound = TableOperations::unwrapRow<FragmentGoalFoundRow>(fragments);
-    const auto& stableRow = std::get<StableIDRow>(fragments.mRows);
+  void _migrateCompletedFragments(IAppBuilder& builder) {
+    auto task = builder.createTask();
+    task.setName("Migrate completed fragments");
+    auto query = task.query<
+      const FragmentGoalFoundRow,
+      const StableIDRow
+    >();
+    const UnpackedDatabaseElementID completedTable = builder.queryTables<FragmentGoalFoundTableTag>().matchingTableIDs[0];
 
-    constexpr auto dstTable = GameDatabase::getTableIndex<StaticGameObjectTable>();
-    for(size_t i = 0; i < oldTableSize; ++i) {
-      //If the goal is found, enqueue a move request to the completed fragments table
-      if(goalFound[i]) {
-        moveElement(StableElementID::fromStableRow(i, stableRow), UnpackedDatabaseElementID::fromPacked(dstTable));
+    task.setCallback([query, completedTable](AppTaskArgs& args) mutable {
+      Events::MovePublisher moveElement{{ &args }};
+      for(size_t t = 0; t < query.size(); ++t) {
+        auto&& [goalFound, stableRow] = query.get(t);
+        for(size_t i = 0; i < goalFound->size(); ++i) {
+          //If the goal is found, enqueue a move request to the completed fragments table
+          if(goalFound->at(i)) {
+            moveElement(StableElementID::fromStableRow(i, *stableRow), completedTable);
+          }
+        }
       }
-    }
+    });
+
+    builder.submitTask(std::move(task));
   }
 
-  using MigrationResolver = TableResolver<
-    FloatRow<Tags::Pos, Tags::X>,
-    FloatRow<Tags::Pos, Tags::Y>,
-    FloatRow<Tags::FragmentGoal, Tags::X>,
-    FloatRow<Tags::FragmentGoal, Tags::Y>,
-    FloatRow<Tags::Rot, Tags::CosAngle>,
-    FloatRow<Tags::Rot, Tags::SinAngle>
-  >;
   //Migration enqueues an event to request that table service moves the element to the given table
   //This event triggers just before the table service runs to prepare the state of the object for migration
   //It is not done when the event is queued because other forces could change the object before then and when the migration happens
-  void _prepareFragmentMigration(const DBEvents& events, MigrationResolver& resolver) {
+  void _prepareFragmentMigration(const DBEvents& events, ITableResolver& resolver, IIDResolver& ids) {
     CachedRow<FloatRow<Tags::Pos, Tags::X>> posX;
     CachedRow<FloatRow<Tags::Pos, Tags::Y>> posY;
-    CachedRow<FloatRow<Tags::FragmentGoal, Tags::X>> goalX;
-    CachedRow<FloatRow<Tags::FragmentGoal, Tags::Y>> goalY;
+    CachedRow<const FloatRow<Tags::FragmentGoal, Tags::X>> goalX;
+    CachedRow<const FloatRow<Tags::FragmentGoal, Tags::Y>> goalY;
     CachedRow<FloatRow<Tags::Rot, Tags::CosAngle>> rotX;
     CachedRow<FloatRow<Tags::Rot, Tags::SinAngle>> rotY;
+    CachedRow<const FragmentGoalFoundRow> goalFound;
     for(const DBEvents::MoveCommand& cmd : events.toBeMovedElements) {
+      const UnpackedDatabaseElementID& dest = ids.uncheckedUnpack(cmd.destination);
       //If this is one of the completed fragments enqueued to be moved to the completed table
-      if(cmd.destination.toPacked<GameDatabase>().getTableIndex() == GameDatabase::getTableIndex<StaticGameObjectTable>().getTableIndex()) {
-        UnpackedDatabaseElementID self { UnpackedDatabaseElementID::fromPacked(cmd.source.toPacked<GameDatabase>()) };
-        resolver.tryGetOrSwapRow(posX, self);
-        resolver.tryGetOrSwapRow(posY, self);
-        resolver.tryGetOrSwapRow(goalX, self);
-        resolver.tryGetOrSwapRow(goalY, self);
-        resolver.tryGetOrSwapRow(rotX, self);
-        resolver.tryGetOrSwapRow(rotY, self);
-        if(posX && goalX) {
+      if(resolver.tryGetOrSwapRow(goalFound, dest)) {
+        UnpackedDatabaseElementID self{ ids.uncheckedUnpack(cmd.source) };
+        if(resolver.tryGetOrSwapAllRows(self, posX, posY, goalX, goalY, rotX, rotY)) {
           //Snap to destination
           //TODO: effects to celebrate transition
           const size_t si = self.getElementIndex();
-          posX->at(si) = goalX->at(si);
-          posY->at(si) = goalY->at(si);
+          TableAdapters::write(si, TableAdapters::read(si, *goalX, *goalY), *posX, *posY);
           //This is no rotation, which will align with the image
           TableAdapters::write(si, glm::vec2{ 1, 0 }, *rotX, *rotY);
         }
@@ -155,26 +145,49 @@ namespace Fragment {
     }
   }
 
-  TaskRange processEvents(GameDB db) {
-    auto root = TaskNode::create([db](...) {
-      auto resolver = MigrationResolver::create(db.db);
-      const DBEvents& events = Events::getPublishedEvents(db);
-      _prepareFragmentMigration(events, resolver);
+  void preProcessEvents(IAppBuilder& builder) {
+    auto task = builder.createTask();
+    task.setName("fragment events");
+    using namespace Tags;
+    auto resolver = task.getResolver<
+      FloatRow<Pos, X>, FloatRow<Pos, Y>,
+      FloatRow<Rot, X>, FloatRow<Rot, Y>,
+      const FloatRow<FragmentGoal, X>, const FloatRow<FragmentGoal, Y>,
+      const FragmentGoalFoundTableTag
+    >();
+    auto ids = task.getIDResolver();
+    const DBEvents& events = Events::getPublishedEvents(task);
+    task.setCallback([resolver, &events, ids](AppTaskArgs&) mutable {
+      _prepareFragmentMigration(events, *resolver, *ids);
     });
-    return TaskBuilder::addEndSync(root);
+    builder.submitTask(std::move(task));
   }
 
-  //Read GPos, FragmentGoal
-  //Write FragmentGoalFoundRow
   //Check to see if each fragment has reached its goal
-  void _checkFragmentGoals(GameObjectTable& fragments, const Config::GameConfig& config) {
-    PROFILE_SCOPE("simulation", "fragmentgoals");
-    ispc::UniformConstVec2 pos = _unwrapConstFloatRow<GPos>(fragments);
-    ispc::UniformConstVec2 goal = _unwrapConstFloatRow<FragmentGoal>(fragments);
-    uint8_t* goalFound = TableOperations::unwrapRow<FragmentGoalFoundRow>(fragments);
-    const float minDistance = config.fragment.fragmentGoalDistance;
+  void checkFragmentGoals(IAppBuilder& builder) {
+    auto task = builder.createTask();
+    task.setName("check fragment goals");
+    using namespace Tags;
+    auto query = task.query<
+      const FloatRow<GPos, X>, const FloatRow<GPos, Y>,
+      const FloatRow<FragmentGoal, X>, const FloatRow<FragmentGoal, Y>,
+      FragmentGoalFoundRow
+    >();
+    const Config::GameConfig* config = TableAdapters::getGameConfig(task);
 
-    ispc::checkFragmentGoals(pos, goal, goalFound, minDistance, TableOperations::size(fragments));
+    task.setCallback([config, query](AppTaskArgs&) mutable {
+      for(size_t t = 0; t < query.size(); ++t) {
+        auto&& [posX, posY, goalX, goalY, goalFound] = query.get(t);
+
+        ispc::UniformConstVec2 pos{ posX->data(), posY->data() };
+        ispc::UniformConstVec2 goal{ goalX->data(), goalY->data() };
+        const float minDistance = config->fragment.fragmentGoalDistance;
+
+        ispc::checkFragmentGoals(pos, goal, goalFound->data(), minDistance, posX->size());
+      }
+    });
+
+    builder.submitTask(std::move(task));
   }
 
   void setupScene(IAppBuilder& builder) {
@@ -188,22 +201,8 @@ namespace Fragment {
     _setupScene(builder, args);
   }
 
-  //Read FragmentGoalFoundRow, StableIDRow
-  //Modify thread locals
-  void _migrateCompletedFragments(GameDB game, size_t) {
-    auto& gameObjects = std::get<GameObjectTable>(game.db.mTables);
-    _migrateCompletedFragments(gameObjects, Events::createMovePublisher(game));
-  }
-
-  TaskRange updateFragmentGoals(GameDB game) {
-    auto task = TaskNode::create([game](enki::TaskSetPartition, uint32_t thread) {
-      GameDatabase& db = game.db;
-      auto& gameObjects = std::get<GameObjectTable>(db.mTables);
-      auto config = TableAdapters::getConfig(game).game;
-
-      _checkFragmentGoals(gameObjects, *config);
-      _migrateCompletedFragments({ db }, thread);
-    });
-    return TaskBuilder::addEndSync(task);
+  void updateFragmentGoals(IAppBuilder& builder) {
+    checkFragmentGoals(builder);
+    _migrateCompletedFragments(builder);
   }
 }

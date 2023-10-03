@@ -1,8 +1,9 @@
 #pragma once
 
+class IAppBuilder;
 struct GameDB;
 struct TaskRange;
 
 namespace World {
-  TaskRange enforceWorldBoundary(GameDB db);
+  void enforceWorldBoundary(IAppBuilder& builder);
 }

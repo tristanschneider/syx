@@ -149,8 +149,8 @@ void Simulation::buildUpdateTasks(IAppBuilder& builder) {
   PhysicsSimulation::updatePhysics(builder);
   DebugInput::updateDebugCamera(builder);
   Player::updateInput(builder);
-  //Fragment::updateFragmentGoals({ db }).mBegin);
-  //World::enforceWorldBoundary({ db });
+  Fragment::updateFragmentGoals(builder);
+  World::enforceWorldBoundary(builder);
   //FragmentStateMachine::update({ db });
   //StatEffect::createTasks({ db }, statEffects.db);
   ////Synchronous transfer from all thread local stats to the central stats database
