@@ -3,25 +3,25 @@
 
 #include "Simulation.h"
 #include "TableAdapters.h"
+#include "AppBuilder.h"
 
 namespace DebugInput {
-  void _updateDebugCamera(GameDatabase& db, CameraTable& cameras) {
-    PROFILE_SCOPE("simulation", "debugcamera");
-    const Config::GameConfig* config = TableAdapters::getConfig({ db }).game;
-    for(size_t i = 0; i < TableOperations::size(cameras); ++i) {
-      DebugCameraControl& input = std::get<Row<DebugCameraControl>>(cameras.mRows).at(i);
-      const float speed = config->camera.cameraZoomSpeed;
-      float& zoom = std::get<Row<Camera>>(cameras.mRows).at(i).zoom;
-      zoom = std::max(0.0f, zoom + input.mAdjustZoom * speed);
-      input.mLoadSnapshot = false;
-      input.mTakeSnapshot = false;
-    }
-  }
-
-  TaskRange updateDebugCamera(GameDB db) {
-    auto task = TaskNode::create([db](...) {
-      _updateDebugCamera(db.db, std::get<CameraTable>(db.db.mTables));
+  void updateDebugCamera(IAppBuilder& builder) {
+    auto task = builder.createTask();
+    const Config::GameConfig* config = TableAdapters::getGameConfig(task);
+    auto query = task.query<
+      Row<DebugCameraControl>,
+      Row<Camera>
+    >();
+    task.setCallback([query, config](AppTaskArgs&) mutable {
+      query.forEachElement([config](DebugCameraControl& input, Camera& camera) {
+        const float speed = config->camera.cameraZoomSpeed;
+        camera.zoom = std::max(0.0f, camera.zoom + input.mAdjustZoom * speed);
+        input.mLoadSnapshot = false;
+        input.mTakeSnapshot = false;
+      });
     });
-    return TaskBuilder::addEndSync(task);
+    task.setName("debug camera");
+    builder.submitTask(std::move(task));
   }
 }

@@ -2,7 +2,8 @@
 
 struct GameDB;
 struct TaskRange;
+class IAppBuilder;
 
 namespace DebugInput {
-  TaskRange updateDebugCamera(GameDB db);
+  void updateDebugCamera(IAppBuilder& builder);
 }

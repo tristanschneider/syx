@@ -15,8 +15,5 @@ namespace Player {
   void init(GameDB db);
   void initAbility(Config::GameConfig& config, QueryResultRow<Row<PlayerInput>>& input);
   void setupScene(IAppBuilder& builder);
-  //Modify thread locals
-  //Read gameplay extracted values
-  //Write PlayerInput
-  TaskRange updateInput(GameDB db);
+  void updateInput(IAppBuilder& builder);
 }

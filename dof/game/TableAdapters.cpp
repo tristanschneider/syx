@@ -8,6 +8,10 @@
 
 DebugLineAdapter::~DebugLineAdapter() = default;
 
+const Config::GameConfig* TableAdapters::getGameConfig(RuntimeDatabaseTaskBuilder& task) {
+  return task.query<const SharedRow<Config::GameConfig>>().tryGetSingletonElement();
+}
+
 ConfigAdapter TableAdapters::getConfig(GameDB db) {
   auto& c = std::get<GlobalGameData>(db.db.mTables);
   Config::GameConfig& g = std::get<SharedRow<Config::GameConfig>>(c.mRows).at();

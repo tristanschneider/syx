@@ -146,9 +146,9 @@ void Simulation::buildUpdateTasks(IAppBuilder& builder) {
   Fragment::setupScene(builder);
   finishSetupState(builder);
 
-  //PhysicsSimulation::updatePhysics({ db });
-  //DebugInput::updateDebugCamera({ db });
-  //Player::updateInput({ db });
+  PhysicsSimulation::updatePhysics(builder);
+  DebugInput::updateDebugCamera(builder);
+  Player::updateInput(builder);
   //Fragment::updateFragmentGoals({ db }).mBegin);
   //World::enforceWorldBoundary({ db });
   //FragmentStateMachine::update({ db });

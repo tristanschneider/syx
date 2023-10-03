@@ -230,6 +230,7 @@ struct SpatialQueryAdapter {
 };
 
 namespace TableAdapters {
+  const Config::GameConfig* getGameConfig(RuntimeDatabaseTaskBuilder& task);
   ConfigAdapter getConfig(GameDB db);
   StableElementMappings& getStableMappings(GameDB db);
   ThreadLocals& getThreadLocals(GameDB db);
@@ -277,6 +278,11 @@ namespace TableAdapters {
 
   inline glm::vec2 read(size_t i, const Row<float>& a, const Row<float>& b) {
     return { a.at(i), b.at(i) };
+  }
+
+  template<size_t I, class TupleT>
+  glm::vec2 read(size_t i, const TupleT& t) {
+    return read(i, std::get<I>(t), std::get<I + 1>(t));
   }
 
   inline void write(size_t i, const glm::vec2& v, Row<float>& x, Row<float>& y) {
