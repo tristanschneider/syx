@@ -2,21 +2,20 @@
 
 #include "stat/StatEffectBase.h"
 
-struct GameDB;
+class IAppBuilder;
+class RuntimeDatabase;
 
 namespace LambdaStatEffect {
   struct Args {
-    GameDB* db{};
+    RuntimeDatabase* db{};
     StableElementID resolvedID;
   };
   using Lambda = std::function<void(Args&)>;
   struct LambdaRow : Row<Lambda> {};
+
+  void processStat(IAppBuilder& builder);
 };
 
 struct LambdaStatEffectTable : StatEffectBase<
   LambdaStatEffect::LambdaRow
 > {};
-
-namespace StatEffect {
-  TaskRange processStat(LambdaStatEffectTable& table, GameDB db);
-};

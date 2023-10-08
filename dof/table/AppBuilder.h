@@ -23,12 +23,18 @@ public:
   virtual void insert(const UnpackedDatabaseElementID& location, size_t count) = 0;
 };
 
+struct ResolvedIDs {
+  StableElementID stable;
+  UnpackedDatabaseElementID unpacked;
+};
+
 class IIDResolver {
 public :
   virtual ~IIDResolver() = default;
   //Unpack without ensuring it's valid
   virtual UnpackedDatabaseElementID uncheckedUnpack(const StableElementID& id) const = 0;
   virtual std::optional<StableElementID> tryResolveStableID(const StableElementID& id) const = 0;
+  virtual std::optional<ResolvedIDs> tryResolveAndUnpack(const StableElementID& id) const = 0;
   virtual StableElementID createKey();
 };
 
@@ -95,9 +101,13 @@ struct AppTaskSize {
 };
 
 namespace AppTaskPinning {
+  //No restrictions, meaning task may run on any thread
   struct None {};
+  //Executes on main thread, other tasks can still run on other threads
   struct MainThread {};
-  using Variant = std::variant<None, MainThread>;
+  //Nothing else will be scheduled in parallel with this
+  struct Synchronous {};
+  using Variant = std::variant<None, MainThread, Synchronous>;
 };
 
 //This is created at configuration time to be used to change configurations at runtime
@@ -215,6 +225,9 @@ public:
   RuntimeDatabaseTaskBuilder& setPinning(AppTaskPinning::Variant pinning);
   RuntimeDatabaseTaskBuilder& setCallback(AppTaskCallback&& callback);
   RuntimeDatabaseTaskBuilder& setName(std::string_view name);
+
+  //Get the entire database, which turns this into a syncrhonous task since it could do anything
+  RuntimeDatabase& getDatabase();
 
   AppTaskWithMetadata finalize()&&;
   void discard();

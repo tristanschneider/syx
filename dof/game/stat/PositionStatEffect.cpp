@@ -1,34 +1,53 @@
 #include "Precompile.h"
 #include "stat/PositionStatEffect.h"
 
+#include "AppBuilder.h"
 #include "Simulation.h"
+#include "TableAdapters.h"
 
-namespace StatEffect {
-  TaskRange processStat(PositionStatEffectTable& table, GameDB db) {
-    auto task = TaskNode::create([&table, db](...) {
-      auto& commands = std::get<PositionStatEffect::CommandRow>(table.mRows);
-      const auto& owners = std::get<StatEffect::Owner>(table.mRows);
-      for(size_t i = 0; i < commands.size(); ++i) {
-        const auto self = owners.at(i).toPacked<GameDatabase>();
-        if(!self.isValid()) {
-          continue;
-        }
+namespace PositionStatEffect {
+  void processStat(IAppBuilder& builder) {
+    auto task = builder.createTask();
+    task.setName("position stat");
+    auto query = task.query<
+      const CommandRow,
+      const StatEffect::Owner
+    >();
+    auto ids = task.getIDResolver();
+    using namespace Tags;
 
-        const PositionStatEffect::PositionCommand& cmd = commands.at(i);
-        if(cmd.pos) {
-          auto posX = Queries::getRowInTable<FloatRow<Tags::Pos, Tags::X>>(db.db, self);
-          auto posY = Queries::getRowInTable<FloatRow<Tags::Pos, Tags::Y>>(db.db, self);
-          posX->at(self.getElementIndex()) = cmd.pos->x;
-          posY->at(self.getElementIndex()) = cmd.pos->y;
-        }
-        if(cmd.rot) {
-          auto rotX = Queries::getRowInTable<FloatRow<Tags::Rot, Tags::CosAngle>>(db.db, self);
-          auto rotY = Queries::getRowInTable<FloatRow<Tags::Rot, Tags::SinAngle>>(db.db, self);
-          rotX->at(self.getElementIndex()) = cmd.rot->x;
-          rotY->at(self.getElementIndex()) = cmd.rot->y;
+    auto resolver = task.getResolver<
+      FloatRow<Pos, X>, FloatRow<Pos, Y>,
+      FloatRow<Rot, CosAngle>, FloatRow<Rot, SinAngle>
+    >();
+
+    task.setCallback([query, ids, resolver](AppTaskArgs&) mutable {
+      CachedRow<FloatRow<Pos, X>> px;
+      CachedRow<FloatRow<Pos, Y>> py;
+      CachedRow<FloatRow<Rot, CosAngle>> rx;
+      CachedRow<FloatRow<Rot, SinAngle>> ry;
+
+      for(size_t t = 0; t < query.size(); ++t) {
+        auto&& [commands, owners] = query.get(t);
+        for(size_t i = 0; i < commands->size(); ++i) {
+          const StableElementID& owner = owners->at(i);
+          if(owner == StableElementID::invalid()) {
+            continue;
+          }
+          const UnpackedDatabaseElementID self = ids->uncheckedUnpack(owner);
+          const size_t si = self.getElementIndex();
+
+          const PositionStatEffect::PositionCommand& cmd = commands->at(i);
+          if(cmd.pos && resolver->tryGetOrSwapAllRows(self, px, py)) {
+            TableAdapters::write(si, *cmd.pos, *px, *py);
+          }
+          if(cmd.rot && resolver->tryGetOrSwapAllRows(self, rx, ry)) {
+            TableAdapters::write(si, *cmd.rot, *rx, *ry);
+          }
         }
       }
     });
-    return TaskBuilder::addEndSync(task);
+
+    builder.submitTask(std::move(task));
   }
 }

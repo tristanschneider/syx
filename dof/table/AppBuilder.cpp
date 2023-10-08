@@ -95,11 +95,11 @@ namespace IDResolverImpl {
       }
     }
 
-    UnpackedDatabaseElementID uncheckedUnpack(const StableElementID& id) const override {
+    UnpackedDatabaseElementID uncheckedUnpack(const StableElementID& id) const final {
       return id.toUnpacked(description);
     }
 
-    std::optional<StableElementID> tryResolveStableID(const StableElementID& id) const override {
+    std::optional<StableElementID> tryResolveStableID(const StableElementID& id) const final {
       //TODO: is this actually faster than doing the map lookup always?
       const UnpackedDatabaseElementID unpacked = id.toUnpacked(description);
       const size_t table = unpacked.getTableIndex();
@@ -116,7 +116,14 @@ namespace IDResolverImpl {
       return it ? std::make_optional(StableElementID{ it->second, it->first }) : std::nullopt;
     }
 
-    StableElementID createKey() override {
+    std::optional<ResolvedIDs> tryResolveAndUnpack(const StableElementID& id) const final {
+      if(auto resolved = tryResolveStableID(id)) {
+        return ResolvedIDs{ *resolved, uncheckedUnpack(*resolved) };
+      }
+      return {};
+    }
+
+    StableElementID createKey() final {
       return StableElementID::fromStableID(mappings.createKey());
     }
 
@@ -245,4 +252,9 @@ RuntimeDatabaseTaskBuilder& RuntimeDatabaseTaskBuilder::setCallback(AppTaskCallb
 RuntimeDatabaseTaskBuilder& RuntimeDatabaseTaskBuilder::setName(std::string_view name) {
   builtTask.data.name = name;
   return *this;
+}
+
+RuntimeDatabase& RuntimeDatabaseTaskBuilder::getDatabase() {
+  setPinning(AppTaskPinning::Synchronous{});
+  return db;
 }

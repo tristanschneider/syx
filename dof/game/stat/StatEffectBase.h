@@ -5,6 +5,9 @@
 #include "StableElementID.h"
 #include "TableOperations.h"
 
+struct AppTaskArgs;
+class IAppBuilder;
+class RuntimeDatabase;
 struct GameDB;
 
 namespace StatEffect {
@@ -24,10 +27,10 @@ namespace StatEffect {
     struct Args {
       //The entire db is exposed yet the intended use would just be to look up any additional information
       //on the table of the element being removed, and to get the thread locals
-      GameDB& db;
+      RuntimeDatabase& db;
       //Id of the stat that is about to be removed
       const UnpackedDatabaseElementID& id;
-      size_t thread{};
+      AppTaskArgs& args;
       Continuation&& continuation;
     };
     using Callback = std::function<void(Args&)>;
@@ -56,17 +59,14 @@ namespace StatEffect {
   struct CurveDef: Row<CurveDefinition*>{};
 
   std::shared_ptr<TaskNode> tickLifetime(Lifetime& lifetime, const StableIDRow& stableIDs, std::vector<StableElementID>& toRemove, size_t removeOnTick);
+  void tickLifetime(IAppBuilder* builder, const UnpackedDatabaseElementID& table, size_t removeOnTick);
 
-  std::shared_ptr<TaskNode> processRemovals(void* table, TableOperations::StableSwapRemover remove, std::vector<StableElementID>& toRemove, StableInfo stable);
-  template<class TableT>
-  std::shared_ptr<TaskNode> processRemovals(TableT& effects, StableInfo stable) {
-    return processRemovals(&effects, TableOperations::getStableSwapRemove<TableT>(), std::get<Global>(effects.mRows).at().toRemove, stable);
-  }
+  void processRemovals(IAppBuilder& builder, const UnpackedDatabaseElementID& table);
 
   //Resolves the stable id then calls the continuation if there is any. Resolution is a bit redundant, removal needs to do it again because it's moving them around as part of removal
-  std::shared_ptr<TaskNode> processCompletionContinuation(GameDB db, Continuations& continuations, std::vector<StableElementID>& toRemove, StableInfo stable);
+  void processCompletionContinuation(IAppBuilder& builder, const UnpackedDatabaseElementID& table);
 
-  std::shared_ptr<TaskNode> resolveOwners(GameDB db, Row<StableElementID>& owners, StableInfo stable);
+  void resolveOwners(IAppBuilder& builder, const UnpackedDatabaseElementID& table);
 }
 
 template<class... Rows>

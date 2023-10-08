@@ -12,12 +12,10 @@ namespace PositionStatEffect {
   };
 
   struct CommandRow : Row<PositionCommand> {};
+
+  void processStat(IAppBuilder& builder);
 };
 
 struct PositionStatEffectTable : StatEffectBase<
   PositionStatEffect::CommandRow
 > {};
-
-namespace StatEffect {
-  TaskRange processStat(PositionStatEffectTable& table, GameDB db);
-}

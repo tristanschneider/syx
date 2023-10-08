@@ -107,14 +107,21 @@ namespace GameBuilder {
       auto node = std::make_shared<AppTaskNode>();
       node->task = std::move(task.task);
 
-      for(const UnpackedDatabaseElementID& modifiedTable : task.data.tableModifiers) {
-        addTableModifier(dependencies[modifiedTable.getTableIndex()], node);
+      if(std::get_if<AppTaskPinning::Synchronous>(&node->task.pinning)) {
+        for(TableDependencies& table : dependencies) {
+          addTableModifier(table, node);
+        }
       }
-      for(const TableAccess& write : task.data.writes) {
-        addTableWrite(dependencies[write.tableID.getTableIndex()], write.rowType, node);
-      }
-      for(const TableAccess& read : task.data.reads) {
-        addTableRead(dependencies[read.tableID.getTableIndex()], read.rowType, node);
+      else {
+        for(const UnpackedDatabaseElementID& modifiedTable : task.data.tableModifiers) {
+          addTableModifier(dependencies[modifiedTable.getTableIndex()], node);
+        }
+        for(const TableAccess& write : task.data.writes) {
+          addTableWrite(dependencies[write.tableID.getTableIndex()], write.rowType, node);
+        }
+        for(const TableAccess& read : task.data.reads) {
+          addTableRead(dependencies[read.tableID.getTableIndex()], read.rowType, node);
+        }
       }
     }
 

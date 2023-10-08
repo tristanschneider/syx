@@ -3,8 +3,6 @@
 #include "stat/StatEffectBase.h"
 #include "glm/vec2.hpp"
 
-struct GameDB;
-
 namespace VelocityStatEffect {
   struct VelocityCommand {
     glm::vec2 linearImpulse{};
@@ -12,12 +10,10 @@ namespace VelocityStatEffect {
   };
 
   struct CommandRow : Row<VelocityCommand> {};
+
+  void processState(IAppBuilder& builder);
 };
 
 struct VelocityStatEffectTable : StatEffectBase<
   VelocityStatEffect::CommandRow
 > {};
-
-namespace StatEffect {
-  TaskRange processStat(VelocityStatEffectTable& table, GameDB db);
-};

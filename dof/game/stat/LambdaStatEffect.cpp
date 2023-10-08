@@ -4,25 +4,32 @@
 #include "Simulation.h"
 #include "TableAdapters.h"
 
-namespace StatEffect {
-  TaskRange processStat(const StatEffect::Owner& owner, LambdaStatEffect::LambdaRow& row, GameDB& db) {
-    auto task = TaskNode::create([&owner, &row, db](...) mutable {
-      LambdaStatEffect::Args args{};
+namespace LambdaStatEffect {
+  void processStat(IAppBuilder& builder) {
+    auto task = builder.createTask();
+    task.setName("lambda stat");
+    RuntimeDatabase& db = task.getDatabase();
+    auto query = task.query<
+      const StatEffect::Owner,
+      const LambdaRow
+    >();
+    auto ids = task.getIDResolver();
+
+    task.setCallback([query, &db, ids](AppTaskArgs&) mutable {
+      Args args{};
       args.db = &db;
-      StableElementMappings& mappings = TableAdapters::getStableMappings(db);
-      for(size_t i = 0; i < row.size(); ++i) {
-        const StableElementID unresolved = owner.at(i);
-        //Normal stats could rely on resolving upfront before processing stat but since lambda has
-        //access to the entire database it could cause table migrations
-        auto resolved = StableOperations::tryResolveStableID(unresolved, db.db, mappings);
-        args.resolvedID = resolved.value_or(StableElementID::invalid());
-        row.at(i)(args);
+      for(size_t t = 0; query.size(); ++t) {
+        auto&& [owner, lambda] = query.get(t);
+        for(size_t i = 0; owner->size(); ++i) {
+          //Normal stats could rely on resolving upfront before processing stat but since lambda has
+          //access to the entire database it could cause table migrations
+          auto resolved = ids->tryResolveStableID(owner->at(i));
+          args.resolvedID = resolved.value_or(StableElementID::invalid());
+          lambda->at(i)(args);
+        }
       }
     });
-    return TaskBuilder::addEndSync(task);
-  }
 
-  TaskRange processStat(LambdaStatEffectTable& table, GameDB db) {
-    return processStat(std::get<StatEffect::Owner>(table.mRows), std::get<LambdaStatEffect::LambdaRow>(table.mRows), db);
+    builder.submitTask(std::move(task));
   }
 };

@@ -199,9 +199,18 @@ namespace FragmentStateMachine {
           followVelocity.base.target->at(followEffect) = stableTarget;
           //Enqueue the state transition back to wander
           followVelocity.base.continuations->at(followEffect).onComplete.push_back([stableId](StatEffect::Continuation::Args& a) {
-            //TODO:
-            a;
-            //setState(a.db, StableElementID::fromStableID(stableId), { Wander{} });
+            RuntimeDatabaseTaskBuilder task{ a.db };
+            auto ids = task.getIDResolver();
+            auto resolver = task.getResolver<StateRow>();
+
+            if(auto resolved = ids->tryResolveStableID(StableElementID::fromStableID(stableId))) {
+              const auto unpacked = ids->uncheckedUnpack(*resolved);
+              if(StateRow* row = resolver->tryGetRow<StateRow>(unpacked)) {
+                setState(row->at(unpacked.getElementIndex()), Wander{});
+              }
+            }
+
+            task.discard();
           });
         }
       });

@@ -1,32 +1,50 @@
 #include "Precompile.h"
 #include "stat/VelocityStatEffect.h"
 
+#include "AppBuilder.h"
 #include "Simulation.h"
+#include "TableAdapters.h"
 
-namespace StatEffect {
-  TaskRange processStat(VelocityStatEffectTable& table, GameDB db) {
-    auto task = TaskNode::create([&table, db](...) {
-      auto& commands = std::get<VelocityStatEffect::CommandRow>(table.mRows);
-      const auto& owners = std::get<StatEffect::Owner>(table.mRows);
-      for(size_t i = 0; i < commands.size(); ++i) {
-        const auto self = owners.at(i).toPacked<GameDatabase>();
-        if(!self.isValid()) {
-          continue;
-        }
+namespace VelocityStatEffect {
+  void processStat(IAppBuilder& builder) {
+    auto task = builder.createTask();
+    task.setName("velocity stat");
+    auto query = task.query<
+      const StatEffect::Owner,
+      const VelocityStatEffect::CommandRow
+    >();
+    using namespace Tags;
+    auto resolver = task.getResolver<
+      FloatRow<LinVel, X>, FloatRow<LinVel, Y>,
+      FloatRow<AngVel, Angle>
+    >();
+    auto ids = task.getIDResolver();
 
-        const VelocityStatEffect::VelocityCommand& cmd = commands.at(i);
-        auto linearX = Queries::getRowInTable<FloatRow<Tags::LinVel, Tags::X>>(db.db, self);
-        auto linearY = Queries::getRowInTable<FloatRow<Tags::LinVel, Tags::Y>>(db.db, self);
-        auto angular = Queries::getRowInTable<FloatRow<Tags::AngVel, Tags::Angle>>(db.db, self);
-        if(linearX && linearY) {
-          linearX->at(self.getElementIndex()) += cmd.linearImpulse.x;
-          linearY->at(self.getElementIndex()) += cmd.linearImpulse.y;
-        }
-        if(angular) {
-          angular->at(self.getElementIndex()) += cmd.angularImpulse;
+    task.setCallback([query, resolver, ids](AppTaskArgs&) mutable {
+      CachedRow<FloatRow<LinVel, X>> vx;
+      CachedRow<FloatRow<LinVel, Y>> vy;
+      CachedRow<FloatRow<AngVel, Angle>> va;
+
+      for(size_t t = 0; t < query.size(); ++t) {
+        auto&& [owners, commands] = query.get(t);
+        for(size_t i = 0; i < owners->size(); ++i) {
+          const StableElementID& owner = owners->at(i);
+          if(owner == StableElementID::invalid()) {
+            continue;
+          }
+
+          const auto self = ids->uncheckedUnpack(owner);
+          const VelocityCommand& cmd = commands->at(i);
+          if(resolver->tryGetOrSwapAllRows(self, vx, vy)) {
+            TableAdapters::add(i, cmd.linearImpulse, *vx, *vy);
+          }
+          if(resolver->tryGetOrSwapAllRows(self, va)) {
+            TableAdapters::add(i, cmd.angularImpulse, *va);
+          }
         }
       }
     });
-    return TaskBuilder::addEndSync(task);
+
+    builder.submitTask(std::move(task));
   }
 };
