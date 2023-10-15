@@ -33,6 +33,12 @@ ThreadLocals& TableAdapters::getThreadLocals(GameDB db) {
   return *std::get<ThreadLocalsRow>(std::get<GlobalGameData>(db.db.mTables).mRows).at().instance;
 }
 
+ThreadLocals& getThreadLocals(RuntimeDatabaseTaskBuilder& task) {
+  ThreadLocals& tls = *task.query<ThreadLocalsRow>().tryGetSingletonElement()->instance;
+  task.setPinning(AppTaskPinning::Synchronous{});
+  return tls;
+}
+
 ThreadLocalData TableAdapters::getThreadLocal(GameDB db, size_t thread) {
   return getThreadLocals(db).get(thread);
 }
@@ -409,4 +415,8 @@ DebugLineAdapter TableAdapters::getDebugLines(RuntimeDatabaseTaskBuilder& task) 
   result.points = &query.get<0>(0);
   result.modifier = task.getModifierForTable(query.matchingTableIDs[0]);
   return result;
+}
+
+const float* TableAdapters::getDeltaTime(RuntimeDatabaseTaskBuilder& task) {
+  return &getGameConfig(task)->world.deltaTime;
 }

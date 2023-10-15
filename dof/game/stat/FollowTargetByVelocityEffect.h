@@ -15,13 +15,11 @@ namespace FollowTargetByVelocityStatEffect {
   };
 
   struct CommandRow : Row<Command>{};
+
+  void processStat(IAppBuilder& builder);
 }
 
 struct FollowTargetByVelocityStatEffectTable : StatEffectBase<
   StatEffect::Target,
   FollowTargetByVelocityStatEffect::CommandRow
 > {};
-
-namespace StatEffect {
-  TaskRange processStat(FollowTargetByVelocityStatEffectTable& table, GameDB db);
-}

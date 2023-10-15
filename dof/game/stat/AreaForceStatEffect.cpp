@@ -15,9 +15,7 @@
 
 #include "DebugDrawer.h"
 
-namespace StatEffect {
-  using namespace AreaForceStatEffect;
-
+namespace AreaForceStatEffect {
   float crossProduct(const glm::vec2& a, const glm::vec2& b) {
     //[ax] x [bx] = [ax*by - ay*bx]
     //[ay]   [by]
@@ -139,70 +137,74 @@ namespace StatEffect {
     }
   }
 
-  //Gather an unsorted list of objects that are inside or touching the shape
-  void gatherResultsInShape(const Command& command, const Command::Cone& cone, GameDB db, std::vector<ShapeResult>& results) {
-    Queries::viewEachRowWithTableID(db.db, [&](GameDatabase::ElementID id,
-      const FloatRow<Tags::GPos, Tags::X>& posX,
-      const FloatRow<Tags::GPos, Tags::Y>& posY,
-      const FloatRow<Tags::GRot, Tags::CosAngle>& rotX,
-      const FloatRow<Tags::GRot, Tags::SinAngle>& rotY,
-      const IsFragment&) {
-      const bool isTerrain = Queries::getRowInTable<IsImmobile>(db.db, id) != nullptr;
-      const glm::vec2& coneBase = command.origin;
-      const glm::vec2& coneDir = command.direction;
-      const float inConeAngle = std::cos(cone.halfAngle);
-      const float sinConeAngle = std::abs(std::sin(cone.halfAngle));
-      //Objects outside of this length are discarded, so add a half extent's worth to that length so
-      //objects touching the back edge are still included
-      constexpr float objSize = 0.5f;
-      constexpr float objSize2 = objSize*objSize;
-      const float paddedConeLength = cone.length + 0.5f;
-      const float coneLength2 = paddedConeLength*paddedConeLength;
+  struct ShapesQuery {
+    UnpackedDatabaseElementID table;
+    const FloatRow<Tags::GPos, Tags::X>* posX{};
+    const FloatRow<Tags::GPos, Tags::Y>* posY{};
+    const FloatRow<Tags::GRot, Tags::CosAngle>* rotX{};
+    const FloatRow<Tags::GRot, Tags::SinAngle>* rotY{};
+    FloatRow<Tags::GLinImpulse, Tags::X>* impulseX{};
+    FloatRow<Tags::GLinImpulse, Tags::Y>* impulseY{};
+    FloatRow<Tags::GAngImpulse, Tags::Angle>* impulseA{};
+    const IsImmobile* isImmobile{};
+  };
 
-      for(size_t i = 0; i < posX.size(); ++i) {
-        const glm::vec2 pos{ posX.at(i), posY.at(i) };
-        const glm::vec2 toTarget = pos - coneBase;
-        const float len2 = glm::length2(toTarget);
-        if(len2 > coneLength2) {
-          continue;
-        }
-        //If object is within objSize2 then it is inside the origin of the cone and should be included in results
-        if(len2 > objSize2) {
-          const float targetDot = glm::dot(toTarget, coneDir);
-          const glm::vec2 targetDir = toTarget * (1.0f/std::sqrt(len2));
-          //Cos of the angle is the dot product times the length of both, length of cone dir is one
-          const float targetAngle = targetDot/std::sqrt(len2);
-          //If the mid point isn't in the cone
-          if(targetAngle < inConeAngle) {
-            //Get the projection of the object onto the line through the center of the cone
-            //Since coneDir is normalized this means it's also the distance along the cone,
-            //which is the length of the adjecent edge of the triangle. The length of the opposite
-            //edge is how far away this object can be to still be touching the cone
-            const glm::vec2 projOnConeLine = coneDir*targetDot;
-            const float distToConeLine2 = glm::length2(projOnConeLine - toTarget);
-            //Get the length of the opposite edge of the triangle at the distance using the length obtained
-            //from the adjacent edge
-            const float allowedDistance = sinConeAngle*targetDot + objSize;
-            if(distToConeLine2 > allowedDistance) {
-              continue;
-            }
+  //Gather an unsorted list of objects that are inside or touching the shape
+  void gatherResultsInShape(const Command& command, const Command::Cone& cone, ShapesQuery& query, std::vector<ShapeResult>& results) {
+    const bool isTerrain = query.isImmobile != nullptr;
+    const glm::vec2& coneBase = command.origin;
+    const glm::vec2& coneDir = command.direction;
+    const float inConeAngle = std::cos(cone.halfAngle);
+    const float sinConeAngle = std::abs(std::sin(cone.halfAngle));
+    //Objects outside of this length are discarded, so add a half extent's worth to that length so
+    //objects touching the back edge are still included
+    constexpr float objSize = 0.5f;
+    constexpr float objSize2 = objSize*objSize;
+    const float paddedConeLength = cone.length + 0.5f;
+    const float coneLength2 = paddedConeLength*paddedConeLength;
+
+    for(size_t i = 0; i < query.posX->size(); ++i) {
+      const glm::vec2 pos{ query.posX->at(i), query.posY->at(i) };
+      const glm::vec2 toTarget = pos - coneBase;
+      const float len2 = glm::length2(toTarget);
+      if(len2 > coneLength2) {
+        continue;
+      }
+      //If object is within objSize2 then it is inside the origin of the cone and should be included in results
+      if(len2 > objSize2) {
+        const float targetDot = glm::dot(toTarget, coneDir);
+        const glm::vec2 targetDir = toTarget * (1.0f/std::sqrt(len2));
+        //Cos of the angle is the dot product times the length of both, length of cone dir is one
+        const float targetAngle = targetDot/std::sqrt(len2);
+        //If the mid point isn't in the cone
+        if(targetAngle < inConeAngle) {
+          //Get the projection of the object onto the line through the center of the cone
+          //Since coneDir is normalized this means it's also the distance along the cone,
+          //which is the length of the adjecent edge of the triangle. The length of the opposite
+          //edge is how far away this object can be to still be touching the cone
+          const glm::vec2 projOnConeLine = coneDir*targetDot;
+          const float distToConeLine2 = glm::length2(projOnConeLine - toTarget);
+          //Get the length of the opposite edge of the triangle at the distance using the length obtained
+          //from the adjacent edge
+          const float allowedDistance = sinConeAngle*targetDot + objSize;
+          if(distToConeLine2 > allowedDistance) {
+            continue;
           }
         }
-        ShapeResult hit;
-        hit.id = UnpackedDatabaseElementID::fromPacked(id).remakeElement(i);
-        hit.pos = pos;
-        hit.extentX = glm::vec2{ rotX.at(i), rotY.at(i) };// * 0.5f;
-        //Since they're unit cubes this is the case, otherwise scale wouldn't be 0.5 for both
-        hit.extentY = Math::orthogonal(hit.extentX);
-        hit.isTerrain = isTerrain;
-        hit.distance = len2;
-        results.push_back(hit);
       }
-    });
+      ShapeResult hit;
+      hit.id = query.table.remakeElement(i);
+      hit.pos = pos;
+      hit.extentX = glm::vec2{ query.rotX->at(i), query.rotY->at(i) };// * 0.5f;
+      //Since they're unit cubes this is the case, otherwise scale wouldn't be 0.5 for both
+      hit.extentY = Math::orthogonal(hit.extentX);
+      hit.isTerrain = isTerrain;
+      hit.distance = len2;
+      results.push_back(hit);
+    }
   }
 
-  void debugDraw(GameDB db, const Command& command, const std::vector<ShapeResult>& shapes, const std::vector<HitResult>& hits, const std::vector<Ray>& rays) {
-    auto debug = TableAdapters::getDebugLines(db);
+  void debugDraw(DebugLineAdapter& debug, const Command& command, const std::vector<ShapeResult>& shapes, const std::vector<HitResult>& hits, const std::vector<Ray>& rays) {
     for(const Ray& ray : rays) {
       DebugDrawer::drawVector(debug, ray.origin, ray.direction, glm::vec3(0, 1, 0));
     }
@@ -218,74 +220,100 @@ namespace StatEffect {
     return hit.impulse * i.multiplier * static_cast<float>(hit.hitCount);
   }
 
-  //Read position, write velocity and thread locals
-  TaskRange processStat(AreaForceStatEffectTable& table, GameDB db) {
-    auto task = TaskNode::create([&table, db](enki::TaskSetPartition, uint32_t thread) {
-      PROFILE_SCOPE("simulation", "forces");
+  void processStat(IAppBuilder& builder) {
+    auto task = builder.createTask();
+    task.setName("AreaForce Stat");
+    auto ids = task.getIDResolver();
+    auto query = task.query<
+      const CommandRow
+    >();
+    DebugLineAdapter debug = TableAdapters::getDebugLines(task);
+    using namespace Tags;
+    auto shapesQuery = task.query<
+      const FloatRow<GPos, X>, const FloatRow<GPos, Y>,
+      const FloatRow<GRot, CosAngle>, const FloatRow<GRot, SinAngle>,
+      FloatRow<GLinImpulse, X>, FloatRow<GLinImpulse, Y>,
+      FloatRow<GAngImpulse, Angle>,
+      const IsFragment
+    >();
+    auto resolver = task.getResolver<
+      const IsImmobile,
+      const FloatRow<GPos, X>, const FloatRow<GPos, Y>,
+      FloatRow<GLinImpulse, X>, FloatRow<GLinImpulse, Y>,
+      FloatRow<GAngImpulse, Angle>,
+      const StableIDRow
+    >();
 
-      auto& cmd = std::get<CommandRow>(table.mRows);
-      if(!cmd.size()) {
-        return;
-      }
-
-      auto damageEffect = TableAdapters::getDamageEffects(db, thread);
+    task.setCallback([ids, query, debug, shapesQuery, resolver](AppTaskArgs& args) mutable {
       std::vector<ShapeResult> shapes;
       std::vector<HitResult> hits;
       std::vector<Ray> rays;
-      for(size_t i = 0; i < cmd.size(); ++i) {
-        const Command& command = cmd.at(i);
-        shapes.clear();
-        hits.clear();
-        rays.clear();
+      CachedRow<const FloatRow<GPos, X>> posX;
+      CachedRow<const FloatRow<GPos, Y>> posY;
+      CachedRow<FloatRow<GLinImpulse, X>> impulseX;
+      CachedRow<FloatRow<GLinImpulse, Y>> impulseY;
+      CachedRow<FloatRow<GAngImpulse, Angle>> impulseA;
+      CachedRow<const StableIDRow> stableRow;
 
-        std::visit([&](const auto& shape) {
-          gatherResultsInShape(command, shape, db, shapes);
-          buildRaysForShape(command, shape, rays);
-        }, command.shape);
-        for(Ray& ray : rays) {
-          ray.remainingPiercingTerrain = command.terrainPiercing;
-          ray.remainingPiercingDynamic = command.dynamicPiercing;
-        }
+      for(size_t t = 0; t < query.size(); ++t) {
+        auto&& [commands] = query.get(t);
+        DamageStatEffectAdapter damageEffect = TableAdapters::getDamageEffects(args);
 
-        const bool doDebugDraw = true;
-        std::vector<StatEffect::ShapeResult> drawShapes;
-        if(doDebugDraw) {
-          drawShapes = shapes;
-        }
-        castRays(rays, shapes, hits);
-
-        constexpr Math::Mass objMass = Math::computeFragmentMass();
-        size_t currentTable = dbDetails::INVALID_VALUE;
-        GameObjectAdapter obj;
-        for(const HitResult& hit : hits) {
-          //Look up table, reusing last one if it's the same
-          if(hit.id.getTableIndex() != currentTable) {
-            currentTable = hit.id.getTableIndex();
-            obj = TableAdapters::getGameplayObjectInTable(db, currentTable);
-            //Skip these if they don't have the required elements
-            if(!obj.transform.posX || !obj.physics.linImpulseX || !obj.physics.angImpulse) {
-              currentTable = dbDetails::INVALID_VALUE;
-              continue;
-            }
+        for(const Command& command : commands->mElements) {
+          shapes.clear();
+          hits.clear();
+          rays.clear();
+          for(size_t s = 0; s < shapesQuery.size(); ++s) {
+            auto&& [posXs, posYs, rotXs, rotYs, impulseXs, impulseYs, impulseAs, f] = shapesQuery.get(s);
+            const UnpackedDatabaseElementID table = shapesQuery.matchingTableIDs[s];
+            ShapesQuery shapeTable {
+              table, posXs, posYs, rotXs, rotYs, impulseXs, impulseYs, impulseAs, resolver->tryGetRow<const IsImmobile>(table)
+            };
+            std::visit([&](const auto& shape) {
+              gatherResultsInShape(command, shape, shapeTable, shapes);
+            }, command.shape);
           }
 
-          //Compute and apply impulse
-          const size_t id = hit.id.getElementIndex();
-          const glm::vec2 pos = TableAdapters::read(id, *obj.transform.posX, *obj.transform.posY);
-          const glm::vec2 baseImpulse = std::visit([&hit](const auto& type) { return computeImpulseType(type, hit); }, command.impulseType);
+          std::visit([&](const auto& shape) {
+            buildRaysForShape(command, shape, rays);
+          }, command.shape);
 
-          const Math::Impulse impulse = Math::computeImpulseAtPoint(pos, hit.hitPoint, baseImpulse, objMass);
-          TableAdapters::add(id, impulse.linear, *obj.physics.linImpulseX, *obj.physics.linImpulseY);
-          obj.physics.angImpulse->at(id) += impulse.angular;
+          for(Ray& ray : rays) {
+            ray.remainingPiercingTerrain = command.terrainPiercing;
+            ray.remainingPiercingDynamic = command.dynamicPiercing;
+          }
 
-          const size_t dmg = TableAdapters::addStatEffectsSharedLifetime(damageEffect.base, StatEffect::INSTANT, &obj.stable->at(id), 1);
-          damageEffect.command->at(dmg).damage = command.damage * static_cast<float>(hit.hitCount);
+          const bool doDebugDraw = true;
+          std::vector<ShapeResult> drawShapes;
+          if(doDebugDraw) {
+            drawShapes = shapes;
+          }
+          castRays(rays, shapes, hits);
+
+          constexpr Math::Mass objMass = Math::computeFragmentMass();
+          for(const HitResult& hit : hits) {
+            if(!resolver->tryGetOrSwapAllRows(hit.id, posX, posY, impulseX, impulseY, impulseA, stableRow)) {
+              continue;
+            }
+
+            //Compute and apply impulse
+            const size_t id = hit.id.getElementIndex();
+            const glm::vec2 pos = TableAdapters::read(id, *posX, *posY);
+            const glm::vec2 baseImpulse = std::visit([&hit](const auto& type) { return computeImpulseType(type, hit); }, command.impulseType);
+
+            const Math::Impulse impulse = Math::computeImpulseAtPoint(pos, hit.hitPoint, baseImpulse, objMass);
+            TableAdapters::add(id, impulse.linear, *impulseX, *impulseY);
+            impulseA->at(id) += impulse.angular;
+
+            const size_t dmg = TableAdapters::addStatEffectsSharedLifetime(damageEffect.base, StatEffect::INSTANT, &stableRow->at(id), 1);
+            damageEffect.command->at(dmg).damage = command.damage * static_cast<float>(hit.hitCount);
+          }
+
+          debugDraw(debug, command, drawShapes, hits, rays);
         }
-
-        debugDraw(db, command, drawShapes, hits, rays);
       }
     });
 
-    return TaskBuilder::addEndSync(task);
+    builder.submitTask(std::move(task));
   }
 }

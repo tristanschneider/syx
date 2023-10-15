@@ -152,7 +152,7 @@ void Simulation::buildUpdateTasks(IAppBuilder& builder) {
   Fragment::updateFragmentGoals(builder);
   World::enforceWorldBoundary(builder);
   FragmentStateMachine::update(builder);
-  //StatEffect::createTasks({ db }, statEffects.db);
+  StatEffect::createTasks(builder);
   ////Synchronous transfer from all thread local stats to the central stats database
   //ThreadLocals& locals = TableAdapters::getThreadLocals({ db });
   //for(size_t i = 0; i < locals.getThreadCount(); ++i) {

@@ -4,6 +4,7 @@
 #include "Scheduler.h"
 #include "StableElementID.h"
 #include "TableOperations.h"
+#include "RuntimeDatabase.h"
 
 struct AppTaskArgs;
 class IAppBuilder;
@@ -14,6 +15,19 @@ namespace StatEffect {
   //Lifetime of a single frame instant effect
   constexpr size_t INSTANT = 1;
   constexpr size_t INFINITE = std::numeric_limits<size_t>::max();
+
+  struct CurveAlias {
+    QueryAlias<Row<float>> curveIn;
+    QueryAlias<Row<float>> curveOut;
+    QueryAlias<Row<CurveDefinition*>> curveDef;
+  };
+
+  struct Config {
+    size_t removeLifetime = 0;
+    std::vector<CurveAlias> curves;
+  };
+
+  struct ConfigRow : SharedRow<Config> {};
 
   struct Globals {
     std::vector<StableElementID> toRemove;
@@ -67,10 +81,14 @@ namespace StatEffect {
   void processCompletionContinuation(IAppBuilder& builder, const UnpackedDatabaseElementID& table);
 
   void resolveOwners(IAppBuilder& builder, const UnpackedDatabaseElementID& table);
+  void resolveTargets(IAppBuilder& builder, const UnpackedDatabaseElementID& table);
+
+  void solveCurves(IAppBuilder& builder, const UnpackedDatabaseElementID& table, const CurveAlias& alias);
 }
 
 template<class... Rows>
 struct StatEffectBase : Table<
+  StatEffect::ConfigRow,
   StatEffect::Owner,
   StatEffect::Lifetime,
   StatEffect::Global,

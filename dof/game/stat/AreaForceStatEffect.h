@@ -37,12 +37,10 @@ namespace AreaForceStatEffect {
   };
 
   struct CommandRow : Row<Command> {};
+
+  void processStat(IAppBuilder& builder);
 };
 
 struct AreaForceStatEffectTable : StatEffectBase<
   AreaForceStatEffect::CommandRow
 > {};
-
-namespace StatEffect {
-  TaskRange processStat(AreaForceStatEffectTable& table, GameDB db);
-}

@@ -4,31 +4,48 @@
 
 #include "Simulation.h"
 #include "TableAdapters.h"
+#include "AppBuilder.h"
 
-namespace StatEffect {
-  TaskRange processStat(DamageStatEffectTable& table, GameDB db) {
-    auto task = TaskNode::create([&table, db](...) {
-      auto& commands = std::get<DamageStatEffect::CommandRow>(table.mRows);
-      const auto& owners = std::get<StatEffect::Owner>(table.mRows);
-      for(size_t i = 0; i < commands.size(); ++i) {
-        const auto self = owners.at(i).toPacked<GameDatabase>();
-        if(!self.isValid()) {
-          continue;
-        }
-        FragmentAdapter fragments = TableAdapters::getFragmentsInTable(db, self.getTableIndex());
-        const DamageStatEffect::Command& cmd = commands.at(i);
-        const size_t selfI = self.getElementIndex();
-        if(fragments.damageTaken) {
-          float& currentDamage = fragments.damageTaken->at(selfI);
-          currentDamage += cmd.damage;
-          //Indicate damage through alpha channel of tint
-          if(fragments.tint) {
-            float& alpha = fragments.tint->at(selfI).a;
-            alpha = 1.0f - std::min(1.0f, currentDamage / 100.0f);
+namespace DamageStatEffect {
+  void processStat(IAppBuilder& builder) {
+    auto task = builder.createTask();
+    task.setName("Damage Stat");
+    auto ids = task.getIDResolver();
+    auto query = task.query<
+      const CommandRow,
+      const StatEffect::Owner
+    >();
+    auto resolver = task.getResolver<
+      DamageTaken,
+      Tint
+    >();
+
+    task.setCallback([ids, query, resolver](AppTaskArgs&) mutable {
+      CachedRow<DamageTaken> damage;
+      CachedRow<Tint> tint;
+      for(size_t t = 0; t < query.size(); ++t) {
+        auto&& [commands, owners] = query.get(t);
+        for(size_t i = 0; i < commands->size(); ++i) {
+          const auto self = owners->at(i);
+          if(self == StableElementID::invalid()) {
+            continue;
+          }
+          const auto rawSelf = ids->uncheckedUnpack(self);
+          const size_t selfI = rawSelf.getElementIndex();
+          if(resolver->tryGetOrSwapAllRows(rawSelf, damage)) {
+            const Command& cmd = commands->at(i);
+            float& currentDamage = damage->at(selfI);
+            currentDamage += cmd.damage;
+            //Indicate damage through alpha channel of tint
+            if(resolver->tryGetOrSwapAllRows(rawSelf, tint)) {
+              float& alpha = tint->at(selfI).a;
+              alpha = 1.0f - std::min(1.0f, currentDamage / 100.0f);
+            }
           }
         }
       }
     });
-    return TaskBuilder::addEndSync(task);
+
+    builder.submitTask(std::move(task));
   }
 }

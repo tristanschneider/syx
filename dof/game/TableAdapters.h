@@ -236,6 +236,7 @@ namespace TableAdapters {
   ConfigAdapter getConfig(GameDB db);
   StableElementMappings& getStableMappings(GameDB db);
   ThreadLocals& getThreadLocals(GameDB db);
+  ThreadLocals& getThreadLocals(RuntimeDatabaseTaskBuilder& task);
   ThreadLocalData getThreadLocal(GameDB db, size_t thread);
   ExternalDatabases& getExternalDBs(GameDB db);
   StatEffectDBOwned& getStatEffects(GameDB db);
@@ -273,6 +274,7 @@ namespace TableAdapters {
   SpatialQueryAdapter getSpatialQueries(GameDB db);
 
   DebugLineAdapter getDebugLines(RuntimeDatabaseTaskBuilder& task);
+  const float* getDeltaTime(RuntimeDatabaseTaskBuilder& task);
 
   size_t addStatEffectsSharedLifetime(StatEffectBaseAdapter& base, size_t lifetime, const size_t* stableIds, size_t count);
 

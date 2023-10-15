@@ -10,12 +10,10 @@ namespace DamageStatEffect {
   };
 
   struct CommandRow : Row<Command> {};
+
+  void processStat(IAppBuilder& builder);
 };
 
 struct DamageStatEffectTable : StatEffectBase<
   DamageStatEffect::CommandRow
 > {};
-
-namespace StatEffect {
-  TaskRange processStat(DamageStatEffectTable& table, GameDB db);
-}

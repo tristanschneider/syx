@@ -53,7 +53,8 @@ namespace StatEffect {
   //Remove all elements of 'from' and put them in 'to'
   //Intended to be used to move newly created thread local effects to the central database
   TaskRange moveTo(StatEffectDatabase& from, StatEffectDatabase& to);
-  AllStatTasks createTasks(GameDB db, StatEffectDatabase& centralStats);
+  void moveThreadLocalToCentral(IAppBuilder& builder);
+  void createTasks(IAppBuilder& builder);
 
   template<class TableT>
   size_t addEffects(size_t countToAdd, TableT& table, StableElementMappings& mappings) {

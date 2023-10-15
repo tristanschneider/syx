@@ -5,7 +5,7 @@
 #include "curve/CurveSolver.h"
 #include "Simulation.h"
 #include "TableAdapters.h"
-
+#include "ThreadLocals.h"
 namespace StatEffect {
   template<class Func>
   void visitStats(StatEffectDatabase& stats, const Func& func) {
@@ -40,6 +40,21 @@ namespace StatEffect {
   template<class T>
   void visitMoveToRow(const SharedRow<T>&, SharedRow<T>&, size_t) {
     //Nothing to do for shared rows
+  }
+
+  /* TODO:
+  void moveThreadLocalToCentral(IAppBuilder& builder) {
+    auto task = builder.createTask();
+    task.setName("move stats");
+    ThreadLocals& tls = TableAdapters::getThreadLocals(task);
+    for(size_t i = 0; i < tls.getThreadCount(); ++i) {
+      StatEffectDBOwned* threadDB = tls.get(i).statEffects;
+      std::vector<std::function<void()>> work;
+      visitStats(threadDB->db, [&](auto& table) {
+
+      });
+      //tls.get(0).statEffects
+    }
   }
 
   TaskRange moveTo(StatEffectDatabase& from, StatEffectDatabase& to) {
@@ -78,145 +93,56 @@ namespace StatEffect {
     });
     return TaskBuilder::addEndSync(root);
   }
-
-  template<class TableT>
-  StableInfo getStableInfo(TableT& table, AllStatEffects::Globals& globals) {
-    //Stable info for the ids of the stats
-    StableInfo stable;
-    stable.description = globals.description;
-    stable.mappings = &globals.stableMappings;
-    stable.row = &std::get<StableIDRow>(table.mRows);
-    return stable;
+  */
+  template<class Tag = DefaultCurveTag>
+  CurveAlias getCurveAlias() {
+    return {
+      QueryAlias<Row<float>>::create<CurveInput<Tag>>(),
+      QueryAlias<Row<float>>::create<CurveOutput<Tag>>(),
+      QueryAlias<Row<CurveDefinition*>>::create<CurveDef<Tag>>()
+    };
   }
 
-  template<class TableT>
-  std::shared_ptr<TaskNode> visitTickLifetime(TableT& table) {
-    //Hack to account for lambda processing being the only table that is scheduled before the lifetime update,
-    //so it needs to be removed one tick earlier so that it's only called once instead of twice
-    constexpr bool removeEarly = std::is_same_v<LambdaStatEffectTable, TableT>;
-    return StatEffect::tickLifetime(
-      std::get<StatEffect::Lifetime>(table.mRows),
-      std::get<StableIDRow>(table.mRows),
-      std::get<StatEffect::Global>(table.mRows).at().toRemove,
-      removeEarly ? 1 : 0);
-  }
-
-  template<class TableT>
-  std::shared_ptr<TaskNode> visitProcessCompletionContinuation(TableT& table, GameDB db, AllStatEffects::Globals& globals) {
-    return StatEffect::processCompletionContinuation(
-      db,
-      std::get<StatEffect::Continuations>(table.mRows),
-      std::get<StatEffect::Global>(table.mRows).at().toRemove,
-      getStableInfo(table, globals));
-  }
-
-  template<class TableT>
-  std::shared_ptr<TaskNode> visitRemoveLifetime(TableT& table, AllStatEffects::Globals& globals) {
-    return StatEffect::processRemovals(table, getStableInfo(table, globals));
-  }
-
-  template<class T>
-  constexpr void getCurveTag(const T&);
-  template<class T>
-  constexpr auto getCurveTag(const CurveInput<T>&) -> T;
-
-  std::shared_ptr<TaskNode> solveCurves(Row<float>& curveInput, Row<float>& curveOutput, Row<CurveDefinition*>& definition, const float* dt) {
-    auto root = TaskNode::create([&, dt](...) {
-      for(size_t i = 0; i < curveInput.size(); ++i) {
-        //Another possibility would be scanning forward to look for matching definitions so they can be solved in groups
-        CurveSolver::CurveUniforms uniforms{ 1 };
-        //Update input time in place
-        CurveSolver::CurveVaryings varyings{ &curveInput.at(i), &curveInput.at(i) };
-        CurveSolver::advanceTime(*definition.at(i), uniforms, varyings, *dt);
-      }
-    });
-    root->mChildren.push_back(TaskNode::create([&](...) {
-      for(size_t i = 0; i < curveInput.size(); ++i) {
-        CurveSolver::CurveUniforms uniforms{ 1 };
-        CurveSolver::CurveVaryings varyings{ &curveInput.at(i), &curveOutput.at(i) };
-        CurveSolver::solve(*definition.at(i), uniforms, varyings);
-      }
-    }));
-    return root;
-  }
-
-  template<class TableT>
-  void visitSolveCurves(TableT& table, const float* dt, [[maybe_unused]] std::vector<std::shared_ptr<TaskNode>>& results) {
-    table.visitOne([&](auto& row) {
-      using Tag = decltype(getCurveTag(row));
-      if constexpr(!std::is_same_v<void, Tag>) {
-        results.push_back(solveCurves(
-          TableOperations::getRow<CurveInput<Tag>>(table),
-          TableOperations::getRow<CurveOutput<Tag>>(table),
-          TableOperations::getRow<CurveDef<Tag>>(table),
-          dt
-        ));
-      }
-    });
-  }
-
-  template<class TableT>
-  void visitResolveOwners(TableT& table, GameDB db, std::vector<std::shared_ptr<TaskNode>>& results) {
-    //Stable info for the owners that the stats are pointing to
-    StableInfo stable;
-    stable.description = GameDatabase::getDescription();
-    stable.mappings = &TableAdapters::getStableMappings(db);
-
-    if(StatEffect::Target* target = TableOperations::tryGetRow<StatEffect::Target>(table)) {
-      results.push_back(StatEffect::resolveOwners(db, *target, stable));
+  void configureTables(IAppBuilder& builder) {
+    auto temp = builder.createTask();
+    for(ConfigRow* config : temp.query<ConfigRow, LambdaStatEffect::LambdaRow>().get<0>()) {
+      //Hack to account for lambda processing being the only table that is scheduled before the lifetime update,
+      //so it needs to be removed one tick earlier so that it's only called once instead of twice
+      config->at().removeLifetime = 1;
     }
-    results.push_back(StatEffect::resolveOwners(db, std::get<StatEffect::Owner>(table.mRows), stable));
+
+    for(ConfigRow* config : temp.query<ConfigRow, FollowTargetByPositionStatEffect::CommandRow>().get<0>()) {
+      //Hack to account for lambda processing being the only table that is scheduled before the lifetime update,
+      //so it needs to be removed one tick earlier so that it's only called once instead of twice
+      config->at().curves.push_back(getCurveAlias<>());
+    }
+
+    temp.discard();
   }
 
-  AllStatTasks createTasks(GameDB db, StatEffectDatabase& stats) {
-    AllStatTasks result;
-    result.positionSetters = StatEffect::processStat(std::get<PositionStatEffectTable>(stats.mTables), db)
-      .then(StatEffect::processStat(std::get<FollowTargetByPositionStatEffectTable>(stats.mTables), db))
-      //Modify write health and tint, doesn't matter where this is at the moment
-      .then(StatEffect::processStat(std::get<DamageStatEffectTable>(stats.mTables), db));
-    result.velocitySetters = StatEffect::processStat(std::get<VelocityStatEffectTable>(stats.mTables), db);
-    result.posGetVelSet = StatEffect::processStat(std::get<AreaForceStatEffectTable>(stats.mTables), db)
-      .then(StatEffect::processStat(std::get<FollowTargetByVelocityStatEffectTable>(stats.mTables), db));
-    TaskRange lambdaRange = StatEffect::processStat(std::get<LambdaStatEffectTable>(stats.mTables), db);
-    const float* dt = &TableAdapters::getConfig(db).game->world.deltaTime;
-    //Empty root
-    auto syncBegin = TaskNode::create([](...){});
-    //Then process all lifetimes
-    auto& globals = getGlobals(stats);
-    visitStats(stats, [syncBegin, dt, &globals, db](auto& table) {
-      std::shared_ptr<TaskNode> lifetime = visitTickLifetime(table);
-      lifetime->mChildren.push_back(visitProcessCompletionContinuation(table, db, globals));
-      syncBegin->mChildren.push_back(lifetime);
-      //Curves only depend on themselves so can be solved here
-      visitSolveCurves(table, dt, syncBegin->mChildren);
-    });
+  void createTasks(IAppBuilder& builder) {
+    configureTables(builder);
 
-    TaskBuilder::_addSyncDependency(*syncBegin, lambdaRange.mBegin);
-    auto currentSync = lambdaRange.mEnd;
+    auto temp = builder.createTask();
+    temp.discard();
+    for(auto table : builder.queryTables<StatEffect::Global>().matchingTableIDs) {
+      const Config config = *temp.query<StatEffect::ConfigRow>(table).tryGetSingletonElement();
+      StatEffect::tickLifetime(&builder, table, config.removeLifetime);
+      StatEffect::processCompletionContinuation(builder, table);
+      for(const CurveAlias& curve : config.curves) {
+        StatEffect::solveCurves(builder, table, curve);
+      }
+      StatEffect::processRemovals(builder, table);
+      StatEffect::resolveOwners(builder, table);
+      StatEffect::resolveTargets(builder, table);
+    }
 
-    //After ticking lifetimes, synchronously do removal. Could be parallel if stable mappings were locked
-    TaskBuilder::_addSyncDependency(*syncBegin, currentSync);
-    visitStats(stats, [&currentSync, &globals](auto& table) {
-      currentSync->mChildren.push_back(visitRemoveLifetime(table, globals));
-      currentSync = currentSync->mChildren.back();
-    });
-    //Next, pre-resolve all handles
-    visitStats(stats, [currentSync, db](auto& table) {
-      visitResolveOwners(table, db, currentSync->mChildren);
-    });
-
-    auto syncEnd = TaskNode::create([](...){});
-    TaskBuilder::_addSyncDependency(*currentSync, syncEnd);
-
-    //Once the synchronous tasks are complete, start parallel tasks
-    syncEnd->mChildren.push_back(result.positionSetters.mBegin);
-    syncEnd->mChildren.push_back(result.velocitySetters.mBegin);
-
-    //Position and velocity need to be done before both can be used together
-    result.positionSetters.mEnd->mChildren.push_back(result.posGetVelSet.mBegin);
-    result.velocitySetters.mEnd->mChildren.push_back(result.posGetVelSet.mBegin);
-
-    result.synchronous = TaskBuilder::addEndSync(syncBegin);
-    return result;
+    PositionStatEffect::processStat(builder);
+    FollowTargetByPositionStatEffect::processStat(builder);
+    DamageStatEffect::processStat(builder);
+    VelocityStatEffect::processState(builder);
+    AreaForceStatEffect::processStat(builder);
+    FollowTargetByVelocityStatEffect::processStat(builder);
+    LambdaStatEffect::processStat(builder);
   }
 }

@@ -145,7 +145,7 @@ namespace AnyTableModifier {
           return table->modifier.addElements(count);
         }
         else if(table->stableModifier) {
-          return table->stableModifier.addElements(count);
+          return table->stableModifier.addElements(count, nullptr);
         }
       }
       return std::numeric_limits<size_t>::max();

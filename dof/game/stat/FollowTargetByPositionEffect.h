@@ -17,6 +17,8 @@ namespace FollowTargetByPositionStatEffect {
   };
 
   struct CommandRow : Row<Command>{};
+
+  void processStat(IAppBuilder& builder);
 }
 
 struct FollowTargetByPositionStatEffectTable : StatEffectBase<
@@ -26,7 +28,3 @@ struct FollowTargetByPositionStatEffectTable : StatEffectBase<
   StatEffect::CurveDef<>,
   FollowTargetByPositionStatEffect::CommandRow
 > {};
-
-namespace StatEffect {
-  TaskRange processStat(FollowTargetByPositionStatEffectTable& table, GameDB db);
-}

@@ -300,4 +300,11 @@ public:
     temp.discard();
     return result;
   }
+
+  //Query if the table has the row
+  template<class... Rows>
+  bool queryTable(const UnpackedDatabaseElementID& id) {
+    auto temp = queryTables<Rows...>();
+    return std::find(temp.matchingTableIDs.begin(), temp.matchingTableIDs.end(), id) != temp.matchingTableIDs.end();
+  }
 };

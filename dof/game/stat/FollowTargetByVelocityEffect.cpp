@@ -5,8 +5,9 @@
 #include "Simulation.h"
 #include "TableAdapters.h"
 #include "GameMath.h"
+#include "AppBuilder.h"
 
-namespace StatEffect {
+namespace FollowTargetByVelocityStatEffect {
   struct VisitArgs {
     glm::vec2 srcPos{};
     glm::vec2 dstPos{};
@@ -18,37 +19,55 @@ namespace StatEffect {
     };
   }
 
-  TaskRange processStat(FollowTargetByVelocityStatEffectTable& table, GameDB db) {
-    auto task = TaskNode::create([&table, db](...) {
-      auto follow = TableAdapters::getCentralStatEffects(db).followTargetByVelocity;
-      for(size_t i = 0; i < follow.command->size(); ++i) {
-        const auto self = follow.base.owner->at(i).toPacked<GameDatabase>();
-        const auto target = follow.base.target->at(i).toPacked<GameDatabase>();
-        if(!self.isValid() || !target.isValid()) {
-          continue;
-        }
-        const FollowTargetByVelocityStatEffect::Command& cmd = follow.command->at(i);
-        const size_t selfI = self.getElementIndex();
-        const size_t targetI = target.getElementIndex();
+  void processStat(IAppBuilder& builder) {
+    auto task = builder.createTask();
+    task.setName("FollowTargetByVelocity Stat");
+    auto ids = task.getIDResolver();
+    auto query = task.query<
+      const CommandRow,
+      const StatEffect::Owner,
+      const StatEffect::Target
+    >();
+    using namespace Tags;
+    auto resolver = task.getResolver<
+      FloatRow<GLinImpulse, X>, FloatRow<GLinImpulse, Y>,
+      const FloatRow<Pos, X>, const FloatRow<Pos, Y>
+    >();
 
-        auto impulseX = Queries::getRowInTable<FloatRow<Tags::GLinImpulse, Tags::X>>(db.db, self);
-        auto impulseY = Queries::getRowInTable<FloatRow<Tags::GLinImpulse, Tags::Y>>(db.db, self);
-        if(impulseX && impulseY) {
-          auto srcPosX = Queries::getRowInTable<FloatRow<Tags::Pos, Tags::X>>(db.db, self);
-          auto srcPosY = Queries::getRowInTable<FloatRow<Tags::Pos, Tags::Y>>(db.db, self);
-          auto dstPosX = Queries::getRowInTable<FloatRow<Tags::Pos, Tags::X>>(db.db, target);
-          auto dstPosY = Queries::getRowInTable<FloatRow<Tags::Pos, Tags::Y>>(db.db, target);
+    task.setCallback([ids, query, resolver](AppTaskArgs&) mutable {
+      CachedRow<FloatRow<GLinImpulse, X>> impulseX;
+      CachedRow<FloatRow<GLinImpulse, Y>> impulseY;
+      CachedRow<const FloatRow<Pos, X>> srcPosX, dstPosX;
+      CachedRow<const FloatRow<Pos, Y>> srcPosY, dstPosY;
+      for(size_t t = 0; t < query.size(); ++t) {
+        auto&& [commands, owners, targets] = query.get(t);
+        for(size_t i = 0; i < commands->size(); ++i) {
+          const auto self = owners->at(i);
+          const auto target = targets->at(i);
+          if(self == StableElementID::invalid() || target == StableElementID::invalid()) {
+            continue;
+          }
+          const auto rawSelf = ids->uncheckedUnpack(self);
+          const auto rawTarget = ids->uncheckedUnpack(target);
 
-          VisitArgs args {
-            TableAdapters::read(selfI, *srcPosX, *srcPosY),
-            TableAdapters::read(targetI, *dstPosX, *dstPosY)
-          };
-          const Math::Impulse impulse = std::visit([&](const auto& c) { return visitComputeImpulse(c, args); }, cmd.mode);
+          if(resolver->tryGetOrSwapAllRows(rawSelf, impulseX, impulseY, srcPosX, srcPosY) &&
+            resolver->tryGetOrSwapAllRows(rawTarget, dstPosX, dstPosY)) {
+            const size_t selfI = rawSelf.getElementIndex();
+            const size_t targetI = rawTarget.getElementIndex();
+            const Command& cmd = commands->at(i);
 
-          TableAdapters::add(selfI, impulse.linear, *impulseX, *impulseY);
+            VisitArgs args {
+              TableAdapters::read(selfI, *srcPosX, *srcPosY),
+              TableAdapters::read(targetI, *dstPosX, *dstPosY)
+            };
+            const Math::Impulse impulse = std::visit([&](const auto& c) { return visitComputeImpulse(c, args); }, cmd.mode);
+
+            TableAdapters::add(selfI, impulse.linear, *impulseX, *impulseY);
+          }
         }
       }
     });
-    return TaskBuilder::addEndSync(task);
+
+    builder.submitTask(std::move(task));
   }
 }
