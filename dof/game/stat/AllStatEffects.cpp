@@ -6,6 +6,7 @@
 #include "Simulation.h"
 #include "TableAdapters.h"
 #include "ThreadLocals.h"
+
 namespace StatEffect {
   template<class Func>
   void visitStats(StatEffectDatabase& stats, const Func& func) {
@@ -42,58 +43,57 @@ namespace StatEffect {
     //Nothing to do for shared rows
   }
 
-  /* TODO:
   void moveThreadLocalToCentral(IAppBuilder& builder) {
     auto task = builder.createTask();
     task.setName("move stats");
+    RuntimeDatabase& db = task.getDatabase();
     ThreadLocals& tls = TableAdapters::getThreadLocals(task);
-    for(size_t i = 0; i < tls.getThreadCount(); ++i) {
-      StatEffectDBOwned* threadDB = tls.get(i).statEffects;
-      std::vector<std::function<void()>> work;
-      visitStats(threadDB->db, [&](auto& table) {
+    auto centralStatTables = db.query<StatEffect::Global>();
 
-      });
-      //tls.get(0).statEffects
-    }
-  }
+    task.setCallback([&db, &tls, centralStatTables](AppTaskArgs&) mutable {
+      for(size_t i = 0; i < tls.getThreadCount(); ++i) {
+        size_t curTable = 0;
+        StatEffectDatabase& threadDB = tls.get(i).statEffects->db;
+        visitStats(threadDB, [&](auto& fromTable) {
+          using TableT = std::decay_t<decltype(fromTable)>;
+          //The index in the destination where the src elements should begin
+          size_t newBegin{};
+          //This is a hack that assumes the iteration order of the db.query will match the visitStats order
+          //Ideally both would use RuntimeDatabase and could generically copy all rows
+          const UnpackedDatabaseElementID toTableID = centralStatTables.matchingTableIDs[curTable];
+          RuntimeTable* runtimeToTable = db.tryGet(toTableID);
+          assert(runtimeToTable);
+          TableT& toTable = *static_cast<TableT*>(runtimeToTable->stableModifier.table);
 
-  TaskRange moveTo(StatEffectDatabase& from, StatEffectDatabase& to) {
-    auto root = TaskNode::create([](...){});
-    visitStats(to, [&](auto& table) {
-      using TableT = std::decay_t<decltype(table)>;
-      //The index in the destination where the src elements should begin
-      auto newBegin = std::make_shared<size_t>();
-      TableT& fromTable = std::get<TableT>(from.mTables);
-      TableT& toTable = table;
+          const size_t srcSize = TableOperations::size(fromTable);
+          const size_t dstSize = TableOperations::size(toTable);
+          newBegin = dstSize;
 
-      auto resizeDest = TaskNode::create([&fromTable, &toTable, &to, newBegin](...) {
-        const size_t srcSize = TableOperations::size(fromTable);
-        const size_t dstSize = TableOperations::size(toTable);
-        *newBegin = dstSize;
-        StableElementMappings& dstMappings = getGlobals(to).stableMappings;
-        TableOperations::stableResizeTable(toTable, UnpackedDatabaseElementID::fromPacked(StatEffectDatabase::getTableIndex(toTable)), dstSize + srcSize, dstMappings);
-      });
-      root->mChildren.push_back(resizeDest);
+          if(!srcSize) {
+            return;
+          }
 
-      //Resize the table, then fill in each row
-      table.visitOne([&, newBegin](auto& toRow) {
-        using RowT = std::decay_t<decltype(toRow)>;
-        RowT& fromRow = std::get<RowT>(fromTable.mRows);
-        resizeDest->mChildren.push_back(TaskNode::create([&fromRow, &toRow, newBegin](...) {
-          visitMoveToRow(fromRow, toRow, *newBegin);
-        }));
-      });
+          runtimeToTable->stableModifier.resize(dstSize + srcSize, nullptr);
 
-      //Once all rows in the destination have the desired values, clear the source
-      auto resizeSrc = TaskNode::create([&fromTable, &from](...) {
-        StableElementMappings& srcMappings = getGlobals(from).stableMappings;
-        TableOperations::stableResizeTable(fromTable, UnpackedDatabaseElementID::fromPacked(StatEffectDatabase::getTableIndex(fromTable)), 0, srcMappings);
-      });
-      TaskBuilder::_addSyncDependency(*resizeDest, resizeSrc);
+          //Resize the table, then fill in each row
+          toTable.visitOne([&](auto& toRow) {
+            using RowT = std::decay_t<decltype(toRow)>;
+            RowT& fromRow = std::get<RowT>(fromTable.mRows);
+            visitMoveToRow(fromRow, toRow, newBegin);
+          });
+
+          //Once all rows in the destination have the desired values, clear the source
+          StableElementMappings& srcMappings = getGlobals(threadDB).stableMappings;
+          TableOperations::stableResizeTable(fromTable, UnpackedDatabaseElementID::fromPacked(StatEffectDatabase::getTableIndex(fromTable)), 0, srcMappings);
+
+          ++curTable;
+        });
+      }
     });
-    return TaskBuilder::addEndSync(root);
+
+    builder.submitTask(std::move(task));
   }
-  */
+
   template<class Tag = DefaultCurveTag>
   CurveAlias getCurveAlias() {
     return {

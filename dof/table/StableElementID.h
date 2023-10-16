@@ -314,10 +314,8 @@ struct StableOperations {
     }
   }
 
-  //Same here, toid element index doesn't matter, only table id
-  template<size_t S>
-  static void migrateOne(StableIDRow& src, StableIDRow& dst, const DatabaseElementID<S>& fromID, const DatabaseElementID<S>& toID, StableElementMappings& mappings) {
-    DatabaseElementID<S> dstID{ toID.getTableIndex(), dst.size() };
+  static void migrateOne(StableIDRow& src, StableIDRow& dst, const UnpackedDatabaseElementID& fromID, const UnpackedDatabaseElementID& toID, StableElementMappings& mappings) {
+    UnpackedDatabaseElementID dstID{ toID.remakeElement(dst.size()) };
     size_t& stableIDToMove = src.at(fromID.getElementIndex());
 
     //Copy stable id to destination table
@@ -327,10 +325,16 @@ struct StableOperations {
     [[maybe_unused]] const bool updated = mappings.tryUpdateKey(stableIDToMove, dstID.mValue);
     assert(updated);
     //Invalidate
-    stableIDToMove = DatabaseElementID<S>{}.mValue;
+    stableIDToMove = UnpackedDatabaseElementID{}.mValue;
 
     //Swap remove element in old table
     swapRemove(src, fromID, mappings);
+  }
+
+  //Same here, toid element index doesn't matter, only table id
+  template<size_t S>
+  static void migrateOne(StableIDRow& src, StableIDRow& dst, const DatabaseElementID<S>& fromID, const DatabaseElementID<S>& toID, StableElementMappings& mappings) {
+    migrateOne(src, dst, UnpackedDatabaseElementID::fromPacked(fromID), UnpackedDatabaseElementID::fromPacked(toID), mappings);
   }
 };
 

@@ -153,11 +153,8 @@ void Simulation::buildUpdateTasks(IAppBuilder& builder) {
   World::enforceWorldBoundary(builder);
   FragmentStateMachine::update(builder);
   StatEffect::createTasks(builder);
-  ////Synchronous transfer from all thread local stats to the central stats database
-  //ThreadLocals& locals = TableAdapters::getThreadLocals({ db });
-  //for(size_t i = 0; i < locals.getThreadCount(); ++i) {
-  //  StatEffect::moveTo(locals.get(i).statEffects->db, statEffects.db);
-  //}
+  //Synchronous transfer from all thread local stats to the central stats database
+  StatEffect::moveThreadLocalToCentral(builder);
   SpatialQuery::gameplayUpdateQueries(builder);
 
   Events::publishEvents(builder);
@@ -166,7 +163,7 @@ void Simulation::buildUpdateTasks(IAppBuilder& builder) {
   Fragment::preProcessEvents(builder);
   FragmentStateMachine::preProcessEvents(builder);
 
-  //TableService::processEvents(builder);
+  TableService::processEvents(builder);
 
   PhysicsSimulation::postProcessEvents(builder);
 }

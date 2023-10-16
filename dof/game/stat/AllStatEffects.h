@@ -52,7 +52,6 @@ namespace StatEffect {
   void initGlobals(StatEffectDatabase& db);
   //Remove all elements of 'from' and put them in 'to'
   //Intended to be used to move newly created thread local effects to the central database
-  TaskRange moveTo(StatEffectDatabase& from, StatEffectDatabase& to);
   void moveThreadLocalToCentral(IAppBuilder& builder);
   void createTasks(IAppBuilder& builder);
 

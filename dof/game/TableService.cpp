@@ -3,50 +3,48 @@
 #include "DBEvents.h"
 #include "Simulation.h"
 #include "TableAdapters.h"
+#include "AppBuilder.h"
 
 namespace TableService {
-  TaskRange processEvents(GameDB db) {
-    auto root = TaskNode::create([db](...) {
-      const DBEvents& events = Events::getPublishedEvents(db);
-      StableElementMappings& mappings = TableAdapters::getStableMappings(db);
+  void processEvents(IAppBuilder& builder) {
+    auto task = builder.createTask();
+    task.setName("Process events");
+    RuntimeDatabase& db = task.getDatabase();
+    const DBEvents& events = Events::getPublishedEvents(task);
+    auto ids = task.getIDResolver();
 
+    task.setCallback([&db, &events, ids](AppTaskArgs&) mutable {
       for(const DBEvents::MoveCommand& cmd : events.toBeMovedElements) {
         if(cmd.isCreate()) {
           //Nothing currently, may want to support this in the future
         }
         else if(cmd.isDestroy()) {
           //Remove each element referenced by removal events
-          if(std::optional<StableElementID> resolved = StableOperations::tryResolveStableID(cmd.source, db.db, mappings)) {
-            const GameDatabase::ElementID raw = resolved->toPacked<GameDatabase>();
-            db.db.visitOneByIndex(raw, [&]([[maybe_unused]] auto& table) {
-              using T = std::decay_t<decltype(table)>;
-              if constexpr(TableOperations::isStableTable<T>) {
-                TableOperations::stableSwapRemove(table, raw, mappings);
-              }
-            });
+          if(std::optional<ResolvedIDs> resolved = ids->tryResolveAndUnpack(cmd.source)) {
+            if(RuntimeTable* table = db.tryGet(resolved->unpacked)) {
+              assert(table->stableModifier);
+              table->stableModifier.modifier.swapRemove(table->stableModifier.table, resolved->unpacked, *table->stableModifier.stableMappings);
+            }
           }
         }
         else if(cmd.isMove()) {
           //Move all elements to the desired location
-          if(std::optional<StableElementID> resolved = StableOperations::tryResolveStableID(cmd.source, db.db, mappings)) {
-            const GameDatabase::ElementID rawSrc = resolved->toPacked<GameDatabase>();
-            const GameDatabase::ElementID rawDst = cmd.destination.toPacked<GameDatabase>();
+          if(std::optional<ResolvedIDs> resolved = ids->tryResolveAndUnpack(cmd.source)) {
+            const UnpackedDatabaseElementID& rawSrc = resolved->unpacked;
+            const UnpackedDatabaseElementID rawDst = ids->uncheckedUnpack(cmd.destination);
             if(rawSrc.getTableIndex() == rawDst.getTableIndex()) {
               continue;
             }
-            db.db.visitOneByIndex(rawSrc, [&](auto& sourceTable) {
-              db.db.visitOneByIndex(rawDst, [&](auto& dstTable) {
-                using ST = std::decay_t<decltype(sourceTable)>;
-                using DT = std::decay_t<decltype(dstTable)>;
-                if constexpr(TableOperations::isStableTable<ST> && TableOperations::isStableTable<DT>) {
-                  TableOperations::stableMigrateOne(sourceTable, dstTable, rawSrc, rawDst, mappings);
-                }
-              });
-            });
+            RuntimeTable* fromTable = db.tryGet(rawSrc);
+            RuntimeTable* toTable = db.tryGet(rawDst);
+            if(fromTable && toTable) {
+              RuntimeTable::migrateOne(rawSrc.getElementIndex(), *fromTable, *toTable);
+            }
           }
         }
       }
     });
-    return TaskBuilder::addEndSync(root);
+
+    builder.submitTask(std::move(task));
   }
 }

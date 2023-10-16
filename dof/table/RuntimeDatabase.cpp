@@ -26,6 +26,28 @@ StableElementMappings& RuntimeDatabase::getMappings() {
   return *data.mappings;
 }
 
+void RuntimeTable::migrateOne(size_t i, RuntimeTable& from, RuntimeTable& to) {
+  //Only implemented for stable tables right now
+  assert(to.stableModifier.table);
+  const UnpackedDatabaseElementID fromID = from.tableID.remakeElement(i);
+  //Move all common rows to the destination
+  for(auto& pair : to.rows) {
+    RuntimeRow* toRow = &pair.second;
+    RuntimeRow* fromRow = from.tryGetRow(pair.first);
+    //This handles the case where the source row is empty and in that case adds an empty destination element
+    toRow->migrateOneElement(fromRow->row, toRow->row, fromID, to.tableID, *to.stableModifier.stableMappings);
+  }
+
+  //Swap Remove from source. Could be faster to combine this with the above step while visiting,
+  //but is more confusing when accounting for cases where src has rows dst doesn't
+  //Skip stable row because that was already addressed in the migrate above
+  for(auto& pair : from.rows) {
+    if(pair.first != DBTypeID::get<StableIDRow>()) {
+      pair.second.swapRemove(pair.second.row, fromID, *to.stableModifier.stableMappings);
+    }
+  }
+}
+
 namespace DBReflect {
   struct MergedDatabase : IDatabase {
     MergedDatabase(std::unique_ptr<IDatabase> l, std::unique_ptr<IDatabase> r) 

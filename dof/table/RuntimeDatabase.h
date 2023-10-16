@@ -54,23 +54,37 @@ struct QueryAlias : QueryAliasBase {
   const ResultT*(*constCast)(void*){};
 };
 
+struct RuntimeRow {
+  void* row{};
+  void (*migrateOneElement)(void* from, void* to, const UnpackedDatabaseElementID& fromID, [[maybe_unused]] const UnpackedDatabaseElementID& toID, StableElementMappings& mappings){};
+  void (*swapRemove)(void* row, const UnpackedDatabaseElementID& id, [[maybe_unused]] StableElementMappings& mappings){};
+};
+
 struct RuntimeTable {
   using IDT = DBTypeID;
 
   template<class RowT>
   RowT* tryGet() {
     auto it = rows.find(IDT::get<std::decay_t<RowT>>());
-    return it != rows.end() ? (RowT*)it->second : nullptr;
+    return it != rows.end() ? (RowT*)it->second.row : nullptr;
   }
 
   void* tryGet(DBTypeID id) {
     auto it = rows.find(id);
-    return it != rows.end() ? it->second : nullptr;
+    return it != rows.end() ? it->second.row : nullptr;
   }
 
+  RuntimeRow* tryGetRow(DBTypeID id) {
+    auto it = rows.find(id);
+    return it != rows.end() ? &it->second : nullptr;
+  }
+
+  static void migrateOne(size_t i, RuntimeTable& from, RuntimeTable& to);
+
+  UnpackedDatabaseElementID tableID;
   TableModifierInstance modifier;
   StableTableModifierInstance stableModifier;
-  std::unordered_map<DBTypeID, void*> rows;
+  std::unordered_map<DBTypeID, RuntimeRow> rows;
 };
 
 template<class RowT>
@@ -289,13 +303,54 @@ struct QueryResult<> {
 namespace DBReflect {
   namespace details {
     template<class RowT>
+    RuntimeRow createRuntimeRow(RowT& row) {
+      struct Funcs {
+        static constexpr bool isStableRow = std::is_same_v<RowT, StableIDRow>;
+
+        static void migrateOneElement(void* from, void* to, const UnpackedDatabaseElementID& fromID, [[maybe_unused]] const UnpackedDatabaseElementID& toID, StableElementMappings& mappings) {
+          RowT* fromT = static_cast<RowT*>(from);
+          RowT* toT = static_cast<RowT*>(to);
+          if constexpr(isStableRow) {
+            StableOperations::migrateOne(*fromT, *toT, fromID, toID, mappings);
+          }
+          else {
+            //Hack to deal with migration case where not all tables exist in source and destination
+            if(fromT) {
+              toT->emplaceBack(std::move(fromT->at(fromID.getElementIndex())));
+            }
+            else {
+              toT->emplaceBack();
+            }
+          }
+        }
+
+        static void swapRemove(void* row, const UnpackedDatabaseElementID& id, [[maybe_unused]] StableElementMappings& mappings) {
+          RowT* r = static_cast<RowT*>(row);
+          if constexpr(isStableRow) {
+            StableOperations::swapRemove(*r, id, mappings);
+          }
+          else {
+            r->swap(id.getElementIndex(), r->size());
+            r->resize(r->size() - 1);
+          }
+        }
+      };
+      return {
+        &row,
+        &Funcs::migrateOneElement,
+        &Funcs::swapRemove
+      };
+    }
+
+    template<class RowT>
     void reflectRow(RowT& row, RuntimeTable& table) {
-      table.rows[DBTypeID::get<RowT>()] = &row;
+      table.rows[DBTypeID::get<RowT>()] = createRuntimeRow(row);
     }
 
     template<class TableT>
     void reflectTable(const UnpackedDatabaseElementID& tableID, TableT& table, RuntimeDatabaseArgs& args) {
       RuntimeTable& rt = args.tables[tableID.getTableIndex()];
+      rt.tableID = tableID;
       if constexpr(TableOperations::isStableTable<TableT>) {
         rt.stableModifier = StableTableModifierInstance::get(table, tableID, *args.mappings);
       }
