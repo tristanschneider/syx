@@ -347,7 +347,8 @@ struct SimulationPhases {
 };
 
 namespace Simulation {
-  void init(GameDatabase& db);
+  void initScheduler(IAppBuilder& builder);
+  void init(IAppBuilder& builder);
 
   void buildUpdateTasks(IAppBuilder& builder);
 

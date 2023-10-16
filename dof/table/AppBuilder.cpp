@@ -10,7 +10,7 @@ namespace TableResolverImpl {
     void* tryGetRow(const UnpackedDatabaseElementID id, IDT type) override {
       if(RuntimeTable* table = db.tryGet(id)) {
         auto result = table->rows.find(type);
-        return result != table->rows.end() ? result->second : nullptr;
+        return result != table->rows.end() ? result->second.row : nullptr;
       }
       return nullptr;
     }

@@ -190,38 +190,68 @@ const char* Simulation::getConfigName() {
   return "config.json";
 }
 
-void Simulation::init(GameDatabase& db) {
-  Queries::viewEachRow(db, [](FloatRow<Tags::Rot, Tags::CosAngle>& r) {
-      r.mDefaultValue = 1.0f;
+void initScheduler(IAppBuilder& builder) {
+  auto task = builder.createTask();
+  task.setName("init scheduler");
+  Scheduler* scheduler = task.query<SharedRow<Scheduler>>().tryGetSingletonElement();
+  ThreadLocalsInstance* tls = task.query<ThreadLocalsRow>().tryGetSingletonElement();
+  task.setCallback([scheduler, tls](AppTaskArgs&) {
+    scheduler->mScheduler.Initialize();
+    tls->instance = std::make_unique<ThreadLocals>(scheduler->mScheduler.GetNumTaskThreads());
   });
-  Queries::viewEachRow(db, [](FloatRow<Tags::GRot, Tags::CosAngle>& r) {
-      r.mDefaultValue = 1.0f;
-  });
-  Queries::viewEachRow(db, [](CollisionMaskRow& r) {
-      r.mDefaultValue = uint8_t(~0);
-  });
+  builder.submitTask(std::move(task));
+}
 
-  //Fragments in particular start opaque then reveal the texture as they take damage
-  std::get<Tint>(std::get<GameObjectTable>(db.mTables).mRows).mDefaultValue = glm::vec4(0, 0, 0, 1);
-
-  Scheduler& scheduler = Simulation::_getScheduler(db);
-  scheduler.mScheduler.Initialize();
-  GlobalGameData& globals = std::get<GlobalGameData>(db.mTables);
-
-  std::get<ThreadLocalsRow>(globals.mRows).at().instance = std::make_unique<ThreadLocals>(scheduler.mScheduler.GetNumTaskThreads());
-  StatEffect::initGlobals(TableAdapters::getStatEffects({ db }).db);
-  PhysicsSimulation::init({ db });
-  //Player::init({ db });
-
-  Config::GameConfig* gameConfig = TableAdapters::getConfig({ db }).game;
-  FileSystem* fileSystem = TableAdapters::getGlobals({ db }).fileSystem;
-  if(std::optional<std::string> buffer = File::readEntireFile(*fileSystem, getConfigName())) {
-    ConfigIO::Result result = ConfigIO::deserializeJson(*buffer, *Config::createFactory());
-    std::visit([&](auto&& r) { tryInitFromConfig(*gameConfig, std::move(r)); }, std::move(result.value));
+void init(IAppBuilder& builder) {
+  auto setDefaultValue = [](auto query, auto value) {
+    return [query, value](AppTaskArgs&) mutable {
+      query.forEachRow([value](auto& row, auto&...) { row.mDefaultValue = value; });
+    };
+  };
+  {
+    auto task = builder.createTask();
+    task.setName("setDefault Rot");
+    task.setCallback(setDefaultValue(task.query<FloatRow<Tags::Rot, Tags::CosAngle>>(), 1.0f));
+    builder.submitTask(std::move(task));
   }
-  else {
-    tryInitFromConfig(*gameConfig, ConfigIO::Result::Error{});
+  {
+    auto task = builder.createTask();
+    task.setName("setDefault GRot");
+    task.setCallback(setDefaultValue(task.query<FloatRow<Tags::GRot, Tags::CosAngle>>(), 1.0f));
+    builder.submitTask(std::move(task));
+  }
+  {
+    auto task = builder.createTask();
+    task.setName("setDefault Mask");
+    task.setCallback(setDefaultValue(task.query<CollisionMaskRow>(), uint8_t(~0)));
+    builder.submitTask(std::move(task));
+  }
+  {
+    auto task = builder.createTask();
+    task.setName("setDefault Tint");
+    //Fragments in particular start opaque then reveal the texture as they take damage
+    task.setCallback(setDefaultValue(task.query<Tint, const IsFragment>(), glm::vec4(0, 0, 0, 1)));
+    builder.submitTask(std::move(task));
+  }
+  PhysicsSimulation::init(builder);
+  Player::init(builder);
+
+  {
+    auto task = builder.createTask();
+    task.setName("load config");
+    Config::GameConfig* gameConfig = TableAdapters::getGameConfigMutable(task);
+    FileSystem* fs = task.query<SharedRow<FileSystem>>().tryGetSingletonElement();
+    task.setCallback([gameConfig, fs](AppTaskArgs&) mutable {
+      if(std::optional<std::string> buffer = File::readEntireFile(*fs, Simulation::getConfigName())) {
+        ConfigIO::Result result = ConfigIO::deserializeJson(*buffer, *Config::createFactory());
+        std::visit([&](auto&& r) { tryInitFromConfig(*gameConfig, std::move(r)); }, std::move(result.value));
+      }
+      else {
+        tryInitFromConfig(*gameConfig, ConfigIO::Result::Error{});
+      }
+    });
+    builder.submitTask(std::move(task));
   }
 
-  PhysicsSimulation::initFromConfig({ db });
+  PhysicsSimulation::initFromConfig(builder);
 }

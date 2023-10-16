@@ -8,6 +8,10 @@
 
 DebugLineAdapter::~DebugLineAdapter() = default;
 
+const Config::PhysicsConfig* getPhysicsConfig(RuntimeDatabaseTaskBuilder& task) {
+  return task.query<const SharedRow<Config::PhysicsConfig>>().tryGetSingletonElement();
+}
+
 const Config::GameConfig* TableAdapters::getGameConfig(RuntimeDatabaseTaskBuilder& task) {
   return task.query<const SharedRow<Config::GameConfig>>().tryGetSingletonElement();
 }

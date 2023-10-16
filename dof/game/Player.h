@@ -12,7 +12,7 @@ struct PlayerInput;
 struct TaskRange;
 
 namespace Player {
-  void init(RuntimeDatabaseTaskBuilder&& task);
+  void init(IAppBuilder& builder);
   void initAbility(Config::GameConfig& config, QueryResultRow<Row<PlayerInput>>& input);
   void setupScene(IAppBuilder& builder);
   void updateInput(IAppBuilder& builder);

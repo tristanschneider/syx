@@ -17,25 +17,28 @@
 namespace Player {
   using namespace Tags;
 
-  void init(RuntimeDatabaseTaskBuilder&& task) {
+  void init(IAppBuilder& builder) {
+    auto task = builder.createTask();
     Config::GameConfig* config = TableAdapters::getGameConfigMutable(task);
 
-    Config::PlayerConfig& player = config->player;
-    auto& force = Config::getCurve(player.linearForceCurve);
-    force.params.duration = 0.4f;
-    force.params.scale = 0.012f;
-    force.function = CurveMath::getFunction(CurveMath::CurveType::ExponentialEaseOut);
+    task.setCallback([config](AppTaskArgs&) {
+      Config::PlayerConfig& player = config->player;
+      auto& force = Config::getCurve(player.linearForceCurve);
+      force.params.duration = 0.4f;
+      force.params.scale = 0.012f;
+      force.function = CurveMath::getFunction(CurveMath::CurveType::ExponentialEaseOut);
 
-    auto& speed = Config::getCurve(player.linearSpeedCurve);
-    speed.params.duration = 1.0f;
-    speed.params.scale = 0.1f;
-    speed.function = CurveMath::getFunction(CurveMath::CurveType::SineEaseIn);
+      auto& speed = Config::getCurve(player.linearSpeedCurve);
+      speed.params.duration = 1.0f;
+      speed.params.scale = 0.1f;
+      speed.function = CurveMath::getFunction(CurveMath::CurveType::SineEaseIn);
 
-    auto& stopping = Config::getCurve(player.linearStoppingSpeedCurve);
-    stopping.params.duration = 0.5f;
-    stopping.params.scale = 0.1f;
-    stopping.params.flipInput = true;
-    stopping.function = CurveMath::getFunction(CurveMath::CurveType::QuadraticEaseIn);
+      auto& stopping = Config::getCurve(player.linearStoppingSpeedCurve);
+      stopping.params.duration = 0.5f;
+      stopping.params.scale = 0.1f;
+      stopping.params.flipInput = true;
+      stopping.function = CurveMath::getFunction(CurveMath::CurveType::QuadraticEaseIn);
+    });
   }
 
   void setupScene(IAppBuilder& builder) {

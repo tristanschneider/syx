@@ -11,7 +11,6 @@
 namespace AllStatEffects {
   struct Globals {
     StableElementMappings stableMappings;
-    DatabaseDescription description;
   };
   struct GlobalRow : SharedRow<Globals> {};
   struct GlobalTable : Table<GlobalRow> {};
@@ -49,25 +48,10 @@ struct AllStatTasks {
 };
 
 namespace StatEffect {
-  void initGlobals(StatEffectDatabase& db);
   //Remove all elements of 'from' and put them in 'to'
   //Intended to be used to move newly created thread local effects to the central database
   void moveThreadLocalToCentral(IAppBuilder& builder);
   void createTasks(IAppBuilder& builder);
 
-  template<class TableT>
-  size_t addEffects(size_t countToAdd, TableT& table, StableElementMappings& mappings) {
-    size_t startIndex = TableOperations::size(table);
-    constexpr UnpackedDatabaseElementID tableId = UnpackedDatabaseElementID::fromPacked(StatEffectDatabase::getTableIndex<TableT>());
-    TableOperations::stableResizeTable(table, tableId, startIndex + countToAdd, mappings);
-
-    return startIndex;
-  }
-
   AllStatEffects::Globals& getGlobals(StatEffectDatabase& db);
-
-  template<class TableT>
-  size_t addEffects(size_t countToAdd, TableT& table, StatEffectDatabase& db) {
-    return addEffects(countToAdd, table, getGlobals(db).stableMappings);
-  }
 };

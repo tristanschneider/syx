@@ -119,20 +119,32 @@ namespace PhysicsSimulation {
     builder.submitTask(std::move(task));
   }
 
-  void init(GameDB game) {
-    Queries::viewEachRow(game.db, [](SweepNPruneBroadphase::BroadphaseKeys& keys) {
-      keys.mDefaultValue = Broadphase::SweepGrid::EMPTY_KEY;
+  void init(IAppBuilder& builder) {
+    auto task = builder.createTask();
+    task.setName("init physics");
+    auto query = task.query<SweepNPruneBroadphase::BroadphaseKeys>();
+    task.setCallback([query](AppTaskArgs&) mutable {
+      query.forEachRow([](auto& row) { row.mDefaultValue = Broadphase::SweepGrid::EMPTY_KEY; });
     });
+    builder.submitTask(std::move(task));
   }
 
-  void initFromConfig(GameDB game) {
-    const Config::PhysicsConfig& config = *TableAdapters::getConfig(game).physics;
-    auto& grid = std::get<SharedRow<Broadphase::SweepGrid::Grid>>(std::get<BroadphaseTable>(game.db.mTables).mRows).at();
-    grid.definition.bottomLeft = { config.broadphase.bottomLeftX, config.broadphase.bottomLeftY };
-    grid.definition.cellSize = { config.broadphase.cellSizeX, config.broadphase.cellSizeY };
-    grid.definition.cellsX = config.broadphase.cellCountX;
-    grid.definition.cellsY = config.broadphase.cellCountY;
-    Broadphase::SweepGrid::init(grid);
+  void initFromConfig(IAppBuilder& builder) {
+    auto task = builder.createTask();
+    task.setName("init physics from config");
+    const Config::PhysicsConfig* config = TableAdapters::getPhysicsConfig(task);
+    auto query = task.query<SharedRow<Broadphase::SweepGrid::Grid>>();
+    task.setCallback([query, config](AppTaskArgs&) mutable {
+      for(size_t t = 0; t < query.size(); ++t) {
+        auto& grid = query.get<0>(t).at();
+        grid.definition.bottomLeft = { config->broadphase.bottomLeftX, config->broadphase.bottomLeftY };
+        grid.definition.cellSize = { config->broadphase.cellSizeX, config->broadphase.cellSizeY };
+        grid.definition.cellsX = config->broadphase.cellCountX;
+        grid.definition.cellsY = config->broadphase.cellCountY;
+        Broadphase::SweepGrid::init(grid);
+      }
+    });
+    builder.submitTask(std::move(task));
   }
 
   PhysicsAliases getPhysicsAliases() {

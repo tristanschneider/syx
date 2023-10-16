@@ -24,11 +24,6 @@ namespace StatEffect {
     return std::get<AllStatEffects::GlobalRow>(std::get<AllStatEffects::GlobalTable>(db.mTables).mRows).at();
   }
 
-  void initGlobals(StatEffectDatabase& db) {
-    AllStatEffects::Globals& globals = getGlobals(db);
-    globals.description = StatEffectDatabase::getDescription();
-  }
-
   template<class T>
   void visitMoveToRow(const Row<T>& src, Row<T>& dst, size_t dstStart) {
     CommonTasks::Now::moveOrCopyRow(src, dst, dstStart);

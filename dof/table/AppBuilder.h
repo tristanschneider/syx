@@ -282,6 +282,10 @@ public:
   virtual void submitTask(AppTaskWithMetadata&& task) = 0;
   virtual std::shared_ptr<AppTaskNode> finalize()&& = 0;
 
+  static std::shared_ptr<AppTaskNode> finalize(std::unique_ptr<IAppBuilder> builder) {
+    return std::move(*builder).finalize();
+  }
+
   //Shorthand to get table ids to use in tasks that want to only access one table at a time
   template<class... Aliases>
   QueryResult<> queryAliasTables(const Aliases&... aliases) {

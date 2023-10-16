@@ -11,8 +11,8 @@ namespace SweepNPruneBroadphase {
 }
 
 namespace PhysicsSimulation {
-  void init(GameDB db);
-  void initFromConfig(GameDB db);
+  void init(IAppBuilder& builder);
+  void initFromConfig(IAppBuilder& builder);
   //Insert all objects into the broadphase that can be. Doesn't check if they already are, meant for initial insert
   void updatePhysics(IAppBuilder& builder);
   //Before table service

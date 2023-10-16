@@ -13,6 +13,7 @@
 
 #include "GameBuilder.h"
 #include "GameDatabase.h"
+#include "GameScheduler.h"
 #include "Simulation.h"
 #include "TableOperations.h"
 #include "ThreadLocals.h"
@@ -327,7 +328,9 @@ int mainLoop(const char* args) {
   float msToNS = 1000000.0f;
   int targetFrameTimeNS = 16*static_cast<int>(msToNS);
 
-  FileSystem& fs = APP->builder->createTask().query<SharedRow<FileSystem>>().get<0>(0).at();
+  auto temp = APP->builder->createTask();
+  temp.discard();
+  FileSystem& fs = temp.query<SharedRow<FileSystem>>().get<0>(0).at();
 
   std::string strArgs(args ? std::string(args) : std::string());
   if(!strArgs.empty()) {
@@ -337,30 +340,40 @@ int mainLoop(const char* args) {
     fs.mRoot = "data/";
   }
 
-  //Simulation::init(APP->mGame);
+  //First initialize just the scheudler synchronously
+  std::unique_ptr<IAppBuilder> bootstrap = GameBuilder::create(*APP->combined);
+  Simulation::initScheduler(*bootstrap);
+  for(auto&& work : GameScheduler::buildSync(IAppBuilder::finalize(std::move(bootstrap)))) {
+    work.work();
+  }
+  ThreadLocalsInstance* tls = temp.query<ThreadLocalsRow>().tryGetSingletonElement();
+  Scheduler* scheduler = temp.query<SharedRow<Scheduler>>().tryGetSingletonElement();
 
-  SimulationPhases phases;
-  IAppBuilder& builder = *APP->builder;
+  //The rest of the init can be scheduled asynchronously but still can't be done in parallel with creating the other tasks
+  std::unique_ptr<IAppBuilder> initBuilder = GameBuilder::create(*APP->combined);
+  Simulation::init(*initBuilder);
+  TaskRange initTasks = GameScheduler::buildTasks(IAppBuilder::finalize(std::move(initBuilder)), *tls->instance);
 
-  Renderer::processRequests(builder);
-  Renderer::clearRenderRequests(builder);
-  Renderer::extractRenderables(builder);
+  initTasks.mBegin->mTask.addToPipe(scheduler->mScheduler);
+  scheduler->mScheduler.WaitforTask(initTasks.mEnd->mTask.get());
+
+  std::unique_ptr<IAppBuilder> builder = GameBuilder::create(*APP->combined);
+
+  Renderer::processRequests(*builder);
+  Renderer::clearRenderRequests(*builder);
+  Renderer::extractRenderables(*builder);
+
+  Simulation::buildUpdateTasks(*builder);
+
   //gameplay
-  Renderer::render(builder);
+  Renderer::render(*builder);
 #ifdef IMGUI_ENABLED
-  ImguiModule::update(builder);
+  ImguiModule::update(*builder);
 #endif
-  resetInput(builder);
-  Renderer::swapBuffers(builder);
+  resetInput(*builder);
+  Renderer::swapBuffers(*builder);
 
-  //Allow the simulation to prepend or append to any of the phases
-  //Simulation::buildUpdateTasks(APP->mGame, phases);
-  assert(phases.simulation.mBegin && "Simulation should be filled by buildUpdateTasks");
-
-  //Simulation::linkUpdateTasks(phases);
-
-  //Scheduler& scheduler = Simulation::_getScheduler(APP->mGame);
-  TaskRange appTasks = TaskBuilder::buildDependencies(phases.root.mBegin);
+  TaskRange appTasks = GameScheduler::buildTasks(IAppBuilder::finalize(std::move(builder)), *tls->instance);
 
   auto lastFrameStart = std::chrono::high_resolution_clock::now();
   while(!exit) {
@@ -382,8 +395,8 @@ int mainLoop(const char* args) {
       if(exit)
         break;
 
-      //appTasks.mBegin->mTask.addToPipe(scheduler.mScheduler);
-      //scheduler.mScheduler.WaitforTask(appTasks.mEnd->mTask.get());
+      appTasks.mBegin->mTask.addToPipe(scheduler->mScheduler);
+      scheduler->mScheduler.WaitforTask(appTasks.mEnd->mTask.get());
       PROFILE_UPDATE(nullptr);
     }
 

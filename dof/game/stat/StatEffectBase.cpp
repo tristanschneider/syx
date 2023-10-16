@@ -123,7 +123,7 @@ namespace StatEffect {
     {
       auto task = builder.createTask();
       task.setName("advance curve time");
-      auto query = task.queryAlias(alias.curveIn, alias.curveDef.read());
+      auto query = task.queryAlias(table, alias.curveIn, alias.curveDef.read());
       const float* dt = TableAdapters::getDeltaTime(task);
       if(!query.size()) {
         task.discard();

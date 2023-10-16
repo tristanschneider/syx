@@ -18,7 +18,7 @@ namespace DebugDrawer {
   }
 
   void drawLine(DebugLineAdapter& debug, const glm::vec2& a, const glm::vec2& b, const glm::vec3& color) {
-    setLine(debug, debug.modifier.addElements(2), a, b, color);
+    setLine(debug, debug.modifier->addElements(2), a, b, color);
   }
 
   void drawDirectedLine(DebugLineAdapter& debug, const glm::vec2& a, const glm::vec2& b, const glm::vec3& color) {
@@ -31,7 +31,7 @@ namespace DebugDrawer {
       return;
     }
 
-    const size_t p = debug.modifier.addElements(6);
+    const size_t p = debug.modifier->addElements(6);
     constexpr float tipSize = 0.25f;
     const glm::vec2 scaledDir = dir * (tipSize/length);
     const glm::vec2 lineEnd = point + dir;
@@ -43,7 +43,7 @@ namespace DebugDrawer {
   }
 
   void drawPoint(DebugLineAdapter& debug, const glm::vec2& p, float size, const glm::vec3& color) {
-    const size_t index = debug.modifier.addElements(4);
+    const size_t index = debug.modifier->addElements(4);
     const glm::vec2 x{ size, 0.0f };
     const glm::vec2 y{ 0.0f, size };
     setLine(debug, index, p - x, p + x, color);

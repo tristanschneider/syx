@@ -97,4 +97,20 @@ namespace GameScheduler {
 
     return TaskBuilder::buildDependencies(result);
   }
+
+  std::vector<SyncWorkItem> buildSync(std::shared_ptr<AppTaskNode> root) {
+    std::deque<std::shared_ptr<AppTaskNode>> todo;
+    std::vector<SyncWorkItem> result;
+    todo.push_back(root);
+    while(!todo.empty()) {
+      auto current = todo.front();
+      todo.pop_front();
+      result.push_back({ [current] {
+        AppTaskArgs args;
+        current->task.callback(args);
+      }});
+      todo.insert(todo.end(), current->children.begin(), current->children.end());
+    }
+    return result;
+  }
 };

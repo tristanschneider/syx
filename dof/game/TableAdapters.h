@@ -230,6 +230,7 @@ struct SpatialQueryAdapter {
 };
 
 namespace TableAdapters {
+  const Config::PhysicsConfig* getPhysicsConfig(RuntimeDatabaseTaskBuilder& task);
   const Config::GameConfig* getGameConfig(RuntimeDatabaseTaskBuilder& task);
   Config::GameConfig* getGameConfigMutable(RuntimeDatabaseTaskBuilder& task);
 
