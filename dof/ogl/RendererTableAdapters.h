@@ -4,6 +4,7 @@
 #include "glm/vec4.hpp"
 
 struct RendererDB;
+class RuntimeDatabaseTaskBuilder;
 
 struct QuadPassAdapter {
   Row<float>* posX{};

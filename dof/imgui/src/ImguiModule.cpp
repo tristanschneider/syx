@@ -46,7 +46,7 @@ using ImguiDB = Database<
   >
 >;
 
-namespace ImGuiModule {
+namespace ImguiModule {
   const char* vsSrc =
       "#version 330\n"
       "uniform mat4 ProjMtx;\n"

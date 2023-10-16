@@ -57,25 +57,7 @@ namespace SweepNPruneBroadphase {
     float mPadding = 0.0f;
   };
 
-  //Update boundaries for existing elements
-  //Implies unit cube configured with BoundariesConfig
-  //struct BoundariesQuery {
-  //  const Row<float>* posX{};
-  //  const Row<float>* posY{};
-  //  const BroadphaseKeys* keys{};
-  //};
-  ////Directly copies the given bounds
-  //struct RawBoundariesQuery {
-  //  const Row<float>* minX{};
-  //  const Row<float>* minY{};
-  //  const Row<float>* maxX{};
-  //  const Row<float>* maxY{};
-  //  const BroadphaseKeys* keys{};
-  //};
-  void updateBroadphase(IAppBuilder& builder, const BoundariesConfig& cfg);
-
-  //TaskRange updateBoundaries(Broadphase::SweepGrid::Grid& grid, std::vector<BoundariesQuery> query, const BoundariesConfig& cfg);
-  //TaskRange updateBoundaries(Broadphase::SweepGrid::Grid& grid, std::vector<RawBoundariesQuery> query);
+  void updateBroadphase(IAppBuilder& builder, const BoundariesConfig& cfg, const PhysicsAliases& aliases);
 
   //Before table service
   //New elements are added to the broadphase if they have a broadphase key row

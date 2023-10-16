@@ -17,7 +17,7 @@ public:
   virtual size_t addElements(size_t count) = 0;
   virtual void resize(size_t count) = 0;
   //Resize to count and use provided IDs for new elements created. Only has meaning in stable tables
-  virtual void resizeWithIDs(size_t count, const StableElementID* reservedIDs);
+  virtual void resizeWithIDs(size_t count, const StableElementID* reservedIDs) = 0;
   virtual void swapRemove(const UnpackedDatabaseElementID& id) = 0;
   //Insert this many before location
   virtual void insert(const UnpackedDatabaseElementID& location, size_t count) = 0;
@@ -35,7 +35,7 @@ public :
   virtual UnpackedDatabaseElementID uncheckedUnpack(const StableElementID& id) const = 0;
   virtual std::optional<StableElementID> tryResolveStableID(const StableElementID& id) const = 0;
   virtual std::optional<ResolvedIDs> tryResolveAndUnpack(const StableElementID& id) const = 0;
-  virtual StableElementID createKey();
+  virtual StableElementID createKey() = 0;
 };
 
 class IAnyTableModifier {

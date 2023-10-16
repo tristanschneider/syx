@@ -286,7 +286,7 @@ private:
 };
 
 struct IDatabase {
-  virtual ~IDatabase();
+  virtual ~IDatabase() = default;
   virtual RuntimeDatabase& getRuntime() = 0;
 };
 
@@ -304,9 +304,8 @@ namespace DBReflect {
   namespace details {
     template<class RowT>
     RuntimeRow createRuntimeRow(RowT& row) {
+      static constexpr bool isStableRow = std::is_same_v<RowT, StableIDRow>;
       struct Funcs {
-        static constexpr bool isStableRow = std::is_same_v<RowT, StableIDRow>;
-
         static void migrateOneElement(void* from, void* to, const UnpackedDatabaseElementID& fromID, [[maybe_unused]] const UnpackedDatabaseElementID& toID, StableElementMappings& mappings) {
           RowT* fromT = static_cast<RowT*>(from);
           RowT* toT = static_cast<RowT*>(to);

@@ -20,8 +20,6 @@ ThreadLocals::ThreadLocals(size_t size)
   data->threads.resize(size);
   for(size_t i = 0; i < size; ++i) {
     auto t = std::make_unique<details::ThreadData>();
-    StatEffect::initGlobals(t->statEffects.db);
-
     data->threads[i] = std::move(t);
   }
 }

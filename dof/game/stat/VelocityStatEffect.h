@@ -11,7 +11,7 @@ namespace VelocityStatEffect {
 
   struct CommandRow : Row<VelocityCommand> {};
 
-  void processState(IAppBuilder& builder);
+  void processStat(IAppBuilder& builder);
 };
 
 struct VelocityStatEffectTable : StatEffectBase<

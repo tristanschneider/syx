@@ -20,7 +20,7 @@ QuadPassAdapter RendererTableAdapters::getQuadPass(QuadPassTable::Type& table) {
   };
 }
 
-RendererGlobalsAdapter getGlobals(RuntimeDatabaseTaskBuilder& task) {
+RendererGlobalsAdapter RendererTableAdapters::getGlobals(RuntimeDatabaseTaskBuilder& task) {
   auto q = task.query<Row<OGLState>, Row<WindowData>>();
   return {
     q.tryGetSingletonElement<0>(),

@@ -33,9 +33,9 @@ namespace FragmentStateMachine {
   };
 
   struct EmptyStateTraits {
-    static void onEnter(IAppBuilder& builder, const UnpackedDatabaseElementID& table, size_t bucket);
-    static void onUpdate(IAppBuilder& builder, const UnpackedDatabaseElementID& table, size_t bucket);
-    static void onExit(IAppBuilder& builder, const UnpackedDatabaseElementID& table, size_t bucket);
+    static void onEnter([[maybe_unused]] IAppBuilder& builder, [[maybe_unused]] const UnpackedDatabaseElementID& table, [[maybe_unused]] size_t bucket) {}
+    static void onUpdate([[maybe_unused]] IAppBuilder& builder, [[maybe_unused]] const UnpackedDatabaseElementID& table, [[maybe_unused]] size_t bucket) {}
+    static void onExit([[maybe_unused]] IAppBuilder& builder, [[maybe_unused]] const UnpackedDatabaseElementID& table, [[maybe_unused]] size_t bucket) {}
   };
 
   template<class T>

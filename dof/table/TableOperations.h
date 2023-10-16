@@ -142,7 +142,7 @@ struct TableOperations {
         if constexpr(std::is_same_v<RowT, StableIDRow>) {
           StableOperations::swap(row, location.remake(location.getTableIndex(), src), location.remake(location.getTableIndex(), dst), mappings);
         }
-        else {
+        else if constexpr(std::is_move_assignable_v<typename RowT::ElementT>) {
           row.at(dst) = std::move(row.at(src));
         }
       }
@@ -158,12 +158,15 @@ struct TableOperations {
     const size_t toSwap = oldSize - std::min(oldSize, location.getElementIndex());
     //Shift all elements after the range into the newly created space
     table.visitOne([&](auto& row) {
-      for(size_t i = 0; i < toSwap; ++i) {
-        //From right to left, take the elements from their old end and shift them up by count
-        const size_t src = oldSize - i - 1;
-        const size_t dst = src + count;
-        using RowT = std::decay_t<decltype(row)>;
-        row.at(dst) = std::move(row.at(src));
+      using RowT = std::decay_t<decltype(row)>;
+      if constexpr(std::is_move_assignable_v<typename RowT::ElementT>) {
+        for(size_t i = 0; i < toSwap; ++i) {
+          //From right to left, take the elements from their old end and shift them up by count
+          const size_t src = oldSize - i - 1;
+          const size_t dst = src + count;
+          using RowT = std::decay_t<decltype(row)>;
+          row.at(dst) = std::move(row.at(src));
+        }
       }
     });
   }
@@ -341,12 +344,12 @@ struct StableTableModifier {
         return TableOperations::size(*static_cast<const TableT*>(table));
       }
 
-      static void swapRemove(void* table const UnpackedDatabaseElementID& id, StableElementMappings& mappings) {
+      static void swapRemove(void* table, const UnpackedDatabaseElementID& id, StableElementMappings& mappings) {
         TableOperations::stableSwapRemove(*static_cast<TableT*>(table), id, mappings);
       }
 
       static void insert(void* table, const UnpackedDatabaseElementID& location, size_t count, StableElementMappings& mappings) {
-        TableOperations::stableInsertRangeAt(static_cast<TableT*>(table), location, count, mappings);
+        TableOperations::stableInsertRangeAt(*static_cast<TableT*>(table), location, count, mappings);
       }
     };
 
@@ -381,7 +384,7 @@ struct TableModifier {
       }
 
       static void insert(void* table, const UnpackedDatabaseElementID& location, size_t count) {
-        TableOperations::insertRangeAt(static_cast<TableT*>(table), location, count);
+        TableOperations::insertRangeAt(*static_cast<TableT*>(table), location, count);
       }
     };
 

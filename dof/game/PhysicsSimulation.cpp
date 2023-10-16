@@ -178,7 +178,7 @@ namespace PhysicsSimulation {
 
     SpatialQuery::physicsUpdateBoundaries(builder);
     Physics::applyDampingMultiplier(builder, aliases, config.linearDragMultiplier, config.angularDragMultiplier);
-    SweepNPruneBroadphase::updateBroadphase(builder, _getBoundariesConfig(builder));
+    SweepNPruneBroadphase::updateBroadphase(builder, _getBoundariesConfig(builder), aliases);
     Physics::updateNarrowphase(builder, aliases);
     SpatialQuery::physicsProcessQueries(builder);
     ConstraintsTableBuilder::build(builder, config);

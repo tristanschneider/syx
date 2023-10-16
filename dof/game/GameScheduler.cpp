@@ -72,6 +72,11 @@ namespace GameScheduler {
       task.dst->mTask.mTask = std::make_unique<PinnedTaskAdapter>(std::move(task.src->task), tls);
     }
 
+    void operator()(AppTaskPinning::Synchronous) {
+      //Synchronous behavior is addressed by GmaeBuilder.cpp
+      task.dst->mTask.mTask = std::make_unique<TaskAdapter>(std::move(task.src->task), tls);
+    }
+
     ConversionTask& task;
     ThreadLocals& tls;
   };

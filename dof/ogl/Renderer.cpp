@@ -330,11 +330,10 @@ struct RenderDB : IDatabase {
 
   RendererDatabase main;
   std::vector<QuadPassTable::Type> quadPasses;
-  StableElementMappings mappings;
   RuntimeDatabase runtime;
 };
 
-std::unique_ptr<IDatabase> createDatabase(RuntimeDatabaseTaskBuilder&& builder, StableElementMappings& mappings) {
+std::unique_ptr<IDatabase> Renderer::createDatabase(RuntimeDatabaseTaskBuilder&& builder, StableElementMappings& mappings) {
   auto sprites = builder.query<const Row<CubeSprite>>();
   const size_t quadPassCount = sprites.matchingTableIDs.size();
   //Create the database with the required number of quad pass tables
@@ -552,7 +551,7 @@ void Renderer::clearRenderRequests(IAppBuilder& builder) {
   builder.submitTask(std::move(task));
 }
 
-void processRequests(IAppBuilder& builder) {
+void Renderer::processRequests(IAppBuilder& builder) {
   auto task = builder.createTask();
   task.setName("Process Render Requests");
   auto requests = task.query<Row<TextureLoadRequest>>();

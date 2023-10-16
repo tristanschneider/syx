@@ -135,7 +135,7 @@ namespace StatEffect {
     PositionStatEffect::processStat(builder);
     FollowTargetByPositionStatEffect::processStat(builder);
     DamageStatEffect::processStat(builder);
-    VelocityStatEffect::processState(builder);
+    VelocityStatEffect::processStat(builder);
     AreaForceStatEffect::processStat(builder);
     FollowTargetByVelocityStatEffect::processStat(builder);
     LambdaStatEffect::processStat(builder);

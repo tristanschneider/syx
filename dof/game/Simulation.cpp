@@ -190,7 +190,7 @@ const char* Simulation::getConfigName() {
   return "config.json";
 }
 
-void initScheduler(IAppBuilder& builder) {
+void Simulation::initScheduler(IAppBuilder& builder) {
   auto task = builder.createTask();
   task.setName("init scheduler");
   Scheduler* scheduler = task.query<SharedRow<Scheduler>>().tryGetSingletonElement();
@@ -202,7 +202,7 @@ void initScheduler(IAppBuilder& builder) {
   builder.submitTask(std::move(task));
 }
 
-void init(IAppBuilder& builder) {
+void Simulation::init(IAppBuilder& builder) {
   auto setDefaultValue = [](auto query, auto value) {
     return [query, value](AppTaskArgs&) mutable {
       query.forEachRow([value](auto& row, auto&...) { row.mDefaultValue = value; });

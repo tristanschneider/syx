@@ -8,7 +8,7 @@
 
 DebugLineAdapter::~DebugLineAdapter() = default;
 
-const Config::PhysicsConfig* getPhysicsConfig(RuntimeDatabaseTaskBuilder& task) {
+const Config::PhysicsConfig* TableAdapters::getPhysicsConfig(RuntimeDatabaseTaskBuilder& task) {
   return task.query<const SharedRow<Config::PhysicsConfig>>().tryGetSingletonElement();
 }
 
@@ -16,7 +16,7 @@ const Config::GameConfig* TableAdapters::getGameConfig(RuntimeDatabaseTaskBuilde
   return task.query<const SharedRow<Config::GameConfig>>().tryGetSingletonElement();
 }
 
-Config::GameConfig* getGameConfigMutable(RuntimeDatabaseTaskBuilder& task) {
+Config::GameConfig* TableAdapters::getGameConfigMutable(RuntimeDatabaseTaskBuilder& task) {
   return task.query<SharedRow<Config::GameConfig>>().tryGetSingletonElement();
 }
 
@@ -37,7 +37,7 @@ ThreadLocals& TableAdapters::getThreadLocals(GameDB db) {
   return *std::get<ThreadLocalsRow>(std::get<GlobalGameData>(db.db.mTables).mRows).at().instance;
 }
 
-ThreadLocals& getThreadLocals(RuntimeDatabaseTaskBuilder& task) {
+ThreadLocals& TableAdapters::getThreadLocals(RuntimeDatabaseTaskBuilder& task) {
   ThreadLocals& tls = *task.query<ThreadLocalsRow>().tryGetSingletonElement()->instance;
   task.setPinning(AppTaskPinning::Synchronous{});
   return tls;
@@ -405,7 +405,7 @@ CentralStatEffectAdapter TableAdapters::getCentralStatEffects(GameDB db) {
 }
 
 size_t TableAdapters::addStatEffectsSharedLifetime(StatEffectBaseAdapter& base, size_t lifetime, const size_t* stableIds, size_t count) {
-  const size_t firstIndex = base.modifier.addElements(count);
+  const size_t firstIndex = base.modifier.addElements(count, nullptr);
   for(size_t i = 0; i < count; ++i) {
     base.lifetime->at(i + firstIndex) = lifetime;
     base.owner->at(i + firstIndex) = stableIds ? StableElementID::fromStableID(stableIds[i]) : StableElementID::invalid();
