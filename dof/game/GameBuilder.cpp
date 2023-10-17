@@ -37,7 +37,7 @@ namespace GameBuilder {
 
     void operator()(std::shared_ptr<AppTaskNode>& node) {
       //Avoid duplicates. Since nodes are all added at once duplicates would be at the back
-      if(node->children.empty() || node->children.back() != toAdd) {
+      if(node && (node->children.empty() || node->children.back() != toAdd)) {
         node->children.push_back(toAdd);
       }
     }
@@ -106,6 +106,7 @@ namespace GameBuilder {
     void submitTask(AppTaskWithMetadata&& task) override {
       auto node = std::make_shared<AppTaskNode>();
       node->task = std::move(task.task);
+      node->name = task.data.name;
 
       if(std::get_if<AppTaskPinning::Synchronous>(&node->task.pinning)) {
         for(TableDependencies& table : dependencies) {

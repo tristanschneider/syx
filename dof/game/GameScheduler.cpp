@@ -32,12 +32,14 @@ namespace GameScheduler {
     }
 
     void ExecuteRange(enki::TaskSetPartition range, uint32_t thread) override {
+      if(!task.callback) {
+        return;
+      }
       AppTaskArgs args;
       args.begin = range.start;
       args.end = range.end;
       ThreadLocalData data = tls.get(thread);
       args.threadLocal = &data;
-
       task.callback(args);
     }
 
@@ -55,8 +57,9 @@ namespace GameScheduler {
     void Execute() override {
       //TODO: should these still have access to some form of thread local data?
       AppTaskArgs args;
-
-      task.callback(args);
+      if(task.callback) {
+        task.callback(args);
+      }
     }
 
     AppTask task;
@@ -65,15 +68,18 @@ namespace GameScheduler {
 
   struct PopulateTask {
     void operator()(AppTaskPinning::None) {
+      task.dst->name = task.src->name;
       task.dst->mTask.mTask = std::make_unique<TaskAdapter>(std::move(task.src->task), tls);
     }
 
     void operator()(AppTaskPinning::MainThread) {
+      task.dst->name = task.src->name;
       task.dst->mTask.mTask = std::make_unique<PinnedTaskAdapter>(std::move(task.src->task), tls);
     }
 
     void operator()(AppTaskPinning::Synchronous) {
       //Synchronous behavior is addressed by GmaeBuilder.cpp
+      task.dst->name = task.src->name;
       task.dst->mTask.mTask = std::make_unique<TaskAdapter>(std::move(task.src->task), tls);
     }
 
@@ -83,6 +89,7 @@ namespace GameScheduler {
 
   TaskRange buildTasks(std::shared_ptr<AppTaskNode> root, ThreadLocals& tls) {
     std::deque<ConversionTask> todo;
+    std::unordered_map<AppTaskNode*, std::shared_ptr<TaskNode>> visited;
     auto result = std::make_shared<TaskNode>();
     todo.push_back({ root.get(), result.get() });
     while(!todo.empty()) {
@@ -95,8 +102,15 @@ namespace GameScheduler {
       //Create empty children and add them to the todo list
       current.dst->mChildren.resize(current.src->children.size());
       for(size_t i = 0; i < current.src->children.size(); ++i) {
-        current.dst->mChildren[i] = std::make_shared<TaskNode>();
-        todo.push_back({ current.src->children[i].get(), current.dst->mChildren[i].get() });
+        AppTaskNode* child = current.src->children[i].get();
+        if(auto found = visited.find(child); found != visited.end()) {
+          current.dst->mChildren[i] = found->second;
+        }
+        else {
+          current.dst->mChildren[i] = std::make_shared<TaskNode>();
+          visited[child] = current.dst->mChildren[i];
+          todo.push_back({ current.src->children[i].get(), current.dst->mChildren[i].get() });
+        }
       }
     }
 
@@ -112,7 +126,9 @@ namespace GameScheduler {
       todo.pop_front();
       result.push_back({ [current] {
         AppTaskArgs args;
-        current->task.callback(args);
+        if(current->task.callback) {
+          current->task.callback(args);
+        }
       }});
       todo.insert(todo.end(), current->children.begin(), current->children.end());
     }

@@ -39,6 +39,8 @@ namespace Player {
       stopping.params.flipInput = true;
       stopping.function = CurveMath::getFunction(CurveMath::CurveType::QuadraticEaseIn);
     });
+
+    builder.submitTask(std::move(task));
   }
 
   void setupScene(IAppBuilder& builder) {

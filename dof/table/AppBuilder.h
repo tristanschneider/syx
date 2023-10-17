@@ -133,6 +133,7 @@ struct AppTask {
 
 struct AppTaskNode {
   AppTask task;
+  std::string_view name;
   std::vector<std::shared_ptr<AppTaskNode>> children;
 };
 

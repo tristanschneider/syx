@@ -63,6 +63,7 @@ struct TaskNode {
     return result;
   }
 
+  std::string_view name;
   OwnedTask mTask;
   std::vector<std::shared_ptr<TaskNode>> mChildren;
   std::vector<std::unique_ptr<enki::Dependency>> mDependencies;

@@ -332,20 +332,6 @@ using GameDatabase = Database<
 //For allowing forward declarations where GameDatabase is desired
 struct GameDB { GameDatabase& db; };
 
-struct SimulationPhases {
-  //Root, no dependencies
-  TaskRange root;
-  //Process and delete render requets
-  TaskRange renderRequests;
-  //Graphics reads from sprites
-  TaskRange renderExtraction;
-  TaskRange simulation;
-  //Do the rendering. Does not require access to GameDB
-  TaskRange render;
-  TaskRange imgui;
-  TaskRange swapBuffers;
-};
-
 namespace Simulation {
   void initScheduler(IAppBuilder& builder);
   void init(IAppBuilder& builder);

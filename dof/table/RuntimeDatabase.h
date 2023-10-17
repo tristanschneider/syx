@@ -166,8 +166,14 @@ struct QueryResult {
   auto* tryGetSingletonElement() {
     decltype(&get<TupleIndex>().at(0)->at(0)) result = nullptr;
     if(auto& foundRows = get<TupleIndex>(); foundRows.size()) {
-      if(auto* foundRow = foundRows.at(0); foundRow->size()) {
-        result = &foundRow->at(0);
+      //Hack to make this still return something on a shared row if the size is zero
+      if constexpr(IsSharedRowT<std::decay_t<decltype(get<TupleIndex>(0))>>::value) {
+        result = &foundRows.at(0)->at();
+      }
+      else {
+        if(auto* foundRow = foundRows.at(0); foundRow->size()) {
+          result = &foundRow->at(0);
+        }
       }
     }
     return result;

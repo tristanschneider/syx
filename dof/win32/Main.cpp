@@ -41,12 +41,18 @@ namespace {
 }
 
 void setWindowSize(int width, int height) {
+  if(!(APP && APP->window && APP->window->size())) {
+    return;
+  }
   WindowData& data = APP->window->at(0);
   data.mWidth = width;
   data.mHeight = height;
 }
 
 void onFocusChanged(WPARAM w) {
+  if(!(APP && APP->window && APP->window->size())) {
+    return;
+  }
   WindowData& data = APP->window->at(0);
   if(LOWORD(w) == TRUE) {
     data.mFocused = true;
@@ -321,7 +327,7 @@ void sleepNS(int ns) {
   }
 }
 
-int mainLoop(const char* args) {
+int mainLoop(const char* args, HWND window) {
   BOOL gotMessage;
   MSG msg = { 0 };
   bool exit = false;
@@ -351,7 +357,10 @@ int mainLoop(const char* args) {
 
   //The rest of the init can be scheduled asynchronously but still can't be done in parallel with creating the other tasks
   std::unique_ptr<IAppBuilder> initBuilder = GameBuilder::create(*APP->combined);
-  Simulation::init(*initBuilder);
+
+  Renderer::init(*initBuilder, window);
+
+  //Simulation::init(*initBuilder);
   TaskRange initTasks = GameScheduler::buildTasks(IAppBuilder::finalize(std::move(initBuilder)), *tls->instance);
 
   initTasks.mBegin->mTask.addToPipe(scheduler->mScheduler);
@@ -436,10 +445,14 @@ std::unique_ptr<IDatabase> createDatabase() {
   auto mappings = std::make_unique<StableElementMappings>();
   std::unique_ptr<IDatabase> game = GameData::create(*mappings);
   std::unique_ptr<IAppBuilder> tempBuilder = GameBuilder::create(*game);
-  std::unique_ptr<IDatabase> renderer = Renderer::createDatabase(tempBuilder->createTask(), *mappings);
+  auto tempA = tempBuilder->createTask();
+  tempA.discard();
+  auto tempB = tempBuilder->createTask();
+  tempB.discard();
+  std::unique_ptr<IDatabase> renderer = Renderer::createDatabase(std::move(tempA), *mappings);
   std::unique_ptr<IDatabase> result = DBReflect::merge(std::move(game), std::move(renderer));
 #ifdef IMGUI_ENABLED
-  result = DBReflect::merge(std::move(result), ImguiModule::createDatabase(tempBuilder->createTask(), *mappings));
+  result = DBReflect::merge(std::move(result), ImguiModule::createDatabase(std::move(tempB), *mappings));
 #endif
   result = DBReflect::bundle(std::move(result), std::move(mappings));
   return result;
@@ -472,9 +485,7 @@ int WINAPI WinMain(HINSTANCE hinstance, HINSTANCE, LPSTR lpCmdLine, int nCmdShow
   UpdateWindow(wnd);
 
   enableRawMouseInput();
-  Renderer::initDeviceContext(wnd, app.builder->createTask());
-  Renderer::initGame(app.builder->createTask());
-  int exitCode = mainLoop(lpCmdLine);
+  int exitCode = mainLoop(lpCmdLine, wnd);
 
   APP = nullptr;
 
