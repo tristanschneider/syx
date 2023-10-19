@@ -446,9 +446,10 @@ void _renderDebug(IAppBuilder& builder) {
 
 void Renderer::extractRenderables(IAppBuilder& builder) {
   auto temp = builder.createTask();
+  temp.discard();
   auto sharedTextureSprites = temp.query<const Row<CubeSprite>, const SharedRow<TextureReference>>();
   auto globals = temp.query<Row<OGLState>>();
-  auto passes = temp.query<Row<QuadPassTable::Pass>>();
+  auto passes = temp.query<QuadPassTable::Pass>();
   assert(sharedTextureSprites.size() == passes.size());
 
   //Quads

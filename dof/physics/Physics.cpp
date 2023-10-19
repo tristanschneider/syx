@@ -17,6 +17,10 @@ namespace Physics {
     return result.size() ? &result.get<0>(0) : nullptr;
   }
 
+  float* toUniform(Row<float>* row) {
+    return row ? row->data() : nullptr;
+  }
+
   struct UniformContactConstraintPairDataRows {
     Row<float>* linearAxisX;
     Row<float>* linearAxisY;
@@ -48,32 +52,32 @@ namespace Physics {
 
   ispc::UniformContactConstraintPairData _unwrapUniformConstraintData(UniformContactConstraintPairDataRows& rows) {
     return {
-      rows.linearAxisX->data(),
-      rows.linearAxisY->data(),
-      rows.angularAxisOneA->data(),
-      rows.angularAxisOneB->data(),
-      rows.angularAxisTwoA->data(),
-      rows.angularAxisTwoB->data(),
-      rows.angularFrictionAxisOneA->data(),
-      rows.angularFrictionAxisOneB->data(),
-      rows.angularFrictionAxisTwoA->data(),
-      rows.angularFrictionAxisTwoB->data(),
-      rows.constraintMassOne->data(),
-      rows.constraintMassTwo->data(),
-      rows.frictionConstraintMassOne->data(),
-      rows.frictionConstraintMassTwo->data(),
-      rows.linearImpulseX->data(),
-      rows.linearImpulseY->data(),
-      rows.angularImpulseOneA->data(),
-      rows.angularImpulseOneB->data(),
-      rows.angularImpulseTwoA->data(),
-      rows.angularImpulseTwoB->data(),
-      rows.angularFrictionImpulseOneA->data(),
-      rows.angularFrictionImpulseOneB->data(),
-      rows.angularFrictionImpulseTwoA->data(),
-      rows.angularFrictionImpulseTwoB->data(),
-      rows.biasOne->data(),
-      rows.biasTwo->data()
+      toUniform(rows.linearAxisX),
+      toUniform(rows.linearAxisY),
+      toUniform(rows.angularAxisOneA),
+      toUniform(rows.angularAxisOneB),
+      toUniform(rows.angularAxisTwoA),
+      toUniform(rows.angularAxisTwoB),
+      toUniform(rows.angularFrictionAxisOneA),
+      toUniform(rows.angularFrictionAxisOneB),
+      toUniform(rows.angularFrictionAxisTwoA),
+      toUniform(rows.angularFrictionAxisTwoB),
+      toUniform(rows.constraintMassOne),
+      toUniform(rows.constraintMassTwo),
+      toUniform(rows.frictionConstraintMassOne),
+      toUniform(rows.frictionConstraintMassTwo),
+      toUniform(rows.linearImpulseX),
+      toUniform(rows.linearImpulseY),
+      toUniform(rows.angularImpulseOneA),
+      toUniform(rows.angularImpulseOneB),
+      toUniform(rows.angularImpulseTwoA),
+      toUniform(rows.angularImpulseTwoB),
+      toUniform(rows.angularFrictionImpulseOneA),
+      toUniform(rows.angularFrictionImpulseOneB),
+      toUniform(rows.angularFrictionImpulseTwoA),
+      toUniform(rows.angularFrictionImpulseTwoB),
+      toUniform(rows.biasOne),
+      toUniform(rows.biasTwo)
     };
   }
 

@@ -12,7 +12,7 @@
 void PhysicsModule::update(IAppBuilder& builder) {
   auto task = builder.createTask();
   task.setName("Imgui Physics").setPinning(AppTaskPinning::MainThread{});
-  Config::PhysicsConfig* config = task.query<SharedRow<Config::PhysicsConfig>>().tryGetSingletonElement();
+  Config::PhysicsConfig* config = TableAdapters::getPhysicsConfigMutable(task);
   const bool* enabled = ImguiModule::queryIsEnabled(task);
   assert(config);
   task.setCallback([config, enabled](AppTaskArgs&) mutable {
@@ -36,4 +36,5 @@ void PhysicsModule::update(IAppBuilder& builder) {
     ImGui::Checkbox("Draw Broadphase", &config->broadphase.draw);
     ImGui::End();
   });
+  builder.submitTask(std::move(task));
 }

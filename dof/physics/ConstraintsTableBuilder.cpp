@@ -591,7 +591,7 @@ namespace ConstraintsTableBuilder {
   }
 
   void fillStaticContactConstraintNarrowphaseData(IAppBuilder& builder) {
-    const UnpackedDatabaseElementID destinationTable = builder.queryTables<ContactConstraintsToStaticObjectsTable>().matchingTableIDs[0];
+    const UnpackedDatabaseElementID destinationTable = builder.queryTables<ZeroMassConstraintsTableTag>().matchingTableIDs[0];
 
     std::shared_ptr<std::vector<std::shared_ptr<AppTaskConfig>>> cc = std::make_shared<std::vector<std::shared_ptr<AppTaskConfig>>>();
     auto sharedBegin = std::make_shared<ctbdetails::WorkOffset>();

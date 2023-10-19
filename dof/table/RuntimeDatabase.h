@@ -15,6 +15,8 @@ struct QueryAliasBase {
 template<class ResultT>
 struct QueryAlias : QueryAliasBase {
   using RowT = ResultT;
+  static_assert(isRow<RowT>(), "Should only be used for rows");
+  static_assert(!isNestedRow<RowT>(), "Nested row is likely unintentional");
 
   template<class SourceT>
   static QueryAlias create() {
@@ -90,15 +92,19 @@ struct RuntimeTable {
 template<class RowT>
 using QueryResultRow = std::vector<RowT*>;
 
+template<class T> struct TestT : std::true_type {};
+
 template<class... Rows>
 struct QueryResult {
+  static_assert((isRow<Rows>() && ...), "Should only be used for rows");
+  static_assert((!isNestedRow<Rows>() && ...), "Nested row is likely unintentional");
   using TupleT = std::tuple<QueryResultRow<Rows>...>;
   using IndicesT = std::index_sequence_for<Rows...>;
 
   template<class CB>
   void forEachElement(const CB& cb) {
     for(size_t i = 0; i < matchingTableIDs.size(); ++i) {
-      for(size_t e = 0; e < std::get<0>(rows).size(); ++e) {
+      for(size_t e = 0; e < std::get<0>(rows).at(i)->size(); ++e) {
         if constexpr(std::is_invocable_v<CB, typename Rows::ElementT&...>) {
           cb(std::get<std::vector<Rows*>>(rows).at(i)->at(e)...);
         }

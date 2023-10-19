@@ -202,6 +202,7 @@ void resetInput(IAppBuilder& builder) {
       input.mRawText.clear();
     });
   });
+  builder.submitTask(std::move(task));
 }
 
 void doKey(WPARAM w, LPARAM l) {
@@ -360,7 +361,7 @@ int mainLoop(const char* args, HWND window) {
 
   Renderer::init(*initBuilder, window);
 
-  //Simulation::init(*initBuilder);
+  Simulation::init(*initBuilder);
   TaskRange initTasks = GameScheduler::buildTasks(IAppBuilder::finalize(std::move(initBuilder)), *tls->instance);
 
   initTasks.mBegin->mTask.addToPipe(scheduler->mScheduler);

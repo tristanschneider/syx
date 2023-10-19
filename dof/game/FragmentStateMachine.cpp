@@ -360,6 +360,8 @@ namespace FragmentStateMachine {
       }
     });
 
+    builder.submitTask(std::move(task));
+
     //Process the exits potentially enqueued above
     FragmentStateMachineT sm;
     exitStates(builder, sm, sm.INDICES);

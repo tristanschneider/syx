@@ -139,9 +139,33 @@ struct SharedRow {
 
 template<class T, class Enabled = void>
 struct IsSharedRowT : std::false_type {};
-
 template<class T>
 struct IsSharedRowT<T, std::enable_if_t<std::is_same_v<std::true_type, typename T::IsSharedRow>>> : std::true_type {};
+
+template<class T, class Enabled = void>
+struct IsBasicRowT : std::false_type {};
+template<class T>
+struct IsBasicRowT<T, std::enable_if_t<std::is_same_v<std::true_type, typename T::IsBasicRow>>> : std::true_type {};
+
+template<class T>
+constexpr bool isRow() {
+  return IsSharedRowT<T>::value || IsBasicRowT<T>::value;
+}
+
+template<class T>
+constexpr bool isNestedRow() {
+  if constexpr(isRow<T>()) {
+    return isRow<typename T::ElementT>();
+  }
+  else {
+    return false;
+  }
+}
+
+template<class T>
+using IsRowT = std::disjunction<IsSharedRowT<T>, IsBasicRowT<T>>;
+template<class T>
+constexpr static bool IsRowV = IsRowT<T>::value;
 
 template<class T>
 using Row = BasicRow<T>;

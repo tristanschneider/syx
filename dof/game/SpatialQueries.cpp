@@ -422,7 +422,7 @@ namespace SpatialQuery {
     auto task = builder.createTask();
     task.setName("SQ lifetimes");
     Globals* globals = task.query<Gameplay<GlobalsRow>>(table).tryGetSingletonElement();
-    auto lifetimes = task.query<LifetimeRow, const StableIDRow>(table);
+    auto lifetimes = task.query<Gameplay<LifetimeRow>, const StableIDRow>(table);
     assert(globals && lifetimes.size());
     task.setCallback([globals, lifetimes](AppTaskArgs&) mutable {
       for(size_t i = 0; i < lifetimes.get<0>().size(); ++i) {

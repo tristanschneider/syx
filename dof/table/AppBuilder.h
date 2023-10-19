@@ -138,6 +138,18 @@ struct AppTaskNode {
 };
 
 struct TableAccess {
+  auto tie() const {
+    return std::tie(rowType, tableID);
+  }
+  bool operator==(const TableAccess& t) const {
+    return tie() == t.tie();
+  }
+  bool operator<(const TableAccess& t) const {
+    if(rowType == t.rowType) {
+      return tableID < t.tableID;
+    }
+    return rowType < t.rowType;
+  }
   using TypeIDT = DBTypeID;
   TypeIDT rowType;
   UnpackedDatabaseElementID tableID;

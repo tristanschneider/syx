@@ -147,6 +147,10 @@ struct UnpackedDatabaseElementID {
     return mValue == rhs.mValue;
   }
 
+  bool operator<(const UnpackedDatabaseElementID& rhs) const {
+    return mValue < rhs.mValue;
+  }
+
   size_t mValue = dbDetails::INVALID_VALUE;
   size_t mElementIndexBits;
 };

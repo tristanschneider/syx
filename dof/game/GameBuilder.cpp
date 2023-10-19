@@ -103,11 +103,43 @@ namespace GameBuilder {
       return { db.getRuntime() };
     }
 
+    struct TableMatches {
+      bool operator()(const TableAccess& access) const {
+        return access.tableID == id;
+      }
+
+      const UnpackedDatabaseElementID& id;
+    };
+
+    template<class T>
+    static void eraseDuplicates(T& container) {
+      std::sort(container.begin(), container.end());
+      container.erase(std::unique(container.begin(), container.end()), container.end());
+    }
+
+    //Reduce access types to their least restricting forms. So read+write becomes write, write+modify becomes modify
+    static void reduce(AppTaskMetadata& data) {
+      eraseDuplicates(data.tableModifiers);
+
+      for(const UnpackedDatabaseElementID& modifiedTable : data.tableModifiers) {
+        data.writes.erase(std::remove_if(data.writes.begin(), data.writes.end(), TableMatches{ modifiedTable }), data.writes.end());
+        data.reads.erase(std::remove_if(data.reads.begin(), data.reads.end(), TableMatches{ modifiedTable }), data.reads.end());
+      }
+
+      eraseDuplicates(data.writes);
+      for(const TableAccess& writeTable : data.writes) {
+        data.reads.erase(std::remove(data.reads.begin(), data.reads.end(), writeTable), data.reads.end());
+      }
+
+      eraseDuplicates(data.reads);
+    }
+
     void submitTask(AppTaskWithMetadata&& task) override {
       auto node = std::make_shared<AppTaskNode>();
       node->task = std::move(task.task);
       node->name = task.data.name;
 
+      reduce(task.data);
       if(std::get_if<AppTaskPinning::Synchronous>(&node->task.pinning)) {
         for(TableDependencies& table : dependencies) {
           addTableModifier(table, node);

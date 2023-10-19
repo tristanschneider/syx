@@ -12,6 +12,10 @@ const Config::PhysicsConfig* TableAdapters::getPhysicsConfig(RuntimeDatabaseTask
   return &getGameConfig(task)->physics;
 }
 
+Config::PhysicsConfig* TableAdapters::getPhysicsConfigMutable(RuntimeDatabaseTaskBuilder& task) {
+  return &getGameConfigMutable(task)->physics;
+}
+
 const Config::GameConfig* TableAdapters::getGameConfig(RuntimeDatabaseTaskBuilder& task) {
   return task.query<const SharedRow<Config::GameConfig>>().tryGetSingletonElement();
 }
