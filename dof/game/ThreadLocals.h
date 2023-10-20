@@ -19,7 +19,8 @@ namespace details {
 };
 
 struct ThreadLocals {
-  ThreadLocals(size_t size);
+  //TODO: this initialization and abstraction is confusing. ownership should probably be up at the app level rather than in the db
+  ThreadLocals(size_t size, Events::EventsImpl* events);
   ~ThreadLocals();
 
   ThreadLocalData get(size_t thread);

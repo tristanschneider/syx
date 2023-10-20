@@ -24,6 +24,11 @@ namespace GameScheduler {
     }
   }
 
+  struct ThreadLocalArgs {
+    ThreadLocals* tls{};
+
+  };
+
   struct TaskAdapter : enki::ITaskSet {
     TaskAdapter(AppTask&& t, ThreadLocals& tl)
       : task{ std::move(t) }

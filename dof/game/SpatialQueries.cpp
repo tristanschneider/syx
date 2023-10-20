@@ -425,7 +425,7 @@ namespace SpatialQuery {
     auto lifetimes = task.query<Gameplay<LifetimeRow>, const StableIDRow>(table);
     assert(globals && lifetimes.size());
     task.setCallback([globals, lifetimes](AppTaskArgs&) mutable {
-      for(size_t i = 0; i < lifetimes.get<0>().size(); ++i) {
+      for(size_t i = 0; i < lifetimes.get<0>(0).size(); ++i) {
         size_t& lifetime = lifetimes.get<0>(0).at(i);
         if(!lifetime) {
           const StableElementID id = StableElementID::fromStableRow(i, lifetimes.get<1>(0));

@@ -114,12 +114,6 @@ namespace {
   }
 }
 
-ExternalDatabases::ExternalDatabases()
-  : statEffects(std::make_unique<StatEffectDBOwned>()) {
-}
-
-ExternalDatabases::~ExternalDatabases() = default;
-
 ThreadLocalsInstance::ThreadLocalsInstance() = default;
 ThreadLocalsInstance::~ThreadLocalsInstance() = default;
 
@@ -195,9 +189,10 @@ void Simulation::initScheduler(IAppBuilder& builder) {
   task.setName("init scheduler");
   Scheduler* scheduler = task.query<SharedRow<Scheduler>>().tryGetSingletonElement();
   ThreadLocalsInstance* tls = task.query<ThreadLocalsRow>().tryGetSingletonElement();
-  task.setCallback([scheduler, tls](AppTaskArgs&) {
+  Events::EventsInstance* events = task.query<Events::EventsRow>().tryGetSingletonElement();
+  task.setCallback([scheduler, tls, events](AppTaskArgs&) {
     scheduler->mScheduler.Initialize();
-    tls->instance = std::make_unique<ThreadLocals>(scheduler->mScheduler.GetNumTaskThreads());
+    tls->instance = std::make_unique<ThreadLocals>(scheduler->mScheduler.GetNumTaskThreads(), events->impl.get());
   });
   builder.submitTask(std::move(task));
 }

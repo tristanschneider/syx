@@ -90,7 +90,7 @@ namespace GameBuilder {
       : db{ d } {
       std::vector<UnpackedDatabaseElementID> tableids = std::move(db.getRuntime().query().matchingTableIDs);
       dependencies.resize(tableids.size());
-
+      root->name = "root";
       //Add root as synchronous base to everything
       for(size_t i = 0; i < tableids.size(); ++i) {
         auto& table = dependencies[i];
@@ -160,6 +160,7 @@ namespace GameBuilder {
 
     std::shared_ptr<AppTaskNode> finalize()&& override {
       auto finalSync = std::make_shared<AppTaskNode>();
+      finalSync->name = "end";
       for(TableDependencies& table : dependencies) {
         addTableModifier(table, finalSync);
       }

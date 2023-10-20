@@ -51,14 +51,6 @@ ThreadLocalData TableAdapters::getThreadLocal(GameDB db, size_t thread) {
   return getThreadLocals(db).get(thread);
 }
 
-ExternalDatabases& TableAdapters::getExternalDBs(GameDB db) {
-  return std::get<ExternalDatabasesRow>(std::get<GlobalGameData>(db.db.mTables).mRows).at();
-}
-
-StatEffectDBOwned& TableAdapters::getStatEffects(GameDB db) {
-  return *getExternalDBs(db).statEffects;
-}
-
 namespace {
   template<class TableT>
   StatEffectBaseAdapter getStatBase(TableT& table, StatEffectDatabase& db) {
@@ -332,7 +324,6 @@ GlobalsAdapter TableAdapters::getGlobals(GameDB db) {
     &std::get<SharedRow<StableElementMappings>>(table.mRows).at(),
     &std::get<SharedRow<ConstraintsTableMappings>>(table.mRows).at(),
     &std::get<SharedRow<Scheduler>>(table.mRows).at(),
-    &std::get<ExternalDatabasesRow>(table.mRows).at(),
     std::get<ThreadLocalsRow>(table.mRows).at().instance.get()
   };
 }
@@ -394,17 +385,6 @@ SpatialQueryAdapter TableAdapters::getSpatialQueries(GameDB db) {
     &getStableMappings(db),
     &std::get<SpatialQuery::Gameplay<SpatialQuery::NeedsResubmitRow>>(table.mRows),
     &std::get<SpatialQuery::Gameplay<SpatialQuery::LifetimeRow>>(table.mRows)
-  };
-}
-
-CentralStatEffectAdapter TableAdapters::getCentralStatEffects(GameDB db) {
-  auto& stats = getStatEffects(db);
-  return {
-    ::getPositionEffects(stats.db),
-    ::getVelocityEffects(stats.db),
-    ::getLambdaEffects(stats.db),
-    ::getFollowTargetByPositionEffects(stats.db),
-    ::getFollowTargetByVelocityEffects(stats.db)
   };
 }
 

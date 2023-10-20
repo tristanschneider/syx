@@ -7,7 +7,6 @@
 struct AppTaskArgs;
 struct CurveDefinition;
 struct DebugConfig;
-struct ExternalDatabases;
 struct GraphicsConfig;
 struct GameDB;
 struct StableElementMappings;
@@ -179,7 +178,6 @@ struct FileSystem;
 struct StableElementMappings;
 struct ConstraintsTableMappings;
 struct Scheduler;
-struct ExternalDatabases;
 struct ThreadLocals;
 
 struct DebugPoint;
@@ -199,7 +197,6 @@ struct GlobalsAdapter {
   StableElementMappings* stableMappings{};
   ConstraintsTableMappings* constraintsMappings{};
   Scheduler* scheduler{};
-  ExternalDatabases* externalDB{};
   ThreadLocals* threadLocals{};
 };
 
@@ -240,8 +237,6 @@ namespace TableAdapters {
   ThreadLocals& getThreadLocals(GameDB db);
   ThreadLocals& getThreadLocals(RuntimeDatabaseTaskBuilder& task);
   ThreadLocalData getThreadLocal(GameDB db, size_t thread);
-  ExternalDatabases& getExternalDBs(GameDB db);
-  StatEffectDBOwned& getStatEffects(GameDB db);
 
   VelocityStatEffectAdapter getVelocityEffects(AppTaskArgs& args);
   PositionStatEffectAdapter getPositionEffects(AppTaskArgs& args);
@@ -258,7 +253,6 @@ namespace TableAdapters {
   FollowTargetByPositionStatEffectAdapter getFollowTargetByPositionEffects(GameDB db, size_t thread);
   FollowTargetByVelocityStatEffectAdapter getFollowTargetByVelocityEffects(GameDB db, size_t thread);
   DamageStatEffectAdapter getDamageEffects(GameDB db, size_t thread);
-  CentralStatEffectAdapter getCentralStatEffects(GameDB db);
 
   GameObjectAdapter getGameplayObjectInTable(GameDB db, size_t tableIndex);
   GameObjectAdapter getObjectInTable(GameDB db, size_t tableIndex);

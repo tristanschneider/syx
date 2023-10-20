@@ -280,11 +280,11 @@ namespace ImguiModule {
         ImGui::CreateContext();
       }
 
+      updateWindow(context, globals);
+
       if(*context.enabled) {
         ImGui::NewFrame();
       }
-
-      updateWindow(context, globals);
     });
     builder.submitTask(std::move(task));
   }

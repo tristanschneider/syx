@@ -85,16 +85,6 @@ using TextureRequestTable = Table<
   Row<TextureLoadRequest>
 >;
 
-struct StatEffectDBOwned;
-
-struct ExternalDatabases {
-  ExternalDatabases();
-  ~ExternalDatabases();
-
-  std::unique_ptr<StatEffectDBOwned> statEffects;
-};
-struct ExternalDatabasesRow : SharedRow<ExternalDatabases> {};
-
 using GlobalGameData = Table<
   SharedRow<SceneState>,
   SharedRow<PhysicsTableIds>,
@@ -105,8 +95,7 @@ using GlobalGameData = Table<
   SharedRow<Config::GameConfig>,
   Events::EventsRow,
 
-  ThreadLocalsRow,
-  ExternalDatabasesRow
+  ThreadLocalsRow
 >;
 
 struct IsImmobile : TagRow{};

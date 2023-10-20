@@ -45,6 +45,7 @@ struct QueryAlias : QueryAliasBase {
 
   QueryAlias<const ResultT> read() const {
     QueryAlias<const ResultT> result;
+    result.type = type;
     result.cast = constCast;
     result.constCast = constCast;
     result.isConst = true;

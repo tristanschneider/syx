@@ -18,6 +18,7 @@
 #include "TableOperations.h"
 #include "ThreadLocals.h"
 #include "Renderer.h"
+#include "GraphViz.h"
 
 #include "glm/gtx/norm.hpp"
 #include "Profile.h"
@@ -382,8 +383,12 @@ int mainLoop(const char* args, HWND window) {
 #endif
   resetInput(*builder);
   Renderer::swapBuffers(*builder);
-
-  TaskRange appTasks = GameScheduler::buildTasks(IAppBuilder::finalize(std::move(builder)), *tls->instance);
+  std::shared_ptr<AppTaskNode> appTaskNodes = IAppBuilder::finalize(std::move(builder));
+  constexpr bool outputGraph = true;
+  if(outputGraph && appTaskNodes) {
+    GraphViz::writeHere("graph.gv", *appTaskNodes);
+  }
+  TaskRange appTasks = GameScheduler::buildTasks(std::move(appTaskNodes), *tls->instance);
 
   auto lastFrameStart = std::chrono::high_resolution_clock::now();
   while(!exit) {
