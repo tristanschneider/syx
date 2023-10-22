@@ -302,6 +302,8 @@ namespace ImguiModule {
     auto task = builder.createTask();
     task.setName("Imgui Render").setPinning(AppTaskPinning::MainThread{});
     auto q = task.query<ImguiData>();
+    //Don't need to use it but want scheduler to recognize the dependency so this comes before rendering
+    task.query<Row<OGLState>>();
     const bool* enabled = ImguiModule::queryIsEnabled(task);
     task.setCallback([q, enabled](AppTaskArgs&) mutable {
       ImguiImpl* impl = q.tryGetSingletonElement();
@@ -319,7 +321,8 @@ namespace ImguiModule {
   }
 
   const bool* queryIsEnabled(RuntimeDatabaseTaskBuilder& task) {
-    auto q = task.query<const ImguiEnabled>();
+    //Intentionally non-const to force any imgui tasks to run in sequence
+    auto q = task.query<ImguiEnabled>();
     return q.tryGetSingletonElement();
   }
 

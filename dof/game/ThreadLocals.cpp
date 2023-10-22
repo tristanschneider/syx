@@ -6,7 +6,7 @@
 
 namespace details {
   struct ThreadData {
-    StatEffectDBOwned statEffects;
+    StatEffectDatabase statEffects;
   };
 
   struct ThreadLocalsImpl {

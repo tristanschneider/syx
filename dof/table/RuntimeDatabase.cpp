@@ -69,6 +69,9 @@ namespace DBReflect {
       addToArgs(result, *a);
       addToArgs(result, *b);
       result.elementIndexBits = dbDetails::bitsToContain(result.tables.size());
+      StableElementMappings* mappings = &a->getRuntime().getMappings();
+      assert(mappings == &b->getRuntime().getMappings());
+      result.mappings = mappings;
       return result;
     }
 

@@ -7,6 +7,17 @@
 #include "TableAdapters.h"
 #include "ThreadLocals.h"
 
+StatEffectDatabase::StatEffectDatabase() {
+  //Assign unique ids to each stat table. Doesn't matter what they are as long as this behaves the same
+  //across the central and thread local instances of this
+  size_t curTable = 0;
+  visitOne([&curTable](auto& table) {
+    if(StatEffect::Global* global = TableOperations::tryGetRow<StatEffect::Global>(table)) {
+      global->at().ID = curTable++;
+    }
+  });
+}
+
 namespace StatEffect {
   template<class Func>
   void visitStats(StatEffectDatabase& stats, const Func& func) {
@@ -44,29 +55,33 @@ namespace StatEffect {
     RuntimeDatabase& db = task.getDatabase();
     ThreadLocals& tls = TableAdapters::getThreadLocals(task);
     auto centralStatTables = db.query<StatEffect::Global>();
+    for(size_t i = 0; i < centralStatTables.size(); ++i) {
+      assert(centralStatTables.get<0>(i).at().ID == i && "This assumes ascending order, if it's not, a mapping is needed here");
+    }
 
     task.setCallback([&db, &tls, centralStatTables](AppTaskArgs&) mutable {
       for(size_t i = 0; i < tls.getThreadCount(); ++i) {
-        size_t curTable = 0;
-        StatEffectDatabase& threadDB = tls.get(i).statEffects->db;
+        StatEffectDatabase& threadDB = *tls.get(i).statEffects;
         visitStats(threadDB, [&](auto& fromTable) {
+          const size_t srcSize = TableOperations::size(fromTable);
+          if(!srcSize) {
+            return;
+          }
+
           using TableT = std::decay_t<decltype(fromTable)>;
           //The index in the destination where the src elements should begin
           size_t newBegin{};
-          //This is a hack that assumes the iteration order of the db.query will match the visitStats order
+          //This is a hack assuming the tables are the same
           //Ideally both would use RuntimeDatabase and could generically copy all rows
-          const UnpackedDatabaseElementID toTableID = centralStatTables.matchingTableIDs[curTable];
+          const size_t tableAssociation = std::get<StatEffect::Global>(fromTable.mRows).at().ID;
+          assert(tableAssociation < centralStatTables.size());
+          const UnpackedDatabaseElementID toTableID = centralStatTables.matchingTableIDs[tableAssociation];
           RuntimeTable* runtimeToTable = db.tryGet(toTableID);
           assert(runtimeToTable);
           TableT& toTable = *static_cast<TableT*>(runtimeToTable->stableModifier.table);
 
-          const size_t srcSize = TableOperations::size(fromTable);
           const size_t dstSize = TableOperations::size(toTable);
           newBegin = dstSize;
-
-          if(!srcSize) {
-            return;
-          }
 
           runtimeToTable->stableModifier.resize(dstSize + srcSize, nullptr);
 
@@ -80,8 +95,6 @@ namespace StatEffect {
           //Once all rows in the destination have the desired values, clear the source
           StableElementMappings& srcMappings = getGlobals(threadDB).stableMappings;
           TableOperations::stableResizeTable(fromTable, UnpackedDatabaseElementID::fromPacked(StatEffectDatabase::getTableIndex(fromTable)), 0, srcMappings);
-
-          ++curTable;
         });
       }
     });

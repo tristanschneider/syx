@@ -246,14 +246,6 @@ namespace TableAdapters {
   FollowTargetByVelocityStatEffectAdapter getFollowTargetByVelocityEffects(AppTaskArgs& args);
   DamageStatEffectAdapter getDamageEffects(AppTaskArgs& args);
 
-  PositionStatEffectAdapter getPositionEffects(GameDB db, size_t thread);
-  VelocityStatEffectAdapter getVelocityEffects(GameDB db, size_t thread);
-  LambdaStatEffectAdapter getLambdaEffects(GameDB db, size_t thread);
-  AreaForceStatEffectAdapter getAreaForceEffects(GameDB db, size_t thread);
-  FollowTargetByPositionStatEffectAdapter getFollowTargetByPositionEffects(GameDB db, size_t thread);
-  FollowTargetByVelocityStatEffectAdapter getFollowTargetByVelocityEffects(GameDB db, size_t thread);
-  DamageStatEffectAdapter getDamageEffects(GameDB db, size_t thread);
-
   GameObjectAdapter getGameplayObjectInTable(GameDB db, size_t tableIndex);
   GameObjectAdapter getObjectInTable(GameDB db, size_t tableIndex);
   GameObjectAdapter getGameObjects(GameDB db);

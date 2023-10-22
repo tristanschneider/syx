@@ -120,7 +120,7 @@ namespace Player {
     task.setCallback([players, config, debug](AppTaskArgs& args) mutable {
       for(size_t t = 0; t < players.size(); ++t) {
         auto&& [input, linVelX, linVelY, angVel, posX, posY, rotX, rotY, impulseX, impulseY, impulseA] = players.get(t);
-        for(size_t i = 0; input->size(); ++i) {
+        for(size_t i = 0; i < input->size(); ++i) {
           PlayerInput& playerInput = input->at(i);
           glm::vec2 move(playerInput.mMoveX, playerInput.mMoveY);
 

@@ -351,11 +351,21 @@ namespace Renderer {
     task.setCallback([q, modifier, window](AppTaskArgs&) mutable {
       const size_t ctx = 0;
       modifier->resize(1);
-    
+
       OGLState& state = q.get<0>(0).at(ctx);
       WindowData& windowData = q.get<1>(0).at(ctx);
       windowData.mWindow = window;
-    
+      WINDOWINFO windowInfo{ 0 };
+      windowInfo.cbSize = sizeof(WINDOWINFO);
+      if(GetWindowInfo(window, &windowInfo)) {
+        windowData.mHeight = windowInfo.rcClient.bottom - windowInfo.rcClient.top;
+        windowData.mWidth = windowInfo.rcClient.right - windowInfo.rcClient.left;
+        //TODO: set focused or there's probably a bug if the window starts unfocused
+      }
+      else {
+        printf("Falied to initialize window size\n");
+      }
+
       state.mDeviceContext = GetDC(windowData.mWindow);
       _initDevice(state.mDeviceContext, 32, 24, 8, 0);
       state.mGLContext = createGLContext(state.mDeviceContext);

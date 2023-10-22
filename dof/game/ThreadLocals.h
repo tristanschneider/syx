@@ -1,7 +1,7 @@
 #pragma once
 
 struct AppTaskArgs;
-struct StatEffectDBOwned;
+struct StatEffectDatabase;
 
 namespace Events {
   struct EventsImpl;
@@ -10,7 +10,7 @@ namespace Events {
 struct ThreadLocalData {
   static ThreadLocalData& get(AppTaskArgs& args);
 
-  StatEffectDBOwned* statEffects{};
+  StatEffectDatabase* statEffects{};
   Events::EventsImpl* events{};
 };
 

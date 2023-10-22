@@ -16,7 +16,7 @@ namespace AllStatEffects {
   struct GlobalTable : Table<GlobalRow> {};
 }
 
-using StatEffectDatabase = Database<
+struct StatEffectDatabase : Database<
   AllStatEffects::GlobalTable,
   LambdaStatEffectTable,
   PositionStatEffectTable,
@@ -25,26 +25,8 @@ using StatEffectDatabase = Database<
   FollowTargetByPositionStatEffectTable,
   FollowTargetByVelocityStatEffectTable,
   DamageStatEffectTable
->;
-
-// To allow forward declarations
-struct StatEffectDBOwned {
-  StatEffectDatabase db;
-};
-
-struct StatEffectDB {
-  StatEffectDatabase& db;
-};
-
-struct AllStatTasks {
-  //Requires mutable access to position and rotation
-  TaskRange positionSetters;
-  //Requires mutable access to linear and angular velocity
-  TaskRange velocitySetters;
-  //Read position set velocity
-  TaskRange posGetVelSet;
-  //Requires exclusive access to the gameplay portion of the database, can add/remove elements
-  TaskRange synchronous;
+> {
+  StatEffectDatabase();
 };
 
 namespace StatEffect {

@@ -381,7 +381,8 @@ namespace DBReflect {
     const size_t baseIndex = args.tables.size();
     constexpr size_t newTables = db.size();
     args.tables.resize(baseIndex + newTables);
-    args.elementIndexBits = dbDetails::constexprLog2(args.tables.size());
+    constexpr size_t totalBits = sizeof(size_t)*8;
+    args.elementIndexBits = totalBits - dbDetails::constexprLog2(args.tables.size());
     args.mappings = &mappings;
     db.visitOne([&](auto& table) {
       const size_t rawIndex = DB::getTableIndex(table).getTableIndex();
@@ -395,7 +396,8 @@ namespace DBReflect {
     const size_t baseIndex = args.tables.size();
     const size_t newTables = 1;
     args.tables.resize(baseIndex + newTables);
-    args.elementIndexBits = dbDetails::constexprLog2(args.tables.size());
+    constexpr size_t totalBits = sizeof(size_t)*8;
+    args.elementIndexBits = totalBits - dbDetails::constexprLog2(args.tables.size());
     args.mappings = &mappings;
     const auto tableID = UnpackedDatabaseElementID{ 0, args.elementIndexBits }.remake(baseIndex, 0);
     details::reflectTable(tableID, table, args);

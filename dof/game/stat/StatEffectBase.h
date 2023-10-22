@@ -31,6 +31,9 @@ namespace StatEffect {
 
   struct Globals {
     std::vector<StableElementID> toRemove;
+    //This is used to associate a given central table with its thread local counterpart
+    //They are assigned on construction, shouldn't change, and have no meaning other htan equality
+    size_t ID;
   };
 
   //This allows chaining together multiple effects. When an effect completes this will be called
