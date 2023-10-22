@@ -651,6 +651,7 @@ namespace ConstraintsTableBuilder {
   //void resolveObjectHandles(DatabaseT& db, StableElementMappings& mappings, ConstraintCommonTable& common, ConstraintsTableMappings& constraintsMappings, const PhysicsTableIds& tableIds, CollisionPairsTable& pairs, const Config::PhysicsConfig& config) {
   void resolveObjectHandles(IAppBuilder& builder, const PhysicsTableIds& tableIds, const Config::PhysicsConfig& config) {
     auto task = builder.createTask();
+    task.setName("resolve constraint object handles");
     auto commonQuery = task.query<
       const ConstraintData::IsEnabled,
       CollisionPairIndexA,

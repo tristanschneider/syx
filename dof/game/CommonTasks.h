@@ -5,6 +5,17 @@
 #include "Table.h"
 #include "Profile.h"
 
+namespace Str {
+  template<class Src, class Dst>
+  auto moveOrCopy() {
+    return FUNC_NAME;
+  }
+  template<class Src, class Dst>
+  auto copy() {
+    return FUNC_NAME;
+  }
+}
+
 namespace CommonTasks {
   //Namespace for doing an operation "Now" vs returning a task
   namespace Now {
@@ -94,7 +105,7 @@ namespace CommonTasks {
   template<class SrcRow, class DstRow>
   void moveOrCopyRowSameSize(IAppBuilder& builder, const UnpackedDatabaseElementID& srcTable, const UnpackedDatabaseElementID& dstTable) {
     auto task = builder.createTask();
-    task.setName(FUNC_NAME);
+    task.setName(Str::moveOrCopy<SrcRow, DstRow>());
     auto src = task.query<const SrcRow>(srcTable);
     auto dst = task.query<DstRow>(dstTable);
     assert(src.size() && dst.size());
@@ -107,7 +118,7 @@ namespace CommonTasks {
   template<class SrcRow, class DstRow>
   bool tryCopyRowSameSize(IAppBuilder& builder, const UnpackedDatabaseElementID& srcTable, const UnpackedDatabaseElementID& dstTable) {
     auto task = builder.createTask();
-    task.setName(FUNC_NAME);
+    task.setName(Str::copy<SrcRow, DstRow>());
     auto src = task.query<const SrcRow>(srcTable);
     auto dst = task.query<DstRow>(dstTable);
     if(!src.size() || !dst.size()) {

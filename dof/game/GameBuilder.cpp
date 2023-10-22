@@ -137,6 +137,7 @@ namespace GameBuilder {
     void submitTask(AppTaskWithMetadata&& task) override {
       auto node = std::make_shared<AppTaskNode>();
       node->task = std::move(task.task);
+      assert(!task.data.name.empty() && "Name please");
       node->name = task.data.name;
 
       reduce(task.data);

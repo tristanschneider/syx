@@ -529,6 +529,7 @@ void Renderer::extractRenderables(IAppBuilder& builder) {
       if(!state) {
         return;
       }
+      state->mCameras.clear();
       src.forEachElement([state](const Camera& camera, const float& posX, const float& posY) {
         state->mCameras.push_back({ glm::vec2{ posX, posY }, camera });
       });

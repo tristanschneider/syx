@@ -19,6 +19,7 @@ namespace Player {
 
   void init(IAppBuilder& builder) {
     auto task = builder.createTask();
+    task.setName("init player");
     Config::GameConfig* config = TableAdapters::getGameConfigMutable(task);
 
     task.setCallback([config](AppTaskArgs&) {

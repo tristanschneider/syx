@@ -4,6 +4,7 @@
 #include "AppBuilder.h"
 #include "Scheduler.h"
 #include "ThreadLocals.h"
+#include "Profile.h"
 
 namespace GameScheduler {
   constexpr size_t MAIN_THREAD = 0;
@@ -12,6 +13,19 @@ namespace GameScheduler {
     AppTaskNode* src{};
     TaskNode* dst{};
   };
+
+  struct ProfileData {
+    std::string_view name;
+    ProfileToken profileToken;
+  };
+
+  ProfileData createProfileData(std::string_view name) {
+    ProfileData result;
+    result.name = name;
+    assert(name.data());
+    result.profileToken = PROFILE_CREATETOKEN("scheduler", name.data(), (uint32_t)std::rand());
+    return result;
+  }
 
   void setConfigurableTask(enki::ITaskSet& task, AppTask& info) {
     if(info.config) {
@@ -24,14 +38,16 @@ namespace GameScheduler {
     }
   }
 
-  struct ThreadLocalArgs {
-    ThreadLocals* tls{};
-
-  };
+  void executeTask(AppTaskArgs& args, AppTask& task, ProfileData& profile) {
+    PROFILE_ENTER_TOKEN(profile.profileToken);
+    task.callback(args);
+    PROFILE_EXIT_TOKEN(profile.profileToken);
+  }
 
   struct TaskAdapter : enki::ITaskSet {
-    TaskAdapter(AppTask&& t, ThreadLocals& tl)
-      : task{ std::move(t) }
+    TaskAdapter(AppTaskNode& t, ThreadLocals& tl)
+      : task{ std::move(t.task) }
+      , profile{ createProfileData(t.name) }
       , tls{ tl }{
       setConfigurableTask(*this, task);
     }
@@ -45,17 +61,19 @@ namespace GameScheduler {
       args.end = range.end;
       ThreadLocalData data = tls.get(thread);
       args.threadLocal = &data;
-      task.callback(args);
+      executeTask(args, task, profile);
     }
 
     AppTask task;
+    ProfileData profile;
     ThreadLocals& tls;
   };
 
   struct PinnedTaskAdapter : enki::IPinnedTask {
-    PinnedTaskAdapter(AppTask&& t, ThreadLocals& tl)
+    PinnedTaskAdapter(AppTaskNode& t, ThreadLocals& tl)
       : enki::IPinnedTask(MAIN_THREAD)
-      , task{ std::move(t) }
+      , task{ std::move(t.task) }
+      , profile{ createProfileData(t.name) }
       , tls{ tl } {
     }
 
@@ -63,29 +81,30 @@ namespace GameScheduler {
       //TODO: should these still have access to some form of thread local data?
       AppTaskArgs args;
       if(task.callback) {
-        task.callback(args);
+        executeTask(args, task, profile);
       }
     }
 
     AppTask task;
+    ProfileData profile;
     ThreadLocals& tls;
   };
 
   struct PopulateTask {
     void operator()(AppTaskPinning::None) {
       task.dst->name = task.src->name;
-      task.dst->mTask.mTask = std::make_unique<TaskAdapter>(std::move(task.src->task), tls);
+      task.dst->mTask.mTask = std::make_unique<TaskAdapter>(*task.src, tls);
     }
 
     void operator()(AppTaskPinning::MainThread) {
       task.dst->name = task.src->name;
-      task.dst->mTask.mTask = std::make_unique<PinnedTaskAdapter>(std::move(task.src->task), tls);
+      task.dst->mTask.mTask = std::make_unique<PinnedTaskAdapter>(*task.src, tls);
     }
 
     void operator()(AppTaskPinning::Synchronous) {
       //Synchronous behavior is addressed by GmaeBuilder.cpp
       task.dst->name = task.src->name;
-      task.dst->mTask.mTask = std::make_unique<TaskAdapter>(std::move(task.src->task), tls);
+      task.dst->mTask.mTask = std::make_unique<TaskAdapter>(*task.src, tls);
     }
 
     ConversionTask& task;
