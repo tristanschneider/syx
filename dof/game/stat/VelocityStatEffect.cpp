@@ -36,10 +36,10 @@ namespace VelocityStatEffect {
           const auto self = ids->uncheckedUnpack(owner);
           const VelocityCommand& cmd = commands->at(i);
           if(resolver->tryGetOrSwapAllRows(self, vx, vy)) {
-            TableAdapters::add(i, cmd.linearImpulse, *vx, *vy);
+            TableAdapters::add(self.getElementIndex(), cmd.linearImpulse, *vx, *vy);
           }
           if(resolver->tryGetOrSwapAllRows(self, va)) {
-            TableAdapters::add(i, cmd.angularImpulse, *va);
+            TableAdapters::add(self.getElementIndex(), cmd.angularImpulse, *va);
           }
         }
       }

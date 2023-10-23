@@ -138,6 +138,7 @@ using GameObjectTable = Table<
   Tint,
   FragmentFlagsRow,
   FragmentStateMachine::StateRow,
+  FragmentStateMachine::GlobalsRow,
 
   CollisionMaskRow,
   SweepNPruneBroadphase::BroadphaseKeys,

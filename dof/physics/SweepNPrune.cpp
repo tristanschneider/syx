@@ -344,6 +344,11 @@ namespace Broadphase {
         for(int y = static_cast<int>(localMin.y); y <= static_cast<int>(localMax.y); ++y) {
           const BroadphaseKey key{ x + y*definition.cellsX };
           result.publicToPrivate[found++].cellKey = key;
+          //Shouldn't generally happen but would be if an object spans more than 4 cells.
+          //Either missing the collision needs to be okay or objects should never get that big
+          if(found >= result.publicToPrivate.size()) {
+            break;
+          }
         }
       }
       return result;

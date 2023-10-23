@@ -8,16 +8,7 @@
 #include "stat/PositionStatEffect.h"
 #include "stat/VelocityStatEffect.h"
 
-namespace AllStatEffects {
-  struct Globals {
-    StableElementMappings stableMappings;
-  };
-  struct GlobalRow : SharedRow<Globals> {};
-  struct GlobalTable : Table<GlobalRow> {};
-}
-
 struct StatEffectDatabase : Database<
-  AllStatEffects::GlobalTable,
   LambdaStatEffectTable,
   PositionStatEffectTable,
   VelocityStatEffectTable,
@@ -34,6 +25,4 @@ namespace StatEffect {
   //Intended to be used to move newly created thread local effects to the central database
   void moveThreadLocalToCentral(IAppBuilder& builder);
   void createTasks(IAppBuilder& builder);
-
-  AllStatEffects::Globals& getGlobals(StatEffectDatabase& db);
 };

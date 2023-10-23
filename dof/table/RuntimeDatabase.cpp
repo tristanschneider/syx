@@ -35,7 +35,7 @@ void RuntimeTable::migrateOne(size_t i, RuntimeTable& from, RuntimeTable& to) {
     RuntimeRow* toRow = &pair.second;
     RuntimeRow* fromRow = from.tryGetRow(pair.first);
     //This handles the case where the source row is empty and in that case adds an empty destination element
-    toRow->migrateOneElement(fromRow->row, toRow->row, fromID, to.tableID, *to.stableModifier.stableMappings);
+    toRow->migrateOneElement(fromRow ? fromRow->row : nullptr, toRow->row, fromID, to.tableID, *to.stableModifier.stableMappings);
   }
 
   //Swap Remove from source. Could be faster to combine this with the above step while visiting,
@@ -49,6 +49,22 @@ void RuntimeTable::migrateOne(size_t i, RuntimeTable& from, RuntimeTable& to) {
 }
 
 namespace DBReflect {
+  //Hack to recompute the final results because they can sometimes be invalid when incrementally merging multiple
+  //dbs together. Should be a more formal process so it's computed once in a realistic place
+  void fixArgs(RuntimeDatabaseArgs& args) {
+    //Make sure the final bit count is enough to contain ids across all tables
+    args.elementIndexBits = details::computeElementIndexBits(args.tables.size());
+    UnpackedDatabaseElementID base{ 0, args.elementIndexBits };
+    //Make sure all table ids now reflect the potentially changed bit counts in their ids
+    for(size_t i = 0; i < args.tables.size(); ++i) {
+      RuntimeTable* table = &args.tables[i];
+      table->tableID = base.remake(i, 0);
+      if(table->stableModifier) {
+        table->stableModifier.tableID = table->tableID;
+      }
+    }
+  }
+
   struct MergedDatabase : IDatabase {
     MergedDatabase(std::unique_ptr<IDatabase> l, std::unique_ptr<IDatabase> r) 
       : a{ std::move(l) }
@@ -68,10 +84,10 @@ namespace DBReflect {
       RuntimeDatabaseArgs result;
       addToArgs(result, *a);
       addToArgs(result, *b);
-      result.elementIndexBits = dbDetails::bitsToContain(result.tables.size());
       StableElementMappings* mappings = &a->getRuntime().getMappings();
       assert(mappings == &b->getRuntime().getMappings());
       result.mappings = mappings;
+      fixArgs(result);
       return result;
     }
 

@@ -342,8 +342,10 @@ namespace DBReflect {
             StableOperations::swapRemove(*r, id, mappings);
           }
           else {
-            r->swap(id.getElementIndex(), r->size());
-            r->resize(r->size() - 1);
+            //Nonzero because there must be an element we're removing
+            const size_t newSize = r->size() - 1;
+            r->swap(id.getElementIndex(), newSize);
+            r->resize(newSize);
           }
         }
       };
@@ -352,6 +354,11 @@ namespace DBReflect {
         &Funcs::migrateOneElement,
         &Funcs::swapRemove
       };
+    }
+
+    constexpr size_t computeElementIndexBits(size_t tableCount) {
+      constexpr size_t totalBits = sizeof(size_t)*8;
+      return totalBits - dbDetails::constexprLog2(tableCount);
     }
 
     template<class RowT>
@@ -381,8 +388,7 @@ namespace DBReflect {
     const size_t baseIndex = args.tables.size();
     constexpr size_t newTables = db.size();
     args.tables.resize(baseIndex + newTables);
-    constexpr size_t totalBits = sizeof(size_t)*8;
-    args.elementIndexBits = totalBits - dbDetails::constexprLog2(args.tables.size());
+    args.elementIndexBits = details::computeElementIndexBits(args.tables.size());
     args.mappings = &mappings;
     db.visitOne([&](auto& table) {
       const size_t rawIndex = DB::getTableIndex(table).getTableIndex();
@@ -396,8 +402,7 @@ namespace DBReflect {
     const size_t baseIndex = args.tables.size();
     const size_t newTables = 1;
     args.tables.resize(baseIndex + newTables);
-    constexpr size_t totalBits = sizeof(size_t)*8;
-    args.elementIndexBits = totalBits - dbDetails::constexprLog2(args.tables.size());
+    args.elementIndexBits = details::computeElementIndexBits(args.tables.size());
     args.mappings = &mappings;
     const auto tableID = UnpackedDatabaseElementID{ 0, args.elementIndexBits }.remake(baseIndex, 0);
     details::reflectTable(tableID, table, args);

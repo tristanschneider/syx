@@ -46,7 +46,6 @@ namespace SweepNPruneBroadphase {
       std::vector<Query> data;
     };
     auto t = std::make_shared<Temp>();
-    //t->query = std::move(query);
     t->data.resize(tables.size());
 
     using GridQ = SharedRow<Broadphase::SweepGrid::Grid>;

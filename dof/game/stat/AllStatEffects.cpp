@@ -23,16 +23,10 @@ namespace StatEffect {
   void visitStats(StatEffectDatabase& stats, const Func& func) {
     stats.visitOne([&func](auto& table) {
       using TableT = std::decay_t<decltype(table)>;
-      if constexpr(std::is_same_v<AllStatEffects::GlobalTable, TableT>) {
-      }
-      else {
+      if constexpr(TableOperations::hasRow<StatEffect::Global, TableT>()) {
         func(table);
       }
     });
-  }
-
-  AllStatEffects::Globals& getGlobals(StatEffectDatabase& db) {
-    return std::get<AllStatEffects::GlobalRow>(std::get<AllStatEffects::GlobalTable>(db.mTables).mRows).at();
   }
 
   template<class T>
@@ -93,7 +87,7 @@ namespace StatEffect {
           });
 
           //Once all rows in the destination have the desired values, clear the source
-          StableElementMappings& srcMappings = getGlobals(threadDB).stableMappings;
+          StableElementMappings& srcMappings = db.getMappings();
           TableOperations::stableResizeTable(fromTable, UnpackedDatabaseElementID::fromPacked(StatEffectDatabase::getTableIndex(fromTable)), 0, srcMappings);
         });
       }

@@ -52,14 +52,24 @@ ThreadLocalData TableAdapters::getThreadLocal(GameDB db, size_t thread) {
 }
 
 namespace {
+  struct StatArgs {
+    StatArgs(AppTaskArgs& task)
+      : db{ *ThreadLocalData::get(task).statEffects }
+      , mappings{ *ThreadLocalData::get(task).mappings } {
+    }
+
+    StatEffectDatabase& db;
+    StableElementMappings& mappings;
+  };
+
   template<class TableT>
-  StatEffectBaseAdapter getStatBase(TableT& table, StatEffectDatabase& db) {
+  StatEffectBaseAdapter getStatBase(TableT& table, StatArgs& args) {
     return {
       &std::get<StatEffect::Owner>(table.mRows),
       &std::get<StatEffect::Lifetime>(table.mRows),
       &std::get<StatEffect::Global>(table.mRows),
       &std::get<StatEffect::Continuations>(table.mRows),
-      StableTableModifierInstance::get<StatEffectDatabase>(table, StatEffect::getGlobals(db).stableMappings),
+      StableTableModifierInstance::get<StatEffectDatabase>(table, args.mappings),
       TableOperations::tryGetRow<StatEffect::Target>(table),
       TableOperations::tryGetRow<StatEffect::CurveInput<>>(table),
       TableOperations::tryGetRow<StatEffect::CurveOutput<>>(table),
@@ -129,90 +139,89 @@ namespace {
     return TableOperations::tryGetRow<StableIDRow>(table);
   }
 
-  PositionStatEffectAdapter getPositionEffects(StatEffectDatabase& db) {
-    auto& table = std::get<PositionStatEffectTable>(db.mTables);
+  PositionStatEffectAdapter getPositionEffects(StatArgs args) {
+    auto& table = std::get<PositionStatEffectTable>(args.db.mTables);
     return {
-      getStatBase(table, db),
+      getStatBase(table, args),
       &std::get<PositionStatEffect::CommandRow>(table.mRows),
     };
   }
 
-  VelocityStatEffectAdapter getVelocityEffects(StatEffectDatabase& db) {
-    auto& table = std::get<VelocityStatEffectTable>(db.mTables);
+  VelocityStatEffectAdapter getVelocityEffects(StatArgs args) {
+    auto& table = std::get<VelocityStatEffectTable>(args.db.mTables);
     return {
-      getStatBase(table, db),
+      getStatBase(table, args),
       &std::get<VelocityStatEffect::CommandRow>(table.mRows),
     };
   }
 
-  LambdaStatEffectAdapter getLambdaEffects(StatEffectDatabase& db) {
-    auto& table = std::get<LambdaStatEffectTable>(db.mTables);
+  LambdaStatEffectAdapter getLambdaEffects(StatArgs args) {
+    auto& table = std::get<LambdaStatEffectTable>(args.db.mTables);
     return {
-      getStatBase(table, db),
+      getStatBase(table, args),
       &std::get<LambdaStatEffect::LambdaRow>(table.mRows),
     };
   }
 
-  AreaForceStatEffectAdapter getAreaForceEffects(StatEffectDatabase& db) {
-    auto& table = std::get<AreaForceStatEffectTable>(db.mTables);
+  AreaForceStatEffectAdapter getAreaForceEffects(StatArgs args) {
+    auto& table = std::get<AreaForceStatEffectTable>(args.db.mTables);
     return {
-      getStatBase(table, db),
+      getStatBase(table, args),
       &std::get<AreaForceStatEffect::CommandRow>(table.mRows)
     };
   }
 
-  FollowTargetByPositionStatEffectAdapter getFollowTargetByPositionEffects(StatEffectDatabase& db) {
-    auto& table = std::get<FollowTargetByPositionStatEffectTable>(db.mTables);
+  FollowTargetByPositionStatEffectAdapter getFollowTargetByPositionEffects(StatArgs args) {
+    auto& table = std::get<FollowTargetByPositionStatEffectTable>(args.db.mTables);
     return {
-      getStatBase(table, db),
+      getStatBase(table, args),
       &std::get<FollowTargetByPositionStatEffect::CommandRow>(table.mRows)
     };
   }
 
-  FollowTargetByVelocityStatEffectAdapter getFollowTargetByVelocityEffects(StatEffectDatabase& db) {
-    auto& table = std::get<FollowTargetByVelocityStatEffectTable>(db.mTables);
+  FollowTargetByVelocityStatEffectAdapter getFollowTargetByVelocityEffects(StatArgs args) {
+    auto& table = std::get<FollowTargetByVelocityStatEffectTable>(args.db.mTables);
     return {
-      getStatBase(table, db),
+      getStatBase(table, args),
       &std::get<FollowTargetByVelocityStatEffect::CommandRow>(table.mRows)
     };
   }
 
-
-  DamageStatEffectAdapter getDamageEffects(StatEffectDatabase& db) {
-    auto& table = std::get<DamageStatEffectTable>(db.mTables);
+  DamageStatEffectAdapter getDamageEffects(StatArgs args) {
+    auto& table = std::get<DamageStatEffectTable>(args.db.mTables);
     return {
-      getStatBase(table, db),
+      getStatBase(table, args),
       &std::get<DamageStatEffect::CommandRow>(table.mRows)
     };
   }
 }
 
 PositionStatEffectAdapter TableAdapters::getPositionEffects(AppTaskArgs& args) {
-  return ::getPositionEffects(*ThreadLocalData::get(args).statEffects);
+  return ::getPositionEffects(args);
 }
 
 VelocityStatEffectAdapter TableAdapters::getVelocityEffects(AppTaskArgs& args) {
-  return ::getVelocityEffects(*ThreadLocalData::get(args).statEffects);
+  return ::getVelocityEffects(args);
 }
 
 LambdaStatEffectAdapter TableAdapters::getLambdaEffects(AppTaskArgs& args) {
-  return ::getLambdaEffects(*ThreadLocalData::get(args).statEffects);
+  return ::getLambdaEffects(args);
 }
 
 AreaForceStatEffectAdapter TableAdapters::getAreaForceEffects(AppTaskArgs& args) {
-  return ::getAreaForceEffects(*ThreadLocalData::get(args).statEffects);
+  return ::getAreaForceEffects(args);
 }
 
 FollowTargetByPositionStatEffectAdapter TableAdapters::getFollowTargetByPositionEffects(AppTaskArgs& args) {
-  return ::getFollowTargetByPositionEffects(*ThreadLocalData::get(args).statEffects);
+  return ::getFollowTargetByPositionEffects(args);
 }
 
 FollowTargetByVelocityStatEffectAdapter TableAdapters::getFollowTargetByVelocityEffects(AppTaskArgs& args) {
-  return ::getFollowTargetByVelocityEffects(*ThreadLocalData::get(args).statEffects);
+  return ::getFollowTargetByVelocityEffects(args);
 }
 
 DamageStatEffectAdapter TableAdapters::getDamageEffects(AppTaskArgs& args) {
-  return ::getDamageEffects(*ThreadLocalData::get(args).statEffects);
+  return ::getDamageEffects(args);
 }
 
 GameObjectAdapter TableAdapters::getGameplayObjectInTable(GameDB db, size_t tableIndex) {

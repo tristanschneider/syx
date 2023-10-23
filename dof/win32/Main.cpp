@@ -67,38 +67,41 @@ void onKey(WPARAM key, InputArgs& args, KeyState state) {
   const float moveAmount = state == KeyState::Triggered ? 1.0f : 0.0f;
   const bool isDown = state == KeyState::Triggered;
 
-  for(size_t i = 0; i < args.input.size(); ++i) {
-    PlayerKeyboardInput& keyboard = args.input.get<0>(0).at(i);
-    keyboard.mRawKeys.push_back(std::make_pair(state, (int)key));
+  for(size_t t = 0; t < args.input.size(); ++t) {
+    auto&& [keyboards, inputs] = args.input.get(t);
+    for(size_t i = 0; i < keyboards->size(); ++i) {
+      PlayerKeyboardInput& keyboard = keyboards->at(i);
+      PlayerInput& input = inputs->at(i);
+      keyboard.mRawKeys.push_back(std::make_pair(state, (int)key));
 
-    PlayerInput& input = args.input.get<1>(0).at(i);
-    switch(key) {
-      case 'W': keyboard.mKeys.set((size_t)PlayerKeyboardInput::Key::Up, isDown); break;
-      case 'A':keyboard.mKeys.set((size_t)PlayerKeyboardInput::Key::Left, isDown); break;
-      case 'S': keyboard.mKeys.set((size_t)PlayerKeyboardInput::Key::Down, isDown); break;
-      case 'D': keyboard.mKeys.set((size_t)PlayerKeyboardInput::Key::Right, isDown); break;
-      case VK_SPACE: input.mAction1 = state; break;
-      case VK_LSHIFT: input.mAction2 = state; break;
-      default: break;
-    }
-    input.mMoveX = input.mMoveY = 0.0f;
-    if(keyboard.mKeys.test((size_t)PlayerKeyboardInput::Key::Up)) {
-      input.mMoveY += 1.0f;
-    }
-    if(keyboard.mKeys.test((size_t)PlayerKeyboardInput::Key::Down)) {
-      input.mMoveY -= 1.0f;
-    }
-    if(keyboard.mKeys.test((size_t)PlayerKeyboardInput::Key::Left)) {
-      input.mMoveX -= 1.0f;
-    }
-    if(keyboard.mKeys.test((size_t)PlayerKeyboardInput::Key::Right)) {
-      input.mMoveX += 1.0f;
-    }
-    glm::vec2 normalized = glm::vec2(input.mMoveX, input.mMoveY);
-    if(float len = glm::length(normalized); len > 0.0001f) {
-      normalized /= len;
-      input.mMoveX = normalized.x;
-      input.mMoveY = normalized.y;
+      switch(key) {
+        case 'W': keyboard.mKeys.set((size_t)PlayerKeyboardInput::Key::Up, isDown); break;
+        case 'A':keyboard.mKeys.set((size_t)PlayerKeyboardInput::Key::Left, isDown); break;
+        case 'S': keyboard.mKeys.set((size_t)PlayerKeyboardInput::Key::Down, isDown); break;
+        case 'D': keyboard.mKeys.set((size_t)PlayerKeyboardInput::Key::Right, isDown); break;
+        case VK_SPACE: input.mAction1 = state; break;
+        case VK_LSHIFT: input.mAction2 = state; break;
+        default: break;
+      }
+      input.mMoveX = input.mMoveY = 0.0f;
+      if(keyboard.mKeys.test((size_t)PlayerKeyboardInput::Key::Up)) {
+        input.mMoveY += 1.0f;
+      }
+      if(keyboard.mKeys.test((size_t)PlayerKeyboardInput::Key::Down)) {
+        input.mMoveY -= 1.0f;
+      }
+      if(keyboard.mKeys.test((size_t)PlayerKeyboardInput::Key::Left)) {
+        input.mMoveX -= 1.0f;
+      }
+      if(keyboard.mKeys.test((size_t)PlayerKeyboardInput::Key::Right)) {
+        input.mMoveX += 1.0f;
+      }
+      glm::vec2 normalized = glm::vec2(input.mMoveX, input.mMoveY);
+      if(float len = glm::length(normalized); len > 0.0001f) {
+        normalized /= len;
+        input.mMoveX = normalized.x;
+        input.mMoveY = normalized.y;
+      }
     }
   }
 
@@ -373,11 +376,8 @@ int mainLoop(const char* args, HWND window) {
   Renderer::processRequests(*builder);
   Renderer::clearRenderRequests(*builder);
   Renderer::extractRenderables(*builder);
-
-  Simulation::buildUpdateTasks(*builder);
-
-  //gameplay
   Renderer::render(*builder);
+  Simulation::buildUpdateTasks(*builder);
 #ifdef IMGUI_ENABLED
   ImguiModule::update(*builder);
 #endif
@@ -473,6 +473,8 @@ int WINAPI WinMain(HINSTANCE hinstance, HINSTANCE, LPSTR lpCmdLine, int nCmdShow
   app.input.debugCamera = app.combined->getRuntime().query<Row<DebugCameraControl>>();
   APP = &app;
 
+  RuntimeDatabase& rdb = app.combined->getRuntime();
+  rdb;
   createConsole();
 
   registerWindow(hinstance);

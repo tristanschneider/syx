@@ -146,6 +146,8 @@ void Simulation::buildUpdateTasks(IAppBuilder& builder) {
   Fragment::updateFragmentGoals(builder);
   World::enforceWorldBoundary(builder);
   FragmentStateMachine::update(builder);
+  //At the end of gameplay, turn any gameplay impulses into stat effects
+  GameplayExtract::applyGameplayImpulses(builder);
   StatEffect::createTasks(builder);
   //Synchronous transfer from all thread local stats to the central stats database
   StatEffect::moveThreadLocalToCentral(builder);
@@ -190,9 +192,10 @@ void Simulation::initScheduler(IAppBuilder& builder) {
   Scheduler* scheduler = task.query<SharedRow<Scheduler>>().tryGetSingletonElement();
   ThreadLocalsInstance* tls = task.query<ThreadLocalsRow>().tryGetSingletonElement();
   Events::EventsInstance* events = task.query<Events::EventsRow>().tryGetSingletonElement();
-  task.setCallback([scheduler, tls, events](AppTaskArgs&) {
+  StableElementMappings* mappings = &task.getDatabase().getMappings();
+  task.setCallback([scheduler, tls, events, mappings](AppTaskArgs&) {
     scheduler->mScheduler.Initialize();
-    tls->instance = std::make_unique<ThreadLocals>(scheduler->mScheduler.GetNumTaskThreads(), events->impl.get());
+    tls->instance = std::make_unique<ThreadLocals>(scheduler->mScheduler.GetNumTaskThreads(), events->impl.get(), mappings);
   });
   builder.submitTask(std::move(task));
 }

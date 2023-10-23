@@ -156,7 +156,7 @@ namespace PhysicsSimulation {
     aliases.rotX = FloatAlias::create<FloatRow<Rot, CosAngle>>();
     aliases.rotY = FloatAlias::create<FloatRow<Rot, SinAngle>>();
     aliases.linVelX = FloatAlias::create<FloatRow<LinVel, X>>();
-    aliases.linVelY = FloatAlias::create<FloatRow<LinVel, X>>();
+    aliases.linVelY = FloatAlias::create<FloatRow<LinVel, Y>>();
     aliases.angVel = FloatAlias::create<FloatRow<AngVel, Angle>>();
     aliases.broadphaseMinX = FloatAlias::create<SpatialQuery::MinX>();
     aliases.broadphaseMaxX = FloatAlias::create<SpatialQuery::MaxX>();

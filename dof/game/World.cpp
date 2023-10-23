@@ -68,8 +68,6 @@ namespace World {
   }
 
   void enforceWorldBoundary(IAppBuilder& builder) {
-    //auto task= 
-    //const SceneState* scene =  const SharedRow<SceneState>
     auto tables = builder.queryTables<
       FloatRow<GPos, X>, FloatRow<GPos, Y>,
       FloatRow<GLinImpulse, X>, FloatRow<GLinImpulse, Y>
