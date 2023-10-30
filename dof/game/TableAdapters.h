@@ -8,7 +8,6 @@ struct AppTaskArgs;
 struct CurveDefinition;
 struct DebugConfig;
 struct GraphicsConfig;
-struct GameDB;
 struct StableElementMappings;
 struct StableIDRow;
 struct StatEffectDBOwned;
@@ -232,11 +231,7 @@ namespace TableAdapters {
   const Config::GameConfig* getGameConfig(RuntimeDatabaseTaskBuilder& task);
   Config::GameConfig* getGameConfigMutable(RuntimeDatabaseTaskBuilder& task);
 
-  ConfigAdapter getConfig(GameDB db);
-  StableElementMappings& getStableMappings(GameDB db);
-  ThreadLocals& getThreadLocals(GameDB db);
   ThreadLocals& getThreadLocals(RuntimeDatabaseTaskBuilder& task);
-  ThreadLocalData getThreadLocal(GameDB db, size_t thread);
 
   VelocityStatEffectAdapter getVelocityEffects(AppTaskArgs& args);
   PositionStatEffectAdapter getPositionEffects(AppTaskArgs& args);
@@ -246,27 +241,13 @@ namespace TableAdapters {
   FollowTargetByVelocityStatEffectAdapter getFollowTargetByVelocityEffects(AppTaskArgs& args);
   DamageStatEffectAdapter getDamageEffects(AppTaskArgs& args);
 
-  GameObjectAdapter getGameplayObjectInTable(GameDB db, size_t tableIndex);
-  GameObjectAdapter getObjectInTable(GameDB db, size_t tableIndex);
-  GameObjectAdapter getGameObjects(GameDB db);
-  FragmentAdapter getFragments(GameDB db);
-  FragmentAdapter getFragmentsInTable(GameDB db, size_t tableIndex);
-  GameObjectAdapter getStaticGameObjects(GameDB db);
-  PlayerAdapter getPlayer(GameDB db);
-  //The gameplay extracted versions of the above
-  GameObjectAdapter getGameplayGameObjects(GameDB db);
-  GameObjectAdapter getGameplayStaticGameObjects(GameDB db);
-  PlayerAdapter getGameplayPlayer(GameDB db);
-  CameraAdapater getCamera(GameDB db);
-  TargetPosAdapter getTargetPos(GameDB db);
-  SpatialQueryAdapter getSpatialQueries(GameDB db);
-
   DebugLineAdapter getDebugLines(RuntimeDatabaseTaskBuilder& task);
   const float* getDeltaTime(RuntimeDatabaseTaskBuilder& task);
 
   size_t addStatEffectsSharedLifetime(StatEffectBaseAdapter& base, size_t lifetime, const size_t* stableIds, size_t count);
 
-  GlobalsAdapter getGlobals(GameDB db);
+  TransformAdapter getTransform(RuntimeDatabaseTaskBuilder& task, const UnpackedDatabaseElementID& table);
+  TransformAdapter getGameplayTransform(RuntimeDatabaseTaskBuilder& task, const UnpackedDatabaseElementID& table);
 
   inline glm::vec2 read(size_t i, const Row<float>& a, const Row<float>& b) {
     return { a.at(i), b.at(i) };

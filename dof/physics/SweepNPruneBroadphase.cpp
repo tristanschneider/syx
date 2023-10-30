@@ -57,7 +57,7 @@ namespace SweepNPruneBroadphase {
         auto bounds = task.queryAlias(table, aliases.posX);
         //Artificial dependency on broadphase so this comes before the final update
         task.query<const GridQ>();
-        task.setCallback([t, bounds, i, &cfg](AppTaskArgs&) mutable {
+        task.setCallback([t, bounds, i, cfg](AppTaskArgs&) mutable {
           const float halfSize = cfg.mHalfSize + cfg.mPadding;
           std::vector<float>& min = t->data[i].minX;
           std::vector<float>& max = t->data[i].maxX;
@@ -79,7 +79,7 @@ namespace SweepNPruneBroadphase {
         auto bounds = task.queryAlias(table, aliases.posY);
         //Artificial dependency on broadphase so this comes before the final update
         task.query<const GridQ>();
-        task.setCallback([t, bounds, i, &cfg](AppTaskArgs&) mutable {
+        task.setCallback([t, bounds, i, cfg](AppTaskArgs&) mutable {
           const float halfSize = cfg.mHalfSize + cfg.mPadding;
           std::vector<float>& min = t->data[i].minY;
           std::vector<float>& max = t->data[i].maxY;

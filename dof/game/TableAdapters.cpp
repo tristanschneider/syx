@@ -24,31 +24,10 @@ Config::GameConfig* TableAdapters::getGameConfigMutable(RuntimeDatabaseTaskBuild
   return task.query<SharedRow<Config::GameConfig>>().tryGetSingletonElement();
 }
 
-ConfigAdapter TableAdapters::getConfig(GameDB db) {
-  auto& c = std::get<GlobalGameData>(db.db.mTables);
-  Config::GameConfig& g = std::get<SharedRow<Config::GameConfig>>(c.mRows).at();
-  return {
-    &g.physics,
-    &g
-  };
-}
-
-StableElementMappings& TableAdapters::getStableMappings(GameDB db) {
-  return std::get<SharedRow<StableElementMappings>>(std::get<GlobalGameData>(db.db.mTables).mRows).at();
-}
-
-ThreadLocals& TableAdapters::getThreadLocals(GameDB db) {
-  return *std::get<ThreadLocalsRow>(std::get<GlobalGameData>(db.db.mTables).mRows).at().instance;
-}
-
 ThreadLocals& TableAdapters::getThreadLocals(RuntimeDatabaseTaskBuilder& task) {
   ThreadLocals& tls = *task.query<ThreadLocalsRow>().tryGetSingletonElement()->instance;
   task.setPinning(AppTaskPinning::Synchronous{});
   return tls;
-}
-
-ThreadLocalData TableAdapters::getThreadLocal(GameDB db, size_t thread) {
-  return getThreadLocals(db).get(thread);
 }
 
 namespace {
@@ -224,149 +203,22 @@ DamageStatEffectAdapter TableAdapters::getDamageEffects(AppTaskArgs& args) {
   return ::getDamageEffects(args);
 }
 
-GameObjectAdapter TableAdapters::getGameplayObjectInTable(GameDB db, size_t tableIndex) {
-  GameObjectAdapter result;
-  db.db.visitOneByIndex(GameDatabase::ElementID{ tableIndex, 0 }, [&result](auto& table) {
-    result = GameObjectAdapter {
-      getGameplayTransform(table),
-      getGameplayPhysics(table),
-      getStableRow(table)
-    };
-  });
+TransformAdapter TableAdapters::getTransform(RuntimeDatabaseTaskBuilder& task, const UnpackedDatabaseElementID& table) {
+  TransformAdapter result;
+  std::tie(result.posX, result.posY, result.rotX, result.rotY) = task.query<
+    FloatRow<Tags::Pos, Tags::X>, FloatRow<Tags::Pos, Tags::Y>,
+    FloatRow<Tags::Rot, Tags::CosAngle>, FloatRow<Tags::Rot, Tags::SinAngle>
+  >(table).get(0);
   return result;
 }
 
-GameObjectAdapter TableAdapters::getObjectInTable(GameDB db, size_t tableIndex) {
-  GameObjectAdapter result;
-  db.db.visitOneByIndex(GameDatabase::ElementID{ tableIndex, 0 }, [&result](auto& table) {
-    result = GameObjectAdapter {
-      getTransform(table),
-      getPhysics(table),
-      getStableRow(table)
-    };
-  });
+TransformAdapter TableAdapters::getGameplayTransform(RuntimeDatabaseTaskBuilder& task, const UnpackedDatabaseElementID& table) {
+  TransformAdapter result;
+  std::tie(result.posX, result.posY, result.rotX, result.rotY) = task.query<
+    FloatRow<Tags::GPos, Tags::X>, FloatRow<Tags::Pos, Tags::Y>,
+    FloatRow<Tags::GRot, Tags::CosAngle>, FloatRow<Tags::Rot, Tags::SinAngle>
+  >(table).get(0);
   return result;
-}
-
-GameObjectAdapter TableAdapters::getGameObjects(GameDB db) {
-  auto& table = std::get<GameObjectTable>(db.db.mTables);
-  return {
-    getTransform(table),
-    getPhysics(table),
-    getStableRow(table)
-  };
-}
-
-FragmentAdapter TableAdapters::getFragments(GameDB db) {
-  auto& table = std::get<GameObjectTable>(db.db.mTables);
-  return getFragment(table);
-}
-
-FragmentAdapter TableAdapters::getFragmentsInTable(GameDB db, size_t tableIndex) {
-  FragmentAdapter result;
-  db.db.visitOneByIndex(GameDatabase::ElementID{ tableIndex, 0 }, [&result](auto& table) {
-    result = getFragment(table);
-  });
-  return result;
-}
-
-GameObjectAdapter TableAdapters::getGameplayGameObjects(GameDB db) {
-  auto& table = std::get<GameObjectTable>(db.db.mTables);
-  return {
-    getGameplayTransform(table),
-    getGameplayPhysics(table),
-    getStableRow(table)
-  };
-}
-
-GameObjectAdapter TableAdapters::getStaticGameObjects(GameDB db) {
-  auto& table = std::get<StaticGameObjectTable>(db.db.mTables);
-  return {
-    getTransform(table),
-    PhysicsObjectAdapter{},
-    getStableRow(table)
-  };
-}
-
-GameObjectAdapter TableAdapters::getGameplayStaticGameObjects(GameDB db) {
-  auto& table = std::get<StaticGameObjectTable>(db.db.mTables);
-  return {
-    getGameplayTransform(table),
-    PhysicsObjectAdapter{},
-    getStableRow(table)
-  };
-}
-
-GlobalsAdapter TableAdapters::getGlobals(GameDB db) {
-  auto& table = std::get<GlobalGameData>(db.db.mTables);
-  return {
-    &std::get<SharedRow<SceneState>>(table.mRows).at(),
-    &std::get<SharedRow<FileSystem>>(table.mRows).at(),
-    &std::get<SharedRow<StableElementMappings>>(table.mRows).at(),
-    &std::get<SharedRow<ConstraintsTableMappings>>(table.mRows).at(),
-    &std::get<SharedRow<Scheduler>>(table.mRows).at(),
-    std::get<ThreadLocalsRow>(table.mRows).at().instance.get()
-  };
-}
-
-PlayerAdapter TableAdapters::getPlayer(GameDB db) {
-  auto& table = std::get<PlayerTable>(db.db.mTables);
-  return {
-    GameObjectAdapter{
-      getTransform(table),
-      getPhysics(table),
-      getStableRow(table),
-    },
-    &std::get<Row<PlayerInput>>(table.mRows),
-    &std::get<Row<PlayerKeyboardInput>>(table.mRows)
-  };
-}
-
-PlayerAdapter TableAdapters::getGameplayPlayer(GameDB db) {
-  auto& table = std::get<PlayerTable>(db.db.mTables);
-  return {
-    GameObjectAdapter{
-      getGameplayTransform(table),
-      getGameplayPhysics(table),
-      getStableRow(table),
-    },
-    &std::get<Row<PlayerInput>>(table.mRows),
-    &std::get<Row<PlayerKeyboardInput>>(table.mRows)
-  };
-}
-
-CameraAdapater TableAdapters::getCamera(GameDB db) {
-  auto& table = std::get<CameraTable>(db.db.mTables);
-  return {
-    GameObjectAdapter {
-      getTransform(table),
-      {},
-      getStableRow(table)
-    }
-  };
-}
-
-TargetPosAdapter TableAdapters::getTargetPos(GameDB db) {
-  auto& table = std::get<TargetPosTable>(db.db.mTables);
-  return {
-    &std::get<FloatRow<Tags::Pos, Tags::X>>(table.mRows),
-    &std::get<FloatRow<Tags::Pos, Tags::Y>>(table.mRows),
-    &std::get<StableIDRow>(table.mRows),
-    StableTableModifierInstance::get<GameDatabase>(table, getStableMappings(db))
-  };
-}
-
-SpatialQueryAdapter TableAdapters::getSpatialQueries(GameDB db) {
-  auto& table = std::get<SpatialQuery::SpatialQueriesTable>(db.db.mTables);
-  return {
-    &std::get<SpatialQuery::Gameplay<SpatialQuery::QueryRow>>(table.mRows),
-    &std::get<SpatialQuery::Gameplay<SpatialQuery::ResultRow>>(table.mRows),
-    &std::get<SpatialQuery::Gameplay<SpatialQuery::GlobalsRow>>(table.mRows),
-    getStableRow(table),
-    &getStableMappings(db),
-    &std::get<SpatialQuery::Gameplay<SpatialQuery::NeedsResubmitRow>>(table.mRows),
-    &std::get<SpatialQuery::Gameplay<SpatialQuery::LifetimeRow>>(table.mRows)
-  };
 }
 
 size_t TableAdapters::addStatEffectsSharedLifetime(StatEffectBaseAdapter& base, size_t lifetime, const size_t* stableIds, size_t count) {

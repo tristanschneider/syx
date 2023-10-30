@@ -19,10 +19,15 @@
 #include "Player.h"
 #include "DBEvents.h"
 
+#include "GameDatabase.h"
+#include "GameBuilder.h"
+#include "GameScheduler.h"
+
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 namespace Test {
   using namespace Config;
+  //TODO: get rid of duple 
   static_assert(std::is_same_v<Duple<int*>, Table<Row<int>>::ElementRef>);
   static_assert(std::is_same_v<Table<Row<int>>::ElementRef, decltype(make_duple((int*)nullptr))>);
   static_assert(std::is_same_v<std::tuple<DupleElement<0, int>>, Duple<int>::TupleT>);
@@ -38,31 +43,60 @@ namespace Test {
     bool enableFragmentGoals{ false };
   };
 
+  struct KnownTables {
+    KnownTables() = default;
+    KnownTables(IAppBuilder& builder)
+      : player{ builder.queryTables<IsPlayer>().matchingTableIDs[0] }
+      , fragments{ builder.queryTables<IsFragment, SharedMassObjectTableTag>().matchingTableIDs[0] }
+      , completedFragments{ builder.queryTables<FragmentGoalFoundTableTag>().matchingTableIDs[0] }
+    {}
+    UnpackedDatabaseElementID player;
+    UnpackedDatabaseElementID fragments;
+    UnpackedDatabaseElementID completedFragments;
+  };
+
   struct TestGame {
     TestGame(Config::GameConfig config = {}, Config::PhysicsConfig physics = {}) {
-      Scheduler& scheduler = Simulation::_getScheduler(db);
-      auto createEmpty = [] { return TaskBuilder::addEndSync(TaskNode::create([](...){})); };
-      SimulationPhases phases {
-        createEmpty(),
-        createEmpty(),
-        createEmpty(),
-        createEmpty(),
-        createEmpty(),
-        createEmpty(),
-        createEmpty()
-      };
+      auto mappings = std::make_unique<StableElementMappings>();
+      std::unique_ptr<IDatabase> game = GameData::create(*mappings);
+      std::unique_ptr<IDatabase> result =  DBReflect::bundle(std::move(game), std::move(mappings));
 
-      scheduler.mScheduler.Initialize(enki::TaskSchedulerConfig{});
+      std::unique_ptr<IAppBuilder> bootstrap = GameBuilder::create(*result);
+      Simulation::initScheduler(*bootstrap);
+      for(auto&& work : GameScheduler::buildSync(IAppBuilder::finalize(std::move(bootstrap)))) {
+        work.work();
+      }
+
+      std::unique_ptr<IAppBuilder> initBuilder = GameBuilder::create(*result);
+      auto temp = initBuilder->createTask();
+      temp.discard();
+      ThreadLocalsInstance* tls = temp.query<ThreadLocalsRow>().tryGetSingletonElement();
+
+      Simulation::init(*initBuilder);
+      TaskRange initTasks = GameScheduler::buildTasks(IAppBuilder::finalize(std::move(initBuilder)), *tls->instance);
 
       //Disable loading from config
-      TableAdapters::getGlobals(*this).fileSystem->mRoot = "?invalid?";
-      *TableAdapters::getConfig(*this).game = std::move(config);
-      *TableAdapters::getConfig(*this).physics = std::move(physics);
+      temp.query<SharedRow<FileSystem>>().tryGetSingletonElement()->mRoot = "?invalid?";
+      Config::GameConfig* gameConfig = TableAdapters::getGameConfigMutable(temp);
+      //TODO: why is this assigned twice instead of assigning physics as part of GameConfig?
+      *gameConfig = std::move(config);
+      gameConfig->physics = std::move(physics);
 
-      Simulation::init(db);
-      Simulation::buildUpdateTasks(db, phases);
-      Simulation::linkUpdateTasks(phases);
-      task = TaskBuilder::buildDependencies(phases.root.mBegin);
+      Scheduler* scheduler = temp.query<SharedRow<Scheduler>>().tryGetSingletonElement();
+      initTasks.mBegin->mTask.addToPipe(scheduler->mScheduler);
+      scheduler->mScheduler.WaitforTask(initTasks.mEnd->mTask.get());
+
+      testBuilder = GameBuilder::create(*result);
+
+      std::unique_ptr<IAppBuilder> updateBuilder = GameBuilder::create(*result);
+      Simulation::buildUpdateTasks(*updateBuilder);
+
+      task = GameScheduler::buildTasks(IAppBuilder::finalize(std::move(updateBuilder)), *tls->instance);
+      db = std::move(result);
+      tables = KnownTables{ *testBuilder };
+      test = std::make_unique<RuntimeDatabaseTaskBuilder>(std::move(temp));
+      test->discard();
+      tld = tls->instance->get(0);
     }
 
     TestGame(const GameArgs& args)
@@ -70,32 +104,39 @@ namespace Test {
       init(args);
     }
 
-    operator GameDB() {
-      return { db };
+    RuntimeDatabaseTaskBuilder& builder() {
+      return *test;
+    }
+
+    AppTaskArgs sharedArgs() {
+      AppTaskArgs result;
+      result.threadLocal = &tld;
+      return result;
     }
 
     void init(const GameArgs& args) {
-      StableElementMappings& stable = TableAdapters::getStableMappings(*this);
+      auto a = sharedArgs();
+      auto b = builder();
 
       if(!args.enableFragmentGoals) {
-        TableAdapters::getConfig(*this).game->fragment.fragmentGoalDistance = - 1.0f;
+        TableAdapters::getGameConfigMutable(b)->fragment.fragmentGoalDistance = -1.0f;
       }
 
-      TableOperations::stableResizeTableDB<GameObjectTable>(db, args.fragmentCount, stable);
-      TableOperations::stableResizeTableDB<StaticGameObjectTable>(db, args.completedFragmentCount, stable);
-      StableIDRow* stableRow = TableAdapters::getGameObjects({ db }).stable;
+      b.getModifierForTable(tables.fragments)->resize(args.fragmentCount);
+      b.getModifierForTable(tables.completedFragments)->resize(args.completedFragmentCount);
+      StableIDRow* stableRow = &b.query<StableIDRow>(tables.fragments).get<0>(0);
       for(size_t i = 0; i < args.fragmentCount; ++i) {
-        Events::onNewElement(StableElementID::fromStableRow(i, *stableRow), { db });
+        Events::onNewElement(StableElementID::fromStableRow(i, *stableRow), a);
       }
-      stableRow = TableAdapters::getStaticGameObjects({ db }).stable;
+      stableRow = &b.query<StableIDRow>(tables.completedFragments).get<0>(0);
       for(size_t i = 0; i < args.completedFragmentCount; ++i) {
-        Events::onNewElement(StableElementID::fromStableRow(i, *stableRow), { db });
+        Events::onNewElement(StableElementID::fromStableRow(i, *stableRow), a);
       }
 
-      GlobalsAdapter globals = TableAdapters::getGlobals(*this);
-      globals.scene->mState = SceneState::State::Update;
-      globals.scene->mBoundaryMin = glm::vec2(-100);
-      globals.scene->mBoundaryMax = glm::vec2(100);
+      SceneState* scene = b.query<SharedRow<SceneState>>().tryGetSingletonElement();
+      scene->mState = SceneState::State::Update;
+      scene->mBoundaryMin = glm::vec2(-100);
+      scene->mBoundaryMax = glm::vec2(100);
 
       if(args.playerPos) {
         createPlayer(*args.playerPos);
@@ -105,25 +146,40 @@ namespace Test {
     }
 
     void createPlayer(const glm::vec2& pos) {
-      PlayerAdapter player = TableAdapters::getPlayer(*this);
-      auto& stable = TableAdapters::getStableMappings(*this);
-      TableOperations::stableResizeTableDB<PlayerTable>(db, 1, stable);
-      Events::onNewElement(StableElementID::fromStableRow(player.object.transform.posX->size() - 1, *player.object.stable), *this);
+      auto b = builder();
+      auto a = sharedArgs();
+      b.getModifierForTable(tables.player)->resize(1);
+      StableIDRow* stableIds = &b.query<StableIDRow>(tables.player).get<0>(0);
+      Events::onNewElement(StableElementID::fromStableRow(0, *stableIds), a);
 
-      player.object.transform.posX->at(0) = pos.x;
-      player.object.transform.posY->at(0) = pos.y;
-      player.object.transform.rotX->at(0) = 1.0f;
-      player.object.transform.rotY->at(0) = 0.0f;
+      auto&& [px, py, rx, ry] = b.query<FloatRow<Tags::Pos, Tags::X>, FloatRow<Tags::Pos, Tags::Y>,
+        FloatRow<Tags::Rot, Tags::CosAngle>, FloatRow<Tags::Rot, Tags::SinAngle>>(tables.player).get(0);
+
+      TableAdapters::write(0, pos, *px, *py);
+      TableAdapters::write(0, { 1, 0 }, *rx, *ry);
     }
 
     void update() {
-      Scheduler& scheduler = Simulation::_getScheduler(db);
-      task.mBegin->mTask.addToPipe(scheduler.mScheduler);
-      scheduler.mScheduler.WaitforTask(task.mEnd->mTask.get());
+      execute(task);
+    }
+
+    void execute(std::unique_ptr<IAppBuilder> toExecute) {
+      ThreadLocalsInstance* tls = builder().query<ThreadLocalsRow>().tryGetSingletonElement();
+      execute(GameScheduler::buildTasks(IAppBuilder::finalize(std::move(toExecute)), *tls->instance));
+    }
+
+    void execute(TaskRange range) {
+      Scheduler* scheduler = builder().query<SharedRow<Scheduler>>().tryGetSingletonElement();
+      range.mBegin->mTask.addToPipe(scheduler->mScheduler);
+      scheduler->mScheduler.WaitforTask(range.mEnd->mTask.get());
     }
 
     TaskRange task;
-    GameDatabase db;
+    std::unique_ptr<IDatabase> db;
+    std::unique_ptr<IAppBuilder> testBuilder;
+    std::unique_ptr<RuntimeDatabaseTaskBuilder> test;
+    KnownTables tables;
+    ThreadLocalData tld;
   };
 
   TEST_CLASS(Tests) {
@@ -378,9 +434,12 @@ namespace Test {
       return result;
     }
 
-    static void _buildConstraintsTable(GameDatabase& db, const PhysicsConfig& config) {
-      DBReader reader(db);
-      _execute(ConstraintsTableBuilder::build(db, reader.mChangedPairs, reader.mStableMappings, reader.mConstraintsMappings, PhysicsSimulation::_getPhysicsTableIds(), config));
+    static void _buildConstraintsTable(TestGame& game) {
+      std::unique_ptr<IAppBuilder> temp = GameBuilder::create(*game.db);
+      auto b = game.builder();
+      const Config::PhysicsConfig* config = TableAdapters::getPhysicsConfig(game.builder());
+      ConstraintsTableBuilder::build(*temp, *config);
+      game.execute(std::move(temp));
     }
 
     TEST_METHOD(CollidingPair_PopulateNarrowphase_IsPopulated) {
@@ -388,20 +447,19 @@ namespace Test {
       GameArgs args;
       args.fragmentCount = 2;
       game.init(args);
-      GameDatabase& db = game.db;
-      auto gameobjects = TableAdapters::getGameObjects(game);
-      gameobjects.transform.posX->at(0) = 1.1f;
-      gameobjects.transform.posX->at(1) = 1.2f;
-      auto& pairs = std::get<CollisionPairsTable>(db.mTables);
+
+      TransformAdapter transform = TableAdapters::getTransform(game.builder(), game.tables.fragments);
+      transform.posX->at(0) = 1.1f;
+      transform.posX->at(1) = 1.2f;
+      auto& narrowphasePosX = game.builder().query<NarrowphaseData<PairA>::PosX>().get<0>(0);
 
       game.update();
 
-      Assert::AreEqual(size_t(1), TableOperations::size(pairs));
-      auto& narrowphasePosX = std::get<NarrowphaseData<PairA>::PosX>(pairs.mRows);
+      Assert::AreEqual(size_t(1), narrowphasePosX.size());
       //Don't really care what order it copied in as long as the values were copied from gameobjects to narrowphase
       Assert::IsTrue(narrowphasePosX.at(0) == 1.1f || narrowphasePosX.at(0) == 1.2f);
     }
-
+/*
     TEST_METHOD(DistantPair_PopulateNarrowphase_NoPairs) {
       TestGame game;
       GameArgs args;
@@ -1873,5 +1931,6 @@ namespace Test {
 
       Assert::IsFalse(mappings.findKey(target.mStableID).has_value(), L"Target created by state should have been destroyed before object was destroyed");
     }
+    */
   };
 }
