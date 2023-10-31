@@ -342,7 +342,7 @@ namespace SweepNPruneBroadphase {
             const auto unpacked = self;
             if(resolver->tryGetOrSwapRowAlias(aliases.isImmobile.read(), isImmobile, unpacked)) {
               resolver->tryGetOrSwapRowAlias(aliases.posX.read(), posX, unpacked);
-              resolver->tryGetOrSwapRowAlias(aliases.posX.read(), posY, unpacked);
+              resolver->tryGetOrSwapRowAlias(aliases.posY.read(), posY, unpacked);
               resolver->tryGetOrSwapRowAlias(QueryAlias<BroadphaseKeys>::create(), keys, unpacked);
 
               if(posX && posY && keys) {

@@ -8,7 +8,6 @@
 namespace ctbdetails {
   struct WorkOffset {
     size_t mOffset{};
-    bool mHasWork{};
   };
 
   //True if the given element is within a target element in either direction of startIndex
@@ -231,7 +230,6 @@ namespace ConstraintsTableBuilder {
     }
   }
 
-  //void addCollisionPairs(const StableElementID* toAdd, size_t count, StableElementMappings& mappings, ConstraintCommonTable& common, ConstraintsTableMappings& constraintsMappings, const PhysicsTableIds& tableIds, CollisionPairsTable& pairs, const Config::PhysicsConfig& config) {
   void addCollisionPairs(const StableElementID* toAdd, size_t count, AddDeps& deps, const PhysicsTableIds& tableIds, const Config::PhysicsConfig& config) {
     PROFILE_SCOPE("physics", "addCollisionPairs");
     using namespace ctbdetails;
@@ -445,9 +443,6 @@ namespace ConstraintsTableBuilder {
       const auto& pairIds = common.get<1>(0);
 
       const auto& o = *offset;
-      if(!o.mHasWork) {
-        return;
-      }
       const size_t begin = args.begin + o.mOffset;
       const size_t end = args.end + o.mOffset;
       for(size_t i = begin; i < end; ++i) {
@@ -480,9 +475,6 @@ namespace ConstraintsTableBuilder {
       const auto& pairIds = commonQuery.get<1>(0);
 
       const auto& o = *offset;
-      if(!o.mHasWork) {
-        return;
-      }
       const size_t begin = args.begin + o.mOffset;
       const size_t end = args.end + o.mOffset;
       for(size_t i = begin; i < end; ++i) {
@@ -520,9 +512,6 @@ namespace ConstraintsTableBuilder {
       const auto& pairIds = common.get<1>(0);
 
       const auto& o = *offset;
-      if(!o.mHasWork) {
-        return;
-      }
       const size_t begin = args.begin + o.mOffset;
       const size_t end = args.end + o.mOffset;
       for(size_t i = begin; i < end; ++i) {
@@ -567,6 +556,7 @@ namespace ConstraintsTableBuilder {
         const size_t begin = constraintsMappings->SHARED_MASS_START_INDEX;
         const size_t end = constraintsMappings->mZeroMassStartIndex;
         const size_t size = end - begin;
+        sharedBegin->mOffset = begin;
         AppTaskSize taskSize;
         taskSize.batchSize = 100;
         taskSize.workItemCount = size;
@@ -578,7 +568,7 @@ namespace ConstraintsTableBuilder {
       builder.submitTask(std::move(configure));
     }
 
-    auto childConfigs = *cc;
+    auto& childConfigs = *cc;
 
     fillCollisionMasks(builder, sharedBegin, childConfigs);
 
@@ -606,6 +596,7 @@ namespace ConstraintsTableBuilder {
         const size_t begin = constraintsMappings->mZeroMassStartIndex;
         const size_t end = common.get<0>(0).size();
         const size_t size = end - begin;
+        sharedBegin->mOffset = begin;
         AppTaskSize taskSize;
         taskSize.batchSize = 100;
         taskSize.workItemCount = size;
@@ -617,7 +608,7 @@ namespace ConstraintsTableBuilder {
       builder.submitTask(std::move(configure));
     }
 
-    auto childConfigs = *cc;
+    auto& childConfigs = *cc;
 
     fillCollisionMasks(builder, sharedBegin, childConfigs);
     fillCommonContactData(builder, sharedBegin, destinationTable, childConfigs);
@@ -685,9 +676,22 @@ namespace ConstraintsTableBuilder {
         const std::optional<StableElementID> newContact = ids->tryResolveStableID(contact);
 
         //If the pair changed such that no collision resolution is necessary, remove the pair
-        const bool needsRemove = !newA || !newB || !CollisionPairOrder::tryOrderCollisionPair(*newA, *newB, tableIds) || !newContact;
+        bool needsRemove = !newA || !newB || !CollisionPairOrder::tryOrderCollisionPair(*newA, *newB, tableIds) || !newContact;
         //Reinsert if the order of the pair changed from tryOrder above
-        const bool needsReinsert = !needsRemove && newA->mStableID != prevA.mStableID;
+        bool needsReinsert = !needsRemove && newA->mStableID != prevA.mStableID;
+        //Hack to manually reinsert if they moved tables. Would be more elegant to do with an event but this whole thing is a bit of a mess
+        if(newA && newB) {
+          const std::optional<size_t> targetTable = ctbdetails::getTargetConstraintTable(*newA, *newB, tableIds);
+          if(!targetTable) {
+            needsRemove = true;
+          }
+          else {
+            auto[begin, end] = ctbdetails::getTargetElementRange(*targetTable, tableIds, *addDeps.constraintsMappings, isEnabled.size());
+            if(i < begin || i >= end) {
+              needsReinsert = true;
+            }
+          }
+        }
 
         //Update to the resolved entries. This doesn't matter if the remove/reinsert cases happen below
         if(newA && newB && newContact) {

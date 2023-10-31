@@ -22,6 +22,7 @@
 #include "GameDatabase.h"
 #include "GameBuilder.h"
 #include "GameScheduler.h"
+#include "RuntimeDatabase.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -180,6 +181,130 @@ namespace Test {
     std::unique_ptr<RuntimeDatabaseTaskBuilder> test;
     KnownTables tables;
     ThreadLocalData tld;
+  };
+
+  TEST_CLASS(GameSchedulerTest) {
+    struct TestDB {
+      struct TestDBT : Database<
+        Table<Row<int>, Row<float>, StableIDRow>,
+        Table<Row<int64_t>, StableIDRow>
+      > {};
+
+      TestDB() {
+        db = createDB();
+        scheduler.mScheduler.Initialize();
+        tls = std::make_unique<ThreadLocals>(scheduler.mScheduler.GetNumTaskThreads(), events.impl.get(), &db->getRuntime().getMappings());
+        builder = GameBuilder::create(*db);
+      }
+
+      static std::unique_ptr<IDatabase> createDB() {
+        auto mappings = std::make_unique<StableElementMappings>();
+        auto db = DBReflect::createDatabase<TestDBT>(*mappings);
+        return DBReflect::bundle(std::move(db), std::move(mappings));
+      }
+
+      TaskRange build() {
+        auto result = GameScheduler::buildTasks(IAppBuilder::finalize(std::move(builder)), *tls);
+        //Replace with a new one
+        builder = GameBuilder::create(*db);
+        return result;
+      }
+
+      void execute(TaskRange task) {
+        task.mBegin->mTask.addToPipe(scheduler.mScheduler);
+        scheduler.mScheduler.WaitforTask(task.mEnd->mTask.get());
+      }
+
+      void buildAndExecute() {
+        execute(build());
+      }
+
+      std::unique_ptr<IDatabase> db;
+      std::unique_ptr<ThreadLocals> tls;
+      Events::EventsInstance events;
+      Scheduler scheduler;
+      std::unique_ptr<IAppBuilder> builder;
+    };
+
+    TEST_METHOD(ConfigurableTask) {
+      TestDB db;
+      auto taskA = db.builder->createTask();
+      auto taskB = db.builder->createTask();
+      auto taskC = db.builder->createTask();
+      std::shared_ptr<AppTaskConfig> configB = taskB.getConfig();
+      std::shared_ptr<AppTaskConfig> configC = taskC.getConfig();
+      //Write in a read in b so scheduler sequences them
+      taskA.query<Row<int>>();
+      taskB.query<const Row<int>>();
+      taskC.query<const Row<int>>();
+      taskA.setName("a").setCallback([configB, configC](...) {
+        AppTaskSize s;
+        s.batchSize = 5;
+        s.workItemCount = 0;
+        configB->setSize(s);
+        s.workItemCount = 2;
+        configC->setSize(s);
+      });
+      taskB.setName("b").setCallback([](AppTaskArgs&) {
+        Assert::Fail(L"Zero size tasks should not be invoked");
+      });
+      int cInvocations{};
+      taskC.setName("c").setCallback([&cInvocations](AppTaskArgs& args) {
+        ++cInvocations;
+        Assert::AreEqual(size_t(0), args.begin);
+        Assert::AreEqual(size_t(2), args.end);
+      });
+      db.builder->submitTask(std::move(taskA));
+      db.builder->submitTask(std::move(taskB));
+      db.builder->submitTask(std::move(taskC));
+
+      db.buildAndExecute();
+
+      Assert::AreEqual(1, cInvocations);
+    }
+
+    TEST_METHOD(MigrateTable) {
+      TestDB db;
+      const UnpackedDatabaseElementID from = db.builder->queryTables<Row<float>>().matchingTableIDs[0];
+      const UnpackedDatabaseElementID to = db.builder->queryTables<Row<int64_t>>().matchingTableIDs[0];
+      int invocations{};
+      {
+        auto taskA = db.builder->createTask();
+        auto modifier = taskA.getModifierForTable(from);
+        taskA.setName("a").setCallback([modifier, &invocations](...) {
+          ++invocations;
+          modifier->resize(2);
+        });
+        db.builder->submitTask(std::move(taskA));
+      }
+      {
+        auto taskB = db.builder->createTask();
+        RuntimeDatabase& d = taskB.getDatabase();
+        taskB.setName("b").setCallback([&d, from, to, &invocations](...) {
+          ++invocations;
+          RuntimeTable* tableFrom = d.tryGet(from);
+          RuntimeTable* tableTo = d.tryGet(to);
+          Assert::IsTrue(tableFrom && tableTo);
+
+          RuntimeTable::migrateOne(0, *tableFrom, *tableTo);
+
+          Assert::AreEqual(size_t(1), tableFrom->tryGet<Row<float>>()->size());
+          Assert::AreEqual(size_t(1), tableTo->tryGet<Row<int64_t>>()->size());
+        });
+        db.builder->submitTask(std::move(taskB));
+      }
+      {
+        auto taskC = db.builder->createTask();
+        auto query = taskC.query<Row<int64_t>>();
+        taskC.setName("c").setCallback([query, &invocations](...) mutable {
+          ++invocations;
+          Assert::AreEqual(size_t(1), query.get<0>(0).size());
+        });
+        db.builder->submitTask(std::move(taskC));
+      }
+      db.buildAndExecute();
+      Assert::AreEqual(3, invocations);
+    }
   };
 
   TEST_CLASS(Tests) {
@@ -1132,7 +1257,7 @@ namespace Test {
       Fragment::_migrateCompletedFragments(*builder);
       game.execute(std::move(builder));
     }
-    /*
+
     TEST_METHOD(GameOneObject_Migrate_PhysicsDataPreserved) {
       TestGame game;
       GameArgs gameArgs;
@@ -1188,7 +1313,6 @@ namespace Test {
 
       game.builder().query<FragmentGoalFoundRow>(game.tables.fragments).get<0>(0).at(0) = true;
 
-      migrateCompletedFragments(game);
       game.update();
 
       //Migrate will also snap the fragment to its goal, so recenter the player in collision with the new location
@@ -1201,7 +1325,7 @@ namespace Test {
       auto ids = game.builder().getIDResolver();
       //Object should have moved to the static table, and mapping updated to new unstable id pointing at static table but same stable id
       objectId = *ids->tryResolveStableID(objectId);
-      Assert::IsTrue(objectId == StableElementID{ GameDatabase::getElementID<StaticGameObjectTable>(0).mValue, originalObjectStableId });
+      Assert::IsTrue(objectId == StableElementID{ game.tables.completedFragments.remakeElement(0).mValue, originalObjectStableId });
 
       game.update();
       auto assertStaticCollision = [&] {
@@ -1229,7 +1353,7 @@ namespace Test {
       game.update();
       assertStaticCollision();
     }
-
+    /*
     size_t cellSize(const Broadphase::SweepGrid::Grid& grid, size_t cell) {
       //Elements don't use the free list but have two entries per object
       //Another approach would be user keys minus free list size
