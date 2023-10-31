@@ -248,6 +248,7 @@ namespace TableAdapters {
 
   TransformAdapter getTransform(RuntimeDatabaseTaskBuilder& task, const UnpackedDatabaseElementID& table);
   TransformAdapter getGameplayTransform(RuntimeDatabaseTaskBuilder& task, const UnpackedDatabaseElementID& table);
+  PhysicsObjectAdapter getPhysics(RuntimeDatabaseTaskBuilder& task, const UnpackedDatabaseElementID& table);
 
   inline glm::vec2 read(size_t i, const Row<float>& a, const Row<float>& b) {
     return { a.at(i), b.at(i) };

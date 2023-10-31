@@ -221,6 +221,18 @@ TransformAdapter TableAdapters::getGameplayTransform(RuntimeDatabaseTaskBuilder&
   return result;
 }
 
+PhysicsObjectAdapter TableAdapters::getPhysics(RuntimeDatabaseTaskBuilder& task, const UnpackedDatabaseElementID& table) {
+  PhysicsObjectAdapter r;
+  std::tie(r.linVelX, r.linVelY, r.angVel, r.linImpulseX, r.linImpulseY, r.angImpulse, r.collisionMask) = task.query<
+    FloatRow<Tags::LinVel, Tags::X>, FloatRow<Tags::LinVel, Tags::Y>,
+    FloatRow<Tags::AngVel, Tags::Angle>,
+    FloatRow<Tags::GLinImpulse, Tags::X>, FloatRow<Tags::GLinImpulse, Tags::Y>,
+    FloatRow<Tags::GAngImpulse, Tags::Angle>,
+    CollisionMaskRow
+  >(table).get(0);
+  return r;
+}
+
 size_t TableAdapters::addStatEffectsSharedLifetime(StatEffectBaseAdapter& base, size_t lifetime, const size_t* stableIds, size_t count) {
   const size_t firstIndex = base.modifier.addElements(count, nullptr);
   for(size_t i = 0; i < count; ++i) {
