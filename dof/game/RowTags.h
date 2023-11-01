@@ -2,8 +2,12 @@
 
 #include "Table.h"
 
-template<class, class = void>
-struct FloatRow : Row<float> {};
+template<class A, class B = void>
+struct FloatRow : Row<float> {
+  //Types are intended as tags, if they have values it's likely accidental
+  static_assert(std::is_empty_v<A>);
+  static_assert(std::is_empty_v<B>);
+};
 
 namespace Tags {
   //Position in X and Y

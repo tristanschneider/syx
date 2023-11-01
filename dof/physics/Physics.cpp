@@ -630,7 +630,7 @@ namespace Physics {
     fillConstraintRow(builder, aliases.linVelY.read(), Alias::create<OA::LinVelY>(), idsA);
     fillConstraintRow(builder, aliases.angVel.read(), Alias::create<OA::AngVel>(), idsA);
 
-    using OB = ConstraintObject<ConstraintObjA>;
+    using OB = ConstraintObject<ConstraintObjB>;
     auto idsB = QueryAlias<Row<StableElementID>>::create<CollisionPairIndexB>().read();
     fillConstraintRow(builder, aliases.linVelX.read(), Alias::create<OB::LinVelX>(), idsB);
     fillConstraintRow(builder, aliases.linVelY.read(), Alias::create<OB::LinVelY>(), idsB);

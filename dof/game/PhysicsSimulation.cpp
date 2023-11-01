@@ -6,14 +6,13 @@
 #include "DebugDrawer.h"
 
 namespace PhysicsSimulation {
-  using namespace Tags;
-  using PosX = FloatRow<Pos, X>;
-  using PosY = FloatRow<Pos, Y>;
-  using LinVelX = FloatRow<LinVel, X>;
-  using LinVelY = FloatRow<LinVel, Y>;
-  using AngVel = FloatRow<AngVel, Angle>;
-  using RotX = FloatRow<Rot, CosAngle>;
-  using RotY = FloatRow<Rot, SinAngle>;
+  using PosX = FloatRow<Tags::Pos, Tags::X>;
+  using PosY = FloatRow<Tags::Pos, Tags::Y>;
+  using LinVelX = FloatRow<Tags::LinVel, Tags::X>;
+  using LinVelY = FloatRow<Tags::LinVel, Tags::Y>;
+  using AngVel = FloatRow<Tags::AngVel, Tags::Angle>;
+  using RotX = FloatRow<Tags::Rot, Tags::CosAngle>;
+  using RotY = FloatRow<Tags::Rot, Tags::SinAngle>;
   //For now use the existence of this row to indicate that the given object should participate in collision
   using HasCollision = Row<CubeSprite>;
 
@@ -151,13 +150,13 @@ namespace PhysicsSimulation {
     PhysicsAliases aliases;
 
     using FloatAlias = QueryAlias<Row<float>>;
-    aliases.posX = FloatAlias::create<FloatRow<Pos, X>>();
-    aliases.posY = FloatAlias::create<FloatRow<Pos, Y>>();
-    aliases.rotX = FloatAlias::create<FloatRow<Rot, CosAngle>>();
-    aliases.rotY = FloatAlias::create<FloatRow<Rot, SinAngle>>();
-    aliases.linVelX = FloatAlias::create<FloatRow<LinVel, X>>();
-    aliases.linVelY = FloatAlias::create<FloatRow<LinVel, Y>>();
-    aliases.angVel = FloatAlias::create<FloatRow<AngVel, Angle>>();
+    aliases.posX = FloatAlias::create<FloatRow<Tags::Pos, Tags::X>>();
+    aliases.posY = FloatAlias::create<FloatRow<Tags::Pos, Tags::Y>>();
+    aliases.rotX = FloatAlias::create<FloatRow<Tags::Rot, Tags::CosAngle>>();
+    aliases.rotY = FloatAlias::create<FloatRow<Tags::Rot, Tags::SinAngle>>();
+    aliases.linVelX = FloatAlias::create<FloatRow<Tags::LinVel, Tags::X>>();
+    aliases.linVelY = FloatAlias::create<FloatRow<Tags::LinVel, Tags::Y>>();
+    aliases.angVel = FloatAlias::create<FloatRow<Tags::AngVel, Tags::Angle>>();
     aliases.broadphaseMinX = FloatAlias::create<SpatialQuery::MinX>();
     aliases.broadphaseMaxX = FloatAlias::create<SpatialQuery::MaxX>();
     aliases.broadphaseMinY = FloatAlias::create<SpatialQuery::MinY>();
