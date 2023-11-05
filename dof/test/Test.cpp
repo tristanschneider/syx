@@ -42,6 +42,7 @@ namespace Test {
     glm::vec2 boundaryMin{ -100 };
     glm::vec2 boundaryMax{ 100 };
     bool enableFragmentGoals{ false };
+    bool singleSolve{};
   };
 
   struct KnownTables {
@@ -121,6 +122,9 @@ namespace Test {
 
       if(!args.enableFragmentGoals) {
         TableAdapters::getGameConfigMutable(b)->fragment.fragmentGoalDistance = -1.0f;
+      }
+      if(args.singleSolve) {
+        TableAdapters::getGameConfigMutable(b)->physics.mForcedTargetWidth = 1;
       }
 
       b.getModifierForTable(tables.fragments)->resize(args.fragmentCount);
@@ -1353,7 +1357,7 @@ namespace Test {
       game.update();
       assertStaticCollision();
     }
-    /*
+
     size_t cellSize(const Broadphase::SweepGrid::Grid& grid, size_t cell) {
       //Elements don't use the free list but have two entries per object
       //Another approach would be user keys minus free list size
@@ -1378,9 +1382,10 @@ namespace Test {
       GameArgs args;
       args.fragmentCount = 3;
       game.init(args);
-      const Broadphase::SweepGrid::Grid& grid = std::get<SharedRow<Broadphase::SweepGrid::Grid>>(std::get<SweepNPruneBroadphase::BroadphaseTable>(game.db.mTables).mRows).at();
+      auto task = game.builder();
+      const Broadphase::SweepGrid::Grid& grid = *task.query<SharedRow<Broadphase::SweepGrid::Grid>>().tryGetSingletonElement();
 
-      GameObjectAdapter objs = TableAdapters::getGameObjects(game);
+      TransformAdapter objs = TableAdapters::getTransform(task, game.tables.fragments);
       std::array bounds = {
         glm::vec2{ 50.0f, 0.0f },
         glm::vec2{ -50.0f, 0.0f },
@@ -1392,24 +1397,24 @@ namespace Test {
       for(const glm::vec2& b : bounds) {
         //Try putting them outside the grid to make sure it clamps properly
         for(size_t i = 0; i < args.fragmentCount; ++i) {
-          objs.transform.posX->at(i) = b.x;
-          objs.transform.posY->at(i) = b.y;
+          objs.posX->at(i) = b.x;
+          objs.posY->at(i) = b.y;
         }
 
         game.update();
 
-        _assertEnabledContactConstraintCount(game.db, 3);
+        _assertEnabledContactConstraintCount(game, 3);
       }
 
       //One in left cell, one in right, and one on the boundary, all touching
       for(size_t i = 0; i < args.fragmentCount; ++i) {
-        objs.transform.posY->at(i) = 0.0f;
+        objs.posY->at(i) = 0.0f;
       }
       const float halfSize = 0.5f;
       const float padding = 0.1f;
-      objs.transform.posX->at(0) = cfg.broadphase.cellSizeX - halfSize - padding;
-      objs.transform.posX->at(1) = cfg.broadphase.cellSizeX;
-      objs.transform.posX->at(2) = cfg.broadphase.cellSizeX + halfSize + padding;
+      objs.posX->at(0) = cfg.broadphase.cellSizeX - halfSize - padding;
+      objs.posX->at(1) = cfg.broadphase.cellSizeX;
+      objs.posX->at(2) = cfg.broadphase.cellSizeX + halfSize + padding;
 
       game.update();
 
@@ -1417,12 +1422,12 @@ namespace Test {
       Assert::AreEqual(size_t(2), cellSize(grid, 1));
       Assert::AreEqual(size_t(1), trackedCellPairs(grid, 0));
       Assert::AreEqual(size_t(1), trackedCellPairs(grid, 1));
-      _assertEnabledContactConstraintCount(game.db, 2);
+      _assertEnabledContactConstraintCount(game, 2);
 
       //Move boundary object to the right cell
-      objs.transform.posX->at(1) = cfg.broadphase.cellSizeX + halfSize*2;
-      objs.transform.posX->at(0) = cfg.broadphase.cellSizeX - halfSize - padding;
-      objs.transform.posX->at(2) = cfg.broadphase.cellSizeX + halfSize + padding;
+      objs.posX->at(1) = cfg.broadphase.cellSizeX + halfSize*2;
+      objs.posX->at(0) = cfg.broadphase.cellSizeX - halfSize - padding;
+      objs.posX->at(2) = cfg.broadphase.cellSizeX + halfSize + padding;
 
       game.update();
 
@@ -1430,12 +1435,12 @@ namespace Test {
       Assert::AreEqual(size_t(2), cellSize(grid, 1));
       Assert::AreEqual(size_t(0), trackedCellPairs(grid, 0));
       Assert::AreEqual(size_t(1), trackedCellPairs(grid, 1));
-      _assertEnabledContactConstraintCount(game.db, 1);
+      _assertEnabledContactConstraintCount(game, 1);
 
       //Move boundary object to the left cell
-      objs.transform.posX->at(1) = cfg.broadphase.cellSizeX - halfSize*2;
-      objs.transform.posX->at(0) = cfg.broadphase.cellSizeX - halfSize - padding;
-      objs.transform.posX->at(2) = cfg.broadphase.cellSizeX + halfSize + padding;
+      objs.posX->at(1) = cfg.broadphase.cellSizeX - halfSize*2;
+      objs.posX->at(0) = cfg.broadphase.cellSizeX - halfSize - padding;
+      objs.posX->at(2) = cfg.broadphase.cellSizeX + halfSize + padding;
 
       game.update();
 
@@ -1443,13 +1448,13 @@ namespace Test {
       Assert::AreEqual(size_t(1), cellSize(grid, 1));
       Assert::AreEqual(size_t(1), trackedCellPairs(grid, 0));
       Assert::AreEqual(size_t(0), trackedCellPairs(grid, 1));
-      _assertEnabledContactConstraintCount(game.db, 1);
+      _assertEnabledContactConstraintCount(game, 1);
 
       //Two objects on a boundary
       auto setBoundary = [&] {
-        objs.transform.posX->at(0) = cfg.broadphase.cellSizeX;
-        objs.transform.posX->at(1) = cfg.broadphase.cellSizeX;
-        objs.transform.posX->at(2) = 100.0f;
+        objs.posX->at(0) = cfg.broadphase.cellSizeX;
+        objs.posX->at(1) = cfg.broadphase.cellSizeX;
+        objs.posX->at(2) = 100.0f;
         game.update();
       };
 
@@ -1459,10 +1464,10 @@ namespace Test {
       Assert::AreEqual(size_t(3), cellSize(grid, 1));
       Assert::AreEqual(size_t(1), trackedCellPairs(grid, 0));
       Assert::AreEqual(size_t(1), trackedCellPairs(grid, 1));
-      _assertEnabledContactConstraintCount(game.db, 1);
+      _assertEnabledContactConstraintCount(game, 1);
 
       setBoundary();
-      objs.transform.posX->at(0) = cfg.broadphase.cellSizeX + halfSize + padding;
+      objs.posX->at(0) = cfg.broadphase.cellSizeX + halfSize + padding;
 
       game.update();
 
@@ -1470,96 +1475,103 @@ namespace Test {
       Assert::AreEqual(size_t(3), cellSize(grid, 1));
       Assert::AreEqual(size_t(0), trackedCellPairs(grid, 0));
       Assert::AreEqual(size_t(1), trackedCellPairs(grid, 1));
-      _assertEnabledContactConstraintCount(game.db, 1);
+      _assertEnabledContactConstraintCount(game, 1);
     }
 
     TEST_METHOD(GameTwoObjects_Migrate_PhysicsDataPreserved) {
-      TestGame game;
       GameArgs gameArgs;
       gameArgs.fragmentCount = 2;
       gameArgs.playerPos = glm::vec2{ 5, 5 };
-      GameDatabase& db = game.db;
+      TestGame game;
       game.init(gameArgs);
-      DBReader reader(db);
-      StableElementID playerId = StableOperations::getStableID(reader.mPlayerIDs, GameDatabase::getElementID<PlayerTable>(0));
-      StableElementID objectLeftId = StableOperations::getStableID(reader.mGameObjectIDs, GameDatabase::getElementID<GameObjectTable>(0));
-      StableElementID objectRightId = StableOperations::getStableID(reader.mGameObjectIDs, GameDatabase::getElementID<GameObjectTable>(1));
+      auto task = game.builder();
+      auto ids = task.getIDResolver();
+      TransformAdapter fragmentTransform = TableAdapters::getTransform(task, game.tables.fragments);
+      PhysicsObjectAdapter fragmentPhysics = TableAdapters::getPhysics(task, game.tables.fragments);
+      TransformAdapter playerTransform = TableAdapters::getTransform(task, game.tables.player);
+      PhysicsObjectAdapter playerPhysics = TableAdapters::getPhysics(task, game.tables.player);
+
+      StableIDRow& stablePlayer = task.query<StableIDRow>(game.tables.player).get<0>(0);
+      StableIDRow& stableFragment = task.query<StableIDRow>(game.tables.fragments).get<0>(0);
+      StableElementID playerId = StableOperations::getStableID(stablePlayer, game.tables.player.remakeElement(0));
+      StableElementID objectLeftId = StableOperations::getStableID(stableFragment, game.tables.fragments.remakeElement(0));
+      StableElementID objectRightId = StableOperations::getStableID(stableFragment, game.tables.fragments.remakeElement(1));
 
       float initialX[] = { 1.0f, 2.0f, 1.5f };
       float initialY[] = { 1.0f, 1.0f, 1.75f };
       for(size_t i = 0; i < 2; ++i) {
-        reader.mPosX.at(i) = initialX[i];
-        reader.mPosY.at(i) = initialY[i];
-        reader.mLinVelY.at(i) = 0.5f;
+        fragmentTransform.posX->at(i) = initialX[i];
+        fragmentTransform.posY->at(i) = initialY[i];
+        fragmentPhysics.linVelY->at(i) = 0.5f;
       }
-      glm::vec2 initialRight{ reader.mPosX.at(1), reader.mPosY.at(1) };
+      glm::vec2 initialRight{ TableAdapters::read(1, *fragmentTransform.posX, *fragmentTransform.posY) };
 
       auto setInitialPlayerPos = [&] {
-        reader.mPlayerPosX.at(0) = initialX[2];
-        reader.mPlayerPosY.at(0) = initialY[2];
-        reader.mPlayerLinVelY.at(0) = -0.5f;
+        playerTransform.posX->at(0) = initialX[2];
+        playerTransform.posY->at(0) = initialY[2];
+        playerPhysics.linVelY->at(0) = -0.5f;
       };
       setInitialPlayerPos();
 
       game.update();
 
-      Assert::AreEqual(size_t(3), TableOperations::size(reader.mCollisionPairs));
-      _assertEnabledContactConstraintCount(db, 3);
-      _assertEnabledStaticContactConstraintCount(db, 0);
-      Assert::IsTrue(_unorderedCollisionPairsMatch(reader,
+      PhysicsPairs pairs{ game };
+      Assert::AreEqual(size_t(3), pairs.collisionA->size());
+      _assertEnabledContactConstraintCount(game, 3);
+      _assertEnabledStaticContactConstraintCount(game, 0);
+      Assert::IsTrue(_unorderedCollisionPairsMatch(game,
         { playerId, playerId, objectLeftId },
         { objectLeftId, objectRightId, objectRightId }
       ));
 
       //Min ia a bit weirder here since the impulse is spread between the two objects and at an angle
       const float minCorrection = 0.05f;
-      Assert::IsTrue(reader.mPlayerLinVelY.at(0) > -0.5f + minCorrection, L"Player should be pushed away from object");
-      Assert::IsTrue(reader.mLinVelY.at(0) < 0.5f - minCorrection, L"Object should be pushed away from player");
-      Assert::IsTrue(reader.mLinVelY.at(1) < 0.5f - minCorrection, L"Object should be pushed away from player");
+      Assert::IsTrue(playerPhysics.linVelY->at(0) > -0.5f + minCorrection, L"Player should be pushed away from object");
+      Assert::IsTrue(fragmentPhysics.linVelY->at(0) < 0.5f - minCorrection, L"Object should be pushed away from player");
+      Assert::IsTrue(fragmentPhysics.linVelY->at(1) < 0.5f - minCorrection, L"Object should be pushed away from player");
 
-      std::get<FragmentGoalFoundRow>(reader.mGameObjects.mRows).at(0) = true;
-      std::get<FloatRow<Tags::FragmentGoal, Tags::X>>(std::get<GameObjectTable>(db.mTables).mRows).at(0) = initialX[0];
-      std::get<FloatRow<Tags::FragmentGoal, Tags::Y>>(std::get<GameObjectTable>(db.mTables).mRows).at(0) = initialY[0];
-      Fragment::_migrateCompletedFragments({ db }, 0);
+      auto&& [goalFound, goalX, goalY] = task.query<FragmentGoalFoundRow, FloatRow<Tags::FragmentGoal, Tags::X>, FloatRow<Tags::FragmentGoal, Tags::Y>>().get(0);
+      goalFound->at(0) = true;
+      TableAdapters::write(0, glm::vec2{ initialX[0], initialY[0] }, *goalX, *goalY);
       game.update();
 
       //Need to update both since one moved and the other was affected by swap removal
-      objectLeftId = *StableOperations::tryResolveStableID(objectLeftId, db, reader.mStableMappings);
-      objectRightId = *StableOperations::tryResolveStableID(objectRightId, db, reader.mStableMappings);
+      objectLeftId = *ids->tryResolveStableID(objectLeftId);
+      objectRightId = *ids->tryResolveStableID(objectRightId);
 
       auto resetStaticPos = [&] {
         setInitialPlayerPos();
-        reader.mPosX.at(0) = initialRight.x;
-        reader.mPosY.at(0) = initialRight.y + 0.1f;
-        reader.mLinVelY.at(0) = 0.5f;
+        fragmentTransform.posX->at(0) = initialRight.x;
+        fragmentTransform.posY->at(0) = initialRight.y + 0.1f;
+        fragmentPhysics.linVelY->at(0) = 0.5f;
       };
 
       resetStaticPos();
       game.update();
 
       auto assertStaticCollision = [&] {
-        Assert::AreEqual(size_t(3), TableOperations::size(reader.mCollisionPairs));
-        _assertEnabledContactConstraintCount(db, 1);
-        _assertEnabledStaticContactConstraintCount(db, 2);
+        Assert::AreEqual(size_t(3), pairs.collisionA->size());
+        _assertEnabledContactConstraintCount(game, 1);
+        _assertEnabledStaticContactConstraintCount(game, 2);
         //Now left is the B object always since it's static
-        Assert::IsTrue(_unorderedCollisionPairsMatch(reader,
+        Assert::IsTrue(_unorderedCollisionPairsMatch(game,
           { playerId, playerId, objectRightId },
           { objectLeftId, objectRightId, objectLeftId }
         ));
 
-        Assert::IsTrue(reader.mPlayerLinVelY.at(0) > -0.5f + minCorrection, L"Player should be pushed away from object");
-        Assert::IsTrue(reader.mLinVelY.at(0) < 0.5f - minCorrection, L"Object should be pushed away from player");
+        Assert::IsTrue(playerPhysics.linVelY->at(0) > -0.5f + minCorrection, L"Player should be pushed away from object");
+        Assert::IsTrue(fragmentPhysics.linVelY->at(0) < 0.5f - minCorrection, L"Object should be pushed away from player");
       };
       assertStaticCollision();
 
       resetStaticPos();
-      reader.mPlayerPosX.at(0) = 100.0f;
+      playerTransform.posX->at(0) = 100.0f;
       game.update();
 
-      Assert::AreEqual(size_t(1), TableOperations::size(reader.mCollisionPairs));
-      _assertEnabledContactConstraintCount(db, 0);
-      _assertEnabledStaticContactConstraintCount(db, 1);
-      Assert::IsTrue(_unorderedCollisionPairsMatch(reader,
+      Assert::AreEqual(size_t(1), pairs.collisionA->size());
+      _assertEnabledContactConstraintCount(game, 0);
+      _assertEnabledStaticContactConstraintCount(game, 1);
+      Assert::IsTrue(_unorderedCollisionPairsMatch(game,
         { objectRightId },
         { objectLeftId }
       ));
@@ -1569,7 +1581,7 @@ namespace Test {
 
       assertStaticCollision();
     }
-
+    /*
     template<class TableT>
     static constexpr UnpackedDatabaseElementID _getUnpackedID(size_t index = 0) {
       return UnpackedDatabaseElementID::fromPacked(GameDatabase::getElementID<TableT>(index));
