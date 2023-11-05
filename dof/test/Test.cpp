@@ -42,7 +42,7 @@ namespace Test {
     glm::vec2 boundaryMin{ -100 };
     glm::vec2 boundaryMax{ 100 };
     bool enableFragmentGoals{ false };
-    bool singleSolve{};
+    std::optional<size_t> forcedPadding;
   };
 
   struct KnownTables {
@@ -123,8 +123,8 @@ namespace Test {
       if(!args.enableFragmentGoals) {
         TableAdapters::getGameConfigMutable(b)->fragment.fragmentGoalDistance = -1.0f;
       }
-      if(args.singleSolve) {
-        TableAdapters::getGameConfigMutable(b)->physics.mForcedTargetWidth = 1;
+      if(args.forcedPadding) {
+        TableAdapters::getGameConfigMutable(b)->physics.mForcedTargetWidth = *args.forcedPadding;
       }
 
       b.getModifierForTable(tables.fragments)->resize(args.fragmentCount);
@@ -1256,11 +1256,11 @@ namespace Test {
       return StableOperations::getStableID(game.builder().query<StableIDRow>(table).get<0>(0), table.remakeElement(index));
     }
 
-    static void migrateCompletedFragments(TestGame& game) {
-      std::unique_ptr<IAppBuilder> builder = GameBuilder::create(*game.db);
-      Fragment::_migrateCompletedFragments(*builder);
-      game.execute(std::move(builder));
-    }
+    //static void migrateCompletedFragments(TestGame& game) {
+    //  std::unique_ptr<IAppBuilder> builder = GameBuilder::create(*game.db);
+    //  Fragment::_migrateCompletedFragments(*builder);
+    //  game.execute(std::move(builder));
+    //}
 
     TEST_METHOD(GameOneObject_Migrate_PhysicsDataPreserved) {
       TestGame game;
@@ -1581,33 +1581,25 @@ namespace Test {
 
       assertStaticCollision();
     }
-    /*
-    template<class TableT>
-    static constexpr UnpackedDatabaseElementID _getUnpackedID(size_t index = 0) {
-      return UnpackedDatabaseElementID::fromPacked(GameDatabase::getElementID<TableT>(index));
-    }
 
-    template<class TableT>
-    static void _stableResize(TableT& table, size_t newSize, StableElementMappings& mappings) {
-      TableOperations::stableResizeTable(table, _getUnpackedID<TableT>(), newSize, mappings);
-    }
+    static StableElementID _addCollisionPair(TestGame& game, StableElementID a, StableElementID b) {
+      auto task = game.builder();
+      auto query = task.query<CollisionPairIndexA, CollisionPairIndexB, NarrowphaseTableTag, StableIDRow>();
+      auto&& [pairA, pairB, _, stable] = query.get(0);
+      const UnpackedDatabaseElementID collisionTable = query.matchingTableIDs[0];
+      auto modifier = task.getModifierForTable(collisionTable);
+      const size_t i = modifier->addElements(1);
+      pairA->at(i) = a;
+      pairB->at(i) = b;
 
-    static StableElementID _addCollisionPair(GameDatabase& db, StableElementID a, StableElementID b) {
-      DBReader reader(db);
-      const size_t oldSize = TableOperations::size(reader.mCollisionPairs);
-      _stableResize(reader.mCollisionPairs, oldSize + 1, reader.mStableMappings);
-      reader.mCollisionPairA.at(oldSize) = a;
-      reader.mCollisionPairB.at(oldSize) = b;
-      StableElementID result = StableOperations::getStableID(reader.mCollisionPairIDs, _getUnpackedID<CollisionPairsTable>(oldSize));
-
-      reader.mChangedPairs.mGained.push_back(result);
-
+      auto changedPairs = task.query<SharedRow<SweepNPruneBroadphase::ChangedCollisionPairs>>().tryGetSingletonElement();
+      StableElementID result = StableOperations::getStableID(*stable, collisionTable.remakeElement(i));
+      changedPairs->mGained.push_back(result);
       return result;
     }
 
-    static StableElementID _getGameobjectID(GameDatabase& db, size_t index) {
-      DBReader reader(db);
-      return StableOperations::getStableID(reader.mGameObjectIDs, _getUnpackedID<GameObjectTable>(index));
+    static StableElementID _getGameobjectID(TestGame& game, size_t index) {
+      return StableOperations::getStableID(game.builder().query<StableIDRow>(game.tables.fragments).get<0>(0), game.tables.fragments.remakeElement(index));
     }
 
     //Hack to match ispc enum
@@ -1616,22 +1608,26 @@ namespace Test {
     static constexpr int SYNC_TO_B = 2;
 
     TEST_METHOD(ConstraintsTableBuilder_Integration) {
-      GameDatabase db;
-      DBReader reader(db);
-      TableOperations::stableResizeTable(reader.mGameObjects, UnpackedDatabaseElementID::fromPacked(GameDatabase::getTableIndex<GameObjectTable>()), 5, reader.mStableMappings);
-      const PhysicsConfig config = _configWithPadding(1);
+      GameArgs args;
+      args.fragmentCount = 5;
+      args.forcedPadding = 1;
+      TestGame game;
+      game.init(args);
 
-      StableElementID a = _getGameobjectID(db, 0);
-      StableElementID b = _getGameobjectID(db, 1);
-      StableElementID pair = _addCollisionPair(db, a, b);
+      StableElementID a = _getGameobjectID(game, 0);
+      StableElementID b = _getGameobjectID(game, 1);
+      StableElementID pair = _addCollisionPair(game, a, b);
 
-      _buildConstraintsTable(db, config);
+      _buildConstraintsTable(game);
 
-      Assert::AreEqual(size_t(2), TableOperations::size(reader.mConstraintsCommon), L"Should have one real element and one padding");
-      Assert::AreEqual(NO_SYNC, reader.mSyncTypeA.at(0));
-      Assert::AreEqual(NO_SYNC, reader.mSyncTypeB.at(0));
+      auto&& [common, syncTypeA, syncTypeB] = game.builder().query<ConstraintsCommonTableTag,
+        ConstraintObject<ConstraintObjA>::SyncType,
+        ConstraintObject<ConstraintObjB>::SyncType>().get(0);
+      Assert::AreEqual(size_t(2), common->size(), L"Should have one real element and one padding");
+      Assert::AreEqual(NO_SYNC, syncTypeA->at(0));
+      Assert::AreEqual(NO_SYNC, syncTypeB->at(0));
     }
-
+    /*
     static auto getTargetElementRange(GameDatabase& db, size_t tableId) {
       DBReader reader(db);
       return ctbdetails::getTargetElementRange(tableId, PhysicsSimulation::_getPhysicsTableIds(), reader.mConstraintsMappings, TableOperations::size(reader.mConstraintsCommon));

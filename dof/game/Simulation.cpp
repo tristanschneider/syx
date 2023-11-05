@@ -194,7 +194,15 @@ void Simulation::initScheduler(IAppBuilder& builder) {
   Events::EventsInstance* events = task.query<Events::EventsRow>().tryGetSingletonElement();
   StableElementMappings* mappings = &task.getDatabase().getMappings();
   task.setCallback([scheduler, tls, events, mappings](AppTaskArgs&) {
-    scheduler->mScheduler.Initialize();
+    enki::TaskSchedulerConfig cfg;
+    struct ProfileStop {
+      static void threadStop(uint32_t) {
+        ON_PROFILE_THREAD_DESTROYED;
+      }
+    };
+    cfg.profilerCallbacks.threadStop = &ProfileStop::threadStop;
+
+    scheduler->mScheduler.Initialize(cfg);
     tls->instance = std::make_unique<ThreadLocals>(scheduler->mScheduler.GetNumTaskThreads(), events->impl.get(), mappings);
   });
   builder.submitTask(std::move(task));
