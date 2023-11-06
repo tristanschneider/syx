@@ -130,55 +130,39 @@ namespace ConstraintsTableBuilder {
     }
   }
 
-  struct AddDeps {
-    static AddDeps query(RuntimeDatabaseTaskBuilder& task) {
-      AddDeps result;
-      result.ids = task.getIDResolver();
-      auto pair = task.query<
-        CollisionPairIndexA,
-        CollisionPairIndexB,
-        ConstraintElement
-      >();
+  AddDeps AddDeps::query(RuntimeDatabaseTaskBuilder& task) {
+    AddDeps result;
+    result.ids = task.getIDResolver();
+    auto pair = task.query<
+      CollisionPairIndexA,
+      CollisionPairIndexB,
+      ConstraintElement
+    >();
 
-      auto constraint = task.query<
-        CollisionPairIndexA,
-        CollisionPairIndexB,
-        const StableIDRow,
-        ConstraintData::ConstraintContactPair,
-        ConstraintData::IsEnabled
-      >();
-      assert(pair.size() == constraint.size() == 1);
+    auto constraint = task.query<
+      CollisionPairIndexA,
+      CollisionPairIndexB,
+      const StableIDRow,
+      ConstraintData::ConstraintContactPair,
+      ConstraintData::IsEnabled
+    >();
+    assert(pair.size() == constraint.size() == 1);
 
-      result.pairIndexA = &pair.get<0>(0);
-      result.pairIndexB = &pair.get<1>(0);
-      result.pairElement = &pair.get<2>(0);
+    result.pairIndexA = &pair.get<0>(0);
+    result.pairIndexB = &pair.get<1>(0);
+    result.pairElement = &pair.get<2>(0);
 
-      result.constraintIndexA = &constraint.get<0>(0);
-      result.constraintIndexB = &constraint.get<1>(0);
-      result.constraintPairIds = &constraint.get<2>(0);
-      result.constraintContactPair = &constraint.get<3>(0);
-      result.constraintEnabled = &constraint.get<4>(0);
+    result.constraintIndexA = &constraint.get<0>(0);
+    result.constraintIndexB = &constraint.get<1>(0);
+    result.constraintPairIds = &constraint.get<2>(0);
+    result.constraintContactPair = &constraint.get<3>(0);
+    result.constraintEnabled = &constraint.get<4>(0);
 
-      result.constraintsMappings = task.query<SharedRow<ConstraintsTableMappings>>().tryGetSingletonElement();
-      result.commonTable = constraint.matchingTableIDs[0];
-      result.commonTableModifier = task.getModifierForTable(result.commonTable);
-      return result;
-    }
-
-    std::shared_ptr<IIDResolver> ids;
-    CollisionPairIndexA* pairIndexA{};
-    CollisionPairIndexB* pairIndexB{};
-    ConstraintElement* pairElement{};
-
-    CollisionPairIndexA* constraintIndexA{};
-    CollisionPairIndexB* constraintIndexB{};
-    const StableIDRow* constraintPairIds{};
-    ConstraintData::ConstraintContactPair* constraintContactPair{};
-    ConstraintData::IsEnabled* constraintEnabled{};
-    ConstraintsTableMappings* constraintsMappings{};
-    std::shared_ptr<ITableModifier> commonTableModifier;
-    UnpackedDatabaseElementID commonTable;
-  };
+    result.constraintsMappings = task.query<SharedRow<ConstraintsTableMappings>>().tryGetSingletonElement();
+    result.commonTable = constraint.matchingTableIDs[0];
+    result.commonTableModifier = task.getModifierForTable(result.commonTable);
+    return result;
+  }
 
   void assignConstraint(const StableElementID& collisionPair,
     const StableElementID& a,

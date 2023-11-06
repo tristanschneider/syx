@@ -1256,12 +1256,6 @@ namespace Test {
       return StableOperations::getStableID(game.builder().query<StableIDRow>(table).get<0>(0), table.remakeElement(index));
     }
 
-    //static void migrateCompletedFragments(TestGame& game) {
-    //  std::unique_ptr<IAppBuilder> builder = GameBuilder::create(*game.db);
-    //  Fragment::_migrateCompletedFragments(*builder);
-    //  game.execute(std::move(builder));
-    //}
-
     TEST_METHOD(GameOneObject_Migrate_PhysicsDataPreserved) {
       TestGame game;
       GameArgs gameArgs;
@@ -1627,83 +1621,91 @@ namespace Test {
       Assert::AreEqual(NO_SYNC, syncTypeA->at(0));
       Assert::AreEqual(NO_SYNC, syncTypeB->at(0));
     }
-    /*
-    static auto getTargetElementRange(GameDatabase& db, size_t tableId) {
-      DBReader reader(db);
-      return ctbdetails::getTargetElementRange(tableId, PhysicsSimulation::_getPhysicsTableIds(), reader.mConstraintsMappings, TableOperations::size(reader.mConstraintsCommon));
+
+    static ConstraintsTableMappings* getConstraintMappings(TestGame& game) {
+      return game.builder().query<SharedRow<ConstraintsTableMappings>>().tryGetSingletonElement();
     }
 
-    static StableElementID tryTakeSuitableFreeSlot(GameDatabase& db, size_t tableId, const StableElementID& a, const StableElementID& b, size_t width) {
-      DBReader reader(db);
+    static auto getTargetElementRange(TestGame& game, size_t tableId) {
+      const size_t commonSize = game.builder().query<ConstraintsCommonTableTag>().get<0>(0).size();
+      const PhysicsTableIds ids = Physics::getTableIds(*game.testBuilder);
+      return ctbdetails::getTargetElementRange(tableId, ids, *getConstraintMappings(game), commonSize);
+    }
+
+    static StableElementID tryTakeSuitableFreeSlot(TestGame& game, size_t tableId, const StableElementID& a, const StableElementID& b, size_t width) {
+      PhysicsPairs pairs{ game };
+      auto ids = game.builder().getIDResolver();
       StableElementID result = ctbdetails::tryTakeSuitableFreeSlot(0,
         tableId,
-        getTargetElementRange(db, tableId),
-        reader.mConstraintsMappings,
-        reader.mStableMappings,
-        PhysicsSimulation::_getPhysicsTableIds(),
+        getTargetElementRange(game, tableId),
+        *getConstraintMappings(game),
+        Physics::getTableIds(*game.testBuilder),
         a,
         b,
-        reader.mConstraintPairA,
-        reader.mConstraintPairB,
-        reader.mConstraintIDs,
+        *pairs.constraintA,
+        *pairs.constraintB,
+        *ids,
         width);
 
       if(result != StableElementID::invalid()) {
-        StableElementID p = _addCollisionPair(db, a, b);
-        ctbdetails::assignConstraint(p, a, b, result, reader.mCollisionPairs, reader.mConstraintsCommon, PhysicsSimulation::_getPhysicsTableIds());
+        StableElementID p = _addCollisionPair(game, a, b);
+        ConstraintsTableBuilder::AddDeps deps{ ConstraintsTableBuilder::AddDeps::query(game.builder()) };
+        ConstraintsTableBuilder::assignConstraint(p, a, b, result, deps);
       }
       return result;
     }
 
-    void addPaddingToTable(GameDatabase& db, size_t table, size_t amount) {
-      DBReader reader(db);
-      ctbdetails::addPaddingToTable(table, amount, reader.mConstraintsCommon, reader.mStableMappings, PhysicsSimulation::_getPhysicsTableIds(), reader.mConstraintsMappings);
+    void addPaddingToTable(TestGame& game, size_t table, size_t amount) {
+      ConstraintsTableBuilder::AddDeps deps{ ConstraintsTableBuilder::AddDeps::query(game.builder()) };
+      ConstraintsTableBuilder::addPaddingToTable(table, amount, Physics::getTableIds(*game.testBuilder), deps);
     }
 
     TEST_METHOD(CTBDetails) {
-      GameDatabase db;
-      DBReader reader(db);
-      const PhysicsTableIds tableIds = PhysicsSimulation::_getPhysicsTableIds();
-      const PhysicsConfig config = _configWithPadding(2);
+      TestGame game;
+      GameArgs args;
+      args.fragmentCount = 5;
+      args.forcedPadding = 2;
+      game.init(args);
 
-      _stableResize(reader.mGameObjects, 5, reader.mStableMappings);
-      StableElementID a = _getGameobjectID(db, 0);
-      StableElementID b  = _getGameobjectID(db, 1);
-      StableElementID c = _getGameobjectID(db, 2);
-      StableElementID d = _getGameobjectID(db, 3);
+      const PhysicsTableIds tableIds = Physics::getTableIds(*game.testBuilder);
 
-      auto range = getTargetElementRange(db, tableIds.mSharedMassConstraintTable);
+      StableElementID a = _getGameobjectID(game, 0);
+      StableElementID b  = _getGameobjectID(game, 1);
+      StableElementID c = _getGameobjectID(game, 2);
+      StableElementID d = _getGameobjectID(game, 3);
+
+      auto range = getTargetElementRange(game, tableIds.mSharedMassConstraintTable);
       Assert::IsTrue(range == std::make_pair(size_t(0), size_t(0)));
-      range = getTargetElementRange(db, tableIds.mZeroMassConstraintTable);
+      range = getTargetElementRange(game, tableIds.mZeroMassConstraintTable);
       Assert::IsTrue(range == std::make_pair(size_t(0), size_t(0)));
 
       //Should fail because nothing is there
-      Assert::IsTrue(StableElementID::invalid() == tryTakeSuitableFreeSlot(db, tableIds.mSharedMassConstraintTable, a, b, *config.mForcedTargetWidth));
-      Assert::IsTrue(StableElementID::invalid() == tryTakeSuitableFreeSlot(db, tableIds.mZeroMassConstraintTable, a, b, *config.mForcedTargetWidth));
+      Assert::IsTrue(StableElementID::invalid() == tryTakeSuitableFreeSlot(game, tableIds.mSharedMassConstraintTable, a, b, *args.forcedPadding));
+      Assert::IsTrue(StableElementID::invalid() == tryTakeSuitableFreeSlot(game, tableIds.mZeroMassConstraintTable, a, b, *args.forcedPadding));
 
-      addPaddingToTable(db, tableIds.mZeroMassConstraintTable, 1);
+      addPaddingToTable(game, tableIds.mZeroMassConstraintTable, 1);
 
       //Should fail because the space was added to the zero mass table
-      Assert::IsTrue(StableElementID::invalid() == tryTakeSuitableFreeSlot(db, tableIds.mSharedMassConstraintTable, a, b, *config.mForcedTargetWidth));
-      StableElementID ab = tryTakeSuitableFreeSlot(db, tableIds.mZeroMassConstraintTable, a, b, *config.mForcedTargetWidth);
+      Assert::IsTrue(StableElementID::invalid() == tryTakeSuitableFreeSlot(game, tableIds.mSharedMassConstraintTable, a, b, *args.forcedPadding));
+      StableElementID ab = tryTakeSuitableFreeSlot(game, tableIds.mZeroMassConstraintTable, a, b, *args.forcedPadding);
       Assert::AreEqual(size_t(0), ab.mUnstableIndex & tableIds.mElementIDMask);
 
-      addPaddingToTable(db, tableIds.mZeroMassConstraintTable, 1);
+      addPaddingToTable(game, tableIds.mZeroMassConstraintTable, 1);
 
-      Assert::IsTrue(StableElementID::invalid() == tryTakeSuitableFreeSlot(db, tableIds.mZeroMassConstraintTable, a, c, *config.mForcedTargetWidth), L"Should not accept slots within target width of non-static object");
-      StableElementID cb = tryTakeSuitableFreeSlot(db, tableIds.mZeroMassConstraintTable, c, b, *config.mForcedTargetWidth);
+      Assert::IsTrue(StableElementID::invalid() == tryTakeSuitableFreeSlot(game, tableIds.mZeroMassConstraintTable, a, c, *args.forcedPadding), L"Should not accept slots within target width of non-static object");
+      StableElementID cb = tryTakeSuitableFreeSlot(game, tableIds.mZeroMassConstraintTable, c, b, *args.forcedPadding);
       Assert::AreEqual(size_t(1), cb.mUnstableIndex & tableIds.mElementIDMask, L"Static elements should ignore padding rules");
 
-      addPaddingToTable(db, tableIds.mSharedMassConstraintTable, 1);
+      addPaddingToTable(game, tableIds.mSharedMassConstraintTable, 1);
 
-      StableElementID ad = tryTakeSuitableFreeSlot(db, tableIds.mSharedMassConstraintTable, a, d, *config.mForcedTargetWidth);
+      StableElementID ad = tryTakeSuitableFreeSlot(game, tableIds.mSharedMassConstraintTable, a, d, *args.forcedPadding);
       Assert::AreEqual(size_t(0), ad.mUnstableIndex & tableIds.mElementIDMask, L"Elements in dynamic section should ignore padding rules in neighboring sections");
 
-      addPaddingToTable(db, tableIds.mSharedMassConstraintTable, 1);
+      addPaddingToTable(game, tableIds.mSharedMassConstraintTable, 1);
 
-      Assert::IsTrue(StableElementID::invalid() == tryTakeSuitableFreeSlot(db, tableIds.mSharedMassConstraintTable, a, b, *config.mForcedTargetWidth), L"Object A should obey padding rules");
-      Assert::IsTrue(StableElementID::invalid() == tryTakeSuitableFreeSlot(db, tableIds.mSharedMassConstraintTable, b, d, *config.mForcedTargetWidth), L"Object B should obey padding rules");
-      StableElementID bc = tryTakeSuitableFreeSlot(db, tableIds.mSharedMassConstraintTable, b, c, *config.mForcedTargetWidth);
+      Assert::IsTrue(StableElementID::invalid() == tryTakeSuitableFreeSlot(game, tableIds.mSharedMassConstraintTable, a, b, *args.forcedPadding), L"Object A should obey padding rules");
+      Assert::IsTrue(StableElementID::invalid() == tryTakeSuitableFreeSlot(game, tableIds.mSharedMassConstraintTable, b, d, *args.forcedPadding), L"Object B should obey padding rules");
+      StableElementID bc = tryTakeSuitableFreeSlot(game, tableIds.mSharedMassConstraintTable, b, c, *args.forcedPadding);
       Assert::AreEqual(size_t(1), bc.mUnstableIndex & tableIds.mElementIDMask, L"Object passing padding rules should find free slot");
     }
 
@@ -1750,7 +1752,7 @@ namespace Test {
       Assert::AreEqual(id.getTableIndex(), unpacked.getTableIndex());
       Assert::AreEqual(id.ELEMENT_INDEX_MASK, unpacked.getElementMask());
     }
-
+    /*
     TEST_METHOD(Stats) {
       GameArgs args;
       constexpr size_t OBJ_COUNT = 3;

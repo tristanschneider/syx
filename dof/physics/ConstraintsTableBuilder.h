@@ -31,6 +31,48 @@ struct ConstraintsTableMappings {
 };
 
 namespace ConstraintsTableBuilder {
+  struct AddDeps {
+    static AddDeps query(RuntimeDatabaseTaskBuilder& task);
+
+    std::shared_ptr<IIDResolver> ids;
+    CollisionPairIndexA* pairIndexA{};
+    CollisionPairIndexB* pairIndexB{};
+    ConstraintElement* pairElement{};
+
+    CollisionPairIndexA* constraintIndexA{};
+    CollisionPairIndexB* constraintIndexB{};
+    const StableIDRow* constraintPairIds{};
+    ConstraintData::ConstraintContactPair* constraintContactPair{};
+    ConstraintData::IsEnabled* constraintEnabled{};
+    ConstraintsTableMappings* constraintsMappings{};
+    std::shared_ptr<ITableModifier> commonTableModifier;
+    UnpackedDatabaseElementID commonTable;
+  };
+  void assignConstraint(const StableElementID& collisionPair,
+    const StableElementID& a,
+    const StableElementID& b,
+    const StableElementID& constraintLocation,
+    AddDeps& deps);
+  void addPaddingToTable(size_t targetTable,
+    size_t amount,
+    const PhysicsTableIds& tableIds,
+    AddDeps& deps);
+
   //Do all of the above to end up with constraints ready to solve except for filling in velocity
   void build(IAppBuilder& builder, const Config::PhysicsConfig& config);
 };
+
+namespace ctbdetails {
+  StableElementID tryTakeSuitableFreeSlot(size_t startIndex,
+    size_t targetTable,
+    const std::pair<size_t, size_t>& range,
+    ConstraintsTableMappings& mappings,
+    const PhysicsTableIds& tables,
+    const StableElementID& a,
+    const StableElementID& b,
+    const CollisionPairIndexA& constraintIndexA,
+    const CollisionPairIndexB& constraintIndexB,
+    IIDResolver& ids,
+    size_t targetWidth);
+  std::pair<size_t, size_t> getTargetElementRange(size_t targetTable, const PhysicsTableIds& tables, const ConstraintsTableMappings& mappings, size_t totalElements);
+}
