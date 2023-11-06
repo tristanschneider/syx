@@ -6,16 +6,12 @@
 
 struct AppTaskArgs;
 struct CurveDefinition;
-struct DebugConfig;
-struct GraphicsConfig;
-struct StableElementMappings;
 struct StableIDRow;
-struct StatEffectDBOwned;
-struct ThreadLocalData;
 struct ThreadLocals;
 class ITableModifier;
 class RuntimeDatabaseTaskBuilder;
-
+struct ThreadLocals;
+struct DebugPoint;
 template<class Element>
 struct BasicRow;
 
@@ -133,91 +129,17 @@ struct PhysicsObjectAdapter {
   BasicRow<uint8_t>* collisionMask{};
 };
 
-struct TargetPosAdapter {
-  BasicRow<float>* posX{};
-  BasicRow<float>* posY{};
-  StableIDRow* stable{};
-  StableTableModifierInstance modifier;
-};
-
 struct GameObjectAdapter {
   TransformAdapter transform;
   PhysicsObjectAdapter physics;
   const StableIDRow* stable{};
 };
 
-struct PlayerInput;
-struct PlayerKeyboardInput;
-
-struct PlayerAdapter {
-  GameObjectAdapter object;
-  BasicRow<PlayerInput>* input{};
-  BasicRow<PlayerKeyboardInput>* keyboardInput{};
-};
-
-struct CameraAdapater {
-  GameObjectAdapter object;
-};
-
-struct FragmentAdapter {
-  BasicRow<float>* goalX{};
-  BasicRow<float>* goalY{};
-  BasicRow<float>* damageTaken{};
-  BasicRow<glm::vec4>* tint{};
-};
-
-struct SceneState;
-struct PhysicsTableIds;
-struct FileSystem;
-struct StableElementMappings;
-struct ConstraintsTableMappings;
-struct Scheduler;
-struct ThreadLocals;
-
-struct DebugPoint;
-
-using DebugLineTable = Table<Row<DebugPoint>>;
-
 struct DebugLineAdapter {
   ~DebugLineAdapter();
 
   BasicRow<DebugPoint>* points{};
   std::shared_ptr<ITableModifier> modifier;
-};
-
-struct GlobalsAdapter {
-  SceneState* scene{};
-  FileSystem* fileSystem{};
-  StableElementMappings* stableMappings{};
-  ConstraintsTableMappings* constraintsMappings{};
-  Scheduler* scheduler{};
-  ThreadLocals* threadLocals{};
-};
-
-struct CentralStatEffectAdapter {
-  PositionStatEffectAdapter position;
-  VelocityStatEffectAdapter velocity;
-  LambdaStatEffectAdapter lambda;
-  FollowTargetByPositionStatEffectAdapter followTargetByPosition;
-  FollowTargetByVelocityStatEffectAdapter followTargetByVelocity;
-};
-
-namespace SpatialQuery {
-  struct GlobalsRow;
-  struct QueryRow;
-  struct ResultRow;
-  struct NeedsResubmitRow;
-  struct LifetimeRow;
-};
-
-struct SpatialQueryAdapter {
-  SpatialQuery::QueryRow* queries{};
-  SpatialQuery::ResultRow* results{};
-  SpatialQuery::GlobalsRow* globals{};
-  StableIDRow* stable{};
-  StableElementMappings* stableMappings{};
-  SpatialQuery::NeedsResubmitRow* needsResubmit{};
-  SpatialQuery::LifetimeRow* lifetime{};
 };
 
 namespace TableAdapters {

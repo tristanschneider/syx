@@ -57,63 +57,6 @@ namespace {
   }
 
   template<class TableT>
-  TransformAdapter getTransform(TableT& table) {
-    return {
-      TableOperations::tryGetRow<FloatRow<Tags::Pos, Tags::X>>(table),
-      TableOperations::tryGetRow<FloatRow<Tags::Pos, Tags::Y>>(table),
-      TableOperations::tryGetRow<FloatRow<Tags::Rot, Tags::CosAngle>>(table),
-      TableOperations::tryGetRow<FloatRow<Tags::Rot, Tags::SinAngle>>(table)
-    };
-  }
-
-  template<class TableT>
-  TransformAdapter getGameplayTransform(TableT& table) {
-    return {
-      TableOperations::tryGetRow<FloatRow<Tags::GPos, Tags::X>>(table),
-      TableOperations::tryGetRow<FloatRow<Tags::GPos, Tags::Y>>(table),
-      TableOperations::tryGetRow<FloatRow<Tags::GRot, Tags::CosAngle>>(table),
-      TableOperations::tryGetRow<FloatRow<Tags::GRot, Tags::SinAngle>>(table)
-    };
-  }
-
-  template<class TableT>
-  PhysicsObjectAdapter getPhysics(TableT& table) {
-    return {
-      TableOperations::tryGetRow<FloatRow<Tags::LinVel, Tags::X>>(table),
-      TableOperations::tryGetRow<FloatRow<Tags::LinVel, Tags::Y>>(table),
-      TableOperations::tryGetRow<FloatRow<Tags::AngVel, Tags::Angle>>(table),
-      TableOperations::tryGetRow<FloatRow<Tags::GLinImpulse, Tags::X>>(table),
-      TableOperations::tryGetRow<FloatRow<Tags::GLinImpulse, Tags::Y>>(table),
-      TableOperations::tryGetRow<FloatRow<Tags::GAngImpulse, Tags::Angle>>(table),
-      TableOperations::tryGetRow<CollisionMaskRow>(table)
-    };
-  }
-
-  template<class TableT>
-  PhysicsObjectAdapter getGameplayPhysics(TableT& table) {
-    return {
-      TableOperations::tryGetRow<FloatRow<Tags::GLinVel, Tags::X>>(table),
-      TableOperations::tryGetRow<FloatRow<Tags::GLinVel, Tags::Y>>(table),
-      TableOperations::tryGetRow<FloatRow<Tags::GAngVel, Tags::Angle>>(table),
-      TableOperations::tryGetRow<FloatRow<Tags::GLinImpulse, Tags::X>>(table),
-      TableOperations::tryGetRow<FloatRow<Tags::GLinImpulse, Tags::Y>>(table),
-      TableOperations::tryGetRow<FloatRow<Tags::GAngImpulse, Tags::Angle>>(table),
-      TableOperations::tryGetRow<CollisionMaskRow>(table)
-    };
-  }
-
-  template<class TableT>
-  FragmentAdapter getFragment(TableT& table) {
-    return {
-      TableOperations::tryGetRow<FloatRow<Tags::FragmentGoal, Tags::X>>(table),
-      TableOperations::tryGetRow<FloatRow<Tags::FragmentGoal, Tags::Y>>(table),
-      TableOperations::tryGetRow<DamageTaken>(table),
-      TableOperations::tryGetRow<Tint>(table),
-      TableOperations::tryGetRow<FragmentStateMachine::StateRow>(table)
-    };
-  }
-
-  template<class TableT>
   StableIDRow* getStableRow(TableT& table) {
     return TableOperations::tryGetRow<StableIDRow>(table);
   }
