@@ -1888,16 +1888,17 @@ namespace Test {
 
       Assert::IsTrue(posX->at(0) > 0.0f);
     }
-/*
+
     TEST_METHOD(GameplayExtract) {
       GameArgs args;
       args.fragmentCount = 1;
       args.completedFragmentCount = 1;
       args.playerPos = glm::vec2{ 0.0f };
       TestGame game{ args };
-      GameObjectAdapter fragment = TableAdapters::getGameObjects(game);
-      GameObjectAdapter completedFragment = TableAdapters::getStaticGameObjects(game);
-      PlayerAdapter player = TableAdapters::getPlayer(game);
+
+      GameObjectAdapter fragment = TableAdapters::getGameObject(game.builder(), game.tables.fragments);
+      GameObjectAdapter completedFragment = TableAdapters::getGameObject(game.builder(), game.tables.completedFragments);
+      GameObjectAdapter player = TableAdapters::getGameObject(game.builder(), game.tables.player);
       auto setValues = [](GameObjectAdapter obj, float offset) {
         obj.transform.posX->at(0) = 1.0f + offset;
         obj.transform.posY->at(0) = 2.0f + offset;
@@ -1910,9 +1911,9 @@ namespace Test {
         }
       };
 
-      setValues(TableAdapters::getGameObjects(game), 1.0f);
-      setValues(TableAdapters::getStaticGameObjects(game), 2.0f);
-      setValues(TableAdapters::getPlayer(game).object, 3.0f);
+      setValues(fragment, 1.0f);
+      setValues(completedFragment, 2.0f);
+      setValues(player, 3.0f);
 
       game.update();
 
@@ -1928,11 +1929,11 @@ namespace Test {
         }
       };
 
-      assertValues(TableAdapters::getGameplayGameObjects(game), 1.0f);
-      assertValues(TableAdapters::getGameplayStaticGameObjects(game), 2.0f);
-      assertValues(TableAdapters::getGameplayPlayer(game).object, 3.0f);
+      assertValues(TableAdapters::getGameplayGameObject(game.builder(), game.tables.fragments), 1.0f);
+      assertValues(TableAdapters::getGameplayGameObject(game.builder(), game.tables.completedFragments), 2.0f);
+      assertValues(TableAdapters::getGameplayGameObject(game.builder(), game.tables.player), 3.0f);
     }
-
+    /*
     TEST_METHOD(GlobalPointForce) {
       GameArgs args;
       args.fragmentCount = 1;
