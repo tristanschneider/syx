@@ -130,7 +130,7 @@ void finishSetupState(IAppBuilder& builder) {
   builder.submitTask(std::move(task));
 }
 
-void Simulation::buildUpdateTasks(IAppBuilder& builder) {
+void Simulation::buildUpdateTasks(IAppBuilder& builder, const UpdateConfig& config) {
   GameplayExtract::extractGameplayData(builder);
 
   _initRequestAssets(builder);
@@ -141,6 +141,7 @@ void Simulation::buildUpdateTasks(IAppBuilder& builder) {
   finishSetupState(builder);
 
   PhysicsSimulation::updatePhysics(builder);
+  config.injectGameplayTasks(builder);
   DebugInput::updateDebugCamera(builder);
   Player::updateInput(builder);
   Fragment::updateFragmentGoals(builder);
@@ -148,9 +149,11 @@ void Simulation::buildUpdateTasks(IAppBuilder& builder) {
   FragmentStateMachine::update(builder);
   //At the end of gameplay, turn any gameplay impulses into stat effects
   GameplayExtract::applyGameplayImpulses(builder);
-  StatEffect::createTasks(builder);
+
   //Synchronous transfer from all thread local stats to the central stats database
   StatEffect::moveThreadLocalToCentral(builder);
+  StatEffect::createTasks(builder);
+
   SpatialQuery::gameplayUpdateQueries(builder);
 
   Events::publishEvents(builder);

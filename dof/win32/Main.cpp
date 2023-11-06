@@ -377,7 +377,7 @@ int mainLoop(const char* args, HWND window) {
   Renderer::clearRenderRequests(*builder);
   Renderer::extractRenderables(*builder);
   Renderer::render(*builder);
-  Simulation::buildUpdateTasks(*builder);
+  Simulation::buildUpdateTasks(*builder, {});
 #ifdef IMGUI_ENABLED
   ImguiModule::update(*builder);
 #endif

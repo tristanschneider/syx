@@ -20,7 +20,7 @@ namespace LambdaStatEffect {
       args.db = &db;
       for(size_t t = 0; t < query.size(); ++t) {
         auto&& [owner, lambda] = query.get(t);
-        for(size_t i = 0; owner->size(); ++i) {
+        for(size_t i = 0; i < owner->size(); ++i) {
           //Normal stats could rely on resolving upfront before processing stat but since lambda has
           //access to the entire database it could cause table migrations
           auto resolved = ids->tryResolveStableID(owner->at(i));

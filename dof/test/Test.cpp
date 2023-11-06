@@ -45,6 +45,13 @@ namespace Test {
     std::optional<size_t> forcedPadding;
   };
 
+  //Hack for some funky ordering, these are for construct, GameArgs are for init
+  struct GameConstructArgs {
+    Config::GameConfig config;
+    Config::PhysicsConfig physics;
+    Simulation::UpdateConfig updateConfig;
+  };
+
   struct KnownTables {
     KnownTables() = default;
     KnownTables(IAppBuilder& builder)
@@ -58,7 +65,7 @@ namespace Test {
   };
 
   struct TestGame {
-    TestGame(Config::GameConfig config = {}, Config::PhysicsConfig physics = {}) {
+    TestGame(GameConstructArgs args = {}) {
       auto mappings = std::make_unique<StableElementMappings>();
       std::unique_ptr<IDatabase> game = GameData::create(*mappings);
       std::unique_ptr<IDatabase> result =  DBReflect::bundle(std::move(game), std::move(mappings));
@@ -81,8 +88,8 @@ namespace Test {
       temp.query<SharedRow<FileSystem>>().tryGetSingletonElement()->mRoot = "?invalid?";
       Config::GameConfig* gameConfig = TableAdapters::getGameConfigMutable(temp);
       //TODO: why is this assigned twice instead of assigning physics as part of GameConfig?
-      *gameConfig = std::move(config);
-      gameConfig->physics = std::move(physics);
+      *gameConfig = std::move(args.config);
+      gameConfig->physics = std::move(args.physics);
 
       Scheduler* scheduler = temp.query<SharedRow<Scheduler>>().tryGetSingletonElement();
       initTasks.mBegin->mTask.addToPipe(scheduler->mScheduler);
@@ -91,7 +98,7 @@ namespace Test {
       testBuilder = GameBuilder::create(*result);
 
       std::unique_ptr<IAppBuilder> updateBuilder = GameBuilder::create(*result);
-      Simulation::buildUpdateTasks(*updateBuilder);
+      Simulation::buildUpdateTasks(*updateBuilder, args.updateConfig);
 
       task = GameScheduler::buildTasks(IAppBuilder::finalize(std::move(updateBuilder)), *tls->instance);
       db = std::move(result);
@@ -1372,7 +1379,7 @@ namespace Test {
       cfg.broadphase.cellSizeY = 10.0f;
       //Use negative padding to make the cell size 0.5 instead of 0.7 so overlapping cells are also colliding
       cfg.broadphase.cellPadding = 0.5f - SweepNPruneBroadphase::BoundariesConfig::UNIT_CUBE_EXTENTS;
-      TestGame game{ {}, cfg };
+      TestGame game{ GameConstructArgs{ {}, cfg } };
       GameArgs args;
       args.fragmentCount = 3;
       game.init(args);
@@ -1752,113 +1759,136 @@ namespace Test {
       Assert::AreEqual(id.getTableIndex(), unpacked.getTableIndex());
       Assert::AreEqual(id.ELEMENT_INDEX_MASK, unpacked.getElementMask());
     }
-    /*
+
+    struct TestStatInfo {
+      int lambdaInvocations{};
+      bool shouldRun{};
+    };
+
+    static void addAllStats(IAppBuilder& builder, TestStatInfo& test) {
+      auto task = builder.createTask();
+      task.setName("test");
+      auto once = std::make_shared<bool>(true);
+      KnownTables tables{ builder };
+      auto query = task.query<const StableIDRow>(tables.fragments);
+      auto ids = task.getIDResolver();
+      task.setCallback([once, query, &test, ids](AppTaskArgs& args) mutable {
+        auto [stableRow] = query.get(0);
+        if(!test.shouldRun) {
+          return;
+        }
+
+        const StableElementID idA = StableOperations::getStableID(*stableRow, query.matchingTableIDs[0].remakeElement(0));
+        const StableElementID idB = StableOperations::getStableID(*stableRow, query.matchingTableIDs[0].remakeElement(1));
+        const StableElementID idC = StableOperations::getStableID(*stableRow, query.matchingTableIDs[0].remakeElement(2));
+
+        {
+          LambdaStatEffectAdapter lambda = TableAdapters::getLambdaEffects(args);
+          const size_t id = TableAdapters::addStatEffectsSharedLifetime(lambda.base, StatEffect::INSTANT, &idA.mStableID, 1);
+          lambda.command->at(id) = [&test, ids](LambdaStatEffect::Args& args) {
+            Assert::AreEqual(size_t(0), ids->uncheckedUnpack(args.resolvedID).getElementIndex());
+            ++test.lambdaInvocations;
+          };
+        }
+        {
+          VelocityStatEffectAdapter vel = TableAdapters::getVelocityEffects(args);
+          const size_t id = TableAdapters::addStatEffectsSharedLifetime(vel.base, 2, &idB.mStableID, 1);
+          VelocityStatEffect::VelocityCommand& vcmd = vel.command->at(id);
+          vcmd.linearImpulse = glm::vec2(1.0f);
+          vcmd.angularImpulse = 1.0f;
+        }
+        {
+          PositionStatEffectAdapter pos = TableAdapters::getPositionEffects(args);
+          const size_t id = TableAdapters::addStatEffectsSharedLifetime(pos.base, 1, &idC.mStableID, 1);
+          PositionStatEffect::PositionCommand& pcmd = pos.command->at(id);
+          pcmd.pos = glm::vec2(5.0f);
+          pcmd.rot = glm::vec2(0.0f, 1.0f);
+        }
+      });
+
+      builder.submitTask(std::move(task));
+    }
+
     TEST_METHOD(Stats) {
       GameArgs args;
       constexpr size_t OBJ_COUNT = 3;
       args.fragmentCount = OBJ_COUNT;
-      TestGame game{ args };
-      auto stats = TableAdapters::getThreadLocal(game, 0).statEffects;
-      auto& lambdaStat = std::get<LambdaStatEffectTable>(stats->db.mTables);
-      auto& posStat = std::get<PositionStatEffectTable>(stats->db.mTables);
-      auto& velStat = std::get<VelocityStatEffectTable>(stats->db.mTables);
-      LambdaStatEffectAdapter lambda = TableAdapters::getLambdaEffects(game, 0);
-      PositionStatEffectAdapter pos = TableAdapters::getPositionEffects(game, 0);
-      VelocityStatEffectAdapter vel = TableAdapters::getVelocityEffects(game, 0);
-      ThreadLocalData tls = TableAdapters::getThreadLocal(game, 0);
-      GameObjectAdapter gameobjects = TableAdapters::getGameObjects(game);
-      StableIDRow& objsStable = *gameobjects.stable;
-      auto tableBase = UnpackedDatabaseElementID::fromPacked(GameDatabase::getTableIndex<GameObjectTable>());
+      GameConstructArgs construct;
+      TestStatInfo test;
+      construct.updateConfig.injectGameplayTasks = [&](IAppBuilder& args) { addAllStats(args, test); };
+      TestGame game{ std::move(construct) };
+      game.init(args);
 
+      PhysicsObjectAdapter fragmentPhysics = TableAdapters::getPhysics(game.builder(), game.tables.fragments);
+      TransformAdapter fragmentTransform = TableAdapters::getTransform(game.builder(), game.tables.fragments);
       for(size_t i = 0; i < OBJ_COUNT; ++i) {
         //Need to move them away from the fragment completion location
-        gameobjects.transform.posX->at(i) = 4.0f;
+        fragmentTransform.posX->at(i) = 4.0f;
       }
 
-      StatEffect::addEffects(1, lambdaStat, tls.statEffects->db);
-      lambda.base.lifetime->at(0) = StatEffect::INSTANT;
-      lambda.base.owner->at(0) = StableOperations::getStableID(objsStable, tableBase.remakeElement(0));
-      int lambdaInvocations = 0;
-      lambda.command->at(0) = [&](LambdaStatEffect::Args& args) {
-        Assert::AreEqual(size_t(0), args.resolvedID.toPacked<GameDatabase>().getElementIndex());
-        ++lambdaInvocations;
-      };
+      auto lambdaQuery = game.builder().query<LambdaStatEffect::LambdaRow, StatEffect::Lifetime>();
+      auto velQuery = game.builder().query<VelocityStatEffect::CommandRow, StatEffect::Lifetime>();
+      auto posQuery = game.builder().query<PositionStatEffect::CommandRow, StatEffect::Lifetime>();
+      auto [lambdaCmd, lambdaLife] = lambdaQuery.get(0);
+      auto [velCmd, velLife] = velQuery.get(0);
+      auto [posCmd, posLife] = posQuery.get(0);
 
-      StatEffect::addEffects(1, velStat, tls.statEffects->db);
-      vel.base.lifetime->at(0) = 2;
-      vel.base.owner->at(0) = StableOperations::getStableID(objsStable, tableBase.remakeElement(1));
-      VelocityStatEffect::VelocityCommand& vcmd = vel.command->at(0);
-      vcmd.linearImpulse = glm::vec2(1.0f);
-      vcmd.angularImpulse = 1.0f;
-
-      StatEffect::addEffects(1, posStat, tls.statEffects->db);
-      pos.base.lifetime->at(0) = 1;
-      pos.base.owner->at(0) = StableOperations::getStableID(objsStable, tableBase.remakeElement(2));
-      PositionStatEffect::PositionCommand& pcmd = pos.command->at(0);
-      pcmd.pos = glm::vec2(5.0f);
-      pcmd.rot = glm::vec2(0.0f, 1.0f);
-
-      auto globalStats = TableAdapters::getCentralStatEffects(game);
-      auto& lambdaLifetime = *globalStats.lambda.base.lifetime;
-      auto& velLifetime = *globalStats.velocity.base.lifetime;
-      auto& posLifetime = *globalStats.position.base.lifetime;
-
+      test.shouldRun = true;
       game.update();
+      test.shouldRun = false;
 
-      Assert::AreEqual(1, lambdaInvocations);
-      //Lambda is removed one tick earlier than others because the callback is processed before removal
-      Assert::AreEqual(size_t(0), lambdaLifetime.size());
+      Assert::AreEqual(1, test.lambdaInvocations);
 
-      Assert::AreEqual(1.0f, gameobjects.physics.linVelX->at(1), 0.1f);
-      Assert::AreEqual(1.0f, gameobjects.physics.linVelY->at(1), 0.1f);
-      Assert::AreEqual(1.0f, gameobjects.physics.angVel->at(1), 0.1f);
-      Assert::AreEqual(size_t(1), velLifetime.size());
-      Assert::AreEqual(size_t(1), velLifetime.at(0));
+      Assert::AreEqual(1.0f, fragmentPhysics.linVelX->at(1), 0.1f);
+      Assert::AreEqual(1.0f, fragmentPhysics.linVelY->at(1), 0.1f);
+      Assert::AreEqual(1.0f, fragmentPhysics.angVel->at(1), 0.1f);
+      Assert::AreEqual(size_t(1), velLife->size());
+      Assert::AreEqual(size_t(1), velLife->at(0));
 
-      Assert::AreEqual(5.0f, gameobjects.transform.posX->at(2));
-      Assert::AreEqual(5.0f, gameobjects.transform.posY->at(2));
-      Assert::AreEqual(0.0f, gameobjects.transform.rotX->at(2));
-      Assert::AreEqual(1.0f, gameobjects.transform.rotY->at(2));
-      Assert::AreEqual(size_t(1), posLifetime.size());
-      Assert::AreEqual(size_t(0), posLifetime.at(0));
+      Assert::AreEqual(5.0f, fragmentTransform.posX->at(2));
+      Assert::AreEqual(5.0f, fragmentTransform.posY->at(2));
+      Assert::AreEqual(0.0f, fragmentTransform.rotX->at(2));
+      Assert::AreEqual(1.0f, fragmentTransform.rotY->at(2));
+      Assert::AreEqual(size_t(1), posLife->size());
+      Assert::AreEqual(size_t(0), posLife->at(0));
 
       //Set the values to something to show they don't change after the next update
-      gameobjects.physics.linVelX->at(1) = 0.0f;
-      gameobjects.transform.posX->at(2) = 10.0f;
+      fragmentPhysics.linVelX->at(1) = 0.0f;
+      fragmentTransform.posX->at(2) = 10.0f;
 
       //After this pos and lambda should be removed and should not have executed again before removal
       game.update();
 
-      Assert::AreEqual(1, lambdaInvocations);
-      Assert::AreEqual(size_t(0), lambdaLifetime.size());
-      Assert::AreEqual(size_t(0), posLifetime.size());
+      Assert::AreEqual(1, test.lambdaInvocations);
+      Assert::AreEqual(size_t(0), lambdaLife->size());
+      Assert::AreEqual(size_t(0), posLife->size());
       //Assert the unchanged values
-      Assert::AreEqual(1.0f, gameobjects.physics.linVelX->at(1), 0.1f);
-      Assert::AreEqual(10.0f, gameobjects.transform.posX->at(2), 0.1f);
+      Assert::AreEqual(1.0f, fragmentPhysics.linVelX->at(1), 0.1f);
+      Assert::AreEqual(10.0f, fragmentTransform.posX->at(2), 0.1f);
 
-      gameobjects.physics.linVelX->at(1) = 0.0f;
+      fragmentPhysics.linVelX->at(1) = 0.0f;
 
       //Should remove velcity
       game.update();
 
-      Assert::AreEqual(size_t(0), velLifetime.size());
-      Assert::AreEqual(0.0f, gameobjects.physics.linVelX->at(1), 0.1f);
+      Assert::AreEqual(size_t(0), velLife->size());
+      Assert::AreEqual(0.0f, fragmentPhysics.linVelX->at(1), 0.1f);
     }
 
-    TEST_METHOD(PlayerInput) {
+    TEST_METHOD(PlayerInputTest) {
       GameArgs args;
       args.playerPos = glm::vec2{ 0.0f };
       TestGame game{ args };
-      PlayerAdapter player = TableAdapters::getPlayer(game);
-      player.input->at(0).mMoveX = 1.0f;
+      auto [input, posX] = game.builder().query<Row<PlayerInput>, FloatRow<Tags::Pos, Tags::X>>().get(0);
+      input->at(0).mMoveX = 1.0f;
 
       //Once to compute the impulse, next frame updates position with it
       game.update();
       game.update();
 
-      Assert::IsTrue(player.object.transform.posX->at(0) > 0.0f);
+      Assert::IsTrue(posX->at(0) > 0.0f);
     }
-
+/*
     TEST_METHOD(GameplayExtract) {
       GameArgs args;
       args.fragmentCount = 1;

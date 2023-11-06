@@ -326,7 +326,18 @@ namespace Simulation {
   void initScheduler(IAppBuilder& builder);
   void init(IAppBuilder& builder);
 
-  void buildUpdateTasks(IAppBuilder& builder);
+  struct UpdateConfig {
+    struct NoOp {
+      operator std::function<void(IAppBuilder&)>() const {
+        return [](IAppBuilder&) { };
+      }
+    };
+
+    //Soon after gameplay extract and physics started, before stat processing
+    std::function<void(IAppBuilder&)> injectGameplayTasks{ NoOp{} };
+  };
+
+  void buildUpdateTasks(IAppBuilder& builder, const UpdateConfig& config);
 
   const SceneState& _getSceneState(GameDatabase& db);
   Scheduler& _getScheduler(GameDatabase& db);
