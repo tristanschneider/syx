@@ -66,6 +66,8 @@ namespace FragmentStateMachine {
 
       //Only used by the state machine itself
       Variant currentState;
+      //Used for onEnter and onExit transitions
+      Variant previousState;
       //Used by external logic to request changes for when the state machine updates
       std::mutex desiredStateMutex;
       Variant desiredState;

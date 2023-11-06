@@ -74,8 +74,8 @@ namespace World {
     >();
 
     for(const UnpackedDatabaseElementID& table : tables.matchingTableIDs) {
-      repelBoundaryAxis(builder, table, FloatAlias::create<FloatRow<GPos, X>>(), FloatAlias::create<FloatRow<GLinVel, X>>(), 0);
-      repelBoundaryAxis(builder, table, FloatAlias::create<FloatRow<GPos, Y>>(), FloatAlias::create<FloatRow<GLinVel, Y>>(), 1);
+      repelBoundaryAxis(builder, table, FloatAlias::create<FloatRow<GPos, X>>(), FloatAlias::create<FloatRow<GLinImpulse, X>>(), 0);
+      repelBoundaryAxis(builder, table, FloatAlias::create<FloatRow<GPos, Y>>(), FloatAlias::create<FloatRow<GLinImpulse, Y>>(), 1);
     }
 
     auto fragmentTables = builder.queryTables<

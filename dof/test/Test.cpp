@@ -1370,7 +1370,8 @@ namespace Test {
     }
 
     TEST_METHOD(BroadphaseBoundaries) {
-      Config::PhysicsConfig cfg;
+      GameConstructArgs gca;
+      Config::PhysicsConfig& cfg = gca.physics;
       cfg.broadphase.bottomLeftX = 0.0f;
       cfg.broadphase.bottomLeftY = 0.0f;
       cfg.broadphase.cellCountX = 2;
@@ -1379,7 +1380,8 @@ namespace Test {
       cfg.broadphase.cellSizeY = 10.0f;
       //Use negative padding to make the cell size 0.5 instead of 0.7 so overlapping cells are also colliding
       cfg.broadphase.cellPadding = 0.5f - SweepNPruneBroadphase::BoundariesConfig::UNIT_CUBE_EXTENTS;
-      TestGame game{ GameConstructArgs{ {}, cfg } };
+      gca.updateConfig.enableFragmentStateMachine = false;
+      TestGame game{ std::move(gca) };
       GameArgs args;
       args.fragmentCount = 3;
       game.init(args);
@@ -2090,12 +2092,12 @@ namespace Test {
       auto reader = SpatialQuery::createReader(game.builder());
       Assert::IsFalse(reader->getIndex(single).has_value());
     }
-/*
+
     TEST_METHOD(CollisionMasks) {
       GameArgs args;
       args.fragmentCount = 2;
       TestGame game{ args };
-      GameObjectAdapter objs = TableAdapters::getGameObjects(game);
+      GameObjectAdapter objs = TableAdapters::getGameObject(game.builder(), game.tables.fragments);
 
       objs.transform.posX->at(0) = 1;
       objs.transform.posX->at(1) = 1.1f;
@@ -2119,44 +2121,43 @@ namespace Test {
       GameArgs args;
       args.fragmentCount = 2;
       TestGame game{ args };
-      FragmentAdapter frag = TableAdapters::getFragments(game);
-      GameObjectAdapter objs = TableAdapters::getGameObjects(game);
+      auto [state, stable, goalFound] = game.builder().query<
+        FragmentStateMachine::StateRow,
+        StableIDRow,
+        FragmentGoalFoundRow
+      >(game.tables.fragments).get(0);
 
-      StableElementID self = StableElementID::fromStableRow(0, *objs.stable);
       FragmentStateMachine::FragmentState::Variant desiredState{ FragmentStateMachine::SeekHome{} };
-      FragmentStateMachine::setState(game, self, FragmentStateMachine::FragmentState::Variant{ desiredState });
+      FragmentStateMachine::setState(state->at(0), FragmentStateMachine::FragmentState::Variant{ desiredState });
 
       game.update();
 
-      Assert::AreEqual(desiredState.index(), frag.state->at(0).currentState.index());
-      StableElementID target = std::get<FragmentStateMachine::SeekHome>(frag.state->at(0).currentState).target;
+      Assert::AreEqual(desiredState.index(), state->at(0).currentState.index());
+      StableElementID target = std::get<FragmentStateMachine::SeekHome>(state->at(0).currentState).target;
 
-      std::get<FragmentGoalFoundRow>(std::get<GameObjectTable>(game.db.mTables).mRows).at(0) = true;
-      Fragment::_migrateCompletedFragments(game, 0);
+      goalFound->at(0) = true;
       game.update();
       game.update();
 
-      StableElementMappings& mappings = TableAdapters::getStableMappings(game);
-      Assert::IsFalse(mappings.findKey(target.mStableID).has_value(), L"Target created by state should have been destroyed when object was migrated to a table without state");
+      auto ids = game.builder().getIDResolver();
+      Assert::IsFalse(ids->tryResolveStableID(target).has_value(), L"Target created by state should have been destroyed when object was migrated to a table without state");
 
       //Do the same state transition for the second object
-      self = StableElementID::fromStableRow(0, *objs.stable);
-      FragmentStateMachine::setState(game, self, FragmentStateMachine::FragmentState::Variant{ desiredState });
+      FragmentStateMachine::setState(state->at(0), FragmentStateMachine::FragmentState::Variant{ desiredState });
 
       game.update();
 
-      Assert::AreEqual(desiredState.index(), frag.state->at(0).currentState.index());
-      target = std::get<FragmentStateMachine::SeekHome>(frag.state->at(0).currentState).target;
+      Assert::AreEqual(desiredState.index(), state->at(0).currentState.index());
+      target = std::get<FragmentStateMachine::SeekHome>(state->at(0).currentState).target;
 
       //Enqueue removal of the object. The destruction should still remove the target
-      auto tls = TableAdapters::getThreadLocal(game, 0);
-      Events::onRemovedElement(self, game);
+      auto taskArgs = game.sharedArgs();
+      Events::onRemovedElement(StableElementID::fromStableRow(0, *stable), taskArgs);
 
       game.update();
       game.update();
 
-      Assert::IsFalse(mappings.findKey(target.mStableID).has_value(), L"Target created by state should have been destroyed before object was destroyed");
+      Assert::IsFalse(ids->tryResolveStableID(target).has_value(), L"Target created by state should have been destroyed before object was destroyed");
     }
-    */
   };
 }

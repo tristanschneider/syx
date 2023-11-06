@@ -237,7 +237,7 @@ namespace FragmentStateMachine {
           //Reset color
           tint->at(i).r = 0.0f;
 
-          const SeekHome& seek = std::get<SeekHome>(state->at(i).currentState);
+          const SeekHome& seek = std::get<SeekHome>(state->at(i).previousState);
 
           StableElementID toRemove = seek.target;
           Events::onRemovedElement(toRemove, args);
@@ -272,6 +272,7 @@ namespace FragmentStateMachine {
             //Exit the old state
             buckets[state.currentState.index()].exiting.push_back(i);
             buckets[desired->index()].entering.push_back(i);
+            state.previousState = state.currentState;
             //Swap to new state and enter it
             state.currentState = std::move(*desired);
           }
@@ -345,10 +346,12 @@ namespace FragmentStateMachine {
           resolver->tryGetOrSwapRow(globals, fromTable);
           assert(globals);
 
-          auto& currentState = fromState->at(fromTable.getElementIndex()).currentState;
+          auto& state = fromState->at(fromTable.getElementIndex());
+          auto& currentState = state.currentState;
           const size_t stateIndex = currentState.index();
           globals->at().buckets[stateIndex].exiting.push_back(fromTable.getElementIndex());
-          //Need to leave the state unchanged so that the exitStates call below can still see it
+          state.previousState = currentState;
+          currentState = Empty{};
         }
       }
     });
