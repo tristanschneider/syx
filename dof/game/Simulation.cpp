@@ -146,7 +146,9 @@ void Simulation::buildUpdateTasks(IAppBuilder& builder, const UpdateConfig& conf
   Player::updateInput(builder);
   Fragment::updateFragmentGoals(builder);
   World::enforceWorldBoundary(builder);
-  FragmentStateMachine::update(builder);
+  if(config.enableFragmentStateMachine) {
+    FragmentStateMachine::update(builder);
+  }
   //At the end of gameplay, turn any gameplay impulses into stat effects
   GameplayExtract::applyGameplayImpulses(builder);
 

@@ -240,17 +240,10 @@ namespace FragmentStateMachine {
           const SeekHome& seek = std::get<SeekHome>(state->at(i).currentState);
 
           StableElementID toRemove = seek.target;
-          auto lambda = TableAdapters::getLambdaEffects(args);
-          size_t effect = TableAdapters::addStatEffectsSharedLifetime(lambda.base, StatEffect::INSTANT, &toRemove.mStableID, 1);
-          lambda.command->at(effect) = [](LambdaStatEffect::Args&) {
-            //TODO: how does this work?
-            //if(a.resolvedID != StableElementID::invalid()) {
-            //  assert(a.resolvedID.toPacked<GameDatabase>().getTableIndex() == GameDatabase::getTableIndex<TargetPosTable>().getTableIndex());
-            //  TableOperations::stableSwapRemove(std::get<TargetPosTable>(a.db->db.mTables), a.resolvedID.toPacked<GameDatabase>(), TableAdapters::getStableMappings(*a.db));
-            //}
-          };
+          Events::onRemovedElement(toRemove, args);
         }
       });
+      builder.submitTask(std::move(task));
     }
   };
 
@@ -354,8 +347,8 @@ namespace FragmentStateMachine {
 
           auto& currentState = fromState->at(fromTable.getElementIndex()).currentState;
           const size_t stateIndex = currentState.index();
-          globals->at().buckets[stateIndex].exiting.push_back(stateIndex);
-          currentState = Empty{};
+          globals->at().buckets[stateIndex].exiting.push_back(fromTable.getElementIndex());
+          //Need to leave the state unchanged so that the exitStates call below can still see it
         }
       }
     });

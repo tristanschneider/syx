@@ -335,6 +335,7 @@ namespace Simulation {
 
     //Soon after gameplay extract and physics started, before stat processing
     std::function<void(IAppBuilder&)> injectGameplayTasks{ NoOp{} };
+    bool enableFragmentStateMachine{ true };
   };
 
   void buildUpdateTasks(IAppBuilder& builder, const UpdateConfig& config);

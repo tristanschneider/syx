@@ -159,16 +159,11 @@ struct CameraAdapater {
   GameObjectAdapter object;
 };
 
-namespace FragmentStateMachine {
-  struct StateRow;
-}
-
 struct FragmentAdapter {
   BasicRow<float>* goalX{};
   BasicRow<float>* goalY{};
   BasicRow<float>* damageTaken{};
   BasicRow<glm::vec4>* tint{};
-  FragmentStateMachine::StateRow* state{};
 };
 
 struct SceneState;
