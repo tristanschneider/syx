@@ -215,22 +215,54 @@ TransformAdapter TableAdapters::getTransform(RuntimeDatabaseTaskBuilder& task, c
 TransformAdapter TableAdapters::getGameplayTransform(RuntimeDatabaseTaskBuilder& task, const UnpackedDatabaseElementID& table) {
   TransformAdapter result;
   std::tie(result.posX, result.posY, result.rotX, result.rotY) = task.query<
-    FloatRow<Tags::GPos, Tags::X>, FloatRow<Tags::Pos, Tags::Y>,
-    FloatRow<Tags::GRot, Tags::CosAngle>, FloatRow<Tags::Rot, Tags::SinAngle>
+    FloatRow<Tags::GPos, Tags::X>, FloatRow<Tags::GPos, Tags::Y>,
+    FloatRow<Tags::GRot, Tags::CosAngle>, FloatRow<Tags::GRot, Tags::SinAngle>
   >(table).get(0);
   return result;
 }
 
 PhysicsObjectAdapter TableAdapters::getPhysics(RuntimeDatabaseTaskBuilder& task, const UnpackedDatabaseElementID& table) {
   PhysicsObjectAdapter r;
-  std::tie(r.linVelX, r.linVelY, r.angVel, r.linImpulseX, r.linImpulseY, r.angImpulse, r.collisionMask) = task.query<
+  auto q = task.query<
     FloatRow<Tags::LinVel, Tags::X>, FloatRow<Tags::LinVel, Tags::Y>,
     FloatRow<Tags::AngVel, Tags::Angle>,
     FloatRow<Tags::GLinImpulse, Tags::X>, FloatRow<Tags::GLinImpulse, Tags::Y>,
     FloatRow<Tags::GAngImpulse, Tags::Angle>,
     CollisionMaskRow
-  >(table).get(0);
+  >(table);
+  if(q.size()) {
+    std::tie(r.linVelX, r.linVelY, r.angVel, r.linImpulseX, r.linImpulseY, r.angImpulse, r.collisionMask) = q.get(0);
+  }
   return r;
+}
+
+PhysicsObjectAdapter TableAdapters::getGameplayPhysics(RuntimeDatabaseTaskBuilder& task, const UnpackedDatabaseElementID& table) {
+  PhysicsObjectAdapter r;
+  auto q = task.query<
+    FloatRow<Tags::GLinVel, Tags::X>, FloatRow<Tags::GLinVel, Tags::Y>,
+    FloatRow<Tags::GAngVel, Tags::Angle>,
+    FloatRow<Tags::GLinImpulse, Tags::X>, FloatRow<Tags::GLinImpulse, Tags::Y>,
+    FloatRow<Tags::GAngImpulse, Tags::Angle>,
+    CollisionMaskRow
+  >(table);
+  if(q.size()) {
+    std::tie(r.linVelX, r.linVelY, r.angVel, r.linImpulseX, r.linImpulseY, r.angImpulse, r.collisionMask) = q.get(0);
+  }
+  return r;
+}
+
+GameObjectAdapter TableAdapters::getGameObject(RuntimeDatabaseTaskBuilder& task, const UnpackedDatabaseElementID& table) {
+  auto t = getTransform(task, table);
+  auto p = getPhysics(task, table);
+  auto& stable = task.query<const StableIDRow>(table).get<0>(0);
+  return { t, p, &stable };
+}
+
+GameObjectAdapter TableAdapters::getGameplayGameObject(RuntimeDatabaseTaskBuilder& task, const UnpackedDatabaseElementID& table) {
+  auto t = getGameplayTransform(task, table);
+  auto p = getGameplayPhysics(task, table);
+  auto& stable = task.query<const StableIDRow>(table).get<0>(0);
+  return { t, p, &stable };
 }
 
 size_t TableAdapters::addStatEffectsSharedLifetime(StatEffectBaseAdapter& base, size_t lifetime, const size_t* stableIds, size_t count) {

@@ -143,7 +143,7 @@ struct TargetPosAdapter {
 struct GameObjectAdapter {
   TransformAdapter transform;
   PhysicsObjectAdapter physics;
-  StableIDRow* stable{};
+  const StableIDRow* stable{};
 };
 
 struct PlayerInput;
@@ -249,6 +249,9 @@ namespace TableAdapters {
   TransformAdapter getTransform(RuntimeDatabaseTaskBuilder& task, const UnpackedDatabaseElementID& table);
   TransformAdapter getGameplayTransform(RuntimeDatabaseTaskBuilder& task, const UnpackedDatabaseElementID& table);
   PhysicsObjectAdapter getPhysics(RuntimeDatabaseTaskBuilder& task, const UnpackedDatabaseElementID& table);
+  PhysicsObjectAdapter getGameplayPhysics(RuntimeDatabaseTaskBuilder& task, const UnpackedDatabaseElementID& table);
+  GameObjectAdapter getGameObject(RuntimeDatabaseTaskBuilder& task, const UnpackedDatabaseElementID& table);
+  GameObjectAdapter getGameplayGameObject(RuntimeDatabaseTaskBuilder& task, const UnpackedDatabaseElementID& table);
 
   inline glm::vec2 read(size_t i, const Row<float>& a, const Row<float>& b) {
     return { a.at(i), b.at(i) };

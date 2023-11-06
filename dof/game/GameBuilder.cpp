@@ -97,6 +97,9 @@ namespace GameBuilder {
         table.modify = root;
         table.id = tableids[i];
       }
+      assert(tableids.size());
+      struct NoOp{};
+      noOpAccess = TableAccess{ DBTypeID::get<NoOp>(), tableids[0] };
     }
 
     RuntimeDatabaseTaskBuilder createTask() override {
@@ -141,6 +144,10 @@ namespace GameBuilder {
       node->name = task.data.name;
 
       reduce(task.data);
+      //If everything is empty add an artificial dependency on an empty type so it still gets scheduled somewhere
+      if(task.data.reads.empty() && task.data.writes.empty() && task.data.tableModifiers.empty()) {
+        task.data.reads.push_back(noOpAccess);
+      }
       if(std::get_if<AppTaskPinning::Synchronous>(&node->task.pinning)) {
         for(TableDependencies& table : dependencies) {
           addTableModifier(table, node);
@@ -172,6 +179,7 @@ namespace GameBuilder {
     IDatabase& db;
     std::shared_ptr<AppTaskNode> root = std::make_shared<AppTaskNode>();
     std::vector<TableDependencies> dependencies;
+    TableAccess noOpAccess;
   };
 
   std::unique_ptr<IAppBuilder> create(IDatabase& db) {

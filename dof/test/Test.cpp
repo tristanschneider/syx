@@ -1933,38 +1933,55 @@ namespace Test {
       assertValues(TableAdapters::getGameplayGameObject(game.builder(), game.tables.completedFragments), 2.0f);
       assertValues(TableAdapters::getGameplayGameObject(game.builder(), game.tables.player), 3.0f);
     }
-    /*
+
+    static auto addGlobalPointForce(TestStatInfo& test) {
+      return [&test](IAppBuilder& builder) {
+        auto task = builder.createTask();
+        task.setName("test");
+        task.setCallback([&test](AppTaskArgs& args) {
+          if(test.shouldRun) {
+            AreaForceStatEffectAdapter effect = TableAdapters::getAreaForceEffects(args);
+            const size_t id = TableAdapters::addStatEffectsSharedLifetime(effect.base, StatEffect::INSTANT, nullptr ,1);
+            AreaForceStatEffect::Command& cmd = effect.command->at(id);
+            cmd.origin = glm::vec2{ 4.0f, 0.0f };
+            cmd.direction = glm::vec2{ 1.0f, 0.0f };
+            cmd.dynamicPiercing = 3.0f;
+            cmd.terrainPiercing = 0.0f;
+            cmd.rayCount = 4;
+            AreaForceStatEffect::Command::Cone cone;
+            cone.halfAngle = 0.25f;
+            cone.length = 15.0f;
+            cmd.shape = cone;
+            AreaForceStatEffect::Command::FlatImpulse impulseType{ 1.0f };
+            cmd.impulseType = impulseType;
+          }
+        });
+        builder.submitTask(std::move(task));
+      };
+    }
+
     TEST_METHOD(GlobalPointForce) {
       GameArgs args;
       args.fragmentCount = 1;
-      TestGame game{ args };
+      GameConstructArgs construct;
+      TestStatInfo test;
+      construct.updateConfig.injectGameplayTasks = addGlobalPointForce(test);
+      TestGame game{ std::move(construct) };
+      game.init(args);
 
-      GameObjectAdapter fragment = TableAdapters::getGameObjects(game);
+      GameObjectAdapter fragment = TableAdapters::getGameObject(game.builder(), game.tables.fragments);
       fragment.transform.posX->at(0) = 5.0f;
       fragment.transform.rotX->at(0) = 1.0f;
 
-      AreaForceStatEffectAdapter effect = TableAdapters::getAreaForceEffects(game, 0);
-      TableAdapters::addStatEffectsSharedLifetime(effect.base, StatEffect::INSTANT, nullptr, 1);
-
-      AreaForceStatEffect::Command& cmd = effect.command->at(0);
-      cmd.origin = glm::vec2{ 4.0f, 0.0f };
-      cmd.direction = glm::vec2{ 1.0f, 0.0f };
-      cmd.dynamicPiercing = 3.0f;
-      cmd.terrainPiercing = 0.0f;
-      cmd.rayCount = 4;
-      AreaForceStatEffect::Command::Cone cone;
-      cone.halfAngle = 0.25f;
-      cone.length = 15.0f;
-      cmd.shape = cone;
-      AreaForceStatEffect::Command::FlatImpulse impulseType{ 1.0f };
-      cmd.impulseType = impulseType;
-
       //One update to request the impulse, then the next to apply it
+      test.shouldRun = true;
       game.update();
+      test.shouldRun = false;
       game.update();
 
+      auto&& [cmd] = game.builder().query<AreaForceStatEffect::CommandRow>().get(0);
       Assert::IsTrue(fragment.physics.linVelX->at(0) > 0.0f);
-      Assert::AreEqual(size_t(0), effect.command->size());
+      Assert::AreEqual(size_t(0), cmd->size());
     }
 
     TEST_METHOD(Config) {
@@ -1980,24 +1997,25 @@ namespace Test {
       Assert::AreEqual(size_t(5), std::get<0>(r.value).fragment.fragmentColumns);
     }
 
-    void assertQueryHas(StableElementID query, std::vector<StableElementID> expected, SpatialQueryAdapter& queries) {
-        const SpatialQuery::Result* r = SpatialQuery::tryGetResult(query, queries);
-        Assert::IsNotNull(r);
+    void assertQueryHas(TestGame& game, StableElementID query, std::vector<StableElementID> expected) {
+      auto q = SpatialQuery::createReader(game.builder());
+      const SpatialQuery::Result* r = q->tryGetResult(query);
+      Assert::IsNotNull(r);
 
-        std::visit([&expected](const auto& r) {
-          Assert::AreEqual(expected.size(), r.results.size(), L"Size should match");
-          for(size_t i = 0; i < expected.size(); ++i) {
-            Assert::AreEqual(expected[i].mStableID, r.results[i].id.mStableID);
-          }
-        }, r->result);
+      std::visit([&expected](const auto& r) {
+        Assert::AreEqual(expected.size(), r.results.size(), L"Size should match");
+        for(size_t i = 0; i < expected.size(); ++i) {
+          Assert::AreEqual(expected[i].mStableID, r.results[i].id.mStableID);
+        }
+      }, r->result);
     }
 
-    void assertQueryHasObject(StableElementID query, StableElementID object, SpatialQueryAdapter& queries) {
-      assertQueryHas(query, { object }, queries);
+    void assertQueryHasObject(TestGame& game, StableElementID query, StableElementID object) {
+      assertQueryHas(game, query, { object });
     }
 
-    void assertQueryNoObjects(StableElementID query, SpatialQueryAdapter& queries) {
-      assertQueryHas(query, {}, queries);
+    void assertQueryNoObjects(TestGame& game, StableElementID query) {
+      assertQueryHas(game, query, {});
     }
 
     void tickQueryUpdate(TestGame& game) {
@@ -2011,12 +2029,12 @@ namespace Test {
       args.fragmentCount = 1;
       TestGame game{ args };
 
-      auto objs = TableAdapters::getGameObjects(game);
+      auto objs = TableAdapters::getGameObject(game.builder(), game.tables.fragments);
       const StableElementID objID = StableElementID::fromStableID(objs.stable->at(0));
-      auto queries = TableAdapters::getSpatialQueries(game);
-      StableElementID bb = SpatialQuery::createQuery(queries, { SpatialQuery::AABB{ glm::vec2(2.0f), glm::vec2(3.5f) } }, 10);
-      StableElementID circle = SpatialQuery::createQuery(queries, { SpatialQuery::Circle{ glm::vec2(0, 5), 1.5f } }, 10);
-      StableElementID cast = SpatialQuery::createQuery(queries, { SpatialQuery::Raycast{ glm::vec2(-1.0f), glm::vec2(2.0f, -1.0f) } }, 10);
+      auto creator = SpatialQuery::createCreator(game.builder());
+      StableElementID bb = creator->createQuery({ SpatialQuery::AABB{ glm::vec2(2.0f), glm::vec2(3.5f) } }, 10);
+      StableElementID circle = creator->createQuery({ SpatialQuery::Circle{ glm::vec2(0, 5), 1.5f } }, 10);
+      StableElementID cast = creator->createQuery({ SpatialQuery::Raycast{ glm::vec2(-1.0f), glm::vec2(2.0f, -1.0f) } }, 10);
       //Update to create the queries
       game.update();
 
@@ -2024,52 +2042,55 @@ namespace Test {
       TableAdapters::write(0, glm::vec2(2.5f), *objs.transform.posX, *objs.transform.posY);
       game.update();
 
-      assertQueryHasObject(bb, objID, queries);
-      assertQueryNoObjects(circle, queries);
-      assertQueryNoObjects(cast, queries);
+      assertQueryHasObject(game, bb, objID);
+      assertQueryNoObjects(game, circle);
+      assertQueryNoObjects(game, cast);
 
       //Move aabb out of object and move circle in
-      SpatialQuery::refreshQuery(bb, queries, { SpatialQuery::AABB{ glm::vec2(20), glm::vec2(21) } }, 10);
-      SpatialQuery::refreshQuery(circle, queries, { SpatialQuery::Circle{ glm::vec2(2), 1.0f } }, 10);
+      auto writer = SpatialQuery::createWriter(game.builder());
+      writer->refreshQuery(bb, { SpatialQuery::AABB{ glm::vec2(20), glm::vec2(21) } }, 10);
+      writer->refreshQuery(circle, { SpatialQuery::Circle{ glm::vec2(2), 1.0f } }, 10);
       tickQueryUpdate(game);
 
-      assertQueryNoObjects(bb, queries);
-      assertQueryHasObject(circle, objID, queries);
-      assertQueryNoObjects(cast, queries);
+      assertQueryNoObjects(game, bb);
+      assertQueryHasObject(game, circle, objID);
+      assertQueryNoObjects(game, cast);
 
       //Move object to raycast and circle with it
       TableAdapters::write(0, glm::vec2(2.f, -1.f), *objs.transform.posX, *objs.transform.posY);
-      SpatialQuery::refreshQuery(circle, queries, { SpatialQuery::Circle{ glm::vec2(2, -1), 0.5f } }, 10);
+      writer->refreshQuery(circle, { SpatialQuery::Circle{ glm::vec2(2, -1), 0.5f } }, 10);
       tickQueryUpdate(game);
 
-      assertQueryNoObjects(bb, queries);
-      assertQueryHasObject(circle, objID, queries);
-      assertQueryHasObject(cast, objID, queries);
+      assertQueryNoObjects(game, bb);
+      assertQueryHasObject(game, circle, objID);
+      assertQueryHasObject(game, cast, objID);
 
       //Move circle out and turn raycast into an aabb
-      SpatialQuery::refreshQuery(circle, queries, { SpatialQuery::Circle{ glm::vec2(20), 1.0f } }, 10);
-      SpatialQuery::refreshQuery(cast, queries, { SpatialQuery::AABB{ glm::vec2(2.f, -1.f), glm::vec2(2.5f, 0.f) } }, 10);
+      writer->refreshQuery(circle, { SpatialQuery::Circle{ glm::vec2(20), 1.0f } }, 10);
+      writer->refreshQuery(cast, { SpatialQuery::AABB{ glm::vec2(2.f, -1.f), glm::vec2(2.5f, 0.f) } }, 10);
       tickQueryUpdate(game);
 
-      assertQueryNoObjects(bb, queries);
-      assertQueryNoObjects(circle, queries);
-      assertQueryHasObject(cast, objID, queries);
+      assertQueryNoObjects(game, bb);
+      assertQueryNoObjects(game, circle);
+      assertQueryHasObject(game, cast, objID);
 
       //Try a query with a single tick lifetime
-      StableElementID single = SpatialQuery::createQuery(queries, { SpatialQuery::Circle{ glm::vec2(2, -1), 1.f } }, SpatialQuery::SINGLE_USE);
+      StableElementID single = creator->createQuery({ SpatialQuery::Circle{ glm::vec2(2, -1), 1.f } }, SpatialQuery::SINGLE_USE);
       game.update();
-      assertQueryNoObjects(single, queries);
-      auto lambda = TableAdapters::getLambdaEffects(game, 0);
+      assertQueryNoObjects(game, single);
+      auto taskArgs = game.sharedArgs();
+      auto lambda = TableAdapters::getLambdaEffects(taskArgs);
       //Query should be resolved during physics then viewable later by gameplay but destroyed at the end of the frame.
       //Catch it in the middle with a lambda stat effect which should execute before the removal but after it's resolved
       const size_t l = TableAdapters::addStatEffectsSharedLifetime(lambda.base, StatEffect::INSTANT, &objID.mStableID, 1);
       lambda.command->at(l) = [&](...) {
-        assertQueryHasObject(single, objID, queries);
+        assertQueryHasObject(game, single, objID);
       };
       game.update();
-      Assert::IsFalse(SpatialQuery::getIndex(single, queries).has_value());
+      auto reader = SpatialQuery::createReader(game.builder());
+      Assert::IsFalse(reader->getIndex(single).has_value());
     }
-
+/*
     TEST_METHOD(CollisionMasks) {
       GameArgs args;
       args.fragmentCount = 2;

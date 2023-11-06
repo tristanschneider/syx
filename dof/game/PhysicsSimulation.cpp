@@ -157,10 +157,10 @@ namespace PhysicsSimulation {
     aliases.linVelX = FloatAlias::create<FloatRow<Tags::LinVel, Tags::X>>();
     aliases.linVelY = FloatAlias::create<FloatRow<Tags::LinVel, Tags::Y>>();
     aliases.angVel = FloatAlias::create<FloatRow<Tags::AngVel, Tags::Angle>>();
-    aliases.broadphaseMinX = FloatAlias::create<SpatialQuery::MinX>();
-    aliases.broadphaseMaxX = FloatAlias::create<SpatialQuery::MaxX>();
-    aliases.broadphaseMinY = FloatAlias::create<SpatialQuery::MinY>();
-    aliases.broadphaseMaxY = FloatAlias::create<SpatialQuery::MaxY>();
+    aliases.broadphaseMinX = FloatAlias::create<SpatialQuery::Physics<SpatialQuery::MinX>>();
+    aliases.broadphaseMaxX = FloatAlias::create<SpatialQuery::Physics<SpatialQuery::MaxX>>();
+    aliases.broadphaseMinY = FloatAlias::create<SpatialQuery::Physics<SpatialQuery::MinY>>();
+    aliases.broadphaseMaxY = FloatAlias::create<SpatialQuery::Physics<SpatialQuery::MaxY>>();
 
     using TagAlias = QueryAlias<TagRow>;
     aliases.isImmobile = TagAlias::create<IsImmobile>();

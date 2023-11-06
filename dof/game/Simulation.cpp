@@ -152,9 +152,8 @@ void Simulation::buildUpdateTasks(IAppBuilder& builder, const UpdateConfig& conf
 
   //Synchronous transfer from all thread local stats to the central stats database
   StatEffect::moveThreadLocalToCentral(builder);
-  StatEffect::createTasks(builder);
-
   SpatialQuery::gameplayUpdateQueries(builder);
+  StatEffect::createTasks(builder);
 
   Events::publishEvents(builder);
 
