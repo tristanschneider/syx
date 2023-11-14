@@ -374,8 +374,8 @@ int mainLoop(const char* args, HWND window) {
   std::unique_ptr<IAppBuilder> builder = GameBuilder::create(*APP->combined);
 
   Renderer::processRequests(*builder);
-  Renderer::clearRenderRequests(*builder);
   Renderer::extractRenderables(*builder);
+  Renderer::clearRenderRequests(*builder);
   Renderer::render(*builder);
   Simulation::buildUpdateTasks(*builder, {});
 #ifdef IMGUI_ENABLED

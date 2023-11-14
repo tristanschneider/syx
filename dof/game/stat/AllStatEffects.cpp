@@ -107,17 +107,17 @@ namespace StatEffect {
 
   void configureTables(IAppBuilder& builder) {
     auto temp = builder.createTask();
-    for(ConfigRow* config : temp.query<ConfigRow, LambdaStatEffect::LambdaRow>().get<0>()) {
+    temp.query<ConfigRow, LambdaStatEffect::LambdaRow>().forEachRow([](ConfigRow& config, auto&&) {
       //Hack to account for lambda processing being the only table that is scheduled before the lifetime update,
       //so it needs to be removed one tick earlier so that it's only called once instead of twice
-      config->at().removeLifetime = 1;
-    }
+      config.at().removeLifetime = 1;
+    });
 
-    for(ConfigRow* config : temp.query<ConfigRow, FollowTargetByPositionStatEffect::CommandRow>().get<0>()) {
+    temp.query<ConfigRow, FollowTargetByPositionStatEffect::CommandRow>().forEachRow([](ConfigRow& config, auto&&) {
       //Hack to account for lambda processing being the only table that is scheduled before the lifetime update,
       //so it needs to be removed one tick earlier so that it's only called once instead of twice
-      config->at().curves.push_back(getCurveAlias<>());
-    }
+      config.at().curves.push_back(getCurveAlias<>());
+    });
 
     temp.discard();
   }

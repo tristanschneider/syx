@@ -486,7 +486,7 @@ void Renderer::extractRenderables(IAppBuilder& builder) {
     CommonTasks::moveOrCopyRowSameSize<Row<CubeSprite>, QuadPassTable::UV>(builder, spriteID, passID);
     CommonTasks::moveOrCopyRowSameSize<SharedRow<TextureReference>, QuadPassTable::Texture>(builder, spriteID, passID);
     //If this table has velocity, add those tasks as well
-    if(temp.query<FloatRow<Tags::LinVel, Tags::X>, FloatRow<Tags::Angle, Tags::Angle>>(spriteID).size()) {
+    if(temp.query<FloatRow<Tags::LinVel, Tags::X>, FloatRow<Tags::AngVel, Tags::Angle>>(spriteID).size()) {
       CommonTasks::moveOrCopyRowSameSize<FloatRow<Tags::LinVel, Tags::X>, QuadPassTable::LinVelX>(builder, spriteID, passID);
       CommonTasks::moveOrCopyRowSameSize<FloatRow<Tags::LinVel, Tags::Y>, QuadPassTable::LinVelY>(builder, spriteID, passID);
       CommonTasks::moveOrCopyRowSameSize<FloatRow<Tags::AngVel, Tags::Angle>, QuadPassTable::AngVel>(builder, spriteID, passID);
@@ -507,8 +507,9 @@ void Renderer::extractRenderables(IAppBuilder& builder) {
     auto modifiers = task.getModifiersForTables(dst.matchingTableIDs);
     task.setCallback([src, dst, modifiers](AppTaskArgs&) mutable {
       for(size_t i = 0; i < modifiers.size(); ++i) {
-        modifiers[i]->resize(src.size());
-        CommonTasks::Now::moveOrCopyRow(src.get<0>(i), dst.get<0>(i), 0);
+        auto& srcRow = src.get<0>(i);
+        modifiers[i]->resize(srcRow.size());
+        CommonTasks::Now::moveOrCopyRow(srcRow, dst.get<0>(i), 0);
       }
     });
     builder.submitTask(std::move(task));

@@ -127,7 +127,7 @@ namespace Fragment {
     CachedRow<const FloatRow<Tags::FragmentGoal, Tags::Y>> goalY;
     CachedRow<FloatRow<Tags::Rot, Tags::CosAngle>> rotX;
     CachedRow<FloatRow<Tags::Rot, Tags::SinAngle>> rotY;
-    CachedRow<const FragmentGoalFoundRow> goalFound;
+    CachedRow<const FragmentGoalFoundTableTag> goalFound;
     for(const DBEvents::MoveCommand& cmd : events.toBeMovedElements) {
       const UnpackedDatabaseElementID& dest = ids.uncheckedUnpack(cmd.destination);
       //If this is one of the completed fragments enqueued to be moved to the completed table
