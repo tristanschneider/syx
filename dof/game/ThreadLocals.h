@@ -1,6 +1,7 @@
 #pragma once
 
 struct AppTaskArgs;
+struct IRandom;
 struct StatEffectDatabase;
 struct StableElementMappings;
 
@@ -16,6 +17,7 @@ struct ThreadLocalData {
   //This is a hack to get at the mappings from apptaskargs
   //At the moment it's not really a problem since having access to this doesn't affect task scheduling
   StableElementMappings* mappings{};
+  IRandom* random{};
 };
 
 namespace details {

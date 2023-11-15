@@ -2,11 +2,13 @@
 #include "ThreadLocals.h"
 
 #include "AppBuilder.h"
+#include "Random.h"
 #include "stat/AllStatEffects.h"
 
 namespace details {
   struct ThreadData {
     StatEffectDatabase statEffects;
+    std::unique_ptr<IRandom> random = Random::twister();
   };
 
   struct ThreadLocalsImpl {
@@ -41,7 +43,8 @@ ThreadLocalData ThreadLocals::get(size_t thread) {
   return {
     &t->statEffects,
     data->events,
-    data->mappings
+    data->mappings,
+    t->random.get()
   };
 }
 

@@ -11,21 +11,11 @@
 #include "glm/gtx/norm.hpp"
 #include "AppBuilder.h"
 
-namespace FragmentStateMachine {
+namespace SM {
+  using namespace FragmentStateMachine;
   std::optional<StableElementID> tryGetFirstNearby(const SpatialQuery::Result& results, const StableElementID& self) {
     auto it = std::find_if(results.nearbyObjects.begin(), results.nearbyObjects.end(), [&](const StableElementID& e) { return e.mStableID != self.mStableID; });
     return it != results.nearbyObjects.end() ? std::make_optional(*it) : std::nullopt;
-  }
-
-  void setState(FragmentState& current, FragmentState::Variant&& desired) {
-    std::lock_guard<std::mutex> lock{ current.desiredStateMutex };
-    current.desiredState = std::move(desired);
-  }
-
-  template<class StateT>
-  std::optional<typename StateT::Variant> tryTakeDesiredState(StateT& current) {
-    std::lock_guard<std::mutex> lock{ current.desiredStateMutex };
-    return current.currentState.index() != current.desiredState.index() ? std::make_optional(current.desiredState) : std::nullopt;
   }
 
   template<>
@@ -206,7 +196,7 @@ namespace FragmentStateMachine {
             if(auto resolved = ids->tryResolveStableID(StableElementID::fromStableID(stableId))) {
               const auto unpacked = ids->uncheckedUnpack(*resolved);
               if(StateRow* row = resolver->tryGetRow<StateRow>(unpacked)) {
-                setState(row->at(unpacked.getElementIndex()), Wander{});
+                SM::setState(row->at(unpacked.getElementIndex()), Wander{});
               }
             }
 
@@ -246,124 +236,18 @@ namespace FragmentStateMachine {
       builder.submitTask(std::move(task));
     }
   };
+}
 
-  template<class... States>
-  void createBuckets(IAppBuilder& builder, StateMachine<States...> sm) {
-    using SM = decltype(sm);
-    using StatesRow = typename SM::StateRow;
-    using GlobalState = typename SM::GlobalStateRow;
-    for(const UnpackedDatabaseElementID& table : builder.queryTables<StatesRow, GlobalState>().matchingTableIDs) {
-      auto task = builder.createTask();
-      task.setName("create state buckets");
-      auto query = task.query<StatesRow, GlobalState>(table);
-
-      task.setCallback([query](AppTaskArgs&) mutable {
-        auto&& [states, global] = query.get(0);
-        auto& buckets = global->at().buckets;
-
-        for(size_t i = 0; i < buckets.size(); ++i) {
-          buckets[i].clear();
-        }
-
-        for(size_t i = 0; i < states->size(); ++i) {
-          auto& state = states->at(i);
-          //See if there is a desired state transition
-          if(auto desired = tryTakeDesiredState(state)) {
-            //Exit the old state
-            buckets[state.currentState.index()].exiting.push_back(i);
-            buckets[desired->index()].entering.push_back(i);
-            state.previousState = state.currentState;
-            //Swap to new state and enter it
-            state.currentState = std::move(*desired);
-          }
-          else {
-            buckets[state.currentState.index()].updating.push_back(i);
-          }
-        }
-      });
-
-      builder.submitTask(std::move(task));
-    }
-  }
-
-  template<class... States, size_t... I>
-  void updateStates(IAppBuilder& builder, StateMachine<States...> sm, std::index_sequence<I...>) {
-    using SM = decltype(sm);
-    for(const UnpackedDatabaseElementID& table : builder.queryTables<typename SM::StateRow, typename SM::GlobalStateRow>().matchingTableIDs) {
-      (StateTraits<States>::onExit(builder, table, I), ...);
-      (StateTraits<States>::onEnter(builder, table, I), ...);
-      (StateTraits<States>::onUpdate(builder, table, I), ...);
-    }
-  }
-
-  template<class... States, size_t... I>
-  void exitStates(IAppBuilder& builder, StateMachine<States...> sm, std::index_sequence<I...>) {
-    using SM = decltype(sm);
-    for(const UnpackedDatabaseElementID& table : builder.queryTables<typename SM::StateRow, typename SM::GlobalStateRow>().matchingTableIDs) {
-      (StateTraits<States>::onExit(builder, table, I), ...);
-    }
+namespace FragmentStateMachine {
+  void setState(FragmentState& current, FragmentStateMachineT::Variant&& desired) {
+    SM::setState(current, std::move(desired));
   }
 
   void update(IAppBuilder& builder) {
-    FragmentStateMachineT sm;
-    createBuckets(builder, sm);
-    updateStates(builder, sm, sm.INDICES);
-  }
-
-  void processMigrations(IAppBuilder& builder) {
-    //First clear all buckets
-    {
-      auto task = builder.createTask();
-      task.setName("clear buckets");
-      auto query = task.query<GlobalsRow>();
-      task.setCallback([query](AppTaskArgs&) mutable {
-        query.forEachElement([](auto& element) {
-          for(size_t i = 0; i < element.buckets.size(); ++i) {
-            element.buckets[i].clear();
-          }
-        });
-      });
-      builder.submitTask(std::move(task));
-    }
-
-    auto task = builder.createTask();
-    task.setName("process state migrations");
-    auto resolver = task.getResolver<StateRow, GlobalsRow>();
-    auto ids = task.getIDResolver();
-    const DBEvents& events = Events::getPublishedEvents(task);
-
-    //If a goal would be lost, trigger the exit callback by transitioning to the empty state
-    //and putting it in the exiting bucket of the state it came from
-    task.setCallback([resolver, ids, &events](AppTaskArgs&) mutable {
-      CachedRow<StateRow> fromState, toState;
-      CachedRow<GlobalsRow> globals;
-      for(const DBEvents::MoveCommand& cmd : events.toBeMovedElements) {
-        auto fromTable = ids->uncheckedUnpack(cmd.source);
-        auto toTable = ids->uncheckedUnpack(cmd.destination);
-        resolver->tryGetOrSwapRow(fromState, fromTable);
-        resolver->tryGetOrSwapRow(toState, toTable);
-        if(fromState && !toState) {
-          resolver->tryGetOrSwapRow(globals, fromTable);
-          assert(globals);
-
-          auto& state = fromState->at(fromTable.getElementIndex());
-          auto& currentState = state.currentState;
-          const size_t stateIndex = currentState.index();
-          globals->at().buckets[stateIndex].exiting.push_back(fromTable.getElementIndex());
-          state.previousState = currentState;
-          currentState = Empty{};
-        }
-      }
-    });
-
-    builder.submitTask(std::move(task));
-
-    //Process the exits potentially enqueued above
-    FragmentStateMachineT sm;
-    exitStates(builder, sm, sm.INDICES);
+    SM::update<FragmentStateMachineT>(builder);
   }
 
   void preProcessEvents(IAppBuilder& builder) {
-    processMigrations(builder);
+    SM::preProcessEvents<FragmentStateMachineT>(builder);
   }
 }
