@@ -77,15 +77,16 @@ namespace ctbdetails {
     IIDResolver& ids,
     size_t targetWidth) {
     for(size_t f = startIndex; f < mappings.mConstraintFreeList.size(); ++f) {
-      auto freeSlot = ids.tryResolveStableID(mappings.mConstraintFreeList[f]);
+      const StableElementID potentiallyFree = mappings.mConstraintFreeList[f];
+      auto freeSlot = ids.tryResolveAndUnpack(potentiallyFree);
       assert(freeSlot.has_value() && "Constraint entries shouldn't disappear");
       if(freeSlot) {
-        const size_t freeElement = freeSlot->mUnstableIndex & tables.mElementIDMask;
+        const size_t freeElement = freeSlot->unpacked.getElementIndex();
         if(freeElement >= range.first && freeElement < range.second && isSuitablePairLocation(constraintIndexA, constraintIndexB, freeElement, a, b, targetWidth, tables, targetTable, range)) {
           //Found one, use this and swap remove it from the free list
           mappings.mConstraintFreeList[f] = mappings.mConstraintFreeList.back();
           mappings.mConstraintFreeList.pop_back();
-          return *freeSlot;
+          return potentiallyFree;
         }
       }
     }
