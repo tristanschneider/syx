@@ -12,6 +12,7 @@ class ITableModifier;
 class RuntimeDatabaseTaskBuilder;
 struct ThreadLocals;
 struct DebugPoint;
+struct DebugText;
 template<class Element>
 struct BasicRow;
 
@@ -139,7 +140,9 @@ struct DebugLineAdapter {
   ~DebugLineAdapter();
 
   BasicRow<DebugPoint>* points{};
-  std::shared_ptr<ITableModifier> modifier;
+  BasicRow<DebugText>* text{};
+  std::shared_ptr<ITableModifier> pointModifier;
+  std::shared_ptr<ITableModifier> textModifier;
 };
 
 namespace TableAdapters {

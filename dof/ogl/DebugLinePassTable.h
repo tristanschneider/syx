@@ -10,9 +10,18 @@ struct DebugLinePassTable {
     glm::vec3 color{};
   };
 
-  struct Points : Row<Point>{};
+  struct Text {
+    glm::vec2 pos{};
+    std::string text;
+  };
 
-  using Type = Table<
+  struct Points : Row<Point>{};
+  struct Texts : Row<Text>{};
+
+  using PointsTable = Table<
     Points
+  >;
+  using TextTable = Table<
+    Texts
   >;
 };

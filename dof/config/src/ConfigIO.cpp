@@ -125,7 +125,8 @@ namespace cereal {
     ARCHIVE(archive,
       value.fragmentColumns,
       value.fragmentRows,
-      value.fragmentGoalDistance
+      value.fragmentGoalDistance,
+      value.drawAI
     );
   }
   

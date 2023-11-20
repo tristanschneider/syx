@@ -111,6 +111,7 @@ namespace Config {
 
     size_t fragmentRows = 10;
     size_t fragmentColumns = 9;
+    bool drawAI{};
   };
 
   struct WorldConfig {

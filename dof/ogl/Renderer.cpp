@@ -310,6 +310,23 @@ namespace {
 }
 
 struct RenderDB : IDatabase {
+  using TexturesTable = Table<
+    Row<TextureGLHandle>,
+    Row<TextureGameHandle>
+  >;
+
+  using GraphicsContext = Table<
+    Row<OGLState>,
+    Row<WindowData>
+  >;
+
+  using RendererDatabase = Database<
+    GraphicsContext,
+    TexturesTable,
+    DebugLinePassTable::PointsTable,
+    DebugLinePassTable::TextTable
+  >;
+
   RenderDB(size_t quadPassCount, StableElementMappings& mappings)
     : runtime(getArgs(quadPassCount, mappings)) {
   }
@@ -514,6 +531,29 @@ void Renderer::extractRenderables(IAppBuilder& builder) {
     });
     builder.submitTask(std::move(task));
   }
+  //Debug text
+  {
+    auto task = builder.createTask();
+    task.setName("extract text");
+    auto src = task.query<const Row<DebugText>>();
+    auto dst = task.query<DebugLinePassTable::Texts>();
+    assert(src.size() == dst.size());
+    auto modifiers = task.getModifiersForTables(dst.matchingTableIDs);
+    task.setCallback([src, dst, modifiers](AppTaskArgs&) mutable {
+      for(size_t i = 0; i < modifiers.size(); ++i) {
+        auto& srcRow = src.get<0>(i);
+        auto& dstRow = dst.get<0>(i);
+        modifiers[i]->resize(srcRow.size());
+        for(size_t e = 0; e < srcRow.size(); ++e) {
+          const DebugText& srcE = srcRow.at(e);
+          DebugLinePassTable::Text& dstE = dstRow.at(e);
+          dstE.pos = srcE.pos;
+          dstE.text = srcE.text;
+        }
+      }
+    });
+    builder.submitTask(std::move(task));
+  }
 
   //Cameras
   {
@@ -559,12 +599,7 @@ void Renderer::extractRenderables(IAppBuilder& builder) {
 void Renderer::clearRenderRequests(IAppBuilder& builder) {
   auto task = builder.createTask();
   task.setName("clear render requests");
-  auto debugTables = task.query<const Row<DebugPoint>>();
-  std::vector<std::shared_ptr<ITableModifier>> modifiers(debugTables.matchingTableIDs.size());
-  for(size_t i = 0; i < debugTables.matchingTableIDs.size(); ++i) {
-    modifiers[i] = task.getModifierForTable(debugTables.matchingTableIDs[i]);
-  }
-
+  auto modifiers = task.getModifiersForTables(builder.queryTables<DebugClearPerFrame>().matchingTableIDs);
   task.setCallback([modifiers](AppTaskArgs&) {
     for(auto&& modifier : modifiers) {
       modifier->resize(0);
@@ -628,11 +663,15 @@ void Renderer::render(IAppBuilder& builder) {
     glClearColor(0.0f, 0.0f, 1.0f, 0.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
     auto& cameras = state->mCameras;
+    for(auto& camera : cameras) {
+      camera.worldToView = _getWorldToView(camera, aspectRatio);
+    }
+
     for(const auto& renderCamera : cameras) {
       PROFILE_SCOPE("renderer", "particles");
 
       ParticleUniforms uniforms;
-      uniforms.worldToView = _getWorldToView(renderCamera, aspectRatio);
+      uniforms.worldToView = renderCamera.worldToView;
       const SceneState& scene = state->mSceneState;
       const glm::vec2 origin = (scene.mBoundaryMin + scene.mBoundaryMax) * 0.5f;
       const float extraSpaceScalar = 2.5f;
@@ -729,7 +768,7 @@ void Renderer::render(IAppBuilder& builder) {
         //Could tie these to a vao, but that would also require and index buffer all of which seems like overkill
         QuadVertexAttributes::bind();
 
-        const glm::mat4 worldToView = _getWorldToView(renderCamera, aspectRatio);
+        const glm::mat4 worldToView = renderCamera.worldToView;
 
         glUniformMatrix4fv(pass.mQuadUniforms.worldToView, 1, GL_FALSE, &worldToView[0][0]);
         int textureIndex = 0;

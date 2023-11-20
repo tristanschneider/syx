@@ -9,6 +9,7 @@
 #include "Quad.h"
 #include "QuadPassTable.h"
 #include "Shader.h"
+#include "glm/mat4x4.hpp"
 
 struct DebugDrawer {
   GLuint mShader{};
@@ -21,6 +22,7 @@ struct DebugDrawer {
 struct RendererCamera {
   glm::vec2 pos{};
   Camera camera;
+  glm::mat4 worldToView;
 };
 
 struct OGLState {
@@ -48,26 +50,6 @@ struct TextureGLHandle {
 
 struct TextureGameHandle {
   size_t mID = 0;
-};
-
-using TexturesTable = Table<
-  Row<TextureGLHandle>,
-  Row<TextureGameHandle>
->;
-
-using GraphicsContext = Table<
-  Row<OGLState>,
-  Row<WindowData>
->;
-
-using RendererDatabase = Database<
-  GraphicsContext,
-  TexturesTable,
-  DebugLinePassTable::Type
->;
-
-struct RendererDB {
-  RendererDatabase& db;
 };
 
 namespace Renderer {

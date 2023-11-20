@@ -221,7 +221,10 @@ DebugLineAdapter TableAdapters::getDebugLines(RuntimeDatabaseTaskBuilder& task) 
   auto query = task.query<Row<DebugPoint>>();
   DebugLineAdapter result;
   result.points = &query.get<0>(0);
-  result.modifier = task.getModifierForTable(query.matchingTableIDs[0]);
+  result.pointModifier = task.getModifierForTable(query.matchingTableIDs[0]);
+  auto q = task.query<Row<DebugText>>();
+  result.text = &q.get<0>(0);
+  result.textModifier = task.getModifierForTable(q.matchingTableIDs[0]);
   return result;
 }
 

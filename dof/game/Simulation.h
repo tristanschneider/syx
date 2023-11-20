@@ -298,7 +298,15 @@ struct DebugPoint {
   glm::vec3 mColor;
 };
 
-using DebugLineTable = Table<Row<DebugPoint>>;
+struct DebugText {
+  glm::vec2 pos;
+  std::string text;
+};
+
+struct DebugClearPerFrame : TagRow{};
+
+using DebugLineTable = Table<Row<DebugPoint>, DebugClearPerFrame>;
+using DebugTextTable = Table<Row<DebugText>, DebugClearPerFrame>;
 
 using BroadphaseTable = SweepNPruneBroadphase::BroadphaseTable;
 
@@ -316,6 +324,7 @@ using GameDatabase = Database<
   ConstraintCommonTable,
   ContactConstraintsToStaticObjectsTable,
   DebugLineTable,
+  DebugTextTable,
   TargetPosTable
 >;
 

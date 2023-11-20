@@ -71,7 +71,8 @@
         "fragment": {
             "fragmentColumns": 9,
             "fragmentRows": 10,
-            "fragmentGoalDistance": 0.5
+            "fragmentGoalDistance": 0.5,
+            "drawAI": false
         },
         "physics": {
             "mForcedTargetWidth": {
