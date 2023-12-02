@@ -26,8 +26,8 @@ namespace FragmentStateMachine {
   using FragmentStateMachineT = SM::StateMachine<Idle, Wander, Stunned, SeekHome, Empty>;
   using FragmentState = typename FragmentStateMachineT::State;
 
-  using StateRow = FragmentStateMachineT::StateRow;
-  using GlobalsRow = FragmentStateMachineT::GlobalStateRow;
+  using StateRow = typename FragmentStateMachineT::StateRow;
+  using GlobalsRow = typename FragmentStateMachineT::GlobalStateRow;
 
   //Used by external code to request a state change during the next update
   //Can be called while the state machine is updating in which case it's up to timing if

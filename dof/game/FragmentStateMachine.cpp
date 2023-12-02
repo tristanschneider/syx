@@ -11,6 +11,8 @@
 #include "glm/gtx/norm.hpp"
 #include "AppBuilder.h"
 
+#include "DebugDrawer.h"
+
 namespace SM {
   using namespace FragmentStateMachine;
   std::optional<StableElementID> tryGetFirstNearby(const SpatialQuery::Result& results, const StableElementID& self) {
@@ -236,6 +238,39 @@ namespace SM {
       builder.submitTask(std::move(task));
     }
   };
+
+  struct GetStateName {
+    static constexpr std::string_view MY_NAMESPACE = "FragmentStateMachine::";
+    template<class T>
+    std::string_view operator()(const T&) {
+      return TypeName<std::decay_t<T>>::get().substr(MY_NAMESPACE.size());
+    }
+  };
+
+  void printStateNames(IAppBuilder& builder) {
+    auto task = builder.createTask();
+    task.setName("print state names");
+    auto debug = TableAdapters::getDebugLines(task);
+    auto cfg = TableAdapters::getGameConfig(task);
+    auto query = task.query<const FragmentStateMachine::StateRow,
+      const FloatRow<Tags::GPos, Tags::X>,
+      const FloatRow<Tags::GPos, Tags::Y>
+    >();
+    task.setCallback([debug, cfg, query](AppTaskArgs&) mutable {
+      if(!cfg->fragment.drawAI) {
+        return;
+      }
+      for(size_t t = 0; t < query.size(); ++t) {
+        auto [state, posX, posY] = query.get(t);
+        for(size_t i = 0; i < state->size(); ++i) {
+          constexpr glm::vec2 offset{ -1.0f, -1.0f };
+          const glm::vec2 pos = TableAdapters::read(i, *posX, *posY);
+          DebugDrawer::drawText(debug, pos + offset, std::string{ std::visit(GetStateName{}, state->at(i).currentState) });
+        }
+      }
+    });
+    builder.submitTask(std::move(task));
+  }
 }
 
 namespace FragmentStateMachine {
@@ -245,6 +280,7 @@ namespace FragmentStateMachine {
 
   void update(IAppBuilder& builder) {
     SM::update<FragmentStateMachineT>(builder);
+    SM::printStateNames(builder);
   }
 
   void preProcessEvents(IAppBuilder& builder) {
