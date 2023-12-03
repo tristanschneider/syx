@@ -10,4 +10,5 @@ namespace DebugDrawer {
   void drawVector(DebugLineAdapter& debug, const glm::vec2& point, const glm::vec2& dir, const glm::vec3& color);
   void drawPoint(DebugLineAdapter& debug, const glm::vec2& p, float size, const glm::vec3& color);
   void drawText(DebugLineAdapter& debug, const glm::vec2& p, std::string text);
+  void drawAABB(DebugLineAdapter& debug, const glm::vec2& min, const glm::vec2& max, const glm::vec3& color);
 };

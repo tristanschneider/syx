@@ -2,6 +2,7 @@
 
 #include "StableElementID.h"
 #include "StateMachine.h"
+#include "glm/vec2.hpp"
 
 class IAppBuilder;
 struct TaskRange;
@@ -12,6 +13,7 @@ namespace FragmentStateMachine {
   //Navigate around in an arbitrary and varying direction
   struct Wander {
     StableElementID spatialQuery;
+    glm::vec2 desiredDirection{};
   };
   //Happens when hit by the player, fly in a given direction with collision disabled,
   //repelling all nearby fragments, then go to SeekHome

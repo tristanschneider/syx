@@ -12,12 +12,18 @@
 #include "AppBuilder.h"
 
 #include "DebugDrawer.h"
+#include "ThreadLocals.h"
+#include "Random.h"
 
 namespace SM {
   using namespace FragmentStateMachine;
   std::optional<StableElementID> tryGetFirstNearby(const SpatialQuery::Result& results, const StableElementID& self) {
     auto it = std::find_if(results.nearbyObjects.begin(), results.nearbyObjects.end(), [&](const StableElementID& e) { return e.mStableID != self.mStableID; });
     return it != results.nearbyObjects.end() ? std::make_optional(*it) : std::nullopt;
+  }
+
+  const bool* getShouldDrawAI(RuntimeDatabaseTaskBuilder& task) {
+    return &TableAdapters::getGameConfig(task)->fragment.drawAI;
   }
 
   template<>
@@ -60,14 +66,26 @@ namespace SM {
       task.setName("enter wander");
       auto spatialQuery = SpatialQuery::createCreator(task);
       auto query = task.query<const GlobalsRow, StateRow>(table);
-      task.setCallback([query, bucket, spatialQuery](AppTaskArgs&) mutable {
+      task.setCallback([query, bucket, spatialQuery](AppTaskArgs& args) mutable {
         auto&& [globals, state] = query.get(0);
+        IRandom* random = ThreadLocalData::get(args).random;
         for(size_t i : globals->at().buckets[bucket].entering) {
-          std::get<Wander>(state->at(i).currentState).spatialQuery = spatialQuery->createQuery({ SpatialQuery::AABB{} }, 2);
+          Wander& wander = std::get<Wander>(state->at(i).currentState);
+          wander.spatialQuery = spatialQuery->createQuery({ SpatialQuery::AABB{} }, 2);
+          wander.desiredDirection = random->nextDirection();
         }
       });
 
       builder.submitTask(std::move(task));
+    }
+
+    static constexpr float seekAhead = 2.0f;
+
+    static SpatialQuery::AABB computeQueryVolume(const glm::vec2& pos, const glm::vec2& forward) {
+      //Put query volume a bit out in front of the fragment with size of 0.5
+      const glm::vec2 queryPos = pos + forward*seekAhead;
+      constexpr glm::vec2 half{ 0.25f, 0.25f };
+      return { queryPos - half, queryPos + half };
     }
 
     static void onUpdate(IAppBuilder& builder, const UnpackedDatabaseElementID& table, size_t bucket) {
@@ -105,7 +123,6 @@ namespace SM {
           constexpr float maxAngVel = 0.03f;
           constexpr float minAngVel = 0.001f;
           constexpr float angularDamping = 0.001f;
-          constexpr float seekAhead = 2.0f;
 
           //Don't tinker with direction if already spinning out of control
           const float angVel = angVelRow->at(si);
@@ -123,14 +140,74 @@ namespace SM {
           const glm::vec2 forward = TableAdapters::read(si, *rotX, *rotY);
           TableAdapters::add(si, forward * linearSpeed, *impulseX, *impulseY);
 
-          //Put query volume a bit out in front of the fragment with size of 0.5
           const glm::vec2 pos = TableAdapters::read(si, *posX, *posY);
-          const glm::vec2 queryPos = pos + forward*seekAhead;
-          constexpr glm::vec2 half{ 0.25f, 0.25f };
-          SpatialQuery::AABB bb{ queryPos - half, queryPos + half };
-          spatialQueryW->refreshQuery(wander.spatialQuery, { bb }, 2);
+          spatialQueryW->refreshQuery(wander.spatialQuery, { computeQueryVolume(pos, forward) }, 2);
         }
       });
+      builder.submitTask(std::move(task));
+
+      debugDraw(builder, table, bucket);
+    }
+
+    static void debugDraw(IAppBuilder& builder, const UnpackedDatabaseElementID& table, size_t bucket) {
+      auto task = builder.createTask();
+      task.setName("wander debug");
+      auto query = task.query<
+        const GlobalsRow,
+        const StateRow,
+        const StableIDRow,
+        const FloatRow<Tags::GPos, Tags::X>,
+        const FloatRow<Tags::GPos, Tags::Y>,
+        const FloatRow<Tags::GRot, Tags::CosAngle>,
+        const FloatRow<Tags::GRot, Tags::SinAngle>
+      >(table);
+      auto resolver = task.getResolver<
+        FloatRow<Tags::GPos, Tags::X>,
+        FloatRow<Tags::GPos, Tags::Y>
+      >();
+      auto ids = task.getIDResolver();
+      auto spatialQuery = SpatialQuery::createReader(task);
+      auto debug = TableAdapters::getDebugLines(task);
+      const bool* shouldDrawAI = getShouldDrawAI(task);
+
+      task.setCallback([debug, query, spatialQuery, bucket, shouldDrawAI, resolver, ids](AppTaskArgs&) mutable {
+        if(!*shouldDrawAI) {
+          return;
+        }
+        auto&& [globals, state, stableRow, posX, posY, rotX, rotY] = query.get(0);
+        CachedRow<FloatRow<Tags::GPos, Tags::X>> resolvedX;
+        CachedRow<FloatRow<Tags::GPos, Tags::Y>> resolvedY;
+        for(size_t si : globals->at().buckets[bucket].updating) {
+          const Wander& wander = std::get<Wander>(state->at(si).currentState);
+          const glm::vec2 myPos = TableAdapters::read(si, *posX, *posY);
+          const glm::vec2 myForward = TableAdapters::read(si, *rotX, *rotY);
+          const size_t myID = stableRow->at(si);
+
+          //Draw the spatial query volume
+          const auto volume = computeQueryVolume(myPos, myForward);
+          DebugDrawer::drawAABB(debug, volume.min, volume.max, glm::vec3{ 0.5f });
+
+          StableElementID temp = wander.spatialQuery;
+          //Draw lines to each nearby spatial query result
+          if(const SpatialQuery::Result* nearby = spatialQuery->tryGetResult(temp)) {
+            for(const StableElementID& n : nearby->nearbyObjects) {
+              if(n.mStableID == myID) {
+                continue;
+              }
+              if(auto resolved = ids->tryResolveAndUnpack(n)) {
+                if(resolver->tryGetOrSwapAllRows(resolved->unpacked, resolvedX, resolvedY)) {
+                  const glm::vec2 resolvedPos = TableAdapters::read(resolved->unpacked.getElementIndex(), *resolvedX, *resolvedY);
+                  DebugDrawer::drawLine(debug, myPos, resolvedPos, glm::vec3{ 1.0f });
+                }
+              }
+            }
+          }
+
+          //Draw line in desired direction
+          DebugDrawer::drawVector(debug, myPos, wander.desiredDirection, { 0, 1, 1 });
+        }
+      });
+
       builder.submitTask(std::move(task));
     }
 

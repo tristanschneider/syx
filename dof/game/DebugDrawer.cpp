@@ -50,6 +50,18 @@ namespace DebugDrawer {
     setLine(debug, index + 2, p - y, p + y, color);
   }
 
+  void drawAABB(DebugLineAdapter& debug, const glm::vec2& min, const glm::vec2& max, const glm::vec3& color) {
+    const size_t index = debug.pointModifier->addElements(8);
+    const glm::vec2 bl{ min };
+    const glm::vec2 br{ max.x, min.y };
+    const glm::vec2 ul{ min.x, max.y };
+    const glm::vec2 ur{ max };
+    setLine(debug, index, bl, br, color);
+    setLine(debug, index + 2, br, ur, color);
+    setLine(debug, index + 4, ur, ul, color);
+    setLine(debug, index + 6, ul, bl, color);
+  }
+
   void drawText(DebugLineAdapter& debug, const glm::vec2& p, std::string text) {
     const size_t i = debug.textModifier->addElements(1);
     DebugText& t = debug.text->at(i);

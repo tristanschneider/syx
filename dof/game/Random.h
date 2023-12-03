@@ -1,5 +1,7 @@
 #pragma once
 
+#include "glm/vec2.hpp"
+
 struct IRandom {
   virtual ~IRandom() = default;
   virtual void generateZeroToOne(float* buffer, size_t count) = 0;
@@ -30,6 +32,14 @@ struct IRandom {
     float result;
     generateZeroToOne(&result, 1);
     return result;
+  }
+
+  glm::vec2 nextDirection() {
+    float angle{};
+    generateZeroToOne(&angle, 1);
+    constexpr float twoPi = 2.0f * 3.141f;
+    angle *= twoPi;
+    return { std::cos(angle), std::sin(angle) };
   }
 };
 
