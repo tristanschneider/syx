@@ -128,6 +128,15 @@ struct StableElementFind {
   const StableElementID& id;
 };
 
+namespace std {
+  template<>
+  struct hash<StableElementID> {
+    size_t operator()(const StableElementID& id) const {
+      return std::hash<size_t>{}(id.mStableID);
+    }
+  };
+}
+
 struct StableOperations {
   struct details {
     template<class Row, class DatabaseT>

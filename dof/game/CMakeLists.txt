@@ -21,6 +21,7 @@ target_precompile_headers(game PRIVATE Precompile.h)
 
 # Link dependencies
 target_link_libraries(game PUBLIC
+    generics
     scheduler
     glm
     physics

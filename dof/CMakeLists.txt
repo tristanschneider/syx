@@ -53,6 +53,7 @@ function(copy_data_to_target target)
     )
 endfunction()
 
+add_subdirectory(generics)
 add_subdirectory(scheduler)
 add_subdirectory(profile)
 add_subdirectory(glm)
