@@ -26,6 +26,8 @@ namespace SweepNPruneBroadphase {
     std::unordered_map<Broadphase::SweepCollisionPair, size_t> mSweepPairToCollisionTableIndex;
     std::vector<Broadphase::SweepCollisionPair> mCollisionTableIndexToSweepPair;
   };
+  //Broadphase is responsible for making sure gains and losses are unique and pairs have a deterministic order,
+  //meaning the order wouldn't be flipped between a gain and loss
   struct PairChanges {
     //New collision pairs caused by reinserts or inserts
     std::vector<Broadphase::SweepCollisionPair> mGained;

@@ -167,9 +167,19 @@ namespace IslandGraph {
     graph.edges.deleteIndex(edge);
   }
 
+  void removeEdge(Graph& graph, const Graph::EdgeIterator& it) {
+    const Edge& edge = graph.edges[it.edge];
+    Node& a = graph.nodes[edge.nodeA];
+    Node& b = graph.nodes[edge.nodeB];
+    [[maybe_unused]] const bool removedA = removeFromLinkedList(a.edges, it.edge, graph.edgeEntries);
+    [[maybe_unused]] const bool removedB = removeFromLinkedList(b.edges, it.edge, graph.edgeEntries);
+    assert(removedA && removedB);
+  }
+
   void addNode(Graph& graph, const NodeUserdata& data, IslandPropagationMask propagation) {
     const size_t newIndex = graph.nodes.newIndex();
     Node& node = graph.nodes.values[newIndex];
+    node = {};
     node.data = data;
     node.propagation = propagation;
     NodeMappings mappings;
@@ -196,7 +206,7 @@ namespace IslandGraph {
       //Remove entry for edge in other object
       const uint32_t other = edge.nodeA == toRemove ? edge.nodeB : edge.nodeA;
       Node& otherNode = graph.nodes[other];
-      removeFromLinkedList(otherNode.edges, toRemove, graph.edgeEntries, graph.edges.values);
+      removeFromLinkedList(otherNode.edges, entry.edge, graph.edgeEntries);
 
       //Remove the edge itself
       graph.edges.deleteIndex(entry.edge);
@@ -233,5 +243,10 @@ namespace IslandGraph {
         }
       }
       return edgesEnd();
+    }
+
+    Graph::NodeIterator Graph::findNode(const NodeUserdata& node) {
+      auto it = nodeMappings.find(node);
+      return { this, it != nodeMappings.end() ? it->second.node : INVALID };
     }
 }

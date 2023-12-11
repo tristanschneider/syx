@@ -17,6 +17,7 @@
 #include <bitset>
 #include "DBEvents.h"
 #include "RowTags.h"
+#include "SpatialPairsStorage.h"
 
 namespace Ability {
   struct AbilityInput;
@@ -323,6 +324,7 @@ using GameDatabase = Database<
   ConstraintsTable,
   ConstraintCommonTable,
   ContactConstraintsToStaticObjectsTable,
+  SP::SpatialPairsTable,
   DebugLineTable,
   DebugTextTable,
   TargetPosTable

@@ -11,9 +11,9 @@ namespace Test {
       IslandGraph::Graph graph;
       Assert::IsTrue(graph.begin() == graph.end());
 
-      const IslandGraph::NodeUserdata nodeA{ 0, 1 };
-      const IslandGraph::NodeUserdata nodeB{ 0, 2 };
-      const IslandGraph::EdgeUserdata edgeAB{ 0, 3 };
+      const IslandGraph::NodeUserdata nodeA{ 1 };
+      const IslandGraph::NodeUserdata nodeB{ 2 };
+      const IslandGraph::EdgeUserdata edgeAB{ 3 };
       //A
       //|
       //B
@@ -27,11 +27,11 @@ namespace Test {
       auto it = graph.begin();
       Assert::IsTrue(std::find(it.beginNodes(), it.endNodes(), nodeA) != it.endNodes());
       Assert::IsTrue(std::find(it.beginNodes(), it.endNodes(), nodeB) != it.endNodes());
-      Assert::AreEqual(edgeAB.mStableID, it.beginEdges()->mStableID);
+      Assert::AreEqual(edgeAB, *it.beginEdges());
 
-      const IslandGraph::NodeUserdata nodeC{ 0, 4 };
-      const IslandGraph::NodeUserdata nodeD{ 0, 5 };
-      const IslandGraph::EdgeUserdata edgeCD{ 0, 6 };
+      const IslandGraph::NodeUserdata nodeC{ 4 };
+      const IslandGraph::NodeUserdata nodeD{ 5 };
+      const IslandGraph::EdgeUserdata edgeCD{ 6 };
       //A   C
       //|   |
       //B   D
@@ -44,12 +44,12 @@ namespace Test {
       it = graph.begin() + 1;
       Assert::IsTrue(std::find(it.beginNodes(), it.endNodes(), nodeC) != it.endNodes());
       Assert::IsTrue(std::find(it.beginNodes(), it.endNodes(), nodeD) != it.endNodes());
-      Assert::AreEqual(edgeCD.mStableID, it.beginEdges()->mStableID);
+      Assert::AreEqual(edgeCD, *it.beginEdges());
 
       //A---C
       //|   |
       //B   D
-      const IslandGraph::EdgeUserdata edgeAC{ 0, 7 };
+      const IslandGraph::EdgeUserdata edgeAC{ 7 };
       IslandGraph::addEdge(graph, nodeA, nodeC, edgeAC);
       IslandGraph::rebuildIslands(graph);
       int nonEmpty{};
@@ -71,7 +71,7 @@ namespace Test {
       //|\ |
       //B \|
       //   D
-      const IslandGraph::EdgeUserdata edgeAD{ 0, 8 };
+      const IslandGraph::EdgeUserdata edgeAD{ 8 };
       IslandGraph::addEdge(graph, nodeA, nodeD, edgeAD);
       IslandGraph::rebuildIslands(graph);
       nonEmpty = 0;
@@ -96,8 +96,8 @@ namespace Test {
       //B  D
       //|
       //E
-      const IslandGraph::NodeUserdata nodeE{ 0, 9 };
-      const IslandGraph::EdgeUserdata edgeBE{ 0, 10 };
+      const IslandGraph::NodeUserdata nodeE{ 9 };
+      const IslandGraph::EdgeUserdata edgeBE{ 10 };
       IslandGraph::addNode(graph, nodeE);
       IslandGraph::addEdge(graph, nodeB, nodeE, edgeBE);
       IslandGraph::rebuildIslands(graph);
@@ -289,7 +289,7 @@ namespace Test {
       //B--D
       //|
       //E
-      const IslandGraph::EdgeUserdata edgeBD{ 0, 11 };
+      const IslandGraph::EdgeUserdata edgeBD{ 11 };
       IslandGraph::addEdge(graph, nodeA, nodeB, edgeAB);
       IslandGraph::addEdge(graph, nodeB, nodeE, edgeBE);
       IslandGraph::addEdge(graph, nodeB, nodeD, edgeBD);
@@ -387,11 +387,11 @@ namespace Test {
     TEST_METHOD(Propagation) {
       IslandGraph::Graph graph;
       size_t k{};
-      const IslandGraph::NodeUserdata nodeA{ 0, ++k };
-      const IslandGraph::NodeUserdata staticB{ 0, ++k };
-      const IslandGraph::NodeUserdata nodeC{ 0, ++k };
-      const IslandGraph::EdgeUserdata edgeAB{ 0, ++k };
-      const IslandGraph::EdgeUserdata edgeBC{ 0, ++k };
+      const IslandGraph::NodeUserdata nodeA{ ++k };
+      const IslandGraph::NodeUserdata staticB{ ++k };
+      const IslandGraph::NodeUserdata nodeC{ ++k };
+      const IslandGraph::EdgeUserdata edgeAB{ ++k };
+      const IslandGraph::EdgeUserdata edgeBC{ ++k };
       //A-(B)-C
       IslandGraph::addNode(graph, nodeA);
       IslandGraph::addNode(graph, staticB, IslandGraph::PROPAGATE_NONE);
@@ -423,8 +423,8 @@ namespace Test {
       //A-(B)-C
       //   |
       //  (D)
-      const IslandGraph::NodeUserdata staticD{ 0, ++k };
-      const IslandGraph::EdgeUserdata edgeBD{ 0, ++k };
+      const IslandGraph::NodeUserdata staticD{ ++k };
+      const IslandGraph::EdgeUserdata edgeBD{ ++k };
       IslandGraph::addNode(graph, staticD, IslandGraph::PROPAGATE_NONE);
       IslandGraph::addEdge(graph, staticB, staticD, edgeBD);
       IslandGraph::rebuildIslands(graph);
@@ -457,7 +457,7 @@ namespace Test {
       // (B)
       //  |
       // (D)
-      const IslandGraph::EdgeUserdata edgeAC{ 0, ++k };
+      const IslandGraph::EdgeUserdata edgeAC{ ++k };
       IslandGraph::addEdge(graph, nodeA, nodeC, edgeAC);
       IslandGraph::rebuildIslands(graph);
       {
@@ -477,6 +477,23 @@ namespace Test {
         Assert::IsTrue(found);
         Assert::IsTrue(graph.findEdge(staticB, staticD) != graph.edgesEnd());
       }
+    }
+
+    TEST_METHOD(NodeReuse) {
+      IslandGraph::Graph graph;
+      // 1
+      IslandGraph::addNode(graph, 1);
+      // 1 3
+      IslandGraph::addNode(graph, 3);
+      // 1-3
+      IslandGraph::addEdge(graph, 1, 3, 0);
+      // 3
+      IslandGraph::removeNode(graph, 1);
+      // 1 3
+      IslandGraph::addNode(graph, 1);
+      // 1 2 3
+      IslandGraph::addNode(graph, 2);
+      Assert::IsTrue(graph.edgesEnd() == graph.findEdge(1, 2));
     }
   };
 }

@@ -4,6 +4,7 @@
 #include "Physics.h"
 #include "Profile.h"
 #include "AppBuilder.h"
+#include "SpatialPairsStorage.h"
 
 namespace SweepNPruneBroadphase {
   std::optional<std::pair<StableElementID, StableElementID>> _tryGetOrderedCollisionPair(const Broadphase::SweepCollisionPair& key, const PhysicsTableIds& tableIds, IIDResolver& resolver, bool assertIfMissing) {
@@ -278,6 +279,7 @@ namespace SweepNPruneBroadphase {
     updateDirectBoundaries(builder, aliases);
     updateUnitCubeBoundaries(builder, cfg, aliases);
     Broadphase::SweepGrid::recomputePairs(builder);
+    SP::updateSpatialPairsFromBroadphase(builder);
     updateCollisionPairs(builder);
   }
 
@@ -288,19 +290,22 @@ namespace SweepNPruneBroadphase {
       const StableIDRow
     >();
     auto ids = task.getIDResolver();
+    auto spatialPairs = SP::createStorageModifier(task);
     Broadphase::SweepGrid::Grid& grid = *task.query<SharedRow<Broadphase::SweepGrid::Grid>>().tryGetSingletonElement();
 
-    task.setCallback([resolver, ids, &grid, &events](AppTaskArgs&) mutable {
+    task.setCallback([resolver, ids, &grid, &events, spatialPairs](AppTaskArgs&) mutable {
       CachedRow<BroadphaseKeys> keys;
       CachedRow<const StableIDRow> stable;
       for(const DBEvents::MoveCommand& cmd : events.toBeMovedElements) {
         //Insert new elements
+        //TODO: this won't work as expected if the newly created element is immobile
         if(cmd.isCreate()) {
           const auto unpacked = ids->uncheckedUnpack(cmd.destination);
           if(resolver->tryGetOrSwapAllRows(unpacked, keys, stable)) {
             Broadphase::BroadphaseKey& key = keys->at(unpacked.getElementIndex());
             const Broadphase::UserKey userKey = stable->at(unpacked.getElementIndex());
             Broadphase::SweepGrid::insertRange(grid, &userKey, &key, 1);
+            spatialPairs->addSpatialNode(cmd.destination, false);
           }
         }
         else if(cmd.isDestroy()) {
@@ -309,6 +314,7 @@ namespace SweepNPruneBroadphase {
           if(resolver->tryGetOrSwapRow(keys, unpacked)) {
             Broadphase::BroadphaseKey& key = keys->at(unpacked.getElementIndex());
             Broadphase::SweepGrid::eraseRange(grid, &key, 1);
+            spatialPairs->removeSpatialNode(cmd.source);
             key = {};
           }
         }
@@ -326,8 +332,9 @@ namespace SweepNPruneBroadphase {
       QueryAlias<BroadphaseKeys>::create()
     );
     auto ids = task.getIDResolver();
+    auto spatialPairs = SP::createStorageModifier(task);
 
-    task.setCallback([resolver, &grid, ids, &events, cfg, aliases](AppTaskArgs&) mutable {
+    task.setCallback([resolver, &grid, ids, &events, cfg, aliases, spatialPairs](AppTaskArgs&) mutable {
       CachedRow<const Row<float>> posX, posY;
       CachedRow<const TagRow> isImmobile;
       CachedRow<BroadphaseKeys> keys;
@@ -353,6 +360,12 @@ namespace SweepNPruneBroadphase {
                 Broadphase::BroadphaseKey& key = keys->at(i);
                 Broadphase::SweepGrid::updateBoundaries(grid, &min.x, &max.x, &min.y, &max.y, &key, 1);
               }
+              //Change node to immobile
+              spatialPairs->changeMobility(*found, true);
+            }
+            else {
+              //Change node to mobile
+              spatialPairs->changeMobility(*found, false);
             }
           }
         }
