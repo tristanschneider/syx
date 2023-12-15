@@ -6,7 +6,6 @@
 #include "PhysicsTableIds.h"
 #include "TableOperations.h"
 
-#include "glm/detail/func_geometric.inl"
 #include "NotIspc.h"
 #include "Profile.h"
 

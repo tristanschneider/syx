@@ -2,7 +2,7 @@
 
 //Hack copy of the ispc code that can be used for debugging
 
-#include <glm/vec2.hpp>
+#include <glm/glm.hpp>
 #include "out_ispc/unity.h"
 
 #define UNIFORM

@@ -57,6 +57,8 @@ struct QueryAlias : QueryAliasBase {
   const ResultT*(*constCast)(void*){};
 };
 
+using FloatQueryAlias = QueryAlias<Row<float>>;
+
 struct RuntimeRow {
   void* row{};
   void (*migrateOneElement)(void* from, void* to, const UnpackedDatabaseElementID& fromID, [[maybe_unused]] const UnpackedDatabaseElementID& toID, StableElementMappings& mappings){};

@@ -13,6 +13,7 @@ class RuntimeDatabaseTaskBuilder;
 //The entries are created and destroyed as output from the broadphase and tracked by the island graph
 namespace SP {
   struct ContactPoint {
+    //Away from A
     glm::vec2 normal{};
     glm::vec2 centerToContactA{};
     glm::vec2 centerToContactB{};
@@ -20,7 +21,11 @@ namespace SP {
     float warmStart{};
   };
   struct ContactManifold {
+    void clear() {
+      size = 0;
+    }
     std::array<ContactPoint, 2> points;
+    uint32_t size{};
   };
   //Points at the source of truth for the object's transform and velocity
   struct ObjA : Row<StableElementID> {};
