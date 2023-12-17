@@ -3,6 +3,9 @@ set(BUILD_SANDBOX OFF CACHE BOOL "" FORCE)
 set(SKIP_PERFORMANCE_COMPARISON ON CACHE BOOL "" FORCE)
 set(JUST_INSTALL_CEREAL ON CACHE BOOL "" FORCE)
 
+# Warnings in cereal in c++20
+add_compile_options(/wd26451 /wd5054 /wd26495)
+
 add_subdirectory(cereal)
 
 # Gather files matching pattern into source_files

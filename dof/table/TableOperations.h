@@ -2,6 +2,7 @@
 #include "Database.h"
 #include "StableElementID.h"
 
+//TODO: responsibility of TableOperations vs Queries is unclear
 struct TableOperations {
   template<class RowT>
   static auto _unwrapWithOffset(RowT& r, size_t offset) {
@@ -18,13 +19,37 @@ struct TableOperations {
     }
   }
 
+  template<class Row, class DatabaseT>
+  Row* getRowInTable(DatabaseT& db, typename DatabaseT::ElementID id) {
+    Row* result = nullptr;
+    db.visitOneByIndex(id, [&](auto& table) {
+      using TableT = std::decay_t<decltype(table)>;
+      if constexpr(TableOperations::hasRow<Row, TableT>()) {
+        result = &TableOperations::getRow<Row>(table);
+      }
+    });
+    return result;
+  }
+
+  template<class Row, class DatabaseT>
+  const Row* getRowInTable(const DatabaseT& db, typename DatabaseT::ElementID id) {
+    const Row* result = nullptr;
+    db.visitOneByIndex(id, [&](const auto& table) {
+      using TableT = std::decay_t<decltype(table)>;
+      if constexpr(TableOperations::hasRow<Row, TableT>()) {
+        result = &TableOperations::getRow<Row>(table);
+      }
+    });
+    return result;
+  }
+
   template<class RowT, class TableT>
   static auto unwrapRow(TableT& t, size_t offset = 0) {
     return _unwrapRowWithOffset<RowT, TableT>(t, offset);
   }
 
   template<class TableT>
-  static constexpr bool isStableTable = TableT::HasRow<StableIDRow>;
+  static constexpr bool isStableTable = TableT::template HasRow<StableIDRow>;
 
   template<class TableT>
   static auto getElement(TableT& table, size_t index) {
@@ -97,58 +122,6 @@ struct TableOperations {
     });
   }
 
-  //Reserved keys can optionally be used to provide a key in the place of newly generated keys that have been created through StableElementMappings
-  //This can be used to immediately reserve keys for elements in tables that are inserted later
-  template<class TableT>
-  static void stableResizeTable(TableT& table, const UnpackedDatabaseElementID& id, size_t newSize, StableElementMappings& mappings, const StableElementID* reservedKeys = nullptr) {
-    static_assert(isStableTable<TableT>);
-    table.visitOne([&](auto& row) {
-      using RowT = std::decay_t<decltype(row)>;
-      if constexpr(std::is_same_v<RowT, StableIDRow>) {
-        StableOperations::resize(row, id, newSize, mappings, reservedKeys);
-      }
-      else {
-        row.resize(newSize);
-      }
-    });
-  }
-
-  template<class DB, class TableT>
-  static void stableResizeTable(TableT& table, size_t newSize, StableElementMappings& mappings, const StableElementID* reservedKeys = nullptr) {
-    stableResizeTable(table, UnpackedDatabaseElementID::fromPacked(DB::getTableIndex<TableT>()), newSize, mappings, reservedKeys);
-  }
-
-  template<class TableT, class DB>
-  static void stableResizeTableDB(DB& db, size_t newSize, StableElementMappings& mappings, const StableElementID* reservedKeys = nullptr) {
-    stableResizeTable<DB>(std::get<TableT>(db.mTables), newSize, mappings, reservedKeys);
-  }
-
-  //Insert before location, meaning the value of location will be after the newly created gap
-  template<class TableT>
-  static void stableInsertRangeAt(TableT& table, const UnpackedDatabaseElementID& location, size_t count, StableElementMappings& mappings) {
-    const size_t oldSize = TableOperations::size(table);
-    const size_t newSize = oldSize + count;
-    //Add space for the new elements to insert
-    stableResizeTable(table, location, newSize, mappings);
-    const size_t toSwap = oldSize - std::min(oldSize, location.getElementIndex());
-    //Shift all elements after the range into the newly created space
-    table.visitOne([&](auto& row) {
-      for(size_t i = 0; i < toSwap; ++i) {
-        //From right to left, take the elements from their old end and shift them up by count
-        const size_t src = oldSize - i - 1;
-        const size_t dst = src + count;
-        using RowT = std::decay_t<decltype(row)>;
-        //Stable needs to swap to preserve the mappings, unstable can assign over
-        if constexpr(std::is_same_v<RowT, StableIDRow>) {
-          StableOperations::swap(row, location.remake(location.getTableIndex(), src), location.remake(location.getTableIndex(), dst), mappings);
-        }
-        else if constexpr(std::is_move_assignable_v<typename RowT::ElementT>) {
-          row.at(dst) = std::move(row.at(src));
-        }
-      }
-    });
-  }
-
   template<class TableT>
   static void insertRangeAt(TableT& table, const UnpackedDatabaseElementID& location, size_t count) {
     const size_t oldSize = TableOperations::size(table);
@@ -195,38 +168,6 @@ struct TableOperations {
       row.swap(index, myLast);
       row.resize(myLast);
     });
-  }
-
-  template<class TableT>
-  static void stableSwapRemove(TableT& table, const UnpackedDatabaseElementID& id, StableElementMappings& mappings) {
-    static_assert(isStableTable<TableT>);
-    const size_t myLast = size(table) - 1;
-    table.visitOne([&](auto& row) {
-      using RowT = std::decay_t<decltype(row)>;
-      if constexpr(std::is_same_v<RowT, StableIDRow>) {
-        StableOperations::swapRemove(row, id, mappings);
-      }
-      else {
-        row.swap(id.getElementIndex(), myLast);
-        row.resize(myLast);
-      }
-    });
-  }
-
-  using StableSwapRemover = void(*)(void*, const UnpackedDatabaseElementID& id, StableElementMappings& mappings);
-  template<class TableT>
-  static constexpr StableSwapRemover getStableSwapRemove() {
-    struct Adapter {
-      static void f(void* table, const UnpackedDatabaseElementID& id, StableElementMappings& mappings) {
-        stableSwapRemove(*static_cast<TableT*>(table), id, mappings);
-      }
-    };
-    return &Adapter::f;
-  }
-
-  template<class TableT, size_t S>
-  static void stableSwapRemove(TableT& table, const DatabaseElementID<S>& id, StableElementMappings& mappings) {
-    stableSwapRemove(table, UnpackedDatabaseElementID::fromPacked(id), mappings);
   }
 
   template<class TableT>
@@ -287,40 +228,6 @@ struct TableOperations {
     swapRemove(src, index);
   }
 
-  template<class SrcTable, class DstTable, size_t S>
-  static void stableMigrateOne(SrcTable& src, DstTable& dst, const DatabaseElementID<S>& fromID, const DatabaseElementID<S>& toID, StableElementMappings& mappings) {
-    static_assert(isStableTable<SrcTable> && isStableTable<DstTable>);
-    const size_t index = fromID.getElementIndex();
-    StableIDRow& sourceStableIDs = std::get<StableIDRow>(src.mRows);
-
-    //Move all common rows to the destination
-    dst.visitOne([&](auto& dstRow) {
-      using RowT = std::decay_t<decltype(dstRow)>;
-      if constexpr(std::is_same_v<RowT, StableIDRow>) {
-        StableOperations::migrateOne(sourceStableIDs, dstRow, fromID, toID, mappings);
-      }
-      else if constexpr(hasRow<RowT, SrcTable>()) {
-        //They both have the row, move the value over
-        dstRow.emplaceBack(std::move(getRow<RowT>(src).at(index)));
-      }
-      else {
-        //Only the destination has this row, default construct the value
-        dstRow.emplaceBack();
-      }
-    });
-    //Swap Remove from source. Could be faster to combine this with the above step while visiting,
-    //but is more confusing when accounting for cases where src has rows dst doesn't
-    //Skip stable row because that was already addressed in the migrate above
-    const size_t myLast = size(src) - 1;
-    src.visitOne([index, myLast](auto& row) {
-      using RowT = std::decay_t<decltype(row)>;
-      if constexpr(!std::is_same_v<RowT, StableIDRow>) {
-        row.swap(index, myLast);
-        row.resize(myLast);
-      }
-    });
-  }
-
   template<class SrcTable, class DstTable>
   static void migrateAll(SrcTable& src, DstTable& dst) {
     static_assert(!isStableTable<SrcTable> && !isStableTable<DstTable>);
@@ -331,13 +238,343 @@ struct TableOperations {
   }
 };
 
+
+struct StableOperations {
+  struct details {
+    template<class Row, class DatabaseT>
+    static Row* getRowInTable(DatabaseT& db, typename DatabaseT::ElementID id) {
+      Row* result = nullptr;
+      db.visitOneByIndex(id, [&](auto& table) {
+        using TableT = std::decay_t<decltype(table)>;
+        if constexpr(TableOperations::template hasRow<Row, TableT>()) {
+          result = &TableOperations::template getRow<Row>(table);
+        }
+      });
+      return result;
+    }
+
+    static bool isUnstableElementValid(const StableElementID& id, const StableIDRow& ids, size_t elementMask) {
+      const size_t unstableIndex = id.mUnstableIndex & elementMask;
+      //Validate id, if it matches what's at the location it's fine as is
+      return ids.size() > unstableIndex && ids.at(unstableIndex) == id.mStableID;
+    }
+
+    template<class... Tables>
+    static bool isUnstableElementValid(Database<Tables...>& db, const StableElementID& id) {
+      if(id.mUnstableIndex == dbDetails::INVALID_VALUE) {
+        return false;
+      }
+      using ElementIDT = typename Database<Tables...>::ElementID;
+      const ElementIDT unstableElement{ id.mUnstableIndex };
+      const size_t unstableIndex = unstableElement.getElementIndex();
+
+      const StableIDRow* ids = getRowInTable<StableIDRow>(db, unstableElement);
+      assert(ids && "Element should at least be pointing at a table that has a stable id row");
+      if(!ids) {
+        return false;
+      }
+      //Validate id, if it matches what's at the location it's fine as is
+      return ids->size() > unstableIndex && ids->at(unstableIndex) == id.mStableID;
+    }
+  };
+
+  template<class TableT>
+  static void stableSwapRemove(TableT& table, const UnpackedDatabaseElementID& id, StableElementMappings& mappings) {
+    static_assert(TableOperations::isStableTable<TableT>);
+    const size_t myLast = TableOperations::size(table) - 1;
+    table.visitOne([&](auto& row) {
+      using RowT = std::decay_t<decltype(row)>;
+      if constexpr(std::is_same_v<RowT, StableIDRow>) {
+        StableOperations::swapRemove(row, id, mappings);
+      }
+      else {
+        row.swap(id.getElementIndex(), myLast);
+        row.resize(myLast);
+      }
+    });
+  }
+
+  using StableSwapRemover = void(*)(void*, const UnpackedDatabaseElementID& id, StableElementMappings& mappings);
+  template<class TableT>
+  static constexpr StableSwapRemover getStableSwapRemove() {
+    struct Adapter {
+      static void f(void* table, const UnpackedDatabaseElementID& id, StableElementMappings& mappings) {
+        stableSwapRemove(*static_cast<TableT*>(table), id, mappings);
+      }
+    };
+    return &Adapter::f;
+  }
+
+  template<class TableT, size_t S>
+  static void stableSwapRemove(TableT& table, const DatabaseElementID<S>& id, StableElementMappings& mappings) {
+    stableSwapRemove(table, UnpackedDatabaseElementID::fromPacked(id), mappings);
+  }
+
+  //Reserved keys can optionally be used to provide a key in the place of newly generated keys that have been created through StableElementMappings
+  //This can be used to immediately reserve keys for elements in tables that are inserted later
+  template<class TableT>
+  static void stableResizeTable(TableT& table, const UnpackedDatabaseElementID& id, size_t newSize, StableElementMappings& mappings, const StableElementID* reservedKeys = nullptr) {
+    static_assert(TableOperations::isStableTable<TableT>);
+    table.visitOne([&](auto& row) {
+      using RowT = std::decay_t<decltype(row)>;
+      if constexpr(std::is_same_v<RowT, StableIDRow>) {
+        StableOperations::resize(row, id, newSize, mappings, reservedKeys);
+      }
+      else {
+        row.resize(newSize);
+      }
+    });
+  }
+
+  template<class SrcTable, class DstTable, size_t S>
+  static void stableMigrateOne(SrcTable& src, DstTable& dst, const DatabaseElementID<S>& fromID, const DatabaseElementID<S>& toID, StableElementMappings& mappings) {
+    static_assert(TableOperations::isStableTable<SrcTable> && TableOperations::isStableTable<DstTable>);
+    const size_t index = fromID.getElementIndex();
+    StableIDRow& sourceStableIDs = std::get<StableIDRow>(src.mRows);
+
+    //Move all common rows to the destination
+    dst.visitOne([&](auto& dstRow) {
+      using RowT = std::decay_t<decltype(dstRow)>;
+      if constexpr(std::is_same_v<RowT, StableIDRow>) {
+        StableOperations::migrateOne(sourceStableIDs, dstRow, fromID, toID, mappings);
+      }
+      else if constexpr(TableOperations::hasRow<RowT, SrcTable>()) {
+        //They both have the row, move the value over
+        dstRow.emplaceBack(std::move(TableOperations::getRow<RowT>(src).at(index)));
+      }
+      else {
+        //Only the destination has this row, default construct the value
+        dstRow.emplaceBack();
+      }
+    });
+    //Swap Remove from source. Could be faster to combine this with the above step while visiting,
+    //but is more confusing when accounting for cases where src has rows dst doesn't
+    //Skip stable row because that was already addressed in the migrate above
+    const size_t myLast = TableOperations::size(src) - 1;
+    src.visitOne([index, myLast](auto& row) {
+      using RowT = std::decay_t<decltype(row)>;
+      if constexpr(!std::is_same_v<RowT, StableIDRow>) {
+        row.swap(index, myLast);
+        row.resize(myLast);
+      }
+    });
+  }
+
+  template<class DB, class TableT>
+  static void stableResizeTable(TableT& table, size_t newSize, StableElementMappings& mappings, const StableElementID* reservedKeys = nullptr) {
+    stableResizeTable(table, UnpackedDatabaseElementID::fromPacked(DB::template getTableIndex<TableT>()), newSize, mappings, reservedKeys);
+  }
+
+  template<class TableT, class DB>
+  static void stableResizeTableDB(DB& db, size_t newSize, StableElementMappings& mappings, const StableElementID* reservedKeys = nullptr) {
+    stableResizeTable<DB>(std::get<TableT>(db.mTables), newSize, mappings, reservedKeys);
+  }
+
+
+  //Insert before location, meaning the value of location will be after the newly created gap
+  template<class TableT>
+  static void stableInsertRangeAt(TableT& table, const UnpackedDatabaseElementID& location, size_t count, StableElementMappings& mappings) {
+    const size_t oldSize = TableOperations::size(table);
+    const size_t newSize = oldSize + count;
+    //Add space for the new elements to insert
+    stableResizeTable(table, location, newSize, mappings);
+    const size_t toSwap = oldSize - std::min(oldSize, location.getElementIndex());
+    //Shift all elements after the range into the newly created space
+    table.visitOne([&](auto& row) {
+      for(size_t i = 0; i < toSwap; ++i) {
+        //From right to left, take the elements from their old end and shift them up by count
+        const size_t src = oldSize - i - 1;
+        const size_t dst = src + count;
+        using RowT = std::decay_t<decltype(row)>;
+        //Stable needs to swap to preserve the mappings, unstable can assign over
+        if constexpr(std::is_same_v<RowT, StableIDRow>) {
+          StableOperations::swap(row, location.remake(location.getTableIndex(), src), location.remake(location.getTableIndex(), dst), mappings);
+        }
+        else if constexpr(std::is_move_assignable_v<typename RowT::ElementT>) {
+          row.at(dst) = std::move(row.at(src));
+        }
+      }
+    });
+  }
+
+  template<size_t S>
+  static StableElementID getStableID(const StableIDRow& ids, const DatabaseElementID<S>& id) {
+    return { id.mValue, ids.at(id.getElementIndex()) };
+  }
+
+  static StableElementID getStableID(const StableIDRow& ids, const UnpackedDatabaseElementID& id) {
+    return { id.mValue, ids.at(id.getElementIndex()) };
+  }
+
+  template<class DatabaseT>
+  static size_t getUnstableElementIndex(const StableElementID& id) {
+    using ElementT = typename DatabaseT::ElementID;
+    return ElementT{ id.mUnstableIndex }.getElementIndex();
+  }
+
+  template<class DatabaseT>
+  static constexpr size_t getElementMask() {
+    using ET = typename DatabaseT::ElementID;
+    return ET::ELEMENT_INDEX_MASK;
+  }
+
+  //This tries to use an id but will update it if it's out of date. The main point here is to make
+  //element ids less error prone. This is also why the stable id row is read instead of only using the mapping
+  //table, as this could also account for if the table was somehow modified without the mappings being updated
+  //If performance is critical this could likely run with less validation in release, although resolving the mappings
+  //should ideally be minor
+  template<class... Tables>
+  static std::optional<StableElementID> tryResolveStableID(const StableElementID& id, Database<Tables...>& db, const StableElementMappings& mappings) {
+    if(details::isUnstableElementValid(db, id)) {
+      return id;
+    }
+
+    //ID is wrong, update it from mappings
+    auto it = mappings.findKey(id.mStableID);
+    //If it isn't found that should mean the element has been removed, so return nothing
+    if(!it) {
+      return {};
+    }
+
+    const StableElementID result{ it->second, it->first };
+    //Now double check that the mapping wasn't wrong. Only really needed for debugging purposes
+    //If it's wrong that means an unstable operation was done on a table that wasn't supposed to and the mappings
+    //are now out of date
+    assert(details::isUnstableElementValid(db, result));
+    return result;
+  }
+
+  //For use if it's known the element can only be in the given table but may move around in it
+  static std::optional<StableElementID> tryResolveStableIDWithinTable(const StableElementID& id, const StableIDRow& ids, const StableElementMappings& mappings, size_t elementMask) {
+    if(details::isUnstableElementValid(id, ids, elementMask)) {
+      return id;
+    }
+    //ID is wrong, update it from mappings
+    auto it = mappings.findKey(id.mStableID);
+    //If it isn't found that should mean the element has been removed, so return nothing
+    if(!it) {
+      return {};
+    }
+
+    const StableElementID result{ it->second, it->first };
+    //Now double check that the mapping wasn't wrong. Only really needed for debugging purposes
+    //If it's wrong that means an unstable operation was done on a table that wasn't supposed to and the mappings
+    //are now out of date
+    assert(details::isUnstableElementValid(result, ids, elementMask));
+    return result;
+  }
+
+  static std::optional<StableElementID> tryResolveStableID(const StableElementID& id, const StableElementMappings& mappings) {
+    auto it = mappings.findKey(id.mStableID);
+    return it ? std::make_optional(StableElementID{ it->second, it->first }) : std::nullopt;
+  }
+
+  template<class DatabaseT>
+  static std::optional<StableElementID> tryResolveStableIDWithinTable(const StableElementID& id, const StableIDRow& ids, const StableElementMappings& mappings) {
+    return tryResolveStableIDWithinTable(id, ids, mappings, getElementMask<DatabaseT>());
+  }
+
+  static std::optional<StableElementID> tryResolveStableIDWithinTable(const StableElementID& id, const StableInfo& info) {
+    return tryResolveStableIDWithinTable(id, *info.row, *info.mappings, info.description.getElementIndexMask());
+  }
+
+  template<size_t S>
+  static void swapRemove(StableIDRow& row, const DatabaseElementID<S>& id, StableElementMappings& mappings) {
+    swapRemove(row, UnpackedDatabaseElementID::fromPacked(id), mappings);
+  }
+
+  static void swapRemove(StableIDRow& row, const UnpackedDatabaseElementID& id, StableElementMappings& mappings) {
+    const size_t newSize = row.size() - 1;
+    const size_t removeIndex = id.getElementIndex();
+    size_t& stableIDToRemove = row.at(removeIndex);
+
+    //Erase old mapping if valid. Case for invalid is in the reuse case for migrateOne below
+    if(stableIDToRemove != dbDetails::INVALID_VALUE) {
+      auto it = mappings.findKey(stableIDToRemove);
+      assert(it);
+      if(it) {
+        //Assert mapping matched what it was pointing at
+        assert((it->second == id.remake(id.getTableIndex(), removeIndex).mValue));
+        mappings.tryEraseKey(it->first);
+      }
+    }
+
+    //Swap remove
+    stableIDToRemove = row.at(newSize);
+    row.resize(newSize);
+
+    //Update mapping for swapped element
+    if(removeIndex < newSize) {
+      mappings.tryUpdateKey(stableIDToRemove, id.remake(id.getTableIndex(), removeIndex).mValue);
+    }
+  }
+
+  static void swap(StableIDRow& row, const UnpackedDatabaseElementID& a, const UnpackedDatabaseElementID& b, StableElementMappings& mappings) {
+    size_t& stableA = row.at(a.getElementIndex());
+    size_t& stableB = row.at(b.getElementIndex());
+    mappings.tryUpdateKey(stableA, b.mValue);
+    mappings.tryUpdateKey(stableB, a.mValue);
+    std::swap(stableA, stableB);
+  }
+
+  //ElementID is needed to get the table ID, index doesn't matter
+  template<size_t S>
+  static void emplaceBack(StableIDRow& row, const DatabaseElementID<S>& id, StableElementMappings& mappings) {
+    const size_t newStableID = ++mappings.mKeygen;
+    const size_t newUnstableIndex = row.size();
+    row.emplaceBack(newStableID);
+    mappings[newStableID] = DatabaseElementID<S>{ id.getTableIndex(), newUnstableIndex };
+  }
+
+  static void resize(StableIDRow& row, const UnpackedDatabaseElementID& id, size_t newSize, StableElementMappings& mappings, const StableElementID* reservedKeys = nullptr) {
+    size_t oldSize = row.size();
+    //Remove mappings for elements about to be removed
+    for(size_t i = newSize; i < oldSize; ++i) {
+      [[maybe_unused]] const bool erased = mappings.tryEraseKey(row.at(i));
+      assert(erased);
+    }
+
+    row.resize(newSize);
+    for(size_t i = oldSize; i < newSize; ++i) {
+      //Assign new id
+      row.at(i) = reservedKeys ? reservedKeys[i - oldSize].mStableID : mappings.createKey();
+
+      //Add mapping for new id
+      mappings.insertKey(row.at(i), id.remake(id.getTableIndex(), i).mValue);
+    }
+  }
+
+  static void migrateOne(StableIDRow& src, StableIDRow& dst, const UnpackedDatabaseElementID& fromID, const UnpackedDatabaseElementID& toID, StableElementMappings& mappings) {
+    UnpackedDatabaseElementID dstID{ toID.remakeElement(dst.size()) };
+    size_t& stableIDToMove = src.at(fromID.getElementIndex());
+
+    //Copy stable id to destination table
+    dst.emplaceBack(stableIDToMove);
+
+    //Update old mapping to point at new table
+    [[maybe_unused]] const bool updated = mappings.tryUpdateKey(stableIDToMove, dstID.mValue);
+    assert(updated);
+    //Invalidate
+    stableIDToMove = UnpackedDatabaseElementID{}.mValue;
+
+    //Swap remove element in old table
+    swapRemove(src, fromID, mappings);
+  }
+
+  //Same here, toid element index doesn't matter, only table id
+  template<size_t S>
+  static void migrateOne(StableIDRow& src, StableIDRow& dst, const DatabaseElementID<S>& fromID, const DatabaseElementID<S>& toID, StableElementMappings& mappings) {
+    migrateOne(src, dst, UnpackedDatabaseElementID::fromPacked(fromID), UnpackedDatabaseElementID::fromPacked(toID), mappings);
+  }
+};
+
 //Wraps the operations needed to modify any table in a single type, with the table itself passed through via void*
 struct StableTableModifier {
   template<class TableT>
   static StableTableModifier get() {
     struct Adapter {
       static void resize(void* table, const UnpackedDatabaseElementID& id, size_t newSize, StableElementMappings& mappings, const StableElementID* reservedKeys) {
-        TableOperations::stableResizeTable(*static_cast<TableT*>(table), id, newSize, mappings, reservedKeys);
+        StableOperations::stableResizeTable(*static_cast<TableT*>(table), id, newSize, mappings, reservedKeys);
       }
 
       static size_t size(const void* table) {
@@ -345,11 +582,11 @@ struct StableTableModifier {
       }
 
       static void swapRemove(void* table, const UnpackedDatabaseElementID& id, StableElementMappings& mappings) {
-        TableOperations::stableSwapRemove(*static_cast<TableT*>(table), id, mappings);
+        StableOperations::stableSwapRemove(*static_cast<TableT*>(table), id, mappings);
       }
 
       static void insert(void* table, const UnpackedDatabaseElementID& location, size_t count, StableElementMappings& mappings) {
-        TableOperations::stableInsertRangeAt(*static_cast<TableT*>(table), location, count, mappings);
+        StableOperations::stableInsertRangeAt(*static_cast<TableT*>(table), location, count, mappings);
       }
     };
 
@@ -411,7 +648,7 @@ struct StableTableModifierInstance {
       StableTableModifier::get<TableT>(),
       &table,
       &mappings,
-      UnpackedDatabaseElementID::fromPacked(DB::getTableIndex<TableT>())
+      UnpackedDatabaseElementID::fromPacked(DB::template getTableIndex<TableT>())
     };
   }
 
@@ -515,7 +752,7 @@ struct TableResolver {
 
   template<class Row, class DB>
   static Row* tryGetRow(void* db, const UnpackedDatabaseElementID& id) {
-    return Queries::getRowInTable<Row>(*static_cast<DB*>(db), typename DB::ElementID{ id.mValue });
+    return TableOperations::getRowInTable<Row>(*static_cast<DB*>(db), typename DB::ElementID{ id.mValue });
   }
   template<class Row>
   using GetRowT = Row*(*)(void*, const UnpackedDatabaseElementID&);

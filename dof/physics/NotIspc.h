@@ -11,47 +11,48 @@
 #define FOREACH(value, initial, count) for(size_t value = initial; value < count; ++value)
 #define UINT32 uint32_t
 #define PRAGMA_IGNORE_PERF
+#define INLINE inline
 
 namespace notispc {
 
-float vec2Length(FLOAT2 v) {
+INLINE float vec2Length(FLOAT2 v) {
   return sqrt(v.x*v.x + v.y*v.y);
 }
 
-FLOAT2 vec2Negate(FLOAT2 v) {
+INLINE FLOAT2 vec2Negate(FLOAT2 v) {
   FLOAT2 result = { -v.x, -v.y };
   return result;
 }
 
-FLOAT2 vec2Sub(FLOAT2 l, FLOAT2 r) {
+INLINE FLOAT2 vec2Sub(FLOAT2 l, FLOAT2 r) {
   FLOAT2 result = { l.x - r.x, l.y - r.y };
   return result;
 }
 
-FLOAT2 vec2Add(FLOAT2 l, FLOAT2 r) {
+INLINE FLOAT2 vec2Add(FLOAT2 l, FLOAT2 r) {
   FLOAT2 result = { l.x + r.x, l.y + r.y };
   return result;
 }
 
-FLOAT2 vec2Multiply(FLOAT2 v, float scalar) {
+INLINE FLOAT2 vec2Multiply(FLOAT2 v, float scalar) {
   FLOAT2 result = { v.x*scalar, v.y*scalar };
   return result;
 }
 
-float safeDivide(float num, float denom) {
+INLINE float safeDivide(float num, float denom) {
   if(abs(denom) > 0.00001f) {
     return num/denom;
   }
   return 0.0f;
 }
 
-float crossProduct(float ax, float ay, float bx, float by) {
+INLINE float crossProduct(float ax, float ay, float bx, float by) {
   //[ax] x [bx] = [ax*by - ay*bx]
   //[ay]   [by]
   return ax*by - ay*bx;
 }
 
-FLOAT2 orthogonal(float x, float y) {
+INLINE FLOAT2 orthogonal(float x, float y) {
   //Cross product with unit Z since everything in 2D is orthogonal to Z
   //[x] [0] [ y]
   //[y]x[0]=[-x]
@@ -60,15 +61,15 @@ FLOAT2 orthogonal(float x, float y) {
   return result;
 }
 
-float dotProduct(float ax, float ay, float bx, float by) {
+INLINE float dotProduct(float ax, float ay, float bx, float by) {
   return ax*bx + ay*by;
 }
 
-float dotProduct2(FLOAT2 l, FLOAT2 r) {
+INLINE float dotProduct2(FLOAT2 l, FLOAT2 r) {
   return l.x*r.x + l.y*r.y;
 }
 
-FLOAT2 transposeRotation(float cosAngle, float sinAngle) {
+INLINE FLOAT2 transposeRotation(float cosAngle, float sinAngle) {
   //Rotation matrix is
   //[cos(x), -sin(x)]
   //[sin(x), cos(x)]
@@ -78,7 +79,7 @@ FLOAT2 transposeRotation(float cosAngle, float sinAngle) {
 }
 
 //Multiply rotation matrices A*B represented by cos and sin since they're symmetric
-FLOAT2 multiplyRotationMatrices(float cosAngleA, float sinAngleA, float cosAngleB, float sinAngleB) {
+INLINE FLOAT2 multiplyRotationMatrices(float cosAngleA, float sinAngleA, float cosAngleB, float sinAngleB) {
   //[cosAngleA, -sinAngleA]*[cosAngleB, -sinAngleB] = [cosAngleA*cosAngleB - sinAngleA*sinAngleB, ...]
   //[sinAngleA, cosAngleA]  [sinAngleB, cosAngleB]    [sinAngleA*cosAngleB + cosAngleA*sinAngleB, ...]
   FLOAT2 result = { cosAngleA*cosAngleB - sinAngleA*sinAngleB, sinAngleA*cosAngleB + cosAngleA*sinAngleB };
@@ -86,7 +87,7 @@ FLOAT2 multiplyRotationMatrices(float cosAngleA, float sinAngleA, float cosAngle
 }
 
 //Multiply M*V where M is the rotation matrix represented by cos/sinangle and V is a vector
-FLOAT2 multiplyVec2ByRotation(float cosAngle, float sinAngle, float vx, float vy) {
+INLINE FLOAT2 multiplyVec2ByRotation(float cosAngle, float sinAngle, float vx, float vy) {
   //[cosAngle, -sinAngle]*[vx] = [cosAngle*vx - sinAngle*vy]
   //[sinAngle,  cosAngle] [vy]   [sinAngle*vx + cosAngle*vy]
   FLOAT2 result = { cosAngle*vx - sinAngle*vy, sinAngle*vx + cosAngle*vy };
@@ -94,14 +95,14 @@ FLOAT2 multiplyVec2ByRotation(float cosAngle, float sinAngle, float vx, float vy
 }
 
 //Get the relative right represented by this rotation matrix, in other words the first basis vector (first column of matrix)
-FLOAT2 getRightFromRotation(float cosAngle, float sinAngle) {
+INLINE FLOAT2 getRightFromRotation(float cosAngle, float sinAngle) {
   //It already is the first column
   FLOAT2 result = { cosAngle, sinAngle };
   return result;
 }
 
 //Get the second basis vector (column)
-FLOAT2 getUpFromRotation(float cosAngle, float sinAngle) {
+INLINE FLOAT2 getUpFromRotation(float cosAngle, float sinAngle) {
   //[cosAngle, -sinAngle]
   //[sinAngle,  cosAngle]
   FLOAT2 result = { -sinAngle, cosAngle };
@@ -109,11 +110,11 @@ FLOAT2 getUpFromRotation(float cosAngle, float sinAngle) {
 }
 
 
-  float clamp(float v, float min, float max) {
+INLINE   float clamp(float v, float min, float max) {
     return glm::clamp(v, min, max);
   }
 
-  void solveContactConstraints(
+INLINE   void solveContactConstraints(
     ispc::UniformContactConstraintPairData& constraints,
     ispc::UniformConstraintObject& objectA,
     ispc::UniformConstraintObject& objectB,
@@ -259,7 +260,7 @@ FLOAT2 getUpFromRotation(float cosAngle, float sinAngle) {
     }
   }
 
-  void solveContactConstraintsBZeroMass(
+INLINE   void solveContactConstraintsBZeroMass(
     ispc::UniformContactConstraintPairData& constraints,
     ispc::UniformConstraintObject& objectA,
     ispc::UniformConstraintObject& objectB,
@@ -377,12 +378,12 @@ FLOAT2 getUpFromRotation(float cosAngle, float sinAngle) {
 using namespace ispc;
 
 template<class A, class B>
-auto min(A a, B b) {
+INLINE auto min(A a, B b) {
   return glm::min(a, b);
 }
 
 template<class A, class B>
-auto max(A a, B b) {
+INLINE auto max(A a, B b) {
   return glm::max(a, b);
 }
 
@@ -398,7 +399,7 @@ auto max(A a, B b) {
 //Substitute E for Iy and rearrange to solve for T
 //t = (E - sy)/(ey - sy)
 //The other probably easier way to think about that is it's the distance from the start to the intersection divided by the total distance
-FLOAT2 getSegmentLineIntersectTimeAndOverlapAlongAxis1D(float line, float segmentBegin, float segmentEnd) {
+INLINE FLOAT2 getSegmentLineIntersectTimeAndOverlapAlongAxis1D(float line, float segmentBegin, float segmentEnd) {
   const float length = segmentEnd - segmentBegin;
   float t = -1.0f;
   //If this is zero the line is parallel to axis, no intersection
@@ -411,7 +412,7 @@ FLOAT2 getSegmentLineIntersectTimeAndOverlapAlongAxis1D(float line, float segmen
   return result;
 }
 
-int addIndexWrapped(int index, int toAdd, int size) {
+INLINE int addIndexWrapped(int index, int toAdd, int size) {
   int result = index + toAdd;
   if(result >= size) {
     return 0;
@@ -426,7 +427,7 @@ int addIndexWrapped(int index, int toAdd, int size) {
 //TODO: this ended up pretty messy. It could be optimized in small ways by changing back to single-axis based computations
 //It is likely possible to take better advantage of ispc by splitting each plane clipping phase into its own pass,
 //like clipping all points across all collision pairs along the x axes
-EXPORT void generateUnitCubeCubeContacts(
+INLINE EXPORT void generateUnitCubeCubeContacts(
   UNIFORM UniformConstVec2& positionsA,
   UNIFORM UniformRotation& rotationsA,
   UNIFORM UniformConstVec2& positionsB,

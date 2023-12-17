@@ -1035,7 +1035,7 @@ namespace Test {
       auto& valueA = std::get<Row<int>>(a.mRows);
       constexpr auto tableIndexA = UnpackedDatabaseElementID::fromPacked(TestStableDB::getTableIndex<StableTableA>());
       constexpr auto tableIndexB = UnpackedDatabaseElementID::fromPacked(TestStableDB::getTableIndex<StableTableB>());
-      TableOperations::stableResizeTable(a, tableIndexA, 3, mappings);
+      StableOperations::stableResizeTable(a, tableIndexA, 3, mappings);
 
       verifyAllMappings(db, a, mappings);
 
@@ -1043,7 +1043,7 @@ namespace Test {
       valueA.at(2) = 5;
       StableElementID elementA = StableOperations::getStableID(stableA, tableIndexA);
       StableElementID elementC = StableOperations::getStableID(stableA, TestStableDB::ElementID{ tableIndexA.getTableIndex(), 2 });
-      TableOperations::stableSwapRemove(a, TestStableDB::ElementID{ tableIndexA.getTableIndex(), 0 }, mappings);
+      StableOperations::stableSwapRemove(a, TestStableDB::ElementID{ tableIndexA.getTableIndex(), 0 }, mappings);
 
       verifyAllMappings(db, a, mappings);
 
@@ -1053,7 +1053,7 @@ namespace Test {
       Assert::AreEqual(5, Queries::getRowInTable<Row<int>>(db, resolvedC)->at(resolvedC.getElementIndex()));
 
       //Migrate object at index 0 in A which is ElementC
-      TableOperations::stableMigrateOne(a, b, TestStableDB::getTableIndex<StableTableA>(), TestStableDB::getTableIndex<StableTableB>(), mappings);
+      StableOperations::stableMigrateOne(a, b, TestStableDB::getTableIndex<StableTableA>(), TestStableDB::getTableIndex<StableTableB>(), mappings);
 
       verifyAllMappings(db, a, mappings);
       verifyAllMappings(db, b, mappings);
@@ -1061,8 +1061,8 @@ namespace Test {
       resolvedC = TestStableDB::ElementID{ StableOperations::tryResolveStableID(elementC, db, mappings)->mUnstableIndex };
       Assert::AreEqual(5, Queries::getRowInTable<Row<int>>(db, resolvedC)->at(resolvedC.getElementIndex()));
 
-      TableOperations::stableResizeTable(a, tableIndexA, 0, mappings);
-      TableOperations::stableResizeTable(b, tableIndexB, 0, mappings);
+      StableOperations::stableResizeTable(a, tableIndexA, 0, mappings);
+      StableOperations::stableResizeTable(b, tableIndexB, 0, mappings);
 
       Assert::IsTrue(mappings.empty());
     }
@@ -1636,20 +1636,20 @@ namespace Test {
       StableIDRow& ids = std::get<StableIDRow>(table.mRows);
       StableElementMappings mappings;
 
-      TableOperations::stableInsertRangeAt(table, UnpackedDatabaseElementID::fromPacked(TestStableDB::getElementID<StableTableA>(1)), 5, mappings);
+      StableOperations::stableInsertRangeAt(table, UnpackedDatabaseElementID::fromPacked(TestStableDB::getElementID<StableTableA>(1)), 5, mappings);
 
       Assert::AreEqual(size_t(5), TableOperations::size(table));
       for(int i = 0; i < 5; ++i) {
         values.at(i) = i;
       }
 
-      TableOperations::stableInsertRangeAt(table, UnpackedDatabaseElementID::fromPacked(TestStableDB::getElementID<StableTableA>(5)), 1, mappings);
+      StableOperations::stableInsertRangeAt(table, UnpackedDatabaseElementID::fromPacked(TestStableDB::getElementID<StableTableA>(5)), 1, mappings);
       Assert::AreEqual(size_t(6), TableOperations::size(table));
       Assert::AreEqual(4, values.at(4));
       values.at(5) = 5;
       StableElementID stable = StableOperations::getStableID(ids, UnpackedDatabaseElementID::fromPacked(TestStableDB::getElementID<StableTableA>(3)));
 
-      TableOperations::stableInsertRangeAt(table, UnpackedDatabaseElementID::fromPacked(TestStableDB::getElementID<StableTableA>(0)), 5, mappings);
+      StableOperations::stableInsertRangeAt(table, UnpackedDatabaseElementID::fromPacked(TestStableDB::getElementID<StableTableA>(0)), 5, mappings);
       Assert::AreEqual(size_t(11), TableOperations::size(table));
       for(size_t i = 0; i < 5; ++i) {
         Assert::AreEqual(int(i), values.at(i + 5), L"Values should have been shifted over by previous insertion");

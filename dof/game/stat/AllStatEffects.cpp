@@ -88,7 +88,7 @@ namespace StatEffect {
 
           //Once all rows in the destination have the desired values, clear the source
           StableElementMappings& srcMappings = db.getMappings();
-          TableOperations::stableResizeTable(fromTable, UnpackedDatabaseElementID::fromPacked(StatEffectDatabase::getTableIndex(fromTable)), 0, srcMappings);
+          StableOperations::stableResizeTable(fromTable, UnpackedDatabaseElementID::fromPacked(StatEffectDatabase::getTableIndex(fromTable)), 0, srcMappings);
         });
       }
     });

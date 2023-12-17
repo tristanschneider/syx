@@ -41,6 +41,7 @@ namespace SP {
             IslandGraph::addEdge(graph, a.mStableID, b.mStableID, spatialPair.mStableID);
           }
           else {
+            //TODO: still happens when there is a gain and loss on the same frame, but how is that possible?
             assert(false);
             undo.push_back(StableElementID::fromStableRow(dstBegin + i, *stableIds));
           }

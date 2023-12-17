@@ -19,8 +19,10 @@ namespace Queries {
     db.visitOne([&](auto& table) {
       using TableT = std::decay_t<decltype(table)>;
       if constexpr(TableOperations::hasRow<Row, TableT>() && (TableOperations::hasRow<Rows, TableT>() && ...)) {
-        typename DatabaseT::ElementID tableID = typename DatabaseT::getTableIndex<TableT>();
-        visitor(tableID, TableOperations::getRow<Row>(table), TableOperations::getRow<Rows>(table)...);
+        visitor(
+          DatabaseT::template getTableIndex<TableT>(),
+          TableOperations::getRow<Row>(table),
+          TableOperations::getRow<Rows>(table)...);
       }
     });
   }

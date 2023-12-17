@@ -111,7 +111,7 @@ struct UnpackedDatabaseElementID {
 
   template<class DB>
   typename DB::ElementID toPacked() const {
-    return DB::ElementID{ mValue };
+    return typename DB::ElementID{ mValue };
   }
 
   //Entire packed bits from an unstable index or DB::GetTableIndex
@@ -232,7 +232,7 @@ struct Database {
 
   template<class TableT>
   static constexpr ElementID getElementID(size_t index) {
-    return ElementID(GetIndexImpl::_getTableIndex<TableT, 0, Tables...>(), index);
+    return ElementID(GetIndexImpl::template _getTableIndex<TableT, 0, Tables...>(), index);
   }
 
   template<class TableT>

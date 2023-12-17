@@ -2,6 +2,7 @@
 
 #include "StableElementID.h"
 #include "AppBuilder.h"
+#include "DBEvents.h"
 
 namespace SM {
   struct StateBucket {
@@ -183,7 +184,7 @@ namespace SM {
           const size_t stateIndex = currentState.index();
           globals->at().buckets[stateIndex].exiting.push_back(fromTable.getElementIndex());
           state.previousState = currentState;
-          currentState = Empty{};
+          currentState = {};
         }
       }
     });

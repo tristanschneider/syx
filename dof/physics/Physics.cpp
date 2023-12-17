@@ -133,11 +133,11 @@ namespace Physics {
   UniformConstraintObjectRows _unwrapUniformConstraintObjectRows(RuntimeDatabaseTaskBuilder& task, const UnpackedDatabaseElementID& table) {
     using ConstraintT = ConstraintObject<CObj>;
     return {
-      _unwrapRow<ConstraintT::LinVelX>(task, table),
-      _unwrapRow<ConstraintT::LinVelY>(task, table),
-      _unwrapRow<ConstraintT::AngVel>(task, table),
-      _unwrapRow<ConstraintT::SyncIndex>(task, table),
-      _unwrapRow<ConstraintT::SyncType>(task, table)
+      _unwrapRow<typename ConstraintT::LinVelX>(task, table),
+      _unwrapRow<typename ConstraintT::LinVelY>(task, table),
+      _unwrapRow<typename ConstraintT::AngVel>(task, table),
+      _unwrapRow<typename ConstraintT::SyncIndex>(task, table),
+      _unwrapRow<typename ConstraintT::SyncType>(task, table)
     };
   }
 
@@ -178,10 +178,10 @@ namespace Physics {
   template<class Obj>
   ContactConstraintSetupObjectRows unwrapContactConstraintSetupObjectRows(RuntimeDatabaseTaskBuilder& task, const UnpackedDatabaseElementID& table) {
     return {
-      _unwrapRow<ConstraintObject<Obj>::CenterToContactOneX>(task, table),
-      _unwrapRow<ConstraintObject<Obj>::CenterToContactOneY>(task, table),
-      _unwrapRow<ConstraintObject<Obj>::CenterToContactTwoX>(task, table),
-      _unwrapRow<ConstraintObject<Obj>::CenterToContactTwoY>(task, table)
+      _unwrapRow<typename ConstraintObject<Obj>::CenterToContactOneX>(task, table),
+      _unwrapRow<typename ConstraintObject<Obj>::CenterToContactOneY>(task, table),
+      _unwrapRow<typename ConstraintObject<Obj>::CenterToContactTwoX>(task, table),
+      _unwrapRow<typename ConstraintObject<Obj>::CenterToContactTwoY>(task, table)
     };
   }
 

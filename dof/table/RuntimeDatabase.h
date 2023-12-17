@@ -321,7 +321,7 @@ namespace DBReflect {
     RuntimeRow createRuntimeRow(RowT& row) {
       static constexpr bool isStableRow = std::is_same_v<RowT, StableIDRow>;
       struct Funcs {
-        static void migrateOneElement(void* from, void* to, const UnpackedDatabaseElementID& fromID, [[maybe_unused]] const UnpackedDatabaseElementID& toID, StableElementMappings& mappings) {
+        static void migrateOneElement(void* from, void* to, const UnpackedDatabaseElementID& fromID, [[maybe_unused]] const UnpackedDatabaseElementID& toID, [[maybe_unused]] StableElementMappings& mappings) {
           RowT* fromT = static_cast<RowT*>(from);
           RowT* toT = static_cast<RowT*>(to);
           if constexpr(isStableRow) {
