@@ -24,6 +24,10 @@ namespace SP {
     void clear() {
       size = 0;
     }
+    const ContactPoint& operator[](uint32_t i) const {
+      return points[i];
+    }
+
     std::array<ContactPoint, 2> points;
     uint32_t size{};
   };

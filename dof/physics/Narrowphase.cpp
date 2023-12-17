@@ -80,19 +80,19 @@ namespace Narrowphase {
     const float dist2 = glm::dot(ab, ab);
     const float radii = a.radius + b.radius;
     constexpr float epsilon = 0.0001f;
-    if(dist2 < radii*radii) {
+    if(dist2 <= radii*radii) {
       auto& res = result.manifold.points[0];
       result.manifold.size = 1;
 
       glm::vec2 normal{ 1, 0 };
-      const float dist = std::sqrt(dist2);
+      float dist = std::sqrt(dist2);
       //Circles not on top of each-other, normal is vector between them
       if(dist > epsilon) {
         res.normal = ab / dist;
-        res.centerToContactA = a.pos + res.normal*a.radius;
-        res.centerToContactB = b.pos - res.normal*b.radius;
-        res.overlap = dist - radii;
       }
+      res.centerToContactA = res.normal*a.radius;
+      res.centerToContactB = (a.pos + res.centerToContactA) - b.pos;
+      res.overlap = radii - dist;
     }
   }
 
@@ -202,9 +202,11 @@ namespace Narrowphase {
           auto resolvedA = ids->tryResolveAndUnpack(stableA);
           auto resolvedB = ids->tryResolveAndUnpack(stableB);
           SP::ContactManifold& man = manifold->at(i);
+          //Clear for the generation below to regenerate the results
+          man.clear();
+
           //If this happens presumably the element will get removed from the table momentarily
           if(!resolvedA || !resolvedB) {
-            man.clear();
             continue;
           }
           stableA = resolvedA->stable;
