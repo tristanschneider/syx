@@ -58,6 +58,7 @@ struct QueryAlias : QueryAliasBase {
 };
 
 using FloatQueryAlias = QueryAlias<Row<float>>;
+using ConstFloatQueryAlias = QueryAlias<const Row<float>>;
 
 struct RuntimeRow {
   void* row{};

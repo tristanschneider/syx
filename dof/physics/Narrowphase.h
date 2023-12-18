@@ -33,10 +33,10 @@ namespace Narrowphase {
   };
 
   struct UnitCubeDefinition {
-    FloatQueryAlias centerX;
-    FloatQueryAlias centerY;
-    FloatQueryAlias rotX;
-    FloatQueryAlias rotY;
+    ConstFloatQueryAlias centerX;
+    ConstFloatQueryAlias centerY;
+    ConstFloatQueryAlias rotX;
+    ConstFloatQueryAlias rotY;
   };
 
   //Table is all unit cubes. Currently only supports the single UnitCubeDefinition

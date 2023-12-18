@@ -22,7 +22,7 @@ namespace Narrowphase {
 
   //Non-implemented fallback
   template<class A, class B>
-  void generateContacts(const A&, const B&, ContactArgs&) {
+  void generateContacts(A&, B&, ContactArgs&) {
   }
 
   void swapAB(ContactArgs& result) {
@@ -49,12 +49,12 @@ namespace Narrowphase {
     ispc::UniformContact uc1{ &c1.x, &c1.y, &result.manifold.points[0].overlap };
     ispc::UniformContact uc2{ &c2.x, &c2.y, &result.manifold.points[1].overlap };
     notispc::generateUnitCubeCubeContacts(pa, ra, pb, rb, normal, uc1, uc2, 1);
-    if(result.manifold.points[0].overlap > 0) {
+    if(result.manifold.points[0].overlap >= 0) {
       ++result.manifold.size;
       result.manifold.points[0].centerToContactA = c1 - a.center;
       result.manifold.points[0].centerToContactB = c1 - b.center;
     }
-    if(result.manifold.points[1].overlap > 0) {
+    if(result.manifold.points[1].overlap >= 0) {
       ++result.manifold.size;
       result.manifold.points[1].centerToContactA = c2 - a.center;
       result.manifold.points[1].centerToContactB = c2 - b.center;
@@ -75,7 +75,7 @@ namespace Narrowphase {
     //TODO: for spatial queries is this needed?
   }
 
-  void generateContacts(const Shape::Circle& a, const Shape::Circle& b, ContactArgs& result) {
+  void generateContacts(Shape::Circle& a, Shape::Circle& b, ContactArgs& result) {
     const glm::vec2 ab = b.pos - a.pos;
     const float dist2 = glm::dot(ab, ab);
     const float radii = a.radius + b.radius;
@@ -84,21 +84,23 @@ namespace Narrowphase {
       auto& res = result.manifold.points[0];
       result.manifold.size = 1;
 
-      glm::vec2 normal{ 1, 0 };
       float dist = std::sqrt(dist2);
       //Circles not on top of each-other, normal is vector between them
       if(dist > epsilon) {
-        res.normal = ab / dist;
+        res.normal = -ab / dist;
       }
-      res.centerToContactA = res.normal*a.radius;
+      else {
+        res.normal = { 1, 0 };
+      }
+      res.centerToContactA = -res.normal*a.radius;
       res.centerToContactB = (a.pos + res.centerToContactA) - b.pos;
       res.overlap = radii - dist;
     }
   }
 
-  void generateContacts(const Shape::BodyType& a, const Shape::BodyType& b, ContactArgs& result) {
-    std::visit([&](const auto& unwrappedA) {
-      std::visit([&](const auto& unwrappedB) {
+  void generateContacts(Shape::BodyType& a, Shape::BodyType& b, ContactArgs& result) {
+    std::visit([&](auto& unwrappedA) {
+      std::visit([&](auto& unwrappedB) {
         generateContacts(unwrappedA, unwrappedB, result);
       }, b.shape);
     }, a.shape);
@@ -111,6 +113,7 @@ namespace Narrowphase {
     CachedRow<const Row<float>> centerY;
     CachedRow<const Row<float>> rotX;
     CachedRow<const Row<float>> rotY;
+    UnitCubeDefinition alias;
   };
 
   struct ShapeQueries {
@@ -134,6 +137,7 @@ namespace Narrowphase {
       unitCube.centerX, unitCube.centerY,
       unitCube.rotX, unitCube.rotY
     );
+    result.sharedUnitCube.alias = unitCube;
     return result;
   }
 
@@ -144,11 +148,16 @@ namespace Narrowphase {
     //Shared unit cube table
     if(queries.sharedUnitCube.resolver->tryGetOrSwapRow(queries.sharedUnitCube.definition, id)) {
       auto& q = queries.sharedUnitCube;
-      if(q.resolver->tryGetOrSwapAllRows(id, q.centerX, q.centerY)) {
+      const auto& qa = q.alias;
+      if(q.resolver->tryGetOrSwapRowAlias(qa.centerX, q.centerX, id) &&
+        q.resolver->tryGetOrSwapRowAlias(qa.centerY, q.centerY, id)
+      ) {
         Shape::UnitCube cube;
         cube.center = TableExt::read(myIndex, *q.centerX, *q.centerY);
         //Rotation is optional
-        if(q.resolver->tryGetOrSwapAllRows(id, q.rotX, q.rotY)) {
+        if(q.resolver->tryGetOrSwapRowAlias(qa.rotX, q.rotX, id) &&
+          q.resolver->tryGetOrSwapRowAlias(qa.rotY, q.rotY, id)
+        ) {
           cube.right = TableExt::read(myIndex, *q.rotX, *q.rotY);
         }
         return { Shape::Variant{ cube } };
@@ -216,8 +225,9 @@ namespace Narrowphase {
             continue;
           }
 
-          const Shape::BodyType shapeA = classifyShape(shapeQuery, resolvedA->unpacked);
-          const Shape::BodyType shapeB = classifyShape(shapeQuery, resolvedB->unpacked);
+          //TODO: is non-const because of ispc signature, should be const
+          Shape::BodyType shapeA = classifyShape(shapeQuery, resolvedA->unpacked);
+          Shape::BodyType shapeB = classifyShape(shapeQuery, resolvedB->unpacked);
           ContactArgs args{ man };
           generateContacts(shapeA, shapeB, args);
         }
