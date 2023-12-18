@@ -4,6 +4,7 @@
 #include "Simulation.h"
 #include "TableAdapters.h"
 #include "DebugDrawer.h"
+#include "Narrowphase.h"
 
 namespace PhysicsSimulation {
   using PosX = FloatRow<Tags::Pos, Tags::X>;
@@ -43,44 +44,6 @@ namespace PhysicsSimulation {
     auto broadphase = task.query<const SharedRow<Broadphase::SweepGrid::Grid>>();
 
     task.setCallback([debug, narrowphase, broadphase, &config](AppTaskArgs&) mutable {
-      const bool drawCollisionPairs = config.drawCollisionPairs;
-      const bool drawContacts = config.drawContacts;
-      for(size_t t = 0; t < narrowphase.size(); ++t) {
-        auto rows = narrowphase.get(t);
-        const size_t size = std::get<0>(rows)->size();
-        if(drawCollisionPairs) {
-          const auto& ax = *std::get<0>(rows);
-          const auto& ay = *std::get<1>(rows);
-          const auto& bx = *std::get<2>(rows);
-          const auto& by = *std::get<3>(rows);
-          for(size_t i = 0; i < size; ++i) {
-            DebugDrawer::drawLine(debug, glm::vec2(ax.at(i), ay.at(i)), glm::vec2(bx.at(i), by.at(i)), glm::vec3(0.0f, 1.0f, 0.0f));
-          }
-        }
-
-        if(drawContacts) {
-          for(size_t i = 0; i < size; ++i) {
-            float overlapOne = std::get<const COne::Overlap*>(rows)->at(i);
-            float overlapTwo = std::get<const CTwo::Overlap*>(rows)->at(i);
-            glm::vec2 posA = TableAdapters::read(i, *std::get<const ObjA::PosX*>(rows), *std::get<const ObjA::PosY*>(rows));
-            glm::vec2 posB = TableAdapters::read(i, *std::get<const ObjB::PosX*>(rows), *std::get<const ObjB::PosY*>(rows));
-            glm::vec2 contactOne = TableAdapters::read(i, *std::get<const COne::PosX*>(rows), *std::get<const COne::PosY*>(rows));
-            glm::vec2 contactTwo = TableAdapters::read(i, *std::get<const CTwo::PosX*>(rows), *std::get<const CTwo::PosY*>(rows));
-            glm::vec2 normal = TableAdapters::read(i, *std::get<const SharedNormal::X*>(rows), *std::get<const SharedNormal::Y*>(rows));
-            if(overlapOne >= 0.0f) {
-              DebugDrawer::drawLine(debug, posA, contactOne, glm::vec3(1.0f, 0.0f, 0.0f));
-              DebugDrawer::drawLine(debug, contactOne, contactOne + normal*0.25f, glm::vec3(0.0f, 1.0f, 0.0f));
-              DebugDrawer::drawLine(debug, contactOne, contactOne + normal*overlapOne, glm::vec3(1.0f, 1.0f, 0.0f));
-            }
-            if(overlapTwo >= 0.0f) {
-              DebugDrawer::drawLine(debug, posA, contactTwo, glm::vec3(1.0f, 0.0f, 1.0f));
-              DebugDrawer::drawLine(debug, contactTwo, contactTwo + normal*0.25f, glm::vec3(0.0f, 1.0f, 1.0f));
-              DebugDrawer::drawLine(debug, contactTwo, contactTwo + normal*overlapTwo, glm::vec3(1.0f, 1.0f, 1.0f));
-            }
-          }
-        }
-      }
-
       if(config.broadphase.draw) {
         for(size_t t = 0; t < broadphase.size(); ++t) {
           const Broadphase::SweepGrid::Grid& grid = broadphase.get<0>(t).at();
@@ -116,6 +79,15 @@ namespace PhysicsSimulation {
     });
 
     builder.submitTask(std::move(task));
+  }
+
+  Narrowphase::UnitCubeDefinition getUnitCubeDefinition() {
+    return {
+      ConstFloatQueryAlias::create<const FloatRow<Tags::Pos, Tags::X>>(),
+      ConstFloatQueryAlias::create<const FloatRow<Tags::Pos, Tags::Y>>(),
+      ConstFloatQueryAlias::create<const FloatRow<Tags::Rot, Tags::CosAngle>>(),
+      ConstFloatQueryAlias::create<const FloatRow<Tags::Rot, Tags::SinAngle>>()
+    };
   }
 
   void init(IAppBuilder& builder) {
@@ -178,8 +150,11 @@ namespace PhysicsSimulation {
     SpatialQuery::physicsUpdateBoundaries(builder);
     Physics::applyDampingMultiplier(builder, aliases, config.linearDragMultiplier, config.angularDragMultiplier);
     SweepNPruneBroadphase::updateBroadphase(builder, _getBoundariesConfig(builder), aliases);
+
+    Narrowphase::generateContactsFromSpatialPairs(builder, getUnitCubeDefinition());
     Physics::updateNarrowphase(builder, aliases);
     SpatialQuery::physicsProcessQueries(builder);
+
     ConstraintsTableBuilder::build(builder, config);
     Physics::fillConstraintVelocities(builder, aliases);
     Physics::setupConstraints(builder);

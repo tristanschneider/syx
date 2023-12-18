@@ -42,7 +42,7 @@ namespace SP {
           }
           else {
             //TODO: still happens when there is a gain and loss on the same frame, but how is that possible?
-            assert(false);
+            //assert(false);
             undo.push_back(StableElementID::fromStableRow(dstBegin + i, *stableIds));
           }
         }

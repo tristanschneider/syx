@@ -11,7 +11,7 @@
 #include "Shader.h"
 #include "glm/mat4x4.hpp"
 
-struct DebugDrawer {
+struct RenderDebugDrawer {
   GLuint mShader{};
   GLuint mVBO{};
   GLuint mVAO{};
@@ -33,7 +33,7 @@ struct OGLState {
   //Could be table but the amount of cameras isn't worth it
   std::vector<RendererCamera> mCameras;
   SceneState mSceneState;
-  DebugDrawer mDebug;
+  RenderDebugDrawer mDebug;
 };
 
 struct WindowData {

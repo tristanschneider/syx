@@ -238,6 +238,12 @@ void Simulation::init(IAppBuilder& builder) {
   }
   {
     auto task = builder.createTask();
+    task.setName("setDefault Mask");
+    task.setCallback(setDefaultValue(task.query<Narrowphase::CollisionMaskRow>(), uint8_t(~0)));
+    builder.submitTask(std::move(task));
+  }
+  {
+    auto task = builder.createTask();
     task.setName("setDefault Tint");
     //Fragments in particular start opaque then reveal the texture as they take damage
     task.setCallback(setDefaultValue(task.query<Tint, const IsFragment>(), glm::vec4(0, 0, 0, 1)));

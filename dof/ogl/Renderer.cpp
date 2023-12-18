@@ -186,8 +186,8 @@ namespace {
     return result;
   }
 
-  DebugDrawer _createDebugDrawer() {
-    DebugDrawer drawer;
+  RenderDebugDrawer _createDebugDrawer() {
+    RenderDebugDrawer drawer;
     drawer.mShader = Shader::loadShader(DebugShader::vs, DebugShader::ps);
 
     drawer.mWVPUniform = glGetUniformLocation(drawer.mShader, "wvp");
@@ -443,7 +443,7 @@ void _renderDebug(IAppBuilder& builder) {
       return;
     }
 
-    DebugDrawer& debug = state->mDebug;
+    RenderDebugDrawer& debug = state->mDebug;
     for(size_t i = 0; i < debugLines.size(); ++i) {
       const auto& linesToDraw = debugLines.get<0>(i);
       if(linesToDraw.size()) {

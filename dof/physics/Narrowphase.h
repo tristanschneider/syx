@@ -27,6 +27,9 @@ namespace Narrowphase {
     };
     using Variant = std::variant<std::monostate, UnitCube, Raycast, AABB, Circle>;
 
+    //The center that "centerToContact" in the manifold is relative to
+    glm::vec2 getCenter(const Variant& shape);
+
     struct BodyType {
       Shape::Variant shape;
     };
@@ -46,6 +49,13 @@ namespace Narrowphase {
   struct AABBRow : Row<Shape::AABB> {};
   struct CircleRow : Row<Shape::Circle> {};
   struct CollisionMaskRow : Row<uint8_t> {};
+
+  struct IShapeClassifier {
+    virtual ~IShapeClassifier() = default;
+    virtual Shape::BodyType classifyShape(const UnpackedDatabaseElementID& id) = 0;
+  };
+
+  std::shared_ptr<IShapeClassifier> createShapeClassifier(RuntimeDatabaseTaskBuilder& task, const UnitCubeDefinition& unitCube);
 
   //Takes the pairs stored in SpatialPairsTable and generates the contacts needed to resolve the spatial
   // queries or constraint solving

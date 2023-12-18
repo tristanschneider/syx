@@ -16,6 +16,32 @@ namespace TableExt {
 namespace Narrowphase {
   //TODO: need to be able to know how much contact info is desired
 
+  namespace Shape {
+    //Not the actual center, more like the reference point
+    struct CenterVisitor {
+      glm::vec2 operator()(const UnitCube& v) const {
+        return v.center;
+      }
+      glm::vec2 operator()(const Raycast& v) const {
+        return v.start;
+      }
+      glm::vec2 operator()(const AABB& v) const {
+        return v.min;
+      }
+      glm::vec2 operator()(const Circle& v) const {
+        return v.pos;
+      }
+      glm::vec2 operator()(const std::monostate&) const {
+        return { 0, 0 };
+      }
+    };
+
+    glm::vec2 getCenter(const Variant& shape) {
+      return std::visit(CenterVisitor{}, shape);
+    }
+  }
+
+
   struct ContactArgs {
     SP::ContactManifold& manifold;
   };
@@ -237,7 +263,37 @@ namespace Narrowphase {
     builder.submitTask(std::move(task));
   }
 
+  //TODO: where to put this?
+  void createIslands(IAppBuilder& builder) {
+    auto task = builder.createTask();
+    task.setName("generate contacts inline");
+    auto query = task.query<SP::IslandGraphRow>();
+    task.setCallback([query](AppTaskArgs&) mutable {
+      for(size_t t = 0; t < query.size(); ++t) {
+        IslandGraph::Graph& graph = query.get<0>(t).at();
+        IslandGraph::rebuildIslands(graph);
+      }
+    });
+    builder.submitTask(std::move(task));
+  }
+
   void generateContactsFromSpatialPairs(IAppBuilder& builder, const UnitCubeDefinition& unitCube) {
     generateInline(builder, unitCube);
+    createIslands(builder);
+  }
+
+  std::shared_ptr<IShapeClassifier> createShapeClassifier(RuntimeDatabaseTaskBuilder& task, const UnitCubeDefinition& unitCube) {
+    struct Impl : IShapeClassifier {
+      Impl(ShapeQueries q)
+        : queries{ std::move(q) } {
+      }
+
+      Shape::BodyType classifyShape(const UnpackedDatabaseElementID& id) override {
+        return Narrowphase::classifyShape(queries, id);
+      }
+
+      ShapeQueries queries;
+    };
+    return std::make_shared<Impl>(Narrowphase::buildShapeQueries(task, unitCube));
   }
 }

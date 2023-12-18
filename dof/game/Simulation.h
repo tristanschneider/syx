@@ -17,6 +17,7 @@
 #include <bitset>
 #include "DBEvents.h"
 #include "RowTags.h"
+#include "Narrowphase.h"
 #include "SpatialPairsStorage.h"
 
 namespace Ability {
@@ -142,7 +143,9 @@ using GameObjectTable = Table<
   FragmentStateMachine::GlobalsRow,
 
   CollisionMaskRow,
+  Narrowphase::CollisionMaskRow,
   SweepNPruneBroadphase::BroadphaseKeys,
+  Narrowphase::SharedUnitCubeRow,
 
   Row<CubeSprite>,
   FragmentGoalFoundRow,
@@ -170,7 +173,9 @@ using StaticGameObjectTable = Table<
   FloatRow<Tags::GRot, Tags::SinAngle>,
 
   CollisionMaskRow,
+  Narrowphase::CollisionMaskRow,
   SweepNPruneBroadphase::BroadphaseKeys,
+  Narrowphase::SharedUnitCubeRow,
 
   //Only requires broadphase key to know how to remove it, don't need to store boundaries
   //for efficient updates because it won't move
@@ -266,6 +271,8 @@ using PlayerTable = Table<
 
   CollisionMaskRow,
   SweepNPruneBroadphase::BroadphaseKeys,
+  Narrowphase::CollisionMaskRow,
+  Narrowphase::SharedUnitCubeRow,
 
   Row<CubeSprite>,
   Row<PlayerInput>,

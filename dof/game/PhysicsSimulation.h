@@ -10,7 +10,13 @@ namespace SweepNPruneBroadphase {
   struct BoundariesConfig;
 }
 
+namespace Narrowphase {
+  struct UnitCubeDefinition;
+}
+
 namespace PhysicsSimulation {
+  Narrowphase::UnitCubeDefinition getUnitCubeDefinition();
+
   void init(IAppBuilder& builder);
   void initFromConfig(IAppBuilder& builder);
   //Insert all objects into the broadphase that can be. Doesn't check if they already are, meant for initial insert

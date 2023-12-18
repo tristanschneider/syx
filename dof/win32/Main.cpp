@@ -384,7 +384,7 @@ int mainLoop(const char* args, HWND window) {
   resetInput(*builder);
   Renderer::swapBuffers(*builder);
   std::shared_ptr<AppTaskNode> appTaskNodes = IAppBuilder::finalize(std::move(builder));
-  constexpr bool outputGraph = true;
+  constexpr bool outputGraph = false;
   if(outputGraph && appTaskNodes) {
     GraphViz::writeHere("graph.gv", *appTaskNodes);
   }
