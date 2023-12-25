@@ -72,6 +72,20 @@ public:
   }
 
   template<class Row>
+  auto tryGetOrSwapRowElement(CachedRow<Row>& row, const UnpackedDatabaseElementID& id) {
+    if(!row.row || row.tableID != id.getTableIndex()) {
+      row.row = tryGetRow<Row>(id);
+      row.tableID = id.getTableIndex();
+    }
+
+    decltype(&row->at(0)) result{};
+    if(row) {
+      result = &row->at(id.getElementIndex());
+    }
+    return result;
+  }
+
+  template<class Row>
   bool tryGetOrSwapRowAlias(const QueryAlias<Row>& alias, CachedRow<Row>& row, const UnpackedDatabaseElementID& id) {
     if(!row.row || row.tableID != id.getTableIndex()) {
       row.row = tryGetRowAlias(alias, id);
@@ -79,6 +93,19 @@ public:
       return row.row != nullptr;
     }
     return row.row != nullptr;
+  }
+
+  template<class Row>
+  auto tryGetOrSwapRowAliasElement(const QueryAlias<Row>& alias, CachedRow<Row>& row, const UnpackedDatabaseElementID& id) {
+    if(!row.row || row.tableID != id.getTableIndex()) {
+      row.row = tryGetRowAlias(alias, id);
+      row.tableID = id.getTableIndex();
+    }
+    decltype(&row->at(0)) result{};
+    if(row) {
+      result = &row->at(id.getElementIndex());
+    }
+    return result;
   }
 
   template<class... Args>

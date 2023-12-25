@@ -18,13 +18,17 @@ namespace SP {
     glm::vec2 centerToContactA{};
     glm::vec2 centerToContactB{};
     float overlap{};
-    float warmStart{};
+    float contactWarmStart{};
+    float frictionWarmStart{};
   };
   struct ContactManifold {
     void clear() {
       size = 0;
     }
     const ContactPoint& operator[](uint32_t i) const {
+      return points[i];
+    }
+    ContactPoint& operator[](uint32_t i) {
       return points[i];
     }
 

@@ -3,6 +3,9 @@
 #include "glm/vec2.hpp"
 
 namespace PGS {
+  using BodyIndex = uint16_t;
+  using ConstraintIndex = uint16_t;
+
   //Constraint between ab(1) and bc(2) and ac(3)
   //V = [va]
   //    [wa]
@@ -49,10 +52,10 @@ namespace PGS {
     static constexpr int32_t BLOCK_SIZE = 3;
     static constexpr int32_t STRIDE = BLOCK_SIZE * 2;
 
-    const float* getJacobianIndex(int i) const {
+    const float* getJacobianIndex(ConstraintIndex i) const {
       return values + i*STRIDE;
     }
-    float* getJacobianIndex(int i) {
+    float* getJacobianIndex(ConstraintIndex i) {
       return values + i*STRIDE;
     }
     float* values{};
@@ -60,16 +63,16 @@ namespace PGS {
 
   struct JacobianMapping {
     static constexpr int32_t STRIDE = 2;
-    static constexpr uint8_t INFINITE_MASS = 255;
-    std::pair<uint8_t, uint8_t> getPairForConstraint(int i) const {
-      const uint8_t* base = bodyIndices + i*STRIDE;
+    static constexpr BodyIndex INFINITE_MASS = std::numeric_limits<BodyIndex>::max();
+    std::pair<BodyIndex, BodyIndex> getPairForConstraint(int i) const {
+      const BodyIndex* base = bodyIndices + i*STRIDE;
       return { *base, *(base + 1) };
     }
-    uint8_t* getPairPointerForConstraint(int i) {
+    BodyIndex* getPairPointerForConstraint(int i) {
       return bodyIndices + i*STRIDE;
     }
 
-    uint8_t* bodyIndices{};
+    BodyIndex* bodyIndices{};
   };
 
   struct BodyVelocity {
@@ -81,15 +84,15 @@ namespace PGS {
     //Linear x, y, and angular
     static constexpr int32_t STRIDE = 3;
 
-    float* getObjectVelocity(uint8_t obj) {
+    float* getObjectVelocity(BodyIndex obj) {
       return values + static_cast<int32_t>(obj)*STRIDE;
     }
 
-    float* getObjectVelocity(uint8_t obj) const {
+    float* getObjectVelocity(BodyIndex obj) const {
       return values + static_cast<int32_t>(obj)*STRIDE;
     }
 
-    BodyVelocity getBody(uint8_t obj) const {
+    BodyVelocity getBody(BodyIndex obj) const {
       const float* b = getObjectVelocity(obj);
       return {
         glm::vec2{ b[0], b[1] },
@@ -104,10 +107,10 @@ namespace PGS {
   struct MassMatrix {
     //Pairs of inverse mass and inverse inertia
     static constexpr int32_t STRIDE = 2;
-    const float* getObjectMass(uint8_t obj) const {
+    const float* getObjectMass(BodyIndex obj) const {
       return values + static_cast<int32_t>(obj)*STRIDE;
     }
-    float* getObjectMass(uint8_t obj) {
+    float* getObjectMass(BodyIndex obj) {
       return values + static_cast<int32_t>(obj)*STRIDE;
     }
 
@@ -128,8 +131,9 @@ namespace PGS {
     const Jacobian jacobianTMass;
     const JacobianMapping mapping;
 
-    uint8_t bodies{};
-    uint8_t constraints{};
+    BodyIndex bodies{};
+    ConstraintIndex constraints{};
+    uint8_t currentIteration{};
     uint8_t maxIterations{};
     float maxLambda{};
   };
@@ -138,22 +142,25 @@ namespace PGS {
     static constexpr float UNLIMITED_MIN = std::numeric_limits<float>::lowest();
     static constexpr float UNLIMITED_MAX = std::numeric_limits<float>::max();
 
-    void resize(uint8_t bodies, uint8_t constraints);
-    uint8_t bodyCount() const;
-    uint8_t constraintCount() const;
+    void resize(BodyIndex bodies, ConstraintIndex constraints);
+    BodyIndex bodyCount() const;
+    ConstraintIndex constraintCount() const;
     SolveContext createContext();
     void setUniformLambdaBounds(float min, float max);
-    void setVelocity(uint8_t body, const glm::vec2& linear, float angular);
+    void setVelocity(BodyIndex body, const glm::vec2& linear, float angular);
     void setUniformMass(float inverseMass, float inverseInertia);
-    void setMass(uint8_t body, float inverseMass, float inverseInertia);
-    void setJacobian(uint8_t constraintIndex,
-      uint8_t bodyA,
-      uint8_t bodyB,
+    void setMass(BodyIndex body, float inverseMass, float inverseInertia);
+    void setJacobian(ConstraintIndex constraintIndex,
+      BodyIndex bodyA,
+      BodyIndex bodyB,
       const glm::vec2& linearA,
       float angularA,
       const glm::vec2& linearB,
       float angularB
     );
+    void setBias(ConstraintIndex constraintIndex, float bias);
+    void setLambdaBounds(ConstraintIndex constraintIndex, float min, float max);
+    void setWarmStart(ConstraintIndex constraintIndex, float warmStart);
     void premultiply();
 
     std::vector<float> lambda;
@@ -165,11 +172,23 @@ namespace PGS {
     std::vector<float> mass;
     std::vector<float> jacobian;
     std::vector<float> jacobianTMass;
-    std::vector<uint8_t> jacobianMapping;
+    std::vector<BodyIndex> jacobianMapping;
     uint8_t maxIterations{ 5 };
     float maxLambda{ 0.001f };
   };
 
-  void solvePGS(SolveContext& solver);
-  void solvePGSWarmStart(SolveContext& solver);
+  struct SolveResult {
+    float remainingError{};
+    //If iteration or error boundary has been reached. This means solving shoudl stop
+    //but does not necessarily means the desired stability has been reached
+    bool isFinished{};
+  };
+
+  //Iterate until solved
+  SolveResult solvePGS(SolveContext& solver);
+  //Iterate once
+  SolveResult advancePGS(SolveContext& solver);
+  void warmStart(SolveContext& solver);
+  //Warm start and iterate until solved
+  SolveResult solvePGSWarmStart(SolveContext& solver);
 }

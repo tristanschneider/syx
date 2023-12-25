@@ -103,6 +103,7 @@ namespace IslandGraph {
             if(edge.islandNext == NOT_VISITED) {
               //Add the other node for visitation
               nodesTodo.push_back(edge.nodeA == currentIndex ? edge.nodeB : edge.nodeA);
+              currentIsland.edgeCount++;
 
               edge.islandNext = *lastEdge;
               *lastEdge = entry.edge;

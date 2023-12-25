@@ -263,23 +263,8 @@ namespace Narrowphase {
     builder.submitTask(std::move(task));
   }
 
-  //TODO: where to put this?
-  void createIslands(IAppBuilder& builder) {
-    auto task = builder.createTask();
-    task.setName("generate contacts inline");
-    auto query = task.query<SP::IslandGraphRow>();
-    task.setCallback([query](AppTaskArgs&) mutable {
-      for(size_t t = 0; t < query.size(); ++t) {
-        IslandGraph::Graph& graph = query.get<0>(t).at();
-        IslandGraph::rebuildIslands(graph);
-      }
-    });
-    builder.submitTask(std::move(task));
-  }
-
   void generateContactsFromSpatialPairs(IAppBuilder& builder, const UnitCubeDefinition& unitCube) {
     generateInline(builder, unitCube);
-    createIslands(builder);
   }
 
   std::shared_ptr<IShapeClassifier> createShapeClassifier(RuntimeDatabaseTaskBuilder& task, const UnitCubeDefinition& unitCube) {

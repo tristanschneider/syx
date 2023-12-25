@@ -42,13 +42,15 @@ namespace Narrowphase {
     ConstFloatQueryAlias rotY;
   };
 
+  using CollisionMask = uint8_t;
+
   //Table is all unit cubes. Currently only supports the single UnitCubeDefinition
   struct SharedUnitCubeRow : TagRow {};
   struct UnitCubeRow : Row<Shape::UnitCube> {};
   struct RaycastRow : Row<Shape::Raycast> {};
   struct AABBRow : Row<Shape::AABB> {};
   struct CircleRow : Row<Shape::Circle> {};
-  struct CollisionMaskRow : Row<uint8_t> {};
+  struct CollisionMaskRow : Row<CollisionMask> {};
 
   struct IShapeClassifier {
     virtual ~IShapeClassifier() = default;

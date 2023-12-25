@@ -50,6 +50,7 @@ namespace IslandGraph {
     uint32_t nodes{ INVALID };
     uint32_t edges{ INVALID };
     uint32_t nodeCount{};
+    uint32_t edgeCount{};
   };
   constexpr static uint32_t FREE_INDEX = std::numeric_limits<uint32_t>::max() - 1;
 }
