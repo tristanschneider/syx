@@ -9,6 +9,7 @@
 #include "SpatialPairsStorage.h"
 #include "TableAdapters.h"
 #include "Geometric.h"
+#include "TestApp.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -81,35 +82,16 @@ namespace Test {
     UnpackedDatabaseElementID raycasts;
   };
 
-  struct NarrowphaseDB {
+  struct NarrowphaseDB : TestApp {
     NarrowphaseDB() {
-      auto mappings = std::make_unique<StableElementMappings>();
-      db = DBReflect::createDatabase<NarrowphaseDBT>(*mappings);
-      db = DBReflect::bundle(std::move(db), std::move(mappings));
-      auto builder = GameBuilder::create(*db);
-      auto temp = builder->createTask();
-      temp.discard();
-      taskBuilder = std::make_unique<RuntimeDatabaseTaskBuilder>(std::move(temp));
-      taskBuilder->discard();
-
-      Narrowphase::generateContactsFromSpatialPairs(*builder, UnitCubeDef{});
-
-      work = GameScheduler::buildSync(IAppBuilder::finalize(std::move(builder)));
-    }
-
-    RuntimeDatabaseTaskBuilder& builder() {
-      return *taskBuilder;
+      initSTFromDB<NarrowphaseDBT>([](IAppBuilder& builder) {
+        Narrowphase::generateContactsFromSpatialPairs(builder, UnitCubeDef{});
+      });
     }
 
     void doNarrowphase() {
-      for(auto&& w : work) {
-        w.work();
-      }
+      update();
     }
-
-    std::vector<GameScheduler::SyncWorkItem> work;
-    std::unique_ptr<IDatabase> db;
-    std::unique_ptr<RuntimeDatabaseTaskBuilder> taskBuilder;
   };
 
   struct SpatialQueriesAdapter {

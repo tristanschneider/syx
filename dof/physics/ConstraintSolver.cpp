@@ -11,6 +11,10 @@ namespace ConstraintSolver {
   using ConstraintIndex = PGS::ConstraintIndex;
   using BodyIndex = PGS::BodyIndex;
 
+  constexpr float biasTerm = 0.91f;
+  constexpr float slop = 0.005f;
+  constexpr float frictionTerm = 0.8f;
+
   struct IslandBody {
     operator bool() const {
       return velocityX && velocityY && angularVelocity;
@@ -33,6 +37,14 @@ namespace ConstraintSolver {
     ConstraintMask constraintMask{};
   };
   struct IslandSolver {
+    void clear() {
+      bodies.clear();
+      warmStartStorage.clear();
+      frictionMappings.clear();
+      islandToBodyIndex.clear();
+      solver.clear();
+    }
+
     std::vector<IslandBody> bodies;
     //The place to write the warm start after solving
     //Index matches constraint index
@@ -124,7 +136,7 @@ namespace ConstraintSolver {
       //Mass, velocity, and index found, create a new body entry for this and write it all into the solver
       if(mass && velocity) {
         IslandBody body;
-        body.solverIndex = static_cast<BodyIndex>(solver.islandToBodyIndex.size()) + 1;
+        body.solverIndex = static_cast<BodyIndex>(solver.bodies.size());
         const BodyMapping mapping{ body.solverIndex, constraintMask };
         solver.islandToBodyIndex[data] = mapping;
         body.velocityX = velocity.linearX;
@@ -149,8 +161,6 @@ namespace ConstraintSolver {
     SP::ContactManifold& manifold,
     ConstraintIndex constraintIndex
   ) {
-    constexpr float biasTerm = -0.01f;
-    constexpr float slop = 0.005f;
     ConstraintIndex newConstraintIndex = constraintIndex;
     auto& s = solver.solver;
     for(uint32_t i = 0; i < manifold.size; ++i) {
@@ -166,7 +176,7 @@ namespace ConstraintSolver {
       );
       const float bias = point.overlap - slop;
       if(bias > 0) {
-        s.setBias(newConstraintIndex, -bias*biasTerm);
+        s.setBias(newConstraintIndex, bias*biasTerm);
       }
       else {
         s.setBias(newConstraintIndex, 0);
@@ -174,13 +184,14 @@ namespace ConstraintSolver {
       s.setLambdaBounds(newConstraintIndex, 0, PGS::SolverStorage::UNLIMITED_MAX);
       s.setWarmStart(newConstraintIndex, point.contactWarmStart);
       solver.warmStartStorage.push_back(&point.contactWarmStart);
-      const ConstraintIndex contactIndex = newConstraintIndex;
-      ++newConstraintIndex;
+      const ConstraintIndex contactIndex = newConstraintIndex++;
 
+      contactIndex;
+      /*
       //Friction constraint
       const glm::vec2 frictionA{ Geo::orthogonal(normalA) };
       const glm::vec2 frictionB{ -frictionA };
-      const ConstraintIndex frictionIndex = newConstraintIndex;
+      const ConstraintIndex frictionIndex = newConstraintIndex++;
       s.setJacobian(frictionIndex, bodyA, bodyB,
         frictionA,
         Geo::cross(point.centerToContactA, frictionA),
@@ -190,10 +201,12 @@ namespace ConstraintSolver {
       //Store this mapping so the bounds of friction can be updated from the corresponding contact
       solver.frictionMappings.push_back({ frictionIndex, contactIndex });
       //Friction bounds determined by contact, and the starting bounds of the contact are the warm start
-      s.setLambdaBounds(frictionIndex, -point.contactWarmStart, point.contactWarmStart);
+      const float frictionBound = std::abs(point.contactWarmStart*frictionTerm);
+      s.setLambdaBounds(frictionIndex, -frictionBound, frictionBound);
       s.setWarmStart(frictionIndex, point.frictionWarmStart);
       s.setBias(frictionIndex, 0);
       solver.warmStartStorage.push_back(&point.frictionWarmStart);
+      */
     }
 
     return newConstraintIndex - constraintIndex;
@@ -225,6 +238,7 @@ namespace ConstraintSolver {
 
   void solveIsland(IAppBuilder& builder, const PhysicsAliases& tables) {
     auto task = builder.createTask();
+    task.setName("solve islands");
     auto collection = std::make_shared<IslandSolverCollection>();
     std::shared_ptr<AppTaskConfig> solveConfig = task.getConfig();
     createSolvers(builder, collection, solveConfig);
@@ -240,6 +254,8 @@ namespace ConstraintSolver {
       for(size_t i = args.begin; i < args.end; ++i) {
         const IslandGraph::Island& island = graph->islands[i];
         IslandSolver& solver = *collection->solvers[i];
+        //TODO: only clear what has a chance of being untouched by the initialization below
+        solver.clear();
         //This may overshoot a bit if objects are close enough to have edges but didn't pass narrowphase
         //Each edge can have two contacts each of which can have two friction constraints
         solver.solver.resize(static_cast<BodyIndex>(island.nodeCount + 1), static_cast<ConstraintIndex>(island.edgeCount*4));
@@ -276,7 +292,7 @@ namespace ConstraintSolver {
         PGS::warmStart(context);
         PGS::SolveResult solveResult;
         do {
-          PGS::advancePGS(context);
+          solveResult = PGS::advancePGS(context);
           for(const FrictionMapping& mapping : solver.frictionMappings) {
             //Friction force is proportional to normal force, update the bounds based on the currently
             //applied normal force

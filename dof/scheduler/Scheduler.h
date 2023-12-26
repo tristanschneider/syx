@@ -76,6 +76,10 @@ struct TaskRange {
     return { mBegin, next.mEnd };
   }
 
+  operator bool() const {
+    return mBegin && mEnd;
+  }
+
   std::shared_ptr<TaskNode> mBegin, mEnd;
 };
 

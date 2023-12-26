@@ -10,6 +10,10 @@
 #include "TableAdapters.h"
 #include "Geometric.h"
 #include "PGSSolver.h"
+#include "ConstraintSolver.h"
+#include "TestApp.h"
+#include "Physics.h"
+#include "Dynamics.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -17,9 +21,158 @@ namespace Test {
   TEST_CLASS(SolverTest) {
     static constexpr float E = 0.01f;
 
+    struct LinVelX : Row<float> {};
+    struct LinVelY : Row<float> {};
+    struct AngVel : Row<float> {};
+
+    using DynamicObjects = Table<
+      StableIDRow,
+      LinVelX,
+      LinVelY,
+      AngVel,
+      ConstraintSolver::ConstraintMaskRow,
+      ConstraintSolver::SharedMassRow
+    >;
+
+    struct StaticTag : TagRow {};
+    using StaticObjects = Table<
+      StaticTag,
+      StableIDRow,
+      ConstraintSolver::ConstraintMaskRow,
+      ConstraintSolver::SharedMassRow
+    >;
+
+    using SolverDB = Database<
+      DynamicObjects,
+      StaticObjects,
+      SP::SpatialPairsTable
+    >;
+
+    struct TableIds {
+      TableIds(RuntimeDatabaseTaskBuilder& task)
+        : dynamicBodies{ task.query<LinVelX>().matchingTableIDs[0] }
+        , staticBodies{ task.query<StaticTag>().matchingTableIDs[0] }
+        , spatialPairs{ task.query<SP::ManifoldRow>().matchingTableIDs[0] }
+      {}
+
+      UnpackedDatabaseElementID dynamicBodies, staticBodies, spatialPairs;
+    };
+
+    struct TestAliases : PhysicsAliases {
+      TestAliases() {
+        linVelX = FloatQueryAlias::create<LinVelX>();
+        linVelY = FloatQueryAlias::create<LinVelY>();
+        angVel = FloatQueryAlias::create<AngVel>();
+      }
+    };
+
+    struct SolverApp : TestApp {
+      SolverApp() {
+        initMTFromDB<SolverDB>([](IAppBuilder& builder) {
+          ConstraintSolver::solveConstraints(builder, TestAliases{});
+        });
+        TableIds ids{ builder() };
+        ConstraintSolver::BodyMass* dynamicMass = builder().query<ConstraintSolver::SharedMassRow>(ids.dynamicBodies).tryGetSingletonElement();
+        *dynamicMass = Geo::computeQuadMass(1, 1, 1);
+        //Static mass is already zero as desired
+
+        builder().query<ConstraintSolver::ConstraintMaskRow>().forEachRow([](auto& row) {
+          row.mDefaultValue = ConstraintSolver::MASK_SOLVE_ALL;
+        });
+      }
+    };
+
     static void assertEq(const glm::vec2& l, const glm::vec2& r) {
       Assert::AreEqual(l.x, r.x, E);
       Assert::AreEqual(l.y, r.y, E);
+    }
+
+    TEST_METHOD(ConstraintSolver) {
+      SolverApp app;
+      auto& task = app.builder();
+      const TableIds tables{ task };
+      auto [islandGraph, manifold] = task.query<
+        SP::IslandGraphRow,
+        SP::ManifoldRow
+      >().get(0);
+      IslandGraph::Graph& graph = islandGraph->at();
+      auto [staticStableID] = task.query<StableIDRow>(tables.staticBodies).get(0);
+      auto [dynamicStableId, dvx, dvy, dva] = task.query<
+        StableIDRow,
+        LinVelX,
+        LinVelY,
+        AngVel
+      >().get(0);
+      auto ids = task.getIDResolver();
+
+      const ResolvedIDs staticA = app.createInTable(tables.staticBodies);
+      const ResolvedIDs dynamicB = app.createInTable(tables.dynamicBodies);
+      const ResolvedIDs edgeAB = app.createInTable(tables.spatialPairs);
+      const size_t ib = dynamicB.unpacked.getElementIndex();
+
+      IslandGraph::addNode(graph, staticA.stable.mStableID);
+      IslandGraph::addNode(graph, dynamicB.stable.mStableID);
+      IslandGraph::addEdge(graph, staticA.stable.mStableID, dynamicB.stable.mStableID, edgeAB.stable.mStableID);
+
+      //Simulate B moving right towards A and hitting with two contact points on the corners of A
+      dvx->at(ib) = 1.0f;
+      SP::ContactManifold& manifoldAB = manifold->at(edgeAB.unpacked.getElementIndex());
+      constexpr float overlap = 0.05f;
+      manifoldAB.size = 2;
+      manifoldAB[0].centerToContactB = { 0.5f, 0.5f };
+      manifoldAB[0].normal = { 1, 0 };
+      manifoldAB[0].overlap = overlap;
+      manifoldAB[1].centerToContactB = { 0.5f, -0.5f };
+      manifoldAB[1].normal = { 1, 0 };
+      manifoldAB[1].overlap = overlap;
+
+      app.update();
+
+      {
+        const glm::vec2 lv{ dvx->at(ib), dvy->at(ib) };
+        const float av{ dva->at(ib) };
+        for(int i = 0; i < 2; ++i) {
+          const float relativeVelocity = glm::dot(manifoldAB[i].normal, Dyn::velocityAtPoint(manifoldAB[i].centerToContactB, lv, av));
+          Assert::IsTrue(relativeVelocity <= 0.0f);
+        }
+      }
+
+      //Simulate another object C moving downwards and colliding with A but not B
+      const ResolvedIDs dynamicC = app.createInTable(tables.dynamicBodies);
+      const ResolvedIDs edgeBC = app.createInTable(tables.spatialPairs);
+      const size_t ic = dynamicC.unpacked.getElementIndex();
+      IslandGraph::addNode(graph, dynamicC.stable.mStableID);
+      IslandGraph::addEdge(graph, dynamicB.stable.mStableID, dynamicC.stable.mStableID, edgeBC.stable.mStableID);
+
+      dvy->at(ic) = -0.75f;
+
+      SP::ContactManifold& manifoldBC = manifold->at(edgeBC.unpacked.getElementIndex());
+      manifoldBC.size = 1;
+      manifoldBC[0].centerToContactA = { 0.5f, 0.5f };
+      manifoldBC[0].centerToContactB = { 0.5f, -0.5f };
+      manifoldBC[0].normal = { 0, -1 };
+      manifoldBC[0].overlap = overlap;
+
+      app.update();
+
+      {
+        const glm::vec2 lvB{ dvx->at(ib), dvy->at(ib) };
+        const float avB{ dva->at(ib) };
+        const glm::vec2 lvC{ dvx->at(ic), dvy->at(ic) };
+        const float avC{ dva->at(ic) };
+        for(int i = 0; i < 2; ++i) {
+          const float relativeVelocity = glm::dot(manifoldAB[i].normal, Dyn::velocityAtPoint(manifoldAB[i].centerToContactB, lvB, avB));
+          Assert::IsTrue(relativeVelocity <= 0.0f);
+        }
+        //const float rv = glm::dot(manifoldBC[0].normal,
+        //  Dyn::velocityAtPoint(manifoldBC[0].centerToContactA, lvB, avB) - Dyn::velocityAtPoint(manifoldBC[0].centerToContactB, lvC, avC));
+        const glm::vec2 vpA = Dyn::velocityAtPoint(manifoldBC[0].centerToContactA, lvB, avB);
+        const glm::vec2 vpB = Dyn::velocityAtPoint(manifoldBC[0].centerToContactB, lvC, avC);
+        const float rvA = glm::dot(manifoldBC[0].normal, vpA);
+        const float rvB = glm::dot(-manifoldBC[0].normal, vpB);
+        const float rv = rvA + rvB;
+        Assert::IsTrue(rv <= 0.0f);
+      }
     }
 
     TEST_METHOD(TwoBodiesLinearVelocity) {

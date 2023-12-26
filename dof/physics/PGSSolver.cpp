@@ -18,6 +18,19 @@ namespace PGS {
     applyImpulse(vb, lambda, jacobianTMass + 3);
   }
 
+  void SolverStorage::clear() {
+    lambda.clear();
+    lambdaMin.clear();
+    lambdaMax.clear();
+    diagonal.clear();
+    jacobian.clear();
+    jacobianTMass.clear();
+    bias.clear();
+    jacobianMapping.clear();
+    mass.clear();
+    velocity.clear();
+  }
+
   void SolverStorage::resize(BodyIndex bodies, ConstraintIndex constraints) {
     lambda.resize(constraints);
     lambdaMin.resize(constraints);
@@ -174,7 +187,7 @@ namespace PGS {
       float* va = solver.velocity.getObjectVelocity(a);
       float* vb = solver.velocity.getObjectVelocity(b);
       //Normally this is division but it is inverted upon computing the diagonal above.
-      float lambda = (solver.bias[i] - dot(ja, va) - dot(jb, vb))*solver.diagonal[i];
+      float lambda = (solver.bias[i] - (dot(ja, va) + dot(jb, vb)))*solver.diagonal[i];
       const float prevLambda = solver.lambda[i];
       solver.lambda[i] = std::max(solver.lambdaMin[i], std::min(prevLambda + lambda, solver.lambdaMax[i]));
       lambda = solver.lambda[i] - prevLambda;
@@ -196,6 +209,7 @@ namespace PGS {
       const float* ja = solver.jacobian.getJacobianIndex(i);
       const float* jb = ja + Jacobian::BLOCK_SIZE;
       if (a != JacobianMapping::INFINITE_MASS) {
+        //TODO: use jacobianTMass
         const float* ma = solver.mass.getObjectMass(a);
         float* va = solver.velocity.getObjectVelocity(a);
         //Linear

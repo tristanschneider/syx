@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Geometric.h"
 #include "Table.h"
 
 class IAppBuilder;
@@ -8,11 +9,10 @@ struct PhysicsAliases;
 namespace ConstraintSolver {
   //If both objects in the spatial pairs storage have this and the bitwise and is nonzero the constraint is solved
   using ConstraintMask = uint8_t;
+  static constexpr ConstraintMask MASK_SOLVE_NONE{};
+  static constexpr ConstraintMask MASK_SOLVE_ALL{ static_cast<ConstraintMask>(~MASK_SOLVE_NONE) };
 
-  struct BodyMass {
-    float inverseMass{};
-    float inverseInertia{};
-  };
+  using BodyMass = Geo::BodyMass;
 
   struct SharedMassRow : SharedRow<BodyMass> {};
   struct MassRow : Row<BodyMass> {};

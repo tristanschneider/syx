@@ -5,6 +5,11 @@
 namespace Geo {
   constexpr float EPSILON = 0.001f;
 
+  struct BodyMass {
+    float inverseMass{};
+    float inverseInertia{};
+  };
+
   inline bool near(float a, float b, float epsilon = EPSILON) {
     return std::abs(a - b) <= epsilon;
   }
@@ -25,5 +30,16 @@ namespace Geo {
     //[y]x[0]=[-x]
     //[0] [1] [ 0]
     return { v.y, -v.x };
+  }
+
+  constexpr BodyMass computeQuadMass(float w, float h, float density) {
+    BodyMass result;
+    result.inverseMass = w*h*density;
+    result.inverseInertia = result.inverseMass*(h*h + w*w)/12.0f;
+    if(result.inverseMass > 0.0f) {
+      result.inverseMass = 1.0f/result.inverseMass;
+      result.inverseInertia = 1.0f/result.inverseInertia;
+    }
+    return result;
   }
 }
