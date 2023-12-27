@@ -432,9 +432,43 @@ namespace Broadphase {
         Broadphase::CollisionCandidates candidates;
       };
       struct Tasks {
+        struct Tracker {
+          enum class Action : uint8_t {
+            Add,
+            Remove,
+            Noop,
+            Update
+          };
+
+          //Returns true if this may need to change tracked pairs, meaning either addition of a new pair or removal of one
+          void increment(int8_t amount) {
+            if(!originalRefCount) {
+              originalRefCount = currentRefCount;
+            }
+            currentRefCount += amount;
+          }
+
+          Action getAction() const {
+            assert(originalRefCount && "Action only makes sense in the context of an original ref count");
+            assert(currentRefCount >= 0 && "Counting should always be balanced");
+            if(!*originalRefCount) {
+              //If it went from zero to positive, new element added
+              //It it went from zero to zero then this element should be removed again without being published
+              return currentRefCount > 0 ? Action::Add : Action::Noop;
+            }
+            //Nonzero original, presumably this means positive since counting shouldn't be unbalanced
+            //This means hitting zero would be removal
+            return !currentRefCount ? Action::Remove : Action::Update;
+          }
+
+          std::optional<int8_t> originalRefCount{};
+          int8_t currentRefCount{};
+        };
+
         std::vector<TaskData> tasks;
         //Hack to reference count pairs to avoid duplicate events for pairs in multiple cells
-        std::unordered_map<Broadphase::SweepCollisionPair, uint8_t> trackedPairs;
+        std::unordered_map<Broadphase::SweepCollisionPair, Tracker> trackedPairs;
+        std::vector<std::pair<const Broadphase::SweepCollisionPair, Tracker>*> changedTrackers;
       };
 
       auto configure = builder.createTask();
@@ -482,25 +516,55 @@ namespace Broadphase {
           finalResults.mGained.clear();
           finalResults.mLost.clear();
 
+          //First update all the reference counts based on individual reports of gains and losses within cells
           for(size_t i = 0; i < data->tasks.size(); ++i) {
              const TaskData& t = data->tasks[i];
             //Remove duplicates while also ignoring any that show up in both gained and lost
             for(const SweepCollisionPair& g : t.gains) {
-              //If this was a new entry, report the gain
-              if(!data->trackedPairs[g]++) {
-                finalResults.mGained.push_back(g);
+              //Increment for gains, taking note of when new elements are created
+              auto&& [it, _] = data->trackedPairs.emplace(g, Tasks::Tracker{});
+              it->second.increment(1);
+              if(it->second.currentRefCount == 1) {
+                data->changedTrackers.emplace_back(&*it);
               }
             }
             for(const SweepCollisionPair& l : t.losses) {
               if(auto it = data->trackedPairs.find(l); it != data->trackedPairs.end()) {
-                //If reference count hits zero, report the loss and remove the tracking element
-                if(!it->second || !--it->second) {
-                  data->trackedPairs.erase(it);
-                  finalResults.mLost.push_back(l);
+                //Decrement for losses. Presumably pairs should always be found since reference counts are balanced
+                it->second.increment(-1);
+                if(it->second.currentRefCount == 0) {
+                  data->changedTrackers.emplace_back(&*it);
                 }
               }
             }
           }
+
+          //Now go over all the changed pairs and resolve any duplication or consolidate matching add/remove pairs
+          //The existence of the originalTracker optional indicates if this pair has been processed and the original
+          //value can be used to determine if it's a new or removed pair
+          //For example, if a pair is lost by one cell but gained by another, then it's not necessary to report either
+          //gain or loss because the pair still exists
+          for(auto& pair : data->changedTrackers) {
+            //If this pair was already processed, skip it
+            if(!pair->second.originalRefCount) {
+              continue;
+            }
+            switch(pair->second.getAction()) {
+              case Tasks::Tracker::Action::Add: finalResults.mGained.emplace_back(pair->first); break;
+              case Tasks::Tracker::Action::Remove: finalResults.mLost.emplace_back(pair->first); break;
+              default: break;
+            }
+            //Clearing the original reference marks this as processed so it is skipped if it comes up again
+            pair->second.originalRefCount.reset();
+          }
+          //Final pass to delete. Can't be done in the iteration above as it may invalidate pointers that exist later in the container
+          for(const SweepCollisionPair& loss : finalResults.mLost) {
+            if(auto it = data->trackedPairs.find(loss); it != data->trackedPairs.end()) {
+              data->trackedPairs.erase(it);
+            }
+          }
+
+          data->changedTrackers.clear();
         });
         builder.submitTask(std::move(combine));
       }

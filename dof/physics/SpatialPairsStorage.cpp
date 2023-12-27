@@ -22,7 +22,6 @@ namespace SP {
 
         //Create space for all the new entries
         const size_t dstBegin = dstModifier->addElements(changes.mGained.size());
-        std::vector<StableElementID> undo;
         //Add new edges and spatial pairs for all new pairs
         for(size_t i = 0; i < changes.mGained.size(); ++i) {
           const auto& gain = changes.mGained[i];
@@ -41,15 +40,8 @@ namespace SP {
             IslandGraph::addEdge(graph, a.mStableID, b.mStableID, spatialPair.mStableID);
           }
           else {
-            //TODO: still happens when there is a gain and loss on the same frame, but how is that possible?
-            //assert(false);
-            undo.push_back(StableElementID::fromStableRow(dstBegin + i, *stableIds));
+            assert(false);
           }
-        }
-
-        //TODO: find a way to get rid of the need for this
-        for(const auto& id : undo) {
-          dstModifier->swapRemove(ids->tryResolveAndUnpack(id)->unpacked);
         }
 
         //Remove all edges corresponding to the lost pairs
