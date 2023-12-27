@@ -5,6 +5,7 @@
 #include "SweepNPruneBroadphase.h"
 #include "Table.h"
 #include "Physics.h"
+#include "Narrowphase.h"
 
 class IAppBuilder;
 class RuntimeDatabaseTaskBuilder;
@@ -30,6 +31,9 @@ namespace SpatialQuery {
   };
 
   struct Raycast {
+    operator Narrowphase::Shape::Raycast() const {
+      return { start, end };
+    }
     glm::vec2 start{};
     glm::vec2 end{};
   };
@@ -38,10 +42,16 @@ namespace SpatialQuery {
     StableElementID id;
   };
   struct AABB {
+    operator Narrowphase::Shape::AABB() const {
+      return { min, max };
+    }
     glm::vec2 min{};
     glm::vec2 max{};
   };
   struct Circle {
+    operator Narrowphase::Shape::Circle() const {
+      return { pos, radius };
+    }
     glm::vec2 pos{};
     float radius{};
   };
@@ -57,15 +67,18 @@ namespace SpatialQuery {
     Shape shape;
   };
 
-  struct Result {
-    using Variant = std::variant<RaycastResults, AABBResults, CircleResults>;
-    Variant result;
-    //All nearby objects that aren't necessarily in the shape
-    std::vector<StableElementID> nearbyObjects;
+  struct ContactPoint {
+    glm::vec2 point{};
+    glm::vec2 normal{};
+    float overlap{};
   };
 
-  struct QueryRow : Row<Query> {};
-  struct ResultRow : Row<Result> {};
+  struct Result {
+    StableElementID other;
+    std::array<ContactPoint, 2> points;
+    size_t size{};
+  };
+
   struct LifetimeRow : Row<size_t> {};
   //True if this element needs to be rewritten from gameplay to physics
   struct NeedsResubmitRow : Row<uint8_t> {};
@@ -102,23 +115,29 @@ namespace SpatialQuery {
   struct MinY : Row<float> {};
   struct MaxY : Row<float> {};
 
-  struct SpatialQueriesTable : Table<
+  template<class ShapeRow>
+  struct SpatialQueriesTableT : Table<
     SpatialQueriesTableTag,
-    Physics<QueryRow>,
-    Physics<ResultRow>,
+    //Conceptually this is Physics<ShapeRow> but Physics does not allow an alias for this row type so it must be exact
+    ShapeRow,
     SweepNPruneBroadphase::BroadphaseKeys,
     Physics<MinX>,
     Physics<MinY>,
     Physics<MaxX>,
     Physics<MaxY>,
 
-    Gameplay<QueryRow>,
-    Gameplay<ResultRow>,
+    Gameplay<ShapeRow>,
     Gameplay<LifetimeRow>,
     Gameplay<NeedsResubmitRow>,
     Gameplay<GlobalsRow>,
-    StableIDRow
+    StableIDRow,
+    //Collision mask row to detect collisions, no constraint row since solving isn't desired
+    Narrowphase::CollisionMaskRow
   > {};
+
+  struct AABBSpatialQueriesTable : SpatialQueriesTableT<Narrowphase::AABBRow> {};
+  struct CircleSpatialQueriesTable : SpatialQueriesTableT<Narrowphase::CircleRow> {};
+  struct RaycastSpatialQueriesTable : SpatialQueriesTableT<Narrowphase::RaycastRow> {};
 
   //Physics and gameplay both have their sides of the spatial query table
   //Gameplay modifies its side and keeps track of a queue of new entries to submit
@@ -141,19 +160,18 @@ namespace SpatialQuery {
   };
   struct IReader {
     virtual ~IReader() = default;
-    //Get raw index for use in the functions below, also updates the stable reference to point where the element is now,
-    //equivalent to using an IIDResolver to do this yourself
-    virtual std::optional<size_t> getIndex(StableElementID& id) = 0;
-    virtual const Result& getResult(size_t index) = 0;
-    virtual const Result* tryGetResult(StableElementID& id) = 0;
+    //Select the spatial query to iterate over
+    virtual void begin(const StableElementID& id) = 0;
+    //Iterate over the selected query
+    virtual const Result* tryIterate() = 0;
   };
   struct IWriter {
     virtual ~IWriter() = default;
-    virtual std::optional<size_t> getIndex(StableElementID& id) = 0;
-    virtual void refreshQuery(size_t index, Query&& query, size_t newLifetime) = 0;
-    //Same idea as above but only updates the lifetime. Writing a lifetime of zero would request destruction of the query
-    virtual void refreshQuery(size_t index, size_t newLifetime) = 0;
-    virtual void refreshQuery(StableElementID& index, Query&& query, size_t newLifetime) = 0;
+
+    virtual std::optional<ResolvedIDs> getKey(StableElementID& id) = 0;
+    virtual void refreshQuery(const ResolvedIDs& key, Query&& query, size_t newLifetime) = 0;
+    virtual void refreshQuery(const ResolvedIDs& key, size_t newLifetime) = 0;
+    virtual void refreshQuery(StableElementID& key, Query&& query, size_t newLifetime) = 0;
     virtual void refreshQuery(StableElementID& index, size_t newLifetime) = 0;
   };
 
@@ -163,9 +181,6 @@ namespace SpatialQuery {
 
   //Update boundaries based on query shape before they are updated in the broadphase
   void physicsUpdateBoundaries(IAppBuilder& builder);
-  //Operates on the collision pair changes output by the broadphase to trim them down further to fit the actual query volumes
-  //In other words: narrowphase
-  void physicsProcessQueries(IAppBuilder& builder);
   //Ticks gameplay query lifetimes, copies new results from physics and submits new add/remove requests to physics
   void gameplayUpdateQueries(IAppBuilder& builder);
 };

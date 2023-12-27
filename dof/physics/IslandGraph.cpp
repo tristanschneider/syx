@@ -223,6 +223,22 @@ namespace IslandGraph {
   }
 
     Graph::EdgeIterator Graph::findEdge(const NodeUserdata& a, const NodeUserdata& b) {
+      const Graph* self = this;
+      Graph::ConstEdgeIterator it = self->findEdge(a, b);
+      return { this, it.edge };
+    }
+
+    Graph::NodeIterator Graph::findNode(const NodeUserdata& node) {
+      auto it = nodeMappings.find(node);
+      return { this, it != nodeMappings.end() ? it->second.node : INVALID };
+    }
+
+    Graph::ConstNodeIterator Graph::findNode(const NodeUserdata& node) const {
+      auto it = nodeMappings.find(node);
+      return { this, it != nodeMappings.end() ? it->second.node : INVALID };
+    }
+
+    Graph::ConstEdgeIterator Graph::findEdge(const NodeUserdata& a, const NodeUserdata& b) const {
       //The edge will be in the list of A and B, arbitrarily look in A
       //If this is used often enough it may be worth storing the size so the smaller one can be traversed
       auto mapping = nodeMappings.find(a);
@@ -244,10 +260,5 @@ namespace IslandGraph {
         }
       }
       return edgesEnd();
-    }
-
-    Graph::NodeIterator Graph::findNode(const NodeUserdata& node) {
-      auto it = nodeMappings.find(node);
-      return { this, it != nodeMappings.end() ? it->second.node : INVALID };
     }
 }

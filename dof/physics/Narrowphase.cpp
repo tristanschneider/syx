@@ -6,6 +6,8 @@
 #include "Physics.h"
 #include "NotIspc.h"
 #include "glm/glm.hpp"
+#include "Geometric.h"
+#include "glm/gtc/matrix_inverse.hpp"
 
 namespace TableExt {
   inline glm::vec2 read(size_t i, const Row<float>& a, const Row<float>& b) {
@@ -89,6 +91,53 @@ namespace Narrowphase {
     }
   }
 
+  void generateContacts(Shape::UnitCube& cube, Shape::Circle& circle, ContactArgs& result) {
+    const glm::vec2 toCircle = circle.pos - cube.center;
+    const glm::vec2 up = Geo::orthogonal(cube.right);
+    const float extentX = glm::dot(cube.right, toCircle);
+    const float extentY = glm::dot(up, toCircle);
+    constexpr float SCALEX = 0.5f;
+    constexpr float SCALEY = 0.5f;
+    const glm::vec2 closestOnSquare = glm::clamp(extentX, -SCALEX, SCALEX)*cube.right + glm::clamp(extentY, -SCALEY, SCALEY)*up;
+    const glm::vec2 closestOnSquareToCircle = toCircle - closestOnSquare;
+    const float dist2 = glm::dot(closestOnSquareToCircle, closestOnSquareToCircle);
+    if(dist2 <= circle.radius) {
+      result.manifold.size = 1;
+      result.manifold[0].centerToContactA = closestOnSquare;
+      //TODO:
+      result.manifold[0].centerToContactB = glm::vec2{ 0 };
+      result.manifold[0].normal = glm::vec2{ 0 };
+    }
+  }
+
+  void generateContacts(Shape::UnitCube& cube, Shape::Raycast& ray, ContactArgs& result) {
+    const glm::mat3 transform = Geo::buildTransform(cube.center, cube.right, { 1, 1 });
+    const glm::mat3 invTransform = glm::affineInverse(transform);
+    const glm::vec2 localStart = Geo::transformPoint(invTransform, ray.start);
+    const glm::vec2 localEnd = Geo::transformPoint(invTransform, ray.end);
+    const glm::vec2 dir = localEnd - localStart;
+    float tmin, tmax;
+    if(Geo::unitAABBLineIntersect(localStart, dir, &tmin, &tmax)) {
+      const glm::vec2 localPoint = localStart + dir*tmin;
+      const glm::vec2 localNormal = Geo::getNormalFromUnitAABBIntersect(localPoint);
+      result.manifold.size = 1;
+      const glm::vec2 worldPoint = Geo::transformPoint(transform, localPoint);
+      result.manifold[0].centerToContactA = worldPoint - cube.center;
+      result.manifold[0].centerToContactB = worldPoint - ray.start;
+      result.manifold[0].normal = -Geo::transformVector(transform, localNormal);
+      //tmax - tmin is the part of the line that is intersecting with the shape. That projected onto the normal is the overlap
+      result.manifold[0].overlap = std::abs(glm::dot((ray.end - ray.start)*(tmax - tmin), result.manifold[0].normal));
+    }
+  }
+
+  void generateContacts(Shape::Raycast& ray, Shape::UnitCube& cube, ContactArgs& result) {
+    generateSwappedContacts(ray, cube, result);
+  }
+
+  void generateContacts(Shape::Circle& circle, Shape::UnitCube& cube, ContactArgs& result) {
+    generateSwappedContacts(circle, cube, result);
+  }
+
   void generateContacts(const Shape::UnitCube&, const Shape::AABB&, ContactArgs&) {
     //TODO: generalize unit cube so it can be used for this
   }
@@ -146,6 +195,7 @@ namespace Narrowphase {
     std::shared_ptr<ITableResolver> shapeResolver;
     CachedRow<const UnitCubeRow> unitCubeRow;
     CachedRow<const AABBRow> aabbRow;
+    CachedRow<const RaycastRow> rayRow;
     CachedRow<const CircleRow> circleRow;
     CachedRow<const CollisionMaskRow> collisionMasksRow;
     SharedUnitCubeQueries sharedUnitCube;
@@ -156,6 +206,7 @@ namespace Narrowphase {
     result.shapeResolver = task.getResolver<
       const UnitCubeRow,
       const AABBRow,
+      const RaycastRow,
       const CircleRow,
       const CollisionMaskRow
     >();
@@ -207,6 +258,10 @@ namespace Narrowphase {
       return { Shape::Variant{ queries.circleRow->at(myIndex) } };
     }
 
+    if(const auto* ray = queries.shapeResolver->tryGetOrSwapRowElement(queries.rayRow, id)) {
+      return { Shape::Variant{ *ray } };
+    }
+
     return {};
   }
 
@@ -216,6 +271,7 @@ namespace Narrowphase {
       uint8_t{};
   }
 
+  //TODO: this should allow a way for a layer to avoid collisions with itself as is desirable for spatial queries
   bool shouldCompareShapes(ShapeQueries& queries, const UnpackedDatabaseElementID& a, const UnpackedDatabaseElementID& b) {
     return getCollisionMask(queries, a) & getCollisionMask(queries, b);
   }

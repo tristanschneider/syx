@@ -16,17 +16,52 @@
 #include "Physics.h"
 
 namespace SpatialQuery {
+  template<class ShapeRow>
+  struct ShapeID {};
+
+  template<class Callback>
+  void visitShapes(const Callback& cb) {
+    cb(ShapeID<Narrowphase::AABBRow>{});
+    cb(ShapeID<Narrowphase::CircleRow>{});
+    cb(ShapeID<Narrowphase::RaycastRow>{});
+  }
+
+  struct SQShapeTables {
+    SQShapeTables() = default;
+    SQShapeTables(RuntimeDatabaseTaskBuilder& task)
+      : aabb{ task.queryTables<SpatialQueriesTableTag, Gameplay<Narrowphase::AABBRow>>()[0] }
+      , circle{ task.queryTables<SpatialQueriesTableTag, Gameplay<Narrowphase::CircleRow>>()[0] }
+      , raycast{ task.queryTables<SpatialQueriesTableTag, Gameplay<Narrowphase::RaycastRow>>()[0] }
+    {}
+
+    UnpackedDatabaseElementID aabb, circle, raycast;
+  };
   struct CreateData {
+    CreateData() = default;
+    CreateData(RuntimeDatabaseTaskBuilder& task, const UnpackedDatabaseElementID& table)
+      : globals{ task.query<const Gameplay<GlobalsRow>>(table).tryGetSingletonElement() }
+      , ids{ task.getIDResolver() }
+    {}
+
     std::shared_ptr<IIDResolver> ids;
     const Globals* globals{};
   };
-  struct ReadData {
-    std::shared_ptr<IIDResolver> ids;
-    const Gameplay<ResultRow>* results{};
-  };
+  template<class ShapeRow>
   struct WriteData {
+    WriteData() = default;
+    WriteData(RuntimeDatabaseTaskBuilder& task) {
+      auto q = task.query<
+        Gameplay<ShapeRow>,
+        Gameplay<LifetimeRow>,
+        Gameplay<NeedsResubmitRow>
+      >();
+      table = q.matchingTableIDs[0];
+      std::tie(shapes, lifetimes, needsResubmit) = q.get(0);
+      ids = task.getIDResolver();
+    }
+    UnpackedDatabaseElementID table;
     std::shared_ptr<IIDResolver> ids;
-    Gameplay<QueryRow>* queries{};
+    Gameplay<ShapeRow>* shapes{};
     Gameplay<LifetimeRow>* lifetimes{};
     Gameplay<NeedsResubmitRow>* needsResubmit{};
   };
@@ -44,116 +79,185 @@ namespace SpatialQuery {
     return result;
   }
 
-  std::optional<size_t> getIndex(const IIDResolver& resolver, StableElementID& id) {
-    if(std::optional<StableElementID> resolved = resolver.tryResolveStableID(id)) {
-      //Write down for later
-      id = *resolved;
-      //Return raw index that can be used directly into rows in the table
-      return resolver.uncheckedUnpack(id).getElementIndex();
+  template<class QueryShape>
+  constexpr size_t indexOfNarrowphaseShape() {
+    //TODO: probably a nicer thing I could do here
+    if constexpr(std::is_same_v<Narrowphase::Shape::AABB, QueryShape>) {
+      return 1;
     }
-    return {};
+    else if constexpr(std::is_same_v<Narrowphase::Shape::Circle, QueryShape>) {
+      return 2;
+    }
+    else if constexpr(std::is_same_v<Narrowphase::Shape::Raycast, QueryShape>) {
+      return 0;
+    }
   }
 
-  std::optional<size_t> getIndex(ReadData& data, StableElementID& id) {
-    return getIndex(*data.ids, id);
+  template<class T>
+  void refreshQuery(WriteData<T>& data, size_t index, Query&& query, size_t newLifetime) {
+    using ShapeT = typename T::ElementT;
+    constexpr size_t INDEX = indexOfNarrowphaseShape<ShapeT>();
+    assert(query.shape.index() == INDEX && "Query shape must stay the same");
+    data.shapes->at(index) = std::get<INDEX>(query.shape);
+    data.needsResubmit->at(index) = true;
+    data.lifetimes->at(index) = newLifetime;
   }
 
-  void refreshQuery(WriteData& data, size_t index, size_t newLifetime) {
+  template<class T>
+  void refreshQuery(WriteData<T>& data, size_t index, size_t newLifetime) {
     //Lifetime updates by themselves don't need to set the resubmit flag because all of these are checked
     //anyway during the lifetime update
     data.lifetimes->at(index) = newLifetime;
   }
 
-  void refreshQuery(WriteData& data, size_t index, Query&& query, size_t newLifetime) {
-    data.queries->at(index) = std::move(query);
-    data.needsResubmit->at(index) = true;
-    refreshQuery(data, index, newLifetime);
-  }
-
-  void refreshQuery(WriteData& data, StableElementID& index, Query&& query, size_t newLifetime) {
-    if(auto i = getIndex(*data.ids, index)) {
-      refreshQuery(data, *i, std::move(query), newLifetime);
-    }
-  }
-
-  void refreshQuery(WriteData& data, StableElementID& index, size_t newLifetime) {
-    if(auto i = getIndex(*data.ids, index)) {
-      refreshQuery(data, *i, newLifetime);
-    }
-  }
-
-  const Result& getResult(ReadData& data, size_t index) {
-    return data.results->at(index);
-  }
-
-  const Result* tryGetResult(ReadData& data, StableElementID& id) {
-    auto i = getIndex(data, id);
-    return i ? &getResult(data, *i) : nullptr;
-  }
-
   struct Creator : ICreator {
     Creator(RuntimeDatabaseTaskBuilder& task) {
-      data.globals = task.query<const Gameplay<GlobalsRow>>().tryGetSingletonElement();
-      data.ids = task.getIDResolver();
+      SQShapeTables tables{ task };
+      createAABB = CreateData{ task, tables.aabb };
+      createCircle = CreateData{ task, tables.circle };
+      createRaycast = CreateData{ task, tables.raycast };
     }
 
     StableElementID createQuery(Query&& query, size_t lifetime) override {
-      return SpatialQuery::createQuery(data, std::move(query), lifetime);
+      if(auto aabb = std::get_if<AABB>(&query.shape)) {
+        return SpatialQuery::createQuery(createAABB, std::move(query), lifetime);
+      }
+      else if(auto circle = std::get_if<Circle>(&query.shape)) {
+        return SpatialQuery::createQuery(createCircle, std::move(query), lifetime);
+      }
+      else if(auto ray = std::get_if<Raycast>(&query.shape)) {
+        return SpatialQuery::createQuery(createRaycast, std::move(query), lifetime);
+      }
+      return {};
     }
 
-    CreateData data;
+    CreateData createAABB, createCircle, createRaycast;
   };
 
   struct Reader : IReader {
     Reader(RuntimeDatabaseTaskBuilder& task) {
-      data.results = task.query<const Gameplay<ResultRow>>().getSingleton<0>();
-      data.ids = task.getIDResolver();
+      graph = task.query<const SP::IslandGraphRow>().tryGetSingletonElement();
+      std::tie(manifold) = task.query<const SP::ManifoldRow>().get(0);
+      ids = task.getIDResolver();
+      tables = SQShapeTables{ task };
     }
 
-    std::optional<size_t> getIndex(StableElementID& id) override {
-      return SpatialQuery::getIndex(data, id);
+    //TODO: better iterator support
+    //Store the first edge entry for this node in the graph
+    void begin(const StableElementID& id) override {
+      selectedEdgeEntry = IslandGraph::INVALID;
+
+      auto resolved = ids->tryResolveAndUnpack(id);
+      if(!resolved) {
+        return;
+      }
+      self = *resolved;
+
+      auto it = graph->findNode(self.stable.mStableID);
+      if(it != graph->nodesEnd()) {
+        const IslandGraph::Node& node = graph->nodes[it.node];
+        selectedEdgeEntry = node.edges;
+      }
     }
 
-    const Result& getResult(size_t index) override {
-      return SpatialQuery::getResult(data, index);
+    //Return results from the current edge entry and advance to the next one
+    const Result* tryIterate() override {
+      //Iterate through edges until one is found that passed the narrowphase
+      while(selectedEdgeEntry != IslandGraph::INVALID) {
+        const IslandGraph::EdgeEntry& entry = graph->edgeEntries[selectedEdgeEntry];
+        const IslandGraph::Edge& edge = graph->edges[entry.edge];
+        selectedEdgeEntry = entry.nextEntry;
+
+        //Should always work
+        if(auto resolved = ids->tryResolveAndUnpack(StableElementID::fromStableID(edge.data))) {
+          const SP::ContactManifold& man = manifold->at(resolved->unpacked.getElementIndex());
+          //If there are points, copy them over. If there aren't then this made it past broadphase but not narrowphase
+          //AABB is special in that the results directly from the broadphase are returned but has no point data
+          if(man.size || self.unpacked.getTableIndex() == tables.aabb.getTableIndex()) {
+            cachedResult.size = man.size;
+            const size_t stableA = graph->nodes[edge.nodeA].data;
+            const size_t stableB = graph->nodes[edge.nodeB].data;
+            if(stableA == self.stable.mStableID) {
+              cachedResult.other = StableElementID::fromStableID(stableB);
+              for(size_t i = 0; i < man.size; ++i) {
+                cachedResult.points[i].point = man[i].centerToContactA;
+                cachedResult.points[i].normal = man[i].normal;
+                cachedResult.points[i].overlap = man[i].overlap;
+              }
+            }
+            if(stableB == self.stable.mStableID) {
+              cachedResult.other = StableElementID::fromStableID(stableA);
+              for(size_t i = 0; i < man.size; ++i) {
+                cachedResult.points[i].point = man[i].centerToContactB;
+                cachedResult.points[i].normal = -man[i].normal;
+                cachedResult.points[i].overlap = man[i].overlap;
+              }
+            }
+            return &cachedResult;
+          }
+        }
+      }
+      return nullptr;
     }
 
-    const Result* tryGetResult(StableElementID& id) override {
-      return SpatialQuery::tryGetResult(data, id);
-    }
+    const IslandGraph::Graph* graph{};
+    const SP::ManifoldRow* manifold{};
+    std::shared_ptr<IIDResolver> ids{};
 
-    ReadData data;
+    uint32_t selectedEdgeEntry{ IslandGraph::INVALID };
+    ResolvedIDs self;
+    Result cachedResult;
+    SQShapeTables tables;
   };
 
   struct Writer : IWriter {
-    Writer(RuntimeDatabaseTaskBuilder& task) {
-      data.queries = task.query<Gameplay<QueryRow>>().getSingleton<0>();
-      data.lifetimes = task.query<Gameplay<LifetimeRow>>().getSingleton<0>();
-      data.needsResubmit = task.query<Gameplay<NeedsResubmitRow>>().getSingleton<0>();
-      data.ids = task.getIDResolver();
+    Writer(RuntimeDatabaseTaskBuilder& task)
+      : writeAABB{ task }
+      , writeCircle{ task }
+      , writeRay{ task }
+    {
     }
 
-    std::optional<size_t> getIndex(StableElementID& id) override {
-      return SpatialQuery::getIndex(*data.ids, id);
+    std::optional<ResolvedIDs> getKey(StableElementID& id) {
+      return writeAABB.ids->tryResolveAndUnpack(id);
     }
 
-    void refreshQuery(size_t index, Query&& query, size_t newLifetime) override {
-      SpatialQuery::refreshQuery(data, index, std::move(query), newLifetime);
+    template<class T>
+    void visitShape(const ResolvedIDs& key, const T& visitor) {
+      if(key.unpacked.getTableIndex() == writeAABB.table.getTableIndex()) {
+        visitor(writeAABB);
+      }
+      else if(key.unpacked.getTableIndex() == writeCircle.table.getTableIndex()) {
+        visitor(writeCircle);
+      }
+      else if(key.unpacked.getTableIndex() == writeRay.table.getTableIndex()) {
+        visitor(writeRay);
+      }
     }
 
-    void refreshQuery(size_t index, size_t newLifetime) override {
-      SpatialQuery::refreshQuery(data, index, newLifetime);
+    void refreshQuery(const ResolvedIDs& key, Query&& query, size_t newLifetime) override {
+      visitShape(key, [&](auto& shape) { SpatialQuery::refreshQuery(shape, key.unpacked.getElementIndex(), std::move(query), newLifetime); });
     }
 
-    void refreshQuery(StableElementID& index, Query&& query, size_t newLifetime) override {
-      SpatialQuery::refreshQuery(data, index, std::move(query), newLifetime);
+    void refreshQuery(const ResolvedIDs& key, size_t newLifetime) override {
+      visitShape(key, [&](auto& shape) { SpatialQuery::refreshQuery(shape, key.unpacked.getElementIndex(), newLifetime); });
     }
 
-    void refreshQuery(StableElementID& index, size_t newLifetime) override {
-      SpatialQuery::refreshQuery(data, index, newLifetime);
+    void refreshQuery(StableElementID& key, Query&& query, size_t newLifetime) override {
+      if(auto k = getKey(key)) {
+        refreshQuery(*k, std::move(query), newLifetime);
+      }
     }
 
-    WriteData data;
+    void refreshQuery(StableElementID& key, size_t newLifetime) override {
+      if(auto k = getKey(key)) {
+        refreshQuery(*k, newLifetime);
+      }
+    }
+
+    WriteData<Narrowphase::AABBRow> writeAABB;
+    WriteData<Narrowphase::CircleRow> writeCircle;
+    WriteData<Narrowphase::RaycastRow> writeRay;
   };
 
   std::shared_ptr<ICreator> createCreator(RuntimeDatabaseTaskBuilder& task) {
@@ -169,19 +273,19 @@ namespace SpatialQuery {
   }
 
   struct BoundaryVisitor {
-    void operator()(const Raycast& shape) {
+    void operator()(const Narrowphase::Shape::Raycast& shape) {
       const glm::vec2 min = glm::min(shape.start, shape.end);
       const glm::vec2 max = glm::max(shape.start, shape.end);
       TableAdapters::write(index, min, minX, minY);
       TableAdapters::write(index, max, maxX, maxY);
     }
 
-    void operator()(const AABB& shape) {
+    void operator()(const Narrowphase::Shape::AABB& shape) {
       TableAdapters::write(index, shape.min, minX, minY);
       TableAdapters::write(index, shape.max, maxX, maxY);
     }
 
-    void operator()(const Circle& shape) {
+    void operator()(const Narrowphase::Shape::Circle& shape) {
       const glm::vec2 r{ shape.radius, shape.radius };
       TableAdapters::write(index, shape.pos - r, minX, minY);
       TableAdapters::write(index, shape.pos + r, maxX, maxY);
@@ -194,11 +298,12 @@ namespace SpatialQuery {
     MaxY& maxY;
   };
 
-  void physicsUpdateBoundaries(IAppBuilder& builder) {
+  template<class ShapeRow>
+  void physicsUpdateBoundaryShape(ShapeID<ShapeRow>, IAppBuilder& builder) {
     auto task = builder.createTask();
     task.setName("SQ boundaries");
     auto query = task.query<
-      const Physics<QueryRow>,
+      const ShapeRow,
       Physics<MinX>,
       Physics<MinY>,
       Physics<MaxX>,
@@ -215,207 +320,18 @@ namespace SpatialQuery {
           *std::get<4>(rows)
         };
 
-        const Physics<QueryRow>* queries = std::get<0>(rows);
+        const ShapeRow* queries = std::get<0>(rows);
         for(size_t i = 0; i < queries->size(); ++i) {
           visitor.index = i;
-          std::visit(visitor, queries->at(i).shape);
+          visitor(queries->at(i));
         }
       }
     });
     builder.submitTask(std::move(task));
   }
 
-  struct ObjInfo {
-    StableElementID id;
-    glm::vec2 pos{};
-    glm::vec2 rot{};
-  };
-
-  struct VisitPhysicsGain {
-    bool operator()(const Raycast& raycast) {
-      const glm::mat3 transform = Math::buildTransform(obj->pos, obj->rot, Math::getFragmentScale());
-      const glm::mat3 invTransform = glm::affineInverse(transform);
-      const glm::vec2 localStart = Math::transformPoint(invTransform, raycast.start);
-      const glm::vec2 localEnd = Math::transformPoint(invTransform, raycast.end);
-      const glm::vec2 dir = localEnd - localStart;
-      float tmin, tmax;
-      if(Math::unitAABBLineIntersect(localStart, dir, &tmin, &tmax)) {
-        const glm::vec2 localPoint = localStart + dir*tmin;
-        const glm::vec2 localNormal = Math::getNormalFromUnitAABBIntersect(localPoint);
-        RaycastResult& r = getOrCreate<RaycastResults>(results->result).results.emplace_back();
-        r.id = obj->id;
-        r.point = Math::transformPoint(transform, localPoint);
-        r.normal = Math::transformVector(transform, localNormal);
-        return true;
-      }
-      return false;
-    }
-
-    bool operator()(const AABB&) {
-      //Since the broadphase already did an AABB test add the results directly.
-      //This will overshoot a bit due to padding, but it should be good enough
-      getOrCreate<AABBResults>(results->result).results.push_back({ obj->id });
-      return true;
-    }
-
-    bool operator()(const Circle& circle) {
-      const glm::vec2 right = obj->rot;
-      const glm::vec2 up = Math::orthogonal(right);
-      constexpr glm::vec2 extents = Math::getFragmentExtents();
-      //Get closest point on square to sphere by projecting onto each axis and clamping
-      //Right and up are unit length so the projection doesn't need the denominator
-      const glm::vec2 toSphere = circle.pos - obj->pos;
-      const glm::vec2 closestOnSquare = right*glm::clamp(glm::dot(right, toSphere), -extents.x, extents.x) +
-        up*glm::clamp(glm::dot(up, toSphere), -extents.y, extents.y);
-      //See if closest point on square is within radius, meaning the circle is touching the square
-      //len(cpos - (closest + pos))
-      //toSphere = cpos - pos
-      //cpos = toSphere - pos
-      //len(toSphere - pos - (closest + pos))
-      //len(toSphere - closest)
-      if(glm::distance2(toSphere, closestOnSquare) <= circle.radius*circle.radius) {
-        getOrCreate<CircleResults>(results->result).results.push_back({ obj->id });
-        return true;
-      }
-      return false;
-    }
-
-    template<class T, class V>
-    static T& getOrCreate(V& variant) {
-      if(T* result = std::get_if<T>(&variant)) {
-        return *result;
-      }
-      return variant.emplace<T>();
-    }
-
-    Result* results{};
-    const ObjInfo* obj{};
-  };
-
-
-  struct PhysicsProcessArgs {
-    IIDResolver& ids;
-    ITableResolver& objResolver;
-    const Physics<QueryRow>& physicsQueries;
-    Physics<ResultRow>& physicsResults;
-    const StableIDRow& stableRow;
-  };
-
-  //Copies the new pairs into the query `nearbyObjects` list which is then used in physicsProcessUpdates to see if they actually match
-  void physicsProcessGains(PhysicsProcessArgs& args, const std::vector<SweepNPruneBroadphase::SpatialQueryPair>& pairs) {
-    for(const auto& pair : pairs) {
-      if(auto q = args.ids.tryResolveStableID(pair.query)) {
-        args.physicsResults.at(args.ids.uncheckedUnpack(*q).getElementIndex()).nearbyObjects.push_back(pair.object);
-      }
-    }
-  }
-
-  //Removes from the `nearbyObjects` list which will prevent these from being put in the results list during physicsProcessUpdates
-  void physicsProcessLosses(PhysicsProcessArgs& args, const std::vector<SweepNPruneBroadphase::SpatialQueryPair>& pairs) {
-    for(const auto& pair : pairs) {
-      if(auto q = args.ids.tryResolveStableID(pair.query)) {
-        std::vector<StableElementID>& nearby = args.physicsResults.at(args.ids.uncheckedUnpack(*q).getElementIndex()).nearbyObjects;
-        //TODO: probably slow if volumes are too big
-        if(auto it = std::find_if(nearby.begin(), nearby.end(), StableElementFind{ pair.object }); it != nearby.end()) {
-          //Swap remove
-          *it = nearby.back();
-          nearby.pop_back();
-        }
-      }
-    }
-  }
-
-
-  //Iterates over all existing `nearbyObjects` and makes sure that they are still colliding
-  //Objects are added and removed from that container through gains and losses, so the only results that need to be populated are here
-  void physicsProcessUpdates(PhysicsProcessArgs& args) {
-    auto clearResults = [](auto& r) { r.results.clear(); };
-    using namespace Tags;
-    CachedRow<const FloatRow<GPos, X>> px;
-    CachedRow<const FloatRow<GPos, Y>> py;
-    CachedRow<const FloatRow<GRot, CosAngle>> rx;
-    CachedRow<const FloatRow<GRot, SinAngle>> ry;
-
-    for(size_t i = 0; i < args.physicsResults.size(); ++i) {
-      Result& r = args.physicsResults.at(i);
-      //Clear the results completely and repopulate in the list below
-      std::visit(clearResults, r.result);
-
-      const Query& query = args.physicsQueries.at(i);
-      VisitPhysicsGain visitor;
-      visitor.results = &r;
-
-      //Check all nearby to see if they're still colliding
-      //If so they will refill the results list
-      //If not, nothing happens, as the list was cleared above so they won't be in the results
-      for(size_t o = 0; o < r.nearbyObjects.size(); ++o) {
-        StableElementID& nearby = r.nearbyObjects[o];
-        if(const auto obj = args.ids.tryResolveStableID(nearby)) {
-          //Update mapping
-          nearby = *obj;
-
-          //Look up object
-          const UnpackedDatabaseElementID rawObj = args.ids.uncheckedUnpack(*obj);
-          const size_t oi = rawObj.getElementIndex();
-          if(!args.objResolver.tryGetOrSwapAnyRows(rawObj, px, py, rx, ry)) {
-            continue;
-          }
-          ObjInfo info {
-            *obj,
-            //Assume position always succeeds to evaluate
-            TableAdapters::read(oi, *px, *py),
-            //Rotation is optional
-            rx && ry ? TableAdapters::read(oi, *rx, *ry) : glm::vec2{ 1.0f, 0.0f }
-          };
-          visitor.obj = &info;
-
-          //TODO: visitor would be more efficient if it did the looping to avoid switching on each object
-          std::visit(visitor, query.shape);
-        }
-      }
-    }
-  }
-
-  //View the collision pairs output by the broadphase via updateCollisionPairs, add/remove pairs from narrowphase information for the queries,
-  //then resolve all queries to produce updated results
-  void physicsProcessQueries(IAppBuilder& builder) {
-    auto task = builder.createTask();
-    task.setName("SQ physics queries");
-    SweepNPruneBroadphase::ChangedCollisionPairs* pairs = task.query<SharedRow<SweepNPruneBroadphase::ChangedCollisionPairs>>().tryGetSingletonElement();
-    auto ids = task.getIDResolver();
-    auto queries = task.query<
-      const Physics<QueryRow>,
-      Physics<ResultRow>,
-      const StableIDRow
-    >();
-    using namespace Tags;
-    auto objResolver = task.getResolver<
-      const FloatRow<GPos, X>,
-      const FloatRow<GPos, Y>,
-      const FloatRow<GRot, CosAngle>,
-      const FloatRow<GRot, SinAngle>
-    >();
-    task.setCallback([ids, queries, objResolver, pairs](AppTaskArgs&) mutable {
-      for(size_t t = 0; t < queries.size(); ++t) {
-        auto&& [physicsQuery, physicsResult, stableRow] = queries.get(t);
-        PhysicsProcessArgs args {
-          *ids,
-          *objResolver,
-          *physicsQuery,
-          *physicsResult,
-          *stableRow
-        };
-
-        //Each step depends on nearbyObjects so they're all sequential
-        physicsProcessLosses(args, pairs->lostQueries);
-        physicsProcessGains(args, pairs->gainedQueries);
-        physicsProcessUpdates(args);
-
-        pairs->lostQueries.clear();
-        pairs->gainedQueries.clear();
-      }
-    });
-    builder.submitTask(std::move(task));
+  void physicsUpdateBoundaries(IAppBuilder& builder) {
+    visitShapes([&](auto shape) { physicsUpdateBoundaryShape(shape, builder); });
   }
 
   void processLifetime(IAppBuilder& builder, const UnpackedDatabaseElementID& table) {
@@ -441,36 +357,44 @@ namespace SpatialQuery {
     builder.submitTask(std::move(task));
   }
 
-  void submitQueryUpdates(IAppBuilder& builder, const UnpackedDatabaseElementID& table) {
+  template<class ShapeRow>
+  void submitQueryUpdates(ShapeID<ShapeRow>, IAppBuilder& builder, const UnpackedDatabaseElementID& table) {
+    if(!builder.queryTable<ShapeRow>(table)) {
+      return;
+    }
     auto task = builder.createTask();
     task.setName("Spatial query updates");
     auto query = task.query<
-      const Gameplay<QueryRow>,
-      Physics<QueryRow>,
+      const Gameplay<ShapeRow>,
+      ShapeRow,
       Gameplay<NeedsResubmitRow>
     >(table);
     task.setCallback([query](AppTaskArgs&) mutable {
       auto&& [ gameplay, physics, needsResubmit ] = query.get(0);
-        for(size_t i = 0; i < physics->size(); ++i) {
-          //This assumes resubmits are frequent.
-          //If not, it may be faster to add a command to point at the index of what needs to be resubmitted
-          if(needsResubmit->at(i)) {
-            needsResubmit->at(i) = false;
-            physics->at(i) = gameplay->at(i);
-          }
+      for(size_t i = 0; i < physics->size(); ++i) {
+        //This assumes resubmits are frequent.
+        //If not, it may be faster to add a command to point at the index of what needs to be resubmitted
+        if(needsResubmit->at(i)) {
+          needsResubmit->at(i) = false;
+          physics->at(i) = gameplay->at(i);
         }
+      }
     });
     builder.submitTask(std::move(task));
   }
 
+  template<class ShapeRow>
   struct CommandVisitor {
+    using ShapeT = typename ShapeRow::ElementT;
     void operator()(const Command::NewQuery& command) {
       const size_t index = gameplayQueries.size();
       modifier.resizeWithIDs(index + 1, &command.id);
+      constexpr size_t INDEX = indexOfNarrowphaseShape<ShapeT>();
       //Add to physics and gameplay locations now
       //Using the NeedsResubmitRow not feasible here because it's after that has already been processed
-      gameplayQueries.at(index) = command.query;
-      physicsQueries.at(index) = command.query;
+      //The appropriate shapes were dispatched to this table so at this point the variant should only have these
+      gameplayQueries.at(index) = std::get<INDEX>(command.query.shape);
+      physicsQueries.at(index) = std::get<INDEX>(command.query.shape);
       gameplayLifetimes.at(index) = command.lifetime;
       publishNewElement(command.id);
     }
@@ -481,23 +405,27 @@ namespace SpatialQuery {
     }
 
     ITableModifier& modifier;
-    Gameplay<QueryRow>& gameplayQueries;
+    Gameplay<ShapeRow>& gameplayQueries;
     Gameplay<LifetimeRow>& gameplayLifetimes;
-    Physics<QueryRow>& physicsQueries;
+    ShapeRow& physicsQueries;
 
     Events::CreatePublisher& publishNewElement;
     Events::DestroyPublisher& publishRemovedElement;
   };
 
-  void processCommandBuffer(IAppBuilder& builder, const UnpackedDatabaseElementID& table) {
+  template<class ShapeRow>
+  void processCommandBuffer(ShapeID<ShapeRow>, IAppBuilder& builder, const UnpackedDatabaseElementID& table) {
+    if(!builder.queryTable<ShapeRow>(table)) {
+      return;
+    }
     auto task = builder.createTask();
     task.setName("SQ commands");
     auto modifier = task.getModifierForTable(table);
     auto query = task.query<
       Gameplay<GlobalsRow>,
-      Gameplay<QueryRow>,
+      Gameplay<ShapeRow>,
       Gameplay<LifetimeRow>,
-      Physics<QueryRow>
+      ShapeRow
     >(table);
 
     task.setCallback([query, modifier](AppTaskArgs& args)  mutable {
@@ -529,10 +457,11 @@ namespace SpatialQuery {
     auto tables = builder.queryTables<SpatialQueriesTableTag>();
     for(size_t i = 0; i < tables.size(); ++i) {
       const UnpackedDatabaseElementID& table = tables.matchingTableIDs[i];
-      CommonTasks::tryCopyRowSameSize<Physics<ResultRow>, Gameplay<ResultRow>>(builder, table, table);
       processLifetime(builder, table);
-      submitQueryUpdates(builder, table);
-      processCommandBuffer(builder, table);
+      visitShapes([&](auto shape) {
+        submitQueryUpdates(shape, builder, table);
+        processCommandBuffer(shape, builder, table);
+      });
     }
   }
 }

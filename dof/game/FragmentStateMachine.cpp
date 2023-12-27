@@ -17,9 +17,12 @@
 
 namespace SM {
   using namespace FragmentStateMachine;
-  std::optional<StableElementID> tryGetFirstNearby(const SpatialQuery::Result& results, const StableElementID& self) {
-    auto it = std::find_if(results.nearbyObjects.begin(), results.nearbyObjects.end(), [&](const StableElementID& e) { return e.mStableID != self.mStableID; });
-    return it != results.nearbyObjects.end() ? std::make_optional(*it) : std::nullopt;
+  std::optional<StableElementID> tryGetFirstNearby(SpatialQuery::IReader& reader, const StableElementID& self) {
+    const SpatialQuery::Result* result = reader.tryIterate();
+    while(result && result->other != self) {
+      result = reader.tryIterate();
+    }
+    return result ? std::make_optional(result->other) : std::nullopt;
   }
 
   const bool* getShouldDrawAI(RuntimeDatabaseTaskBuilder& task) {
@@ -113,10 +116,8 @@ namespace SM {
           const size_t stableID = stableRow->at(si);
 
           Wander& wander = std::get<Wander>(state->at(si).currentState);
-          const SpatialQuery::Result* results = spatialQueryR->tryGetResult(wander.spatialQuery);
-          if(!results) {
-            continue;
-          }
+          spatialQueryR->begin(wander.spatialQuery);
+          const auto nearby = tryGetFirstNearby(*spatialQueryR, StableElementID::fromStableID(stableID));
 
           constexpr float linearSpeed = 0.003f;
           constexpr float angularAvoidance = 0.01f;
@@ -129,7 +130,7 @@ namespace SM {
           const float angSpeed =  std::abs(angVel);
           if(angSpeed < maxAngVel) {
             //If something is in the way, turn to the right
-            if(tryGetFirstNearby(*results, StableElementID::fromStableID(stableID))) {
+            if(nearby) {
               impulseA->at(si) += angularAvoidance;
             }
           }
@@ -189,16 +190,15 @@ namespace SM {
 
           StableElementID temp = wander.spatialQuery;
           //Draw lines to each nearby spatial query result
-          if(const SpatialQuery::Result* nearby = spatialQuery->tryGetResult(temp)) {
-            for(const StableElementID& n : nearby->nearbyObjects) {
-              if(n.mStableID == myID) {
-                continue;
-              }
-              if(auto resolved = ids->tryResolveAndUnpack(n)) {
-                if(resolver->tryGetOrSwapAllRows(resolved->unpacked, resolvedX, resolvedY)) {
-                  const glm::vec2 resolvedPos = TableAdapters::read(resolved->unpacked.getElementIndex(), *resolvedX, *resolvedY);
-                  DebugDrawer::drawLine(debug, myPos, resolvedPos, glm::vec3{ 1.0f });
-                }
+          spatialQuery->begin(temp);
+          while(const auto* n = spatialQuery->tryIterate()) {
+            if(n->other.mStableID == myID) {
+              continue;
+            }
+            if(auto resolved = ids->tryResolveAndUnpack(n->other)) {
+              if(resolver->tryGetOrSwapAllRows(resolved->unpacked, resolvedX, resolvedY)) {
+                const glm::vec2 resolvedPos = TableAdapters::read(resolved->unpacked.getElementIndex(), *resolvedX, *resolvedY);
+                DebugDrawer::drawLine(debug, myPos, resolvedPos, glm::vec3{ 1.0f });
               }
             }
           }

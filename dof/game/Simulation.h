@@ -319,7 +319,9 @@ using DebugTextTable = Table<Row<DebugText>, DebugClearPerFrame>;
 using BroadphaseTable = SweepNPruneBroadphase::BroadphaseTable;
 
 using GameDatabase = Database<
-  SpatialQuery::SpatialQueriesTable,
+  SpatialQuery::AABBSpatialQueriesTable,
+  SpatialQuery::CircleSpatialQueriesTable,
+  SpatialQuery::RaycastSpatialQueriesTable,
   GlobalGameData,
   GameObjectTable,
   StaticGameObjectTable,

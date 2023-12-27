@@ -313,6 +313,10 @@ struct QueryResult<> {
     return matchingTableIDs.size();
   }
 
+  const UnpackedDatabaseElementID& operator[](size_t i) const {
+    return matchingTableIDs[i];
+  }
+
   std::vector<UnpackedDatabaseElementID> matchingTableIDs;
 };
 

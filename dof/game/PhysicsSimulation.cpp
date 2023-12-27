@@ -153,7 +153,6 @@ namespace PhysicsSimulation {
 
     Narrowphase::generateContactsFromSpatialPairs(builder, getUnitCubeDefinition());
     Physics::updateNarrowphase(builder, aliases);
-    SpatialQuery::physicsProcessQueries(builder);
 
     ConstraintsTableBuilder::build(builder, config);
     Physics::fillConstraintVelocities(builder, aliases);

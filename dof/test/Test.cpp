@@ -1912,15 +1912,20 @@ namespace Test {
 
     void assertQueryHas(TestGame& game, StableElementID query, std::vector<StableElementID> expected) {
       auto q = SpatialQuery::createReader(game.builder());
-      const SpatialQuery::Result* r = q->tryGetResult(query);
-      Assert::IsNotNull(r);
+      q->begin(query);
+      const SpatialQuery::Result* r = q->tryIterate();
 
-      std::visit([&expected](const auto& r) {
-        Assert::AreEqual(expected.size(), r.results.size(), L"Size should match");
-        for(size_t i = 0; i < expected.size(); ++i) {
-          Assert::AreEqual(expected[i].mStableID, r.results[i].id.mStableID);
+      size_t count = 0;
+      while(r && expected.size() > count) {
+        if(expected[count].mStableID != r->other.mStableID) {
+          __debugbreak();
         }
-      }, r->result);
+        Assert::AreEqual(expected[count].mStableID, r->other.mStableID);
+
+        ++count;
+        r = q->tryIterate();
+      }
+      Assert::AreEqual(expected.size(), count);
     }
 
     void assertQueryHasObject(TestGame& game, StableElementID query, StableElementID object) {
@@ -1980,12 +1985,13 @@ namespace Test {
 
       //Move circle out and turn raycast into an aabb
       writer->refreshQuery(circle, { SpatialQuery::Circle{ glm::vec2(20), 1.0f } }, 10);
-      writer->refreshQuery(cast, { SpatialQuery::AABB{ glm::vec2(2.f, -1.f), glm::vec2(2.5f, 0.f) } }, 10);
+      //Shape changing not supported anymore
+      //writer->refreshQuery(cast, { SpatialQuery::AABB{ glm::vec2(2.f, -1.f), glm::vec2(2.5f, 0.f) } }, 10);
       tickQueryUpdate(game);
 
       assertQueryNoObjects(game, bb);
       assertQueryNoObjects(game, circle);
-      assertQueryHasObject(game, cast, objID);
+      //assertQueryHasObject(game, cast, objID);
 
       //Try a query with a single tick lifetime
       StableElementID single = creator->createQuery({ SpatialQuery::Circle{ glm::vec2(2, -1), 1.f } }, SpatialQuery::SINGLE_USE);
@@ -2001,7 +2007,8 @@ namespace Test {
       };
       game.update();
       auto reader = SpatialQuery::createReader(game.builder());
-      Assert::IsFalse(reader->getIndex(single).has_value());
+      reader->begin(single);
+      Assert::IsNull(reader->tryIterate());
     }
 
     TEST_METHOD(CollisionMasks) {

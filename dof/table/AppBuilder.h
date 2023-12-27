@@ -257,6 +257,15 @@ public:
     return result;
   }
 
+  //Query table ids without the actual data. Does not log the dependency
+  template<class... Rows>
+  QueryResult<> queryTables() {
+    QueryResult<Rows...> temp = db.query<Rows...>();
+    QueryResult<> result;
+    result.matchingTableIDs = std::move(temp.matchingTableIDs);
+    return result;
+  }
+
   std::shared_ptr<ITableModifier> getModifierForTable(const UnpackedDatabaseElementID& table);
   std::vector<std::shared_ptr<ITableModifier>> getModifiersForTables(const std::vector<UnpackedDatabaseElementID>& tables);
   std::shared_ptr<IAnyTableModifier> getAnyModifier();

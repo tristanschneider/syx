@@ -135,6 +135,61 @@ namespace IslandGraph {
       uint32_t edge{};
     };
 
+    struct ConstEdgeIterator {
+      using iterator_category = std::random_access_iterator_tag;
+      using value_type        = const EdgeUserdata;
+      using difference_type   = size_t;
+      using pointer           = const EdgeUserdata*;
+      using reference         = const EdgeUserdata&;
+      using iterator = ConstEdgeIterator;
+
+      reference operator*() {
+        return graph->edges[edge].data;
+      }
+
+      pointer operator->() {
+        return &operator*();
+      }
+
+      iterator& operator++() {
+        edge = graph->edges[edge].islandNext;
+        return *this;
+      }
+
+      iterator operator++(int) {
+        auto temp = *this;
+        ++*this;
+        return temp;
+      }
+
+      bool operator==(const iterator& _Right) const {
+          return edge == _Right.edge;
+      }
+
+      bool operator!=(const iterator& _Right) const noexcept {
+          return !(*this == _Right);
+      }
+
+      bool operator<(const iterator& _Right) const noexcept {
+          return edge < _Right.edge;
+      }
+
+      bool operator>(const iterator& _Right) const noexcept {
+          return _Right < *this;
+      }
+
+      bool operator<=(const iterator& _Right) const noexcept {
+          return !(_Right < *this);
+      }
+
+      bool operator>=(const iterator& _Right) const noexcept {
+        return !(*this < _Right);
+      }
+
+      const Graph* graph{};
+      uint32_t edge{};
+    };
+
     struct NodeIterator {
       using iterator_category = std::forward_iterator_tag;
       using value_type        = NodeUserdata;
@@ -187,6 +242,61 @@ namespace IslandGraph {
       }
 
       Graph* graph{};
+      uint32_t node{};
+    };
+
+    struct ConstNodeIterator {
+      using iterator_category = std::forward_iterator_tag;
+      using value_type        = const NodeUserdata;
+      using difference_type   = size_t;
+      using pointer           = const NodeUserdata*;
+      using reference         = const NodeUserdata&;
+      using iterator = ConstNodeIterator;
+
+      reference operator*() {
+        return graph->nodes[node].data;
+      }
+
+      pointer operator->() {
+        return &operator*();
+      }
+
+      iterator& operator++() {
+        node = graph->nodes[node].islandNext;
+        return *this;
+      }
+
+      iterator operator++(int) {
+        auto temp = *this;
+        ++*this;
+        return temp;
+      }
+
+      bool operator==(const iterator& _Right) const {
+          return node == _Right.node;
+      }
+
+      bool operator!=(const iterator& _Right) const noexcept {
+          return !(*this == _Right);
+      }
+
+      bool operator<(const iterator& _Right) const noexcept {
+          return node < _Right.node;
+      }
+
+      bool operator>(const iterator& _Right) const noexcept {
+          return _Right < *this;
+      }
+
+      bool operator<=(const iterator& _Right) const noexcept {
+          return !(_Right < *this);
+      }
+
+      bool operator>=(const iterator& _Right) const noexcept {
+        return !(*this < _Right);
+      }
+
+      const Graph* graph{};
       uint32_t node{};
     };
 
@@ -319,12 +429,22 @@ namespace IslandGraph {
 
     EdgeIterator findEdge(const NodeUserdata& a, const NodeUserdata& b);
     NodeIterator findNode(const NodeUserdata& node);
+    ConstEdgeIterator findEdge(const NodeUserdata& a, const NodeUserdata& b) const;
+    ConstNodeIterator findNode(const NodeUserdata& node) const;
 
     EdgeIterator edgesEnd() {
       return { this, INVALID };
     }
 
+    ConstEdgeIterator edgesEnd() const {
+      return { this, INVALID };
+    }
+
     NodeIterator nodesEnd() {
+      return { this, INVALID };
+    }
+
+    ConstNodeIterator nodesEnd() const {
       return { this, INVALID };
     }
 
