@@ -171,6 +171,7 @@ namespace Player {
           const float angularSpeed = CurveSolver::solve(playerInput.angularMoveT, *angularSpeedCurve);
           const float angularForce = CurveSolver::solve(playerInput.angularMoveT, *angularForceCurve);
 
+          //TODO: read from SharedMassRow
           constexpr Mass mass = computePlayerMass();
 
           Constraint c;

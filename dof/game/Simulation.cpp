@@ -3,11 +3,8 @@
 
 #include "Queries.h"
 
-#include "unity.h"
-
 #include "config/ConfigIO.h"
 #include "File.h"
-#include "glm/gtx/norm.hpp"
 #include "Fragment.h"
 #include "GameplayExtract.h"
 #include "stat/AllStatEffects.h"
@@ -21,6 +18,9 @@
 #include "ability/PlayerAbility.h"
 #include "TableService.h"
 #include "AppBuilder.h"
+#include "FragmentStateMachine.h"
+#include "SpatialQueries.h"
+#include "ConstraintSolver.h"
 
 PlayerInput::PlayerInput()
   : ability1(std::make_unique<Ability::AbilityInput>()) {
@@ -33,10 +33,6 @@ PlayerInput::~PlayerInput() = default;
 
 namespace {
   using namespace Tags;
-
-  StableElementMappings& _getStableMappings(GameDatabase& db) {
-    return std::get<SharedRow<StableElementMappings>>(std::get<GlobalGameData>(db.mTables).mRows).at();
-  }
 
   size_t _requestTextureLoad(Row<TextureLoadRequest>& textures, ITableModifier& textureModifier, const char* filename) {
     const size_t i = textureModifier.addElements(1);
@@ -168,14 +164,6 @@ void Simulation::buildUpdateTasks(IAppBuilder& builder, const UpdateConfig& conf
   PhysicsSimulation::postProcessEvents(builder);
 }
 
-Scheduler& Simulation::_getScheduler(GameDatabase& db) {
-  return std::get<SharedRow<Scheduler>>(std::get<GlobalGameData>(db.mTables).mRows).at();
-}
-
-const SceneState& Simulation::_getSceneState(GameDatabase& db) {
-  return std::get<SharedRow<SceneState>>(std::get<GlobalGameData>(db.mTables).mRows).at();
-}
-
 void tryInitFromConfig(Config::GameConfig& toSet, const ConfigIO::Result::Error& error) {
   printf("Error reading config file, initializing with defaults. [%s]\n", error.message.c_str());
   ConfigIO::defaultInitialize(*Config::createFactory(), toSet);
@@ -212,43 +200,26 @@ void Simulation::initScheduler(IAppBuilder& builder) {
   builder.submitTask(std::move(task));
 }
 
+//Does a query and sets the default value of the first query element
+template<class... Query, class T>
+void setDefaultValue(IAppBuilder& builder, std::string_view taskName, T value) {
+  auto task = builder.createTask();
+  task.setName(taskName);
+  auto q = task.query<Query...>();
+  task.setCallback([q, value](AppTaskArgs&) mutable {
+    q.forEachRow([value](auto& row, auto&...) { row.setDefaultValue(value); });
+  });
+  builder.submitTask(std::move(task));
+}
+
 void Simulation::init(IAppBuilder& builder) {
-  auto setDefaultValue = [](auto query, auto value) {
-    return [query, value](AppTaskArgs&) mutable {
-      query.forEachRow([value](auto& row, auto&...) { row.mDefaultValue = value; });
-    };
-  };
-  {
-    auto task = builder.createTask();
-    task.setName("setDefault Rot");
-    task.setCallback(setDefaultValue(task.query<FloatRow<Tags::Rot, Tags::CosAngle>>(), 1.0f));
-    builder.submitTask(std::move(task));
-  }
-  {
-    auto task = builder.createTask();
-    task.setName("setDefault GRot");
-    task.setCallback(setDefaultValue(task.query<FloatRow<Tags::GRot, Tags::CosAngle>>(), 1.0f));
-    builder.submitTask(std::move(task));
-  }
-  {
-    auto task = builder.createTask();
-    task.setName("setDefault Mask");
-    task.setCallback(setDefaultValue(task.query<CollisionMaskRow>(), uint8_t(~0)));
-    builder.submitTask(std::move(task));
-  }
-  {
-    auto task = builder.createTask();
-    task.setName("setDefault Mask");
-    task.setCallback(setDefaultValue(task.query<Narrowphase::CollisionMaskRow>(), uint8_t(~0)));
-    builder.submitTask(std::move(task));
-  }
-  {
-    auto task = builder.createTask();
-    task.setName("setDefault Tint");
-    //Fragments in particular start opaque then reveal the texture as they take damage
-    task.setCallback(setDefaultValue(task.query<Tint, const IsFragment>(), glm::vec4(0, 0, 0, 1)));
-    builder.submitTask(std::move(task));
-  }
+  setDefaultValue<FloatRow<Tags::Rot, Tags::CosAngle>>(builder, "setDefault Rot", 1.0f);
+  setDefaultValue<FloatRow<Tags::GRot, Tags::CosAngle>>(builder, "setDefault GRot", 1.0f);
+  setDefaultValue<Narrowphase::CollisionMaskRow>(builder, "setDefault Mask", uint8_t(~0));
+  setDefaultValue<ConstraintSolver::ConstraintMaskRow>(builder, "setDefault Constraint Mask", ConstraintSolver::MASK_SOLVE_ALL);
+  setDefaultValue<ConstraintSolver::SharedMassRow, Narrowphase::SharedUnitCubeRow>(builder, "setDefault mass", Geo::computeQuadMass(1, 1, 1));
+  //Fragments in particular start opaque then reveal the texture as they take damage
+  setDefaultValue<Tint, const IsFragment>(builder, "setDefault Tint", glm::vec4(0, 0, 0, 1));
   PhysicsSimulation::init(builder);
   Player::init(builder);
 

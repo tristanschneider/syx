@@ -3,7 +3,6 @@
 #include "SpatialQueries.h"
 
 #include "TableAdapters.h"
-#include "Simulation.h"
 
 #include "CommonTasks.h"
 #include "DBEvents.h"
@@ -14,6 +13,7 @@
 
 #include "GameMath.h"
 #include "Physics.h"
+#include "SpatialPairsStorage.h"
 
 namespace SpatialQuery {
   template<class ShapeRow>

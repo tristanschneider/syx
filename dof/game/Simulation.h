@@ -1,24 +1,15 @@
 #pragma once
 
-#include "ConstraintsTableBuilder.h"
-#include "Database.h"
 #include "Table.h"
-
 #include "Config.h"
-#include "FragmentStateMachine.h"
 #include "glm/vec2.hpp"
 #include "glm/vec3.hpp"
 #include "glm/vec4.hpp"
-#include "SpatialQueries.h"
-#include "SweepNPruneBroadphase.h"
 #include "StableElementID.h"
 #include "Scheduler.h"
-#include "PhysicsTableIds.h"
 #include <bitset>
 #include "DBEvents.h"
 #include "RowTags.h"
-#include "Narrowphase.h"
-#include "SpatialPairsStorage.h"
 
 namespace Ability {
   struct AbilityInput;
@@ -83,23 +74,6 @@ struct ThreadLocalsInstance {
 
 struct ThreadLocalsRow : SharedRow<ThreadLocalsInstance> {};
 
-using TextureRequestTable = Table<
-  Row<TextureLoadRequest>
->;
-
-using GlobalGameData = Table<
-  SharedRow<SceneState>,
-  SharedRow<PhysicsTableIds>,
-  SharedRow<FileSystem>,
-  SharedRow<StableElementMappings>,
-  SharedRow<ConstraintsTableMappings>,
-  SharedRow<Scheduler>,
-  SharedRow<Config::GameConfig>,
-  Events::EventsRow,
-
-  ThreadLocalsRow
->;
-
 struct IsImmobile : TagRow{};
 struct IsFragment : TagRow{};
 struct DamageTaken : Row<float>{};
@@ -107,95 +81,14 @@ struct Tint : Row<glm::vec4>{};
 enum class FragmentFlags : uint8_t {
   InBounds = 1 << 0,
 };
+
+struct SharedMassObjectTableTag : TagRow{};
+
 struct FragmentFlagsRow : Row<FragmentFlags>{};
-
-using GameObjectTable = Table<
-  SharedMassObjectTableTag,
-  //Data viewed by physics, not to be used by gameplay
-  FloatRow<Tags::Pos, Tags::X>,
-  FloatRow<Tags::Pos, Tags::Y>,
-  FloatRow<Tags::Rot, Tags::CosAngle>,
-  FloatRow<Tags::Rot, Tags::SinAngle>,
-  FloatRow<Tags::LinVel, Tags::X>,
-  FloatRow<Tags::LinVel, Tags::Y>,
-  FloatRow<Tags::AngVel, Tags::Angle>,
-
-  //Gameplay data extracted from above
-  FloatRow<Tags::GPos, Tags::X>,
-  FloatRow<Tags::GPos, Tags::Y>,
-  FloatRow<Tags::GRot, Tags::CosAngle>,
-  FloatRow<Tags::GRot, Tags::SinAngle>,
-  FloatRow<Tags::GLinVel, Tags::X>,
-  FloatRow<Tags::GLinVel, Tags::Y>,
-  FloatRow<Tags::GAngVel, Tags::Angle>,
-
-  //Impulses requested from gameplay
-  FloatRow<Tags::GLinImpulse, Tags::X>,
-  FloatRow<Tags::GLinImpulse, Tags::Y>,
-  FloatRow<Tags::GAngImpulse, Tags::Angle>,
-
-  FloatRow<Tags::FragmentGoal, Tags::X>,
-  FloatRow<Tags::FragmentGoal, Tags::Y>,
-  DamageTaken,
-  Tint,
-  FragmentFlagsRow,
-  FragmentStateMachine::StateRow,
-  FragmentStateMachine::GlobalsRow,
-
-  CollisionMaskRow,
-  Narrowphase::CollisionMaskRow,
-  SweepNPruneBroadphase::BroadphaseKeys,
-  Narrowphase::SharedUnitCubeRow,
-
-  Row<CubeSprite>,
-  FragmentGoalFoundRow,
-  SharedRow<TextureReference>,
-  IsFragment,
-
-  StableIDRow
->;
 
 struct FragmentGoalFoundTableTag : TagRow {};
 
-using StaticGameObjectTable = Table<
-  ZeroMassObjectTableTag,
-  FragmentGoalFoundTableTag,
-  FloatRow<Tags::Pos, Tags::X>,
-  FloatRow<Tags::Pos, Tags::Y>,
-  FloatRow<Tags::Rot, Tags::CosAngle>,
-  FloatRow<Tags::Rot, Tags::SinAngle>,
-
-  //Gameplay data extracted from above
-  //TODO: take advantage of immobility to avoid the need for this
-  FloatRow<Tags::GPos, Tags::X>,
-  FloatRow<Tags::GPos, Tags::Y>,
-  FloatRow<Tags::GRot, Tags::CosAngle>,
-  FloatRow<Tags::GRot, Tags::SinAngle>,
-
-  CollisionMaskRow,
-  Narrowphase::CollisionMaskRow,
-  SweepNPruneBroadphase::BroadphaseKeys,
-  Narrowphase::SharedUnitCubeRow,
-
-  //Only requires broadphase key to know how to remove it, don't need to store boundaries
-  //for efficient updates because it won't move
-  Row<CubeSprite>,
-  SharedRow<TextureReference>,
-  IsImmobile,
-  IsFragment,
-
-  StableIDRow
->;
-
 struct TargetTableTag : TagRow{};
-
-//Table to hold positions to be referenced by stable element id
-using TargetPosTable = Table<
-  TargetTableTag,
-  FloatRow<Tags::Pos, Tags::X>,
-  FloatRow<Tags::Pos, Tags::Y>,
-  StableIDRow
->;
 
 enum class KeyState : uint8_t {
   Up,
@@ -245,42 +138,6 @@ struct PlayerKeyboardInput {
 
 struct IsPlayer : SharedRow<char> {};
 
-using PlayerTable = Table<
-  IsPlayer,
-  FloatRow<Tags::Pos, Tags::X>,
-  FloatRow<Tags::Pos, Tags::Y>,
-  FloatRow<Tags::Rot, Tags::CosAngle>,
-  FloatRow<Tags::Rot, Tags::SinAngle>,
-  FloatRow<Tags::LinVel, Tags::X>,
-  FloatRow<Tags::LinVel, Tags::Y>,
-  FloatRow<Tags::AngVel, Tags::Angle>,
-
-  //Gameplay data extracted from above
-  FloatRow<Tags::GPos, Tags::X>,
-  FloatRow<Tags::GPos, Tags::Y>,
-  FloatRow<Tags::GRot, Tags::CosAngle>,
-  FloatRow<Tags::GRot, Tags::SinAngle>,
-  FloatRow<Tags::GLinVel, Tags::X>,
-  FloatRow<Tags::GLinVel, Tags::Y>,
-  FloatRow<Tags::GAngVel, Tags::Angle>,
-
-  //Impulses requested from gameplay
-  FloatRow<Tags::GLinImpulse, Tags::X>,
-  FloatRow<Tags::GLinImpulse, Tags::Y>,
-  FloatRow<Tags::GAngImpulse, Tags::Angle>,
-
-  CollisionMaskRow,
-  SweepNPruneBroadphase::BroadphaseKeys,
-  Narrowphase::CollisionMaskRow,
-  Narrowphase::SharedUnitCubeRow,
-
-  Row<CubeSprite>,
-  Row<PlayerInput>,
-  Row<PlayerKeyboardInput>,
-  SharedRow<TextureReference>,
-
-  StableIDRow
->;
 
 struct Camera {
   float angle{};
@@ -292,14 +149,6 @@ struct DebugCameraControl {
   bool mTakeSnapshot{};
   bool mLoadSnapshot{};
 };
-
-using CameraTable = Table<
-  Row<Camera>,
-  FloatRow<Tags::Pos, Tags::X>,
-  FloatRow<Tags::Pos, Tags::Y>,
-  Row<DebugCameraControl>,
-  StableIDRow
->;
 
 struct DebugPoint {
   glm::vec2 mPos;
@@ -315,32 +164,6 @@ struct DebugClearPerFrame : TagRow{};
 
 using DebugLineTable = Table<Row<DebugPoint>, DebugClearPerFrame>;
 using DebugTextTable = Table<Row<DebugText>, DebugClearPerFrame>;
-
-using BroadphaseTable = SweepNPruneBroadphase::BroadphaseTable;
-
-using GameDatabase = Database<
-  SpatialQuery::AABBSpatialQueriesTable,
-  SpatialQuery::CircleSpatialQueriesTable,
-  SpatialQuery::RaycastSpatialQueriesTable,
-  GlobalGameData,
-  GameObjectTable,
-  StaticGameObjectTable,
-  TextureRequestTable,
-  PlayerTable,
-  CameraTable,
-  BroadphaseTable,
-  CollisionPairsTable,
-  ConstraintsTable,
-  ConstraintCommonTable,
-  ContactConstraintsToStaticObjectsTable,
-  SP::SpatialPairsTable,
-  DebugLineTable,
-  DebugTextTable,
-  TargetPosTable
->;
-
-//For allowing forward declarations where GameDatabase is desired
-struct GameDB { GameDatabase& db; };
 
 namespace Simulation {
   void initScheduler(IAppBuilder& builder);
@@ -359,9 +182,6 @@ namespace Simulation {
   };
 
   void buildUpdateTasks(IAppBuilder& builder, const UpdateConfig& config);
-
-  const SceneState& _getSceneState(GameDatabase& db);
-  Scheduler& _getScheduler(GameDatabase& db);
 
   const char* getConfigName();
 };

@@ -263,6 +263,20 @@ namespace Test {
       assertSolved();
     }
 
+    TEST_METHOD(LargeCounts) {
+      using namespace PGS;
+      SolverStorage storage;
+      constexpr auto CONSTRAINTS = std::numeric_limits<PGS::ConstraintIndex>::max();
+      constexpr auto BODIES = std::numeric_limits<PGS::BodyIndex>::max();
+      storage.resize(BODIES, CONSTRAINTS);
+      storage.setUniformMass(1, 0);
+      storage.setUniformLambdaBounds(SolverStorage::UNLIMITED_MIN, SolverStorage::UNLIMITED_MAX);
+      //Don't care what it does just want to make sure it doesn't get stuck in an infinite loop
+      storage.premultiply();
+      auto context = storage.createContext();
+      PGS::solvePGSWarmStart(context);
+    }
+
     //TODO, test case for bias and limits
   };
 }

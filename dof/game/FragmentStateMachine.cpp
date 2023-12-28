@@ -14,6 +14,7 @@
 #include "DebugDrawer.h"
 #include "ThreadLocals.h"
 #include "Random.h"
+#include "SpatialQueries.h"
 
 namespace SM {
   using namespace FragmentStateMachine;

@@ -6,6 +6,7 @@
 #include "Simulation.h"
 #include "TableAdapters.h"
 #include "unity.h"
+#include "FragmentStateMachine.h"
 
 #include <cassert>
 #include "glm/gtx/norm.hpp"

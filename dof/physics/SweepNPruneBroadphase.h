@@ -2,7 +2,6 @@
 
 #include <cassert>
 #include "Profile.h"
-#include "PhysicsTableIds.h"
 #include "Table.h"
 #include "TableOperations.h"
 #include "StableElementID.h"
@@ -20,12 +19,6 @@ namespace SweepNPruneBroadphase {
   using Key = StableIDRow;
   struct BroadphaseKeys : Row<Broadphase::BroadphaseKey> {};
 
-  struct CollisionPairMappings {
-    //Fake index used to indicate if a pair is a spatial query which means it doesn't get a collision table mapping
-    static constexpr size_t SPATIAL_QUERY_INDEX = std::numeric_limits<size_t>::max();
-    std::unordered_map<Broadphase::SweepCollisionPair, size_t> mSweepPairToCollisionTableIndex;
-    std::vector<Broadphase::SweepCollisionPair> mCollisionTableIndexToSweepPair;
-  };
   //Broadphase is responsible for making sure gains and losses are unique and pairs have a deterministic order,
   //meaning the order wouldn't be flipped between a gain and loss
   struct PairChanges {
@@ -34,21 +27,9 @@ namespace SweepNPruneBroadphase {
     //Removed collision pairs caused by reinserts or erases
     std::vector<Broadphase::SweepCollisionPair> mLost;
   };
-  struct SpatialQueryPair {
-    StableElementID query{};
-    StableElementID object{};
-  };
-  struct ChangedCollisionPairs {
-    std::vector<StableElementID> mGained;
-    std::vector<StableElementID> mLost;
-    std::vector<SpatialQueryPair> gainedQueries;
-    std::vector<SpatialQueryPair> lostQueries;
-  };
   using BroadphaseTable = Table<
     SharedRow<Broadphase::SweepGrid::Grid>,
-    SharedRow<PairChanges>,
-    SharedRow<ChangedCollisionPairs>,
-    SharedRow<CollisionPairMappings>
+    SharedRow<PairChanges>
   >;
 
   struct BoundariesConfig {
@@ -69,8 +50,4 @@ namespace SweepNPruneBroadphase {
 
   //After table service
   void postProcessEvents(RuntimeDatabaseTaskBuilder& task, const DBEvents& events, const PhysicsAliases& aliases, const BoundariesConfig& cfg);
-
-  std::optional<std::pair<StableElementID, StableElementID>> _tryGetOrderedCollisionPair(const Broadphase::SweepCollisionPair& key, const PhysicsTableIds& tableIds, StableElementMappings& stableMappings, bool assertIfMissing);
-  bool isSpatialQueryPair(const std::pair<StableElementID, StableElementID>& orderedCollisionPair, const PhysicsTableIds& tableIds);
-  SpatialQueryPair getSpatialQueryPair(const std::pair<StableElementID, StableElementID>& orderedCollisionPair);
 };

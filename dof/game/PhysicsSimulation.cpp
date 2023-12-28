@@ -5,6 +5,10 @@
 #include "TableAdapters.h"
 #include "DebugDrawer.h"
 #include "Narrowphase.h"
+#include "ConstraintSolver.h"
+#include"Physics.h"
+#include "SweepNPruneBroadphase.h"
+#include "SpatialQueries.h"
 
 namespace PhysicsSimulation {
   using PosX = FloatRow<Tags::Pos, Tags::X>;
@@ -30,20 +34,9 @@ namespace PhysicsSimulation {
     auto task = builder.createTask();
     task.setName("physics debug");
     DebugLineAdapter debug = TableAdapters::getDebugLines(task);
-    using ObjA = NarrowphaseData<PairA>;
-    using ObjB = NarrowphaseData<PairB>;
-    using COne = ContactPoint<ContactOne>;
-    using CTwo = ContactPoint<ContactTwo>;
-    auto narrowphase = task.query<
-      const ObjA::PosX, const ObjA::PosY,
-      const ObjB::PosX, const ObjB::PosY,
-      const COne::PosX, const COne::PosY, const COne::Overlap,
-      const CTwo::PosX, const CTwo::PosY, const CTwo::Overlap,
-      const SharedNormal::X, const SharedNormal::Y
-    >();
     auto broadphase = task.query<const SharedRow<Broadphase::SweepGrid::Grid>>();
 
-    task.setCallback([debug, narrowphase, broadphase, &config](AppTaskArgs&) mutable {
+    task.setCallback([debug, broadphase, &config](AppTaskArgs&) mutable {
       if(config.broadphase.draw) {
         for(size_t t = 0; t < broadphase.size(); ++t) {
           const Broadphase::SweepGrid::Grid& grid = broadphase.get<0>(t).at();
@@ -152,18 +145,8 @@ namespace PhysicsSimulation {
     SweepNPruneBroadphase::updateBroadphase(builder, _getBoundariesConfig(builder), aliases);
 
     Narrowphase::generateContactsFromSpatialPairs(builder, getUnitCubeDefinition());
-    Physics::updateNarrowphase(builder, aliases);
+    ConstraintSolver::solveConstraints(builder, aliases);
 
-    ConstraintsTableBuilder::build(builder, config);
-    Physics::fillConstraintVelocities(builder, aliases);
-    Physics::setupConstraints(builder);
-    PhysicsSimulation::_debugUpdate(builder, config);
-    const int solveIterations = config.solveIterations;
-    //TODO: stop early if global lambda sum falls below tolerance
-    for(int i = 0; i < solveIterations; ++i) {
-      Physics::solveConstraints(builder, config);
-    }
-    Physics::storeConstraintVelocities(builder, aliases);
     Physics::integratePosition(builder, aliases);
     Physics::integrateRotation(builder, aliases);
   }

@@ -7,35 +7,6 @@
 #include "SpatialPairsStorage.h"
 
 namespace SweepNPruneBroadphase {
-  std::optional<std::pair<StableElementID, StableElementID>> _tryGetOrderedCollisionPair(const Broadphase::SweepCollisionPair& key, const PhysicsTableIds& tableIds, IIDResolver& resolver, bool assertIfMissing) {
-    std::optional<StableElementID> elementA = resolver.tryResolveStableID(StableElementID::fromStableID(key.a));
-    std::optional<StableElementID> elementB = resolver.tryResolveStableID(StableElementID::fromStableID(key.b));
-    if(assertIfMissing) {
-      assert(elementA);
-      assert(elementB);
-    }
-    if(elementA && elementB) {
-      auto pair = std::make_pair(*elementA, *elementB);
-      //If this isn't an applicable pair, skip to the next without incrementing addIndex
-      if(CollisionPairOrder::tryOrderCollisionPair(pair.first, pair.second, tableIds)) {
-        return pair;
-      }
-    }
-    return {};
-  }
-
-  SpatialQueryPair getSpatialQueryPair(const std::pair<StableElementID, StableElementID>& orderedCollisionPair) {
-    //Based on the ordering fro tryOrderCollisionPair above
-    SpatialQueryPair result;
-    result.query = orderedCollisionPair.first;
-    result.object = orderedCollisionPair.second;
-    return result;
-  }
-
-  bool isSpatialQueryPair(const std::pair<StableElementID, StableElementID>& orderedCollisionPair, const PhysicsTableIds& tableIds) {
-    return (orderedCollisionPair.first.mUnstableIndex & tableIds.mTableIDMask) == tableIds.mSpatialQueriesTable;
-  }
-
   void updateUnitCubeBoundaries(IAppBuilder& builder, const BoundariesConfig& cfg, const PhysicsAliases& aliases) {
     const auto keyAlias = QueryAlias<SweepNPruneBroadphase::BroadphaseKeys>::create().read();
     auto tables = builder.queryAliasTables(aliases.posX, aliases.posY, keyAlias);
@@ -148,139 +119,11 @@ namespace SweepNPruneBroadphase {
     builder.submitTask(std::move(task));
   }
 
-  void updateCollisionPairs(IAppBuilder& builder) {
-    auto task = builder.createTask();
-    task.setName("update collision pairs");
-    auto narrowphase = task.query<
-      const StableIDRow,
-      const ConstraintElement,
-      const NarrowphaseTableTag,
-      CollisionPairIndexA,
-      CollisionPairIndexB
-    >();
-    std::shared_ptr<IIDResolver> ids = task.getIDResolver();
-    auto narrowphaseModifiers = task.getModifiersForTables(narrowphase.matchingTableIDs);
-    auto broadphase = task.query<
-      SharedRow<SweepNPruneBroadphase::ChangedCollisionPairs>,
-      SharedRow<SweepNPruneBroadphase::PairChanges>,
-      SharedRow<SweepNPruneBroadphase::CollisionPairMappings>
-    >();
-    //Dealing with more is confusing right now
-    assert(narrowphase.size() == broadphase.size() == 1);
-    const PhysicsTableIds tableIds = Physics::getTableIds(builder);
-
-    task.setCallback([narrowphase, broadphase, narrowphaseModifiers, ids, tableIds](AppTaskArgs&) mutable {
-      const StableIDRow& stableIds = narrowphase.get<0>(0);
-      SweepNPruneBroadphase::PairChanges& changes = broadphase.get<1>(0).at();
-      SweepNPruneBroadphase::CollisionPairMappings& mappings = broadphase.get<2>(0).at();
-      SweepNPruneBroadphase::ChangedCollisionPairs& resultChanges = broadphase.get<0>(0).at();
-      auto narrowphaseModifier = narrowphaseModifiers[0];
-      const ConstraintElement& narrowphaseConstraint = narrowphase.get<1>(0);
-      const UnpackedDatabaseElementID narrowphaseTable = narrowphase.matchingTableIDs[0];
-      auto getNarrowphaseSize = [&] { return stableIds.size(); };
-
-      {
-        PROFILE_SCOPE("physics", "losses");
-        for(Broadphase::SweepCollisionPair loss : changes.mLost) {
-          if(auto it = mappings.mSweepPairToCollisionTableIndex.find(loss); it != mappings.mSweepPairToCollisionTableIndex.end()) {
-            const size_t swappedIndex = getNarrowphaseSize() - 1;
-            const size_t removedPairIndex = it->second;
-            //Spatial queries don't get a collision table entry and are forwarded through the resultChanges
-            if(removedPairIndex == CollisionPairMappings::SPATIAL_QUERY_INDEX) {
-              if(auto pair = _tryGetOrderedCollisionPair(it->first, tableIds, *ids, false)) {
-                resultChanges.lostQueries.push_back(getSpatialQueryPair(*pair));
-              }
-              mappings.mSweepPairToCollisionTableIndex.erase(it);
-            }
-            //Everything else has a table entry that must now be removed
-            else {
-              
-              //auto removeElement = DatabaseT::template getElementID<TableT>(removedPairIndex);
-              const StableElementID lostConstraint = narrowphaseConstraint.at(removedPairIndex);
-              resultChanges.mLost.push_back(lostConstraint);
-              //TODO: manual mappings management isn't really necessary anymore since the stable row
-              narrowphaseModifier->swapRemove(narrowphaseTable.remakeElement(removedPairIndex));
-              std::swap(mappings.mCollisionTableIndexToSweepPair[removedPairIndex], mappings.mCollisionTableIndexToSweepPair[swappedIndex]);
-              mappings.mCollisionTableIndexToSweepPair.pop_back();
-              //Remove reference to this index
-              mappings.mSweepPairToCollisionTableIndex.erase(it);
-              //Update mapping of swap removed element. Nothing to do if this was at the end because it was popped off
-              if(removedPairIndex < mappings.mCollisionTableIndexToSweepPair.size()) {
-                mappings.mSweepPairToCollisionTableIndex[mappings.mCollisionTableIndexToSweepPair[removedPairIndex]] = removedPairIndex;
-              }
-            }
-          }
-          //If it was gained and lost on the same frame remove it from the gain list. Presumably infrequent enough to not need faster searching
-          else if(auto gained = std::find(changes.mGained.begin(), changes.mGained.end(), loss); gained != changes.mGained.end()) {
-            *gained = changes.mGained.back();
-            changes.mGained.pop_back();
-          }
-        }
-        changes.mLost.clear();
-      }
-
-      {
-        PROFILE_SCOPE("physics", "gains");
-        if(changes.mGained.empty()) {
-          return;
-        }
-
-        //Resize to fit all the new elements
-        const size_t gainBegin = getNarrowphaseSize();
-        const size_t newSize = gainBegin + changes.mGained.size();
-        narrowphaseModifier->resize(newSize);
-        //Should always match the size of the collision table
-        mappings.mCollisionTableIndexToSweepPair.resize(newSize);
-        CollisionPairIndexA& pairA = narrowphase.get<3>(0);
-        CollisionPairIndexB& pairB = narrowphase.get<4>(0);
-        size_t addIndex = gainBegin;
-        for(size_t i = 0; i < changes.mGained.size(); ++i) {
-          Broadphase::SweepCollisionPair gain = changes.mGained[i];
-          if(mappings.mSweepPairToCollisionTableIndex.find(gain) != mappings.mSweepPairToCollisionTableIndex.end()) {
-            continue;
-          }
-
-          //Assign pair indices, the mappings are populated upon insertion and when objects move tables
-          //If this isn't an applicable pair, skip to the next without incrementing addIndex
-          if(auto pair = _tryGetOrderedCollisionPair(gain, tableIds, *ids, true)) {
-            if(isSpatialQueryPair(*pair, tableIds)) {
-              resultChanges.gainedQueries.push_back(getSpatialQueryPair(*pair));
-              mappings.mSweepPairToCollisionTableIndex[gain] = CollisionPairMappings::SPATIAL_QUERY_INDEX;
-            }
-            else {
-              pairA.at(addIndex) = pair->first;
-              pairB.at(addIndex) = pair->second;
-
-              //Assign mappings so this can be found above in removal
-              mappings.mCollisionTableIndexToSweepPair[addIndex] = gain;
-              mappings.mSweepPairToCollisionTableIndex[gain] = addIndex;
-
-              resultChanges.mGained.push_back(StableOperations::getStableID(stableIds, narrowphaseTable.remakeElement(addIndex)));
-
-              ++addIndex;
-            }
-          }
-        }
-
-        //If less were added than expected, shrink down the extra space
-        if(addIndex < newSize) {
-          narrowphaseModifier->resize(addIndex);
-          mappings.mCollisionTableIndexToSweepPair.resize(addIndex);
-        }
-
-        changes.mGained.clear();
-      }
-    });
-
-    builder.submitTask(std::move(task));
-  }
-
   void updateBroadphase(IAppBuilder& builder, const BoundariesConfig& cfg, const PhysicsAliases& aliases) {
     updateDirectBoundaries(builder, aliases);
     updateUnitCubeBoundaries(builder, cfg, aliases);
     Broadphase::SweepGrid::recomputePairs(builder);
     SP::updateSpatialPairsFromBroadphase(builder);
-    updateCollisionPairs(builder);
   }
 
   void preProcessEvents(RuntimeDatabaseTaskBuilder& task, const DBEvents& events) {

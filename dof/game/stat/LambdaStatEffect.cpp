@@ -1,8 +1,8 @@
 #include "Precompile.h"
 #include "stat/LambdaStatEffect.h"
 
-#include "Simulation.h"
 #include "TableAdapters.h"
+#include "AppBuilder.h"
 
 namespace LambdaStatEffect {
   void processStat(IAppBuilder& builder) {

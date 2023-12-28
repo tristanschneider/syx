@@ -5,6 +5,7 @@
 #include "Simulation.h"
 #include "ThreadLocals.h"
 #include "AppBuilder.h"
+#include "Narrowphase.h"
 
 DebugLineAdapter::~DebugLineAdapter() = default;
 
@@ -171,7 +172,7 @@ PhysicsObjectAdapter TableAdapters::getPhysics(RuntimeDatabaseTaskBuilder& task,
     FloatRow<Tags::AngVel, Tags::Angle>,
     FloatRow<Tags::GLinImpulse, Tags::X>, FloatRow<Tags::GLinImpulse, Tags::Y>,
     FloatRow<Tags::GAngImpulse, Tags::Angle>,
-    CollisionMaskRow
+    Narrowphase::CollisionMaskRow
   >(table);
   if(q.size()) {
     std::tie(r.linVelX, r.linVelY, r.angVel, r.linImpulseX, r.linImpulseY, r.angImpulse, r.collisionMask) = q.get(0);
@@ -186,7 +187,7 @@ PhysicsObjectAdapter TableAdapters::getGameplayPhysics(RuntimeDatabaseTaskBuilde
     FloatRow<Tags::GAngVel, Tags::Angle>,
     FloatRow<Tags::GLinImpulse, Tags::X>, FloatRow<Tags::GLinImpulse, Tags::Y>,
     FloatRow<Tags::GAngImpulse, Tags::Angle>,
-    CollisionMaskRow
+    Narrowphase::CollisionMaskRow
   >(table);
   if(q.size()) {
     std::tie(r.linVelX, r.linVelY, r.angVel, r.linImpulseX, r.linImpulseY, r.angImpulse, r.collisionMask) = q.get(0);

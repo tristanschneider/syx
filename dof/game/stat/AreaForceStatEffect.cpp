@@ -12,6 +12,7 @@
 #include "glm/geometric.hpp"
 #include "glm/gtc/matrix_inverse.hpp"
 #include "glm/gtc/matrix_transform.hpp"
+#include "AppBuilder.h"
 
 #include "DebugDrawer.h"
 
@@ -290,6 +291,7 @@ namespace AreaForceStatEffect {
           }
           castRays(rays, shapes, hits);
 
+          //TODO: read from SharedMassRow
           constexpr Math::Mass objMass = Math::computeFragmentMass();
           for(const HitResult& hit : hits) {
             if(!resolver->tryGetOrSwapAllRows(hit.id, posX, posY, impulseX, impulseY, impulseA, stableRow)) {

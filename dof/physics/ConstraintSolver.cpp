@@ -58,6 +58,14 @@ namespace ConstraintSolver {
     std::vector<std::unique_ptr<IslandSolver>> solvers;
     size_t size{};
   };
+  struct ShapeResoverCache {
+    CachedRow<const SharedMassRow> sharedMass;
+    CachedRow<const MassRow> individualMass;
+    CachedRow<Row<float>> linVelX;
+    CachedRow<Row<float>> linVelY;
+    CachedRow<Row<float>> angVel;
+    CachedRow<const ConstraintMaskRow> constraintMask;
+  };
   struct ShapeResolver {
     ShapeResolver(RuntimeDatabaseTaskBuilder& task, const PhysicsAliases& tableIds)
       : resolver{ task.getResolver<const SharedMassRow, const MassRow>() }
@@ -68,12 +76,10 @@ namespace ConstraintSolver {
     PhysicsAliases tables;
     std::shared_ptr<ITableResolver> resolver;
     std::shared_ptr<ITableResolver> aliasResolver;
-    CachedRow<const SharedMassRow> sharedMass;
-    CachedRow<const MassRow> individualMass;
-    CachedRow<Row<float>> linVelX;
-    CachedRow<Row<float>> linVelY;
-    CachedRow<Row<float>> angVel;
-    CachedRow<const ConstraintMaskRow> constraintMask;
+  };
+  struct ShapeResolverContext {
+    ShapeResolver& resolver;
+    ShapeResoverCache& cache;
   };
 
   struct BodyVelocity {
@@ -85,25 +91,25 @@ namespace ConstraintSolver {
     float* angular{};
   };
 
-  std::optional<BodyMass> resolveBodyMass(ShapeResolver& resolver, const UnpackedDatabaseElementID& id) {
-    const BodyMass* result = resolver.resolver->tryGetOrSwapRowElement(resolver.sharedMass, id);
+  std::optional<BodyMass> resolveBodyMass(ShapeResolverContext& ctx, const UnpackedDatabaseElementID& id) {
+    const BodyMass* result = ctx.resolver.resolver->tryGetOrSwapRowElement(ctx.cache.sharedMass, id);
     if(!result) {
-      result = resolver.resolver->tryGetOrSwapRowElement(resolver.individualMass, id);
+      result = ctx.resolver.resolver->tryGetOrSwapRowElement(ctx.cache.individualMass, id);
     }
     //Having explicit zero mass is the same as not having any
     return result && (result->inverseInertia || result->inverseMass) ? std::make_optional(*result) : std::nullopt;
   }
 
-  BodyVelocity resolveBodyVelocity(ShapeResolver& resolver, const UnpackedDatabaseElementID& id) {
+  BodyVelocity resolveBodyVelocity(ShapeResolverContext& ctx, const UnpackedDatabaseElementID& id) {
     BodyVelocity result;
-    result.linearX = resolver.resolver->tryGetOrSwapRowAliasElement(resolver.tables.linVelX, resolver.linVelX, id);
-    result.linearY = resolver.resolver->tryGetOrSwapRowAliasElement(resolver.tables.linVelY, resolver.linVelY, id);
-    result.angular = resolver.resolver->tryGetOrSwapRowAliasElement(resolver.tables.angVel, resolver.angVel, id);
+    result.linearX = ctx.resolver.resolver->tryGetOrSwapRowAliasElement(ctx.resolver.tables.linVelX, ctx.cache.linVelX, id);
+    result.linearY = ctx.resolver.resolver->tryGetOrSwapRowAliasElement(ctx.resolver.tables.linVelY, ctx.cache.linVelY, id);
+    result.angular = ctx.resolver.resolver->tryGetOrSwapRowAliasElement(ctx.resolver.tables.angVel, ctx.cache.angVel, id);
     return result;
   }
 
-  ConstraintMask resolveConstraintMask(ShapeResolver& resolver, const UnpackedDatabaseElementID& id) {
-    const ConstraintMask* result = resolver.resolver->tryGetOrSwapRowElement(resolver.constraintMask, id);
+  ConstraintMask resolveConstraintMask(ShapeResolverContext& ctx, const UnpackedDatabaseElementID& id) {
+    const ConstraintMask* result = ctx.resolver.resolver->tryGetOrSwapRowElement(ctx.cache.constraintMask, id);
     return result ? *result : ConstraintMask{};
   }
 
@@ -120,7 +126,7 @@ namespace ConstraintSolver {
   BodyMapping getOrCreateBody(
     IslandGraph::NodeUserdata data,
     IslandSolver& solver,
-    ShapeResolver& resolver,
+    ShapeResolverContext& resolver,
     IIDResolver& ids
   ) {
     if(auto it = solver.islandToBodyIndex.find(data); it != solver.islandToBodyIndex.end()) {
@@ -187,7 +193,7 @@ namespace ConstraintSolver {
       const ConstraintIndex contactIndex = newConstraintIndex++;
 
       contactIndex;
-      /*
+      /* TODO: put this back
       //Friction constraint
       const glm::vec2 frictionA{ Geo::orthogonal(normalA) };
       const glm::vec2 frictionB{ -frictionA };
@@ -226,8 +232,8 @@ namespace ConstraintSolver {
         for(size_t i = currentIslands; i < desiredIslands; ++i) {
           collection->solvers[i] = std::make_unique<IslandSolver>();
         }
-        collection->size = desiredIslands;
       }
+      collection->size = desiredIslands;
       AppTaskSize taskSize;
       taskSize.batchSize = 1;
       taskSize.workItemCount = collection->size;
@@ -250,6 +256,8 @@ namespace ConstraintSolver {
     auto ids = task.getIDResolver();
 
     task.setCallback([shapes, pairs, graph, collection, ids](AppTaskArgs& args) mutable {
+      ShapeResoverCache cache;
+      ShapeResolverContext shapeContext{ shapes, cache };
       SP::ManifoldRow& manifolds = pairs.get<0>(0);
       for(size_t i = args.begin; i < args.end; ++i) {
         const IslandGraph::Island& island = graph->islands[i];
@@ -272,8 +280,8 @@ namespace ConstraintSolver {
             SP::ContactManifold& manifold = manifolds.at(resolved->unpacked.getElementIndex());
             if(manifold.size) {
               //This is a constraint to solve, pull out the required information
-              const BodyMapping bodyA = getOrCreateBody(graph->nodes[e.nodeA].data, solver, shapes, *ids);
-              const BodyMapping bodyB = getOrCreateBody(graph->nodes[e.nodeB].data, solver, shapes, *ids);
+              const BodyMapping bodyA = getOrCreateBody(graph->nodes[e.nodeA].data, solver, shapeContext, *ids);
+              const BodyMapping bodyB = getOrCreateBody(graph->nodes[e.nodeB].data, solver, shapeContext, *ids);
               if(bodyA.constraintMask & bodyB.constraintMask) {
                 constraintIndex += addConstraints(solver, bodyA.solverIndex, bodyB.solverIndex, manifold, constraintIndex);
               }

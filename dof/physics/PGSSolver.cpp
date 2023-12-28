@@ -140,7 +140,7 @@ namespace PGS {
     Jacobian jm{ jacobianTMass.data() };
     const MassMatrix m{ mass.data() };
     const JacobianMapping mapping{ jacobianMapping.data() };
-    for(uint8_t i = 0; i < constraintCount(); ++i) {
+    for(ConstraintIndex i = 0; i < constraintCount(); ++i) {
       auto [a, b] = mapping.getPairForConstraint(i);
       const float* jp = j.getJacobianIndex(i);
       float* jmp = jm.getJacobianIndex(i);
@@ -169,7 +169,7 @@ namespace PGS {
     //Precompute the diagonal of the matrix on the first iteration
     //TODO: should premultiply step go here too?
     if(!solver.currentIteration) {
-      for(uint8_t i = 0; i < solver.constraints; ++i) {
+      for(ConstraintIndex i = 0; i < solver.constraints; ++i) {
         const float* jma = solver.jacobianTMass.getJacobianIndex(i);
         const float* jmb = jma + Jacobian::BLOCK_SIZE;
         const float* ja = solver.jacobian.getJacobianIndex(i);

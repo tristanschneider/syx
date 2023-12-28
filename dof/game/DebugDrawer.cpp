@@ -5,6 +5,7 @@
 #include "Simulation.h"
 #include "TableAdapters.h"
 #include "glm/geometric.hpp"
+#include "AppBuilder.h"
 
 namespace DebugDrawer {
   void setPoint(DebugLineAdapter& debug, size_t i, const glm::vec2& point, const glm::vec3& color) {

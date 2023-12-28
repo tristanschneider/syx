@@ -74,6 +74,10 @@ struct BasicRow {
     return mElements.data();
   }
 
+  void setDefaultValue(Element value) {
+    mDefaultValue = value;
+  }
+
   std::vector<Element> mElements;
   Element mDefaultValue{};
 };
@@ -131,6 +135,10 @@ struct SharedRow {
 
   NoOpIterator end() {
     return {};
+  }
+
+  void setDefaultValue(Element value) {
+    mValue = value;
   }
 
   Element mValue{};
