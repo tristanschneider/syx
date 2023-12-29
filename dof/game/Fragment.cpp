@@ -198,7 +198,6 @@ namespace Fragment {
     SceneArgs args;
     args.mFragmentRows = config->fragment.fragmentRows;
     args.mFragmentColumns = config->fragment.fragmentColumns;
-    args.mFragmentRows = args.mFragmentColumns = 50;
     _setupScene(builder, args);
   }
 

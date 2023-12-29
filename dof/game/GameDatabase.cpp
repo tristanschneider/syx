@@ -78,6 +78,7 @@ namespace GameData {
     Narrowphase::SharedUnitCubeRow,
     ConstraintSolver::ConstraintMaskRow,
     ConstraintSolver::SharedMassRow,
+    ConstraintSolver::SharedMaterialRow,
 
     Row<CubeSprite>,
     FragmentGoalFoundRow,
@@ -107,7 +108,7 @@ namespace GameData {
     Narrowphase::SharedUnitCubeRow,
     ConstraintSolver::ConstraintMaskRow,
     ConstraintSolver::SharedMassRow,
-
+    ConstraintSolver::SharedMaterialRow,
 
     //Only requires broadphase key to know how to remove it, don't need to store boundaries
     //for efficient updates because it won't move
@@ -148,6 +149,7 @@ namespace GameData {
     Narrowphase::SharedUnitCubeRow,
     ConstraintSolver::ConstraintMaskRow,
     ConstraintSolver::SharedMassRow,
+    ConstraintSolver::SharedMaterialRow,
 
     Row<CubeSprite>,
     Row<PlayerInput>,

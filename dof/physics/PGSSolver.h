@@ -71,6 +71,9 @@ namespace PGS {
     BodyIndex* getPairPointerForConstraint(int i) {
       return bodyIndices + i*STRIDE;
     }
+    const BodyIndex* getPairPointerForConstraint(int i) const {
+      return bodyIndices + i*STRIDE;
+    }
 
     BodyIndex* bodyIndices{};
   };
@@ -163,6 +166,7 @@ namespace PGS {
     void setLambdaBounds(ConstraintIndex constraintIndex, float min, float max);
     void setWarmStart(ConstraintIndex constraintIndex, float warmStart);
     void premultiply();
+    //Jacobian times velocity of the two bodies, meaning the relative velocity along the axis
 
     std::vector<float> lambda;
     std::vector<float> bias;
@@ -192,4 +196,5 @@ namespace PGS {
   void warmStart(SolveContext& solver);
   //Warm start and iterate until solved
   SolveResult solvePGSWarmStart(SolveContext& solver);
+  float computeJV(ConstraintIndex constraintIndex, SolveContext& solver);
 }

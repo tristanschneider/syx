@@ -21,7 +21,7 @@ namespace PhysicsModule {
     auto task = builder.createTask();
     task.setName("Draw islands");
     auto query = task.query<
-      const SP::IslandGraphRow,
+      SP::IslandGraphRow,
       const SP::ManifoldRow
     >();
     auto drawer = TableAdapters::getDebugLines(task);
@@ -50,7 +50,9 @@ namespace PhysicsModule {
       for(size_t t = 0; t < query.size(); ++t) {
         const auto thisTable = query.matchingTableIDs[t];
         auto [graph, manifolds] = query.get(t);
-        const IslandGraph::Graph& g = graph->at();
+        IslandGraph::Graph& g = graph->at();
+        //Hack since by the time this runs the islands could be out of date from elements being removed
+        IslandGraph::rebuildIslands(g);
         //TODO: const iterators so they can be used here
         for(size_t i = 0; i < g.islands.size(); ++i) {
           const IslandGraph::Island& island = g.islands[i];

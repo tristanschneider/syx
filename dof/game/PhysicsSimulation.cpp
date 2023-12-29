@@ -136,6 +136,14 @@ namespace PhysicsSimulation {
   void updatePhysics(IAppBuilder& builder) {
     auto temp = builder.createTask();
     const Config::PhysicsConfig& config = temp.query<SharedRow<Config::GameConfig>>().tryGetSingletonElement()->physics;
+
+    //TODO: move to config
+    static float biasTerm = ConstraintSolver::SolverGlobals::BIAS_DEFAULT;
+    static float slop = ConstraintSolver::SolverGlobals::SLOP_DEFAULT;
+    ConstraintSolver::SolverGlobals globals{
+      &biasTerm,
+      &slop
+    };
     temp.discard();
 
     const PhysicsAliases aliases = getPhysicsAliases();
@@ -145,7 +153,7 @@ namespace PhysicsSimulation {
     SweepNPruneBroadphase::updateBroadphase(builder, _getBoundariesConfig(builder), aliases);
 
     Narrowphase::generateContactsFromSpatialPairs(builder, getUnitCubeDefinition());
-    ConstraintSolver::solveConstraints(builder, aliases);
+    ConstraintSolver::solveConstraints(builder, aliases, globals);
 
     Physics::integratePosition(builder, aliases);
     Physics::integrateRotation(builder, aliases);

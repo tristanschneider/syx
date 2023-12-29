@@ -6,13 +6,13 @@
 #include "Physics.h"
 #include "SpatialPairsStorage.h"
 #include "Geometric.h"
+#include <bitset>
+#include "generics/Enum.h"
 
 namespace ConstraintSolver {
   using ConstraintIndex = PGS::ConstraintIndex;
   using BodyIndex = PGS::BodyIndex;
 
-  constexpr float biasTerm = 0.91f;
-  constexpr float slop = 0.005f;
   constexpr float frictionTerm = 0.8f;
 
   struct IslandBody {
@@ -28,19 +28,60 @@ namespace ConstraintSolver {
   };
   //The limit of friction constraints is determined by the force already applied by contact constraints
   //This mapping allows easy indexing of both to update the friction bounds
-  struct FrictionMapping {
-    ConstraintIndex frictionIndex{};
-    ConstraintIndex contactIndex{};
+  struct ContactMapping {
+    enum class Bit : uint8_t {
+      HasContactOne,
+      HasContactTwo,
+      HasFriction,
+      HasRestitution,
+      Count
+    };
+    using Bitset = std::bitset<gnx::enumCast(Bit::Count)>;
+
+    struct Indices {
+      ConstraintIndex contactIndex{};
+      std::optional<ConstraintIndex> frictionIndex;
+    };
+
+    bool hasFlag(Bit flag) const {
+      return flags.test(gnx::enumCast(flag));
+    }
+
+    template<class V>
+    void visit(const V& v) const {
+      if(hasFlag(Bit::HasFriction)) {
+        if(hasFlag(Bit::HasContactOne)) {
+          v(Indices{ firstContactIndex, std::make_optional(static_cast<ConstraintIndex>(firstContactIndex + 1)) });
+          if(hasFlag(Bit::HasContactTwo)) {
+            v(Indices{ static_cast<ConstraintIndex>(firstContactIndex + 2), std::make_optional(static_cast<ConstraintIndex>(firstContactIndex + 3)) });
+          }
+        }
+      }
+      else {
+        if(hasFlag(Bit::HasContactOne)) {
+          v(Indices{ firstContactIndex, std::nullopt });
+          if(hasFlag(Bit::HasContactTwo)) {
+            v(Indices{ static_cast<ConstraintIndex>(firstContactIndex + 1), std::nullopt });
+          }
+        }
+      }
+    }
+
+    //Point at first index then assume points are always added as contact then friction constraint
+    ConstraintIndex firstContactIndex;
+    Bitset flags;
+    Material combinedMaterial;
   };
   struct BodyMapping {
     BodyIndex solverIndex{};
     ConstraintMask constraintMask{};
+    Material material{};
   };
   struct IslandSolver {
     void clear() {
       bodies.clear();
       warmStartStorage.clear();
-      frictionMappings.clear();
+      contactMappings.clear();
       islandToBodyIndex.clear();
       solver.clear();
     }
@@ -49,7 +90,7 @@ namespace ConstraintSolver {
     //The place to write the warm start after solving
     //Index matches constraint index
     std::vector<float*> warmStartStorage;
-    std::vector<FrictionMapping> frictionMappings;
+    std::vector<ContactMapping> contactMappings;
     std::unordered_map<IslandGraph::NodeUserdata, BodyMapping> islandToBodyIndex;
     PGS::SolverStorage solver;
   };
@@ -61,14 +102,15 @@ namespace ConstraintSolver {
   struct ShapeResoverCache {
     CachedRow<const SharedMassRow> sharedMass;
     CachedRow<const MassRow> individualMass;
+    CachedRow<const ConstraintMaskRow> constraintMask;
+    CachedRow<const SharedMaterialRow> material;
     CachedRow<Row<float>> linVelX;
     CachedRow<Row<float>> linVelY;
     CachedRow<Row<float>> angVel;
-    CachedRow<const ConstraintMaskRow> constraintMask;
   };
   struct ShapeResolver {
     ShapeResolver(RuntimeDatabaseTaskBuilder& task, const PhysicsAliases& tableIds)
-      : resolver{ task.getResolver<const SharedMassRow, const MassRow>() }
+      : resolver{ task.getResolver<const SharedMassRow, const MassRow, const SharedMaterialRow>() }
       , tables{ tableIds }
       , aliasResolver{ task.getAliasResolver(tableIds.linVelX, tableIds.linVelY, tableIds.angVel) }
     {}
@@ -113,6 +155,25 @@ namespace ConstraintSolver {
     return result ? *result : ConstraintMask{};
   }
 
+  //Material should be provided. If it isn't use one that should look "fine"
+  static constexpr Material DEFAULT_MATERIAL{};
+
+  const Material& resolveMaterial(ShapeResolverContext& ctx, const UnpackedDatabaseElementID& id) {
+    const Material* result = ctx.resolver.resolver->tryGetOrSwapRowElement(ctx.cache.material, id);
+    return result ? *result : DEFAULT_MATERIAL;
+  }
+
+  Material combineMaterials(const Material& a, const Material& b) {
+    //There are many potential ways to do this to result in realism. For these purposes a plain multilpication is good enough
+    //to be able to notice the effects of different materials colliding.
+    return {
+      //Since friction values 0-1 make most sense multiplication is appropriate
+      a.frictionCoefficient * b.frictionCoefficient,
+      //Materials with zero restitution should still bounce on bouncy materials so make it additive
+      a.restitutionCoefficient + b.restitutionCoefficient
+    };
+  }
+
   constexpr BodyIndex INFINITE_MASS_INDEX{};
   //This is a special entry at index zero that all infinite mass objects can point at because
   //none of their velocities can change
@@ -133,17 +194,20 @@ namespace ConstraintSolver {
       return it->second;
     }
     ConstraintMask constraintMask{};
+    Material material{ DEFAULT_MATERIAL };
+
     //TODO: lookup could be avoided if using the StableElementID on the spatial pairs table
     if(auto resolved = ids.tryResolveAndUnpack(StableElementID::fromStableID(data))) {
       auto mass = resolveBodyMass(resolver, resolved->unpacked);
       auto velocity = resolveBodyVelocity(resolver, resolved->unpacked);
       constraintMask = resolveConstraintMask(resolver, resolved->unpacked);
+      material = resolveMaterial(resolver, resolved->unpacked);
 
       //Mass, velocity, and index found, create a new body entry for this and write it all into the solver
       if(mass && velocity) {
         IslandBody body;
         body.solverIndex = static_cast<BodyIndex>(solver.bodies.size());
-        const BodyMapping mapping{ body.solverIndex, constraintMask };
+        const BodyMapping mapping{ body.solverIndex, constraintMask, material };
         solver.islandToBodyIndex[data] = mapping;
         body.velocityX = velocity.linearX;
         body.velocityY = velocity.linearY;
@@ -155,9 +219,13 @@ namespace ConstraintSolver {
       }
     }
     //Something was missing, write this as the special object with infinite mass
-    const BodyMapping mapping{ INFINITE_MASS_INDEX, constraintMask };
+    const BodyMapping mapping{ INFINITE_MASS_INDEX, constraintMask, material };
     solver.islandToBodyIndex[data] = mapping;
     return mapping;
+  }
+
+  float computeBiasWithRestitution(float baseBias, float restitutionCoefficient, float normalForce) {
+    return std::max(baseBias, restitutionCoefficient*normalForce);
   }
 
   ConstraintIndex addConstraints(
@@ -165,54 +233,74 @@ namespace ConstraintSolver {
     BodyIndex bodyA,
     BodyIndex bodyB,
     SP::ContactManifold& manifold,
-    ConstraintIndex constraintIndex
+    ConstraintIndex constraintIndex,
+    const Material& combinedMaterial,
+    const SolverGlobals& globals
   ) {
     ConstraintIndex newConstraintIndex = constraintIndex;
     auto& s = solver.solver;
+    ContactMapping contactMapping;
+    contactMapping.firstContactIndex = constraintIndex;
+    if(combinedMaterial.frictionCoefficient > 0) {
+      contactMapping.flags.set(gnx::enumCast(ContactMapping::Bit::HasFriction));
+    }
+    if(combinedMaterial.restitutionCoefficient > 0) {
+      contactMapping.flags.set(gnx::enumCast(ContactMapping::Bit::HasRestitution));
+    }
     for(uint32_t i = 0; i < manifold.size; ++i) {
+      contactMapping.flags.set(i);
       SP::ContactPoint& point = manifold[i];
       const glm::vec2& normalA{ point.normal };
       const glm::vec2 normalB{ -point.normal };
+      const ConstraintIndex contact{ newConstraintIndex++ };
       //Contact constraint
-      s.setJacobian(newConstraintIndex, bodyA, bodyB,
+      s.setJacobian(contact, bodyA, bodyB,
         normalA,
         Geo::cross(point.centerToContactA, normalA),
         normalB,
         Geo::cross(point.centerToContactB, normalB)
       );
-      const float bias = point.overlap - slop;
-      if(bias > 0) {
-        s.setBias(newConstraintIndex, bias*biasTerm);
+      const float baseBias = (point.overlap - *globals.slop)**globals.biasTerm;
+      float finalBias = baseBias;
+      if(combinedMaterial.restitutionCoefficient > 0) {
+        finalBias = computeBiasWithRestitution(baseBias, combinedMaterial.restitutionCoefficient, point.contactWarmStart);
+      }
+      if(finalBias > 0) {
+        s.setBias(contact, finalBias);
       }
       else {
-        s.setBias(newConstraintIndex, 0);
+        s.setBias(contact, 0);
       }
-      s.setLambdaBounds(newConstraintIndex, 0, PGS::SolverStorage::UNLIMITED_MAX);
-      s.setWarmStart(newConstraintIndex, point.contactWarmStart);
+      s.setLambdaBounds(contact, 0, PGS::SolverStorage::UNLIMITED_MAX);
+      s.setWarmStart(contact, point.contactWarmStart);
       solver.warmStartStorage.push_back(&point.contactWarmStart);
-      const ConstraintIndex contactIndex = newConstraintIndex++;
 
-      contactIndex;
-      /* TODO: put this back
-      //Friction constraint
-      const glm::vec2 frictionA{ Geo::orthogonal(normalA) };
-      const glm::vec2 frictionB{ -frictionA };
-      const ConstraintIndex frictionIndex = newConstraintIndex++;
-      s.setJacobian(frictionIndex, bodyA, bodyB,
-        frictionA,
-        Geo::cross(point.centerToContactA, frictionA),
-        frictionB,
-        Geo::cross(point.centerToContactB, frictionB)
-      );
+      if(combinedMaterial.frictionCoefficient > 0) {
+        //Friction constraint
+        const glm::vec2 frictionA{ Geo::orthogonal(normalA) };
+        const glm::vec2 frictionB{ -frictionA };
+        const ConstraintIndex frictionIndex = newConstraintIndex++;
+        s.setJacobian(frictionIndex, bodyA, bodyB,
+          frictionA,
+          Geo::cross(point.centerToContactA, frictionA),
+          frictionB,
+          Geo::cross(point.centerToContactB, frictionB)
+        );
+        //Friction bounds determined by contact, and the starting bounds of the contact are the warm start
+        const float frictionBound = std::abs(point.contactWarmStart*combinedMaterial.frictionCoefficient);
+        s.setLambdaBounds(frictionIndex, -frictionBound, frictionBound);
+        s.setWarmStart(frictionIndex, point.frictionWarmStart);
+        s.setBias(frictionIndex, 0);
+        solver.warmStartStorage.push_back(&point.frictionWarmStart);
+      }
+    }
+
+    static const auto NEEDS_MAPPING = ContactMapping::Bitset{}.
+      set(gnx::enumCast(ContactMapping::Bit::HasFriction)).
+      set(gnx::enumCast(ContactMapping::Bit::HasRestitution));
+    if((NEEDS_MAPPING & contactMapping.flags).any()) {
       //Store this mapping so the bounds of friction can be updated from the corresponding contact
-      solver.frictionMappings.push_back({ frictionIndex, contactIndex });
-      //Friction bounds determined by contact, and the starting bounds of the contact are the warm start
-      const float frictionBound = std::abs(point.contactWarmStart*frictionTerm);
-      s.setLambdaBounds(frictionIndex, -frictionBound, frictionBound);
-      s.setWarmStart(frictionIndex, point.frictionWarmStart);
-      s.setBias(frictionIndex, 0);
-      solver.warmStartStorage.push_back(&point.frictionWarmStart);
-      */
+      solver.contactMappings.emplace_back(contactMapping);
     }
 
     return newConstraintIndex - constraintIndex;
@@ -242,7 +330,7 @@ namespace ConstraintSolver {
     builder.submitTask(std::move(task));
   }
 
-  void solveIsland(IAppBuilder& builder, const PhysicsAliases& tables) {
+  void solveIsland(IAppBuilder& builder, const PhysicsAliases& tables, const SolverGlobals& globals) {
     auto task = builder.createTask();
     task.setName("solve islands");
     auto collection = std::make_shared<IslandSolverCollection>();
@@ -255,7 +343,7 @@ namespace ConstraintSolver {
     ShapeResolver shapes{ task, tables };
     auto ids = task.getIDResolver();
 
-    task.setCallback([shapes, pairs, graph, collection, ids](AppTaskArgs& args) mutable {
+    task.setCallback([shapes, pairs, graph, collection, ids, globals](AppTaskArgs& args) mutable {
       ShapeResoverCache cache;
       ShapeResolverContext shapeContext{ shapes, cache };
       SP::ManifoldRow& manifolds = pairs.get<0>(0);
@@ -283,7 +371,14 @@ namespace ConstraintSolver {
               const BodyMapping bodyA = getOrCreateBody(graph->nodes[e.nodeA].data, solver, shapeContext, *ids);
               const BodyMapping bodyB = getOrCreateBody(graph->nodes[e.nodeB].data, solver, shapeContext, *ids);
               if(bodyA.constraintMask & bodyB.constraintMask) {
-                constraintIndex += addConstraints(solver, bodyA.solverIndex, bodyB.solverIndex, manifold, constraintIndex);
+                constraintIndex += addConstraints(solver,
+                  bodyA.solverIndex,
+                  bodyB.solverIndex,
+                  manifold,
+                  constraintIndex,
+                  combineMaterials(bodyA.material, bodyB.material),
+                  globals
+                );
               }
             }
           }
@@ -301,11 +396,15 @@ namespace ConstraintSolver {
         PGS::SolveResult solveResult;
         do {
           solveResult = PGS::advancePGS(context);
-          for(const FrictionMapping& mapping : solver.frictionMappings) {
-            //Friction force is proportional to normal force, update the bounds based on the currently
-            //applied normal force
-            const float normalForce = std::abs(context.lambda[mapping.contactIndex]);
-            solver.solver.setLambdaBounds(mapping.frictionIndex, -normalForce, normalForce);
+          for(const ContactMapping& mapping : solver.contactMappings) {
+            mapping.visit([&](const ContactMapping::Indices& indices) {
+              if(indices.frictionIndex) {
+                //Friction force is proportional to normal force, update the bounds based on the currently
+                //applied normal force
+                const float normalForce = std::abs(context.lambda[indices.contactIndex])*mapping.combinedMaterial.frictionCoefficient;
+                solver.solver.setLambdaBounds(*indices.frictionIndex, -normalForce, normalForce);
+              }
+            });
           }
         } while(!solveResult.isFinished);
 
@@ -331,7 +430,7 @@ namespace ConstraintSolver {
     builder.submitTask(std::move(task));
   }
 
-  void solveConstraints(IAppBuilder& builder, const PhysicsAliases& tables) {
-    solveIsland(builder, tables);
+  void solveConstraints(IAppBuilder& builder, const PhysicsAliases& tables, const SolverGlobals& globals) {
+    solveIsland(builder, tables, globals);
   }
 }

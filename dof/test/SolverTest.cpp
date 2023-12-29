@@ -31,7 +31,8 @@ namespace Test {
       LinVelY,
       AngVel,
       ConstraintSolver::ConstraintMaskRow,
-      ConstraintSolver::SharedMassRow
+      ConstraintSolver::SharedMassRow,
+      ConstraintSolver::SharedMaterialRow
     >;
 
     struct StaticTag : TagRow {};
@@ -39,7 +40,8 @@ namespace Test {
       StaticTag,
       StableIDRow,
       ConstraintSolver::ConstraintMaskRow,
-      ConstraintSolver::SharedMassRow
+      ConstraintSolver::SharedMassRow,
+      ConstraintSolver::SharedMaterialRow
     >;
 
     using SolverDB = Database<
@@ -69,7 +71,9 @@ namespace Test {
     struct SolverApp : TestApp {
       SolverApp() {
         initMTFromDB<SolverDB>([](IAppBuilder& builder) {
-          ConstraintSolver::solveConstraints(builder, TestAliases{});
+          static float bias = ConstraintSolver::SolverGlobals::BIAS_DEFAULT;
+          static float slop = ConstraintSolver::SolverGlobals::SLOP_DEFAULT;
+          ConstraintSolver::solveConstraints(builder, TestAliases{}, { &bias, &slop });
         });
         TableIds ids{ builder() };
         ConstraintSolver::BodyMass* dynamicMass = builder().query<ConstraintSolver::SharedMassRow>(ids.dynamicBodies).tryGetSingletonElement();
@@ -77,7 +81,10 @@ namespace Test {
         //Static mass is already zero as desired
 
         builder().query<ConstraintSolver::ConstraintMaskRow>().forEachRow([](auto& row) {
-          row.mDefaultValue = ConstraintSolver::MASK_SOLVE_ALL;
+          row.setDefaultValue(ConstraintSolver::MASK_SOLVE_ALL);
+        });
+        builder().query<ConstraintSolver::SharedMaterialRow>().forEachRow([](auto& row) {
+          row.setDefaultValue(ConstraintSolver::Material{ 0, 0 });
         });
       }
     };

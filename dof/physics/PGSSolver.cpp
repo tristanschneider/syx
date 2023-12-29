@@ -233,4 +233,11 @@ namespace PGS {
     warmStart(solver);
     return solvePGS(solver);
   }
+
+  float computeJV(ConstraintIndex constraintIndex, SolveContext& solver) {
+    const BodyIndex a = *solver.mapping.getPairPointerForConstraint(constraintIndex);
+    const float* ja = solver.jacobian.getJacobianIndex(constraintIndex);
+    const float* va = solver.velocity.getObjectVelocity(a);
+    return dot(ja, va) + dot(ja + Jacobian::BLOCK_SIZE, va + ConstraintVelocity::STRIDE);
+  }
 }
