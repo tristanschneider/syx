@@ -13,6 +13,86 @@ namespace ConstraintSolver {
   using ConstraintIndex = PGS::ConstraintIndex;
   using BodyIndex = PGS::BodyIndex;
 
+  namespace Resolver {
+    struct ShapeResoverCache {
+      CachedRow<const SharedMassRow> sharedMass;
+      CachedRow<const MassRow> individualMass;
+      CachedRow<const ConstraintMaskRow> constraintMask;
+      CachedRow<const SharedMaterialRow> material;
+      CachedRow<Row<float>> linVelX;
+      CachedRow<Row<float>> linVelY;
+      CachedRow<Row<float>> angVel;
+    };
+    struct ShapeResolver {
+      ShapeResolver(RuntimeDatabaseTaskBuilder& task, const PhysicsAliases& tableIds)
+        : resolver{ task.getResolver<const SharedMassRow, const MassRow, const SharedMaterialRow>() }
+        , tables{ tableIds }
+        , aliasResolver{ task.getAliasResolver(tableIds.linVelX, tableIds.linVelY, tableIds.angVel) }
+      {}
+
+      PhysicsAliases tables;
+      std::shared_ptr<ITableResolver> resolver;
+      std::shared_ptr<ITableResolver> aliasResolver;
+    };
+    struct ShapeResolverContext {
+      ShapeResolver& resolver;
+      ShapeResoverCache& cache;
+    };
+
+    std::optional<BodyMass> resolveBodyMass(ShapeResolverContext& ctx, const UnpackedDatabaseElementID& id) {
+      const BodyMass* result = ctx.resolver.resolver->tryGetOrSwapRowElement(ctx.cache.sharedMass, id);
+      if(!result) {
+        result = ctx.resolver.resolver->tryGetOrSwapRowElement(ctx.cache.individualMass, id);
+      }
+      //Having explicit zero mass is the same as not having any
+      return result && (result->inverseInertia || result->inverseMass) ? std::make_optional(*result) : std::nullopt;
+    }
+
+    BodyVelocity resolveBodyVelocity(ShapeResolverContext& ctx, const UnpackedDatabaseElementID& id) {
+      BodyVelocity result;
+      result.linearX = ctx.resolver.resolver->tryGetOrSwapRowAliasElement(ctx.resolver.tables.linVelX, ctx.cache.linVelX, id);
+      result.linearY = ctx.resolver.resolver->tryGetOrSwapRowAliasElement(ctx.resolver.tables.linVelY, ctx.cache.linVelY, id);
+      result.angular = ctx.resolver.resolver->tryGetOrSwapRowAliasElement(ctx.resolver.tables.angVel, ctx.cache.angVel, id);
+      return result;
+    }
+
+    ConstraintMask resolveConstraintMask(ShapeResolverContext& ctx, const UnpackedDatabaseElementID& id) {
+      const ConstraintMask* result = ctx.resolver.resolver->tryGetOrSwapRowElement(ctx.cache.constraintMask, id);
+      return result ? *result : ConstraintMask{};
+    }
+
+    //Material should be provided. If it isn't use one that should look "fine"
+    static constexpr Material DEFAULT_MATERIAL{};
+
+    const Material& resolveMaterial(ShapeResolverContext& ctx, const UnpackedDatabaseElementID& id) {
+      const Material* result = ctx.resolver.resolver->tryGetOrSwapRowElement(ctx.cache.material, id);
+      return result ? *result : DEFAULT_MATERIAL;
+    }
+
+    ConstraintBody resolveAll(ShapeResolverContext& ctx, const UnpackedDatabaseElementID& id) {
+      ConstraintBody result;
+      result.mass = resolveBodyMass(ctx, id);
+      result.velocity = resolveBodyVelocity(ctx, id);
+      result.constraintMask = resolveConstraintMask(ctx, id);
+      result.material = &resolveMaterial(ctx, id);
+      return result;
+    }
+
+    struct BodyResolver : IBodyResolver {
+      BodyResolver(const ShapeResolver& res)
+        : resolver{ res }
+      {}
+
+      ConstraintBody resolve(const UnpackedDatabaseElementID& id) final {
+        ShapeResolverContext ctx{ resolver, cache };
+        return Resolver::resolveAll(ctx, id);
+      }
+
+      ShapeResolver resolver;
+      ShapeResoverCache cache;
+    };
+  }
+
   constexpr float frictionTerm = 0.8f;
 
   struct IslandBody {
@@ -99,69 +179,6 @@ namespace ConstraintSolver {
     std::vector<std::unique_ptr<IslandSolver>> solvers;
     size_t size{};
   };
-  struct ShapeResoverCache {
-    CachedRow<const SharedMassRow> sharedMass;
-    CachedRow<const MassRow> individualMass;
-    CachedRow<const ConstraintMaskRow> constraintMask;
-    CachedRow<const SharedMaterialRow> material;
-    CachedRow<Row<float>> linVelX;
-    CachedRow<Row<float>> linVelY;
-    CachedRow<Row<float>> angVel;
-  };
-  struct ShapeResolver {
-    ShapeResolver(RuntimeDatabaseTaskBuilder& task, const PhysicsAliases& tableIds)
-      : resolver{ task.getResolver<const SharedMassRow, const MassRow, const SharedMaterialRow>() }
-      , tables{ tableIds }
-      , aliasResolver{ task.getAliasResolver(tableIds.linVelX, tableIds.linVelY, tableIds.angVel) }
-    {}
-
-    PhysicsAliases tables;
-    std::shared_ptr<ITableResolver> resolver;
-    std::shared_ptr<ITableResolver> aliasResolver;
-  };
-  struct ShapeResolverContext {
-    ShapeResolver& resolver;
-    ShapeResoverCache& cache;
-  };
-
-  struct BodyVelocity {
-    operator bool() const {
-      return linearX && linearY && angular;
-    }
-    float* linearX{};
-    float* linearY{};
-    float* angular{};
-  };
-
-  std::optional<BodyMass> resolveBodyMass(ShapeResolverContext& ctx, const UnpackedDatabaseElementID& id) {
-    const BodyMass* result = ctx.resolver.resolver->tryGetOrSwapRowElement(ctx.cache.sharedMass, id);
-    if(!result) {
-      result = ctx.resolver.resolver->tryGetOrSwapRowElement(ctx.cache.individualMass, id);
-    }
-    //Having explicit zero mass is the same as not having any
-    return result && (result->inverseInertia || result->inverseMass) ? std::make_optional(*result) : std::nullopt;
-  }
-
-  BodyVelocity resolveBodyVelocity(ShapeResolverContext& ctx, const UnpackedDatabaseElementID& id) {
-    BodyVelocity result;
-    result.linearX = ctx.resolver.resolver->tryGetOrSwapRowAliasElement(ctx.resolver.tables.linVelX, ctx.cache.linVelX, id);
-    result.linearY = ctx.resolver.resolver->tryGetOrSwapRowAliasElement(ctx.resolver.tables.linVelY, ctx.cache.linVelY, id);
-    result.angular = ctx.resolver.resolver->tryGetOrSwapRowAliasElement(ctx.resolver.tables.angVel, ctx.cache.angVel, id);
-    return result;
-  }
-
-  ConstraintMask resolveConstraintMask(ShapeResolverContext& ctx, const UnpackedDatabaseElementID& id) {
-    const ConstraintMask* result = ctx.resolver.resolver->tryGetOrSwapRowElement(ctx.cache.constraintMask, id);
-    return result ? *result : ConstraintMask{};
-  }
-
-  //Material should be provided. If it isn't use one that should look "fine"
-  static constexpr Material DEFAULT_MATERIAL{};
-
-  const Material& resolveMaterial(ShapeResolverContext& ctx, const UnpackedDatabaseElementID& id) {
-    const Material* result = ctx.resolver.resolver->tryGetOrSwapRowElement(ctx.cache.material, id);
-    return result ? *result : DEFAULT_MATERIAL;
-  }
 
   Material combineMaterials(const Material& a, const Material& b) {
     //There are many potential ways to do this to result in realism. For these purposes a plain multilpication is good enough
@@ -187,32 +204,31 @@ namespace ConstraintSolver {
   BodyMapping getOrCreateBody(
     IslandGraph::NodeUserdata data,
     IslandSolver& solver,
-    ShapeResolverContext& resolver,
+    Resolver::ShapeResolverContext& resolver,
     IIDResolver& ids
   ) {
     if(auto it = solver.islandToBodyIndex.find(data); it != solver.islandToBodyIndex.end()) {
       return it->second;
     }
     ConstraintMask constraintMask{};
-    Material material{ DEFAULT_MATERIAL };
+    Material material{ Resolver::DEFAULT_MATERIAL };
 
     //TODO: lookup could be avoided if using the StableElementID on the spatial pairs table
     if(auto resolved = ids.tryResolveAndUnpack(StableElementID::fromStableID(data))) {
-      auto mass = resolveBodyMass(resolver, resolved->unpacked);
-      auto velocity = resolveBodyVelocity(resolver, resolved->unpacked);
-      constraintMask = resolveConstraintMask(resolver, resolved->unpacked);
-      material = resolveMaterial(resolver, resolved->unpacked);
+      ConstraintBody resolvedBody{ Resolver::resolveAll(resolver, resolved->unpacked) };
+      constraintMask = resolvedBody.constraintMask;
+      material = *resolvedBody.material;
 
       //Mass, velocity, and index found, create a new body entry for this and write it all into the solver
-      if(mass && velocity) {
+      if(resolvedBody.mass && resolvedBody.velocity) {
         IslandBody body;
         body.solverIndex = static_cast<BodyIndex>(solver.bodies.size());
         const BodyMapping mapping{ body.solverIndex, constraintMask, material };
         solver.islandToBodyIndex[data] = mapping;
-        body.velocityX = velocity.linearX;
-        body.velocityY = velocity.linearY;
-        body.angularVelocity = velocity.angular;
-        solver.solver.setMass(body.solverIndex, mass->inverseMass, mass->inverseInertia);
+        body.velocityX = resolvedBody.velocity.linearX;
+        body.velocityY = resolvedBody.velocity.linearY;
+        body.angularVelocity = resolvedBody.velocity.angular;
+        solver.solver.setMass(body.solverIndex, resolvedBody.mass->inverseMass, resolvedBody.mass->inverseInertia);
         solver.solver.setVelocity(body.solverIndex, { *body.velocityX, *body.velocityY }, *body.angularVelocity);
         solver.bodies.emplace_back(body);
         return mapping;
@@ -340,12 +356,12 @@ namespace ConstraintSolver {
     auto pairs = task.query<
       SP::ManifoldRow
     >();
-    ShapeResolver shapes{ task, tables };
+    Resolver::ShapeResolver shapes{ task, tables };
     auto ids = task.getIDResolver();
 
     task.setCallback([shapes, pairs, graph, collection, ids, globals](AppTaskArgs& args) mutable {
-      ShapeResoverCache cache;
-      ShapeResolverContext shapeContext{ shapes, cache };
+      Resolver::ShapeResoverCache cache;
+      Resolver::ShapeResolverContext shapeContext{ shapes, cache };
       SP::ManifoldRow& manifolds = pairs.get<0>(0);
       for(size_t i = args.begin; i < args.end; ++i) {
         const IslandGraph::Island& island = graph->islands[i];
@@ -432,5 +448,9 @@ namespace ConstraintSolver {
 
   void solveConstraints(IAppBuilder& builder, const PhysicsAliases& tables, const SolverGlobals& globals) {
     solveIsland(builder, tables, globals);
+  }
+
+  std::unique_ptr<IBodyResolver> createResolver(RuntimeDatabaseTaskBuilder& task, const PhysicsAliases& tables) {
+    return std::make_unique<Resolver::BodyResolver>(Resolver::ShapeResolver{ task, tables });
   }
 }

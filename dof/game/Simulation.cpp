@@ -218,8 +218,10 @@ void Simulation::init(IAppBuilder& builder) {
   setDefaultValue<Narrowphase::CollisionMaskRow>(builder, "setDefault Mask", uint8_t(~0));
   setDefaultValue<ConstraintSolver::ConstraintMaskRow>(builder, "setDefault Constraint Mask", ConstraintSolver::MASK_SOLVE_ALL);
   setDefaultValue<ConstraintSolver::SharedMassRow, Narrowphase::SharedUnitCubeRow>(builder, "setDefault mass", Geo::computeQuadMass(1, 1, 1));
+  setDefaultValue<ConstraintSolver::SharedMassRow, ZeroMassObjectTableTag>(builder, "set zero mass", Geo::BodyMass{});
   //Fragments in particular start opaque then reveal the texture as they take damage
   setDefaultValue<Tint, const IsFragment>(builder, "setDefault Tint", glm::vec4(0, 0, 0, 1));
+
   PhysicsSimulation::init(builder);
   Player::init(builder);
 

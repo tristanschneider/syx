@@ -5,6 +5,7 @@ struct TaskRange;
 struct GameDB;
 struct PhysicsTableIds;
 struct DBEvents;
+struct PhysicsAliases;
 
 namespace SweepNPruneBroadphase {
   struct BoundariesConfig;
@@ -16,6 +17,7 @@ namespace Narrowphase {
 
 namespace PhysicsSimulation {
   Narrowphase::UnitCubeDefinition getUnitCubeDefinition();
+  PhysicsAliases getPhysicsAliases();
 
   void init(IAppBuilder& builder);
   void initFromConfig(IAppBuilder& builder);

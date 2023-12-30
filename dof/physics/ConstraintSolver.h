@@ -5,6 +5,8 @@
 
 class IAppBuilder;
 struct PhysicsAliases;
+class RuntimeDatabaseTaskBuilder;
+struct UnpackedDatabaseElementID;
 
 namespace ConstraintSolver {
   struct SolverGlobals {
@@ -28,6 +30,27 @@ namespace ConstraintSolver {
 
   using BodyMass = Geo::BodyMass;
 
+  struct BodyVelocity {
+    operator bool() const {
+      return linearX && linearY && angular;
+    }
+    float* linearX{};
+    float* linearY{};
+    float* angular{};
+  };
+
+  struct ConstraintBody {
+    BodyVelocity velocity;
+    ConstraintMask constraintMask{};
+    std::optional<BodyMass> mass;
+    const Material* material{};
+  };
+
+  struct IBodyResolver {
+    virtual ~IBodyResolver() = default;
+    virtual ConstraintBody resolve(const UnpackedDatabaseElementID& id) = 0;
+  };
+
   struct SharedMaterialRow : SharedRow<Material> {};
   struct SharedMassRow : SharedRow<BodyMass> {};
   struct MassRow : Row<BodyMass> {};
@@ -36,4 +59,6 @@ namespace ConstraintSolver {
   //Uses the islands from SpatialQueryStorage and the narrowphase information stored there from the narrowphase
   //to solve the constraints. The velocities for it are extracted from the corresponding physics aliases then written back out
   void solveConstraints(IAppBuilder& builder, const PhysicsAliases& tables, const SolverGlobals& globals);
+
+  std::unique_ptr<IBodyResolver> createResolver(RuntimeDatabaseTaskBuilder& task, const PhysicsAliases& tables);
 }
