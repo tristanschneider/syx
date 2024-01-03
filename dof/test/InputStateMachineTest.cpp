@@ -17,7 +17,7 @@ namespace InputMappings {
     Input::KeyMapID move{};
   };
 
-  Keys createStateMachine(Input::StateMachine& machine);
+  Keys createStateMachine(Input::StateMachineBuilder& machine);
 };
 
 namespace InputEvents {
@@ -28,7 +28,7 @@ namespace InputEvents {
 }
 
 namespace InputMappings {
-  void addAndExit(Input::StateMachine& machine, const Input::EdgeData& data) {
+  void addAndExit(Input::StateMachineBuilder& machine, const Input::EdgeData& data) {
     machine.addEdge(data);
     machine.addEdge(Input::EdgeBuilder{}
       .from(data.to)
@@ -37,7 +37,7 @@ namespace InputMappings {
     );
   }
 
-  Keys createStateMachine(Input::StateMachine& machine) {
+  Keys createStateMachine(Input::StateMachineBuilder& machine) {
     //Having this as a root should make it possible to exit player control if desired by traversing out of the node
     //Kind of, any substates would need to finish
     auto playerRoot = machine.addNode({ Input::Node::Empty{} });
@@ -148,10 +148,11 @@ namespace Test {
     TEST_METHOD(Basic) {
       Input::InputMapper temp;
       buildPlatformMappings(temp);
-      Input::StateMachine machine{ std::move(temp) };
+      Input::StateMachineBuilder builder;
+      InputMappings::Keys keys = InputMappings::createStateMachine(builder);
+      Input::StateMachine machine{ std::move(builder), std::move(temp) };
       const Input::InputMapper& mapper = machine.getMapper();
-      InputMappings::Keys keys = InputMappings::createStateMachine(machine);
-      machine.finalize();
+
       const std::vector<Input::Event>& events = machine.readEvents();
 
       //Root player node disabled so nothing should happen

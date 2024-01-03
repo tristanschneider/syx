@@ -1,14 +1,9 @@
 #include "Precompile.h"
 #include "InputStateMachine.h"
 #include "GameMath.h"
+#include "generics/LinkedList.h"
 
-namespace LinkedList {
-  template<class T>
-  struct Traits {
-    static size_t& getIndex(T&);
-    static const size_t& getIndex(const T&);
-  };
-
+namespace gnx::LinkedList {
   struct NodeEdgeListTraits {
     static Input::NodeIndex& getIndex(Input::Node& node) { return node.edges; }
     static const Input::NodeIndex& getIndex(const Input::Node& node) { return node.edges; }
@@ -24,83 +19,11 @@ namespace LinkedList {
     static Input::EdgeIndex& getIndex(Input::Edge& edge) { return edge.edges; }
     static const Input::EdgeIndex& getIndex(const Input::Edge& edge) { return edge.edges; }
   };
-
-  template<class T, class IndexT, class V, class AccessT, class AccessV>
-  void insertAfter(T& after, V& toInsert, IndexT insertIndex, AccessT, AccessV) {
-    auto& afterI = AccessT::getIndex(after);
-    auto& toInsertI = AccessV::getIndex(toInsert);
-    toInsertI = afterI;
-    afterI = insertIndex;
-  }
-
-  template<class T, class IndexT>
-  void insertAfter(T& after, T& toInsert, IndexT insertIndex) {
-    insertAfter(after, toInsert, insertIndex, Traits<T>{}, Traits<T>{});
-  }
-
-  template<class T, class IndexT, class AccessT>
-  void insertAfter(T& after, T& toInsert, IndexT insertIndex, AccessT access) {
-    insertAfter(after, toInsert, insertIndex, access, access);
-  }
-
-  template<class T, class V, class IndexT>
-  void insertAfter(T& after, V& toInsert, IndexT insertIndex) {
-    insertAfter(after, toInsert, insertIndex, Traits<T>{}, Traits<V>{});
-  }
-
-  template<class T, class V, class IndexT, class AccessT>
-  void insertAfter(T& after, V& toInsert, IndexT insertIndex, AccessT accessT) {
-    insertAfter(after, toInsert, insertIndex, accessT, Traits<V>{});
-  }
-
-  template<class T, class IndexT, class CallbackT, class AccessT>
-  void foreach(std::vector<T>& container, IndexT begin, const CallbackT& callback, AccessT) {
-    while(begin < container.size()) {
-      T* node = &container[begin];
-      begin = AccessT::getIndex(*node);
-      if constexpr(std::is_same_v<bool, decltype(callback(*node))>) {
-        if(!callback(*node)) {
-          return;
-        }
-      }
-      else {
-        callback(*node);
-      }
-    }
-  }
-
-  template<class T, class IndexT, class CallbackT>
-  void foreach(std::vector<T>& container, IndexT begin, const CallbackT& callback) {
-    foreach(container, begin, callback, Traits<T>{});
-  }
-
-  template<class T, class IndexT, class CallbackT, class AccessT>
-  void foreach(const std::vector<T>& container, IndexT begin, const CallbackT& callback, AccessT) {
-    while(begin < container.size()) {
-      const T* node = &container[begin];
-      begin = AccessT::getIndex(*node);
-      if constexpr(std::is_same_v<bool, decltype(callback(*node))>) {
-        if(!callback(*node)) {
-          return;
-        }
-      }
-      else {
-        callback(*node);
-      }
-    }
-  }
-
-  template<class T, class IndexT, class CallbackT>
-  void foreach(const std::vector<T>& container, IndexT begin, const CallbackT& callback) {
-    foreach(container, begin, callback, Traits<T>{});
-  }
-
 };
 
 namespace Input {
   constexpr float UNSET1D = std::numeric_limits<float>::max();
   constexpr glm::vec2 UNSET2D{ UNSET1D, UNSET1D };
-
   constexpr EdgeTraverser NOOP_TRAVERSER{};
 
   void addToActiveList(NodeIndex i, std::vector<NodeIndex>& activeNodes) {
@@ -112,37 +35,37 @@ namespace Input {
     activeNodes.pop_back();
   }
 
-  StateMachine::StateMachine(InputMapper&& m)
+  StateMachineBuilder::StateMachineBuilder() {
+    //Add root
+    nodes.push_back({});
+  }
+
+  StateMachine::StateMachine(StateMachineBuilder&& builder, InputMapper&& m)
     : mapper{ std::move(m) }
   {
-    Node root;
-    root.isActive = true;
-    nodes.push_back(root);
+    builder.nodes[ROOT_NODE].isActive = true;
     addToActiveList(ROOT_NODE, activeNodes);
-    //TODO: figure out where to put this
-    //mapper.bind(*this);
+    mapper.bind(builder);
+    nodes = std::move(builder.nodes);
+    edges = std::move(builder.edges);
   }
 
-  void StateMachine::finalize() {
-    mapper.bind(*this);
-  }
-
-  NodeIndex StateMachine::addNode(const Node& node) {
+  NodeIndex StateMachineBuilder::addNode(const Node& node) {
     NodeIndex result = static_cast<NodeIndex>(nodes.size());
     nodes.push_back(node);
     return result;
   }
 
-  EdgeIndex StateMachine::addEdge(NodeIndex from, NodeIndex to, const Edge& edge) {
+  EdgeIndex StateMachineBuilder::addEdge(NodeIndex from, NodeIndex to, const Edge& edge) {
     return addEdge({ from, to, edge });
   }
 
-  EdgeIndex StateMachine::addEdge(const EdgeData& data) {
+  EdgeIndex StateMachineBuilder::addEdge(const EdgeData& data) {
     EdgeIndex result = static_cast<EdgeIndex>(edges.size());
     edges.push_back(data.edge);
     Edge& e = edges.back();
     e.to = data.to;
-    LinkedList::insertAfter(nodes[data.from], e, result, LinkedList::NodeEdgeListTraits{});
+    gnx::LinkedList::insertAfter(nodes[data.from], e, result, gnx::LinkedList::NodeEdgeListTraits{});
 
     return result;
   }
@@ -205,29 +128,9 @@ namespace Input {
     node.isActive = true;
     if(auto* node1 = std::get_if<Node::Axis1D>(&node.data)) {
       node1->absolute = traverser.getAxis1DAbsolute();
-      //if(const auto* traversed1 = std::get_if<Edge::Delta1D>(&traverser.data)) {
-      //  //Relative
-      //  if(traversed1->minDelta != UNSET1D) {
-      //    node1->absolute += traversed1->minDelta;
-      //  }
-      //  //Absolute
-      //  else {
-      //    node1->absolute = traversed1->maxDelta;
-      //  }
-      //}
     }
     else if(auto* node2 = std::get_if<Node::Axis2D>(&node.data)) {
       node2->absolute = traverser.getAxis2DAbsolute();
-      //if(const auto* traversed2 = std::get_if<Edge::Delta2D>(&traverser.data)) {
-      //  //Relative
-      //  if(traversed2->minDelta != UNSET2D) {
-      //    node2->absolute += traversed2->minDelta;
-      //  }
-      //  //Absolute
-      //  else {
-      //    node2->absolute = traversed2->maxDelta;
-      //  }
-      //}
     }
   }
 
@@ -235,13 +138,6 @@ namespace Input {
     Node& node = nodes[root];
     node.isActive = false;
     node.timeActive = {};
-    //TODO: confirm
-    //Any subnode can be active to cause the root to be added to the active list
-    //When the root is exited all subnodes are deactivated
-    //LinkedList::foreach(nodes, root, [](Node& node) {
-    //  node.isActive = false;
-    //  node.timeActive = {};
-    //}, LinkedList::NodeSubnodeListTraits{});
   }
 
   //Subnode is the distance in the linked list to traverse
@@ -250,6 +146,10 @@ namespace Input {
       root = nodes[root].subnodes;
     }
     return root;
+  }
+
+  NodeIndex getNodeOrSubnode(NodeIndex root, NodeIndex subnodeIndex, std::vector<Node>& nodes) {
+    return subnodeIndex == INVALID_NODE ? root : getSubnode(root, subnodeIndex, nodes);
   }
 
   void StateMachine::traverse(const EdgeTraverser& et) {
@@ -262,14 +162,11 @@ namespace Input {
       NodeIndex active = activeNodes[i];
       Node& node = nodes[active];
       node.timeActive += elapsed;
-      EdgeIndex edgeIndex = node.edges;
       bool removedActiveNode = false;
+      bool eventConsumed = false;
       //Try all edges going out of active nodes
-      while(edgeIndex != INVALID_EDGE) {
-        Edge& edge = edges[edgeIndex];
-        edgeIndex = edge.edges;
+      gnx::LinkedList::foreach(edges, node.edges, [&](Edge& edge) {
         CanTraverse canTraverse{ traverser, *this, edge };
-
         if(canTraverse.shouldTraverseEdge()) {
           //ROOT special case means exit the machine, so no node entry logic is needed
           if(edge.to != ROOT_NODE) {
@@ -278,14 +175,7 @@ namespace Input {
             //added again into the active list nor trigger events
             const bool wasAlreadyActive = isNodeActive(edge.to);
             //If there is a subnode the updated data needs to be stored there
-            if(traverser.toSubnode != INVALID_NODE) {
-              Node& subnode = nodes[getSubnode(edge.to, traverser.toSubnode, nodes)];
-              enterNode(subnode, traverser);
-              //TODO: does this need to do something on the root node?
-            }
-            else {
-              enterNode(root, traverser);
-            }
+            enterNode(nodes[getNodeOrSubnode(edge.to, traverser.toSubnode, nodes)], traverser);
             if(!wasAlreadyActive) {
               //Regardless of subnodes only the root is ever considered active, so add that to the list
               addToActiveList(edge.to, activeNodes);
@@ -300,27 +190,27 @@ namespace Input {
           //It should only remain if the execution is forking meaning both the source and destination are now active
           if(active != ROOT_NODE && (edge.to == ROOT_NODE || !edge.fork)) {
             //Exit the node or subnode. Once all subnodes are inactive the root node can be removed from the active list
-            if(traverser.fromSubnode != INVALID_NODE) {
-              exitNode(getSubnode(active, traverser.fromSubnode, nodes), nodes);
-            }
-            else {
-              exitNode(active, nodes);
-            }
+            exitNode(getNodeOrSubnode(active, traverser.fromSubnode, nodes), nodes);
+
             if(!isNodeActive(active)) {
               exitNode(active, nodes);
               node.isActive = false;
               removeFromActiveList(activeNodes.begin() + i, activeNodes);
               removedActiveNode = true;
-              break;
+              return false;
             }
           }
           if(edge.consumeEvent) {
-            //TODO: does this make sense?
-            return;
+            eventConsumed = true;
+            return false;
           }
         }
-      }
+        return true;
+      });
 
+      if(eventConsumed) {
+        return;
+      }
       if(!removedActiveNode) {
         ++i;
       }
@@ -329,10 +219,10 @@ namespace Input {
 
   bool StateMachine::isNodeActive(NodeIndex nodeIndex) const {
     bool isActive = false;
-    LinkedList::foreach(nodes, nodeIndex, [&isActive](const Node& node) {
+    gnx::LinkedList::foreach(nodes, nodeIndex, [&isActive](const Node& node) {
       isActive = isActive || node.isActive;
       return !isActive;
-    }, LinkedList::NodeSubnodeListTraits{});
+    }, gnx::LinkedList::NodeSubnodeListTraits{});
     return isActive;
   }
 
@@ -348,19 +238,17 @@ namespace Input {
 
   float StateMachine::getAbsoluteAxis1D(NodeIndex nodeIndex) const {
     float result{};
-    LinkedList::foreach(nodes, nodeIndex, [&result](const Node& node) {
-      //TODO: relative or absolute?
+    gnx::LinkedList::foreach(nodes, nodeIndex, [&result](const Node& node) {
       result += tryGet1D(node.data);
-    }, LinkedList::NodeSubnodeListTraits{});
+    }, gnx::LinkedList::NodeSubnodeListTraits{});
     return result;
   }
 
   glm::vec2 StateMachine::getAbsoluteAxis2D(NodeIndex nodeIndex) const {
     glm::vec2 result{ 0 };
-    LinkedList::foreach(nodes, nodeIndex, [&result](const Node& node) {
-      //TODO: relative or absolute?
+    gnx::LinkedList::foreach(nodes, nodeIndex, [&result](const Node& node) {
       result += tryGet2D(node.data);
-    }, LinkedList::NodeSubnodeListTraits{});
+    }, gnx::LinkedList::NodeSubnodeListTraits{});
     return result;
   }
 
@@ -376,7 +264,7 @@ namespace Input {
     return mapper;
   }
 
-  void InputMapper::bind(StateMachine& machine) {
+  void InputMapper::bind(StateMachineBuilder& machine) {
     for(auto&& [platformKey, value] : mappings) {
       const KeyMapID keyMapKey = value.traverser.key;
       //If there are redundant nodes, subnodes need to be inserted
@@ -393,7 +281,7 @@ namespace Input {
               Node copy = root;
               copy.edges = INVALID_EDGE;
               const NodeIndex subnodeIndex = static_cast<NodeIndex>(machine.nodes.size());
-              LinkedList::insertAfter(root, copy, subnodeIndex, LinkedList::NodeSubnodeListTraits{}, LinkedList::NodeSubnodeListTraits{});
+              gnx::LinkedList::insertAfter(root, copy, subnodeIndex, gnx::LinkedList::NodeSubnodeListTraits{}, gnx::LinkedList::NodeSubnodeListTraits{});
               machine.nodes.push_back(copy);
               value.traverser.toSubnode = reverse->second.currentSubnode;
             }
@@ -403,7 +291,7 @@ namespace Input {
               Node copy = root;
               copy.edges = INVALID_EDGE;
               const NodeIndex subnodeIndex = static_cast<NodeIndex>(machine.nodes.size());
-              LinkedList::insertAfter(root, copy, subnodeIndex, LinkedList::NodeSubnodeListTraits{}, LinkedList::NodeSubnodeListTraits{});
+              gnx::LinkedList::insertAfter(root, copy, subnodeIndex, gnx::LinkedList::NodeSubnodeListTraits{}, gnx::LinkedList::NodeSubnodeListTraits{});
               machine.nodes.push_back(copy);
               value.traverser.fromSubnode = reverse->second.currentSubnode;
             }
@@ -411,9 +299,6 @@ namespace Input {
         }
       }
       //If there are no redundant nodes, the single node by itself is all that needs to be found
-      else {
-        //TODO: nothing I think...
-      }
     }
   }
 

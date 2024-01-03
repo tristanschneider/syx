@@ -15,6 +15,12 @@ namespace Input {
   constexpr EventID INVALID_EVENT = std::numeric_limits<EventID>::max();
   constexpr KeyMapID INVALID_KEY = std::numeric_limits<KeyMapID>::max();
 
+  //Nodes have an overloaded meaning depending on if they are a subnode or not
+  //A node is the logical information about a particular input state in the graph
+  //For plain states this may only be an active bool, for axes it's the current axis value
+  //Subnodes are additional data sources for that stored information in the case of redundant mappings
+  //The logical node in the graph is queried as if it was all on the node but it may require searching
+  //through multiple subnodes to accumulate all of the individual inputs to arrive at the final result
   struct Node {
     struct Empty {};
     struct Button {};
@@ -41,6 +47,8 @@ namespace Input {
     bool isActive{};
   };
 
+  //Edges are the mechanism to move between states in the graph. They contain the criteria
+  //for allowing traversal while not themselves knowing of the particular current input state
   struct Edge {
     struct Empty {};
     struct KeyDown {
@@ -66,10 +74,14 @@ namespace Input {
     using Variant = std::variant<Empty, KeyDown, KeyUp, Timeout, Delta1D, Delta2D>;
     KeyMapID key{ INVALID_KEY };
     Variant data;
+    //Stop further traversal immediately if this edge is traversed
     bool consumeEvent{};
+    //When being traversed, this will leave the source node active rather than moving
+    //exclusively to the destination node
     bool fork{};
     NodeIndex from{ INVALID_NODE };
     NodeIndex to{ INVALID_NODE };
+    //Intrusive linked list of other edges attached to the node
     EdgeIndex edges{ INVALID_EDGE };
   };
 
@@ -77,26 +89,6 @@ namespace Input {
   //The variant is the same since it needs to match against each possible variant but the interpretation
   //of what is stored in an edge variant vs traverser variant is a bit different
   struct EdgeTraverser {
-    const float* tryGetAxis1DDelta() const {
-      auto result = std::get_if<Edge::Delta1D>(&data);
-      return result ? &result->minDelta : nullptr;
-    }
-
-    const float* tryGetAxis1DAbsolute() const {
-      auto result = std::get_if<Edge::Delta1D>(&data);
-      return result ? &result->maxDelta : nullptr;
-    }
-
-    const glm::vec2* tryGetAxis2DDelta() const {
-      auto result = std::get_if<Edge::Delta2D>(&data);
-      return result ? &result->minDelta : nullptr;
-    }
-
-    const glm::vec2* tryGetAxis2DAbsolute() const {
-      auto result = std::get_if<Edge::Delta2D>(&data);
-      return result ? &result->maxDelta : nullptr;
-    }
-
     float getAxis1DDelta() const {
       return std::get<Edge::Delta1D>(data).minDelta;
     }
@@ -115,7 +107,8 @@ namespace Input {
 
     KeyMapID key{};
     //If populated, then this is a simulated edge meaning that the subnode holds the
-    //destination state rather than the actual edge location
+    //destination state rather than the actual edge location. It is an offset in the
+    //node's linked list of subnodes, not the direct index of the subnode.
     NodeIndex toSubnode{ INVALID_NODE };
     NodeIndex fromSubnode{ INVALID_NODE };
     Edge::Variant data;
@@ -231,13 +224,12 @@ namespace Input {
   };
 
   class StateMachine;
+  struct StateMachineBuilder;
 
   //Responsible for mapping platform inputs to state machine nodes/edges without containing
   //knowledge of the current input state
   class InputMapper {
   public:
-    friend class StateMachine;
-
     void addKeyMapping(PlatformInputID src, KeyMapID dst);
     //Add a mapping for an input that is already in axis format, like a mouse or joystick
     void addAxis1DMapping(PlatformInputID src, KeyMapID dst);
@@ -260,13 +252,14 @@ namespace Input {
     template<class EdgeT>
     void addMapping(PlatformInputID src, KeyMapID dst, EdgeT&& edge);
 
+    friend class StateMachine;
     //Properly handling cases of multiple input sources contributing to a single logical input
     //requires the state machine to have knowledge of these redundant keys. This way if multiple
     //keys corresponding to the same input are pressed then releasing one can still recognized that
     //another is still down.
     //This builds the association between the keymappings and the particular node indicies in the state machine,
     //binding this mapper to that state machine
-    void bind(StateMachine& mapper);
+    void bind(StateMachineBuilder& mapper);
 
     struct Mapping {
       EdgeTraverser traverser;
@@ -279,23 +272,26 @@ namespace Input {
     std::unordered_map<KeyMapID, ReverseMapping> reverseMappings;
   };
 
-  //Holds the current logical state of the input while relying on the InputMapper for knowing
-  //how the platform inputs map to the logical state
-  class StateMachine {
-  public:
-    friend class InputMapper;
-    static constexpr NodeIndex ROOT_NODE{};
-
-    StateMachine(InputMapper&& mapper);
-    StateMachine(StateMachine&&) = default;
-    StateMachine(const StateMachine&) = default;
-
+  struct StateMachineBuilder {
+    StateMachineBuilder();
     //Building the state machine
     NodeIndex addNode(const Node& node);
     EdgeIndex addEdge(NodeIndex from, NodeIndex to, const Edge& edge);
     EdgeIndex addEdge(const EdgeData& data);
-    //TODO: fix this
-    void finalize();
+
+    std::vector<Node> nodes;
+    std::vector<Edge> edges;
+  };
+
+  //Holds the current logical state of the input while relying on the InputMapper for knowing
+  //how the platform inputs map to the logical state
+  class StateMachine {
+  public:
+    static constexpr NodeIndex ROOT_NODE{};
+
+    StateMachine(StateMachineBuilder&& builder, InputMapper&& mapper);
+    StateMachine(StateMachine&&) = default;
+    StateMachine(const StateMachine&) = default;
 
     //Sending inputs through the state machine
     void traverse(const EdgeTraverser& traverser);

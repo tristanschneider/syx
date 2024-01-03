@@ -166,6 +166,10 @@ namespace Math {
     return v >= min && v <= max;
   }
 
+  inline bool between(const glm::vec2& v, const glm::vec2& min, const glm::vec2& max) {
+    return between(v.x, min.x, max.x) && between(v.y, min.y, max.y);
+  }
+
   Impulse computeImpulseAtPoint(const glm::vec2& r, const glm::vec2& impulse, const Mass& mass);
   Impulse computeImpulseAtPoint(const glm::vec2& centerOfMass, const glm::vec2& impulsePoint, const glm::vec2& impulse, const Mass& mass);
 
