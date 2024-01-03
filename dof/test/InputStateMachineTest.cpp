@@ -139,12 +139,12 @@ namespace Test {
   }
 
   TEST_CLASS(InputStateMachineTest) {
-    TEST_METHOD(asdf) {
-      Input::InputMapper mapper;
-      Input::StateMachine machine;
-      buildPlatformMappings(mapper);
+    TEST_METHOD(Basic) {
+      Input::InputMapper temp;
+      buildPlatformMappings(temp);
+      Input::StateMachine machine{ std::move(temp) };
+      const Input::InputMapper& mapper = machine.getMapper();
       InputMappings::Keys keys = InputMappings::createStateMachine(machine);
-      mapper.initializeStateMachine(machine);
       const std::vector<Input::Event>& events = machine.readEvents();
 
       //Root player node disabled so nothing should happen
@@ -152,7 +152,10 @@ namespace Test {
       Assert::IsTrue(events.empty());
 
       //TODO: the input that doesn't use the mapper is awkward
-      machine.traverse({ Input::Edge::KeyDown{ InputMappings::ENABLE_PLAYER_INPUT } });
+      Input::EdgeTraverser enableInput;
+      enableInput.key = InputMappings::ENABLE_PLAYER_INPUT;
+      enableInput.data.emplace<Input::Edge::KeyDown>();
+      machine.traverse(enableInput);
 
       //Trigger Action 2 and make sure it fires the event on key down
       machine.traverse(mapper.onKeyDown(PlatformInput::A2));
