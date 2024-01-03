@@ -42,7 +42,7 @@ namespace InputMappings {
     //Kind of, any substates would need to finish
     auto playerRoot = machine.addNode({ Input::Node::Empty{} });
     auto move = machine.addNode({ Input::Node::Axis2D{} });
-    auto zoom = machine.addNode({ Input::Node::Axis1D{} });
+    auto zoom = machine.addNode(Input::NodeBuilder{}.axis1D().emitEvent(InputEvents::DEBUG_ZOOM));
     //Have this trigger with a charge up that executes on release
     auto action1Begin = machine.addNode(Input::NodeBuilder{}.button().emitEvent(InputEvents::ACTION_1_BEGIN));
     auto action1Hold = machine.addNode(Input::Node{ Input::Node::Button{} });
@@ -64,14 +64,14 @@ namespace InputMappings {
     addAndExit(machine, Input::EdgeBuilder{}
       .from(playerRoot)
       .to(move)
-      .delta2D(InputMappings::MOVE)
+      .anyDelta2D(InputMappings::MOVE)
       .forkState()
     );
     //Fork into zoom and exit
     addAndExit(machine, Input::EdgeBuilder{}
       .from(playerRoot)
       .to(zoom)
-      .delta1D(InputMappings::DEBUG_ZOOM)
+      .anyDelta1D(InputMappings::DEBUG_ZOOM)
       .forkState()
     );
     //Press
@@ -91,12 +91,18 @@ namespace InputMappings {
     addAndExit(machine, Input::EdgeBuilder{}
       .from(action1Hold)
       .to(action1Release)
+      .keyUp(InputMappings::ACTION_1)
     );
-    addAndExit(machine, Input::EdgeBuilder{}
+    machine.addEdge(Input::EdgeBuilder{}
       .from(playerRoot)
       .to(action2)
       .keyDown(InputMappings::ACTION_2)
       .forkState()
+    );
+    machine.addEdge(Input::EdgeBuilder{}
+      .from(action2)
+      .to(Input::StateMachine::ROOT_NODE)
+      .keyUp(InputMappings::ACTION_2)
     );
 
     Keys result;
@@ -145,6 +151,7 @@ namespace Test {
       Input::StateMachine machine{ std::move(temp) };
       const Input::InputMapper& mapper = machine.getMapper();
       InputMappings::Keys keys = InputMappings::createStateMachine(machine);
+      machine.finalize();
       const std::vector<Input::Event>& events = machine.readEvents();
 
       //Root player node disabled so nothing should happen
@@ -176,12 +183,15 @@ namespace Test {
       machine.traverse(mapper.onKeyUp(PlatformInput::A2));
       machine.traverse(mapper.onKeyUp(PlatformInput::A2Redundant));
       machine.traverse(mapper.onKeyDown(PlatformInput::A2Redundant));
+      Assert::AreEqual(size_t(1), events.size());
       Assert::AreEqual(InputEvents::ACTION_2_TRIGGER, events[0].id);
+      machine.clearEvents();
 
       //Trigger Action 1 on and make sure it fires the event on release
       machine.traverse(mapper.onKeyDown(PlatformInput::A1));
       Assert::AreEqual(size_t(1), events.size());
       Assert::AreEqual(InputEvents::ACTION_1_BEGIN, events[0].id);
+      machine.clearEvents();
       machine.traverse(mapper.onTick(2));
       machine.traverse(mapper.onKeyUp(PlatformInput::A1));
       Assert::AreEqual(size_t(1), events.size());
@@ -198,17 +208,17 @@ namespace Test {
       machine.clearEvents();
 
       //2D input direct
-      machine.traverse(mapper.onAxis2DAbsolute(InputMappings::MOVE, { 0.5f, 0.5f }));
-      assertEq({ 0.5f, 0.5f }, machine.getAbsoluteAxis2D(InputMappings::MOVE));
-      machine.traverse(mapper.onAxis2DRelative(InputMappings::MOVE, { -0.5f, 0.0f }));
-      assertEq({ 0.0f, 0.5f }, machine.getAbsoluteAxis2D(InputMappings::MOVE));
+      machine.traverse(mapper.onAxis2DAbsolute(PlatformInput::LeftThumbstick, { 0.5f, 0.5f }));
+      assertEq({ 0.5f, 0.5f }, machine.getAbsoluteAxis2D(keys.move));
+      machine.traverse(mapper.onAxis2DRelative(PlatformInput::LeftThumbstick, { -0.5f, 0.0f }));
+      assertEq({ 0.0f, 0.5f }, machine.getAbsoluteAxis2D(keys.move));
 
       //2D input through key mappings while thumbstick from above is still held
       machine.traverse(mapper.onKeyDown(PlatformInput::S));
       machine.traverse(mapper.onKeyDown(PlatformInput::A));
-      assertEq({ -1, -0.5f }, machine.getAbsoluteAxis2D(InputMappings::MOVE));
+      assertEq({ -1, -0.5f }, machine.getAbsoluteAxis2D(keys.move));
       machine.traverse(mapper.onKeyUp(PlatformInput::S));
-      assertEq({ -1.0f, 0.5f }, machine.getAbsoluteAxis2D(InputMappings::MOVE));
+      assertEq({ -1.0f, 0.5f }, machine.getAbsoluteAxis2D(keys.move));
     }
   };
 }

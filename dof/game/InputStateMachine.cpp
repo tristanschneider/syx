@@ -119,6 +119,11 @@ namespace Input {
     root.isActive = true;
     nodes.push_back(root);
     addToActiveList(ROOT_NODE, activeNodes);
+    //TODO: figure out where to put this
+    //mapper.bind(*this);
+  }
+
+  void StateMachine::finalize() {
     mapper.bind(*this);
   }
 
@@ -150,14 +155,48 @@ namespace Input {
       return e.timeoutAfter <= std::get<Edge::Timeout>(traverser.data).timeoutAfter;
     }
     bool operator()(const Edge::Delta1D& e) {
-      //TODO: absolute or relative?
-      return Math::between(traverser.getAxis1DAbsolute(), e.minDelta, e.maxDelta);
+      auto& traverseData = std::get<Edge::Delta1D>(traverser.data);
+      if(traverseData.minDelta == UNSET1D) {
+        //Relative information is missing, fill it in from the absolute data
+        traverseData.minDelta = traverseData.maxDelta - machine.getAbsoluteAxis1D(edge.to);
+      }
+      else if(traverseData.maxDelta == UNSET1D) {
+        //Absolute information is missing, fill it in from the relative data
+        traverseData.maxDelta = traverseData.minDelta + machine.getAbsoluteAxis1D(edge.to);
+      }
+
+      return Math::between(traverseData.minDelta, e.minDelta, e.maxDelta);
     }
     bool operator()(const Edge::Delta2D& e) {
-      //TODO: absolute or relative?
-      return Math::between(traverser.getAxis2DAbsolute(), e.minDelta, e.maxDelta);
+      auto& traverseData = std::get<Edge::Delta2D>(traverser.data);
+      if(traverseData.minDelta == UNSET2D) {
+        //Relative information is missing, fill it in from the absolute data
+        traverseData.minDelta = traverseData.maxDelta - machine.getAbsoluteAxis2D(edge.to);
+      }
+      else if(traverseData.maxDelta == UNSET2D) {
+        //Absolute information is missing, fill it in from the relative data
+        traverseData.maxDelta = traverseData.minDelta + machine.getAbsoluteAxis2D(edge.to);
+      }
+
+      return Math::between(traverseData.minDelta, e.minDelta, e.maxDelta);
     }
-    const EdgeTraverser& traverser;
+
+    bool shouldTraverseEdge() {
+      //Unconditional edge can always be traversed
+      if(std::get_if<Edge::Empty>(&edge.data)) {
+        return true;
+      }
+      //Key needs to match or be unset, then check the variants
+      if((edge.key == INVALID_KEY || edge.key == traverser.key) && edge.data.index() == traverser.data.index()) {
+        //Variants match, see if the conditions within the variant are met
+        return std::visit(*this, edge.data);
+      }
+      return false;
+    }
+
+    EdgeTraverser& traverser;
+    const StateMachine& machine;
+    const Edge& edge;
   };
 
   void enterNode(Node& node, const EdgeTraverser& traverser) {
@@ -165,41 +204,56 @@ namespace Input {
     //The subnode should be active while the root node gets added as the active index
     node.isActive = true;
     if(auto* node1 = std::get_if<Node::Axis1D>(&node.data)) {
-      if(const auto* traversed1 = std::get_if<Edge::Delta1D>(&traverser.data)) {
-        //Relative
-        if(traversed1->minDelta != UNSET1D) {
-          node1->absolute += traversed1->minDelta;
-        }
-        //Absolute
-        else {
-          node1->absolute = traversed1->maxDelta;
-        }
-      }
+      node1->absolute = traverser.getAxis1DAbsolute();
+      //if(const auto* traversed1 = std::get_if<Edge::Delta1D>(&traverser.data)) {
+      //  //Relative
+      //  if(traversed1->minDelta != UNSET1D) {
+      //    node1->absolute += traversed1->minDelta;
+      //  }
+      //  //Absolute
+      //  else {
+      //    node1->absolute = traversed1->maxDelta;
+      //  }
+      //}
     }
     else if(auto* node2 = std::get_if<Node::Axis2D>(&node.data)) {
-      if(const auto* traversed2 = std::get_if<Edge::Delta2D>(&traverser.data)) {
-        //Relative
-        if(traversed2->minDelta != UNSET2D) {
-          node2->absolute += traversed2->minDelta;
-        }
-        //Absolute
-        else {
-          node2->absolute = traversed2->maxDelta;
-        }
-      }
+      node2->absolute = traverser.getAxis2DAbsolute();
+      //if(const auto* traversed2 = std::get_if<Edge::Delta2D>(&traverser.data)) {
+      //  //Relative
+      //  if(traversed2->minDelta != UNSET2D) {
+      //    node2->absolute += traversed2->minDelta;
+      //  }
+      //  //Absolute
+      //  else {
+      //    node2->absolute = traversed2->maxDelta;
+      //  }
+      //}
     }
   }
 
   void exitNode(NodeIndex root, std::vector<Node>& nodes) {
+    Node& node = nodes[root];
+    node.isActive = false;
+    node.timeActive = {};
+    //TODO: confirm
     //Any subnode can be active to cause the root to be added to the active list
     //When the root is exited all subnodes are deactivated
-    LinkedList::foreach(nodes, root, [](Node& node) {
-      node.isActive = false;
-      node.timeActive = {};
-    }, LinkedList::NodeSubnodeListTraits{});
+    //LinkedList::foreach(nodes, root, [](Node& node) {
+    //  node.isActive = false;
+    //  node.timeActive = {};
+    //}, LinkedList::NodeSubnodeListTraits{});
   }
 
-  void StateMachine::traverse(const EdgeTraverser& traverser) {
+  //Subnode is the distance in the linked list to traverse
+  NodeIndex getSubnode(NodeIndex root, NodeIndex subnodeIndex, std::vector<Node>& nodes) {
+    while(subnodeIndex-- > 0) {
+      root = nodes[root].subnodes;
+    }
+    return root;
+  }
+
+  void StateMachine::traverse(const EdgeTraverser& et) {
+    EdgeTraverser traverser{ et };
     Timespan elapsed{};
     if(const auto* t = std::get_if<Edge::Timeout>(&traverser.data)){ 
       elapsed = t->timeoutAfter;
@@ -209,48 +263,60 @@ namespace Input {
       Node& node = nodes[active];
       node.timeActive += elapsed;
       EdgeIndex edgeIndex = node.edges;
-      CanTraverse canTraverse{ traverser };
       bool removedActiveNode = false;
       //Try all edges going out of active nodes
       while(edgeIndex != INVALID_EDGE) {
         Edge& edge = edges[edgeIndex];
         edgeIndex = edge.edges;
-        //First see if the edge type matches
-        if(edge.key == traverser.key && edge.data.index() == traverser.data.index()) {
-          //See if the edge traversal conditions are met
-          if(std::visit(canTraverse, edge.data)) {
-            //ROOT special case means exit the machine, so no node entry logic is needed
-            if(edge.to != ROOT_NODE) {
-              Node& root = nodes[edge.to];
-              //If there is a subnode the updated data needs to be stored there
-              if(traverser.subnode != INVALID_NODE) {
-                Node& subnode = nodes[traverser.subnode];
-                enterNode(subnode, traverser);
-                //TODO: does this need to do something on the root node?
-              }
-              else {
-                enterNode(root, traverser);
-              }
+        CanTraverse canTraverse{ traverser, *this, edge };
+
+        if(canTraverse.shouldTraverseEdge()) {
+          //ROOT special case means exit the machine, so no node entry logic is needed
+          if(edge.to != ROOT_NODE) {
+            Node& root = nodes[edge.to];
+            //If the node is already active it's fine to update the data on the node but it shouldn't be
+            //added again into the active list nor trigger events
+            const bool wasAlreadyActive = isNodeActive(edge.to);
+            //If there is a subnode the updated data needs to be stored there
+            if(traverser.toSubnode != INVALID_NODE) {
+              Node& subnode = nodes[getSubnode(edge.to, traverser.toSubnode, nodes)];
+              enterNode(subnode, traverser);
+              //TODO: does this need to do something on the root node?
+            }
+            else {
+              enterNode(root, traverser);
+            }
+            if(!wasAlreadyActive) {
               //Regardless of subnodes only the root is ever considered active, so add that to the list
               addToActiveList(edge.to, activeNodes);
 
               if(root.event != INVALID_EVENT) {
-                publishedEvents.push_back({ root.event, Timespan{}, traverser });
+                //Emit the event of the destination node with the time spent in the source node
+                publishedEvents.push_back({ root.event, node.timeActive, traverser });
               }
             }
-            //Either this is an exit condition or the state moved from one edge to another, deactivate source node
-            //It should only remain if the execution is forking meaning both the source and destination are now active
-            if(active != ROOT_NODE && (edge.to == ROOT_NODE || !edge.fork)) {
+          }
+          //Either this is an exit condition or the state moved from one edge to another, deactivate source node
+          //It should only remain if the execution is forking meaning both the source and destination are now active
+          if(active != ROOT_NODE && (edge.to == ROOT_NODE || !edge.fork)) {
+            //Exit the node or subnode. Once all subnodes are inactive the root node can be removed from the active list
+            if(traverser.fromSubnode != INVALID_NODE) {
+              exitNode(getSubnode(active, traverser.fromSubnode, nodes), nodes);
+            }
+            else {
+              exitNode(active, nodes);
+            }
+            if(!isNodeActive(active)) {
               exitNode(active, nodes);
               node.isActive = false;
               removeFromActiveList(activeNodes.begin() + i, activeNodes);
               removedActiveNode = true;
               break;
             }
-            if(edge.consumeEvent) {
-              //TODO: does this make sense?
-              return;
-            }
+          }
+          if(edge.consumeEvent) {
+            //TODO: does this make sense?
+            return;
           }
         }
       }
@@ -262,10 +328,10 @@ namespace Input {
   }
 
   bool StateMachine::isNodeActive(NodeIndex nodeIndex) const {
-    bool isActive = true;
+    bool isActive = false;
     LinkedList::foreach(nodes, nodeIndex, [&isActive](const Node& node) {
-      isActive = node.isActive;
-      return isActive;
+      isActive = isActive || node.isActive;
+      return !isActive;
     }, LinkedList::NodeSubnodeListTraits{});
     return isActive;
   }
@@ -315,15 +381,32 @@ namespace Input {
       const KeyMapID keyMapKey = value.traverser.key;
       //If there are redundant nodes, subnodes need to be inserted
       if(auto reverse = reverseMappings.find(keyMapKey); reverse != reverseMappings.end() && reverse->second.subnodeCount > 0) {
+        reverse->second.currentSubnode++;
         //All edges matching the KeyMapID need to gain a phantom node to hold the redundant state
         //which is within the linked list of subnodes
         const size_t edgesEnd = machine.edges.size();
         for(size_t e = 0; e < edgesEnd; ++e) {
           if(machine.edges[e].key == keyMapKey) {
-            Node& root = machine.nodes[machine.edges[e].to];
-            Node copy = root;
-            LinkedList::insertAfter(root, copy, static_cast<NodeIndex>(machine.nodes.size()), LinkedList::NodeSubnodeListTraits{}, LinkedList::NodeSubnodeListTraits{});
-            machine.nodes.push_back(copy);
+            //Add associated subnode for incoming edges to the node
+            {
+              Node& root = machine.nodes[machine.edges[e].to];
+              Node copy = root;
+              copy.edges = INVALID_EDGE;
+              const NodeIndex subnodeIndex = static_cast<NodeIndex>(machine.nodes.size());
+              LinkedList::insertAfter(root, copy, subnodeIndex, LinkedList::NodeSubnodeListTraits{}, LinkedList::NodeSubnodeListTraits{});
+              machine.nodes.push_back(copy);
+              value.traverser.toSubnode = reverse->second.currentSubnode;
+            }
+            //Add associated subnode for outgoing edges from the node
+            {
+              Node& root = machine.nodes[machine.edges[e].from];
+              Node copy = root;
+              copy.edges = INVALID_EDGE;
+              const NodeIndex subnodeIndex = static_cast<NodeIndex>(machine.nodes.size());
+              LinkedList::insertAfter(root, copy, subnodeIndex, LinkedList::NodeSubnodeListTraits{}, LinkedList::NodeSubnodeListTraits{});
+              machine.nodes.push_back(copy);
+              value.traverser.fromSubnode = reverse->second.currentSubnode;
+            }
           }
         }
       }
@@ -337,7 +420,7 @@ namespace Input {
   template<class EdgeT>
   void InputMapper::addMapping(PlatformInputID src, KeyMapID dst, EdgeT&& edge) {
     auto [platformMapping, isNewPlatform] = mappings.emplace(src, Mapping{});
-    auto [reverseMapping, isNewReverse] = reverseMappings.emplace(dst, src);
+    auto [reverseMapping, isNewReverse] = reverseMappings.emplace(dst, ReverseMapping{});
     assert(isNewPlatform);
     EdgeTraverser& traverser = platformMapping->second.traverser;
 
@@ -364,13 +447,13 @@ namespace Input {
 
   void InputMapper::addKeyAs1DRelativeMapping(PlatformInputID src, KeyMapID dst, float amount) {
     Edge::Delta1D e;
-    e.minDelta = amount;
+    e.minDelta = e.maxDelta = amount;
     addMapping(src, dst, std::move(e));
   }
 
   void InputMapper::addKeyAs2DRelativeMapping(PlatformInputID src, KeyMapID dst, const glm::vec2& amount) {
     Edge::Delta2D e;
-    e.minDelta = amount;
+    e.minDelta = e.maxDelta = amount;
     addMapping(src, dst, std::move(e));
   }
 
@@ -380,11 +463,28 @@ namespace Input {
     return it != mappings.end() ? it->second.traverser : NOOP_TRAVERSER;
   }
 
+  template<class T>
+  void undoDirectionKey(T& data) {
+    auto& absolute = data.maxDelta;
+    auto& relative = data.minDelta;
+    absolute = {};
+    relative = -relative;
+  }
+
   //Keys are stored as key down so this needs to flip it to key up before returning
   EdgeTraverser InputMapper::onKeyUp(PlatformInputID key) const {
     if(auto it = mappings.find(key); it != mappings.end()) {
       EdgeTraverser result = it->second.traverser;
-      result.data.emplace<Edge::KeyUp>();
+      if(std::get_if<Edge::KeyDown>(&result.data)) {
+        result.data.emplace<Edge::KeyUp>();
+      }
+      //Flip directions since the key is being released
+      else if(Edge::Delta1D* d1 = std::get_if<Edge::Delta1D>(&result.data)) {
+        undoDirectionKey(*d1);
+      }
+      else if(Edge::Delta2D* d2 = std::get_if<Edge::Delta2D>(&result.data)) {
+        undoDirectionKey(*d2);
+      }
       return result;
     }
     return NOOP_TRAVERSER;

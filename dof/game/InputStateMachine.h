@@ -11,8 +11,9 @@ namespace Input {
   using Timespan = uint32_t;
 
   constexpr NodeIndex INVALID_NODE = std::numeric_limits<NodeIndex>::max();
-  constexpr NodeIndex INVALID_EDGE = std::numeric_limits<EdgeIndex>::max();
-  constexpr NodeIndex INVALID_EVENT = std::numeric_limits<EdgeIndex>::max();
+  constexpr EdgeIndex INVALID_EDGE = std::numeric_limits<EdgeIndex>::max();
+  constexpr EventID INVALID_EVENT = std::numeric_limits<EventID>::max();
+  constexpr KeyMapID INVALID_KEY = std::numeric_limits<KeyMapID>::max();
 
   struct Node {
     struct Empty {};
@@ -63,10 +64,11 @@ namespace Input {
     }
 
     using Variant = std::variant<Empty, KeyDown, KeyUp, Timeout, Delta1D, Delta2D>;
-    KeyMapID key{};
+    KeyMapID key{ INVALID_KEY };
     Variant data;
     bool consumeEvent{};
     bool fork{};
+    NodeIndex from{ INVALID_NODE };
     NodeIndex to{ INVALID_NODE };
     EdgeIndex edges{ INVALID_EDGE };
   };
@@ -114,7 +116,8 @@ namespace Input {
     KeyMapID key{};
     //If populated, then this is a simulated edge meaning that the subnode holds the
     //destination state rather than the actual edge location
-    NodeIndex subnode{ INVALID_NODE };
+    NodeIndex toSubnode{ INVALID_NODE };
+    NodeIndex fromSubnode{ INVALID_NODE };
     Edge::Variant data;
   };
 
@@ -135,6 +138,7 @@ namespace Input {
 
   struct EdgeBuilder {
     EdgeBuilder& from(Input::KeyMapID id) {
+      data.edge.from = id;
       data.from = id;
       return *this;
     }
@@ -161,16 +165,24 @@ namespace Input {
       return *this;
     }
 
-    EdgeBuilder& delta1D(Input::KeyMapID id) {
+    EdgeBuilder& delta1D(Input::KeyMapID id, float min, float max) {
       data.edge.key = id;
-      data.edge.data.emplace<Input::Edge::Delta1D>();
+      data.edge.data.emplace<Input::Edge::Delta1D>(min, max);
       return *this;
     }
 
-    EdgeBuilder& delta2D(Input::KeyMapID id) {
+    EdgeBuilder& anyDelta1D(Input::KeyMapID id) {
+      return delta1D(id, std::numeric_limits<float>::lowest(), std::numeric_limits<float>::max());
+    }
+
+    EdgeBuilder& delta2D(Input::KeyMapID id, const glm::vec2& min, const glm::vec2& max) {
       data.edge.key = id;
-      data.edge.data.emplace<Input::Edge::Delta1D>();
+      data.edge.data.emplace<Input::Edge::Delta2D>(min, max);
       return *this;
+    }
+
+    EdgeBuilder& anyDelta2D(Input::KeyMapID id) {
+      return delta2D(id, glm::vec2{ std::numeric_limits<float>::lowest() }, glm::vec2{ std::numeric_limits<float>::max() });
     }
 
     EdgeBuilder& forkState() {
@@ -261,6 +273,7 @@ namespace Input {
     };
     struct ReverseMapping {
       NodeIndex subnodeCount{};
+      NodeIndex currentSubnode{};
     };
     std::unordered_map<PlatformInputID, Mapping> mappings;
     std::unordered_map<KeyMapID, ReverseMapping> reverseMappings;
@@ -281,6 +294,8 @@ namespace Input {
     NodeIndex addNode(const Node& node);
     EdgeIndex addEdge(NodeIndex from, NodeIndex to, const Edge& edge);
     EdgeIndex addEdge(const EdgeData& data);
+    //TODO: fix this
+    void finalize();
 
     //Sending inputs through the state machine
     void traverse(const EdgeTraverser& traverser);

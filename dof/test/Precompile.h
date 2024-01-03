@@ -23,3 +23,4 @@
 #include <array>
 #include <optional>
 #include <filesystem>
+#include <variant>
