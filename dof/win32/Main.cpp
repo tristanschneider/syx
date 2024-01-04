@@ -19,15 +19,19 @@
 #include "ThreadLocals.h"
 #include "Renderer.h"
 #include "GraphViz.h"
+#include "GameInput.h"
 
 #include "glm/gtx/norm.hpp"
 #include "Profile.h"
 
-using InputQueryResult = QueryResult<Row<PlayerKeyboardInput>, Row<PlayerInput>>;
+//TODO: add capabilities to state machine so this keyboard passthrough isn't necessary.
+//The passthrough is only used for imgui debugging, gameplay should use the state machine
+using PlayerInputQueryResult = QueryResult<GameInput::PlayerKeyboardInputRow>;
+using InputMachineQueryResult = QueryResult<GameInput::StateMachineRow>;
 
 struct InputArgs {
-  InputQueryResult input;
-  QueryResult<Row<DebugCameraControl>> debugCamera;
+  PlayerInputQueryResult playerInput;
+  InputMachineQueryResult machineInput;
 };
 
 struct AppDatabase {
@@ -63,57 +67,43 @@ void onFocusChanged(WPARAM w) {
   }
 }
 
-void onKey(WPARAM key, InputArgs& args, KeyState state) {
-  const float moveAmount = state == KeyState::Triggered ? 1.0f : 0.0f;
-  const bool isDown = state == KeyState::Triggered;
+void onKey(WPARAM key, InputArgs& args, GameInput::KeyState state) {
+  const bool isDown = state == GameInput::KeyState::Triggered;
 
-  for(size_t t = 0; t < args.input.size(); ++t) {
-    auto&& [keyboards, inputs] = args.input.get(t);
-    for(size_t i = 0; i < keyboards->size(); ++i) {
-      PlayerKeyboardInput& keyboard = keyboards->at(i);
-      PlayerInput& input = inputs->at(i);
-      keyboard.mRawKeys.push_back(std::make_pair(state, (int)key));
-
-      switch(key) {
-        case 'W': keyboard.mKeys.set((size_t)PlayerKeyboardInput::Key::Up, isDown); break;
-        case 'A':keyboard.mKeys.set((size_t)PlayerKeyboardInput::Key::Left, isDown); break;
-        case 'S': keyboard.mKeys.set((size_t)PlayerKeyboardInput::Key::Down, isDown); break;
-        case 'D': keyboard.mKeys.set((size_t)PlayerKeyboardInput::Key::Right, isDown); break;
-        case VK_SPACE: input.mAction1 = state; break;
-        case VK_LSHIFT: input.mAction2 = state; break;
-        default: break;
+  for(size_t t = 0; t < args.machineInput.size(); ++t) {
+    auto [machines] = args.machineInput.get(t);
+    for(Input::StateMachine& machine : *machines) {
+      //Would be most efficient to put the condition outside the loop but presumably there's only one machine anyway
+      if(isDown) {
+        machine.traverse(machine.getMapper().onKeyDown(static_cast<Input::PlatformInputID>(key)));
       }
-      input.mMoveX = input.mMoveY = 0.0f;
-      if(keyboard.mKeys.test((size_t)PlayerKeyboardInput::Key::Up)) {
-        input.mMoveY += 1.0f;
-      }
-      if(keyboard.mKeys.test((size_t)PlayerKeyboardInput::Key::Down)) {
-        input.mMoveY -= 1.0f;
-      }
-      if(keyboard.mKeys.test((size_t)PlayerKeyboardInput::Key::Left)) {
-        input.mMoveX -= 1.0f;
-      }
-      if(keyboard.mKeys.test((size_t)PlayerKeyboardInput::Key::Right)) {
-        input.mMoveX += 1.0f;
-      }
-      glm::vec2 normalized = glm::vec2(input.mMoveX, input.mMoveY);
-      if(float len = glm::length(normalized); len > 0.0001f) {
-        normalized /= len;
-        input.mMoveX = normalized.x;
-        input.mMoveY = normalized.y;
+      else {
+        machine.traverse(machine.getMapper().onKeyUp(static_cast<Input::PlatformInputID>(key)));
       }
     }
   }
 
-  args.debugCamera.forEachElement([&](DebugCameraControl& camera) {
-    switch(key) {
-      case VK_ADD: camera.mAdjustZoom = moveAmount; break;
-      case VK_SUBTRACT: camera.mAdjustZoom = -moveAmount; break;
-      case 'O': camera.mTakeSnapshot = camera.mTakeSnapshot || isDown; break;
-      case 'P': camera.mLoadSnapshot = camera.mLoadSnapshot || isDown; break;
-      default: break;
+  for(size_t t = 0; t < args.playerInput.size(); ++t) {
+    auto&& [keyboards] = args.playerInput.get(t);
+    for(size_t i = 0; i < keyboards->size(); ++i) {
+      GameInput::PlayerKeyboardInput& keyboard = keyboards->at(i);
+      keyboard.mRawKeys.push_back(std::make_pair(state, (int)key));
     }
-  });
+  }
+}
+
+void createKeyboardMappings(Input::InputMapper& mapper) {
+  auto cast = [](auto i) { return static_cast<Input::PlatformInputID>(i); };
+  mapper.addKeyAs2DRelativeMapping(cast('W'), GameInput::Keys::MOVE_2D, { 0, 1 });
+  mapper.addKeyAs2DRelativeMapping(cast('A'), GameInput::Keys::MOVE_2D, { -1, 0 });
+  mapper.addKeyAs2DRelativeMapping(cast('S'), GameInput::Keys::MOVE_2D, { 0, -1 });
+  mapper.addKeyAs2DRelativeMapping(cast('D'), GameInput::Keys::MOVE_2D, { 1, 0 });
+  mapper.addKeyAs1DRelativeMapping(cast(VK_ADD), GameInput::Keys::DEBUG_ZOOM_1D, -1.0f);
+  mapper.addKeyAs1DRelativeMapping(cast(VK_SUBTRACT), GameInput::Keys::DEBUG_ZOOM_1D, 1.0f);
+  mapper.addKeyMapping(cast(VK_SPACE), GameInput::Keys::ACTION_1);
+  mapper.addKeyMapping(cast(VK_LSHIFT), GameInput::Keys::ACTION_2);
+  mapper.addKeyAs1DRelativeMapping(cast('E'), GameInput::Keys::CHANGE_DENSITY_1D, 1.0f);
+  mapper.addKeyAs1DRelativeMapping(cast('Q'), GameInput::Keys::CHANGE_DENSITY_1D, -1.0f);
 }
 
 void enqueueMouseWheel(InputArgs& db, float wheelDelta) {
@@ -121,11 +111,11 @@ void enqueueMouseWheel(InputArgs& db, float wheelDelta) {
 }
 
 LRESULT onWMInput(InputArgs& args, HWND wnd, LPARAM l) {
-  auto& keyboards = args.input.get<0>(0);
+  auto& keyboards = args.playerInput.get<0>(0);
   if(!keyboards.size()) {
     return 0;
   }
-  PlayerKeyboardInput& keyboard = keyboards.at(0);
+  GameInput::PlayerKeyboardInput& keyboard = keyboards.at(0);
 
   std::array<uint8_t, 1024> buffer;
   UINT bufferSize = static_cast<UINT>(buffer.size());
@@ -183,11 +173,11 @@ LRESULT onWMInput(InputArgs& args, HWND wnd, LPARAM l) {
 }
 
 void onChar(InputArgs& args, WPARAM w) {
-  auto& keyboards = args.input.get<0>(0);
+  auto& keyboards = args.playerInput.get<0>(0);
   if(!keyboards.size()) {
     return;
   }
-  PlayerKeyboardInput& keyboard = keyboards.at(0);
+  GameInput::PlayerKeyboardInput& keyboard = keyboards.at(0);
 
   if(std::isprint(static_cast<int>(w))) {
     keyboard.mRawText.push_back(static_cast<char>(w));
@@ -197,9 +187,9 @@ void onChar(InputArgs& args, WPARAM w) {
 void resetInput(IAppBuilder& builder) {
   auto task = builder.createTask();
   task.setName("reset input");
-  auto input = task.query<Row<PlayerKeyboardInput>>();
+  auto input = task.query<GameInput::PlayerKeyboardInputRow>();
   task.setCallback([input](AppTaskArgs&) mutable {
-    input.forEachElement([](PlayerKeyboardInput& input) {
+    input.forEachElement([](GameInput::PlayerKeyboardInput& input) {
       input.mRawKeys.clear();
       input.mRawWheelDelta = 0.0f;
       input.mRawMouseDeltaPixels = glm::vec2{ 0.0f };
@@ -217,21 +207,22 @@ void doKey(WPARAM w, LPARAM l) {
   const BOOL wasKeyDown = (keyFlags & KF_REPEAT) == KF_REPEAT;
   const BOOL isKeyReleased = (keyFlags & KF_UP) == KF_UP;
   if(isKeyReleased) {
-    onKey(w, APP->input, KeyState::Released);
+    onKey(w, APP->input, GameInput::KeyState::Released);
   }
   //Only send if key wasn't already down, thereby ignoring repeat inputs
   else if(!wasKeyDown) {
-    onKey(w, APP->input, KeyState::Triggered);
+    onKey(w, APP->input, GameInput::KeyState::Triggered);
   }
 }
 
-void doMouseKey(WPARAM w, KeyState state) {
+void doMouseKey(WPARAM w, GameInput::KeyState state) {
   if(APP) {
     onKey(w, APP->input, state);
   }
 }
 
 LRESULT CALLBACK mainProc(HWND wnd, UINT msg, WPARAM w, LPARAM l) {
+  using namespace GameInput;
   switch(msg) {
     case WM_DESTROY:
       PostQuitMessage(0);
@@ -366,6 +357,7 @@ int mainLoop(const char* args, HWND window) {
   Renderer::init(*initBuilder, window);
 
   Simulation::init(*initBuilder);
+  GameInput::init(*initBuilder);
   TaskRange initTasks = GameScheduler::buildTasks(IAppBuilder::finalize(std::move(initBuilder)), *tls->instance);
 
   initTasks.mBegin->mTask.addToPipe(scheduler->mScheduler);
@@ -382,6 +374,7 @@ int mainLoop(const char* args, HWND window) {
   ImguiModule::update(*builder);
 #endif
   resetInput(*builder);
+  GameInput::update(*builder);
   Renderer::swapBuffers(*builder);
   std::shared_ptr<AppTaskNode> appTaskNodes = IAppBuilder::finalize(std::move(builder));
   constexpr bool outputGraph = false;
@@ -469,9 +462,12 @@ int WINAPI WinMain(HINSTANCE hinstance, HINSTANCE, LPSTR lpCmdLine, int nCmdShow
   app.combined = createDatabase();
   app.window = &app.combined->getRuntime().query<Row<WindowData>>().get<0>(0);
   app.builder = GameBuilder::create(*app.combined);
-  app.input.input = app.combined->getRuntime().query<Row<PlayerKeyboardInput>, Row<PlayerInput>>();
-  app.input.debugCamera = app.combined->getRuntime().query<Row<DebugCameraControl>>();
+  app.input.playerInput = app.combined->getRuntime().query<GameInput::PlayerKeyboardInputRow>();
+  app.input.machineInput = app.combined->getRuntime().query<GameInput::StateMachineRow>();
   APP = &app;
+
+  Input::InputMapper* mapper = app.combined->getRuntime().query<GameInput::GlobalMappingsRow>().tryGetSingletonElement();
+  createKeyboardMappings(*mapper);
 
   RuntimeDatabase& rdb = app.combined->getRuntime();
   rdb;

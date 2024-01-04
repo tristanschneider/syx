@@ -13,6 +13,7 @@
 #include <random>
 #include "glm/gtx/norm.hpp"
 #include "AppBuilder.h"
+#include "ConstraintSolver.h"
 
 namespace Player {
   using namespace Tags;
@@ -49,7 +50,11 @@ namespace Player {
     task.setName("Player setup");
     auto cameras = task.query<Row<Camera>, const StableIDRow>();
     std::shared_ptr<ITableModifier> cameraModifier = task.getModifierForTable(cameras.matchingTableIDs.front());
-    auto players = task.query<FloatRow<Pos, X>, FloatRow<Pos, Y>, Row<PlayerInput>, const StableIDRow>();
+    auto players = task.query<
+      FloatRow<Pos, X>,
+      FloatRow<Pos, Y>,
+      GameInput::PlayerInputRow,
+      const StableIDRow>();
     Config::GameConfig* config = task.query<SharedRow<Config::GameConfig>>().tryGetSingletonElement();
     std::shared_ptr<ITableModifier> playerModifier = task.getModifierForTable(players.matchingTableIDs.front());
     const SceneState* scene = task.query<const SharedRow<SceneState>>().tryGetSingletonElement();
@@ -93,10 +98,11 @@ namespace Player {
     builder.submitTask(std::move(task));
   }
 
-  void initAbility(Config::GameConfig& config, QueryResultRow<Row<PlayerInput>>& input) {
+  void initAbility(Config::GameConfig& config, QueryResultRow<GameInput::PlayerInputRow>& input) {
     for(auto&& row : input) {
-      for(PlayerInput& in : *row) {
+      for(GameInput::PlayerInput& in : *row) {
         *in.ability1 = Config::getAbility(config.ability.pushAbility.ability);
+        in.wantsRebuild = true;
       }
     }
   }
@@ -108,7 +114,8 @@ namespace Player {
     task.setName("player input");
     const Config::GameConfig* config = TableAdapters::getGameConfig(task);
     auto players = task.query<
-      Row<PlayerInput>,
+      GameInput::PlayerInputRow,
+      const GameInput::StateMachineRow,
       const FloatRow<GLinVel, X>, const FloatRow<GLinVel, Y>,
       const FloatRow<GAngVel, Angle>,
       const FloatRow<GPos, X>, FloatRow<GPos, Y>,
@@ -120,10 +127,15 @@ namespace Player {
 
     task.setCallback([players, config, debug](AppTaskArgs& args) mutable {
       for(size_t t = 0; t < players.size(); ++t) {
-        auto&& [input, linVelX, linVelY, angVel, posX, posY, rotX, rotY, impulseX, impulseY, impulseA] = players.get(t);
+        auto&& [input, machines, linVelX, linVelY, angVel, posX, posY, rotX, rotY, impulseX, impulseY, impulseA] = players.get(t);
         for(size_t i = 0; i < input->size(); ++i) {
-          PlayerInput& playerInput = input->at(i);
-          glm::vec2 move(playerInput.mMoveX, playerInput.mMoveY);
+          GameInput::PlayerInput& playerInput = input->at(i);
+          const Input::StateMachine& sm = machines->at(i);
+          glm::vec2 move{ sm.getAbsoluteAxis2D(playerInput.nodes.move2D) };
+          const float moveLen = glm::length(move);
+          if(moveLen > 1.0f) {
+            move /= moveLen;
+          }
 
           constexpr float epsilon = 0.0001f;
           const bool hasMoveInput = glm::length2(move) > epsilon;
@@ -173,7 +185,6 @@ namespace Player {
 
           //TODO: read from SharedMassRow
           constexpr Mass mass = computePlayerMass();
-
           Constraint c;
           c.jacobian.a.linear = move;
           c.objMass.a = mass;
@@ -219,49 +230,50 @@ namespace Player {
             TableAdapters::add(i, impulse.angular, *impulseA);
           }
 
-          Ability::TriggerResult shouldTrigger = Ability::DontTrigger{};
-          if(playerInput.ability1) {
-            const bool inputDown = playerInput.mAction1 == KeyState::Triggered || playerInput.mAction1 == KeyState::Down;
-            Ability::AbilityInput& ability = *playerInput.ability1;
-            if(!Ability::isOnCooldown(ability.cooldown)) {
-              shouldTrigger = Ability::tryTrigger(ability.trigger, { rawDT, inputDown });
+          std::vector<Ability::TriggerResult> triggers;
+          for(const Input::Event& event : sm.readEvents()) {
+            switch(event.id) {
+            case GameInput::Events::CHANGE_DENSITY:
+              //TODO:
+              break;
+            case GameInput::Events::PARTIAL_TRIGGER_ACTION_1:
+              //Partial trigger means the charge time is the time the button was held down
+              if(playerInput.ability1) {
+                triggers.push_back(Ability::tryTriggerDirectly(playerInput.ability1->trigger, GameInput::timespanToSeconds(event.timeInNode)));
+              }
+              break;
+            case GameInput::Events::FULL_TRIGGER_ACTION_1:
+              if(playerInput.ability1) {
+                //Full trigger means time in node was min time plus time spent afterwards still holding
+                triggers.push_back(
+                  Ability::tryTriggerDirectly(
+                    playerInput.ability1->trigger,
+                    Ability::getMinChargeTime(playerInput.ability1->trigger) + GameInput::timespanToSeconds(event.timeInNode)
+                  )
+                );
+              }
+              break;
             }
-
-            const bool abilityActive = std::get_if<Ability::DontTrigger>(&shouldTrigger) == nullptr;
-            Ability::updateCooldown(ability.cooldown, { rawDT, abilityActive });
           }
 
-          //Hack to advance input here so gameplay doesn't miss it. Should work on the input layer somehow
-          auto advanceState = [](KeyState& state) {
-            switch(state) {
-            case KeyState::Triggered: state = KeyState::Down; break;
-            case KeyState::Released: state = KeyState::Up; break;
-            }
-          };
-          advanceState(playerInput.mAction1);
-          advanceState(playerInput.mAction2);
-          std::visit([&](const auto& t) {
-            if(t.resetInput) {
-              playerInput.mAction1 = KeyState::Up;
-            }
-          }, shouldTrigger);
-
           AreaForceStatEffectAdapter areaEffect = TableAdapters::getAreaForceEffects(args);
-          if(const auto withPower = std::get_if<Ability::TriggerWithPower>(&shouldTrigger)) {
-            const size_t effect = TableAdapters::addStatEffectsSharedLifetime(areaEffect.base, StatEffect::INSTANT, nullptr, 1);
-            AreaForceStatEffect::Command& cmd = areaEffect.command->at(effect);
-            cmd.origin = TableAdapters::read(i, *posX, *posY);
-            cmd.direction = TableAdapters::read(i, *rotX, *rotY);
-            cmd.dynamicPiercing = config->ability.pushAbility.dynamicPiercing;
-            cmd.terrainPiercing = config->ability.pushAbility.terrainPiercing;
-            cmd.rayCount = config->ability.pushAbility.rayCount;
-            AreaForceStatEffect::Command::Cone cone;
-            cone.halfAngle = config->ability.pushAbility.coneHalfAngle;
-            cone.length = config->ability.pushAbility.coneLength;
-            cmd.shape = cone;
-            cmd.damage = withPower->damage;
-            AreaForceStatEffect::Command::FlatImpulse impulseType{ withPower->power };
-            cmd.impulseType = impulseType;
+          for(Ability::TriggerResult& shouldTrigger : triggers) {
+            if(const auto withPower = std::get_if<Ability::TriggerWithPower>(&shouldTrigger)) {
+              const size_t effect = TableAdapters::addStatEffectsSharedLifetime(areaEffect.base, StatEffect::INSTANT, nullptr, 1);
+              AreaForceStatEffect::Command& cmd = areaEffect.command->at(effect);
+              cmd.origin = TableAdapters::read(i, *posX, *posY);
+              cmd.direction = TableAdapters::read(i, *rotX, *rotY);
+              cmd.dynamicPiercing = config->ability.pushAbility.dynamicPiercing;
+              cmd.terrainPiercing = config->ability.pushAbility.terrainPiercing;
+              cmd.rayCount = config->ability.pushAbility.rayCount;
+              AreaForceStatEffect::Command::Cone cone;
+              cone.halfAngle = config->ability.pushAbility.coneHalfAngle;
+              cone.length = config->ability.pushAbility.coneLength;
+              cmd.shape = cone;
+              cmd.damage = withPower->damage;
+              AreaForceStatEffect::Command::FlatImpulse impulseType{ withPower->power };
+              cmd.impulseType = impulseType;
+            }
           }
         }
       }

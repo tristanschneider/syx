@@ -39,6 +39,7 @@ namespace Input {
     //Determining the node state requires resolving all of the subnodes.
     //For example, if a direction key and a thumbstick direction is held, both contribute to the direction
     NodeIndex subnodes{ INVALID_NODE };
+    NodeIndex activeSubnode{ INVALID_NODE };
     EventID event{ INVALID_EVENT };
     Timespan timeActive{};
     //The active state on a node means if this node itself was directly traversed
@@ -79,6 +80,8 @@ namespace Input {
     //When being traversed, this will leave the source node active rather than moving
     //exclusively to the destination node
     bool fork{};
+    //Hack to flip delta to mean absolute limits instead of actual delta
+    bool isAbsolute{};
     NodeIndex from{ INVALID_NODE };
     NodeIndex to{ INVALID_NODE };
     //Intrusive linked list of other edges attached to the node
@@ -97,12 +100,22 @@ namespace Input {
       return std::get<Edge::Delta1D>(data).maxDelta;
     }
 
+    const float* tryGetAxis1DAbsolute() const {
+      const auto* res = std::get_if<Edge::Delta1D>(&data);
+      return res ? &res->maxDelta : nullptr;
+    }
+
     glm::vec2 getAxis2DDelta() const {
       return std::get<Edge::Delta2D>(data).minDelta;
     }
 
     glm::vec2 getAxis2DAbsolute() const {
       return std::get<Edge::Delta2D>(data).maxDelta;
+    }
+
+    const glm::vec2* tryGetAxis2DAbsolute() const {
+      const auto* res = std::get_if<Edge::Delta2D>(&data);
+      return res ? &res->maxDelta : nullptr;
     }
 
     KeyMapID key{};
@@ -116,6 +129,7 @@ namespace Input {
 
   struct Event {
     EventID id{};
+    NodeIndex toNode{};
     //Time spent in the previous node before traversing the edge that triggered this event
     Timespan timeInNode{};
     //The traverser that triggered this event. Can be observed to get input delta
@@ -130,13 +144,13 @@ namespace Input {
   };
 
   struct EdgeBuilder {
-    EdgeBuilder& from(Input::KeyMapID id) {
+    EdgeBuilder& from(Input::NodeIndex id) {
       data.edge.from = id;
       data.from = id;
       return *this;
     }
 
-    EdgeBuilder& to(Input::KeyMapID id) {
+    EdgeBuilder& to(Input::NodeIndex id) {
       data.to = id;
       return *this;
     }
@@ -164,6 +178,13 @@ namespace Input {
       return *this;
     }
 
+    EdgeBuilder& absolute1D(Input::KeyMapID id, float min, float max) {
+      data.edge.key = id;
+      data.edge.isAbsolute = true;
+      data.edge.data.emplace<Input::Edge::Delta1D>(min, max);
+      return *this;
+    }
+
     EdgeBuilder& anyDelta1D(Input::KeyMapID id) {
       return delta1D(id, std::numeric_limits<float>::lowest(), std::numeric_limits<float>::max());
     }
@@ -176,6 +197,11 @@ namespace Input {
 
     EdgeBuilder& anyDelta2D(Input::KeyMapID id) {
       return delta2D(id, glm::vec2{ std::numeric_limits<float>::lowest() }, glm::vec2{ std::numeric_limits<float>::max() });
+    }
+
+    EdgeBuilder& timeout(Input::Timespan time) {
+      data.edge.data.emplace<Input::Edge::Timeout>(time);
+      return *this;
     }
 
     EdgeBuilder& forkState() {
@@ -238,6 +264,7 @@ namespace Input {
     void addKeyAs1DRelativeMapping(PlatformInputID src, KeyMapID dst, float amount);
     void addKeyAs2DRelativeMapping(PlatformInputID src, KeyMapID dst, const glm::vec2& amount);
 
+    EdgeTraverser onPassthroughKeyDown(KeyMapID key) const;
     EdgeTraverser onKeyDown(PlatformInputID key) const;
     EdgeTraverser onKeyUp(PlatformInputID key) const;
     //Relative or absolute is specified by the platform depending on what makes sense for the input device
@@ -289,9 +316,13 @@ namespace Input {
   public:
     static constexpr NodeIndex ROOT_NODE{};
 
+    StateMachine() = default;
     StateMachine(StateMachineBuilder&& builder, InputMapper&& mapper);
     StateMachine(StateMachine&&) = default;
     StateMachine(const StateMachine&) = default;
+
+    StateMachine& operator=(const StateMachine&) = default;
+    StateMachine& operator=(StateMachine&&) = default;
 
     //Sending inputs through the state machine
     void traverse(const EdgeTraverser& traverser);

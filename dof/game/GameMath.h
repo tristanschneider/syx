@@ -103,6 +103,11 @@ namespace Math {
     return { v.y, -v.x };
   }
 
+  constexpr glm::vec2 safeNormalize(const glm::vec2& v, float e = 0.0001f) {
+    const float l = glm::dot(v, v);
+    return l >= e ? v/l : glm::vec2{ 0, 0 };
+  }
+
   //2d rotation matrix multiplication with 2d vector
   //[cos, -sin][x]
   //[sin,  cos][y]

@@ -55,7 +55,44 @@ namespace Ability {
     return DontTrigger{ true };
   }
 
+  //TODO: delete this
   TriggerResult tryTrigger(TriggerType& trigger, const TriggerInfo& info) {
     return std::visit([&](auto& t) { return tryTrigger(t, info); }, trigger);
+  }
+
+  struct TriggerVisitor {
+    TriggerResult operator()(const InstantTrigger&) {
+      return TriggerWithPower{ 1.0f, 1.0f, true };
+    }
+
+    TriggerResult operator()(const ChargeTrigger& trigger) {
+      //Input is up, reset and potentially trigger ability
+      const float storedCharge = CurveSolver::advanceTime(trigger.chargeCurve, trigger.currentCharge, chargeSeconds);
+      const float storedDamageCharge = CurveSolver::advanceTime(trigger.damageChargeCurve, trigger.currentDamageCharge, chargeSeconds);
+
+      //Input has been released and was held long enough to trigger ability, trigger it
+      if(storedCharge >= trigger.minimumCharge) {
+        const float power = CurveSolver::solve(storedCharge, trigger.chargeCurve);
+        const float damage = CurveSolver::solve(storedDamageCharge, trigger.damageChargeCurve);
+        return TriggerWithPower{ power, damage, false };
+      }
+
+      //Input is up and not enough time was banked to trigger an ability, do nothing
+      return DontTrigger{ true };
+    }
+
+    float chargeSeconds{};
+  };
+
+  TriggerResult tryTriggerDirectly(const TriggerType& trigger, float chargeSeconds) {
+    return std::visit(TriggerVisitor{ chargeSeconds }, trigger);
+  }
+
+  float getMinChargeTime(const TriggerType& t) {
+    struct Visitor {
+      float operator()(const InstantTrigger&) { return 0.0f; }
+      float operator()(const ChargeTrigger& t) { return t.minimumCharge; }
+    };
+    return std::visit(Visitor{}, t);
   }
 }

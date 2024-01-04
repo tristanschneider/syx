@@ -47,6 +47,8 @@ namespace Ability {
   bool isOnCooldown(const DisabledCooldown& cooldown);
   bool isOnCooldown(const CooldownType& cooldown);
 
+  float getMinChargeTime(const TriggerType& t);
+
   struct UpdateInfo {
     float t{};
     bool abilityActive{};
@@ -70,4 +72,5 @@ namespace Ability {
   TriggerResult tryTrigger(InstantTrigger& trigger, const TriggerInfo& info);
   TriggerResult tryTrigger(ChargeTrigger& trigger, const TriggerInfo& info);
   TriggerResult tryTrigger(TriggerType& trigger, const TriggerInfo& info);
+  TriggerResult tryTriggerDirectly(const TriggerType& trigger, float chargeSeconds);
 }

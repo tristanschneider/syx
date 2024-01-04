@@ -21,15 +21,7 @@
 #include "FragmentStateMachine.h"
 #include "SpatialQueries.h"
 #include "ConstraintSolver.h"
-
-PlayerInput::PlayerInput()
-  : ability1(std::make_unique<Ability::AbilityInput>()) {
-}
-
-PlayerInput::PlayerInput(PlayerInput&&) = default;
-PlayerInput& PlayerInput::operator=(PlayerInput&&) = default;
-
-PlayerInput::~PlayerInput() = default;
+#include "GameDatabase.h"
 
 namespace {
   using namespace Tags;
@@ -49,7 +41,7 @@ namespace {
     FileSystem* fs = task.query<SharedRow<FileSystem>>().tryGetSingletonElement();
     auto textureRequests = task.query<Row<TextureLoadRequest>>();
     std::shared_ptr<ITableModifier> textureRequestModifier = task.getModifierForTable(textureRequests.matchingTableIDs.front());
-    auto playerTextures = task.query<SharedRow<TextureReference>, const Row<PlayerInput>>();
+    auto playerTextures = task.query<SharedRow<TextureReference>, const IsPlayer>();
     auto fragmentTextures = task.query<SharedRow<TextureReference>, const IsFragment>();
 
     task.setCallback([=](AppTaskArgs&) mutable {
@@ -200,28 +192,8 @@ void Simulation::initScheduler(IAppBuilder& builder) {
   builder.submitTask(std::move(task));
 }
 
-//Does a query and sets the default value of the first query element
-template<class... Query, class T>
-void setDefaultValue(IAppBuilder& builder, std::string_view taskName, T value) {
-  auto task = builder.createTask();
-  task.setName(taskName);
-  auto q = task.query<Query...>();
-  task.setCallback([q, value](AppTaskArgs&) mutable {
-    q.forEachRow([value](auto& row, auto&...) { row.setDefaultValue(value); });
-  });
-  builder.submitTask(std::move(task));
-}
-
 void Simulation::init(IAppBuilder& builder) {
-  setDefaultValue<FloatRow<Tags::Rot, Tags::CosAngle>>(builder, "setDefault Rot", 1.0f);
-  setDefaultValue<FloatRow<Tags::GRot, Tags::CosAngle>>(builder, "setDefault GRot", 1.0f);
-  setDefaultValue<Narrowphase::CollisionMaskRow>(builder, "setDefault Mask", uint8_t(~0));
-  setDefaultValue<ConstraintSolver::ConstraintMaskRow>(builder, "setDefault Constraint Mask", ConstraintSolver::MASK_SOLVE_ALL);
-  setDefaultValue<ConstraintSolver::SharedMassRow, Narrowphase::SharedUnitCubeRow>(builder, "setDefault mass", Geo::computeQuadMass(1, 1, 1));
-  setDefaultValue<ConstraintSolver::SharedMassRow, ZeroMassObjectTableTag>(builder, "set zero mass", Geo::BodyMass{});
-  //Fragments in particular start opaque then reveal the texture as they take damage
-  setDefaultValue<Tint, const IsFragment>(builder, "setDefault Tint", glm::vec4(0, 0, 0, 1));
-
+  GameDatabase::configureDefaults(builder);
   PhysicsSimulation::init(builder);
   Player::init(builder);
 

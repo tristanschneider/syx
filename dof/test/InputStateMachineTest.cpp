@@ -81,7 +81,6 @@ namespace InputMappings {
       .keyDown(InputMappings::ACTION_1)
       .forkState()
     );
-    //TODO: hold doesn't really need its own state but maybe it's nice for clarity
     //Hold
     machine.addEdge(Input::EdgeBuilder{}
       .from(action1Begin)
@@ -159,11 +158,7 @@ namespace Test {
       machine.traverse(mapper.onKeyDown(PlatformInput::A2));
       Assert::IsTrue(events.empty());
 
-      //TODO: the input that doesn't use the mapper is awkward
-      Input::EdgeTraverser enableInput;
-      enableInput.key = InputMappings::ENABLE_PLAYER_INPUT;
-      enableInput.data.emplace<Input::Edge::KeyDown>();
-      machine.traverse(enableInput);
+      machine.traverse(mapper.onPassthroughKeyDown(InputMappings::ENABLE_PLAYER_INPUT));
 
       //Trigger Action 2 and make sure it fires the event on key down
       machine.traverse(mapper.onKeyDown(PlatformInput::A2));

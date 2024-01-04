@@ -88,6 +88,10 @@ namespace Input {
         traverseData.maxDelta = traverseData.minDelta + machine.getAbsoluteAxis1D(edge.to);
       }
 
+      if(edge.isAbsolute) {
+        return Math::between(traverseData.maxDelta, e.minDelta, e.maxDelta);
+      }
+
       return Math::between(traverseData.minDelta, e.minDelta, e.maxDelta);
     }
     bool operator()(const Edge::Delta2D& e) {
@@ -99,6 +103,10 @@ namespace Input {
       else if(traverseData.maxDelta == UNSET2D) {
         //Absolute information is missing, fill it in from the relative data
         traverseData.maxDelta = traverseData.minDelta + machine.getAbsoluteAxis2D(edge.to);
+      }
+
+      if(edge.isAbsolute) {
+        return Math::between(traverseData.maxDelta, e.minDelta, e.maxDelta);
       }
 
       return Math::between(traverseData.minDelta, e.minDelta, e.maxDelta);
@@ -127,10 +135,14 @@ namespace Input {
     //The subnode should be active while the root node gets added as the active index
     node.isActive = true;
     if(auto* node1 = std::get_if<Node::Axis1D>(&node.data)) {
-      node1->absolute = traverser.getAxis1DAbsolute();
+      if(const float* data = traverser.tryGetAxis1DAbsolute()) {
+        node1->absolute = *data;
+      }
     }
     else if(auto* node2 = std::get_if<Node::Axis2D>(&node.data)) {
-      node2->absolute = traverser.getAxis2DAbsolute();
+      if(const glm::vec2* data = traverser.tryGetAxis2DAbsolute()) {
+        node2->absolute = *data;
+      }
     }
   }
 
@@ -153,6 +165,11 @@ namespace Input {
   }
 
   void StateMachine::traverse(const EdgeTraverser& et) {
+    //Early out for no-op case
+    if(std::get_if<Edge::Empty>(&et.data)) {
+      return;
+    }
+
     EdgeTraverser traverser{ et };
     Timespan elapsed{};
     if(const auto* t = std::get_if<Edge::Timeout>(&traverser.data)){ 
@@ -168,6 +185,7 @@ namespace Input {
       gnx::LinkedList::foreach(edges, node.edges, [&](Edge& edge) {
         CanTraverse canTraverse{ traverser, *this, edge };
         if(canTraverse.shouldTraverseEdge()) {
+          const bool isKeyMatch = edge.key == traverser.key;
           //ROOT special case means exit the machine, so no node entry logic is needed
           if(edge.to != ROOT_NODE) {
             Node& root = nodes[edge.to];
@@ -175,14 +193,17 @@ namespace Input {
             //added again into the active list nor trigger events
             const bool wasAlreadyActive = isNodeActive(edge.to);
             //If there is a subnode the updated data needs to be stored there
-            enterNode(nodes[getNodeOrSubnode(edge.to, traverser.toSubnode, nodes)], traverser);
+            enterNode(nodes[getNodeOrSubnode(edge.to, isKeyMatch ? traverser.toSubnode : INVALID_NODE, nodes)], traverser);
             if(!wasAlreadyActive) {
               //Regardless of subnodes only the root is ever considered active, so add that to the list
               addToActiveList(edge.to, activeNodes);
+              //TODO: does this work in the case of multiple subnodes triggering an input to an active node?
+              assert(root.activeSubnode == INVALID_NODE);
+              root.activeSubnode = isKeyMatch ? traverser.toSubnode : INVALID_NODE;
 
               if(root.event != INVALID_EVENT) {
                 //Emit the event of the destination node with the time spent in the source node
-                publishedEvents.push_back({ root.event, node.timeActive, traverser });
+                publishedEvents.push_back({ root.event, edge.to, node.timeActive, traverser });
               }
             }
           }
@@ -190,13 +211,17 @@ namespace Input {
           //It should only remain if the execution is forking meaning both the source and destination are now active
           if(active != ROOT_NODE && (edge.to == ROOT_NODE || !edge.fork)) {
             //Exit the node or subnode. Once all subnodes are inactive the root node can be removed from the active list
-            exitNode(getNodeOrSubnode(active, traverser.fromSubnode, nodes), nodes);
+            exitNode(getNodeOrSubnode(active, node.activeSubnode, nodes), nodes);
 
             if(!isNodeActive(active)) {
               exitNode(active, nodes);
               node.isActive = false;
               removeFromActiveList(activeNodes.begin() + i, activeNodes);
+              node.activeSubnode = INVALID_NODE;
               removedActiveNode = true;
+              if(edge.consumeEvent) {
+                eventConsumed = true;
+              }
               return false;
             }
           }
@@ -340,6 +365,13 @@ namespace Input {
     Edge::Delta2D e;
     e.minDelta = e.maxDelta = amount;
     addMapping(src, dst, std::move(e));
+  }
+
+  EdgeTraverser InputMapper::onPassthroughKeyDown(KeyMapID key) const {
+    EdgeTraverser result;
+    result.key = key;
+    result.data.emplace<Edge::KeyDown>();
+    return result;
   }
 
   //Keys are stored as key down events so this case can return directly

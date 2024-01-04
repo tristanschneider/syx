@@ -7,13 +7,8 @@
 #include "glm/vec4.hpp"
 #include "StableElementID.h"
 #include "Scheduler.h"
-#include <bitset>
 #include "DBEvents.h"
 #include "RowTags.h"
-
-namespace Ability {
-  struct AbilityInput;
-}
 
 class IAppBuilder;
 
@@ -90,64 +85,11 @@ struct FragmentGoalFoundTableTag : TagRow {};
 
 struct TargetTableTag : TagRow{};
 
-enum class KeyState : uint8_t {
-  Up,
-  Triggered,
-  Released,
-  Down,
-};
-
-//Final desired move input state
-struct PlayerInput {
-  PlayerInput();
-  PlayerInput(PlayerInput&&);
-  ~PlayerInput();
-
-  PlayerInput& operator=(PlayerInput&&);
-
-  float mMoveX{};
-  float mMoveY{};
-  KeyState mAction1{};
-  KeyState mAction2{};
-  //Goes from 0 to 1 when starting input in a direction, then back down to zero when stopping
-  float moveT{};
-  float angularMoveT{};
-
-  std::unique_ptr<Ability::AbilityInput> ability1;
-};
-
-
-//Intermediate keyboard state used to compute final state
-struct PlayerKeyboardInput {
-  enum class Key : uint8_t {
-    Up,
-    Down,
-    Left,
-    Right,
-    Count,
-  };
-  std::bitset<(size_t)Key::Count> mKeys;
-  glm::vec2 mRawMousePixels{};
-  glm::vec2 mRawMouseDeltaPixels{};
-  glm::vec2 mLastMousePos{};
-  bool mIsRelativeMouse{};
-  float mRawWheelDelta{};
-  std::vector<std::pair<KeyState, int>> mRawKeys;
-  std::string mRawText;
-};
-
-struct IsPlayer : SharedRow<char> {};
-
+struct IsPlayer : TagRow{};
 
 struct Camera {
   float angle{};
   float zoom{};
-};
-
-struct DebugCameraControl {
-  float mAdjustZoom{};
-  bool mTakeSnapshot{};
-  bool mLoadSnapshot{};
 };
 
 struct DebugPoint {

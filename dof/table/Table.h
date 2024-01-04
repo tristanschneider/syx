@@ -82,7 +82,7 @@ struct BasicRow {
   Element mDefaultValue{};
 };
 
-//For sharing a value between all elements in a table\
+//For sharing a value between all elements in a table
 //Keeps track of size for consistency but doesn't mean anything
 //Value must be set explicitly with at
 template<class Element>

@@ -117,7 +117,7 @@ namespace AbilityModule {
     return changed;
   }
 
-  void update(Config::GameConfig& config, QueryResultRow<Row<PlayerInput>>& input) {
+  void update(Config::GameConfig& config, QueryResultRow<GameInput::PlayerInputRow>& input) {
     bool changed = false;
 
     ImGui::Begin("Abilities");
@@ -135,7 +135,7 @@ void GameModule::update(IAppBuilder& builder) {
   task.setName("Imgui Game Module").setPinning(AppTaskPinning::MainThread{});
   Config::GameConfig* config = task.query<SharedRow<Config::GameConfig>>().tryGetSingletonElement();
   FileSystem* fs = task.query<SharedRow<FileSystem>>().tryGetSingletonElement();
-  auto input = task.query<Row<PlayerInput>>();
+  auto input = task.query<GameInput::PlayerInputRow>();
   const bool* enabled = ImguiModule::queryIsEnabled(task);
   assert(config && fs);
 

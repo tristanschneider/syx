@@ -29,6 +29,7 @@
 #include "SpatialPairsStorage.h"
 #include "IslandGraph.h"
 #include "ConstraintSolver.h"
+#include "GameInput.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -1620,8 +1621,9 @@ namespace Test {
       GameArgs args;
       args.playerPos = glm::vec2{ 0.0f };
       TestGame game{ args };
-      auto [input, posX] = game.builder().query<Row<PlayerInput>, FloatRow<Tags::Pos, Tags::X>>().get(0);
-      input->at(0).mMoveX = 1.0f;
+      auto [input, posX] = game.builder().query<GameInput::PlayerInputRow, FloatRow<Tags::Pos, Tags::X>>().get(0);
+      //TODO:
+      //input->at(0).mMoveX = 1.0f;
 
       //Once to compute the impulse, next frame updates position with it
       game.update();

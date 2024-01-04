@@ -13,6 +13,7 @@
 #include "Narrowphase.h"
 #include "SpatialPairsStorage.h"
 #include "SpatialQueries.h"
+#include "GameInput.h"
 
 namespace GameDatabase {
   using BroadphaseTable = SweepNPruneBroadphase::BroadphaseTable;
@@ -35,6 +36,7 @@ namespace GameDatabase {
     SharedRow<StableElementMappings>,
     SharedRow<Scheduler>,
     SharedRow<Config::GameConfig>,
+    GameInput::GlobalMappingsRow,
     Events::EventsRow,
 
     ThreadLocalsRow
@@ -152,8 +154,9 @@ namespace GameDatabase {
     ConstraintSolver::SharedMaterialRow,
 
     Row<CubeSprite>,
-    Row<PlayerInput>,
-    Row<PlayerKeyboardInput>,
+    GameInput::PlayerInputRow,
+    GameInput::PlayerKeyboardInputRow,
+    GameInput::StateMachineRow,
     SharedRow<TextureReference>,
 
     StableIDRow
@@ -162,7 +165,8 @@ namespace GameDatabase {
     Row<Camera>,
     FloatRow<Tags::Pos, Tags::X>,
     FloatRow<Tags::Pos, Tags::Y>,
-    Row<DebugCameraControl>,
+    GameInput::StateMachineRow,
+    GameInput::CameraDebugInputRow,
     StableIDRow
   >;
 

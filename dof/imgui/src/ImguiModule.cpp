@@ -11,6 +11,7 @@
 #include "GraphicsModule.h"
 #include "DebugModule.h"
 #include "RendererTableAdapters.h"
+#include "GameInput.h"
 
 struct ImguiImpl {
   GLuint mShader{};
@@ -149,10 +150,11 @@ namespace ImguiModule {
   }
 
   void updateInput(IAppBuilder& builder) {
+    using namespace GameInput;
     auto task = builder.createTask();
     task.setName("Imgui Input").setPinning(AppTaskPinning::MainThread{});
     const bool* enabled = ImguiModule::queryIsEnabled(task);
-    auto input = task.query<const Row<PlayerKeyboardInput>>();
+    auto input = task.query<const GameInput::PlayerKeyboardInputRow>();
 
     task.setCallback([enabled, input](AppTaskArgs&) mutable {
       if(!*enabled) {
