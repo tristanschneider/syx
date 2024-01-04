@@ -449,7 +449,7 @@ void enableRawMouseInput() {
 
 std::unique_ptr<IDatabase> createDatabase() {
   auto mappings = std::make_unique<StableElementMappings>();
-  std::unique_ptr<IDatabase> game = GameData::create(*mappings);
+  std::unique_ptr<IDatabase> game = GameDatabase::create(*mappings);
   std::unique_ptr<IAppBuilder> tempBuilder = GameBuilder::create(*game);
   auto tempA = tempBuilder->createTask();
   tempA.discard();

@@ -73,7 +73,7 @@ namespace Test {
   struct TestGame {
     TestGame(GameConstructArgs args = {}) {
       auto mappings = std::make_unique<StableElementMappings>();
-      std::unique_ptr<IDatabase> game = GameData::create(*mappings);
+      std::unique_ptr<IDatabase> game = GameDatabase::create(*mappings);
       std::unique_ptr<IDatabase> result =  DBReflect::bundle(std::move(game), std::move(mappings));
 
       std::unique_ptr<IAppBuilder> bootstrap = GameBuilder::create(*result);

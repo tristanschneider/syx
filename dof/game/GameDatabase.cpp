@@ -14,7 +14,7 @@
 #include "SpatialPairsStorage.h"
 #include "SpatialQueries.h"
 
-namespace GameData {
+namespace GameDatabase {
   using BroadphaseTable = SweepNPruneBroadphase::BroadphaseTable;
 
   //Table to hold positions to be referenced by stable element id
@@ -183,11 +183,33 @@ namespace GameData {
     TargetPosTable
   >;
 
-
   std::unique_ptr<IDatabase> create(StableElementMappings& mappings) {
     return DBReflect::merge(
       DBReflect::createDatabase<GameDatabase>(mappings),
       DBReflect::createDatabase<StatEffectDatabase>(mappings)
     );
+  }
+
+  //Does a query and sets the default value of the first query element
+  template<class... Query, class T>
+  void setDefaultValue(IAppBuilder& builder, std::string_view taskName, T value) {
+    auto task = builder.createTask();
+    task.setName(taskName);
+    auto q = task.query<Query...>();
+    task.setCallback([q, value](AppTaskArgs&) mutable {
+      q.forEachRow([value](auto& row, auto&...) { row.setDefaultValue(value); });
+    });
+    builder.submitTask(std::move(task));
+  }
+
+  void configureDefaults(IAppBuilder& builder) {
+    setDefaultValue<FloatRow<Tags::Rot, Tags::CosAngle>>(builder, "setDefault Rot", 1.0f);
+    setDefaultValue<FloatRow<Tags::GRot, Tags::CosAngle>>(builder, "setDefault GRot", 1.0f);
+    setDefaultValue<Narrowphase::CollisionMaskRow>(builder, "setDefault Mask", uint8_t(~0));
+    setDefaultValue<ConstraintSolver::ConstraintMaskRow>(builder, "setDefault Constraint Mask", ConstraintSolver::MASK_SOLVE_ALL);
+    setDefaultValue<ConstraintSolver::SharedMassRow, Narrowphase::SharedUnitCubeRow>(builder, "setDefault mass", Geo::computeQuadMass(1, 1, 1));
+    setDefaultValue<ConstraintSolver::SharedMassRow, ZeroMassObjectTableTag>(builder, "set zero mass", Geo::BodyMass{});
+    //Fragments in particular start opaque then reveal the texture as they take damage
+    setDefaultValue<Tint, const IsFragment>(builder, "setDefault Tint", glm::vec4(0, 0, 0, 1));
   }
 }

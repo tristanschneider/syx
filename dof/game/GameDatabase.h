@@ -2,8 +2,9 @@
 
 struct IDatabase;
 struct StableElementMappings;
+class IAppBuilder;
 
-//TODO: match name to file when GameDatabase no longer exists
-namespace GameData {
+namespace GameDatabase {
   std::unique_ptr<IDatabase> create(StableElementMappings& mappings);
+  void configureDefaults(IAppBuilder& builder);
 }
