@@ -193,12 +193,6 @@ namespace GameInput {
       .consumeEvent()
     );
 
-    //addAndGoto(builder, root, EdgeBuilder{}
-    //  .from(root)
-    //  .to(zoom)
-    //  .anyDelta1D(Keys::DEBUG_ZOOM_1D)
-    //  .forkState()
-    //);
     machine = StateMachine{ std::move(builder), InputMapper{ mapper } };
     machine.traverse(machine.getMapper().onPassthroughKeyDown(Keys::INIT_ONCE));
   }

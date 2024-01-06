@@ -265,6 +265,7 @@ namespace Input {
     void addKeyAs2DRelativeMapping(PlatformInputID src, KeyMapID dst, const glm::vec2& amount);
 
     EdgeTraverser onPassthroughKeyDown(KeyMapID key) const;
+    EdgeTraverser onPassthroughAxis2DAbsolute(KeyMapID axis, const glm::vec2& absolute) const;
     EdgeTraverser onKeyDown(PlatformInputID key) const;
     EdgeTraverser onKeyUp(PlatformInputID key) const;
     //Relative or absolute is specified by the platform depending on what makes sense for the input device

@@ -106,6 +106,7 @@ namespace Test {
 
       std::unique_ptr<IAppBuilder> updateBuilder = GameBuilder::create(*result);
       Simulation::buildUpdateTasks(*updateBuilder, args.updateConfig);
+      GameInput::update(*updateBuilder);
 
       task = GameScheduler::buildTasks(IAppBuilder::finalize(std::move(updateBuilder)), *tls->instance);
       db = std::move(result);
@@ -1621,9 +1622,9 @@ namespace Test {
       GameArgs args;
       args.playerPos = glm::vec2{ 0.0f };
       TestGame game{ args };
-      auto [input, posX] = game.builder().query<GameInput::PlayerInputRow, FloatRow<Tags::Pos, Tags::X>>().get(0);
-      //TODO:
-      //input->at(0).mMoveX = 1.0f;
+      auto [playerInput, stateMachine, posX] = game.builder().query<GameInput::PlayerInputRow, GameInput::StateMachineRow, FloatRow<Tags::Pos, Tags::X>>().get(0);
+      const Input::InputMapper* mapper = game.builder().query<GameInput::GlobalMappingsRow>().tryGetSingletonElement();
+      stateMachine->at(0).traverse(mapper->onPassthroughAxis2DAbsolute(GameInput::Keys::MOVE_2D, { 1, 0 }));
 
       //Once to compute the impulse, next frame updates position with it
       game.update();

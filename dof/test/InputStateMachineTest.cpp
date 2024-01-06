@@ -216,5 +216,84 @@ namespace Test {
       machine.traverse(mapper.onKeyUp(PlatformInput::S));
       assertEq({ -1.0f, 0.5f }, machine.getAbsoluteAxis2D(keys.move));
     }
+
+    TEST_METHOD(LoopAxisEvent) {
+      using namespace Input;
+      InputMapper mapper;
+      const KeyMapID axis = 0;
+      const KeyMapID init = 1;
+      const PlatformInputID increase = 0;
+      const PlatformInputID decrease = 1;
+      const EventID axisEvent = 1;
+      mapper.addKeyAs1DRelativeMapping(increase, axis, 1.0f);
+      mapper.addKeyAs1DRelativeMapping(decrease, axis, -1.0f);
+      StateMachineBuilder builder;
+      const NodeIndex root = builder.addNode(NodeBuilder{});
+      const NodeIndex axisNode = builder.addNode(NodeBuilder{}.axis1D().emitEvent(axisEvent));
+      const NodeIndex repeat = builder.addNode(NodeBuilder{});
+
+      builder.addEdge(EdgeBuilder{}
+        .from(StateMachine::ROOT_NODE)
+        .to(root)
+        .keyDown(init)
+      );
+      builder.addEdge(EdgeBuilder{}
+        .from(root)
+        .to(axisNode)
+        .anyDelta1D(axis)
+        //Consume prevents it from doing an immediate repeat, causing two events on button down
+        .consumeEvent()
+      );
+      //TODO: this edge order is unintuitive, it's backwards because builder adds to front of list
+      //Repeat event while axis is nonzero
+      builder.addEdge(EdgeBuilder{}
+        .from(axisNode)
+        .to(repeat)
+        .unconditional()
+      );
+      builder.addEdge(EdgeBuilder{}
+        .from(repeat)
+        .to(axisNode)
+        .unconditional()
+        .consumeEvent()
+      );
+
+      //Exit when axis goes back to zero
+      builder.addEdge(EdgeBuilder{}
+        .from(axisNode)
+        .to(root)
+        .absolute1D(axis, 0.0f, 0.0f)
+        .consumeEvent()
+      );
+
+      StateMachine machine{ std::move(builder), std::move(mapper) };
+      machine.traverse(machine.getMapper().onPassthroughKeyDown(init));
+      const InputMapper& m = machine.getMapper();
+      const auto& events = machine.readEvents();
+
+      auto assertAxisEventWithValue = [&events, axisEvent, &machine](float axisValue) {
+        Assert::AreEqual(size_t(1), events.size());
+        const Event& e = events[0];
+        Assert::AreEqual(axisEvent, e.id);
+        Assert::AreEqual(axisValue, machine.getAbsoluteAxis1D(e.toNode), 0.001f);
+      };
+
+      //Event should trigger on key down
+      machine.traverse(m.onKeyDown(increase));
+      assertAxisEventWithValue(1.0f);
+      machine.clearEvents();
+
+      //Event should repeat while key stays down. Do it twice to make sure it isn't a fluke
+      for(int i = 0; i < 2; ++i) {
+        machine.traverse(m.onTick(1));
+        assertAxisEventWithValue(1.0f);
+        machine.clearEvents();
+      }
+
+      //Event should stop when key is released
+      machine.traverse(m.onKeyUp(decrease));
+      Assert::IsTrue(events.empty());
+      Assert::AreEqual(0.0f, machine.getAbsoluteAxis1D(axisNode), 0.01f);
+    }
   };
 }

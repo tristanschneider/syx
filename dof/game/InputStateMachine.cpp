@@ -374,6 +374,13 @@ namespace Input {
     return result;
   }
 
+  EdgeTraverser InputMapper::onPassthroughAxis2DAbsolute(KeyMapID axis, const glm::vec2& absolute) const {
+    EdgeTraverser result;
+    result.key = axis;
+    result.data.emplace<Edge::Delta2D>(UNSET2D, absolute);
+    return result;
+  }
+
   //Keys are stored as key down events so this case can return directly
   EdgeTraverser InputMapper::onKeyDown(PlatformInputID key) const {
     auto it = mappings.find(key);
