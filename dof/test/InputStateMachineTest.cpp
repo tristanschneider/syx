@@ -14,10 +14,8 @@ namespace InputMappings {
   constexpr Input::KeyMapID DISABLE_PLAYER_INPUT{ 5 };
 
   struct Keys {
-    Input::KeyMapID move{};
+    Input::InputSourceRange move;
   };
-
-  Keys createStateMachine(Input::StateMachineBuilder& machine);
 };
 
 namespace InputEvents {
@@ -37,18 +35,18 @@ namespace InputMappings {
     );
   }
 
-  Keys createStateMachine(Input::StateMachineBuilder& machine) {
+  void createStateMachine(Input::StateMachineBuilder& machine) {
     //Having this as a root should make it possible to exit player control if desired by traversing out of the node
     //Kind of, any substates would need to finish
-    auto playerRoot = machine.addNode({ Input::Node::Empty{} });
-    auto move = machine.addNode({ Input::Node::Axis2D{} });
-    auto zoom = machine.addNode(Input::NodeBuilder{}.axis1D().emitEvent(InputEvents::DEBUG_ZOOM));
+    auto playerRoot = machine.addNode(Input::NodeBuilder{});
+    auto move = machine.addNode(Input::NodeBuilder{});
+    auto zoom = machine.addNode(Input::NodeBuilder{}.emitAxis1DEvent(InputEvents::DEBUG_ZOOM, InputMappings::DEBUG_ZOOM));
     //Have this trigger with a charge up that executes on release
-    auto action1Begin = machine.addNode(Input::NodeBuilder{}.button().emitEvent(InputEvents::ACTION_1_BEGIN));
-    auto action1Hold = machine.addNode(Input::Node{ Input::Node::Button{} });
-    auto action1Release = machine.addNode(Input::NodeBuilder{}.button().emitEvent(InputEvents::ACTION_1_TRIGGER));
+    auto action1Begin = machine.addNode(Input::NodeBuilder{}.emitEvent(InputEvents::ACTION_1_BEGIN));
+    auto action1Hold = machine.addNode(Input::NodeBuilder{});
+    auto action1Release = machine.addNode(Input::NodeBuilder{}.emitEvent(InputEvents::ACTION_1_TRIGGER));
     //Have this execute straight on trigger
-    auto action2 = machine.addNode(Input::NodeBuilder{}.button().emitEvent(InputEvents::ACTION_2_TRIGGER));
+    auto action2 = machine.addNode(Input::NodeBuilder{}.emitEvent(InputEvents::ACTION_2_TRIGGER));
 
     //Start on enable player input and go back on disable
     machine.addEdge(Input::EdgeBuilder{}
@@ -103,9 +101,11 @@ namespace InputMappings {
       .to(Input::StateMachine::ROOT_NODE)
       .keyUp(InputMappings::ACTION_2)
     );
+  }
 
+  Keys getKeys(const Input::StateMachine& sm) {
     Keys result;
-    result.move = move;
+    result.move = sm.getMapper().getInputSource(InputMappings::MOVE);
     return result;
   }
 }
@@ -135,6 +135,8 @@ namespace Test {
     mapper.addKeyMapping(PlatformInput::A1, InputMappings::ACTION_1);
     mapper.addKeyMapping(PlatformInput::A2, InputMappings::ACTION_2);
     mapper.addKeyMapping(PlatformInput::A2Redundant, InputMappings::ACTION_2);
+    mapper.addPassthroughKeyMapping(InputMappings::ENABLE_PLAYER_INPUT);
+    mapper.addPassthroughKeyMapping(InputMappings::DISABLE_PLAYER_INPUT);
   }
 
   void assertEq(const glm::vec2& l, const glm::vec2& r) {
@@ -148,14 +150,16 @@ namespace Test {
       Input::InputMapper temp;
       buildPlatformMappings(temp);
       Input::StateMachineBuilder builder;
-      InputMappings::Keys keys = InputMappings::createStateMachine(builder);
+      InputMappings::createStateMachine(builder);
       Input::StateMachine machine{ std::move(builder), std::move(temp) };
       const Input::InputMapper& mapper = machine.getMapper();
+      InputMappings::Keys keys = InputMappings::getKeys(machine);
 
       const std::vector<Input::Event>& events = machine.readEvents();
 
       //Root player node disabled so nothing should happen
       machine.traverse(mapper.onKeyDown(PlatformInput::A2));
+      machine.traverse(mapper.onKeyUp(PlatformInput::A2));
       Assert::IsTrue(events.empty());
 
       machine.traverse(mapper.onPassthroughKeyDown(InputMappings::ENABLE_PLAYER_INPUT));
@@ -199,8 +203,8 @@ namespace Test {
       machine.traverse(mapper.onKeyDown(PlatformInput::Plus));
       Assert::AreEqual(size_t(1), events.size());
       Assert::AreEqual(InputEvents::DEBUG_ZOOM, events[0].id);
-      const Input::EdgeTraverser& traverser = events[0].traverser;
-      Assert::AreEqual(1.0f, traverser.getAxis1DDelta());
+      const Input::Event::Axis1D* event = std::get_if<Input::Event::Axis1D>(&events[0].data);
+      Assert::AreEqual(1.0f, event->delta);
       machine.clearEvents();
 
       //2D input direct
@@ -227,9 +231,10 @@ namespace Test {
       const EventID axisEvent = 1;
       mapper.addKeyAs1DRelativeMapping(increase, axis, 1.0f);
       mapper.addKeyAs1DRelativeMapping(decrease, axis, -1.0f);
+      mapper.addPassthroughKeyMapping(init);
       StateMachineBuilder builder;
       const NodeIndex root = builder.addNode(NodeBuilder{});
-      const NodeIndex axisNode = builder.addNode(NodeBuilder{}.axis1D().emitEvent(axisEvent));
+      const NodeIndex axisNode = builder.addNode(NodeBuilder{}.emitAxis1DEvent(axisEvent, axis));
       const NodeIndex repeat = builder.addNode(NodeBuilder{});
 
       builder.addEdge(EdgeBuilder{}
@@ -244,7 +249,13 @@ namespace Test {
         //Consume prevents it from doing an immediate repeat, causing two events on button down
         .consumeEvent()
       );
-      //TODO: this edge order is unintuitive, it's backwards because builder adds to front of list
+      //Exit when axis goes back to zero
+      builder.addEdge(EdgeBuilder{}
+        .from(axisNode)
+        .to(root)
+        .absolute1D(axis, 0.0f, 0.0f)
+        .consumeEvent()
+      );
       //Repeat event while axis is nonzero
       builder.addEdge(EdgeBuilder{}
         .from(axisNode)
@@ -258,14 +269,6 @@ namespace Test {
         .consumeEvent()
       );
 
-      //Exit when axis goes back to zero
-      builder.addEdge(EdgeBuilder{}
-        .from(axisNode)
-        .to(root)
-        .absolute1D(axis, 0.0f, 0.0f)
-        .consumeEvent()
-      );
-
       StateMachine machine{ std::move(builder), std::move(mapper) };
       machine.traverse(machine.getMapper().onPassthroughKeyDown(init));
       const InputMapper& m = machine.getMapper();
@@ -275,7 +278,7 @@ namespace Test {
         Assert::AreEqual(size_t(1), events.size());
         const Event& e = events[0];
         Assert::AreEqual(axisEvent, e.id);
-        Assert::AreEqual(axisValue, machine.getAbsoluteAxis1D(e.toNode), 0.001f);
+        Assert::AreEqual(axisValue, e.getAxis1DAbsolute(), 0.001f);
       };
 
       //Event should trigger on key down
@@ -291,9 +294,45 @@ namespace Test {
       }
 
       //Event should stop when key is released
-      machine.traverse(m.onKeyUp(decrease));
+      machine.traverse(m.onKeyUp(increase));
       Assert::IsTrue(events.empty());
-      Assert::AreEqual(0.0f, machine.getAbsoluteAxis1D(axisNode), 0.01f);
+      Assert::AreEqual(0.0f, machine.getAbsoluteAxis1D(machine.getMapper().getInputSource(axis)), 0.01f);
+    }
+
+    TEST_METHOD(CumulativeTimeout) {
+      using namespace Input;
+      StateMachineBuilder builder;
+      constexpr Input::EventID event{ 1 };
+      const NodeIndex node = builder.addNode(NodeBuilder{}.emitEvent(event));
+      builder.addEdge(EdgeBuilder{}.from(StateMachine::ROOT_NODE).to(node).timeout(2));
+      StateMachine machine{ std::move(builder), InputMapper{} };
+      const InputMapper& mapper = machine.getMapper();
+
+      machine.traverse(mapper.onTick(1));
+      Assert::IsTrue(machine.readEvents().empty());
+
+      machine.traverse(mapper.onTick(1));
+      Assert::AreEqual(size_t(1), machine.readEvents().size());
+      Assert::AreEqual(event, machine.readEvents()[0].id);
+    }
+
+    //TODO: test edge insertion order
+    TEST_METHOD(EdgeOrder) {
+      using namespace Input;
+      StateMachineBuilder builder;
+      const NodeIndex a = builder.addNode(NodeBuilder{}.emitEvent(1));
+      const NodeIndex b = builder.addNode(NodeBuilder{}.emitEvent(2));
+      const NodeIndex root = StateMachine::ROOT_NODE;
+
+      builder.addEdge(EdgeBuilder{}.from(root).to(a).unconditional().consumeEvent());
+      builder.addEdge(EdgeBuilder{}.from(root).to(b).unconditional().consumeEvent());
+
+      StateMachine machine{ std::move(builder), InputMapper{} };
+      machine.traverse(machine.getMapper().onTick(1));
+
+      const auto& events = machine.readEvents();
+      Assert::AreEqual(size_t(1), events.size());
+      Assert::AreEqual(EventID(1), events[0].id);
     }
   };
 }

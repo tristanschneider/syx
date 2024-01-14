@@ -42,7 +42,7 @@ namespace GameInput {
   };
 
   struct PlayerNodes {
-    Input::NodeIndex move2D{};
+    Input::InputSourceRange move2D{};
   };
 
   //Final desired move input state

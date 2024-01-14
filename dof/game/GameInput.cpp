@@ -31,7 +31,7 @@ namespace GameInput {
     };
 
     void operator()(const Ability::InstantTrigger&) {
-      output.triggerNode = builder.addNode(Input::NodeBuilder{}.button().emitEvent(fullTriggerEvent));
+      output.triggerNode = builder.addNode(Input::NodeBuilder{}.emitEvent(fullTriggerEvent));
       builder.addEdge(Input::EdgeBuilder{}
         .from(abilityRoot)
         .to(output.triggerNode)
@@ -40,7 +40,7 @@ namespace GameInput {
     }
 
     void operator()(const Ability::ChargeTrigger& t) {
-      auto charging = builder.addNode(Input::NodeBuilder{}.button());
+      auto charging = builder.addNode(Input::NodeBuilder{});
       builder.addEdge(Input::EdgeBuilder{}
         .from(abilityRoot)
         .to(charging)
@@ -112,8 +112,7 @@ namespace GameInput {
     using namespace Input;
     StateMachineBuilder builder;
     const NodeIndex root = StateMachine::ROOT_NODE;
-    const NodeIndex move = builder.addNode(NodeBuilder{}.axis2D());
-    const NodeIndex changeDensity = builder.addNode(NodeBuilder{}.axis1D().emitEvent(Events::CHANGE_DENSITY));
+    const NodeIndex changeDensity = builder.addNode(NodeBuilder{}.emitAxis1DEvent(Events::CHANGE_DENSITY, Keys::CHANGE_DENSITY_1D));
 
     //Abilities
     if(input.ability1) {
@@ -135,21 +134,13 @@ namespace GameInput {
     }
 
     //Directional inputs
-    addAndGoto(builder, root, EdgeBuilder{}
-      .from(root)
-      .to(move)
-      .anyDelta2D(Keys::MOVE_2D)
-      .forkState()
-    );
-    addAndGoto(builder, root, EdgeBuilder{}
-      .from(root)
-      .to(changeDensity)
-      .anyDelta1D(Keys::CHANGE_DENSITY_1D)
-      .forkState()
-    );
+    builder.addEdge(EdgeBuilder{}.from(root).to(root).anyDelta2D(Keys::MOVE_2D).consumeEvent());
+    addAndGoto(builder, root, EdgeBuilder{}.from(root).to(changeDensity).anyDelta1D(Keys::CHANGE_DENSITY_1D).forkState());
 
-    machine = StateMachine{ std::move(builder), InputMapper{ mapper } };
-    input.nodes.move2D = move;
+    InputMapper temp{ mapper };
+    temp.addPassthroughKeyMapping(Keys::INIT_ONCE);
+    machine = StateMachine{ std::move(builder), std::move(temp) };
+    input.nodes.move2D = machine.getMapper().getInputSource(Keys::MOVE_2D);
 
     machine.traverse(machine.getMapper().onPassthroughKeyDown(Keys::INIT_ONCE));
   }
@@ -158,7 +149,7 @@ namespace GameInput {
     using namespace Input;
     StateMachineBuilder builder;
     const NodeIndex root = builder.addNode(NodeBuilder{});
-    const NodeIndex zoom = builder.addNode(NodeBuilder{}.axis1D().emitEvent(Events::DEBUG_ZOOM));
+    const NodeIndex zoom = builder.addNode(NodeBuilder{}.emitAxis1DEvent(Events::DEBUG_ZOOM, Keys::DEBUG_ZOOM_1D));
     const NodeIndex repeat = builder.addNode(NodeBuilder{});
 
     builder.addEdge(EdgeBuilder{}
@@ -193,7 +184,9 @@ namespace GameInput {
       .consumeEvent()
     );
 
-    machine = StateMachine{ std::move(builder), InputMapper{ mapper } };
+    InputMapper temp{ mapper };
+    temp.addPassthroughKeyMapping(Keys::INIT_ONCE);
+    machine = StateMachine{ std::move(builder), std::move(temp) };
     machine.traverse(machine.getMapper().onPassthroughKeyDown(Keys::INIT_ONCE));
   }
 

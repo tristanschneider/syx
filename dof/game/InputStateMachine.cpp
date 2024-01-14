@@ -4,14 +4,10 @@
 #include "generics/LinkedList.h"
 
 namespace gnx::LinkedList {
-  struct NodeEdgeListTraits {
+  template<>
+  struct Traits<Input::Node> {
     static Input::NodeIndex& getIndex(Input::Node& node) { return node.edges; }
     static const Input::NodeIndex& getIndex(const Input::Node& node) { return node.edges; }
-  };
-
-  struct NodeSubnodeListTraits {
-    static Input::NodeIndex& getIndex(Input::Node& node) { return node.subnodes; }
-    static const Input::NodeIndex& getIndex(const Input::Node& node) { return node.subnodes; }
   };
 
   template<>
@@ -22,9 +18,48 @@ namespace gnx::LinkedList {
 };
 
 namespace Input {
-  constexpr float UNSET1D = std::numeric_limits<float>::max();
-  constexpr glm::vec2 UNSET2D{ UNSET1D, UNSET1D };
   constexpr EdgeTraverser NOOP_TRAVERSER{};
+
+  constexpr EdgeTraverser::Axis1D valueToTraverser(float);
+  constexpr EdgeTraverser::Axis2D valueToTraverser(glm::vec2);
+  constexpr InputSourceRange::Axis1D edgeToRange(EdgeTraverser::Axis1D);
+  constexpr InputSourceRange::Axis2D edgeToRange(EdgeTraverser::Axis2D);
+  constexpr InputSourceRange::Button edgeToRange(EdgeTraverser::KeyUp);
+  constexpr InputSourceRange::Button edgeToRange(EdgeTraverser::KeyDown);
+  constexpr EdgeTraverser::Axis1D rangeToEdge(InputSourceRange::Axis1D);
+  constexpr EdgeTraverser::Axis2D rangeToEdge(InputSourceRange::Axis2D);
+  constexpr InputSourceRange::Axis1D eventToRange(Event::Axis1D);
+  constexpr InputSourceRange::Axis2D eventToRange(Event::Axis2D);
+  template<class T>
+  struct EdgeToTraverser;
+  template<>
+  struct EdgeToTraverser<Edge::Absolute1D> {
+    using TraverserT = EdgeTraverser::Axis1D;
+    static constexpr auto AxisPtr = &EdgeTraverser::Axis1D::absolute;
+  };
+  template<>
+  struct EdgeToTraverser<Edge::Delta1D> {
+    using TraverserT = EdgeTraverser::Axis1D;
+    static constexpr auto AxisPtr = &EdgeTraverser::Axis1D::delta;
+  };
+  template<>
+  struct EdgeToTraverser<Edge::Absolute2D> {
+    using TraverserT = EdgeTraverser::Axis2D;
+    static constexpr auto AxisPtr = &EdgeTraverser::Axis2D::absolute;
+  };
+  template<>
+  struct EdgeToTraverser<Edge::Delta2D> {
+    using TraverserT = EdgeTraverser::Axis2D;
+    static constexpr auto AxisPtr = &EdgeTraverser::Axis2D::delta;
+  };
+  template<>
+  struct EdgeToTraverser<Edge::KeyDown> {
+    using TraverserT = EdgeTraverser::KeyDown;
+  };
+  template<>
+  struct EdgeToTraverser<Edge::KeyUp> {
+    using TraverserT = EdgeTraverser::KeyUp;
+  };
 
   void addToActiveList(NodeIndex i, std::vector<NodeIndex>& activeNodes) {
     activeNodes.push_back(i);
@@ -48,11 +83,17 @@ namespace Input {
     mapper.bind(builder);
     nodes = std::move(builder.nodes);
     edges = std::move(builder.edges);
+    eventDescriptions = std::move(builder.events);
+    inputSources = std::move(builder.inputSources);
   }
 
-  NodeIndex StateMachineBuilder::addNode(const Node& node) {
+  NodeIndex StateMachineBuilder::addNode(const EventDescription& event) {
     NodeIndex result = static_cast<NodeIndex>(nodes.size());
-    nodes.push_back(node);
+    Node& node = nodes.emplace_back();
+    if(event.id != INVALID_EVENT) {
+      node.event = static_cast<EventID>(events.size());
+      events.push_back(event);
+    }
     return result;
   }
 
@@ -65,52 +106,40 @@ namespace Input {
     edges.push_back(data.edge);
     Edge& e = edges.back();
     e.to = data.to;
-    gnx::LinkedList::insertAfter(nodes[data.from], e, result, gnx::LinkedList::NodeEdgeListTraits{});
+    gnx::LinkedList::insertAtEnd(nodes[data.from], e, edges);
 
     return result;
   }
 
   struct CanTraverse {
+    //Can traverse the button if the event types match (down to down)
+    template<class ButtonEdgeT>
+    bool canTraverseButton(const ButtonEdgeT&) {
+      return std::get_if<typename EdgeToTraverser<ButtonEdgeT>::TraverserT>(&traverser.data) != nullptr;
+    }
+
+    template<class EdgeT>
+    bool canTraverseAxis(const EdgeT& e) {
+      using Mapping = EdgeToTraverser<EdgeT>;
+      const auto* traverseAxis = std::get_if<typename Mapping::TraverserT>(&traverser.data);
+      constexpr auto ptr = Mapping::AxisPtr;
+      auto&& [edgeMin, edgeMax] = e.get();
+      return traverseAxis && Math::between(traverseAxis->*ptr, edgeMin, edgeMax);
+    }
+
     bool operator()(const Edge::Empty) { return true; }
-    bool operator()(const Edge::KeyUp&) { return true; }
-    bool operator()(const Edge::KeyDown&) { return true; }
     bool operator()(const Edge::Timeout& e) {
-      return e.timeoutAfter <= std::get<Edge::Timeout>(traverser.data).timeoutAfter;
+      //The time in the node added by the traverser is accumulated before calling this, compare the
+      //total time rather than only the time added by the traverser
+      return e.timeoutAfter <= timeInNode;
     }
-    bool operator()(const Edge::Delta1D& e) {
-      auto& traverseData = std::get<Edge::Delta1D>(traverser.data);
-      if(traverseData.minDelta == UNSET1D) {
-        //Relative information is missing, fill it in from the absolute data
-        traverseData.minDelta = traverseData.maxDelta - machine.getAbsoluteAxis1D(edge.to);
-      }
-      else if(traverseData.maxDelta == UNSET1D) {
-        //Absolute information is missing, fill it in from the relative data
-        traverseData.maxDelta = traverseData.minDelta + machine.getAbsoluteAxis1D(edge.to);
-      }
 
-      if(edge.isAbsolute) {
-        return Math::between(traverseData.maxDelta, e.minDelta, e.maxDelta);
-      }
-
-      return Math::between(traverseData.minDelta, e.minDelta, e.maxDelta);
-    }
-    bool operator()(const Edge::Delta2D& e) {
-      auto& traverseData = std::get<Edge::Delta2D>(traverser.data);
-      if(traverseData.minDelta == UNSET2D) {
-        //Relative information is missing, fill it in from the absolute data
-        traverseData.minDelta = traverseData.maxDelta - machine.getAbsoluteAxis2D(edge.to);
-      }
-      else if(traverseData.maxDelta == UNSET2D) {
-        //Absolute information is missing, fill it in from the relative data
-        traverseData.maxDelta = traverseData.minDelta + machine.getAbsoluteAxis2D(edge.to);
-      }
-
-      if(edge.isAbsolute) {
-        return Math::between(traverseData.maxDelta, e.minDelta, e.maxDelta);
-      }
-
-      return Math::between(traverseData.minDelta, e.minDelta, e.maxDelta);
-    }
+    bool operator()(const Edge::KeyUp& e) { return canTraverseButton(e); }
+    bool operator()(const Edge::KeyDown& e) { return canTraverseButton(e); }
+    bool operator()(const Edge::Delta1D& e) { return canTraverseAxis(e); }
+    bool operator()(const Edge::Delta2D& e) { return canTraverseAxis(e); }
+    bool operator()(const Edge::Absolute1D& e) { return canTraverseAxis(e); }
+    bool operator()(const Edge::Absolute2D& e) { return canTraverseAxis(e); }
 
     bool shouldTraverseEdge() {
       //Unconditional edge can always be traversed
@@ -118,8 +147,8 @@ namespace Input {
         return true;
       }
       //Key needs to match or be unset, then check the variants
-      if((edge.key == INVALID_KEY || edge.key == traverser.key) && edge.data.index() == traverser.data.index()) {
-        //Variants match, see if the conditions within the variant are met
+      if(edge.key == INVALID_KEY || edge.key == traverser.key) {
+        //See if the conditions within the variant are met
         return std::visit(*this, edge.data);
       }
       return false;
@@ -128,111 +157,174 @@ namespace Input {
     EdgeTraverser& traverser;
     const StateMachine& machine;
     const Edge& edge;
+    Timespan timeInNode;
   };
 
-  void enterNode(Node& node, const EdgeTraverser& traverser) {
-    //Set the node itself as active. It may be a subnode
-    //The subnode should be active while the root node gets added as the active index
+  void enterNode(Node& node) {
     node.isActive = true;
-    if(auto* node1 = std::get_if<Node::Axis1D>(&node.data)) {
-      if(const float* data = traverser.tryGetAxis1DAbsolute()) {
-        node1->absolute = *data;
-      }
-    }
-    else if(auto* node2 = std::get_if<Node::Axis2D>(&node.data)) {
-      if(const glm::vec2* data = traverser.tryGetAxis2DAbsolute()) {
-        node2->absolute = *data;
-      }
-    }
   }
 
-  void exitNode(NodeIndex root, std::vector<Node>& nodes) {
-    Node& node = nodes[root];
+  void exitNode(Node& node) {
     node.isActive = false;
     node.timeActive = {};
   }
 
-  //Subnode is the distance in the linked list to traverse
-  NodeIndex getSubnode(NodeIndex root, NodeIndex subnodeIndex, std::vector<Node>& nodes) {
-    while(subnodeIndex-- > 0) {
-      root = nodes[root].subnodes;
+  //Fill the missing absolute or relative part of the input. Then regardless of if an edge is traversed,
+  //commit the change to the input sources so they're always up to date
+  struct FillMissingInputAndCommit {
+    template<class Axis>
+    void doAxis(Axis& axis) {
+      const auto& range = std::get<decltype(edgeToRange(axis))>(traverser.inputSourceRange.data);
+      auto& axisSource = sources.get(range);
+
+      //Get or compute the absolute value of this input source
+      const auto thisSourceAbsolute = axis.absolute == Axis::UNSET ?
+        axis.delta + axisSource[traverser.inputSource] :
+        axis.absolute;
+      //Since this is the only value changing, delta of this input source is the same delta as if it were accumulated
+      //across all input sources
+      axis.delta = thisSourceAbsolute - axisSource[traverser.inputSource];
+
+      //Update this specific input source
+      axisSource[traverser.inputSource] = thisSourceAbsolute;
+
+      //Compute the absolute across all input sources including the latest change and put that in the traverser
+      axis.absolute = {};
+      for(uint32_t i = range.begin; i < range.end; ++i) {
+        axis.absolute += axisSource[i];
+      }
     }
-    return root;
-  }
 
-  NodeIndex getNodeOrSubnode(NodeIndex root, NodeIndex subnodeIndex, std::vector<Node>& nodes) {
-    return subnodeIndex == INVALID_NODE ? root : getSubnode(root, subnodeIndex, nodes);
-  }
+    void doButton(bool isDown) {
+      const auto& range = std::get<InputSourceRange::Button>(traverser.inputSourceRange.data);
+      const bool oldButtonState = sources.getAccumulatedInput(range);
+      sources.buttons[traverser.inputSource] = isDown;
+      const bool newButtonState = sources.getAccumulatedInput(range);
+      //If this didn't change the global state then it doesn't need to be emitted as an event
+      //For example, a key down event of a second key while the first mapped to the same key is already down
+      if(oldButtonState == newButtonState) {
+        traverser.data.emplace<EdgeTraverser::Empty>();
+      }
+    }
 
-  void StateMachine::traverse(const EdgeTraverser& et) {
+    void operator()(EdgeTraverser::Axis1D& axis1D) {
+      doAxis(axis1D);
+    }
+    void operator()(EdgeTraverser::Axis2D& axis2D) {
+      doAxis(axis2D);
+    }
+    void operator()(EdgeTraverser::KeyDown&) {
+      doButton(true);
+    }
+    void operator()(EdgeTraverser::KeyUp&) {
+      doButton(false);
+    }
+    void operator()(EdgeTraverser::Tick) {}
+    void operator()(EdgeTraverser::Empty) {}
+
+    InputSources& sources;
+    EdgeTraverser& traverser;
+  };
+
+  struct FillEventData {
+    template<class Axis>
+    void fillAxis(Axis& axis) {
+      using RangeT = decltype(eventToRange(axis));
+      using TraverserT = decltype(rangeToEdge(RangeT{}));
+      bool testa = eventInput.data.index() == traverser.inputSourceRange.data.index();
+      if(eventInput == traverser.inputSourceRange) {
+      bool testb = eventInput.data.index() == traverser.inputSourceRange.data.index();
+      assert(testa && testb);
+        const auto& t = std::get<TraverserT>(traverser.data);
+        axis.absolute = t.absolute;
+        axis.delta = t.delta;
+      }
+      else {
+        axis.absolute = sources.getAccumulatedInput(std::get<RangeT>(eventInput.data));
+      }
+    }
+
+    void operator()(Event::Axis1D& axis) {
+      fillAxis(axis);
+    }
+    void operator()(Event::Axis2D& axis) {
+      fillAxis(axis);
+    }
+    void operator()(Event::Empty) {}
+
+    const EdgeTraverser& traverser;
+    const InputSourceRange& eventInput;
+    const InputSources& sources;
+  };
+
+  void StateMachine::traverse(EdgeTraverser&& traverser) {
     //Early out for no-op case
-    if(std::get_if<Edge::Empty>(&et.data)) {
+    if(!traverser) {
       return;
     }
 
-    EdgeTraverser traverser{ et };
-    Timespan elapsed{};
-    if(const auto* t = std::get_if<Edge::Timeout>(&traverser.data)){ 
-      elapsed = t->timeoutAfter;
+    std::visit(FillMissingInputAndCommit{ inputSources, traverser }, traverser.data);
+    //Visit above may also map to empty, so exit in that case as well
+    if(!traverser) {
+      return;
     }
+
+    const EdgeTraverser::Tick* timeElapsed = std::get_if<EdgeTraverser::Tick>(&traverser.data);
+
     for(size_t i = 0; i < activeNodes.size();) {
       NodeIndex active = activeNodes[i];
       Node& node = nodes[active];
-      node.timeActive += elapsed;
+      if(timeElapsed) {
+        node.timeActive += timeElapsed->timeElapsed;
+      }
       bool removedActiveNode = false;
       bool eventConsumed = false;
       //Try all edges going out of active nodes
       gnx::LinkedList::foreach(edges, node.edges, [&](Edge& edge) {
-        CanTraverse canTraverse{ traverser, *this, edge };
-        if(canTraverse.shouldTraverseEdge()) {
-          const bool isKeyMatch = edge.key == traverser.key;
-          //ROOT special case means exit the machine, so no node entry logic is needed
-          if(edge.to != ROOT_NODE) {
-            Node& root = nodes[edge.to];
-            //If the node is already active it's fine to update the data on the node but it shouldn't be
-            //added again into the active list nor trigger events
-            const bool wasAlreadyActive = isNodeActive(edge.to);
-            //If there is a subnode the updated data needs to be stored there
-            enterNode(nodes[getNodeOrSubnode(edge.to, isKeyMatch ? traverser.toSubnode : INVALID_NODE, nodes)], traverser);
-            if(!wasAlreadyActive) {
-              //Regardless of subnodes only the root is ever considered active, so add that to the list
-              addToActiveList(edge.to, activeNodes);
-              //TODO: does this work in the case of multiple subnodes triggering an input to an active node?
-              assert(root.activeSubnode == INVALID_NODE);
-              root.activeSubnode = isKeyMatch ? traverser.toSubnode : INVALID_NODE;
+        CanTraverse canTraverse{ traverser, *this, edge, node.timeActive };
+        if(!canTraverse.shouldTraverseEdge()) {
+          return true;
+        }
 
-              if(root.event != INVALID_EVENT) {
-                //Emit the event of the destination node with the time spent in the source node
-                publishedEvents.push_back({ root.event, edge.to, node.timeActive, traverser });
-              }
-            }
-          }
-          //Either this is an exit condition or the state moved from one edge to another, deactivate source node
-          //It should only remain if the execution is forking meaning both the source and destination are now active
-          if(active != ROOT_NODE && (edge.to == ROOT_NODE || !edge.fork)) {
-            //Exit the node or subnode. Once all subnodes are inactive the root node can be removed from the active list
-            exitNode(getNodeOrSubnode(active, node.activeSubnode, nodes), nodes);
+        if(edge.consumeEvent) {
+          eventConsumed = true;
+        }
 
-            if(!isNodeActive(active)) {
-              exitNode(active, nodes);
-              node.isActive = false;
-              removeFromActiveList(activeNodes.begin() + i, activeNodes);
-              node.activeSubnode = INVALID_NODE;
-              removedActiveNode = true;
-              if(edge.consumeEvent) {
-                eventConsumed = true;
-              }
-              return false;
-            }
-          }
-          if(edge.consumeEvent) {
-            eventConsumed = true;
-            return false;
+        Node& destination = nodes[edge.to];
+        //ROOT special case means exit the machine, so no node entry logic is needed
+        if(edge.to != ROOT_NODE && !isNodeActive(edge.to)) {
+          enterNode(destination);
+          addToActiveList(edge.to, activeNodes);
+          if(destination.event != INVALID_EVENT) {
+            const EventDescription& description = eventDescriptions[destination.event];
+            Event e;
+            e.id = description.id;
+            e.timeInNode = node.timeActive;
+            e.data = description.data;
+            std::visit(FillEventData{ traverser, description.inputSource, inputSources }, e.data);
+            publishedEvents.push_back(std::move(e));
           }
         }
-        return true;
+
+        //Either this is an exit condition or the state moved from one edge to another, deactivate source node
+        //It should only remain if the execution is forking meaning both the source and destination are now active
+        if(active != ROOT_NODE && (edge.to == ROOT_NODE || !edge.fork)) {
+          exitNode(node);
+          removeFromActiveList(activeNodes.begin() + i, activeNodes);
+          removedActiveNode = true;
+
+          //False stops traversing edges of this node now that it has been deactivated
+          return false;
+        }
+        if(edge.consumeEvent) {
+          eventConsumed = true;
+          return false;
+        }
+        //Continue traversing edges (return true) unless this edge consumed the event
+        return eventConsumed;
       });
 
+      //Stop traversing active nodes if the event was consumed
       if(eventConsumed) {
         return;
       }
@@ -243,37 +335,36 @@ namespace Input {
   }
 
   bool StateMachine::isNodeActive(NodeIndex nodeIndex) const {
-    bool isActive = false;
-    gnx::LinkedList::foreach(nodes, nodeIndex, [&isActive](const Node& node) {
-      isActive = isActive || node.isActive;
-      return !isActive;
-    }, gnx::LinkedList::NodeSubnodeListTraits{});
-    return isActive;
+    return nodes[nodeIndex].isActive;
   }
 
-  float tryGet1D(const Node::Variant& n) {
-    const auto* value = std::get_if<Node::Axis1D>(&n);
-    return value ? value->absolute : 0.0f;
-  }
-
-  glm::vec2 tryGet2D(const Node::Variant& n) {
-    const auto* value = std::get_if<Node::Axis2D>(&n);
-    return value ? value->absolute : glm::vec2{ 0, 0 };
-  }
-
-  float StateMachine::getAbsoluteAxis1D(NodeIndex nodeIndex) const {
+  float StateMachine::getAbsoluteAxis1D(const InputSourceRange& source) const {
     float result{};
-    gnx::LinkedList::foreach(nodes, nodeIndex, [&result](const Node& node) {
-      result += tryGet1D(node.data);
-    }, gnx::LinkedList::NodeSubnodeListTraits{});
+    if(const auto* range = std::get_if<InputSourceRange::Axis1D>(&source.data)) {
+      for(InputSourceID i = range->begin; i < range->end; ++i) {
+        result += inputSources.axes1D[i];
+      }
+    }
     return result;
   }
 
-  glm::vec2 StateMachine::getAbsoluteAxis2D(NodeIndex nodeIndex) const {
-    glm::vec2 result{ 0 };
-    gnx::LinkedList::foreach(nodes, nodeIndex, [&result](const Node& node) {
-      result += tryGet2D(node.data);
-    }, gnx::LinkedList::NodeSubnodeListTraits{});
+  glm::vec2 StateMachine::getAbsoluteAxis2D(const InputSourceRange& source) const {
+    glm::vec2 result{ 0, 0 };
+    if(const auto* range = std::get_if<InputSourceRange::Axis2D>(&source.data)) {
+      for(InputSourceID i = range->begin; i < range->end; ++i) {
+        result += inputSources.axes2D[i];
+      }
+    }
+    return result;
+  }
+
+  bool StateMachine::getButtonPressed(const InputSourceRange& source) const {
+    bool result = false;
+    if(const auto* range = std::get_if<InputSourceRange::Button>(&source.data)) {
+      for(InputSourceID i = range->begin; i < range->end; ++i) {
+        result = result || inputSources.buttons[i];
+      }
+    }
     return result;
   }
 
@@ -285,45 +376,62 @@ namespace Input {
     publishedEvents.clear();
   }
 
-  const InputMapper& StateMachine::getMapper() {
+  const InputMapper& StateMachine::getMapper() const {
     return mapper;
   }
 
+  struct AddInputSource {
+    template<class T>
+    void addTo(std::vector<T>& container) {
+      InputSourceRange::Range& range = inout.range();
+      range.begin = static_cast<InputSourceID>(container.size());
+      const size_t sourceCount = static_cast<size_t>(range.end);
+      container.insert(container.end(), sourceCount, {});
+      range.end = static_cast<InputSourceID>(container.size());
+    }
+
+    void operator()(const EdgeTraverser::KeyUp) {}
+    void operator()(const EdgeTraverser::Tick) {}
+    void operator()(const EdgeTraverser::Empty) {}
+    void operator()(const EdgeTraverser::Axis1D&) {
+      addTo(container.axes1D);
+    }
+    void operator()(const EdgeTraverser::Axis2D&) {
+      addTo(container.axes2D);
+    }
+    void operator()(const EdgeTraverser::KeyDown&) {
+      addTo(container.buttons);
+    }
+
+    InputSources& container;
+    InputSourceRange& inout;
+  };
+
   void InputMapper::bind(StateMachineBuilder& machine) {
-    for(auto&& [platformKey, value] : mappings) {
-      const KeyMapID keyMapKey = value.traverser.key;
-      //If there are redundant nodes, subnodes need to be inserted
-      if(auto reverse = reverseMappings.find(keyMapKey); reverse != reverseMappings.end() && reverse->second.subnodeCount > 0) {
-        reverse->second.currentSubnode++;
-        //All edges matching the KeyMapID need to gain a phantom node to hold the redundant state
-        //which is within the linked list of subnodes
-        const size_t edgesEnd = machine.edges.size();
-        for(size_t e = 0; e < edgesEnd; ++e) {
-          if(machine.edges[e].key == keyMapKey) {
-            //Add associated subnode for incoming edges to the node
-            {
-              Node& root = machine.nodes[machine.edges[e].to];
-              Node copy = root;
-              copy.edges = INVALID_EDGE;
-              const NodeIndex subnodeIndex = static_cast<NodeIndex>(machine.nodes.size());
-              gnx::LinkedList::insertAfter(root, copy, subnodeIndex, gnx::LinkedList::NodeSubnodeListTraits{}, gnx::LinkedList::NodeSubnodeListTraits{});
-              machine.nodes.push_back(copy);
-              value.traverser.toSubnode = reverse->second.currentSubnode;
-            }
-            //Add associated subnode for outgoing edges from the node
-            {
-              Node& root = machine.nodes[machine.edges[e].from];
-              Node copy = root;
-              copy.edges = INVALID_EDGE;
-              const NodeIndex subnodeIndex = static_cast<NodeIndex>(machine.nodes.size());
-              gnx::LinkedList::insertAfter(root, copy, subnodeIndex, gnx::LinkedList::NodeSubnodeListTraits{}, gnx::LinkedList::NodeSubnodeListTraits{});
-              machine.nodes.push_back(copy);
-              value.traverser.fromSubnode = reverse->second.currentSubnode;
-            }
-          }
-        }
+    //Add input sources for all keys
+    for(auto&& [keyMapKey, mapping] : reverseMappings) {
+      //Every key event should have the same type, so grab one of them and add for it
+      if(auto it = mappings.find(mapping.platformKey); it != mappings.end()) {
+        std::visit(AddInputSource{ machine.inputSources, mapping.inputSourceRange }, it->second.traverser.data);
       }
-      //If there are no redundant nodes, the single node by itself is all that needs to be found
+    }
+    //Set the particular input source for each platform key
+    for(auto&& [platformkey, traverser] : mappings) {
+      auto it = reverseMappings.find(traverser.traverser.key);
+      //Should always exist
+      if(it == reverseMappings.end()) {
+        continue;
+      }
+      traverser.traverser.inputSource = it->second.inputSourceRange.range().begin + it->second.currentInputSource++;
+      traverser.traverser.inputSourceRange = it->second.inputSourceRange;
+    }
+    //Create input sources for events
+    for(EventDescription& event : machine.events) {
+      //Key was stored in the range. Reassign the range to the actual key
+      const KeyMapID key = static_cast<KeyMapID>(event.inputSource.range().begin);
+      if(auto reverse = reverseMappings.find(key); reverse != reverseMappings.end()) {
+        event.inputSource = reverse->second.inputSourceRange;
+      }
     }
   }
 
@@ -338,47 +446,67 @@ namespace Input {
     traverser.data = std::move(edge);
     traverser.key = dst;
     //If there was already a mapping to this key, increment the counter for later
+    //The end indicates how many inputs of this type there are, the range will be shifted and the begin
+    //set after adding all mappings
+    using RangeT = decltype(edgeToRange(edge));
     if(!isNewReverse) {
-      reverseMapping->second.subnodeCount++;
+      std::get<RangeT>(reverseMapping->second.inputSourceRange.data).end++;
+    }
+    else {
+      reverseMapping->second.platformKey = src;
+      //Start with 1 for this mapping, then increment for each additional mapping
+      reverseMapping->second.inputSourceRange.data.emplace<RangeT>(InputSourceRange::Range{ 0, 1 });
     }
   }
 
+  PlatformInputID InputMapper::getUniquePlatformKey(KeyMapID forKey) {
+    return static_cast<PlatformInputID>(std::hash<KeyMapID>()(forKey));
+  }
+
+  void InputMapper::addPassthroughKeyMapping(KeyMapID dst) {
+    addKeyMapping(getUniquePlatformKey(dst), dst);
+  }
+
+  void InputMapper::addPassthroughAxis1D(KeyMapID dst) {
+    addAxis1DMapping(getUniquePlatformKey(dst), dst);
+  }
+
+  void InputMapper::addPassthroughAxis2D(KeyMapID dst) {
+    addAxis2DMapping(getUniquePlatformKey(dst), dst);
+  }
+
   void InputMapper::addKeyMapping(PlatformInputID src, KeyMapID dst) {
-    addMapping(src, dst, Edge::KeyDown{});
+    addMapping(src, dst, EdgeTraverser::KeyDown{});
   }
 
   void InputMapper::addAxis1DMapping(PlatformInputID src, KeyMapID dst) {
-    addMapping(src, dst, Edge::Delta1D{});
+    addMapping(src, dst, EdgeTraverser::Axis1D{});
   }
 
   void InputMapper::addAxis2DMapping(PlatformInputID src, KeyMapID dst) {
-    addMapping(src, dst, Edge::Delta2D{});
+    addMapping(src, dst, EdgeTraverser::Axis2D{});
   }
 
   void InputMapper::addKeyAs1DRelativeMapping(PlatformInputID src, KeyMapID dst, float amount) {
-    Edge::Delta1D e;
-    e.minDelta = e.maxDelta = amount;
+    EdgeTraverser::Axis1D e;
+    e.delta = amount;
     addMapping(src, dst, std::move(e));
   }
 
   void InputMapper::addKeyAs2DRelativeMapping(PlatformInputID src, KeyMapID dst, const glm::vec2& amount) {
-    Edge::Delta2D e;
-    e.minDelta = e.maxDelta = amount;
+    EdgeTraverser::Axis2D e;
+    e.absolute = amount;
     addMapping(src, dst, std::move(e));
   }
 
   EdgeTraverser InputMapper::onPassthroughKeyDown(KeyMapID key) const {
-    EdgeTraverser result;
-    result.key = key;
-    result.data.emplace<Edge::KeyDown>();
-    return result;
+    auto it = reverseMappings.find(key);
+    return it != reverseMappings.end() ? onKeyDown(it->second.platformKey) : EdgeTraverser{};
   }
 
   EdgeTraverser InputMapper::onPassthroughAxis2DAbsolute(KeyMapID axis, const glm::vec2& absolute) const {
-    EdgeTraverser result;
-    result.key = axis;
-    result.data.emplace<Edge::Delta2D>(UNSET2D, absolute);
-    return result;
+    auto it = reverseMappings.find(axis);
+    return it != reverseMappings.end() ? onAxis2DAbsolute(it->second.platformKey, absolute) : EdgeTraverser{};
   }
 
   //Keys are stored as key down events so this case can return directly
@@ -389,24 +517,22 @@ namespace Input {
 
   template<class T>
   void undoDirectionKey(T& data) {
-    auto& absolute = data.maxDelta;
-    auto& relative = data.minDelta;
-    absolute = {};
-    relative = -relative;
+    data.absolute = {};
+    data.delta = -data.delta;
   }
 
   //Keys are stored as key down so this needs to flip it to key up before returning
   EdgeTraverser InputMapper::onKeyUp(PlatformInputID key) const {
     if(auto it = mappings.find(key); it != mappings.end()) {
       EdgeTraverser result = it->second.traverser;
-      if(std::get_if<Edge::KeyDown>(&result.data)) {
-        result.data.emplace<Edge::KeyUp>();
+      if(std::get_if<EdgeTraverser::KeyDown>(&result.data)) {
+        result.data.emplace<EdgeTraverser::KeyUp>();
       }
       //Flip directions since the key is being released
-      else if(Edge::Delta1D* d1 = std::get_if<Edge::Delta1D>(&result.data)) {
+      else if(auto* d1 = std::get_if<EdgeTraverser::Axis1D>(&result.data)) {
         undoDirectionKey(*d1);
       }
-      else if(Edge::Delta2D* d2 = std::get_if<Edge::Delta2D>(&result.data)) {
+      else if(auto* d2 = std::get_if<EdgeTraverser::Axis2D>(&result.data)) {
         undoDirectionKey(*d2);
       }
       return result;
@@ -414,57 +540,60 @@ namespace Input {
     return NOOP_TRAVERSER;
   }
 
-  EdgeTraverser InputMapper::onAxis1DRelative(PlatformInputID axis, float relative) const {
+  template<class ValueT>
+  EdgeTraverser getAxisMapping(
+    const std::unordered_map<PlatformInputID, InputMapper::Mapping>& mappings,
+    PlatformInputID axis,
+    const ValueT& value,
+    bool isRelative
+  ) {
+    using TraverserT = decltype(valueToTraverser(value));
     if(auto it = mappings.find(axis); it != mappings.end()) {
       EdgeTraverser result = it->second.traverser;
-      if(auto* data = std::get_if<Edge::Delta1D>(&result.data)) {
-        data->minDelta = relative;
-        data->maxDelta = UNSET1D;
+      if(auto* data = std::get_if<TraverserT>(&result.data)) {
+        if(isRelative) {
+          data->delta = value;
+          data->absolute = TraverserT::UNSET;
+        }
+        else {
+          data->delta = TraverserT::UNSET;
+          data->absolute = value;
+        }
         return result;
       }
     }
     return NOOP_TRAVERSER;
+  }
+
+  EdgeTraverser InputMapper::onAxis1DRelative(PlatformInputID axis, float relative) const {
+    return getAxisMapping(mappings, axis, relative, true);
   }
 
   EdgeTraverser InputMapper::onAxis1DAbsolute(PlatformInputID axis, float absolute) const {
-    if(auto it = mappings.find(axis); it != mappings.end()) {
-      EdgeTraverser result = it->second.traverser;
-      if(auto* data = std::get_if<Edge::Delta1D>(&result.data)) {
-        data->minDelta = UNSET1D;
-        data->maxDelta = absolute;
-        return result;
-      }
-    }
-    return NOOP_TRAVERSER;
+    return getAxisMapping(mappings, axis, absolute, false);
   }
 
   EdgeTraverser InputMapper::onAxis2DRelative(PlatformInputID axis, const glm::vec2& relative) const {
-    if(auto it = mappings.find(axis); it != mappings.end()) {
-      EdgeTraverser result = it->second.traverser;
-      if(auto* data = std::get_if<Edge::Delta2D>(&result.data)) {
-        data->minDelta = relative;
-        data->maxDelta = UNSET2D;
-        return result;
-      }
-    }
-    return NOOP_TRAVERSER;
+    return getAxisMapping(mappings, axis, relative, true);
   }
 
   EdgeTraverser InputMapper::onAxis2DAbsolute(PlatformInputID axis, const glm::vec2& absolute) const {
-    if(auto it = mappings.find(axis); it != mappings.end()) {
-      EdgeTraverser result = it->second.traverser;
-      if(auto* data = std::get_if<Edge::Delta2D>(&result.data)) {
-        data->minDelta = UNSET2D;
-        data->maxDelta = absolute;
-        return result;
-      }
-    }
-    return NOOP_TRAVERSER;
+    return getAxisMapping(mappings, axis, absolute, false);
   }
 
   EdgeTraverser InputMapper::onTick(Timespan timeElapsed) const {
     EdgeTraverser result;
-    result.data.emplace<Edge::Timeout>(timeElapsed);
+    result.data.emplace<EdgeTraverser::Tick>(timeElapsed);
     return result;
+  }
+
+  InputSourceRange InputMapper::getPlatformInputSource(PlatformInputID key) const {
+    auto it = mappings.find(key);
+    return it != mappings.end() ? it->second.traverser.inputSourceRange : InputSourceRange{};
+  }
+
+  InputSourceRange InputMapper::getInputSource(KeyMapID key) const {
+    auto it = reverseMappings.find(key);
+    return it != reverseMappings.end() ? it->second.inputSourceRange : InputSourceRange{};
   }
 };

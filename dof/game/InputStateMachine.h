@@ -9,37 +9,127 @@ namespace Input {
   using NodeIndex = uint32_t;
   using EdgeIndex = uint32_t;
   using Timespan = uint32_t;
+  using InputSourceID = uint32_t;
 
   constexpr NodeIndex INVALID_NODE = std::numeric_limits<NodeIndex>::max();
   constexpr EdgeIndex INVALID_EDGE = std::numeric_limits<EdgeIndex>::max();
   constexpr EventID INVALID_EVENT = std::numeric_limits<EventID>::max();
   constexpr KeyMapID INVALID_KEY = std::numeric_limits<KeyMapID>::max();
 
-  //Nodes have an overloaded meaning depending on if they are a subnode or not
-  //A node is the logical information about a particular input state in the graph
-  //For plain states this may only be an active bool, for axes it's the current axis value
-  //Subnodes are additional data sources for that stored information in the case of redundant mappings
-  //The logical node in the graph is queried as if it was all on the node but it may require searching
-  //through multiple subnodes to accumulate all of the individual inputs to arrive at the final result
-  struct Node {
+  struct InputSourceRange {
+    struct Range {
+      bool operator<=>(const Range&) const = default;
+
+      //Beginning after end means any range-based traversal will no-op
+      InputSourceID begin{ 1 };
+      InputSourceID end{ 0 };
+    };
+    struct Button : Range{
+      bool operator<=>(const Button&) const = default;
+    };
+    struct Axis1D : Range{
+      bool operator<=>(const Axis1D&) const = default;
+    };
+    struct Axis2D : Range{
+      bool operator<=>(const Axis2D&) const = default;
+    };
+    using Variant = std::variant<Button, Axis1D, Axis2D>;
+
+    bool operator<=>(const InputSourceRange&) const = default;
+
+    operator bool() const {
+      return std::visit([](const auto& r) { return r.begin <= r.end; }, data);
+    }
+
+    Range& range() {
+      return std::visit([](auto& r) -> Range& { return r; }, data);
+    }
+
+    const Range& range() const {
+      return std::visit([](const auto& r) -> const Range& { return r; }, data);
+    }
+
+    Variant data;
+  };
+
+  struct InputSources {
+    auto& get(const InputSourceRange::Button&) { return buttons; }
+    auto& get(const InputSourceRange::Axis1D&) { return axes1D; }
+    auto& get(const InputSourceRange::Axis2D&) { return axes2D; }
+    const auto& get(const InputSourceRange::Button&) const { return buttons; }
+    const auto& get(const InputSourceRange::Axis1D&) const { return axes1D; }
+    const auto& get(const InputSourceRange::Axis2D&) const { return axes2D; }
+
+    //If any button is down the state is considered down
+    bool getAccumulatedInput(const InputSourceRange::Button& range) const {
+      for(uint32_t i = range.begin; i < range.end; ++i) {
+        if(buttons[i]) {
+          return true;
+        }
+      }
+      return false;
+    }
+    //Axes are accumulated, meaning if multiple thumbsticks were mapped to an axis the final value could go beyond the expected [-1,1]
+    template<class SourceRange>
+    auto getAccumulatedInput(const SourceRange& range) const {
+      const auto& inputs = get(range);
+      using ValueT = std::decay_t<decltype(inputs[0])>;
+      ValueT result{};
+      for(uint32_t i = range.begin; i < range.end; ++i) {
+        result += inputs[i];
+      }
+      return result;
+    }
+
+    std::vector<bool> buttons;
+    std::vector<float> axes1D;
+    std::vector<glm::vec2> axes2D;
+  };
+
+  struct Event {
     struct Empty {};
-    struct Button {};
+    //Delta values are only applicable if the event is triggered by an edge that changes the axis
+    //Otherwise the deltas are zero while the absolute is populated
     struct Axis1D {
+      float delta{};
       float absolute{};
     };
     struct Axis2D {
-      glm::vec2 absolute{ 0.0f };
+      glm::vec2 delta{ 0 };
+      glm::vec2 absolute{ 0 };
     };
-    using Variant = std::variant<Empty, Button, Axis1D, Axis2D>;
+
+    float getAxis1DRelative() const {
+      auto* result = std::get_if<Axis1D>(&data);
+      return result ? result->delta : 0.0f;
+    }
+
+    float getAxis1DAbsolute() const {
+      auto* result = std::get_if<Axis1D>(&data);
+      return result ? result->absolute : 0.0f;
+    }
+
+    EventID id{};
+    //Time spent in the previous node before traversing the edge that triggered this event
+    Timespan timeInNode{};
+    //Additional optional data that can be associated with the event
+    using Variant = std::variant<Empty, Axis1D, Axis2D>;
     Variant data;
+  };
+
+  struct EventDescription {
+    EventID id{ INVALID_EVENT };
+    InputSourceRange inputSource;
+    Event::Variant data;
+  };
+
+  //A node is an abstract representation of a particular input state in the machine
+  //It does not in itself hold any key states. Edges connected to it determine the types of input
+  //events that can cause the active nodes to change.
+  struct Node {
     //Intrusive linked list of edges
     EdgeIndex edges{ INVALID_EDGE };
-    //For nodes that have multiple mappings pointing at them, the root mapping will
-    //be the beginning of an intrusive linked list of other mappings that contribute to the primary
-    //Determining the node state requires resolving all of the subnodes.
-    //For example, if a direction key and a thumbstick direction is held, both contribute to the direction
-    NodeIndex subnodes{ INVALID_NODE };
-    NodeIndex activeSubnode{ INVALID_NODE };
+    //Index of EventDescription in events list
     EventID event{ INVALID_EVENT };
     Timespan timeActive{};
     //The active state on a node means if this node itself was directly traversed
@@ -60,19 +150,35 @@ namespace Input {
       Timespan timeoutAfter{};
     };
     struct Delta1D {
+      auto get() const { return std::tie(minDelta, maxDelta); }
+
       float minDelta{};
       float maxDelta{};
     };
     struct Delta2D {
+      auto get() const { return std::tie(minDelta, maxDelta); }
+
       glm::vec2 minDelta{ 0 };
       glm::vec2 maxDelta{ 0 };
+    };
+    struct Absolute1D {
+      auto get() const { return std::tie(minAbsolute, maxAbsolute); }
+
+      float minAbsolute{};
+      float maxAbsolute{};
+    };
+    struct Absolute2D {
+      auto get() const { return std::tie(minAbsolute, maxAbsolute); }
+
+      glm::vec2 minAbsolute{ 0 };
+      glm::vec2 maxAbsolute{ 0 };
     };
 
     operator bool() const {
       return std::get_if<Empty>(&data) == nullptr;
     }
 
-    using Variant = std::variant<Empty, KeyDown, KeyUp, Timeout, Delta1D, Delta2D>;
+    using Variant = std::variant<Empty, KeyDown, KeyUp, Timeout, Delta1D, Delta2D, Absolute1D, Absolute2D>;
     KeyMapID key{ INVALID_KEY };
     Variant data;
     //Stop further traversal immediately if this edge is traversed
@@ -80,61 +186,47 @@ namespace Input {
     //When being traversed, this will leave the source node active rather than moving
     //exclusively to the destination node
     bool fork{};
-    //Hack to flip delta to mean absolute limits instead of actual delta
-    bool isAbsolute{};
-    NodeIndex from{ INVALID_NODE };
     NodeIndex to{ INVALID_NODE };
     //Intrusive linked list of other edges attached to the node
     EdgeIndex edges{ INVALID_EDGE };
   };
 
-  //This is the input to the state machine that is mached against edges to see if they are applicable
-  //The variant is the same since it needs to match against each possible variant but the interpretation
-  //of what is stored in an edge variant vs traverser variant is a bit different
+  //This is the input to the state machine that is matched against edges to see if they are applicable
+  //If it is for an input it refers to a key as well as the key's input source
+  //A given KeyMapID may have multiple PlatformInputIDs corresponding to it. The KeyMapID represents the
+  //sum of all of the PlatformInputIDs.The InputSourceRange is used to know which sources belong to the key
+  //then the `inputSource` determines which source to write the change in the traverser to.
+  //The input source change is applied regardless of if the edge is traversed
   struct EdgeTraverser {
-    float getAxis1DDelta() const {
-      return std::get<Edge::Delta1D>(data).minDelta;
+    struct Empty {};
+    struct KeyDown {};
+    struct KeyUp {};
+    struct Tick {
+      Timespan timeElapsed{};
+    };
+    struct Axis1D {
+      constexpr static float UNSET = std::numeric_limits<float>::max();
+      float delta{ UNSET };
+      float absolute{ UNSET };
+    };
+    struct Axis2D {
+      constexpr static glm::vec2 UNSET{ std::numeric_limits<float>::max() };
+      glm::vec2 delta{ UNSET };
+      glm::vec2 absolute{ UNSET };
+    };
+
+    operator bool() const {
+      return std::get_if<Empty>(&data) == nullptr;
     }
 
-    float getAxis1DAbsolute() const {
-      return std::get<Edge::Delta1D>(data).maxDelta;
-    }
-
-    const float* tryGetAxis1DAbsolute() const {
-      const auto* res = std::get_if<Edge::Delta1D>(&data);
-      return res ? &res->maxDelta : nullptr;
-    }
-
-    glm::vec2 getAxis2DDelta() const {
-      return std::get<Edge::Delta2D>(data).minDelta;
-    }
-
-    glm::vec2 getAxis2DAbsolute() const {
-      return std::get<Edge::Delta2D>(data).maxDelta;
-    }
-
-    const glm::vec2* tryGetAxis2DAbsolute() const {
-      const auto* res = std::get_if<Edge::Delta2D>(&data);
-      return res ? &res->maxDelta : nullptr;
-    }
-
-    KeyMapID key{};
-    //If populated, then this is a simulated edge meaning that the subnode holds the
-    //destination state rather than the actual edge location. It is an offset in the
-    //node's linked list of subnodes, not the direct index of the subnode.
-    NodeIndex toSubnode{ INVALID_NODE };
-    NodeIndex fromSubnode{ INVALID_NODE };
-    Edge::Variant data;
-  };
-
-  struct Event {
-    EventID id{};
-    NodeIndex toNode{};
-    //Time spent in the previous node before traversing the edge that triggered this event
-    Timespan timeInNode{};
-    //The traverser that triggered this event. Can be observed to get input delta
-    //Absolute values can be obtained by looking at the nodes themselves
-    EdgeTraverser traverser;
+    //The logical key that is being pressed
+    KeyMapID key{ INVALID_KEY };
+    //The input source that should store the information related to that key
+    InputSourceID inputSource{};
+    //The range of all inputs corresponding to the key
+    InputSourceRange inputSourceRange;
+    using Variant = std::variant<Empty, KeyDown, KeyUp, Tick, Axis1D, Axis2D>;
+    Variant data;
   };
 
   struct EdgeData {
@@ -145,7 +237,6 @@ namespace Input {
 
   struct EdgeBuilder {
     EdgeBuilder& from(Input::NodeIndex id) {
-      data.edge.from = id;
       data.from = id;
       return *this;
     }
@@ -180,8 +271,7 @@ namespace Input {
 
     EdgeBuilder& absolute1D(Input::KeyMapID id, float min, float max) {
       data.edge.key = id;
-      data.edge.isAbsolute = true;
-      data.edge.data.emplace<Input::Edge::Delta1D>(min, max);
+      data.edge.data.emplace<Input::Edge::Absolute1D>(min, max);
       return *this;
     }
 
@@ -222,31 +312,31 @@ namespace Input {
   };
 
   struct NodeBuilder {
-    NodeBuilder& button() {
-      data.data.emplace<Input::Node::Button>();
-      return *this;
-    }
-
-    NodeBuilder& axis1D() {
-      data.data.emplace<Input::Node::Axis1D>();
-      return *this;
-    }
-
-    NodeBuilder& axis2D() {
-      data.data.emplace<Input::Node::Axis2D>();
-      return *this;
-    }
-
     NodeBuilder& emitEvent(Input::EventID id) {
-      data.event = id;
+      data.id = id;
       return *this;
     }
 
-    operator Input::Node() const {
+    NodeBuilder& emitAxis1DEvent(Input::EventID id, Input::KeyMapID key) {
+      data.id = id;
+      //Key is temporarily stored here before being resolved upon creating the state machine
+      data.inputSource.data.emplace<InputSourceRange::Axis1D>(InputSourceRange::Range{ key, key });
+      data.data.emplace<Event::Axis1D>();
+      return *this;
+    }
+
+    NodeBuilder& emitAxis2DEvent(Input::EventID id, Input::KeyMapID key) {
+      data.id = id;
+      data.inputSource.data.emplace<InputSourceRange::Axis2D>(InputSourceRange::Range{ key, key });
+      data.data.emplace<Event::Axis2D>();
+      return *this;
+    }
+
+    operator EventDescription() const {
       return data;
     }
 
-    Input::Node data;
+    EventDescription data;
   };
 
   class StateMachine;
@@ -256,6 +346,19 @@ namespace Input {
   //knowledge of the current input state
   class InputMapper {
   public:
+    struct Mapping {
+      EdgeTraverser traverser;
+    };
+    struct ReverseMapping {
+      PlatformInputID platformKey;
+      InputSourceRange inputSourceRange;
+      InputSourceID currentInputSource{};
+    };
+
+    //Key that has no associated PlatformInputID but is intended to be used with onPassthroughKeyDown
+    void addPassthroughKeyMapping(KeyMapID dst);
+    void addPassthroughAxis1D(KeyMapID dst);
+    void addPassthroughAxis2D(KeyMapID dst);
     void addKeyMapping(PlatformInputID src, KeyMapID dst);
     //Add a mapping for an input that is already in axis format, like a mouse or joystick
     void addAxis1DMapping(PlatformInputID src, KeyMapID dst);
@@ -275,10 +378,13 @@ namespace Input {
     EdgeTraverser onAxis2DRelative(PlatformInputID axis, const glm::vec2& relative) const;
     EdgeTraverser onAxis2DAbsolute(PlatformInputID axis, const glm::vec2& relative) const;
     EdgeTraverser onTick(Timespan timeElapsed) const;
+    InputSourceRange getPlatformInputSource(PlatformInputID key) const;
+    InputSourceRange getInputSource(KeyMapID key) const;
 
   private:
     template<class EdgeT>
     void addMapping(PlatformInputID src, KeyMapID dst, EdgeT&& edge);
+    PlatformInputID getUniquePlatformKey(KeyMapID forKey);
 
     friend class StateMachine;
     //Properly handling cases of multiple input sources contributing to a single logical input
@@ -289,13 +395,6 @@ namespace Input {
     //binding this mapper to that state machine
     void bind(StateMachineBuilder& mapper);
 
-    struct Mapping {
-      EdgeTraverser traverser;
-    };
-    struct ReverseMapping {
-      NodeIndex subnodeCount{};
-      NodeIndex currentSubnode{};
-    };
     std::unordered_map<PlatformInputID, Mapping> mappings;
     std::unordered_map<KeyMapID, ReverseMapping> reverseMappings;
   };
@@ -303,12 +402,14 @@ namespace Input {
   struct StateMachineBuilder {
     StateMachineBuilder();
     //Building the state machine
-    NodeIndex addNode(const Node& node);
+    NodeIndex addNode(const EventDescription& data);
     EdgeIndex addEdge(NodeIndex from, NodeIndex to, const Edge& edge);
     EdgeIndex addEdge(const EdgeData& data);
 
     std::vector<Node> nodes;
     std::vector<Edge> edges;
+    std::vector<EventDescription> events;
+    InputSources inputSources;
   };
 
   //Holds the current logical state of the input while relying on the InputMapper for knowing
@@ -326,24 +427,27 @@ namespace Input {
     StateMachine& operator=(StateMachine&&) = default;
 
     //Sending inputs through the state machine
-    void traverse(const EdgeTraverser& traverser);
+    void traverse(EdgeTraverser&& traverser);
 
     //Query input state
     bool isNodeActive(NodeIndex node) const;
     //Absolute axes are queried here, relative ones would be read through events
-    float getAbsoluteAxis1D(NodeIndex node) const;
-    glm::vec2 getAbsoluteAxis2D(NodeIndex node) const;
+    float getAbsoluteAxis1D(const InputSourceRange& source) const;
+    glm::vec2 getAbsoluteAxis2D(const InputSourceRange& source) const;
+    bool getButtonPressed(const InputSourceRange& source) const;
 
     const std::vector<Event>& readEvents() const;
     void clearEvents();
 
-    const InputMapper& getMapper();
+    const InputMapper& getMapper() const;
 
   private:
     std::vector<Node> nodes;
     std::vector<Edge> edges;
     std::vector<NodeIndex> activeNodes;
+    std::vector<EventDescription> eventDescriptions;
     std::vector<Event> publishedEvents;
     InputMapper mapper;
+    InputSources inputSources;
   };
 }

@@ -36,6 +36,22 @@ namespace gnx::LinkedList {
     insertAfter(after, toInsert, insertIndex, accessT, Traits<V>{});
   }
 
+  //Given T which contains the head of a linked list of indices into list,
+  //Insert `toInsert` at the tail of this linked list
+  //`toInsert` is assumed to be somewhere in `list`. It is also assumed to have an invalid list value
+  template<class T, class V>
+  void insertAtEnd(T& head, V& toInsert, std::vector<V>& list) {
+    //Assumed to be in the vector
+    const auto indexToInsert = static_cast<size_t>(&toInsert - list.data());
+    using AccessT = Traits<T>;
+    using AccessV = Traits<V>;
+    auto* tailIndex = &AccessT::getIndex(head);
+    while(*tailIndex < list.size()) {
+      tailIndex = &AccessV::getIndex(list[*tailIndex]);
+    }
+    *tailIndex = indexToInsert;
+  }
+
   template<class T, class IndexT, class CallbackT, class AccessT>
   void foreach(std::vector<T>& container, IndexT begin, const CallbackT& callback, AccessT) {
     while(begin < container.size()) {

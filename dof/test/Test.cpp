@@ -71,6 +71,10 @@ namespace Test {
     UnpackedDatabaseElementID completedFragments;
   };
 
+  void addPassthroughMappings(Input::InputMapper& mapper) {
+    mapper.addPassthroughAxis2D(GameInput::Keys::MOVE_2D);
+  }
+
   struct TestGame {
     TestGame(GameConstructArgs args = {}) {
       auto mappings = std::make_unique<StableElementMappings>();
@@ -114,6 +118,8 @@ namespace Test {
       test = std::make_unique<RuntimeDatabaseTaskBuilder>(std::move(temp));
       test->discard();
       tld = tls->instance->get(0);
+
+      addPassthroughMappings(*builder().query<GameInput::GlobalMappingsRow>().tryGetSingletonElement());
     }
 
     TestGame(const GameArgs& args)
@@ -1623,8 +1629,8 @@ namespace Test {
       args.playerPos = glm::vec2{ 0.0f };
       TestGame game{ args };
       auto [playerInput, stateMachine, posX] = game.builder().query<GameInput::PlayerInputRow, GameInput::StateMachineRow, FloatRow<Tags::Pos, Tags::X>>().get(0);
-      const Input::InputMapper* mapper = game.builder().query<GameInput::GlobalMappingsRow>().tryGetSingletonElement();
-      stateMachine->at(0).traverse(mapper->onPassthroughAxis2DAbsolute(GameInput::Keys::MOVE_2D, { 1, 0 }));
+      const Input::InputMapper& mapper = stateMachine->at(0).getMapper();
+      stateMachine->at(0).traverse(mapper.onPassthroughAxis2DAbsolute(GameInput::Keys::MOVE_2D, { 1, 0 }));
 
       //Once to compute the impulse, next frame updates position with it
       game.update();

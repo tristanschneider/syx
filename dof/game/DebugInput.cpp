@@ -20,7 +20,7 @@ namespace DebugInput {
           switch(event.id) {
             case GameInput::Events::DEBUG_ZOOM: {
               const float speed = config->camera.cameraZoomSpeed;
-              camera.zoom = std::max(0.0f, camera.zoom + sm.getAbsoluteAxis1D(event.toNode) * speed);
+              camera.zoom = std::max(0.0f, camera.zoom + event.getAxis1DAbsolute() * speed);
               break;
             }
           }
