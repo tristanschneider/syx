@@ -217,6 +217,12 @@ public:
     return getResolver();
   }
 
+  template<class... CachedRows>
+  std::shared_ptr<ITableResolver> getResolver(const CachedRows&... cachedRows) {
+    (log(cachedRows), ...);
+    return getResolver();
+  }
+
   template<class... Aliases>
   std::shared_ptr<ITableResolver> getAliasResolver(const Aliases&... aliases) {
     (log(aliases), ...);
@@ -284,6 +290,11 @@ public:
 private:
   template<class T>
   void log() {
+    log<T>(db.query<std::decay_t<T>>().matchingTableIDs);
+  }
+
+  template<class T>
+  void log(const CachedRow<T>&) {
     log<T>(db.query<std::decay_t<T>>().matchingTableIDs);
   }
 

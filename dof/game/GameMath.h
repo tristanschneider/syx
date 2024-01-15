@@ -186,4 +186,18 @@ namespace Math {
 
   bool unitAABBLineIntersect(const glm::vec2& origin, const glm::vec2& dir, float* resultTIn, float* resultTOut);
   glm::vec2 getNormalFromUnitAABBIntersect(const glm::vec2& intersect);
+
+  constexpr float approach(float v, float increment, float toApproach) {
+    if(increment > 0) {
+      return std::min(v + increment, toApproach);
+    }
+    return std::max(v + increment, toApproach);
+  }
+
+  constexpr float approachAbs(float v, float absIncrement, float toApproach) {
+    if(v < toApproach) {
+      return approach(v, std::abs(absIncrement), toApproach);
+    }
+    return approach(v, -std::abs(absIncrement), toApproach);
+  }
 }

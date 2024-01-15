@@ -15,12 +15,14 @@
 #include "ThreadLocals.h"
 #include "Random.h"
 #include "SpatialQueries.h"
+#include "PhysicsSimulation.h"
+#include "GameMath.h"
 
 namespace SM {
   using namespace FragmentStateMachine;
   std::optional<StableElementID> tryGetFirstNearby(SpatialQuery::IReader& reader, const StableElementID& self) {
     const SpatialQuery::Result* result = reader.tryIterate();
-    while(result && result->other != self) {
+    while(result && result->other == self) {
       result = reader.tryIterate();
     }
     return result ? std::make_optional(result->other) : std::nullopt;
@@ -86,9 +88,9 @@ namespace SM {
     static constexpr float seekAhead = 2.0f;
 
     static SpatialQuery::AABB computeQueryVolume(const glm::vec2& pos, const glm::vec2& forward) {
-      //Put query volume a bit out in front of the fragment with size of 0.5
+      //Put query volume a bit out in front of the fragment
       const glm::vec2 queryPos = pos + forward*seekAhead;
-      constexpr glm::vec2 half{ 0.25f, 0.25f };
+      constexpr glm::vec2 half{ 0.5f, 0.5f };
       return { queryPos - half, queryPos + half };
     }
 
@@ -110,40 +112,66 @@ namespace SM {
       >(table);
       auto spatialQueryR = SpatialQuery::createReader(task);
       auto spatialQueryW = SpatialQuery::createWriter(task);
+      auto bodyResolver = PhysicsSimulation::createPhysicsBodyResolver(task);
 
-      task.setCallback([query, spatialQueryR, spatialQueryW, bucket](AppTaskArgs&) mutable {
+      task.setCallback([query, spatialQueryR, spatialQueryW, bucket, bodyResolver](AppTaskArgs&) mutable {
         auto&& [globals, state, stableRow, impulseX, impulseY, angVelRow, impulseA, rotX, rotY, posX, posY] = query.get(0);
         for(size_t si : globals->at().buckets[bucket].updating) {
           const size_t stableID = stableRow->at(si);
+          const glm::vec2 pos = TableAdapters::read(si, *posX, *posY);
 
           Wander& wander = std::get<Wander>(state->at(si).currentState);
           spatialQueryR->begin(wander.spatialQuery);
           const auto nearby = tryGetFirstNearby(*spatialQueryR, StableElementID::fromStableID(stableID));
 
+          if(nearby) {
+            //TODO: this doesn't really do what it means to but works well enough visually
+            constexpr float rotateForwardSpeed = 0.1f;
+            if(auto key = bodyResolver->tryResolve(*nearby)) {
+              //Figure out which direction to turn that will avoid collision with the other body assuming it keeps moving in its direction
+              const glm::vec2 otherForward = bodyResolver->getLinearVelocity(*key);
+              //This is going the same direction as the other, turn away from the direction it is going
+              if(glm::dot(wander.desiredDirection, otherForward) > 0) {
+                wander.desiredDirection = Math::rotate(wander.desiredDirection, Math::cross(wander.desiredDirection, otherForward) > 0.0f ? -rotateForwardSpeed : rotateForwardSpeed);
+              }
+              //This is going towards the other, turn away
+              else {
+                wander.desiredDirection = Math::rotate(wander.desiredDirection, Math::cross(wander.desiredDirection, -otherForward) > 0.0f ? -rotateForwardSpeed : rotateForwardSpeed);
+              }
+            }
+          }
+
           constexpr float linearSpeed = 0.003f;
-          constexpr float angularAvoidance = 0.01f;
-          constexpr float maxAngVel = 0.03f;
+          constexpr float angularAvoidance = 0.05f;
+          constexpr float angularAccelleration = 0.0025f;
           constexpr float minAngVel = 0.001f;
           constexpr float angularDamping = 0.001f;
 
-          //Don't tinker with direction if already spinning out of control
+          //Apply angular impulse towards desired move direction
           const float angVel = angVelRow->at(si);
-          const float angSpeed =  std::abs(angVel);
-          if(angSpeed < maxAngVel) {
-            //If something is in the way, turn to the right
-            if(nearby) {
-              impulseA->at(si) += angularAvoidance;
-            }
+          const glm::vec2 forward = TableAdapters::read(si, *rotX, *rotY);
+
+          const float errorCos = glm::dot(forward, wander.desiredDirection);
+          const float errorSin = Math::cross(forward, wander.desiredDirection);
+          //The absolute value doesn't matter because it is clamped to angularAvoidance, make sure the direction is always towards the smallest angle between the vectors
+          const float totalError = errorCos > 0.99f ? 0.0f : std::atan2f(errorSin, errorCos);
+          //Determine the desired angular velocity that will fix an amount of error this frame
+          const float desiredAngVel = glm::clamp(totalError, -angularAvoidance, angularAvoidance);
+          //Approach the desired velocity in increments of the approach
+          const float angularCorrection = Math::approachAbs(angVel, angularAccelleration, desiredAngVel) - angVel;
+
+          if(std::abs(angularCorrection) > 0.001f) {
+            impulseA->at(si) += angularCorrection;
           }
-          if(angSpeed > minAngVel) {
+          if(std::abs(angVel) > minAngVel) {
             impulseA->at(si) += angVel * -angularDamping;
           }
 
-          const glm::vec2 forward = TableAdapters::read(si, *rotX, *rotY);
-          TableAdapters::add(si, forward * linearSpeed, *impulseX, *impulseY);
+          //Move forward regardless of if it's the desird direction
+          const float speedMod = nearby ? 0.5f : 1.0f;
+          TableAdapters::add(si, forward * linearSpeed * speedMod, *impulseX, *impulseY);
 
-          const glm::vec2 pos = TableAdapters::read(si, *posX, *posY);
-          spatialQueryW->refreshQuery(wander.spatialQuery, { computeQueryVolume(pos, forward) }, 2);
+          spatialQueryW->refreshQuery(wander.spatialQuery, { computeQueryVolume(pos, wander.desiredDirection) }, 2);
         }
       });
       builder.submitTask(std::move(task));
@@ -186,7 +214,7 @@ namespace SM {
           const size_t myID = stableRow->at(si);
 
           //Draw the spatial query volume
-          const auto volume = computeQueryVolume(myPos, myForward);
+          const auto volume = computeQueryVolume(myPos, wander.desiredDirection);
           DebugDrawer::drawAABB(debug, volume.min, volume.max, glm::vec3{ 0.5f });
 
           StableElementID temp = wander.spatialQuery;

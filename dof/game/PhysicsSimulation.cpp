@@ -83,6 +83,50 @@ namespace PhysicsSimulation {
     };
   }
 
+  std::shared_ptr<Narrowphase::IShapeClassifier> createShapeClassifier(RuntimeDatabaseTaskBuilder& task) {
+    return Narrowphase::createShapeClassifier(task, getUnitCubeDefinition());
+  }
+
+  class PhysicsBodyResolver : public IPhysicsBodyResolver {
+  public:
+    PhysicsBodyResolver(RuntimeDatabaseTaskBuilder& task)
+      : shape(createShapeClassifier(task))
+      , ids(task.getIDResolver())
+      , resolver(task.getResolver(lvx, lvy, av))
+    {}
+
+    std::optional<Key> tryResolve(const StableElementID& e) final {
+      return ids->tryResolveAndUnpack(e);
+    }
+
+    glm::vec2 getCenter(const Key& e) final {
+      return Narrowphase::Shape::getCenter(shape->classifyShape(e.unpacked).shape);
+    }
+
+    glm::vec2 getLinearVelocity(const Key& e) final {
+      if(resolver->tryGetOrSwapAllRows(e.unpacked, lvx, lvy)) {
+        return TableAdapters::read(e.unpacked.getElementIndex(), *lvx, *lvy);
+      }
+      return glm::vec2{ 0 };
+    }
+
+    float getAngularVelocity(const Key& e) final {
+      const float* result = resolver->tryGetOrSwapRowElement(av, e.unpacked);
+      return result ? *result : 0.0f;
+    }
+
+    std::shared_ptr<Narrowphase::IShapeClassifier> shape;
+    CachedRow<const FloatRow<Tags::GLinVel, Tags::X>> lvx;
+    CachedRow<const FloatRow<Tags::GLinVel, Tags::Y>> lvy;
+    CachedRow<const FloatRow<Tags::GAngVel, Tags::Angle>> av;
+    std::shared_ptr<IIDResolver> ids;
+    std::shared_ptr<ITableResolver> resolver;
+  };
+
+  std::shared_ptr<IPhysicsBodyResolver> createPhysicsBodyResolver(RuntimeDatabaseTaskBuilder& task) {
+    return std::make_shared<PhysicsBodyResolver>(task);
+  }
+
   void init(IAppBuilder& builder) {
     auto task = builder.createTask();
     task.setName("init physics");
