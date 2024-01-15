@@ -15,12 +15,13 @@ namespace GameInput {
   PlayerInput::~PlayerInput() = default;
 
   Input::Timespan secondsToTimespan(float seconds) {
-    constexpr float simulationRate = 1.0f/60.0f;
+    constexpr float simulationRate = 60.0f;
     return static_cast<Input::Timespan>(seconds * simulationRate);
   }
 
   float timespanToSeconds(Input::Timespan time) {
-    return static_cast<float>(time * 60);
+    constexpr float inverseSimulationRate = 1.0f/60.0f;
+    return static_cast<float>(time) * inverseSimulationRate;
   }
 
   //Creates the mappings for an ability with nodes going from abilityRoot out to trigger the event,
