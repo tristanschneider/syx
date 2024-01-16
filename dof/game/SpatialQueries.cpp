@@ -93,14 +93,28 @@ namespace SpatialQuery {
     }
   }
 
-  template<class T>
-  void refreshQuery(WriteData<T>& data, size_t index, Query&& query, size_t newLifetime) {
+  template<class T, class Op>
+  void modifyQuery(WriteData<T>& data, size_t index, Query& query, size_t newLifetime, Op&& op) {
     using ShapeT = typename T::ElementT;
     constexpr size_t INDEX = indexOfNarrowphaseShape<ShapeT>();
     assert(query.shape.index() == INDEX && "Query shape must stay the same");
-    data.shapes->at(index) = std::get<INDEX>(query.shape);
+    op(data.shapes->at(index), std::get<INDEX>(query.shape));
     data.needsResubmit->at(index) = true;
     data.lifetimes->at(index) = newLifetime;
+  }
+
+  template<class T>
+  void refreshQuery(WriteData<T>& data, size_t index, Query&& query, size_t newLifetime) {
+    modifyQuery(data, index, query, newLifetime, [](auto& dst, auto& src) { dst = std::move(src); });
+  }
+
+  template<class T>
+  void swapQuery(WriteData<T>& data, size_t index, Query& inout, size_t newLifetime) {
+    modifyQuery(data, index, inout, newLifetime, [](auto& dst, auto& src) {
+      auto temp = src;
+      src = dst;
+      dst = temp;
+    });
   }
 
   template<class T>
@@ -233,6 +247,10 @@ namespace SpatialQuery {
       else if(key.unpacked.getTableIndex() == writeRay.table.getTableIndex()) {
         visitor(writeRay);
       }
+    }
+
+    void swapQuery(const ResolvedIDs& key, Query& inout, size_t newLifetime) override {
+      visitShape(key, [&](auto& shape) { SpatialQuery::swapQuery(shape, key.unpacked.getElementIndex(), inout, newLifetime); });
     }
 
     void refreshQuery(const ResolvedIDs& key, Query&& query, size_t newLifetime) override {

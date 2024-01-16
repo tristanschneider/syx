@@ -39,4 +39,27 @@ namespace Tags {
   struct Angle{};
   struct CosAngle{};
   struct SinAngle{};
+
+  using GLinImpulseXRow = FloatRow<GLinImpulse, X>;
+  using GLinImpulseYRow = FloatRow<GLinImpulse, Y>;
+  using GAngImpulseRow = FloatRow<GAngImpulse, Angle>;
+
+  using FragmentGoalXRow = FloatRow<FragmentGoal, X>;
+  using FragmentGoalYRow = FloatRow<FragmentGoal, Y>;
+
+  using GLinVelXRow = FloatRow<GLinVel, X>;
+  using GLinVelYRow = FloatRow<GLinVel, Y>;
+  using GAngVelRow = FloatRow<GAngVel, Angle>;
+  using GPosXRow = FloatRow<GPos, X>;
+  using GPosYRow = FloatRow<GPos, Y>;
+  using GRotXRow = FloatRow<GRot, CosAngle>;
+  using GRotYRow = FloatRow<GRot, SinAngle>;
+
+  using LinVelXRow = FloatRow<LinVel, X>;
+  using LinVelYRow = FloatRow<LinVel, Y>;
+  using AngVelRow = FloatRow<AngVel, Angle>;
+  using PosXRow = FloatRow<Pos, X>;
+  using PosYRow = FloatRow<Pos, Y>;
+  using RotXRow = FloatRow<Rot, CosAngle>;
+  using RotYRow = FloatRow<Rot, SinAngle>;
 };

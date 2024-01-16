@@ -34,6 +34,11 @@ namespace SpatialQuery {
     operator Narrowphase::Shape::Raycast() const {
       return { start, end };
     }
+    Raycast& operator=(const Narrowphase::Shape::Raycast& rhs) {
+      start = rhs.start;
+      end = rhs.end;
+      return *this;
+    }
     glm::vec2 start{};
     glm::vec2 end{};
   };
@@ -45,12 +50,22 @@ namespace SpatialQuery {
     operator Narrowphase::Shape::AABB() const {
       return { min, max };
     }
+    AABB& operator=(const Narrowphase::Shape::AABB& rhs) {
+      min = rhs.min;
+      max = rhs.max;
+      return *this;
+    }
     glm::vec2 min{};
     glm::vec2 max{};
   };
   struct Circle {
     operator Narrowphase::Shape::Circle() const {
       return { pos, radius };
+    }
+    Circle& operator=(const Narrowphase::Shape::Circle& rhs) {
+      pos = rhs.pos;
+      radius = rhs.radius;
+      return *this;
     }
     glm::vec2 pos{};
     float radius{};
@@ -170,6 +185,8 @@ namespace SpatialQuery {
 
     virtual std::optional<ResolvedIDs> getKey(StableElementID& id) = 0;
     virtual void refreshQuery(const ResolvedIDs& key, Query&& query, size_t newLifetime) = 0;
+    //Same as refresh but swaps the old one into the parameter
+    virtual void swapQuery(const ResolvedIDs& key, Query& inout, size_t newLifetime) = 0;
     virtual void refreshQuery(const ResolvedIDs& key, size_t newLifetime) = 0;
     virtual void refreshQuery(StableElementID& key, Query&& query, size_t newLifetime) = 0;
     virtual void refreshQuery(StableElementID& index, size_t newLifetime) = 0;

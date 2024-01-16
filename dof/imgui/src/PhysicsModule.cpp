@@ -45,8 +45,6 @@ namespace PhysicsModule {
       std::hash<size_t> colorHash;
       const float normalLength = 0.15f;
 
-      DebugDrawer::drawLine(drawer, { 1, 1 }, { 100, 100 }, { 1, 0, 0 });
-
       for(size_t t = 0; t < query.size(); ++t) {
         const auto thisTable = query.matchingTableIDs[t];
         auto [graph, manifolds] = query.get(t);

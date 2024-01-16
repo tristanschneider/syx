@@ -3,6 +3,7 @@
 #include "StableElementID.h"
 #include "StateMachine.h"
 #include "glm/vec2.hpp"
+#include "generics/Timer.h"
 
 class IAppBuilder;
 struct TaskRange;
@@ -20,12 +21,18 @@ namespace FragmentStateMachine {
   struct Stunned {};
   //Navigate towards the destination location, then go back to wander or snap to destination if found
   struct SeekHome {
-    StableElementID target;
+    gnx::time::Timer timer;
+  };
+  //Continuation of seekHome, stop applying the impulse and do spatial queries until there are
+  //no collisions so the mask can be set to collide again
+  struct ExitSeekHome {
+    StableElementID spatialQuery;
+    glm::vec2 direction{};
   };
   //State that does nothing. Used by destruction to exit the final state without entering anything new
   struct Empty {};
 
-  using FragmentStateMachineT = SM::StateMachine<Idle, Wander, Stunned, SeekHome, Empty>;
+  using FragmentStateMachineT = SM::StateMachine<Idle, Wander, Stunned, SeekHome, ExitSeekHome, Empty>;
   using FragmentState = typename FragmentStateMachineT::State;
 
   using StateRow = typename FragmentStateMachineT::StateRow;

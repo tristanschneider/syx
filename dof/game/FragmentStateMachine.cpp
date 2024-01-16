@@ -17,6 +17,10 @@
 #include "SpatialQueries.h"
 #include "PhysicsSimulation.h"
 #include "GameMath.h"
+#include "PGSSolver.h"
+#include "generics/Timer.h"
+#include "ConstraintSolver.h"
+#include "Geometric.h"
 
 namespace SM {
   using namespace FragmentStateMachine;
@@ -263,62 +267,104 @@ namespace SM {
       auto query = task.query<
         const GlobalsRow,
         StateRow,
-        const StableIDRow,
+        Narrowphase::CollisionMaskRow,
         Tint
       >(table);
-      const UnpackedDatabaseElementID targetTable = builder.queryTables<TargetTableTag>().matchingTableIDs[0];
-      auto targetModifier = task.getModifierForTable(targetTable);
-      auto targets = task.query<
-        const StableIDRow
-      >(targetTable);
 
-      task.setCallback([query, bucket, targetModifier, targets](AppTaskArgs& args) mutable {
-        auto&& [globals, state, stableRow, tint] = query.get(0);
+      task.setCallback([query, bucket](AppTaskArgs&) mutable {
+        auto&& [globals, state, collisionMask, tint] = query.get(0);
 
         for(size_t i : globals->at().buckets[bucket].entering) {
           //Set color
           tint->at(i).r = 1.0f;
+          collisionMask->at(i) = Narrowphase::CollisionMask(0);
 
           SeekHome& seek = std::get<SeekHome>(state->at(i).currentState);
-
-          //Create target for follow behavior
-          const size_t& stableId = stableRow->at(i);
-          const size_t newTarget = targetModifier->addElements(1);
-          StableElementID stableTarget = StableElementID::fromStableRow(newTarget, targets.get<0>(0));
-          seek.target = stableTarget;
-
-          const size_t followTime = 100;
-          const float springConstant = 0.001f;
-
-          //Create the follow effect and point it at the target
-          auto followVelocity = TableAdapters::getFollowTargetByVelocityEffects(args);
-          const size_t followEffect = TableAdapters::addStatEffectsSharedLifetime(followVelocity.base, followTime, &stableId, 1);
-          followVelocity.command->at(followEffect).mode = FollowTargetByVelocityStatEffect::SpringFollow{ springConstant };
-          followVelocity.base.target->at(followEffect) = stableTarget;
-          //Enqueue the state transition back to wander
-          followVelocity.base.continuations->at(followEffect).onComplete.push_back([stableId](StatEffect::Continuation::Args& a) {
-            RuntimeDatabaseTaskBuilder task{ a.db };
-            auto ids = task.getIDResolver();
-            auto resolver = task.getResolver<StateRow>();
-
-            if(auto resolved = ids->tryResolveStableID(StableElementID::fromStableID(stableId))) {
-              const auto unpacked = ids->uncheckedUnpack(*resolved);
-              if(StateRow* row = resolver->tryGetRow<StateRow>(unpacked)) {
-                SM::setState(row->at(unpacked.getElementIndex()), Wander{});
-              }
-            }
-
-            task.discard();
-          });
+          seek.timer.start(100);
         }
       });
 
       builder.submitTask(std::move(task));
     }
 
-    static void onUpdate(IAppBuilder&, const UnpackedDatabaseElementID&, size_t) {
+    static void onUpdate(IAppBuilder& builder, const UnpackedDatabaseElementID& table, size_t bucket) {
+      auto task = builder.createTask();
+      task.setName("enter SeekHome");
+      auto query = task.query<
+        const GlobalsRow,
+        StateRow,
+        const Tags::GPosXRow,
+        const Tags::GPosYRow,
+        const Tags::GLinVelXRow,
+        const Tags::GLinVelYRow,
+        const Tags::GAngVelRow,
+        const Tags::FragmentGoalXRow,
+        const Tags::FragmentGoalYRow,
+        const ConstraintSolver::SharedMassRow,
+        Tags::GLinImpulseXRow,
+        Tags::GLinImpulseYRow,
+        Tags::GAngImpulseRow
+      >(table);
+
+      PGS::SolverStorage solver;
+      //Zero mass body and the one we'll solve for. Must have 2 since solver assumes pairs
+      solver.resize(2, 2);
+      solver.setMass(1, 0, 0);
+      solver.setVelocity(1, glm::vec2{ 0 }, 0);
+      task.setCallback([query, bucket, solver](AppTaskArgs&) mutable {
+        auto&& [globals, state, posX, posY, vx, vy, va, goalX, goalY, massRow, ix, iy, ia] = query.get(0);
+        solver.setMass(0, massRow->at().inverseMass, massRow->at().inverseInertia);
+
+        for(size_t i : globals->at().buckets[bucket].updating) {
+          SeekHome& seek = std::get<SeekHome>(state->at(i).currentState);
+          if(seek.timer.tick()) {
+            SM::setState(state->at(i), ExitSeekHome{});
+            continue;
+          }
+
+          const glm::vec2 linVel = TableAdapters::read(i, *vx, *vy);
+          const float angVel = va->at(i);
+          const glm::vec2 myPos = TableAdapters::read(i, *posX, *posY);
+          const glm::vec2 goal = TableAdapters::read(i, *goalX, *goalY);
+          const glm::vec2 toGoal = goal - myPos;
+          const float distance = glm::length(toGoal);
+          if(distance < 0.001f) {
+            continue;
+          }
+          constexpr float maxForce = 0.01f;
+          constexpr float targetVelocity = 1.1f;
+          constexpr float orbitPrevention = 0.01f;
+          targetVelocity;
+          constexpr glm::vec2 z{ 0.0f };
+          const glm::vec2 goalDir = toGoal / distance;
+          //No warm start
+          solver.setWarmStart(0, 0);
+          solver.setWarmStart(1, 0);
+          solver.setJacobian(0, 0, 1, goalDir, 0.0f, z, 0);
+          solver.setJacobian(1, 0, 1, Geo::orthogonal(goalDir), 0, z, 0);
+          //Try to hit target velocity but only ever push towards it
+          solver.setBias(0, targetVelocity);
+          solver.setLambdaBounds(0, 0.0f, maxForce);
+          //solver.setLambdaBounds(0, 0, PGS::SolverStorage::UNLIMITED_MAX);
+          solver.setLambdaBounds(1, -orbitPrevention, orbitPrevention);
+          solver.setVelocity(0, linVel, angVel);
+          solver.premultiply();
+
+          auto context = solver.createContext();
+          PGS::solvePGS(context);
+
+          auto body = context.velocity.getBody(0);
+          const glm::vec2 linearImpulse = body.linear - linVel;
+          TableAdapters::add(i, linearImpulse, *ix, *iy);
+        }
+      });
+      builder.submitTask(std::move(task));
+
+      debugDraw(builder, table, bucket);
     }
 
+    //Reset this in case the state wasn't exited to ExitSeekHome, as would happen if the fragment found its goal
+    //Another possibility would be having the goal find set the mask
     static void onExit(IAppBuilder& builder, const UnpackedDatabaseElementID& table, size_t bucket) {
       auto task = builder.createTask();
       task.setName("Exit SeekHome");
@@ -326,19 +372,204 @@ namespace SM {
       auto query = task.query<
         const GlobalsRow,
         const StateRow,
+        Narrowphase::CollisionMaskRow
+      >(table);
+
+      task.setCallback([query, bucket](AppTaskArgs&) mutable {
+        auto&& [globals, state, collisionMask] = query.get(0);
+        for(size_t i : globals->at().buckets[bucket].exiting) {
+          collisionMask->at(i) = Narrowphase::CollisionMask(~0);
+        }
+      });
+      builder.submitTask(std::move(task));
+    }
+
+    static void debugDraw(IAppBuilder& builder, const UnpackedDatabaseElementID& table, size_t bucket) {
+      auto task = builder.createTask();
+      task.setName("seekhome debug");
+      auto query = task.query<
+        const GlobalsRow,
+        const StateRow,
+        const Tags::GPosXRow,
+        const Tags::GPosYRow,
+        const Tags::FragmentGoalXRow,
+        const Tags::FragmentGoalYRow
+      >(table);
+      auto debug = TableAdapters::getDebugLines(task);
+      const bool* shouldDrawAI = getShouldDrawAI(task);
+
+      task.setCallback([debug, query, bucket, shouldDrawAI](AppTaskArgs&) mutable {
+        if(!*shouldDrawAI) {
+          return;
+        }
+        auto&& [globals, state, posX, posY, goalX, goalY] = query.get(0);
+        for(size_t si : globals->at().buckets[bucket].updating) {
+          const glm::vec2 myPos = TableAdapters::read(si, *posX, *posY);
+          const glm::vec2 goal = TableAdapters::read(si, *goalX, *goalY);
+          DebugDrawer::drawLine(debug, myPos, goal, glm::vec3{ 0, 1, 0 });
+        }
+      });
+      builder.submitTask(std::move(task));
+    }
+  };
+
+  template<>
+  struct StateTraits<ExitSeekHome> {
+    static void onEnter(IAppBuilder& builder, const UnpackedDatabaseElementID& table, size_t bucket) {
+      auto task = builder.createTask();
+      task.setName("enter ExitSeekHome");
+      auto query = task.query<
+        const GlobalsRow,
+        const Tags::GLinVelXRow,
+        const Tags::GLinVelYRow,
+        Narrowphase::CollisionMaskRow,
+        StateRow
+      >(table);
+      auto spatialQuery = SpatialQuery::createCreator(task);
+
+      task.setCallback([query, bucket, spatialQuery](AppTaskArgs&) mutable {
+        auto&& [globals, vx, vy, collisionMask, state] = query.get(0);
+
+        for(size_t i : globals->at().buckets[bucket].entering) {
+          collisionMask->at(i) = Narrowphase::CollisionMask(0);
+          ExitSeekHome& seek = std::get<ExitSeekHome>(state->at(i).currentState);
+          seek.spatialQuery = spatialQuery->createQuery({ SpatialQuery::AABB{ glm::vec2{ 0 }, glm::vec2{ 0 } } }, 2);
+          const glm::vec2 v = TableAdapters::read(i, *vx, *vy);
+          const float length = glm::length(v);
+          constexpr float speed = 0.01f;
+          //Try to keep going in the direction it was already going. If it wasn't moving pick an arbitrary one
+          seek.direction = length > 0.001f ? v * (speed/length) : glm::vec2{ speed, 0 };
+        }
+      });
+
+      builder.submitTask(std::move(task));
+    }
+
+    static SpatialQuery::AABB getQueryAABB(const glm::vec2& myPos) {
+      const glm::vec2 halfSize{ 1.0f, 1.0f };
+      return SpatialQuery::AABB{ myPos - halfSize, myPos + halfSize };
+    }
+
+    static void onUpdate(IAppBuilder& builder, const UnpackedDatabaseElementID& table, size_t bucket) {
+      auto task = builder.createTask();
+      task.setName("update ExitSeekHome");
+      auto query = task.query<
+        const GlobalsRow,
+        StateRow,
+        const StableIDRow,
+        const Tags::GPosXRow,
+        const Tags::GPosYRow,
+        Tags::GLinImpulseXRow,
+        Tags::GLinImpulseYRow
+      >(table);
+      auto resolver = task.getResolver<const StateRow, const SpatialQueriesTableTag>();
+      auto ids = task.getIDResolver();
+
+      auto spatialQueryW = SpatialQuery::createWriter(task);
+      auto spatialQueryR = SpatialQuery::createReader(task);
+      task.setCallback([query, bucket, spatialQueryR, spatialQueryW, resolver, ids](AppTaskArgs&) mutable {
+        auto&& [globals, state, stableRow, posX, posY, ix, iy] = query.get(0);
+        CachedRow<const StateRow> stateLookup;
+        CachedRow<const SpatialQueriesTableTag> spatialQueryLookup;
+
+        for(size_t i : globals->at().buckets[bucket].updating) {
+          ExitSeekHome& seek = std::get<ExitSeekHome>(state->at(i).currentState);
+
+          //Keep going in some direction so this doesn't get stuck forever
+          TableAdapters::add(i, seek.direction, *ix, *iy);
+
+          const glm::vec2 myPos = TableAdapters::read(i, *posX, *posY);
+          auto key = spatialQueryW->getKey(seek.spatialQuery);
+          if(!key) {
+            //Shouldn't happen
+            continue;
+          }
+
+          //Write the new query position, this doesn't affect  reading the results below
+          SpatialQuery::Query newQuery{ getQueryAABB(myPos) };
+          spatialQueryW->swapQuery(*key, newQuery, 2);
+          //See if the contained query had the initial zero value or a real value. If it was initial, wait until next frame
+          if(auto bb = std::get_if<SpatialQuery::AABB>(&newQuery.shape)) {
+            if(bb->min == glm::vec2{ 0 }) {
+              continue;
+            }
+          }
+
+          //If there is nothing nearby it's safe to exit the state
+          spatialQueryR->begin(key->stable);
+          const size_t self = stableRow->at(i);
+          bool foundObstacle = false;
+          while(auto* r = spatialQueryR->tryIterate()) {
+            if(r->other.mStableID == self) {
+              continue;
+            }
+            //Ignore others that are also in this state
+            //TODO: this probably makes mores sense to do with collision layers
+            if(auto resolved = ids->tryResolveAndUnpack(r->other)) {
+              if(const auto* s = resolver->tryGetOrSwapRowElement(stateLookup, resolved->unpacked)) {
+                 if(std::get_if<SeekHome>(&s->currentState) || std::get_if<ExitSeekHome>(&s->currentState)) {
+                    continue;
+                 }
+              }
+              //Ignoer other spatial queries
+              if(resolver->tryGetOrSwapRow(spatialQueryLookup, resolved->unpacked)) {
+                continue;
+              }
+              foundObstacle = true;
+              break;
+            }
+          }
+          if(!foundObstacle) {
+            SM::setState(state->at(i), Wander{});
+          }
+        }
+      });
+      builder.submitTask(std::move(task));
+
+      debugDraw(builder, table, bucket);
+    }
+
+    static void onExit(IAppBuilder& builder, const UnpackedDatabaseElementID& table, size_t bucket) {
+      auto task = builder.createTask();
+      task.setName("Exit ExitSeekHome");
+
+      auto query = task.query<
+        const GlobalsRow,
+        const StateRow,
+        Narrowphase::CollisionMaskRow,
         Tint
       >(table);
 
-      task.setCallback([query, bucket](AppTaskArgs& args) mutable {
-        auto&& [globals, state, tint] = query.get(0);
+      task.setCallback([query, bucket](AppTaskArgs&) mutable {
+        auto&& [globals, state, collisionMask, tint] = query.get(0);
         for(size_t i : globals->at().buckets[bucket].exiting) {
           //Reset color
           tint->at(i).r = 0.0f;
+          collisionMask->at(i) = Narrowphase::CollisionMask(~0);
+        }
+      });
+      builder.submitTask(std::move(task));
+    }
 
-          const SeekHome& seek = std::get<SeekHome>(state->at(i).previousState);
+    static void debugDraw(IAppBuilder& builder, const UnpackedDatabaseElementID& table, size_t bucket) {
+      auto task = builder.createTask();
+      task.setName("seekhome debug");
+      auto query = task.query<
+        const GlobalsRow,
+        const Tags::GPosXRow,
+        const Tags::GPosYRow
+      >(table);
+      auto debug = TableAdapters::getDebugLines(task);
+      const bool* shouldDrawAI = getShouldDrawAI(task);
 
-          StableElementID toRemove = seek.target;
-          Events::onRemovedElement(toRemove, args);
+      task.setCallback([debug, query, bucket, shouldDrawAI](AppTaskArgs&) mutable {
+        if(!*shouldDrawAI) {
+          return;
+        }
+        auto&& [globals, posX, posY] = query.get(0);
+        for(size_t si : globals->at().buckets[bucket].updating) {
+          const auto bb = getQueryAABB(TableAdapters::read(si, *posX, *posY));
+          DebugDrawer::drawAABB(debug, bb.min, bb.max, glm::vec3{ 0.5f, 0.5f, 0.5f });
         }
       });
       builder.submitTask(std::move(task));
