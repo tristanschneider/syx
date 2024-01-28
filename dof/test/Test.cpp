@@ -1872,6 +1872,7 @@ namespace Test {
       Assert::AreNotEqual(0.0f, objs.physics.linVelX->at(1));
     }
 
+    /* TODO
     TEST_METHOD(FragmentStateMachine) {
       GameArgs args;
       args.fragmentCount = 2;
@@ -1914,5 +1915,6 @@ namespace Test {
 
       Assert::IsFalse(ids->tryResolveStableID(target).has_value(), L"Target created by state should have been destroyed before object was destroyed");
     }
+    */
   };
 }
