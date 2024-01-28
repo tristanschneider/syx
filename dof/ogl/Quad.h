@@ -4,7 +4,7 @@
 #include "VertexAttributes.h"
 
 struct QuadUniforms {
-  TextureSamplerUniform posX, posY, rotX, rotY, uv, velX, velY, angVel, tint;
+  TextureSamplerUniform posX, posY, posZ, rotX, rotY, uv, velX, velY, angVel, tint;
   GLuint worldToView;
   GLuint texture;
 };

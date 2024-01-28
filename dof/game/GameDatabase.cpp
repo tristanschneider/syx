@@ -126,6 +126,7 @@ namespace GameDatabase {
     IsPlayer,
     FloatRow<Tags::Pos, Tags::X>,
     FloatRow<Tags::Pos, Tags::Y>,
+    FloatRow<Tags::Pos, Tags::Z>,
     FloatRow<Tags::Rot, Tags::CosAngle>,
     FloatRow<Tags::Rot, Tags::SinAngle>,
     FloatRow<Tags::LinVel, Tags::X>,

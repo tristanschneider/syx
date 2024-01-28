@@ -36,6 +36,7 @@ namespace Tags {
 
   struct X{};
   struct Y{};
+  struct Z{};
   struct Angle{};
   struct CosAngle{};
   struct SinAngle{};
@@ -52,6 +53,7 @@ namespace Tags {
   using GAngVelRow = FloatRow<GAngVel, Angle>;
   using GPosXRow = FloatRow<GPos, X>;
   using GPosYRow = FloatRow<GPos, Y>;
+  using GPosZRow = FloatRow<GPos, Z>;
   using GRotXRow = FloatRow<GRot, CosAngle>;
   using GRotYRow = FloatRow<GRot, SinAngle>;
 
@@ -60,6 +62,7 @@ namespace Tags {
   using AngVelRow = FloatRow<AngVel, Angle>;
   using PosXRow = FloatRow<Pos, X>;
   using PosYRow = FloatRow<Pos, Y>;
+  using PosZRow = FloatRow<Pos, Z>;
   using RotXRow = FloatRow<Rot, CosAngle>;
   using RotYRow = FloatRow<Rot, SinAngle>;
 };

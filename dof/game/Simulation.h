@@ -90,6 +90,11 @@ struct IsPlayer : TagRow{};
 struct Camera {
   float angle{};
   float zoom{};
+  float fovDeg = 90.0f;
+  float nearPlane = 0.1f;
+  float farPlane = 100.0f;
+  //Perspective if false
+  bool orthographic = false;
 };
 
 struct DebugPoint {

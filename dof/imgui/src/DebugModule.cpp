@@ -52,6 +52,7 @@ namespace DebugModule {
           for(const DebugLinePassTable::Text& text : req->mElements) {
             glm::vec4 point{ text.pos.x, text.pos.y, 0, 1.0f };
             point = transform * point;
+            point *= 1.0f/point.w;
             ImGui::SetCursorPosX(point.x);
             ImGui::SetCursorPosY(point.y);
             ImGui::Text(text.text.c_str());

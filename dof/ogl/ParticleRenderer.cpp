@@ -115,6 +115,7 @@ namespace {
     uniform mat4 uWorldToView;
     uniform samplerBuffer uPosX;
     uniform samplerBuffer uPosY;
+    uniform samplerBuffer uPosZ;
     uniform samplerBuffer uRotX;
     uniform samplerBuffer uRotY;
 
@@ -123,6 +124,12 @@ namespace {
 
     void main() {
         int i = gl_InstanceID;
+
+        //Hack to ignore shapes not on the same plane as the particles for now
+        if(texelFetch(uPosZ, i).r != 0) {
+          gl_Position.x = 10000;
+          return;
+        }
         float cosAngle = texelFetch(uRotX, i).r;
         float sinAngle = texelFetch(uRotY, i).r;
         vec2 pos = aPosition;
@@ -387,6 +394,7 @@ void ParticleRenderer::init(ParticleData& data) {
   data.mSceneShader.mProgram = Shader::loadShader(quadNormalVS, quadNormalPS);
   data.mSceneShader.posX = glGetUniformLocation(data.mSceneShader.mProgram, "uPosX");
   data.mSceneShader.posY = glGetUniformLocation(data.mSceneShader.mProgram, "uPosY");
+  data.mSceneShader.posZ = glGetUniformLocation(data.mSceneShader.mProgram, "uPosZ");
   data.mSceneShader.rotX = glGetUniformLocation(data.mSceneShader.mProgram, "uRotX");
   data.mSceneShader.rotY = glGetUniformLocation(data.mSceneShader.mProgram, "uRotY");
   data.mSceneShader.velX = glGetUniformLocation(data.mSceneShader.mProgram, "uVelX");
@@ -445,6 +453,7 @@ void ParticleRenderer::renderNormals(const ParticleData& data, const ParticleUni
   int textureIndex = 0;
   _bindTextureSamplerUniform(sprites.posX, GL_R32F, textureIndex++, data.mSceneShader.posX);
   _bindTextureSamplerUniform(sprites.posY, GL_R32F, textureIndex++, data.mSceneShader.posY);
+  _bindTextureSamplerUniform(sprites.posZ, GL_R32F, textureIndex++, data.mSceneShader.posZ);
   _bindTextureSamplerUniform(sprites.rotX, GL_R32F, textureIndex++, data.mSceneShader.rotX);
   _bindTextureSamplerUniform(sprites.rotY, GL_R32F, textureIndex++, data.mSceneShader.rotY);
   _bindTextureSamplerUniform(sprites.velX, GL_R32F, textureIndex++, data.mSceneShader.velX);

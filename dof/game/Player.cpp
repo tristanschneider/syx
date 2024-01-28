@@ -70,7 +70,7 @@ namespace Player {
       const size_t cameraIndex = 0;
       Camera& mainCamera = cameras.get<0>(0).at(cameraIndex);
       const size_t cameraStableId = cameras.get<1>(0).at(cameraIndex);
-      mainCamera.zoom = 15.f;
+      mainCamera.zoom = 1.5f;
 
       playerModifier->resize(1);
       const StableIDRow& playerStableRow = players.get<const StableIDRow>(0);

@@ -23,6 +23,7 @@ namespace {
       uniform mat4 uWorldToView;
       uniform samplerBuffer uPosX;
       uniform samplerBuffer uPosY;
+      uniform samplerBuffer uPosZ;
       uniform samplerBuffer uRotX;
       uniform samplerBuffer uRotY;
       uniform samplerBuffer uUV;
@@ -32,19 +33,21 @@ namespace {
       out vec4 oTint;
 
       void main() {
-        gl_Position = vec4(aPosition.xy*0.1, 0, 1.0);
-
         //TODO: should build transform on CPU to avoid per-vertex waste
         int i = gl_InstanceID;
         float cosAngle = texelFetch(uRotX, i).r;
         float sinAngle = texelFetch(uRotY, i).r;
-        vec2 pos = aPosition;
+        vec4 pos = vec4(aPosition, 0, 1);
         //2d rotation matrix multiply
-        pos = vec2(pos.x*cosAngle - pos.y*sinAngle,
+        pos.xy = vec2(pos.x*cosAngle - pos.y*sinAngle,
           pos.x*sinAngle + pos.y*cosAngle);
-        pos += vec2(texelFetch(uPosX, i).r, texelFetch(uPosY, i).r);
+        pos.xyz += vec3(
+          texelFetch(uPosX, i).r,
+          texelFetch(uPosY, i).r,
+          texelFetch(uPosZ, i).r
+        );
 
-        pos = (uWorldToView*vec4(pos, 0, 1)).xy;
+        gl_Position = uWorldToView*pos;
 
         //Order of uUV data is uMin, vMin, uMax, vMax
         //Order of vertices in quad is:
@@ -80,9 +83,6 @@ namespace {
         }
 
         oTint = texelFetch(uTint, i);
-
-        gl_Position.x = pos.x;
-        gl_Position.y = pos.y;
       }
       )";
     static constexpr const char* ps = R"(
@@ -126,12 +126,18 @@ namespace {
   };
 
   glm::mat4 _getWorldToView(const RendererCamera& camera, float aspectRatio) {
+    //TODO: not sure why this is inverse as glm says it wants x/y which is what the ratio is
+    //Maybe I'm undoing it with a different transformation like part of glviewport or otherwise
+    const float inverseAspect = 1.0f / aspectRatio;
+    auto proj = camera.camera.orthographic ? glm::ortho(-inverseAspect, inverseAspect, -1.0f, 1.0f)
+      : glm::perspective(glm::radians(camera.camera.fovDeg), inverseAspect, camera.camera.nearPlane, camera.camera.farPlane);
+    //TODO: should be able to factor this into the view rather than needing a separate scale
     glm::vec3 scale = glm::vec3(camera.camera.zoom);
-    scale.x *= aspectRatio;
     return glm::inverse(
       glm::translate(glm::vec3(camera.pos.x, camera.pos.y, 0.0f)) *
       glm::rotate(camera.camera.angle, glm::vec3(0, 0, -1)) *
-      glm::scale(scale)
+      glm::scale(scale) *
+      proj
     );
   }
 
@@ -213,6 +219,7 @@ namespace {
     QuadUniforms result;
     result.posX = Shader::_createTextureSamplerUniform(quadShader, "uPosX");
     result.posY = Shader::_createTextureSamplerUniform(quadShader, "uPosY");
+    result.posZ = Shader::_createTextureSamplerUniform(quadShader, "uPosZ");
     result.rotX = Shader::_createTextureSamplerUniform(quadShader, "uRotX");
     result.rotY = Shader::_createTextureSamplerUniform(quadShader, "uRotY");
     result.tint = Shader::_createTextureSamplerUniform(quadShader, "uTint");
@@ -502,6 +509,9 @@ void Renderer::extractRenderables(IAppBuilder& builder) {
     CommonTasks::moveOrCopyRowSameSize<FloatRow<Tags::Rot, Tags::SinAngle>, QuadPassTable::RotY>(builder, spriteID, passID);
     CommonTasks::moveOrCopyRowSameSize<Row<CubeSprite>, QuadPassTable::UV>(builder, spriteID, passID);
     CommonTasks::moveOrCopyRowSameSize<SharedRow<TextureReference>, QuadPassTable::Texture>(builder, spriteID, passID);
+    if(builder.queryTable<Tags::PosZRow>(spriteID)) {
+      CommonTasks::moveOrCopyRowSameSize<Tags::PosZRow, QuadPassTable::PosZ>(builder, spriteID, passID);
+    }
     //If this table has velocity, add those tasks as well
     if(temp.query<FloatRow<Tags::LinVel, Tags::X>, FloatRow<Tags::AngVel, Tags::Angle>>(spriteID).size()) {
       CommonTasks::moveOrCopyRowSameSize<FloatRow<Tags::LinVel, Tags::X>, QuadPassTable::LinVelX>(builder, spriteID, passID);
@@ -626,7 +636,7 @@ void Renderer::render(IAppBuilder& builder) {
   auto task = builder.createTask();
   task.setName("Render");
   auto globals = task.query<Row<OGLState>, Row<WindowData>>();
-  auto quads = task.query<const QuadPassTable::PosX, const QuadPassTable::PosY,
+  auto quads = task.query<const QuadPassTable::PosX, const QuadPassTable::PosY, const QuadPassTable::PosZ,
     const QuadPassTable::RotX, const QuadPassTable::RotY,
     const QuadPassTable::UV,
     const QuadPassTable::Texture,
@@ -693,6 +703,7 @@ void Renderer::render(IAppBuilder& builder) {
           info.count = pass.mLastCount;
           info.posX = pass.mQuadUniforms.posX;
           info.posY = pass.mQuadUniforms.posY;
+          info.posZ = pass.mQuadUniforms.posZ;
           info.quadVertexBuffer = state->mQuadVertexBuffer;
           info.rotX = pass.mQuadUniforms.rotX;
           info.rotY = pass.mQuadUniforms.rotY;
@@ -719,6 +730,7 @@ void Renderer::render(IAppBuilder& builder) {
         //auto passAdapter = RendererTableAdapters::getQuadPass(passTable);
         auto& posX = quads.get<const QuadPassTable::PosX>(i);
         auto& posY = quads.get<const QuadPassTable::PosY>(i);
+        auto& posZ = quads.get<const QuadPassTable::PosZ>(i);
         auto& rotationX = quads.get<const QuadPassTable::RotX>(i);
         auto& rotationY = quads.get<const QuadPassTable::RotY>(i);
         auto& sprite = quads.get<const QuadPassTable::UV>(i);
@@ -745,6 +757,8 @@ void Renderer::render(IAppBuilder& builder) {
         glBufferData(GL_TEXTURE_BUFFER, floatSize, posX.mElements.data(), GL_STATIC_DRAW);
         glBindBuffer(GL_TEXTURE_BUFFER, pass.mQuadUniforms.posY.buffer);
         glBufferData(GL_TEXTURE_BUFFER, floatSize, posY.mElements.data(), GL_STATIC_DRAW);
+        glBindBuffer(GL_TEXTURE_BUFFER, pass.mQuadUniforms.posZ.buffer);
+        glBufferData(GL_TEXTURE_BUFFER, floatSize, posZ.mElements.data(), GL_STATIC_DRAW);
         glBindBuffer(GL_TEXTURE_BUFFER, pass.mQuadUniforms.rotX.buffer);
         glBufferData(GL_TEXTURE_BUFFER, floatSize, rotationX.mElements.data(), GL_STATIC_DRAW);
         glBindBuffer(GL_TEXTURE_BUFFER, pass.mQuadUniforms.rotY.buffer);
@@ -774,6 +788,7 @@ void Renderer::render(IAppBuilder& builder) {
         int textureIndex = 0;
         _bindTextureSamplerUniform(pass.mQuadUniforms.posX, GL_R32F, textureIndex++);
         _bindTextureSamplerUniform(pass.mQuadUniforms.posY, GL_R32F, textureIndex++);
+        _bindTextureSamplerUniform(pass.mQuadUniforms.posZ, GL_R32F, textureIndex++);
         _bindTextureSamplerUniform(pass.mQuadUniforms.rotX, GL_R32F, textureIndex++);
         _bindTextureSamplerUniform(pass.mQuadUniforms.rotY, GL_R32F, textureIndex++);
         _bindTextureSamplerUniform(pass.mQuadUniforms.uv, GL_RGBA32F, textureIndex++);
