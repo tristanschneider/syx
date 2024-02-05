@@ -3,6 +3,7 @@
 
 #include "AppBuilder.h"
 #include "PGSSolver.h"
+#include "PGSSolver1D.h"
 #include "Physics.h"
 #include "SpatialPairsStorage.h"
 #include "Geometric.h"
@@ -14,35 +15,76 @@ namespace ConstraintSolver {
   using BodyIndex = PGS::BodyIndex;
 
   namespace Resolver {
-    struct ShapeResoverCache {
+    struct ShapeResolverCommonCache {
       CachedRow<const SharedMassRow> sharedMass;
       CachedRow<const MassRow> individualMass;
       CachedRow<const ConstraintMaskRow> constraintMask;
       CachedRow<const SharedMaterialRow> material;
+    };
+    struct ShapeResolverCache {
+      ShapeResolverCommonCache common;
       CachedRow<Row<float>> linVelX;
       CachedRow<Row<float>> linVelY;
       CachedRow<Row<float>> angVel;
     };
+    struct ZShapeResolverCache {
+      ShapeResolverCommonCache common;
+      CachedRow<Row<float>> linVelZ;
+    };
     struct ShapeResolver {
-      ShapeResolver(RuntimeDatabaseTaskBuilder& task, const PhysicsAliases& tableIds)
-        : resolver{ task.getResolver<const SharedMassRow, const MassRow, const SharedMaterialRow>() }
-        , tables{ tableIds }
-        , aliasResolver{ task.getAliasResolver(tableIds.linVelX, tableIds.linVelY, tableIds.angVel) }
-      {}
+      static ShapeResolver createXYResolver(RuntimeDatabaseTaskBuilder& task, const PhysicsAliases& tableIds) {
+        return {
+          tableIds,
+          createCommonResolver(task),
+          task.getAliasResolver(tableIds.linVelX, tableIds.linVelY, tableIds.angVel)
+        };
+      }
+
+      static ShapeResolver createZResolver(RuntimeDatabaseTaskBuilder& task, const PhysicsAliases& tableIds) {
+        return {
+          tableIds,
+          createCommonResolver(task),
+          task.getAliasResolver(tableIds.linVelZ)
+        };
+      }
+
+      static std::shared_ptr<ITableResolver> createCommonResolver(RuntimeDatabaseTaskBuilder& task) {
+        return task.getResolver<const SharedMassRow, const MassRow, const SharedMaterialRow, const ConstraintMaskRow>();
+      }
 
       PhysicsAliases tables;
       std::shared_ptr<ITableResolver> resolver;
       std::shared_ptr<ITableResolver> aliasResolver;
     };
     struct ShapeResolverContext {
-      ShapeResolver& resolver;
-      ShapeResoverCache& cache;
+      const ShapeResolver& resolver;
+      ShapeResolverCache& cache;
+    };
+    struct ZShapeResolverContext {
+      const ShapeResolver& resolver;
+      ZShapeResolverCache& cache;
+    };
+    struct CommonShapeResolverContext {
+      template<class Context>
+      static CommonShapeResolverContext create(Context& c) {
+        return {
+          *c.resolver.resolver,
+          *c.resolver.aliasResolver,
+          c.resolver.tables,
+          c.cache.common
+        };
+      }
+
+      ITableResolver& resolver;
+      ITableResolver& aliasResolver;
+      const PhysicsAliases& tables;
+      ShapeResolverCommonCache& cache;
     };
 
-    std::optional<BodyMass> resolveBodyMass(ShapeResolverContext& ctx, const UnpackedDatabaseElementID& id) {
-      const BodyMass* result = ctx.resolver.resolver->tryGetOrSwapRowElement(ctx.cache.sharedMass, id);
+    std::optional<BodyMass> resolveBodyMass(CommonShapeResolverContext& ctx, const UnpackedDatabaseElementID& id) {
+      const BodyMass* result = ctx.resolver.tryGetOrSwapRowElement(ctx.cache.sharedMass, id);
       if(!result) {
-        result = ctx.resolver.resolver->tryGetOrSwapRowElement(ctx.cache.individualMass, id);
+        result = ctx.resolver.tryGetOrSwapRowElement(ctx.cache.individualMass, id);
       }
       //Having explicit zero mass is the same as not having any
       return result && (result->inverseInertia || result->inverseMass) ? std::make_optional(*result) : std::nullopt;
@@ -56,25 +98,47 @@ namespace ConstraintSolver {
       return result;
     }
 
-    ConstraintMask resolveConstraintMask(ShapeResolverContext& ctx, const UnpackedDatabaseElementID& id) {
-      const ConstraintMask* result = ctx.resolver.resolver->tryGetOrSwapRowElement(ctx.cache.constraintMask, id);
+    float* resolveBodyVelocity(ZShapeResolverContext& ctx, const UnpackedDatabaseElementID& id) {
+      return ctx.resolver.resolver->tryGetOrSwapRowAliasElement(ctx.resolver.tables.linVelZ, ctx.cache.linVelZ, id);
+    }
+
+    ConstraintMask resolveConstraintMask(CommonShapeResolverContext& ctx, const UnpackedDatabaseElementID& id) {
+      const ConstraintMask* result = ctx.resolver.tryGetOrSwapRowElement(ctx.cache.constraintMask, id);
       return result ? *result : ConstraintMask{};
     }
 
     //Material should be provided. If it isn't use one that should look "fine"
     static constexpr Material DEFAULT_MATERIAL{};
 
-    const Material& resolveMaterial(ShapeResolverContext& ctx, const UnpackedDatabaseElementID& id) {
-      const Material* result = ctx.resolver.resolver->tryGetOrSwapRowElement(ctx.cache.material, id);
+    const Material& resolveMaterial(CommonShapeResolverContext& ctx, const UnpackedDatabaseElementID& id) {
+      const Material* result = ctx.resolver.tryGetOrSwapRowElement(ctx.cache.material, id);
       return result ? *result : DEFAULT_MATERIAL;
     }
 
     ConstraintBody resolveAll(ShapeResolverContext& ctx, const UnpackedDatabaseElementID& id) {
       ConstraintBody result;
-      result.mass = resolveBodyMass(ctx, id);
+      CommonShapeResolverContext common{ CommonShapeResolverContext::create(ctx) };
+      result.mass = resolveBodyMass(common, id);
       result.velocity = resolveBodyVelocity(ctx, id);
-      result.constraintMask = resolveConstraintMask(ctx, id);
-      result.material = &resolveMaterial(ctx, id);
+      result.constraintMask = resolveConstraintMask(common, id);
+      result.material = &resolveMaterial(common, id);
+      return result;
+    }
+
+    struct ZConstraintBody {
+      float* velocity{};
+      ConstraintMask constraintMask{};
+      std::optional<BodyMass> mass;
+      const Material* material{};
+    };
+
+    ZConstraintBody resolveAll(ZShapeResolverContext& ctx, const UnpackedDatabaseElementID& id) {
+      ZConstraintBody result;
+      CommonShapeResolverContext common{ CommonShapeResolverContext::create(ctx) };
+      result.mass = resolveBodyMass(common, id);
+      result.velocity = resolveBodyVelocity(ctx, id);
+      result.constraintMask = resolveConstraintMask(common, id);
+      result.material = &resolveMaterial(common, id);
       return result;
     }
 
@@ -89,7 +153,7 @@ namespace ConstraintSolver {
       }
 
       ShapeResolver resolver;
-      ShapeResoverCache cache;
+      ShapeResolverCache cache;
     };
   }
 
@@ -103,6 +167,15 @@ namespace ConstraintSolver {
     float* velocityX{};
     float* velocityY{};
     float* angularVelocity{};
+    //Index of this body in the solver
+    BodyIndex solverIndex{};
+  };
+  struct ZIslandBody {
+    operator bool() const {
+      return velocity;
+    }
+
+    float* velocity{};
     //Index of this body in the solver
     BodyIndex solverIndex{};
   };
@@ -174,9 +247,27 @@ namespace ConstraintSolver {
     std::unordered_map<IslandGraph::NodeUserdata, BodyMapping> islandToBodyIndex;
     PGS::SolverStorage solver;
   };
+  struct ZSolverPair {
+    BodyIndex a{};
+    BodyIndex b{};
+    float normal{};
+    float maxImpulse{};
+    float minImpulse{};
+  };
+  struct ZIslandSolver {
+    void clear() {
+      bodies.clear();
+      islandToBodyIndex.clear();
+      solver.clear();
+    }
+    std::vector<ZIslandBody> bodies;
+    std::unordered_map<IslandGraph::NodeUserdata, BodyMapping> islandToBodyIndex;
+    PGS1D::SolverStorage solver;
+  };
   struct IslandSolverCollection {
     //Each in separate memory to discourage false sharing
     std::vector<std::unique_ptr<IslandSolver>> solvers;
+    std::vector<std::unique_ptr<ZIslandSolver>> zSolvers;
     size_t size{};
   };
 
@@ -197,6 +288,13 @@ namespace ConstraintSolver {
   void insertInfiniteMassBody(IslandSolver& solver) {
     solver.solver.setMass(INFINITE_MASS_INDEX, 0, 0);
     solver.solver.setVelocity(INFINITE_MASS_INDEX, { 0, 0 }, 0);
+    //Add empty entry so that these indices still always line up
+    solver.bodies.emplace_back();
+  }
+
+  void insertInfiniteMassBody(ZIslandSolver& solver) {
+    solver.solver.setMass(INFINITE_MASS_INDEX, 0);
+    solver.solver.setVelocity(INFINITE_MASS_INDEX, 0);
     //Add empty entry so that these indices still always line up
     solver.bodies.emplace_back();
   }
@@ -230,6 +328,43 @@ namespace ConstraintSolver {
         body.angularVelocity = resolvedBody.velocity.angular;
         solver.solver.setMass(body.solverIndex, resolvedBody.mass->inverseMass, resolvedBody.mass->inverseInertia);
         solver.solver.setVelocity(body.solverIndex, { *body.velocityX, *body.velocityY }, *body.angularVelocity);
+        solver.bodies.emplace_back(body);
+        return mapping;
+      }
+    }
+    //Something was missing, write this as the special object with infinite mass
+    const BodyMapping mapping{ INFINITE_MASS_INDEX, constraintMask, material };
+    solver.islandToBodyIndex[data] = mapping;
+    return mapping;
+  }
+
+  BodyMapping getOrCreateBody(
+    IslandGraph::NodeUserdata data,
+    ZIslandSolver& solver,
+    Resolver::ZShapeResolverContext& resolver,
+    IIDResolver& ids
+  ) {
+    if(auto it = solver.islandToBodyIndex.find(data); it != solver.islandToBodyIndex.end()) {
+      return it->second;
+    }
+    ConstraintMask constraintMask{};
+    Material material{ Resolver::DEFAULT_MATERIAL };
+
+    //TODO: lookup could be avoided if using the StableElementID on the spatial pairs table
+    if(auto resolved = ids.tryResolveAndUnpack(StableElementID::fromStableID(data))) {
+      Resolver::ZConstraintBody resolvedBody{ Resolver::resolveAll(resolver, resolved->unpacked) };
+      constraintMask = resolvedBody.constraintMask;
+      material = *resolvedBody.material;
+
+      //Mass, velocity, and index found, create a new body entry for this and write it all into the solver
+      if(resolvedBody.mass && resolvedBody.velocity) {
+        ZIslandBody body;
+        body.solverIndex = static_cast<BodyIndex>(solver.bodies.size());
+        const BodyMapping mapping{ body.solverIndex, constraintMask, material };
+        solver.islandToBodyIndex[data] = mapping;
+        body.velocity = resolvedBody.velocity;
+        solver.solver.setMass(body.solverIndex, resolvedBody.mass->inverseMass);
+        solver.solver.setVelocity(body.solverIndex, *body.velocity);
         solver.bodies.emplace_back(body);
         return mapping;
       }
@@ -322,7 +457,39 @@ namespace ConstraintSolver {
     return newConstraintIndex - constraintIndex;
   }
 
-  void createSolvers(IAppBuilder& builder, std::shared_ptr<IslandSolverCollection> collection, std::shared_ptr<AppTaskConfig> solverConfig) {
+  ConstraintIndex addConstraints(
+    ZIslandSolver& solver,
+    BodyIndex bodyA,
+    BodyIndex bodyB,
+    SP::ZContactManifold& manifold,
+    ConstraintIndex constraintIndex,
+    const Material&,
+    const SolverGlobals& globals
+  ) {
+    auto& s = solver.solver;
+    //TODO: restitution
+    const float normalA{ manifold.info->normal };
+    const float normalB{ -normalA };
+    //Contact constraint
+    s.setJacobian(constraintIndex, bodyA, bodyB, normalA, normalB);
+
+    //If the objects are separated solve for a velocity that prevents collision
+    if(manifold.info->separation >= 0.0f) {
+      s.setLambdaBounds(constraintIndex, manifold.info->separation, PGS1D::SolverStorage::UNLIMITED_MAX);
+      s.setBias(constraintIndex, 0);
+    }
+    //If the objects are overlappign solve for a velocity that separates
+    else {
+      s.setLambdaBounds(constraintIndex, 0.0f, PGS1D::SolverStorage::UNLIMITED_MAX);
+      const float baseBias = (-manifold.info->separation - *globals.slop)**globals.biasTerm;
+      s.setBias(constraintIndex, std::max(0.0f, baseBias));
+    }
+    //TODO: warm start
+    s.setWarmStart(constraintIndex, 0.0f);
+    return 1;
+  }
+
+  void createSolvers(IAppBuilder& builder, std::shared_ptr<IslandSolverCollection> collection, std::vector<std::shared_ptr<AppTaskConfig>> solverConfig) {
     auto task = builder.createTask();
     task.setName("create solvers");
     //Assume there is only one for now
@@ -333,34 +500,124 @@ namespace ConstraintSolver {
       const size_t currentIslands = collection->solvers.size();
       if(currentIslands < desiredIslands) {
         collection->solvers.resize(desiredIslands);
+        collection->zSolvers.resize(desiredIslands);
         for(size_t i = currentIslands; i < desiredIslands; ++i) {
           collection->solvers[i] = std::make_unique<IslandSolver>();
+          collection->zSolvers[i] = std::make_unique<ZIslandSolver>();
         }
       }
       collection->size = desiredIslands;
       AppTaskSize taskSize;
       taskSize.batchSize = 1;
       taskSize.workItemCount = collection->size;
-      solverConfig->setSize(taskSize);
+      for(auto& config : solverConfig) {
+        config->setSize(taskSize);
+      }
     });
     builder.submitTask(std::move(task));
+  }
+
+  void solveIslandZ(RuntimeDatabaseTaskBuilder& task, std::shared_ptr<IslandSolverCollection> collection, const PhysicsAliases& tables, const SolverGlobals& globals) {
+    task.setName("solve Z islands");
+    const IslandGraph::Graph* graph = task.query<const SP::IslandGraphRow>().tryGetSingletonElement();
+    auto pairs = task.query<
+      SP::ZManifoldRow
+    >();
+    auto ids = task.getIDResolver();
+    Resolver::ShapeResolver shapes{ Resolver::ShapeResolver::createZResolver(task, tables) };
+
+    //Gather all pairs that require Z solving into an array
+    //Gather all bodies in those pairs into an array with a mapping
+    //Iterate over pairs until all are satisfied
+    task.setCallback([graph, pairs, shapes, ids, collection, globals](AppTaskArgs& args) mutable {
+      Resolver::ZShapeResolverCache cache;
+      Resolver::ZShapeResolverContext shapeContext{
+        shapes,
+        cache
+      };
+      SP::ZManifoldRow& manifolds = pairs.get<0>(0);
+      for(size_t i = args.begin; i < args.end; ++i) {
+        const IslandGraph::Island& island = graph->islands[i];
+        ZIslandSolver& solver = *collection->zSolvers[i];
+        //TODO: only clear what has a chance of being untouched by the initialization below
+        solver.clear();
+        //This will likely overshoot because they won't all be overlapping
+        solver.solver.resize(static_cast<BodyIndex>(island.nodeCount + 1), static_cast<ConstraintIndex>(island.edgeCount));
+        insertInfiniteMassBody(solver);
+        ConstraintIndex constraintIndex{};
+
+        uint32_t currentEdge = island.edges;
+        while(currentEdge != IslandGraph::INVALID) {
+          const IslandGraph::Edge& e = graph->edges[currentEdge];
+          //Use the edge to get the manifold to see if there is anything to solve
+          if(auto resolved = ids->tryResolveAndUnpack(StableElementID::fromStableID(e.data))) {
+            assert(pairs.matchingTableIDs[0].getTableIndex() == resolved->unpacked.getTableIndex());
+            SP::ZContactManifold& manifold = manifolds.at(resolved->unpacked.getElementIndex());
+            //The lookups here are somewhat wasted work between bodies but the same pair won't solve on both XY and Z
+            if(manifold.info) {
+              //This is a constraint to solve, pull out the required information
+              const BodyMapping bodyA = getOrCreateBody(graph->nodes[e.nodeA].data, solver, shapeContext, *ids);
+              const BodyMapping bodyB = getOrCreateBody(graph->nodes[e.nodeB].data, solver, shapeContext, *ids);
+              if(bodyA.constraintMask & bodyB.constraintMask) {
+                constraintIndex += addConstraints(solver,
+                  bodyA.solverIndex,
+                  bodyB.solverIndex,
+                  manifold,
+                  constraintIndex,
+                  combineMaterials(bodyA.material, bodyB.material),
+                  globals
+                );
+              }
+            }
+          }
+          currentEdge = e.islandNext;
+        }
+
+        //Remove any excess. This could be since multiple objects mapped to the infinite mass index, some data was not present,
+        //or their constraint masks indicated they don't want to solve against each-other
+        solver.solver.resize(static_cast<BodyIndex>(solver.bodies.size()), constraintIndex);
+
+        solver.solver.premultiply();
+        //Should always be easy to solve so cap doesn't need to be low
+        solver.solver.maxIterations = 100;
+        PGS1D::SolveContext context{ solver.solver.createContext() };
+        //TODO: consider skipping when there is no warm start. Maybe it's uncommon enough not to be worth it
+        PGS1D::warmStart(context);
+        PGS1D::SolveResult solveResult;
+        do {
+          solveResult = PGS1D::advancePGS(context);
+        } while(!solveResult.isFinished);
+
+        //Write out the solved velocities
+        for(ZIslandBody& body : solver.bodies) {
+          if(body) {
+            *body.velocity = context.velocity.getBody(body.solverIndex).linear;
+          }
+        }
+      }
+    });
   }
 
   void solveIsland(IAppBuilder& builder, const PhysicsAliases& tables, const SolverGlobals& globals) {
     auto task = builder.createTask();
     task.setName("solve islands");
     auto collection = std::make_shared<IslandSolverCollection>();
-    std::shared_ptr<AppTaskConfig> solveConfig = task.getConfig();
-    createSolvers(builder, collection, solveConfig);
+    auto solveZ = builder.createTask();
+
+    createSolvers(builder, collection, { task.getConfig(), solveZ.getConfig() });
+    //Z solving is configuraged by createSolvers and can run in parallel to the normal XZ solving below
+    solveIslandZ(solveZ, collection, tables, globals);
+    builder.submitTask(std::move(solveZ));
+
     const IslandGraph::Graph* graph = task.query<const SP::IslandGraphRow>().tryGetSingletonElement();
     auto pairs = task.query<
       SP::ManifoldRow
     >();
-    Resolver::ShapeResolver shapes{ task, tables };
+    Resolver::ShapeResolver shapes{ Resolver::ShapeResolver::createXYResolver(task, tables) };
     auto ids = task.getIDResolver();
 
     task.setCallback([shapes, pairs, graph, collection, ids, globals](AppTaskArgs& args) mutable {
-      Resolver::ShapeResoverCache cache;
+      Resolver::ShapeResolverCache cache;
       Resolver::ShapeResolverContext shapeContext{ shapes, cache };
       SP::ManifoldRow& manifolds = pairs.get<0>(0);
       for(size_t i = args.begin; i < args.end; ++i) {
@@ -451,6 +708,6 @@ namespace ConstraintSolver {
   }
 
   std::unique_ptr<IBodyResolver> createResolver(RuntimeDatabaseTaskBuilder& task, const PhysicsAliases& tables) {
-    return std::make_unique<Resolver::BodyResolver>(Resolver::ShapeResolver{ task, tables });
+    return std::make_unique<Resolver::BodyResolver>(Resolver::ShapeResolver::createXYResolver(task, tables));
   }
 }

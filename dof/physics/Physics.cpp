@@ -34,7 +34,7 @@ namespace Physics {
     }
   }
 
-  void integratePositionAxis(IAppBuilder& builder, const QueryAlias<Row<float>>& position, const QueryAlias<Row<float>>& velocity) {
+  void integratePositionAxis(IAppBuilder& builder, const QueryAlias<Row<float>>& position, const QueryAlias<const Row<float>>& velocity) {
     for(const UnpackedDatabaseElementID& table : builder.queryAliasTables(position, velocity).matchingTableIDs) {
       auto task = builder.createTask();
       task.setName("Integrate Position");
@@ -50,9 +50,17 @@ namespace Physics {
     }
   }
 
+  void integrateVelocity(IAppBuilder& builder, const PhysicsAliases& aliases) {
+    //Misleading name but the math is the same, add acceleration to velocity
+    integratePositionAxis(builder, aliases.linVelX, ConstFloatQueryAlias::create<const AccelerationX>());
+    integratePositionAxis(builder, aliases.linVelY, ConstFloatQueryAlias::create<const AccelerationY>());
+    integratePositionAxis(builder, aliases.linVelZ, ConstFloatQueryAlias::create<const AccelerationZ>());
+  }
+
   void integratePosition(IAppBuilder& builder, const PhysicsAliases& aliases) {
-    integratePositionAxis(builder, aliases.posX, aliases.linVelX);
-    integratePositionAxis(builder, aliases.posY, aliases.linVelY);
+    integratePositionAxis(builder, aliases.posX, aliases.linVelX.read());
+    integratePositionAxis(builder, aliases.posY, aliases.linVelY.read());
+    integratePositionAxis(builder, aliases.posZ, aliases.linVelZ.read());
   }
 
   void integrateRotation(IAppBuilder& builder, const PhysicsAliases& aliases) {
@@ -74,6 +82,7 @@ namespace Physics {
   void applyDampingMultiplier(IAppBuilder& builder, const PhysicsAliases& aliases, const float& linearMultiplier, const float& angularMultiplier) {
     applyDampingMultiplierAxis(builder, aliases.linVelX, linearMultiplier);
     applyDampingMultiplierAxis(builder, aliases.linVelY, linearMultiplier);
+    //Damping on Z doesn't realy matter because the primary use case is simple upwards impulses counteracted by gravity
     applyDampingMultiplierAxis(builder, aliases.angVel, angularMultiplier);
   }
 }

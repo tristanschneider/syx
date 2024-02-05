@@ -10,6 +10,14 @@ namespace Geo {
     float inverseInertia{};
   };
 
+  struct Range1D {
+    float length() const {
+      return max - min;
+    }
+    float min{};
+    float max{};
+  };
+
   inline bool near(float a, float b, float epsilon = EPSILON) {
     return std::abs(a - b) <= epsilon;
   }
@@ -34,6 +42,77 @@ namespace Geo {
 
   constexpr bool between(float v, float min, float max) {
     return v >= min && v <= max;
+  }
+
+  constexpr bool between(float v, const Range1D& range) {
+    return between(v, range.min, range.max);
+  }
+
+  enum class RangeOverlap : uint8_t {
+    AABB,
+    BBAA,
+    ABAB,
+    ABBA,
+    BAAB,
+    BABA
+  };
+
+  //Normal towards a, prioritizes preventing ranges from crossing each-other rather than finding the smallest direction to resolve overlap
+  constexpr float getRangeNormal(RangeOverlap o) {
+    switch(o) {
+      //A is on the left
+      case RangeOverlap::AABB:
+      case RangeOverlap::ABAB:
+        return -1.0f;
+      //Shapes are contained in eachother. These could go either way, arbitrarily choose 1
+      case RangeOverlap::ABBA:
+      case RangeOverlap::BAAB:
+        return 1.0f;
+        //A is on the right
+      case RangeOverlap::BBAA:
+      case RangeOverlap::BABA:
+        return 1.0f;
+    }
+    return 1.0f;
+  }
+
+  //Get the distance between them. Positive if they are not overlapping. In direction of normal
+  //If they are overlapping it's the overlap amount, meaning the amount along the normal to move to no longer overlap
+  constexpr float getRangeDistance(RangeOverlap o, const Range1D& a, const Range1D& b) {
+    switch(o) {
+      case RangeOverlap::AABB:
+        return b.min - a.max;
+      case RangeOverlap::ABAB:
+        return a.max - b.min;
+      case RangeOverlap::ABBA:
+        return a.max - b.min;
+      case RangeOverlap::BAAB:
+        return b.max - a.min;
+      case RangeOverlap::BBAA:
+        return a.min - b.max;
+      case RangeOverlap::BABA:
+        return b.max - a.min;
+    }
+    return 0.0f;
+  }
+
+  constexpr RangeOverlap classifyRangeOverlap(const Range1D& a, const Range1D& b) {
+    if(a.min < b.min) {
+      // a- a+ b- b+
+      if(a.max < b.min) {
+        return RangeOverlap::AABB;
+      }
+      // a- b- a+ b+
+      // a- b- b+ a+
+      return a.max < b.max ? RangeOverlap::ABAB : RangeOverlap::ABBA;
+    }
+    // b- b+ a- a+
+    if (a.min > b.max) {
+      return RangeOverlap::BBAA;
+    }
+    // b- a- a+ b+
+    // b- a- b+ a+
+    return a.max < b.max ? RangeOverlap::BAAB : RangeOverlap::BABA;
   }
 
   constexpr BodyMass computeQuadMass(float w, float h, float density) {

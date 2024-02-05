@@ -46,6 +46,7 @@ namespace Narrowphase {
 
   struct ContactArgs {
     SP::ContactManifold& manifold;
+    SP::ZContactManifold& zManifold;
   };
 
   //Non-implemented fallback
@@ -193,28 +194,75 @@ namespace Narrowphase {
 
   struct ShapeQueries {
     std::shared_ptr<ITableResolver> shapeResolver;
+    std::shared_ptr<ITableResolver> zResolver;
     CachedRow<const UnitCubeRow> unitCubeRow;
     CachedRow<const AABBRow> aabbRow;
     CachedRow<const RaycastRow> rayRow;
     CachedRow<const CircleRow> circleRow;
     CachedRow<const CollisionMaskRow> collisionMasksRow;
+    CachedRow<const ThicknessRow> thicknessRow;
+    CachedRow<const SharedThicknessRow> sharedThickness;
     SharedUnitCubeQueries sharedUnitCube;
+    ConstFloatQueryAlias posZAlias;
+    CachedRow<const Row<float>> posZ;
   };
 
-  ShapeQueries buildShapeQueries(RuntimeDatabaseTaskBuilder& task, const UnitCubeDefinition& unitCube) {
+  Geo::Range1D getZRange(const UnpackedDatabaseElementID& e, ShapeQueries& queries) {
+    float z = Physics::DEFAULT_Z;
+    if(const float* pz = queries.zResolver->tryGetOrSwapRowAliasElement(queries.posZAlias, queries.posZ, e)) {
+      z = *pz;
+    }
+    float thickness = DEFAULT_THICKNESS;
+    if(const float* shared = queries.shapeResolver->tryGetOrSwapRowElement(queries.sharedThickness, e)) {
+      thickness = *shared;
+    }
+    else if(const float* individual = queries.shapeResolver->tryGetOrSwapRowElement(queries.thicknessRow, e)) {
+      thickness = *individual;
+    }
+    return { z, z + thickness };
+  }
+
+  void tryCheckZ(const UnpackedDatabaseElementID& a, const UnpackedDatabaseElementID& b, ShapeQueries& queries, ContactArgs& result) {
+    //If it's already not colliding on XY then Z doesn't matter
+    if(!result.manifold.size) {
+      return;
+    }
+    const Geo::Range1D rangeA = getZRange(a, queries);
+    const Geo::Range1D rangeB = getZRange(b, queries);
+    //If they are overlapping, solve on XZ only. If not overlapping, solve Z to ensure they don't pass through each-other on the Z axis
+    const Geo::RangeOverlap overlap = Geo::classifyRangeOverlap(rangeA, rangeB);
+    const float distance = Geo::getRangeDistance(overlap, rangeA, rangeB);
+    const float minThickness = std::min(rangeA.length(), rangeB.length());
+    //If the snapes are mostly overlapping on the Z axis the distance will be -minThickness
+    //In that case, treat it as a XY collision and ignore Z
+    //If the overlap is larger, solve Z
+    constexpr float overlapTolerance = 0.01f;
+    if(std::abs(distance + minThickness) > overlapTolerance) {
+      result.zManifold.info = SP::ZInfo{
+        Geo::getRangeNormal(overlap),
+        distance,
+      };
+    }
+  }
+
+  ShapeQueries buildShapeQueries(RuntimeDatabaseTaskBuilder& task, const UnitCubeDefinition& unitCube, const PhysicsAliases& aliases) {
     ShapeQueries result;
     result.shapeResolver = task.getResolver<
       const UnitCubeRow,
       const AABBRow,
       const RaycastRow,
       const CircleRow,
-      const CollisionMaskRow
+      const CollisionMaskRow,
+      const ThicknessRow,
+      const SharedThicknessRow
     >();
     result.sharedUnitCube.resolver = task.getAliasResolver(
       unitCube.centerX, unitCube.centerY,
       unitCube.rotX, unitCube.rotY
     );
     result.sharedUnitCube.alias = unitCube;
+    result.zResolver = task.getAliasResolver(aliases.posZ);
+    result.posZAlias = aliases.posZ.read();
     return result;
   }
 
@@ -276,16 +324,16 @@ namespace Narrowphase {
     return getCollisionMask(queries, a) & getCollisionMask(queries, b);
   }
 
-  void generateInline(IAppBuilder& builder, const UnitCubeDefinition& unitCube) {
+  void generateInline(IAppBuilder& builder, const UnitCubeDefinition& unitCube, const PhysicsAliases& aliases) {
     auto task = builder.createTask();
     task.setName("generate contacts inline");
-    auto shapeQuery = buildShapeQueries(task, unitCube);
-    auto query = task.query<SP::ObjA, SP::ObjB, SP::ManifoldRow>();
+    auto shapeQuery = buildShapeQueries(task, unitCube, aliases);
+    auto query = task.query<SP::ObjA, SP::ObjB, SP::ManifoldRow, SP::ZManifoldRow>();
     auto ids = task.getIDResolver();
 
     task.setCallback([shapeQuery, query, ids](AppTaskArgs&) mutable {
       for(size_t t = 0; t < query.size(); ++t) {
-        auto [a, b, manifold] = query.get(t);
+        auto [a, b, manifold, zManifold] = query.get(t);
         for(size_t i = 0; i < a->size(); ++i) {
           StableElementID& stableA = a->at(i);
           StableElementID& stableB = b->at(i);
@@ -293,8 +341,10 @@ namespace Narrowphase {
           auto resolvedA = ids->tryResolveAndUnpack(stableA);
           auto resolvedB = ids->tryResolveAndUnpack(stableB);
           SP::ContactManifold& man = manifold->at(i);
+          SP::ZContactManifold& zMan = zManifold->at(i);
           //Clear for the generation below to regenerate the results
           man.clear();
+          zMan.clear();
 
           //If this happens presumably the element will get removed from the table momentarily
           if(!resolvedA || !resolvedB) {
@@ -310,8 +360,9 @@ namespace Narrowphase {
           //TODO: is non-const because of ispc signature, should be const
           Shape::BodyType shapeA = classifyShape(shapeQuery, resolvedA->unpacked);
           Shape::BodyType shapeB = classifyShape(shapeQuery, resolvedB->unpacked);
-          ContactArgs args{ man };
+          ContactArgs args{ man, zMan };
           generateContacts(shapeA, shapeB, args);
+          tryCheckZ(resolvedA->unpacked, resolvedB->unpacked, shapeQuery, args);
         }
       }
     });
@@ -319,11 +370,11 @@ namespace Narrowphase {
     builder.submitTask(std::move(task));
   }
 
-  void generateContactsFromSpatialPairs(IAppBuilder& builder, const UnitCubeDefinition& unitCube) {
-    generateInline(builder, unitCube);
+  void generateContactsFromSpatialPairs(IAppBuilder& builder, const UnitCubeDefinition& unitCube, const PhysicsAliases& aliases) {
+    generateInline(builder, unitCube, aliases);
   }
 
-  std::shared_ptr<IShapeClassifier> createShapeClassifier(RuntimeDatabaseTaskBuilder& task, const UnitCubeDefinition& unitCube) {
+  std::shared_ptr<IShapeClassifier> createShapeClassifier(RuntimeDatabaseTaskBuilder& task, const UnitCubeDefinition& unitCube, const PhysicsAliases& aliases) {
     struct Impl : IShapeClassifier {
       Impl(ShapeQueries q)
         : queries{ std::move(q) } {
@@ -335,6 +386,6 @@ namespace Narrowphase {
 
       ShapeQueries queries;
     };
-    return std::make_shared<Impl>(Narrowphase::buildShapeQueries(task, unitCube));
+    return std::make_shared<Impl>(Narrowphase::buildShapeQueries(task, unitCube, aliases));
   }
 }

@@ -26,7 +26,7 @@ namespace PhysicsModule {
     >();
     auto drawer = TableAdapters::getDebugLines(task);
     auto ids = task.getIDResolver();
-    auto shapes = Narrowphase::createShapeClassifier(task, PhysicsSimulation::getUnitCubeDefinition());
+    auto shapes = PhysicsSimulation::createShapeClassifier(task);
     Config::PhysicsConfig* config = TableAdapters::getPhysicsConfigMutable(task);
     const bool* enabled = ImguiModule::queryIsEnabled(task);
 

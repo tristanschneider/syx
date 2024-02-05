@@ -23,6 +23,7 @@ namespace Test {
 
     struct LinVelX : Row<float> {};
     struct LinVelY : Row<float> {};
+    struct LinVelZ : Row<float> {};
     struct AngVel : Row<float> {};
 
     using DynamicObjects = Table<
@@ -64,6 +65,7 @@ namespace Test {
       TestAliases() {
         linVelX = FloatQueryAlias::create<LinVelX>();
         linVelY = FloatQueryAlias::create<LinVelY>();
+        linVelZ = FloatQueryAlias::create<LinVelZ>();
         angVel = FloatQueryAlias::create<AngVel>();
       }
     };

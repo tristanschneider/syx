@@ -84,7 +84,7 @@ namespace PhysicsSimulation {
   }
 
   std::shared_ptr<Narrowphase::IShapeClassifier> createShapeClassifier(RuntimeDatabaseTaskBuilder& task) {
-    return Narrowphase::createShapeClassifier(task, getUnitCubeDefinition());
+    return Narrowphase::createShapeClassifier(task, getUnitCubeDefinition(), getPhysicsAliases());
   }
 
   class PhysicsBodyResolver : public IPhysicsBodyResolver {
@@ -161,10 +161,12 @@ namespace PhysicsSimulation {
     using FloatAlias = QueryAlias<Row<float>>;
     aliases.posX = FloatAlias::create<FloatRow<Tags::Pos, Tags::X>>();
     aliases.posY = FloatAlias::create<FloatRow<Tags::Pos, Tags::Y>>();
+    aliases.posZ = FloatAlias::create<FloatRow<Tags::Pos, Tags::Z>>();
     aliases.rotX = FloatAlias::create<FloatRow<Tags::Rot, Tags::CosAngle>>();
     aliases.rotY = FloatAlias::create<FloatRow<Tags::Rot, Tags::SinAngle>>();
     aliases.linVelX = FloatAlias::create<FloatRow<Tags::LinVel, Tags::X>>();
     aliases.linVelY = FloatAlias::create<FloatRow<Tags::LinVel, Tags::Y>>();
+    aliases.linVelZ = FloatAlias::create<FloatRow<Tags::LinVel, Tags::Z>>();
     aliases.angVel = FloatAlias::create<FloatRow<Tags::AngVel, Tags::Angle>>();
     aliases.broadphaseMinX = FloatAlias::create<SpatialQuery::Physics<SpatialQuery::MinX>>();
     aliases.broadphaseMaxX = FloatAlias::create<SpatialQuery::Physics<SpatialQuery::MaxX>>();
@@ -191,12 +193,12 @@ namespace PhysicsSimulation {
     temp.discard();
 
     const PhysicsAliases aliases = getPhysicsAliases();
-
+    Physics::integrateVelocity(builder, aliases);
     SpatialQuery::physicsUpdateBoundaries(builder);
     Physics::applyDampingMultiplier(builder, aliases, config.linearDragMultiplier, config.angularDragMultiplier);
     SweepNPruneBroadphase::updateBroadphase(builder, _getBoundariesConfig(builder), aliases);
 
-    Narrowphase::generateContactsFromSpatialPairs(builder, getUnitCubeDefinition());
+    Narrowphase::generateContactsFromSpatialPairs(builder, getUnitCubeDefinition(), aliases);
     ConstraintSolver::solveConstraints(builder, aliases, globals);
 
     Physics::integratePosition(builder, aliases);

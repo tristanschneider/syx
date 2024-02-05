@@ -10,6 +10,7 @@
 #include "TableAdapters.h"
 #include "Geometric.h"
 #include "TestApp.h"
+#include "Physics.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -18,6 +19,7 @@ namespace Test {
   struct PosY : Row<float> {};
   struct RotX : Row<float> {};
   struct RotY : Row<float> {};
+  struct PosZ : Row<float> {};
   using SharedUnitCubeTable = Table<
     StableIDRow,
     Narrowphase::CollisionMaskRow,
@@ -55,6 +57,11 @@ namespace Test {
       rotY = FloatQueryAlias::create<RotY>().read();
     }
   };
+  struct PhysicsAlias : PhysicsAliases {
+    PhysicsAlias() {
+      posZ = FloatQueryAlias::create<PosZ>();
+    }
+  };
   using NarrowphaseDBT = Database<
     SP::SpatialPairsTable,
     SharedUnitCubeTable,
@@ -85,7 +92,7 @@ namespace Test {
   struct NarrowphaseDB : TestApp {
     NarrowphaseDB() {
       initSTFromDB<NarrowphaseDBT>([](IAppBuilder& builder) {
-        Narrowphase::generateContactsFromSpatialPairs(builder, UnitCubeDef{});
+        Narrowphase::generateContactsFromSpatialPairs(builder, UnitCubeDef{}, PhysicsAlias{});
       });
     }
 
