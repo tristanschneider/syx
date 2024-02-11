@@ -1212,6 +1212,7 @@ namespace Test {
         //Similar to before, except now the single constraint is in the static table instead of the dynamic one
         //Pair order is the same, both because player has lower stable id (0) than object (1) but also because object is now static,
         //and static objects always order B in pairs
+        //TODO: sometimes fails with actual 3
         Assert::AreEqual(size_t(1), pairs.manifold->size());
         assertEnabledContactConstraintCount(game, 0);
         assertEnabledStaticContactConstraintCount(game, 1);

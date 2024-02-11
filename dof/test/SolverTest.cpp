@@ -30,6 +30,7 @@ namespace Test {
       StableIDRow,
       LinVelX,
       LinVelY,
+      LinVelZ,
       AngVel,
       ConstraintSolver::ConstraintMaskRow,
       ConstraintSolver::SharedMassRow,
@@ -182,6 +183,68 @@ namespace Test {
         const float rv = rvA + rvB;
         Assert::IsTrue(rv <= 0.0f);
       }
+    }
+
+    TEST_METHOD(ConstraintSolver3D) {
+      SolverApp app;
+      auto& task = app.builder();
+      const TableIds tables{ task };
+      auto [islandGraph, manifold, zManifold] = task.query<
+        SP::IslandGraphRow,
+        SP::ManifoldRow,
+        SP::ZManifoldRow
+      >().get(0);
+      IslandGraph::Graph& graph = islandGraph->at();
+      auto [dynamicStableId, dvz, dva] = task.query<
+        StableIDRow,
+        LinVelZ,
+        AngVel
+      >().get(0);
+      auto ids = task.getIDResolver();
+      ids;graph;tables;
+
+      const ResolvedIDs a = app.createInTable(tables.dynamicBodies);
+      const ResolvedIDs b = app.createInTable(tables.dynamicBodies);
+
+      const size_t ai = a.unpacked.getElementIndex();
+      const size_t bi = b.unpacked.getElementIndex();
+      const ResolvedIDs edgeAB = app.createInTable(tables.spatialPairs);
+
+      IslandGraph::addNode(graph, a.stable.mStableID);
+      IslandGraph::addNode(graph, b.stable.mStableID);
+      IslandGraph::addEdge(graph, a.stable.mStableID, b.stable.mStableID, edgeAB.stable.mStableID);
+
+      //A moving up towards B but not fast enough to collide
+      dvz->at(ai) = 1.0f;
+      dvz->at(bi) = -1.0f;
+      SP::ZContactManifold& manifoldAB = zManifold->at(edgeAB.unpacked.getElementIndex());
+      manifoldAB.info.emplace();
+      manifoldAB.info->normal = -1.0f;
+      manifoldAB.info->separation = 4.f;
+
+      app.update();
+
+      //A moving up towards B and going to collide
+      constexpr float e = 0.01f;
+      Assert::AreEqual(1.0f, dvz->at(ai), e, L"No collision so velocity should be unchanged");
+      Assert::AreEqual(-1.0f, dvz->at(bi), e);
+
+      manifoldAB.info->normal = -1.0f;
+      manifoldAB.info->separation = 1.0f;
+
+      app.update();
+
+      Assert::AreEqual(0.5f, dvz->at(ai), e, L"Velocity should be reduced to prevent collision");
+      Assert::AreEqual(-0.5f, dvz->at(bi), e);
+
+      //A overlapping with B
+      manifoldAB.info->normal = 1.0f;
+      manifoldAB.info->separation = -0.1f;
+
+      app.update();
+
+      const float relativeVelocity = dvz->at(ai) - dvz->at(bi);
+      Assert::IsTrue(relativeVelocity > 0.0f, L"Objects should be separating if they were overlapping");
     }
 
     TEST_METHOD(TwoBodiesLinearVelocity) {

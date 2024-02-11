@@ -242,6 +242,7 @@ namespace Narrowphase {
         Geo::getRangeNormal(overlap),
         distance,
       };
+      result.manifold.clear();
     }
   }
 

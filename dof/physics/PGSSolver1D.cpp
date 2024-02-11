@@ -137,13 +137,12 @@ namespace PGS1D {
       float* jmp = jm.getJacobianIndex(i);
       const float* ma = m.getObjectMass(a);
       const float* mb = m.getObjectMass(b);
-      jmp[0] = jp[0]*ma[0];
-      jmp[1] = jp[1]*ma[0];
-      jmp[2] = jp[2]*ma[1];
-
-      jmp[3] = jp[3]*mb[0];
-      jmp[4] = jp[4]*mb[0];
-      jmp[5] = jp[5]*mb[1];
+      for(int32_t t = 0; t < Jacobian::BLOCK_SIZE; ++t) {
+        jmp[t] = jp[t]*ma[0];
+      }
+      for(int32_t t = 0; t < Jacobian::BLOCK_SIZE; ++t) {
+        jmp[t + Jacobian::BLOCK_SIZE] = jp[t + Jacobian::BLOCK_SIZE]*mb[0];
+      }
     }
   }
 

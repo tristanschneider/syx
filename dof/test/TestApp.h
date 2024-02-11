@@ -26,9 +26,9 @@ namespace Test {
     void update();
     ResolvedIDs createInTable(const UnpackedDatabaseElementID& table);
 
-    std::vector<GameScheduler::SyncWorkItem> workST;
-    TaskRange workMT;
     std::unique_ptr<IDatabase> db;
     std::unique_ptr<RuntimeDatabaseTaskBuilder> taskBuilder;
+    std::vector<GameScheduler::SyncWorkItem> workST;
+    TaskRange workMT;
   };
 }

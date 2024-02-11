@@ -473,14 +473,16 @@ namespace ConstraintSolver {
     //Contact constraint
     s.setJacobian(constraintIndex, bodyA, bodyB, normalA, normalB);
 
+
+    //Only ever push apart
+    s.setLambdaBounds(constraintIndex, 0.f, PGS1D::SolverStorage::UNLIMITED_MAX);
     //If the objects are separated solve for a velocity that prevents collision
     if(manifold.info->separation >= 0.0f) {
-      s.setLambdaBounds(constraintIndex, manifold.info->separation, PGS1D::SolverStorage::UNLIMITED_MAX);
-      s.setBias(constraintIndex, 0);
+      //Subtract the separation from the relative velocity so that the lambda is only positive if they would collide
+      s.setBias(constraintIndex, -manifold.info->separation);
     }
     //If the objects are overlappign solve for a velocity that separates
     else {
-      s.setLambdaBounds(constraintIndex, 0.0f, PGS1D::SolverStorage::UNLIMITED_MAX);
       const float baseBias = (-manifold.info->separation - *globals.slop)**globals.biasTerm;
       s.setBias(constraintIndex, std::max(0.0f, baseBias));
     }

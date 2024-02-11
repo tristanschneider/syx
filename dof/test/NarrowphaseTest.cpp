@@ -34,6 +34,13 @@ namespace Test {
     Narrowphase::CollisionMaskRow,
     Narrowphase::UnitCubeRow
   >;
+  using UnitCube3DTable = Table<
+    StableIDRow,
+    Narrowphase::CollisionMaskRow,
+    Narrowphase::UnitCubeRow,
+    Narrowphase::SharedThicknessRow,
+    PosZ
+  >;
   using CircleTable = Table<
     StableIDRow,
     Narrowphase::CollisionMaskRow,
@@ -66,6 +73,7 @@ namespace Test {
     SP::SpatialPairsTable,
     SharedUnitCubeTable,
     UnitCubeTable,
+    UnitCube3DTable,
     CircleTable,
     AABBTable,
     RaycastTable
@@ -75,6 +83,7 @@ namespace Test {
     NarrowphaseTableIds(RuntimeDatabaseTaskBuilder& task)
       : spatialPairs{ task.query<SP::ManifoldRow>().matchingTableIDs[0] }
       , sharedUnitCubes{ task.query<Narrowphase::SharedUnitCubeRow>().matchingTableIDs[0] }
+      , unitCubes3D{ task.query<Narrowphase::SharedThicknessRow>().matchingTableIDs[0] }
       , unitCubes{ task.query<Narrowphase::UnitCubeRow>().matchingTableIDs[0] }
       , circles{ task.query<Narrowphase::CircleRow>().matchingTableIDs[0] }
       , aabbs{ task.query<Narrowphase::AABBRow>().matchingTableIDs[0] }
@@ -83,6 +92,7 @@ namespace Test {
 
     UnpackedDatabaseElementID spatialPairs;
     UnpackedDatabaseElementID sharedUnitCubes;
+    UnpackedDatabaseElementID unitCubes3D;
     UnpackedDatabaseElementID unitCubes;
     UnpackedDatabaseElementID circles;
     UnpackedDatabaseElementID aabbs;
@@ -103,10 +113,11 @@ namespace Test {
 
   struct SpatialQueriesAdapter {
     SpatialQueriesAdapter(RuntimeDatabaseTaskBuilder& task) {
-      std::tie(objA, objB, manifold) = task.query<
+      std::tie(objA, objB, manifold, zManifold) = task.query<
         SP::ObjA,
         SP::ObjB,
-        SP::ManifoldRow
+        SP::ManifoldRow,
+        SP::ZManifoldRow
       >().get(0);
       modifier = task.getModifierForTable(task.query<SP::ManifoldRow>().matchingTableIDs[0]);
     }
@@ -121,6 +132,7 @@ namespace Test {
     SP::ObjA* objA{};
     SP::ObjB* objB{};
     SP::ManifoldRow* manifold{};
+    SP::ZManifoldRow* zManifold{};
     std::shared_ptr<ITableModifier> modifier;
   };
 
@@ -223,6 +235,92 @@ namespace Test {
           Assert::Fail();
         }
       }
+    }
+
+    TEST_METHOD(Cube3D) {
+      NarrowphaseDB db;
+      auto& task = db.builder();
+      NarrowphaseTableIds tables{ task };
+      auto modifier = task.getModifierForTable(tables.unitCubes3D);
+      const size_t i = modifier->addElements(2);
+      auto [stable, mask, cube, thickness, posZ] = task.query<
+        StableIDRow,
+        Narrowphase::CollisionMaskRow,
+        Narrowphase::UnitCubeRow,
+        Narrowphase::SharedThicknessRow,
+        PosZ
+      >().get(0);
+      SpatialQueriesAdapter queries{ task };
+      const size_t a = i;
+      const size_t b = i + 1;
+      const size_t q = queries.addPair(StableElementID::fromStableID(stable->at(a)), StableElementID::fromStableID(stable->at(b)));
+      mask->at(a) = mask->at(b) = 1;
+      //Default of no rotation, cos(0) = 1
+      Narrowphase::Shape::UnitCube& cA = cube->at(a);
+      Narrowphase::Shape::UnitCube& cB = cube->at(b);
+      cA.right.x = cB.right.x = 1.f;
+      SP::ContactManifold& manifold = queries.manifold->at(q);
+      SP::ZContactManifold& zManifold = queries.zManifold->at(q);
+
+      //Exactly touching
+      cA.center.x = 1.0f;
+      cB.center.x = 2.0f;
+
+      db.doNarrowphase();
+
+      auto assertContactsXZ = [&] {
+        assertHasPoints(manifold, {
+          SP::ContactPoint{
+            { -1, 0 },
+            { 0.5f, 0.5f },
+            { -0.5f, 0.5f },
+            0.f,
+            0.f
+          },
+          SP::ContactPoint{
+            { -1, 0 },
+            { 0.5f, -0.5f },
+            { -0.5f, -0.5f },
+            0.f,
+            0.f
+          }
+        });
+      };
+      assertContactsXZ();
+      Assert::IsFalse(zManifold.info.has_value());
+
+      //Separated by 1 on Z
+      posZ->at(a) = 1.0f;
+      posZ->at(b) = 2.0f;
+
+      db.doNarrowphase();
+
+      Assert::IsFalse(manifold.size, L"XY collision should not generate if separated on Z axis");
+      Assert::IsTrue(zManifold.info.has_value());
+      Assert::AreEqual(-1.0f, zManifold.info->normal, L"Normal should go towards A");
+      Assert::AreEqual(1.0f, zManifold.info->separation);
+
+      //0.1 of overlap
+      thickness->at() = 0.5f;
+      //Z position is bottom of the shape, top of the shape is bottom + thickness
+      posZ->at(a) = 2.0f;
+      posZ->at(b) = 1.6f;
+
+      db.doNarrowphase();
+
+      Assert::IsFalse(manifold.size);
+      Assert::IsTrue(zManifold.info.has_value());
+      Assert::AreEqual(1.0f, zManifold.info->normal);
+      Assert::AreEqual(-0.1f, zManifold.info->separation, 0.001f, L"Overlap should show as negative separation");
+
+      //Exact overlap on Z with thickness
+      thickness->at() = 0.5f;
+      posZ->at(a) = posZ->at(b) = 2.0f;
+
+      db.doNarrowphase();
+
+      assertContactsXZ();
+      Assert::IsFalse(zManifold.info.has_value());
     }
 
     TEST_METHOD(CubeCube) {

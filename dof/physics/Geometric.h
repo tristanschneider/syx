@@ -83,15 +83,15 @@ namespace Geo {
       case RangeOverlap::AABB:
         return b.min - a.max;
       case RangeOverlap::ABAB:
-        return a.max - b.min;
+        return -(a.max - b.min);
       case RangeOverlap::ABBA:
-        return a.max - b.min;
+        return -(a.max - b.min);
       case RangeOverlap::BAAB:
-        return b.max - a.min;
+        return -(b.max - a.min);
       case RangeOverlap::BBAA:
         return a.min - b.max;
       case RangeOverlap::BABA:
-        return b.max - a.min;
+        return -(b.max - a.min);
     }
     return 0.0f;
   }
