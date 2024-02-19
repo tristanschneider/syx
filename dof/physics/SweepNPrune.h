@@ -8,21 +8,6 @@ class IAppBuilder;
 namespace Broadphase {
   //The key provided by the user to identify this object in collision pairs
   using UserKey = size_t;
-
-  //The key provided by the broadphase to point at the bounds storage
-  struct BroadphaseKey {
-    bool operator==(const BroadphaseKey& rhs) const {
-      return value == rhs.value;
-    }
-    bool operator!=(const BroadphaseKey& rhs) const {
-      return !(*this == rhs);
-    }
-    bool operator<(const BroadphaseKey& rhs) const {
-      return value < rhs.value;
-    }
-    size_t value{};
-  };
-
   struct SweepCollisionPair {
     SweepCollisionPair() = default;
     SweepCollisionPair(UserKey ka, UserKey kb)
@@ -44,7 +29,37 @@ namespace Broadphase {
     UserKey a{};
     UserKey b{};
   };
+  //The key provided by the broadphase to point at the bounds storage
+  struct BroadphaseKey {
+    bool operator==(const BroadphaseKey& rhs) const {
+      return value == rhs.value;
+    }
+    bool operator!=(const BroadphaseKey& rhs) const {
+      return !(*this == rhs);
+    }
+    bool operator<(const BroadphaseKey& rhs) const {
+      return value < rhs.value;
+    }
+    size_t value{};
+  };
+}
 
+template<>
+struct std::hash<Broadphase::SweepCollisionPair> {
+  std::size_t operator()(const Broadphase::SweepCollisionPair& s) const noexcept {
+    std::hash<size_t> h;
+    //cppreference hash combine example
+    return h(s.a) ^ (h(s.b) << 1);
+  }
+};
+template<>
+struct std::hash<Broadphase::BroadphaseKey> {
+  std::size_t operator()(const Broadphase::BroadphaseKey& s) const noexcept {
+    return std::hash<size_t>()(s.value);
+  }
+};
+
+namespace Broadphase {
   //This holds the user keys and boundaries of the shapes tracked by the broadphase
   //The spatial data structure references this to decide how to partition the objects
   struct ObjectDB {
@@ -53,6 +68,7 @@ namespace Broadphase {
     static constexpr float REMOVED = std::numeric_limits<float>::max();
     static constexpr size_t EMPTY = std::numeric_limits<size_t>::max();
     static constexpr BroadphaseKey EMPTY_KEY{ EMPTY };
+    using BoundsMinMax = std::pair<float, float>;
     using BoundsAxis = std::vector<std::pair<float, float>>;
 
     std::array<BoundsAxis, S> bounds;
@@ -61,6 +77,10 @@ namespace Broadphase {
     std::vector<BroadphaseKey> freeList;
     //Keys recently marked for removal but won't be moved to the free list until the next recomputePairs
     std::vector<BroadphaseKey> pendingRemoval;
+  };
+  struct PairTracker {
+    //This uses SweepCollisionPair for convenience but is actually a pair of BroadphaseKey not UserKey
+    std::unordered_set<SweepCollisionPair> trackedPairs;
   };
 
   //Generates new keys and adds the obects to the db. Should be used in combination with insertion into
@@ -83,27 +103,11 @@ namespace Broadphase {
     const BroadphaseKey* keys,
     size_t count
   );
-}
 
-template<>
-struct std::hash<Broadphase::SweepCollisionPair> {
-  std::size_t operator()(const Broadphase::SweepCollisionPair& s) const noexcept {
-    std::hash<size_t> h;
-    //cppreference hash combine example
-    return h(s.a) ^ (h(s.b) << 1);
-  }
-};
-
-namespace Broadphase {
   struct SwapLog {
+    //These contain BroadphaseKeys rather than UserKeys until the final step of recomputePairs that updates PairTracker
     std::vector<SweepCollisionPair>& gains;
     std::vector<SweepCollisionPair>& losses;
-  };
-
-  //During a first pass, "candidates" are determined as pairs that potentially started or stopped colliding
-  //In the second pass redundant entries are removed and they ar eturned into gains and losses
-  struct CollisionCandidates {
-    std::vector<SweepCollisionPair> pairs;
   };
 
   struct SweepElement {
@@ -154,30 +158,22 @@ namespace Broadphase {
     static constexpr size_t S = 2;
     std::array<SweepAxis, S> axis;
     std::unordered_set<BroadphaseKey> containedKeys;
-    //TODO: somehow get around the need for this
-    std::unordered_set<SweepCollisionPair> trackedPairs;
+    std::vector<BroadphaseKey> temp;
   };
 
   namespace SweepNPrune {
     //Insert the given user keys and mapping them to out keys
     //Object will be sorted into place during next recomputePairs
     void insertRange(Sweep2D& sweep,
-      const UserKey* userKeys,
-      BroadphaseKey* outKeys,
-      size_t count);
-
-    void eraseRange(Sweep2D& sweep,
       const BroadphaseKey* keys,
-      size_t count);
+      size_t count
+    );
+    //Erase isn't needed directly, instead the bounds are marked as outside the cell which will cause removal as part of recomputePairs
 
-    void recomputeCandidates(Sweep2D& sweep, CollisionCandidates& candidates);
-    void resolveCandidates(Sweep2D& sweep, CollisionCandidates& candidates, SwapLog log);
-    void recomputePairs(Sweep2D& sweep, CollisionCandidates& candidates, SwapLog& log);
+    void recomputeCandidates(Sweep2D& sweep, const ObjectDB& db, const PairTracker& pairs, SwapLog& log);
+    void recomputePairs(Sweep2D& sweep, const ObjectDB& db, const PairTracker& pairs, SwapLog& log);
   };
 
-  //TODO: dealing with keys is complicated
-  //Could think of it as max of 4 keys
-  //Could share all in one db, this is probably easiest
   namespace SweepGrid {
     static constexpr size_t EMPTY = std::numeric_limits<size_t>::max();
     static constexpr BroadphaseKey EMPTY_KEY{ EMPTY };
@@ -190,6 +186,7 @@ namespace Broadphase {
     };
     struct Grid {
       ObjectDB objects;
+      PairTracker pairs;
       GridDefinition definition;
       std::vector<Sweep2D> cells;
     };

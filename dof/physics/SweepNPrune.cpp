@@ -39,7 +39,7 @@ namespace Broadphase {
       //L entirely greater than R
       return false;
     }
-    if(l.first == Sweep2D::REMOVED && r.first == Sweep2D::REMOVED) {
+    if(l.first == ObjectDB::REMOVED && r.first == ObjectDB::REMOVED) {
       //They were removed, treat this as not overlapping so the pair tracking is removed
       return false;
     }
@@ -50,41 +50,63 @@ namespace Broadphase {
     return isOverlapping(l.bounds, r.bounds);
   }
 
+  struct SwapLogArgs {
+    const ObjectDB::BoundsMinMax* primaryAxis{};
+    const ObjectDB::BoundsMinMax* secondaryAxis{};
+    const PairTracker* tracked{};
+    SwapLog* log{};
+  };
+
+  bool isOverlapping(const ElementBounds& lPrimary, SweepElement r, const SwapLogArgs& args) {
+    return isOverlapping(lPrimary.bounds, args.primaryAxis[r.getValue()]) &&
+      isOverlapping(args.secondaryAxis[lPrimary.element.getValue()], args.secondaryAxis[r.getValue()]);
+  }
+
   //Left is a start element moving back over right
-  void logSwapBackStart(const ElementBounds& left, SweepElement right, const std::pair<float, float>* bounds, CollisionCandidates& candidates) {
+  void logSwapBackStart(const ElementBounds& left, SweepElement right, SwapLogArgs& args) {
     if(right.isStart()) {
       //Left start passed over right start meaning left end might still be within it, nothing to do yet
     }
     else {
       //Left start passed over right end, starting to overlap with right edge
-      const auto r = unwrapElement(right, bounds);
-      if(isOverlapping(left, r)) {
-        candidates.pairs.emplace_back(left.element.getValue(), r.element.getValue());
+      //Only care about this if it would be a new pair (not tracked) and they are newly overlapping on both axes
+      const SweepCollisionPair pair{ left.element.getValue(), right.getValue() };
+      if(!args.tracked->trackedPairs.count(pair)) {
+        if(isOverlapping(left, right, args)) {
+          args.log->gains.emplace_back(pair);
+        }
       }
     }
   }
 
   //Left is an end element moving back over right
-  void logSwapBackEnd(const ElementBounds& left, SweepElement right, const std::pair<float, float>* bounds, CollisionCandidates& candidates) {
+  void logSwapBackEnd(const ElementBounds& left, SweepElement right, SwapLogArgs& args) {
     if(right.isEnd()) {
       //Left end moved over right end meaning left end might still be within right start, nothing to do yet
     }
     else {
       //Left end swapped over right begin, overlap may have ended
-      const auto r = unwrapElement(right, bounds);
-      if(!isOverlapping(left, r)) {
-        candidates.pairs.emplace_back(left.element.getValue(), r.element.getValue());
+      //Only care about this if they were colliding (tracked pair) and are no longer overlapping on at least one axis
+      const SweepCollisionPair pair{ left.element.getValue(), right.getValue() };
+      if(args.tracked->trackedPairs.count(pair)) {
+        const auto r = unwrapElement(right, args.primaryAxis);
+        //Only check the primary axis here, if it's not overlapping on the other axis it'll get logged when sorting that axis
+        if(!isOverlapping(left, r)) {
+          args.log->losses.emplace_back(pair);
+        }
       }
     }
   }
 
   void insertionSort(SweepElement* first,
     SweepElement* last,
-    const std::pair<float, float>* bounds,
-    CollisionCandidates& candidates) {
+    SwapLogArgs& args
+  ) {
     if(first == last) {
       return;
     }
+    const ObjectDB::BoundsMinMax* bounds = args.primaryAxis;
+
     //Order next element
     for(SweepElement* mid = first; ++mid != last;) {
       const SweepElement value = *mid;
@@ -97,7 +119,7 @@ namespace Broadphase {
         SweepElement* current = mid;
         //Swap this element with all between first and mid, shifting right to make space
         while(current != first) {
-          logSwap(valueBounds, *current, bounds, candidates);
+          logSwap(valueBounds, *current, args);
           *current = *(current - 1);
           --current;
         }
@@ -113,7 +135,7 @@ namespace Broadphase {
             break;
           }
 
-          logSwap(valueBounds, *current, bounds, candidates);
+          logSwap(valueBounds, *current, args);
           *(current + 1) = *current;
           --current;
         }
@@ -198,7 +220,8 @@ namespace Broadphase {
     }
   }
 
-  void processPendingRemovals(ObjectDB& db, CollisionCandidates& losses) {
+  //Log events for pairs that will be removed as a result of pending removals, but don't remove yet
+  void logPendingRemovals(const ObjectDB& db, SwapLog& log, const PairTracker& pairs) {
     //All removal events should have been logged, now insert removals into free list and trim them off the end of the axes
     //Removals would always be at the end because REMOVED is float max and it was just sorted above
     if(size_t toRemove = db.pendingRemoval.size()) {
@@ -206,8 +229,23 @@ namespace Broadphase {
       //resolveCandidates will remove redundancies
       for(size_t i = 0; i < db.pendingRemoval.size(); ++i) {
         for(size_t j = i + 1; j < db.pendingRemoval.size(); ++j) {
-          losses.pairs.emplace_back(db.pendingRemoval[i].value, db.pendingRemoval[j].value);
+          const SweepCollisionPair pair{ db.pendingRemoval[i].value, db.pendingRemoval[j].value };
+          if(pairs.trackedPairs.count(pair)) {
+            log.losses.emplace_back(pair);
+          }
         }
+      }
+    }
+  }
+
+  //Remove elements pending deletion. This is after the events for them have already been logged and no cells are referencing them anymore
+  void processPendingRemovals(ObjectDB& db) {
+    //All removal events should have been logged, now insert removals into free list and trim them off the end of the axes
+    //Removals would always be at the end because REMOVED is float max and it was just sorted above
+    if(size_t toRemove = db.pendingRemoval.size()) {
+      //Log an event for all removal pairs. This is because all removal bounds are equal so their events might be missed if both were removed
+      //resolveCandidates will remove redundancies
+      for(size_t i = 0; i < db.pendingRemoval.size(); ++i) {
         db.userKey[db.pendingRemoval[i].value] = ObjectDB::EMPTY;
       }
       db.freeList.insert(db.freeList.end(), db.pendingRemoval.begin(), db.pendingRemoval.end());
@@ -237,45 +275,23 @@ namespace Broadphase {
       }
     }
 
-    void recomputeCandidates(Sweep2D& sweep, const ObjectDB& db, CollisionCandidates& candidates) {
+    void recomputeCandidates(Sweep2D& sweep, const ObjectDB& db, const PairTracker& pairs, SwapLog& log) {
       PROFILE_SCOPE("physics", "computeCandidates");
-
+      SwapLogArgs args{
+        nullptr,
+        nullptr,
+        &pairs,
+        &log
+      };
       for(size_t i = 0; i < Sweep2D::S; ++i) {
-        insertionSort(sweep.axis[i].elements.data(), sweep.axis[i].elements.data() + sweep.axis[i].elements.size(), db.bounds[i].data(), candidates);
+        args.primaryAxis = db.bounds[i].data();
+        args.secondaryAxis = db.bounds[(i + 1) % Sweep2D::S].data();
+        insertionSort(
+          sweep.axis[i].elements.data(),
+          sweep.axis[i].elements.data() + sweep.axis[i].elements.size(),
+          args
+        );
       }
-    }
-
-    //TODO: if this step is lifted out to the accumulate phase I think it can avoid the need for reference counting
-    void resolveCandidates(Sweep2D& sweep, const ObjectDB& db, CollisionCandidates& collisionCandidates, SwapLog log) {
-      PROFILE_SCOPE("physics", "resolveCandidates");
-
-      //Remove duplicates. A side benefit of sorted remove is the memory access of bounds is potentially more linear
-      std::vector<SweepCollisionPair>& candidates = collisionCandidates.pairs;
-      std::sort(candidates.begin(), candidates.end());
-      candidates.erase(std::unique(candidates.begin(), candidates.end()), candidates.end());
-      //Now double check the bounds of the candidates, both to determine if it was a gain and loss and also to confirm in the first place
-      for(const SweepCollisionPair& candidate : candidates) {
-        bool isColliding = true;
-        for(size_t d = 0; d < Sweep2D::S; ++d) {
-          //Candidates res-use SweepCollisionPair for convenience but contain broadphase keys, not user keys, so can be used to get bounds here
-          if(!isOverlapping(db.bounds[d][candidate.a], db.bounds[d][candidate.b])) {
-            isColliding = false;
-            break;
-          }
-        }
-        const SweepCollisionPair userPair{ db.userKey[candidate.a], db.userKey[candidate.b] };
-        //The collision information is accurate but it can produce redundant events particular for removals for pairs that weren't colliding in the first place
-        if(isColliding) {
-          if(sweep.trackedPairs.insert(userPair).second) {
-            log.gains.emplace_back(userPair);
-          }
-        }
-        else if(auto it = sweep.trackedPairs.find(userPair); it != sweep.trackedPairs.end()) {
-          sweep.trackedPairs.erase(it);
-          log.losses.emplace_back(userPair);
-        }
-      }
-      candidates.clear();
     }
 
     struct SweepElementQuery {
@@ -308,9 +324,8 @@ namespace Broadphase {
 
     //Remove elements that are no longer within the boundaries of this Sweep2D
     void trimBoundaries(const ObjectDB& db, Sweep2D& sweep) {
-      std::vector<BroadphaseKey> toRemove;
+      std::vector<BroadphaseKey>& toRemove = sweep.temp;
 
-      //TODO: this can easily find elements that are outside on one axis, but then how to find them on the other axis?
       const size_t count = sweep.axis[0].elements.size();
       if(!count) {
         return;
@@ -383,11 +398,11 @@ namespace Broadphase {
           }
         }
       }
+      toRemove.clear();
     }
 
-    void recomputePairs(Sweep2D& sweep, const ObjectDB& db, CollisionCandidates& candidates, SwapLog& log) {
-      recomputeCandidates(sweep, db, candidates);
-      resolveCandidates(sweep, db, candidates, log);
+    void recomputePairs(Sweep2D& sweep, const ObjectDB& db, const PairTracker& pairs, SwapLog& log) {
+      recomputeCandidates(sweep, db, pairs, log);
       trimBoundaries(db, sweep);
     }
   };
@@ -395,6 +410,19 @@ namespace Broadphase {
   namespace SweepGrid {
     void init(Grid& grid) {
       grid.cells.resize(grid.definition.cellsX*grid.definition.cellsY);
+      for(size_t x = 0; x < grid.definition.cellsX; ++x) {
+        for(size_t y = 0; y < grid.definition.cellsY; ++y) {
+          glm::vec2 min = grid.definition.bottomLeft;
+          min.x += static_cast<float>(x) * grid.definition.cellSize.x;
+          min.y += static_cast<float>(y) * grid.definition.cellSize.y;
+          const glm::vec2 max = min + grid.definition.cellSize;
+          Sweep2D& cell = grid.cells[x + y*grid.definition.cellsX];
+          for(size_t i = 0; i < cell.axis.size(); ++i) {
+            cell.axis[i].min = min[i];
+            cell.axis[i].max = max[i];
+          }
+        }
+      }
     }
 
     void insertRange(Grid& grid,
@@ -410,27 +438,13 @@ namespace Broadphase {
       const BroadphaseKey* keys,
       size_t count) {
       Broadphase::eraseRange(grid.objects, keys, count);
-      //TODO: when does userKey get removed?
+      //UserKey gets removed at the end of the next update upon processing pending removals
     }
 
     struct Bounds {
       glm::vec2 min{};
       glm::vec2 max{};
     };
-
-    //Given a cell key, find the boudns of the cell
-    Bounds getCellBounds(const GridDefinition& definition, BroadphaseKey cellKey) {
-      const size_t xIndex = (cellKey.value % definition.cellsX);
-      const size_t yIndex = (cellKey.value / definition.cellsX);
-      const glm::vec2 min {
-        definition.bottomLeft.x + static_cast<float>(xIndex)*definition.cellSize.x,
-        definition.bottomLeft.y + static_cast<float>(yIndex)*definition.cellSize.y
-      };
-      return {
-        min,
-        min + definition.cellSize
-      };
-    }
 
     //Call fn with index for all cells that the bounds overlap with.
     template<class FN>
@@ -487,46 +501,9 @@ namespace Broadphase {
     void recomputePairs(IAppBuilder& builder) {
       struct TaskData {
         std::vector<Broadphase::SweepCollisionPair> gains, losses;
-        Broadphase::CollisionCandidates candidates;
       };
       struct Tasks {
-        struct Tracker {
-          enum class Action : uint8_t {
-            Add,
-            Remove,
-            Noop,
-            Update
-          };
-
-          //Returns true if this may need to change tracked pairs, meaning either addition of a new pair or removal of one
-          void increment(int8_t amount) {
-            if(!originalRefCount) {
-              originalRefCount = currentRefCount;
-            }
-            currentRefCount += amount;
-          }
-
-          Action getAction() const {
-            assert(originalRefCount && "Action only makes sense in the context of an original ref count");
-            assert(currentRefCount >= 0 && "Counting should always be balanced");
-            if(!*originalRefCount) {
-              //If it went from zero to positive, new element added
-              //It it went from zero to zero then this element should be removed again without being published
-              return currentRefCount > 0 ? Action::Add : Action::Noop;
-            }
-            //Nonzero original, presumably this means positive since counting shouldn't be unbalanced
-            //This means hitting zero would be removal
-            return !currentRefCount ? Action::Remove : Action::Update;
-          }
-
-          std::optional<int8_t> originalRefCount{};
-          int8_t currentRefCount{};
-        };
-
         std::vector<TaskData> tasks;
-        //Hack to reference count pairs to avoid duplicate events for pairs in multiple cells
-        std::unordered_map<Broadphase::SweepCollisionPair, Tracker> trackedPairs;
-        std::vector<std::pair<const Broadphase::SweepCollisionPair, Tracker>*> changedTrackers;
       };
 
       auto configure = builder.createTask();
@@ -559,72 +536,50 @@ namespace Broadphase {
             };
             log.gains.clear();
             log.losses.clear();
-            data->tasks[i].candidates.pairs.clear();
-            SweepNPrune::recomputePairs(grid.cells[i], data->tasks[i].candidates, log);
+            SweepNPrune::recomputePairs(grid.cells[i], grid.objects, grid.pairs, log);
           }
         });
         builder.submitTask(std::move(process));
       }
       {
         //Dependency on grid so the previous finishes first
-        auto grid = combine.query<const SharedRow<Broadphase::SweepGrid::Grid>>().tryGetSingletonElement();
+        auto grid = combine.query<SharedRow<Broadphase::SweepGrid::Grid>>().tryGetSingletonElement();
         auto& finalResults = *combine.query<SharedRow<SweepNPruneBroadphase::PairChanges>>().tryGetSingletonElement();
 
         combine.setCallback([&finalResults, data, grid](AppTaskArgs&) mutable {
           finalResults.mGained.clear();
           finalResults.mLost.clear();
 
-          Broadphase::processPendingRemovals(grid->objects, finalResults.mLost);
+          if(data->tasks.size()) {
+            //Doesn't matter which log these show up in, arbitrarily choose 0. They are processed like any other loss below
+            SwapLog log{ data->tasks[0].gains, data->tasks[0].losses };
+            Broadphase::logPendingRemovals(grid->objects, log, grid->pairs);
+          }
 
-          //First update all the reference counts based on individual reports of gains and losses within cells
+          //All of the tasks have logged a series of gains and losses compared to what is currently in PairTracker
+          //Due to overlapping cells some of the pairs may have duplicate information
+          //Tracked pairs can be updated now and used to discard the redundant events based on if the event would change
+          //what is tracked
+          PairTracker& pairs = grid->pairs;
+          const std::vector<UserKey>& userKeys = grid->objects.userKey;
           for(size_t i = 0; i < data->tasks.size(); ++i) {
-             const TaskData& t = data->tasks[i];
-            //Remove duplicates while also ignoring any that show up in both gained and lost
+            const TaskData& t = data->tasks[i];
             for(const SweepCollisionPair& g : t.gains) {
-              //Increment for gains, taking note of when new elements are created
-              auto&& [it, _] = data->trackedPairs.emplace(g, Tasks::Tracker{});
-              it->second.increment(1);
-              if(it->second.currentRefCount == 1) {
-                data->changedTrackers.emplace_back(&*it);
+              if(pairs.trackedPairs.insert(g).second) {
+                //Up until now the pairs have been holding BroadphaseKeys. For the event, look up the corresponding UserKey
+                finalResults.mGained.emplace_back(userKeys[g.a], userKeys[g.b]);
               }
             }
             for(const SweepCollisionPair& l : t.losses) {
-              if(auto it = data->trackedPairs.find(l); it != data->trackedPairs.end()) {
-                //Decrement for losses. Presumably pairs should always be found since reference counts are balanced
-                it->second.increment(-1);
-                if(it->second.currentRefCount == 0) {
-                  data->changedTrackers.emplace_back(&*it);
-                }
+              if(auto it = pairs.trackedPairs.find(l); it != pairs.trackedPairs.end()) {
+                pairs.trackedPairs.erase(it);
+                finalResults.mLost.emplace_back(userKeys[l.a], userKeys[l.b]);
               }
             }
           }
 
-          //Now go over all the changed pairs and resolve any duplication or consolidate matching add/remove pairs
-          //The existence of the originalTracker optional indicates if this pair has been processed and the original
-          //value can be used to determine if it's a new or removed pair
-          //For example, if a pair is lost by one cell but gained by another, then it's not necessary to report either
-          //gain or loss because the pair still exists
-          for(auto& pair : data->changedTrackers) {
-            //If this pair was already processed, skip it
-            if(!pair->second.originalRefCount) {
-              continue;
-            }
-            switch(pair->second.getAction()) {
-              case Tasks::Tracker::Action::Add: finalResults.mGained.emplace_back(pair->first); break;
-              case Tasks::Tracker::Action::Remove: finalResults.mLost.emplace_back(pair->first); break;
-              default: break;
-            }
-            //Clearing the original reference marks this as processed so it is skipped if it comes up again
-            pair->second.originalRefCount.reset();
-          }
-          //Final pass to delete. Can't be done in the iteration above as it may invalidate pointers that exist later in the container
-          for(const SweepCollisionPair& loss : finalResults.mLost) {
-            if(auto it = data->trackedPairs.find(loss); it != data->trackedPairs.end()) {
-              data->trackedPairs.erase(it);
-            }
-          }
-
-          data->changedTrackers.clear();
+          //Now that everything is done, actually remove pending elements
+          Broadphase::processPendingRemovals(grid->objects);
         });
         builder.submitTask(std::move(combine));
       }
