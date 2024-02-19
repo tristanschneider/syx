@@ -44,6 +44,45 @@ namespace Broadphase {
     UserKey a{};
     UserKey b{};
   };
+
+  //This holds the user keys and boundaries of the shapes tracked by the broadphase
+  //The spatial data structure references this to decide how to partition the objects
+  struct ObjectDB {
+    static constexpr size_t S = 2;
+    static constexpr float NEW = std::numeric_limits<float>::min();
+    static constexpr float REMOVED = std::numeric_limits<float>::max();
+    static constexpr size_t EMPTY = std::numeric_limits<size_t>::max();
+    static constexpr BroadphaseKey EMPTY_KEY{ EMPTY };
+    using BoundsAxis = std::vector<std::pair<float, float>>;
+
+    std::array<BoundsAxis, S> bounds;
+    std::vector<UserKey> userKey;
+    //Keys ready for re-use
+    std::vector<BroadphaseKey> freeList;
+    //Keys recently marked for removal but won't be moved to the free list until the next recomputePairs
+    std::vector<BroadphaseKey> pendingRemoval;
+  };
+
+  //Generates new keys and adds the obects to the db. Should be used in combination with insertion into
+  //the spatial strucures that reference this
+  void insertRange(ObjectDB& db,
+    const UserKey* userKeys,
+    BroadphaseKey* outKeys,
+    size_t count);
+  //Marks elements for deletion by putting them in the pending removal list and setting the bounds to REMOVED
+  //The next update of the dependent spatial structures should notice this to cause their removal
+  void eraseRange(ObjectDB& db,
+    const BroadphaseKey* keys,
+    size_t count);
+  //Writes the new boundaries. Dependant spatial structures should notice this in their next update
+  void updateBoundaries(ObjectDB& db,
+    const float* minX,
+    const float* maxX,
+    const float* minY,
+    const float* maxY,
+    const BroadphaseKey* keys,
+    size_t count
+  );
 }
 
 template<>
@@ -61,6 +100,8 @@ namespace Broadphase {
     std::vector<SweepCollisionPair>& losses;
   };
 
+  //During a first pass, "candidates" are determined as pairs that potentially started or stopped colliding
+  //In the second pass redundant entries are removed and they ar eturned into gains and losses
   struct CollisionCandidates {
     std::vector<SweepCollisionPair> pairs;
   };
@@ -104,20 +145,16 @@ namespace Broadphase {
     //List of indices into the sweep2d values, sorted by this axis bounds
     //Free list is used to guarantee index stability
     std::vector<SweepElement> elements;
+    //If elements are found outside of this range the shapes are removed from this Sweep2D
+    float min{};
+    float max{};
   };
 
   struct Sweep2D {
     static constexpr size_t S = 2;
-    static constexpr float REMOVED = std::numeric_limits<float>::max();
-    static constexpr float NEW = std::numeric_limits<float>::min();
-
     std::array<SweepAxis, S> axis;
-    std::array<std::vector<std::pair<float, float>>, S> bounds;
-    std::vector<UserKey> userKey;
-    //Keys ready for re-use
-    std::vector<BroadphaseKey> freeList;
-    //Keys recently marked for removal but won't be moved to the free list until the next recomputePairs
-    std::vector<BroadphaseKey> pendingRemoval;
+    std::unordered_set<BroadphaseKey> containedKeys;
+    //TODO: somehow get around the need for this
     std::unordered_set<SweepCollisionPair> trackedPairs;
   };
 
@@ -130,14 +167,6 @@ namespace Broadphase {
       size_t count);
 
     void eraseRange(Sweep2D& sweep,
-      const BroadphaseKey* keys,
-      size_t count);
-
-    void updateBoundaries(Sweep2D& sweep,
-      const float* minX,
-      const float* maxX,
-      const float* minY,
-      const float* maxY,
       const BroadphaseKey* keys,
       size_t count);
 
@@ -159,26 +188,10 @@ namespace Broadphase {
       size_t cellsX{};
       size_t cellsY{};
     };
-    //Keys corresponding to an element in a given cell
-    struct CellKey {
-      //The key of the cell
-      BroadphaseKey cellKey{ EMPTY };
-      //The key of the element in the cell
-      BroadphaseKey elementKey{ EMPTY };
-    };
-    struct KeyMapping {
-      static constexpr size_t S = 4;
-      std::array<CellKey, S> publicToPrivate;
-    };
-    struct GridMappings {
-      std::vector<KeyMapping> mappings;
-      std::vector<UserKey> userKeys;
-    };
     struct Grid {
+      ObjectDB objects;
       GridDefinition definition;
-      GridMappings mappings;
       std::vector<Sweep2D> cells;
-      std::vector<BroadphaseKey> freeList;
     };
 
     void init(Grid& grid);

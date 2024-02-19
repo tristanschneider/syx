@@ -123,28 +123,103 @@ namespace Broadphase {
     }
   }
 
-  namespace SweepNPrune {
-    BroadphaseKey getOrCreateKey(std::vector<BroadphaseKey>& freeList, BroadphaseKey& newKey) {
-      if(!freeList.empty()) {
-        const BroadphaseKey result = freeList.back();
-        freeList.pop_back();
-        return result;
-      }
-      return { newKey.value++ };
+  BroadphaseKey getOrCreateKey(std::vector<BroadphaseKey>& freeList, BroadphaseKey& newKey) {
+    if(!freeList.empty()) {
+      const BroadphaseKey result = freeList.back();
+      freeList.pop_back();
+      return result;
     }
+    return { newKey.value++ };
+  }
 
-    void insertRange(Sweep2D& sweep,
-      const UserKey* userKeys,
-      BroadphaseKey* outKeys,
-      size_t count) {
-      BroadphaseKey newKey = { sweep.userKey.size() };
-      if(count > sweep.freeList.size()) {
-        const size_t slotsNeeded = count - sweep.freeList.size();
-        for(size_t s = 0; s < Sweep2D::S; ++s) {
-          sweep.bounds[s].resize(sweep.bounds[s].size() + slotsNeeded);
-        }
-        sweep.userKey.resize(sweep.userKey.size() + slotsNeeded);
+  void insertRange(ObjectDB& db,
+    const UserKey* userKeys,
+    BroadphaseKey* outKeys,
+    size_t count
+  ) {
+    BroadphaseKey newKey = { db.userKey.size() };
+    if(count > db.freeList.size()) {
+      const size_t slotsNeeded = count - db.freeList.size();
+      for(size_t s = 0; s < ObjectDB::S; ++s) {
+        db.bounds[s].resize(db.bounds[s].size() + slotsNeeded);
       }
+      db.userKey.resize(db.userKey.size() + slotsNeeded);
+    }
+    for(size_t i = 0; i < count; ++i) {
+      const BroadphaseKey k = getOrCreateKey(db.freeList, newKey);
+
+      outKeys[i] = { k };
+      db.userKey[k.value] = userKeys[i];
+
+      for(size_t d = 0; d < db.bounds.size(); ++d) {
+        db.bounds[d][k.value] = { ObjectDB::NEW, ObjectDB::NEW };
+      }
+    }
+  }
+
+  void eraseRange(ObjectDB& db,
+    const BroadphaseKey* keys,
+    size_t count
+  ) {
+    //Put this key in the pending removal list, not yet the free list so it doesn't get re-used
+    //This allows the bounds to be written as out of bounds and then for the next recompute to process
+    //the removals rather than having to do a synchronous search here
+    const size_t base = db.pendingRemoval.size();
+    db.pendingRemoval.resize(db.pendingRemoval.size() + count);
+
+    for(size_t i = 0; i < count; ++i) {
+      const BroadphaseKey& k = keys[i];
+      db.pendingRemoval[base + i] = k;
+
+      //Write the new bounds so that the key is out of the way
+      for(size_t d = 0; d < ObjectDB::S; ++d) {
+        db.bounds[d][k.value] = { ObjectDB::REMOVED, ObjectDB::REMOVED };
+      }
+      //User key needs to be left as-is so it can show up for removal of pairs
+    }
+  }
+
+  void updateBoundaries(ObjectDB& db,
+    const float* minX,
+    const float* maxX,
+    const float* minY,
+    const float* maxY,
+    const BroadphaseKey* keys,
+    size_t count
+  ) {
+    //Size of both axes are the same
+    const size_t size = db.bounds[0].size();
+    for(size_t i = 0; i < count; ++i) {
+      //Bounds check mainly for default constructed EMPTY_KEY used for elements that haven't been inserted into broadphase yet
+      if(const size_t k = keys[i].value; k < size) {
+        db.bounds[0][k] = { minX[i], maxX[i] };
+        db.bounds[1][k] = { minY[i], maxY[i] };
+      }
+    }
+  }
+
+  void processPendingRemovals(ObjectDB& db, CollisionCandidates& losses) {
+    //All removal events should have been logged, now insert removals into free list and trim them off the end of the axes
+    //Removals would always be at the end because REMOVED is float max and it was just sorted above
+    if(size_t toRemove = db.pendingRemoval.size()) {
+      //Log an event for all removal pairs. This is because all removal bounds are equal so their events might be missed if both were removed
+      //resolveCandidates will remove redundancies
+      for(size_t i = 0; i < db.pendingRemoval.size(); ++i) {
+        for(size_t j = i + 1; j < db.pendingRemoval.size(); ++j) {
+          losses.pairs.emplace_back(db.pendingRemoval[i].value, db.pendingRemoval[j].value);
+        }
+        db.userKey[db.pendingRemoval[i].value] = ObjectDB::EMPTY;
+      }
+      db.freeList.insert(db.freeList.end(), db.pendingRemoval.begin(), db.pendingRemoval.end());
+      db.pendingRemoval.clear();
+    }
+  }
+
+  namespace SweepNPrune {
+    void insertRange(Sweep2D& sweep,
+      const BroadphaseKey* keys,
+      size_t count
+    ) {
       //Axis doesn't use the free list, always add to end
       size_t newAxisIndex = sweep.axis[0].elements.size();
       for(size_t s = 0; s < Sweep2D::S; ++s) {
@@ -152,13 +227,8 @@ namespace Broadphase {
       }
 
       for(size_t i = 0; i < count; ++i) {
-        const BroadphaseKey k = getOrCreateKey(sweep.freeList, newKey);
-
-        outKeys[i] = { k };
-        sweep.userKey[k.value] = userKeys[i];
-
+        const BroadphaseKey& k = keys[i];
         for(size_t d = 0; d < sweep.axis.size(); ++d) {
-          sweep.bounds[d][k.value] = { Sweep2D::NEW, Sweep2D::NEW };
           //These are put at the end now and will be addressed in the next recomputePairs
           sweep.axis[d].elements[newAxisIndex] = SweepElement::createBegin(k);
           sweep.axis[d].elements[newAxisIndex + 1] = SweepElement::createEnd(k);
@@ -167,66 +237,16 @@ namespace Broadphase {
       }
     }
 
-    void eraseRange(Sweep2D& sweep,
-      const BroadphaseKey* keys,
-      size_t count) {
-      //Put this key in the pending removal list, not yet the free list so it doesn't get re-used
-      //This allows the bounds to be written as out of bounds and then for the next recompute to process
-      //the removals rather than having to do a synchronous search here
-      const size_t base = sweep.pendingRemoval.size();
-      sweep.pendingRemoval.resize(sweep.pendingRemoval.size() + count);
-
-      for(size_t i = 0; i < count; ++i) {
-        const BroadphaseKey& k = keys[i];
-        sweep.pendingRemoval[base + i] = k;
-
-        //Write the new bounds so that the key is out of the way
-        for(size_t d = 0; d < Sweep2D::S; ++d) {
-          sweep.bounds[d][k.value] = { Sweep2D::REMOVED, Sweep2D::REMOVED };
-        }
-        //User key needs to be left as-is so it can show up for removal of pairs
-      }
-    }
-
-    void updateBoundaries(Sweep2D& sweep,
-      const float* minX,
-      const float* maxX,
-      const float* minY,
-      const float* maxY,
-      const BroadphaseKey* keys,
-      size_t count) {
-      for(size_t i = 0; i < count; ++i) {
-        const size_t k = keys[i].value;
-        sweep.bounds[0][k] = { minX[i], maxX[i] };
-        sweep.bounds[1][k] = { minY[i], maxY[i] };
-      }
-    }
-
-    void recomputeCandidates(Sweep2D& sweep, CollisionCandidates& candidates) {
+    void recomputeCandidates(Sweep2D& sweep, const ObjectDB& db, CollisionCandidates& candidates) {
       PROFILE_SCOPE("physics", "computeCandidates");
 
       for(size_t i = 0; i < Sweep2D::S; ++i) {
-        insertionSort(sweep.axis[i].elements.data(), sweep.axis[i].elements.data() + sweep.axis[i].elements.size(), sweep.bounds[i].data(), candidates);
-      }
-      //All removal events should have been logged, now insert removals into free list and trim them off the end of the axes
-      //Removals would always be at the end because REMOVED is float max and it was just sorted above
-      if(size_t toRemove = sweep.pendingRemoval.size()) {
-        //Log an event for all removal pairs. This is because all removal bounds are equal so their events might be missed if both were removed
-        //resolveCandidates will remove redundancies
-        for(size_t i = 0; i < sweep.pendingRemoval.size(); ++i) {
-          for(size_t j = i + 1; j < sweep.pendingRemoval.size(); ++j) {
-            candidates.pairs.emplace_back(sweep.pendingRemoval[i].value, sweep.pendingRemoval[j].value);
-          }
-        }
-        for(size_t i = 0; i < Sweep2D::S; ++i) {
-          sweep.axis[i].elements.resize(sweep.axis[i].elements.size() - sweep.pendingRemoval.size()*2);
-        }
-        sweep.freeList.insert(sweep.freeList.end(), sweep.pendingRemoval.begin(), sweep.pendingRemoval.end());
-        sweep.pendingRemoval.clear();
+        insertionSort(sweep.axis[i].elements.data(), sweep.axis[i].elements.data() + sweep.axis[i].elements.size(), db.bounds[i].data(), candidates);
       }
     }
 
-    void resolveCandidates(Sweep2D& sweep, CollisionCandidates& collisionCandidates, SwapLog log) {
+    //TODO: if this step is lifted out to the accumulate phase I think it can avoid the need for reference counting
+    void resolveCandidates(Sweep2D& sweep, const ObjectDB& db, CollisionCandidates& collisionCandidates, SwapLog log) {
       PROFILE_SCOPE("physics", "resolveCandidates");
 
       //Remove duplicates. A side benefit of sorted remove is the memory access of bounds is potentially more linear
@@ -238,12 +258,12 @@ namespace Broadphase {
         bool isColliding = true;
         for(size_t d = 0; d < Sweep2D::S; ++d) {
           //Candidates res-use SweepCollisionPair for convenience but contain broadphase keys, not user keys, so can be used to get bounds here
-          if(!isOverlapping(sweep.bounds[d][candidate.a], sweep.bounds[d][candidate.b])) {
+          if(!isOverlapping(db.bounds[d][candidate.a], db.bounds[d][candidate.b])) {
             isColliding = false;
             break;
           }
         }
-        const SweepCollisionPair userPair{ sweep.userKey[candidate.a], sweep.userKey[candidate.b] };
+        const SweepCollisionPair userPair{ db.userKey[candidate.a], db.userKey[candidate.b] };
         //The collision information is accurate but it can produce redundant events particular for removals for pairs that weren't colliding in the first place
         if(isColliding) {
           if(sweep.trackedPairs.insert(userPair).second) {
@@ -258,9 +278,117 @@ namespace Broadphase {
       candidates.clear();
     }
 
-    void recomputePairs(Sweep2D& sweep, CollisionCandidates& candidates, SwapLog& log) {
-      recomputeCandidates(sweep, candidates);
-      resolveCandidates(sweep, candidates, log);
+    struct SweepElementQuery {
+      float position{};
+      BroadphaseKey key{};
+      bool isStart{};
+    };
+
+    struct SweepElementCompare {
+      bool operator()(const SweepElement& l, const SweepElementQuery& r) const {
+        const float lv = getBounds(l);
+        const float rv = r.position;
+        if(lv == rv) {
+          if(l.getValue() == r.key.value) {
+            return l.isStart() < r.isStart;
+          }
+          return l.getValue() < r.key.value;
+        }
+        return lv < rv;
+      }
+
+      float getBounds(const SweepElement& e) const {
+        const auto& range = db.bounds[axis][e.getValue()];
+        return e.isStart() ? range.first : range.second;
+      }
+
+      const ObjectDB& db;
+      size_t axis{};
+    };
+
+    //Remove elements that are no longer within the boundaries of this Sweep2D
+    void trimBoundaries(const ObjectDB& db, Sweep2D& sweep) {
+      std::vector<BroadphaseKey> toRemove;
+
+      //TODO: this can easily find elements that are outside on one axis, but then how to find them on the other axis?
+      const size_t count = sweep.axis[0].elements.size();
+      if(!count) {
+        return;
+      }
+      for(size_t axis = 0; axis < sweep.axis.size(); ++axis) {
+        //Find objects off the min side of the axes
+        for(size_t i = 0; i < count; ++i) {
+          const SweepElement& e = sweep.axis[axis].elements[i];
+          if(e.isEnd()) {
+            if(db.bounds[0][e.getValue()].second < sweep.axis[axis].min) {
+              toRemove.push_back(BroadphaseKey{ e.getValue() });
+            }
+            else {
+              break;
+            }
+          }
+        }
+        //Find objects off the max side of the axes
+        for(size_t i = 0; i < count; ++i) {
+          const size_t ri = count - i - 1;
+          const SweepElement& e = sweep.axis[axis].elements[ri];
+          if(e.isStart()) {
+            if(db.bounds[0][e.getValue()].second > sweep.axis[axis].min) {
+              toRemove.push_back(BroadphaseKey{ e.getValue() });
+            }
+            else {
+              break;
+            }
+          }
+        }
+      }
+
+      //Remove all the elements. This is rough because their position was only known on one axis
+      //so a binary search is needed to find it on the other
+      for(const BroadphaseKey& remove : toRemove) {
+        auto it = sweep.containedKeys.find(remove);
+        //Already removed, skip this one
+        if(it == sweep.containedKeys.end()) {
+          continue;
+        }
+        sweep.containedKeys.erase(it);
+
+        for(size_t axis = 0; axis < sweep.axis.size(); ++axis) {
+          auto& axisElements = sweep.axis[axis].elements;
+          SweepElementQuery query{
+            db.bounds[axis][remove.value].first,
+            remove,
+            true
+          };
+          auto beginIt = std::lower_bound(axisElements.begin(), axisElements.end(), query, SweepElementCompare{ db, axis });
+          //Should always be found
+          if(beginIt != axisElements.end()) {
+            //Remove this and its accompanying end entry by shifting everything else down
+            while(true) {
+              auto next = beginIt + 1;
+              if(next == axisElements.end()) {
+                break;
+              }
+              if(next->getValue() == remove.value) {
+                //Look ahead one extra entry for this one to fill this end entry to remove
+                if(auto extra = next + 1; extra != axisElements.end()) {
+                  *beginIt = *extra;
+                }
+              }
+              else {
+                *beginIt = *next;
+              }
+              beginIt = next;
+            }
+          }
+        }
+      }
+    }
+
+    void recomputePairs(Sweep2D& sweep, const ObjectDB& db, CollisionCandidates& candidates, SwapLog& log) {
+      recomputeCandidates(sweep, db, candidates);
+      resolveCandidates(sweep, db, candidates, log);
+      trimBoundaries(db, sweep);
     }
   };
 
@@ -273,41 +401,16 @@ namespace Broadphase {
       const UserKey* userKeys,
       BroadphaseKey* outKeys,
       size_t count) {
-      BroadphaseKey newKey{ grid.mappings.mappings.size() };
-      if(count > grid.freeList.size()) {
-        grid.mappings.mappings.resize(grid.mappings.mappings.size() + count - grid.freeList.size());
-        grid.mappings.userKeys.resize(grid.mappings.mappings.size());
-      }
       //Assign the keys a slot but don't map them to any internal cells yet since bounds aren't known
       //This will happen during updateBoundaries
-      for(size_t i = 0; i < count; ++i) {
-        const BroadphaseKey key = SweepNPrune::getOrCreateKey(grid.freeList, newKey);
-        grid.mappings.mappings[key.value] = {};
-        grid.mappings.userKeys[key.value] = userKeys[i];
-        outKeys[i] = key;
-      }
+      Broadphase::insertRange(grid.objects, userKeys, outKeys, count);
     }
 
     void eraseRange(Grid& grid,
       const BroadphaseKey* keys,
       size_t count) {
-      size_t freeIndex = grid.freeList.size();
-      grid.freeList.resize(grid.freeList.size() + count);
-      for(size_t i = 0; i < count; ++i) {
-        //Use the mapping to remove from the internal cell
-        KeyMapping mapping = grid.mappings.mappings[keys[i].value];
-        for(CellKey& key : mapping.publicToPrivate) {
-          if(key.cellKey.value != EMPTY) {
-            Sweep2D& cell = grid.cells[key.cellKey.value];
-            SweepNPrune::eraseRange(cell, &key.elementKey, 1);
-            //Clear the mapping
-            key = {};
-          }
-        }
-        //Add the mapping to the free list
-        grid.freeList[freeIndex++] = keys[i];
-        grid.mappings.userKeys[keys[i].value] = EMPTY;
-      }
+      Broadphase::eraseRange(grid.objects, keys, count);
+      //TODO: when does userKey get removed?
     }
 
     struct Bounds {
@@ -329,8 +432,9 @@ namespace Broadphase {
       };
     }
 
-    //Find all cells that the bounds overlap with. This assumes nothing could ever be big enough to overlap with more than 4
-    KeyMapping getKey(const GridDefinition& definition, const Bounds& bounds) {
+    //Call fn with index for all cells that the bounds overlap with.
+    template<class FN>
+    void foreachCell(const GridDefinition& definition, const Bounds& bounds, FN&& fn) {
       //Translate to local space such that each cell is of size 1 and the bottom left cell is at the origin
       const glm::vec2 invScale{ 1.0f/definition.cellSize.x, 1.0f/definition.cellSize.y };
       const glm::vec2 boundaryMin = glm::vec2(0, 0);
@@ -338,29 +442,11 @@ namespace Broadphase {
       const glm::vec2 localMin = glm::clamp((bounds.min - definition.bottomLeft)*invScale, boundaryMin, boundaryMax);
       const glm::vec2 localMax = glm::clamp((bounds.max - definition.bottomLeft)*invScale, boundaryMin, boundaryMax);
       //Now that they are in local space truncation to int can be used to find all the desired indices
-      int found = 0;
-      KeyMapping result;
-      for(int x = static_cast<int>(localMin.x); x <= static_cast<int>(localMax.x); ++x) {
-        for(int y = static_cast<int>(localMin.y); y <= static_cast<int>(localMax.y); ++y) {
-          const BroadphaseKey key{ x + y*definition.cellsX };
-          result.publicToPrivate[found++].cellKey = key;
-          //Shouldn't generally happen but would be if an object spans more than 4 cells.
-          //Either missing the collision needs to be okay or objects should never get that big
-          if(found >= result.publicToPrivate.size()) {
-            break;
-          }
+      for(int y = static_cast<int>(localMin.y); y <= static_cast<int>(localMax.y); ++y) {
+        for(int x = static_cast<int>(localMin.x); x <= static_cast<int>(localMax.x); ++x) {
+          fn(static_cast<size_t>(x + y*definition.cellsX));
         }
       }
-      return result;
-    }
-
-    void removeMapping(KeyMapping& key, size_t i) {
-      //Shift all elements down
-      //Swap remove would be fine too but still requires finding where the last element is
-      for(size_t j = i; j + 1 < key.publicToPrivate.size(); ++j) {
-        key.publicToPrivate[j] = key.publicToPrivate[j + 1];
-      }
-      key.publicToPrivate.back() = {};
     }
 
     void updateBoundaries(Grid& grid,
@@ -374,55 +460,27 @@ namespace Broadphase {
         if(keys[i] == EMPTY_KEY) {
           continue;
         }
+        //Update the bounds information all cells are referring to for this single key
+        Broadphase::updateBoundaries(grid.objects,
+          minX,
+          maxX,
+          minY,
+          maxY,
+          keys + i,
+          1);
+
         const Bounds newBounds{ glm::vec2{ minX[i], minY[i] }, glm::vec2{ maxX[i], maxY[i] } };
-        KeyMapping& currentMapping = grid.mappings.mappings[keys[i].value];
-        KeyMapping desiredMapping = getKey(grid.definition, newBounds);
-        //Resolve differences between current and desired. Common case should be that there are none
-        //Start with finding keys that already match and removing those that don't
-        size_t c = 0;
-        for(c = 0; c < currentMapping.publicToPrivate.size();) {
-          CellKey& current = currentMapping.publicToPrivate[c];
-          if(current.cellKey == EMPTY_KEY) {
-            //Empty entries come last so if there's an empty one no need to continue
-            break;
-          }
-          bool foundCurrent = false;
-          for(CellKey& found : desiredMapping.publicToPrivate) {
-            if(current.cellKey == found.cellKey) {
-              found = {};
-              foundCurrent = true;
-              break;
+        //TODO: skip reinsertion check if new bounds aren't outside of cells from last time
+        //Try to insert into each cell this overlaps with, skipping if they're already there
+        foreachCell(grid.definition, newBounds, [&](size_t cellIndex) {
+          if(cellIndex < grid.cells.size()) {
+            Sweep2D& cell = grid.cells[cellIndex];
+            if(cell.containedKeys.insert(keys[i]).second) {
+              SweepNPrune::insertRange(cell, keys + i, 1);
             }
           }
-          if(foundCurrent) {
-            ++c;
-          }
-          else {
-            Sweep2D& cell = grid.cells[current.cellKey.value];
-            SweepNPrune::eraseRange(cell, &current.elementKey, 1);
-            removeMapping(currentMapping, c);
-          }
-        }
-
-        //Now any remaining keys are new ones that need to be added
-        for(const CellKey& newKey : desiredMapping.publicToPrivate) {
-          if(newKey.cellKey != EMPTY_KEY && c < currentMapping.publicToPrivate.size()) {
-            CellKey& slot = currentMapping.publicToPrivate[c++];
-            slot.cellKey = newKey.cellKey;
-            SweepNPrune::insertRange(grid.cells[slot.cellKey.value], &grid.mappings.userKeys[keys[i].value], &slot.elementKey, 1);
-          }
-        }
-
-        //Now actually write the bounds. This could be split into a separate step if the grid itself kept a copy of all bounds
-        for(size_t e = 0; e < c; ++e) {
-          const Broadphase::SweepGrid::CellKey& key = currentMapping.publicToPrivate[e];
-          SweepNPrune::updateBoundaries(grid.cells[key.cellKey.value],
-            minX + i,
-            maxX + i,
-            minY + i,
-            maxY + i,
-            &key.elementKey, 1);
-        }
+        });
+        //Removal happens during recomputePairs when cells realize elements are outside of their intended boundaries
       }
     }
 
@@ -508,13 +566,15 @@ namespace Broadphase {
         builder.submitTask(std::move(process));
       }
       {
-        //Artificial dependency on grid so the previous finishes first
-        combine.query<const SharedRow<Broadphase::SweepGrid::Grid>>();
+        //Dependency on grid so the previous finishes first
+        auto grid = combine.query<const SharedRow<Broadphase::SweepGrid::Grid>>().tryGetSingletonElement();
         auto& finalResults = *combine.query<SharedRow<SweepNPruneBroadphase::PairChanges>>().tryGetSingletonElement();
 
-        combine.setCallback([&finalResults, data](AppTaskArgs&) mutable {
+        combine.setCallback([&finalResults, data, grid](AppTaskArgs&) mutable {
           finalResults.mGained.clear();
           finalResults.mLost.clear();
+
+          Broadphase::processPendingRemovals(grid->objects, finalResults.mLost);
 
           //First update all the reference counts based on individual reports of gains and losses within cells
           for(size_t i = 0; i < data->tasks.size(); ++i) {
