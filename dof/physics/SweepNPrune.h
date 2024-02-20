@@ -83,6 +83,16 @@ namespace Broadphase {
     std::unordered_set<SweepCollisionPair> trackedPairs;
   };
 
+  struct SwapLog {
+    //These contain BroadphaseKeys rather than UserKeys until the final step of recomputePairs that updates PairTracker
+    std::vector<SweepCollisionPair>& gains;
+    std::vector<SweepCollisionPair>& losses;
+  };
+  struct ConstSwapLog {
+    const std::vector<SweepCollisionPair>& gains;
+    const std::vector<SweepCollisionPair>& losses;
+  };
+
   //Generates new keys and adds the obects to the db. Should be used in combination with insertion into
   //the spatial strucures that reference this
   void insertRange(ObjectDB& db,
@@ -103,12 +113,12 @@ namespace Broadphase {
     const BroadphaseKey* keys,
     size_t count
   );
-
-  struct SwapLog {
-    //These contain BroadphaseKeys rather than UserKeys until the final step of recomputePairs that updates PairTracker
-    std::vector<SweepCollisionPair>& gains;
-    std::vector<SweepCollisionPair>& losses;
-  };
+  //Log events for pairs that will be removed as a result of pending removals, but don't remove yet
+  void logPendingRemovals(const ObjectDB& db, SwapLog& log, const PairTracker& pairs);
+  //Take the results of recomputePairs, resolve duplicates, and transform the keys from BroadphaseKey to UserKey
+  void logChangedPairs(const ObjectDB& db, PairTracker& pairs, const ConstSwapLog& changedPairs, SwapLog& output);
+  //Remove elements pending deletion. This is after the events for them have already been logged and no cells are referencing them anymore
+  void processPendingRemovals(ObjectDB& db);
 
   struct SweepElement {
     static constexpr size_t END_BIT = size_t(1) << (sizeof(size_t)*8 - 1);
@@ -150,8 +160,9 @@ namespace Broadphase {
     //Free list is used to guarantee index stability
     std::vector<SweepElement> elements;
     //If elements are found outside of this range the shapes are removed from this Sweep2D
-    float min{};
-    float max{};
+    //Default to max float extents meaning unlimited
+    float min = std::numeric_limits<float>::lowest();
+    float max = std::numeric_limits<float>::max();
   };
 
   struct Sweep2D {

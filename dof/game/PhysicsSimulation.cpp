@@ -42,9 +42,8 @@ namespace PhysicsSimulation {
           const Broadphase::SweepGrid::Grid& grid = broadphase.get<0>(t).at();
           for(size_t i = 0; i < grid.cells.size(); ++i) {
             const Broadphase::Sweep2D& sweep = grid.cells[i];
-            const glm::vec2 basePos{ static_cast<float>(i % grid.definition.cellsX), static_cast<float>(i / grid.definition.cellsX) };
-            const glm::vec2 min = grid.definition.bottomLeft + basePos*grid.definition.cellSize;
-            const glm::vec2 max = min + grid.definition.cellSize;
+            const glm::vec2 min{ sweep.axis[0].min, sweep.axis[1].min };
+            const glm::vec2 max{ sweep.axis[0].max, sweep.axis[1].max };
             const glm::vec2 center = (min + max) * 0.5f;
             glm::vec3 color{ 1.0f, 0.0f, 0.0f };
             DebugDrawer::drawLine(debug, min, { max.x, min.y }, color);
@@ -52,10 +51,10 @@ namespace PhysicsSimulation {
             DebugDrawer::drawLine(debug, max, { min.x, max.y }, color);
             DebugDrawer::drawLine(debug, min, { min.x, max.y }, color);
 
-            for(size_t b = 0; b < sweep.bounds[0].size(); ++b) {
-              const auto& x = sweep.bounds[0][b];
-              const auto& y = sweep.bounds[1][b];
-              if(x.first == Broadphase::Sweep2D::REMOVED) {
+            for(const auto& key : sweep.containedKeys) {
+              const auto& x = grid.objects.bounds[0][key.value];
+              const auto& y = grid.objects.bounds[1][key.value];
+              if(x.first == Broadphase::ObjectDB::REMOVED) {
                 continue;
               }
               color = { 0.0f, 1.0f, 1.0f };

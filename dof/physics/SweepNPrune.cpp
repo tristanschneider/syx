@@ -220,6 +220,21 @@ namespace Broadphase {
     }
   }
 
+  void logChangedPairs(const ObjectDB& db, PairTracker& pairs, const ConstSwapLog& changedPairs, SwapLog& output) {
+    for(const SweepCollisionPair& g : changedPairs.gains) {
+      if(pairs.trackedPairs.insert(g).second) {
+        //Up until now the pairs have been holding BroadphaseKeys. For the event, look up the corresponding UserKey
+        output.gains.emplace_back(db.userKey[g.a], db.userKey[g.b]);
+      }
+    }
+    for(const SweepCollisionPair& l : changedPairs.losses) {
+      if(auto it = pairs.trackedPairs.find(l); it != pairs.trackedPairs.end()) {
+        pairs.trackedPairs.erase(it);
+        output.losses.emplace_back(db.userKey[l.a], db.userKey[l.b]);
+      }
+    }
+  }
+
   //Log events for pairs that will be removed as a result of pending removals, but don't remove yet
   void logPendingRemovals(const ObjectDB& db, SwapLog& log, const PairTracker& pairs) {
     //All removal events should have been logged, now insert removals into free list and trim them off the end of the axes
@@ -560,22 +575,11 @@ namespace Broadphase {
           //Due to overlapping cells some of the pairs may have duplicate information
           //Tracked pairs can be updated now and used to discard the redundant events based on if the event would change
           //what is tracked
-          PairTracker& pairs = grid->pairs;
-          const std::vector<UserKey>& userKeys = grid->objects.userKey;
+          SwapLog results{ finalResults.mGained, finalResults.mLost };
           for(size_t i = 0; i < data->tasks.size(); ++i) {
             const TaskData& t = data->tasks[i];
-            for(const SweepCollisionPair& g : t.gains) {
-              if(pairs.trackedPairs.insert(g).second) {
-                //Up until now the pairs have been holding BroadphaseKeys. For the event, look up the corresponding UserKey
-                finalResults.mGained.emplace_back(userKeys[g.a], userKeys[g.b]);
-              }
-            }
-            for(const SweepCollisionPair& l : t.losses) {
-              if(auto it = pairs.trackedPairs.find(l); it != pairs.trackedPairs.end()) {
-                pairs.trackedPairs.erase(it);
-                finalResults.mLost.emplace_back(userKeys[l.a], userKeys[l.b]);
-              }
-            }
+            const ConstSwapLog taskLog{ t.gains, t.losses };
+            Broadphase::logChangedPairs(grid->objects, grid->pairs, taskLog, results);
           }
 
           //Now that everything is done, actually remove pending elements
