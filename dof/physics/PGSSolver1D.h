@@ -3,8 +3,8 @@
 #include "glm/vec2.hpp"
 
 namespace PGS1D {
-  using BodyIndex = uint16_t;
-  using ConstraintIndex = uint16_t;
+  using BodyIndex = uint32_t;
+  using ConstraintIndex = uint32_t;
 
   //Same idea as PGSSolver but only solving on a single axis
   struct Jacobian {

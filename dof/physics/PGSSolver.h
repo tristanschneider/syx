@@ -3,8 +3,8 @@
 #include "glm/vec2.hpp"
 
 namespace PGS {
-  using BodyIndex = uint16_t;
-  using ConstraintIndex = uint16_t;
+  using BodyIndex = uint32_t;
+  using ConstraintIndex = uint32_t;
 
   //Constraint between ab(1) and bc(2) and ac(3)
   //V = [va]

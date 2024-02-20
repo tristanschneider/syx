@@ -231,10 +231,7 @@ namespace Input {
     void fillAxis(Axis& axis) {
       using RangeT = decltype(eventToRange(axis));
       using TraverserT = decltype(rangeToEdge(RangeT{}));
-      bool testa = eventInput.data.index() == traverser.inputSourceRange.data.index();
       if(eventInput == traverser.inputSourceRange) {
-      bool testb = eventInput.data.index() == traverser.inputSourceRange.data.index();
-      assert(testa && testb);
         const auto& t = std::get<TraverserT>(traverser.data);
         axis.absolute = t.absolute;
         axis.delta = t.delta;
