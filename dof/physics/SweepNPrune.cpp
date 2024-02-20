@@ -350,7 +350,7 @@ namespace Broadphase {
         for(size_t i = 0; i < count; ++i) {
           const SweepElement& e = sweep.axis[axis].elements[i];
           if(e.isEnd()) {
-            if(db.bounds[0][e.getValue()].second < sweep.axis[axis].min) {
+            if(db.bounds[axis][e.getValue()].second < sweep.axis[axis].min) {
               toRemove.push_back(BroadphaseKey{ e.getValue() });
             }
             else {
@@ -363,7 +363,7 @@ namespace Broadphase {
           const size_t ri = count - i - 1;
           const SweepElement& e = sweep.axis[axis].elements[ri];
           if(e.isStart()) {
-            if(db.bounds[0][e.getValue()].second > sweep.axis[axis].min) {
+            if(db.bounds[axis][e.getValue()].first > sweep.axis[axis].max) {
               toRemove.push_back(BroadphaseKey{ e.getValue() });
             }
             else {
@@ -394,21 +394,24 @@ namespace Broadphase {
           //Should always be found
           if(beginIt != axisElements.end()) {
             //Remove this and its accompanying end entry by shifting everything else down
-            while(true) {
-              auto next = beginIt + 1;
-              if(next == axisElements.end()) {
-                break;
-              }
-              if(next->getValue() == remove.value) {
+            auto nextToMove = beginIt + 1;
+            auto toFill = beginIt;
+            while(nextToMove != axisElements.end()) {
+              if(nextToMove->getValue() == remove.value) {
                 //Look ahead one extra entry for this one to fill this end entry to remove
-                if(auto extra = next + 1; extra != axisElements.end()) {
-                  *beginIt = *extra;
-                }
+                nextToMove++;
+                continue;
               }
               else {
-                *beginIt = *next;
+                *toFill = *nextToMove;
               }
-              beginIt = next;
+              ++toFill;
+              ++nextToMove;
+            }
+            //Should always be two removed elements and never less than axisElements
+            const size_t removedCount = nextToMove - toFill;
+            if(removedCount <= axisElements.size()) {
+              axisElements.resize(axisElements.size() - removedCount);
             }
           }
         }
@@ -423,14 +426,28 @@ namespace Broadphase {
   };
 
   namespace SweepGrid {
+    void setIf(float& value, bool condition, float toSet) {
+      if(condition) {
+        value = toSet;
+      }
+    }
     void init(Grid& grid) {
+      constexpr float posInfinity = std::numeric_limits<float>::max();
+      constexpr float negInfinity = std::numeric_limits<float>::lowest();
       grid.cells.resize(grid.definition.cellsX*grid.definition.cellsY);
       for(size_t x = 0; x < grid.definition.cellsX; ++x) {
         for(size_t y = 0; y < grid.definition.cellsY; ++y) {
           glm::vec2 min = grid.definition.bottomLeft;
           min.x += static_cast<float>(x) * grid.definition.cellSize.x;
           min.y += static_cast<float>(y) * grid.definition.cellSize.y;
-          const glm::vec2 max = min + grid.definition.cellSize;
+          glm::vec2 max = min + grid.definition.cellSize;
+
+          //Extend to infinity on boundaries
+          min.x = x == 0 ? negInfinity : min.x;
+          min.y = y == 0 ? negInfinity : min.y;
+          max.x = x + 1 == grid.definition.cellsX ? posInfinity : max.x;
+          max.y = y + 1 == grid.definition.cellsY ? posInfinity : max.y;
+
           Sweep2D& cell = grid.cells[x + y*grid.definition.cellsX];
           for(size_t i = 0; i < cell.axis.size(); ++i) {
             cell.axis[i].min = min[i];
@@ -491,10 +508,10 @@ namespace Broadphase {
         }
         //Update the bounds information all cells are referring to for this single key
         Broadphase::updateBoundaries(grid.objects,
-          minX,
-          maxX,
-          minY,
-          maxY,
+          minX + i,
+          maxX + i,
+          minY + i,
+          maxY + i,
           keys + i,
           1);
 

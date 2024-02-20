@@ -932,13 +932,17 @@ namespace Test {
     size_t cellSize(const Broadphase::SweepGrid::Grid& grid, size_t cell) {
       //Elements don't use the free list but have two entries per object
       //Another approach would be user keys minus free list size
-      return grid.cells[cell].axis[0].elements.size() / 2;
+      const size_t result = grid.cells[cell].axis[0].elements.size() / 2;
+      Assert::AreEqual(result, grid.cells[cell].containedKeys.size());
+      Assert::AreEqual(result, grid.cells[cell].axis[1].elements.size() / 2);
+      return result;
     }
 
     size_t trackedCellPairs(const Broadphase::SweepGrid::Grid& grid, size_t cellIndex) {
       const Broadphase::Sweep2D& cell = grid.cells[cellIndex];
       return std::count_if(grid.pairs.trackedPairs.begin(), grid.pairs.trackedPairs.end(), [&](const auto& pair) {
-        return cell.containedKeys.count(Broadphase::BroadphaseKey{ pair.a }) > 0;
+        return cell.containedKeys.count(Broadphase::BroadphaseKey{ pair.a }) &&
+          cell.containedKeys.count(Broadphase::BroadphaseKey{ pair.b });
       });
     }
 
