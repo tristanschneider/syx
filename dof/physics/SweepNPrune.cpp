@@ -12,9 +12,9 @@
 namespace Broadphase {
   struct ElementBounds {
     bool operator<(const ElementBounds& rhs) const {
-      //Sort by bounds unless they match in which case preserve key order
-      //Main poitn is this prevents swapping a start and end with itself
-      return value == rhs.value ? element.value < rhs.element.value : value < rhs.value;
+      //It's important to ensure start and end don't pass each-other but the worst they can do is match
+      //In which case the sort will not swap them past each other as they stop when < is false
+      return value < rhs.value;
     }
     SweepElement element;
     const std::pair<float, float>& bounds;
@@ -131,13 +131,15 @@ namespace Broadphase {
         SweepElement* current = mid - 1;
         while(current != first) {
           const ElementBounds c = unwrapElement(*current, bounds);
-          if(c < valueBounds) {
+          //Keep searching while the value to insert is lower. If it's equal or greater, stop
+          if(valueBounds < c) {
+            logSwap(valueBounds, *current, args);
+            *(current + 1) = *current;
+            --current;
+          }
+          else {
             break;
           }
-
-          logSwap(valueBounds, *current, args);
-          *(current + 1) = *current;
-          --current;
         }
         //Insert element at new insertion point
         *(current + 1) = value;

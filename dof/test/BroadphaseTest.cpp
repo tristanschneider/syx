@@ -25,24 +25,39 @@ namespace Test {
         Broadphase::processPendingRemovals(objects);
       }
 
+      float unwrap(size_t axis, const Broadphase::SweepElement& e) const {
+        const auto& pair = objects.bounds[axis][e.getValue()];
+        return e.isStart() ? pair.first : pair.second;
+      }
+
       Broadphase::Sweep2D sweep;
       Broadphase::ObjectDB objects;
       Broadphase::PairTracker pairs;
+    };
+
+    struct TestElementSort {
+      bool operator()(const Broadphase::SweepElement& l, const Broadphase::SweepElement& r) const {
+        if(l.getValue() == r.getValue()) {
+          return l.isStart();
+        }
+        return sweep.unwrap(axis, l) < sweep.unwrap(axis, r);
+      }
+
+      const TestSweep& sweep;
+      size_t axis{};
     };
 
     static void _assertSorted(const TestSweep& sweep) {
       std::array<std::vector<float>, Broadphase::Sweep2D::S> values;
       for(size_t d = 0; d < Broadphase::Sweep2D::S; ++d) {
         for(size_t i = 0; i < sweep.sweep.axis[d].elements.size(); ++i) {
-          const Broadphase::SweepElement& k = sweep.sweep.axis[d].elements[i];
-          const auto& pair = sweep.objects.bounds[d][k.getValue()];
-          values[d].push_back(k.isStart() ? pair.first : pair.second);
+          values[d].push_back(sweep.unwrap(d, sweep.sweep.axis[d].elements[i]));
         }
       }
-
       for(size_t d = 0; d < Broadphase::Sweep2D::S; ++d) {
-        Assert::IsTrue(std::is_sorted(values[d].begin(), values[d].end()), L"All elements should be sorted by bounds");
         std::vector<Broadphase::SweepElement> elements = sweep.sweep.axis[d].elements;
+        Assert::IsTrue(std::is_sorted(values[d].begin(), values[d].end()));
+        Assert::IsTrue(std::is_sorted(elements.begin(), elements.end(), TestElementSort{ sweep, d }), L"All elements should be sorted by bounds");
         std::sort(elements.begin(), elements.end());
         Assert::IsTrue(std::unique(elements.begin(), elements.end()) == elements.end(), L"There should be no duplicate elements");
       }
@@ -120,6 +135,31 @@ namespace Test {
       return Broadphase::SweepCollisionPair{ a, b };
     }
 
+    TEST_METHOD(ZeroSizeElement) {
+      TestSweep sweep;
+      std::vector<Broadphase::SweepCollisionPair> gains;
+
+      {
+        SweepEntry entry;
+        entry.mKey = 1;
+        entry.mNewBoundaryMin = entry.mNewBoundaryMax = glm::vec2{ 0 };
+        //The _assertSorted in here will catch failures
+        _insertOne(sweep, entry, gains);
+      }
+      {
+        SweepEntry entry;
+        entry.mKey = 2;
+        entry.mNewBoundaryMin = entry.mNewBoundaryMax = glm::vec2{ -1.0f };
+        _insertOne(sweep, entry, gains);
+      }
+      {
+        SweepEntry entry;
+        entry.mKey = 3;
+        entry.mNewBoundaryMin = entry.mNewBoundaryMax = glm::vec2{ -1.0f };
+        _insertOne(sweep, entry, gains);
+      }
+    }
+
     TEST_METHOD(SweepNPrune_InsertRange) {
       TestSweep sweep;
       std::vector<Broadphase::SweepCollisionPair> pairs;
@@ -127,6 +167,8 @@ namespace Test {
       entry.mKey = size_t(1);
       entry.mNewBoundaryMin = glm::vec2(1.0f, 2.0f);
       entry.mNewBoundaryMax = glm::vec2(2.0f, 3.0f);
+      constexpr float e = 0.000001f;
+      constexpr glm::vec2 ev{ e };
       SweepEntry same = entry;
       same.mKey = size_t(2);
 
@@ -155,7 +197,7 @@ namespace Test {
 
       //Insert on the boundary of left and center
       SweepEntry leftToCenter;
-      leftToCenter.mNewBoundaryMin = left.mNewBoundaryMax;
+      leftToCenter.mNewBoundaryMin = left.mNewBoundaryMax - ev;
       leftToCenter.mNewBoundaryMax = entry.mNewBoundaryMin;
       leftToCenter.mKey = 5;
       _insertOne(sweep, leftToCenter, pairs);
@@ -322,7 +364,7 @@ namespace Test {
 
       //Resize and move bottom left to inside of upperRight
       bottomLeft.mNewBoundaryMin = upperRight.mNewBoundaryMin + glm::vec2(0.1f);
-      bottomLeft.mNewBoundaryMax = bottomLeft.mNewBoundaryMax + glm::vec2(0.1f);
+      bottomLeft.mNewBoundaryMax = bottomLeft.mNewBoundaryMin + glm::vec2(0.1f);
       _reinsertOne(sweep, bottomLeft, gainedPairs, lostPairs);
       assertPairsMatch(gainedPairs, { sweepPair(3, 2) });
       assertPairsMatch(lostPairs, { sweepPair(3, 4) });
