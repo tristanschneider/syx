@@ -20,6 +20,7 @@ namespace Tags {
   struct LinVel{};
   //Angular velocity in Angle
   struct AngVel{};
+  struct Scale{};
 
   struct GPos{};
   struct GRot{};
@@ -65,6 +66,8 @@ namespace Tags {
   using PosZRow = FloatRow<Pos, Z>;
   using RotXRow = FloatRow<Rot, CosAngle>;
   using RotYRow = FloatRow<Rot, SinAngle>;
+  using ScaleXRow = FloatRow<Scale, X>;
+  using ScaleYRow = FloatRow<Scale, Y>;
 
   struct TerrainRow : TagRow {};
 };

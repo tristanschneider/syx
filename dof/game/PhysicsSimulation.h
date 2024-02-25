@@ -18,7 +18,7 @@ namespace SweepNPruneBroadphase {
 }
 
 namespace Narrowphase {
-  struct UnitCubeDefinition;
+  struct RectDefinition;
   struct IShapeClassifier;
 }
 
@@ -34,7 +34,7 @@ public:
 };
 
 namespace PhysicsSimulation {
-  Narrowphase::UnitCubeDefinition getUnitCubeDefinition();
+  Narrowphase::RectDefinition getRectDefinition();
   PhysicsAliases getPhysicsAliases();
 
   std::shared_ptr<Narrowphase::IShapeClassifier> createShapeClassifier(RuntimeDatabaseTaskBuilder& task);

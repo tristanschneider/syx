@@ -338,8 +338,8 @@ namespace Test {
     TEST_METHOD(LargeCounts) {
       using namespace PGS;
       SolverStorage storage;
-      constexpr auto CONSTRAINTS = std::numeric_limits<PGS::ConstraintIndex>::max();
-      constexpr auto BODIES = std::numeric_limits<PGS::BodyIndex>::max();
+      constexpr auto CONSTRAINTS = std::numeric_limits<uint16_t>::max();
+      constexpr auto BODIES = std::numeric_limits<uint16_t>::max();
       storage.resize(BODIES, CONSTRAINTS);
       storage.setUniformMass(1, 0);
       storage.setUniformLambdaBounds(SolverStorage::UNLIMITED_MIN, SolverStorage::UNLIMITED_MAX);

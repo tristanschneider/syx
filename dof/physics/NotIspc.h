@@ -430,8 +430,10 @@ INLINE int addIndexWrapped(int index, int toAdd, int size) {
 INLINE EXPORT void generateUnitCubeCubeContacts(
   UNIFORM UniformConstVec2& positionsA,
   UNIFORM UniformRotation& rotationsA,
+  UNIFORM UniformConstVec2& scaleA,
   UNIFORM UniformConstVec2& positionsB,
   UNIFORM UniformRotation& rotationsB,
+  UNIFORM UniformConstVec2& scaleB,
   UNIFORM UniformVec2& resultNormals,
   UNIFORM UniformContact& resultContactOne,
   UNIFORM UniformContact& resultContactTwo,
@@ -451,8 +453,8 @@ INLINE EXPORT void generateUnitCubeCubeContacts(
     //contacts between an AABB and an OBB instead of OBB to OBB
     const FLOAT2 rotBInA = multiplyRotationMatrices(rotB.x, rotB.y, rotAInverse.x, rotAInverse.y);
     //Get basis vectors with the lengths of B so that they go from the center to the extents
-    const FLOAT2 upB = vec2Multiply(getUpFromRotation(rotBInA.x, rotBInA.y), 0.5f);
-    const FLOAT2 rightB = vec2Multiply(getRightFromRotation(rotBInA.x, rotBInA.y), 0.5f);
+    const FLOAT2 upB = vec2Multiply(getUpFromRotation(rotBInA.x, rotBInA.y), scaleB.y[i]);
+    const FLOAT2 rightB = vec2Multiply(getRightFromRotation(rotBInA.x, rotBInA.y), scaleB.x[i]);
     FLOAT2 posBInA = vec2Sub(posB, posA);
     posBInA = multiplyVec2ByRotation(rotAInverse.x, rotAInverse.y, posBInA.x, posBInA.y);
 
@@ -493,16 +495,17 @@ INLINE EXPORT void generateUnitCubeCubeContacts(
 
       //ispc doesn't like reading varying from array by index
       UNIFORM FLOAT2 aNormal = aNormals[edgeA];
+      const FLOAT2 vScaleA = { scaleA.x[i], scaleA.y[i] };
 
       //Last inside is invalidated when the edges change since it's inside relative to a given edge
-      float lastOverlap = 0.5f - dotProduct(aNormal.x, aNormal.y, lastPoint.x, lastPoint.y);
+      float lastOverlap = abs(dotProduct(aNormal.x, aNormal.y, vScaleA.x, vScaleA.y)) - dotProduct(aNormal.x, aNormal.y, lastPoint.x, lastPoint.y);
       bool lastInside = lastOverlap >= 0.0f;
 
       float currentEdgeOverlap = 0.0f;
       for(int j = 0; j < inputCount; ++j) {
         const FLOAT2 currentPoint = { inputPointsX[j], inputPointsY[j] };
         //(e-p).n
-        const float currentOverlap = 0.5f - dotProduct(aNormal.x, aNormal.y, currentPoint.x, currentPoint.y);
+        const float currentOverlap = abs(dotProduct(aNormal.x, aNormal.y, vScaleA.x, vScaleA.y)) - dotProduct(aNormal.x, aNormal.y, currentPoint.x, currentPoint.y);
         const bool currentInside = currentOverlap >= 0;
         const FLOAT2 lastToCurrent = vec2Sub(currentPoint, lastPoint);
         //Might be division by zero but if so the intersect won't be used because currentInside would match lastInside

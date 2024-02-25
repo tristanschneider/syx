@@ -23,6 +23,8 @@ struct PhysicsAliases {
   FloatAlias posY;
   FloatAlias rotX;
   FloatAlias rotY;
+  FloatAlias scaleX;
+  FloatAlias scaleY;
   FloatAlias linVelX;
   FloatAlias linVelY;
   FloatAlias angVel;

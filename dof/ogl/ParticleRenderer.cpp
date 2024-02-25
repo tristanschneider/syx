@@ -118,6 +118,8 @@ namespace {
     uniform samplerBuffer uPosZ;
     uniform samplerBuffer uRotX;
     uniform samplerBuffer uRotY;
+    uniform samplerBuffer uScaleX;
+    uniform samplerBuffer uScaleY;
 
     flat out int oInstanceID;
     out vec2 oUV;
@@ -132,7 +134,9 @@ namespace {
         }
         float cosAngle = texelFetch(uRotX, i).r;
         float sinAngle = texelFetch(uRotY, i).r;
-        vec2 pos = aPosition;
+        float scaleX = texelFetch(uScaleX, i).r;
+        float scaleY = texelFetch(uScaleY, i).r;
+        vec2 pos = vec2(aPosition.x * scaleX, aPosition.y * scaleY);
         //2d rotation matrix multiply
         pos = vec2(pos.x*cosAngle - pos.y*sinAngle,
           pos.x*sinAngle + pos.y*cosAngle);
@@ -395,6 +399,8 @@ void ParticleRenderer::init(ParticleData& data) {
   data.mSceneShader.posX = glGetUniformLocation(data.mSceneShader.mProgram, "uPosX");
   data.mSceneShader.posY = glGetUniformLocation(data.mSceneShader.mProgram, "uPosY");
   data.mSceneShader.posZ = glGetUniformLocation(data.mSceneShader.mProgram, "uPosZ");
+  data.mSceneShader.scaleX = glGetUniformLocation(data.mSceneShader.mProgram, "uScaleX");
+  data.mSceneShader.scaleY = glGetUniformLocation(data.mSceneShader.mProgram, "uScaleY");
   data.mSceneShader.rotX = glGetUniformLocation(data.mSceneShader.mProgram, "uRotX");
   data.mSceneShader.rotY = glGetUniformLocation(data.mSceneShader.mProgram, "uRotY");
   data.mSceneShader.velX = glGetUniformLocation(data.mSceneShader.mProgram, "uVelX");
@@ -456,6 +462,8 @@ void ParticleRenderer::renderNormals(const ParticleData& data, const ParticleUni
   _bindTextureSamplerUniform(sprites.posZ, GL_R32F, textureIndex++, data.mSceneShader.posZ);
   _bindTextureSamplerUniform(sprites.rotX, GL_R32F, textureIndex++, data.mSceneShader.rotX);
   _bindTextureSamplerUniform(sprites.rotY, GL_R32F, textureIndex++, data.mSceneShader.rotY);
+  _bindTextureSamplerUniform(sprites.scaleX, GL_R32F, textureIndex++, data.mSceneShader.scaleX);
+  _bindTextureSamplerUniform(sprites.scaleY, GL_R32F, textureIndex++, data.mSceneShader.scaleY);
   _bindTextureSamplerUniform(sprites.velX, GL_R32F, textureIndex++, data.mSceneShader.velX);
   _bindTextureSamplerUniform(sprites.velY, GL_R32F, textureIndex++, data.mSceneShader.velY);
   _bindTextureSamplerUniform(sprites.velA, GL_R32F, textureIndex++, data.mSceneShader.angVel);

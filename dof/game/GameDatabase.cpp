@@ -77,7 +77,7 @@ namespace GameDatabase {
 
     SweepNPruneBroadphase::BroadphaseKeys,
     Narrowphase::CollisionMaskRow,
-    Narrowphase::SharedUnitCubeRow,
+    Narrowphase::SharedRectangleRow,
     ConstraintSolver::ConstraintMaskRow,
     ConstraintSolver::SharedMassRow,
     ConstraintSolver::SharedMaterialRow,
@@ -107,7 +107,7 @@ namespace GameDatabase {
 
     SweepNPruneBroadphase::BroadphaseKeys,
     Narrowphase::CollisionMaskRow,
-    Narrowphase::SharedUnitCubeRow,
+    Narrowphase::SharedRectangleRow,
     ConstraintSolver::ConstraintMaskRow,
     ConstraintSolver::SharedMassRow,
     ConstraintSolver::SharedMaterialRow,
@@ -125,12 +125,14 @@ namespace GameDatabase {
   using TerrainTable = Table<
     ZeroMassObjectTableTag,
     Tags::TerrainRow,
-    Narrowphase::SharedUnitCubeRow,
+    Narrowphase::SharedRectangleRow,
     FloatRow<Tags::Pos, Tags::X>,
     FloatRow<Tags::Pos, Tags::Y>,
     FloatRow<Tags::Pos, Tags::Z>,
     FloatRow<Tags::Rot, Tags::CosAngle>,
     FloatRow<Tags::Rot, Tags::SinAngle>,
+    Tags::ScaleXRow,
+    Tags::ScaleYRow,
 
     //Gameplay data extracted from above
     //TODO: take advantage of immobility to avoid the need for this
@@ -180,7 +182,7 @@ namespace GameDatabase {
 
     SweepNPruneBroadphase::BroadphaseKeys,
     Narrowphase::CollisionMaskRow,
-    Narrowphase::SharedUnitCubeRow,
+    Narrowphase::SharedRectangleRow,
     ConstraintSolver::ConstraintMaskRow,
     ConstraintSolver::SharedMassRow,
     ConstraintSolver::SharedMaterialRow,
@@ -244,7 +246,7 @@ namespace GameDatabase {
     setDefaultValue<FloatRow<Tags::GRot, Tags::CosAngle>>(builder, "setDefault GRot", 1.0f);
     setDefaultValue<Narrowphase::CollisionMaskRow>(builder, "setDefault Mask", uint8_t(~0));
     setDefaultValue<ConstraintSolver::ConstraintMaskRow>(builder, "setDefault Constraint Mask", ConstraintSolver::MASK_SOLVE_ALL);
-    setDefaultValue<ConstraintSolver::SharedMassRow, Narrowphase::SharedUnitCubeRow>(builder, "setDefault mass", Geo::computeQuadMass(1, 1, 1));
+    setDefaultValue<ConstraintSolver::SharedMassRow, Narrowphase::SharedRectangleRow>(builder, "setDefault mass", Geo::computeQuadMass(1, 1, 1));
     setDefaultValue<ConstraintSolver::SharedMassRow, ZeroMassObjectTableTag>(builder, "set zero mass", Geo::BodyMass{});
     //Fragments in particular start opaque then reveal the texture as they take damage
     setDefaultValue<Tint, const IsFragment>(builder, "setDefault Tint", glm::vec4(0, 0, 0, 1));

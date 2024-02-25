@@ -21,7 +21,7 @@ namespace Narrowphase {
   namespace Shape {
     //Not the actual center, more like the reference point
     struct CenterVisitor {
-      glm::vec2 operator()(const UnitCube& v) const {
+      glm::vec2 operator()(const Rectangle& v) const {
         return v.center;
       }
       glm::vec2 operator()(const Raycast& v) const {
@@ -68,16 +68,18 @@ namespace Narrowphase {
     swapAB(result);
   }
 
-  void generateContacts(Shape::UnitCube& a, Shape::UnitCube& b, ContactArgs& result) {
+  void generateContacts(Shape::Rectangle& a, Shape::Rectangle& b, ContactArgs& result) {
     ispc::UniformConstVec2 pa{ &a.center.x, &a.center.y };
     ispc::UniformRotation ra{ &a.right.x, &a.right.y };
+    ispc::UniformConstVec2 sa{ &a.halfWidth.x, &a.halfWidth.y };
     ispc::UniformConstVec2 pb{ &b.center.x, &b.center.y };
     ispc::UniformRotation rb{ &b.right.x, &b.right.y };
+    ispc::UniformConstVec2 sb{ &b.halfWidth.x, &b.halfWidth.y };
     ispc::UniformVec2 normal{ &result.manifold.points[0].normal.x, &result.manifold.points[0].normal.y };
     glm::vec2 c1, c2;
     ispc::UniformContact uc1{ &c1.x, &c1.y, &result.manifold.points[0].overlap };
     ispc::UniformContact uc2{ &c2.x, &c2.y, &result.manifold.points[1].overlap };
-    notispc::generateUnitCubeCubeContacts(pa, ra, pb, rb, normal, uc1, uc2, 1);
+    notispc::generateUnitCubeCubeContacts(pa, ra, sa, pb, rb, sb, normal, uc1, uc2, 1);
     if(result.manifold.points[0].overlap >= 0) {
       ++result.manifold.size;
       result.manifold.points[0].centerToContactA = c1 - a.center;
@@ -92,13 +94,13 @@ namespace Narrowphase {
     }
   }
 
-  void generateContacts(Shape::UnitCube& cube, Shape::Circle& circle, ContactArgs& result) {
+  void generateContacts(Shape::Rectangle& cube, Shape::Circle& circle, ContactArgs& result) {
     const glm::vec2 toCircle = circle.pos - cube.center;
     const glm::vec2 up = Geo::orthogonal(cube.right);
     const float extentX = glm::dot(cube.right, toCircle);
     const float extentY = glm::dot(up, toCircle);
-    constexpr float SCALEX = 0.5f;
-    constexpr float SCALEY = 0.5f;
+    const float SCALEX = cube.halfWidth.x;
+    const float SCALEY = cube.halfWidth.y;
     const glm::vec2 closestOnSquare = glm::clamp(extentX, -SCALEX, SCALEX)*cube.right + glm::clamp(extentY, -SCALEY, SCALEY)*up;
     const glm::vec2 closestOnSquareToCircle = toCircle - closestOnSquare;
     const float dist2 = glm::dot(closestOnSquareToCircle, closestOnSquareToCircle);
@@ -111,8 +113,8 @@ namespace Narrowphase {
     }
   }
 
-  void generateContacts(Shape::UnitCube& cube, Shape::Raycast& ray, ContactArgs& result) {
-    const glm::mat3 transform = Geo::buildTransform(cube.center, cube.right, { 1, 1 });
+  void generateContacts(Shape::Rectangle& cube, Shape::Raycast& ray, ContactArgs& result) {
+    const glm::mat3 transform = Geo::buildTransform(cube.center, cube.right, cube.halfWidth * 2.0f);
     const glm::mat3 invTransform = glm::affineInverse(transform);
     const glm::vec2 localStart = Geo::transformPoint(invTransform, ray.start);
     const glm::vec2 localEnd = Geo::transformPoint(invTransform, ray.end);
@@ -131,19 +133,19 @@ namespace Narrowphase {
     }
   }
 
-  void generateContacts(Shape::Raycast& ray, Shape::UnitCube& cube, ContactArgs& result) {
+  void generateContacts(Shape::Raycast& ray, Shape::Rectangle& cube, ContactArgs& result) {
     generateSwappedContacts(ray, cube, result);
   }
 
-  void generateContacts(Shape::Circle& circle, Shape::UnitCube& cube, ContactArgs& result) {
+  void generateContacts(Shape::Circle& circle, Shape::Rectangle& cube, ContactArgs& result) {
     generateSwappedContacts(circle, cube, result);
   }
 
-  void generateContacts(const Shape::UnitCube&, const Shape::AABB&, ContactArgs&) {
+  void generateContacts(const Shape::Rectangle&, const Shape::AABB&, ContactArgs&) {
     //TODO: generalize unit cube so it can be used for this
   }
 
-  void generateContacts(const Shape::AABB& a, const Shape::UnitCube& b, ContactArgs& result) {
+  void generateContacts(const Shape::AABB& a, const Shape::Rectangle& b, ContactArgs& result) {
     generateSwappedContacts(a, b, result);
   }
 
@@ -184,18 +186,20 @@ namespace Narrowphase {
 
   struct SharedUnitCubeQueries {
     std::shared_ptr<ITableResolver> resolver;
-    CachedRow<const SharedUnitCubeRow> definition;
+    CachedRow<const SharedRectangleRow> definition;
     CachedRow<const Row<float>> centerX;
     CachedRow<const Row<float>> centerY;
     CachedRow<const Row<float>> rotX;
     CachedRow<const Row<float>> rotY;
-    UnitCubeDefinition alias;
+    CachedRow<const Row<float>> scaleX;
+    CachedRow<const Row<float>> scaleY;
+    RectDefinition alias;
   };
 
   struct ShapeQueries {
     std::shared_ptr<ITableResolver> shapeResolver;
     std::shared_ptr<ITableResolver> zResolver;
-    CachedRow<const UnitCubeRow> unitCubeRow;
+    CachedRow<const RectangleRow> rectRow;
     CachedRow<const AABBRow> aabbRow;
     CachedRow<const RaycastRow> rayRow;
     CachedRow<const CircleRow> circleRow;
@@ -246,10 +250,10 @@ namespace Narrowphase {
     }
   }
 
-  ShapeQueries buildShapeQueries(RuntimeDatabaseTaskBuilder& task, const UnitCubeDefinition& unitCube, const PhysicsAliases& aliases) {
+  ShapeQueries buildShapeQueries(RuntimeDatabaseTaskBuilder& task, const RectDefinition& unitCube, const PhysicsAliases& aliases) {
     ShapeQueries result;
     result.shapeResolver = task.getResolver<
-      const UnitCubeRow,
+      const RectangleRow,
       const AABBRow,
       const RaycastRow,
       const CircleRow,
@@ -259,7 +263,8 @@ namespace Narrowphase {
     >();
     result.sharedUnitCube.resolver = task.getAliasResolver(
       unitCube.centerX, unitCube.centerY,
-      unitCube.rotX, unitCube.rotY
+      unitCube.rotX, unitCube.rotY,
+      unitCube.scaleX, unitCube.scaleY
     );
     result.sharedUnitCube.alias = unitCube;
     result.zResolver = task.getAliasResolver(aliases.posZ);
@@ -278,23 +283,27 @@ namespace Narrowphase {
       if(q.resolver->tryGetOrSwapRowAlias(qa.centerX, q.centerX, id) &&
         q.resolver->tryGetOrSwapRowAlias(qa.centerY, q.centerY, id)
       ) {
-        Shape::UnitCube cube;
-        cube.center = TableExt::read(myIndex, *q.centerX, *q.centerY);
+        Shape::Rectangle rect;
+        rect.center = TableExt::read(myIndex, *q.centerX, *q.centerY);
         //Rotation is optional
         if(q.resolver->tryGetOrSwapRowAlias(qa.rotX, q.rotX, id) &&
           q.resolver->tryGetOrSwapRowAlias(qa.rotY, q.rotY, id)
         ) {
-          cube.right = TableExt::read(myIndex, *q.rotX, *q.rotY);
+          rect.right = TableExt::read(myIndex, *q.rotX, *q.rotY);
         }
-        return { Shape::Variant{ cube } };
+        if(q.resolver->tryGetOrSwapRowAlias(qa.scaleX, q.scaleX, id) &&
+          q.resolver->tryGetOrSwapRowAlias(qa.scaleY, q.scaleY, id)) {
+          rect.halfWidth = TableExt::read(myIndex, *q.scaleX, *q.scaleY) * 0.5f;
+        }
+        return { Shape::Variant{ rect } };
       }
       //Cube with missing fields, empty shape
       return {};
     }
 
     //Individual unit cubes
-    if(queries.shapeResolver->tryGetOrSwapRow(queries.unitCubeRow, id)) {
-      return { Shape::Variant{ queries.unitCubeRow->at(myIndex) } };
+    if(queries.shapeResolver->tryGetOrSwapRow(queries.rectRow, id)) {
+      return { Shape::Variant{ queries.rectRow->at(myIndex) } };
     }
 
     //AABB
@@ -325,7 +334,7 @@ namespace Narrowphase {
     return getCollisionMask(queries, a) & getCollisionMask(queries, b);
   }
 
-  void generateInline(IAppBuilder& builder, const UnitCubeDefinition& unitCube, const PhysicsAliases& aliases) {
+  void generateInline(IAppBuilder& builder, const RectDefinition& unitCube, const PhysicsAliases& aliases) {
     auto task = builder.createTask();
     task.setName("generate contacts inline");
     auto shapeQuery = buildShapeQueries(task, unitCube, aliases);
@@ -371,11 +380,11 @@ namespace Narrowphase {
     builder.submitTask(std::move(task));
   }
 
-  void generateContactsFromSpatialPairs(IAppBuilder& builder, const UnitCubeDefinition& unitCube, const PhysicsAliases& aliases) {
+  void generateContactsFromSpatialPairs(IAppBuilder& builder, const RectDefinition& unitCube, const PhysicsAliases& aliases) {
     generateInline(builder, unitCube, aliases);
   }
 
-  std::shared_ptr<IShapeClassifier> createShapeClassifier(RuntimeDatabaseTaskBuilder& task, const UnitCubeDefinition& unitCube, const PhysicsAliases& aliases) {
+  std::shared_ptr<IShapeClassifier> createShapeClassifier(RuntimeDatabaseTaskBuilder& task, const RectDefinition& unitCube, const PhysicsAliases& aliases) {
     struct Impl : IShapeClassifier {
       Impl(ShapeQueries q)
         : queries{ std::move(q) } {

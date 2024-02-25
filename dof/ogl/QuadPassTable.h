@@ -16,6 +16,8 @@ struct QuadPassTable {
   struct PosZ : Row<float>{};
   struct RotX : Row<float>{};
   struct RotY : Row<float>{};
+  struct ScaleX : Row<float>{};
+  struct ScaleY : Row<float>{};
   struct LinVelX : Row<float>{};
   struct LinVelY : Row<float>{};
   struct AngVel : Row<float>{};
@@ -31,6 +33,8 @@ struct QuadPassTable {
     PosZ,
     RotX,
     RotY,
+    ScaleX,
+    ScaleY,
     LinVelX,
     LinVelY,
     AngVel,

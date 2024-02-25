@@ -20,10 +20,12 @@ namespace Test {
   struct RotX : Row<float> {};
   struct RotY : Row<float> {};
   struct PosZ : Row<float> {};
+  struct ScaleX : Row<float> {};
+  struct ScaleY : Row<float> {};
   using SharedUnitCubeTable = Table<
     StableIDRow,
     Narrowphase::CollisionMaskRow,
-    Narrowphase::SharedUnitCubeRow,
+    Narrowphase::SharedRectangleRow,
     PosX,
     PosY,
     RotX,
@@ -32,12 +34,12 @@ namespace Test {
   using UnitCubeTable = Table<
     StableIDRow,
     Narrowphase::CollisionMaskRow,
-    Narrowphase::UnitCubeRow
+    Narrowphase::RectangleRow
   >;
   using UnitCube3DTable = Table<
     StableIDRow,
     Narrowphase::CollisionMaskRow,
-    Narrowphase::UnitCubeRow,
+    Narrowphase::RectangleRow,
     Narrowphase::SharedThicknessRow,
     PosZ
   >;
@@ -56,12 +58,14 @@ namespace Test {
     Narrowphase::CollisionMaskRow,
     Narrowphase::RaycastRow
   >;
-  struct UnitCubeDef : Narrowphase::UnitCubeDefinition {
-    UnitCubeDef() {
+  struct RectDef : Narrowphase::RectDefinition{
+    RectDef() {
       centerX = FloatQueryAlias::create<PosX>().read();
       centerY = FloatQueryAlias::create<PosY>().read();
       rotX = FloatQueryAlias::create<RotX>().read();
       rotY = FloatQueryAlias::create<RotY>().read();
+      scaleX = FloatQueryAlias::create<ScaleX>().read();
+      scaleY = FloatQueryAlias::create<ScaleY>().read();
     }
   };
   struct PhysicsAlias : PhysicsAliases {
@@ -82,9 +86,9 @@ namespace Test {
   struct NarrowphaseTableIds {
     NarrowphaseTableIds(RuntimeDatabaseTaskBuilder& task)
       : spatialPairs{ task.query<SP::ManifoldRow>().matchingTableIDs[0] }
-      , sharedUnitCubes{ task.query<Narrowphase::SharedUnitCubeRow>().matchingTableIDs[0] }
+      , sharedUnitCubes{ task.query<Narrowphase::SharedRectangleRow>().matchingTableIDs[0] }
       , unitCubes3D{ task.query<Narrowphase::SharedThicknessRow>().matchingTableIDs[0] }
-      , unitCubes{ task.query<Narrowphase::UnitCubeRow>().matchingTableIDs[0] }
+      , unitCubes{ task.query<Narrowphase::RectangleRow>().matchingTableIDs[0] }
       , circles{ task.query<Narrowphase::CircleRow>().matchingTableIDs[0] }
       , aabbs{ task.query<Narrowphase::AABBRow>().matchingTableIDs[0] }
       , raycasts{ task.query<Narrowphase::RaycastRow>().matchingTableIDs[0] }
@@ -102,7 +106,7 @@ namespace Test {
   struct NarrowphaseDB : TestApp {
     NarrowphaseDB() {
       initSTFromDB<NarrowphaseDBT>([](IAppBuilder& builder) {
-        Narrowphase::generateContactsFromSpatialPairs(builder, UnitCubeDef{}, PhysicsAlias{});
+        Narrowphase::generateContactsFromSpatialPairs(builder, RectDef{}, PhysicsAlias{});
       });
     }
 
@@ -246,7 +250,7 @@ namespace Test {
       auto [stable, mask, cube, thickness, posZ] = task.query<
         StableIDRow,
         Narrowphase::CollisionMaskRow,
-        Narrowphase::UnitCubeRow,
+        Narrowphase::RectangleRow,
         Narrowphase::SharedThicknessRow,
         PosZ
       >().get(0);
@@ -256,8 +260,8 @@ namespace Test {
       const size_t q = queries.addPair(StableElementID::fromStableID(stable->at(a)), StableElementID::fromStableID(stable->at(b)));
       mask->at(a) = mask->at(b) = 1;
       //Default of no rotation, cos(0) = 1
-      Narrowphase::Shape::UnitCube& cA = cube->at(a);
-      Narrowphase::Shape::UnitCube& cB = cube->at(b);
+      Narrowphase::Shape::Rectangle& cA = cube->at(a);
+      Narrowphase::Shape::Rectangle& cB = cube->at(b);
       cA.right.x = cB.right.x = 1.f;
       SP::ContactManifold& manifold = queries.manifold->at(q);
       SP::ZContactManifold& zManifold = queries.zManifold->at(q);

@@ -73,17 +73,19 @@ namespace PhysicsSimulation {
     builder.submitTask(std::move(task));
   }
 
-  Narrowphase::UnitCubeDefinition getUnitCubeDefinition() {
+  Narrowphase::RectDefinition getRectDefinition() {
     return {
       ConstFloatQueryAlias::create<const FloatRow<Tags::Pos, Tags::X>>(),
       ConstFloatQueryAlias::create<const FloatRow<Tags::Pos, Tags::Y>>(),
       ConstFloatQueryAlias::create<const FloatRow<Tags::Rot, Tags::CosAngle>>(),
-      ConstFloatQueryAlias::create<const FloatRow<Tags::Rot, Tags::SinAngle>>()
+      ConstFloatQueryAlias::create<const FloatRow<Tags::Rot, Tags::SinAngle>>(),
+      ConstFloatQueryAlias::create<const Tags::ScaleXRow>(),
+      ConstFloatQueryAlias::create<const Tags::ScaleYRow>()
     };
   }
 
   std::shared_ptr<Narrowphase::IShapeClassifier> createShapeClassifier(RuntimeDatabaseTaskBuilder& task) {
-    return Narrowphase::createShapeClassifier(task, getUnitCubeDefinition(), getPhysicsAliases());
+    return Narrowphase::createShapeClassifier(task, getRectDefinition(), getPhysicsAliases());
   }
 
   class PhysicsBodyResolver : public IPhysicsBodyResolver {
@@ -163,6 +165,8 @@ namespace PhysicsSimulation {
     aliases.posZ = FloatAlias::create<FloatRow<Tags::Pos, Tags::Z>>();
     aliases.rotX = FloatAlias::create<FloatRow<Tags::Rot, Tags::CosAngle>>();
     aliases.rotY = FloatAlias::create<FloatRow<Tags::Rot, Tags::SinAngle>>();
+    aliases.scaleX = FloatAlias::create<Tags::ScaleXRow>();
+    aliases.scaleY = FloatAlias::create<Tags::ScaleYRow>();
     aliases.linVelX = FloatAlias::create<FloatRow<Tags::LinVel, Tags::X>>();
     aliases.linVelY = FloatAlias::create<FloatRow<Tags::LinVel, Tags::Y>>();
     aliases.linVelZ = FloatAlias::create<FloatRow<Tags::LinVel, Tags::Z>>();
@@ -197,11 +201,13 @@ namespace PhysicsSimulation {
     Physics::applyDampingMultiplier(builder, aliases, config.linearDragMultiplier, config.angularDragMultiplier);
     SweepNPruneBroadphase::updateBroadphase(builder, _getBoundariesConfig(builder), aliases);
 
-    Narrowphase::generateContactsFromSpatialPairs(builder, getUnitCubeDefinition(), aliases);
+    Narrowphase::generateContactsFromSpatialPairs(builder, getRectDefinition(), aliases);
     ConstraintSolver::solveConstraints(builder, aliases, globals);
 
     Physics::integratePosition(builder, aliases);
     Physics::integrateRotation(builder, aliases);
+
+    _debugUpdate(builder, config);
   }
 
   void preProcessEvents(IAppBuilder& builder) {

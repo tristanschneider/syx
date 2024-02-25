@@ -32,6 +32,8 @@ namespace Fragment {
       FloatRow<Pos, X>,
       FloatRow<Pos, Y>,
       FloatRow<Pos, Z>,
+      ScaleXRow,
+      ScaleYRow,
       const StableIDRow
     >();
     auto modifiers = task.getModifiersForTables(fragments.matchingTableIDs);
@@ -100,10 +102,13 @@ namespace Fragment {
 
       if(terrain.size()) {
         const size_t ground = terrainModifier[0]->addElements(1);
-        auto [_, px, py, pz, stable] = terrain.get(0);
+        auto [_, px, py, pz, sx, sy, stable] = terrain.get(0);
         Events::onNewElement(StableElementID::fromStableRow(ground, *stable), taskArgs);
-        TableAdapters::write(ground, scene->mBoundaryMin, *px, *py);
-        //TODO, z and size
+        const glm::vec2 scale = scene->mBoundaryMax - scene->mBoundaryMin;
+        const glm::vec2 center = (scene->mBoundaryMin + scene->mBoundaryMax) * 0.5f;
+        TableAdapters::write(ground, center, *px, *py);
+        TableAdapters::write(ground, scale, *sx, *sy);
+        pz->at(ground) = -0.1f;
       }
     });
     builder.submitTask(std::move(task));

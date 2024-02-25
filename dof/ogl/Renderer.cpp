@@ -26,6 +26,8 @@ namespace {
       uniform samplerBuffer uPosZ;
       uniform samplerBuffer uRotX;
       uniform samplerBuffer uRotY;
+      uniform samplerBuffer uScaleX;
+      uniform samplerBuffer uScaleY;
       uniform samplerBuffer uUV;
       uniform samplerBuffer uTint;
 
@@ -37,7 +39,9 @@ namespace {
         int i = gl_InstanceID;
         float cosAngle = texelFetch(uRotX, i).r;
         float sinAngle = texelFetch(uRotY, i).r;
-        vec4 pos = vec4(aPosition, 0, 1);
+        float scaleX = texelFetch(uScaleX, i).r;
+        float scaleY = texelFetch(uScaleY, i).r;
+        vec4 pos = vec4(aPosition.x*scaleX, aPosition.y*scaleY, 0, 1);
         //2d rotation matrix multiply
         pos.xy = vec2(pos.x*cosAngle - pos.y*sinAngle,
           pos.x*sinAngle + pos.y*cosAngle);
@@ -220,6 +224,8 @@ namespace {
     result.posX = Shader::_createTextureSamplerUniform(quadShader, "uPosX");
     result.posY = Shader::_createTextureSamplerUniform(quadShader, "uPosY");
     result.posZ = Shader::_createTextureSamplerUniform(quadShader, "uPosZ");
+    result.scaleX = Shader::_createTextureSamplerUniform(quadShader, "uScaleX");
+    result.scaleY = Shader::_createTextureSamplerUniform(quadShader, "uScaleY");
     result.rotX = Shader::_createTextureSamplerUniform(quadShader, "uRotX");
     result.rotY = Shader::_createTextureSamplerUniform(quadShader, "uRotY");
     result.tint = Shader::_createTextureSamplerUniform(quadShader, "uTint");
@@ -414,17 +420,19 @@ namespace Renderer {
     task.setName("renderer initGame").setPinning(AppTaskPinning::MainThread{});
     auto sprites = task.query<const Row<CubeSprite>>();
     auto resolver = task.getResolver<const IsImmobile>();
-    auto quadPasses = task.query<QuadPassTable::Pass, QuadPassTable::IsImmobile>();
+    auto quadPasses = task.query<QuadPassTable::Pass, QuadPassTable::IsImmobile, QuadPassTable::ScaleX, QuadPassTable::ScaleY>();
     auto oglState = task.query<Row<OGLState>>();
     task.setCallback([sprites, resolver, quadPasses, oglState](AppTaskArgs&) mutable {
       OGLState& ogl = oglState.get<0>(0).at(0);
       //Should match based on createDatabase resizing to this
       assert(sprites.matchingTableIDs.size() == quadPasses.matchingTableIDs.size());
-    
+
       //Fill in the quad pass tables
       for(size_t i = 0 ; i < sprites.matchingTableIDs.size(); ++i) {
         quadPasses.get<0>(i).at().mQuadUniforms = _createQuadUniforms(ogl.mQuadShader);
         quadPasses.get<1>(i).at() = resolver->tryGetRow<const IsImmobile>(sprites.matchingTableIDs[i]) != nullptr;
+        quadPasses.get<QuadPassTable::ScaleX>(i).mDefaultValue = 1.0f;
+        quadPasses.get<QuadPassTable::ScaleY>(i).mDefaultValue = 1.0f;
       }
     });
 
@@ -511,6 +519,12 @@ void Renderer::extractRenderables(IAppBuilder& builder) {
     CommonTasks::moveOrCopyRowSameSize<SharedRow<TextureReference>, QuadPassTable::Texture>(builder, spriteID, passID);
     if(builder.queryTable<Tags::PosZRow>(spriteID)) {
       CommonTasks::moveOrCopyRowSameSize<Tags::PosZRow, QuadPassTable::PosZ>(builder, spriteID, passID);
+    }
+    if(builder.queryTable<Tags::ScaleXRow>(spriteID)) {
+      CommonTasks::moveOrCopyRowSameSize<Tags::ScaleXRow, QuadPassTable::ScaleX>(builder, spriteID, passID);
+    }
+    if(builder.queryTable<Tags::ScaleYRow>(spriteID)) {
+      CommonTasks::moveOrCopyRowSameSize<Tags::ScaleXRow, QuadPassTable::ScaleY>(builder, spriteID, passID);
     }
     //If this table has velocity, add those tasks as well
     if(temp.query<FloatRow<Tags::LinVel, Tags::X>, FloatRow<Tags::AngVel, Tags::Angle>>(spriteID).size()) {
@@ -638,6 +652,7 @@ void Renderer::render(IAppBuilder& builder) {
   auto globals = task.query<Row<OGLState>, Row<WindowData>>();
   auto quads = task.query<const QuadPassTable::PosX, const QuadPassTable::PosY, const QuadPassTable::PosZ,
     const QuadPassTable::RotX, const QuadPassTable::RotY,
+    const QuadPassTable::ScaleX, const QuadPassTable::ScaleY,
     const QuadPassTable::UV,
     const QuadPassTable::Texture,
     const QuadPassTable::LinVelX, const QuadPassTable::LinVelY,
@@ -704,6 +719,8 @@ void Renderer::render(IAppBuilder& builder) {
           info.posX = pass.mQuadUniforms.posX;
           info.posY = pass.mQuadUniforms.posY;
           info.posZ = pass.mQuadUniforms.posZ;
+          info.scaleX = pass.mQuadUniforms.scaleX;
+          info.scaleY = pass.mQuadUniforms.scaleY;
           info.quadVertexBuffer = state->mQuadVertexBuffer;
           info.rotX = pass.mQuadUniforms.rotX;
           info.rotY = pass.mQuadUniforms.rotY;
@@ -731,6 +748,8 @@ void Renderer::render(IAppBuilder& builder) {
         auto& posX = quads.get<const QuadPassTable::PosX>(i);
         auto& posY = quads.get<const QuadPassTable::PosY>(i);
         auto& posZ = quads.get<const QuadPassTable::PosZ>(i);
+        auto& scaleX = quads.get<const QuadPassTable::ScaleX>(i);
+        auto& scaleY = quads.get<const QuadPassTable::ScaleY>(i);
         auto& rotationX = quads.get<const QuadPassTable::RotX>(i);
         auto& rotationY = quads.get<const QuadPassTable::RotY>(i);
         auto& sprite = quads.get<const QuadPassTable::UV>(i);
@@ -763,6 +782,10 @@ void Renderer::render(IAppBuilder& builder) {
         glBufferData(GL_TEXTURE_BUFFER, floatSize, rotationX.mElements.data(), GL_STATIC_DRAW);
         glBindBuffer(GL_TEXTURE_BUFFER, pass.mQuadUniforms.rotY.buffer);
         glBufferData(GL_TEXTURE_BUFFER, floatSize, rotationY.mElements.data(), GL_STATIC_DRAW);
+        glBindBuffer(GL_TEXTURE_BUFFER, pass.mQuadUniforms.scaleX.buffer);
+        glBufferData(GL_TEXTURE_BUFFER, floatSize, scaleX.mElements.data(), GL_STATIC_DRAW);
+        glBindBuffer(GL_TEXTURE_BUFFER, pass.mQuadUniforms.scaleY.buffer);
+        glBufferData(GL_TEXTURE_BUFFER, floatSize, scaleY.mElements.data(), GL_STATIC_DRAW);
 
         glBindBuffer(GL_TEXTURE_BUFFER, pass.mQuadUniforms.velX.buffer);
         glBufferData(GL_TEXTURE_BUFFER, floatSize, velX.mElements.data(), GL_STATIC_DRAW);
@@ -791,6 +814,8 @@ void Renderer::render(IAppBuilder& builder) {
         _bindTextureSamplerUniform(pass.mQuadUniforms.posZ, GL_R32F, textureIndex++);
         _bindTextureSamplerUniform(pass.mQuadUniforms.rotX, GL_R32F, textureIndex++);
         _bindTextureSamplerUniform(pass.mQuadUniforms.rotY, GL_R32F, textureIndex++);
+        _bindTextureSamplerUniform(pass.mQuadUniforms.scaleX, GL_R32F, textureIndex++);
+        _bindTextureSamplerUniform(pass.mQuadUniforms.scaleY, GL_R32F, textureIndex++);
         _bindTextureSamplerUniform(pass.mQuadUniforms.uv, GL_RGBA32F, textureIndex++);
         _bindTextureSamplerUniform(pass.mQuadUniforms.tint, GL_RGBA32F, textureIndex++);
         glActiveTexture(GL_TEXTURE0 + textureIndex);

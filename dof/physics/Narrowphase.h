@@ -9,9 +9,10 @@ struct PhysicsAliases;
 
 namespace Narrowphase {
   namespace Shape {
-    struct UnitCube {
+    struct Rectangle {
       glm::vec2 center{};
       glm::vec2 right{};
+      glm::vec2 halfWidth{ 0.5f };
     };
     struct Raycast {
       glm::vec2 start{};
@@ -25,7 +26,7 @@ namespace Narrowphase {
       glm::vec2 pos{};
       float radius{};
     };
-    using Variant = std::variant<std::monostate, UnitCube, Raycast, AABB, Circle>;
+    using Variant = std::variant<std::monostate, Rectangle, Raycast, AABB, Circle>;
 
     //The center that "centerToContact" in the manifold is relative to
     glm::vec2 getCenter(const Variant& shape);
@@ -35,18 +36,23 @@ namespace Narrowphase {
     };
   };
 
-  struct UnitCubeDefinition {
+  struct RectDefinition {
+    //Required
     ConstFloatQueryAlias centerX;
     ConstFloatQueryAlias centerY;
+    //Optional, default no rotation
     ConstFloatQueryAlias rotX;
     ConstFloatQueryAlias rotY;
+    //Optional, default unit square
+    ConstFloatQueryAlias scaleX;
+    ConstFloatQueryAlias scaleY;
   };
 
   using CollisionMask = uint8_t;
 
   //Table is all unit cubes. Currently only supports the single UnitCubeDefinition
-  struct SharedUnitCubeRow : TagRow {};
-  struct UnitCubeRow : Row<Shape::UnitCube> {};
+  struct SharedRectangleRow : TagRow {};
+  struct RectangleRow : Row<Shape::Rectangle> {};
   struct RaycastRow : Row<Shape::Raycast> {};
   struct AABBRow : Row<Shape::AABB> {};
   struct CircleRow : Row<Shape::Circle> {};
@@ -64,9 +70,9 @@ namespace Narrowphase {
     virtual Shape::BodyType classifyShape(const UnpackedDatabaseElementID& id) = 0;
   };
 
-  std::shared_ptr<IShapeClassifier> createShapeClassifier(RuntimeDatabaseTaskBuilder& task, const UnitCubeDefinition& unitCube, const PhysicsAliases& aliases);
+  std::shared_ptr<IShapeClassifier> createShapeClassifier(RuntimeDatabaseTaskBuilder& task, const RectDefinition& rect, const PhysicsAliases& aliases);
 
   //Takes the pairs stored in SpatialPairsTable and generates the contacts needed to resolve the spatial
   // queries or constraint solving
-  void generateContactsFromSpatialPairs(IAppBuilder& builder, const UnitCubeDefinition& unitCube, const PhysicsAliases& aliases);
+  void generateContactsFromSpatialPairs(IAppBuilder& builder, const RectDefinition& rect, const PhysicsAliases& aliases);
 }
