@@ -43,6 +43,7 @@ namespace {
     std::shared_ptr<ITableModifier> textureRequestModifier = task.getModifierForTable(textureRequests.matchingTableIDs.front());
     auto playerTextures = task.query<SharedRow<TextureReference>, const IsPlayer>();
     auto fragmentTextures = task.query<SharedRow<TextureReference>, const IsFragment>();
+    auto terrain = task.query<SharedRow<TextureReference>, const Tags::TerrainRow>();
 
     task.setCallback([=](AppTaskArgs&) mutable {
       if(sceneState->mState != SceneState::State::InitRequestAssets) {
@@ -52,6 +53,7 @@ namespace {
       const std::string& root = fs->mRoot;
       sceneState->mBackgroundImage = _requestTextureLoad(textureRequests.get<0>(0), *textureRequestModifier, (root + "background.png").c_str());
       sceneState->mPlayerImage = _requestTextureLoad(textureRequests.get<0>(0), *textureRequestModifier, (root + "player.png").c_str());
+      sceneState->mGroundImage = _requestTextureLoad(textureRequests.get<0>(0), *textureRequestModifier, (root + "ground.png").c_str());
 
       for(size_t i = 0; i < playerTextures.size(); ++i) {
         playerTextures.get<0>(i).at().mId = sceneState->mPlayerImage;
@@ -59,6 +61,9 @@ namespace {
       //Make all the objects use the background image as their texture
       for(size_t i = 0; i < fragmentTextures.size(); ++i) {
         fragmentTextures.get<0>(i).at().mId = sceneState->mBackgroundImage;
+      }
+      for(size_t i = 0; i < terrain.size(); ++i) {
+        terrain.get<0>(i).at().mId = sceneState->mGroundImage;
       }
 
       sceneState->mState = SceneState::State::InitAwaitingAssets;

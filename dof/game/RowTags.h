@@ -65,4 +65,6 @@ namespace Tags {
   using PosZRow = FloatRow<Pos, Z>;
   using RotXRow = FloatRow<Rot, CosAngle>;
   using RotYRow = FloatRow<Rot, SinAngle>;
+
+  struct TerrainRow : TagRow {};
 };

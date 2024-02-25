@@ -10,6 +10,7 @@
 #include "glm/gtx/norm.hpp"
 #include "stat/AllStatEffects.h"
 #include "AppBuilder.h"
+#include "Narrowphase.h"
 
 namespace Fragment {
   using namespace Tags;
@@ -26,9 +27,17 @@ namespace Fragment {
       Row<CubeSprite>,
       const StableIDRow
     >();
+    auto terrain = task.query<
+      const TerrainRow,
+      FloatRow<Pos, X>,
+      FloatRow<Pos, Y>,
+      FloatRow<Pos, Z>,
+      const StableIDRow
+    >();
     auto modifiers = task.getModifiersForTables(fragments.matchingTableIDs);
+    auto terrainModifier = task.getModifiersForTables(terrain.matchingTableIDs);
 
-    task.setCallback([scene, fragments, modifiers, args](AppTaskArgs& taskArgs) mutable {
+    task.setCallback([scene, fragments, modifiers, args, terrain, terrainModifier](AppTaskArgs& taskArgs) mutable {
       if(scene->mState != SceneState::State::SetupScene) {
         return;
       }
@@ -87,6 +96,14 @@ namespace Fragment {
         const size_t last = total - 1;
         scene->mBoundaryMin = glm::vec2(goalX.at(first), goalY.at(first)) - glm::vec2(boundaryPadding);
         scene->mBoundaryMax = glm::vec2(goalX.at(last), goalY.at(last)) + glm::vec2(boundaryPadding);
+      }
+
+      if(terrain.size()) {
+        const size_t ground = terrainModifier[0]->addElements(1);
+        auto [_, px, py, pz, stable] = terrain.get(0);
+        Events::onNewElement(StableElementID::fromStableRow(ground, *stable), taskArgs);
+        TableAdapters::write(ground, scene->mBoundaryMin, *px, *py);
+        //TODO, z and size
       }
     });
     builder.submitTask(std::move(task));

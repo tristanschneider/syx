@@ -51,6 +51,7 @@ struct SceneState {
   State mState = State::InitRequestAssets;
   size_t mBackgroundImage = 0;
   size_t mPlayerImage = 0;
+  size_t mGroundImage{};
   glm::vec2 mBoundaryMin{};
   glm::vec2 mBoundaryMax{};
 };

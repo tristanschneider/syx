@@ -122,6 +122,37 @@ namespace GameDatabase {
     StableIDRow
   >;
 
+  using TerrainTable = Table<
+    ZeroMassObjectTableTag,
+    Tags::TerrainRow,
+    Narrowphase::SharedUnitCubeRow,
+    FloatRow<Tags::Pos, Tags::X>,
+    FloatRow<Tags::Pos, Tags::Y>,
+    FloatRow<Tags::Pos, Tags::Z>,
+    FloatRow<Tags::Rot, Tags::CosAngle>,
+    FloatRow<Tags::Rot, Tags::SinAngle>,
+
+    //Gameplay data extracted from above
+    //TODO: take advantage of immobility to avoid the need for this
+    FloatRow<Tags::GPos, Tags::X>,
+    FloatRow<Tags::GPos, Tags::Y>,
+    FloatRow<Tags::GPos, Tags::Z>,
+    FloatRow<Tags::GRot, Tags::CosAngle>,
+    FloatRow<Tags::GRot, Tags::SinAngle>,
+
+    SweepNPruneBroadphase::BroadphaseKeys,
+    Narrowphase::CollisionMaskRow,
+    ConstraintSolver::ConstraintMaskRow,
+    ConstraintSolver::SharedMassRow,
+    ConstraintSolver::SharedMaterialRow,
+
+    Row<CubeSprite>,
+    SharedRow<TextureReference>,
+    IsImmobile,
+
+    StableIDRow
+  >;
+
   using PlayerTable = Table<
     IsPlayer,
     FloatRow<Tags::Pos, Tags::X>,
@@ -178,6 +209,7 @@ namespace GameDatabase {
     BroadphaseTable,
     SP::SpatialPairsTable,
     GlobalGameData,
+    TerrainTable,
     GameObjectTable,
     StaticGameObjectTable,
     TextureRequestTable,

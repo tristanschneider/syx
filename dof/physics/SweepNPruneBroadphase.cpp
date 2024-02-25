@@ -141,7 +141,6 @@ namespace SweepNPruneBroadphase {
       CachedRow<const StableIDRow> stable;
       for(const DBEvents::MoveCommand& cmd : events.toBeMovedElements) {
         //Insert new elements
-        //TODO: this won't work as expected if the newly created element is immobile
         if(cmd.isCreate()) {
           const auto unpacked = ids->uncheckedUnpack(cmd.destination);
           if(resolver->tryGetOrSwapAllRows(unpacked, keys, stable)) {
@@ -183,9 +182,11 @@ namespace SweepNPruneBroadphase {
       CachedRow<BroadphaseKeys> keys;
       //Bounds update elements that moved to an immobile row
       for(const DBEvents::MoveCommand& cmd : events.toBeMovedElements) {
-        if(auto found = ids->tryResolveStableID(cmd.source)) {
+        std::optional<ResolvedIDs> found = cmd.isCreate() ? ids->tryResolveAndUnpack(cmd.destination) : ids->tryResolveAndUnpack(cmd.source);
+
+        if(found) {
           //The stable mappings are pointing at the raw index, then assume that it ended up at the destination table
-          UnpackedDatabaseElementID self{ ids->uncheckedUnpack(*found) };
+          UnpackedDatabaseElementID self{ found->unpacked };
           const UnpackedDatabaseElementID rawDest = ids->uncheckedUnpack(cmd.destination);
           //Should always be the case unless it somehow moved more than once
           if(self.getTableIndex() == rawDest.getTableIndex()) {
@@ -204,11 +205,11 @@ namespace SweepNPruneBroadphase {
                 Broadphase::SweepGrid::updateBoundaries(grid, &min.x, &max.x, &min.y, &max.y, &key, 1);
               }
               //Change node to immobile
-              spatialPairs->changeMobility(*found, true);
+              spatialPairs->changeMobility(found->stable, true);
             }
             else {
               //Change node to mobile
-              spatialPairs->changeMobility(*found, false);
+              spatialPairs->changeMobility(found->stable, false);
             }
           }
         }
