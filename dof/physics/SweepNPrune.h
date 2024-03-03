@@ -172,10 +172,19 @@ namespace Broadphase {
     std::vector<BroadphaseKey> temp;
   };
 
+  namespace Debug {
+    bool isValidSweepAxis(const SweepAxis& axis);
+  }
+
   namespace SweepNPrune {
     //Insert the given user keys and mapping them to out keys
     //Object will be sorted into place during next recomputePairs
     void insertRange(Sweep2D& sweep,
+      const BroadphaseKey* keys,
+      size_t count
+    );
+    //Inserts if it wasn't already there
+    void tryInsertRange(Sweep2D& sweep,
       const BroadphaseKey* keys,
       size_t count
     );

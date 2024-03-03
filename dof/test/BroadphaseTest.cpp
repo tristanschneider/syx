@@ -60,6 +60,8 @@ namespace Test {
         Assert::IsTrue(std::is_sorted(elements.begin(), elements.end(), TestElementSort{ sweep, d }), L"All elements should be sorted by bounds");
         std::sort(elements.begin(), elements.end());
         Assert::IsTrue(std::unique(elements.begin(), elements.end()) == elements.end(), L"There should be no duplicate elements");
+
+        Assert::IsTrue(Broadphase::Debug::isValidSweepAxis(sweep.sweep.axis[d]));
       }
     }
 
@@ -71,7 +73,7 @@ namespace Test {
     static void _insertOne(TestSweep& sweep, SweepEntry& entry, std::vector<Broadphase::SweepCollisionPair>& gained) {
       if(entry.broadphaseKey == Broadphase::ObjectDB::EMPTY_KEY) {
         Broadphase::insertRange(sweep.objects, &entry.mKey, &entry.broadphaseKey, 1);
-        Broadphase::SweepNPrune::insertRange(sweep.sweep, &entry.broadphaseKey, 1);
+        Broadphase::SweepNPrune::tryInsertRange(sweep.sweep, &entry.broadphaseKey, 1);
       }
       Broadphase::updateBoundaries(sweep.objects, &entry.mNewBoundaryMin.x, &entry.mNewBoundaryMax.x, &entry.mNewBoundaryMin.y, &entry.mNewBoundaryMax.y, &entry.broadphaseKey, 1);
       std::vector<Broadphase::SweepCollisionPair> lost;
@@ -90,11 +92,19 @@ namespace Test {
       _assertSorted(sweep);
     }
 
-    static void _reinsertOne(TestSweep& sweep, SweepEntry& entry, std::vector<Broadphase::SweepCollisionPair>& gained, std::vector<Broadphase::SweepCollisionPair>& lost) {
+    static void updateBoundaries(TestSweep& sweep, SweepEntry& entry) {
       Broadphase::updateBoundaries(sweep.objects, &entry.mNewBoundaryMin.x, &entry.mNewBoundaryMax.x, &entry.mNewBoundaryMin.y, &entry.mNewBoundaryMax.y, &entry.broadphaseKey, 1);
+    }
+
+    static void update(TestSweep& sweep, std::vector<Broadphase::SweepCollisionPair>& gained, std::vector<Broadphase::SweepCollisionPair>& lost) {
       Broadphase::SwapLog log{ gained, lost };
       sweep.update(log);
       _assertSorted(sweep);
+    }
+
+    static void _reinsertOne(TestSweep& sweep, SweepEntry& entry, std::vector<Broadphase::SweepCollisionPair>& gained, std::vector<Broadphase::SweepCollisionPair>& lost) {
+      updateBoundaries(sweep, entry);
+      update(sweep, gained, lost);
     }
 
     static bool pairMatches(Broadphase::SweepCollisionPair l, Broadphase::SweepCollisionPair r) {
@@ -129,6 +139,84 @@ namespace Test {
       _eraseOne(sweep, entry, pairs);
 
       Assert::IsTrue(pairs.empty());
+    }
+
+    TEST_METHOD(BoundaryRemoval) {
+      TestSweep sweep;
+      std::vector<Broadphase::SweepCollisionPair> pairs, pairs2;
+      auto clearPairs = [&] {
+        pairs.clear();
+        pairs2.clear();
+      };
+      for(auto& axis : sweep.sweep.axis) {
+        axis.min = 0;
+        axis.max = 1;
+      }
+      SweepEntry b, c, d;
+      constexpr float o = 0.5f;
+      //On the edge but with one side still in bounds
+      {
+        SweepEntry t;
+        t.mKey = 4;
+        t.mNewBoundaryMin.y = 0.5f;
+        t.mNewBoundaryMax.y = 1.5f;
+        t.mNewBoundaryMin.x = t.mNewBoundaryMax.x = o;
+        _insertOne(sweep, t, pairs);
+      }
+      {
+        SweepEntry t;
+        t.mKey = 5;
+        t.mNewBoundaryMin = glm::vec2{ -0.5f };
+        t.mNewBoundaryMax = glm::vec2{ 0.5f };
+        t.mNewBoundaryMin.x = t.mNewBoundaryMax.x = o;
+        _insertOne(sweep, t, pairs);
+        clearPairs();
+      }
+      b.mKey = 2;
+      b.mNewBoundaryMin = b.mNewBoundaryMax = glm::vec2{ 0.25f };
+      b.mNewBoundaryMin.x = b.mNewBoundaryMax.x = o;
+      _insertOne(sweep, b, pairs);
+      clearPairs();
+      c.mKey = 3;
+      c.mNewBoundaryMin = c.mNewBoundaryMax = glm::vec2{ 0.75f };
+      c.mNewBoundaryMin.x = c.mNewBoundaryMax.x = o;
+      _insertOne(sweep, c, pairs);
+      clearPairs();
+      d.mKey = 6;
+      d.mNewBoundaryMin = d.mNewBoundaryMax = glm::vec2{ 0.15f };
+      d.mNewBoundaryMin.x = d.mNewBoundaryMax.x = o;
+      _insertOne(sweep, d, pairs);
+      clearPairs();
+
+      {
+        SweepEntry t;
+        t.mKey = 1;
+        t.mNewBoundaryMin = glm::vec2{ 0.5f };
+        t.mNewBoundaryMax = glm::vec2{ 1.5f };
+        t.mNewBoundaryMin.x = t.mNewBoundaryMax.x = o;
+        _insertOne(sweep, t, pairs);
+      }
+
+      clearPairs();
+
+      b.mNewBoundaryMin.y = b.mNewBoundaryMax.y = 1.5f;
+      //_reinsertOne(sweep, b, pairs, pairs2);
+      //clearPairs();
+      c.mNewBoundaryMin.y = c.mNewBoundaryMax.y = 1.5f;
+      //_reinsertOne(sweep, c, pairs, pairs2);
+      //clearPairs();
+      d.mNewBoundaryMin.y = d.mNewBoundaryMax.y = -0.5f;
+      //_reinsertOne(sweep, d, pairs, pairs2);
+      //clearPairs();
+
+      updateBoundaries(sweep, b);
+      updateBoundaries(sweep, c);
+      updateBoundaries(sweep, d);
+
+      update(sweep, pairs, pairs2);
+
+      Assert::IsTrue(Broadphase::Debug::isValidSweepAxis(sweep.sweep.axis[0]));
+      Assert::IsTrue(Broadphase::Debug::isValidSweepAxis(sweep.sweep.axis[1]));
     }
 
     static Broadphase::SweepCollisionPair sweepPair(size_t a, size_t b) {

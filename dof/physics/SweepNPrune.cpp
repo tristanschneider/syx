@@ -9,7 +9,43 @@
 #include "AppBuilder.h"
 #include "SweepNPruneBroadphase.h"
 
+//#define BROADPHASE_DEBUG
+#ifdef BROADPHASE_DEBUG
+#define BROADPHASE_ASSERT(condition) assert(condition)
+#else
+#define BROADPHASE_ASSERT(condition)
+#endif
+
 namespace Broadphase {
+  namespace Debug {
+    bool isValidSweepAxis(const SweepAxis& axis) {
+      std::unordered_map<BroadphaseKey, uint8_t> traversed;
+      traversed.reserve(axis.elements.size() / 2);
+      for(const SweepElement& e : axis.elements) {
+        const BroadphaseKey key{ e.getValue() };
+        if(e.isStart()) {
+          //Elements should not be duplicated and start should always appear before end
+          if(!traversed.insert(std::make_pair(key, uint8_t{})).second) {
+            return false;
+          }
+        }
+        else {
+          auto it = traversed.find(key);
+          //End should always exist if there is a start, and come afterwards
+          if(it == traversed.end()) {
+            return false;
+          }
+          //There should only be one end
+          if(it->second++) {
+            return false;
+          }
+        }
+      }
+      //All elements should have found a single paired end
+      return std::all_of(traversed.begin(), traversed.end(), [](const auto& pair) { return pair.second == 1; });
+    }
+  };
+
   struct ElementBounds {
     bool operator<(const ElementBounds& rhs) const {
       //It's important to ensure start and end don't pass each-other but the worst they can do is match
@@ -275,6 +311,9 @@ namespace Broadphase {
       const BroadphaseKey* keys,
       size_t count
     ) {
+      BROADPHASE_ASSERT(Debug::isValidSweepAxis(sweep.axis[0]));
+      BROADPHASE_ASSERT(Debug::isValidSweepAxis(sweep.axis[1]));
+
       //Axis doesn't use the free list, always add to end
       size_t newAxisIndex = sweep.axis[0].elements.size();
       for(size_t s = 0; s < Sweep2D::S; ++s) {
@@ -290,6 +329,20 @@ namespace Broadphase {
         }
         newAxisIndex += 2;
       }
+
+      BROADPHASE_ASSERT(Debug::isValidSweepAxis(sweep.axis[0]));
+      BROADPHASE_ASSERT(Debug::isValidSweepAxis(sweep.axis[1]));
+    }
+
+    void tryInsertRange(Sweep2D& sweep,
+      const BroadphaseKey* keys,
+      size_t count
+    ) {
+      for(size_t i = 0; i < count; ++i) {
+        if(sweep.containedKeys.insert(keys[i]).second) {
+          insertRange(sweep, keys + i, 1);
+        }
+      }
     }
 
     void recomputeCandidates(Sweep2D& sweep, const ObjectDB& db, const PairTracker& pairs, SwapLog& log) {
@@ -301,6 +354,7 @@ namespace Broadphase {
         &log
       };
       for(size_t i = 0; i < Sweep2D::S; ++i) {
+        BROADPHASE_ASSERT(Debug::isValidSweepAxis(sweep.axis[i]));
         args.primaryAxis = db.bounds[i].data();
         args.secondaryAxis = db.bounds[(i + 1) % Sweep2D::S].data();
         insertionSort(
@@ -308,6 +362,7 @@ namespace Broadphase {
           sweep.axis[i].elements.data() + sweep.axis[i].elements.size(),
           args
         );
+        BROADPHASE_ASSERT(Debug::isValidSweepAxis(sweep.axis[i]));
       }
     }
 
@@ -319,15 +374,7 @@ namespace Broadphase {
 
     struct SweepElementCompare {
       bool operator()(const SweepElement& l, const SweepElementQuery& r) const {
-        const float lv = getBounds(l);
-        const float rv = r.position;
-        if(lv == rv) {
-          if(l.getValue() == r.key.value) {
-            return l.isStart() < r.isStart;
-          }
-          return l.getValue() < r.key.value;
-        }
-        return lv < rv;
+        return getBounds(l) < r.position;
       }
 
       float getBounds(const SweepElement& e) const {
@@ -341,6 +388,8 @@ namespace Broadphase {
 
     //Remove elements that are no longer within the boundaries of this Sweep2D
     void trimBoundaries(const ObjectDB& db, Sweep2D& sweep) {
+      BROADPHASE_ASSERT(Debug::isValidSweepAxis(sweep.axis[0]));
+      BROADPHASE_ASSERT(Debug::isValidSweepAxis(sweep.axis[1]));
       std::vector<BroadphaseKey>& toRemove = sweep.temp;
 
       const size_t count = sweep.axis[0].elements.size();
@@ -349,28 +398,28 @@ namespace Broadphase {
       }
       for(size_t axis = 0; axis < sweep.axis.size(); ++axis) {
         //Find objects off the min side of the axes
+        const float minBound = sweep.axis[axis].min;
         for(size_t i = 0; i < count; ++i) {
           const SweepElement& e = sweep.axis[axis].elements[i];
+          const auto& bounds = db.bounds[axis][e.getValue()];
+          if(bounds.first >= minBound) {
+            break;
+          }
           if(e.isEnd()) {
-            if(db.bounds[axis][e.getValue()].second < sweep.axis[axis].min) {
-              toRemove.push_back(BroadphaseKey{ e.getValue() });
-            }
-            else {
-              break;
-            }
+            toRemove.push_back(BroadphaseKey{ e.getValue() });
           }
         }
         //Find objects off the max side of the axes
+        const float maxBound = sweep.axis[axis].max;
         for(size_t i = 0; i < count; ++i) {
           const size_t ri = count - i - 1;
           const SweepElement& e = sweep.axis[axis].elements[ri];
+          const auto& bounds = db.bounds[axis][e.getValue()];
+          if(bounds.second <= maxBound) {
+            break;
+          }
           if(e.isStart()) {
-            if(db.bounds[axis][e.getValue()].first > sweep.axis[axis].max) {
-              toRemove.push_back(BroadphaseKey{ e.getValue() });
-            }
-            else {
-              break;
-            }
+            toRemove.push_back(BroadphaseKey{ e.getValue() });
           }
         }
       }
@@ -395,8 +444,9 @@ namespace Broadphase {
           auto beginIt = std::lower_bound(axisElements.begin(), axisElements.end(), query, SweepElementCompare{ db, axis });
           //Should always be found
           if(beginIt != axisElements.end()) {
-            //Remove this and its accompanying end entry by shifting everything else down
-            auto nextToMove = beginIt + 1;
+            //Position has been found with lower bound but it still might be a different key
+            //Scan along and find entries to remove by shifting everything down into the gaps
+            auto nextToMove = beginIt;
             auto toFill = beginIt;
             while(nextToMove != axisElements.end()) {
               if(nextToMove->getValue() == remove.value) {
@@ -404,7 +454,7 @@ namespace Broadphase {
                 nextToMove++;
                 continue;
               }
-              else {
+              else if(toFill != nextToMove) {
                 *toFill = *nextToMove;
               }
               ++toFill;
@@ -418,12 +468,19 @@ namespace Broadphase {
           }
         }
       }
+
       toRemove.clear();
     }
 
     void recomputePairs(Sweep2D& sweep, const ObjectDB& db, const PairTracker& pairs, SwapLog& log) {
+      BROADPHASE_ASSERT(Debug::isValidSweepAxis(sweep.axis[0]));
+      BROADPHASE_ASSERT(Debug::isValidSweepAxis(sweep.axis[1]));
+
       recomputeCandidates(sweep, db, pairs, log);
       trimBoundaries(db, sweep);
+
+      BROADPHASE_ASSERT(Debug::isValidSweepAxis(sweep.axis[0]));
+      BROADPHASE_ASSERT(Debug::isValidSweepAxis(sweep.axis[1]));
     }
   };
 
@@ -522,10 +579,7 @@ namespace Broadphase {
         //Try to insert into each cell this overlaps with, skipping if they're already there
         foreachCell(grid.definition, newBounds, [&](size_t cellIndex) {
           if(cellIndex < grid.cells.size()) {
-            Sweep2D& cell = grid.cells[cellIndex];
-            if(cell.containedKeys.insert(keys[i]).second) {
-              SweepNPrune::insertRange(cell, keys + i, 1);
-            }
+            SweepNPrune::tryInsertRange(grid.cells[cellIndex], keys + i, 1);
           }
         });
         //Removal happens during recomputePairs when cells realize elements are outside of their intended boundaries
