@@ -49,6 +49,10 @@ namespace Player {
     auto task = builder.createTask();
     task.setName("Player setup");
     auto cameras = task.query<Row<Camera>, const StableIDRow>();
+    if(!cameras.size()) {
+      task.discard();
+      return;
+    }
     std::shared_ptr<ITableModifier> cameraModifier = task.getModifierForTable(cameras.matchingTableIDs.front());
     auto players = task.query<
       FloatRow<Pos, X>,

@@ -11,6 +11,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED)
 option(TEST_ENABLED "Include test projects" ON)
 option(PROFILE_ENABLED "Include profiler" ON)
 option(IMGUI_ENABLED "Include imgui" ON)
+option(PERFORMANCE_ENABLED "Build performance test" ON)
 
 add_compile_options(/wd4309 /wd4324 /wd4389 /wd4127 /wd4267 /wd4146 /wd4201 /wd4464 /wd4514 /wd4701 /wd4820 /wd4365)
 
@@ -81,4 +82,8 @@ if(WIN32)
     if(MSVC)
         set(VS_STARTUP_PROJECT win32)
     endif()
+endif()
+
+if(PERFORMANCE_ENABLED)
+    add_subdirectory(performance)
 endif()

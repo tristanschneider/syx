@@ -20,6 +20,10 @@ namespace World {
     auto task = builder.createTask();
     const SceneState* scene = task.query<const SharedRow<SceneState>>().tryGetSingletonElement();
     const Config::WorldConfig* config = &TableAdapters::getGameConfig(task)->world;
+    if(!scene) {
+      task.discard();
+      return;
+    }
     auto query = task.queryAlias(table, pos.read(), linVel);
     task.setName("repel boundary axis");
     task.setCallback([scene, query, axis, config](AppTaskArgs&) mutable {

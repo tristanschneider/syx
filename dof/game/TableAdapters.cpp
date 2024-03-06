@@ -221,11 +221,14 @@ size_t TableAdapters::addStatEffectsSharedLifetime(StatEffectBaseAdapter& base, 
 DebugLineAdapter TableAdapters::getDebugLines(RuntimeDatabaseTaskBuilder& task) {
   auto query = task.query<Row<DebugPoint>>();
   DebugLineAdapter result;
-  result.points = &query.get<0>(0);
-  result.pointModifier = task.getModifierForTable(query.matchingTableIDs[0]);
-  auto q = task.query<Row<DebugText>>();
-  result.text = &q.get<0>(0);
-  result.textModifier = task.getModifierForTable(q.matchingTableIDs[0]);
+  if(query.size()) {
+    result.points = &query.get<0>(0);
+    result.pointModifier = task.getModifierForTable(query.matchingTableIDs[0]);
+    if(auto q = task.query<Row<DebugText>>(); q.size()) {
+      result.text = &q.get<0>(0);
+      result.textModifier = task.getModifierForTable(q.matchingTableIDs[0]);
+    }
+  }
   return result;
 }
 

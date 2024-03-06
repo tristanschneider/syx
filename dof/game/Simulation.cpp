@@ -39,6 +39,10 @@ namespace {
     task.setName("request assets");
     SceneState* sceneState = task.query<SharedRow<SceneState>>().tryGetSingletonElement();
     FileSystem* fs = task.query<SharedRow<FileSystem>>().tryGetSingletonElement();
+    if(!sceneState || !fs) {
+      task.discard();
+      return;
+    }
     auto textureRequests = task.query<Row<TextureLoadRequest>>();
     std::shared_ptr<ITableModifier> textureRequestModifier = task.getModifierForTable(textureRequests.matchingTableIDs.front());
     auto playerTextures = task.query<SharedRow<TextureReference>, const IsPlayer>();
@@ -77,6 +81,10 @@ namespace {
     auto textureRequests = task.query<const Row<TextureLoadRequest>>();
     auto requestModifiers = task.getModifiersForTables(textureRequests.matchingTableIDs);
     SceneState* sceneState = task.query<SharedRow<SceneState>>().tryGetSingletonElement();
+    if(!sceneState) {
+      task.discard();
+      return;
+    }
 
     task.setCallback([textureRequests, requestModifiers, sceneState](AppTaskArgs&) mutable {
       if(sceneState->mState != SceneState::State::InitAwaitingAssets) {
@@ -115,6 +123,10 @@ void finishSetupState(IAppBuilder& builder) {
   auto task = builder.createTask();
   task.setName("Finish Setup");
   SceneState* state = task.query<SharedRow<SceneState>>().tryGetSingletonElement();
+  if(!state) {
+    task.discard();
+    return;
+  }
   task.setCallback([state](AppTaskArgs&) {
     if(state->mState == SceneState::State::SetupScene) {
       state->mState = SceneState::State::Update;
@@ -208,11 +220,11 @@ void Simulation::init(IAppBuilder& builder) {
     Config::GameConfig* gameConfig = TableAdapters::getGameConfigMutable(task);
     FileSystem* fs = task.query<SharedRow<FileSystem>>().tryGetSingletonElement();
     task.setCallback([gameConfig, fs](AppTaskArgs&) mutable {
-      if(std::optional<std::string> buffer = File::readEntireFile(*fs, Simulation::getConfigName())) {
+      if(std::optional<std::string> buffer = fs ? File::readEntireFile(*fs, Simulation::getConfigName()) : std::nullopt) {
         ConfigIO::Result result = ConfigIO::deserializeJson(*buffer, *Config::createFactory());
         std::visit([&](auto&& r) { tryInitFromConfig(*gameConfig, std::move(r)); }, std::move(result.value));
       }
-      else {
+      else if(gameConfig) {
         tryInitFromConfig(*gameConfig, ConfigIO::Result::Error{});
       }
     });

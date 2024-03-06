@@ -342,7 +342,7 @@ int mainLoop(const char* args, HWND window) {
     fs.mRoot = "data/";
   }
 
-  //First initialize just the scheudler synchronously
+  //First initialize just the scheduler synchronously
   std::unique_ptr<IAppBuilder> bootstrap = GameBuilder::create(*APP->combined);
   Simulation::initScheduler(*bootstrap);
   for(auto&& work : GameScheduler::buildSync(IAppBuilder::finalize(std::move(bootstrap)))) {

@@ -38,6 +38,10 @@ namespace Fragment {
     >();
     auto modifiers = task.getModifiersForTables(fragments.matchingTableIDs);
     auto terrainModifier = task.getModifiersForTables(terrain.matchingTableIDs);
+    if(!scene) {
+      task.discard();
+      return;
+    }
 
     task.setCallback([scene, fragments, modifiers, args, terrain, terrainModifier](AppTaskArgs& taskArgs) mutable {
       if(scene->mState != SceneState::State::SetupScene) {
