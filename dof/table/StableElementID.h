@@ -5,7 +5,7 @@
 #include <cassert>
 #include <optional>
 #include <unordered_map>
-#include <mutex>
+#include <shared_mutex>
 
 struct StableIDRow : Row<size_t> {};
 
@@ -13,43 +13,56 @@ struct StableIDRow : Row<size_t> {};
 //This could likely be improved with more individual local stable mappings, but that would also make their use more confusing
 struct StableElementMappings {
 public:
+  static constexpr size_t INVALID = std::numeric_limits<size_t>::max();
+  using WriteLockGuard = std::unique_lock<std::shared_mutex>;
+  using ReadLockGuard = std::shared_lock<std::shared_mutex>;
+
   size_t createKey() {
-    return mKeygen.fetch_add(1, std::memory_order_relaxed) + 1;
+    WriteLockGuard guard{ mMutex };
+    if(mFreeList.size()) {
+      const size_t result = mFreeList.back();
+      mFreeList.pop_back();
+      return result;
+    }
+    const size_t result = mStableToUnstable.size();
+    mStableToUnstable.push_back(INVALID);
+    return result;
   }
 
-  using LockGuard = std::lock_guard<std::mutex>;
-
   void insertKey(size_t stable, size_t unstable) {
-    LockGuard guard{ mMutex };
+    WriteLockGuard guard{ mMutex };
     mStableToUnstable[stable] = unstable;
   }
 
   bool tryUpdateKey(size_t stable, size_t unstable) {
-    LockGuard gaurd{ mMutex };
-    if(auto it = mStableToUnstable.find(stable); it != mStableToUnstable.end()) {
-      it->second = unstable;
+    WriteLockGuard gaurd{ mMutex };
+    if(size_t* value = mStableToUnstable.size() > stable ? &mStableToUnstable[stable] : nullptr; value && *value != INVALID) {
+      *value = unstable;
       return true;
     }
     return false;
   }
 
   bool tryEraseKey(size_t stable) {
-    LockGuard guard{ mMutex };
-    if(auto it = mStableToUnstable.find(stable); it != mStableToUnstable.end()) {
-      mStableToUnstable.erase(it);
+    WriteLockGuard guard{ mMutex };
+    if(size_t* value = mStableToUnstable.size() > stable ? &mStableToUnstable[stable] : nullptr; value && *value != INVALID) {
+      mFreeList.push_back(stable);
+      *value = INVALID;
       return true;
     }
     return false;
   }
 
   std::optional<std::pair<size_t, size_t>> findKey(size_t stable) const {
-    LockGuard guard{ mMutex };
-    auto it = mStableToUnstable.find(stable);
-    return it != mStableToUnstable.end() ? std::make_optional(std::make_pair(stable, it->second)) : std::nullopt;
+    ReadLockGuard guard{ mMutex };
+    if(const size_t* value = mStableToUnstable.size() > stable ? &mStableToUnstable[stable] : nullptr; value && *value != INVALID) {
+      return std::make_pair(stable, *value);
+    }
+    return {};
   }
 
   size_t size() const {
-    LockGuard guard{ mMutex };
+    ReadLockGuard guard{ mMutex };
     return mStableToUnstable.size();
   }
 
@@ -58,9 +71,9 @@ public:
   }
 
 private:
-  std::unordered_map<size_t, size_t> mStableToUnstable;
-  std::atomic_size_t mKeygen{};
-  mutable std::mutex mMutex;
+  std::vector<size_t> mStableToUnstable;
+  std::vector<size_t> mFreeList;
+  mutable std::shared_mutex mMutex;
 };
 
 struct StableInfo {

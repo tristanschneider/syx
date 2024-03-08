@@ -520,7 +520,7 @@ struct StableOperations {
   //ElementID is needed to get the table ID, index doesn't matter
   template<size_t S>
   static void emplaceBack(StableIDRow& row, const DatabaseElementID<S>& id, StableElementMappings& mappings) {
-    const size_t newStableID = ++mappings.mKeygen;
+    const size_t newStableID = mappings.createKey();
     const size_t newUnstableIndex = row.size();
     row.emplaceBack(newStableID);
     mappings[newStableID] = DatabaseElementID<S>{ id.getTableIndex(), newUnstableIndex };
