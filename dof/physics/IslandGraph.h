@@ -456,6 +456,7 @@ namespace IslandGraph {
     std::vector<uint32_t> scratchBuffer;
   };
 
+  EdgeUserdata addUnmappedEdge(Graph& graph, const NodeUserdata& a, const NodeUserdata& b);
   void addEdge(Graph& graph, const NodeUserdata& a, const NodeUserdata& b, const EdgeUserdata& edge);
   void removeEdge(Graph& graph, const NodeUserdata& a, const NodeUserdata& b);
   void removeEdge(Graph& graph, const Graph::EdgeIterator& it);

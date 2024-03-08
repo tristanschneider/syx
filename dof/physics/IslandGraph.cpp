@@ -122,16 +122,15 @@ namespace IslandGraph {
     }
   }
 
-  void addEdge(Graph& graph, const NodeUserdata& a, const NodeUserdata& b, const EdgeUserdata& edge) {
+  uint32_t addEdge(Graph& graph, const NodeUserdata& a, const NodeUserdata& b) {
     auto mappingsA = graph.nodeMappings.find(a);
     auto mappingsB = graph.nodeMappings.find(b);
     if(mappingsA == graph.nodeMappings.end() || mappingsB == graph.nodeMappings.end()) {
       assert(false);
-      return;
+      return INVALID;
     }
     //Add the single edge definition
     Edge newEdge;
-    newEdge.data = edge;
     newEdge.nodeA = mappingsA->second.node;
     newEdge.nodeB = mappingsB->second.node;
     const uint32_t edgeIndex = graph.edges.newIndex();
@@ -146,6 +145,21 @@ namespace IslandGraph {
 
     addToLinkedList(nodeA.edges, entryIndexA, graph.edgeEntries.values[entryIndexA], edgeIndex);
     addToLinkedList(nodeB.edges, entryIndexB, graph.edgeEntries.values[entryIndexB], edgeIndex);
+    return edgeIndex;
+  }
+
+  EdgeUserdata addUnmappedEdge(Graph& graph, const NodeUserdata& a, const NodeUserdata& b) {
+    if(const uint32_t edgeIndex = addEdge(graph, a, b); edgeIndex != INVALID) {
+      graph.edges.values[edgeIndex].data = static_cast<EdgeUserdata>(edgeIndex);
+      return static_cast<EdgeUserdata>(edgeIndex);
+    }
+    return static_cast<EdgeUserdata>(INVALID);
+  }
+
+  void addEdge(Graph& graph, const NodeUserdata& a, const NodeUserdata& b, const EdgeUserdata& edge) {
+    if(const uint32_t edgeIndex = addEdge(graph, a, b); edgeIndex != INVALID) {
+      graph.edges.values[edgeIndex].data = edge;
+    }
   }
 
   void removeEdge(Graph& graph, const NodeUserdata& a, const NodeUserdata& b) {

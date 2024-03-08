@@ -9,19 +9,17 @@ namespace SP {
     auto task = builder.createTask();
     task.setName("update spatial pairs");
     const auto dstTable = builder.queryTables<ObjA, ObjB, ManifoldRow>().matchingTableIDs[0];
-    auto dstQuery = task.query<ObjA, ObjB, IslandGraphRow, const StableIDRow>(dstTable);
+    auto dstQuery = task.query<ObjA, ObjB, IslandGraphRow>(dstTable);
     auto dstModifier = task.getModifierForTable(dstTable);
     auto ids = task.getIDResolver();
     auto broadphaseChanges = task.query<SharedRow<SweepNPruneBroadphase::PairChanges>>();
 
     task.setCallback([dstQuery, dstModifier, ids, broadphaseChanges](AppTaskArgs&) mutable {
-      auto [objA, objB, islandGraph, stableIds] = dstQuery.get(0);
+      auto [objA, objB, islandGraph] = dstQuery.get(0);
       IslandGraph::Graph& graph = islandGraph->at();
       for(size_t t = 0; t < broadphaseChanges.size(); ++t) {
         SweepNPruneBroadphase::PairChanges& changes = broadphaseChanges.get<0>(t).at();
 
-        //Create space for all the new entries
-        const size_t dstBegin = dstModifier->addElements(changes.mGained.size());
         //Add new edges and spatial pairs for all new pairs
         for(size_t i = 0; i < changes.mGained.size(); ++i) {
           const auto& gain = changes.mGained[i];
@@ -30,14 +28,16 @@ namespace SP {
           auto it = graph.findEdge(a.mStableID, b.mStableID);
           //This is a hack that shouldn't happen but sometimes the broadphase seems to report duplicates
           if(it == graph.edgesEnd()) {
-            //Assign new mappings to the destination spatial pair
-            const size_t pi = dstBegin + i;
-            const StableElementID spatialPair{ StableElementID::fromStableRow(pi, *stableIds) };
-            objA->at(pi) = a;
-            objB->at(pi) = b;
-
             //Add the edge pointing at the spatial pair to the island graph
-            IslandGraph::addEdge(graph, a.mStableID, b.mStableID, spatialPair.mStableID);
+            const IslandGraph::EdgeUserdata entryIndex = IslandGraph::addUnmappedEdge(graph, a.mStableID, b.mStableID);
+
+            if(objA->size() <= entryIndex) {
+              //Make plenty of space. No harm in a little extra
+              dstModifier->resize(entryIndex + 100);
+            }
+            //Assign new mappings to the destination spatial pair
+            objA->at(entryIndex) = a;
+            objB->at(entryIndex) = b;
           }
           else {
             assert(false);
@@ -50,12 +50,9 @@ namespace SP {
           const StableElementID b{ StableElementID::fromStableID(loss.b) };
           auto edge = graph.findEdge(a.mStableID, b.mStableID);
           if(edge != graph.edgesEnd()) {
-            //Remove the spatial pair
-            if(auto resolved = ids->tryResolveAndUnpack(StableElementID::fromStableID(*edge))) {
-              dstModifier->swapRemove(resolved->unpacked);
-            }
-            else {
-              assert(false);
+            //Mark the spatial pair as removed
+            if(objA->size() > *edge) {
+              objA->at(*edge) = objB->at(*edge) = StableElementID::invalid();
             }
 
             //Remove the graph edge

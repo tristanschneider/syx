@@ -183,8 +183,8 @@ namespace SpatialQuery {
         selectedEdgeEntry = entry.nextEntry;
 
         //Should always work
-        if(auto resolved = ids->tryResolveAndUnpack(StableElementID::fromStableID(edge.data))) {
-          const SP::ContactManifold& man = manifold->at(resolved->unpacked.getElementIndex());
+        if(manifold->size() > edge.data) {
+          const SP::ContactManifold& man = manifold->at(edge.data);
           //If there are points, copy them over. If there aren't then this made it past broadphase but not narrowphase
           //AABB is special in that the results directly from the broadphase are returned but has no point data
           if(man.size || self.unpacked.getTableIndex() == tables.aabb.getTableIndex()) {

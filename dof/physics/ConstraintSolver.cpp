@@ -552,9 +552,8 @@ namespace ConstraintSolver {
         while(currentEdge != IslandGraph::INVALID) {
           const IslandGraph::Edge& e = graph->edges[currentEdge];
           //Use the edge to get the manifold to see if there is anything to solve
-          if(auto resolved = ids->tryResolveAndUnpack(StableElementID::fromStableID(e.data))) {
-            assert(pairs.matchingTableIDs[0].getTableIndex() == resolved->unpacked.getTableIndex());
-            SP::ZContactManifold& manifold = manifolds.at(resolved->unpacked.getElementIndex());
+          if(e.data < manifolds.size()) {
+            SP::ZContactManifold& manifold = manifolds.at(e.data);
             //The lookups here are somewhat wasted work between bodies but the same pair won't solve on both XY and Z
             if(manifold.info) {
               //This is a constraint to solve, pull out the required information
@@ -638,9 +637,8 @@ namespace ConstraintSolver {
         while(currentEdge != IslandGraph::INVALID) {
           const IslandGraph::Edge& e = graph->edges[currentEdge];
           //Use the edge to get the manifold to see if there is anything to solve
-          if(auto resolved = ids->tryResolveAndUnpack(StableElementID::fromStableID(e.data))) {
-            assert(pairs.matchingTableIDs[0].getTableIndex() == resolved->unpacked.getTableIndex());
-            SP::ContactManifold& manifold = manifolds.at(resolved->unpacked.getElementIndex());
+          if(e.data < manifolds.size()) {
+            SP::ContactManifold& manifold = manifolds.at(e.data);
             if(manifold.size) {
               //This is a constraint to solve, pull out the required information
               const BodyMapping bodyA = getOrCreateBody(graph->nodes[e.nodeA].data, solver, shapeContext, *ids);

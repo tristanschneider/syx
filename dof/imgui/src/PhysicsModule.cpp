@@ -67,8 +67,7 @@ namespace PhysicsModule {
 
             auto resolvedA = ids->tryResolveAndUnpack(StableElementID::fromStableID(g.nodes[e.nodeA].data));
             auto resolvedB = ids->tryResolveAndUnpack(StableElementID::fromStableID(g.nodes[e.nodeB].data));
-            auto resolvedEdge = ids->tryResolveAndUnpack(StableElementID::fromStableID(e.data));
-            if(resolvedA && resolvedB && resolvedEdge && resolvedEdge->unpacked.getTableIndex() == thisTable.getTableIndex()) {
+            if(resolvedA && resolvedB) {
               const glm::vec2 centerA = Narrowphase::Shape::getCenter(shapes->classifyShape(resolvedA->unpacked).shape);
               const glm::vec2 centerB = Narrowphase::Shape::getCenter(shapes->classifyShape(resolvedB->unpacked).shape);
 
@@ -82,7 +81,7 @@ namespace PhysicsModule {
               }
 
               if(drawContacts) {
-                const SP::ContactManifold& manifold = manifolds->at(resolvedEdge->unpacked.getElementIndex());
+                const SP::ContactManifold& manifold = manifolds->at(e.data);
                 for(size_t p = 0; p < manifold.size; ++p) {
                   const SP::ContactPoint& cp = manifold[p];
                   const glm::vec2 contactA = centerA + cp.centerToContactA;

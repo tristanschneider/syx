@@ -59,7 +59,6 @@ namespace SP {
 
   using SpatialPairsTable = Table<
     IslandGraphRow,
-    StableIDRow,
     ObjA,
     ObjB,
     ManifoldRow,
