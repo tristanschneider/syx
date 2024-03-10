@@ -406,7 +406,12 @@ namespace Broadphase {
             break;
           }
           if(e.isEnd()) {
-            toRemove.push_back(BroadphaseKey{ e.getValue() });
+            if(bounds.second < minBound) {
+              toRemove.push_back(BroadphaseKey{ e.getValue() });
+            }
+            else {
+              break;
+            }
           }
         }
         //Find objects off the max side of the axes
@@ -419,7 +424,12 @@ namespace Broadphase {
             break;
           }
           if(e.isStart()) {
-            toRemove.push_back(BroadphaseKey{ e.getValue() });
+            if(bounds.first > maxBound) {
+              toRemove.push_back(BroadphaseKey{ e.getValue() });
+            }
+            else {
+              break;
+            }
           }
         }
       }

@@ -4,6 +4,13 @@
 
 namespace Geo {
   constexpr float EPSILON = 0.001f;
+  constexpr float PI = 3.14159265359f;
+  constexpr float TAU = PI*2.0f;
+
+  struct AABB {
+    glm::vec2 min{ 0 };
+    glm::vec2 max{ 0 };
+  };
 
   struct BodyMass {
     float inverseMass{};
@@ -24,6 +31,10 @@ namespace Geo {
 
   inline bool near(const glm::vec2& a, const glm::vec2& b, float epsilon = EPSILON) {
     return near(a.x, b.x, epsilon) && near(a.y, b.y, epsilon);
+  }
+
+  inline bool nearZero(const  glm::vec2& a, float epsilon = EPSILON) {
+    return std::abs(a.x + a.y) <= epsilon;
   }
 
   inline float cross(const glm::vec2& a, const glm::vec2& b) {

@@ -579,9 +579,7 @@ namespace Test {
         //Swaps the order of the pair in the same way broadphase and SpatialPairsStorage is expecting
         const Broadphase::SweepCollisionPair pair{ a.mStableID, b.mStableID };
         if(auto it = graph->findEdge(pair.a, pair.b); it != graph->edgesEnd()) {
-          if(auto resolved = ids->tryResolveAndUnpack(StableElementID::fromStableID(*it))) {
-            return resolved->unpacked.getElementIndex();
-          }
+          return *it;
         }
         return {};
       }
@@ -650,10 +648,9 @@ namespace Test {
 
       SpatialPairsData pairs{ game.builder() };
 
-      Assert::AreEqual(size_t(2), pairs.manifold->size());
-      const StableElementID a{ StableElementID::fromStableID(1) };
-      const StableElementID b{ StableElementID::fromStableID(2) };
-      const StableElementID c{ StableElementID::fromStableID(3) };
+      const StableElementID a{ StableElementID::fromStableID(0) };
+      const StableElementID b{ StableElementID::fromStableID(1) };
+      const StableElementID c{ StableElementID::fromStableID(2) };
       Assert::IsTrue(pairs.tryFindPair(a, b).has_value());
       Assert::IsTrue(pairs.tryFindPair(a, c).has_value());
     }
@@ -672,8 +669,8 @@ namespace Test {
       game.update();
 
       SpatialPairsData pairs{ game.builder() };
-      auto index = pairs.tryFindPair(StableElementID::fromStableID(1), StableElementID::fromStableID(2));
-      Assert::AreEqual(size_t(1), pairs.manifold->size());
+      auto index = pairs.tryFindPair(StableElementID::fromStableID(0), StableElementID::fromStableID(1));
+      Assert::IsTrue(index.has_value());
       const float e = 0.00001f;
       const auto& man = pairs.manifold->at(*index);
       Assert::AreEqual(expectedOverlap, man[0].overlap, e);
@@ -781,9 +778,16 @@ namespace Test {
 
     static void assertUnorderedCollisionPairsMatch(TestGame& game, std::vector<StableElementID> expectedA, std::vector<StableElementID> expectedB) {
       SpatialPairsData pairs{ game.builder() };
-      Assert::AreEqual(expectedA.size(), pairs.manifold->size());
-      for(size_t i = 0; i < expectedA.size(); ++i) {
-        Assert::IsTrue(pairs.tryFindPair(expectedA[i], expectedB[i]).has_value());
+      const size_t contacts = std::count_if(pairs.objA->begin(), pairs.objA->end(), [](const auto& obj) {
+        return obj != StableElementID::invalid();
+      });
+      Assert::AreEqual(expectedA.size(), contacts);
+      size_t ei = 0;
+      for(size_t i = 0; i < pairs.objA->size() && ei < expectedA.size(); ++i) {
+        if(pairs.objA->at(i) != StableElementID::invalid()) {
+          Assert::IsTrue(pairs.tryFindPair(expectedA[ei], expectedB[ei]).has_value());
+          ++ei;
+        }
       }
     }
 
@@ -866,7 +870,6 @@ namespace Test {
       game.update();
 
       auto assertInitialResolution = [&] {
-        Assert::AreEqual(size_t(1), pairs.manifold->size());
         assertEnabledContactConstraintCount(game, 1);
         assertEnabledStaticContactConstraintCount(game, 0);
         Assert::IsTrue(pairs.tryFindPair(playerId, objectId).has_value());
@@ -879,7 +882,6 @@ namespace Test {
       game.update();
 
       auto assertNoPairs = [&] {
-        Assert::AreEqual(size_t(0), pairs.manifold->size());
         assertEnabledContactConstraintCount(game, 0);
         assertEnabledStaticContactConstraintCount(game, 0);
       };
@@ -910,8 +912,6 @@ namespace Test {
         //Similar to before, except now the single constraint is in the static table instead of the dynamic one
         //Pair order is the same, both because player has lower stable id (0) than object (1) but also because object is now static,
         //and static objects always order B in pairs
-        //TODO: sometimes fails with actual 3
-        Assert::AreEqual(size_t(1), pairs.manifold->size());
         assertEnabledContactConstraintCount(game, 0);
         assertEnabledStaticContactConstraintCount(game, 1);
         Assert::IsTrue(pairs.tryFindPair(playerId, objectId).has_value());
@@ -1099,7 +1099,6 @@ namespace Test {
       game.update();
 
       SpatialPairsData pairs{ game.builder() };
-      Assert::AreEqual(size_t(3), pairs.manifold->size());
       assertEnabledContactConstraintCount(game, 3);
       assertEnabledStaticContactConstraintCount(game, 0);
       assertUnorderedCollisionPairsMatch(game,
@@ -1133,7 +1132,6 @@ namespace Test {
       game.update();
 
       auto assertStaticCollision = [&] {
-        Assert::AreEqual(size_t(3), pairs.manifold->size());
         assertEnabledContactConstraintCount(game, 1);
         assertEnabledStaticContactConstraintCount(game, 2);
         //Now left is the B object always since it's static
@@ -1151,7 +1149,6 @@ namespace Test {
       playerTransform.posX->at(0) = 100.0f;
       game.update();
 
-      Assert::AreEqual(size_t(1), pairs.manifold->size());
       assertEnabledContactConstraintCount(game, 0);
       assertEnabledStaticContactConstraintCount(game, 1);
       assertUnorderedCollisionPairsMatch(game,

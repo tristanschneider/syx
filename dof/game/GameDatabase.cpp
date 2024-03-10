@@ -250,5 +250,7 @@ namespace GameDatabase {
     setDefaultValue<ConstraintSolver::SharedMassRow, ZeroMassObjectTableTag>(builder, "set zero mass", Geo::BodyMass{});
     //Fragments in particular start opaque then reveal the texture as they take damage
     setDefaultValue<Tint, const IsFragment>(builder, "setDefault Tint", glm::vec4(0, 0, 0, 1));
+    setDefaultValue<SP::ObjA>(builder, "setDefault objA", StableElementID::invalid());
+    setDefaultValue<SP::ObjB>(builder, "setDefault objB", StableElementID::invalid());
   }
 }

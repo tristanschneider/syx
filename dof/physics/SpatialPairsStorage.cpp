@@ -5,6 +5,26 @@
 #include "SweepNPruneBroadphase.h"
 
 namespace SP {
+  size_t addIslandEdge(ITableModifier& modifier,
+    IslandGraph::Graph& graph,
+    ObjA& rowA,
+    ObjB& rowB,
+    const StableElementID& a,
+    const StableElementID& b
+  ) {
+    //Add the edge pointing at the spatial pair to the island graph
+    const IslandGraph::EdgeUserdata entryIndex = IslandGraph::addUnmappedEdge(graph, a.mStableID, b.mStableID);
+
+    if(rowA.size() <= entryIndex) {
+      //Make plenty of space. No harm in a little extra
+      modifier.resize(entryIndex + 100);
+    }
+    //Assign new mappings to the destination spatial pair
+    rowA.at(entryIndex) = a;
+    rowB.at(entryIndex) = b;
+    return entryIndex;
+  }
+
   void updateSpatialPairsFromBroadphase(IAppBuilder& builder) {
     auto task = builder.createTask();
     task.setName("update spatial pairs");
@@ -28,16 +48,7 @@ namespace SP {
           auto it = graph.findEdge(a.mStableID, b.mStableID);
           //This is a hack that shouldn't happen but sometimes the broadphase seems to report duplicates
           if(it == graph.edgesEnd()) {
-            //Add the edge pointing at the spatial pair to the island graph
-            const IslandGraph::EdgeUserdata entryIndex = IslandGraph::addUnmappedEdge(graph, a.mStableID, b.mStableID);
-
-            if(objA->size() <= entryIndex) {
-              //Make plenty of space. No harm in a little extra
-              dstModifier->resize(entryIndex + 100);
-            }
-            //Assign new mappings to the destination spatial pair
-            objA->at(entryIndex) = a;
-            objB->at(entryIndex) = b;
+            addIslandEdge(*dstModifier, graph, *objA, *objB, a, b);
           }
           else {
             assert(false);

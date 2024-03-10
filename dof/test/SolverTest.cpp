@@ -101,12 +101,15 @@ namespace Test {
       SolverApp app;
       auto& task = app.builder();
       const TableIds tables{ task };
-      auto [islandGraph, manifold] = task.query<
+      auto [islandGraph, manifold, pairA, pairB] = task.query<
         SP::IslandGraphRow,
-        SP::ManifoldRow
+        SP::ManifoldRow,
+        SP::ObjA,
+        SP::ObjB
       >().get(0);
       IslandGraph::Graph& graph = islandGraph->at();
       auto [staticStableID] = task.query<StableIDRow>(tables.staticBodies).get(0);
+      auto modifier = task.getModifierForTable(tables.spatialPairs);
       auto [dynamicStableId, dvx, dvy, dva] = task.query<
         StableIDRow,
         LinVelX,
@@ -117,16 +120,15 @@ namespace Test {
 
       const ResolvedIDs staticA = app.createInTable(tables.staticBodies);
       const ResolvedIDs dynamicB = app.createInTable(tables.dynamicBodies);
-      const ResolvedIDs edgeAB = app.createInTable(tables.spatialPairs);
       const size_t ib = dynamicB.unpacked.getElementIndex();
 
       IslandGraph::addNode(graph, staticA.stable.mStableID);
       IslandGraph::addNode(graph, dynamicB.stable.mStableID);
-      IslandGraph::addEdge(graph, staticA.stable.mStableID, dynamicB.stable.mStableID, edgeAB.stable.mStableID);
+      const size_t edgeAB = SP::addIslandEdge(*modifier, graph, *pairA, *pairB, staticA.stable, dynamicB.stable);
 
       //Simulate B moving right towards A and hitting with two contact points on the corners of A
       dvx->at(ib) = 1.0f;
-      SP::ContactManifold& manifoldAB = manifold->at(edgeAB.unpacked.getElementIndex());
+      SP::ContactManifold& manifoldAB = manifold->at(edgeAB);
       constexpr float overlap = 0.05f;
       manifoldAB.size = 2;
       manifoldAB[0].centerToContactB = { 0.5f, 0.5f };
@@ -149,14 +151,13 @@ namespace Test {
 
       //Simulate another object C moving downwards and colliding with A but not B
       const ResolvedIDs dynamicC = app.createInTable(tables.dynamicBodies);
-      const ResolvedIDs edgeBC = app.createInTable(tables.spatialPairs);
       const size_t ic = dynamicC.unpacked.getElementIndex();
       IslandGraph::addNode(graph, dynamicC.stable.mStableID);
-      IslandGraph::addEdge(graph, dynamicB.stable.mStableID, dynamicC.stable.mStableID, edgeBC.stable.mStableID);
+      const size_t edgeBC = SP::addIslandEdge(*modifier, graph, *pairA, *pairB, dynamicB.stable, dynamicC.stable);
 
       dvy->at(ic) = -0.75f;
 
-      SP::ContactManifold& manifoldBC = manifold->at(edgeBC.unpacked.getElementIndex());
+      SP::ContactManifold& manifoldBC = manifold->at(edgeBC);
       manifoldBC.size = 1;
       manifoldBC[0].centerToContactA = { 0.5f, 0.5f };
       manifoldBC[0].centerToContactB = { 0.5f, -0.5f };
@@ -189,11 +190,14 @@ namespace Test {
       SolverApp app;
       auto& task = app.builder();
       const TableIds tables{ task };
-      auto [islandGraph, manifold, zManifold] = task.query<
+      auto [islandGraph, manifold, zManifold, pairA, pairB] = task.query<
         SP::IslandGraphRow,
         SP::ManifoldRow,
-        SP::ZManifoldRow
+        SP::ZManifoldRow,
+        SP::ObjA,
+        SP::ObjB
       >().get(0);
+      auto modifier = task.getModifierForTable(tables.spatialPairs);
       IslandGraph::Graph& graph = islandGraph->at();
       auto [dynamicStableId, dvz, dva] = task.query<
         StableIDRow,
@@ -208,16 +212,15 @@ namespace Test {
 
       const size_t ai = a.unpacked.getElementIndex();
       const size_t bi = b.unpacked.getElementIndex();
-      const ResolvedIDs edgeAB = app.createInTable(tables.spatialPairs);
 
       IslandGraph::addNode(graph, a.stable.mStableID);
       IslandGraph::addNode(graph, b.stable.mStableID);
-      IslandGraph::addEdge(graph, a.stable.mStableID, b.stable.mStableID, edgeAB.stable.mStableID);
+      const size_t edgeAB = SP::addIslandEdge(*modifier, graph, *pairA, *pairB, a.stable, b.stable);
 
       //A moving up towards B but not fast enough to collide
       dvz->at(ai) = 1.0f;
       dvz->at(bi) = -1.0f;
-      SP::ZContactManifold& manifoldAB = zManifold->at(edgeAB.unpacked.getElementIndex());
+      SP::ZContactManifold& manifoldAB = zManifold->at(edgeAB);
       manifoldAB.info.emplace();
       manifoldAB.info->normal = -1.0f;
       manifoldAB.info->separation = 4.f;

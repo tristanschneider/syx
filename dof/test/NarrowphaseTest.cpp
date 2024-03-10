@@ -11,6 +11,7 @@
 #include "Geometric.h"
 #include "TestApp.h"
 #include "Physics.h"
+#include "Clip.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -453,5 +454,117 @@ namespace Test {
         });
       }
     }
+
+    bool matchesOrderless(const std::vector<glm::vec2>& a, const std::vector<glm::vec2>& b) {
+      if(a.size() != b.size()) {
+        return false;
+      }
+      return std::all_of(a.begin(), a.end(), [&b](const glm::vec2& pA) {
+        return std::any_of(b.begin(), b.end(), [&pA](const glm::vec2& pB) {
+          return Geo::near(pA, pB);
+        });
+      });
+    }
+
+    TEST_METHOD(ClipShapes) {
+      std::vector<glm::vec2> a;
+      std::vector<glm::vec2> b;
+      b.push_back({ 1, 1 });
+      b.push_back({ 2, 1 });
+      b.push_back({ 2, 2 });
+      b.push_back({ 1, 2 });
+
+      //A and B intersecting
+      a.push_back({ 0, 0 });
+      a.push_back({ 1.5f, 0 });
+      a.push_back({ 1.5f, 1.5f });
+      a.push_back({ 0.0f, 1.5f });
+      Clip::ClipContext context;
+
+      Clip::clipShapes(a, b, context);
+      Assert::IsTrue(matchesOrderless(context.result, {
+        glm::vec2{ 1, 1 },
+        glm::vec2{ 1.5f, 1 },
+        glm::vec2{ 1.5f, 1.5f },
+        glm::vec2{ 1, 1.5f }
+      }));
+
+      //A empty
+      a.clear();
+      Clip::clipShapes(a, b, context);
+      Assert::IsTrue(context.result.empty());
+
+      //A outside of B
+      a.push_back({ -1, -1 });
+      a.push_back({ -2, -2 });
+      Clip::clipShapes(a, b, context);
+      Assert::IsTrue(context.result.empty());
+
+      //A inside of B
+      a.clear();
+      a.push_back({ 1, 1 });
+      a.push_back({ 2, 2 });
+      a.push_back({ 1, 2 });
+      Clip::clipShapes(a, b, context);
+      Assert::IsTrue(matchesOrderless(a, context.result));
+    }
+/*
+    static void validateManifold(const SP::ContactManifold& manifold, const std::vector<glm::vec2>& shapeA, const std::vector<glm::vec2>& shapeB) {
+
+    }
+
+    TEST_METHOD(BoxBoxStressTest) {
+      NarrowphaseDB db;
+      auto& task = db.builder();
+      NarrowphaseTableIds tables{ task };
+      auto modifier = task.getModifierForTable(tables.sharedUnitCubes);
+      const size_t i = modifier->addElements(2);
+      auto [stable, mask, posX, posY, rotX, rotY] = task.query<
+        StableIDRow,
+        Narrowphase::CollisionMaskRow,
+        PosX,
+        PosY,
+        RotX,
+        RotY
+      >().get(0);
+      SpatialQueriesAdapter queries{ task };
+      const size_t a = i;
+      const size_t b = i + 1;
+      const size_t q = queries.addPair(StableElementID::fromStableID(stable->at(a)), StableElementID::fromStableID(stable->at(b)));
+      const glm::vec2 origin{ 1, 1 };
+      mask->at(a) = mask->at(b) = 1;
+      SP::ContactManifold& manifold = queries.manifold->at(q);
+      const glm::vec2 sizeA{ 2, 2 };
+      const glm::vec2 sizeB{ sizeA };
+      TableAdapters::write(b, origin, *posX, *posY);
+      rotX->at(b) = 1.0f;
+
+      constexpr size_t posIncrement = 100;
+      constexpr size_t angleIncrement = 360;
+      const glm::vec2 min = origin - sizeA/2.0f - sizeB/2.0f;
+      const glm::vec2 size = sizeA + sizeB;
+      for(size_t w = 0; w < angleIncrement; ++w) {
+        const float pw = static_cast<float>(w)/static_cast<float>(angleIncrement);
+        const float angle = Geo::TAU*pw;
+        const glm::vec2 rot{ std::cos(angle), std::sin(angle) };
+        glm::vec2 pos{};
+        for(size_t x = 0; x < posIncrement; ++x) {
+          const float px = static_cast<float>(x)/static_cast<float>(posIncrement);
+          pos.x = min.x + size.x*px;
+          for(size_t y = 0; y < posIncrement; ++y) {
+            const float py = static_cast<float>(y)/static_cast<float>(posIncrement);
+            pos.y = min.y + size.y*py;
+
+            TableAdapters::write(a, pos, *posX, *posY);
+            TableAdapters::write(a, rot, *rotX, *rotY);
+
+            db.doNarrowphase();
+
+
+          }
+        }
+      }
+    }
+    */
   };
 }

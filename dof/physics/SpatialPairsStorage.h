@@ -8,6 +8,11 @@
 class IAppBuilder;
 struct DBEvents;
 class RuntimeDatabaseTaskBuilder;
+class ITableModifier;
+
+namespace IslandGraph {
+  struct Graph;
+};
 
 //This stores all persistent information between pairs of objects that are nearby
 //The entries are created and destroyed as output from the broadphase and tracked by the island graph
@@ -64,6 +69,14 @@ namespace SP {
     ManifoldRow,
     ZManifoldRow
   >;
+
+  size_t addIslandEdge(ITableModifier& modifier,
+    IslandGraph::Graph& graph,
+    ObjA& rowA,
+    ObjB& rowB,
+    const StableElementID& a,
+    const StableElementID& b
+  );
 
   //Take the pair gains/losses from the broadphase and use them to create or remove entries in the SpatialPairsTable and their edges in the IslandGraph
   void updateSpatialPairsFromBroadphase(IAppBuilder& builder);

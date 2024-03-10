@@ -63,7 +63,7 @@ public:
 
   size_t size() const {
     ReadLockGuard guard{ mMutex };
-    return mStableToUnstable.size();
+    return mStableToUnstable.size() - mFreeList.size();
   }
 
   bool empty() const {
