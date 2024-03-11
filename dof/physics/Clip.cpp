@@ -59,7 +59,8 @@ namespace Clip {
       }
 
       if(output->empty()) {
-        break;
+        context.result.clear();
+        return;
       }
       //Swap input and output. On the first iteration it's the 'a' container
       if(output == &context.result) {

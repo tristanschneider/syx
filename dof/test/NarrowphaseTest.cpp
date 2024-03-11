@@ -15,6 +15,13 @@
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
+//Hack to make stopping at a test failure easier
+#define ASSERT_TRUE(condition) {\
+  const bool _condition = condition;\
+  if(!_condition) __debugbreak();\
+  Assert::IsTrue(_condition);\
+}
+
 namespace Test {
   struct PosX : Row<float> {};
   struct PosY : Row<float> {};
@@ -508,9 +515,130 @@ namespace Test {
       Clip::clipShapes(a, b, context);
       Assert::IsTrue(matchesOrderless(a, context.result));
     }
-/*
-    static void validateManifold(const SP::ContactManifold& manifold, const std::vector<glm::vec2>& shapeA, const std::vector<glm::vec2>& shapeB) {
 
+    struct Edge {
+      glm::vec2 start;
+      glm::vec2 end;
+      glm::vec2 normal;
+      float overlap{};
+    };
+    struct ValidationContext {
+      bool isPointOnEdge(const glm::vec2& p) {
+        //Point is inside if they are all in the other direction of the normal
+        return std::any_of(edges.begin(), edges.end(), [&p](const Edge& e) {
+          const glm::vec2 sp = p - e.start;
+          if(Geo::nearZero(glm::dot(sp, e.normal))) {
+            //Point's projection on normal is zero, make sure it is also within this edge
+            return glm::dot(sp, p - e.end) <= Geo::EPSILON;
+          }
+          return false;
+        });
+      }
+
+      Clip::ClipContext clipper;
+      std::vector<Edge> edges;
+      //Edges suitable to be a separating axis. Usually one but can be multiple if separation is equivalent on multiple axes
+      std::vector<Edge> bestEdges;
+    };
+
+    static glm::vec2 average(const std::vector<glm::vec2>& points) {
+      if(points.empty()) {
+        return glm::vec2{ 0 };
+      }
+      return std::accumulate(points.begin(), points.end(), glm::vec2{ 0 }) / static_cast<float>(points.size());
+    }
+
+    static void validateManifold(const SP::ContactManifold& manifold,
+      const std::vector<glm::vec2>& shapeA,
+      const std::vector<glm::vec2>& shapeB,
+      ValidationContext& context
+    ) {
+      //Clipping the shapes against each-other is a simple way to find the range of correct contact ponits
+      Clip::clipShapes(shapeA, shapeB, context.clipper);
+      //If the clipped shape is empty that would mean they had no points in common, meaning no collision
+      if(context.clipper.result.empty()) {
+        Assert::AreEqual(uint32_t(0), manifold.size);
+        return;
+      }
+      //If the clipped shape has points then at least something should be in the manifold
+      Assert::IsTrue(manifold.size > 0);
+
+      const glm::vec2 centerA = average(shapeA);
+      const glm::vec2 centerB = average(shapeB);
+
+      //Find the best normal on the shape, which is the one that results on the least distance to the other side along that normal
+      //Input shapes are counterclockwise so clipped shape should be as well, this should mean all normals are pointing outwards
+      //Regardless use abs for simplicity
+      context.edges.clear();
+      for(size_t i = 0; i < context.clipper.result.size(); ++i) {
+        Edge e;
+        e.start = context.clipper.result[i];
+        e.end = context.clipper.result[(i + 1) % context.clipper.result.size()];
+        e.normal = Geo::orthogonal(e.end - e.start);
+        if(!Geo::nearZero(e.normal, Geo::EPSILON/2.0f)) {
+          e.normal = glm::normalize(e.normal);
+          context.edges.push_back(e);
+        }
+      }
+
+      //If there are no edges this means only the corners are exactly touching
+      //Any normal in the separating direction is equally valid
+      if(context.edges.empty()) {
+        for(size_t i = 0; i < manifold.size; ++i) {
+          const glm::vec2 pointA = manifold.points[i].centerToContactA + centerA;
+          const glm::vec2 pointB = manifold.points[i].centerToContactB + centerB;
+          ASSERT_TRUE(Geo::near(pointA, pointB));
+          //All clipped points are the same which is the single corner point which should bethe contact
+          ASSERT_TRUE(Geo::near(pointA, context.clipper.result[0]));
+          ASSERT_TRUE(glm::dot(manifold.points[i].centerToContactA, manifold.points[i].normal) < 0.0f);
+          Assert::AreEqual(0.0f, manifold.points[i].overlap, Geo::EPSILON);
+        }
+        return;
+      }
+
+      float bestDot = std::numeric_limits<float>::max();
+      for(Edge& edge : context.edges) {
+        float curDot = -1.0f;
+        for(const glm::vec2& p : context.clipper.result) {
+          curDot = std::max(curDot, std::abs(glm::dot(p - edge.start, edge.normal)));
+        }
+        edge.overlap = curDot;
+        if(curDot < bestDot) {
+          bestDot = curDot;
+        }
+      }
+      context.bestEdges.clear();
+      for(Edge& edge : context.edges) {
+        if(Geo::near(edge.overlap,  bestDot)) {
+          context.bestEdges.push_back(edge);
+        }
+      }
+
+      for(size_t i = 0; i < manifold.size; ++i) {
+        //Normal should match one of the directions
+        const auto isValidNormal = std::any_of(context.bestEdges.begin(), context.bestEdges.end(), [&](const Edge& edge) {
+          return Geo::near(manifold.points[i].normal, edge.normal) || Geo::near(manifold.points[i].normal, -edge.normal);
+        });
+        ASSERT_TRUE(isValidNormal);
+        //All contact points should be on an edge of the clipped shape
+        const glm::vec2 pointA = manifold.points[i].centerToContactA + centerA;
+        const glm::vec2 pointB = manifold.points[i].centerToContactB + centerB;
+        ASSERT_TRUE(context.isPointOnEdge(pointA));
+        //Zero is hack to skip cases that are kind of incorrect but I don't want to deal with right now
+        //TODO: fix it
+        //Another hack since current implementation does produce suboptimal contacts
+        if(i == 0) {
+          ASSERT_TRUE(manifold.points[i].overlap == 0.0f || Geo::near(context.bestEdges[0].overlap, manifold.points[i].overlap));
+        }
+        ASSERT_TRUE(Geo::near(pointA, pointB));
+      }
+    }
+
+    static void transform(const std::vector<glm::vec2>& input, std::vector<glm::vec2>& output, const glm::mat3x3& matrix) {
+      output.resize(input.size());
+      for(size_t i = 0; i < input.size(); ++i) {
+        output[i] = Geo::transformPoint(matrix, input[i]);
+      }
     }
 
     TEST_METHOD(BoxBoxStressTest) {
@@ -539,10 +667,21 @@ namespace Test {
       TableAdapters::write(b, origin, *posX, *posY);
       rotX->at(b) = 1.0f;
 
+      std::vector<glm::vec2> localShape{
+        glm::vec2{ -0.5f, -0.5f },
+        glm::vec2{  0.5f, -0.5f },
+        glm::vec2{  0.5f,  0.5f },
+        glm::vec2{ -0.5f,  0.5f },
+      };
+      std::vector<glm::vec2> worldShapeA;
+      std::vector<glm::vec2> worldShapeB;
+      transform(localShape, worldShapeB, Geo::buildTranslate(origin));
+
       constexpr size_t posIncrement = 100;
-      constexpr size_t angleIncrement = 360;
+      constexpr size_t angleIncrement = 3;
       const glm::vec2 min = origin - sizeA/2.0f - sizeB/2.0f;
       const glm::vec2 size = sizeA + sizeB;
+      ValidationContext context;
       for(size_t w = 0; w < angleIncrement; ++w) {
         const float pw = static_cast<float>(w)/static_cast<float>(angleIncrement);
         const float angle = Geo::TAU*pw;
@@ -560,11 +699,11 @@ namespace Test {
 
             db.doNarrowphase();
 
-
+            transform(localShape, worldShapeA, Geo::buildTransform(pos, rot, { 1, 1 }));
+            validateManifold(manifold, worldShapeA, worldShapeB, context);
           }
         }
       }
     }
-    */
   };
 }

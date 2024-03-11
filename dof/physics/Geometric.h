@@ -33,14 +33,26 @@ namespace Geo {
     return near(a.x, b.x, epsilon) && near(a.y, b.y, epsilon);
   }
 
-  inline bool nearZero(const  glm::vec2& a, float epsilon = EPSILON) {
+  inline bool nearZero(const glm::vec2& a, float epsilon = EPSILON) {
     return std::abs(a.x + a.y) <= epsilon;
+  }
+
+  inline bool nearZero(float a, float epsilon = EPSILON) {
+    return std::abs(a) <= epsilon;
   }
 
   inline float cross(const glm::vec2& a, const glm::vec2& b) {
     //[ax] x [bx] = [ax*by - ay*bx]
     //[ay]   [by]
     return a.x*b.y - a.y*b.x;
+  }
+
+  constexpr float hasDifferentSign(float a, float b) {
+    //Positive times positive is positive (same)
+    //Negative times negative is positive (same)
+    //Positive times negative is negative (different)
+    //Count zero as different
+    return a * b <= 0;
   }
 
   inline glm::vec2 orthogonal(const glm::vec2& v) {
