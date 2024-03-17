@@ -3,9 +3,11 @@
 #include "RuntimeDatabase.h"
 #include "Table.h"
 #include "glm/vec2.hpp"
+#include <variant>
 
 class IAppBuilder;
 struct PhysicsAliases;
+class RuntimeDatabaseTaskBuilder;
 
 namespace Narrowphase {
   namespace Shape {

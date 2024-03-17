@@ -634,6 +634,35 @@ namespace Test {
       }
     }
 
+    constexpr static glm::vec2 NOINTERSECT{ 99, 99 };
+    glm::vec2 intersectLines(const glm::vec2& a1,
+      const glm::vec2& a2,
+      const glm::vec2& b1,
+      const glm::vec2& b2
+    ) {
+      auto la = Clip::StartAndDir::fromStartEnd(a1, a2);
+      auto lb = Clip::StartAndDir::fromStartEnd(b1, b2);
+      Clip::LineLineIntersectTimes times = Clip::getIntersectTimes(la, lb);
+      auto timeA = Clip::getIntersectA(la, lb);
+      Assert::AreEqual(times.tA.has_value(), timeA.has_value());
+      Assert::AreEqual(times.tA.value_or(0.0f), timeA.value_or(0.0f), 0.01f);
+      const glm::vec2 ia = la.start + la.dir**times.tA;
+      const glm::vec2 ib = lb.start + lb.dir**times.tB;
+      if(times.tA.has_value()) {
+        assertEq(ia, ib);
+      }
+      else {
+        return NOINTERSECT;
+      }
+      return ia;
+    }
+
+    TEST_METHOD(LineLineIntersect) {
+      assertEq({ 0, 0.5f }, intersectLines({ 0, 0 }, { 0, 1 }, { -0.5f, 0.5f }, { 0.5f, 0.5f }));
+      assertEq({ 0.5f, 0 }, intersectLines({ 0.5f, -0.5f }, { 0.5f, 0.5f }, { 0, 0 }, { 1, 0 }));
+      assertEq(NOINTERSECT, intersectLines({ 0.5f, -0.5f }, { 0.5f, 0.5f }, { 1.5f, 0.5f }, { 1.5f, 0.5f }));
+    }
+
     static void transform(const std::vector<glm::vec2>& input, std::vector<glm::vec2>& output, const glm::mat3x3& matrix) {
       output.resize(input.size());
       for(size_t i = 0; i < input.size(); ++i) {

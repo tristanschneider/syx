@@ -82,4 +82,40 @@ namespace Clip {
       context.temp.swap(context.result);
     }
   }
+
+  LineLineIntersectTimes getIntersectTimes(const StartAndDir& lA, const StartAndDir& lB) {
+    //a1.x + t(a2.x - a1.x) = b1.x + s(b2.x - b1.x)
+    //a1.y + t(a2.y - a1.y) = b1.y + s(b2.y - b1.y)
+    //Rearrange to form Ax=b
+    //t(a2.x - a1.x) - s(b2.x - b1.x) = b1.x - a1.x
+    //t(a2.y - a1.y) - s(b2.y - b1.y) = b1.y - a1.y
+    //Use Cramer's rule to solve
+    //[a b]=[e]
+    //[c d] [f]
+    //t = (ed - fb)/(ad - bc)
+    //s = (af - ce)/(ad - bc)
+    const glm::vec2& col1 = lA.dir;
+    const glm::vec2 col2 = -lB.dir;
+    const glm::vec2 col3 = lB.start - lA.start;
+    const float determinant = Geo::det(col1, col2);
+    //Parallel lines
+    if(std::abs(determinant) <= Geo::EPSILON) {
+      return {};
+    }
+    const float t = Geo::det(col3, col2)/determinant;
+    const float s = Geo::det(col1, col3)/determinant;
+    return { t, s };
+  }
+
+  std::optional<float> getIntersectA(const StartAndDir& lA, const StartAndDir& lB) {
+    const glm::vec2& col1 = lA.dir;
+    const glm::vec2 col2 = -lB.dir;
+    const glm::vec2 col3 = lB.start - lA.start;
+    const float determinant = Geo::det(col1, col2);
+    //Parallel lines
+    if(std::abs(determinant) <= Geo::EPSILON) {
+      return {};
+    }
+    return Geo::det(col3, col2)/determinant;
+  }
 };

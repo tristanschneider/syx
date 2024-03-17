@@ -25,6 +25,11 @@ namespace Geo {
     float max{};
   };
 
+  //Determinant but glm already has a global function named that
+  constexpr float det(const glm::vec2& col1, const glm::vec2& col2) {
+    return col1.x*col2.y - col1.y*col2.x;
+  }
+
   inline bool near(float a, float b, float epsilon = EPSILON) {
     return std::abs(a - b) <= epsilon;
   }
