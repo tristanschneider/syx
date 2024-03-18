@@ -17,6 +17,11 @@ namespace Geo {
     float inverseInertia{};
   };
 
+  struct LineSegment {
+    glm::vec2 start{ 0 };
+    glm::vec2 end{ 0 };
+  };
+
   struct Range1D {
     float length() const {
       return max - min;

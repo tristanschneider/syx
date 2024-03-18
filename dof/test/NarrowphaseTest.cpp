@@ -12,6 +12,7 @@
 #include "TestApp.h"
 #include "Physics.h"
 #include "Clip.h"
+#include "BoxBox.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -667,6 +668,140 @@ namespace Test {
       output.resize(input.size());
       for(size_t i = 0; i < input.size(); ++i) {
         output[i] = Geo::transformPoint(matrix, input[i]);
+      }
+    }
+
+    struct BoxBuilder {
+      BoxBuilder& a() {
+        element = 1;
+        return *this;
+      }
+      BoxBuilder& b() {
+        element = 2;
+        return *this;
+      }
+
+      BoxBuilder& pos(const glm::vec2& p) {
+        getElement().pos = p;
+        return *this;
+      }
+
+      BoxBuilder& rot(const glm::vec2& p) {
+        getElement().rot = p;
+        return *this;
+      }
+
+      BoxBuilder& scale(const glm::vec2& p) {
+        getElement().scale = p;
+        return *this;
+      }
+
+      Narrowphase::BoxPairElement& getElement() {
+        return element == 1 ? pair.a : pair.b;
+      }
+
+      bool isOverlapping() const {
+        return Narrowphase::getLeastOverlappingAxis(pair).overlap >= 0;
+      }
+
+      Narrowphase::BoxPair pair;
+      uint8_t element{};
+    };
+
+    TEST_METHOD(BoxBoxOverlap) {
+      //No intersect no axis overlap
+      Assert::IsFalse(BoxBuilder{}.a().pos({ 1, 1 }).rot({ 1, 0 }).scale({ 0.25f, 0.5f })
+        .b().pos({ 1.51f, 2.01f }).rot({ 0, 1 }).scale({ 0.25f, 0.5f }).isOverlapping());
+      //No intersect one axis overlap
+      Assert::IsFalse(BoxBuilder{}.a().pos({ 1, 1 }).rot({ 1, 0 }).scale({ 0.25f, 0.25f })
+        .b().pos({ 1.f, 2.01f }).rot({ 0, 1 }).scale({ 0.25f, 0.5f }).isOverlapping());
+      //Intersect edge edge
+      Assert::IsTrue(BoxBuilder{}.a().pos({ 1, 1 }).rot({ 1, 0 }).scale({ 0.25f, 0.5f })
+        .b().pos({ 0.9f, 1.99f }).rot({ 0, 1 }).scale({ 0.5f, 0.25f }).isOverlapping());
+      //Intersect edge corner
+      {
+        const glm::vec2 dir = glm::normalize(glm::vec2{ 1, 1 });
+        const glm::vec2 scaleA{ 0.5f, 0.25f };
+        const glm::vec2 posA{ 1, 1 };
+        const glm::vec2 corner = posA + scaleA;
+        const glm::vec2 scaleB{ 1, 1 };
+        const glm::vec2 posB = corner + dir*0.99f;
+        Assert::IsTrue(BoxBuilder{}.a().pos(posA).rot({ 0, 1 }).scale(scaleA)
+          .b().pos(posB).rot(dir).scale(scaleB).isOverlapping());
+      }
+      //No intersect edge to corner
+      {
+        const glm::vec2 dir = glm::normalize(glm::vec2{ 1, 1 });
+        const glm::vec2 scaleA{ 0.5f, 0.25f };
+        const glm::vec2 posA{ 1, 1 };
+        const glm::vec2 corner = posA + scaleA;
+        const glm::vec2 scaleB{ 1, 1 };
+        const glm::vec2 posB = corner + dir*1.01f;
+        Assert::IsFalse(BoxBuilder{}.a().pos(posA).rot({ 0, 1 }).scale(scaleA)
+          .b().pos(posB).rot(dir).scale(scaleB).isOverlapping());
+      }
+    }
+
+    struct EdgeBuilder {
+      EdgeBuilder& reference() {
+        selected = 1;
+        return *this;
+      }
+      EdgeBuilder& incident() {
+        selected = 2;
+        return *this;
+      }
+      Geo::LineSegment& getSelected() {
+        return selected == 1 ? refEdge : incEdge;
+      }
+      EdgeBuilder& normal(const glm::vec2& n) {
+        refNormal = n;
+        return *this;
+      }
+      EdgeBuilder& start(const glm::vec2& p) {
+        getSelected().start = p;
+        return *this;
+      }
+      EdgeBuilder& end(const glm::vec2& p) {
+        getSelected().end = p;
+        return *this;
+      }
+      void assertClipMatches(const glm::vec2& a, const glm::vec2& b) const {
+        const Narrowphase::ClipResult result = Narrowphase::clipEdgeToEdge(refNormal, refEdge, incEdge);
+        //Orderless match
+        Assert::IsTrue((Geo::near(result.edge.start, a) && Geo::near(result.edge.end, b))
+          || (Geo::near(result.edge.start, b) && Geo::near(result.edge.end, a)));
+        const float overlapS = glm::dot(refEdge.start - result.edge.start, refNormal);
+        const float overlapE = glm::dot(refEdge.end - result.edge.end, refNormal);
+        Assert::AreEqual(overlapS, result.overlap.min, 0.001f);
+        Assert::AreEqual(overlapE, result.overlap.max, 0.001f);
+      }
+      void assertClipUnchanged() const {
+        assertClipMatches(incEdge.start, incEdge.end);
+      }
+
+      glm::vec2 refNormal{ 0 };
+      Geo::LineSegment refEdge;
+      Geo::LineSegment incEdge;
+      uint8_t selected{};
+    };
+
+    TEST_METHOD(BoxBoxClipEdge) {
+      //Incident entirely within reference
+      EdgeBuilder{}.normal({ 0, 1 }).reference().start({ 1, 1 }).end({ 2, 1 })
+        .incident().start({ 1.1f, 0.9f }).end({ 1.9f, 0.95f }).assertClipUnchanged();
+      //Incident within reference but extending past the sides
+      EdgeBuilder{}.normal({ 0, 1 }).reference().start({ 1, 1 }).end({ 2, 1 })
+        .incident().start({ 0.9f, 0.9f }).end({ 2.9f, 0.9f }).assertClipMatches({ 1, 0.9f }, { 2, 0.9f });
+      //Incident intersecting reference within the sides
+      EdgeBuilder{}.normal({ 0, 1 }).reference().start({ 1, 1 }).end({ 2, 1 })
+        .incident().start({ 1.9f, 1.9f }).end({ 1.9f, 0.95f }).assertClipMatches({ 1.9f, 1 }, { 1.9f, 0.95f });
+      //Incident intersecting reference and extending past sides
+      {
+        const glm::vec2 center{ 1.5f , 0.4f };
+        const glm::vec2 dir{ 1, 1 };
+        EdgeBuilder{}.normal({ 0, 1 }).reference().start({ 1, 1 }).end({ 2, 1 })
+          .incident().start(center - dir*10.0f).end(center + dir*10.0f).assertClipMatches({ 1, -0.1f }, { 2, 0.9f });
       }
     }
 

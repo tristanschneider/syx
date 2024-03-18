@@ -7,15 +7,6 @@
 #include "SpatialPairsStorage.h"
 
 namespace Narrowphase {
-  struct BoxPairElement {
-    glm::vec2 pos{};
-    glm::vec2 rot{};
-    //Assuming half-scale
-    glm::vec2 scale{};
-  };
-  struct BoxPair {
-    BoxPairElement a, b;
-  };
   struct SupportPoint {
     Geo::Range1D minMax;
     uint8_t index{};
@@ -26,6 +17,10 @@ namespace Narrowphase {
   constexpr uint8_t POSITIVE = 1;
   constexpr uint8_t NEGATIVE = 2;
   struct AxisProjection {
+    SeparatingAxis toSeparatingAxis(uint8_t axis) const {
+      return { overlap, direction, supportA, supportB, axis };
+    }
+
     float overlap{};
     uint8_t direction{};
     uint8_t supportA{};
@@ -43,11 +38,9 @@ namespace Narrowphase {
     assert(false);
     return {};
   }
-  struct Edge {
-    glm::vec2 top, bottom;
-  };
+
   //Get the edge where the normal of getSupportAxis came from
-  Edge getReferenceEdge(uint8_t axisIndex, uint8_t direction, const BoxPair& pair) {
+  Geo::LineSegment getReferenceEdge(uint8_t axisIndex, uint8_t direction, const BoxPair& pair) {
     glm::vec2 primary, secondary, pos;
     switch(axisIndex) {
     case 0:
@@ -77,7 +70,7 @@ namespace Narrowphase {
 
   //Get the edge connected to supportIndex point that is most orthogonal to the normal, meaning
   //the edge is more parallel with the reference edge
-  Edge getIncidentEdge(uint8_t supportIndex, uint8_t direction, const BoxPairElement& element, const glm::vec2& normal) {
+  Geo::LineSegment getIncidentEdge(uint8_t supportIndex, uint8_t direction, const BoxPairElement& element, const glm::vec2& normal) {
     const glm::vec2 l = element.rot*element.scale.x;
     const glm::vec2 u = Geo::orthogonal(element.rot)*element.scale.y;
     //Direction is the one most orthogonal
@@ -139,7 +132,7 @@ namespace Narrowphase {
   AxisProjection classifyAxis(const SupportPair& pair) {
     //Min and max represents support points along the axis in the positive and negative direction
     const float positiveOverlap = pair.a.minMax.max - pair.b.minMax.min;
-    const float negativeOverlap = pair.a.minMax.min - pair.b.minMax.max;
+    const float negativeOverlap = -(pair.a.minMax.min - pair.b.minMax.max);
     if(positiveOverlap < negativeOverlap) {
       return { positiveOverlap, POSITIVE, pair.a.index, pair.b.index };
     }
@@ -151,20 +144,15 @@ namespace Narrowphase {
     return { getSupport(axis, pair.a), getSupport(axis, pair.b) };
   }
 
-  struct ClipResult {
-    Edge edge;
-    Geo::Range1D overlap;
-  };
-
-  Edge clipIncidentToSides(const Clip::StartAndDir& edge, const Edge& incident) {
+  Geo::LineSegment clipIncidentToSides(const Clip::StartAndDir& edge, const Geo::LineSegment& incident) {
     const glm::vec2 leftNormal = -edge.dir;
     const float lProj = glm::dot(edge.start, leftNormal);
     const float rProj = glm::dot(edge.start + edge.dir, leftNormal);
-    const float tProj = glm::dot(incident.top, leftNormal);
-    const float bProj = glm::dot(incident.bottom, leftNormal);
-    glm::vec2 farPoint = incident.top;
+    const float tProj = glm::dot(incident.end, leftNormal);
+    const float bProj = glm::dot(incident.start, leftNormal);
+    glm::vec2 farPoint = incident.end;
     float farProj = tProj;
-    glm::vec2 nearPoint = incident.bottom;
+    glm::vec2 nearPoint = incident.start;
     float nearProj = bProj;
     if(tProj < bProj) {
       std::swap(farPoint, nearPoint);
@@ -218,36 +206,36 @@ namespace Narrowphase {
   ClipResult getIntersectAndInside(
     float t,
     const Clip::StartAndDir& ref,
-    const Edge& incident,
+    const Geo::LineSegment& incident,
     const glm::vec2& normal
   ) {
     //Within reference and incident, use point inside and intersect
     const glm::vec2 intersect = ref.start + ref.dir*t;
     //Pick the point with a negative dot which would be inside
-    const glm::vec2 inside = glm::dot(incident.bottom - ref.start, normal) > 0 ? incident.top : incident.bottom;
+    const glm::vec2 inside = glm::dot(incident.start - ref.start, normal) > 0 ? incident.end : incident.start;
     //Clamping the intersect is not necessary if it is certain to be within reference already
     ClipResult result;
     result.edge = clipIncidentToSides(ref, { inside, intersect });
-    result.overlap.min = -glm::dot(result.edge.bottom - ref.start, normal);
-    result.overlap.max = -glm::dot(result.edge.top - ref.start, normal);
+    result.overlap.min = -glm::dot(result.edge.start - ref.start, normal);
+    result.overlap.max = -glm::dot(result.edge.end - ref.start, normal);
     return result;
   }
 
   ClipResult getIncident(
     const Clip::StartAndDir& ref,
-    const Edge& incident,
+    const Geo::LineSegment& incident,
     const glm::vec2& normal
   ) {
     ClipResult result;
     result.edge = clipIncidentToSides(ref, incident);
-    result.overlap.min = -glm::dot(result.edge.bottom - ref.start, normal);
-    result.overlap.max = -glm::dot(result.edge.top - ref.start, normal);
+    result.overlap.min = -glm::dot(result.edge.start - ref.start, normal);
+    result.overlap.max = -glm::dot(result.edge.end - ref.start, normal);
     return result;
   }
 
-  ClipResult clipEdgeToEdge(const glm::vec2& normal, const Edge& reference, const Edge& incident) {
-    const Clip::StartAndDir ref = Clip::StartAndDir::fromStartEnd(reference.bottom, reference.top);
-    const Clip::StartAndDir inc = Clip::StartAndDir::fromStartEnd(incident.bottom, incident.top);
+  ClipResult clipEdgeToEdge(const glm::vec2& normal, const Geo::LineSegment& reference, const Geo::LineSegment& incident) {
+    const Clip::StartAndDir ref = Clip::StartAndDir::fromStartEnd(reference.start, reference.end);
+    const Clip::StartAndDir inc = Clip::StartAndDir::fromStartEnd(incident.start, incident.end);
     const auto times = Clip::getIntersectTimes(ref, inc);
     //Edge and incident are parallel. Since it's a collision, assume the incident is inside
     if(!times.tA) {
@@ -269,16 +257,17 @@ namespace Narrowphase {
     }
     if(withinIncidentSegment) {
       //Within incident but not reference
-      //Doesn't make much sense, would be an edge passing the referene but beyond its bounds,
-      //but that would mean no collision
-      return {};
+      //Likely incident is very far overlapping or almost parallel to reference
+      //as it intersects eventually but not within the length of the reference
+      //Either way it's the same as incident entirely inside case, clamp to sides
+      return getIncident(ref, incident, normal);
     }
     //Within neither, incident is entierly outside or entirely inside
     //Assume inside given that this is a collision
     return getIncident(ref, incident, normal);
   }
 
-  void boxBox(SP::ContactManifold& manifold, const BoxPair& pair) {
+  SeparatingAxis getLeastOverlappingAxis(const BoxPair& pair) {
     std::array<AxisProjection, AXIS_COUNT> projections;
     uint8_t bestAxis{};
     float bestOverlap = std::numeric_limits<float>::max();
@@ -287,35 +276,42 @@ namespace Narrowphase {
       const AxisProjection& proj = projections[i] = classifyAxis(getSupport(i, pair));
       //Negative overlap would be separation, exit
       if(proj.overlap < 0) {
-        return;
+        return proj.toSeparatingAxis(static_cast<uint8_t>(i));
       }
       if(proj.overlap < bestOverlap) {
         bestOverlap = proj.overlap;
         bestAxis = static_cast<uint8_t>(i);
       }
     }
+    return projections[bestAxis].toSeparatingAxis(static_cast<uint8_t>(bestAxis));
+  }
+
+  void boxBox(SP::ContactManifold& manifold, const BoxPair& pair) {
+    const SeparatingAxis bestAxis = getLeastOverlappingAxis(pair);
+    if(bestAxis.overlap < 0) {
+      return;
+    }
 
     //If we made it here there is a collision and the separating axis is stored by bestAxis
-    const AxisProjection& bestProj = projections[bestAxis];
-    const glm::vec2 normal = bestProj.direction == POSITIVE ? getSupportAxis(bestAxis, pair) : -getSupportAxis(bestAxis, pair);
-    const bool isOnA = bestAxis < AXIS_STRIDE;
-    Edge reference, incident;
+    const glm::vec2 normal = bestAxis.direction == POSITIVE ? getSupportAxis(bestAxis.axis, pair) : -getSupportAxis(bestAxis.axis, pair);
+    const bool isOnA = bestAxis.axis < AXIS_STRIDE;
+    Geo::LineSegment reference, incident;
     if(isOnA) {
-      reference = getReferenceEdge(bestAxis, bestProj.direction, pair);
-      incident = getIncidentEdge(bestProj.supportB, bestProj.direction, pair.b, normal);
+      reference = getReferenceEdge(bestAxis.axis, bestAxis.direction, pair);
+      incident = getIncidentEdge(bestAxis.supportB, bestAxis.direction, pair.b, normal);
     }
     else {
-      reference = getReferenceEdge(bestAxis, bestProj.direction, pair);
-      incident = getIncidentEdge(bestProj.supportA, bestProj.direction, pair.a, normal);
+      reference = getReferenceEdge(bestAxis.axis, bestAxis.direction, pair);
+      incident = getIncidentEdge(bestAxis.supportA, bestAxis.direction, pair.a, normal);
     }
 
     ClipResult result = clipEdgeToEdge(normal, reference, incident);
     if(result.overlap.max >= 0.0f || result.overlap.min >= 0.0f) {
-      manifold[0].centerToContactA = result.edge.bottom - pair.a.pos;
-      manifold[0].centerToContactB = result.edge.bottom - pair.b.pos;
+      manifold[0].centerToContactA = result.edge.start - pair.a.pos;
+      manifold[0].centerToContactB = result.edge.start - pair.b.pos;
       manifold[0].overlap = result.overlap.min;
-      manifold[1].centerToContactA = result.edge.top - pair.a.pos;
-      manifold[1].centerToContactB = result.edge.top - pair.b.pos;
+      manifold[1].centerToContactA = result.edge.end - pair.a.pos;
+      manifold[1].centerToContactB = result.edge.end - pair.b.pos;
       manifold[1].overlap = result.overlap.max;
     }
   }
