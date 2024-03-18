@@ -16,6 +16,10 @@ namespace Narrowphase {
   };
   constexpr uint8_t POSITIVE = 1;
   constexpr uint8_t NEGATIVE = 2;
+  constexpr uint8_t flipDirection(uint8_t d) {
+    return d == POSITIVE ? NEGATIVE : POSITIVE;
+  }
+
   struct AxisProjection {
     SeparatingAxis toSeparatingAxis(uint8_t axis) const {
       return { overlap, direction, supportA, supportB, axis };
@@ -89,7 +93,7 @@ namespace Narrowphase {
       support += element.pos;
     }
     else {
-      support -= element.pos;
+      support = element.pos - support;
     }
     //Figure out which way the support goes from here so it goes to the other corner instead of out of the shape
     if(glm::dot(element.pos - support, supportDir) < 0) {
@@ -293,20 +297,26 @@ namespace Narrowphase {
     }
 
     //If we made it here there is a collision and the separating axis is stored by bestAxis
-    const glm::vec2 normal = bestAxis.direction == POSITIVE ? getSupportAxis(bestAxis.axis, pair) : -getSupportAxis(bestAxis.axis, pair);
+    glm::vec2 normal = bestAxis.direction == POSITIVE ? getSupportAxis(bestAxis.axis, pair) : -getSupportAxis(bestAxis.axis, pair);
     const bool isOnA = bestAxis.axis < AXIS_STRIDE;
     Geo::LineSegment reference, incident;
     if(isOnA) {
       reference = getReferenceEdge(bestAxis.axis, bestAxis.direction, pair);
-      incident = getIncidentEdge(bestAxis.supportB, bestAxis.direction, pair.b, normal);
+      incident = getIncidentEdge(bestAxis.supportB, flipDirection(bestAxis.direction), pair.b, normal);
     }
     else {
-      reference = getReferenceEdge(bestAxis.axis, bestAxis.direction, pair);
+      normal = -normal;
+      reference = getReferenceEdge(bestAxis.axis, flipDirection(bestAxis.direction), pair);
       incident = getIncidentEdge(bestAxis.supportA, bestAxis.direction, pair.a, normal);
     }
 
     ClipResult result = clipEdgeToEdge(normal, reference, incident);
     if(result.overlap.max >= 0.0f || result.overlap.min >= 0.0f) {
+      manifold.size = 2;
+      if(glm::dot(result.edge.start - pair.a.pos, normal) > 0.0f) {
+        normal = -normal;
+      }
+      manifold.points[0].normal = manifold.points[1].normal = normal;
       manifold[0].centerToContactA = result.edge.start - pair.a.pos;
       manifold[0].centerToContactB = result.edge.start - pair.b.pos;
       manifold[0].overlap = result.overlap.min;

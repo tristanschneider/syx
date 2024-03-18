@@ -8,6 +8,7 @@
 #include "glm/glm.hpp"
 #include "Geometric.h"
 #include "glm/gtc/matrix_inverse.hpp"
+#include "BoxBox.h"
 
 namespace TableExt {
   inline glm::vec2 read(size_t i, const Row<float>& a, const Row<float>& b) {
@@ -68,30 +69,17 @@ namespace Narrowphase {
     swapAB(result);
   }
 
+  Narrowphase::BoxPairElement toBoxElement(const Shape::Rectangle& r) {
+    return {
+      r.center,
+      r.right,
+      r.halfWidth
+    };
+  }
+
   void generateContacts(Shape::Rectangle& a, Shape::Rectangle& b, ContactArgs& result) {
-    ispc::UniformConstVec2 pa{ &a.center.x, &a.center.y };
-    ispc::UniformRotation ra{ &a.right.x, &a.right.y };
-    ispc::UniformConstVec2 sa{ &a.halfWidth.x, &a.halfWidth.y };
-    ispc::UniformConstVec2 pb{ &b.center.x, &b.center.y };
-    ispc::UniformRotation rb{ &b.right.x, &b.right.y };
-    ispc::UniformConstVec2 sb{ &b.halfWidth.x, &b.halfWidth.y };
-    ispc::UniformVec2 normal{ &result.manifold.points[0].normal.x, &result.manifold.points[0].normal.y };
-    glm::vec2 c1, c2;
-    ispc::UniformContact uc1{ &c1.x, &c1.y, &result.manifold.points[0].overlap };
-    ispc::UniformContact uc2{ &c2.x, &c2.y, &result.manifold.points[1].overlap };
-    notispc::generateUnitCubeCubeContacts(pa, ra, sa, pb, rb, sb, normal, uc1, uc2, 1);
-    if(result.manifold.points[0].overlap >= 0) {
-      ++result.manifold.size;
-      result.manifold.points[0].centerToContactA = c1 - a.center;
-      result.manifold.points[0].centerToContactB = c1 - b.center;
-    }
-    if(result.manifold.points[1].overlap >= 0) {
-      ++result.manifold.size;
-      result.manifold.points[1].centerToContactA = c2 - a.center;
-      result.manifold.points[1].centerToContactB = c2 - b.center;
-      //Duplicate shared normal
-      result.manifold.points[1].normal = result.manifold.points[0].normal;
-    }
+    Narrowphase::BoxPair pair{ toBoxElement(a), toBoxElement(b) };
+    Narrowphase::boxBox(result.manifold, pair);
   }
 
   void generateContacts(Shape::Rectangle& cube, Shape::Circle& circle, ContactArgs& result) {
