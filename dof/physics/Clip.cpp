@@ -11,7 +11,7 @@ namespace Clip {
     }
     const std::vector<glm::vec2>* input = &a;
     std::vector<glm::vec2>* output = &context.result;
-    for(size_t clipEdge = 0; clipEdge <= b.size(); ++clipEdge) {
+    for(size_t clipEdge = 0; clipEdge < b.size(); ++clipEdge) {
       const glm::vec2& edgeStart = b[clipEdge];
       const glm::vec2& edgeEnd = b[(clipEdge + 1) % b.size()];
       const glm::vec2 edgeNormal = Geo::orthogonal(edgeEnd - edgeStart);
