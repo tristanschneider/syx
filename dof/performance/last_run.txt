@@ -1,3 +1,5 @@
+60 fps would be 16600000
+
 Start 6053300
 Total 37555490600
 Min 35644800
@@ -28,3 +30,12 @@ Total 26531334500
 Min 25155100
 Max 71618000
 Avg 26531334
+
+Add inner parallelism to narrowphase
+
+Start 4986000
+Total 14491066300
+Min 13390600
+Max 32713900
+Avg 14491066
+

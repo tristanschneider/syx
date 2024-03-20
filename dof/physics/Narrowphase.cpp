@@ -185,6 +185,16 @@ namespace Narrowphase {
   };
 
   struct ShapeQueries {
+    ShapeQueries createThreadLocalCopy() {
+      ShapeQueries result;
+      result.shapeResolver = shapeResolver;
+      result.zResolver = zResolver;
+      result.posZAlias = posZAlias;
+      result.sharedUnitCube.resolver = sharedUnitCube.resolver;
+      result.sharedUnitCube.alias = sharedUnitCube.alias;
+      return result;
+    }
+
     std::shared_ptr<ITableResolver> shapeResolver;
     std::shared_ptr<ITableResolver> zResolver;
     CachedRow<const RectangleRow> rectRow;
@@ -325,14 +335,45 @@ namespace Narrowphase {
   void generateInline(IAppBuilder& builder, const RectDefinition& unitCube, const PhysicsAliases& aliases) {
     auto task = builder.createTask();
     task.setName("generate contacts inline");
-    auto shapeQuery = buildShapeQueries(task, unitCube, aliases);
+
+    auto config = task.getConfig();
+    {
+      auto setup = builder.createTask();
+      auto q = task.query<SP::ManifoldRow>();
+      setup.setName("set task size");
+      setup.setCallback([config, q](AppTaskArgs&) mutable {
+        AppTaskSize size;
+        size.batchSize = 10;
+        size.workItemCount = 0;
+        for(size_t t = 0; t < q.size(); ++t) {
+          size.workItemCount += q.get<0>(t).size();
+        }
+        config->setSize(size);
+      });
+      builder.submitTask(std::move(setup));
+    }
+
+    auto sq = buildShapeQueries(task, unitCube, aliases);
     auto query = task.query<SP::ObjA, SP::ObjB, SP::ManifoldRow, SP::ZManifoldRow>();
     auto ids = task.getIDResolver();
 
-    task.setCallback([shapeQuery, query, ids](AppTaskArgs&) mutable {
+    task.setCallback([sq, query, ids](AppTaskArgs& args) mutable {
+      ShapeQueries shapeQuery{ sq.createThreadLocalCopy() };
+
+      size_t currentIndex = 0;
       for(size_t t = 0; t < query.size(); ++t) {
         auto [a, b, manifold, zManifold] = query.get(t);
-        for(size_t i = 0; i < a->size(); ++i) {
+        const size_t thisTableStart = currentIndex;
+        const size_t thisTableEnd = thisTableStart + a->size();
+        currentIndex += a->size();
+        if(args.begin < thisTableStart) {
+          break;
+        }
+        if(args.begin >= thisTableEnd) {
+          continue;
+        }
+        for(size_t ri = args.begin; ri < std::min(args.end, thisTableEnd); ++ri) {
+          const size_t i = ri - thisTableStart;
           StableElementID& stableA = a->at(i);
           StableElementID& stableB = b->at(i);
           //TODO: fast path if it's the same table as last time
@@ -358,9 +399,9 @@ namespace Narrowphase {
           //TODO: is non-const because of ispc signature, should be const
           Shape::BodyType shapeA = classifyShape(shapeQuery, resolvedA->unpacked);
           Shape::BodyType shapeB = classifyShape(shapeQuery, resolvedB->unpacked);
-          ContactArgs args{ man, zMan };
-          generateContacts(shapeA, shapeB, args);
-          tryCheckZ(resolvedA->unpacked, resolvedB->unpacked, shapeQuery, args);
+          ContactArgs cargs{ man, zMan };
+          generateContacts(shapeA, shapeB, cargs);
+          tryCheckZ(resolvedA->unpacked, resolvedB->unpacked, shapeQuery, cargs);
         }
       }
     });

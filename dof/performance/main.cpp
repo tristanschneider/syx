@@ -8,6 +8,7 @@
 #include "AppBuilder.h"
 #include "TableAdapters.h"
 #include "ThreadLocals.h"
+#include "Profile.h"
 
 namespace Performance {
   struct App {
@@ -89,10 +90,12 @@ namespace Performance {
 
   Duration update(App& app) {
     using Clock = std::chrono::steady_clock;
+    PROFILE_SCOPE("app", "update");
     auto before = Clock::now();
     app.update.mBegin->mTask.addToPipe(app.scheduler->mScheduler);
     app.scheduler->mScheduler.WaitforTask(app.update.mEnd->mTask.get());
     auto after = Clock::now();
+    PROFILE_UPDATE(nullptr);
     return static_cast<Duration>(std::chrono::duration_cast<std::chrono::nanoseconds>(after - before).count());
   }
 
