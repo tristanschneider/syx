@@ -22,6 +22,7 @@
 #include "SpatialQueries.h"
 #include "ConstraintSolver.h"
 #include "GameDatabase.h"
+#include "SceneNavigator.h"
 
 namespace {
   using namespace Tags;
@@ -147,6 +148,7 @@ void Simulation::buildUpdateTasks(IAppBuilder& builder, const UpdateConfig& conf
 
   PhysicsSimulation::updatePhysics(builder);
   config.injectGameplayTasks(builder);
+  SceneNavigator::update(builder);
   DebugInput::updateDebugCamera(builder);
   Player::updateInput(builder);
   Fragment::updateFragmentGoals(builder);

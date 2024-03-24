@@ -186,6 +186,12 @@ struct TableAccess {
 struct AppTaskMetadata {
   using TypeIDT = DBTypeID;
 
+  void append(const AppTaskMetadata& toAdd) {
+    reads.insert(reads.end(), toAdd.reads.begin(), toAdd.reads.end());
+    writes.insert(writes.end(), toAdd.writes.begin(), toAdd.writes.end());
+    tableModifiers.insert(tableModifiers.end(), toAdd.tableModifiers.begin(), toAdd.tableModifiers.end());
+  }
+
   //Reads and writes to data in rows, no addition or removal
   std::vector<TableAccess> reads;
   std::vector<TableAccess> writes;

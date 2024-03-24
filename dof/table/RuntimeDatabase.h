@@ -440,4 +440,14 @@ namespace DBReflect {
 
   std::unique_ptr<IDatabase> merge(std::unique_ptr<IDatabase> l, std::unique_ptr<IDatabase> r);
   std::unique_ptr<IDatabase> bundle(std::unique_ptr<IDatabase> db, std::unique_ptr<StableElementMappings> mappings);
+  template<class... Rest>
+  std::unique_ptr<IDatabase> mergeAll(std::unique_ptr<IDatabase> l, std::unique_ptr<IDatabase> r, Rest... rest) {
+    auto merged = merge(std::move(l), std::move(r));
+    if constexpr(sizeof...(Rest) > 0) {
+      return merge(std::move(merged), std::forward<Rest>(rest)...);
+    }
+    else {
+      return merged;
+    }
+  }
 }

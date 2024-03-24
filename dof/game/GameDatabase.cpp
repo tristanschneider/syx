@@ -14,12 +14,14 @@
 #include "SpatialPairsStorage.h"
 #include "SpatialQueries.h"
 #include "GameInput.h"
+#include "SceneNavigator.h"
 
 namespace GameDatabase {
   using BroadphaseTable = SweepNPruneBroadphase::BroadphaseTable;
 
   //Table to hold positions to be referenced by stable element id
   using TargetPosTable = Table<
+    SceneNavigator::IsClearedWithSceneTag,
     TargetTableTag,
     FloatRow<Tags::Pos, Tags::X>,
     FloatRow<Tags::Pos, Tags::Y>,
@@ -43,6 +45,7 @@ namespace GameDatabase {
   >;
 
   using GameObjectTable = Table<
+    SceneNavigator::IsClearedWithSceneTag,
     SharedMassObjectTableTag,
     //Data viewed by physics, not to be used by gameplay
     FloatRow<Tags::Pos, Tags::X>,
@@ -91,6 +94,7 @@ namespace GameDatabase {
   >;
 
   using StaticGameObjectTable = Table<
+    SceneNavigator::IsClearedWithSceneTag,
     ZeroMassObjectTableTag,
     FragmentGoalFoundTableTag,
     FloatRow<Tags::Pos, Tags::X>,
@@ -123,6 +127,7 @@ namespace GameDatabase {
   >;
 
   using TerrainTable = Table<
+    SceneNavigator::IsClearedWithSceneTag,
     ZeroMassObjectTableTag,
     Tags::TerrainRow,
     Narrowphase::SharedRectangleRow,
@@ -156,6 +161,7 @@ namespace GameDatabase {
   >;
 
   using PlayerTable = Table<
+    SceneNavigator::IsClearedWithSceneTag,
     IsPlayer,
     FloatRow<Tags::Pos, Tags::X>,
     FloatRow<Tags::Pos, Tags::Y>,
@@ -223,9 +229,10 @@ namespace GameDatabase {
   >;
 
   std::unique_ptr<IDatabase> create(StableElementMappings& mappings) {
-    return DBReflect::merge(
+    return DBReflect::mergeAll(
       DBReflect::createDatabase<GameDatabase>(mappings),
-      DBReflect::createDatabase<StatEffectDatabase>(mappings)
+      DBReflect::createDatabase<StatEffectDatabase>(mappings),
+      SceneNavigator::createDB(mappings)
     );
   }
 
