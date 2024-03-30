@@ -197,7 +197,6 @@ namespace GameDatabase {
 
     Row<CubeSprite>,
     GameInput::PlayerInputRow,
-    GameInput::PlayerKeyboardInputRow,
     GameInput::StateMachineRow,
     SharedRow<TextureReference>,
 

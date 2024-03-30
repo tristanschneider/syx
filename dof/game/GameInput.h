@@ -86,7 +86,7 @@ namespace GameInput {
   };
 
   struct PlayerInputRow : Row<PlayerInput> {};
-  struct PlayerKeyboardInputRow : Row<PlayerKeyboardInput> {};
+  struct PlayerKeyboardInputRow : SharedRow<PlayerKeyboardInput> {};
   //If any table has this the platform will feed inputs into it
   struct StateMachineRow : Row<Input::StateMachine> {};
   //This is created by the platform for the game to use to create state machines

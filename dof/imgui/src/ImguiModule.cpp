@@ -43,7 +43,8 @@ AllImgui queryAllImgui(RuntimeDatabaseTaskBuilder& task) {
 using ImguiDB = Database<
   Table<
     ImguiEnabled,
-    ImguiData
+    ImguiData,
+    GameInput::PlayerKeyboardInputRow
   >
 >;
 
@@ -329,6 +330,9 @@ namespace ImguiModule {
   }
 
   std::unique_ptr<IDatabase> createDatabase(RuntimeDatabaseTaskBuilder&&, StableElementMappings& mappings) {
-    return DBReflect::createDatabase<ImguiDB>(mappings);
+    auto db = DBReflect::createDatabase<ImguiDB>(mappings);
+    RuntimeTable* table = db->getRuntime().tryGet(db->getRuntime().query<ImguiEnabled>().matchingTableIDs[0]);
+    table->modifier.resize(1);
+    return db;
   }
 }
