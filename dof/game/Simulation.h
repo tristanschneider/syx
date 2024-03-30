@@ -42,13 +42,6 @@ struct TextureReference {
 };
 
 struct SceneState {
-  enum class State : uint8_t {
-    InitRequestAssets,
-    InitAwaitingAssets,
-    SetupScene,
-    Update
-  };
-  State mState = State::InitRequestAssets;
   size_t mBackgroundImage = 0;
   size_t mPlayerImage = 0;
   size_t mGroundImage{};

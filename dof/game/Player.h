@@ -18,6 +18,5 @@ struct TaskRange;
 namespace Player {
   void init(IAppBuilder& builder);
   void initAbility(Config::GameConfig& config, QueryResultRow<GameInput::PlayerInputRow>& input);
-  void setupScene(IAppBuilder& builder);
   void updateInput(IAppBuilder& builder);
 }

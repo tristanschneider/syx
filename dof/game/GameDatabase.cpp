@@ -15,6 +15,7 @@
 #include "SpatialQueries.h"
 #include "GameInput.h"
 #include "SceneNavigator.h"
+#include "scenes/SceneList.h"
 
 namespace GameDatabase {
   using BroadphaseTable = SweepNPruneBroadphase::BroadphaseTable;
@@ -33,6 +34,7 @@ namespace GameDatabase {
   >;
 
   using GlobalGameData = Table<
+    SceneList::ScenesRow,
     SharedRow<SceneState>,
     SharedRow<FileSystem>,
     SharedRow<StableElementMappings>,

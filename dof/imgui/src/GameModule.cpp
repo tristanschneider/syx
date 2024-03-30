@@ -12,6 +12,8 @@
 #include "ability/PlayerAbility.h"
 #include "Player.h"
 #include "ImguiModule.h"
+#include "scenes/SceneList.h"
+#include "SceneNavigator.h"
 
 namespace Toolbox {
   void update(Config::GameConfig& config, FileSystem& fs) {
@@ -130,6 +132,19 @@ namespace AbilityModule {
   }
 }
 
+namespace Scenes {
+  void update(SceneList::ListNavigator nav) {
+    ImGui::Begin("Scenes");
+    if(ImGui::Button("Empty")) {
+      nav.navigator->navigateTo(nav.scenes->empty);
+    }
+    if(ImGui::Button("Fragment")) {
+      nav.navigator->navigateTo(nav.scenes->fragment);
+    }
+    ImGui::End();
+  }
+}
+
 void GameModule::update(IAppBuilder& builder) {
   auto task = builder.createTask();
   task.setName("Imgui Game Module").setPinning(AppTaskPinning::MainThread{});
@@ -137,12 +152,14 @@ void GameModule::update(IAppBuilder& builder) {
   FileSystem* fs = task.query<SharedRow<FileSystem>>().tryGetSingletonElement();
   auto input = task.query<GameInput::PlayerInputRow>();
   const bool* enabled = ImguiModule::queryIsEnabled(task);
+  auto nav = SceneList::createNavigator(task);
   assert(config && fs);
 
-  task.setCallback([config, fs, input, enabled](AppTaskArgs&) mutable {
+  task.setCallback([config, fs, input, enabled, nav](AppTaskArgs&) mutable {
     if(!*enabled) {
       return;
     }
+    Scenes::update(nav);
     CameraModule::update(*config);
     AbilityModule::update(*config, std::get<0>(input.rows));
 

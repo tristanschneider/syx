@@ -13,7 +13,6 @@ namespace Fragment {
     size_t mFragmentColumns{};
   };
 
-  void setupScene(IAppBuilder& builder);
   void updateFragmentGoals(IAppBuilder& builder);
 
   //Process before table service runs

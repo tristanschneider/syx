@@ -45,63 +45,6 @@ namespace Player {
     builder.submitTask(std::move(task));
   }
 
-  void setupScene(IAppBuilder& builder) {
-    auto task = builder.createTask();
-    task.setName("Player setup");
-    auto cameras = task.query<Row<Camera>, const StableIDRow>();
-    if(!cameras.size()) {
-      task.discard();
-      return;
-    }
-    std::shared_ptr<ITableModifier> cameraModifier = task.getModifierForTable(cameras.matchingTableIDs.front());
-    auto players = task.query<
-      FloatRow<Pos, X>,
-      FloatRow<Pos, Y>,
-      GameInput::PlayerInputRow,
-      const StableIDRow>();
-    Config::GameConfig* config = task.query<SharedRow<Config::GameConfig>>().tryGetSingletonElement();
-    std::shared_ptr<ITableModifier> playerModifier = task.getModifierForTable(players.matchingTableIDs.front());
-    const SceneState* scene = task.query<const SharedRow<SceneState>>().tryGetSingletonElement();
-
-    task.setCallback([scene, cameras, cameraModifier, players, playerModifier, config](AppTaskArgs& args) mutable {
-      if(scene->mState != SceneState::State::SetupScene) {
-        return;
-      }
-
-      std::random_device device;
-      std::mt19937 generator(device());
-      cameraModifier->resize(1);
-      const size_t cameraIndex = 0;
-      Camera& mainCamera = cameras.get<0>(0).at(cameraIndex);
-      const size_t cameraStableId = cameras.get<1>(0).at(cameraIndex);
-      mainCamera.zoom = 1.5f;
-
-      playerModifier->resize(1);
-      const StableIDRow& playerStableRow = players.get<const StableIDRow>(0);
-      //TODO: this could be built into the modifier itself
-      const size_t playerIndex = 0;
-      Events::onNewElement(StableElementID::fromStableRow(playerIndex, playerStableRow), args);
-
-      //Random angle in sort of radians
-      const float playerStartAngle = float(generator() % 360)*6.282f/360.0f;
-      const float playerStartDistance = 25.0f;
-      //Start way off the screen, the world boundary will fling them into the scene
-      players.get<0>(0).at(0) = playerStartDistance*std::cos(playerStartAngle);
-      players.get<1>(0).at(0) = playerStartDistance*std::sin(playerStartAngle);
-
-      //Make the camera follow the player
-      auto follow = TableAdapters::getFollowTargetByPositionEffects(args);
-      const size_t id = TableAdapters::addStatEffectsSharedLifetime(follow.base, StatEffect::INFINITE, &cameraStableId, 1);
-      follow.command->at(id).mode = FollowTargetByPositionStatEffect::FollowMode::Interpolation;
-      follow.base.target->at(id) = StableElementID::fromStableID(playerStableRow.at(playerIndex));
-      follow.base.curveDefinition->at(id) = &Config::getCurve(config->camera.followCurve);
-
-      //Load ability from config
-      initAbility(*config, std::get<2>(players.rows));
-    });
-    builder.submitTask(std::move(task));
-  }
-
   void initAbility(Config::GameConfig& config, QueryResultRow<GameInput::PlayerInputRow>& input) {
     for(auto&& row : input) {
       for(GameInput::PlayerInput& in : *row) {
