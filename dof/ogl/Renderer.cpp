@@ -524,7 +524,7 @@ void Renderer::extractRenderables(IAppBuilder& builder) {
       CommonTasks::moveOrCopyRowSameSize<Tags::ScaleXRow, QuadPassTable::ScaleX>(builder, spriteID, passID);
     }
     if(builder.queryTable<Tags::ScaleYRow>(spriteID)) {
-      CommonTasks::moveOrCopyRowSameSize<Tags::ScaleXRow, QuadPassTable::ScaleY>(builder, spriteID, passID);
+      CommonTasks::moveOrCopyRowSameSize<Tags::ScaleYRow, QuadPassTable::ScaleY>(builder, spriteID, passID);
     }
     //If this table has velocity, add those tasks as well
     if(temp.query<FloatRow<Tags::LinVel, Tags::X>, FloatRow<Tags::AngVel, Tags::Angle>>(spriteID).size()) {
@@ -766,10 +766,8 @@ void Renderer::render(IAppBuilder& builder) {
           continue;
         }
 
+        //Will be zero and render as black if no valid texture is specified
         GLuint oglTexture = _getTextureByID(texture.at(), textures);
-        if(!oglTexture) {
-          continue;
-        }
 
         const size_t floatSize = sizeof(float)*count;
         glBindBuffer(GL_TEXTURE_BUFFER, pass.mQuadUniforms.posX.buffer);

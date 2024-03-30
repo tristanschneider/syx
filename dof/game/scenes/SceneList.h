@@ -15,6 +15,7 @@ namespace SceneList {
     SceneNavigator::SceneID loading{};
     SceneNavigator::SceneID empty{};
     SceneNavigator::SceneID fragment{};
+    SceneNavigator::SceneID singleStack{};
   };
   struct ListNavigator {
     const Scenes* scenes{};

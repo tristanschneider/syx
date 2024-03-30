@@ -39,7 +39,7 @@ void Simulation::buildUpdateTasks(IAppBuilder& builder, const UpdateConfig& conf
   DebugInput::updateDebugCamera(builder);
   Player::updateInput(builder);
   Fragment::updateFragmentGoals(builder);
-  World::enforceWorldBoundary(builder);
+
   if(config.enableFragmentStateMachine) {
     FragmentStateMachine::update(builder);
   }

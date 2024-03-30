@@ -141,6 +141,9 @@ namespace Scenes {
     if(ImGui::Button("Fragment")) {
       nav.navigator->navigateTo(nav.scenes->fragment);
     }
+    if(ImGui::Button("Single Stack")) {
+      nav.navigator->navigateTo(nav.scenes->singleStack);
+    }
     ImGui::End();
   }
 }

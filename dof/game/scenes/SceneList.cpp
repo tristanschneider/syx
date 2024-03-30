@@ -6,6 +6,7 @@
 #include "scenes/EmptyScene.h"
 #include "scenes/FragmentScene.h"
 #include "scenes/LoadingScene.h"
+#include "scenes/PerformanceScenes.h"
 
 namespace SceneList {
   const Scenes* get(RuntimeDatabaseTaskBuilder& task) {
@@ -24,6 +25,7 @@ namespace SceneList {
     scenes->empty = registry->registerScene(::Scenes::createEmptyScene());
     scenes->fragment = registry->registerScene(::Scenes::createFragmentScene());
     scenes->loading = registry->registerScene(::Scenes::createLoadingScene());
+    scenes->singleStack = registry->registerScene(::Scenes::createSingleStack());
 
     //Default start on fragment scene
     SceneNavigator::createNavigator(temp)->navigateTo(scenes->loading);

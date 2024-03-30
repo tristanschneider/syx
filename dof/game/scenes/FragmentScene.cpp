@@ -9,6 +9,7 @@
 #include <random>
 #include "Player.h"
 #include "Fragment.h"
+#include "World.h"
 
 namespace Scenes {
   void setupPlayer(IAppBuilder& builder) {
@@ -181,7 +182,9 @@ namespace Scenes {
       setupPlayer(builder);
       setupFragmentScene(builder);
     }
-    void update(IAppBuilder&) final {}
+    void update(IAppBuilder& builder) final {
+      World::enforceWorldBoundary(builder);
+    }
     void uninit(IAppBuilder&) final {}
   };
 

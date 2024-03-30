@@ -46,6 +46,49 @@ namespace GameDatabase {
     ThreadLocalsRow
   >;
 
+  using DynamicPhysicsObjects = Table<
+    Tags::DynamicPhysicsObjectsTag,
+    SceneNavigator::IsClearedWithSceneTag,
+    //Data viewed by physics, not to be used by gameplay
+    FloatRow<Tags::Pos, Tags::X>,
+    FloatRow<Tags::Pos, Tags::Y>,
+    FloatRow<Tags::Rot, Tags::CosAngle>,
+    FloatRow<Tags::Rot, Tags::SinAngle>,
+    FloatRow<Tags::LinVel, Tags::X>,
+    FloatRow<Tags::LinVel, Tags::Y>,
+    FloatRow<Tags::AngVel, Tags::Angle>,
+    Tags::ScaleXRow,
+    Tags::ScaleYRow,
+
+    //Gameplay data extracted from above
+    FloatRow<Tags::GPos, Tags::X>,
+    FloatRow<Tags::GPos, Tags::Y>,
+    FloatRow<Tags::GRot, Tags::CosAngle>,
+    FloatRow<Tags::GRot, Tags::SinAngle>,
+    FloatRow<Tags::GLinVel, Tags::X>,
+    FloatRow<Tags::GLinVel, Tags::Y>,
+    FloatRow<Tags::GAngVel, Tags::Angle>,
+
+    //Impulses requested from gameplay
+    FloatRow<Tags::GLinImpulse, Tags::X>,
+    FloatRow<Tags::GLinImpulse, Tags::Y>,
+    FloatRow<Tags::GAngImpulse, Tags::Angle>,
+
+    AccelerationY,
+
+    SweepNPruneBroadphase::BroadphaseKeys,
+    Narrowphase::CollisionMaskRow,
+    Narrowphase::SharedRectangleRow,
+    ConstraintSolver::ConstraintMaskRow,
+    ConstraintSolver::MassRow,
+    ConstraintSolver::SharedMaterialRow,
+
+    Row<CubeSprite>,
+    SharedRow<TextureReference>,
+
+    StableIDRow
+  >;
+
   using GameObjectTable = Table<
     SceneNavigator::IsClearedWithSceneTag,
     SharedMassObjectTableTag,
@@ -226,7 +269,8 @@ namespace GameDatabase {
     CameraTable,
     DebugLineTable,
     DebugTextTable,
-    TargetPosTable
+    TargetPosTable,
+    DynamicPhysicsObjects
   >;
 
   std::unique_ptr<IDatabase> create(StableElementMappings& mappings) {
