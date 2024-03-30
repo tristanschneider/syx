@@ -3,6 +3,7 @@
 
 #include "AppBuilder.h"
 #include "RuntimeDatabase.h"
+#include "DBEvents.h"
 
 namespace SceneNavigator {
   constexpr size_t INVALID_SCENE = 0;
@@ -150,13 +151,18 @@ namespace SceneNavigator {
   void defaultCleanup(IAppBuilder& builder) {
     auto task = builder.createTask();
     task.setName("Default Scene Cleanup");
-    auto modifiers = task.getModifiersForTables(builder.queryTables<IsClearedWithSceneTag>().matchingTableIDs);
+    auto query = task.query<const IsClearedWithSceneTag, const StableIDRow>();
     auto globals = task.query<const GlobalsRow>().tryGetSingletonElement<0>();
 
-    task.setCallback([globals, modifiers](AppTaskArgs&) {
+    task.setCallback([globals, query](AppTaskArgs& args) mutable {
       if(globals->sceneState == SceneState::NeedsUninit) {
-        for(auto& modifier : modifiers) {
-          modifier->resize(0);
+        Events::DestroyPublisher remove{ &args };
+
+        for(size_t t = 0; t < query.size(); ++t) {
+          auto [_, stable] = query.get(t);
+          for(const auto& s : stable->mElements) {
+            remove(StableElementID::fromStableID(s));
+          }
         }
       }
     });
