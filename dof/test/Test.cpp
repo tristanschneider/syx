@@ -160,7 +160,8 @@ namespace Test {
       }
 
       SceneState* scene = b.query<SharedRow<SceneState>>().tryGetSingletonElement();
-      scene->mState = SceneState::State::Update;
+      //TODO: fixit
+      //scene->mState = SceneState::State::Update;
       scene->mBoundaryMin = glm::vec2(-100);
       scene->mBoundaryMax = glm::vec2(100);
 
