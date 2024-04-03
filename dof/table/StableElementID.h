@@ -6,16 +6,34 @@
 #include <optional>
 #include <unordered_map>
 #include <shared_mutex>
+#include "generics/PagedVector.h"
 
 struct StableIDRow : Row<size_t> {};
 
-//This is clunky, it shouldn't need thread safety since the use cases are unrelated, but they all share the same map
-//This could likely be improved with more individual local stable mappings, but that would also make their use more confusing
+using StableElementVersion = uint16_t;
+struct StableElementMapping {
+  size_t unstableIndex{};
+  StableElementVersion version{};
+};
+
+//Scheduling ensures that anythign adding to a table has exclusive access to a table
+//These mappings apply across all tables
+//This means anyone looking up a key wouldn't be looking up one in a table being modified
+//Multiple tables could be modifying at the same time
+//This means the thread safety is needed for the updates but not for the lookups since none of the lookups
+//would have shared access to the mappings while modifications are happening to that table
+//This works because the contents are reserved so that no growths will ever be in the way of the lookups
 struct StableElementMappings {
 public:
   static constexpr size_t INVALID = std::numeric_limits<size_t>::max();
-  using WriteLockGuard = std::unique_lock<std::shared_mutex>;
-  using ReadLockGuard = std::shared_lock<std::shared_mutex>;
+  using WriteLockGuard = std::unique_lock<std::mutex>;
+  using ReadLockGuard = std::unique_lock<std::mutex>;
+
+  StableElementMappings() {
+    //Ridiculous amount because resize would invalidate thread safety
+    //It would be possible to allow growth with some complicated pointer management but this should be good enough
+    mStableToUnstable.reserve(1000000);
+  }
 
   size_t createKey() {
     WriteLockGuard guard{ mMutex };
@@ -25,19 +43,20 @@ public:
       return result;
     }
     const size_t result = mStableToUnstable.size();
-    mStableToUnstable.push_back(INVALID);
+    mStableToUnstable.push_back({ INVALID, 0 });
     return result;
   }
 
   void insertKey(size_t stable, size_t unstable) {
     WriteLockGuard guard{ mMutex };
-    mStableToUnstable[stable] = unstable;
+    mStableToUnstable[stable].unstableIndex = unstable;
   }
 
+  //This assumes the caller knows it's pointing at the correct version
   bool tryUpdateKey(size_t stable, size_t unstable) {
     WriteLockGuard gaurd{ mMutex };
-    if(size_t* value = mStableToUnstable.size() > stable ? &mStableToUnstable[stable] : nullptr; value && *value != INVALID) {
-      *value = unstable;
+    if(StableElementMapping* v = tryGet(stable)) {
+      v->unstableIndex = unstable;
       return true;
     }
     return false;
@@ -45,20 +64,21 @@ public:
 
   bool tryEraseKey(size_t stable) {
     WriteLockGuard guard{ mMutex };
-    if(size_t* value = mStableToUnstable.size() > stable ? &mStableToUnstable[stable] : nullptr; value && *value != INVALID) {
+    if(StableElementMapping* v = tryGet(stable)) {
       mFreeList.push_back(stable);
-      *value = INVALID;
+      v->version++;
+      v->unstableIndex = INVALID;
       return true;
     }
     return false;
   }
 
-  std::optional<std::pair<size_t, size_t>> findKey(size_t stable) const {
-    ReadLockGuard guard{ mMutex };
-    if(const size_t* value = mStableToUnstable.size() > stable ? &mStableToUnstable[stable] : nullptr; value && *value != INVALID) {
-      return std::make_pair(stable, *value);
+  std::pair<size_t, const StableElementMapping*> findKey(size_t stable) const {
+    //This doesn't use a lock due to how common it is. The scheduler is responsible for ensuring this never happens in a table being modified
+    if(const StableElementMapping* v = tryGet(stable)) {
+      return std::make_pair(stable, v);
     }
-    return {};
+    return std::make_pair<size_t, const StableElementMapping*>(0, nullptr);
   }
 
   size_t size() const {
@@ -71,9 +91,46 @@ public:
   }
 
 private:
-  std::vector<size_t> mStableToUnstable;
+  StableElementMapping* tryGet(size_t stable) {
+    if(mStableToUnstable.size() > stable) {
+      StableElementMapping& result = mStableToUnstable[stable];
+      return result.unstableIndex != INVALID ? &result : nullptr;
+    }
+    return nullptr;
+  }
+
+  const StableElementMapping* tryGet(size_t stable) const {
+    if(mStableToUnstable.size() > stable) {
+      const StableElementMapping& result = mStableToUnstable[stable];
+      return result.unstableIndex != INVALID ? &result : nullptr;
+    }
+    return nullptr;
+  }
+
+  gnx::PagedVector<StableElementMapping> mStableToUnstable;
   std::vector<size_t> mFreeList;
-  mutable std::shared_mutex mMutex;
+  mutable std::mutex mMutex;
+};
+
+class ElementRef {
+public:
+  ElementRef() = default;
+  ElementRef(const StableElementMapping* mapping)
+    : ref{ mapping }
+    , expectedVersion{ mapping ? mapping->version : StableElementVersion{} } {
+  }
+
+  explicit operator bool() const {
+    return ref && ref->version == expectedVersion;
+  }
+
+  const size_t* tryGet() const {
+    return operator bool() ? &ref->unstableIndex : nullptr;
+  }
+
+private:
+  const StableElementMapping* ref{};
+  StableElementVersion expectedVersion{};
 };
 
 struct StableInfo {

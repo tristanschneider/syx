@@ -39,3 +39,10 @@ Min 13390600
 Max 32713900
 Avg 14491066
 
+Remove mutex on StableElementMappings
+
+Start 5844600
+Total 14861112500
+Min 13211600
+Max 29667100
+Avg 14861112

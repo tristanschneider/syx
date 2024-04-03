@@ -28,14 +28,35 @@ struct ResolvedIDs {
   UnpackedDatabaseElementID unpacked;
 };
 
+class ElementRefResolver {
+public:
+  ElementRefResolver(const DatabaseDescription& desc)
+    : description{ desc }
+  {}
+
+  UnpackedDatabaseElementID uncheckedUnpack(const ElementRef& r) const {
+    return UnpackedDatabaseElementID::fromDescription(*r.tryGet(), description);
+  }
+
+  std::optional<UnpackedDatabaseElementID> tryUnpack(const ElementRef& r) const {
+    const size_t* result = r.tryGet();
+    return result ? std::make_optional(UnpackedDatabaseElementID::fromDescription(*result, description)) : std::nullopt;
+  }
+
+private:
+  DatabaseDescription description{};
+};
+
 class IIDResolver {
 public :
   virtual ~IIDResolver() = default;
   //Unpack without ensuring it's valid
   virtual UnpackedDatabaseElementID uncheckedUnpack(const StableElementID& id) const = 0;
   virtual std::optional<StableElementID> tryResolveStableID(const StableElementID& id) const = 0;
+  virtual ElementRef tryResolveRef(const StableElementID& id) const = 0;
   virtual std::optional<ResolvedIDs> tryResolveAndUnpack(const StableElementID& id) const = 0;
   virtual StableElementID createKey() = 0;
+  virtual ElementRefResolver getRefResolver() const = 0;
 };
 
 class IAnyTableModifier {

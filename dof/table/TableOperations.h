@@ -432,11 +432,11 @@ struct StableOperations {
     //ID is wrong, update it from mappings
     auto it = mappings.findKey(id.mStableID);
     //If it isn't found that should mean the element has been removed, so return nothing
-    if(!it) {
+    if(!it.second) {
       return {};
     }
 
-    const StableElementID result{ it->second, it->first };
+    const StableElementID result{ it.second->unstableIndex, it.first };
     //Now double check that the mapping wasn't wrong. Only really needed for debugging purposes
     //If it's wrong that means an unstable operation was done on a table that wasn't supposed to and the mappings
     //are now out of date
@@ -452,11 +452,11 @@ struct StableOperations {
     //ID is wrong, update it from mappings
     auto it = mappings.findKey(id.mStableID);
     //If it isn't found that should mean the element has been removed, so return nothing
-    if(!it) {
+    if(!it.second) {
       return {};
     }
 
-    const StableElementID result{ it->second, it->first };
+    const StableElementID result{ it.second->unstableIndex, it.first };
     //Now double check that the mapping wasn't wrong. Only really needed for debugging purposes
     //If it's wrong that means an unstable operation was done on a table that wasn't supposed to and the mappings
     //are now out of date
@@ -466,7 +466,7 @@ struct StableOperations {
 
   static std::optional<StableElementID> tryResolveStableID(const StableElementID& id, const StableElementMappings& mappings) {
     auto it = mappings.findKey(id.mStableID);
-    return it ? std::make_optional(StableElementID{ it->second, it->first }) : std::nullopt;
+    return it.second ? std::make_optional(StableElementID{ it.second->unstableIndex, it.first }) : std::nullopt;
   }
 
   template<class DatabaseT>
@@ -491,11 +491,11 @@ struct StableOperations {
     //Erase old mapping if valid. Case for invalid is in the reuse case for migrateOne below
     if(stableIDToRemove != dbDetails::INVALID_VALUE) {
       auto it = mappings.findKey(stableIDToRemove);
-      assert(it);
-      if(it) {
+      assert(it.second);
+      if(it.second) {
         //Assert mapping matched what it was pointing at
-        assert((it->second == id.remake(id.getTableIndex(), removeIndex).mValue));
-        mappings.tryEraseKey(it->first);
+        assert((it.second->unstableIndex == id.remake(id.getTableIndex(), removeIndex).mValue));
+        mappings.tryEraseKey(it.first);
       }
     }
 

@@ -113,7 +113,12 @@ namespace IDResolverImpl {
       }
 
       auto it = mappings.findKey(id.mStableID);
-      return it ? std::make_optional(StableElementID{ it->second, it->first }) : std::nullopt;
+      return it.second ? std::make_optional(StableElementID{ it.second->unstableIndex, it.first }) : std::nullopt;
+    }
+
+    ElementRef tryResolveRef(const StableElementID& id) const final {
+      auto it = mappings.findKey(id.mStableID);
+      return { it.second };
     }
 
     std::optional<ResolvedIDs> tryResolveAndUnpack(const StableElementID& id) const final {
@@ -125,6 +130,10 @@ namespace IDResolverImpl {
 
     StableElementID createKey() final {
       return StableElementID::fromStableID(mappings.createKey());
+    }
+
+    ElementRefResolver getRefResolver() const {
+      return { description };
     }
 
     DatabaseDescription description;

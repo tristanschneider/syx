@@ -728,7 +728,7 @@ namespace Test {
       for(size_t i = 0; i < stableA.size(); ++i) {
         const size_t stable = stableA.at(i);
         const size_t unstable = TestStableDB::ElementID{ tableIndex.getTableIndex(), i }.mValue;
-        Assert::AreEqual(mappings.findKey(stable)->second, unstable);
+        Assert::AreEqual(mappings.findKey(stable).second->unstableIndex, unstable);
         StableElementID sid{ unstable, stable };
         std::optional<StableElementID> resolved = StableOperations::tryResolveStableID(sid, db, mappings);
         Assert::IsTrue(resolved.has_value());

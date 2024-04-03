@@ -33,6 +33,10 @@ namespace Scenes {
         ConstraintSolver::SharedMassRow,
         const StableIDRow
       >();
+      if(objs.matchingTableIDs.empty() || terrain.matchingTableIDs.empty()) {
+        task.discard();
+        return;
+      }
       auto objsModifier = task.getModifierForTable(objs.matchingTableIDs[0]);
       auto terrainModifier = task.getModifierForTable(terrain.matchingTableIDs[0]);
 

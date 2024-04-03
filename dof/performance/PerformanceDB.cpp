@@ -9,10 +9,13 @@
 #include "SpatialQueries.h"
 #include "SpatialPairsStorage.h"
 #include "stat/AllStatEffects.h"
+#include "scenes/SceneList.h"
+#include "SceneNavigator.h"
 
 namespace PerformanceDB {
   using BroadphaseTable = SweepNPruneBroadphase::BroadphaseTable;
   using GlobalGameData = Table<
+    SceneList::ScenesRow,
     SharedRow<StableElementMappings>,
     SharedRow<Scheduler>,
     SharedRow<Config::GameConfig>,
@@ -67,9 +70,10 @@ namespace PerformanceDB {
   >;
 
   std::unique_ptr<IDatabase> create(StableElementMappings& mappings) {
-    return DBReflect::merge(
+    return DBReflect::mergeAll(
       DBReflect::createDatabase<DB>(mappings),
-      DBReflect::createDatabase<StatEffectDatabase>(mappings)
+      DBReflect::createDatabase<StatEffectDatabase>(mappings),
+      SceneNavigator::createDB(mappings)
     );
   }
 
