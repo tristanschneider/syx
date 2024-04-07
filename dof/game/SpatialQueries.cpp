@@ -161,13 +161,13 @@ namespace SpatialQuery {
     void begin(const StableElementID& id) override {
       selectedEdgeEntry = IslandGraph::INVALID;
 
-      auto resolved = ids->tryResolveAndUnpack(id);
-      if(!resolved) {
+      self = ids->tryResolveRef(id);
+      if(!self) {
         return;
       }
-      self = *resolved;
+      unpacked = ids->getRefResolver().uncheckedUnpack(self);
 
-      auto it = graph->findNode(self.stable.mStableID);
+      auto it = graph->findNode(self);
       if(it != graph->nodesEnd()) {
         const IslandGraph::Node& node = graph->nodes[it.node];
         selectedEdgeEntry = node.edges;
@@ -187,20 +187,20 @@ namespace SpatialQuery {
           const SP::ContactManifold& man = manifold->at(edge.data);
           //If there are points, copy them over. If there aren't then this made it past broadphase but not narrowphase
           //AABB is special in that the results directly from the broadphase are returned but has no point data
-          if(man.size || self.unpacked.getTableIndex() == tables.aabb.getTableIndex()) {
+          if(man.size || unpacked.getTableIndex() == tables.aabb.getTableIndex()) {
             cachedResult.size = man.size;
-            const size_t stableA = graph->nodes[edge.nodeA].data;
-            const size_t stableB = graph->nodes[edge.nodeB].data;
-            if(stableA == self.stable.mStableID) {
-              cachedResult.other = StableElementID::fromStableID(stableB);
+            const ElementRef& stableA = graph->nodes[edge.nodeA].data;
+            const ElementRef& stableB = graph->nodes[edge.nodeB].data;
+            if(stableA == self) {
+              cachedResult.other = stableB;
               for(size_t i = 0; i < man.size; ++i) {
                 cachedResult.points[i].point = man[i].centerToContactA;
                 cachedResult.points[i].normal = man[i].normal;
                 cachedResult.points[i].overlap = man[i].overlap;
               }
             }
-            if(stableB == self.stable.mStableID) {
-              cachedResult.other = StableElementID::fromStableID(stableA);
+            if(stableB == self) {
+              cachedResult.other = stableA;
               for(size_t i = 0; i < man.size; ++i) {
                 cachedResult.points[i].point = man[i].centerToContactB;
                 cachedResult.points[i].normal = -man[i].normal;
@@ -219,7 +219,8 @@ namespace SpatialQuery {
     std::shared_ptr<IIDResolver> ids{};
 
     uint32_t selectedEdgeEntry{ IslandGraph::INVALID };
-    ResolvedIDs self;
+    UnpackedDatabaseElementID unpacked;
+    ElementRef self;
     Result cachedResult;
     SQShapeTables tables;
   };

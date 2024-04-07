@@ -24,7 +24,7 @@
 
 namespace SM {
   using namespace FragmentStateMachine;
-  std::optional<StableElementID> tryGetFirstNearby(SpatialQuery::IReader& reader, const StableElementID& self) {
+  std::optional<ElementRef> tryGetFirstNearby(SpatialQuery::IReader& reader, const ElementRef& self) {
     const SpatialQuery::Result* result = reader.tryIterate();
     while(result && result->other == self) {
       result = reader.tryIterate();
@@ -117,8 +117,9 @@ namespace SM {
       auto spatialQueryR = SpatialQuery::createReader(task);
       auto spatialQueryW = SpatialQuery::createWriter(task);
       auto bodyResolver = PhysicsSimulation::createPhysicsBodyResolver(task);
+      auto ids = task.getIDResolver();
 
-      task.setCallback([query, spatialQueryR, spatialQueryW, bucket, bodyResolver](AppTaskArgs&) mutable {
+      task.setCallback([ids, query, spatialQueryR, spatialQueryW, bucket, bodyResolver](AppTaskArgs&) mutable {
         auto&& [globals, state, stableRow, impulseX, impulseY, angVelRow, impulseA, rotX, rotY, posX, posY] = query.get(0);
         for(size_t si : globals->at().buckets[bucket].updating) {
           const size_t stableID = stableRow->at(si);
@@ -126,7 +127,7 @@ namespace SM {
 
           Wander& wander = std::get<Wander>(state->at(si).currentState);
           spatialQueryR->begin(wander.spatialQuery);
-          const auto nearby = tryGetFirstNearby(*spatialQueryR, StableElementID::fromStableID(stableID));
+          const auto nearby = tryGetFirstNearby(*spatialQueryR, ids->tryResolveRef(StableElementID::fromStableID(stableID)));
 
           if(nearby) {
             //TODO: this doesn't really do what it means to but works well enough visually
@@ -215,7 +216,7 @@ namespace SM {
           const Wander& wander = std::get<Wander>(state->at(si).currentState);
           const glm::vec2 myPos = TableAdapters::read(si, *posX, *posY);
           const glm::vec2 myForward = TableAdapters::read(si, *rotX, *rotY);
-          const size_t myID = stableRow->at(si);
+          const auto myID = ids->tryResolveRef(StableElementID::fromStableID(stableRow->at(si)));
 
           //Draw the spatial query volume
           const auto volume = computeQueryVolume(myPos, wander.desiredDirection);
@@ -225,12 +226,12 @@ namespace SM {
           //Draw lines to each nearby spatial query result
           spatialQuery->begin(temp);
           while(const auto* n = spatialQuery->tryIterate()) {
-            if(n->other.mStableID == myID) {
+            if(n->other == myID) {
               continue;
             }
-            if(auto resolved = ids->tryResolveAndUnpack(n->other)) {
-              if(resolver->tryGetOrSwapAllRows(resolved->unpacked, resolvedX, resolvedY)) {
-                const glm::vec2 resolvedPos = TableAdapters::read(resolved->unpacked.getElementIndex(), *resolvedX, *resolvedY);
+            if(auto resolved = ids->getRefResolver().tryUnpack(n->other)) {
+              if(resolver->tryGetOrSwapAllRows(*resolved, resolvedX, resolvedY)) {
+                const glm::vec2 resolvedPos = TableAdapters::read(resolved->getElementIndex(), *resolvedX, *resolvedY);
                 DebugDrawer::drawLine(debug, myPos, resolvedPos, glm::vec3{ 1.0f });
               }
             }
@@ -497,22 +498,22 @@ namespace SM {
 
           //If there is nothing nearby it's safe to exit the state
           spatialQueryR->begin(key->stable);
-          const size_t self = stableRow->at(i);
+          const auto self = ids->tryResolveRef(StableElementID::fromStableID(stableRow->at(i)));
           bool foundObstacle = false;
           while(auto* r = spatialQueryR->tryIterate()) {
-            if(r->other.mStableID == self) {
+            if(r->other == self) {
               continue;
             }
             //Ignore others that are also in this state
             //TODO: this probably makes mores sense to do with collision layers
-            if(auto resolved = ids->tryResolveAndUnpack(r->other)) {
-              if(const auto* s = resolver->tryGetOrSwapRowElement(stateLookup, resolved->unpacked)) {
+            if(auto resolved = ids->getRefResolver().tryUnpack(r->other)) {
+              if(const auto* s = resolver->tryGetOrSwapRowElement(stateLookup, *resolved)) {
                  if(std::get_if<SeekHome>(&s->currentState) || std::get_if<ExitSeekHome>(&s->currentState)) {
                     continue;
                  }
               }
               //Ignoer other spatial queries
-              if(resolver->tryGetOrSwapRow(spatialQueryLookup, resolved->unpacked)) {
+              if(resolver->tryGetOrSwapRow(spatialQueryLookup, *resolved)) {
                 continue;
               }
               foundObstacle = true;

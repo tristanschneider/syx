@@ -300,10 +300,10 @@ namespace ConstraintSolver {
   }
 
   BodyMapping getOrCreateBody(
-    IslandGraph::NodeUserdata data,
+    const IslandGraph::NodeUserdata& data,
     IslandSolver& solver,
     Resolver::ShapeResolverContext& resolver,
-    IIDResolver& ids
+    const ElementRefResolver& ids
   ) {
     if(auto it = solver.islandToBodyIndex.find(data); it != solver.islandToBodyIndex.end()) {
       return it->second;
@@ -312,8 +312,8 @@ namespace ConstraintSolver {
     Material material{ Resolver::DEFAULT_MATERIAL };
 
     //TODO: lookup could be avoided if using the StableElementID on the spatial pairs table
-    if(auto resolved = ids.tryResolveAndUnpack(StableElementID::fromStableID(data))) {
-      ConstraintBody resolvedBody{ Resolver::resolveAll(resolver, resolved->unpacked) };
+    if(auto resolved = ids.tryUnpack(data)) {
+      ConstraintBody resolvedBody{ Resolver::resolveAll(resolver, *resolved) };
       constraintMask = resolvedBody.constraintMask;
       material = *resolvedBody.material;
 
@@ -339,10 +339,10 @@ namespace ConstraintSolver {
   }
 
   BodyMapping getOrCreateBody(
-    IslandGraph::NodeUserdata data,
+    const IslandGraph::NodeUserdata& data,
     ZIslandSolver& solver,
     Resolver::ZShapeResolverContext& resolver,
-    IIDResolver& ids
+    const ElementRefResolver& ids
   ) {
     if(auto it = solver.islandToBodyIndex.find(data); it != solver.islandToBodyIndex.end()) {
       return it->second;
@@ -351,8 +351,8 @@ namespace ConstraintSolver {
     Material material{ Resolver::DEFAULT_MATERIAL };
 
     //TODO: lookup could be avoided if using the StableElementID on the spatial pairs table
-    if(auto resolved = ids.tryResolveAndUnpack(StableElementID::fromStableID(data))) {
-      Resolver::ZConstraintBody resolvedBody{ Resolver::resolveAll(resolver, resolved->unpacked) };
+    if(auto resolved = ids.tryUnpack(data)) {
+      Resolver::ZConstraintBody resolvedBody{ Resolver::resolveAll(resolver, *resolved) };
       constraintMask = resolvedBody.constraintMask;
       material = *resolvedBody.material;
 
@@ -537,6 +537,7 @@ namespace ConstraintSolver {
         shapes,
         cache
       };
+      auto resolver = ids->getRefResolver();
       SP::ZManifoldRow& manifolds = pairs.get<0>(0);
       for(size_t i = args.begin; i < args.end; ++i) {
         const IslandGraph::Island& island = graph->islands[i];
@@ -557,8 +558,8 @@ namespace ConstraintSolver {
             //The lookups here are somewhat wasted work between bodies but the same pair won't solve on both XY and Z
             if(manifold.info) {
               //This is a constraint to solve, pull out the required information
-              const BodyMapping bodyA = getOrCreateBody(graph->nodes[e.nodeA].data, solver, shapeContext, *ids);
-              const BodyMapping bodyB = getOrCreateBody(graph->nodes[e.nodeB].data, solver, shapeContext, *ids);
+              const BodyMapping bodyA = getOrCreateBody(graph->nodes[e.nodeA].data, solver, shapeContext, resolver);
+              const BodyMapping bodyB = getOrCreateBody(graph->nodes[e.nodeB].data, solver, shapeContext, resolver);
               if(bodyA.constraintMask & bodyB.constraintMask) {
                 constraintIndex += addConstraints(solver,
                   bodyA.solverIndex,
@@ -621,6 +622,7 @@ namespace ConstraintSolver {
       Resolver::ShapeResolverCache cache;
       Resolver::ShapeResolverContext shapeContext{ shapes, cache };
       SP::ManifoldRow& manifolds = pairs.get<0>(0);
+      auto resolver = ids->getRefResolver();
       for(size_t i = args.begin; i < args.end; ++i) {
         const IslandGraph::Island& island = graph->islands[i];
         IslandSolver& solver = *collection->solvers[i];
@@ -641,8 +643,8 @@ namespace ConstraintSolver {
             SP::ContactManifold& manifold = manifolds.at(e.data);
             if(manifold.size) {
               //This is a constraint to solve, pull out the required information
-              const BodyMapping bodyA = getOrCreateBody(graph->nodes[e.nodeA].data, solver, shapeContext, *ids);
-              const BodyMapping bodyB = getOrCreateBody(graph->nodes[e.nodeB].data, solver, shapeContext, *ids);
+              const BodyMapping bodyA = getOrCreateBody(graph->nodes[e.nodeA].data, solver, shapeContext, resolver);
+              const BodyMapping bodyB = getOrCreateBody(graph->nodes[e.nodeB].data, solver, shapeContext, resolver);
               if(bodyA.constraintMask & bodyB.constraintMask) {
                 constraintIndex += addConstraints(solver,
                   bodyA.solverIndex,

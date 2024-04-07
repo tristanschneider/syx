@@ -44,6 +44,7 @@ namespace PhysicsModule {
       const glm::vec3 normalColor{ 0, 0, 1 };
       std::hash<size_t> colorHash;
       const float normalLength = 0.15f;
+      auto resolver = ids->getRefResolver();
 
       for(size_t t = 0; t < query.size(); ++t) {
         const auto thisTable = query.matchingTableIDs[t];
@@ -65,11 +66,11 @@ namespace PhysicsModule {
           while(edge != IslandGraph::INVALID) {
             const auto& e = g.edges[edge];
 
-            auto resolvedA = ids->tryResolveAndUnpack(StableElementID::fromStableID(g.nodes[e.nodeA].data));
-            auto resolvedB = ids->tryResolveAndUnpack(StableElementID::fromStableID(g.nodes[e.nodeB].data));
+            auto resolvedA = resolver.tryUnpack(g.nodes[e.nodeA].data);
+            auto resolvedB = resolver.tryUnpack(g.nodes[e.nodeB].data);
             if(resolvedA && resolvedB) {
-              const glm::vec2 centerA = Narrowphase::Shape::getCenter(shapes->classifyShape(resolvedA->unpacked).shape);
-              const glm::vec2 centerB = Narrowphase::Shape::getCenter(shapes->classifyShape(resolvedB->unpacked).shape);
+              const glm::vec2 centerA = Narrowphase::Shape::getCenter(shapes->classifyShape(*resolvedA).shape);
+              const glm::vec2 centerB = Narrowphase::Shape::getCenter(shapes->classifyShape(*resolvedB).shape);
 
               if(drawIslandEdges) {
                 const glm::vec2 currentIslandEdge = (centerA + centerB)*0.5f;

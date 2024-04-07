@@ -100,6 +100,15 @@ namespace PhysicsSimulation {
       return ids->tryResolveAndUnpack(e);
     }
 
+    std::optional<Key> tryResolve(const ElementRef& e) final {
+      if(auto resolved = ids->getRefResolver().tryUnpack(e)) {
+        Key result;
+        result.unpacked = *resolved;
+        return result;
+      }
+      return {};
+    }
+
     glm::vec2 getCenter(const Key& e) final {
       return Narrowphase::Shape::getCenter(shape->classifyShape(e.unpacked).shape);
     }

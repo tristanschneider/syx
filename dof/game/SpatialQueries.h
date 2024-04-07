@@ -89,7 +89,7 @@ namespace SpatialQuery {
   };
 
   struct Result {
-    StableElementID other;
+    ElementRef other;
     std::array<ContactPoint, 2> points;
     size_t size{};
   };

@@ -9,11 +9,11 @@ namespace SP {
     IslandGraph::Graph& graph,
     ObjA& rowA,
     ObjB& rowB,
-    const StableElementID& a,
-    const StableElementID& b
+    const ElementRef& a,
+    const ElementRef& b
   ) {
     //Add the edge pointing at the spatial pair to the island graph
-    const IslandGraph::EdgeUserdata entryIndex = IslandGraph::addUnmappedEdge(graph, a.mStableID, b.mStableID);
+    const IslandGraph::EdgeUserdata entryIndex = IslandGraph::addUnmappedEdge(graph, a, b);
 
     if(rowA.size() <= entryIndex) {
       //Make plenty of space. No harm in a little extra
@@ -43,9 +43,9 @@ namespace SP {
         //Add new edges and spatial pairs for all new pairs
         for(size_t i = 0; i < changes.mGained.size(); ++i) {
           const auto& gain = changes.mGained[i];
-          const StableElementID a{ StableElementID::fromStableID(gain.a) };
-          const StableElementID b{ StableElementID::fromStableID(gain.b) };
-          auto it = graph.findEdge(a.mStableID, b.mStableID);
+          const ElementRef a = ids->tryResolveRef(StableElementID::fromStableID(gain.a));
+          const ElementRef b = ids->tryResolveRef(StableElementID::fromStableID(gain.b));
+          auto it = graph.findEdge(a, b);
           //This is a hack that shouldn't happen but sometimes the broadphase seems to report duplicates
           if(it == graph.edgesEnd()) {
             addIslandEdge(*dstModifier, graph, *objA, *objB, a, b);
@@ -57,13 +57,13 @@ namespace SP {
 
         //Remove all edges corresponding to the lost pairs
         for(const auto& loss : changes.mLost) {
-          const StableElementID a{ StableElementID::fromStableID(loss.a) };
-          const StableElementID b{ StableElementID::fromStableID(loss.b) };
-          auto edge = graph.findEdge(a.mStableID, b.mStableID);
+          const ElementRef a = ids->tryResolveRef(StableElementID::fromStableID(loss.a));
+          const ElementRef b = ids->tryResolveRef(StableElementID::fromStableID(loss.b));
+          auto edge = graph.findEdge(a, b);
           if(edge != graph.edgesEnd()) {
             //Mark the spatial pair as removed
             if(objA->size() > *edge) {
-              objA->at(*edge) = objB->at(*edge) = StableElementID::invalid();
+              objA->at(*edge) = objB->at(*edge) = {};
             }
 
             //Remove the graph edge
@@ -72,7 +72,7 @@ namespace SP {
           else {
             //This can happen if one of the nodes was destroyed because the broadphase reports the loss
             //after the island graph removes the node. If it happened while both exist something went wrong with pair tracking
-            assert(!ids->tryResolveStableID(a) || !ids->tryResolveStableID(b));
+            assert(!a || !b);
           }
         }
       }
@@ -83,6 +83,7 @@ namespace SP {
   struct StorageModifier : IStorageModifier {
     StorageModifier(RuntimeDatabaseTaskBuilder& task)
       : graph{ *task.query<IslandGraphRow>().tryGetSingletonElement() }
+      , resolver{ task.getIDResolver() }
     {}
 
     constexpr static IslandGraph::IslandPropagationMask getMask(bool isImmobile) {
@@ -90,21 +91,27 @@ namespace SP {
     }
 
     void addSpatialNode(const StableElementID& node, bool isImmobile) override {
-      IslandGraph::addNode(graph, node.mStableID, getMask(isImmobile));
+      auto ref = resolver->tryResolveRef(node);
+      assert(ref && "Ref should exist if adding it");
+      IslandGraph::addNode(graph, ref, getMask(isImmobile));
     }
 
     void removeSpatialNode(const StableElementID& node) override {
-      IslandGraph::removeNode(graph, node.mStableID);
+      auto ref = resolver->tryResolveRef(node);
+      IslandGraph::removeNode(graph, ref);
     }
 
     void changeMobility(const StableElementID& node, bool isImmobile) override {
-      auto it = graph.findNode(node.mStableID);
+      auto ref = resolver->tryResolveRef(node);
+      assert(ref);
+      auto it = graph.findNode(ref);
       graph.nodes[it.node].propagation = getMask(isImmobile);
     }
 
     IslandGraph::Graph& graph;
+    std::shared_ptr<IIDResolver> resolver;
   };
-
+  constexpr size_t TEST = sizeof(ElementRef);
   std::shared_ptr<IStorageModifier> createStorageModifier(RuntimeDatabaseTaskBuilder& task) {
     return std::make_shared<StorageModifier>(task);
   }

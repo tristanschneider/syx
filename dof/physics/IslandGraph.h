@@ -7,7 +7,7 @@
 
 namespace IslandGraph {
   //Points at the stable id of the object in the pair
-  using NodeUserdata = size_t;
+  using NodeUserdata = ElementRef;
   //Points at a pair entry in the spatial pairs table
   using EdgeUserdata = size_t;
   //Currently only all or nothing. None will show up in an island if connected to another propagating node.

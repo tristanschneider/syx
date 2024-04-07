@@ -56,8 +56,8 @@ namespace SP {
     std::optional<ZInfo> info;
   };
   //Points at the source of truth for the object's transform and velocity
-  struct ObjA : Row<StableElementID> {};
-  struct ObjB : Row<StableElementID> {};
+  struct ObjA : Row<ElementRef> {};
+  struct ObjB : Row<ElementRef> {};
   struct ManifoldRow : Row<ContactManifold> {};
   struct ZManifoldRow : Row<ZContactManifold> {};
   struct IslandGraphRow : SharedRow<IslandGraph::Graph> {};

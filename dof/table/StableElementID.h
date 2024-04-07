@@ -128,10 +128,28 @@ public:
     return operator bool() ? &ref->unstableIndex : nullptr;
   }
 
+  bool operator==(const ElementRef& rhs) const {
+    return ref == rhs.ref && expectedVersion == rhs.expectedVersion;
+  }
+
+  //To be used in contexts where stale versions wouldn't also be hashed
+  size_t unversionedHash() const {
+    return std::hash<const void*>()(ref);
+  }
+
 private:
   const StableElementMapping* ref{};
   StableElementVersion expectedVersion{};
 };
+
+namespace std {
+  template<>
+  struct hash<ElementRef> {
+    size_t operator()(const ElementRef& ref) const {
+      return ref.unversionedHash();
+    }
+  };
+}
 
 struct StableInfo {
   StableIDRow* row{};

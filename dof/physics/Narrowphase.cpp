@@ -354,12 +354,12 @@ namespace Narrowphase {
     }
 
     auto sq = buildShapeQueries(task, unitCube, aliases);
-    auto query = task.query<SP::ObjA, SP::ObjB, SP::ManifoldRow, SP::ZManifoldRow>();
+    auto query = task.query<const SP::ObjA, const SP::ObjB, SP::ManifoldRow, SP::ZManifoldRow>();
     auto ids = task.getIDResolver();
 
     task.setCallback([sq, query, ids](AppTaskArgs& args) mutable {
       ShapeQueries shapeQuery{ sq.createThreadLocalCopy() };
-
+      auto resolver = ids->getRefResolver();
       size_t currentIndex = 0;
       for(size_t t = 0; t < query.size(); ++t) {
         auto [a, b, manifold, zManifold] = query.get(t);
@@ -374,11 +374,11 @@ namespace Narrowphase {
         }
         for(size_t ri = args.begin; ri < std::min(args.end, thisTableEnd); ++ri) {
           const size_t i = ri - thisTableStart;
-          StableElementID& stableA = a->at(i);
-          StableElementID& stableB = b->at(i);
+          const ElementRef& stableA = a->at(i);
+          const ElementRef& stableB = b->at(i);
           //TODO: fast path if it's the same table as last time
-          auto resolvedA = ids->tryResolveAndUnpack(stableA);
-          auto resolvedB = ids->tryResolveAndUnpack(stableB);
+          auto resolvedA = resolver.tryUnpack(stableA);
+          auto resolvedB = resolver.tryUnpack(stableB);
           SP::ContactManifold& man = manifold->at(i);
           SP::ZContactManifold& zMan = zManifold->at(i);
           //Clear for the generation below to regenerate the results
@@ -389,19 +389,17 @@ namespace Narrowphase {
           if(!resolvedA || !resolvedB) {
             continue;
           }
-          stableA = resolvedA->stable;
-          stableB = resolvedB->stable;
 
-          if(!shouldCompareShapes(shapeQuery, resolvedA->unpacked, resolvedB->unpacked)) {
+          if(!shouldCompareShapes(shapeQuery, *resolvedA, *resolvedB)) {
             continue;
           }
 
           //TODO: is non-const because of ispc signature, should be const
-          Shape::BodyType shapeA = classifyShape(shapeQuery, resolvedA->unpacked);
-          Shape::BodyType shapeB = classifyShape(shapeQuery, resolvedB->unpacked);
+          Shape::BodyType shapeA = classifyShape(shapeQuery, *resolvedA);
+          Shape::BodyType shapeB = classifyShape(shapeQuery, *resolvedB);
           ContactArgs cargs{ man, zMan };
           generateContacts(shapeA, shapeB, cargs);
-          tryCheckZ(resolvedA->unpacked, resolvedB->unpacked, shapeQuery, cargs);
+          tryCheckZ(*resolvedA, *resolvedB, shapeQuery, cargs);
         }
       }
     });
