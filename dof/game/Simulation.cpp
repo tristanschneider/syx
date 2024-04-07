@@ -91,6 +91,8 @@ void Simulation::initScheduler(IAppBuilder& builder) {
       }
     };
     cfg.profilerCallbacks.threadStop = &ProfileStop::threadStop;
+    //With the current configuration of tasks performance seems to get worse past this many
+    cfg.numTaskThreadsToCreate = std::min(static_cast<uint32_t>(4), cfg.numTaskThreadsToCreate);
 
     scheduler->mScheduler.Initialize(cfg);
     tls->instance = std::make_unique<ThreadLocals>(scheduler->mScheduler.GetNumTaskThreads(), events->impl.get(), mappings);

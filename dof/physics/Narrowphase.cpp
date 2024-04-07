@@ -173,7 +173,7 @@ namespace Narrowphase {
   }
 
   struct SharedUnitCubeQueries {
-    std::shared_ptr<ITableResolver> resolver;
+      ITableResolver* resolver{};
     CachedRow<const SharedRectangleRow> definition;
     CachedRow<const Row<float>> centerX;
     CachedRow<const Row<float>> centerY;
@@ -182,6 +182,7 @@ namespace Narrowphase {
     CachedRow<const Row<float>> scaleX;
     CachedRow<const Row<float>> scaleY;
     RectDefinition alias;
+    std::shared_ptr<ITableResolver> ownedResolver;
   };
 
   struct ShapeQueries {
@@ -195,8 +196,8 @@ namespace Narrowphase {
       return result;
     }
 
-    std::shared_ptr<ITableResolver> shapeResolver;
-    std::shared_ptr<ITableResolver> zResolver;
+    ITableResolver* shapeResolver{};
+    ITableResolver* zResolver{};
     CachedRow<const RectangleRow> rectRow;
     CachedRow<const AABBRow> aabbRow;
     CachedRow<const RaycastRow> rayRow;
@@ -207,6 +208,8 @@ namespace Narrowphase {
     SharedUnitCubeQueries sharedUnitCube;
     ConstFloatQueryAlias posZAlias;
     CachedRow<const Row<float>> posZ;
+    std::shared_ptr<ITableResolver> ownedShapeResolver;
+    std::shared_ptr<ITableResolver> ownedZResolver;
   };
 
   Geo::Range1D getZRange(const UnpackedDatabaseElementID& e, ShapeQueries& queries) {
@@ -250,7 +253,7 @@ namespace Narrowphase {
 
   ShapeQueries buildShapeQueries(RuntimeDatabaseTaskBuilder& task, const RectDefinition& unitCube, const PhysicsAliases& aliases) {
     ShapeQueries result;
-    result.shapeResolver = task.getResolver<
+    result.ownedShapeResolver = task.getResolver<
       const RectangleRow,
       const AABBRow,
       const RaycastRow,
@@ -259,14 +262,18 @@ namespace Narrowphase {
       const ThicknessRow,
       const SharedThicknessRow
     >();
-    result.sharedUnitCube.resolver = task.getAliasResolver(
+    result.sharedUnitCube.ownedResolver = task.getAliasResolver(
       unitCube.centerX, unitCube.centerY,
       unitCube.rotX, unitCube.rotY,
       unitCube.scaleX, unitCube.scaleY
     );
     result.sharedUnitCube.alias = unitCube;
-    result.zResolver = task.getAliasResolver(aliases.posZ);
+    result.ownedZResolver = task.getAliasResolver(aliases.posZ);
     result.posZAlias = aliases.posZ.read();
+
+    result.shapeResolver = result.ownedShapeResolver.get();
+    result.sharedUnitCube.resolver = result.sharedUnitCube.ownedResolver.get();
+    result.zResolver = result.ownedShapeResolver.get();
     return result;
   }
 

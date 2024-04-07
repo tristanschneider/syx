@@ -305,6 +305,7 @@ void registerWindow(HINSTANCE inst) {
 }
 
 void sleepNS(int ns) {
+  PROFILE_SCOPE("app", "sleep");
   //Would probably be best to process coroutines or something here instead of sleep
   //sleep_for is pretty erratic, so yield in a loop instead
   auto before = std::chrono::high_resolution_clock::now();
