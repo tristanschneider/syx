@@ -74,8 +74,8 @@ namespace SP {
     IslandGraph::Graph& graph,
     ObjA& rowA,
     ObjB& rowB,
-    const StableElementID& a,
-    const StableElementID& b
+    const ElementRef& a,
+    const ElementRef& b
   );
 
   //Take the pair gains/losses from the broadphase and use them to create or remove entries in the SpatialPairsTable and their edges in the IslandGraph

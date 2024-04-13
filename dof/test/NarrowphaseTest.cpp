@@ -133,12 +133,13 @@ namespace Test {
         SP::ZManifoldRow
       >().get(0);
       modifier = task.getModifierForTable(task.query<SP::ManifoldRow>().matchingTableIDs[0]);
+      ids = task.getIDResolver();
     }
 
     size_t addPair(const StableElementID& a, const StableElementID& b) {
       const size_t i = modifier->addElements(1);
-      objA->at(i) = a;
-      objB->at(i) = b;
+      objA->at(i) = ids->tryResolveRef(a);
+      objB->at(i) = ids->tryResolveRef(b);
       return i;
     }
 
@@ -147,6 +148,7 @@ namespace Test {
     SP::ManifoldRow* manifold{};
     SP::ZManifoldRow* zManifold{};
     std::shared_ptr<ITableModifier> modifier;
+    std::shared_ptr<IIDResolver> ids;
   };
 
   TEST_CLASS(NarrowphaseTest) {

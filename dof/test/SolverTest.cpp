@@ -122,9 +122,11 @@ namespace Test {
       const ResolvedIDs dynamicB = app.createInTable(tables.dynamicBodies);
       const size_t ib = dynamicB.unpacked.getElementIndex();
 
-      IslandGraph::addNode(graph, staticA.stable.mStableID);
-      IslandGraph::addNode(graph, dynamicB.stable.mStableID);
-      const size_t edgeAB = SP::addIslandEdge(*modifier, graph, *pairA, *pairB, staticA.stable, dynamicB.stable);
+      auto ar = ids->tryResolveRef(staticA.stable);
+      auto br = ids->tryResolveRef(dynamicB.stable);
+      IslandGraph::addNode(graph, ar);
+      IslandGraph::addNode(graph, br);
+      const size_t edgeAB = SP::addIslandEdge(*modifier, graph, *pairA, *pairB, ar, br);
 
       //Simulate B moving right towards A and hitting with two contact points on the corners of A
       dvx->at(ib) = 1.0f;
@@ -152,8 +154,9 @@ namespace Test {
       //Simulate another object C moving downwards and colliding with A but not B
       const ResolvedIDs dynamicC = app.createInTable(tables.dynamicBodies);
       const size_t ic = dynamicC.unpacked.getElementIndex();
-      IslandGraph::addNode(graph, dynamicC.stable.mStableID);
-      const size_t edgeBC = SP::addIslandEdge(*modifier, graph, *pairA, *pairB, dynamicB.stable, dynamicC.stable);
+      auto cr = ids->tryResolveRef(dynamicC.stable);
+      IslandGraph::addNode(graph, cr);
+      const size_t edgeBC = SP::addIslandEdge(*modifier, graph, *pairA, *pairB, br, cr);
 
       dvy->at(ic) = -0.75f;
 
@@ -213,9 +216,11 @@ namespace Test {
       const size_t ai = a.unpacked.getElementIndex();
       const size_t bi = b.unpacked.getElementIndex();
 
-      IslandGraph::addNode(graph, a.stable.mStableID);
-      IslandGraph::addNode(graph, b.stable.mStableID);
-      const size_t edgeAB = SP::addIslandEdge(*modifier, graph, *pairA, *pairB, a.stable, b.stable);
+      auto ar = ids->tryResolveRef(a.stable);
+      auto br = ids->tryResolveRef(b.stable);
+      IslandGraph::addNode(graph, ar);
+      IslandGraph::addNode(graph, br);
+      const size_t edgeAB = SP::addIslandEdge(*modifier, graph, *pairA, *pairB, ar, br);
 
       //A moving up towards B but not fast enough to collide
       dvz->at(ai) = 1.0f;

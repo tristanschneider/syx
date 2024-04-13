@@ -579,7 +579,7 @@ namespace Test {
       std::optional<size_t> tryFindPair(const StableElementID& a, const StableElementID& b) {
         //Swaps the order of the pair in the same way broadphase and SpatialPairsStorage is expecting
         const Broadphase::SweepCollisionPair pair{ a.mStableID, b.mStableID };
-        if(auto it = graph->findEdge(pair.a, pair.b); it != graph->edgesEnd()) {
+        if(auto it = graph->findEdge(ids->tryResolveRef(StableElementID::fromStableID(pair.a)), ids->tryResolveRef(StableElementID::fromStableID(pair.b))); it != graph->edgesEnd()) {
           return *it;
         }
         return {};
@@ -780,12 +780,12 @@ namespace Test {
     static void assertUnorderedCollisionPairsMatch(TestGame& game, std::vector<StableElementID> expectedA, std::vector<StableElementID> expectedB) {
       SpatialPairsData pairs{ game.builder() };
       const size_t contacts = std::count_if(pairs.objA->begin(), pairs.objA->end(), [](const auto& obj) {
-        return obj != StableElementID::invalid();
+        return static_cast<bool>(obj);
       });
       Assert::AreEqual(expectedA.size(), contacts);
       size_t ei = 0;
       for(size_t i = 0; i < pairs.objA->size() && ei < expectedA.size(); ++i) {
-        if(pairs.objA->at(i) != StableElementID::invalid()) {
+        if(pairs.objA->at(i)) {
           Assert::IsTrue(pairs.tryFindPair(expectedA[ei], expectedB[ei]).has_value());
           ++ei;
         }
@@ -796,17 +796,18 @@ namespace Test {
       SpatialPairsData pairs{ game.builder() };
       auto resolver = ConstraintSolver::createResolver(game.builder(), PhysicsSimulation::getPhysicsAliases());
       size_t actualCount{};
+      auto ref = pairs.ids->getRefResolver();
       for(size_t i = 0; i < pairs.manifold->size(); ++i) {
         //If there are no contacts to solve, this one doesn't count
         if(!pairs.manifold->at(i).size) {
           continue;
         }
-        auto ra = pairs.ids->tryResolveAndUnpack(pairs.objA->at(i));
-        auto rb = pairs.ids->tryResolveAndUnpack(pairs.objB->at(i));
+        auto ra = ref.tryUnpack(pairs.objA->at(i));
+        auto rb = ref.tryUnpack(pairs.objB->at(i));
         if(ra && rb) {
           ConstraintSolver::ConstraintBody ba, bb;
-          ba = resolver->resolve(ra->unpacked);
-          bb = resolver->resolve(rb->unpacked);
+          ba = resolver->resolve(*ra);
+          bb = resolver->resolve(*rb);
           //Only count constraints between dynamic pairs that pass the mask
           if(ba.mass && bb.mass && (ba.constraintMask & bb.constraintMask)) {
             ++actualCount;
@@ -820,17 +821,18 @@ namespace Test {
       SpatialPairsData pairs{ game.builder() };
       auto resolver = ConstraintSolver::createResolver(game.builder(), PhysicsSimulation::getPhysicsAliases());
       size_t actualCount{};
+      auto ref = pairs.ids->getRefResolver();
       for(size_t i = 0; i < pairs.manifold->size(); ++i) {
         //If there are no contacts to solve, this one doesn't count
         if(!pairs.manifold->at(i).size) {
           continue;
         }
-        auto ra = pairs.ids->tryResolveAndUnpack(pairs.objA->at(i));
-        auto rb = pairs.ids->tryResolveAndUnpack(pairs.objB->at(i));
+        auto ra = ref.tryUnpack(pairs.objA->at(i));
+        auto rb = ref.tryUnpack(pairs.objB->at(i));
         if(ra && rb) {
           ConstraintSolver::ConstraintBody ba, bb;
-          ba = resolver->resolve(ra->unpacked);
-          bb = resolver->resolve(rb->unpacked);
+          ba = resolver->resolve(*ra);
+          bb = resolver->resolve(*rb);
           //Only count constraints between dynamic to static pairs that pass the mask
           if((!ba.mass || !bb.mass) && (ba.constraintMask & bb.constraintMask)) {
             ++actualCount;
@@ -1455,13 +1457,11 @@ namespace Test {
       auto q = SpatialQuery::createReader(game.builder());
       q->begin(query);
       const SpatialQuery::Result* r = q->tryIterate();
+      auto ids = game.builder().getIDResolver();
 
       size_t count = 0;
       while(r && expected.size() > count) {
-        if(expected[count].mStableID != r->other.mStableID) {
-          __debugbreak();
-        }
-        Assert::AreEqual(expected[count].mStableID, r->other.mStableID);
+        Assert::IsTrue(ids->tryResolveRef(expected[count]) == r->other);
 
         ++count;
         r = q->tryIterate();

@@ -148,10 +148,26 @@ namespace GameScheduler {
     while(!todo.empty()) {
       auto current = todo.front();
       todo.pop_front();
-      result.push_back({ [current] {
+      std::shared_ptr<AppTaskSize> size;
+      if(current->task.config) {
+        size = std::make_shared<AppTaskSize>();
+        current->task.config->setSize = [size](AppTaskSize s) { *size = s; };
+      }
+      result.push_back({ [current, size] {
         AppTaskArgs args;
         if(current->task.callback) {
-          current->task.callback(args);
+          if(size) {
+            size_t complete = 0;
+            while(complete < size->workItemCount) {
+              args.begin = complete;
+              complete += size->batchSize;
+              args.end = std::min(complete, size->workItemCount);
+              current->task.callback(args);
+            }
+          }
+          else {
+            current->task.callback(args);
+          }
         }
       }});
       todo.insert(todo.end(), current->children.begin(), current->children.end());
