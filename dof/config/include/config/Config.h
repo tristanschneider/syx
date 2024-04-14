@@ -1,4 +1,5 @@
 #pragma once
+#include "glm/vec2.hpp"
 
 namespace Config {
   struct CurveConfig {
@@ -111,7 +112,10 @@ namespace Config {
 
     size_t fragmentRows = 10;
     size_t fragmentColumns = 9;
+    std::optional<glm::vec2> playerSpawn{ glm::vec2{} };
+    size_t completedFragments{};
     bool drawAI{};
+    bool addGround{ true };
   };
 
   struct WorldConfig {

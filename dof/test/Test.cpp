@@ -30,6 +30,8 @@
 #include "IslandGraph.h"
 #include "ConstraintSolver.h"
 #include "GameInput.h"
+#include "scenes/SceneList.h"
+#include "SceneNavigator.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -141,50 +143,31 @@ namespace Test {
       auto a = sharedArgs();
       auto b = builder();
 
+      Config::FragmentConfig& fragment = TableAdapters::getGameConfigMutable(b)->fragment;
       if(!args.enableFragmentGoals) {
-        TableAdapters::getGameConfigMutable(b)->fragment.fragmentGoalDistance = -1.0f;
+        fragment.fragmentGoalDistance = -1.0f;
       }
       if(args.forcedPadding) {
         TableAdapters::getGameConfigMutable(b)->physics.mForcedTargetWidth = *args.forcedPadding;
       }
-
-      b.getModifierForTable(tables.fragments)->resize(args.fragmentCount);
-      b.getModifierForTable(tables.completedFragments)->resize(args.completedFragmentCount);
-      StableIDRow* stableRow = &b.query<StableIDRow>(tables.fragments).get<0>(0);
-      for(size_t i = 0; i < args.fragmentCount; ++i) {
-        Events::onNewElement(StableElementID::fromStableRow(i, *stableRow), a);
-      }
-      stableRow = &b.query<StableIDRow>(tables.completedFragments).get<0>(0);
-      for(size_t i = 0; i < args.completedFragmentCount; ++i) {
-        Events::onNewElement(StableElementID::fromStableRow(i, *stableRow), a);
-      }
-
       SceneState* scene = b.query<SharedRow<SceneState>>().tryGetSingletonElement();
-      //TODO: fixit
-      //scene->mState = SceneState::State::Update;
-      scene->mBoundaryMin = glm::vec2(-100);
-      scene->mBoundaryMax = glm::vec2(100);
+      fragment.fragmentRows = args.fragmentCount + args.completedFragmentCount;
+      fragment.fragmentColumns = 1;
+      fragment.completedFragments = args.completedFragmentCount;
+      fragment.playerSpawn = args.playerPos;
+      fragment.addGround = false;
+      auto nav = SceneList::createNavigator(b);
+      nav.navigator->navigateTo(nav.scenes->fragment);
 
-      if(args.playerPos) {
-        createPlayer(*args.playerPos);
-      }
       //Update once to run events which will populate the broadphase
       update();
+      update();
+      update();
+
+      scene->mBoundaryMin = glm::vec2(-100);
+      scene->mBoundaryMax = glm::vec2(100);
     }
 
-    void createPlayer(const glm::vec2& pos) {
-      auto b = builder();
-      auto a = sharedArgs();
-      b.getModifierForTable(tables.player)->resize(1);
-      StableIDRow* stableIds = &b.query<StableIDRow>(tables.player).get<0>(0);
-      Events::onNewElement(StableElementID::fromStableRow(0, *stableIds), a);
-
-      auto&& [px, py, rx, ry] = b.query<FloatRow<Tags::Pos, Tags::X>, FloatRow<Tags::Pos, Tags::Y>,
-        FloatRow<Tags::Rot, Tags::CosAngle>, FloatRow<Tags::Rot, Tags::SinAngle>>(tables.player).get(0);
-
-      TableAdapters::write(0, pos, *px, *py);
-      TableAdapters::write(0, { 1, 0 }, *rx, *ry);
-    }
 
     void update() {
       execute(task);
@@ -637,6 +620,9 @@ namespace Test {
       game.init(args);
 
       auto transform = TableAdapters::getTransform(game.builder(), game.tables.fragments);
+      for(int i = 0; i < args.fragmentCount; ++i) {
+        transform.posY->at(i) = 0;
+      }
       auto& posX = *transform.posX;
       //This one to collide with both
       posX.at(0) = 5.0f;
@@ -666,6 +652,7 @@ namespace Test {
       const float expectedOverlap = 0.1f;
       posX.at(0) = 5.0f;
       posX.at(1) = 6.0f - expectedOverlap;
+      transform.posY->at(0) = transform.posY->at(1) = 0.0f;
 
       game.update();
 
@@ -1279,6 +1266,7 @@ namespace Test {
       for(size_t i = 0; i < OBJ_COUNT; ++i) {
         //Need to move them away from the fragment completion location
         fragmentTransform.posX->at(i) = 4.0f;
+        fragmentTransform.posY->at(i) = 0;
       }
 
       auto lambdaQuery = game.builder().query<LambdaStatEffect::LambdaRow, StatEffect::Lifetime>();
@@ -1560,6 +1548,7 @@ namespace Test {
 
       objs.transform.posX->at(0) = 1;
       objs.transform.posX->at(1) = 1.1f;
+      objs.transform.posY->at(0) = objs.transform.posY->at(1) = 0.0f;
       objs.physics.collisionMask->at(0) = 1 << 2;
       objs.physics.collisionMask->at(1) = 1 << 1;
 

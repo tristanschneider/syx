@@ -26,3 +26,4 @@ target_include_directories(config
 )
 
 target_link_libraries(config PRIVATE cereal)
+target_link_libraries(config PUBLIC glm)

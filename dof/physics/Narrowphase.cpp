@@ -346,7 +346,7 @@ namespace Narrowphase {
     auto config = task.getConfig();
     {
       auto setup = builder.createTask();
-      auto q = task.query<SP::ManifoldRow>();
+      auto q = setup.query<SP::ManifoldRow>();
       setup.setName("set task size");
       setup.setCallback([config, q](AppTaskArgs&) mutable {
         AppTaskSize size;

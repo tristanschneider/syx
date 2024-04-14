@@ -313,7 +313,9 @@ namespace Narrowphase {
     ClipResult result = clipEdgeToEdge(normal, reference, incident);
     if(result.overlap.max >= 0.0f || result.overlap.min >= 0.0f) {
       manifold.size = 2;
-      if(glm::dot(result.edge.start - pair.a.pos, normal) > 0.0f) {
+      //Normal is supposed to go away from A. Right now it is going away from the reference edge
+      //That means it needs to be flipped if the reference edge was on A
+      if(isOnA) {
         normal = -normal;
       }
       manifold.points[0].normal = manifold.points[1].normal = normal;

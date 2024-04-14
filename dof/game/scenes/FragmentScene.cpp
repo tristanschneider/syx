@@ -31,6 +31,10 @@ namespace Scenes {
     const SceneState* scene = task.query<const SharedRow<SceneState>>().tryGetSingletonElement();
 
     task.setCallback([scene, cameras, cameraModifier, players, playerModifier, config](AppTaskArgs& args) mutable {
+      if(!config->fragment.playerSpawn) {
+        return;
+      }
+      auto [posX, posY, input, stableId] = players.get(0);
       std::random_device device;
       std::mt19937 generator(device());
       cameraModifier->resize(1);
@@ -45,12 +49,7 @@ namespace Scenes {
       const size_t playerIndex = 0;
       Events::onNewElement(StableElementID::fromStableRow(playerIndex, playerStableRow), args);
 
-      //Random angle in sort of radians
-      const float playerStartAngle = float(generator() % 360)*6.282f/360.0f;
-      const float playerStartDistance = 25.0f;
-      //Start way off the screen, the world boundary will fling them into the scene
-      players.get<0>(0).at(0) = playerStartDistance*std::cos(playerStartAngle);
-      players.get<1>(0).at(0) = playerStartDistance*std::sin(playerStartAngle);
+      TableAdapters::write(0, *config->fragment.playerSpawn, *posX, *posY);
 
       //Make the camera follow the player
       auto follow = TableAdapters::getFollowTargetByPositionEffects(args);
@@ -65,12 +64,12 @@ namespace Scenes {
     builder.submitTask(std::move(task));
   }
 
-
-  void setupFragmentScene(IAppBuilder& builder, Fragment::SceneArgs args) {
+  void setupFragmentScene(IAppBuilder& builder) {
     using namespace Tags;
     auto task = builder.createTask();
     task.setName("Fragment Setup");
     SceneState* scene = task.query<SharedRow<SceneState>>().tryGetSingletonElement();
+    const Config::FragmentConfig* args = &task.query<const SharedRow<Config::GameConfig>>().tryGetSingletonElement()->fragment;
     auto fragments = task.query<
       FloatRow<Pos, X>,
       FloatRow<Pos, Y>,
@@ -90,24 +89,29 @@ namespace Scenes {
     >();
     auto modifiers = task.getModifiersForTables(fragments.matchingTableIDs);
     auto terrainModifier = task.getModifiersForTables(terrain.matchingTableIDs);
+    auto foundTable = builder.queryTables<FragmentGoalFoundTableTag>();
     if(!scene) {
       task.discard();
       return;
     }
 
-    task.setCallback([scene, fragments, modifiers, args, terrain, terrainModifier](AppTaskArgs& taskArgs) mutable {
+    task.setCallback([scene, fragments, modifiers, args, terrain, terrainModifier, foundTable](AppTaskArgs& taskArgs) mutable {
       std::random_device device;
       std::mt19937 generator(device());
 
       //Add some arbitrary objects for testing
-      const size_t rows = args.mFragmentRows;
-      const size_t columns = args.mFragmentColumns;
+      const size_t rows = args->fragmentRows;
+      const size_t columns = args->fragmentColumns;
       const size_t total = rows*columns;
+      const size_t totalCompleted = std::min(args->completedFragments, total);
       const float startX = -float(columns)/2.0f;
       const float startY = -float(rows)/2.0f;
       const float scaleX = 1.0f/float(columns);
       const float scaleY = 1.0f/float(rows);
       for(size_t t = 0; t < fragments.size(); ++t) {
+        if(!total) {
+          continue;
+        }
         modifiers[t]->resize(total);
         auto tableRows = fragments.get(t);
         const StableIDRow& stableIDs = fragments.get<const StableIDRow>(t);
@@ -124,8 +128,19 @@ namespace Scenes {
         int counter = 0;
         std::generate(indices.begin(), indices.end(), [&counter] { return counter++; });
         std::shuffle(indices.begin(), indices.end(), generator);
+        //Make sure none start at their completed index
+        for(size_t j = 0; j < total; ++j) {
+          if(indices[j] == j) {
+            std::swap(indices[j], indices[(j + 1) % total]);
+          }
+        }
 
         for(size_t j = 0; j < total; ++j) {
+          //Immediately complete the desired amount of fragments
+          if(j < totalCompleted && foundTable.size()) {
+            Events::onMovedElement(StableElementID::fromStableRow(j, stableIDs), foundTable[0], taskArgs);
+          }
+
           const size_t shuffleIndex = indices[j];
           CubeSprite& sprite = std::get<Row<CubeSprite>*>(tableRows)->at(j);
           const size_t row = j / columns;
@@ -152,7 +167,7 @@ namespace Scenes {
         scene->mBoundaryMax = glm::vec2(goalX.at(last), goalY.at(last)) + glm::vec2(boundaryPadding);
       }
 
-      if(terrain.size()) {
+      if(terrain.size() && args->addGround) {
         const size_t ground = terrainModifier[0]->addElements(1);
         auto [_, px, py, pz, sx, sy, stable] = terrain.get(0);
         Events::onNewElement(StableElementID::fromStableRow(ground, *stable), taskArgs);
@@ -164,17 +179,6 @@ namespace Scenes {
       }
     });
     builder.submitTask(std::move(task));
-  }
-
-  void setupFragmentScene(IAppBuilder& builder) {
-    auto temp = builder.createTask();
-    const Config::GameConfig* config = temp.query<const SharedRow<Config::GameConfig>>().tryGetSingletonElement();
-    temp.discard();
-
-    Fragment::SceneArgs args;
-    args.mFragmentRows = config->fragment.fragmentRows;
-    args.mFragmentColumns = config->fragment.fragmentColumns;
-    setupFragmentScene(builder, args);
   }
 
   struct FragmentScene : SceneNavigator::IScene {
