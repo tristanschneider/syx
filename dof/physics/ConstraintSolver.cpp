@@ -9,6 +9,7 @@
 #include "Geometric.h"
 #include <bitset>
 #include "generics/Enum.h"
+#include "generics/HashMap.h"
 
 namespace ConstraintSolver {
   using ConstraintIndex = PGS::ConstraintIndex;
@@ -244,7 +245,7 @@ namespace ConstraintSolver {
     //Index matches constraint index
     std::vector<float*> warmStartStorage;
     std::vector<ContactMapping> contactMappings;
-    std::unordered_map<IslandGraph::NodeUserdata, BodyMapping> islandToBodyIndex;
+    gnx::HashMap<IslandGraph::NodeUserdata, BodyMapping> islandToBodyIndex;
     PGS::SolverStorage solver;
   };
   struct ZSolverPair {
@@ -261,7 +262,7 @@ namespace ConstraintSolver {
       solver.clear();
     }
     std::vector<ZIslandBody> bodies;
-    std::unordered_map<IslandGraph::NodeUserdata, BodyMapping> islandToBodyIndex;
+    gnx::HashMap<IslandGraph::NodeUserdata, BodyMapping> islandToBodyIndex;
     PGS1D::SolverStorage solver;
   };
   struct IslandSolverCollection {

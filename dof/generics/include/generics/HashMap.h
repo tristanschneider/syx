@@ -100,8 +100,9 @@ namespace gnx {
     }
 
     void clear() {
+      //TODO: sometimes probably faster to memset all values
       for(const Pair& p : values) {
-        buckets[findBucket(p.first).first] = EMPTY_BUCKET;
+        removeFromBucket(findBucket(p.first).first);
       }
       values.clear();
     }
@@ -127,6 +128,7 @@ namespace gnx {
         const BucketKey swapBucket = findBucket(values.back().first).first;
         //Point the bucket to be swapped at the removed value index
         buckets[swapBucket] = buckets[oldBucket];
+        removeFromBucket(oldBucket);
         //Swap the value itself into the slot that's being erased
         *it = values.back();
       }
@@ -185,6 +187,22 @@ namespace gnx {
       return std::hash<K>{}(k) & keyMask;
     }
 
+    //Set the index to empty then fill holes until an empty bucket is found
+    void removeFromBucket(size_t bucket) {
+      buckets[bucket] = EMPTY_BUCKET;
+      size_t holeToFill = bucket;
+      bucket = (bucket + 1) & keyMask;
+      //For all keys offset by collisions, shift them into the hole created by the removal
+      while(buckets[bucket] != EMPTY_BUCKET) {
+        if(toBucketKey(values[buckets[bucket]].first) <= holeToFill) {
+          buckets[holeToFill] = buckets[bucket];
+          buckets[bucket] = EMPTY_BUCKET;
+          holeToFill = bucket;
+        }
+        bucket = (bucket + 1) & keyMask;
+      }
+    }
+
     void grow(size_t toSize) {
       keyMask = toSize;
       //Set all current keys to invalid key
@@ -200,9 +218,7 @@ namespace gnx {
       BucketKey bucket = toBucketKey(k);
       //Linear probing
       while(buckets[bucket] != EMPTY_BUCKET) {
-        if(++bucket >= buckets.size()) {
-          bucket = 0;
-        }
+        bucket = (bucket + 1) & keyMask;
       }
       buckets[bucket] = valueIndex;
     }
@@ -210,7 +226,7 @@ namespace gnx {
     std::pair<BucketKey, bool> findBucket(const K& k) const {
       BucketKey bucket = toBucketKey(k);
       if(!keyMask) {
-        return std::make_pair(bucket, false );
+        return std::make_pair(bucket, false);
       }
       //Linear probing
       while(buckets[bucket & keyMask] != EMPTY_BUCKET) {
