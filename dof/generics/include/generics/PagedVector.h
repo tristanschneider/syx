@@ -2,15 +2,10 @@
 
 #include <tuple>
 #include <memory>
+#include "ContainerTraits.h"
 
 namespace gnx {
-  template<class T>
-  struct PVDefaultTraits {
-    static constexpr size_t PAGE_SIZE = 1000;
-    static constexpr float GROWTH_FACTOR = 2.0f;
-  };
-
-  template<class T, class Traits = PVDefaultTraits<T>>
+  template<class T, class Traits = DefaultContainerTraits<T>>
   class PagedVector {
   public:
     template<class Ty, class PagesT>
