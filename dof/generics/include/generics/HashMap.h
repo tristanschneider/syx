@@ -123,15 +123,16 @@ namespace gnx {
     MIterator erase(MIterator it) {
       //Swap remove
       const K& key = it->first;
+      const BucketKey oldBucket = findBucket(key).first;
       if(values.size() > 1) {
-        const BucketKey oldBucket = findBucket(key).first;
         const BucketKey swapBucket = findBucket(values.back().first).first;
         //Point the bucket to be swapped at the removed value index
         buckets[swapBucket] = buckets[oldBucket];
-        removeFromBucket(oldBucket);
         //Swap the value itself into the slot that's being erased
         *it = values.back();
       }
+      removeFromBucket(oldBucket);
+
       ++it;
       values.pop_back();
       return it;
@@ -187,6 +188,10 @@ namespace gnx {
       return std::hash<K>{}(k) & keyMask;
     }
 
+    size_t wrappedDistance(size_t a, size_t b) const {
+      return (buckets.size() + (a - b)) & keyMask;
+    }
+
     //Set the index to empty then fill holes until an empty bucket is found
     void removeFromBucket(size_t bucket) {
       buckets[bucket] = EMPTY_BUCKET;
@@ -194,10 +199,15 @@ namespace gnx {
       bucket = (bucket + 1) & keyMask;
       //For all keys offset by collisions, shift them into the hole created by the removal
       while(buckets[bucket] != EMPTY_BUCKET) {
-        if(toBucketKey(values[buckets[bucket]].first) <= holeToFill) {
-          buckets[holeToFill] = buckets[bucket];
-          buckets[bucket] = EMPTY_BUCKET;
-          holeToFill = bucket;
+        const BucketKey currentBucket = toBucketKey(values[buckets[bucket]].first);
+        if(currentBucket != bucket) {
+          //Somehow determines if this is a better location. It's like determining if the current location
+          //is less than the current but accounts for wrapping at size
+          if(wrappedDistance(holeToFill, currentBucket) < wrappedDistance(bucket, currentBucket)) {
+            buckets[holeToFill] = buckets[bucket];
+            buckets[bucket] = EMPTY_BUCKET;
+            holeToFill = bucket;
+          }
         }
         bucket = (bucket + 1) & keyMask;
       }

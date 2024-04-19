@@ -29,9 +29,13 @@ namespace Test {
       map.clear();
       Assert::IsTrue(map.empty());
 
-      map.reserve(100);
-      for(size_t i = 0; i < 100; ++i) {
-        map[static_cast<int>(i)] = std::to_string(i);
+      map.reserve(5);
+      constexpr size_t stressSize = 10000;
+      for(int j = 0; j < 10; ++j) {
+        map.clear();
+        for(size_t i = 0; i < stressSize; ++i) {
+          map[static_cast<int>(i)] = std::to_string(i);
+        }
       }
       gnx::HashMap<int, std::string> copyCtor{ map };
       gnx::HashMap<int, std::string> copyAssign;
@@ -42,7 +46,7 @@ namespace Test {
       gnx::HashMap<int, std::string> moveAssign;
       moveAssign = std::move(temp);
 
-      Assert::AreEqual(size_t(100), map.size());
+      Assert::AreEqual(size_t(stressSize), map.size());
       for(auto&& [k, v] : map) {
         Assert::AreEqual(std::to_string(k), v);
       }
