@@ -6,6 +6,10 @@
 #include "Table.h"
 #include "Physics.h"
 #include "Narrowphase.h"
+#include "shapes/AABB.h"
+#include "shapes/Circle.h"
+#include "shapes/Rectangle.h"
+#include "shapes/Line.h"
 
 class IAppBuilder;
 class RuntimeDatabaseTaskBuilder;
@@ -150,9 +154,9 @@ namespace SpatialQuery {
     Narrowphase::CollisionMaskRow
   > {};
 
-  struct AABBSpatialQueriesTable : SpatialQueriesTableT<Narrowphase::AABBRow> {};
-  struct CircleSpatialQueriesTable : SpatialQueriesTableT<Narrowphase::CircleRow> {};
-  struct RaycastSpatialQueriesTable : SpatialQueriesTableT<Narrowphase::RaycastRow> {};
+  struct AABBSpatialQueriesTable : SpatialQueriesTableT<Shapes::AABBRow> {};
+  struct CircleSpatialQueriesTable : SpatialQueriesTableT<Shapes::CircleRow> {};
+  struct RaycastSpatialQueriesTable : SpatialQueriesTableT<Shapes::LineRow> {};
 
   //Physics and gameplay both have their sides of the spatial query table
   //Gameplay modifies its side and keeps track of a queue of new entries to submit

@@ -69,8 +69,8 @@ namespace PhysicsModule {
             auto resolvedA = resolver.tryUnpack(g.nodes[e.nodeA].data);
             auto resolvedB = resolver.tryUnpack(g.nodes[e.nodeB].data);
             if(resolvedA && resolvedB) {
-              const glm::vec2 centerA = Narrowphase::Shape::getCenter(shapes->classifyShape(*resolvedA).shape);
-              const glm::vec2 centerB = Narrowphase::Shape::getCenter(shapes->classifyShape(*resolvedB).shape);
+              const glm::vec2 centerA = ShapeRegistry::getCenter(shapes->classifyShape(*resolvedA));
+              const glm::vec2 centerB = ShapeRegistry::getCenter(shapes->classifyShape(*resolvedB));
 
               if(drawIslandEdges) {
                 const glm::vec2 currentIslandEdge = (centerA + centerB)*0.5f;

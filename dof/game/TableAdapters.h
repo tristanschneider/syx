@@ -152,6 +152,7 @@ namespace TableAdapters {
   Config::GameConfig* getGameConfigMutable(RuntimeDatabaseTaskBuilder& task);
 
   ThreadLocals& getThreadLocals(RuntimeDatabaseTaskBuilder& task);
+  size_t getThreadCount(RuntimeDatabaseTaskBuilder& task);
 
   VelocityStatEffectAdapter getVelocityEffects(AppTaskArgs& args);
   PositionStatEffectAdapter getPositionEffects(AppTaskArgs& args);

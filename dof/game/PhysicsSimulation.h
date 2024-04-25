@@ -18,9 +18,11 @@ namespace SweepNPruneBroadphase {
   struct BoundariesConfig;
 }
 
-namespace Narrowphase {
-  struct RectDefinition;
+namespace ShapeRegistry {
   struct IShapeClassifier;
+}
+namespace Shapes {
+  struct RectDefinition;
 }
 
 class IPhysicsBodyResolver {
@@ -36,10 +38,10 @@ public:
 };
 
 namespace PhysicsSimulation {
-  Narrowphase::RectDefinition getRectDefinition();
+  Shapes::RectDefinition getRectDefinition();
   PhysicsAliases getPhysicsAliases();
 
-  std::shared_ptr<Narrowphase::IShapeClassifier> createShapeClassifier(RuntimeDatabaseTaskBuilder& task);
+  std::shared_ptr<ShapeRegistry::IShapeClassifier> createShapeClassifier(RuntimeDatabaseTaskBuilder& task);
   std::shared_ptr<IPhysicsBodyResolver> createPhysicsBodyResolver(RuntimeDatabaseTaskBuilder& task);
 
   void init(IAppBuilder& builder);

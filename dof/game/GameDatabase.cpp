@@ -16,6 +16,10 @@
 #include "GameInput.h"
 #include "SceneNavigator.h"
 #include "scenes/SceneList.h"
+#include "shapes/AABB.h"
+#include "shapes/Circle.h"
+#include "shapes/Rectangle.h"
+#include "shapes/Line.h"
 
 namespace GameDatabase {
   using BroadphaseTable = SweepNPruneBroadphase::BroadphaseTable;
@@ -34,6 +38,7 @@ namespace GameDatabase {
   >;
 
   using GlobalGameData = Table<
+    ShapeRegistry::GlobalRow,
     SceneList::ScenesRow,
     SharedRow<SceneState>,
     SharedRow<FileSystem>,
@@ -78,7 +83,7 @@ namespace GameDatabase {
 
     SweepNPruneBroadphase::BroadphaseKeys,
     Narrowphase::CollisionMaskRow,
-    Narrowphase::SharedRectangleRow,
+    Shapes::SharedRectangleRow,
     ConstraintSolver::ConstraintMaskRow,
     ConstraintSolver::MassRow,
     ConstraintSolver::SharedMaterialRow,
@@ -125,7 +130,7 @@ namespace GameDatabase {
 
     SweepNPruneBroadphase::BroadphaseKeys,
     Narrowphase::CollisionMaskRow,
-    Narrowphase::SharedRectangleRow,
+    Shapes::SharedRectangleRow,
     ConstraintSolver::ConstraintMaskRow,
     ConstraintSolver::SharedMassRow,
     ConstraintSolver::SharedMaterialRow,
@@ -156,7 +161,7 @@ namespace GameDatabase {
 
     SweepNPruneBroadphase::BroadphaseKeys,
     Narrowphase::CollisionMaskRow,
-    Narrowphase::SharedRectangleRow,
+    Shapes::SharedRectangleRow,
     ConstraintSolver::ConstraintMaskRow,
     ConstraintSolver::SharedMassRow,
     ConstraintSolver::SharedMaterialRow,
@@ -175,7 +180,7 @@ namespace GameDatabase {
     SceneNavigator::IsClearedWithSceneTag,
     ZeroMassObjectTableTag,
     Tags::TerrainRow,
-    Narrowphase::SharedRectangleRow,
+    Shapes::SharedRectangleRow,
     FloatRow<Tags::Pos, Tags::X>,
     FloatRow<Tags::Pos, Tags::Y>,
     FloatRow<Tags::Pos, Tags::Z>,
@@ -233,7 +238,7 @@ namespace GameDatabase {
 
     SweepNPruneBroadphase::BroadphaseKeys,
     Narrowphase::CollisionMaskRow,
-    Narrowphase::SharedRectangleRow,
+    Shapes::SharedRectangleRow,
     ConstraintSolver::ConstraintMaskRow,
     ConstraintSolver::SharedMassRow,
     ConstraintSolver::SharedMaterialRow,
@@ -298,7 +303,7 @@ namespace GameDatabase {
     setDefaultValue<FloatRow<Tags::GRot, Tags::CosAngle>>(builder, "setDefault GRot", 1.0f);
     setDefaultValue<Narrowphase::CollisionMaskRow>(builder, "setDefault Mask", uint8_t(~0));
     setDefaultValue<ConstraintSolver::ConstraintMaskRow>(builder, "setDefault Constraint Mask", ConstraintSolver::MASK_SOLVE_ALL);
-    setDefaultValue<ConstraintSolver::SharedMassRow, Narrowphase::SharedRectangleRow>(builder, "setDefault mass", Geo::computeQuadMass(1, 1, 1));
+    setDefaultValue<ConstraintSolver::SharedMassRow, Shapes::SharedRectangleRow>(builder, "setDefault mass", Geo::computeQuadMass(1, 1, 1));
     setDefaultValue<ConstraintSolver::SharedMassRow, ZeroMassObjectTableTag>(builder, "set zero mass", Geo::BodyMass{});
     //Fragments in particular start opaque then reveal the texture as they take damage
     setDefaultValue<Tint, const IsFragment>(builder, "setDefault Tint", glm::vec4(0, 0, 0, 1));

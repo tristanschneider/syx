@@ -31,6 +31,10 @@ ThreadLocals& TableAdapters::getThreadLocals(RuntimeDatabaseTaskBuilder& task) {
   return tls;
 }
 
+size_t TableAdapters::getThreadCount(RuntimeDatabaseTaskBuilder& task) {
+  return task.query<const ThreadLocalsRow>().tryGetSingletonElement()->instance->getThreadCount();
+}
+
 namespace {
   struct StatArgs {
     StatArgs(AppTaskArgs& task)

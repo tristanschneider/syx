@@ -61,6 +61,7 @@ namespace GameScheduler {
       args.end = range.end;
       ThreadLocalData data = tls.get(thread);
       args.threadLocal = &data;
+      args.threadIndex = thread;
       executeTask(args, task, profile);
     }
 

@@ -5,6 +5,7 @@
 namespace Geo {
   constexpr float EPSILON = 0.001f;
   constexpr float PI = 3.14159265359f;
+  constexpr float PI2 = 3.14159265359f/2.0f;
   constexpr float TAU = PI*2.0f;
 
   struct AABB {
@@ -173,6 +174,10 @@ namespace Geo {
       0.0f, s.y, 0.0f,
       0.0f, 0.0f, 1.0f
     };
+  }
+
+  inline glm::vec2 directionFromAngle(float radians) {
+    return { std::cos(radians), std::sin(radians) };
   }
 
   inline glm::mat3 buildRotate(const glm::vec2& r) {

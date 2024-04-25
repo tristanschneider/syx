@@ -10,40 +10,8 @@
 #include "glm/gtc/matrix_inverse.hpp"
 #include "BoxBox.h"
 
-namespace TableExt {
-  inline glm::vec2 read(size_t i, const Row<float>& a, const Row<float>& b) {
-    return { a.at(i), b.at(i) };
-  }
-};
-
 namespace Narrowphase {
   //TODO: need to be able to know how much contact info is desired
-
-  namespace Shape {
-    //Not the actual center, more like the reference point
-    struct CenterVisitor {
-      glm::vec2 operator()(const Rectangle& v) const {
-        return v.center;
-      }
-      glm::vec2 operator()(const Raycast& v) const {
-        return v.start;
-      }
-      glm::vec2 operator()(const AABB& v) const {
-        return v.min;
-      }
-      glm::vec2 operator()(const Circle& v) const {
-        return v.pos;
-      }
-      glm::vec2 operator()(const std::monostate&) const {
-        return { 0, 0 };
-      }
-    };
-
-    glm::vec2 getCenter(const Variant& shape) {
-      return std::visit(CenterVisitor{}, shape);
-    }
-  }
-
 
   struct ContactArgs {
     SP::ContactManifold& manifold;
@@ -172,56 +140,33 @@ namespace Narrowphase {
     }, a.shape);
   }
 
-  struct SharedUnitCubeQueries {
-      ITableResolver* resolver{};
-    CachedRow<const SharedRectangleRow> definition;
-    CachedRow<const Row<float>> centerX;
-    CachedRow<const Row<float>> centerY;
-    CachedRow<const Row<float>> rotX;
-    CachedRow<const Row<float>> rotY;
-    CachedRow<const Row<float>> scaleX;
-    CachedRow<const Row<float>> scaleY;
-    RectDefinition alias;
-    std::shared_ptr<ITableResolver> ownedResolver;
-  };
-
   struct ShapeQueries {
     ShapeQueries createThreadLocalCopy() {
       ShapeQueries result;
-      result.shapeResolver = shapeResolver;
-      result.zResolver = zResolver;
+      result.resolver = resolver;
       result.posZAlias = posZAlias;
-      result.sharedUnitCube.resolver = sharedUnitCube.resolver;
-      result.sharedUnitCube.alias = sharedUnitCube.alias;
       return result;
     }
 
-    ITableResolver* shapeResolver{};
-    ITableResolver* zResolver{};
-    CachedRow<const RectangleRow> rectRow;
-    CachedRow<const AABBRow> aabbRow;
-    CachedRow<const RaycastRow> rayRow;
-    CachedRow<const CircleRow> circleRow;
+    ITableResolver* resolver{};
     CachedRow<const CollisionMaskRow> collisionMasksRow;
     CachedRow<const ThicknessRow> thicknessRow;
     CachedRow<const SharedThicknessRow> sharedThickness;
-    SharedUnitCubeQueries sharedUnitCube;
     ConstFloatQueryAlias posZAlias;
     CachedRow<const Row<float>> posZ;
-    std::shared_ptr<ITableResolver> ownedShapeResolver;
-    std::shared_ptr<ITableResolver> ownedZResolver;
+    std::shared_ptr<ITableResolver> ownedResolver;
   };
 
   Geo::Range1D getZRange(const UnpackedDatabaseElementID& e, ShapeQueries& queries) {
     float z = Physics::DEFAULT_Z;
-    if(const float* pz = queries.zResolver->tryGetOrSwapRowAliasElement(queries.posZAlias, queries.posZ, e)) {
+    if(const float* pz = queries.resolver->tryGetOrSwapRowAliasElement(queries.posZAlias, queries.posZ, e)) {
       z = *pz;
     }
     float thickness = DEFAULT_THICKNESS;
-    if(const float* shared = queries.shapeResolver->tryGetOrSwapRowElement(queries.sharedThickness, e)) {
+    if(const float* shared = queries.resolver->tryGetOrSwapRowElement(queries.sharedThickness, e)) {
       thickness = *shared;
     }
-    else if(const float* individual = queries.shapeResolver->tryGetOrSwapRowElement(queries.thicknessRow, e)) {
+    else if(const float* individual = queries.resolver->tryGetOrSwapRowElement(queries.thicknessRow, e)) {
       thickness = *individual;
     }
     return { z, z + thickness };
@@ -251,85 +196,23 @@ namespace Narrowphase {
     }
   }
 
-  ShapeQueries buildShapeQueries(RuntimeDatabaseTaskBuilder& task, const RectDefinition& unitCube, const PhysicsAliases& aliases) {
+  ShapeQueries buildShapeQueries(RuntimeDatabaseTaskBuilder& task, const PhysicsAliases& aliases) {
     ShapeQueries result;
-    result.ownedShapeResolver = task.getResolver<
-      const RectangleRow,
-      const AABBRow,
-      const RaycastRow,
-      const CircleRow,
+    result.ownedResolver = task.getResolver<
       const CollisionMaskRow,
       const ThicknessRow,
       const SharedThicknessRow
     >();
-    result.sharedUnitCube.ownedResolver = task.getAliasResolver(
-      unitCube.centerX, unitCube.centerY,
-      unitCube.rotX, unitCube.rotY,
-      unitCube.scaleX, unitCube.scaleY
-    );
-    result.sharedUnitCube.alias = unitCube;
-    result.ownedZResolver = task.getAliasResolver(aliases.posZ);
+    //Log dependency, use the resolver above
+    task.getAliasResolver(aliases.posZ);
     result.posZAlias = aliases.posZ.read();
 
-    result.shapeResolver = result.ownedShapeResolver.get();
-    result.sharedUnitCube.resolver = result.sharedUnitCube.ownedResolver.get();
-    result.zResolver = result.ownedShapeResolver.get();
+    result.resolver = result.ownedResolver.get();
     return result;
   }
 
-  Shape::BodyType classifyShape(ShapeQueries& queries, const UnpackedDatabaseElementID& id) {
-    //TODO: try most recent shape
-    const size_t myIndex = id.getElementIndex();
-
-    //Shared unit cube table
-    if(queries.sharedUnitCube.resolver->tryGetOrSwapRow(queries.sharedUnitCube.definition, id)) {
-      auto& q = queries.sharedUnitCube;
-      const auto& qa = q.alias;
-      if(q.resolver->tryGetOrSwapRowAlias(qa.centerX, q.centerX, id) &&
-        q.resolver->tryGetOrSwapRowAlias(qa.centerY, q.centerY, id)
-      ) {
-        Shape::Rectangle rect;
-        rect.center = TableExt::read(myIndex, *q.centerX, *q.centerY);
-        //Rotation is optional
-        if(q.resolver->tryGetOrSwapRowAlias(qa.rotX, q.rotX, id) &&
-          q.resolver->tryGetOrSwapRowAlias(qa.rotY, q.rotY, id)
-        ) {
-          rect.right = TableExt::read(myIndex, *q.rotX, *q.rotY);
-        }
-        if(q.resolver->tryGetOrSwapRowAlias(qa.scaleX, q.scaleX, id) &&
-          q.resolver->tryGetOrSwapRowAlias(qa.scaleY, q.scaleY, id)) {
-          rect.halfWidth = TableExt::read(myIndex, *q.scaleX, *q.scaleY) * 0.5f;
-        }
-        return { Shape::Variant{ rect } };
-      }
-      //Cube with missing fields, empty shape
-      return {};
-    }
-
-    //Individual unit cubes
-    if(queries.shapeResolver->tryGetOrSwapRow(queries.rectRow, id)) {
-      return { Shape::Variant{ queries.rectRow->at(myIndex) } };
-    }
-
-    //AABB
-    if(queries.shapeResolver->tryGetOrSwapRow(queries.aabbRow, id)) {
-      return { Shape::Variant{ queries.aabbRow->at(myIndex) } };
-    }
-
-    //Circle
-    if(queries.shapeResolver->tryGetOrSwapRow(queries.circleRow, id)) {
-      return { Shape::Variant{ queries.circleRow->at(myIndex) } };
-    }
-
-    if(const auto* ray = queries.shapeResolver->tryGetOrSwapRowElement(queries.rayRow, id)) {
-      return { Shape::Variant{ *ray } };
-    }
-
-    return {};
-  }
-
   uint8_t getCollisionMask(ShapeQueries& queries, const UnpackedDatabaseElementID& id) {
-    return queries.shapeResolver->tryGetOrSwapRow(queries.collisionMasksRow, id) ?
+    return queries.resolver->tryGetOrSwapRow(queries.collisionMasksRow, id) ?
       queries.collisionMasksRow->at(id.getElementIndex()) :
       uint8_t{};
   }
@@ -339,8 +222,13 @@ namespace Narrowphase {
     return getCollisionMask(queries, a) & getCollisionMask(queries, b);
   }
 
-  void generateInline(IAppBuilder& builder, const RectDefinition& unitCube, const PhysicsAliases& aliases) {
+  void generateInline(IAppBuilder& builder, const PhysicsAliases& aliases, size_t threadCount) {
     auto task = builder.createTask();
+    std::vector<std::shared_ptr<ShapeRegistry::IShapeClassifier>> classifiers(threadCount, nullptr);
+    const auto* reg = ShapeRegistry::get(task);
+    for(size_t i = 0; i < threadCount; ++i) {
+      classifiers[i] = reg->createShapeClassifier(task);
+    }
     task.setName("generate contacts inline");
 
     auto config = task.getConfig();
@@ -360,12 +248,13 @@ namespace Narrowphase {
       builder.submitTask(std::move(setup));
     }
 
-    auto sq = buildShapeQueries(task, unitCube, aliases);
+    auto sq = buildShapeQueries(task, aliases);
     auto query = task.query<const SP::ObjA, const SP::ObjB, SP::ManifoldRow, SP::ZManifoldRow>();
     auto ids = task.getIDResolver();
 
-    task.setCallback([sq, query, ids](AppTaskArgs& args) mutable {
+    task.setCallback([sq, query, ids, classifiers](AppTaskArgs& args) mutable {
       ShapeQueries shapeQuery{ sq.createThreadLocalCopy() };
+      ShapeRegistry::IShapeClassifier& classifier = *classifiers[args.threadIndex];
       auto resolver = ids->getRefResolver();
       size_t currentIndex = 0;
       for(size_t t = 0; t < query.size(); ++t) {
@@ -402,8 +291,8 @@ namespace Narrowphase {
           }
 
           //TODO: is non-const because of ispc signature, should be const
-          Shape::BodyType shapeA = classifyShape(shapeQuery, *resolvedA);
-          Shape::BodyType shapeB = classifyShape(shapeQuery, *resolvedB);
+          Shape::BodyType shapeA = classifier.classifyShape(*resolvedA);
+          Shape::BodyType shapeB = classifier.classifyShape(*resolvedB);
           ContactArgs cargs{ man, zMan };
           generateContacts(shapeA, shapeB, cargs);
           tryCheckZ(*resolvedA, *resolvedB, shapeQuery, cargs);
@@ -414,22 +303,7 @@ namespace Narrowphase {
     builder.submitTask(std::move(task));
   }
 
-  void generateContactsFromSpatialPairs(IAppBuilder& builder, const RectDefinition& unitCube, const PhysicsAliases& aliases) {
-    generateInline(builder, unitCube, aliases);
-  }
-
-  std::shared_ptr<IShapeClassifier> createShapeClassifier(RuntimeDatabaseTaskBuilder& task, const RectDefinition& unitCube, const PhysicsAliases& aliases) {
-    struct Impl : IShapeClassifier {
-      Impl(ShapeQueries q)
-        : queries{ std::move(q) } {
-      }
-
-      Shape::BodyType classifyShape(const UnpackedDatabaseElementID& id) override {
-        return Narrowphase::classifyShape(queries, id);
-      }
-
-      ShapeQueries queries;
-    };
-    return std::make_shared<Impl>(Narrowphase::buildShapeQueries(task, unitCube, aliases));
+  void generateContactsFromSpatialPairs(IAppBuilder& builder, const PhysicsAliases& aliases, size_t threadCount) {
+    generateInline(builder, aliases, threadCount);
   }
 }

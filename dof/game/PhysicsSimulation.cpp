@@ -6,9 +6,12 @@
 #include "DebugDrawer.h"
 #include "Narrowphase.h"
 #include "ConstraintSolver.h"
-#include"Physics.h"
+#include "Physics.h"
 #include "SweepNPruneBroadphase.h"
 #include "SpatialQueries.h"
+#include "shapes/DefaultShapes.h"
+#include "shapes/ShapeRegistry.h"
+#include "shapes/Rectangle.h"
 
 namespace PhysicsSimulation {
   using PosX = FloatRow<Tags::Pos, Tags::X>;
@@ -73,7 +76,7 @@ namespace PhysicsSimulation {
     builder.submitTask(std::move(task));
   }
 
-  Narrowphase::RectDefinition getRectDefinition() {
+  Shapes::RectDefinition getRectDefinition() {
     return {
       ConstFloatQueryAlias::create<const FloatRow<Tags::Pos, Tags::X>>(),
       ConstFloatQueryAlias::create<const FloatRow<Tags::Pos, Tags::Y>>(),
@@ -84,8 +87,8 @@ namespace PhysicsSimulation {
     };
   }
 
-  std::shared_ptr<Narrowphase::IShapeClassifier> createShapeClassifier(RuntimeDatabaseTaskBuilder& task) {
-    return Narrowphase::createShapeClassifier(task, getRectDefinition(), getPhysicsAliases());
+  std::shared_ptr<ShapeRegistry::IShapeClassifier> createShapeClassifier(RuntimeDatabaseTaskBuilder& task) {
+    return ShapeRegistry::get(task)->createShapeClassifier(task);
   }
 
   class PhysicsBodyResolver : public IPhysicsBodyResolver {
@@ -110,7 +113,7 @@ namespace PhysicsSimulation {
     }
 
     glm::vec2 getCenter(const Key& e) final {
-      return Narrowphase::Shape::getCenter(shape->classifyShape(e.unpacked).shape);
+      return ShapeRegistry::getCenter(shape->classifyShape(e.unpacked));
     }
 
     glm::vec2 getLinearVelocity(const Key& e) final {
@@ -145,6 +148,12 @@ namespace PhysicsSimulation {
       query.forEachRow([](auto& row) { row.mDefaultValue = Broadphase::SweepGrid::EMPTY_KEY; });
     });
     builder.submitTask(std::move(task));
+
+    auto temp = builder.createTask();
+    temp.discard();
+    ShapeRegistry::IShapeRegistry* reg = ShapeRegistry::getMutable(temp);
+    Shapes::registerDefaultShapes(*reg, getRectDefinition());
+    ShapeRegistry::finalizeRegisteredShapes(builder);
   }
 
   void initFromConfig(IAppBuilder& builder) {
@@ -210,7 +219,7 @@ namespace PhysicsSimulation {
     Physics::applyDampingMultiplier(builder, aliases, config.linearDragMultiplier, config.angularDragMultiplier);
     SweepNPruneBroadphase::updateBroadphase(builder, _getBoundariesConfig(builder), aliases);
 
-    Narrowphase::generateContactsFromSpatialPairs(builder, getRectDefinition(), aliases);
+    Narrowphase::generateContactsFromSpatialPairs(builder, aliases, TableAdapters::getThreadCount(temp));
     ConstraintSolver::solveConstraints(builder, aliases, globals);
 
     Physics::integratePosition(builder, aliases);

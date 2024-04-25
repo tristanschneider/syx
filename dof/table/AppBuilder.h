@@ -168,6 +168,7 @@ struct AppTaskConfig {
 struct AppTaskArgs {
   size_t begin{};
   size_t end{};
+  size_t threadIndex{};
   void* threadLocal{};
 };
 using AppTaskCallback = std::function<void(AppTaskArgs&)>;

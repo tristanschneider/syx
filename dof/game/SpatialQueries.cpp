@@ -21,17 +21,17 @@ namespace SpatialQuery {
 
   template<class Callback>
   void visitShapes(const Callback& cb) {
-    cb(ShapeID<Narrowphase::AABBRow>{});
-    cb(ShapeID<Narrowphase::CircleRow>{});
-    cb(ShapeID<Narrowphase::RaycastRow>{});
+    cb(ShapeID<Shapes::AABBRow>{});
+    cb(ShapeID<Shapes::CircleRow>{});
+    cb(ShapeID<Shapes::LineRow>{});
   }
 
   struct SQShapeTables {
     SQShapeTables() = default;
     SQShapeTables(RuntimeDatabaseTaskBuilder& task)
-      : aabb{ task.queryTables<SpatialQueriesTableTag, Gameplay<Narrowphase::AABBRow>>()[0] }
-      , circle{ task.queryTables<SpatialQueriesTableTag, Gameplay<Narrowphase::CircleRow>>()[0] }
-      , raycast{ task.queryTables<SpatialQueriesTableTag, Gameplay<Narrowphase::RaycastRow>>()[0] }
+      : aabb{ task.queryTables<SpatialQueriesTableTag, Gameplay<Shapes::AABBRow>>()[0] }
+      , circle{ task.queryTables<SpatialQueriesTableTag, Gameplay<Shapes::CircleRow>>()[0] }
+      , raycast{ task.queryTables<SpatialQueriesTableTag, Gameplay<Shapes::LineRow>>()[0] }
     {}
 
     UnpackedDatabaseElementID aabb, circle, raycast;
@@ -274,9 +274,9 @@ namespace SpatialQuery {
       }
     }
 
-    WriteData<Narrowphase::AABBRow> writeAABB;
-    WriteData<Narrowphase::CircleRow> writeCircle;
-    WriteData<Narrowphase::RaycastRow> writeRay;
+    WriteData<Shapes::AABBRow> writeAABB;
+    WriteData<Shapes::CircleRow> writeCircle;
+    WriteData<Shapes::LineRow> writeRay;
   };
 
   std::shared_ptr<ICreator> createCreator(RuntimeDatabaseTaskBuilder& task) {
