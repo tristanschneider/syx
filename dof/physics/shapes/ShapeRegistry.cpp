@@ -72,6 +72,7 @@ namespace ShapeRegistry {
           ShapeOperations& op = operations[ti];
           assert(op.impl == nullptr && "Tables must only define a single type of shape");
           op.impl = shape.impl.get();
+          lookupStorage.push_back({ table, op.impl });
         }
       }
     }
@@ -87,6 +88,11 @@ namespace ShapeRegistry {
       return result;
     }
 
+    const std::vector<ShapeLookup>& lookup() const final {
+      return lookupStorage;
+    }
+
+    std::vector<ShapeLookup> lookupStorage;
     std::vector<ShapeImpl> shapes;
     std::vector<ShapeOperations> operations;
   };

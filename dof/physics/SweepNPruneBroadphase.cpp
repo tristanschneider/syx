@@ -5,136 +5,56 @@
 #include "Profile.h"
 #include "AppBuilder.h"
 #include "SpatialPairsStorage.h"
+#include "shapes/ShapeRegistry.h"
 
 namespace SweepNPruneBroadphase {
-  void updateSquareAxis(IAppBuilder& builder,
-    const UnpackedDatabaseElementID& table,
-    const BoundariesConfig& cfg,
-    const ConstFloatQueryAlias& pos,
-    const ConstFloatQueryAlias& scale,
-    std::vector<float>& outMin,
-    std::vector<float>& outMax
-  ) {
-    auto task = builder.createTask();
-    task.setName("recompute boundary");
-    auto posRow = task.queryAlias(table, pos);
-    auto scaleRow = task.queryAlias(table, scale);
-    //Artificial dependency on broadphase so this comes before the final update
-    task.query<const SharedRow<Broadphase::SweepGrid::Grid>>();
-    task.setCallback([cfg, posRow, scaleRow, &outMin, &outMax](AppTaskArgs&) mutable {
-      const auto& pos = posRow.get<0>(0);
-      const Row<float>* scale = scaleRow.size() ? &scaleRow.get<0>(0) : nullptr;
-      const size_t size = pos.size();
-      outMin.resize(size);
-      outMax.resize(size);
-      if(scale) {
-        for(size_t c = 0; c < size; ++c) {
-          const float p = pos.at(c);
-          const float halfSize = scale->at(c) * 0.5f + cfg.mPadding;
-          outMin[c] = p - halfSize;
-          outMax[c] = p + halfSize;
-        }
-      }
-      else {
-        const float halfSize = cfg.mHalfSize + cfg.mPadding;
-        for(size_t c = 0; c < size; ++c) {
-          const float p = pos.at(c);
-          outMin[c] = p - halfSize;
-          outMax[c] = p + halfSize;
-        }
-      }
-    });
-    builder.submitTask(std::move(task));
-  }
-
-  void updateSquareBoundaries(IAppBuilder& builder, const BoundariesConfig& cfg, const PhysicsAliases& aliases) {
-    const auto keyAlias = QueryAlias<SweepNPruneBroadphase::BroadphaseKeys>::create().read();
-    auto tables = builder.queryAliasTables(aliases.posX, aliases.posY, keyAlias);
-
-    struct Temp {
-      struct Query {
-        std::vector<float> minX, maxX, minY, maxY;
-      };
-      std::vector<Query> data;
-    };
-    auto t = std::make_shared<Temp>();
-    t->data.resize(tables.size());
-
-    using GridQ = SharedRow<Broadphase::SweepGrid::Grid>;
-    for(size_t i = 0; i < tables.size(); ++i) {
-      const UnpackedDatabaseElementID& table = tables.matchingTableIDs[i];
-      updateSquareAxis(builder,
-        table,
-        cfg,
-        aliases.posX.read(),
-        aliases.scaleX.read(),
-        t->data[i].minX,
-        t->data[i].maxX
-      );
-      updateSquareAxis(builder,
-        table,
-        cfg,
-        aliases.posY.read(),
-        aliases.scaleY.read(),
-        t->data[i].minY,
-        t->data[i].maxY
-      );
-    }
-
+  void registryUpdate(IAppBuilder& builder) {
     auto task = builder.createTask();
     task.setName("assignBoundaries");
-    auto& grid = *task.query<GridQ>().tryGetSingletonElement();
-    std::vector<const SweepNPruneBroadphase::BroadphaseKeys*> keys(tables.size());
-    for(size_t i = 0; i < tables.size(); ++i) {
-      keys[i] = &task.queryAlias(tables.matchingTableIDs[i], keyAlias).get<0>(0);
+    struct TaskData {
+      const SweepNPruneBroadphase::BroadphaseKeys* keys{};
+      ShapeRegistry::BroadphaseBounds bounds;
+    };
+    const auto keyAlias = QueryAlias<SweepNPruneBroadphase::BroadphaseKeys>::create().read();
+    using GridQ = SharedRow<Broadphase::SweepGrid::Grid>;
+    const auto gridAlias = QueryAlias<const GridQ>::create();
+
+    //Make each shape impl submit their bounds to TaskData which will run before the final assignment task
+    auto taskDatas = std::make_shared<std::vector<TaskData>>();
+    const auto& lookup = ShapeRegistry::get(task)->lookup();
+    taskDatas->reserve(lookup.size());
+    for(auto&& [table, impl] : lookup) {
+      TaskData& data = taskDatas->emplace_back();
+      auto kq = task.queryAlias(table, keyAlias);
+      if(!kq.size()) {
+        continue;
+      }
+      data.keys = &kq.get<0>(0);
+      data.bounds.table = table;
+      data.bounds.requiredDependency = QueryAliasBase{ gridAlias };
+
+      impl->writeBoundaries(builder, data.bounds);
     }
-    task.setCallback([&grid, keys, t](AppTaskArgs&) mutable {
-      for(size_t i = 0; i < t->data.size(); ++i) {
+
+    //After all bounds have been stored in task data, collect them and put them in the broadphase
+    auto& grid = *task.query<GridQ>().tryGetSingletonElement();
+    task.setCallback([&grid, taskDatas](AppTaskArgs&) mutable {
+      for(size_t i = 0; i < taskDatas->size(); ++i) {
         Broadphase::SweepGrid::updateBoundaries(grid,
-          t->data[i].minX.data(),
-          t->data[i].maxX.data(),
-          t->data[i].minY.data(),
-          t->data[i].maxY.data(),
-          keys[i]->data(),
-          t->data[i].minX.size()
+          taskDatas->at(i).bounds.minX.data(),
+          taskDatas->at(i).bounds.maxX.data(),
+          taskDatas->at(i).bounds.minY.data(),
+          taskDatas->at(i).bounds.maxY.data(),
+          taskDatas->at(i).keys->data(),
+          taskDatas->at(i).bounds.minX.size()
         );
       }
     });
     builder.submitTask(std::move(task));
   }
 
-  void updateDirectBoundaries(IAppBuilder& builder, const PhysicsAliases& aliases) {
-    auto task = builder.createTask();
-    task.setName("update broadphase direct");
-    Broadphase::SweepGrid::Grid& grid = *task.query<SharedRow<Broadphase::SweepGrid::Grid>>().tryGetSingletonElement();
-    auto bounds = task.queryAlias(
-      QueryAlias<const SweepNPruneBroadphase::BroadphaseKeys>::create().read(),
-      aliases.broadphaseMinX.read(),
-      aliases.broadphaseMaxX.read(),
-      aliases.broadphaseMinY.read(),
-      aliases.broadphaseMaxY.read()
-    );
-
-    task.setCallback([&grid, bounds](AppTaskArgs&) mutable {
-      for(size_t t = 0; t < bounds.size(); ++t) {
-        auto rows = bounds.get(t);
-        Broadphase::SweepGrid::updateBoundaries(grid,
-          std::get<1>(rows)->data(),
-          std::get<2>(rows)->data(),
-          std::get<3>(rows)->data(),
-          std::get<4>(rows)->data(),
-          std::get<0>(rows)->data(),
-          std::get<0>(rows)->size()
-        );
-      }
-    });
-
-    builder.submitTask(std::move(task));
-  }
-
-  void updateBroadphase(IAppBuilder& builder, const BoundariesConfig& cfg, const PhysicsAliases& aliases) {
-    updateDirectBoundaries(builder, aliases);
-    updateSquareBoundaries(builder, cfg, aliases);
+  void updateBroadphase(IAppBuilder& builder, const BoundariesConfig&, const PhysicsAliases&) {
+    registryUpdate(builder);
     Broadphase::SweepGrid::recomputePairs(builder);
     SP::updateSpatialPairsFromBroadphase(builder);
   }
@@ -209,6 +129,7 @@ namespace SweepNPruneBroadphase {
               resolver->tryGetOrSwapRowAlias(aliases.posY.read(), posY, unpacked);
               resolver->tryGetOrSwapRowAlias(QueryAlias<BroadphaseKeys>::create(), keys, unpacked);
 
+              //TODO: this doesn't take ShapeRegistry into account
               if(posX && posY && keys) {
                 const float halfSize = cfg.mHalfSize + cfg.mPadding;
                 const size_t i = unpacked.getElementIndex();

@@ -189,15 +189,26 @@ std::shared_ptr<IIDResolver> RuntimeDatabaseTaskBuilder::getIDResolver() {
   return std::make_unique<IDResolverImpl::Impl>(db);
 }
 
-void RuntimeDatabaseTaskBuilder::log(const QueryAliasBase& alias, const std::vector<UnpackedDatabaseElementID>& tableIds) {
+void RuntimeDatabaseTaskBuilder::logDependency(std::initializer_list<QueryAliasBase> aliases) {
+  auto tables = db.queryAliasTables(aliases);
+  for(const QueryAliasBase& q : aliases) {
+    log(q, tables.matchingTableIDs);
+  }
+}
+
+void RuntimeDatabaseTaskBuilder::log(const std::vector<UnpackedDatabaseElementID>& tableIds, const TypeIDT& id, bool isConst) {
   for(const UnpackedDatabaseElementID& table : tableIds) {
-    if(alias.isConst) {
-      logRead(table, alias.type);
+    if(isConst) {
+      logRead(table, id);
     }
     else {
-      logWrite(table, alias.type);
+      logWrite(table, id);
     }
   }
+}
+
+void RuntimeDatabaseTaskBuilder::log(const QueryAliasBase& alias, const std::vector<UnpackedDatabaseElementID>& tableIds) {
+  log(tableIds, alias.type, alias.isConst);
 }
 
 void RuntimeDatabaseTaskBuilder::logRead(const UnpackedDatabaseElementID& table, TypeIDT t) {

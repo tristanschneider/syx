@@ -291,68 +291,6 @@ namespace SpatialQuery {
     return std::make_shared<Writer>(task);
   }
 
-  struct BoundaryVisitor {
-    void operator()(const Narrowphase::Shape::Raycast& shape) {
-      const glm::vec2 min = glm::min(shape.start, shape.end);
-      const glm::vec2 max = glm::max(shape.start, shape.end);
-      TableAdapters::write(index, min, minX, minY);
-      TableAdapters::write(index, max, maxX, maxY);
-    }
-
-    void operator()(const Narrowphase::Shape::AABB& shape) {
-      TableAdapters::write(index, shape.min, minX, minY);
-      TableAdapters::write(index, shape.max, maxX, maxY);
-    }
-
-    void operator()(const Narrowphase::Shape::Circle& shape) {
-      const glm::vec2 r{ shape.radius, shape.radius };
-      TableAdapters::write(index, shape.pos - r, minX, minY);
-      TableAdapters::write(index, shape.pos + r, maxX, maxY);
-    }
-
-    size_t index;
-    MinX& minX;
-    MinY& minY;
-    MaxX& maxX;
-    MaxY& maxY;
-  };
-
-  template<class ShapeRow>
-  void physicsUpdateBoundaryShape(ShapeID<ShapeRow>, IAppBuilder& builder) {
-    auto task = builder.createTask();
-    task.setName("SQ boundaries");
-    auto query = task.query<
-      const ShapeRow,
-      Physics<MinX>,
-      Physics<MinY>,
-      Physics<MaxX>,
-      Physics<MaxY>
-    >();
-    task.setCallback([query](AppTaskArgs&) mutable {
-      for(size_t t = 0; t < query.size(); ++t) {
-        auto rows = query.get(t);
-        BoundaryVisitor visitor {
-          size_t{ 0 },
-          *std::get<1>(rows),
-          *std::get<2>(rows),
-          *std::get<3>(rows),
-          *std::get<4>(rows)
-        };
-
-        const ShapeRow* queries = std::get<0>(rows);
-        for(size_t i = 0; i < queries->size(); ++i) {
-          visitor.index = i;
-          visitor(queries->at(i));
-        }
-      }
-    });
-    builder.submitTask(std::move(task));
-  }
-
-  void physicsUpdateBoundaries(IAppBuilder& builder) {
-    visitShapes([&](auto shape) { physicsUpdateBoundaryShape(shape, builder); });
-  }
-
   void processLifetime(IAppBuilder& builder, const UnpackedDatabaseElementID& table) {
     auto task = builder.createTask();
     task.setName("SQ lifetimes");

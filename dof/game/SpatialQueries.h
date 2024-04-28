@@ -140,10 +140,6 @@ namespace SpatialQuery {
     //Conceptually this is Physics<ShapeRow> but Physics does not allow an alias for this row type so it must be exact
     ShapeRow,
     SweepNPruneBroadphase::BroadphaseKeys,
-    Physics<MinX>,
-    Physics<MinY>,
-    Physics<MaxX>,
-    Physics<MaxY>,
 
     Gameplay<ShapeRow>,
     Gameplay<LifetimeRow>,

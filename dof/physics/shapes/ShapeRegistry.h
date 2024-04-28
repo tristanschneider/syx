@@ -3,6 +3,7 @@
 #include "Table.h"
 #include "glm/vec2.hpp"
 #include <variant>
+#include "QueryAlias.h"
 
 struct UnpackedDatabaseElementID;
 class IAppBuilder;
@@ -42,6 +43,12 @@ namespace ShapeRegistry {
   //The center that "centerToContact" in the manifold is relative to
   glm::vec2 getCenter(const BodyType& shape);
 
+  struct BroadphaseBounds {
+    QueryAliasBase requiredDependency;
+    UnpackedDatabaseElementID table;
+    std::vector<float> minX, minY, maxX, maxY;
+  };
+
   //For use by IShapeRegistry, tasks would generally use these indirectly via IShapeRegistry
   struct IShapeImpl {
     virtual ~IShapeImpl() = default;
@@ -49,6 +56,14 @@ namespace ShapeRegistry {
     virtual std::vector<UnpackedDatabaseElementID> queryTables(IAppBuilder& builder) const = 0;
     //Resolver to be invoked only on tables specified by queryTables
     virtual std::shared_ptr<IShapeClassifier> createShapeClassifier(RuntimeDatabaseTaskBuilder& task, ITableResolver& resolver) const = 0;
+    //Submit a task that writes the bounds for the given table to the container
+    //Must take a const dependency on the requiredDependency field for this to schedule insertion into broadphase properly
+    virtual void writeBoundaries(IAppBuilder& builder, BroadphaseBounds& bounds) const = 0;
+  };
+
+  struct ShapeLookup {
+    UnpackedDatabaseElementID table;
+    const IShapeImpl* impl{};
   };
 
   //This is the glue between the implementation of shapes and their use cases
@@ -62,6 +77,7 @@ namespace ShapeRegistry {
     virtual void initLookupTable(IAppBuilder& builder) = 0;
     //Use the registered shapes to create a resolver that can resolve any shape type
     virtual std::shared_ptr<IShapeClassifier> createShapeClassifier(RuntimeDatabaseTaskBuilder& task) const = 0;
+    virtual const std::vector<ShapeLookup>& lookup() const = 0;
   };
 
   struct ShapeRegistryStorage {

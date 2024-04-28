@@ -315,6 +315,8 @@ public:
   AppTaskWithMetadata finalize()&&;
   void discard();
 
+  void logDependency(std::initializer_list<QueryAliasBase> aliases);
+
 private:
   template<class T>
   void log() {
@@ -329,16 +331,10 @@ private:
   template<class T>
   void log(const std::vector<UnpackedDatabaseElementID>& tableIds) {
     using DT = std::decay_t<T>;
-    [[maybe_unused]] const auto id = TypeIDT::get<DT>();
-    for(const UnpackedDatabaseElementID& table : tableIds) {
-      if constexpr(std::is_const_v<T>) {
-        logRead(table, id);
-      }
-      else {
-        logWrite(table, id);
-      }
-    }
+    log(tableIds, TypeIDT::get<DT>(), std::is_const_v<DT>);
   }
+
+  void log(const std::vector<UnpackedDatabaseElementID>& tableIds, const TypeIDT& id, bool isConst);
 
   template<class Alias>
   void log(const Alias& alias) {

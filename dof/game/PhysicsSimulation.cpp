@@ -215,7 +215,6 @@ namespace PhysicsSimulation {
 
     const PhysicsAliases aliases = getPhysicsAliases();
     Physics::integrateVelocity(builder, aliases);
-    SpatialQuery::physicsUpdateBoundaries(builder);
     Physics::applyDampingMultiplier(builder, aliases, config.linearDragMultiplier, config.angularDragMultiplier);
     SweepNPruneBroadphase::updateBroadphase(builder, _getBoundariesConfig(builder), aliases);
 

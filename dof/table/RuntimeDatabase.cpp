@@ -1,4 +1,5 @@
 #include "RuntimeDatabase.h"
+#include <algorithm>
 
 QueryResult<> RuntimeDatabase::query() {
   QueryResult<> result;
@@ -16,6 +17,16 @@ RuntimeTable* RuntimeDatabase::tryGet(const UnpackedDatabaseElementID& id) {
 
 UnpackedDatabaseElementID RuntimeDatabase::getTableID(size_t index) const {
   return UnpackedDatabaseElementID{ 0, data.elementIndexBits }.remake(index, 0);
+}
+
+QueryResult<> RuntimeDatabase::queryAliasTables(std::initializer_list<QueryAliasBase> aliases) const {
+  QueryResult result;
+  for(size_t i = 0; i < data.tables.size(); ++i) {
+    if(std::all_of(aliases.begin(), aliases.end(), [this, i](const QueryAliasBase& q) { return data.tables[i].tryGet(q.type) != nullptr; })) {
+      result.matchingTableIDs.push_back(data.tables[i].tableID);
+    }
+  }
+  return result;
 }
 
 DatabaseDescription RuntimeDatabase::getDescription() {
