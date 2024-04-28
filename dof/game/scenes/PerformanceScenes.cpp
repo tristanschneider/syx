@@ -28,6 +28,8 @@ namespace Scenes {
         Tags::TerrainRow,
         Tags::PosXRow,
         Tags::PosYRow,
+        Tags::RotXRow,
+        Tags::RotYRow,
         Tags::ScaleXRow,
         Tags::ScaleYRow,
         ConstraintSolver::SharedMassRow,
@@ -54,6 +56,8 @@ namespace Scenes {
           auto [tag, px, py, sx, sy, gy, mass, stable] = objs.get(0);
           for(size_t x = 0; x < countX; ++x) {
             for(size_t y = 0; y < countY; ++y) {
+              //if(size.x || x != 0 || y != 0) break;
+
               glm::vec2 pos = origin + size * glm::vec2{ static_cast<float>(x), static_cast<float>(y) };
               if(x > 3 && x < 5) {
                 pos.y += 3.0f;
@@ -68,16 +72,28 @@ namespace Scenes {
           }
         }
         {
-          auto [tag, px, py, sx, sy, mass, stable] = terrain.get(0);
-          terrainModifier->resize(1);
-          const size_t i = 0;
-          create(StableElementID::fromStableRow(i, *stable));
+          auto [tag, px, py, rx, ry, sx, sy, mass, stable] = terrain.get(0);
           const float groundHeight = 2.0f;
           const float widthBuffer = 3.0f;
           const glm::vec2 groundSize{ widthBuffer*2.0f + static_cast<float>(countX)*size.x, groundHeight };
-          TableAdapters::write(i, origin + glm::vec2{ groundSize.x/2.0f - widthBuffer, -groundSize.y/2.0f }, *px, *py);
-          TableAdapters::write(i, groundSize, *sx, *sy);
-          mass->at(i) = infMass;
+          std::array positions = {
+            origin + glm::vec2{ groundSize.x/2.0f - widthBuffer, -groundSize.y },
+            origin + glm::vec2{ -static_cast<float>(countX)*size.x*0.1f, groundSize.x/2.0f - 3.0f },
+            origin + glm::vec2{ groundSize.x + static_cast<float>(countX)*size.x*0.01f, groundSize.x/2.0f - 3.0f },
+          };
+          std::array rotations = {
+            glm::vec2{ 1, 0 },
+            Geo::directionFromAngle(Geo::PI2 + 0.1f),
+            Geo::directionFromAngle(Geo::PI2 - 0.1f)
+          };
+          terrainModifier->resize(positions.size());
+          for(size_t i = 0; i < positions.size(); ++i) {
+            create(StableElementID::fromStableRow(i, *stable));
+            TableAdapters::write(i, positions[i], *px, *py);
+            TableAdapters::write(i, rotations[i], *rx, *ry);
+            TableAdapters::write(i, groundSize, *sx, *sy);
+            mass->at(i) = infMass;
+          }
         }
       });
 
