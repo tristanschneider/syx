@@ -13,6 +13,12 @@
 #include "Physics.h"
 #include "Clip.h"
 #include "BoxBox.h"
+#include "shapes/ShapeRegistry.h"
+#include "shapes/Rectangle.h"
+#include "shapes/Circle.h"
+#include "shapes/AABB.h"
+#include "shapes/Line.h"
+#include "shapes/DefaultShapes.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -32,9 +38,10 @@ namespace Test {
   struct ScaleX : Row<float> {};
   struct ScaleY : Row<float> {};
   using SharedUnitCubeTable = Table<
+    ShapeRegistry::GlobalRow,
     StableIDRow,
     Narrowphase::CollisionMaskRow,
-    Narrowphase::SharedRectangleRow,
+    Shapes::SharedRectangleRow,
     PosX,
     PosY,
     RotX,
@@ -43,31 +50,31 @@ namespace Test {
   using UnitCubeTable = Table<
     StableIDRow,
     Narrowphase::CollisionMaskRow,
-    Narrowphase::RectangleRow
+    Shapes::RectangleRow
   >;
   using UnitCube3DTable = Table<
     StableIDRow,
     Narrowphase::CollisionMaskRow,
-    Narrowphase::RectangleRow,
+    Shapes::RectangleRow,
     Narrowphase::SharedThicknessRow,
     PosZ
   >;
   using CircleTable = Table<
     StableIDRow,
     Narrowphase::CollisionMaskRow,
-    Narrowphase::CircleRow
+    Shapes::CircleRow
   >;
   using AABBTable = Table<
     StableIDRow,
     Narrowphase::CollisionMaskRow,
-    Narrowphase::AABBRow
+    Shapes::AABBRow
   >;
   using RaycastTable = Table<
     StableIDRow,
     Narrowphase::CollisionMaskRow,
-    Narrowphase::RaycastRow
+    Shapes::LineRow
   >;
-  struct RectDef : Narrowphase::RectDefinition{
+  struct RectDef : Shapes::RectDefinition{
     RectDef() {
       centerX = FloatQueryAlias::create<PosX>().read();
       centerY = FloatQueryAlias::create<PosY>().read();
@@ -95,12 +102,12 @@ namespace Test {
   struct NarrowphaseTableIds {
     NarrowphaseTableIds(RuntimeDatabaseTaskBuilder& task)
       : spatialPairs{ task.query<SP::ManifoldRow>().matchingTableIDs[0] }
-      , sharedUnitCubes{ task.query<Narrowphase::SharedRectangleRow>().matchingTableIDs[0] }
+      , sharedUnitCubes{ task.query<Shapes::SharedRectangleRow>().matchingTableIDs[0] }
       , unitCubes3D{ task.query<Narrowphase::SharedThicknessRow>().matchingTableIDs[0] }
-      , unitCubes{ task.query<Narrowphase::RectangleRow>().matchingTableIDs[0] }
-      , circles{ task.query<Narrowphase::CircleRow>().matchingTableIDs[0] }
-      , aabbs{ task.query<Narrowphase::AABBRow>().matchingTableIDs[0] }
-      , raycasts{ task.query<Narrowphase::RaycastRow>().matchingTableIDs[0] }
+      , unitCubes{ task.query<Shapes::RectangleRow>().matchingTableIDs[0] }
+      , circles{ task.query<Shapes::CircleRow>().matchingTableIDs[0] }
+      , aabbs{ task.query<Shapes::AABBRow>().matchingTableIDs[0] }
+      , raycasts{ task.query<Shapes::LineRow>().matchingTableIDs[0] }
     {}
 
     UnpackedDatabaseElementID spatialPairs;
@@ -115,7 +122,13 @@ namespace Test {
   struct NarrowphaseDB : TestApp {
     NarrowphaseDB() {
       initSTFromDB<NarrowphaseDBT>([](IAppBuilder& builder) {
-        Narrowphase::generateContactsFromSpatialPairs(builder, RectDef{}, PhysicsAlias{});
+        auto temp = builder.createTask();
+        temp.discard();
+        ShapeRegistry::IShapeRegistry* reg = ShapeRegistry::getMutable(temp);
+        Shapes::registerDefaultShapes(*reg, RectDef{});
+        ShapeRegistry::finalizeRegisteredShapes(builder);
+
+        Narrowphase::generateContactsFromSpatialPairs(builder, PhysicsAlias{}, 1);
       });
     }
 
@@ -168,15 +181,15 @@ namespace Test {
       auto [stable, mask, circles] = task.query<
         StableIDRow,
         Narrowphase::CollisionMaskRow,
-        Narrowphase::CircleRow
+        Shapes::CircleRow
       >().get(0);
       SpatialQueriesAdapter queries{ task };
       const size_t a = i;
       const size_t b = i + 1;
       const size_t q = queries.addPair(StableElementID::fromStableID(stable->at(a)), StableElementID::fromStableID(stable->at(b)));
       mask->at(a) = mask->at(b) = 1;
-      Narrowphase::Shape::Circle& circleA = circles->at(a);
-      Narrowphase::Shape::Circle& circleB = circles->at(b);
+      ShapeRegistry::Circle& circleA = circles->at(a);
+      ShapeRegistry::Circle& circleB = circles->at(b);
       SP::ContactManifold& manifold = queries.manifold->at(q);
       const SP::ContactPoint& contact = manifold[0];
 
@@ -261,7 +274,7 @@ namespace Test {
       auto [stable, mask, cube, thickness, posZ] = task.query<
         StableIDRow,
         Narrowphase::CollisionMaskRow,
-        Narrowphase::RectangleRow,
+        Shapes::RectangleRow,
         Narrowphase::SharedThicknessRow,
         PosZ
       >().get(0);

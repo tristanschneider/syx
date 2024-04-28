@@ -11,10 +11,13 @@
 #include "stat/AllStatEffects.h"
 #include "scenes/SceneList.h"
 #include "SceneNavigator.h"
+#include "shapes/ShapeRegistry.h"
+#include "shapes/Rectangle.h"
 
 namespace PerformanceDB {
   using BroadphaseTable = SweepNPruneBroadphase::BroadphaseTable;
   using GlobalGameData = Table<
+    ShapeRegistry::GlobalRow,
     SceneList::ScenesRow,
     SharedRow<StableElementMappings>,
     SharedRow<Scheduler>,
@@ -51,7 +54,7 @@ namespace PerformanceDB {
 
     SweepNPruneBroadphase::BroadphaseKeys,
     Narrowphase::CollisionMaskRow,
-    Narrowphase::SharedRectangleRow,
+    Shapes::SharedRectangleRow,
     ConstraintSolver::ConstraintMaskRow,
     ConstraintSolver::SharedMassRow,
     ConstraintSolver::SharedMaterialRow,
