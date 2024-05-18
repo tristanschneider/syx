@@ -53,7 +53,7 @@ namespace PhysicsModule {
         //Hack since by the time this runs the islands could be out of date from elements being removed
         IslandGraph::rebuildIslands(g);
         //TODO: const iterators so they can be used here
-        for(size_t i = 0; i < g.islands.size(); ++i) {
+        for(size_t i = 0; i < g.islands.values.size(); ++i) {
           const IslandGraph::Island& island = g.islands[i];
           const size_t colorBits = colorHash(i);
           //Generate an arbitrary color using the bytes of the hash as 8 bit rgb values

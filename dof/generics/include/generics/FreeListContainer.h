@@ -117,6 +117,10 @@ namespace gnx {
       freeList.push_back(index);
     }
 
+    bool isFree(Index index) const {
+      return index < values.size() && Ops::isFree(values[index]);
+    }
+
     void clear() {
       //When clearing everything can be emptied rather than adding everything to the free list
       values.clear();

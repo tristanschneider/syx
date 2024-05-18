@@ -51,7 +51,7 @@ namespace IslandGraph {
 
   constexpr uint32_t NOT_VISITED = std::numeric_limits<uint32_t>::max() - 2;
 
-  void populateIsland(Graph& graph, Island& island) {
+  void populateIsland(Graph& graph, Island& island, IslandIndex islandIndex) {
     std::vector<uint32_t>& nodesTodo = graph.scratchBuffer;
     const uint32_t islandRootIndex = island.nodes;
     island.edgeCount = island.nodeCount = 0;
@@ -66,7 +66,6 @@ namespace IslandGraph {
       return;
     }
 
-    island.nodes = islandRootIndex;
     nodesTodo.push_back(islandRootIndex);
     Island& currentIsland = island;
     uint32_t* lastNode = &currentIsland.nodes;
@@ -79,7 +78,7 @@ namespace IslandGraph {
       nodesTodo.pop_back();
       //Nodes without propagation are only visited from others. So they'll show up in the island
       //if another node has an edge to it but edges between two non-propagating nodes won't
-      if(graph.visitedNodes[currentIndex] || !node.propagation) {
+      if(graph.visitedNodes[currentIndex] || !node.propagation || graph.nodes.isFree(currentIndex)) {
         continue;
       }
       //Add node to linked list for this island
@@ -91,6 +90,7 @@ namespace IslandGraph {
 
       //Skip entries for nodes that don't propagate
       if(node.propagation) {
+        node.islandIndex = islandIndex;
         uint32_t currentEntry = node.edges;
         //Iterate over all edges connected to the current node
         while(currentEntry != INVALID) {
@@ -109,6 +109,10 @@ namespace IslandGraph {
           }
           currentEntry = entry.nextEntry;
         }
+      }
+      else {
+        //No island ownership for nodes that don't propagate as they can be on the border of multiple islands
+        node.islandIndex = INVALID_ISLAND;
       }
     }
   }
@@ -138,13 +142,11 @@ namespace IslandGraph {
       graph.changedIslands[i] = false;
 
       Island& island = graph.islands[i];
-      populateIsland(graph, island);
+      populateIsland(graph, island, static_cast<IslandIndex>(i));
       //If island is now empty, add it to the free list if it isn't already
       if(!island.size()) {
-        if(island.nextFreeIsland == INVALID) {
-          island.nextFreeIsland = graph.freeIslands;
-          graph.freeIslands = static_cast<uint16_t>(i);
-        }
+        island = {};
+        graph.islands.deleteIndex(static_cast<IslandIndex>(i));
       }
     }
 
@@ -155,13 +157,23 @@ namespace IslandGraph {
       if(graph.visitedNodes[newNode]) {
         continue;
       }
-      Island newIsland;
+      const IslandIndex islandIndex = graph.islands.newIndex();
+      Island& newIsland = graph.islands.values[islandIndex];
       newIsland.nodes = newNode;
-      populateIsland(graph, newIsland);
+      populateIsland(graph, newIsland, islandIndex);
       if(newIsland.size()) {
-        graph.islands.push_back(newIsland);
-        assert(graph.islands.size() < INVALID_ISLAND);
-        graph.changedIslands.push_back(false);
+        //Ensure there's a matching entry for the changed islands bitset.
+        //No action needed if island was from the free list since it would already be non-changed
+        if(islandIndex >= graph.changedIslands.size()) {
+          assert(graph.islands.values.size() < INVALID_ISLAND);
+          assert(graph.changedIslands.size() == islandIndex);
+          graph.changedIslands.push_back(false);
+        }
+      }
+      else {
+        //Didn't actually want to make this island after-all, put it back in the free list
+        newIsland = {};
+        graph.islands.deleteIndex(islandIndex);
       }
     }
     graph.newNodes.clear();
@@ -177,6 +189,18 @@ namespace IslandGraph {
     logChangedNode(graph, node);
   }
 
+  void logMaybeSplitIslandNode(Graph& graph, const Node& node) {
+    if(node.islandIndex != INVALID_ISLAND) {
+      graph.changedIslands[node.islandIndex] = true;
+      const auto nodeIndex = static_cast<uint32_t>(&node - graph.nodes.values.data());
+      graph.newNodes.push_back(nodeIndex);
+    }
+  }
+
+  //Removing a node could split any number of islands from any of the edges on it
+  //This only marks the island it was in for reevaluation, potentially reassigning the head
+  //The caller then logs all the removed edges as a result
+  //If this results in an empty island the next rebuildIslands will add it to the free list
   void logRemovedNode(Graph& graph, const Node& node) {
     if(node.islandIndex != INVALID_ISLAND) {
       graph.changedIslands[node.islandIndex] = true;
@@ -188,14 +212,17 @@ namespace IslandGraph {
     }
   }
 
+  //If an edge is added then traversal needs to visit the islands both are in
   void logAddedEdge(Graph& graph, const Node& a, const Node& b) {
     logChangedNode(graph, a);
     logChangedNode(graph, b);
   }
 
+  //If an edge is removed traversal needs to visit the island both were in, which is presumably the same
+  //It then also needs to visit both nodes in case this removal split the island in two
   void logRemovedEdge(Graph& graph, const Node& a, const Node& b) {
-    logChangedNode(graph, a);
-    logChangedNode(graph, b);
+    logMaybeSplitIslandNode(graph, a);
+    logMaybeSplitIslandNode(graph, b);
   }
 
   uint32_t addEdge(Graph& graph, const NodeUserdata& a, const NodeUserdata& b) {
@@ -302,8 +329,8 @@ namespace IslandGraph {
       //Remove entry for edge in other object
       const uint32_t other = edge.nodeA == toRemove ? edge.nodeB : edge.nodeA;
       Node& otherNode = graph.nodes[other];
-      //Presumably they were in the same island as `node` in which case logging this is pointless
-      logChangedNode(graph, otherNode);
+      //Any edge outgoing from the removed node might need to split into a new island, mark them for evaluation
+      logMaybeSplitIslandNode(graph, otherNode);
       removeFromLinkedList(otherNode.edges, entry.edge, graph.edgeEntries);
 
       //Remove the edge itself

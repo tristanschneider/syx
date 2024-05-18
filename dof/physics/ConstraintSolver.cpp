@@ -499,7 +499,7 @@ namespace ConstraintSolver {
     IslandGraph::Graph* graph = task.query<SP::IslandGraphRow>().tryGetSingletonElement();
     task.setCallback([graph, collection, solverConfig](AppTaskArgs&) {
       IslandGraph::rebuildIslands(*graph);
-      const size_t desiredIslands = graph->islands.size();
+      const size_t desiredIslands = graph->islands.values.size();
       const size_t currentIslands = collection->solvers.size();
       if(currentIslands < desiredIslands) {
         collection->solvers.resize(desiredIslands);

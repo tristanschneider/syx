@@ -15,12 +15,13 @@ namespace IslandGraph {
   using IslandPropagationMask = uint8_t;
   constexpr IslandPropagationMask PROPAGATE_ALL{ static_cast<IslandPropagationMask>(~0) };
   constexpr IslandPropagationMask PROPAGATE_NONE{ static_cast<IslandPropagationMask>(0) };
+  using IslandIndex = uint16_t;
 
   static constexpr uint32_t INVALID = std::numeric_limits<uint32_t>::max();
-  static constexpr uint16_t INVALID_ISLAND = std::numeric_limits<uint16_t>::max();
+  static constexpr IslandIndex INVALID_ISLAND = std::numeric_limits<uint16_t>::max();
   struct Node {
     NodeUserdata data{};
-    uint16_t islandIndex{ INVALID_ISLAND };
+    IslandIndex islandIndex{ INVALID_ISLAND };
     IslandPropagationMask propagation{};
     //Root of linked list of EdgeEntry
     uint32_t edges{ INVALID };
@@ -53,7 +54,7 @@ namespace IslandGraph {
     uint32_t edges{ INVALID };
     uint32_t nodeCount{};
     uint32_t edgeCount{};
-    uint16_t nextFreeIsland{ INVALID_ISLAND };
+    IslandIndex nextFreeIsland{ INVALID_ISLAND };
   };
   constexpr static uint32_t FREE_INDEX = std::numeric_limits<uint32_t>::max() - 1;
 }
@@ -77,6 +78,12 @@ namespace gnx {
     using ValueT = IslandGraph::EdgeEntry;
     using IndexT = uint32_t;
     using Ops = MemberFreeOps<&IslandGraph::EdgeEntry::edge, IslandGraph::FREE_INDEX>;
+  };
+  template<>
+  struct FreeListTraits<IslandGraph::Island> {
+    using ValueT = IslandGraph::Island;
+    using IndexT = IslandGraph::IslandIndex;
+    using Ops = MemberFreeOps<&IslandGraph::Island::nextFreeIsland, IslandGraph::INVALID_ISLAND>;
   };
 }
 
@@ -303,6 +310,7 @@ namespace IslandGraph {
       uint32_t node{};
     };
 
+    //Iterates over islands. Does include traversing the free list which are empty islands
     struct GraphIterator {
       using iterator_category = std::random_access_iterator_tag;
       using value_type        = Island;
@@ -427,7 +435,7 @@ namespace IslandGraph {
     }
 
     GraphIterator end() {
-      return { this, islands.size() };
+      return { this, islands.values.size() };
     }
 
     EdgeIterator findEdge(const NodeUserdata& a, const NodeUserdata& b);
@@ -455,12 +463,10 @@ namespace IslandGraph {
     gnx::VectorFreeList<Edge> edges;
     gnx::VectorFreeList<EdgeEntry> edgeEntries;
     std::unordered_map<NodeUserdata, NodeMappings> nodeMappings;
-    //TODO: use vefctorfreelist
-    std::vector<Island> islands;
+    gnx::VectorFreeList<Island> islands;
     //Assuming bitset optimization
     std::vector<bool> changedIslands;
     std::vector<bool> visitedNodes, visitedEdges;
-    uint16_t freeIslands{ INVALID_ISLAND };
     std::vector<uint32_t> newNodes;
     std::vector<uint32_t> scratchBuffer;
   };

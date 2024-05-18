@@ -365,6 +365,9 @@ namespace Test {
       bool foundAB{};
       foundE = false;
       for(it = graph.begin(); it != graph.end(); ++it) {
+        if(!it->size()) {
+          continue;
+        }
         Assert::IsFalse(std::find(it.beginEdges(), it.endEdges(), edgeBE) != it.endEdges());
         if(std::find(it.beginNodes(), it.endNodes(), nodeA) != it.endNodes()) {
           Assert::IsTrue(std::find(it.beginNodes(), it.endNodes(), nodeB) != it.endNodes());
@@ -487,6 +490,9 @@ namespace Test {
       {
         bool found{};
         for(auto it = graph.begin(); it != graph.end(); ++it) {
+          if(!it->size()) {
+            continue;
+          }
           found = true;
           Assert::IsFalse(std::find(it.beginEdges(), it.endEdges(), edgeBD) != it.endEdges());
           Assert::IsFalse(std::find(it.beginNodes(), it.endNodes(), staticD) != it.endNodes());
