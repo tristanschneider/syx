@@ -26,6 +26,7 @@ syx/build_output
 [Rr]elease/
 [Rr]eleases/
 RelWithDebInfo/
+MinSizeRel/
 x64/
 x86/
 bld/
