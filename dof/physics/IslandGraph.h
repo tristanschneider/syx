@@ -17,8 +17,10 @@ namespace IslandGraph {
   constexpr IslandPropagationMask PROPAGATE_NONE{ static_cast<IslandPropagationMask>(0) };
 
   static constexpr uint32_t INVALID = std::numeric_limits<uint32_t>::max();
+  static constexpr uint16_t INVALID_ISLAND = std::numeric_limits<uint16_t>::max();
   struct Node {
     NodeUserdata data{};
+    uint16_t islandIndex{ INVALID_ISLAND };
     IslandPropagationMask propagation{};
     //Root of linked list of EdgeEntry
     uint32_t edges{ INVALID };
@@ -51,6 +53,7 @@ namespace IslandGraph {
     uint32_t edges{ INVALID };
     uint32_t nodeCount{};
     uint32_t edgeCount{};
+    uint16_t nextFreeIsland{ INVALID_ISLAND };
   };
   constexpr static uint32_t FREE_INDEX = std::numeric_limits<uint32_t>::max() - 1;
 }
@@ -452,7 +455,13 @@ namespace IslandGraph {
     gnx::VectorFreeList<Edge> edges;
     gnx::VectorFreeList<EdgeEntry> edgeEntries;
     std::unordered_map<NodeUserdata, NodeMappings> nodeMappings;
+    //TODO: use vefctorfreelist
     std::vector<Island> islands;
+    //Assuming bitset optimization
+    std::vector<bool> changedIslands;
+    std::vector<bool> visitedNodes, visitedEdges;
+    uint16_t freeIslands{ INVALID_ISLAND };
+    std::vector<uint32_t> newNodes;
     std::vector<uint32_t> scratchBuffer;
   };
 

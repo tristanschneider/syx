@@ -51,75 +51,151 @@ namespace IslandGraph {
 
   constexpr uint32_t NOT_VISITED = std::numeric_limits<uint32_t>::max() - 2;
 
-  void rebuildIslands(Graph& graph) {
-    for(Node& node : graph.nodes) {
-      node.islandNext = NOT_VISITED;
-    }
-    for(Edge& edge : graph.edges) {
-      edge.islandNext = NOT_VISITED;
-    }
-    graph.islands.clear();
-    graph.scratchBuffer.clear();
+  void populateIsland(Graph& graph, Island& island) {
     std::vector<uint32_t>& nodesTodo = graph.scratchBuffer;
+    const uint32_t islandRootIndex = island.nodes;
+    island.edgeCount = island.nodeCount = 0;
+    island.edges = INVALID;
+    island.nodes = INVALID;
+    if(islandRootIndex == INVALID) {
+      return;
+    }
+
+    //If this was already traversed from a previous island skip it
+    if(graph.visitedNodes[islandRootIndex]) {
+      return;
+    }
+
+    island.nodes = islandRootIndex;
+    nodesTodo.push_back(islandRootIndex);
+    Island& currentIsland = island;
+    uint32_t* lastNode = &currentIsland.nodes;
+    uint32_t* lastEdge = &currentIsland.edges;
+
+    //For each node in the island
+    while(nodesTodo.size()) {
+      const size_t currentIndex = nodesTodo.back();
+      Node& node = graph.nodes.values[currentIndex];
+      nodesTodo.pop_back();
+      //Nodes without propagation are only visited from others. So they'll show up in the island
+      //if another node has an edge to it but edges between two non-propagating nodes won't
+      if(graph.visitedNodes[currentIndex] || !node.propagation) {
+        continue;
+      }
+      //Add node to linked list for this island
+      node.islandNext = *lastNode;
+      graph.visitedNodes[currentIndex] = true;
+      *lastNode = currentIndex;
+
+      currentIsland.nodeCount++;
+
+      //Skip entries for nodes that don't propagate
+      if(node.propagation) {
+        uint32_t currentEntry = node.edges;
+        //Iterate over all edges connected to the current node
+        while(currentEntry != INVALID) {
+          const EdgeEntry& entry = graph.edgeEntries.values[currentEntry];
+          Edge& edge = graph.edges.values[entry.edge];
+          //Add edge to linked list if it hasn't been traversed already
+          if(!graph.visitedEdges[entry.edge]) {
+            //Add the other node for visitation
+            nodesTodo.push_back(edge.nodeA == currentIndex ? edge.nodeB : edge.nodeA);
+            currentIsland.edgeCount++;
+
+            edge.islandNext = *lastEdge;
+            graph.visitedEdges[entry.edge] = true;
+            *lastEdge = entry.edge;
+            lastEdge = &edge.islandNext;
+          }
+          currentEntry = entry.nextEntry;
+        }
+      }
+    }
+  }
+
+  void rebuildIslands(Graph& graph) {
+    //for(Node& node : graph.nodes) {
+    //  node.islandNext = NOT_VISITED;
+    //}
+    //for(Edge& edge : graph.edges) {
+    //  edge.islandNext = NOT_VISITED;
+    //}
+    //graph.islands.clear();
+    graph.scratchBuffer.clear();
+
+    graph.visitedNodes.clear();
+    graph.visitedNodes.resize(graph.nodes.values.size(), false);
+    graph.visitedEdges.clear();
+    graph.visitedEdges.resize(graph.edges.values.size(), false);
 
     //Iterate over each non-visited node and visit all in that island. This likely means a large amount
     //of skipped nodes after each edge traversal
-    for(auto islandRoot = graph.nodes.begin(); islandRoot != graph.nodes.end(); ++islandRoot) {
-      //If this was already traversed from a previous island skip it
-      if(islandRoot->islandNext != NOT_VISITED) {
+    //for(auto islandRoot = graph.nodes.begin(); islandRoot != graph.nodes.end(); ++islandRoot) {
+    for(size_t i = 0; i < graph.changedIslands.size(); ++i) {
+      if(!graph.changedIslands[i]) {
         continue;
       }
+      graph.changedIslands[i] = false;
 
-      const uint32_t current = graph.nodes.rawIndex(islandRoot);
-      nodesTodo.push_back(current);
-      Island currentIsland;
-      uint32_t* lastNode = &currentIsland.nodes;
-      uint32_t* lastEdge = &currentIsland.edges;
-
-      //For each node in the island
-      while(nodesTodo.size()) {
-        const size_t currentIndex = nodesTodo.back();
-        Node& node = graph.nodes.values[currentIndex];
-        nodesTodo.pop_back();
-        //Nodes without propagation are only visited from others. So they'll show up in the island
-        //if another node has an edge to it but edges between two non-propagating nodes won't
-        if(node.islandNext != NOT_VISITED || !node.propagation) {
-          continue;
+      Island& island = graph.islands[i];
+      populateIsland(graph, island);
+      //If island is now empty, add it to the free list if it isn't already
+      if(!island.size()) {
+        if(island.nextFreeIsland == INVALID) {
+          island.nextFreeIsland = graph.freeIslands;
+          graph.freeIslands = static_cast<uint16_t>(i);
         }
-        //Add node to linked list for this island
-        node.islandNext = *lastNode;
-        *lastNode = currentIndex;
-
-        currentIsland.nodeCount++;
-
-        //Skip entries for nodes that don't propagate
-        if(node.propagation) {
-          uint32_t currentEntry = node.edges;
-          //Iterate over all edges connected to the current node
-          while(currentEntry != INVALID) {
-            const EdgeEntry& entry = graph.edgeEntries.values[currentEntry];
-            Edge& edge = graph.edges.values[entry.edge];
-            //Add edge to linked list if it hasn't been traversed already
-            if(edge.islandNext == NOT_VISITED) {
-              //Add the other node for visitation
-              nodesTodo.push_back(edge.nodeA == currentIndex ? edge.nodeB : edge.nodeA);
-              currentIsland.edgeCount++;
-
-              edge.islandNext = *lastEdge;
-              *lastEdge = entry.edge;
-              lastEdge = &edge.islandNext;
-            }
-            currentEntry = entry.nextEntry;
-          }
-        }
-      }
-
-      //No more nodes traversable from the current root, submit island and find next root
-      //Skip it if there are no nodes, meaning it contained only non-propagating nodes
-      if(currentIsland.nodeCount) {
-        graph.islands.push_back(currentIsland);
       }
     }
+
+    //Iterate over all newly created nodes. If they added an edge with an existing island they would have
+    //been traversed above
+    //Otherwise, they must form new islands
+    for(uint32_t newNode : graph.newNodes) {
+      if(graph.visitedNodes[newNode]) {
+        continue;
+      }
+      Island newIsland;
+      newIsland.nodes = newNode;
+      populateIsland(graph, newIsland);
+      if(newIsland.size()) {
+        graph.islands.push_back(newIsland);
+        assert(graph.islands.size() < INVALID_ISLAND);
+        graph.changedIslands.push_back(false);
+      }
+    }
+    graph.newNodes.clear();
+  }
+
+  void logChangedNode(Graph& graph, const Node& node) {
+    if(node.islandIndex != INVALID_ISLAND) {
+      graph.changedIslands[node.islandIndex] = true;
+    }
+  }
+
+  void logAddedNode(Graph& graph, const Node& node) {
+    logChangedNode(graph, node);
+  }
+
+  void logRemovedNode(Graph& graph, const Node& node) {
+    if(node.islandIndex != INVALID_ISLAND) {
+      graph.changedIslands[node.islandIndex] = true;
+      const auto nodeIndex = static_cast<uint32_t>(&node - graph.nodes.values.data());
+      //Reassign head if this was the start of the island
+      if(graph.islands[node.islandIndex].nodes == nodeIndex) {
+        graph.islands[node.islandIndex].nodes = node.islandNext;
+      }
+    }
+  }
+
+  void logAddedEdge(Graph& graph, const Node& a, const Node& b) {
+    logChangedNode(graph, a);
+    logChangedNode(graph, b);
+  }
+
+  void logRemovedEdge(Graph& graph, const Node& a, const Node& b) {
+    logChangedNode(graph, a);
+    logChangedNode(graph, b);
   }
 
   uint32_t addEdge(Graph& graph, const NodeUserdata& a, const NodeUserdata& b) {
@@ -138,6 +214,7 @@ namespace IslandGraph {
 
     Node& nodeA = graph.nodes.values[newEdge.nodeA];
     Node& nodeB = graph.nodes.values[newEdge.nodeB];
+    logAddedEdge(graph, nodeA, nodeB);
 
     //Create space for edge entries of A and B
     const size_t entryIndexA = graph.edgeEntries.newIndex();
@@ -175,6 +252,7 @@ namespace IslandGraph {
     const uint32_t edge = removeFromLinkedList(nodeA.edges, mappingsB->second.node, graph.edgeEntries, graph.edges.values);
     assert(edge != INVALID);
     Node& nodeB = graph.nodes.values[mappingsB->second.node];
+    logRemovedEdge(graph, nodeA, nodeB);
     //Remove the entry pointing at the edge found in A from the list of entries in B
     [[maybe_unused]] const bool removed = removeFromLinkedList(nodeB.edges, edge, graph.edgeEntries);
     assert(removed);
@@ -186,6 +264,7 @@ namespace IslandGraph {
     const Edge& edge = graph.edges[it.edge];
     Node& a = graph.nodes[edge.nodeA];
     Node& b = graph.nodes[edge.nodeB];
+    logRemovedEdge(graph, a, b);
     [[maybe_unused]] const bool removedA = removeFromLinkedList(a.edges, it.edge, graph.edgeEntries);
     [[maybe_unused]] const bool removedB = removeFromLinkedList(b.edges, it.edge, graph.edgeEntries);
     assert(removedA && removedB);
@@ -200,6 +279,7 @@ namespace IslandGraph {
     NodeMappings mappings;
     mappings.node = newIndex;
     graph.nodeMappings[data] = mappings;
+    graph.newNodes.push_back(newIndex);
   }
 
   void removeNode(Graph& graph, const NodeUserdata& data) {
@@ -212,6 +292,7 @@ namespace IslandGraph {
     graph.nodeMappings.erase(mappings);
 
     Node& node = graph.nodes.values[toRemove];
+    logRemovedNode(graph, node);
     uint32_t current = node.edges;
     //Go through all edges this was connected to and remove them from the other
     while(current != INVALID) {
@@ -221,6 +302,8 @@ namespace IslandGraph {
       //Remove entry for edge in other object
       const uint32_t other = edge.nodeA == toRemove ? edge.nodeB : edge.nodeA;
       Node& otherNode = graph.nodes[other];
+      //Presumably they were in the same island as `node` in which case logging this is pointless
+      logChangedNode(graph, otherNode);
       removeFromLinkedList(otherNode.edges, entry.edge, graph.edgeEntries);
 
       //Remove the edge itself
