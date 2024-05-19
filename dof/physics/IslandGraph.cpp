@@ -51,19 +51,21 @@ namespace IslandGraph {
 
   constexpr uint32_t NOT_VISITED = std::numeric_limits<uint32_t>::max() - 2;
 
-  void populateIsland(Graph& graph, Island& island, IslandIndex islandIndex) {
+  bool populateIsland(Graph& graph, Island& island, IslandIndex islandIndex) {
+    bool didChange = false;
     std::vector<uint32_t>& nodesTodo = graph.scratchBuffer;
     const uint32_t islandRootIndex = island.nodes;
+    const uint32_t oldCount = island.nodeCount;
     island.edgeCount = island.nodeCount = 0;
     island.edges = INVALID;
     island.nodes = INVALID;
     if(islandRootIndex == INVALID) {
-      return;
+      return didChange;
     }
 
     //If this was already traversed from a previous island skip it
     if(graph.visitedNodes[islandRootIndex]) {
-      return;
+      return didChange;
     }
 
     nodesTodo.push_back(islandRootIndex);
@@ -90,7 +92,10 @@ namespace IslandGraph {
 
       //Skip entries for nodes that don't propagate
       if(node.propagation) {
-        node.islandIndex = islandIndex;
+        if(node.islandIndex != islandIndex) {
+          node.islandIndex = islandIndex;
+          didChange = true;
+        }
         uint32_t currentEntry = node.edges;
         //Iterate over all edges connected to the current node
         while(currentEntry != INVALID) {
@@ -115,22 +120,27 @@ namespace IslandGraph {
         node.islandIndex = INVALID_ISLAND;
       }
     }
+    if(oldCount != island.nodeCount) {
+      didChange = true;
+    }
+    return didChange;
   }
 
   void rebuildIslands(Graph& graph) {
-    //for(Node& node : graph.nodes) {
-    //  node.islandNext = NOT_VISITED;
-    //}
-    //for(Edge& edge : graph.edges) {
-    //  edge.islandNext = NOT_VISITED;
-    //}
-    //graph.islands.clear();
     graph.scratchBuffer.clear();
 
     graph.visitedNodes.clear();
     graph.visitedNodes.resize(graph.nodes.values.size(), false);
     graph.visitedEdges.clear();
     graph.visitedEdges.resize(graph.edges.values.size(), false);
+
+    {
+      const size_t islandCount = graph.islands.values.size();
+      graph.publishedIslandEdgesChanged.clear();
+      graph.publishedIslandEdgesChanged.resize(islandCount, false);
+      graph.publishedIslandNodesChanged.clear();
+      graph.publishedIslandNodesChanged.resize(islandCount, false);
+    }
 
     //Iterate over each non-visited node and visit all in that island. This likely means a large amount
     //of skipped nodes after each edge traversal
@@ -142,11 +152,18 @@ namespace IslandGraph {
       graph.changedIslands[i] = false;
 
       Island& island = graph.islands[i];
-      populateIsland(graph, island, static_cast<IslandIndex>(i));
+      const bool nodesChanged = populateIsland(graph, island, static_cast<IslandIndex>(i));
       //If island is now empty, add it to the free list if it isn't already
       if(!island.size()) {
         island = {};
         graph.islands.deleteIndex(static_cast<IslandIndex>(i));
+      }
+      else {
+        //Edges must have changed or this wouldn't have been marked as a changed island
+        graph.publishedIslandEdgesChanged[i] = true;
+        if(nodesChanged) {
+          graph.publishedIslandNodesChanged[i] = true;
+        }
       }
     }
 
@@ -168,6 +185,13 @@ namespace IslandGraph {
           assert(graph.islands.values.size() < INVALID_ISLAND);
           assert(graph.changedIslands.size() == islandIndex);
           graph.changedIslands.push_back(false);
+          graph.publishedIslandEdgesChanged.push_back(true);
+          graph.publishedIslandNodesChanged.push_back(true);
+        }
+        else {
+          //These are new islands so everything is considered "changed"
+          graph.publishedIslandEdgesChanged[islandIndex] = true;
+          graph.publishedIslandNodesChanged[islandIndex] = true;
         }
       }
       else {

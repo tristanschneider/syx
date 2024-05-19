@@ -465,8 +465,11 @@ namespace IslandGraph {
     std::unordered_map<NodeUserdata, NodeMappings> nodeMappings;
     gnx::VectorFreeList<Island> islands;
     //Assuming bitset optimization
+    //Islands that have changed for internal tracking of work to do in rebuildIslands
     std::vector<bool> changedIslands;
     std::vector<bool> visitedNodes, visitedEdges;
+    //Information about which islands have changed nodes or edges for external use after rebuildIslands
+    std::vector<bool> publishedIslandNodesChanged, publishedIslandEdgesChanged;
     std::vector<uint32_t> newNodes;
     std::vector<uint32_t> scratchBuffer;
   };
