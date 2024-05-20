@@ -62,3 +62,11 @@ Total 11051239800
 Min 9968800
 Max 59689300
 Avg 11051239
+
+Constant friction. Looks same but I think it does improve FPS slightly in the full scene
+
+Start 4598900
+Total 11246970800
+Min 9826800
+Max 52606600
+Avg 11246970

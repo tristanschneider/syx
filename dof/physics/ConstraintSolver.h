@@ -15,6 +15,9 @@ namespace ConstraintSolver {
 
     const float* biasTerm{};
     const float* slop{};
+    //Not physically accurate but more stabile and cheaper
+    //Uses a constant friction value rather than being a proportion of the normal force
+    bool useConstantFriction = true;
   };
   struct Material {
     //Proportion of the normal force that is used to negate motion orthogonal to the normal

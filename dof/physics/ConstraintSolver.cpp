@@ -493,7 +493,7 @@ namespace ConstraintSolver {
     static const auto NEEDS_MAPPING = ContactMapping::Bitset{}.
       set(gnx::enumCast(ContactMapping::Bit::HasFriction)).
       set(gnx::enumCast(ContactMapping::Bit::HasRestitution));
-    if((NEEDS_MAPPING & contactMapping.flags).any()) {
+    if(!globals.useConstantFriction && (NEEDS_MAPPING & contactMapping.flags).any()) {
       //Store this mapping so the bounds of friction can be updated from the corresponding contact
       solver.contactMappings.emplace_back(contactMapping);
     }
@@ -800,15 +800,17 @@ namespace ConstraintSolver {
         PGS::SolveResult solveResult;
         do {
           solveResult = PGS::advancePGS(pgsContext);
-          for(const ContactMapping& mapping : context.solver.contactMappings) {
-            mapping.visit([&](const ContactMapping::Indices& indices) {
-              if(indices.frictionIndex) {
-                //Friction force is proportional to normal force, update the bounds based on the currently
-                //applied normal force
-                const float normalForce = std::abs(pgsContext.lambda[indices.contactIndex])*mapping.combinedMaterial.frictionCoefficient;
-                context.solver.solver.setLambdaBounds(*indices.frictionIndex, -normalForce, normalForce);
-              }
-            });
+          if(!globals.useConstantFriction) {
+            for(const ContactMapping& mapping : context.solver.contactMappings) {
+              mapping.visit([&](const ContactMapping::Indices& indices) {
+                if(indices.frictionIndex) {
+                  //Friction force is proportional to normal force, update the bounds based on the currently
+                  //applied normal force
+                  const float normalForce = std::abs(pgsContext.lambda[indices.contactIndex])*mapping.combinedMaterial.frictionCoefficient;
+                  context.solver.solver.setLambdaBounds(*indices.frictionIndex, -normalForce, normalForce);
+                }
+              });
+            }
           }
         } while(!solveResult.isFinished);
 
