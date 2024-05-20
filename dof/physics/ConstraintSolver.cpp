@@ -170,6 +170,7 @@ namespace ConstraintSolver {
     float* angularVelocity{};
     //Index of this body in the solver
     BodyIndex solverIndex{};
+    ElementRef ref{};
   };
   struct ZIslandBody {
     operator bool() const {
@@ -231,6 +232,11 @@ namespace ConstraintSolver {
     ConstraintMask constraintMask{};
     Material material{};
   };
+  struct CachedEdge {
+    IslandGraph::EdgeUserdata manifoldIndex{};
+    IslandGraph::NodeUserdata bodyA{};
+    IslandGraph::NodeUserdata bodyB{};
+  };
   struct IslandSolver {
     void clear() {
       bodies.clear();
@@ -240,6 +246,25 @@ namespace ConstraintSolver {
       solver.clear();
     }
 
+    //Weird mix of clear and resize because some use push back and some into index directly
+    //TODO: use index everywhere
+    void resetForBodies(BodyIndex count) {
+      bodies.clear();
+      islandToBodyIndex.clear();
+      solver.resizeBodies(count);
+    }
+
+    void resetForConstraints(ConstraintIndex count) {
+      contactMappings.clear();
+      solver.resizeConstraints(count);
+      warmStartStorage.resize(count);
+    }
+
+    void finalizeConstraintCount(ConstraintIndex count) {
+      solver.resizeConstraints(count);
+      warmStartStorage.resize(count);
+    }
+
     std::vector<IslandBody> bodies;
     //The place to write the warm start after solving
     //Index matches constraint index
@@ -247,6 +272,7 @@ namespace ConstraintSolver {
     std::vector<ContactMapping> contactMappings;
     gnx::HashMap<IslandGraph::NodeUserdata, BodyMapping> islandToBodyIndex;
     PGS::SolverStorage solver;
+    std::vector<CachedEdge> cachedEdges;
   };
   struct ZSolverPair {
     BodyIndex a{};
@@ -265,11 +291,28 @@ namespace ConstraintSolver {
     gnx::HashMap<IslandGraph::NodeUserdata, BodyMapping> islandToBodyIndex;
     PGS1D::SolverStorage solver;
   };
+  struct IslandStorage : IslandGraph::IIslandUserdata {
+    void clear() final {
+      xySolver.clear();
+      zSolver.clear();
+    }
+
+    IslandSolver xySolver;
+    ZIslandSolver zSolver;
+  };
+  struct IslandStorageFactory : IslandGraph::IIslandUserdataFactory {
+    std::unique_ptr<IslandGraph::IIslandUserdata> create() final {
+      return std::make_unique<IslandStorage>();
+    }
+  };
+
+  struct IslandTaskData {
+    IslandGraph::IslandIndex islandIndex{};
+    size_t constraintBegin{};
+    size_t constraintEnd{};
+  };
   struct IslandSolverCollection {
-    //Each in separate memory to discourage false sharing
-    std::vector<std::unique_ptr<IslandSolver>> solvers;
-    std::vector<std::unique_ptr<ZIslandSolver>> zSolvers;
-    size_t size{};
+    std::vector<IslandTaskData> tasks;
   };
 
   Material combineMaterials(const Material& a, const Material& b) {
@@ -425,7 +468,7 @@ namespace ConstraintSolver {
       }
       s.setLambdaBounds(contact, 0, PGS::SolverStorage::UNLIMITED_MAX);
       s.setWarmStart(contact, point.contactWarmStart);
-      solver.warmStartStorage.push_back(&point.contactWarmStart);
+      solver.warmStartStorage[contact] = &point.contactWarmStart;
 
       if(combinedMaterial.frictionCoefficient > 0) {
         //Friction constraint
@@ -474,7 +517,6 @@ namespace ConstraintSolver {
     //Contact constraint
     s.setJacobian(constraintIndex, bodyA, bodyB, normalA, normalB);
 
-
     //Only ever push apart
     s.setLambdaBounds(constraintIndex, 0.f, PGS1D::SolverStorage::UNLIMITED_MAX);
     //If the objects are separated solve for a velocity that prevents collision
@@ -497,22 +539,36 @@ namespace ConstraintSolver {
     task.setName("create solvers");
     //Assume there is only one for now
     IslandGraph::Graph* graph = task.query<SP::IslandGraphRow>().tryGetSingletonElement();
+    graph->userdataFactory = std::make_unique<IslandStorageFactory>();
+
     task.setCallback([graph, collection, solverConfig](AppTaskArgs&) {
       IslandGraph::rebuildIslands(*graph);
-      const size_t desiredIslands = graph->islands.values.size();
-      const size_t currentIslands = collection->solvers.size();
-      if(currentIslands < desiredIslands) {
-        collection->solvers.resize(desiredIslands);
-        collection->zSolvers.resize(desiredIslands);
-        for(size_t i = currentIslands; i < desiredIslands; ++i) {
-          collection->solvers[i] = std::make_unique<IslandSolver>();
-          collection->zSolvers[i] = std::make_unique<ZIslandSolver>();
+
+      //Assign a task for each island, and split into multiple tasks if island is huge
+      //TODO: probably smarter way to reuse this
+      collection->tasks.clear();
+      for(IslandGraph::IslandIndex i = 0; i < static_cast<IslandGraph::IslandIndex>(graph->islands.values.size()); ++i) {
+        const IslandGraph::Island& island = graph->islands[i];
+        const size_t islandSize = island.size();
+        if(!islandSize) {
+          continue;
+        }
+        constexpr size_t MAX_ISLAND_SIZE = std::numeric_limits<size_t>::max();
+        size_t dispatched = 0;
+        while(dispatched < islandSize) {
+          const size_t taskSize = std::min(islandSize, MAX_ISLAND_SIZE);
+          IslandTaskData data;
+          data.islandIndex = i;
+          data.constraintBegin = dispatched;
+          data.constraintEnd = data.constraintBegin + taskSize;
+          dispatched += taskSize;
+          collection->tasks.push_back(data);
         }
       }
-      collection->size = desiredIslands;
+
       AppTaskSize taskSize;
       taskSize.batchSize = 1;
-      taskSize.workItemCount = collection->size;
+      taskSize.workItemCount = collection->tasks.size();
       for(auto& config : solverConfig) {
         config->setSize(taskSize);
       }
@@ -541,8 +597,10 @@ namespace ConstraintSolver {
       auto resolver = ids->getRefResolver();
       SP::ZManifoldRow& manifolds = pairs.get<0>(0);
       for(size_t i = args.begin; i < args.end; ++i) {
-        const IslandGraph::Island& island = graph->islands[i];
-        ZIslandSolver& solver = *collection->zSolvers[i];
+        const IslandTaskData& task = collection->tasks[i];
+        const IslandGraph::Island& island = graph->islands[task.islandIndex];
+
+        ZIslandSolver& solver = static_cast<IslandStorage&>(*island.userdata).zSolver;
         //TODO: only clear what has a chance of being untouched by the initialization below
         solver.clear();
         //This will likely overshoot because they won't all be overlapping
@@ -601,6 +659,99 @@ namespace ConstraintSolver {
     });
   }
 
+  struct SolveContext {
+    const IslandGraph::Island& island;
+    const IslandGraph::Graph& graph;
+    const SolverGlobals& globals;
+    Resolver::ShapeResolverContext& shapeContext;
+    ElementRefResolver& resolver;
+    IslandSolver& solver;
+    SP::ManifoldRow& manifolds;
+    bool bodiesChanged{};
+    bool constraintsChanged{};
+    bool anyChanged{};
+  };
+
+  void insertManifoldConstraints(SolveContext& context, size_t manifoldIndex, ConstraintIndex& constraintIndex, IslandGraph::NodeUserdata a, IslandGraph::NodeUserdata b) {
+    if(manifoldIndex >= context.manifolds.size()) {
+      return;
+    }
+
+    SP::ContactManifold& manifold = context.manifolds.at(manifoldIndex);
+    if(manifold.size) {
+      //This is a constraint to solve, pull out the required information
+      const BodyMapping bodyA = getOrCreateBody(a, context.solver, context.shapeContext, context.resolver);
+      const BodyMapping bodyB = getOrCreateBody(b, context.solver, context.shapeContext, context.resolver);
+      if(bodyA.constraintMask & bodyB.constraintMask) {
+        constraintIndex += addConstraints(context.solver,
+          bodyA.solverIndex,
+          bodyB.solverIndex,
+          manifold,
+          constraintIndex,
+          combineMaterials(bodyA.material, bodyB.material),
+          context.globals
+        );
+      }
+    }
+  }
+
+  void initSolving(SolveContext& context) {
+    //This may overshoot a bit if objects are close enough to have edges but didn't pass narrowphase
+    //Each edge can have two contacts each of which can have two friction constraints
+    if(context.bodiesChanged) {
+      context.solver.resetForBodies(static_cast<BodyIndex>(context.island.nodeCount + 1));
+      insertInfiniteMassBody(context.solver);
+    }
+    else {
+      //If bodies didn't change it's still necessary to go update the velocity pointers in case objects moved tables since last time
+      for(IslandBody& body : context.solver.bodies) {
+        if(auto id = context.resolver.tryUnpack(body.ref)) {
+          BodyVelocity vel = Resolver::resolveBodyVelocity(context.shapeContext, *id);
+          body.velocityX = vel.linearX;
+          body.velocityY = vel.linearY;
+          body.angularVelocity = vel.angular;
+          context.solver.solver.setVelocity(body.solverIndex, { *body.velocityX, *body.velocityY }, *body.angularVelocity);
+        }
+      }
+    }
+
+    //TODO: in theory something could be reused but the number of contact points might have changedso this needs to be cleared anyway
+    const size_t maxConstraintCount = static_cast<ConstraintIndex>(context.island.edgeCount*4);
+    context.solver.resetForConstraints(maxConstraintCount);
+
+    ConstraintIndex constraintIndex{};
+    //If they changed, traverse the graph and cache the new edge list
+    if(context.constraintsChanged) {
+      uint32_t currentEdge = context.island.edges;
+      context.solver.cachedEdges.clear();
+      while(currentEdge != IslandGraph::INVALID) {
+        const IslandGraph::Edge& e = context.graph.edges[currentEdge];
+        //Use the edge to get the manifold to see if there is anything to solve
+        if(e.data < context.manifolds.size()) {
+          if(SP::ContactManifold& manifold = context.manifolds.at(e.data); manifold.size) {
+            const IslandGraph::NodeUserdata uA = context.graph.nodes[e.nodeA].data;
+            const IslandGraph::NodeUserdata uB = context.graph.nodes[e.nodeB].data;
+            insertManifoldConstraints(context, e.data, constraintIndex, uA, uB);
+            context.solver.cachedEdges.push_back({ e.data, uA, uB });
+          }
+        }
+        currentEdge = e.islandNext;
+      }
+    }
+    //If they didn't change, used the cached edge list from a previous traversal
+    else {
+      for(const CachedEdge& edge : context.solver.cachedEdges) {
+        if(const SP::ContactManifold* man = edge.manifoldIndex < context.manifolds.size() ? &context.manifolds.at(edge.manifoldIndex) : nullptr; man && man->size) {
+          insertManifoldConstraints(context, edge.manifoldIndex, constraintIndex, edge.bodyA, edge.bodyB);
+        }
+      }
+    }
+
+    //Remove any excess. This could be since multiple objects mapped to the infinite mass index, some data was not present,
+    //or their constraint masks indicated they don't want to solve against each-other
+    context.solver.finalizeConstraintCount(constraintIndex);
+  }
+
   void solveIsland(IAppBuilder& builder, const PhysicsAliases& tables, const SolverGlobals& globals) {
     auto task = builder.createTask();
     task.setName("solve islands");
@@ -625,69 +776,46 @@ namespace ConstraintSolver {
       SP::ManifoldRow& manifolds = pairs.get<0>(0);
       auto resolver = ids->getRefResolver();
       for(size_t i = args.begin; i < args.end; ++i) {
-        const IslandGraph::Island& island = graph->islands[i];
-        IslandSolver& solver = *collection->solvers[i];
-        //TODO: only clear what has a chance of being untouched by the initialization below
-        solver.clear();
-        //This may overshoot a bit if objects are close enough to have edges but didn't pass narrowphase
-        //Each edge can have two contacts each of which can have two friction constraints
-        solver.solver.resize(static_cast<BodyIndex>(island.nodeCount + 1), static_cast<ConstraintIndex>(island.edgeCount*4));
-        insertInfiniteMassBody(solver);
-        ConstraintIndex constraintIndex{};
+        const IslandTaskData& task = collection->tasks[i];
+        const IslandGraph::Island& island = graph->islands[task.islandIndex];
+        SolveContext context {
+          island,
+          *graph,
+          globals,
+          shapeContext,
+          resolver,
+          static_cast<IslandStorage&>(*island.userdata).xySolver,
+          manifolds,
+          graph->publishedIslandNodesChanged[task.islandIndex],
+          graph->publishedIslandEdgesChanged[task.islandIndex]
+        };
+        context.anyChanged = context.bodiesChanged || context.constraintsChanged;
 
-        //TODO: const iterator on graph
-        uint32_t currentEdge = island.edges;
-        while(currentEdge != IslandGraph::INVALID) {
-          const IslandGraph::Edge& e = graph->edges[currentEdge];
-          //Use the edge to get the manifold to see if there is anything to solve
-          if(e.data < manifolds.size()) {
-            SP::ContactManifold& manifold = manifolds.at(e.data);
-            if(manifold.size) {
-              //This is a constraint to solve, pull out the required information
-              const BodyMapping bodyA = getOrCreateBody(graph->nodes[e.nodeA].data, solver, shapeContext, resolver);
-              const BodyMapping bodyB = getOrCreateBody(graph->nodes[e.nodeB].data, solver, shapeContext, resolver);
-              if(bodyA.constraintMask & bodyB.constraintMask) {
-                constraintIndex += addConstraints(solver,
-                  bodyA.solverIndex,
-                  bodyB.solverIndex,
-                  manifold,
-                  constraintIndex,
-                  combineMaterials(bodyA.material, bodyB.material),
-                  globals
-                );
-              }
-            }
-          }
-          currentEdge = e.islandNext;
-        }
+        initSolving(context);
 
-        //Remove any excess. This could be since multiple objects mapped to the infinite mass index, some data was not present,
-        //or their constraint masks indicated they don't want to solve against each-other
-        solver.solver.resize(static_cast<BodyIndex>(solver.bodies.size()), constraintIndex);
-
-        solver.solver.premultiply();
-        PGS::SolveContext context{ solver.solver.createContext() };
+        context.solver.solver.premultiply();
+        PGS::SolveContext pgsContext{ context.solver.solver.createContext() };
         //TODO: consider skipping when there is no warm start. Maybe it's uncommon enough not to be worth it
-        PGS::warmStart(context);
+        PGS::warmStart(pgsContext);
         PGS::SolveResult solveResult;
         do {
-          solveResult = PGS::advancePGS(context);
-          for(const ContactMapping& mapping : solver.contactMappings) {
+          solveResult = PGS::advancePGS(pgsContext);
+          for(const ContactMapping& mapping : context.solver.contactMappings) {
             mapping.visit([&](const ContactMapping::Indices& indices) {
               if(indices.frictionIndex) {
                 //Friction force is proportional to normal force, update the bounds based on the currently
                 //applied normal force
-                const float normalForce = std::abs(context.lambda[indices.contactIndex])*mapping.combinedMaterial.frictionCoefficient;
-                solver.solver.setLambdaBounds(*indices.frictionIndex, -normalForce, normalForce);
+                const float normalForce = std::abs(pgsContext.lambda[indices.contactIndex])*mapping.combinedMaterial.frictionCoefficient;
+                context.solver.solver.setLambdaBounds(*indices.frictionIndex, -normalForce, normalForce);
               }
             });
           }
         } while(!solveResult.isFinished);
 
         //Write out the solved velocities
-        for(IslandBody& body : solver.bodies) {
+        for(IslandBody& body : context.solver.bodies) {
           if(body) {
-            PGS::BodyVelocity v = context.velocity.getBody(body.solverIndex);
+            PGS::BodyVelocity v = pgsContext.velocity.getBody(body.solverIndex);
             //TODO: accumulate this energy to check for sleep elligibility
             *body.velocityX = v.linear.x;
             *body.velocityY = v.linear.y;
@@ -695,9 +823,9 @@ namespace ConstraintSolver {
           }
         }
         //Store warm starts for next time
-        for(ConstraintIndex c = 0; c < constraintIndex; ++c) {
-          if(float* storage = solver.warmStartStorage[c]) {
-            *storage = solver.solver.lambda[c];
+        for(ConstraintIndex c = 0; c < context.solver.solver.lambda.size(); ++c) {
+          if(float* storage = context.solver.warmStartStorage[c]) {
+            *storage = context.solver.solver.lambda[c];
           }
         }
       }

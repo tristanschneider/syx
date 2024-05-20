@@ -32,7 +32,12 @@ namespace PGS1D {
     velocity.clear();
   }
 
-  void SolverStorage::resize(BodyIndex bodies, ConstraintIndex constraints) {
+  void SolverStorage::resizeBodies(BodyIndex bodies) {
+    mass.resize(static_cast<size_t>(bodies) * MassMatrix::STRIDE);
+    velocity.resize(static_cast<size_t>(bodies) * ConstraintVelocity::STRIDE);
+  }
+
+  void SolverStorage::resizeConstraints(ConstraintIndex constraints) {
     lambda.resize(constraints);
     lambdaMin.resize(constraints);
     lambdaMax.resize(constraints);
@@ -41,8 +46,11 @@ namespace PGS1D {
     jacobianTMass.resize(static_cast<size_t>(constraints) * Jacobian::STRIDE);
     bias.resize(constraints);
     jacobianMapping.resize(static_cast<size_t>(constraints) * JacobianMapping::STRIDE);
-    mass.resize(static_cast<size_t>(bodies) * MassMatrix::STRIDE);
-    velocity.resize(static_cast<size_t>(bodies) * ConstraintVelocity::STRIDE);
+  }
+
+  void SolverStorage::resize(BodyIndex bodies, ConstraintIndex constraints) {
+    resizeBodies(bodies);
+    resizeConstraints(constraints);
   }
 
   BodyIndex SolverStorage::bodyCount() const {

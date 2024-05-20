@@ -155,7 +155,7 @@ namespace IslandGraph {
       const bool nodesChanged = populateIsland(graph, island, static_cast<IslandIndex>(i));
       //If island is now empty, add it to the free list if it isn't already
       if(!island.size()) {
-        island = {};
+        island.clear();
         graph.islands.deleteIndex(static_cast<IslandIndex>(i));
       }
       else {
@@ -176,6 +176,9 @@ namespace IslandGraph {
       }
       const IslandIndex islandIndex = graph.islands.newIndex();
       Island& newIsland = graph.islands.values[islandIndex];
+      if(!newIsland.userdata && graph.userdataFactory) {
+        newIsland.userdata = graph.userdataFactory->create();
+      }
       newIsland.nodes = newNode;
       populateIsland(graph, newIsland, islandIndex);
       if(newIsland.size()) {
@@ -196,7 +199,7 @@ namespace IslandGraph {
       }
       else {
         //Didn't actually want to make this island after-all, put it back in the free list
-        newIsland = {};
+        newIsland.clear();
         graph.islands.deleteIndex(islandIndex);
       }
     }

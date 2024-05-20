@@ -146,6 +146,8 @@ namespace PGS {
     static constexpr float UNLIMITED_MAX = std::numeric_limits<float>::max();
 
     void clear();
+    void resizeBodies(BodyIndex bodies);
+    void resizeConstraints(ConstraintIndex constraints);
     void resize(BodyIndex bodies, ConstraintIndex constraints);
     BodyIndex bodyCount() const;
     ConstraintIndex constraintCount() const;

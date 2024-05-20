@@ -17,6 +17,16 @@ namespace IslandGraph {
   constexpr IslandPropagationMask PROPAGATE_NONE{ static_cast<IslandPropagationMask>(0) };
   using IslandIndex = uint16_t;
 
+  struct IIslandUserdata {
+    virtual ~IIslandUserdata() = default;
+    virtual void clear() = 0;
+  };
+
+  struct IIslandUserdataFactory {
+    virtual ~IIslandUserdataFactory() = default;
+    virtual std::unique_ptr<IIslandUserdata> create() = 0;
+  };
+
   static constexpr uint32_t INVALID = std::numeric_limits<uint32_t>::max();
   static constexpr IslandIndex INVALID_ISLAND = std::numeric_limits<uint16_t>::max();
   struct Node {
@@ -50,11 +60,18 @@ namespace IslandGraph {
       return nodeCount;
     }
 
+    void clear() {
+      Island temp;
+      temp.userdata = std::move(userdata);
+      *this = std::move(temp);
+    }
+
     uint32_t nodes{ INVALID };
     uint32_t edges{ INVALID };
     uint32_t nodeCount{};
     uint32_t edgeCount{};
     IslandIndex nextFreeIsland{ INVALID_ISLAND };
+    std::unique_ptr<IIslandUserdata> userdata;
   };
   constexpr static uint32_t FREE_INDEX = std::numeric_limits<uint32_t>::max() - 1;
 }
@@ -472,6 +489,7 @@ namespace IslandGraph {
     std::vector<bool> publishedIslandNodesChanged, publishedIslandEdgesChanged;
     std::vector<uint32_t> newNodes;
     std::vector<uint32_t> scratchBuffer;
+    std::unique_ptr<IIslandUserdataFactory> userdataFactory;
   };
 
   EdgeUserdata addUnmappedEdge(Graph& graph, const NodeUserdata& a, const NodeUserdata& b);
