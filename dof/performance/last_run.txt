@@ -78,3 +78,19 @@ Total 10732241800
 Min 9594600
 Max 57447900
 Avg 10732241
+
+Parallel solving hack for large islands 1000
+
+Start 4379800
+Total 9392289300
+Min 7647600
+Max 60953700
+Avg 9392289
+
+Parallel solving hack for large islands 500
+
+Start 5464900
+Total 9262614800
+Min 7596900
+Max 50776500
+Avg 9262614

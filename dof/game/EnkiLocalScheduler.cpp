@@ -5,6 +5,7 @@
 #include "ILocalScheduler.h"
 #include "Profile.h"
 #include "Scheduler.h"
+#include "AppBuilder.h"
 
 namespace Tasks {
   struct SchedulerArgs {
@@ -24,12 +25,21 @@ namespace Tasks {
       return *static_cast<enki::TaskSet*>(handle.data);
     }
 
-    TaskHandle queueTask(TaskCallback&& task) final {
+    TaskHandle queueTask(TaskCallback&& task, const AppTaskSize& size) final {
       tasks.emplace_back();
       auto& t = tasks.back();
-      t.m_Function = [cb{std::move(task)}](enki::TaskSetPartition, uint32_t) {
+      if(size.batchSize) {
+        t.m_MinRange = static_cast<uint32_t>(size.batchSize);
+        t.m_SetSize = static_cast<uint32_t>(size.workItemCount);
+      }
+      t.m_Function = [cb{std::move(task)}](enki::TaskSetPartition partition, uint32_t thread) {
         PROFILE_SCOPE("scheduler", "local");
-        cb();
+        AppTaskArgs args;
+        //TODO: populate other args as well
+        args.begin = partition.start;
+        args.end = partition.end;
+        args.threadIndex = thread;
+        cb(args);
       };
       ++tasksRemaining;
       args.scheduler.mScheduler.AddTaskSetToPipe(&t);
@@ -48,6 +58,10 @@ namespace Tasks {
       if(!tasksRemaining) {
         tasks.clear();
       }
+    }
+
+    size_t getThreadCount() const final {
+      return args.scheduler.mScheduler.GetNumTaskThreads();
     }
 
     SchedulerArgs args;

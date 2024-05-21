@@ -1,7 +1,10 @@
 #pragma once
 
+struct AppTaskArgs;
+struct AppTaskSize;
+
 namespace Tasks {
-  using TaskCallback = std::function<void()>;
+  using TaskCallback = std::function<void(AppTaskArgs&)>;
   struct TaskHandle {
     void* data{};
   };
@@ -12,9 +15,10 @@ namespace Tasks {
   struct ILocalScheduler {
     virtual ~ILocalScheduler() = default;
 
-    virtual TaskHandle queueTask(TaskCallback&& task) = 0;
+    virtual TaskHandle queueTask(TaskCallback&& task, const AppTaskSize& size) = 0;
     //Caller should only await each task exactly once
     virtual void awaitTasks(const TaskHandle* tasks, size_t count, const AwaitOptions& ops) = 0;
+    virtual size_t getThreadCount() const = 0;
   };
 
   struct ILocalSchedulerFactory {

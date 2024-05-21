@@ -195,6 +195,8 @@ namespace PGS {
   SolveResult solvePGS(SolveContext& solver);
   //Iterate once
   SolveResult advancePGS(SolveContext& solver);
+  SolveResult advancePGS(SolveContext& solver, size_t begin, size_t end);
+  void advanceIteration(SolveContext& solver, SolveResult& result);
   void warmStart(SolveContext& solver);
   //Warm start and iterate until solved
   SolveResult solvePGSWarmStart(SolveContext& solver);

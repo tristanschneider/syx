@@ -173,11 +173,23 @@ namespace PGS {
     return result;
   }
 
+  void advanceIteration(SolveContext& solver, SolveResult& result) {
+    ++solver.currentIteration;
+    //Done if iteration cap has been reached or solution has reached desired stability
+    result.isFinished = solver.currentIteration >= solver.maxIterations || result.remainingError <= solver.maxLambda;
+  }
+
   SolveResult advancePGS(SolveContext& solver) {
+    SolveResult result = advancePGS(solver, 0, solver.constraints);
+    advanceIteration(solver, result);
+    return result;
+  }
+
+  SolveResult advancePGS(SolveContext& solver, size_t begin, size_t end) {
     //Precompute the diagonal of the matrix on the first iteration
     //TODO: should premultiply step go here too?
     if(!solver.currentIteration) {
-      for(ConstraintIndex i = 0; i < solver.constraints; ++i) {
+      for(ConstraintIndex i = begin; i < end; ++i) {
         const float* jma = solver.jacobianTMass.getJacobianIndex(i);
         const float* jmb = jma + Jacobian::BLOCK_SIZE;
         const float* ja = solver.jacobian.getJacobianIndex(i);
@@ -187,7 +199,7 @@ namespace PGS {
     }
 
     SolveResult result;
-    for(ConstraintIndex i = 0; i < solver.constraints; ++i) {
+    for(ConstraintIndex i = begin; i < end; ++i) {
       auto [a, b] = solver.mapping.getPairForConstraint(i);
       const float* ja = solver.jacobian.getJacobianIndex(i);
       const float* jb = ja + Jacobian::BLOCK_SIZE;
@@ -203,10 +215,6 @@ namespace PGS {
       applyImpulse(va, vb, lambda, solver.jacobianTMass.getJacobianIndex(i));
       result.remainingError = std::max(result.remainingError, std::abs(lambda));
     }
-
-    ++solver.currentIteration;
-    //Done if iteration cap has been reached or solution has reached desired stability
-    result.isFinished = solver.currentIteration >= solver.maxIterations || result.remainingError <= solver.maxLambda;
     return result;
   }
 

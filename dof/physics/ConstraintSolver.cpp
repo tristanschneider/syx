@@ -274,6 +274,7 @@ namespace ConstraintSolver {
     gnx::HashMap<IslandGraph::NodeUserdata, BodyMapping> islandToBodyIndex;
     PGS::SolverStorage solver;
     std::vector<CachedEdge> cachedEdges;
+    std::vector<PGS::SolveResult> solveResults;
   };
   struct ZSolverPair {
     BodyIndex a{};
@@ -658,6 +659,7 @@ namespace ConstraintSolver {
     bool bodiesChanged{};
     bool constraintsChanged{};
     bool anyChanged{};
+    size_t threadCount{};
   };
 
   void insertManifoldConstraints(SolveContext& context, size_t manifoldIndex, ConstraintIndex& constraintIndex, IslandGraph::NodeUserdata a, IslandGraph::NodeUserdata b) {
@@ -760,11 +762,54 @@ namespace ConstraintSolver {
     }
     else {
       std::array initSteps{
-        context.scheduler.queueTask([&] { initSolvingBodies(context); }),
-        context.scheduler.queueTask([&] { initSolvingConstraints(context); })
+        context.scheduler.queueTask([&](const auto&) { initSolvingBodies(context); }, {}),
+        context.scheduler.queueTask([&](const auto&) { initSolvingConstraints(context); }, {})
       };
       context.scheduler.awaitTasks(initSteps.data(), initSteps.size(), {});
     }
+  }
+
+  void solveIterations(SolveContext& context) {
+    context.solver.solver.premultiply();
+    PGS::SolveContext pgsContext{ context.solver.solver.createContext() };
+    //TODO: consider skipping when there is no warm start. Maybe it's uncommon enough not to be worth it
+    PGS::warmStart(pgsContext);
+    PGS::SolveResult solveResult;
+    //Process giant islands in ranges. This is not physically correct but allows still spreading out the work
+    //even if many objects end up in a single island. This will be a race condition for the bodies that happen
+    //to be on the boundary of both threads. If we're lucky they happen to not overlap
+    AppTaskSize workSize;
+    workSize.batchSize = 500;
+    workSize.workItemCount = context.solver.solver.constraintCount();
+    context.solver.solveResults.clear();
+    context.solver.solveResults.resize(context.scheduler.getThreadCount());
+    do {
+      Tasks::TaskHandle solveIteration = context.scheduler.queueTask([&](AppTaskArgs& args) {
+        context.solver.solveResults[args.threadIndex] = PGS::advancePGS(pgsContext, args.begin, args.end);
+      }, workSize);
+
+      context.scheduler.awaitTasks(&solveIteration, 1, {});
+
+      for(PGS::SolveResult& threadResult : context.solver.solveResults) {
+        solveResult.remainingError += threadResult.remainingError;
+        threadResult.remainingError = 0;
+      }
+      PGS::advanceIteration(pgsContext, solveResult);
+
+      if(!context.globals.useConstantFriction) {
+        for(size_t i = 0; i < context.solver.contactMappings.size(); ++i) {
+          const ContactMapping& mapping = context.solver.contactMappings[i];
+          mapping.visit([&](const ContactMapping::Indices& indices) {
+            if(indices.frictionIndex) {
+              //Friction force is proportional to normal force, update the bounds based on the currently
+              //applied normal force
+              const float normalForce = std::abs(pgsContext.lambda[indices.contactIndex])*mapping.combinedMaterial.frictionCoefficient;
+              context.solver.solver.setLambdaBounds(*indices.frictionIndex, -normalForce, normalForce);
+            }
+          });
+        }
+      }
+    } while(!solveResult.isFinished);
   }
 
   void solveIsland(IAppBuilder& builder, const PhysicsAliases& tables, const SolverGlobals& globals) {
@@ -808,27 +853,13 @@ namespace ConstraintSolver {
         context.anyChanged = context.bodiesChanged || context.constraintsChanged;
 
         initSolving(context);
+        if(!context.solver.solver.constraintCount()) {
+          continue;
+        }
 
-        context.solver.solver.premultiply();
+        solveIterations(context);
+
         PGS::SolveContext pgsContext{ context.solver.solver.createContext() };
-        //TODO: consider skipping when there is no warm start. Maybe it's uncommon enough not to be worth it
-        PGS::warmStart(pgsContext);
-        PGS::SolveResult solveResult;
-        do {
-          solveResult = PGS::advancePGS(pgsContext);
-          if(!globals.useConstantFriction) {
-            for(const ContactMapping& mapping : context.solver.contactMappings) {
-              mapping.visit([&](const ContactMapping::Indices& indices) {
-                if(indices.frictionIndex) {
-                  //Friction force is proportional to normal force, update the bounds based on the currently
-                  //applied normal force
-                  const float normalForce = std::abs(pgsContext.lambda[indices.contactIndex])*mapping.combinedMaterial.frictionCoefficient;
-                  context.solver.solver.setLambdaBounds(*indices.frictionIndex, -normalForce, normalForce);
-                }
-              });
-            }
-          }
-        } while(!solveResult.isFinished);
 
         //Write out the solved velocities
         for(IslandBody& body : context.solver.bodies) {
