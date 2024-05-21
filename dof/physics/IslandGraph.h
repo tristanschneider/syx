@@ -71,6 +71,10 @@ namespace IslandGraph {
     uint32_t nodeCount{};
     uint32_t edgeCount{};
     IslandIndex nextFreeIsland{ INVALID_ISLAND };
+    //Hacky solution to detect island changes for no-propagation nodes
+    //Tracks all of them on the island since the node might belong to multiple islands
+    //Hopefully there are few per island
+    std::vector<uint32_t> noPropagateNodes;
     std::unique_ptr<IIslandUserdata> userdata;
   };
   constexpr static uint32_t FREE_INDEX = std::numeric_limits<uint32_t>::max() - 1;
@@ -488,7 +492,7 @@ namespace IslandGraph {
     //Information about which islands have changed nodes or edges for external use after rebuildIslands
     std::vector<bool> publishedIslandNodesChanged, publishedIslandEdgesChanged;
     std::vector<uint32_t> newNodes;
-    std::vector<uint32_t> scratchBuffer;
+    std::vector<uint32_t> scratchBuffer, scratchIslands;
     std::unique_ptr<IIslandUserdataFactory> userdataFactory;
   };
 
@@ -498,6 +502,8 @@ namespace IslandGraph {
   void removeEdge(Graph& graph, const Graph::EdgeIterator& it);
   void addNode(Graph& graph, const NodeUserdata& data, IslandPropagationMask propagation = PROPAGATE_ALL);
   void removeNode(Graph& graph, const NodeUserdata& data);
+  void notifyNodeChanged(Graph& graph, Graph::NodeIterator it);
+  void setPropagation(Graph& graph, Graph::NodeIterator it, IslandPropagationMask propagation);
 
   void rebuildIslands(Graph& graph);
 }

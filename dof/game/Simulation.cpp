@@ -1,12 +1,12 @@
 #include "Precompile.h"
 #include "Simulation.h"
 
-#include "Queries.h"
-
 #include "config/ConfigIO.h"
+#include "EnkiLocalScheduler.h"
 #include "File.h"
 #include "Fragment.h"
 #include "GameplayExtract.h"
+#include "ILocalScheduler.h"
 #include "stat/AllStatEffects.h"
 #include "TableAdapters.h"
 #include "ThreadLocals.h"
@@ -95,7 +95,13 @@ void Simulation::initScheduler(IAppBuilder& builder) {
     cfg.numTaskThreadsToCreate = std::min(static_cast<uint32_t>(4), cfg.numTaskThreadsToCreate);
 
     scheduler->mScheduler.Initialize(cfg);
-    tls->instance = std::make_unique<ThreadLocals>(scheduler->mScheduler.GetNumTaskThreads(), events->impl.get(), mappings);
+    tls->instance = std::make_unique<ThreadLocals>(
+      scheduler->mScheduler.GetNumTaskThreads(),
+      events->impl.get(),
+      mappings,
+      //ThreadLocals only uses this during the constructor
+      Tasks::createEnkiSchedulerFactory(*scheduler).get()
+    );
   });
   builder.submitTask(std::move(task));
 }

@@ -181,6 +181,17 @@ namespace gnx {
     void push_back(const T& v) { push_back(T{ v }); }
 
     void push_back(T&& v) {
+      auto [p, i] = _resizeForInsertBack();
+      new (&pages[p][i])T(std::move(v));
+    }
+
+    template<class... Args>
+    void emplace_back(Args&&... args) {
+      auto [p, i] = _resizeForInsertBack();
+      new (&pages[p][i])T{ std::forward<Args>(args)... };
+    }
+
+    std::pair<size_t, size_t> _resizeForInsertBack() {
       const size_t currentSize = size();
       auto [p, i] = getPageAndIndex(currentSize);
       if(p >= pageCount) {
@@ -191,7 +202,7 @@ namespace gnx {
       else {
         ++elementCount;
       }
-      new (&pages[p][i])T(std::move(v));
+      return std::make_pair(p, i);
     }
 
     void pop_back() {

@@ -105,7 +105,7 @@ namespace SP {
       auto ref = resolver->tryResolveRef(node);
       assert(ref);
       auto it = graph.findNode(ref);
-      graph.nodes[it.node].propagation = getMask(isImmobile);
+      IslandGraph::setPropagation(graph, it, getMask(isImmobile));
     }
 
     IslandGraph::Graph& graph;

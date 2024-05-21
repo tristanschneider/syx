@@ -70,3 +70,11 @@ Total 11246970800
 Min 9826800
 Max 52606600
 Avg 11246970
+
+Parallel constraint setup
+
+Start 4360900
+Total 10732241800
+Min 9594600
+Max 57447900
+Avg 10732241

@@ -10,6 +10,7 @@
 #include <bitset>
 #include "generics/Enum.h"
 #include "generics/HashMap.h"
+#include "ILocalScheduler.h"
 
 namespace ConstraintSolver {
   using ConstraintIndex = PGS::ConstraintIndex;
@@ -308,8 +309,6 @@ namespace ConstraintSolver {
 
   struct IslandTaskData {
     IslandGraph::IslandIndex islandIndex{};
-    size_t constraintBegin{};
-    size_t constraintEnd{};
   };
   struct IslandSolverCollection {
     std::vector<IslandTaskData> tasks;
@@ -370,6 +369,7 @@ namespace ConstraintSolver {
         body.velocityX = resolvedBody.velocity.linearX;
         body.velocityY = resolvedBody.velocity.linearY;
         body.angularVelocity = resolvedBody.velocity.angular;
+        body.ref = data;
         solver.solver.setMass(body.solverIndex, resolvedBody.mass->inverseMass, resolvedBody.mass->inverseInertia);
         solver.solver.setVelocity(body.solverIndex, { *body.velocityX, *body.velocityY }, *body.angularVelocity);
         solver.bodies.emplace_back(body);
@@ -548,21 +548,8 @@ namespace ConstraintSolver {
       //TODO: probably smarter way to reuse this
       collection->tasks.clear();
       for(IslandGraph::IslandIndex i = 0; i < static_cast<IslandGraph::IslandIndex>(graph->islands.values.size()); ++i) {
-        const IslandGraph::Island& island = graph->islands[i];
-        const size_t islandSize = island.size();
-        if(!islandSize) {
-          continue;
-        }
-        constexpr size_t MAX_ISLAND_SIZE = std::numeric_limits<size_t>::max();
-        size_t dispatched = 0;
-        while(dispatched < islandSize) {
-          const size_t taskSize = std::min(islandSize, MAX_ISLAND_SIZE);
-          IslandTaskData data;
-          data.islandIndex = i;
-          data.constraintBegin = dispatched;
-          data.constraintEnd = data.constraintBegin + taskSize;
-          dispatched += taskSize;
-          collection->tasks.push_back(data);
+        if(graph->islands[i].size()) {
+          collection->tasks.push_back({ i });
         }
       }
 
@@ -663,6 +650,7 @@ namespace ConstraintSolver {
     const IslandGraph::Island& island;
     const IslandGraph::Graph& graph;
     const SolverGlobals& globals;
+    Tasks::ILocalScheduler& scheduler;
     Resolver::ShapeResolverContext& shapeContext;
     ElementRefResolver& resolver;
     IslandSolver& solver;
@@ -695,7 +683,7 @@ namespace ConstraintSolver {
     }
   }
 
-  void initSolving(SolveContext& context) {
+  void initSolvingBodies(SolveContext& context) {
     //This may overshoot a bit if objects are close enough to have edges but didn't pass narrowphase
     //Each edge can have two contacts each of which can have two friction constraints
     if(context.bodiesChanged) {
@@ -710,11 +698,22 @@ namespace ConstraintSolver {
           body.velocityX = vel.linearX;
           body.velocityY = vel.linearY;
           body.angularVelocity = vel.angular;
-          context.solver.solver.setVelocity(body.solverIndex, { *body.velocityX, *body.velocityY }, *body.angularVelocity);
+          if(vel) {
+            context.solver.solver.setVelocity(body.solverIndex, { *body.velocityX, *body.velocityY }, *body.angularVelocity);
+          }
+          //This would happen if the body had mass/velocity previously but moved tables and now doesn't but is still in the same island
+          //Add them as manual zero-mass entry. They will turn into a normal zero index body when the island bodies are rebuilt
+          else {
+            context.solver.solver.setVelocity(body.solverIndex, { 0, 0 }, 0);
+            //Mass is assumed constant except for this case
+            context.solver.solver.setMass(body.solverIndex, 0, 0);
+          }
         }
       }
     }
+  }
 
+  void initSolvingConstraints(SolveContext& context) {
     //TODO: in theory something could be reused but the number of contact points might have changedso this needs to be cleared anyway
     const size_t maxConstraintCount = static_cast<ConstraintIndex>(context.island.edgeCount*4);
     context.solver.resetForConstraints(maxConstraintCount);
@@ -752,6 +751,22 @@ namespace ConstraintSolver {
     context.solver.finalizeConstraintCount(constraintIndex);
   }
 
+  void initSolving(SolveContext& context) {
+    //If bodies didn't change then refetching their velocities can be done while constraints are built
+    //Otherwise, bodies are builts as constraints are traversed
+    if(context.bodiesChanged) {
+      initSolvingBodies(context);
+      initSolvingConstraints(context);
+    }
+    else {
+      std::array initSteps{
+        context.scheduler.queueTask([&] { initSolvingBodies(context); }),
+        context.scheduler.queueTask([&] { initSolvingConstraints(context); })
+      };
+      context.scheduler.awaitTasks(initSteps.data(), initSteps.size(), {});
+    }
+  }
+
   void solveIsland(IAppBuilder& builder, const PhysicsAliases& tables, const SolverGlobals& globals) {
     auto task = builder.createTask();
     task.setName("solve islands");
@@ -782,6 +797,7 @@ namespace ConstraintSolver {
           island,
           *graph,
           globals,
+          *args.scheduler,
           shapeContext,
           resolver,
           static_cast<IslandStorage&>(*island.userdata).xySolver,

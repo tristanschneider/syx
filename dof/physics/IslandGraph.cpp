@@ -54,11 +54,14 @@ namespace IslandGraph {
   bool populateIsland(Graph& graph, Island& island, IslandIndex islandIndex) {
     bool didChange = false;
     std::vector<uint32_t>& nodesTodo = graph.scratchBuffer;
+    std::vector<uint32_t>& oldNoPropagateNodes = graph.scratchIslands;
+    oldNoPropagateNodes.clear();
     const uint32_t islandRootIndex = island.nodes;
     const uint32_t oldCount = island.nodeCount;
     island.edgeCount = island.nodeCount = 0;
     island.edges = INVALID;
     island.nodes = INVALID;
+    island.noPropagateNodes.swap(oldNoPropagateNodes);
     if(islandRootIndex == INVALID) {
       return didChange;
     }
@@ -80,7 +83,16 @@ namespace IslandGraph {
       nodesTodo.pop_back();
       //Nodes without propagation are only visited from others. So they'll show up in the island
       //if another node has an edge to it but edges between two non-propagating nodes won't
-      if(graph.visitedNodes[currentIndex] || !node.propagation || graph.nodes.isFree(currentIndex)) {
+      if(graph.visitedNodes[currentIndex] || graph.nodes.isFree(currentIndex)) {
+        continue;
+      }
+
+      if(!node.propagation) {
+        //Sorted insert without duplicates
+        auto it = std::lower_bound(island.noPropagateNodes.begin(), island.noPropagateNodes.end(), currentIndex);
+        if(it == island.noPropagateNodes.end() || *it != currentIndex) {
+          island.noPropagateNodes.insert(it, currentIndex);
+        }
         continue;
       }
       //Add node to linked list for this island
@@ -120,7 +132,7 @@ namespace IslandGraph {
         node.islandIndex = INVALID_ISLAND;
       }
     }
-    if(oldCount != island.nodeCount) {
+    if(oldCount != island.nodeCount || oldNoPropagateNodes != island.noPropagateNodes) {
       didChange = true;
     }
     return didChange;
@@ -171,17 +183,17 @@ namespace IslandGraph {
     //been traversed above
     //Otherwise, they must form new islands
     for(uint32_t newNode : graph.newNodes) {
-      if(graph.visitedNodes[newNode]) {
+      if(graph.visitedNodes[newNode] || !graph.nodes[newNode].propagation) {
         continue;
       }
       const IslandIndex islandIndex = graph.islands.newIndex();
       Island& newIsland = graph.islands.values[islandIndex];
-      if(!newIsland.userdata && graph.userdataFactory) {
-        newIsland.userdata = graph.userdataFactory->create();
-      }
       newIsland.nodes = newNode;
       populateIsland(graph, newIsland, islandIndex);
       if(newIsland.size()) {
+        if(!newIsland.userdata && graph.userdataFactory) {
+          newIsland.userdata = graph.userdataFactory->create();
+        }
         //Ensure there's a matching entry for the changed islands bitset.
         //No action needed if island was from the free list since it would already be non-changed
         if(islandIndex >= graph.changedIslands.size()) {
@@ -372,6 +384,42 @@ namespace IslandGraph {
     //All edges have been removed, remove the node itself
     graph.nodes.deleteIndex(toRemove);
   }
+
+  void notifyNodeChanged(Graph& graph, Graph::NodeIterator it) {
+    if(it != graph.nodesEnd()) {
+      logChangedNode(graph, graph.nodes[it.node]);
+    }
+  }
+
+  void setPropagation(Graph& graph, Graph::NodeIterator it, IslandPropagationMask propagation) {
+    if(it != graph.nodesEnd()) {
+      Node& node = graph.nodes[it.node];
+      //If this is going from a propagating node to non-propagating it can no longer be the root
+      //of any islands nor store an island index
+      if(node.propagation && !propagation) {
+        //This will mark as changed and move the head of the island
+        logRemovedNode(graph, node);
+        uint32_t current = node.edges;
+        //Go through all edges this was connected to and notify potential split
+        while(current != INVALID) {
+          EdgeEntry& entry = graph.edgeEntries[current];
+          Edge& edge = graph.edges[entry.edge];
+
+          //Remove entry for edge in other object
+          const uint32_t other = edge.nodeA == it.node ? edge.nodeB : edge.nodeA;
+          Node& otherNode = graph.nodes[other];
+          //Any edge outgoing from the changed node might need to split into a new island, mark them for evaluation
+          logMaybeSplitIslandNode(graph, otherNode);
+          current = entry.nextEntry;
+        }
+      }
+      //For any other propagation changes they can get picked up by marking as changed
+      else {
+        notifyNodeChanged(graph, it);
+      }
+    }
+  }
+
 
     Graph::EdgeIterator Graph::findEdge(const NodeUserdata& a, const NodeUserdata& b) {
       const Graph* self = this;

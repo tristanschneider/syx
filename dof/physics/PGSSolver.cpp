@@ -214,26 +214,23 @@ namespace PGS {
     for(ConstraintIndex i = 0; i < solver.constraints; ++i) {
       auto [a, b] = solver.mapping.getPairForConstraint(i);
       //Convention is that infinite mass objects are a, and b would never also be infinite mass
-      const float* ja = solver.jacobian.getJacobianIndex(i);
+      const float* ja = solver.jacobianTMass.getJacobianIndex(i);
       const float* jb = ja + Jacobian::BLOCK_SIZE;
       if (a != JacobianMapping::INFINITE_MASS) {
-        //TODO: use jacobianTMass
-        const float* ma = solver.mass.getObjectMass(a);
         float* va = solver.velocity.getObjectVelocity(a);
         //Linear
-        va[0] += *ma*ja[0]*solver.lambda[i];
-        va[1] += *ma*ja[1]*solver.lambda[i];
+        va[0] += ja[0]*solver.lambda[i];
+        va[1] += ja[1]*solver.lambda[i];
         //Angular
-        va[2] += *(ma + 1)*ja[2]*solver.lambda[i];
+        va[2] += ja[2]*solver.lambda[i];
       }
 
-      const float* mb = solver.mass.getObjectMass(b);
       float* vb = solver.velocity.getObjectVelocity(b);
       //Linear
-      vb[0] += *mb*jb[0]*solver.lambda[i];
-      vb[1] += *mb*jb[1]*solver.lambda[i];
+      vb[0] += jb[0]*solver.lambda[i];
+      vb[1] += jb[1]*solver.lambda[i];
       //Angular
-      vb[2] += *(mb + 1)*jb[2]*solver.lambda[i];
+      vb[2] += jb[2]*solver.lambda[i];
     }
   }
 

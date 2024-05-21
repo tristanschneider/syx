@@ -165,10 +165,15 @@ struct AppTaskConfig {
   std::function<void(const AppTaskSize&)> setSize;
 };
 
+namespace Tasks {
+  struct ILocalScheduler;
+};
+
 struct AppTaskArgs {
   size_t begin{};
   size_t end{};
   size_t threadIndex{};
+  Tasks::ILocalScheduler* scheduler{};
   void* threadLocal{};
 };
 using AppTaskCallback = std::function<void(AppTaskArgs&)>;

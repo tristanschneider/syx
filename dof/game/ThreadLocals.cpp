@@ -4,11 +4,13 @@
 #include "AppBuilder.h"
 #include "Random.h"
 #include "stat/AllStatEffects.h"
+#include "ILocalScheduler.h"
 
 namespace details {
   struct ThreadData {
     StatEffectDatabase statEffects;
     std::unique_ptr<IRandom> random = Random::twister();
+    std::unique_ptr<Tasks::ILocalScheduler> scheduler;
   };
 
   struct ThreadLocalsImpl {
@@ -19,13 +21,20 @@ namespace details {
   };
 };
 
-ThreadLocals::ThreadLocals(size_t size, Events::EventsImpl* events, StableElementMappings* mappings)
+ThreadLocals::ThreadLocals(size_t size,
+  Events::EventsImpl* events,
+  StableElementMappings* mappings,
+  Tasks::ILocalSchedulerFactory* schedulerFactory
+)
   : data(std::make_unique<details::ThreadLocalsImpl>()) {
   data->threads.resize(size);
   data->events = events;
   data->mappings = mappings;
   for(size_t i = 0; i < size; ++i) {
     auto t = std::make_unique<details::ThreadData>();
+    if(schedulerFactory) {
+      t->scheduler = schedulerFactory->create();
+    }
     data->threads[i] = std::move(t);
   }
 }
@@ -44,7 +53,8 @@ ThreadLocalData ThreadLocals::get(size_t thread) {
     &t->statEffects,
     data->events,
     data->mappings,
-    t->random.get()
+    t->random.get(),
+    t->scheduler.get()
   };
 }
 
