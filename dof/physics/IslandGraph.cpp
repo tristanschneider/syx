@@ -417,6 +417,7 @@ namespace IslandGraph {
       else {
         notifyNodeChanged(graph, it);
       }
+      node.propagation = propagation;
     }
   }
 
