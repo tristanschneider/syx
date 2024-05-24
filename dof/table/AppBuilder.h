@@ -336,7 +336,7 @@ private:
   template<class T>
   void log(const std::vector<UnpackedDatabaseElementID>& tableIds) {
     using DT = std::decay_t<T>;
-    log(tableIds, TypeIDT::get<DT>(), std::is_const_v<DT>);
+    log(tableIds, TypeIDT::get<DT>(), std::is_const_v<T>);
   }
 
   void log(const std::vector<UnpackedDatabaseElementID>& tableIds, const TypeIDT& id, bool isConst);

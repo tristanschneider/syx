@@ -94,3 +94,11 @@ Total 9262614800
 Min 7596900
 Max 50776500
 Avg 9262614
+
+Fix dependency tracking bug causing unnecessary synchronous dependencies
+
+Start 3576900
+Total 7866665400
+Min 7007700
+Max 48218600
+Avg 7866665
