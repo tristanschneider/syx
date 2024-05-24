@@ -102,3 +102,11 @@ Total 7866665400
 Min 7007700
 Max 48218600
 Avg 7866665
+
+Increase max cores from 4 to 8
+
+Start 4029000
+Total 7662997800
+Min 6624700
+Max 44464600
+Avg 7662997
