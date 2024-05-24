@@ -343,7 +343,7 @@ namespace ConstraintSolver {
     solver.bodies.emplace_back();
   }
 
-  BodyMapping getOrCreateBody(
+  BodyMapping getOrCreateBodyMapping(
     const IslandGraph::NodeUserdata& data,
     IslandSolver& solver,
     Resolver::ShapeResolverContext& resolver,
@@ -354,8 +354,6 @@ namespace ConstraintSolver {
     }
     ConstraintMask constraintMask{};
     Material material{ Resolver::DEFAULT_MATERIAL };
-
-    //TODO: lookup could be avoided if using the StableElementID on the spatial pairs table
     if(auto resolved = ids.tryUnpack(data)) {
       ConstraintBody resolvedBody{ Resolver::resolveAll(resolver, *resolved) };
       constraintMask = resolvedBody.constraintMask;
@@ -365,14 +363,9 @@ namespace ConstraintSolver {
       if(resolvedBody.mass && resolvedBody.velocity) {
         IslandBody body;
         body.solverIndex = static_cast<BodyIndex>(solver.bodies.size());
+        body.ref = data;
         const BodyMapping mapping{ body.solverIndex, constraintMask, material };
         solver.islandToBodyIndex[data] = mapping;
-        body.velocityX = resolvedBody.velocity.linearX;
-        body.velocityY = resolvedBody.velocity.linearY;
-        body.angularVelocity = resolvedBody.velocity.angular;
-        body.ref = data;
-        solver.solver.setMass(body.solverIndex, resolvedBody.mass->inverseMass, resolvedBody.mass->inverseInertia);
-        solver.solver.setVelocity(body.solverIndex, { *body.velocityX, *body.velocityY }, *body.angularVelocity);
         solver.bodies.emplace_back(body);
         return mapping;
       }
@@ -381,6 +374,55 @@ namespace ConstraintSolver {
     const BodyMapping mapping{ INFINITE_MASS_INDEX, constraintMask, material };
     solver.islandToBodyIndex[data] = mapping;
     return mapping;
+  }
+
+  void fillIslandBodies(
+    IslandSolver& solver,
+    Resolver::ShapeResolverContext& resolver,
+    const ElementRefResolver& ids,
+    size_t begin,
+    size_t end
+  ) {
+    PROFILE_SCOPE("physics", "fillislandbodies");
+    for(size_t i = begin; i < end; ++i) {
+      IslandBody& body = solver.bodies[i];
+      if(auto resolved = ids.tryUnpack(body.ref)) {
+        ConstraintBody resolvedBody{ Resolver::resolveAll(resolver, *resolved) };
+        body.velocityX = resolvedBody.velocity.linearX;
+        body.velocityY = resolvedBody.velocity.linearY;
+        body.angularVelocity = resolvedBody.velocity.angular;
+        //TODO: skip mass if bodies didn't change
+        solver.solver.setMass(body.solverIndex, resolvedBody.mass->inverseMass, resolvedBody.mass->inverseInertia);
+        if(resolvedBody.velocity) {
+          solver.solver.setVelocity(body.solverIndex, { *body.velocityX, *body.velocityY }, *body.angularVelocity);
+        }
+        //TODO: can this happen?
+        else {
+          solver.solver.setVelocity(body.solverIndex, { 0, 0 }, 0);
+          //Mass is assumed constant except for this case
+          solver.solver.setMass(body.solverIndex, 0, 0);
+        }
+      }
+    }
+  }
+
+  //TODO: combine with fillBodyVelocity
+  void fillIslandBodies(
+    IslandSolver& solver,
+    Resolver::ShapeResolverContext& resolver,
+    const ElementRefResolver& ids
+  ) {
+    fillIslandBodies(solver, resolver, ids, 0, solver.bodies.size());
+  }
+
+  //TODO: const iterator so this can be const
+  const BodyMapping& getBodyMapping(const IslandGraph::NodeUserdata& data, IslandSolver& solver) {
+    if(auto it = solver.islandToBodyIndex.find(data); it != solver.islandToBodyIndex.end()) {
+      return it->second;
+    }
+    // shouldn't happen
+    static BodyMapping empty{ INFINITE_MASS_INDEX, ConstraintMask{}, Resolver::DEFAULT_MATERIAL };
+    return empty;
   }
 
   BodyMapping getOrCreateBody(
@@ -670,8 +712,8 @@ namespace ConstraintSolver {
     SP::ContactManifold& manifold = context.manifolds.at(manifoldIndex);
     if(manifold.size) {
       //This is a constraint to solve, pull out the required information
-      const BodyMapping bodyA = getOrCreateBody(a, context.solver, context.shapeContext, context.resolver);
-      const BodyMapping bodyB = getOrCreateBody(b, context.solver, context.shapeContext, context.resolver);
+      const BodyMapping& bodyA = getBodyMapping(a, context.solver);
+      const BodyMapping& bodyB = getBodyMapping(b, context.solver);
       if(bodyA.constraintMask & bodyB.constraintMask) {
         constraintIndex += addConstraints(context.solver,
           bodyA.solverIndex,
@@ -685,66 +727,69 @@ namespace ConstraintSolver {
     }
   }
 
-  void initSolvingBodies(SolveContext& context) {
-    //This may overshoot a bit if objects are close enough to have edges but didn't pass narrowphase
-    //Each edge can have two contacts each of which can have two friction constraints
-    if(context.bodiesChanged) {
-      context.solver.resetForBodies(static_cast<BodyIndex>(context.island.nodeCount + 1));
-      insertInfiniteMassBody(context.solver);
-    }
-    else {
-      //If bodies didn't change it's still necessary to go update the velocity pointers in case objects moved tables since last time
-      for(IslandBody& body : context.solver.bodies) {
-        if(auto id = context.resolver.tryUnpack(body.ref)) {
-          BodyVelocity vel = Resolver::resolveBodyVelocity(context.shapeContext, *id);
-          body.velocityX = vel.linearX;
-          body.velocityY = vel.linearY;
-          body.angularVelocity = vel.angular;
-          if(vel) {
-            context.solver.solver.setVelocity(body.solverIndex, { *body.velocityX, *body.velocityY }, *body.angularVelocity);
-          }
-          //This would happen if the body had mass/velocity previously but moved tables and now doesn't but is still in the same island
-          //Add them as manual zero-mass entry. They will turn into a normal zero index body when the island bodies are rebuilt
-          else {
-            context.solver.solver.setVelocity(body.solverIndex, { 0, 0 }, 0);
-            //Mass is assumed constant except for this case
-            context.solver.solver.setMass(body.solverIndex, 0, 0);
-          }
+  //TODO: combine with fillIslandBodies
+  /*
+  void initSolvingBodyVelocities(SolveContext& context) {
+    for(IslandBody& body : context.solver.bodies) {
+      if(auto id = context.resolver.tryUnpack(body.ref)) {
+        BodyVelocity vel = Resolver::resolveBodyVelocity(context.shapeContext, *id);
+        body.velocityX = vel.linearX;
+        body.velocityY = vel.linearY;
+        body.angularVelocity = vel.angular;
+        if(vel) {
+          context.solver.solver.setVelocity(body.solverIndex, { *body.velocityX, *body.velocityY }, *body.angularVelocity);
+        }
+        //This would happen if the body had mass/velocity previously but moved tables and now doesn't but is still in the same island
+        //Add them as manual zero-mass entry. They will turn into a normal zero index body when the island bodies are rebuilt
+        else {
+          context.solver.solver.setVelocity(body.solverIndex, { 0, 0 }, 0);
+          //Mass is assumed constant except for this case
+          context.solver.solver.setMass(body.solverIndex, 0, 0);
         }
       }
     }
   }
+  */
+  //Creates body mappings and caches edges used for creating constraints
+  //For the case where bodies were the same caches the edges anyway
+  void initCreateBodyMappings(SolveContext& context) {
+    if(context.bodiesChanged) {
+      context.solver.resetForBodies(static_cast<BodyIndex>(context.island.nodeCount + 1));
+      insertInfiniteMassBody(context.solver);
+    }
 
-  void initSolvingConstraints(SolveContext& context) {
-    //TODO: in theory something could be reused but the number of contact points might have changedso this needs to be cleared anyway
-    const size_t maxConstraintCount = static_cast<ConstraintIndex>(context.island.edgeCount*4);
-    context.solver.resetForConstraints(maxConstraintCount);
-
-    ConstraintIndex constraintIndex{};
-    //If they changed, traverse the graph and cache the new edge list
-    if(context.constraintsChanged) {
+    if(context.anyChanged) {
       uint32_t currentEdge = context.island.edges;
       context.solver.cachedEdges.clear();
       while(currentEdge != IslandGraph::INVALID) {
         const IslandGraph::Edge& e = context.graph.edges[currentEdge];
         //Use the edge to get the manifold to see if there is anything to solve
         if(e.data < context.manifolds.size()) {
-          if(SP::ContactManifold& manifold = context.manifolds.at(e.data); manifold.size) {
-            const IslandGraph::NodeUserdata uA = context.graph.nodes[e.nodeA].data;
-            const IslandGraph::NodeUserdata uB = context.graph.nodes[e.nodeB].data;
-            insertManifoldConstraints(context, e.data, constraintIndex, uA, uB);
-            context.solver.cachedEdges.push_back({ e.data, uA, uB });
+          const IslandGraph::NodeUserdata uA = context.graph.nodes[e.nodeA].data;
+          const IslandGraph::NodeUserdata uB = context.graph.nodes[e.nodeB].data;
+          //TODO: can anything be done to skip non-collisions here? I think not since they need to be checked next time
+          if(context.bodiesChanged) {
+            getOrCreateBodyMapping(uA, context.solver, context.shapeContext, context.resolver);
+            getOrCreateBodyMapping(uB, context.solver, context.shapeContext, context.resolver);
           }
+          //The edge always needs to be traversed to check for collisions even if the graph edges don't change
+          context.solver.cachedEdges.push_back({ e.data, uA, uB });
         }
         currentEdge = e.islandNext;
       }
     }
-    //If they didn't change, used the cached edge list from a previous traversal
-    else {
-      for(const CachedEdge& edge : context.solver.cachedEdges) {
-        if(const SP::ContactManifold* man = edge.manifoldIndex < context.manifolds.size() ? &context.manifolds.at(edge.manifoldIndex) : nullptr; man && man->size) {
-          insertManifoldConstraints(context, edge.manifoldIndex, constraintIndex, edge.bodyA, edge.bodyB);
-        }
+  }
+
+  void initSolvingConstraints(SolveContext& context) {
+    PROFILE_SCOPE("physics", "initconstraints");
+    //TODO: in theory something could be reused but the number of contact points might have changed so this needs to be cleared anyway
+    const size_t maxConstraintCount = static_cast<ConstraintIndex>(context.island.edgeCount*4);
+    context.solver.resetForConstraints(maxConstraintCount);
+
+    ConstraintIndex constraintIndex{};
+    for(const CachedEdge& edge : context.solver.cachedEdges) {
+      if(const SP::ContactManifold* man = edge.manifoldIndex < context.manifolds.size() ? &context.manifolds.at(edge.manifoldIndex) : nullptr; man && man->size) {
+        insertManifoldConstraints(context, edge.manifoldIndex, constraintIndex, edge.bodyA, edge.bodyB);
       }
     }
 
@@ -756,24 +801,30 @@ namespace ConstraintSolver {
   void initSolving(SolveContext& context) {
     //If bodies didn't change then refetching their velocities can be done while constraints are built
     //Otherwise, bodies are builts as constraints are traversed
-    if(context.bodiesChanged) {
-      initSolvingBodies(context);
-      initSolvingConstraints(context);
-    }
-    else {
-      std::array initSteps{
-        context.scheduler.queueTask([&](const auto&) { initSolvingBodies(context); }, {}),
-        context.scheduler.queueTask([&](const auto&) { initSolvingConstraints(context); }, {})
-      };
-      context.scheduler.awaitTasks(initSteps.data(), initSteps.size(), {});
-    }
+
+    //Fills in the body mapping information needed to fill constraints but not the body velocity information
+    initCreateBodyMappings(context);
+    //Fill in constraints and body velocity in parallel
+    AppTaskSize constraintBatch;
+    constraintBatch.batchSize = 100;
+    std::array initSteps{
+      context.scheduler.queueTask([&](const auto&) { fillIslandBodies(context.solver, context.shapeContext, context.resolver); }, {}),
+      context.scheduler.queueTask([&](const auto&) { initSolvingConstraints(context); }, {})
+    };
+    context.scheduler.awaitTasks(initSteps.data(), initSteps.size(), {});
   }
 
   void solveIterations(SolveContext& context) {
-    context.solver.solver.premultiply();
+    {
+      PROFILE_SCOPE("physics", "premultiply");
+      context.solver.solver.premultiply();
+    }
     PGS::SolveContext pgsContext{ context.solver.solver.createContext() };
     //TODO: consider skipping when there is no warm start. Maybe it's uncommon enough not to be worth it
-    PGS::warmStart(pgsContext);
+    {
+      PROFILE_SCOPE("physics", "warm start");
+      PGS::warmStart(pgsContext);
+    }
     PGS::SolveResult solveResult;
     //Process giant islands in ranges. This is not physically correct but allows still spreading out the work
     //even if many objects end up in a single island. This will be a race condition for the bodies that happen
@@ -861,20 +912,23 @@ namespace ConstraintSolver {
 
         PGS::SolveContext pgsContext{ context.solver.solver.createContext() };
 
-        //Write out the solved velocities
-        for(IslandBody& body : context.solver.bodies) {
-          if(body) {
-            PGS::BodyVelocity v = pgsContext.velocity.getBody(body.solverIndex);
-            //TODO: accumulate this energy to check for sleep elligibility
-            *body.velocityX = v.linear.x;
-            *body.velocityY = v.linear.y;
-            *body.angularVelocity = v.angular;
+        {
+          PROFILE_SCOPE("physics", "write constraint results");
+          //Write out the solved velocities
+          for(IslandBody& body : context.solver.bodies) {
+            if(body) {
+              PGS::BodyVelocity v = pgsContext.velocity.getBody(body.solverIndex);
+              //TODO: accumulate this energy to check for sleep elligibility
+              *body.velocityX = v.linear.x;
+              *body.velocityY = v.linear.y;
+              *body.angularVelocity = v.angular;
+            }
           }
-        }
-        //Store warm starts for next time
-        for(ConstraintIndex c = 0; c < context.solver.solver.lambda.size(); ++c) {
-          if(float* storage = context.solver.warmStartStorage[c]) {
-            *storage = context.solver.solver.lambda[c];
+          //Store warm starts for next time
+          for(ConstraintIndex c = 0; c < context.solver.solver.lambda.size(); ++c) {
+            if(float* storage = context.solver.warmStartStorage[c]) {
+              *storage = context.solver.solver.lambda[c];
+            }
           }
         }
       }
