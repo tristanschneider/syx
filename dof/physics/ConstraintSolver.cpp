@@ -915,6 +915,7 @@ namespace ConstraintSolver {
         {
           PROFILE_SCOPE("physics", "write constraint results");
           //Write out the solved velocities
+          //TODO: in parallel
           for(IslandBody& body : context.solver.bodies) {
             if(body) {
               PGS::BodyVelocity v = pgsContext.velocity.getBody(body.solverIndex);
@@ -925,9 +926,9 @@ namespace ConstraintSolver {
             }
           }
           //Store warm starts for next time
-          for(ConstraintIndex c = 0; c < context.solver.solver.lambda.size(); ++c) {
+          for(ConstraintIndex c = 0; c < context.solver.solver.constraintCount(); ++c) {
             if(float* storage = context.solver.warmStartStorage[c]) {
-              *storage = context.solver.solver.lambda[c];
+              *storage = context.solver.solver.constraints.lambda[c];
             }
           }
         }

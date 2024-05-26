@@ -202,7 +202,12 @@ namespace Test {
       TestDB() {
         db = createDB();
         scheduler.mScheduler.Initialize();
-        tls = std::make_unique<ThreadLocals>(scheduler.mScheduler.GetNumTaskThreads(), events.impl.get(), &db->getRuntime().getMappings());
+        tls = std::make_unique<ThreadLocals>(
+          scheduler.mScheduler.GetNumTaskThreads(),
+          events.impl.get(),
+          &db->getRuntime().getMappings(),
+          nullptr
+        );
         builder = GameBuilder::create(*db);
       }
 

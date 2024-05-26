@@ -141,10 +141,58 @@ namespace PGS {
     float maxLambda{};
   };
 
+  struct BodyStorage {
+    void resize(BodyIndex bodies);
+    BodyIndex size() const;
+
+    void setVelocity(BodyIndex body, const glm::vec2& linear, float angular);
+    void setUniformMass(float inverseMass, float inverseInertia);
+    void setMass(BodyIndex body, float inverseMass, float inverseInertia);
+
+    std::vector<float> velocity;
+    std::vector<float> mass;
+  };
+
+  struct ConstraintStorage {
+    void resize(ConstraintIndex constraints);
+    ConstraintIndex size() const;
+
+    void setUniformLambdaBounds(float min, float max);
+    void setJacobian(ConstraintIndex constraintIndex,
+      BodyIndex bodyA,
+      BodyIndex bodyB,
+      const glm::vec2& linearA,
+      float angularA,
+      const glm::vec2& linearB,
+      float angularB
+    );
+    void setBias(ConstraintIndex constraintIndex, float bias);
+    void setLambdaBounds(ConstraintIndex constraintIndex, float min, float max);
+    void setWarmStart(ConstraintIndex constraintIndex, float warmStart);
+
+    std::vector<float> lambda;
+    std::vector<float> bias;
+    std::vector<float> lambdaMin;
+    std::vector<float> lambdaMax;
+    std::vector<float> diagonal;
+    std::vector<float> jacobian;
+    std::vector<float> jacobianTMass;
+    std::vector<BodyIndex> jacobianMapping;
+  };
+
+  struct SolverConfig {
+    uint8_t maxIterations{ 5 };
+    float maxLambda{ 0.001f };
+  };
+
+  void premultiply(ConstraintStorage& constraints, const BodyStorage& bodies);
+  SolveContext createSolveContext(const SolverConfig& config, ConstraintStorage& constraints, BodyStorage& bodies);
+
   struct SolverStorage {
     static constexpr float UNLIMITED_MIN = std::numeric_limits<float>::lowest();
     static constexpr float UNLIMITED_MAX = std::numeric_limits<float>::max();
 
+    //TODO: update call sites to use BodyStorage and ConstraintStorage directly?
     void clear();
     void resizeBodies(BodyIndex bodies);
     void resizeConstraints(ConstraintIndex constraints);
@@ -168,20 +216,10 @@ namespace PGS {
     void setLambdaBounds(ConstraintIndex constraintIndex, float min, float max);
     void setWarmStart(ConstraintIndex constraintIndex, float warmStart);
     void premultiply();
-    //Jacobian times velocity of the two bodies, meaning the relative velocity along the axis
 
-    std::vector<float> lambda;
-    std::vector<float> bias;
-    std::vector<float> lambdaMin;
-    std::vector<float> lambdaMax;
-    std::vector<float> diagonal;
-    std::vector<float> velocity;
-    std::vector<float> mass;
-    std::vector<float> jacobian;
-    std::vector<float> jacobianTMass;
-    std::vector<BodyIndex> jacobianMapping;
-    uint8_t maxIterations{ 5 };
-    float maxLambda{ 0.001f };
+    BodyStorage bodies;
+    ConstraintStorage constraints;
+    SolverConfig config;
   };
 
   struct SolveResult {

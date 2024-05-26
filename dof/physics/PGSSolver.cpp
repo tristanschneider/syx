@@ -18,25 +18,36 @@ namespace PGS {
     applyImpulse(vb, lambda, jacobianTMass + 3);
   }
 
-  void SolverStorage::clear() {
-    lambda.clear();
-    lambdaMin.clear();
-    lambdaMax.clear();
-    diagonal.clear();
-    jacobian.clear();
-    jacobianTMass.clear();
-    bias.clear();
-    jacobianMapping.clear();
-    mass.clear();
-    velocity.clear();
-  }
-
-  void SolverStorage::resizeBodies(BodyIndex bodies) {
+  void BodyStorage::resize(BodyIndex bodies) {
     mass.resize(static_cast<size_t>(bodies) * MassMatrix::STRIDE);
     velocity.resize(static_cast<size_t>(bodies) * ConstraintVelocity::STRIDE);
   }
 
-  void SolverStorage::resizeConstraints(ConstraintIndex constraints) {
+  BodyIndex BodyStorage::size() const {
+    return static_cast<BodyIndex>(mass.size() / MassMatrix::STRIDE);
+  }
+
+  void BodyStorage::setVelocity(BodyIndex body, const glm::vec2& linear, float angular) {
+    float* base = ConstraintVelocity{ velocity.data() }.getObjectVelocity(body);
+    base[0] = linear.x;
+    base[1] = linear.y;
+    base[2] = angular;
+  }
+
+  void BodyStorage::setUniformMass(float inverseMass, float inverseInertia) {
+    for(size_t i = 0; i + 1 < mass.size(); i += 2) {
+      mass[i] = inverseMass;
+      mass[i + 1] = inverseInertia;
+    }
+  }
+
+  void BodyStorage::setMass(BodyIndex body, float inverseMass, float inverseInertia) {
+    float* base = MassMatrix{ mass.data() }.getObjectMass(body);
+    base[0] = inverseMass;
+    base[1] = inverseInertia;
+  }
+
+  void ConstraintStorage::resize(ConstraintIndex constraints) {
     lambda.resize(constraints);
     lambdaMin.resize(constraints);
     lambdaMax.resize(constraints);
@@ -47,40 +58,11 @@ namespace PGS {
     jacobianMapping.resize(static_cast<size_t>(constraints) * JacobianMapping::STRIDE);
   }
 
-  void SolverStorage::resize(BodyIndex bodies, ConstraintIndex constraints) {
-    resizeBodies(bodies);
-    resizeConstraints(constraints);
-  }
-
-  BodyIndex SolverStorage::bodyCount() const {
-    return static_cast<BodyIndex>(mass.size() / MassMatrix::STRIDE);
-  }
-
-  ConstraintIndex SolverStorage::constraintCount() const {
+  ConstraintIndex ConstraintStorage::size() const {
     return static_cast<ConstraintIndex>(lambda.size());
   }
 
-  SolveContext SolverStorage::createContext() {
-    return {
-      lambda.data(),
-      bias.data(),
-      lambdaMin.data(),
-      lambdaMax.data(),
-      diagonal.data(),
-      ConstraintVelocity{ velocity.data() },
-      MassMatrix{ mass.data() },
-      Jacobian{ jacobian.data() },
-      Jacobian{ jacobianTMass.data() },
-      JacobianMapping{ jacobianMapping.data() },
-      bodyCount(),
-      constraintCount(),
-      uint8_t{},
-      maxIterations,
-      maxLambda
-    };
-  }
-
-  void SolverStorage::setUniformLambdaBounds(float min, float max) {
+  void ConstraintStorage::setUniformLambdaBounds(float min, float max) {
     for(float& l : lambdaMin) {
       l = min;
     }
@@ -89,40 +71,7 @@ namespace PGS {
     }
   }
 
-  void SolverStorage::setBias(ConstraintIndex constraintIndex, float b) {
-    bias[constraintIndex] = b;
-  }
-
-  void SolverStorage::setLambdaBounds(ConstraintIndex constraintIndex, float min, float max) {
-    lambdaMin[constraintIndex] = min;
-    lambdaMax[constraintIndex] = max;
-  }
-
-  void SolverStorage::setWarmStart(ConstraintIndex constraintIndex, float warmStart) {
-    lambda[constraintIndex] = warmStart;
-  }
-
-  void SolverStorage::setVelocity(BodyIndex body, const glm::vec2& linear, float angular) {
-    float* base = ConstraintVelocity{ velocity.data() }.getObjectVelocity(body);
-    base[0] = linear.x;
-    base[1] = linear.y;
-    base[2] = angular;
-  }
-
-  void SolverStorage::setUniformMass(float inverseMass, float inverseInertia) {
-    for(size_t i = 0; i + 1 < mass.size(); i += 2) {
-      mass[i] = inverseMass;
-      mass[i + 1] = inverseInertia;
-    }
-  }
-
-  void SolverStorage::setMass(BodyIndex body, float inverseMass, float inverseInertia) {
-    float* base = MassMatrix{ mass.data() }.getObjectMass(body);
-    base[0] = inverseMass;
-    base[1] = inverseInertia;
-  }
-
-  void SolverStorage::setJacobian(ConstraintIndex constraintIndex,
+  void ConstraintStorage::setJacobian(ConstraintIndex constraintIndex,
     BodyIndex bodyA,
     BodyIndex bodyB,
     const glm::vec2& linearA,
@@ -142,13 +91,26 @@ namespace PGS {
     j[5] = angularB;
   }
 
-  void SolverStorage::premultiply() {
+  void ConstraintStorage::setBias(ConstraintIndex constraintIndex, float b) {
+    bias[constraintIndex] = b;
+  }
+
+  void ConstraintStorage::setLambdaBounds(ConstraintIndex constraintIndex, float min, float max) {
+    lambdaMin[constraintIndex] = min;
+    lambdaMax[constraintIndex] = max;
+  }
+
+  void ConstraintStorage::setWarmStart(ConstraintIndex constraintIndex, float warmStart) {
+    lambda[constraintIndex] = warmStart;
+  }
+
+  void premultiply(ConstraintStorage& constraints, const BodyStorage& bodies) {
     //Since mass is only used here, another option would be to not store it at all and have the caller provide it when setting the jacobian
-    const Jacobian j{ jacobian.data() };
-    Jacobian jm{ jacobianTMass.data() };
-    const MassMatrix m{ mass.data() };
-    const JacobianMapping mapping{ jacobianMapping.data() };
-    for(ConstraintIndex i = 0; i < constraintCount(); ++i) {
+    const Jacobian j{ constraints.jacobian.data() };
+    Jacobian jm{ constraints.jacobianTMass.data() };
+    const MassMatrix m{ const_cast<float*>(bodies.mass.data()) };
+    const JacobianMapping mapping{ constraints.jacobianMapping.data() };
+    for(ConstraintIndex i = 0; i < constraints.size(); ++i) {
       auto [a, b] = mapping.getPairForConstraint(i);
       const float* jp = j.getJacobianIndex(i);
       float* jmp = jm.getJacobianIndex(i);
@@ -162,6 +124,99 @@ namespace PGS {
       jmp[4] = jp[4]*mb[0];
       jmp[5] = jp[5]*mb[1];
     }
+  }
+
+  SolveContext createSolveContext(const SolverConfig& config, ConstraintStorage& constraints, BodyStorage& bodies) {
+    return {
+      constraints.lambda.data(),
+      constraints.bias.data(),
+      constraints.lambdaMin.data(),
+      constraints.lambdaMax.data(),
+      constraints.diagonal.data(),
+      ConstraintVelocity{ bodies.velocity.data() },
+      MassMatrix{ bodies.mass.data() },
+      Jacobian{ constraints.jacobian.data() },
+      Jacobian{ constraints.jacobianTMass.data() },
+      JacobianMapping{ constraints.jacobianMapping.data() },
+      bodies.size(),
+      constraints.size(),
+      uint8_t{},
+      config.maxIterations,
+      config.maxLambda
+    };
+  }
+
+  void SolverStorage::clear() {
+    bodies.resize(0);
+    constraints.resize(0);
+  }
+
+  void SolverStorage::resizeBodies(BodyIndex bodyCount) {
+    bodies.resize(bodyCount);
+  }
+
+  void SolverStorage::resizeConstraints(ConstraintIndex constraintCount) {
+    constraints.resize(constraintCount);
+  }
+
+  void SolverStorage::resize(BodyIndex bodyCount, ConstraintIndex constraintCount) {
+    resizeBodies(bodyCount);
+    resizeConstraints(constraintCount);
+  }
+
+  BodyIndex SolverStorage::bodyCount() const {
+    return bodies.size();
+  }
+
+  ConstraintIndex SolverStorage::constraintCount() const {
+    return constraints.size();
+  }
+
+  SolveContext SolverStorage::createContext() {
+    return createSolveContext(config, constraints, bodies);
+  }
+
+  void SolverStorage::setUniformLambdaBounds(float min, float max) {
+    constraints.setUniformLambdaBounds(min, max);
+  }
+
+  void SolverStorage::setBias(ConstraintIndex constraintIndex, float b) {
+    constraints.setBias(constraintIndex, b);
+  }
+
+  void SolverStorage::setLambdaBounds(ConstraintIndex constraintIndex, float min, float max) {
+    constraints.setLambdaBounds(constraintIndex, min, max);
+  }
+
+  void SolverStorage::setWarmStart(ConstraintIndex constraintIndex, float warmStart) {
+    constraints.setWarmStart(constraintIndex, warmStart);
+  }
+
+  void SolverStorage::setVelocity(BodyIndex body, const glm::vec2& linear, float angular) {
+    bodies.setVelocity(body, linear, angular);
+  }
+
+  void SolverStorage::setUniformMass(float inverseMass, float inverseInertia) {
+    bodies.setUniformMass(inverseMass, inverseInertia);
+  }
+
+  void SolverStorage::setMass(BodyIndex body, float inverseMass, float inverseInertia) {
+    bodies.setMass(body, inverseMass, inverseInertia);
+  }
+
+  void SolverStorage::setJacobian(ConstraintIndex constraintIndex,
+    BodyIndex bodyA,
+    BodyIndex bodyB,
+    const glm::vec2& linearA,
+    float angularA,
+    const glm::vec2& linearB,
+    float angularB
+  ) {
+    constraints.setJacobian(constraintIndex, bodyA, bodyB, linearA, angularA, linearB, angularB);
+  }
+
+  void SolverStorage::premultiply() {
+    PGS::premultiply(constraints, bodies);
   }
 
   SolveResult solvePGS(SolveContext& solver) {
