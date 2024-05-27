@@ -529,7 +529,7 @@ namespace ConstraintSolver {
         s.setLambdaBounds(frictionIndex, -frictionBound, frictionBound);
         s.setWarmStart(frictionIndex, point.frictionWarmStart);
         s.setBias(frictionIndex, 0);
-        solver.warmStartStorage.push_back(&point.frictionWarmStart);
+        solver.warmStartStorage[frictionIndex] = &point.frictionWarmStart;
       }
     }
 
@@ -727,29 +727,6 @@ namespace ConstraintSolver {
     }
   }
 
-  //TODO: combine with fillIslandBodies
-  /*
-  void initSolvingBodyVelocities(SolveContext& context) {
-    for(IslandBody& body : context.solver.bodies) {
-      if(auto id = context.resolver.tryUnpack(body.ref)) {
-        BodyVelocity vel = Resolver::resolveBodyVelocity(context.shapeContext, *id);
-        body.velocityX = vel.linearX;
-        body.velocityY = vel.linearY;
-        body.angularVelocity = vel.angular;
-        if(vel) {
-          context.solver.solver.setVelocity(body.solverIndex, { *body.velocityX, *body.velocityY }, *body.angularVelocity);
-        }
-        //This would happen if the body had mass/velocity previously but moved tables and now doesn't but is still in the same island
-        //Add them as manual zero-mass entry. They will turn into a normal zero index body when the island bodies are rebuilt
-        else {
-          context.solver.solver.setVelocity(body.solverIndex, { 0, 0 }, 0);
-          //Mass is assumed constant except for this case
-          context.solver.solver.setMass(body.solverIndex, 0, 0);
-        }
-      }
-    }
-  }
-  */
   //Creates body mappings and caches edges used for creating constraints
   //For the case where bodies were the same caches the edges anyway
   void initCreateBodyMappings(SolveContext& context) {
