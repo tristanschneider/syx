@@ -16,7 +16,7 @@ namespace GameScheduler {
 
   struct ProfileData {
     std::string_view name;
-    ProfileToken profileToken;
+    ProfileToken profileToken{};
   };
 
   ProfileData createProfileData(std::string_view name) {

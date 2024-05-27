@@ -100,7 +100,7 @@ void Simulation::initScheduler(IAppBuilder& builder) {
       events->impl.get(),
       mappings,
       //ThreadLocals only uses this during the constructor
-      Tasks::createEnkiSchedulerFactory(*scheduler).get()
+      Tasks::createEnkiSchedulerFactory(*scheduler, [tls](size_t t) { return tls->instance->get(t); }).get()
     );
   });
   builder.submitTask(std::move(task));

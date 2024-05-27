@@ -20,6 +20,9 @@ namespace ConstraintSolver {
     bool useConstantFriction = true;
   };
   struct Material {
+    bool shouldSolveFriction() const {
+      return frictionCoefficient > 0.0f;
+    }
     //Proportion of the normal force that is used to negate motion orthogonal to the normal
     float frictionCoefficient{ 0.8f };
     //Proportion of the normal force that is set as the target separating velocity

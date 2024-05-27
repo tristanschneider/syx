@@ -238,6 +238,13 @@ namespace ConstraintSolver {
     IslandGraph::NodeUserdata bodyA{};
     IslandGraph::NodeUserdata bodyB{};
   };
+  struct ConstraintInitSlot {
+    BodyIndex bodyA{};
+    BodyIndex bodyB{};
+    SP::ContactManifold* manifold{};
+    Material combinedMaterial;
+    PGS::ConstraintIndex begin{};
+  };
   struct IslandSolver {
     void clear() {
       bodies.clear();
@@ -272,6 +279,7 @@ namespace ConstraintSolver {
     std::vector<float*> warmStartStorage;
     std::vector<ContactMapping> contactMappings;
     gnx::HashMap<IslandGraph::NodeUserdata, BodyMapping> islandToBodyIndex;
+    gnx::PagedVector<ConstraintInitSlot> constraintInitSlots;
     PGS::SolverStorage solver;
     std::vector<CachedEdge> cachedEdges;
     std::vector<PGS::SolveResult> solveResults;
@@ -513,7 +521,7 @@ namespace ConstraintSolver {
       s.setWarmStart(contact, point.contactWarmStart);
       solver.warmStartStorage[contact] = &point.contactWarmStart;
 
-      if(combinedMaterial.frictionCoefficient > 0) {
+      if(combinedMaterial.shouldSolveFriction()) {
         //Friction constraint
         const glm::vec2 frictionA{ Geo::orthogonal(normalA) };
         const glm::vec2 frictionB{ -frictionA };
@@ -704,6 +712,18 @@ namespace ConstraintSolver {
     size_t threadCount{};
   };
 
+  void insertManifoldConstraints(SolveContext& context, const ConstraintInitSlot& info) {
+    ConstraintIndex index = info.begin;
+    index += addConstraints(context.solver,
+      info.bodyA,
+      info.bodyB,
+      *info.manifold,
+      index,
+      info.combinedMaterial,
+      context.globals
+    );
+  }
+
   void insertManifoldConstraints(SolveContext& context, size_t manifoldIndex, ConstraintIndex& constraintIndex, IslandGraph::NodeUserdata a, IslandGraph::NodeUserdata b) {
     if(manifoldIndex >= context.manifolds.size()) {
       return;
@@ -757,22 +777,93 @@ namespace ConstraintSolver {
     }
   }
 
-  void initSolvingConstraints(SolveContext& context) {
+  void initSolvingConstraints(AppTaskArgs& args, SolveContext& context) {
     PROFILE_SCOPE("physics", "initconstraints");
     //TODO: in theory something could be reused but the number of contact points might have changed so this needs to be cleared anyway
     const size_t maxConstraintCount = static_cast<ConstraintIndex>(context.island.edgeCount*4);
     context.solver.resetForConstraints(maxConstraintCount);
 
+    Tasks::TaskHandle rootInitTask, lastTask;
+    auto submitInitTask = [&args, &context, &rootInitTask, &lastTask](size_t beginIndex, size_t endIndex) {
+      AppTaskSize taskSize;
+      taskSize.workItemCount = endIndex - beginIndex;
+      taskSize.batchSize = 200;
+      assert(beginIndex < context.solver.constraintInitSlots.size());
+      assert(endIndex <= context.solver.constraintInitSlots.size());
+
+      Tasks::TaskHandle t = args.scheduler->queueTask([&context, beginIndex](AppTaskArgs& args) {
+        PROFILE_SCOPE("physics", "initSlots");
+        for(size_t i = args.begin; i < args.end; ++i) {
+          assert(i < context.solver.constraintInitSlots.size());
+          insertManifoldConstraints(context, context.solver.constraintInitSlots[i + beginIndex]);
+        }
+      }, taskSize);
+      if(!rootInitTask) {
+        rootInitTask = lastTask = t;
+      }
+      else {
+        args.scheduler->linkTasks(lastTask, t, {});
+        lastTask = t;
+      }
+    };
+
+    //Build slot info for each constraint on a single thread then send init tasks out in batches to fill those indices
+    //Order is important so they can't init randomly. Another option would be to init in pages but that would cause memory gaps
+    //during solving. That tradeoff may be worth it for slightly faster initialization, trying it with slots for now
+    //Another possibility would be having threads consuming from a SPMC queue which would be more aggressive than manually sending out initialization tasks
+    auto& initSlots = context.solver.constraintInitSlots;
+    initSlots.resize(context.solver.cachedEdges.size());
+    constexpr size_t constraintInitBatchSize = 1000;
+    size_t initSlotIndex{};
     ConstraintIndex constraintIndex{};
-    for(const CachedEdge& edge : context.solver.cachedEdges) {
-      if(const SP::ContactManifold* man = edge.manifoldIndex < context.manifolds.size() ? &context.manifolds.at(edge.manifoldIndex) : nullptr; man && man->size) {
-        insertManifoldConstraints(context, edge.manifoldIndex, constraintIndex, edge.bodyA, edge.bodyB);
+    size_t lastTaskIndex = 0;
+    {
+      PROFILE_SCOPE("physics", "assignSlots");
+      for(size_t i = 0; i < context.solver.cachedEdges.size(); ++i) {
+        const CachedEdge& edge = context.solver.cachedEdges[i];
+        if(SP::ContactManifold* man = edge.manifoldIndex < context.manifolds.size() ? &context.manifolds.at(edge.manifoldIndex) : nullptr; man && man->size) {
+          const BodyMapping& bodyA = getBodyMapping(edge.bodyA, context.solver);
+          const BodyMapping& bodyB = getBodyMapping(edge.bodyB, context.solver);
+          if(bodyA.constraintMask & bodyB.constraintMask) {
+            const Material mat = combineMaterials(bodyA.material, bodyB.material);
+            initSlots[initSlotIndex++] = ConstraintInitSlot{
+              bodyA.solverIndex,
+              bodyB.solverIndex,
+              man,
+              mat,
+              constraintIndex
+            };
+            //This is the number of constraints that will be added by insertManifoldConstraints
+            constraintIndex += man->size * (mat.shouldSolveFriction() ? 2 : 1);
+
+            //Enough init slots built up to queue a new task
+            if((initSlotIndex % constraintInitBatchSize) == 0) {
+              submitInitTask(lastTaskIndex, initSlotIndex);
+              lastTaskIndex = initSlotIndex;
+            }
+          }
+        }
+      }
+
+      //Submit last batch
+      if(initSlotIndex > 0 && initSlotIndex != lastTaskIndex) {
+        submitInitTask(lastTaskIndex, initSlotIndex);
       }
     }
+    //ConstraintIndex constraintIndex{};
+    //for(const CachedEdge& edge : context.solver.cachedEdges) {
+    //  if(const SP::ContactManifold* man = edge.manifoldIndex < context.manifolds.size() ? &context.manifolds.at(edge.manifoldIndex) : nullptr; man && man->size) {
+    //    insertManifoldConstraints(context, edge.manifoldIndex, constraintIndex, edge.bodyA, edge.bodyB);
+    //  }
+    //}
 
     //Remove any excess. This could be since multiple objects mapped to the infinite mass index, some data was not present,
     //or their constraint masks indicated they don't want to solve against each-other
     context.solver.finalizeConstraintCount(constraintIndex);
+
+    if(constraintIndex > 0) {
+      args.scheduler->awaitTasks(&rootInitTask, 1, {});
+    }
   }
 
   void initSolving(SolveContext& context) {
@@ -786,7 +877,7 @@ namespace ConstraintSolver {
     constraintBatch.batchSize = 100;
     std::array initSteps{
       context.scheduler.queueTask([&](const auto&) { fillIslandBodies(context.solver, context.shapeContext, context.resolver); }, {}),
-      context.scheduler.queueTask([&](const auto&) { initSolvingConstraints(context); }, {})
+      context.scheduler.queueTask([&](AppTaskArgs& args) { initSolvingConstraints(args, context); }, {})
     };
     context.scheduler.awaitTasks(initSteps.data(), initSteps.size(), {});
   }
