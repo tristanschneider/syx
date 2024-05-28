@@ -39,9 +39,7 @@ namespace Tasks {
         t.m_SetSize = static_cast<uint32_t>(size.workItemCount);
       }
       t.m_Function = [cb{std::move(task)}, this](enki::TaskSetPartition partition, uint32_t thread) {
-        PROFILE_SCOPE("scheduler", "local");
         AppTaskArgs taskArgs;
-        //TODO: populate other args as well
         taskArgs.begin = partition.start;
         taskArgs.end = partition.end;
         taskArgs.threadIndex = thread;

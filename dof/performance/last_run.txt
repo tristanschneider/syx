@@ -126,3 +126,11 @@ Total 4708128500
 Min 3866600
 Max 34089900
 Avg 4708128
+
+Made the rest of the constraint solving steps parallel
+
+Start 11710000
+Total 4386668200
+Min 3602400
+Max 38411200
+Avg 4386668

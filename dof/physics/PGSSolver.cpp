@@ -278,6 +278,32 @@ namespace PGS {
     warmStart(solver, 0, solver.constraints);
   }
 
+  void warmStartWithoutPremultiplied(SolveContext& solver, ConstraintIndex begin, ConstraintIndex end) {
+    for(ConstraintIndex i = begin; i < end; ++i) {
+      auto [a, b] = solver.mapping.getPairForConstraint(i);
+      //Convention is that infinite mass objects are a, and b would never also be infinite mass
+      const float* ja = solver.jacobian.getJacobianIndex(i);
+      const float* jb = ja + Jacobian::BLOCK_SIZE;
+      if (a != JacobianMapping::INFINITE_MASS) {
+        const float* ma = solver.mass.getObjectMass(a);
+        float* va = solver.velocity.getObjectVelocity(a);
+        //Linear
+        va[0] += *ma*ja[0]*solver.lambda[i];
+        va[1] += *ma*ja[1]*solver.lambda[i];
+        //Angular
+        va[2] += *(ma + 1)*ja[2]*solver.lambda[i];
+      }
+
+      const float* mb = solver.mass.getObjectMass(b);
+      float* vb = solver.velocity.getObjectVelocity(b);
+      //Linear
+      vb[0] += *mb*jb[0]*solver.lambda[i];
+      vb[1] += *mb*jb[1]*solver.lambda[i];
+      //Angular
+      vb[2] += *(mb + 1)*jb[2]*solver.lambda[i];
+    }
+  }
+
   void warmStart(SolveContext& solver, ConstraintIndex begin, ConstraintIndex end) {
     for(ConstraintIndex i = begin; i < end; ++i) {
       auto [a, b] = solver.mapping.getPairForConstraint(i);

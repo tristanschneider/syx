@@ -237,6 +237,8 @@ namespace PGS {
   void advanceIteration(SolveContext& solver, SolveResult& result);
   void warmStart(SolveContext& solver);
   void warmStart(SolveContext& solver, ConstraintIndex begin, ConstraintIndex end);
+  //Allows running in parallel with premultiply because it doesn't depend on the values
+  void warmStartWithoutPremultiplied(SolveContext& solver, ConstraintIndex begin, ConstraintIndex end);
   //Warm start and iterate until solved
   SolveResult solvePGSWarmStart(SolveContext& solver);
   float computeJV(ConstraintIndex constraintIndex, SolveContext& solver);

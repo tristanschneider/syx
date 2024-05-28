@@ -313,6 +313,7 @@ void sleepNS(int ns) {
   int yieldSlop = 300;
   while(slept + yieldSlop < ns) {
     auto remaining = ns - slept;
+    //TODO: this isn't good enough, my computer sleeps up to 20ms with this
     if(remaining > static_cast<int>(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::milliseconds(1)).count())) {
       std::this_thread::sleep_for(std::chrono::microseconds(500));
     }

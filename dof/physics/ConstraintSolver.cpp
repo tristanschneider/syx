@@ -242,6 +242,13 @@ namespace ConstraintSolver {
   struct ConstraintInitData {
     static constexpr ConstraintIndex MAX_CONSTRAINTS_PER_EDGE = 4;
 
+    AppTaskSize getTaskSizeForBatches() const {
+      AppTaskSize result;
+      result.batchSize = 1;
+      result.workItemCount = size();
+      return result;
+    }
+
     gnx::IndexRangeT<ConstraintIndex> getBatchConstraintRange(size_t batch) const {
       const ConstraintIndex begin = MAX_CONSTRAINTS_PER_EDGE*static_cast<ConstraintIndex>(initBatchSize*batch);
       return gnx::makeIndexRange(begin, constraintEndIndices[batch]);
@@ -301,6 +308,13 @@ namespace ConstraintSolver {
     void finalizeConstraintCount(ConstraintIndex count) {
       solver.resizeConstraints(count);
       warmStartStorage.resize(count);
+    }
+
+    AppTaskSize getTaskSizeForBodies() const {
+      AppTaskSize result;
+      result.batchSize = 200;
+      result.workItemCount = bodies.size();
+      return result;
     }
 
     ConstraintInitData initData;
@@ -442,15 +456,6 @@ namespace ConstraintSolver {
         }
       }
     }
-  }
-
-  //TODO: combine with fillBodyVelocity
-  void fillIslandBodies(
-    IslandSolver& solver,
-    Resolver::ShapeResolverContext& resolver,
-    const ElementRefResolver& ids
-  ) {
-    fillIslandBodies(solver, resolver, ids, 0, solver.bodies.size());
   }
 
   //TODO: const iterator so this can be const
@@ -617,7 +622,7 @@ namespace ConstraintSolver {
 
   void createSolvers(IAppBuilder& builder, std::shared_ptr<IslandSolverCollection> collection, std::vector<std::shared_ptr<AppTaskConfig>> solverConfig) {
     auto task = builder.createTask();
-    task.setName("create solvers");
+    task.setName("rebuild islands");
     //Assume there is only one for now
     IslandGraph::Graph* graph = task.query<SP::IslandGraphRow>().tryGetSingletonElement();
     graph->userdataFactory = std::make_unique<IslandStorageFactory>();
@@ -768,6 +773,7 @@ namespace ConstraintSolver {
   //Creates body mappings and caches edges used for creating constraints
   //For the case where bodies were the same caches the edges anyway
   void initCreateBodyMappings(SolveContext& context) {
+    PROFILE_SCOPE("physics", "createBodyMappings");
     if(context.bodiesChanged) {
       context.solver.resetForBodies(static_cast<BodyIndex>(context.island.nodeCount + 1));
       insertInfiniteMassBody(context.solver);
@@ -806,6 +812,7 @@ namespace ConstraintSolver {
     taskSize.workItemCount = context.solver.initData.size();
 
     Tasks::TaskHandle t = args.scheduler->queueTask([&context](AppTaskArgs& args) {
+      PROFILE_SCOPE("physics", "insertManifold");
       for(size_t batchIndex = args.begin; batchIndex < args.end; ++batchIndex) {
         ConstraintIndex currentConstraint = *context.solver.initData.getBatchConstraintRange(batchIndex).begin();
         for(size_t e : context.solver.initData.getBatchEdgeRange(batchIndex, context.solver.cachedEdges.size())) {
@@ -829,47 +836,58 @@ namespace ConstraintSolver {
     initCreateBodyMappings(context);
     //Fill in constraints and body velocity in parallel
     std::array initSteps{
-      context.scheduler.queueTask([&](const auto&) { fillIslandBodies(context.solver, context.shapeContext, context.resolver); }, {}),
+      context.scheduler.queueTask([&](AppTaskArgs& args) { fillIslandBodies(context.solver, context.shapeContext, context.resolver, args.begin, args.end); }, context.solver.getTaskSizeForBodies()),
       context.scheduler.queueTask([&](AppTaskArgs& args) { initSolvingConstraints(args, context); }, {})
     };
     context.scheduler.awaitTasks(initSteps.data(), initSteps.size(), {});
   }
 
   void solveIterations(SolveContext& context) {
+    const AppTaskSize taskByInitBatches = context.solver.initData.getTaskSizeForBatches();
+    Tasks::TaskHandle setupTasks;
     {
-      PROFILE_SCOPE("physics", "premultiply");
-      for(size_t i = 0; i < context.solver.initData.size(); ++i) {
-        const auto range = context.solver.initData.getBatchConstraintRange(i);
-        PGS::premultiply(context.solver.solver.constraints, context.solver.solver.bodies, *range.begin(), *range.end());
-      }
+      //Premultiply steps write to unrelated constraint rows so can run in parallel with each-other
+      //It can also run in parallel to warm start which doesn't use the premultiplied rows
+      setupTasks = context.scheduler.queueTask([&context](AppTaskArgs& args) {
+        PROFILE_SCOPE("physics", "premultiply");
+        for(size_t i = args.begin; i < args.end; ++i) {
+          const auto range = context.solver.initData.getBatchConstraintRange(i);
+          PGS::premultiply(context.solver.solver.constraints, context.solver.solver.bodies, *range.begin(), *range.end());
+        }
+      }, taskByInitBatches);
     }
     PGS::SolveContext pgsContext{ context.solver.solver.createContext() };
     //TODO: consider skipping when there is no warm start. Maybe it's uncommon enough not to be worth it
     {
-      PROFILE_SCOPE("physics", "warm start");
-      for(size_t i = 0; i < context.solver.initData.size(); ++i) {
-        const auto range = context.solver.initData.getBatchConstraintRange(i);
-        PGS::warmStart(pgsContext, *range.begin(), *range.end());
-      }
+      //Solving is in parallel batches for large enough islands, warm start tries to be more correct by avoiding that race condition
+      const auto t = context.scheduler.queueTask([&context, &pgsContext](AppTaskArgs&) {
+        PROFILE_SCOPE("physics", "warm start");
+        for(size_t i = 0; i < context.solver.initData.size(); ++i) {
+          const auto range = context.solver.initData.getBatchConstraintRange(i);
+          PGS::warmStartWithoutPremultiplied(pgsContext, *range.begin(), *range.end());
+        }
+      }, AppTaskSize{});
+      context.scheduler.linkTasks(setupTasks, t, {});
     }
     PGS::SolveResult solveResult;
     //Process giant islands in ranges. This is not physically correct but allows still spreading out the work
     //even if many objects end up in a single island. This will be a race condition for the bodies that happen
     //to be on the boundary of both threads. If we're lucky they happen to not overlap
-    AppTaskSize workSize;
-    workSize.batchSize = 1;
-    workSize.workItemCount = context.solver.initData.size();
     context.solver.solveResults.clear();
     context.solver.solveResults.resize(context.scheduler.getThreadCount());
+
+    context.scheduler.awaitTasks(&setupTasks, 1, {});
+
     do {
       Tasks::TaskHandle solveIteration = context.scheduler.queueTask([&](AppTaskArgs& args) {
+        PROFILE_SCOPE("physics", "solveStep");
         PGS::SolveResult& result = context.solver.solveResults[args.threadIndex];
         for(size_t i = args.begin; i < args.end; ++i) {
           const auto range = context.solver.initData.getBatchConstraintRange(i);
           auto res = PGS::advancePGS(pgsContext, *range.begin(), *range.end());
           result.remainingError += res.remainingError;
         }
-      }, workSize);
+      }, taskByInitBatches);
 
       context.scheduler.awaitTasks(&solveIteration, 1, {});
 
@@ -893,6 +911,30 @@ namespace ConstraintSolver {
         }
       }
     } while(!solveResult.isFinished);
+  }
+
+  void storeBodyVelocities(AppTaskArgs& args, SolveContext& context, PGS::SolveContext& pgsContext) {
+    PROFILE_SCOPE("physics", "storeVelocities");
+    for(size_t i = args.begin; i < args.end; ++i) {
+      if(IslandBody& body = context.solver.bodies[i]) {
+        PGS::BodyVelocity v = pgsContext.velocity.getBody(body.solverIndex);
+        //TODO: accumulate this energy to check for sleep elligibility
+        *body.velocityX = v.linear.x;
+        *body.velocityY = v.linear.y;
+        *body.angularVelocity = v.angular;
+      }
+    }
+  }
+
+  void storeWarmStarts(AppTaskArgs& args, SolveContext& context) {
+    PROFILE_SCOPE("physics", "storeWarmStarts");
+    for(size_t b = args.begin; b < args.end; ++b) {
+      for(ConstraintIndex c : context.solver.initData.getBatchConstraintRange(b)) {
+        if(float* storage = context.solver.warmStartStorage[c]) {
+          *storage = context.solver.solver.constraints.lambda[c];
+        }
+      }
+    }
   }
 
   void solveIsland(IAppBuilder& builder, const PhysicsAliases& tables, const SolverGlobals& globals) {
@@ -945,26 +987,12 @@ namespace ConstraintSolver {
         PGS::SolveContext pgsContext{ context.solver.solver.createContext() };
 
         {
-          PROFILE_SCOPE("physics", "write constraint results");
           //Write out the solved velocities
-          //TODO: in parallel
-          for(IslandBody& body : context.solver.bodies) {
-            if(body) {
-              PGS::BodyVelocity v = pgsContext.velocity.getBody(body.solverIndex);
-              //TODO: accumulate this energy to check for sleep elligibility
-              *body.velocityX = v.linear.x;
-              *body.velocityY = v.linear.y;
-              *body.angularVelocity = v.angular;
-            }
-          }
-          //Store warm starts for next time
-          for(size_t b = 0; b < context.solver.initData.size(); ++b) {
-            for(ConstraintIndex c : context.solver.initData.getBatchConstraintRange(b)) {
-              if(float* storage = context.solver.warmStartStorage[c]) {
-                *storage = context.solver.solver.constraints.lambda[c];
-              }
-            }
-          }
+          std::array storeTasks{
+            args.scheduler->queueTask([&](AppTaskArgs& args) { storeBodyVelocities(args, context, pgsContext); }, context.solver.getTaskSizeForBodies()),
+            args.scheduler->queueTask([&](AppTaskArgs& args) { storeWarmStarts(args, context); }, context.solver.initData.getTaskSizeForBatches())
+          };
+          args.scheduler->awaitTasks(storeTasks.data(), storeTasks.size(), {});
         }
       }
     });
