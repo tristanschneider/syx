@@ -185,7 +185,7 @@ namespace PGS {
     float maxLambda{ 0.001f };
   };
 
-  void premultiply(ConstraintStorage& constraints, const BodyStorage& bodies);
+  void premultiply(ConstraintStorage& constraints, const BodyStorage& bodies, ConstraintIndex begin, ConstraintIndex end);
   SolveContext createSolveContext(const SolverConfig& config, ConstraintStorage& constraints, BodyStorage& bodies);
 
   struct SolverStorage {
@@ -236,6 +236,7 @@ namespace PGS {
   SolveResult advancePGS(SolveContext& solver, size_t begin, size_t end);
   void advanceIteration(SolveContext& solver, SolveResult& result);
   void warmStart(SolveContext& solver);
+  void warmStart(SolveContext& solver, ConstraintIndex begin, ConstraintIndex end);
   //Warm start and iterate until solved
   SolveResult solvePGSWarmStart(SolveContext& solver);
   float computeJV(ConstraintIndex constraintIndex, SolveContext& solver);

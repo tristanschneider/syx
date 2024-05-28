@@ -104,13 +104,13 @@ namespace PGS {
     lambda[constraintIndex] = warmStart;
   }
 
-  void premultiply(ConstraintStorage& constraints, const BodyStorage& bodies) {
+  void premultiply(ConstraintStorage& constraints, const BodyStorage& bodies, ConstraintIndex begin, ConstraintIndex end) {
     //Since mass is only used here, another option would be to not store it at all and have the caller provide it when setting the jacobian
     const Jacobian j{ constraints.jacobian.data() };
     Jacobian jm{ constraints.jacobianTMass.data() };
     const MassMatrix m{ const_cast<float*>(bodies.mass.data()) };
     const JacobianMapping mapping{ constraints.jacobianMapping.data() };
-    for(ConstraintIndex i = 0; i < constraints.size(); ++i) {
+    for(ConstraintIndex i = begin; i < end; ++i) {
       auto [a, b] = mapping.getPairForConstraint(i);
       const float* jp = j.getJacobianIndex(i);
       float* jmp = jm.getJacobianIndex(i);
@@ -216,7 +216,7 @@ namespace PGS {
   }
 
   void SolverStorage::premultiply() {
-    PGS::premultiply(constraints, bodies);
+    PGS::premultiply(constraints, bodies, 0, constraintCount());
   }
 
   SolveResult solvePGS(SolveContext& solver) {
@@ -273,8 +273,13 @@ namespace PGS {
     return result;
   }
 
+
   void warmStart(SolveContext& solver) {
-    for(ConstraintIndex i = 0; i < solver.constraints; ++i) {
+    warmStart(solver, 0, solver.constraints);
+  }
+
+  void warmStart(SolveContext& solver, ConstraintIndex begin, ConstraintIndex end) {
+    for(ConstraintIndex i = begin; i < end; ++i) {
       auto [a, b] = solver.mapping.getPairForConstraint(i);
       //Convention is that infinite mass objects are a, and b would never also be infinite mass
       const float* ja = solver.jacobianTMass.getJacobianIndex(i);

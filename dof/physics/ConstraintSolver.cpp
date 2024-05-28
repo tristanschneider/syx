@@ -11,6 +11,7 @@
 #include "generics/Enum.h"
 #include "generics/HashMap.h"
 #include "ILocalScheduler.h"
+#include "generics/IndexRange.h"
 
 namespace ConstraintSolver {
   using ConstraintIndex = PGS::ConstraintIndex;
@@ -238,6 +239,42 @@ namespace ConstraintSolver {
     IslandGraph::NodeUserdata bodyA{};
     IslandGraph::NodeUserdata bodyB{};
   };
+  struct ConstraintInitData {
+    static constexpr ConstraintIndex MAX_CONSTRAINTS_PER_EDGE = 4;
+
+    gnx::IndexRangeT<ConstraintIndex> getBatchConstraintRange(size_t batch) const {
+      const ConstraintIndex begin = MAX_CONSTRAINTS_PER_EDGE*static_cast<ConstraintIndex>(initBatchSize*batch);
+      return gnx::makeIndexRange(begin, constraintEndIndices[batch]);
+    }
+
+    gnx::IndexRange getBatchEdgeRange(size_t batchIndex, size_t edgeCount) {
+      const size_t begin = batchIndex*initBatchSize;
+      return gnx::makeIndexRange(std::min(begin, edgeCount), std::min(begin + initBatchSize, edgeCount));
+    }
+
+    static constexpr ConstraintIndex getMaxConstraintCount(size_t edgeCount) {
+      return edgeCount*MAX_CONSTRAINTS_PER_EDGE;
+    }
+
+    size_t getNoOfBatches(size_t edgeCount) const {
+      return edgeCount/initBatchSize + 1;
+    }
+
+    void resizeForEdges(size_t edgeCount) {
+      constraintEndIndices.resize(getNoOfBatches(edgeCount));
+    }
+
+    void setEndIndex(size_t batch, ConstraintIndex end) {
+      constraintEndIndices[batch] = end;
+    }
+
+    size_t size() const {
+      return constraintEndIndices.size();
+    }
+
+    size_t initBatchSize{ 200 };
+    std::vector<ConstraintIndex> constraintEndIndices;
+  };
   struct IslandSolver {
     void clear() {
       bodies.clear();
@@ -266,6 +303,7 @@ namespace ConstraintSolver {
       warmStartStorage.resize(count);
     }
 
+    ConstraintInitData initData;
     std::vector<IslandBody> bodies;
     //The place to write the warm start after solving
     //Index matches constraint index
@@ -420,7 +458,7 @@ namespace ConstraintSolver {
     if(auto it = solver.islandToBodyIndex.find(data); it != solver.islandToBodyIndex.end()) {
       return it->second;
     }
-    // shouldn't happen
+    //shouldn't happen
     static BodyMapping empty{ INFINITE_MASS_INDEX, ConstraintMask{}, Resolver::DEFAULT_MATERIAL };
     return empty;
   }
@@ -757,22 +795,30 @@ namespace ConstraintSolver {
     }
   }
 
-  void initSolvingConstraints(SolveContext& context) {
+  void initSolvingConstraints(AppTaskArgs& args, SolveContext& context) {
     PROFILE_SCOPE("physics", "initconstraints");
-    //TODO: in theory something could be reused but the number of contact points might have changed so this needs to be cleared anyway
-    const size_t maxConstraintCount = static_cast<ConstraintIndex>(context.island.edgeCount*4);
-    context.solver.resetForConstraints(maxConstraintCount);
+    //In theory something could be reused but the number of contact points might have changed so this needs to be cleared anyway
+    context.solver.resetForConstraints(ConstraintInitData::getMaxConstraintCount(context.solver.cachedEdges.size()));
 
-    ConstraintIndex constraintIndex{};
-    for(const CachedEdge& edge : context.solver.cachedEdges) {
-      if(const SP::ContactManifold* man = edge.manifoldIndex < context.manifolds.size() ? &context.manifolds.at(edge.manifoldIndex) : nullptr; man && man->size) {
-        insertManifoldConstraints(context, edge.manifoldIndex, constraintIndex, edge.bodyA, edge.bodyB);
+    AppTaskSize taskSize;
+    taskSize.batchSize = 1;
+    context.solver.initData.resizeForEdges(context.solver.cachedEdges.size());
+    taskSize.workItemCount = context.solver.initData.size();
+
+    Tasks::TaskHandle t = args.scheduler->queueTask([&context](AppTaskArgs& args) {
+      for(size_t batchIndex = args.begin; batchIndex < args.end; ++batchIndex) {
+        ConstraintIndex currentConstraint = *context.solver.initData.getBatchConstraintRange(batchIndex).begin();
+        for(size_t e : context.solver.initData.getBatchEdgeRange(batchIndex, context.solver.cachedEdges.size())) {
+          const CachedEdge& edge = context.solver.cachedEdges[e];
+          if(const SP::ContactManifold* man = edge.manifoldIndex < context.manifolds.size() ? &context.manifolds.at(edge.manifoldIndex) : nullptr; man && man->size) {
+            insertManifoldConstraints(context, edge.manifoldIndex, currentConstraint, edge.bodyA, edge.bodyB);
+          }
+        }
+        context.solver.initData.setEndIndex(batchIndex, currentConstraint);
       }
-    }
+    }, taskSize);
 
-    //Remove any excess. This could be since multiple objects mapped to the infinite mass index, some data was not present,
-    //or their constraint masks indicated they don't want to solve against each-other
-    context.solver.finalizeConstraintCount(constraintIndex);
+    args.scheduler->awaitTasks(&t, 1, {});
   }
 
   void initSolving(SolveContext& context) {
@@ -782,11 +828,9 @@ namespace ConstraintSolver {
     //Fills in the body mapping information needed to fill constraints but not the body velocity information
     initCreateBodyMappings(context);
     //Fill in constraints and body velocity in parallel
-    AppTaskSize constraintBatch;
-    constraintBatch.batchSize = 100;
     std::array initSteps{
       context.scheduler.queueTask([&](const auto&) { fillIslandBodies(context.solver, context.shapeContext, context.resolver); }, {}),
-      context.scheduler.queueTask([&](const auto&) { initSolvingConstraints(context); }, {})
+      context.scheduler.queueTask([&](AppTaskArgs& args) { initSolvingConstraints(args, context); }, {})
     };
     context.scheduler.awaitTasks(initSteps.data(), initSteps.size(), {});
   }
@@ -794,26 +838,37 @@ namespace ConstraintSolver {
   void solveIterations(SolveContext& context) {
     {
       PROFILE_SCOPE("physics", "premultiply");
-      context.solver.solver.premultiply();
+      for(size_t i = 0; i < context.solver.initData.size(); ++i) {
+        const auto range = context.solver.initData.getBatchConstraintRange(i);
+        PGS::premultiply(context.solver.solver.constraints, context.solver.solver.bodies, *range.begin(), *range.end());
+      }
     }
     PGS::SolveContext pgsContext{ context.solver.solver.createContext() };
     //TODO: consider skipping when there is no warm start. Maybe it's uncommon enough not to be worth it
     {
       PROFILE_SCOPE("physics", "warm start");
-      PGS::warmStart(pgsContext);
+      for(size_t i = 0; i < context.solver.initData.size(); ++i) {
+        const auto range = context.solver.initData.getBatchConstraintRange(i);
+        PGS::warmStart(pgsContext, *range.begin(), *range.end());
+      }
     }
     PGS::SolveResult solveResult;
     //Process giant islands in ranges. This is not physically correct but allows still spreading out the work
     //even if many objects end up in a single island. This will be a race condition for the bodies that happen
     //to be on the boundary of both threads. If we're lucky they happen to not overlap
     AppTaskSize workSize;
-    workSize.batchSize = 500;
-    workSize.workItemCount = context.solver.solver.constraintCount();
+    workSize.batchSize = 1;
+    workSize.workItemCount = context.solver.initData.size();
     context.solver.solveResults.clear();
     context.solver.solveResults.resize(context.scheduler.getThreadCount());
     do {
       Tasks::TaskHandle solveIteration = context.scheduler.queueTask([&](AppTaskArgs& args) {
-        context.solver.solveResults[args.threadIndex] = PGS::advancePGS(pgsContext, args.begin, args.end);
+        PGS::SolveResult& result = context.solver.solveResults[args.threadIndex];
+        for(size_t i = args.begin; i < args.end; ++i) {
+          const auto range = context.solver.initData.getBatchConstraintRange(i);
+          auto res = PGS::advancePGS(pgsContext, *range.begin(), *range.end());
+          result.remainingError += res.remainingError;
+        }
       }, workSize);
 
       context.scheduler.awaitTasks(&solveIteration, 1, {});
@@ -903,9 +958,11 @@ namespace ConstraintSolver {
             }
           }
           //Store warm starts for next time
-          for(ConstraintIndex c = 0; c < context.solver.solver.constraintCount(); ++c) {
-            if(float* storage = context.solver.warmStartStorage[c]) {
-              *storage = context.solver.solver.constraints.lambda[c];
+          for(size_t b = 0; b < context.solver.initData.size(); ++b) {
+            for(ConstraintIndex c : context.solver.initData.getBatchConstraintRange(b)) {
+              if(float* storage = context.solver.warmStartStorage[c]) {
+                *storage = context.solver.solver.constraints.lambda[c];
+              }
             }
           }
         }

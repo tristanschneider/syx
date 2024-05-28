@@ -103,10 +103,26 @@ Min 7007700
 Max 48218600
 Avg 7866665
 
-Increase max cores from 4 to 8
+Increase max cores from 4 to 8 (hardware core count)
 
 Start 4029000
 Total 7662997800
 Min 6624700
 Max 44464600
 Avg 7662997
+
+Parallel constraint initialization 200 (> 60fps in single stack case)
+
+Start 3945900
+Total 5119265200
+Min 4267500
+Max 48550400
+Avg 5119265
+
+Increase max cores from 8 to 16 (virtual core count)
+
+Start 8496800
+Total 4708128500
+Min 3866600
+Max 34089900
+Avg 4708128
