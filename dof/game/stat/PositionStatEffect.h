@@ -9,6 +9,7 @@ namespace PositionStatEffect {
   struct PositionCommand {
     std::optional<glm::vec2> pos{};
     std::optional<glm::vec2> rot{};
+    std::optional<float> posZ;
   };
 
   struct CommandRow : Row<PositionCommand> {};

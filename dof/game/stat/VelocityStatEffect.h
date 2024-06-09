@@ -7,6 +7,7 @@ namespace VelocityStatEffect {
   struct VelocityCommand {
     glm::vec2 linearImpulse{};
     float angularImpulse{};
+    float impulseZ{};
   };
 
   struct CommandRow : Row<VelocityCommand> {};

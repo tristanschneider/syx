@@ -83,6 +83,7 @@ namespace GameDatabase {
 
     SweepNPruneBroadphase::BroadphaseKeys,
     Narrowphase::CollisionMaskRow,
+    Narrowphase::SharedThicknessRow,
     Shapes::SharedRectangleRow,
     ConstraintSolver::ConstraintMaskRow,
     ConstraintSolver::MassRow,
@@ -130,6 +131,7 @@ namespace GameDatabase {
 
     SweepNPruneBroadphase::BroadphaseKeys,
     Narrowphase::CollisionMaskRow,
+    Narrowphase::SharedThicknessRow,
     Shapes::SharedRectangleRow,
     ConstraintSolver::ConstraintMaskRow,
     ConstraintSolver::SharedMassRow,
@@ -161,6 +163,7 @@ namespace GameDatabase {
 
     SweepNPruneBroadphase::BroadphaseKeys,
     Narrowphase::CollisionMaskRow,
+    Narrowphase::SharedThicknessRow,
     Shapes::SharedRectangleRow,
     ConstraintSolver::ConstraintMaskRow,
     ConstraintSolver::SharedMassRow,
@@ -220,11 +223,14 @@ namespace GameDatabase {
     FloatRow<Tags::Rot, Tags::SinAngle>,
     FloatRow<Tags::LinVel, Tags::X>,
     FloatRow<Tags::LinVel, Tags::Y>,
+    FloatRow<Tags::LinVel, Tags::Z>,
     FloatRow<Tags::AngVel, Tags::Angle>,
+    AccelerationZ,
 
     //Gameplay data extracted from above
     FloatRow<Tags::GPos, Tags::X>,
     FloatRow<Tags::GPos, Tags::Y>,
+    FloatRow<Tags::GPos, Tags::Z>,
     FloatRow<Tags::GRot, Tags::CosAngle>,
     FloatRow<Tags::GRot, Tags::SinAngle>,
     FloatRow<Tags::GLinVel, Tags::X>,
@@ -234,10 +240,12 @@ namespace GameDatabase {
     //Impulses requested from gameplay
     FloatRow<Tags::GLinImpulse, Tags::X>,
     FloatRow<Tags::GLinImpulse, Tags::Y>,
+    FloatRow<Tags::GLinImpulse, Tags::Z>,
     FloatRow<Tags::GAngImpulse, Tags::Angle>,
 
     SweepNPruneBroadphase::BroadphaseKeys,
     Narrowphase::CollisionMaskRow,
+    Narrowphase::SharedThicknessRow,
     Shapes::SharedRectangleRow,
     ConstraintSolver::ConstraintMaskRow,
     ConstraintSolver::SharedMassRow,
@@ -247,7 +255,6 @@ namespace GameDatabase {
     GameInput::PlayerInputRow,
     GameInput::StateMachineRow,
     SharedRow<TextureReference>,
-
     StableIDRow
   >;
   using CameraTable = Table<
@@ -307,5 +314,7 @@ namespace GameDatabase {
     setDefaultValue<ConstraintSolver::SharedMassRow, ZeroMassObjectTableTag>(builder, "set zero mass", Geo::BodyMass{});
     //Fragments in particular start opaque then reveal the texture as they take damage
     setDefaultValue<Tint, const IsFragment>(builder, "setDefault Tint", glm::vec4(0, 0, 0, 1));
+    setDefaultValue<AccelerationZ>(builder, "set acceleration", -0.01f);
+    setDefaultValue<Narrowphase::SharedThicknessRow>(builder, "thickness", 0.1f);
   }
 }

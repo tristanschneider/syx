@@ -15,7 +15,7 @@ namespace VelocityStatEffect {
     >();
     using namespace Tags;
     auto resolver = task.getResolver<
-      FloatRow<LinVel, X>, FloatRow<LinVel, Y>,
+      FloatRow<LinVel, X>, FloatRow<LinVel, Y>, FloatRow<LinVel, Z>,
       FloatRow<AngVel, Angle>
     >();
     auto ids = task.getIDResolver();
@@ -23,6 +23,7 @@ namespace VelocityStatEffect {
     task.setCallback([query, resolver, ids](AppTaskArgs&) mutable {
       CachedRow<FloatRow<LinVel, X>> vx;
       CachedRow<FloatRow<LinVel, Y>> vy;
+      CachedRow<FloatRow<LinVel, Z>> vz;
       CachedRow<FloatRow<AngVel, Angle>> va;
 
       for(size_t t = 0; t < query.size(); ++t) {
@@ -37,6 +38,9 @@ namespace VelocityStatEffect {
           const VelocityCommand& cmd = commands->at(i);
           if(resolver->tryGetOrSwapAllRows(self, vx, vy)) {
             TableAdapters::add(self.getElementIndex(), cmd.linearImpulse, *vx, *vy);
+          }
+          if(cmd.impulseZ && resolver->tryGetOrSwapRow(vz, self)) {
+            TableAdapters::add(self.getElementIndex(), cmd.impulseZ, *vz);
           }
           if(resolver->tryGetOrSwapAllRows(self, va)) {
             TableAdapters::add(self.getElementIndex(), cmd.angularImpulse, *va);

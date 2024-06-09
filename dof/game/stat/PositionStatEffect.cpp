@@ -17,13 +17,14 @@ namespace PositionStatEffect {
     using namespace Tags;
 
     auto resolver = task.getResolver<
-      FloatRow<Pos, X>, FloatRow<Pos, Y>,
+      FloatRow<Pos, X>, FloatRow<Pos, Y>, FloatRow<Pos, Z>,
       FloatRow<Rot, CosAngle>, FloatRow<Rot, SinAngle>
     >();
 
     task.setCallback([query, ids, resolver](AppTaskArgs&) mutable {
       CachedRow<FloatRow<Pos, X>> px;
       CachedRow<FloatRow<Pos, Y>> py;
+      CachedRow<FloatRow<Pos, Z>> pz;
       CachedRow<FloatRow<Rot, CosAngle>> rx;
       CachedRow<FloatRow<Rot, SinAngle>> ry;
 
@@ -43,6 +44,9 @@ namespace PositionStatEffect {
           }
           if(cmd.rot && resolver->tryGetOrSwapAllRows(self, rx, ry)) {
             TableAdapters::write(si, *cmd.rot, *rx, *ry);
+          }
+          if(cmd.posZ && resolver->tryGetOrSwapRow(pz, self)) {
+            pz->at(si) = *cmd.posZ;
           }
         }
       }

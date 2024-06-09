@@ -181,16 +181,17 @@ namespace Narrowphase {
     const Geo::Range1D rangeB = getZRange(b, queries);
     //If they are overlapping, solve on XZ only. If not overlapping, solve Z to ensure they don't pass through each-other on the Z axis
     const Geo::RangeOverlap overlap = Geo::classifyRangeOverlap(rangeA, rangeB);
-    const float distance = Geo::getRangeDistance(overlap, rangeA, rangeB);
-    const float minThickness = std::min(rangeA.length(), rangeB.length());
-    //If the snapes are mostly overlapping on the Z axis the distance will be -minThickness
-    //In that case, treat it as a XY collision and ignore Z
-    //If the overlap is larger, solve Z
+    float distance = Geo::getRangeDistance(overlap, rangeA, rangeB);
+    //If the shapes are overlapping more than the overlap tolerance, solve as XY collision
+    //If they aren't, solve Z and ignore XY
     constexpr float overlapTolerance = 0.01f;
-    if(std::abs(distance + minThickness) > overlapTolerance) {
+    if(distance > -overlapTolerance) {
       result.zManifold.info = SP::ZInfo{
         Geo::getRangeNormal(overlap),
-        distance,
+        //Provide information to solver as if they were closer to overlapping than they actually are
+        //This keeps them at least twice the overlap tolerance apart, because if they got within the tolerance
+        //then collision would not be prevented
+        distance - overlapTolerance*2.0f,
       };
       result.manifold.clear();
     }

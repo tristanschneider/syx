@@ -181,6 +181,36 @@ namespace Scenes {
     builder.submitTask(std::move(task));
   }
 
+  struct RespawnSettings {
+    float outOfBoundsZ = -5.0f;
+    float respawnZ = 10.0f;
+  };
+
+  void outOfWorldRespawn(IAppBuilder& builder) {
+    auto task = builder.createTask();
+    task.setName("outOfWorldRespawn");
+    auto query = task.query<
+      const FloatRow<Tags::GPos, Tags::Z>,
+      const StableIDRow
+    >();
+    RespawnSettings settings;
+
+    task.setCallback([query, settings](AppTaskArgs& args) mutable {
+      for(size_t t = 0; t < query.size(); ++t) {
+        auto [zs, stable] = query.get(t);
+        for(size_t i = 0; i < zs->size(); ++i) {
+          if(zs->at(i) < settings.outOfBoundsZ) {
+            auto pos = TableAdapters::getPositionEffects(args);
+            const size_t effect = TableAdapters::addStatEffectsSharedLifetime(pos.base, StatEffect::INSTANT, &stable->at(i), 1);
+            pos.command->at(effect).posZ = settings.respawnZ;
+          }
+        }
+      }
+    });
+
+    builder.submitTask(std::move(task));
+  }
+
   struct FragmentScene : SceneNavigator::IScene {
     void init(IAppBuilder& builder) final {
       setupPlayer(builder);
@@ -188,6 +218,7 @@ namespace Scenes {
     }
     void update(IAppBuilder& builder) final {
       World::enforceWorldBoundary(builder);
+      outOfWorldRespawn(builder);
     }
     void uninit(IAppBuilder&) final {}
   };

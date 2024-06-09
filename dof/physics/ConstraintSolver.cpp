@@ -610,7 +610,7 @@ namespace ConstraintSolver {
       //Subtract the separation from the relative velocity so that the lambda is only positive if they would collide
       s.setBias(constraintIndex, -manifold.info->separation);
     }
-    //If the objects are overlappign solve for a velocity that separates
+    //If the objects are overlapping solve for a velocity that separates
     else {
       const float baseBias = (-manifold.info->separation - *globals.slop)**globals.biasTerm;
       s.setBias(constraintIndex, std::max(0.0f, baseBias));
