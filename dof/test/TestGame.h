@@ -1,5 +1,6 @@
 #pragma once
 
+#include "SceneNavigator.h"
 #include "Simulation.h"
 #include "ThreadLocals.h"
 
@@ -26,6 +27,7 @@ namespace Test {
     Config::GameConfig config;
     Config::PhysicsConfig physics;
     Simulation::UpdateConfig updateConfig;
+    std::unique_ptr<SceneNavigator::IScene> scene;
   };
 
   struct KnownTables {
@@ -39,6 +41,7 @@ namespace Test {
   struct TestGame {
     TestGame(GameConstructArgs args = {});
     TestGame(const GameArgs& args);
+    TestGame(std::unique_ptr<SceneNavigator::IScene> scene);
     ~TestGame();
 
     RuntimeDatabaseTaskBuilder& builder();

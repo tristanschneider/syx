@@ -19,9 +19,9 @@ namespace SceneNavigator {
   //and in the appropriate state, meaning init and unint calls will be balanced
   struct IScene {
     virtual ~IScene() = default;
-    virtual void init(IAppBuilder& builder) = 0;
-    virtual void update(IAppBuilder& builder) = 0;
-    virtual void uninit(IAppBuilder& builder) = 0;
+    virtual void init(IAppBuilder&) {};
+    virtual void update(IAppBuilder&) {};
+    virtual void uninit(IAppBuilder&) {};
   };
 
   struct INavigator {

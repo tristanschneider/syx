@@ -60,6 +60,7 @@ namespace Tags {
 
   using LinVelXRow = FloatRow<LinVel, X>;
   using LinVelYRow = FloatRow<LinVel, Y>;
+  using LinVelZRow = FloatRow<LinVel, Z>;
   using AngVelRow = FloatRow<AngVel, Angle>;
   using PosXRow = FloatRow<Pos, X>;
   using PosYRow = FloatRow<Pos, Y>;
@@ -71,4 +72,5 @@ namespace Tags {
 
   struct TerrainRow : TagRow {};
   struct DynamicPhysicsObjectsTag : TagRow {};
+  struct DynamicPhysicsObjectsWithZTag : TagRow {};
 };

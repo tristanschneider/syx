@@ -95,6 +95,53 @@ namespace GameDatabase {
     StableIDRow
   >;
 
+  using DynamicPhysicsObjectsWithZ = Table<
+    Tags::DynamicPhysicsObjectsWithZTag,
+    SceneNavigator::IsClearedWithSceneTag,
+    //Data viewed by physics, not to be used by gameplay
+    FloatRow<Tags::Pos, Tags::X>,
+    FloatRow<Tags::Pos, Tags::Y>,
+    FloatRow<Tags::Pos, Tags::Z>,
+    FloatRow<Tags::Rot, Tags::CosAngle>,
+    FloatRow<Tags::Rot, Tags::SinAngle>,
+    FloatRow<Tags::LinVel, Tags::X>,
+    FloatRow<Tags::LinVel, Tags::Y>,
+    FloatRow<Tags::LinVel, Tags::Z>,
+    FloatRow<Tags::AngVel, Tags::Angle>,
+    Tags::ScaleXRow,
+    Tags::ScaleYRow,
+
+    //Gameplay data extracted from above
+    FloatRow<Tags::GPos, Tags::X>,
+    FloatRow<Tags::GPos, Tags::Y>,
+    FloatRow<Tags::GPos, Tags::Z>,
+    FloatRow<Tags::GRot, Tags::CosAngle>,
+    FloatRow<Tags::GRot, Tags::SinAngle>,
+    FloatRow<Tags::GLinVel, Tags::X>,
+    FloatRow<Tags::GLinVel, Tags::Y>,
+    FloatRow<Tags::GLinVel, Tags::Z>,
+    FloatRow<Tags::GAngVel, Tags::Angle>,
+
+    //Impulses requested from gameplay
+    FloatRow<Tags::GLinImpulse, Tags::X>,
+    FloatRow<Tags::GLinImpulse, Tags::Y>,
+    FloatRow<Tags::GLinImpulse, Tags::Z>,
+    FloatRow<Tags::GAngImpulse, Tags::Angle>,
+
+    SweepNPruneBroadphase::BroadphaseKeys,
+    Narrowphase::CollisionMaskRow,
+    Narrowphase::SharedThicknessRow,
+    Shapes::SharedRectangleRow,
+    ConstraintSolver::ConstraintMaskRow,
+    ConstraintSolver::MassRow,
+    ConstraintSolver::SharedMaterialRow,
+
+    Row<CubeSprite>,
+    SharedRow<TextureReference>,
+
+    StableIDRow
+  >;
+
   using GameObjectTable = Table<
     SceneNavigator::IsClearedWithSceneTag,
     SharedMassObjectTableTag,
@@ -202,6 +249,7 @@ namespace GameDatabase {
 
     SweepNPruneBroadphase::BroadphaseKeys,
     Narrowphase::CollisionMaskRow,
+    Narrowphase::SharedThicknessRow,
     ConstraintSolver::ConstraintMaskRow,
     ConstraintSolver::SharedMassRow,
     ConstraintSolver::SharedMaterialRow,
@@ -282,7 +330,8 @@ namespace GameDatabase {
     DebugLineTable,
     DebugTextTable,
     TargetPosTable,
-    DynamicPhysicsObjects
+    DynamicPhysicsObjects,
+    DynamicPhysicsObjectsWithZ
   >;
 
   std::unique_ptr<IDatabase> create(StableElementMappings& mappings) {
@@ -316,5 +365,6 @@ namespace GameDatabase {
     setDefaultValue<Tint, const IsFragment>(builder, "setDefault Tint", glm::vec4(0, 0, 0, 1));
     setDefaultValue<AccelerationZ>(builder, "set acceleration", -0.01f);
     setDefaultValue<Narrowphase::SharedThicknessRow>(builder, "thickness", 0.1f);
+    setDefaultValue<Narrowphase::SharedThicknessRow, const Tags::TerrainRow>(builder, "terrainthickness", 0.0f);
   }
 }

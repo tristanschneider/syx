@@ -21,7 +21,6 @@ namespace Test {
     , completedFragments{ builder.queryTables<FragmentGoalFoundTableTag>().matchingTableIDs[0] }
   {}
 
-
   TestGame::TestGame(GameConstructArgs args) {
     auto mappings = std::make_unique<StableElementMappings>();
     std::unique_ptr<IDatabase> game = GameDatabase::create(*mappings);
@@ -55,7 +54,16 @@ namespace Test {
     testBuilder = GameBuilder::create(*result);
 
     std::unique_ptr<IAppBuilder> updateBuilder = GameBuilder::create(*result);
-    Simulation::buildUpdateTasks(*updateBuilder, args.updateConfig);
+    if(args.scene) {
+      auto t = updateBuilder->createTask();
+      t.discard();
+      auto myScene = SceneNavigator::createRegistry(t)->registerScene(std::move(args.scene));
+      Simulation::buildUpdateTasks(*updateBuilder, args.updateConfig);
+      SceneNavigator::createNavigator(t)->navigateTo(myScene);
+    }
+    else {
+      Simulation::buildUpdateTasks(*updateBuilder, args.updateConfig);
+    }
     GameInput::update(*updateBuilder);
 
     task = GameScheduler::buildTasks(IAppBuilder::finalize(std::move(updateBuilder)), *tls->instance);
@@ -73,8 +81,19 @@ namespace Test {
     init(args);
   }
 
-  TestGame::~TestGame() = default;
+  GameConstructArgs toArgs(std::unique_ptr<SceneNavigator::IScene> scene) {
+    GameConstructArgs result;
+    result.scene = std::move(scene);
+    return result;
+  }
 
+  TestGame::TestGame(std::unique_ptr<SceneNavigator::IScene> scene)
+    : TestGame(toArgs(std::move(scene))) {
+    //Update once to run events which will populate the broadphase
+    update();
+  }
+
+  TestGame::~TestGame() = default;
 
   RuntimeDatabaseTaskBuilder& TestGame::builder() {
     return *test;
