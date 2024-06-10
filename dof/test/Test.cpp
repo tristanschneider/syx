@@ -19,7 +19,6 @@
 #include "Player.h"
 #include "DBEvents.h"
 
-#include "GameDatabase.h"
 #include "GameBuilder.h"
 #include "GameScheduler.h"
 #include "RuntimeDatabase.h"
@@ -32,6 +31,7 @@
 #include "GameInput.h"
 #include "scenes/SceneList.h"
 #include "SceneNavigator.h"
+#include "TestGame.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -41,156 +41,6 @@ namespace Test {
   static_assert(std::is_same_v<Duple<int*>, Table<Row<int>>::ElementRef>);
   static_assert(std::is_same_v<Table<Row<int>>::ElementRef, decltype(make_duple((int*)nullptr))>);
   static_assert(std::is_same_v<std::tuple<DupleElement<0, int>>, Duple<int>::TupleT>);
-
-  struct GameArgs {
-    size_t fragmentCount{};
-    size_t completedFragmentCount{};
-    //Optionally create a player, and if so, at this position
-    std::optional<glm::vec2> playerPos;
-    //Boundary of broadphase and forces. Default should be enough to keep it out of the way
-    glm::vec2 boundaryMin{ -100 };
-    glm::vec2 boundaryMax{ 100 };
-    bool enableFragmentGoals{ false };
-    std::optional<size_t> forcedPadding;
-  };
-
-  //Hack for some funky ordering, these are for construct, GameArgs are for init
-  struct GameConstructArgs {
-    Config::GameConfig config;
-    Config::PhysicsConfig physics;
-    Simulation::UpdateConfig updateConfig;
-  };
-
-  struct KnownTables {
-    KnownTables() = default;
-    KnownTables(IAppBuilder& builder)
-      : player{ builder.queryTables<IsPlayer>().matchingTableIDs[0] }
-      , fragments{ builder.queryTables<IsFragment, SharedMassObjectTableTag>().matchingTableIDs[0] }
-      , completedFragments{ builder.queryTables<FragmentGoalFoundTableTag>().matchingTableIDs[0] }
-    {}
-    UnpackedDatabaseElementID player;
-    UnpackedDatabaseElementID fragments;
-    UnpackedDatabaseElementID completedFragments;
-  };
-
-  void addPassthroughMappings(Input::InputMapper& mapper) {
-    mapper.addPassthroughAxis2D(GameInput::Keys::MOVE_2D);
-  }
-
-  struct TestGame {
-    TestGame(GameConstructArgs args = {}) {
-      auto mappings = std::make_unique<StableElementMappings>();
-      std::unique_ptr<IDatabase> game = GameDatabase::create(*mappings);
-      std::unique_ptr<IDatabase> result =  DBReflect::bundle(std::move(game), std::move(mappings));
-
-      std::unique_ptr<IAppBuilder> bootstrap = GameBuilder::create(*result);
-      Simulation::initScheduler(*bootstrap);
-      for(auto&& work : GameScheduler::buildSync(IAppBuilder::finalize(std::move(bootstrap)))) {
-        work.work();
-      }
-
-      std::unique_ptr<IAppBuilder> initBuilder = GameBuilder::create(*result);
-      auto temp = initBuilder->createTask();
-      temp.discard();
-      ThreadLocalsInstance* tls = temp.query<ThreadLocalsRow>().tryGetSingletonElement();
-
-      Simulation::init(*initBuilder);
-      TaskRange initTasks = GameScheduler::buildTasks(IAppBuilder::finalize(std::move(initBuilder)), *tls->instance);
-
-      //Disable loading from config
-      temp.query<SharedRow<FileSystem>>().tryGetSingletonElement()->mRoot = "?invalid?";
-      Config::GameConfig* gameConfig = TableAdapters::getGameConfigMutable(temp);
-      //TODO: why is this assigned twice instead of assigning physics as part of GameConfig?
-      *gameConfig = std::move(args.config);
-      gameConfig->physics = std::move(args.physics);
-
-      Scheduler* scheduler = temp.query<SharedRow<Scheduler>>().tryGetSingletonElement();
-      initTasks.mBegin->mTask.addToPipe(scheduler->mScheduler);
-      scheduler->mScheduler.WaitforTask(initTasks.mEnd->mTask.get());
-
-      testBuilder = GameBuilder::create(*result);
-
-      std::unique_ptr<IAppBuilder> updateBuilder = GameBuilder::create(*result);
-      Simulation::buildUpdateTasks(*updateBuilder, args.updateConfig);
-      GameInput::update(*updateBuilder);
-
-      task = GameScheduler::buildTasks(IAppBuilder::finalize(std::move(updateBuilder)), *tls->instance);
-      db = std::move(result);
-      tables = KnownTables{ *testBuilder };
-      test = std::make_unique<RuntimeDatabaseTaskBuilder>(std::move(temp));
-      test->discard();
-      tld = tls->instance->get(0);
-
-      addPassthroughMappings(*builder().query<GameInput::GlobalMappingsRow>().tryGetSingletonElement());
-    }
-
-    TestGame(const GameArgs& args)
-      : TestGame() {
-      init(args);
-    }
-
-    RuntimeDatabaseTaskBuilder& builder() {
-      return *test;
-    }
-
-    AppTaskArgs sharedArgs() {
-      AppTaskArgs result;
-      result.threadLocal = &tld;
-      return result;
-    }
-
-    void init(const GameArgs& args) {
-      auto a = sharedArgs();
-      auto b = builder();
-
-      Config::FragmentConfig& fragment = TableAdapters::getGameConfigMutable(b)->fragment;
-      if(!args.enableFragmentGoals) {
-        fragment.fragmentGoalDistance = -1.0f;
-      }
-      if(args.forcedPadding) {
-        TableAdapters::getGameConfigMutable(b)->physics.mForcedTargetWidth = *args.forcedPadding;
-      }
-      SceneState* scene = b.query<SharedRow<SceneState>>().tryGetSingletonElement();
-      fragment.fragmentRows = args.fragmentCount + args.completedFragmentCount;
-      fragment.fragmentColumns = 1;
-      fragment.completedFragments = args.completedFragmentCount;
-      fragment.playerSpawn = args.playerPos;
-      fragment.addGround = false;
-      auto nav = SceneList::createNavigator(b);
-      nav.navigator->navigateTo(nav.scenes->fragment);
-
-      //Update once to run events which will populate the broadphase
-      update();
-      update();
-      update();
-
-      scene->mBoundaryMin = glm::vec2(-100);
-      scene->mBoundaryMax = glm::vec2(100);
-    }
-
-
-    void update() {
-      execute(task);
-    }
-
-    void execute(std::unique_ptr<IAppBuilder> toExecute) {
-      ThreadLocalsInstance* tls = builder().query<ThreadLocalsRow>().tryGetSingletonElement();
-      execute(GameScheduler::buildTasks(IAppBuilder::finalize(std::move(toExecute)), *tls->instance));
-    }
-
-    void execute(TaskRange range) {
-      Scheduler* scheduler = builder().query<SharedRow<Scheduler>>().tryGetSingletonElement();
-      range.mBegin->mTask.addToPipe(scheduler->mScheduler);
-      scheduler->mScheduler.WaitforTask(range.mEnd->mTask.get());
-    }
-
-    TaskRange task;
-    std::unique_ptr<IDatabase> db;
-    std::unique_ptr<IAppBuilder> testBuilder;
-    std::unique_ptr<RuntimeDatabaseTaskBuilder> test;
-    KnownTables tables;
-    ThreadLocalData tld;
-  };
 
   TEST_CLASS(GameSchedulerTest) {
     struct TestDB {
