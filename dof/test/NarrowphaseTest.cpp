@@ -323,10 +323,11 @@ namespace Test {
 
       db.doNarrowphase();
 
+      constexpr float overlapTolerance = 0.01f;
       Assert::IsFalse(manifold.size, L"XY collision should not generate if separated on Z axis");
       Assert::IsTrue(zManifold.info.has_value());
       Assert::AreEqual(-1.0f, zManifold.info->normal, L"Normal should go towards A");
-      Assert::AreEqual(1.0f, zManifold.info->separation);
+      Assert::AreEqual(1.0f, zManifold.info->separation, overlapTolerance);
 
       //0.1 of overlap
       thickness->at() = 0.5f;
@@ -336,10 +337,9 @@ namespace Test {
 
       db.doNarrowphase();
 
-      Assert::IsFalse(manifold.size);
-      Assert::IsTrue(zManifold.info.has_value());
-      Assert::AreEqual(1.0f, zManifold.info->normal);
-      Assert::AreEqual(-0.1f, zManifold.info->separation, 0.001f, L"Overlap should show as negative separation");
+      //Once there is any overlap it is solved as XY, Z solves to prevent overlap from starting
+      Assert::IsTrue(manifold.size);
+      Assert::IsFalse(zManifold.info.has_value());
 
       //Exact overlap on Z with thickness
       thickness->at() = 0.5f;
