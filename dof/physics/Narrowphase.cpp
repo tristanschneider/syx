@@ -272,6 +272,9 @@ namespace Narrowphase {
         for(size_t ri = args.begin; ri < std::min(args.end, thisTableEnd); ++ri) {
           const size_t i = ri - thisTableStart;
           const ElementRef& stableA = a->at(i);
+          if(stableA == ElementRef{}) {
+            continue;
+          }
           const ElementRef& stableB = b->at(i);
           //TODO: fast path if it's the same table as last time
           auto resolvedA = resolver.tryUnpack(stableA);
