@@ -3,6 +3,7 @@
 #include <iterator>
 
 namespace gnx {
+  //TODO: this is wonky, should probably be an intrusive linked list
   template<class T>
   struct DefaultFreeOps {
     //If this element has been marked as free
@@ -10,8 +11,8 @@ namespace gnx {
       return value.isFree();
     }
     //Do something to the value so it will return isFree. It will not appear in iteration
-    static void markAsFree(T& value) {
-      value.markAsFree();
+    static void markAsFree(T& value, bool isFree) {
+      value.markAsFree(isFree);
     }
   };
   template<auto MemberPtr, auto FreeValue>
@@ -22,8 +23,9 @@ namespace gnx {
       return value.*MemberPtr == FreeValue;
     }
     //Do something to the value so it will return isFree. It will not appear in iteration
-    static void markAsFree(ValueT& value) {
-      value.*MemberPtr = FreeValue;
+    static void markAsFree(ValueT& value, bool isFree) {
+      //TODO: get rid of + 1 hack and have two constants
+      value.*MemberPtr = isFree ? FreeValue : static_cast<IndexT>(FreeValue + static_cast<IndexT>(1));
     }
   };
 
@@ -102,23 +104,36 @@ namespace gnx {
     };
 
     Index newIndex() {
+      Index newIndex{};
       if(freeList.empty()) {
-        const Index newIndex = static_cast<Index>(values.size());
+        newIndex = static_cast<Index>(values.size());
         values.emplace_back();
-        return newIndex;
       }
-      Index freeIndex = freeList.back();
-      freeList.pop_back();
-      return freeIndex;
+      else {
+        newIndex = freeList.back();
+        freeList.pop_back();
+      }
+
+      Ops::markAsFree(values[newIndex], false);
+
+      return newIndex;
     }
 
     void deleteIndex(Index index) {
-      Ops::markAsFree(values[index]);
+      Ops::markAsFree(values[index], true);
       freeList.push_back(index);
     }
 
     bool isFree(Index index) const {
       return index < values.size() && Ops::isFree(values[index]);
+    }
+
+    bool isValid(Index index) const {
+      return index < values.size() && !Ops::isFree(values[index]);
+    }
+
+    size_t size() const {
+      return values.size() - freeList.size();
     }
 
     void clear() {

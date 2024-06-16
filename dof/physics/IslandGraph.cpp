@@ -2,6 +2,129 @@
 #include "IslandGraph.h"
 
 namespace IslandGraph {
+  namespace Debug {
+    bool validateIslands(Graph& graph) {
+      std::unordered_set<const Edge*> expectedEdges;
+      std::unordered_set<const Node*> expectedNodes;
+      std::unordered_set<const Node*> nodesInIsland;
+      expectedEdges.reserve(graph.edges.size());
+      expectedNodes.reserve(graph.nodes.size());
+      auto returnNotValid = [](const char*) {
+        __debugbreak();
+        return false;
+      };
+      for(const Node& n : graph.nodes) {
+        //All propagating nodes are expected, non-propagating may be found but not required
+        if(n.propagation) {
+          expectedNodes.insert(&n);
+        }
+      }
+      for(const Edge& e : graph.edges) {
+        if(!graph.nodes.isValid(e.nodeA) || !graph.nodes.isValid(e.nodeB)) {
+          return returnNotValid("Invalid node index on edge");
+        }
+        const Node& na = graph.nodes[e.nodeA];
+        const Node& nb = graph.nodes[e.nodeB];
+        //Only edges between propagating nodes are expected to be found in islands
+        if(na.propagation || nb.propagation) {
+          expectedEdges.insert(&e);
+        }
+      }
+
+      for(const Island& island : graph.islands) {
+        uint32_t ei = island.edges;
+        const IslandIndex islandIndex = static_cast<IslandIndex>(&island - graph.islands.values.data());
+        while(ei != IslandGraph::INVALID) {
+          if(!graph.edges.isValid(ei)) {
+            return returnNotValid("Invalid edge on island");
+          }
+
+          //Validate the edge itself
+          const Edge& e = graph.edges[ei];
+          auto foundEdge = expectedEdges.find(&e);
+          //Every edge should be expected and only found once
+          if(foundEdge == expectedEdges.end()) {
+            return returnNotValid("Unexpected edge in island");
+          }
+          //Erase from expected so it asserts if found again
+          expectedEdges.erase(foundEdge);
+
+          //Validate nodes in edge
+          auto validateNode = [&](uint32_t nodeIndex) {
+            if(!graph.nodes.isValid(nodeIndex)) {
+              return returnNotValid("Invalid node in island");
+            }
+            const Node& node = graph.nodes[nodeIndex];
+            //Node is expected to be found in a single island if it's a propagating node
+            //Non-propagating nodes might share multiple islands
+            if(node.propagation) {
+              auto foundNode = expectedNodes.find(&node);
+              if(foundNode == expectedNodes.end()) {
+                return returnNotValid("Unexpected node in island");
+              }
+              nodesInIsland.insert(&node);
+              if(node.islandIndex != islandIndex) {
+                return returnNotValid("Incorrect island index on node");
+              }
+            }
+            return true;
+          };
+          if(!validateNode(e.nodeA) || !validateNode(e.nodeB)) {
+            return false;
+          }
+
+          ei = e.islandNext;
+        }
+
+        //Make sure that all the nodes found in edge traversal are also found in node traversal
+        uint32_t ni = island.nodes;
+        //Root is always expected and may not show up in any edges if this node is by itself in an island
+        nodesInIsland.insert(&graph.nodes[ni]);
+        while(ni != IslandGraph::INVALID) {
+          if(!graph.nodes.isValid(ni)) {
+            return returnNotValid("Invalid node in island");
+          }
+          const Node& n = graph.nodes[ni];
+          if(n.propagation) {
+            //Erase from node list so final count can be validated
+            if(!nodesInIsland.erase(&n)) {
+              return returnNotValid("Node in node list but not in any edges");
+            }
+            //Erase from expected so finding this node again in a different island would assert
+            if(!expectedNodes.erase(&n)) {
+              return returnNotValid("Node in island but not expected");
+            }
+          }
+
+          ni = n.islandNext;
+        }
+
+        if(nodesInIsland.size()) {
+          return returnNotValid("Node in edge list but not in node list");
+        }
+        nodesInIsland.clear();
+      }
+
+      if(expectedEdges.size()) {
+        return returnNotValid("Edges missing from islands");
+      }
+      if(expectedNodes.size()) {
+        return returnNotValid("Nodes missing from islands");
+      }
+
+      return true;
+    }
+
+    void rebuildAndValidateIslands(Graph& graph) {
+      Graph temp = graph;
+      rebuildIslands(graph);
+      if(!validateIslands(graph)) {
+        //Do it again and debugger can stop here and step through problem
+        rebuildIslands(temp);
+      }
+    }
+  }
+
   void addToLinkedList(uint32_t& root, uint32_t entryIndex, EdgeEntry& entry, uint32_t edgeIndex) {
     entry.edge = edgeIndex;
     entry.nextEntry = root;
@@ -164,6 +287,12 @@ namespace IslandGraph {
       graph.changedIslands[i] = false;
 
       Island& island = graph.islands[i];
+      //If the island is invalid then something unexpected happened with the change tracking to mark
+      //an old island as changed. This is a bit of a hack since it indicates something wrong happened earlier
+      if(graph.islands.isFree(i)) {
+        continue;
+      }
+
       const bool nodesChanged = populateIsland(graph, island, static_cast<IslandIndex>(i));
       //If island is now empty, add it to the free list if it isn't already
       if(!island.size()) {

@@ -66,16 +66,20 @@ namespace IslandGraph {
       *this = std::move(temp);
     }
 
+    explicit operator bool() const {
+      return nodes != INVALID;
+    }
+
     uint32_t nodes{ INVALID };
     uint32_t edges{ INVALID };
     uint32_t nodeCount{};
     uint32_t edgeCount{};
-    IslandIndex nextFreeIsland{ INVALID_ISLAND };
+    IslandIndex nextFreeIsland{};
     //Hacky solution to detect island changes for no-propagation nodes
     //Tracks all of them on the island since the node might belong to multiple islands
     //Hopefully there are few per island
     std::vector<uint32_t> noPropagateNodes;
-    std::unique_ptr<IIslandUserdata> userdata;
+    std::shared_ptr<IIslandUserdata> userdata;
   };
   constexpr static uint32_t FREE_INDEX = std::numeric_limits<uint32_t>::max() - 1;
 }
@@ -110,7 +114,6 @@ namespace gnx {
 
 namespace IslandGraph {
   struct Graph {
-
     struct EdgeIterator {
       using iterator_category = std::random_access_iterator_tag;
       using value_type        = EdgeUserdata;
@@ -493,7 +496,8 @@ namespace IslandGraph {
     std::vector<bool> publishedIslandNodesChanged, publishedIslandEdgesChanged;
     std::vector<uint32_t> newNodes;
     std::vector<uint32_t> scratchBuffer, scratchIslands;
-    std::unique_ptr<IIslandUserdataFactory> userdataFactory;
+    //Unique ownership usually but shared easy debugging allowing copying
+    std::shared_ptr<IIslandUserdataFactory> userdataFactory;
   };
 
   EdgeUserdata addUnmappedEdge(Graph& graph, const NodeUserdata& a, const NodeUserdata& b);
@@ -506,4 +510,11 @@ namespace IslandGraph {
   void setPropagation(Graph& graph, Graph::NodeIterator it, IslandPropagationMask propagation);
 
   void rebuildIslands(Graph& graph);
+
+  namespace Debug {
+    //Validate that all expected nodes and edges in the graph are traversible via islands
+    //Valid result is expected after rebuildIslands and until the next modification to the graph
+    bool validateIslands(Graph& graph);
+    void rebuildAndValidateIslands(Graph& graph);
+  }
 }

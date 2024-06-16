@@ -634,7 +634,7 @@ namespace ConstraintSolver {
       //TODO: probably smarter way to reuse this
       collection->tasks.clear();
       for(IslandGraph::IslandIndex i = 0; i < static_cast<IslandGraph::IslandIndex>(graph->islands.values.size()); ++i) {
-        if(graph->islands[i].size()) {
+        if(!graph->islands.isFree(i) && graph->islands[i].size()) {
           collection->tasks.push_back({ i });
         }
       }

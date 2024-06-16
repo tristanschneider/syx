@@ -30,6 +30,11 @@ namespace Test {
       size_t edges{};
     };
 
+    static void rebuildIslands(IslandGraph::Graph& graph) {
+      IslandGraph::rebuildIslands(graph);
+      Assert::IsTrue(IslandGraph::Debug::validateIslands(graph));
+    }
+
     TEST_METHOD(Base) {
       IslandGraph::Graph graph;
       Assert::IsTrue(graph.begin() == graph.end());
@@ -44,7 +49,7 @@ namespace Test {
       IslandGraph::addNode(graph, nodeA);
       IslandGraph::addNode(graph, nodeB);
       IslandGraph::addEdge(graph, nodeA, nodeB, edgeAB);
-      IslandGraph::rebuildIslands(graph);
+      rebuildIslands(graph);
 
       Assert::AreEqual(size_t(1), graph.end() - graph.begin());
 
@@ -62,7 +67,7 @@ namespace Test {
       IslandGraph::addNode(graph, nodeC);
       IslandGraph::addNode(graph, nodeD);
       IslandGraph::addEdge(graph, nodeC, nodeD, edgeCD);
-      IslandGraph::rebuildIslands(graph);
+      rebuildIslands(graph);
 
       Assert::AreEqual(size_t(2), graph.end() - graph.begin());
       it = graph.begin() + 1;
@@ -97,7 +102,7 @@ namespace Test {
       //   D
       const IslandGraph::EdgeUserdata edgeAD{ gen };
       IslandGraph::addEdge(graph, nodeA, nodeD, edgeAD);
-      IslandGraph::rebuildIslands(graph);
+      rebuildIslands(graph);
       nonEmpty = 0;
       for(it = graph.begin(); it != graph.end(); ++it) {
         if(it->size()) {
@@ -124,7 +129,7 @@ namespace Test {
       const IslandGraph::EdgeUserdata edgeBE{ gen };
       IslandGraph::addNode(graph, nodeE);
       IslandGraph::addEdge(graph, nodeB, nodeE, edgeBE);
-      IslandGraph::rebuildIslands(graph);
+      rebuildIslands(graph);
       nonEmpty = 0;
       for(it = graph.begin(); it != graph.end(); ++it) {
         if(it->size()) {
@@ -150,7 +155,7 @@ namespace Test {
       //|
       //E
       IslandGraph::removeEdge(graph, nodeA, nodeB);
-      IslandGraph::rebuildIslands(graph);
+      rebuildIslands(graph);
       nonEmpty = 0;
       bool foundBE{};
       bool foundACD{};
@@ -195,7 +200,7 @@ namespace Test {
       //|
       //E
       IslandGraph::removeEdge(graph, nodeA, nodeD);
-      IslandGraph::rebuildIslands(graph);
+      rebuildIslands(graph);
       foundBE = false;
       foundACD = false;
       for(it = graph.begin(); it != graph.end(); ++it) {
@@ -239,7 +244,7 @@ namespace Test {
       //
       //E
       IslandGraph::removeEdge(graph, nodeB, nodeE);
-      IslandGraph::rebuildIslands(graph);
+      rebuildIslands(graph);
       bool foundB{};
       bool foundE{};
       foundACD = false;
@@ -277,7 +282,7 @@ namespace Test {
       //
       //E
       IslandGraph::removeNode(graph, nodeC);
-      IslandGraph::rebuildIslands(graph);
+      rebuildIslands(graph);
       bool foundA{};
       foundB = false;
       bool foundD{};
@@ -317,7 +322,7 @@ namespace Test {
       IslandGraph::addEdge(graph, nodeA, nodeB, edgeAB);
       IslandGraph::addEdge(graph, nodeB, nodeE, edgeBE);
       IslandGraph::addEdge(graph, nodeB, nodeD, edgeBD);
-      IslandGraph::rebuildIslands(graph);
+      rebuildIslands(graph);
       nonEmpty = 0;
       for(it = graph.begin(); it != graph.end(); ++it) {
         if(it->size()) {
@@ -339,7 +344,7 @@ namespace Test {
       //|
       //E
       IslandGraph::removeNode(graph, nodeD);
-      IslandGraph::rebuildIslands(graph);
+      rebuildIslands(graph);
       nonEmpty = 0;
       for(it = graph.begin(); it != graph.end(); ++it) {
         if(it->size()) {
@@ -361,7 +366,7 @@ namespace Test {
       //
       //E
       IslandGraph::removeEdge(graph, nodeB, nodeE);
-      IslandGraph::rebuildIslands(graph);
+      rebuildIslands(graph);
       bool foundAB{};
       foundE = false;
       for(it = graph.begin(); it != graph.end(); ++it) {
@@ -388,7 +393,7 @@ namespace Test {
       //|
       //B
       IslandGraph::removeNode(graph, nodeE);
-      IslandGraph::rebuildIslands(graph);
+      rebuildIslands(graph);
       nonEmpty = 0;
       for(it = graph.begin(); it != graph.end(); ++it) {
         Assert::IsFalse(std::find(it.beginNodes(), it.endNodes(), nodeE) != it.endNodes());
@@ -404,7 +409,7 @@ namespace Test {
       //Empty
       IslandGraph::removeNode(graph, nodeA);
       IslandGraph::removeNode(graph, nodeB);
-      IslandGraph::rebuildIslands(graph);
+      rebuildIslands(graph);
       for(it = graph.begin(); it != graph.end(); ++it) {
         Assert::IsTrue(it.beginNodes() == it.endNodes());
         Assert::IsTrue(it.beginEdges() == it.endEdges());
@@ -425,7 +430,7 @@ namespace Test {
       IslandGraph::addNode(graph, nodeC);
       IslandGraph::addEdge(graph, nodeA, staticB, edgeAB);
       IslandGraph::addEdge(graph, staticB, nodeC, edgeBC);
-      IslandGraph::rebuildIslands(graph);
+      rebuildIslands(graph);
 
       {
         bool foundA{};
@@ -454,7 +459,7 @@ namespace Test {
       const IslandGraph::EdgeUserdata edgeBD{ gen };
       IslandGraph::addNode(graph, staticD, IslandGraph::PROPAGATE_NONE);
       IslandGraph::addEdge(graph, staticB, staticD, edgeBD);
-      IslandGraph::rebuildIslands(graph);
+      rebuildIslands(graph);
       {
         bool foundA{};
         bool foundC{};
@@ -486,7 +491,7 @@ namespace Test {
       // (D)
       const IslandGraph::EdgeUserdata edgeAC{ gen };
       IslandGraph::addEdge(graph, nodeA, nodeC, edgeAC);
-      IslandGraph::rebuildIslands(graph);
+      rebuildIslands(graph);
       {
         bool found{};
         for(auto it = graph.begin(); it != graph.end(); ++it) {
