@@ -741,6 +741,8 @@ void Renderer::render(IAppBuilder& builder) {
     }
 
     glUseProgram(state->mQuadShader);
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LESS);
     for(const auto& renderCamera : cameras) {
       PROFILE_SCOPE("renderer", "geometry");
       for(size_t i = 0; i < quads.size(); ++i) {
@@ -823,7 +825,7 @@ void Renderer::render(IAppBuilder& builder) {
         glDrawArraysInstanced(GL_TRIANGLES, 0, 6, GLsizei(count));
       }
     }
-
+    glDisable(GL_DEPTH_TEST);
     /* TODO: move to simulation with imgui setting
     static bool renderBorders = true;
     if(renderBorders) {
