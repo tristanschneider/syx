@@ -91,11 +91,19 @@ namespace SpatialQuery {
     glm::vec2 normal{};
     float overlap{};
   };
+  struct ContactXY {
+    std::array<ContactPoint, 2> points;
+    uint8_t size{};
+  };
+  struct ContactZ {
+    float normal{};
+    float separation{};
+  };
 
   struct Result {
     ElementRef other;
-    std::array<ContactPoint, 2> points;
-    size_t size{};
+    using Variant = std::variant<ContactXY, ContactZ>;
+    Variant contact;
   };
 
   struct LifetimeRow : Row<size_t> {};

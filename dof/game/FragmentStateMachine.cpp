@@ -24,9 +24,16 @@
 
 namespace SM {
   using namespace FragmentStateMachine;
+  //Skip results hitting the shape itself and results not aligned on the Z axis
+  bool isValidResult(const SpatialQuery::Result& result, const ElementRef& self) {
+    return
+      result.other != self &&
+      std::holds_alternative<SpatialQuery::ContactXY>(result.contact);
+  }
+
   std::optional<ElementRef> tryGetFirstNearby(SpatialQuery::IReader& reader, const ElementRef& self) {
     const SpatialQuery::Result* result = reader.tryIterate();
-    while(result && result->other == self) {
+    while(result && !isValidResult(*result, self)) {
       result = reader.tryIterate();
     }
     return result ? std::make_optional(result->other) : std::nullopt;
@@ -226,7 +233,7 @@ namespace SM {
           //Draw lines to each nearby spatial query result
           spatialQuery->begin(temp);
           while(const auto* n = spatialQuery->tryIterate()) {
-            if(n->other == myID) {
+            if(!isValidResult(*n, myID)) {
               continue;
             }
             if(auto resolved = ids->getRefResolver().tryUnpack(n->other)) {

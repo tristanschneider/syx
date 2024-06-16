@@ -45,6 +45,15 @@ namespace Narrowphase {
     };
   }
 
+  Narrowphase::BoxPairElement toBoxElement(const Shape::AABB& r) {
+    const glm::vec2 halfSize = (r.max - r.min) * 0.5f;
+    return {
+      r.min + halfSize,
+      glm::vec2{ 1.0f, 0.0f },
+      halfSize
+    };
+  }
+
   void generateContacts(Shape::Rectangle& a, Shape::Rectangle& b, ContactArgs& result) {
     Narrowphase::BoxPair pair{ toBoxElement(a), toBoxElement(b) };
     Narrowphase::boxBox(result.manifold, pair);
@@ -97,15 +106,16 @@ namespace Narrowphase {
     generateSwappedContacts(circle, cube, result);
   }
 
-  void generateContacts(const Shape::Rectangle&, const Shape::AABB&, ContactArgs&) {
-    //TODO: generalize unit cube so it can be used for this
+  void generateContacts(Shape::Rectangle& a, Shape::AABB& b, ContactArgs& result) {
+    Narrowphase::BoxPair pair{ toBoxElement(a), toBoxElement(b) };
+    Narrowphase::boxBox(result.manifold, pair);
   }
 
-  void generateContacts(const Shape::AABB& a, const Shape::Rectangle& b, ContactArgs& result) {
+  void generateContacts(Shape::AABB& a, Shape::Rectangle& b, ContactArgs& result) {
     generateSwappedContacts(a, b, result);
   }
 
-  void generateContacts(const Shape::AABB&, const Shape::AABB&, ContactArgs&) {
+  void generateContacts(Shape::AABB&, Shape::AABB&, ContactArgs&) {
     //TODO: for spatial queries is this needed?
   }
 

@@ -151,7 +151,7 @@ namespace SpatialQuery {
   struct Reader : IReader {
     Reader(RuntimeDatabaseTaskBuilder& task) {
       graph = task.query<const SP::IslandGraphRow>().tryGetSingletonElement();
-      std::tie(manifold) = task.query<const SP::ManifoldRow>().get(0);
+      std::tie(manifold, zManifold) = task.query<const SP::ManifoldRow, const SP::ZManifoldRow>().get(0);
       ids = task.getIDResolver();
       tables = SQShapeTables{ task };
     }
@@ -174,6 +174,42 @@ namespace SpatialQuery {
       }
     }
 
+    struct ResultBuilder {
+      ResultBuilder(Result& r, const ElementRef& self, const IslandGraph::Graph& graph, const IslandGraph::Edge& edge)
+        : result{ r }
+      {
+        const ElementRef& stableA = graph.nodes[edge.nodeA].data;
+        const ElementRef& stableB = graph.nodes[edge.nodeB].data;
+        if(stableA == self) {
+          flipResults = false;
+          result.other = stableB;
+        }
+        else {
+          flipResults = true;
+          result.other = stableA;
+        }
+      }
+
+      void addResults(const SP::ContactManifold& manifold) {
+        ContactXY& c = result.contact.emplace<ContactXY>();
+        c.size = static_cast<uint8_t>(manifold.size);
+        for(size_t i = 0; i < manifold.size; ++i) {
+          c.points[i].point = flipResults ? manifold[i].centerToContactB : manifold[i].centerToContactA;
+          c.points[i].normal = flipResults ? -manifold.points[i].normal : manifold[i].normal;
+          c.points[i].overlap = manifold[i].overlap;
+        }
+      }
+
+      void addResults(const SP::ZInfo& manifold) {
+        ContactZ& c = result.contact.emplace<ContactZ>();
+        c.normal = flipResults ? -manifold.normal : manifold.normal;
+        c.separation = manifold.separation;
+      }
+
+      Result& result;
+      bool flipResults{};
+    };
+
     //Return results from the current edge entry and advance to the next one
     const Result* tryIterate() override {
       //Iterate through edges until one is found that passed the narrowphase
@@ -185,28 +221,15 @@ namespace SpatialQuery {
         //Should always work
         if(manifold->size() > edge.data) {
           const SP::ContactManifold& man = manifold->at(edge.data);
+          const SP::ZContactManifold& zman = zManifold->at(edge.data);
+          ResultBuilder builder{ cachedResult, self, *graph, edge };
           //If there are points, copy them over. If there aren't then this made it past broadphase but not narrowphase
-          //AABB is special in that the results directly from the broadphase are returned but has no point data
-          if(man.size || unpacked.getTableIndex() == tables.aabb.getTableIndex()) {
-            cachedResult.size = man.size;
-            const ElementRef& stableA = graph->nodes[edge.nodeA].data;
-            const ElementRef& stableB = graph->nodes[edge.nodeB].data;
-            if(stableA == self) {
-              cachedResult.other = stableB;
-              for(size_t i = 0; i < man.size; ++i) {
-                cachedResult.points[i].point = man[i].centerToContactA;
-                cachedResult.points[i].normal = man[i].normal;
-                cachedResult.points[i].overlap = man[i].overlap;
-              }
-            }
-            if(stableB == self) {
-              cachedResult.other = stableA;
-              for(size_t i = 0; i < man.size; ++i) {
-                cachedResult.points[i].point = man[i].centerToContactB;
-                cachedResult.points[i].normal = -man[i].normal;
-                cachedResult.points[i].overlap = man[i].overlap;
-              }
-            }
+          if(man.size) {
+            builder.addResults(man);
+            return &cachedResult;
+          }
+          else if(zman.info) {
+            builder.addResults(*zman.info);
             return &cachedResult;
           }
         }
@@ -216,6 +239,7 @@ namespace SpatialQuery {
 
     const IslandGraph::Graph* graph{};
     const SP::ManifoldRow* manifold{};
+    const SP::ZManifoldRow* zManifold{};
     std::shared_ptr<IIDResolver> ids{};
 
     uint32_t selectedEdgeEntry{ IslandGraph::INVALID };
