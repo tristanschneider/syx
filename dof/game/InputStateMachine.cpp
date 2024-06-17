@@ -318,7 +318,7 @@ namespace Input {
           return false;
         }
         //Continue traversing edges (return true) unless this edge consumed the event
-        return eventConsumed;
+        return !eventConsumed;
       });
 
       //Stop traversing active nodes if the event was consumed
@@ -499,6 +499,11 @@ namespace Input {
   EdgeTraverser InputMapper::onPassthroughKeyDown(KeyMapID key) const {
     auto it = reverseMappings.find(key);
     return it != reverseMappings.end() ? onKeyDown(it->second.platformKey) : EdgeTraverser{};
+  }
+
+  EdgeTraverser InputMapper::onPassthroughKeyUp(KeyMapID key) const {
+    auto it = reverseMappings.find(key);
+    return it != reverseMappings.end() ? onKeyUp(it->second.platformKey) : EdgeTraverser{};
   }
 
   EdgeTraverser InputMapper::onPassthroughAxis2DAbsolute(KeyMapID axis, const glm::vec2& absolute) const {

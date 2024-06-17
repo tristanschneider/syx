@@ -153,7 +153,6 @@ namespace SpatialQuery {
       graph = task.query<const SP::IslandGraphRow>().tryGetSingletonElement();
       std::tie(manifold, zManifold) = task.query<const SP::ManifoldRow, const SP::ZManifoldRow>().get(0);
       ids = task.getIDResolver();
-      tables = SQShapeTables{ task };
     }
 
     //TODO: better iterator support
@@ -203,7 +202,7 @@ namespace SpatialQuery {
       void addResults(const SP::ZInfo& manifold) {
         ContactZ& c = result.contact.emplace<ContactZ>();
         c.normal = flipResults ? -manifold.normal : manifold.normal;
-        c.separation = manifold.separation;
+        c.overlap = manifold.separation;
       }
 
       Result& result;
@@ -228,7 +227,7 @@ namespace SpatialQuery {
             builder.addResults(man);
             return &cachedResult;
           }
-          else if(zman.info) {
+          else if(zman.isTouching()) {
             builder.addResults(*zman.info);
             return &cachedResult;
           }
@@ -246,7 +245,6 @@ namespace SpatialQuery {
     UnpackedDatabaseElementID unpacked;
     ElementRef self;
     Result cachedResult;
-    SQShapeTables tables;
   };
 
   struct Writer : IWriter {

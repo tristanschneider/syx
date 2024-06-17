@@ -27,6 +27,8 @@ namespace SP {
     float frictionWarmStart{};
   };
   struct ZInfo {
+    float getOverlap() const;
+
     //Towards A
     float normal{};
     //Solving along Z sweeps to avoid collision in the first place so separation is the distance between the bodies
@@ -51,6 +53,8 @@ namespace SP {
     void clear() {
       info.reset();
     }
+
+    bool isTouching() const;
 
     //Populated if contact constraint solving on the Z axis is desired
     std::optional<ZInfo> info;

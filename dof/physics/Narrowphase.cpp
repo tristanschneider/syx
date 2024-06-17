@@ -194,7 +194,7 @@ namespace Narrowphase {
     float distance = Geo::getRangeDistance(overlap, rangeA, rangeB);
     //If the shapes are within overlap tolerance, solve as XY collision
     //If they aren't, solve Z and ignore XY
-    constexpr float overlapTolerance = 0.01f;
+    constexpr float overlapTolerance = Z_OVERLAP_TOLERANCE;
     if(distance > 0.0f) {
       result.zManifold.info = SP::ZInfo{
         Geo::getRangeNormal(overlap),

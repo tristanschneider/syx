@@ -36,6 +36,7 @@ namespace Narrowphase {
   struct SharedThicknessRow : SharedRow<float> {};
   struct ThicknessRow : Row<float> {};
   constexpr float DEFAULT_THICKNESS = 0.0f;
+  constexpr float Z_OVERLAP_TOLERANCE = 0.01f;
 
   //Takes the pairs stored in SpatialPairsTable and generates the contacts needed to resolve the spatial
   //queries or constraint solving

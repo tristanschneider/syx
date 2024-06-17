@@ -2,9 +2,18 @@
 #include "SpatialPairsStorage.h"
 
 #include "AppBuilder.h"
+#include "Narrowphase.h"
 #include "SweepNPruneBroadphase.h"
 
 namespace SP {
+  float ZInfo::getOverlap() const {
+    return separation <= Narrowphase::Z_OVERLAP_TOLERANCE + 0.00001f;
+  }
+
+  bool ZContactManifold::isTouching() const {
+    return info && info->getOverlap() > 0.0f;
+  }
+
   size_t addIslandEdge(ITableModifier& modifier,
     IslandGraph::Graph& graph,
     ObjA& rowA,

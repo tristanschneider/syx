@@ -109,6 +109,40 @@ namespace GameInput {
     );
   }
 
+  void rebuildOnGroundTracking(Input::StateMachineBuilder& builder, Input::NodeIndex root) {
+    using namespace Input;
+    const NodeIndex onGroundNode = builder.addNode(NodeBuilder{}.emitEvent(99));
+    const NodeIndex inAirNode = builder.addNode(NodeBuilder{}.emitEvent(100));
+    const NodeIndex emitJumpNode = builder.addNode(NodeBuilder{}.emitEvent(GameInput::Events::JUMP));
+    //Start a fork of the input machine that tracks ground state, staring in air
+    builder.addEdge(EdgeBuilder{}
+      .from(root)
+      .to(inAirNode)
+      .keyDown(Keys::INIT_ONCE)
+      .forkState());
+    //Go to on ground when it is signaled
+    builder.addEdge(EdgeBuilder{}
+      .from(inAirNode)
+      .to(onGroundNode)
+      .keyDown(Keys::GAME_ON_GROUND));
+    //Exit on ground when it is signaled
+    builder.addEdge(EdgeBuilder{}
+      .from(onGroundNode)
+      .to(inAirNode)
+      .keyUp(Keys::GAME_ON_GROUND));
+    //Allow jumping from the on ground node.
+    builder.addEdge(EdgeBuilder{}
+      .from(onGroundNode)
+      .to(emitJumpNode)
+      .keyDown(Keys::JUMP));
+    //After emitting jump event go back to on ground node immediately
+    builder.addEdge(EdgeBuilder{}
+      .from(emitJumpNode)
+      .to(onGroundNode)
+      .unconditional()
+      .consumeEvent());
+  }
+
   void rebuildStateMachine(PlayerInput& input, Input::StateMachine& machine, const Input::InputMapper& mapper) {
     using namespace Input;
     StateMachineBuilder builder;
@@ -137,6 +171,8 @@ namespace GameInput {
     //Directional inputs
     builder.addEdge(EdgeBuilder{}.from(root).to(root).anyDelta2D(Keys::MOVE_2D).consumeEvent());
     addAndGoto(builder, root, EdgeBuilder{}.from(root).to(changeDensity).anyDelta1D(Keys::CHANGE_DENSITY_1D).forkState());
+
+    rebuildOnGroundTracking(builder, root);
 
     InputMapper temp{ mapper };
     temp.addPassthroughKeyMapping(Keys::INIT_ONCE);

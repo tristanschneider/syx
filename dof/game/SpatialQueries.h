@@ -97,7 +97,7 @@ namespace SpatialQuery {
   };
   struct ContactZ {
     float normal{};
-    float separation{};
+    float overlap{};
   };
 
   struct Result {

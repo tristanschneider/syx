@@ -102,8 +102,12 @@ void createKeyboardMappings(Input::InputMapper& mapper) {
   mapper.addKeyAs1DRelativeMapping(cast(VK_SUBTRACT), GameInput::Keys::DEBUG_ZOOM_1D, 1.0f);
   mapper.addKeyMapping(cast(VK_SPACE), GameInput::Keys::ACTION_1);
   mapper.addKeyMapping(cast(VK_LSHIFT), GameInput::Keys::ACTION_2);
+  mapper.addKeyMapping(cast(VK_RETURN), GameInput::Keys::JUMP);
   mapper.addKeyAs1DRelativeMapping(cast('E'), GameInput::Keys::CHANGE_DENSITY_1D, 1.0f);
   mapper.addKeyAs1DRelativeMapping(cast('Q'), GameInput::Keys::CHANGE_DENSITY_1D, -1.0f);
+
+  //TODO: could be moved to game project
+  mapper.addPassthroughKeyMapping(GameInput::Keys::GAME_ON_GROUND);
 }
 
 void enqueueMouseWheel(InputArgs& db, float wheelDelta) {

@@ -26,12 +26,15 @@ namespace GameInput {
   };
 
   namespace Keys {
+    //GAME_X means a Virtual key computed by game logic not expected to come from a physical key
     constexpr Input::KeyMapID INIT_ONCE{ 0 };
     constexpr Input::KeyMapID MOVE_2D{ 1 };
     constexpr Input::KeyMapID ACTION_1{ 2 };
     constexpr Input::KeyMapID ACTION_2{ 3 };
     constexpr Input::KeyMapID DEBUG_ZOOM_1D{ 4 };
     constexpr Input::KeyMapID CHANGE_DENSITY_1D{ 5 };
+    constexpr Input::KeyMapID GAME_ON_GROUND{ 6 };
+    constexpr Input::KeyMapID JUMP{ 7 };
   };
 
   namespace Events {
@@ -39,6 +42,7 @@ namespace GameInput {
     constexpr Input::EventID PARTIAL_TRIGGER_ACTION_1{ 2 };
     constexpr Input::EventID CHANGE_DENSITY{ 3 };
     constexpr Input::EventID DEBUG_ZOOM{ 4 };
+    constexpr Input::EventID JUMP{ 5 };
   };
 
   struct PlayerNodes {

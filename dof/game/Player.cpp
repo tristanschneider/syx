@@ -14,6 +14,7 @@
 #include "glm/gtx/norm.hpp"
 #include "AppBuilder.h"
 #include "ConstraintSolver.h"
+#include "SpatialQueries.h"
 
 namespace Player {
   using namespace Tags;
@@ -56,7 +57,48 @@ namespace Player {
 
   using namespace Math;
 
+  //Feeds the on ground state into the input state machine as if it were a button being pressed
+  //This allows input state transitions based on on ground state
+  void senseGround(IAppBuilder& builder) {
+    auto task = builder.createTask();
+    task.setName("sense ground");
+    auto players = task.query<
+      const StableIDRow,
+      GameInput::PlayerInputRow,
+      GameInput::StateMachineRow>();
+    auto sq = SpatialQuery::createReader(task);
+
+    task.setCallback([players, sq](AppTaskArgs&) mutable {
+      for(size_t t = 0; t < players.size(); ++t) {
+        auto [stable, input, machines] = players.get(t);
+        for(size_t i = 0; i < input->size(); ++i) {
+          const auto self = StableElementID::fromStableRow(i, *stable);
+          sq->begin(self);
+          bool isOnGround{};
+          //If colliding with something on the Z axis upwards, that counts as the ground
+          while(const SpatialQuery::Result* result = sq->tryIterate()) {
+            if(auto contactZ = std::get_if<SpatialQuery::ContactZ>(&result->contact)) {
+              if(contactZ->normal > 0.0f) {
+                isOnGround = true;
+                break;
+              }
+            }
+          }
+
+          Input::StateMachine& machine = machines->at(i);
+          constexpr auto og = GameInput::Keys::GAME_ON_GROUND;
+          const Input::InputMapper& mapper = machine.getMapper();
+          machine.traverse(isOnGround ? mapper.onPassthroughKeyDown(og) : mapper.onPassthroughKeyUp(og));
+        }
+      }
+    });
+
+    builder.submitTask(std::move(task));
+  }
+
   void updateInput(IAppBuilder& builder) {
+    senseGround(builder);
+
     auto task = builder.createTask();
     task.setName("player input");
     const Config::GameConfig* config = TableAdapters::getGameConfig(task);
@@ -67,14 +109,14 @@ namespace Player {
       const FloatRow<GAngVel, Angle>,
       const FloatRow<GPos, X>, FloatRow<GPos, Y>,
       const FloatRow<GRot, CosAngle>, FloatRow<GRot, SinAngle>,
-      FloatRow<GLinImpulse, X>, FloatRow<GLinImpulse, Y>,
+      FloatRow<GLinImpulse, X>, FloatRow<GLinImpulse, Y>, FloatRow<GLinImpulse, Z>,
       FloatRow<GAngImpulse, Angle>
     >();
     auto debug = TableAdapters::getDebugLines(task);
 
     task.setCallback([players, config, debug](AppTaskArgs& args) mutable {
       for(size_t t = 0; t < players.size(); ++t) {
-        auto&& [input, machines, linVelX, linVelY, angVel, posX, posY, rotX, rotY, impulseX, impulseY, impulseA] = players.get(t);
+        auto&& [input, machines, linVelX, linVelY, angVel, posX, posY, rotX, rotY, impulseX, impulseY, impulseZ, impulseA] = players.get(t);
         for(size_t i = 0; i < input->size(); ++i) {
           GameInput::PlayerInput& playerInput = input->at(i);
           const Input::StateMachine& sm = machines->at(i);
@@ -183,6 +225,11 @@ namespace Player {
             case GameInput::Events::CHANGE_DENSITY:
               //TODO:
               break;
+            case GameInput::Events::JUMP: {
+              //TODO: tie to config
+              TableAdapters::add(i, 0.1f, *impulseZ);
+              break;
+            }
             case GameInput::Events::PARTIAL_TRIGGER_ACTION_1:
               //Partial trigger means the charge time is the time the button was held down
               if(playerInput.ability1) {
