@@ -15,6 +15,16 @@ namespace PositionStatEffect {
   struct CommandRow : Row<PositionCommand> {};
 
   void processStat(IAppBuilder& builder);
+
+  class Builder : public StatEffect::BuilderBase {
+  public:
+    Builder(AppTaskArgs& args);
+
+    Builder& setZ(float z);
+
+  private:
+    CommandRow* command{};
+  };
 };
 
 struct PositionStatEffectTable : StatEffectBase<

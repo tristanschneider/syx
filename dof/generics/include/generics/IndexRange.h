@@ -78,5 +78,10 @@ namespace gnx {
     return IndexRangeT<T>{ begin, end };
   }
 
+  template<class T>
+  auto makeIndexRangeBeginCount(T begin, T count) {
+    return makeIndexRange(begin, begin + count);
+  }
+
   using IndexRange = IndexRangeT<size_t>;
 }

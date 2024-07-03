@@ -1,11 +1,29 @@
 #include "Precompile.h"
 #include "stat/PositionStatEffect.h"
 
+#include "AllStatEffects.h"
 #include "AppBuilder.h"
 #include "Simulation.h"
 #include "TableAdapters.h"
 
 namespace PositionStatEffect {
+  auto getArgs(AppTaskArgs& args) {
+    return StatEffectDatabase::createBuilderBase<PositionStatEffectTable>(args);
+  }
+
+  Builder::Builder(AppTaskArgs& args)
+    : BuilderBase{ getArgs(args) }
+    , command{ &std::get<CommandRow>(getArgs(args).table.mRows) }
+  {
+  }
+
+  Builder& Builder::setZ(float z) {
+    for(auto i : currentEffects) {
+      command->at(i).posZ = z;
+    }
+    return *this;
+  }
+
   void processStat(IAppBuilder& builder) {
     auto task = builder.createTask();
     task.setName("position stat");

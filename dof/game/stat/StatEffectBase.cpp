@@ -6,6 +6,26 @@
 #include "curve/CurveSolver.h"
 
 namespace StatEffect {
+  //Each set of commands must begin with this, creates the range of effects in this table
+  BuilderBase& BuilderBase::createStatEffects(size_t count) {
+    return currentEffects = gnx::makeIndexRangeBeginCount(modifier.addElements(count, nullptr), count), *this;
+  }
+
+  BuilderBase& BuilderBase::setLifetime(size_t value) {
+    for(size_t i : currentEffects) {
+      lifetime->at(i) = value;
+    }
+    return *this;
+  }
+
+  BuilderBase& BuilderBase::setOwner(size_t stableID) {
+    const auto id = StableElementID::fromStableID(stableID);
+    for(size_t i : currentEffects) {
+      owner->at(i) = id;
+    }
+    return *this;
+  }
+
   void tickLifetime(IAppBuilder* builder, const UnpackedDatabaseElementID& table, size_t removeOnTick) {
     auto task = builder->createTask();
     task.setName("tick stat lifetime");

@@ -1091,8 +1091,10 @@ namespace Test {
           VelocityStatEffectAdapter vel = TableAdapters::getVelocityEffects(args);
           const size_t id = TableAdapters::addStatEffectsSharedLifetime(vel.base, 2, &idB.mStableID, 1);
           VelocityStatEffect::VelocityCommand& vcmd = vel.command->at(id);
-          vcmd.linearImpulse = glm::vec2(1.0f);
-          vcmd.angularImpulse = 1.0f;
+          VelocityStatEffect::ImpulseCommand icmd;
+          icmd.linearImpulse = glm::vec2(1.0f);
+          icmd.angularImpulse = 1.0f;
+          vcmd.data = icmd;
         }
         {
           PositionStatEffectAdapter pos = TableAdapters::getPositionEffects(args);

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "curve/CurveDefinition.h"
+#include "generics/IndexRange.h"
 #include "Scheduler.h"
 #include "StableElementID.h"
 #include "TableOperations.h"
@@ -87,6 +88,50 @@ namespace StatEffect {
   void resolveTargets(IAppBuilder& builder, const UnpackedDatabaseElementID& table);
 
   void solveCurves(IAppBuilder& builder, const UnpackedDatabaseElementID& table, const CurveAlias& alias);
+
+  class BuilderBase {
+  public:
+    template<class TableT>
+    struct Args {
+      TableT& table;
+      const UnpackedDatabaseElementID& tableID;
+      StableElementMappings& mappings;
+    };
+
+    template<class TableT>
+    BuilderBase(Args<TableT> args)
+      : owner{ &std::get<StatEffect::Owner>(args.table.mRows) }
+      , lifetime{ &std::get<StatEffect::Lifetime>(args.table.mRows) }
+      , global{ &std::get<StatEffect::Global>(args.table.mRows) }
+      , continuations{ &std::get<StatEffect::Continuations>(args.table.mRows) }
+      , modifier{ StableTableModifierInstance::get(args.table, args.tableID, args.mappings) }
+      , target{ TableOperations::tryGetRow<StatEffect::Target>(args.table) }
+      , curveInput{ TableOperations::tryGetRow<StatEffect::CurveInput<>>(args.table) }
+      , curveOutput{ TableOperations::tryGetRow<StatEffect::CurveOutput<>>(args.table) }
+      , curveDefinition{ TableOperations::tryGetRow<StatEffect::CurveDef<>>(args.table) } {
+    }
+
+    //Each set of commands must begin with this, creates the range of effects in this table
+    BuilderBase& createStatEffects(size_t count);
+    BuilderBase& setLifetime(size_t value);
+    BuilderBase& setOwner(size_t stableID);
+
+  protected:
+    gnx::IndexRange currentEffects;
+
+  private:
+    StatEffect::Owner* owner{};
+    StatEffect::Lifetime* lifetime{};
+    StatEffect::Global* global{};
+    StatEffect::Continuations* continuations{};
+    StableTableModifierInstance modifier;
+
+    //Optionals
+    StatEffect::Target* target{};
+    Row<float>* curveInput{};
+    Row<float>* curveOutput{};
+    Row<CurveDefinition*>* curveDefinition{};
+  };
 }
 
 template<class... Rows>

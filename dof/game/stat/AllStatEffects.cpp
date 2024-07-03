@@ -7,6 +7,14 @@
 #include "TableAdapters.h"
 #include "ThreadLocals.h"
 
+StatEffectDatabase& StatEffectDatabase::get(AppTaskArgs& task) {
+  return *ThreadLocalData::get(task).statEffects;
+}
+
+StableElementMappings& StatEffectDatabase::getMappings(AppTaskArgs& task) {
+  return *ThreadLocalData::get(task).mappings;
+}
+
 StatEffectDatabase::StatEffectDatabase() {
   //Assign unique ids to each stat table. Doesn't matter what they are as long as this behaves the same
   //across the central and thread local instances of this

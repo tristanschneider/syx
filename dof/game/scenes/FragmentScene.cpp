@@ -196,13 +196,17 @@ namespace Scenes {
     RespawnSettings settings;
 
     task.setCallback([query, settings](AppTaskArgs& args) mutable {
+      VelocityStatEffect::Builder velocity{ args };
+      PositionStatEffect::Builder position{ args };
       for(size_t t = 0; t < query.size(); ++t) {
         auto [zs, stable] = query.get(t);
         for(size_t i = 0; i < zs->size(); ++i) {
           if(zs->at(i) < settings.outOfBoundsZ) {
-            auto pos = TableAdapters::getPositionEffects(args);
-            const size_t effect = TableAdapters::addStatEffectsSharedLifetime(pos.base, StatEffect::INSTANT, &stable->at(i), 1);
-            pos.command->at(effect).posZ = settings.respawnZ;
+            const auto* stableID = &stable->at(i);
+            position.createStatEffects(1).setLifetime(StatEffect::INSTANT).setOwner(*stableID);
+            position.setZ(settings.respawnZ);
+            velocity.createStatEffects(1).setLifetime(StatEffect::INSTANT).setOwner(*stableID);
+            velocity.setZ({ 0.0f });
           }
         }
       }

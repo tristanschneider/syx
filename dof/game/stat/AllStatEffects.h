@@ -18,6 +18,14 @@ struct StatEffectDatabase : Database<
   DamageStatEffectTable
 > {
   StatEffectDatabase();
+
+  static StatEffectDatabase& get(AppTaskArgs& task);
+  static StableElementMappings& getMappings(AppTaskArgs& task);
+
+  template<class TableT>
+  static StatEffect::BuilderBase::Args<TableT> createBuilderBase(AppTaskArgs& task) {
+    return { std::get<TableT>(get(task).mTables), UnpackedDatabaseElementID::fromPacked(getTableIndex<TableT>()), getMappings(task) };
+  }
 };
 
 namespace StatEffect {
