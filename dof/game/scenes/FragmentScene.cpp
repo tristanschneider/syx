@@ -184,6 +184,7 @@ namespace Scenes {
   struct RespawnSettings {
     float outOfBoundsZ = -5.0f;
     float respawnZ = 10.0f;
+    float burstRadius = 10.0f;
   };
 
   void outOfWorldRespawn(IAppBuilder& builder) {
@@ -198,6 +199,7 @@ namespace Scenes {
     task.setCallback([query, settings](AppTaskArgs& args) mutable {
       VelocityStatEffect::Builder velocity{ args };
       PositionStatEffect::Builder position{ args };
+      FragmentBurstStatEffect::Builder burst{ args };
       for(size_t t = 0; t < query.size(); ++t) {
         auto [zs, stable] = query.get(t);
         for(size_t i = 0; i < zs->size(); ++i) {
@@ -207,6 +209,8 @@ namespace Scenes {
             position.setZ(settings.respawnZ);
             velocity.createStatEffects(1).setLifetime(StatEffect::INSTANT).setOwner(*stableID);
             velocity.setZ({ 0.0f });
+            burst.createStatEffects(1).setLifetime(StatEffect::INFINITE).setOwner(*stableID);
+            burst.setRadius(settings.burstRadius);
           }
         }
       }

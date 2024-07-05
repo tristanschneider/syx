@@ -4,6 +4,7 @@
 #include "stat/DamageStatEffect.h"
 #include "stat/FollowTargetByPositionEffect.h"
 #include "stat/FollowTargetByVelocityEffect.h"
+#include "stat/FragmentBurstStatEffect.h"
 #include "stat/LambdaStatEffect.h"
 #include "stat/PositionStatEffect.h"
 #include "stat/VelocityStatEffect.h"
@@ -15,6 +16,7 @@ struct StatEffectDatabase : Database<
   AreaForceStatEffectTable,
   FollowTargetByPositionStatEffectTable,
   FollowTargetByVelocityStatEffectTable,
+  FragmentBurstStatEffectTable,
   DamageStatEffectTable
 > {
   StatEffectDatabase();

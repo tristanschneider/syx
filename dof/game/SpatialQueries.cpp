@@ -19,6 +19,22 @@ namespace SpatialQuery {
   template<class ShapeRow>
   struct ShapeID {};
 
+  struct VisitIsCollision {
+    //Currently the manifold is only populated if they are overlapping. If this changes then positive overlap could be checked here
+    bool operator()(const ContactXY&) const {
+      return true;
+    }
+
+    bool operator()(const ContactZ&) const {
+      return true;
+    }
+  };
+
+  bool Result::isCollision() const {
+    return std::visit(VisitIsCollision{}, contact);
+  }
+
+
   template<class Callback>
   void visitShapes(const Callback& cb) {
     cb(ShapeID<Shapes::AABBRow>{});

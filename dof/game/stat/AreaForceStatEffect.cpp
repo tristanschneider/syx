@@ -1,8 +1,9 @@
 #include "Precompile.h"
 #include "stat/AreaForceStatEffect.h"
 
+#include "DBEvents.h"
 #include "Simulation.h"
-#include "stat/DamageStatEffect.h"
+#include "stat/AllStatEffects.h"
 #include "TableAdapters.h"
 
 #include "glm/gtx/norm.hpp"
@@ -17,6 +18,73 @@
 #include "DebugDrawer.h"
 
 namespace AreaForceStatEffect {
+  auto getArgs(AppTaskArgs& args) {
+    return StatEffectDatabase::createBuilderBase<AreaForceStatEffectTable>(args);
+  }
+
+  Builder::Builder(AppTaskArgs& args)
+    : BuilderBase{ getArgs(args) }
+    , command{ &std::get<CommandRow>(getArgs(args).table.mRows) }
+  {
+  }
+
+  Builder& Builder::setOrigin(const glm::vec2& origin) {
+    for(auto i : currentEffects) {
+      command->at(i).origin = origin;
+    }
+    return *this;
+  }
+
+  Builder& Builder::setDirection(const glm::vec2& dir) {
+    for(auto i : currentEffects) {
+      command->at(i).direction = dir;
+    }
+    return *this;
+  }
+
+  Builder& Builder::setShape(const Command::Variant& shape) {
+    for(auto i : currentEffects) {
+      command->at(i).shape = shape;
+    }
+    return *this;
+  }
+
+  Builder& Builder::setPiercing(float dynamic, float terrain) {
+    for(auto i : currentEffects) {
+      command->at(i).dynamicPiercing = dynamic;
+      command->at(i).terrainPiercing = terrain;
+    }
+    return *this;
+  }
+
+  Builder& Builder::setDamage(float damage) {
+    for(auto i : currentEffects) {
+      command->at(i).damage = damage;
+    }
+    return *this;
+  }
+
+  Builder& Builder::setRayCount(size_t count) {
+    for(auto i : currentEffects) {
+      command->at(i).rayCount = count;
+    }
+    return *this;
+  }
+
+  Builder& Builder::setDislodgeFragments() {
+    for(auto i : currentEffects) {
+      command->at(i).dislodgeFragments = true;
+    }
+    return *this;
+  }
+
+  Builder& Builder::setImpulse(Command::ImpulseType impulse) {
+    for(auto i : currentEffects) {
+      command->at(i).impulseType = impulse;
+    }
+    return *this;
+  }
+
   float crossProduct(const glm::vec2& a, const glm::vec2& b) {
     //[ax] x [bx] = [ax*by - ay*bx]
     //[ay]   [by]
@@ -150,6 +218,7 @@ namespace AreaForceStatEffect {
     const IsImmobile* isImmobile{};
   };
 
+  //TODO: replace with SpatialQueries
   //Gather an unsorted list of objects that are inside or touching the shape
   void gatherResultsInShape(const Command& command, const Command::Cone& cone, ShapesQuery& query, std::vector<ShapeResult>& results) {
     const bool isTerrain = query.isImmobile != nullptr;
@@ -197,6 +266,7 @@ namespace AreaForceStatEffect {
       hit.id = query.table.remakeElement(i);
       hit.pos = pos;
       hit.extentX = glm::vec2{ query.rotX->at(i), query.rotY->at(i) };// * 0.5f;
+      //TODO: this is probably an incorrect assumption now
       //Since they're unit cubes this is the case, otherwise scale wouldn't be 0.5 for both
       hit.extentY = Math::orthogonal(hit.extentX);
       hit.isTerrain = isTerrain;
@@ -233,8 +303,6 @@ namespace AreaForceStatEffect {
     auto shapesQuery = task.query<
       const FloatRow<GPos, X>, const FloatRow<GPos, Y>,
       const FloatRow<GRot, CosAngle>, const FloatRow<GRot, SinAngle>,
-      FloatRow<GLinImpulse, X>, FloatRow<GLinImpulse, Y>,
-      FloatRow<GAngImpulse, Angle>,
       const IsFragment
     >();
     auto resolver = task.getResolver<
@@ -242,10 +310,12 @@ namespace AreaForceStatEffect {
       const FloatRow<GPos, X>, const FloatRow<GPos, Y>,
       FloatRow<GLinImpulse, X>, FloatRow<GLinImpulse, Y>,
       FloatRow<GAngImpulse, Angle>,
-      const StableIDRow
+      const StableIDRow,
+      const FragmentGoalFoundTableTag
     >();
+    const UnpackedDatabaseElementID fragmentTable = builder.queryTables<FragmentGoalFoundRow>().matchingTableIDs[0];
 
-    task.setCallback([ids, query, debug, shapesQuery, resolver](AppTaskArgs& args) mutable {
+    task.setCallback([ids, query, debug, shapesQuery, resolver, fragmentTable](AppTaskArgs& args) mutable {
       std::vector<ShapeResult> shapes;
       std::vector<HitResult> hits;
       std::vector<Ray> rays;
@@ -255,6 +325,8 @@ namespace AreaForceStatEffect {
       CachedRow<FloatRow<GLinImpulse, Y>> impulseY;
       CachedRow<FloatRow<GAngImpulse, Angle>> impulseA;
       CachedRow<const StableIDRow> stableRow;
+      CachedRow<const FragmentGoalFoundTableTag> isCompletedFragment;
+      Events::MovePublisher moveCompletedFragment{ &args };
 
       for(size_t t = 0; t < query.size(); ++t) {
         auto&& [commands] = query.get(t);
@@ -265,10 +337,10 @@ namespace AreaForceStatEffect {
           hits.clear();
           rays.clear();
           for(size_t s = 0; s < shapesQuery.size(); ++s) {
-            auto&& [posXs, posYs, rotXs, rotYs, impulseXs, impulseYs, impulseAs, f] = shapesQuery.get(s);
+            auto&& [posXs, posYs, rotXs, rotYs, f] = shapesQuery.get(s);
             const UnpackedDatabaseElementID table = shapesQuery.matchingTableIDs[s];
             ShapesQuery shapeTable {
-              table, posXs, posYs, rotXs, rotYs, impulseXs, impulseYs, impulseAs, resolver->tryGetRow<const IsImmobile>(table)
+              table, posXs, posYs, rotXs, rotYs, nullptr, nullptr, nullptr, resolver->tryGetRow<const IsImmobile>(table)
             };
             std::visit([&](const auto& shape) {
               gatherResultsInShape(command, shape, shapeTable, shapes);
@@ -294,21 +366,29 @@ namespace AreaForceStatEffect {
           //TODO: read from SharedMassRow
           constexpr Math::Mass objMass = Math::computeFragmentMass();
           for(const HitResult& hit : hits) {
-            if(!resolver->tryGetOrSwapAllRows(hit.id, posX, posY, impulseX, impulseY, impulseA, stableRow)) {
+            const size_t id = hit.id.getElementIndex();
+            //If fundamental information is missing, skip it
+            if(!resolver->tryGetOrSwapAllRows(hit.id, posX, posY, stableRow)) {
               continue;
             }
+            //If it has velocity, apply an impulse
+            if(resolver->tryGetOrSwapAllRows(hit.id, impulseX, impulseY, impulseA)) {
+              //Compute and apply impulse
+              const glm::vec2 pos = TableAdapters::read(id, *posX, *posY);
+              const glm::vec2 baseImpulse = std::visit([&hit](const auto& type) { return computeImpulseType(type, hit); }, command.impulseType);
 
-            //Compute and apply impulse
-            const size_t id = hit.id.getElementIndex();
-            const glm::vec2 pos = TableAdapters::read(id, *posX, *posY);
-            const glm::vec2 baseImpulse = std::visit([&hit](const auto& type) { return computeImpulseType(type, hit); }, command.impulseType);
+              const Math::Impulse impulse = Math::computeImpulseAtPoint(pos, hit.hitPoint, baseImpulse, objMass);
+              TableAdapters::add(id, impulse.linear, *impulseX, *impulseY);
+              impulseA->at(id) += impulse.angular;
 
-            const Math::Impulse impulse = Math::computeImpulseAtPoint(pos, hit.hitPoint, baseImpulse, objMass);
-            TableAdapters::add(id, impulse.linear, *impulseX, *impulseY);
-            impulseA->at(id) += impulse.angular;
-
-            const size_t dmg = TableAdapters::addStatEffectsSharedLifetime(damageEffect.base, StatEffect::INSTANT, &stableRow->at(id), 1);
-            damageEffect.command->at(dmg).damage = command.damage * static_cast<float>(hit.hitCount);
+              const size_t dmg = TableAdapters::addStatEffectsSharedLifetime(damageEffect.base, StatEffect::INSTANT, &stableRow->at(id), 1);
+              damageEffect.command->at(dmg).damage = command.damage * static_cast<float>(hit.hitCount);
+              continue;
+            }
+            //If it doesn't have velocity, is a completed fragment, and the command is supposed to dislodge it, then dislodge it
+            else if(command.dislodgeFragments && resolver->tryGetOrSwapRow(isCompletedFragment, hit.id)) {
+              moveCompletedFragment(StableElementID::fromStableID(stableRow->at(id)), fragmentTable);
+            }
           }
 
           debugDraw(debug, command, drawShapes, hits, rays);

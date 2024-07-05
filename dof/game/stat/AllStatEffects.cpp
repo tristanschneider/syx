@@ -147,6 +147,10 @@ namespace StatEffect {
     VelocityStatEffect::processStat(builder);
     AreaForceStatEffect::processStat(builder);
     FollowTargetByVelocityStatEffect::processStat(builder);
+    FragmentBurstStatEffect::processStat(builder);
+
+    //Goes last since nothing can run in parallel with this.
+    //TODO: get rid of the need for this with only specific tasks
     LambdaStatEffect::processStat(builder);
   }
 }

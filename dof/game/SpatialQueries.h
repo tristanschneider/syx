@@ -101,6 +101,8 @@ namespace SpatialQuery {
   };
 
   struct Result {
+    bool isCollision() const;
+
     ElementRef other;
     using Variant = std::variant<ContactXY, ContactZ>;
     Variant contact;

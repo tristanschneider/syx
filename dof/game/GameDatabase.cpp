@@ -194,6 +194,7 @@ namespace GameDatabase {
 
   using StaticGameObjectTable = Table<
     SceneNavigator::IsClearedWithSceneTag,
+    FragmentBurstStatEffect::CanTriggerFragmentBurstRow,
     ZeroMassObjectTableTag,
     FragmentGoalFoundTableTag,
     FloatRow<Tags::Pos, Tags::X>,
@@ -228,6 +229,7 @@ namespace GameDatabase {
 
   using TerrainTable = Table<
     SceneNavigator::IsClearedWithSceneTag,
+    FragmentBurstStatEffect::CanTriggerFragmentBurstRow,
     ZeroMassObjectTableTag,
     Tags::TerrainRow,
     Shapes::SharedRectangleRow,

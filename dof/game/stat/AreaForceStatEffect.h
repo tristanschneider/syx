@@ -34,11 +34,30 @@ namespace AreaForceStatEffect {
     float damage{};
     //Number of rays that the shape is subdivided into
     size_t rayCount{};
+    bool dislodgeFragments{};
   };
 
   struct CommandRow : Row<Command> {};
 
   void processStat(IAppBuilder& builder);
+
+  class Builder : public StatEffect::BuilderBase {
+  public:
+    Builder(AppTaskArgs& args);
+
+    Builder& setOrigin(const glm::vec2& origin);
+    Builder& setDirection(const glm::vec2& dir);
+    Builder& setShape(const Command::Variant& shape);
+    Builder& setPiercing(float dynamic, float terrain);
+    Builder& setDamage(float damage);
+    Builder& setRayCount(size_t count);
+    Builder& setDislodgeFragments();
+    Builder& setImpulse(Command::ImpulseType impulse);
+
+  private:
+    CommandRow* command{};
+  };
+
 };
 
 struct AreaForceStatEffectTable : StatEffectBase<
