@@ -729,7 +729,7 @@ struct TableModifierInstance {
 //ids are all from the same table
 template<class T>
 struct CachedRow {
-  operator bool() const { return row; }
+  explicit operator bool() const { return row; }
   const T* operator->() const { return row; }
   T* operator->() { return row; }
   const T& operator*() const { return *row; }

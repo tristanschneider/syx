@@ -73,4 +73,12 @@ namespace Tags {
   struct TerrainRow : TagRow {};
   struct DynamicPhysicsObjectsTag : TagRow {};
   struct DynamicPhysicsObjectsWithZTag : TagRow {};
+
+  // Table can choose to expose a name for debugging purposes
+  struct TableName {
+    std::string name;
+  };
+  struct TableNameRow : SharedRow<TableName> {};
 };
+
+struct IsPlayer : TagRow{};

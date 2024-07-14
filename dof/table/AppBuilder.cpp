@@ -95,6 +95,10 @@ namespace IDResolverImpl {
       }
     }
 
+    size_t getTotalIds() const final {
+      return mappings.size();
+    }
+
     UnpackedDatabaseElementID uncheckedUnpack(const StableElementID& id) const final {
       return id.toUnpacked(description);
     }

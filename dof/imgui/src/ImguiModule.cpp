@@ -12,6 +12,10 @@
 #include "DebugModule.h"
 #include "RendererTableAdapters.h"
 #include "GameInput.h"
+#include "InspectorModule.h"
+#include "AppBuilder.h"
+#include "Database.h"
+#include "Renderer.h"
 
 struct ImguiImpl {
   GLuint mShader{};
@@ -44,7 +48,8 @@ using ImguiDB = Database<
   Table<
     ImguiEnabled,
     ImguiData,
-    GameInput::PlayerKeyboardInputRow
+    GameInput::PlayerKeyboardInputRow,
+    InspectorModule::InspectorRow
   >
 >;
 
@@ -299,6 +304,7 @@ namespace ImguiModule {
     DebugModule::update(builder);
     GraphicsModule::update(builder);
     PhysicsModule::update(builder);
+    InspectorModule::update(builder);
   }
 
   void updateRendering(IAppBuilder& builder) {

@@ -1,7 +1,9 @@
 #pragma once
 
-#include "Renderer.h"
-#include "Simulation.h"
+class RuntimeDatabaseTaskBuilder;
+struct StableElementMappings;
+class IAppBuilder;
+struct IDatabase;
 
 namespace ImguiModule {
   //Used for modules to query if imgui is ready to accept commands

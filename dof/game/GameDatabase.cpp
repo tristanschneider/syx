@@ -26,6 +26,7 @@ namespace GameDatabase {
 
   //Table to hold positions to be referenced by stable element id
   using TargetPosTable = Table<
+    Tags::TableNameRow,
     SceneNavigator::IsClearedWithSceneTag,
     TargetTableTag,
     FloatRow<Tags::Pos, Tags::X>,
@@ -34,10 +35,12 @@ namespace GameDatabase {
   >;
 
   using TextureRequestTable = Table<
+    Tags::TableNameRow,
     Row<TextureLoadRequest>
   >;
 
   using GlobalGameData = Table<
+    Tags::TableNameRow,
     ShapeRegistry::GlobalRow,
     SceneList::ScenesRow,
     SharedRow<SceneState>,
@@ -52,6 +55,7 @@ namespace GameDatabase {
   >;
 
   using DynamicPhysicsObjects = Table<
+    Tags::TableNameRow,
     Tags::DynamicPhysicsObjectsTag,
     SceneNavigator::IsClearedWithSceneTag,
     //Data viewed by physics, not to be used by gameplay
@@ -96,6 +100,7 @@ namespace GameDatabase {
   >;
 
   using DynamicPhysicsObjectsWithZ = Table<
+    Tags::TableNameRow,
     Tags::DynamicPhysicsObjectsWithZTag,
     SceneNavigator::IsClearedWithSceneTag,
     //Data viewed by physics, not to be used by gameplay
@@ -143,6 +148,7 @@ namespace GameDatabase {
   >;
 
   using GameObjectTable = Table<
+    Tags::TableNameRow,
     SceneNavigator::IsClearedWithSceneTag,
     SharedMassObjectTableTag,
     //Data viewed by physics, not to be used by gameplay
@@ -193,6 +199,7 @@ namespace GameDatabase {
   >;
 
   using StaticGameObjectTable = Table<
+    Tags::TableNameRow,
     SceneNavigator::IsClearedWithSceneTag,
     FragmentBurstStatEffect::CanTriggerFragmentBurstRow,
     ZeroMassObjectTableTag,
@@ -228,6 +235,7 @@ namespace GameDatabase {
   >;
 
   using TerrainTable = Table<
+    Tags::TableNameRow,
     SceneNavigator::IsClearedWithSceneTag,
     FragmentBurstStatEffect::CanTriggerFragmentBurstRow,
     ZeroMassObjectTableTag,
@@ -264,6 +272,7 @@ namespace GameDatabase {
   >;
 
   using PlayerTable = Table<
+    Tags::TableNameRow,
     SceneNavigator::IsClearedWithSceneTag,
     IsPlayer,
     FloatRow<Tags::Pos, Tags::X>,
@@ -308,6 +317,7 @@ namespace GameDatabase {
     StableIDRow
   >;
   using CameraTable = Table<
+    Tags::TableNameRow,
     Row<Camera>,
     FloatRow<Tags::Pos, Tags::X>,
     FloatRow<Tags::Pos, Tags::Y>,
@@ -356,7 +366,31 @@ namespace GameDatabase {
     builder.submitTask(std::move(task));
   }
 
+  //Set the name of the table that matches the filter
+  template<class... Filter>
+  void setName(IAppBuilder& builder, Tags::TableName name) {
+    auto task = builder.createTask();
+    task.setName("set table names");
+    auto q = task.query<Tags::TableNameRow, const Filter...>();
+    assert(q.size() == 1);
+    task.setCallback([q, n{std::move(name)}](AppTaskArgs&) mutable {
+      q.get<0>(0).at() = std::move(n);
+    });
+    builder.submitTask(std::move(task));
+  }
+
   void configureDefaults(IAppBuilder& builder) {
+    setName<TargetTableTag>(builder, { "Targets" });
+    setName<Row<TextureLoadRequest>>(builder, { "Texture Requests" });
+    setName<ShapeRegistry::GlobalRow>(builder, { "Globals" });
+    setName<Tags::DynamicPhysicsObjectsTag>(builder, { "Physics Objects" });
+    setName<Tags::DynamicPhysicsObjectsWithZTag>(builder, { "Physics Objects Z" });
+    setName<SharedMassObjectTableTag>(builder, { "Active Fragments" });
+    setName<ZeroMassObjectTableTag, FragmentGoalFoundTableTag>(builder, { "Completed Fragments" });
+    setName<Tags::TerrainRow>(builder, { "Terrain" });
+    setName<IsPlayer>(builder, { "Players" });
+    setName<Row<Camera>>(builder, { "Cameras" });
+
     setDefaultValue<FloatRow<Tags::Rot, Tags::CosAngle>>(builder, "setDefault Rot", 1.0f);
     setDefaultValue<FloatRow<Tags::GRot, Tags::CosAngle>>(builder, "setDefault GRot", 1.0f);
     setDefaultValue<Narrowphase::CollisionMaskRow>(builder, "setDefault Mask", uint8_t(~0));

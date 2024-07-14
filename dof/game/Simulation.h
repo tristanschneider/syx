@@ -79,8 +79,6 @@ struct FragmentGoalFoundTableTag : TagRow {};
 
 struct TargetTableTag : TagRow{};
 
-struct IsPlayer : TagRow{};
-
 struct Camera {
   float angle{};
   float zoom{};

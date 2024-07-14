@@ -1,6 +1,7 @@
 #pragma once
 
 #include "glm/vec2.hpp"
+#include <variant>
 
 namespace Input {
   using PlatformInputID = uint32_t;
