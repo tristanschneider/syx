@@ -22,7 +22,7 @@ namespace Fragment {
       const FragmentGoalFoundRow,
       const StableIDRow
     >();
-    const UnpackedDatabaseElementID completedTable = builder.queryTables<FragmentGoalFoundTableTag>().matchingTableIDs[0];
+    const TableID completedTable = builder.queryTables<FragmentGoalFoundTableTag>().matchingTableIDs[0];
 
     task.setCallback([query, completedTable](AppTaskArgs& args) mutable {
       Events::MovePublisher moveElement{{ &args }};
@@ -31,7 +31,7 @@ namespace Fragment {
         for(size_t i = 0; i < goalFound->size(); ++i) {
           //If the goal is found, enqueue a move request to the completed fragments table
           if(goalFound->at(i)) {
-            moveElement(StableElementID::fromStableRow(i, *stableRow), completedTable);
+            moveElement(stableRow->at(i), completedTable);
           }
         }
       }
@@ -52,14 +52,16 @@ namespace Fragment {
     CachedRow<FloatRow<Tags::Rot, Tags::SinAngle>> rotY;
     CachedRow<const FragmentGoalFoundTableTag> goalFound;
     for(const DBEvents::MoveCommand& cmd : events.toBeMovedElements) {
-      const UnpackedDatabaseElementID& dest = ids.uncheckedUnpack(cmd.destination);
+      const TableID* destination = std::get_if<TableID>(&cmd.destination);
+      const ElementRef* source = std::get_if<ElementRef>(&cmd.source);
+      //const UnpackedDatabaseElementID& dest = ids.uncheckedUnpack(cmd.destination);
       //If this is one of the completed fragments enqueued to be moved to the completed table
-      if(resolver.tryGetOrSwapRow(goalFound, dest)) {
-        UnpackedDatabaseElementID self{ ids.uncheckedUnpack(cmd.source) };
-        if(resolver.tryGetOrSwapAllRows(self, posX, posY, goalX, goalY, rotX, rotY)) {
+      if(source && destination && resolver.tryGetOrSwapRow(goalFound, *destination)) {
+        const std::optional<UnpackedDatabaseElementID> self = ids.getRefResolver().tryUnpack(*source);
+        if(self && resolver.tryGetOrSwapAllRows(*self, posX, posY, goalX, goalY, rotX, rotY)) {
           //Snap to destination
           //TODO: effects to celebrate transition
-          const size_t si = self.getElementIndex();
+          const size_t si = self->getElementIndex();
           TableAdapters::write(si, TableAdapters::read(si, *goalX, *goalY), *posX, *posY);
           //This is no rotation, which will align with the image
           TableAdapters::write(si, glm::vec2{ 1, 0 }, *rotX, *rotY);

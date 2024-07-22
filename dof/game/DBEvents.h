@@ -6,7 +6,6 @@
 struct AppTaskArgs;
 class IAppBuilder;
 class RuntimeDatabaseTaskBuilder;
-struct StableElementID;
 
 namespace Events {
   struct EventsImpl;
@@ -37,7 +36,6 @@ namespace Events {
   //and is for the table service and any post service listeners since the elements may have moved
   void resolve(DBEvents::MoveCommand& cmd, const StableElementMappings& mappings);
 
-  //TODO: this is simpler to process if they are all "moves" but new is a move from nothing to somthing and remove is the opposite
   void onNewElement(const ElementRef& e, AppTaskArgs& args);
   void onMovedElement(const ElementRef& src, const TableID& dst, AppTaskArgs& args);
   void onRemovedElement(const ElementRef& e, AppTaskArgs& args);

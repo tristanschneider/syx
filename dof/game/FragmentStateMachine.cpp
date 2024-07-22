@@ -45,10 +45,10 @@ namespace SM {
 
   template<>
   struct StateTraits<Idle> {
-    static void onEnter(IAppBuilder&, const UnpackedDatabaseElementID&, size_t) {
+    static void onEnter(IAppBuilder&, const TableID&, size_t) {
     }
 
-    static void onUpdate(IAppBuilder& builder, const UnpackedDatabaseElementID& table, size_t bucket) {
+    static void onUpdate(IAppBuilder& builder, const TableID& table, size_t bucket) {
       auto task = builder.createTask();
       task.setName("Idle update");
       using namespace Tags;
@@ -72,13 +72,13 @@ namespace SM {
       builder.submitTask(std::move(task));
     }
 
-    static void onExit(IAppBuilder&, const UnpackedDatabaseElementID&, size_t) {
+    static void onExit(IAppBuilder&, const TableID&, size_t) {
     }
   };
 
   template<>
   struct StateTraits<Wander> {
-    static void onEnter(IAppBuilder& builder, const UnpackedDatabaseElementID& table, size_t bucket) {
+    static void onEnter(IAppBuilder& builder, const TableID& table, size_t bucket) {
       auto task = builder.createTask();
       task.setName("enter wander");
       auto spatialQuery = SpatialQuery::createCreator(task);
@@ -105,7 +105,7 @@ namespace SM {
       return { queryPos - half, queryPos + half };
     }
 
-    static void onUpdate(IAppBuilder& builder, const UnpackedDatabaseElementID& table, size_t bucket) {
+    static void onUpdate(IAppBuilder& builder, const TableID& table, size_t bucket) {
       auto task = builder.createTask();
       task.setName("wander update");
       auto query = task.query<
@@ -129,12 +129,12 @@ namespace SM {
       task.setCallback([ids, query, spatialQueryR, spatialQueryW, bucket, bodyResolver](AppTaskArgs&) mutable {
         auto&& [globals, state, stableRow, impulseX, impulseY, angVelRow, impulseA, rotX, rotY, posX, posY] = query.get(0);
         for(size_t si : globals->at().buckets[bucket].updating) {
-          const size_t stableID = stableRow->at(si);
+          const ElementRef stableID = stableRow->at(si);
           const glm::vec2 pos = TableAdapters::read(si, *posX, *posY);
 
           Wander& wander = std::get<Wander>(state->at(si).currentState);
           spatialQueryR->begin(wander.spatialQuery);
-          const auto nearby = tryGetFirstNearby(*spatialQueryR, ids->tryResolveRef(StableElementID::fromStableID(stableID)));
+          const auto nearby = tryGetFirstNearby(*spatialQueryR, stableID);
 
           if(nearby) {
             //TODO: this doesn't really do what it means to but works well enough visually
@@ -191,7 +191,7 @@ namespace SM {
       debugDraw(builder, table, bucket);
     }
 
-    static void debugDraw(IAppBuilder& builder, const UnpackedDatabaseElementID& table, size_t bucket) {
+    static void debugDraw(IAppBuilder& builder, const TableID& table, size_t bucket) {
       auto task = builder.createTask();
       task.setName("wander debug");
       auto query = task.query<
@@ -223,13 +223,13 @@ namespace SM {
           const Wander& wander = std::get<Wander>(state->at(si).currentState);
           const glm::vec2 myPos = TableAdapters::read(si, *posX, *posY);
           const glm::vec2 myForward = TableAdapters::read(si, *rotX, *rotY);
-          const auto myID = ids->tryResolveRef(StableElementID::fromStableID(stableRow->at(si)));
+          const ElementRef myID = stableRow->at(si);
 
           //Draw the spatial query volume
           const auto volume = computeQueryVolume(myPos, wander.desiredDirection);
           DebugDrawer::drawAABB(debug, volume.min, volume.max, glm::vec3{ 0.5f });
 
-          StableElementID temp = wander.spatialQuery;
+          const ElementRef temp = wander.spatialQuery;
           //Draw lines to each nearby spatial query result
           spatialQuery->begin(temp);
           while(const auto* n = spatialQuery->tryIterate()) {
@@ -253,23 +253,23 @@ namespace SM {
     }
 
     //Cleanup of the query isn't needed because it'll expire after its lifetime
-    static void onExit(IAppBuilder&, const UnpackedDatabaseElementID&, size_t) {
+    static void onExit(IAppBuilder&, const TableID&, size_t) {
     }
   };
 
   template<>
   struct StateTraits<Stunned> {
-    static void onEnter(IAppBuilder&, const UnpackedDatabaseElementID&, size_t) {
+    static void onEnter(IAppBuilder&, const TableID&, size_t) {
     }
-    static void onUpdate(IAppBuilder&, const UnpackedDatabaseElementID&, size_t) {
+    static void onUpdate(IAppBuilder&, const TableID&, size_t) {
     }
-    static void onExit(IAppBuilder&, const UnpackedDatabaseElementID&, size_t) {
+    static void onExit(IAppBuilder&, const TableID&, size_t) {
     }
   };
 
   template<>
   struct StateTraits<SeekHome> {
-    static void onEnter(IAppBuilder& builder, const UnpackedDatabaseElementID& table, size_t bucket) {
+    static void onEnter(IAppBuilder& builder, const TableID& table, size_t bucket) {
       auto task = builder.createTask();
       task.setName("enter SeekHome");
       auto query = task.query<
@@ -295,7 +295,7 @@ namespace SM {
       builder.submitTask(std::move(task));
     }
 
-    static void onUpdate(IAppBuilder& builder, const UnpackedDatabaseElementID& table, size_t bucket) {
+    static void onUpdate(IAppBuilder& builder, const TableID& table, size_t bucket) {
       auto task = builder.createTask();
       task.setName("enter SeekHome");
       auto query = task.query<
@@ -373,7 +373,7 @@ namespace SM {
 
     //Reset this in case the state wasn't exited to ExitSeekHome, as would happen if the fragment found its goal
     //Another possibility would be having the goal find set the mask
-    static void onExit(IAppBuilder& builder, const UnpackedDatabaseElementID& table, size_t bucket) {
+    static void onExit(IAppBuilder& builder, const TableID& table, size_t bucket) {
       auto task = builder.createTask();
       task.setName("Exit SeekHome");
 
@@ -392,7 +392,7 @@ namespace SM {
       builder.submitTask(std::move(task));
     }
 
-    static void debugDraw(IAppBuilder& builder, const UnpackedDatabaseElementID& table, size_t bucket) {
+    static void debugDraw(IAppBuilder& builder, const TableID& table, size_t bucket) {
       auto task = builder.createTask();
       task.setName("seekhome debug");
       auto query = task.query<
@@ -423,7 +423,7 @@ namespace SM {
 
   template<>
   struct StateTraits<ExitSeekHome> {
-    static void onEnter(IAppBuilder& builder, const UnpackedDatabaseElementID& table, size_t bucket) {
+    static void onEnter(IAppBuilder& builder, const TableID& table, size_t bucket) {
       auto task = builder.createTask();
       task.setName("enter ExitSeekHome");
       auto query = task.query<
@@ -458,7 +458,7 @@ namespace SM {
       return SpatialQuery::AABB{ myPos - halfSize, myPos + halfSize };
     }
 
-    static void onUpdate(IAppBuilder& builder, const UnpackedDatabaseElementID& table, size_t bucket) {
+    static void onUpdate(IAppBuilder& builder, const TableID& table, size_t bucket) {
       auto task = builder.createTask();
       task.setName("update ExitSeekHome");
       auto query = task.query<
@@ -504,8 +504,8 @@ namespace SM {
           }
 
           //If there is nothing nearby it's safe to exit the state
-          spatialQueryR->begin(key->stable);
-          const auto self = ids->tryResolveRef(StableElementID::fromStableID(stableRow->at(i)));
+          spatialQueryR->begin(seek.spatialQuery);
+          const ElementRef self = stableRow->at(i);
           bool foundObstacle = false;
           while(auto* r = spatialQueryR->tryIterate()) {
             if(r->other == self) {
@@ -537,7 +537,7 @@ namespace SM {
       debugDraw(builder, table, bucket);
     }
 
-    static void onExit(IAppBuilder& builder, const UnpackedDatabaseElementID& table, size_t bucket) {
+    static void onExit(IAppBuilder& builder, const TableID& table, size_t bucket) {
       auto task = builder.createTask();
       task.setName("Exit ExitSeekHome");
 
@@ -559,7 +559,7 @@ namespace SM {
       builder.submitTask(std::move(task));
     }
 
-    static void debugDraw(IAppBuilder& builder, const UnpackedDatabaseElementID& table, size_t bucket) {
+    static void debugDraw(IAppBuilder& builder, const TableID& table, size_t bucket) {
       auto task = builder.createTask();
       task.setName("seekhome debug");
       auto query = task.query<

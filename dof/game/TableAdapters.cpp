@@ -151,7 +151,7 @@ DamageStatEffectAdapter TableAdapters::getDamageEffects(AppTaskArgs& args) {
   return ::getDamageEffects(args);
 }
 
-TransformAdapter TableAdapters::getTransform(RuntimeDatabaseTaskBuilder& task, const UnpackedDatabaseElementID& table) {
+TransformAdapter TableAdapters::getTransform(RuntimeDatabaseTaskBuilder& task, const TableID& table) {
   TransformAdapter result;
   std::tie(result.posX, result.posY, result.rotX, result.rotY) = task.query<
     FloatRow<Tags::Pos, Tags::X>, FloatRow<Tags::Pos, Tags::Y>,
@@ -160,7 +160,7 @@ TransformAdapter TableAdapters::getTransform(RuntimeDatabaseTaskBuilder& task, c
   return result;
 }
 
-TransformAdapter TableAdapters::getGameplayTransform(RuntimeDatabaseTaskBuilder& task, const UnpackedDatabaseElementID& table) {
+TransformAdapter TableAdapters::getGameplayTransform(RuntimeDatabaseTaskBuilder& task, const TableID& table) {
   TransformAdapter result;
   std::tie(result.posX, result.posY, result.rotX, result.rotY) = task.query<
     FloatRow<Tags::GPos, Tags::X>, FloatRow<Tags::GPos, Tags::Y>,
@@ -169,7 +169,7 @@ TransformAdapter TableAdapters::getGameplayTransform(RuntimeDatabaseTaskBuilder&
   return result;
 }
 
-PhysicsObjectAdapter TableAdapters::getPhysics(RuntimeDatabaseTaskBuilder& task, const UnpackedDatabaseElementID& table) {
+PhysicsObjectAdapter TableAdapters::getPhysics(RuntimeDatabaseTaskBuilder& task, const TableID& table) {
   PhysicsObjectAdapter r;
   auto q = task.query<
     FloatRow<Tags::LinVel, Tags::X>, FloatRow<Tags::LinVel, Tags::Y>,
@@ -184,7 +184,7 @@ PhysicsObjectAdapter TableAdapters::getPhysics(RuntimeDatabaseTaskBuilder& task,
   return r;
 }
 
-PhysicsObjectAdapter TableAdapters::getGameplayPhysics(RuntimeDatabaseTaskBuilder& task, const UnpackedDatabaseElementID& table) {
+PhysicsObjectAdapter TableAdapters::getGameplayPhysics(RuntimeDatabaseTaskBuilder& task, const TableID& table) {
   PhysicsObjectAdapter r;
   auto q = task.query<
     FloatRow<Tags::GLinVel, Tags::X>, FloatRow<Tags::GLinVel, Tags::Y>,
@@ -199,27 +199,18 @@ PhysicsObjectAdapter TableAdapters::getGameplayPhysics(RuntimeDatabaseTaskBuilde
   return r;
 }
 
-GameObjectAdapter TableAdapters::getGameObject(RuntimeDatabaseTaskBuilder& task, const UnpackedDatabaseElementID& table) {
+GameObjectAdapter TableAdapters::getGameObject(RuntimeDatabaseTaskBuilder& task, const TableID& table) {
   auto t = getTransform(task, table);
   auto p = getPhysics(task, table);
   auto& stable = task.query<const StableIDRow>(table).get<0>(0);
   return { t, p, &stable };
 }
 
-GameObjectAdapter TableAdapters::getGameplayGameObject(RuntimeDatabaseTaskBuilder& task, const UnpackedDatabaseElementID& table) {
+GameObjectAdapter TableAdapters::getGameplayGameObject(RuntimeDatabaseTaskBuilder& task, const TableID& table) {
   auto t = getGameplayTransform(task, table);
   auto p = getGameplayPhysics(task, table);
   auto& stable = task.query<const StableIDRow>(table).get<0>(0);
   return { t, p, &stable };
-}
-
-size_t TableAdapters::addStatEffectsSharedLifetime(StatEffectBaseAdapter& base, size_t lifetime, const size_t* stableIds, size_t count) {
-  const size_t firstIndex = base.modifier.addElements(count, nullptr);
-  for(size_t i = 0; i < count; ++i) {
-    base.lifetime->at(i + firstIndex) = lifetime;
-    base.owner->at(i + firstIndex) = stableIds ? StableElementID::fromStableID(stableIds[i]) : StableElementID::invalid();
-  }
-  return firstIndex;
 }
 
 DebugLineAdapter TableAdapters::getDebugLines(RuntimeDatabaseTaskBuilder& task) {

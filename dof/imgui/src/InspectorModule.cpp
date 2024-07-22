@@ -25,11 +25,15 @@ namespace InspectorModule {
           posX, posY, posZ,
           rotX, rotY,
           velX, velY, velZ, velA,
-          tableNames
+          tableNames,
+          goalX, goalY,
+          goalFound,
+          seekingGoal
         )
       }
       , refResolver{ ids->getRefResolver() }
       , playerIds{ task.query<const StableIDRow, const IsPlayer>().get<0>() }
+      , stableRows{ task.query<const StableIDRow>().get<0>() }
       , data{ task.query<InspectorRow>().tryGetSingletonElement() }
       , debugLines{ TableAdapters::getDebugLines(task) }
     {
@@ -64,16 +68,47 @@ namespace InspectorModule {
     CachedRow<Tags::LinVelZRow> velZ;
     CachedRow<Tags::AngVelRow> velA;
     CachedRow<const Tags::TableNameRow> tableNames;
+    CachedRow<const Tags::FragmentGoalXRow> goalX;
+    CachedRow<const Tags::FragmentGoalYRow> goalY;
+    CachedRow<const FragmentGoalFoundRow> goalFound;
+    CachedRow<const FragmentSeekingGoalTagRow> seekingGoal;
     std::vector<const StableIDRow*> playerIds;
+    std::vector<const StableIDRow*> stableRows;
     InspectorData* data{};
     DebugLineAdapter debugLines;
+    AppTaskArgs* args{};
+    glm::vec2 pos{};
+    ElementRef self;
   };
+
+  void presentFragmentFields(InspectContext& ctx, const UnpackedDatabaseElementID& self) {
+    const size_t i = self.getElementIndex();
+    if(ctx.resolver->tryGetOrSwapAllRows(self, ctx.goalX, ctx.goalY)) {
+      std::array value{ ctx.goalX->at(i), ctx.goalY->at(i) };
+      //Read-only
+      ImGui::InputFloat2("Goal", value.data());
+    }
+
+    const bool seekingGoal = ctx.resolver->tryGetOrSwapRow(ctx.seekingGoal, self);
+    bool foundGoal = ctx.resolver->tryGetOrSwapRow(ctx.goalFound, self);
+    if(seekingGoal || foundGoal) {
+      if(ImGui::Checkbox("Goal Found", &foundGoal)) {
+        //if(foundGoal
+      }
+    }
+    if(ctx.resolver->tryGetOrSwapRow(ctx.seekingGoal, self)) {
+      //if(ImGui::Button("Set 
+    }
+  }
 
   bool presentOne(InspectContext& ctx, const Selection& obj) {
     auto unpacked = ctx.refResolver.tryUnpack(obj.ref);
     if(!unpacked) {
       return false;
     }
+    ctx.pos = {};
+    ctx.self = obj.ref;
+
     const size_t i = unpacked->getElementIndex();
 
     ImGui::PushID(obj.ref.unversionedHash());
@@ -88,10 +123,9 @@ namespace InspectorModule {
         }
       }
       else if(ctx.resolver->tryGetOrSwapAllRows(*unpacked, ctx.posX, ctx.posY)) {
-        std::array value{ ctx.posX->at(i), ctx.posY->at(i) };
-        if(ImGui::InputFloat2("Position", value.data())) {
-          ctx.posX->at(i) = value[0];
-          ctx.posY->at(i) = value[1];
+        ctx.pos = TableAdapters::read(i, *ctx.posX, *ctx.posY);
+        if(ImGui::InputFloat2("Position", &ctx.pos.x)) {
+          TableAdapters::write(i, ctx.pos, *ctx.posX, *ctx.posY);
         }
       }
       if(ctx.resolver->tryGetOrSwapAllRows(*unpacked, ctx.rotX, ctx.rotY)) {
@@ -103,6 +137,9 @@ namespace InspectorModule {
         }
       }
     }
+
+    presentFragmentFields(ctx, *unpacked);
+
     ImGui::PopID();
     return true;
   }
@@ -120,9 +157,9 @@ namespace InspectorModule {
 
   void trySelectPlayer(InspectContext& ctx) {
     for(const auto& row : ctx.playerIds) {
-      for(const size_t id : row->mElements) {
-        if(const ElementRef found = ctx.ids->tryResolveRef(StableElementID::fromStableID(id))) {
-          setSelection(ctx, found, id);
+      for(const ElementRef& id : row->mElements) {
+        if(id) {
+          setSelection(ctx, id, 0);
           return;
         }
       }
@@ -140,10 +177,17 @@ namespace InspectorModule {
       int direction = raw > prev ? 1 : -1;
       int searched = 0;
       ElementRef found;
+      //TODO: horribly inefficient, maybe doesn't matter
+      std::vector<ElementRef> all;
+      for(const StableIDRow* r : ctx.stableRows) {
+        all.insert(all.end(), r->mElements.begin(), r->mElements.end());
+      }
       //Start at the selected id then keep going in that direction until something is found or all ids are exhausted
-      const int totalIds = static_cast<int>(ctx.ids->getTotalIds());
+      const int totalIds = all.size();
+      raw = raw % totalIds;
+
       while(searched++ < totalIds) {
-        found = ctx.ids->tryResolveRef(StableElementID::fromStableID(static_cast<size_t>(raw)));
+        found = all[raw];
         if(found) {
           break;
         }

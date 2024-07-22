@@ -26,7 +26,7 @@ struct StatEffectDatabase : Database<
 
   template<class TableT>
   static StatEffect::BuilderBase::Args<TableT> createBuilderBase(AppTaskArgs& task) {
-    return { std::get<TableT>(get(task).mTables), UnpackedDatabaseElementID::fromPacked(getTableIndex<TableT>()), getMappings(task) };
+    return { std::get<TableT>(get(task).mTables), TableID{ UnpackedDatabaseElementID::fromPacked(getTableIndex<TableT>()) }, getMappings(task) };
   }
 };
 

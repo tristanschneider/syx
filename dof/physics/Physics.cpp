@@ -22,7 +22,7 @@ namespace Physics {
   }
 
   void applyDampingMultiplierAxis(IAppBuilder& builder, const QueryAlias<Row<float>>& axis, const float& multiplier) {
-    for(const UnpackedDatabaseElementID& table : builder.queryAliasTables(axis).matchingTableIDs) {
+    for(const TableID& table : builder.queryAliasTables(axis).matchingTableIDs) {
       auto task = builder.createTask();
       task.setName("damping");
       Row<float>* axisRow = &task.queryAlias(table, axis).get<0>(0);
@@ -35,7 +35,7 @@ namespace Physics {
   }
 
   void integratePositionAxis(IAppBuilder& builder, const QueryAlias<Row<float>>& position, const QueryAlias<const Row<float>>& velocity) {
-    for(const UnpackedDatabaseElementID& table : builder.queryAliasTables(position, velocity).matchingTableIDs) {
+    for(const TableID& table : builder.queryAliasTables(position, velocity).matchingTableIDs) {
       auto task = builder.createTask();
       task.setName("Integrate Position");
       auto query = task.queryAlias(table, position, velocity.read());
@@ -64,7 +64,7 @@ namespace Physics {
   }
 
   void integrateRotation(IAppBuilder& builder, const PhysicsAliases& aliases) {
-    for(const UnpackedDatabaseElementID& table : builder.queryAliasTables(aliases.rotX, aliases.rotY, aliases.angVel.read()).matchingTableIDs) {
+    for(const TableID& table : builder.queryAliasTables(aliases.rotX, aliases.rotY, aliases.angVel.read()).matchingTableIDs) {
       auto task = builder.createTask();
       auto query = task.queryAlias(table, aliases.rotX, aliases.rotY, aliases.angVel.read());
       task.setName("integrate rotation");

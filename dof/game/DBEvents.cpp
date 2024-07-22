@@ -58,27 +58,6 @@ namespace Events {
     pushEvent({ e }, { std::monostate{} }, args);
   }
 
-  //void resolve(StableElementID& id, IIDResolver& ids) {
-  //  //TODO: should these write invalid id on failure instead of leaving it unchaged?
-  //  //Check explicitly for the stable part to ignore the move special case where a destination unstable type is used
-  //  //This also ignores the create and destroy cases which contain empty ids
-  //  if(id.mStableID != dbDetails::INVALID_VALUE) {
-  //    id = ids.tryResolveStableID(id).value_or(id);
-  //  }
-  //}
-
-  //TODO: delete I think
-  //void resolve(DBEvents::MoveCommand& cmd, IIDResolver& ids) {
-  //    resolve(cmd.source, ids);
-  //    resolve(cmd.destination, ids);
-  //}
-  //
-  //void resolve(std::vector<DBEvents::MoveCommand>& cmd, IIDResolver& ids) {
-  //  for(auto& c : cmd) {
-  //    resolve(c, ids);
-  //  }
-  //}
-
   void publishEvents(IAppBuilder& builder) {
     auto task = builder.createTask();
     task.setName("publish events");

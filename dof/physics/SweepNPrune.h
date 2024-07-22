@@ -2,12 +2,13 @@
 
 #include "glm/vec2.hpp"
 #include "Scheduler.h"
+#include "StableElementID.h"
 
 class IAppBuilder;
 
 namespace Broadphase {
   //The key provided by the user to identify this object in collision pairs
-  using UserKey = size_t;
+  using UserKey = ElementRef;
   struct SweepCollisionPair {
     SweepCollisionPair() = default;
     SweepCollisionPair(UserKey ka, UserKey kb)
@@ -31,31 +32,51 @@ namespace Broadphase {
   };
   //The key provided by the broadphase to point at the bounds storage
   struct BroadphaseKey {
-    bool operator==(const BroadphaseKey& rhs) const {
-      return value == rhs.value;
-    }
-    bool operator!=(const BroadphaseKey& rhs) const {
-      return !(*this == rhs);
-    }
-    bool operator<(const BroadphaseKey& rhs) const {
-      return value < rhs.value;
-    }
+    auto operator<=>(const BroadphaseKey&) const = default;
     size_t value{};
+  };
+  struct SweepKeyPair {
+    SweepKeyPair() = default;
+    SweepKeyPair(BroadphaseKey ka, BroadphaseKey kb)
+      : a{ ka }
+      , b{ kb } {
+      if(a > b) {
+        std::swap(a, b);
+      }
+    }
+
+    bool operator==(const SweepKeyPair& r) const {
+      return a == r.a && b == r.b;
+    }
+
+    bool operator<(const SweepKeyPair& r) const {
+      return a == r.a ? b < r.b : a < r.a;
+    }
+
+    BroadphaseKey a{};
+    BroadphaseKey b{};
   };
 }
 
 template<>
 struct std::hash<Broadphase::SweepCollisionPair> {
   std::size_t operator()(const Broadphase::SweepCollisionPair& s) const noexcept {
-    std::hash<size_t> h;
     //cppreference hash combine example
-    return h(s.a) ^ (h(s.b) << 1);
+    return s.a.unversionedHash() ^ (s.b.unversionedHash() << 1);
   }
 };
 template<>
 struct std::hash<Broadphase::BroadphaseKey> {
   std::size_t operator()(const Broadphase::BroadphaseKey& s) const noexcept {
     return std::hash<size_t>()(s.value);
+  }
+};
+template<>
+struct std::hash<Broadphase::SweepKeyPair> {
+  std::size_t operator()(const Broadphase::SweepKeyPair& s) const noexcept {
+    //cppreference hash combine example
+    std::hash<Broadphase::BroadphaseKey> h;
+    return h(s.a) ^ (h(s.b) << 1);
   }
 };
 
@@ -79,14 +100,20 @@ namespace Broadphase {
     std::vector<BroadphaseKey> pendingRemoval;
   };
   struct PairTracker {
-    //This uses SweepCollisionPair for convenience but is actually a pair of BroadphaseKey not UserKey
-    std::unordered_set<SweepCollisionPair> trackedPairs;
+    std::unordered_set<SweepKeyPair> trackedPairs;
   };
 
   struct SwapLog {
-    //These contain BroadphaseKeys rather than UserKeys until the final step of recomputePairs that updates PairTracker
     std::vector<SweepCollisionPair>& gains;
     std::vector<SweepCollisionPair>& losses;
+  };
+  struct IntermediateLog {
+    std::vector<SweepKeyPair>& gains;
+    std::vector<SweepKeyPair>& losses;
+  };
+  struct ConstIntermediateLog {
+    const std::vector<SweepKeyPair>& gains;
+    const std::vector<SweepKeyPair>& losses;
   };
   struct ConstSwapLog {
     const std::vector<SweepCollisionPair>& gains;
@@ -114,9 +141,9 @@ namespace Broadphase {
     size_t count
   );
   //Log events for pairs that will be removed as a result of pending removals, but don't remove yet
-  void logPendingRemovals(const ObjectDB& db, SwapLog& log, const PairTracker& pairs);
+  void logPendingRemovals(const ObjectDB& db, IntermediateLog& log, const PairTracker& pairs);
   //Take the results of recomputePairs, resolve duplicates, and transform the keys from BroadphaseKey to UserKey
-  void logChangedPairs(const ObjectDB& db, PairTracker& pairs, const ConstSwapLog& changedPairs, SwapLog& output);
+  void logChangedPairs(const ObjectDB& db, PairTracker& pairs, const ConstIntermediateLog& changedPairs, SwapLog& output);
   //Remove elements pending deletion. This is after the events for them have already been logged and no cells are referencing them anymore
   void processPendingRemovals(ObjectDB& db);
 
@@ -190,8 +217,8 @@ namespace Broadphase {
     );
     //Erase isn't needed directly, instead the bounds are marked as outside the cell which will cause removal as part of recomputePairs
 
-    void recomputeCandidates(Sweep2D& sweep, const ObjectDB& db, const PairTracker& pairs, SwapLog& log);
-    void recomputePairs(Sweep2D& sweep, const ObjectDB& db, const PairTracker& pairs, SwapLog& log);
+    void recomputeCandidates(Sweep2D& sweep, const ObjectDB& db, const PairTracker& pairs, IntermediateLog& log);
+    void recomputePairs(Sweep2D& sweep, const ObjectDB& db, const PairTracker& pairs, IntermediateLog& log);
   };
 
   namespace SweepGrid {

@@ -4,7 +4,7 @@
 
 namespace Shapes {
   struct IndividualAABBShape : ShapeRegistry::IShapeImpl {
-    std::vector<UnpackedDatabaseElementID> queryTables(IAppBuilder& builder) const final {
+    std::vector<TableID> queryTables(IAppBuilder& builder) const final {
       return builder.queryTables<const AABBRow>().matchingTableIDs;
     }
 

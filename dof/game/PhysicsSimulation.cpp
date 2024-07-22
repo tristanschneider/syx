@@ -99,32 +99,26 @@ namespace PhysicsSimulation {
       , resolver(task.getResolver(lvx, lvy, av))
     {}
 
-    std::optional<Key> tryResolve(const StableElementID& e) final {
-      return ids->tryResolveAndUnpack(e);
-    }
-
     std::optional<Key> tryResolve(const ElementRef& e) final {
       if(auto resolved = ids->getRefResolver().tryUnpack(e)) {
-        Key result;
-        result.unpacked = *resolved;
-        return result;
+        return *resolved;
       }
       return {};
     }
 
     glm::vec2 getCenter(const Key& e) final {
-      return ShapeRegistry::getCenter(shape->classifyShape(e.unpacked));
+      return ShapeRegistry::getCenter(shape->classifyShape(e));
     }
 
     glm::vec2 getLinearVelocity(const Key& e) final {
-      if(resolver->tryGetOrSwapAllRows(e.unpacked, lvx, lvy)) {
-        return TableAdapters::read(e.unpacked.getElementIndex(), *lvx, *lvy);
+      if(resolver->tryGetOrSwapAllRows(e, lvx, lvy)) {
+        return TableAdapters::read(e.getElementIndex(), *lvx, *lvy);
       }
       return glm::vec2{ 0 };
     }
 
     float getAngularVelocity(const Key& e) final {
-      const float* result = resolver->tryGetOrSwapRowElement(av, e.unpacked);
+      const float* result = resolver->tryGetOrSwapRowElement(av, e);
       return result ? *result : 0.0f;
     }
 

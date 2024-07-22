@@ -72,7 +72,7 @@ namespace Player {
       for(size_t t = 0; t < players.size(); ++t) {
         auto [stable, input, machines] = players.get(t);
         for(size_t i = 0; i < input->size(); ++i) {
-          const auto self = StableElementID::fromStableRow(i, *stable);
+          const auto self = stable->at(i);
           sq->begin(self);
           bool isOnGround{};
           //If colliding with something on the Z axis upwards, that counts as the ground
@@ -250,23 +250,20 @@ namespace Player {
             }
           }
 
-          AreaForceStatEffectAdapter areaEffect = TableAdapters::getAreaForceEffects(args);
+          AreaForceStatEffect::Builder ab{ args };
           for(Ability::TriggerResult& shouldTrigger : triggers) {
             if(const auto withPower = std::get_if<Ability::TriggerWithPower>(&shouldTrigger)) {
-              const size_t effect = TableAdapters::addStatEffectsSharedLifetime(areaEffect.base, StatEffect::INSTANT, nullptr, 1);
-              AreaForceStatEffect::Command& cmd = areaEffect.command->at(effect);
-              cmd.origin = TableAdapters::read(i, *posX, *posY);
-              cmd.direction = TableAdapters::read(i, *rotX, *rotY);
-              cmd.dynamicPiercing = config->ability.pushAbility.dynamicPiercing;
-              cmd.terrainPiercing = config->ability.pushAbility.terrainPiercing;
-              cmd.rayCount = config->ability.pushAbility.rayCount;
+              ab.createStatEffects(1).setLifetime(StatEffect::INSTANT);
+              ab.setOrigin(TableAdapters::read(i, *posX, *posY))
+                .setDirection(TableAdapters::read(i, *rotX, *rotY))
+                .setPiercing(config->ability.pushAbility.dynamicPiercing, config->ability.pushAbility.terrainPiercing)
+                .setRayCount(config->ability.pushAbility.rayCount);
               AreaForceStatEffect::Command::Cone cone;
               cone.halfAngle = config->ability.pushAbility.coneHalfAngle;
               cone.length = config->ability.pushAbility.coneLength;
-              cmd.shape = cone;
-              cmd.damage = withPower->damage;
-              AreaForceStatEffect::Command::FlatImpulse impulseType{ withPower->power };
-              cmd.impulseType = impulseType;
+              ab.setShape({ cone })
+                .setDamage(withPower->damage)
+                .setImpulse(AreaForceStatEffect::Command::FlatImpulse{ withPower->power });
             }
           }
         }

@@ -313,7 +313,7 @@ namespace AreaForceStatEffect {
       const StableIDRow,
       const FragmentGoalFoundTableTag
     >();
-    const UnpackedDatabaseElementID fragmentTable = builder.queryTables<FragmentGoalFoundRow>().matchingTableIDs[0];
+    const TableID fragmentTable = builder.queryTables<FragmentGoalFoundRow>().matchingTableIDs[0];
 
     task.setCallback([ids, query, debug, shapesQuery, resolver, fragmentTable](AppTaskArgs& args) mutable {
       std::vector<ShapeResult> shapes;
@@ -381,13 +381,14 @@ namespace AreaForceStatEffect {
               TableAdapters::add(id, impulse.linear, *impulseX, *impulseY);
               impulseA->at(id) += impulse.angular;
 
-              const size_t dmg = TableAdapters::addStatEffectsSharedLifetime(damageEffect.base, StatEffect::INSTANT, &stableRow->at(id), 1);
-              damageEffect.command->at(dmg).damage = command.damage * static_cast<float>(hit.hitCount);
+              DamageStatEffect::Builder dmgBuilder{ args };
+              dmgBuilder.createStatEffects(1).setLifetime(StatEffect::INSTANT).setOwner(stableRow->at(id));
+              dmgBuilder.setDamage(command.damage * static_cast<float>(hit.hitCount));
               continue;
             }
             //If it doesn't have velocity, is a completed fragment, and the command is supposed to dislodge it, then dislodge it
             else if(command.dislodgeFragments && resolver->tryGetOrSwapRow(isCompletedFragment, hit.id)) {
-              moveCompletedFragment(StableElementID::fromStableID(stableRow->at(id)), fragmentTable);
+              moveCompletedFragment(stableRow->at(id), fragmentTable);
             }
           }
 

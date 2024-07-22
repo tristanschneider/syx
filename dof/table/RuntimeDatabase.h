@@ -34,7 +34,7 @@ struct RuntimeTable {
 
   static void migrateOne(size_t i, RuntimeTable& from, RuntimeTable& to);
 
-  UnpackedDatabaseElementID tableID;
+  TableID tableID;
   TableModifierInstance modifier;
   StableTableModifierInstance stableModifier;
   std::unordered_map<DBTypeID, RuntimeRow> rows;
@@ -140,7 +140,7 @@ struct QueryResult {
     return matchingTableIDs.size();
   }
 
-  std::vector<UnpackedDatabaseElementID> matchingTableIDs;
+  std::vector<TableID> matchingTableIDs;
   TupleT rows;
 };
 
@@ -156,7 +156,7 @@ public:
     : data{ std::move(args) } {
   }
 
-  RuntimeTable* tryGet(const UnpackedDatabaseElementID& id);
+  RuntimeTable* tryGet(const TableID& id);
   QueryResult<> query();
 
   template<class... Rows>
@@ -175,7 +175,7 @@ public:
   }
 
   template<class... Rows>
-  QueryResult<Rows...> query(const UnpackedDatabaseElementID& id) {
+  QueryResult<Rows...> query(const TableID& id) {
     QueryResult<Rows...> result;
     const size_t index = id.getTableIndex();
     if(index < data.tables.size()) {
@@ -200,7 +200,7 @@ public:
   }
 
   template<class... Aliases>
-  auto queryAlias(const UnpackedDatabaseElementID& id, const Aliases&... aliases) {
+  auto queryAlias(const TableID& id, const Aliases&... aliases) {
     QueryResult<typename Aliases::RowT...> result;
     const size_t index = id.getTableIndex();
     if(index < data.tables.size()) {
@@ -245,7 +245,7 @@ private:
     }
   }
 
-  UnpackedDatabaseElementID getTableID(size_t index) const;
+  TableID getTableID(size_t index) const;
 
   RuntimeDatabaseArgs data;
 };
@@ -262,11 +262,11 @@ struct QueryResult<> {
     return matchingTableIDs.size();
   }
 
-  const UnpackedDatabaseElementID& operator[](size_t i) const {
+  const TableID& operator[](size_t i) const {
     return matchingTableIDs[i];
   }
 
-  std::vector<UnpackedDatabaseElementID> matchingTableIDs;
+  std::vector<TableID> matchingTableIDs;
 };
 
 namespace DBReflect {
@@ -323,7 +323,7 @@ namespace DBReflect {
     }
 
     template<class TableT>
-    void reflectTable(const UnpackedDatabaseElementID& tableID, TableT& table, RuntimeDatabaseArgs& args) {
+    void reflectTable(const TableID& tableID, TableT& table, RuntimeDatabaseArgs& args) {
       RuntimeTable& rt = args.tables[tableID.getTableIndex()];
       rt.tableID = tableID;
       if constexpr(TableOperations::isStableTable<TableT>) {
@@ -349,7 +349,7 @@ namespace DBReflect {
     db.visitOne([&](auto& table) {
       const size_t rawIndex = DB::getTableIndex(table).getTableIndex();
       const auto tableID = UnpackedDatabaseElementID{ 0, args.elementIndexBits }.remake(baseIndex + rawIndex, 0);
-      details::reflectTable(tableID, table, args);
+      details::reflectTable(TableID{ tableID }, table, args);
     });
   }
 
@@ -361,7 +361,7 @@ namespace DBReflect {
     args.elementIndexBits = details::computeElementIndexBits(args.tables.size());
     args.mappings = &mappings;
     const auto tableID = UnpackedDatabaseElementID{ 0, args.elementIndexBits }.remake(baseIndex, 0);
-    details::reflectTable(tableID, table, args);
+    details::reflectTable(TableID{ tableID }, table, args);
   }
 
   template<class DB>

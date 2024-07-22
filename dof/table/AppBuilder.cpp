@@ -8,7 +8,7 @@ namespace TableResolverImpl {
 
     //TODO: optional access validation
     void* tryGetRow(const UnpackedDatabaseElementID id, IDT type) override {
-      if(RuntimeTable* table = db.tryGet(id)) {
+      if(RuntimeTable* table = db.tryGet(TableID{ id })) {
         auto result = table->rows.find(type);
         return result != table->rows.end() ? result->second.row : nullptr;
       }
@@ -37,7 +37,7 @@ namespace TableModifierImpl {
       instance.resize(count);
     }
 
-    void resizeWithIDs(size_t, const StableElementID*) {
+    void resizeWithIDs(size_t, const ElementRef*) {
       assert(false && "Caller should ensure this is a stable table when using this");
     }
 
@@ -65,7 +65,7 @@ namespace TableModifierImpl {
       instance.resize(count, nullptr);
     }
 
-    void resizeWithIDs(size_t count, const StableElementID* reservedIDs) {
+    void resizeWithIDs(size_t count, const ElementRef* reservedIDs) {
       instance.resize(count, reservedIDs);
     }
 
@@ -87,53 +87,16 @@ namespace IDResolverImpl {
     Impl(RuntimeDatabase& db)
       : description{ db.getDescription() }
       , mappings{ db.getMappings() } {
-      auto allTables = db.query<>();
-      auto stableTables = db.query<StableIDRow>();
-      stableIDs.resize(allTables.matchingTableIDs.size());
-      for(size_t i = 0; i < stableTables.size(); ++i) {
-        stableIDs[stableTables.matchingTableIDs[i].getTableIndex()] = &stableTables.get<0>(i);
-      }
+      //Log dependency
+      db.query<const StableIDRow>();
     }
 
     size_t getTotalIds() const final {
       return mappings.size();
     }
 
-    UnpackedDatabaseElementID uncheckedUnpack(const StableElementID& id) const final {
-      return id.toUnpacked(description);
-    }
-
-    std::optional<StableElementID> tryResolveStableID(const StableElementID& id) const final {
-      //TODO: is this actually faster than doing the map lookup always?
-      const UnpackedDatabaseElementID unpacked = id.toUnpacked(description);
-      const size_t table = unpacked.getTableIndex();
-      const size_t index = unpacked.getElementIndex();
-      if(table < stableIDs.size()) {
-        if(const StableIDRow* row = stableIDs[table]) {
-          if(index < row->size() && row->at(index) == id.mStableID) {
-            return id;
-          }
-        }
-      }
-
-      auto it = mappings.findKey(id.mStableID);
-      return it.second ? std::make_optional(StableElementID{ it.second->unstableIndex, it.first }) : std::nullopt;
-    }
-
-    ElementRef tryResolveRef(const StableElementID& id) const final {
-      auto it = mappings.findKey(id.mStableID);
-      return { it.second };
-    }
-
-    std::optional<ResolvedIDs> tryResolveAndUnpack(const StableElementID& id) const final {
-      if(auto resolved = tryResolveStableID(id)) {
-        return ResolvedIDs{ *resolved, uncheckedUnpack(*resolved) };
-      }
-      return {};
-    }
-
     ElementRef createKey() final {
-      return &mappings.createKey();
+      return mappings.createKey();
     }
 
     ElementRefResolver getRefResolver() const {
@@ -141,7 +104,6 @@ namespace IDResolverImpl {
     }
 
     DatabaseDescription description;
-    std::vector<const StableIDRow*> stableIDs;
     StableElementMappings& mappings;
   };
 }
@@ -153,7 +115,7 @@ namespace AnyTableModifier {
     }
 
     size_t addElements(const UnpackedDatabaseElementID& id, size_t count) override {
-      if(RuntimeTable* table =  db.tryGet(id)) {
+      if(RuntimeTable* table =  db.tryGet(TableID{ id })) {
         if(table->modifier) {
           return table->modifier.addElements(count);
         }
@@ -200,8 +162,8 @@ void RuntimeDatabaseTaskBuilder::logDependency(std::initializer_list<QueryAliasB
   }
 }
 
-void RuntimeDatabaseTaskBuilder::log(const std::vector<UnpackedDatabaseElementID>& tableIds, const TypeIDT& id, bool isConst) {
-  for(const UnpackedDatabaseElementID& table : tableIds) {
+void RuntimeDatabaseTaskBuilder::log(const std::vector<TableID>& tableIds, const TypeIDT& id, bool isConst) {
+  for(const TableID& table : tableIds) {
     if(isConst) {
       logRead(table, id);
     }
@@ -211,23 +173,23 @@ void RuntimeDatabaseTaskBuilder::log(const std::vector<UnpackedDatabaseElementID
   }
 }
 
-void RuntimeDatabaseTaskBuilder::log(const QueryAliasBase& alias, const std::vector<UnpackedDatabaseElementID>& tableIds) {
+void RuntimeDatabaseTaskBuilder::log(const QueryAliasBase& alias, const std::vector<TableID>& tableIds) {
   log(tableIds, alias.type, alias.isConst);
 }
 
-void RuntimeDatabaseTaskBuilder::logRead(const UnpackedDatabaseElementID& table, TypeIDT t) {
+void RuntimeDatabaseTaskBuilder::logRead(const TableID& table, TypeIDT t) {
   builtTask.data.reads.push_back({ t, table });
 }
 
-void RuntimeDatabaseTaskBuilder::logWrite(const UnpackedDatabaseElementID& table, TypeIDT t) {
+void RuntimeDatabaseTaskBuilder::logWrite(const TableID& table, TypeIDT t) {
   builtTask.data.writes.push_back({ t, table });
 }
 
-void RuntimeDatabaseTaskBuilder::logTableModifier(const UnpackedDatabaseElementID& id) {
+void RuntimeDatabaseTaskBuilder::logTableModifier(const TableID& id) {
   builtTask.data.tableModifiers.push_back(id);
 }
 
-std::shared_ptr<ITableModifier> RuntimeDatabaseTaskBuilder::getModifierForTable(const UnpackedDatabaseElementID& table) {
+std::shared_ptr<ITableModifier> RuntimeDatabaseTaskBuilder::getModifierForTable(const TableID& table) {
   logTableModifier(table);
   if(RuntimeTable* t = db.tryGet(table)) {
     if(t->modifier) {
@@ -240,7 +202,7 @@ std::shared_ptr<ITableModifier> RuntimeDatabaseTaskBuilder::getModifierForTable(
   return nullptr;
 }
 
-std::vector<std::shared_ptr<ITableModifier>> RuntimeDatabaseTaskBuilder::getModifiersForTables(const std::vector<UnpackedDatabaseElementID>& tables) {
+std::vector<std::shared_ptr<ITableModifier>> RuntimeDatabaseTaskBuilder::getModifiersForTables(const std::vector<TableID>& tables) {
   std::vector<std::shared_ptr<ITableModifier>> result(tables.size());
   for(size_t i = 0; i < result.size(); ++i) {
     result[i] = getModifierForTable(tables[i]);

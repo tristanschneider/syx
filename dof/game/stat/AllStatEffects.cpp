@@ -77,7 +77,7 @@ namespace StatEffect {
           //Ideally both would use RuntimeDatabase and could generically copy all rows
           const size_t tableAssociation = std::get<StatEffect::Global>(fromTable.mRows).at().ID;
           assert(tableAssociation < centralStatTables.size());
-          const UnpackedDatabaseElementID toTableID = centralStatTables.matchingTableIDs[tableAssociation];
+          const TableID toTableID = centralStatTables.matchingTableIDs[tableAssociation];
           RuntimeTable* runtimeToTable = db.tryGet(toTableID);
           assert(runtimeToTable);
           TableT& toTable = *static_cast<TableT*>(runtimeToTable->stableModifier.table);
@@ -96,7 +96,7 @@ namespace StatEffect {
 
           //Once all rows in the destination have the desired values, clear the source
           StableElementMappings& srcMappings = db.getMappings();
-          StableOperations::stableResizeTable(fromTable, UnpackedDatabaseElementID::fromPacked(StatEffectDatabase::getTableIndex(fromTable)), 0, srcMappings);
+          StableOperations::stableResizeTable(fromTable, TableID{ UnpackedDatabaseElementID::fromPacked(StatEffectDatabase::getTableIndex(fromTable)) }, 0, srcMappings);
         });
       }
     });
@@ -137,8 +137,6 @@ namespace StatEffect {
         StatEffect::solveCurves(builder, table, curve);
       }
       StatEffect::processRemovals(builder, table);
-      StatEffect::resolveOwners(builder, table);
-      StatEffect::resolveTargets(builder, table);
     }
 
     PositionStatEffect::processStat(builder);

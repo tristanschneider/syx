@@ -52,13 +52,14 @@ namespace FragmentBurstStatEffect {
       for(size_t t = 0; t < query.size(); ++t) {
         auto&& [owners, commands, lifetime] = query.get(t);
         for(size_t i = 0; i < owners->size(); ++i) {
-          const StableElementID& owner = owners->at(i);
-          if(owner == StableElementID::invalid()) {
+          const ElementRef& ownerRef = owners->at(i);
+          const auto owner = idResolver.tryUnpack(owners->at(i));
+          if(!owner) {
             continue;
           }
 
           //See if any nearby objects can trigger the burst
-          reader->begin(owner);
+          reader->begin(ownerRef);
           bool triggerBurst{};
           while(const SpatialQuery::Result* result = reader->tryIterate()) {
             if(auto otherID = idResolver.tryUnpack(result->other); result->isCollision() && otherID && resolver->tryGetOrSwapRow(canTriggerBurst, *otherID)) {
@@ -68,7 +69,7 @@ namespace FragmentBurstStatEffect {
           }
 
           if(triggerBurst) {
-            const auto self = ids->uncheckedUnpack(owner);
+            const auto self = *owner;
             if(!resolver->tryGetOrSwapAllRows(self, gPosX, gPosY)) {
               continue;
             }

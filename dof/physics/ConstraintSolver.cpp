@@ -480,7 +480,6 @@ namespace ConstraintSolver {
     ConstraintMask constraintMask{};
     Material material{ Resolver::DEFAULT_MATERIAL };
 
-    //TODO: lookup could be avoided if using the StableElementID on the spatial pairs table
     if(auto resolved = ids.tryUnpack(data)) {
       Resolver::ZConstraintBody resolvedBody{ Resolver::resolveAll(resolver, *resolved) };
       constraintMask = resolvedBody.constraintMask;

@@ -1,6 +1,7 @@
 #include "Precompile.h"
 #include "stat/FollowTargetByVelocityEffect.h"
 
+#include "AllStatEffects.h"
 #include "glm/glm.hpp"
 #include "Simulation.h"
 #include "TableAdapters.h"
@@ -8,6 +9,31 @@
 #include "AppBuilder.h"
 
 namespace FollowTargetByVelocityStatEffect {
+  auto getArgs(AppTaskArgs& args) {
+    return StatEffectDatabase::createBuilderBase<FollowTargetByVelocityStatEffectTable>(args);
+  }
+
+  Builder::Builder(AppTaskArgs& args)
+    : BuilderBase(getArgs(args))
+    , command{ &std::get<CommandRow>(getArgs(args).table.mRows) }
+    , target{ &std::get<StatEffect::Target>(getArgs(args).table.mRows) }
+  {
+  }
+
+  Builder& Builder::setMode(FollowMode mode) {
+    for(auto i : currentEffects) {
+      command->at(i).mode = mode;
+    }
+    return *this;
+  }
+
+  Builder& Builder::setTarget(const ElementRef& ref) {
+    for(auto i : currentEffects) {
+      target->at(i) = ref;
+    }
+    return *this;
+  }
+
   struct VisitArgs {
     glm::vec2 srcPos{};
     glm::vec2 dstPos{};
@@ -39,16 +65,17 @@ namespace FollowTargetByVelocityStatEffect {
       CachedRow<FloatRow<GLinImpulse, Y>> impulseY;
       CachedRow<const FloatRow<Pos, X>> srcPosX, dstPosX;
       CachedRow<const FloatRow<Pos, Y>> srcPosY, dstPosY;
+      auto res = ids->getRefResolver();
       for(size_t t = 0; t < query.size(); ++t) {
         auto&& [commands, owners, targets] = query.get(t);
         for(size_t i = 0; i < commands->size(); ++i) {
-          const auto self = owners->at(i);
-          const auto target = targets->at(i);
-          if(self == StableElementID::invalid() || target == StableElementID::invalid()) {
+          const auto self = res.tryUnpack(owners->at(i));
+          const auto target = res.tryUnpack(targets->at(i));
+          if(!self || !target) {
             continue;
           }
-          const auto rawSelf = ids->uncheckedUnpack(self);
-          const auto rawTarget = ids->uncheckedUnpack(target);
+          const auto rawSelf = *self;
+          const auto rawTarget = *target;
 
           if(resolver->tryGetOrSwapAllRows(rawSelf, impulseX, impulseY, srcPosX, srcPosY) &&
             resolver->tryGetOrSwapAllRows(rawTarget, dstPosX, dstPosY)) {

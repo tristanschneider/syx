@@ -1,10 +1,28 @@
 #include "Precompile.h"
 #include "stat/LambdaStatEffect.h"
 
+#include "AllStatEffects.h"
 #include "TableAdapters.h"
 #include "AppBuilder.h"
 
 namespace LambdaStatEffect {
+  auto getArgs(AppTaskArgs& args) {
+    return StatEffectDatabase::createBuilderBase<LambdaStatEffectTable>(args);
+  }
+
+  Builder::Builder(AppTaskArgs& args)
+    : BuilderBase(getArgs(args))
+    , command{ &std::get<LambdaRow>(getArgs(args).table.mRows) }
+  {
+  }
+
+  Builder& Builder::setLambda(const Lambda& l) {
+    for(auto i : currentEffects) {
+      command->at(i) = l;
+    }
+    return *this;
+  }
+
   void processStat(IAppBuilder& builder) {
     auto task = builder.createTask();
     task.setName("lambda stat");
@@ -13,9 +31,8 @@ namespace LambdaStatEffect {
       const StatEffect::Owner,
       const LambdaRow
     >();
-    auto ids = task.getIDResolver();
 
-    task.setCallback([query, &db, ids](AppTaskArgs&) mutable {
+    task.setCallback([query, &db](AppTaskArgs&) mutable {
       Args args{};
       args.db = &db;
       for(size_t t = 0; t < query.size(); ++t) {
@@ -23,8 +40,7 @@ namespace LambdaStatEffect {
         for(size_t i = 0; i < owner->size(); ++i) {
           //Normal stats could rely on resolving upfront before processing stat but since lambda has
           //access to the entire database it could cause table migrations
-          auto resolved = ids->tryResolveStableID(owner->at(i));
-          args.resolvedID = resolved.value_or(StableElementID::invalid());
+          args.resolvedID = owner->at(i);
           lambda->at(i)(args);
         }
       }

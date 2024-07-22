@@ -24,7 +24,7 @@ namespace Test {
     void initST(const DBBuilder& buildDB, const WorkBuilder& buildWork);
     RuntimeDatabaseTaskBuilder& builder();
     void update();
-    ResolvedIDs createInTable(const UnpackedDatabaseElementID& table);
+    UnpackedDatabaseElementID createInTable(const TableID& table);
 
     std::unique_ptr<IDatabase> db;
     std::unique_ptr<RuntimeDatabaseTaskBuilder> taskBuilder;

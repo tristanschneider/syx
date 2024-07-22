@@ -18,15 +18,14 @@ namespace StatEffect {
     return *this;
   }
 
-  BuilderBase& BuilderBase::setOwner(size_t stableID) {
-    const auto id = StableElementID::fromStableID(stableID);
+  BuilderBase& BuilderBase::setOwner(const ElementRef& stableID) {
     for(size_t i : currentEffects) {
-      owner->at(i) = id;
+      owner->at(i) = stableID;
     }
     return *this;
   }
 
-  void tickLifetime(IAppBuilder* builder, const UnpackedDatabaseElementID& table, size_t removeOnTick) {
+  void tickLifetime(IAppBuilder* builder, const TableID& table, size_t removeOnTick) {
     auto task = builder->createTask();
     task.setName("tick stat lifetime");
     auto query = task.query<Global, Lifetime, const StableIDRow>(table);
@@ -42,7 +41,7 @@ namespace StatEffect {
         }
         else {
           //Let the removal processing resolve the unstable id, set invalid here
-          global->at().toRemove.push_back(StableElementID::fromStableRow(i, *stableRow));
+          global->at().toRemove.push_back(stableRow->at(i));
         }
       }
     });
@@ -50,7 +49,7 @@ namespace StatEffect {
     builder->submitTask(std::move(task));
   }
 
-  void processRemovals(IAppBuilder& builder, const UnpackedDatabaseElementID& table) {
+  void processRemovals(IAppBuilder& builder, const TableID& table) {
     auto task = builder.createTask();
     task.setName("remove stats");
     auto ids = task.getIDResolver();
@@ -58,10 +57,11 @@ namespace StatEffect {
     auto modifier = task.getModifierForTable(table);
 
     task.setCallback([ids, query, modifier](AppTaskArgs&) mutable {
-      std::vector<StableElementID>& toRemove = query.tryGetSingletonElement()->toRemove;
-      for(const StableElementID& id : toRemove) {
-        if(auto resolved = ids->tryResolveAndUnpack(id)) {
-          modifier->swapRemove(resolved->unpacked);
+      std::vector<ElementRef>& toRemove = query.tryGetSingletonElement()->toRemove;
+      auto res = ids->getRefResolver();
+      for(const ElementRef& id : toRemove) {
+        if(auto resolved = res.tryUnpack(id)) {
+          modifier->swapRemove(*resolved);
         }
       }
 
@@ -71,7 +71,7 @@ namespace StatEffect {
     builder.submitTask(std::move(task));
   }
 
-  void processCompletionContinuation(IAppBuilder& builder, const UnpackedDatabaseElementID& table) {
+  void processCompletionContinuation(IAppBuilder& builder, const TableID& table) {
     auto task = builder.createTask();
     task.setName("stat continuation");
     auto ids = task.getIDResolver();
@@ -83,20 +83,19 @@ namespace StatEffect {
 
     task.setCallback([ids, query, &db](AppTaskArgs& taskArgs) mutable {
       auto [continuation, global] = query.get(0);
-      for(StableElementID& id : global->at().toRemove) {
-        if(auto resolved = ids->tryResolveAndUnpack(id)) {
-          //Store the resolved id for processRemovals
-          id = resolved->stable;
+      auto res = ids->getRefResolver();
+      for(const ElementRef& id : global->at().toRemove) {
+        if(auto resolved = res.tryUnpack(id)) {
 
           //Find and call the continuation, if any
-          Continuation c = std::move(continuation->at(resolved->unpacked.getElementIndex()));
+          Continuation c = std::move(continuation->at(resolved->getElementIndex()));
           if(!c.onComplete.empty()) {
             Continuation::Callback fn{ std::move(c.onComplete.front()) };
             c.onComplete.pop_front();
 
             Continuation::Args args {
               db,
-              resolved->unpacked,
+              *resolved,
               taskArgs,
               std::move(c)
             };
@@ -110,36 +109,7 @@ namespace StatEffect {
     builder.submitTask(std::move(task));
   }
 
-  void resolveOwners(IAppBuilder& builder, const UnpackedDatabaseElementID& table) {
-    auto task = builder.createTask();
-    task.setName("resolve owners");
-    auto query = task.query<StatEffect::Owner>(table);
-    auto ids = task.getIDResolver();
-    task.setCallback([query, ids](AppTaskArgs&) mutable {
-      for(StableElementID& toResolve : query.getSingleton<0>()->mElements) {
-        toResolve = ids->tryResolveStableID(toResolve).value_or(StableElementID::invalid());
-      }
-    });
-    builder.submitTask(std::move(task));
-  }
-
-  void resolveTargets(IAppBuilder& builder, const UnpackedDatabaseElementID& table) {
-    if(!builder.queryTable<StatEffect::Target>(table)) {
-      return;
-    }
-    auto task = builder.createTask();
-    task.setName("resolve targets");
-    auto query = task.query<StatEffect::Target>(table);
-    auto ids = task.getIDResolver();
-    task.setCallback([query, ids](AppTaskArgs&) mutable {
-      for(StableElementID& toResolve : query.getSingleton<0>()->mElements) {
-        toResolve = ids->tryResolveStableID(toResolve).value_or(StableElementID::invalid());
-      }
-    });
-    builder.submitTask(std::move(task));
-  }
-
-  void solveCurves(IAppBuilder& builder, const UnpackedDatabaseElementID& table, const CurveAlias& alias) {
+  void solveCurves(IAppBuilder& builder, const TableID& table, const CurveAlias& alias) {
     {
       auto task = builder.createTask();
       task.setName("advance curve time");

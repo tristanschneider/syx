@@ -80,7 +80,7 @@ namespace Performance {
         for(size_t y = 0; y < sy; ++y) {
           const size_t i = x + sx*y;
           TableAdapters::write(i, glm::vec2{ static_cast<float>(x), static_cast<float>(y) }, *px, *py);
-          Events::onNewElement(StableElementID::fromStableRow(i, *stable), args);
+          Events::onNewElement(stable->at(i), args);
         }
       }
     }

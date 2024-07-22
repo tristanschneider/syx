@@ -15,7 +15,7 @@ namespace GameplayExtract {
     auto temp = builder.createTask();
     QueryResult<const Src, Dst> tables = temp.query<const Src, Dst>();
 
-    for(const UnpackedDatabaseElementID& id : tables.matchingTableIDs) {
+    for(const TableID& id : tables.matchingTableIDs) {
       CommonTasks::copyRowSameSize<Src, Dst>(builder, id, id);
     }
 
@@ -62,8 +62,9 @@ namespace GameplayExtract {
 
           //If there is any linear or angular element, turn it into a velocity command then clear out the request
           if(linear.x || linear.y || angular || linearZ) {
-            const size_t id = TableAdapters::addStatEffectsSharedLifetime(v.base, StatEffect::INSTANT, &stable->at(j), 1);
-            v.command->at(id) = { VelocityStatEffect::ImpulseCommand{ linear, angular, linearZ } };
+            VelocityStatEffect::Builder vb{ args };
+            vb.createStatEffects(1).setLifetime(StatEffect::INSTANT).setOwner(stable->at(j));
+            vb.addImpulse({ linear, angular, linearZ });
           }
           x->at(j) = y->at(j) = a->at(j) = 0.0f;
           if(impulseZ) {

@@ -88,7 +88,7 @@ namespace GameBuilder {
 
     Impl(IDatabase& d)
       : db{ d } {
-      std::vector<UnpackedDatabaseElementID> tableids = std::move(db.getRuntime().query().matchingTableIDs);
+      std::vector<TableID> tableids = std::move(db.getRuntime().query().matchingTableIDs);
       dependencies.resize(tableids.size());
       root->name = "root";
       //Add root as synchronous base to everything
@@ -111,7 +111,7 @@ namespace GameBuilder {
         return access.tableID == id;
       }
 
-      const UnpackedDatabaseElementID& id;
+      const TableID& id;
     };
 
     template<class T>
@@ -124,7 +124,7 @@ namespace GameBuilder {
     static void reduce(AppTaskMetadata& data) {
       eraseDuplicates(data.tableModifiers);
 
-      for(const UnpackedDatabaseElementID& modifiedTable : data.tableModifiers) {
+      for(const TableID& modifiedTable : data.tableModifiers) {
         data.writes.erase(std::remove_if(data.writes.begin(), data.writes.end(), TableMatches{ modifiedTable }), data.writes.end());
         data.reads.erase(std::remove_if(data.reads.begin(), data.reads.end(), TableMatches{ modifiedTable }), data.reads.end());
       }

@@ -10,8 +10,6 @@ struct DBEvents;
 struct PhysicsAliases;
 class RuntimeDatabaseTaskBuilder;
 struct UnpackedDatabaseElementID;
-struct StableElementID;
-struct ResolvedIDs;
 class ElementRef;
 
 namespace SweepNPruneBroadphase {
@@ -27,10 +25,9 @@ namespace Shapes {
 
 class IPhysicsBodyResolver {
 public:
-  using Key = ResolvedIDs;
+  using Key = UnpackedDatabaseElementID;
 
   virtual ~IPhysicsBodyResolver() = default;
-  virtual std::optional<Key> tryResolve(const StableElementID& e) = 0;
   virtual std::optional<Key> tryResolve(const ElementRef& e) = 0;
   virtual glm::vec2 getCenter(const Key& e) = 0;
   virtual glm::vec2 getLinearVelocity(const Key& e) = 0;

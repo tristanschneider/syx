@@ -496,8 +496,8 @@ void Renderer::extractRenderables(IAppBuilder& builder) {
 
   //Quads
   for(size_t pass = 0; pass < passes.size(); ++pass) {
-    const UnpackedDatabaseElementID& passID = passes.matchingTableIDs[pass];
-    const UnpackedDatabaseElementID& spriteID = sharedTextureSprites.matchingTableIDs[pass];
+    const TableID& passID = passes.matchingTableIDs[pass];
+    const TableID& spriteID = sharedTextureSprites.matchingTableIDs[pass];
 
     //Resize the quad pass table to match the size of its paired sprite table
     {

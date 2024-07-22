@@ -40,23 +40,23 @@ namespace Scenes {
       cameraModifier->resize(1);
       const size_t cameraIndex = 0;
       Camera& mainCamera = cameras.get<0>(0).at(cameraIndex);
-      const size_t cameraStableId = cameras.get<1>(0).at(cameraIndex);
+      const ElementRef cameraStableId = cameras.get<1>(0).at(cameraIndex);
       mainCamera.zoom = 1.5f;
 
       playerModifier->resize(1);
       const StableIDRow& playerStableRow = players.get<const StableIDRow>(0);
       //TODO: this could be built into the modifier itself
       const size_t playerIndex = 0;
-      Events::onNewElement(StableElementID::fromStableRow(playerIndex, playerStableRow), args);
+      Events::onNewElement(playerStableRow.at(playerIndex), args);
 
       TableAdapters::write(0, *config->fragment.playerSpawn, *posX, *posY);
 
       //Make the camera follow the player
-      auto follow = TableAdapters::getFollowTargetByPositionEffects(args);
-      const size_t id = TableAdapters::addStatEffectsSharedLifetime(follow.base, StatEffect::INFINITE, &cameraStableId, 1);
-      follow.command->at(id).mode = FollowTargetByPositionStatEffect::FollowMode::Interpolation;
-      follow.base.target->at(id) = StableElementID::fromStableID(playerStableRow.at(playerIndex));
-      follow.base.curveDefinition->at(id) = &Config::getCurve(config->camera.followCurve);
+      FollowTargetByPositionStatEffect::Builder fb{ args };
+      fb.createStatEffects(1).setLifetime(StatEffect::INFINITE).setOwner(cameraStableId);
+      fb.setMode(FollowTargetByPositionStatEffect::FollowMode::Interpolation)
+        .setTarget(playerStableRow.at(playerIndex))
+        .setCurve(Config::getCurve(config->camera.followCurve));
 
       //Load ability from config
       Player::initAbility(*config, std::get<2>(players.rows));
@@ -116,7 +116,7 @@ namespace Scenes {
         auto tableRows = fragments.get(t);
         const StableIDRow& stableIDs = fragments.get<const StableIDRow>(t);
         for(size_t s = 0; s < stableIDs.size(); ++s) {
-          Events::onNewElement(StableElementID::fromStableRow(s, stableIDs), taskArgs);
+          Events::onNewElement(stableIDs.at(s), taskArgs);
         }
 
         auto& posX = *std::get<FloatRow<Pos, X>*>(tableRows);
@@ -138,7 +138,7 @@ namespace Scenes {
         for(size_t j = 0; j < total; ++j) {
           //Immediately complete the desired amount of fragments
           if(j < totalCompleted && foundTable.size()) {
-            Events::onMovedElement(StableElementID::fromStableRow(j, stableIDs), foundTable[0], taskArgs);
+            Events::onMovedElement(stableIDs.at(j), foundTable[0], taskArgs);
           }
 
           const size_t shuffleIndex = indices[j];
@@ -170,7 +170,7 @@ namespace Scenes {
       if(terrain.size() && args->addGround) {
         const size_t ground = terrainModifier[0]->addElements(1);
         auto [_, px, py, pz, sx, sy, stable] = terrain.get(0);
-        Events::onNewElement(StableElementID::fromStableRow(ground, *stable), taskArgs);
+        Events::onNewElement(stable->at(ground), taskArgs);
         const glm::vec2 scale = scene->mBoundaryMax - scene->mBoundaryMin;
         const glm::vec2 center = (scene->mBoundaryMin + scene->mBoundaryMax) * 0.5f;
         TableAdapters::write(ground, center, *px, *py);

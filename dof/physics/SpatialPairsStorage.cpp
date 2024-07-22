@@ -52,8 +52,8 @@ namespace SP {
         //Add new edges and spatial pairs for all new pairs
         for(size_t i = 0; i < changes.mGained.size(); ++i) {
           const auto& gain = changes.mGained[i];
-          const ElementRef a = ids->tryResolveRef(StableElementID::fromStableID(gain.a));
-          const ElementRef b = ids->tryResolveRef(StableElementID::fromStableID(gain.b));
+          const ElementRef a = gain.a;
+          const ElementRef b = gain.b;
           auto it = graph.findEdge(a, b);
           //This is a hack that shouldn't happen but sometimes the broadphase seems to report duplicates
           if(it == graph.edgesEnd()) {
@@ -66,8 +66,8 @@ namespace SP {
 
         //Remove all edges corresponding to the lost pairs
         for(const auto& loss : changes.mLost) {
-          const ElementRef a = ids->tryResolveRef(StableElementID::fromStableID(loss.a));
-          const ElementRef b = ids->tryResolveRef(StableElementID::fromStableID(loss.b));
+          const ElementRef a = loss.a;
+          const ElementRef b = loss.b;
           auto edge = graph.findEdge(a, b);
           if(edge != graph.edgesEnd()) {
             //Mark the spatial pair as removed
@@ -99,21 +99,18 @@ namespace SP {
       return isImmobile ? IslandGraph::PROPAGATE_NONE : IslandGraph::PROPAGATE_ALL;
     }
 
-    void addSpatialNode(const StableElementID& node, bool isImmobile) override {
-      auto ref = resolver->tryResolveRef(node);
-      assert(ref && "Ref should exist if adding it");
-      IslandGraph::addNode(graph, ref, getMask(isImmobile));
+    void addSpatialNode(const ElementRef& node, bool isImmobile) override {
+      assert(node && "Ref should exist if adding it");
+      IslandGraph::addNode(graph, node, getMask(isImmobile));
     }
 
-    void removeSpatialNode(const StableElementID& node) override {
-      auto ref = resolver->tryResolveRef(node);
-      IslandGraph::removeNode(graph, ref);
+    void removeSpatialNode(const ElementRef& node) override {
+      IslandGraph::removeNode(graph, node);
     }
 
-    void changeMobility(const StableElementID& node, bool isImmobile) override {
-      auto ref = resolver->tryResolveRef(node);
-      assert(ref);
-      auto it = graph.findNode(ref);
+    void changeMobility(const ElementRef& node, bool isImmobile) override {
+      assert(node);
+      auto it = graph.findNode(node);
       IslandGraph::setPropagation(graph, it, getMask(isImmobile));
     }
 

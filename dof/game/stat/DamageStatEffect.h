@@ -12,6 +12,16 @@ namespace DamageStatEffect {
   struct CommandRow : Row<Command> {};
 
   void processStat(IAppBuilder& builder);
+
+  class Builder : public StatEffect::BuilderBase {
+  public:
+    Builder(AppTaskArgs& args);
+
+    Builder& setDamage(float damage);
+
+  private:
+    CommandRow* command{};
+  };
 };
 
 struct DamageStatEffectTable : StatEffectBase<

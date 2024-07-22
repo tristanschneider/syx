@@ -50,11 +50,11 @@ namespace SpatialQuery {
       , raycast{ task.queryTables<SpatialQueriesTableTag, Gameplay<Shapes::LineRow>>()[0] }
     {}
 
-    UnpackedDatabaseElementID aabb, circle, raycast;
+    TableID aabb, circle, raycast;
   };
   struct CreateData {
     CreateData() = default;
-    CreateData(RuntimeDatabaseTaskBuilder& task, const UnpackedDatabaseElementID& table)
+    CreateData(RuntimeDatabaseTaskBuilder& task, const TableID& table)
       : globals{ task.query<const Gameplay<GlobalsRow>>(table).tryGetSingletonElement() }
       , ids{ task.getIDResolver() }
     {}
@@ -329,7 +329,7 @@ namespace SpatialQuery {
     return std::make_shared<Writer>(task);
   }
 
-  void processLifetime(IAppBuilder& builder, const UnpackedDatabaseElementID& table) {
+  void processLifetime(IAppBuilder& builder, const TableID& table) {
     auto task = builder.createTask();
     task.setName("SQ lifetimes");
     Globals* globals = task.query<Gameplay<GlobalsRow>>(table).tryGetSingletonElement();
@@ -340,7 +340,7 @@ namespace SpatialQuery {
       for(size_t i = 0; i < lifetimes.get<0>(0).size(); ++i) {
         size_t& lifetime = lifetimes.get<0>(0).at(i);
         if(!lifetime) {
-          const ElementRef id = ids->tryResolveRef(StableElementID::fromStableRow(i, lifetimes.get<1>(0)));
+          const ElementRef id = lifetimes.get<1>(0).at(i);
           //Not necessary at the moment since it's synchronous but would be if this task was made to operate on ranges
           std::lock_guard<std::mutex> lock{ globals->mutex };
           globals->commandBuffer.push_back({ Command::DeleteQuery{ id } });
@@ -354,7 +354,7 @@ namespace SpatialQuery {
   }
 
   template<class ShapeRow>
-  void submitQueryUpdates(ShapeID<ShapeRow>, IAppBuilder& builder, const UnpackedDatabaseElementID& table) {
+  void submitQueryUpdates(ShapeID<ShapeRow>, IAppBuilder& builder, const TableID& table) {
     if(!builder.queryTable<ShapeRow>(table)) {
       return;
     }
@@ -411,7 +411,7 @@ namespace SpatialQuery {
   };
 
   template<class ShapeRow>
-  void processCommandBuffer(ShapeID<ShapeRow>, IAppBuilder& builder, const UnpackedDatabaseElementID& table) {
+  void processCommandBuffer(ShapeID<ShapeRow>, IAppBuilder& builder, const TableID& table) {
     if(!builder.queryTable<ShapeRow>(table)) {
       return;
     }
@@ -455,7 +455,7 @@ namespace SpatialQuery {
   void gameplayUpdateQueries(IAppBuilder& builder) {
     auto tables = builder.queryTables<SpatialQueriesTableTag>();
     for(size_t i = 0; i < tables.size(); ++i) {
-      const UnpackedDatabaseElementID& table = tables.matchingTableIDs[i];
+      const TableID& table = tables.matchingTableIDs[i];
       processLifetime(builder, table);
       visitShapes([&](auto shape) {
         submitQueryUpdates(shape, builder, table);

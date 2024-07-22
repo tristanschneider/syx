@@ -31,7 +31,7 @@ namespace StatEffect {
   struct ConfigRow : SharedRow<Config> {};
 
   struct Globals {
-    std::vector<StableElementID> toRemove;
+    std::vector<ElementRef> toRemove;
     //This is used to associate a given central table with its thread local counterpart
     //They are assigned on construction, shouldn't change, and have no meaning other htan equality
     size_t ID;
@@ -56,12 +56,12 @@ namespace StatEffect {
   };
 
   //The gameobject this affects
-  struct Owner : Row<StableElementID>{};
+  struct Owner : Row<ElementRef>{};
   struct Lifetime : Row<size_t>{};
   struct Global : SharedRow<Globals>{};
   struct Continuations : Row<Continuation>{};
   //Optional for effects that have a target in addition to an owner
-  struct Target : Row<StableElementID>{};
+  struct Target : Row<ElementRef>{};
 
   //General purpose optional rows that can be in a stat table and will be filled in if provided
   //Would be more efficient to share a single curve across a table with a shared row, but also less flexible
@@ -76,25 +76,22 @@ namespace StatEffect {
   template<class CurveTag = DefaultCurveTag>
   struct CurveDef: Row<CurveDefinition*>{};
 
-  std::shared_ptr<TaskNode> tickLifetime(Lifetime& lifetime, const StableIDRow& stableIDs, std::vector<StableElementID>& toRemove, size_t removeOnTick);
-  void tickLifetime(IAppBuilder* builder, const UnpackedDatabaseElementID& table, size_t removeOnTick);
+  std::shared_ptr<TaskNode> tickLifetime(Lifetime& lifetime, const StableIDRow& stableIDs, std::vector<ElementRef>& toRemove, size_t removeOnTick);
+  void tickLifetime(IAppBuilder* builder, const TableID& table, size_t removeOnTick);
 
-  void processRemovals(IAppBuilder& builder, const UnpackedDatabaseElementID& table);
+  void processRemovals(IAppBuilder& builder, const TableID& table);
 
   //Resolves the stable id then calls the continuation if there is any. Resolution is a bit redundant, removal needs to do it again because it's moving them around as part of removal
-  void processCompletionContinuation(IAppBuilder& builder, const UnpackedDatabaseElementID& table);
+  void processCompletionContinuation(IAppBuilder& builder, const TableID& table);
 
-  void resolveOwners(IAppBuilder& builder, const UnpackedDatabaseElementID& table);
-  void resolveTargets(IAppBuilder& builder, const UnpackedDatabaseElementID& table);
-
-  void solveCurves(IAppBuilder& builder, const UnpackedDatabaseElementID& table, const CurveAlias& alias);
+  void solveCurves(IAppBuilder& builder, const TableID& table, const CurveAlias& alias);
 
   class BuilderBase {
   public:
     template<class TableT>
     struct Args {
       TableT& table;
-      const UnpackedDatabaseElementID& tableID;
+      const TableID& tableID;
       StableElementMappings& mappings;
     };
 
@@ -114,7 +111,7 @@ namespace StatEffect {
     //Each set of commands must begin with this, creates the range of effects in this table
     BuilderBase& createStatEffects(size_t count);
     BuilderBase& setLifetime(size_t value);
-    BuilderBase& setOwner(size_t stableID);
+    BuilderBase& setOwner(const ElementRef& stableID);
 
   protected:
     gnx::IndexRange currentEffects;

@@ -16,9 +16,9 @@ namespace SM {
   };
 
   struct EmptyStateTraits {
-    static void onEnter([[maybe_unused]] IAppBuilder& builder, [[maybe_unused]] const UnpackedDatabaseElementID& table, [[maybe_unused]] size_t bucket) {}
-    static void onUpdate([[maybe_unused]] IAppBuilder& builder, [[maybe_unused]] const UnpackedDatabaseElementID& table, [[maybe_unused]] size_t bucket) {}
-    static void onExit([[maybe_unused]] IAppBuilder& builder, [[maybe_unused]] const UnpackedDatabaseElementID& table, [[maybe_unused]] size_t bucket) {}
+    static void onEnter([[maybe_unused]] IAppBuilder& builder, [[maybe_unused]] const TableID& table, [[maybe_unused]] size_t bucket) {}
+    static void onUpdate([[maybe_unused]] IAppBuilder& builder, [[maybe_unused]] const TableID& table, [[maybe_unused]] size_t bucket) {}
+    static void onExit([[maybe_unused]] IAppBuilder& builder, [[maybe_unused]] const TableID& table, [[maybe_unused]] size_t bucket) {}
   };
 
   template<class T>
@@ -75,7 +75,7 @@ namespace SM {
     using Machine = decltype(sm);
     using StatesRow = typename Machine::StateRow;
     using GlobalState = typename Machine::GlobalStateRow;
-    for(const UnpackedDatabaseElementID& table : builder.queryTables<StatesRow, GlobalState>().matchingTableIDs) {
+    for(const TableID& table : builder.queryTables<StatesRow, GlobalState>().matchingTableIDs) {
       auto task = builder.createTask();
       task.setName("create state buckets");
       auto query = task.query<StatesRow, GlobalState>(table);
@@ -112,7 +112,7 @@ namespace SM {
   template<class... States, size_t... I>
   void updateStates(IAppBuilder& builder, StateMachine<States...> sm, std::index_sequence<I...>) {
     using SM = decltype(sm);
-    for(const UnpackedDatabaseElementID& table : builder.queryTables<typename SM::StateRow, typename SM::GlobalStateRow>().matchingTableIDs) {
+    for(const TableID& table : builder.queryTables<typename SM::StateRow, typename SM::GlobalStateRow>().matchingTableIDs) {
       (StateTraits<States>::onExit(builder, table, I), ...);
       (StateTraits<States>::onEnter(builder, table, I), ...);
       (StateTraits<States>::onUpdate(builder, table, I), ...);
@@ -122,7 +122,7 @@ namespace SM {
   template<class... States, size_t... I>
   void exitStates(IAppBuilder& builder, StateMachine<States...> sm, std::index_sequence<I...>) {
     using SM = decltype(sm);
-    for(const UnpackedDatabaseElementID& table : builder.queryTables<typename SM::StateRow, typename SM::GlobalStateRow>().matchingTableIDs) {
+    for(const TableID& table : builder.queryTables<typename SM::StateRow, typename SM::GlobalStateRow>().matchingTableIDs) {
       (StateTraits<States>::onExit(builder, table, I), ...);
     }
   }
@@ -170,19 +170,25 @@ namespace SM {
     task.setCallback([resolver, ids, &events](AppTaskArgs&) mutable {
       CachedRow<StateRow> fromState, toState;
       CachedRow<GlobalsRow> globals;
+      auto res = ids->getRefResolver();
       for(const DBEvents::MoveCommand& cmd : events.toBeMovedElements) {
-        auto fromTable = ids->uncheckedUnpack(cmd.source);
-        auto toTable = ids->uncheckedUnpack(cmd.destination);
-        resolver->tryGetOrSwapRow(fromState, fromTable);
-        resolver->tryGetOrSwapRow(toState, toTable);
+        const ElementRef* source = std::get_if<ElementRef>(&cmd.source);
+        const TableID* destination = std::get_if<TableID>(&cmd.destination);
+        //Not a move we care about
+        if(!source || !destination) {
+          continue;
+        }
+        const UnpackedDatabaseElementID sourceID = res.tryUnpack(*source).value_or(UnpackedDatabaseElementID{});
+        resolver->tryGetOrSwapRow(fromState, sourceID);
+        resolver->tryGetOrSwapRow(toState, *destination);
         if(fromState && !toState) {
-          resolver->tryGetOrSwapRow(globals, fromTable);
+          resolver->tryGetOrSwapRow(globals, sourceID);
           assert(globals);
 
-          auto& state = fromState->at(fromTable.getElementIndex());
+          auto& state = fromState->at(sourceID.getElementIndex());
           auto& currentState = state.currentState;
           const size_t stateIndex = currentState.index();
-          globals->at().buckets[stateIndex].exiting.push_back(fromTable.getElementIndex());
+          globals->at().buckets[stateIndex].exiting.push_back(sourceID.getElementIndex());
           state.previousState = currentState;
           currentState = {};
         }

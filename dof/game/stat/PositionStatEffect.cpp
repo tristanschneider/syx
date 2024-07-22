@@ -45,15 +45,16 @@ namespace PositionStatEffect {
       CachedRow<FloatRow<Pos, Z>> pz;
       CachedRow<FloatRow<Rot, CosAngle>> rx;
       CachedRow<FloatRow<Rot, SinAngle>> ry;
+      auto res = ids->getRefResolver();
 
       for(size_t t = 0; t < query.size(); ++t) {
         auto&& [commands, owners] = query.get(t);
         for(size_t i = 0; i < commands->size(); ++i) {
-          const StableElementID& owner = owners->at(i);
-          if(owner == StableElementID::invalid()) {
+          const auto owner = res.tryUnpack(owners->at(i));
+          if(!owner) {
             continue;
           }
-          const UnpackedDatabaseElementID self = ids->uncheckedUnpack(owner);
+          const UnpackedDatabaseElementID self = *owner;
           const size_t si = self.getElementIndex();
 
           const PositionStatEffect::PositionCommand& cmd = commands->at(i);

@@ -90,7 +90,7 @@ namespace Broadphase {
     const ObjectDB::BoundsMinMax* primaryAxis{};
     const ObjectDB::BoundsMinMax* secondaryAxis{};
     const PairTracker* tracked{};
-    SwapLog* log{};
+    IntermediateLog* log{};
   };
 
   bool isOverlapping(const ElementBounds& lPrimary, SweepElement r, const SwapLogArgs& args) {
@@ -106,7 +106,7 @@ namespace Broadphase {
     else {
       //Left start passed over right end, starting to overlap with right edge
       //Only care about this if it would be a new pair (not tracked) and they are newly overlapping on both axes
-      const SweepCollisionPair pair{ left.element.getValue(), right.getValue() };
+      const SweepKeyPair pair{ BroadphaseKey{ left.element.getValue() }, BroadphaseKey{ right.getValue() } };
       if(!args.tracked->trackedPairs.count(pair)) {
         if(isOverlapping(left, right, args)) {
           args.log->gains.emplace_back(pair);
@@ -123,7 +123,7 @@ namespace Broadphase {
     else {
       //Left end swapped over right begin, overlap may have ended
       //Only care about this if they were colliding (tracked pair) and are no longer overlapping on at least one axis
-      const SweepCollisionPair pair{ left.element.getValue(), right.getValue() };
+      const SweepKeyPair pair{ BroadphaseKey{ left.element.getValue() }, BroadphaseKey{ right.getValue() } };
       if(args.tracked->trackedPairs.count(pair)) {
         const auto r = unwrapElement(right, args.primaryAxis);
         //Only check the primary axis here, if it's not overlapping on the other axis it'll get logged when sorting that axis
@@ -258,23 +258,23 @@ namespace Broadphase {
     }
   }
 
-  void logChangedPairs(const ObjectDB& db, PairTracker& pairs, const ConstSwapLog& changedPairs, SwapLog& output) {
-    for(const SweepCollisionPair& g : changedPairs.gains) {
+  void logChangedPairs(const ObjectDB& db, PairTracker& pairs, const ConstIntermediateLog& changedPairs, SwapLog& output) {
+    for(const SweepKeyPair& g : changedPairs.gains) {
       if(pairs.trackedPairs.insert(g).second) {
         //Up until now the pairs have been holding BroadphaseKeys. For the event, look up the corresponding UserKey
-        output.gains.emplace_back(db.userKey[g.a], db.userKey[g.b]);
+        output.gains.emplace_back(db.userKey[g.a.value], db.userKey[g.b.value]);
       }
     }
-    for(const SweepCollisionPair& l : changedPairs.losses) {
+    for(const SweepKeyPair& l : changedPairs.losses) {
       if(auto it = pairs.trackedPairs.find(l); it != pairs.trackedPairs.end()) {
         pairs.trackedPairs.erase(it);
-        output.losses.emplace_back(db.userKey[l.a], db.userKey[l.b]);
+        output.losses.emplace_back(db.userKey[l.a.value], db.userKey[l.b.value]);
       }
     }
   }
 
   //Log events for pairs that will be removed as a result of pending removals, but don't remove yet
-  void logPendingRemovals(const ObjectDB& db, SwapLog& log, const PairTracker& pairs) {
+  void logPendingRemovals(const ObjectDB& db, IntermediateLog& log, const PairTracker& pairs) {
     //All removal events should have been logged, now insert removals into free list and trim them off the end of the axes
     //Removals would always be at the end because REMOVED is float max and it was just sorted above
     if(size_t toRemove = db.pendingRemoval.size()) {
@@ -282,7 +282,7 @@ namespace Broadphase {
       //resolveCandidates will remove redundancies
       for(size_t i = 0; i < db.pendingRemoval.size(); ++i) {
         for(size_t j = i + 1; j < db.pendingRemoval.size(); ++j) {
-          const SweepCollisionPair pair{ db.pendingRemoval[i].value, db.pendingRemoval[j].value };
+          const SweepKeyPair pair{ db.pendingRemoval[i], db.pendingRemoval[j] };
           if(pairs.trackedPairs.count(pair)) {
             log.losses.emplace_back(pair);
           }
@@ -299,7 +299,7 @@ namespace Broadphase {
       //Log an event for all removal pairs. This is because all removal bounds are equal so their events might be missed if both were removed
       //resolveCandidates will remove redundancies
       for(size_t i = 0; i < db.pendingRemoval.size(); ++i) {
-        db.userKey[db.pendingRemoval[i].value] = ObjectDB::EMPTY;
+        db.userKey[db.pendingRemoval[i].value] = {};
       }
       db.freeList.insert(db.freeList.end(), db.pendingRemoval.begin(), db.pendingRemoval.end());
       db.pendingRemoval.clear();
@@ -345,7 +345,7 @@ namespace Broadphase {
       }
     }
 
-    void recomputeCandidates(Sweep2D& sweep, const ObjectDB& db, const PairTracker& pairs, SwapLog& log) {
+    void recomputeCandidates(Sweep2D& sweep, const ObjectDB& db, const PairTracker& pairs, IntermediateLog& log) {
       PROFILE_SCOPE("physics", "computeCandidates");
       SwapLogArgs args{
         nullptr,
@@ -482,7 +482,7 @@ namespace Broadphase {
       toRemove.clear();
     }
 
-    void recomputePairs(Sweep2D& sweep, const ObjectDB& db, const PairTracker& pairs, SwapLog& log) {
+    void recomputePairs(Sweep2D& sweep, const ObjectDB& db, const PairTracker& pairs, IntermediateLog& log) {
       BROADPHASE_ASSERT(Debug::isValidSweepAxis(sweep.axis[0]));
       BROADPHASE_ASSERT(Debug::isValidSweepAxis(sweep.axis[1]));
 
@@ -599,6 +599,7 @@ namespace Broadphase {
     void recomputePairs(IAppBuilder& builder) {
       struct TaskData {
         std::vector<Broadphase::SweepCollisionPair> gains, losses;
+        std::vector<Broadphase::SweepKeyPair> keyGains, keyLosses;
       };
       struct Tasks {
         std::vector<TaskData> tasks;
@@ -628,9 +629,9 @@ namespace Broadphase {
         auto& grid = *process.query<SharedRow<Broadphase::SweepGrid::Grid>>().tryGetSingletonElement();
         process.setCallback([&grid, data](AppTaskArgs& args) mutable {
           for(size_t i = args.begin; i < args.end; ++i) {
-            SwapLog log {
-              data->tasks[i].gains,
-              data->tasks[i].losses
+            IntermediateLog log {
+              data->tasks[i].keyGains,
+              data->tasks[i].keyLosses
             };
             log.gains.clear();
             log.losses.clear();
@@ -650,7 +651,7 @@ namespace Broadphase {
 
           if(data->tasks.size()) {
             //Doesn't matter which log these show up in, arbitrarily choose 0. They are processed like any other loss below
-            SwapLog log{ data->tasks[0].gains, data->tasks[0].losses };
+            IntermediateLog log{ data->tasks[0].keyGains, data->tasks[0].keyLosses };
             Broadphase::logPendingRemovals(grid->objects, log, grid->pairs);
           }
 
@@ -661,7 +662,7 @@ namespace Broadphase {
           SwapLog results{ finalResults.mGained, finalResults.mLost };
           for(size_t i = 0; i < data->tasks.size(); ++i) {
             const TaskData& t = data->tasks[i];
-            const ConstSwapLog taskLog{ t.gains, t.losses };
+            const ConstIntermediateLog taskLog{ t.keyGains, t.keyLosses };
             Broadphase::logChangedPairs(grid->objects, grid->pairs, taskLog, results);
           }
 

@@ -165,14 +165,12 @@ namespace TableAdapters {
   DebugLineAdapter getDebugLines(RuntimeDatabaseTaskBuilder& task);
   const float* getDeltaTime(RuntimeDatabaseTaskBuilder& task);
 
-  size_t addStatEffectsSharedLifetime(StatEffectBaseAdapter& base, size_t lifetime, const size_t* stableIds, size_t count);
-
-  TransformAdapter getTransform(RuntimeDatabaseTaskBuilder& task, const UnpackedDatabaseElementID& table);
-  TransformAdapter getGameplayTransform(RuntimeDatabaseTaskBuilder& task, const UnpackedDatabaseElementID& table);
-  PhysicsObjectAdapter getPhysics(RuntimeDatabaseTaskBuilder& task, const UnpackedDatabaseElementID& table);
-  PhysicsObjectAdapter getGameplayPhysics(RuntimeDatabaseTaskBuilder& task, const UnpackedDatabaseElementID& table);
-  GameObjectAdapter getGameObject(RuntimeDatabaseTaskBuilder& task, const UnpackedDatabaseElementID& table);
-  GameObjectAdapter getGameplayGameObject(RuntimeDatabaseTaskBuilder& task, const UnpackedDatabaseElementID& table);
+  TransformAdapter getTransform(RuntimeDatabaseTaskBuilder& task, const TableID& table);
+  TransformAdapter getGameplayTransform(RuntimeDatabaseTaskBuilder& task, const TableID& table);
+  PhysicsObjectAdapter getPhysics(RuntimeDatabaseTaskBuilder& task, const TableID& table);
+  PhysicsObjectAdapter getGameplayPhysics(RuntimeDatabaseTaskBuilder& task, const TableID& table);
+  GameObjectAdapter getGameObject(RuntimeDatabaseTaskBuilder& task, const TableID& table);
+  GameObjectAdapter getGameplayGameObject(RuntimeDatabaseTaskBuilder& task, const TableID& table);
 
   inline glm::vec2 read(size_t i, const Row<float>& a, const Row<float>& b) {
     return { a.at(i), b.at(i) };

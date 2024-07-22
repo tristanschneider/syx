@@ -13,7 +13,7 @@ namespace FragmentStateMachine {
   struct Idle {};
   //Navigate around in an arbitrary and varying direction
   struct Wander {
-    StableElementID spatialQuery;
+    ElementRef spatialQuery;
     glm::vec2 desiredDirection{};
   };
   //Happens when hit by the player, fly in a given direction with collision disabled,
@@ -26,7 +26,7 @@ namespace FragmentStateMachine {
   //Continuation of seekHome, stop applying the impulse and do spatial queries until there are
   //no collisions so the mask can be set to collide again
   struct ExitSeekHome {
-    StableElementID spatialQuery;
+    ElementRef spatialQuery;
     glm::vec2 direction{};
   };
   //State that does nothing. Used by destruction to exit the final state without entering anything new

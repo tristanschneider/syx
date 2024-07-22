@@ -17,15 +17,10 @@ public:
   virtual size_t addElements(size_t count) = 0;
   virtual void resize(size_t count) = 0;
   //Resize to count and use provided IDs for new elements created. Only has meaning in stable tables
-  virtual void resizeWithIDs(size_t count, const StableElementID* reservedIDs) = 0;
+  virtual void resizeWithIDs(size_t count, const ElementRef* reservedIDs) = 0;
   virtual void swapRemove(const UnpackedDatabaseElementID& id) = 0;
   //Insert this many before location
   virtual void insert(const UnpackedDatabaseElementID& location, size_t count) = 0;
-};
-
-struct ResolvedIDs {
-  StableElementID stable;
-  UnpackedDatabaseElementID unpacked;
 };
 
 class ElementRefResolver {
@@ -50,11 +45,6 @@ private:
 class IIDResolver {
 public :
   virtual ~IIDResolver() = default;
-  //Unpack without ensuring it's valid
-  virtual UnpackedDatabaseElementID uncheckedUnpack(const StableElementID& id) const = 0;
-  virtual std::optional<StableElementID> tryResolveStableID(const StableElementID& id) const = 0;
-  virtual ElementRef tryResolveRef(const StableElementID& id) const = 0;
-  virtual std::optional<ResolvedIDs> tryResolveAndUnpack(const StableElementID& id) const = 0;
   virtual ElementRef createKey() = 0;
   virtual ElementRefResolver getRefResolver() const = 0;
   virtual size_t getTotalIds() const = 0;
@@ -207,7 +197,7 @@ struct TableAccess {
   }
   using TypeIDT = DBTypeID;
   TypeIDT rowType;
-  UnpackedDatabaseElementID tableID;
+  TableID tableID;
 };
 
 //Information about the data dependencies of the task
@@ -224,7 +214,7 @@ struct AppTaskMetadata {
   std::vector<TableAccess> reads;
   std::vector<TableAccess> writes;
   //Addition and removal to particular tables
-  std::vector<UnpackedDatabaseElementID> tableModifiers;
+  std::vector<TableID> tableModifiers;
   std::string_view name;
 };
 
@@ -271,10 +261,10 @@ public:
   }
 
   template<class... Rows>
-  QueryResult<Rows...> query(const UnpackedDatabaseElementID& table) {
+  QueryResult<Rows...> query(const TableID& table) {
     QueryResult<Rows...> result = db.query<Rows...>(table);
     if(result.size()) {
-      const std::vector<UnpackedDatabaseElementID> t{ table };
+      const std::vector<TableID> t{ table };
       (log<Rows>(t), ...);
     }
     return result;
@@ -288,10 +278,10 @@ public:
   }
 
   template<class... Aliases>
-  auto queryAlias(const UnpackedDatabaseElementID& table, const Aliases&... aliases) {
+  auto queryAlias(const TableID& table, const Aliases&... aliases) {
     QueryResult<typename Aliases::RowT...> result = db.queryAlias(table, aliases...);
     if(result.size()) {
-      const std::vector<UnpackedDatabaseElementID> t{ table };
+      const std::vector<TableID> t{ table };
       (log(aliases, t), ...);
     }
     return result;
@@ -306,8 +296,8 @@ public:
     return result;
   }
 
-  std::shared_ptr<ITableModifier> getModifierForTable(const UnpackedDatabaseElementID& table);
-  std::vector<std::shared_ptr<ITableModifier>> getModifiersForTables(const std::vector<UnpackedDatabaseElementID>& tables);
+  std::shared_ptr<ITableModifier> getModifierForTable(const TableID& table);
+  std::vector<std::shared_ptr<ITableModifier>> getModifiersForTables(const std::vector<TableID>& tables);
   std::shared_ptr<IAnyTableModifier> getAnyModifier();
   std::shared_ptr<AppTaskConfig> getConfig();
 
@@ -335,25 +325,25 @@ private:
   }
 
   template<class T>
-  void log(const std::vector<UnpackedDatabaseElementID>& tableIds) {
+  void log(const std::vector<TableID>& tableIds) {
     using DT = std::decay_t<T>;
     log(tableIds, TypeIDT::get<DT>(), std::is_const_v<T>);
   }
 
-  void log(const std::vector<UnpackedDatabaseElementID>& tableIds, const TypeIDT& id, bool isConst);
+  void log(const std::vector<TableID>& tableIds, const TypeIDT& id, bool isConst);
 
   template<class Alias>
   void log(const Alias& alias) {
     log(alias, db.queryAlias(alias).matchingTableIDs);
   }
 
-  void log(const QueryAliasBase& alias, const std::vector<UnpackedDatabaseElementID>& tableIds);
+  void log(const QueryAliasBase& alias, const std::vector<TableID>& tableIds);
 
   std::shared_ptr<ITableResolver> getResolver();
 
-  void logRead(const UnpackedDatabaseElementID& table, TypeIDT t);
-  void logWrite(const UnpackedDatabaseElementID& table, TypeIDT t);
-  void logTableModifier(const UnpackedDatabaseElementID& id);
+  void logRead(const TableID& table, TypeIDT t);
+  void logWrite(const TableID& table, TypeIDT t);
+  void logTableModifier(const TableID& id);
 
   RuntimeDatabase& db;
   AppTaskWithMetadata builtTask;
@@ -397,7 +387,7 @@ public:
 
   //Query if the table has the row
   template<class... Rows>
-  bool queryTable(const UnpackedDatabaseElementID& id) {
+  bool queryTable(const TableID& id) {
     auto temp = queryTables<Rows...>();
     return std::find(temp.matchingTableIDs.begin(), temp.matchingTableIDs.end(), id) != temp.matchingTableIDs.end();
   }

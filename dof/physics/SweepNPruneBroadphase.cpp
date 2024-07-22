@@ -75,21 +75,23 @@ namespace SweepNPruneBroadphase {
       for(const DBEvents::MoveCommand& cmd : events.toBeMovedElements) {
         //Insert new elements
         if(cmd.isCreate()) {
-          const auto unpacked = ids->uncheckedUnpack(cmd.destination);
+          const ElementRef newRef = std::get<ElementRef>(cmd.destination);
+          const auto unpacked = ids->getRefResolver().uncheckedUnpack(newRef);
           if(resolver->tryGetOrSwapAllRows(unpacked, keys, stable)) {
             Broadphase::BroadphaseKey& key = keys->at(unpacked.getElementIndex());
             const Broadphase::UserKey userKey = stable->at(unpacked.getElementIndex());
             Broadphase::SweepGrid::insertRange(grid, &userKey, &key, 1);
-            spatialPairs->addSpatialNode(cmd.destination, false);
+            spatialPairs->addSpatialNode(newRef, false);
           }
         }
         else if(cmd.isDestroy()) {
           //Remove elements that are about to be destroyed
-          const auto unpacked = ids->uncheckedUnpack(cmd.source);
+          const ElementRef removingRef = std::get<ElementRef>(cmd.source);
+          const auto unpacked = ids->getRefResolver().uncheckedUnpack(removingRef);
           if(resolver->tryGetOrSwapRow(keys, unpacked)) {
             Broadphase::BroadphaseKey& key = keys->at(unpacked.getElementIndex());
             Broadphase::SweepGrid::eraseRange(grid, &key, 1);
-            spatialPairs->removeSpatialNode(cmd.source);
+            spatialPairs->removeSpatialNode(removingRef);
             key = {};
           }
         }
@@ -115,36 +117,38 @@ namespace SweepNPruneBroadphase {
       CachedRow<BroadphaseKeys> keys;
       //Bounds update elements that moved to an immobile row
       for(const DBEvents::MoveCommand& cmd : events.toBeMovedElements) {
-        std::optional<ResolvedIDs> found = cmd.isCreate() ? ids->tryResolveAndUnpack(cmd.destination) : ids->tryResolveAndUnpack(cmd.source);
+        const ElementRef* dstRef = std::get_if<ElementRef>(&cmd.destination);
+        const ElementRef* srcRef = std::get_if<ElementRef>(&cmd.destination);
+        const ElementRef* newRef = srcRef ? srcRef : dstRef;
+        std::optional<UnpackedDatabaseElementID> found = newRef ? ids->getRefResolver().tryUnpack(*newRef) : std::nullopt;
 
         if(found) {
           //The stable mappings are pointing at the raw index, then assume that it ended up at the destination table
-          UnpackedDatabaseElementID self{ found->unpacked };
-          const UnpackedDatabaseElementID rawDest = ids->uncheckedUnpack(cmd.destination);
+          UnpackedDatabaseElementID self{ *found };
+          //TODO: is this right?
+          //const UnpackedDatabaseElementID rawDest = ids->uncheckedUnpack(cmd.destination);
           //Should always be the case unless it somehow moved more than once
-          if(self.getTableIndex() == rawDest.getTableIndex()) {
-            const auto unpacked = self;
-            if(resolver->tryGetOrSwapRowAlias(aliases.isImmobile.read(), isImmobile, unpacked)) {
-              resolver->tryGetOrSwapRowAlias(aliases.posX.read(), posX, unpacked);
-              resolver->tryGetOrSwapRowAlias(aliases.posY.read(), posY, unpacked);
-              resolver->tryGetOrSwapRowAlias(QueryAlias<BroadphaseKeys>::create(), keys, unpacked);
+          const auto unpacked = self;
+          if(resolver->tryGetOrSwapRowAlias(aliases.isImmobile.read(), isImmobile, unpacked)) {
+            resolver->tryGetOrSwapRowAlias(aliases.posX.read(), posX, unpacked);
+            resolver->tryGetOrSwapRowAlias(aliases.posY.read(), posY, unpacked);
+            resolver->tryGetOrSwapRowAlias(QueryAlias<BroadphaseKeys>::create(), keys, unpacked);
 
-              //TODO: this doesn't take ShapeRegistry into account
-              if(posX && posY && keys) {
-                const float halfSize = cfg.mHalfSize + cfg.mPadding;
-                const size_t i = unpacked.getElementIndex();
-                glm::vec2 min{ posX->at(i) - halfSize, posY->at(i) - halfSize };
-                glm::vec2 max{ posX->at(i) + halfSize, posY->at(i) + halfSize };
-                Broadphase::BroadphaseKey& key = keys->at(i);
-                Broadphase::SweepGrid::updateBoundaries(grid, &min.x, &max.x, &min.y, &max.y, &key, 1);
-              }
-              //Change node to immobile
-              spatialPairs->changeMobility(found->stable, true);
+            //TODO: this doesn't take ShapeRegistry into account
+            if(posX && posY && keys) {
+              const float halfSize = cfg.mHalfSize + cfg.mPadding;
+              const size_t i = unpacked.getElementIndex();
+              glm::vec2 min{ posX->at(i) - halfSize, posY->at(i) - halfSize };
+              glm::vec2 max{ posX->at(i) + halfSize, posY->at(i) + halfSize };
+              Broadphase::BroadphaseKey& key = keys->at(i);
+              Broadphase::SweepGrid::updateBoundaries(grid, &min.x, &max.x, &min.y, &max.y, &key, 1);
             }
-            else {
-              //Change node to mobile
-              spatialPairs->changeMobility(found->stable, false);
-            }
+            //Change node to immobile
+            spatialPairs->changeMobility(*newRef, true);
+          }
+          else {
+            //Change node to mobile
+            spatialPairs->changeMobility(*newRef, false);
           }
         }
       }

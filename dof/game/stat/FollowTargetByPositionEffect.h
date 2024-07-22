@@ -19,6 +19,20 @@ namespace FollowTargetByPositionStatEffect {
   struct CommandRow : Row<Command>{};
 
   void processStat(IAppBuilder& builder);
+
+  class Builder : public StatEffect::BuilderBase {
+  public:
+    Builder(AppTaskArgs& args);
+
+    Builder& setMode(FollowMode mode);
+    Builder& setTarget(const ElementRef& ref);
+    Builder& setCurve(CurveDefinition& c);
+
+  private:
+    CommandRow* command{};
+    StatEffect::Target* target{};
+    StatEffect::CurveDef<>* curve{};
+  };
 }
 
 struct FollowTargetByPositionStatEffectTable : StatEffectBase<

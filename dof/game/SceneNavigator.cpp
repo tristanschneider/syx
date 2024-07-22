@@ -161,7 +161,7 @@ namespace SceneNavigator {
         for(size_t t = 0; t < query.size(); ++t) {
           auto [_, stable] = query.get(t);
           for(const auto& s : stable->mElements) {
-            remove(StableElementID::fromStableID(s));
+            remove(s);
           }
         }
       }

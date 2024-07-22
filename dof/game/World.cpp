@@ -16,7 +16,7 @@ namespace World {
 
   using FloatAlias = QueryAlias<Row<float>>;
 
-  void repelBoundaryAxis(IAppBuilder& builder, const UnpackedDatabaseElementID& table, FloatAlias pos, FloatAlias linVel, size_t axis) {
+  void repelBoundaryAxis(IAppBuilder& builder, const TableID& table, FloatAlias pos, FloatAlias linVel, size_t axis) {
     auto task = builder.createTask();
     const SceneState* scene = task.query<const SharedRow<SceneState>>().tryGetSingletonElement();
     const Config::WorldConfig* config = &TableAdapters::getGameConfig(task)->world;
@@ -33,7 +33,7 @@ namespace World {
     builder.submitTask(std::move(task));
   }
 
-  void flagOutOfBounds(IAppBuilder& builder, const UnpackedDatabaseElementID& table) {
+  void flagOutOfBounds(IAppBuilder& builder, const TableID& table) {
     auto task = builder.createTask();
     task.setName("fragment out of bounds");
     auto query = task.query<
@@ -78,7 +78,7 @@ namespace World {
       FloatRow<GLinImpulse, X>, FloatRow<GLinImpulse, Y>
     >();
 
-    for(const UnpackedDatabaseElementID& table : tables.matchingTableIDs) {
+    for(const TableID& table : tables.matchingTableIDs) {
       repelBoundaryAxis(builder, table, FloatAlias::create<FloatRow<GPos, X>>(), FloatAlias::create<FloatRow<GLinImpulse, X>>(), 0);
       repelBoundaryAxis(builder, table, FloatAlias::create<FloatRow<GPos, Y>>(), FloatAlias::create<FloatRow<GLinImpulse, Y>>(), 1);
     }
@@ -90,7 +90,7 @@ namespace World {
       FragmentStateMachine::StateRow
     >();
     //Once x and y are done, see if either of them changed to update the flag
-    for(const UnpackedDatabaseElementID& table : fragmentTables.matchingTableIDs) {
+    for(const TableID& table : fragmentTables.matchingTableIDs) {
       flagOutOfBounds(builder, table);
     }
   }

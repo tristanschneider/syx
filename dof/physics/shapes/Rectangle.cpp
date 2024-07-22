@@ -12,7 +12,7 @@ namespace TableExt {
 
 namespace Shapes {
   struct IndividualRectShape : ShapeRegistry::IShapeImpl {
-    std::vector<UnpackedDatabaseElementID> queryTables(IAppBuilder& builder) const final {
+    std::vector<TableID> queryTables(IAppBuilder& builder) const final {
       return builder.queryTables<const RectangleRow>().matchingTableIDs;
     }
 
@@ -73,7 +73,7 @@ namespace Shapes {
       : rect{ rectDef }
     {}
 
-    std::vector<UnpackedDatabaseElementID> queryTables(IAppBuilder& builder) const final {
+    std::vector<TableID> queryTables(IAppBuilder& builder) const final {
       return builder.queryTables<const SharedRectangleRow>().matchingTableIDs;
     }
 

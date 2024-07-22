@@ -62,7 +62,7 @@ namespace Scenes {
                 pos.y += 3.0f;
               }
               const size_t i = x*countX + y;
-              create(ids->tryResolveRef(StableElementID::fromStableRow(i, *stable)));
+              create(stable->at(i));
               TableAdapters::write(i, pos, *px, *py);
               TableAdapters::write(i, size, *sx, *sy);
               mass->at(i) = quadMass;
@@ -87,7 +87,7 @@ namespace Scenes {
           };
           terrainModifier->resize(positions.size());
           for(size_t i = 0; i < positions.size(); ++i) {
-            create(ids->tryResolveRef(StableElementID::fromStableRow(i, *stable)));
+            create(stable->at(i));
             TableAdapters::write(i, positions[i], *px, *py);
             TableAdapters::write(i, rotations[i], *rx, *ry);
             TableAdapters::write(i, groundSize, *sx, *sy);

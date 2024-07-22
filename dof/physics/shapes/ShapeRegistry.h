@@ -45,7 +45,7 @@ namespace ShapeRegistry {
 
   struct BroadphaseBounds {
     QueryAliasBase requiredDependency;
-    UnpackedDatabaseElementID table;
+    TableID table;
     std::vector<float> minX, minY, maxX, maxY;
   };
 
@@ -53,7 +53,7 @@ namespace ShapeRegistry {
   struct IShapeImpl {
     virtual ~IShapeImpl() = default;
     //Get all tables that can hold this shape impl
-    virtual std::vector<UnpackedDatabaseElementID> queryTables(IAppBuilder& builder) const = 0;
+    virtual std::vector<TableID> queryTables(IAppBuilder& builder) const = 0;
     //Resolver to be invoked only on tables specified by queryTables
     virtual std::shared_ptr<IShapeClassifier> createShapeClassifier(RuntimeDatabaseTaskBuilder& task, ITableResolver& resolver) const = 0;
     //Submit a task that writes the bounds for the given table to the container
@@ -62,7 +62,7 @@ namespace ShapeRegistry {
   };
 
   struct ShapeLookup {
-    UnpackedDatabaseElementID table;
+    TableID table;
     const IShapeImpl* impl{};
   };
 

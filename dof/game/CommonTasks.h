@@ -103,7 +103,7 @@ namespace CommonTasks {
   }
 
   template<class SrcRow, class DstRow>
-  void moveOrCopyRowSameSize(IAppBuilder& builder, const UnpackedDatabaseElementID& srcTable, const UnpackedDatabaseElementID& dstTable) {
+  void moveOrCopyRowSameSize(IAppBuilder& builder, const TableID& srcTable, const TableID& dstTable) {
     auto task = builder.createTask();
     task.setName(Str::moveOrCopy<SrcRow, DstRow>());
     auto src = task.query<const SrcRow>(srcTable);
@@ -116,7 +116,7 @@ namespace CommonTasks {
   }
 
   template<class SrcRow, class DstRow>
-  bool tryCopyRowSameSize(IAppBuilder& builder, const UnpackedDatabaseElementID& srcTable, const UnpackedDatabaseElementID& dstTable) {
+  bool tryCopyRowSameSize(IAppBuilder& builder, const TableID& srcTable, const TableID& dstTable) {
     auto task = builder.createTask();
     task.setName(Str::copy<SrcRow, DstRow>());
     auto src = task.query<const SrcRow>(srcTable);
@@ -133,7 +133,7 @@ namespace CommonTasks {
   }
 
   template<class SrcRow, class DstRow>
-  void copyRowSameSize(IAppBuilder& builder, const UnpackedDatabaseElementID& srcTable, const UnpackedDatabaseElementID& dstTable) {
+  void copyRowSameSize(IAppBuilder& builder, const TableID& srcTable, const TableID& dstTable) {
     [[maybe_unused]] bool result = tryCopyRowSameSize<SrcRow, DstRow>(builder, srcTable, dstTable);
     assert(result);
   }

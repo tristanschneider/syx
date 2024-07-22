@@ -75,16 +75,17 @@ namespace VelocityStatEffect {
 
     task.setCallback([query, resolver, ids](AppTaskArgs&) mutable {
       Processor processor{ *resolver };
+      auto res = ids->getRefResolver();
 
       for(size_t t = 0; t < query.size(); ++t) {
         auto&& [owners, commands] = query.get(t);
         for(size_t i = 0; i < owners->size(); ++i) {
-          const StableElementID& owner = owners->at(i);
-          if(owner == StableElementID::invalid()) {
+          const auto owner = res.tryUnpack(owners->at(i));
+          if(!owner) {
             continue;
           }
 
-          processor.self = ids->uncheckedUnpack(owner);
+          processor.self = *owner;
           std::visit(processor, commands->at(i).data);
         }
       }

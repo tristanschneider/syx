@@ -7,13 +7,42 @@
 #include <unordered_map>
 #include <shared_mutex>
 #include "generics/PagedVector.h"
-
-struct StableIDRow : Row<size_t> {};
+#include <variant>
 
 using StableElementVersion = uint16_t;
 struct StableElementMapping {
   size_t unstableIndex{};
   StableElementVersion version{};
+};
+
+struct StableElementMappings;
+
+//Wrapper to only allow mutable access within StableElementMappings where thread safety can be assured while still exposing the values themselves
+struct StableElementMappingPtr {
+public:
+  friend struct StableElementMappings;
+
+  StableElementMappingPtr(StableElementMapping* m = nullptr)
+    : mValue{ m } {}
+
+  operator bool() const {
+    return mValue != nullptr;
+  }
+
+  const StableElementMapping* get() const {
+    return mValue;
+  }
+
+  const StableElementMapping* operator->() const {
+    return mValue;
+  }
+
+  const StableElementMapping& operator*() const {
+    return *mValue;
+  }
+
+private:
+  StableElementMapping* mValue{};
 };
 
 //Scheduling ensures that anythign adding to a table has exclusive access to a table
@@ -40,10 +69,10 @@ public:
     return createRawKey(guard);
   }
 
-  const StableElementMapping& createKey() {
+  StableElementMappingPtr createKey() {
     WriteLockGuard guard{ mMutex };
     size_t result = createRawKey(guard);
-    return mStableToUnstable[result];
+    return &mStableToUnstable[result];
   }
 
   void insertKey(size_t stable, size_t unstable) {
@@ -52,19 +81,25 @@ public:
   }
 
   //Mapping obtained from createKey
-  void insertKey(const StableElementMapping& key, size_t unstable) {
+  void insertKey(const StableElementMappingPtr& key, size_t unstable) {
+    assert(key);
     WriteLockGuard guard{ mMutex };
-    const_cast<StableElementMapping&>(key).unstableIndex = unstable;
+    key.mValue->unstableIndex = unstable;
   }
 
   //This assumes the caller knows it's pointing at the correct version
   bool tryUpdateKey(size_t stable, size_t unstable) {
-    WriteLockGuard gaurd{ mMutex };
+    WriteLockGuard guard{ mMutex };
     if(StableElementMapping* v = tryGet(stable)) {
       v->unstableIndex = unstable;
       return true;
     }
     return false;
+  }
+
+  void updateKey(const StableElementMappingPtr& mapping, size_t unstable) {
+    WriteLockGuard guard{ mMutex };
+    mapping.mValue->unstableIndex = unstable;
   }
 
   bool tryEraseKey(size_t stable) {
@@ -78,17 +113,26 @@ public:
     return false;
   }
 
+  void eraseKey(const StableElementMappingPtr& mapping) {
+    assert(mapping);
+    WriteLockGuard guard{ mMutex };
+    const size_t stable = mStableToUnstable.indexOf(*mapping.mValue);
+    mFreeList.push_back(stable);
+    mapping.mValue->version++;
+    mapping.mValue->unstableIndex = INVALID;
+  }
+
   size_t getStableID(const StableElementMapping& key) const {
     ReadLockGuard guard{ mMutex };
     return mStableToUnstable.indexOf(key);
   }
 
-  std::pair<size_t, const StableElementMapping*> findKey(size_t stable) const {
+  std::pair<size_t, StableElementMappingPtr> findKey(size_t stable) {
     //This doesn't use a lock due to how common it is. The scheduler is responsible for ensuring this never happens in a table being modified
-    if(const StableElementMapping* v = tryGet(stable)) {
-      return std::make_pair(stable, v);
+    if(StableElementMapping* v = tryGet(stable)) {
+      return std::make_pair(stable, StableElementMappingPtr{ v });
     }
-    return std::make_pair<size_t, const StableElementMapping*>(0, nullptr);
+    return std::make_pair<size_t, StableElementMappingPtr>(0, nullptr);
   }
 
   size_t size() const {
@@ -136,7 +180,7 @@ private:
 class ElementRef {
 public:
   ElementRef() = default;
-  ElementRef(const StableElementMapping* mapping)
+  ElementRef(StableElementMappingPtr mapping)
     : ref{ mapping }
     , expectedVersion{ mapping ? mapping->version : StableElementVersion{} } {
   }
@@ -155,11 +199,23 @@ public:
 
   //To be used in contexts where stale versions wouldn't also be hashed
   size_t unversionedHash() const {
-    return std::hash<const void*>()(ref);
+    return std::hash<const void*>()(ref ? &*ref : nullptr);
+  }
+
+  const StableElementMappingPtr& getMapping() const {
+    return ref;
+  }
+
+  bool operator<(const ElementRef& rhs) const {
+    return ref.get() < rhs.ref.get();
+  }
+
+  bool operator>(const ElementRef& rhs) const {
+    return ref.get() > rhs.ref.get();
   }
 
 private:
-  const StableElementMapping* ref{};
+  StableElementMappingPtr ref;
   StableElementVersion expectedVersion{};
 };
 
@@ -171,6 +227,8 @@ namespace std {
     }
   };
 }
+
+struct StableIDRow : Row<ElementRef> {};
 
 struct StableInfo {
   StableIDRow* row{};
@@ -184,80 +242,12 @@ struct ConstStableInfo {
   const DatabaseDescription description{};
 };
 
-//A stable id is used to reference an element in a table that might move
-//If the id is still valid the unstable index can be used to look it up
-//Otherwise, the stable id is used to ubdate the unstable index using the global mappings
-struct StableElementID {
-  bool operator==(const StableElementID& id) const {
-    return mUnstableIndex == id.mUnstableIndex && mStableID == id.mStableID;
-  }
-
-  bool operator!=(const StableElementID& id) const {
-    return !(*this == id);
-  }
-
-  static constexpr StableElementID invalid() {
-    return { std::numeric_limits<size_t>::max(), std::numeric_limits<size_t>::max() };
-  }
-
-  static StableElementID fromStableID(size_t stableId) {
-    //Table index is not known here, so a resolve will be needed to compute it
-    return { dbDetails::INVALID_VALUE, stableId };
-  }
-
-  //For if the caller wants to get the stable element at the index that they know is correct
-  static StableElementID fromStableRow(size_t index, const StableIDRow& row) {
-    return fromStableID(row.at(index));
-  }
-
-  UnpackedDatabaseElementID toUnpacked(const DatabaseDescription& description) const {
-    return { mUnstableIndex, description.elementIndexBits };
-  }
-
-  template<class DB>
-  UnpackedDatabaseElementID toUnpacked() const {
-    return toUnpacked(DB::getDescription());
-  }
-
-  template<class DB>
-  typename DB::ElementID toPacked() const {
-    return typename DB::ElementID{ mUnstableIndex };
-  }
-
-  //ElementID of database, meaning a combination of the table index and element index
-  size_t mUnstableIndex{};
-  size_t mStableID{};
-};
-
-//For convenience in std::find
-struct StableElementFind {
-  bool operator()(const StableElementID& i) const {
-    return id.mStableID == i.mStableID;
-  }
-  const StableElementID& id;
-};
-
-namespace std {
-  template<>
-  struct hash<StableElementID> {
-    size_t operator()(const StableElementID& id) const {
-      return std::hash<size_t>{}(id.mStableID);
-    }
-  };
-}
-
 //Same as UnpackedDatabaseElementID mUnstableIndex of the table, intended for when referring to table vs element in table
 struct TableID : UnpackedDatabaseElementID {
 };
 
 struct DBEvents {
   using Variant = std::variant<std::monostate, TableID, ElementRef>;
-  //struct IsElementID {
-  //  constexpr bool operator()(const StableElementID&) const { return true; }
-  //  constexpr bool operator()(const ElementRef&) const { return true; }
-  //  constexpr bool operator()(std::monostate) const { return false; }
-  //  constexpr bool operator()(const TableID&) const { return false; }
-  //};
 
   //Creating an element is from an invalid source to a valid destination
   //Destroying an element is from a valid source to an invalid destination

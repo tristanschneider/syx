@@ -10,13 +10,13 @@ QueryResult<> RuntimeDatabase::query() {
   return result;
 }
 
-RuntimeTable* RuntimeDatabase::tryGet(const UnpackedDatabaseElementID& id) {
+RuntimeTable* RuntimeDatabase::tryGet(const TableID& id) {
   const size_t i = id.getTableIndex();
   return i < data.tables.size() ? &data.tables[i] : nullptr;
 }
 
-UnpackedDatabaseElementID RuntimeDatabase::getTableID(size_t index) const {
-  return UnpackedDatabaseElementID{ 0, data.elementIndexBits }.remake(index, 0);
+TableID RuntimeDatabase::getTableID(size_t index) const {
+  return TableID{ UnpackedDatabaseElementID{ 0, data.elementIndexBits }.remake(index, 0) };
 }
 
 QueryResult<> RuntimeDatabase::queryAliasTables(std::initializer_list<QueryAliasBase> aliases) const {
@@ -65,11 +65,11 @@ namespace DBReflect {
   void fixArgs(RuntimeDatabaseArgs& args) {
     //Make sure the final bit count is enough to contain ids across all tables
     args.elementIndexBits = details::computeElementIndexBits(args.tables.size());
-    UnpackedDatabaseElementID base{ 0, args.elementIndexBits };
+    TableID base{ UnpackedDatabaseElementID{ 0, args.elementIndexBits } };
     //Make sure all table ids now reflect the potentially changed bit counts in their ids
     for(size_t i = 0; i < args.tables.size(); ++i) {
       RuntimeTable* table = &args.tables[i];
-      table->tableID = base.remake(i, 0);
+      table->tableID = TableID{ base.remake(i, 0) };
       if(table->stableModifier) {
         table->stableModifier.tableID = table->tableID;
       }
@@ -85,7 +85,7 @@ namespace DBReflect {
 
     static void addToArgs(RuntimeDatabaseArgs& args, IDatabase& db) {
       RuntimeDatabase& rdb = db.getRuntime();
-      for(const UnpackedDatabaseElementID& t : rdb.query().matchingTableIDs) {
+      for(const TableID& t : rdb.query().matchingTableIDs) {
         RuntimeTable* table = rdb.tryGet(t);
         args.tables.push_back(*table);
       }

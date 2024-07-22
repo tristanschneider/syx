@@ -17,6 +17,18 @@ namespace FollowTargetByVelocityStatEffect {
   struct CommandRow : Row<Command>{};
 
   void processStat(IAppBuilder& builder);
+
+  class Builder : public StatEffect::BuilderBase {
+  public:
+    Builder(AppTaskArgs& args);
+
+    Builder& setMode(FollowMode mode);
+    Builder& setTarget(const ElementRef& ref);
+
+  private:
+    CommandRow* command{};
+    StatEffect::Target* target{};
+  };
 }
 
 struct FollowTargetByVelocityStatEffectTable : StatEffectBase<
