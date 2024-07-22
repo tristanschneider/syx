@@ -14,29 +14,33 @@ namespace TableService {
     auto ids = task.getIDResolver();
 
     task.setCallback([&db, &events, ids](AppTaskArgs&) mutable {
+      auto resolver = ids->getRefResolver();
       for(const DBEvents::MoveCommand& cmd : events.toBeMovedElements) {
+        const ElementRef* source = std::get_if<ElementRef>(&cmd.source);
+        const TableID* destination = std::get_if<TableID>(&cmd.destination);
         if(cmd.isCreate()) {
           //Nothing currently, may want to support this in the future
         }
         else if(cmd.isDestroy()) {
+          assert(source);
           //Remove each element referenced by removal events
-          if(std::optional<ResolvedIDs> resolved = ids->tryResolveAndUnpack(cmd.source)) {
-            if(RuntimeTable* table = db.tryGet(resolved->unpacked)) {
+          if(std::optional<UnpackedDatabaseElementID> resolved = resolver.tryUnpack(*source)) {
+            if(RuntimeTable* table = db.tryGet(*resolved)) {
               assert(table->stableModifier);
-              table->stableModifier.modifier.swapRemove(table->stableModifier.table, resolved->unpacked, *table->stableModifier.stableMappings);
+              table->stableModifier.modifier.swapRemove(table->stableModifier.table, *resolved, *table->stableModifier.stableMappings);
             }
           }
         }
         else if(cmd.isMove()) {
+          assert(source && destination);
           //Move all elements to the desired location
-          if(std::optional<ResolvedIDs> resolved = ids->tryResolveAndUnpack(cmd.source)) {
-            const UnpackedDatabaseElementID& rawSrc = resolved->unpacked;
-            const UnpackedDatabaseElementID rawDst = ids->uncheckedUnpack(cmd.destination);
-            if(rawSrc.getTableIndex() == rawDst.getTableIndex()) {
+          if(std::optional<UnpackedDatabaseElementID> resolved = resolver.tryUnpack(*source)) {
+            const UnpackedDatabaseElementID& rawSrc = *resolved;
+            if(rawSrc.getTableIndex() == destination->getTableIndex()) {
               continue;
             }
             RuntimeTable* fromTable = db.tryGet(rawSrc);
-            RuntimeTable* toTable = db.tryGet(rawDst);
+            RuntimeTable* toTable = db.tryGet(*destination);
             if(fromTable && toTable) {
               RuntimeTable::migrateOne(rawSrc.getElementIndex(), *fromTable, *toTable);
             }

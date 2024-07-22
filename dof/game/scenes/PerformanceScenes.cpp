@@ -41,8 +41,9 @@ namespace Scenes {
       }
       auto objsModifier = task.getModifierForTable(objs.matchingTableIDs[0]);
       auto terrainModifier = task.getModifierForTable(terrain.matchingTableIDs[0]);
+      auto ids = task.getIDResolver();
 
-      task.setCallback([objs, terrain, objsModifier, terrainModifier](AppTaskArgs& args) mutable {
+      task.setCallback([ids, objs, terrain, objsModifier, terrainModifier](AppTaskArgs& args) mutable {
         constexpr size_t countX = 100;
         constexpr size_t countY = 100;
         const glm::vec2 size{ 1, 1 };
@@ -56,14 +57,12 @@ namespace Scenes {
           auto [tag, px, py, sx, sy, gy, mass, stable] = objs.get(0);
           for(size_t x = 0; x < countX; ++x) {
             for(size_t y = 0; y < countY; ++y) {
-              //if(size.x || x != 0 || y != 0) break;
-
               glm::vec2 pos = origin + size * glm::vec2{ static_cast<float>(x), static_cast<float>(y) };
               if(x > 3 && x < 5) {
                 pos.y += 3.0f;
               }
               const size_t i = x*countX + y;
-              create(StableElementID::fromStableRow(i, *stable));
+              create(ids->tryResolveRef(StableElementID::fromStableRow(i, *stable)));
               TableAdapters::write(i, pos, *px, *py);
               TableAdapters::write(i, size, *sx, *sy);
               mass->at(i) = quadMass;
@@ -88,7 +87,7 @@ namespace Scenes {
           };
           terrainModifier->resize(positions.size());
           for(size_t i = 0; i < positions.size(); ++i) {
-            create(StableElementID::fromStableRow(i, *stable));
+            create(ids->tryResolveRef(StableElementID::fromStableRow(i, *stable)));
             TableAdapters::write(i, positions[i], *px, *py);
             TableAdapters::write(i, rotations[i], *rx, *ry);
             TableAdapters::write(i, groundSize, *sx, *sy);

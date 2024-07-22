@@ -8,15 +8,15 @@
 namespace Events {
   using LockT = std::lock_guard<std::mutex>;
 
-  void CreatePublisher::operator()(StableElementID id) {
+  void CreatePublisher::operator()(const ElementRef& id) {
     onNewElement(id, *args);
   }
 
-  void DestroyPublisher::operator()(StableElementID id) {
+  void DestroyPublisher::operator()(const ElementRef& id) {
     onRemovedElement(id, *args);
   }
 
-  void MovePublisher::operator()(StableElementID source, UnpackedDatabaseElementID destination) {
+  void MovePublisher::operator()(const ElementRef& source, const TableID& destination) {
     onMovedElement(source, destination, *args);
   }
 
@@ -41,43 +41,43 @@ namespace Events {
     return { *impl, LockT{ impl->mutex } };
   }
 
-  void onNewElement(StableElementID e, AppTaskArgs& args) {
-    onMovedElement(StableElementID::invalid(), e, args);
-  }
-
-  void onMovedElement(StableElementID src, UnpackedDatabaseElementID dst, AppTaskArgs& args) {
-    //Create a "stable" id where the stable part is empty but the unstable part has the destination table id
-    onMovedElement(src, StableElementID{ dst.mValue, dbDetails::INVALID_VALUE }, args);
-  }
-
-  void onMovedElement(StableElementID src, StableElementID dst, AppTaskArgs& args) {
+  void pushEvent(const DBEvents::Variant& src, const DBEvents::Variant& dst, AppTaskArgs& args) {
     EventsContext ctx{ _getContext(args) };
     ctx.impl.events.toBeMovedElements.push_back({ src, dst });
   }
 
-  void onRemovedElement(StableElementID e, AppTaskArgs& args) {
-    onMovedElement(e, StableElementID::invalid(), args);
+  void onNewElement(const ElementRef& e, AppTaskArgs& args) {
+    pushEvent({ std::monostate{} }, { e }, args);
   }
 
-  void resolve(StableElementID& id, IIDResolver& ids) {
-    //TODO: should these write invalid id on failure instead of leaving it unchaged?
-    //Check explicitly for the stable part to ignore the move special case where a destination unstable type is used
-    //This also ignores the create and destroy cases which contain empty ids
-    if(id.mStableID != dbDetails::INVALID_VALUE) {
-      id = ids.tryResolveStableID(id).value_or(id);
-    }
+  void onMovedElement(const ElementRef& src, const TableID& dst, AppTaskArgs& args) {
+    pushEvent({ src }, { dst }, args);
   }
 
-  void resolve(DBEvents::MoveCommand& cmd, IIDResolver& ids) {
-      resolve(cmd.source, ids);
-      resolve(cmd.destination, ids);
+  void onRemovedElement(const ElementRef& e, AppTaskArgs& args) {
+    pushEvent({ e }, { std::monostate{} }, args);
   }
 
-  void resolve(std::vector<DBEvents::MoveCommand>& cmd, IIDResolver& ids) {
-    for(auto& c : cmd) {
-      resolve(c, ids);
-    }
-  }
+  //void resolve(StableElementID& id, IIDResolver& ids) {
+  //  //TODO: should these write invalid id on failure instead of leaving it unchaged?
+  //  //Check explicitly for the stable part to ignore the move special case where a destination unstable type is used
+  //  //This also ignores the create and destroy cases which contain empty ids
+  //  if(id.mStableID != dbDetails::INVALID_VALUE) {
+  //    id = ids.tryResolveStableID(id).value_or(id);
+  //  }
+  //}
+
+  //TODO: delete I think
+  //void resolve(DBEvents::MoveCommand& cmd, IIDResolver& ids) {
+  //    resolve(cmd.source, ids);
+  //    resolve(cmd.destination, ids);
+  //}
+  //
+  //void resolve(std::vector<DBEvents::MoveCommand>& cmd, IIDResolver& ids) {
+  //  for(auto& c : cmd) {
+  //    resolve(c, ids);
+  //  }
+  //}
 
   void publishEvents(IAppBuilder& builder) {
     auto task = builder.createTask();
@@ -92,7 +92,7 @@ namespace Events {
 
         ctx.impl.events.toBeMovedElements.clear();
       }
-      resolve(instance.publishedEvents.toBeMovedElements, *ids);
+      //resolve(instance.publishedEvents.toBeMovedElements, *ids);
     });
     builder.submitTask(std::move(task));
   }

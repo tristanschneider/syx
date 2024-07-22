@@ -82,3 +82,6 @@ namespace Tags {
 };
 
 struct IsPlayer : TagRow{};
+//These are opposites of each-other, a fragment is either trying to find the goal or found it
+struct FragmentGoalFoundTableTag : TagRow {};
+struct FragmentSeekingGoalTagRow : TagRow {};

@@ -75,8 +75,6 @@ struct SharedMassObjectTableTag : TagRow{};
 
 struct FragmentFlagsRow : Row<FragmentFlags>{};
 
-struct FragmentGoalFoundTableTag : TagRow {};
-
 struct TargetTableTag : TagRow{};
 
 struct Camera {

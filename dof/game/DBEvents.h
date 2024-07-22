@@ -24,13 +24,13 @@ namespace Events {
     AppTaskArgs* args{};
   };
   struct CreatePublisher : Publisher {
-    void operator()(StableElementID id);
+    void operator()(const ElementRef& id);
   };
   struct DestroyPublisher : Publisher {
-    void operator()(StableElementID id);
+    void operator()(const ElementRef& id);
   };
   struct MovePublisher : Publisher {
-    void operator()(StableElementID source, UnpackedDatabaseElementID destination);
+    void operator()(const ElementRef& source, const TableID& destination);
   };
 
   //Re-resolve the given command ids. This shouldn't be necessary for pre-table service listeners,
@@ -38,10 +38,9 @@ namespace Events {
   void resolve(DBEvents::MoveCommand& cmd, const StableElementMappings& mappings);
 
   //TODO: this is simpler to process if they are all "moves" but new is a move from nothing to somthing and remove is the opposite
-  void onNewElement(StableElementID e, AppTaskArgs& args);
-  void onMovedElement(StableElementID src, StableElementID dst, AppTaskArgs& args);
-  void onMovedElement(StableElementID src, UnpackedDatabaseElementID dst, AppTaskArgs& args);
-  void onRemovedElement(StableElementID e, AppTaskArgs& args);
+  void onNewElement(const ElementRef& e, AppTaskArgs& args);
+  void onMovedElement(const ElementRef& src, const TableID& dst, AppTaskArgs& args);
+  void onRemovedElement(const ElementRef& e, AppTaskArgs& args);
   //Populate publishedEvents and clear the internally stored events
   void publishEvents(IAppBuilder& builder);
 

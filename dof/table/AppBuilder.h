@@ -55,7 +55,7 @@ public :
   virtual std::optional<StableElementID> tryResolveStableID(const StableElementID& id) const = 0;
   virtual ElementRef tryResolveRef(const StableElementID& id) const = 0;
   virtual std::optional<ResolvedIDs> tryResolveAndUnpack(const StableElementID& id) const = 0;
-  virtual StableElementID createKey() = 0;
+  virtual ElementRef createKey() = 0;
   virtual ElementRefResolver getRefResolver() const = 0;
   virtual size_t getTotalIds() const = 0;
 };

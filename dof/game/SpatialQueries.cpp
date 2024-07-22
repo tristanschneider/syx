@@ -82,9 +82,9 @@ namespace SpatialQuery {
     Gameplay<NeedsResubmitRow>* needsResubmit{};
   };
 
-  StableElementID createQuery(CreateData& data, Query&& query, size_t lifetime) {
+  ElementRef createQuery(CreateData& data, Query&& query, size_t lifetime) {
     //Immediately reserve the key, the entry will be created later
-    StableElementID result = data.ids->createKey();
+    ElementRef result = data.ids->createKey();
     {
       //Enqueue the command for the end of the frame.
       //The lock is for multiple tasks submitting requests at the same time which does not
@@ -148,7 +148,7 @@ namespace SpatialQuery {
       createRaycast = CreateData{ task, tables.raycast };
     }
 
-    StableElementID createQuery(Query&& query, size_t lifetime) override {
+    ElementRef createQuery(Query&& query, size_t lifetime) override {
       if(auto aabb = std::get_if<AABB>(&query.shape)) {
         return SpatialQuery::createQuery(createAABB, std::move(query), lifetime);
       }
@@ -173,10 +173,10 @@ namespace SpatialQuery {
 
     //TODO: better iterator support
     //Store the first edge entry for this node in the graph
-    void begin(const StableElementID& id) override {
+    void begin(const ElementRef& id) override {
       selectedEdgeEntry = IslandGraph::INVALID;
 
-      self = ids->tryResolveRef(id);
+      self = id;
       if(!self) {
         return;
       }
@@ -271,42 +271,42 @@ namespace SpatialQuery {
     {
     }
 
-    std::optional<ResolvedIDs> getKey(StableElementID& id) {
-      return writeAABB.ids->tryResolveAndUnpack(id);
+    std::optional<UnpackedDatabaseElementID> getKey(const ElementRef& id) {
+      return writeAABB.ids->getRefResolver().tryUnpack(id);
     }
 
     template<class T>
-    void visitShape(const ResolvedIDs& key, const T& visitor) {
-      if(key.unpacked.getTableIndex() == writeAABB.table.getTableIndex()) {
+    void visitShape(const UnpackedDatabaseElementID& key, const T& visitor) {
+      if(key.getTableIndex() == writeAABB.table.getTableIndex()) {
         visitor(writeAABB);
       }
-      else if(key.unpacked.getTableIndex() == writeCircle.table.getTableIndex()) {
+      else if(key.getTableIndex() == writeCircle.table.getTableIndex()) {
         visitor(writeCircle);
       }
-      else if(key.unpacked.getTableIndex() == writeRay.table.getTableIndex()) {
+      else if(key.getTableIndex() == writeRay.table.getTableIndex()) {
         visitor(writeRay);
       }
     }
 
-    void swapQuery(const ResolvedIDs& key, Query& inout, size_t newLifetime) override {
-      visitShape(key, [&](auto& shape) { SpatialQuery::swapQuery(shape, key.unpacked.getElementIndex(), inout, newLifetime); });
+    void swapQuery(const UnpackedDatabaseElementID& key, Query& inout, size_t newLifetime) override {
+      visitShape(key, [&](auto& shape) { SpatialQuery::swapQuery(shape, key.getElementIndex(), inout, newLifetime); });
     }
 
-    void refreshQuery(const ResolvedIDs& key, Query&& query, size_t newLifetime) override {
-      visitShape(key, [&](auto& shape) { SpatialQuery::refreshQuery(shape, key.unpacked.getElementIndex(), std::move(query), newLifetime); });
+    void refreshQuery(const UnpackedDatabaseElementID& key, Query&& query, size_t newLifetime) override {
+      visitShape(key, [&](auto& shape) { SpatialQuery::refreshQuery(shape, key.getElementIndex(), std::move(query), newLifetime); });
     }
 
-    void refreshQuery(const ResolvedIDs& key, size_t newLifetime) override {
-      visitShape(key, [&](auto& shape) { SpatialQuery::refreshQuery(shape, key.unpacked.getElementIndex(), newLifetime); });
+    void refreshQuery(const UnpackedDatabaseElementID& key, size_t newLifetime) override {
+      visitShape(key, [&](auto& shape) { SpatialQuery::refreshQuery(shape, key.getElementIndex(), newLifetime); });
     }
 
-    void refreshQuery(StableElementID& key, Query&& query, size_t newLifetime) override {
+    void refreshQuery(const ElementRef& key, Query&& query, size_t newLifetime) override {
       if(auto k = getKey(key)) {
         refreshQuery(*k, std::move(query), newLifetime);
       }
     }
 
-    void refreshQuery(StableElementID& key, size_t newLifetime) override {
+    void refreshQuery(const ElementRef& key, size_t newLifetime) override {
       if(auto k = getKey(key)) {
         refreshQuery(*k, newLifetime);
       }
@@ -334,12 +334,13 @@ namespace SpatialQuery {
     task.setName("SQ lifetimes");
     Globals* globals = task.query<Gameplay<GlobalsRow>>(table).tryGetSingletonElement();
     auto lifetimes = task.query<Gameplay<LifetimeRow>, const StableIDRow>(table);
+    auto ids = task.getIDResolver();
     assert(globals && lifetimes.size());
-    task.setCallback([globals, lifetimes](AppTaskArgs&) mutable {
+    task.setCallback([ids, globals, lifetimes](AppTaskArgs&) mutable {
       for(size_t i = 0; i < lifetimes.get<0>(0).size(); ++i) {
         size_t& lifetime = lifetimes.get<0>(0).at(i);
         if(!lifetime) {
-          const StableElementID id = StableElementID::fromStableRow(i, lifetimes.get<1>(0));
+          const ElementRef id = ids->tryResolveRef(StableElementID::fromStableRow(i, lifetimes.get<1>(0)));
           //Not necessary at the moment since it's synchronous but would be if this task was made to operate on ranges
           std::lock_guard<std::mutex> lock{ globals->mutex };
           globals->commandBuffer.push_back({ Command::DeleteQuery{ id } });
@@ -406,6 +407,7 @@ namespace SpatialQuery {
 
     Events::CreatePublisher& publishNewElement;
     Events::DestroyPublisher& publishRemovedElement;
+    IIDResolver& ids;
   };
 
   template<class ShapeRow>
@@ -422,8 +424,9 @@ namespace SpatialQuery {
       Gameplay<LifetimeRow>,
       ShapeRow
     >(table);
+    auto ids = task.getIDResolver();
 
-    task.setCallback([query, modifier](AppTaskArgs& args)  mutable {
+    task.setCallback([ids, query, modifier](AppTaskArgs& args)  mutable {
       Events::CreatePublisher create({ &args });
       Events::DestroyPublisher destroy({ &args });
       CommandVisitor visitor {
@@ -432,7 +435,8 @@ namespace SpatialQuery {
         *query.getSingleton<2>(),
         *query.getSingleton<3>(),
         create,
-        destroy
+        destroy,
+        *ids
       };
 
       Globals& globals = query.getSingleton<0>()->at();

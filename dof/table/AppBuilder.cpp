@@ -132,8 +132,8 @@ namespace IDResolverImpl {
       return {};
     }
 
-    StableElementID createKey() final {
-      return StableElementID::fromStableID(mappings.createKey());
+    ElementRef createKey() final {
+      return &mappings.createKey();
     }
 
     ElementRefResolver getRefResolver() const {

@@ -35,21 +35,26 @@ public:
     mStableToUnstable.reserve(1000000);
   }
 
-  size_t createKey() {
+  size_t createRawKey() {
     WriteLockGuard guard{ mMutex };
-    if(mFreeList.size()) {
-      const size_t result = mFreeList.back();
-      mFreeList.pop_back();
-      return result;
-    }
-    const size_t result = mStableToUnstable.size();
-    mStableToUnstable.push_back({ INVALID, 0 });
-    return result;
+    return createRawKey(guard);
+  }
+
+  const StableElementMapping& createKey() {
+    WriteLockGuard guard{ mMutex };
+    size_t result = createRawKey(guard);
+    return mStableToUnstable[result];
   }
 
   void insertKey(size_t stable, size_t unstable) {
     WriteLockGuard guard{ mMutex };
     mStableToUnstable[stable].unstableIndex = unstable;
+  }
+
+  //Mapping obtained from createKey
+  void insertKey(const StableElementMapping& key, size_t unstable) {
+    WriteLockGuard guard{ mMutex };
+    const_cast<StableElementMapping&>(key).unstableIndex = unstable;
   }
 
   //This assumes the caller knows it's pointing at the correct version
@@ -73,6 +78,11 @@ public:
     return false;
   }
 
+  size_t getStableID(const StableElementMapping& key) const {
+    ReadLockGuard guard{ mMutex };
+    return mStableToUnstable.indexOf(key);
+  }
+
   std::pair<size_t, const StableElementMapping*> findKey(size_t stable) const {
     //This doesn't use a lock due to how common it is. The scheduler is responsible for ensuring this never happens in a table being modified
     if(const StableElementMapping* v = tryGet(stable)) {
@@ -91,6 +101,17 @@ public:
   }
 
 private:
+  size_t createRawKey(const WriteLockGuard&) {
+    if(mFreeList.size()) {
+      const size_t result = mFreeList.back();
+      mFreeList.pop_back();
+      return result;
+    }
+    const size_t result = mStableToUnstable.size();
+    mStableToUnstable.push_back({ INVALID, 0 });
+    return result;
+  }
+
   StableElementMapping* tryGet(size_t stable) {
     if(mStableToUnstable.size() > stable) {
       StableElementMapping& result = mStableToUnstable[stable];
@@ -225,19 +246,31 @@ namespace std {
   };
 }
 
+//Same as UnpackedDatabaseElementID mUnstableIndex of the table, intended for when referring to table vs element in table
+struct TableID : UnpackedDatabaseElementID {
+};
+
 struct DBEvents {
+  using Variant = std::variant<std::monostate, TableID, ElementRef>;
+  //struct IsElementID {
+  //  constexpr bool operator()(const StableElementID&) const { return true; }
+  //  constexpr bool operator()(const ElementRef&) const { return true; }
+  //  constexpr bool operator()(std::monostate) const { return false; }
+  //  constexpr bool operator()(const TableID&) const { return false; }
+  //};
+
   //Creating an element is from an invalid source to a valid destination
   //Destroying an element is from a valid source to an invalid destination
   //Moving an element is from a valid source to a valid destination
   //In the case of moving only the unstable index is used to determine the destination table,
   //the stable part doesn't matter
   struct MoveCommand {
-    bool isDestroy() const { return destination == StableElementID::invalid(); }
-    bool isCreate() const { return source == StableElementID::invalid(); };
-    bool isMove() const { return source != StableElementID::invalid() && destination.mStableID == dbDetails::INVALID_VALUE; }
+    bool isDestroy() const { return std::holds_alternative<std::monostate>(destination); }
+    bool isCreate() const { return std::holds_alternative<std::monostate>(source); };
+    bool isMove() const { return std::holds_alternative<ElementRef>(source) && std::holds_alternative<TableID>(destination); }
 
-    StableElementID source;
-    StableElementID destination;
+    Variant source;
+    Variant destination;
   };
   std::vector<MoveCommand> toBeMovedElements;
 };

@@ -150,6 +150,7 @@ namespace GameDatabase {
   using GameObjectTable = Table<
     Tags::TableNameRow,
     SceneNavigator::IsClearedWithSceneTag,
+    FragmentSeekingGoalTagRow,
     SharedMassObjectTableTag,
     //Data viewed by physics, not to be used by gameplay
     FloatRow<Tags::Pos, Tags::X>,

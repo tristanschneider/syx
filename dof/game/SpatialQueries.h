@@ -24,7 +24,7 @@ namespace SpatialQuery {
   constexpr static size_t SINGLE_USE = 0;
 
   struct RaycastResult {
-    StableElementID id;
+    ElementRef id;
     glm::vec2 point{};
     //In world space, not normalized
     glm::vec2 normal{};
@@ -48,7 +48,7 @@ namespace SpatialQuery {
   };
 
   struct VolumeResult {
-    StableElementID id;
+    ElementRef id;
   };
   struct AABB {
     operator Narrowphase::Shape::AABB() const {
@@ -114,12 +114,12 @@ namespace SpatialQuery {
 
   struct Command {
     struct NewQuery {
-      StableElementID id;
+      ElementRef id;
       Query query;
       size_t lifetime{};
     };
     struct DeleteQuery {
-      StableElementID id;
+      ElementRef id;
     };
     using Variant = std::variant<NewQuery, DeleteQuery>;
     Variant data;
@@ -181,25 +181,25 @@ namespace SpatialQuery {
     //Enqueues creation of the query whose results will be available in two ticks. At the beginning of next tick the query will be submitted to physics
     //and the tick after that the results will be extracted to gameplay
     //The query is not submitted instantly but the stable id is reserved immediately. The ID is pointing at the gameplay extracted version
-    virtual StableElementID createQuery(Query&& query, size_t lifetime) = 0;
+    virtual ElementRef createQuery(Query&& query, size_t lifetime) = 0;
   };
   struct IReader {
     virtual ~IReader() = default;
     //Select the spatial query to iterate over
-    virtual void begin(const StableElementID& id) = 0;
+    virtual void begin(const ElementRef& id) = 0;
     //Iterate over the selected query
     virtual const Result* tryIterate() = 0;
   };
   struct IWriter {
     virtual ~IWriter() = default;
 
-    virtual std::optional<ResolvedIDs> getKey(StableElementID& id) = 0;
-    virtual void refreshQuery(const ResolvedIDs& key, Query&& query, size_t newLifetime) = 0;
+    virtual std::optional<UnpackedDatabaseElementID> getKey(const ElementRef& id) = 0;
+    virtual void refreshQuery(const UnpackedDatabaseElementID& key, Query&& query, size_t newLifetime) = 0;
     //Same as refresh but swaps the old one into the parameter
-    virtual void swapQuery(const ResolvedIDs& key, Query& inout, size_t newLifetime) = 0;
-    virtual void refreshQuery(const ResolvedIDs& key, size_t newLifetime) = 0;
-    virtual void refreshQuery(StableElementID& key, Query&& query, size_t newLifetime) = 0;
-    virtual void refreshQuery(StableElementID& index, size_t newLifetime) = 0;
+    virtual void swapQuery(const UnpackedDatabaseElementID& key, Query& inout, size_t newLifetime) = 0;
+    virtual void refreshQuery(const UnpackedDatabaseElementID& key, size_t newLifetime) = 0;
+    virtual void refreshQuery(const ElementRef& key, Query&& query, size_t newLifetime) = 0;
+    virtual void refreshQuery(const ElementRef& index, size_t newLifetime) = 0;
   };
 
   std::shared_ptr<ICreator> createCreator(RuntimeDatabaseTaskBuilder& task);

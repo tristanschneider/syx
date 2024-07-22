@@ -226,6 +226,18 @@ namespace gnx {
       std::swap(elementCount, rhs.elementCount);
     }
 
+    //Undefined behavior if value isn't from this container but it shouldn't be used in that case
+    size_t indexOf(const T& value) const {
+      for(size_t i = 0; i < pageCount; ++i) {
+        const T* pageBegin = pages[i];
+        const T* pageEnd = pageBegin + PAGE_SIZE;
+        if(&value >= pageBegin && &value < pageEnd) {
+          return static_cast<size_t>(&value - pageBegin) + i*PAGE_SIZE;
+        }
+      }
+      return std::numeric_limits<size_t>::max();
+    }
+
   private:
     using PageT = T*;
     static constexpr size_t PAGE_SIZE = Traits::PAGE_SIZE;
