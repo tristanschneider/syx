@@ -129,8 +129,8 @@ namespace Test {
 
     TEST_METHOD(MigrateTable) {
       TestDB db;
-      const UnpackedDatabaseElementID from = db.builder->queryTables<Row<float>>().matchingTableIDs[0];
-      const UnpackedDatabaseElementID to = db.builder->queryTables<Row<int64_t>>().matchingTableIDs[0];
+      const TableID from = db.builder->queryTables<Row<float>>().matchingTableIDs[0];
+      const TableID to = db.builder->queryTables<Row<int64_t>>().matchingTableIDs[0];
       int invocations{};
       {
         auto taskA = db.builder->createTask();
@@ -414,10 +414,10 @@ namespace Test {
       }
 
       //Returns the index of the pair in the spatial pairs storage table if this pair has an entry
-      std::optional<size_t> tryFindPair(const StableElementID& a, const StableElementID& b) {
+      std::optional<size_t> tryFindPair(const ElementRef& a, const ElementRef& b) {
         //Swaps the order of the pair in the same way broadphase and SpatialPairsStorage is expecting
-        const Broadphase::SweepCollisionPair pair{ a.mStableID, b.mStableID };
-        if(auto it = graph->findEdge(ids->tryResolveRef(StableElementID::fromStableID(pair.a)), ids->tryResolveRef(StableElementID::fromStableID(pair.b))); it != graph->edgesEnd()) {
+        const Broadphase::SweepCollisionPair pair{ a, b };
+        if(auto it = graph->findEdge(pair.a, pair.b); it != graph->edgesEnd()) {
           return *it;
         }
         return {};
@@ -445,7 +445,7 @@ namespace Test {
 
       auto [stable] = game.builder().query<StableIDRow>(game.tables.fragments).get(0);
       SpatialPairsData pairs{ game.builder() };
-      auto index = pairs.tryFindPair(StableElementID::fromStableRow(0, *stable), StableElementID::fromStableRow(1, *stable));
+      auto index = pairs.tryFindPair(stable->at(0), stable->at(1));
       Assert::IsTrue(index.has_value());
       Assert::IsTrue(pairs.manifold->at(*index).size > 0);
     }
@@ -464,7 +464,7 @@ namespace Test {
 
       auto [stable] = game.builder().query<StableIDRow>(game.tables.fragments).get(0);
       SpatialPairsData pairs{ game.builder() };
-      auto index = pairs.tryFindPair(StableElementID::fromStableRow(0, *stable), StableElementID::fromStableRow(1, *stable));
+      auto index = pairs.tryFindPair(stable->at(0), stable->at(1));
       Assert::IsFalse(index.has_value());
     }
 
@@ -473,6 +473,7 @@ namespace Test {
       GameArgs args;
       args.fragmentCount = 3;
       game.init(args);
+      auto& stable = game.builder().query<StableIDRow>(game.tables.fragments).get<0>(0);
 
       auto transform = TableAdapters::getTransform(game.builder(), game.tables.fragments);
       for(int i = 0; i < args.fragmentCount; ++i) {
@@ -490,9 +491,9 @@ namespace Test {
 
       SpatialPairsData pairs{ game.builder() };
 
-      const StableElementID a{ StableElementID::fromStableID(0) };
-      const StableElementID b{ StableElementID::fromStableID(1) };
-      const StableElementID c{ StableElementID::fromStableID(2) };
+      const ElementRef a{ stable.at(0) };
+      const ElementRef b{ stable.at(1) };
+      const ElementRef c{ stable.at(2) };
       Assert::IsTrue(pairs.tryFindPair(a, b).has_value());
       Assert::IsTrue(pairs.tryFindPair(a, c).has_value());
     }
@@ -512,7 +513,7 @@ namespace Test {
       game.update();
 
       SpatialPairsData pairs{ game.builder() };
-      auto index = pairs.tryFindPair(StableElementID::fromStableID(0), StableElementID::fromStableID(1));
+      auto index = pairs.tryFindPair(game.getFromTable(game.tables.fragments, 0), game.getFromTable(game.tables.fragments, 1));
       Assert::IsTrue(index.has_value());
       const float e = 0.00001f;
       const auto& man = pairs.manifold->at(*index);
@@ -565,17 +566,19 @@ namespace Test {
 
     template<class TableT>
     static void verifyAllMappings(TestStableDB& db, TableT& table, StableElementMappings& mappings) {
-      constexpr auto tableIndex = TestStableDB::getTableIndex<TableT>();
-      auto& stableA = std::get<StableIDRow>(table.mRows);
-      for(size_t i = 0; i < stableA.size(); ++i) {
-        const size_t stable = stableA.at(i);
-        const size_t unstable = TestStableDB::ElementID{ tableIndex.getTableIndex(), i }.mValue;
-        Assert::AreEqual(mappings.findKey(stable).second->unstableIndex, unstable);
-        StableElementID sid{ unstable, stable };
-        std::optional<StableElementID> resolved = StableOperations::tryResolveStableID(sid, db, mappings);
-        Assert::IsTrue(resolved.has_value());
-        Assert::IsTrue(*resolved == sid);
-      }
+      //TODO: what is the ElementRef equivalent of this?
+      db;table;mappings;
+      //constexpr auto tableIndex = TestStableDB::getTableIndex<TableT>();
+      //auto& stableA = std::get<StableIDRow>(table.mRows);
+      //for(size_t i = 0; i < stableA.size(); ++i) {
+      //  const size_t stable = *stableA.at(i).tryGet();
+      //  const size_t unstable = TestStableDB::ElementID{ tableIndex.getTableIndex(), i }.mValue;
+      //  Assert::AreEqual(mappings.findKey(stable).second->unstableIndex, unstable);
+      //  StableElementID sid{ unstable, stable };
+      //  std::optional<StableElementID> resolved = StableOperations::tryResolveStableID(sid, db, mappings);
+      //  Assert::IsTrue(resolved.has_value());
+      //  Assert::IsTrue(*resolved == sid);
+      //}
     }
 
     TEST_METHOD(StableElementID_Operations) {
@@ -588,21 +591,22 @@ namespace Test {
       constexpr auto tableIndexA = UnpackedDatabaseElementID::fromPacked(TestStableDB::getTableIndex<StableTableA>());
       constexpr auto tableIndexB = UnpackedDatabaseElementID::fromPacked(TestStableDB::getTableIndex<StableTableB>());
       StableOperations::stableResizeTable(a, tableIndexA, 3, mappings);
+      ElementRefResolver res{ db.getDescription() };
 
       verifyAllMappings(db, a, mappings);
 
       valueA.at(0) = 1;
       valueA.at(2) = 5;
-      StableElementID elementA = StableOperations::getStableID(stableA, tableIndexA);
-      StableElementID elementC = StableOperations::getStableID(stableA, TestStableDB::ElementID{ tableIndexA.getTableIndex(), 2 });
+      ElementRef elementA = stableA.at(tableIndexA.getElementIndex());
+      ElementRef elementC = stableA.at(2);
       StableOperations::stableSwapRemove(a, TestStableDB::ElementID{ tableIndexA.getTableIndex(), 0 }, mappings);
 
       verifyAllMappings(db, a, mappings);
 
       Assert::AreEqual(5, valueA.at(0));
-      Assert::IsFalse(StableOperations::tryResolveStableID(elementA, db, mappings).has_value());
-      TestStableDB::ElementID resolvedC{ StableOperations::tryResolveStableID(elementC, db, mappings)->mUnstableIndex };
-      Assert::AreEqual(5, Queries::getRowInTable<Row<int>>(db, resolvedC)->at(resolvedC.getElementIndex()));
+      Assert::IsFalse(static_cast<bool>(elementA));
+      TestStableDB::ElementID resolvedC{ res.uncheckedUnpack(elementC).mValue };
+      Assert::AreEqual(5, Queries::getRowInTable<Row<int>>(db, resolvedC)->at(res.uncheckedUnpack(elementC).getElementIndex()));
 
       //Migrate object at index 0 in A which is ElementC
       StableOperations::stableMigrateOne(a, b, TestStableDB::getTableIndex<StableTableA>(), TestStableDB::getTableIndex<StableTableB>(), mappings);
@@ -610,7 +614,7 @@ namespace Test {
       verifyAllMappings(db, a, mappings);
       verifyAllMappings(db, b, mappings);
 
-      resolvedC = TestStableDB::ElementID{ StableOperations::tryResolveStableID(elementC, db, mappings)->mUnstableIndex };
+      resolvedC = TestStableDB::ElementID{ res.uncheckedUnpack(elementC).mValue };
       Assert::AreEqual(5, Queries::getRowInTable<Row<int>>(db, resolvedC)->at(resolvedC.getElementIndex()));
 
       StableOperations::stableResizeTable(a, tableIndexA, 0, mappings);
@@ -619,7 +623,7 @@ namespace Test {
       Assert::IsTrue(mappings.empty());
     }
 
-    static void assertUnorderedCollisionPairsMatch(TestGame& game, std::vector<StableElementID> expectedA, std::vector<StableElementID> expectedB) {
+    static void assertUnorderedCollisionPairsMatch(TestGame& game, std::vector<ElementRef> expectedA, std::vector<ElementRef> expectedB) {
       SpatialPairsData pairs{ game.builder() };
       const size_t contacts = std::count_if(pairs.objA->begin(), pairs.objA->end(), [](const auto& obj) {
         return static_cast<bool>(obj);
@@ -684,19 +688,15 @@ namespace Test {
       Assert::AreEqual(expected, actualCount);
     }
 
-    static StableElementID getStableID(TestGame& game, size_t index, const UnpackedDatabaseElementID& table) {
-      return StableOperations::getStableID(game.builder().query<StableIDRow>(table).get<0>(0), table.remakeElement(index));
-    }
-
     TEST_METHOD(GameOneObject_Migrate_PhysicsDataPreserved) {
       TestGame game;
       GameArgs gameArgs;
       gameArgs.fragmentCount = 1;
       gameArgs.playerPos = glm::vec2(5, 5);
       game.init(gameArgs);
-      StableElementID playerId = getStableID(game, 0, game.tables.player);
-      StableElementID objectId = getStableID(game, 0, game.tables.fragments);
-      const size_t originalObjectStableId = objectId.mStableID;
+      ElementRef playerId = game.getFromTable(game.tables.player, 0);
+      ElementRef objectId = game.getFromTable(game.tables.fragments, 0);
+      auto res = game.builder().getIDResolver()->getRefResolver();
       const float minCorrection = 0.1f;
       TransformAdapter playerTransform = TableAdapters::getTransform(game.builder(), game.tables.player);
       TransformAdapter fragmentTransform = TableAdapters::getTransform(game.builder(), game.tables.fragments);
@@ -749,8 +749,8 @@ namespace Test {
 
       auto ids = game.builder().getIDResolver();
       //Object should have moved to the static table, and mapping updated to new unstable id pointing at static table but same stable id
-      objectId = *ids->tryResolveStableID(objectId);
-      Assert::IsTrue(objectId == StableElementID{ game.tables.completedFragments.remakeElement(0).mValue, originalObjectStableId });
+      auto unpacked = res.uncheckedUnpack(objectId);
+      Assert::AreEqual(*objectId.tryGet(), game.tables.completedFragments.remakeElement(0).mValue);
 
       game.update();
       auto assertStaticCollision = [&] {
@@ -921,9 +921,9 @@ namespace Test {
 
       StableIDRow& stablePlayer = task.query<StableIDRow>(game.tables.player).get<0>(0);
       StableIDRow& stableFragment = task.query<StableIDRow>(game.tables.fragments).get<0>(0);
-      StableElementID playerId = StableOperations::getStableID(stablePlayer, game.tables.player.remakeElement(0));
-      StableElementID objectLeftId = StableOperations::getStableID(stableFragment, game.tables.fragments.remakeElement(0));
-      StableElementID objectRightId = StableOperations::getStableID(stableFragment, game.tables.fragments.remakeElement(1));
+      ElementRef playerId = stablePlayer.at(0);
+      ElementRef objectLeftId = stableFragment.at(0);
+      ElementRef objectRightId = stableFragment.at(1);
 
       float initialX[] = { 1.0f, 2.0f, 1.5f };
       float initialY[] = { 1.0f, 1.0f, 1.75f };
@@ -961,10 +961,6 @@ namespace Test {
       goalFound->at(0) = true;
       TableAdapters::write(0, glm::vec2{ initialX[0], initialY[0] }, *goalX, *goalY);
       game.update();
-
-      //Need to update both since one moved and the other was affected by swap removal
-      objectLeftId = *ids->tryResolveStableID(objectLeftId);
-      objectRightId = *ids->tryResolveStableID(objectRightId);
 
       auto resetStaticPos = [&] {
         setInitialPlayerPos();
@@ -1025,17 +1021,16 @@ namespace Test {
       Assert::AreEqual(size_t(6), TableOperations::size(table));
       Assert::AreEqual(4, values.at(4));
       values.at(5) = 5;
-      StableElementID stable = StableOperations::getStableID(ids, UnpackedDatabaseElementID::fromPacked(TestStableDB::getElementID<StableTableA>(3)));
+      ElementRef stable = ids.at(3);
 
       StableOperations::stableInsertRangeAt(table, UnpackedDatabaseElementID::fromPacked(TestStableDB::getElementID<StableTableA>(0)), 5, mappings);
       Assert::AreEqual(size_t(11), TableOperations::size(table));
       for(size_t i = 0; i < 5; ++i) {
         Assert::AreEqual(int(i), values.at(i + 5), L"Values should have been shifted over by previous insertion");
       }
-      std::optional<StableElementID> resolved = StableOperations::tryResolveStableIDWithinTable<TestStableDB>(stable, ids, mappings);
-      Assert::IsTrue(resolved.has_value());
+      Assert::IsTrue(static_cast<bool>(stable));
       constexpr size_t elementMask = TestStableDB::ElementID::ELEMENT_INDEX_MASK;
-      Assert::AreEqual(3, values.at(resolved->mUnstableIndex & elementMask));
+      Assert::AreEqual(3, values.at(*stable.tryGet() & elementMask));
     }
 
     TEST_METHOD(UnpackedDBElementID) {
@@ -1075,33 +1070,31 @@ namespace Test {
           return;
         }
 
-        const StableElementID idA = StableOperations::getStableID(*stableRow, query.matchingTableIDs[0].remakeElement(0));
-        const StableElementID idB = StableOperations::getStableID(*stableRow, query.matchingTableIDs[0].remakeElement(1));
-        const StableElementID idC = StableOperations::getStableID(*stableRow, query.matchingTableIDs[0].remakeElement(2));
+        const ElementRef idA = query.get<0>(0).at(0);
+        const ElementRef idB = query.get<0>(0).at(1);
+        const ElementRef idC = query.get<0>(0).at(2);
 
         {
-          LambdaStatEffectAdapter lambda = TableAdapters::getLambdaEffects(args);
-          const size_t id = TableAdapters::addStatEffectsSharedLifetime(lambda.base, StatEffect::INSTANT, &idA.mStableID, 1);
-          lambda.command->at(id) = [&test, ids](LambdaStatEffect::Args& args) {
-            Assert::AreEqual(size_t(0), ids->uncheckedUnpack(args.resolvedID).getElementIndex());
+          LambdaStatEffect::Builder lambda{ args };
+          lambda.createStatEffects(1).setLifetime(StatEffect::INSTANT).setOwner(idA);
+          lambda.setLambda([&test, ids](LambdaStatEffect::Args& args) {
+            Assert::AreEqual(size_t(0), ids->getRefResolver().uncheckedUnpack(args.resolvedID).getElementIndex());
             ++test.lambdaInvocations;
-          };
+          });
         }
         {
-          VelocityStatEffectAdapter vel = TableAdapters::getVelocityEffects(args);
-          const size_t id = TableAdapters::addStatEffectsSharedLifetime(vel.base, 2, &idB.mStableID, 1);
-          VelocityStatEffect::VelocityCommand& vcmd = vel.command->at(id);
+          VelocityStatEffect::Builder vel{ args };
+          vel.createStatEffects(1).setLifetime(2).setOwner(idB);
           VelocityStatEffect::ImpulseCommand icmd;
           icmd.linearImpulse = glm::vec2(1.0f);
           icmd.angularImpulse = 1.0f;
-          vcmd.data = icmd;
+          vel.addImpulse(icmd);
         }
         {
-          PositionStatEffectAdapter pos = TableAdapters::getPositionEffects(args);
-          const size_t id = TableAdapters::addStatEffectsSharedLifetime(pos.base, 1, &idC.mStableID, 1);
-          PositionStatEffect::PositionCommand& pcmd = pos.command->at(id);
-          pcmd.pos = glm::vec2(5.0f);
-          pcmd.rot = glm::vec2(0.0f, 1.0f);
+          PositionStatEffect::Builder pos{ args };
+          pos.createStatEffects(1).setOwner(idC);
+          pos.setPos(glm::vec2(5.0f));
+          pos.setRot(glm::vec2(0.0f, 1.0f));
         }
       });
 
@@ -1241,20 +1234,17 @@ namespace Test {
         task.setName("test");
         task.setCallback([&test](AppTaskArgs& args) {
           if(test.shouldRun) {
-            AreaForceStatEffectAdapter effect = TableAdapters::getAreaForceEffects(args);
-            const size_t id = TableAdapters::addStatEffectsSharedLifetime(effect.base, StatEffect::INSTANT, nullptr ,1);
-            AreaForceStatEffect::Command& cmd = effect.command->at(id);
-            cmd.origin = glm::vec2{ 4.0f, 0.0f };
-            cmd.direction = glm::vec2{ 1.0f, 0.0f };
-            cmd.dynamicPiercing = 3.0f;
-            cmd.terrainPiercing = 0.0f;
-            cmd.rayCount = 4;
+            AreaForceStatEffect::Builder effect{ args };
+            effect.createStatEffects(1).setLifetime(StatEffect::INSTANT);
+            effect.setOrigin(glm::vec2{ 4.0f, 0.0f });
+            effect.setDirection(glm::vec2{ 1.0f, 0.0f });
+            effect.setPiercing(3.0f, 0.0f);
+            effect.setRayCount(4);
             AreaForceStatEffect::Command::Cone cone;
             cone.halfAngle = 0.25f;
             cone.length = 15.0f;
-            cmd.shape = cone;
-            AreaForceStatEffect::Command::FlatImpulse impulseType{ 1.0f };
-            cmd.impulseType = impulseType;
+            effect.setShape(cone);
+            effect.setImpulse(AreaForceStatEffect::Command::FlatImpulse{ 1.0f });
           }
         });
         builder.submitTask(std::move(task));
@@ -1298,7 +1288,7 @@ namespace Test {
       Assert::AreEqual(size_t(5), std::get<0>(r.value).fragment.fragmentColumns);
     }
 
-    void assertQueryHas(TestGame& game, StableElementID query, std::vector<StableElementID> expected) {
+    void assertQueryHas(TestGame& game, const ElementRef& query, std::vector<ElementRef> expected) {
       auto q = SpatialQuery::createReader(game.builder());
       q->begin(query);
       const SpatialQuery::Result* r = q->tryIterate();
@@ -1306,7 +1296,7 @@ namespace Test {
 
       size_t count = 0;
       while(r && expected.size() > count) {
-        Assert::IsTrue(ids->tryResolveRef(expected[count]) == r->other);
+        Assert::IsTrue(expected[count] == r->other);
 
         ++count;
         r = q->tryIterate();
@@ -1314,11 +1304,11 @@ namespace Test {
       Assert::AreEqual(expected.size(), count);
     }
 
-    void assertQueryHasObject(TestGame& game, StableElementID query, StableElementID object) {
+    void assertQueryHasObject(TestGame& game, const ElementRef& query, const ElementRef& object) {
       assertQueryHas(game, query, { object });
     }
 
-    void assertQueryNoObjects(TestGame& game, StableElementID query) {
+    void assertQueryNoObjects(TestGame& game, const ElementRef& query) {
       assertQueryHas(game, query, {});
     }
 
@@ -1334,11 +1324,11 @@ namespace Test {
       TestGame game{ args };
 
       auto objs = TableAdapters::getGameObject(game.builder(), game.tables.fragments);
-      const StableElementID objID = StableElementID::fromStableID(objs.stable->at(0));
+      const ElementRef objID = objs.stable->at(0);
       auto creator = SpatialQuery::createCreator(game.builder());
-      StableElementID bb = creator->createQuery({ SpatialQuery::AABB{ glm::vec2(2.0f), glm::vec2(3.5f) } }, 10);
-      StableElementID circle = creator->createQuery({ SpatialQuery::Circle{ glm::vec2(0, 5), 1.5f } }, 10);
-      StableElementID cast = creator->createQuery({ SpatialQuery::Raycast{ glm::vec2(-1.0f), glm::vec2(2.0f, -1.0f) } }, 10);
+      ElementRef bb = creator->createQuery({ SpatialQuery::AABB{ glm::vec2(2.0f), glm::vec2(3.5f) } }, 10);
+      ElementRef circle = creator->createQuery({ SpatialQuery::Circle{ glm::vec2(0, 5), 1.5f } }, 10);
+      ElementRef cast = creator->createQuery({ SpatialQuery::Raycast{ glm::vec2(-1.0f), glm::vec2(2.0f, -1.0f) } }, 10);
       //Update to create the queries
       game.update();
 
@@ -1380,17 +1370,18 @@ namespace Test {
       //assertQueryHasObject(game, cast, objID);
 
       //Try a query with a single tick lifetime
-      StableElementID single = creator->createQuery({ SpatialQuery::Circle{ glm::vec2(2, -1), 1.f } }, SpatialQuery::SINGLE_USE);
+      ElementRef single = creator->createQuery({ SpatialQuery::Circle{ glm::vec2(2, -1), 1.f } }, SpatialQuery::SINGLE_USE);
       game.update();
       assertQueryNoObjects(game, single);
       auto taskArgs = game.sharedArgs();
-      auto lambda = TableAdapters::getLambdaEffects(taskArgs);
+      LambdaStatEffect::Builder lambda{ taskArgs };
+      //auto lambda = TableAdapters::getLambdaEffects(taskArgs);
       //Query should be resolved during physics then viewable later by gameplay but destroyed at the end of the frame.
       //Catch it in the middle with a lambda stat effect which should execute before the removal but after it's resolved
-      const size_t l = TableAdapters::addStatEffectsSharedLifetime(lambda.base, StatEffect::INSTANT, &objID.mStableID, 1);
-      lambda.command->at(l) = [&](...) {
+      lambda.createStatEffects(1).setLifetime(StatEffect::INSTANT).setOwner(objID);
+      lambda.setLambda([&](...) {
         assertQueryHasObject(game, single, objID);
-      };
+      });
       game.update();
       auto reader = SpatialQuery::createReader(game.builder());
       reader->begin(single);

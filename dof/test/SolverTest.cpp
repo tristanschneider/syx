@@ -59,7 +59,7 @@ namespace Test {
         , spatialPairs{ task.query<SP::ManifoldRow>().matchingTableIDs[0] }
       {}
 
-      UnpackedDatabaseElementID dynamicBodies, staticBodies, spatialPairs;
+      TableID dynamicBodies, staticBodies, spatialPairs;
     };
 
     struct TestAliases : PhysicsAliases {
@@ -117,13 +117,14 @@ namespace Test {
         AngVel
       >().get(0);
       auto ids = task.getIDResolver();
+      auto res = ids->getRefResolver();
 
-      const ResolvedIDs staticA = app.createInTable(tables.staticBodies);
-      const ResolvedIDs dynamicB = app.createInTable(tables.dynamicBodies);
-      const size_t ib = dynamicB.unpacked.getElementIndex();
+      const ElementRef staticA = app.createInTable(tables.staticBodies);
+      const ElementRef dynamicB = app.createInTable(tables.dynamicBodies);
+      const size_t ib = res.uncheckedUnpack(dynamicB).getElementIndex();
 
-      auto ar = ids->tryResolveRef(staticA.stable);
-      auto br = ids->tryResolveRef(dynamicB.stable);
+      auto ar = staticA;
+      auto br = dynamicB;
       IslandGraph::addNode(graph, ar);
       IslandGraph::addNode(graph, br);
       const size_t edgeAB = SP::addIslandEdge(*modifier, graph, *pairA, *pairB, ar, br);
@@ -152,9 +153,9 @@ namespace Test {
       }
 
       //Simulate another object C moving downwards and colliding with A but not B
-      const ResolvedIDs dynamicC = app.createInTable(tables.dynamicBodies);
-      const size_t ic = dynamicC.unpacked.getElementIndex();
-      auto cr = ids->tryResolveRef(dynamicC.stable);
+      const ElementRef dynamicC = app.createInTable(tables.dynamicBodies);
+      const size_t ic = res.uncheckedUnpack(dynamicC).getElementIndex();
+      auto cr = dynamicC;
       IslandGraph::addNode(graph, cr);
       const size_t edgeBC = SP::addIslandEdge(*modifier, graph, *pairA, *pairB, br, cr);
 
@@ -208,16 +209,16 @@ namespace Test {
         AngVel
       >().get(0);
       auto ids = task.getIDResolver();
-      ids;graph;tables;
+      auto res = ids->getRefResolver();
 
-      const ResolvedIDs a = app.createInTable(tables.dynamicBodies);
-      const ResolvedIDs b = app.createInTable(tables.dynamicBodies);
+      const ElementRef a = app.createInTable(tables.dynamicBodies);
+      const ElementRef b = app.createInTable(tables.dynamicBodies);
 
-      const size_t ai = a.unpacked.getElementIndex();
-      const size_t bi = b.unpacked.getElementIndex();
+      const size_t ai = res.uncheckedUnpack(a).getElementIndex();
+      const size_t bi = res.uncheckedUnpack(b).getElementIndex();
 
-      auto ar = ids->tryResolveRef(a.stable);
-      auto br = ids->tryResolveRef(b.stable);
+      auto ar = a;
+      auto br = b;
       IslandGraph::addNode(graph, ar);
       IslandGraph::addNode(graph, br);
       const size_t edgeAB = SP::addIslandEdge(*modifier, graph, *pairA, *pairB, ar, br);

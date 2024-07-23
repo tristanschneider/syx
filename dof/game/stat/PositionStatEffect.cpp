@@ -24,6 +24,20 @@ namespace PositionStatEffect {
     return *this;
   }
 
+  Builder& Builder::setPos(const glm::vec2& p) {
+    for(auto i : currentEffects) {
+      command->at(i).pos = p;
+    }
+    return *this;
+  }
+
+  Builder& Builder::setRot(const glm::vec2& r) {
+    for(auto i : currentEffects) {
+      command->at(i).rot = r;
+    }
+    return *this;
+  }
+
   void processStat(IAppBuilder& builder) {
     auto task = builder.createTask();
     task.setName("position stat");

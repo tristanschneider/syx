@@ -153,4 +153,8 @@ namespace Test {
     range.mBegin->mTask.addToPipe(scheduler->mScheduler);
     scheduler->mScheduler.WaitforTask(range.mEnd->mTask.get());
   }
+
+  ElementRef TestGame::getFromTable(const TableID& id, size_t index) {
+    return builder().query<StableIDRow>(id).get<0>(0).at(index);
+  }
 }

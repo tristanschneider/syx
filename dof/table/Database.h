@@ -152,7 +152,7 @@ struct UnpackedDatabaseElementID {
   }
 
   size_t mValue = dbDetails::INVALID_VALUE;
-  size_t mElementIndexBits;
+  size_t mElementIndexBits{};
 };
 
 template<class... Tables>

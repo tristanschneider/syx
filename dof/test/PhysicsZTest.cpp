@@ -57,8 +57,8 @@ namespace Test {
           {
             const size_t ground = terrainModifier[0]->addElements(1);
             auto [_, px, py, pz, sx, sy, stable] = terrain.get(0);
-            data.ground = ids->tryResolveRef(StableElementID::fromStableRow(ground, *stable));
-            Events::onNewElement(StableElementID::fromStableRow(ground, *stable), taskArgs);
+            data.ground = stable->at(ground);
+            Events::onNewElement(data.ground, taskArgs);
             const glm::vec2 scale{ 2.0f };
             const glm::vec2 center{ 0.0f };
             TableAdapters::write(ground, center, *px, *py);
@@ -68,8 +68,8 @@ namespace Test {
           {
             const size_t dy = dynamicsModifier[0]->addElements(1);
             auto [_, px, py, pz, sx, sy, mass, stable] = dynamics.get(0);
-            data.dynamicObject = ids->tryResolveRef(StableElementID::fromStableRow(dy, *stable));
-            Events::onNewElement(StableElementID::fromStableRow(dy, *stable), taskArgs);
+            data.dynamicObject = stable->at(dy);
+            Events::onNewElement(data.dynamicObject, taskArgs);
             const glm::vec2 scale{ 1.0f };
             const glm::vec2 center{ 0.0f };
             TableAdapters::write(dy, center, *px, *py);

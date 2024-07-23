@@ -110,13 +110,13 @@ namespace Test {
       , raycasts{ task.query<Shapes::LineRow>().matchingTableIDs[0] }
     {}
 
-    UnpackedDatabaseElementID spatialPairs;
-    UnpackedDatabaseElementID sharedUnitCubes;
-    UnpackedDatabaseElementID unitCubes3D;
-    UnpackedDatabaseElementID unitCubes;
-    UnpackedDatabaseElementID circles;
-    UnpackedDatabaseElementID aabbs;
-    UnpackedDatabaseElementID raycasts;
+    TableID spatialPairs;
+    TableID sharedUnitCubes;
+    TableID unitCubes3D;
+    TableID unitCubes;
+    TableID circles;
+    TableID aabbs;
+    TableID raycasts;
   };
 
   struct NarrowphaseDB : TestApp {
@@ -149,10 +149,10 @@ namespace Test {
       ids = task.getIDResolver();
     }
 
-    size_t addPair(const StableElementID& a, const StableElementID& b) {
+    size_t addPair(const ElementRef& a, const ElementRef& b) {
       const size_t i = modifier->addElements(1);
-      objA->at(i) = ids->tryResolveRef(a);
-      objB->at(i) = ids->tryResolveRef(b);
+      objA->at(i) = a;
+      objB->at(i) = b;
       return i;
     }
 
@@ -186,7 +186,7 @@ namespace Test {
       SpatialQueriesAdapter queries{ task };
       const size_t a = i;
       const size_t b = i + 1;
-      const size_t q = queries.addPair(StableElementID::fromStableID(stable->at(a)), StableElementID::fromStableID(stable->at(b)));
+      const size_t q = queries.addPair(stable->at(a), stable->at(b));
       mask->at(a) = mask->at(b) = 1;
       ShapeRegistry::Circle& circleA = circles->at(a);
       ShapeRegistry::Circle& circleB = circles->at(b);
@@ -281,7 +281,7 @@ namespace Test {
       SpatialQueriesAdapter queries{ task };
       const size_t a = i;
       const size_t b = i + 1;
-      const size_t q = queries.addPair(StableElementID::fromStableID(stable->at(a)), StableElementID::fromStableID(stable->at(b)));
+      const size_t q = queries.addPair(stable->at(a), stable->at(b));
       mask->at(a) = mask->at(b) = 1;
       //Default of no rotation, cos(0) = 1
       Narrowphase::Shape::Rectangle& cA = cube->at(a);
@@ -368,7 +368,7 @@ namespace Test {
       SpatialQueriesAdapter queries{ task };
       const size_t a = i;
       const size_t b = i + 1;
-      const size_t q = queries.addPair(StableElementID::fromStableID(stable->at(a)), StableElementID::fromStableID(stable->at(b)));
+      const size_t q = queries.addPair(stable->at(a), stable->at(b));
       mask->at(a) = mask->at(b) = 1;
       //Default of no rotation, cos(0) = 1
       rotX->at(a) = rotX->at(b) = 1.f;
@@ -847,7 +847,7 @@ namespace Test {
       SpatialQueriesAdapter queries{ task };
       const size_t a = i;
       const size_t b = i + 1;
-      const size_t q = queries.addPair(StableElementID::fromStableID(stable->at(a)), StableElementID::fromStableID(stable->at(b)));
+      const size_t q = queries.addPair(stable->at(a), stable->at(b));
       const glm::vec2 origin{ 1, 1 };
       mask->at(a) = mask->at(b) = 1;
       SP::ContactManifold& manifold = queries.manifold->at(q);

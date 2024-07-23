@@ -10,18 +10,18 @@ namespace Test {
     struct SweepEntry {
       glm::vec2 mNewBoundaryMin{};
       glm::vec2 mNewBoundaryMax{};
-      size_t mKey{};
+      Broadphase::UserKey mKey{};
       Broadphase::BroadphaseKey broadphaseKey{ Broadphase::ObjectDB::EMPTY_KEY };
     };
 
     struct TestSweep {
       void update(Broadphase::SwapLog& log) {
-        Broadphase::SweepNPrune::recomputePairs(sweep, objects, pairs, log);
-        Broadphase::logPendingRemovals(objects, log, pairs);
-        std::vector<Broadphase::SweepCollisionPair> tempGain, tempLoss;
-        tempGain.swap(log.gains);
-        tempLoss.swap(log.losses);
-        Broadphase::logChangedPairs(objects, pairs, { tempGain, tempLoss }, log);
+        std::vector<Broadphase::SweepKeyPair> tempGain, tempLoss;
+        Broadphase::IntermediateLog temp{ tempGain, tempLoss };
+        Broadphase::ConstIntermediateLog ctemp{ tempGain, tempLoss };
+        Broadphase::SweepNPrune::recomputePairs(sweep, objects, pairs, temp);
+        Broadphase::logPendingRemovals(objects, temp, pairs);
+        Broadphase::logChangedPairs(objects, pairs, ctemp, log);
         Broadphase::processPendingRemovals(objects);
       }
 
@@ -30,9 +30,14 @@ namespace Test {
         return e.isStart() ? pair.first : pair.second;
       }
 
+      Broadphase::UserKey createKey() {
+        return mappings.createKey();
+      }
+
       Broadphase::Sweep2D sweep;
       Broadphase::ObjectDB objects;
       Broadphase::PairTracker pairs;
+      StableElementMappings mappings;
     };
 
     struct TestElementSort {
@@ -123,7 +128,7 @@ namespace Test {
       TestSweep sweep;
       std::vector<Broadphase::SweepCollisionPair> pairs;
       SweepEntry entry;
-      entry.mKey = size_t(1);
+      entry.mKey = sweep.createKey();
       entry.mNewBoundaryMin = glm::vec2(1.0f, 2.0f);
       entry.mNewBoundaryMax = glm::vec2(2.0f, 3.0f);
       _insertOne(sweep, entry, pairs);
@@ -132,7 +137,7 @@ namespace Test {
       //Move out of contact on one axis
       entry.mNewBoundaryMax.x += 5.0f;
       entry.mNewBoundaryMin.x += 5.0f;
-      entry.mKey = size_t(2);
+      entry.mKey = sweep.createKey();
       _insertOne(sweep, entry, pairs);
       Assert::IsTrue(pairs.empty());
 
@@ -157,7 +162,7 @@ namespace Test {
       //On the edge but with one side still in bounds
       {
         SweepEntry t;
-        t.mKey = 4;
+        t.mKey = sweep.createKey();
         t.mNewBoundaryMin.y = 0.5f;
         t.mNewBoundaryMax.y = 1.5f;
         t.mNewBoundaryMin.x = t.mNewBoundaryMax.x = o;
@@ -165,24 +170,24 @@ namespace Test {
       }
       {
         SweepEntry t;
-        t.mKey = 5;
+        t.mKey = sweep.createKey();
         t.mNewBoundaryMin = glm::vec2{ -0.5f };
         t.mNewBoundaryMax = glm::vec2{ 0.5f };
         t.mNewBoundaryMin.x = t.mNewBoundaryMax.x = o;
         _insertOne(sweep, t, pairs);
         clearPairs();
       }
-      b.mKey = 2;
+      b.mKey = sweep.createKey();
       b.mNewBoundaryMin = b.mNewBoundaryMax = glm::vec2{ 0.25f };
       b.mNewBoundaryMin.x = b.mNewBoundaryMax.x = o;
       _insertOne(sweep, b, pairs);
       clearPairs();
-      c.mKey = 3;
+      c.mKey = sweep.createKey();
       c.mNewBoundaryMin = c.mNewBoundaryMax = glm::vec2{ 0.75f };
       c.mNewBoundaryMin.x = c.mNewBoundaryMax.x = o;
       _insertOne(sweep, c, pairs);
       clearPairs();
-      d.mKey = 6;
+      d.mKey = sweep.createKey();
       d.mNewBoundaryMin = d.mNewBoundaryMax = glm::vec2{ 0.15f };
       d.mNewBoundaryMin.x = d.mNewBoundaryMax.x = o;
       _insertOne(sweep, d, pairs);
@@ -190,7 +195,7 @@ namespace Test {
 
       {
         SweepEntry t;
-        t.mKey = 1;
+        t.mKey = sweep.createKey();
         t.mNewBoundaryMin = glm::vec2{ 0.5f };
         t.mNewBoundaryMax = glm::vec2{ 1.5f };
         t.mNewBoundaryMin.x = t.mNewBoundaryMax.x = o;
@@ -219,8 +224,12 @@ namespace Test {
       Assert::IsTrue(Broadphase::Debug::isValidSweepAxis(sweep.sweep.axis[1]));
     }
 
-    static Broadphase::SweepCollisionPair sweepPair(size_t a, size_t b) {
+    static Broadphase::SweepCollisionPair sweepPair(Broadphase::UserKey a, Broadphase::UserKey b) {
       return Broadphase::SweepCollisionPair{ a, b };
+    }
+
+    static Broadphase::SweepCollisionPair sweepPair(const SweepEntry& a, const SweepEntry& b) {
+      return Broadphase::SweepCollisionPair{ a.mKey, b.mKey };
     }
 
     TEST_METHOD(ZeroSizeElement) {
@@ -229,20 +238,20 @@ namespace Test {
 
       {
         SweepEntry entry;
-        entry.mKey = 1;
+        entry.mKey = sweep.createKey();
         entry.mNewBoundaryMin = entry.mNewBoundaryMax = glm::vec2{ 0 };
         //The _assertSorted in here will catch failures
         _insertOne(sweep, entry, gains);
       }
       {
         SweepEntry entry;
-        entry.mKey = 2;
+        entry.mKey = sweep.createKey();
         entry.mNewBoundaryMin = entry.mNewBoundaryMax = glm::vec2{ -1.0f };
         _insertOne(sweep, entry, gains);
       }
       {
         SweepEntry entry;
-        entry.mKey = 3;
+        entry.mKey = sweep.createKey();
         entry.mNewBoundaryMin = entry.mNewBoundaryMax = glm::vec2{ -1.0f };
         _insertOne(sweep, entry, gains);
       }
@@ -252,26 +261,26 @@ namespace Test {
       TestSweep sweep;
       std::vector<Broadphase::SweepCollisionPair> pairs;
       SweepEntry entry;
-      entry.mKey = size_t(1);
+      entry.mKey = sweep.createKey(); // 1
       entry.mNewBoundaryMin = glm::vec2(1.0f, 2.0f);
       entry.mNewBoundaryMax = glm::vec2(2.0f, 3.0f);
       constexpr float e = 0.000001f;
       constexpr glm::vec2 ev{ e };
       SweepEntry same = entry;
-      same.mKey = size_t(2);
+      same.mKey = sweep.createKey(); // 2
 
       _insertOne(sweep, entry, pairs);
       Assert::IsTrue(pairs.empty());
       //Insert another at the same coordinates, should cause new pair
       _insertOne(sweep, same, pairs);
-      assertPairsMatch(pairs, { sweepPair(1, 2) });
+      assertPairsMatch(pairs, { sweepPair(entry.mKey, same.mKey) });
       pairs.clear();
 
       //Insert one to the left of both of the previous ones
       SweepEntry left;
       left.mNewBoundaryMin = entry.mNewBoundaryMin - glm::vec2(2.0f);
       left.mNewBoundaryMax = left.mNewBoundaryMin + glm::vec2(1.0f);
-      left.mKey = 3;
+      left.mKey = sweep.createKey(); // 3
       _insertOne(sweep, left, pairs);
       assertPairsMatch(pairs, {});
 
@@ -279,7 +288,7 @@ namespace Test {
       SweepEntry right;
       right.mNewBoundaryMin = entry.mNewBoundaryMax + glm::vec2(1.0f);
       right.mNewBoundaryMax = right.mNewBoundaryMin + glm::vec2(1.0f);
-      right.mKey = 4;
+      right.mKey = sweep.createKey(); // 4
       _insertOne(sweep, right, pairs);
       assertPairsMatch(pairs, {});
 
@@ -287,40 +296,40 @@ namespace Test {
       SweepEntry leftToCenter;
       leftToCenter.mNewBoundaryMin = left.mNewBoundaryMax - ev;
       leftToCenter.mNewBoundaryMax = entry.mNewBoundaryMin;
-      leftToCenter.mKey = 5;
+      leftToCenter.mKey = sweep.createKey(); // 5
       _insertOne(sweep, leftToCenter, pairs);
-      assertPairsMatch(pairs, { sweepPair(5, 1), sweepPair(5, 2), sweepPair(5, 3) });
+      assertPairsMatch(pairs, { sweepPair(leftToCenter.mKey, entry.mKey), sweepPair(leftToCenter.mKey, same.mKey), sweepPair(leftToCenter.mKey, left.mKey) });
       pairs.clear();
 
       //Entirely containing right
       SweepEntry rightOverlap;
       rightOverlap.mNewBoundaryMin = right.mNewBoundaryMin - glm::vec2(0.1f);
       rightOverlap.mNewBoundaryMax = right.mNewBoundaryMax + glm::vec2(0.1f);
-      rightOverlap.mKey = 6;
+      rightOverlap.mKey = sweep.createKey(); // 6
       _insertOne(sweep, rightOverlap, pairs);
-      assertPairsMatch(pairs, { sweepPair(6, 4) });
+      assertPairsMatch(pairs, { sweepPair(rightOverlap.mKey, right.mKey) });
       pairs.clear();
 
       //Contained by right and rightOVerlap
       SweepEntry rightContained;
       rightContained.mNewBoundaryMin = right.mNewBoundaryMin + glm::vec2(0.1f);
       rightContained.mNewBoundaryMax = rightContained.mNewBoundaryMin + glm::vec2(0.1f);
-      rightContained.mKey = 7;
+      rightContained.mKey = sweep.createKey(); // 7
       _insertOne(sweep, rightContained, pairs);
-      assertPairsMatch(pairs, { sweepPair(7, 4), sweepPair(7, 6) });
+      assertPairsMatch(pairs, { sweepPair(rightContained.mKey, right.mKey), sweepPair(rightContained.mKey, rightOverlap.mKey) });
       pairs.clear();
 
       std::vector<Broadphase::SweepCollisionPair> lostPairs;
       _eraseOne(sweep, rightContained, lostPairs);
-      assertPairsMatch(lostPairs, { sweepPair(7, 4), sweepPair(7, 6) });
+      assertPairsMatch(lostPairs, { sweepPair(rightContained.mKey, right.mKey), sweepPair(rightContained.mKey, rightOverlap.mKey) });
       lostPairs.clear();
 
       _eraseOne(sweep, rightOverlap, lostPairs);
-      assertPairsMatch(lostPairs, { sweepPair(6, 4) });
+      assertPairsMatch(lostPairs, { sweepPair(rightOverlap.mKey, right.mKey) });
       lostPairs.clear();
 
       _eraseOne(sweep, leftToCenter, lostPairs);
-      assertPairsMatch(lostPairs, { sweepPair(5, 1), sweepPair(5, 2), sweepPair(5, 3) });
+      assertPairsMatch(lostPairs, { sweepPair(leftToCenter.mKey, entry.mKey), sweepPair(leftToCenter.mKey, same.mKey), sweepPair(leftToCenter.mKey, left.mKey) });
       lostPairs.clear();
 
       _eraseOne(sweep, right, lostPairs);
@@ -332,7 +341,7 @@ namespace Test {
       lostPairs.clear();
 
       _eraseOne(sweep, same, lostPairs);
-      assertPairsMatch(lostPairs, { sweepPair(1, 2) });
+      assertPairsMatch(lostPairs, { sweepPair(entry.mKey, same.mKey) });
       lostPairs.clear();
 
       _eraseOne(sweep, entry, lostPairs);
@@ -347,22 +356,22 @@ namespace Test {
       const float space = 0.1f;
 
       SweepEntry upperLeft;
-      upperLeft.mKey = 1;
+      upperLeft.mKey = sweep.createKey(); // 1
       upperLeft.mNewBoundaryMin = glm::vec2(0.0f, size + space);
       upperLeft.mNewBoundaryMax = upperLeft.mNewBoundaryMin + glm::vec2(size);
 
       SweepEntry upperRight;
-      upperRight.mKey = 2;
+      upperRight.mKey = sweep.createKey(); // 2
       upperRight.mNewBoundaryMin = glm::vec2(size + space, size + space);
       upperRight.mNewBoundaryMax = upperRight.mNewBoundaryMin + glm::vec2(size);
 
       SweepEntry bottomLeft;
-      bottomLeft.mKey = 3;
+      bottomLeft.mKey = sweep.createKey(); // 3
       bottomLeft.mNewBoundaryMin = glm::vec2(0.0f);
       bottomLeft.mNewBoundaryMax = bottomLeft.mNewBoundaryMin + glm::vec2(size);
 
       SweepEntry bottomRight;
-      bottomRight.mKey = 4;
+      bottomRight.mKey = sweep.createKey(); // 4
       bottomRight.mNewBoundaryMin = glm::vec2(size + space, 0.0f);
       bottomRight.mNewBoundaryMax = bottomRight.mNewBoundaryMin + glm::vec2(size);
 
@@ -401,7 +410,7 @@ namespace Test {
       //Extend upperRight down left to contain all others
       upperRight.mNewBoundaryMin = glm::vec2(-1.0f);
       _reinsertOne(sweep, upperRight, gainedPairs, lostPairs);
-      assertPairsMatch(gainedPairs, { sweepPair(2, 1), sweepPair(2, 3), sweepPair(2, 4) });
+      assertPairsMatch(gainedPairs, { sweepPair(upperRight, upperLeft), sweepPair(upperRight, bottomLeft), sweepPair(upperRight, bottomRight) });
       assertPairsMatch(lostPairs, {});
       _clear(gainedPairs, lostPairs);
 
@@ -410,14 +419,14 @@ namespace Test {
       bottomLeft.mNewBoundaryMin -= glm::vec2(100.0f);
       _reinsertOne(sweep, bottomLeft, gainedPairs, lostPairs);
       assertPairsMatch(gainedPairs, {});
-      assertPairsMatch(lostPairs, { sweepPair(3, 2) });
+      assertPairsMatch(lostPairs, { sweepPair(bottomLeft, upperRight) });
       _clear(gainedPairs, lostPairs);
 
       //Undo the previous move
       bottomLeft.mNewBoundaryMax += glm::vec2(100.0f);
       bottomLeft.mNewBoundaryMin += glm::vec2(100.0f);
       _reinsertOne(sweep, bottomLeft, gainedPairs, lostPairs);
-      assertPairsMatch(gainedPairs, { sweepPair(3, 2) });
+      assertPairsMatch(gainedPairs, { sweepPair(bottomLeft, upperRight) });
       assertPairsMatch(lostPairs, {});
       _clear(gainedPairs, lostPairs);
 
@@ -425,7 +434,7 @@ namespace Test {
       upperRight.mNewBoundaryMin.x = bottomRight.mNewBoundaryMin.x + 0.1f;
       _reinsertOne(sweep, upperRight, gainedPairs, lostPairs);
       assertPairsMatch(gainedPairs, {});
-      assertPairsMatch(lostPairs, { sweepPair(2, 1), sweepPair(2, 3) });
+      assertPairsMatch(lostPairs, { sweepPair(upperRight, upperLeft), sweepPair(upperRight, bottomLeft) });
       _clear(gainedPairs, lostPairs);
 
       //Restore right to how it started
@@ -433,13 +442,13 @@ namespace Test {
       upperRight.mNewBoundaryMax = upperRight.mNewBoundaryMin + glm::vec2(size);
       _reinsertOne(sweep, upperRight, gainedPairs, lostPairs);
       assertPairsMatch(gainedPairs, {});
-      assertPairsMatch(lostPairs, { sweepPair(2, 4) });
+      assertPairsMatch(lostPairs, { sweepPair(upperRight, bottomRight) });
       _clear(gainedPairs, lostPairs);
 
       //Extend bottom left up into upper right, overlapping with everything
       bottomLeft.mNewBoundaryMax += glm::vec2(size * 0.5f);
       _reinsertOne(sweep, bottomLeft, gainedPairs, lostPairs);
-      assertPairsMatch(gainedPairs, { sweepPair(3, 1), sweepPair(3, 2), sweepPair(3, 4) });
+      assertPairsMatch(gainedPairs, { sweepPair(bottomLeft, upperLeft), sweepPair(bottomLeft, upperRight), sweepPair(bottomLeft, bottomRight) });
       assertPairsMatch(lostPairs, {});
       _clear(gainedPairs, lostPairs);
 
@@ -447,15 +456,15 @@ namespace Test {
       bottomLeft.mNewBoundaryMax.y = bottomRight.mNewBoundaryMax.y;
       _reinsertOne(sweep, bottomLeft, gainedPairs, lostPairs);
       assertPairsMatch(gainedPairs, {});
-      assertPairsMatch(lostPairs, { sweepPair(3, 1), sweepPair(3, 2) });
+      assertPairsMatch(lostPairs, { sweepPair(bottomLeft, upperLeft), sweepPair(bottomLeft, upperRight) });
       _clear(gainedPairs, lostPairs);
 
       //Resize and move bottom left to inside of upperRight
       bottomLeft.mNewBoundaryMin = upperRight.mNewBoundaryMin + glm::vec2(0.1f);
       bottomLeft.mNewBoundaryMax = bottomLeft.mNewBoundaryMin + glm::vec2(0.1f);
       _reinsertOne(sweep, bottomLeft, gainedPairs, lostPairs);
-      assertPairsMatch(gainedPairs, { sweepPair(3, 2) });
-      assertPairsMatch(lostPairs, { sweepPair(3, 4) });
+      assertPairsMatch(gainedPairs, { sweepPair(bottomLeft, upperRight) });
+      assertPairsMatch(lostPairs, { sweepPair(bottomLeft, bottomRight) });
     }
   };
 }

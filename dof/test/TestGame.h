@@ -33,9 +33,9 @@ namespace Test {
   struct KnownTables {
     KnownTables() = default;
     KnownTables(IAppBuilder& builder);
-    UnpackedDatabaseElementID player;
-    UnpackedDatabaseElementID fragments;
-    UnpackedDatabaseElementID completedFragments;
+    TableID player;
+    TableID fragments;
+    TableID completedFragments;
   };
 
   struct TestGame {
@@ -50,6 +50,7 @@ namespace Test {
     void update();
     void execute(std::unique_ptr<IAppBuilder> toExecute);
     void execute(TaskRange range);
+    ElementRef getFromTable(const TableID& id, size_t index);
 
     TaskRange task;
     std::unique_ptr<IDatabase> db;

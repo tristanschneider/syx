@@ -61,7 +61,7 @@ namespace Test {
     }
   }
 
-  UnpackedDatabaseElementID TestApp::createInTable(const TableID& table) {
-    return builder().getIDResolver()->getRefResolver().uncheckedUnpack(builder().query<StableIDRow>(table).get<0>(0).at(builder().getModifierForTable(table)->addElements(1));
+  ElementRef TestApp::createInTable(const TableID& table) {
+    return builder().query<StableIDRow>(table).get<0>(0).at(builder().getModifierForTable(table)->addElements(1));
   }
 }

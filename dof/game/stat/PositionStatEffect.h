@@ -21,6 +21,8 @@ namespace PositionStatEffect {
     Builder(AppTaskArgs& args);
 
     Builder& setZ(float z);
+    Builder& setPos(const glm::vec2& p);
+    Builder& setRot(const glm::vec2& r);
 
   private:
     CommandRow* command{};
