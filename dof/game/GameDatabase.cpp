@@ -373,7 +373,11 @@ namespace GameDatabase {
     auto task = builder.createTask();
     task.setName("set table names");
     auto q = task.query<Tags::TableNameRow, const Filter...>();
-    assert(q.size() == 1);
+    assert(q.size() <= 1);
+    if(!q.size()) {
+      task.discard();
+      return;
+    }
     task.setCallback([q, n{std::move(name)}](AppTaskArgs&) mutable {
       q.get<0>(0).at() = std::move(n);
     });
