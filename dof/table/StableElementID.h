@@ -25,7 +25,7 @@ public:
   StableElementMappingPtr(StableElementMapping* m = nullptr)
     : mValue{ m } {}
 
-  operator bool() const {
+  explicit operator bool() const {
     return mValue != nullptr;
   }
 
@@ -40,6 +40,8 @@ public:
   const StableElementMapping& operator*() const {
     return *mValue;
   }
+
+  auto operator<=>(const StableElementMappingPtr&) const = default;
 
 private:
   StableElementMapping* mValue{};
@@ -199,7 +201,7 @@ public:
 
   //To be used in contexts where stale versions wouldn't also be hashed
   size_t unversionedHash() const {
-    return std::hash<const void*>()(ref ? &*ref : nullptr);
+    return std::hash<const void*>()(ref.get());
   }
 
   const StableElementMappingPtr& getMapping() const {

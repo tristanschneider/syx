@@ -1092,7 +1092,7 @@ namespace Test {
         }
         {
           PositionStatEffect::Builder pos{ args };
-          pos.createStatEffects(1).setOwner(idC);
+          pos.createStatEffects(1).setOwner(idC).setLifetime(1);
           pos.setPos(glm::vec2(5.0f));
           pos.setRot(glm::vec2(0.0f, 1.0f));
         }

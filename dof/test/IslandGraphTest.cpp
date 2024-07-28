@@ -9,9 +9,7 @@ namespace Test {
   TEST_CLASS(IslandGraphTest) {
     struct Keygen {
       IslandGraph::NodeUserdata genNode() {
-        auto k = mappings.createKey();
-        mappings.insertKey(k, 0);
-        return mappings.findKey(k).second;
+        return mappings.createKey();
       }
 
       IslandGraph::EdgeUserdata genEdge() {
