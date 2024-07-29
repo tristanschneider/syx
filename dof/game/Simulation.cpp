@@ -91,6 +91,7 @@ void Simulation::initScheduler(IAppBuilder& builder) {
       }
     };
     cfg.profilerCallbacks.threadStop = &ProfileStop::threadStop;
+    cfg.numTaskThreadsToCreate = std::min(static_cast<uint32_t>(16), cfg.numTaskThreadsToCreate);
 
     scheduler->mScheduler.Initialize(cfg);
     tls->instance = std::make_unique<ThreadLocals>(

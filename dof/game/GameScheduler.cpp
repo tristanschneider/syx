@@ -80,8 +80,11 @@ namespace GameScheduler {
     }
 
     void Execute() override {
-      //TODO: should these still have access to some form of thread local data?
       AppTaskArgs args;
+      args.threadIndex = MAIN_THREAD;
+      ThreadLocalData data = tls.get(args.threadIndex);
+      args.threadLocal = &data;
+      args.scheduler = data.scheduler;
       if(task.callback) {
         executeTask(args, task, profile);
       }

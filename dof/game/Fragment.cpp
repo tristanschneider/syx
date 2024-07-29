@@ -11,15 +11,43 @@
 #include "stat/AllStatEffects.h"
 #include "AppBuilder.h"
 #include "Narrowphase.h"
+#include "GameTime.h"
 
 namespace Fragment {
   using namespace Tags;
+
+  FragmentTables::FragmentTables(RuntimeDatabaseTaskBuilder& task)
+    : completeTable{ task.queryTables<FragmentGoalFoundTableTag>().tryGet() }
+    , activeTable{ task.queryTables<FragmentSeekingGoalTagRow>().tryGet() }
+  {}
+
+  class FragmentMigrator : public IFragmentMigrator {
+  public:
+    FragmentMigrator(RuntimeDatabaseTaskBuilder& task)
+      : tables{ task }
+    {}
+
+    void moveActiveToComplete(const ElementRef& activeFragment, AppTaskArgs& args) final {
+      Events::MovePublisher{ &args }(activeFragment, tables.completeTable);
+    }
+
+    void moveCompleteToActive(const ElementRef& completeFragment, AppTaskArgs& args) final {
+      Events::MovePublisher{ &args}(completeFragment, tables.activeTable);
+    }
+
+    FragmentTables tables;
+  };
+
+  std::shared_ptr<IFragmentMigrator> createFragmentMigrator(RuntimeDatabaseTaskBuilder& task) {
+    return std::make_shared<FragmentMigrator>(task);
+  }
 
   void _migrateCompletedFragments(IAppBuilder& builder) {
     auto task = builder.createTask();
     task.setName("Migrate completed fragments");
     auto query = task.query<
-      const FragmentGoalFoundRow,
+      FragmentGoalFoundRow,
+      const FragmentGoalCooldownRow,
       const StableIDRow
     >();
     const TableID completedTable = builder.queryTables<FragmentGoalFoundTableTag>().matchingTableIDs[0];
@@ -27,11 +55,17 @@ namespace Fragment {
     task.setCallback([query, completedTable](AppTaskArgs& args) mutable {
       Events::MovePublisher moveElement{{ &args }};
       for(size_t t = 0; t < query.size(); ++t) {
-        auto&& [goalFound, stableRow] = query.get(t);
+        auto&& [goalFound, goalCooldown, stableRow] = query.get(t);
         for(size_t i = 0; i < goalFound->size(); ++i) {
           //If the goal is found, enqueue a move request to the completed fragments table
           if(goalFound->at(i)) {
-            moveElement(stableRow->at(i), completedTable);
+            //Goal was found but goal seeking is on cooldown, reset goal found flag and try again later
+            if(goalCooldown->at(i)) {
+              goalFound->at(i) = 0;
+            }
+            else {
+              moveElement(stableRow->at(i), completedTable);
+            }
           }
         }
       }
@@ -70,6 +104,32 @@ namespace Fragment {
     }
   }
 
+  void checkForFragmentReactivation(IAppBuilder& builder) {
+    auto task = builder.createTask();
+    task.setName("check for reactivation");
+    FragmentTables tables{ task };
+    auto ids = task.getIDResolver()->getRefResolver();
+    auto resolver = task.getResolver<FragmentGoalCooldownRow>();
+    const DBEvents& events = Events::getPublishedEvents(task);
+
+    task.setCallback([ids, resolver, &events, tables](AppTaskArgs&) {
+      CachedRow<FragmentGoalCooldownRow> cooldown;
+      for(const auto& move : events.toBeMovedElements) {
+        //If this moved to the active table, presumably it came from the completed table
+        if(auto destination = std::get_if<TableID>(&move.destination); destination && *destination == tables.activeTable) {
+          if(auto moved = std::get_if<ElementRef>(&move.source); moved && *moved) {
+            if(FragmentCooldownT* cd = resolver->tryGetOrSwapRowElement(cooldown, ids.uncheckedUnpack(*moved))) {
+              //TODO: configurable
+              *cd = 5;
+            }
+          }
+        }
+      }
+    });
+
+    builder.submitTask(std::move(task));
+  }
+
   void preProcessEvents(IAppBuilder& builder) {
     auto task = builder.createTask();
     task.setName("fragment events");
@@ -86,6 +146,10 @@ namespace Fragment {
       _prepareFragmentMigration(events, *resolver, *ids);
     });
     builder.submitTask(std::move(task));
+  }
+
+  void postProcessEvents(IAppBuilder& builder) {
+    checkForFragmentReactivation(builder);
   }
 
   //Check to see if each fragment has reached its goal
@@ -115,7 +179,41 @@ namespace Fragment {
     builder.submitTask(std::move(task));
   }
 
+  void tickGoalCooldown(IAppBuilder& builder) {
+    auto task = builder.createTask();
+    task.setName("tick goal cooldown");
+    auto query = task.query<
+      FragmentGoalCooldownDefinitionRow,
+      FragmentGoalCooldownRow
+    >();
+    const float* dt = GameTime::getDeltaTime(task);
+    if(!dt) {
+      task.discard();
+      return;
+    }
+
+    task.setCallback([query, dt](AppTaskArgs&) mutable {
+      for(size_t t = 0; t < query.size(); ++t) {
+        auto&& [def, cooldowns] = query.get(t);
+        FragmentGoalCooldownDefinition& d = def->at();
+        d.currentTime += *dt;
+        if(d.currentTime < d.timeToTick) {
+          continue;
+        }
+
+        for(FragmentCooldownT& cd : cooldowns->mElements) {
+          if(cd > 0) {
+            --cd;
+          }
+        }
+      }
+    });
+
+    builder.submitTask(std::move(task));
+  }
+
   void updateFragmentGoals(IAppBuilder& builder) {
+    tickGoalCooldown(builder);
     checkFragmentGoals(builder);
     _migrateCompletedFragments(builder);
   }

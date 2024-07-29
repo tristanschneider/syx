@@ -62,16 +62,13 @@ namespace Events {
     auto task = builder.createTask();
     task.setName("publish events");
     EventsInstance& instance = *task.query<EventsRow>().tryGetSingletonElement();
-    std::shared_ptr<IIDResolver> ids = task.getIDResolver();
-
-    task.setCallback([&instance, ids](AppTaskArgs& args) {
+    task.setCallback([&instance](AppTaskArgs& args) {
       {
         EventsContext ctx{ _getContext(args) };
         instance.publishedEvents.toBeMovedElements.swap(ctx.impl.events.toBeMovedElements);
 
         ctx.impl.events.toBeMovedElements.clear();
       }
-      //resolve(instance.publishedEvents.toBeMovedElements, *ids);
     });
     builder.submitTask(std::move(task));
   }

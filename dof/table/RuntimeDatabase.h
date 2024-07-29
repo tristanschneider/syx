@@ -266,6 +266,10 @@ struct QueryResult<> {
     return matchingTableIDs[i];
   }
 
+  TableID tryGet() const {
+    return matchingTableIDs.size() ? matchingTableIDs[0] : TableID{};
+  }
+
   std::vector<TableID> matchingTableIDs;
 };
 

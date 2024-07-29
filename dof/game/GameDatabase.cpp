@@ -6,6 +6,7 @@
 #include "Simulation.h"
 #include "stat/AllStatEffects.h"
 
+#include "Fragment.h"
 #include "Physics.h"
 #include "SweepNPruneBroadphase.h"
 #include "FragmentStateMachine.h"
@@ -177,6 +178,10 @@ namespace GameDatabase {
 
     FloatRow<Tags::FragmentGoal, Tags::X>,
     FloatRow<Tags::FragmentGoal, Tags::Y>,
+    Fragment::FragmentGoalCooldownDefinitionRow,
+    Fragment::FragmentGoalCooldownRow,
+    FragmentGoalFoundRow,
+
     DamageTaken,
     Tint,
     FragmentFlagsRow,
@@ -192,7 +197,6 @@ namespace GameDatabase {
     ConstraintSolver::SharedMaterialRow,
 
     Row<CubeSprite>,
-    FragmentGoalFoundRow,
     SharedRow<TextureReference>,
     IsFragment,
 

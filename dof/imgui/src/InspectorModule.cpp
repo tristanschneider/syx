@@ -16,6 +16,7 @@
 #include "ThreadLocals.h"
 #include "Random.h"
 #include "Geometric.h"
+#include "Fragment.h"
 
 namespace InspectorModule {
   struct InspectContext {
@@ -36,6 +37,8 @@ namespace InspectorModule {
       , stableRows{ task.query<const StableIDRow>().get<0>() }
       , data{ task.query<InspectorRow>().tryGetSingletonElement() }
       , debugLines{ TableAdapters::getDebugLines(task) }
+      , fragmentMigrator{ Fragment::createFragmentMigrator(task) }
+      , fragmentIds{ task.query<const StableIDRow, const IsFragment>().get<0>() }
     {
     }
 
@@ -70,10 +73,12 @@ namespace InspectorModule {
     CachedRow<const Tags::TableNameRow> tableNames;
     CachedRow<const Tags::FragmentGoalXRow> goalX;
     CachedRow<const Tags::FragmentGoalYRow> goalY;
-    CachedRow<const FragmentGoalFoundRow> goalFound;
+    CachedRow<const FragmentGoalFoundTableTag> goalFound;
     CachedRow<const FragmentSeekingGoalTagRow> seekingGoal;
     std::vector<const StableIDRow*> playerIds;
     std::vector<const StableIDRow*> stableRows;
+    std::vector<const StableIDRow*> fragmentIds;
+    std::shared_ptr<Fragment::IFragmentMigrator> fragmentMigrator;
     InspectorData* data{};
     DebugLineAdapter debugLines;
     AppTaskArgs* args{};
@@ -93,11 +98,13 @@ namespace InspectorModule {
     bool foundGoal = ctx.resolver->tryGetOrSwapRow(ctx.goalFound, self);
     if(seekingGoal || foundGoal) {
       if(ImGui::Checkbox("Goal Found", &foundGoal)) {
-        //if(foundGoal
+        if(foundGoal) {
+          ctx.fragmentMigrator->moveActiveToComplete(ctx.self, *ctx.args);
+        }
+        else {
+          ctx.fragmentMigrator->moveCompleteToActive(ctx.self, *ctx.args);
+        }
       }
-    }
-    if(ctx.resolver->tryGetOrSwapRow(ctx.seekingGoal, self)) {
-      //if(ImGui::Button("Set 
     }
   }
 
@@ -151,15 +158,27 @@ namespace InspectorModule {
     ctx.data->selected[0] = { value, stableId };
   }
 
+  void findAndSetSelection(InspectContext& ctx, const ElementRef& value) {
+    size_t i = 0;
+    for(const auto* stableRow : ctx.stableRows) {
+      for(const auto& id : stableRow->mElements) {
+        if(id == value) {
+          setSelection(ctx, value, i);
+        }
+        ++i;
+      }
+    }
+  }
+
   void clearSelection(InspectContext& ctx) {
     ctx.data->selected.clear();
   }
 
-  void trySelectPlayer(InspectContext& ctx) {
-    for(const auto& row : ctx.playerIds) {
+  void trySelect(InspectContext& ctx, const std::vector<const StableIDRow*>& rows) {
+    for(const auto& row : rows) {
       for(const ElementRef& id : row->mElements) {
         if(id) {
-          setSelection(ctx, id, 0);
+          findAndSetSelection(ctx, id);
           return;
         }
       }
@@ -178,6 +197,7 @@ namespace InspectorModule {
       int searched = 0;
       ElementRef found;
       //TODO: horribly inefficient, maybe doesn't matter
+      //TODO: also doesn't really work for stable iteration
       std::vector<ElementRef> all;
       for(const StableIDRow* r : ctx.stableRows) {
         all.insert(all.end(), r->mElements.begin(), r->mElements.end());
@@ -210,7 +230,10 @@ namespace InspectorModule {
       }
     }
     if(ImGui::Button("Select Player")) {
-      trySelectPlayer(ctx);
+      trySelect(ctx, ctx.playerIds);
+    }
+    if(ImGui::Button("Select Fragment")) {
+      trySelect(ctx, ctx.fragmentIds);
     }
     if(ImGui::Button("Clear Selection")) {
       clearSelection(ctx);
@@ -242,10 +265,11 @@ namespace InspectorModule {
       return;
     }
     const bool* enabled = ImguiModule::queryIsEnabled(task);
-    task.setCallback([inspector, enabled](AppTaskArgs&) mutable {
+    task.setCallback([inspector, enabled](AppTaskArgs& args) mutable {
       if(!*enabled) {
         return;
       }
+      inspector.args = &args;
       ImGui::Begin("Inspector");
       {
         presentPicker(inspector);
