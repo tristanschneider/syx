@@ -51,6 +51,10 @@ struct QueryAlias : QueryAliasBase {
     return result;
   }
 
+  explicit operator bool() const {
+    return cast != nullptr;
+  }
+
   ResultT*(*cast)(void*){};
   //Hack to enable the convenience of .read
   const ResultT*(*constCast)(void*){};
