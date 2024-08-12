@@ -114,61 +114,6 @@ namespace gnx {
 
 namespace IslandGraph {
   struct Graph {
-    struct EdgeIterator {
-      using iterator_category = std::random_access_iterator_tag;
-      using value_type        = EdgeUserdata;
-      using difference_type   = size_t;
-      using pointer           = EdgeUserdata*;
-      using reference         = EdgeUserdata&;
-      using iterator = EdgeIterator;
-
-      reference operator*() {
-        return graph->edges[edge].data;
-      }
-
-      pointer operator->() {
-        return &operator*();
-      }
-
-      iterator& operator++() {
-        edge = graph->edges[edge].islandNext;
-        return *this;
-      }
-
-      iterator operator++(int) {
-        auto temp = *this;
-        ++*this;
-        return temp;
-      }
-
-      bool operator==(const iterator& _Right) const {
-          return edge == _Right.edge;
-      }
-
-      bool operator!=(const iterator& _Right) const noexcept {
-          return !(*this == _Right);
-      }
-
-      bool operator<(const iterator& _Right) const noexcept {
-          return edge < _Right.edge;
-      }
-
-      bool operator>(const iterator& _Right) const noexcept {
-          return _Right < *this;
-      }
-
-      bool operator<=(const iterator& _Right) const noexcept {
-          return !(_Right < *this);
-      }
-
-      bool operator>=(const iterator& _Right) const noexcept {
-        return !(*this < _Right);
-      }
-
-      Graph* graph{};
-      uint32_t edge{};
-    };
-
     struct ConstEdgeIterator {
       using iterator_category = std::random_access_iterator_tag;
       using value_type        = const EdgeUserdata;
@@ -222,6 +167,65 @@ namespace IslandGraph {
 
       const Graph* graph{};
       uint32_t edge{};
+    };
+
+    //Iterator over edges that these two objects share
+    struct NodePairEdgeIterator {
+      using iterator_category = std::forward_iterator_tag;
+      using value_type        = const EdgeUserdata;
+      using pointer           = const EdgeUserdata*;
+      using reference         = const EdgeUserdata&;
+      using iterator          = NodePairEdgeIterator;
+
+      reference operator*() {
+        return graph->edges[graph->edgeEntries[edgeEntry].edge].data;
+      }
+
+      pointer operator->() {
+        return &operator*();
+      }
+
+      iterator& operator++() {
+        //Keep going until the end or another edge pointing at B is found
+        //These are the edges coming from A so they all match A
+        while(true) {
+          edgeEntry = graph->edgeEntries[edgeEntry].nextEntry;
+          if(edgeEntry == INVALID || isMatchingEdge()) {
+            break;
+          }
+        }
+        return *this;
+      }
+
+      iterator operator++(int) {
+        auto temp = *this;
+        ++*this;
+        return temp;
+      }
+
+      bool operator==(const iterator& _Right) const {
+          return edgeEntry == _Right.edgeEntry;
+      }
+
+      bool operator!=(const iterator& _Right) const noexcept {
+          return !(*this == _Right);
+      }
+
+      ConstEdgeIterator toEdgeIterator() const {
+        return { graph, edgeEntry == INVALID ? INVALID : graph->edgeEntries[edgeEntry].edge };
+      }
+
+      bool isMatchingEdge() const {
+        const EdgeEntry& ee = graph->edgeEntries[edgeEntry];
+        const Edge& e = graph->edges[ee.edge];
+        return e.nodeA == nodeB || e.nodeB == nodeB;
+      }
+
+      const Graph* graph{};
+      //Current edge in this list of target node's entires
+      uint32_t edgeEntry{};
+      //The "other" node to find. edgeEntry is already all edges coming out of "nodeA"
+      uint32_t nodeB{};
     };
 
     struct NodeIterator {
@@ -344,11 +348,11 @@ namespace IslandGraph {
       using iterator = GraphIterator;
 
       //Iterate over edges in an island
-      EdgeIterator beginEdges() {
+      ConstEdgeIterator beginEdges() {
         return { graph, graph->islands[islandIndex].edges };
       }
 
-      EdgeIterator endEdges() {
+      ConstEdgeIterator endEdges() {
         return { graph, INVALID };
       }
 
@@ -462,17 +466,13 @@ namespace IslandGraph {
       return { this, islands.values.size() };
     }
 
-    EdgeIterator findEdge(const NodeUserdata& a, const NodeUserdata& b);
+    //EdgeIterator findEdge(const NodeUserdata& a, const NodeUserdata& b);
     NodeIterator findNode(const NodeUserdata& node);
-    ConstEdgeIterator findEdge(const NodeUserdata& a, const NodeUserdata& b) const;
+    NodePairEdgeIterator findEdge(const NodeUserdata& a, const NodeUserdata& b) const;
     ConstNodeIterator findNode(const NodeUserdata& node) const;
 
-    EdgeIterator edgesEnd() {
-      return { this, INVALID };
-    }
-
-    ConstEdgeIterator edgesEnd() const {
-      return { this, INVALID };
+    NodePairEdgeIterator edgesEnd() const {
+      return { this, INVALID, INVALID };
     }
 
     NodeIterator nodesEnd() {
@@ -503,7 +503,7 @@ namespace IslandGraph {
   EdgeUserdata addUnmappedEdge(Graph& graph, const NodeUserdata& a, const NodeUserdata& b);
   void addEdge(Graph& graph, const NodeUserdata& a, const NodeUserdata& b, const EdgeUserdata& edge);
   void removeEdge(Graph& graph, const NodeUserdata& a, const NodeUserdata& b);
-  void removeEdge(Graph& graph, const Graph::EdgeIterator& it);
+  void removeEdge(Graph& graph, const Graph::ConstEdgeIterator& it);
   void addNode(Graph& graph, const NodeUserdata& data, IslandPropagationMask propagation = PROPAGATE_ALL);
   void removeNode(Graph& graph, const NodeUserdata& data);
   void notifyNodeChanged(Graph& graph, Graph::NodeIterator it);

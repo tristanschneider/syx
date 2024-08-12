@@ -455,7 +455,7 @@ namespace IslandGraph {
     graph.edges.deleteIndex(edge);
   }
 
-  void removeEdge(Graph& graph, const Graph::EdgeIterator& it) {
+  void removeEdge(Graph& graph, const Graph::ConstEdgeIterator& it) {
     const Edge& edge = graph.edges[it.edge];
     Node& a = graph.nodes[edge.nodeA];
     Node& b = graph.nodes[edge.nodeB];
@@ -550,44 +550,29 @@ namespace IslandGraph {
     }
   }
 
+  Graph::NodeIterator Graph::findNode(const NodeUserdata& node) {
+    auto it = nodeMappings.find(node);
+    return { this, it != nodeMappings.end() ? it->second.node : INVALID };
+  }
 
-    Graph::EdgeIterator Graph::findEdge(const NodeUserdata& a, const NodeUserdata& b) {
-      const Graph* self = this;
-      Graph::ConstEdgeIterator it = self->findEdge(a, b);
-      return { this, it.edge };
-    }
+  Graph::ConstNodeIterator Graph::findNode(const NodeUserdata& node) const {
+    auto it = nodeMappings.find(node);
+    return { this, it != nodeMappings.end() ? it->second.node : INVALID };
+  }
 
-    Graph::NodeIterator Graph::findNode(const NodeUserdata& node) {
-      auto it = nodeMappings.find(node);
-      return { this, it != nodeMappings.end() ? it->second.node : INVALID };
-    }
-
-    Graph::ConstNodeIterator Graph::findNode(const NodeUserdata& node) const {
-      auto it = nodeMappings.find(node);
-      return { this, it != nodeMappings.end() ? it->second.node : INVALID };
-    }
-
-    Graph::ConstEdgeIterator Graph::findEdge(const NodeUserdata& a, const NodeUserdata& b) const {
-      //The edge will be in the list of A and B, arbitrarily look in A
-      //If this is used often enough it may be worth storing the size so the smaller one can be traversed
-      auto mapping = nodeMappings.find(a);
-      auto mappingB = nodeMappings.find(b);
-      if(mapping != nodeMappings.end() && mappingB != nodeMappings.end()) {
-        const Node& node = nodes[mapping->second.node];
-        //Iterate over all edges from A
-        uint32_t currentEntry = node.edges;
-        while(currentEntry != INVALID) {
-          const EdgeEntry& entry = edgeEntries[currentEntry];
-          const Edge& edge = edges[entry.edge];
-          //The edge has A in it since it's in the list of A's edges so it's only necessary to find B
-          if(edge.nodeA == mappingB->second.node || edge.nodeB == mappingB->second.node) {
-            //B was found, return this edge
-            return { this, entry.edge };
-          }
-          //Nothing found, continue down the list
-          currentEntry = entry.nextEntry;
-        }
+  Graph::NodePairEdgeIterator Graph::findEdge(const NodeUserdata& a, const NodeUserdata& b) const {
+    //The edge will be in the list of A and B, arbitrarily look in A
+    //If this is used often enough it may be worth storing the size so the smaller one can be traversed
+    auto mapping = nodeMappings.find(a);
+    auto mappingB = nodeMappings.find(b);
+    if(mapping != nodeMappings.end() && mappingB != nodeMappings.end()) {
+      const Node& node = nodes[mapping->second.node];
+      NodePairEdgeIterator result{ this, node.edges, mappingB->second.node };
+      if(result.edgeEntry != INVALID && !result.isMatchingEdge()) {
+        ++result;
       }
-      return edgesEnd();
+      return result;
     }
+    return edgesEnd();
+  }
 }

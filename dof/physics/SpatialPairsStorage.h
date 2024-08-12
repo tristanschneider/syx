@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Constraints.h"
 #include "StableElementID.h"
 #include "Table.h"
 #include "glm/vec2.hpp"
@@ -59,17 +60,35 @@ namespace SP {
     //Populated if contact constraint solving on the Z axis is desired
     std::optional<ZInfo> info;
   };
+  struct ConstraintManifold {
+    Constraints::ConstraintSide sideA;
+    Constraints::ConstraintSide sideB;
+    Constraints::ContraintCommon common;
+  };
+  enum class PairType : uint8_t {
+    ContactXY,
+    ContactZ,
+    Constraint
+  };
+
   //Points at the source of truth for the object's transform and velocity
   struct ObjA : Row<ElementRef> {};
   struct ObjB : Row<ElementRef> {};
   struct ManifoldRow : Row<ContactManifold> {};
   struct ZManifoldRow : Row<ZContactManifold> {};
+  struct ConstraintRow : Row<ConstraintManifold> {};
   struct IslandGraphRow : SharedRow<IslandGraph::Graph> {};
+  struct PairTypeRow : Row<PairType> {};
 
+  //For more direct lookups, all spatial pairs are stored in a single tale
+  //The type of connection is determined by PairTypeRow which determines the mutually exclusive constraint types
+  //The contact manifolds are populated by Narrowphase.cpp while the constraints are populated by Constraints.cpp
+  //The entries themselves are created and destroyed through the IStorageModifier
   using SpatialPairsTable = Table<
     IslandGraphRow,
     ObjA,
     ObjB,
+    PairTypeRow,
     ManifoldRow,
     ZManifoldRow
   >;

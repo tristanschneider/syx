@@ -76,7 +76,7 @@ namespace SP {
             }
 
             //Remove the graph edge
-            IslandGraph::removeEdge(graph, edge);
+            IslandGraph::removeEdge(graph, edge.toEdgeIterator());
           }
           else {
             //This can happen if one of the nodes was destroyed because the broadphase reports the loss
