@@ -216,6 +216,10 @@ public:
     return ref.get() > rhs.ref.get();
   }
 
+  bool isSet() const {
+    return static_cast<bool>(getMapping());
+  }
+
 private:
   StableElementMappingPtr ref;
   StableElementVersion expectedVersion{};

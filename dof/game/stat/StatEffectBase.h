@@ -14,7 +14,7 @@ struct GameDB;
 
 namespace StatEffect {
   //Lifetime of a single frame instant effect
-  constexpr size_t INSTANT = 1;
+  constexpr size_t INSTANT = 0;
   constexpr size_t INFINITE = std::numeric_limits<size_t>::max();
 
   struct CurveAlias {
@@ -31,7 +31,7 @@ namespace StatEffect {
   struct ConfigRow : SharedRow<Config> {};
 
   struct Globals {
-    std::vector<ElementRef> toRemove;
+    std::vector<ElementRef> toRemove, newlyAdded;
     //This is used to associate a given central table with its thread local counterpart
     //They are assigned on construction, shouldn't change, and have no meaning other htan equality
     size_t ID;

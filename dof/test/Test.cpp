@@ -1084,7 +1084,7 @@ namespace Test {
         }
         {
           VelocityStatEffect::Builder vel{ args };
-          vel.createStatEffects(1).setLifetime(2).setOwner(idB);
+          vel.createStatEffects(1).setLifetime(1).setOwner(idB);
           VelocityStatEffect::ImpulseCommand icmd;
           icmd.linearImpulse = glm::vec2(1.0f);
           icmd.angularImpulse = 1.0f;
@@ -1092,7 +1092,7 @@ namespace Test {
         }
         {
           PositionStatEffect::Builder pos{ args };
-          pos.createStatEffects(1).setOwner(idC).setLifetime(1);
+          pos.createStatEffects(1).setOwner(idC).setLifetime(0);
           pos.setPos(glm::vec2(5.0f));
           pos.setRot(glm::vec2(0.0f, 1.0f));
         }
@@ -1136,14 +1136,13 @@ namespace Test {
       Assert::AreEqual(1.0f, fragmentPhysics.linVelY->at(1), 0.1f);
       Assert::AreEqual(1.0f, fragmentPhysics.angVel->at(1), 0.1f);
       Assert::AreEqual(size_t(1), velLife->size());
-      Assert::AreEqual(size_t(1), velLife->at(0));
+      Assert::AreEqual(size_t(0), velLife->at(0));
 
       Assert::AreEqual(5.0f, fragmentTransform.posX->at(2));
       Assert::AreEqual(5.0f, fragmentTransform.posY->at(2));
       Assert::AreEqual(0.0f, fragmentTransform.rotX->at(2));
       Assert::AreEqual(1.0f, fragmentTransform.rotY->at(2));
-      Assert::AreEqual(size_t(1), posLife->size());
-      Assert::AreEqual(size_t(0), posLife->at(0));
+      Assert::AreEqual(size_t(0), posLife->size());
 
       //Set the values to something to show they don't change after the next update
       fragmentPhysics.linVelX->at(1) = 0.0f;
@@ -1155,6 +1154,7 @@ namespace Test {
       Assert::AreEqual(1, test.lambdaInvocations);
       Assert::AreEqual(size_t(0), lambdaLife->size());
       Assert::AreEqual(size_t(0), posLife->size());
+      Assert::AreEqual(size_t(0), velLife->size());
       //Assert the unchanged values
       Assert::AreEqual(1.0f, fragmentPhysics.linVelX->at(1), 0.1f);
       Assert::AreEqual(10.0f, fragmentTransform.posX->at(2), 0.1f);
@@ -1164,7 +1164,6 @@ namespace Test {
       //Should remove velcity
       game.update();
 
-      Assert::AreEqual(size_t(0), velLife->size());
       Assert::AreEqual(0.0f, fragmentPhysics.linVelX->at(1), 0.1f);
     }
 

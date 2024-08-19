@@ -25,6 +25,7 @@ namespace Constraints {
     RuntimeDatabaseTaskBuilder& task;
     const TableID& table;
   };
+
   Rows Definition::resolve(RuntimeDatabaseTaskBuilder& task, const TableID& table) {
     Rows result;
     ResolveTarget resolveTarget{ task, table };
@@ -39,5 +40,14 @@ namespace Constraints {
     }
     result.common = getOrAssert(common, task, table);
     return result;
+  }
+
+  Builder::Builder(const Rows& r)
+    : rows{ r }
+  {
+  }
+
+  Builder& Builder::select(const gnx::IndexRange& range) {
+    return selected = range, *this;
   }
 }

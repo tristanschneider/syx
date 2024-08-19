@@ -1,6 +1,7 @@
 #pragma once
 
 #include "stat/AreaForceStatEffect.h"
+#include "stat/ConstraintStatEffect.h"
 #include "stat/DamageStatEffect.h"
 #include "stat/FollowTargetByPositionEffect.h"
 #include "stat/FollowTargetByVelocityEffect.h"
@@ -17,7 +18,8 @@ struct StatEffectDatabase : Database<
   FollowTargetByPositionStatEffectTable,
   FollowTargetByVelocityStatEffectTable,
   FragmentBurstStatEffectTable,
-  DamageStatEffectTable
+  DamageStatEffectTable,
+  ConstraintStatEffectTable
 > {
   StatEffectDatabase();
 

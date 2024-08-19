@@ -3,6 +3,7 @@
 #include "RuntimeDatabase.h"
 #include "StableElementID.h"
 #include "glm/vec2.hpp"
+#include "generics/IndexRange.h"
 
 class RuntimeDatabaseTaskBuilder;
 
@@ -72,10 +73,18 @@ namespace Constraints {
 
   using ConstraintDefinitionKey = size_t;
 
+  //When constraints are created an SP::IStorageModifier must be used to notify the object graph that they exist and upon removal
+  //Stats do this in their update
+
+  //Used by the game to configure any valid constraint rows
   class Builder {
   public:
-    // Builder(
+    Builder(const Rows& r);
+
+    Builder& select(const gnx::IndexRange& range);
 
   private:
+    gnx::IndexRange selected;
+    Rows rows;
   };
 }
