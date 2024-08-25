@@ -68,7 +68,10 @@ namespace SP {
   enum class PairType : uint8_t {
     ContactXY,
     ContactZ,
-    Constraint
+    Constraint,
+    //Workaround for assigning one of multiple constraints between the same pair of objects
+    //Each gets a slot and they "claim" it
+    ClaimedBit = 1 << 7
   };
 
   //Points at the source of truth for the object's transform and velocity
@@ -90,15 +93,18 @@ namespace SP {
     ObjB,
     PairTypeRow,
     ManifoldRow,
-    ZManifoldRow
+    ZManifoldRow,
+    ConstraintRow
   >;
 
   size_t addIslandEdge(ITableModifier& modifier,
     IslandGraph::Graph& graph,
     ObjA& rowA,
     ObjB& rowB,
+    PairTypeRow& rowType,
     const ElementRef& a,
-    const ElementRef& b
+    const ElementRef& b,
+    PairType type
   );
 
   //Take the pair gains/losses from the broadphase and use them to create or remove entries in the SpatialPairsTable and their edges in the IslandGraph

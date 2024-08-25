@@ -18,8 +18,10 @@ namespace SP {
     IslandGraph::Graph& graph,
     ObjA& rowA,
     ObjB& rowB,
+    PairTypeRow& rowType,
     const ElementRef& a,
-    const ElementRef& b
+    const ElementRef& b,
+    PairType type
   ) {
     //Add the edge pointing at the spatial pair to the island graph
     const IslandGraph::EdgeUserdata entryIndex = IslandGraph::addUnmappedEdge(graph, a, b);
@@ -31,20 +33,64 @@ namespace SP {
     //Assign new mappings to the destination spatial pair
     rowA.at(entryIndex) = a;
     rowB.at(entryIndex) = b;
+    rowType.at(entryIndex) = type;
     return entryIndex;
   }
 
+  //TODO: finish this
+  /*
+  template<class PairT>
+  void trackEdges(
+    const std::vector<PairT>& gained,
+    const std::vector<PairT>& lost,
+    IslandGraph::Graph& graph,
+    ITableModifier& pairStorageModifier,
+    PairType type,
+    ObjA& rowA,
+    ObjB& rowB,
+    PairTypeRow& rowType,
+    std::pair<ElementRef, ElementRef>(*pairUnwrapper)(const PairT&)) {
+    //Add new edges and spatial pairs for all new pairs
+    //Multiple edges may exist for the same pair for constraint type edges
+    //It is expected that there is only a single edge for contact types
+    for(const PairT& gain : gained) {
+      auto [a, b] = pairUnwrapper(gain);
+      addIslandEdge(pairStorageModifier, graph, rowA, rowB, rowType, a, b, type);
+    }
+
+    //Remove all edges corresponding to the lost pairs
+    for(const auto& loss : changes.mLost) {
+      const ElementRef a = loss.a;
+      const ElementRef b = loss.b;
+      auto edge = graph.findEdge(a, b);
+      if(edge != graph.edgesEnd()) {
+        //Mark the spatial pair as removed
+        if(objA->size() > *edge) {
+          objA->at(*edge) = objB->at(*edge) = {};
+        }
+
+        //Remove the graph edge
+        IslandGraph::removeEdge(graph, edge.toEdgeIterator());
+      }
+      else {
+        //This can happen if one of the nodes was destroyed because the broadphase reports the loss
+        //after the island graph removes the node. If it happened while both exist something went wrong with pair tracking
+        assert(!a || !b);
+      }
+    }
+  }
+  */
   void updateSpatialPairsFromBroadphase(IAppBuilder& builder) {
     auto task = builder.createTask();
     task.setName("update spatial pairs");
-    const auto dstTable = builder.queryTables<ObjA, ObjB, ManifoldRow>().matchingTableIDs[0];
-    auto dstQuery = task.query<ObjA, ObjB, IslandGraphRow>(dstTable);
+    const auto dstTable = builder.queryTables<ObjA, ObjB, PairTypeRow, ManifoldRow>().matchingTableIDs[0];
+    auto dstQuery = task.query<ObjA, ObjB, PairTypeRow, IslandGraphRow>(dstTable);
     auto dstModifier = task.getModifierForTable(dstTable);
     auto ids = task.getIDResolver();
     auto broadphaseChanges = task.query<SharedRow<SweepNPruneBroadphase::PairChanges>>();
 
     task.setCallback([dstQuery, dstModifier, ids, broadphaseChanges](AppTaskArgs&) mutable {
-      auto [objA, objB, islandGraph] = dstQuery.get(0);
+      auto [objA, objB, pairType, islandGraph] = dstQuery.get(0);
       IslandGraph::Graph& graph = islandGraph->at();
       for(size_t t = 0; t < broadphaseChanges.size(); ++t) {
         SweepNPruneBroadphase::PairChanges& changes = broadphaseChanges.get<0>(t).at();
@@ -57,7 +103,7 @@ namespace SP {
           auto it = graph.findEdge(a, b);
           //This is a hack that shouldn't happen but sometimes the broadphase seems to report duplicates
           if(it == graph.edgesEnd()) {
-            addIslandEdge(*dstModifier, graph, *objA, *objB, a, b);
+            addIslandEdge(*dstModifier, graph, *objA, *objB, *pairType, a, b, PairType::ContactXY);
           }
           else {
             assert(false);
