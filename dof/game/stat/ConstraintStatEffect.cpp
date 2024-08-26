@@ -3,9 +3,11 @@
 
 #include "AppBuilder.h"
 #include "AllStatEffects.h"
-#include "SpatialPairsStorage.h"
 
 namespace ConstraintStatEffect {
+  //There is only one in this table at index zero
+  constexpr Constraints::ConstraintDefinitionKey STAT_KEY = 0;
+
   auto getArgs(AppTaskArgs& args) {
     return StatEffectDatabase::createBuilderBase<ConstraintStatEffectTable>(args);
   }
@@ -68,18 +70,29 @@ namespace ConstraintStatEffect {
       TickTrackerRow,
       StatEffect::Lifetime
     >();
-    auto sp = SP::createStorageModifier(task);
+    std::vector<std::shared_ptr<Constraints::IConstraintStorageModifier>> modifiers;
+    modifiers.reserve(q.size());
+    for(size_t i = 0; i < q.size(); ++i) {
+      modifiers.push_back(Constraints::createConstraintStorageModifier(task, STAT_KEY, q.matchingTableIDs[i]));
+    }
     ElementRefResolver res = task.getIDResolver()->getRefResolver();
     //Notify additions and removals
     //Occasionally check for expiration of targets
     task.setCallback([=](AppTaskArgs&) mutable {
       for(size_t t = 0; t < q.size(); ++t) {
+        Constraints::IConstraintStorageModifier& modifier = *modifiers[t];
         auto&& [global, a, b, tick, lifetime] = q.get(t);
         for(const ElementRef& added : global->at().newlyAdded) {
-          sp->addSpatialNode(added, false);
+          if(auto id = res.tryUnpack(added)) {
+            const size_t i = id->getElementIndex();
+            modifier.insert(i, a->at(i).target, b->at(i).target);
+          }
         }
         for(const ElementRef& removed : global->at().toRemove) {
-          sp->removeSpatialNode(removed);
+          if(auto id = res.tryUnpack(removed)) {
+            const size_t i = id->getElementIndex();
+            modifier.erase(i, a->at(i).target, b->at(i).target);
+          }
         }
 
         //Occasionally sweep through and make sure targets exist. If they don't, mark for deletion by setting their lifetime to zero

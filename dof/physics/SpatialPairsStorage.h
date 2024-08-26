@@ -69,9 +69,6 @@ namespace SP {
     ContactXY,
     ContactZ,
     Constraint,
-    //Workaround for assigning one of multiple constraints between the same pair of objects
-    //Each gets a slot and they "claim" it
-    ClaimedBit = 1 << 7
   };
 
   //Points at the source of truth for the object's transform and velocity

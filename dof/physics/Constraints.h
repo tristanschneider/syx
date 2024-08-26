@@ -51,15 +51,35 @@ namespace Constraints {
   };
   struct ConstraintStorage {
     constexpr static size_t INVALID = std::numeric_limits<size_t>::max();
+    constexpr static size_t PENDING = INVALID - 1;
+
+    auto operator<=>(const ConstraintStorage&) const = default;
 
     bool isValid() const {
       return storageIndex != INVALID;
+    }
+
+    bool isPending() const {
+      return storageIndex == PENDING;
+    }
+
+    void clear() {
+      storageIndex = INVALID;
+    }
+
+    void setPending() {
+      storageIndex = PENDING;
+    }
+
+    void assign(size_t index) {
+      storageIndex = index;
     }
 
     //Entry for this constraint in SpatialPairsStorage
     size_t storageIndex{ std::numeric_limits<size_t>::max() };
   };
 
+  //TODO: does the row make sense or should it just be what was in the IConstraintStorageModifier::insert?
   struct ExternalTargetRow : Row<ExternalTarget> {};
   struct ConstraintSideRow : Row<ConstraintSide> {};
   struct ConstraintCommonRow : Row<ContraintCommon> {};
@@ -106,16 +126,38 @@ namespace Constraints {
 
   using ConstraintDefinitionKey = size_t;
 
+  //Corresponds to a particular Definition
+  struct OwnedConstraint {
+    ElementRef owner;
+    //Refers to the constraint that was originally assigned. This can differ from what is now in ConstraintStorageRow
+    //in the case that the constraint was recreated. In that case the edge will eventually be removed by GC
+    ConstraintStorage storage;
+  };
+  struct PendingConstraint {
+    ElementRef owner, a, b;
+  };
+  struct PendingDefinitionConstraints {
+    std::vector<PendingConstraint> constraints;
+  };
+  struct OwnedDefinitionConstraints {
+    size_t ticksSinceGC{};
+    std::vector<OwnedConstraint> constraints;
+  };
+
   //Populated by a caller creating or removing constraints via IConstraintStorageModifier
   struct ConstraintChanges {
-    std::vector<ConstraintPair> gained, lost;
+    std::vector<ConstraintPair> gained;
+    std::vector<ConstraintStorage> lost;
     //Normal pair tracking happens through broadphase updates
     //Manually created constraint pairs are tracked here and evaluated with occasional
     //garbage collection sweeps to ensure the non-null elements exist
 
-    //TODO: this doesn't work for multiple constraints between two bodies
-    std::unordered_set<ConstraintPair> trackedPairs;
-    size_t ticksSinceGC{};
+    //One entry for each definition
+    //Constraints that have been assigned a storage entry in SpatialPairsStorage
+    std::vector<OwnedDefinitionConstraints> trackedConstraints;
+    //Constraints that are awaiting storage in SpatialPairsStorage. Once they get it they move to trackedConstraints
+    std::vector<PendingDefinitionConstraints> pendingConstraints;
+    std::unordered_set<size_t> ownedEdges;
   };
   struct ConstraintChangesRow : SharedRow<ConstraintChanges> {};
 
@@ -127,11 +169,11 @@ namespace Constraints {
   public:
     virtual ~IConstraintStorageModifier() = default;
     //Must be done for a pair before constraint solving will take effect
-    virtual void insert(const ElementRef& a, const ElementRef& b) = 0;
+    virtual void insert(size_t tableIndex, const ElementRef& a, const ElementRef& b) = 0;
     //Can be used to explicitly remove a pair. Optional in the case of either element being deleted as GC will eventually see it
-    virtual void erase(const ElementRef& a, const ElementRef& b) = 0;
+    virtual void erase(size_t tableIndex, const ElementRef& a, const ElementRef& b) = 0;
   };
-  std::shared_ptr<IConstraintStorageModifier> createConstraintStorageModifier(RuntimeDatabaseTaskBuilder& task);
+  std::shared_ptr<IConstraintStorageModifier> createConstraintStorageModifier(RuntimeDatabaseTaskBuilder& task, ConstraintDefinitionKey constraintKey, const TableID& constraintTable);
 
   //When constraints are created an IConstraintStorageModifier must be used to notify the object graph that they exist and upon removal
   //Stats do this in their update

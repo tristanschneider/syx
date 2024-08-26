@@ -101,11 +101,12 @@ namespace Test {
       SolverApp app;
       auto& task = app.builder();
       const TableIds tables{ task };
-      auto [islandGraph, manifold, pairA, pairB] = task.query<
+      auto [islandGraph, manifold, pairA, pairB, pairTypeRow] = task.query<
         SP::IslandGraphRow,
         SP::ManifoldRow,
         SP::ObjA,
-        SP::ObjB
+        SP::ObjB,
+        SP::PairTypeRow
       >().get(0);
       IslandGraph::Graph& graph = islandGraph->at();
       auto [staticStableID] = task.query<StableIDRow>(tables.staticBodies).get(0);
@@ -127,7 +128,7 @@ namespace Test {
       auto br = dynamicB;
       IslandGraph::addNode(graph, ar);
       IslandGraph::addNode(graph, br);
-      const size_t edgeAB = SP::addIslandEdge(*modifier, graph, *pairA, *pairB, ar, br);
+      const size_t edgeAB = SP::addIslandEdge(*modifier, graph, *pairA, *pairB, *pairTypeRow, ar, br, SP::PairType::ContactXY);
 
       //Simulate B moving right towards A and hitting with two contact points on the corners of A
       dvx->at(ib) = 1.0f;
@@ -157,7 +158,7 @@ namespace Test {
       const size_t ic = res.uncheckedUnpack(dynamicC).getElementIndex();
       auto cr = dynamicC;
       IslandGraph::addNode(graph, cr);
-      const size_t edgeBC = SP::addIslandEdge(*modifier, graph, *pairA, *pairB, br, cr);
+      const size_t edgeBC = SP::addIslandEdge(*modifier, graph, *pairA, *pairB, *pairTypeRow, br, cr, SP::PairType::ContactXY);
 
       dvy->at(ic) = -0.75f;
 
@@ -194,12 +195,13 @@ namespace Test {
       SolverApp app;
       auto& task = app.builder();
       const TableIds tables{ task };
-      auto [islandGraph, manifold, zManifold, pairA, pairB] = task.query<
+      auto [islandGraph, manifold, zManifold, pairA, pairB, pairTypeRow] = task.query<
         SP::IslandGraphRow,
         SP::ManifoldRow,
         SP::ZManifoldRow,
         SP::ObjA,
-        SP::ObjB
+        SP::ObjB,
+        SP::PairTypeRow
       >().get(0);
       auto modifier = task.getModifierForTable(tables.spatialPairs);
       IslandGraph::Graph& graph = islandGraph->at();
@@ -221,7 +223,7 @@ namespace Test {
       auto br = b;
       IslandGraph::addNode(graph, ar);
       IslandGraph::addNode(graph, br);
-      const size_t edgeAB = SP::addIslandEdge(*modifier, graph, *pairA, *pairB, ar, br);
+      const size_t edgeAB = SP::addIslandEdge(*modifier, graph, *pairA, *pairB, *pairTypeRow, ar, br, SP::PairType::ContactXY);
 
       //A moving up towards B but not fast enough to collide
       dvz->at(ai) = 1.0f;

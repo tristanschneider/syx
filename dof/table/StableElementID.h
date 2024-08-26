@@ -220,6 +220,11 @@ public:
     return static_cast<bool>(getMapping());
   }
 
+  //For checking validity when empty refs or valid refs are okay, but expired refs are not
+  bool isUnsetOrValid() const {
+    return !isSet() || tryGet();
+  }
+
 private:
   StableElementMappingPtr ref;
   StableElementVersion expectedVersion{};

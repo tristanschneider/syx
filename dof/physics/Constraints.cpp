@@ -5,8 +5,15 @@
 
 #include "SpatialPairsStorage.h"
 #include "generics/Enum.h"
+#include "generics/Container.h"
 
 namespace Constraints {
+  const TableConstraintDefinitions* getOrAssertDefinitions(RuntimeDatabaseTaskBuilder& task, const TableID& table) {
+    const TableConstraintDefinitions* result = task.query<const TableConstraintDefinitionsRow>(table).tryGetSingletonElement();
+    assert(result);
+    return result;
+  }
+
   template<class T>
   auto getOrAssert(const QueryAlias<T>& q, RuntimeDatabaseTaskBuilder& task, const TableID& table) {
     auto result = task.queryAlias(table, q);
@@ -62,53 +69,199 @@ namespace Constraints {
 
   class ConstraintStorageModifier : public IConstraintStorageModifier {
   public:
-    ConstraintStorageModifier(RuntimeDatabaseTaskBuilder& task)
+    ConstraintStorageModifier(
+      RuntimeDatabaseTaskBuilder& task,
+      ConstraintDefinitionKey constraintKey,
+      const TableID& constraintTable
+    )
+      : changes{ task.query<ConstraintChangesRow>(constraintTable).tryGetSingletonElement() }
+      , key{ constraintKey }
     {
-      //Doesn't matter which table it reports to if there are multiple, so use the first
-      if(auto tables = task.queryTables<ConstraintChangesRow>(); tables.size()) {
-        changes = task.query<ConstraintChangesRow>(tables[0]).tryGetSingletonElement();
-      }
+      const TableConstraintDefinitions* definitions = getOrAssertDefinitions(task, constraintTable);
+      assert(changes && key < changes->pendingConstraints.size() && key < definitions->definitions.size());
+      storage = &task.queryAlias(constraintTable, definitions->definitions[key].storage).get<0>(0);
+      stable = &task.query<const StableIDRow>(constraintTable).get<0>(0);
     }
 
-    void insert(const ElementRef& a, const ElementRef& b) final {
+    void insert(size_t tableIndex, const ElementRef& a, const ElementRef& b) final {
       const ConstraintPair pair{ a, b };
-      if(changes && changes->trackedPairs.insert(pair).second) {
-        changes->gained.push_back(pair);
-      }
+      //Immediately clear any storage that may have been here. Ownership will be managed by GC
+      //If it was already pending, the first will be created, then the second, then the first cleared by GC
+      storage->at(tableIndex).setPending();
+      //Request creation of SpatialPairsStorage
+      //TODO: should this be here or part of assignStorage?
+      changes->gained.push_back(pair);
+      //Track this internally so it can eventually be released via GC
+      changes->pendingConstraints[key].constraints.push_back(PendingConstraint{ stable->at(tableIndex), a, b });
     }
 
-    void erase(const ElementRef& a, const ElementRef& b) final {
+    void erase(size_t tableIndex, const ElementRef& a, const ElementRef& b) final {
       const ConstraintPair pair{ a, b };
-      if(changes && changes->trackedPairs.erase(pair)) {
-        changes->lost.push_back(pair);
-      }
+      //Clear the storage. GC will see this as a tracked constraint with no storage and remove it
+      //If it was pending, assignment will see it was cleared rather than pending and immediately delete the created storage
+      storage->at(tableIndex).clear();
     }
 
     ConstraintChanges* changes{};
+    ConstraintStorageRow* storage{};
+    ConstraintDefinitionKey key{};
+    const StableIDRow* stable{};
   };
 
-  std::shared_ptr<IConstraintStorageModifier> createConstraintStorageModifier(RuntimeDatabaseTaskBuilder& task) {
-    return std::make_shared<ConstraintStorageModifier>(task);
+  std::shared_ptr<IConstraintStorageModifier> createConstraintStorageModifier(RuntimeDatabaseTaskBuilder& task, ConstraintDefinitionKey constraintKey, const TableID& constraintTable) {
+    return std::make_shared<ConstraintStorageModifier>(task, constraintKey, constraintTable);
+  }
+
+  struct ConstraintOwnershipTable {
+    ConstraintOwnershipTable(RuntimeDatabaseTaskBuilder& task, const ConstraintDefinitionKey k, const Definition& definition, const TableID& table)
+      : key{ k }
+      , changes{ task.query<ConstraintChangesRow>(table).tryGetSingletonElement() }
+      , storage{ getOrAssert(definition.storage, task, table) }
+    {
+      assert(changes);
+    }
+
+    ConstraintDefinitionKey key{};
+    ConstraintChanges* changes{};
+    ConstraintStorageRow* storage{};
+  };
+
+  template<class T>
+  std::vector<T> queryConstraintTables(RuntimeDatabaseTaskBuilder& task) {
+    auto definitions = task.query<const TableConstraintDefinitionsRow>();
+    std::vector<T> constraintTables;
+    constraintTables.reserve(definitions.size());
+    for(size_t t = 0; t < constraintTables.size(); ++t) {
+      auto [def] = definitions.get(t);
+      for(size_t i = 0; i < def->at().definitions.size(); ++i) {
+        constraintTables.push_back(T{ task, i, def->at().definitions[i], definitions.matchingTableIDs[t] });
+      }
+    }
+    return constraintTables;
+  }
+
+  void initDefinition(IAppBuilder& builder) {
+    auto temp = builder.createTask();
+    temp.discard();
+    auto defs = temp.query<TableConstraintDefinitionsRow, ConstraintChangesRow>();
+    for(size_t t = 0; t < defs.size(); ++t) {
+      auto [def, changes] = defs.get(t);
+      ConstraintChanges& c = changes->at();
+      TableConstraintDefinitions& d = def->at();
+      c.pendingConstraints.resize(d.definitions.size());
+      c.trackedConstraints.resize(d.definitions.size());
+    }
+  }
+
+  void assignStorage(IAppBuilder& builder) {
+    initDefinition(builder);
+
+    auto task = builder.createTask();
+    std::vector<ConstraintOwnershipTable> constraints = queryConstraintTables<ConstraintOwnershipTable>(task);
+    auto sp = task.query<const SP::IslandGraphRow, const SP::PairTypeRow, SP::ConstraintRow>();
+    ElementRefResolver res = task.getIDResolver()->getRefResolver();
+
+    task.setCallback([constraints, sp, res](AppTaskArgs&) mutable {
+      auto [g, pairTypes, c] = sp.get(0);
+      const IslandGraph::Graph& graph = g->at();
+      for(const ConstraintOwnershipTable& table : constraints) {
+        PendingDefinitionConstraints& pending = table.changes->pendingConstraints[table.key];
+        OwnedDefinitionConstraints& trackedConstraints = table.changes->trackedConstraints[table.key];
+        for(size_t i = 0; i < pending.constraints.size();) {
+          const PendingConstraint& p = pending.constraints[i];
+          auto it = graph.findEdge(p.a, p.b);
+          while(it != graph.edgesEnd()) {
+            const size_t spatialPairsIndex = *it;
+            //Shouldn't generally happen
+            if(spatialPairsIndex >= pairTypes->size()) {
+              continue;
+            }
+            //Skip unrelated edge types
+            if(pairTypes->at(spatialPairsIndex) != SP::PairType::Constraint) {
+              continue;
+            }
+            //Skip edges that are already taken, take the first available
+            if(table.changes->ownedEdges.insert(spatialPairsIndex).second) {
+              break;
+            }
+          }
+
+          //If storage was found, move it from pending to tracked
+          if(it != graph.edgesEnd()) {
+            //Assign storage so it can be used for configureConstraints.
+            if(auto self = res.tryUnpack(p.owner)) {
+              ConstraintStorage& ownerStorage = table.storage->at(self->getElementIndex());
+              if(ownerStorage.isPending()) {
+                ownerStorage.assign(*it);
+              }
+            }
+            //For simplicity, this is always moved to trackedConstraints, even if storage above wasn't found
+            //This could happen if a constraint is immediately deleted
+            //Either way, it means the code path for deletion can always go through GC rather than a special step here
+            trackedConstraints.constraints.push_back(OwnedConstraint{ p.owner, ConstraintStorage{ *it } });
+
+            gnx::Container::swapRemove(pending.constraints, i);
+          }
+          //If nothing was found, try again later
+          else {
+            ++i;
+          }
+        }
+      }
+    });
+
+    builder.submitTask(std::move(task.setName("constraint assign")));
+  }
+
+  std::pair<ElementRef, ElementRef> getEdge(const IslandGraph::Graph& graph, size_t edgeIndex) {
+    if(graph.edges.size() > edgeIndex) {
+      const auto& e = graph.edges[edgeIndex];
+      assert(e.data == edgeIndex);
+      assert(e.nodeA < graph.nodes.size() && e.nodeB < graph.nodes.size());
+      return { graph.nodes[e.nodeA].data, graph.nodes[e.nodeB].data };
+    }
+    return {};
   }
 
   void garbageCollect(IAppBuilder& builder) {
     auto task = builder.createTask();
-    auto query = task.query<ConstraintChangesRow>();
+    std::vector<ConstraintOwnershipTable> constraints = queryConstraintTables<ConstraintOwnershipTable>(task);
+    ElementRefResolver res = task.getIDResolver()->getRefResolver();
+    const IslandGraph::Graph* graph = task.query<const SP::IslandGraphRow>().tryGetSingletonElement();
+    assert(graph);
 
-    task.setCallback([query](AppTaskArgs&) mutable {
-      for(size_t t = 0; t < query.size(); ++t) {
-        auto [changesRow] = query.get(t);
-        ConstraintChanges& changes = changesRow->at();
-        if(changes.ticksSinceGC++ > 200) {
-          changes.ticksSinceGC = 0;
-          for(const ConstraintPair& pair : changes.trackedPairs) {
-            if(pair.a.isSet() && !pair.a || pair.b.isSet() && !pair.b) {
-              changes.lost.push_back(pair);
+    task.setCallback([constraints, res, graph](AppTaskArgs&) {
+      for(const ConstraintOwnershipTable& table : constraints) {
+        OwnedDefinitionConstraints& trackedConstraints = table.changes->trackedConstraints[table.key];
+        if(trackedConstraints.ticksSinceGC++ < 200) {
+          continue;
+        }
+
+        for(size_t i = 0; i < trackedConstraints.constraints.size();) {
+          const OwnedConstraint& constraint = trackedConstraints.constraints[i];
+          //Ensure the owner still exists
+          if(auto unpacked = res.tryUnpack(constraint.owner)) {
+            const ConstraintStorage& storage = table.storage->at(unpacked->getElementIndex());
+            //Ensure the owner is still pointing at this constraint, could either be cleared or a newer one
+            if(constraint.storage == storage) {
+              //Ensure the members of the constraint exist
+              auto [a, b] = getEdge(*graph, constraint.storage.storageIndex);
+              //A must exist, B is allowed to be unset but not invalid
+              if(a && b.isUnsetOrValid()) {
+                ++i;
+                continue;
+              }
             }
           }
-          //Exit after any gc so there is never more than one per frame
-          return;
+
+          //If we made it here the entry is invalid, remove it
+          table.changes->ownedEdges.erase(constraint.storage.storageIndex);
+          table.changes->lost.push_back(constraint.storage);
+          gnx::Container::swapRemove(trackedConstraints.constraints, i);
         }
+
+        //Exit after single GC so they don't all land on the same frame
+        break;
       }
     });
 
@@ -117,7 +270,7 @@ namespace Constraints {
 
   //TODO: duplication with Definition and Rows is annoying
   struct ConstraintTable {
-    ConstraintTable(RuntimeDatabaseTaskBuilder& task, const Definition& definition, const TableID& table)
+    ConstraintTable(RuntimeDatabaseTaskBuilder& task, ConstraintDefinitionKey, const Definition& definition, const TableID& table)
       : targetA{ std::visit(ResolveConstTarget{ task, table }, definition.targetA) }
       , targetB{ std::visit(ResolveConstTarget{ task, table }, definition.targetA) }
       , common{ getOrAssert(definition.common.read(), task, table) }
@@ -137,7 +290,7 @@ namespace Constraints {
     const ConstraintSideRow* sideB{};
     const ConstraintCommonRow* common{};
     const StableIDRow* stableA{};
-    ConstraintStorageRow* storage{};
+    const ConstraintStorageRow* storage{};
   };
 
   struct SpatialPairsTable {
@@ -145,52 +298,15 @@ namespace Constraints {
     SP::PairTypeRow* pairType{};
   };
 
-  void lazyInitStorage(
-    size_t index,
-    ConstraintStorage& storage,
-    SpatialPairsTable& spatialPairs,
-    const StableIDRow& stableA,
-    const Rows::ConstTarget& targetA,
-    const Rows::ConstTarget& targetB,
-    const IslandGraph::Graph& graph) {
-    ElementRef a, b;
-    if(const auto* target = std::get_if<const ExternalTargetRow*>(&targetA)) {
-      a = (*target)->at(index).target;
-    }
-    else if(std::holds_alternative<SelfTarget>(targetA)) {
-      a = stableA.at(index);
-    }
-    if(const auto* target = std::get_if<const ExternalTargetRow*>(&targetB)) {
-      b = (*target)->at(index).target;
-    }
-    auto edge = graph.findEdge(a, b);
-    while(edge != graph.edgesEnd()) {
-      //If this is an unclaimed constraint edge, claim it
-      if(size_t i = *edge; i < spatialPairs.pairType->size()) {
-        SP::PairType& type = spatialPairs.pairType->at(i);
-        constexpr auto claimedBit = gnx::enumCast(SP::PairType::ClaimedBit);
-        //This will match only if the claimed bit wasn't set already. It also excludes contact constraints
-        if(type == SP::PairType::Constraint) {
-          type = static_cast<SP::PairType>(gnx::enumCast(type) | claimedBit);
-          storage.storageIndex = i;
-          return;
-        }
-      }
-
-      ++edge;
-    }
-  }
-
   //Copies the constraint information as configured by gameplay over to the SpatialPairsStorage
-  void configureTable(const ConstraintTable& table, const IslandGraph::Graph& graph, SpatialPairsTable& spatialPairs) {
+  void configureTable(const ConstraintTable& table, SpatialPairsTable& spatialPairs) {
     if(std::holds_alternative<NoTarget>(table.targetA)) {
       assert(false && "side A must always point at something");
       return;
     }
     for(size_t i = 0; i < table.storage->size(); ++i) {
-      ConstraintStorage& storage = table.storage->at(i);
+      const ConstraintStorage& storage = table.storage->at(i);
       if(!storage.isValid()) {
-        lazyInitStorage(i, storage, spatialPairs, *table.stableA, table.targetA, table.targetB, graph);
         continue;
       }
       SP::ConstraintManifold& manifold = spatialPairs.manifold->at(storage.storageIndex);
@@ -215,25 +331,16 @@ namespace Constraints {
   //TODO: is this complexity worth it compared to having the existing narrowphase switch off of the pairtype?
   void constraintNarrowphase(IAppBuilder& builder) {
     auto task = builder.createTask();
-    auto definitions = task.query<const TableConstraintDefinitionsRow>();
-    std::vector<ConstraintTable> constraintTables;
-    constraintTables.reserve(definitions.size());
-    for(size_t t = 0; t < constraintTables.size(); ++t) {
-      auto [def] = definitions.get(t);
-      for(const Definition& definition : def->at().definitions) {
-        constraintTables.push_back(ConstraintTable{ task, definition, definitions.matchingTableIDs[t] });
-      }
-    }
+    std::vector<ConstraintTable> constraintTables = queryConstraintTables<ConstraintTable>(task);
     auto sp = task.query<const SP::IslandGraphRow, SP::PairTypeRow, SP::ConstraintRow>();
     assert(sp.size());
     auto [g, p, c] = sp.get(0);
     SpatialPairsTable spatialPairs{ c, p };
-    const IslandGraph::Graph* graph = &g->at();
 
-    task.setCallback([graph, constraintTables, spatialPairs](AppTaskArgs&) mutable {
+    task.setCallback([constraintTables, spatialPairs](AppTaskArgs&) mutable {
       //TODO: multithreaded task
       for(const ConstraintTable& table : constraintTables) {
-        configureTable(table, *graph, spatialPairs);
+        configureTable(table, spatialPairs);
       }
     });
 
