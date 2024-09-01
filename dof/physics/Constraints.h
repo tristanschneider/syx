@@ -48,6 +48,7 @@ namespace Constraints {
     float lambdaMin{};
     float lambdaMax{};
     float bias{};
+    float warmStart{};
   };
   struct ConstraintStorage {
     constexpr static size_t INVALID = std::numeric_limits<size_t>::max();

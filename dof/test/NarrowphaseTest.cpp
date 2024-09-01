@@ -315,7 +315,7 @@ namespace Test {
         });
       };
       assertContactsXZ();
-      Assert::IsFalse(zManifold.info.has_value());
+      Assert::IsFalse(zManifold.isSet());
 
       //Separated by 1 on Z
       posZ->at(a) = 1.0f;
@@ -325,9 +325,9 @@ namespace Test {
 
       constexpr float overlapTolerance = 0.01f;
       Assert::IsFalse(manifold.size, L"XY collision should not generate if separated on Z axis");
-      Assert::IsTrue(zManifold.info.has_value());
-      Assert::AreEqual(-1.0f, zManifold.info->normal, L"Normal should go towards A");
-      Assert::AreEqual(1.0f, zManifold.info->separation, overlapTolerance);
+      Assert::IsTrue(zManifold.isSet());
+      Assert::AreEqual(-1.0f, zManifold.info.normal, L"Normal should go towards A");
+      Assert::AreEqual(1.0f, zManifold.info.separation, overlapTolerance);
 
       //0.1 of overlap
       thickness->at() = 0.5f;
@@ -339,7 +339,7 @@ namespace Test {
 
       //Once there is any overlap it is solved as XY, Z solves to prevent overlap from starting
       Assert::IsTrue(manifold.size);
-      Assert::IsFalse(zManifold.info.has_value());
+      Assert::IsFalse(zManifold.isSet());
 
       //Exact overlap on Z with thickness
       thickness->at() = 0.5f;
@@ -348,7 +348,7 @@ namespace Test {
       db.doNarrowphase();
 
       assertContactsXZ();
-      Assert::IsFalse(zManifold.info.has_value());
+      Assert::IsFalse(zManifold.isSet());
     }
 
     TEST_METHOD(CubeCube) {

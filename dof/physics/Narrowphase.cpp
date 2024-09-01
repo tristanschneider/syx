@@ -16,6 +16,7 @@ namespace Narrowphase {
   struct ContactArgs {
     SP::ContactManifold& manifold;
     SP::ZContactManifold& zManifold;
+    SP::PairType& pairType;
   };
 
   //Non-implemented fallback
@@ -185,6 +186,8 @@ namespace Narrowphase {
   void tryCheckZ(const UnpackedDatabaseElementID& a, const UnpackedDatabaseElementID& b, ShapeQueries& queries, ContactArgs& result) {
     //If it's already not colliding on XY then Z doesn't matter
     if(!result.manifold.size) {
+      //Default to XY if both are empty since Z can't indicate empty
+      result.pairType = SP::PairType::ContactXY;
       return;
     }
     const Geo::Range1D rangeA = getZRange(a, queries);
@@ -204,6 +207,10 @@ namespace Narrowphase {
         distance - overlapTolerance,
       };
       result.manifold.clear();
+      result.pairType = SP::PairType::ContactZ;
+    }
+    else {
+      result.pairType = SP::PairType::ContactXY;
     }
   }
 
@@ -260,7 +267,7 @@ namespace Narrowphase {
     }
 
     auto sq = buildShapeQueries(task, aliases);
-    auto query = task.query<const SP::ObjA, const SP::ObjB, SP::ManifoldRow, SP::ZManifoldRow>();
+    auto query = task.query<const SP::ObjA, const SP::ObjB, SP::ManifoldRow, SP::ZManifoldRow, SP::PairTypeRow>();
     auto ids = task.getIDResolver();
 
     task.setCallback([sq, query, ids, classifiers](AppTaskArgs& args) mutable {
@@ -269,7 +276,7 @@ namespace Narrowphase {
       auto resolver = ids->getRefResolver();
       size_t currentIndex = 0;
       for(size_t t = 0; t < query.size(); ++t) {
-        auto [a, b, manifold, zManifold] = query.get(t);
+        auto [a, b, manifold, zManifold, pairType] = query.get(t);
         const size_t thisTableStart = currentIndex;
         const size_t thisTableEnd = thisTableStart + a->size();
         currentIndex += a->size();
@@ -285,6 +292,11 @@ namespace Narrowphase {
           if(stableA == ElementRef{}) {
             continue;
           }
+          SP::PairType& pairT = pairType->at(i);
+          if(!SP::isContactPair(pairT)) {
+            continue;
+          }
+
           const ElementRef& stableB = b->at(i);
           //TODO: fast path if it's the same table as last time
           auto resolvedA = resolver.tryUnpack(stableA);
@@ -307,7 +319,7 @@ namespace Narrowphase {
           //TODO: is non-const because of ispc signature, should be const
           Shape::BodyType shapeA = classifier.classifyShape(*resolvedA);
           Shape::BodyType shapeB = classifier.classifyShape(*resolvedB);
-          ContactArgs cargs{ man, zMan };
+          ContactArgs cargs{ man, zMan, pairT };
           generateContacts(shapeA, shapeB, cargs);
           tryCheckZ(*resolvedA, *resolvedB, shapeQuery, cargs);
         }

@@ -223,15 +223,14 @@ namespace Test {
       auto br = b;
       IslandGraph::addNode(graph, ar);
       IslandGraph::addNode(graph, br);
-      const size_t edgeAB = SP::addIslandEdge(*modifier, graph, *pairA, *pairB, *pairTypeRow, ar, br, SP::PairType::ContactXY);
+      const size_t edgeAB = SP::addIslandEdge(*modifier, graph, *pairA, *pairB, *pairTypeRow, ar, br, SP::PairType::ContactZ);
 
       //A moving up towards B but not fast enough to collide
       dvz->at(ai) = 1.0f;
       dvz->at(bi) = -1.0f;
       SP::ZContactManifold& manifoldAB = zManifold->at(edgeAB);
-      manifoldAB.info.emplace();
-      manifoldAB.info->normal = -1.0f;
-      manifoldAB.info->separation = 4.f;
+      manifoldAB.info.normal = -1.0f;
+      manifoldAB.info.separation = 4.f;
 
       app.update();
 
@@ -240,8 +239,8 @@ namespace Test {
       Assert::AreEqual(1.0f, dvz->at(ai), e, L"No collision so velocity should be unchanged");
       Assert::AreEqual(-1.0f, dvz->at(bi), e);
 
-      manifoldAB.info->normal = -1.0f;
-      manifoldAB.info->separation = 1.0f;
+      manifoldAB.info.normal = -1.0f;
+      manifoldAB.info.separation = 1.0f;
 
       app.update();
 
@@ -249,8 +248,8 @@ namespace Test {
       Assert::AreEqual(-0.5f, dvz->at(bi), e);
 
       //A overlapping with B
-      manifoldAB.info->normal = 1.0f;
-      manifoldAB.info->separation = -0.1f;
+      manifoldAB.info.normal = 1.0f;
+      manifoldAB.info.separation = -0.1f;
 
       app.update();
 

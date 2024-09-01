@@ -7,11 +7,20 @@
 
 namespace SP {
   float ZInfo::getOverlap() const {
-    return separation <= Narrowphase::Z_OVERLAP_TOLERANCE + 0.00001f;
+    return -separation;
   }
 
   bool ZContactManifold::isTouching() const {
-    return info && info->getOverlap() > 0.0f;
+    return info.separation <= Narrowphase::Z_OVERLAP_TOLERANCE + 0.00001f;
+  }
+
+  void ZContactManifold::clear() {
+    info.normal = info.separation = 0;
+  }
+
+  bool ZContactManifold::isSet() const {
+    //Match the values of clear
+    return info.normal != 0 || info.separation != 0;
   }
 
   size_t addIslandEdge(ITableModifier& modifier,
@@ -37,6 +46,12 @@ namespace SP {
     return entryIndex;
   }
 
+  template<class T, class GainT, class LossT>
+  concept SpatialAdapter = requires(T adapter, GainT gain, LossT loss, const IslandGraph::Graph& graph) {
+    { adapter.unwrapGain(gain) } -> std::convertible_to<std::pair<ElementRef, ElementRef>>;
+    { adapter.unwrapLoss(graph, loss) } -> std::convertible_to<IslandGraph::Graph::ConstEdgeIterator>;
+  };
+
   struct ContactAdapter {
     std::pair<ElementRef, ElementRef> unwrapGain(const Broadphase::SweepCollisionPair& pair) const {
       return std::make_pair(pair.a, pair.b);
@@ -44,15 +59,8 @@ namespace SP {
 
     IslandGraph::Graph::ConstEdgeIterator unwrapLoss(const IslandGraph::Graph& graph, const Broadphase::SweepCollisionPair& pair) const {
       auto edge = graph.findEdge(pair.a, pair.b);
-      while(edge != graph.edgesEnd()) {
-        switch(pairTypes.at(*edge)) {
-          case PairType::ContactXY:
-          case PairType::ContactZ:
-            return edge.toEdgeIterator();
-          default:
-            ++edge;
-            continue;
-        }
+      while(edge != graph.edgesEnd() && !isContactPair(pairTypes.at(*edge))) {
+        ++edge;
       }
       return edge.toEdgeIterator();
     }
@@ -70,7 +78,7 @@ namespace SP {
     }
   };
 
-  template<class GainT, class LossT, class AdapterT>
+  template<class GainT, class LossT, SpatialAdapter<GainT, LossT> AdapterT>
   void trackEdges(
     const std::vector<GainT>& gained,
     const std::vector<LossT>& lost,

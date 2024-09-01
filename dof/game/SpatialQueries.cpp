@@ -167,7 +167,7 @@ namespace SpatialQuery {
   struct Reader : IReader {
     Reader(RuntimeDatabaseTaskBuilder& task) {
       graph = task.query<const SP::IslandGraphRow>().tryGetSingletonElement();
-      std::tie(manifold, zManifold) = task.query<const SP::ManifoldRow, const SP::ZManifoldRow>().get(0);
+      std::tie(manifold, zManifold, pairTypes) = task.query<const SP::ManifoldRow, const SP::ZManifoldRow, const SP::PairTypeRow>().get(0);
       ids = task.getIDResolver();
     }
 
@@ -234,18 +234,30 @@ namespace SpatialQuery {
         selectedEdgeEntry = entry.nextEntry;
 
         //Should always work
-        if(manifold->size() > edge.data) {
-          const SP::ContactManifold& man = manifold->at(edge.data);
-          const SP::ZContactManifold& zman = zManifold->at(edge.data);
+        if(pairTypes->size() > edge.data) {
+          const SP::PairType pairType = pairTypes->at(edge.data);
           ResultBuilder builder{ cachedResult, self, *graph, edge };
           //If there are points, copy them over. If there aren't then this made it past broadphase but not narrowphase
-          if(man.size) {
-            builder.addResults(man);
-            return &cachedResult;
-          }
-          else if(zman.isTouching()) {
-            builder.addResults(*zman.info);
-            return &cachedResult;
+          switch(pairType) {
+            case SP::PairType::Constraint:
+              //Currently not exposed for iteration
+              break;
+            case SP::PairType::ContactXY: {
+              const SP::ContactManifold& man = manifold->at(edge.data);
+              if(man.size) {
+                builder.addResults(man);
+                return &cachedResult;
+              }
+              break;
+            }
+            case SP::PairType::ContactZ: {
+              const SP::ZContactManifold& zman = zManifold->at(edge.data);
+              if(zman.isTouching()) {
+                builder.addResults(zman.info);
+                return &cachedResult;
+              }
+              break;
+            }
           }
         }
       }
@@ -253,6 +265,7 @@ namespace SpatialQuery {
     }
 
     const IslandGraph::Graph* graph{};
+    const SP::PairTypeRow* pairTypes{};
     const SP::ManifoldRow* manifold{};
     const SP::ZManifoldRow* zManifold{};
     std::shared_ptr<IIDResolver> ids{};

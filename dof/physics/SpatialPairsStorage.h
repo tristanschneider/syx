@@ -51,16 +51,18 @@ namespace SP {
     uint32_t size{};
   };
   struct ZContactManifold {
-    void clear() {
-      info.reset();
-    }
-
     bool isTouching() const;
+    void clear();
+    bool isSet() const;
 
-    //Populated if contact constraint solving on the Z axis is desired
-    std::optional<ZInfo> info;
+    //Valid if SP::PairTypeRow indicates ContactZ
+    ZInfo info;
   };
   struct ConstraintManifold {
+    bool shouldSolve() const {
+      return common.lambdaMin < common.lambdaMax;
+    }
+
     Constraints::ConstraintSide sideA;
     Constraints::ConstraintSide sideB;
     Constraints::ContraintCommon common;
@@ -70,6 +72,15 @@ namespace SP {
     ContactZ,
     Constraint,
   };
+  constexpr bool isContactPair(PairType t) {
+    switch(t) {
+    case PairType::ContactXY:
+    case PairType::ContactZ:
+      return true;
+    default:
+      return false;
+    }
+  }
 
   //Points at the source of truth for the object's transform and velocity
   struct ObjA : Row<ElementRef> {};
