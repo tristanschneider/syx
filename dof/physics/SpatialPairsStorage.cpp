@@ -37,49 +37,74 @@ namespace SP {
     return entryIndex;
   }
 
-  //TODO: finish this
-  /*
-  template<class PairT>
+  struct ContactAdapter {
+    std::pair<ElementRef, ElementRef> unwrapGain(const Broadphase::SweepCollisionPair& pair) const {
+      return std::make_pair(pair.a, pair.b);
+    }
+
+    IslandGraph::Graph::ConstEdgeIterator unwrapLoss(const IslandGraph::Graph& graph, const Broadphase::SweepCollisionPair& pair) const {
+      auto edge = graph.findEdge(pair.a, pair.b);
+      while(edge != graph.edgesEnd()) {
+        switch(pairTypes.at(*edge)) {
+          case PairType::ContactXY:
+          case PairType::ContactZ:
+            return edge.toEdgeIterator();
+          default:
+            ++edge;
+            continue;
+        }
+      }
+      return edge.toEdgeIterator();
+    }
+
+    const PairTypeRow& pairTypes;
+  };
+
+  struct ConstraintAdapter {
+    std::pair<ElementRef, ElementRef> unwrapGain(const Constraints::ConstraintPair& pair) const {
+      return std::make_pair(pair.a, pair.b);
+    }
+
+    IslandGraph::Graph::ConstEdgeIterator unwrapLoss(const IslandGraph::Graph& graph, const Constraints::ConstraintStorage& storage) const {
+      return { &graph, static_cast<uint32_t>(storage.storageIndex) };
+    }
+  };
+
+  template<class GainT, class LossT, class AdapterT>
   void trackEdges(
-    const std::vector<PairT>& gained,
-    const std::vector<PairT>& lost,
+    const std::vector<GainT>& gained,
+    const std::vector<LossT>& lost,
     IslandGraph::Graph& graph,
     ITableModifier& pairStorageModifier,
     PairType type,
     ObjA& rowA,
     ObjB& rowB,
     PairTypeRow& rowType,
-    std::pair<ElementRef, ElementRef>(*pairUnwrapper)(const PairT&)) {
+    const AdapterT& adapter
+  ) {
     //Add new edges and spatial pairs for all new pairs
     //Multiple edges may exist for the same pair for constraint type edges
     //It is expected that there is only a single edge for contact types
-    for(const PairT& gain : gained) {
-      auto [a, b] = pairUnwrapper(gain);
+    for(const GainT& gain : gained) {
+      auto [a, b] = adapter.unwrapGain(gain);
       addIslandEdge(pairStorageModifier, graph, rowA, rowB, rowType, a, b, type);
     }
 
     //Remove all edges corresponding to the lost pairs
-    for(const auto& loss : changes.mLost) {
-      const ElementRef a = loss.a;
-      const ElementRef b = loss.b;
-      auto edge = graph.findEdge(a, b);
-      if(edge != graph.edgesEnd()) {
+    for(const auto& loss : lost) {
+      const IslandGraph::Graph::ConstEdgeIterator edge = adapter.unwrapLoss(graph, loss);
+      if(edge != graph.cEdgesEnd()) {
         //Mark the spatial pair as removed
-        if(objA->size() > *edge) {
-          objA->at(*edge) = objB->at(*edge) = {};
+        if(rowA.size() > *edge) {
+          rowA.at(*edge) = rowB.at(*edge) = {};
         }
 
         //Remove the graph edge
-        IslandGraph::removeEdge(graph, edge.toEdgeIterator());
-      }
-      else {
-        //This can happen if one of the nodes was destroyed because the broadphase reports the loss
-        //after the island graph removes the node. If it happened while both exist something went wrong with pair tracking
-        assert(!a || !b);
+        IslandGraph::removeEdge(graph, edge);
       }
     }
   }
-  */
+
   void updateSpatialPairsFromBroadphase(IAppBuilder& builder) {
     auto task = builder.createTask();
     task.setName("update spatial pairs");
@@ -88,48 +113,20 @@ namespace SP {
     auto dstModifier = task.getModifierForTable(dstTable);
     auto ids = task.getIDResolver();
     auto broadphaseChanges = task.query<SharedRow<SweepNPruneBroadphase::PairChanges>>();
+    auto constraintChanges = task.query<Constraints::ConstraintChangesRow>();
 
-    task.setCallback([dstQuery, dstModifier, ids, broadphaseChanges](AppTaskArgs&) mutable {
+    task.setCallback([dstQuery, dstModifier, ids, broadphaseChanges, constraintChanges](AppTaskArgs&) mutable {
       auto [objA, objB, pairType, islandGraph] = dstQuery.get(0);
       IslandGraph::Graph& graph = islandGraph->at();
       for(size_t t = 0; t < broadphaseChanges.size(); ++t) {
         SweepNPruneBroadphase::PairChanges& changes = broadphaseChanges.get<0>(t).at();
-
-        //Add new edges and spatial pairs for all new pairs
-        for(size_t i = 0; i < changes.mGained.size(); ++i) {
-          const auto& gain = changes.mGained[i];
-          const ElementRef a = gain.a;
-          const ElementRef b = gain.b;
-          auto it = graph.findEdge(a, b);
-          //This is a hack that shouldn't happen but sometimes the broadphase seems to report duplicates
-          if(it == graph.edgesEnd()) {
-            addIslandEdge(*dstModifier, graph, *objA, *objB, *pairType, a, b, PairType::ContactXY);
-          }
-          else {
-            assert(false);
-          }
-        }
-
-        //Remove all edges corresponding to the lost pairs
-        for(const auto& loss : changes.mLost) {
-          const ElementRef a = loss.a;
-          const ElementRef b = loss.b;
-          auto edge = graph.findEdge(a, b);
-          if(edge != graph.edgesEnd()) {
-            //Mark the spatial pair as removed
-            if(objA->size() > *edge) {
-              objA->at(*edge) = objB->at(*edge) = {};
-            }
-
-            //Remove the graph edge
-            IslandGraph::removeEdge(graph, edge.toEdgeIterator());
-          }
-          else {
-            //This can happen if one of the nodes was destroyed because the broadphase reports the loss
-            //after the island graph removes the node. If it happened while both exist something went wrong with pair tracking
-            assert(!a || !b);
-          }
-        }
+        trackEdges(changes.mGained, changes.mLost, graph, *dstModifier, PairType::ContactXY, *objA, *objB, *pairType, ContactAdapter{ *pairType });
+      }
+      for(size_t t = 0; t < constraintChanges.size(); ++t) {
+        Constraints::ConstraintChanges changes = constraintChanges.get<0>(t).at();
+        trackEdges(changes.gained, changes.lost, graph, *dstModifier, PairType::Constraint, *objA, *objB, *pairType, ConstraintAdapter{});
+        changes.gained.clear();
+        changes.lost.clear();
       }
     });
     builder.submitTask(std::move(task));
@@ -163,7 +160,7 @@ namespace SP {
     IslandGraph::Graph& graph;
     std::shared_ptr<IIDResolver> resolver;
   };
-  constexpr size_t TEST = sizeof(ElementRef);
+
   std::shared_ptr<IStorageModifier> createStorageModifier(RuntimeDatabaseTaskBuilder& task) {
     return std::make_shared<StorageModifier>(task);
   }

@@ -75,6 +75,7 @@ namespace Constraints {
       storageIndex = index;
     }
 
+    //TODO: could be uint32_t
     //Entry for this constraint in SpatialPairsStorage
     size_t storageIndex{ std::numeric_limits<size_t>::max() };
   };
@@ -144,7 +145,10 @@ namespace Constraints {
     std::vector<OwnedConstraint> constraints;
   };
 
-  //Populated by a caller creating or removing constraints via IConstraintStorageModifier
+  //Gains populated by a caller creating or removing constraints via IConstraintStorageModifier
+  //Losses populated by garbage collection
+  //Cleared by SpatialPairsStorage
+  //TODO: maybe simpler if it was all populated and cleared in AssignStorage/GC
   struct ConstraintChanges {
     std::vector<ConstraintPair> gained;
     std::vector<ConstraintStorage> lost;

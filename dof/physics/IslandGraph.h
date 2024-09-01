@@ -122,11 +122,11 @@ namespace IslandGraph {
       using reference         = const EdgeUserdata&;
       using iterator = ConstEdgeIterator;
 
-      reference operator*() {
+      reference operator*() const {
         return graph->edges[edge].data;
       }
 
-      pointer operator->() {
+      pointer operator->() const {
         return &operator*();
       }
 
@@ -473,6 +473,10 @@ namespace IslandGraph {
 
     NodePairEdgeIterator edgesEnd() const {
       return { this, INVALID, INVALID };
+    }
+
+    ConstEdgeIterator cEdgesEnd() const {
+      return { this, INVALID };
     }
 
     NodeIterator nodesEnd() {
