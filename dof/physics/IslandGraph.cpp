@@ -560,6 +560,21 @@ namespace IslandGraph {
     return { this, it != nodeMappings.end() ? it->second.node : INVALID };
   }
 
+  Graph::ConstNodeIterator Graph::findNode(uint32_t raw) const {
+    return nodes.size() > raw ? ConstNodeIterator{ this, raw } : nodesEnd();
+  }
+
+  Graph::ConstEdgeIterator Graph::findEdge(uint32_t raw) const {
+    return edges.size() > raw ? ConstEdgeIterator{ this, raw } : cEdgesEnd();
+  }
+
+  std::pair<NodeUserdata, NodeUserdata> Graph::ConstEdgeIterator::getNodes() const {
+    const auto& e = graph->edges[edge];
+    const NodeUserdata a = graph->nodes.size() > e.nodeA ? graph->nodes[e.nodeA].data : NodeUserdata{};
+    const NodeUserdata b = graph->nodes.size() > e.nodeB ? graph->nodes[e.nodeB].data : NodeUserdata{};
+    return std::make_pair(a, b);
+  }
+
   Graph::NodePairEdgeIterator Graph::findEdge(const NodeUserdata& a, const NodeUserdata& b) const {
     //The edge will be in the list of A and B, arbitrarily look in A
     //If this is used often enough it may be worth storing the size so the smaller one can be traversed

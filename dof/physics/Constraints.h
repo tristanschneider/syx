@@ -8,6 +8,7 @@
 
 class IAppBuilder;
 class RuntimeDatabaseTaskBuilder;
+struct PhysicsAliases;
 
 namespace Constraints {
   struct ConstraintPair {
@@ -15,6 +16,10 @@ namespace Constraints {
     ElementRef a, b;
   };
 }
+
+namespace ConstraintSolver {
+  struct SolverGlobals;
+};
 
 namespace std {
   template<>
@@ -80,12 +85,25 @@ namespace Constraints {
     //Entry for this constraint in SpatialPairsStorage
     size_t storageIndex{ std::numeric_limits<size_t>::max() };
   };
+  //Constraint is the low level solving mechanism, joint is a higher level description of the constraints the caller wants
+  struct CustomJoint {};
+  //TODO: is this ever useful compared to a linear X and Y constraint?
+  struct PinJoint {
+    glm::vec2 localCenterToPinA{};
+    glm::vec2 localCenterToPinB{};
+    float distance{};
+  };
+  struct JointVariant {
+    using Variant = std::variant<CustomJoint, PinJoint>;
+    Variant data;
+  };
 
   //TODO: does the row make sense or should it just be what was in the IConstraintStorageModifier::insert?
   struct ExternalTargetRow : Row<ExternalTarget> {};
   struct ConstraintSideRow : Row<ConstraintSide> {};
   struct ConstraintCommonRow : Row<ContraintCommon> {};
   struct ConstraintStorageRow : Row<ConstraintStorage> {};
+  struct JointRow : Row<JointVariant> {};
 
   //A constraint definition must have two targets, of which one can be "NoTarget"
   using ExternalTargetRowAlias = QueryAlias<ExternalTargetRow>;
@@ -93,6 +111,7 @@ namespace Constraints {
   using ConstraintSideRowAlias = QueryAlias<ConstraintSideRow>;
   using ConstraintCommonRowAlias = QueryAlias<ConstraintCommonRow>;
   using ConstraintStorageRowAlias = QueryAlias<ConstraintStorageRow>;
+  using JointRowAlias = QueryAlias<JointRow>;
 
   struct Rows;
 
@@ -106,6 +125,7 @@ namespace Constraints {
     ConstraintSideRowAlias sideA, sideB;
     ConstraintCommonRowAlias common;
     ConstraintStorageRowAlias storage;
+    JointRowAlias joint;
   };
 
   //Resolved version of all of the aliases in definition
@@ -198,6 +218,7 @@ namespace Constraints {
   //The constraint equivalent of a narrowphase for collision detection
   //This populates the ConstraintManifold for all manually added constraints
   void constraintNarrowphase(IAppBuilder& builder);
+  void constraintNarrowphase(IAppBuilder& builder, const PhysicsAliases& aliases, const ConstraintSolver::SolverGlobals& globals);
   void garbageCollect(IAppBuilder& builder);
 
   //TODO: call in simulation

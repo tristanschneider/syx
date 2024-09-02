@@ -141,6 +141,8 @@ namespace IslandGraph {
         return temp;
       }
 
+      std::pair<NodeUserdata, NodeUserdata> getNodes() const;
+
       bool operator==(const iterator& _Right) const {
           return edge == _Right.edge;
       }
@@ -470,6 +472,8 @@ namespace IslandGraph {
     NodeIterator findNode(const NodeUserdata& node);
     NodePairEdgeIterator findEdge(const NodeUserdata& a, const NodeUserdata& b) const;
     ConstNodeIterator findNode(const NodeUserdata& node) const;
+    ConstNodeIterator findNode(uint32_t raw) const;
+    ConstEdgeIterator findEdge(uint32_t raw) const;
 
     NodePairEdgeIterator edgesEnd() const {
       return { this, INVALID, INVALID };

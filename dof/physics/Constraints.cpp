@@ -6,6 +6,10 @@
 #include "SpatialPairsStorage.h"
 #include "generics/Enum.h"
 #include "generics/Container.h"
+#include "Physics.h"
+#include "TransformResolver.h"
+#include "Geometric.h"
+#include "ConstraintSolver.h"
 
 namespace Constraints {
   const TableConstraintDefinitions* getOrAssertDefinitions(RuntimeDatabaseTaskBuilder& task, const TableID& table) {
@@ -276,6 +280,7 @@ namespace Constraints {
       , common{ getOrAssert(definition.common.read(), task, table) }
       , stableA{ &task.query<const StableIDRow>(table).get<0>(0) }
       , storage{ getOrAssert(definition.storage, task, table) }
+      , joints{ getOrAssert(definition.joint.read(), task, table) }
     {
       if(definition.sideA) {
         sideA = getOrAssert(definition.sideA.read(), task, table);
@@ -291,36 +296,92 @@ namespace Constraints {
     const ConstraintCommonRow* common{};
     const StableIDRow* stableA{};
     const ConstraintStorageRow* storage{};
+    const JointRow* joints{};
+  };
+
+  struct ConfigureJoint {
+    void operator()(const CustomJoint&) const {
+        manifold->sideA = table.sideA ? table.sideA->at(i) : ConstraintSide{};
+        manifold->sideB = table.sideB ? table.sideB->at(i) : ConstraintSide{};
+        manifold->common = table.common->at(i);
+    }
+
+    void operator()(const PinJoint& pin) const {
+      const pt::Transform ta = transform.resolve(a);
+      const pt::Transform tb = transform.resolve(b);
+      const glm::vec2 worldA = ta.transformPoint(pin.localCenterToPinA);
+      const glm::vec2 worldB = tb.transformPoint(pin.localCenterToPinB);
+      glm::vec2 axis = worldA - worldB;
+      const float error = glm::length(axis);
+      if(error < Geo::EPSILON) {
+        // Arbitrary axis 
+        axis = glm::vec2{ 1, 0 };
+      }
+      manifold->sideA.linear = axis;
+      manifold->sideA.angular = Geo::cross(pin.localCenterToPinA, manifold->sideA.linear);
+      manifold->sideB.linear = -axis;
+      manifold->sideB.angular = Geo::cross(pin.localCenterToPinB, manifold->sideB.linear);
+      const float bias = Geo::reduce(error + pin.distance, *globals.slop);
+      manifold->common.bias = bias**globals.biasTerm;
+      manifold->common.lambdaMin = std::numeric_limits<float>::min();
+      manifold->common.lambdaMax = std::numeric_limits<float>::max();
+    }
+
+    const ConstraintTable& table;
+    SP::ConstraintManifold* manifold;
+    pt::TransformResolver& transform;
+    size_t i{};
+    //TODO: optimize for self target lookup
+    ElementRef a, b;
+    const ConstraintSolver::SolverGlobals& globals;
   };
 
   struct SpatialPairsTable {
     SP::ConstraintRow* manifold{};
     SP::PairTypeRow* pairType{};
   };
+  struct ConfigureArgs {
+    const ConstraintTable& table;
+    SpatialPairsTable& spatialPairs;
+    const IslandGraph::Graph& graph;
+    pt::TransformResolver& transformResolver;
+    const ConstraintSolver::SolverGlobals& globals;
+  };
 
   //Copies the constraint information as configured by gameplay over to the SpatialPairsStorage
-  void configureTable(const ConstraintTable& table, SpatialPairsTable& spatialPairs) {
-    if(std::holds_alternative<NoTarget>(table.targetA)) {
+  void configureTable(ConfigureArgs& args) {
+    if(std::holds_alternative<NoTarget>(args.table.targetA)) {
       assert(false && "side A must always point at something");
       return;
     }
-    for(size_t i = 0; i < table.storage->size(); ++i) {
-      const ConstraintStorage& storage = table.storage->at(i);
+    ConfigureJoint joint{
+      .table{ args.table },
+      .manifold{ nullptr },
+      .transform{ args.transformResolver },
+      .globals{ args.globals }
+    };
+
+    for(size_t i = 0; i < args.table.storage->size(); ++i) {
+      const ConstraintStorage& storage = args.table.storage->at(i);
       if(!storage.isValid()) {
         continue;
       }
-      SP::ConstraintManifold& manifold = spatialPairs.manifold->at(storage.storageIndex);
+      SP::ConstraintManifold& manifold = args.spatialPairs.manifold->at(storage.storageIndex);
+      const auto& edge = args.graph.findEdge(storage.storageIndex);
+      if(edge == args.graph.cEdgesEnd()) {
+        continue;
+      }
+      const auto [a, b] = edge.getNodes();
 
       //Solve if target is self or target is a valid external target
-      bool shouldSolve = true;
-      if(const auto* targets = std::get_if<const ExternalTargetRow*>(&table.targetA)) {
-        shouldSolve = static_cast<bool>((*targets)->at(i).target);
-      }
+      bool shouldSolve = static_cast<bool>(a);
 
       if(shouldSolve) {
-        manifold.sideA = table.sideA ? table.sideA->at(i) : ConstraintSide{};
-        manifold.sideB = table.sideB ? table.sideB->at(i) : ConstraintSide{};
-        manifold.common = table.common->at(i);
+        joint.manifold = &manifold;
+        joint.a = a;
+        joint.b = b;
+        joint.i = i;
+        std::visit(joint, args.table.joints->at(i).data);
       }
       else {
         manifold.common.lambdaMin = manifold.common.lambdaMax = 0.0f;
@@ -329,18 +390,27 @@ namespace Constraints {
   }
 
   //TODO: is this complexity worth it compared to having the existing narrowphase switch off of the pairtype?
-  void constraintNarrowphase(IAppBuilder& builder) {
+  void constraintNarrowphase(IAppBuilder& builder, const PhysicsAliases& aliases, const ConstraintSolver::SolverGlobals& globals) {
     auto task = builder.createTask();
     std::vector<ConstraintTable> constraintTables = queryConstraintTables<ConstraintTable>(task);
     auto sp = task.query<const SP::IslandGraphRow, SP::PairTypeRow, SP::ConstraintRow>();
     assert(sp.size());
     auto [g, p, c] = sp.get(0);
     SpatialPairsTable spatialPairs{ c, p };
+    const IslandGraph::Graph* graph = &g->at();
+    pt::TransformResolver tr{ task, aliases };
 
-    task.setCallback([constraintTables, spatialPairs](AppTaskArgs&) mutable {
+    task.setCallback([constraintTables, spatialPairs, graph, tr, globals](AppTaskArgs&) mutable {
       //TODO: multithreaded task
       for(const ConstraintTable& table : constraintTables) {
-        configureTable(table, spatialPairs);
+        ConfigureArgs cargs{
+          .table{ table },
+          .spatialPairs{ spatialPairs },
+          .graph{ *graph },
+          .transformResolver{ tr },
+          .globals{ globals }
+        };
+        configureTable(cargs);
       }
     });
 

@@ -211,6 +211,26 @@ namespace Geo {
     return { result.x, result.y };
   }
 
+  inline glm::vec2 rotate(const glm::vec2& basisX, const glm::vec2& p) {
+    //[basisX.x, -basisX.y][p.x]
+    //[basisX.y, basisX.x ][p.y]
+    return { basisX.x*p.x - basisX.y*p.y, basisX.y*p.x + basisX.x*p.y };
+  }
+
+  inline glm::vec2 normalizedOrAny(const glm::vec2& v, float E = EPSILON) {
+    const float l = glm::length(v);
+    return l > E ? v/l : glm::vec2{ 1, 0 };
+  }
+
+  //Make a value smaller towards zero without passing it
+  //v is positive or negative and amount is assumed positive as the amount to reduce v towards zero
+  inline float reduce(float v, float amount) {
+    if(v > 0) {
+      return std::max(0.0f, v - amount);
+    }
+    return std::min(0.0f, v + amount);
+  }
+
   bool unitAABBLineIntersect(const glm::vec2& origin, const glm::vec2& dir, float* resultTIn, float* resultTOut);
   glm::vec2 getNormalFromUnitAABBIntersect(const glm::vec2& intersect);
 }
