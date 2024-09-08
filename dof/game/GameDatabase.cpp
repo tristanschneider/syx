@@ -400,6 +400,10 @@ namespace GameDatabase {
     setName<IsPlayer>(builder, { "Players" });
     setName<Row<Camera>>(builder, { "Cameras" });
 
+    const auto defaultQuadMass = Geo::computeQuadMass(1.0f, 1.0f, 1.0f);
+    setDefaultValue<ConstraintSolver::MassRow, Shapes::SharedRectangleRow>(builder, "rect", defaultQuadMass);
+    setDefaultValue<Tags::ScaleXRow>(builder, "sx", 1.0f);
+    setDefaultValue<Tags::ScaleYRow>(builder, "sy", 1.0f);
     setDefaultValue<FloatRow<Tags::Rot, Tags::CosAngle>>(builder, "setDefault Rot", 1.0f);
     setDefaultValue<FloatRow<Tags::GRot, Tags::CosAngle>>(builder, "setDefault GRot", 1.0f);
     setDefaultValue<Narrowphase::CollisionMaskRow>(builder, "setDefault Mask", uint8_t(~0));

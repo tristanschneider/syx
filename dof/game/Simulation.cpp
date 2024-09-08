@@ -107,6 +107,7 @@ void Simulation::initScheduler(IAppBuilder& builder) {
 
 void Simulation::init(IAppBuilder& builder) {
   GameDatabase::configureDefaults(builder);
+  StatEffect::init(builder);
   PhysicsSimulation::init(builder);
   Player::init(builder);
 

@@ -10,6 +10,8 @@ namespace ConstraintStatEffect {
   struct ConstraintCommon : Constraints::ConstraintCommonRow {};
   struct ConstraintA : Constraints::ConstraintSideRow {};
   struct ConstraintB : Constraints::ConstraintSideRow {};
+  struct JointRow : Constraints::JointRow {};
+  struct StorageRow : Constraints::ConstraintStorageRow {};
   struct TickTracker {
     size_t ticksSinceSweep{};
   };
@@ -18,6 +20,7 @@ namespace ConstraintStatEffect {
   //Uses global list to inform physics system of creation and removal
   //Physics system handles the actual constraint logic through the existence of the tables
   void processStat(IAppBuilder& builder);
+  void initStat(IAppBuilder& builder);
 
   class Builder : public StatEffect::BuilderBase {
   public:
@@ -32,10 +35,13 @@ namespace ConstraintStatEffect {
 
 struct ConstraintStatEffectTable : StatEffectBase<
   Constraints::TableConstraintDefinitionsRow,
+  Constraints::ConstraintChangesRow,
   ConstraintStatEffect::TargetA,
   ConstraintStatEffect::TargetB,
   ConstraintStatEffect::ConstraintCommon,
   ConstraintStatEffect::ConstraintA,
   ConstraintStatEffect::ConstraintB,
+  ConstraintStatEffect::JointRow,
+  ConstraintStatEffect::StorageRow,
   ConstraintStatEffect::TickTrackerRow
 > {};

@@ -71,6 +71,30 @@ namespace Constraints {
     return selected = range, *this;
   }
 
+  Builder& Builder::setJointType(const JointVariant& joint) {
+    for(auto i : selected) {
+      rows.joint->at(i) = joint;
+    }
+    return *this;
+  }
+
+  Builder& Builder::setTargets(const ElementRef& a, const ElementRef& b) {
+    auto* targetA = std::get_if<ExternalTargetRow*>(&rows.targetA);
+    auto* targetB = std::get_if<ExternalTargetRow*>(&rows.targetB);
+    //This only makes sense to call if there is a place to store the specified target
+    assert((targetA && *targetA) || !a);
+    assert((targetB && *targetB) || !b);
+    for(auto i : selected) {
+      if(a && targetA) {
+        (*targetA)->at(i) = Constraints::ExternalTarget{ a };
+      }
+      if(b && targetB) {
+        (*targetB)->at(i) = Constraints::ExternalTarget{ b };
+      }
+    }
+    return *this;
+  }
+
   class ConstraintStorageModifier : public IConstraintStorageModifier {
   public:
     ConstraintStorageModifier(
@@ -88,6 +112,8 @@ namespace Constraints {
     }
 
     void insert(size_t tableIndex, const ElementRef& a, const ElementRef& b) final {
+      //One-sided constraints are okay but if so they can only be A. If A is emptpy the caller messed up
+      assert(a);
       const ConstraintPair pair{ a, b };
       //Immediately clear any storage that may have been here. Ownership will be managed by GC
       //If it was already pending, the first will be created, then the second, then the first cleared by GC
@@ -135,7 +161,7 @@ namespace Constraints {
     auto definitions = task.query<const TableConstraintDefinitionsRow>();
     std::vector<T> constraintTables;
     constraintTables.reserve(definitions.size());
-    for(size_t t = 0; t < constraintTables.size(); ++t) {
+    for(size_t t = 0; t < definitions.size(); ++t) {
       auto [def] = definitions.get(t);
       for(size_t i = 0; i < def->at().definitions.size(); ++i) {
         constraintTables.push_back(T{ task, i, def->at().definitions[i], definitions.matchingTableIDs[t] });
@@ -144,22 +170,24 @@ namespace Constraints {
     return constraintTables;
   }
 
-  void initDefinition(IAppBuilder& builder) {
-    auto temp = builder.createTask();
-    temp.discard();
-    auto defs = temp.query<TableConstraintDefinitionsRow, ConstraintChangesRow>();
-    for(size_t t = 0; t < defs.size(); ++t) {
-      auto [def, changes] = defs.get(t);
-      ConstraintChanges& c = changes->at();
-      TableConstraintDefinitions& d = def->at();
-      c.pendingConstraints.resize(d.definitions.size());
-      c.trackedConstraints.resize(d.definitions.size());
-    }
+  void init(IAppBuilder& builder) {
+    auto task = builder.createTask();
+    auto defs = task.query<TableConstraintDefinitionsRow, ConstraintChangesRow>();
+
+    task.setCallback([defs](AppTaskArgs&) mutable {
+      for(size_t t = 0; t < defs.size(); ++t) {
+        auto [def, changes] = defs.get(t);
+        ConstraintChanges& c = changes->at();
+        TableConstraintDefinitions& d = def->at();
+        c.pendingConstraints.resize(d.definitions.size());
+        c.trackedConstraints.resize(d.definitions.size());
+      }
+    });
+
+    builder.submitTask(std::move(task.setName("init constraints")));
   }
 
   void assignStorage(IAppBuilder& builder) {
-    initDefinition(builder);
-
     auto task = builder.createTask();
     std::vector<ConstraintOwnershipTable> constraints = queryConstraintTables<ConstraintOwnershipTable>(task);
     auto sp = task.query<const SP::IslandGraphRow, const SP::PairTypeRow, SP::ConstraintRow>();
@@ -317,13 +345,16 @@ namespace Constraints {
         // Arbitrary axis 
         axis = glm::vec2{ 1, 0 };
       }
+      else {
+        axis /= error;
+      }
       manifold->sideA.linear = axis;
       manifold->sideA.angular = Geo::cross(pin.localCenterToPinA, manifold->sideA.linear);
       manifold->sideB.linear = -axis;
       manifold->sideB.angular = Geo::cross(pin.localCenterToPinB, manifold->sideB.linear);
       const float bias = Geo::reduce(error + pin.distance, *globals.slop);
-      manifold->common.bias = bias**globals.biasTerm;
-      manifold->common.lambdaMin = std::numeric_limits<float>::min();
+      manifold->common.bias = -bias**globals.biasTerm;
+      manifold->common.lambdaMin = std::numeric_limits<float>::lowest();
       manifold->common.lambdaMax = std::numeric_limits<float>::max();
     }
 
@@ -415,5 +446,11 @@ namespace Constraints {
     });
 
     builder.submitTask(std::move(task.setName("constraint narrowphase")));
+  }
+
+  void update(IAppBuilder& builder, const PhysicsAliases& aliases, const ConstraintSolver::SolverGlobals& globals) {
+    Constraints::garbageCollect(builder);
+    Constraints::assignStorage(builder);
+    Constraints::constraintNarrowphase(builder, aliases, globals);
   }
 }

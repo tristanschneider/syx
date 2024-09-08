@@ -86,19 +86,20 @@ namespace StatEffect {
           newBegin = dstSize;
 
           runtimeToTable->stableModifier.resize(dstSize + srcSize, nullptr);
+
           //Publish any newly added ids below
           StatEffect::Global& g = std::get<StatEffect::Global>(toTable.mRows);
-          g.at().newlyAdded.clear();
 
           //Resize the table, then fill in each row
           toTable.visitOne([&](auto& toRow) {
             using RowT = std::decay_t<decltype(toRow)>;
             RowT& fromRow = std::get<RowT>(fromTable.mRows);
-            if constexpr(std::is_same_v<StableIDRow, RowT>) {
-              g.at().newlyAdded.insert(g.at().newlyAdded.end(), fromRow.mElements.begin(), fromRow.mElements.end());
-            }
             visitMoveToRow(fromRow, toRow, newBegin);
           });
+
+          //Notify of all the newly created stable ids from the resize above
+          StableIDRow& stableRow = std::get<StableIDRow>(toTable.mRows);
+          g.at().newlyAdded.insert(g.at().newlyAdded.end(), stableRow.begin() + newBegin, stableRow.end());
 
           //Once all rows in the destination have the desired values, clear the source
           StableElementMappings& srcMappings = db.getMappings();
@@ -130,6 +131,10 @@ namespace StatEffect {
     temp.discard();
   }
 
+  void init(IAppBuilder& builder) {
+    ConstraintStatEffect::initStat(builder);
+  }
+
   void createTasks(IAppBuilder& builder) {
     configureTables(builder);
 
@@ -153,6 +158,7 @@ namespace StatEffect {
     AreaForceStatEffect::processStat(builder);
     FollowTargetByVelocityStatEffect::processStat(builder);
     FragmentBurstStatEffect::processStat(builder);
+    ConstraintStatEffect::processStat(builder);
 
     //Goes last since nothing can run in parallel with this.
     //TODO: get rid of the need for this with only specific tasks

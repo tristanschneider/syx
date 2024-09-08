@@ -66,6 +66,7 @@ namespace StatEffect {
       }
 
       toRemove.clear();
+      query.tryGetSingletonElement()->newlyAdded.clear();
     });
 
     builder.submitTask(std::move(task));

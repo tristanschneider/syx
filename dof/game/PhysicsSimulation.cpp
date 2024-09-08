@@ -12,6 +12,7 @@
 #include "shapes/DefaultShapes.h"
 #include "shapes/ShapeRegistry.h"
 #include "shapes/Rectangle.h"
+#include "Constraints.h"
 
 namespace PhysicsSimulation {
   using PosX = FloatRow<Tags::Pos, Tags::X>;
@@ -148,6 +149,7 @@ namespace PhysicsSimulation {
     ShapeRegistry::IShapeRegistry* reg = ShapeRegistry::getMutable(temp);
     Shapes::registerDefaultShapes(*reg, getRectDefinition());
     ShapeRegistry::finalizeRegisteredShapes(builder);
+    Constraints::init(builder);
   }
 
   void initFromConfig(IAppBuilder& builder) {
@@ -211,6 +213,7 @@ namespace PhysicsSimulation {
     Physics::integrateVelocity(builder, aliases);
     Physics::applyDampingMultiplier(builder, aliases, config.linearDragMultiplier, config.angularDragMultiplier);
     SweepNPruneBroadphase::updateBroadphase(builder, _getBoundariesConfig(builder), aliases);
+    Constraints::update(builder, aliases, globals);
 
     Narrowphase::generateContactsFromSpatialPairs(builder, aliases, TableAdapters::getThreadCount(temp));
     ConstraintSolver::solveConstraints(builder, aliases, globals);

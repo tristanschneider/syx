@@ -137,6 +137,7 @@ namespace Constraints {
     ConstraintSideRow* sideA{};
     ConstraintSideRow* sideB{};
     ConstraintCommonRow* common{};
+    JointRow* joint{};
   };
 
   struct TableConstraintDefinitions {
@@ -209,17 +210,22 @@ namespace Constraints {
     Builder(const Rows& r);
 
     Builder& select(const gnx::IndexRange& range);
+    Builder& setJointType(const JointVariant& joint);
+    Builder& setTargets(const ElementRef& a, const ElementRef& b);
 
   private:
     gnx::IndexRange selected;
     Rows rows;
   };
 
+  //Init constraint tables from definitions. Should be called after all tables have had a chance to fill their definitions
+  void init(IAppBuilder& builder);
+
   //The constraint equivalent of a narrowphase for collision detection
   //This populates the ConstraintManifold for all manually added constraints
-  void constraintNarrowphase(IAppBuilder& builder);
   void constraintNarrowphase(IAppBuilder& builder, const PhysicsAliases& aliases, const ConstraintSolver::SolverGlobals& globals);
   void garbageCollect(IAppBuilder& builder);
+  void assignStorage(IAppBuilder& builder);
 
-  //TODO: call in simulation
+  void update(IAppBuilder& builder, const PhysicsAliases& aliases, const ConstraintSolver::SolverGlobals& globals);
 }

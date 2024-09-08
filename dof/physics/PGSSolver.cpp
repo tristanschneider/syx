@@ -232,6 +232,8 @@ namespace PGS {
     ++solver.currentIteration;
     //Done if iteration cap has been reached or solution has reached desired stability
     result.isFinished = solver.currentIteration >= solver.maxIterations || result.remainingError <= solver.maxLambda;
+    //Reset for next iteration
+    result.remainingError = 0.0f;
   }
 
   SolveResult advancePGS(SolveContext& solver) {

@@ -37,4 +37,5 @@ namespace StatEffect {
   //Intended to be used to move newly created thread local effects to the central database
   void moveThreadLocalToCentral(IAppBuilder& builder);
   void createTasks(IAppBuilder& builder);
+  void init(IAppBuilder& builder);
 };

@@ -15,11 +15,12 @@ namespace ConstraintStatEffect {
   Constraints::Rows extractRows(AppTaskArgs& args) {
     ConstraintStatEffectTable& table = getArgs(args).table;
     return {
-      Constraints::Rows::Target{ &std::get<TargetA>(table.mRows) },
-      Constraints::Rows::Target{ &std::get<TargetB>(table.mRows) },
-      &std::get<ConstraintA>(table.mRows),
-      &std::get<ConstraintB>(table.mRows),
-      &std::get<ConstraintCommon>(table.mRows)
+      .targetA{ Constraints::Rows::Target{ &std::get<TargetA>(table.mRows) } },
+      .targetB{ Constraints::Rows::Target{ &std::get<TargetB>(table.mRows) } },
+      .sideA{ &std::get<ConstraintA>(table.mRows) },
+      .sideB{ &std::get<ConstraintB>(table.mRows) },
+      .common{ &std::get<ConstraintCommon>(table.mRows) },
+      .joint{ &std::get<JointRow>(table.mRows) }
     };
   }
 
@@ -43,24 +44,30 @@ namespace ConstraintStatEffect {
 
   //Lets physics system know how to find this
   void configureDefinition(IAppBuilder& builder) {
-    auto temp = builder.createTask();
-    temp.discard();
-    auto q = temp.query<Constraints::TableConstraintDefinitionsRow, TargetA>();
-    for(size_t t = 0; t < q.size(); ++t) {
-      auto [definitions, _] = q.get(t);
-      Constraints::Definition def;
-      def.common = def.common.create<ConstraintCommon>();
-      def.sideA = def.sideA.create<ConstraintA>();
-      def.sideB = def.sideB.create<ConstraintB>();
-      def.targetA = Constraints::ExternalTargetRowAlias::create<TargetA>();
-      def.targetB = Constraints::ExternalTargetRowAlias::create<TargetB>();
-      definitions->at().definitions.push_back(def);
-    }
+    auto task = builder.createTask();
+    auto q = task.query<Constraints::TableConstraintDefinitionsRow, TargetA>();
+    task.setCallback([q](AppTaskArgs&) mutable {
+      for(size_t t = 0; t < q.size(); ++t) {
+        auto [definitions, _] = q.get(t);
+        Constraints::Definition def;
+        def.common = def.common.create<ConstraintCommon>();
+        def.sideA = def.sideA.create<ConstraintA>();
+        def.sideB = def.sideB.create<ConstraintB>();
+        def.targetA = Constraints::ExternalTargetRowAlias::create<TargetA>();
+        def.targetB = Constraints::ExternalTargetRowAlias::create<TargetB>();
+        def.joint = Constraints::JointRowAlias::create<ConstraintStatEffect::JointRow>();
+        def.storage = def.storage.create<ConstraintStatEffect::StorageRow>();
+        definitions->at().definitions.push_back(def);
+      }
+    });
+    builder.submitTask(std::move(task.setName("init constraint stat")));
+  }
+
+  void initStat(IAppBuilder& builder) {
+    configureDefinition(builder);
   }
 
   void processStat(IAppBuilder& builder) {
-    configureDefinition(builder);
-
     auto task = builder.createTask();
     task.setName("constraint stat");
     auto q = task.query<

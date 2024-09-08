@@ -131,7 +131,7 @@ namespace SP {
         trackEdges(changes.mGained, changes.mLost, graph, *dstModifier, PairType::ContactXY, *objA, *objB, *pairType, ContactAdapter{ *pairType });
       }
       for(size_t t = 0; t < constraintChanges.size(); ++t) {
-        Constraints::ConstraintChanges changes = constraintChanges.get<0>(t).at();
+        Constraints::ConstraintChanges& changes = constraintChanges.get<0>(t).at();
         trackEdges(changes.gained, changes.lost, graph, *dstModifier, PairType::Constraint, *objA, *objB, *pairType, ConstraintAdapter{});
         changes.gained.clear();
         changes.lost.clear();
