@@ -60,6 +60,18 @@ namespace Geo {
     return a.x*b.y - a.y*b.x;
   }
 
+  inline float crossXAxis(const glm::vec2& a, float scale) {
+    //[ax] x [s] = [ax*0 - ay*s]
+    //[ay]   [0]
+    return -a.y*scale;
+  }
+
+  inline float crossYAxis(const glm::vec2& a, float scale) {
+    //[ax] x [0] = [ax*s - ay*0]
+    //[ay]   [s]
+    return a.x*scale;
+  }
+
   constexpr float hasDifferentSign(float a, float b) {
     //Positive times positive is positive (same)
     //Negative times negative is positive (same)

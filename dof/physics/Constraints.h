@@ -87,14 +87,27 @@ namespace Constraints {
   };
   //Constraint is the low level solving mechanism, joint is a higher level description of the constraints the caller wants
   struct CustomJoint {};
-  //TODO: is this ever useful compared to a linear X and Y constraint?
-  struct PinJoint {
+  //One-dimensional constraint acting along the vector between the two anchor points to pin them together
+  //Less stable than the 2D version
+  struct PinJoint1D {
     glm::vec2 localCenterToPinA{};
     glm::vec2 localCenterToPinB{};
     float distance{};
   };
+  struct PinJoint2D {
+    glm::vec2 localCenterToPinA{};
+    glm::vec2 localCenterToPinB{};
+    float distance{};
+  };
+  //Allow no relative motion between the two bodies. The pins should match at a location that
+  //causes the desired distance between the objects and the target orientation is the one that makes the two pins exactly face each-other
+  struct WeldJoint {
+    glm::vec2 localCenterToPinA{};
+    glm::vec2 localCenterToPinB{};
+    float allowedRotationRad{};
+  };
   struct JointVariant {
-    using Variant = std::variant<CustomJoint, PinJoint>;
+    using Variant = std::variant<CustomJoint, PinJoint1D, PinJoint2D, WeldJoint>;
     Variant data;
   };
 

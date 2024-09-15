@@ -12,6 +12,10 @@ namespace pt {
     return pos + Geo::rotate(rot, p);
   }
 
+  glm::vec2 Transform::transformVector(const glm::vec2& v) const {
+    return Geo::rotate(rot, v);
+  }
+
   TransformAlias::TransformAlias(const PhysicsAliases& tables)
     : posX{ tables.posX.read() }
     , posY{ tables.posY.read() }

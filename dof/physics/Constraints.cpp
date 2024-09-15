@@ -329,16 +329,18 @@ namespace Constraints {
 
   struct ConfigureJoint {
     void operator()(const CustomJoint&) const {
-        manifold->sideA = table.sideA ? table.sideA->at(i) : ConstraintSide{};
-        manifold->sideB = table.sideB ? table.sideB->at(i) : ConstraintSide{};
-        manifold->common = table.common->at(i);
+        manifold->sideA[0] = table.sideA ? table.sideA->at(i) : ConstraintSide{};
+        manifold->sideB[0] = table.sideB ? table.sideB->at(i) : ConstraintSide{};
+        manifold->common[0] = table.common->at(i);
     }
 
-    void operator()(const PinJoint& pin) const {
+    void operator()(const PinJoint1D& pin) const {
       const pt::Transform ta = transform.resolve(a);
       const pt::Transform tb = transform.resolve(b);
-      const glm::vec2 worldA = ta.transformPoint(pin.localCenterToPinA);
-      const glm::vec2 worldB = tb.transformPoint(pin.localCenterToPinB);
+      const glm::vec2 aToPin = ta.transformVector(pin.localCenterToPinA);
+      const glm::vec2 worldA = aToPin + ta.pos;
+      const glm::vec2 bToPin = tb.transformVector(pin.localCenterToPinB);
+      const glm::vec2 worldB = bToPin + tb.pos;
       glm::vec2 axis = worldA - worldB;
       const float error = glm::length(axis);
       if(error < Geo::EPSILON) {
@@ -348,14 +350,120 @@ namespace Constraints {
       else {
         axis /= error;
       }
-      manifold->sideA.linear = axis;
-      manifold->sideA.angular = Geo::cross(pin.localCenterToPinA, manifold->sideA.linear);
-      manifold->sideB.linear = -axis;
-      manifold->sideB.angular = Geo::cross(pin.localCenterToPinB, manifold->sideB.linear);
-      const float bias = Geo::reduce(error + pin.distance, *globals.slop);
-      manifold->common.bias = -bias**globals.biasTerm;
-      manifold->common.lambdaMin = std::numeric_limits<float>::lowest();
-      manifold->common.lambdaMax = std::numeric_limits<float>::max();
+      manifold->sideA[0].linear = axis;
+      manifold->sideA[0].angular = Geo::cross(aToPin, manifold->sideA[0].linear);
+      manifold->sideB[0].linear = -axis;
+      manifold->sideB[0].angular = Geo::cross(bToPin, manifold->sideB[0].linear);
+      const float bias = Geo::reduce(error - pin.distance, *globals.slop);
+      manifold->common[0].bias = -bias**globals.biasTerm;
+      manifold->common[0].lambdaMin = std::numeric_limits<float>::lowest();
+      manifold->common[0].lambdaMax = std::numeric_limits<float>::max();
+      manifold->setEnd(1);
+    }
+
+    void operator()(const PinJoint2D& pin) const {
+      const pt::Transform ta = transform.resolve(a);
+      const pt::Transform tb = transform.resolve(b);
+      const glm::vec2 aToPin = ta.transformVector(pin.localCenterToPinA);
+      const glm::vec2 worldA = aToPin + ta.pos;
+      const glm::vec2 bToPin = tb.transformVector(pin.localCenterToPinB);
+      const glm::vec2 worldB = bToPin + tb.pos;
+      glm::vec2 axis = worldA - worldB;
+      float distance = glm::length(axis);
+      //Avoid division by zero below with an arbitrary axis if it is zero
+      if(distance < Geo::EPSILON) {
+        axis = { 1, 0 };
+        distance = 1;
+      }
+      //Error is computed as the distance between the two points but they are solved separately along the x and y axis
+      //Stretch the axis between the points to the target distance and use that to distribute the error between the axes
+      const float error = Geo::reduce(pin.distance - distance, *globals.slop);
+      axis *= error/distance;
+
+      manifold->sideA[0].linear = { 1, 0 };
+      manifold->sideA[0].angular = Geo::crossXAxis(aToPin, 1);
+      manifold->sideB[0].linear = { -1, 0 };
+      manifold->sideB[0].angular = Geo::crossXAxis(bToPin, -1);
+
+      manifold->sideA[1].linear = { 0, 1 };
+      manifold->sideA[1].angular = Geo::crossYAxis(aToPin, 1);
+      manifold->sideB[1].linear = { 0, -1 };
+      manifold->sideB[1].angular = Geo::crossYAxis(bToPin, -1);
+
+      manifold->common[0].bias = axis.x**globals.biasTerm;
+      manifold->common[0].lambdaMin = std::numeric_limits<float>::lowest();
+      manifold->common[0].lambdaMax = std::numeric_limits<float>::max();
+
+      manifold->common[1].bias = axis.y**globals.biasTerm;
+      manifold->common[1].lambdaMin = std::numeric_limits<float>::lowest();
+      manifold->common[1].lambdaMax = std::numeric_limits<float>::max();
+
+      manifold->setEnd(2);
+    }
+
+    void operator()(const WeldJoint& pin) const {
+      const pt::Transform ta = transform.resolve(a);
+      const pt::Transform tb = transform.resolve(b);
+      const glm::vec2 aToPin = ta.transformVector(pin.localCenterToPinA);
+      const glm::vec2 worldA = aToPin + ta.pos;
+      const glm::vec2 bToPin = tb.transformVector(pin.localCenterToPinB);
+      const glm::vec2 worldB = bToPin + tb.pos;
+      glm::vec2 axis = worldA - worldB;
+      float distance = glm::length(axis);
+      //Avoid division by zero below with an arbitrary axis if it is zero
+      if(distance < Geo::EPSILON) {
+        axis = { 1, 0 };
+        distance = 1;
+      }
+      //Error is computed as the distance between the two points but they are solved separately along the x and y axis
+      //Stretch the axis between the points to the target distance and use that to distribute the error between the axes
+      const float linearError = Geo::reduce(distance, *globals.slop);
+      axis *= -linearError/distance;
+
+      //Anchors are expected to be pointing each-other completely like --><-- meaning that dot product of -1 would be zero error
+      const glm::vec2 referenceA = glm::normalize(aToPin);
+      //Flip so ideal cos is 1 rather than -1
+      const glm::vec2 referenceB = glm::normalize(-bToPin);
+      const float cosAngle = glm::dot(referenceA, referenceB);
+      const float sinAngle = Geo::cross(aToPin, bToPin);
+      const float angularErrorAbs = cosAngle > 0.0f ? std::acos(cosAngle) : std::acos(-cosAngle) + Geo::PI2;
+      float angularError = Geo::reduce(angularErrorAbs, *globals.slop);
+      if(sinAngle > 0) {
+        angularError = -angularError;
+      }
+
+      manifold->sideA[0].linear = { 1, 0 };
+      manifold->sideA[0].angular = Geo::crossXAxis(aToPin, 1);
+      manifold->sideB[0].linear = { -1, 0 };
+      manifold->sideB[0].angular = Geo::crossXAxis(bToPin, -1);
+
+      manifold->sideA[1].linear = { 0, 1 };
+      manifold->sideA[1].angular = Geo::crossYAxis(aToPin, 1);
+      manifold->sideB[1].linear = { 0, -1 };
+      manifold->sideB[1].angular = Geo::crossYAxis(bToPin, -1);
+
+      //TODO: would be more stable to gradually get stiffer rather than all or nothing like this
+      if(angularErrorAbs > pin.allowedRotationRad) {
+        manifold->sideA[2].linear = {};
+        manifold->sideA[2].angular = 1;
+        manifold->sideB[2].linear = {};
+        manifold->sideB[2].angular = -1;
+
+        manifold->common[2].bias = angularError**globals.biasTerm;
+        manifold->common[2].lambdaMin = std::numeric_limits<float>::lowest();
+        manifold->common[2].lambdaMax = std::numeric_limits<float>::max();
+      }
+      else {
+        manifold->setEnd(2);
+      }
+
+      manifold->common[0].bias = axis.x**globals.biasTerm;
+      manifold->common[0].lambdaMin = std::numeric_limits<float>::lowest();
+      manifold->common[0].lambdaMax = std::numeric_limits<float>::max();
+
+      manifold->common[1].bias = axis.y**globals.biasTerm;
+      manifold->common[1].lambdaMin = std::numeric_limits<float>::lowest();
+      manifold->common[1].lambdaMax = std::numeric_limits<float>::max();
     }
 
     const ConstraintTable& table;
@@ -415,7 +523,7 @@ namespace Constraints {
         std::visit(joint, args.table.joints->at(i).data);
       }
       else {
-        manifold.common.lambdaMin = manifold.common.lambdaMax = 0.0f;
+        manifold.setEnd(0);
       }
     }
   }

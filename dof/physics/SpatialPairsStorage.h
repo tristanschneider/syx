@@ -58,14 +58,30 @@ namespace SP {
     //Valid if SP::PairTypeRow indicates ContactZ
     ZInfo info;
   };
+  //Up to 3 constraints between the pair of objects as configured by Contraints.cpp
+  //Since there are 3 degrees of freedom in 2D more should not be needed
   struct ConstraintManifold {
-    bool shouldSolve() const {
-      return common.lambdaMin < common.lambdaMax;
+    bool shouldSolve(int i = 0) const {
+      return common[i].lambdaMin < common[i].lambdaMax;
     }
 
-    Constraints::ConstraintSide sideA;
-    Constraints::ConstraintSide sideB;
-    Constraints::ContraintCommon common;
+    int size() const {
+      int result = 0;
+      while(shouldSolve(result) && result < 3) {
+        ++result;
+      }
+      return result;
+    }
+
+    //Caller must either fill all constraints or set this on the first sequential constraint from 0 that is not populated
+    //A single constraint would call setEnd(1)
+    void setEnd(int i) {
+      common[i].lambdaMin = common[i].lambdaMax = 0;
+    }
+
+    std::array<Constraints::ConstraintSide, 3> sideA;
+    std::array<Constraints::ConstraintSide, 3> sideB;
+    std::array<Constraints::ContraintCommon, 3> common;
   };
   enum class PairType : uint8_t {
     ContactXY,

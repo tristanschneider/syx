@@ -15,6 +15,7 @@ namespace pt {
   //TODO: should scale factor in to this?
   struct Transform {
     glm::vec2 transformPoint(const glm::vec2& p) const;
+    glm::vec2 transformVector(const glm::vec2& v) const;
 
     glm::vec2 pos{};
     glm::vec2 rot{};

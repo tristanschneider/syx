@@ -758,20 +758,25 @@ namespace ConstraintSolver {
     if(!(bodyA.constraintMask & bodyB.constraintMask)) {
       return;
     }
-    //Forward parameters computed from gameplay
-    PGS::SolverStorage& s = context.solver.solver;
-    s.setJacobian(constraintIndex, bodyA.solverIndex, bodyB.solverIndex,
-      manifold.sideA.linear,
-      manifold.sideA.angular,
-      manifold.sideB.linear,
-      manifold.sideB.angular
-    );
-    s.setBias(constraintIndex, manifold.common.bias);
-    s.setLambdaBounds(constraintIndex, manifold.common.lambdaMin, manifold.common.lambdaMax);
-    s.setWarmStart(constraintIndex, manifold.common.warmStart);
-    context.solver.warmStartStorage[constraintIndex] = &manifold.common.warmStart;
+    for(int i = 0; i < static_cast<int>(manifold.common.size()); ++i) {
+      if(!manifold.shouldSolve(i)) {
+        break;
+      }
+      //Forward parameters computed from gameplay
+      PGS::SolverStorage& s = context.solver.solver;
+      s.setJacobian(constraintIndex, bodyA.solverIndex, bodyB.solverIndex,
+        manifold.sideA[i].linear,
+        manifold.sideA[i].angular,
+        manifold.sideB[i].linear,
+        manifold.sideB[i].angular
+      );
+      s.setBias(constraintIndex, manifold.common[i].bias);
+      s.setLambdaBounds(constraintIndex, manifold.common[i].lambdaMin, manifold.common[i].lambdaMax);
+      s.setWarmStart(constraintIndex, manifold.common[i].warmStart);
+      context.solver.warmStartStorage[constraintIndex] = &manifold.common[i].warmStart;
 
-    ++constraintIndex;
+      ++constraintIndex;
+    }
   }
 
   void insertContactManifold(SolveContext& context, size_t manifoldIndex, ConstraintIndex& constraintIndex, IslandGraph::NodeUserdata a, IslandGraph::NodeUserdata b) {
