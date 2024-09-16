@@ -20,10 +20,20 @@ namespace GameScheduler {
   };
 
   ProfileData createProfileData(std::string_view name) {
+    //Hack to cache tokens forever because microprofile has on way to clear them
+    static std::unordered_map<size_t, ProfileToken> tokenCache;
+    const size_t hash = std::hash<std::string_view>()(name);
+    auto it = tokenCache.emplace(hash, ProfileToken{});
     ProfileData result;
     result.name = name;
     assert(name.data());
-    result.profileToken = PROFILE_CREATETOKEN("scheduler", name.data(), (uint32_t)std::rand());
+    if(!it.second) {
+      result.profileToken = it.first->second;
+    }
+    else {
+      result.profileToken = PROFILE_CREATETOKEN("scheduler", name.data(), (uint32_t)std::rand());
+      it.first->second = result.profileToken;
+    }
     return result;
   }
 
