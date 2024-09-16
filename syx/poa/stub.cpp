@@ -1,1 +1,0 @@
-// Empty file with cpp extension so cmake knows what to link as it the library is only ispc files
