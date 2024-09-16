@@ -97,8 +97,8 @@ public:
     return result;
   }
 
-  template<class Row>
-  bool tryGetOrSwapRowAlias(const QueryAlias<Row>& alias, CachedRow<Row>& row, const UnpackedDatabaseElementID& id) {
+  template<class StorageRow, std::convertible_to<StorageRow> QueryRow>
+  bool tryGetOrSwapRowAlias(const QueryAlias<QueryRow>& alias, CachedRow<StorageRow>& row, const UnpackedDatabaseElementID& id) {
     if(!row.row || row.tableID != id.getTableIndex()) {
       row.row = tryGetRowAlias(alias, id);
       row.tableID = id.getTableIndex();

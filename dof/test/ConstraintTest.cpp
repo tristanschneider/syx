@@ -12,6 +12,7 @@
 #include "glm/glm.hpp"
 #include "NotifyingTableModifier.h"
 #include "Geometric.h"
+#include "VelocityResolver.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -258,6 +259,86 @@ namespace Test {
       std::vector<SolveTimepoint> history = trySolve(solver, 250, expectWithinDistanceAndAngle(0.0f, 1.0f));
 
       assertSolved(history);
+    }
+
+    static void assertUnconstrainted(Game& game, const std::vector<ElementRef>& bodies) {
+      pt::VelocityResolver velocity{ game->builder(), pt::MutableVelocities::create(PhysicsSimulation::getPhysicsAliases()) };
+      for(const ElementRef& b : bodies) {
+        auto v = velocity.resolve(b);
+        //Make sure the resolver works
+        Assert::IsFalse(v.lessThan(0.01f));
+        //Zero out velocities. Since constraints are gone nothing else should move them
+        velocity.writeBack({}, b);
+      }
+
+      game->update();
+
+      for(const ElementRef& b : bodies) {
+        auto v = velocity.resolve(b);
+        Assert::IsTrue(v.lessThan(0.01f));
+      }
+    }
+
+    TEST_METHOD(StatJointExpiration) {
+      Game game;
+      const ElementRef a = game.scene->objectA;
+      const ElementRef b = game.scene->objectB;
+      constexpr size_t lifetime = 5;
+      Constraints::WeldJoint joint{ .localCenterToPinA{ 1.0f, 0.0f }, .localCenterToPinB{ -1.0f, 0.0f } };
+      pt::TransformResolver transform{ game->builder(), PhysicsSimulation::getPhysicsAliases() };
+
+      game.constraintStat.createStatEffects(1).setOwner(a).setLifetime(lifetime);
+      game.constraintStat.constraintBuilder().setJointType({ joint }).setTargets(a, b);
+
+      Solver solver{ game, a, b, joint.localCenterToPinA, joint.localCenterToPinB };
+      //+1 to go over lifetime, 1 to mark for removal, 2 to process the spatial update
+      trySolve(solver, lifetime + 3, expectWithinDistanceAndAngle(0.0f, 0.0f));
+
+      assertUnconstrainted(game, { a, b });
+    }
+
+    TEST_METHOD(StatJointDestroyBodyA) {
+      Game game;
+      const ElementRef a = game.scene->objectA;
+      const ElementRef b = game.scene->objectB;
+      Constraints::WeldJoint joint{ .localCenterToPinA{ 1.0f, 0.0f }, .localCenterToPinB{ -1.0f, 0.0f } };
+      pt::TransformResolver transform{ game->builder(), PhysicsSimulation::getPhysicsAliases() };
+
+      game.constraintStat.createStatEffects(1).setOwner(a).setLifetime(1000);
+      game.constraintStat.constraintBuilder().setJointType({ joint }).setTargets(a, b);
+
+      Solver solver{ game, a, b, joint.localCenterToPinA, joint.localCenterToPinB };
+      trySolve(solver, 5, expectWithinDistanceAndAngle(0.0f, 0.0f));
+
+      AppTaskArgs args{ game->sharedArgs() };
+      Events::DestroyPublisher{ &args }(a);
+
+      //Process removal
+      game->update();
+
+      assertUnconstrainted(game, { b });
+    }
+
+    TEST_METHOD(StatJointDestroyBodyB) {
+      Game game;
+      const ElementRef a = game.scene->objectA;
+      const ElementRef b = game.scene->objectB;
+      Constraints::WeldJoint joint{ .localCenterToPinA{ 1.0f, 0.0f }, .localCenterToPinB{ -1.0f, 0.0f } };
+      pt::TransformResolver transform{ game->builder(), PhysicsSimulation::getPhysicsAliases() };
+
+      game.constraintStat.createStatEffects(1).setOwner(a).setLifetime(1000);
+      game.constraintStat.constraintBuilder().setJointType({ joint }).setTargets(a, b);
+
+      Solver solver{ game, a, b, joint.localCenterToPinA, joint.localCenterToPinB };
+      trySolve(solver, 5, expectWithinDistanceAndAngle(0.0f, 0.0f));
+
+      AppTaskArgs args{ game->sharedArgs() };
+      Events::DestroyPublisher{ &args }(b);
+
+      //Process removal
+      game->update();
+
+      assertUnconstrainted(game, { a });
     }
 
     //TODO: one sided constraint

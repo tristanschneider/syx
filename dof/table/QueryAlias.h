@@ -17,20 +17,36 @@ struct QueryAlias : QueryAliasBase {
   static_assert(isRow<RowT>(), "Should only be used for rows");
   static_assert(!isNestedRow<RowT>(), "Nested row is likely unintentional");
 
-  template<class SourceT>
+  using MutableT = std::remove_const_t<ResultT>;
+  using ConstT = const ResultT;
+  using MutableCast = MutableT*(*)(void*);
+  using ConstCast = ConstT*(*)(void*);
+
+  QueryAlias() = default;
+
+  template<std::convertible_to<ConstT> T>
+  QueryAlias(const QueryAlias<T>& rhs)
+    : QueryAliasBase{ rhs.type, isConstT() }
+    , mutableCast{ rhs.mutableCast }
+    , constCast{ rhs.constCast }
+  {
+  }
+
+  template<std::convertible_to<ResultT> SourceT>
   static QueryAlias create() {
-    static_assert(std::is_convertible_v<SourceT*, ResultT*>);
     static_assert(std::is_const_v<SourceT> == std::is_const_v<ResultT>);
+    using MutableSourceT = std::remove_const_t<SourceT>;
+
     struct Caster {
-      static ResultT* cast(void* p) {
-        return static_cast<ResultT*>(static_cast<SourceT*>(p));
+      static MutableT* cast(void* p) {
+        return static_cast<MutableT*>(static_cast<MutableSourceT*>(p));
       }
-      static const ResultT* constCast(void* p) {
+      static ConstT* constCast(void* p) {
         return cast(p);
       }
     };
     QueryAlias result;
-    result.cast = &Caster::cast;
+    result.mutableCast = &Caster::cast;
     result.constCast = &Caster::constCast;
     result.type = DBTypeID::get<std::decay_t<SourceT>>();
     result.isConst = std::is_const_v<SourceT>;
@@ -42,22 +58,44 @@ struct QueryAlias : QueryAliasBase {
     return create<ResultT>();
   }
 
-  QueryAlias<const ResultT> read() const {
-    QueryAlias<const ResultT> result;
+  QueryAlias<ConstT> read() const {
+    QueryAlias<ConstT> result;
     result.type = type;
-    result.cast = constCast;
+    result.mutableCast = mutableCast;
     result.constCast = constCast;
     result.isConst = true;
     return result;
   }
 
-  explicit operator bool() const {
-    return cast != nullptr;
+  QueryAlias<MutableT> write() const {
+    QueryAlias<MutableT> result;
+    result.type = type;
+    result.mutableCast = mutableCast;
+    result.constCast = constCast;
+    result.isConst = false;
+    return result;
   }
 
-  ResultT*(*cast)(void*){};
+  static constexpr bool isConstT() {
+    return std::is_const_v<ResultT>;
+  }
+
+  explicit operator bool() const {
+    return mutableCast != nullptr;
+  }
+
+  ResultT* cast(void* p) const {
+    if constexpr(isConstT()) {
+      return constCast(p);
+    }
+    else {
+      return mutableCast(p);
+    }
+  }
+
+  MutableCast mutableCast{};
   //Hack to enable the convenience of .read
-  const ResultT*(*constCast)(void*){};
+  ConstCast constCast{};
 };
 
 using FloatQueryAlias = QueryAlias<Row<float>>;

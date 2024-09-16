@@ -12,6 +12,8 @@
 #include "ConstraintSolver.h"
 
 namespace Constraints {
+  constexpr size_t GC_TRACK_LIMIT = 200;
+
   const TableConstraintDefinitions* getOrAssertDefinitions(RuntimeDatabaseTaskBuilder& task, const TableID& table) {
     const TableConstraintDefinitions* result = task.query<const TableConstraintDefinitionsRow>(table).tryGetSingletonElement();
     assert(result);
@@ -130,6 +132,8 @@ namespace Constraints {
       //Clear the storage. GC will see this as a tracked constraint with no storage and remove it
       //If it was pending, assignment will see it was cleared rather than pending and immediately delete the created storage
       storage->at(tableIndex).clear();
+      //Hack to clean up the storage of this constraint immediately this tick
+      changes->trackedConstraints[key].ticksSinceGC = GC_TRACK_LIMIT;
     }
 
     ConstraintChanges* changes{};
@@ -265,7 +269,7 @@ namespace Constraints {
     task.setCallback([constraints, res, graph](AppTaskArgs&) {
       for(const ConstraintOwnershipTable& table : constraints) {
         OwnedDefinitionConstraints& trackedConstraints = table.changes->trackedConstraints[table.key];
-        if(trackedConstraints.ticksSinceGC++ < 200) {
+        if(trackedConstraints.ticksSinceGC++ < GC_TRACK_LIMIT) {
           continue;
         }
 
@@ -528,7 +532,6 @@ namespace Constraints {
     }
   }
 
-  //TODO: is this complexity worth it compared to having the existing narrowphase switch off of the pairtype?
   void constraintNarrowphase(IAppBuilder& builder, const PhysicsAliases& aliases, const ConstraintSolver::SolverGlobals& globals) {
     auto task = builder.createTask();
     std::vector<ConstraintTable> constraintTables = queryConstraintTables<ConstraintTable>(task);
