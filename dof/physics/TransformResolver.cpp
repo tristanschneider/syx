@@ -16,6 +16,14 @@ namespace pt {
     return Geo::rotate(rot, v);
   }
 
+  glm::vec2 Transform::inverseTransformPoint(const glm::vec2& p) const {
+    return Geo::rotate(Geo::transposeRot(rot), p - pos);
+  }
+
+  glm::vec2 Transform::inverseTransformVector(const glm::vec2& v) const {
+    return Geo::rotate(Geo::transposeRot(rot), v);
+  }
+
   TransformAlias::TransformAlias(const PhysicsAliases& tables)
     : posX{ tables.posX.read() }
     , posY{ tables.posY.read() }

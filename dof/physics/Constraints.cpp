@@ -470,6 +470,61 @@ namespace Constraints {
       manifold->common[1].lambdaMax = std::numeric_limits<float>::max();
     }
 
+    void operator()(const MotorJoint& pin) const {
+      if(!pin.angularForce && !pin.linearForce) {
+        manifold->setEnd(0);
+        return;
+      }
+      //For now solving as a one-sided constraint until I see a use case for a two sided motor
+      const pt::Transform ta = transform.resolve(a);
+      size_t c = 0;
+
+      if(pin.linearForce) {
+        glm::vec2 linear = pin.linearTarget;
+        if(!pin.flags.test(gnx::enumCast(MotorJoint::Flags::WorldSpaceLinear))) {
+          linear = ta.transformVector(linear);
+        }
+
+        const float linearLen = glm::length(linear);
+        if(linearLen > Geo::EPSILON) {
+          manifold->sideA[c].linear = linear/linearLen;
+          manifold->sideA[c].angular = 0;
+          manifold->common[c].bias = linearLen;
+          manifold->common[c].lambdaMax = pin.linearForce;
+          manifold->common[c].lambdaMin = pin.flags.test(gnx::enumCast(MotorJoint::Flags::CanPull)) ? -pin.linearForce : 0.0f;
+          ++c;
+        }
+      }
+
+      if(pin.angularForce) {
+        manifold->sideA[c].linear = {};
+        manifold->sideA[c].angular = 1;
+        manifold->common[c].lambdaMax = pin.angularForce;
+        manifold->common[c].lambdaMin = pin.flags.test(gnx::enumCast(MotorJoint::Flags::CanPull)) ? -pin.angularForce : 0.0f;
+
+        //Try to point at target orientation
+        if(pin.flags.test(gnx::enumCast(MotorJoint::Flags::AngularOrientationTarget))) {
+          const float error = pin.angularTarget - Geo::angleFromDirection(ta.rot);
+          manifold->common[c].bias = error;
+          ++c;
+        }
+        //Absolute rotation in a given direction
+        else if(std::abs(pin.angularTarget)) {
+          manifold->common[c].bias = pin.angularTarget;
+          ++c;
+        }
+      }
+      manifold->setEnd(c);
+    }
+
+    float biasFromError(float error, float biasTerm) const {
+      return Geo::reduce(error, *globals.slop)*biasTerm;
+    }
+
+    float biasFromError(float error) const {
+      return biasFromError(error, *globals.biasTerm);
+    }
+
     const ConstraintTable& table;
     SP::ConstraintManifold* manifold;
     pt::TransformResolver& transform;

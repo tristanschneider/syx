@@ -590,4 +590,12 @@ namespace IslandGraph {
     }
     return edgesEnd();
   }
+
+  const Node& Graph::getEmptyNode() const {
+    return nodes[0];
+  }
+
+  Graph::Graph() {
+    addNode(*this, {}, PROPAGATE_NONE);
+  }
 }

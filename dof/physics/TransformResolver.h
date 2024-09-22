@@ -16,6 +16,8 @@ namespace pt {
   struct Transform {
     glm::vec2 transformPoint(const glm::vec2& p) const;
     glm::vec2 transformVector(const glm::vec2& v) const;
+    glm::vec2 inverseTransformPoint(const glm::vec2& p) const;
+    glm::vec2 inverseTransformVector(const glm::vec2& v) const;
 
     glm::vec2 pos{};
     glm::vec2 rot{};

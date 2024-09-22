@@ -459,6 +459,8 @@ namespace IslandGraph {
       size_t islandIndex{};
     };
 
+    Graph();
+
     //Iterate over each island
     GraphIterator begin() {
       return { this, 0 };
@@ -490,6 +492,8 @@ namespace IslandGraph {
     ConstNodeIterator nodesEnd() const {
       return { this, INVALID };
     }
+
+    const Node& getEmptyNode() const;
 
     gnx::VectorFreeList<Node> nodes;
     gnx::VectorFreeList<Edge> edges;

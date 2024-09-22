@@ -194,6 +194,11 @@ namespace Geo {
     return { std::cos(radians), std::sin(radians) };
   }
 
+  //Assumed normalized
+  inline float angleFromDirection(const glm::vec2& dir) {
+    return std::atan2f(dir.y, dir.x);
+  }
+
   inline glm::mat3 buildRotate(const glm::vec2& r) {
     glm::mat3 result;
     const glm::vec2& basisX = r;
@@ -227,6 +232,13 @@ namespace Geo {
     //[basisX.x, -basisX.y][p.x]
     //[basisX.y, basisX.x ][p.y]
     return { basisX.x*p.x - basisX.y*p.y, basisX.y*p.x + basisX.x*p.y };
+  }
+
+  //Transpose of a rotation matrix from the first basis vector. Transpose is the inverse of a rotation matrix.
+  inline glm::vec2 transposeRot(const glm::vec2 basisX) {
+    //[basisX.x, -basisX.y] to [basisX.x , basisX.y]
+    //[basisX.y, basisX.x ]    [-basisX.y, basisX.x]
+    return { basisX.x, -basisX.y };
   }
 
   inline glm::vec2 normalizedOrAny(const glm::vec2& v, float E = EPSILON) {

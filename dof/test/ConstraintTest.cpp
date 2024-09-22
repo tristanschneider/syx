@@ -97,6 +97,7 @@ namespace Test {
     struct SolveTimepoint {
       pt::Transform ta, tb;
       glm::vec2 worldA, worldB;
+      pt::Velocities vA, vB;
       float error{};
     };
 
@@ -123,6 +124,26 @@ namespace Test {
       };
     }
 
+    static ErrorFN expectTargetLinearVelocity(const glm::vec2& target) {
+      return [target](const SolveTimepoint& timepoint, const Solver&) {
+        const glm::vec2 v = target - (timepoint.vA.linear - timepoint.vB.linear);
+        return std::abs(glm::length(v));
+      };
+    }
+
+    static ErrorFN expectTargetAngularVelocity(float target) {
+      return [target](const SolveTimepoint& timepoint, const Solver&) {
+        const float v = target - (timepoint.vA.angular - timepoint.vB.angular);
+        return std::abs(v);
+      };
+    }
+
+    static ErrorFN expectOneSidedOrientation(float angle) {
+      return [target{Geo::directionFromAngle(angle)}](const SolveTimepoint& timepoint, const Solver&) {
+        return std::abs(1.0f - glm::dot(target, timepoint.ta.rot));
+      };
+    }
+
     static ErrorFN expectAnd(const ErrorFN& fnA, const ErrorFN& fnB) {
       return [fnA, fnB](const SolveTimepoint& timepoint, const Solver& solver) {
         return fnA(timepoint, solver) + fnB(timepoint, solver);
@@ -133,10 +154,15 @@ namespace Test {
       return expectAnd(expectPointsMatchDistance(distance), expectOrientationIsWithinAngle(angle));
     }
 
+    static ErrorFN expectTargetVelocity(const glm::vec2& linear, float angular) {
+      return expectAnd(expectTargetLinearVelocity(linear), expectTargetAngularVelocity(angular));
+    }
+
     std::vector<SolveTimepoint> trySolve(const Solver& solver, size_t maxIterations, const ErrorFN& computeError) {
       std::vector<SolveTimepoint> result;
       result.reserve(maxIterations);
       pt::TransformResolver transform{ solver.game->builder(), PhysicsSimulation::getPhysicsAliases() };
+      pt::VelocityResolver velocity{ solver.game->builder(), pt::ConstVelocities::create(PhysicsSimulation::getPhysicsAliases()) };
       for(size_t i = 0; i < maxIterations; ++i) {
         solver.game->update();
         const pt::Transform ta = transform.resolve(solver.a);
@@ -146,6 +172,8 @@ namespace Test {
           .tb = tb,
           .worldA = ta.transformPoint(solver.localCenterToPinA),
           .worldB = tb.transformPoint(solver.localCenterToPinB),
+          .vA = velocity.resolve(solver.a),
+          .vB = velocity.resolve(solver.b)
         };
         solve.error = computeError(solve, solver);
         result.push_back(solve);
@@ -257,6 +285,43 @@ namespace Test {
 
       Solver solver{ game, a, b, joint.localCenterToPinA, joint.localCenterToPinB };
       std::vector<SolveTimepoint> history = trySolve(solver, 250, expectWithinDistanceAndAngle(0.0f, 1.0f));
+
+      assertSolved(history);
+    }
+
+    TEST_METHOD(StatOneSidedMotorJointWorldAbsoluteRotation) {
+      Game game;
+      const ElementRef a = game.scene->objectA;
+      constexpr size_t lifetime = 2000;
+      Constraints::MotorJoint joint{ .linearTarget{ 1, 2 }, .angularTarget{ 0.5f }, .linearForce{ 1.0f }, .angularForce{ 1.0f } };
+      joint.flags.set(gnx::enumCast(Constraints::MotorJoint::Flags::WorldSpaceLinear));
+      joint.flags.set(gnx::enumCast(Constraints::MotorJoint::Flags::CanPull));
+      pt::TransformResolver transform{ game->builder(), PhysicsSimulation::getPhysicsAliases() };
+
+      game.constraintStat.createStatEffects(1).setOwner(a).setLifetime(lifetime);
+      game.constraintStat.constraintBuilder().setJointType({ joint }).setTargets(a, {});
+
+      Solver solver{ .game{ game }, .a{ a }, .b{}, .localCenterToPinA{}, .localCenterToPinB{} };
+      std::vector<SolveTimepoint> history = trySolve(solver, 5, expectTargetVelocity(joint.linearTarget, joint.angularTarget));
+
+      assertSolved(history);
+    }
+
+    TEST_METHOD(StatOneSidedMotorJointWorldTargetRotation) {
+      Game game;
+      const ElementRef a = game.scene->objectA;
+      constexpr size_t lifetime = 2000;
+      Constraints::MotorJoint joint{ .linearTarget{ 1, 2 }, .angularTarget{ 0.5f }, .linearForce{ 1.0f }, .angularForce{ 1.0f } };
+      joint.flags.set(gnx::enumCast(Constraints::MotorJoint::Flags::WorldSpaceLinear));
+      joint.flags.set(gnx::enumCast(Constraints::MotorJoint::Flags::AngularOrientationTarget));
+      joint.flags.set(gnx::enumCast(Constraints::MotorJoint::Flags::CanPull));
+      pt::TransformResolver transform{ game->builder(), PhysicsSimulation::getPhysicsAliases() };
+
+      game.constraintStat.createStatEffects(1).setOwner(a).setLifetime(lifetime);
+      game.constraintStat.constraintBuilder().setJointType({ joint }).setTargets(a, {});
+
+      Solver solver{ .game{ game }, .a{ a }, .b{}, .localCenterToPinA{}, .localCenterToPinB{} };
+      std::vector<SolveTimepoint> history = trySolve(solver, 5, expectAnd(expectTargetLinearVelocity(joint.linearTarget), expectOneSidedOrientation(joint.angularTarget)));
 
       assertSolved(history);
     }

@@ -386,6 +386,8 @@ namespace ConstraintSolver {
     solver.solver.setVelocity(INFINITE_MASS_INDEX, { 0, 0 }, 0);
     //Add empty entry so that these indices still always line up
     solver.bodies.emplace_back();
+    //Allow one sided constraints to map to a default body
+    solver.islandToBodyIndex[ElementRef{}] = { INFINITE_MASS_INDEX, MASK_SOLVE_ALL, Material{} };
   }
 
   void insertInfiniteMassBody(ZIslandSolver& solver) {

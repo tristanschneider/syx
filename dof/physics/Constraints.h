@@ -5,6 +5,8 @@
 #include "glm/vec2.hpp"
 #include "generics/IndexRange.h"
 #include "generics/Hash.h"
+#include "generics/Enum.h"
+#include <bitset>
 
 class IAppBuilder;
 class RuntimeDatabaseTaskBuilder;
@@ -106,8 +108,29 @@ namespace Constraints {
     glm::vec2 localCenterToPinB{};
     float allowedRotationRad{};
   };
+  //Tries to achieve the target linear and angular velocity through a linear and angular impulse about the center of mass
+  struct MotorJoint {
+    enum class Flags : uint8_t {
+      //If true, target velocity is in world space, otherwise local
+      WorldSpaceLinear,
+      //If true, the constraint tries to rotate the body so its angle matches angularTarget
+      //If false, the target is a local space target velocity
+      AngularOrientationTarget,
+      //If true the motor will pull in the opposite direction if over the target speed
+      CanPull,
+      Count,
+    };
+    //Assumed in local space unless world space flag is set in which case it's local to object A
+    //This is the target velocity the constraint is trying to reach
+    glm::vec2 linearTarget{};
+    float angularTarget{};
+    //Max force that can be used to achieve the target velocity
+    float linearForce{};
+    float angularForce{};
+    std::bitset<gnx::enumCast(Flags::Count)> flags{};
+  };
   struct JointVariant {
-    using Variant = std::variant<CustomJoint, PinJoint1D, PinJoint2D, WeldJoint>;
+    using Variant = std::variant<CustomJoint, PinJoint1D, PinJoint2D, WeldJoint, MotorJoint>;
     Variant data;
   };
 
