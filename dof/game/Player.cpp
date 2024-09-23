@@ -16,10 +16,32 @@
 #include "ConstraintSolver.h"
 #include "SpatialQueries.h"
 
+#include "Constraints.h"
 namespace Player {
   using namespace Tags;
 
+  void configurePlayerMotor(IAppBuilder& builder) {
+    auto task = builder.createTask();
+    auto q = task.query<Constraints::TableConstraintDefinitionsRow, const IsPlayer>();
+    task.setCallback([q](AppTaskArgs&) mutable {
+      for(size_t t = 0; t < q.size(); ++t) {
+        auto [definitions, _] = q.get(t);
+        Constraints::Definition def;
+        def.common = def.common.create();
+        def.sideA = def.sideA.create();
+        def.targetA = Constraints::SelfTarget{};
+        def.targetB = Constraints::NoTarget{};
+        def.joint = def.joint.create();
+        def.storage = def.storage.create();
+        definitions->at().definitions.push_back(def);
+      }
+    });
+    builder.submitTask(std::move(task.setName("init player motor")));
+  }
+
   void init(IAppBuilder& builder) {
+    configurePlayerMotor(builder);
+
     auto task = builder.createTask();
     task.setName("init player");
     Config::GameConfig* config = TableAdapters::getGameConfigMutable(task);

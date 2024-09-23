@@ -232,9 +232,17 @@ namespace PhysicsSimulation {
   }
 
   void postProcessEvents(IAppBuilder& builder) {
-    auto task = builder.createTask();
-    const DBEvents& events = Events::getPublishedEvents(task);
-    SweepNPruneBroadphase::postProcessEvents(task, events, getPhysicsAliases(), _getBoundariesConfig(builder));
-    builder.submitTask(std::move(task));
+    {
+      auto task = builder.createTask();
+      const DBEvents& events = Events::getPublishedEvents(task);
+      SweepNPruneBroadphase::postProcessEvents(task, events, getPhysicsAliases(), _getBoundariesConfig(builder));
+      builder.submitTask(std::move(task));
+    }
+    {
+      auto task = builder.createTask();
+      const DBEvents& events = Events::getPublishedEvents(task);
+      Constraints::postProcessEvents(task, events);
+      builder.submitTask(std::move(task));
+    }
   }
 }

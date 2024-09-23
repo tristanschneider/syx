@@ -48,7 +48,7 @@ namespace Constraints {
   using ResolveTarget = ResolveTargetT<Rows::Target, &identity>;
   using ResolveConstTarget = ResolveTargetT<Rows::ConstTarget, &toConst>;
 
-  Rows Definition::resolve(RuntimeDatabaseTaskBuilder& task, const TableID& table) {
+  Rows Definition::resolve(RuntimeDatabaseTaskBuilder& task, const TableID& table) const {
     Rows result;
     ResolveTarget resolveTarget{ task, table };
     result.targetA = std::visit(resolveTarget, targetA);
@@ -61,7 +61,18 @@ namespace Constraints {
       result.sideB = getOrAssert(sideB, task, table);
     }
     result.common = getOrAssert(common, task, table);
+    result.joint = getOrAssert(joint, task, table);
     return result;
+  }
+
+  Rows Definition::resolve(RuntimeDatabaseTaskBuilder& task, const TableID& table, ConstraintDefinitionKey key) {
+    if(auto q = task.query<const TableConstraintDefinitionsRow>(table); q.size()) {
+      const TableConstraintDefinitions& defs = q.get<0>(0).at();
+      if(key < defs.definitions.size()) {
+        return defs.definitions[key].resolve(task, table);
+      }
+    }
+    return {};
   }
 
   Builder::Builder(const Rows& r)
@@ -317,7 +328,7 @@ namespace Constraints {
       if(definition.sideA) {
         sideA = getOrAssert(definition.sideA.read(), task, table);
       }
-      if(definition.sideA) {
+      if(definition.sideB) {
         sideB = getOrAssert(definition.sideB.read(), task, table);
       }
     }
@@ -618,5 +629,46 @@ namespace Constraints {
     Constraints::garbageCollect(builder);
     Constraints::assignStorage(builder);
     Constraints::constraintNarrowphase(builder, aliases, globals);
+  }
+
+  void autoInitInternalJoints(RuntimeDatabaseTaskBuilder& task, const DBEvents& events) {
+    task.setName("auto init joints");
+    auto q = task.query<const Constraints::TableConstraintDefinitionsRow, const AutoManageJointTag>();
+    struct Managed {
+      std::vector<std::shared_ptr<Constraints::IConstraintStorageModifier>> modifiers;
+    };
+    std::unordered_map<TableID, Managed> managedTables;
+    for(size_t i = 0; i < q.size(); ++i) {
+      const auto& [def, _] = q.get(i);
+      const TableID& table = q.matchingTableIDs[i];
+      Managed& managed = managedTables[table];
+      for(size_t c = 0; c < def->at().definitions.size(); ++c) {
+        managed.modifiers.push_back(Constraints::createConstraintStorageModifier(task, c, table));
+      }
+    }
+
+    auto ids = task.getIDResolver()->getRefResolver();
+    task.setCallback([&events, ids, managedTables](AppTaskArgs&) mutable {
+      CachedRow<const AutoManageJointTag> managed;
+
+      //If any elements are created in a tracked table, inform the constraint modifiers
+      //An equivalent removal is not necessary as GC will see it
+      for(const auto& cmd : events.toBeMovedElements) {
+        if(cmd.isCreate()) {
+          const auto& newElement = std::get<ElementRef>(cmd.destination);
+          const auto id = ids.tryUnpack(newElement);
+          auto it = id ? managedTables.find(TableID{ *id }) : managedTables.end();
+          if(it != managedTables.end()) {
+            for(auto& modifier : it->second.modifiers) {
+              modifier->insert(id->getElementIndex(), newElement, {});
+            }
+          }
+        }
+      }
+    });
+  }
+
+  void postProcessEvents(RuntimeDatabaseTaskBuilder& task, const DBEvents& events) {
+    autoInitInternalJoints(task, events);
   }
 }

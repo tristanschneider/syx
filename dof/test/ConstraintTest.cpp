@@ -326,6 +326,55 @@ namespace Test {
       assertSolved(history);
     }
 
+    static TableID getAutoManagedConstraintTable(Game& game) {
+      auto ids = game->builder().queryTables<Constraints::AutoManageJointTag>();
+      Assert::IsTrue(ids.size());
+      return ids[0];
+    }
+
+    static ElementRef createAutoManagedBody(Game& game) {
+      auto task = game->builder();
+      TableID table = getAutoManagedConstraintTable(game);
+      NotifyingTableModifier mod{ task, table };
+      pt::TransformResolver transform{ task, PhysicsSimulation::getPhysicsAliases() };
+      mod.initTask(game.args);
+      const ElementRef* result = mod.addElements(1);
+      const size_t i = mod.toIndex(*result);
+      CachedRow<Tags::PosXRow> px;
+      CachedRow<Tags::PosYRow> py;
+      if(task.getResolver<>()->tryGetOrSwapAllRows(table, px, py)) {
+        px->at(i) = 10;
+        py->at(i) = 10;
+      }
+      return *result;
+    }
+
+    TEST_METHOD(AutoManagedOneSidedMotorJoint) {
+      Game game;
+      const TableID table = getAutoManagedConstraintTable(game);
+      ElementRef a = createAutoManagedBody(game);
+      auto task = game->builder();
+      Constraints::Rows rows = Constraints::Definition::resolve(task, table, 0);
+      Constraints::Builder builder{ rows };
+      Assert::IsTrue(rows.common && rows.common->size() == 1);
+      pt::TransformResolver transform{ game->builder(), PhysicsSimulation::getPhysicsAliases() };
+      const size_t i = 0;
+
+      Constraints::MotorJoint joint{ .linearTarget{ 2, 1 }, .angularTarget{ 0 }, .linearForce{ 1.0f }, .angularForce{ 0 } };
+      builder.select({ i, i + 1 }).setJointType({ joint });
+
+      Solver solver{ .game{ game }, .a{ a }, .b{}, .localCenterToPinA{}, .localCenterToPinB{} };
+      std::vector<SolveTimepoint> history = trySolve(solver, 5, expectTargetLinearVelocity(joint.linearTarget));
+
+      assertSolved(history);
+
+      //Remove and run long enough for gc to run and see if it crashes
+      game->builder().getModifierForTable(table)->resize(0);
+      for(size_t u = 0; u < 300; ++u) {
+        game->update();
+      }
+    }
+
     static void assertUnconstrainted(Game& game, const std::vector<ElementRef>& bodies) {
       pt::VelocityResolver velocity{ game->builder(), pt::MutableVelocities::create(PhysicsSimulation::getPhysicsAliases()) };
       for(const ElementRef& b : bodies) {
@@ -406,7 +455,6 @@ namespace Test {
       assertUnconstrainted(game, { a });
     }
 
-    //TODO: one sided constraint
     //TODO: configuring custom constraint using a scene task
   };
 }

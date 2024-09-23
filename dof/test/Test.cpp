@@ -406,9 +406,9 @@ namespace Test {
     struct SpatialPairsData {
       SpatialPairsData(RuntimeDatabaseTaskBuilder& task) {
         SP::IslandGraphRow* g{};
-        auto q = task.query<SP::IslandGraphRow, SP::ObjA, SP::ObjB, SP::ManifoldRow>();
+        auto q = task.query<SP::IslandGraphRow, SP::ObjA, SP::ObjB, SP::PairTypeRow, SP::ManifoldRow>();
         table = q.matchingTableIDs[0];
-        std::tie(g, objA, objB, manifold) = q.get(0);
+        std::tie(g, objA, objB, pairType, manifold) = q.get(0);
         graph = &g->at();
         ids = task.getIDResolver();
       }
@@ -427,6 +427,7 @@ namespace Test {
       IslandGraph::Graph* graph{};
       SP::ObjA* objA{};
       SP::ObjB* objB{};
+      SP::PairTypeRow* pairType{};
       SP::ManifoldRow* manifold{};
       std::shared_ptr<IIDResolver> ids;
     };
@@ -624,17 +625,22 @@ namespace Test {
     }
 
     static void assertUnorderedCollisionPairsMatch(TestGame& game, std::vector<ElementRef> expectedA, std::vector<ElementRef> expectedB) {
+      struct Contact {
+        ElementRef a, b;
+      };
       SpatialPairsData pairs{ game.builder() };
-      const size_t contacts = std::count_if(pairs.objA->begin(), pairs.objA->end(), [](const auto& obj) {
-        return static_cast<bool>(obj);
-      });
-      Assert::AreEqual(expectedA.size(), contacts);
-      size_t ei = 0;
-      for(size_t i = 0; i < pairs.objA->size() && ei < expectedA.size(); ++i) {
-        if(pairs.objA->at(i)) {
-          Assert::IsTrue(pairs.tryFindPair(expectedA[ei], expectedB[ei]).has_value());
-          ++ei;
+      std::vector<Contact> contacts;
+      contacts.reserve(expectedA.size());
+      for(size_t i = 0; i < pairs.objA->size(); ++i) {
+        if(pairs.pairType->at(i) == SP::PairType::ContactXY && pairs.objA->at(i)) {
+          contacts.push_back({ .a{ pairs.objA->at(i) }, .b{ pairs.objB->at(i) } });
         }
+      }
+
+      Assert::AreEqual(expectedA.size(), contacts.size());
+      //TODO: not validating anything about contacts. Should it?
+      for(size_t i = 0; i < contacts.size(); ++i) {
+        Assert::IsTrue(pairs.tryFindPair(expectedA[i], expectedB[i]).has_value());
       }
     }
 

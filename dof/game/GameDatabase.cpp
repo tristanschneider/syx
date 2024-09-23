@@ -21,6 +21,7 @@
 #include "shapes/Circle.h"
 #include "shapes/Rectangle.h"
 #include "shapes/Line.h"
+#include "Constraints.h"
 
 namespace GameDatabase {
   using BroadphaseTable = SweepNPruneBroadphase::BroadphaseTable;
@@ -314,6 +315,14 @@ namespace GameDatabase {
     ConstraintSolver::ConstraintMaskRow,
     ConstraintSolver::SharedMassRow,
     ConstraintSolver::SharedMaterialRow,
+
+    Constraints::AutoManageJointTag,
+    Constraints::TableConstraintDefinitionsRow,
+    Constraints::ConstraintChangesRow,
+    Constraints::ConstraintCommonRow,
+    Constraints::ConstraintSideRow,
+    Constraints::JointRow,
+    Constraints::ConstraintStorageRow,
 
     Row<CubeSprite>,
     GameInput::PlayerInputRow,

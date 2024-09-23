@@ -11,6 +11,7 @@
 class IAppBuilder;
 class RuntimeDatabaseTaskBuilder;
 struct PhysicsAliases;
+struct DBEvents;
 
 namespace Constraints {
   struct ConstraintPair {
@@ -141,6 +142,9 @@ namespace Constraints {
   struct ConstraintStorageRow : Row<ConstraintStorage> {};
   struct JointRow : Row<JointVariant> {};
 
+  //If present, elements in constraint definitions for this table will be automatically initialzed using itself as a one-sided target
+  struct AutoManageJointTag : TagRow{};
+
   //A constraint definition must have two targets, of which one can be "NoTarget"
   using ExternalTargetRowAlias = QueryAlias<ExternalTargetRow>;
   using ConstExternalTargetRowAlias = QueryAlias<const ExternalTargetRow>;
@@ -150,11 +154,13 @@ namespace Constraints {
   using JointRowAlias = QueryAlias<JointRow>;
 
   struct Rows;
+  using ConstraintDefinitionKey = size_t;
 
   struct Definition {
     using Target = std::variant<NoTarget, ExternalTargetRowAlias, SelfTarget>;
 
-    Rows resolve(RuntimeDatabaseTaskBuilder& task, const TableID& table);
+    Rows resolve(RuntimeDatabaseTaskBuilder& task, const TableID& table) const;
+    static Rows resolve(RuntimeDatabaseTaskBuilder& task, const TableID& table, ConstraintDefinitionKey key);
 
     Target targetA, targetB;
     //A side may be empty if the target is NoTarget
@@ -182,8 +188,6 @@ namespace Constraints {
 
   //A table with constraints must declare this along with having the rows specified in its definitions
   struct TableConstraintDefinitionsRow : SharedRow<TableConstraintDefinitions> {};
-
-  using ConstraintDefinitionKey = size_t;
 
   //Corresponds to a particular Definition
   struct OwnedConstraint {
@@ -264,4 +268,6 @@ namespace Constraints {
   void assignStorage(IAppBuilder& builder);
 
   void update(IAppBuilder& builder, const PhysicsAliases& aliases, const ConstraintSolver::SolverGlobals& globals);
+
+  void postProcessEvents(RuntimeDatabaseTaskBuilder& builder, const DBEvents& events);
 }
