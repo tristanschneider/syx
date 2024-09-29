@@ -20,6 +20,8 @@
 namespace Player {
   using namespace Tags;
 
+  constexpr Constraints::ConstraintDefinitionKey MOTOR_KEY{ 0 };
+
   void configurePlayerMotor(IAppBuilder& builder) {
     auto task = builder.createTask();
     auto q = task.query<Constraints::TableConstraintDefinitionsRow, const IsPlayer>();
@@ -127,18 +129,16 @@ namespace Player {
     auto players = task.query<
       GameInput::PlayerInputRow,
       const GameInput::StateMachineRow,
-      const FloatRow<GLinVel, X>, const FloatRow<GLinVel, Y>,
-      const FloatRow<GAngVel, Angle>,
       const FloatRow<GPos, X>, FloatRow<GPos, Y>,
       const FloatRow<GRot, CosAngle>, FloatRow<GRot, SinAngle>,
-      FloatRow<GLinImpulse, X>, FloatRow<GLinImpulse, Y>, FloatRow<GLinImpulse, Z>,
-      FloatRow<GAngImpulse, Angle>
+      FloatRow<GLinImpulse, Z>
     >();
     auto debug = TableAdapters::getDebugLines(task);
+    Constraints::Builder motorBuilder{ Constraints::Definition::resolve(task, players.matchingTableIDs[0], MOTOR_KEY) };
 
-    task.setCallback([players, config, debug](AppTaskArgs& args) mutable {
+    task.setCallback([players, config, debug, motorBuilder](AppTaskArgs& args) mutable {
       for(size_t t = 0; t < players.size(); ++t) {
-        auto&& [input, machines, linVelX, linVelY, angVel, posX, posY, rotX, rotY, impulseX, impulseY, impulseZ, impulseA] = players.get(t);
+        auto&& [input, machines, posX, posY, rotX, rotY, impulseZ] = players.get(t);
         for(size_t i = 0; i < input->size(); ++i) {
           GameInput::PlayerInput& playerInput = input->at(i);
           const Input::StateMachine& sm = machines->at(i);
@@ -152,16 +152,9 @@ namespace Player {
           const bool hasMoveInput = glm::length2(move) > epsilon;
           const float rawDT = config->world.deltaTime;
 
-          const glm::vec2 velocity(TableAdapters::read(i, *linVelX, *linVelY));
-          const float aVel = angVel->at(i);
-          Impulse impulse;
           constexpr CurveSolver::CurveUniforms curveUniforms{ 1 };
           float curveOutput{};
           CurveSolver::CurveVaryings curveVaryings{ &playerInput.moveT, &curveOutput };
-
-          const glm::vec2 pos(TableAdapters::read(i, *posX, *posY));
-          const glm::vec2 forward(TableAdapters::read(i, *rotX, *rotY));
-          const float speed = glm::length(velocity);
 
           const CurveDefinition* linearSpeedCurve = &Config::getCurve(config->player.linearSpeedCurve);
           const CurveDefinition* linearForceCurve = &Config::getCurve(config->player.linearForceCurve);
@@ -175,71 +168,40 @@ namespace Player {
             linearForceCurve = &Config::getCurve(config->player.linearStoppingForceCurve);
             angularSpeedCurve = &Config::getCurve(config->player.angularStoppingSpeedCurve);
             angularForceCurve = &Config::getCurve(config->player.angularStoppingForceCurve);
-
-            //If stopping, the desired input direction opposes the current velocity, bringing the player to a stop
-            if(speed > 0.00001f) {
-              move = velocity * (-1.f/speed);
-            }
           }
 
           const float linearDT = CurveSolver::getDeltaTime(*linearSpeedCurve, rawDT)*timeScale;
           playerInput.moveT = CurveSolver::advanceTimeDT(playerInput.moveT, linearDT);
-          const float linearSpeedT = CurveSolver::solve(playerInput.moveT, *linearSpeedCurve);
-          const float linearSpeed = hasMoveInput ? linearSpeedT : linearSpeedT*speed;
+          const float linearSpeed = CurveSolver::solve(playerInput.moveT, *linearSpeedCurve);
+          //The values are all so small that they're annoying to edit in the curve editor. Shift them down so the UI works better
+          constexpr float scalar = 0.1f;
           //Currently the two curves share the same dt meaning duration changes to the force curve would be ignored
           const float linearForce = CurveSolver::solve(playerInput.moveT, *linearForceCurve);
 
           const float angularDT = CurveSolver::getDeltaTime(*angularSpeedCurve, rawDT)*timeScale;
           playerInput.angularMoveT = CurveSolver::advanceTimeDT(playerInput.angularMoveT, angularDT);
           const float angularSpeed = CurveSolver::solve(playerInput.angularMoveT, *angularSpeedCurve);
-          const float angularForce = CurveSolver::solve(playerInput.angularMoveT, *angularForceCurve);
+          const float angularForce = CurveSolver::solve(playerInput.angularMoveT, *angularForceCurve)*scalar;
 
-          //TODO: read from SharedMassRow
-          constexpr Mass mass = computePlayerMass();
-          Constraint c;
-          c.jacobian.a.linear = move;
-          c.objMass.a = mass;
-          c.velocity.a.linear = velocity;
-          //Don't apply a force against the desired move direction
-          c.limits.lambdaMin = 0.0f;
-          //Cap the amount of force that is allowed to be applied to try to satisfy the constraint
-          //This prevents movement from fighting against or overpowering physics, assuming the cap isn't too high
-          c.limits.lambdaMax = linearForce;
-          //This is the target velocity the constraint is solving for along the input axis
-          c.limits.bias = -linearSpeed;
-
-          ConstraintImpulse ci = solveConstraint(c);
-          impulse = ci.a;
-
-          if(config->player.drawMove) {
-            const float scale = 8.0f;
-            DebugDrawer::drawVector(debug, pos, velocity*scale, { 1, 0, 0 });
-            DebugDrawer::drawVector(debug, pos, -c.jacobian.a.linear*c.limits.bias*scale, { 0, 1, 0 });
-            DebugDrawer::drawVector(debug, pos, impulse.linear*scale, { 0, 0, 1 });
-          }
-
-          c = {};
-          c.jacobian.a.angular = 1.0f;
-          c.objMass.a = mass;
-          c.velocity.a.angular = aVel;
-          c.limits.lambdaMax = angularForce;
-          c.limits.lambdaMin = -angularForce;
-          //If there is move input, use the bias to rotate towards the desired forward
-          //Otherwise, use the constraint to use force to zero out the angular velocity
+          motorBuilder.select({ i });
+          Constraints::MotorJoint joint;
+          joint.flags.set(gnx::enumCast(Constraints::MotorJoint::Flags::WorldSpaceLinear))
+            .set(gnx::enumCast(Constraints::MotorJoint::Flags::CanPull));
+          joint.linearForce = linearForce;
+          //Target is zero when there is no input, meaning the constraint will reduce velocity to zero, like friciton
+          joint.linearTarget = move * linearSpeed;
+          joint.angularForce = angularForce;
           if(hasMoveInput) {
-            const float sinError = cross(forward, desiredForward);
-            const float cosError = glm::dot(forward, desiredForward);
-            const float angularError = std::atan2f(sinError, cosError);
-            c.limits.bias = -angularError*angularSpeed;
+            joint.angularTarget = Geo::angleFromDirection(desiredForward);
+            joint.flags.set(gnx::enumCast(Constraints::MotorJoint::Flags::AngularOrientationTarget));
+            joint.biasScalar = angularSpeed;
           }
-
-          ci = solveConstraint(c);
-          impulse.angular += ci.a.angular;
-
-          if(impulse.linear != glm::vec2{ 0 } || impulse.angular) {
-            TableAdapters::add(i, impulse.linear, *impulseX, *impulseY);
-            TableAdapters::add(i, impulse.angular, *impulseA);
+          else {
+            //When there is no input, turn the local space target to zero so it stops rotating
+            joint.angularTarget = 0;
+            joint.flags.reset(gnx::enumCast(Constraints::MotorJoint::Flags::AngularOrientationTarget));
           }
+          motorBuilder.setJointType({ joint });
 
           std::vector<Ability::TriggerResult> triggers;
           for(const Input::Event& event : sm.readEvents()) {

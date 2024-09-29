@@ -72,6 +72,7 @@ namespace Tags {
 
   struct TerrainRow : TagRow {};
   struct DynamicPhysicsObjectsTag : TagRow {};
+  struct DynamicPhysicsObjectsWithMotorTag : TagRow {};
   struct DynamicPhysicsObjectsWithZTag : TagRow {};
 
   // Table can choose to expose a name for debugging purposes

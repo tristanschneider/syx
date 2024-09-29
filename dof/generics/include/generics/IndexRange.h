@@ -55,6 +55,9 @@ namespace gnx {
       : beginIndex{ b }
       , endIndex{ e }
     {};
+    IndexRangeT(T b)
+      : IndexRangeT{ b, b + 1 }
+    {};
     IndexRangeT(const IndexRangeT&) = default;
 
     IndexRangeT& operator=(const IndexRangeT&) = default;

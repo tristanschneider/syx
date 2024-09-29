@@ -128,6 +128,8 @@ namespace Constraints {
     //Max force that can be used to achieve the target velocity
     float linearForce{};
     float angularForce{};
+    //Scalar to the amount of error to try to correct every frame. Determines the amount constraint may overshoot its target
+    float biasScalar{ 1.f };
     std::bitset<gnx::enumCast(Flags::Count)> flags{};
   };
   struct JointVariant {

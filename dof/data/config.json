@@ -4,7 +4,7 @@
             "pushAbility": {
                 "ability": {
                     "cooldown.type": "disabled",
-                    "cooldown.maxTime": 0.43,
+                    "cooldown.maxTime": 0.4300000071525574,
                     "trigger.type": "charge",
                     "trigger.minCharge": 0.024000000208616258,
                     "trigger.chargeCurve": {
@@ -122,7 +122,7 @@
             "angularSpeedCurve": {
                 "scale": {
                     "nullopt": false,
-                    "data": 0.22100000083446504
+                    "data": 0.7720000147819519
                 },
                 "offset": {
                     "nullopt": true
@@ -138,7 +138,7 @@
             "angularForceCurve": {
                 "scale": {
                     "nullopt": false,
-                    "data": 0.6240000128746033
+                    "data": 0.05900000035762787
                 },
                 "offset": {
                     "nullopt": true
@@ -153,23 +153,23 @@
             "linearStoppingSpeedCurve": {
                 "scale": {
                     "nullopt": false,
-                    "data": 0.8970000147819519
+                    "data": 2.739000082015991
                 },
                 "offset": {
                     "nullopt": false,
-                    "data": 0.010999999940395356
+                    "data": 0.0
                 },
                 "duration": {
                     "nullopt": true
                 },
                 "flipInput": false,
                 "flipOutput": false,
-                "curveFunction": "Zero"
+                "curveFunction": "One"
             },
             "linearStoppingForceCurve": {
                 "scale": {
                     "nullopt": false,
-                    "data": 0.061000000685453418
+                    "data": 0.0010000000474974514
                 },
                 "offset": {
                     "nullopt": true
@@ -178,8 +178,8 @@
                     "nullopt": true
                 },
                 "flipInput": false,
-                "flipOutput": true,
-                "curveFunction": "QuinticEaseIn"
+                "flipOutput": false,
+                "curveFunction": "One"
             },
             "angularStoppingSpeedCurve": {
                 "scale": {
@@ -197,7 +197,8 @@
             },
             "angularStoppingForceCurve": {
                 "scale": {
-                    "nullopt": true
+                    "nullopt": false,
+                    "data": 0.009999999776482582
                 },
                 "offset": {
                     "nullopt": true
@@ -207,7 +208,7 @@
                 },
                 "flipInput": false,
                 "flipOutput": false,
-                "curveFunction": ""
+                "curveFunction": "One"
             }
         },
         "world": {

@@ -101,6 +101,48 @@ namespace GameDatabase {
     StableIDRow
   >;
 
+  using DynamicPhysicsObjectsWithMotor = Table<
+    Tags::TableNameRow,
+    Tags::DynamicPhysicsObjectsWithMotorTag,
+    SceneNavigator::IsClearedWithSceneTag,
+    //Data viewed by physics, not to be used by gameplay
+    FloatRow<Tags::Pos, Tags::X>,
+    FloatRow<Tags::Pos, Tags::Y>,
+    FloatRow<Tags::Rot, Tags::CosAngle>,
+    FloatRow<Tags::Rot, Tags::SinAngle>,
+    FloatRow<Tags::LinVel, Tags::X>,
+    FloatRow<Tags::LinVel, Tags::Y>,
+    FloatRow<Tags::AngVel, Tags::Angle>,
+    Tags::ScaleXRow,
+    Tags::ScaleYRow,
+
+    //Impulses requested from gameplay
+    FloatRow<Tags::GLinImpulse, Tags::X>,
+    FloatRow<Tags::GLinImpulse, Tags::Y>,
+    FloatRow<Tags::GAngImpulse, Tags::Angle>,
+
+    SweepNPruneBroadphase::BroadphaseKeys,
+    Narrowphase::CollisionMaskRow,
+    Narrowphase::SharedThicknessRow,
+    Shapes::SharedRectangleRow,
+    ConstraintSolver::ConstraintMaskRow,
+    ConstraintSolver::MassRow,
+    ConstraintSolver::SharedMaterialRow,
+
+    Constraints::AutoManageJointTag,
+    Constraints::TableConstraintDefinitionsRow,
+    Constraints::ConstraintChangesRow,
+    Constraints::ConstraintCommonRow,
+    Constraints::ConstraintSideRow,
+    Constraints::JointRow,
+    Constraints::ConstraintStorageRow,
+
+    Row<CubeSprite>,
+    SharedRow<TextureReference>,
+
+    StableIDRow
+  >;
+
   using DynamicPhysicsObjectsWithZ = Table<
     Tags::TableNameRow,
     Tags::DynamicPhysicsObjectsWithZTag,
@@ -357,7 +399,8 @@ namespace GameDatabase {
     DebugTextTable,
     TargetPosTable,
     DynamicPhysicsObjects,
-    DynamicPhysicsObjectsWithZ
+    DynamicPhysicsObjectsWithZ,
+    DynamicPhysicsObjectsWithMotor
   >;
 
   std::unique_ptr<IDatabase> create(StableElementMappings& mappings) {
@@ -397,6 +440,26 @@ namespace GameDatabase {
     builder.submitTask(std::move(task));
   }
 
+  template<class... Filter>
+  void configureSelfMotor(IAppBuilder& builder) {
+    auto task = builder.createTask();
+    auto q = task.query<Constraints::TableConstraintDefinitionsRow, const Filter...>();
+    task.setCallback([q](AppTaskArgs&) mutable {
+      for(size_t t = 0; t < q.size(); ++t) {
+        auto& definitions = q.get<0>(t);
+        Constraints::Definition def;
+        def.common = def.common.create();
+        def.sideA = def.sideA.create();
+        def.targetA = Constraints::SelfTarget{};
+        def.targetB = Constraints::NoTarget{};
+        def.joint = def.joint.create();
+        def.storage = def.storage.create();
+        definitions.at().definitions.push_back(def);
+      }
+    });
+    builder.submitTask(std::move(task.setName("init player motor")));
+  }
+
   void configureDefaults(IAppBuilder& builder) {
     setName<TargetTableTag>(builder, { "Targets" });
     setName<Row<TextureLoadRequest>>(builder, { "Texture Requests" });
@@ -408,6 +471,9 @@ namespace GameDatabase {
     setName<Tags::TerrainRow>(builder, { "Terrain" });
     setName<IsPlayer>(builder, { "Players" });
     setName<Row<Camera>>(builder, { "Cameras" });
+    setName<Tags::DynamicPhysicsObjectsWithMotorTag>(builder, { "Dynamic With Motor" });
+
+    configureSelfMotor<Tags::DynamicPhysicsObjectsWithMotorTag>(builder);
 
     const auto defaultQuadMass = Geo::computeQuadMass(1.0f, 1.0f, 1.0f);
     setDefaultValue<ConstraintSolver::MassRow, Shapes::SharedRectangleRow>(builder, "rect", defaultQuadMass);

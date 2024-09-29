@@ -505,6 +505,18 @@ namespace Constraints {
           manifold->common[c].lambdaMin = pin.flags.test(gnx::enumCast(MotorJoint::Flags::CanPull)) ? -pin.linearForce : 0.0f;
           ++c;
         }
+        else {
+          //If a force is given but no direction, solve towards zero velocity
+          for(auto axis : { glm::vec2{ 1, 0 }, glm::vec2{ 0, 1 } }) {
+            manifold->sideA[c].linear = axis;
+            manifold->sideA[c].angular = 0;
+            manifold->common[c].bias = 0;
+            //Checking direction when pulling towards zero doesn't make sense so this ignores CanPull
+            manifold->common[c].lambdaMax = pin.linearForce;
+            manifold->common[c].lambdaMin = -pin.linearForce;
+            ++c;
+          }
+        }
       }
 
       if(pin.angularForce) {
@@ -515,15 +527,14 @@ namespace Constraints {
 
         //Try to point at target orientation
         if(pin.flags.test(gnx::enumCast(MotorJoint::Flags::AngularOrientationTarget))) {
-          const float error = pin.angularTarget - Geo::angleFromDirection(ta.rot);
-          manifold->common[c].bias = error;
-          ++c;
+          const float error = computeAngularError(Geo::directionFromAngle(pin.angularTarget), ta.rot);
+          manifold->common[c].bias = error*pin.biasScalar;
         }
         //Absolute rotation in a given direction
-        else if(std::abs(pin.angularTarget)) {
+        else {
           manifold->common[c].bias = pin.angularTarget;
-          ++c;
         }
+        ++c;
       }
       manifold->setEnd(c);
     }
@@ -534,6 +545,17 @@ namespace Constraints {
 
     float biasFromError(float error) const {
       return biasFromError(error, *globals.biasTerm);
+    }
+
+    float computeAngularError(const glm::vec2& referenceA, const glm::vec2& referenceB) const {
+      const float cosAngle = glm::dot(referenceA, referenceB);
+      const float sinAngle = Geo::cross(referenceA, referenceB);
+      const float angularErrorAbs = cosAngle > 0.0f ? std::acos(cosAngle) : std::acos(-cosAngle) + Geo::PI2;
+      float angularError = Geo::reduce(angularErrorAbs, *globals.slop);
+      if(sinAngle > 0) {
+        angularError = -angularError;
+      }
+      return angularError;
     }
 
     const ConstraintTable& table;

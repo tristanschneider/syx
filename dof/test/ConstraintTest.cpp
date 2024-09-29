@@ -175,7 +175,7 @@ namespace Test {
           .vA = velocity.resolve(solver.a),
           .vB = velocity.resolve(solver.b)
         };
-        solve.error = computeError(solve, solver);
+        solve.error = computeError ? computeError(solve, solver) : 0.0f;
         result.push_back(solve);
       }
       return result;
@@ -326,8 +326,27 @@ namespace Test {
       assertSolved(history);
     }
 
+    TEST_METHOD(StatOneSidedMotorJointWorldTargetRotationPI) {
+      Game game;
+      const ElementRef a = game.scene->objectA;
+      constexpr size_t lifetime = 2000;
+      Constraints::MotorJoint joint{ .linearTarget{ 1, 2 }, .angularTarget{ 3.141f }, .linearForce{ 1.0f }, .angularForce{ 0.1f } };
+      joint.flags.set(gnx::enumCast(Constraints::MotorJoint::Flags::WorldSpaceLinear));
+      joint.flags.set(gnx::enumCast(Constraints::MotorJoint::Flags::AngularOrientationTarget));
+      joint.flags.set(gnx::enumCast(Constraints::MotorJoint::Flags::CanPull));
+      pt::TransformResolver transform{ game->builder(), PhysicsSimulation::getPhysicsAliases() };
+
+      game.constraintStat.createStatEffects(1).setOwner(a).setLifetime(lifetime);
+      game.constraintStat.constraintBuilder().setJointType({ joint }).setTargets(a, {});
+
+      Solver solver{ .game{ game }, .a{ a }, .b{}, .localCenterToPinA{}, .localCenterToPinB{} };
+      std::vector<SolveTimepoint> history = trySolve(solver, 10, expectAnd(expectTargetLinearVelocity(joint.linearTarget), expectOneSidedOrientation(joint.angularTarget)));
+
+      assertSolved(history);
+    }
+
     static TableID getAutoManagedConstraintTable(Game& game) {
-      auto ids = game->builder().queryTables<Constraints::AutoManageJointTag>();
+      auto ids = game->builder().queryTables<Constraints::AutoManageJointTag, Tags::DynamicPhysicsObjectsWithMotorTag>();
       Assert::IsTrue(ids.size());
       return ids[0];
     }
@@ -373,6 +392,31 @@ namespace Test {
       for(size_t u = 0; u < 300; ++u) {
         game->update();
       }
+    }
+
+    TEST_METHOD(AutoManagedOneSidedMotorJointTargetToZero) {
+      Game game;
+      const TableID table = getAutoManagedConstraintTable(game);
+      ElementRef a = createAutoManagedBody(game);
+      auto task = game->builder();
+      Constraints::Rows rows = Constraints::Definition::resolve(task, table, 0);
+      Constraints::Builder builder{ rows };
+      Assert::IsTrue(rows.common && rows.common->size() == 1);
+      pt::TransformResolver transform{ game->builder(), PhysicsSimulation::getPhysicsAliases() };
+      const size_t i = 0;
+
+      Constraints::MotorJoint joint{ .linearTarget{ 2, 1 }, .angularTarget{ 1 }, .linearForce{ 1.0f }, .angularForce{ 1 } };
+      joint.flags.set(gnx::enumCast(Constraints::MotorJoint::Flags::CanPull));
+      builder.select({ i, i + 1 }).setJointType({ joint });
+
+      Solver solver{ .game{ game }, .a{ a }, .b{}, .localCenterToPinA{}, .localCenterToPinB{} };
+      trySolve(solver, 2, nullptr);
+      joint.angularTarget = 0;
+      builder.setJointType({ joint });
+
+      std::vector<SolveTimepoint> history = trySolve(solver, 5, expectTargetAngularVelocity(joint.angularTarget));
+
+      assertSolved(history);
     }
 
     static void assertUnconstrainted(Game& game, const std::vector<ElementRef>& bodies) {
