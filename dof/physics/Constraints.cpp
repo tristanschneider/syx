@@ -53,14 +53,9 @@ namespace Constraints {
     ResolveTarget resolveTarget{ task, table };
     result.targetA = std::visit(resolveTarget, targetA);
     result.targetB = std::visit(resolveTarget, targetB);
-    //A side is allowed to be empty but if it is specified the row must exist
-    if(sideA) {
-      result.sideA = getOrAssert(sideA, task, table);
+    if(custom) {
+      result.custom = getOrAssert(custom, task, table);
     }
-    if(sideB) {
-      result.sideB = getOrAssert(sideB, task, table);
-    }
-    result.common = getOrAssert(common, task, table);
     result.joint = getOrAssert(joint, task, table);
     return result;
   }
@@ -320,23 +315,18 @@ namespace Constraints {
     ConstraintTable(RuntimeDatabaseTaskBuilder& task, ConstraintDefinitionKey, const Definition& definition, const TableID& table)
       : targetA{ std::visit(ResolveConstTarget{ task, table }, definition.targetA) }
       , targetB{ std::visit(ResolveConstTarget{ task, table }, definition.targetA) }
-      , common{ getOrAssert(definition.common.read(), task, table) }
+      //, custom{ getOrAssert(definition.common.read(), task, table) }
       , stableA{ &task.query<const StableIDRow>(table).get<0>(0) }
       , storage{ getOrAssert(definition.storage, task, table) }
       , joints{ getOrAssert(definition.joint.read(), task, table) }
     {
-      if(definition.sideA) {
-        sideA = getOrAssert(definition.sideA.read(), task, table);
-      }
-      if(definition.sideB) {
-        sideB = getOrAssert(definition.sideB.read(), task, table);
+      if (definition.custom) {
+        custom = getOrAssert(definition.custom.read(), task, table);
       }
     }
 
     Rows::ConstTarget targetA, targetB;
-    const ConstraintSideRow* sideA{};
-    const ConstraintSideRow* sideB{};
-    const ConstraintCommonRow* common{};
+    const CustomConstraintRow* custom{};
     const StableIDRow* stableA{};
     const ConstraintStorageRow* storage{};
     const JointRow* joints{};
@@ -344,9 +334,22 @@ namespace Constraints {
 
   struct ConfigureJoint {
     void operator()(const CustomJoint&) const {
-        manifold->sideA[0] = table.sideA ? table.sideA->at(i) : ConstraintSide{};
-        manifold->sideB[0] = table.sideB ? table.sideB->at(i) : ConstraintSide{};
-        manifold->common[0] = table.common->at(i);
+      if(table.custom) {
+        //Copy as-is, preserving warm starts in manifold
+        const Constraints::Constraint3DOF& source = table.custom->at(i);
+        const int sourceSize = source.size();
+        for(int c = 0; c < sourceSize; ++c) {
+          manifold->sideA[c] = source.sideA[c];
+          manifold->sideB[c] = source.sideB[c];
+          float temp = manifold->common[c].warmStart;
+          manifold->common[c] = source.common[c];
+          manifold->common[c].warmStart = temp;
+        }
+        manifold->setEnd(sourceSize);
+      }
+      else {
+        assert(false && "Custom joints must be used with a CustomConstraintRow");
+      }
     }
 
     void operator()(const PinJoint1D& pin) const {

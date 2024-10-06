@@ -60,41 +60,9 @@ namespace SP {
   };
   //Up to 3 constraints between the pair of objects as configured by Contraints.cpp
   //Since there are 3 degrees of freedom in 2D more should not be needed
-  struct ConstraintManifold {
-    bool shouldSolve(int i = 0) const {
-      return common[i].lambdaMin < common[i].lambdaMax;
-    }
-
-    int size() const {
-      int result = 0;
-      while(shouldSolve(result) && result < 3) {
-        ++result;
-      }
-      return result;
-    }
-
-    //Caller must either fill all constraints or set this on the first sequential constraint from 0 that is not populated
-    //A single constraint would call setEnd(1)
-    void setEnd(int i) {
-      common[i].lambdaMin = common[i].lambdaMax = 0;
-    }
-
-    std::array<Constraints::ConstraintSide, 3> sideA;
-    std::array<Constraints::ConstraintSide, 3> sideB;
-    std::array<Constraints::ConstraintCommon, 3> common;
+  struct ConstraintManifold : Constraints::Constraint3DOF {
   };
-  struct ZConstraintManifold {
-    bool shouldSolve() const {
-      return common.lambdaMin < common.lambdaMax;
-    }
-
-    void clear() {
-      common.lambdaMin = common.lambdaMax = 0;
-    }
-
-    //If lambda limits are set this is solved. Doesn't need a ConstraintSide as Z is only allowed to solve directly along that axis
-    //This means the jacobian is always +Z for A and -Z for B, acting on the center of mass
-    Constraints::ConstraintCommon common;
+  struct ZConstraintManifold : Constraints::ConstraintZ1DOF {
   };
   enum class PairType : uint8_t {
     ContactXY,

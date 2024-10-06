@@ -128,8 +128,6 @@ namespace GameDatabase {
     Constraints::AutoManageJointTag,
     Constraints::TableConstraintDefinitionsRow,
     Constraints::ConstraintChangesRow,
-    Constraints::ConstraintCommonRow,
-    Constraints::ConstraintSideRow,
     Constraints::JointRow,
     Constraints::ConstraintStorageRow,
 
@@ -214,6 +212,13 @@ namespace GameDatabase {
     FloatRow<Tags::GLinImpulse, Tags::X>,
     FloatRow<Tags::GLinImpulse, Tags::Y>,
     FloatRow<Tags::GAngImpulse, Tags::Angle>,
+
+    Constraints::AutoManageJointTag,
+    Constraints::TableConstraintDefinitionsRow,
+    Constraints::ConstraintChangesRow,
+    Constraints::CustomConstraintRow,
+    Constraints::JointRow,
+    Constraints::ConstraintStorageRow,
 
     FloatRow<Tags::FragmentGoal, Tags::X>,
     FloatRow<Tags::FragmentGoal, Tags::Y>,
@@ -357,8 +362,6 @@ namespace GameDatabase {
     Constraints::AutoManageJointTag,
     Constraints::TableConstraintDefinitionsRow,
     Constraints::ConstraintChangesRow,
-    Constraints::ConstraintCommonRow,
-    Constraints::ConstraintSideRow,
     Constraints::JointRow,
     Constraints::ConstraintStorageRow,
 
@@ -440,12 +443,14 @@ namespace GameDatabase {
   void configureSelfMotor(IAppBuilder& builder) {
     auto task = builder.createTask();
     auto q = task.query<Constraints::TableConstraintDefinitionsRow, const Filter...>();
-    task.setCallback([q](AppTaskArgs&) mutable {
+    auto res = task.getResolver<const Constraints::CustomConstraintRow>();
+    task.setCallback([q, res](AppTaskArgs&) mutable {
       for(size_t t = 0; t < q.size(); ++t) {
         auto& definitions = q.get<0>(t);
         Constraints::Definition def;
-        def.common = def.common.create();
-        def.sideA = def.sideA.create();
+        if(res->tryGetRow<const Constraints::CustomConstraintRow>(q.matchingTableIDs[t])) {
+          def.custom = def.custom.create();
+        }
         def.targetA = Constraints::SelfTarget{};
         def.targetB = Constraints::NoTarget{};
         def.joint = def.joint.create();
@@ -470,6 +475,7 @@ namespace GameDatabase {
     setName<Tags::DynamicPhysicsObjectsWithMotorTag>(builder, { "Dynamic With Motor" });
 
     configureSelfMotor<Tags::DynamicPhysicsObjectsWithMotorTag>(builder);
+    configureSelfMotor<FragmentSeekingGoalTagRow>(builder);
 
     const auto defaultQuadMass = Geo::computeQuadMass(1.0f, 1.0f, 1.0f);
     setDefaultValue<ConstraintSolver::MassRow, Shapes::SharedRectangleRow>(builder, "rect", defaultQuadMass);

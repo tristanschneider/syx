@@ -21,6 +21,7 @@
 #include "generics/Timer.h"
 #include "ConstraintSolver.h"
 #include "Geometric.h"
+#include "Constraints.h"
 
 namespace SM {
   using namespace FragmentStateMachine;
@@ -303,25 +304,14 @@ namespace SM {
         StateRow,
         const Tags::GPosXRow,
         const Tags::GPosYRow,
-        const Tags::GLinVelXRow,
-        const Tags::GLinVelYRow,
-        const Tags::GAngVelRow,
+        Constraints::JointRow,
+        Constraints::CustomConstraintRow,
         const Tags::FragmentGoalXRow,
-        const Tags::FragmentGoalYRow,
-        const ConstraintSolver::SharedMassRow,
-        Tags::GLinImpulseXRow,
-        Tags::GLinImpulseYRow,
-        Tags::GAngImpulseRow
+        const Tags::FragmentGoalYRow
       >(table);
 
-      PGS::SolverStorage solver;
-      //Zero mass body and the one we'll solve for. Must have 2 since solver assumes pairs
-      solver.resize(2, 2);
-      solver.setMass(1, 0, 0);
-      solver.setVelocity(1, glm::vec2{ 0 }, 0);
-      task.setCallback([query, bucket, solver](AppTaskArgs&) mutable {
-        auto&& [globals, state, posX, posY, vx, vy, va, goalX, goalY, massRow, ix, iy, ia] = query.get(0);
-        solver.setMass(0, massRow->at().inverseMass, massRow->at().inverseInertia);
+      task.setCallback([query, bucket](AppTaskArgs&) mutable {
+        auto&& [globals, state, posX, posY, joints, customs, goalX, goalY] = query.get(0);
 
         for(size_t i : globals->at().buckets[bucket].updating) {
           SeekHome& seek = std::get<SeekHome>(state->at(i).currentState);
@@ -330,8 +320,6 @@ namespace SM {
             continue;
           }
 
-          const glm::vec2 linVel = TableAdapters::read(i, *vx, *vy);
-          const float angVel = va->at(i);
           const glm::vec2 myPos = TableAdapters::read(i, *posX, *posY);
           const glm::vec2 goal = TableAdapters::read(i, *goalX, *goalY);
           const glm::vec2 toGoal = goal - myPos;
@@ -342,28 +330,20 @@ namespace SM {
           constexpr float maxForce = 0.01f;
           constexpr float targetVelocity = 1.1f;
           constexpr float orbitPrevention = 0.01f;
-          targetVelocity;
-          constexpr glm::vec2 z{ 0.0f };
           const glm::vec2 goalDir = toGoal / distance;
-          //No warm start
-          solver.setWarmStart(0, 0);
-          solver.setWarmStart(1, 0);
-          solver.setJacobian(0, 0, 1, goalDir, 0.0f, z, 0);
-          solver.setJacobian(1, 0, 1, Geo::orthogonal(goalDir), 0, z, 0);
-          //Try to hit target velocity but only ever push towards it
-          solver.setBias(0, targetVelocity);
-          solver.setLambdaBounds(0, 0.0f, maxForce);
-          //solver.setLambdaBounds(0, 0, PGS::SolverStorage::UNLIMITED_MAX);
-          solver.setLambdaBounds(1, -orbitPrevention, orbitPrevention);
-          solver.setVelocity(0, linVel, angVel);
-          solver.premultiply();
+          joints->at(i) = { Constraints::CustomJoint{} };
+          Constraints::Constraint3DOF& custom = customs->at(i);
+          //Clear to be safe against bleeding values from an unrelated state
+          custom = {};
 
-          auto context = solver.createContext();
-          PGS::solvePGS(context);
-
-          auto body = context.velocity.getBody(0);
-          const glm::vec2 linearImpulse = body.linear - linVel;
-          TableAdapters::add(i, linearImpulse, *ix, *iy);
+          //Push towards goal and apply a small corrective force orthogonally to push a bit against orbiting around the target
+          custom.sideA[0].linear = goalDir;
+          custom.sideA[1].linear = Geo::orthogonal(goalDir);
+          custom.common[0].bias = targetVelocity;
+          custom.common[0].lambdaMax = maxForce;
+          custom.common[1].lambdaMin = -orbitPrevention;
+          custom.common[1].lambdaMax = orbitPrevention;
+          custom.setEnd(2);
         }
       });
       builder.submitTask(std::move(task));

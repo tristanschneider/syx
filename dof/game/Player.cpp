@@ -29,8 +29,6 @@ namespace Player {
       for(size_t t = 0; t < q.size(); ++t) {
         auto [definitions, _] = q.get(t);
         Constraints::Definition def;
-        def.common = def.common.create();
-        def.sideA = def.sideA.create();
         def.targetA = Constraints::SelfTarget{};
         def.targetB = Constraints::NoTarget{};
         def.joint = def.joint.create();

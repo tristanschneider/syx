@@ -17,9 +17,7 @@ namespace ConstraintStatEffect {
     return {
       .targetA{ Constraints::Rows::Target{ &std::get<TargetA>(table.mRows) } },
       .targetB{ Constraints::Rows::Target{ &std::get<TargetB>(table.mRows) } },
-      .sideA{ &std::get<ConstraintA>(table.mRows) },
-      .sideB{ &std::get<ConstraintB>(table.mRows) },
-      .common{ &std::get<ConstraintCommon>(table.mRows) },
+      .custom{ &std::get<CustomConstraint>(table.mRows) },
       .joint{ &std::get<JointRow>(table.mRows) }
     };
   }
@@ -50,9 +48,7 @@ namespace ConstraintStatEffect {
       for(size_t t = 0; t < q.size(); ++t) {
         auto [definitions, _] = q.get(t);
         Constraints::Definition def;
-        def.common = def.common.create<ConstraintCommon>();
-        def.sideA = def.sideA.create<ConstraintA>();
-        def.sideB = def.sideB.create<ConstraintB>();
+        def.custom = def.custom.create<CustomConstraint>();
         def.targetA = Constraints::ExternalTargetRowAlias::create<TargetA>();
         def.targetB = Constraints::ExternalTargetRowAlias::create<TargetB>();
         def.joint = Constraints::JointRowAlias::create<ConstraintStatEffect::JointRow>();

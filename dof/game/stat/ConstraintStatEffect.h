@@ -7,9 +7,7 @@
 namespace ConstraintStatEffect {
   struct TargetA : Constraints::ExternalTargetRow {};
   struct TargetB : Constraints::ExternalTargetRow {};
-  struct ConstraintCommon : Constraints::ConstraintCommonRow {};
-  struct ConstraintA : Constraints::ConstraintSideRow {};
-  struct ConstraintB : Constraints::ConstraintSideRow {};
+  struct CustomConstraint : Constraints::CustomConstraintRow {};
   struct JointRow : Constraints::JointRow {};
   struct StorageRow : Constraints::ConstraintStorageRow {};
   struct TickTracker {
@@ -38,9 +36,7 @@ struct ConstraintStatEffectTable : StatEffectBase<
   Constraints::ConstraintChangesRow,
   ConstraintStatEffect::TargetA,
   ConstraintStatEffect::TargetB,
-  ConstraintStatEffect::ConstraintCommon,
-  ConstraintStatEffect::ConstraintA,
-  ConstraintStatEffect::ConstraintB,
+  ConstraintStatEffect::CustomConstraint,
   ConstraintStatEffect::JointRow,
   ConstraintStatEffect::StorageRow,
   ConstraintStatEffect::TickTrackerRow

@@ -58,6 +58,42 @@ namespace Constraints {
     float bias{};
     float warmStart{};
   };
+  struct Constraint3DOF {
+    bool shouldSolve(int i = 0) const {
+      return common[i].lambdaMin < common[i].lambdaMax;
+    }
+
+    int size() const {
+      int result = 0;
+      while(shouldSolve(result) && result < 3) {
+        ++result;
+      }
+      return result;
+    }
+
+    //Caller must either fill all constraints or set this on the first sequential constraint from 0 that is not populated
+    //A single constraint would call setEnd(1)
+    void setEnd(int i) {
+      common[i].lambdaMin = common[i].lambdaMax = 0;
+    }
+
+    std::array<Constraints::ConstraintSide, 3> sideA;
+    std::array<Constraints::ConstraintSide, 3> sideB;
+    std::array<Constraints::ConstraintCommon, 3> common;
+  };
+  struct ConstraintZ1DOF {
+    bool shouldSolve() const {
+      return common.lambdaMin < common.lambdaMax;
+    }
+
+    void clear() {
+      common.lambdaMin = common.lambdaMax = 0;
+    }
+
+    //If lambda limits are set this is solved. Doesn't need a ConstraintSide as Z is only allowed to solve directly along that axis
+    //This means the jacobian is always +Z for A and -Z for B, acting on the center of mass
+    Constraints::ConstraintCommon common;
+  };
   struct ConstraintStorage {
     constexpr static size_t INVALID = std::numeric_limits<size_t>::max();
     constexpr static size_t PENDING = INVALID - 1;
@@ -142,8 +178,9 @@ namespace Constraints {
 
   //TODO: does the row make sense or should it just be what was in the IConstraintStorageModifier::insert?
   struct ExternalTargetRow : Row<ExternalTarget> {};
-  struct ConstraintSideRow : Row<ConstraintSide> {};
-  struct ConstraintCommonRow : Row<ConstraintCommon> {};
+  //Custom constraints are bigger than all other joints so they use optional external storage here
+  //To use a custom join specify the custom variant and set the values in this row
+  struct CustomConstraintRow : Row<Constraint3DOF> {};
   struct ConstraintStorageRow : Row<ConstraintStorage> {};
   struct JointRow : Row<JointVariant> {};
 
@@ -153,8 +190,7 @@ namespace Constraints {
   //A constraint definition must have two targets, of which one can be "NoTarget"
   using ExternalTargetRowAlias = QueryAlias<ExternalTargetRow>;
   using ConstExternalTargetRowAlias = QueryAlias<const ExternalTargetRow>;
-  using ConstraintSideRowAlias = QueryAlias<ConstraintSideRow>;
-  using ConstraintCommonRowAlias = QueryAlias<ConstraintCommonRow>;
+  using CustomConstraintRowAlias = QueryAlias<CustomConstraintRow>;
   using ConstraintStorageRowAlias = QueryAlias<ConstraintStorageRow>;
   using JointRowAlias = QueryAlias<JointRow>;
 
@@ -169,8 +205,7 @@ namespace Constraints {
 
     Target targetA, targetB;
     //A side may be empty if the target is NoTarget
-    ConstraintSideRowAlias sideA, sideB;
-    ConstraintCommonRowAlias common;
+    CustomConstraintRowAlias custom;
     ConstraintStorageRowAlias storage;
     JointRowAlias joint;
   };
@@ -180,10 +215,7 @@ namespace Constraints {
     using Target = std::variant<NoTarget, ExternalTargetRow*, SelfTarget>;
     using ConstTarget = std::variant<NoTarget, const ExternalTargetRow*, SelfTarget>;
     Target targetA, targetB;
-    //A side may be empty if the target is NoTarget
-    ConstraintSideRow* sideA{};
-    ConstraintSideRow* sideB{};
-    ConstraintCommonRow* common{};
+    CustomConstraintRow* custom{};
     JointRow* joint{};
   };
 

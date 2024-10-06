@@ -399,7 +399,7 @@ namespace Test {
       auto task = game->builder();
       Constraints::Rows rows = Constraints::Definition::resolve(task, table, 0);
       Constraints::Builder builder{ rows };
-      Assert::IsTrue(rows.common && rows.common->size() == 1);
+      Assert::IsTrue(rows.joint && rows.joint->size() == 1);
       pt::TransformResolver transform{ game->builder(), PhysicsSimulation::getPhysicsAliases() };
       const size_t i = 0;
 
@@ -425,7 +425,6 @@ namespace Test {
       auto task = game->builder();
       Constraints::Rows rows = Constraints::Definition::resolve(task, table, 0);
       Constraints::Builder builder{ rows };
-      Assert::IsTrue(rows.common && rows.common->size() == 1);
       pt::TransformResolver transform{ game->builder(), PhysicsSimulation::getPhysicsAliases() };
       const size_t i = 0;
 
