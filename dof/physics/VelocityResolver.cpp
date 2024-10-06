@@ -17,6 +17,7 @@ namespace pt {
     return VelocitiesAlias<T> {
       .qLinearX{ tables.linVelX },
       .qLinearY{ tables.linVelY },
+      .qLinearZ{ tables.linVelZ },
       .qAngular{ tables.angVel }
     };
   }
@@ -33,6 +34,7 @@ namespace pt {
       return task.getAliasResolver(
         a.qLinearX,
         a.qLinearY,
+        a.qLinearZ,
         a.qAngular
       );
     }, tables);
@@ -52,8 +54,13 @@ namespace pt {
         if(resolver->tryGetOrSwapRowAlias(alias.qLinearX, alias.rLinearX, *raw) &&
           resolver->tryGetOrSwapRowAlias(alias.qLinearY, alias.rLinearY, *raw) &&
           resolver->tryGetOrSwapRowAlias(alias.qAngular, alias.rAngular, *raw)) {
+          float z{};
+          if(resolver->tryGetOrSwapRowAlias(alias.qLinearZ, alias.rLinearZ, *raw)) {
+            z = alias.rLinearZ->at(i);
+          }
           return Velocities{
             .linear{ alias.rLinearX->at(i), alias.rLinearY->at(i) },
+            .linearZ{ z },
             .angular{ alias.rAngular->at(i) }
           };
         }
@@ -69,6 +76,9 @@ namespace pt {
       const size_t i = raw->getElementIndex();
       a.rLinearX->at(i) = v.linear.x;
       a.rLinearY->at(i) = v.linear.y;
+      if(a.rLinearZ) {
+        a.rLinearZ->at(i) = v.linearZ;
+      }
       a.rAngular->at(i) = v.angular;
     }
   }

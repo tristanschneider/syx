@@ -160,6 +160,24 @@ namespace ConstraintSolver {
     };
   }
 
+  struct IslandSolver;
+  struct SolveContext {
+    const IslandGraph::Island& island;
+    const IslandGraph::Graph& graph;
+    const SolverGlobals& globals;
+    Tasks::ILocalScheduler& scheduler;
+    Resolver::ShapeResolverContext& shapeContext;
+    ElementRefResolver& resolver;
+    IslandSolver& solver;
+    SP::ManifoldRow& manifolds;
+    SP::ConstraintRow& constraintManifolds;
+    const SP::PairTypeRow& pairTypes;
+    bool bodiesChanged{};
+    bool constraintsChanged{};
+    bool anyChanged{};
+    size_t threadCount{};
+  };
+
   constexpr float frictionTerm = 0.8f;
 
   struct IslandBody {
@@ -395,6 +413,8 @@ namespace ConstraintSolver {
     solver.solver.setVelocity(INFINITE_MASS_INDEX, 0);
     //Add empty entry so that these indices still always line up
     solver.bodies.emplace_back();
+    //Allow one sided constraints to map to a default body
+    solver.islandToBodyIndex[ElementRef{}] = { INFINITE_MASS_INDEX, MASK_SOLVE_ALL, Material{} };
   }
 
   BodyMapping getOrCreateBodyMapping(
@@ -650,104 +670,16 @@ namespace ConstraintSolver {
     builder.submitTask(std::move(task));
   }
 
-  void solveIslandZ(RuntimeDatabaseTaskBuilder& task, std::shared_ptr<IslandSolverCollection> collection, const PhysicsAliases& tables, const SolverGlobals& globals) {
-    task.setName("solve Z islands");
-    const IslandGraph::Graph* graph = task.query<const SP::IslandGraphRow>().tryGetSingletonElement();
-    auto pairs = task.query<
-      SP::ZManifoldRow,
-      const SP::PairTypeRow
-    >();
-    auto ids = task.getIDResolver();
-    Resolver::ShapeResolver shapes{ Resolver::ShapeResolver::createZResolver(task, tables) };
-
-    //Gather all pairs that require Z solving into an array
-    //Gather all bodies in those pairs into an array with a mapping
-    //Iterate over pairs until all are satisfied
-    task.setCallback([graph, pairs, shapes, ids, collection, globals](AppTaskArgs& args) mutable {
-      Resolver::ZShapeResolverCache cache;
-      Resolver::ZShapeResolverContext shapeContext{
-        shapes,
-        cache
-      };
-      auto resolver = ids->getRefResolver();
-      auto [manifolds, pairTypes] = pairs.get(0);
-      for(size_t i = args.begin; i < args.end; ++i) {
-        const IslandTaskData& task = collection->tasks[i];
-        const IslandGraph::Island& island = graph->islands[task.islandIndex];
-
-        ZIslandSolver& solver = static_cast<IslandStorage&>(*island.userdata).zSolver;
-        //TODO: only clear what has a chance of being untouched by the initialization below
-        solver.clear();
-        //This will likely overshoot because they won't all be overlapping
-        solver.solver.resize(static_cast<BodyIndex>(island.nodeCount + 1), static_cast<ConstraintIndex>(island.edgeCount));
-        insertInfiniteMassBody(solver);
-        ConstraintIndex constraintIndex{};
-
-        uint32_t currentEdge = island.edges;
-        while(currentEdge != IslandGraph::INVALID) {
-          const IslandGraph::Edge& e = graph->edges[currentEdge];
-          //Use the edge to get the manifold to see if there is anything to solve
-          //The lookups here are somewhat wasted work between bodies but the same pair won't solve on both XY and Z
-          if(e.data < pairTypes->size() && pairTypes->at(e.data) == SP::PairType::ContactZ) {
-            SP::ZContactManifold& manifold = manifolds->at(e.data);
-            //This is a constraint to solve, pull out the required information
-            const BodyMapping bodyA = getOrCreateBody(graph->nodes[e.nodeA].data, solver, shapeContext, resolver);
-            const BodyMapping bodyB = getOrCreateBody(graph->nodes[e.nodeB].data, solver, shapeContext, resolver);
-            if(bodyA.constraintMask & bodyB.constraintMask) {
-              constraintIndex += addConstraints(solver,
-                bodyA.solverIndex,
-                bodyB.solverIndex,
-                manifold,
-                constraintIndex,
-                combineMaterials(bodyA.material, bodyB.material),
-                globals
-              );
-            }
-          }
-          currentEdge = e.islandNext;
-        }
-
-        //Remove any excess. This could be since multiple objects mapped to the infinite mass index, some data was not present,
-        //or their constraint masks indicated they don't want to solve against each-other
-        solver.solver.resize(static_cast<BodyIndex>(solver.bodies.size()), constraintIndex);
-
-        solver.solver.premultiply();
-        //Should always be easy to solve so cap doesn't need to be low
-        solver.solver.maxIterations = 100;
-        PGS1D::SolveContext context{ solver.solver.createContext() };
-        //TODO: consider skipping when there is no warm start. Maybe it's uncommon enough not to be worth it
-        PGS1D::warmStart(context);
-        PGS1D::SolveResult solveResult;
-        do {
-          solveResult = PGS1D::advancePGS(context);
-        } while(!solveResult.isFinished);
-
-        //Write out the solved velocities
-        for(ZIslandBody& body : solver.bodies) {
-          if(body) {
-            *body.velocity = context.velocity.getBody(body.solverIndex).linear;
-          }
-        }
-      }
-    });
+  std::optional<std::pair<BodyMapping, BodyMapping>> getOrCreateBodyPair(
+    const IslandGraph::Edge& e,
+    const IslandGraph::Graph& graph,
+    ZIslandSolver& solver,
+    Resolver::ZShapeResolverContext& shapeContext,
+    const ElementRefResolver& resolver) {
+    const BodyMapping bodyA = getOrCreateBody(graph.nodes[e.nodeA].data, solver, shapeContext, resolver);
+    const BodyMapping bodyB = getOrCreateBody(graph.nodes[e.nodeB].data, solver, shapeContext, resolver);
+    return (bodyA.constraintMask & bodyB.constraintMask) ? std::make_optional(std::make_pair(bodyA, bodyB)) : std::nullopt;
   }
-
-  struct SolveContext {
-    const IslandGraph::Island& island;
-    const IslandGraph::Graph& graph;
-    const SolverGlobals& globals;
-    Tasks::ILocalScheduler& scheduler;
-    Resolver::ShapeResolverContext& shapeContext;
-    ElementRefResolver& resolver;
-    IslandSolver& solver;
-    SP::ManifoldRow& manifolds;
-    SP::ConstraintRow& constraintManifolds;
-    const SP::PairTypeRow& pairTypes;
-    bool bodiesChanged{};
-    bool constraintsChanged{};
-    bool anyChanged{};
-    size_t threadCount{};
-  };
 
   void insertConstraintManifold(SolveContext& context, size_t manifoldIndex, ConstraintIndex& constraintIndex, IslandGraph::NodeUserdata a, IslandGraph::NodeUserdata b) {
     //Make sure this should be solved
@@ -781,6 +713,33 @@ namespace ConstraintSolver {
     }
   }
 
+  void insertConstraintManifold(
+    const IslandGraph::Edge& e,
+    SP::ZConstraintRow& zConstraints,
+    const IslandGraph::Graph& graph,
+    ZIslandSolver& solver,
+    Resolver::ZShapeResolverContext& shapeContext,
+    const ElementRefResolver& resolver,
+    ConstraintIndex& constraintIndex
+  ) {
+    SP::ZConstraintManifold& constraint = zConstraints.at(e.data);
+    if(!constraint.shouldSolve()) {
+      return;
+    }
+    const auto pair = getOrCreateBodyPair(e, graph, solver, shapeContext, resolver);
+    if(!pair) {
+      return;
+    }
+
+    auto& s = solver.solver;
+    s.setJacobian(constraintIndex, pair->first.solverIndex, pair->second.solverIndex, 1, -1);
+    s.setLambdaBounds(constraintIndex, constraint.common.lambdaMin, constraint.common.lambdaMax);
+    s.setBias(constraintIndex, constraint.common.bias);
+    //TODO: warm start
+    s.setWarmStart(constraintIndex, 0.0f);
+    ++constraintIndex;
+  }
+
   void insertContactManifold(SolveContext& context, size_t manifoldIndex, ConstraintIndex& constraintIndex, IslandGraph::NodeUserdata a, IslandGraph::NodeUserdata b) {
     SP::ContactManifold& manifold = context.manifolds.at(manifoldIndex);
     if(manifold.size) {
@@ -800,6 +759,29 @@ namespace ConstraintSolver {
     }
   }
 
+  void insertContactManifold(
+    const IslandGraph::Edge& e,
+    SP::ZManifoldRow& manifolds,
+    const IslandGraph::Graph& graph,
+    ZIslandSolver& solver,
+    Resolver::ZShapeResolverContext& shapeContext,
+    const ElementRefResolver& resolver,
+    const SolverGlobals& globals,
+    ConstraintIndex& constraintIndex
+  ) {
+    if(const auto pair = getOrCreateBodyPair(e, graph, solver, shapeContext, resolver)) {
+      SP::ZContactManifold& manifold = manifolds.at(e.data);
+      constraintIndex += addConstraints(solver,
+        pair->first.solverIndex,
+        pair->second.solverIndex,
+        manifold,
+        constraintIndex,
+        combineMaterials(pair->first.material, pair->second.material),
+        globals
+      );
+    }
+  }
+
   void insertConstraintType(SolveContext& context, size_t manifoldIndex, ConstraintIndex& constraintIndex, IslandGraph::NodeUserdata a, IslandGraph::NodeUserdata b) {
     if(manifoldIndex >= context.pairTypes.size()) {
       return;
@@ -809,12 +791,111 @@ namespace ConstraintSolver {
         insertContactManifold(context, manifoldIndex, constraintIndex, a, b);
         break;
       case SP::PairType::ContactZ:
+      case SP::PairType::ConstraintZOnly:
         //These are solved in the unrelated Z code path
         return;
       case SP::PairType::Constraint:
+      case SP::PairType::ConstraintWithZ:
         insertConstraintManifold(context, manifoldIndex, constraintIndex, a, b);
         return;
     }
+  }
+
+  void insertConstraintType(
+    const IslandGraph::Edge& e,
+    const SP::PairTypeRow& pairTypes,
+    SP::ZManifoldRow& manifold,
+    SP::ZConstraintRow& zConstraints,
+    const IslandGraph::Graph& graph,
+    ZIslandSolver& solver,
+    Resolver::ZShapeResolverContext& shapeContext,
+    const ElementRefResolver& resolver,
+    const SolverGlobals& globals,
+    ConstraintIndex& constraintIndex
+  ) {
+    if(e.data >= pairTypes.size()) {
+      return;
+    }
+    const SP::PairType pairType = pairTypes.at(e.data);
+    //Exit out if this pair doesn't have a Z component
+    switch(pairType) {
+      case SP::PairType::ContactZ:
+        insertContactManifold(e, manifold, graph, solver, shapeContext, resolver, globals, constraintIndex);
+        return;
+      case SP::PairType::ConstraintWithZ:
+      case SP::PairType::ConstraintZOnly:
+        insertConstraintManifold(e, zConstraints, graph, solver, shapeContext, resolver, constraintIndex);
+        break;
+      case SP::PairType::Constraint:
+      case SP::PairType::ContactXY:
+        return;
+    }
+  }
+
+  void solveIslandZ(RuntimeDatabaseTaskBuilder& task, std::shared_ptr<IslandSolverCollection> collection, const PhysicsAliases& tables, const SolverGlobals& globals) {
+    task.setName("solve Z islands");
+    const IslandGraph::Graph* graph = task.query<const SP::IslandGraphRow>().tryGetSingletonElement();
+    auto pairs = task.query<
+      SP::ZManifoldRow,
+      SP::ZConstraintRow,
+      const SP::PairTypeRow
+    >();
+    auto ids = task.getIDResolver();
+    Resolver::ShapeResolver shapes{ Resolver::ShapeResolver::createZResolver(task, tables) };
+
+    //Gather all pairs that require Z solving into an array
+    //Gather all bodies in those pairs into an array with a mapping
+    //Iterate over pairs until all are satisfied
+    task.setCallback([graph, pairs, shapes, ids, collection, globals](AppTaskArgs& args) mutable {
+      Resolver::ZShapeResolverCache cache;
+      Resolver::ZShapeResolverContext shapeContext{
+        shapes,
+        cache
+      };
+      auto resolver = ids->getRefResolver();
+      auto [manifolds, constraints, pairTypes] = pairs.get(0);
+      for(size_t i = args.begin; i < args.end; ++i) {
+        const IslandTaskData& task = collection->tasks[i];
+        const IslandGraph::Island& island = graph->islands[task.islandIndex];
+
+        ZIslandSolver& solver = static_cast<IslandStorage&>(*island.userdata).zSolver;
+        //TODO: only clear what has a chance of being untouched by the initialization below
+        solver.clear();
+        //This will likely overshoot because they won't all be overlapping
+        solver.solver.resize(static_cast<BodyIndex>(island.nodeCount + 1), static_cast<ConstraintIndex>(island.edgeCount));
+        insertInfiniteMassBody(solver);
+        ConstraintIndex constraintIndex{};
+
+        uint32_t currentEdge = island.edges;
+        while(currentEdge != IslandGraph::INVALID) {
+          const IslandGraph::Edge& e = graph->edges[currentEdge];
+          insertConstraintType(e, *pairTypes, *manifolds, *constraints, *graph, solver, shapeContext, resolver, globals, constraintIndex);
+          currentEdge = e.islandNext;
+        }
+
+        //Remove any excess. This could be since multiple objects mapped to the infinite mass index, some data was not present,
+        //or their constraint masks indicated they don't want to solve against each-other
+        solver.solver.resize(static_cast<BodyIndex>(solver.bodies.size()), constraintIndex);
+
+        solver.solver.premultiply();
+        //Should always be easy to solve so cap doesn't need to be low
+        solver.solver.maxIterations = 100;
+        PGS1D::SolveContext context{ solver.solver.createContext() };
+        //TODO: consider skipping when there is no warm start. Maybe it's uncommon enough not to be worth it
+        PGS1D::warmStart(context);
+        PGS1D::SolveResult solveResult;
+        do {
+          solveResult = PGS1D::advancePGS(context);
+        } while(!solveResult.isFinished);
+
+        //Write out the solved velocities
+        for(ZIslandBody& body : solver.bodies) {
+          if(body) {
+            *body.velocity = context.velocity.getBody(body.solverIndex).linear;
+          }
+        }
+      }
+    });
   }
 
   //Creates body mappings and caches edges used for creating constraints

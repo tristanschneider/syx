@@ -81,12 +81,29 @@ namespace SP {
 
     std::array<Constraints::ConstraintSide, 3> sideA;
     std::array<Constraints::ConstraintSide, 3> sideB;
-    std::array<Constraints::ContraintCommon, 3> common;
+    std::array<Constraints::ConstraintCommon, 3> common;
+  };
+  struct ZConstraintManifold {
+    bool shouldSolve() const {
+      return common.lambdaMin < common.lambdaMax;
+    }
+
+    void clear() {
+      common.lambdaMin = common.lambdaMax = 0;
+    }
+
+    //If lambda limits are set this is solved. Doesn't need a ConstraintSide as Z is only allowed to solve directly along that axis
+    //This means the jacobian is always +Z for A and -Z for B, acting on the center of mass
+    Constraints::ConstraintCommon common;
   };
   enum class PairType : uint8_t {
     ContactXY,
     ContactZ,
     Constraint,
+    //Constraint on XY and Z
+    ConstraintWithZ,
+    //Constraint only on Z
+    ConstraintZOnly
   };
   constexpr bool isContactPair(PairType t) {
     switch(t) {
@@ -104,6 +121,7 @@ namespace SP {
   struct ManifoldRow : Row<ContactManifold> {};
   struct ZManifoldRow : Row<ZContactManifold> {};
   struct ConstraintRow : Row<ConstraintManifold> {};
+  struct ZConstraintRow : Row<ZConstraintManifold> {};
   struct IslandGraphRow : SharedRow<IslandGraph::Graph> {};
   struct PairTypeRow : Row<PairType> {};
 
@@ -118,7 +136,8 @@ namespace SP {
     PairTypeRow,
     ManifoldRow,
     ZManifoldRow,
-    ConstraintRow
+    ConstraintRow,
+    ZConstraintRow
   >;
 
   size_t addIslandEdge(ITableModifier& modifier,

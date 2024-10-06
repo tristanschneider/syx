@@ -33,7 +33,7 @@ namespace Test {
       void init(IAppBuilder& builder) {
         auto task = builder.createTask();
         task.setName("init");
-        auto q = task.query<const Tags::DynamicPhysicsObjectsTag,
+        auto q = task.query<const Tags::DynamicPhysicsObjectsWithZTag,
           Tags::PosXRow, Tags::PosYRow>();
         Assert::IsFalse(q.matchingTableIDs.empty());
         NotifyingTableModifier modifier{ task, q.matchingTableIDs[0] };
@@ -128,6 +128,13 @@ namespace Test {
       return [target](const SolveTimepoint& timepoint, const Solver&) {
         const glm::vec2 v = target - (timepoint.vA.linear - timepoint.vB.linear);
         return std::abs(glm::length(v));
+      };
+    }
+
+    static ErrorFN expectTargetZVelocity(float target) {
+      return [target](const SolveTimepoint& timepoint, const Solver&) {
+        const float v = target - (timepoint.vA.linearZ - timepoint.vB.linearZ);
+        return std::abs(v);
       };
     }
 
@@ -322,6 +329,23 @@ namespace Test {
 
       Solver solver{ .game{ game }, .a{ a }, .b{}, .localCenterToPinA{}, .localCenterToPinB{} };
       std::vector<SolveTimepoint> history = trySolve(solver, 5, expectAnd(expectTargetLinearVelocity(joint.linearTarget), expectOneSidedOrientation(joint.angularTarget)));
+
+      assertSolved(history);
+    }
+
+    TEST_METHOD(StatOneSidedMotorJointZ) {
+      Game game;
+      const ElementRef a = game.scene->objectA;
+      constexpr size_t lifetime = 2000;
+      Constraints::MotorJoint joint{ .linearTargetZ{ 0.5f }, .zForce{ 1.0f } };
+      joint.flags.set(gnx::enumCast(Constraints::MotorJoint::Flags::CanPull));
+      pt::TransformResolver transform{ game->builder(), PhysicsSimulation::getPhysicsAliases() };
+
+      game.constraintStat.createStatEffects(1).setOwner(a).setLifetime(lifetime);
+      game.constraintStat.constraintBuilder().setJointType({ joint }).setTargets(a, {});
+
+      Solver solver{ .game{ game }, .a{ a }, .b{}, .localCenterToPinA{}, .localCenterToPinB{} };
+      std::vector<SolveTimepoint> history = trySolve(solver, 10, expectTargetZVelocity(joint.linearTargetZ));
 
       assertSolved(history);
     }

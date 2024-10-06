@@ -52,13 +52,13 @@ namespace Player {
       Config::PlayerConfig& player = config->player;
       auto& force = Config::getCurve(player.linearForceCurve);
       force.params.duration = 0.4f;
-      force.params.scale = 0.012f;
-      force.function = CurveMath::getFunction(CurveMath::CurveType::ExponentialEaseOut);
+      force.params.scale = 0.21f;
+      force.function = CurveMath::getFunction(CurveMath::CurveType::One);
 
       auto& speed = Config::getCurve(player.linearSpeedCurve);
-      speed.params.duration = 1.0f;
-      speed.params.scale = 0.1f;
-      speed.function = CurveMath::getFunction(CurveMath::CurveType::SineEaseIn);
+      speed.params.duration = 0.691f;
+      speed.params.scale = 0.162f;
+      speed.function = CurveMath::getFunction(CurveMath::CurveType::ElasticEaseOut);
 
       auto& stopping = Config::getCurve(player.linearStoppingSpeedCurve);
       stopping.params.duration = 0.5f;
@@ -130,15 +130,14 @@ namespace Player {
       GameInput::PlayerInputRow,
       const GameInput::StateMachineRow,
       const FloatRow<GPos, X>, FloatRow<GPos, Y>,
-      const FloatRow<GRot, CosAngle>, FloatRow<GRot, SinAngle>,
-      FloatRow<GLinImpulse, Z>
+      const FloatRow<GRot, CosAngle>, FloatRow<GRot, SinAngle>
     >();
     auto debug = TableAdapters::getDebugLines(task);
     Constraints::Builder motorBuilder{ Constraints::Definition::resolve(task, players.matchingTableIDs[0], MOTOR_KEY) };
 
     task.setCallback([players, config, debug, motorBuilder](AppTaskArgs& args) mutable {
       for(size_t t = 0; t < players.size(); ++t) {
-        auto&& [input, machines, posX, posY, rotX, rotY, impulseZ] = players.get(t);
+        auto&& [input, machines, posX, posY, rotX, rotY] = players.get(t);
         for(size_t i = 0; i < input->size(); ++i) {
           GameInput::PlayerInput& playerInput = input->at(i);
           const Input::StateMachine& sm = machines->at(i);
@@ -201,7 +200,6 @@ namespace Player {
             joint.angularTarget = 0;
             joint.flags.reset(gnx::enumCast(Constraints::MotorJoint::Flags::AngularOrientationTarget));
           }
-          motorBuilder.setJointType({ joint });
 
           std::vector<Ability::TriggerResult> triggers;
           for(const Input::Event& event : sm.readEvents()) {
@@ -211,7 +209,7 @@ namespace Player {
               break;
             case GameInput::Events::JUMP: {
               //TODO: tie to config
-              TableAdapters::add(i, 0.1f, *impulseZ);
+              joint.linearTargetZ = joint.zForce = 0.1f;
               break;
             }
             case GameInput::Events::PARTIAL_TRIGGER_ACTION_1:
@@ -233,6 +231,8 @@ namespace Player {
               break;
             }
           }
+
+          motorBuilder.setJointType({ joint });
 
           AreaForceStatEffect::Builder ab{ args };
           for(Ability::TriggerResult& shouldTrigger : triggers) {

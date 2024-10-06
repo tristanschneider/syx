@@ -482,8 +482,9 @@ namespace Constraints {
     }
 
     void operator()(const MotorJoint& pin) const {
-      if(!pin.angularForce && !pin.linearForce) {
+      if(!pin.angularForce && !pin.linearForce && !pin.zForce) {
         manifold->setEnd(0);
+        zManifold->clear();
         return;
       }
       //For now solving as a one-sided constraint until I see a use case for a two sided motor
@@ -536,6 +537,18 @@ namespace Constraints {
         }
         ++c;
       }
+
+      if(pin.zForce) {
+        zManifold->common.bias = pin.linearTargetZ;
+        zManifold->common.lambdaMax = pin.zForce;
+        zManifold->common.lambdaMin = pin.flags.test(gnx::enumCast(MotorJoint::Flags::CanPull)) ? -pin.zForce : 0.0f;
+        *pairType = c ? SP::PairType::ConstraintWithZ : SP::PairType::ConstraintZOnly;
+      }
+      else {
+        zManifold->clear();
+        *pairType = SP::PairType::Constraint;
+      }
+
       manifold->setEnd(c);
     }
 
@@ -559,7 +572,9 @@ namespace Constraints {
     }
 
     const ConstraintTable& table;
-    SP::ConstraintManifold* manifold;
+    SP::ConstraintManifold* manifold{};
+    SP::ZConstraintManifold* zManifold{};
+    SP::PairType* pairType{};
     pt::TransformResolver& transform;
     size_t i{};
     //TODO: optimize for self target lookup
@@ -569,6 +584,7 @@ namespace Constraints {
 
   struct SpatialPairsTable {
     SP::ConstraintRow* manifold{};
+    SP::ZConstraintRow* zManifold{};
     SP::PairTypeRow* pairType{};
   };
   struct ConfigureArgs {
@@ -598,6 +614,7 @@ namespace Constraints {
         continue;
       }
       SP::ConstraintManifold& manifold = args.spatialPairs.manifold->at(storage.storageIndex);
+      SP::ZConstraintManifold& zManifold = args.spatialPairs.zManifold->at(storage.storageIndex);
       const auto& edge = args.graph.findEdge(storage.storageIndex);
       if(edge == args.graph.cEdgesEnd()) {
         continue;
@@ -609,6 +626,10 @@ namespace Constraints {
 
       if(shouldSolve) {
         joint.manifold = &manifold;
+        joint.zManifold = &zManifold;
+        joint.pairType = &args.spatialPairs.pairType->at(storage.storageIndex);
+        //Default to XY constraint, visitor can add Z
+        *joint.pairType = SP::PairType::Constraint;
         joint.a = a;
         joint.b = b;
         joint.i = i;
@@ -623,10 +644,10 @@ namespace Constraints {
   void constraintNarrowphase(IAppBuilder& builder, const PhysicsAliases& aliases, const ConstraintSolver::SolverGlobals& globals) {
     auto task = builder.createTask();
     std::vector<ConstraintTable> constraintTables = queryConstraintTables<ConstraintTable>(task);
-    auto sp = task.query<const SP::IslandGraphRow, SP::PairTypeRow, SP::ConstraintRow>();
+    auto sp = task.query<const SP::IslandGraphRow, SP::PairTypeRow, SP::ConstraintRow, SP::ZConstraintRow>();
     assert(sp.size());
-    auto [g, p, c] = sp.get(0);
-    SpatialPairsTable spatialPairs{ c, p };
+    auto [g, p, c, cz] = sp.get(0);
+    SpatialPairsTable spatialPairs{ c, cz, p };
     const IslandGraph::Graph* graph = &g->at();
     pt::TransformResolver tr{ task, aliases };
 

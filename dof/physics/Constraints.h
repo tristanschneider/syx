@@ -52,7 +52,7 @@ namespace Constraints {
     glm::vec2 linear{};
     float angular{};
   };
-  struct ContraintCommon {
+  struct ConstraintCommon {
     float lambdaMin{};
     float lambdaMax{};
     float bias{};
@@ -124,10 +124,13 @@ namespace Constraints {
     //Assumed in local space unless world space flag is set in which case it's local to object A
     //This is the target velocity the constraint is trying to reach
     glm::vec2 linearTarget{};
+    //Only used if IncludeZ flag is set
+    float linearTargetZ{};
     float angularTarget{};
     //Max force that can be used to achieve the target velocity
     float linearForce{};
     float angularForce{};
+    float zForce{};
     //Scalar to the amount of error to try to correct every frame. Determines the amount constraint may overshoot its target
     float biasScalar{ 1.f };
     std::bitset<gnx::enumCast(Flags::Count)> flags{};
@@ -140,7 +143,7 @@ namespace Constraints {
   //TODO: does the row make sense or should it just be what was in the IConstraintStorageModifier::insert?
   struct ExternalTargetRow : Row<ExternalTarget> {};
   struct ConstraintSideRow : Row<ConstraintSide> {};
-  struct ConstraintCommonRow : Row<ContraintCommon> {};
+  struct ConstraintCommonRow : Row<ConstraintCommon> {};
   struct ConstraintStorageRow : Row<ConstraintStorage> {};
   struct JointRow : Row<JointVariant> {};
 

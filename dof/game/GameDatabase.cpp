@@ -112,14 +112,10 @@ namespace GameDatabase {
     FloatRow<Tags::Rot, Tags::SinAngle>,
     FloatRow<Tags::LinVel, Tags::X>,
     FloatRow<Tags::LinVel, Tags::Y>,
+    FloatRow<Tags::LinVel, Tags::Z>,
     FloatRow<Tags::AngVel, Tags::Angle>,
     Tags::ScaleXRow,
     Tags::ScaleYRow,
-
-    //Impulses requested from gameplay
-    FloatRow<Tags::GLinImpulse, Tags::X>,
-    FloatRow<Tags::GLinImpulse, Tags::Y>,
-    FloatRow<Tags::GAngImpulse, Tags::Angle>,
 
     SweepNPruneBroadphase::BroadphaseKeys,
     Narrowphase::CollisionMaskRow,

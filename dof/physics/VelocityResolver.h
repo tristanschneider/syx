@@ -18,6 +18,7 @@ namespace pt {
     bool lessThan(float epsilon) const;
 
     glm::vec2 linear{};
+    float linearZ{};
     float angular{};
   };
   //Junk to allow sharing code between const and mutable versions of the resolver
@@ -28,8 +29,8 @@ namespace pt {
 
     static VelocitiesAlias<QT> create(const PhysicsAliases&);
 
-    Q qLinearX, qLinearY, qAngular;
-    CachedRow<QT> rLinearX, rLinearY, rAngular;
+    Q qLinearX, qLinearY, qLinearZ, qAngular;
+    CachedRow<QT> rLinearX, rLinearY, rLinearZ, rAngular;
   };
 
   template<> static VelocitiesAlias<const Row<float>> VelocitiesAlias<const Row<float>>::create(const PhysicsAliases&);
