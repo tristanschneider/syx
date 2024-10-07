@@ -17,6 +17,11 @@ namespace Clip {
   };
 
   struct LineLineIntersectTimes {
+    explicit operator bool() const {
+      //Always both or neither
+      return tA.has_value();
+    }
+
     std::optional<float> tA, tB;
   };
 

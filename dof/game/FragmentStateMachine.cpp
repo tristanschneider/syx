@@ -22,6 +22,7 @@
 #include "ConstraintSolver.h"
 #include "Geometric.h"
 #include "Constraints.h"
+#include "Clip.h"
 
 namespace SM {
   using namespace FragmentStateMachine;
@@ -99,11 +100,73 @@ namespace SM {
 
     static constexpr float seekAhead = 2.0f;
 
-    static SpatialQuery::AABB computeQueryVolume(const glm::vec2& pos, const glm::vec2& forward) {
+    static SpatialQuery::AABB computeQueryVolume(const glm::vec2& pos, [[maybe_unused]] const glm::vec2& forward) {
       //Put query volume a bit out in front of the fragment
-      const glm::vec2 queryPos = pos + forward*seekAhead;
-      constexpr glm::vec2 half{ 0.5f, 0.5f };
+      const glm::vec2 queryPos = pos;// + forward*seekAhead;
+      constexpr glm::vec2 half{ seekAhead * 0.5f };
       return { queryPos - half, queryPos + half };
+    }
+
+    //Gather a vague idea of the obstructions through the contact points. This will vary in accuracy depending on what type of collision it is
+    static void buildObstacles(
+      std::vector<Clip::StartAndDir>& buffer,
+      SpatialQuery::IReader& spatialQueryR,
+      const Wander& wander,
+      const ElementRef& self,
+      const glm::vec2& queryPos) {
+      spatialQueryR.begin(wander.spatialQuery);
+      buffer.clear();
+      //Gather a vague idea of the obstructions through the contact points. This will vary in accuracy depending on what type of collision it is
+      while(const SpatialQuery::Result* q = spatialQueryR.tryIterate()) {
+        if(auto contact = std::get_if<SpatialQuery::ContactXY>(&q->contact); q->other != self && contact && contact->points.size() >= 2) {
+          Clip::StartAndDir obstacle{ .start{ contact->points[0].point } };
+          obstacle.dir = contact->points[1].point - obstacle.start;
+          obstacle.start += queryPos;
+          buffer.push_back(obstacle);
+        }
+      };
+    }
+
+    static bool isObstructedDirection(const Clip::StartAndDir& myDir, const std::vector<Clip::StartAndDir>& obstacles) {
+      for(const Clip::StartAndDir& obstacle : obstacles) {
+        const Clip::LineLineIntersectTimes intersect = Clip::getIntersectTimes(myDir, obstacle);
+        //If it's parallel or backwards, not obstructed
+        if(!intersect || *intersect.tA < 0.f) {
+          continue;
+        }
+
+        const float clampedOnObstacle = glm::clamp(*intersect.tB, 0.f, 1.f);
+        const glm::vec2 closestOnB = obstacle.start + obstacle.dir*clampedOnObstacle;
+        //A is looking forward infinitely so no clamping is needed
+        const glm::vec2 toB = closestOnB - myDir.start;
+        //Projection of closestOnB onto the forward direction.
+        //If they were already intersecting this would be the intersect, otherwise it's the closest on A
+        const glm::vec2 closestOnA = closestOnB - (myDir.dir * glm::dot(myDir.dir, toB));
+        constexpr float requiredClearance2 = Geo::squared(1.5f);
+        //See if there is enough space between the forward line and the obstacle face
+        if(glm::distance2(closestOnA, closestOnB) < requiredClearance2) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    static std::optional<glm::vec2> findUnobstructedDirection(const std::vector<Clip::StartAndDir>& obstacles, const glm::vec2& pos, const glm::vec2& startDir) {
+      constexpr int maxAttempts = 5;
+      constexpr float angleIncrement = Geo::PI / static_cast<float>(maxAttempts);
+      //Search alternating angles rotated away from the current wander direction for the first that is unobstructed
+      Clip::StartAndDir myDir{ .start{ pos } };
+      for(float a = 0; a < Geo::PI; a += angleIncrement) {
+        const glm::vec2 r = Geo::directionFromAngle(angleIncrement * static_cast<float>(a));
+        for(const auto rotation : { r, Geo::transposeRot(r) }) {
+          myDir.dir = Geo::rotate(rotation, startDir);
+          if(!isObstructedDirection(myDir, obstacles)) {
+            return myDir.dir;
+          }
+        }
+      }
+      //All options exhaused, nothing found
+      return {};
     }
 
     static void onUpdate(IAppBuilder& builder, const TableID& table, size_t bucket) {
@@ -113,10 +176,7 @@ namespace SM {
         const GlobalsRow,
         StateRow,
         const StableIDRow,
-        FloatRow<Tags::GLinImpulse, Tags::X>,
-        FloatRow<Tags::GLinImpulse, Tags::Y>,
-        const FloatRow<Tags::GAngVel, Tags::Angle>,
-        FloatRow<Tags::GAngImpulse, Tags::Angle>,
+        Constraints::JointRow,
         const FloatRow<Tags::GRot, Tags::CosAngle>,
         const FloatRow<Tags::GRot, Tags::SinAngle>,
         const FloatRow<Tags::GPos, Tags::X>,
@@ -128,61 +188,34 @@ namespace SM {
       auto ids = task.getIDResolver();
 
       task.setCallback([ids, query, spatialQueryR, spatialQueryW, bucket, bodyResolver](AppTaskArgs&) mutable {
-        auto&& [globals, state, stableRow, impulseX, impulseY, angVelRow, impulseA, rotX, rotY, posX, posY] = query.get(0);
+        auto&& [globals, state, stableRow, joints, rotX, rotY, posX, posY] = query.get(0);
         for(size_t si : globals->at().buckets[bucket].updating) {
           const ElementRef stableID = stableRow->at(si);
           const glm::vec2 pos = TableAdapters::read(si, *posX, *posY);
 
           Wander& wander = std::get<Wander>(state->at(si).currentState);
           spatialQueryR->begin(wander.spatialQuery);
-          const auto nearby = tryGetFirstNearby(*spatialQueryR, stableID);
 
-          if(nearby) {
-            //TODO: this doesn't really do what it means to but works well enough visually
-            constexpr float rotateForwardSpeed = 0.1f;
-            if(auto key = bodyResolver->tryResolve(*nearby)) {
-              //Figure out which direction to turn that will avoid collision with the other body assuming it keeps moving in its direction
-              const glm::vec2 otherForward = bodyResolver->getLinearVelocity(*key);
-              //This is going the same direction as the other, turn away from the direction it is going
-              if(glm::dot(wander.desiredDirection, otherForward) > 0) {
-                wander.desiredDirection = Math::rotate(wander.desiredDirection, Math::cross(wander.desiredDirection, otherForward) > 0.0f ? -rotateForwardSpeed : rotateForwardSpeed);
-              }
-              //This is going towards the other, turn away
-              else {
-                wander.desiredDirection = Math::rotate(wander.desiredDirection, Math::cross(wander.desiredDirection, -otherForward) > 0.0f ? -rotateForwardSpeed : rotateForwardSpeed);
-              }
-            }
+          std::vector<Clip::StartAndDir> obstacles;
+          buildObstacles(obstacles, *spatialQueryR, wander, stableID, pos);
+          const std::optional<glm::vec2> unobstructedDir = findUnobstructedDirection(obstacles, pos, wander.desiredDirection);
+
+          if(unobstructedDir) {
+            wander.desiredDirection = *unobstructedDir;
           }
 
-          constexpr float linearSpeed = 0.003f;
-          constexpr float angularAvoidance = 0.05f;
-          constexpr float angularAccelleration = 0.0025f;
-          constexpr float minAngVel = 0.001f;
-          constexpr float angularDamping = 0.001f;
+          constexpr float linearForce = 0.003f;
+          constexpr float linearSpeed = 0.1f;
+          constexpr float orthogonalForce = 0.03f;
 
-          //Apply angular impulse towards desired move direction
-          const float angVel = angVelRow->at(si);
-          const glm::vec2 forward = TableAdapters::read(si, *rotX, *rotY);
+          //const float speedMod = nearby ? 0.5f : 1.0f;
+          Constraints::PinMotorJoint joint;
+          joint.force = linearForce;// * speedMod;
+          joint.orthogonalForce = orthogonalForce;
+          joint.localCenterToPinA = glm::vec2{ 1.f, 0.f };
+          joint.targetVelocity = wander.desiredDirection * linearSpeed;
 
-          const float errorCos = glm::dot(forward, wander.desiredDirection);
-          const float errorSin = Math::cross(forward, wander.desiredDirection);
-          //The absolute value doesn't matter because it is clamped to angularAvoidance, make sure the direction is always towards the smallest angle between the vectors
-          const float totalError = errorCos > 0.99f ? 0.0f : std::atan2f(errorSin, errorCos);
-          //Determine the desired angular velocity that will fix an amount of error this frame
-          const float desiredAngVel = glm::clamp(totalError, -angularAvoidance, angularAvoidance);
-          //Approach the desired velocity in increments of the approach
-          const float angularCorrection = Math::approachAbs(angVel, angularAccelleration, desiredAngVel) - angVel;
-
-          if(std::abs(angularCorrection) > 0.001f) {
-            impulseA->at(si) += angularCorrection;
-          }
-          if(std::abs(angVel) > minAngVel) {
-            impulseA->at(si) += angVel * -angularDamping;
-          }
-
-          //Move forward regardless of if it's the desird direction
-          const float speedMod = nearby ? 0.5f : 1.0f;
-          TableAdapters::add(si, forward * linearSpeed * speedMod, *impulseX, *impulseY);
+          joints->at(si) = { joint };
 
           spatialQueryW->refreshQuery(wander.spatialQuery, { computeQueryVolume(pos, wander.desiredDirection) }, 2);
         }
@@ -230,19 +263,10 @@ namespace SM {
           const auto volume = computeQueryVolume(myPos, wander.desiredDirection);
           DebugDrawer::drawAABB(debug, volume.min, volume.max, glm::vec3{ 0.5f });
 
-          const ElementRef temp = wander.spatialQuery;
-          //Draw lines to each nearby spatial query result
-          spatialQuery->begin(temp);
-          while(const auto* n = spatialQuery->tryIterate()) {
-            if(!isValidResult(*n, myID)) {
-              continue;
-            }
-            if(auto resolved = ids->getRefResolver().tryUnpack(n->other)) {
-              if(resolver->tryGetOrSwapAllRows(*resolved, resolvedX, resolvedY)) {
-                const glm::vec2 resolvedPos = TableAdapters::read(resolved->getElementIndex(), *resolvedX, *resolvedY);
-                DebugDrawer::drawLine(debug, myPos, resolvedPos, glm::vec3{ 1.0f });
-              }
-            }
+          std::vector<Clip::StartAndDir> obstacles;
+          buildObstacles(obstacles, *spatialQuery, wander, myID, myPos);
+          for(const Clip::StartAndDir& o : obstacles) {
+            DebugDrawer::drawLine(debug, o.start, o.start + o.dir, glm::vec3{ 0.5f, 0.1f, 1.f });
           }
 
           //Draw line in desired direction

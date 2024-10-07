@@ -283,6 +283,7 @@ namespace Constraints {
           const OwnedConstraint& constraint = trackedConstraints.constraints[i];
           //Ensure the owner still exists
           if(auto unpacked = res.tryUnpack(constraint.owner)) {
+            //TODO: bug here if element isn't in this table anymore.
             const ConstraintStorage& storage = table.storage->at(unpacked->getElementIndex());
             //Ensure the owner is still pointing at this constraint, could either be cleared or a newer one
             if(constraint.storage == storage) {
@@ -550,6 +551,40 @@ namespace Constraints {
       else {
         zManifold->clear();
         *pairType = SP::PairType::Constraint;
+      }
+
+      manifold->setEnd(c);
+    }
+
+    void operator()(const PinMotorJoint& pin) const {
+      if(!pin.force && !pin.orthogonalForce) {
+        manifold->setEnd(0);
+        return;
+      }
+      const pt::Transform ta = transform.resolve(a);
+      const glm::vec2 worldCenterToPinA = ta.transformVector(pin.localCenterToPinA);
+      glm::vec2 worldMotorDir = pin.targetVelocity;
+      const float targetSpeed = glm::length(worldMotorDir);
+      if(targetSpeed > Geo::EPSILON) {
+        worldMotorDir /= targetSpeed;
+      }
+
+      int c = 0;
+      //Impulse along main direction
+      manifold->sideA[c].linear = worldMotorDir;
+      manifold->sideA[c].angular = Geo::cross(worldCenterToPinA, worldMotorDir);
+      manifold->common[c].bias = targetSpeed;
+      manifold->common[c].lambdaMax = pin.force;
+      manifold->common[c].lambdaMin = -pin.force;
+      ++c;
+
+      if(pin.orthogonalForce) {
+        //Target zero velocity along the orthogonal to limit swinging past the target
+        manifold->sideA[1].linear = Geo::orthogonal(worldMotorDir);
+        manifold->sideA[1].angular = Geo::cross(worldCenterToPinA, manifold->sideA[1].linear);
+        manifold->common[1].lambdaMax = pin.orthogonalForce;
+        manifold->common[1].lambdaMin = -pin.orthogonalForce;
+        ++c;
       }
 
       manifold->setEnd(c);

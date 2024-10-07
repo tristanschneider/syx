@@ -171,8 +171,24 @@ namespace Constraints {
     float biasScalar{ 1.f };
     std::bitset<gnx::enumCast(Flags::Count)> flags{};
   };
+  //Tries to achieve the target velocity at the anchor point in the desired direction
+  struct PinMotorJoint {
+    glm::vec2 localCenterToPinA{};
+    glm::vec2 targetVelocity{};
+    //Force along the primary direction
+    float force{};
+    //Force to counteract motion orthogonal to the target. Higher values prevent overshooting the target rotation
+    float orthogonalForce{};
+  };
   struct JointVariant {
-    using Variant = std::variant<CustomJoint, PinJoint1D, PinJoint2D, WeldJoint, MotorJoint>;
+    using Variant = std::variant<
+      CustomJoint,
+      PinJoint1D,
+      PinJoint2D,
+      WeldJoint,
+      MotorJoint,
+      PinMotorJoint
+    >;
     Variant data;
   };
 
