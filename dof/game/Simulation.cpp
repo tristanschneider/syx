@@ -24,6 +24,7 @@
 #include "GameDatabase.h"
 #include "SceneNavigator.h"
 #include "scenes/SceneList.h"
+#include "loader/AssetLoader.h"
 
 ThreadLocalsInstance::ThreadLocalsInstance() = default;
 ThreadLocalsInstance::~ThreadLocalsInstance() = default;
@@ -32,6 +33,8 @@ void Simulation::buildUpdateTasks(IAppBuilder& builder, const UpdateConfig& conf
   SceneList::registerScenes(builder);
 
   GameplayExtract::extractGameplayData(builder);
+
+  Loader::processRequests(builder);
 
   PhysicsSimulation::updatePhysics(builder);
   config.injectGameplayTasks(builder);

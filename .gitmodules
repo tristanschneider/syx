@@ -13,3 +13,6 @@
 [submodule "dof/config/cereal"]
 	path = dof/config/cereal
 	url = https://github.com/USCiLab/cereal.git
+[submodule "dof/loader/assimp"]
+	path = dof/loader/assimp
+	url = https://github.com/assimp/assimp.git

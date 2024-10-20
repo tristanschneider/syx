@@ -145,7 +145,7 @@ struct QueryResult {
 };
 
 struct RuntimeDatabaseArgs {
-  size_t elementIndexBits;
+  size_t elementIndexBits{};
   std::vector<RuntimeTable> tables;
   StableElementMappings* mappings{};
 };
@@ -397,7 +397,7 @@ namespace DBReflect {
   std::unique_ptr<IDatabase> mergeAll(std::unique_ptr<IDatabase> l, std::unique_ptr<IDatabase> r, Rest... rest) {
     auto merged = merge(std::move(l), std::move(r));
     if constexpr(sizeof...(Rest) > 0) {
-      return merge(std::move(merged), std::forward<Rest>(rest)...);
+      return mergeAll(std::move(merged), std::forward<Rest>(rest)...);
     }
     else {
       return merged;

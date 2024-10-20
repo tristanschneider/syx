@@ -22,6 +22,7 @@
 #include "shapes/Rectangle.h"
 #include "shapes/Line.h"
 #include "Constraints.h"
+#include "loader/AssetLoader.h"
 
 namespace GameDatabase {
   using BroadphaseTable = SweepNPruneBroadphase::BroadphaseTable;
@@ -406,7 +407,8 @@ namespace GameDatabase {
     return DBReflect::mergeAll(
       DBReflect::createDatabase<GameDatabase>(mappings),
       DBReflect::createDatabase<StatEffectDatabase>(mappings),
-      SceneNavigator::createDB(mappings)
+      SceneNavigator::createDB(mappings),
+      Loader::createDB(mappings)
     );
   }
 

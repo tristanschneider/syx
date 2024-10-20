@@ -28,6 +28,7 @@ target_link_libraries(game PUBLIC
     table
     curve
     config
+    loader
 )
 target_link_libraries(game PRIVATE
     ${ispc_objs}
