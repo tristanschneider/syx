@@ -23,4 +23,5 @@ add_subdirectory(assimp)
 target_link_libraries(loader
     PRIVATE assimp
     PRIVATE table
+    PRIVATE glm
 )

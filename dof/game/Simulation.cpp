@@ -24,7 +24,7 @@
 #include "GameDatabase.h"
 #include "SceneNavigator.h"
 #include "scenes/SceneList.h"
-#include "loader/AssetLoader.h"
+#include "loader/AssetService.h"
 
 ThreadLocalsInstance::ThreadLocalsInstance() = default;
 ThreadLocalsInstance::~ThreadLocalsInstance() = default;

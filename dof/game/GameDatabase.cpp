@@ -22,7 +22,7 @@
 #include "shapes/Rectangle.h"
 #include "shapes/Line.h"
 #include "Constraints.h"
-#include "loader/AssetLoader.h"
+#include "loader/AssetService.h"
 
 namespace GameDatabase {
   using BroadphaseTable = SweepNPruneBroadphase::BroadphaseTable;

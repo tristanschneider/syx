@@ -171,9 +171,15 @@ constexpr bool isNestedRow() {
 }
 
 template<class T>
-using IsRowT = std::disjunction<IsSharedRowT<T>, IsBasicRowT<T>>;
-template<class T>
-constexpr static bool IsRowV = IsRowT<T>::value;
+concept IsRow = requires(T t) {
+  typename T::ElementT;
+  typename T::ElementPtr;
+  t.at(0);
+  t.size();
+  t.swap(0, 1);
+};
+static_assert(IsRow<BasicRow<int>>);
+static_assert(IsRow<SharedRow<int>>);
 
 template<class T>
 using Row = BasicRow<T>;

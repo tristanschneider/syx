@@ -31,14 +31,12 @@ namespace Tasks {
       return *static_cast<LocalTask*>(handle.data);
     }
 
-    TaskHandle queueTask(TaskCallback&& task, const AppTaskSize& size) final {
-      tasks.emplace_back();
-      auto& t = tasks.back();
+    void initTaskSet(enki::TaskSet& set, TaskCallback&& task, const AppTaskSize& size) {
       if(size.batchSize) {
-        t.m_MinRange = static_cast<uint32_t>(size.batchSize);
-        t.m_SetSize = static_cast<uint32_t>(size.workItemCount);
+        set.m_MinRange = static_cast<uint32_t>(size.batchSize);
+        set.m_SetSize = static_cast<uint32_t>(size.workItemCount);
       }
-      t.m_Function = [cb{std::move(task)}, this](enki::TaskSetPartition partition, uint32_t thread) {
+      set.m_Function = [cb{std::move(task)}, this](enki::TaskSetPartition partition, uint32_t thread) {
         AppTaskArgs taskArgs;
         taskArgs.begin = partition.start;
         taskArgs.end = partition.end;
@@ -51,6 +49,12 @@ namespace Tasks {
         }
         cb(taskArgs);
       };
+    }
+
+    TaskHandle queueTask(TaskCallback&& task, const AppTaskSize& size) final {
+      tasks.emplace_back();
+      auto& t = tasks.back();
+      initTaskSet(t, std::move(task), size);
       ++tasksRemaining;
       args.scheduler.mScheduler.AddTaskSetToPipe(&t);
       return wrap(t);
@@ -83,6 +87,25 @@ namespace Tasks {
 
     size_t getThreadCount() const final {
       return args.scheduler.mScheduler.GetNumTaskThreads();
+    }
+
+    struct LongTask : ILongTask {
+      bool isDone() const final {
+        return task.GetIsComplete();
+      }
+
+      enki::TaskSet task;
+    };
+
+    std::shared_ptr<ILongTask> queueLongTask(TaskCallback&& task, const AppTaskSize& size) final {
+      auto result = std::make_shared<LongTask>();
+      //Keep the enki object alive at least long enough to complete
+      auto doTask = [cb{std::move(task)}, result](AppTaskArgs& a) mutable {
+        cb(a);
+        result.reset();
+      };
+      initTaskSet(result->task, std::move(doTask), size);
+      return result;
     }
 
     SchedulerArgs args;
