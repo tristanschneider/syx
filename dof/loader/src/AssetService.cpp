@@ -6,13 +6,80 @@
 #include "loader/AssetLoader.h"
 #include "AssetTables.h"
 #include "ILocalScheduler.h"
+#include "glm/glm.hpp"
+#include "generics/Hash.h"
 
 namespace Loader {
   struct ExampleAsset {};
   struct LoadFailure {};
+
+  struct Transform2D {
+    constexpr static size_t KEY = gnx::Hash::constHash("Transform2D");
+    glm::vec2 pos{};
+    float rot{};
+  };
+  struct Transform3D {
+    constexpr static size_t KEY = gnx::Hash::constHash("Transform3D");
+    glm::vec3 pos{};
+    float rot{};
+  };
+  struct Velocity3D {
+    constexpr static size_t KEY = gnx::Hash::constHash("Velocity3D");
+    glm::vec3 linear{};
+    float angular{};
+  };
+  struct CollisionMask {
+    constexpr static size_t KEY = gnx::Hash::constHash("CollisionMask");
+    uint8_t mask{};
+  };
+  struct ConstraintMask {
+    constexpr static size_t KEY = gnx::Hash::constHash("ConstraintMask");
+    uint8_t mask{};
+  };
+  struct Player {
+    Transform3D transform;
+    Velocity3D velocity;
+    CollisionMask collisionMask;
+    ConstraintMask constraintMask;
+  };
+  struct Thickness {
+    constexpr static size_t KEY = gnx::Hash::constHash("Thickness");
+    float thickness{};
+  };
+  struct Scale2D {
+    constexpr static size_t KEY = gnx::Hash::constHash("Scale2D");
+    glm::vec2 scale{};
+  };
+  struct Terrain {
+    Transform3D transform;
+    Velocity3D velocity;
+    Scale2D scale;
+    CollisionMask collisionMask;
+    ConstraintMask constraintMask;
+  };
+  struct PlayerTable {
+    std::vector<Player> players;
+    Thickness thickness;
+    //TODO: texture?
+  };
+  struct TerrainTable {
+    std::vector<Terrain> terrains;
+    Thickness thickness;
+    //TODO: texture?
+  };
+  struct FragmentAsset {
+  };
+  struct SceneAsset {
+    PlayerTable player;
+    TerrainTable terrain;
+  };
+
+  struct SceneAssetRow : Row<SceneAsset> {};
+
   using AssetVariant = std::variant<
     std::monostate,
     LoadFailure,
+    SceneAsset,
     ExampleAsset
   >;
 
@@ -47,7 +114,8 @@ namespace Loader {
         UsageTrackerBlockRow
       >,
       LoadingAssetTable,
-      SucceededAssetTable<ExampleAssetRow>
+      SucceededAssetTable<ExampleAssetRow>,
+      SucceededAssetTable<SceneAssetRow>
     >;
   }
 
@@ -66,6 +134,7 @@ namespace Loader {
         return std::to_string(*static_cast<double*>(data));
       case aiMetadataType::AI_AISTRING:
         return static_cast<aiString*>(data)->C_Str();
+      //In blender this is a float array of size 3
       case aiMetadataType::AI_AIVECTOR3D: {
         const auto v = static_cast<aiVector3D*>(data);
         return std::to_string(v->x) + ", " + std::to_string(v->y) + ", " + std::to_string(v->z);
@@ -97,6 +166,14 @@ namespace Loader {
         }
         printf("%s -> %s\n", key.C_Str(), debug.c_str());
       }
+    }
+  }
+
+  void printMetadata(const aiMetadata* meta) {
+    if(meta) {
+      std::vector<aiMetadata*> m;
+      m.push_back((aiMetadata*)meta);
+      printMetadata(m);
     }
   }
 
@@ -152,6 +229,208 @@ namespace Loader {
     std::vector<TableID> succeeded;
   };
 
+  std::string_view getExtension(const std::string& str) {
+    const size_t last = str.find_last_of('.');
+    return last == str.npos ? std::string_view{} : std::string_view{ str.begin() + last + 1, str.end() };
+  }
+
+  struct NodeTraversal {
+    const aiNode* node{};
+    aiMatrix4x4 transform;
+  };
+
+  struct SceneLoadContext {
+    std::vector<NodeTraversal> nodesToTraverse;
+    std::vector<const aiMetadata*> metaToTraverse;
+  };
+
+  template<class T>
+  concept MetadataReader = requires(T t, size_t hash, const aiMetadataEntry& data, SceneLoadContext& ctx) {
+    t(hash, data, ctx);
+  };
+
+  template<MetadataReader Reader>
+  void readMetadata(const aiNode& node, SceneLoadContext& context, const Reader& read) {
+    context.metaToTraverse.push_back(node.mMetaData);
+    while(!context.metaToTraverse.empty()) {
+      const aiMetadata* meta = context.metaToTraverse.back();
+      context.metaToTraverse.pop_back();
+      if(!meta) {
+        continue;
+      }
+      for(unsigned i = 0; i < meta->mNumProperties; ++i) {
+        const size_t hash = gnx::Hash::constHash(std::string_view{ meta->mKeys[i].data, meta->mKeys[i].length });
+        read(hash, meta->mValues[i], context);
+      }
+    }
+  }
+
+  std::string_view toView(const aiString& str) {
+    return { str.data, str.length };
+  }
+
+  glm::vec3 toVec3(const aiVector3D& v) {
+    return { v.x, v.y, v.z };
+  }
+
+  glm::vec2 toVec2(const aiVector3D& v) {
+    return { v.x, v.y };
+  }
+
+  //TODO: assuming axis/angle, is that right?
+  float toRot(const aiVector3D& axis, ai_real angle) {
+    return axis.z > 0 ? angle : -angle;
+  }
+
+  void load(const aiMatrix4x4& data, Transform3D& value) {
+    aiVector3D scale, axis, translate;
+    ai_real angle{};
+    data.Decompose(scale, axis, angle, translate);
+    value.pos = toVec3(translate);
+    value.rot = toRot(axis, angle);
+  }
+
+  void load(const aiMatrix4x4& data, Transform3D& value, Scale2D& scaleValue) {
+    aiVector3D scale, axis, translate;
+    ai_real angle{};
+    data.Decompose(scale, axis, angle, translate);
+    value.pos = toVec3(translate);
+    value.rot = toRot(axis, angle);
+    scaleValue.scale = toVec2(scale);
+  }
+
+  //These are stored using a bool array property which parses as a string that looks like this:
+  //[False, True, True, True, True, False, True, True]
+  void loadMask(const aiMetadataEntry& e, uint8_t& mask) {
+    if(e.mType != AI_AISTRING) {
+      return;
+    }
+    uint8_t currentMask = 1;
+    for(char c : toView(*static_cast<const aiString*>(e.mData))) {
+      switch(c) {
+      case 'T':
+        mask |= currentMask;
+        [[fallthrough]];
+      case 'F':
+        currentMask = currentMask << 1;
+        break;
+      }
+    }
+  }
+
+  bool isNumberChar(char c) {
+    return c == '-' || std::isdigit(static_cast<int>(c));
+  }
+
+  //These are stored as an array of  floats: [1.0, 1.0, 1.0, 1.0]
+  glm::vec4 loadVec4(const aiMetadataEntry& e) {
+    if(e.mType != AI_AISTRING) {
+      return {};
+    }
+    std::string_view view{ toView(*static_cast<const aiString*>(e.mData)) };
+    glm::vec4 result{};
+    for(int i = 0; i < 4; ++i) {
+      //Skip to the next number
+      if(auto it = std::find_if(view.begin(), view.end(), &isNumberChar); it != view.end()) {
+        view = view.substr(it - view.begin());
+        if(auto parsed = std::from_chars(view.data(), view.data() + view.length(), result[i]); parsed.ec == std::errc()) {
+          //Skip past this number
+          view = view.substr(parsed.ptr - view.data());
+        }
+        else {
+          break;
+        }
+      }
+    }
+    return result;
+  }
+
+  void load(const aiMetadataEntry& e, CollisionMask& mask) {
+    loadMask(e, mask.mask);
+  }
+
+  void load(const aiMetadataEntry& e, ConstraintMask& mask) {
+    loadMask(e, mask.mask);
+  }
+
+  void load(const aiMetadataEntry& e, Velocity3D& v) {
+    const glm::vec4 raw = loadVec4(e);
+    v.linear = { raw.x, raw.y, raw.z };
+    v.angular = raw.w;
+  }
+
+  void loadPlayer(const NodeTraversal& node, SceneLoadContext& context, PlayerTable& player) {
+    player.players.emplace_back();
+    Player& p = player.players.back();
+
+    load(node.transform, p.transform);
+    readMetadata(*node.node, context, [&p](size_t hash, const aiMetadataEntry& data, SceneLoadContext&) {
+      switch(hash) {
+        case(CollisionMask::KEY): return load(data, p.collisionMask);
+        case(ConstraintMask::KEY): return load(data, p.constraintMask);
+        case(Velocity3D::KEY): return load(data, p.velocity);
+      }
+    });
+  }
+
+  void loadTerrain(const NodeTraversal& node, SceneLoadContext& context, TerrainTable& terrain) {
+    terrain.terrains.emplace_back();
+    Terrain& t = terrain.terrains.back();
+
+    load(node.transform, t.transform, t.scale);
+    readMetadata(*node.node, context, [&t](size_t hash, const aiMetadataEntry& data, SceneLoadContext&) {
+      switch(hash) {
+        case(CollisionMask::KEY): return load(data, t.collisionMask);
+        case(ConstraintMask::KEY): return load(data, t.constraintMask);
+      }
+    });
+  }
+
+  void loadObject(std::string_view name, const NodeTraversal& node, SceneLoadContext& ctx, SceneAsset& scene) {
+    switch(gnx::Hash::constHash(name)) {
+      case gnx::Hash::constHash("Player"): return loadPlayer(node, ctx, scene.player);
+      case gnx::Hash::constHash("Terrain"): return loadTerrain(node, ctx, scene.terrain);
+    }
+  }
+
+  void loadScene(const aiScene& scene, SceneLoadContext& ctx, SceneAsset& result) {
+    ctx.nodesToTraverse.push_back({ scene.mRootNode });
+    while(ctx.nodesToTraverse.size()) {
+      //Currently ignoring hierarchy, so depth or breadth first doesn't matter
+      const NodeTraversal node = ctx.nodesToTraverse.back();
+      ctx.nodesToTraverse.pop_back();
+      if(node.node) {
+        loadObject(toView(node.node->mName), node, ctx, result);
+        for(unsigned i = 0; i < node.node->mNumChildren; ++i) {
+          if(const aiNode* child = node.node->mChildren[i]) {
+            ctx.nodesToTraverse.push_back({ child, node.transform * child->mTransformation });
+          }
+        }
+      }
+    }
+  }
+
+  void loadAsset(const LoadRequest& request, AssetVariant& result) {
+    result = LoadFailure{};
+
+    Assimp::Importer importer;
+    const std::string_view ext{ getExtension(request.location.filename) };
+    if(importer.IsExtensionSupported(std::string{ ext })) {
+      const aiScene* scene = importer.ReadFile(request.location.filename, 0);
+      if(scene) {
+        result = SceneAsset{};
+        SceneLoadContext context;
+        loadScene(*scene, context, std::get<SceneAsset>(result));
+      }
+      else {
+        printf("No loader implemented for request [%s]\n", request.location.filename.c_str());
+      }
+    }
+    else {
+      printf("No loader implemented for request [%s]\n", request.location.filename.c_str());
+    }
+  }
+
   //Queue tasks for all requests in the requests table
   void startRequests(IAppBuilder& builder) {
     auto task = builder.createTask();
@@ -170,7 +449,7 @@ namespace Loader {
           continue;
         }
         while(source->size()) {
-          const LoadRequest request = std::move(source->at(0));
+          const LoadRequest request = source->at(0);
           const size_t newIndex = dq.size();
 
           //Create the entry in the destination and remove the current
@@ -180,11 +459,7 @@ namespace Loader {
           newAsset.state.step = Loader::LoadStep::Loading;
           newAsset.asset = std::make_shared<AssetVariant>();
           newAsset.task = args.scheduler->queueLongTask([request, dst{newAsset.asset}](AppTaskArgs&) {
-            //Load the asset
-            //TODO: load here
-
-            //Store the final result to read in udpateRequestProgress
-            *dst = LoadFailure{};
+            loadAsset(request, *dst);
           }, {});
         }
         //At this point the source table is empty
@@ -203,6 +478,14 @@ namespace Loader {
   }
 
   void processRequests(IAppBuilder& builder) {
+    //AssetVariant v;
+    //loadAsset({ "C:/syx/dof/blender/scene2.fbx" }, v);
+    //float t{};
+    //std::string_view s{ "1.5,1.1" };
+    //auto res = std::from_chars(s.data(), s.data() + s.length(), t);
+    //res;
+    //testLoadAsset();
+
     startRequests(builder);
     updateRequestProgress(builder);
     garbageCollectAssets(builder);

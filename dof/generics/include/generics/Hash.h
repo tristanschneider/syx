@@ -11,4 +11,13 @@ namespace gnx::Hash {
       return firstHash;
     }
   }
+
+  constexpr size_t constHash(const std::string_view& str) {
+    //djb2 hash
+    size_t hash = 5381;
+    for(char c : str) {
+      hash = ((hash << 5) + hash) + c;
+    }
+    return hash;
+  }
 }
