@@ -6,6 +6,8 @@ class RuntimeDatabaseTaskBuilder;
 
 namespace Loader {
   struct AssetLocation {
+    auto operator<=>(const AssetLocation&) const = default;
+
     std::string filename;
   };
 
@@ -19,4 +21,13 @@ namespace Loader {
   };
 
   std::shared_ptr<IAssetLoader> createAssetLoader(RuntimeDatabaseTaskBuilder& task);
+}
+
+namespace std {
+  template<>
+  struct hash<Loader::AssetLocation> {
+    size_t operator()(const Loader::AssetLocation& v) const {
+      return std::hash<std::string>{}(v.filename);
+    }
+  };
 }

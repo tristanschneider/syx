@@ -8,5 +8,6 @@ struct ImageData {
 
 struct STBInterface {
   static ImageData loadImageFromFile(const char* filename, int desiredChannels);
+  static ImageData loadImageFromBuffer(const unsigned char* byes, size_t size, int desiredChannels);
   static void deallocate(ImageData&& data);
 };

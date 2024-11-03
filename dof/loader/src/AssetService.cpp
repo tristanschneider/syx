@@ -8,6 +8,7 @@
 #include "ILocalScheduler.h"
 #include "glm/glm.hpp"
 #include "generics/Hash.h"
+#include "STBInterface.h"
 
 namespace Loader {
   struct ExampleAsset {};
@@ -36,11 +37,38 @@ namespace Loader {
     constexpr static size_t KEY = gnx::Hash::constHash("ConstraintMask");
     uint8_t mask{};
   };
+  struct QuadUV {
+    glm::vec2 min{};
+    glm::vec2 max{};
+  };
+  enum class TextureSampleMode : uint8_t {
+    SnapToNearest,
+    LinearInterpolation
+  };
+  enum class TextureFormat : uint8_t {
+    RGB
+  };
+  struct TextureAsset {
+    size_t width{};
+    size_t height{};
+    TextureSampleMode sampleMode{};
+    TextureFormat format{};
+    std::vector<uint8_t> buffer;
+  };
+  struct MaterialAsset {
+    TextureAsset texture;
+  };
+  struct MeshAsset {
+    size_t materialIndex{};
+    std::vector<glm::vec2> vertices;
+    std::vector<glm::vec2> textureCoordinates;
+  };
   struct Player {
     Transform3D transform;
     Velocity3D velocity;
     CollisionMask collisionMask;
     ConstraintMask constraintMask;
+    QuadUV uv;
   };
   struct Thickness {
     constexpr static size_t KEY = gnx::Hash::constHash("Thickness");
@@ -56,22 +84,26 @@ namespace Loader {
     Scale2D scale;
     CollisionMask collisionMask;
     ConstraintMask constraintMask;
+    QuadUV uv;
   };
   struct PlayerTable {
     std::vector<Player> players;
     Thickness thickness;
-    //TODO: texture?
+    size_t meshIndex;
   };
   struct TerrainTable {
     std::vector<Terrain> terrains;
     Thickness thickness;
-    //TODO: texture?
+    size_t meshIndex;
   };
   struct FragmentAsset {
   };
   struct SceneAsset {
     PlayerTable player;
     TerrainTable terrain;
+    //TODO: ideally this would be AssetHandles pointing at other assets so they could be reused between scenes
+    std::vector<MaterialAsset> materials;
+    std::vector<MeshAsset> meshes;
   };
 
   struct SceneAssetRow : Row<SceneAsset> {};
@@ -90,6 +122,29 @@ namespace Loader {
   };
   struct LoadingAssetRow : Row<LoadingAsset> {};
 
+  class AssetIndex {
+  public:
+    ElementRef find(const AssetLocation& key) const {
+      std::shared_lock lock{ mutex };
+      auto it = index.find(key);
+      return it != index.end() ? it->second : ElementRef{};
+    }
+
+    void insert(AssetLocation&& key, const ElementRef& value) {
+      std::unique_lock lock{ mutex };
+      index.emplace(std::make_pair(std::move(key), value));
+    }
+
+    void erase(const AssetLocation& key) {
+      std::unique_lock lock{ mutex };
+      index.erase(key);
+    }
+
+  private:
+    mutable std::shared_mutex mutex;
+    std::unordered_map<AssetLocation, ElementRef> index;
+  };
+  struct AssetIndexRow : SharedRow<AssetIndex> {};
   namespace db {
     struct ExampleAssetRow : Row<ExampleAsset> {};
     using LoadingAssetTable = Table<
@@ -110,6 +165,7 @@ namespace Loader {
         UsageTrackerBlockRow
       >,
       Table<
+        AssetIndexRow,
         FailedTagRow,
         UsageTrackerBlockRow
       >,
@@ -240,6 +296,7 @@ namespace Loader {
   };
 
   struct SceneLoadContext {
+    const AssetIndex& index;
     std::vector<NodeTraversal> nodesToTraverse;
     std::vector<const aiMetadata*> metaToTraverse;
   };
@@ -393,7 +450,86 @@ namespace Loader {
     }
   }
 
+  void loadMaterials(const aiScene& scene, SceneLoadContext&, SceneAsset& result) {
+    result.materials.resize(scene.mNumMaterials);
+    for(unsigned i = 0; i < scene.mNumMaterials; ++i) {
+      const aiMaterial* mat = scene.mMaterials[i];
+      aiString path;
+      aiTextureMapping mapping{};
+      unsigned uvIndex{};
+      ai_real blend{};
+      aiTextureOp op{};
+      std::array<aiTextureMapMode, 3> mapMode{};
+      path;mapping;uvIndex;blend;op;mapMode;
+      //Assume each material has a single texture if any, and that it's in the diffuse slot
+      if(mat->GetTextureCount(aiTextureType_DIFFUSE) >= 1 && mat->GetTexture(aiTextureType_DIFFUSE, 0, &path, &mapping, &uvIndex, &blend, &op, mapMode.data()) == aiReturn_SUCCESS) {
+        if(std::pair<const aiTexture*, int> tex = scene.GetEmbeddedTextureAndIndex(path.C_Str()); tex.first) {
+          constexpr int CHANNELS = 3;
+          //If height is not provided it means the texture is in its raw format, use STB to parse that
+          if(!tex.first->mHeight) {
+            if(ImageData data = STBInterface::loadImageFromBuffer((const unsigned char*)tex.first->pcData, tex.first->mWidth/2, CHANNELS); data.mBytes) {
+              TextureAsset& t = result.materials[i].texture;
+              t.format = TextureFormat::RGB;
+              t.width = data.mWidth;
+              t.height = data.mHeight;
+              t.buffer.resize(t.width*t.height*CHANNELS);
+              std::memcpy(t.buffer.data(), data.mBytes, t.buffer.size());
+              STBInterface::deallocate(std::move(data));
+            }
+          }
+          //Otherwise the pixels exist as-is and can be copied over
+          else {
+            TextureAsset& t = result.materials[i].texture;
+            t.format = TextureFormat::RGB;
+            t.width = tex.first->mWidth;
+            t.height = tex.first->mHeight;
+            t.buffer.reserve(t.width*t.height*CHANNELS);
+            t.buffer.resize(t.width*t.height*CHANNELS);
+            const size_t pixels = t.width*t.height;
+            for(size_t p = 0; p < pixels; ++p) {
+              //aiTexel always contains 4 components, target format is 3
+              const size_t dst = p * 3;
+              const aiTexel& texel = tex.first->pcData[p];
+              t.buffer[dst + 0] = texel.r;
+              t.buffer[dst + 1] = texel.g;
+              t.buffer[dst + 2] = texel.b;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  void loadMeshes(const aiScene& scene, SceneLoadContext&, SceneAsset& result) {
+    result.meshes.resize(scene.mNumMeshes);
+    for(unsigned i = 0; i < scene.mNumMeshes; ++i) {
+      const aiMesh* mesh = scene.mMeshes[i];
+
+      MeshAsset& dst = result.meshes[i];
+      dst.materialIndex = mesh->mMaterialIndex;
+
+      dst.vertices.resize(mesh->mNumVertices);
+      dst.textureCoordinates.resize(mesh->mNumVertices);
+      //Throw out the third dimension while copying over since assets are 2D
+      for(unsigned v = 0; v < mesh->mNumVertices; ++v) {
+        const aiVector3D& sv = mesh->mVertices[v];
+        dst.vertices[v] = glm::vec2{ sv.x, sv.y };
+      }
+      //Texture coordinates can be in any slot. Assume if they are provided they are in the first slot
+      constexpr int EXPECTED_TEXTURE_CHANNEL = 0;
+      if(mesh->HasTextureCoords(EXPECTED_TEXTURE_CHANNEL)) {
+        for(unsigned v = 0; v < mesh->mNumVertices; ++v) {
+          const aiVector3D& su = mesh->mTextureCoords[EXPECTED_TEXTURE_CHANNEL][v];
+          dst.textureCoordinates[v] = glm::vec2{ su.x, su.y };
+        }
+      }
+    }
+  }
+
   void loadScene(const aiScene& scene, SceneLoadContext& ctx, SceneAsset& result) {
+    loadMaterials(scene, ctx, result);
+    loadMeshes(scene, ctx, result);
+
     ctx.nodesToTraverse.push_back({ scene.mRootNode });
     while(ctx.nodesToTraverse.size()) {
       //Currently ignoring hierarchy, so depth or breadth first doesn't matter
@@ -410,7 +546,7 @@ namespace Loader {
     }
   }
 
-  void loadAsset(const LoadRequest& request, AssetVariant& result) {
+  void loadAsset(const LoadRequest& request, AssetVariant& result, const AssetIndex& index) {
     result = LoadFailure{};
 
     Assimp::Importer importer;
@@ -419,7 +555,7 @@ namespace Loader {
       const aiScene* scene = importer.ReadFile(request.location.filename, 0);
       if(scene) {
         result = SceneAsset{};
-        SceneLoadContext context;
+        SceneLoadContext context{ index };
         loadScene(*scene, context, std::get<SceneAsset>(result));
       }
       else {
@@ -437,6 +573,8 @@ namespace Loader {
     KnownTables tables{ task };
     auto sourceQuery = task.query<const LoadRequestRow>(tables.requests);
     auto destinationQuery = task.query<LoadingAssetRow>(tables.loading);
+    const AssetIndex* index = task.query<const AssetIndexRow>().tryGetSingletonElement();
+    assert(index);
     RuntimeDatabase& db = task.getDatabase();
     RuntimeTable* loadingTable = db.tryGet(tables.loading);
 
@@ -458,8 +596,8 @@ namespace Loader {
           //Initialize task metadata and start the task
           newAsset.state.step = Loader::LoadStep::Loading;
           newAsset.asset = std::make_shared<AssetVariant>();
-          newAsset.task = args.scheduler->queueLongTask([request, dst{newAsset.asset}](AppTaskArgs&) {
-            loadAsset(request, *dst);
+          newAsset.task = args.scheduler->queueLongTask([request, dst{newAsset.asset}, index](AppTaskArgs&) {
+            loadAsset(request, *dst, *index);
           }, {});
         }
         //At this point the source table is empty
@@ -478,8 +616,10 @@ namespace Loader {
   }
 
   void processRequests(IAppBuilder& builder) {
-    //AssetVariant v;
-    //loadAsset({ "C:/syx/dof/blender/scene2.fbx" }, v);
+    AssetVariant v;
+    AssetIndex index;
+    //loadAsset({ "C:/syx/dof/blender/scene2.fbx" }, v, index);
+    //loadAsset({ "C:/syx/dof/blender/scene.glb" }, v, index);
     //float t{};
     //std::string_view s{ "1.5,1.1" };
     //auto res = std::from_chars(s.data(), s.data() + s.length(), t);

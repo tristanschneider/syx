@@ -24,4 +24,5 @@ target_link_libraries(loader
     PRIVATE assimp
     PRIVATE table
     PRIVATE glm
+    PRIVATE stb
 )

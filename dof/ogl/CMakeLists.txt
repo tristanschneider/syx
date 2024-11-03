@@ -16,4 +16,5 @@ target_link_libraries(ogl PRIVATE glm)
 target_link_libraries(ogl PRIVATE table)
 target_link_libraries(ogl PRIVATE game)
 target_link_libraries(ogl PRIVATE glew)
+# TODO: remove this by loading from loader project
 target_link_libraries(ogl PRIVATE stb)
