@@ -26,6 +26,16 @@ namespace Loader {
       return result;
     }
 
+    AssetHandle requestLoad(AssetLocation&& location, std::vector<uint8_t>&& contents) final {
+      const size_t i = modifier->addElements(1);
+      LoadRequest& request = requests->at(i);
+      AssetHandle result{ .asset{ ids->at(i) }, .use{ std::make_shared<UsageTracker>() } };
+      usageTracker->at(i).tracker = result.use;
+      request.location = std::move(location);
+      request.contents = std::move(contents);
+      return result;
+    }
+
     std::shared_ptr<ITableModifier> modifier;
     LoadRequestRow* requests{};
     UsageTrackerBlockRow* usageTracker{};

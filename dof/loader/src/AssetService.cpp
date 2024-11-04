@@ -4,6 +4,7 @@
 #include "assimp/Importer.hpp"
 #include "assimp/scene.h"
 #include "loader/AssetLoader.h"
+#include "loader/SceneAsset.h"
 #include "AssetTables.h"
 #include "ILocalScheduler.h"
 #include "glm/glm.hpp"
@@ -13,100 +14,6 @@
 namespace Loader {
   struct ExampleAsset {};
   struct LoadFailure {};
-
-  struct Transform2D {
-    constexpr static size_t KEY = gnx::Hash::constHash("Transform2D");
-    glm::vec2 pos{};
-    float rot{};
-  };
-  struct Transform3D {
-    constexpr static size_t KEY = gnx::Hash::constHash("Transform3D");
-    glm::vec3 pos{};
-    float rot{};
-  };
-  struct Velocity3D {
-    constexpr static size_t KEY = gnx::Hash::constHash("Velocity3D");
-    glm::vec3 linear{};
-    float angular{};
-  };
-  struct CollisionMask {
-    constexpr static size_t KEY = gnx::Hash::constHash("CollisionMask");
-    uint8_t mask{};
-  };
-  struct ConstraintMask {
-    constexpr static size_t KEY = gnx::Hash::constHash("ConstraintMask");
-    uint8_t mask{};
-  };
-  struct QuadUV {
-    glm::vec2 min{};
-    glm::vec2 max{};
-  };
-  enum class TextureSampleMode : uint8_t {
-    SnapToNearest,
-    LinearInterpolation
-  };
-  enum class TextureFormat : uint8_t {
-    RGB
-  };
-  struct TextureAsset {
-    size_t width{};
-    size_t height{};
-    TextureSampleMode sampleMode{};
-    TextureFormat format{};
-    std::vector<uint8_t> buffer;
-  };
-  struct MaterialAsset {
-    TextureAsset texture;
-  };
-  struct MeshAsset {
-    size_t materialIndex{};
-    std::vector<glm::vec2> vertices;
-    std::vector<glm::vec2> textureCoordinates;
-  };
-  struct Player {
-    Transform3D transform;
-    Velocity3D velocity;
-    CollisionMask collisionMask;
-    ConstraintMask constraintMask;
-    QuadUV uv;
-  };
-  struct Thickness {
-    constexpr static size_t KEY = gnx::Hash::constHash("Thickness");
-    float thickness{};
-  };
-  struct Scale2D {
-    constexpr static size_t KEY = gnx::Hash::constHash("Scale2D");
-    glm::vec2 scale{};
-  };
-  struct Terrain {
-    Transform3D transform;
-    Velocity3D velocity;
-    Scale2D scale;
-    CollisionMask collisionMask;
-    ConstraintMask constraintMask;
-    QuadUV uv;
-  };
-  struct PlayerTable {
-    std::vector<Player> players;
-    Thickness thickness;
-    size_t meshIndex;
-  };
-  struct TerrainTable {
-    std::vector<Terrain> terrains;
-    Thickness thickness;
-    size_t meshIndex;
-  };
-  struct FragmentAsset {
-  };
-  struct SceneAsset {
-    PlayerTable player;
-    TerrainTable terrain;
-    //TODO: ideally this would be AssetHandles pointing at other assets so they could be reused between scenes
-    std::vector<MaterialAsset> materials;
-    std::vector<MeshAsset> meshes;
-  };
-
-  struct SceneAssetRow : Row<SceneAsset> {};
 
   using AssetVariant = std::variant<
     std::monostate,
@@ -148,23 +55,27 @@ namespace Loader {
   namespace db {
     struct ExampleAssetRow : Row<ExampleAsset> {};
     using LoadingAssetTable = Table<
+      StableIDRow,
       LoadingTagRow,
       UsageTrackerBlockRow,
       LoadingAssetRow
     >;
     template<class T>
     using SucceededAssetTable = Table<
+      StableIDRow,
       SucceededTagRow,
       UsageTrackerBlockRow,
       T
     >;
     using LoaderDB = Database<
       Table<
+        StableIDRow,
         RequestedTagRow,
         LoadRequestRow,
         UsageTrackerBlockRow
       >,
       Table<
+        StableIDRow,
         AssetIndexRow,
         FailedTagRow,
         UsageTrackerBlockRow
@@ -579,7 +490,7 @@ namespace Loader {
     RuntimeTable* loadingTable = db.tryGet(tables.loading);
 
     task.setCallback([=, &db](AppTaskArgs& args) mutable {
-      auto dq = destinationQuery.get<0>(0);
+      auto& dq = destinationQuery.get<0>(0);
       for(size_t t = 0; t < sourceQuery.size(); ++t) {
         auto [source] = sourceQuery.get(t);
         RuntimeTable* sourceTable = db.tryGet(sourceQuery.matchingTableIDs[t]);

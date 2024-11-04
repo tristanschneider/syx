@@ -16,17 +16,10 @@ namespace Loader {
   };
   struct UsageTrackerBlockRow : Row<UsageTrackerBlock> {};
 
-  //Loading assets are stored with a different type than finished ones
-  //so that a query for the expected asset type only results in finshed assets
-  //template<class T>
-  //struct LoadingAsset : T {
-  //  LoadState state;
-  //};
-  //template<IsRow T>
-  //struct LoadingAssetRow : T {};
-
   struct LoadRequest {
     AssetLocation location;
+    //Optional, may be empty
+    std::vector<uint8_t> contents;
   };
   struct LoadRequestRow : Row<LoadRequest> {};
 };
