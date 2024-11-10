@@ -11,16 +11,27 @@
 #include "generics/Hash.h"
 #include "STBInterface.h"
 
+#include "generics/RateLimiter.h"
+
 namespace Loader {
-  struct ExampleAsset {};
   struct LoadFailure {};
 
   using AssetVariant = std::variant<
     std::monostate,
     LoadFailure,
-    SceneAsset,
-    ExampleAsset
+    SceneAsset
   >;
+
+  struct AssetToRow {
+    QueryAliasBase operator()(std::monostate) const { return {}; }
+    QueryAliasBase operator()(const LoadFailure&) const { return {}; }
+    QueryAliasBase operator()(const SceneAsset&) const { return QueryAlias<SceneAssetRow>::create(); };
+  };
+
+  void fn() {
+    auto limiter = gnx::make_rate_limiter<5>();
+    limiter.tryUpdate();
+  }
 
   struct LoadingAsset {
     std::shared_ptr<AssetVariant> asset;
@@ -53,7 +64,6 @@ namespace Loader {
   };
   struct AssetIndexRow : SharedRow<AssetIndex> {};
   namespace db {
-    struct ExampleAssetRow : Row<ExampleAsset> {};
     using LoadingAssetTable = Table<
       StableIDRow,
       LoadingTagRow,
@@ -68,6 +78,7 @@ namespace Loader {
       T
     >;
     using LoaderDB = Database<
+      Table<GlobalsRow>,
       Table<
         StableIDRow,
         RequestedTagRow,
@@ -81,7 +92,6 @@ namespace Loader {
         UsageTrackerBlockRow
       >,
       LoadingAssetTable,
-      SucceededAssetTable<ExampleAssetRow>,
       SucceededAssetTable<SceneAssetRow>
     >;
   }
@@ -463,7 +473,9 @@ namespace Loader {
     Assimp::Importer importer;
     const std::string_view ext{ getExtension(request.location.filename) };
     if(importer.IsExtensionSupported(std::string{ ext })) {
-      const aiScene* scene = importer.ReadFile(request.location.filename, 0);
+      const aiScene* scene = request.contents.size() ?
+        importer.ReadFileFromMemory(request.contents.data(), request.contents.size(), 0) :
+        importer.ReadFile(request.location.filename, 0);
       if(scene) {
         result = SceneAsset{};
         SceneLoadContext context{ index };
@@ -518,25 +530,102 @@ namespace Loader {
     builder.submitTask(std::move(task.setName("asset start")));
   }
 
+  bool moveSucceededAsset(RuntimeDatabase& db, LoadingAsset& asset, size_t assetIndex, const TableID& sourceTable) {
+    QueryAliasBase dstRow = std::visit(AssetToRow{}, *asset.asset);
+    if(dstRow.type == DBTypeID{}) {
+      return false;
+    }
+
+    RuntimeTable* source = db.tryGet(sourceTable);
+    //TODO: could create a map to avoid linear search here
+    QueryResult<> query = db.queryAliasTables({ dstRow });
+    assert(query.size() && "A destination for assets should always exist");
+    const TableID destTable = query[0];
+    RuntimeTable* dest = db.tryGet(destTable);
+    assert(dest && "Table must exist since it was found in the query");
+
+    //TODO: need to take the value out of the variant and copy it to the destination table
+    RuntimeTable::migrateOne(assetIndex, *source, *dest);
+    return true;
+  }
+
+  void moveFailedAsset(RuntimeDatabase& db, size_t assetIndex, const TableID& sourceTable, RuntimeTable& failedTable) {
+    RuntimeTable* source = db.tryGet(sourceTable);
+    RuntimeTable::migrateOne(assetIndex, *source, failedTable);
+  }
+
+  Globals* getGlobals(RuntimeDatabaseTaskBuilder& task) {
+    return task.query<GlobalsRow>().tryGetSingletonElement<0>();
+  }
+
   //Look through loading assets and see if their tasks are complete. If so, either moves them to the success or failure tables
-  void updateRequestProgress(IAppBuilder&) {
+  void updateRequestProgress(IAppBuilder& builder) {
+    auto task = builder.createTask();
+    RuntimeDatabase& db = task.getDatabase();
+    auto query = task.query<LoadingAssetRow>();
+    QueryResult<> failedRows = task.queryTables<FailedTagRow>();
+    assert(failedRows.size());
+    RuntimeTable* failedTable = db.tryGet(failedRows[0]);
+    Globals* globals = getGlobals(task);
+    assert(globals);
+
+    task.setCallback([query, &db, failedTable, globals](AppTaskArgs&) mutable {
+      if(!globals->assetCompletionLimit.tryUpdate()) {
+        return;
+      }
+      for(size_t t = 0; t < query.size(); ++t) {
+        auto [assets] = query.get(t);
+        const TableID thisTable = query.matchingTableIDs[t];
+        for(size_t i = 0; i < assets->size();) {
+          LoadingAsset& asset = assets->at(i);
+          //If it's still in progress check again later
+          if(asset.task && !asset.task->isDone()) {
+            ++i;
+            continue;
+          }
+
+          //If it succeeded, move it over to the succeeded table
+          if(asset.asset && moveSucceededAsset(db, asset, i, thisTable)) {
+            continue;
+          }
+          //Any other status presumably means some kind of failure, move it to the failed table
+          moveFailedAsset(db, i, thisTable, *failedTable);
+        }
+      }
+    });
+
+    builder.submitTask(std::move(task.setName("update asset requests")));
   }
 
   //Look at all UsageTrackerBlockRows for expired tracker blocks
-  void garbageCollectAssets(IAppBuilder&) {
+  void garbageCollectAssets(IAppBuilder& builder) {
+    auto task = builder.createTask();
+    auto q = task.query<const UsageTrackerBlockRow>();
+    auto modifiers = task.getModifiersForTables(q.matchingTableIDs);
+    Globals* globals = getGlobals(task);
+
+    task.setCallback([q, modifiers, globals](AppTaskArgs&) mutable {
+      if(!globals->assetGCLimit.tryUpdate()) {
+        return;
+      }
+      for(size_t t = 0; t < q.size(); ++t) {
+        auto [usages] = q.get(t);
+        const auto& modifier = modifiers[t];
+        for(size_t i = 0; i < usages->size();) {
+          if(usages->at(i).tracker.expired()) {
+            modifier->swapRemove(q.matchingTableIDs[t].remakeElement(i));
+          }
+          else {
+            ++i;
+          }
+        }
+      }
+    });
+
+    builder.submitTask(std::move(task.setName("gc assets")));
   }
 
   void processRequests(IAppBuilder& builder) {
-    AssetVariant v;
-    AssetIndex index;
-    //loadAsset({ "C:/syx/dof/blender/scene2.fbx" }, v, index);
-    //loadAsset({ "C:/syx/dof/blender/scene.glb" }, v, index);
-    //float t{};
-    //std::string_view s{ "1.5,1.1" };
-    //auto res = std::from_chars(s.data(), s.data() + s.length(), t);
-    //res;
-    //testLoadAsset();
-
     startRequests(builder);
     updateRequestProgress(builder);
     garbageCollectAssets(builder);

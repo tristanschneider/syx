@@ -105,6 +105,7 @@ namespace Tasks {
         result.reset();
       };
       initTaskSet(result->task, std::move(doTask), size);
+      args.scheduler.mScheduler.AddTaskSetToPipe(&result->task);
       return result;
     }
 

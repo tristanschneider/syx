@@ -1,5 +1,6 @@
 #pragma once
 
+#include "generics/RateLimiter.h"
 #include "loader/AssetLoader.h"
 #include "loader/AssetReader.h"
 #include "Table.h"
@@ -22,4 +23,9 @@ namespace Loader {
     std::vector<uint8_t> contents;
   };
   struct LoadRequestRow : Row<LoadRequest> {};
+
+  struct Globals {
+    gnx::OneInTenRateLimit assetCompletionLimit, assetGCLimit;
+  };
+  struct GlobalsRow : SharedRow<Globals> {};
 };
