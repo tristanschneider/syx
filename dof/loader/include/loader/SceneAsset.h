@@ -71,13 +71,13 @@ namespace Loader {
   struct PlayerTable {
     std::vector<Player> players;
     Thickness thickness;
-    size_t meshIndex;
+    MeshIndex meshIndex;
   };
 
   struct TerrainTable {
     std::vector<Terrain> terrains;
     Thickness thickness;
-    size_t meshIndex;
+    MeshIndex meshIndex;
   };
 
   struct FragmentAsset {

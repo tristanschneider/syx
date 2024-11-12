@@ -22,16 +22,34 @@ namespace Loader {
     SceneAsset
   >;
 
-  struct AssetToRow {
-    QueryAliasBase operator()(std::monostate) const { return {}; }
-    QueryAliasBase operator()(const LoadFailure&) const { return {}; }
-    QueryAliasBase operator()(const SceneAsset&) const { return QueryAlias<SceneAssetRow>::create(); };
+  struct AssetOperations {
+    using StoreFN = void(*)(RuntimeRow&, AssetVariant&&, size_t);
+    QueryAliasBase destinationRow{};
+    StoreFN writeToDestination{};
   };
 
-  void fn() {
-    auto limiter = gnx::make_rate_limiter<5>();
-    limiter.tryUpdate();
+  template<IsRow RowT, class AssetT>
+  AssetOperations createAssetOperations() {
+    struct Write {
+      static void write(RuntimeRow& dst, AssetVariant&& toMove, size_t i) {
+        static_assert(std::is_same_v<AssetT, typename RowT::ElementT>);
+        static_cast<RowT*>(dst.row)->at(i) = std::move(std::get<AssetT>(toMove));
+      }
+    };
+
+    return AssetOperations {
+      .destinationRow{ QueryAlias<RowT>::create() },
+      .writeToDestination{ &Write::write }
+    };
   }
+
+  struct GetAssetOperations {
+    AssetOperations operator()(std::monostate) const { return {}; }
+    AssetOperations operator()(const LoadFailure&) const { return {}; }
+    AssetOperations operator()(const SceneAsset&) const {
+      return createAssetOperations<SceneAssetRow, SceneAsset>();
+    };
+  };
 
   struct LoadingAsset {
     std::shared_ptr<AssetVariant> asset;
@@ -337,8 +355,16 @@ namespace Loader {
     v.angular = raw.w;
   }
 
+  //Attempt to reference the mesh, assuming there is only one
+  void load(const aiNode& e, MeshIndex& m) {
+    if(!m.isSet() && e.mNumMeshes) {
+      m.index = e.mMeshes[0];
+    }
+  }
+
   void loadPlayer(const NodeTraversal& node, SceneLoadContext& context, PlayerTable& player) {
     player.players.emplace_back();
+    load(*node.node, player.meshIndex);
     Player& p = player.players.back();
 
     load(node.transform, p.transform);
@@ -353,6 +379,7 @@ namespace Loader {
 
   void loadTerrain(const NodeTraversal& node, SceneLoadContext& context, TerrainTable& terrain) {
     terrain.terrains.emplace_back();
+    load(*node.node, terrain.meshIndex);
     Terrain& t = terrain.terrains.back();
 
     load(node.transform, t.transform, t.scale);
@@ -388,7 +415,7 @@ namespace Loader {
           constexpr int CHANNELS = 3;
           //If height is not provided it means the texture is in its raw format, use STB to parse that
           if(!tex.first->mHeight) {
-            if(ImageData data = STBInterface::loadImageFromBuffer((const unsigned char*)tex.first->pcData, tex.first->mWidth/2, CHANNELS); data.mBytes) {
+            if(ImageData data = STBInterface::loadImageFromBuffer((const unsigned char*)tex.first->pcData, tex.first->mWidth, CHANNELS); data.mBytes) {
               TextureAsset& t = result.materials[i].texture;
               t.format = TextureFormat::RGB;
               t.width = data.mWidth;
@@ -431,10 +458,10 @@ namespace Loader {
 
       dst.vertices.resize(mesh->mNumVertices);
       dst.textureCoordinates.resize(mesh->mNumVertices);
-      //Throw out the third dimension while copying over since assets are 2D
+      //Throw out the third dimension while copying over since assets are 2D, assume Y is unused
       for(unsigned v = 0; v < mesh->mNumVertices; ++v) {
         const aiVector3D& sv = mesh->mVertices[v];
-        dst.vertices[v] = glm::vec2{ sv.x, sv.y };
+        dst.vertices[v] = glm::vec2{ sv.x, sv.z };
       }
       //Texture coordinates can be in any slot. Assume if they are provided they are in the first slot
       constexpr int EXPECTED_TEXTURE_CHANNEL = 0;
@@ -531,21 +558,26 @@ namespace Loader {
   }
 
   bool moveSucceededAsset(RuntimeDatabase& db, LoadingAsset& asset, size_t assetIndex, const TableID& sourceTable) {
-    QueryAliasBase dstRow = std::visit(AssetToRow{}, *asset.asset);
-    if(dstRow.type == DBTypeID{}) {
+    AssetOperations ops = std::visit(GetAssetOperations{}, *asset.asset);
+    if(ops.destinationRow.type == DBTypeID{}) {
       return false;
     }
 
     RuntimeTable* source = db.tryGet(sourceTable);
     //TODO: could create a map to avoid linear search here
-    QueryResult<> query = db.queryAliasTables({ dstRow });
+    QueryResult<> query = db.queryAliasTables({ ops.destinationRow });
     assert(query.size() && "A destination for assets should always exist");
     const TableID destTable = query[0];
     RuntimeTable* dest = db.tryGet(destTable);
     assert(dest && "Table must exist since it was found in the query");
 
-    //TODO: need to take the value out of the variant and copy it to the destination table
-    RuntimeTable::migrateOne(assetIndex, *source, *dest);
+    //The entry for the row containing this value will be destroyed by migration, hold onto it to manually place in destination
+    std::shared_ptr<AssetVariant> toMove = std::move(asset.asset);
+    const size_t dstIndex = RuntimeTable::migrateOne(assetIndex, *source, *dest);
+    RuntimeRow* destinationRow = dest->tryGetRow(ops.destinationRow.type);
+    assert(destinationRow);
+    ops.writeToDestination(*destinationRow, std::move(*toMove), dstIndex);
+
     return true;
   }
 

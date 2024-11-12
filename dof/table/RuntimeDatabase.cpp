@@ -37,16 +37,17 @@ StableElementMappings& RuntimeDatabase::getMappings() {
   return *data.mappings;
 }
 
-void RuntimeTable::migrateOne(size_t i, RuntimeTable& from, RuntimeTable& to) {
+size_t RuntimeTable::migrateOne(size_t i, RuntimeTable& from, RuntimeTable& to) {
   //Only implemented for stable tables right now
   assert(to.stableModifier.table);
   const UnpackedDatabaseElementID fromID = from.tableID.remakeElement(i);
   //Move all common rows to the destination
+  size_t result{};
   for(auto& pair : to.rows) {
     RuntimeRow* toRow = &pair.second;
     RuntimeRow* fromRow = from.tryGetRow(pair.first);
     //This handles the case where the source row is empty and in that case adds an empty destination element
-    toRow->migrateOneElement(fromRow ? fromRow->row : nullptr, toRow->row, fromID, to.tableID, *to.stableModifier.stableMappings);
+    result = toRow->migrateOneElement(fromRow ? fromRow->row : nullptr, toRow->row, fromID, to.tableID, *to.stableModifier.stableMappings);
   }
 
   //Swap Remove from source. Could be faster to combine this with the above step while visiting,
@@ -57,6 +58,8 @@ void RuntimeTable::migrateOne(size_t i, RuntimeTable& from, RuntimeTable& to) {
       pair.second.swapRemove(pair.second.row, fromID, *to.stableModifier.stableMappings);
     }
   }
+
+  return result;
 }
 
 namespace DBReflect {

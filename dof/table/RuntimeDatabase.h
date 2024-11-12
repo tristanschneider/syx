@@ -4,7 +4,7 @@
 
 struct RuntimeRow {
   void* row{};
-  void (*migrateOneElement)(void* from, void* to, const UnpackedDatabaseElementID& fromID, [[maybe_unused]] const UnpackedDatabaseElementID& toID, StableElementMappings& mappings){};
+  size_t (*migrateOneElement)(void* from, void* to, const UnpackedDatabaseElementID& fromID, [[maybe_unused]] const UnpackedDatabaseElementID& toID, StableElementMappings& mappings){};
   void (*swapRemove)(void* row, const UnpackedDatabaseElementID& id, [[maybe_unused]] StableElementMappings& mappings){};
 };
 
@@ -32,7 +32,8 @@ struct RuntimeTable {
     return it != rows.end() ? &it->second : nullptr;
   }
 
-  static void migrateOne(size_t i, RuntimeTable& from, RuntimeTable& to);
+  //Migrates the element in `from` table at `i` to the `to` table at the index indicated by the return value
+  static size_t migrateOne(size_t i, RuntimeTable& from, RuntimeTable& to);
 
   TableID tableID;
   TableModifierInstance modifier;
@@ -279,9 +280,10 @@ namespace DBReflect {
     RuntimeRow createRuntimeRow(RowT& row) {
       static constexpr bool isStableRow = std::is_same_v<RowT, StableIDRow>;
       struct Funcs {
-        static void migrateOneElement(void* from, void* to, const UnpackedDatabaseElementID& fromID, [[maybe_unused]] const UnpackedDatabaseElementID& toID, [[maybe_unused]] StableElementMappings& mappings) {
+        static size_t migrateOneElement(void* from, void* to, const UnpackedDatabaseElementID& fromID, [[maybe_unused]] const UnpackedDatabaseElementID& toID, [[maybe_unused]] StableElementMappings& mappings) {
           RowT* fromT = static_cast<RowT*>(from);
           RowT* toT = static_cast<RowT*>(to);
+          const size_t resultIndex = toT->size();
           if constexpr(isStableRow) {
             StableOperations::migrateOne(*fromT, *toT, fromID, toID, mappings);
           }
@@ -294,6 +296,7 @@ namespace DBReflect {
               toT->emplaceBack();
             }
           }
+          return resultIndex;
         }
 
         static void swapRemove(void* row, const UnpackedDatabaseElementID& id, [[maybe_unused]] StableElementMappings& mappings) {

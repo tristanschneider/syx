@@ -11,6 +11,8 @@ namespace Loader {
   };
 
   struct TextureAsset {
+    auto operator<=>(const TextureAsset&) const = default;
+
     size_t width{};
     size_t height{};
     TextureSampleMode sampleMode{};
@@ -19,6 +21,8 @@ namespace Loader {
   };
 
   struct MaterialAsset {
+    auto operator<=>(const MaterialAsset&) const = default;
+
     TextureAsset texture;
   };
 }
