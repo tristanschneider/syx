@@ -458,10 +458,10 @@ namespace Loader {
 
       dst.vertices.resize(mesh->mNumVertices);
       dst.textureCoordinates.resize(mesh->mNumVertices);
-      //Throw out the third dimension while copying over since assets are 2D, assume Y is unused
+      //Throw out the third dimension while copying over since assets are 2D, assume Z is unused, coordinates match the game where z is into the screen
       for(unsigned v = 0; v < mesh->mNumVertices; ++v) {
         const aiVector3D& sv = mesh->mVertices[v];
-        dst.vertices[v] = glm::vec2{ sv.x, sv.z };
+        dst.vertices[v] = glm::vec2{ sv.x, sv.y };
       }
       //Texture coordinates can be in any slot. Assume if they are provided they are in the first slot
       constexpr int EXPECTED_TEXTURE_CHANNEL = 0;

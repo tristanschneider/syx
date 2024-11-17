@@ -78,10 +78,10 @@ namespace Test {
     inline static const Loader::MeshAsset PLAYER_MESH{
       .materialIndex = 0,
       .vertices = std::vector<glm::vec2>{
-        glm::vec2{ -1, 1 },
-        glm::vec2{ 1, 1 },
+        glm::vec2{ -1, -1 },
         glm::vec2{ 1, -1 },
-        glm::vec2{ -1, -1 }
+        glm::vec2{ 1, 1 },
+        glm::vec2{ -1, 1 }
       },
       .textureCoordinates = std::vector<glm::vec2>{
         glm::vec2{ 0, 0 },
@@ -104,10 +104,10 @@ namespace Test {
     inline static const Loader::MeshAsset GROUND_MESH{
       .materialIndex = 1,
       .vertices = std::vector<glm::vec2>{
-        glm::vec2{ -1, 1 },
-        glm::vec2{ 1, 1 },
+        glm::vec2{ -1, -1 },
         glm::vec2{ 1, -1 },
-        glm::vec2{ -1, -1 }
+        glm::vec2{ 1, 1 },
+        glm::vec2{ -1, 1 }
       },
       .textureCoordinates = std::vector<glm::vec2>{
         glm::vec2{ -1.5, -1.5 },
@@ -160,16 +160,15 @@ namespace Test {
       Assert::AreEqual(size_t(1), scene.player.players.size());
       Assert::IsTrue(Loader::MeshIndex{ 0 } == scene.player.meshIndex);
       const Loader::Player& p = scene.player.players[0];
-      assertEq(glm::vec3{ 14.6805, 9.118, 12.0115 }, p.transform.pos);
+      assertEq(glm::vec3{ 14.6805, -12.0115, 9.118 }, p.transform.pos);
       Assert::AreEqual(-0.275905281f, p.transform.rot);
 
       Assert::AreEqual(size_t(1), scene.terrain.terrains.size());
       Assert::IsTrue(Loader::MeshIndex{ 1 } == scene.terrain.meshIndex);
       const Loader::Terrain& t = scene.terrain.terrains[0];
-      //TODO: should this be -0.1?
-      assertEq(glm::vec3{ 0.f, 0.f, 0.1f }, t.transform.pos);
+      assertEq(glm::vec3{ 0.f, 0.f, -0.1f }, t.transform.pos);
       Assert::AreEqual(0.0f, t.transform.rot);
-      assertEq(glm::vec2{ 28, 1 }, t.scale.scale);
+      assertEq(glm::vec2{ 28, 29 }, t.scale.scale);
     }
 
     TEST_METHOD(LoadUnsupportedFileType) {
