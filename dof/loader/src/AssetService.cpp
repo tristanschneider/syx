@@ -10,6 +10,7 @@
 #include "glm/glm.hpp"
 #include "generics/Hash.h"
 #include "STBInterface.h"
+#include "MeshRemapper.h"
 
 #include "generics/RateLimiter.h"
 
@@ -232,13 +233,21 @@ namespace Loader {
   struct NodeTraversal {
     const aiNode* node{};
     aiMatrix4x4 transform;
+    size_t tableHash{};
   };
 
   struct SceneLoadContext {
     const AssetIndex& index;
     std::vector<NodeTraversal> nodesToTraverse;
     std::vector<const aiMetadata*> metaToTraverse;
+    std::unique_ptr<MeshRemapper::IRemapping> meshMap;
+    //Index from meshes stored temporarily here before meshMap is created
+    std::vector<uint32_t> tempMeshMaterials;
   };
+
+  std::string_view toView(const aiString& str) {
+    return { str.data, str.length };
+  }
 
   template<class T>
   concept MetadataReader = requires(T t, size_t hash, const aiMetadataEntry& data, SceneLoadContext& ctx) {
@@ -261,8 +270,25 @@ namespace Loader {
     }
   }
 
-  std::string_view toView(const aiString& str) {
-    return { str.data, str.length };
+  //Custom properties don't exist on materials so they are hacked into the name with | delimiters
+  template<class Reader>
+  void readMaterialMetadata(const aiString& name, const Reader& read) {
+    std::string_view view = toView(name);
+    while(true) {
+      if(size_t found = view.find('|'); found != view.npos) {
+        std::string_view current = view.substr(0, found);
+        view = view.substr(found + 1);
+
+        read(gnx::Hash::constHash(current));
+      }
+      else {
+        //Read the final section because a delimiter isn't rquired at the end: A|B should call for A and B
+        if(view.size()) {
+          read(gnx::Hash::constHash(view));
+        }
+        break;
+      }
+    }
   }
 
   glm::vec3 toVec3(const aiVector3D& v) {
@@ -295,22 +321,21 @@ namespace Loader {
     scaleValue.scale = toVec2(scale);
   }
 
-  //These are stored using a bool array property which parses as a string that looks like this:
-  //[False, True, True, True, True, False, True, True]
-  void loadMask(const aiMetadataEntry& e, uint8_t& mask) {
-    if(e.mType != AI_AISTRING) {
+  //These are stored using a bool array property which parses as a metadata with an array of bool values
+  void loadMask(const aiMetadataEntry& entry, uint8_t& mask) {
+    if(entry.mType != AI_AIMETADATA) {
       return;
     }
-    uint8_t currentMask = 1;
-    for(char c : toView(*static_cast<const aiString*>(e.mData))) {
-      switch(c) {
-      case 'T':
+    const aiMetadata* data = static_cast<aiMetadata*>(entry.mData);
+    //Start at top bit going down so that the blender checkboxes go from most significant (top) to least (bottom)
+    uint8_t currentMask = 1 << 7;
+    for(unsigned i = 0; i < std::min((unsigned)8, data->mNumProperties); ++i) {
+      const aiMetadataEntry& e = data->mValues[i];
+      //Assume starting with 't' means this string is "true"
+      if(const bool* b = static_cast<const bool*>(e.mData); e.mType == AI_BOOL && *b) {
         mask |= currentMask;
-        [[fallthrough]];
-      case 'F':
-        currentMask = currentMask << 1;
-        break;
       }
+      currentMask = currentMask >> 1;
     }
   }
 
@@ -320,25 +345,25 @@ namespace Loader {
 
   //These are stored as an array of  floats: [1.0, 1.0, 1.0, 1.0]
   glm::vec4 loadVec4(const aiMetadataEntry& e) {
-    if(e.mType != AI_AISTRING) {
+    if(e.mType != AI_AIMETADATA) {
       return {};
     }
-    std::string_view view{ toView(*static_cast<const aiString*>(e.mData)) };
+    const aiMetadata* data = static_cast<const aiMetadata*>(e.mData);
     glm::vec4 result{};
-    for(int i = 0; i < 4; ++i) {
-      //Skip to the next number
-      if(auto it = std::find_if(view.begin(), view.end(), &isNumberChar); it != view.end()) {
-        view = view.substr(it - view.begin());
-        if(auto parsed = std::from_chars(view.data(), view.data() + view.length(), result[i]); parsed.ec == std::errc()) {
-          //Skip past this number
-          view = view.substr(parsed.ptr - view.data());
-        }
-        else {
-          break;
-        }
-      }
+    for(unsigned i = 0; i < std::min(unsigned(4), data->mNumProperties); ++i) {
+      double d{};
+      data->Get(i, d);
+      result[i] = static_cast<float>(d);
     }
     return result;
+  }
+
+  float loadFloat(const aiMetadataEntry& e) {
+    switch(e.mType) {
+      case AI_FLOAT: return *static_cast<const float*>(e.mData);
+      case AI_DOUBLE: return static_cast<float>(*static_cast<const double*>(e.mData));
+    }
+    return {};
   }
 
   void load(const aiMetadataEntry& e, CollisionMask& mask) {
@@ -356,15 +381,19 @@ namespace Loader {
   }
 
   //Attempt to reference the mesh, assuming there is only one
-  void load(const aiNode& e, MeshIndex& m) {
+  void load(const aiNode& e, MeshIndex& m, const SceneLoadContext& context) {
     if(!m.isSet() && e.mNumMeshes) {
-      m.index = e.mMeshes[0];
+      m = context.meshMap->remap(e.mMeshes[0]);
     }
   }
 
-  void loadPlayer(const NodeTraversal& node, SceneLoadContext& context, PlayerTable& player) {
+  void load(const aiMetadataEntry& e, Thickness& v) {
+    v.thickness = loadFloat(e);
+  }
+
+  void loadPlayerElement(const NodeTraversal& node, SceneLoadContext& context, PlayerTable& player) {
     player.players.emplace_back();
-    load(*node.node, player.meshIndex);
+    load(*node.node, player.meshIndex, context);
     Player& p = player.players.back();
 
     load(node.transform, p.transform);
@@ -377,9 +406,17 @@ namespace Loader {
     });
   }
 
-  void loadTerrain(const NodeTraversal& node, SceneLoadContext& context, TerrainTable& terrain) {
+  void loadPlayerTable(const NodeTraversal& node, SceneLoadContext& context, PlayerTable& player) {
+    readMetadata(*node.node, context, [&player](size_t hash, const aiMetadataEntry& data, SceneLoadContext&) {
+      switch(hash) {
+        case(Thickness::KEY): return load(data, player.thickness);
+      }
+    });
+  }
+
+  void loadTerrainElement(const NodeTraversal& node, SceneLoadContext& context, TerrainTable& terrain) {
     terrain.terrains.emplace_back();
-    load(*node.node, terrain.meshIndex);
+    load(*node.node, terrain.meshIndex, context);
     Terrain& t = terrain.terrains.back();
 
     load(node.transform, t.transform, t.scale);
@@ -391,10 +428,25 @@ namespace Loader {
     });
   }
 
-  void loadObject(std::string_view name, const NodeTraversal& node, SceneLoadContext& ctx, SceneAsset& scene) {
-    switch(gnx::Hash::constHash(name)) {
-      case gnx::Hash::constHash("Player"): return loadPlayer(node, ctx, scene.player);
-      case gnx::Hash::constHash("Terrain"): return loadTerrain(node, ctx, scene.terrain);
+  void loadTerrainTable(const NodeTraversal& node, SceneLoadContext& context, TerrainTable& terrain) {
+    readMetadata(*node.node, context, [&terrain](size_t hash, const aiMetadataEntry& data, SceneLoadContext&) {
+      switch(hash) {
+        case(Thickness::KEY): return load(data, terrain.thickness);
+      }
+    });
+  }
+
+  void loadObject(size_t tableName, const NodeTraversal& node, SceneLoadContext& ctx, SceneAsset& scene) {
+    switch(tableName) {
+      case PlayerTable::KEY: return loadPlayerElement(node, ctx, scene.player);
+      case TerrainTable::KEY: return loadTerrainElement(node, ctx, scene.terrain);
+    }
+  }
+
+  void loadTable(size_t tableName, const NodeTraversal& node, SceneLoadContext& ctx, SceneAsset& scene) {
+    switch(tableName) {
+      case PlayerTable::KEY: return loadPlayerTable(node, ctx, scene.player);
+      case TerrainTable::KEY: return loadTerrainTable(node, ctx, scene.terrain);
     }
   }
 
@@ -409,6 +461,40 @@ namespace Loader {
       aiTextureOp op{};
       std::array<aiTextureMapMode, 3> mapMode{};
       path;mapping;uvIndex;blend;op;mapMode;
+
+      std::string temp;
+      for(unsigned z = 0; z < mat->mNumProperties; ++z) {
+        switch(mat->mProperties[z]->mType) {
+          case aiPropertyTypeInfo::aiPTI_Buffer:
+             temp += mat->mProperties[z]->mKey.C_Str() + std::string("|") + std::string("[b]\n");
+             break;
+          case aiPropertyTypeInfo::aiPTI_Double:
+             temp += mat->mProperties[z]->mKey.C_Str() + std::string("|") + std::to_string(*(double*)mat->mProperties[z]->mData) + std::string("[d]\n");
+             break;
+          case aiPropertyTypeInfo::aiPTI_Float:
+            temp += mat->mProperties[z]->mKey.C_Str() + std::string("|") + std::to_string(*(float*)mat->mProperties[z]->mData) + std::string("[f]\n");
+             break;
+          case aiPropertyTypeInfo::aiPTI_Integer:
+            temp += mat->mProperties[z]->mKey.C_Str() + std::string("|") + std::to_string(*(int*)mat->mProperties[z]->mData) + std::string("[i]\n");
+             break;
+          case aiPropertyTypeInfo::aiPTI_String:
+             temp += mat->mProperties[z]->mKey.C_Str() + std::string("|") + std::string(((aiString*)mat->mProperties[z]->mData)->C_Str()) + std::string("[s]\n");
+             break;
+        }
+      }
+
+      TextureAsset& resultTexture = result.materials[i].texture;
+      readMaterialMetadata(mat->GetName(), [&resultTexture](size_t hash) {
+        switch(hash) {
+          case TEXTURE_SAMPLE_MODE_LINEAR_KEY:
+            resultTexture.sampleMode = TextureSampleMode::LinearInterpolation;
+            break;
+          case TEXTURE_SAMPLE_MODE_SNAP_KEY:
+            resultTexture.sampleMode = TextureSampleMode::SnapToNearest;
+            break;
+        }
+      });
+
       //Assume each material has a single texture if any, and that it's in the diffuse slot
       if(mat->GetTextureCount(aiTextureType_DIFFUSE) >= 1 && mat->GetTexture(aiTextureType_DIFFUSE, 0, &path, &mapping, &uvIndex, &blend, &op, mapMode.data()) == aiReturn_SUCCESS) {
         if(std::pair<const aiTexture*, int> tex = scene.GetEmbeddedTextureAndIndex(path.C_Str()); tex.first) {
@@ -448,27 +534,31 @@ namespace Loader {
     }
   }
 
-  void loadMeshes(const aiScene& scene, SceneLoadContext&, SceneAsset& result) {
-    result.meshes.resize(scene.mNumMeshes);
+  void loadMeshes(const aiScene& scene, SceneLoadContext& ctx, SceneAsset& result) {
+    result.meshVertices.resize(scene.mNumMeshes);
+    result.meshUVs.resize(scene.mNumMeshes);
+    ctx.tempMeshMaterials.resize(scene.mNumMeshes);
+
     for(unsigned i = 0; i < scene.mNumMeshes; ++i) {
       const aiMesh* mesh = scene.mMeshes[i];
 
-      MeshAsset& dst = result.meshes[i];
-      dst.materialIndex = mesh->mMaterialIndex;
+      MeshVerticesAsset& verts = result.meshVertices[i];
+      MeshUVsAsset& uvs = result.meshUVs[i];
+      ctx.tempMeshMaterials[i] = mesh->mMaterialIndex;
 
-      dst.vertices.resize(mesh->mNumVertices);
-      dst.textureCoordinates.resize(mesh->mNumVertices);
+      verts.vertices.resize(mesh->mNumVertices);
+      uvs.textureCoordinates.resize(mesh->mNumVertices);
       //Throw out the third dimension while copying over since assets are 2D, assume Z is unused, coordinates match the game where z is into the screen
       for(unsigned v = 0; v < mesh->mNumVertices; ++v) {
         const aiVector3D& sv = mesh->mVertices[v];
-        dst.vertices[v] = glm::vec2{ sv.x, sv.y };
+        verts.vertices[v] = glm::vec2{ sv.x, sv.y };
       }
       //Texture coordinates can be in any slot. Assume if they are provided they are in the first slot
       constexpr int EXPECTED_TEXTURE_CHANNEL = 0;
       if(mesh->HasTextureCoords(EXPECTED_TEXTURE_CHANNEL)) {
         for(unsigned v = 0; v < mesh->mNumVertices; ++v) {
           const aiVector3D& su = mesh->mTextureCoords[EXPECTED_TEXTURE_CHANNEL][v];
-          dst.textureCoordinates[v] = glm::vec2{ su.x, su.y };
+          uvs.textureCoordinates[v] = glm::vec2{ su.x, su.y };
         }
       }
     }
@@ -477,17 +567,36 @@ namespace Loader {
   void loadScene(const aiScene& scene, SceneLoadContext& ctx, SceneAsset& result) {
     loadMaterials(scene, ctx, result);
     loadMeshes(scene, ctx, result);
+    ctx.meshMap = MeshRemapper::createRemapping(result.meshVertices, result.meshUVs, ctx.tempMeshMaterials, result.materials);
 
     ctx.nodesToTraverse.push_back({ scene.mRootNode });
     while(ctx.nodesToTraverse.size()) {
       //Currently ignoring hierarchy, so depth or breadth first doesn't matter
-      const NodeTraversal node = ctx.nodesToTraverse.back();
+      NodeTraversal node = ctx.nodesToTraverse.back();
       ctx.nodesToTraverse.pop_back();
       if(node.node) {
-        loadObject(toView(node.node->mName), node, ctx, result);
+        //If this isn't a child of a table, try to find the table metadata and parse as table
+        if(!node.tableHash) {
+          readMetadata(*node.node, ctx, [&node](size_t hash, const aiMetadataEntry& data, SceneLoadContext&) {
+           switch(hash) {
+           case gnx::Hash::constHash("Table"):
+             if(data.mType == AI_AISTRING) {
+               node.tableHash = gnx::Hash::constHash(toView(*static_cast<const aiString*>(data.mData)));
+             }
+             break;
+           }
+          });
+
+          if(node.tableHash) {
+            loadTable(node.tableHash, node, ctx, result);
+          }
+        }
+        else {
+          loadObject(node.tableHash, node, ctx, result);
+        }
         for(unsigned i = 0; i < node.node->mNumChildren; ++i) {
           if(const aiNode* child = node.node->mChildren[i]) {
-            ctx.nodesToTraverse.push_back({ child, node.transform * child->mTransformation });
+            ctx.nodesToTraverse.push_back({ child, node.transform * child->mTransformation, node.tableHash });
           }
         }
       }
