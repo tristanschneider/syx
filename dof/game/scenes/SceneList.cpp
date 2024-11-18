@@ -5,6 +5,7 @@
 #include "SceneNavigator.h"
 #include "scenes/EmptyScene.h"
 #include "scenes/FragmentScene.h"
+#include "scenes/ImportedScene.h"
 #include "scenes/LoadingScene.h"
 #include "scenes/PerformanceScenes.h"
 
@@ -26,6 +27,7 @@ namespace SceneList {
     scenes->fragment = registry->registerScene(::Scenes::createFragmentScene());
     scenes->loading = registry->registerScene(::Scenes::createLoadingScene());
     scenes->singleStack = registry->registerScene(::Scenes::createSingleStack());
+    scenes->imported = registry->registerScene(::Scenes::createImportedScene());
 
     //Default start on fragment scene
     SceneNavigator::createNavigator(temp)->navigateTo(scenes->loading);
