@@ -6,20 +6,40 @@
 #include "AppBuilder.h"
 #include "scenes/SceneList.h"
 #include "SceneNavigator.h"
+#include "loader/AssetHandle.h"
 
 namespace Scenes {
   struct ImportedSceneGlobals {
-    ElementRef toLoad;
+    Loader::AssetHandle toLoad;
   };
   struct ImportedSceneGlobalsRow : SharedRow<ImportedSceneGlobals> {};
   using ImportedSceneDB = Database<
     Table<ImportedSceneGlobalsRow>
   >;
 
+  ImportedSceneGlobals* getImportedSceneGlobals(RuntimeDatabaseTaskBuilder& task) {
+    auto result = task.query<ImportedSceneGlobalsRow>().tryGetSingletonElement();
+    assert(result);
+    return result;
+  }
+
+  void instantiateScene(IAppBuilder& builder) {
+    auto task = builder.createTask();
+    ImportedSceneGlobals* globals = getImportedSceneGlobals(task);
+
+    task.setCallback([globals](AppTaskArgs&) {
+      //TODO: load
+
+      //Load is finished, release asset handle
+      globals->toLoad = {};
+    });
+
+    builder.submitTask(std::move(task.setName("instantiate scene")));
+  }
+
   struct ImportedScene : SceneNavigator::IScene {
     void init(IAppBuilder& builder) final {
-      //TODO: insert objects from SceneAsset here
-      builder;
+      instantiateScene(builder);
     }
 
     //Scene manages itself based on what was loaded
@@ -37,8 +57,13 @@ namespace Scenes {
     {
     }
 
-    void instantiateImportedScene(const ElementRef& scene) final {
-      // TODO: go to loading scene first to wait for it to finish?
+    void importScene(Loader::AssetLocation&& location) final {
+     //TODO: request load then instantiateImportedScene
+      location;
+    }
+
+    void instantiateImportedScene(const Loader::AssetHandle& scene) final {
+      //TODO: go to loading scene first to wait for it to finish?
       globals->toLoad = scene;
       navigator->navigateTo(sceneID);
     }

@@ -1,12 +1,25 @@
 #include "Precompile.h"
-#include "scenes/EmptyScene.h"
+#include "scenes/LoadingScene.h"
 
 #include "AppBuilder.h"
 #include "SceneNavigator.h"
 #include "Simulation.h"
 #include "SceneList.h"
+#include "loader/AssetReader.h"
 
 namespace Scenes {
+  struct LoadingSceneGlobals {
+    LoadRequest currentRequest;
+  };
+  struct LoadingSceneGlobalsRow : SharedRow<LoadingSceneGlobals> {};
+  using LoadingSceneDB = Database<Table<LoadingSceneGlobalsRow>>;
+
+  LoadingSceneGlobals* getLoadingSceneGlobals(RuntimeDatabaseTaskBuilder& task) {
+    LoadingSceneGlobals* globals = task.query<LoadingSceneGlobalsRow>().tryGetSingletonElement();
+    assert(globals);
+    return globals;
+  }
+
   size_t requestTextureLoad(Row<TextureLoadRequest>& textures, ITableModifier& textureModifier, const char* filename) {
     const size_t i = textureModifier.addElements(1);
     TextureLoadRequest& request = textures.at(i);
@@ -29,8 +42,13 @@ namespace Scenes {
     auto playerTextures = task.query<SharedRow<TextureReference>, const IsPlayer>();
     auto fragmentTextures = task.query<SharedRow<TextureReference>, const IsFragment>();
     auto terrain = task.query<SharedRow<TextureReference>, const Tags::TerrainRow>();
+    LoadingSceneGlobals* globals = getLoadingSceneGlobals(task);
 
     task.setCallback([=](AppTaskArgs&) mutable {
+      //TODO: less hacky way to queue the initial request, probably make the caller figure out the necessary assets
+      if(!globals->currentRequest.doInitialLoad) {
+        return;
+      }
       const std::string& root = fs->mRoot;
       sceneState->mBackgroundImage = requestTextureLoad(textureRequests.get<0>(0), *textureRequestModifier, (root + "background.png").c_str());
       sceneState->mPlayerImage = requestTextureLoad(textureRequests.get<0>(0), *textureRequestModifier, (root + "player.png").c_str());
@@ -56,13 +74,15 @@ namespace Scenes {
     auto textureRequests = task.query<const Row<TextureLoadRequest>>();
     auto requestModifiers = task.getModifiersForTables(textureRequests.matchingTableIDs);
     SceneState* sceneState = task.query<SharedRow<SceneState>>().tryGetSingletonElement();
+    LoadingSceneGlobals* globals = getLoadingSceneGlobals(task);
+    auto assetReader = Loader::createAssetReader(task);
     auto nav = SceneList::createNavigator(task);
     if(!sceneState) {
       task.discard();
       return;
     }
 
-    task.setCallback([textureRequests, requestModifiers, sceneState, nav](AppTaskArgs&) mutable {
+    task.setCallback([textureRequests, requestModifiers, sceneState, nav, assetReader, globals](AppTaskArgs&) mutable {
       for(size_t i = 0; i < textureRequests.size(); ++i) {
         for(const TextureLoadRequest& request : textureRequests.get<0>(i).mElements) {
           switch(request.mStatus) {
@@ -78,13 +98,42 @@ namespace Scenes {
         }
       }
 
+      SceneNavigator::SceneID toScene = globals->currentRequest.onSuccess;
+      for(const Loader::AssetHandle& asset : globals->currentRequest.toAwait) {
+        switch(assetReader->getLoadState(asset).step) {
+          case Loader::LoadStep::Requested:
+          case Loader::LoadStep::Loading:
+            //Still in progress, try again later
+            return;
+
+          case Loader::LoadStep::Succeeded:
+            continue;
+          case Loader::LoadStep::Failed:
+          case Loader::LoadStep::Invalid:
+            //Something failed, stop and go to failure scene
+            toScene = globals->currentRequest.onFailure;
+            break;
+        }
+      }
+
       //If they're all done, clear them and continue on to the next phase
       for(auto&& modifier : requestModifiers) {
         modifier->resize(0);
       }
-      nav.navigator->navigateTo(nav.scenes->fragment);
+      nav.navigator->navigateTo(toScene);
     });
     builder.submitTask(std::move(task));
+  }
+
+  void clearLoadRequest(IAppBuilder& builder) {
+    auto task = builder.createTask();
+    LoadingSceneGlobals* globals = getLoadingSceneGlobals(task);
+
+    task.setCallback([globals](AppTaskArgs&) {
+      globals->currentRequest = {};
+    });
+
+    builder.submitTask(std::move(task.setName("clear load request")));
   }
 
   struct LoadingScene : SceneNavigator::IScene {
@@ -94,10 +143,40 @@ namespace Scenes {
     void update(IAppBuilder& builder) final {
       awaitAssetLoading(builder);
     }
-    void uninit(IAppBuilder&) final {}
+    void uninit(IAppBuilder& builder) final {
+      clearLoadRequest(builder);
+    }
   };
 
   std::unique_ptr<SceneNavigator::IScene> createLoadingScene() {
     return std::make_unique<LoadingScene>();
+  }
+
+  struct LoadingNavigator : ILoadingNavigator {
+    LoadingNavigator(RuntimeDatabaseTaskBuilder& task)
+      : globals{ getLoadingSceneGlobals(task) }
+      , navigator{ SceneNavigator::createNavigator(task) }
+      , loadingScene{ SceneList::get(task)->loading }
+    {
+    }
+
+    void awaitLoadRequest(LoadRequest&& request) final {
+      //Store the request so the loading screen knows what to load
+      globals->currentRequest = std::move(request);
+      //Go to the loading screen
+      navigator->navigateTo(loadingScene);
+    }
+
+    LoadingSceneGlobals* globals{};
+    std::shared_ptr<SceneNavigator::INavigator> navigator;
+    SceneNavigator::SceneID loadingScene{};
+  };
+
+  std::shared_ptr<ILoadingNavigator> createLoadingNavigator(RuntimeDatabaseTaskBuilder& task) {
+    return std::make_shared<LoadingNavigator>(task);
+  }
+
+  std::unique_ptr<IDatabase> createLoadingSceneDB(StableElementMappings& mappings) {
+    return DBReflect::createDatabase<LoadingSceneDB>(mappings);
   }
 }

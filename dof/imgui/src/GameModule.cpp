@@ -133,7 +133,7 @@ namespace AbilityModule {
 }
 
 namespace Scenes {
-  void update(SceneList::ListNavigator nav) {
+  void update(SceneList::ListNavigator nav, const FileSystem& fs) {
     ImGui::Begin("Scenes");
     if(ImGui::Button("Empty")) {
       nav.navigator->navigateTo(nav.scenes->empty);
@@ -143,6 +143,10 @@ namespace Scenes {
     }
     if(ImGui::Button("Single Stack")) {
       nav.navigator->navigateTo(nav.scenes->singleStack);
+    }
+    if(ImGui::Button("Imported")) {
+      //TODO: use ImportedSceneNavigator to load the imported scene
+      fs;
     }
     ImGui::End();
   }
@@ -162,7 +166,7 @@ void GameModule::update(IAppBuilder& builder) {
     if(!*enabled) {
       return;
     }
-    Scenes::update(nav);
+    Scenes::update(nav, *fs);
     CameraModule::update(*config);
     AbilityModule::update(*config, std::get<0>(input.rows));
 

@@ -30,6 +30,10 @@ namespace SceneList {
     scenes->imported = registry->registerScene(::Scenes::createImportedScene());
 
     //Default start on fragment scene
-    SceneNavigator::createNavigator(temp)->navigateTo(scenes->loading);
+    ::Scenes::createLoadingNavigator(temp)->awaitLoadRequest(::Scenes::LoadRequest{
+      .onSuccess = scenes->fragment,
+      .onFailure = scenes->fragment,
+      .doInitialLoad = true
+    });
   }
 };

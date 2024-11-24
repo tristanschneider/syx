@@ -17,6 +17,7 @@
 #include "GameInput.h"
 #include "SceneNavigator.h"
 #include "scenes/ImportedScene.h"
+#include "scenes/LoadingScene.h"
 #include "scenes/SceneList.h"
 #include "shapes/AABB.h"
 #include "shapes/Circle.h"
@@ -410,6 +411,7 @@ namespace GameDatabase {
       DBReflect::createDatabase<StatEffectDatabase>(mappings),
       SceneNavigator::createDB(mappings),
       Scenes::createImportedSceneDB(mappings),
+      Scenes::createLoadingSceneDB(mappings),
       Loader::createDB(mappings)
     );
   }
