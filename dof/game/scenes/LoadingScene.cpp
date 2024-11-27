@@ -14,6 +14,14 @@ namespace Scenes {
   struct LoadingSceneGlobalsRow : SharedRow<LoadingSceneGlobals> {};
   using LoadingSceneDB = Database<Table<LoadingSceneGlobalsRow>>;
 
+  constexpr bool ENABLE_LOAD_LOG = true;
+  template<class... Args>
+  void loadLog([[maybe_unused]] const char* format, [[maybe_unused]] const Args&... args) {
+    if constexpr(ENABLE_LOAD_LOG) {
+      printf(format, args...);
+    }
+  }
+
   LoadingSceneGlobals* getLoadingSceneGlobals(RuntimeDatabaseTaskBuilder& task) {
     LoadingSceneGlobals* globals = task.query<LoadingSceneGlobalsRow>().tryGetSingletonElement();
     assert(globals);
@@ -45,6 +53,7 @@ namespace Scenes {
     LoadingSceneGlobals* globals = getLoadingSceneGlobals(task);
 
     task.setCallback([=](AppTaskArgs&) mutable {
+      loadLog("Loading...");
       //TODO: less hacky way to queue the initial request, probably make the caller figure out the necessary assets
       if(!globals->currentRequest.doInitialLoad) {
         return;
@@ -83,6 +92,8 @@ namespace Scenes {
     }
 
     task.setCallback([textureRequests, requestModifiers, sceneState, nav, assetReader, globals](AppTaskArgs&) mutable {
+      loadLog(".");
+
       for(size_t i = 0; i < textureRequests.size(); ++i) {
         for(const TextureLoadRequest& request : textureRequests.get<0>(i).mElements) {
           switch(request.mStatus) {
@@ -130,6 +141,7 @@ namespace Scenes {
     LoadingSceneGlobals* globals = getLoadingSceneGlobals(task);
 
     task.setCallback([globals](AppTaskArgs&) {
+      loadLog("\nDone.\n");
       globals->currentRequest = {};
     });
 

@@ -13,7 +13,9 @@
 #include "Player.h"
 #include "ImguiModule.h"
 #include "scenes/SceneList.h"
+#include "scenes/ImportedScene.h"
 #include "SceneNavigator.h"
+#include "loader/AssetLoader.h"
 
 namespace Toolbox {
   void update(Config::GameConfig& config, FileSystem& fs) {
@@ -133,7 +135,7 @@ namespace AbilityModule {
 }
 
 namespace Scenes {
-  void update(SceneList::ListNavigator nav, const FileSystem& fs) {
+  void update(SceneList::ListNavigator nav, const FileSystem& fs, Scenes::IImportedSceneNavigator& importer) {
     ImGui::Begin("Scenes");
     if(ImGui::Button("Empty")) {
       nav.navigator->navigateTo(nav.scenes->empty);
@@ -145,8 +147,7 @@ namespace Scenes {
       nav.navigator->navigateTo(nav.scenes->singleStack);
     }
     if(ImGui::Button("Imported")) {
-      //TODO: use ImportedSceneNavigator to load the imported scene
-      fs;
+      importer.importScene({ fs.mRoot + "scene.glb" });
     }
     ImGui::End();
   }
@@ -160,13 +161,14 @@ void GameModule::update(IAppBuilder& builder) {
   auto input = task.query<GameInput::PlayerInputRow>();
   const bool* enabled = ImguiModule::queryIsEnabled(task);
   auto nav = SceneList::createNavigator(task);
+  auto sceneImport = Scenes::createImportedSceneNavigator(task);
   assert(config && fs);
 
-  task.setCallback([config, fs, input, enabled, nav](AppTaskArgs&) mutable {
+  task.setCallback([config, fs, input, enabled, nav, sceneImport](AppTaskArgs&) mutable {
     if(!*enabled) {
       return;
     }
-    Scenes::update(nav, *fs);
+    Scenes::update(nav, *fs, *sceneImport);
     CameraModule::update(*config);
     AbilityModule::update(*config, std::get<0>(input.rows));
 

@@ -18,7 +18,9 @@ namespace Scenes {
   struct IImportedSceneNavigator {
     virtual ~IImportedSceneNavigator() = default;
     //Load a scene by name then instantiate it
-    virtual void importScene(Loader::AssetLocation&& location) = 0;
+    //Caller may retain the handle if they want this scene definition to persist,
+    //the loader will retain it long enough to enter the scene if the return value is ignored
+    virtual Loader::AssetHandle importScene(Loader::AssetLocation&& location) = 0;
     //Navigate to a scene represented by the SceneAsset this Handle is pointing at
     virtual void instantiateImportedScene(const Loader::AssetHandle& scene) = 0;
   };

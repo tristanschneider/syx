@@ -4,9 +4,12 @@
 #include "SceneNavigator.h"
 
 #include "AppBuilder.h"
+#include "scenes/LoadingScene.h"
 #include "scenes/SceneList.h"
 #include "SceneNavigator.h"
 #include "loader/AssetHandle.h"
+#include "loader/AssetLoader.h"
+#include "loader/SceneAsset.h"
 
 namespace Scenes {
   struct ImportedSceneGlobals {
@@ -23,12 +26,35 @@ namespace Scenes {
     return result;
   }
 
+  struct SceneView {
+    SceneView(RuntimeDatabaseTaskBuilder& task)
+      : resolver{ task.getResolver(scene, stable) }
+      , res{ task.getIDResolver()->getRefResolver() } {
+    }
+
+    const Loader::SceneAsset* tryGet(const Loader::AssetHandle& handle) {
+      auto id = res.tryUnpack(handle.asset);
+      return id ? resolver->tryGetOrSwapRowElement(scene, *id) : nullptr;
+    }
+
+    CachedRow<const Loader::SceneAssetRow> scene;
+    CachedRow<const StableIDRow> stable;
+    std::shared_ptr<ITableResolver> resolver;
+    ElementRefResolver res;
+  };
+
   void instantiateScene(IAppBuilder& builder) {
     auto task = builder.createTask();
     ImportedSceneGlobals* globals = getImportedSceneGlobals(task);
+    SceneView sceneView{ task };
 
-    task.setCallback([globals](AppTaskArgs&) {
-      //TODO: load
+    task.setCallback([globals, sceneView](AppTaskArgs&) mutable {
+      printf("instantiate scene\n");
+      if(const Loader::SceneAsset* scene = sceneView.tryGet(globals->toLoad)) {
+        printf("found scene");
+        //TODO: load
+      }
+
 
       //Load is finished, release asset handle
       globals->toLoad = {};
@@ -52,25 +78,36 @@ namespace Scenes {
   struct ImportedSceneNavigator : IImportedSceneNavigator {
     ImportedSceneNavigator(RuntimeDatabaseTaskBuilder& task)
       : globals{ task.query<ImportedSceneGlobalsRow>().tryGetSingletonElement<0>() }
-      , navigator{ SceneNavigator::createNavigator(task) }
+      , navigator{ Scenes::createLoadingNavigator(task) }
+      , loader{ Loader::createAssetLoader(task) }
       , sceneID{ SceneList::get(task)->imported }
     {
     }
 
-    void importScene(Loader::AssetLocation&& location) final {
-     //TODO: request load then instantiateImportedScene
-      location;
+    Loader::AssetHandle importScene(Loader::AssetLocation&& location) final {
+      const Loader::AssetHandle handle = loader->requestLoad(std::move(location));
+      instantiateImportedScene(handle);
+      return handle;
     }
 
     void instantiateImportedScene(const Loader::AssetHandle& scene) final {
-      //TODO: go to loading scene first to wait for it to finish?
+      //Store the desired scene for ImportedScene to load
       globals->toLoad = scene;
-      navigator->navigateTo(sceneID);
+      //Navigate to the loading screen and await the loading of the scene asset
+      //Upon completion, navigate to the imported scene which will load from globals
+      navigator->awaitLoadRequest(Scenes::LoadRequest{
+        .toAwait = { scene },
+        .onSuccess = sceneID,
+        //TODO: error handling
+        .onFailure = sceneID
+      });
     }
 
     ImportedSceneGlobals* globals{};
-    std::shared_ptr<SceneNavigator::INavigator> navigator;
+    std::shared_ptr<Scenes::ILoadingNavigator> navigator;
+    std::shared_ptr<Loader::IAssetLoader> loader;
     SceneNavigator::SceneID sceneID{};
+    SceneNavigator::SceneID loadingScene{};
   };
 
   std::shared_ptr<IImportedSceneNavigator> createImportedSceneNavigator(RuntimeDatabaseTaskBuilder& task) {
