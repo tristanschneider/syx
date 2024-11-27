@@ -74,7 +74,7 @@ namespace SP {
     }
 
     IslandGraph::Graph::ConstEdgeIterator unwrapLoss(const IslandGraph::Graph& graph, const Constraints::ConstraintStorage& storage) const {
-      return { &graph, static_cast<uint32_t>(storage.storageIndex) };
+      return graph.findEdge(storage.getHandle());
     }
   };
 

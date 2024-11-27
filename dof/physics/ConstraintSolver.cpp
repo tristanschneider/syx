@@ -654,7 +654,7 @@ namespace ConstraintSolver {
       //Assign a task for each island, and split into multiple tasks if island is huge
       //TODO: probably smarter way to reuse this
       collection->tasks.clear();
-      for(IslandGraph::IslandIndex i = 0; i < static_cast<IslandGraph::IslandIndex>(graph->islands.values.size()); ++i) {
+      for(IslandGraph::IslandIndex i = 0; i < static_cast<IslandGraph::IslandIndex>(graph->islands.getValues().size()); ++i) {
         if(!graph->islands.isFree(i) && graph->islands[i].size()) {
           collection->tasks.push_back({ i });
         }

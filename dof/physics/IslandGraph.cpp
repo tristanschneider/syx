@@ -1,7 +1,51 @@
 #include "Precompile.h"
 #include "IslandGraph.h"
 
+namespace gnx {
+  struct MyT {
+    bool isFree() const { return true; }
+    void markAsFree(bool) {}
+  };
+  struct MyT2 {
+    bool isFree() const { return true; }
+    void markAsFree(bool) {}
+  };
+  template<>
+  struct FreeListTraits<MyT> {
+    using ValueT = MyT;
+    using IndexT = uint32_t;
+    using Ops = DefaultFreeOps<MyT>;
+    using VersionT = uint8_t;
+  };
+  template<>
+  struct FreeListTraits<MyT2> {
+    using ValueT = MyT;
+    using IndexT = uint32_t;
+    using Ops = DefaultFreeOps<MyT>;
+    using VersionT = gnx::NoVersion;
+  };
+
+  struct WithVersion {
+    using VersionT = int;
+  };
+  struct WithoutVersion {
+    using VersionT = NoVersion;
+  };
+
+  static_assert(details::IsVersionedStorage<WithVersion>);
+  static_assert(details::IsUnversionedStorage<WithoutVersion>);
+
+  static_assert(details::IsVersionedStorage<FreeListTraits<MyT>>);
+  static_assert(details::IsUnversionedStorage<FreeListTraits<MyT2>>);
+
+  VectorFreeList<MyT> myf;
+  static_assert(VectorFreeList<MyT>::IsVersioned);
+  static_assert(!VectorFreeList<MyT2>::IsVersioned);
+}
+
 namespace IslandGraph {
+  constexpr size_t asdf = sizeof(std::conditional_t<true, std::monostate, uint64_t>);
+
   namespace Debug {
     bool validateIslands(Graph& graph) {
       std::unordered_set<const Edge*> expectedEdges;
@@ -33,7 +77,7 @@ namespace IslandGraph {
 
       for(const Island& island : graph.islands) {
         uint32_t ei = island.edges;
-        const IslandIndex islandIndex = static_cast<IslandIndex>(&island - graph.islands.values.data());
+        const IslandIndex islandIndex = static_cast<IslandIndex>(&island - graph.islands.getValues().data());
         while(ei != IslandGraph::INVALID) {
           if(!graph.edges.isValid(ei)) {
             return returnNotValid("Invalid edge on island");
@@ -139,7 +183,7 @@ namespace IslandGraph {
     uint32_t current = root;
     uint32_t* last = &root;
     while(current != INVALID) {
-      EdgeEntry& entry = entries.values[current];
+      EdgeEntry& entry = entries.getValues()[current];
       const Edge& edge = edges[entry.edge];
       if(edge.nodeA == nodeToRemove || edge.nodeB == nodeToRemove) {
         *last = entry.nextEntry;
@@ -160,7 +204,7 @@ namespace IslandGraph {
     uint32_t current = root;
     uint32_t* last = &root;
     while(current != INVALID) {
-      EdgeEntry& entry = entries.values[current];
+      EdgeEntry& entry = entries.getValues()[current];
       if(entry.edge == edgeToRemove) {
         *last = entry.nextEntry;
         entries.deleteIndex(current);
@@ -202,7 +246,7 @@ namespace IslandGraph {
     //For each node in the island
     while(nodesTodo.size()) {
       const size_t currentIndex = nodesTodo.back();
-      Node& node = graph.nodes.values[currentIndex];
+      Node& node = graph.nodes.getValues()[currentIndex];
       nodesTodo.pop_back();
       //Nodes without propagation are only visited from others. So they'll show up in the island
       //if another node has an edge to it but edges between two non-propagating nodes won't
@@ -234,8 +278,8 @@ namespace IslandGraph {
         uint32_t currentEntry = node.edges;
         //Iterate over all edges connected to the current node
         while(currentEntry != INVALID) {
-          const EdgeEntry& entry = graph.edgeEntries.values[currentEntry];
-          Edge& edge = graph.edges.values[entry.edge];
+          const EdgeEntry& entry = graph.edgeEntries.getValues()[currentEntry];
+          Edge& edge = graph.edges.getValues()[entry.edge];
           //Add edge to linked list if it hasn't been traversed already
           if(!graph.visitedEdges[entry.edge]) {
             //Add the other node for visitation
@@ -265,12 +309,12 @@ namespace IslandGraph {
     graph.scratchBuffer.clear();
 
     graph.visitedNodes.clear();
-    graph.visitedNodes.resize(graph.nodes.values.size(), false);
+    graph.visitedNodes.resize(graph.nodes.getValues().size(), false);
     graph.visitedEdges.clear();
-    graph.visitedEdges.resize(graph.edges.values.size(), false);
+    graph.visitedEdges.resize(graph.edges.getValues().size(), false);
 
     {
-      const size_t islandCount = graph.islands.values.size();
+      const size_t islandCount = graph.islands.getValues().size();
       graph.publishedIslandEdgesChanged.clear();
       graph.publishedIslandEdgesChanged.resize(islandCount, false);
       graph.publishedIslandNodesChanged.clear();
@@ -316,7 +360,7 @@ namespace IslandGraph {
         continue;
       }
       const IslandIndex islandIndex = graph.islands.newIndex();
-      Island& newIsland = graph.islands.values[islandIndex];
+      Island& newIsland = graph.islands.getValues()[islandIndex];
       newIsland.nodes = newNode;
       populateIsland(graph, newIsland, islandIndex);
       if(newIsland.size()) {
@@ -326,7 +370,7 @@ namespace IslandGraph {
         //Ensure there's a matching entry for the changed islands bitset.
         //No action needed if island was from the free list since it would already be non-changed
         if(islandIndex >= graph.changedIslands.size()) {
-          assert(graph.islands.values.size() < INVALID_ISLAND);
+          assert(graph.islands.getValues().size() < INVALID_ISLAND);
           assert(graph.changedIslands.size() == islandIndex);
           graph.changedIslands.push_back(false);
           graph.publishedIslandEdgesChanged.push_back(true);
@@ -360,7 +404,7 @@ namespace IslandGraph {
   void logMaybeSplitIslandNode(Graph& graph, const Node& node) {
     if(node.islandIndex != INVALID_ISLAND) {
       graph.changedIslands[node.islandIndex] = true;
-      const auto nodeIndex = static_cast<uint32_t>(&node - graph.nodes.values.data());
+      const auto nodeIndex = static_cast<uint32_t>(&node - graph.nodes.getValues().data());
       graph.newNodes.push_back(nodeIndex);
     }
   }
@@ -372,7 +416,7 @@ namespace IslandGraph {
   void logRemovedNode(Graph& graph, const Node& node) {
     if(node.islandIndex != INVALID_ISLAND) {
       graph.changedIslands[node.islandIndex] = true;
-      const auto nodeIndex = static_cast<uint32_t>(&node - graph.nodes.values.data());
+      const auto nodeIndex = static_cast<uint32_t>(&node - graph.nodes.getValues().data());
       //Reassign head if this was the start of the island
       if(graph.islands[node.islandIndex].nodes == nodeIndex) {
         graph.islands[node.islandIndex].nodes = node.islandNext;
@@ -404,25 +448,25 @@ namespace IslandGraph {
     Edge newEdge;
     newEdge.nodeA = mappingsA->second.node;
     newEdge.nodeB = mappingsB->second.node;
-    const uint32_t edgeIndex = graph.edges.newIndex();
-    graph.edges.values[edgeIndex] = newEdge;
+    auto [edgeIndex, version] = graph.edges.newIndex();
+    graph.edges.getValues()[edgeIndex] = newEdge;
 
-    Node& nodeA = graph.nodes.values[newEdge.nodeA];
-    Node& nodeB = graph.nodes.values[newEdge.nodeB];
+    Node& nodeA = graph.nodes.getValues()[newEdge.nodeA];
+    Node& nodeB = graph.nodes.getValues()[newEdge.nodeB];
     logAddedEdge(graph, nodeA, nodeB);
 
     //Create space for edge entries of A and B
     const size_t entryIndexA = graph.edgeEntries.newIndex();
     const size_t entryIndexB = graph.edgeEntries.newIndex();
 
-    addToLinkedList(nodeA.edges, entryIndexA, graph.edgeEntries.values[entryIndexA], edgeIndex);
-    addToLinkedList(nodeB.edges, entryIndexB, graph.edgeEntries.values[entryIndexB], edgeIndex);
+    addToLinkedList(nodeA.edges, entryIndexA, graph.edgeEntries.getValues()[entryIndexA], edgeIndex);
+    addToLinkedList(nodeB.edges, entryIndexB, graph.edgeEntries.getValues()[entryIndexB], edgeIndex);
     return edgeIndex;
   }
 
   EdgeUserdata addUnmappedEdge(Graph& graph, const NodeUserdata& a, const NodeUserdata& b) {
     if(const uint32_t edgeIndex = addEdge(graph, a, b); edgeIndex != INVALID) {
-      graph.edges.values[edgeIndex].data = static_cast<EdgeUserdata>(edgeIndex);
+      graph.edges.getValues()[edgeIndex].data = static_cast<EdgeUserdata>(edgeIndex);
       return static_cast<EdgeUserdata>(edgeIndex);
     }
     return static_cast<EdgeUserdata>(INVALID);
@@ -430,7 +474,7 @@ namespace IslandGraph {
 
   void addEdge(Graph& graph, const NodeUserdata& a, const NodeUserdata& b, const EdgeUserdata& edge) {
     if(const uint32_t edgeIndex = addEdge(graph, a, b); edgeIndex != INVALID) {
-      graph.edges.values[edgeIndex].data = edge;
+      graph.edges.getValues()[edgeIndex].data = edge;
     }
   }
 
@@ -442,17 +486,17 @@ namespace IslandGraph {
       return;
     }
 
-    Node& nodeA = graph.nodes.values[mappingsA->second.node];
+    Node& nodeA = graph.nodes.getValues()[mappingsA->second.node];
     //Remove the edge to B from the list in A
-    const uint32_t edge = removeFromLinkedList(nodeA.edges, mappingsB->second.node, graph.edgeEntries, graph.edges.values);
+    const uint32_t edge = removeFromLinkedList(nodeA.edges, mappingsB->second.node, graph.edgeEntries, graph.edges.getValues());
     assert(edge != INVALID);
-    Node& nodeB = graph.nodes.values[mappingsB->second.node];
+    Node& nodeB = graph.nodes.getValues()[mappingsB->second.node];
     logRemovedEdge(graph, nodeA, nodeB);
     //Remove the entry pointing at the edge found in A from the list of entries in B
     [[maybe_unused]] const bool removed = removeFromLinkedList(nodeB.edges, edge, graph.edgeEntries);
     assert(removed);
 
-    graph.edges.deleteIndex(edge);
+    graph.edges.deleteIndex(edge, graph.edges.getHandle(edge).second);
   }
 
   void removeEdge(Graph& graph, const Graph::ConstEdgeIterator& it) {
@@ -460,14 +504,21 @@ namespace IslandGraph {
     Node& a = graph.nodes[edge.nodeA];
     Node& b = graph.nodes[edge.nodeB];
     logRemovedEdge(graph, a, b);
+    Graph orig = graph;
+    Node origA = a;
+    Node origB = b;
     [[maybe_unused]] const bool removedA = removeFromLinkedList(a.edges, it.edge, graph.edgeEntries);
     [[maybe_unused]] const bool removedB = removeFromLinkedList(b.edges, it.edge, graph.edgeEntries);
     assert(removedA && removedB);
+    if(!(removedA && removedB)) {
+      removeFromLinkedList(origA.edges, it.edge, orig.edgeEntries);
+      removeFromLinkedList(origB.edges, it.edge, orig.edgeEntries);
+    }
   }
 
   void addNode(Graph& graph, const NodeUserdata& data, IslandPropagationMask propagation) {
     const size_t newIndex = graph.nodes.newIndex();
-    Node& node = graph.nodes.values[newIndex];
+    Node& node = graph.nodes.getValues()[newIndex];
     node = {};
     node.data = data;
     node.propagation = propagation;
@@ -486,7 +537,7 @@ namespace IslandGraph {
     const uint32_t toRemove = mappings->second.node;
     graph.nodeMappings.erase(mappings);
 
-    Node& node = graph.nodes.values[toRemove];
+    Node& node = graph.nodes.getValues()[toRemove];
     logRemovedNode(graph, node);
     uint32_t current = node.edges;
     //Go through all edges this was connected to and remove them from the other
@@ -502,7 +553,7 @@ namespace IslandGraph {
       removeFromLinkedList(otherNode.edges, entry.edge, graph.edgeEntries);
 
       //Remove the edge itself
-      graph.edges.deleteIndex(entry.edge);
+      graph.edges.deleteIndex(entry.edge, graph.edges.getVersion(entry.edge));
 
       //Remove the edge in the node that's being removed
       uint32_t entryToRemove = current;
@@ -564,8 +615,8 @@ namespace IslandGraph {
     return nodes.size() > raw ? ConstNodeIterator{ this, raw } : nodesEnd();
   }
 
-  Graph::ConstEdgeIterator Graph::findEdge(uint32_t raw) const {
-    return edges.size() > raw ? ConstEdgeIterator{ this, raw } : cEdgesEnd();
+  Graph::ConstEdgeIterator Graph::findEdge(const std::pair<EdgeIndex, EdgeVersion>& handle) const {
+    return edges.tryGet(handle) ? ConstEdgeIterator{ this, handle.first } : cEdgesEnd();
   }
 
   std::pair<NodeUserdata, NodeUserdata> Graph::ConstEdgeIterator::getNodes() const {

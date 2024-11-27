@@ -230,17 +230,18 @@ namespace Constraints {
 
           //If storage was found, move it from pending to tracked
           if(it != graph.edgesEnd()) {
+            const auto edgeHandle = graph.edges.getHandle(*it);
             //Assign storage so it can be used for configureConstraints.
             if(auto self = res.tryUnpack(p.owner)) {
               ConstraintStorage& ownerStorage = table.storage->at(self->getElementIndex());
               if(ownerStorage.isPending()) {
-                ownerStorage.assign(*it);
+                ownerStorage.assign(edgeHandle);
               }
             }
             //For simplicity, this is always moved to trackedConstraints, even if storage above wasn't found
             //This could happen if a constraint is immediately deleted
             //Either way, it means the code path for deletion can always go through GC rather than a special step here
-            trackedConstraints.constraints.push_back(OwnedConstraint{ p.owner, ConstraintStorage{ *it } });
+            trackedConstraints.constraints.push_back(OwnedConstraint{ p.owner, ConstraintStorage{ edgeHandle } });
 
             gnx::Container::swapRemove(pending.constraints, i);
           }
@@ -255,12 +256,11 @@ namespace Constraints {
     builder.submitTask(std::move(task.setName("constraint assign")));
   }
 
-  std::pair<ElementRef, ElementRef> getEdge(const IslandGraph::Graph& graph, size_t edgeIndex) {
-    if(graph.edges.size() > edgeIndex) {
-      const auto& e = graph.edges[edgeIndex];
-      assert(e.data == edgeIndex);
-      assert(e.nodeA < graph.nodes.size() && e.nodeB < graph.nodes.size());
-      return { graph.nodes[e.nodeA].data, graph.nodes[e.nodeB].data };
+  std::pair<ElementRef, ElementRef> getEdge(const IslandGraph::Graph& graph, const std::pair<IslandGraph::EdgeIndex, IslandGraph::EdgeVersion>& edgeIndex) {
+    if(const IslandGraph::Edge* e = graph.edges.tryGet(edgeIndex)) {
+      assert(e->data == edgeIndex.first);
+      assert(e->nodeA < graph.nodes.size() && e->nodeB < graph.nodes.size());
+      return { graph.nodes[e->nodeA].data, graph.nodes[e->nodeB].data };
     }
     return {};
   }
@@ -288,7 +288,7 @@ namespace Constraints {
             //Ensure the owner is still pointing at this constraint, could either be cleared or a newer one
             if(constraint.storage == storage) {
               //Ensure the members of the constraint exist
-              auto [a, b] = getEdge(*graph, constraint.storage.storageIndex);
+              auto [a, b] = getEdge(*graph, constraint.storage.getHandle());
               //A must exist, B is allowed to be unset but not invalid
               if(a && b.isUnsetOrValid()) {
                 ++i;
@@ -298,7 +298,7 @@ namespace Constraints {
           }
 
           //If we made it here the entry is invalid, remove it
-          table.changes->ownedEdges.erase(constraint.storage.storageIndex);
+          table.changes->ownedEdges.erase(constraint.storage.getIndex());
           table.changes->lost.push_back(constraint.storage);
           gnx::Container::swapRemove(trackedConstraints.constraints, i);
         }
@@ -651,12 +651,12 @@ namespace Constraints {
       if(!storage.isValid()) {
         continue;
       }
-      SP::ConstraintManifold& manifold = args.spatialPairs.manifold->at(storage.storageIndex);
-      SP::ZConstraintManifold& zManifold = args.spatialPairs.zManifold->at(storage.storageIndex);
-      const auto& edge = args.graph.findEdge(storage.storageIndex);
+      const auto edge = args.graph.findEdge(storage.getHandle());
       if(edge == args.graph.cEdgesEnd()) {
         continue;
       }
+      SP::ConstraintManifold& manifold = args.spatialPairs.manifold->at(storage.getIndex());
+      SP::ZConstraintManifold& zManifold = args.spatialPairs.zManifold->at(storage.getIndex());
       const auto [a, b] = edge.getNodes();
 
       //Solve if target is self or target is a valid external target
@@ -665,7 +665,7 @@ namespace Constraints {
       if(shouldSolve) {
         joint.manifold = &manifold;
         joint.zManifold = &zManifold;
-        joint.pairType = &args.spatialPairs.pairType->at(storage.storageIndex);
+        joint.pairType = &args.spatialPairs.pairType->at(storage.getIndex());
         //Default to XY constraint, visitor can add Z
         *joint.pairType = SP::PairType::Constraint;
         joint.a = a;

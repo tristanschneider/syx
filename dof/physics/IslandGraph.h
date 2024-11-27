@@ -16,6 +16,8 @@ namespace IslandGraph {
   constexpr IslandPropagationMask PROPAGATE_ALL{ static_cast<IslandPropagationMask>(~0) };
   constexpr IslandPropagationMask PROPAGATE_NONE{ static_cast<IslandPropagationMask>(0) };
   using IslandIndex = uint16_t;
+  using EdgeIndex = uint32_t;
+  using EdgeVersion = uint8_t;
 
   struct IIslandUserdata {
     virtual ~IIslandUserdata() = default;
@@ -91,24 +93,28 @@ namespace gnx {
     using ValueT = IslandGraph::Node;
     using IndexT = uint32_t;
     using Ops = MemberFreeOps<&IslandGraph::Node::islandNext, IslandGraph::FREE_INDEX>;
+    using VersionT = gnx::NoVersion;
   };
   template<>
   struct FreeListTraits<IslandGraph::Edge> {
     using ValueT = IslandGraph::Edge;
     using IndexT = uint32_t;
     using Ops = MemberFreeOps<&IslandGraph::Edge::islandNext, IslandGraph::FREE_INDEX>;
+    using VersionT = uint8_t;
   };
   template<>
   struct FreeListTraits<IslandGraph::EdgeEntry> {
     using ValueT = IslandGraph::EdgeEntry;
     using IndexT = uint32_t;
     using Ops = MemberFreeOps<&IslandGraph::EdgeEntry::edge, IslandGraph::FREE_INDEX>;
+    using VersionT = gnx::NoVersion;
   };
   template<>
   struct FreeListTraits<IslandGraph::Island> {
     using ValueT = IslandGraph::Island;
     using IndexT = IslandGraph::IslandIndex;
     using Ops = MemberFreeOps<&IslandGraph::Island::nextFreeIsland, IslandGraph::INVALID_ISLAND>;
+    using VersionT = gnx::NoVersion;
   };
 }
 
@@ -467,7 +473,7 @@ namespace IslandGraph {
     }
 
     GraphIterator end() {
-      return { this, islands.values.size() };
+      return { this, islands.getValues().size() };
     }
 
     //EdgeIterator findEdge(const NodeUserdata& a, const NodeUserdata& b);
@@ -475,7 +481,7 @@ namespace IslandGraph {
     NodePairEdgeIterator findEdge(const NodeUserdata& a, const NodeUserdata& b) const;
     ConstNodeIterator findNode(const NodeUserdata& node) const;
     ConstNodeIterator findNode(uint32_t raw) const;
-    ConstEdgeIterator findEdge(uint32_t raw) const;
+    ConstEdgeIterator findEdge(const std::pair<EdgeIndex, EdgeVersion>& handle) const;
 
     NodePairEdgeIterator edgesEnd() const {
       return { this, INVALID, INVALID };

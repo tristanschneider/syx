@@ -29,20 +29,54 @@ namespace gnx {
     }
   };
 
+  struct NoVersion{};
+
   //Specialize to provide your own
   template<class T>
   struct FreeListTraits {
     using ValueT = T;
     using IndexT = size_t;
     using Ops = DefaultFreeOps<T>;
+    using VersionT = NoVersion;
   };
+
+  namespace details {
+    template<class T>
+    concept IsUnversionedStorage = std::same_as<typename T::VersionT, NoVersion>;
+    template<class T>
+    concept IsVersionedStorage = !IsUnversionedStorage<T>;
+
+    //Storage to allow opting in to features without spending additional memory for unused features
+    template<class T>
+    struct VFLStorage {};
+
+    template<class T> requires IsUnversionedStorage<T>
+    struct VFLStorage<T> {
+      auto tryGetVersions() const { return nullptr; }
+
+      std::vector<typename T::ValueT> values;
+      std::vector<typename T::IndexT> freeList;
+    };
+
+    template<class T> requires IsVersionedStorage<T>
+    struct VFLStorage<T> {
+      auto tryGetVersions() const { return &version; }
+      auto tryGetVersions() { return &version; }
+
+      std::vector<typename T::ValueT> values;
+      std::vector<typename T::IndexT> freeList;
+      std::vector<typename T::VersionT> version;
+    };
+  }
 
   template<class T>
   struct VectorFreeList {
     using Traits = FreeListTraits<T>;
     using Value = typename Traits::ValueT;
     using Index = typename Traits::IndexT;
+    using Version = typename Traits::VersionT;
     using Ops = typename Traits::Ops;
+    static constexpr bool IsVersioned = details::IsVersionedStorage<Traits>;
 
     struct Iterator {
       using iterator_category = std::forward_iterator_tag;
@@ -103,73 +137,134 @@ namespace gnx {
       Value* end{};
     };
 
-    Index newIndex() {
-      Index newIndex{};
-      if(freeList.empty()) {
-        newIndex = static_cast<Index>(values.size());
-        values.emplace_back();
-      }
-      else {
-        newIndex = freeList.back();
-        freeList.pop_back();
-      }
-
-      Ops::markAsFree(values[newIndex], false);
-
-      return newIndex;
+    Index newIndex() requires details::IsUnversionedStorage<Traits> {
+      return newIndexUnversioned();
     }
 
-    void deleteIndex(Index index) {
-      Ops::markAsFree(values[index], true);
-      freeList.push_back(index);
+    std::pair<Index, Version> getHandle(Index i) const requires details::IsVersionedStorage<Traits> {
+      return std::make_pair(i, getVersion(i));
+    }
+
+    T* tryGet(const std::pair<Index, Version>& handle) requires details::IsVersionedStorage<Traits> {
+      if (getValues().size() > handle.first) {
+        return getVersion(handle.first) == handle.second ? &getValues()[handle.first] : nullptr;
+      }
+      return nullptr;
+    }
+
+    const T* tryGet(const std::pair<Index, Version>& handle) const requires details::IsVersionedStorage<Traits> {
+      if (getValues().size() > handle.first) {
+        return getVersion(handle.first) == handle.second ? &getValues()[handle.first] : nullptr;
+      }
+      return nullptr;
+    }
+
+    std::pair<Index, Version> newIndex() requires details::IsVersionedStorage<Traits> {
+      std::pair<Index, Version> result;
+      result.first = newIndexUnversioned();
+      result.second = getOrCreateVersion(result.first);
+      return result;
+    }
+
+    //Delete, checking that the version matches
+    //Deletion increments the version
+    void deleteIndex(Index index, Version v) requires details::IsVersionedStorage<Traits> {
+      Version& oldVersion = getOrCreateVersion(index);
+
+      //If it's a bad version, exit, this must have already been deleted
+      if(oldVersion != v) {
+        return;
+      }
+      //Version is good, increment for next time
+      ++oldVersion;
+
+      Ops::markAsFree(getValues()[index], true);
+      getFreeList().push_back(index);
+    }
+
+    void deleteIndex(Index index) requires details::IsUnversionedStorage<Traits> {
+      Ops::markAsFree(getValues()[index], true);
+      getFreeList().push_back(index);
     }
 
     bool isFree(Index index) const {
-      return index < values.size() && Ops::isFree(values[index]);
+      return index < getValues().size() && Ops::isFree(getValues()[index]);
     }
 
     bool isValid(Index index) const {
-      return index < values.size() && !Ops::isFree(values[index]);
+      return index < getValues().size() && !Ops::isFree(getValues()[index]);
     }
 
     size_t size() const {
-      return values.size() - freeList.size();
+      return getValues().size() - getFreeList().size();
     }
 
     void clear() {
       //When clearing everything can be emptied rather than adding everything to the free list
-      values.clear();
-      freeList.clear();
+      //Keep the versions though to avoid false positives on version checks
+      getValues().clear();
+      getFreeList().clear();
     }
 
     Iterator begin() {
-      Iterator result{ values.data(), values.data() + values.size() };
+      Iterator result{ getValues().data(), getValues().data() + getValues().size() };
       //Seek forward in case the first element is freed
-      if(values.size() && Ops::isFree(*result)) {
+      if(getValues().size() && Ops::isFree(*result)) {
         ++result;
       }
       return result;
     }
 
     Iterator end() {
-      return { values.data() + values.size(), values.data() + values.size() };
+      return { getValues().data() + getValues().size(), getValues().data() + getValues().size() };
     }
 
     //This is a raw index into the values container, meaning that if it is 5 iterating from begin
     //5 times might not land on this index if there are free elements inbetween
     Index rawIndex(const Iterator& it) {
-      return static_cast<Index>(it.begin - values.data());
+      return static_cast<Index>(it.begin - getValues().data());
     }
 
     Value& operator[](Index i) {
-      return values[i];
+      return getValues()[i];
     }
 
     const Value& operator[](Index i) const {
-      return values[i];
+      return getValues()[i];
     }
 
-    std::vector<Value> values;
-    std::vector<Index> freeList;
+    std::vector<Value>& getValues() { return storage.values; };
+    const std::vector<Value>& getValues() const { return storage.values; };
+    std::vector<Index>& getFreeList() { return storage.freeList; };
+    const std::vector<Index>& getFreeList() const { return storage.freeList; };
+
+    Version& getOrCreateVersion(Index i) requires details::IsVersionedStorage<Traits> {
+      if(storage.version.size() <= i) {
+        storage.version.resize(i + 1);
+      }
+      return storage.version[i];
+    }
+
+    Version getVersion(Index i) const requires details::IsVersionedStorage<Traits> {
+      return storage.version.size() <= i ? static_cast<Version>(0) : storage.version[i];
+    }
+
+    Index newIndexUnversioned() {
+      Index result{};
+      if(getFreeList().empty()) {
+        result = static_cast<Index>(getValues().size());
+        getValues().emplace_back();
+      }
+      else {
+        result = getFreeList().back();
+        getFreeList().pop_back();
+      }
+
+      Ops::markAsFree(getValues()[result], false);
+
+      return result;
+    }
+
+    details::VFLStorage<Traits> storage;
   };
 };

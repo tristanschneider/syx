@@ -95,34 +95,41 @@ namespace Constraints {
     Constraints::ConstraintCommon common;
   };
   struct ConstraintStorage {
-    constexpr static size_t INVALID = std::numeric_limits<size_t>::max();
-    constexpr static size_t PENDING = INVALID - 1;
+    constexpr static uint32_t INVALID = std::numeric_limits<uint32_t>::max();
+    constexpr static uint32_t PENDING = INVALID - 1;
 
     auto operator<=>(const ConstraintStorage&) const = default;
 
     bool isValid() const {
-      return storageIndex != INVALID;
+      return indexVersion.first != INVALID;
     }
 
     bool isPending() const {
-      return storageIndex == PENDING;
+      return indexVersion.first == PENDING;
     }
 
     void clear() {
-      storageIndex = INVALID;
+      indexVersion.first = INVALID;
     }
 
     void setPending() {
-      storageIndex = PENDING;
+      indexVersion.first = PENDING;
     }
 
-    void assign(size_t index) {
-      storageIndex = index;
+    void assign(std::pair<uint32_t, uint8_t> index) {
+      indexVersion = index;
     }
 
-    //TODO: could be uint32_t
-    //Entry for this constraint in SpatialPairsStorage
-    size_t storageIndex{ std::numeric_limits<size_t>::max() };
+    uint32_t getIndex() const {
+      return indexVersion.first;
+    }
+
+    const std::pair<uint32_t, uint8_t>& getHandle() const {
+      return indexVersion;
+    }
+
+    //EdgeIndex and EdgeVersion apir from IslandGraph whose index also matches SpatialPairsStorage
+    std::pair<uint32_t, uint8_t> indexVersion{ std::make_pair(std::numeric_limits<uint32_t>::max(), uint8_t(0)) };
   };
   //Constraint is the low level solving mechanism, joint is a higher level description of the constraints the caller wants
   struct CustomJoint {};
@@ -276,7 +283,7 @@ namespace Constraints {
     std::vector<OwnedDefinitionConstraints> trackedConstraints;
     //Constraints that are awaiting storage in SpatialPairsStorage. Once they get it they move to trackedConstraints
     std::vector<PendingDefinitionConstraints> pendingConstraints;
-    std::unordered_set<size_t> ownedEdges;
+    std::unordered_set<uint32_t> ownedEdges;
   };
   struct ConstraintChangesRow : SharedRow<ConstraintChanges> {};
 
