@@ -73,7 +73,6 @@ namespace Loader {
   //Elements of TerrainTable
   struct Terrain {
     Transform3D transform;
-    Velocity3D velocity;
     Scale2D scale;
     CollisionMask collisionMask;
     ConstraintMask constraintMask;

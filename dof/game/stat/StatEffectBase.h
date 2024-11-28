@@ -2,6 +2,7 @@
 
 #include "curve/CurveDefinition.h"
 #include "generics/IndexRange.h"
+#include "SceneNavigator.h"
 #include "Scheduler.h"
 #include "StableElementID.h"
 #include "TableOperations.h"
@@ -133,6 +134,7 @@ namespace StatEffect {
 
 template<class... Rows>
 struct StatEffectBase : Table<
+  SceneNavigator::IsClearedWithSceneTag,
   StatEffect::ConfigRow,
   StatEffect::Owner,
   StatEffect::Lifetime,

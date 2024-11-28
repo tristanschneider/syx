@@ -253,33 +253,6 @@ struct ConstStableInfo {
   const DatabaseDescription description{};
 };
 
-//Same as UnpackedDatabaseElementID mUnstableIndex of the table, intended for when referring to table vs element in table
-struct TableID : UnpackedDatabaseElementID {
-  TableID() = default;
-  TableID(const UnpackedDatabaseElementID& i)
-    : UnpackedDatabaseElementID{ i }
-  {
-    mValue &= getTableMask();
-  }
-
-  bool operator==(const TableID& rhs) const {
-    return mValue == rhs.mValue;
-  }
-
-  bool operator<(const TableID& rhs) const {
-    return mValue < rhs.mValue;
-  }
-};
-
-namespace std {
-  template<>
-  struct hash<TableID> {
-    size_t operator()(const TableID& i) const {
-      return std::hash<size_t>{}(i.mValue);
-    }
-  };
-}
-
 struct DBEvents {
   using Variant = std::variant<std::monostate, TableID, ElementRef>;
 

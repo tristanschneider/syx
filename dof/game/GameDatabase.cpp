@@ -499,4 +499,19 @@ namespace GameDatabase {
     setDefaultValue<Narrowphase::SharedThicknessRow>(builder, "thickness", 0.1f);
     setDefaultValue<Narrowphase::SharedThicknessRow, const Tags::TerrainRow>(builder, "terrainthickness", 0.0f);
   }
+
+  template<class... Filter>
+  TableID getOrAssertTable(RuntimeDatabaseTaskBuilder& task) {
+    auto q = task.queryTables<Filter...>();
+    assert(q.size());
+    return q[0];
+  }
+
+  Tables::Tables(RuntimeDatabaseTaskBuilder& task)
+    : player{ getOrAssertTable<IsPlayer>(task) }
+    , terrain{ getOrAssertTable<Tags::TerrainRow>(task) }
+    , activeFragment{ getOrAssertTable<FragmentSeekingGoalTagRow>(task) }
+    , completedFragment{ getOrAssertTable<FragmentGoalFoundTableTag>(task) }
+  {
+  }
 }

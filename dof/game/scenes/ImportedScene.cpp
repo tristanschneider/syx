@@ -10,6 +10,11 @@
 #include "loader/AssetHandle.h"
 #include "loader/AssetLoader.h"
 #include "loader/SceneAsset.h"
+#include "GameDatabase.h"
+#include "RowTags.h"
+#include "Narrowphase.h"
+#include "ConstraintSolver.h"
+#include "DBEvents.h"
 
 namespace Scenes {
   struct ImportedSceneGlobals {
@@ -43,18 +48,187 @@ namespace Scenes {
     ElementRefResolver res;
   };
 
+  struct TransformRows {
+    TransformRows(RuntimeTable& table)
+      : posX{ table.tryGet<Tags::PosXRow>() }
+      , posY{ table.tryGet<Tags::PosYRow>() }
+      , posZ{ table.tryGet<Tags::PosZRow>() }
+      , rotX{ table.tryGet<Tags::RotXRow>() }
+      , rotY{ table.tryGet<Tags::RotYRow>() }
+    {
+    }
+
+    void read(size_t i, const Loader::Transform3D& t) {
+      if(posX && posY && posZ) {
+        posX->at(i) = t.pos.x;
+        posY->at(i) = t.pos.y;
+        posZ->at(i) = t.pos.z;
+      }
+      if(rotX && rotY) {
+        rotX->at(i) = std::cos(t.rot);
+        rotY->at(i) = std::sin(t.rot);
+      }
+    }
+
+    void read(size_t i, const Loader::Scale2D& s) {
+      if(scaleX && scaleY) {
+        scaleX->at(i) = s.scale.x;
+        scaleY->at(i) = s.scale.y;
+      }
+    }
+
+    Tags::PosXRow* posX{};
+    Tags::PosYRow* posY{};
+    Tags::PosZRow* posZ{};
+    Tags::RotXRow* rotX{};
+    Tags::RotYRow* rotY{};
+    Tags::ScaleXRow* scaleX{};
+    Tags::ScaleYRow* scaleY{};
+  };
+
+  struct PhysicsRows {
+    PhysicsRows(RuntimeTable& table)
+      : velX{ table.tryGet<Tags::LinVelXRow>() }
+      , velY{ table.tryGet<Tags::LinVelYRow>() }
+      , velZ{ table.tryGet<Tags::LinVelZRow>() }
+      , velA{ table.tryGet<Tags::AngVelRow>() }
+      , collisionMask{ table.tryGet<Narrowphase::CollisionMaskRow>() }
+      , constraintMask{ table.tryGet<ConstraintSolver::ConstraintMaskRow>() }
+    {
+    }
+
+    void read(size_t i, const Loader::Velocity3D& v) {
+      if(velX && velY && velZ) {
+        velX->at(i) = v.linear.x;
+        velY->at(i) = v.linear.y;
+        velZ->at(i) = v.linear.z;
+        velA->at(i) = v.angular;
+      }
+    }
+
+    void read(size_t i, const Loader::CollisionMask& m) {
+      if(collisionMask) {
+        collisionMask->at(i) = m.mask;
+      }
+    }
+
+    void read(size_t i, const Loader::ConstraintMask& m) {
+      if(constraintMask) {
+        constraintMask->at(i) = m.mask;
+      }
+    }
+
+    void read(const Loader::Thickness& t) {
+      if(sharedThickness) {
+        sharedThickness->at() = t.thickness;
+      }
+    }
+
+    Tags::LinVelXRow* velX{};
+    Tags::LinVelYRow* velY{};
+    Tags::LinVelZRow* velZ{};
+    Tags::AngVelRow* velA{};
+    Narrowphase::CollisionMaskRow* collisionMask{};
+    Narrowphase::SharedThicknessRow* sharedThickness{};
+    ConstraintSolver::ConstraintMaskRow* constraintMask{};
+  };
+
+  struct EventPublisher {
+    EventPublisher(AppTaskArgs& a)
+      : args{ a }
+    {
+    }
+
+    void broadcastNewElements(const RuntimeTable& table) {
+      if (const StableIDRow* ids = table.tryGet<const StableIDRow>()) {
+        for (const ElementRef& e : ids->mElements) {
+          Events::onNewElement(e, args);
+        }
+      }
+    }
+
+    AppTaskArgs& args;
+  };
+
+  //TODO:
+  struct GraphicsRows {
+    GraphicsRows(RuntimeTable&) {}
+
+    void read(size_t, const Loader::QuadUV&) {
+    }
+
+    void read(const Loader::MeshIndex&) {
+    }
+  };
+
+  void createPlayers(const Loader::PlayerTable& players,
+    RuntimeDatabase& db,
+    const GameDatabase::Tables& tables,
+    EventPublisher& publisher
+  ) {
+    RuntimeTable* playerTable = db.tryGet(tables.player);
+    assert(playerTable);
+
+    playerTable->stableModifier.resize(players.players.size(), nullptr);
+
+    TransformRows transform{ *playerTable };
+    PhysicsRows physics{ *playerTable };
+    GraphicsRows graphics{ *playerTable };
+    for(size_t i = 0; i < players.players.size(); ++i) {
+      const Loader::Player& p = players.players[i];
+      transform.read(i, p.transform);
+      physics.read(i, p.velocity);
+      physics.read(i, p.constraintMask);
+      physics.read(i, p.collisionMask);
+      graphics.read(i, p.uv);
+    }
+    graphics.read(players.meshIndex);
+    physics.read(players.thickness);
+
+    publisher.broadcastNewElements(*playerTable);
+  }
+
+  void createTerrain(const Loader::TerrainTable& terrain,
+    RuntimeDatabase& db,
+    const GameDatabase::Tables& tables,
+    EventPublisher& publisher
+  ) {
+    RuntimeTable* table = db.tryGet(tables.terrain);
+    assert(table);
+
+    table->stableModifier.resize(terrain.terrains.size(), nullptr);
+
+    TransformRows transform{ *table };
+    PhysicsRows physics{ *table };
+    GraphicsRows graphics{ *table };
+    for(size_t i = 0; i < terrain.terrains.size(); ++i) {
+      const Loader::Terrain& t = terrain.terrains[i];
+      transform.read(i, t.transform);
+      transform.read(i, t.scale);
+      physics.read(i, t.collisionMask);
+      physics.read(i, t.constraintMask);
+      graphics.read(i, t.uv);
+    }
+    graphics.read(terrain.meshIndex);
+    physics.read(terrain.thickness);
+
+    publisher.broadcastNewElements(*table);
+  }
+
   void instantiateScene(IAppBuilder& builder) {
     auto task = builder.createTask();
     ImportedSceneGlobals* globals = getImportedSceneGlobals(task);
     SceneView sceneView{ task };
+    RuntimeDatabase* db = &task.getDatabase();
+    GameDatabase::Tables tables{ task };
 
-    task.setCallback([globals, sceneView](AppTaskArgs&) mutable {
+    task.setCallback([globals, sceneView, db, tables](AppTaskArgs& args) mutable {
       printf("instantiate scene\n");
       if(const Loader::SceneAsset* scene = sceneView.tryGet(globals->toLoad)) {
-        printf("found scene");
-        //TODO: load
+        EventPublisher publisher{ args };
+        createPlayers(scene->player, *db, tables, publisher);
+        createTerrain(scene->terrain, *db, tables, publisher);
       }
-
 
       //Load is finished, release asset handle
       globals->toLoad = {};

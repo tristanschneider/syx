@@ -17,6 +17,12 @@ struct RuntimeTable {
     return it != rows.end() ? (RowT*)it->second.row : nullptr;
   }
 
+  template<class RowT>
+  const RowT* tryGet() const {
+    auto it = rows.find(IDT::get<std::decay_t<RowT>>());
+    return it != rows.end() ? (const RowT*)it->second.row : nullptr;
+  }
+
   void* tryGet(DBTypeID id) {
     auto it = rows.find(id);
     return it != rows.end() ? it->second.row : nullptr;
