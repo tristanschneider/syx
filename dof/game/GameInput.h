@@ -57,7 +57,7 @@ namespace GameInput {
 
     PlayerInput& operator=(PlayerInput&&);
 
-    bool wantsRebuild{ true };
+    bool wantsRebuild{};
     PlayerNodes nodes;
     //Goes from 0 to 1 when starting input in a direction, then back down to zero when stopping
     float moveT{};

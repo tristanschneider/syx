@@ -80,6 +80,8 @@ namespace Tags {
     std::string name;
   };
   struct TableNameRow : SharedRow<TableName> {};
+
+  struct ElementNeedsInitRow : BoolRow {};
 };
 
 struct IsPlayer : TagRow{};

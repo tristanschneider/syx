@@ -226,6 +226,8 @@ namespace Constraints {
             if(table.changes->ownedEdges.insert(spatialPairsIndex).second) {
               break;
             }
+
+            ++it;
           }
 
           //If storage was found, move it from pending to tracked
@@ -259,7 +261,7 @@ namespace Constraints {
   std::pair<ElementRef, ElementRef> getEdge(const IslandGraph::Graph& graph, const std::pair<IslandGraph::EdgeIndex, IslandGraph::EdgeVersion>& edgeIndex) {
     if(const IslandGraph::Edge* e = graph.edges.tryGet(edgeIndex)) {
       assert(e->data == edgeIndex.first);
-      assert(e->nodeA < graph.nodes.size() && e->nodeB < graph.nodes.size());
+      assert(e->nodeA < graph.nodes.addressableSize() && e->nodeB < graph.nodes.addressableSize());
       return { graph.nodes[e->nodeA].data, graph.nodes[e->nodeB].data };
     }
     return {};

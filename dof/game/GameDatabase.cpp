@@ -327,6 +327,8 @@ namespace GameDatabase {
     Tags::TableNameRow,
     SceneNavigator::IsClearedWithSceneTag,
     IsPlayer,
+    Tags::ElementNeedsInitRow,
+
     FloatRow<Tags::Pos, Tags::X>,
     FloatRow<Tags::Pos, Tags::Y>,
     FloatRow<Tags::Pos, Tags::Z>,
@@ -498,6 +500,7 @@ namespace GameDatabase {
     setDefaultValue<AccelerationZ>(builder, "set acceleration", -0.01f);
     setDefaultValue<Narrowphase::SharedThicknessRow>(builder, "thickness", 0.1f);
     setDefaultValue<Narrowphase::SharedThicknessRow, const Tags::TerrainRow>(builder, "terrainthickness", 0.0f);
+    setDefaultValue<Tags::ElementNeedsInitRow>(builder, "setDefault needsInit", (uint8_t)1);
   }
 
   template<class... Filter>

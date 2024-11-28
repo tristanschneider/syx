@@ -25,6 +25,7 @@ namespace InspectorModule {
       , resolver{ task.getResolver(
           posX, posY, posZ,
           rotX, rotY,
+          scaleX, scaleY,
           velX, velY, velZ, velA,
           tableNames,
           goalX, goalY,
@@ -66,6 +67,8 @@ namespace InspectorModule {
     CachedRow<Tags::PosZRow> posZ;
     CachedRow<Tags::RotXRow> rotX;
     CachedRow<Tags::RotYRow> rotY;
+    CachedRow<Tags::ScaleXRow> scaleX;
+    CachedRow<Tags::ScaleYRow> scaleY;
     CachedRow<Tags::LinVelXRow> velX;
     CachedRow<Tags::LinVelYRow> velY;
     CachedRow<Tags::LinVelZRow> velZ;
@@ -83,6 +86,7 @@ namespace InspectorModule {
     DebugLineAdapter debugLines;
     AppTaskArgs* args{};
     glm::vec2 pos{};
+    glm::vec2 scale{};
     ElementRef self;
   };
 
@@ -141,6 +145,12 @@ namespace InspectorModule {
           const float rad = Geo::DEGRAD * angle;
           ctx.rotX->at(i) = std::cos(rad);
           ctx.rotY->at(i) = std::sin(rad);
+        }
+      }
+      if(ctx.resolver->tryGetOrSwapAllRows(*unpacked, ctx.scaleX, ctx.scaleY)) {
+        ctx.scale = TableAdapters::read(i, *ctx.scaleX, *ctx.scaleY);
+        if(ImGui::InputFloat2("Scale", &ctx.scale.x)) {
+          TableAdapters::write(i, ctx.scale, *ctx.scaleX, *ctx.scaleY);
         }
       }
     }

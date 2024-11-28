@@ -51,15 +51,7 @@ namespace Scenes {
 
       TableAdapters::write(0, *config->fragment.playerSpawn, *posX, *posY);
 
-      //Make the camera follow the player
-      FollowTargetByPositionStatEffect::Builder fb{ args };
-      fb.createStatEffects(1).setLifetime(StatEffect::INFINITE).setOwner(cameraStableId);
-      fb.setMode(FollowTargetByPositionStatEffect::FollowMode::Interpolation)
-        .setTarget(playerStableRow.at(playerIndex))
-        .setCurve(Config::getCurve(config->camera.followCurve));
-
-      //Load ability from config
-      Player::initAbility(*config, std::get<2>(players.rows));
+      //Player.cpp will connect the camera to the player and initialize abilities
     });
     builder.submitTask(std::move(task));
   }

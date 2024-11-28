@@ -68,13 +68,63 @@ namespace Player {
     builder.submitTask(std::move(task));
   }
 
+  void initAbility(Config::GameConfig& config, GameInput::PlayerInput& in) {
+    *in.ability1 = Config::getAbility(config.ability.pushAbility.ability);
+    in.wantsRebuild = true;
+  }
+
   void initAbility(Config::GameConfig& config, QueryResultRow<GameInput::PlayerInputRow>& input) {
     for(auto&& row : input) {
       for(GameInput::PlayerInput& in : *row) {
-        *in.ability1 = Config::getAbility(config.ability.pushAbility.ability);
-        in.wantsRebuild = true;
+        initAbility(config, in);
       }
     }
+  }
+
+  //Set up a newly created player
+  void setupPlayer(IAppBuilder& builder) {
+    auto task = builder.createTask();
+    auto cameras = task.query<const Row<Camera>, const StableIDRow>();
+    auto players = task.query<Tags::ElementNeedsInitRow, GameInput::PlayerInputRow, const StableIDRow>();
+    Config::GameConfig* config = task.query<SharedRow<Config::GameConfig>>().tryGetSingletonElement();
+    if(!cameras.size() || !config) {
+      task.discard();
+      return;
+    }
+
+    task.setCallback([cameras, players, config](AppTaskArgs& args) mutable {
+      for(size_t t = 0; t < players.size(); ++t) {
+        auto [needsInit, input, stable] = players.get(t);
+        for(size_t i = 0; i < needsInit->size(); ++i) {
+          //Already initialized, skip it
+          if(!needsInit->at(i)) {
+            continue;
+          }
+
+          const StableIDRow& cams = cameras.get<1>(0);
+          const ElementRef* cam = cams.size() > 0 ? &cams.at(0) : nullptr;
+          //If camera is missing skip now and hope it appears later
+          if(!cam) {
+            continue;
+          }
+
+          //Make the camera follow the player
+          FollowTargetByPositionStatEffect::Builder fb{ args };
+          fb.createStatEffects(1).setLifetime(StatEffect::INFINITE).setOwner(*cam);
+          fb.setMode(FollowTargetByPositionStatEffect::FollowMode::Interpolation)
+            .setTarget(stable->at(i))
+            .setCurve(Config::getCurve(config->camera.followCurve));
+
+          //Load ability from config
+          Player::initAbility(*config, input->at(i));
+
+          //Mark as initialized
+          needsInit->at(i) = false;
+        }
+      }
+    });
+
+    builder.submitTask(std::move(task.setName("player init")));
   }
 
   using namespace Math;
@@ -119,6 +169,8 @@ namespace Player {
   }
 
   void updateInput(IAppBuilder& builder) {
+    setupPlayer(builder);
+
     senseGround(builder);
 
     auto task = builder.createTask();

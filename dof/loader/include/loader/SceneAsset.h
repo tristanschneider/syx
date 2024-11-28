@@ -33,12 +33,18 @@ namespace Loader {
   //Populated by using custom property KEY of type boolean array 8
   struct CollisionMask {
     constexpr static size_t KEY = gnx::Hash::constHash("CollisionMask");
+
+    bool isSet() const { return mask != 0; }
+
     uint8_t mask{};
   };
 
   //Populated by using custom property KEY of type boolean array 8
   struct ConstraintMask {
     constexpr static size_t KEY = gnx::Hash::constHash("ConstraintMask");
+
+    bool isSet() const { return mask != 0; }
+
     uint8_t mask{};
   };
 
@@ -61,6 +67,9 @@ namespace Loader {
   //Custom float property KEY on player table
   struct Thickness {
     constexpr static size_t KEY = gnx::Hash::constHash("Thickness");
+
+    bool isSet() const { return thickness != 0; }
+
     float thickness{};
   };
 

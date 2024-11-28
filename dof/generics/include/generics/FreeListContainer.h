@@ -195,8 +195,12 @@ namespace gnx {
       return index < getValues().size() && !Ops::isFree(getValues()[index]);
     }
 
-    size_t size() const {
+    size_t activeSize() const {
       return getValues().size() - getFreeList().size();
+    }
+
+    size_t addressableSize() const {
+      return getValues().size();
     }
 
     void clear() {

@@ -186,6 +186,8 @@ using Row = BasicRow<T>;
 
 //A row whose presence in the table is meaningful bug whose value isn't
 struct TagRow : SharedRow<char>{};
+//Alias because currentl bool specialization of vector messes up row template wrappers but this could be a nice optimization in the future
+struct BoolRow : Row<uint8_t>{};
 
 template<size_t I, class T>
 struct DupleElement {

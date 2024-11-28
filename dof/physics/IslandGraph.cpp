@@ -51,8 +51,8 @@ namespace IslandGraph {
       std::unordered_set<const Edge*> expectedEdges;
       std::unordered_set<const Node*> expectedNodes;
       std::unordered_set<const Node*> nodesInIsland;
-      expectedEdges.reserve(graph.edges.size());
-      expectedNodes.reserve(graph.nodes.size());
+      expectedEdges.reserve(graph.edges.addressableSize());
+      expectedNodes.reserve(graph.nodes.addressableSize());
       auto returnNotValid = [](const char*) {
         __debugbreak();
         return false;
@@ -612,7 +612,7 @@ namespace IslandGraph {
   }
 
   Graph::ConstNodeIterator Graph::findNode(uint32_t raw) const {
-    return nodes.size() > raw ? ConstNodeIterator{ this, raw } : nodesEnd();
+    return nodes.addressableSize() > raw ? ConstNodeIterator{ this, raw } : nodesEnd();
   }
 
   Graph::ConstEdgeIterator Graph::findEdge(const std::pair<EdgeIndex, EdgeVersion>& handle) const {
@@ -621,8 +621,8 @@ namespace IslandGraph {
 
   std::pair<NodeUserdata, NodeUserdata> Graph::ConstEdgeIterator::getNodes() const {
     const auto& e = graph->edges[edge];
-    const NodeUserdata a = graph->nodes.size() > e.nodeA ? graph->nodes[e.nodeA].data : NodeUserdata{};
-    const NodeUserdata b = graph->nodes.size() > e.nodeB ? graph->nodes[e.nodeB].data : NodeUserdata{};
+    const NodeUserdata a = graph->nodes.addressableSize() > e.nodeA ? graph->nodes[e.nodeA].data : NodeUserdata{};
+    const NodeUserdata b = graph->nodes.addressableSize() > e.nodeB ? graph->nodes[e.nodeB].data : NodeUserdata{};
     return std::make_pair(a, b);
   }
 

@@ -55,6 +55,8 @@ namespace Scenes {
       , posZ{ table.tryGet<Tags::PosZRow>() }
       , rotX{ table.tryGet<Tags::RotXRow>() }
       , rotY{ table.tryGet<Tags::RotYRow>() }
+      , scaleX{ table.tryGet<Tags::ScaleXRow>() }
+      , scaleY{ table.tryGet<Tags::ScaleYRow>() }
     {
     }
 
@@ -72,8 +74,11 @@ namespace Scenes {
 
     void read(size_t i, const Loader::Scale2D& s) {
       if(scaleX && scaleY) {
-        scaleX->at(i) = s.scale.x;
-        scaleY->at(i) = s.scale.y;
+        //Currently blender's mesh is -1,1 while mine is -0.5,0.5
+        //For now, compensate by doubling the scale. Will likely address this when importing meshes
+        constexpr float SCALAR = 2.f;
+        scaleX->at(i) = s.scale.x * SCALAR;
+        scaleY->at(i) = s.scale.y * SCALAR;
       }
     }
 
@@ -107,19 +112,19 @@ namespace Scenes {
     }
 
     void read(size_t i, const Loader::CollisionMask& m) {
-      if(collisionMask) {
+      if(collisionMask && m.isSet()) {
         collisionMask->at(i) = m.mask;
       }
     }
 
     void read(size_t i, const Loader::ConstraintMask& m) {
-      if(constraintMask) {
+      if(constraintMask && m.isSet()) {
         constraintMask->at(i) = m.mask;
       }
     }
 
     void read(const Loader::Thickness& t) {
-      if(sharedThickness) {
+      if(sharedThickness && t.isSet()) {
         sharedThickness->at() = t.thickness;
       }
     }
