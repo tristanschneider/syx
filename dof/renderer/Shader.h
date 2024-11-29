@@ -1,6 +1,10 @@
 #pragma once
 
-#include "GL/glew.h"
+//#include "GL/glew.h"
+
+using GLuint = void*;
+using GLenum = void*;
+using GLint = void*;
 
 struct TextureSamplerUniform {
   GLuint uniformID, texture, buffer;

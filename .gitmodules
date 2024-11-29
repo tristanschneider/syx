@@ -19,3 +19,6 @@
 [submodule "dof/sokol/sokol"]
 	path = dof/sokol/sokol
 	url = https://github.com/floooh/sokol.git
+[submodule "dof/sokol/sokol-tools-bin"]
+	path = dof/sokol/sokol-tools-bin
+	url = https://github.com/floooh/sokol-tools-bin.git

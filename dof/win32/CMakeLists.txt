@@ -5,13 +5,11 @@ add_executable(win32 WIN32 ${source_files})
 
 # Link with dependencies
 target_link_libraries(win32 PUBLIC game)
-# target_link_libraries(win32 PUBLIC ogl)
+# target_link_libraries(win32 PUBLIC renderer)
 if(IMGUI_ENABLED)
     target_link_libraries(win32 PUBLIC imgui)
 endif()
 
-# target_link_libraries(win32 PRIVATE glew)
-# target_link_libraries(win32 PRIVATE opengl32.lib)
 target_link_libraries(win32 PRIVATE sokol)
 
 target_include_directories(win32 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
@@ -26,3 +24,7 @@ target_precompile_headers(win32 PRIVATE Precompile.h)
 # When debugging, point the default project at src data instead of output data so edits can be made in-place if desired
 set(data_dir "${CMAKE_SOURCE_DIR}/data/")
 set_target_properties(win32 PROPERTIES VS_DEBUGGER_COMMAND_ARGUMENTS "${data_dir}")
+
+
+file(GLOB_RECURSE shaders *.glsl)
+compile_shaders(win32 ${shaders})

@@ -3,13 +3,15 @@
 #include "AppBuilder.h"
 #include "Simulation.h"
 #include <Windows.h>
-#include "GL/glew.h"
+//#include "GL/glew.h"
 
 #include "DebugLinePassTable.h"
 #include "Quad.h"
 #include "QuadPassTable.h"
 #include "Shader.h"
 #include "glm/mat4x4.hpp"
+
+using GLuint = void*;
 
 struct RenderDebugDrawer {
   GLuint mShader{};

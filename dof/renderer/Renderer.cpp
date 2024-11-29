@@ -178,7 +178,7 @@ namespace {
     wglMakeCurrent(dc, context);
     return context;
   }
-
+  /*
   GLuint _createQuadBuffers() {
     GLuint result;
     const float verts[] = { 0.5f, -0.5f,
@@ -300,8 +300,10 @@ namespace {
     glTexBuffer(GL_TEXTURE_BUFFER, format, sampler.buffer);
     glUniform1i(sampler.uniformID, index);
   }
+  */
 }
 
+/*
 namespace {
   void debugCallback(GLenum source,
             GLenum type,
@@ -321,6 +323,7 @@ namespace {
     }
   }
 }
+*/
 
 struct RenderDB : IDatabase {
   using TexturesTable = Table<
@@ -382,6 +385,7 @@ namespace Renderer {
       const size_t ctx = 0;
       modifier->resize(1);
 
+      /*
       OGLState& state = q.get<0>(0).at(ctx);
       WindowData& windowData = q.get<1>(0).at(ctx);
       windowData.mWindow = window;
@@ -405,11 +409,14 @@ namespace Renderer {
       glDebugMessageCallback(&debugCallback, nullptr);
       const char* versionGL =  (char*)glGetString(GL_VERSION);
       printf("version %s", versionGL);
-    
+    */
+
+      /*
       state.mQuadShader = Shader::loadShader(QuadShader::vs, QuadShader::ps);
       state.mQuadVertexBuffer = _createQuadBuffers();
     
       state.mDebug = _createDebugDrawer();
+      */
     });
 
     builder.submitTask(std::move(task));
@@ -429,7 +436,7 @@ namespace Renderer {
 
       //Fill in the quad pass tables
       for(size_t i = 0 ; i < sprites.matchingTableIDs.size(); ++i) {
-        quadPasses.get<0>(i).at().mQuadUniforms = _createQuadUniforms(ogl.mQuadShader);
+        //quadPasses.get<0>(i).at().mQuadUniforms = _createQuadUniforms(ogl.mQuadShader);
         quadPasses.get<1>(i).at() = resolver->tryGetRow<const IsImmobile>(sprites.matchingTableIDs[i]) != nullptr;
         quadPasses.get<QuadPassTable::ScaleX>(i).mDefaultValue = 1.0f;
         quadPasses.get<QuadPassTable::ScaleY>(i).mDefaultValue = 1.0f;
@@ -446,6 +453,8 @@ void Renderer::init(IAppBuilder& builder, HWND window) {
 }
 
 void _renderDebug(IAppBuilder& builder) {
+  builder;
+  /*
   auto task = builder.createTask();
   task.setName("renderDebug").setPinning(AppTaskPinning::MainThread{});
   auto globals = task.query<Row<OGLState>, const Row<WindowData>>();
@@ -484,6 +493,7 @@ void _renderDebug(IAppBuilder& builder) {
     glGetError();
   });
   builder.submitTask(std::move(task));
+  */
 }
 
 void Renderer::extractRenderables(IAppBuilder& builder) {
@@ -641,7 +651,7 @@ void Renderer::processRequests(IAppBuilder& builder) {
   std::shared_ptr<ITableModifier> modifier{ task.getModifierForTable(textures.matchingTableIDs[0]) };
   task.setPinning(AppTaskPinning::MainThread{});
   task.setCallback([=](AppTaskArgs&) mutable {
-    _processRequests(requests, textures, *modifier);
+    //_processRequests(requests, textures, *modifier);
   });
   builder.submitTask(std::move(task).finalize());
 }
@@ -663,6 +673,7 @@ void Renderer::render(IAppBuilder& builder) {
 
   task.setPinning(AppTaskPinning::MainThread{});
   task.setCallback([globals, quads, textures](AppTaskArgs&) mutable {
+    /*
     OGLState* state = globals.tryGetSingletonElement<0>();
     WindowData* window = globals.tryGetSingletonElement<1>();
     if(!state || !window) {
@@ -826,6 +837,9 @@ void Renderer::render(IAppBuilder& builder) {
       }
     }
     glDisable(GL_DEPTH_TEST);
+    */
+
+
     /* TODO: move to simulation with imgui setting
     static bool renderBorders = true;
     if(renderBorders) {
@@ -844,7 +858,6 @@ void Renderer::render(IAppBuilder& builder) {
     */
 
     //Debug::pictureInPicture(debug, { 50, 50 }, { 350, 350 }, data.mSceneTexture);
-    glGetError();
   });
   builder.submitTask(std::move(task));
 

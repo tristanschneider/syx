@@ -72,7 +72,7 @@ add_subdirectory(curve)
 add_subdirectory(physics)
 add_subdirectory(config)
 add_subdirectory(game)
-# add_subdirectory(ogl)
+# add_subdirectory(renderer)
 
 if(TEST_ENABLED)
     add_subdirectory(test)
