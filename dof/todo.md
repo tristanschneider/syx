@@ -21,3 +21,7 @@
 
 - Prevent fragments from wandering off the edge of the map
   - Could either look forward for lack of ground or put collisions on a navigation-only layer near the border. Currently favoring the latter for simplicity
+
+# Physics
+
+- Mesh shapes, spheres

@@ -17,12 +17,24 @@
 #include "Simulation.h"
 #include "TableOperations.h"
 #include "ThreadLocals.h"
-#include "Renderer.h"
+//#include "Renderer.h"
 #include "GraphViz.h"
 #include "GameInput.h"
 
 #include "glm/gtx/norm.hpp"
 #include "Profile.h"
+
+#include "AppBuilder.h"
+#include "Simulation.h"
+
+
+struct WindowData {
+  HWND mWindow{};
+  int mWidth{};
+  int mHeight{};
+  bool mFocused{};
+  float aspectRatio{};
+};
 
 //TODO: add capabilities to state machine so this keyboard passthrough isn't necessary.
 //The passthrough is only used for imgui debugging, gameplay should use the state machine
@@ -331,6 +343,8 @@ void sleepNS(int ns) {
 }
 
 int mainLoop(const char* args, HWND window) {
+  args;window;
+
   BOOL gotMessage;
   MSG msg = { 0 };
   bool exit = false;
@@ -361,7 +375,7 @@ int mainLoop(const char* args, HWND window) {
   //The rest of the init can be scheduled asynchronously but still can't be done in parallel with creating the other tasks
   std::unique_ptr<IAppBuilder> initBuilder = GameBuilder::create(*APP->combined);
 
-  Renderer::init(*initBuilder, window);
+  //Renderer::init(*initBuilder, window);
 
   Simulation::init(*initBuilder);
   GameInput::init(*initBuilder);
@@ -372,17 +386,17 @@ int mainLoop(const char* args, HWND window) {
 
   std::unique_ptr<IAppBuilder> builder = GameBuilder::create(*APP->combined);
 
-  Renderer::processRequests(*builder);
-  Renderer::extractRenderables(*builder);
-  Renderer::clearRenderRequests(*builder);
-  Renderer::render(*builder);
+  //Renderer::processRequests(*builder);
+  //Renderer::extractRenderables(*builder);
+  //Renderer::clearRenderRequests(*builder);
+  //Renderer::render(*builder);
   Simulation::buildUpdateTasks(*builder, {});
 #ifdef IMGUI_ENABLED
   ImguiModule::update(*builder);
 #endif
   resetInput(*builder);
   GameInput::update(*builder);
-  Renderer::swapBuffers(*builder);
+  //Renderer::swapBuffers(*builder);
   std::shared_ptr<AppTaskNode> appTaskNodes = IAppBuilder::finalize(std::move(builder));
   constexpr bool outputGraph = false;
   if(outputGraph && appTaskNodes) {
@@ -455,8 +469,8 @@ std::unique_ptr<IDatabase> createDatabase() {
   tempA.discard();
   auto tempB = tempBuilder->createTask();
   tempB.discard();
-  std::unique_ptr<IDatabase> renderer = Renderer::createDatabase(std::move(tempA), *mappings);
-  std::unique_ptr<IDatabase> result = DBReflect::merge(std::move(game), std::move(renderer));
+  //std::unique_ptr<IDatabase> renderer = Renderer::createDatabase(std::move(tempA), *mappings);
+  std::unique_ptr<IDatabase> result = std::move(game); //DBReflect::merge(std::move(game), std::move(renderer));
 #ifdef IMGUI_ENABLED
   result = DBReflect::merge(std::move(result), ImguiModule::createDatabase(std::move(tempB), *mappings));
 #endif
@@ -464,6 +478,99 @@ std::unique_ptr<IDatabase> createDatabase() {
   return result;
 }
 
+#define SOKOL_GLCORE
+#define SOKOL_IMPL
+
+#include "sokol_app.h"
+#include "sokol_gfx.h"
+#include "sokol_log.h"
+#include "sokol_glue.h"
+
+struct AppState {
+    sg_pipeline pip;
+    sg_bindings bind;
+    sg_pass_action pass_action;
+};
+AppState state;
+
+void init(void) {
+  //Initialize the graphics device
+  sg_setup(sg_desc{
+    .logger{
+      .func = slog_func,
+    },
+    .environment = sglue_environment(),
+  });
+
+  float vertices[] = {
+        0.0f,  0.5f, 0.5f,     1.0f, 0.0f, 0.0f, 1.0f,
+        0.5f, -0.5f, 0.5f,     0.0f, 1.0f, 0.0f, 1.0f,
+      -0.5f, -0.5f, 0.5f,     0.0f, 0.0f, 1.0f, 1.0f
+  };
+  state.bind.vertex_buffers[0] = sg_make_buffer(sg_buffer_desc{
+    .data = SG_RANGE(vertices),
+  });
+
+  /*
+  state.pip = sg_make_pipeline(sg_pipeline_desc{
+      .shader = sg_make_shader(triangle_shader_desc(sg_query_backend())),
+      .layout = {
+          .attrs = {
+              [ATTR_triangle_position].format = SG_VERTEXFORMAT_FLOAT3,
+              [ATTR_triangle_color0].format = SG_VERTEXFORMAT_FLOAT4
+          }
+      },
+  });
+  */
+
+  state.pass_action = sg_pass_action{
+    .colors{
+      sg_color_attachment_action{
+        .load_action=SG_LOADACTION_CLEAR,
+        .clear_value={0.0f, 0.0f, 0.0f, 1.0f }
+      }
+    }
+  };
+}
+
+void frame(void) {
+  sg_begin_pass(sg_pass{ .action = state.pass_action, .swapchain = sglue_swapchain() });
+  //sg_apply_pipeline(state.pip);
+  //sg_apply_bindings(&state.bind);
+  //sg_draw(0, 3, 1);
+  sg_end_pass();
+  sg_commit();
+}
+
+void onEvent(const sapp_event* event) {
+  event;
+}
+
+void cleanup(void) {
+    sg_shutdown();
+}
+
+sapp_desc sokol_main(int, char* argv[]) {
+  argv;
+  return sapp_desc {
+    .init_cb = init,
+    .frame_cb = frame,
+    .cleanup_cb = cleanup,
+    .event_cb = onEvent,
+    //TODO: default?
+    .width = 640,
+    .height = 480,
+    .window_title = "DOF",
+    .icon = sapp_icon_desc{
+      .sokol_default = true,
+    },
+    .logger = sapp_logger{
+      .func = slog_func
+    }
+  };
+}
+
+/*
 int WINAPI WinMain(HINSTANCE hinstance, HINSTANCE, LPSTR lpCmdLine, int nCmdShow) {
   AppDatabase app;
   app.combined = createDatabase();
@@ -502,3 +609,4 @@ int WINAPI WinMain(HINSTANCE hinstance, HINSTANCE, LPSTR lpCmdLine, int nCmdShow
 
   return exitCode;
 }
+*/

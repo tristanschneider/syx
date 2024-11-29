@@ -16,3 +16,6 @@
 [submodule "dof/loader/assimp"]
 	path = dof/loader/assimp
 	url = https://github.com/assimp/assimp.git
+[submodule "dof/sokol/sokol"]
+	path = dof/sokol/sokol
+	url = https://github.com/floooh/sokol.git
