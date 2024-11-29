@@ -493,6 +493,8 @@ struct AppState {
 };
 AppState state;
 
+#include "triangle-sapp.h"
+
 void init(void) {
   //Initialize the graphics device
   sg_setup(sg_desc{
@@ -511,17 +513,13 @@ void init(void) {
     .data = SG_RANGE(vertices),
   });
 
-  /*
-  state.pip = sg_make_pipeline(sg_pipeline_desc{
-      .shader = sg_make_shader(triangle_shader_desc(sg_query_backend())),
-      .layout = {
-          .attrs = {
-              [ATTR_triangle_position].format = SG_VERTEXFORMAT_FLOAT3,
-              [ATTR_triangle_color0].format = SG_VERTEXFORMAT_FLOAT4
-          }
-      },
-  });
-  */
+  sg_pipeline_desc pipeline{
+    .shader = sg_make_shader(triangle_shader_desc(sg_query_backend())),
+  };
+  pipeline.layout.attrs[ATTR_triangle_position].format = SG_VERTEXFORMAT_FLOAT3;
+  pipeline.layout.attrs[ATTR_triangle_color0].format = SG_VERTEXFORMAT_FLOAT4;
+
+  state.pip = sg_make_pipeline(pipeline);
 
   state.pass_action = sg_pass_action{
     .colors{
@@ -535,9 +533,9 @@ void init(void) {
 
 void frame(void) {
   sg_begin_pass(sg_pass{ .action = state.pass_action, .swapchain = sglue_swapchain() });
-  //sg_apply_pipeline(state.pip);
-  //sg_apply_bindings(&state.bind);
-  //sg_draw(0, 3, 1);
+  sg_apply_pipeline(state.pip);
+  sg_apply_bindings(&state.bind);
+  sg_draw(0, 3, 1);
   sg_end_pass();
   sg_commit();
 }

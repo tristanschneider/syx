@@ -25,6 +25,5 @@ target_precompile_headers(win32 PRIVATE Precompile.h)
 set(data_dir "${CMAKE_SOURCE_DIR}/data/")
 set_target_properties(win32 PROPERTIES VS_DEBUGGER_COMMAND_ARGUMENTS "${data_dir}")
 
-
 file(GLOB_RECURSE shaders *.glsl)
 compile_shaders(win32 ${shaders})

@@ -12,15 +12,16 @@ target_include_directories(sokol INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/sokol)
 target_sources(sokol INTERFACE ${source_files})
 
 function(compile_shaders target files)
-    message(STATUS "Create shader compiler build step for ${files}")
+    set(shdc "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/sokol-tools-bin/bin/win32/sokol-shdc.exe")
 
-    set(shdc "${CMAKE_CURRENT_SOURCE_DIR}/sokol-tools-bin/sokol-shdc.exe")
     foreach(file IN LISTS files)
         string(REGEX REPLACE "[.]glsl" ".h" outfile ${file})
-        message(STATUS "in ${file} out ${outfile}")
 
         add_custom_command(OUTPUT ${outfile}
+            DEPENDS ${file}
             COMMAND ${shdc} --input ${file} --output ${outfile} --slang glsl430
+            COMMENT "${shdc} Compiling shader ${file} to ${outfile}..."
         )
+        target_sources(${target} PRIVATE ${file} ${outfile})
     endforeach()
 endfunction()
