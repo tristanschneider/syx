@@ -486,6 +486,11 @@ std::unique_ptr<IDatabase> createDatabase() {
 #include "sokol_log.h"
 #include "sokol_glue.h"
 
+#include "loader/AssetService.h"
+#include "loader/SceneAsset.h"
+
+Loader::SceneAsset sceneHack = Loader::hack();
+
 struct AppState {
     sg_pipeline pip;
     sg_bindings bind;
@@ -494,6 +499,7 @@ struct AppState {
 AppState state;
 
 #include "triangle-sapp.h"
+
 
 void init(void) {
   //Initialize the graphics device
@@ -505,19 +511,40 @@ void init(void) {
   });
 
   float vertices[] = {
-        0.0f,  0.5f, 0.5f,     1.0f, 0.0f, 0.0f, 1.0f,
-        0.5f, -0.5f, 0.5f,     0.0f, 1.0f, 0.0f, 1.0f,
-      -0.5f, -0.5f, 0.5f,     0.0f, 0.0f, 1.0f, 1.0f
+      -0.5f, 0.5f, 0.5f,     0.0f, 0.0f,
+        0.5f, -0.5f, 0.5f,     1.0f, 1.0f,
+      -0.5f, -0.5f, 0.5f,     1.0f, 0.0f,
   };
   state.bind.vertex_buffers[0] = sg_make_buffer(sg_buffer_desc{
     .data = SG_RANGE(vertices),
   });
 
+  const Loader::TextureAsset& tex = sceneHack.materials[0].texture;
+  sg_image_desc ig{
+    .width = (int)tex.width,
+    .height = (int)tex.height,
+    .pixel_format = SG_PIXELFORMAT_RGBA8,
+  };
+  ig.data.subimage[0][0] = sg_range{ tex.buffer.data(), tex.buffer.size() };
+  state.bind.images[0] = sg_make_image(ig);
+  state.bind.samplers[0] = sg_make_sampler(sg_sampler_desc{
+    .min_filter = SG_FILTER_NEAREST,
+    .mag_filter = SG_FILTER_NEAREST
+  });
+  float storage[] = { 0.0f, 0.0f };
+  sg_buffer_desc buff{
+    .type = SG_BUFFERTYPE_STORAGEBUFFER,
+    .usage = SG_USAGE_STREAM
+  };
+  //buff.data = SG_RANGE(storage);
+  buff.size = SG_RANGE(storage).size;
+  state.bind.storage_buffers[0] = sg_make_buffer(buff);
+
   sg_pipeline_desc pipeline{
     .shader = sg_make_shader(triangle_shader_desc(sg_query_backend())),
   };
   pipeline.layout.attrs[ATTR_triangle_position].format = SG_VERTEXFORMAT_FLOAT3;
-  pipeline.layout.attrs[ATTR_triangle_color0].format = SG_VERTEXFORMAT_FLOAT4;
+  pipeline.layout.attrs[ATTR_triangle_uv].format = SG_VERTEXFORMAT_FLOAT2;
 
   state.pip = sg_make_pipeline(pipeline);
 
@@ -534,8 +561,19 @@ void init(void) {
 void frame(void) {
   sg_begin_pass(sg_pass{ .action = state.pass_action, .swapchain = sglue_swapchain() });
   sg_apply_pipeline(state.pip);
+
+  static float data[] = { 0.0f, 0.0f };
+  static int i = 0;
+  ++i;
+  data[0] = cos(static_cast<float>(i)*0.01f);
+  sg_update_buffer(state.bind.storage_buffers[0], SG_RANGE(data));
+
+  params_t uniforms{};
+  uniforms.tUniform[0] = data[0];
+  sg_apply_uniforms(UB_params, sg_range{ &uniforms, sizeof(uniforms) });
+
   sg_apply_bindings(&state.bind);
-  sg_draw(0, 3, 1);
+  sg_draw(0, 3, 3);
   sg_end_pass();
   sg_commit();
 }

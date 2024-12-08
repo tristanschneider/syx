@@ -10,7 +10,7 @@ namespace Loader {
   };
 
   enum class TextureFormat : uint8_t {
-    RGB
+    RGBA
   };
 
   //Texture takes from the linked image to the "color" property of a material

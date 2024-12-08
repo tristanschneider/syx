@@ -498,12 +498,12 @@ namespace Loader {
       //Assume each material has a single texture if any, and that it's in the diffuse slot
       if(mat->GetTextureCount(aiTextureType_DIFFUSE) >= 1 && mat->GetTexture(aiTextureType_DIFFUSE, 0, &path, &mapping, &uvIndex, &blend, &op, mapMode.data()) == aiReturn_SUCCESS) {
         if(std::pair<const aiTexture*, int> tex = scene.GetEmbeddedTextureAndIndex(path.C_Str()); tex.first) {
-          constexpr int CHANNELS = 3;
+          constexpr int CHANNELS = 4;
           //If height is not provided it means the texture is in its raw format, use STB to parse that
           if(!tex.first->mHeight) {
             if(ImageData data = STBInterface::loadImageFromBuffer((const unsigned char*)tex.first->pcData, tex.first->mWidth, CHANNELS); data.mBytes) {
               TextureAsset& t = result.materials[i].texture;
-              t.format = TextureFormat::RGB;
+              t.format = TextureFormat::RGBA;
               t.width = data.mWidth;
               t.height = data.mHeight;
               t.buffer.resize(t.width*t.height*CHANNELS);
@@ -514,20 +514,12 @@ namespace Loader {
           //Otherwise the pixels exist as-is and can be copied over
           else {
             TextureAsset& t = result.materials[i].texture;
-            t.format = TextureFormat::RGB;
+            t.format = TextureFormat::RGBA;
             t.width = tex.first->mWidth;
             t.height = tex.first->mHeight;
-            t.buffer.reserve(t.width*t.height*CHANNELS);
             t.buffer.resize(t.width*t.height*CHANNELS);
-            const size_t pixels = t.width*t.height;
-            for(size_t p = 0; p < pixels; ++p) {
-              //aiTexel always contains 4 components, target format is 3
-              const size_t dst = p * 3;
-              const aiTexel& texel = tex.first->pcData[p];
-              t.buffer[dst + 0] = texel.r;
-              t.buffer[dst + 1] = texel.g;
-              t.buffer[dst + 2] = texel.b;
-            }
+            //aiTexel always contains 4 components, target format is 4
+            std::memcpy(t.buffer.data(), tex.first->pcData, t.buffer.size());
           }
         }
       }
@@ -770,5 +762,15 @@ namespace Loader {
     startRequests(builder);
     updateRequestProgress(builder);
     garbageCollectAssets(builder);
+  }
+
+  SceneAsset hack() {
+    Assimp::Importer importer;
+    const aiScene* scene = importer.ReadFile("C:/syx/dof/data/scene.glb", 0);
+    SceneAsset result;
+    AssetIndex index;
+    SceneLoadContext context{ index };
+    loadScene(*scene, context, result);
+    return result;
   }
 }
