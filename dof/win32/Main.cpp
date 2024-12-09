@@ -511,13 +511,31 @@ void init(void) {
   });
 
   float vertices[] = {
-      -0.5f, 0.5f, 0.5f,     0.0f, 0.0f,
-        0.5f, -0.5f, 0.5f,     1.0f, 1.0f,
-      -0.5f, -0.5f, 0.5f,     1.0f, 0.0f,
+      -0.5f,  0.5f,    0.0f, 0.0f,
+       0.5f, -0.5f,    1.0f, 1.0f,
+      -0.5f, -0.5f,    1.0f, 0.0f,
+
+      -0.5f,  0.5f,    0.0f, 0.0f,
+      0.5f, 0.5f,    0.0f, 1.0f,
+       0.5f, -0.5f,    1.0f, 1.0f,
   };
-  state.bind.vertex_buffers[0] = sg_make_buffer(sg_buffer_desc{
-    .data = SG_RANGE(vertices),
-  });
+  {
+    const auto& verts = sceneHack.meshVertices[0].vertices;
+    const auto& uvs = sceneHack.meshUVs[0].textureCoordinates;
+    std::vector<float> buff;
+    constexpr size_t STRIDE = 4;
+    buff.resize(STRIDE*verts.size());
+    for(size_t v = 0; v < verts.size(); ++v) {
+      size_t i = v*STRIDE;
+      buff[i] = verts[v].x;
+      buff[i + 1] = verts[v].y;
+      buff[i + 2] = uvs[v].x;
+      buff[i + 3] = uvs[v].y;
+    }
+    state.bind.vertex_buffers[0] = sg_make_buffer(sg_buffer_desc{
+      .data = { buff.data(), buff.size()*sizeof(float) }
+    });
+  }
 
   const Loader::TextureAsset& tex = sceneHack.materials[0].texture;
   sg_image_desc ig{
@@ -531,20 +549,24 @@ void init(void) {
     .min_filter = SG_FILTER_NEAREST,
     .mag_filter = SG_FILTER_NEAREST
   });
-  float storage[] = { 0.0f, 0.0f };
   sg_buffer_desc buff{
     .type = SG_BUFFERTYPE_STORAGEBUFFER,
     .usage = SG_USAGE_STREAM
   };
   //buff.data = SG_RANGE(storage);
-  buff.size = SG_RANGE(storage).size;
-  state.bind.storage_buffers[0] = sg_make_buffer(buff);
+  constexpr size_t MAX_SIZE = 10000;
+  buff.size = sizeof(MW_t)*MAX_SIZE;
+  state.bind.storage_buffers[SBUF_mw] = sg_make_buffer(buff);
+  buff.size = sizeof(UV_t)*MAX_SIZE;
+  state.bind.storage_buffers[SBUF_uv] = sg_make_buffer(buff);
+  buff.size = sizeof(TINT_t)*MAX_SIZE;
+  state.bind.storage_buffers[SBUF_tint] = sg_make_buffer(buff);
 
   sg_pipeline_desc pipeline{
     .shader = sg_make_shader(triangle_shader_desc(sg_query_backend())),
   };
-  pipeline.layout.attrs[ATTR_triangle_position].format = SG_VERTEXFORMAT_FLOAT3;
-  pipeline.layout.attrs[ATTR_triangle_uv].format = SG_VERTEXFORMAT_FLOAT2;
+  pipeline.layout.attrs[ATTR_triangle_vertPos].format = SG_VERTEXFORMAT_FLOAT2;
+  pipeline.layout.attrs[ATTR_triangle_vertUV].format = SG_VERTEXFORMAT_FLOAT2;
 
   state.pip = sg_make_pipeline(pipeline);
 
@@ -562,18 +584,49 @@ void frame(void) {
   sg_begin_pass(sg_pass{ .action = state.pass_action, .swapchain = sglue_swapchain() });
   sg_apply_pipeline(state.pip);
 
-  static float data[] = { 0.0f, 0.0f };
+  std::vector<MW_t> transform;
+  std::vector<UV_t> uv;
+  std::vector<TINT_t> tint;
   static int i = 0;
   ++i;
-  data[0] = cos(static_cast<float>(i)*0.01f);
-  sg_update_buffer(state.bind.storage_buffers[0], SG_RANGE(data));
+  static size_t count = 3;
+  transform.resize(count);
+  uv.resize(count);
+  tint.resize(count);
+  for(size_t o = 0; o < count; ++o) {
+    MW_t& t = transform[o];
+    t.pos[0] = static_cast<float>(o)*0.5f;
+    t.pos[1] = 0.f;
+    t.pos[2] = 0.5f;
+    const float c = std::cos(static_cast<float>(i)*0.01f);
+    const float s = std::sin(static_cast<float>(i)*0.01f);
+    glm::mat2 mat{ c, -s,
+      s, c
+    };
+    mat = glm::transpose(mat);
+    std::memcpy(t.scaleRot, &mat, sizeof(mat));
 
-  params_t uniforms{};
-  uniforms.tUniform[0] = data[0];
-  sg_apply_uniforms(UB_params, sg_range{ &uniforms, sizeof(uniforms) });
+    UV_t& u = uv[o];
+    u.offset[0] = 0;
+    u.offset[1] = 0;
+    u.scale[0] = u.scale[1] = 1.f/static_cast<float>(o + 1);
+
+    TINT_t& tin = tint[o];
+    tin.color[0] = 1.f;
+    tin.color[1] = tin.color[2] = tin.color[3] = 0;
+  }
+  sg_update_buffer(state.bind.storage_buffers[SBUF_mw], sg_range{ transform.data(), sizeof(MW_t)*count });
+  sg_update_buffer(state.bind.storage_buffers[SBUF_uv], sg_range{ uv.data(), sizeof(UV_t)*count });
+  sg_update_buffer(state.bind.storage_buffers[SBUF_tint], sg_range{ tint.data(), sizeof(TINT_t)*count });
+
+  uniforms_t uniforms{};
+  glm::mat4 mat = glm::identity<glm::mat4>();
+  std::memcpy(&uniforms, &mat, sizeof(mat));
+
+  sg_apply_uniforms(UB_uniforms, sg_range{ &uniforms, sizeof(uniforms) });
 
   sg_apply_bindings(&state.bind);
-  sg_draw(0, 3, 3);
+  sg_draw(0, 6, count);
   sg_end_pass();
   sg_commit();
 }

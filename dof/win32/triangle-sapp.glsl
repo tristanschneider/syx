@@ -1,38 +1,57 @@
 @vs vs
-in vec4 position;
-in vec2 uv;
+in vec2 vertPos;
+in vec2 vertUV;
 
-layout(binding=0) uniform params{
-  vec2 tUniform;
+layout(binding=0) uniform uniforms{
+  mat4 worldToView;
 };
 
-struct BufferData {
-  vec2 pos;
+struct MW {
+  //Scale and rotation of a 2d transform matrix
+  mat2 scaleRot;
+  //3d position
+  vec3 pos;
+};
+struct UV {
+  vec2 offset;
+  vec2 scale;
+};
+struct TINT {
+  vec4 color;
 };
 
-layout(binding=0) readonly buffer buff{
-  BufferData data[];
-};
+layout(binding=0) readonly buffer mw{ MW modelToWorld[]; };
+layout(binding=1) readonly buffer uv{ UV uvCoords[]; };
+layout(binding=2) readonly buffer tint{ TINT tints[]; };
 
 out vec2 fragUV;
+out vec4 fragTint;
 
 void main() {
-  gl_Position = position + vec4(data[0].pos, 0, 0);
-  gl_Position.x += gl_InstanceIndex * 0.5;
-  fragUV = uv + tUniform;
+  int i = gl_InstanceIndex;
+  UV objUV = uvCoords[i];
+  TINT objTint = tints[i];
+  MW objMW = modelToWorld[i];
+
+  vec4 world = vec4(objMW.pos.xy + objMW.scaleRot*vertPos, objMW.pos.z, 1);
+  gl_Position = worldToView*world;
+
+  fragUV = vertUV*objUV.scale + objUV.offset;
+  fragTint = objTint.color;
 }
 @end
 
 @fs fs
 in vec2 fragUV;
-out vec4 frag_color;
+in vec4 fragTint;
+out vec4 fragColor;
 
 layout(binding=0) uniform texture2D tex;
 layout(binding=0) uniform sampler sam;
 
 void main() {
-  frag_color = texture(sampler2D(tex, sam), fragUV);
-
+  fragColor = texture(sampler2D(tex, sam), fragUV);
+  fragColor = vec4(mix(fragTint.rgb, fragColor.rgb, 1.0 - fragTint.a), 1);
 }
 @end
 

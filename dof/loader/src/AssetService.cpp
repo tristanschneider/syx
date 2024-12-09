@@ -538,19 +538,25 @@ namespace Loader {
       MeshUVsAsset& uvs = result.meshUVs[i];
       ctx.tempMeshMaterials[i] = mesh->mMaterialIndex;
 
-      verts.vertices.resize(mesh->mNumVertices);
-      uvs.textureCoordinates.resize(mesh->mNumVertices);
-      //Throw out the third dimension while copying over since assets are 2D, assume Z is unused, coordinates match the game where z is into the screen
-      for(unsigned v = 0; v < mesh->mNumVertices; ++v) {
-        const aiVector3D& sv = mesh->mVertices[v];
-        verts.vertices[v] = glm::vec2{ sv.x, sv.y };
-      }
+      verts.vertices.resize(mesh->mNumFaces * 3);
+      uvs.textureCoordinates.resize(verts.vertices.size());
       //Texture coordinates can be in any slot. Assume if they are provided they are in the first slot
       constexpr int EXPECTED_TEXTURE_CHANNEL = 0;
-      if(mesh->HasTextureCoords(EXPECTED_TEXTURE_CHANNEL)) {
-        for(unsigned v = 0; v < mesh->mNumVertices; ++v) {
-          const aiVector3D& su = mesh->mTextureCoords[EXPECTED_TEXTURE_CHANNEL][v];
-          uvs.textureCoordinates[v] = glm::vec2{ su.x, su.y };
+      const bool hasTexture = mesh->HasTextureCoords(EXPECTED_TEXTURE_CHANNEL);
+
+      //Throw out the third dimension while copying over since assets are 2D, assume Z is unused, coordinates match the game where z is into the screen
+      for(unsigned v = 0; v < mesh->mNumFaces; ++v) {
+        const aiFace& face = mesh->mFaces[v];
+        assert(face.mNumIndices == 3);
+        const size_t base = v*3;
+        for(unsigned fi = 0; fi < std::min(3u, face.mNumIndices); ++fi) {
+          const unsigned vi = face.mIndices[fi];
+          const aiVector3D& sourceVert = mesh->mVertices[vi];
+          const aiVector3D& sourceUV = mesh->mTextureCoords[EXPECTED_TEXTURE_CHANNEL][vi];
+          verts.vertices[base + fi] = glm::vec2{ sourceVert.x, sourceVert.y };
+          if(hasTexture) {
+            uvs.textureCoordinates[base + fi] = glm::vec2{ sourceUV.x, sourceUV.y };
+          }
         }
       }
     }
