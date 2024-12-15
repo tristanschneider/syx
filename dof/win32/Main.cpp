@@ -17,7 +17,7 @@
 #include "Simulation.h"
 #include "TableOperations.h"
 #include "ThreadLocals.h"
-//#include "Renderer.h"
+#include "Renderer.h"
 #include "GraphViz.h"
 #include "GameInput.h"
 
@@ -26,15 +26,6 @@
 
 #include "AppBuilder.h"
 #include "Simulation.h"
-
-
-struct WindowData {
-  HWND mWindow{};
-  int mWidth{};
-  int mHeight{};
-  bool mFocused{};
-  float aspectRatio{};
-};
 
 //TODO: add capabilities to state machine so this keyboard passthrough isn't necessary.
 //The passthrough is only used for imgui debugging, gameplay should use the state machine
@@ -342,20 +333,18 @@ void sleepNS(int ns) {
   }
 }
 
-int mainLoop(const char* args, HWND window) {
-  args;window;
+struct TaskGraph {
+  TaskRange tasks;
+  Scheduler* scheduler{};
+};
 
-  BOOL gotMessage;
-  MSG msg = { 0 };
-  bool exit = false;
-  float msToNS = 1000000.0f;
-  int targetFrameTimeNS = 16*static_cast<int>(msToNS);
-
+TaskGraph createTaskGraph() {
   auto temp = APP->builder->createTask();
   temp.discard();
   FileSystem& fs = temp.query<SharedRow<FileSystem>>().get<0>(0).at();
 
-  std::string strArgs(args ? std::string(args) : std::string());
+  // TODO: use actual args and not in this function
+  std::string strArgs;
   if(!strArgs.empty()) {
     fs.mRoot = strArgs;
   }
@@ -375,7 +364,7 @@ int mainLoop(const char* args, HWND window) {
   //The rest of the init can be scheduled asynchronously but still can't be done in parallel with creating the other tasks
   std::unique_ptr<IAppBuilder> initBuilder = GameBuilder::create(*APP->combined);
 
-  //Renderer::init(*initBuilder, window);
+  Renderer::init(*initBuilder);
 
   Simulation::init(*initBuilder);
   GameInput::init(*initBuilder);
@@ -386,79 +375,22 @@ int mainLoop(const char* args, HWND window) {
 
   std::unique_ptr<IAppBuilder> builder = GameBuilder::create(*APP->combined);
 
-  //Renderer::processRequests(*builder);
-  //Renderer::extractRenderables(*builder);
-  //Renderer::clearRenderRequests(*builder);
-  //Renderer::render(*builder);
+  Renderer::processRequests(*builder);
+  Renderer::extractRenderables(*builder);
+  Renderer::clearRenderRequests(*builder);
+  Renderer::render(*builder);
   Simulation::buildUpdateTasks(*builder, {});
 #ifdef IMGUI_ENABLED
   ImguiModule::update(*builder);
 #endif
   resetInput(*builder);
   GameInput::update(*builder);
-  //Renderer::swapBuffers(*builder);
   std::shared_ptr<AppTaskNode> appTaskNodes = IAppBuilder::finalize(std::move(builder));
   constexpr bool outputGraph = false;
   if(outputGraph && appTaskNodes) {
     GraphViz::writeHere("graph.gv", *appTaskNodes);
   }
-  TaskRange appTasks = GameScheduler::buildTasks(std::move(appTaskNodes), *tls->instance);
-
-  auto lastFrameStart = std::chrono::high_resolution_clock::now();
-  while(!exit) {
-    std::chrono::steady_clock::time_point frameStart;
-    {
-      PROFILE_SCOPE("app", "update");
-      frameStart = std::chrono::high_resolution_clock::now();
-      lastFrameStart = frameStart;
-
-      while((gotMessage = PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) > 0) {
-        if(msg.message == WM_QUIT) {
-          exit = true;
-          break;
-        }
-        TranslateMessage(&msg);
-        DispatchMessage(&msg);
-      }
-
-      if(exit)
-        break;
-
-      appTasks.mBegin->mTask.addToPipe(scheduler->mScheduler);
-      scheduler->mScheduler.WaitforTask(appTasks.mEnd->mTask.get());
-      PROFILE_UPDATE(nullptr);
-    }
-
-    int frameTimeNS = static_cast<int>(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - frameStart).count());
-    //If frame time was greater than target time then we're behind, start the next frame immediately
-    int timeToNextFrameNS = targetFrameTimeNS - frameTimeNS;
-    if(timeToNextFrameNS <= 0)
-      continue;
-    sleepNS(timeToNextFrameNS);
-  }
-
-  return static_cast<int>(msg.wParam);
-}
-
-void createConsole() {
-  AllocConsole();
-  FILE* fp;
-  freopen_s(&fp, "CONOUT$", "w", stdout);
-}
-
-void enableRawMouseInput() {
-  std::array<RAWINPUTDEVICE, 1> devices;
-  auto& mouse = devices[0];
-  mouse.usUsagePage = 1;
-  mouse.usUsage = 2;
-  //The examples show using RIDEV_NOLEGACY but those events are needed for normal window interaction, so keep the flags empty
-  mouse.dwFlags = 0;
-  mouse.hwndTarget = 0;
-
-  if(!RegisterRawInputDevices(devices.data(), static_cast<UINT>(devices.size()), sizeof(RAWINPUTDEVICE))) {
-    const DWORD err = GetLastError();
-    printf("Failed to register input with error %s\n", std::to_string(err).c_str());
-  }
+  return { GameScheduler::buildTasks(std::move(appTaskNodes), *tls->instance), scheduler };
 }
 
 std::unique_ptr<IDatabase> createDatabase() {
@@ -492,14 +424,13 @@ std::unique_ptr<IDatabase> createDatabase() {
 Loader::SceneAsset sceneHack = Loader::hack();
 
 struct AppState {
-    sg_pipeline pip;
-    sg_bindings bind;
-    sg_pass_action pass_action;
+  sg_pipeline pip;
+  sg_bindings bind;
+  sg_pass_action pass_action;
+  AppDatabase app;
+  TaskGraph tasks;
 };
 AppState state;
-
-#include "triangle-sapp.h"
-
 
 void init(void) {
   //Initialize the graphics device
@@ -510,6 +441,22 @@ void init(void) {
     .environment = sglue_environment(),
   });
 
+  AppDatabase& app = state.app;
+  app.combined = createDatabase();
+  app.window = &app.combined->getRuntime().query<Row<WindowData>>().get<0>(0);
+  app.builder = GameBuilder::create(*app.combined);
+  app.input.playerInput = app.combined->getRuntime().query<GameInput::PlayerKeyboardInputRow>();
+  app.input.machineInput = app.combined->getRuntime().query<GameInput::StateMachineRow>();
+  APP = &app;
+
+  Input::InputMapper* mapper = app.combined->getRuntime().query<GameInput::GlobalMappingsRow>().tryGetSingletonElement();
+  createKeyboardMappings(*mapper);
+
+  // TODO: console
+
+  state.tasks = createTaskGraph();
+
+  /*
   float vertices[] = {
       -0.5f,  0.5f,    0.0f, 0.0f,
        0.5f, -0.5f,    1.0f, 1.0f,
@@ -578,9 +525,18 @@ void init(void) {
       }
     }
   };
+  */
 }
 
 void frame(void) {
+  PROFILE_SCOPE("app", "update");
+
+  state.tasks.tasks.mBegin->mTask.addToPipe(state.tasks.scheduler->mScheduler);
+  state.tasks.scheduler->mScheduler.WaitforTask(state.tasks.tasks.mEnd->mTask.get());
+
+  PROFILE_UPDATE(nullptr);
+
+  /*
   sg_begin_pass(sg_pass{ .action = state.pass_action, .swapchain = sglue_swapchain() });
   sg_apply_pipeline(state.pip);
 
@@ -600,10 +556,14 @@ void frame(void) {
     t.pos[2] = 0.5f;
     const float c = std::cos(static_cast<float>(i)*0.01f);
     const float s = std::sin(static_cast<float>(i)*0.01f);
-    glm::mat2 mat{ c, -s,
+    glm::mat2 rot{ c, -s,
       s, c
     };
-    mat = glm::transpose(mat);
+    glm::mat2 scale{
+      0.5f, 0.0f,
+      0.f, 0.25f
+    };
+    glm::mat2 mat = glm::transpose(rot) * scale;
     std::memcpy(t.scaleRot, &mat, sizeof(mat));
 
     UV_t& u = uv[o];
@@ -629,6 +589,7 @@ void frame(void) {
   sg_draw(0, 6, count);
   sg_end_pass();
   sg_commit();
+  */
 }
 
 void onEvent(const sapp_event* event) {

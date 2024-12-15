@@ -62,7 +62,6 @@ add_subdirectory(profile)
 add_subdirectory(glm)
 add_subdirectory(stb)
 add_subdirectory(sokol)
-#add_subdirectory(glew)
 add_subdirectory(ispc)
 
 # With dependencies
@@ -72,7 +71,7 @@ add_subdirectory(curve)
 add_subdirectory(physics)
 add_subdirectory(config)
 add_subdirectory(game)
-# add_subdirectory(renderer)
+add_subdirectory(renderer)
 
 if(TEST_ENABLED)
     add_subdirectory(test)

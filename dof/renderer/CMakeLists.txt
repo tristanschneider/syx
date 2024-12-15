@@ -1,5 +1,5 @@
 # Gather files matching pattern into source_files
-file(GLOB_RECURSE source_files *.cpp *.h)
+file(GLOB_RECURSE source_files *.cpp *.h *.glsl)
 
 add_library(renderer STATIC ${source_files})
 
@@ -17,3 +17,7 @@ target_link_libraries(renderer PRIVATE table)
 target_link_libraries(renderer PRIVATE game)
 # TODO: remove this by loading from loader project
 target_link_libraries(renderer PRIVATE stb)
+target_link_libraries(renderer PRIVATE sokol)
+
+file(GLOB_RECURSE shaders "shaders/*.glsl")
+compile_shaders(renderer shaders)
