@@ -22,7 +22,28 @@ namespace TMS {
 }
 #include "Debug.h"
 #include "Quad.h"
-#include "QuadPassTable.h"
+
+namespace QuadPassTable {
+  //TODO: from shader description
+  using Transform = TMS::MW_t;
+  using UVOffset = TMS::UV_t;
+
+  struct TransformRow : Row<Transform>{};
+  struct UVOffsetRow : Row<UVOffset>{};
+  struct TintRow : Row<glm::vec4>{};
+  struct IsImmobileRow : SharedRow<bool>{};
+  struct PassRow : SharedRow<QuadPass>{};
+  struct TextureIDRow : SharedRow<size_t>{};
+
+  using Type = Table<
+    TransformRow,
+    UVOffsetRow,
+    TintRow,
+    IsImmobileRow,
+    PassRow,
+    TextureIDRow
+  >;
+};
 
 namespace {
   struct RenderDebugDrawer {
@@ -97,7 +118,32 @@ namespace {
 
   QuadUniforms _createQuadUniforms() {
     QuadUniforms result;
+    constexpr size_t MAX_SIZE = 10000;
+    sg_buffer_desc desc{
+      .type = SG_BUFFERTYPE_STORAGEBUFFER,
+      .usage = SG_USAGE_STREAM
+    };
+    desc.size = sizeof(TMS::MW_t) * MAX_SIZE;
+    result.bindings.storage_buffers[SBUF_mw] = sg_make_buffer(desc);
+    desc.size = sizeof(TMS::UV_t) * MAX_SIZE;
+    result.bindings.storage_buffers[SBUF_uv] = sg_make_buffer(desc);
+    desc.size = sizeof(TMS::TINT_t) * MAX_SIZE;
+    result.bindings.storage_buffers[SBUF_tint] = sg_make_buffer(desc);
+    result.bindings.samplers[SMP_sam] = sg_make_sampler(sg_sampler_desc{
+      .min_filter = SG_FILTER_NEAREST,
+      .mag_filter = SG_FILTER_NEAREST
+    });
     return result;
+  }
+
+  sg_pipeline createTexturedMeshPipeline() {
+    sg_pipeline_desc desc{ 0 };
+    desc.shader = sg_make_shader(TMS::TexturedMesh_shader_desc(sg_query_backend()));
+    desc.depth.write_enabled = true;
+    desc.depth.compare = SG_COMPAREFUNC_LESS;
+    desc.layout.attrs[ATTR_TexturedMesh_vertPos].format = SG_VERTEXFORMAT_FLOAT2;
+    desc.layout.attrs[ATTR_TexturedMesh_vertUV].format = SG_VERTEXFORMAT_FLOAT2;
+    return sg_make_pipeline(desc);
   }
 
   struct TexturesTuple {
@@ -205,11 +251,6 @@ std::unique_ptr<IDatabase> Renderer::createDatabase(RuntimeDatabaseTaskBuilder&&
 }
 
 namespace Renderer {
-  sg_pipeline createTexturedMeshPipeline() {
-    //TODO:
-    return {};
-  }
-
   void initGame(IAppBuilder& builder) {
     auto task = builder.createTask();
     task.setName("renderer initGame").setPinning(AppTaskPinning::MainThread{});
@@ -237,7 +278,11 @@ namespace Renderer {
   }
 }
 
-void Renderer::init(IAppBuilder& builder) {
+void Renderer::init(IAppBuilder& builder, const sg_swapchain& swapchain) {
+  auto temp = builder.createTask();
+  temp.query<Row<RendererState>>().get<0>(0).at(0).swapchain = swapchain;
+  temp.discard();
+
   initGame(builder);
 }
 
@@ -276,6 +321,84 @@ void _renderDebug(IAppBuilder& builder) {
   builder.submitTask(std::move(task));
 }
 
+void extractTransform(IAppBuilder& builder, const TableID& src, const TableID& dst) {
+  auto task = builder.createTask();
+
+  QuadPassTable::TransformRow* transforms = task.query<QuadPassTable::TransformRow>(dst).tryGet<0>(0);
+  auto srcQuery = task.query<
+    const Tags::PosXRow, const Tags::PosYRow,
+    const Tags::RotXRow, const Tags::RotYRow
+  >(src);
+  if(!transforms || !srcQuery.size()) {
+    return task.discard();
+  }
+  const Tags::PosZRow* zRow = task.query<const Tags::PosZRow>(src).tryGet<0>(0);
+  const Tags::ScaleXRow* xScaleRow = task.query<const Tags::ScaleXRow>(src).tryGet<0>(0);
+  const Tags::ScaleYRow* yScaleRow = task.query<const Tags::ScaleYRow>(src).tryGet<0>(0);
+
+  task.setCallback([=](AppTaskArgs&) mutable {
+    auto [px, py, rx, ry] = srcQuery.get(0);
+    //Previous task ensures that the sizes of src and dst match
+    for(size_t i = 0; i < transforms->size(); ++i) {
+      QuadPassTable::Transform& transform = transforms->at(i);
+      transform.pos[0] = px->at(i);
+      transform.pos[1] = py->at(i);
+      if (zRow) {
+        transform.pos[2] = zRow->at(i);
+      }
+      const float c = rx->at(i);
+      const float s = ry->at(i);
+      //2D rotation matrix in column major order
+      float* m = transform.scaleRot;
+      m[0] = c; m[2] = -s;
+      m[1] = s; m[3] =  c;
+
+      //Matrix multiply by scale one element at a time, skipping zeroes
+      if(xScaleRow) {
+        const float sx = xScaleRow->at(i);
+        //[a b][x 0] = [ax b]
+        //[c d][0 1]   [cx d]
+        m[0] *= sx;
+        m[1] *= sx;
+      }
+
+      if(yScaleRow) {
+        const float sy = yScaleRow->at(i);
+        //[a b][1 0] = [a by]
+        //[c d][0 y]   [c dy]
+        m[2] *= sy;
+        m[3] *= sy;
+      }
+    }
+  });
+
+  builder.submitTask(std::move(task.setName("transform")));
+}
+
+//TODO: avoid when uvs haven't changed, which should be the common case
+void extractUV(IAppBuilder& builder, const TableID& src, const TableID& dst) {
+  auto task = builder.createTask();
+
+  QuadPassTable::UVOffsetRow* dstRow = task.query<QuadPassTable::UVOffsetRow>(dst).tryGet<0>(0);
+  const Row<CubeSprite>* srcRow = task.query<const Row<CubeSprite>>(src).tryGet<0>(0);
+  if(!dstRow || !srcRow) {
+    return task.discard();
+  }
+
+  task.setCallback([srcRow, dstRow](AppTaskArgs&) {
+    for(size_t i = 0; i < dstRow->size(); ++i) {
+      const CubeSprite& s = srcRow->at(i);
+      QuadPassTable::UVOffset& d = dstRow->at(i);
+      d.scale[0] = s.uMax - s.uMin;
+      d.scale[1] = s.vMax - s.vMin;
+      d.offset[0] = s.uMin;
+      d.offset[1] = s.vMin;
+    }
+  });
+
+  builder.submitTask(std::move(task.setName("uv")));
+}
+
 void Renderer::extractRenderables(IAppBuilder& builder) {
   auto temp = builder.createTask();
   temp.discard();
@@ -288,7 +411,6 @@ void Renderer::extractRenderables(IAppBuilder& builder) {
   for(size_t pass = 0; pass < passes.size(); ++pass) {
     const TableID& passID = passes.matchingTableIDs[pass];
     const TableID& spriteID = sharedTextureSprites.matchingTableIDs[pass];
-    passID,spriteID;
 
     //Resize the quad pass table to match the size of its paired sprite table
     {
@@ -302,33 +424,14 @@ void Renderer::extractRenderables(IAppBuilder& builder) {
       builder.submitTask(std::move(task));
     }
     //Copy each row of data to resized table
-    /*
-    CommonTasks::moveOrCopyRowSameSize<FloatRow<Tags::Pos, Tags::X>, QuadPassTable::PosX>(builder, spriteID, passID);
-    CommonTasks::moveOrCopyRowSameSize<FloatRow<Tags::Pos, Tags::Y>, QuadPassTable::PosY>(builder, spriteID, passID);
-    CommonTasks::moveOrCopyRowSameSize<FloatRow<Tags::Rot, Tags::CosAngle>, QuadPassTable::RotX>(builder, spriteID, passID);
-    CommonTasks::moveOrCopyRowSameSize<FloatRow<Tags::Rot, Tags::SinAngle>, QuadPassTable::RotY>(builder, spriteID, passID);
-    CommonTasks::moveOrCopyRowSameSize<Row<CubeSprite>, QuadPassTable::UV>(builder, spriteID, passID);
-    CommonTasks::moveOrCopyRowSameSize<SharedRow<TextureReference>, QuadPassTable::Texture>(builder, spriteID, passID);
-    if(builder.queryTable<Tags::PosZRow>(spriteID)) {
-      CommonTasks::moveOrCopyRowSameSize<Tags::PosZRow, QuadPassTable::PosZ>(builder, spriteID, passID);
-    }
-    if(builder.queryTable<Tags::ScaleXRow>(spriteID)) {
-      CommonTasks::moveOrCopyRowSameSize<Tags::ScaleXRow, QuadPassTable::ScaleX>(builder, spriteID, passID);
-    }
-    if(builder.queryTable<Tags::ScaleYRow>(spriteID)) {
-      CommonTasks::moveOrCopyRowSameSize<Tags::ScaleYRow, QuadPassTable::ScaleY>(builder, spriteID, passID);
-    }
-    //If this table has velocity, add those tasks as well
-    if(temp.query<FloatRow<Tags::LinVel, Tags::X>, FloatRow<Tags::AngVel, Tags::Angle>>(spriteID).size()) {
-      CommonTasks::moveOrCopyRowSameSize<FloatRow<Tags::LinVel, Tags::X>, QuadPassTable::LinVelX>(builder, spriteID, passID);
-      CommonTasks::moveOrCopyRowSameSize<FloatRow<Tags::LinVel, Tags::Y>, QuadPassTable::LinVelY>(builder, spriteID, passID);
-      CommonTasks::moveOrCopyRowSameSize<FloatRow<Tags::AngVel, Tags::Angle>, QuadPassTable::AngVel>(builder, spriteID, passID);
-    }
-    //Tint is also optional
+    extractTransform(builder, spriteID, passID);
+    extractUV(builder, spriteID, passID);
+
+    CommonTasks::moveOrCopyRowSameSize<SharedRow<TextureReference>, QuadPassTable::TextureIDRow>(builder, spriteID, passID);
+    //Tint is optional
     if(temp.query<Tint>(spriteID).size()) {
-      CommonTasks::moveOrCopyRowSameSize<Tint, QuadPassTable::Tint>(builder, spriteID, passID);
+      CommonTasks::moveOrCopyRowSameSize<Tint, QuadPassTable::TintRow>(builder, spriteID, passID);
     }
-    */
   }
 
   //Debug lines
@@ -493,14 +596,24 @@ void Renderer::render(IAppBuilder& builder) {
 
         //Will be zero and render as black if no valid texture is specified
         sg_image glTexture = _getTextureByID(textureIDs->at(), textures);
+        pass.mQuadUniforms.bindings.images[IMG_tex] = glTexture;
+        //TODO: use actual mesh instead of always quad
+        pass.mQuadUniforms.bindings.vertex_buffers[0] = state->quadMesh;
 
-        //TODO: apply bindings of textured mesh pipeline
+        sg_update_buffer(pass.mQuadUniforms.bindings.storage_buffers[SBUF_mw], sg_range{ transforms->data(), sizeof(TMS::MW_t)*transforms->size() });
+        //TODO: these rarely change, only upload when needed
+        sg_update_buffer(pass.mQuadUniforms.bindings.storage_buffers[SBUF_tint], sg_range{ tints->data(), sizeof(TMS::TINT_t)*tints->size() });
+        sg_update_buffer(pass.mQuadUniforms.bindings.storage_buffers[SBUF_uv], sg_range{ uvOffsets->data(), sizeof(TMS::UV_t)*uvOffsets->size() });
 
-        const glm::mat4 worldToView = renderCamera.worldToView;
+        const glm::mat4& worldToView = renderCamera.worldToView;
 
-        // TODO: apply uniform
+        TMS::uniforms_t uniforms{};
+        std::memcpy(uniforms.worldToView, &worldToView, sizeof(glm::mat4));
 
-        // TODO: render 2 triangles, then add way to get size of mesh
+        sg_apply_bindings(pass.mQuadUniforms.bindings);
+        sg_apply_uniforms(UB_uniforms, sg_range{ &uniforms, sizeof(uniforms) });
+
+        sg_draw(0, 6, transforms->size());
       }
     }
 
@@ -526,4 +639,18 @@ void Renderer::render(IAppBuilder& builder) {
   builder.submitTask(std::move(task));
 
   _renderDebug(builder);
+}
+
+void Renderer::commit(IAppBuilder& builder) {
+  auto task = builder.createTask();
+  task.setName("commit").setPinning(AppTaskPinning::MainThread{});
+  auto query = task.query<Row<RendererState>>();
+  task.setCallback([query](AppTaskArgs&) mutable {
+    PROFILE_SCOPE("renderer", "commit");
+    if(const RendererState* gl = query.tryGetSingletonElement()) {
+      sg_end_pass();
+      sg_commit();
+    }
+  });
+  builder.submitTask(std::move(task));
 }

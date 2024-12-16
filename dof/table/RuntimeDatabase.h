@@ -119,10 +119,22 @@ struct QueryResult {
     return *get<TupleIndex>().at(tableIndex);
   }
 
+  template<size_t TupleIndex>
+  auto* tryGet(size_t tableIndex) {
+    auto& rrow = get<TupleIndex>();
+    return rrow.size() > tableIndex ? rrow.at(tableIndex) : nullptr;
+  }
+
   //Get a row by row type
   template<class RowT>
   RowT& get(size_t tableIndex) {
     return *std::get<std::vector<RowT*>>(rows).at(tableIndex);
+  }
+
+  template<class RowT>
+  auto* tryGet(size_t tableIndex) {
+    auto& rrow = std::get<std::vector<RowT*>>(rows);
+    return rrow.size() > tableIndex ? rrow.at(tableIndex) : nullptr;
   }
 
   //Return the first element in the first table

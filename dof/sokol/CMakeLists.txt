@@ -9,7 +9,7 @@ add_compile_definitions(SOKOL_GLCORE)
 add_library(sokol INTERFACE)
 
 # Include this directory to anyone that includes this cmakelists
-target_include_directories(sokol INTERFACE 
+target_include_directories(sokol INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}/sokol
 )
 

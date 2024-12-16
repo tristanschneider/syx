@@ -9,13 +9,13 @@
 
     Overview:
     =========
-    Shader program: 'triangle':
-        Get shader desc: triangle_shader_desc(sg_query_backend());
+    Shader program: 'TexturedMesh':
+        Get shader desc: TexturedMesh_shader_desc(sg_query_backend());
         Vertex Shader: vs
         Fragment Shader: fs
         Attributes:
-            ATTR_triangle_vertPos => 0
-            ATTR_triangle_vertUV => 1
+            ATTR_TexturedMesh_vertPos => 0
+            ATTR_TexturedMesh_vertUV => 1
     Bindings:
         Uniform block 'uniforms':
             C struct: uniforms_t
@@ -48,8 +48,8 @@
 #define SOKOL_SHDC_ALIGN(a) __attribute__((aligned(a)))
 #endif
 #endif
-#define ATTR_triangle_vertPos (0)
-#define ATTR_triangle_vertUV (1)
+#define ATTR_TexturedMesh_vertPos (0)
+#define ATTR_TexturedMesh_vertUV (1)
 #define UB_uniforms (0)
 #define SBUF_uv (1)
 #define SBUF_tint (2)
@@ -228,7 +228,7 @@ static const uint8_t fs_source_glsl430[326] = {
     0x61,0x67,0x54,0x69,0x6e,0x74,0x2e,0x77,0x29,0x29,0x2c,0x20,0x31,0x2e,0x30,0x29,
     0x3b,0x0a,0x7d,0x0a,0x0a,0x00,
 };
-static inline const sg_shader_desc* triangle_shader_desc(sg_backend backend) {
+static inline const sg_shader_desc* TexturedMesh_shader_desc(sg_backend backend) {
     if (backend == SG_BACKEND_GLCORE) {
         static sg_shader_desc desc;
         static bool valid;
@@ -265,7 +265,7 @@ static inline const sg_shader_desc* triangle_shader_desc(sg_backend backend) {
             desc.image_sampler_pairs[0].image_slot = 0;
             desc.image_sampler_pairs[0].sampler_slot = 0;
             desc.image_sampler_pairs[0].glsl_name = "tex_sam";
-            desc.label = "triangle_shader";
+            desc.label = "TexturedMesh_shader";
         }
         return &desc;
     }

@@ -55,4 +55,4 @@ void main() {
 }
 @end
 
-@program triangle vs fs
+@program TexturedMesh vs fs

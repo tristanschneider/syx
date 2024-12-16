@@ -27,6 +27,14 @@
 #include "AppBuilder.h"
 #include "Simulation.h"
 
+#define SOKOL_GLCORE
+#define SOKOL_IMPL
+
+#include "sokol_app.h"
+#include "sokol_gfx.h"
+#include "sokol_log.h"
+#include "sokol_glue.h"
+
 //TODO: add capabilities to state machine so this keyboard passthrough isn't necessary.
 //The passthrough is only used for imgui debugging, gameplay should use the state machine
 using PlayerInputQueryResult = QueryResult<GameInput::PlayerKeyboardInputRow>;
@@ -364,7 +372,7 @@ TaskGraph createTaskGraph() {
   //The rest of the init can be scheduled asynchronously but still can't be done in parallel with creating the other tasks
   std::unique_ptr<IAppBuilder> initBuilder = GameBuilder::create(*APP->combined);
 
-  Renderer::init(*initBuilder);
+  Renderer::init(*initBuilder, sglue_swapchain());
 
   Simulation::init(*initBuilder);
   GameInput::init(*initBuilder);
@@ -383,6 +391,7 @@ TaskGraph createTaskGraph() {
 #ifdef IMGUI_ENABLED
   ImguiModule::update(*builder);
 #endif
+  Renderer::commit(*builder);
   resetInput(*builder);
   GameInput::update(*builder);
   std::shared_ptr<AppTaskNode> appTaskNodes = IAppBuilder::finalize(std::move(builder));
@@ -401,22 +410,14 @@ std::unique_ptr<IDatabase> createDatabase() {
   tempA.discard();
   auto tempB = tempBuilder->createTask();
   tempB.discard();
-  //std::unique_ptr<IDatabase> renderer = Renderer::createDatabase(std::move(tempA), *mappings);
-  std::unique_ptr<IDatabase> result = std::move(game); //DBReflect::merge(std::move(game), std::move(renderer));
+  std::unique_ptr<IDatabase> renderer = Renderer::createDatabase(std::move(tempA), *mappings);
+  std::unique_ptr<IDatabase> result = DBReflect::merge(std::move(game), std::move(renderer));
 #ifdef IMGUI_ENABLED
   result = DBReflect::merge(std::move(result), ImguiModule::createDatabase(std::move(tempB), *mappings));
 #endif
   result = DBReflect::bundle(std::move(result), std::move(mappings));
   return result;
 }
-
-#define SOKOL_GLCORE
-#define SOKOL_IMPL
-
-#include "sokol_app.h"
-#include "sokol_gfx.h"
-#include "sokol_log.h"
-#include "sokol_glue.h"
 
 #include "loader/AssetService.h"
 #include "loader/SceneAsset.h"
@@ -453,7 +454,6 @@ void init(void) {
   createKeyboardMappings(*mapper);
 
   // TODO: console
-
   state.tasks = createTaskGraph();
 
   /*
