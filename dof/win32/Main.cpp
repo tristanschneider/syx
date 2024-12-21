@@ -55,6 +55,21 @@ struct AppDatabase {
 namespace {
   AppDatabase* APP = nullptr;
 }
+struct TaskGraph {
+  TaskRange tasks;
+  Scheduler* scheduler{};
+};
+
+struct AppState {
+  sg_pipeline pip;
+  sg_bindings bind;
+  sg_pass_action pass_action;
+  AppDatabase app;
+  TaskGraph tasks;
+  std::vector<std::string> args;
+};
+AppState state;
+
 
 void setWindowSize(int width, int height) {
   if(!(APP && APP->window && APP->window->size())) {
@@ -78,8 +93,8 @@ void onFocusChanged(WPARAM w) {
   }
 }
 
-void onKey(WPARAM key, InputArgs& args, GameInput::KeyState state) {
-  const bool isDown = state == GameInput::KeyState::Triggered;
+void onKey(WPARAM key, InputArgs& args, GameInput::KeyState s) {
+  const bool isDown = s == GameInput::KeyState::Triggered;
 
   for(size_t t = 0; t < args.machineInput.size(); ++t) {
     auto [machines] = args.machineInput.get(t);
@@ -98,7 +113,7 @@ void onKey(WPARAM key, InputArgs& args, GameInput::KeyState state) {
     auto&& [keyboards] = args.playerInput.get(t);
     for(size_t i = 0; i < keyboards->size(); ++i) {
       GameInput::PlayerKeyboardInput& keyboard = keyboards->at(i);
-      keyboard.mRawKeys.push_back(std::make_pair(state, (int)key));
+      keyboard.mRawKeys.push_back(std::make_pair(s, (int)key));
     }
   }
 }
@@ -230,9 +245,9 @@ void doKey(WPARAM w, LPARAM l) {
   }
 }
 
-void doMouseKey(WPARAM w, GameInput::KeyState state) {
+void doMouseKey(WPARAM w, GameInput::KeyState s) {
   if(APP) {
-    onKey(w, APP->input, state);
+    onKey(w, APP->input, s);
   }
 }
 
@@ -341,20 +356,14 @@ void sleepNS(int ns) {
   }
 }
 
-struct TaskGraph {
-  TaskRange tasks;
-  Scheduler* scheduler{};
-};
-
 TaskGraph createTaskGraph() {
   auto temp = APP->builder->createTask();
   temp.discard();
   FileSystem& fs = temp.query<SharedRow<FileSystem>>().get<0>(0).at();
 
-  // TODO: use actual args and not in this function
-  std::string strArgs;
-  if(!strArgs.empty()) {
-    fs.mRoot = strArgs;
+  //First argument is the executable location, second and beyond are arguments passed to the executable
+  if(state.args.size() >= 2) {
+    fs.mRoot = state.args[1];
   }
   else {
     fs.mRoot = "data/";
@@ -418,20 +427,6 @@ std::unique_ptr<IDatabase> createDatabase() {
   result = DBReflect::bundle(std::move(result), std::move(mappings));
   return result;
 }
-
-#include "loader/AssetService.h"
-#include "loader/SceneAsset.h"
-
-Loader::SceneAsset sceneHack = Loader::hack();
-
-struct AppState {
-  sg_pipeline pip;
-  sg_bindings bind;
-  sg_pass_action pass_action;
-  AppDatabase app;
-  TaskGraph tasks;
-};
-AppState state;
 
 void init(void) {
   //Initialize the graphics device
@@ -597,11 +592,13 @@ void onEvent(const sapp_event* event) {
 }
 
 void cleanup(void) {
-    sg_shutdown();
+  sg_shutdown();
 }
 
-sapp_desc sokol_main(int, char* argv[]) {
-  argv;
+sapp_desc sokol_main(int argc, char* argv[]) {
+  for(int i = 0; i < argc; ++i) {
+    state.args.emplace_back(argv[i]);
+  }
   return sapp_desc {
     .init_cb = init,
     .frame_cb = frame,

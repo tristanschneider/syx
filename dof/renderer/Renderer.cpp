@@ -46,6 +46,10 @@ namespace QuadPassTable {
 };
 
 namespace {
+  bool isValid(const sg_image& image) {
+    return sg_query_image_state(image) == SG_RESOURCESTATE_VALID;
+  }
+
   struct RenderDebugDrawer {
     sg_pipeline pipeline{};
     sg_bindings bindings;
@@ -280,7 +284,10 @@ namespace Renderer {
 
 void Renderer::init(IAppBuilder& builder, const sg_swapchain& swapchain) {
   auto temp = builder.createTask();
-  temp.query<Row<RendererState>>().get<0>(0).at(0).swapchain = swapchain;
+  auto q = temp.query<Row<RendererState>>();
+  assert(q.size());
+  temp.getModifierForTable(q.matchingTableIDs[0])->resize(1);
+  q.get<0>(0).at(0).swapchain = swapchain;
   temp.discard();
 
   initGame(builder);
@@ -581,6 +588,7 @@ void Renderer::render(IAppBuilder& builder) {
       }
     };
     sg_begin_pass(sg_pass{ .action = action, .swapchain = state->swapchain });
+    sg_apply_pipeline(state->texturedMeshPipeline);
 
     for(const auto& renderCamera : cameras) {
       PROFILE_SCOPE("renderer", "geometry");
@@ -594,8 +602,10 @@ void Renderer::render(IAppBuilder& builder) {
           continue;
         }
 
-        //Will be zero and render as black if no valid texture is specified
-        sg_image glTexture = _getTextureByID(textureIDs->at(), textures);
+        const sg_image glTexture = _getTextureByID(textureIDs->at(), textures);
+        if(!isValid(glTexture)) {
+          continue;
+        }
         pass.mQuadUniforms.bindings.images[IMG_tex] = glTexture;
         //TODO: use actual mesh instead of always quad
         pass.mQuadUniforms.bindings.vertex_buffers[0] = state->quadMesh;
