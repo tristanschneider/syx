@@ -57,6 +57,7 @@ namespace {
 }
 struct TaskGraph {
   TaskRange tasks;
+  TaskRange renderCommit;
   Scheduler* scheduler{};
 };
 
@@ -67,6 +68,7 @@ struct AppState {
   AppDatabase app;
   TaskGraph tasks;
   std::vector<std::string> args;
+  std::chrono::steady_clock::time_point lastDraw;
 };
 AppState state;
 
@@ -356,6 +358,15 @@ void sleepNS(int ns) {
   }
 }
 
+TaskRange createRendererCommit() {
+  std::unique_ptr<IAppBuilder> commitBuilder = GameBuilder::create(*APP->combined);
+  auto temp = commitBuilder->createTask();
+  temp.discard();
+  ThreadLocalsInstance* tls = temp.query<ThreadLocalsRow>().tryGetSingletonElement();
+  Renderer::commit(*commitBuilder);
+  return GameScheduler::buildTasks(IAppBuilder::finalize(std::move(commitBuilder)), *tls->instance);
+}
+
 TaskGraph createTaskGraph() {
   auto temp = APP->builder->createTask();
   temp.discard();
@@ -408,7 +419,11 @@ TaskGraph createTaskGraph() {
   if(outputGraph && appTaskNodes) {
     GraphViz::writeHere("graph.gv", *appTaskNodes);
   }
-  return { GameScheduler::buildTasks(std::move(appTaskNodes), *tls->instance), scheduler };
+  return TaskGraph{
+    .tasks = GameScheduler::buildTasks(std::move(appTaskNodes), *tls->instance),
+    .renderCommit = createRendererCommit(),
+    .scheduler = scheduler
+  };
 }
 
 std::unique_ptr<IDatabase> createDatabase() {
@@ -525,6 +540,18 @@ void init(void) {
 
 void frame(void) {
   PROFILE_SCOPE("app", "update");
+  //This is called at the monitor refresh rate. Skip draws until enough time has passed to hit no more than 60 fps
+  constexpr size_t TARGET_FPS = 60;
+  constexpr std::chrono::milliseconds TARGET_FRAME_TIME{ 1000 / TARGET_FPS };
+  const auto now = std::chrono::steady_clock::now();
+  const std::chrono::milliseconds timeSinceLastDraw = std::chrono::duration_cast<std::chrono::milliseconds>(now - state.lastDraw);
+  if (timeSinceLastDraw < TARGET_FRAME_TIME) {
+    //Resubmit the last frame
+    state.tasks.renderCommit.mBegin->mTask.addToPipe(state.tasks.scheduler->mScheduler);
+    state.tasks.scheduler->mScheduler.WaitforTask(state.tasks.renderCommit.mEnd->mTask.get());
+    return;
+  }
+  state.lastDraw = now;
 
   state.tasks.tasks.mBegin->mTask.addToPipe(state.tasks.scheduler->mScheduler);
   state.tasks.scheduler->mScheduler.WaitforTask(state.tasks.tasks.mEnd->mTask.get());
@@ -607,13 +634,17 @@ sapp_desc sokol_main(int argc, char* argv[]) {
     //TODO: default?
     .width = 640,
     .height = 480,
+    //Match monitor refresh rate one to one
+    //If I knew how to ask what the refresh rate was I would use a ratio to put it at 60fps
+    .swap_interval = 1,
     .window_title = "DOF",
     .icon = sapp_icon_desc{
       .sokol_default = true,
     },
     .logger = sapp_logger{
       .func = slog_func
-    }
+    },
+    .win32_console_create = true
   };
 }
 

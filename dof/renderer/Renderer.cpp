@@ -22,6 +22,7 @@ namespace TMS {
 }
 #include "Debug.h"
 #include "Quad.h"
+#include "BlitPass.h"
 
 namespace QuadPassTable {
   //TODO: from shader description
@@ -55,6 +56,11 @@ namespace {
     sg_bindings bindings;
   };
 
+  struct OffscreenRender {
+    sg_attachments attach{ 0 };
+    sg_image target{ 0 };
+  };
+
   struct RendererState {
     sg_pipeline texturedMeshPipeline;
     sg_buffer quadMesh;
@@ -63,6 +69,8 @@ namespace {
     SceneState mSceneState;
     RenderDebugDrawer mDebug;
     sg_swapchain swapchain{};
+    OffscreenRender offscreenRender;
+    Blit::Pass blitTexturePass;
   };
 
   struct TextureRendererHandle {
@@ -143,10 +151,14 @@ namespace {
   sg_pipeline createTexturedMeshPipeline() {
     sg_pipeline_desc desc{ 0 };
     desc.shader = sg_make_shader(TMS::TexturedMesh_shader_desc(sg_query_backend()));
-    desc.depth.write_enabled = true;
-    desc.depth.compare = SG_COMPAREFUNC_LESS;
     desc.layout.attrs[ATTR_TexturedMesh_vertPos].format = SG_VERTEXFORMAT_FLOAT2;
     desc.layout.attrs[ATTR_TexturedMesh_vertUV].format = SG_VERTEXFORMAT_FLOAT2;
+    desc.color_count = 1;
+    desc.depth = sg_depth_state{
+      .pixel_format = SG_PIXELFORMAT_DEPTH,
+      .compare = SG_COMPAREFUNC_LESS,
+      .write_enabled = true
+    };
     return sg_make_pipeline(desc);
   }
 
@@ -254,6 +266,30 @@ std::unique_ptr<IDatabase> Renderer::createDatabase(RuntimeDatabaseTaskBuilder&&
   return result;
 }
 
+OffscreenRender createOffscreenRenderTarget(const sg_swapchain& swapchain) {
+  sg_image_desc color{
+    .render_target = true,
+    .width = swapchain.width,
+    .height = swapchain.height,
+    .sample_count = swapchain.sample_count,
+  };
+  sg_image_desc depth{
+    .render_target = true,
+    .width = swapchain.width,
+    .height = swapchain.height,
+    .pixel_format = SG_PIXELFORMAT_DEPTH,
+    .sample_count = swapchain.sample_count,
+  };
+  sg_attachments_desc att{ 0 };
+  att.colors[0].image = sg_make_image(color);
+  att.depth_stencil.image = sg_make_image(depth);
+
+  return OffscreenRender{
+    .attach = sg_make_attachments(att),
+    .target = att.colors[0].image
+  };
+}
+
 namespace Renderer {
   void initGame(IAppBuilder& builder) {
     auto task = builder.createTask();
@@ -270,6 +306,8 @@ namespace Renderer {
       ogl.texturedMeshPipeline = createTexturedMeshPipeline();
       ogl.quadMesh = _createQuadBuffers();
       ogl.mDebug = _createDebugDrawer();
+      ogl.offscreenRender = createOffscreenRenderTarget(ogl.swapchain);
+      ogl.blitTexturePass = Blit::createBlitTexturePass();
 
       //Fill in the quad pass tables
       for(size_t i = 0 ; i < sprites.matchingTableIDs.size(); ++i) {
@@ -578,16 +616,16 @@ void Renderer::render(IAppBuilder& builder) {
     for(auto& camera : cameras) {
       camera.worldToView = _getWorldToView(camera, aspectRatio);
     }
-
-    sg_pass_action action{
+    sg_pass_action offscreenAction{
       .colors{
         sg_color_attachment_action{
           .load_action=SG_LOADACTION_CLEAR,
           .clear_value={0.0f, 0.0f, 1.0f, 1.0f }
-        }
+        },
       }
     };
-    sg_begin_pass(sg_pass{ .action = action, .swapchain = state->swapchain });
+    sg_begin_pass(sg_pass{ .action = offscreenAction, .attachments = state->offscreenRender.attach });
+
     sg_apply_pipeline(state->texturedMeshPipeline);
 
     for(const auto& renderCamera : cameras) {
@@ -626,6 +664,7 @@ void Renderer::render(IAppBuilder& builder) {
         sg_draw(0, 6, transforms->size());
       }
     }
+    sg_end_pass();
 
     /* TODO: move to simulation with imgui setting
     static bool renderBorders = true;
@@ -657,8 +696,20 @@ void Renderer::commit(IAppBuilder& builder) {
   auto query = task.query<Row<RendererState>>();
   task.setCallback([query](AppTaskArgs&) mutable {
     PROFILE_SCOPE("renderer", "commit");
-    if(const RendererState* gl = query.tryGetSingletonElement()) {
+    if(RendererState* state = query.tryGetSingletonElement()) {
+      sg_pass_action action{
+        .colors{
+          sg_color_attachment_action{
+            .load_action=SG_LOADACTION_DONTCARE,
+          }
+        }
+      };
+
+      //Copy the offscreen render to the screen
+      sg_begin_pass(sg_pass{ .action = action, .swapchain = state->swapchain });
+      Blit::blitTexture(Blit::Transform::fullScreen(), state->offscreenRender.target, state->blitTexturePass);
       sg_end_pass();
+
       sg_commit();
     }
   });
