@@ -53,7 +53,7 @@ namespace {
 
   struct RenderDebugDrawer {
     sg_pipeline pipeline{};
-    sg_bindings bindings;
+    sg_bindings bindings{};
   };
 
   struct OffscreenRender {
@@ -94,14 +94,15 @@ namespace {
   }
 
   sg_buffer _createQuadBuffers() {
-    float vertices[] = {
-        -0.5f,  0.5f,    0.0f, 0.0f,
-         0.5f, -0.5f,    1.0f, 1.0f,
-        -0.5f, -0.5f,    1.0f, 0.0f,
+    constexpr float s = 0.5f;
+    constexpr float vertices[] = {
+      -s,  s,    0.0f, 1.0f,
+        s, s,   1.0f, 1.0f,
+      s, -s,    1.0f, 0.0f,
 
-        -0.5f,  0.5f,    0.0f, 0.0f,
-        0.5f, 0.5f,    0.0f, 1.0f,
-         0.5f, -0.5f,    1.0f, 1.0f,
+      -s,  s,    0.0f, 1.0f,
+      s, -s,      1.0f, 0.0f,
+       -s, -s,   0.0f, 0.0f,
     };
     return sg_make_buffer(sg_buffer_desc{
       .data = SG_RANGE(vertices)
@@ -111,7 +112,13 @@ namespace {
   RenderDebugDrawer _createDebugDrawer() {
     RenderDebugDrawer drawer;
     sg_pipeline_desc pipeline{
-      .shader = sg_make_shader(DS::Debug_shader_desc(sg_query_backend()))
+      .shader = sg_make_shader(DS::Debug_shader_desc(sg_query_backend())),
+      .depth = sg_depth_state{
+        .pixel_format = SG_PIXELFORMAT_DEPTH,
+        .compare = SG_COMPAREFUNC_ALWAYS,
+        .write_enabled = false
+      },
+      .color_count = 1,
     };
     pipeline.layout.attrs[ATTR_Debug_vertPos].format = SG_VERTEXFORMAT_FLOAT2;
     pipeline.layout.attrs[ATTR_Debug_vertColor].format = SG_VERTEXFORMAT_FLOAT3;
@@ -364,6 +371,19 @@ void _renderDebug(IAppBuilder& builder) {
     }
   });
   builder.submitTask(std::move(task));
+}
+
+void endPass(IAppBuilder& builder) {
+  auto task = builder.createTask();
+  auto globals = task.query<Row<RendererState>>();
+
+  task.setCallback([globals](AppTaskArgs&) mutable {
+    if(globals.tryGet<0>(0)) {
+      sg_end_pass();
+    }
+  });
+
+  builder.submitTask(std::move(task.setName("endPass").setPinning(AppTaskPinning::MainThread{})));
 }
 
 void extractTransform(IAppBuilder& builder, const TableID& src, const TableID& dst) {
@@ -664,7 +684,6 @@ void Renderer::render(IAppBuilder& builder) {
         sg_draw(0, 6, transforms->size());
       }
     }
-    sg_end_pass();
 
     /* TODO: move to simulation with imgui setting
     static bool renderBorders = true;
@@ -688,6 +707,8 @@ void Renderer::render(IAppBuilder& builder) {
   builder.submitTask(std::move(task));
 
   _renderDebug(builder);
+
+  endPass(builder);
 }
 
 void Renderer::commit(IAppBuilder& builder) {

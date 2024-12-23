@@ -72,30 +72,24 @@ struct AppState {
 };
 AppState state;
 
+WindowData* tryGetWindow() {
+  return APP && APP->window && APP->window->size() ? &APP->window->at(0) : nullptr;
+}
 
 void setWindowSize(int width, int height) {
-  if(!(APP && APP->window && APP->window->size())) {
-    return;
-  }
-  WindowData& data = APP->window->at(0);
-  data.mWidth = width;
-  data.mHeight = height;
-}
-
-void onFocusChanged(WPARAM w) {
-  if(!(APP && APP->window && APP->window->size())) {
-    return;
-  }
-  WindowData& data = APP->window->at(0);
-  if(LOWORD(w) == TRUE) {
-    data.mFocused = true;
-  }
-  else {
-    data.mFocused = false;
+  if(WindowData* window = tryGetWindow()) {
+    window->mWidth = width;
+    window->mHeight = height;
   }
 }
 
-void onKey(WPARAM key, InputArgs& args, GameInput::KeyState s) {
+void onFocusChanged(bool isFocused) {
+  if(WindowData* window = tryGetWindow()) {
+    window->mFocused = isFocused;
+  }
+}
+
+void onKey(Input::PlatformInputID key, InputArgs& args, GameInput::KeyState s) {
   const bool isDown = s == GameInput::KeyState::Triggered;
 
   for(size_t t = 0; t < args.machineInput.size(); ++t) {
@@ -122,97 +116,48 @@ void onKey(WPARAM key, InputArgs& args, GameInput::KeyState s) {
 
 void createKeyboardMappings(Input::InputMapper& mapper) {
   auto cast = [](auto i) { return static_cast<Input::PlatformInputID>(i); };
-  mapper.addKeyAs2DRelativeMapping(cast('W'), GameInput::Keys::MOVE_2D, { 0, 1 });
-  mapper.addKeyAs2DRelativeMapping(cast('A'), GameInput::Keys::MOVE_2D, { -1, 0 });
-  mapper.addKeyAs2DRelativeMapping(cast('S'), GameInput::Keys::MOVE_2D, { 0, -1 });
-  mapper.addKeyAs2DRelativeMapping(cast('D'), GameInput::Keys::MOVE_2D, { 1, 0 });
-  mapper.addKeyAs1DRelativeMapping(cast(VK_ADD), GameInput::Keys::DEBUG_ZOOM_1D, -1.0f);
-  mapper.addKeyAs1DRelativeMapping(cast(VK_SUBTRACT), GameInput::Keys::DEBUG_ZOOM_1D, 1.0f);
-  mapper.addKeyMapping(cast(VK_SPACE), GameInput::Keys::ACTION_1);
-  mapper.addKeyMapping(cast(VK_LSHIFT), GameInput::Keys::ACTION_2);
-  mapper.addKeyMapping(cast(VK_RETURN), GameInput::Keys::JUMP);
-  mapper.addKeyAs1DRelativeMapping(cast('E'), GameInput::Keys::CHANGE_DENSITY_1D, 1.0f);
-  mapper.addKeyAs1DRelativeMapping(cast('Q'), GameInput::Keys::CHANGE_DENSITY_1D, -1.0f);
+  mapper.addKeyAs2DRelativeMapping(cast(SAPP_KEYCODE_W), GameInput::Keys::MOVE_2D, { 0, -1 });
+  mapper.addKeyAs2DRelativeMapping(cast(SAPP_KEYCODE_A), GameInput::Keys::MOVE_2D, { -1, 0 });
+  mapper.addKeyAs2DRelativeMapping(cast(SAPP_KEYCODE_S), GameInput::Keys::MOVE_2D, { 0, 1 });
+  mapper.addKeyAs2DRelativeMapping(cast(SAPP_KEYCODE_D), GameInput::Keys::MOVE_2D, { 1, 0 });
+  mapper.addKeyAs1DRelativeMapping(cast(SAPP_KEYCODE_PAGE_UP), GameInput::Keys::DEBUG_ZOOM_1D, -1.0f);
+  mapper.addKeyAs1DRelativeMapping(cast(SAPP_KEYCODE_PAGE_DOWN), GameInput::Keys::DEBUG_ZOOM_1D, 1.0f);
+  mapper.addKeyMapping(cast(SAPP_KEYCODE_SPACE), GameInput::Keys::ACTION_1);
+  mapper.addKeyMapping(cast(SAPP_KEYCODE_LEFT_SHIFT), GameInput::Keys::ACTION_2);
+  mapper.addKeyMapping(cast(SAPP_KEYCODE_ENTER), GameInput::Keys::JUMP);
+  mapper.addKeyAs1DRelativeMapping(cast(SAPP_KEYCODE_E), GameInput::Keys::CHANGE_DENSITY_1D, 1.0f);
+  mapper.addKeyAs1DRelativeMapping(cast(SAPP_KEYCODE_Q), GameInput::Keys::CHANGE_DENSITY_1D, -1.0f);
 
   //TODO: could be moved to game project
   mapper.addPassthroughKeyMapping(GameInput::Keys::GAME_ON_GROUND);
 }
 
-void enqueueMouseWheel(InputArgs& db, float wheelDelta) {
-  db;wheelDelta;
+void enqueueMouseWheel(InputArgs& db, float dx, float dy) {
+  db;dx;dy;
 }
 
-LRESULT onWMInput(InputArgs& args, HWND wnd, LPARAM l) {
-  auto& keyboards = args.playerInput.get<0>(0);
-  if(!keyboards.size()) {
-    return 0;
+void onMouseWheel(float dx, float dy) {
+  if(APP) {
+    enqueueMouseWheel(APP->input, dx, dy);
   }
-  GameInput::PlayerKeyboardInput& keyboard = keyboards.at(0);
-
-  std::array<uint8_t, 1024> buffer;
-  UINT bufferSize = static_cast<UINT>(buffer.size());
-  if(::GetRawInputData(reinterpret_cast<HRAWINPUT>(l), RID_INPUT, buffer.data(), &bufferSize, sizeof(RAWINPUTHEADER))) {
-    RAWINPUT* input = reinterpret_cast<RAWINPUT*>(buffer.data());
-
-    //Currently only registered for mouse events anyway with RegisterRawInputDevices
-    if(input->header.dwType == RIM_TYPEMOUSE) {
-      const RAWMOUSE& mouseInput = input->data.mouse;
-      glm::vec2 mousePos{ 0.0f };
-      glm::vec2 mouseDelta{ 0.0f };
-      std::optional<bool> newIsRelative;
-      //This is a bitfield but RELATIVE is 0, so I'm assuming that relative movement is never combined with other values
-      if(mouseInput.usFlags == MOUSE_MOVE_RELATIVE) {
-        newIsRelative = true;
-        mouseDelta = { static_cast<float>(mouseInput.lLastX), static_cast<float>(mouseInput.lLastY) };
-        POINT result;
-        ::GetCursorPos(&result);
-        mousePos = { static_cast<float>(result.x), static_cast<float>(result.y) };
-      }
-      else if(mouseInput.usFlags & MOUSE_MOVE_ABSOLUTE) {
-        newIsRelative = false;
-        mousePos = { static_cast<float>(mouseInput.lLastX), static_cast<float>(mouseInput.lLastY) };
-      }
-
-      if(newIsRelative) {
-        POINT p{ (LONG)mousePos.x, (LONG)mousePos.y };
-        if(::ScreenToClient(wnd, &p)) {
-          mousePos.x = (float)p.x;
-          mousePos.y = (float)p.y;
-        }
-
-        //If relative mode was the same as last time, compute the delta normally
-        if(*newIsRelative == keyboard.mIsRelativeMouse) {
-          if(!keyboard.mIsRelativeMouse) {
-            mouseDelta = mousePos - keyboard.mLastMousePos;
-            keyboard.mLastMousePos = mousePos;
-          }
-        }
-        //Relative mouse mode changed, don't compute a delta as it may be dramatic, set last pos for potential use next input
-        else {
-          keyboard.mLastMousePos = mousePos;
-          keyboard.mIsRelativeMouse = *newIsRelative;
-        }
-      }
-      keyboard.mRawMousePixels = mousePos;
-      keyboard.mRawMouseDeltaPixels = mouseDelta;
-    }
-
-    //Documentation says this does nothing. Call it because it seems reasonable
-    ::DefRawInputProc(&input, 1, sizeof(RAWINPUTHEADER));
-  }
-  //Mark this event as handled
-  return 0;
 }
 
-void onChar(InputArgs& args, WPARAM w) {
-  auto& keyboards = args.playerInput.get<0>(0);
-  if(!keyboards.size()) {
-    return;
-  }
-  GameInput::PlayerKeyboardInput& keyboard = keyboards.at(0);
+GameInput::PlayerKeyboardInput* tryGetInput() {
+  return APP ? APP->input.playerInput.tryGetSingletonElement<0>() : nullptr;
+}
 
-  if(std::isprint(static_cast<int>(w))) {
-    keyboard.mRawText.push_back(static_cast<char>(w));
+void onMouseMove(const sapp_event& event) {
+  if(GameInput::PlayerKeyboardInput* input = tryGetInput()) {
+    input->mRawMouseDeltaPixels = { event.mouse_dx, event.mouse_dy };
+    //Valid unless mouse is locked
+    input->mRawMousePixels = { event.mouse_x, event.mouse_y };
+  }
+}
+
+void onChar(uint32_t utf32) {
+  //isPrint to determine if this is a character we care about, which is undefined if value doesn't fit in unsigned char
+  if(GameInput::PlayerKeyboardInput* input = tryGetInput(); input && utf32 <= 255 && std::isprint(static_cast<int>(utf32))) {
+    input->mRawText.push_back(static_cast<char>(utf32));
   }
 }
 
@@ -231,130 +176,73 @@ void resetInput(IAppBuilder& builder) {
   builder.submitTask(std::move(task));
 }
 
-void doKey(WPARAM w, LPARAM l) {
-  if(!APP) {
-    return;
-  }
-  const WORD keyFlags = HIWORD(l);
-  const BOOL wasKeyDown = (keyFlags & KF_REPEAT) == KF_REPEAT;
-  const BOOL isKeyReleased = (keyFlags & KF_UP) == KF_UP;
-  if(isKeyReleased) {
-    onKey(w, APP->input, GameInput::KeyState::Released);
-  }
-  //Only send if key wasn't already down, thereby ignoring repeat inputs
-  else if(!wasKeyDown) {
-    onKey(w, APP->input, GameInput::KeyState::Triggered);
+constexpr Input::PlatformInputID toKeycode(sapp_mousebutton key) {
+  return static_cast<Input::PlatformInputID>(key) + 500;
+}
+
+constexpr Input::PlatformInputID toKeycode(sapp_keycode key) {
+  return static_cast<Input::PlatformInputID>(key);
+}
+
+void doKey(const sapp_event& event, GameInput::KeyState s) {
+  //Ignore key repeat events (down events fired while the key is down)
+  if(!event.key_repeat && APP) {
+    onKey(event.key_code, APP->input, s);
   }
 }
 
-void doMouseKey(WPARAM w, GameInput::KeyState s) {
+void doMouseKey(sapp_mousebutton key, GameInput::KeyState s) {
   if(APP) {
-    onKey(w, APP->input, s);
+    onKey(toKeycode(key), APP->input, s);
   }
 }
 
-LRESULT CALLBACK mainProc(HWND wnd, UINT msg, WPARAM w, LPARAM l) {
-  using namespace GameInput;
-  switch(msg) {
-    case WM_DESTROY:
-      PostQuitMessage(0);
+void onEvent(const sapp_event* event) {
+  switch(event->type) {
+    case SAPP_EVENTTYPE_RESIZED:
+      setWindowSize(event->framebuffer_width, event->framebuffer_height);
       break;
-
-    case WM_SIZE:
-      setWindowSize(LOWORD(l), HIWORD(l));
+    case SAPP_EVENTTYPE_FOCUSED:
+      onFocusChanged(true);
       break;
-
-    case WM_SIZING: {
-      RECT& rect = *reinterpret_cast<RECT*>(l);
-      setWindowSize(rect.right - rect.left, rect.bottom - rect.top);
+    case SAPP_EVENTTYPE_UNFOCUSED:
+      onFocusChanged(false);
       break;
-    }
-
-    case WM_ACTIVATEAPP:
-      onFocusChanged(w);
+    case SAPP_EVENTTYPE_MOUSE_DOWN:
+      doMouseKey(event->mouse_button, GameInput::KeyState::Triggered);
       break;
-
-    case WM_LBUTTONDOWN:
-      doMouseKey(VK_LBUTTON, KeyState::Triggered);
-      return 0;
-    case WM_LBUTTONUP:
-      doMouseKey(VK_LBUTTON, KeyState::Released);
-      return 0;
-    case WM_RBUTTONDOWN:
-      doMouseKey(VK_RBUTTON, KeyState::Triggered);
-      return 0;
-    case WM_RBUTTONUP:
-      doMouseKey(VK_RBUTTON, KeyState::Released);
-      return 0;
-    case WM_MBUTTONDOWN:
-      doMouseKey(VK_MBUTTON, KeyState::Triggered);
-      return 0;
-    case WM_MBUTTONUP:
-      doMouseKey(VK_MBUTTON, KeyState::Released);
-      return 0;
-    case WM_KEYDOWN:
-    case WM_KEYUP:
-      doKey(w, l);
-      return 0;
-
-    case WM_MOUSEWHEEL:
-      if(APP) {
-        enqueueMouseWheel(APP->input, static_cast<float>(GET_WHEEL_DELTA_WPARAM(w)));
-      }
+    case SAPP_EVENTTYPE_MOUSE_UP:
+      doMouseKey(event->mouse_button, GameInput::KeyState::Released);
       break;
-
-    case WM_INPUT:
-      if(APP && w == RIM_INPUT) {
-        return onWMInput(APP->input, wnd, l);
-      }
+    case SAPP_EVENTTYPE_KEY_DOWN:
+      doKey(*event, GameInput::KeyState::Triggered);
       break;
-
-    case WM_CHAR:
-      if(APP) {
-        onChar(APP->input, w);
-      }
+    case SAPP_EVENTTYPE_KEY_UP:
+      doKey(*event, GameInput::KeyState::Released);
       break;
-  }
-  return DefWindowProc(wnd, msg, w, l);
-}
-
-void registerWindow(HINSTANCE inst) {
-  WNDCLASSEX wc;
-  wc.cbSize = sizeof(wc);          // size of structure 
-  wc.style = CS_HREDRAW | CS_VREDRAW; // redraw if size changes 
-  wc.lpfnWndProc = mainProc;     // points to window procedure 
-  wc.cbClsExtra = 0;                // no extra class memory 
-  wc.cbWndExtra = 0;                // no extra window memory 
-  wc.hInstance = inst;         // handle to instance 
-  wc.hIcon = NULL; // predefined app. icon 
-  wc.hCursor = LoadCursor(NULL, IDC_ARROW); // predefined arrow 
-  wc.hbrBackground = CreateSolidBrush(COLOR_ACTIVEBORDER);
-  wc.lpszMenuName = "MainMenu";    // name of menu resource 
-  wc.lpszClassName = "MainClass";  // name of window class 
-  wc.hIconSm = NULL; // small class icon 
-  // Register the window class.
-  RegisterClassEx(&wc);
-}
-
-void sleepNS(int ns) {
-  PROFILE_SCOPE("app", "sleep");
-  //Would probably be best to process coroutines or something here instead of sleep
-  //sleep_for is pretty erratic, so yield in a loop instead
-  auto before = std::chrono::high_resolution_clock::now();
-  int slept = 0;
-  int yieldSlop = 300;
-  while(slept + yieldSlop < ns) {
-    auto remaining = ns - slept;
-    //TODO: this is currently disabled because it oversleeps very often.
-    //Need to either accept this and always use yield or use platform specifics for more accurate timings
-    if(remaining > static_cast<int>(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::milliseconds(100)).count())) {
-      std::this_thread::sleep_for(std::chrono::microseconds(500));
-    }
-    else {
-      std::this_thread::yield();
-    }
-    auto after = std::chrono::high_resolution_clock::now();
-    slept = static_cast<int>(std::chrono::duration_cast<std::chrono::nanoseconds>(after - before).count());
+    case SAPP_EVENTTYPE_MOUSE_SCROLL:
+      onMouseWheel(event->scroll_x, event->scroll_y);
+      break;
+    case SAPP_EVENTTYPE_MOUSE_MOVE:
+      onMouseMove(*event);
+      break;
+    case SAPP_EVENTTYPE_CHAR:
+      onChar(event->char_code);
+      break;
+    case SAPP_EVENTTYPE_MOUSE_ENTER:
+    case SAPP_EVENTTYPE_MOUSE_LEAVE:
+    case SAPP_EVENTTYPE_TOUCHES_BEGAN:
+    case SAPP_EVENTTYPE_TOUCHES_MOVED:
+    case SAPP_EVENTTYPE_TOUCHES_ENDED:
+    case SAPP_EVENTTYPE_TOUCHES_CANCELLED:
+    case SAPP_EVENTTYPE_ICONIFIED:
+    case SAPP_EVENTTYPE_RESTORED:
+    case SAPP_EVENTTYPE_SUSPENDED:
+    case SAPP_EVENTTYPE_RESUMED:
+    case SAPP_EVENTTYPE_QUIT_REQUESTED:
+    case SAPP_EVENTTYPE_CLIPBOARD_PASTED:
+    case SAPP_EVENTTYPE_FILES_DROPPED:
+      break;
   }
 }
 
@@ -463,79 +351,7 @@ void init(void) {
   Input::InputMapper* mapper = app.combined->getRuntime().query<GameInput::GlobalMappingsRow>().tryGetSingletonElement();
   createKeyboardMappings(*mapper);
 
-  // TODO: console
   state.tasks = createTaskGraph();
-
-  /*
-  float vertices[] = {
-      -0.5f,  0.5f,    0.0f, 0.0f,
-       0.5f, -0.5f,    1.0f, 1.0f,
-      -0.5f, -0.5f,    1.0f, 0.0f,
-
-      -0.5f,  0.5f,    0.0f, 0.0f,
-      0.5f, 0.5f,    0.0f, 1.0f,
-       0.5f, -0.5f,    1.0f, 1.0f,
-  };
-  {
-    const auto& verts = sceneHack.meshVertices[0].vertices;
-    const auto& uvs = sceneHack.meshUVs[0].textureCoordinates;
-    std::vector<float> buff;
-    constexpr size_t STRIDE = 4;
-    buff.resize(STRIDE*verts.size());
-    for(size_t v = 0; v < verts.size(); ++v) {
-      size_t i = v*STRIDE;
-      buff[i] = verts[v].x;
-      buff[i + 1] = verts[v].y;
-      buff[i + 2] = uvs[v].x;
-      buff[i + 3] = uvs[v].y;
-    }
-    state.bind.vertex_buffers[0] = sg_make_buffer(sg_buffer_desc{
-      .data = { buff.data(), buff.size()*sizeof(float) }
-    });
-  }
-
-  const Loader::TextureAsset& tex = sceneHack.materials[0].texture;
-  sg_image_desc ig{
-    .width = (int)tex.width,
-    .height = (int)tex.height,
-    .pixel_format = SG_PIXELFORMAT_RGBA8,
-  };
-  ig.data.subimage[0][0] = sg_range{ tex.buffer.data(), tex.buffer.size() };
-  state.bind.images[0] = sg_make_image(ig);
-  state.bind.samplers[0] = sg_make_sampler(sg_sampler_desc{
-    .min_filter = SG_FILTER_NEAREST,
-    .mag_filter = SG_FILTER_NEAREST
-  });
-  sg_buffer_desc buff{
-    .type = SG_BUFFERTYPE_STORAGEBUFFER,
-    .usage = SG_USAGE_STREAM
-  };
-  //buff.data = SG_RANGE(storage);
-  constexpr size_t MAX_SIZE = 10000;
-  buff.size = sizeof(MW_t)*MAX_SIZE;
-  state.bind.storage_buffers[SBUF_mw] = sg_make_buffer(buff);
-  buff.size = sizeof(UV_t)*MAX_SIZE;
-  state.bind.storage_buffers[SBUF_uv] = sg_make_buffer(buff);
-  buff.size = sizeof(TINT_t)*MAX_SIZE;
-  state.bind.storage_buffers[SBUF_tint] = sg_make_buffer(buff);
-
-  sg_pipeline_desc pipeline{
-    .shader = sg_make_shader(triangle_shader_desc(sg_query_backend())),
-  };
-  pipeline.layout.attrs[ATTR_triangle_vertPos].format = SG_VERTEXFORMAT_FLOAT2;
-  pipeline.layout.attrs[ATTR_triangle_vertUV].format = SG_VERTEXFORMAT_FLOAT2;
-
-  state.pip = sg_make_pipeline(pipeline);
-
-  state.pass_action = sg_pass_action{
-    .colors{
-      sg_color_attachment_action{
-        .load_action=SG_LOADACTION_CLEAR,
-        .clear_value={0.0f, 0.0f, 0.0f, 1.0f }
-      }
-    }
-  };
-  */
 }
 
 void frame(void) {
@@ -557,65 +373,6 @@ void frame(void) {
   state.tasks.scheduler->mScheduler.WaitforTask(state.tasks.tasks.mEnd->mTask.get());
 
   PROFILE_UPDATE(nullptr);
-
-  /*
-  sg_begin_pass(sg_pass{ .action = state.pass_action, .swapchain = sglue_swapchain() });
-  sg_apply_pipeline(state.pip);
-
-  std::vector<MW_t> transform;
-  std::vector<UV_t> uv;
-  std::vector<TINT_t> tint;
-  static int i = 0;
-  ++i;
-  static size_t count = 3;
-  transform.resize(count);
-  uv.resize(count);
-  tint.resize(count);
-  for(size_t o = 0; o < count; ++o) {
-    MW_t& t = transform[o];
-    t.pos[0] = static_cast<float>(o)*0.5f;
-    t.pos[1] = 0.f;
-    t.pos[2] = 0.5f;
-    const float c = std::cos(static_cast<float>(i)*0.01f);
-    const float s = std::sin(static_cast<float>(i)*0.01f);
-    glm::mat2 rot{ c, -s,
-      s, c
-    };
-    glm::mat2 scale{
-      0.5f, 0.0f,
-      0.f, 0.25f
-    };
-    glm::mat2 mat = glm::transpose(rot) * scale;
-    std::memcpy(t.scaleRot, &mat, sizeof(mat));
-
-    UV_t& u = uv[o];
-    u.offset[0] = 0;
-    u.offset[1] = 0;
-    u.scale[0] = u.scale[1] = 1.f/static_cast<float>(o + 1);
-
-    TINT_t& tin = tint[o];
-    tin.color[0] = 1.f;
-    tin.color[1] = tin.color[2] = tin.color[3] = 0;
-  }
-  sg_update_buffer(state.bind.storage_buffers[SBUF_mw], sg_range{ transform.data(), sizeof(MW_t)*count });
-  sg_update_buffer(state.bind.storage_buffers[SBUF_uv], sg_range{ uv.data(), sizeof(UV_t)*count });
-  sg_update_buffer(state.bind.storage_buffers[SBUF_tint], sg_range{ tint.data(), sizeof(TINT_t)*count });
-
-  uniforms_t uniforms{};
-  glm::mat4 mat = glm::identity<glm::mat4>();
-  std::memcpy(&uniforms, &mat, sizeof(mat));
-
-  sg_apply_uniforms(UB_uniforms, sg_range{ &uniforms, sizeof(uniforms) });
-
-  sg_apply_bindings(&state.bind);
-  sg_draw(0, 6, count);
-  sg_end_pass();
-  sg_commit();
-  */
-}
-
-void onEvent(const sapp_event* event) {
-  event;
 }
 
 void cleanup(void) {
@@ -647,44 +404,3 @@ sapp_desc sokol_main(int argc, char* argv[]) {
     .win32_console_create = true
   };
 }
-
-/*
-int WINAPI WinMain(HINSTANCE hinstance, HINSTANCE, LPSTR lpCmdLine, int nCmdShow) {
-  AppDatabase app;
-  app.combined = createDatabase();
-  app.window = &app.combined->getRuntime().query<Row<WindowData>>().get<0>(0);
-  app.builder = GameBuilder::create(*app.combined);
-  app.input.playerInput = app.combined->getRuntime().query<GameInput::PlayerKeyboardInputRow>();
-  app.input.machineInput = app.combined->getRuntime().query<GameInput::StateMachineRow>();
-  APP = &app;
-
-  Input::InputMapper* mapper = app.combined->getRuntime().query<GameInput::GlobalMappingsRow>().tryGetSingletonElement();
-  createKeyboardMappings(*mapper);
-
-  RuntimeDatabase& rdb = app.combined->getRuntime();
-  rdb;
-  createConsole();
-
-  registerWindow(hinstance);
-  HWND wnd = CreateWindow("MainClass", "SYX",
-    WS_OVERLAPPEDWINDOW | CS_OWNDC,
-    CW_USEDEFAULT,
-    CW_USEDEFAULT,
-    CW_USEDEFAULT,
-    CW_USEDEFAULT,
-    NULL,
-    NULL,
-    hinstance,
-    NULL);
-  ShowWindow(wnd, nCmdShow);
-
-  UpdateWindow(wnd);
-
-  enableRawMouseInput();
-  int exitCode = mainLoop(lpCmdLine, wnd);
-
-  APP = nullptr;
-
-  return exitCode;
-}
-*/

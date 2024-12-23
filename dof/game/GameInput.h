@@ -78,8 +78,6 @@ namespace GameInput {
     std::bitset<(size_t)Key::Count> mKeys;
     glm::vec2 mRawMousePixels{};
     glm::vec2 mRawMouseDeltaPixels{};
-    glm::vec2 mLastMousePos{};
-    bool mIsRelativeMouse{};
     float mRawWheelDelta{};
     std::vector<std::pair<KeyState, int>> mRawKeys;
     std::string mRawText;
