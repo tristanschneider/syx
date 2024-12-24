@@ -154,13 +154,15 @@ namespace Constraints {
 
   struct ConstraintOwnershipTable {
     ConstraintOwnershipTable(RuntimeDatabaseTaskBuilder& task, const ConstraintDefinitionKey k, const Definition& definition, const TableID& table)
-      : key{ k }
+      : tableID{ table }
+      , key{ k }
       , changes{ task.query<ConstraintChangesRow>(table).tryGetSingletonElement() }
       , storage{ getOrAssert(definition.storage, task, table) }
     {
       assert(changes);
     }
 
+    TableID tableID{};
     ConstraintDefinitionKey key{};
     ConstraintChanges* changes{};
     ConstraintStorageRow* storage{};
@@ -283,9 +285,9 @@ namespace Constraints {
 
         for(size_t i = 0; i < trackedConstraints.constraints.size();) {
           const OwnedConstraint& constraint = trackedConstraints.constraints[i];
-          //Ensure the owner still exists
-          if(auto unpacked = res.tryUnpack(constraint.owner)) {
-            //TODO: bug here if element isn't in this table anymore.
+          //Ensure the owner still exists and is in this table
+          //TODO: potential loss of constraint if objct moves between two different constraint tables
+          if(auto unpacked = res.tryUnpack(constraint.owner); unpacked && unpacked->getTableIndex() == table.tableID.getTableIndex()) {
             const ConstraintStorage& storage = table.storage->at(unpacked->getElementIndex());
             //Ensure the owner is still pointing at this constraint, could either be cleared or a newer one
             if(constraint.storage == storage) {

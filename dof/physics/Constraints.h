@@ -128,7 +128,7 @@ namespace Constraints {
       return indexVersion;
     }
 
-    //EdgeIndex and EdgeVersion apir from IslandGraph whose index also matches SpatialPairsStorage
+    //EdgeIndex and EdgeVersion pair from IslandGraph whose index also matches SpatialPairsStorage
     std::pair<uint32_t, uint8_t> indexVersion{ std::make_pair(std::numeric_limits<uint32_t>::max(), uint8_t(0)) };
   };
   //Constraint is the low level solving mechanism, joint is a higher level description of the constraints the caller wants
