@@ -27,9 +27,6 @@
 #include "AppBuilder.h"
 #include "Simulation.h"
 
-#define SOKOL_GLCORE
-#define SOKOL_IMPL
-
 #include "sokol_app.h"
 #include "sokol_gfx.h"
 #include "sokol_log.h"

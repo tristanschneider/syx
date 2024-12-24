@@ -11,7 +11,6 @@
 
 #include "glm/gtx/transform.hpp"
 
-#define SOKOL_GLCORE
 #include "sokol_gfx.h"
 
 namespace DS {

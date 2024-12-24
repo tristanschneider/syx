@@ -2,18 +2,20 @@
 file(GLOB_RECURSE source_files
     sokol/*.h
     sokol/util/*.h
+    src/*.cpp
+    src/*.h
 )
 
-add_compile_definitions(SOKOL_GLCORE)
+add_library(sokol STATIC ${source_files})
 
-add_library(sokol INTERFACE)
+target_compile_definitions(sokol PUBLIC SOKOL_GLCORE=1)
 
 # Include this directory to anyone that includes this cmakelists
-target_include_directories(sokol INTERFACE
+target_include_directories(sokol PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/sokol
 )
 
-target_sources(sokol INTERFACE ${source_files})
+target_sources(sokol PUBLIC ${source_files})
 
 function(compile_shaders target files)
     set(shdc "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/sokol-tools-bin/bin/win32/sokol-shdc.exe")
