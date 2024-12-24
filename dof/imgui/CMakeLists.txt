@@ -14,7 +14,7 @@ target_include_directories(imgui PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/imgui)
 
-target_precompile_headers(game PRIVATE src/Precompile.h)
+target_precompile_headers(imgui PRIVATE src/Precompile.h)
 
 # Link dependencies
-target_link_libraries(imgui PRIVATE game ogl glew glm)
+target_link_libraries(imgui PRIVATE game sokol renderer)

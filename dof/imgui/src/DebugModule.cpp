@@ -1,6 +1,11 @@
 #include "Precompile.h"
 #include "DebugModule.h"
 
+//TODO:
+namespace DebugModule {
+  void update(IAppBuilder&) {}
+};
+/*
 #include "imgui.h"
 #include "AppBuilder.h"
 #include "Renderer.h"
@@ -86,3 +91,4 @@ namespace DebugModule {
     debugWindow(builder);
   }
 }
+*/

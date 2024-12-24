@@ -108,6 +108,7 @@ namespace {
     });
   }
 
+  constexpr size_t MAX_DEBUG_LINES = 10000;
   RenderDebugDrawer _createDebugDrawer() {
     RenderDebugDrawer drawer;
     sg_pipeline_desc pipeline{
@@ -126,7 +127,7 @@ namespace {
       .type = SG_BUFFERTYPE_VERTEXBUFFER,
       .usage = SG_USAGE_STREAM
     };
-    vb.size = sizeof(float)*5*10000;
+    vb.size = sizeof(float)*5*MAX_DEBUG_LINES;
     drawer.bindings.vertex_buffers[0] = sg_make_buffer(vb);
 
     drawer.pipeline = sg_make_pipeline(pipeline);
@@ -357,14 +358,15 @@ void _renderDebug(IAppBuilder& builder) {
         DS::DebugUniforms_t uniforms{};
         sg_apply_pipeline(debug.pipeline);
         sg_apply_bindings(debug.bindings);
-        sg_update_buffer(debug.bindings.vertex_buffers[0], sg_range{ linesToDraw.data(), sizeof(DebugPoint)*linesToDraw.size() });
+        const size_t elements = std::min(MAX_DEBUG_LINES, linesToDraw.size());
+        sg_update_buffer(debug.bindings.vertex_buffers[0], sg_range{ linesToDraw.data(), sizeof(DebugPoint)*elements });
 
         for(const auto& renderCamera : state->mCameras) {
           glm::mat4 worldToView = _getWorldToView(renderCamera, window->aspectRatio);
           std::memcpy(uniforms.wvp, &worldToView, sizeof(worldToView));
           sg_apply_uniforms(UB_DebugUniforms, sg_range{ &uniforms, sizeof(uniforms) });
 
-          sg_draw(0, static_cast<int>(linesToDraw.size()), 0);
+          sg_draw(0, static_cast<int>(linesToDraw.size()*2), 1);
         }
       }
     }
@@ -372,7 +374,7 @@ void _renderDebug(IAppBuilder& builder) {
   builder.submitTask(std::move(task));
 }
 
-void endPass(IAppBuilder& builder) {
+void Renderer::endMainPass(IAppBuilder& builder) {
   auto task = builder.createTask();
   auto globals = task.query<Row<RendererState>>();
 
@@ -706,8 +708,6 @@ void Renderer::render(IAppBuilder& builder) {
   builder.submitTask(std::move(task));
 
   _renderDebug(builder);
-
-  endPass(builder);
 }
 
 void Renderer::commit(IAppBuilder& builder) {
@@ -734,4 +734,9 @@ void Renderer::commit(IAppBuilder& builder) {
     }
   });
   builder.submitTask(std::move(task));
+}
+
+void Renderer::injectRenderDependency(RuntimeDatabaseTaskBuilder& task) {
+  task.query<Row<RendererState>>();
+  task.setPinning(AppTaskPinning::MainThread{});
 }

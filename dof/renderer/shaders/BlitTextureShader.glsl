@@ -1,4 +1,6 @@
 @vs vs
+@glsl_options flip_vert_y
+
 in vec2 vertPos;
 in vec2 vertUV;
 

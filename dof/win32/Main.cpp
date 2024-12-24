@@ -7,10 +7,6 @@
 
 #include <Windows.h>
 
-#ifdef IMGUI_ENABLED
-#include "ImguiModule.h"
-#endif
-
 #include "GameBuilder.h"
 #include "GameDatabase.h"
 #include "GameScheduler.h"
@@ -31,6 +27,11 @@
 #include "sokol_gfx.h"
 #include "sokol_log.h"
 #include "sokol_glue.h"
+
+#ifdef IMGUI_ENABLED
+#include "ImguiModule.h"
+#include "util/sokol_imgui.h"
+#endif
 
 //TODO: add capabilities to state machine so this keyboard passthrough isn't necessary.
 //The passthrough is only used for imgui debugging, gameplay should use the state machine
@@ -113,9 +114,9 @@ void onKey(Input::PlatformInputID key, InputArgs& args, GameInput::KeyState s) {
 
 void createKeyboardMappings(Input::InputMapper& mapper) {
   auto cast = [](auto i) { return static_cast<Input::PlatformInputID>(i); };
-  mapper.addKeyAs2DRelativeMapping(cast(SAPP_KEYCODE_W), GameInput::Keys::MOVE_2D, { 0, -1 });
+  mapper.addKeyAs2DRelativeMapping(cast(SAPP_KEYCODE_W), GameInput::Keys::MOVE_2D, { 0, 1 });
   mapper.addKeyAs2DRelativeMapping(cast(SAPP_KEYCODE_A), GameInput::Keys::MOVE_2D, { -1, 0 });
-  mapper.addKeyAs2DRelativeMapping(cast(SAPP_KEYCODE_S), GameInput::Keys::MOVE_2D, { 0, 1 });
+  mapper.addKeyAs2DRelativeMapping(cast(SAPP_KEYCODE_S), GameInput::Keys::MOVE_2D, { 0, -1 });
   mapper.addKeyAs2DRelativeMapping(cast(SAPP_KEYCODE_D), GameInput::Keys::MOVE_2D, { 1, 0 });
   mapper.addKeyAs1DRelativeMapping(cast(SAPP_KEYCODE_PAGE_UP), GameInput::Keys::DEBUG_ZOOM_1D, -1.0f);
   mapper.addKeyAs1DRelativeMapping(cast(SAPP_KEYCODE_PAGE_DOWN), GameInput::Keys::DEBUG_ZOOM_1D, 1.0f);
@@ -195,6 +196,9 @@ void doMouseKey(sapp_mousebutton key, GameInput::KeyState s) {
 }
 
 void onEvent(const sapp_event* event) {
+#ifdef IMGUI_ENABLED
+  simgui_handle_event(event);
+#endif
   switch(event->type) {
     case SAPP_EVENTTYPE_RESIZED:
       setWindowSize(event->framebuffer_width, event->framebuffer_height);
@@ -296,6 +300,7 @@ TaskGraph createTaskGraph() {
 #ifdef IMGUI_ENABLED
   ImguiModule::update(*builder);
 #endif
+  Renderer::endMainPass(*builder);
   Renderer::commit(*builder);
   resetInput(*builder);
   GameInput::update(*builder);

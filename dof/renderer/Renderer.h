@@ -37,5 +37,8 @@ namespace Renderer {
   void extractRenderables(IAppBuilder& builder);
   void clearRenderRequests(IAppBuilder& builder);
   void render(IAppBuilder& builder);
+  void endMainPass(IAppBuilder& builder);
   void commit(IAppBuilder& builder);
+
+  void injectRenderDependency(RuntimeDatabaseTaskBuilder& task);
 };
