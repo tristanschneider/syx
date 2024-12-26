@@ -17,7 +17,7 @@ target_link_libraries(renderer PRIVATE table)
 target_link_libraries(renderer PRIVATE game)
 # TODO: remove this by loading from loader project
 target_link_libraries(renderer PRIVATE stb)
-target_link_libraries(renderer PRIVATE sokol)
+target_link_libraries(renderer PRIVATE sokol font)
 
 file(GLOB_RECURSE shaders "shaders/*.glsl")
 compile_shaders(renderer shaders)

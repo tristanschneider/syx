@@ -23,6 +23,9 @@ namespace TMS {
 #include "Quad.h"
 #include "BlitPass.h"
 
+#include "sokol_glue.h"
+#include "FontPass.h"
+
 namespace QuadPassTable {
   //TODO: from shader description
   using Transform = TMS::MW_t;
@@ -232,7 +235,8 @@ struct RenderDB : IDatabase {
 
   using GraphicsContext = Table<
     Row<RendererState>,
-    Row<WindowData>
+    Row<WindowData>,
+    FontPass::GlobalsRow
   >;
 
   using RendererDatabase = Database<
@@ -327,15 +331,23 @@ namespace Renderer {
   }
 }
 
-void Renderer::init(IAppBuilder& builder, const sg_swapchain& swapchain) {
+int DEFAULT_FONT{};
+void Renderer::init(IAppBuilder& builder, const RendererContext& context) {
   auto temp = builder.createTask();
   auto q = temp.query<Row<RendererState>>();
   assert(q.size());
   temp.getModifierForTable(q.matchingTableIDs[0])->resize(1);
-  q.get<0>(0).at(0).swapchain = swapchain;
+  RendererState& state = q.get<0>(0).at(0);
+  FontPass::Globals* fontPass = temp.query<FontPass::GlobalsRow>().tryGetSingletonElement();
+  assert(fontPass);
+  state.swapchain = context.swapchain;
+  fontPass->fontContext = context.fontContext;
+
   temp.discard();
 
   initGame(builder);
+
+  FontPass::init(builder);
 }
 
 void _renderDebug(IAppBuilder& builder) {
@@ -362,6 +374,7 @@ void _renderDebug(IAppBuilder& builder) {
         sg_update_buffer(debug.bindings.vertex_buffers[0], sg_range{ linesToDraw.data(), sizeof(DebugPoint)*elements });
 
         for(const auto& renderCamera : state->mCameras) {
+          //TODO: why isn't this using the matrix from the camera?
           glm::mat4 worldToView = _getWorldToView(renderCamera, window->aspectRatio);
           std::memcpy(uniforms.wvp, &worldToView, sizeof(worldToView));
           sg_apply_uniforms(UB_DebugUniforms, sg_range{ &uniforms, sizeof(uniforms) });
@@ -632,6 +645,15 @@ void Renderer::render(IAppBuilder& builder) {
 
     const float aspectRatio = window->mHeight ? float(window->mWidth)/float(window->mHeight) : 1.0f;
     window->aspectRatio = aspectRatio;
+    state->swapchain = sglue_swapchain();
+
+    //Recreate render target if screen size changed so backing framebuffer always matches
+    if(window->hasChanged) {
+      sg_destroy_image(state->offscreenRender.target);
+      sg_destroy_attachments(state->offscreenRender.attach);
+      state->offscreenRender = createOffscreenRenderTarget(state->swapchain);
+      window->hasChanged = false;
+    }
 
     auto& cameras = state->mCameras;
     for(auto& camera : cameras) {
@@ -708,6 +730,8 @@ void Renderer::render(IAppBuilder& builder) {
   builder.submitTask(std::move(task));
 
   _renderDebug(builder);
+
+  FontPass::render(builder);
 }
 
 void Renderer::commit(IAppBuilder& builder) {
@@ -739,4 +763,33 @@ void Renderer::commit(IAppBuilder& builder) {
 void Renderer::injectRenderDependency(RuntimeDatabaseTaskBuilder& task) {
   task.query<Row<RendererState>>();
   task.setPinning(AppTaskPinning::MainThread{});
+}
+
+struct CameraReader : Renderer::ICameraReader {
+  CameraReader(RuntimeDatabaseTaskBuilder& task)
+    : query{ task.query<const Row<RendererState>>() }
+    , window{ task.query<const Row<WindowData>>() }
+  {
+  }
+
+  void getAll(std::vector<RendererCamera>& out) final {
+    out.clear();
+    for(size_t t = 0; t < query.size(); ++t) {
+       for(const RendererState& s : query.get<0>(t).mElements) {
+         out.insert(out.end(), s.mCameras.begin(), s.mCameras.end());
+       }
+    }
+  }
+
+  WindowData getWindow() final {
+    auto result = window.tryGetSingletonElement();
+    return result ? *result : WindowData{};
+  }
+
+  QueryResult<const Row<RendererState>> query;
+  QueryResult<const Row<WindowData>> window;
+};
+
+std::shared_ptr<Renderer::ICameraReader> Renderer::createCameraReader(RuntimeDatabaseTaskBuilder& task) {
+  return std::make_unique<CameraReader>(task);
 }

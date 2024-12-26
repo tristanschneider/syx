@@ -37,10 +37,15 @@ file(GLOB_RECURSE impl_files
 
 add_library(sokolImpl STATIC ${impl_files})
 
+if(MSVC)
+    # Unused statics from fontstash
+    target_compile_options(sokolImpl PRIVATE /wd4505)
+endif()
+
 target_sources(sokolImpl PRIVATE ${impl_files})
 
 target_include_directories(sokolImpl PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-target_link_libraries(sokolImpl PUBLIC sokol)
+target_link_libraries(sokolImpl PUBLIC sokol font)

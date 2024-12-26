@@ -22,3 +22,6 @@
 [submodule "dof/sokol/sokol-tools-bin"]
 	path = dof/sokol/sokol-tools-bin
 	url = https://github.com/floooh/sokol-tools-bin.git
+[submodule "dof/font/fontstash"]
+	path = dof/font/fontstash
+	url = https://github.com/memononen/fontstash.git

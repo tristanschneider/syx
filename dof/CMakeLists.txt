@@ -60,10 +60,11 @@ add_subdirectory(scheduler)
 add_subdirectory(profile)
 add_subdirectory(glm)
 add_subdirectory(stb)
-add_subdirectory(sokol)
+add_subdirectory(font)
 add_subdirectory(ispc)
 
 # With dependencies
+add_subdirectory(sokol)
 add_subdirectory(table)
 add_subdirectory(loader)
 add_subdirectory(curve)

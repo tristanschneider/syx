@@ -1,20 +1,14 @@
 #include "Precompile.h"
 #include "DebugModule.h"
 
-//TODO:
-namespace DebugModule {
-  void update(IAppBuilder&) {}
-};
-/*
 #include "imgui.h"
 #include "AppBuilder.h"
 #include "Renderer.h"
 #include "ImguiModule.h"
-#include "RendererTableAdapters.h"
-#include "DebugLinePassTable.h"
 #include "TableAdapters.h"
 
 namespace DebugModule {
+  /*
   constexpr auto FULL_SCREEN_INVISIBLE = ImGuiWindowFlags_NoNav |
     ImGuiWindowFlags_NoDecoration |
     ImGuiWindowFlags_NoInputs |
@@ -69,7 +63,7 @@ namespace DebugModule {
     });
     builder.submitTask(std::move(task));
   }
-
+  */
   void debugWindow(IAppBuilder& builder) {
     auto task = builder.createTask();
     task.setPinning(AppTaskPinning::MainThread{}).setName("debug text");
@@ -87,8 +81,6 @@ namespace DebugModule {
   }
 
   void update(IAppBuilder& builder) {
-    processDebugText(builder);
     debugWindow(builder);
   }
 }
-*/

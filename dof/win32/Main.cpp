@@ -27,6 +27,9 @@
 #include "sokol_gfx.h"
 #include "sokol_log.h"
 #include "sokol_glue.h"
+#include "fontstash.h"
+#include "util/sokol_fontstash.h"
+#include "util/sokol_gl.h"
 
 #ifdef IMGUI_ENABLED
 #include "ImguiModule.h"
@@ -67,6 +70,7 @@ struct AppState {
   TaskGraph tasks;
   std::vector<std::string> args;
   std::chrono::steady_clock::time_point lastDraw;
+  FONScontext* fontContext{};
 };
 AppState state;
 
@@ -76,6 +80,7 @@ WindowData* tryGetWindow() {
 
 void setWindowSize(int width, int height) {
   if(WindowData* window = tryGetWindow()) {
+    window->hasChanged = width != window->mWidth || height != window->mHeight;
     window->mWidth = width;
     window->mHeight = height;
   }
@@ -199,6 +204,7 @@ void onEvent(const sapp_event* event) {
 #ifdef IMGUI_ENABLED
   simgui_handle_event(event);
 #endif
+
   switch(event->type) {
     case SAPP_EVENTTYPE_RESIZED:
       setWindowSize(event->framebuffer_width, event->framebuffer_height);
@@ -281,11 +287,16 @@ TaskGraph createTaskGraph() {
   //The rest of the init can be scheduled asynchronously but still can't be done in parallel with creating the other tasks
   std::unique_ptr<IAppBuilder> initBuilder = GameBuilder::create(*APP->combined);
 
-  Renderer::init(*initBuilder, sglue_swapchain());
+  Renderer::init(*initBuilder, RendererContext{
+    .swapchain = sglue_swapchain(),
+    .fontContext = state.fontContext
+  });
 
   Simulation::init(*initBuilder);
   GameInput::init(*initBuilder);
   TaskRange initTasks = GameScheduler::buildTasks(IAppBuilder::finalize(std::move(initBuilder)), *tls->instance);
+
+  setWindowSize(sapp_width(), sapp_height());
 
   initTasks.mBegin->mTask.addToPipe(scheduler->mScheduler);
   scheduler->mScheduler.WaitforTask(initTasks.mEnd->mTask.get());
@@ -341,6 +352,18 @@ void init(void) {
     },
     .environment = sglue_environment(),
   });
+  sgl_setup(sgl_desc_t{
+    .color_format = SG_PIXELFORMAT_RGBA8,
+    .depth_format = SG_PIXELFORMAT_DEPTH,
+    .logger{
+      .func = slog_func,
+    }
+  });
+  sfons_desc_t fd{
+    .width = 1024,
+    .height = 1024,
+  };
+  state.fontContext = sfons_create(&fd);
 
   AppDatabase& app = state.app;
   app.combined = createDatabase();
@@ -378,6 +401,9 @@ void frame(void) {
 }
 
 void cleanup(void) {
+  sfons_destroy(state.fontContext);
+  state.fontContext = nullptr;
+  sgl_shutdown();
   sg_shutdown();
 }
 
