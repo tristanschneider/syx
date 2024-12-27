@@ -48,10 +48,10 @@ namespace ImguiModule {
     if(!ImGui::GetCurrentContext()) {
       simgui_setup(simgui_desc_t{
         .depth_format = SG_PIXELFORMAT_DEPTH,
+        .ini_filename = "imgui.ini"
       });
       enabled = true;
     }
-
     simgui_new_frame(simgui_frame_desc_t{
       .width = sapp_width(),
       .height = sapp_height(),

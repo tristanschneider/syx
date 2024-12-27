@@ -401,6 +401,9 @@ void frame(void) {
 }
 
 void cleanup(void) {
+#ifdef IMGUI_ENABLED
+  simgui_shutdown();
+#endif
   sfons_destroy(state.fontContext);
   state.fontContext = nullptr;
   sgl_shutdown();

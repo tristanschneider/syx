@@ -148,6 +148,11 @@ namespace Scenes {
           goalX.at(j) = startX + sprite.uMin*float(columns);
           goalY.at(j) = startY + sprite.vMin*float(rows);
 
+          //Flip from assuming bottom left texture origin to top left
+          sprite.vMax = 1.f - sprite.vMax;
+          sprite.vMin = 1.f - sprite.vMin;
+          std::swap(sprite.vMax, sprite.vMin);
+
           posX.at(j) = startX + shuffleColumn;
           posY.at(j) = startY + shuffleRow;
         }

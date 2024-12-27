@@ -95,14 +95,15 @@ namespace {
 
   sg_buffer _createQuadBuffers() {
     constexpr float s = 0.5f;
+    //Origin of texture is top left, might be OGL only
     constexpr float vertices[] = {
-      -s,  s,    0.0f, 1.0f,
-        s, s,   1.0f, 1.0f,
-      s, -s,    1.0f, 0.0f,
+      -s,  s,    0.0f, 0.0f,
+        s, s,   1.0f, 0.0f,
+      s, -s,    1.0f, 1.0f,
 
-      -s,  s,    0.0f, 1.0f,
-      s, -s,      1.0f, 0.0f,
-       -s, -s,   0.0f, 0.0f,
+      -s,  s,    0.0f, 0.0f,
+      s, -s,      1.0f, 1.0f,
+       -s, -s,   0.0f, 1.0f,
     };
     return sg_make_buffer(sg_buffer_desc{
       .data = SG_RANGE(vertices)
