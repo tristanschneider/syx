@@ -24,6 +24,7 @@ namespace TMS {
 
 #include "sokol_glue.h"
 #include "FontPass.h"
+#include "loader/SceneAsset.h"
 
 namespace QuadPassTable {
   using Transform = TMS::MW_t;
@@ -226,7 +227,14 @@ namespace {
   }
 }
 
-struct RenderDB : IDatabase {
+struct SceneGPUAssets {
+};
+
+struct SceneGPUAssetsRow : Row<SceneGPUAssets> {};
+
+struct RenderDBStorage : ChainedRuntimeStorage {
+  using ChainedRuntimeStorage::ChainedRuntimeStorage;
+
   using TexturesTable = Table<
     Row<TextureRendererHandle>,
     Row<TextureGameHandle>
@@ -245,35 +253,39 @@ struct RenderDB : IDatabase {
     DebugLinePassTable::TextTable
   >;
 
-  RenderDB(size_t quadPassCount, StableElementMappings& mappings)
-    : runtime(getArgs(quadPassCount, mappings)) {
-  }
-
-  RuntimeDatabase& getRuntime() override {
-    return runtime;
-  }
-
-  RuntimeDatabaseArgs getArgs(size_t quadPassCount, StableElementMappings& mappings) {
-    RuntimeDatabaseArgs result;
-    DBReflect::reflect(main, result, mappings);
-    quadPasses.resize(quadPassCount);
-    for(QuadPassTable::Type& pass : quadPasses) {
-      DBReflect::addTable(pass, result, mappings);
-    }
-    return result;
-  }
-
-  RendererDatabase main;
+  RendererDatabase database;
   std::vector<QuadPassTable::Type> quadPasses;
-  RuntimeDatabase runtime;
+  std::vector<SceneGPUAssetsRow> sceneGPU;
 };
 
-std::unique_ptr<IDatabase> Renderer::createDatabase(RuntimeDatabaseTaskBuilder&& builder, StableElementMappings& mappings) {
-  auto sprites = builder.query<const Row<CubeSprite>>();
-  const size_t quadPassCount = sprites.matchingTableIDs.size();
-  //Create the database with the required number of quad pass tables
-  auto result = std::make_unique<RenderDB>(quadPassCount, mappings);
-  return result;
+void Renderer::createDatabase(RuntimeDatabaseArgs& args) {
+  RenderDBStorage* storage = RuntimeStorage::addToChain<RenderDBStorage>(args);
+  //Add the base renderer database
+  DBReflect::reflect(storage->database, args);
+
+  //Inspect the existing tables for necessary modifications
+  size_t quadPassCount{};
+  std::vector<RuntimeTable*> sceneAssetTables;
+  for(RuntimeTable& table : args.tables) {
+    if(table.tryGet<Row<CubeSprite>>()) {
+      ++quadPassCount;
+    }
+    if(table.tryGet<Loader::SceneAssetRow>()) {
+      sceneAssetTables.push_back(&table);
+    }
+  }
+
+  //Add a row to all tables with this asset for the GPU resources
+  storage->sceneGPU.resize(sceneAssetTables.size());
+  for(size_t i = 0; i < sceneAssetTables.size(); ++i) {
+    DBReflect::details::reflectRow(storage->sceneGPU[i], *sceneAssetTables[i]);
+  }
+
+  //Create our own tables that mirror the contents of quad passes
+  storage->quadPasses.resize(quadPassCount);
+  for(auto& pass : storage->quadPasses) {
+    DBReflect::addTable(pass, args);
+  }
 }
 
 OffscreenRender createOffscreenRenderTarget(const sg_swapchain& swapchain) {

@@ -72,17 +72,15 @@ namespace PerformanceDB {
     GameObjectTable
   >;
 
-  std::unique_ptr<IDatabase> create(StableElementMappings& mappings) {
-    return DBReflect::mergeAll(
-      DBReflect::createDatabase<DB>(mappings),
-      DBReflect::createDatabase<StatEffectDatabase>(mappings),
-      SceneNavigator::createDB(mappings)
-    );
+  void create(RuntimeDatabaseArgs& args) {
+    DBReflect::addDatabase<DB>(args);
+    DBReflect::addDatabase<StatEffectDatabase>(args);
+    SceneNavigator::createDB(args);
   }
 
   std::unique_ptr<IDatabase> create() {
-    auto mappings = std::make_unique<StableElementMappings>();
-    std::unique_ptr<IDatabase> game = create(*mappings);
-    return DBReflect::bundle(std::move(game), std::move(mappings));
+    RuntimeDatabaseArgs args = DBReflect::createArgsWithMappings();
+    create(args);
+    return std::make_unique<RuntimeDatabase>(std::move(args));
   }
 };

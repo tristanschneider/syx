@@ -23,9 +23,9 @@ namespace Test {
   {}
 
   TestGame::TestGame(GameConstructArgs args) {
-    auto mappings = std::make_unique<StableElementMappings>();
-    std::unique_ptr<IDatabase> game = GameDatabase::create(*mappings);
-    std::unique_ptr<IDatabase> result =  DBReflect::bundle(std::move(game), std::move(mappings));
+    RuntimeDatabaseArgs rargs = DBReflect::createArgsWithMappings();
+    GameDatabase::create(rargs);
+    std::unique_ptr<IDatabase> result = std::make_unique<RuntimeDatabase>(std::move(rargs));
 
     std::unique_ptr<IAppBuilder> bootstrap = GameBuilder::create(*result);
     Simulation::initScheduler(*bootstrap);

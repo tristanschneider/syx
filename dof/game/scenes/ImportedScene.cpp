@@ -297,7 +297,7 @@ namespace Scenes {
     return std::make_unique<ImportedScene>();
   }
 
-  std::unique_ptr<IDatabase> createImportedSceneDB(StableElementMappings& mappings) {
-    return DBReflect::createDatabase<ImportedSceneDB>(mappings);
+  void createImportedSceneDB(RuntimeDatabaseArgs& args) {
+    return DBReflect::addDatabase<ImportedSceneDB>(args);
   }
 }

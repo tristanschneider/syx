@@ -13,6 +13,7 @@ class ElementRef;
 class RuntimeDatabaseTaskBuilder;
 struct IDatabase;
 struct StableElementMappings;
+struct RuntimeDatabaseArgs;
 
 namespace Scenes {
   struct IImportedSceneNavigator {
@@ -28,5 +29,5 @@ namespace Scenes {
   std::shared_ptr<IImportedSceneNavigator> createImportedSceneNavigator(RuntimeDatabaseTaskBuilder& task);
 
   std::unique_ptr<SceneNavigator::IScene> createImportedScene();
-  std::unique_ptr<IDatabase> createImportedSceneDB(StableElementMappings& mappings);
+  void createImportedSceneDB(RuntimeDatabaseArgs& args);
 }

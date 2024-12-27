@@ -305,7 +305,7 @@ public:
   RuntimeDatabaseTaskBuilder& setCallback(AppTaskCallback&& callback);
   RuntimeDatabaseTaskBuilder& setName(std::string_view name);
 
-  //Get the entire database, which turns this into a syncrhonous task since it could do anything
+  //Get the entire database, which turns this into a synchronous task since it could do anything
   RuntimeDatabase& getDatabase();
 
   AppTaskWithMetadata finalize()&&;

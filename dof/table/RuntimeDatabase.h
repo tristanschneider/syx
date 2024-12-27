@@ -8,6 +8,12 @@ struct RuntimeRow {
   void (*swapRemove)(void* row, const UnpackedDatabaseElementID& id, [[maybe_unused]] StableElementMappings& mappings){};
 };
 
+//All the runtime types hold pointers to rows and tables stored somewhere. This is a simple way to define their storage.
+//Layout doesn't matter strongly as they will only be queried once during initialization after which all operations are done directly on row pointers
+struct IRuntimeStorage {
+  virtual ~IRuntimeStorage() = default;
+};
+
 struct RuntimeTable {
   using IDT = DBTypeID;
 
@@ -167,12 +173,42 @@ struct RuntimeDatabaseArgs {
   size_t elementIndexBits{};
   std::vector<RuntimeTable> tables;
   StableElementMappings* mappings{};
+  std::unique_ptr<IRuntimeStorage> storage;
 };
 
-class RuntimeDatabase {
+struct ChainedRuntimeStorage : IRuntimeStorage {
+  ChainedRuntimeStorage(RuntimeDatabaseArgs& args)
+    : child{ std::move(args.storage) } {
+  }
+  std::unique_ptr<IRuntimeStorage> child;
+};
+
+namespace RuntimeStorage {
+  template<class T>
+  concept ChainedStorage = std::is_base_of_v<ChainedRuntimeStorage, T>;
+
+  template<ChainedStorage T>
+  T* addToChain(RuntimeDatabaseArgs& args) {
+    std::unique_ptr<T> result = std::make_unique<T>(args);
+    T* ptr = result.get();
+    args.storage = std::move(result);
+    return ptr;
+  }
+}
+
+class RuntimeDatabase;
+
+struct IDatabase {
+  virtual ~IDatabase() = default;
+  virtual RuntimeDatabase& getRuntime() = 0;
+};
+
+class RuntimeDatabase : public IDatabase {
 public:
-  RuntimeDatabase(RuntimeDatabaseArgs&& args)
-    : data{ std::move(args) } {
+  RuntimeDatabase(RuntimeDatabaseArgs&& args);
+
+  RuntimeDatabase& getRuntime() final {
+    return *this;
   }
 
   RuntimeTable* tryGet(const TableID& id);
@@ -269,11 +305,6 @@ private:
   RuntimeDatabaseArgs data;
 };
 
-struct IDatabase {
-  virtual ~IDatabase() = default;
-  virtual RuntimeDatabase& getRuntime() = 0;
-};
-
 //Specialization that provides all row ids
 template<>
 struct QueryResult<> {
@@ -365,12 +396,11 @@ namespace DBReflect {
   //If multiple are combined the IDs will differ if used/queried via the direct database or
   //the runtime database, so care must be taken not to mix them
   template<class DB>
-  void reflect(DB& db, RuntimeDatabaseArgs& args, StableElementMappings& mappings) {
+  void reflect(DB& db, RuntimeDatabaseArgs& args) {
     const size_t baseIndex = args.tables.size();
     constexpr size_t newTables = db.size();
     args.tables.resize(baseIndex + newTables);
     args.elementIndexBits = details::computeElementIndexBits(args.tables.size());
-    args.mappings = &mappings;
     db.visitOne([&](auto& table) {
       const size_t rawIndex = DB::getTableIndex(table).getTableIndex();
       const auto tableID = UnpackedDatabaseElementID{ 0, args.elementIndexBits }.remake(baseIndex + rawIndex, 0);
@@ -379,49 +409,28 @@ namespace DBReflect {
   }
 
   template<class TableT>
-  void addTable(TableT& table, RuntimeDatabaseArgs& args, StableElementMappings& mappings) {
+  void addTable(TableT& table, RuntimeDatabaseArgs& args) {
     const size_t baseIndex = args.tables.size();
     const size_t newTables = 1;
     args.tables.resize(baseIndex + newTables);
     args.elementIndexBits = details::computeElementIndexBits(args.tables.size());
-    args.mappings = &mappings;
     const auto tableID = UnpackedDatabaseElementID{ 0, args.elementIndexBits }.remake(baseIndex, 0);
     details::reflectTable(TableID{ tableID }, table, args);
   }
 
   template<class DB>
-  std::unique_ptr<IDatabase> createDatabase(StableElementMappings& mappings) {
-    struct Impl : IDatabase {
-      Impl(StableElementMappings& mappings)
-        : runtime(getArgs(mappings)) {
-      }
-
-      RuntimeDatabase& getRuntime() override {
-        return runtime;
-      }
-
-      RuntimeDatabaseArgs getArgs(StableElementMappings& mappings) {
-        RuntimeDatabaseArgs result;
-        reflect(db, result, mappings);
-        return result;
-      }
-
+  void addDatabase(RuntimeDatabaseArgs& args) {
+    //Create a class to store the database
+    struct Storage : ChainedRuntimeStorage {
+      using ChainedRuntimeStorage::ChainedRuntimeStorage;
       DB db;
-      RuntimeDatabase runtime;
     };
-    return std::make_unique<Impl>(mappings);
+    //Add the storage to the args
+    Storage* s = RuntimeStorage::addToChain<Storage>(args);
+    //Add the tables in the new database to args
+    reflect(s->db, args);
   }
 
-  std::unique_ptr<IDatabase> merge(std::unique_ptr<IDatabase> l, std::unique_ptr<IDatabase> r);
-  std::unique_ptr<IDatabase> bundle(std::unique_ptr<IDatabase> db, std::unique_ptr<StableElementMappings> mappings);
-  template<class... Rest>
-  std::unique_ptr<IDatabase> mergeAll(std::unique_ptr<IDatabase> l, std::unique_ptr<IDatabase> r, Rest... rest) {
-    auto merged = merge(std::move(l), std::move(r));
-    if constexpr(sizeof...(Rest) > 0) {
-      return mergeAll(std::move(merged), std::forward<Rest>(rest)...);
-    }
-    else {
-      return merged;
-    }
-  }
+  void addStableMappings(RuntimeDatabaseArgs& args, std::unique_ptr<StableElementMappings> mappings);
+  RuntimeDatabaseArgs createArgsWithMappings();
 }

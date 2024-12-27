@@ -71,8 +71,8 @@ namespace SceneNavigator {
     return std::make_shared<Reg>(task);
   }
 
-  std::unique_ptr<IDatabase> createDB(StableElementMappings& mappings) {
-    return DBReflect::createDatabase<SceneDB>(mappings);
+  void createDB(RuntimeDatabaseArgs& args) {
+    DBReflect::addDatabase<SceneDB>(args);
   }
 
   //Wraps the scene task in a callback that will first check if this scene should be performing the desired operation

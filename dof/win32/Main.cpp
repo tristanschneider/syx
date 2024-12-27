@@ -328,20 +328,13 @@ TaskGraph createTaskGraph() {
 }
 
 std::unique_ptr<IDatabase> createDatabase() {
-  auto mappings = std::make_unique<StableElementMappings>();
-  std::unique_ptr<IDatabase> game = GameDatabase::create(*mappings);
-  std::unique_ptr<IAppBuilder> tempBuilder = GameBuilder::create(*game);
-  auto tempA = tempBuilder->createTask();
-  tempA.discard();
-  auto tempB = tempBuilder->createTask();
-  tempB.discard();
-  std::unique_ptr<IDatabase> renderer = Renderer::createDatabase(std::move(tempA), *mappings);
-  std::unique_ptr<IDatabase> result = DBReflect::merge(std::move(game), std::move(renderer));
+  RuntimeDatabaseArgs args = DBReflect::createArgsWithMappings();
+  GameDatabase::create(args);
+  Renderer::createDatabase(args);
 #ifdef IMGUI_ENABLED
-  result = DBReflect::merge(std::move(result), ImguiModule::createDatabase(std::move(tempB), *mappings));
+  ImguiModule::createDatabase(args);
 #endif
-  result = DBReflect::bundle(std::move(result), std::move(mappings));
-  return result;
+  return std::make_unique<RuntimeDatabase>(std::move(args));
 }
 
 void init(void) {

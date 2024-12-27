@@ -188,7 +188,7 @@ namespace Scenes {
     return std::make_shared<LoadingNavigator>(task);
   }
 
-  std::unique_ptr<IDatabase> createLoadingSceneDB(StableElementMappings& mappings) {
-    return DBReflect::createDatabase<LoadingSceneDB>(mappings);
+  void createLoadingSceneDB(RuntimeDatabaseArgs& args) {
+    DBReflect::addDatabase<LoadingSceneDB>(args);
   }
 }

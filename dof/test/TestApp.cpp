@@ -6,9 +6,9 @@
 
 namespace Test {
   void TestApp::initST(const DBBuilder& buildDB, const WorkBuilder& buildWork) {
-    auto mappings = std::make_unique<StableElementMappings>();
-    db = buildDB(*mappings);
-    db = DBReflect::bundle(std::move(db), std::move(mappings));
+    RuntimeDatabaseArgs args = DBReflect::createArgsWithMappings();
+    buildDB(args);
+    db = std::make_unique<RuntimeDatabase>(std::move(args));
     auto builder = GameBuilder::create(*db);
     auto temp = builder->createTask();
     temp.discard();
@@ -21,13 +21,22 @@ namespace Test {
   }
 
   void TestApp::initMT(const DBBuilder& buildDB, const WorkBuilder& buildWork) {
-    auto mappings = std::make_unique<StableElementMappings>();
-    db = buildDB(*mappings);
-    if(!db->getRuntime().query<ThreadLocalsRow>().size()) {
-      auto temp = DBReflect::createDatabase<Database<Table<ThreadLocalsRow, SharedRow<Scheduler>, Events::EventsRow>>>(*mappings);
-      db = DBReflect::merge(std::move(db), std::move(temp));
+    RuntimeDatabaseArgs args = DBReflect::createArgsWithMappings();
+    buildDB(args);
+
+    bool hasThreadLocals = false;
+    for(const RuntimeTable& table : args.tables) {
+      if(table.tryGet<ThreadLocalsRow>()) {
+        hasThreadLocals = true;
+        break;
+      }
     }
-    db = DBReflect::bundle(std::move(db), std::move(mappings));
+
+    if(!hasThreadLocals) {
+      DBReflect::addDatabase<Database<Table<ThreadLocalsRow, SharedRow<Scheduler>, Events::EventsRow>>>(args);
+    }
+    db = std::make_unique<RuntimeDatabase>(std::move(args));
+
     auto builder = GameBuilder::create(*db);
     auto temp = builder->createTask();
     temp.discard();

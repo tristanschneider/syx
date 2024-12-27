@@ -105,10 +105,15 @@ namespace ImguiModule {
     return q.tryGetSingletonElement();
   }
 
-  std::unique_ptr<IDatabase> createDatabase(RuntimeDatabaseTaskBuilder&&, StableElementMappings& mappings) {
-    auto db = DBReflect::createDatabase<ImguiDB>(mappings);
-    RuntimeTable* table = db->getRuntime().tryGet(db->getRuntime().query<ImguiEnabled>().matchingTableIDs[0]);
-    table->modifier.resize(1);
-    return db;
+  void createDatabase(RuntimeDatabaseArgs& args) {
+    DBReflect::addDatabase<ImguiDB>(args);
+
+    //Hardcoded add an entry to hold global state
+    for(RuntimeTable& table : args.tables) {
+      if(table.tryGet<ImguiEnabled>()) {
+        table.modifier.resize(1);
+        break;
+      }
+    }
   }
 }

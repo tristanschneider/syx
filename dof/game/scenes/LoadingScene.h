@@ -3,6 +3,7 @@
 #include <loader/AssetLoader.h>
 
 struct IDatabase;
+struct RuntimeDatabaseArgs;
 
 namespace SceneNavigator {
   struct IScene;
@@ -28,5 +29,5 @@ namespace Scenes {
 
   std::unique_ptr<SceneNavigator::IScene> createLoadingScene();
 
-  std::unique_ptr<IDatabase> createLoadingSceneDB(StableElementMappings& mappings);
+  void createLoadingSceneDB(RuntimeDatabaseArgs& args);
 }

@@ -79,57 +79,28 @@ namespace DBReflect {
     }
   }
 
-  struct MergedDatabase : IDatabase {
-    MergedDatabase(std::unique_ptr<IDatabase> l, std::unique_ptr<IDatabase> r) 
-      : a{ std::move(l) }
-      , b{ std::move(r) }
-      , runtime{ getArgs() } {
-    }
-
-    static void addToArgs(RuntimeDatabaseArgs& args, IDatabase& db) {
-      RuntimeDatabase& rdb = db.getRuntime();
-      for(const TableID& t : rdb.query().matchingTableIDs) {
-        RuntimeTable* table = rdb.tryGet(t);
-        args.tables.push_back(*table);
-      }
-    }
-
-    RuntimeDatabaseArgs getArgs() {
-      RuntimeDatabaseArgs result;
-      addToArgs(result, *a);
-      addToArgs(result, *b);
-      StableElementMappings* mappings = &a->getRuntime().getMappings();
-      assert(mappings == &b->getRuntime().getMappings());
-      result.mappings = mappings;
-      fixArgs(result);
-      return result;
-    }
-
-    RuntimeDatabase& getRuntime() override {
-      return runtime;
-    }
-
-    std::unique_ptr<IDatabase> a;
-    std::unique_ptr<IDatabase> b;
-    RuntimeDatabase runtime;
-  };
-
-  std::unique_ptr<IDatabase> merge(std::unique_ptr<IDatabase> l, std::unique_ptr<IDatabase> r) {
-    return std::make_unique<MergedDatabase>(std::move(l), std::move(r));
+  void addStableMappings(RuntimeDatabaseArgs& args, std::unique_ptr<StableElementMappings> mappings) {
+    //Create a class to store the mappings
+    struct Storage : ChainedRuntimeStorage {
+      using ChainedRuntimeStorage::ChainedRuntimeStorage;
+      std::unique_ptr<StableElementMappings> m;
+    };
+    //Store the mappings on args
+    args.mappings = mappings.get();
+    //Link the storage of this into args
+    Storage* s = RuntimeStorage::addToChain<Storage>(args);
+    //Transfer ownership of the mappings to Storage
+    s->m = std::move(mappings);
   }
 
-  std::unique_ptr<IDatabase> bundle(std::unique_ptr<IDatabase> db, std::unique_ptr<StableElementMappings> mappings) {
-    struct Bundle : IDatabase {
-      RuntimeDatabase& getRuntime() override {
-        return db->getRuntime();
-      }
-
-      std::unique_ptr<IDatabase> db;
-      std::unique_ptr<StableElementMappings> mappings;
-    };
-    auto result = std::make_unique<Bundle>();
-    result->db = std::move(db);
-    result->mappings = std::move(mappings);
+  RuntimeDatabaseArgs createArgsWithMappings() {
+    RuntimeDatabaseArgs result;
+    addStableMappings(result, std::make_unique<StableElementMappings>());
     return result;
   }
+}
+
+RuntimeDatabase::RuntimeDatabase(RuntimeDatabaseArgs&& args)
+  : data{ std::move(args) } {
+  DBReflect::fixArgs(data);
 }

@@ -9,6 +9,7 @@ class RuntimeDatabaseTaskBuilder;
 struct StableElementMappings;
 struct IDatabase;
 struct sg_swapchain;
+struct RuntimeDatabaseArgs;
 
 struct RendererCamera {
   glm::vec2 pos{};
@@ -44,7 +45,7 @@ namespace Renderer {
   };
 
   //Creates the renderer database using information from the game database
-  std::unique_ptr<IDatabase> createDatabase(RuntimeDatabaseTaskBuilder&& builder, StableElementMappings& mappings);
+  void createDatabase(RuntimeDatabaseArgs& args);
   //Called after creating the database and a window has been created
   void init(IAppBuilder& builder, const RendererContext& context);
   void processRequests(IAppBuilder& builder);

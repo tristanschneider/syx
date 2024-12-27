@@ -62,9 +62,9 @@ namespace Test {
       }
 
       static std::unique_ptr<IDatabase> createDB() {
-        auto mappings = std::make_unique<StableElementMappings>();
-        auto db = DBReflect::createDatabase<TestDBT>(*mappings);
-        return DBReflect::bundle(std::move(db), std::move(mappings));
+        RuntimeDatabaseArgs args = DBReflect::createArgsWithMappings();
+        DBReflect::addDatabase<TestDBT>(args);
+        return std::make_unique<RuntimeDatabase>(std::move(args));
       }
 
       TaskRange build() {

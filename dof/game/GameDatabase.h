@@ -6,6 +6,7 @@ struct IDatabase;
 struct StableElementMappings;
 class IAppBuilder;
 class RuntimeDatabaseTaskBuilder;
+struct RuntimeDatabaseArgs;
 
 namespace GameDatabase {
   struct Tables {
@@ -17,6 +18,6 @@ namespace GameDatabase {
     TableID completedFragment;
   };
 
-  std::unique_ptr<IDatabase> create(StableElementMappings& mappings);
+  void create(RuntimeDatabaseArgs& args);
   void configureDefaults(IAppBuilder& builder);
 }

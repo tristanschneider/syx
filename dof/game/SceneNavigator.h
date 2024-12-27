@@ -6,6 +6,7 @@ class IAppBuilder;
 class RuntimeDatabaseTaskBuilder;
 struct IDatabase;
 struct StableElementMappings;
+struct RuntimeDatabaseArgs;
 
 namespace SceneNavigator {
   using SceneID = size_t;
@@ -41,5 +42,5 @@ namespace SceneNavigator {
   //Creates the tasks for any registered scenes, this also means any scenes must be registered before calling this
   void update(IAppBuilder& builder);
 
-  std::unique_ptr<IDatabase> createDB(StableElementMappings& mappings);
+  void createDB(RuntimeDatabaseArgs& args);
 };

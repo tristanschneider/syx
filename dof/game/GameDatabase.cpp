@@ -407,15 +407,13 @@ namespace GameDatabase {
     DynamicPhysicsObjectsWithMotor
   >;
 
-  std::unique_ptr<IDatabase> create(StableElementMappings& mappings) {
-    return DBReflect::mergeAll(
-      DBReflect::createDatabase<GameDatabase>(mappings),
-      DBReflect::createDatabase<StatEffectDatabase>(mappings),
-      SceneNavigator::createDB(mappings),
-      Scenes::createImportedSceneDB(mappings),
-      Scenes::createLoadingSceneDB(mappings),
-      Loader::createDB(mappings)
-    );
+  void create(RuntimeDatabaseArgs& args) {
+    DBReflect::addDatabase<GameDatabase>(args);
+    DBReflect::addDatabase<StatEffectDatabase>(args);
+    SceneNavigator::createDB(args);
+    Scenes::createImportedSceneDB(args);
+    Scenes::createLoadingSceneDB(args);
+    Loader::createDB(args);
   }
 
   //Does a query and sets the default value of the first query element
