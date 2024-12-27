@@ -19,7 +19,6 @@ namespace DS {
 namespace TMS {
   #include "shaders/TexturedMeshShader.h"
 }
-#include "Debug.h"
 #include "Quad.h"
 #include "BlitPass.h"
 
@@ -27,7 +26,6 @@ namespace TMS {
 #include "FontPass.h"
 
 namespace QuadPassTable {
-  //TODO: from shader description
   using Transform = TMS::MW_t;
   using UVOffset = TMS::UV_t;
 
@@ -374,12 +372,11 @@ void _renderDebug(IAppBuilder& builder) {
         sg_update_buffer(debug.bindings.vertex_buffers[0], sg_range{ linesToDraw.data(), sizeof(DebugPoint)*elements });
 
         for(const auto& renderCamera : state->mCameras) {
-          //TODO: why isn't this using the matrix from the camera?
-          glm::mat4 worldToView = _getWorldToView(renderCamera, window->aspectRatio);
+          const glm::mat4& worldToView = renderCamera.worldToView;
           std::memcpy(uniforms.wvp, &worldToView, sizeof(worldToView));
           sg_apply_uniforms(UB_DebugUniforms, sg_range{ &uniforms, sizeof(uniforms) });
 
-          sg_draw(0, static_cast<int>(linesToDraw.size()*2), 1);
+          sg_draw(0, static_cast<int>(elements), 1);
         }
       }
     }
@@ -639,9 +636,6 @@ void Renderer::render(IAppBuilder& builder) {
     if(!state || !window) {
       return;
     }
-
-    static bool first = true;
-    static DebugRenderData debug = Debug::init();
 
     const float aspectRatio = window->mHeight ? float(window->mWidth)/float(window->mHeight) : 1.0f;
     window->aspectRatio = aspectRatio;
