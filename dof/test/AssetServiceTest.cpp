@@ -70,8 +70,8 @@ namespace Test {
         .width = 50,
         .height = 50,
         .sampleMode = Loader::TextureSampleMode::LinearInterpolation,
-        .format = Loader::TextureFormat::RGB,
-        .buffer = std::vector<uint8_t>(50*50*3)
+        .format = Loader::TextureFormat::RGBA,
+        .buffer = std::vector<uint8_t>(50*50*4)
       }
     };
 
@@ -79,6 +79,9 @@ namespace Test {
       .vertices = std::vector<glm::vec2>{
         glm::vec2{ -1, -1 },
         glm::vec2{ 1, -1 },
+        glm::vec2{ 1, 1 },
+
+        glm::vec2{ -1, -1 },
         glm::vec2{ 1, 1 },
         glm::vec2{ -1, 1 }
       }
@@ -89,6 +92,9 @@ namespace Test {
         glm::vec2{ 0, 0 },
         glm::vec2{ 1, 0 },
         glm::vec2{ 1, 1 },
+
+        glm::vec2{ 0, 0 },
+        glm::vec2{ 1, 1 },
         glm::vec2{ 0, 1 }
       }
     };
@@ -98,8 +104,8 @@ namespace Test {
         .width = 10,
         .height = 10,
         .sampleMode = Loader::TextureSampleMode::SnapToNearest,
-        .format = Loader::TextureFormat::RGB,
-        .buffer = std::vector<uint8_t>(10*10*3)
+        .format = Loader::TextureFormat::RGBA,
+        .buffer = std::vector<uint8_t>(10*10*4)
       }
     };
 
@@ -107,6 +113,9 @@ namespace Test {
       .textureCoordinates = std::vector<glm::vec2>{
         glm::vec2{ -1.5, -1.5 },
         glm::vec2{ 2.5, -1.5 },
+        glm::vec2{ 2.5, 2.5 },
+
+        glm::vec2{ -1.5, -1.5 },
         glm::vec2{ 2.5, 2.5 },
         glm::vec2{ -1.5, 2.5 },
       }
