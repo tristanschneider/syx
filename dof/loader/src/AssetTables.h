@@ -6,6 +6,8 @@
 #include "Table.h"
 
 namespace Loader {
+  struct AssetLoadTask;
+
   //Assets are grouped into separate tables based on their load state
   struct RequestedTagRow : TagRow{};
   struct SucceededTagRow : TagRow{};
@@ -28,4 +30,21 @@ namespace Loader {
     gnx::OneInTenRateLimit assetCompletionLimit, assetGCLimit;
   };
   struct GlobalsRow : SharedRow<Globals> {};
+
+  struct LoadingAsset {
+    ~LoadingAsset();
+
+    std::shared_ptr<AssetLoadTask> task;
+    LoadState state;
+  };
+  struct LoadingAssetRow : Row<LoadingAsset> {};
+
+  struct KnownTables {
+    KnownTables(RuntimeDatabaseTaskBuilder& task);
+
+    TableID requests;
+    TableID loading;
+    TableID failed;
+    std::vector<TableID> succeeded;
+  };
 };
