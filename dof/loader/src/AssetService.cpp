@@ -15,6 +15,31 @@
 #include "generics/RateLimiter.h"
 
 namespace Loader {
+  //TODO: Do I need this?
+  class AssetIndex {
+  public:
+    ElementRef find(const AssetLocation& key) const {
+      std::shared_lock lock{ mutex };
+      auto it = index.find(key);
+      return it != index.end() ? it->second : ElementRef{};
+    }
+
+    void insert(AssetLocation&& key, const ElementRef& value) {
+      std::unique_lock lock{ mutex };
+      index.emplace(std::make_pair(std::move(key), value));
+    }
+
+    void erase(const AssetLocation& key) {
+      std::unique_lock lock{ mutex };
+      index.erase(key);
+    }
+
+  private:
+    mutable std::shared_mutex mutex;
+    std::unordered_map<AssetLocation, ElementRef> index;
+  };
+  struct AssetIndexRow : SharedRow<AssetIndex> {};
+
   struct LoadFailure {};
 
   using AssetVariant = std::variant<
@@ -52,36 +77,79 @@ namespace Loader {
     };
   };
 
-  struct LoadingAsset {
-    std::shared_ptr<AssetVariant> asset;
+  struct AssetLoadTaskDeps {
+    StableElementMappings& mappings;
+    const AssetIndex& index;
+  };
+  struct AssetLoadTaskArgs {
+    AssetHandle self;
+    AssetLoadTaskDeps deps;
+    //True if `self` is referring to a pending element (is a subtask) or a real one (original task with a table element)
+    bool hasPendingHandle{};
+  };
+
+  //Linked list of tasks that is modified by the contained ILongTask and read by updateRequestProgress
+  //Progress only cares if they are done, which will only look at tasks that have completed
+  //Since they only change while incomplete, this means reading is thread safe
+  //Modification is then also only ever done by the owning task meaning it is thread safe as well
+  struct AssetLoadTask : Tasks::ILongTask {
+    using TaskCallback = std::function<void(AppTaskArgs&, AssetLoadTask&)>;
+
+    AssetLoadTask(AssetLoadTaskArgs&& args)
+      : taskArgs{ std::move(args) }
+    {
+    }
+
+    //True when the entire linked list of tasks has completed
+    //New elements are only added while tasks are in progress so false positives aren't possible.
+    bool isDone() const final {
+      return task->isDone() && (!next || next->isDone());
+    }
+
+    //True if this AssetHandle is pointing at a table somewhere vs being a pending handle
+    bool hasStorage() const {
+      return !taskArgs.hasPendingHandle;
+    }
+
+    //Start a new subtask from the current task that is added to a linked list of tasks needed for completion of the overall asset
+    void addTask(AppTaskArgs& args, TaskCallback&& subtask) {
+      addTask(next, createPendingHandle(taskArgs.deps.mappings), args, taskArgs.deps, std::move(subtask));
+    }
+
+    static void addTask(std::shared_ptr<AssetLoadTask>& head, const AssetHandle& self, AppTaskArgs& args, const AssetLoadTaskDeps& deps, TaskCallback&& subtask) {
+      assert(!head || head->task->isDone() && "Modification can only happen during the owning task");
+      auto child = std::make_shared<AssetLoadTask>(AssetLoadTaskArgs{
+        .self = self,
+        .deps = deps
+      });
+      //Add to linked list. Order doesn't matter
+      //Do this before queueing the task because the task may further modify its node in the list while in progress
+      child->next = head;
+      head = child;
+
+      child->task = args.scheduler->queueLongTask([child, t{ std::move(subtask) }](AppTaskArgs& args) {
+        t(args, *child);
+      }, {});
+    }
+
+    //Creates an asset handle with a new reserved ElementRef. It won't point anywhere until updateRequestProgress moves it to a table,
+    //but in the mean time it can still be used for assets to refer to each other, like a mesh on what texture it expects
+    static AssetHandle createPendingHandle(StableElementMappings& mappings) {
+      return AssetHandle::createPending(ElementRef{ mappings.createKey() });
+    }
+
+    AssetLoadTaskArgs taskArgs;
+    AssetVariant asset;
     std::shared_ptr<Tasks::ILongTask> task;
+    std::shared_ptr<AssetLoadTask> next;
+  };
+
+  struct LoadingAsset {
+    std::shared_ptr<AssetLoadTask> task;
     LoadState state;
   };
   struct LoadingAssetRow : Row<LoadingAsset> {};
 
-  class AssetIndex {
-  public:
-    ElementRef find(const AssetLocation& key) const {
-      std::shared_lock lock{ mutex };
-      auto it = index.find(key);
-      return it != index.end() ? it->second : ElementRef{};
-    }
-
-    void insert(AssetLocation&& key, const ElementRef& value) {
-      std::unique_lock lock{ mutex };
-      index.emplace(std::make_pair(std::move(key), value));
-    }
-
-    void erase(const AssetLocation& key) {
-      std::unique_lock lock{ mutex };
-      index.erase(key);
-    }
-
-  private:
-    mutable std::shared_mutex mutex;
-    std::unordered_map<AssetLocation, ElementRef> index;
-  };
-  struct AssetIndexRow : SharedRow<AssetIndex> {};
   namespace db {
     using LoadingAssetTable = Table<
       StableIDRow,
@@ -146,7 +214,8 @@ namespace Loader {
   };
 
   struct SceneLoadContext {
-    const AssetIndex& index;
+    AssetLoadTask& task;
+    AppTaskArgs args;
     std::vector<NodeTraversal> nodesToTraverse;
     std::vector<const aiMetadata*> metaToTraverse;
     std::unique_ptr<MeshRemapper::IRemapping> meshMap;
@@ -510,8 +579,8 @@ namespace Loader {
     }
   }
 
-  void loadAsset(const LoadRequest& request, AssetVariant& result, const AssetIndex& index) {
-    result = LoadFailure{};
+  void loadAsset(const LoadRequest& request, AppTaskArgs& taskArgs, AssetLoadTask& task) {
+    task.asset = LoadFailure{};
 
     Assimp::Importer importer;
     const std::string_view ext{ getExtension(request.location.filename) };
@@ -520,9 +589,12 @@ namespace Loader {
         importer.ReadFileFromMemory(request.contents.data(), request.contents.size(), 0) :
         importer.ReadFile(request.location.filename, 0);
       if(scene) {
-        result = SceneAsset{};
-        SceneLoadContext context{ index };
-        loadScene(*scene, context, std::get<SceneAsset>(result));
+        task.asset = SceneAsset{};
+        SceneLoadContext context{
+          .task = task,
+          .args = taskArgs,
+        };
+        loadScene(*scene, context, std::get<SceneAsset>(task.asset));
       }
       else {
         printf("No loader implemented for request [%s]\n", request.location.filename.c_str());
@@ -537,7 +609,7 @@ namespace Loader {
   void startRequests(IAppBuilder& builder) {
     auto task = builder.createTask();
     KnownTables tables{ task };
-    auto sourceQuery = task.query<const LoadRequestRow>(tables.requests);
+    auto sourceQuery = task.query<const LoadRequestRow, const StableIDRow, const UsageTrackerBlockRow>(tables.requests);
     auto destinationQuery = task.query<LoadingAssetRow>(tables.loading);
     const AssetIndex* index = task.query<const AssetIndexRow>().tryGetSingletonElement();
     assert(index);
@@ -546,8 +618,9 @@ namespace Loader {
 
     task.setCallback([=, &db](AppTaskArgs& args) mutable {
       auto& dq = destinationQuery.get<0>(0);
+      StableElementMappings& mappings = db.getMappings();
       for(size_t t = 0; t < sourceQuery.size(); ++t) {
-        auto [source] = sourceQuery.get(t);
+        auto [source, stable, usage] = sourceQuery.get(t);
         RuntimeTable* sourceTable = db.tryGet(sourceQuery.matchingTableIDs[t]);
         if(!sourceTable) {
           continue;
@@ -556,15 +629,27 @@ namespace Loader {
           const LoadRequest request = source->at(0);
           const size_t newIndex = dq.size();
 
+          //Get the handle to this element being moved to the loading table
+          //This refers to the primary asset. Additional assets from subtasks can create their own AssetHandles referring to new locations that
+          //won't exist until updateRequestProgress finalizes the asset load
+          AssetHandle self{
+            .asset = stable->at(0),
+            .use = usage->at(0).tracker.lock(),
+          };
+          assert(self.use && "Tracker should be alive during asset load");
+
           //Create the entry in the destination and remove the current
           RuntimeTable::migrateOne(0, *sourceTable, *loadingTable);
           LoadingAsset& newAsset = dq.at(newIndex);
           //Initialize task metadata and start the task
           newAsset.state.step = Loader::LoadStep::Loading;
-          newAsset.asset = std::make_shared<AssetVariant>();
-          newAsset.task = args.scheduler->queueLongTask([request, dst{newAsset.asset}, index](AppTaskArgs&) {
-            loadAsset(request, *dst, *index);
-          }, {});
+          const AssetLoadTaskDeps deps{
+            .mappings = mappings,
+            .index = *index
+          };
+          AssetLoadTask::addTask(newAsset.task, self, args, deps, [request](AppTaskArgs& args, AssetLoadTask& self) {
+            loadAsset(request, args, self);
+          });
         }
         //At this point the source table is empty
       }
@@ -573,33 +658,67 @@ namespace Loader {
     builder.submitTask(std::move(task.setName("asset start")));
   }
 
-  bool moveSucceededAsset(RuntimeDatabase& db, LoadingAsset& asset, size_t assetIndex, const TableID& sourceTable) {
-    AssetOperations ops = std::visit(GetAssetOperations{}, *asset.asset);
-    if(ops.destinationRow.type == DBTypeID{}) {
-      return false;
+  void moveSucceededAssets(
+    RuntimeDatabase& db,
+    std::vector<std::pair<AssetLoadTask*, AssetOperations>>& assets,
+    ElementRefResolver& res,
+    const TableID& sourceTable
+  ) {
+    for(auto&& [task, ops] : assets) {
+      RuntimeTable* source = db.tryGet(sourceTable);
+      //TODO: could create a map to avoid linear search here
+      QueryResult<> query = db.queryAliasTables({ ops.destinationRow });
+      assert(query.size() && "A destination for assets should always exist");
+      const TableID destTable = query[0];
+      RuntimeTable* dest = db.tryGet(destTable);
+      assert(dest && "Table must exist since it was found in the query");
+
+      //The entry for the row containing this value will be destroyed by migration, hold onto it to manually place in destination
+      AssetVariant toMove = std::move(task->asset);
+      size_t dstIndex{};
+      if(task->hasStorage()) {
+        //For the element that already has storage, move it from source to destination table
+        auto id = res.tryUnpack(task->taskArgs.self.asset);
+        assert(id && id->getTableIndex() == sourceTable.getTableIndex() && "All tasks are expected to come from the same table");
+
+        dstIndex = RuntimeTable::migrateOne(id->getElementIndex(), *source, *dest);
+      }
+      else {
+        //For elements that were pending, create their entries now
+        dstIndex = dest->stableModifier.addElements(1, &task->taskArgs.self.asset);
+        //Move the pending usage block over to the destination
+        if(auto usage = dest->tryGet<UsageTrackerBlockRow>()) {
+          usage->at(dstIndex).tracker = task->taskArgs.self.use;
+        }
+      }
+
+      //Move the asset itself to the destination
+      RuntimeRow* destinationRow = dest->tryGetRow(ops.destinationRow.type);
+      assert(destinationRow);
+      ops.writeToDestination(*destinationRow, std::move(toMove), dstIndex);
     }
-
-    RuntimeTable* source = db.tryGet(sourceTable);
-    //TODO: could create a map to avoid linear search here
-    QueryResult<> query = db.queryAliasTables({ ops.destinationRow });
-    assert(query.size() && "A destination for assets should always exist");
-    const TableID destTable = query[0];
-    RuntimeTable* dest = db.tryGet(destTable);
-    assert(dest && "Table must exist since it was found in the query");
-
-    //The entry for the row containing this value will be destroyed by migration, hold onto it to manually place in destination
-    std::shared_ptr<AssetVariant> toMove = std::move(asset.asset);
-    const size_t dstIndex = RuntimeTable::migrateOne(assetIndex, *source, *dest);
-    RuntimeRow* destinationRow = dest->tryGetRow(ops.destinationRow.type);
-    assert(destinationRow);
-    ops.writeToDestination(*destinationRow, std::move(*toMove), dstIndex);
-
-    return true;
   }
 
-  void moveFailedAsset(RuntimeDatabase& db, size_t assetIndex, const TableID& sourceTable, RuntimeTable& failedTable) {
+  void moveFailedAssets(
+    RuntimeDatabase& db,
+    std::vector<std::pair<AssetLoadTask*, AssetOperations>>& assets,
+    ElementRefResolver& res,
+    const TableID& sourceTable,
+    RuntimeTable& failedTable
+  ) {
     RuntimeTable* source = db.tryGet(sourceTable);
-    RuntimeTable::migrateOne(assetIndex, *source, failedTable);
+    for(auto&& [task, ops] : assets) {
+      if(task->hasStorage()) {
+        //If it had storage, move it to the failed table
+        auto id = res.tryUnpack(task->taskArgs.self.asset);
+        assert(id && id->getTableIndex() == sourceTable.getTableIndex() && "All tasks are expected to come from the same table");
+        RuntimeTable::migrateOne(id->getElementIndex(), *source, failedTable);
+      }
+      else {
+        //If it didn't have storage, don't bother creating table entries for it, just free the reserved ElementRefs
+        task->taskArgs.deps.mappings.eraseKey(task->taskArgs.self.asset.getMapping());
+      }
+    }
   }
 
   Globals* getGlobals(RuntimeDatabaseTaskBuilder& task) {
@@ -616,8 +735,9 @@ namespace Loader {
     RuntimeTable* failedTable = db.tryGet(failedRows[0]);
     Globals* globals = getGlobals(task);
     assert(globals);
+    auto res = task.getIDResolver()->getRefResolver();
 
-    task.setCallback([query, &db, failedTable, globals](AppTaskArgs&) mutable {
+    task.setCallback([query, &db, failedTable, globals, res](AppTaskArgs&) mutable {
       if(!globals->assetCompletionLimit.tryUpdate()) {
         return;
       }
@@ -632,12 +752,26 @@ namespace Loader {
             continue;
           }
 
-          //If it succeeded, move it over to the succeeded table
-          if(asset.asset && moveSucceededAsset(db, asset, i, thisTable)) {
-            continue;
+          //Gather the linked list of assets and see if any failed, which invalidates the entire batch
+          std::vector<std::pair<AssetLoadTask*, AssetOperations>> operations;
+          AssetLoadTask* task = asset.task.get();
+          bool allSucceeded = true;
+          while(task) {
+            operations.push_back(std::make_pair(task, std::visit(GetAssetOperations{}, task->asset)));
+            if(operations.back().second.destinationRow.type == DBTypeID{}) {
+              //Mark as failed and continue gathering the rest of the list as they still need to be erased
+              allSucceeded = false;
+            }
+            task = task->next.get();
           }
-          //Any other status presumably means some kind of failure, move it to the failed table
-          moveFailedAsset(db, i, thisTable, *failedTable);
+
+          //If all succeeded, move them over to the succeeded table
+          if(allSucceeded) {
+            moveSucceededAssets(db, operations, res, thisTable);
+          }
+          else {
+            moveFailedAssets(db, operations, res, thisTable, *failedTable);
+          }
         }
       }
     });
