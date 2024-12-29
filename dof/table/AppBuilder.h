@@ -50,13 +50,6 @@ public :
   virtual size_t getTotalIds() const = 0;
 };
 
-class IAnyTableModifier {
-public:
-  virtual ~IAnyTableModifier() = default;
-  virtual size_t addElements(const UnpackedDatabaseElementID& id, size_t count) = 0;
-  //TODO: move, delete
-};
-
 class ITableResolver {
 public:
   using IDT = DBTypeID;
@@ -304,7 +297,6 @@ public:
 
   std::shared_ptr<ITableModifier> getModifierForTable(const TableID& table);
   std::vector<std::shared_ptr<ITableModifier>> getModifiersForTables(const std::vector<TableID>& tables);
-  std::shared_ptr<IAnyTableModifier> getAnyModifier();
   std::shared_ptr<AppTaskConfig> getConfig();
 
   RuntimeDatabaseTaskBuilder& setPinning(AppTaskPinning::Variant pinning);

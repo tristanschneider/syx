@@ -108,28 +108,6 @@ namespace IDResolverImpl {
   };
 }
 
-namespace AnyTableModifier {
-  struct ATM : IAnyTableModifier {
-    ATM(RuntimeDatabase& rdb)
-      : db{ rdb } {
-    }
-
-    size_t addElements(const UnpackedDatabaseElementID& id, size_t count) override {
-      if(RuntimeTable* table =  db.tryGet(TableID{ id })) {
-        if(table->modifier) {
-          return table->modifier.addElements(count);
-        }
-        else if(table->stableModifier) {
-          return table->stableModifier.addElements(count, nullptr);
-        }
-      }
-      return std::numeric_limits<size_t>::max();
-    }
-
-    RuntimeDatabase& db;
-  };
-}
-
 RuntimeDatabaseTaskBuilder::RuntimeDatabaseTaskBuilder(RuntimeDatabase& rdb)
   : db{ rdb } {
 }
@@ -208,14 +186,6 @@ std::vector<std::shared_ptr<ITableModifier>> RuntimeDatabaseTaskBuilder::getModi
     result[i] = getModifierForTable(tables[i]);
   }
   return result;
-}
-
-std::shared_ptr<IAnyTableModifier> RuntimeDatabaseTaskBuilder::getAnyModifier() {
-  QueryResult<> q = db.query();
-  for(auto&& t : q.matchingTableIDs) {
-    logTableModifier(t);
-  }
-  return std::make_unique<AnyTableModifier::ATM>(db);
 }
 
 std::shared_ptr<AppTaskConfig> RuntimeDatabaseTaskBuilder::getConfig() {
