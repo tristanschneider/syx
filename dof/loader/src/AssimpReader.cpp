@@ -296,37 +296,44 @@ namespace Loader {
     }
   }
 
+  void loadMeshTask(const aiMesh& mesh, AssetLoadTask& task) {
+    MeshAsset& resultMesh = task.asset->emplace<MeshAsset>();
+
+    resultMesh.verts.resize(mesh.mNumFaces * 3);
+    //Texture coordinates can be in any slot. Assume if they are provided they are in the first slot
+    constexpr int EXPECTED_TEXTURE_CHANNEL = 0;
+    const bool hasTexture = mesh.HasTextureCoords(EXPECTED_TEXTURE_CHANNEL);
+
+    //Throw out the third dimension while copying over since assets are 2D, assume Z is unused, coordinates match the game where z is into the screen
+    for(unsigned v = 0; v < mesh.mNumFaces; ++v) {
+      const aiFace& face = mesh.mFaces[v];
+      assert(face.mNumIndices == 3);
+      const size_t base = v*3;
+      for(unsigned fi = 0; fi < std::min(3u, face.mNumIndices); ++fi) {
+        const unsigned vi = face.mIndices[fi];
+        const aiVector3D& sourceVert = mesh.mVertices[vi];
+        const aiVector3D& sourceUV = mesh.mTextureCoords[EXPECTED_TEXTURE_CHANNEL][vi];
+        MeshVertex& mv = resultMesh.verts[base + fi];
+        mv.pos = glm::vec2{ sourceVert.x, sourceVert.y };
+        if(hasTexture) {
+          mv.uv = glm::vec2{ sourceUV.x, sourceUV.y };
+        }
+      }
+    }
+  }
+
   void loadMeshes(const aiScene& scene, SceneLoadContext& ctx, SceneAsset& result) {
     result.meshes.resize(scene.mNumMeshes);
     ctx.tempMeshMaterials.resize(scene.mNumMeshes);
 
     for(unsigned i = 0; i < scene.mNumMeshes; ++i) {
       const aiMesh* mesh = scene.mMeshes[i];
-
-      MeshAsset& resultMesh = result.meshes[i];
       ctx.tempMeshMaterials[i] = mesh->mMaterialIndex;
 
-      resultMesh.verts.resize(mesh->mNumFaces * 3);
-      //Texture coordinates can be in any slot. Assume if they are provided they are in the first slot
-      constexpr int EXPECTED_TEXTURE_CHANNEL = 0;
-      const bool hasTexture = mesh->HasTextureCoords(EXPECTED_TEXTURE_CHANNEL);
-
-      //Throw out the third dimension while copying over since assets are 2D, assume Z is unused, coordinates match the game where z is into the screen
-      for(unsigned v = 0; v < mesh->mNumFaces; ++v) {
-        const aiFace& face = mesh->mFaces[v];
-        assert(face.mNumIndices == 3);
-        const size_t base = v*3;
-        for(unsigned fi = 0; fi < std::min(3u, face.mNumIndices); ++fi) {
-          const unsigned vi = face.mIndices[fi];
-          const aiVector3D& sourceVert = mesh->mVertices[vi];
-          const aiVector3D& sourceUV = mesh->mTextureCoords[EXPECTED_TEXTURE_CHANNEL][vi];
-          MeshVertex& mv = resultMesh.verts[base + fi];
-          mv.pos = glm::vec2{ sourceVert.x, sourceVert.y };
-          if(hasTexture) {
-            mv.uv = glm::vec2{ sourceUV.x, sourceUV.y };
-          }
-        }
-      }
+      std::shared_ptr<AssetLoadTask> child = ctx.task.addTask(ctx.args, [mesh](AppTaskArgs&, AssetLoadTask& task) {
+        loadMeshTask(*mesh, task);
+      });
+      result.meshes[i] = child->getAssetHandle();
     }
   }
 
@@ -343,6 +350,7 @@ namespace Loader {
 
   struct ModelsAndMaterials {
     std::vector<MeshRemapper::RemapRef<MaterialAsset>> materials;
+    std::vector<MeshRemapper::RemapRef<MeshAsset>> meshes;
   };
 
   AssetLoadTask* findTask(AssetLoadTask* head, const AssetHandle& toFind) {
@@ -361,6 +369,17 @@ namespace Loader {
       AssetLoadTask* task = findTask(&ctx.task, scene.materials[i]);
       if(MaterialAsset* mat = task ? std::get_if<MaterialAsset>(&*task->asset) : nullptr) {
         result.materials[i] = MeshRemapper::RemapRef<MaterialAsset>{
+          .handle = &task->getAssetHandle(),
+          .value = mat
+        };
+      }
+    }
+
+    result.meshes.resize(scene.meshes.size());
+    for(size_t i = 0; i < result.meshes.size(); ++i) {
+      AssetLoadTask* task = findTask(&ctx.task, scene.meshes[i]);
+      if(MeshAsset* mat = task ? std::get_if<MeshAsset>(&*task->asset) : nullptr) {
+        result.meshes[i] = MeshRemapper::RemapRef<MeshAsset>{
           .handle = &task->getAssetHandle(),
           .value = mat
         };
@@ -385,7 +404,7 @@ namespace Loader {
     gatherModelsAndMaterials(ctx, result, modelsAndMats);
 
     //Compute the deduplicated results using the temporary ModelsAndMaterials container
-    ctx.meshMap = MeshRemapper::createRemapping(result.meshes, ctx.tempMeshMaterials, modelsAndMats.materials);
+    ctx.meshMap = MeshRemapper::createRemapping(modelsAndMats.meshes, ctx.tempMeshMaterials, modelsAndMats.materials);
     //Store the results of deduplication in the final result location from the temporary ModelsAndMaterials container
     assignDeduplicatedModelsAndMaterials(result, modelsAndMats);
 

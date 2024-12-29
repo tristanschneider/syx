@@ -37,7 +37,8 @@ namespace Loader {
       >,
       LoadingAssetTable,
       SucceededAssetTable<SceneAssetRow>,
-      SucceededAssetTable<MaterialAssetRow>
+      SucceededAssetTable<MaterialAssetRow>,
+      SucceededAssetTable<MeshAssetRow>
     >;
   }
 

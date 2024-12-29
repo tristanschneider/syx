@@ -28,6 +28,9 @@ namespace Loader {
     AssetOperations operator()(const MaterialAsset&) const {
       return createAssetOperations<MaterialAssetRow, MaterialAsset>();
     }
+    AssetOperations operator()(const MeshAsset&) const {
+      return createAssetOperations<MeshAssetRow, MeshAsset>();
+    }
   };
 
   AssetOperations getAssetOperations(const AssetVariant& v) {

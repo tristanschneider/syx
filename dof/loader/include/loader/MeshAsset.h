@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Table.h"
 #include "glm/vec2.hpp"
 
 //Assimp exports the mesh with its uvs and material, meaning the same
@@ -34,6 +35,8 @@ namespace Loader {
     uint32_t meshIndex = INVALID;
     uint32_t materialIndex = INVALID;
   };
+
+  struct MeshAssetRow : Row<MeshAsset> {};
 }
 
 namespace std {

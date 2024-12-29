@@ -13,6 +13,7 @@ namespace Loader {
       std::monostate,
       LoadFailure,
       MaterialAsset,
+      MeshAsset,
       SceneAsset
     >;
 

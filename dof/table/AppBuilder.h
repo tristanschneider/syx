@@ -97,6 +97,12 @@ public:
     return result;
   }
 
+  template<class Row>
+  auto tryGetOrSwapRowElement(CachedRow<Row>& row, const std::optional<UnpackedDatabaseElementID>& id) {
+    decltype(&row->at(0)) result{};
+    return id ? tryGetOrSwapRowElement(row, *id) : result;
+  }
+
   template<class StorageRow, std::convertible_to<StorageRow> QueryRow>
   bool tryGetOrSwapRowAlias(const QueryAlias<QueryRow>& alias, CachedRow<StorageRow>& row, const UnpackedDatabaseElementID& id) {
     if(!row.row || row.tableID != id.getTableIndex()) {

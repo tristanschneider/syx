@@ -75,27 +75,15 @@ namespace Test {
       }
     };
 
-    inline static const Loader::MeshVerticesAsset PLAYER_MESH_VERTS{
-      .vertices = std::vector<glm::vec2>{
-        glm::vec2{ -1, -1 },
-        glm::vec2{ 1, -1 },
-        glm::vec2{ 1, 1 },
+    inline static const Loader::MeshAsset PLAYER_MESH{
+      .verts = std::vector<Loader::MeshVertex>{
+        { glm::vec2{ -1, -1 }, glm::vec2{ 0, 0 } },
+        { glm::vec2{ 1, -1 }, glm::vec2{ 1, 0 } },
+        { glm::vec2{ 1, 1 }, glm::vec2{ 1, 1 } },
 
-        glm::vec2{ -1, -1 },
-        glm::vec2{ 1, 1 },
-        glm::vec2{ -1, 1 }
-      }
-    };
-
-    inline static const Loader::MeshUVsAsset PLAYER_MESH_UVS{
-      .textureCoordinates = std::vector<glm::vec2>{
-        glm::vec2{ 0, 0 },
-        glm::vec2{ 1, 0 },
-        glm::vec2{ 1, 1 },
-
-        glm::vec2{ 0, 0 },
-        glm::vec2{ 1, 1 },
-        glm::vec2{ 0, 1 }
+        { glm::vec2{ -1, -1 }, glm::vec2{ 0, 0 } },
+        { glm::vec2{ 1, 1 }, glm::vec2{ 1, 1 } },
+        { glm::vec2{ -1, 1 }, glm::vec2{ 0, 1 } }
       }
     };
 
@@ -109,15 +97,15 @@ namespace Test {
       }
     };
 
-    inline static const Loader::MeshUVsAsset GROUND_MESH_UVS{
-      .textureCoordinates = std::vector<glm::vec2>{
-        glm::vec2{ -1.5, -1.5 },
-        glm::vec2{ 2.5, -1.5 },
-        glm::vec2{ 2.5, 2.5 },
+    inline static const Loader::MeshAsset GROUND_MESH{
+      .verts = std::vector<Loader::MeshVertex>{
+        { glm::vec2{ -1, -1 }, glm::vec2{ -1.5, -1.5 } },
+        { glm::vec2{ 1, -1 }, glm::vec2{ 2.5, -1.5 } },
+        { glm::vec2{ 1, 1 }, glm::vec2{ 2.5, 2.5 } },
 
-        glm::vec2{ -1.5, -1.5 },
-        glm::vec2{ 2.5, 2.5 },
-        glm::vec2{ -1.5, 2.5 },
+        { glm::vec2{ -1, -1 }, glm::vec2{ -1.5, -1.5 } },
+        { glm::vec2{ 1, 1 }, glm::vec2{ 2.5, 2.5 } },
+        { glm::vec2{ -1, 1 }, glm::vec2{ -1.5, 2.5 } },
       }
     };
 
@@ -131,6 +119,28 @@ namespace Test {
       Assert::AreEqual(a.x, b.x, e);
       Assert::AreEqual(a.y, b.y, e);
     }
+
+    struct SceneAssets {
+      SceneAssets(RuntimeDatabaseTaskBuilder& task, const Loader::SceneAsset& scene) {
+        CachedRow<Loader::MaterialAssetRow> materialRow;
+        CachedRow<Loader::MeshAssetRow> meshRow;
+        auto resolver = task.getResolver(materialRow, meshRow);
+        ElementRefResolver res = task.getIDResolver()->getRefResolver();
+
+        materials.resize(scene.materials.size());
+        std::transform(scene.materials.begin(), scene.materials.end(), materials.begin(), [&](const Loader::AssetHandle& handle) {
+          return resolver->tryGetOrSwapRowElement(materialRow, res.tryUnpack(handle.asset));
+        });
+
+        meshes.resize(scene.meshes.size());
+        std::transform(scene.meshes.begin(), scene.meshes.end(), meshes.begin(), [&](const Loader::AssetHandle& handle) {
+          return resolver->tryGetOrSwapRowElement(meshRow, res.tryUnpack(handle.asset));
+        });
+      }
+
+      std::vector<Loader::MaterialAsset*> materials;
+      std::vector<Loader::MeshAsset*> meshes;
+    };
 
     TEST_METHOD(LoadTestScene) {
       const std::string_view rawScene = TestAssets::getTestScene();
@@ -148,23 +158,23 @@ namespace Test {
       Assert::IsTrue(resultRef.has_value());
       Assert::IsTrue(res->tryGetOrSwapRow(result, *resultRef));
       Loader::SceneAsset& scene = result->at(resultRef->getElementIndex());
+      SceneAssets assets{ task, scene };
 
       Assert::AreEqual(size_t(3), scene.materials.size());
       //Hack to compare only container sizes, expected are all zeroes
-      for(Loader::MaterialAsset& m : scene.materials) {
-        std::fill(m.texture.buffer.begin(), m.texture.buffer.end(), uint8_t{});
+      for(Loader::MaterialAsset* m : assets.materials) {
+        Assert::IsNotNull(m);
+        std::fill(m->texture.buffer.begin(), m->texture.buffer.end(), uint8_t{});
       }
-      Assert::IsTrue(PLAYER_MATERIAL == scene.materials[0]);
-      Assert::IsTrue(GROUND_MATERIAL == scene.materials[1]);
+      Assert::IsTrue(PLAYER_MATERIAL == *assets.materials[0]);
+      Assert::IsTrue(GROUND_MATERIAL == *assets.materials[1]);
 
-      Assert::AreEqual(size_t(1), scene.meshVertices.size());
-      Assert::AreEqual(size_t(2), scene.meshUVs.size());
-      Assert::IsTrue(PLAYER_MESH_VERTS == scene.meshVertices[0]);
-      Assert::IsTrue(PLAYER_MESH_UVS == scene.meshUVs[0]);
-      Assert::IsTrue(GROUND_MESH_UVS == scene.meshUVs[1]);
+      Assert::AreEqual(size_t(2), assets.meshes.size());
+      Assert::IsTrue(assets.meshes[0] && PLAYER_MESH == *assets.meshes[0]);
+      Assert::IsTrue(assets.meshes[1] && GROUND_MESH == *assets.meshes[1]);
 
       Assert::AreEqual(size_t(1), scene.player.players.size());
-      Assert::IsTrue(Loader::MeshIndex{ 0, 0, 0 } == scene.player.meshIndex);
+      Assert::IsTrue(Loader::MeshIndex{ 0, 0 } == scene.player.meshIndex);
       const Loader::Player& p = scene.player.players[0];
       assertEq(glm::vec3{ 14.6805, -12.0115, 9.118 }, p.transform.pos);
       Assert::AreEqual(-0.275905281f, p.transform.rot);
@@ -175,7 +185,7 @@ namespace Test {
       Assert::AreEqual(0.1f, scene.player.thickness.thickness);
 
       Assert::AreEqual(size_t(1), scene.terrain.terrains.size());
-      Assert::IsTrue(Loader::MeshIndex{ 0, 1, 1 } == scene.terrain.meshIndex);
+      Assert::IsTrue(Loader::MeshIndex{ 1, 1 } == scene.terrain.meshIndex);
       const Loader::Terrain& t = scene.terrain.terrains[0];
       assertEq(glm::vec3{ 0.f, 0.f, -0.1f }, t.transform.pos);
       Assert::AreEqual(0.0f, t.transform.rot);

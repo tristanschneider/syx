@@ -34,7 +34,7 @@ namespace Loader {
 
     //Removes duplicates in the source containers and provides a map of the original to new indices
     std::unique_ptr<IRemapping> createRemapping(
-      std::vector<MeshAsset>& vertices,
+      std::vector<RemapRef<MeshAsset>>& meshes,
       const std::vector<uint32_t>& materialIndices,
       std::vector<RemapRef<MaterialAsset>>& materials
     );
