@@ -1,4 +1,5 @@
 #include "generics/Hash.h"
+#include "Table.h"
 
 namespace Loader {
   constexpr size_t TEXTURE_SAMPLE_MODE_KEY = gnx::Hash::constHash("SampleMode");
@@ -33,6 +34,8 @@ namespace Loader {
 
     TextureAsset texture;
   };
+
+  struct MaterialAssetRow : Row<MaterialAsset> {};
 }
 
 namespace std {

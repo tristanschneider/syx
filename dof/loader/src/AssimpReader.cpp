@@ -66,7 +66,7 @@ namespace Loader {
         read(gnx::Hash::constHash(current));
       }
       else {
-        //Read the final section because a delimiter isn't rquired at the end: A|B should call for A and B
+        //Read the final section because a delimiter isn't required at the end: A|B should call for A and B
         if(view.size()) {
           read(gnx::Hash::constHash(view));
         }
@@ -234,79 +234,65 @@ namespace Loader {
     }
   }
 
-  void loadMaterials(const aiScene& scene, SceneLoadContext&, SceneAsset& result) {
+  void loadMaterialTask(const aiMaterial& mat, const aiScene& scene, AssetLoadTask& task) {
+    aiString path;
+    aiTextureMapping mapping{};
+    unsigned uvIndex{};
+    ai_real blend{};
+    aiTextureOp op{};
+    std::array<aiTextureMapMode, 3> mapMode{};
+    path;mapping;uvIndex;blend;op;mapMode;
+
+    TextureAsset& resultTexture = task.asset->emplace<MaterialAsset>().texture;
+    readMaterialMetadata(mat.GetName(), [&resultTexture](size_t hash) {
+      switch(hash) {
+        case TEXTURE_SAMPLE_MODE_LINEAR_KEY:
+          resultTexture.sampleMode = TextureSampleMode::LinearInterpolation;
+          break;
+        case TEXTURE_SAMPLE_MODE_SNAP_KEY:
+          resultTexture.sampleMode = TextureSampleMode::SnapToNearest;
+          break;
+      }
+    });
+
+    //Assume each material has a single texture if any, and that it's in the diffuse slot
+    if(mat.GetTextureCount(aiTextureType_DIFFUSE) >= 1 && mat.GetTexture(aiTextureType_DIFFUSE, 0, &path, &mapping, &uvIndex, &blend, &op, mapMode.data()) == aiReturn_SUCCESS) {
+      if(std::pair<const aiTexture*, int> tex = scene.GetEmbeddedTextureAndIndex(path.C_Str()); tex.first) {
+        constexpr int CHANNELS = 4;
+        //If height is not provided it means the texture is in its raw format, use STB to parse that
+        if(!tex.first->mHeight) {
+          if(ImageData data = STBInterface::loadImageFromBuffer((const unsigned char*)tex.first->pcData, tex.first->mWidth, CHANNELS); data.mBytes) {
+            TextureAsset& t = resultTexture;
+            t.format = TextureFormat::RGBA;
+            t.width = data.mWidth;
+            t.height = data.mHeight;
+            t.buffer.resize(t.width*t.height*CHANNELS);
+            std::memcpy(t.buffer.data(), data.mBytes, t.buffer.size());
+            STBInterface::deallocate(std::move(data));
+          }
+        }
+        //Otherwise the pixels exist as-is and can be copied over
+        else {
+          TextureAsset& t = resultTexture;
+          t.format = TextureFormat::RGBA;
+          t.width = tex.first->mWidth;
+          t.height = tex.first->mHeight;
+          t.buffer.resize(t.width*t.height*CHANNELS);
+          //aiTexel always contains 4 components, target format is 4
+          std::memcpy(t.buffer.data(), tex.first->pcData, t.buffer.size());
+        }
+      }
+    }
+  }
+
+  void loadMaterials(const aiScene& scene, SceneLoadContext& ctx, SceneAsset& result) {
     result.materials.resize(scene.mNumMaterials);
     for(unsigned i = 0; i < scene.mNumMaterials; ++i) {
       const aiMaterial* mat = scene.mMaterials[i];
-      aiString path;
-      aiTextureMapping mapping{};
-      unsigned uvIndex{};
-      ai_real blend{};
-      aiTextureOp op{};
-      std::array<aiTextureMapMode, 3> mapMode{};
-      path;mapping;uvIndex;blend;op;mapMode;
-
-      std::string temp;
-      for(unsigned z = 0; z < mat->mNumProperties; ++z) {
-        switch(mat->mProperties[z]->mType) {
-          case aiPropertyTypeInfo::aiPTI_Buffer:
-             temp += mat->mProperties[z]->mKey.C_Str() + std::string("|") + std::string("[b]\n");
-             break;
-          case aiPropertyTypeInfo::aiPTI_Double:
-             temp += mat->mProperties[z]->mKey.C_Str() + std::string("|") + std::to_string(*(double*)mat->mProperties[z]->mData) + std::string("[d]\n");
-             break;
-          case aiPropertyTypeInfo::aiPTI_Float:
-            temp += mat->mProperties[z]->mKey.C_Str() + std::string("|") + std::to_string(*(float*)mat->mProperties[z]->mData) + std::string("[f]\n");
-             break;
-          case aiPropertyTypeInfo::aiPTI_Integer:
-            temp += mat->mProperties[z]->mKey.C_Str() + std::string("|") + std::to_string(*(int*)mat->mProperties[z]->mData) + std::string("[i]\n");
-             break;
-          case aiPropertyTypeInfo::aiPTI_String:
-             temp += mat->mProperties[z]->mKey.C_Str() + std::string("|") + std::string(((aiString*)mat->mProperties[z]->mData)->C_Str()) + std::string("[s]\n");
-             break;
-        }
-      }
-
-      TextureAsset& resultTexture = result.materials[i].texture;
-      readMaterialMetadata(mat->GetName(), [&resultTexture](size_t hash) {
-        switch(hash) {
-          case TEXTURE_SAMPLE_MODE_LINEAR_KEY:
-            resultTexture.sampleMode = TextureSampleMode::LinearInterpolation;
-            break;
-          case TEXTURE_SAMPLE_MODE_SNAP_KEY:
-            resultTexture.sampleMode = TextureSampleMode::SnapToNearest;
-            break;
-        }
+      std::shared_ptr<AssetLoadTask> child = ctx.task.addTask(ctx.args, [mat, &scene](AppTaskArgs&, AssetLoadTask& task) {
+        loadMaterialTask(*mat, scene, task);
       });
-
-      //Assume each material has a single texture if any, and that it's in the diffuse slot
-      if(mat->GetTextureCount(aiTextureType_DIFFUSE) >= 1 && mat->GetTexture(aiTextureType_DIFFUSE, 0, &path, &mapping, &uvIndex, &blend, &op, mapMode.data()) == aiReturn_SUCCESS) {
-        if(std::pair<const aiTexture*, int> tex = scene.GetEmbeddedTextureAndIndex(path.C_Str()); tex.first) {
-          constexpr int CHANNELS = 4;
-          //If height is not provided it means the texture is in its raw format, use STB to parse that
-          if(!tex.first->mHeight) {
-            if(ImageData data = STBInterface::loadImageFromBuffer((const unsigned char*)tex.first->pcData, tex.first->mWidth, CHANNELS); data.mBytes) {
-              TextureAsset& t = result.materials[i].texture;
-              t.format = TextureFormat::RGBA;
-              t.width = data.mWidth;
-              t.height = data.mHeight;
-              t.buffer.resize(t.width*t.height*CHANNELS);
-              std::memcpy(t.buffer.data(), data.mBytes, t.buffer.size());
-              STBInterface::deallocate(std::move(data));
-            }
-          }
-          //Otherwise the pixels exist as-is and can be copied over
-          else {
-            TextureAsset& t = result.materials[i].texture;
-            t.format = TextureFormat::RGBA;
-            t.width = tex.first->mWidth;
-            t.height = tex.first->mHeight;
-            t.buffer.resize(t.width*t.height*CHANNELS);
-            //aiTexel always contains 4 components, target format is 4
-            std::memcpy(t.buffer.data(), tex.first->pcData, t.buffer.size());
-          }
-        }
-      }
+      result.materials[i] = child->getAssetHandle();
     }
   }
 
@@ -346,10 +332,64 @@ namespace Loader {
     }
   }
 
+  void awaitModelsAndMaterials(SceneLoadContext& ctx) {
+    Loader::AssetLoadTask* toAwait = &ctx.task;
+    while(toAwait) {
+      //Await everything except this task itself
+      if(&ctx.task != toAwait) {
+        ctx.args.scheduler->awaitTasks(toAwait, 1, {});
+      }
+      toAwait = toAwait->next.get();
+    }
+  }
+
+  struct ModelsAndMaterials {
+    std::vector<MeshRemapper::RemapRef<MaterialAsset>> materials;
+  };
+
+  AssetLoadTask* findTask(AssetLoadTask* head, const AssetHandle& toFind) {
+    while(head) {
+      if(head->getAssetHandle() == toFind) {
+        return head;
+      }
+      head = head->next.get();
+    }
+    return nullptr;
+  }
+
+  void gatherModelsAndMaterials(SceneLoadContext& ctx, SceneAsset& scene, ModelsAndMaterials& result) {
+    result.materials.resize(scene.materials.size());
+    for(size_t i = 0; i < result.materials.size(); ++i) {
+      AssetLoadTask* task = findTask(&ctx.task, scene.materials[i]);
+      if(MaterialAsset* mat = task ? std::get_if<MaterialAsset>(&*task->asset) : nullptr) {
+        result.materials[i] = MeshRemapper::RemapRef<MaterialAsset>{
+          .handle = &task->getAssetHandle(),
+          .value = mat
+        };
+      }
+    }
+  }
+
+  void assignDeduplicatedModelsAndMaterials(SceneAsset& scene, ModelsAndMaterials& toAssign) {
+    scene.materials.resize(toAssign.materials.size());
+    std::transform(toAssign.materials.begin(), toAssign.materials.end(), scene.materials.begin(), MeshRemapper::RemapRefUnwrapper{});
+  }
+
   void loadSceneAsset(const aiScene& scene, SceneLoadContext& ctx, SceneAsset& result) {
+    //Enqueue all material/mesh loads
     loadMaterials(scene, ctx, result);
     loadMeshes(scene, ctx, result);
-    ctx.meshMap = MeshRemapper::createRemapping(result.meshVertices, result.meshUVs, ctx.tempMeshMaterials, result.materials);
+
+    //Await material/mesh to finish, then deduplicate the results
+    awaitModelsAndMaterials(ctx);
+
+    ModelsAndMaterials modelsAndMats;
+    gatherModelsAndMaterials(ctx, result, modelsAndMats);
+
+    //Compute the deduplicated results using the temporary ModelsAndMaterials container
+    ctx.meshMap = MeshRemapper::createRemapping(result.meshVertices, result.meshUVs, ctx.tempMeshMaterials, modelsAndMats.materials);
+    //Store the results of deduplication in the final result location from the temporary ModelsAndMaterials container
+    assignDeduplicatedModelsAndMaterials(result, modelsAndMats);
 
     ctx.nodesToTraverse.push_back({ scene.mRootNode });
     while(ctx.nodesToTraverse.size()) {

@@ -3,6 +3,10 @@
 struct AppTaskArgs;
 struct AppTaskSize;
 
+namespace enki {
+  class ICompletable;
+}
+
 namespace Tasks {
   using TaskCallback = std::function<void(AppTaskArgs&)>;
   struct TaskHandle {
@@ -15,9 +19,12 @@ namespace Tasks {
   };
   struct LinkOptions {
   };
+  struct ILocalScheduler;
+
   struct ILongTask {
     virtual ~ILongTask() = default;
     virtual bool isDone() const = 0;
+    virtual const enki::ICompletable* getHandle() const = 0;
   };
   //A scheduler that is "local" to a task, allowing it to queue subtasks and await their completion
   //Tasks must be awaited before completion of the task that queued them: no fire and forget tasks, except for queueFreeTask
@@ -34,6 +41,7 @@ namespace Tasks {
 
     //Queue a task that extends outside of this one
     virtual std::shared_ptr<ILongTask> queueLongTask(TaskCallback&& task, const AppTaskSize& size) = 0;
+    virtual void awaitTasks(const ILongTask* toAwait, size_t count, const AwaitOptions&) = 0;
   };
 
   struct ILocalSchedulerFactory {

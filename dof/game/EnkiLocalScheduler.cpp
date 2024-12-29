@@ -94,8 +94,20 @@ namespace Tasks {
         return task.GetIsComplete();
       }
 
+      virtual const enki::ICompletable* getHandle() const final {
+        return &task;
+      }
+
       enki::TaskSet task;
     };
+
+    void awaitTasks(const ILongTask* toAwait, size_t count, const AwaitOptions&) final {
+      for(size_t i = 0; i < count; ++i) {
+        if(const enki::ICompletable* completable = toAwait[i].getHandle()) {
+          args.scheduler.mScheduler.WaitforTask(completable);
+        }
+      }
+    }
 
     std::shared_ptr<ILongTask> queueLongTask(TaskCallback&& task, const AppTaskSize& size) final {
       auto result = std::make_shared<LongTask>();

@@ -74,7 +74,12 @@ namespace Loader {
             .mappings = mappings,
             .index = *index
           };
-          AssetLoadTask::addTask(newAsset.task, self, args, deps, [request](AppTaskArgs& args, AssetLoadTask& self) {
+          const AssetLoadTaskArgs taskArgs{
+            .self = self,
+            .deps = deps,
+            .hasPendingHandle = false
+          };
+          AssetLoadTask::addTask(newAsset.task, args, taskArgs, [request](AppTaskArgs& args, AssetLoadTask& self) {
             loadAsset(request, args, self);
           });
         }
@@ -113,6 +118,10 @@ namespace Loader {
       else {
         //For elements that were pending, create their entries now
         dstIndex = dest->stableModifier.addElements(1, &task->taskArgs.self.asset);
+
+        //Now that the entry for this ElementRef is being created, mark it as claimed
+        task->setHandleClaimed();
+
         //Move the pending usage block over to the destination
         if(auto usage = dest->tryGet<UsageTrackerBlockRow>()) {
           usage->at(dstIndex).tracker = task->taskArgs.self.use;
@@ -135,15 +144,12 @@ namespace Loader {
   ) {
     RuntimeTable* source = db.tryGet(sourceTable);
     for(auto&& [task, ops] : assets) {
+      //If it had storage, move it to the failed table
+      //If it didn't, the pending ElementRefs will be reclaimedby the task destructor
       if(task->hasStorage()) {
-        //If it had storage, move it to the failed table
         auto id = res.tryUnpack(task->taskArgs.self.asset);
         assert(id && id->getTableIndex() == sourceTable.getTableIndex() && "All tasks are expected to come from the same table");
         RuntimeTable::migrateOne(id->getElementIndex(), *source, failedTable);
-      }
-      else {
-        //If it didn't have storage, don't bother creating table entries for it, just free the reserved ElementRefs
-        task->taskArgs.deps.mappings.eraseKey(task->taskArgs.self.asset.getMapping());
       }
     }
   }

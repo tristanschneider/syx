@@ -1,5 +1,6 @@
 #pragma once
 
+#include "AssetHandle.h"
 #include "generics/Hash.h"
 #include "MaterialAsset.h"
 #include "MeshAsset.h"
@@ -8,6 +9,8 @@
 #include "glm/vec3.hpp"
 
 namespace Loader {
+  struct AssetHandle;
+
   //Matches blender transform discarding Z axis
   struct Transform2D {
     constexpr static size_t KEY = gnx::Hash::constHash("Transform2D");
@@ -109,10 +112,13 @@ namespace Loader {
   };
 
   struct SceneAsset {
+    ~SceneAsset();
+
     PlayerTable player;
     TerrainTable terrain;
     //TODO: ideally this would be AssetHandles pointing at other assets so they could be reused between scenes
-    std::vector<MaterialAsset> materials;
+    //Pointing at a table with MaterialAssets
+    std::vector<AssetHandle> materials;
     std::vector<MeshVerticesAsset> meshVertices;
     std::vector<MeshUVsAsset> meshUVs;
   };

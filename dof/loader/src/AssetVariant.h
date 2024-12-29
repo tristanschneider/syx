@@ -12,11 +12,14 @@ namespace Loader {
     using Variant = std::variant<
       std::monostate,
       LoadFailure,
+      MaterialAsset,
       SceneAsset
     >;
 
     Variant& operator*() { return v; }
     const Variant& operator*() const { return v; }
+    Variant* operator->() { return &v; }
+    const Variant* operator->() const { return &v; }
 
     Variant v;
   };

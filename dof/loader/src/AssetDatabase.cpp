@@ -36,7 +36,8 @@ namespace Loader {
         UsageTrackerBlockRow
       >,
       LoadingAssetTable,
-      SucceededAssetTable<SceneAssetRow>
+      SucceededAssetTable<SceneAssetRow>,
+      SucceededAssetTable<MaterialAssetRow>
     >;
   }
 
