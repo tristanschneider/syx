@@ -1,5 +1,6 @@
 #pragma once
 
+#include "loader/AssetHandle.h"
 #include "Table.h"
 #include "Config.h"
 #include "glm/vec2.hpp"
@@ -38,13 +39,10 @@ struct CubeSprite {
 
 //Shared reference for all objects in the table to use
 struct TextureReference {
-  size_t mId = 0;
+  Loader::AssetHandle asset;
 };
 
 struct SceneState {
-  size_t mBackgroundImage = 0;
-  size_t mPlayerImage = 0;
-  size_t mGroundImage{};
   glm::vec2 mBoundaryMin{};
   glm::vec2 mBoundaryMax{};
 };
@@ -107,14 +105,16 @@ namespace Simulation {
   void init(IAppBuilder& builder);
 
   struct UpdateConfig {
+    using Injector = std::function<void(IAppBuilder&)>;
     struct NoOp {
-      operator std::function<void(IAppBuilder&)>() const {
+      operator Injector() const {
         return [](IAppBuilder&) { };
       }
     };
 
     //Soon after gameplay extract and physics started, before stat processing
-    std::function<void(IAppBuilder&)> injectGameplayTasks{ NoOp{} };
+    Injector injectGameplayTasks{ NoOp{} };
+    Injector preEvents{ NoOp{} };
     bool enableFragmentStateMachine{ true };
   };
 

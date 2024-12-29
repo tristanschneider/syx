@@ -7,11 +7,14 @@ struct RuntimeRow;
 
 namespace Loader {
   struct LoadFailure {};
+  //Similar to a load failure but allows the load of other assets in the group to succeed
+  struct EmptyAsset {};
 
   struct AssetVariant {
     using Variant = std::variant<
       std::monostate,
       LoadFailure,
+      EmptyAsset,
       MaterialAsset,
       MeshAsset,
       SceneAsset
@@ -29,6 +32,7 @@ namespace Loader {
     using StoreFN = void(*)(RuntimeRow&, AssetVariant&&, size_t);
     QueryAliasBase destinationRow{};
     StoreFN writeToDestination{};
+    bool isFailure{};
   };
 
   AssetOperations getAssetOperations(const AssetVariant& v);

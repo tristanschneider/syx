@@ -1,15 +1,16 @@
 #include "Precompile.h"
-#include "AssimpReader.h"
+#include "AssimpImporter.h"
 
+#include "IAssetImporter.h"
 #include "AppBuilder.h"
 #include "assimp/Importer.hpp"
 #include "assimp/scene.h"
 #include "MeshRemapper.h"
 #include "loader/SceneAsset.h"
 #include "glm/glm.hpp"
-#include "STBInterface.h"
 #include "AssetLoadTask.h"
 #include "AssetTables.h"
+#include "MaterialImporter.h"
 
 namespace Loader {
   struct NodeTraversal {
@@ -243,14 +244,14 @@ namespace Loader {
     std::array<aiTextureMapMode, 3> mapMode{};
     path;mapping;uvIndex;blend;op;mapMode;
 
-    TextureAsset& resultTexture = task.asset->emplace<MaterialAsset>().texture;
-    readMaterialMetadata(mat.GetName(), [&resultTexture](size_t hash) {
+    MaterialImportSampleMode sampleMode = MaterialImportSampleMode::SnapToNearest;
+    readMaterialMetadata(mat.GetName(), [&](size_t hash) {
       switch(hash) {
         case TEXTURE_SAMPLE_MODE_LINEAR_KEY:
-          resultTexture.sampleMode = TextureSampleMode::LinearInterpolation;
+          sampleMode = MaterialImportSampleMode::Linear;
           break;
         case TEXTURE_SAMPLE_MODE_SNAP_KEY:
-          resultTexture.sampleMode = TextureSampleMode::SnapToNearest;
+          sampleMode = MaterialImportSampleMode::SnapToNearest;
           break;
       }
     });
@@ -258,30 +259,29 @@ namespace Loader {
     //Assume each material has a single texture if any, and that it's in the diffuse slot
     if(mat.GetTextureCount(aiTextureType_DIFFUSE) >= 1 && mat.GetTexture(aiTextureType_DIFFUSE, 0, &path, &mapping, &uvIndex, &blend, &op, mapMode.data()) == aiReturn_SUCCESS) {
       if(std::pair<const aiTexture*, int> tex = scene.GetEmbeddedTextureAndIndex(path.C_Str()); tex.first) {
-        constexpr int CHANNELS = 4;
         //If height is not provided it means the texture is in its raw format, use STB to parse that
         if(!tex.first->mHeight) {
-          if(ImageData data = STBInterface::loadImageFromBuffer((const unsigned char*)tex.first->pcData, tex.first->mWidth, CHANNELS); data.mBytes) {
-            TextureAsset& t = resultTexture;
-            t.format = TextureFormat::RGBA;
-            t.width = data.mWidth;
-            t.height = data.mHeight;
-            t.buffer.resize(t.width*t.height*CHANNELS);
-            std::memcpy(t.buffer.data(), data.mBytes, t.buffer.size());
-            STBInterface::deallocate(std::move(data));
-          }
+          auto importer = Loader::createMaterialImporter(sampleMode);
+          LoadRequest req;
+          req.contents.resize(tex.first->mWidth);
+          std::memcpy(req.contents.data(), tex.first->pcData, tex.first->mWidth);
+          importer->loadAsset(req, task.asset);
         }
         //Otherwise the pixels exist as-is and can be copied over
         else {
-          TextureAsset& t = resultTexture;
-          t.format = TextureFormat::RGBA;
-          t.width = tex.first->mWidth;
-          t.height = tex.first->mHeight;
-          t.buffer.resize(t.width*t.height*CHANNELS);
-          //aiTexel always contains 4 components, target format is 4
-          std::memcpy(t.buffer.data(), tex.first->pcData, t.buffer.size());
+          Loader::materialFromRaw(RawMaterial{
+            //aiTexel always contains 4 components, target format is 4
+            .bytes = reinterpret_cast<const uint8_t*>(tex.first->pcData),
+            .width = tex.first->mWidth,
+            .height = tex.first->mHeight,
+            .sampleMode = sampleMode
+          }, task.asset);
         }
       }
+    }
+    //Sometimes materials don't have textures, which is not a failure case. Skip this asset
+    else {
+      task.asset->emplace<EmptyAsset>();
     }
   }
 
@@ -293,6 +293,7 @@ namespace Loader {
         loadMaterialTask(*mat, scene, task);
       });
       result.materials[i] = child->getAssetHandle();
+      child->mDebug = "mat " + std::to_string(i);
     }
   }
 
@@ -334,6 +335,7 @@ namespace Loader {
         loadMeshTask(*mesh, task);
       });
       result.meshes[i] = child->getAssetHandle();
+      child->mDebug = "mesh " + std::to_string(i);
     }
   }
 
@@ -393,6 +395,7 @@ namespace Loader {
   }
 
   void loadSceneAsset(const aiScene& scene, SceneLoadContext& ctx, SceneAsset& result) {
+    ctx.task.mDebug = "main";
     //Enqueue all material/mesh loads
     loadMaterials(scene, ctx, result);
     loadMeshes(scene, ctx, result);
@@ -442,18 +445,18 @@ namespace Loader {
     }
   }
 
-  class AssimpReaderImpl : public IAssimpReader {
+  class AssimpReaderImpl : public IAssetImporter {
   public:
     AssimpReaderImpl(AssetLoadTask& task, const AppTaskArgs& taskArgs)
       : ctx{ .task = task, .args = taskArgs }
     {
     }
 
-    bool isSceneExtension(std::string_view extension) final {
+    bool isSupportedExtension(std::string_view extension) final {
       return ctx.importer.IsExtensionSupported(std::string{ extension });
     }
 
-    void loadScene(const Loader::LoadRequest& request) final {
+    void loadAsset(const Loader::LoadRequest& request, AssetVariant&) final {
       const aiScene* scene = request.contents.size() ?
         ctx.importer.ReadFileFromMemory(request.contents.data(), request.contents.size(), 0) :
         ctx.importer.ReadFile(request.location.filename, 0);
@@ -466,7 +469,7 @@ namespace Loader {
     SceneLoadContext ctx;
   };
 
-  std::unique_ptr<IAssimpReader> createAssimpReader(AssetLoadTask& task, const AppTaskArgs& taskArgs) {
+  std::unique_ptr<IAssetImporter> createAssimpImporter(AssetLoadTask& task, const AppTaskArgs& taskArgs) {
     return std::make_unique<AssimpReaderImpl>(task, taskArgs);
   }
 }

@@ -25,11 +25,6 @@ struct WindowData {
   bool hasChanged{};
 };
 
-//TODO: replace with ElementRef
-struct TextureGameHandle {
-  size_t mID = 0;
-};
-
 struct FONScontext;
 
 struct RendererContext {
@@ -48,12 +43,13 @@ namespace Renderer {
   void createDatabase(RuntimeDatabaseArgs& args);
   //Called after creating the database and a window has been created
   void init(IAppBuilder& builder, const RendererContext& context);
-  void processRequests(IAppBuilder& builder);
   void extractRenderables(IAppBuilder& builder);
   void clearRenderRequests(IAppBuilder& builder);
   void render(IAppBuilder& builder);
   void endMainPass(IAppBuilder& builder);
   void commit(IAppBuilder& builder);
+
+  void preProcessEvents(IAppBuilder& builder);
 
   void injectRenderDependency(RuntimeDatabaseTaskBuilder& task);
 

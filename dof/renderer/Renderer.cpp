@@ -3,7 +3,6 @@
 
 #include "CommonTasks.h"
 #include "Queries.h"
-#include "STBInterface.h"
 #include "Table.h"
 
 #include "glm/mat3x3.hpp"
@@ -35,7 +34,7 @@ namespace QuadPassTable {
   struct TintRow : Row<glm::vec4>{};
   struct IsImmobileRow : SharedRow<bool>{};
   struct PassRow : SharedRow<QuadPass>{};
-  struct TextureIDRow : SharedRow<size_t>{};
+  struct TextureIDRow : SharedRow<Loader::AssetHandle>{};
 
   using Type = Table<
     TransformRow,
@@ -171,74 +170,21 @@ namespace {
     };
     return sg_make_pipeline(desc);
   }
-
-  struct TexturesTuple {
-    Row<TextureRendererHandle>* glHandle{};
-    Row<TextureGameHandle>* gameHandle{};
-  };
-
-  void _loadTexture(TextureLoadRequest& request, TexturesTuple textures, ITableModifier& texturesModifier) {
-    ImageData data = STBInterface::loadImageFromFile(request.mFileName.c_str(), 4);
-    if(!data.mBytes) {
-      request.mStatus = RequestStatus::Failed;
-      return;
-    }
-
-    sg_image_desc desc{
-      .width = (int)data.mWidth,
-      .height = (int)data.mHeight,
-      .pixel_format = SG_PIXELFORMAT_RGBA8
-    };
-    desc.data.subimage[0][0] = sg_range{ data.mBytes, data.mWidth*data.mHeight*4 };
-    const sg_image image = sg_make_image(desc);
-
-    size_t element = texturesModifier.addElements(1);
-    textures.glHandle->at(element).texture = image;
-    textures.gameHandle->at(element).mID = request.mImageID;
-
-    request.mStatus = RequestStatus::Succeeded;
-
-    STBInterface::deallocate(std::move(data));
-  }
-
-  void _processRequests(QueryResult<Row<TextureLoadRequest>>& requests,
-    QueryResult<Row<TextureRendererHandle>, Row<TextureGameHandle>>& textures,
-    ITableModifier& texturesModifier) {
-
-    //Table should always exist and only one
-    TexturesTuple tex{ std::get<0>(textures.rows).at(0), std::get<1>(textures.rows).at(0) };
-    requests.forEachElement([&](TextureLoadRequest& request) {
-      if(request.mStatus == RequestStatus::InProgress) {
-        _loadTexture(request, tex, texturesModifier);
-      }
-    });
-  }
-
-  sg_image _getTextureByID(size_t id, QueryResult<const Row<TextureGameHandle>, const Row<TextureRendererHandle>>& textures) {
-    for(size_t i = 0; i < textures.size(); ++i) {
-      const auto& handles = textures.get<0>(i).mElements;
-      for(size_t j = 0; j < handles.size(); ++j) {
-        if(handles[j].mID == id) {
-          return textures.get<1>(i).at(j).texture;
-        }
-      }
-    }
-    return {};
-  }
 }
 
-struct SceneGPUAssets {
+struct MeshGPUAsset {
+  sg_buffer vertexBuffer;
 };
 
-struct SceneGPUAssetsRow : Row<SceneGPUAssets> {};
+struct MaterialGPUAsset {
+  sg_image image;
+};
+
+struct MeshGPUAssetRow : Row<MeshGPUAsset> {};
+struct MaterialGPUAssetRow : Row<MaterialGPUAsset> {};
 
 struct RenderDBStorage : ChainedRuntimeStorage {
   using ChainedRuntimeStorage::ChainedRuntimeStorage;
-
-  using TexturesTable = Table<
-    Row<TextureRendererHandle>,
-    Row<TextureGameHandle>
-  >;
 
   using GraphicsContext = Table<
     Row<RendererState>,
@@ -248,14 +194,14 @@ struct RenderDBStorage : ChainedRuntimeStorage {
 
   using RendererDatabase = Database<
     GraphicsContext,
-    TexturesTable,
     DebugLinePassTable::PointsTable,
     DebugLinePassTable::TextTable
   >;
 
   RendererDatabase database;
   std::vector<QuadPassTable::Type> quadPasses;
-  std::vector<SceneGPUAssetsRow> sceneGPU;
+  std::vector<MeshGPUAssetRow> meshGPU;
+  std::vector<MaterialGPUAssetRow> materialGPU;
 };
 
 void Renderer::createDatabase(RuntimeDatabaseArgs& args) {
@@ -265,20 +211,28 @@ void Renderer::createDatabase(RuntimeDatabaseArgs& args) {
 
   //Inspect the existing tables for necessary modifications
   size_t quadPassCount{};
-  std::vector<RuntimeTable*> sceneAssetTables;
+  std::vector<RuntimeTable*> materialTables, meshTables;
   for(RuntimeTable& table : args.tables) {
     if(table.tryGet<Row<CubeSprite>>()) {
       ++quadPassCount;
     }
-    if(table.tryGet<Loader::SceneAssetRow>()) {
-      sceneAssetTables.push_back(&table);
+    if(table.tryGet<Loader::MaterialAssetRow>()) {
+      materialTables.push_back(&table);
+    }
+    if(table.tryGet<Loader::MeshAssetRow>()) {
+      meshTables.push_back(&table);
     }
   }
 
   //Add a row to all tables with this asset for the GPU resources
-  storage->sceneGPU.resize(sceneAssetTables.size());
-  for(size_t i = 0; i < sceneAssetTables.size(); ++i) {
-    DBReflect::details::reflectRow(storage->sceneGPU[i], *sceneAssetTables[i]);
+  storage->meshGPU.resize(meshTables.size());
+  for(size_t i = 0; i < meshTables.size(); ++i) {
+    DBReflect::details::reflectRow(storage->meshGPU[i], *meshTables[i]);
+  }
+
+  storage->materialGPU.resize(materialTables.size());
+  for(size_t i = 0; i < materialTables.size(); ++i) {
+    DBReflect::details::reflectRow(storage->materialGPU[i], *materialTables[i]);
   }
 
   //Create our own tables that mirror the contents of quad passes
@@ -516,7 +470,21 @@ void Renderer::extractRenderables(IAppBuilder& builder) {
     extractTransform(builder, spriteID, passID);
     extractUV(builder, spriteID, passID);
 
-    CommonTasks::moveOrCopyRowSameSize<SharedRow<TextureReference>, QuadPassTable::TextureIDRow>(builder, spriteID, passID);
+    {
+      auto task = builder.createTask();
+      const SharedRow<TextureReference>* src = task.query<const SharedRow<TextureReference>>(spriteID).tryGet<0>(0);
+      QuadPassTable::TextureIDRow* dst = task.query<QuadPassTable::TextureIDRow>(passID).tryGet<0>(0);
+      if(src && dst) {
+        task.setCallback([src, dst](AppTaskArgs&) {
+          dst->at() = src->at().asset;
+        });
+        builder.submitTask(std::move(task.setName("copy tex")));
+      }
+      else {
+        task.discard();
+      }
+    }
+
     //Tint is optional
     if(temp.query<Tint>(spriteID).size()) {
       CommonTasks::moveOrCopyRowSameSize<Tint, QuadPassTable::TintRow>(builder, spriteID, passID);
@@ -618,17 +586,139 @@ void Renderer::clearRenderRequests(IAppBuilder& builder) {
   builder.submitTask(std::move(task));
 }
 
-void Renderer::processRequests(IAppBuilder& builder) {
+struct RenderAssetReader {
+  RenderAssetReader(RuntimeDatabaseTaskBuilder& task)
+    : res{ task.getIDResolver()->getRefResolver() }
+    , resolver{ task.getResolver(materials, meshes) }
+  {
+  }
+
+  const MaterialGPUAsset* tryGetMaterial(const Loader::AssetHandle& handle) {
+    return resolver->tryGetOrSwapRowElement(materials, res.tryUnpack(handle.asset));
+  }
+
+  const MeshGPUAsset* tryGetMesh(const Loader::AssetHandle& handle) {
+    return resolver->tryGetOrSwapRowElement(meshes, res.tryUnpack(handle.asset));
+  }
+
+  ElementRefResolver res;
+  CachedRow<const MaterialGPUAssetRow> materials;
+  CachedRow<const MeshGPUAssetRow> meshes;
+  std::shared_ptr<ITableResolver> resolver;
+};
+
+struct RenderAssetWriter {
+  RenderAssetWriter(RuntimeDatabaseTaskBuilder& task)
+    : res{ task.getIDResolver()->getRefResolver() }
+    , resolver{ task.getResolver(
+        materialCPU,
+        materialGPU,
+        meshCPU,
+        meshGPU
+      )
+    }
+  {
+  }
+
+  //Either material or mesh, shows both for ease of access
+  struct Asset {
+    bool isMaterial() const { return materialCPU && materialGPU; }
+    bool isMesh() const { return meshCPU && meshGPU; }
+
+    const Loader::MaterialAsset* materialCPU{};
+    MaterialGPUAsset* materialGPU{};
+
+    const Loader::MeshAsset* meshCPU{};
+    MeshGPUAsset* meshGPU{};
+  };
+
+  Asset tryGetAsset(const ElementRef& e) {
+    if(auto id = res.tryUnpack(e)) {
+      const size_t i = id->getElementIndex();
+      if(resolver->tryGetOrSwapAllRows(*id, meshCPU, meshGPU)) {
+        return Asset{
+          .meshCPU = &meshCPU->at(i),
+          .meshGPU = &meshGPU->at(i)
+        };
+      }
+      if(resolver->tryGetOrSwapAllRows(*id, materialCPU, materialGPU)) {
+        return Asset{
+          .materialCPU = &materialCPU->at(i),
+          .materialGPU = &materialGPU->at(i)
+        };
+      }
+    }
+    return {};
+  }
+
+  ElementRefResolver res;
+  CachedRow<const Loader::MaterialAssetRow> materialCPU;
+  CachedRow<const Loader::MeshAssetRow> meshCPU;
+  CachedRow<MaterialGPUAssetRow> materialGPU;
+  CachedRow<MeshGPUAssetRow> meshGPU;
+  std::shared_ptr<ITableResolver> resolver;
+};
+
+void onMaterialCreated(RenderAssetWriter::Asset& asset) {
+  const Loader::TextureAsset& tex = asset.materialCPU->texture;
+  sg_image_desc desc{
+    .width = (int)tex.width,
+    .height = (int)tex.height,
+    .pixel_format = SG_PIXELFORMAT_RGBA8
+  };
+  desc.data.subimage[0][0] = sg_range{ tex.buffer.data(), tex.buffer.size() };
+  asset.materialGPU->image = sg_make_image(desc);
+}
+
+void onMaterialDestroyed(RenderAssetWriter::Asset& asset) {
+  sg_destroy_image(asset.materialGPU->image);
+  asset.materialGPU->image = {};
+}
+
+//TODO:
+void onMeshCreated(RenderAssetWriter::Asset&) {
+
+}
+
+void onMeshDestroyed(RenderAssetWriter::Asset&) {
+
+}
+
+//Monitor assets for GPU resources that need to be created or destroyed
+void Renderer::preProcessEvents(IAppBuilder& builder) {
   auto task = builder.createTask();
-  task.setName("Process Render Requests");
-  auto requests = task.query<Row<TextureLoadRequest>>();
-  auto textures = task.query<Row<TextureRendererHandle>, Row<TextureGameHandle>>();
-  std::shared_ptr<ITableModifier> modifier{ task.getModifierForTable(textures.matchingTableIDs[0]) };
-  task.setPinning(AppTaskPinning::MainThread{});
-  task.setCallback([=](AppTaskArgs&) mutable {
-    _processRequests(requests, textures, *modifier);
+  const DBEvents& events = Events::getPublishedEvents(task);
+  RenderAssetWriter assets{ task };
+
+  task.setCallback([&events, assets](AppTaskArgs&) mutable {
+    for(const auto& cmd : events.toBeMovedElements) {
+      const ElementRef* srcRef = std::get_if<ElementRef>(&cmd.source);
+      const ElementRef* dstRef = std::get_if<ElementRef>(&cmd.destination);
+      //Asset creation is technically moves but they are notified as creation events
+      //Something destroyed
+      if(!dstRef && srcRef) {
+        auto asset = assets.tryGetAsset(*srcRef);
+        if(asset.isMaterial()) {
+          onMaterialDestroyed(asset);
+        }
+        else if(asset.isMesh()) {
+          onMeshDestroyed(asset);
+        }
+      }
+      //Something created
+      else if(!srcRef && dstRef) {
+        auto asset = assets.tryGetAsset(*dstRef);
+        if(asset.isMaterial()) {
+          onMaterialCreated(asset);
+        }
+        else if(asset.isMesh()) {
+          onMeshCreated(asset);
+        }
+      }
+    }
   });
-  builder.submitTask(std::move(task).finalize());
+
+  builder.submitTask(std::move(task.setName("render requests").setPinning(AppTaskPinning::MainThread{})));
 }
 
 void Renderer::render(IAppBuilder& builder) {
@@ -640,10 +730,10 @@ void Renderer::render(IAppBuilder& builder) {
     const QuadPassTable::TextureIDRow,
     const QuadPassTable::TintRow,
     QuadPassTable::PassRow>();
-  auto textures = task.query<const Row<TextureGameHandle>, const Row<TextureRendererHandle>>();
+  RenderAssetReader assets{ task };
 
   task.setPinning(AppTaskPinning::MainThread{});
-  task.setCallback([globals, quads, textures](AppTaskArgs&) mutable {
+  task.setCallback([globals, quads, assets](AppTaskArgs&) mutable {
     RendererState* state = globals.tryGetSingletonElement<0>();
     WindowData* window = globals.tryGetSingletonElement<1>();
     if(!state || !window) {
@@ -690,11 +780,11 @@ void Renderer::render(IAppBuilder& builder) {
           continue;
         }
 
-        const sg_image glTexture = _getTextureByID(textureIDs->at(), textures);
-        if(!isValid(glTexture)) {
+        const MaterialGPUAsset* material = assets.tryGetMaterial(textureIDs->at());
+        if(!material || !isValid(material->image)) {
           continue;
         }
-        pass.mQuadUniforms.bindings.images[IMG_tex] = glTexture;
+        pass.mQuadUniforms.bindings.images[IMG_tex] = material->image;
         //TODO: use actual mesh instead of always quad
         pass.mQuadUniforms.bindings.vertex_buffers[0] = state->quadMesh;
 

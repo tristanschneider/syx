@@ -48,6 +48,7 @@ namespace Loader {
     //This allows speculatively creating handles that end up going unused
     void setHandleClaimed();
 
+    std::string mDebug;
     AssetLoadTaskArgs taskArgs;
     AssetVariant asset;
     std::shared_ptr<Tasks::ILongTask> task;

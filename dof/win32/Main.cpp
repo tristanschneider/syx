@@ -303,11 +303,14 @@ TaskGraph createTaskGraph() {
 
   std::unique_ptr<IAppBuilder> builder = GameBuilder::create(*APP->combined);
 
-  Renderer::processRequests(*builder);
   Renderer::extractRenderables(*builder);
   Renderer::clearRenderRequests(*builder);
   Renderer::render(*builder);
-  Simulation::buildUpdateTasks(*builder, {});
+  Simulation::buildUpdateTasks(*builder, Simulation::UpdateConfig{
+    .preEvents = [](IAppBuilder& builder) {
+      Renderer::preProcessEvents(builder);
+    }
+  });
 #ifdef IMGUI_ENABLED
   ImguiModule::update(*builder);
 #endif

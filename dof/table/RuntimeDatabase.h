@@ -375,7 +375,9 @@ namespace DBReflect {
 
     template<class RowT>
     void reflectRow(RowT& row, RuntimeTable& table) {
-      table.rows[DBTypeID::get<RowT>()] = createRuntimeRow(row);
+      RuntimeRow& newRow = table.rows[DBTypeID::get<RowT>()];
+      assert(!newRow.row);
+      newRow = createRuntimeRow(row);
     }
 
     template<class TableT>

@@ -34,7 +34,10 @@ void Simulation::buildUpdateTasks(IAppBuilder& builder, const UpdateConfig& conf
 
   GameplayExtract::extractGameplayData(builder);
 
-  Loader::processRequests(builder);
+  Loader::processRequests(builder, Loader::Events{
+    .notifyCreate = &Events::onNewElement,
+    .requestDestroy = &Events::onRemovedElement
+  });
 
   PhysicsSimulation::updatePhysics(builder);
   config.injectGameplayTasks(builder);
@@ -59,6 +62,7 @@ void Simulation::buildUpdateTasks(IAppBuilder& builder, const UpdateConfig& conf
   PhysicsSimulation::preProcessEvents(builder);
   Fragment::preProcessEvents(builder);
   FragmentStateMachine::preProcessEvents(builder);
+  config.preEvents(builder);
 
   TableService::processEvents(builder);
 

@@ -48,7 +48,6 @@ namespace Loader {
   }
 
   std::shared_ptr<AssetLoadTask> AssetLoadTask::addTask(std::shared_ptr<AssetLoadTask>& head, const AppTaskArgs& args, const AssetLoadTaskArgs& deps, TaskCallback&& subtask) {
-    assert(!head || !head->task->isDone() && "Modification can only happen during the owning task");
     auto child = std::make_shared<AssetLoadTask>(AssetLoadTaskArgs{ deps });
     //Add to linked list. Order doesn't matter
     //Do this before queueing the task because the task may further modify its node in the list while in progress

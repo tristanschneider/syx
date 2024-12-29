@@ -6,6 +6,7 @@
 #include "Simulation.h"
 #include "SceneList.h"
 #include "loader/AssetReader.h"
+#include "loader/AssetLoader.h"
 
 namespace Scenes {
   struct LoadingSceneGlobals {
@@ -41,6 +42,7 @@ namespace Scenes {
     task.setName("request assets");
     SceneState* sceneState = task.query<SharedRow<SceneState>>().tryGetSingletonElement();
     FileSystem* fs = task.query<SharedRow<FileSystem>>().tryGetSingletonElement();
+    std::shared_ptr<Loader::IAssetLoader> loader = Loader::createAssetLoader(task);
     if(!sceneState || !fs) {
       task.discard();
       return;
@@ -59,19 +61,19 @@ namespace Scenes {
         return;
       }
       const std::string& root = fs->mRoot;
-      sceneState->mBackgroundImage = requestTextureLoad(textureRequests.get<0>(0), *textureRequestModifier, (root + "background.png").c_str());
-      sceneState->mPlayerImage = requestTextureLoad(textureRequests.get<0>(0), *textureRequestModifier, (root + "player.png").c_str());
-      sceneState->mGroundImage = requestTextureLoad(textureRequests.get<0>(0), *textureRequestModifier, (root + "ground.png").c_str());
+      const Loader::AssetHandle backgroundImage = loader->requestLoad({ root + "background.png" });
+      const Loader::AssetHandle playerImage = loader->requestLoad({ root + "player.png" });
+      const Loader::AssetHandle groundImage = loader->requestLoad({ root + "ground.png" });
 
       for(size_t i = 0; i < playerTextures.size(); ++i) {
-        playerTextures.get<0>(i).at().mId = sceneState->mPlayerImage;
+        playerTextures.get<0>(i).at().asset = playerImage;
       }
       //Make all the objects use the background image as their texture
       for(size_t i = 0; i < fragmentTextures.size(); ++i) {
-        fragmentTextures.get<0>(i).at().mId = sceneState->mBackgroundImage;
+        fragmentTextures.get<0>(i).at().asset = backgroundImage;
       }
       for(size_t i = 0; i < terrain.size(); ++i) {
-        terrain.get<0>(i).at().mId = sceneState->mGroundImage;
+        terrain.get<0>(i).at().asset = groundImage;
       }
     });
     builder.submitTask(std::move(task));

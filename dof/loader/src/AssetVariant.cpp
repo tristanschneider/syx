@@ -15,13 +15,18 @@ namespace Loader {
 
     return AssetOperations {
       .destinationRow{ QueryAlias<RowT>::create() },
-      .writeToDestination{ &Write::write }
+      .writeToDestination{ &Write::write },
+      .isFailure = false,
     };
   }
 
+  AssetOperations failure() {
+    return AssetOperations{ .isFailure = true };
+  }
+
   struct GetAssetOperations {
-    AssetOperations operator()(std::monostate) const { return {}; }
-    AssetOperations operator()(const LoadFailure&) const { return {}; }
+    AssetOperations operator()(std::monostate) const { return failure(); }
+    AssetOperations operator()(const LoadFailure&) const { return failure(); }
     AssetOperations operator()(const SceneAsset&) const {
       return createAssetOperations<SceneAssetRow, SceneAsset>();
     };
@@ -30,6 +35,9 @@ namespace Loader {
     }
     AssetOperations operator()(const MeshAsset&) const {
       return createAssetOperations<MeshAssetRow, MeshAsset>();
+    }
+    AssetOperations operator()(const EmptyAsset&) const {
+      return AssetOperations{ .isFailure = false };
     }
   };
 

@@ -1,3 +1,5 @@
+#pragma once
+
 #include "generics/Hash.h"
 #include "Table.h"
 
