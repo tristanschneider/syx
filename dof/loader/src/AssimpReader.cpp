@@ -297,19 +297,16 @@ namespace Loader {
   }
 
   void loadMeshes(const aiScene& scene, SceneLoadContext& ctx, SceneAsset& result) {
-    result.meshVertices.resize(scene.mNumMeshes);
-    result.meshUVs.resize(scene.mNumMeshes);
+    result.meshes.resize(scene.mNumMeshes);
     ctx.tempMeshMaterials.resize(scene.mNumMeshes);
 
     for(unsigned i = 0; i < scene.mNumMeshes; ++i) {
       const aiMesh* mesh = scene.mMeshes[i];
 
-      MeshVerticesAsset& verts = result.meshVertices[i];
-      MeshUVsAsset& uvs = result.meshUVs[i];
+      MeshAsset& resultMesh = result.meshes[i];
       ctx.tempMeshMaterials[i] = mesh->mMaterialIndex;
 
-      verts.vertices.resize(mesh->mNumFaces * 3);
-      uvs.textureCoordinates.resize(verts.vertices.size());
+      resultMesh.verts.resize(mesh->mNumFaces * 3);
       //Texture coordinates can be in any slot. Assume if they are provided they are in the first slot
       constexpr int EXPECTED_TEXTURE_CHANNEL = 0;
       const bool hasTexture = mesh->HasTextureCoords(EXPECTED_TEXTURE_CHANNEL);
@@ -323,9 +320,10 @@ namespace Loader {
           const unsigned vi = face.mIndices[fi];
           const aiVector3D& sourceVert = mesh->mVertices[vi];
           const aiVector3D& sourceUV = mesh->mTextureCoords[EXPECTED_TEXTURE_CHANNEL][vi];
-          verts.vertices[base + fi] = glm::vec2{ sourceVert.x, sourceVert.y };
+          MeshVertex& mv = resultMesh.verts[base + fi];
+          mv.pos = glm::vec2{ sourceVert.x, sourceVert.y };
           if(hasTexture) {
-            uvs.textureCoordinates[base + fi] = glm::vec2{ sourceUV.x, sourceUV.y };
+            mv.uv = glm::vec2{ sourceUV.x, sourceUV.y };
           }
         }
       }
@@ -387,7 +385,7 @@ namespace Loader {
     gatherModelsAndMaterials(ctx, result, modelsAndMats);
 
     //Compute the deduplicated results using the temporary ModelsAndMaterials container
-    ctx.meshMap = MeshRemapper::createRemapping(result.meshVertices, result.meshUVs, ctx.tempMeshMaterials, modelsAndMats.materials);
+    ctx.meshMap = MeshRemapper::createRemapping(result.meshes, ctx.tempMeshMaterials, modelsAndMats.materials);
     //Store the results of deduplication in the final result location from the temporary ModelsAndMaterials container
     assignDeduplicatedModelsAndMaterials(result, modelsAndMats);
 

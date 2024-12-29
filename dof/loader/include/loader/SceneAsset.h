@@ -119,8 +119,7 @@ namespace Loader {
     //TODO: ideally this would be AssetHandles pointing at other assets so they could be reused between scenes
     //Pointing at a table with MaterialAssets
     std::vector<AssetHandle> materials;
-    std::vector<MeshVerticesAsset> meshVertices;
-    std::vector<MeshUVsAsset> meshUVs;
+    std::vector<MeshAsset> meshes;
   };
 
   struct SceneAssetRow : Row<SceneAsset> {};

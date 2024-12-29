@@ -8,19 +8,15 @@ namespace std {
     return static_cast<uint32_t>(f*1000.f)/static_cast<uint32_t>(1000);
   }
 
-  size_t hashContainer(const std::vector<glm::vec2>& v) {
+  size_t hashContainer(const std::vector<Loader::MeshVertex>& v) {
     size_t result{};
     for(const auto& e : v) {
-      result = gnx::Hash::combine(result, hashRound(e.x), hashRound(e.y));
+      result = gnx::Hash::combine(result, hashRound(e.pos.x), hashRound(e.pos.y), hashRound(e.uv.x), hashRound(e.uv.y));
     }
     return result;
   }
 
-  size_t hash<Loader::MeshVerticesAsset>::operator()(const Loader::MeshVerticesAsset& v) const {
-    return hashContainer(v.vertices);
-  }
-
-  size_t hash<Loader::MeshUVsAsset>::operator()(const Loader::MeshUVsAsset& v) const {
-    return hashContainer(v.textureCoordinates);
+  size_t hash<Loader::MeshAsset>::operator()(const Loader::MeshAsset& v) const {
+    return hashContainer(v.verts);
   }
 };

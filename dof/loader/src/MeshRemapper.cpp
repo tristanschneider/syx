@@ -153,27 +153,23 @@ namespace Loader::MeshRemapper {
   std::unique_ptr<IRemapping> createRemapping(
     //Vertices uvs, and material indices are assumed to all be parsed together,
     //while the materialIndices are separate as referred to by materialIndices
-    std::vector<MeshVerticesAsset>& vertices,
-    std::vector<MeshUVsAsset>& uvs,
+    std::vector<MeshAsset>& meshes,
     const std::vector<uint32_t>& materialIndices,
     std::vector<RemapRef<MaterialAsset>>& materials
   ) {
-    const size_t fullSize = vertices.size();
-    assert(vertices.size() <= fullSize && uvs.size() <= fullSize && materialIndices.size() <= fullSize);
-    std::vector<uint32_t> remappedVertices(fullSize);
-    std::vector<uint32_t> remappedUvs(fullSize);
+    const size_t fullSize = meshes.size();
+    assert(meshes.size() <= fullSize && materialIndices.size() <= fullSize);
+    std::vector<uint32_t> remappedMeshes(fullSize);
     std::vector<uint32_t> remappedMaterials(materials.size());
     std::vector<size_t> tempHash;
 
-    deduplicate(vertices, remappedVertices, tempHash);
-    deduplicate(uvs, remappedUvs, tempHash);
+    deduplicate(meshes, remappedMeshes, tempHash);
     deduplicate(materials, remappedMaterials, tempHash);
 
     std::vector<MeshIndex> finalMapping(fullSize);
     for(size_t i = 0; i < fullSize; ++i) {
       finalMapping[i] = MeshIndex{
-        .verticesIndex = remappedVertices[i],
-        .uvsIndex = remappedUvs[i],
+        .meshIndex = remappedMeshes[i],
         .materialIndex = remappedMaterials[materialIndices[i]]
       };
     }
