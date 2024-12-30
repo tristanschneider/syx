@@ -3,7 +3,6 @@
 #include <cassert>
 #include "Profile.h"
 #include "Table.h"
-#include "TableOperations.h"
 #include "StableElementID.h"
 #include "SweepNPrune.h"
 #include "Scheduler.h"

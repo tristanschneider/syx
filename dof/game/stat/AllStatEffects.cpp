@@ -151,7 +151,7 @@ namespace StatEffect {
       //across the central and thread local instances of this
       size_t curTable = 0;
       db.visitOne([&curTable](auto& table) {
-        if(StatEffect::Global* global = TableOperations::tryGetRow<StatEffect::Global>(table)) {
+        if(StatEffect::Global* global = &std::get<StatEffect::Global>(table.mRows)) {
           global->at().ID = curTable++;
         }
       });

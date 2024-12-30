@@ -3,7 +3,6 @@
 #include "Profile.h"
 #include "glm/vec2.hpp"
 #include "config/Config.h"
-#include "Queries.h"
 #include "Scheduler.h"
 #include "Table.h"
 #include "AppBuilder.h"

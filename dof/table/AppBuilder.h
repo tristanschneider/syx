@@ -1,13 +1,14 @@
 #pragma once
 
 #include "Database.h"
-#include "TableOperations.h"
+#include "CachedRow.h"
 #include <memory>
 #include <unordered_map>
 #include <vector>
 #include <functional>
 #include "TypeId.h"
 #include "RuntimeDatabase.h"
+#include "StableElementID.h"
 #include "IRow.h"
 
 #include <variant>
@@ -20,8 +21,6 @@ public:
   //Resize to count and use provided IDs for new elements created. Only has meaning in stable tables
   virtual void resizeWithIDs(size_t count, const ElementRef* reservedIDs) = 0;
   virtual void swapRemove(const UnpackedDatabaseElementID& id) = 0;
-  //Insert this many before location
-  //virtual void insert(const UnpackedDatabaseElementID& location, size_t count) = 0;
 };
 
 class ElementRefResolver {

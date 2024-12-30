@@ -43,10 +43,6 @@ namespace TableModifierImpl {
       instance.swapRemove(id.getElementIndex());
     }
 
-    //void insert(const UnpackedDatabaseElementID& location, size_t count) override {
-    //  instance.modifier.insert(instance.table, location, count);
-    //}
-
     RuntimeTable instance;
   };
 }

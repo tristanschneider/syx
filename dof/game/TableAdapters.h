@@ -2,7 +2,7 @@
 
 #include <glm/vec2.hpp>
 #include <glm/vec4.hpp>
-#include "TableOperations.h"
+#include "Table.h"
 
 struct AppTaskArgs;
 struct CurveDefinition;
@@ -15,6 +15,7 @@ struct DebugPoint;
 struct DebugText;
 template<class Element>
 struct BasicRow;
+struct TableID;
 
 namespace Config {
   struct GameConfig;

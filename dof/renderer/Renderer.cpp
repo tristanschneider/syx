@@ -2,7 +2,6 @@
 #include "Renderer.h"
 
 #include "CommonTasks.h"
-#include "Queries.h"
 #include "Table.h"
 
 #include "glm/mat3x3.hpp"

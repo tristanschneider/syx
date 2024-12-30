@@ -1,6 +1,8 @@
 #include "Precompile.h"
 #include "RuntimeDatabase.h"
+
 #include <algorithm>
+#include "StableElementID.h"
 
 QueryResult<> RuntimeDatabase::query() {
   QueryResult<> result;

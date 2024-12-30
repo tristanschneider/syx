@@ -11,7 +11,6 @@
 #include "GameDatabase.h"
 #include "GameScheduler.h"
 #include "Simulation.h"
-#include "TableOperations.h"
 #include "ThreadLocals.h"
 #include "Renderer.h"
 #include "GraphViz.h"
