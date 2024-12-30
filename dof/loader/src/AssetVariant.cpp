@@ -7,9 +7,9 @@ namespace Loader {
   template<IsRow RowT, class AssetT>
   AssetOperations createAssetOperations() {
     struct Write {
-      static void write(RuntimeRow& dst, AssetVariant&& toMove, size_t i) {
+      static void write(IRow& dst, AssetVariant&& toMove, size_t i) {
         static_assert(std::is_same_v<AssetT, typename RowT::ElementT>);
-        static_cast<RowT*>(dst.row)->at(i) = std::move(std::get<AssetT>(toMove.v));
+        static_cast<RowT*>(&dst)->at(i) = std::move(std::get<AssetT>(toMove.v));
       }
     };
 

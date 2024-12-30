@@ -9,15 +9,15 @@
 #include "AppBuilder.h"
 
 namespace FollowTargetByVelocityStatEffect {
-  auto getArgs(AppTaskArgs& args) {
-    return StatEffectDatabase::createBuilderBase<FollowTargetByVelocityStatEffectTable>(args);
+  RuntimeTable& getArgs(AppTaskArgs& args) {
+    return StatEffectDatabase::getStatTable<FollowTargetByVelocityStatEffect::CommandRow>(args);
   }
 
   Builder::Builder(AppTaskArgs& args)
     : BuilderBase(getArgs(args))
-    , command{ &std::get<CommandRow>(getArgs(args).table.mRows) }
-    , target{ &std::get<StatEffect::Target>(getArgs(args).table.mRows) }
   {
+    command = table.tryGet<CommandRow>();
+    target = table.tryGet<StatEffect::Target>();
   }
 
   Builder& Builder::setMode(FollowMode mode) {

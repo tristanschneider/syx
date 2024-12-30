@@ -5,7 +5,9 @@
 #include "GameInput.h"
 #include "Simulation.h"
 #include "TableAdapters.h"
-#include "stat/AllStatEffects.h"
+#include "stat/VelocityStatEffect.h"
+#include "stat/FragmentBurstStatEffect.h"
+#include "stat/PositionStatEffect.h"
 #include <random>
 #include "Player.h"
 #include "Fragment.h"

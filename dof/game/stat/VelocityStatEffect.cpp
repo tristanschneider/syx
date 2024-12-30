@@ -8,14 +8,14 @@
 #include "AllStatEffects.h"
 
 namespace VelocityStatEffect {
-  auto getArgs(AppTaskArgs& args) {
-    return StatEffectDatabase::createBuilderBase<VelocityStatEffectTable>(args);
+  RuntimeTable& getArgs(AppTaskArgs& args) {
+    return StatEffectDatabase::getStatTable<VelocityStatEffect::CommandRow>(args);
   }
 
   Builder::Builder(AppTaskArgs& args)
     : BuilderBase{ getArgs(args) }
-    , command{ &std::get<CommandRow>(getArgs(args).table.mRows) }
   {
+    command = table.tryGet<CommandRow>();
   }
 
   Builder& Builder::addImpulse(const ImpulseCommand& cmd) {

@@ -26,8 +26,7 @@ namespace TableService {
           //Remove each element referenced by removal events
           if(std::optional<UnpackedDatabaseElementID> resolved = resolver.tryUnpack(*source)) {
             if(RuntimeTable* table = db.tryGet(TableID{ *resolved })) {
-              assert(table->stableModifier);
-              table->stableModifier.modifier.swapRemove(table->stableModifier.table, *resolved, *table->stableModifier.stableMappings);
+              table->swapRemove(resolved->getElementIndex());
             }
           }
         }
@@ -42,7 +41,7 @@ namespace TableService {
             RuntimeTable* fromTable = db.tryGet(TableID{ rawSrc });
             RuntimeTable* toTable = db.tryGet(*destination);
             if(fromTable && toTable) {
-              RuntimeTable::migrateOne(rawSrc.getElementIndex(), *fromTable, *toTable);
+              RuntimeTable::migrate(rawSrc.getElementIndex(), *fromTable, *toTable, 1);
             }
           }
         }

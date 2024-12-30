@@ -8,7 +8,7 @@
 namespace StatEffect {
   //Each set of commands must begin with this, creates the range of effects in this table
   BuilderBase& BuilderBase::createStatEffects(size_t count) {
-    return currentEffects = gnx::makeIndexRangeBeginCount(modifier.addElements(count, nullptr), count), *this;
+    return currentEffects = gnx::makeIndexRangeBeginCount(table.addElements(count, nullptr), count), *this;
   }
 
   BuilderBase& BuilderBase::setLifetime(size_t value) {

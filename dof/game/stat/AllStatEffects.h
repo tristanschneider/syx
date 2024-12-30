@@ -1,38 +1,29 @@
 #pragma once
 
-#include "stat/AreaForceStatEffect.h"
-#include "stat/ConstraintStatEffect.h"
-#include "stat/DamageStatEffect.h"
-#include "stat/FollowTargetByPositionEffect.h"
-#include "stat/FollowTargetByVelocityEffect.h"
-#include "stat/FragmentBurstStatEffect.h"
-#include "stat/LambdaStatEffect.h"
-#include "stat/PositionStatEffect.h"
-#include "stat/VelocityStatEffect.h"
+#include "RuntimeDatabase.h"
 
-struct StatEffectDatabase : Database<
-  LambdaStatEffectTable,
-  PositionStatEffectTable,
-  VelocityStatEffectTable,
-  AreaForceStatEffectTable,
-  FollowTargetByPositionStatEffectTable,
-  FollowTargetByVelocityStatEffectTable,
-  FragmentBurstStatEffectTable,
-  DamageStatEffectTable,
-  ConstraintStatEffectTable
-> {
-  StatEffectDatabase();
+class RuntimeDatabase;
+struct AppTaskArgs;
+struct StableElementMappings;
+struct RuntimeDatabaseArgs;
+class IAppBuilder;
 
-  static StatEffectDatabase& get(AppTaskArgs& task);
-  static StableElementMappings& getMappings(AppTaskArgs& task);
+namespace StatEffectDatabase {
+  RuntimeDatabase& get(AppTaskArgs& task);
+  StableElementMappings& getMappings(AppTaskArgs& task);
 
-  template<class TableT>
-  static StatEffect::BuilderBase::Args<TableT> createBuilderBase(AppTaskArgs& task) {
-    return { std::get<TableT>(get(task).mTables), TableID{ UnpackedDatabaseElementID::fromPacked(getTableIndex<TableT>()) }, getMappings(task) };
+  template<class RowT>
+  RuntimeTable& getStatTable(AppTaskArgs& task) {
+    RuntimeDatabase& db = get(task);
+    auto q = db.query<RowT>();
+    assert(q.size());
+    return *db.tryGet(q.matchingTableIDs[0]);
   }
 };
 
 namespace StatEffect {
+  void createDatabase(RuntimeDatabaseArgs& args);
+
   //Remove all elements of 'from' and put them in 'to'
   //Intended to be used to move newly created thread local effects to the central database
   void moveThreadLocalToCentral(IAppBuilder& builder);

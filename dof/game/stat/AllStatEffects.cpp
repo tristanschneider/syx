@@ -1,13 +1,22 @@
 #include "Precompile.h"
 #include "stat/AllStatEffects.h"
 
+#include "stat/AreaForceStatEffect.h"
+#include "stat/ConstraintStatEffect.h"
+#include "stat/DamageStatEffect.h"
+#include "stat/FollowTargetByPositionEffect.h"
+#include "stat/FollowTargetByVelocityEffect.h"
+#include "stat/FragmentBurstStatEffect.h"
+#include "stat/LambdaStatEffect.h"
+#include "stat/PositionStatEffect.h"
+#include "stat/VelocityStatEffect.h"
 #include "CommonTasks.h"
 #include "curve/CurveSolver.h"
 #include "Simulation.h"
 #include "TableAdapters.h"
 #include "ThreadLocals.h"
 
-StatEffectDatabase& StatEffectDatabase::get(AppTaskArgs& task) {
+RuntimeDatabase& StatEffectDatabase::get(AppTaskArgs& task) {
   return *ThreadLocalData::get(task).statEffects;
 }
 
@@ -15,42 +24,7 @@ StableElementMappings& StatEffectDatabase::getMappings(AppTaskArgs& task) {
   return *ThreadLocalData::get(task).mappings;
 }
 
-StatEffectDatabase::StatEffectDatabase() {
-  //Assign unique ids to each stat table. Doesn't matter what they are as long as this behaves the same
-  //across the central and thread local instances of this
-  size_t curTable = 0;
-  visitOne([&curTable](auto& table) {
-    if(StatEffect::Global* global = TableOperations::tryGetRow<StatEffect::Global>(table)) {
-      global->at().ID = curTable++;
-    }
-  });
-}
-
 namespace StatEffect {
-  template<class Func>
-  void visitStats(StatEffectDatabase& stats, const Func& func) {
-    stats.visitOne([&func](auto& table) {
-      using TableT = std::decay_t<decltype(table)>;
-      if constexpr(TableOperations::hasRow<StatEffect::Global, TableT>()) {
-        func(table);
-      }
-    });
-  }
-
-  template<class T>
-  void visitMoveToRow(const Row<T>& src, Row<T>& dst, size_t dstStart) {
-    CommonTasks::Now::moveOrCopyRow(src, dst, dstStart);
-  }
-
-  void visitMoveToRow(const StableIDRow&, StableIDRow&, size_t) {
-    //Stable row is left unchanged as the resize itself creates the necessary ids
-  }
-
-  template<class T>
-  void visitMoveToRow(const SharedRow<T>&, SharedRow<T>&, size_t) {
-    //Nothing to do for shared rows
-  }
-
   void moveThreadLocalToCentral(IAppBuilder& builder) {
     auto task = builder.createTask();
     task.setName("move stats");
@@ -63,48 +37,35 @@ namespace StatEffect {
 
     task.setCallback([&db, &tls, centralStatTables](AppTaskArgs&) mutable {
       for(size_t i = 0; i < tls.getThreadCount(); ++i) {
-        StatEffectDatabase& threadDB = *tls.get(i).statEffects;
-        visitStats(threadDB, [&](auto& fromTable) {
-          const size_t srcSize = TableOperations::size(fromTable);
+        RuntimeDatabase& threadDB = *tls.get(i).statEffects;
+        auto query = threadDB.query<StatEffect::Global>();
+        for(size_t q = 0; q < query.size(); ++q) {
+          RuntimeTable* fromTable = threadDB.tryGet(query.matchingTableIDs[q]);
+          assert(fromTable);
+
+          const size_t srcSize = fromTable->size();
           if(!srcSize) {
             return;
           }
 
-          using TableT = std::decay_t<decltype(fromTable)>;
-          //The index in the destination where the src elements should begin
-          size_t newBegin{};
           //This is a hack assuming the tables are the same
           //Ideally both would use RuntimeDatabase and could generically copy all rows
-          const size_t tableAssociation = std::get<StatEffect::Global>(fromTable.mRows).at().ID;
+          const size_t tableAssociation = query.get<0>(q).at().ID;
           assert(tableAssociation < centralStatTables.size());
           const TableID toTableID = centralStatTables.matchingTableIDs[tableAssociation];
           RuntimeTable* runtimeToTable = db.tryGet(toTableID);
           assert(runtimeToTable);
-          TableT& toTable = *static_cast<TableT*>(runtimeToTable->stableModifier.table);
 
-          const size_t dstSize = TableOperations::size(toTable);
-          newBegin = dstSize;
-
-          runtimeToTable->stableModifier.resize(dstSize + srcSize, nullptr);
+          //The index in the destination where the src elements should begin
+          const size_t newBegin = RuntimeTable::migrate(0, *fromTable, *runtimeToTable, srcSize);
 
           //Publish any newly added ids below
-          StatEffect::Global& g = std::get<StatEffect::Global>(toTable.mRows);
-
-          //Resize the table, then fill in each row
-          toTable.visitOne([&](auto& toRow) {
-            using RowT = std::decay_t<decltype(toRow)>;
-            RowT& fromRow = std::get<RowT>(fromTable.mRows);
-            visitMoveToRow(fromRow, toRow, newBegin);
-          });
-
+          StatEffect::Global& g = *runtimeToTable->tryGet<StatEffect::Global>();
           //Notify of all the newly created stable ids from the resize above
-          StableIDRow& stableRow = std::get<StableIDRow>(toTable.mRows);
+          StableIDRow& stableRow = *runtimeToTable->tryGet<StableIDRow>();
+          //TODO: why not use DBEvents for this?
           g.at().newlyAdded.insert(g.at().newlyAdded.end(), stableRow.begin() + newBegin, stableRow.end());
-
-          //Once all rows in the destination have the desired values, clear the source
-          StableElementMappings& srcMappings = db.getMappings();
-          StableOperations::stableResizeTable(fromTable, TableID{ UnpackedDatabaseElementID::fromPacked(StatEffectDatabase::getTableIndex(fromTable)) }, 0, srcMappings);
-        });
+        }
       }
     });
 
@@ -168,5 +129,38 @@ namespace StatEffect {
     for(auto table : builder.queryTables<StatEffect::Global>().matchingTableIDs) {
       StatEffect::processRemovals(builder, table);
     }
+  }
+
+  struct StatStorage : ChainedRuntimeStorage {
+    using DB = Database<
+      LambdaStatEffectTable,
+      PositionStatEffectTable,
+      VelocityStatEffectTable,
+      AreaForceStatEffectTable,
+      FollowTargetByPositionStatEffectTable,
+      FollowTargetByVelocityStatEffectTable,
+      FragmentBurstStatEffectTable,
+      DamageStatEffectTable,
+      ConstraintStatEffectTable
+    >;
+
+    StatStorage(RuntimeDatabaseArgs& args)
+      : ChainedRuntimeStorage(args)
+    {
+      //Assign unique ids to each stat table. Doesn't matter what they are as long as this behaves the same
+      //across the central and thread local instances of this
+      size_t curTable = 0;
+      db.visitOne([&curTable](auto& table) {
+        if(StatEffect::Global* global = TableOperations::tryGetRow<StatEffect::Global>(table)) {
+          global->at().ID = curTable++;
+        }
+      });
+    }
+
+    DB db;
+  };
+
+  void createDatabase(RuntimeDatabaseArgs& args) {
+    RuntimeStorage::addToChain<StatStorage>(args);
   }
 }

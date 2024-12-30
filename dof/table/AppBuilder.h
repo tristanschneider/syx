@@ -8,6 +8,7 @@
 #include <functional>
 #include "TypeId.h"
 #include "RuntimeDatabase.h"
+#include "IRow.h"
 
 #include <variant>
 
@@ -20,7 +21,7 @@ public:
   virtual void resizeWithIDs(size_t count, const ElementRef* reservedIDs) = 0;
   virtual void swapRemove(const UnpackedDatabaseElementID& id) = 0;
   //Insert this many before location
-  virtual void insert(const UnpackedDatabaseElementID& location, size_t count) = 0;
+  //virtual void insert(const UnpackedDatabaseElementID& location, size_t count) = 0;
 };
 
 class ElementRefResolver {
@@ -130,7 +131,7 @@ public:
   }
 
 private:
-  virtual void* tryGetRow(const UnpackedDatabaseElementID id, IDT type) = 0;
+  virtual IRow* tryGetRow(const UnpackedDatabaseElementID id, IDT type) = 0;
 };
 
 struct AppTaskSize {

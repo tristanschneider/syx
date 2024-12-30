@@ -3,7 +3,7 @@
 #include "loader/SceneAsset.h"
 #include "QueryAlias.h"
 
-struct RuntimeRow;
+class IRow;
 
 namespace Loader {
   struct LoadFailure {};
@@ -29,7 +29,7 @@ namespace Loader {
   };
 
   struct AssetOperations {
-    using StoreFN = void(*)(RuntimeRow&, AssetVariant&&, size_t);
+    using StoreFN = void(*)(IRow&, AssetVariant&&, size_t);
     QueryAliasBase destinationRow{};
     StoreFN writeToDestination{};
     bool isFailure{};

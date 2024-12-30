@@ -9,16 +9,16 @@
 #include "AppBuilder.h"
 
 namespace FollowTargetByPositionStatEffect {
-  auto getArgs(AppTaskArgs& args) {
-    return StatEffectDatabase::createBuilderBase<FollowTargetByPositionStatEffectTable>(args);
+  RuntimeTable& getArgs(AppTaskArgs& args) {
+    return StatEffectDatabase::getStatTable<FollowTargetByPositionStatEffect::CommandRow>(args);
   }
 
   Builder::Builder(AppTaskArgs& args)
     : BuilderBase(getArgs(args))
-    , command{ &std::get<CommandRow>(getArgs(args).table.mRows) }
-    , target{ &std::get<StatEffect::Target>(getArgs(args).table.mRows) }
-    , curve{ &std::get<StatEffect::CurveDef<>>(getArgs(args).table.mRows) }
   {
+    command = table.tryGet<CommandRow>();
+    target = table.tryGet<StatEffect::Target>();
+    curve = table.tryGet<StatEffect::CurveDef<>>();
   }
 
   Builder& Builder::setMode(FollowMode mode) {

@@ -8,17 +8,17 @@ namespace ConstraintStatEffect {
   //There is only one in this table at index zero
   constexpr Constraints::ConstraintDefinitionKey STAT_KEY = 0;
 
-  auto getArgs(AppTaskArgs& args) {
-    return StatEffectDatabase::createBuilderBase<ConstraintStatEffectTable>(args);
+  RuntimeTable& getArgs(AppTaskArgs& args) {
+    return StatEffectDatabase::getStatTable<ConstraintStatEffect::TargetA>(args);
   }
 
   Constraints::Rows extractRows(AppTaskArgs& args) {
-    ConstraintStatEffectTable& table = getArgs(args).table;
+    RuntimeTable& table = getArgs(args);
     return {
-      .targetA{ Constraints::Rows::Target{ &std::get<TargetA>(table.mRows) } },
-      .targetB{ Constraints::Rows::Target{ &std::get<TargetB>(table.mRows) } },
-      .custom{ &std::get<CustomConstraint>(table.mRows) },
-      .joint{ &std::get<JointRow>(table.mRows) }
+      .targetA{ Constraints::Rows::Target{ table.tryGet<TargetA>() } },
+      .targetB{ Constraints::Rows::Target{ table.tryGet<TargetB>() } },
+      .custom{ table.tryGet<CustomConstraint>() },
+      .joint{ table.tryGet<JointRow>() }
     };
   }
 

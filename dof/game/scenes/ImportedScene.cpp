@@ -174,7 +174,7 @@ namespace Scenes {
     RuntimeTable* playerTable = db.tryGet(tables.player);
     assert(playerTable);
 
-    playerTable->stableModifier.resize(players.players.size(), nullptr);
+    playerTable->resize(players.players.size(), nullptr);
 
     TransformRows transform{ *playerTable };
     PhysicsRows physics{ *playerTable };
@@ -201,7 +201,7 @@ namespace Scenes {
     RuntimeTable* table = db.tryGet(tables.terrain);
     assert(table);
 
-    table->stableModifier.resize(terrain.terrains.size(), nullptr);
+    table->resize(terrain.terrains.size(), nullptr);
 
     TransformRows transform{ *table };
     PhysicsRows physics{ *table };

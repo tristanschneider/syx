@@ -211,15 +211,15 @@ void Renderer::createDatabase(RuntimeDatabaseArgs& args) {
 
   //Inspect the existing tables for necessary modifications
   size_t quadPassCount{};
-  std::vector<RuntimeTable*> materialTables, meshTables;
-  for(RuntimeTable& table : args.tables) {
-    if(table.tryGet<Row<CubeSprite>>()) {
+  std::vector<RuntimeTableRowBuilder*> materialTables, meshTables;
+  for(RuntimeTableRowBuilder& table : args.tables) {
+    if(table.contains<Row<CubeSprite>>()) {
       ++quadPassCount;
     }
-    if(table.tryGet<Loader::MaterialAssetRow>()) {
+    if(table.contains<Loader::MaterialAssetRow>()) {
       materialTables.push_back(&table);
     }
-    if(table.tryGet<Loader::MeshAssetRow>()) {
+    if(table.contains<Loader::MeshAssetRow>()) {
       meshTables.push_back(&table);
     }
   }

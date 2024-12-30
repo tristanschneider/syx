@@ -1,57 +1,7 @@
 #pragma once
 
 #include "QueryAlias.h"
-
-struct RuntimeRow {
-  void* row{};
-  size_t (*migrateOneElement)(void* from, void* to, const UnpackedDatabaseElementID& fromID, [[maybe_unused]] const UnpackedDatabaseElementID& toID, StableElementMappings& mappings){};
-  void (*swapRemove)(void* row, const UnpackedDatabaseElementID& id, [[maybe_unused]] StableElementMappings& mappings){};
-};
-
-//All the runtime types hold pointers to rows and tables stored somewhere. This is a simple way to define their storage.
-//Layout doesn't matter strongly as they will only be queried once during initialization after which all operations are done directly on row pointers
-struct IRuntimeStorage {
-  virtual ~IRuntimeStorage() = default;
-};
-
-struct RuntimeTable {
-  using IDT = DBTypeID;
-
-  template<class RowT>
-  RowT* tryGet() {
-    auto it = rows.find(IDT::get<std::decay_t<RowT>>());
-    return it != rows.end() ? (RowT*)it->second.row : nullptr;
-  }
-
-  template<class RowT>
-  const RowT* tryGet() const {
-    auto it = rows.find(IDT::get<std::decay_t<RowT>>());
-    return it != rows.end() ? (const RowT*)it->second.row : nullptr;
-  }
-
-  void* tryGet(DBTypeID id) {
-    auto it = rows.find(id);
-    return it != rows.end() ? it->second.row : nullptr;
-  }
-
-  const void* tryGet(DBTypeID id) const {
-    auto it = rows.find(id);
-    return it != rows.end() ? it->second.row : nullptr;
-  }
-
-  RuntimeRow* tryGetRow(DBTypeID id) {
-    auto it = rows.find(id);
-    return it != rows.end() ? &it->second : nullptr;
-  }
-
-  //Migrates the element in `from` table at `i` to the `to` table at the index indicated by the return value
-  static size_t migrateOne(size_t i, RuntimeTable& from, RuntimeTable& to);
-
-  TableID tableID;
-  TableModifierInstance modifier;
-  StableTableModifierInstance stableModifier;
-  std::unordered_map<DBTypeID, RuntimeRow> rows;
-};
+#include "RuntimeTable.h"
 
 template<class RowT>
 using QueryResultRow = std::vector<RowT*>;
@@ -171,7 +121,7 @@ struct QueryResult {
 
 struct RuntimeDatabaseArgs {
   size_t elementIndexBits{};
-  std::vector<RuntimeTable> tables;
+  std::vector<RuntimeTableRowBuilder> tables;
   StableElementMappings* mappings{};
   std::unique_ptr<IRuntimeStorage> storage;
 };
@@ -221,8 +171,8 @@ public:
     }
     else {
       QueryResult<Rows...> result;
-      result.matchingTableIDs.reserve(data.tables.size());
-      for(size_t i = 0; i < data.tables.size(); ++i) {
+      result.matchingTableIDs.reserve(tables.size());
+      for(size_t i = 0; i < tables.size(); ++i) {
         _tryAddResult(i, result);
       }
       return result;
@@ -233,7 +183,7 @@ public:
   QueryResult<Rows...> query(const TableID& id) {
     QueryResult<Rows...> result;
     const size_t index = id.getTableIndex();
-    if(index < data.tables.size()) {
+    if(index < tables.size()) {
       _tryAddResult(index, result);
     }
     return result;
@@ -246,8 +196,8 @@ public:
     }
     else {
       QueryResult<typename Aliases::RowT...> result;
-      result.matchingTableIDs.reserve(data.tables.size());
-      for(size_t i = 0; i < data.tables.size(); ++i) {
+      result.matchingTableIDs.reserve(tables.size());
+      for(size_t i = 0; i < tables.size(); ++i) {
         _tryAddAliasResult(i, result, aliases...);
       }
       return result;
@@ -258,7 +208,7 @@ public:
   auto queryAlias(const TableID& id, const Aliases&... aliases) {
     QueryResult<typename Aliases::RowT...> result;
     const size_t index = id.getTableIndex();
-    if(index < data.tables.size()) {
+    if(index < tables.size()) {
       _tryAddAliasResult(index, result, aliases...);
     }
     return result;
@@ -272,7 +222,7 @@ public:
 private:
   template<class... Rows>
   void _tryAddResult(size_t index, QueryResult<Rows...>& result) {
-      std::tuple<Rows*...> rows{ data.tables[index].tryGet<std::decay_t<Rows>>()... };
+      std::tuple<Rows*...> rows{ tables[index].tryGet<std::decay_t<Rows>>()... };
       const bool allFound = (std::get<Rows*>(rows) && ...);
       if(allFound) {
         result.matchingTableIDs.push_back(getTableID(index));
@@ -293,7 +243,7 @@ private:
   template<class... Rows, class... Aliases>
   void _tryAddAliasResult(size_t index, QueryResult<Rows...>& result, const Aliases&... aliases) {
     constexpr auto indices = std::index_sequence_for<Rows...>{};
-    std::tuple<Rows*...> rows{ aliases.cast(data.tables[index].tryGet(aliases.type))... };
+    std::tuple<Rows*...> rows{ aliases.cast(tables[index].tryGet(aliases.type))... };
     if(areAllNotNull(rows, indices)) {
       result.matchingTableIDs.push_back(getTableID(index));
       copyAll(rows, result.rows, indices);
@@ -302,7 +252,10 @@ private:
 
   TableID getTableID(size_t index) const;
 
-  RuntimeDatabaseArgs data;
+  size_t elementIndexBits{};
+  std::vector<RuntimeTable> tables;
+  StableElementMappings* mappings{};
+  std::unique_ptr<IRuntimeStorage> storage;
 };
 
 //Specialization that provides all row ids
@@ -326,71 +279,16 @@ struct QueryResult<> {
 namespace DBReflect {
   namespace details {
     template<class RowT>
-    RuntimeRow createRuntimeRow(RowT& row) {
-      static constexpr bool isStableRow = std::is_same_v<RowT, StableIDRow>;
-      struct Funcs {
-        static size_t migrateOneElement(void* from, void* to, const UnpackedDatabaseElementID& fromID, [[maybe_unused]] const UnpackedDatabaseElementID& toID, [[maybe_unused]] StableElementMappings& mappings) {
-          RowT* fromT = static_cast<RowT*>(from);
-          RowT* toT = static_cast<RowT*>(to);
-          const size_t resultIndex = toT->size();
-          if constexpr(isStableRow) {
-            StableOperations::migrateOne(*fromT, *toT, fromID, toID, mappings);
-          }
-          else {
-            //Hack to deal with migration case where not all tables exist in source and destination
-            if(fromT) {
-              toT->emplaceBack(std::move(fromT->at(fromID.getElementIndex())));
-            }
-            else {
-              toT->emplaceBack();
-            }
-          }
-          return resultIndex;
-        }
-
-        static void swapRemove(void* row, const UnpackedDatabaseElementID& id, [[maybe_unused]] StableElementMappings& mappings) {
-          RowT* r = static_cast<RowT*>(row);
-          if constexpr(isStableRow) {
-            StableOperations::swapRemove(*r, id, mappings);
-          }
-          else {
-            //Nonzero because there must be an element we're removing
-            const size_t newSize = r->size() - 1;
-            r->swap(id.getElementIndex(), newSize);
-            r->resize(newSize);
-          }
-        }
-      };
-      return {
-        &row,
-        &Funcs::migrateOneElement,
-        &Funcs::swapRemove
-      };
-    }
-
-    constexpr size_t computeElementIndexBits(size_t tableCount) {
-      constexpr size_t totalBits = sizeof(size_t)*8;
-      return totalBits - dbDetails::constexprLog2(tableCount);
-    }
-
-    template<class RowT>
-    void reflectRow(RowT& row, RuntimeTable& table) {
-      RuntimeRow& newRow = table.rows[DBTypeID::get<RowT>()];
-      assert(!newRow.row);
-      newRow = createRuntimeRow(row);
+    void reflectRow(RowT& row, RuntimeTableRowBuilder& table) {
+      table.rows.push_back(RuntimeTableRowBuilder::Row{
+        .type = DBTypeID::get<RowT>(),
+        .row = &row
+      });
     }
 
     template<class TableT>
-    void reflectTable(const TableID& tableID, TableT& table, RuntimeDatabaseArgs& args) {
-      RuntimeTable& rt = args.tables[tableID.getTableIndex()];
-      rt.tableID = tableID;
-      if constexpr(TableOperations::isStableTable<TableT>) {
-        rt.stableModifier = StableTableModifierInstance::get(table, tableID, *args.mappings);
-      }
-      else {
-        rt.modifier = TableModifierInstance::get(table);
-      }
-      table.visitOne([&](auto& row) { reflectRow(row, rt); });
+    void reflectTable(RuntimeTableRowBuilder& builder, TableT& table) {
+      table.visitOne([&](auto& row) { reflectRow(row, builder); });
     }
   }
 
@@ -402,11 +300,10 @@ namespace DBReflect {
     const size_t baseIndex = args.tables.size();
     constexpr size_t newTables = db.size();
     args.tables.resize(baseIndex + newTables);
-    args.elementIndexBits = details::computeElementIndexBits(args.tables.size());
+    size_t i = baseIndex;
     db.visitOne([&](auto& table) {
-      const size_t rawIndex = DB::getTableIndex(table).getTableIndex();
-      const auto tableID = UnpackedDatabaseElementID{ 0, args.elementIndexBits }.remake(baseIndex + rawIndex, 0);
-      details::reflectTable(TableID{ tableID }, table, args);
+      //Order of tables in the db vs args doesn't matter, it'll all be finalized upon constructing the database
+      details::reflectTable(args.tables[i++], table);
     });
   }
 
@@ -415,9 +312,7 @@ namespace DBReflect {
     const size_t baseIndex = args.tables.size();
     const size_t newTables = 1;
     args.tables.resize(baseIndex + newTables);
-    args.elementIndexBits = details::computeElementIndexBits(args.tables.size());
-    const auto tableID = UnpackedDatabaseElementID{ 0, args.elementIndexBits }.remake(baseIndex, 0);
-    details::reflectTable(TableID{ tableID }, table, args);
+    details::reflectTable(args.tables[baseIndex], table);
   }
 
   template<class DB>

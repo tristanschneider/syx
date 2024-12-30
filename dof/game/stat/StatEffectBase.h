@@ -89,24 +89,16 @@ namespace StatEffect {
 
   class BuilderBase {
   public:
-    template<class TableT>
-    struct Args {
-      TableT& table;
-      const TableID& tableID;
-      StableElementMappings& mappings;
-    };
-
-    template<class TableT>
-    BuilderBase(Args<TableT> args)
-      : owner{ &std::get<StatEffect::Owner>(args.table.mRows) }
-      , lifetime{ &std::get<StatEffect::Lifetime>(args.table.mRows) }
-      , global{ &std::get<StatEffect::Global>(args.table.mRows) }
-      , continuations{ &std::get<StatEffect::Continuations>(args.table.mRows) }
-      , modifier{ StableTableModifierInstance::get(args.table, args.tableID, args.mappings) }
-      , target{ TableOperations::tryGetRow<StatEffect::Target>(args.table) }
-      , curveInput{ TableOperations::tryGetRow<StatEffect::CurveInput<>>(args.table) }
-      , curveOutput{ TableOperations::tryGetRow<StatEffect::CurveOutput<>>(args.table) }
-      , curveDefinition{ TableOperations::tryGetRow<StatEffect::CurveDef<>>(args.table) } {
+    BuilderBase(RuntimeTable& t)
+      : owner{ t.tryGet<StatEffect::Owner>() }
+      , lifetime{ t.tryGet<StatEffect::Lifetime>() }
+      , global{ t.tryGet<StatEffect::Global>() }
+      , continuations{ t.tryGet<StatEffect::Continuations>() }
+      , table{ t }
+      , target{ t.tryGet<StatEffect::Target>() }
+      , curveInput{ t.tryGet<StatEffect::CurveInput<>>() }
+      , curveOutput{ t.tryGet<StatEffect::CurveOutput<>>() }
+      , curveDefinition{ t.tryGet<StatEffect::CurveDef<>>() } {
     }
 
     //Each set of commands must begin with this, creates the range of effects in this table
@@ -116,13 +108,13 @@ namespace StatEffect {
 
   protected:
     gnx::IndexRange currentEffects;
+    RuntimeTable& table;
 
   private:
     StatEffect::Owner* owner{};
     StatEffect::Lifetime* lifetime{};
     StatEffect::Global* global{};
     StatEffect::Continuations* continuations{};
-    StableTableModifierInstance modifier;
 
     //Optionals
     StatEffect::Target* target{};

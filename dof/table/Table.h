@@ -1,8 +1,10 @@
 #pragma once
 
+#include "IRow.h"
+
 //Default implementation of row uses a vector. Custom implementations can use something else as long as they match the interface the templates use
 template<class Element>
-struct BasicRow {
+struct BasicRow : IRow {
   using ElementT = Element;
   using ElementPtr = Element*;
   using IsBasicRow = std::true_type;
@@ -49,7 +51,7 @@ struct BasicRow {
     mElements.erase(it);
   }
 
-  void resize(size_t size) {
+  void resize(size_t size) final {
     if constexpr(std::is_copy_constructible_v<Element>) {
       mElements.resize(size, mDefaultValue);
     }
@@ -78,6 +80,32 @@ struct BasicRow {
     mDefaultValue = value;
   }
 
+  RowBuffer getElements() final {
+    return { mElements.data() };
+  }
+
+  ConstRowBuffer getElements() const final {
+    return { mElements.data() };
+  }
+
+  void swapRemove(size_t i) final {
+    mElements[i] = std::move(mElements.back());
+    mElements.pop_back();
+  }
+
+  size_t migrateElements(size_t fromIndex, IRow* fromRow, size_t count) final {
+    size_t result = size();
+    for(size_t i = 0; i < count; ++i) {
+      if(BasicRow<Element>* cast = static_cast<BasicRow<Element>*>(fromRow)) {
+        emplaceBack(std::move(cast->mElements[fromIndex + i]));
+      }
+      else {
+        emplaceBack();
+      }
+    }
+    return result;
+  }
+
   std::vector<Element> mElements;
   Element mDefaultValue{};
 };
@@ -86,7 +114,7 @@ struct BasicRow {
 //Keeps track of size for consistency but doesn't mean anything
 //Value must be set explicitly with at
 template<class Element>
-struct SharedRow {
+struct SharedRow : IRow {
   using ElementT = Element;
   using ElementPtr = Element*;
   using NoOpIterator = size_t;
@@ -115,7 +143,7 @@ struct SharedRow {
     return mValue;
   }
 
-  void resize(size_t size) {
+  void resize(size_t size) final {
     mSize = size;
   }
 
@@ -139,6 +167,26 @@ struct SharedRow {
 
   void setDefaultValue(Element value) {
     mValue = value;
+  }
+
+  RowBuffer getElements() final {
+    return { &mValue };
+  }
+
+  ConstRowBuffer getElements() const final {
+    return { &mValue };
+  }
+
+  void swapRemove(size_t) final {
+    //Since element is a singleton it doesn't change but the tracked size does to match the other rows in the table
+    --mSize;
+  }
+
+  //Not relevant to update the shared value for an entire row when one element moves
+  size_t migrateElements(size_t, IRow*, size_t count) final {
+    size_t result = size();
+    mSize += count;
+    return result;
   }
 
   Element mValue{};

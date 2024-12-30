@@ -6,7 +6,8 @@
 #include "Simulation.h"
 #include "TableAdapters.h"
 #include "ThreadLocals.h"
-#include "stat/AllStatEffects.h"
+#include "stat/AreaForceStatEffect.h"
+#include "stat/FollowTargetByPositionEffect.h"
 
 #include "GameMath.h"
 #include "DebugDrawer.h"

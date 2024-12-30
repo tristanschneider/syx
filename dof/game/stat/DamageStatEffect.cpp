@@ -8,14 +8,14 @@
 #include "AppBuilder.h"
 
 namespace DamageStatEffect {
-  auto getArgs(AppTaskArgs& args) {
-    return StatEffectDatabase::createBuilderBase<DamageStatEffectTable>(args);
+  RuntimeTable& getArgs(AppTaskArgs& args) {
+    return StatEffectDatabase::getStatTable<DamageStatEffect::CommandRow>(args);
   }
 
   Builder::Builder(AppTaskArgs& args)
     : BuilderBase(getArgs(args))
-    , command{ &std::get<CommandRow>(getArgs(args).table.mRows) }
   {
+    command = table.tryGet<CommandRow>();
   }
 
   Builder& Builder::setDamage(float damage) {

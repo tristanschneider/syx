@@ -2,8 +2,8 @@
 
 struct AppTaskArgs;
 struct IRandom;
-struct StatEffectDatabase;
 struct StableElementMappings;
+class RuntimeDatabase;
 
 namespace Events {
   struct EventsImpl;
@@ -17,7 +17,7 @@ namespace Tasks {
 struct ThreadLocalData {
   static ThreadLocalData& get(AppTaskArgs& args);
 
-  StatEffectDatabase* statEffects{};
+  RuntimeDatabase* statEffects{};
   Events::EventsImpl* events{};
   //This is a hack to get at the mappings from apptaskargs
   //At the moment it's not really a problem since having access to this doesn't affect task scheduling

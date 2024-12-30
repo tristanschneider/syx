@@ -6,18 +6,19 @@
 #include "Simulation.h"
 #include "SpatialQueries.h"
 #include "TableAdapters.h"
+#include "stat/AreaForceStatEffect.h"
 
 #include "Geometric.h"
 
 namespace FragmentBurstStatEffect {
-  auto getArgs(AppTaskArgs& args) {
-    return StatEffectDatabase::createBuilderBase<FragmentBurstStatEffectTable>(args);
+  RuntimeTable& getArgs(AppTaskArgs& args) {
+    return StatEffectDatabase::getStatTable<FragmentBurstStatEffect::CommandRow>(args);
   }
 
   Builder::Builder(AppTaskArgs& args)
     : BuilderBase{ getArgs(args) }
-    , command{ &std::get<CommandRow>(getArgs(args).table.mRows) }
   {
+    command = table.tryGet<CommandRow>();
   }
 
   Builder& Builder::setRadius(float radius) {

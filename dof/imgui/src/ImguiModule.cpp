@@ -107,13 +107,5 @@ namespace ImguiModule {
 
   void createDatabase(RuntimeDatabaseArgs& args) {
     DBReflect::addDatabase<ImguiDB>(args);
-
-    //Hardcoded add an entry to hold global state
-    for(RuntimeTable& table : args.tables) {
-      if(table.tryGet<ImguiEnabled>()) {
-        table.modifier.resize(1);
-        break;
-      }
-    }
   }
 }

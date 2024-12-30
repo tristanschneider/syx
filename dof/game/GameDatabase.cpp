@@ -5,6 +5,7 @@
 
 #include "Simulation.h"
 #include "stat/AllStatEffects.h"
+#include "stat/FragmentBurstStatEffect.h"
 
 #include "Fragment.h"
 #include "Physics.h"
@@ -409,7 +410,7 @@ namespace GameDatabase {
 
   void create(RuntimeDatabaseArgs& args) {
     DBReflect::addDatabase<GameDatabase>(args);
-    DBReflect::addDatabase<StatEffectDatabase>(args);
+    StatEffect::createDatabase(args);
     SceneNavigator::createDB(args);
     Scenes::createImportedSceneDB(args);
     Scenes::createLoadingSceneDB(args);

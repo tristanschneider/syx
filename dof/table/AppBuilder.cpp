@@ -1,3 +1,4 @@
+#include "Precompile.h"
 #include "AppBuilder.h"
 
 namespace TableResolverImpl {
@@ -7,12 +8,9 @@ namespace TableResolverImpl {
     }
 
     //TODO: optional access validation
-    void* tryGetRow(const UnpackedDatabaseElementID id, IDT type) override {
-      if(RuntimeTable* table = db.tryGet(TableID{ id })) {
-        auto result = table->rows.find(type);
-        return result != table->rows.end() ? result->second.row : nullptr;
-      }
-      return nullptr;
+    IRow* tryGetRow(const UnpackedDatabaseElementID id, IDT type) override {
+      RuntimeTable* table = db.tryGet(TableID{ id });
+      return table ? table->tryGet(type) : nullptr;
     }
 
     RuntimeDatabase& db;
@@ -25,8 +23,8 @@ namespace TableResolverImpl {
 
 namespace TableModifierImpl {
   struct TM : ITableModifier {
-    TM(TableModifierInstance i)
-      : instance{ i } {
+    TM(RuntimeTable& table)
+      : instance{ table } {
     }
 
     size_t addElements(size_t count) override {
@@ -37,47 +35,19 @@ namespace TableModifierImpl {
       instance.resize(count);
     }
 
-    void resizeWithIDs(size_t, const ElementRef*) {
-      assert(false && "Caller should ensure this is a stable table when using this");
+    void resizeWithIDs(size_t newSize, const ElementRef* ids) {
+      instance.resize(newSize, ids);
     }
 
     void swapRemove(const UnpackedDatabaseElementID& id) override {
-      instance.modifier.swapRemove(instance.table, id);
+      instance.swapRemove(id.getElementIndex());
     }
 
-    void insert(const UnpackedDatabaseElementID& location, size_t count) override {
-      instance.modifier.insert(instance.table, location, count);
-    }
+    //void insert(const UnpackedDatabaseElementID& location, size_t count) override {
+    //  instance.modifier.insert(instance.table, location, count);
+    //}
 
-    TableModifierInstance instance;
-  };
-
-  struct STM : ITableModifier {
-    STM(StableTableModifierInstance i)
-      : instance{ i } {
-    }
-
-    size_t addElements(size_t count) override {
-      return instance.addElements(count, nullptr);
-    }
-
-    void resize(size_t count) override {
-      instance.resize(count, nullptr);
-    }
-
-    void resizeWithIDs(size_t count, const ElementRef* reservedIDs) {
-      instance.resize(count, reservedIDs);
-    }
-
-    void swapRemove(const UnpackedDatabaseElementID& id) override {
-      instance.modifier.swapRemove(instance.table, id, *instance.stableMappings);
-    }
-
-    void insert(const UnpackedDatabaseElementID& location, size_t count) override {
-      instance.modifier.insert(instance.table, location, count, *instance.stableMappings);
-    }
-
-    StableTableModifierInstance instance;
+    RuntimeTable instance;
   };
 }
 
@@ -170,12 +140,7 @@ void RuntimeDatabaseTaskBuilder::logTableModifier(const TableID& id) {
 std::shared_ptr<ITableModifier> RuntimeDatabaseTaskBuilder::getModifierForTable(const TableID& table) {
   logTableModifier(table);
   if(RuntimeTable* t = db.tryGet(table)) {
-    if(t->modifier) {
-      return std::make_unique<TableModifierImpl::TM>(t->modifier);
-    }
-    else if(t->stableModifier) {
-      return std::make_unique<TableModifierImpl::STM>(t->stableModifier);
-    }
+    return std::make_unique<TableModifierImpl::TM>(*t);
   }
   return nullptr;
 }

@@ -7,8 +7,21 @@
 #include "ILocalScheduler.h"
 
 namespace details {
+  RuntimeDatabaseArgs buildStatDB(StableElementMappings* mappings) {
+    RuntimeDatabaseArgs args{
+      .mappings = mappings
+    };
+    StatEffect::createDatabase(args);
+    return args;
+  }
+
   struct ThreadData {
-    StatEffectDatabase statEffects;
+    ThreadData(StableElementMappings* mappings)
+      : statEffects{ buildStatDB(mappings) }
+    {
+    }
+
+    RuntimeDatabase statEffects;
     std::unique_ptr<IRandom> random = Random::twister();
     std::unique_ptr<Tasks::ILocalScheduler> scheduler;
   };
@@ -31,7 +44,7 @@ ThreadLocals::ThreadLocals(size_t size,
   data->events = events;
   data->mappings = mappings;
   for(size_t i = 0; i < size; ++i) {
-    auto t = std::make_unique<details::ThreadData>();
+    auto t = std::make_unique<details::ThreadData>(mappings);
     if(schedulerFactory) {
       t->scheduler = schedulerFactory->create();
     }

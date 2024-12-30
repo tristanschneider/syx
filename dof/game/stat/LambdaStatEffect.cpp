@@ -6,14 +6,14 @@
 #include "AppBuilder.h"
 
 namespace LambdaStatEffect {
-  auto getArgs(AppTaskArgs& args) {
-    return StatEffectDatabase::createBuilderBase<LambdaStatEffectTable>(args);
+  RuntimeTable& getArgs(AppTaskArgs& args) {
+    return StatEffectDatabase::getStatTable<LambdaStatEffect::LambdaRow>(args);
   }
 
   Builder::Builder(AppTaskArgs& args)
     : BuilderBase(getArgs(args))
-    , command{ &std::get<LambdaRow>(getArgs(args).table.mRows) }
   {
+    command = table.tryGet<LambdaRow>();
   }
 
   Builder& Builder::setLambda(const Lambda& l) {

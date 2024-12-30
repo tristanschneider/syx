@@ -1,8 +1,6 @@
 #pragma once
+#include "DBTypeID.h"
 #include "TableOperations.h"
-#include "TypeId.h"
-
-using DBTypeID = TypeID<struct DBTypeT>;
 
 struct QueryAliasBase {
   DBTypeID type;

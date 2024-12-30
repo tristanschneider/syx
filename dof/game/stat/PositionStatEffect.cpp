@@ -7,14 +7,14 @@
 #include "TableAdapters.h"
 
 namespace PositionStatEffect {
-  auto getArgs(AppTaskArgs& args) {
-    return StatEffectDatabase::createBuilderBase<PositionStatEffectTable>(args);
+  RuntimeTable& getArgs(AppTaskArgs& args) {
+    return StatEffectDatabase::getStatTable<PositionStatEffect::CommandRow>(args);
   }
 
   Builder::Builder(AppTaskArgs& args)
     : BuilderBase{ getArgs(args) }
-    , command{ &std::get<CommandRow>(getArgs(args).table.mRows) }
   {
+    command = table.tryGet<CommandRow>();
   }
 
   Builder& Builder::setZ(float z) {

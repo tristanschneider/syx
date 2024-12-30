@@ -4,6 +4,7 @@
 #include "DBEvents.h"
 #include "Simulation.h"
 #include "stat/AllStatEffects.h"
+#include "stat/DamageStatEffect.h"
 #include "TableAdapters.h"
 
 #include "glm/gtx/norm.hpp"
@@ -18,14 +19,14 @@
 #include "DebugDrawer.h"
 
 namespace AreaForceStatEffect {
-  auto getArgs(AppTaskArgs& args) {
-    return StatEffectDatabase::createBuilderBase<AreaForceStatEffectTable>(args);
+  RuntimeTable& getTable(AppTaskArgs& args) {
+    return StatEffectDatabase::getStatTable<AreaForceStatEffect::CommandRow>(args);
   }
 
   Builder::Builder(AppTaskArgs& args)
-    : BuilderBase{ getArgs(args) }
-    , command{ &std::get<CommandRow>(getArgs(args).table.mRows) }
+    : BuilderBase{ getTable(args) }
   {
+    command = table.tryGet<CommandRow>();
   }
 
   Builder& Builder::setOrigin(const glm::vec2& origin) {
@@ -330,7 +331,6 @@ namespace AreaForceStatEffect {
 
       for(size_t t = 0; t < query.size(); ++t) {
         auto&& [commands] = query.get(t);
-        DamageStatEffectAdapter damageEffect = TableAdapters::getDamageEffects(args);
 
         for(const Command& command : commands->mElements) {
           shapes.clear();

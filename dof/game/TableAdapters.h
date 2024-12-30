@@ -26,91 +26,6 @@ struct ConfigAdapter {
   Config::GameConfig* game{};
 };
 
-namespace StatEffect {
-  struct Owner;
-  struct Lifetime;
-  struct Global;
-  struct Target;
-  struct Continuations;
-}
-
-namespace PositionStatEffect {
-  struct CommandRow;
-}
-
-namespace VelocityStatEffect {
-  struct CommandRow;
-};
-
-namespace LambdaStatEffect {
-  struct LambdaRow;
-};
-
-namespace AreaForceStatEffect {
-  struct CommandRow;
-};
-
-namespace FollowTargetByPositionStatEffect {
-  struct CommandRow;
-}
-
-namespace FollowTargetByVelocityStatEffect {
-  struct CommandRow;
-}
-
-namespace DamageStatEffect {
-  struct CommandRow;
-};
-
-struct StatEffectBaseAdapter {
-  StatEffect::Owner* owner{};
-  StatEffect::Lifetime* lifetime{};
-  StatEffect::Global* global{};
-  StatEffect::Continuations* continuations{};
-  StableTableModifierInstance modifier;
-
-  //Optionals
-  StatEffect::Target* target{};
-  Row<float>* curveInput{};
-  Row<float>* curveOutput{};
-  Row<CurveDefinition*>* curveDefinition{};
-};
-
-struct PositionStatEffectAdapter {
-  StatEffectBaseAdapter base;
-  PositionStatEffect::CommandRow* command{};
-};
-
-struct VelocityStatEffectAdapter {
-  StatEffectBaseAdapter base;
-  VelocityStatEffect::CommandRow* command{};
-};
-
-struct LambdaStatEffectAdapter {
-  StatEffectBaseAdapter base;
-  LambdaStatEffect::LambdaRow* command{};
-};
-
-struct AreaForceStatEffectAdapter {
-  StatEffectBaseAdapter base;
-  AreaForceStatEffect::CommandRow* command{};
-};
-
-struct FollowTargetByPositionStatEffectAdapter {
-  StatEffectBaseAdapter base;
-  FollowTargetByPositionStatEffect::CommandRow* command{};
-};
-
-struct FollowTargetByVelocityStatEffectAdapter {
-  StatEffectBaseAdapter base;
-  FollowTargetByVelocityStatEffect::CommandRow* command{};
-};
-
-struct DamageStatEffectAdapter {
-  StatEffectBaseAdapter base;
-  DamageStatEffect::CommandRow* command{};
-};
-
 struct TransformAdapter {
   BasicRow<float>* posX{};
   BasicRow<float>* posY{};
@@ -153,14 +68,6 @@ namespace TableAdapters {
 
   ThreadLocals& getThreadLocals(RuntimeDatabaseTaskBuilder& task);
   size_t getThreadCount(RuntimeDatabaseTaskBuilder& task);
-
-  VelocityStatEffectAdapter getVelocityEffects(AppTaskArgs& args);
-  PositionStatEffectAdapter getPositionEffects(AppTaskArgs& args);
-  LambdaStatEffectAdapter getLambdaEffects(AppTaskArgs& args);
-  AreaForceStatEffectAdapter getAreaForceEffects(AppTaskArgs& args);
-  FollowTargetByPositionStatEffectAdapter getFollowTargetByPositionEffects(AppTaskArgs& args);
-  FollowTargetByVelocityStatEffectAdapter getFollowTargetByVelocityEffects(AppTaskArgs& args);
-  DamageStatEffectAdapter getDamageEffects(AppTaskArgs& args);
 
   DebugLineAdapter getDebugLines(RuntimeDatabaseTaskBuilder& task);
   const float* getDeltaTime(RuntimeDatabaseTaskBuilder& task);

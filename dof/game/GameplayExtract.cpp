@@ -5,6 +5,7 @@
 #include "Simulation.h"
 #include "TableAdapters.h"
 #include "stat/AllStatEffects.h"
+#include "stat/VelocityStatEffect.h"
 #include "AppBuilder.h"
 
 namespace GameplayExtract {
@@ -49,7 +50,6 @@ namespace GameplayExtract {
     //Z goes through a resolver because it is optional
     auto resolver = task.getResolver<FloatRow<GLinImpulse, Z>>();
     task.setCallback([query, resolver](AppTaskArgs& args) mutable {
-      VelocityStatEffectAdapter v = TableAdapters::getVelocityEffects(args);
       for(size_t i = 0; i < query.size(); ++i) {
         auto [ x, y, a, stable ] = query.get(i);
         CachedRow<FloatRow<GLinImpulse, Z>> impulseZ;

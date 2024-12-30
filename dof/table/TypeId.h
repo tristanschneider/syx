@@ -16,17 +16,7 @@ struct TypeID {
     return result;
   }
 
-  bool operator==(const TypeID& rhs) const {
-    return value == rhs.value;
-  }
-
-  bool operator!=(const TypeID& rhs) const {
-    return !(*this == rhs);
-  }
-
-  bool operator<(const TypeID& rhs) const {
-    return value < rhs.value;
-  }
+  auto operator<=>(const TypeID&) const = default;
 
   size_t value{};
 };

@@ -73,7 +73,7 @@ namespace Loader {
           assert(self.use && "Tracker should be alive during asset load");
 
           //Create the entry in the destination and remove the current
-          RuntimeTable::migrateOne(0, *sourceTable, *loadingTable);
+          RuntimeTable::migrate(0, *sourceTable, *loadingTable, 1);
           LoadingAsset& newAsset = dq.at(newIndex);
           //Initialize task metadata and start the task
           newAsset.state.step = Loader::LoadStep::Loading;
@@ -126,11 +126,11 @@ namespace Loader {
         auto id = res.tryUnpack(task->taskArgs.self.asset);
         assert(id && id->getTableIndex() == sourceTable.getTableIndex() && "All tasks are expected to come from the same table");
 
-        dstIndex = RuntimeTable::migrateOne(id->getElementIndex(), *source, *dest);
+        dstIndex = RuntimeTable::migrate(id->getElementIndex(), *source, *dest, 1);
       }
       else {
         //For elements that were pending, create their entries now
-        dstIndex = dest->stableModifier.addElements(1, &task->taskArgs.self.asset);
+        dstIndex = dest->addElements(1, &task->taskArgs.self.asset);
 
         //Now that the entry for this ElementRef is being created, mark it as claimed
         task->setHandleClaimed();
@@ -147,7 +147,7 @@ namespace Loader {
       }
 
       //Move the asset itself to the destination
-      RuntimeRow* destinationRow = dest->tryGetRow(ops.destinationRow.type);
+      IRow* destinationRow = dest->tryGet(ops.destinationRow.type);
       assert(destinationRow);
       ops.writeToDestination(*destinationRow, std::move(toMove), dstIndex);
     }
@@ -163,11 +163,11 @@ namespace Loader {
     RuntimeTable* source = db.tryGet(sourceTable);
     for(auto&& [task, ops] : assets) {
       //If it had storage, move it to the failed table
-      //If it didn't, the pending ElementRefs will be reclaimedby the task destructor
+      //If it didn't, the pending ElementRefs will be reclaimed by the task destructor
       if(task->hasStorage()) {
         auto id = res.tryUnpack(task->taskArgs.self.asset);
         assert(id && id->getTableIndex() == sourceTable.getTableIndex() && "All tasks are expected to come from the same table");
-        RuntimeTable::migrateOne(id->getElementIndex(), *source, failedTable);
+        RuntimeTable::migrate(id->getElementIndex(), *source, failedTable, 1);
       }
     }
   }
