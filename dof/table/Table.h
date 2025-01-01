@@ -219,13 +219,7 @@ constexpr bool isNestedRow() {
 }
 
 template<class T>
-concept IsRow = requires(T t) {
-  typename T::ElementT;
-  typename T::ElementPtr;
-  t.at(0);
-  t.size();
-  t.swap(0, 1);
-};
+concept IsRow = std::is_base_of_v<IRow, T>;
 static_assert(IsRow<BasicRow<int>>);
 static_assert(IsRow<SharedRow<int>>);
 
@@ -239,9 +233,6 @@ struct BoolRow : Row<uint8_t>{};
 
 template<class... Rows>
 struct Table {
-  template<class T>
-  constexpr static bool HasRow = (std::is_same_v<std::decay_t<T>, Rows> || ...);
-
   //Call a single argument visitor for each row
   template<class Visitor, class... Args>
   constexpr void visitOne(const Visitor& visitor, Args&&... args) {
@@ -251,17 +242,6 @@ struct Table {
   template<class Visitor, class... Args>
   constexpr void visitOne(const Visitor& visitor, Args&&... args) const {
     (visitor(std::get<Rows>(mRows), args...), ...);
-  }
-
-  //Call a multi-argument visitor with all rows
-  template<class Visitor, class... Args>
-  constexpr auto visitAll(const Visitor& visitor, Args&&... args) {
-    return visitor(args..., std::get<Rows>(mRows)...);
-  }
-
-  template<class Visitor, class... Args>
-  constexpr auto visitAll(const Visitor& visitor, Args&&... args) const {
-    return visitor(args..., std::get<Rows>(mRows)...);
   }
 
   std::tuple<Rows...> mRows;

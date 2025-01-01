@@ -362,27 +362,7 @@ namespace Test {
       Assert::AreEqual(5, b);
     }
 
-    TEST_METHOD(DatabaseElement_Construct_HasPackedValues) {
-      DatabaseElementID<3> id(2, 7);
-
-      Assert::AreEqual(size_t(2), id.getTableIndex());
-      Assert::AreEqual(size_t(7), id.getElementIndex());
-    }
-
-    TEST_METHOD(ZeroElementID_Unpack_IsValid) {
-      DatabaseElementID<4> id(0, 0);
-
-      Assert::IsTrue(id.isValid());
-      Assert::AreEqual(size_t(0), id.getTableIndex());
-      Assert::AreEqual(size_t(0), id.getElementIndex());
-    }
-
-    TEST_METHOD(EmptyElementID_IsValid_False) {
-      Assert::IsFalse(DatabaseElementID<2>{}.isValid());
-    }
-
     using TestDB = Database<Table<Row<int>>, Table<Row<size_t>>>;
-    static_assert(TestDB::ElementID(1, 0) == TestDB::getTableIndex<Table<Row<size_t>>>());
 
     struct SpatialPairsData {
       SpatialPairsData(RuntimeDatabaseTaskBuilder& task) {
@@ -570,8 +550,6 @@ namespace Test {
       auto& b = db[2];
       auto& stableA = *a.tryGet<StableIDRow>();
       auto& valueA = *a.tryGet<Row<int>>();
-      constexpr auto tableIndexA = UnpackedDatabaseElementID::fromPacked(TestStableDB::getTableIndex<StableTableA>());
-      constexpr auto tableIndexB = UnpackedDatabaseElementID::fromPacked(TestStableDB::getTableIndex<StableTableB>());
       a.resize(3);
       ElementRefResolver res{ db.getDescription() };
 
@@ -579,7 +557,7 @@ namespace Test {
 
       valueA.at(0) = 1;
       valueA.at(2) = 5;
-      ElementRef elementA = stableA.at(tableIndexA.getElementIndex());
+      ElementRef elementA = stableA.at(0);
       ElementRef elementC = stableA.at(2);
       a.swapRemove(0);
 
@@ -587,7 +565,7 @@ namespace Test {
 
       Assert::AreEqual(5, valueA.at(0));
       Assert::IsFalse(static_cast<bool>(elementA));
-      TestStableDB::ElementID resolvedC{ res.uncheckedUnpack(elementC).mValue };
+      UnpackedDatabaseElementID resolvedC{ res.uncheckedUnpack(elementC).mValue };
       Assert::AreEqual(5, db[resolvedC.getTableIndex()].tryGet<Row<int>>()->at(resolvedC.getElementIndex()));
 
       //Migrate object at index 0 in A which is ElementC
@@ -595,7 +573,7 @@ namespace Test {
 
       verifyAllMappings(db);
 
-      resolvedC = TestStableDB::ElementID{ res.uncheckedUnpack(elementC).mValue };
+      resolvedC = res.uncheckedUnpack(elementC);
       Assert::AreEqual(5, db[resolvedC.getTableIndex()].tryGet<Row<int>>()->at(resolvedC.getElementIndex()));
 
       a.resize(0);
@@ -990,22 +968,17 @@ namespace Test {
     }
 
     TEST_METHOD(UnpackedDBElementID) {
-      using SampleDB = Database<
+      RuntimeDatabase db = createDatabase<Database<
         Table<Row<int>>,
         Table<Row<char>>,
         Table<SharedRow<uint32_t>>
-      >;
+      >>();
+      UnpackedDatabaseElementID unpacked = db[1].getID().remakeElement(5);
+      UnpackedDatabaseElementID id = UnpackedDatabaseElementID::fromDescription(0, DatabaseDescription{ .elementIndexBits = 2 }).remake(1, 2);
 
-      auto id = SampleDB::getElementID<Table<Row<char>>>(5);
-      UnpackedDatabaseElementID unpacked = UnpackedDatabaseElementID::fromPacked(id);
       Assert::AreEqual(id.getElementIndex(), unpacked.getElementIndex());
       Assert::AreEqual(id.getTableIndex(), unpacked.getTableIndex());
-      Assert::AreEqual(id.ELEMENT_INDEX_MASK, unpacked.getElementMask());
-
-      unpacked = UnpackedDatabaseElementID::fromElementMask(id.ELEMENT_INDEX_MASK, id.getShiftedTableIndex(), id.getElementIndex());
-      Assert::AreEqual(id.getElementIndex(), unpacked.getElementIndex());
-      Assert::AreEqual(id.getTableIndex(), unpacked.getTableIndex());
-      Assert::AreEqual(id.ELEMENT_INDEX_MASK, unpacked.getElementMask());
+      Assert::AreEqual(id.getElementMask(), unpacked.getElementMask());
     }
 
     struct TestStatInfo {

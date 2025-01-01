@@ -5,6 +5,7 @@
 #include "RuntimeDatabase.h"
 #include "loader/SceneAsset.h"
 #include "AssetIndex.h"
+#include "Database.h"
 
 namespace Loader {
   namespace db {
