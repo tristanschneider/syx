@@ -74,7 +74,7 @@ namespace PerformanceDB {
 
   void create(RuntimeDatabaseArgs& args) {
     DBReflect::addDatabase<DB>(args);
-    DBReflect::addDatabase<StatEffectDatabase>(args);
+    StatEffect::createDatabase(args);
     SceneNavigator::createDB(args);
   }
 

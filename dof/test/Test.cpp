@@ -7,8 +7,6 @@
 #include "Simulation.h"
 #include "SweepNPrune.h"
 #include "Table.h"
-#include "TableOperations.h"
-#include "Queries.h"
 
 #include "PhysicsSimulation.h"
 #include "Scheduler.h"
@@ -33,14 +31,15 @@
 #include "SceneNavigator.h"
 #include "TestGame.h"
 
+#include "stat/LambdaStatEffect.h"
+#include "stat/VelocityStatEffect.h"
+#include "stat/PositionStatEffect.h"
+#include "stat/AreaForceStatEffect.h"
+
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 namespace Test {
   using namespace Config;
-  //TODO: get rid of duple 
-  static_assert(std::is_same_v<Duple<int*>, Table<Row<int>>::ElementRef>);
-  static_assert(std::is_same_v<Table<Row<int>>::ElementRef, decltype(make_duple((int*)nullptr))>);
-  static_assert(std::is_same_v<std::tuple<DupleElement<0, int>>, Duple<int>::TupleT>);
 
   TEST_CLASS(GameSchedulerTest) {
     struct TestDB {
@@ -150,7 +149,7 @@ namespace Test {
           RuntimeTable* tableTo = d.tryGet(to);
           Assert::IsTrue(tableFrom && tableTo);
 
-          RuntimeTable::migrateOne(0, *tableFrom, *tableTo);
+          RuntimeTable::migrate(0, *tableFrom, *tableTo, 1);
 
           Assert::AreEqual(size_t(1), tableFrom->tryGet<Row<float>>()->size());
           Assert::AreEqual(size_t(1), tableTo->tryGet<Row<int64_t>>()->size());
@@ -172,147 +171,192 @@ namespace Test {
   };
 
   TEST_CLASS(Tests) {
+    template<class T>
+    static RuntimeDatabase createDatabase() {
+      RuntimeDatabaseArgs args = DBReflect::createArgsWithMappings();
+      DBReflect::addDatabase<T>(args);
+      return RuntimeDatabase{ std::move(args) };
+    }
+
     TEST_METHOD(Table_AddElement_SizeIncreases) {
-      Table<Row<int>> table;
+      RuntimeDatabase db = createDatabase<Database<Table<Row<int>>>>();
+      RuntimeTable& table = db[0];
 
-      auto tuple = TableOperations::addToTable(table);
-      tuple.get<0>() = 5;
+      table.addElements(1);
 
-      Assert::AreEqual(size_t(1), TableOperations::size(table));
+      Assert::AreEqual(size_t(1), table.size());
     }
 
     TEST_METHOD(TableWithElement_getElement_HasValue) {
-      Table<Row<int>> table;
-      TableOperations::addToTable(table).get<0>() = 6;
+      RuntimeDatabase db = createDatabase<Database<Table<Row<int>>>>();
+      RuntimeTable& table = db[0];
+      const size_t i = table.addElements(1);
+      auto* row = table.tryGet<Row<int>>();
 
-      int value = TableOperations::getElement(table, 0).get<0>();
+      row->at(i) = 6;
 
-      Assert::AreEqual(6, value);
+      Assert::AreEqual(6, row->at(i));
     }
 
     struct IntRowA : Row<int> {};
     struct IntRowB : Row<int> {};
 
     TEST_METHOD(TwoRowsSameElementTypeDifferentValues_getRow_HasDifferentValues) {
-      Table<IntRowA, IntRowB> table;
-      auto tuple = TableOperations::addToTable(table);
-      tuple.get<0>() = 1;
-      tuple.get<1>() = 2;
+      RuntimeDatabase db = createDatabase<Database<Table<IntRowA, IntRowB>>>();
+      RuntimeTable& table = db[0];
+      const size_t i = table.addElements(1);
+      IntRowA* a = table.tryGet<IntRowA>();
+      IntRowB* b = table.tryGet<IntRowB>();
+      a->at(i) = 1;
+      b->at(i) = 2;
 
-      int rowA = TableOperations::getRow<IntRowA>(table).at(0);
-      int rowB = TableOperations::getRow<IntRowB>(table).at(0);
+      int rowA = a->at(i);
+      int rowB = b->at(i);
 
       Assert::AreEqual(1, rowA);
       Assert::AreEqual(2, rowB);
     }
 
     TEST_METHOD(TableWithElement_swapRemove_IsRemoved) {
-      Table<Row<int>> table;
-      TableOperations::addToTable(table);
+      RuntimeDatabase db = createDatabase<Database<Table<Row<int>>>>();
+      RuntimeTable& table = db[0];
+      table.addElements(1);
 
-      TableOperations::swapRemove(table, 0);
+      table.swapRemove(0);
 
-      Assert::AreEqual(size_t(0), TableOperations::size(table));
+      Assert::AreEqual(size_t(0), table.size());
     }
 
     TEST_METHOD(TableWithRow_hasRow_True) {
-      Table<Row<int>> table;
+      RuntimeDatabase db = createDatabase<Database<Table<Row<int>>>>();
 
-      Assert::IsTrue(TableOperations::hasRow<Row<int>>(table));
+      Assert::IsNotNull(db[0].tryGet<Row<int>>());
     }
 
     TEST_METHOD(TableWithoutRow_hasRow_False) {
-      Table<Row<int>> table;
+      RuntimeDatabase db = createDatabase<Database<Table<Row<int>>>>();
 
-      Assert::IsFalse(TableOperations::hasRow<Row<std::string>>(table));
+      Assert::IsNull(db[0].tryGet<Row<std::string>>());
     }
 
     TEST_METHOD(SameTables_migrateOne_ValuesMoved) {
-      Table<Row<int>> a, b;
-      TableOperations::addToTable(a).get<0>() = 5;
+      using TabT = Table<Row<int>>;
+      RuntimeDatabase db = createDatabase<Database<TabT, TabT>>();
+      RuntimeTable& a = db[0];
+      RuntimeTable& b = db[1];
+      a.addElements(1);
+      a.tryGet<Row<int>>()->at(0) = 5;
 
-      TableOperations::migrateOne(a, b, 0);
+      RuntimeTable::migrate(0, a, b, 1);
 
-      Assert::AreEqual(5, TableOperations::getElement(b, 0).get<0>());
+      Assert::AreEqual(5, b.tryGet<Row<int>>()->at(0));
     }
 
     TEST_METHOD(SameTables_migrateAll_ValuesMoved) {
-      Table<Row<int>> a, b;
-      TableOperations::addToTable(a).get<0>() = 5;
+      using TabT = Table<Row<int>>;
+      RuntimeDatabase db = createDatabase<Database<TabT, TabT>>();
+      RuntimeTable& a = db[0];
+      RuntimeTable& b = db[1];
+      a.addElements(5);
+      for(int i = 0; i < 5; ++i) {
+        a.tryGet<Row<int>>()->at(i) = i;
+      }
 
-      TableOperations::migrateAll(a, b);
+      RuntimeTable::migrate(0, a, b, 5);
 
-      Assert::AreEqual(5, TableOperations::getElement(b, 0).get<0>());
+      for(int i = 0; i < 5; ++i) {
+        Assert::AreEqual(i, b.tryGet<Row<int>>()->at(i));
+      }
     }
 
     TEST_METHOD(SmallAndBigTable_MigrateOneSmallToBig_ValuesMoved) {
-      Table<Row<int>> a;
-      Table<Row<int>, Row<short>> b;
-      TableOperations::addToTable(a).get<0>() = 5;
+      RuntimeDatabase db = createDatabase<Database<Table<Row<int>>, Table<Row<int>, Row<short>>>>();
+      RuntimeTable& a = db[0];
+      RuntimeTable& b = db[1];
+      a.addElements(1);
+      a.tryGet<Row<int>>()->at(0) = 5;
 
-      TableOperations::migrateOne(a, b, 0);
+      RuntimeTable::migrate(0, a, b, 1);
 
-      Assert::AreEqual(5, TableOperations::getElement(b, 0).get<0>());
-      Assert::AreEqual(size_t(1), TableOperations::getRow<Row<short>>(b).size());
+      Assert::AreEqual(5, b.tryGet<Row<int>>()->at(0));
+      Assert::AreEqual(size_t(1), b.size());
+      Assert::AreEqual(short(0), b.tryGet<Row<short>>()->at(0));
     }
 
     TEST_METHOD(SmallAndBigTable_MigrateAllSmallToBig_ValuesMoved) {
-      Table<Row<int>> a;
-      Table<Row<int>, Row<short>> b;
-      TableOperations::addToTable(a).get<0>() = 5;
+      RuntimeDatabase db = createDatabase<Database<Table<Row<int>>, Table<Row<int>, Row<short>>>>();
+      RuntimeTable& a = db[0];
+      RuntimeTable& b = db[1];
+      a.addElements(5);
+      for(int i = 0; i < 5; ++i) {
+        a.tryGet<Row<int>>()->at(i) = i;
+      }
 
-      TableOperations::migrateAll(a, b);
+      RuntimeTable::migrate(0, a, b, 5);
 
-      Assert::AreEqual(5, TableOperations::getElement(b, 0).get<0>());
-      Assert::AreEqual(size_t(1), TableOperations::getRow<Row<short>>(b).size());
+      for(int i = 0; i < 5; ++i) {
+        Assert::AreEqual(i, b.tryGet<Row<int>>()->at(i));
+        Assert::AreEqual(short(0), b.tryGet<Row<short>>()->at(i));
+      }
+      Assert::AreEqual(size_t(5), b.size());
     }
 
     TEST_METHOD(SmallAndBigTable_MigrateOneBigToSmall_ValuesMoved) {
-      Table<Row<int>> a;
-      Table<Row<int>, Row<short>> b;
-      TableOperations::addToTable(b).get<0>() = 5;
+      RuntimeDatabase db = createDatabase<Database<Table<Row<int>>, Table<Row<int>, Row<short>>>>();
+      RuntimeTable& a = db[0];
+      RuntimeTable& b = db[1];
+      b.addElements(1);
+      b.tryGet<Row<int>>()->at(0) = 5;
 
-      TableOperations::migrateOne(b, a, 0);
+      RuntimeTable::migrate(0, b, a, 1);
 
-      Assert::AreEqual(5, TableOperations::getElement(a, 0).get<0>());
+      Assert::AreEqual(5, a.tryGet<Row<int>>()->at(0));
     }
 
     TEST_METHOD(SmallAndBigTable_MigrateAllBigToSmall_ValuesMoved) {
-      Table<Row<int>> a;
-      Table<Row<int>, Row<short>> b;
-      TableOperations::addToTable(b).get<0>() = 5;
+      RuntimeDatabase db = createDatabase<Database<Table<Row<int>>, Table<Row<int>, Row<short>>>>();
+      RuntimeTable& a = db[0];
+      RuntimeTable& b = db[1];
+      b.addElements(5);
+      for(int i = 0; i < 5; ++i) {
+        b.tryGet<Row<int>>()->at(i) = i;
+      }
 
-      TableOperations::migrateAll(b, a);
+      RuntimeTable::migrate(0, b, a, 5);
 
-      Assert::AreEqual(5, TableOperations::getElement(a, 0).get<0>());
+      for(int i = 0; i < 5; ++i) {
+        Assert::AreEqual(i, a.tryGet<Row<int>>()->at(i));
+      }
     }
 
     TEST_METHOD(Tables_Query_AreFound) {
-      Database<
+      RuntimeDatabase db = createDatabase<Database<
         Table<Row<int>>,
         Table<Row<int>, Row<short>>,
         Table<Row<uint64_t>>
-      > db;
-      TableOperations::addToTable(std::get<0>(db.mTables)).get<0>() = 1;
-      TableOperations::addToTable(std::get<1>(db.mTables)).get<0>() = 2;
-      TableOperations::addToTable(std::get<2>(db.mTables)).get<0>() = uint64_t(3);
+      >>();
+      db[0].addElements(1);
+      db[0].tryGet<Row<int>>()->at(0) = 1;
+      db[1].addElements(1);
+      db[1].tryGet<Row<int>>()->at(0) = 2;
+      db[2].addElements(1);
+      db[2].tryGet<Row<uint64_t>>()->at(0) = uint64_t(4);
 
       int total = 0;
-      Queries::viewEachRow<Row<int>>(db, [&](Row<int>& row) {
-        total += row.at(0);
-      });
+      auto q = db.query<Row<int>>();
+      q.forEachElement([&](int& i) { total += i; });
 
       Assert::AreEqual(3, total);
     }
 
     TEST_METHOD(TableWithSharedRow_GetValue_IsSameForAll) {
-      Table<Row<int>, SharedRow<int>> table;
-      std::get<1>(table.mRows).at() = 5;
-      TableOperations::addToTable(table);
-      TableOperations::addToTable(table);
+      RuntimeDatabase db = createDatabase<Database<Table<Row<int>, SharedRow<int>>>>();
+      RuntimeTable& table = db[0];
+      table.tryGet<SharedRow<int>>()->at() = 5;
+      table.addElements(2);
 
-      const int a = std::get<1>(table.mRows).at(0);
-      const int b = std::get<1>(table.mRows).at(0);
+      const int a = table.tryGet<SharedRow<int>>()->at(0);
+      const int b = table.tryGet<SharedRow<int>>()->at(1);
 
       Assert::AreEqual(5, a);
       Assert::AreEqual(5, b);
@@ -337,71 +381,8 @@ namespace Test {
       Assert::IsFalse(DatabaseElementID<2>{}.isValid());
     }
 
-    TEST_METHOD(TwoRows_AddToSortedTable_IsSorted) {
-      Table<Row<int>, Row<size_t>, SharedRow<bool>> table;
-      TableOperations::addToSortedTable<Row<int>>(table, int(5)).get<1>() = size_t(5);
-      TableOperations::addToSortedTable<Row<int>>(table, int(4)).get<1>() = size_t(4);
-      TableOperations::addToSortedTable<Row<int>>(table, int(6)).get<1>() = size_t(6);
-
-      Assert::IsTrue(std::vector<int>{ 4, 5, 6 } == std::get<Row<int>>(table.mRows).mElements);
-      Assert::IsTrue(std::vector<size_t>{ size_t(4), size_t(5), size_t(6) } == std::get<Row<size_t>>(table.mRows).mElements);
-    }
-
-    TEST_METHOD(SortedTable_SortedRemove_IsStillSorted) {
-      Table<Row<int>, Row<size_t>, SharedRow<bool>> table;
-      TableOperations::addToSortedTable<Row<int>>(table, int(5)).get<1>() = size_t(5);
-      TableOperations::addToSortedTable<Row<int>>(table, int(4)).get<1>() = size_t(4);
-      TableOperations::addToSortedTable<Row<int>>(table, int(6)).get<1>() = size_t(6);
-
-      TableOperations::sortedRemove(table, size_t(1));
-
-      Assert::IsTrue(std::vector<int>{ 4, 6 } == std::get<Row<int>>(table.mRows).mElements);
-      Assert::IsTrue(std::vector<size_t>{ size_t(4), size_t(6) } == std::get<Row<size_t>>(table.mRows).mElements);
-    }
-
-    TEST_METHOD(SortedUniqueTable_AddDuplicate_IsNotAdded) {
-      Table<Row<int>> table;
-      TableOperations::addToSortedUniqueTable<Row<int>>(table, 1);
-      TableOperations::addToSortedUniqueTable<Row<int>>(table, 1);
-
-      Assert::AreEqual(size_t(1), TableOperations::size(table));
-    }
-
-    TEST_METHOD(SortedTable_AddDuplicate_IsAdded) {
-      Table<Row<int>> table;
-      TableOperations::addToSortedTable<Row<int>>(table, 1);
-      TableOperations::addToSortedTable<Row<int>>(table, 1);
-
-      Assert::AreEqual(size_t(2), TableOperations::size(table));
-    }
-
     using TestDB = Database<Table<Row<int>>, Table<Row<size_t>>>;
     static_assert(TestDB::ElementID(1, 0) == TestDB::getTableIndex<Table<Row<size_t>>>());
-
-    TEST_METHOD(TwoTables_VisitByIndex_IsVisited) {
-      struct TestTable : Table<Row<int>> {};
-      struct TestTable2 : TestTable {};
-      Database<TestTable, TestTable2> database;
-      TableOperations::addToTable(std::get<TestTable2>(database.mTables));
-
-      bool wasVisited = false;
-      database.visitOneByIndex(database.getTableIndex<TestTable>(), [&](auto& table) {
-        wasVisited = true;
-        Assert::AreEqual((void*)(&std::get<TestTable>(database.mTables)), (void*)(&table));
-      });
-
-      Assert::IsTrue(wasVisited);
-    }
-
-    TEST_METHOD(TwoTables_GetRowInTable_IsReturned) {
-      struct TestTable : Table<Row<int>> {};
-      struct TestTable2 : TestTable {};
-      Database<TestTable, TestTable2> database;
-
-      Row<int>* row = Queries::getRowInTable<Row<int>>(database, database.getTableIndex<TestTable2>());
-
-      Assert::IsTrue(&std::get<Row<int>>(std::get<TestTable2>(database.mTables).mRows) == row);
-    }
 
     struct SpatialPairsData {
       SpatialPairsData(RuntimeDatabaseTaskBuilder& task) {
@@ -565,63 +546,62 @@ namespace Test {
     //Put a filler table at index 0 so the tests aren't testing with table index 0 which can easily cause false passes when the id isn't used.
     using TestStableDB = Database<FillerTable, StableTableA, StableTableB>;
 
-    template<class TableT>
-    static void verifyAllMappings(TestStableDB& db, TableT& table, StableElementMappings& mappings) {
-      //TODO: what is the ElementRef equivalent of this?
-      db;table;mappings;
-      //constexpr auto tableIndex = TestStableDB::getTableIndex<TableT>();
-      //auto& stableA = std::get<StableIDRow>(table.mRows);
-      //for(size_t i = 0; i < stableA.size(); ++i) {
-      //  const size_t stable = *stableA.at(i).tryGet();
-      //  const size_t unstable = TestStableDB::ElementID{ tableIndex.getTableIndex(), i }.mValue;
-      //  Assert::AreEqual(mappings.findKey(stable).second->unstableIndex, unstable);
-      //  StableElementID sid{ unstable, stable };
-      //  std::optional<StableElementID> resolved = StableOperations::tryResolveStableID(sid, db, mappings);
-      //  Assert::IsTrue(resolved.has_value());
-      //  Assert::IsTrue(*resolved == sid);
-      //}
+    static void verifyAllMappings(RuntimeDatabase& db) {
+      for(size_t t = 0; t < db.size(); ++t) {
+        RuntimeTable& table = db[t];
+        StableIDRow* stable = table.tryGet<StableIDRow>();
+        if(!stable) {
+          continue;
+        }
+        for(size_t i = 0; i < table.size(); ++i) {
+          ElementRef ref = stable->at(i);
+          const StableElementMappingPtr m = ref.getMapping();
+          Assert::IsTrue(static_cast<bool>(m));
+          const UnpackedDatabaseElementID expectedID = table.getID().remakeElement(i);
+          const UnpackedDatabaseElementID actual{ m->unstableIndex, expectedID.mElementIndexBits };
+          Assert::IsTrue(expectedID == actual);
+        }
+      }
     }
 
     TEST_METHOD(StableElementID_Operations) {
-      StableElementMappings mappings;
-      TestStableDB db;
-      auto& a = std::get<StableTableA>(db.mTables);
-      auto& b = std::get<StableTableB>(db.mTables);
-      auto& stableA = std::get<StableIDRow>(a.mRows);
-      auto& valueA = std::get<Row<int>>(a.mRows);
+      RuntimeDatabase db = createDatabase<TestStableDB>();
+      auto& a = db[1];
+      auto& b = db[2];
+      auto& stableA = *a.tryGet<StableIDRow>();
+      auto& valueA = *a.tryGet<Row<int>>();
       constexpr auto tableIndexA = UnpackedDatabaseElementID::fromPacked(TestStableDB::getTableIndex<StableTableA>());
       constexpr auto tableIndexB = UnpackedDatabaseElementID::fromPacked(TestStableDB::getTableIndex<StableTableB>());
-      StableOperations::stableResizeTable(a, tableIndexA, 3, mappings);
+      a.resize(3);
       ElementRefResolver res{ db.getDescription() };
 
-      verifyAllMappings(db, a, mappings);
+      verifyAllMappings(db);
 
       valueA.at(0) = 1;
       valueA.at(2) = 5;
       ElementRef elementA = stableA.at(tableIndexA.getElementIndex());
       ElementRef elementC = stableA.at(2);
-      StableOperations::stableSwapRemove(a, TestStableDB::ElementID{ tableIndexA.getTableIndex(), 0 }, mappings);
+      a.swapRemove(0);
 
-      verifyAllMappings(db, a, mappings);
+      verifyAllMappings(db);
 
       Assert::AreEqual(5, valueA.at(0));
       Assert::IsFalse(static_cast<bool>(elementA));
       TestStableDB::ElementID resolvedC{ res.uncheckedUnpack(elementC).mValue };
-      Assert::AreEqual(5, Queries::getRowInTable<Row<int>>(db, resolvedC)->at(res.uncheckedUnpack(elementC).getElementIndex()));
+      Assert::AreEqual(5, db[resolvedC.getTableIndex()].tryGet<Row<int>>()->at(resolvedC.getElementIndex()));
 
       //Migrate object at index 0 in A which is ElementC
-      StableOperations::stableMigrateOne(a, b, TestStableDB::getTableIndex<StableTableA>(), TestStableDB::getTableIndex<StableTableB>(), mappings);
+      RuntimeTable::migrate(0, a, b, 1);
 
-      verifyAllMappings(db, a, mappings);
-      verifyAllMappings(db, b, mappings);
+      verifyAllMappings(db);
 
       resolvedC = TestStableDB::ElementID{ res.uncheckedUnpack(elementC).mValue };
-      Assert::AreEqual(5, Queries::getRowInTable<Row<int>>(db, resolvedC)->at(resolvedC.getElementIndex()));
+      Assert::AreEqual(5, db[resolvedC.getTableIndex()].tryGet<Row<int>>()->at(resolvedC.getElementIndex()));
 
-      StableOperations::stableResizeTable(a, tableIndexA, 0, mappings);
-      StableOperations::stableResizeTable(b, tableIndexB, 0, mappings);
+      a.resize(0);
+      b.resize(0);
 
-      Assert::IsTrue(mappings.empty());
+      Assert::IsTrue(db.getMappings().empty());
     }
 
     static void assertUnorderedCollisionPairsMatch(TestGame& game, std::vector<ElementRef> expectedA, std::vector<ElementRef> expectedB) {
@@ -1007,36 +987,6 @@ namespace Test {
       game.update();
 
       assertStaticCollision();
-    }
-
-    TEST_METHOD(StableInsert) {
-      TestStableDB db;
-      StableTableA& table = std::get<StableTableA>(db.mTables);
-      Row<int>& values = std::get<Row<int>>(table.mRows);
-      StableIDRow& ids = std::get<StableIDRow>(table.mRows);
-      StableElementMappings mappings;
-
-      StableOperations::stableInsertRangeAt(table, UnpackedDatabaseElementID::fromPacked(TestStableDB::getElementID<StableTableA>(1)), 5, mappings);
-
-      Assert::AreEqual(size_t(5), TableOperations::size(table));
-      for(int i = 0; i < 5; ++i) {
-        values.at(i) = i;
-      }
-
-      StableOperations::stableInsertRangeAt(table, UnpackedDatabaseElementID::fromPacked(TestStableDB::getElementID<StableTableA>(5)), 1, mappings);
-      Assert::AreEqual(size_t(6), TableOperations::size(table));
-      Assert::AreEqual(4, values.at(4));
-      values.at(5) = 5;
-      ElementRef stable = ids.at(3);
-
-      StableOperations::stableInsertRangeAt(table, UnpackedDatabaseElementID::fromPacked(TestStableDB::getElementID<StableTableA>(0)), 5, mappings);
-      Assert::AreEqual(size_t(11), TableOperations::size(table));
-      for(size_t i = 0; i < 5; ++i) {
-        Assert::AreEqual(int(i), values.at(i + 5), L"Values should have been shifted over by previous insertion");
-      }
-      Assert::IsTrue(static_cast<bool>(stable));
-      constexpr size_t elementMask = TestStableDB::ElementID::ELEMENT_INDEX_MASK;
-      Assert::AreEqual(3, values.at(*stable.tryGet() & elementMask));
     }
 
     TEST_METHOD(UnpackedDBElementID) {

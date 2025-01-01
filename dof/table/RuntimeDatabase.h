@@ -218,6 +218,9 @@ public:
   DatabaseDescription getDescription();
   StableElementMappings& getMappings();
 
+  RuntimeTable& operator[](size_t i);
+  size_t size() const;
+
 private:
   template<class... Rows>
   void _tryAddResult(size_t index, QueryResult<Rows...>& result) {

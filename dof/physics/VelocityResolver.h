@@ -1,7 +1,6 @@
 #pragma once
 
 #include "glm/vec2.hpp"
-#include "TableOperations.h"
 #include "QueryAlias.h"
 #include "AppBuilder.h"
 

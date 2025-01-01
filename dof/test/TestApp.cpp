@@ -25,8 +25,8 @@ namespace Test {
     buildDB(args);
 
     bool hasThreadLocals = false;
-    for(const RuntimeTable& table : args.tables) {
-      if(table.tryGet<ThreadLocalsRow>()) {
+    for(const RuntimeTableRowBuilder& table : args.tables) {
+      if(table.contains<ThreadLocalsRow>()) {
         hasThreadLocals = true;
         break;
       }

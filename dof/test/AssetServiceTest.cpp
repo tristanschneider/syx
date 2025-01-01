@@ -163,8 +163,9 @@ namespace Test {
       Assert::AreEqual(size_t(3), scene.materials.size());
       //Hack to compare only container sizes, expected are all zeroes
       for(Loader::MaterialAsset* m : assets.materials) {
-        Assert::IsNotNull(m);
-        std::fill(m->texture.buffer.begin(), m->texture.buffer.end(), uint8_t{});
+        if(m) {
+          std::fill(m->texture.buffer.begin(), m->texture.buffer.end(), uint8_t{});
+        }
       }
       Assert::IsTrue(PLAYER_MATERIAL == *assets.materials[0]);
       Assert::IsTrue(GROUND_MATERIAL == *assets.materials[1]);

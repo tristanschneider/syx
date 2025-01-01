@@ -40,6 +40,14 @@ StableElementMappings& RuntimeDatabase::getMappings() {
   return *mappings;
 }
 
+RuntimeTable& RuntimeDatabase::operator[](size_t i) {
+  return tables[i];
+}
+
+size_t RuntimeDatabase::size() const {
+  return tables.size();
+}
+
 namespace DBReflect {
   void addStableMappings(RuntimeDatabaseArgs& args, std::unique_ptr<StableElementMappings> mappings) {
     //Create a class to store the mappings

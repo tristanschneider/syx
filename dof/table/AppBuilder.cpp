@@ -43,7 +43,7 @@ namespace TableModifierImpl {
       instance.swapRemove(id.getElementIndex());
     }
 
-    RuntimeTable instance;
+    RuntimeTable& instance;
   };
 }
 
