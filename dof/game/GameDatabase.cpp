@@ -388,12 +388,12 @@ namespace GameDatabase {
   >;
 
   using GameDatabase = Database<
+    GlobalGameData,
     SpatialQuery::AABBSpatialQueriesTable,
     SpatialQuery::CircleSpatialQueriesTable,
     SpatialQuery::RaycastSpatialQueriesTable,
     BroadphaseTable,
     SP::SpatialPairsTable,
-    GlobalGameData,
     TerrainTable,
     GameObjectTable,
     StaticGameObjectTable,

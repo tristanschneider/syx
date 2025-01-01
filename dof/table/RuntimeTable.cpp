@@ -4,6 +4,20 @@
 #include <cassert>
 #include "StableElementID.h"
 
+namespace {
+  //Swap the final element into the element at index `i`, ignoring what is at that index
+  void swapAndPopIntoEmpty(size_t i, StableIDRow& stable, StableElementMappings& mappings, const TableID& tableID) {
+    //If it's the last element, no swap is needed, only pop
+    if(stable.size() == i + 1) {
+      stable.mElements.pop_back();
+    }
+    else {
+      stable.swapRemove(i);
+      mappings.updateKey(stable.mElements[i].getMapping(), tableID.remakeElement(i).mValue);
+    }
+  }
+}
+
 RuntimeTable::RuntimeTable(RuntimeTableArgs&& args)
   : mappings{ args.mappings }
   , tableID{ args.tableID }
@@ -31,8 +45,19 @@ size_t RuntimeTable::migrate(size_t i, RuntimeTable& from, RuntimeTable& to, siz
   //but is more confusing when accounting for cases where src has rows dst doesn't
   //Skip stable row because that was already addressed in the migrate above
   for(auto& pair : from.rows) {
-    for(size_t c = 0; c < count; ++c) {
-      pair.second->swapRemove(i + c);
+    if(pair.first == DBTypeID::get<StableIDRow>()) {
+      StableIDRow* stable = static_cast<StableIDRow*>(pair.second);
+      assert(from.mappings);
+      for(size_t c = 0; c < count; ++c) {
+        //The updates in the loop below will assign to the new destination.
+        //This update is for the swapped element
+        swapAndPopIntoEmpty(i + c, *stable, *from.mappings, from.getID());
+      }
+    }
+    else {
+      for(size_t c = 0; c < count; ++c) {
+        pair.second->swapRemove(i + c);
+      }
     }
   }
 
@@ -103,12 +128,7 @@ void RuntimeTable::swapRemove(size_t i) {
 
       mappings->eraseKey(stable->at(i).getMapping());
 
-      if(size_t toSwap = stable->size() - 1 > i) {
-        stable->at(i) = std::move(stable->at(toSwap));
-        mappings->updateKey(stable->at(i).getMapping(), getID().remakeElement(i).mValue);
-      }
-
-      stable->mElements.pop_back();
+      swapAndPopIntoEmpty(i, *stable, *mappings, getID());
     }
     else {
       pair.second->swapRemove(i);

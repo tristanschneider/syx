@@ -75,7 +75,7 @@ RuntimeDatabase::RuntimeDatabase(RuntimeDatabaseArgs&& args)
 {
   //Create tables, assigning their table ids using the finalized bit count in ascending index order
   //This isn't intended to guarantee any order to the original static DB objects they came from
-  TableID base{ UnpackedDatabaseElementID{ 0, args.elementIndexBits } };
+  TableID base{ UnpackedDatabaseElementID{ 0, elementIndexBits } };
   tables.reserve(args.tables.size());
   for(size_t i = 0; i < args.tables.size(); ++i) {
     RuntimeTableRowBuilder* table = &args.tables[i];

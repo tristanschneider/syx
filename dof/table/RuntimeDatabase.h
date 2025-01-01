@@ -120,7 +120,6 @@ struct QueryResult {
 };
 
 struct RuntimeDatabaseArgs {
-  size_t elementIndexBits{};
   std::vector<RuntimeTableRowBuilder> tables;
   StableElementMappings* mappings{};
   std::unique_ptr<IRuntimeStorage> storage;

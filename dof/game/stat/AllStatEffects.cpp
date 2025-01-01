@@ -45,7 +45,7 @@ namespace StatEffect {
 
           const size_t srcSize = fromTable->size();
           if(!srcSize) {
-            return;
+            continue;
           }
 
           //This is a hack assuming the tables are the same
@@ -161,6 +161,7 @@ namespace StatEffect {
   };
 
   void createDatabase(RuntimeDatabaseArgs& args) {
-    RuntimeStorage::addToChain<StatStorage>(args);
+    StatStorage* storage = RuntimeStorage::addToChain<StatStorage>(args);
+    DBReflect::reflect(storage->db, args);
   }
 }
