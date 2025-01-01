@@ -26,7 +26,7 @@ namespace Physics {
       task.setName("damping");
       Row<float>* axisRow = &task.queryAlias(table, axis).get<0>(0);
       task.setCallback([axisRow, &multiplier](AppTaskArgs&) {
-        _applyDampingMultiplier(axisRow->mElements.data(), multiplier, axisRow->size());
+        _applyDampingMultiplier(axisRow->data(), multiplier, axisRow->size());
       });
 
       builder.submitTask(std::move(task));
@@ -69,9 +69,9 @@ namespace Physics {
       task.setName("integrate rotation");
       task.setCallback([query](AppTaskArgs&) mutable {
         _integrateRotation(
-          query.get<0>(0).mElements.data(),
-          query.get<1>(0).mElements.data(),
-          query.get<2>(0).mElements.data(),
+          query.get<0>(0).data(),
+          query.get<1>(0).data(),
+          query.get<2>(0).data(),
           query.get<0>(0).size());
       });
       builder.submitTask(std::move(task));

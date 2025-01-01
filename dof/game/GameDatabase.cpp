@@ -40,11 +40,6 @@ namespace GameDatabase {
     StableIDRow
   >;
 
-  using TextureRequestTable = Table<
-    Tags::TableNameRow,
-    Row<TextureLoadRequest>
-  >;
-
   using GlobalGameData = Table<
     Tags::TableNameRow,
     ShapeRegistry::GlobalRow,
@@ -397,7 +392,6 @@ namespace GameDatabase {
     TerrainTable,
     GameObjectTable,
     StaticGameObjectTable,
-    TextureRequestTable,
     PlayerTable,
     CameraTable,
     DebugLineTable,
@@ -470,7 +464,6 @@ namespace GameDatabase {
 
   void configureDefaults(IAppBuilder& builder) {
     setName<TargetTableTag>(builder, { "Targets" });
-    setName<Row<TextureLoadRequest>>(builder, { "Texture Requests" });
     setName<ShapeRegistry::GlobalRow>(builder, { "Globals" });
     setName<Tags::DynamicPhysicsObjectsTag>(builder, { "Physics Objects" });
     setName<Tags::DynamicPhysicsObjectsWithZTag>(builder, { "Physics Objects Z" });

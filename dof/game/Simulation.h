@@ -22,14 +22,6 @@ enum class RequestStatus : uint8_t {
   Succeeded
 };
 
-struct TextureLoadRequest {
-  //This is the id assigned by the creator of the request which is used to refer to the image later
-  size_t mImageID = 0;
-  std::string mFileName;
-  //Set by the handler of the request while processing it to communicate information back to the creator
-  RequestStatus mStatus = RequestStatus::InProgress;
-};
-
 struct CubeSprite {
   float uMin = 0;
   float vMin = 0;

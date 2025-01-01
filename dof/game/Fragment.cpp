@@ -201,7 +201,7 @@ namespace Fragment {
           continue;
         }
 
-        for(FragmentCooldownT& cd : cooldowns->mElements) {
+        for(FragmentCooldownT& cd : *cooldowns) {
           if(cd > 0) {
             --cd;
           }

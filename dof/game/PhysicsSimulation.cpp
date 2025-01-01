@@ -140,7 +140,7 @@ namespace PhysicsSimulation {
     task.setName("init physics");
     auto query = task.query<SweepNPruneBroadphase::BroadphaseKeys>();
     task.setCallback([query](AppTaskArgs&) mutable {
-      query.forEachRow([](auto& row) { row.mDefaultValue = Broadphase::SweepGrid::EMPTY_KEY; });
+      query.forEachRow([](auto& row) { row.setDefaultValue(Broadphase::SweepGrid::EMPTY_KEY); });
     });
     builder.submitTask(std::move(task));
 

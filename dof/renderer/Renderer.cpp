@@ -871,7 +871,7 @@ struct CameraReader : Renderer::ICameraReader {
   void getAll(std::vector<RendererCamera>& out) final {
     out.clear();
     for(size_t t = 0; t < query.size(); ++t) {
-       for(const RendererState& s : query.get<0>(t).mElements) {
+       for(const RendererState& s : query.get<0>(t)) {
          out.insert(out.end(), s.mCameras.begin(), s.mCameras.end());
        }
     }

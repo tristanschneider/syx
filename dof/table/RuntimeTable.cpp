@@ -9,11 +9,11 @@ namespace {
   void swapAndPopIntoEmpty(size_t i, StableIDRow& stable, StableElementMappings& mappings, const TableID& tableID) {
     //If it's the last element, no swap is needed, only pop
     if(stable.size() == i + 1) {
-      stable.mElements.pop_back();
+      stable.popBack();
     }
     else {
       stable.swapRemove(i);
-      mappings.updateKey(stable.mElements[i].getMapping(), tableID.remakeElement(i).mValue);
+      mappings.updateKey(stable.at(i).getMapping(), tableID.remakeElement(i).mValue);
     }
   }
 }
@@ -51,7 +51,7 @@ size_t RuntimeTable::migrate(size_t i, RuntimeTable& from, RuntimeTable& to, siz
       for(size_t c = 0; c < count; ++c) {
         //The updates in the loop below will assign to the new destination.
         //This update is for the swapped element
-        swapAndPopIntoEmpty(i + c, *stable, *from.mappings, from.getID());
+        swapAndPopIntoEmpty(i + count - c - 1, *stable, *from.mappings, from.getID());
       }
     }
     else {

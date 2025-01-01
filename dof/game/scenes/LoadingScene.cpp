@@ -29,14 +29,6 @@ namespace Scenes {
     return globals;
   }
 
-  size_t requestTextureLoad(Row<TextureLoadRequest>& textures, ITableModifier& textureModifier, const char* filename) {
-    const size_t i = textureModifier.addElements(1);
-    TextureLoadRequest& request = textures.at(i);
-    request.mFileName = filename;
-    request.mImageID = std::hash<std::string>()(request.mFileName);
-    return request.mImageID;
-  }
-
   void initRequestAssets(IAppBuilder& builder) {
     auto task = builder.createTask();
     task.setName("request assets");
@@ -47,8 +39,6 @@ namespace Scenes {
       task.discard();
       return;
     }
-    auto textureRequests = task.query<Row<TextureLoadRequest>>();
-    std::shared_ptr<ITableModifier> textureRequestModifier = task.getModifierForTable(textureRequests.matchingTableIDs.front());
     auto playerTextures = task.query<SharedRow<TextureReference>, const IsPlayer>();
     auto fragmentTextures = task.query<SharedRow<TextureReference>, const IsFragment>();
     auto terrain = task.query<SharedRow<TextureReference>, const Tags::TerrainRow>();
@@ -82,8 +72,6 @@ namespace Scenes {
   void awaitAssetLoading(IAppBuilder& builder) {
     auto task = builder.createTask();
     task.setName("Await Assets");
-    auto textureRequests = task.query<const Row<TextureLoadRequest>>();
-    auto requestModifiers = task.getModifiersForTables(textureRequests.matchingTableIDs);
     SceneState* sceneState = task.query<SharedRow<SceneState>>().tryGetSingletonElement();
     LoadingSceneGlobals* globals = getLoadingSceneGlobals(task);
     auto assetReader = Loader::createAssetReader(task);
@@ -93,23 +81,8 @@ namespace Scenes {
       return;
     }
 
-    task.setCallback([textureRequests, requestModifiers, sceneState, nav, assetReader, globals](AppTaskArgs&) mutable {
+    task.setCallback([sceneState, nav, assetReader, globals](AppTaskArgs&) mutable {
       loadLog(".");
-
-      for(size_t i = 0; i < textureRequests.size(); ++i) {
-        for(const TextureLoadRequest& request : textureRequests.get<0>(i).mElements) {
-          switch(request.mStatus) {
-            case RequestStatus::InProgress:
-              //If any requests are pending, keep waiting
-              return;
-            case RequestStatus::Failed:
-              printf("failed to load texture %s", request.mFileName.c_str());
-              continue;
-            case RequestStatus::Succeeded:
-              continue;
-          }
-        }
-      }
 
       SceneNavigator::SceneID toScene = globals->currentRequest.onSuccess;
       for(const Loader::AssetHandle& asset : globals->currentRequest.toAwait) {
@@ -129,10 +102,7 @@ namespace Scenes {
         }
       }
 
-      //If they're all done, clear them and continue on to the next phase
-      for(auto&& modifier : requestModifiers) {
-        modifier->resize(0);
-      }
+      //If they're all done, continue on to the next phase
       nav.navigator->navigateTo(toScene);
     });
     builder.submitTask(std::move(task));

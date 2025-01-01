@@ -171,7 +171,7 @@ namespace InspectorModule {
   void findAndSetSelection(InspectContext& ctx, const ElementRef& value) {
     size_t i = 0;
     for(const auto* stableRow : ctx.stableRows) {
-      for(const auto& id : stableRow->mElements) {
+      for(const auto& id : *stableRow) {
         if(id == value) {
           setSelection(ctx, value, i);
         }
@@ -186,7 +186,7 @@ namespace InspectorModule {
 
   void trySelect(InspectContext& ctx, const std::vector<const StableIDRow*>& rows) {
     for(const auto& row : rows) {
-      for(const ElementRef& id : row->mElements) {
+      for(const ElementRef& id : *row) {
         if(id) {
           findAndSetSelection(ctx, id);
           return;
@@ -210,7 +210,7 @@ namespace InspectorModule {
       //TODO: also doesn't really work for stable iteration
       std::vector<ElementRef> all;
       for(const StableIDRow* r : ctx.stableRows) {
-        all.insert(all.end(), r->mElements.begin(), r->mElements.end());
+        all.insert(all.end(), r->begin(), r->end());
       }
       //Start at the selected id then keep going in that direction until something is found or all ids are exhausted
       const int totalIds = all.size();

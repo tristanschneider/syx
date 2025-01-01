@@ -10,6 +10,7 @@ struct BasicRow : IRow {
   using IsBasicRow = std::true_type;
 
   using IteratorT = typename std::vector<Element>::iterator;
+  using ConstIteratorT = typename std::vector<Element>::const_iterator;
 
   size_t size() const {
     return mElements.size();
@@ -21,10 +22,6 @@ struct BasicRow : IRow {
 
   const Element& at(size_t i) const {
     return mElements.at(i);
-  }
-
-  void swap(size_t a, size_t b) {
-    std::swap(at(a), at(b));
   }
 
   template<class... Args>
@@ -42,15 +39,6 @@ struct BasicRow : IRow {
     }
   }
 
-  template<class T, class... Args>
-  Element& insert(const T& atIt, Args&&... args) {
-    return *mElements.insert(atIt, std::forward<Args>(args)...);
-  }
-
-  void erase(const IteratorT& it) {
-    mElements.erase(it);
-  }
-
   void resize(size_t size) final {
     if constexpr(std::is_copy_constructible_v<Element>) {
       mElements.resize(size, mDefaultValue);
@@ -65,6 +53,14 @@ struct BasicRow : IRow {
   }
 
   IteratorT end() {
+    return mElements.end();
+  }
+
+  ConstIteratorT begin() const {
+    return mElements.begin();
+  }
+
+  ConstIteratorT end() const {
     return mElements.end();
   }
 
@@ -106,6 +102,11 @@ struct BasicRow : IRow {
     return result;
   }
 
+  void popBack() {
+    mElements.pop_back();
+  }
+
+private:
   std::vector<Element> mElements;
   Element mDefaultValue{};
 };
@@ -133,10 +134,6 @@ struct SharedRow : IRow {
     return mValue;
   }
 
-  //Has no meaning because there is only one
-  void swap(size_t, size_t) {
-  }
-
   template<class... Args>
   Element& emplaceBack(Args&&...) {
     ++mSize;
@@ -145,16 +142,6 @@ struct SharedRow : IRow {
 
   void resize(size_t size) final {
     mSize = size;
-  }
-
-  template<class... Args>
-  Element& insert(NoOpIterator, Args&&...) {
-    ++mSize;
-    return mValue;
-  }
-
-  void erase(NoOpIterator) {
-    --mSize;
   }
 
   NoOpIterator begin() {

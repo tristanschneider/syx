@@ -48,7 +48,7 @@ namespace FontPass {
 
         sgl_matrix_mode_modelview();
         for(size_t t = 0; t < query.size(); ++t) {
-          for(const DebugLinePassTable::Text& text : query.get<0>(t).mElements) {
+          for(const DebugLinePassTable::Text& text : query.get<0>(t)) {
             // Font renders in pixels. Scale way down so it looks reasonable, then translate to world space
             setMatrix(glm::translate(glm::vec3{ text.pos.x, text.pos.y, 0 }) * glm::scale(glm::vec3(fontScalar, -fontScalar, fontScalar)));
             // Transform is in matrix stack meaning no position offset is needed here

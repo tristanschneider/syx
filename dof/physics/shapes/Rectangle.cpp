@@ -127,11 +127,11 @@ namespace Shapes {
     }
 
     struct WriteArgs {
-      const std::vector<float>* pos{};
-      const std::vector<float>* rotX{};
-      const std::vector<float>* rotY{};
-      const std::vector<float>* scaleX{};
-      const std::vector<float>* scaleY{};
+      const Row<float>* pos{};
+      const Row<float>* rotX{};
+      const Row<float>* rotY{};
+      const Row<float>* scaleX{};
+      const Row<float>* scaleY{};
       std::vector<float>* resultMin{};
       std::vector<float>* resultMax{};
     };
@@ -142,9 +142,10 @@ namespace Shapes {
     >
     static void writeAxis(RuntimeDatabaseTaskBuilder& task, WriteArgs& args) {
       task.setCallback([args](AppTaskArgs&) {
-        args.resultMin->resize(args.pos->size());
-        args.resultMax->resize(args.pos->size());
-        for(size_t i = 0; i < args.pos->size(); ++i) {
+        const size_t size = args.pos->size();
+        args.resultMin->resize(size);
+        args.resultMax->resize(size);
+        for(size_t i = 0; i < size; ++i) {
           [[maybe_unused]] glm::vec2 right{ args.rotX->at(i), args.rotY->at(i) };
           [[maybe_unused]] glm::vec2 up = Geo::orthogonal(right);
           [[maybe_unused]] glm::vec2 scale{ 0.5f, 0.5f };
@@ -201,18 +202,14 @@ namespace Shapes {
       auto task = builder.createTask();
       task.logDependency({ bounds.requiredDependency });
       WriteArgs args;
-      args.pos = &task.queryAlias(bounds.table, pos).get<0>(0).mElements;
+      args.pos = &task.queryAlias(bounds.table, pos).get<0>(0);
       auto rotQ = task.queryAlias(bounds.table, rotX, rotY);
       if(rotQ.size()) {
-        auto [rx, ry] = rotQ.get(0);
-        args.rotX = &rx->mElements;
-        args.rotY = &ry->mElements;
+        std::tie(args.rotX, args.rotY) = rotQ.get(0);
       }
       auto scaleQ = task.queryAlias(bounds.table, scaleX, scaleY);
       if(scaleQ.size()) {
-        auto [sx, sy] = scaleQ.get(0);
-        args.scaleX = &sx->mElements;
-        args.scaleY = &sy->mElements;
+        std::tie(args.scaleX, args.scaleY) = scaleQ.get(0);
       }
       args.resultMin = &resultMin;
       args.resultMax = &resultMax;

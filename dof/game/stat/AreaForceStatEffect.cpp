@@ -332,7 +332,7 @@ namespace AreaForceStatEffect {
       for(size_t t = 0; t < query.size(); ++t) {
         auto&& [commands] = query.get(t);
 
-        for(const Command& command : commands->mElements) {
+        for(const Command& command : *commands) {
           shapes.clear();
           hits.clear();
           rays.clear();

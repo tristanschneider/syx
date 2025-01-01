@@ -127,7 +127,7 @@ namespace Test {
     nav.navigator->navigateTo(nav.scenes->fragment);
 
     //Needed for Test.cpp tests written before Z was introduced
-    b.query<AccelerationZ>().forEachRow([](auto& v) { v.mDefaultValue = 0.0f; });
+    b.query<AccelerationZ>().forEachRow([](auto& v) { v.setDefaultValue(0.0f); });
 
     //Update once to run events which will populate the broadphase
     update();

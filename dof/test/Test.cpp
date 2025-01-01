@@ -565,7 +565,7 @@ namespace Test {
 
       Assert::AreEqual(5, valueA.at(0));
       Assert::IsFalse(static_cast<bool>(elementA));
-      UnpackedDatabaseElementID resolvedC{ res.uncheckedUnpack(elementC).mValue };
+      UnpackedDatabaseElementID resolvedC{ res.uncheckedUnpack(elementC) };
       Assert::AreEqual(5, db[resolvedC.getTableIndex()].tryGet<Row<int>>()->at(resolvedC.getElementIndex()));
 
       //Migrate object at index 0 in A which is ElementC
@@ -580,6 +580,11 @@ namespace Test {
       b.resize(0);
 
       Assert::IsTrue(db.getMappings().empty());
+
+      a.resize(10);
+      RuntimeTable::migrate(4, a, b, 5);
+
+      verifyAllMappings(db);
     }
 
     static void assertUnorderedCollisionPairsMatch(TestGame& game, std::vector<ElementRef> expectedA, std::vector<ElementRef> expectedB) {
@@ -974,7 +979,7 @@ namespace Test {
         Table<SharedRow<uint32_t>>
       >>();
       UnpackedDatabaseElementID unpacked = db[1].getID().remakeElement(5);
-      UnpackedDatabaseElementID id = UnpackedDatabaseElementID::fromDescription(0, DatabaseDescription{ .elementIndexBits = 2 }).remake(1, 2);
+      UnpackedDatabaseElementID id = UnpackedDatabaseElementID::fromDescription(0, DatabaseDescription{ .elementIndexBits = 64 - 2 }).remake(1, 5);
 
       Assert::AreEqual(id.getElementIndex(), unpacked.getElementIndex());
       Assert::AreEqual(id.getTableIndex(), unpacked.getTableIndex());

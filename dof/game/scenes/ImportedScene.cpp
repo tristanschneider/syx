@@ -146,7 +146,7 @@ namespace Scenes {
 
     void broadcastNewElements(const RuntimeTable& table) {
       if (const StableIDRow* ids = table.tryGet<const StableIDRow>()) {
-        for (const ElementRef& e : ids->mElements) {
+        for (const ElementRef& e : *ids) {
           Events::onNewElement(e, args);
         }
       }
