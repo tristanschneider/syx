@@ -92,7 +92,7 @@ RuntimeDatabase::RuntimeDatabase(RuntimeDatabaseArgs&& args)
       //Populate the stable mappings if the table should use them
       .mappings = hasStableRow ? args.mappings : nullptr,
       .tableID = TableID{ base.remake(i, 0) },
-      .rows = std::move(table->rows),
+      .rows = std::move(*table),
     });
   }
 }

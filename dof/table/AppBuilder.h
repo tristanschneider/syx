@@ -348,6 +348,16 @@ private:
   bool submitted{};
 };
 
+enum class AppEnvType {
+  InitScheduler,
+  InitMain,
+  InitThreadLocal,
+  UpdateMain,
+};
+struct AppEnvironment {
+  AppEnvType type;
+};
+
 //Top level object used to create all work items in the app
 class IAppBuilder {
 public:
@@ -359,6 +369,7 @@ public:
   }
   virtual void submitTask(AppTaskWithMetadata&& task) = 0;
   virtual std::shared_ptr<AppTaskNode> finalize()&& = 0;
+  virtual const AppEnvironment& getEnv() const = 0;
 
   static std::shared_ptr<AppTaskNode> finalize(std::unique_ptr<IAppBuilder> builder) {
     return std::move(*builder).finalize();

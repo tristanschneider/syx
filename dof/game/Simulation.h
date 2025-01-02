@@ -47,6 +47,7 @@ struct ThreadLocalsInstance {
 
 struct ThreadLocalsRow : SharedRow<ThreadLocalsInstance> {};
 
+struct IDatabase;
 struct IsImmobile : TagRow{};
 struct IsFragment : TagRow{};
 struct DamageTaken : Row<float>{};
@@ -85,9 +86,10 @@ struct DebugClearPerFrame : TagRow{};
 
 using DebugLineTable = Table<Row<DebugPoint>, DebugClearPerFrame>;
 using DebugTextTable = Table<Row<DebugText>, DebugClearPerFrame>;
+using ThreadLocalDatabaseFactory = std::function<std::unique_ptr<IDatabase>()>;
 
 namespace Simulation {
-  void initScheduler(IAppBuilder& builder);
+  void initScheduler(IAppBuilder& builder, const ThreadLocalDatabaseFactory& f);
   void init(IAppBuilder& builder);
 
   struct UpdateConfig {

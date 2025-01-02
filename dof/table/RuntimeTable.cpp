@@ -21,6 +21,7 @@ namespace {
 RuntimeTable::RuntimeTable(RuntimeTableArgs&& args)
   : mappings{ args.mappings }
   , tableID{ args.tableID }
+  , tableType{ args.rows.tableType }
 {
   rows.reserve(args.rows.rows.size());
   for(const auto& row : args.rows.rows) {
@@ -117,6 +118,10 @@ size_t RuntimeTable::addElements(size_t count, const ElementRef* reservedKeys) {
 
 size_t RuntimeTable::size() const {
   return tableSize;
+}
+
+size_t RuntimeTable::rowCount() const {
+  return rows.size();
 }
 
 void RuntimeTable::swapRemove(size_t i) {

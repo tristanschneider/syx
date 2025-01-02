@@ -108,6 +108,10 @@ namespace SceneNavigator {
       return std::move(parent).finalize();
     }
 
+    const AppEnvironment& getEnv() const final {
+      return parent.getEnv();
+    }
+
     SceneID requiredScene{};
     SceneState requiredState{};
     IAppBuilder& parent;

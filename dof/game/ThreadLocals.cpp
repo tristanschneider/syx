@@ -7,21 +7,13 @@
 #include "ILocalScheduler.h"
 
 namespace details {
-  RuntimeDatabaseArgs buildStatDB(StableElementMappings* mappings) {
-    RuntimeDatabaseArgs args{
-      .mappings = mappings
-    };
-    StatEffect::createDatabase(args);
-    return args;
-  }
-
   struct ThreadData {
-    ThreadData(StableElementMappings* mappings)
-      : statEffects{ buildStatDB(mappings) }
+    ThreadData(std::unique_ptr<IDatabase> db)
+      : localDB{ std::move(db->getRuntime()) }
     {
     }
 
-    RuntimeDatabase statEffects;
+    RuntimeDatabase localDB;
     std::unique_ptr<IRandom> random = Random::twister();
     std::unique_ptr<Tasks::ILocalScheduler> scheduler;
   };
@@ -37,14 +29,15 @@ namespace details {
 ThreadLocals::ThreadLocals(size_t size,
   Events::EventsImpl* events,
   StableElementMappings* mappings,
-  Tasks::ILocalSchedulerFactory* schedulerFactory
+  Tasks::ILocalSchedulerFactory* schedulerFactory,
+  const ThreadLocalDatabaseFactory& dbf
 )
   : data(std::make_unique<details::ThreadLocalsImpl>()) {
   data->threads.resize(size);
   data->events = events;
   data->mappings = mappings;
   for(size_t i = 0; i < size; ++i) {
-    auto t = std::make_unique<details::ThreadData>(mappings);
+    auto t = std::make_unique<details::ThreadData>(dbf());
     if(schedulerFactory) {
       t->scheduler = schedulerFactory->create();
     }
@@ -63,7 +56,7 @@ ThreadLocalData ThreadLocals::get(size_t thread) {
   assert(data->threads.size() > thread);
   auto& t = data->threads[thread];
   return {
-    &t->statEffects,
+    &t->localDB,
     data->events,
     data->mappings,
     t->random.get(),

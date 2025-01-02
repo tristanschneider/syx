@@ -30,6 +30,7 @@ struct RuntimeTableRowBuilder {
     return contains(DBTypeID::get<std::decay_t<T>>());
   }
 
+  DBTypeID tableType;
   std::vector<Row> rows;
 };
 
@@ -48,6 +49,10 @@ public:
 
   const TableID& getID() const {
     return tableID;
+  }
+
+  const DBTypeID& getType() const {
+    return tableType;
   }
 
   template<class RowT>
@@ -70,7 +75,10 @@ public:
     return it != rows.end() ? it->second : nullptr;
   }
 
+  //Number of elements in the table. All rows have this many elements except for SharedRow
   size_t size() const;
+  //Number of rows in the table
+  size_t rowCount() const;
 
   //Migrates the element in `from` table at `i` to the `to` table at the index indicated by the return value
   static size_t migrate(size_t i, RuntimeTable& from, RuntimeTable& to, size_t count);
@@ -83,6 +91,7 @@ private:
   //Optional, for when this table has a StableIDRow
   StableElementMappings* mappings{};
   TableID tableID;
+  DBTypeID tableType;
   std::unordered_map<DBTypeID, IRow*> rows;
   size_t tableSize{};
 };

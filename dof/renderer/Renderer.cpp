@@ -284,6 +284,9 @@ OffscreenRender createOffscreenRenderTarget(const sg_swapchain& swapchain) {
 
 namespace Renderer {
   void initGame(IAppBuilder& builder) {
+    if(builder.getEnv().type == AppEnvType::InitThreadLocal) {
+      return;
+    }
     auto task = builder.createTask();
     task.setName("renderer initGame").setPinning(AppTaskPinning::MainThread{});
     auto sprites = task.query<const Row<CubeSprite>>();
@@ -312,7 +315,6 @@ namespace Renderer {
   }
 }
 
-int DEFAULT_FONT{};
 void Renderer::init(IAppBuilder& builder, const RendererContext& context) {
   auto temp = builder.createTask();
   auto q = temp.query<Row<RendererState>>();

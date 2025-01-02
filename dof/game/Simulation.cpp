@@ -83,14 +83,14 @@ const char* Simulation::getConfigName() {
   return "config.json";
 }
 
-void Simulation::initScheduler(IAppBuilder& builder) {
+void Simulation::initScheduler(IAppBuilder& builder, const ThreadLocalDatabaseFactory& f) {
   auto task = builder.createTask();
   task.setName("init scheduler");
   Scheduler* scheduler = task.query<SharedRow<Scheduler>>().tryGetSingletonElement();
   ThreadLocalsInstance* tls = task.query<ThreadLocalsRow>().tryGetSingletonElement();
   Events::EventsInstance* events = task.query<Events::EventsRow>().tryGetSingletonElement();
   StableElementMappings* mappings = &task.getDatabase().getMappings();
-  task.setCallback([scheduler, tls, events, mappings](AppTaskArgs&) {
+  task.setCallback([scheduler, tls, events, mappings, f](AppTaskArgs&) {
     enki::TaskSchedulerConfig cfg;
     struct ProfileStop {
       static void threadStop(uint32_t) {
@@ -106,7 +106,8 @@ void Simulation::initScheduler(IAppBuilder& builder) {
       events->impl.get(),
       mappings,
       //ThreadLocals only uses this during the constructor
-      Tasks::createEnkiSchedulerFactory(*scheduler, [tls](size_t t) { return tls->instance->get(t); }).get()
+      Tasks::createEnkiSchedulerFactory(*scheduler, [tls](size_t t) { return tls->instance->get(t); }).get(),
+      f
     );
   });
   builder.submitTask(std::move(task));

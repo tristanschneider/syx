@@ -4,6 +4,7 @@ struct AppTaskArgs;
 struct IRandom;
 struct StableElementMappings;
 class RuntimeDatabase;
+struct IDatabase;
 
 namespace Events {
   struct EventsImpl;
@@ -13,6 +14,8 @@ namespace Tasks {
   struct ILocalSchedulerFactory;
   struct ILocalScheduler;
 }
+
+using ThreadLocalDatabaseFactory = std::function<std::unique_ptr<IDatabase>()>;
 
 struct ThreadLocalData {
   static ThreadLocalData& get(AppTaskArgs& args);
@@ -35,7 +38,8 @@ struct ThreadLocals {
   ThreadLocals(size_t size,
     Events::EventsImpl* events,
     StableElementMappings* mappings,
-    Tasks::ILocalSchedulerFactory* schedulerFactory
+    Tasks::ILocalSchedulerFactory* schedulerFactory,
+    const ThreadLocalDatabaseFactory& dbf
   );
   ~ThreadLocals();
 

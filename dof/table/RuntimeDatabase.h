@@ -291,6 +291,7 @@ namespace DBReflect {
     template<class TableT>
     void reflectTable(RuntimeTableRowBuilder& builder, TableT& table) {
       table.visitOne([&](auto& row) { reflectRow(row, builder); });
+      builder.tableType = DBTypeID::get<std::decay_t<TableT>>();
     }
   }
 

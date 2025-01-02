@@ -86,8 +86,10 @@ namespace GameBuilder {
 
   struct Impl : IAppBuilder {
 
-    Impl(IDatabase& d)
-      : db{ d } {
+    Impl(IDatabase& d, AppEnvironment e)
+      : db{ d }
+      , env{ e } 
+    {
       std::vector<TableID> tableids = std::move(db.getRuntime().query().matchingTableIDs);
       dependencies.resize(tableids.size());
       root->name = "root";
@@ -176,13 +178,18 @@ namespace GameBuilder {
       return std::move(root);
     }
 
+    const AppEnvironment& getEnv() const final {
+      return env;
+    }
+
     IDatabase& db;
     std::shared_ptr<AppTaskNode> root = std::make_shared<AppTaskNode>();
     std::vector<TableDependencies> dependencies;
     TableAccess noOpAccess;
+    AppEnvironment env;
   };
 
-  std::unique_ptr<IAppBuilder> create(IDatabase& db) {
-    return std::make_unique<Impl>(db);
+  std::unique_ptr<IAppBuilder> create(IDatabase& db, AppEnvironment env) {
+    return std::make_unique<Impl>(db, env);
   }
 }

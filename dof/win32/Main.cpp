@@ -47,7 +47,6 @@ struct InputArgs {
 
 struct AppDatabase {
   std::unique_ptr<IDatabase> combined;
-  std::unique_ptr<IAppBuilder> builder;
   Row<WindowData>* window{};
   InputArgs input;
 };
@@ -252,8 +251,56 @@ void onEvent(const sapp_event* event) {
   }
 }
 
+void init(std::unique_ptr<IAppBuilder> builder, ThreadLocalsInstance& tls, Scheduler& scheduler) {
+  Renderer::init(*builder, RendererContext{
+    .swapchain = sglue_swapchain(),
+    .fontContext = state.fontContext
+  });
+
+  Simulation::init(*builder);
+  GameInput::init(*builder);
+  TaskRange initTasks = GameScheduler::buildTasks(IAppBuilder::finalize(std::move(builder)), *tls.instance);
+
+  initTasks.mBegin->mTask.addToPipe(scheduler.mScheduler);
+  scheduler.mScheduler.WaitforTask(initTasks.mEnd->mTask.get());
+}
+
+std::unique_ptr<IDatabase> createDatabase(RuntimeDatabaseArgs&& args) {
+  GameDatabase::create(args);
+  Renderer::createDatabase(args);
+#ifdef IMGUI_ENABLED
+  ImguiModule::createDatabase(args);
+#endif
+  return std::make_unique<RuntimeDatabase>(std::move(args));
+}
+
+std::unique_ptr<IDatabase> createDatabase() {
+  return createDatabase(DBReflect::createArgsWithMappings());
+}
+
+void assertEqual(RuntimeDatabase& original, RuntimeDatabase& copy) {
+  assert(original.size() == copy.size());
+  for(size_t i = 0; i < original.size(); ++i) {
+    assert(original[i].getType() == copy[i].getType());
+    assert(original[i].getID() == copy[i].getID());
+  }
+}
+
+ThreadLocalDatabaseFactory getThreadLocalDatabaseFactory(IDatabase& main) {
+  //Create a copy of the main database with the same stable mappings as the main one.
+  //The copy should have all the same table ids so that they can be used to prepare desired elements
+  //to be migrated from the thread local database to the main one
+  return [&main] {
+    RuntimeDatabase& runtimeMain = main.getRuntime();
+    StableElementMappings& mappings = runtimeMain.getMappings();
+    std::unique_ptr<IDatabase> copy = createDatabase(RuntimeDatabaseArgs{ .mappings = &mappings });
+    assertEqual(runtimeMain, copy->getRuntime());
+    return copy;
+  };
+}
+
 TaskRange createRendererCommit() {
-  std::unique_ptr<IAppBuilder> commitBuilder = GameBuilder::create(*APP->combined);
+  std::unique_ptr<IAppBuilder> commitBuilder = GameBuilder::create(*APP->combined, { AppEnvType::UpdateMain });
   auto temp = commitBuilder->createTask();
   temp.discard();
   ThreadLocalsInstance* tls = temp.query<ThreadLocalsRow>().tryGetSingletonElement();
@@ -262,9 +309,8 @@ TaskRange createRendererCommit() {
 }
 
 TaskGraph createTaskGraph() {
-  auto temp = APP->builder->createTask();
-  temp.discard();
-  FileSystem& fs = temp.query<SharedRow<FileSystem>>().get<0>(0).at();
+  RuntimeDatabase& db = APP->combined->getRuntime();
+  FileSystem& fs = db.query<SharedRow<FileSystem>>().get<0>(0).at();
 
   //First argument is the executable location, second and beyond are arguments passed to the executable
   if(state.args.size() >= 2) {
@@ -275,32 +321,23 @@ TaskGraph createTaskGraph() {
   }
 
   //First initialize just the scheduler synchronously
-  std::unique_ptr<IAppBuilder> bootstrap = GameBuilder::create(*APP->combined);
-  Simulation::initScheduler(*bootstrap);
+  std::unique_ptr<IAppBuilder> bootstrap = GameBuilder::create(*APP->combined, { AppEnvType::InitScheduler });
+  Simulation::initScheduler(*bootstrap, getThreadLocalDatabaseFactory(*APP->combined));
   for(auto&& work : GameScheduler::buildSync(IAppBuilder::finalize(std::move(bootstrap)))) {
     work.work();
   }
-  ThreadLocalsInstance* tls = temp.query<ThreadLocalsRow>().tryGetSingletonElement();
-  Scheduler* scheduler = temp.query<SharedRow<Scheduler>>().tryGetSingletonElement();
+  ThreadLocalsInstance* tls = db.query<ThreadLocalsRow>().tryGetSingletonElement();
+  Scheduler* scheduler = db.query<SharedRow<Scheduler>>().tryGetSingletonElement();
 
   //The rest of the init can be scheduled asynchronously but still can't be done in parallel with creating the other tasks
-  std::unique_ptr<IAppBuilder> initBuilder = GameBuilder::create(*APP->combined);
-
-  Renderer::init(*initBuilder, RendererContext{
-    .swapchain = sglue_swapchain(),
-    .fontContext = state.fontContext
-  });
-
-  Simulation::init(*initBuilder);
-  GameInput::init(*initBuilder);
-  TaskRange initTasks = GameScheduler::buildTasks(IAppBuilder::finalize(std::move(initBuilder)), *tls->instance);
+  init(GameBuilder::create(*APP->combined, { AppEnvType::InitMain }), *tls, *scheduler);
+  for(size_t i = 0; i < tls->instance->getThreadCount(); ++i) {
+    init(GameBuilder::create(*tls->instance->get(i).statEffects, { AppEnvType::InitThreadLocal }), *tls, *scheduler);
+  }
 
   setWindowSize(sapp_width(), sapp_height());
 
-  initTasks.mBegin->mTask.addToPipe(scheduler->mScheduler);
-  scheduler->mScheduler.WaitforTask(initTasks.mEnd->mTask.get());
-
-  std::unique_ptr<IAppBuilder> builder = GameBuilder::create(*APP->combined);
+  std::unique_ptr<IAppBuilder> builder = GameBuilder::create(*APP->combined, { AppEnvType::UpdateMain });
 
   Renderer::extractRenderables(*builder);
   Renderer::clearRenderRequests(*builder);
@@ -329,16 +366,6 @@ TaskGraph createTaskGraph() {
   };
 }
 
-std::unique_ptr<IDatabase> createDatabase() {
-  RuntimeDatabaseArgs args = DBReflect::createArgsWithMappings();
-  GameDatabase::create(args);
-  Renderer::createDatabase(args);
-#ifdef IMGUI_ENABLED
-  ImguiModule::createDatabase(args);
-#endif
-  return std::make_unique<RuntimeDatabase>(std::move(args));
-}
-
 void init(void) {
   //Initialize the graphics device
   sg_setup(sg_desc{
@@ -363,7 +390,6 @@ void init(void) {
   AppDatabase& app = state.app;
   app.combined = createDatabase();
   app.window = &app.combined->getRuntime().query<Row<WindowData>>().get<0>(0);
-  app.builder = GameBuilder::create(*app.combined);
   app.input.playerInput = app.combined->getRuntime().query<GameInput::PlayerKeyboardInputRow>();
   app.input.machineInput = app.combined->getRuntime().query<GameInput::StateMachineRow>();
   APP = &app;
