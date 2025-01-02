@@ -23,6 +23,7 @@ namespace TMS {
 #include "sokol_glue.h"
 #include "FontPass.h"
 #include "loader/SceneAsset.h"
+#include "GraphicsTables.h"
 
 namespace QuadPassTable {
   using Transform = TMS::MW_t;
@@ -33,7 +34,6 @@ namespace QuadPassTable {
   struct TintRow : Row<glm::vec4>{};
   struct IsImmobileRow : SharedRow<bool>{};
   struct PassRow : SharedRow<QuadPass>{};
-  struct TextureIDRow : SharedRow<Loader::AssetHandle>{};
 
   using Type = Table<
     TransformRow,
@@ -41,7 +41,8 @@ namespace QuadPassTable {
     TintRow,
     IsImmobileRow,
     PassRow,
-    TextureIDRow
+    SharedTextureRow,
+    SharedMeshRow
   >;
 };
 
@@ -49,6 +50,30 @@ namespace {
   bool isValid(const sg_image& image) {
     return sg_query_image_state(image) == SG_RESOURCESTATE_VALID;
   }
+
+  bool isValid(const sg_buffer& buff) {
+    return sg_query_buffer_state(buff) == SG_RESOURCESTATE_VALID;
+  }
+
+  struct MeshGPUAsset {
+    static bool isValid(const MeshGPUAsset* v) {
+      return v && ::isValid(v->vertexBuffer);
+    }
+
+    sg_buffer vertexBuffer;
+    size_t vertexCount{};
+  };
+
+  struct MaterialGPUAsset {
+    static bool isValid(const MaterialGPUAsset* v) {
+      return v && ::isValid(v->image);
+    }
+
+    sg_image image;
+  };
+
+  struct MeshGPUAssetRow : Row<MeshGPUAsset> {};
+  struct MaterialGPUAssetRow : Row<MaterialGPUAsset> {};
 
   struct RenderDebugDrawer {
     sg_pipeline pipeline{};
@@ -62,7 +87,7 @@ namespace {
 
   struct RendererState {
     sg_pipeline texturedMeshPipeline;
-    sg_buffer quadMesh;
+    MeshGPUAsset quadMesh;
     //Could be table but the amount of cameras isn't worth it
     std::vector<RendererCamera> mCameras;
     SceneState mSceneState;
@@ -92,7 +117,7 @@ namespace {
     );
   }
 
-  sg_buffer _createQuadBuffers() {
+  MeshGPUAsset _createQuadBuffers() {
     constexpr float s = 0.5f;
     //Origin of texture is top left, might be OGL only
     constexpr float vertices[] = {
@@ -104,9 +129,12 @@ namespace {
       s, -s,      1.0f, 1.0f,
        -s, -s,   0.0f, 1.0f,
     };
-    return sg_make_buffer(sg_buffer_desc{
-      .data = SG_RANGE(vertices)
-    });
+    return MeshGPUAsset{
+      .vertexBuffer = sg_make_buffer(sg_buffer_desc{
+        .data = SG_RANGE(vertices)
+      }),
+      .vertexCount = 6
+    };
   }
 
   constexpr size_t MAX_DEBUG_LINES = 10000;
@@ -170,17 +198,6 @@ namespace {
     return sg_make_pipeline(desc);
   }
 }
-
-struct MeshGPUAsset {
-  sg_buffer vertexBuffer;
-};
-
-struct MaterialGPUAsset {
-  sg_image image;
-};
-
-struct MeshGPUAssetRow : Row<MeshGPUAsset> {};
-struct MaterialGPUAssetRow : Row<MaterialGPUAsset> {};
 
 struct RenderDBStorage : ChainedRuntimeStorage {
   using ChainedRuntimeStorage::ChainedRuntimeStorage;
@@ -444,7 +461,7 @@ void extractUV(IAppBuilder& builder, const TableID& src, const TableID& dst) {
 void Renderer::extractRenderables(IAppBuilder& builder) {
   auto temp = builder.createTask();
   temp.discard();
-  auto sharedTextureSprites = temp.query<const Row<CubeSprite>, const SharedRow<TextureReference>>();
+  auto sharedTextureSprites = temp.query<const Row<CubeSprite>, const SharedTextureRow>();
   auto globals = temp.query<Row<RendererState>>();
   auto passes = temp.query<QuadPassTable::PassRow>();
   assert(sharedTextureSprites.size() == passes.size());
@@ -469,20 +486,8 @@ void Renderer::extractRenderables(IAppBuilder& builder) {
     extractTransform(builder, spriteID, passID);
     extractUV(builder, spriteID, passID);
 
-    {
-      auto task = builder.createTask();
-      const SharedRow<TextureReference>* src = task.query<const SharedRow<TextureReference>>(spriteID).tryGet<0>(0);
-      QuadPassTable::TextureIDRow* dst = task.query<QuadPassTable::TextureIDRow>(passID).tryGet<0>(0);
-      if(src && dst) {
-        task.setCallback([src, dst](AppTaskArgs&) {
-          dst->at() = src->at().asset;
-        });
-        builder.submitTask(std::move(task.setName("copy tex")));
-      }
-      else {
-        task.discard();
-      }
-    }
+    CommonTasks::moveOrCopyRowSameSize<SharedTextureRow, SharedTextureRow>(builder, spriteID, passID);
+    CommonTasks::moveOrCopyRowSameSize<SharedMeshRow, SharedMeshRow>(builder, spriteID, passID);
 
     //Tint is optional
     if(temp.query<Tint>(spriteID).size()) {
@@ -674,13 +679,21 @@ void onMaterialDestroyed(RenderAssetWriter::Asset& asset) {
   asset.materialGPU->image = {};
 }
 
-//TODO:
-void onMeshCreated(RenderAssetWriter::Asset&) {
-
+void onMeshCreated(RenderAssetWriter::Asset& asset) {
+  //These are already in the 2 pos 2 uv format that textured mesh pipeline expects
+  *asset.meshGPU = MeshGPUAsset{
+    .vertexBuffer = sg_make_buffer(sg_buffer_desc{
+      .type = SG_BUFFERTYPE_VERTEXBUFFER,
+      .usage = SG_USAGE_IMMUTABLE,
+      .data = sg_range{ asset.meshCPU->verts.data(), asset.meshCPU->verts.size()*sizeof(Loader::MeshVertex) }
+    }),
+    .vertexCount = asset.meshCPU->verts.size()
+  };
 }
 
-void onMeshDestroyed(RenderAssetWriter::Asset&) {
-
+void onMeshDestroyed(RenderAssetWriter::Asset& asset) {
+  sg_destroy_buffer(asset.meshGPU->vertexBuffer);
+  asset.meshGPU->vertexBuffer = {};
 }
 
 //Monitor assets for GPU resources that need to be created or destroyed
@@ -726,7 +739,8 @@ void Renderer::render(IAppBuilder& builder) {
   auto globals = task.query<Row<RendererState>, Row<WindowData>>();
   auto quads = task.query<const QuadPassTable::TransformRow,
     const QuadPassTable::UVOffsetRow,
-    const QuadPassTable::TextureIDRow,
+    const SharedTextureRow,
+    const SharedMeshRow,
     const QuadPassTable::TintRow,
     QuadPassTable::PassRow>();
   RenderAssetReader assets{ task };
@@ -770,22 +784,24 @@ void Renderer::render(IAppBuilder& builder) {
     for(const auto& renderCamera : cameras) {
       PROFILE_SCOPE("renderer", "geometry");
       for(size_t i = 0; i < quads.size(); ++i) {
-        auto [transforms, uvOffsets, textureIDs, tints, passes] = quads.get(i);
+        auto [transforms, uvOffsets, textureIDs, meshes, tints, passes] = quads.get(i);
         QuadPass& pass = passes->at();
 
         size_t count = transforms->size();
-        pass.mLastCount = count;
         if(!count) {
           continue;
         }
 
-        const MaterialGPUAsset* material = assets.tryGetMaterial(textureIDs->at());
-        if(!material || !isValid(material->image)) {
+        const MaterialGPUAsset* material = assets.tryGetMaterial(textureIDs->at().asset);
+        const MeshGPUAsset* meshAsset = assets.tryGetMesh(meshes->at().asset);
+        //Fall back to quad mesh if supplied mesh isn't valid
+        const MeshGPUAsset& mesh = MeshGPUAsset::isValid(meshAsset) ? *meshAsset : state->quadMesh;
+        //Don't render anything if material is missing
+        if(!MaterialGPUAsset::isValid(material)) {
           continue;
         }
         pass.mQuadUniforms.bindings.images[IMG_tex] = material->image;
-        //TODO: use actual mesh instead of always quad
-        pass.mQuadUniforms.bindings.vertex_buffers[0] = state->quadMesh;
+        pass.mQuadUniforms.bindings.vertex_buffers[0] = mesh.vertexBuffer;
 
         sg_update_buffer(pass.mQuadUniforms.bindings.storage_buffers[SBUF_mw], sg_range{ transforms->data(), sizeof(TMS::MW_t)*transforms->size() });
         //TODO: these rarely change, only upload when needed
@@ -800,28 +816,9 @@ void Renderer::render(IAppBuilder& builder) {
         sg_apply_bindings(pass.mQuadUniforms.bindings);
         sg_apply_uniforms(UB_uniforms, sg_range{ &uniforms, sizeof(uniforms) });
 
-        sg_draw(0, 6, transforms->size());
+        sg_draw(0, static_cast<int>(mesh.vertexCount), transforms->size());
       }
     }
-
-    /* TODO: move to simulation with imgui setting
-    static bool renderBorders = true;
-    if(renderBorders) {
-      auto& debugTable = std::get<DebugLineTable>(db.mTables);
-      const SceneState& scene = Simulation::_getSceneState(db);
-      const glm::vec2 bl = scene.mBoundaryMin;
-      const glm::vec2 ul = glm::vec2(scene.mBoundaryMin.x, scene.mBoundaryMax.y);
-      const glm::vec2 ur = scene.mBoundaryMax;
-      const glm::vec2 br = glm::vec2(scene.mBoundaryMax.x, scene.mBoundaryMin.y);
-
-      std::array points{ bl, ul, ul, ur, ur, br, br, bl };
-      for(const auto& p : points) {
-        TableOperations::addToTable(debugTable).get<0>().mPos = p;
-      }
-    }
-    */
-
-    //Debug::pictureInPicture(debug, { 50, 50 }, { 350, 350 }, data.mSceneTexture);
   });
   builder.submitTask(std::move(task));
 

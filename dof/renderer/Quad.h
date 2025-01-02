@@ -7,6 +7,5 @@ struct QuadUniforms {
 };
 
 struct QuadPass {
-  size_t mLastCount{};
   QuadUniforms mQuadUniforms;
 };

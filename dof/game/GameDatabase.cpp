@@ -26,6 +26,7 @@
 #include "shapes/Line.h"
 #include "Constraints.h"
 #include "loader/AssetService.h"
+#include "GraphicsTables.h"
 
 namespace GameDatabase {
   using BroadphaseTable = SweepNPruneBroadphase::BroadphaseTable;
@@ -95,7 +96,8 @@ namespace GameDatabase {
     ConstraintSolver::SharedMaterialRow,
 
     Row<CubeSprite>,
-    SharedRow<TextureReference>,
+    SharedTextureRow,
+    SharedMeshRow,
 
     StableIDRow
   >;
@@ -131,7 +133,8 @@ namespace GameDatabase {
     Constraints::ConstraintStorageRow,
 
     Row<CubeSprite>,
-    SharedRow<TextureReference>,
+    SharedTextureRow,
+    SharedMeshRow,
 
     StableIDRow
   >;
@@ -179,7 +182,8 @@ namespace GameDatabase {
     ConstraintSolver::SharedMaterialRow,
 
     Row<CubeSprite>,
-    SharedRow<TextureReference>,
+    SharedTextureRow,
+    SharedMeshRow,
 
     StableIDRow
   >;
@@ -240,7 +244,8 @@ namespace GameDatabase {
     ConstraintSolver::SharedMaterialRow,
 
     Row<CubeSprite>,
-    SharedRow<TextureReference>,
+    SharedTextureRow,
+    SharedMeshRow,
     IsFragment,
 
     StableIDRow
@@ -275,7 +280,8 @@ namespace GameDatabase {
     //Only requires broadphase key to know how to remove it, don't need to store boundaries
     //for efficient updates because it won't move
     Row<CubeSprite>,
-    SharedRow<TextureReference>,
+    SharedTextureRow,
+    SharedMeshRow,
     IsImmobile,
     IsFragment,
 
@@ -313,7 +319,8 @@ namespace GameDatabase {
     ConstraintSolver::SharedMaterialRow,
 
     Row<CubeSprite>,
-    SharedRow<TextureReference>,
+    SharedTextureRow,
+    SharedMeshRow,
     IsImmobile,
 
     StableIDRow
@@ -369,7 +376,8 @@ namespace GameDatabase {
     Row<CubeSprite>,
     GameInput::PlayerInputRow,
     GameInput::StateMachineRow,
-    SharedRow<TextureReference>,
+    SharedTextureRow,
+    SharedMeshRow,
     StableIDRow
   >;
   using CameraTable = Table<

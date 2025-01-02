@@ -7,6 +7,7 @@
 #include "SceneList.h"
 #include "loader/AssetReader.h"
 #include "loader/AssetLoader.h"
+#include "GraphicsTables.h"
 
 namespace Scenes {
   struct LoadingSceneGlobals {
@@ -39,9 +40,9 @@ namespace Scenes {
       task.discard();
       return;
     }
-    auto playerTextures = task.query<SharedRow<TextureReference>, const IsPlayer>();
-    auto fragmentTextures = task.query<SharedRow<TextureReference>, const IsFragment>();
-    auto terrain = task.query<SharedRow<TextureReference>, const Tags::TerrainRow>();
+    auto playerTextures = task.query<SharedTextureRow, const IsPlayer>();
+    auto fragmentTextures = task.query<SharedTextureRow, const IsFragment>();
+    auto terrain = task.query<SharedTextureRow, const Tags::TerrainRow>();
     LoadingSceneGlobals* globals = getLoadingSceneGlobals(task);
 
     task.setCallback([=](AppTaskArgs&) mutable {

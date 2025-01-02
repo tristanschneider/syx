@@ -116,7 +116,6 @@ namespace Loader {
 
     PlayerTable player;
     TerrainTable terrain;
-    //TODO: ideally this would be AssetHandles pointing at other assets so they could be reused between scenes
     //Pointing at a table with MaterialAssets
     std::vector<AssetHandle> materials;
     //Pointing at a table with MeshAssets

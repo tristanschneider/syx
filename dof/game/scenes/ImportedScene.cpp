@@ -15,6 +15,8 @@
 #include "Narrowphase.h"
 #include "ConstraintSolver.h"
 #include "DBEvents.h"
+#include "Simulation.h"
+#include "GraphicsTables.h"
 
 namespace Scenes {
   struct ImportedSceneGlobals {
@@ -74,11 +76,8 @@ namespace Scenes {
 
     void read(size_t i, const Loader::Scale2D& s) {
       if(scaleX && scaleY) {
-        //Currently blender's mesh is -1,1 while mine is -0.5,0.5
-        //For now, compensate by doubling the scale. Will likely address this when importing meshes
-        constexpr float SCALAR = 2.f;
-        scaleX->at(i) = s.scale.x * SCALAR;
-        scaleY->at(i) = s.scale.y * SCALAR;
+        scaleX->at(i) = s.scale.x;
+        scaleY->at(i) = s.scale.y;
       }
     }
 
@@ -155,20 +154,55 @@ namespace Scenes {
     AppTaskArgs& args;
   };
 
+  struct SceneAssets {
+    SceneAssets(const Loader::SceneAsset& scene)
+      : materials{ scene.materials }
+      , meshes{ scene.meshes }
+    {
+    }
+
+    const Loader::AssetHandle* tryGetMesh(size_t i) const {
+      return i < meshes.size() ? &meshes[i] : nullptr;
+    }
+
+    const Loader::AssetHandle* tryGetMaterial(size_t i) const {
+      return i < materials.size() ? &materials[i] : nullptr;
+    }
+
+    const std::vector<Loader::AssetHandle>& materials;
+    const std::vector<Loader::AssetHandle>& meshes;
+  };
+
   //TODO:
   struct GraphicsRows {
-    GraphicsRows(RuntimeTable&) {}
+    GraphicsRows(RuntimeTable& table, const SceneAssets& sceneAssets)
+      : assets{ sceneAssets }
+      , sharedTexture{ table.tryGet<SharedTextureRow>() }
+      , sharedMesh{ table.tryGet<SharedMeshRow>() }
+    {
+    }
 
     void read(size_t, const Loader::QuadUV&) {
     }
 
-    void read(const Loader::MeshIndex&) {
+    void read(const Loader::MeshIndex& indices) {
+      if(const Loader::AssetHandle* mesh = assets.tryGetMesh(indices.meshIndex); sharedMesh && mesh) {
+        sharedMesh->at().asset = *mesh;
+      }
+      if(const Loader::AssetHandle* material = assets.tryGetMaterial(indices.materialIndex); sharedTexture && material) {
+        sharedTexture->at().asset = *material;
+      }
     }
+
+    SceneAssets assets;
+    SharedTextureRow* sharedTexture{};
+    SharedMeshRow* sharedMesh{};
   };
 
   void createPlayers(const Loader::PlayerTable& players,
     RuntimeDatabase& db,
     const GameDatabase::Tables& tables,
+    const SceneAssets& assets,
     EventPublisher& publisher
   ) {
     RuntimeTable* playerTable = db.tryGet(tables.player);
@@ -178,7 +212,7 @@ namespace Scenes {
 
     TransformRows transform{ *playerTable };
     PhysicsRows physics{ *playerTable };
-    GraphicsRows graphics{ *playerTable };
+    GraphicsRows graphics{ *playerTable, assets };
     for(size_t i = 0; i < players.players.size(); ++i) {
       const Loader::Player& p = players.players[i];
       transform.read(i, p.transform);
@@ -196,6 +230,7 @@ namespace Scenes {
   void createTerrain(const Loader::TerrainTable& terrain,
     RuntimeDatabase& db,
     const GameDatabase::Tables& tables,
+    const SceneAssets& assets,
     EventPublisher& publisher
   ) {
     RuntimeTable* table = db.tryGet(tables.terrain);
@@ -205,7 +240,7 @@ namespace Scenes {
 
     TransformRows transform{ *table };
     PhysicsRows physics{ *table };
-    GraphicsRows graphics{ *table };
+    GraphicsRows graphics{ *table, assets };
     for(size_t i = 0; i < terrain.terrains.size(); ++i) {
       const Loader::Terrain& t = terrain.terrains[i];
       transform.read(i, t.transform);
@@ -231,8 +266,9 @@ namespace Scenes {
       printf("instantiate scene\n");
       if(const Loader::SceneAsset* scene = sceneView.tryGet(globals->toLoad)) {
         EventPublisher publisher{ args };
-        createPlayers(scene->player, *db, tables, publisher);
-        createTerrain(scene->terrain, *db, tables, publisher);
+        SceneAssets assets{ *scene };
+        createPlayers(scene->player, *db, tables, assets, publisher);
+        createTerrain(scene->terrain, *db, tables, assets, publisher);
       }
 
       //Load is finished, release asset handle

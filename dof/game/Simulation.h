@@ -1,6 +1,5 @@
 #pragma once
 
-#include "loader/AssetHandle.h"
 #include "Table.h"
 #include "Config.h"
 #include "glm/vec2.hpp"
@@ -27,11 +26,6 @@ struct CubeSprite {
   float vMin = 0;
   float uMax = 1;
   float vMax = 1;
-};
-
-//Shared reference for all objects in the table to use
-struct TextureReference {
-  Loader::AssetHandle asset;
 };
 
 struct SceneState {
