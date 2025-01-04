@@ -10,6 +10,7 @@
 #include "DBEvents.h"
 #include "RowTags.h"
 
+class IAppModule;
 class IAppBuilder;
 
 //1 if found, otherwise 0. Bitset or better would be nice but interop with ispc would be difficult
@@ -109,4 +110,6 @@ namespace Simulation {
   void buildUpdateTasks(IAppBuilder& builder, const UpdateConfig& config);
 
   const char* getConfigName();
+
+  std::unique_ptr<IAppModule> createModule(UpdateConfig cfg);
 };

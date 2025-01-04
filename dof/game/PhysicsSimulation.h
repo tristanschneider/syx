@@ -23,6 +23,10 @@ namespace Shapes {
   struct RectDefinition;
 }
 
+namespace pt {
+  struct TransformResolver;
+};
+
 class IPhysicsBodyResolver {
 public:
   using Key = UnpackedDatabaseElementID;
@@ -40,6 +44,7 @@ namespace PhysicsSimulation {
 
   std::shared_ptr<ShapeRegistry::IShapeClassifier> createShapeClassifier(RuntimeDatabaseTaskBuilder& task);
   std::shared_ptr<IPhysicsBodyResolver> createPhysicsBodyResolver(RuntimeDatabaseTaskBuilder& task);
+  pt::TransformResolver createTransformResolver(RuntimeDatabaseTaskBuilder& task);
 
   void init(IAppBuilder& builder);
   void initFromConfig(IAppBuilder& builder);

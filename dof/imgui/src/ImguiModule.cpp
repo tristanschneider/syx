@@ -17,6 +17,7 @@
 
 #include "sokol_app.h"
 #include "sokol_gfx.h"
+#include "IAppModule.h"
 //Impl is in SokolImpl.cpp except for imgui since that needs to come after the imgui.h include...
 //Would be a bit nicer for imgui to also conditionally be in SokolImpl but it makes for a mess of dependencies
 #define SOKOL_IMPL
@@ -93,19 +94,25 @@ namespace ImguiModule {
     builder.submitTask(std::move(task));
   }
 
-  void update(IAppBuilder& builder) {
-    updateBase(builder);
-    updateModules(builder);
-    updateRendering(builder);
-  }
-
   const bool* queryIsEnabled(RuntimeDatabaseTaskBuilder& task) {
     //Intentionally non-const to force any imgui tasks to run in sequence
     auto q = task.query<ImguiEnabled>();
     return q.tryGetSingletonElement();
   }
 
-  void createDatabase(RuntimeDatabaseArgs& args) {
-    DBReflect::addDatabase<ImguiDB>(args);
+  struct IMModule : IAppModule {
+    void createDatabase(RuntimeDatabaseArgs& args) final {
+      DBReflect::addDatabase<ImguiDB>(args);
+    }
+
+    void update(IAppBuilder& builder) final {
+      updateBase(builder);
+      updateModules(builder);
+      updateRendering(builder);
+    }
+  };
+
+  std::unique_ptr<IAppModule> createModule() {
+    return std::make_unique<IMModule>();
   }
 }

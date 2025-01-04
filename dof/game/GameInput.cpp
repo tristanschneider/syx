@@ -282,6 +282,21 @@ namespace GameInput {
     builder.submitTask(std::move(task));
   }
 
+  void createGameMappings(IAppBuilder& builder) {
+    if(builder.getEnv().type == AppEnvType::InitThreadLocal) {
+      return;
+    }
+
+    auto task = builder.createTask();
+    Input::InputMapper* mapper = task.query<GlobalMappingsRow>().tryGetSingletonElement();
+
+    task.setCallback([mapper](AppTaskArgs&) {
+      mapper->addPassthroughKeyMapping(GameInput::Keys::GAME_ON_GROUND);
+    });
+
+    builder.submitTask(std::move(task.setName("build game mappings")));
+  }
+
   //TODO: make it possible to build only once
   void init(IAppBuilder&) {
     //buildDebugCameraMachine(builder);

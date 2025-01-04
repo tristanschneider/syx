@@ -515,6 +515,7 @@ namespace GameDatabase {
     , terrain{ getOrAssertTable<Tags::TerrainRow>(task) }
     , activeFragment{ getOrAssertTable<FragmentSeekingGoalTagRow>(task) }
     , completedFragment{ getOrAssertTable<FragmentGoalFoundTableTag>(task) }
+    , physicsObjsWithZ{ getOrAssertTable<Tags::DynamicPhysicsObjectsWithZTag>(task) }
   {
   }
 }

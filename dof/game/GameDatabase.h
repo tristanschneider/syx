@@ -16,6 +16,7 @@ namespace GameDatabase {
     TableID terrain;
     TableID activeFragment;
     TableID completedFragment;
+    TableID physicsObjsWithZ;
   };
 
   void create(RuntimeDatabaseArgs& args);

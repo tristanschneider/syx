@@ -149,4 +149,6 @@ namespace CommonTasks {
   std::shared_ptr<TaskNode> copyRowSameSize(TableT& table) {
     return moveOrCopyRowSameSize(std::get<SrcRow>(table.mRows), std::get<DstRow>(table.mRows));
   }
+
+  void migrateThreadLocalDBsToMain(IAppBuilder& builder);
 }

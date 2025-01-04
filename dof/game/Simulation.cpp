@@ -25,6 +25,8 @@
 #include "SceneNavigator.h"
 #include "scenes/SceneList.h"
 #include "loader/AssetService.h"
+#include "CommonTasks.h"
+#include "IAppModule.h"
 
 ThreadLocalsInstance::ThreadLocalsInstance() = default;
 ThreadLocalsInstance::~ThreadLocalsInstance() = default;
@@ -56,6 +58,8 @@ void Simulation::buildUpdateTasks(IAppBuilder& builder, const UpdateConfig& conf
   StatEffect::moveThreadLocalToCentral(builder);
   SpatialQuery::gameplayUpdateQueries(builder);
   StatEffect::createTasks(builder);
+
+  CommonTasks::migrateThreadLocalDBsToMain(builder);
 
   Events::publishEvents(builder);
 
@@ -137,4 +141,66 @@ void Simulation::init(IAppBuilder& builder) {
   }
 
   PhysicsSimulation::initFromConfig(builder);
+}
+
+void resetInput(IAppBuilder& builder) {
+  auto task = builder.createTask();
+  task.setName("reset input");
+  auto input = task.query<GameInput::PlayerKeyboardInputRow>();
+  task.setCallback([input](AppTaskArgs&) mutable {
+    input.forEachElement([](GameInput::PlayerKeyboardInput& input) {
+      input.mRawKeys.clear();
+      input.mRawWheelDelta = 0.0f;
+      input.mRawMouseDeltaPixels = glm::vec2{ 0.0f };
+      input.mRawText.clear();
+    });
+  });
+  builder.submitTask(std::move(task));
+}
+
+class SimulationModule : public IAppModule {
+public:
+  SimulationModule(Simulation::UpdateConfig&& cfg)
+    : config{ std::move(cfg) }
+  {
+  }
+
+  void createDatabase(RuntimeDatabaseArgs& args) final {
+    GameDatabase::create(args);
+  }
+
+  void initScheduler(IAppBuilder& builder, const ThreadLocalDatabaseFactory& f) final {
+    Simulation::initScheduler(builder, f);
+  }
+
+  void init(IAppBuilder& builder) final {
+    Simulation::init(builder);
+    GameInput::init(builder);
+  }
+
+  void update(IAppBuilder& builder) final {
+    Simulation::buildUpdateTasks(builder, Simulation::UpdateConfig{});
+    resetInput(builder);
+    GameInput::update(builder);
+  }
+
+  virtual void preProcessEvents(IAppBuilder& builder) {
+    PhysicsSimulation::preProcessEvents(builder);
+    Fragment::preProcessEvents(builder);
+    FragmentStateMachine::preProcessEvents(builder);
+  }
+
+  virtual void processEvents(IAppBuilder& builder) {
+    TableService::processEvents(builder);
+  }
+
+  virtual void postProcessEvents(IAppBuilder& builder) {
+    PhysicsSimulation::postProcessEvents(builder);
+  }
+
+  Simulation::UpdateConfig config;
+};
+
+std::unique_ptr<IAppModule> Simulation::createModule(UpdateConfig cfg) {
+  return std::make_unique<SimulationModule>(std::move(cfg));
 }

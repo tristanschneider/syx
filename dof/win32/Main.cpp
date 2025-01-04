@@ -30,6 +30,9 @@
 #include "util/sokol_fontstash.h"
 #include "util/sokol_gl.h"
 
+#include "Game.h"
+#include "IGame.h"
+
 #ifdef IMGUI_ENABLED
 #include "ImguiModule.h"
 #include "util/sokol_imgui.h"
@@ -46,7 +49,7 @@ struct InputArgs {
 };
 
 struct AppDatabase {
-  std::unique_ptr<IDatabase> combined;
+  IDatabase* combined{};
   Row<WindowData>* window{};
   InputArgs input;
 };
@@ -54,18 +57,13 @@ struct AppDatabase {
 namespace {
   AppDatabase* APP = nullptr;
 }
-struct TaskGraph {
-  TaskRange tasks;
-  TaskRange renderCommit;
-  Scheduler* scheduler{};
-};
 
 struct AppState {
   sg_pipeline pip;
   sg_bindings bind;
   sg_pass_action pass_action;
   AppDatabase app;
-  TaskGraph tasks;
+  std::unique_ptr<IGame> game;
   std::vector<std::string> args;
   std::chrono::steady_clock::time_point lastDraw;
   FONScontext* fontContext{};
@@ -128,10 +126,24 @@ void createKeyboardMappings(Input::InputMapper& mapper) {
   mapper.addKeyMapping(cast(SAPP_KEYCODE_ENTER), GameInput::Keys::JUMP);
   mapper.addKeyAs1DRelativeMapping(cast(SAPP_KEYCODE_E), GameInput::Keys::CHANGE_DENSITY_1D, 1.0f);
   mapper.addKeyAs1DRelativeMapping(cast(SAPP_KEYCODE_Q), GameInput::Keys::CHANGE_DENSITY_1D, -1.0f);
-
-  //TODO: could be moved to game project
-  mapper.addPassthroughKeyMapping(GameInput::Keys::GAME_ON_GROUND);
 }
+
+struct SokolInputModule : IAppModule {
+  void init(IAppBuilder& builder) final {
+    if(builder.getEnv().type == AppEnvType::InitThreadLocal) {
+      return;
+    }
+
+    auto task = builder.createTask();
+    Input::InputMapper* mapper = task.query<GameInput::GlobalMappingsRow>().tryGetSingletonElement();
+
+    task.setCallback([mapper](AppTaskArgs&) {
+      createKeyboardMappings(*mapper);
+    });
+
+    builder.submitTask(std::move(task.setName("build game mappings")));
+  }
+};
 
 void enqueueMouseWheel(InputArgs& db, float dx, float dy) {
   db;dx;dy;
@@ -160,21 +172,6 @@ void onChar(uint32_t utf32) {
   if(GameInput::PlayerKeyboardInput* input = tryGetInput(); input && utf32 <= 255 && std::isprint(static_cast<int>(utf32))) {
     input->mRawText.push_back(static_cast<char>(utf32));
   }
-}
-
-void resetInput(IAppBuilder& builder) {
-  auto task = builder.createTask();
-  task.setName("reset input");
-  auto input = task.query<GameInput::PlayerKeyboardInputRow>();
-  task.setCallback([input](AppTaskArgs&) mutable {
-    input.forEachElement([](GameInput::PlayerKeyboardInput& input) {
-      input.mRawKeys.clear();
-      input.mRawWheelDelta = 0.0f;
-      input.mRawMouseDeltaPixels = glm::vec2{ 0.0f };
-      input.mRawText.clear();
-    });
-  });
-  builder.submitTask(std::move(task));
 }
 
 constexpr Input::PlatformInputID toKeycode(sapp_mousebutton key) {
@@ -250,7 +247,7 @@ void onEvent(const sapp_event* event) {
       break;
   }
 }
-
+/*
 void init(std::unique_ptr<IAppBuilder> builder, ThreadLocalsInstance& tls, Scheduler& scheduler) {
   Renderer::init(*builder, RendererContext{
     .swapchain = sglue_swapchain(),
@@ -365,7 +362,7 @@ TaskGraph createTaskGraph() {
     .scheduler = scheduler
   };
 }
-
+*/
 void init(void) {
   //Initialize the graphics device
   sg_setup(sg_desc{
@@ -388,16 +385,33 @@ void init(void) {
   state.fontContext = sfons_create(&fd);
 
   AppDatabase& app = state.app;
-  app.combined = createDatabase();
+  Game::GameArgs gameArgs = GameDefaults::createDefaultGameArgs();
+  gameArgs.rendering = Renderer::createModule(RendererContext{
+    .swapchain = sglue_swapchain(),
+    .fontContext = state.fontContext
+  });
+#ifdef IMGUI_ENABLED
+  gameArgs.modules.push_back(ImguiModule::createModule());
+#endif
+  state.game = Game::createGame(std::move(gameArgs));
+
+  state.game->init();
+
+  app.combined = &state.game->getDatabase();
   app.window = &app.combined->getRuntime().query<Row<WindowData>>().get<0>(0);
   app.input.playerInput = app.combined->getRuntime().query<GameInput::PlayerKeyboardInputRow>();
   app.input.machineInput = app.combined->getRuntime().query<GameInput::StateMachineRow>();
   APP = &app;
 
-  Input::InputMapper* mapper = app.combined->getRuntime().query<GameInput::GlobalMappingsRow>().tryGetSingletonElement();
-  createKeyboardMappings(*mapper);
-
-  state.tasks = createTaskGraph();
+  FileSystem& fs = app.combined->getRuntime().query<SharedRow<FileSystem>>().get<0>(0).at();
+  //First argument is the executable location, second and beyond are arguments passed to the executable
+  if(state.args.size() >= 2) {
+    fs.mRoot = state.args[1];
+  }
+  else {
+    fs.mRoot = "data/";
+  }
+  setWindowSize(sapp_width(), sapp_height());
 }
 
 void frame(void) {
@@ -409,14 +423,12 @@ void frame(void) {
   const std::chrono::milliseconds timeSinceLastDraw = std::chrono::duration_cast<std::chrono::milliseconds>(now - state.lastDraw);
   if (timeSinceLastDraw < TARGET_FRAME_TIME) {
     //Resubmit the last frame
-    state.tasks.renderCommit.mBegin->mTask.addToPipe(state.tasks.scheduler->mScheduler);
-    state.tasks.scheduler->mScheduler.WaitforTask(state.tasks.renderCommit.mEnd->mTask.get());
+    state.game->updateRendering();
     return;
   }
   state.lastDraw = now;
 
-  state.tasks.tasks.mBegin->mTask.addToPipe(state.tasks.scheduler->mScheduler);
-  state.tasks.scheduler->mScheduler.WaitforTask(state.tasks.tasks.mEnd->mTask.get());
+  state.game->updateSimulation();
 
   PROFILE_UPDATE(nullptr);
 }

@@ -9,7 +9,7 @@ namespace Test {
     RuntimeDatabaseArgs args = DBReflect::createArgsWithMappings();
     buildDB(args);
     db = std::make_unique<RuntimeDatabase>(std::move(args));
-    auto builder = GameBuilder::create(*db);
+    auto builder = GameBuilder::create(*db, { AppEnvType::UpdateMain });
     auto temp = builder->createTask();
     temp.discard();
     taskBuilder = std::make_unique<RuntimeDatabaseTaskBuilder>(std::move(temp));
@@ -37,7 +37,7 @@ namespace Test {
     }
     db = std::make_unique<RuntimeDatabase>(std::move(args));
 
-    auto builder = GameBuilder::create(*db);
+    auto builder = GameBuilder::create(*db, { AppEnvType::UpdateMain });
     auto temp = builder->createTask();
     temp.discard();
     taskBuilder = std::make_unique<RuntimeDatabaseTaskBuilder>(std::move(temp));

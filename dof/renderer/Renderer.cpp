@@ -10,6 +10,7 @@
 #include "glm/gtx/transform.hpp"
 
 #include "sokol_gfx.h"
+#include "Game.h"
 
 namespace DS {
   #include "shaders/DebugShader.h"
@@ -45,6 +46,19 @@ namespace QuadPassTable {
     SharedMeshRow
   >;
 };
+
+namespace Renderer {
+  //Creates the renderer database using information from the game database
+  void createDatabase(RuntimeDatabaseArgs& args);
+  //Called after creating the database and a window has been created
+  void init(IAppBuilder& builder, const RendererContext& context);
+  void extractRenderables(IAppBuilder& builder);
+  void clearRenderRequests(IAppBuilder& builder);
+  void render(IAppBuilder& builder);
+  void endMainPass(IAppBuilder& builder);
+  void commit(IAppBuilder& builder);
+  void preProcessEvents(IAppBuilder& builder);
+}
 
 namespace {
   bool isValid(const sg_image& image) {
@@ -887,4 +901,45 @@ struct CameraReader : Renderer::ICameraReader {
 
 std::shared_ptr<Renderer::ICameraReader> Renderer::createCameraReader(RuntimeDatabaseTaskBuilder& task) {
   return std::make_unique<CameraReader>(task);
+}
+
+class RenderingModule : public IRenderingModule {
+public:
+  RenderingModule(const RendererContext& context)
+    : ctx{ context }
+  {
+  }
+
+  void createDependentDatabase(RuntimeDatabaseArgs& args) final {
+    Renderer::createDatabase(args);
+  }
+
+  void renderOnlyUpdate(IAppBuilder& builder) final {
+    Renderer::commit(builder);
+  }
+
+  void init(IAppBuilder& builder) final {
+    Renderer::init(builder, ctx);
+  }
+
+  void preSimUpdate(IAppBuilder& builder) final {
+    Renderer::extractRenderables(builder);
+    Renderer::clearRenderRequests(builder);
+    Renderer::render(builder);
+  }
+
+  void postSimUpdate(IAppBuilder& builder) final {
+    Renderer::endMainPass(builder);
+    Renderer::commit(builder);
+  }
+
+  void preProcessEvents(IAppBuilder& builder) final {
+    Renderer::preProcessEvents(builder);
+  }
+
+  RendererContext ctx;
+};
+
+std::unique_ptr<IRenderingModule> Renderer::createModule(const RendererContext& context) {
+  return std::make_unique<RenderingModule>(context);
 }

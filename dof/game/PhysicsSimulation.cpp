@@ -13,6 +13,7 @@
 #include "shapes/ShapeRegistry.h"
 #include "shapes/Rectangle.h"
 #include "Constraints.h"
+#include "TransformResolver.h"
 
 namespace PhysicsSimulation {
   using PosX = FloatRow<Tags::Pos, Tags::X>;
@@ -133,6 +134,10 @@ namespace PhysicsSimulation {
 
   std::shared_ptr<IPhysicsBodyResolver> createPhysicsBodyResolver(RuntimeDatabaseTaskBuilder& task) {
     return std::make_shared<PhysicsBodyResolver>(task);
+  }
+
+  pt::TransformResolver createTransformResolver(RuntimeDatabaseTaskBuilder& task) {
+    return { task, getPhysicsAliases() };
   }
 
   void init(IAppBuilder& builder) {
