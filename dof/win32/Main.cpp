@@ -145,6 +145,24 @@ struct SokolInputModule : IAppModule {
   }
 };
 
+//Must be registered before simulation init because that tries to load from a config that needs the launch path
+struct LaunchArgsModule : IAppModule {
+  void init(IAppBuilder& builder) final {
+    auto task = builder.createTask();
+    FileSystem* fs = task.query<SharedRow<FileSystem>>().tryGetSingletonElement();
+
+    task.setCallback([fs](AppTaskArgs&) {
+      if(!fs) {
+        return;
+      }
+      //First argument is the executable location, second and beyond are arguments passed to the executable
+      fs->mRoot = state.args.size() >= 2 ? state.args[1] : "data/";
+    });
+
+    builder.submitTask(std::move(task.setName("fs")));
+  }
+};
+
 void enqueueMouseWheel(InputArgs& db, float dx, float dy) {
   db;dx;dy;
 }
@@ -247,122 +265,18 @@ void onEvent(const sapp_event* event) {
       break;
   }
 }
-/*
-void init(std::unique_ptr<IAppBuilder> builder, ThreadLocalsInstance& tls, Scheduler& scheduler) {
-  Renderer::init(*builder, RendererContext{
-    .swapchain = sglue_swapchain(),
-    .fontContext = state.fontContext
-  });
 
-  Simulation::init(*builder);
-  GameInput::init(*builder);
-  TaskRange initTasks = GameScheduler::buildTasks(IAppBuilder::finalize(std::move(builder)), *tls.instance);
-
-  initTasks.mBegin->mTask.addToPipe(scheduler.mScheduler);
-  scheduler.mScheduler.WaitforTask(initTasks.mEnd->mTask.get());
-}
-
-std::unique_ptr<IDatabase> createDatabase(RuntimeDatabaseArgs&& args) {
-  GameDatabase::create(args);
-  Renderer::createDatabase(args);
+std::unique_ptr<IGame> createGame(const RendererContext& renderCtx) {
+  Game::GameArgs gameArgs = GameDefaults::createDefaultGameArgs();
+  gameArgs.rendering = Renderer::createModule(renderCtx);
+  gameArgs.modules.insert(gameArgs.modules.begin(), std::make_unique<LaunchArgsModule>());
+  gameArgs.modules.push_back(std::make_unique<SokolInputModule>());
 #ifdef IMGUI_ENABLED
-  ImguiModule::createDatabase(args);
+  gameArgs.modules.push_back(ImguiModule::createModule());
 #endif
-  return std::make_unique<RuntimeDatabase>(std::move(args));
+  return Game::createGame(std::move(gameArgs));
 }
 
-std::unique_ptr<IDatabase> createDatabase() {
-  return createDatabase(DBReflect::createArgsWithMappings());
-}
-
-void assertEqual(RuntimeDatabase& original, RuntimeDatabase& copy) {
-  assert(original.size() == copy.size());
-  for(size_t i = 0; i < original.size(); ++i) {
-    assert(original[i].getType() == copy[i].getType());
-    assert(original[i].getID() == copy[i].getID());
-  }
-}
-
-ThreadLocalDatabaseFactory getThreadLocalDatabaseFactory(IDatabase& main) {
-  //Create a copy of the main database with the same stable mappings as the main one.
-  //The copy should have all the same table ids so that they can be used to prepare desired elements
-  //to be migrated from the thread local database to the main one
-  return [&main] {
-    RuntimeDatabase& runtimeMain = main.getRuntime();
-    StableElementMappings& mappings = runtimeMain.getMappings();
-    std::unique_ptr<IDatabase> copy = createDatabase(RuntimeDatabaseArgs{ .mappings = &mappings });
-    assertEqual(runtimeMain, copy->getRuntime());
-    return copy;
-  };
-}
-
-TaskRange createRendererCommit() {
-  std::unique_ptr<IAppBuilder> commitBuilder = GameBuilder::create(*APP->combined, { AppEnvType::UpdateMain });
-  auto temp = commitBuilder->createTask();
-  temp.discard();
-  ThreadLocalsInstance* tls = temp.query<ThreadLocalsRow>().tryGetSingletonElement();
-  Renderer::commit(*commitBuilder);
-  return GameScheduler::buildTasks(IAppBuilder::finalize(std::move(commitBuilder)), *tls->instance);
-}
-
-TaskGraph createTaskGraph() {
-  RuntimeDatabase& db = APP->combined->getRuntime();
-  FileSystem& fs = db.query<SharedRow<FileSystem>>().get<0>(0).at();
-
-  //First argument is the executable location, second and beyond are arguments passed to the executable
-  if(state.args.size() >= 2) {
-    fs.mRoot = state.args[1];
-  }
-  else {
-    fs.mRoot = "data/";
-  }
-
-  //First initialize just the scheduler synchronously
-  std::unique_ptr<IAppBuilder> bootstrap = GameBuilder::create(*APP->combined, { AppEnvType::InitScheduler });
-  Simulation::initScheduler(*bootstrap, getThreadLocalDatabaseFactory(*APP->combined));
-  for(auto&& work : GameScheduler::buildSync(IAppBuilder::finalize(std::move(bootstrap)))) {
-    work.work();
-  }
-  ThreadLocalsInstance* tls = db.query<ThreadLocalsRow>().tryGetSingletonElement();
-  Scheduler* scheduler = db.query<SharedRow<Scheduler>>().tryGetSingletonElement();
-
-  //The rest of the init can be scheduled asynchronously but still can't be done in parallel with creating the other tasks
-  init(GameBuilder::create(*APP->combined, { AppEnvType::InitMain }), *tls, *scheduler);
-  for(size_t i = 0; i < tls->instance->getThreadCount(); ++i) {
-    init(GameBuilder::create(*tls->instance->get(i).statEffects, { AppEnvType::InitThreadLocal }), *tls, *scheduler);
-  }
-
-  setWindowSize(sapp_width(), sapp_height());
-
-  std::unique_ptr<IAppBuilder> builder = GameBuilder::create(*APP->combined, { AppEnvType::UpdateMain });
-
-  Renderer::extractRenderables(*builder);
-  Renderer::clearRenderRequests(*builder);
-  Renderer::render(*builder);
-  Simulation::buildUpdateTasks(*builder, Simulation::UpdateConfig{
-    .preEvents = [](IAppBuilder& builder) {
-      Renderer::preProcessEvents(builder);
-    }
-  });
-#ifdef IMGUI_ENABLED
-  ImguiModule::update(*builder);
-#endif
-  Renderer::endMainPass(*builder);
-  Renderer::commit(*builder);
-  resetInput(*builder);
-  GameInput::update(*builder);
-  std::shared_ptr<AppTaskNode> appTaskNodes = IAppBuilder::finalize(std::move(builder));
-  constexpr bool outputGraph = false;
-  if(outputGraph && appTaskNodes) {
-    GraphViz::writeHere("graph.gv", *appTaskNodes);
-  }
-  return TaskGraph{
-    .tasks = GameScheduler::buildTasks(std::move(appTaskNodes), *tls->instance),
-    .renderCommit = createRendererCommit(),
-    .scheduler = scheduler
-  };
-}
-*/
 void init(void) {
   //Initialize the graphics device
   sg_setup(sg_desc{
@@ -385,15 +299,10 @@ void init(void) {
   state.fontContext = sfons_create(&fd);
 
   AppDatabase& app = state.app;
-  Game::GameArgs gameArgs = GameDefaults::createDefaultGameArgs();
-  gameArgs.rendering = Renderer::createModule(RendererContext{
+  state.game = createGame(RendererContext{
     .swapchain = sglue_swapchain(),
     .fontContext = state.fontContext
   });
-#ifdef IMGUI_ENABLED
-  gameArgs.modules.push_back(ImguiModule::createModule());
-#endif
-  state.game = Game::createGame(std::move(gameArgs));
 
   state.game->init();
 
@@ -403,14 +312,6 @@ void init(void) {
   app.input.machineInput = app.combined->getRuntime().query<GameInput::StateMachineRow>();
   APP = &app;
 
-  FileSystem& fs = app.combined->getRuntime().query<SharedRow<FileSystem>>().get<0>(0).at();
-  //First argument is the executable location, second and beyond are arguments passed to the executable
-  if(state.args.size() >= 2) {
-    fs.mRoot = state.args[1];
-  }
-  else {
-    fs.mRoot = "data/";
-  }
   setWindowSize(sapp_width(), sapp_height());
 }
 

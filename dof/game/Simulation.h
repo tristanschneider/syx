@@ -103,7 +103,6 @@ namespace Simulation {
 
     //Soon after gameplay extract and physics started, before stat processing
     Injector injectGameplayTasks{ NoOp{} };
-    Injector preEvents{ NoOp{} };
     bool enableFragmentStateMachine{ true };
   };
 

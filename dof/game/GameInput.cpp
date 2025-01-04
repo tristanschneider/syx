@@ -298,8 +298,9 @@ namespace GameInput {
   }
 
   //TODO: make it possible to build only once
-  void init(IAppBuilder&) {
+  void init(IAppBuilder& builder) {
     //buildDebugCameraMachine(builder);
+    createGameMappings(builder);
   }
 
   void update(IAppBuilder& builder) {

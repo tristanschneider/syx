@@ -86,6 +86,8 @@ namespace Game {
 
     void buildAndRunInit(std::unique_ptr<IAppBuilder> builder) {
       visitModules(*builder, &IAppModule::init);
+      TaskGraphItem init = createTaskGraphItem(std::move(builder), threading.tls);
+      runTask(init, threading.scheduler);
     }
 
     void init() final {

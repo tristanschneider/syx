@@ -62,15 +62,6 @@ void Simulation::buildUpdateTasks(IAppBuilder& builder, const UpdateConfig& conf
   CommonTasks::migrateThreadLocalDBsToMain(builder);
 
   Events::publishEvents(builder);
-
-  PhysicsSimulation::preProcessEvents(builder);
-  Fragment::preProcessEvents(builder);
-  FragmentStateMachine::preProcessEvents(builder);
-  config.preEvents(builder);
-
-  TableService::processEvents(builder);
-
-  PhysicsSimulation::postProcessEvents(builder);
 }
 
 void tryInitFromConfig(Config::GameConfig& toSet, const ConfigIO::Result::Error& error) {
