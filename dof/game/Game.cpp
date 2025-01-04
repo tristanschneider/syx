@@ -86,6 +86,7 @@ namespace Game {
 
     void buildAndRunInit(std::unique_ptr<IAppBuilder> builder) {
       visitModules(*builder, &IAppModule::init);
+      visitModules(*builder, &IAppModule::dependentInit);
       TaskGraphItem init = createTaskGraphItem(std::move(builder), threading.tls);
       runTask(init, threading.scheduler);
     }
@@ -199,6 +200,8 @@ namespace Game {
 
 #include "Simulation.h"
 #include "GameInput.h"
+#include "SceneNavigator.h"
+#include "scenes/SceneList.h"
 
 namespace GameDefaults {
   MultithreadedDeps DefaultGameDatabaseReader::getMultithreadedDeps(IDatabase& db) {
@@ -216,6 +219,8 @@ namespace GameDefaults {
     Game::GameArgs args;
     args.dbSource = std::make_unique<DefaultGameDatabaseReader>();
     args.modules.push_back(Simulation::createModule({}));
+    args.modules.push_back(SceneNavigator::createModule());
+    args.modules.push_back(SceneList::createModule());
     //Rendering is from a separate project so "default" exposed here is empty
     return args;
   }

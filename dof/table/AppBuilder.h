@@ -355,6 +355,10 @@ enum class AppEnvType {
   UpdateMain,
 };
 struct AppEnvironment {
+  bool isThreadLocal() const {
+    return type == AppEnvType::InitThreadLocal;
+  }
+
   AppEnvType type;
 };
 

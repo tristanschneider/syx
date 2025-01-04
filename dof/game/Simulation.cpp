@@ -23,7 +23,6 @@
 #include "ConstraintSolver.h"
 #include "GameDatabase.h"
 #include "SceneNavigator.h"
-#include "scenes/SceneList.h"
 #include "loader/AssetService.h"
 #include "CommonTasks.h"
 #include "IAppModule.h"
@@ -32,8 +31,6 @@ ThreadLocalsInstance::ThreadLocalsInstance() = default;
 ThreadLocalsInstance::~ThreadLocalsInstance() = default;
 
 void Simulation::buildUpdateTasks(IAppBuilder& builder, const UpdateConfig& config) {
-  SceneList::registerScenes(builder);
-
   GameplayExtract::extractGameplayData(builder);
 
   Loader::processRequests(builder, Loader::Events{
@@ -43,7 +40,6 @@ void Simulation::buildUpdateTasks(IAppBuilder& builder, const UpdateConfig& conf
 
   PhysicsSimulation::updatePhysics(builder);
   config.injectGameplayTasks(builder);
-  SceneNavigator::update(builder);
   DebugInput::updateDebugCamera(builder);
   Player::updateInput(builder);
   Fragment::updateFragmentGoals(builder);

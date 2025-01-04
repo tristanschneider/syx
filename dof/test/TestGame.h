@@ -5,6 +5,7 @@
 #include "ThreadLocals.h"
 
 struct IDatabase;
+class IGame;
 
 //Exposes creation of the game (simulation.cpp) with some accomodations for testing
 //This is for integration scenarios of the way the game is registered.
@@ -52,8 +53,7 @@ namespace Test {
     void execute(TaskRange range);
     ElementRef getFromTable(const TableID& id, size_t index);
 
-    TaskRange task;
-    std::unique_ptr<IDatabase> db;
+    std::unique_ptr<IGame> game;
     std::unique_ptr<IAppBuilder> testBuilder;
     std::unique_ptr<RuntimeDatabaseTaskBuilder> test;
     KnownTables tables;

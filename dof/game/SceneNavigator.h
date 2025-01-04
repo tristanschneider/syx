@@ -3,6 +3,7 @@
 #include "Table.h"
 
 class IAppBuilder;
+class IAppModule;
 class RuntimeDatabaseTaskBuilder;
 struct IDatabase;
 struct StableElementMappings;
@@ -39,8 +40,7 @@ namespace SceneNavigator {
   std::shared_ptr<INavigator> createNavigator(RuntimeDatabaseTaskBuilder& task);
   std::shared_ptr<ISceneRegistry> createRegistry(RuntimeDatabaseTaskBuilder& task);
 
-  //Creates the tasks for any registered scenes, this also means any scenes must be registered before calling this
-  void update(IAppBuilder& builder);
-
-  void createDB(RuntimeDatabaseArgs& args);
+  //Creates the tasks for any registered scenes
+  //Scenes should be registered in module init, as dependentInit will finalize them
+  std::unique_ptr<IAppModule> createModule();
 };

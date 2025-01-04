@@ -413,7 +413,6 @@ namespace GameDatabase {
   void create(RuntimeDatabaseArgs& args) {
     DBReflect::addDatabase<GameDatabase>(args);
     StatEffect::createDatabase(args);
-    SceneNavigator::createDB(args);
     Scenes::createImportedSceneDB(args);
     Scenes::createLoadingSceneDB(args);
     Loader::createDB(args);

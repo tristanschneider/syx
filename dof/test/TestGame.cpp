@@ -10,11 +10,55 @@
 #include "scenes/SceneList.h"
 #include "SceneNavigator.h"
 #include "Physics.h"
+#include "IGame.h"
+#include "Game.h"
 
 namespace Test {
   void addPassthroughMappings(Input::InputMapper& mapper) {
     mapper.addPassthroughAxis2D(GameInput::Keys::MOVE_2D);
   }
+
+  struct InjectArgs : IAppModule {
+    InjectArgs(Test::GameConstructArgs gcArgs)
+      : args{ std::move(gcArgs) }
+    {
+    }
+
+    void init(IAppBuilder& builder) {
+      auto task = builder.createTask();
+      //Disable loading from config
+      task.query<SharedRow<FileSystem>>().tryGetSingletonElement()->mRoot = "?invalid?";
+      Config::GameConfig* gameConfig = TableAdapters::getGameConfigMutable(task);
+
+      task.setCallback([=](AppTaskArgs&) {
+        //TODO: why is this assigned twice instead of assigning physics as part of GameConfig?
+        *gameConfig = std::move(args.config);
+        gameConfig->physics = std::move(args.physics);
+      });
+      builder.submitTask(std::move(task.setName("a")));
+    }
+
+    //Inject scene in dependentInit so it overrides the default scene started by SceneList module
+    void dependentInit(IAppBuilder& builder) {
+      if(!args.scene || builder.getEnv().isThreadLocal()) {
+        return;
+      }
+      auto task = builder.createTask();
+      auto myScene = SceneNavigator::createRegistry(task)->registerScene(std::move(args.scene));
+      auto navigator = SceneNavigator::createNavigator(task);
+
+      task.setCallback([=](AppTaskArgs&) {
+        if(args.scene) {
+          navigator->navigateTo(myScene);
+        }
+      });
+
+      builder.submitTask(std::move(task.setName("a")));
+    };
+
+
+    Test::GameConstructArgs args;
+  };
 
   KnownTables::KnownTables(IAppBuilder& builder)
     : player{ builder.queryTables<IsPlayer>().matchingTableIDs[0] }
@@ -23,56 +67,19 @@ namespace Test {
   {}
 
   TestGame::TestGame(GameConstructArgs args) {
-    RuntimeDatabaseArgs rargs = DBReflect::createArgsWithMappings();
-    GameDatabase::create(rargs);
-    std::unique_ptr<IDatabase> result = std::make_unique<RuntimeDatabase>(std::move(rargs));
+    Game::GameArgs gameArgs = GameDefaults::createDefaultGameArgs();
+    gameArgs.modules.insert(gameArgs.modules.begin(), std::make_unique<InjectArgs>(std::move(args)));
+    game = Game::createGame(std::move(gameArgs));
 
-    std::unique_ptr<IAppBuilder> bootstrap = GameBuilder::create(*result);
-    Simulation::initScheduler(*bootstrap);
-    for(auto&& work : GameScheduler::buildSync(IAppBuilder::finalize(std::move(bootstrap)))) {
-      work.work();
-    }
+    game->init();
 
-    std::unique_ptr<IAppBuilder> initBuilder = GameBuilder::create(*result);
-    auto temp = initBuilder->createTask();
-    temp.discard();
-    ThreadLocalsInstance* tls = temp.query<ThreadLocalsRow>().tryGetSingletonElement();
+    testBuilder = GameBuilder::create(game->getDatabase(), { AppEnvType::UpdateMain });
+    //TODO: args.updateConfig for Simulation?
 
-    Simulation::init(*initBuilder);
-    TaskRange initTasks = GameScheduler::buildTasks(IAppBuilder::finalize(std::move(initBuilder)), *tls->instance);
-
-    //Disable loading from config
-    temp.query<SharedRow<FileSystem>>().tryGetSingletonElement()->mRoot = "?invalid?";
-    Config::GameConfig* gameConfig = TableAdapters::getGameConfigMutable(temp);
-    //TODO: why is this assigned twice instead of assigning physics as part of GameConfig?
-    *gameConfig = std::move(args.config);
-    gameConfig->physics = std::move(args.physics);
-
-    Scheduler* scheduler = temp.query<SharedRow<Scheduler>>().tryGetSingletonElement();
-    initTasks.mBegin->mTask.addToPipe(scheduler->mScheduler);
-    scheduler->mScheduler.WaitforTask(initTasks.mEnd->mTask.get());
-
-    testBuilder = GameBuilder::create(*result);
-
-    std::unique_ptr<IAppBuilder> updateBuilder = GameBuilder::create(*result);
-    if(args.scene) {
-      auto t = updateBuilder->createTask();
-      t.discard();
-      auto myScene = SceneNavigator::createRegistry(t)->registerScene(std::move(args.scene));
-      Simulation::buildUpdateTasks(*updateBuilder, args.updateConfig);
-      SceneNavigator::createNavigator(t)->navigateTo(myScene);
-    }
-    else {
-      Simulation::buildUpdateTasks(*updateBuilder, args.updateConfig);
-    }
-    GameInput::update(*updateBuilder);
-
-    task = GameScheduler::buildTasks(IAppBuilder::finalize(std::move(updateBuilder)), *tls->instance);
-    db = std::move(result);
     tables = KnownTables{ *testBuilder };
-    test = std::make_unique<RuntimeDatabaseTaskBuilder>(std::move(temp));
+    test = std::make_unique<RuntimeDatabaseTaskBuilder>(testBuilder->createTask());
     test->discard();
-    tld = tls->instance->get(0);
+    tld = game->getDatabase().getRuntime().query<ThreadLocalsRow>().tryGetSingletonElement()->instance->get(0);
 
     addPassthroughMappings(*builder().query<GameInput::GlobalMappingsRow>().tryGetSingletonElement());
   }
@@ -140,7 +147,7 @@ namespace Test {
 
 
   void TestGame::update() {
-    execute(task);
+    game->updateSimulation();
   }
 
   void TestGame::execute(std::unique_ptr<IAppBuilder> toExecute) {

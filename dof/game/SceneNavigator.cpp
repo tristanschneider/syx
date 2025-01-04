@@ -4,6 +4,7 @@
 #include "AppBuilder.h"
 #include "RuntimeDatabase.h"
 #include "DBEvents.h"
+#include "IAppModule.h"
 
 namespace SceneNavigator {
   constexpr size_t INVALID_SCENE = 0;
@@ -69,10 +70,6 @@ namespace SceneNavigator {
       Globals* globals{};
     };
     return std::make_shared<Reg>(task);
-  }
-
-  void createDB(RuntimeDatabaseArgs& args) {
-    DBReflect::addDatabase<SceneDB>(args);
   }
 
   //Wraps the scene task in a callback that will first check if this scene should be performing the desired operation
@@ -193,5 +190,31 @@ namespace SceneNavigator {
     }
 
     defaultCleanup(builder);
+  }
+
+  struct SceneModule : IAppModule {
+    void createDatabase(RuntimeDatabaseArgs& args) {
+      DBReflect::addDatabase<SceneDB>(args);
+    };
+
+    void dependentInit(IAppBuilder& builder) final {
+      if(builder.getEnv().isThreadLocal()) {
+        return;
+      }
+      auto task = builder.createTask();
+      Globals* globals = task.query<GlobalsRow>().tryGetSingletonElement();
+      task.setCallback([globals](AppTaskArgs&) {
+        globals->hasRegisteredTasks = true;
+      });
+      builder.submitTask(std::move(task.setName("reg")));
+    }
+
+    void update(IAppBuilder& builder) final {
+      SceneNavigator::update(builder);
+    }
+  };
+
+  std::unique_ptr<IAppModule> createModule() {
+    return std::make_unique<SceneModule>();
   }
 }

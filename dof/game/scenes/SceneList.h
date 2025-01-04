@@ -2,6 +2,7 @@
 
 #include "Table.h"
 
+class IAppModule;
 class IAppBuilder;
 class RuntimeDatabaseTaskBuilder;
 
@@ -26,5 +27,6 @@ namespace SceneList {
 
   ListNavigator createNavigator(RuntimeDatabaseTaskBuilder& task);
   const Scenes* get(RuntimeDatabaseTaskBuilder& task);
-  void registerScenes(IAppBuilder& builder);
+
+  std::unique_ptr<IAppModule> createModule();
 };

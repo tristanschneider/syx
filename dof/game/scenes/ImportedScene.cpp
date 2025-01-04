@@ -295,7 +295,7 @@ namespace Scenes {
       : globals{ task.query<ImportedSceneGlobalsRow>().tryGetSingletonElement<0>() }
       , navigator{ Scenes::createLoadingNavigator(task) }
       , loader{ Loader::createAssetLoader(task) }
-      , sceneID{ SceneList::get(task)->imported }
+      , scenes{ SceneList::get(task) }
     {
     }
 
@@ -312,17 +312,16 @@ namespace Scenes {
       //Upon completion, navigate to the imported scene which will load from globals
       navigator->awaitLoadRequest(Scenes::LoadRequest{
         .toAwait = { scene },
-        .onSuccess = sceneID,
+        .onSuccess = scenes->imported,
         //TODO: error handling
-        .onFailure = sceneID
+        .onFailure = scenes->imported,
       });
     }
 
     ImportedSceneGlobals* globals{};
     std::shared_ptr<Scenes::ILoadingNavigator> navigator;
     std::shared_ptr<Loader::IAssetLoader> loader;
-    SceneNavigator::SceneID sceneID{};
-    SceneNavigator::SceneID loadingScene{};
+    const SceneList::Scenes* scenes{};
   };
 
   std::shared_ptr<IImportedSceneNavigator> createImportedSceneNavigator(RuntimeDatabaseTaskBuilder& task) {

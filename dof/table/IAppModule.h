@@ -19,6 +19,7 @@ public:
   virtual void initScheduler(IAppBuilder&, const ThreadLocalDatabaseFactory&) {}
   //Multi-threaded initialization intended for setting defaults and perhaps singletons
   virtual void init(IAppBuilder&) {}
+  virtual void dependentInit(IAppBuilder&) {};
 
   virtual void update(IAppBuilder&) {}
 

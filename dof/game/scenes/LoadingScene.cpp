@@ -141,7 +141,7 @@ namespace Scenes {
     LoadingNavigator(RuntimeDatabaseTaskBuilder& task)
       : globals{ getLoadingSceneGlobals(task) }
       , navigator{ SceneNavigator::createNavigator(task) }
-      , loadingScene{ SceneList::get(task)->loading }
+      , scenes{ SceneList::get(task) }
     {
     }
 
@@ -149,12 +149,12 @@ namespace Scenes {
       //Store the request so the loading screen knows what to load
       globals->currentRequest = std::move(request);
       //Go to the loading screen
-      navigator->navigateTo(loadingScene);
+      navigator->navigateTo(scenes->loading);
     }
 
     LoadingSceneGlobals* globals{};
     std::shared_ptr<SceneNavigator::INavigator> navigator;
-    SceneNavigator::SceneID loadingScene{};
+    const SceneList::Scenes* scenes{};
   };
 
   std::shared_ptr<ILoadingNavigator> createLoadingNavigator(RuntimeDatabaseTaskBuilder& task) {

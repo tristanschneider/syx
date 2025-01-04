@@ -8,6 +8,7 @@
 #include "TableAdapters.h"
 #include "TestGame.h"
 #include "ConstraintSolver.h"
+#include "IGame.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -88,7 +89,7 @@ namespace Test {
     struct Game {
       Game()
         : game{ std::make_unique<TestScene>(data) }
-        , refs{ game.db->getRuntime().getDescription() }
+        , refs{ game.game->getDatabase().getRuntime().getDescription() }
       {
         resolver = game.builder().getResolver<Row<int>>();
         ids = game.builder().getIDResolver();
