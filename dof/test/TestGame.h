@@ -7,7 +7,7 @@
 struct IDatabase;
 class IGame;
 
-//Exposes creation of the game (simulation.cpp) with some accomodations for testing
+//Exposes creation of the game (simulation.cpp) with some accommodations for testing
 //This is for integration scenarios of the way the game is registered.
 //For testing the app framework itself, TestApp can be used
 namespace Test {

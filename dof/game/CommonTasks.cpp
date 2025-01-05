@@ -10,7 +10,7 @@ namespace CommonTasks {
     RuntimeDatabase& main = task.getDatabase();
     ThreadLocals& tls = TableAdapters::getThreadLocals(task);
 
-    task.setCallback([&main, &tls](AppTaskArgs&) {
+    task.setCallback([&main, &tls](AppTaskArgs& args) {
       for(size_t i = 0; i < tls.getThreadCount(); ++i) {
         //TODO: dirty flags to avoid traversing all tables every time
         RuntimeDatabase& threadDB = *tls.get(i).statEffects;
@@ -26,7 +26,19 @@ namespace CommonTasks {
           //TODO: what to do about requested moves?
           //TODO: stat specifics?
           //Migrate everything from the local table to the main table
-          RuntimeTable::migrate(0, threadTable, mainTable, elements);
+          size_t m = RuntimeTable::migrate(0, threadTable, mainTable, elements);
+          StableIDRow* stable = mainTable.tryGet<StableIDRow>();
+          if(!stable) {
+            continue;
+          }
+
+          //Emit creation events for all the newly migrated elements
+          IDBEvents& events = *args.getEvents();
+          for(; m < mainTable.size(); ++m) {
+            DBEvents::MoveCommand cmd;
+            cmd.destination = stable->at(m);
+            events.emit(std::move(cmd));
+          }
         }
       }
     });

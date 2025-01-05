@@ -55,7 +55,7 @@ void Simulation::buildUpdateTasks(IAppBuilder& builder, const UpdateConfig& conf
   SpatialQuery::gameplayUpdateQueries(builder);
   StatEffect::createTasks(builder);
 
-  //CommonTasks::migrateThreadLocalDBsToMain(builder);
+  CommonTasks::migrateThreadLocalDBsToMain(builder);
 
   Events::publishEvents(builder);
 }

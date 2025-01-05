@@ -13,7 +13,7 @@
 #include "PhysicsSimulation.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
-/*
+
 namespace Test {
   TEST_CLASS(AppTaskTest) {
     struct PhysicsRows {
@@ -89,6 +89,9 @@ namespace Test {
 
           //Position constraint pair away from the above
           pr.posY->at(i.ca) = pr.posY->at(i.cb) = -5;
+          pr.posX->at(i.ca) = 5;
+          pr.posX->at(i.cb) = 7;
+
           ConstraintStatEffect::Builder builder{ args };
           builder.createStatEffects(1).setLifetime(StatEffect::INFINITE);
           builder.constraintBuilder().setJointType({ Constraints::WeldJoint{
@@ -153,4 +156,3 @@ namespace Test {
     }
   };
 }
-*/
