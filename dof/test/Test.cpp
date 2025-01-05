@@ -58,6 +58,7 @@ namespace Test {
 
       TestDB(std::unique_ptr<IAppModule> appModule) {
         auto gameArgs = GameDefaults::createDefaultGameArgs();
+        gameArgs.modules.push_back(std::make_unique<DBModule>());
         gameArgs.modules.push_back(std::move(appModule));
 
         game = Game::createGame(std::move(gameArgs));

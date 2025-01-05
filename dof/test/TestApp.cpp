@@ -67,8 +67,12 @@ namespace Test {
 
   void TestApp::initImpl(const InitArgs& initArgs) {
     Game::GameArgs gameArgs;
+    gameArgs.dbSource = std::make_unique<GameDefaults::DefaultGameDatabaseReader>();
     gameArgs.modules.push_back(std::make_unique<InjectArgsModule>(InitArgs{ initArgs }));
     game = Game::createGame(std::move(gameArgs));
+
+    game->init();
+
     taskBuilder = createTaskBuilder(*game);
   }
 

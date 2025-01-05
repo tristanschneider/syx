@@ -50,11 +50,16 @@ namespace Game {
   std::unique_ptr<IGame> createGame(GameArgs&& args);
 }
 
+//TODO: Ideally not necessary to expose simulation here, requires more modularization of simulation
+namespace Simulation {
+  struct UpdateConfig;
+}
+
 namespace GameDefaults {
   class DefaultGameDatabaseReader : public IGameDatabaseReader {
   public:
     virtual MultithreadedDeps getMultithreadedDeps(IDatabase&);
   };
-  std::unique_ptr<IGameDatabaseReader> createDefaultDatabaseSource();
   Game::GameArgs createDefaultGameArgs();
+  Game::GameArgs createDefaultGameArgs(const Simulation::UpdateConfig& config);
 }

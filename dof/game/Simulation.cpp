@@ -55,7 +55,7 @@ void Simulation::buildUpdateTasks(IAppBuilder& builder, const UpdateConfig& conf
   SpatialQuery::gameplayUpdateQueries(builder);
   StatEffect::createTasks(builder);
 
-  CommonTasks::migrateThreadLocalDBsToMain(builder);
+  //CommonTasks::migrateThreadLocalDBsToMain(builder);
 
   Events::publishEvents(builder);
 }
@@ -166,7 +166,7 @@ public:
   }
 
   void update(IAppBuilder& builder) final {
-    Simulation::buildUpdateTasks(builder, Simulation::UpdateConfig{});
+    Simulation::buildUpdateTasks(builder, config);
     resetInput(builder);
     GameInput::update(builder);
   }

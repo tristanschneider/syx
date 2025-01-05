@@ -96,6 +96,7 @@ namespace Test {
 
         //Navigate to the scene
         game.update();
+        game.update();
       }
 
       void setAllThickness(float value) {

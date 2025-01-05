@@ -48,9 +48,7 @@ namespace Test {
       auto navigator = SceneNavigator::createNavigator(task);
 
       task.setCallback([=](AppTaskArgs&) {
-        if(args.scene) {
-          navigator->navigateTo(myScene);
-        }
+        navigator->navigateTo(myScene);
       });
 
       builder.submitTask(std::move(task.setName("a")));
@@ -67,7 +65,7 @@ namespace Test {
   {}
 
   TestGame::TestGame(GameConstructArgs args) {
-    Game::GameArgs gameArgs = GameDefaults::createDefaultGameArgs();
+    Game::GameArgs gameArgs = GameDefaults::createDefaultGameArgs(args.updateConfig);
     gameArgs.modules.insert(gameArgs.modules.begin(), std::make_unique<InjectArgs>(std::move(args)));
     game = Game::createGame(std::move(gameArgs));
 
@@ -75,12 +73,14 @@ namespace Test {
 
     testBuilder = GameBuilder::create(game->getDatabase(), { AppEnvType::UpdateMain });
     taskArgs = game->createAppTaskArgs(0);
+
+    auto temp = testBuilder->createTask();
+    temp.discard();
+    test = std::make_unique<RuntimeDatabaseTaskBuilder>(std::move(temp));
+    test->discard();
     //TODO: args.updateConfig for Simulation?
 
     tables = KnownTables{ *testBuilder };
-    test = std::make_unique<RuntimeDatabaseTaskBuilder>(testBuilder->createTask());
-    test->discard();
-    tld = game->getDatabase().getRuntime().query<ThreadLocalsRow>().tryGetSingletonElement()->instance->get(0);
 
     addPassthroughMappings(*builder().query<GameInput::GlobalMappingsRow>().tryGetSingletonElement());
   }

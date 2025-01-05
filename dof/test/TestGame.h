@@ -58,6 +58,5 @@ namespace Test {
     std::unique_ptr<RuntimeDatabaseTaskBuilder> test;
     std::unique_ptr<AppTaskArgs> taskArgs;
     KnownTables tables;
-    ThreadLocalData tld;
   };
 }

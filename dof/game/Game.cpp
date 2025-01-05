@@ -219,13 +219,18 @@ namespace GameDefaults {
     };
   }
 
-  Game::GameArgs createDefaultGameArgs() {
+  Game::GameArgs createDefaultGameArgs(const Simulation::UpdateConfig& config) {
     Game::GameArgs args;
     args.dbSource = std::make_unique<DefaultGameDatabaseReader>();
-    args.modules.push_back(Simulation::createModule({}));
+    args.modules.push_back(Simulation::createModule(config));
     args.modules.push_back(SceneNavigator::createModule());
     args.modules.push_back(SceneList::createModule());
     //Rendering is from a separate project so "default" exposed here is empty
     return args;
   }
+
+  Game::GameArgs createDefaultGameArgs() {
+    return createDefaultGameArgs({});
+  }
+
 }
