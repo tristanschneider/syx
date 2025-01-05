@@ -39,7 +39,7 @@ namespace Loader {
   }
 
   //Start a new subtask from the current task that is added to a linked list of tasks needed for completion of the overall asset
-  std::shared_ptr<AssetLoadTask> AssetLoadTask::addTask(const AppTaskArgs& args, TaskCallback&& subtask) {
+  std::shared_ptr<AssetLoadTask> AssetLoadTask::addTask(AppTaskArgs& args, TaskCallback&& subtask) {
     return addTask(next, args, AssetLoadTaskArgs{
       .self = createPendingHandle(taskArgs.deps.mappings),
       .deps = taskArgs.deps,
@@ -47,14 +47,14 @@ namespace Loader {
     }, std::move(subtask));
   }
 
-  std::shared_ptr<AssetLoadTask> AssetLoadTask::addTask(std::shared_ptr<AssetLoadTask>& head, const AppTaskArgs& args, const AssetLoadTaskArgs& deps, TaskCallback&& subtask) {
+  std::shared_ptr<AssetLoadTask> AssetLoadTask::addTask(std::shared_ptr<AssetLoadTask>& head, AppTaskArgs& args, const AssetLoadTaskArgs& deps, TaskCallback&& subtask) {
     auto child = std::make_shared<AssetLoadTask>(AssetLoadTaskArgs{ deps });
     //Add to linked list. Order doesn't matter
     //Do this before queueing the task because the task may further modify its node in the list while in progress
     child->next = head;
     head = child;
 
-    child->task = args.scheduler->queueLongTask([child, t{ std::move(subtask) }](AppTaskArgs& args) {
+    child->task = args.getScheduler()->queueLongTask([child, t{ std::move(subtask) }](AppTaskArgs& args) {
       t(args, *child);
     }, {});
     return child;

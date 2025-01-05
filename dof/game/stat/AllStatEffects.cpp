@@ -16,14 +16,6 @@
 #include "TableAdapters.h"
 #include "ThreadLocals.h"
 
-RuntimeDatabase& StatEffectDatabase::get(AppTaskArgs& task) {
-  return *ThreadLocalData::get(task).statEffects;
-}
-
-StableElementMappings& StatEffectDatabase::getMappings(AppTaskArgs& task) {
-  return *ThreadLocalData::get(task).mappings;
-}
-
 namespace StatEffect {
   void moveThreadLocalToCentral(IAppBuilder& builder) {
     auto task = builder.createTask();

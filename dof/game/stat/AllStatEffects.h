@@ -1,5 +1,6 @@
 #pragma once
 
+#include "AppBuilder.h"
 #include "RuntimeDatabase.h"
 
 class RuntimeDatabase;
@@ -9,12 +10,9 @@ struct RuntimeDatabaseArgs;
 class IAppBuilder;
 
 namespace StatEffectDatabase {
-  RuntimeDatabase& get(AppTaskArgs& task);
-  StableElementMappings& getMappings(AppTaskArgs& task);
-
   template<class RowT>
   RuntimeTable& getStatTable(AppTaskArgs& task) {
-    RuntimeDatabase& db = get(task);
+    RuntimeDatabase& db = task.getLocalDB();
     auto q = db.query<RowT>();
     assert(q.size());
     return *db.tryGet(q.matchingTableIDs[0]);

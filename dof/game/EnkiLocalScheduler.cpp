@@ -7,6 +7,7 @@
 #include "Scheduler.h"
 #include "AppBuilder.h"
 #include "ThreadLocals.h"
+#include "GameTaskArgs.h"
 
 namespace Tasks {
   struct SchedulerArgs {
@@ -37,17 +38,8 @@ namespace Tasks {
         set.m_SetSize = static_cast<uint32_t>(size.workItemCount);
       }
       set.m_Function = [cb{std::move(task)}, this](enki::TaskSetPartition partition, uint32_t thread) {
-        AppTaskArgs taskArgs;
-        taskArgs.begin = partition.start;
-        taskArgs.end = partition.end;
-        taskArgs.threadIndex = thread;
-        ThreadLocalData tld;
-        taskArgs.threadLocal = &tld;
-        if(args.getTLS) {
-          tld = args.getTLS(taskArgs.threadIndex);
-          taskArgs.scheduler = tld.scheduler;
-        }
-        cb(taskArgs);
+        GameTaskArgs gta{ partition, args.getTLS ? args.getTLS(thread) : ThreadLocalData{}, thread };
+        cb(gta);
       };
     }
 

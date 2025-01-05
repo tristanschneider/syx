@@ -74,6 +74,7 @@ namespace Test {
     game->init();
 
     testBuilder = GameBuilder::create(game->getDatabase(), { AppEnvType::UpdateMain });
+    taskArgs = game->createAppTaskArgs(0);
     //TODO: args.updateConfig for Simulation?
 
     tables = KnownTables{ *testBuilder };
@@ -107,14 +108,11 @@ namespace Test {
     return *test;
   }
 
-  AppTaskArgs TestGame::sharedArgs() {
-    AppTaskArgs result;
-    result.threadLocal = &tld;
-    return result;
+  AppTaskArgs& TestGame::sharedArgs() {
+    return *taskArgs;
   }
 
   void TestGame::init(const GameArgs& args) {
-    auto a = sharedArgs();
     auto b = builder();
 
     Config::FragmentConfig& fragment = TableAdapters::getGameConfigMutable(b)->fragment;

@@ -4,6 +4,7 @@ struct AppTaskNode;
 struct TaskNode;
 struct ThreadLocals;
 struct TaskRange;
+struct AppTaskArgs;
 
 namespace GameScheduler {
   struct SyncWorkItem {
@@ -12,4 +13,5 @@ namespace GameScheduler {
 
   TaskRange buildTasks(std::shared_ptr<AppTaskNode> root, ThreadLocals& tls);
   std::vector<SyncWorkItem> buildSync(std::shared_ptr<AppTaskNode> root);
+  std::unique_ptr<AppTaskArgs> createAppTaskArgs(ThreadLocals* tls, size_t threadIndex);
 };

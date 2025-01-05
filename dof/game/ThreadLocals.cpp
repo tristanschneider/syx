@@ -21,13 +21,13 @@ namespace details {
   struct ThreadLocalsImpl {
     //No desire for contiguous memory of the data itself as that would only encourage false sharing
     std::vector<std::unique_ptr<ThreadData>> threads;
-    Events::EventsImpl* events{};
+    IDBEvents* events{};
     StableElementMappings* mappings{};
   };
 };
 
 ThreadLocals::ThreadLocals(size_t size,
-  Events::EventsImpl* events,
+  IDBEvents* events,
   StableElementMappings* mappings,
   Tasks::ILocalSchedulerFactory* schedulerFactory,
   const ThreadLocalDatabaseFactory& dbf
@@ -46,11 +46,6 @@ ThreadLocals::ThreadLocals(size_t size,
 }
 
 ThreadLocals::~ThreadLocals() = default;
-
-ThreadLocalData& ThreadLocalData::get(AppTaskArgs& args) {
-  //Assumed to be provided by GameScheduler.cpp
-  return *static_cast<ThreadLocalData*>(args.threadLocal);
-}
 
 ThreadLocalData ThreadLocals::get(size_t thread) {
   assert(data->threads.size() > thread);

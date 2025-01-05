@@ -5,6 +5,7 @@
 #include "Scheduler.h"
 #include "ThreadLocals.h"
 #include "Profile.h"
+#include "GameTaskArgs.h"
 
 namespace GameScheduler {
   constexpr size_t MAIN_THREAD = 0;
@@ -18,6 +19,16 @@ namespace GameScheduler {
     std::string_view name;
     ProfileToken profileToken{};
   };
+
+  std::unique_ptr<AppTaskArgs> createAppTaskArgs(ThreadLocals* tls, size_t threadIndex) {
+    if(tls) {
+      return std::make_unique<GameTaskArgs>(enki::TaskSetPartition{}, *tls, threadIndex);
+    }
+    //Will probably need more argument later if single threaded mode is used but this should be good enough for tests
+    std::unique_ptr<GameTaskArgs> st = std::make_unique<GameTaskArgs>();
+    st->threadIndex = threadIndex;
+    return st;
+  }
 
   ProfileData createProfileData(std::string_view name) {
     //Hack to cache tokens forever because microprofile has on way to clear them
@@ -66,13 +77,7 @@ namespace GameScheduler {
       if(!task.callback) {
         return;
       }
-      AppTaskArgs args;
-      args.begin = range.start;
-      args.end = range.end;
-      ThreadLocalData data = tls.get(thread);
-      args.threadLocal = &data;
-      args.threadIndex = thread;
-      args.scheduler = data.scheduler;
+      GameTaskArgs args{ range, tls, thread };
       executeTask(args, task, profile);
     }
 
@@ -90,12 +95,8 @@ namespace GameScheduler {
     }
 
     void Execute() override {
-      AppTaskArgs args;
-      args.threadIndex = MAIN_THREAD;
-      ThreadLocalData data = tls.get(args.threadIndex);
-      args.threadLocal = &data;
-      args.scheduler = data.scheduler;
       if(task.callback) {
+        GameTaskArgs args{ enki::TaskSetPartition{}, tls, MAIN_THREAD };
         executeTask(args, task, profile);
       }
     }
@@ -117,7 +118,7 @@ namespace GameScheduler {
     }
 
     void operator()(AppTaskPinning::Synchronous) {
-      //Synchronous behavior is addressed by GmaeBuilder.cpp
+      //Synchronous behavior is addressed by GameBuilder.cpp
       task.dst->name = task.src->name;
       task.dst->mTask.mTask = std::make_unique<TaskAdapter>(*task.src, tls);
     }
@@ -169,7 +170,8 @@ namespace GameScheduler {
         current->task.config->setSize = [size](AppTaskSize s) { *size = s; };
       }
       result.push_back({ [current, size] {
-        AppTaskArgs args;
+        //TODO: this probably will eventually need at least the local database
+        GameTaskArgs args;
         if(current->task.callback) {
           if(size) {
             size_t complete = 0;

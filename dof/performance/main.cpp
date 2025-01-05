@@ -2,62 +2,34 @@
 
 #include <cstdio>
 #include "Simulation.h"
-#include "PerformanceDB.h"
 #include "GameBuilder.h"
 #include "GameScheduler.h"
 #include "AppBuilder.h"
 #include "TableAdapters.h"
 #include "ThreadLocals.h"
 #include "Profile.h"
+#include "Game.h"
+#include "IGame.h"
+#include "IAppModule.h"
 
+//TODO: this doesn't make much sense anymore
+//Better approach is likely to measure performance of particular imported scenes using the default game db
 namespace Performance {
   struct App {
-    std::unique_ptr<IDatabase> db;
+    std::unique_ptr<IGame> game;
     std::unique_ptr<IAppBuilder> builder;
-    Scheduler* scheduler{};
-    TaskRange update;
-    AppTaskArgs args;
+    std::unique_ptr<AppTaskArgs> args;
     std::unique_ptr<ThreadLocalData> data = std::make_unique<ThreadLocalData>();
   };
 
   App createApp() {
     Performance::App app;
-    app.db = PerformanceDB::create();
-    app.builder = GameBuilder::create(*app.db);
+    app.game = Game::createGame(GameDefaults::createDefaultGameArgs());
 
-    //First initialize just the scheduler synchronously
-    {
-      std::unique_ptr<IAppBuilder> bootstrap = GameBuilder::create(*app.db);
-      Simulation::initScheduler(*bootstrap);
-      for(auto&& work : GameScheduler::buildSync(IAppBuilder::finalize(std::move(bootstrap)))) {
-        work.work();
-      }
-    }
-    auto temp = app.builder->createTask();
-    temp.discard();
-    ThreadLocalsInstance* tls = temp.query<ThreadLocalsRow>().tryGetSingletonElement();
-    Scheduler* scheduler = temp.query<SharedRow<Scheduler>>().tryGetSingletonElement();
-    app.scheduler = scheduler;
+    app.game->init();
 
-    {
-      std::unique_ptr<IAppBuilder> initBuilder = GameBuilder::create(*app.db);
-      Simulation::init(*initBuilder);
-      TaskRange initTasks = GameScheduler::buildTasks(IAppBuilder::finalize(std::move(initBuilder)), *tls->instance);
-
-      initTasks.mBegin->mTask.addToPipe(scheduler->mScheduler);
-      scheduler->mScheduler.WaitforTask(initTasks.mEnd->mTask.get());
-    }
-
-    {
-      std::unique_ptr<IAppBuilder> builder = GameBuilder::create(*app.db);
-      Simulation::buildUpdateTasks(*builder, {});
-      std::shared_ptr<AppTaskNode> appTaskNodes = IAppBuilder::finalize(std::move(builder));
-
-      app.update = GameScheduler::buildTasks(std::move(appTaskNodes), *tls->instance);
-    }
-
-    *app.data = tls->instance->get(0);
-    app.args.threadLocal = app.data.get();
+    app.builder = GameBuilder::create(app.game->getDatabase(), { AppEnvType::UpdateMain });
+    app.args = app.game->createAppTaskArgs();
     return app;
   }
 
@@ -92,8 +64,7 @@ namespace Performance {
     using Clock = std::chrono::steady_clock;
     PROFILE_SCOPE("app", "update");
     auto before = Clock::now();
-    app.update.mBegin->mTask.addToPipe(app.scheduler->mScheduler);
-    app.scheduler->mScheduler.WaitforTask(app.update.mEnd->mTask.get());
+    app.game->updateSimulation();
     auto after = Clock::now();
     PROFILE_UPDATE(nullptr);
     return static_cast<Duration>(std::chrono::duration_cast<std::chrono::nanoseconds>(after - before).count());
@@ -123,7 +94,7 @@ int main() {
   printf("Starting performance test...\n");
   App app = createApp();
 
-  initStaticScene(*app.builder, app.args);
+  initStaticScene(*app.builder, *app.args);
   constexpr size_t iterations = 1000;
   std::vector<Duration> timings(iterations);
 

@@ -159,12 +159,22 @@ namespace Tasks {
   struct ILocalScheduler;
 };
 
+struct IRandom;
+class IDBEvents;
+
 struct AppTaskArgs {
+  virtual ~AppTaskArgs() = default;
+
   size_t begin{};
   size_t end{};
   size_t threadIndex{};
-  Tasks::ILocalScheduler* scheduler{};
-  void* threadLocal{};
+
+  virtual Tasks::ILocalScheduler* getScheduler() = 0;
+  //Thread-local database. Changes made here are migrated to the main database at the end of the frame
+  virtual RuntimeDatabase& getLocalDB() = 0;
+  virtual std::unique_ptr<AppTaskArgs> clone() const = 0;
+  virtual IRandom* getRandom() = 0;
+  virtual IDBEvents* getEvents() = 0;
 };
 using AppTaskCallback = std::function<void(AppTaskArgs&)>;
 

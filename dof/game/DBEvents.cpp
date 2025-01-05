@@ -6,8 +6,6 @@
 #include "ThreadLocals.h"
 
 namespace Events {
-  using LockT = std::lock_guard<std::mutex>;
-
   void CreatePublisher::operator()(const ElementRef& id) {
     onNewElement(id, *args);
   }
@@ -20,7 +18,18 @@ namespace Events {
     onMovedElement(source, destination, *args);
   }
 
-  struct EventsImpl {
+  struct EventsImpl : IDBEvents {
+    void emit(DBEvents::MoveCommand&& e) final {
+      std::lock_guard<std::mutex> lock{ mutex };
+      events.toBeMovedElements.push_back(std::move(e));
+    }
+
+    void publishTo(DBEvents& destination) final {
+      std::lock_guard<std::mutex> lock{ mutex };
+      destination.toBeMovedElements.swap(events.toBeMovedElements);
+      events.toBeMovedElements.clear();
+    }
+
     DBEvents events;
     std::mutex mutex;
   };
@@ -31,19 +40,8 @@ namespace Events {
 
   EventsInstance::~EventsInstance() = default;
 
-  struct EventsContext {
-    EventsImpl& impl;
-    LockT lock;
-  };
-
-  EventsContext _getContext(AppTaskArgs& args) {
-    EventsImpl* impl = ThreadLocalData::get(args).events;
-    return { *impl, LockT{ impl->mutex } };
-  }
-
   void pushEvent(const DBEvents::Variant& src, const DBEvents::Variant& dst, AppTaskArgs& args) {
-    EventsContext ctx{ _getContext(args) };
-    ctx.impl.events.toBeMovedElements.push_back({ src, dst });
+    args.getEvents()->emit({ src, dst });
   }
 
   void onNewElement(const ElementRef& e, AppTaskArgs& args) {
@@ -63,12 +61,7 @@ namespace Events {
     task.setName("publish events");
     EventsInstance& instance = *task.query<EventsRow>().tryGetSingletonElement();
     task.setCallback([&instance](AppTaskArgs& args) {
-      {
-        EventsContext ctx{ _getContext(args) };
-        instance.publishedEvents.toBeMovedElements.swap(ctx.impl.events.toBeMovedElements);
-
-        ctx.impl.events.toBeMovedElements.clear();
-      }
+      args.getEvents()->publishTo(instance.publishedEvents);
     });
     builder.submitTask(std::move(task));
   }

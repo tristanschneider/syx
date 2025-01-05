@@ -57,8 +57,7 @@ namespace Test {
         GameDatabase::Tables tables{ task };
 
         task.setCallback([=](AppTaskArgs& args) {
-          ThreadLocalData& tls = ThreadLocalData::get(args);
-          RuntimeTable* table = tls.statEffects->tryGet(tables.physicsObjsWithZ);
+          RuntimeTable* table = args.getLocalDB().tryGet(tables.physicsObjsWithZ);
           Assert::IsNotNull(table);
           PhysicsRows pr{ *table };
           //Create the objects

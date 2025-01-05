@@ -271,3 +271,10 @@ struct DBEvents {
   };
   std::vector<MoveCommand> toBeMovedElements;
 };
+
+class IDBEvents {
+public:
+  virtual ~IDBEvents() = default;
+  virtual void emit(DBEvents::MoveCommand&& e) = 0;
+  virtual void publishTo(DBEvents& destination) = 0;
+};

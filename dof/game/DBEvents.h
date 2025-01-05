@@ -8,13 +8,12 @@ class IAppBuilder;
 class RuntimeDatabaseTaskBuilder;
 
 namespace Events {
-  struct EventsImpl;
   struct EventsInstance {
     EventsInstance();
     ~EventsInstance();
 
     DBEvents publishedEvents;
-    std::unique_ptr<EventsImpl> impl;
+    std::unique_ptr<IDBEvents> impl;
   };
   struct EventsRow : SharedRow<EventsInstance>{};
 

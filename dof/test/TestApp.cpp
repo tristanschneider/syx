@@ -3,56 +3,89 @@
 
 #include "GameBuilder.h"
 #include "Simulation.h"
+#include "IAppModule.h"
+#include "IGame.h"
+#include "Game.h"
 
 namespace Test {
-  void TestApp::initST(const DBBuilder& buildDB, const WorkBuilder& buildWork) {
-    RuntimeDatabaseArgs args = DBReflect::createArgsWithMappings();
-    buildDB(args);
-    db = std::make_unique<RuntimeDatabase>(std::move(args));
-    auto builder = GameBuilder::create(*db, { AppEnvType::UpdateMain });
-    auto temp = builder->createTask();
-    temp.discard();
-    taskBuilder = std::make_unique<RuntimeDatabaseTaskBuilder>(std::move(temp));
-    taskBuilder->discard();
+  TestApp::TestApp() = default;
+  TestApp::~TestApp() = default;
 
-    buildWork(*builder);
+  struct InjectArgsModule : IAppModule {
+    InjectArgsModule(TestApp::InitArgs&& ia)
+      : injectArgs{ std::move(ia) }
+    {
+    }
 
-    workST = GameScheduler::buildSync(IAppBuilder::finalize(std::move(builder)));
-  }
-
-  void TestApp::initMT(const DBBuilder& buildDB, const WorkBuilder& buildWork) {
-    RuntimeDatabaseArgs args = DBReflect::createArgsWithMappings();
-    buildDB(args);
-
-    bool hasThreadLocals = false;
-    for(const RuntimeTableRowBuilder& table : args.tables) {
-      if(table.contains<ThreadLocalsRow>()) {
-        hasThreadLocals = true;
-        break;
+    void createDatabase(RuntimeDatabaseArgs& args) final {
+      if(injectArgs.buildDB) {
+        injectArgs.buildDB(args);
       }
     }
 
-    if(!hasThreadLocals) {
-      DBReflect::addDatabase<Database<Table<ThreadLocalsRow, SharedRow<Scheduler>, Events::EventsRow>>>(args);
+    //Add a scheduler if it was requested and missing
+    void createDependentDatabase(RuntimeDatabaseArgs& args) final {
+      if(!injectArgs.initScheduler) {
+        return;
+      }
+      bool hasThreadLocals = false;
+      for(const RuntimeTableRowBuilder& table : args.tables) {
+        if(table.contains<ThreadLocalsRow>()) {
+          hasThreadLocals = true;
+          break;
+        }
+      }
+      if(!hasThreadLocals) {
+        DBReflect::addDatabase<Database<Table<ThreadLocalsRow, SharedRow<Scheduler>, Events::EventsRow>>>(args);
+      }
     }
-    db = std::make_unique<RuntimeDatabase>(std::move(args));
 
-    auto builder = GameBuilder::create(*db, { AppEnvType::UpdateMain });
+    //Single threaded initialization of the scheduler itself. Minimize work here.
+    void initScheduler(IAppBuilder& builder, const ThreadLocalDatabaseFactory& f) final {
+      if(injectArgs.initScheduler) {
+        Simulation::initScheduler(builder, f);
+      }
+    }
+
+    void update(IAppBuilder& builder) final {
+      if(injectArgs.buildWork) {
+        injectArgs.buildWork(builder);
+      }
+    }
+
+    TestApp::InitArgs injectArgs;
+  };
+
+  std::unique_ptr<RuntimeDatabaseTaskBuilder> createTaskBuilder(IGame& game) {
+    auto builder = GameBuilder::create(game.getDatabase(), { AppEnvType::UpdateMain });
     auto temp = builder->createTask();
     temp.discard();
-    taskBuilder = std::make_unique<RuntimeDatabaseTaskBuilder>(std::move(temp));
-    taskBuilder->discard();
+    auto result = std::make_unique<RuntimeDatabaseTaskBuilder>(std::move(temp));
+    result->discard();
+    return result;
+  }
 
-    std::unique_ptr<IAppBuilder> bootstrap = GameBuilder::create(*db);
-    Simulation::initScheduler(*bootstrap);
-    for(auto&& work : GameScheduler::buildSync(IAppBuilder::finalize(std::move(bootstrap)))) {
-      work.work();
-    }
+  void TestApp::initImpl(const InitArgs& initArgs) {
+    Game::GameArgs gameArgs;
+    gameArgs.modules.push_back(std::make_unique<InjectArgsModule>(InitArgs{ initArgs }));
+    game = Game::createGame(std::move(gameArgs));
+    taskBuilder = createTaskBuilder(*game);
+  }
 
-    buildWork(*builder);
+  void TestApp::initST(const DBBuilder& buildDB, const WorkBuilder& buildWork) {
+    initImpl(InitArgs{
+      .buildDB = buildDB,
+      .buildWork = buildWork,
+      .initScheduler = false
+    });
+  }
 
-    ThreadLocalsInstance* tls = taskBuilder->query<ThreadLocalsRow>().tryGetSingletonElement();
-    workMT = GameScheduler::buildTasks(IAppBuilder::finalize(std::move(builder)), *tls->instance);
+  void TestApp::initMT(const DBBuilder& buildDB, const WorkBuilder& buildWork) {
+    initImpl(InitArgs{
+      .buildDB = buildDB,
+      .buildWork = buildWork,
+      .initScheduler = true
+    });
   }
 
   RuntimeDatabaseTaskBuilder& TestApp::builder() {
@@ -60,14 +93,7 @@ namespace Test {
   }
 
   void TestApp::update() {
-    for(auto&& w : workST) {
-      w.work();
-    }
-    if(workMT) {
-      Scheduler* scheduler = builder().query<SharedRow<Scheduler>>().tryGetSingletonElement();
-      workMT.mBegin->mTask.addToPipe(scheduler->mScheduler);
-      scheduler->mScheduler.WaitforTask(workMT.mEnd->mTask.get());
-    }
+    game->updateSimulation();
   }
 
   ElementRef TestApp::createInTable(const TableID& table) {

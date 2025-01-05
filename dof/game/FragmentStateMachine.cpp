@@ -87,7 +87,7 @@ namespace SM {
       auto query = task.query<const GlobalsRow, StateRow>(table);
       task.setCallback([query, bucket, spatialQuery](AppTaskArgs& args) mutable {
         auto&& [globals, state] = query.get(0);
-        IRandom* random = ThreadLocalData::get(args).random;
+        IRandom* random = args.getRandom();
         for(size_t i : globals->at().buckets[bucket].entering) {
           Wander& wander = std::get<Wander>(state->at(i).currentState);
           wander.spatialQuery = spatialQuery->createQuery({ SpatialQuery::AABB{} }, 2);

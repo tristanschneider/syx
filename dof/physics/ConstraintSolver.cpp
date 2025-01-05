@@ -939,7 +939,7 @@ namespace ConstraintSolver {
     context.solver.initData.resizeForEdges(context.solver.cachedEdges.size());
     taskSize.workItemCount = context.solver.initData.size();
 
-    Tasks::TaskHandle t = args.scheduler->queueTask([&context](AppTaskArgs& args) {
+    Tasks::TaskHandle t = args.getScheduler()->queueTask([&context](AppTaskArgs& args) {
       PROFILE_SCOPE("physics", "insertManifold");
       for(size_t batchIndex = args.begin; batchIndex < args.end; ++batchIndex) {
         ConstraintIndex currentConstraint = *context.solver.initData.getBatchConstraintRange(batchIndex).begin();
@@ -951,7 +951,7 @@ namespace ConstraintSolver {
       }
     }, taskSize);
 
-    args.scheduler->awaitTasks(&t, 1, {});
+    args.getScheduler()->awaitTasks(&t, 1, {});
   }
 
   void initSolving(SolveContext& context) {
@@ -1096,7 +1096,7 @@ namespace ConstraintSolver {
           island,
           *graph,
           globals,
-          *args.scheduler,
+          *args.getScheduler(),
           shapeContext,
           resolver,
           static_cast<IslandStorage&>(*island.userdata).xySolver,
@@ -1120,10 +1120,10 @@ namespace ConstraintSolver {
         {
           //Write out the solved velocities
           std::array storeTasks{
-            args.scheduler->queueTask([&](AppTaskArgs& args) { storeBodyVelocities(args, context, pgsContext); }, context.solver.getTaskSizeForBodies()),
-            args.scheduler->queueTask([&](AppTaskArgs& args) { storeWarmStarts(args, context); }, context.solver.initData.getTaskSizeForBatches())
+            args.getScheduler()->queueTask([&](AppTaskArgs& args) { storeBodyVelocities(args, context, pgsContext); }, context.solver.getTaskSizeForBodies()),
+            args.getScheduler()->queueTask([&](AppTaskArgs& args) { storeWarmStarts(args, context); }, context.solver.initData.getTaskSizeForBatches())
           };
-          args.scheduler->awaitTasks(storeTasks.data(), storeTasks.size(), {});
+          args.getScheduler()->awaitTasks(storeTasks.data(), storeTasks.size(), {});
         }
       }
     });

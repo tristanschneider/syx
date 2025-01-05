@@ -55,7 +55,7 @@ namespace Test {
       }
 
       TestGame game{ std::make_unique<Scene>() };
-      AppTaskArgs args{ game.sharedArgs() };
+      AppTaskArgs& args{ game.sharedArgs() };
     };
 
     static std::vector<uint8_t> toBytes(std::string_view view) {

@@ -22,7 +22,7 @@ namespace Loader {
   struct SceneLoadContext {
     Assimp::Importer importer;
     AssetLoadTask& task;
-    AppTaskArgs args;
+    std::unique_ptr<AppTaskArgs> args;
     std::vector<NodeTraversal> nodesToTraverse;
     std::vector<const aiMetadata*> metaToTraverse;
     std::unique_ptr<MeshRemapper::IRemapping> meshMap;
@@ -289,7 +289,7 @@ namespace Loader {
     result.materials.resize(scene.mNumMaterials);
     for(unsigned i = 0; i < scene.mNumMaterials; ++i) {
       const aiMaterial* mat = scene.mMaterials[i];
-      std::shared_ptr<AssetLoadTask> child = ctx.task.addTask(ctx.args, [mat, &scene](AppTaskArgs&, AssetLoadTask& task) {
+      std::shared_ptr<AssetLoadTask> child = ctx.task.addTask(*ctx.args, [mat, &scene](AppTaskArgs&, AssetLoadTask& task) {
         loadMaterialTask(*mat, scene, task);
       });
       result.materials[i] = child->getAssetHandle();
@@ -331,7 +331,7 @@ namespace Loader {
       const aiMesh* mesh = scene.mMeshes[i];
       ctx.tempMeshMaterials[i] = mesh->mMaterialIndex;
 
-      std::shared_ptr<AssetLoadTask> child = ctx.task.addTask(ctx.args, [mesh](AppTaskArgs&, AssetLoadTask& task) {
+      std::shared_ptr<AssetLoadTask> child = ctx.task.addTask(*ctx.args, [mesh](AppTaskArgs&, AssetLoadTask& task) {
         loadMeshTask(*mesh, task);
       });
       result.meshes[i] = child->getAssetHandle();
@@ -344,7 +344,7 @@ namespace Loader {
     while(toAwait) {
       //Await everything except this task itself
       if(&ctx.task != toAwait) {
-        ctx.args.scheduler->awaitTasks(toAwait, 1, {});
+        ctx.args->getScheduler()->awaitTasks(toAwait, 1, {});
       }
       toAwait = toAwait->next.get();
     }
@@ -448,7 +448,7 @@ namespace Loader {
   class AssimpReaderImpl : public IAssetImporter {
   public:
     AssimpReaderImpl(AssetLoadTask& task, const AppTaskArgs& taskArgs)
-      : ctx{ .task = task, .args = taskArgs }
+      : ctx{ .task = task, .args = taskArgs.clone() }
     {
     }
 

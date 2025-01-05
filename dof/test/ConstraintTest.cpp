@@ -90,7 +90,7 @@ namespace Test {
       std::unique_ptr<Scene> temp = std::make_unique<Scene>();
       Scene* scene = temp.get();
       TestGame game{ std::move(temp) };
-      AppTaskArgs args{ game.sharedArgs() };
+      AppTaskArgs& args{ game.sharedArgs() };
       ConstraintStatEffect::Builder constraintStat{ args };
     };
 
@@ -491,7 +491,7 @@ namespace Test {
       Solver solver{ game, a, b, joint.localCenterToPinA, joint.localCenterToPinB };
       trySolve(solver, 5, expectWithinDistanceAndAngle(0.0f, 0.0f));
 
-      AppTaskArgs args{ game->sharedArgs() };
+      AppTaskArgs& args{ game->sharedArgs() };
       Events::DestroyPublisher{ &args }(a);
 
       //Process removal
@@ -513,7 +513,7 @@ namespace Test {
       Solver solver{ game, a, b, joint.localCenterToPinA, joint.localCenterToPinB };
       trySolve(solver, 5, expectWithinDistanceAndAngle(0.0f, 0.0f));
 
-      AppTaskArgs args{ game->sharedArgs() };
+      AppTaskArgs& args{ game->sharedArgs() };
       Events::DestroyPublisher{ &args }(b);
 
       //Process removal

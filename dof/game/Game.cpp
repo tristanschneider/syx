@@ -134,6 +134,10 @@ namespace Game {
       return *db;
     }
 
+    std::unique_ptr<AppTaskArgs> createAppTaskArgs(size_t threadIndex) final {
+      return GameScheduler::createAppTaskArgs(threading.tls, threadIndex);
+    }
+
     TaskGraph buildUpdate() {
       std::unique_ptr<IAppBuilder> builder = GameBuilder::create(getDatabase(), { AppEnvType::UpdateMain });
 

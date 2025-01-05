@@ -35,6 +35,8 @@
 #include "stat/VelocityStatEffect.h"
 #include "stat/PositionStatEffect.h"
 #include "stat/AreaForceStatEffect.h"
+#include "Game.h"
+#include "IGame.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -48,124 +50,126 @@ namespace Test {
         Table<Row<int64_t>, StableIDRow>
       > {};
 
-      TestDB() {
-        db = createDB();
-        scheduler.mScheduler.Initialize();
-        tls = std::make_unique<ThreadLocals>(
-          scheduler.mScheduler.GetNumTaskThreads(),
-          events.impl.get(),
-          &db->getRuntime().getMappings(),
-          nullptr
-        );
-        builder = GameBuilder::create(*db);
+      struct DBModule : IAppModule {
+        void createDatabase(RuntimeDatabaseArgs& dba) final {
+          DBReflect::addDatabase<TestDBT>(dba);
+        }
+      };
+
+      TestDB(std::unique_ptr<IAppModule> appModule) {
+        auto gameArgs = GameDefaults::createDefaultGameArgs();
+        gameArgs.modules.push_back(std::move(appModule));
+
+        game = Game::createGame(std::move(gameArgs));
+        game->init();
       }
 
-      static std::unique_ptr<IDatabase> createDB() {
-        RuntimeDatabaseArgs args = DBReflect::createArgsWithMappings();
-        DBReflect::addDatabase<TestDBT>(args);
-        return std::make_unique<RuntimeDatabase>(std::move(args));
-      }
-
-      TaskRange build() {
-        auto result = GameScheduler::buildTasks(IAppBuilder::finalize(std::move(builder)), *tls);
-        //Replace with a new one
-        builder = GameBuilder::create(*db);
-        return result;
-      }
-
-      void execute(TaskRange task) {
-        task.mBegin->mTask.addToPipe(scheduler.mScheduler);
-        scheduler.mScheduler.WaitforTask(task.mEnd->mTask.get());
-      }
-
-      void buildAndExecute() {
-        execute(build());
-      }
-
-      std::unique_ptr<IDatabase> db;
-      std::unique_ptr<ThreadLocals> tls;
-      Events::EventsInstance events;
-      Scheduler scheduler;
-      std::unique_ptr<IAppBuilder> builder;
+      std::unique_ptr<IGame> game;
     };
 
     TEST_METHOD(ConfigurableTask) {
-      TestDB db;
-      auto taskA = db.builder->createTask();
-      auto taskB = db.builder->createTask();
-      auto taskC = db.builder->createTask();
-      std::shared_ptr<AppTaskConfig> configB = taskB.getConfig();
-      std::shared_ptr<AppTaskConfig> configC = taskC.getConfig();
-      //Write in a read in b so scheduler sequences them
-      taskA.query<Row<int>>();
-      taskB.query<const Row<int>>();
-      taskC.query<const Row<int>>();
-      taskA.setName("a").setCallback([configB, configC](...) {
-        AppTaskSize s;
-        s.batchSize = 5;
-        s.workItemCount = 0;
-        configB->setSize(s);
-        s.workItemCount = 2;
-        configC->setSize(s);
-      });
-      taskB.setName("b").setCallback([](AppTaskArgs&) {
-        Assert::Fail(L"Zero size tasks should not be invoked");
-      });
-      int cInvocations{};
-      taskC.setName("c").setCallback([&cInvocations](AppTaskArgs& args) {
-        ++cInvocations;
-        Assert::AreEqual(size_t(0), args.begin);
-        Assert::AreEqual(size_t(2), args.end);
-      });
-      db.builder->submitTask(std::move(taskA));
-      db.builder->submitTask(std::move(taskB));
-      db.builder->submitTask(std::move(taskC));
+      struct TM : IAppModule {
+        TM(int& i)
+          : cInvocations{ i }
+        {
+        }
 
-      db.buildAndExecute();
+        void update(IAppBuilder& builder) {
+          auto taskA = builder.createTask();
+          auto taskB = builder.createTask();
+          auto taskC = builder.createTask();
+          std::shared_ptr<AppTaskConfig> configB = taskB.getConfig();
+          std::shared_ptr<AppTaskConfig> configC = taskC.getConfig();
+          //Write in a read in b so scheduler sequences them
+          taskA.query<Row<int>>();
+          taskB.query<const Row<int>>();
+          taskC.query<const Row<int>>();
+          taskA.setName("a").setCallback([configB, configC](auto&&...) {
+            AppTaskSize s;
+            s.batchSize = 5;
+            s.workItemCount = 0;
+            configB->setSize(s);
+            s.workItemCount = 2;
+            configC->setSize(s);
+          });
+          taskB.setName("b").setCallback([](AppTaskArgs&) {
+            Assert::Fail(L"Zero size tasks should not be invoked");
+          });
+          taskC.setName("c").setCallback([this](AppTaskArgs& args) {
+            ++cInvocations;
+            Assert::AreEqual(size_t(0), args.begin);
+            Assert::AreEqual(size_t(2), args.end);
+          });
+          builder.submitTask(std::move(taskA));
+          builder.submitTask(std::move(taskB));
+          builder.submitTask(std::move(taskC));
+        }
+
+        int& cInvocations;
+      };
+
+      int cInvocations{};
+      TestDB db{ std::make_unique<TM>(cInvocations) };
+
+      db.game->updateSimulation();
 
       Assert::AreEqual(1, cInvocations);
     }
 
     TEST_METHOD(MigrateTable) {
-      TestDB db;
-      const TableID from = db.builder->queryTables<Row<float>>().matchingTableIDs[0];
-      const TableID to = db.builder->queryTables<Row<int64_t>>().matchingTableIDs[0];
+      struct TM : IAppModule {
+        TM(int& i)
+          : invocations{ i }
+        {
+        }
+
+        void update(IAppBuilder& builder) final {
+          const TableID from = builder.queryTables<Row<float>>().matchingTableIDs[0];
+          const TableID to = builder.queryTables<Row<int64_t>>().matchingTableIDs[0];
+          {
+            auto taskA = builder.createTask();
+            auto modifier = taskA.getModifierForTable(from);
+            taskA.setName("a").setCallback([modifier, this](auto&&...) {
+              ++invocations;
+              modifier->resize(2);
+            });
+            builder.submitTask(std::move(taskA));
+          }
+          {
+            auto taskB = builder.createTask();
+            RuntimeDatabase& d = taskB.getDatabase();
+            taskB.setName("b").setCallback([&d, from, to, this](auto&&...) {
+              ++invocations;
+              RuntimeTable* tableFrom = d.tryGet(from);
+              RuntimeTable* tableTo = d.tryGet(to);
+              Assert::IsTrue(tableFrom && tableTo);
+
+              RuntimeTable::migrate(0, *tableFrom, *tableTo, 1);
+
+              Assert::AreEqual(size_t(1), tableFrom->tryGet<Row<float>>()->size());
+              Assert::AreEqual(size_t(1), tableTo->tryGet<Row<int64_t>>()->size());
+            });
+            builder.submitTask(std::move(taskB));
+          }
+          {
+            auto taskC = builder.createTask();
+            auto query = taskC.query<Row<int64_t>>();
+            taskC.setName("c").setCallback([query, this](auto&&...) mutable {
+              ++invocations;
+              Assert::AreEqual(size_t(1), query.get<0>(0).size());
+            });
+            builder.submitTask(std::move(taskC));
+          }
+        }
+
+        int& invocations;
+      };
+
       int invocations{};
-      {
-        auto taskA = db.builder->createTask();
-        auto modifier = taskA.getModifierForTable(from);
-        taskA.setName("a").setCallback([modifier, &invocations](...) {
-          ++invocations;
-          modifier->resize(2);
-        });
-        db.builder->submitTask(std::move(taskA));
-      }
-      {
-        auto taskB = db.builder->createTask();
-        RuntimeDatabase& d = taskB.getDatabase();
-        taskB.setName("b").setCallback([&d, from, to, &invocations](...) {
-          ++invocations;
-          RuntimeTable* tableFrom = d.tryGet(from);
-          RuntimeTable* tableTo = d.tryGet(to);
-          Assert::IsTrue(tableFrom && tableTo);
+      TestDB db{ std::make_unique<TM>(invocations) };
 
-          RuntimeTable::migrate(0, *tableFrom, *tableTo, 1);
+      db.game->updateSimulation();
 
-          Assert::AreEqual(size_t(1), tableFrom->tryGet<Row<float>>()->size());
-          Assert::AreEqual(size_t(1), tableTo->tryGet<Row<int64_t>>()->size());
-        });
-        db.builder->submitTask(std::move(taskB));
-      }
-      {
-        auto taskC = db.builder->createTask();
-        auto query = taskC.query<Row<int64_t>>();
-        taskC.setName("c").setCallback([query, &invocations](...) mutable {
-          ++invocations;
-          Assert::AreEqual(size_t(1), query.get<0>(0).size());
-        });
-        db.builder->submitTask(std::move(taskC));
-      }
-      db.buildAndExecute();
       Assert::AreEqual(3, invocations);
     }
   };
@@ -1306,7 +1310,7 @@ namespace Test {
       ElementRef single = creator->createQuery({ SpatialQuery::Circle{ glm::vec2(2, -1), 1.f } }, SpatialQuery::SINGLE_USE);
       game.update();
       assertQueryNoObjects(game, single);
-      auto taskArgs = game.sharedArgs();
+      auto& taskArgs = game.sharedArgs();
       LambdaStatEffect::Builder lambda{ taskArgs };
       //auto lambda = TableAdapters::getLambdaEffects(taskArgs);
       //Query should be resolved during physics then viewable later by gameplay but destroyed at the end of the frame.

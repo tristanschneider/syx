@@ -46,7 +46,7 @@ namespace Test {
     ~TestGame();
 
     RuntimeDatabaseTaskBuilder& builder();
-    AppTaskArgs sharedArgs();
+    AppTaskArgs& sharedArgs();
     void init(const GameArgs& args);
     void update();
     void execute(std::unique_ptr<IAppBuilder> toExecute);
@@ -56,6 +56,7 @@ namespace Test {
     std::unique_ptr<IGame> game;
     std::unique_ptr<IAppBuilder> testBuilder;
     std::unique_ptr<RuntimeDatabaseTaskBuilder> test;
+    std::unique_ptr<AppTaskArgs> taskArgs;
     KnownTables tables;
     ThreadLocalData tld;
   };
