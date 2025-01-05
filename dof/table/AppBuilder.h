@@ -306,6 +306,11 @@ public:
     return result;
   }
 
+  //Modifiers allow immediatly adding or removing elements from tables.
+  //Deferred alternatives exist:
+  //Add: add to the local database on AppTaskArgs and it'll be migrated to the main database by CommonTasks. This will also emit the migration as a creation DBEvent
+  //Move: use IDBEvents to emit an event from one table to another. TableService will then perform this move
+  //Delete: use IDBEvents to emit an event from the current table to no destination. The deletion will be performed by TableService
   std::shared_ptr<ITableModifier> getModifierForTable(const TableID& table);
   std::vector<std::shared_ptr<ITableModifier>> getModifiersForTables(const std::vector<TableID>& tables);
   std::shared_ptr<AppTaskConfig> getConfig();

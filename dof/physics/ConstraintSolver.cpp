@@ -956,7 +956,7 @@ namespace ConstraintSolver {
 
   void initSolving(SolveContext& context) {
     //If bodies didn't change then refetching their velocities can be done while constraints are built
-    //Otherwise, bodies are builts as constraints are traversed
+    //Otherwise, bodies are built as constraints are traversed
 
     //Fills in the body mapping information needed to fill constraints but not the body velocity information
     initCreateBodyMappings(context);
@@ -1071,7 +1071,7 @@ namespace ConstraintSolver {
 
     //Evaluate islands and create the tasks, Narrowphase can be in progress while this is running
     createSolvers(builder, collection, { task.getConfig(), solveZ.getConfig() });
-    //Z solving is configuraged by createSolvers and can run in parallel to the normal XZ solving below
+    //Z solving is configured by createSolvers and can run in parallel to the normal XZ solving below
     solveIslandZ(solveZ, collection, tables, globals);
     builder.submitTask(std::move(solveZ));
 
