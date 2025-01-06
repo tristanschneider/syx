@@ -2,6 +2,7 @@
 
 #include "QueryAlias.h"
 #include "RuntimeTable.h"
+#include "generics/DynamicBitset.h"
 
 template<class RowT>
 using QueryResultRow = std::vector<RowT*>;
@@ -221,6 +222,11 @@ public:
   RuntimeTable& operator[](size_t i);
   size_t size() const;
 
+  void setTableDirty(size_t i);
+  void setTableDirty(const TableID& t);
+  const gnx::DynamicBitset& getDirtyTables() const;
+  void clearDirtyTables();
+
 private:
   template<class... Rows>
   void _tryAddResult(size_t index, QueryResult<Rows...>& result) {
@@ -258,6 +264,7 @@ private:
   std::vector<RuntimeTable> tables;
   StableElementMappings* mappings{};
   std::unique_ptr<IRuntimeStorage> storage;
+  gnx::DynamicBitset dirtyTables;
 };
 
 //Specialization that provides all row ids

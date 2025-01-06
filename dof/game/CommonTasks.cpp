@@ -14,7 +14,7 @@ namespace CommonTasks {
       for(size_t i = 0; i < tls.getThreadCount(); ++i) {
         //TODO: dirty flags to avoid traversing all tables every time
         RuntimeDatabase& threadDB = *tls.get(i).statEffects;
-        for(size_t t = 0; t < threadDB.size(); ++t) {
+        for(auto [t, v] : threadDB.getDirtyTables()) {
           RuntimeTable& threadTable = threadDB[t];
           const size_t elements = threadTable.size();
           if(!elements) {
@@ -40,6 +40,8 @@ namespace CommonTasks {
             events.emit(std::move(cmd));
           }
         }
+
+        threadDB.clearDirtyTables();
       }
     });
 

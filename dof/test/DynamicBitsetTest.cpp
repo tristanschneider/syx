@@ -100,9 +100,19 @@ namespace Test {
 
       s.set(5);
       Assert::IsTrue(s.test(5));
+      Assert::IsTrue(static_cast<bool>(s[5]));
 
       s.set(5, false);
       Assert::IsFalse(s.test(5));
+      Assert::IsFalse(static_cast<bool>(s[5]));
+
+      s[5] = true;
+      Assert::IsTrue(s.test(5));
+      Assert::IsTrue(static_cast<bool>(s[5]));
+
+      s[5] = false;
+      Assert::IsFalse(s.test(5));
+      Assert::IsFalse(static_cast<bool>(s[5]));
 
       Assert::IsFalse(s.test(0));
       Assert::IsFalse(s.any());

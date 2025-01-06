@@ -107,7 +107,18 @@ namespace gnx {
       }
     }
 
-    size_t seekNSetBit(const uint8_t* buffer, size_t bitCount, size_t startBit) {
+    //Given a `buffer` of size `bitCount`, seek forward starting from `startBit` until the first set bit is found
+    //This is returned as the bit relative to the buffer, not the startBit.
+    //If no set bits are found, `bitCount` it returned
+    inline size_t seekNSetBit(const uint8_t* buffer, size_t bitCount, size_t startBit) {
+      //Start within the requested byte
+      if(startBit >= 8) {
+        const size_t byteOffset = bitCount / 8;
+        const size_t bitOffset = byteOffset * 8;
+        //TODO: might help efficiency to seek in a way that avoids ending up with an unaligned read
+        return seekNSetBit(&buffer[byteOffset], bitCount - bitOffset, startBit % 8) + bitOffset;
+      }
+
       size_t result = bitCount;
       visitSetBits(buffer, bitCount, [&result, startBit](size_t setBit) {
         if(setBit >= startBit) {
@@ -119,7 +130,7 @@ namespace gnx {
       return result;
     }
 
-    size_t seekSetBit(const uint8_t* buffer, size_t bitCount) {
+    inline size_t seekSetBit(const uint8_t* buffer, size_t bitCount) {
       size_t result = bitCount;
       visitSetBits(buffer, bitCount, [&result](size_t setBit) {
         result = setBit;
@@ -157,21 +168,21 @@ namespace gnx {
     };
 
     //Get the given byte corresponding to the index and a mask where only the desired bit is set
-    IndexedBit indexBit(uint8_t* buffer, size_t bitIndex) {
+    constexpr IndexedBit indexBit(uint8_t* buffer, size_t bitIndex) {
       return IndexedBit{
         .byte = buffer[bitIndex/8],
         .mask = static_cast<uint8_t>(1 << (bitIndex % 8))
       };
     }
 
-    ConstIndexedBit indexBit(const uint8_t* buffer, size_t bitIndex) {
+    constexpr ConstIndexedBit indexBit(const uint8_t* buffer, size_t bitIndex) {
       return ConstIndexedBit{
         .byte = buffer[bitIndex/8],
         .mask = static_cast<uint8_t>(1 << (bitIndex % 8))
       };
     }
 
-    void memSetBits(uint8_t* buffer, bool value, size_t bitCount) {
+    inline void memSetBits(uint8_t* buffer, bool value, size_t bitCount) {
       const size_t bytes = bitCount / 8;
       const uint8_t fillByte = value ? 255 : 0;
       std::memset(buffer, static_cast<int>(fillByte), bytes);
@@ -189,55 +200,6 @@ namespace gnx {
 
   class DynamicBitset {
   public:
-    class It {
-    public:
-      using value_type        = std::pair<size_t, bitops::IndexedBit>;
-      using pointer           = value_type*;
-      using reference         = value_type&;
-
-      It(size_t curBit, size_t bitSize, uint8_t* buff)
-        : currentBit{ curBit }
-        , bitCount{ bitSize }
-        , buffer{ buff }
-      {
-        //Skip to the first set bit if it didn't start on one
-        if(currentBit < bitCount && !(**this).second) {
-          ++*this;
-        }
-      }
-
-      It& operator++() {
-        const size_t startBit = currentBit + 1;
-        const size_t startByte = startBit / 8;
-        const size_t roundBit = startByte * 8;
-        currentBit += (bitops::seekNSetBit(&buffer[startByte], bitCount - roundBit, startBit % 8) - roundBit);
-        return *this;
-      }
-
-      It& operator++(int) {
-        It tmp{ *this };
-        ++*this;
-        return *this;
-      }
-
-      value_type operator*() const {
-        return std::make_pair(currentBit, bitops::indexBit(buffer, currentBit));
-      }
-
-      bool operator==(const It& rhs) const {
-        return currentBit == rhs.currentBit;
-      }
-
-      bool operator!=(const It& rhs) const {
-        return !(*this == rhs);
-      }
-
-    private:
-      size_t currentBit{};
-      size_t bitCount{};
-      uint8_t* buffer{};
-    };
-
     class ConstIt {
     public:
       using value_type        = std::pair<size_t, bitops::ConstIndexedBit>;
@@ -256,10 +218,7 @@ namespace gnx {
       }
 
       ConstIt& operator++() {
-        const size_t startBit = currentBit + 1;
-        const size_t startByte = startBit / 8;
-        const size_t roundBit = startByte * 8;
-        currentBit += (bitops::seekNSetBit(&buffer[startByte], bitCount - roundBit, startBit % 8) - roundBit);
+        currentBit = bitops::seekNSetBit(buffer, bitCount, currentBit + 1);
         return *this;
       }
 
@@ -281,10 +240,26 @@ namespace gnx {
         return !(*this == rhs);
       }
 
-    private:
+    protected:
       size_t currentBit{};
       size_t bitCount{};
       const uint8_t* buffer{};
+    };
+
+    class It : public ConstIt {
+    public:
+      using value_type        = std::pair<size_t, bitops::IndexedBit>;
+      using pointer           = value_type*;
+      using reference         = value_type&;
+
+      It(size_t curBit, size_t bitSize, uint8_t* buff)
+        : ConstIt{ curBit, bitSize, buff }
+      {
+      }
+
+      value_type operator*() const {
+        return std::make_pair(currentBit, bitops::indexBit(const_cast<uint8_t*>(buffer), currentBit));
+      }
     };
 
     using iterator = It;
@@ -398,6 +373,14 @@ namespace gnx {
         bitops::IndexedBit b = bitops::indexBit(getStorage(), i);
         b.byte &= ~b.mask;
       }
+    }
+
+    bitops::IndexedBit operator[](size_t i) {
+      return bitops::indexBit(getStorage(), i);
+    }
+
+    bitops::ConstIndexedBit operator[](size_t i) const {
+      return bitops::indexBit(getStorage(), i);
     }
 
   private:

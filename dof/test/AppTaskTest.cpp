@@ -55,9 +55,13 @@ namespace Test {
       void init(IAppBuilder& builder) final {
         auto task = builder.createTask();
         GameDatabase::Tables tables{ task };
+        ElementRefResolver res = task.getIDResolver()->getRefResolver();
 
         task.setCallback([=](AppTaskArgs& args) {
-          RuntimeTable* table = args.getLocalDB().tryGet(tables.physicsObjsWithZ);
+          RuntimeDatabase& db = args.getLocalDB();
+          RuntimeTable* table = db.tryGet(tables.physicsObjsWithZ);
+          db.setTableDirty(tables.physicsObjsWithZ);
+
           Assert::IsNotNull(table);
           PhysicsRows pr{ *table };
           //Create the objects
@@ -72,6 +76,8 @@ namespace Test {
               **ch = pr.stable->at(*co);
             }
           }
+
+          Assert::IsFalse(res.tryUnpack(dynamicObj).has_value(), L"Refs shouldn't be accessible in the main DB until they are migrated there");
 
           //Compute masses
           const Geo::BodyMass regularMass = Geo::computeQuadMass(1, 1, 1);

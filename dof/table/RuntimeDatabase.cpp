@@ -48,6 +48,22 @@ size_t RuntimeDatabase::size() const {
   return tables.size();
 }
 
+void RuntimeDatabase::setTableDirty(size_t i) {
+  dirtyTables.set(i);
+}
+
+void RuntimeDatabase::setTableDirty(const TableID& t) {
+  setTableDirty(t.getTableIndex());
+}
+
+const gnx::DynamicBitset& RuntimeDatabase::getDirtyTables() const {
+  return dirtyTables;
+}
+
+void RuntimeDatabase::clearDirtyTables() {
+  dirtyTables.resetBits();
+}
+
 namespace DBReflect {
   void addStableMappings(RuntimeDatabaseArgs& args, std::unique_ptr<StableElementMappings> mappings) {
     //Create a class to store the mappings
@@ -95,4 +111,6 @@ RuntimeDatabase::RuntimeDatabase(RuntimeDatabaseArgs&& args)
       .rows = std::move(*table),
     });
   }
+
+  dirtyTables.resize(tables.size());
 }
