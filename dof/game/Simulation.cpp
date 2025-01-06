@@ -50,8 +50,6 @@ void Simulation::buildUpdateTasks(IAppBuilder& builder, const UpdateConfig& conf
   //At the end of gameplay, turn any gameplay impulses into stat effects
   GameplayExtract::applyGameplayImpulses(builder);
 
-  //Synchronous transfer from all thread local stats to the central stats database
-  StatEffect::moveThreadLocalToCentral(builder);
   SpatialQuery::gameplayUpdateQueries(builder);
   StatEffect::createTasks(builder);
 

@@ -21,6 +21,11 @@ namespace gnx {
       return false;
     }
 
+    template<std::integral Counter>
+    void forceUpdate(Counter& current, const Counter& max) {
+      current = max;
+    }
+
     template<auto T>
     constexpr auto smallestTypeFor() {
       if constexpr(T <= std::numeric_limits<uint8_t>::max()) {
@@ -98,6 +103,9 @@ namespace gnx {
   public:
     bool tryUpdate() {
       return impl::tryUpdate(storage.getValue(), storage.getMax());
+    }
+    void forceUpdate() {
+      return impl::forceUpdate(storage.getValue(), storage.getMax());
     }
   protected:
     Storage storage;

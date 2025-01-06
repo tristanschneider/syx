@@ -7,6 +7,7 @@
 #include "generics/Hash.h"
 #include "generics/Enum.h"
 #include <bitset>
+#include "generics/RateLimiter.h"
 
 class IAppBuilder;
 class RuntimeDatabaseTaskBuilder;
@@ -263,7 +264,8 @@ namespace Constraints {
     std::vector<PendingConstraint> constraints;
   };
   struct OwnedDefinitionConstraints {
-    size_t ticksSinceGC{};
+    using RL = decltype(gnx::make_rate_limiter<200>());
+    RL gcRate;
     std::vector<OwnedConstraint> constraints;
   };
 

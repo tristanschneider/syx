@@ -12,7 +12,7 @@ namespace PositionStatEffect {
   }
 
   Builder::Builder(AppTaskArgs& args)
-    : BuilderBase{ getArgs(args) }
+    : BuilderBase{ getArgs(args), args.getLocalDB() }
   {
     command = table.tryGet<CommandRow>();
   }

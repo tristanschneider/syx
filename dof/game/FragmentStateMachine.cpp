@@ -5,7 +5,6 @@
 #include "TableAdapters.h"
 #include "ThreadLocals.h"
 #include "stat/FollowTargetByVelocityEffect.h"
-#include "stat/LambdaStatEffect.h"
 
 #include "glm/glm.hpp"
 #include "glm/gtx/norm.hpp"

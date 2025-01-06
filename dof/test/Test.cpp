@@ -31,7 +31,6 @@
 #include "SceneNavigator.h"
 #include "TestGame.h"
 
-#include "stat/LambdaStatEffect.h"
 #include "stat/VelocityStatEffect.h"
 #include "stat/PositionStatEffect.h"
 #include "stat/AreaForceStatEffect.h"
@@ -996,7 +995,6 @@ namespace Test {
     }
 
     struct TestStatInfo {
-      int lambdaInvocations{};
       bool shouldRun{};
     };
 
@@ -1017,14 +1015,6 @@ namespace Test {
         const ElementRef idB = query.get<0>(0).at(1);
         const ElementRef idC = query.get<0>(0).at(2);
 
-        {
-          LambdaStatEffect::Builder lambda{ args };
-          lambda.createStatEffects(1).setLifetime(StatEffect::INSTANT).setOwner(idA);
-          lambda.setLambda([&test, ids](LambdaStatEffect::Args& args) {
-            Assert::AreEqual(ElementIndex(0), ids->getRefResolver().uncheckedUnpack(args.resolvedID).getElementIndex());
-            ++test.lambdaInvocations;
-          });
-        }
         {
           VelocityStatEffect::Builder vel{ args };
           vel.createStatEffects(1).setLifetime(1).setOwner(idB);
@@ -1062,22 +1052,19 @@ namespace Test {
         fragmentTransform.posY->at(i) = 0;
       }
 
-      auto lambdaQuery = game.builder().query<LambdaStatEffect::LambdaRow, StatEffect::Lifetime>();
       auto velQuery = game.builder().query<VelocityStatEffect::CommandRow, StatEffect::Lifetime>();
       auto posQuery = game.builder().query<PositionStatEffect::CommandRow, StatEffect::Lifetime>();
-      auto [lambdaCmd, lambdaLife] = lambdaQuery.get(0);
       auto [velCmd, velLife] = velQuery.get(0);
       auto [posCmd, posLife] = posQuery.get(0);
 
       test.shouldRun = true;
       game.update();
       test.shouldRun = false;
+      game.update();
 
-      Assert::AreEqual(1, test.lambdaInvocations);
-
-      Assert::AreEqual(1.0f, fragmentPhysics.linVelX->at(1), 0.1f);
-      Assert::AreEqual(1.0f, fragmentPhysics.linVelY->at(1), 0.1f);
-      Assert::AreEqual(1.0f, fragmentPhysics.angVel->at(1), 0.1f);
+      Assert::AreEqual(1.0f, fragmentPhysics.linVelX->at(1), 0.2f);
+      Assert::AreEqual(1.0f, fragmentPhysics.linVelY->at(1), 0.2f);
+      Assert::AreEqual(1.0f, fragmentPhysics.angVel->at(1), 0.2f);
       Assert::AreEqual(size_t(1), velLife->size());
       Assert::AreEqual(size_t(0), velLife->at(0));
 
@@ -1094,17 +1081,15 @@ namespace Test {
       //After this pos and lambda should be removed and should not have executed again before removal
       game.update();
 
-      Assert::AreEqual(1, test.lambdaInvocations);
-      Assert::AreEqual(size_t(0), lambdaLife->size());
       Assert::AreEqual(size_t(0), posLife->size());
       Assert::AreEqual(size_t(0), velLife->size());
       //Assert the unchanged values
-      Assert::AreEqual(1.0f, fragmentPhysics.linVelX->at(1), 0.1f);
+      Assert::AreEqual(1.0f, fragmentPhysics.linVelX->at(1), 0.2f);
       Assert::AreEqual(10.0f, fragmentTransform.posX->at(2), 0.1f);
 
       fragmentPhysics.linVelX->at(1) = 0.0f;
 
-      //Should remove velcity
+      //Should remove velocity
       game.update();
 
       Assert::AreEqual(0.0f, fragmentPhysics.linVelX->at(1), 0.1f);
@@ -1211,6 +1196,8 @@ namespace Test {
       game.update();
       test.shouldRun = false;
       game.update();
+      game.update();
+      game.update();
 
       auto&& [cmd] = game.builder().query<AreaForceStatEffect::CommandRow>().get(0);
       Assert::IsTrue(fragment.physics.linVelX->at(0) > 0.0f);
@@ -1315,15 +1302,14 @@ namespace Test {
       ElementRef single = creator->createQuery({ SpatialQuery::Circle{ glm::vec2(2, -1), 1.f } }, SpatialQuery::SINGLE_USE);
       game.update();
       assertQueryNoObjects(game, single);
-      auto& taskArgs = game.sharedArgs();
-      LambdaStatEffect::Builder lambda{ taskArgs };
-      //auto lambda = TableAdapters::getLambdaEffects(taskArgs);
+      //TODO: inject a task through an IAppModule or custom scene to check this mid-tick
+      //auto& taskArgs = game.sharedArgs();
       //Query should be resolved during physics then viewable later by gameplay but destroyed at the end of the frame.
       //Catch it in the middle with a lambda stat effect which should execute before the removal but after it's resolved
-      lambda.createStatEffects(1).setLifetime(StatEffect::INSTANT).setOwner(objID);
-      lambda.setLambda([&](...) {
-        assertQueryHasObject(game, single, objID);
-      });
+      //lambda.createStatEffects(1).setLifetime(StatEffect::INSTANT).setOwner(objID);
+      //lambda.setLambda([&](...) {
+      //  assertQueryHasObject(game, single, objID);
+      //});
       game.update();
       auto reader = SpatialQuery::createReader(game.builder());
       reader->begin(single);

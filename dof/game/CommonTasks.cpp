@@ -12,7 +12,6 @@ namespace CommonTasks {
 
     task.setCallback([&main, &tls](AppTaskArgs& args) {
       for(size_t i = 0; i < tls.getThreadCount(); ++i) {
-        //TODO: dirty flags to avoid traversing all tables every time
         RuntimeDatabase& threadDB = *tls.get(i).statEffects;
         for(auto [t, v] : threadDB.getDirtyTables()) {
           RuntimeTable& threadTable = threadDB[t];
@@ -23,8 +22,6 @@ namespace CommonTasks {
           RuntimeTable& mainTable = main[t];
           assert(mainTable.getType() == threadTable.getType());
 
-          //TODO: what to do about requested moves?
-          //TODO: stat specifics?
           //Migrate everything from the local table to the main table
           size_t m = RuntimeTable::migrate(0, threadTable, mainTable, elements);
           StableIDRow* stable = mainTable.tryGet<StableIDRow>();

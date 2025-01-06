@@ -17,7 +17,7 @@ namespace gnx {
 
     namespace details {
       template<class Visitor>
-      void visit8n(size_t baseBit, uint8_t block, size_t bitCount, const Visitor& visitor) {
+      bool visit8n(size_t baseBit, uint8_t block, size_t bitCount, const Visitor& visitor) {
         if(block) {
           size_t i = 0;
           while(i < bitCount) {
@@ -29,7 +29,7 @@ namespace gnx {
             else {
               if constexpr(std::is_same_v<bool, decltype(visitor(size_t{}))>) {
                 if(!visitor(baseBit + i)) {
-                  return;
+                  return false;
                 }
               }
               else {
@@ -40,38 +40,39 @@ namespace gnx {
             }
           }
         }
+        return true;
       }
 
       template<class Visitor>
-      void visit8(size_t baseBit, uint8_t block, const Visitor& visitor) {
-        visit8n(baseBit, block, 8, visitor);
+      bool visit8(size_t baseBit, uint8_t block, const Visitor& visitor) {
+        return visit8n(baseBit, block, 8, visitor);
       }
 
       template<class Visitor>
-      void visit16(size_t baseBit, const uint16_t& block, const Visitor& visitor) {
+      bool visit16(size_t baseBit, const uint16_t& block, const Visitor& visitor) {
         if(block) {
           const uint8_t* sub = reinterpret_cast<const uint8_t*>(&block);
-          visit8(baseBit, sub[0], visitor);
-          visit8(baseBit + 8, sub[1], visitor);
+          return visit8(baseBit, sub[0], visitor) && visit8(baseBit + 8, sub[1], visitor);
         }
+        return true;
       }
 
       template<class Visitor>
-      void visit32(size_t baseBit, const uint32_t& block, const Visitor& visitor) {
+      bool visit32(size_t baseBit, const uint32_t& block, const Visitor& visitor) {
         if(block) {
           const uint16_t* sub = reinterpret_cast<const uint16_t*>(&block);
-          visit16(baseBit, sub[0], visitor);
-          visit16(baseBit + 16, sub[1], visitor);
+          return visit16(baseBit, sub[0], visitor) && visit16(baseBit + 16, sub[1], visitor);
         }
+        return true;
       }
 
       template<class Visitor>
-      void visit64(size_t baseBit, const uint64_t& block ,const Visitor& visitor) {
+      bool visit64(size_t baseBit, const uint64_t& block ,const Visitor& visitor) {
         if(block) {
           const uint32_t* sub = reinterpret_cast<const uint32_t*>(&block);
-          visit32(baseBit, sub[0], visitor);
-          visit32(baseBit + 32, sub[1], visitor);
+          return visit32(baseBit, sub[0], visitor) && visit32(baseBit + 32, sub[1], visitor);
         }
+        return true;
       }
     }
 
@@ -79,25 +80,33 @@ namespace gnx {
     void visitSetBits(const uint8_t* buffer, size_t bitCount, const Visitor& visitor) {
       size_t remaining = bitCount;
       while(remaining >= 64) {
-        details::visit64(bitCount - remaining, reinterpret_cast<const uint64_t&>(*buffer), visitor);
+        if(!details::visit64(bitCount - remaining, reinterpret_cast<const uint64_t&>(*buffer), visitor)) {
+          return;
+        }
         buffer += 8;
         remaining -= 64;
       }
 
       if(remaining >= 32) {
-        details::visit32(bitCount - remaining, reinterpret_cast<const uint32_t&>(*buffer), visitor);
+        if(!details::visit32(bitCount - remaining, reinterpret_cast<const uint32_t&>(*buffer), visitor)) {
+          return;
+        }
         buffer += 4;
         remaining -= 32;
       }
 
       if(remaining >= 16) {
-        details::visit16(bitCount - remaining, reinterpret_cast<const uint16_t&>(*buffer), visitor);
+        if(!details::visit16(bitCount - remaining, reinterpret_cast<const uint16_t&>(*buffer), visitor)) {
+          return;
+        }
         buffer += 2;
         remaining -= 16;
       }
 
       if(remaining >= 8) {
-        details::visit8(bitCount - remaining, reinterpret_cast<const uint8_t&>(*buffer), visitor);
+        if(!details::visit8(bitCount - remaining, reinterpret_cast<const uint8_t&>(*buffer), visitor)) {
+          return;
+        }
         buffer += 1;
         remaining -= 8;
       }
@@ -113,7 +122,7 @@ namespace gnx {
     inline size_t seekNSetBit(const uint8_t* buffer, size_t bitCount, size_t startBit) {
       //Start within the requested byte
       if(startBit >= 8) {
-        const size_t byteOffset = bitCount / 8;
+        const size_t byteOffset = startBit / 8;
         const size_t bitOffset = byteOffset * 8;
         //TODO: might help efficiency to seek in a way that avoids ending up with an unaligned read
         return seekNSetBit(&buffer[byteOffset], bitCount - bitOffset, startBit % 8) + bitOffset;

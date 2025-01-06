@@ -126,6 +126,13 @@ namespace Test {
       for(size_t i = 0; i < 10; ++i) {
         Assert::IsFalse(s.test(i));
       }
+
+      s.set(8);
+      s[9] = true;
+      s[10] = false;
+      Assert::IsTrue(s.test(8));
+      Assert::IsTrue(s.test(9));
+      Assert::IsFalse(s.test(10));
     }
 
     void testMoveAndCopy(size_t size) {
@@ -188,6 +195,21 @@ namespace Test {
     TEST_METHOD(Iterators) {
       testIterators(5);
       testIterators(1000);
+    }
+
+    TEST_METHOD(AppTaskTestCase) {
+      gnx::DynamicBitset set;
+      set.resize(35);
+
+      set.set(15);
+      set.set(24);
+
+      std::vector<size_t> results;
+      for(auto [k, v] : set) {
+        results.push_back(k);
+      }
+
+      Assert::IsTrue(std::vector<size_t>{ static_cast<size_t>(15), static_cast<size_t>(24) } == results);
     }
   };
 }

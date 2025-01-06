@@ -3,6 +3,9 @@
 #include "Constraints.h"
 #include "stat/StatEffectBase.h"
 #include "glm/vec2.hpp"
+#include "generics/RateLimiter.h"
+
+#include "SweepNPruneBroadphase.h"
 
 namespace ConstraintStatEffect {
   struct TargetA : Constraints::ExternalTargetRow {};
@@ -11,7 +14,7 @@ namespace ConstraintStatEffect {
   struct JointRow : Constraints::JointRow {};
   struct StorageRow : Constraints::ConstraintStorageRow {};
   struct TickTracker {
-    size_t ticksSinceSweep{};
+    gnx::OneInHundredRateLimit rateLimiter;
   };
   struct TickTrackerRow : SharedRow<TickTracker> {};
 
@@ -32,8 +35,10 @@ namespace ConstraintStatEffect {
 }
 
 struct ConstraintStatEffectTable : StatEffectBase<
+  Constraints::AutoManageJointTag,
   Constraints::TableConstraintDefinitionsRow,
   Constraints::ConstraintChangesRow,
+  SweepNPruneBroadphase::BroadphaseKeys,
   ConstraintStatEffect::TargetA,
   ConstraintStatEffect::TargetB,
   ConstraintStatEffect::CustomConstraint,

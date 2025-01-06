@@ -24,7 +24,7 @@ namespace AreaForceStatEffect {
   }
 
   Builder::Builder(AppTaskArgs& args)
-    : BuilderBase{ getTable(args) }
+    : BuilderBase{ getTable(args), args.getLocalDB() }
   {
     command = table.tryGet<CommandRow>();
   }

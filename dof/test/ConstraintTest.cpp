@@ -87,6 +87,12 @@ namespace Test {
         return game;
       }
 
+      void awaitConstraintGC() {
+        for(size_t i = 0; i < 101; ++i) {
+          game.update();
+        }
+      }
+
       std::unique_ptr<Scene> temp = std::make_unique<Scene>();
       Scene* scene = temp.get();
       TestGame game{ std::move(temp) };
@@ -472,8 +478,8 @@ namespace Test {
       game.constraintStat.constraintBuilder().setJointType({ joint }).setTargets(a, b);
 
       Solver solver{ game, a, b, joint.localCenterToPinA, joint.localCenterToPinB };
-      //+1 to go over lifetime, 1 to mark for removal, 2 to process the spatial update
-      trySolve(solver, lifetime + 3, expectWithinDistanceAndAngle(0.0f, 0.0f));
+      //This currently requires waiting for the Constraint GC to kick in. If faster removal is required it could be configurable on the AutoManageJoint row
+      trySolve(solver, lifetime + 203, expectWithinDistanceAndAngle(0.0f, 0.0f));
 
       assertUnconstrainted(game, { a, b });
     }

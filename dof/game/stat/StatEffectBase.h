@@ -24,44 +24,18 @@ namespace StatEffect {
   };
 
   struct Config {
-    size_t removeLifetime = 0;
     std::vector<CurveAlias> curves;
   };
 
   struct ConfigRow : SharedRow<Config> {};
 
-  struct Globals {
-    std::vector<ElementRef> toRemove, newlyAdded;
-    //This is used to associate a given central table with its thread local counterpart
-    //They are assigned on construction, shouldn't change, and have no meaning other htan equality
-    size_t ID;
-  };
-
-  //This allows chaining together multiple effects. When an effect completes this will be called
-  //which allows creating a follow-up effect. Since the given effect is being destroyed ownership
-  //of the continuation needs to be transferred to the next one if it is desired to preserve the chain
-  //New effects should be added through thread locals
-  struct Continuation {
-    struct Args {
-      //The entire db is exposed yet the intended use would just be to look up any additional information
-      //on the table of the element being removed, and to get the thread locals
-      RuntimeDatabase& db;
-      //Id of the stat that is about to be removed
-      const UnpackedDatabaseElementID& id;
-      AppTaskArgs& args;
-      Continuation&& continuation;
-    };
-    using Callback = std::function<void(Args&)>;
-    std::deque<Callback> onComplete;
-  };
-
   //The gameobject this affects
   struct Owner : Row<ElementRef>{};
   struct Lifetime : Row<size_t>{};
-  struct Global : SharedRow<Globals>{};
-  struct Continuations : Row<Continuation>{};
   //Optional for effects that have a target in addition to an owner
   struct Target : Row<ElementRef>{};
+
+  struct StatEffectTagRow : TagRow{};
 
   //General purpose optional rows that can be in a stat table and will be filled in if provided
   //Would be more efficient to share a single curve across a table with a shared row, but also less flexible
@@ -88,11 +62,10 @@ namespace StatEffect {
 
   class BuilderBase {
   public:
-    BuilderBase(RuntimeTable& t)
+    BuilderBase(RuntimeTable& t, RuntimeDatabase& localDatabase)
       : owner{ t.tryGet<StatEffect::Owner>() }
       , lifetime{ t.tryGet<StatEffect::Lifetime>() }
-      , global{ t.tryGet<StatEffect::Global>() }
-      , continuations{ t.tryGet<StatEffect::Continuations>() }
+      , localDB{ localDatabase }
       , table{ t }
       , target{ t.tryGet<StatEffect::Target>() }
       , curveInput{ t.tryGet<StatEffect::CurveInput<>>() }
@@ -112,8 +85,7 @@ namespace StatEffect {
   private:
     StatEffect::Owner* owner{};
     StatEffect::Lifetime* lifetime{};
-    StatEffect::Global* global{};
-    StatEffect::Continuations* continuations{};
+    RuntimeDatabase& localDB;
 
     //Optionals
     StatEffect::Target* target{};
@@ -125,12 +97,11 @@ namespace StatEffect {
 
 template<class... Rows>
 struct StatEffectBase : Table<
+  StatEffect::StatEffectTagRow,
   SceneNavigator::IsClearedWithSceneTag,
   StatEffect::ConfigRow,
   StatEffect::Owner,
   StatEffect::Lifetime,
-  StatEffect::Global,
-  StatEffect::Continuations,
   StableIDRow,
   Rows...
 > {};

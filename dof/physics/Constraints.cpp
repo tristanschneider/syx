@@ -138,8 +138,7 @@ namespace Constraints {
       //Clear the storage. GC will see this as a tracked constraint with no storage and remove it
       //If it was pending, assignment will see it was cleared rather than pending and immediately delete the created storage
       storage->at(tableIndex).clear();
-      //Hack to clean up the storage of this constraint immediately this tick
-      changes->trackedConstraints[key].ticksSinceGC = GC_TRACK_LIMIT;
+      changes->trackedConstraints[key].gcRate.forceUpdate();
     }
 
     ConstraintChanges* changes{};
@@ -279,14 +278,14 @@ namespace Constraints {
     task.setCallback([constraints, res, graph](AppTaskArgs&) {
       for(const ConstraintOwnershipTable& table : constraints) {
         OwnedDefinitionConstraints& trackedConstraints = table.changes->trackedConstraints[table.key];
-        if(trackedConstraints.ticksSinceGC++ < GC_TRACK_LIMIT) {
+        if(!trackedConstraints.gcRate.tryUpdate()) {
           continue;
         }
 
         for(size_t i = 0; i < trackedConstraints.constraints.size();) {
           const OwnedConstraint& constraint = trackedConstraints.constraints[i];
           //Ensure the owner still exists and is in this table
-          //TODO: potential loss of constraint if objct moves between two different constraint tables
+          //TODO: potential loss of constraint if object moves between two different constraint tables
           if(auto unpacked = res.tryUnpack(constraint.owner); unpacked && unpacked->getTableIndex() == table.tableID.getTableIndex()) {
             const ConstraintStorage& storage = table.storage->at(unpacked->getElementIndex());
             //Ensure the owner is still pointing at this constraint, could either be cleared or a newer one
@@ -319,7 +318,7 @@ namespace Constraints {
   struct ConstraintTable {
     ConstraintTable(RuntimeDatabaseTaskBuilder& task, ConstraintDefinitionKey, const Definition& definition, const TableID& table)
       : targetA{ std::visit(ResolveConstTarget{ task, table }, definition.targetA) }
-      , targetB{ std::visit(ResolveConstTarget{ task, table }, definition.targetA) }
+      , targetB{ std::visit(ResolveConstTarget{ task, table }, definition.targetB) }
       //, custom{ getOrAssert(definition.common.read(), task, table) }
       , stableA{ &task.query<const StableIDRow>(table).get<0>(0) }
       , storage{ getOrAssert(definition.storage, task, table) }
@@ -716,19 +715,50 @@ namespace Constraints {
     Constraints::constraintNarrowphase(builder, aliases, globals);
   }
 
+  //ResolveTarget resolves a definition into the row variant. This takes the row variant and resolves to a concrete ElementRef
+  struct ResolveTargetElement {
+    ElementRef operator()(NoTarget) const {
+      return {};
+    }
+
+    ElementRef operator()(const ExternalTargetRow* row) const {
+      return row->at(self.getMapping()->getElementIndex()).target;
+    }
+
+    ElementRef operator()(SelfTarget) const {
+      return self;
+    }
+
+    const ElementRef& self;
+  };
+
+  //Use the constraint definition to assign constraint storage for newly created elements that have AutoManageJointTag
+  //The definition is used to determine what the constraint targets are
   void autoInitInternalJoints(RuntimeDatabaseTaskBuilder& task, const DBEvents& events) {
     task.setName("auto init joints");
     auto q = task.query<const Constraints::TableConstraintDefinitionsRow, const AutoManageJointTag>();
     struct Managed {
-      std::vector<std::shared_ptr<Constraints::IConstraintStorageModifier>> modifiers;
+      struct Definition {
+        //Modifier to create the storage
+        std::shared_ptr<Constraints::IConstraintStorageModifier> modifier;
+        //Rows to be able to resolve the target
+        Rows::ConstTarget targetA, targetB;
+      };
+      std::vector<Definition> definitions;
     };
     std::unordered_map<TableID, Managed> managedTables;
     for(size_t i = 0; i < q.size(); ++i) {
       const auto& [def, _] = q.get(i);
       const TableID& table = q.matchingTableIDs[i];
       Managed& managed = managedTables[table];
+      ResolveConstTarget resolveTarget{ task, table };
       for(size_t c = 0; c < def->at().definitions.size(); ++c) {
-        managed.modifiers.push_back(Constraints::createConstraintStorageModifier(task, c, table));
+        const Definition& definition = def->at().definitions[c];
+        managed.definitions.push_back(Managed::Definition{
+          .modifier = Constraints::createConstraintStorageModifier(task, c, table),
+          .targetA = std::visit(resolveTarget, definition.targetA),
+          .targetB = std::visit(resolveTarget, definition.targetB),
+        });
       }
     }
 
@@ -744,8 +774,11 @@ namespace Constraints {
           const auto id = ids.tryUnpack(newElement);
           auto it = id ? managedTables.find(TableID{ *id }) : managedTables.end();
           if(it != managedTables.end()) {
-            for(auto& modifier : it->second.modifiers) {
-              modifier->insert(id->getElementIndex(), newElement, {});
+            ResolveTargetElement resolveElement{ newElement };
+            for(const Managed::Definition& def : it->second.definitions) {
+              const ElementRef a = std::visit(resolveElement, def.targetA);
+              const ElementRef b = std::visit(resolveElement, def.targetB);
+              def.modifier->insert(id->getElementIndex(), a, b);
             }
           }
         }

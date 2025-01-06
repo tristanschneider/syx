@@ -23,7 +23,7 @@ namespace ConstraintStatEffect {
   }
 
   Builder::Builder(AppTaskArgs& args)
-    : BuilderBase{ getArgs(args) }
+    : BuilderBase{ getArgs(args), args.getLocalDB() }
     , builder{ extractRows(args) }
   {
   }
@@ -67,41 +67,21 @@ namespace ConstraintStatEffect {
     auto task = builder.createTask();
     task.setName("constraint stat");
     auto q = task.query<
-      const StatEffect::Global,
       const TargetA,
       const TargetB,
       TickTrackerRow,
       StatEffect::Lifetime
     >();
-    std::vector<std::shared_ptr<Constraints::IConstraintStorageModifier>> modifiers;
-    modifiers.reserve(q.size());
-    for(size_t i = 0; i < q.size(); ++i) {
-      modifiers.push_back(Constraints::createConstraintStorageModifier(task, STAT_KEY, q.matchingTableIDs[i]));
-    }
     ElementRefResolver res = task.getIDResolver()->getRefResolver();
     //Notify additions and removals
     //Occasionally check for expiration of targets
     task.setCallback([=](AppTaskArgs&) mutable {
       for(size_t t = 0; t < q.size(); ++t) {
-        Constraints::IConstraintStorageModifier& modifier = *modifiers[t];
-        auto&& [global, a, b, tick, lifetime] = q.get(t);
-        for(const ElementRef& added : global->at().newlyAdded) {
-          if(auto id = res.tryUnpack(added)) {
-            const size_t i = id->getElementIndex();
-            modifier.insert(i, a->at(i).target, b->at(i).target);
-          }
-        }
-        for(const ElementRef& removed : global->at().toRemove) {
-          if(auto id = res.tryUnpack(removed)) {
-            const size_t i = id->getElementIndex();
-            modifier.erase(i, a->at(i).target, b->at(i).target);
-          }
-        }
+        auto&& [a, b, tick, lifetime] = q.get(t);
 
         //Occasionally sweep through and make sure targets exist. If they don't, mark for deletion by setting their lifetime to zero
         //Next tick they will then be removed
-        if(tick->at().ticksSinceSweep++ > 100) {
-          tick->at().ticksSinceSweep = 0;
+        if(tick->at().rateLimiter.tryUpdate()) {
           markExpiredForDeletion(*a, *lifetime);
           markExpiredForDeletion(*b, *lifetime);
         }
