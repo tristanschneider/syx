@@ -21,7 +21,7 @@ namespace CommonTasks {
             continue;
           }
           RuntimeTable& mainTable = main[t];
-          assert(mainTable.getID() == threadTable.getID());
+          assert(mainTable.getType() == threadTable.getType());
 
           //TODO: what to do about requested moves?
           //TODO: stat specifics?

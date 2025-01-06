@@ -30,13 +30,15 @@ public:
   {}
 
   UnpackedDatabaseElementID uncheckedUnpack(const ElementRef& r) const {
-    return UnpackedDatabaseElementID::fromDescription(*r.tryGet(), description);
+    return UnpackedDatabaseElementID{ *r.tryGet() };
   }
 
   std::optional<UnpackedDatabaseElementID> tryUnpack(const ElementRef& r) const {
-    const size_t* result = r.tryGet();
+    const StableElementMapping* result = r.tryGet();
     //Invalid is the case when a stable mapping has been reserved but not assigned yet, like in a local database
-    return result && *result != StableElementMappings::INVALID ? std::make_optional(UnpackedDatabaseElementID::fromDescription(*result, description)) : std::nullopt;
+    return result && result->isValid() && result->getDatabaseIndex() == description.dbIndex ?
+      std::make_optional(UnpackedDatabaseElementID{ *result }) :
+      std::nullopt;
   }
 
 private:

@@ -124,6 +124,7 @@ struct RuntimeDatabaseArgs {
   std::vector<RuntimeTableRowBuilder> tables;
   StableElementMappings* mappings{};
   std::unique_ptr<IRuntimeStorage> storage;
+  DatabaseIndex dbIndex{};
 };
 
 struct ChainedRuntimeStorage : IRuntimeStorage {
@@ -260,11 +261,11 @@ private:
 
   TableID getTableID(size_t index) const;
 
-  size_t elementIndexBits{};
   std::vector<RuntimeTable> tables;
   StableElementMappings* mappings{};
   std::unique_ptr<IRuntimeStorage> storage;
   gnx::DynamicBitset dirtyTables;
+  DatabaseIndex databaseIndex{};
 };
 
 //Specialization that provides all row ids

@@ -543,8 +543,9 @@ namespace Test {
           const StableElementMappingPtr m = ref.getMapping();
           Assert::IsTrue(static_cast<bool>(m));
           const UnpackedDatabaseElementID expectedID = table.getID().remakeElement(i);
-          const UnpackedDatabaseElementID actual{ m->unstableIndex, expectedID.mElementIndexBits };
-          Assert::IsTrue(expectedID == actual);
+          const UnpackedDatabaseElementID actual{ *m };
+          Assert::AreEqual(static_cast<ElementIndex>(i), m->getElementIndex());
+          Assert::AreEqual(table.getID().getTableIndex(), m->getTableIndex());
         }
       }
     }
@@ -724,7 +725,7 @@ namespace Test {
       auto ids = game.builder().getIDResolver();
       //Object should have moved to the static table, and mapping updated to new unstable id pointing at static table but same stable id
       auto unpacked = res.uncheckedUnpack(objectId);
-      Assert::AreEqual(*objectId.tryGet(), game.tables.completedFragments.remakeElement(0).mValue);
+      Assert::IsTrue(UnpackedDatabaseElementID(*objectId.tryGet()) == game.tables.completedFragments.remakeElement(0));
 
       game.update();
       auto assertStaticCollision = [&] {
@@ -984,11 +985,14 @@ namespace Test {
         Table<SharedRow<uint32_t>>
       >>();
       UnpackedDatabaseElementID unpacked = db[1].getID().remakeElement(5);
-      UnpackedDatabaseElementID id = UnpackedDatabaseElementID::fromDescription(0, DatabaseDescription{ .elementIndexBits = 64 - 2 }).remake(1, 5);
+      UnpackedDatabaseElementID id;
+      id.setDatabaseIndex(0);
+      id.setElementIndex(5);
+      id.setTableIndex(1);
 
       Assert::AreEqual(id.getElementIndex(), unpacked.getElementIndex());
       Assert::AreEqual(id.getTableIndex(), unpacked.getTableIndex());
-      Assert::AreEqual(id.getElementMask(), unpacked.getElementMask());
+      Assert::AreEqual(id.getDatabaseIndex(), unpacked.getDatabaseIndex());
     }
 
     struct TestStatInfo {
@@ -1017,7 +1021,7 @@ namespace Test {
           LambdaStatEffect::Builder lambda{ args };
           lambda.createStatEffects(1).setLifetime(StatEffect::INSTANT).setOwner(idA);
           lambda.setLambda([&test, ids](LambdaStatEffect::Args& args) {
-            Assert::AreEqual(size_t(0), ids->getRefResolver().uncheckedUnpack(args.resolvedID).getElementIndex());
+            Assert::AreEqual(ElementIndex(0), ids->getRefResolver().uncheckedUnpack(args.resolvedID).getElementIndex());
             ++test.lambdaInvocations;
           });
         }

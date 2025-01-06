@@ -2,123 +2,123 @@
 
 #include <numeric>
 
-struct dbDetails {
-  static constexpr size_t constexprLog2(size_t input) {
-    size_t result = 1;
-    while(input /= 2) {
-      ++result;
-    }
+using StableElementVersion = uint8_t;
+using ElementIndex = uint32_t;
+using TableIndex = uint16_t;
+using DatabaseIndex = uint8_t;
+
+//This represents the makeup of identifiers used to access elements between tables and databases
+//The packing here determines the size limits
+//It was previously configurable which makes all access more complicated than necessary
+//This is also what UnpackedDatabaseElementID is for, as it could as well use StableElementMapping directly now
+//For tables with StableIDRow, each element has a slot in StableElementMappings pointing to a StableElementMapping
+//These are referred to with versioned ElementRefs, which are unpacked into UnpackedDatabaseID to use as indices into tables and rows
+struct StableElementMapping {
+public:
+  static constexpr ElementIndex INVALID = std::numeric_limits<ElementIndex>::max();
+
+  ElementIndex getElementIndex() const {
+    return elementIndex;
+  }
+
+  StableElementVersion getVersion() const {
+    return version;
+  }
+
+  TableIndex getTableIndex() const {
+    return tableIndex;
+  }
+
+  DatabaseIndex getDatabaseIndex() const {
+    return dbIndex;
+  }
+
+  bool isValid() const {
+    return elementIndex != INVALID;
+  }
+
+  void setElementIndex(ElementIndex e) {
+    elementIndex = e;
+  }
+
+  void setTableIndex(TableIndex i) {
+    tableIndex = i;
+  }
+
+  void setDatabaseIndex(DatabaseIndex i) {
+    dbIndex = i;
+  }
+
+  void invalidate() {
+    elementIndex = INVALID;
+    ++version;
+  }
+
+  void setIgnoreVersion(const StableElementMapping& rhs) {
+    setElementIndex(rhs.getElementIndex());
+    setTableIndex(rhs.getTableIndex());
+    setDatabaseIndex(rhs.getDatabaseIndex());
+  }
+
+  auto operator<=>(const StableElementMapping&) const = default;
+
+  size_t hash() const {
+    static_assert(sizeof(*this) == sizeof(uint64_t));
+    return std::hash<uint64_t>()(reinterpret_cast<const uint64_t&>(*this));
+  }
+
+private:
+  ElementIndex elementIndex{ INVALID };
+  TableIndex tableIndex{};
+  DatabaseIndex dbIndex{};
+  StableElementVersion version{};
+};
+
+struct DatabaseDescription {
+  DatabaseIndex dbIndex{};
+};
+
+struct UnpackedDatabaseElementID : StableElementMapping {
+  UnpackedDatabaseElementID remake(size_t tableIdx, size_t elementIdx) const {
+    UnpackedDatabaseElementID result{ *this };
+    result.setTableIndex(tableIdx);
+    result.setElementIndex(elementIdx);
     return result;
   }
 
-  static constexpr size_t bitsToContain(size_t value) {
-    return constexprLog2(value);
+  UnpackedDatabaseElementID remakeElement(size_t elementIdx) const {
+    return remake(getTableIndex(), elementIdx);
   }
 
-  static constexpr size_t maskFirstBits(size_t numBits) {
-    return (size_t(1) << numBits) - 1;
-  }
-
-  static constexpr size_t packTableAndElement(size_t tableIndex, size_t elementIndex, size_t elementBits) {
-    return (tableIndex << elementBits) | elementIndex;
-  }
-
-  static size_t unpackElementIndex(size_t packed, size_t elementBits) {
-    return (packed & maskFirstBits(elementBits));
-  }
-
-  constexpr static size_t unpackTableIndex(size_t packed, size_t elementBits) {
-    return packed >> elementBits;
-  }
-
-  static constexpr size_t INVALID_VALUE = std::numeric_limits<size_t>::max();
-};
-
-//This is a complicated way to allow stuffing a database-wide identifier into a size_t
-//The minimum bits needed to store table index are used, and the rest go to the index in the table
-//TODO: way simpler would be a fixed number of bits and enforcing table limits. A pair of uint32_t would probably be fine...
-struct DatabaseDescription {
-  constexpr size_t getElementIndexBits() const {
-    return elementIndexBits;
-  }
-
-  constexpr size_t getElementIndexMask() const {
-    return dbDetails::maskFirstBits(getElementIndexBits());
-  }
-
-  constexpr size_t getTableIndexMask() const {
-    return ~getElementIndexMask();
-  }
-
-  size_t elementIndexBits{};
-};
-
-//For when a template DatabaseElementID type is not desired
-struct UnpackedDatabaseElementID {
-  //Entire packed bits from an unstable index or DB::GetTableIndex
-  static constexpr UnpackedDatabaseElementID fromDescription(size_t unstableIndex, const DatabaseDescription& desc) {
-    return { unstableIndex, desc.elementIndexBits };
-  }
-
-  size_t getTableIndex() const {
-    return dbDetails::unpackTableIndex(mValue, mElementIndexBits);
-  }
-
-  size_t getElementIndex() const {
-    return dbDetails::unpackElementIndex(mValue, mElementIndexBits);
-  }
-
-  size_t getElementMask() const {
-    return dbDetails::maskFirstBits(mElementIndexBits);
-  }
-
-  size_t getTableMask() const {
-    return ~getElementMask();
-  }
-
-  UnpackedDatabaseElementID remake(size_t tableIndex, size_t elementIndex) const {
-    return { dbDetails::packTableAndElement(tableIndex, elementIndex, mElementIndexBits), mElementIndexBits };
-  }
-
-  UnpackedDatabaseElementID remakeElement(size_t elementIndex) const {
-    return remake(getTableIndex(), elementIndex);
-  }
-
-  bool operator==(const UnpackedDatabaseElementID& rhs) const {
-    return mValue == rhs.mValue;
-  }
-
-  bool operator<(const UnpackedDatabaseElementID& rhs) const {
-    return mValue < rhs.mValue;
-  }
-
-  size_t mValue = dbDetails::INVALID_VALUE;
-  size_t mElementIndexBits{};
+  auto operator<=>(const UnpackedDatabaseElementID&) const = default;
 };
 
 //Same as UnpackedDatabaseElementID mUnstableIndex of the table, intended for when referring to table vs element in table
 struct TableID : UnpackedDatabaseElementID {
-  TableID() = default;
+  TableID() {
+    setElementIndex(0);
+  }
   TableID(const UnpackedDatabaseElementID& i)
     : UnpackedDatabaseElementID{ i }
   {
-    mValue &= getTableMask();
+    setElementIndex(0);
   }
 
-  bool operator==(const TableID& rhs) const {
-    return mValue == rhs.mValue;
-  }
-
-  bool operator<(const TableID& rhs) const {
-    return mValue < rhs.mValue;
-  }
+  auto operator<=>(const TableID&) const = default;
 };
 
 namespace std {
   template<>
+  struct hash<StableElementMapping> {
+    size_t operator()(const TableID& i) const {
+      return std::hash<size_t>{}(i.hash());
+    }
+  };
+
+  template<>
   struct hash<TableID> {
     size_t operator()(const TableID& i) const {
-      return std::hash<size_t>{}(i.mValue);
+      return i.hash();
     }
   };
 }

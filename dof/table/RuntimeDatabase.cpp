@@ -19,7 +19,10 @@ RuntimeTable* RuntimeDatabase::tryGet(const TableID& id) {
 }
 
 TableID RuntimeDatabase::getTableID(size_t index) const {
-  return TableID{ UnpackedDatabaseElementID{ 0, elementIndexBits }.remake(index, 0) };
+  TableID result;
+  result.setDatabaseIndex(databaseIndex);
+  result.setTableIndex(index);
+  return result;
 }
 
 QueryResult<> RuntimeDatabase::queryAliasTables(std::initializer_list<QueryAliasBase> aliases) const {
@@ -33,7 +36,7 @@ QueryResult<> RuntimeDatabase::queryAliasTables(std::initializer_list<QueryAlias
 }
 
 DatabaseDescription RuntimeDatabase::getDescription() {
-  return { elementIndexBits };
+  return { databaseIndex };
 }
 
 StableElementMappings& RuntimeDatabase::getMappings() {
@@ -86,28 +89,24 @@ namespace DBReflect {
   }
 }
 
-constexpr size_t computeElementIndexBits(size_t tableCount) {
-  constexpr size_t totalBits = sizeof(size_t)*8;
-  return totalBits - dbDetails::constexprLog2(tableCount);
-}
-
 RuntimeDatabase::RuntimeDatabase(RuntimeDatabaseArgs&& args)
-  //Now that the final table count is known, determine bits needed to store the index
-  : elementIndexBits{ computeElementIndexBits(args.tables.size()) }
+  : databaseIndex{ args.dbIndex }
   , mappings{ args.mappings }
   , storage{ std::move(args.storage) }
 {
   //Create tables, assigning their table ids using the finalized bit count in ascending index order
   //This isn't intended to guarantee any order to the original static DB objects they came from
-  TableID base{ UnpackedDatabaseElementID{ 0, elementIndexBits } };
+  TableID base;
+  base.setDatabaseIndex(args.dbIndex);
   tables.reserve(args.tables.size());
   for(size_t i = 0; i < args.tables.size(); ++i) {
     RuntimeTableRowBuilder* table = &args.tables[i];
     const bool hasStableRow = table->contains<StableIDRow>();
+    base.setTableIndex(i);
     tables.emplace_back(RuntimeTableArgs{
       //Populate the stable mappings if the table should use them
       .mappings = hasStableRow ? args.mappings : nullptr,
-      .tableID = TableID{ base.remake(i, 0) },
+      .tableID = base,
       .rows = std::move(*table),
     });
   }

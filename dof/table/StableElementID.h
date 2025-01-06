@@ -9,12 +9,6 @@
 #include "generics/PagedVector.h"
 #include <variant>
 
-using StableElementVersion = uint16_t;
-struct StableElementMapping {
-  size_t unstableIndex{};
-  StableElementVersion version{};
-};
-
 struct StableElementMappings;
 
 //Wrapper to only allow mutable access within StableElementMappings where thread safety can be assured while still exposing the values themselves
@@ -47,7 +41,7 @@ private:
   StableElementMapping* mValue{};
 };
 
-//Scheduling ensures that anythign adding to a table has exclusive access to a table
+//Scheduling ensures that anything adding to a table has exclusive access to a table
 //These mappings apply across all tables
 //This means anyone looking up a key wouldn't be looking up one in a table being modified
 //Multiple tables could be modifying at the same time
@@ -56,7 +50,6 @@ private:
 //This works because the contents are reserved so that no growths will ever be in the way of the lookups
 struct StableElementMappings {
 public:
-  static constexpr size_t INVALID = std::numeric_limits<size_t>::max();
   using WriteLockGuard = std::unique_lock<std::mutex>;
   using ReadLockGuard = std::unique_lock<std::mutex>;
 
@@ -77,39 +70,38 @@ public:
     return &mStableToUnstable[result];
   }
 
-  void insertKey(size_t stable, size_t unstable) {
+  void insertKey(size_t stable, StableElementMapping mapping) {
     WriteLockGuard guard{ mMutex };
-    mStableToUnstable[stable].unstableIndex = unstable;
+    mStableToUnstable[stable].setIgnoreVersion(mapping);
   }
 
   //Mapping obtained from createKey
-  void insertKey(const StableElementMappingPtr& key, size_t unstable) {
+  void insertKey(const StableElementMappingPtr& key, StableElementMapping mapping) {
     assert(key);
     WriteLockGuard guard{ mMutex };
-    key.mValue->unstableIndex = unstable;
+    key.mValue->setIgnoreVersion(mapping);
   }
 
   //This assumes the caller knows it's pointing at the correct version
-  bool tryUpdateKey(size_t stable, size_t unstable) {
+  bool tryUpdateKey(size_t stable, StableElementMapping mapping) {
     WriteLockGuard guard{ mMutex };
     if(StableElementMapping* v = tryGet(stable)) {
-      v->unstableIndex = unstable;
+      v->setIgnoreVersion(mapping);
       return true;
     }
     return false;
   }
 
-  void updateKey(const StableElementMappingPtr& mapping, size_t unstable) {
+  void updateKey(const StableElementMappingPtr& mapping, StableElementMapping m) {
     WriteLockGuard guard{ mMutex };
-    mapping.mValue->unstableIndex = unstable;
+    mapping.mValue->setIgnoreVersion(m);
   }
 
   bool tryEraseKey(size_t stable) {
     WriteLockGuard guard{ mMutex };
     if(StableElementMapping* v = tryGet(stable)) {
       mFreeList.push_back(stable);
-      v->version++;
-      v->unstableIndex = INVALID;
+      v->invalidate();
       return true;
     }
     return false;
@@ -120,8 +112,7 @@ public:
     WriteLockGuard guard{ mMutex };
     const size_t stable = mStableToUnstable.indexOf(*mapping.mValue);
     mFreeList.push_back(stable);
-    mapping.mValue->version++;
-    mapping.mValue->unstableIndex = INVALID;
+    mapping.mValue->invalidate();
   }
 
   size_t getStableID(const StableElementMapping& key) const {
@@ -154,14 +145,14 @@ private:
       return result;
     }
     const size_t result = mStableToUnstable.size();
-    mStableToUnstable.push_back({ INVALID, 0 });
+    mStableToUnstable.push_back({});
     return result;
   }
 
   StableElementMapping* tryGet(size_t stable) {
     if(mStableToUnstable.size() > stable) {
       StableElementMapping& result = mStableToUnstable[stable];
-      return result.unstableIndex != INVALID ? &result : nullptr;
+      return result.isValid() ? &result : nullptr;
     }
     return nullptr;
   }
@@ -169,7 +160,7 @@ private:
   const StableElementMapping* tryGet(size_t stable) const {
     if(mStableToUnstable.size() > stable) {
       const StableElementMapping& result = mStableToUnstable[stable];
-      return result.unstableIndex != INVALID ? &result : nullptr;
+      return result.isValid() ? &result : nullptr;
     }
     return nullptr;
   }
@@ -184,15 +175,15 @@ public:
   ElementRef() = default;
   ElementRef(StableElementMappingPtr mapping)
     : ref{ mapping }
-    , expectedVersion{ mapping ? mapping->version : StableElementVersion{} } {
+    , expectedVersion{ mapping ? mapping->getVersion() : StableElementVersion{} } {
   }
 
   explicit operator bool() const {
-    return ref && ref->version == expectedVersion;
+    return ref && ref->getVersion() == expectedVersion;
   }
 
-  const size_t* tryGet() const {
-    return operator bool() ? &ref->unstableIndex : nullptr;
+  const StableElementMapping* tryGet() const {
+    return operator bool() ? ref.get() : nullptr;
   }
 
   bool operator==(const ElementRef& rhs) const {

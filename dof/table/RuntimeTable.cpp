@@ -13,7 +13,7 @@ namespace {
     }
     else {
       stable.swapRemove(i);
-      mappings.updateKey(stable.at(i).getMapping(), tableID.remakeElement(i).mValue);
+      mappings.updateKey(stable.at(i).getMapping(), tableID.remakeElement(i));
     }
   }
 }
@@ -66,7 +66,7 @@ size_t RuntimeTable::migrate(size_t i, RuntimeTable& from, RuntimeTable& to, siz
   if(StableIDRow* stable = to.tryGet<StableIDRow>(); to.mappings && stable) {
     for(size_t r = 0; r < count; ++r) {
       const UnpackedDatabaseElementID newID = to.getID().remakeElement(result + r);
-      to.mappings->updateKey(stable->at(result + r).getMapping(), newID.mValue);
+      to.mappings->updateKey(stable->at(result + r).getMapping(), newID);
     }
   }
 
@@ -99,7 +99,7 @@ void RuntimeTable::resize(size_t newSize, const ElementRef* reservedKeys) {
         //Assign new id
         stable->at(i) = ref;
         //Add mapping for new id
-        mappings->insertKey(ref.getMapping(), newId.mValue);
+        mappings->insertKey(ref.getMapping(), newId);
       }
     }
     else {

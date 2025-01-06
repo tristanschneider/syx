@@ -54,7 +54,8 @@ namespace Game {
     assert(original.size() == copy.size());
     for(size_t i = 0; i < original.size(); ++i) {
       assert(original[i].getType() == copy[i].getType());
-      assert(original[i].getID() == copy[i].getID());
+      assert(original[i].getID().getTableIndex() == copy[i].getID().getTableIndex());
+      assert(original[i].getID().getDatabaseIndex() != copy[i].getID().getDatabaseIndex());
     }
   }
 
@@ -69,10 +70,13 @@ namespace Game {
       //Create a copy of the main database with the same stable mappings as the main one.
       //The copy should have all the same table ids so that they can be used to prepare desired elements
       //to be migrated from the thread local database to the main one
-      return [&] {
+      return [&, idx{ DatabaseIndex{ 1 } }]() mutable {
         RuntimeDatabase& runtimeMain = main.getRuntime();
         StableElementMappings& mappings = runtimeMain.getMappings();
-        std::unique_ptr<IDatabase> copy = createDatabase(RuntimeDatabaseArgs{ .mappings = &mappings });
+        std::unique_ptr<IDatabase> copy = createDatabase(RuntimeDatabaseArgs{
+          .mappings = &mappings,
+          .dbIndex = idx++
+        });
         assertEqual(runtimeMain, copy->getRuntime());
         return copy;
       };
