@@ -91,17 +91,22 @@ struct BasicRow : IRow {
     }
   }
 
-  size_t migrateElements(const MigrateArgs& args) final {
-    size_t result = size();
-    for(size_t i = 0; i < args.count; ++i) {
-      if(BasicRow<Element>* cast = static_cast<BasicRow<Element>*>(args.fromRow)) {
-        emplaceBack(std::move(cast->mElements[args.fromIndex + i]));
-      }
-      else {
-        emplaceBack();
+  void migrateElements(const MigrateArgs& args) final {
+    if(BasicRow<Element>* cast = static_cast<BasicRow<Element>*>(args.fromRow)) {
+      for(size_t i = 0; i < args.count; ++i) {
+        at(args.toIndex + i) = std::move(cast->at(args.fromIndex + i));
       }
     }
-    return result;
+    else {
+      for(size_t i = 0; i < args.count; ++i) {
+        if constexpr(std::is_copy_constructible_v<ElementT>) {
+          at(args.toIndex + i) = mDefaultValue;
+        }
+        else {
+          at(args.toIndex + i) = {};
+        }
+      }
+    }
   }
 
   void popBack() {
@@ -122,6 +127,8 @@ struct SharedRow : IRow {
   using ElementPtr = Element*;
   using NoOpIterator = size_t;
   using IteratorT = NoOpIterator;
+  using ConstIteratorT = NoOpIterator;
+
   using IsSharedRow = std::true_type;
 
   size_t size() const {
@@ -172,10 +179,7 @@ struct SharedRow : IRow {
   }
 
   //Not relevant to update the shared value for an entire row when one element moves
-  size_t migrateElements(const MigrateArgs& args) final {
-    size_t result = size();
-    mSize += args.count;
-    return result;
+  void migrateElements(const MigrateArgs&) final {
   }
 
   Element mValue{};

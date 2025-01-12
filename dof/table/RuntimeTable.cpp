@@ -32,23 +32,23 @@ RuntimeTable::RuntimeTable(RuntimeTableArgs&& args)
 }
 
 size_t RuntimeTable::migrate(size_t i, RuntimeTable& from, RuntimeTable& to, size_t count) {
-  //Updated at the very end
-  const size_t fromSize = from.size();
-  const size_t toSize = to.size();
   const UnpackedDatabaseElementID fromID = from.tableID.remakeElement(i);
 
+  const size_t fromSize = from.size();
+  const size_t dstBegin = to.size();
+  const size_t dstEnd = dstBegin + count;
+
   //Move all common rows to the destination
-  size_t result{};
   for(auto& pair : to.rows) {
     IRow* toRow = pair.second;
     IRow* fromRow = from.tryGet(pair.first);
     //This handles the case where the source row is empty and in that case adds an empty destination element
-    result = toRow->migrateElements(MigrateArgs{
+    toRow->resize(dstBegin, dstEnd);
+    toRow->migrateElements(MigrateArgs{
       .fromIndex = i,
       .fromRow = fromRow,
-      .fromSize = fromSize,
       .count = count,
-      .toSize = toSize
+      .toIndex = dstBegin
     });
   }
 
@@ -73,14 +73,14 @@ size_t RuntimeTable::migrate(size_t i, RuntimeTable& from, RuntimeTable& to, siz
   assert((from.mappings != nullptr) == (to.mappings != nullptr) && "Moves are not allowed to create or destroy stable mappings");
   if(StableIDRow* stable = to.tryGet<StableIDRow>(); to.mappings && stable) {
     for(size_t r = 0; r < count; ++r) {
-      const UnpackedDatabaseElementID newID = to.getID().remakeElement(result + r);
-      to.mappings->updateKey(stable->at(result + r).getMapping(), newID);
+      const UnpackedDatabaseElementID newID = to.getID().remakeElement(dstBegin + r);
+      to.mappings->updateKey(stable->at(dstBegin + r).getMapping(), newID);
     }
   }
 
   from.tableSize -= count;
   to.tableSize += count;
-  return result;
+  return dstBegin;
 }
 
 void RuntimeTable::resize(size_t newSize, const ElementRef* reservedKeys) {

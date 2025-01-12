@@ -14,11 +14,19 @@ struct IterableRow {
   T* row{};
   size_t size{};
 
-  auto begin() const {
+  typename T::IteratorT begin() const {
     return row->begin();
   }
 
-  auto end() const {
+  typename T::IteratorT end() const {
+    return row->begin() + size;
+  }
+
+  typename T::ConstIteratorT cbegin() const {
+    return row->begin();
+  }
+
+  typename T::ConstIteratorT cend() const {
     return row->begin() + size;
   }
 

@@ -219,5 +219,28 @@ namespace Test {
 
       Assert::IsTrue(Loader::LoadStep::Failed == reader->getLoadState(handle).step);
     }
+
+    TEST_METHOD(MultipleConcurrentRequests) {
+      const std::string_view rawScene = TestAssets::getTestScene();
+      Game game;
+      auto task = game.game.builder();
+      auto loader = Loader::createAssetLoader(task);
+      std::vector<Loader::AssetHandle> handles;
+      for(size_t i = 0; i < 3; ++i) {
+        handles.push_back(loader->requestLoad({ "test.glb" }, toBytes(rawScene)));
+      }
+      auto reader = Loader::createAssetReader(task);
+
+      for(const auto& handle : handles) {
+        game.awaitCompletion(handle, Loader::LoadStep::Succeeded);
+
+        CachedRow<Loader::SceneAssetRow> result;
+        auto res = task.getResolver(result);
+        auto ref = task.getIDResolver()->getRefResolver();
+        auto resultRef = ref.tryUnpack(handle.asset);
+        Assert::IsTrue(resultRef.has_value());
+        Assert::IsTrue(res->tryGetOrSwapRow(result, *resultRef));
+      }
+    }
   };
 }
