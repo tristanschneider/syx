@@ -71,8 +71,11 @@ namespace SpatialQuery {
         Gameplay<LifetimeRow>,
         Gameplay<NeedsResubmitRow>
       >();
-      table = q.matchingTableIDs[0];
-      std::tie(shapes, lifetimes, needsResubmit) = q.get(0);
+      table = q[0];
+      auto [s, l, n] = q.get(0);
+      shapes = s.get();
+      lifetimes = l.get();
+      needsResubmit = n.get();
       ids = task.getIDResolver();
     }
     UnpackedDatabaseElementID table;
@@ -167,7 +170,11 @@ namespace SpatialQuery {
   struct Reader : IReader {
     Reader(RuntimeDatabaseTaskBuilder& task) {
       graph = task.query<const SP::IslandGraphRow>().tryGetSingletonElement();
-      std::tie(manifold, zManifold, pairTypes) = task.query<const SP::ManifoldRow, const SP::ZManifoldRow, const SP::PairTypeRow>().get(0);
+      auto q = task.query<const SP::ManifoldRow, const SP::ZManifoldRow, const SP::PairTypeRow>();
+      auto [m, zm, pt] = q.get(0);
+      manifold = m.get();
+      zManifold = zm.get();
+      pairTypes = pt.get();
       ids = task.getIDResolver();
     }
 
@@ -468,7 +475,7 @@ namespace SpatialQuery {
   void gameplayUpdateQueries(IAppBuilder& builder) {
     auto tables = builder.queryTables<SpatialQueriesTableTag>();
     for(size_t i = 0; i < tables.size(); ++i) {
-      const TableID& table = tables.matchingTableIDs[i];
+      const TableID& table = tables[i];
       processLifetime(builder, table);
       visitShapes([&](auto shape) {
         submitQueryUpdates(shape, builder, table);

@@ -51,7 +51,7 @@ namespace World {
       for(size_t i = 0; i < impulseX->size(); ++i) {
         FragmentFlags& flag = flags->at(i);
         //TODO: This is not true, player abilities update before this and would set them
-        //Assume that if the impulse changed at all it means it happend from the world boundary
+        //Assume that if the impulse changed at all it means it happened from the world boundary
         constexpr float threshold = 0.01f;
         if(glm::length2(TableAdapters::read(i, *impulseX, *impulseY)) > threshold) {
           //If it was previously in bounds and is now going out, apply the effect
@@ -78,7 +78,7 @@ namespace World {
       FloatRow<GLinImpulse, X>, FloatRow<GLinImpulse, Y>
     >();
 
-    for(const TableID& table : tables.matchingTableIDs) {
+    for(const TableID& table : tables) {
       repelBoundaryAxis(builder, table, FloatAlias::create<FloatRow<GPos, X>>(), FloatAlias::create<FloatRow<GLinImpulse, X>>(), 0);
       repelBoundaryAxis(builder, table, FloatAlias::create<FloatRow<GPos, Y>>(), FloatAlias::create<FloatRow<GLinImpulse, Y>>(), 1);
     }
@@ -90,7 +90,7 @@ namespace World {
       FragmentStateMachine::StateRow
     >();
     //Once x and y are done, see if either of them changed to update the flag
-    for(const TableID& table : fragmentTables.matchingTableIDs) {
+    for(const TableID& table : fragmentTables) {
       flagOutOfBounds(builder, table);
     }
   }

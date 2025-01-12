@@ -75,7 +75,9 @@ namespace SM {
     using Machine = decltype(sm);
     using StatesRow = typename Machine::StateRow;
     using GlobalState = typename Machine::GlobalStateRow;
-    for(const TableID& table : builder.queryTables<StatesRow, GlobalState>().matchingTableIDs) {
+    auto q = builder.queryTables<StatesRow, GlobalState>();
+    for(size_t t = 0; t < q.size(); ++t) {
+      const TableID& table = q[t];
       auto task = builder.createTask();
       task.setName("create state buckets");
       auto query = task.query<StatesRow, GlobalState>(table);
@@ -112,7 +114,7 @@ namespace SM {
   template<class... States, size_t... I>
   void updateStates(IAppBuilder& builder, StateMachine<States...> sm, std::index_sequence<I...>) {
     using SM = decltype(sm);
-    for(const TableID& table : builder.queryTables<typename SM::StateRow, typename SM::GlobalStateRow>().matchingTableIDs) {
+    for(const TableID& table : builder.queryTables<typename SM::StateRow, typename SM::GlobalStateRow>()) {
       (StateTraits<States>::onExit(builder, table, I), ...);
       (StateTraits<States>::onEnter(builder, table, I), ...);
       (StateTraits<States>::onUpdate(builder, table, I), ...);
@@ -122,7 +124,7 @@ namespace SM {
   template<class... States, size_t... I>
   void exitStates(IAppBuilder& builder, StateMachine<States...> sm, std::index_sequence<I...>) {
     using SM = decltype(sm);
-    for(const TableID& table : builder.queryTables<typename SM::StateRow, typename SM::GlobalStateRow>().matchingTableIDs) {
+    for(const TableID& table : builder.queryTables<typename SM::StateRow, typename SM::GlobalStateRow>()) {
       (StateTraits<States>::onExit(builder, table, I), ...);
     }
   }

@@ -170,7 +170,7 @@ void GameModule::update(IAppBuilder& builder) {
     }
     Scenes::update(nav, *fs, *sceneImport);
     CameraModule::update(*config);
-    AbilityModule::update(*config, std::get<0>(input.rows));
+    AbilityModule::update(*config, input.get<0>());
 
     ImGui::Begin("Game");
 

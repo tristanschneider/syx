@@ -102,7 +102,7 @@ std::shared_ptr<IIDResolver> RuntimeDatabaseTaskBuilder::getIDResolver() {
 void RuntimeDatabaseTaskBuilder::logDependency(std::initializer_list<QueryAliasBase> aliases) {
   auto tables = db.queryAliasTables(aliases);
   for(const QueryAliasBase& q : aliases) {
-    log(q, tables.matchingTableIDs);
+    log(q, tables.getMatchingTableIDs());
   }
 }
 
@@ -142,6 +142,14 @@ std::shared_ptr<ITableModifier> RuntimeDatabaseTaskBuilder::getModifierForTable(
 }
 
 std::vector<std::shared_ptr<ITableModifier>> RuntimeDatabaseTaskBuilder::getModifiersForTables(const std::vector<TableID>& tables) {
+  std::vector<std::shared_ptr<ITableModifier>> result(tables.size());
+  for(size_t i = 0; i < result.size(); ++i) {
+    result[i] = getModifierForTable(tables[i]);
+  }
+  return result;
+}
+
+std::vector<std::shared_ptr<ITableModifier>> RuntimeDatabaseTaskBuilder::getModifiersForTables(const QueryResultBase& tables) {
   std::vector<std::shared_ptr<ITableModifier>> result(tables.size());
   for(size_t i = 0; i < result.size(); ++i) {
     result[i] = getModifierForTable(tables[i]);

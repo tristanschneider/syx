@@ -12,7 +12,7 @@ namespace {
       stable.popBack();
     }
     else {
-      stable.swapRemove(i);
+      stable.swapRemove(i, i + 1, stable.size());
       mappings.updateKey(stable.at(i).getMapping(), tableID.remakeElement(i));
     }
   }
@@ -32,14 +32,24 @@ RuntimeTable::RuntimeTable(RuntimeTableArgs&& args)
 }
 
 size_t RuntimeTable::migrate(size_t i, RuntimeTable& from, RuntimeTable& to, size_t count) {
+  //Updated at the very end
+  const size_t fromSize = from.size();
+  const size_t toSize = to.size();
   const UnpackedDatabaseElementID fromID = from.tableID.remakeElement(i);
+
   //Move all common rows to the destination
   size_t result{};
   for(auto& pair : to.rows) {
     IRow* toRow = pair.second;
     IRow* fromRow = from.tryGet(pair.first);
     //This handles the case where the source row is empty and in that case adds an empty destination element
-    result = toRow->migrateElements(i, fromRow, count);
+    result = toRow->migrateElements(MigrateArgs{
+      .fromIndex = i,
+      .fromRow = fromRow,
+      .fromSize = fromSize,
+      .count = count,
+      .toSize = toSize
+    });
   }
 
   //Swap Remove from source. Could be faster to combine this with the above step while visiting,
@@ -56,9 +66,7 @@ size_t RuntimeTable::migrate(size_t i, RuntimeTable& from, RuntimeTable& to, siz
       }
     }
     else {
-      for(size_t c = 0; c < count; ++c) {
-        pair.second->swapRemove(i + c);
-      }
+      pair.second->swapRemove(i, i + count, fromSize);
     }
   }
 
@@ -89,7 +97,7 @@ void RuntimeTable::resize(size_t newSize, const ElementRef* reservedKeys) {
         }
       }
 
-      stable->resize(newSize);
+      stable->resize(tableSize, newSize);
 
       //Create new mappings for new elements
       for(size_t i = oldSize; i < newSize; ++i) {
@@ -103,7 +111,7 @@ void RuntimeTable::resize(size_t newSize, const ElementRef* reservedKeys) {
       }
     }
     else {
-      pair.second->resize(newSize);
+      pair.second->resize(tableSize, newSize);
     }
   }
 
@@ -136,7 +144,7 @@ void RuntimeTable::swapRemove(size_t i) {
       swapAndPopIntoEmpty(i, *stable, *mappings, getID());
     }
     else {
-      pair.second->swapRemove(i);
+      pair.second->swapRemove(i, i + 1, tableSize);
     }
   }
   --tableSize;

@@ -55,7 +55,7 @@ namespace Loader {
       StableElementMappings& mappings = db.getMappings();
       for(size_t t = 0; t < sourceQuery.size(); ++t) {
         auto [source, stable, usage] = sourceQuery.get(t);
-        RuntimeTable* sourceTable = db.tryGet(sourceQuery.matchingTableIDs[t]);
+        RuntimeTable* sourceTable = db.tryGet(sourceQuery[t]);
         if(!sourceTable) {
           continue;
         }
@@ -112,7 +112,7 @@ namespace Loader {
       }
       RuntimeTable* source = db.tryGet(sourceTable);
       //TODO: could create a map to avoid linear search here
-      QueryResult<> query = db.queryAliasTables({ ops.destinationRow });
+      QueryResultBase query = db.queryAliasTables({ ops.destinationRow });
       assert(query.size() && "A destination for assets should always exist");
       const TableID destTable = query[0];
       RuntimeTable* dest = db.tryGet(destTable);
@@ -181,7 +181,7 @@ namespace Loader {
     auto task = builder.createTask();
     RuntimeDatabase& db = task.getDatabase();
     auto query = task.query<LoadingAssetRow>();
-    QueryResult<> failedRows = task.queryTables<FailedTagRow>();
+    QueryResultBase failedRows = task.queryTables<FailedTagRow>();
     assert(failedRows.size());
     RuntimeTable* failedTable = db.tryGet(failedRows[0]);
     Globals* globals = getGlobals(task);
@@ -194,7 +194,7 @@ namespace Loader {
       }
       for(size_t t = 0; t < query.size(); ++t) {
         auto [assets] = query.get(t);
-        const TableID thisTable = query.matchingTableIDs[t];
+        const TableID thisTable = query[t];
         for(size_t i = 0; i < assets->size();) {
           LoadingAsset& asset = assets->at(i);
           //If it's still in progress check again later

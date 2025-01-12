@@ -167,6 +167,22 @@ namespace Test {
       testMoveAndCopy(1000);
     }
 
+    TEST_METHOD(Resize) {
+      gnx::DynamicBitset set;
+      set.resize(5);
+      set.set(1);
+      set.set(3);
+      set.set(4);
+
+      set.resize(200);
+      set.set(199);
+
+      Assert::IsTrue(set.test(1));
+      Assert::IsTrue(set.test(3));
+      Assert::IsTrue(set.test(4));
+      Assert::IsTrue(set.test(199));
+    }
+
     void testIterators(size_t size) {
       const size_t i = size/2;
       gnx::DynamicBitset set;

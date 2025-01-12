@@ -15,7 +15,7 @@ namespace StatEffectDatabase {
     RuntimeDatabase& db = task.getLocalDB();
     auto q = db.query<RowT>();
     assert(q.size());
-    return *db.tryGet(q.matchingTableIDs[0]);
+    return *db.tryGet(q[0]);
   }
 };
 

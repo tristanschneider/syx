@@ -13,7 +13,7 @@ namespace TableExt {
 namespace Shapes {
   struct IndividualRectShape : ShapeRegistry::IShapeImpl {
     std::vector<TableID> queryTables(IAppBuilder& builder) const final {
-      return builder.queryTables<const RectangleRow>().matchingTableIDs;
+      return builder.queryTables<const RectangleRow>().getMatchingTableIDs();
     }
 
     struct Classifier : ShapeRegistry::IShapeClassifier {
@@ -74,7 +74,7 @@ namespace Shapes {
     {}
 
     std::vector<TableID> queryTables(IAppBuilder& builder) const final {
-      return builder.queryTables<const SharedRectangleRow>().matchingTableIDs;
+      return builder.queryTables<const SharedRectangleRow>().getMatchingTableIDs();
     }
 
     struct Classifier : ShapeRegistry::IShapeClassifier {
@@ -205,11 +205,15 @@ namespace Shapes {
       args.pos = &task.queryAlias(bounds.table, pos).get<0>(0);
       auto rotQ = task.queryAlias(bounds.table, rotX, rotY);
       if(rotQ.size()) {
-        std::tie(args.rotX, args.rotY) = rotQ.get(0);
+        auto [x, y] = rotQ.get(0);
+        args.rotX = x.row;
+        args.rotY = y.row;
       }
       auto scaleQ = task.queryAlias(bounds.table, scaleX, scaleY);
       if(scaleQ.size()) {
-        std::tie(args.scaleX, args.scaleY) = scaleQ.get(0);
+        auto [x, y] = scaleQ.get(0);
+        args.scaleX = x.row;
+        args.scaleY = y.row;
       }
       args.resultMin = &resultMin;
       args.resultMax = &resultMax;

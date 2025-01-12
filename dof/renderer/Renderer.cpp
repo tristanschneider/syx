@@ -310,7 +310,7 @@ namespace Renderer {
     task.setCallback([sprites, resolver, quadPasses, oglState](AppTaskArgs&) mutable {
       RendererState& ogl = oglState.get<0>(0).at(0);
       //Should match based on createDatabase resizing to this
-      assert(sprites.matchingTableIDs.size() == quadPasses.matchingTableIDs.size());
+      assert(sprites.size() == quadPasses.size());
 
       ogl.texturedMeshPipeline = createTexturedMeshPipeline();
       ogl.quadMesh = _createQuadBuffers();
@@ -319,9 +319,9 @@ namespace Renderer {
       ogl.blitTexturePass = Blit::createBlitTexturePass();
 
       //Fill in the quad pass tables
-      for(size_t i = 0 ; i < sprites.matchingTableIDs.size(); ++i) {
+      for(size_t i = 0 ; i < sprites.size(); ++i) {
         quadPasses.get<0>(i).at().mQuadUniforms = _createQuadUniforms();
-        quadPasses.get<1>(i).at() = resolver->tryGetRow<const IsImmobile>(sprites.matchingTableIDs[i]) != nullptr;
+        quadPasses.get<1>(i).at() = resolver->tryGetRow<const IsImmobile>(sprites[i]) != nullptr;
       }
     });
 
@@ -333,7 +333,7 @@ void Renderer::init(IAppBuilder& builder, const RendererContext& context) {
   auto temp = builder.createTask();
   auto q = temp.query<Row<RendererState>>();
   assert(q.size());
-  temp.getModifierForTable(q.matchingTableIDs[0])->resize(1);
+  temp.getModifierForTable(q[0])->resize(1);
   RendererState& state = q.get<0>(0).at(0);
   FontPass::Globals* fontPass = temp.query<FontPass::GlobalsRow>().tryGetSingletonElement();
   assert(fontPass);
@@ -484,14 +484,14 @@ void Renderer::extractRenderables(IAppBuilder& builder) {
 
   //Quads
   for(size_t pass = 0; pass < passes.size(); ++pass) {
-    const TableID& passID = passes.matchingTableIDs[pass];
-    const TableID& spriteID = sharedTextureSprites.matchingTableIDs[pass];
+    const TableID& passID = passes[pass];
+    const TableID& spriteID = sharedTextureSprites[pass];
 
     //Resize the quad pass table to match the size of its paired sprite table
     {
       auto task = builder.createTask();
       task.setName("Resize Renderables");
-      std::shared_ptr<ITableModifier> modifier = task.getModifierForTable(passes.matchingTableIDs[pass]);
+      std::shared_ptr<ITableModifier> modifier = task.getModifierForTable(passes[pass]);
       auto query = task.query<const Row<CubeSprite>>(spriteID);
       task.setCallback([modifier, query](AppTaskArgs&) mutable {
         modifier->resize(query.get<0>(0).size());
@@ -518,7 +518,7 @@ void Renderer::extractRenderables(IAppBuilder& builder) {
     auto src = task.query<const Row<DebugPoint>>();
     auto dst = task.query<DebugLinePassTable::Points>();
     assert(src.size() == dst.size());
-    auto modifiers = task.getModifiersForTables(dst.matchingTableIDs);
+    auto modifiers = task.getModifiersForTables(dst);
     task.setCallback([src, dst, modifiers](AppTaskArgs&) mutable {
       for(size_t i = 0; i < modifiers.size(); ++i) {
         auto& srcRow = src.get<0>(i);
@@ -535,7 +535,7 @@ void Renderer::extractRenderables(IAppBuilder& builder) {
     auto src = task.query<const Row<DebugText>>();
     auto dst = task.query<DebugLinePassTable::Texts>();
     assert(src.size() == dst.size());
-    auto modifiers = task.getModifiersForTables(dst.matchingTableIDs);
+    auto modifiers = task.getModifiersForTables(dst);
     task.setCallback([src, dst, modifiers](AppTaskArgs&) mutable {
       for(size_t i = 0; i < modifiers.size(); ++i) {
         auto& srcRow = src.get<0>(i);
@@ -596,7 +596,7 @@ void Renderer::extractRenderables(IAppBuilder& builder) {
 void Renderer::clearRenderRequests(IAppBuilder& builder) {
   auto task = builder.createTask();
   task.setName("clear render requests");
-  auto modifiers = task.getModifiersForTables(builder.queryTables<DebugClearPerFrame>().matchingTableIDs);
+  auto modifiers = task.getModifiersForTables(builder.queryTables<DebugClearPerFrame>());
   task.setCallback([modifiers](AppTaskArgs&) {
     for(auto&& modifier : modifiers) {
       modifier->resize(0);

@@ -50,7 +50,7 @@ namespace Fragment {
       const FragmentGoalCooldownRow,
       const StableIDRow
     >();
-    const TableID completedTable = builder.queryTables<FragmentGoalFoundTableTag>().matchingTableIDs[0];
+    const TableID completedTable = builder.queryTables<FragmentGoalFoundTableTag>()[0];
 
     task.setCallback([query, completedTable](AppTaskArgs& args) mutable {
       Events::MovePublisher moveElement{{ &args }};

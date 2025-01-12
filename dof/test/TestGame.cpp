@@ -59,9 +59,9 @@ namespace Test {
   };
 
   KnownTables::KnownTables(IAppBuilder& builder)
-    : player{ builder.queryTables<IsPlayer>().matchingTableIDs[0] }
-    , fragments{ builder.queryTables<IsFragment, SharedMassObjectTableTag>().matchingTableIDs[0] }
-    , completedFragments{ builder.queryTables<FragmentGoalFoundTableTag>().matchingTableIDs[0] }
+    : player{ builder.queryTables<IsPlayer>()[0] }
+    , fragments{ builder.queryTables<IsFragment, SharedMassObjectTableTag>()[0] }
+    , completedFragments{ builder.queryTables<FragmentGoalFoundTableTag>()[0] }
   {}
 
   TestGame::TestGame(GameConstructArgs args) {

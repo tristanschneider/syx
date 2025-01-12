@@ -35,8 +35,8 @@ namespace Test {
         task.setName("init");
         auto q = task.query<const Tags::DynamicPhysicsObjectsWithZTag,
           Tags::PosXRow, Tags::PosYRow>();
-        Assert::IsFalse(q.matchingTableIDs.empty());
-        NotifyingTableModifier modifier{ task, q.matchingTableIDs[0] };
+        Assert::IsFalse(q.size() == 0);
+        NotifyingTableModifier modifier{ task, q[0] };
         task.setCallback([=](AppTaskArgs& args) mutable {
           modifier.initTask(args);
           const ElementRef* base = modifier.addElements(2);

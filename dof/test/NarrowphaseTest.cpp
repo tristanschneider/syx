@@ -101,13 +101,13 @@ namespace Test {
 
   struct NarrowphaseTableIds {
     NarrowphaseTableIds(RuntimeDatabaseTaskBuilder& task)
-      : spatialPairs{ task.query<SP::ManifoldRow>().matchingTableIDs[0] }
-      , sharedUnitCubes{ task.query<Shapes::SharedRectangleRow>().matchingTableIDs[0] }
-      , unitCubes3D{ task.query<Narrowphase::SharedThicknessRow>().matchingTableIDs[0] }
-      , unitCubes{ task.query<Shapes::RectangleRow>().matchingTableIDs[0] }
-      , circles{ task.query<Shapes::CircleRow>().matchingTableIDs[0] }
-      , aabbs{ task.query<Shapes::AABBRow>().matchingTableIDs[0] }
-      , raycasts{ task.query<Shapes::LineRow>().matchingTableIDs[0] }
+      : spatialPairs{ task.query<SP::ManifoldRow>()[0] }
+      , sharedUnitCubes{ task.query<Shapes::SharedRectangleRow>()[0] }
+      , unitCubes3D{ task.query<Narrowphase::SharedThicknessRow>()[0] }
+      , unitCubes{ task.query<Shapes::RectangleRow>()[0] }
+      , circles{ task.query<Shapes::CircleRow>()[0] }
+      , aabbs{ task.query<Shapes::AABBRow>()[0] }
+      , raycasts{ task.query<Shapes::LineRow>()[0] }
     {}
 
     TableID spatialPairs;
@@ -139,13 +139,18 @@ namespace Test {
 
   struct SpatialQueriesAdapter {
     SpatialQueriesAdapter(RuntimeDatabaseTaskBuilder& task) {
-      std::tie(objA, objB, manifold, zManifold) = task.query<
+      auto q = task.query<
         SP::ObjA,
         SP::ObjB,
         SP::ManifoldRow,
         SP::ZManifoldRow
-      >().get(0);
-      modifier = task.getModifierForTable(task.query<SP::ManifoldRow>().matchingTableIDs[0]);
+      >();
+      auto [oa, ob, m, zm] = q.get(0);
+      objA = oa.get();
+      objB = ob.get();
+      manifold = m.get();
+      zManifold = zm.get();
+      modifier = task.getModifierForTable(task.query<SP::ManifoldRow>()[0]);
       ids = task.getIDResolver();
     }
 

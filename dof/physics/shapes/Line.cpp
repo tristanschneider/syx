@@ -5,7 +5,7 @@
 namespace Shapes {
   struct IndividualLineShape : ShapeRegistry::IShapeImpl {
     std::vector<TableID> queryTables(IAppBuilder& builder) const final {
-      return builder.queryTables<const LineRow>().matchingTableIDs;
+      return builder.queryTables<const LineRow>().getMatchingTableIDs();
     }
 
     struct Classifier : ShapeRegistry::IShapeClassifier {

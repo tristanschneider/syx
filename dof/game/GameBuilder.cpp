@@ -90,7 +90,7 @@ namespace GameBuilder {
       : db{ d }
       , env{ e } 
     {
-      std::vector<TableID> tableids = std::move(db.getRuntime().query().matchingTableIDs);
+      std::vector<TableID> tableids = std::move(db.getRuntime().query().getMatchingTableIDs());
       dependencies.resize(tableids.size());
       root->name = "root";
       //Add root as synchronous base to everything

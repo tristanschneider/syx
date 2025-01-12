@@ -39,7 +39,7 @@ struct BasicRow : IRow {
     }
   }
 
-  void resize(size_t size) final {
+  void resize(size_t, size_t size) final {
     if constexpr(std::is_copy_constructible_v<Element>) {
       mElements.resize(size, mDefaultValue);
     }
@@ -84,16 +84,18 @@ struct BasicRow : IRow {
     return { mElements.data() };
   }
 
-  void swapRemove(size_t i) final {
-    mElements[i] = std::move(mElements.back());
-    mElements.pop_back();
+  void swapRemove(size_t b, size_t e, size_t) final {
+    for(size_t i = b; i < e; ++i) {
+      mElements[i] = std::move(mElements.back());
+      mElements.pop_back();
+    }
   }
 
-  size_t migrateElements(size_t fromIndex, IRow* fromRow, size_t count) final {
+  size_t migrateElements(const MigrateArgs& args) final {
     size_t result = size();
-    for(size_t i = 0; i < count; ++i) {
-      if(BasicRow<Element>* cast = static_cast<BasicRow<Element>*>(fromRow)) {
-        emplaceBack(std::move(cast->mElements[fromIndex + i]));
+    for(size_t i = 0; i < args.count; ++i) {
+      if(BasicRow<Element>* cast = static_cast<BasicRow<Element>*>(args.fromRow)) {
+        emplaceBack(std::move(cast->mElements[args.fromIndex + i]));
       }
       else {
         emplaceBack();
@@ -140,7 +142,7 @@ struct SharedRow : IRow {
     return mValue;
   }
 
-  void resize(size_t size) final {
+  void resize(size_t, size_t size) final {
     mSize = size;
   }
 
@@ -164,15 +166,15 @@ struct SharedRow : IRow {
     return { &mValue };
   }
 
-  void swapRemove(size_t) final {
+  void swapRemove(size_t b, size_t e, size_t) final {
     //Since element is a singleton it doesn't change but the tracked size does to match the other rows in the table
-    --mSize;
+    mSize -= (e - b);
   }
 
   //Not relevant to update the shared value for an entire row when one element moves
-  size_t migrateElements(size_t, IRow*, size_t count) final {
+  size_t migrateElements(const MigrateArgs& args) final {
     size_t result = size();
-    mSize += count;
+    mSize += args.count;
     return result;
   }
 
@@ -191,8 +193,13 @@ template<class T>
 struct IsBasicRowT<T, std::enable_if_t<std::is_same_v<std::true_type, typename T::IsBasicRow>>> : std::true_type {};
 
 template<class T>
+concept IsRow = std::is_base_of_v<IRow, T>;
+static_assert(IsRow<BasicRow<int>>);
+static_assert(IsRow<SharedRow<int>>);
+
+template<class T>
 constexpr bool isRow() {
-  return IsSharedRowT<T>::value || IsBasicRowT<T>::value;
+  return IsRow<T>;
 }
 
 template<class T>
@@ -205,10 +212,6 @@ constexpr bool isNestedRow() {
   }
 }
 
-template<class T>
-concept IsRow = std::is_base_of_v<IRow, T>;
-static_assert(IsRow<BasicRow<int>>);
-static_assert(IsRow<SharedRow<int>>);
 
 template<class T>
 using Row = BasicRow<T>;

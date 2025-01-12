@@ -124,8 +124,8 @@ namespace Test {
         }
 
         void update(IAppBuilder& builder) final {
-          const TableID from = builder.queryTables<Row<float>>().matchingTableIDs[0];
-          const TableID to = builder.queryTables<Row<int64_t>>().matchingTableIDs[0];
+          const TableID from = builder.queryTables<Row<float>>()[0];
+          const TableID to = builder.queryTables<Row<int64_t>>()[0];
           {
             auto taskA = builder.createTask();
             auto modifier = taskA.getModifierForTable(from);
@@ -370,11 +370,15 @@ namespace Test {
 
     struct SpatialPairsData {
       SpatialPairsData(RuntimeDatabaseTaskBuilder& task) {
-        SP::IslandGraphRow* g{};
         auto q = task.query<SP::IslandGraphRow, SP::ObjA, SP::ObjB, SP::PairTypeRow, SP::ManifoldRow>();
-        table = q.matchingTableIDs[0];
-        std::tie(g, objA, objB, pairType, manifold) = q.get(0);
+        table = q[0];
+        auto [g, a, b, p, m] = q.get(0);
         graph = &g->at();
+        objA = a.get();
+        objB = b.get();
+        pairType = p.get();
+        manifold = m.get();
+
         ids = task.getIDResolver();
       }
 

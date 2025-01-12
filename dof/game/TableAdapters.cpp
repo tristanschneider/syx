@@ -37,24 +37,31 @@ size_t TableAdapters::getThreadCount(RuntimeDatabaseTaskBuilder& task) {
 
 TransformAdapter TableAdapters::getTransform(RuntimeDatabaseTaskBuilder& task, const TableID& table) {
   TransformAdapter result;
-  std::tie(result.posX, result.posY, result.rotX, result.rotY) = task.query<
+  auto [px, py, rx, ry] = task.query<
     FloatRow<Tags::Pos, Tags::X>, FloatRow<Tags::Pos, Tags::Y>,
     FloatRow<Tags::Rot, Tags::CosAngle>, FloatRow<Tags::Rot, Tags::SinAngle>
   >(table).get(0);
+  result.posX = px.get();
+  result.posY = py.get();
+  result.rotX = rx.get();
+  result.rotY = ry.get();
   return result;
 }
 
 TransformAdapter TableAdapters::getGameplayTransform(RuntimeDatabaseTaskBuilder& task, const TableID& table) {
   TransformAdapter result;
-  std::tie(result.posX, result.posY, result.rotX, result.rotY) = task.query<
+  auto [px, py, rx, ry] = task.query<
     FloatRow<Tags::GPos, Tags::X>, FloatRow<Tags::GPos, Tags::Y>,
     FloatRow<Tags::GRot, Tags::CosAngle>, FloatRow<Tags::GRot, Tags::SinAngle>
   >(table).get(0);
+  result.posX = px.get();
+  result.posY = py.get();
+  result.rotX = rx.get();
+  result.rotY = ry.get();
   return result;
 }
 
 PhysicsObjectAdapter TableAdapters::getPhysics(RuntimeDatabaseTaskBuilder& task, const TableID& table) {
-  PhysicsObjectAdapter r;
   auto q = task.query<
     FloatRow<Tags::LinVel, Tags::X>, FloatRow<Tags::LinVel, Tags::Y>,
     FloatRow<Tags::AngVel, Tags::Angle>,
@@ -63,13 +70,21 @@ PhysicsObjectAdapter TableAdapters::getPhysics(RuntimeDatabaseTaskBuilder& task,
     Narrowphase::CollisionMaskRow
   >(table);
   if(q.size()) {
-    std::tie(r.linVelX, r.linVelY, r.angVel, r.linImpulseX, r.linImpulseY, r.angImpulse, r.collisionMask) = q.get(0);
+    auto [vx, vy, ax, ix, iy, ia, m] = q.get(0);
+    return PhysicsObjectAdapter{
+      .linVelX = vx.get(),
+      .linVelY = vy.get(),
+      .angVel = ax.get(),
+      .linImpulseX = ix.get(),
+      .linImpulseY = iy.get(),
+      .angImpulse = ia.get(),
+      .collisionMask = m.get(),
+    };
   }
-  return r;
+  return {};
 }
 
 PhysicsObjectAdapter TableAdapters::getGameplayPhysics(RuntimeDatabaseTaskBuilder& task, const TableID& table) {
-  PhysicsObjectAdapter r;
   auto q = task.query<
     FloatRow<Tags::GLinVel, Tags::X>, FloatRow<Tags::GLinVel, Tags::Y>,
     FloatRow<Tags::GAngVel, Tags::Angle>,
@@ -78,9 +93,18 @@ PhysicsObjectAdapter TableAdapters::getGameplayPhysics(RuntimeDatabaseTaskBuilde
     Narrowphase::CollisionMaskRow
   >(table);
   if(q.size()) {
-    std::tie(r.linVelX, r.linVelY, r.angVel, r.linImpulseX, r.linImpulseY, r.angImpulse, r.collisionMask) = q.get(0);
+    auto [vx, vy, va, ix, iy, ia, m] = q.get(0);
+    return PhysicsObjectAdapter{
+      .linVelX = vx.get(),
+      .linVelY = vy.get(),
+      .angVel = va.get(),
+      .linImpulseX = ix.get(),
+      .linImpulseY = iy.get(),
+      .angImpulse = ia.get(),
+      .collisionMask = m.get(),
+    };
   }
-  return r;
+  return {};
 }
 
 GameObjectAdapter TableAdapters::getGameObject(RuntimeDatabaseTaskBuilder& task, const TableID& table) {
@@ -102,10 +126,10 @@ DebugLineAdapter TableAdapters::getDebugLines(RuntimeDatabaseTaskBuilder& task) 
   DebugLineAdapter result;
   if(query.size()) {
     result.points = &query.get<0>(0);
-    result.pointModifier = task.getModifierForTable(query.matchingTableIDs[0]);
+    result.pointModifier = task.getModifierForTable(query[0]);
     if(auto q = task.query<Row<DebugText>>(); q.size()) {
       result.text = &q.get<0>(0);
-      result.textModifier = task.getModifierForTable(q.matchingTableIDs[0]);
+      result.textModifier = task.getModifierForTable(q[0]);
     }
   }
   return result;

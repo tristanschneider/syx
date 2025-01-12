@@ -314,7 +314,7 @@ namespace AreaForceStatEffect {
       const StableIDRow,
       const FragmentGoalFoundTableTag
     >();
-    const TableID fragmentTable = builder.queryTables<FragmentGoalFoundRow>().matchingTableIDs[0];
+    const TableID fragmentTable = builder.queryTables<FragmentGoalFoundRow>()[0];
 
     task.setCallback([ids, query, debug, shapesQuery, resolver, fragmentTable](AppTaskArgs& args) mutable {
       std::vector<ShapeResult> shapes;
@@ -338,9 +338,9 @@ namespace AreaForceStatEffect {
           rays.clear();
           for(size_t s = 0; s < shapesQuery.size(); ++s) {
             auto&& [posXs, posYs, rotXs, rotYs, f] = shapesQuery.get(s);
-            const UnpackedDatabaseElementID table = shapesQuery.matchingTableIDs[s];
+            const UnpackedDatabaseElementID table = shapesQuery[s];
             ShapesQuery shapeTable {
-              table, posXs, posYs, rotXs, rotYs, nullptr, nullptr, nullptr, resolver->tryGetRow<const IsImmobile>(table)
+              table, posXs.get(), posYs.get(), rotXs.get(), rotYs.get(), nullptr, nullptr, nullptr, resolver->tryGetRow<const IsImmobile>(table)
             };
             std::visit([&](const auto& shape) {
               gatherResultsInShape(command, shape, shapeTable, shapes);

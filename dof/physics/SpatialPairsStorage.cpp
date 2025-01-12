@@ -116,7 +116,7 @@ namespace SP {
   void updateSpatialPairsFromBroadphase(IAppBuilder& builder) {
     auto task = builder.createTask();
     task.setName("update spatial pairs");
-    const auto dstTable = builder.queryTables<ObjA, ObjB, PairTypeRow, ManifoldRow>().matchingTableIDs[0];
+    const auto dstTable = builder.queryTables<ObjA, ObjB, PairTypeRow, ManifoldRow>()[0];
     auto dstQuery = task.query<ObjA, ObjB, PairTypeRow, IslandGraphRow>(dstTable);
     auto dstModifier = task.getModifierForTable(dstTable);
     auto ids = task.getIDResolver();

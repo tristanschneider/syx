@@ -4,12 +4,9 @@
 #include <algorithm>
 #include "StableElementID.h"
 
-QueryResult<> RuntimeDatabase::query() {
-  QueryResult<> result;
-  result.matchingTableIDs.resize(tables.size());
-  for(size_t i = 0; i < tables.size(); ++i) {
-    result.matchingTableIDs[i] = getTableID(i);
-  }
+QueryResultBase RuntimeDatabase::query() {
+  std::vector<const RuntimeTable*> result(tables.size());
+  std::transform(tables.begin(), tables.end(), result.begin(), [](const RuntimeTable& t) { return &t; });
   return result;
 }
 
@@ -25,11 +22,11 @@ TableID RuntimeDatabase::getTableID(size_t index) const {
   return result;
 }
 
-QueryResult<> RuntimeDatabase::queryAliasTables(std::initializer_list<QueryAliasBase> aliases) const {
-  QueryResult result;
+QueryResultBase RuntimeDatabase::queryAliasTables(std::initializer_list<QueryAliasBase> aliases) const {
+  std::vector<const RuntimeTable*> result;
   for(size_t i = 0; i < tables.size(); ++i) {
     if(std::all_of(aliases.begin(), aliases.end(), [this, i](const QueryAliasBase& q) { return tables[i].tryGet(q.type) != nullptr; })) {
-      result.matchingTableIDs.push_back(tables[i].getID());
+      result.push_back(&tables[i]);
     }
   }
   return result;

@@ -9,22 +9,153 @@ using QueryResultRow = std::vector<RowT*>;
 
 template<class T> struct TestT : std::true_type {};
 
+template<class T>
+struct IterableRow {
+  T* row{};
+  size_t size{};
+
+  auto begin() const {
+    return row->begin();
+  }
+
+  auto end() const {
+    return row->begin() + size;
+  }
+
+  T* operator->() const {
+    return row;
+  }
+
+  T& operator*() const {
+    return *row;
+  }
+
+  T* get() const {
+    return row;
+  }
+
+  explicit operator bool() const {
+    return row != nullptr;
+  }
+};
+
 template<class... Rows>
-struct QueryResult {
+struct QueryResultBuilder {
+  using TupleT = std::tuple<QueryResultRow<Rows>...>;
+  TupleT tuple;
+  std::vector<const RuntimeTable*> tables;
+};
+
+class QueryResultBase {
+public:
+  class Iterator {
+  public:
+    using value_type = TableID;
+    using pointer = value_type*;
+    using reference = value_type&;
+
+    using TablePtr = const RuntimeTable*;
+
+    Iterator(const TablePtr* t)
+      : table{ t }
+    {
+    }
+
+    Iterator& operator++() {
+      ++table;
+      return *this;
+    }
+
+    Iterator operator++(int) {
+      Iterator tmp{ *this };
+      ++*this;
+      return tmp;
+    }
+
+    value_type operator*() const {
+      return (*table)->getID();
+    }
+
+    auto operator<=>(const Iterator&) const = default;
+
+  private:
+    const TablePtr* table{};
+  };
+
+  QueryResultBase() = default;
+
+  QueryResultBase(std::vector<const RuntimeTable*>&& t)
+    : tables{ std::move(t) }
+  {
+  }
+
+  size_t size() const {
+    return tables.size();
+  }
+
+  std::vector<TableID> getMatchingTableIDs() {
+    std::vector<TableID> result(tables.size());
+    std::transform(tables.begin(), tables.end(), result.begin(), [](const RuntimeTable* t) { return t->getID(); });
+    return result;
+  }
+
+  TableID getTableID(size_t i) const {
+    return i < tables.size() ? tables.at(i)->getID() : TableID{};
+  }
+
+  size_t tableSize(size_t i) const {
+    return i < tables.size() ? tables.at(i)->size() : 0;
+  }
+
+  TableID tryGet() const {
+    return getTableID(0);
+  }
+
+  TableID operator[](size_t i) const {
+    return getTableID(i);
+  }
+
+  Iterator begin() const {
+    return { tables.size() ? &tables[0] : nullptr };
+  }
+
+  Iterator end() const {
+    return { tables.size() ? (tables.data() + tables.size()) : nullptr };
+  }
+
+  bool contains(const TableID& id) const {
+    return std::any_of(tables.begin(), tables.end(), [&id](const RuntimeTable* t) { return t->getID() == id; });
+  }
+
+private:
+  std::vector<const RuntimeTable*> tables;
+};
+
+template<class... Rows>
+class QueryResult : public QueryResultBase {
+public:
   static_assert((isRow<Rows>() && ...), "Should only be used for rows");
   static_assert((!isNestedRow<Rows>() && ...), "Nested row is likely unintentional");
   using TupleT = std::tuple<QueryResultRow<Rows>...>;
   using IndicesT = std::index_sequence_for<Rows...>;
 
+  QueryResult() = default;
+  QueryResult(QueryResultBuilder<Rows...>&& b)
+    : QueryResultBase{ std::move(b.tables) }
+    , rows{ std::move(b.tuple) }
+  {
+  }
+
   template<class CB>
   void forEachElement(const CB& cb) {
-    for(size_t i = 0; i < matchingTableIDs.size(); ++i) {
+    for(size_t i = 0; i < size(); ++i) {
+      UnpackedDatabaseElementID id = getTableID(i);
       for(size_t e = 0; e < std::get<0>(rows).at(i)->size(); ++e) {
         if constexpr(std::is_invocable_v<CB, typename Rows::ElementT&...>) {
           cb(std::get<std::vector<Rows*>>(rows).at(i)->at(e)...);
         }
         else if constexpr(std::is_invocable_v<CB, UnpackedDatabaseElementID, typename Rows::ElementT&...>) {
-          UnpackedDatabaseElementID id = matchingTableIDs[i].remakeElement(e);
+          id.remakeElement(e);
           cb(id, std::get<std::vector<Rows*>>(rows).at(i)->at(e)...);
         }
       }
@@ -33,34 +164,34 @@ struct QueryResult {
 
   template<class CB>
   void forEachRow(CB&& cb) {
-    for(size_t i = 0; i < matchingTableIDs.size(); ++i) {
+    for(size_t i = 0; i < size(); ++i) {
       if constexpr(std::is_invocable_v<CB, Rows&...>) {
         cb(*std::get<std::vector<Rows*>>(rows).at(i)...);
       }
       else if constexpr(std::is_invocable_v<CB, UnpackedDatabaseElementID, Rows&...>) {
-        cb(matchingTableIDs[i], *std::get<std::vector<Rows*>>(rows).at(i)...);
+        cb(getTableID(i), *std::get<std::vector<Rows*>>(rows).at(i)...);
       }
     }
   }
 
   struct details {
     template<class TupleT, size_t... I>
-    static auto get(size_t i, TupleT& tuple, std::index_sequence<I...>) {
-      return std::make_tuple(std::get<I>(tuple).at(i)...);
+    static auto get(size_t i, TupleT& tuple, std::index_sequence<I...>, size_t tableSize) {
+      return std::make_tuple(IterableRow{ std::get<I>(tuple).at(i), tableSize }...);
     }
   };
 
   //Get all rows of a given table.
-  std::tuple<Rows*...> get(size_t i) {
-    return details::get(i, rows, IndicesT{});
+  std::tuple<IterableRow<Rows>...> get(size_t i) {
+    return details::get(i, rows, IndicesT{}, tableSize(i));
   }
 
-  std::tuple<Rows*...> getSingleton() {
+  std::tuple<IterableRow<Rows>...> getSingleton() {
     return get(0);
   }
 
   template<size_t I>
-  auto* getSingleton() {
+  auto getSingleton() {
     return std::get<I>(getSingleton());
   }
 
@@ -84,14 +215,17 @@ struct QueryResult {
 
   //Get a row by row type
   template<class RowT>
-  RowT& get(size_t tableIndex) {
-    return *std::get<std::vector<RowT*>>(rows).at(tableIndex);
+  IterableRow<RowT> get(size_t tableIndex) {
+    return { std::get<std::vector<RowT*>>(rows).at(tableIndex), tableSize(tableIndex) };
   }
 
   template<class RowT>
-  auto* tryGet(size_t tableIndex) {
+  IterableRow<RowT> tryGet(size_t tableIndex) {
     auto& rrow = std::get<std::vector<RowT*>>(rows);
-    return rrow.size() > tableIndex ? rrow.at(tableIndex) : nullptr;
+    if(rrow.size() > tableIndex) {
+      return { rrow.at(tableIndex), tableSize(tableIndex) };
+    }
+    return {};
   }
 
   //Return the first element in the first table
@@ -112,11 +246,7 @@ struct QueryResult {
     return result;
   }
 
-  size_t size() const {
-    return matchingTableIDs.size();
-  }
-
-  std::vector<TableID> matchingTableIDs;
+private:
   TupleT rows;
 };
 
@@ -163,7 +293,7 @@ public:
   }
 
   RuntimeTable* tryGet(const TableID& id);
-  QueryResult<> query();
+  QueryResultBase query();
 
   template<class... Rows>
   QueryResult<Rows...> query() {
@@ -171,8 +301,8 @@ public:
       return query();
     }
     else {
-      QueryResult<Rows...> result;
-      result.matchingTableIDs.reserve(tables.size());
+      QueryResultBuilder<Rows...> result;
+      result.tables.reserve(tables.size());
       for(size_t i = 0; i < tables.size(); ++i) {
         _tryAddResult(i, result);
       }
@@ -182,7 +312,7 @@ public:
 
   template<class... Rows>
   QueryResult<Rows...> query(const TableID& id) {
-    QueryResult<Rows...> result;
+    QueryResultBuilder<Rows...> result;
     const size_t index = id.getTableIndex();
     if(index < tables.size()) {
       _tryAddResult(index, result);
@@ -193,21 +323,21 @@ public:
   template<class... Aliases>
   auto queryAlias(const Aliases&... aliases) {
     if constexpr(sizeof...(Aliases) == 0) {
-      return query();
+      return QueryAliasBase{ query() };
     }
     else {
-      QueryResult<typename Aliases::RowT...> result;
-      result.matchingTableIDs.reserve(tables.size());
+      QueryResultBuilder<typename Aliases::RowT...> result;
+      result.tables.reserve(tables.size());
       for(size_t i = 0; i < tables.size(); ++i) {
         _tryAddAliasResult(i, result, aliases...);
       }
-      return result;
+      return QueryResult<typename Aliases::RowT...>{ std::move(result) };
     }
   }
 
   template<class... Aliases>
   auto queryAlias(const TableID& id, const Aliases&... aliases) {
-    QueryResult<typename Aliases::RowT...> result;
+    QueryResultBuilder<typename Aliases::RowT...> result;
     const size_t index = id.getTableIndex();
     if(index < tables.size()) {
       _tryAddAliasResult(index, result, aliases...);
@@ -215,7 +345,7 @@ public:
     return result;
   }
 
-  QueryResult<> queryAliasTables(std::initializer_list<QueryAliasBase> aliases) const;
+  QueryResultBase queryAliasTables(std::initializer_list<QueryAliasBase> aliases) const;
 
   DatabaseDescription getDescription();
   StableElementMappings& getMappings();
@@ -230,13 +360,14 @@ public:
 
 private:
   template<class... Rows>
-  void _tryAddResult(size_t index, QueryResult<Rows...>& result) {
-      std::tuple<Rows*...> rows{ tables[index].tryGet<std::decay_t<Rows>>()... };
-      const bool allFound = (std::get<Rows*>(rows) && ...);
-      if(allFound) {
-        result.matchingTableIDs.push_back(getTableID(index));
-        (std::get<std::vector<Rows*>>(result.rows).push_back(std::get<std::decay_t<Rows*>>(rows)), ...);
-      }
+  void _tryAddResult(size_t index, QueryResultBuilder<Rows...>& result) {
+    RuntimeTable& table = tables[index];
+    std::tuple<Rows*...> rows{ table.tryGet<std::decay_t<Rows>>()... };
+    const bool allFound = (std::get<Rows*>(rows) && ...);
+    if(allFound) {
+      result.tables.push_back(&table);
+      (std::get<std::vector<Rows*>>(result.tuple).push_back(std::get<std::decay_t<Rows*>>(rows)), ...);
+    }
   }
 
   template<class Tuple, size_t... I>
@@ -250,12 +381,13 @@ private:
   }
 
   template<class... Rows, class... Aliases>
-  void _tryAddAliasResult(size_t index, QueryResult<Rows...>& result, const Aliases&... aliases) {
+  void _tryAddAliasResult(size_t index, QueryResultBuilder<Rows...>& result, const Aliases&... aliases) {
     constexpr auto indices = std::index_sequence_for<Rows...>{};
-    std::tuple<Rows*...> rows{ aliases.cast(tables[index].tryGet(aliases.type))... };
+    RuntimeTable& table = tables[index];
+    std::tuple<Rows*...> rows{ aliases.cast(table.tryGet(aliases.type))... };
     if(areAllNotNull(rows, indices)) {
-      result.matchingTableIDs.push_back(getTableID(index));
-      copyAll(rows, result.rows, indices);
+      result.tables.push_back(&table);
+      copyAll(rows, result.tuple, indices);
     }
   }
 
@@ -266,24 +398,6 @@ private:
   std::unique_ptr<IRuntimeStorage> storage;
   gnx::DynamicBitset dirtyTables;
   DatabaseIndex databaseIndex{};
-};
-
-//Specialization that provides all row ids
-template<>
-struct QueryResult<> {
-  size_t size() const {
-    return matchingTableIDs.size();
-  }
-
-  const TableID& operator[](size_t i) const {
-    return matchingTableIDs[i];
-  }
-
-  TableID tryGet() const {
-    return matchingTableIDs.size() ? matchingTableIDs[0] : TableID{};
-  }
-
-  std::vector<TableID> matchingTableIDs;
 };
 
 namespace DBReflect {

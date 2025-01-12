@@ -39,7 +39,7 @@ namespace Test {
           ScaleYRow,
           const StableIDRow
         >();
-        auto terrainModifier = task.getModifiersForTables(terrain.matchingTableIDs);
+        auto terrainModifier = task.getModifiersForTables(terrain.getMatchingTableIDs());
         auto ids = task.getIDResolver();
 
         auto dynamics = task.query<
@@ -52,7 +52,7 @@ namespace Test {
           ConstraintSolver::MassRow,
           const StableIDRow
         >();
-        auto dynamicsModifier = task.getModifiersForTables(dynamics.matchingTableIDs);
+        auto dynamicsModifier = task.getModifiersForTables(dynamics);
 
         task.setCallback([=](AppTaskArgs& taskArgs) mutable {
           {

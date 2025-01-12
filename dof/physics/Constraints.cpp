@@ -175,7 +175,7 @@ namespace Constraints {
     for(size_t t = 0; t < definitions.size(); ++t) {
       auto [def] = definitions.get(t);
       for(size_t i = 0; i < def->at().definitions.size(); ++i) {
-        constraintTables.push_back(T{ task, i, def->at().definitions[i], definitions.matchingTableIDs[t] });
+        constraintTables.push_back(T{ task, i, def->at().definitions[i], definitions[t] });
       }
     }
     return constraintTables;
@@ -688,7 +688,7 @@ namespace Constraints {
     auto sp = task.query<const SP::IslandGraphRow, SP::PairTypeRow, SP::ConstraintRow, SP::ZConstraintRow>();
     assert(sp.size());
     auto [g, p, c, cz] = sp.get(0);
-    SpatialPairsTable spatialPairs{ c, cz, p };
+    SpatialPairsTable spatialPairs{ c.get(), cz.get(), p.get() };
     const IslandGraph::Graph* graph = &g->at();
     pt::TransformResolver tr{ task, aliases };
 
@@ -749,7 +749,7 @@ namespace Constraints {
     std::unordered_map<TableID, Managed> managedTables;
     for(size_t i = 0; i < q.size(); ++i) {
       const auto& [def, _] = q.get(i);
-      const TableID& table = q.matchingTableIDs[i];
+      const TableID& table = q[i];
       Managed& managed = managedTables[table];
       ResolveConstTarget resolveTarget{ task, table };
       for(size_t c = 0; c < def->at().definitions.size(); ++c) {

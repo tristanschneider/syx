@@ -54,9 +54,9 @@ namespace Test {
 
     struct TableIds {
       TableIds(RuntimeDatabaseTaskBuilder& task)
-        : dynamicBodies{ task.query<LinVelX>().matchingTableIDs[0] }
-        , staticBodies{ task.query<StaticTag>().matchingTableIDs[0] }
-        , spatialPairs{ task.query<SP::ManifoldRow>().matchingTableIDs[0] }
+        : dynamicBodies{ task.query<LinVelX>()[0] }
+        , staticBodies{ task.query<StaticTag>()[0] }
+        , spatialPairs{ task.query<SP::ManifoldRow>()[0] }
       {}
 
       TableID dynamicBodies, staticBodies, spatialPairs;

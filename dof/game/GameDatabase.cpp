@@ -456,7 +456,7 @@ namespace GameDatabase {
       for(size_t t = 0; t < q.size(); ++t) {
         auto& definitions = q.get<0>(t);
         Constraints::Definition def;
-        if(res->tryGetRow<const Constraints::CustomConstraintRow>(q.matchingTableIDs[t])) {
+        if(res->tryGetRow<const Constraints::CustomConstraintRow>(q[t])) {
           def.custom = def.custom.create();
         }
         def.targetA = Constraints::SelfTarget{};

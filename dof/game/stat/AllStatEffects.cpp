@@ -46,11 +46,11 @@ namespace StatEffect {
     auto temp = builder.createTask();
     temp.discard();
 
-    for(auto table : builder.queryTables<StatEffect::Lifetime>().matchingTableIDs) {
+    for(auto table : builder.queryTables<StatEffect::Lifetime>()) {
       StatEffect::tickLifetime(&builder, table, 0);
     }
 
-    for(auto table : builder.queryTables<StatEffect::StatEffectTagRow>().matchingTableIDs) {
+    for(auto table : builder.queryTables<StatEffect::StatEffectTagRow>()) {
       const Config config = *temp.query<StatEffect::ConfigRow>(table).tryGetSingletonElement();
       for(const CurveAlias& curve : config.curves) {
         StatEffect::solveCurves(builder, table, curve);

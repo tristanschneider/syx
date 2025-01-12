@@ -47,7 +47,7 @@ namespace PhysicsModule {
       auto resolver = ids->getRefResolver();
 
       for(size_t t = 0; t < query.size(); ++t) {
-        const auto thisTable = query.matchingTableIDs[t];
+        const auto thisTable = query[t];
         auto [graph, manifolds] = query.get(t);
         IslandGraph::Graph& g = graph->at();
         //Hack since by the time this runs the islands could be out of date from elements being removed

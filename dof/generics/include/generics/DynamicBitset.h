@@ -231,10 +231,10 @@ namespace gnx {
         return *this;
       }
 
-      ConstIt& operator++(int) {
+      ConstIt operator++(int) {
         ConstIt tmp{ *this };
         ++*this;
-        return *this;
+        return tmp;
       }
 
       value_type operator*() const {
@@ -411,11 +411,20 @@ namespace gnx {
     }
 
     void reallocate(size_t newSize) {
-      deallocate();
+      //Swap to a temporary to deallocate while still being viewable to copy
+      DynamicBitset old;
+      old.swap(*this);
+
       if(newSize > IN_PLACE_STORAGE) {
         storage = new uint8_t[bitops::bytesToContainBits(newSize)](0);
       }
+      else {
+        storage = nullptr;
+      }
       sizeBits = newSize;
+
+      //Copy old values
+      std::memcpy(getStorage(), old.getStorage(), std::min(old.size(), size()));
     }
 
     //Use the pointer as storage itself if the bit count is small enough

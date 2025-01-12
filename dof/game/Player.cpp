@@ -184,7 +184,7 @@ namespace Player {
       const FloatRow<GRot, CosAngle>, FloatRow<GRot, SinAngle>
     >();
     auto debug = TableAdapters::getDebugLines(task);
-    Constraints::Builder motorBuilder{ Constraints::Definition::resolve(task, players.matchingTableIDs[0], MOTOR_KEY) };
+    Constraints::Builder motorBuilder{ Constraints::Definition::resolve(task, players[0], MOTOR_KEY) };
 
     task.setCallback([players, config, debug, motorBuilder](AppTaskArgs& args) mutable {
       for(size_t t = 0; t < players.size(); ++t) {

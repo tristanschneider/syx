@@ -35,12 +35,12 @@ namespace Scenes {
         ConstraintSolver::SharedMassRow,
         const StableIDRow
       >();
-      if(objs.matchingTableIDs.empty() || terrain.matchingTableIDs.empty()) {
+      if(!objs.size() || !terrain.size()) {
         task.discard();
         return;
       }
-      auto objsModifier = task.getModifierForTable(objs.matchingTableIDs[0]);
-      auto terrainModifier = task.getModifierForTable(terrain.matchingTableIDs[0]);
+      auto objsModifier = task.getModifierForTable(objs[0]);
+      auto terrainModifier = task.getModifierForTable(terrain[0]);
       auto ids = task.getIDResolver();
 
       task.setCallback([ids, objs, terrain, objsModifier, terrainModifier](AppTaskArgs& args) mutable {

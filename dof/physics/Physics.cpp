@@ -21,7 +21,7 @@ namespace Physics {
   }
 
   void applyDampingMultiplierAxis(IAppBuilder& builder, const QueryAlias<Row<float>>& axis, const float& multiplier) {
-    for(const TableID& table : builder.queryAliasTables(axis).matchingTableIDs) {
+    for(const TableID& table : builder.queryAliasTables(axis)) {
       auto task = builder.createTask();
       task.setName("damping");
       Row<float>* axisRow = &task.queryAlias(table, axis).get<0>(0);
@@ -34,7 +34,7 @@ namespace Physics {
   }
 
   void integratePositionAxis(IAppBuilder& builder, const QueryAlias<Row<float>>& position, const QueryAlias<const Row<float>>& velocity) {
-    for(const TableID& table : builder.queryAliasTables(position, velocity).matchingTableIDs) {
+    for(const TableID& table : builder.queryAliasTables(position, velocity)) {
       auto task = builder.createTask();
       task.setName("Integrate Position");
       auto query = task.queryAlias(table, position, velocity.read());
@@ -63,7 +63,7 @@ namespace Physics {
   }
 
   void integrateRotation(IAppBuilder& builder, const PhysicsAliases& aliases) {
-    for(const TableID& table : builder.queryAliasTables(aliases.rotX, aliases.rotY, aliases.angVel.read()).matchingTableIDs) {
+    for(const TableID& table : builder.queryAliasTables(aliases.rotX, aliases.rotY, aliases.angVel.read())) {
       auto task = builder.createTask();
       auto query = task.queryAlias(table, aliases.rotX, aliases.rotY, aliases.angVel.read());
       task.setName("integrate rotation");
@@ -81,7 +81,7 @@ namespace Physics {
   void applyDampingMultiplier(IAppBuilder& builder, const PhysicsAliases& aliases, const float& linearMultiplier, const float& angularMultiplier) {
     applyDampingMultiplierAxis(builder, aliases.linVelX, linearMultiplier);
     applyDampingMultiplierAxis(builder, aliases.linVelY, linearMultiplier);
-    //Damping on Z doesn't realy matter because the primary use case is simple upwards impulses counteracted by gravity
+    //Damping on Z doesn't really matter because the primary use case is simple upwards impulses counteracted by gravity
     applyDampingMultiplierAxis(builder, aliases.angVel, angularMultiplier);
   }
 }

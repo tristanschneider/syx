@@ -11,7 +11,7 @@ namespace Loader {
     {
       auto q = task.query<const RequestedTagRow, const StableIDRow, LoadRequestRow, UsageTrackerBlockRow>();
       assert(q.size());
-      modifier = task.getModifierForTable(q.matchingTableIDs[0]);
+      modifier = task.getModifierForTable(q[0]);
       requests = &q.get<2>(0);
       ids = &q.get<1>(0);
       usageTracker = &q.get<3>(0);

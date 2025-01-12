@@ -22,14 +22,14 @@ namespace Scenes {
       task.discard();
       return;
     }
-    std::shared_ptr<ITableModifier> cameraModifier = task.getModifierForTable(cameras.matchingTableIDs.front());
+    std::shared_ptr<ITableModifier> cameraModifier = task.getModifierForTable(cameras[0]);
     auto players = task.query<
       FloatRow<Tags::Pos, Tags::X>,
       FloatRow<Tags::Pos, Tags::Y>,
       GameInput::PlayerInputRow,
       const StableIDRow>();
     Config::GameConfig* config = task.query<SharedRow<Config::GameConfig>>().tryGetSingletonElement();
-    std::shared_ptr<ITableModifier> playerModifier = task.getModifierForTable(players.matchingTableIDs.front());
+    std::shared_ptr<ITableModifier> playerModifier = task.getModifierForTable(players[0]);
     const SceneState* scene = task.query<const SharedRow<SceneState>>().tryGetSingletonElement();
 
     task.setCallback([scene, cameras, cameraModifier, players, playerModifier, config](AppTaskArgs& args) mutable {
@@ -46,7 +46,7 @@ namespace Scenes {
       mainCamera.zoom = 1.5f;
 
       playerModifier->resize(1);
-      const StableIDRow& playerStableRow = players.get<const StableIDRow>(0);
+      const StableIDRow& playerStableRow = *players.get<const StableIDRow>(0);
       //TODO: this could be built into the modifier itself
       const size_t playerIndex = 0;
       Events::onNewElement(playerStableRow.at(playerIndex), args);
@@ -81,8 +81,8 @@ namespace Scenes {
       ScaleYRow,
       const StableIDRow
     >();
-    auto modifiers = task.getModifiersForTables(fragments.matchingTableIDs);
-    auto terrainModifier = task.getModifiersForTables(terrain.matchingTableIDs);
+    auto modifiers = task.getModifiersForTables(fragments.getMatchingTableIDs());
+    auto terrainModifier = task.getModifiersForTables(terrain.getMatchingTableIDs());
     auto foundTable = builder.queryTables<FragmentGoalFoundTableTag>();
     if(!scene) {
       task.discard();
@@ -107,16 +107,11 @@ namespace Scenes {
           continue;
         }
         modifiers[t]->resize(total);
-        auto tableRows = fragments.get(t);
-        const StableIDRow& stableIDs = fragments.get<const StableIDRow>(t);
-        for(size_t s = 0; s < stableIDs.size(); ++s) {
-          Events::onNewElement(stableIDs.at(s), taskArgs);
+        auto [posX, posY, goalX, goalY, sprites, stableIDs] = fragments.get(t);
+        for(size_t s = 0; s < stableIDs->size(); ++s) {
+          Events::onNewElement(stableIDs->at(s), taskArgs);
         }
 
-        auto& posX = *std::get<FloatRow<Pos, X>*>(tableRows);
-        auto& posY = *std::get<FloatRow<Pos, Y>*>(tableRows);
-        auto& goalX = *std::get<FloatRow<FragmentGoal, X>*>(tableRows);
-        auto& goalY = *std::get<FloatRow<FragmentGoal, Y>*>(tableRows);
         //Shuffle indices randomly
         std::vector<size_t> indices(rows*columns);
         int counter = 0;
@@ -132,11 +127,11 @@ namespace Scenes {
         for(size_t j = 0; j < total; ++j) {
           //Immediately complete the desired amount of fragments
           if(j < totalCompleted && foundTable.size()) {
-            Events::onMovedElement(stableIDs.at(j), foundTable[0], taskArgs);
+            Events::onMovedElement(stableIDs->at(j), foundTable[0], taskArgs);
           }
 
           const size_t shuffleIndex = indices[j];
-          CubeSprite& sprite = std::get<Row<CubeSprite>*>(tableRows)->at(j);
+          CubeSprite& sprite = sprites->at(j);
           const size_t row = j / columns;
           const size_t column = j % columns;
           const size_t shuffleRow = shuffleIndex / columns;
@@ -147,23 +142,23 @@ namespace Scenes {
           sprite.uMax = sprite.uMin + scaleX;
           sprite.vMax = sprite.vMin + scaleY;
 
-          goalX.at(j) = startX + sprite.uMin*float(columns);
-          goalY.at(j) = startY + sprite.vMin*float(rows);
+          goalX->at(j) = startX + sprite.uMin*float(columns);
+          goalY->at(j) = startY + sprite.vMin*float(rows);
 
           //Flip from assuming bottom left texture origin to top left
           sprite.vMax = 1.f - sprite.vMax;
           sprite.vMin = 1.f - sprite.vMin;
           std::swap(sprite.vMax, sprite.vMin);
 
-          posX.at(j) = startX + shuffleColumn;
-          posY.at(j) = startY + shuffleRow;
+          posX->at(j) = startX + shuffleColumn;
+          posY->at(j) = startY + shuffleRow;
         }
 
         const float boundaryPadding = 10.0f;
         const size_t first = 0;
         const size_t last = total - 1;
-        scene->mBoundaryMin = glm::vec2(goalX.at(first), goalY.at(first)) - glm::vec2(boundaryPadding);
-        scene->mBoundaryMax = glm::vec2(goalX.at(last), goalY.at(last)) + glm::vec2(boundaryPadding);
+        scene->mBoundaryMin = glm::vec2(goalX->at(first), goalY->at(first)) - glm::vec2(boundaryPadding);
+        scene->mBoundaryMax = glm::vec2(goalX->at(last), goalY->at(last)) + glm::vec2(boundaryPadding);
       }
 
       if(terrain.size() && args->addGround) {

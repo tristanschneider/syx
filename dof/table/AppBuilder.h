@@ -268,7 +268,7 @@ public:
   template<class... Rows>
   QueryResult<Rows...> query() {
     QueryResult<Rows...> result = db.query<Rows...>();
-    (log<Rows>(result.matchingTableIDs), ...);
+    (log<Rows>(result.getMatchingTableIDs()), ...);
     return result;
   }
 
@@ -285,7 +285,7 @@ public:
   template<class... Aliases>
   auto queryAlias(const Aliases&... aliases) {
     QueryResult<typename Aliases::RowT...> result = db.queryAlias(aliases...);
-    (log(aliases, result.matchingTableIDs), ...);
+    (log(aliases, result.getMatchingTableIDs()), ...);
     return result;
   }
 
@@ -301,11 +301,13 @@ public:
 
   //Query table ids without the actual data. Does not log the dependency
   template<class... Rows>
-  QueryResult<> queryTables() {
-    QueryResult<Rows...> temp = db.query<Rows...>();
-    QueryResult<> result;
-    result.matchingTableIDs = std::move(temp.matchingTableIDs);
-    return result;
+  QueryResultBase queryTables() {
+    return db.query<Rows...>();
+  }
+
+  template<class... Aliases>
+  QueryResultBase queryAliasTables(const Aliases&... aliases) {
+    return db.queryAliasTables({ aliases... });
   }
 
   //Modifiers allow immediatly adding or removing elements from tables.
@@ -315,6 +317,7 @@ public:
   //Delete: use IDBEvents to emit an event from the current table to no destination. The deletion will be performed by TableService
   std::shared_ptr<ITableModifier> getModifierForTable(const TableID& table);
   std::vector<std::shared_ptr<ITableModifier>> getModifiersForTables(const std::vector<TableID>& tables);
+  std::vector<std::shared_ptr<ITableModifier>> getModifiersForTables(const QueryResultBase& tables);
   std::shared_ptr<AppTaskConfig> getConfig();
 
   RuntimeDatabaseTaskBuilder& setPinning(AppTaskPinning::Variant pinning);
@@ -332,12 +335,12 @@ public:
 private:
   template<class T>
   void log() {
-    log<T>(db.query<std::decay_t<T>>().matchingTableIDs);
+    log<T>(db.query<std::decay_t<T>>().getMatchingTableIDs());
   }
 
   template<class T>
   void log(const CachedRow<T>&) {
-    log<T>(db.query<std::decay_t<T>>().matchingTableIDs);
+    log<T>(db.query<std::decay_t<T>>().getMatchingTableIDs());
   }
 
   template<class T>
@@ -350,7 +353,7 @@ private:
 
   template<class Alias>
   void log(const Alias& alias) {
-    log(alias, db.queryAlias(alias).matchingTableIDs);
+    log(alias, db.queryAlias(alias).getMatchingTableIDs());
   }
 
   void log(const QueryAliasBase& alias, const std::vector<TableID>& tableIds);
@@ -399,27 +402,20 @@ public:
 
   //Shorthand to get table ids to use in tasks that want to only access one table at a time
   template<class... Aliases>
-  QueryResult<> queryAliasTables(const Aliases&... aliases) {
+  QueryResultBase queryAliasTables(const Aliases&... aliases) {
     auto temp = createTask();
-    QueryResult<> result;
-    result.matchingTableIDs = std::move(temp.queryAlias(aliases...).matchingTableIDs);
-    temp.discard();
-    return result;
+    return temp.discard(), temp.queryAliasTables(aliases...);
   }
 
   template<class... Rows>
-  QueryResult<> queryTables() {
+  QueryResultBase queryTables() {
     auto temp = createTask();
-    QueryResult<> result;
-    result.matchingTableIDs = std::move(temp.query<Rows...>().matchingTableIDs);
-    temp.discard();
-    return result;
+    return temp.discard(), temp.queryTables<Rows...>();
   }
 
   //Query if the table has the row
   template<class... Rows>
   bool queryTable(const TableID& id) {
-    auto temp = queryTables<Rows...>();
-    return std::find(temp.matchingTableIDs.begin(), temp.matchingTableIDs.end(), id) != temp.matchingTableIDs.end();
+    return queryTables<Rows...>().contains(id);
   }
 };

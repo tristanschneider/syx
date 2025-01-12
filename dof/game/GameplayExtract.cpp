@@ -16,7 +16,7 @@ namespace GameplayExtract {
     auto temp = builder.createTask();
     QueryResult<const Src, Dst> tables = temp.query<const Src, Dst>();
 
-    for(const TableID& id : tables.matchingTableIDs) {
+    for(const TableID id : tables) {
       CommonTasks::copyRowSameSize<Src, Dst>(builder, id, id);
     }
 
@@ -53,7 +53,7 @@ namespace GameplayExtract {
       for(size_t i = 0; i < query.size(); ++i) {
         auto [ x, y, a, stable ] = query.get(i);
         CachedRow<FloatRow<GLinImpulse, Z>> impulseZ;
-        resolver->tryGetOrSwapRow(impulseZ, query.matchingTableIDs[i]);
+        resolver->tryGetOrSwapRow(impulseZ, query[i]);
 
         for(size_t j = 0; j < x->size(); ++j) {
           const glm::vec2 linear{ x->at(j), y->at(j) };

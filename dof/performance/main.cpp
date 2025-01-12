@@ -42,7 +42,7 @@ namespace Performance {
       Tags::PosYRow,
       const StableIDRow
     >();
-    auto modifiers = task.getModifiersForTables(q.matchingTableIDs);
+    auto modifiers = task.getModifiersForTables(q.getMatchingTableIDs());
     for(size_t t = 0; t < q.size(); ++t) {
       auto [_, px, py, stable] = q.get(t);
       constexpr size_t sx = 100;
