@@ -7,5 +7,5 @@ target_link_libraries(table PUBLIC generics)
 # Include this directory to anyone that includes this cmakelists
 target_include_directories(table PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
-file(GLOB_RECURSE source *.cpp)
-target_sources(table PRIVATE ${headers} ${source})
+file(GLOB_RECURSE source *.cpp *.natvis)
+target_sources(table PRIVATE ${headers} ${source} ${natvis})

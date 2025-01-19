@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+  <Type Name="PackedIndexArray">
+    <Intrinsic Name="byteMask" Expression="(size_t(1) &lt;&lt; size_t(byteWidth*8)) - 1"/>
+    <DisplayString>{{ size={bufferSize}, capacity={bufferCapacity}}}</DisplayString>
+    <Expand>
+      <IndexListItems>
+        <Size>bufferSize</Size>
+        <ValueNode>buffer[$i*byteWidth]&amp;byteMask()</ValueNode>
+      </IndexListItems>
+    </Expand>
+  </Type>
+  <Type Name="SparseRow&lt;*&gt;">
+    <Intrinsic Name="packedIndexBuffer" Expression="denseToSparse.buffer"/>
+    <Intrinsic Name="bufferWidth" Expression="denseToSparse.byteWidth"/>
+    <Intrinsic Name="byteMask" Expression="(size_t(1) &lt;&lt; size_t(denseToSparse.byteWidth*8)) - 1"/>
+    <DisplayString>{{ size={denseToSparse.bufferSize}}</DisplayString>
+    <Expand>
+      <CustomListItems MaxItemsPerView="1000">
+        <Variable Name="index" InitialValue="0" />
+        <Variable Name="size" InitialValue="denseToSparse.bufferSize - 1" />
+        <Size>denseToSparse.bufferSize - 1</Size>
+        <Exec>index = 0</Exec>
+        <Loop>
+          <Break Condition="index == size"/>
+          <Item Name="{packedIndexBuffer()[(index+1)*bufferWidth()]&amp;byteMask()}">($T1&amp;)packedValues[index]</Item>
+          <Exec>++index</Exec>
+        </Loop>
+      </CustomListItems>
+    </Expand>
+  </Type>
+</AutoVisualizer>

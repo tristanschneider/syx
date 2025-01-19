@@ -2,10 +2,14 @@
 
 #include "IRow.h"
 #include "generics/DynamicBitset.h"
+#include <cassert>
 
 class PackedIndexArray {
 public:
   using IndexBase = size_t;
+
+  //Min nonzero size this can be. The capacity that will result in push_back of an empty PackedIndexArray
+  static constexpr size_t MIN_SIZE = 10;
 
   class ConstIterator {
   public:
@@ -90,7 +94,9 @@ public:
     }
 
     void operator=(IndexBase i) {
-      reinterpret_cast<size_t&>(*getBuffer()) |= i;
+      size_t& v = reinterpret_cast<size_t&>(*getBuffer());
+      //Set just the masked bits to i
+      v = (v & ~this->mask) | (i & this->mask);
     }
 
   private:
@@ -119,13 +125,16 @@ public:
     std::swap(buffer, rhs.buffer);
     std::swap(bufferSize, rhs.bufferSize);
     std::swap(bufferCapacity, rhs.bufferCapacity);
+    std::swap(byteWidth, rhs.byteWidth);
   }
 
   ConstIterator at(IndexBase i) const {
+    assert(i < size());
     return cbegin() + i;
   }
 
   Iterator at(IndexBase i) {
+    assert(i < size());
     return begin() + i;
   }
 
@@ -192,12 +201,19 @@ public:
 
   void push_back(IndexBase i) {
     if(capacity() <= size()) {
-      const size_t newSize = std::max(static_cast<size_t>(10), capacity()*2);
+      const size_t newSize = std::max(MIN_SIZE, capacity()*2);
       reallocate(newSize, byteWidth);
     }
     const size_t e = size();
     ++bufferSize;
     at(e) = i;
+  }
+
+  void clear() {
+    if(buffer) {
+      std::memset(buffer, 0, bufferSize*static_cast<uint32_t>(getByteWidth()));
+    }
+    bufferSize = 0;
   }
 
 private:
@@ -218,7 +234,7 @@ private:
     bufferSize = old.size();
     bufferCapacity = newSize;
     for(IndexBase i = 0; i < old.size(); ++i) {
-      at(i) = old.at(i);
+      at(i) = *old.at(i);
     }
   }
 
@@ -245,80 +261,24 @@ private:
   uint8_t* buffer{};
   uint32_t bufferSize{};
   uint32_t bufferCapacity{};
-  uint8_t byteWidth{};
+  uint8_t byteWidth = 1;
 };
-/*
-class SlimSparseMap {
-public:
-  using IndexBase = size_t;
-  using SparseIndex = IndexBase;
-  using PackedIndex = IndexBase;
-
-  struct BitWidth {
-    uint8_t sparse{};
-    uint8_t packed{};
-  };
-
-  class Iterator {
-  public:
-
-  private:
-    IndexBase packedIndex{};
-    SlimSparseMap* map{};
-  };
-
-  SlimSparseMap(SlimSparseMap&& rhs) {
-  }
-
-  ~SlimSparseMap() {
-  }
-
-  //Resize the sparse mapping. This size is the allowed bounds for insert and erase calls
-  void resize(IndexBase sparseIndices) {
-
-  }
-
-  void reservePacked(PackedIndex size) {
-  }
-
-  IndexBase insert(SparseIndex sparse) {
-
-  }
-
-  bool erase(SparseIndex sparse) {
-
-  }
-
-
-
-private:
-  void reset() {
-    if(sparseMap) {
-    }
-  }
-
-  BitWidth getWidth() const {
-    return width;
-  }
-
-  //Index of table into this gives the packed index. Type is based on smallest type needed to store index
-  uint8_t* sparseMap{};
-  uint8_t* packedIndices{};
-  uint32_t packedSize{};
-  uint32_t packedCapacity{};
-  BitWidth width;
-};
-*/
-
 
 class SparseRowBase : public IRow {
 public:
   using IteratorBase = PackedIndexArray::Iterator;
   using ConstIteratorBase = PackedIndexArray::ConstIterator;
 
-  IteratorBase beginBase() { return denseToSparse.begin(); }
+  static constexpr size_t SENTINEL_OFFSET = 1;
+
+  SparseRowBase() {
+    //Reverse sentinel so zero can be invalid index
+    denseToSparse.push_back(0);
+  }
+
+  IteratorBase beginBase() { return denseToSparse.begin() + SENTINEL_OFFSET; }
   IteratorBase endBase() { return denseToSparse.end(); }
-  ConstIteratorBase beginBase() const { return denseToSparse.cbegin(); }
+  ConstIteratorBase beginBase() const { return denseToSparse.cbegin() + SENTINEL_OFFSET; }
   ConstIteratorBase endBase() const { return denseToSparse.cend(); }
 
   ConstIteratorBase findBase(size_t sparse) const {
@@ -326,7 +286,7 @@ public:
     return denseIndex ? denseToSparse.at(denseIndex) : denseToSparse.cend();
   }
 
-  size_t size() const { return denseToSparse.size(); }
+  size_t size() const { return denseToSparse.size() - SENTINEL_OFFSET; }
 
 protected:
   virtual void onMove(size_t from, size_t to, size_t count) = 0;
@@ -339,10 +299,7 @@ protected:
       const size_t existing = denseToSparse.size();
       //Sizing down is inefficient to determine which of the removed elements had sparse entries
       //Do the least traversal by either traversing removed entries or current entries based on which is smaller
-      if(!newSize) {
-
-      }
-      else if(toRemove < existing) {
+      if(toRemove < existing) {
         for(auto it = sparseToDense.at(newSize); it != sparseToDense.end(); ++it) {
           if(*it) {
             erase(it - sparseToDense.begin());
@@ -350,7 +307,7 @@ protected:
         }
       }
       else {
-        for(auto it = denseToSparse.begin(); it != denseToSparse.end();) {
+        for(auto it = beginBase(); it != endBase();) {
           if(*it >= newSize) {
             erase(*it);
           }
@@ -370,7 +327,7 @@ protected:
       const PackedIndexArray::IndexBase freeDenseIndex = *it;
       const PackedIndexArray::IndexBase swapDenseIndex = denseToSparse.size() - 1;
 
-      onMove(swapDenseIndex, freeDenseIndex, 1);
+      onMove(swapDenseIndex - SENTINEL_OFFSET, freeDenseIndex - SENTINEL_OFFSET, 1);
 
       auto denseIt = denseToSparse.at(*it);
       //Erase the mapping of the sparse id to the dense index
@@ -381,7 +338,7 @@ protected:
         //Point the dense mapping of the erased element to the sparse index of the swap element
         denseIt = *toSwap;
         //Point the sparse mapping at the dense slot that was just erased
-        toSwap = freeDenseIndex;
+        sparseToDense.at(*toSwap) = freeDenseIndex;
       }
       denseToSparse.pop_back();
       return freeDenseIndex;
@@ -393,29 +350,31 @@ protected:
   //This means the table index changed but the value should change the same. Intended for moving
   void remap(size_t fromSparse, size_t toSparse) {
     if(auto dense = sparseToDense.at(fromSparse); *dense) {
-      dense = toSparse;
-      sparseToDense.at(toSparse) = dense - sparseToDense.begin();
+      //Point the new sparse mapping at the densed element the previous was pointing at
+      sparseToDense.at(toSparse) = *dense;
+      //Clear the previous sparse mapping
+      dense = 0;
     }
   }
 
   size_t emplace_back(size_t sparseIndex) {
+    assert(sparseIndex < sparseToDense.size());
     CapacityEventScope scope{ *this };
 
     const size_t dense = denseToSparse.size();
     denseToSparse.push_back(sparseIndex);
     sparseToDense.at(sparseIndex) = dense;
 
-    return dense;
+    return dense - SENTINEL_OFFSET;
   }
 
-  void trySwapRemove(size_t i) {
+  void trySwapRemove(size_t toRemove, size_t toSwap) {
     //Erase the original element
-    size_t removed = erase(i);
+    size_t removed = erase(toRemove);
     if(removed) {
       //Remap the last element to the new swap location. Doesn't need to change the dense element itself
-      const size_t sparseSwapSlot = sparseToDense.size() - 1;
-      if(sparseSwapSlot != i) {
-        remap(sparseSwapSlot, i);
+      if(toRemove != toSwap) {
+        remap(toSwap, toRemove);
       }
     }
   }
@@ -539,8 +498,8 @@ public:
   using ConstIteratorT = ConstIterator;
 
   SparseRow() {
-    //Add a reverse sentinel value so zero is invalid index
-    emplace_back(0);
+    //Account for the space caused by adding the sentinel value in SparseRowBase
+    onResize(0, PackedIndexArray::MIN_SIZE);
   }
 
   ~SparseRow() {
@@ -562,9 +521,9 @@ public:
     resizeBase(newSize);
   }
 
-  void swapRemove(size_t begin, size_t end, size_t) final {
+  void swapRemove(size_t begin, size_t end, size_t tableSize) final {
     for(size_t i = begin; i < end; ++i) {
-      trySwapRemove(i);
+      trySwapRemove(i, --tableSize);
     }
   }
 
@@ -649,8 +608,9 @@ protected:
 
   void onResize(size_t oldSize, size_t newSize) {
     ElementT* prev = packedValues;
-    packedValues = new ElementT[newSize];
+    packedValues = new ElementT[newSize]{};
     if(prev) {
+      //This assumes size only ever goes up
       for(size_t i = 0; i < oldSize; ++i) {
         packedValues[i] = std::move(prev[i]);
       }

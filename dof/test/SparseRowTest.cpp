@@ -69,11 +69,18 @@ namespace Test {
       Assert::AreEqual(size_t(1), ra->size());
       Assert::AreEqual(5, ra->getOrAdd(5));
 
+      ra->getOrAdd(5) = 10;
+      Assert::AreEqual(10, ra->getOrAdd(5));
+      Assert::AreEqual(size_t(1), ra->size());
+
       a.addElements(1);
       {
         auto it = ra->find(5);
         Assert::IsTrue(it != ra->end());
       }
+
+      ra->erase(5);
+      Assert::AreEqual(size_t(0), ra->size());
 
       for(size_t i = 0; i < a.size(); ++i) {
         ra->getOrAdd(i) = static_cast<int>(i);
@@ -86,7 +93,8 @@ namespace Test {
           Assert::AreEqual(i, v);
           ++i;
         }
-        Assert::AreEqual(100, i);
+        Assert::AreEqual(101, i);
+        Assert::AreEqual(size_t(101), ra->size());
       }
 
       for(size_t i = 0; i < a.size(); ++i) {
