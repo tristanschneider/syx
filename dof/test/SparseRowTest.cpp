@@ -40,7 +40,7 @@ namespace Test {
         Assert::IsTrue(std::find(a.begin(), a.end(), PackedIndexArray::IndexBase{ 3 }) != a.end());
       }
     }
-    /* TODO: make it pass
+
     TEST_METHOD(SparseRowBasic) {
       RuntimeDatabase db = createDatabase<Database<
         Table<SparseRow<int>>,
@@ -126,7 +126,23 @@ namespace Test {
         auto it = rb->find(i);
         Assert::IsTrue(it != rb->end());
         Assert::AreEqual(it.key(), i);
-        Assert::AreEqual(static_cast<int>(i), it.value());
+        //Since this is the second half of the table, the expected values are offset by migrate count
+        Assert::AreEqual(static_cast<int>(i + migrateCount), it.value());
+      }
+
+      //All sparse elements that had values were moved to B, leaving nothing in A
+      Assert::AreEqual(size_t(0), ra->size());
+
+      //rb should have the moved elements whose value matches the index offset by the number of remaining elements in ra
+      {
+        PackedIndexArray visited;
+        visited.resize(migrateCount, migrateCount);
+        for(auto it = rb->begin(); it != rb->end(); ++it) {
+          visited.at(it.key()) = it.value();
+        }
+        for(size_t i = 0; i < visited.size(); ++i) {
+          Assert::AreEqual(i + migrateCount, *visited.at(i));
+        }
       }
 
       a.resize(0);
@@ -136,7 +152,29 @@ namespace Test {
       RuntimeTable::migrate(0, a, b, 10);
 
       Assert::AreEqual(static_cast<size_t>(0), rb->size());
+
+      a.resize(10);
+      b.resize(10);
+      ra->getOrAdd(0) = 1;
+      ra->getOrAdd(2) = 2;
+      ra->getOrAdd(3) = 3;
+
+      RuntimeTable::migrate(0, a, b, 5);
+
+      Assert::IsFalse(ra->contains(0));
+      Assert::IsFalse(ra->contains(2));
+      Assert::IsFalse(ra->contains(3));
+
+      Assert::AreEqual(size_t(15), b.size());
+      Assert::AreEqual(size_t(3), rb->size());
+      {
+        auto it = rb->find(10);
+        Assert::IsTrue(it != rb->end() && it.key() == 10 && it.value() == 1);
+        it = rb->find(12);
+        Assert::IsTrue(it != rb->end() && it.key() == 12 && it.value() == 2);
+        it = rb->find(13);
+        Assert::IsTrue(it != rb->end() && it.key() == 13 && it.value() == 3);
+      }
     }
-    */
   };
 }

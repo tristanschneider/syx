@@ -522,8 +522,8 @@ public:
   }
 
   void swapRemove(size_t begin, size_t end, size_t tableSize) final {
-    for(size_t i = begin; i < end; ++i) {
-      trySwapRemove(i, --tableSize);
+    for(size_t i = 0; i < end - begin; ++i) {
+      trySwapRemove(end - (i + 1), --tableSize);
     }
   }
 

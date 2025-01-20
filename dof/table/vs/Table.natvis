@@ -29,4 +29,11 @@
       </CustomListItems>
     </Expand>
   </Type>
+  <Type Name="PackedIndexArray::ConstIterator">
+    <DisplayString>{(*((const size_t*)buffer))&amp;mask}</DisplayString>
+  </Type>
+  <Type Name="SparseRow&lt;*&gt;::ConstIterator">
+    <Intrinsic Name="packedIndex" Expression="(*((const size_t*)wrapped.buffer))&amp;wrapped.mask"/>
+    <DisplayString>"[{packedIndex()}], {*packed}"</DisplayString>
+  </Type>
 </AutoVisualizer>
