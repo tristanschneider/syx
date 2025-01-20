@@ -623,3 +623,78 @@ protected:
 private:
   ElementT* packedValues{};
 };
+
+class SparseFlagRow : public SparseRowBase {
+public:
+  using ElementT = uint8_t;
+  using ElementPtr = uint8_t*;
+  using SelfT = SparseFlagRow;
+  //Since iterators only contain mapping information there's no sense exposing mutable versions
+  //The iterators are only used to determine which entities have the flags
+  using IteratorT = SparseRowBase::ConstIteratorBase;
+  using ConstIteratorT = SparseRowBase::ConstIteratorBase;
+
+  SparseFlagRow() = default;
+  SparseFlagRow(const SparseFlagRow&) = delete;
+
+  RowBuffer getElements() final {
+    return {};
+  }
+
+  ConstRowBuffer getElements() const final {
+    return {};
+  }
+
+  void resize(size_t, size_t newSize) final {
+    resizeBase(newSize);
+  }
+
+  void swapRemove(size_t begin, size_t end, size_t tableSize) final {
+    for(size_t i = 0; i < end - begin; ++i) {
+      trySwapRemove(end - (i + 1), --tableSize);
+    }
+  }
+
+  ConstIteratorT begin() const {
+    return beginBase();
+  }
+
+  ConstIteratorT end() const {
+    return endBase();
+  }
+
+  ConstIteratorT find(size_t sparse) const {
+    return findBase(sparse);
+  }
+
+  void erase(size_t sparse) {
+    SparseRowBase::erase(sparse);
+  }
+
+  bool contains(size_t sparse) const {
+    return find(sparse) != end();
+  }
+
+  //Adds the flag to the sparse element if it didn't have it and return true if it was added
+  bool getOrAdd(size_t sparse) {
+    return contains(sparse) ? false : emplace_back(sparse), true;
+  }
+
+  void migrateElements(const MigrateArgs& args) final {
+    //If from is null there's nothing to do as no packed elements would exist
+    if(SelfT* from = static_cast<SelfT*>(args.fromRow)) {
+      for(size_t i = 0; i < args.count; ++i) {
+        const size_t fromSparse = i + args.fromIndex;
+        const size_t toSparse = i + args.toIndex;
+        if(from->contains(fromSparse)) {
+          getOrAdd(toSparse);
+        }
+      }
+    }
+  }
+
+protected:
+  void onReset(size_t, size_t) final {}
+  void onMove(size_t, size_t, size_t) final {}
+  void onResize(size_t, size_t) {}
+};

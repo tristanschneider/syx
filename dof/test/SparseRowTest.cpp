@@ -176,5 +176,132 @@ namespace Test {
         Assert::IsTrue(it != rb->end() && it.key() == 13 && it.value() == 3);
       }
     }
+
+    TEST_METHOD(SparseFlagRowBasic) {
+      RuntimeDatabase db = createDatabase<Database<
+        Table<SparseFlagRow>,
+        Table<SparseFlagRow>
+      >>();
+      RuntimeTable& a = db[0];
+      RuntimeTable& b = db[1];
+
+      a.resize(100);
+
+      auto ra = a.tryGet<SparseFlagRow>();
+      auto rb = b.tryGet<SparseFlagRow>();
+      for(size_t i = 0; i < 100; ++i) {
+        Assert::IsFalse(ra->contains(i));
+      }
+
+      ra->getOrAdd(5);
+      {
+        auto it = ra->find(5);
+        Assert::IsFalse(it == ra->end());
+        Assert::AreEqual(static_cast<size_t>(5), *it);
+      }
+
+      ra->getOrAdd(5);
+      Assert::AreEqual(size_t(1), ra->size());
+      Assert::IsTrue(ra->contains(5));
+
+      a.addElements(1);
+      {
+        auto it = ra->find(5);
+        Assert::IsTrue(it != ra->end());
+      }
+
+      ra->erase(5);
+      Assert::AreEqual(size_t(0), ra->size());
+
+      for(size_t i = 0; i < a.size(); ++i) {
+        ra->getOrAdd(i);
+      }
+
+      {
+        int i = 0;
+        for(auto&& k : *ra) {
+          Assert::AreEqual(static_cast<size_t>(i), k);
+          ++i;
+        }
+        Assert::AreEqual(101, i);
+        Assert::AreEqual(size_t(101), ra->size());
+      }
+
+      for(size_t i = 0; i < a.size(); ++i) {
+        auto it = ra->find(i);
+
+        Assert::IsTrue(it != ra->end());
+        Assert::AreEqual(i, *it);
+
+        ra->erase(i);
+
+        it = ra->find(i);
+        Assert::IsTrue(it == ra->end());
+      }
+
+      ra->getOrAdd(50);
+      a.resize(50);
+      Assert::AreEqual(size_t(0), ra->size());
+
+      const size_t migrateBegin = 25;
+      const size_t migrateCount = a.size() - migrateBegin;
+      for(size_t i = migrateBegin; i < a.size(); ++i) {
+        ra->getOrAdd(i);
+      }
+      RuntimeTable::migrate(migrateBegin, a, b, migrateCount);
+
+      Assert::AreEqual(migrateCount, rb->size());
+      for(size_t i = 0; i < migrateCount; ++i) {
+        auto it = rb->find(i);
+        Assert::IsTrue(it != rb->end());
+        Assert::AreEqual(*it, i);
+      }
+
+      //All sparse elements that had values were moved to B, leaving nothing in A
+      Assert::AreEqual(size_t(0), ra->size());
+
+      //rb should have the moved elements whose value matches the index offset by the number of remaining elements in ra
+      {
+        PackedIndexArray visited;
+        visited.resize(migrateCount, 1);
+        for(auto it = rb->begin(); it != rb->end(); ++it) {
+          visited.at(*it) = 1;
+        }
+        for(size_t i = 0; i < visited.size(); ++i) {
+          Assert::AreEqual(size_t(1), *visited.at(i));
+        }
+      }
+
+      a.resize(0);
+      b.resize(0);
+
+      a.resize(10);
+      RuntimeTable::migrate(0, a, b, 10);
+
+      Assert::AreEqual(static_cast<size_t>(0), rb->size());
+
+      a.resize(10);
+      b.resize(10);
+      ra->getOrAdd(0);
+      ra->getOrAdd(2);
+      ra->getOrAdd(3);
+
+      RuntimeTable::migrate(0, a, b, 5);
+
+      Assert::IsFalse(ra->contains(0));
+      Assert::IsFalse(ra->contains(2));
+      Assert::IsFalse(ra->contains(3));
+
+      Assert::AreEqual(size_t(15), b.size());
+      Assert::AreEqual(size_t(3), rb->size());
+      {
+        auto it = rb->find(10);
+        Assert::IsTrue(it != rb->end() && *it == 10);
+        it = rb->find(12);
+        Assert::IsTrue(it != rb->end() && *it == 12);
+        it = rb->find(13);
+        Assert::IsTrue(it != rb->end() && *it == 13);
+      }
+    }
   };
 }
