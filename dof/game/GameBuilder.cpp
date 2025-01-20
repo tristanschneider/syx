@@ -139,30 +139,67 @@ namespace GameBuilder {
       eraseDuplicates(data.reads);
     }
 
-    void submitTask(AppTaskWithMetadata&& task) override {
-      auto node = std::make_shared<AppTaskNode>();
-      node->task = std::move(task.task);
-      assert(!task.data.name.empty() && "Name please");
-      node->name = task.data.name;
-
-      reduce(task.data);
-      //If everything is empty add an artificial dependency on an empty type so it still gets scheduled somewhere
-      if(task.data.reads.empty() && task.data.writes.empty() && task.data.tableModifiers.empty()) {
-        task.data.reads.push_back(noOpAccess);
+    struct TaskWrapper : ITaskImpl {
+      TaskWrapper(AppTaskWithMetadata&& w)
+        : wrappedTask{ std::move(w) }
+      {
       }
-      if(std::get_if<AppTaskPinning::Synchronous>(&node->task.pinning)) {
+
+      void setWorkerCount(size_t) final {}
+
+      AppTaskMetadata init(RuntimeDatabase&) final {
+        return std::move(wrappedTask.data);
+      }
+
+      void initThreadLocal(AppTaskArgs&) final {}
+      void execute(AppTaskArgs& args) final {
+        wrappedTask.task.callback(args);
+      }
+
+      std::shared_ptr<AppTaskConfig> getConfig() final {
+        return wrappedTask.task.config;
+      }
+
+      AppTaskPinning::Variant getPinning() final {
+        return wrappedTask.task.pinning;
+      }
+
+      AppTaskWithMetadata wrappedTask;
+    };
+
+    void submitTask(AppTaskWithMetadata&& task) override {
+      submitTask(std::make_unique<TaskWrapper>(std::move(task)));
+    }
+
+    void submitTask(std::unique_ptr<ITaskImpl> impl) final {
+      impl->setWorkerCount(getEnv().threadCount);
+      AppTaskMetadata meta = impl->init(db.getRuntime());
+      const AppTaskPinning::Variant pinning = impl->getPinning();
+
+      auto node = std::make_shared<AppTaskNode>();
+
+      node->task = std::move(impl);
+      assert(!meta.name.empty() && "Name please");
+      node->name = meta.name;
+
+      reduce(meta);
+      //If everything is empty add an artificial dependency on an empty type so it still gets scheduled somewhere
+      if(meta.reads.empty() && meta.writes.empty() && meta.tableModifiers.empty()) {
+        meta.reads.push_back(noOpAccess);
+      }
+      if(std::get_if<AppTaskPinning::Synchronous>(&pinning)) {
         for(TableDependencies& table : dependencies) {
           addTableModifier(table, node);
         }
       }
       else {
-        for(const UnpackedDatabaseElementID& modifiedTable : task.data.tableModifiers) {
+        for(const UnpackedDatabaseElementID& modifiedTable : meta.tableModifiers) {
           addTableModifier(dependencies[modifiedTable.getTableIndex()], node);
         }
-        for(const TableAccess& write : task.data.writes) {
+        for(const TableAccess& write : meta.writes) {
           addTableWrite(dependencies[write.tableID.getTableIndex()], write.rowType, node);
         }
-        for(const TableAccess& read : task.data.reads) {
+        for(const TableAccess& read : meta.reads) {
           addTableRead(dependencies[read.tableID.getTableIndex()], read.rowType, node);
         }
       }

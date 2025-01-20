@@ -10,6 +10,7 @@
 #include "RuntimeDatabase.h"
 #include "StableElementID.h"
 #include "IRow.h"
+#include "ITaskImpl.h"
 
 #include <variant>
 
@@ -141,16 +142,6 @@ struct AppTaskSize {
   size_t batchSize{};
 };
 
-namespace AppTaskPinning {
-  //No restrictions, meaning task may run on any thread
-  struct None {};
-  //Executes on main thread, other tasks can still run on other threads
-  struct MainThread {};
-  //Nothing else will be scheduled in parallel with this
-  struct Synchronous {};
-  using Variant = std::variant<None, MainThread, Synchronous>;
-};
-
 //This is created at configuration time to be used to change configurations at runtime
 struct AppTaskConfig {
   //This can be used at runtime for tasks to set the sizes of upcoming other tasks
@@ -189,7 +180,7 @@ struct AppTask {
 };
 
 struct AppTaskNode {
-  AppTask task;
+  std::unique_ptr<ITaskImpl> task;
   std::string_view name;
   std::vector<std::shared_ptr<AppTaskNode>> children;
 };
@@ -310,7 +301,7 @@ public:
     return db.queryAliasTables({ aliases... });
   }
 
-  //Modifiers allow immediatly adding or removing elements from tables.
+  //Modifiers allow immediately adding or removing elements from tables.
   //Deferred alternatives exist:
   //Add: add to the local database on AppTaskArgs and it'll be migrated to the main database by CommonTasks. This will also emit the migration as a creation DBEvent
   //Move: use IDBEvents to emit an event from one table to another. TableService will then perform this move
@@ -369,7 +360,7 @@ private:
   bool submitted{};
 };
 
-enum class AppEnvType {
+enum class AppEnvType : uint8_t {
   InitScheduler,
   InitMain,
   InitThreadLocal,
@@ -381,6 +372,7 @@ struct AppEnvironment {
   }
 
   AppEnvType type;
+  uint8_t threadCount{};
 };
 
 //Top level object used to create all work items in the app
@@ -393,6 +385,7 @@ public:
     submitTask(std::move(task).finalize());
   }
   virtual void submitTask(AppTaskWithMetadata&& task) = 0;
+  virtual void submitTask(std::unique_ptr<ITaskImpl> impl) = 0;
   virtual std::shared_ptr<AppTaskNode> finalize()&& = 0;
   virtual const AppEnvironment& getEnv() const = 0;
 

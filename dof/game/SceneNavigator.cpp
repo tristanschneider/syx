@@ -5,6 +5,7 @@
 #include "RuntimeDatabase.h"
 #include "DBEvents.h"
 #include "IAppModule.h"
+#include "ChainedTaskImpl.h"
 
 namespace SceneNavigator {
   constexpr size_t INVALID_SCENE = 0;
@@ -72,6 +73,44 @@ namespace SceneNavigator {
     return std::make_shared<Reg>(task);
   }
 
+
+  struct SceneWrappedTask : ChainedTaskImpl {
+    SceneWrappedTask(
+      std::unique_ptr<ITaskImpl> p,
+      AppTaskMetadata&& m,
+      const SceneNavigator::NavigatorData* nd,
+      const SceneNavigator::Globals* ng,
+      SceneID scene,
+      SceneState state
+    )
+      : ChainedTaskImpl(std::move(p))
+      , meta{ std::move(m) }
+      , navData{ nd }
+      , navGlobals{ ng }
+      , requiredScene{ scene }
+      , requiredState{ state }
+    {
+    }
+
+    AppTaskMetadata init(RuntimeDatabase& db) final {
+      AppTaskMetadata result = ChainedTaskImpl::init(db);
+      result.append(meta);
+      return result;
+    }
+
+    void execute(AppTaskArgs& args) {
+      if(requiredScene == navData->current && requiredState == navGlobals->sceneState) {
+        ChainedTaskImpl::execute(args);
+      }
+    }
+
+    AppTaskMetadata meta;
+    const SceneNavigator::NavigatorData* navData{};
+    const SceneNavigator::Globals* navGlobals{};
+    SceneID requiredScene{};
+    SceneState requiredState{};
+  };
+
   //Wraps the scene task in a callback that will first check if this scene should be performing the desired operation
   //This way the tasks can be written as if they were unconditional yet will only run when they should
   struct IntermediateBuilder : public IAppBuilder {
@@ -99,6 +138,25 @@ namespace SceneNavigator {
         }
       };
       return parent.submitTask(std::move(task));
+    }
+
+    void submitTask(std::unique_ptr<ITaskImpl> task) {
+      //Query the additional data using a temporary task, manually appending the dependency information to the original
+      auto temp = parent.createTask();
+      auto query = temp.query<const NavigatorRow, const GlobalsRow>();
+      auto nav = query.tryGetSingletonElement<0>();
+      auto globals = query.tryGetSingletonElement<1>();
+      temp.discard();
+      AppTaskMetadata meta = std::move(std::move(temp).finalize().data);
+
+      parent.submitTask(std::make_unique<SceneWrappedTask>(
+        std::move(task),
+        std::move(meta),
+        nav,
+        globals,
+        requiredScene,
+        requiredState
+      ));
     }
 
     std::shared_ptr<AppTaskNode> finalize()&& override {

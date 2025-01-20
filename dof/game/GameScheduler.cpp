@@ -48,21 +48,34 @@ namespace GameScheduler {
     return result;
   }
 
-  void setConfigurableTask(enki::ITaskSet& task, AppTask& info) {
-    if(info.config) {
+  void setConfigurableTask(enki::ITaskSet& task, ITaskImpl* info) {
+    if(std::shared_ptr<AppTaskConfig> config = info ? info->getConfig() : nullptr) {
       //Raw capture means it's the responsibility of the app to ensure it won't destroy tasks while they're running,
       //which should be reasonable
-      info.config->setSize = [&task](const AppTaskSize& desiredSize) {
+      config->setSize = [&task](const AppTaskSize& desiredSize) {
         task.m_MinRange = static_cast<uint32_t>(desiredSize.batchSize);
         task.m_SetSize = static_cast<uint32_t>(desiredSize.workItemCount);
       };
     }
   }
 
-  void executeTask(AppTaskArgs& args, AppTask& task, ProfileData& profile) {
+  void executeTask(AppTaskArgs& args, ITaskImpl& task, ProfileData& profile) {
     PROFILE_ENTER_TOKEN(profile.profileToken);
-    task.callback(args);
+    task.execute(args);
     PROFILE_EXIT_TOKEN(profile.profileToken);
+  }
+
+  void initTaskThreadLocal(ITaskImpl* task, ThreadLocals& tl, size_t i) {
+    if(task) {
+      GameTaskArgs args{ enki::TaskSetPartition{}, tl, i };
+      task->initThreadLocal(args);
+    }
+  }
+
+  void initTaskThreadLocals(ITaskImpl* task, ThreadLocals& tl) {
+    for(size_t i = 0; i < tl.getThreadCount(); ++i) {
+      initTaskThreadLocal(task, tl, i);
+    }
   }
 
   struct TaskAdapter : enki::ITaskSet {
@@ -70,38 +83,40 @@ namespace GameScheduler {
       : task{ std::move(t.task) }
       , profile{ createProfileData(t.name) }
       , tls{ tl }{
-      setConfigurableTask(*this, task);
+      setConfigurableTask(*this, task.get());
+      initTaskThreadLocals(task.get(), tl);
     }
 
     void ExecuteRange(enki::TaskSetPartition range, uint32_t thread) override {
-      if(!task.callback) {
-        return;
+      if(task) {
+        GameTaskArgs args{ range, tls, thread };
+        executeTask(args, *task, profile);
       }
-      GameTaskArgs args{ range, tls, thread };
-      executeTask(args, task, profile);
     }
 
-    AppTask task;
+    std::unique_ptr<ITaskImpl> task;
     ProfileData profile;
     ThreadLocals& tls;
   };
 
   struct PinnedTaskAdapter : enki::IPinnedTask {
+    static constexpr size_t PINNED_THREAD = MAIN_THREAD;
     PinnedTaskAdapter(AppTaskNode& t, ThreadLocals& tl)
-      : enki::IPinnedTask(MAIN_THREAD)
+      : enki::IPinnedTask(PINNED_THREAD)
       , task{ std::move(t.task) }
       , profile{ createProfileData(t.name) }
       , tls{ tl } {
+      initTaskThreadLocal(task.get(), tl, PINNED_THREAD);
     }
 
     void Execute() override {
-      if(task.callback) {
-        GameTaskArgs args{ enki::TaskSetPartition{}, tls, MAIN_THREAD };
-        executeTask(args, task, profile);
+      if(task) {
+        GameTaskArgs args{ enki::TaskSetPartition{}, tls, PINNED_THREAD };
+        executeTask(args, *task, profile);
       }
     }
 
-    AppTask task;
+    std::unique_ptr<ITaskImpl> task;
     ProfileData profile;
     ThreadLocals& tls;
   };
@@ -137,7 +152,7 @@ namespace GameScheduler {
       todo.pop_front();
 
       //Fill in the task callback for this one
-      std::visit(PopulateTask{ current, tls }, current.src->task.pinning);
+      std::visit(PopulateTask{ current, tls }, current.src->task ? current.src->task->getPinning() : AppTaskPinning::Variant{});
 
       //Create empty children and add them to the todo list
       current.dst->mChildren.resize(current.src->children.size());
@@ -165,26 +180,26 @@ namespace GameScheduler {
       auto current = todo.front();
       todo.pop_front();
       std::shared_ptr<AppTaskSize> size;
-      if(current->task.config) {
+      if(std::shared_ptr<AppTaskConfig> config = current->task ? current->task->getConfig() : nullptr) {
         size = std::make_shared<AppTaskSize>();
-        current->task.config->setSize = [size](AppTaskSize s) { *size = s; };
+        config->setSize = [size](AppTaskSize s) { *size = s; };
       }
       result.push_back({ [current, size] {
         //TODO: this probably will eventually need at least the local database
         GameTaskArgs args;
-        if(current->task.callback) {
-          if(size) {
-            size_t complete = 0;
-            while(complete < size->workItemCount) {
-              args.begin = complete;
-              complete += size->batchSize;
-              args.end = std::min(complete, size->workItemCount);
-              current->task.callback(args);
+        if(size) {
+          size_t complete = 0;
+          while(complete < size->workItemCount) {
+            args.begin = complete;
+            complete += size->batchSize;
+            args.end = std::min(complete, size->workItemCount);
+            if(current->task) {
+              current->task->execute(args);
             }
           }
-          else {
-            current->task.callback(args);
-          }
+        }
+        else if(current->task) {
+          current->task->execute(args);
         }
       }});
       todo.insert(todo.end(), current->children.begin(), current->children.end());

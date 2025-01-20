@@ -95,6 +95,13 @@ namespace Game {
       runTask(init, threading.scheduler);
     }
 
+    AppEnvironment buildEnv(AppEnvType type) const {
+      return AppEnvironment{
+        .type = type,
+        .threadCount = threading ? static_cast<uint8_t>(threading.tls->getThreadCount()) : uint8_t(1)
+      };
+    }
+
     void init() final {
       //Create database
       db = createDatabase(DBReflect::createArgsWithMappings());
@@ -102,7 +109,7 @@ namespace Game {
       //Initialize scheduler if available
       {
         const ThreadLocalDatabaseFactory factory = getThreadLocalDatabaseFactory(*db);
-        std::unique_ptr<IAppBuilder> bootstrap = GameBuilder::create(*db, { AppEnvType::InitScheduler });
+        std::unique_ptr<IAppBuilder> bootstrap = GameBuilder::create(*db, buildEnv(AppEnvType::InitScheduler));
         for(auto& m : args.modules) {
           m->initScheduler(*bootstrap, factory);
         }
@@ -113,12 +120,12 @@ namespace Game {
       threading = args.dbSource->getMultithreadedDeps(*db);
 
       //Init modules
-      buildAndRunInit(GameBuilder::create(*db, { AppEnvType::InitMain }));
+      buildAndRunInit(GameBuilder::create(*db, buildEnv(AppEnvType::InitMain)));
       //Init thread local databases
       if(threading) {
         for(size_t i = 0; i < threading.tls->getThreadCount(); ++i) {
           if(RuntimeDatabase* localDB = threading.tls->get(i).statEffects) {
-            buildAndRunInit(GameBuilder::create(*threading.tls->get(i).statEffects, { AppEnvType::InitThreadLocal }));
+            buildAndRunInit(GameBuilder::create(*threading.tls->get(i).statEffects, buildEnv(AppEnvType::InitThreadLocal)));
           }
         }
       }
@@ -143,7 +150,7 @@ namespace Game {
     }
 
     TaskGraph buildUpdate() {
-      std::unique_ptr<IAppBuilder> builder = GameBuilder::create(getDatabase(), { AppEnvType::UpdateMain });
+      std::unique_ptr<IAppBuilder> builder = GameBuilder::create(getDatabase(), buildEnv(AppEnvType::UpdateMain));
 
       if(args.rendering) {
         args.rendering->preSimUpdate(*builder);
@@ -172,7 +179,7 @@ namespace Game {
     }
 
     TaskGraphItem buildRenderUpdate() {
-      std::unique_ptr<IAppBuilder> commitBuilder = GameBuilder::create(getDatabase(), { AppEnvType::UpdateMain });
+      std::unique_ptr<IAppBuilder> commitBuilder = GameBuilder::create(getDatabase(), buildEnv(AppEnvType::UpdateMain));
       if(args.rendering) {
         args.rendering->renderOnlyUpdate(*commitBuilder);
       }

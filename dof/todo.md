@@ -1,6 +1,5 @@
 # Table Framework
 
-- Modify the interface for tasks to formally specify a factory object rather than capturing arbitrary dependencies in a callback
 - Replace DBEvents with sparse row(s?) that indicate the desired change. This makes event processing more efficient as it's scoped to the tables that change. Also might be a bit more intuitive/consistent with the rest of the framework.
   - Deletion can add a flag to the element
   - Move can add a sparse element with a table id
