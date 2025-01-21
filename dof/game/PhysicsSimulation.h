@@ -24,6 +24,7 @@ namespace Shapes {
 }
 
 namespace pt {
+  struct FullTransformResolver;
   struct TransformResolver;
 };
 
@@ -41,10 +42,13 @@ public:
 namespace PhysicsSimulation {
   Shapes::RectDefinition getRectDefinition();
   PhysicsAliases getPhysicsAliases();
+  PhysicsAliases getGameplayPhysicsAliases();
 
   std::shared_ptr<ShapeRegistry::IShapeClassifier> createShapeClassifier(RuntimeDatabaseTaskBuilder& task);
   std::shared_ptr<IPhysicsBodyResolver> createPhysicsBodyResolver(RuntimeDatabaseTaskBuilder& task);
   pt::TransformResolver createTransformResolver(RuntimeDatabaseTaskBuilder& task);
+  pt::TransformResolver createGameplayTransformResolver(RuntimeDatabaseTaskBuilder& task);
+  pt::FullTransformResolver createGameplayFullTransformResolver(RuntimeDatabaseTaskBuilder& task);
 
   void init(IAppBuilder& builder);
   void initFromConfig(IAppBuilder& builder);

@@ -24,11 +24,39 @@ namespace pt {
     return Geo::rotate(Geo::transposeRot(rot), v);
   }
 
+  glm::vec3 FullTransform::transformPoint(const glm::vec3& p) const {
+     const glm::vec2 res2 = Geo::rotate(rot, glm::vec2{ p.x, p.y } * scale);
+     return pos + glm::vec3{ res2.x, res2.y, p.z };
+  }
+
+  glm::vec3 FullTransform::transformVector(const glm::vec3& v) const {
+     const glm::vec2 res2 = Geo::rotate(rot, glm::vec2{ v.x, v.y } * scale);
+     return { res2.x, res2.y, v.z };
+  }
+
+  glm::vec3 FullTransform::inverseTransformPoint(const glm::vec3& p) const {
+    const glm::vec2 res2 = Geo::inverseOrZero(scale) * Geo::rotate(Geo::transposeRot(rot), glm::vec2{ p.x, p.y } - glm::vec2{ pos.x, pos.y });
+    return { res2.x, res2.y, p.z - pos.z };
+  }
+
+  glm::vec3 FullTransform::inverseTransformVector(const glm::vec3& v) const {
+    const glm::vec2 res2 = Geo::inverseOrZero(scale) * Geo::rotate(Geo::transposeRot(rot), glm::vec2{ v.x, v.y });
+    return { res2.x, res2.y, v.z };
+  }
+
   TransformAlias::TransformAlias(const PhysicsAliases& tables)
     : posX{ tables.posX.read() }
     , posY{ tables.posY.read() }
     , rotX{ tables.rotX.read() }
     , rotY{ tables.rotY.read() }
+  {
+  }
+
+  FullTransformAlias::FullTransformAlias(const PhysicsAliases& tables)
+    : TransformAlias{ tables }
+    , posZ{ tables.posZ.read() }
+    , scaleX{ tables.scaleX.read() }
+    , scaleY{ tables.scaleY.read() }
   {
   }
 
@@ -62,4 +90,51 @@ namespace pt {
     return {};
   }
 
+  FullTransformResolver::FullTransformResolver(RuntimeDatabaseTaskBuilder& task, const FullTransformAlias& tables)
+    : resolver{
+      task.getAliasResolver(
+        tables.posX.read(),
+        tables.posY.read(),
+        tables.posZ.read(),
+        tables.rotX.read(),
+        tables.rotY.read(),
+        tables.scaleX.read(),
+        tables.scaleY.read()
+      )
+    }
+    , res{ task.getIDResolver()->getRefResolver() }
+    , alias{ tables }
+  {
+  }
+
+  FullTransform FullTransformResolver::resolve(const ElementRef& ref) {
+    if(auto raw = res.tryUnpack(ref)) {
+      const size_t i = raw->getElementIndex();
+      if(resolver->tryGetOrSwapRowAlias(alias.posX, posX, *raw) &&
+        resolver->tryGetOrSwapRowAlias(alias.posY, posY, *raw) &&
+        resolver->tryGetOrSwapRowAlias(alias.rotX, rotX, *raw) &&
+        resolver->tryGetOrSwapRowAlias(alias.rotY, rotY, *raw)
+      ) {
+        FullTransform result;
+        if(resolver->tryGetOrSwapRowAlias(alias.posZ, posZ, *raw)) {
+          result.pos.z = posZ->at(i);
+        }
+        if(resolver->tryGetOrSwapRowAlias(alias.scaleX, scaleX, *raw) &&
+          resolver->tryGetOrSwapRowAlias(alias.scaleY, scaleY, *raw)
+        ) {
+          result.scale = { scaleX->at(i), scaleY->at(i) };
+        }
+        else {
+          result.scale = { 1, 1 };
+        }
+
+        result.pos.x = posX->at(i);
+        result.pos.y = posY->at(i);
+        result.rot = { rotX->at(i), rotY->at(i) };
+
+        return result;
+      }
+    }
+    return {};
+  }
 }

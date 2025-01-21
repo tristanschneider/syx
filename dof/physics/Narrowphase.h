@@ -16,7 +16,7 @@ namespace ShapeRegistry {
 };
 
 namespace Narrowphase {
-  //This indirection has no practical significance, I moved types around and didn't wnat to update use locations
+  //This indirection has no practical significance, I moved types around and didn't want to update use locations
   namespace Shape {
     using Rectangle = ShapeRegistry::Rectangle;
     using Raycast = ShapeRegistry::Raycast;

@@ -115,6 +115,15 @@ public:
     return i < tables.size() ? tables.at(i)->size() : 0;
   }
 
+  //Silly workaround for ambiguity of method names that match between QueryResult<...> and QueryResultBase
+  QueryResultBase& base() {
+    return *this;
+  }
+
+  const QueryResultBase& base() const {
+    return *this;
+  }
+
   TableID tryGet() const {
     return getTableID(0);
   }

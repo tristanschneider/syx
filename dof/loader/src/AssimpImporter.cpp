@@ -128,6 +128,19 @@ namespace Loader {
     return c == '-' || std::isdigit(static_cast<int>(c));
   }
 
+  size_t loadSize(const aiMetadataEntry& e) {
+    switch(e.mType) {
+      case AI_INT32: return static_cast<size_t>(*static_cast<int32_t*>(e.mData));
+      case AI_INT64: return static_cast<size_t>(*static_cast<int64_t*>(e.mData));
+      case AI_UINT32: return static_cast<size_t>(*static_cast<uint32_t*>(e.mData));
+      case AI_UINT64: return static_cast<size_t>(*static_cast<uint64_t*>(e.mData));
+      //Float values don't make sense for size but probably more annoying to ignore than truncate
+      case AI_FLOAT: return static_cast<size_t>(*static_cast<float*>(e.mData));
+      case AI_DOUBLE: return static_cast<size_t>(*static_cast<double*>(e.mData));
+      default: return 0;
+    }
+  }
+
   //These are stored as an array of  floats: [1.0, 1.0, 1.0, 1.0]
   glm::vec4 loadVec4(const aiMetadataEntry& e) {
     if(e.mType != AI_AIMETADATA) {
@@ -221,10 +234,29 @@ namespace Loader {
     });
   }
 
+  void loadFragmentSpawnerElement(const NodeTraversal& node, SceneLoadContext& context, FragmentSpawnerTable& spawners) {
+    spawners.spawners.emplace_back();
+    FragmentSpawner& s = spawners.spawners.back();
+
+    load(node.transform, s.transform, s.scale);
+    load(*node.node, s.meshIndex, context);
+    readMetadata(*node.node, context, [&](size_t hash, const aiMetadataEntry& data, SceneLoadContext&) {
+      switch(hash) {
+        case(FragmentCount::KEY): s.fragmentCount = { loadSize(data) }; break;
+        case(CollisionMask::KEY): return load(data, s.collisionMask);
+      }
+    });
+  }
+
+  void loadFragmentSpawnerTable(const NodeTraversal& node, SceneLoadContext& context, FragmentSpawnerTable& spawner) {
+    node;context;spawner;
+  }
+
   void loadObject(size_t tableName, const NodeTraversal& node, SceneLoadContext& ctx, SceneAsset& scene) {
     switch(tableName) {
       case PlayerTable::KEY: return loadPlayerElement(node, ctx, scene.player);
       case TerrainTable::KEY: return loadTerrainElement(node, ctx, scene.terrain);
+      case FragmentSpawnerTable::KEY: return loadFragmentSpawnerElement(node, ctx, scene.fragmentSpawners);
     }
   }
 
@@ -232,6 +264,7 @@ namespace Loader {
     switch(tableName) {
       case PlayerTable::KEY: return loadPlayerTable(node, ctx, scene.player);
       case TerrainTable::KEY: return loadTerrainTable(node, ctx, scene.terrain);
+      case FragmentSpawnerTable::KEY: return loadFragmentSpawnerTable(node, ctx, scene.fragmentSpawners);
     }
   }
 

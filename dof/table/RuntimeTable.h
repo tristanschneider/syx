@@ -65,6 +65,16 @@ public:
     return static_cast<const RowT*>(tryGet(IDT::get<std::decay_t<RowT>>()));
   }
 
+  template<class RowT>
+  RuntimeTable& tryGet(RowT*& out) {
+    return out = tryGet<RowT>(), *this;
+  }
+
+  template<class RowT>
+  const RuntimeTable& tryGet(const RowT*& out) const {
+    return out = tryGet<const RowT>(), *this;
+  }
+
   IRow* tryGet(DBTypeID id) {
     auto it = rows.find(id);
     return it != rows.end() ? it->second : nullptr;

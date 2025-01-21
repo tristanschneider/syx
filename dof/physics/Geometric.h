@@ -238,6 +238,14 @@ namespace Geo {
     return { basisX.x*p.x - basisX.y*p.y, basisX.y*p.x + basisX.x*p.y };
   }
 
+  constexpr float inverseOrZero(float v) {
+    return v ? 1.0f/v : 0.0f;
+  }
+
+  constexpr glm::vec2 inverseOrZero(const glm::vec2& v) {
+    return { inverseOrZero(v.x), inverseOrZero(v.y) };
+  }
+
   //Transpose of a rotation matrix from the first basis vector. Transpose is the inverse of a rotation matrix.
   inline glm::vec2 transposeRot(const glm::vec2 basisX) {
     //[basisX.x, -basisX.y] to [basisX.x , basisX.y]

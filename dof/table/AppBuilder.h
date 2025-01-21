@@ -273,6 +273,12 @@ public:
     return result;
   }
 
+  //Allows having a Query as a member of a class and initialize it with a RDTB
+  template<class... Rows>
+  operator QueryResult<Rows...>() {
+    return query<Rows...>();
+  }
+
   template<class... Aliases>
   auto queryAlias(const Aliases&... aliases) {
     QueryResult<typename Aliases::RowT...> result = db.queryAlias(aliases...);

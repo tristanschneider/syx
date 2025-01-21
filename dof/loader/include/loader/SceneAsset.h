@@ -111,11 +111,32 @@ namespace Loader {
   struct FragmentAsset {
   };
 
+  struct FragmentCount {
+    constexpr static size_t KEY = gnx::Hash::constHash("FragmentCount");
+    size_t count{};
+  };
+
+  struct FragmentSpawner {
+    Transform3D transform;
+    Scale2D scale;
+    FragmentCount fragmentCount;
+    //The material on this mesh is what the fragments will be subsections of
+    MeshIndex meshIndex;
+    //Mask copied over to the fragments. Not relevant to the spawner itself which has no collision
+    CollisionMask collisionMask;
+  };
+
+  struct FragmentSpawnerTable {
+    constexpr static size_t KEY = gnx::Hash::constHash("FragmentSpawner");
+    std::vector<FragmentSpawner> spawners;
+  };
+
   struct SceneAsset {
     ~SceneAsset();
 
     PlayerTable player;
     TerrainTable terrain;
+    FragmentSpawnerTable fragmentSpawners;
     //Pointing at a table with MaterialAssets
     std::vector<AssetHandle> materials;
     //Pointing at a table with MeshAssets

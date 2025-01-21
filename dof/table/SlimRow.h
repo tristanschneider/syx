@@ -127,7 +127,7 @@ public:
   }
 
   const Element& at(size_t i) const {
-    return data()(i);
+    return data()[i];
   }
 
   void resize(size_t oldSize, size_t newSize) final {

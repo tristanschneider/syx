@@ -140,6 +140,14 @@ namespace PhysicsSimulation {
     return { task, getPhysicsAliases() };
   }
 
+  pt::TransformResolver createGameplayTransformResolver(RuntimeDatabaseTaskBuilder& task) {
+    return { task, getGameplayPhysicsAliases() };
+  }
+
+  pt::FullTransformResolver createGameplayFullTransformResolver(RuntimeDatabaseTaskBuilder& task) {
+    return { task, getGameplayPhysicsAliases() };
+  }
+
   void init(IAppBuilder& builder) {
     auto task = builder.createTask();
     task.setName("init physics");
@@ -199,6 +207,29 @@ namespace PhysicsSimulation {
     aliases.isImmobile = TagAlias::create<IsImmobile>();
 
     return aliases;
+  }
+
+  PhysicsAliases getGameplayPhysicsAliases() {
+    using F = QueryAlias<Row<float>>;
+    using T = QueryAlias<TagRow>;
+    return PhysicsAliases {
+      .posX = F::create<FloatRow<Tags::GPos, Tags::X>>(),
+      .posY = F::create<FloatRow<Tags::GPos, Tags::Y>>(),
+      .rotX = F::create<FloatRow<Tags::GRot, Tags::CosAngle>>(),
+      .rotY = F::create<FloatRow<Tags::GRot, Tags::SinAngle>>(),
+      .scaleX = F::create<Tags::ScaleXRow>(),
+      .scaleY = F::create<Tags::ScaleYRow>(),
+      .linVelX = F::create<FloatRow<Tags::GLinVel, Tags::X>>(),
+      .linVelY = F::create<FloatRow<Tags::GLinVel, Tags::Y>>(),
+      .angVel = F::create<FloatRow<Tags::GAngVel, Tags::Angle>>(),
+      .posZ = F::create<FloatRow<Tags::GPos, Tags::Z>>(),
+      .linVelZ = F::create<FloatRow<Tags::GLinVel, Tags::Z>>(),
+      .broadphaseMinX = F::create<SpatialQuery::Physics<SpatialQuery::MinX>>(),
+      .broadphaseMinY = F::create<SpatialQuery::Physics<SpatialQuery::MinY>>(),
+      .broadphaseMaxX = F::create<SpatialQuery::Physics<SpatialQuery::MaxX>>(),
+      .broadphaseMaxY = F::create<SpatialQuery::Physics<SpatialQuery::MaxY>>(),
+      .isImmobile = T::create<IsImmobile>(),
+    };
   }
 
   void updatePhysics(IAppBuilder& builder) {

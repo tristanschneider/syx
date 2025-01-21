@@ -217,6 +217,7 @@ namespace Game {
 #include "GameInput.h"
 #include "SceneNavigator.h"
 #include "scenes/SceneList.h"
+#include "FragmentSpawner.h"
 
 namespace GameDefaults {
   MultithreadedDeps DefaultGameDatabaseReader::getMultithreadedDeps(IDatabase& db) {
@@ -234,6 +235,7 @@ namespace GameDefaults {
     Game::GameArgs args;
     args.dbSource = std::make_unique<DefaultGameDatabaseReader>();
     args.modules.push_back(Simulation::createModule(config));
+    args.modules.push_back(FragmentSpawner::createModule());
     args.modules.push_back(SceneNavigator::createModule());
     args.modules.push_back(SceneList::createModule());
     //Rendering is from a separate project so "default" exposed here is empty
