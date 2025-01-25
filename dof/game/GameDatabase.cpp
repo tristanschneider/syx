@@ -10,6 +10,7 @@
 #include "Fragment.h"
 #include "Physics.h"
 #include "SweepNPruneBroadphase.h"
+#include "FragmentSpawner.h"
 #include "FragmentStateMachine.h"
 #include "ConstraintSolver.h"
 #include "Narrowphase.h"
@@ -390,6 +391,27 @@ namespace GameDatabase {
     StableIDRow
   >;
 
+  using FragmentSpawnerTable = Table<
+    FragmentSpawner::FragmentSpawnerTagRow,
+    FragmentSpawner::FragmentSpawnerConfigRow,
+    FragmentSpawner::FragmentSpawnStateRow,
+    Tags::PosXRow,
+    Tags::PosYRow,
+    Tags::PosZRow,
+    Tags::RotXRow,
+    Tags::RotYRow,
+    Tags::ScaleXRow,
+    Tags::ScaleYRow,
+
+    Tags::GPosXRow,
+    Tags::GPosYRow,
+    Tags::GPosZRow,
+    Tags::GRotXRow,
+    Tags::GRotYRow,
+
+    StableIDRow
+  >;
+
   using GameDatabase = Database<
     GlobalGameData,
     SpatialQuery::AABBSpatialQueriesTable,
@@ -407,7 +429,8 @@ namespace GameDatabase {
     TargetPosTable,
     DynamicPhysicsObjects,
     DynamicPhysicsObjectsWithZ,
-    DynamicPhysicsObjectsWithMotor
+    DynamicPhysicsObjectsWithMotor,
+    FragmentSpawnerTable
   >;
 
   void create(RuntimeDatabaseArgs& args) {
@@ -515,6 +538,7 @@ namespace GameDatabase {
     , activeFragment{ getOrAssertTable<FragmentSeekingGoalTagRow>(task) }
     , completedFragment{ getOrAssertTable<FragmentGoalFoundTableTag>(task) }
     , physicsObjsWithZ{ getOrAssertTable<Tags::DynamicPhysicsObjectsWithZTag>(task) }
+    , fragmentSpawner{ getOrAssertTable<FragmentSpawner::FragmentSpawnerTagRow>(task) }
   {
   }
 }

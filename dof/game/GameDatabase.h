@@ -17,6 +17,7 @@ namespace GameDatabase {
     TableID activeFragment;
     TableID completedFragment;
     TableID physicsObjsWithZ;
+    TableID fragmentSpawner;
   };
 
   void create(RuntimeDatabaseArgs& args);
