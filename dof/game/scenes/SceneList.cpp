@@ -9,6 +9,7 @@
 #include "scenes/LoadingScene.h"
 #include "scenes/PerformanceScenes.h"
 #include "IAppModule.h"
+#include "TLSTaskImpl.h"
 
 namespace SceneList {
   const Scenes* get(RuntimeDatabaseTaskBuilder& task) {
@@ -27,7 +28,6 @@ namespace SceneList {
 
       auto task = builder.createTask();
       auto registry = SceneNavigator::createRegistry(task);
-      auto navigator = ::Scenes::createLoadingNavigator(task);
       Scenes* scenes = task.query<ScenesRow>().tryGetSingletonElement();
 
       task.setCallback([=](AppTaskArgs&) {
@@ -36,13 +36,6 @@ namespace SceneList {
         scenes->loading = registry->registerScene(::Scenes::createLoadingScene());
         scenes->singleStack = registry->registerScene(::Scenes::createSingleStack());
         scenes->imported = registry->registerScene(::Scenes::createImportedScene());
-
-        //Default start on fragment scene
-        navigator->awaitLoadRequest(::Scenes::LoadRequest{
-          .onSuccess = scenes->fragment,
-          .onFailure = scenes->fragment,
-          .doInitialLoad = true
-        });
       });
 
       builder.submitTask(std::move(task.setName("sceneListInit")));
@@ -51,5 +44,37 @@ namespace SceneList {
 
   std::unique_ptr<IAppModule> createModule() {
     return std::make_unique<SceneListModule>();
+  }
+
+  struct StartingSceneModule : IAppModule {
+    struct Task {
+      Task(RuntimeDatabaseTaskBuilder& task)
+        : scenes{ task.query<const ScenesRow>().tryGetSingletonElement() }
+        , navigator{ ::Scenes::createLoadingNavigator(task) }
+      {
+      }
+
+      void execute(AppTaskArgs&) {
+        //Default start on fragment scene
+        navigator->awaitLoadRequest(::Scenes::LoadRequest{
+          .onSuccess = scenes->fragment,
+          .onFailure = scenes->fragment,
+          .doInitialLoad = true
+        });
+      }
+
+      const Scenes* scenes{};
+      std::shared_ptr<::Scenes::ILoadingNavigator> navigator;
+    };
+
+    void init(IAppBuilder& builder) final {
+      if(!builder.getEnv().isThreadLocal()) {
+        builder.submitTask(TLSTask::create<Task>("default scene"));
+      }
+    }
+  };
+
+  std::unique_ptr<IAppModule> createStartingSceneModule() {
+    return std::make_unique<StartingSceneModule>();
   }
 };

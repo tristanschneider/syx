@@ -29,4 +29,7 @@ namespace SceneList {
   const Scenes* get(RuntimeDatabaseTaskBuilder& task);
 
   std::unique_ptr<IAppModule> createModule();
+  //Start on the a default scene by adding this module.
+  //Split out from the base createModule to make it easier for tests to start with a blank slate
+  std::unique_ptr<IAppModule> createStartingSceneModule();
 };

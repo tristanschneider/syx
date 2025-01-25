@@ -10,6 +10,7 @@
 #include "GameBuilder.h"
 #include "GameDatabase.h"
 #include "GameScheduler.h"
+#include "scenes/SceneList.h"
 #include "Simulation.h"
 #include "ThreadLocals.h"
 #include "Renderer.h"
@@ -274,6 +275,7 @@ std::unique_ptr<IGame> createGame(const RendererContext& renderCtx) {
 #ifdef IMGUI_ENABLED
   gameArgs.modules.push_back(ImguiModule::createModule());
 #endif
+  gameArgs.modules.push_back(SceneList::createStartingSceneModule());
   return Game::createGame(std::move(gameArgs));
 }
 
