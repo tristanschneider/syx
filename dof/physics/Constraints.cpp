@@ -213,7 +213,7 @@ namespace Constraints {
         for(size_t i = 0; i < pending.constraints.size();) {
           const PendingConstraint& p = pending.constraints[i];
           auto it = graph.findEdge(p.a, p.b);
-          while(it != graph.edgesEnd()) {
+          for(; it != graph.edgesEnd(); ++it) {
             const size_t spatialPairsIndex = *it;
             //Shouldn't generally happen
             if(spatialPairsIndex >= pairTypes->size()) {
@@ -227,8 +227,6 @@ namespace Constraints {
             if(table.changes->ownedEdges.insert(spatialPairsIndex).second) {
               break;
             }
-
-            ++it;
           }
 
           //If storage was found, move it from pending to tracked

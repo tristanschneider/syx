@@ -126,6 +126,8 @@ namespace SP {
     virtual void addSpatialNode(const ElementRef& node, bool isImmobile) = 0;
     virtual void removeSpatialNode(const ElementRef& node) = 0;
     virtual void changeMobility(const ElementRef& node, bool isImmobile) = 0;
+    virtual size_t nodeCount() const = 0;
+    virtual size_t edgeCount() const = 0;
   };
   //Broadphase is responsible for informing this of new nodes to track or remove
   std::shared_ptr<IStorageModifier> createStorageModifier(RuntimeDatabaseTaskBuilder& task);

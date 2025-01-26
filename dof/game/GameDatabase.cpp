@@ -541,4 +541,18 @@ namespace GameDatabase {
     , fragmentSpawner{ getOrAssertTable<FragmentSpawner::FragmentSpawnerTagRow>(task) }
   {
   }
+
+  Tables createTables(RuntimeDatabase& db) {
+    RuntimeDatabaseTaskBuilder builder{ db };
+    builder.discard();
+    return { builder };
+  }
+
+  Tables::Tables(RuntimeDatabase& db)
+    : Tables{ createTables(db) } {
+  }
+
+  Tables::Tables(AppTaskArgs& args)
+    : Tables{ args.getLocalDB() } {
+  }
 }

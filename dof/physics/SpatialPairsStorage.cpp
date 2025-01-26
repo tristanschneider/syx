@@ -165,6 +165,15 @@ namespace SP {
       IslandGraph::setPropagation(graph, it, getMask(isImmobile));
     }
 
+    size_t nodeCount() const final {
+      //Expect a single "invalid" node to always exist
+      return graph.nodes.activeSize() - 1;
+    }
+
+    size_t edgeCount() const final {
+      return graph.edges.activeSize();
+    }
+
     IslandGraph::Graph& graph;
     std::shared_ptr<IIDResolver> resolver;
   };
