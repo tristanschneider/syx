@@ -13,7 +13,8 @@ namespace SceneNavigator {
   enum class SceneState {
     NeedsInit,
     Updating,
-    NeedsUninit
+    NeedsUninit,
+    UninitWait,
   };
   struct RegisteredScene {
     std::unique_ptr<IScene> scene;
@@ -198,6 +199,11 @@ namespace SceneNavigator {
           //Uninit requested by scene transition has completed, init the newly requested scene
           nav->current = globals->transitioningTo;
           globals->transitioningTo = INVALID_SCENE;
+          globals->sceneState = SceneState::UninitWait;
+          break;
+        }
+        //Wait once so that any events queued by uninit have a chance to be processed
+        case SceneState::UninitWait: {
           globals->sceneState = SceneState::NeedsInit;
           break;
         }

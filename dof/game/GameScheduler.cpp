@@ -101,17 +101,18 @@ namespace GameScheduler {
 
   struct PinnedTaskAdapter : enki::IPinnedTask {
     static constexpr size_t PINNED_THREAD = MAIN_THREAD;
-    PinnedTaskAdapter(AppTaskNode& t, ThreadLocals& tl)
+    PinnedTaskAdapter(AppTaskNode& t, ThreadLocals& tl, size_t thread)
       : enki::IPinnedTask(PINNED_THREAD)
       , task{ std::move(t.task) }
       , profile{ createProfileData(t.name) }
-      , tls{ tl } {
-      initTaskThreadLocal(task.get(), tl, PINNED_THREAD);
+      , tls{ tl }
+      , pinnedThread{ thread } {
+      initTaskThreadLocal(task.get(), tl, pinnedThread);
     }
 
     void Execute() override {
       if(task) {
-        GameTaskArgs args{ enki::TaskSetPartition{}, tls, PINNED_THREAD };
+        GameTaskArgs args{ enki::TaskSetPartition{}, tls, pinnedThread };
         executeTask(args, *task, profile);
       }
     }
@@ -119,6 +120,7 @@ namespace GameScheduler {
     std::unique_ptr<ITaskImpl> task;
     ProfileData profile;
     ThreadLocals& tls;
+    size_t pinnedThread{};
   };
 
   struct PopulateTask {
@@ -129,7 +131,12 @@ namespace GameScheduler {
 
     void operator()(AppTaskPinning::MainThread) {
       task.dst->name = task.src->name;
-      task.dst->mTask.mTask = std::make_unique<PinnedTaskAdapter>(*task.src, tls);
+      task.dst->mTask.mTask = std::make_unique<PinnedTaskAdapter>(*task.src, tls, MAIN_THREAD);
+    }
+
+    void operator()(AppTaskPinning::ThreadID id) {
+      task.dst->name = task.src->name;
+      task.dst->mTask.mTask = std::make_unique<PinnedTaskAdapter>(*task.src, tls, id.id);
     }
 
     void operator()(AppTaskPinning::Synchronous) {

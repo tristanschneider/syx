@@ -25,7 +25,10 @@ namespace Test {
 
       SceneNavigator::SceneID empty{};
       SceneNavigator::SceneID physics{};
+      SceneNavigator::SceneID multithreaded{};
+      SceneNavigator::SceneID physicsModifier{};
       std::vector<ElementRef> objects;
+      std::mutex objsMutex;
     };
 
     struct PhysicsScene : SceneNavigator::IScene {
@@ -50,30 +53,121 @@ namespace Test {
 
         void execute(InitTaskLocal& locals, AppTaskArgs& args) {
           const size_t count = 5;
+          Assert::AreEqual(size_t(0), locals.objects->size());
           size_t b = locals.objects->addElements(count);
           args.getLocalDB().setTableDirty(locals.objects->getID());
           ConstraintStatEffect::Builder builder{ args };
+          std::vector<ElementRef> objs;
           for(size_t i = 0; i < count; ++i) {
-            scenes->objects.push_back(locals.stable->at(b + i));
+            objs.push_back(locals.stable->at(b + i));
             builder.createStatEffects(1).setLifetime(4);
             builder.constraintBuilder().setJointType({ Constraints::MotorJoint{
               .linearTarget = glm::vec2{ 0.1f },
               .linearForce = 1.f,
-            }}).setTargets(scenes->objects.back(), {});
+            }}).setTargets(objs.back(), {});
           }
 
           builder.createStatEffects(1).setLifetime(99);
           builder.constraintBuilder().setJointType({ Constraints::WeldJoint{
             .localCenterToPinA = glm::vec2{ 1, 0 },
             .localCenterToPinB = glm::vec2{ -1, 0 }
-          }}).setTargets(scenes->objects[1], scenes->objects[3]);
+          }}).setTargets(objs[1], objs[3]);
+
+          {
+            std::lock_guard<std::mutex> g{ scenes->objsMutex };
+            scenes->objects.insert(scenes->objects.end(), objs.begin(), objs.end());
+          }
         }
 
         TestScenes* scenes{};
       };
 
       void init(IAppBuilder& builder) {
-        builder.submitTask(TLSTask::create<InitTask, DefaultTaskGroup, InitTaskLocal>("init"));
+        auto task = TLSTask::create<InitTask, DefaultTaskGroup, InitTaskLocal>("init");
+        task->setPinning(AppTaskPinning::ThreadID{ 2 });
+        builder.submitTask(std::move(task));
+      }
+    };
+
+    //Multithreaded use of thread local db to add elements
+    struct MultithreadedScene : SceneNavigator::IScene {
+      struct ConfigTaskGroup {
+        ConfigTaskGroup(RuntimeDatabaseTaskBuilder&, std::shared_ptr<AppTaskConfig> cfg)
+          : config{ cfg } {
+        }
+
+        std::shared_ptr<AppTaskConfig> config;
+      };
+      struct ConfigTask {
+        ConfigTask(RuntimeDatabaseTaskBuilder& task) {
+          //Force dependency for child tasks
+          TestScenes::get(task);
+        }
+
+        void execute(ConfigTaskGroup& group, AppTaskArgs&) {
+          group.config->setSize(AppTaskSize{ .workItemCount = 10, .batchSize = 1 });
+        }
+      };
+
+      void init(IAppBuilder& builder) {
+        auto task = TLSTask::create<PhysicsScene::InitTask, DefaultTaskGroup, PhysicsScene::InitTaskLocal>("mt");
+        auto cfg = task->getOrAddConfig();
+        auto configTask = TLSTask::createWithArgs<ConfigTask, ConfigTaskGroup, DefaultTaskLocals>("cfg", cfg);
+
+        builder.submitTask(std::move(configTask));
+        builder.submitTask(std::move(task));
+      }
+    };
+
+    //Pinned use of modifier to add elements
+    struct PhysicsModifierScene : SceneNavigator::IScene {
+      struct InitTask {
+        InitTask(RuntimeDatabaseTaskBuilder& task)
+          : scenes{ TestScenes::get(task) }
+          , table{ GameDatabase::Tables{ task }.physicsObjsWithZ }
+          , modifier{ task.getModifierForTable(table) }
+          , stable{ task.query<const StableIDRow>(table).tryGet<0>(0) }
+        {
+        }
+
+        void execute(AppTaskArgs& args) {
+          const size_t count = 5;
+          size_t b = modifier->addElements(count);
+          ConstraintStatEffect::Builder builder{ args };
+          std::vector<ElementRef> objs;
+          for(size_t i = 0; i < count; ++i) {
+            objs.push_back(stable->at(b + i));
+            Events::onNewElement(objs.back(), args);
+
+            //builder.createStatEffects(1).setLifetime(4);
+            //builder.constraintBuilder().setJointType({ Constraints::MotorJoint{
+            //  .linearTarget = glm::vec2{ 0.1f },
+            //  .linearForce = 1.f,
+            //}}).setTargets(objs.back(), {});
+          }
+
+          //builder.createStatEffects(1).setLifetime(99);
+          //builder.constraintBuilder().setJointType({ Constraints::WeldJoint{
+          //  .localCenterToPinA = glm::vec2{ 1, 0 },
+          //  .localCenterToPinB = glm::vec2{ -1, 0 }
+          //}}).setTargets(objs[1], objs[3]);
+
+          {
+            std::lock_guard<std::mutex> g{ scenes->objsMutex };
+            scenes->objects.insert(scenes->objects.end(), objs.begin(), objs.end());
+          }
+        }
+
+        TableID table;
+        TestScenes* scenes{};
+        std::shared_ptr<ITableModifier> modifier;
+        const StableIDRow* stable{};
+      };
+
+      void init(IAppBuilder& builder) {
+        auto task = TLSTask::create<InitTask>("init");
+        task->setPinning(AppTaskPinning::ThreadID{ 2 });
+        builder.submitTask(std::move(task));
       }
     };
 
@@ -88,6 +182,8 @@ namespace Test {
         void execute(AppTaskArgs&) {
           scenes->empty = registry->registerScene(std::make_unique<SceneNavigator::IScene>());
           scenes->physics = registry->registerScene(std::make_unique<PhysicsScene>());
+          scenes->multithreaded = registry->registerScene(std::make_unique<MultithreadedScene>());
+          scenes->physicsModifier = registry->registerScene(std::make_unique<PhysicsModifierScene>());
         }
 
         std::shared_ptr<SceneNavigator::ISceneRegistry> registry;
@@ -280,6 +376,12 @@ namespace Test {
         });
         scenes->objects.clear();
       }
+
+      navigateToScene(*game, scenes->multithreaded);
+
+      navigateToScene(*game, scenes->empty);
+
+      navigateToScene(*game, scenes->physicsModifier);
     }
   };
 }

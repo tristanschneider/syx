@@ -10,7 +10,7 @@ struct DefaultTaskLocals {
   DefaultTaskLocals(AppTaskArgs&) {}
 };
 
-template<class GroupT, class LocalT, class UnitT>
+template<class GroupT, class LocalT, class UnitT, class... Args>
 class TLSTaskImpl : public ITaskImpl {
 public:
   struct Worker {
@@ -20,8 +20,9 @@ public:
     std::optional<LocalT> local;
   };
 
-  TLSTaskImpl(std::string_view n)
+  TLSTaskImpl(std::string_view n, Args&&... args)
     : name{ n }
+    , argsTuple{ std::forward<Args>(args)... }
   {
   }
 
@@ -31,10 +32,15 @@ public:
     workers = std::make_unique<Worker[]>(static_cast<size_t>(workerCount));
   }
 
+  template<size_t... I>
+  void initGroup(RuntimeDatabaseTaskBuilder& builder, std::index_sequence<I...>) {
+    group.emplace(builder, std::move(std::get<I>(argsTuple))...);
+  }
+
   AppTaskMetadata init(RuntimeDatabase& db) final {
     RuntimeDatabaseTaskBuilder builder{ db };
     builder.discard();
-    group.emplace(builder);
+    initGroup(builder, std::make_index_sequence<sizeof...(Args)>());
     for(uint8_t i = 0; i < workerCount; ++i) {
       getWorker(i).unit.emplace(builder);
     }
@@ -42,8 +48,6 @@ public:
     //Fill metadata with the result of all of them
     //The rest after first could copy rather than constructing from RDTB but that's annoying to write
     AppTaskWithMetadata meta = std::move(builder).finalize();
-    config = std::move(meta.task.config);
-    pinning = meta.task.pinning;
     meta.data.name = name;
     return meta.data;
   }
@@ -74,6 +78,17 @@ public:
     return config;
   }
 
+  std::shared_ptr<AppTaskConfig> getOrAddConfig() {
+    if(!config) {
+      config = std::make_shared<AppTaskConfig>();
+    }
+    return config;
+  }
+
+  void setPinning(AppTaskPinning::Variant p) {
+    pinning = p;
+  }
+
   AppTaskPinning::Variant getPinning() final {
     return pinning;
   }
@@ -87,12 +102,19 @@ public:
   std::optional<GroupT> group;
   uint8_t workerCount{};
   std::shared_ptr<AppTaskConfig> config;
+  std::vector<std::shared_ptr<AppTaskConfig>> childConfigs;
   AppTaskPinning::Variant pinning;
+  std::tuple<Args...> argsTuple;
 };
 
 namespace TLSTask {
   template<class UnitT, class GroupT = DefaultTaskGroup, class LocalT = DefaultTaskLocals>
   std::unique_ptr<TLSTaskImpl<GroupT, LocalT, UnitT>> create(std::string_view name) {
     return std::make_unique<TLSTaskImpl<GroupT, LocalT, UnitT>>(name);
+  }
+
+  template<class UnitT, class GroupT, class LocalT, class... Args>
+  auto createWithArgs(std::string_view name, Args&&... args) {
+    return std::make_unique<TLSTaskImpl<GroupT, LocalT, UnitT, Args...>>(name, std::forward<Args>(args)...);
   }
 }

@@ -15,7 +15,10 @@ namespace AppTaskPinning {
   struct MainThread {};
   //Nothing else will be scheduled in parallel with this
   struct Synchronous {};
-  using Variant = std::variant<None, MainThread, Synchronous>;
+  struct ThreadID {
+    uint8_t id{};
+  };
+  using Variant = std::variant<None, MainThread, Synchronous, ThreadID>;
 };
 
 class ITaskImpl {
