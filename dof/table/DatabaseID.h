@@ -99,8 +99,9 @@ struct TableID : UnpackedDatabaseElementID {
     setElementIndex(0);
   }
   TableID(const UnpackedDatabaseElementID& i)
-    : UnpackedDatabaseElementID{ i }
   {
+    //Version is a concept only relevant to ids for elements in tables
+    setIgnoreVersion(i);
     setElementIndex(0);
   }
 

@@ -299,7 +299,7 @@ namespace Test {
       auto navigator = SceneNavigator::createNavigator(t);
       navigator->navigateTo(scene);
 
-      for(size_t i = 0; i < 3; ++i) {
+      for(size_t i = 0; i < 4; ++i) {
         game.updateSimulation();
       }
     }
@@ -382,6 +382,25 @@ namespace Test {
       navigateToScene(*game, scenes->empty);
 
       navigateToScene(*game, scenes->physicsModifier);
+    }
+
+    TEST_METHOD(IDReuse) {
+      std::unique_ptr<IGame> game = Game::createGame(GameDefaults::createDefaultGameArgs());
+      game->init();
+      RuntimeDatabase& db = game->getDatabase().getRuntime();
+      GameDatabase::Tables t{ db };
+      RuntimeTable* table = db.tryGet(t.physicsObjsWithZ);
+      const StableIDRow* stable = table->tryGet<StableIDRow>();
+      RuntimeDatabaseTaskBuilder task{ db };
+      task.discard();
+      ElementRefResolver id = task.getIDResolver()->getRefResolver();
+
+      table->resize(1);
+      Assert::IsTrue(table->getID() == TableID{ id.uncheckedUnpack(stable->at(0)) });
+
+      table->resize(0);
+      table->resize(1);
+      Assert::IsTrue(table->getID() == TableID{ id.uncheckedUnpack(stable->at(0)) }, L"Table ID should ignore the version field");
     }
   };
 }
