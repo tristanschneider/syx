@@ -17,6 +17,7 @@
 #include "DBEvents.h"
 #include "Simulation.h"
 #include "GraphicsTables.h"
+#include "FragmentSpawner.h"
 
 namespace Scenes {
   struct ImportedSceneGlobals {
@@ -185,12 +186,25 @@ namespace Scenes {
     void read(size_t, const Loader::QuadUV&) {
     }
 
+    struct AssetPair {
+      const Loader::AssetHandle* mesh{};
+      const Loader::AssetHandle* material{};
+    };
+
+    AssetPair getAsset(const Loader::MeshIndex& i) const {
+      return AssetPair{
+        .mesh = assets.tryGetMesh(i.meshIndex),
+        .material = assets.tryGetMaterial(i.materialIndex)
+      };
+    }
+
     void read(const Loader::MeshIndex& indices) {
-      if(const Loader::AssetHandle* mesh = assets.tryGetMesh(indices.meshIndex); sharedMesh && mesh) {
-        sharedMesh->at().asset = *mesh;
+      const auto pair = getAsset(indices);
+      if(sharedMesh && pair.mesh) {
+        sharedMesh->at().asset = *pair.mesh;
       }
-      if(const Loader::AssetHandle* material = assets.tryGetMaterial(indices.materialIndex); sharedTexture && material) {
-        sharedTexture->at().asset = *material;
+      if(sharedTexture && pair.material) {
+        sharedTexture->at().asset = *pair.material;
       }
     }
 
@@ -255,6 +269,63 @@ namespace Scenes {
     publisher.broadcastNewElements(*table);
   }
 
+  struct FragmentSpawnerRows {
+    FragmentSpawnerRows(RuntimeTable& table) {
+      table.tryGet(config)
+        .tryGet(state);
+    }
+
+    void read(size_t i, Loader::CollisionMask m) {
+      if(config) {
+        config->at(i).fragmentCollisionMask = m.mask;
+      }
+    }
+
+    void read(size_t i, Loader::FragmentCount c) {
+      if(config) {
+        config->at(i).fragmentCount = c.count;
+      }
+    }
+
+    FragmentSpawner::FragmentSpawnerConfigRow* config{};
+    FragmentSpawner::FragmentSpawnStateRow* state{};
+  };
+
+  void createFragmentSpawners(const Loader::FragmentSpawnerTable& loaded,
+    RuntimeDatabase& db,
+    const GameDatabase::Tables& tables,
+    const SceneAssets& assets,
+    EventPublisher& publisher
+  ) {
+    RuntimeTable* table = db.tryGet(tables.fragmentSpawner);
+    RuntimeTable* activeFragments = db.tryGet(tables.activeFragment);
+    RuntimeTable* completedFragments = db.tryGet(tables.completedFragment);
+    std::array<GraphicsRows, 2> graphics{
+      GraphicsRows{ *activeFragments, assets },
+      GraphicsRows{ *completedFragments, assets }
+    };
+    assert(table);
+
+    table->resize(loaded.spawners.size(), nullptr);
+
+    TransformRows transform{ *table };
+    PhysicsRows physics{ *table };
+    for(size_t i = 0; i < loaded.spawners.size(); ++i) {
+      const Loader::FragmentSpawner& t = loaded.spawners[i];
+      transform.read(i, t.transform);
+      transform.read(i, t.scale);
+      physics.read(i, t.collisionMask);
+      //Forward the material to the fragment tables it'll spawn into
+      if(const Loader::AssetHandle* material = assets.tryGetMaterial(t.meshIndex.meshIndex)) {
+        for(GraphicsRows& rows : graphics) {
+          rows.sharedTexture->at().asset = *material;
+        }
+      }
+    }
+
+    publisher.broadcastNewElements(*table);
+  }
+
   void instantiateScene(IAppBuilder& builder) {
     auto task = builder.createTask();
     ImportedSceneGlobals* globals = getImportedSceneGlobals(task);
@@ -269,6 +340,7 @@ namespace Scenes {
         SceneAssets assets{ *scene };
         createPlayers(scene->player, *db, tables, assets, publisher);
         createTerrain(scene->terrain, *db, tables, assets, publisher);
+        createFragmentSpawners(scene->fragmentSpawners, *db, tables, assets, publisher);
       }
 
       //Load is finished, release asset handle

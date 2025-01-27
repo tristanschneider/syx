@@ -30,7 +30,7 @@ namespace FragmentSpawner {
     }
 
     explicit operator bool() const {
-      return fragmentTable && posX && posY && posZ && goalX && goalY && sprite && stable;
+      return fragmentTable && posX && posY /*&& posZ*/ && goalX && goalY && sprite && stable;
     }
 
     RuntimeTable* fragmentTable{};
@@ -74,13 +74,22 @@ namespace FragmentSpawner {
       return result;
     }
 
-    void spawnNewFragments(UpdateLocals& locals, const FragmentSpawnerConfig& config, const pt::FullTransform& spawnerTransform, AppTaskArgs& args) {
-      if(!config.fragmentCount) {
-        return;
-      }
+    static Grid computeGridFromScale(const glm::vec2& scale) {
+      return Grid{
+        .rows = static_cast<size_t>(std::ceil(scale.x*2.f)),
+        .columns = static_cast<size_t>(std::ceil(scale.y*2.f)),
+        .fragmentScale = 1.f
+      };
+    }
+
+    void spawnNewFragments(UpdateLocals& locals, const FragmentSpawnerConfig&, const pt::FullTransform& spawnerTransform, AppTaskArgs& args) {
+      //if(!config.fragmentCount) {
+      //  return;
+      //}
       args.getLocalDB().setTableDirty(locals.fragmentTable->getID());
 
-      const Grid grid = computeGridFromScale(spawnerTransform.scale, config.fragmentCount);
+      //const Grid grid = computeGridFromScale(spawnerTransform.scale, config.fragmentCount);
+      const Grid grid = computeGridFromScale(spawnerTransform.scale);
       std::vector<size_t> indices(grid.rows*grid.columns);
       const size_t total = indices.size();
       size_t begin = locals.fragmentTable->addElements(indices.size());
@@ -125,7 +134,7 @@ namespace FragmentSpawner {
 
         locals.posX->at(i) = startX + shuffleColumn;
         locals.posY->at(i) = startY + shuffleRow;
-        locals.posZ->at(i) = spawnerTransform.pos.z;
+        //locals.posZ->at(i) = spawnerTransform.pos.z;
       }
     }
 
