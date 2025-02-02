@@ -90,6 +90,10 @@ struct UnpackedDatabaseElementID : StableElementMapping {
     return remake(getTableIndex(), elementIdx);
   }
 
+  explicit operator bool() const {
+    return isValid();
+  }
+
   auto operator<=>(const UnpackedDatabaseElementID&) const = default;
 };
 

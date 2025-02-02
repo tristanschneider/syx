@@ -42,6 +42,11 @@ public:
       std::nullopt;
   }
 
+  //Equivalent to tryUnpack but less annoying to use. Would be ideal to only use this
+  UnpackedDatabaseElementID unpack(const ElementRef& r) const {
+    return tryUnpack(r).value_or(UnpackedDatabaseElementID{});
+  }
+
 private:
   DatabaseDescription description{};
 };
@@ -82,12 +87,15 @@ public:
 
   template<class Row>
   auto tryGetOrSwapRowElement(CachedRow<Row>& row, const UnpackedDatabaseElementID& id) {
+    decltype(&row->at(0)) result{};
+    if(!id) {
+      return result;
+    }
     if(!row.row || row.tableID != id.getTableIndex()) {
       row.row = tryGetRow<Row>(id);
       row.tableID = id.getTableIndex();
     }
 
-    decltype(&row->at(0)) result{};
     if(row) {
       result = &row->at(id.getElementIndex());
     }

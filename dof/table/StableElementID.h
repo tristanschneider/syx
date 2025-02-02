@@ -186,6 +186,10 @@ public:
     return operator bool() ? ref.get() : nullptr;
   }
 
+  const StableElementMapping* uncheckedGet() const {
+    return ref.get();
+  }
+
   bool operator==(const ElementRef& rhs) const {
     return ref == rhs.ref && expectedVersion == rhs.expectedVersion;
   }
@@ -214,6 +218,10 @@ public:
   //For checking validity when empty refs or valid refs are okay, but expired refs are not
   bool isUnsetOrValid() const {
     return !isSet() || tryGet();
+  }
+
+  StableElementVersion getExpectedVersion() const {
+    return expectedVersion;
   }
 
 private:

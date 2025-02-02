@@ -23,4 +23,4 @@ namespace FragmentSpawner {
   struct FragmentSpawnerConfigRow : SlimRow<FragmentSpawnerConfig>{};
 
   std::unique_ptr<IAppModule> createModule();
- }
+}

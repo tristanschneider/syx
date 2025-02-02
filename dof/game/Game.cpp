@@ -218,6 +218,7 @@ namespace Game {
 #include "SceneNavigator.h"
 #include "scenes/SceneList.h"
 #include "FragmentSpawner.h"
+#include "EventValidator.h"
 
 namespace GameDefaults {
   MultithreadedDeps DefaultGameDatabaseReader::getMultithreadedDeps(IDatabase& db) {
@@ -234,10 +235,13 @@ namespace GameDefaults {
   Game::GameArgs createDefaultGameArgs(const Simulation::UpdateConfig& config) {
     Game::GameArgs args;
     args.dbSource = std::make_unique<DefaultGameDatabaseReader>();
+    //Add event validator if asserts are enabled. Best if registered early so that it can assert on bad events before they crash on a consumer.
+    assert((args.modules.push_back(EventValidator::createModule("first")), true));
     args.modules.push_back(Simulation::createModule(config));
     args.modules.push_back(FragmentSpawner::createModule());
     args.modules.push_back(SceneNavigator::createModule());
     args.modules.push_back(SceneList::createModule());
+    assert((args.modules.push_back(EventValidator::createModule("last")), true));
     //Rendering is from a separate project so "default" exposed here is empty
     return args;
   }
