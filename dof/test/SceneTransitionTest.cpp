@@ -402,5 +402,25 @@ namespace Test {
       table->resize(1);
       Assert::IsTrue(table->getID() == TableID{ id.uncheckedUnpack(stable->at(0)) }, L"Table ID should ignore the version field");
     }
+
+    //Switch scenes on the same tick as something already requested deletion
+    TEST_METHOD(DoubleDelete) {
+      Game::GameArgs args = GameDefaults::createDefaultGameArgs();
+      args.modules.push_back(std::make_unique<TestModule>());
+      args.modules.push_back(std::make_unique<EventValidator>());
+      std::unique_ptr<IGame> game = Game::createGame(std::move(args));
+      game->init();
+      RuntimeDatabase& db = game->getDatabase().getRuntime();
+      TestScenes* scenes = db.query<SharedRow<TestScenes>>().tryGetSingletonElement();
+
+      GameDatabase::Tables tables{ db };
+      RuntimeTable* objs = db.tryGet(tables.physicsObjsWithZ);
+      StableIDRow* stable = objs->tryGet<StableIDRow>();
+      const size_t i = objs->addElements(1);
+      std::unique_ptr<AppTaskArgs> taskArgs = game->createAppTaskArgs();
+      Events::onRemovedElement(stable->at(i), *taskArgs);
+
+      navigateToScene(*game, scenes->physics);
+    }
   };
 }
