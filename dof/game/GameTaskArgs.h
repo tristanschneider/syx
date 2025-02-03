@@ -16,7 +16,6 @@ public:
   RuntimeDatabase& getLocalDB() final;
   std::unique_ptr<AppTaskArgs> clone() const final;
   IRandom* getRandom() final;
-  IDBEvents* getEvents() final;
 
 private:
   ThreadLocalData tld;

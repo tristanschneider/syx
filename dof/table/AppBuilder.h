@@ -244,6 +244,7 @@ public:
   ~RuntimeDatabaseTaskBuilder();
 
   std::shared_ptr<IIDResolver> getIDResolver();
+  ElementRefResolver getRefResolver();
 
   template<class... Rows>
   std::shared_ptr<ITableResolver> getResolver() {

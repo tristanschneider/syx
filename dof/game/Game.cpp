@@ -160,6 +160,7 @@ namespace Game {
       visitModules(*builder, &IAppModule::preProcessEvents);
       visitModules(*builder, &IAppModule::processEvents);
       visitModules(*builder, &IAppModule::postProcessEvents);
+      visitModules(*builder, &IAppModule::clearEvents);
 
       if(args.rendering) {
         args.rendering->postSimUpdate(*builder);
@@ -213,6 +214,7 @@ namespace Game {
   }
 }
 
+#include "Events.h"
 #include "Simulation.h"
 #include "GameInput.h"
 #include "SceneNavigator.h"
@@ -242,6 +244,7 @@ namespace GameDefaults {
     args.modules.push_back(SceneNavigator::createModule());
     args.modules.push_back(SceneList::createModule());
     assert((args.modules.push_back(EventValidator::createModule("last")), true));
+    args.modules.push_back(Events::createModule());
     //Rendering is from a separate project so "default" exposed here is empty
     return args;
   }

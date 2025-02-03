@@ -38,7 +38,7 @@ concept ArgsExecutable = requires(T& t, Group& group, Local& local, AppTaskArgs&
   t.execute(args);
 };
 template<class T, class Group, class Local>
-concept TaskUnit = RuntimeTaskConstructable<T> && (
+concept TaskUnit = (RuntimeTaskConstructable<T> || RuntimeTaskConstructable<T, Group&>) && (
   GroupLocalExecutable<T, Group, Local> ||
   GroupExecutable<T, Group, Local> ||
   LocalExecutable<T, Group, Local> ||
@@ -73,12 +73,22 @@ public:
     group.emplace(builder, std::move(std::get<I>(argsTuple))...);
   }
 
+  template<class T> requires RuntimeTaskConstructable<typename T::value_type>
+  void initUnit(T& unit, RuntimeDatabaseTaskBuilder& builder) {
+    unit.emplace(builder);
+  }
+
+  template<class T> requires RuntimeTaskConstructable<typename T::value_type, GroupT>
+  void initUnit(T& unit, RuntimeDatabaseTaskBuilder& builder) {
+    unit.emplace(builder, *group);
+  }
+
   AppTaskMetadata init(RuntimeDatabase& db) final {
     RuntimeDatabaseTaskBuilder builder{ db };
     builder.discard();
     initGroup(builder, std::make_index_sequence<sizeof...(Args)>());
     for(uint8_t i = 0; i < workerCount; ++i) {
-      getWorker(i).unit.emplace(builder);
+      initUnit(getWorker(i).unit, builder);
     }
 
     //Fill metadata with the result of all of them

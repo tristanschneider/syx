@@ -12,6 +12,8 @@
 #include "AppBuilder.h"
 #include "Narrowphase.h"
 #include "GameTime.h"
+#include "Events.h"
+#include "TLSTaskImpl.h"
 
 namespace Fragment {
   using namespace Tags;
@@ -24,18 +26,29 @@ namespace Fragment {
   class FragmentMigrator : public IFragmentMigrator {
   public:
     FragmentMigrator(RuntimeDatabaseTaskBuilder& task)
-      : tables{ task }
-    {}
-
-    void moveActiveToComplete(const ElementRef& activeFragment, AppTaskArgs& args) final {
-      Events::MovePublisher{ &args }(activeFragment, tables.completeTable);
+      : ids{ task.getRefResolver() }
+    {
+      FragmentTables tables{ task };
+      activeQuery = task.query<Events::EventsRow>(tables.activeTable);
+      completeQuery = task.query<Events::EventsRow>(tables.completeTable);
+      assert(activeQuery.size());
+      assert(completeQuery.size());
     }
 
-    void moveCompleteToActive(const ElementRef& completeFragment, AppTaskArgs& args) final {
-      Events::MovePublisher{ &args}(completeFragment, tables.activeTable);
+    void moveActiveToComplete(const ElementRef& activeFragment, AppTaskArgs&) final {
+      if(auto e = ids.unpack(activeFragment); e && e.getTableIndex() == activeQuery.getTableID(0).getTableIndex()) {
+        activeQuery.get<0>(0).getOrAdd(e.getElementIndex()).setMove(completeQuery.getTableID(0));
+      }
     }
 
-    FragmentTables tables;
+    void moveCompleteToActive(const ElementRef& completeFragment, AppTaskArgs&) final {
+      if(auto e = ids.unpack(completeFragment); e && e.getTableIndex() == completeQuery.getTableID(0).getTableIndex()) {
+        completeQuery.get<0>(0).getOrAdd(e.getElementIndex()).setMove(activeQuery.getTableID(0));
+      }
+    }
+
+    QueryResult<Events::EventsRow> activeQuery, completeQuery;
+    ElementRefResolver ids;
   };
 
   std::shared_ptr<IFragmentMigrator> createFragmentMigrator(RuntimeDatabaseTaskBuilder& task) {
@@ -48,14 +61,13 @@ namespace Fragment {
     auto query = task.query<
       FragmentGoalFoundRow,
       const FragmentGoalCooldownRow,
-      const StableIDRow
+      Events::EventsRow
     >();
     const TableID completedTable = builder.queryTables<FragmentGoalFoundTableTag>()[0];
 
-    task.setCallback([query, completedTable](AppTaskArgs& args) mutable {
-      Events::MovePublisher moveElement{{ &args }};
+    task.setCallback([query, completedTable](AppTaskArgs&) mutable {
       for(size_t t = 0; t < query.size(); ++t) {
-        auto&& [goalFound, goalCooldown, stableRow] = query.get(t);
+        auto&& [goalFound, goalCooldown, events] = query.get(t);
         for(size_t i = 0; i < goalFound->size(); ++i) {
           //If the goal is found, enqueue a move request to the completed fragments table
           if(goalFound->at(i)) {
@@ -64,7 +76,7 @@ namespace Fragment {
               goalFound->at(i) = 0;
             }
             else {
-              moveElement(stableRow->at(i), completedTable);
+              events->getOrAdd(i).setMove(completedTable);
             }
           }
         }
@@ -77,79 +89,70 @@ namespace Fragment {
   //Migration enqueues an event to request that table service moves the element to the given table
   //This event triggers just before the table service runs to prepare the state of the object for migration
   //It is not done when the event is queued because other forces could change the object before then and when the migration happens
-  void _prepareFragmentMigration(const DBEvents& events, ITableResolver& resolver, IIDResolver& ids) {
-    CachedRow<FloatRow<Tags::Pos, Tags::X>> posX;
-    CachedRow<FloatRow<Tags::Pos, Tags::Y>> posY;
-    CachedRow<const FloatRow<Tags::FragmentGoal, Tags::X>> goalX;
-    CachedRow<const FloatRow<Tags::FragmentGoal, Tags::Y>> goalY;
-    CachedRow<FloatRow<Tags::Rot, Tags::CosAngle>> rotX;
-    CachedRow<FloatRow<Tags::Rot, Tags::SinAngle>> rotY;
-    CachedRow<const FragmentGoalFoundTableTag> goalFound;
-    for(const DBEvents::MoveCommand& cmd : events.toBeMovedElements) {
-      const TableID* destination = std::get_if<TableID>(&cmd.destination);
-      const ElementRef* source = std::get_if<ElementRef>(&cmd.source);
-      //const UnpackedDatabaseElementID& dest = ids.uncheckedUnpack(cmd.destination);
-      //If this is one of the completed fragments enqueued to be moved to the completed table
-      if(source && destination && resolver.tryGetOrSwapRow(goalFound, *destination)) {
-        const std::optional<UnpackedDatabaseElementID> self = ids.getRefResolver().tryUnpack(*source);
-        if(self && resolver.tryGetOrSwapAllRows(*self, posX, posY, goalX, goalY, rotX, rotY)) {
-          //Snap to destination
-          //TODO: effects to celebrate transition
-          const size_t si = self->getElementIndex();
-          TableAdapters::write(si, TableAdapters::read(si, *goalX, *goalY), *posX, *posY);
-          //This is no rotation, which will align with the image
-          TableAdapters::write(si, glm::vec2{ 1, 0 }, *rotX, *rotY);
-        }
-      }
+  struct PrepareFragmentMigration {
+    PrepareFragmentMigration(RuntimeDatabaseTaskBuilder& task)
+      : query{ task }
+      , ids{ task.getRefResolver() }
+      , res{ task.getResolver(fragmentFound) }
+    {
     }
-  }
 
-  void checkForFragmentReactivation(IAppBuilder& builder) {
-    auto task = builder.createTask();
-    task.setName("check for reactivation");
-    FragmentTables tables{ task };
-    auto ids = task.getIDResolver()->getRefResolver();
-    auto resolver = task.getResolver<FragmentGoalCooldownRow>();
-    const DBEvents& events = Events::getPublishedEvents(task);
-
-    task.setCallback([ids, resolver, &events, tables](AppTaskArgs&) {
-      CachedRow<FragmentGoalCooldownRow> cooldown;
-      for(const auto& move : events.toBeMovedElements) {
-        //If this moved to the active table, presumably it came from the completed table
-        if(auto destination = std::get_if<TableID>(&move.destination); destination && *destination == tables.activeTable) {
-          if(auto moved = std::get_if<ElementRef>(&move.source); moved && *moved) {
-            if(FragmentCooldownT* cd = resolver->tryGetOrSwapRowElement(cooldown, ids.uncheckedUnpack(*moved))) {
-              //TODO: configurable
-              *cd = 5;
-            }
+    void execute(AppTaskArgs&) {
+      for(size_t t = 0; t < query.size(); ++t) {
+        auto [events, posX, posY, goalX, goalY, rotX, rotY] = query.get(t);
+        for(auto event : *events) {
+          //If it's a move event into the fragment foal found table
+          if(event.second.isMove() && res->tryGetOrSwapRow(fragmentFound, event.second.getTableID())) {
+            const size_t si = event.first;
+            //Snap to destination
+            //TODO: effects to celebrate transition
+            TableAdapters::write(si, TableAdapters::read(si, *goalX, *goalY), *posX, *posY);
+            //This is no rotation, which will align with the image
+            TableAdapters::write(si, glm::vec2{ 1, 0 }, *rotX, *rotY);
           }
         }
       }
-    });
+    }
 
-    builder.submitTask(std::move(task));
-  }
+    QueryResult<
+      const Events::EventsRow,
+      Tags::PosXRow, Tags::PosYRow,
+      const Tags::FragmentGoalXRow, const Tags::FragmentGoalYRow,
+      Tags::RotXRow, Tags::RotYRow
+    > query;
+    ElementRefResolver ids;
+    CachedRow<const FragmentGoalFoundTableTag> fragmentFound;
+    std::shared_ptr<ITableResolver> res;
+  };
+
+  struct CheckForFragmentReactivation {
+    CheckForFragmentReactivation(RuntimeDatabaseTaskBuilder& task)
+      : query{ task }
+    {
+    }
+
+    void execute(AppTaskArgs&) {
+      //Query all events in the active table that were moves. Presumably they moved from the completed table into the active table
+      for(size_t t = 0; t < query.size(); ++t) {
+        auto [events, goalCooldown] = query.get(t);
+        for(auto event : *events) {
+          if(event.second.isMove()) {
+            //TODO: configurable
+            goalCooldown->at(event.first) = 5;
+          }
+        }
+      }
+    }
+
+    QueryResult<const Events::EventsRow, FragmentGoalCooldownRow> query;
+  };
 
   void preProcessEvents(IAppBuilder& builder) {
-    auto task = builder.createTask();
-    task.setName("fragment events");
-    using namespace Tags;
-    auto resolver = task.getResolver<
-      FloatRow<Pos, X>, FloatRow<Pos, Y>,
-      FloatRow<Rot, X>, FloatRow<Rot, Y>,
-      const FloatRow<FragmentGoal, X>, const FloatRow<FragmentGoal, Y>,
-      const FragmentGoalFoundTableTag
-    >();
-    auto ids = task.getIDResolver();
-    const DBEvents& events = Events::getPublishedEvents(task);
-    task.setCallback([resolver, &events, ids](AppTaskArgs&) mutable {
-      _prepareFragmentMigration(events, *resolver, *ids);
-    });
-    builder.submitTask(std::move(task));
+    builder.submitTask(TLSTask::create<PrepareFragmentMigration>("fragment events"));
   }
 
   void postProcessEvents(IAppBuilder& builder) {
-    checkForFragmentReactivation(builder);
+    builder.submitTask(TLSTask::create<CheckForFragmentReactivation>("fragment reactivation"));
   }
 
   //Check to see if each fragment has reached its goal

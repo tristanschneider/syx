@@ -10,6 +10,11 @@ using QueryResultRow = std::vector<RowT*>;
 template<class T> struct TestT : std::true_type {};
 
 template<class T>
+concept AddableIterator = requires(const T& it, size_t i) {
+  T{ it + i };
+};
+
+template<class T>
 struct IterableRow {
   T* row{};
   size_t size{};
@@ -455,6 +460,11 @@ namespace DBReflect {
     const size_t newTables = 1;
     args.tables.resize(baseIndex + newTables);
     details::reflectTable(args.tables[baseIndex], table);
+  }
+
+  template<IsRow RowT>
+  void addRow(RowT& row, RuntimeTableRowBuilder& table) {
+    details::reflectRow(row, table);
   }
 
   template<class DB>

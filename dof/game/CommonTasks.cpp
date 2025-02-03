@@ -1,6 +1,7 @@
 #include "Precompile.h"
 #include "CommonTasks.h"
 
+#include "Events.h"
 #include "TableAdapters.h"
 #include "ThreadLocals.h"
 
@@ -25,16 +26,14 @@ namespace CommonTasks {
           //Migrate everything from the local table to the main table
           size_t m = RuntimeTable::migrate(0, threadTable, mainTable, elements);
           StableIDRow* stable = mainTable.tryGet<StableIDRow>();
-          if(!stable) {
+          Events::EventsRow* events = mainTable.tryGet<Events::EventsRow>();
+          if(!stable || !events) {
             continue;
           }
 
           //Emit creation events for all the newly migrated elements
-          IDBEvents& events = *args.getEvents();
           for(; m < mainTable.size(); ++m) {
-            DBEvents::MoveCommand cmd;
-            cmd.destination = stable->at(m);
-            events.emit(std::move(cmd));
+            events->getOrAdd(m).setCreate();
           }
         }
 

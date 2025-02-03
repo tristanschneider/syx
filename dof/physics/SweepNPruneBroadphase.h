@@ -45,8 +45,8 @@ namespace SweepNPruneBroadphase {
   //New elements are added to the broadphase if they have a broadphase key row
   //Removed elements are removed from the broadphase
   //Moved elements are given one final bounds update if they moved to an immobile table, otherwise ignored
-  void preProcessEvents(RuntimeDatabaseTaskBuilder& task, const DBEvents& events);
+  void preProcessEvents(IAppBuilder& builder);
 
   //After table service
-  void postProcessEvents(RuntimeDatabaseTaskBuilder& task, const DBEvents& events, const PhysicsAliases& aliases, const BoundariesConfig& cfg);
+  void postProcessEvents(IAppBuilder& builder, const PhysicsAliases& aliases, const BoundariesConfig& cfg);
 };

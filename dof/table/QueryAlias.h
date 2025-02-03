@@ -30,7 +30,8 @@ struct QueryAlias : QueryAliasBase {
   {
   }
 
-  template<std::convertible_to<ResultT> SourceT>
+  template<class SourceT>
+  requires std::convertible_to<SourceT*, ResultT*>
   static QueryAlias create() {
     static_assert(std::is_const_v<SourceT> == std::is_const_v<ResultT>);
     using MutableSourceT = std::remove_const_t<SourceT>;

@@ -346,11 +346,24 @@ protected:
     return {};
   }
 
+  void clear() {
+    //Erase sparse mappings
+    for(auto it = beginBase(); it != endBase(); ++it) {
+      sparseToDense.at(*it) = 0;
+    }
+    //Reset packed values
+    onReset(0, sparseToDense.size() - SENTINEL_OFFSET);
+    //Erase packed mappings
+    denseToSparse.clear();
+    //Put back the sentinel element that was cleared
+    denseToSparse.push_back(0);
+  }
+
   //Reassociate the dense mapping with a new sparse mapping
   //This means the table index changed but the value should change the same. Intended for moving
   void remap(size_t fromSparse, size_t toSparse) {
     if(auto dense = sparseToDense.at(fromSparse); *dense) {
-      //Point the new sparse mapping at the densed element the previous was pointing at
+      //Point the new sparse mapping at the dense element the previous was pointing at
       sparseToDense.at(toSparse) = *dense;
       //Clear the previous sparse mapping
       dense = 0;
@@ -557,6 +570,10 @@ public:
 
   void erase(size_t sparse) {
     SparseRowBase::erase(sparse);
+  }
+
+  void clear() {
+    SparseRowBase::clear();
   }
 
   bool contains(size_t sparse) const {

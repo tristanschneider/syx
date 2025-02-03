@@ -37,7 +37,3 @@ std::unique_ptr<AppTaskArgs> GameTaskArgs::clone() const {
 IRandom* GameTaskArgs::getRandom() {
   return tld.random;
 }
-
-IDBEvents* GameTaskArgs::getEvents() {
-  return tld.events;
-}

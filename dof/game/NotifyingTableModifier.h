@@ -7,6 +7,10 @@ class RuntimeDatabaseTaskBuilder;
 class ElementRef;
 struct TableID;
 
+namespace Events {
+  struct EventsRow;
+}
+
 class NotifyingTableModifier {
 public:
   NotifyingTableModifier(RuntimeDatabaseTaskBuilder& task, const TableID& table);
@@ -18,7 +22,7 @@ public:
   size_t toIndex(const ElementRef& e) const;
 
 private:
-  AppTaskArgs* args{};
   const StableIDRow* stable{};
+  Events::EventsRow* events{};
   std::shared_ptr<ITableModifier> modifier;
 };

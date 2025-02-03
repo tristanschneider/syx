@@ -2,26 +2,24 @@
 #include "NotifyingTableModifier.h"
 
 #include "AppBuilder.h"
-#include "DBEvents.h"
+#include "Events.h"
 
 NotifyingTableModifier::NotifyingTableModifier(RuntimeDatabaseTaskBuilder& task, const TableID& table)
   : modifier{ task.getModifierForTable(table) }
   , stable{ &task.query<const StableIDRow>(table).get<0>(0) }
+  , events{ &task.query<Events::EventsRow>(table).get<0>(0) }
 {
 }
 
 NotifyingTableModifier::~NotifyingTableModifier() = default;
 
-void NotifyingTableModifier::initTask(AppTaskArgs& a) {
-  args = &a;
+void NotifyingTableModifier::initTask(AppTaskArgs&) {
 }
 
 const ElementRef* NotifyingTableModifier::addElements(size_t count) {
-  assert(args);
-
   const size_t begin = modifier->addElements(count);
   for(size_t i = begin; i < begin + count; ++i) {
-    Events::onNewElement(stable->at(i), *args);
+    events->getOrAdd(i).setCreate();
   }
   return &stable->at(begin);
 }

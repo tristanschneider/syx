@@ -7,7 +7,6 @@
 #include <unordered_map>
 #include <shared_mutex>
 #include "generics/PagedVector.h"
-#include <variant>
 
 struct StableElementMappings;
 
@@ -250,30 +249,4 @@ struct ConstStableInfo {
   const StableIDRow* row{};
   const StableElementMappings* mappings{};
   const DatabaseDescription description{};
-};
-
-struct DBEvents {
-  using Variant = std::variant<std::monostate, TableID, ElementRef>;
-
-  //Creating an element is from an invalid source to a valid destination
-  //Destroying an element is from a valid source to an invalid destination
-  //Moving an element is from a valid source to a valid destination
-  //In the case of moving only the unstable index is used to determine the destination table,
-  //the stable part doesn't matter
-  struct MoveCommand {
-    bool isDestroy() const { return std::holds_alternative<std::monostate>(destination); }
-    bool isCreate() const { return std::holds_alternative<std::monostate>(source); };
-    bool isMove() const { return std::holds_alternative<ElementRef>(source) && std::holds_alternative<TableID>(destination); }
-
-    Variant source;
-    Variant destination;
-  };
-  std::vector<MoveCommand> toBeMovedElements;
-};
-
-class IDBEvents {
-public:
-  virtual ~IDBEvents() = default;
-  virtual void emit(DBEvents::MoveCommand&& e) = 0;
-  virtual void publishTo(DBEvents& destination) = 0;
 };

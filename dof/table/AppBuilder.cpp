@@ -99,6 +99,10 @@ std::shared_ptr<IIDResolver> RuntimeDatabaseTaskBuilder::getIDResolver() {
   return std::make_unique<IDResolverImpl::Impl>(db);
 }
 
+ElementRefResolver RuntimeDatabaseTaskBuilder::getRefResolver() {
+  return getIDResolver()->getRefResolver();
+}
+
 void RuntimeDatabaseTaskBuilder::logDependency(std::initializer_list<QueryAliasBase> aliases) {
   auto tables = db.queryAliasTables(aliases);
   for(const QueryAliasBase& q : aliases) {

@@ -26,4 +26,5 @@ public:
   virtual void preProcessEvents(IAppBuilder&) {}
   virtual void processEvents(IAppBuilder&) {}
   virtual void postProcessEvents(IAppBuilder&) {}
+  virtual void clearEvents(IAppBuilder&) {}
 };
