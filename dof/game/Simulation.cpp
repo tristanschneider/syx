@@ -16,7 +16,6 @@
 #include "DebugInput.h"
 #include "World.h"
 #include "ability/PlayerAbility.h"
-#include "TableService.h"
 #include "AppBuilder.h"
 #include "FragmentStateMachine.h"
 #include "SpatialQueries.h"
@@ -33,10 +32,7 @@ ThreadLocalsInstance::~ThreadLocalsInstance() = default;
 void Simulation::buildUpdateTasks(IAppBuilder& builder, const UpdateConfig& config) {
   GameplayExtract::extractGameplayData(builder);
 
-  Loader::processRequests(builder, Loader::Events{
-    .notifyCreate = &Events::onNewElement,
-    .requestDestroy = &Events::onRemovedElement
-  });
+  Loader::processRequests(builder);
 
   PhysicsSimulation::updatePhysics(builder);
   config.injectGameplayTasks(builder);
@@ -54,8 +50,6 @@ void Simulation::buildUpdateTasks(IAppBuilder& builder, const UpdateConfig& conf
   StatEffect::createTasks(builder);
 
   CommonTasks::migrateThreadLocalDBsToMain(builder);
-
-  Events::publishEvents(builder);
 }
 
 void tryInitFromConfig(Config::GameConfig& toSet, const ConfigIO::Result::Error& error) {
@@ -77,9 +71,8 @@ void Simulation::initScheduler(IAppBuilder& builder, const ThreadLocalDatabaseFa
   task.setName("init scheduler");
   Scheduler* scheduler = task.query<SharedRow<Scheduler>>().tryGetSingletonElement();
   ThreadLocalsInstance* tls = task.query<ThreadLocalsRow>().tryGetSingletonElement();
-  Events::EventsInstance* events = task.query<Events::EventsRow>().tryGetSingletonElement();
   StableElementMappings* mappings = &task.getDatabase().getMappings();
-  task.setCallback([scheduler, tls, events, mappings, f](AppTaskArgs&) {
+  task.setCallback([scheduler, tls, mappings, f](AppTaskArgs&) {
     enki::TaskSchedulerConfig cfg;
     struct ProfileStop {
       static void threadStop(uint32_t) {
@@ -92,7 +85,6 @@ void Simulation::initScheduler(IAppBuilder& builder, const ThreadLocalDatabaseFa
     scheduler->mScheduler.Initialize(cfg);
     tls->instance = std::make_unique<ThreadLocals>(
       scheduler->mScheduler.GetNumTaskThreads(),
-      events->impl.get(),
       mappings,
       //ThreadLocals only uses this during the constructor
       Tasks::createEnkiSchedulerFactory(*scheduler, [tls](size_t t) { return tls->instance->get(t); }).get(),
@@ -173,10 +165,6 @@ public:
     PhysicsSimulation::preProcessEvents(builder);
     Fragment::preProcessEvents(builder);
     FragmentStateMachine::preProcessEvents(builder);
-  }
-
-  virtual void processEvents(IAppBuilder& builder) {
-    TableService::processEvents(builder);
   }
 
   virtual void postProcessEvents(IAppBuilder& builder) {

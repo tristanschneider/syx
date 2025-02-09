@@ -8,11 +8,11 @@
 #include "generics/Enum.h"
 #include <bitset>
 #include "generics/RateLimiter.h"
+#include <variant>
 
 class IAppBuilder;
 class RuntimeDatabaseTaskBuilder;
 struct PhysicsAliases;
-struct DBEvents;
 
 namespace Constraints {
   struct ConstraintPair {
@@ -292,7 +292,7 @@ namespace Constraints {
   //Used to create the backing storage for the solving of the constraint pair
   //Separate from Builder because it requires more exclusive access and only needs to
   //be done once for the lifetime of the constraint, while builder may be used to reconfigure a constraint every frame
-  //This could also be done with DBEvents but reassigning targets would still require this step
+  //This could also be done with events but reassigning targets would still require this step
   class IConstraintStorageModifier {
   public:
     virtual ~IConstraintStorageModifier() = default;
@@ -331,5 +331,5 @@ namespace Constraints {
 
   void update(IAppBuilder& builder, const PhysicsAliases& aliases, const ConstraintSolver::SolverGlobals& globals);
 
-  void postProcessEvents(RuntimeDatabaseTaskBuilder& builder, const DBEvents& events);
+  void postProcessEvents(IAppBuilder& builder);
 }

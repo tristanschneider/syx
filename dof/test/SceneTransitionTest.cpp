@@ -11,8 +11,9 @@
 #include "RowTags.h"
 #include "TLSTaskImpl.h"
 #include "SpatialPairsStorage.h"
-#include "DBEvents.h"
 #include "stat/ConstraintStatEffect.h"
+#include "Events.h"
+#include "EventValidator.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -126,7 +127,7 @@ namespace Test {
           : scenes{ TestScenes::get(task) }
           , table{ GameDatabase::Tables{ task }.physicsObjsWithZ }
           , modifier{ task.getModifierForTable(table) }
-          , stable{ task.query<const StableIDRow>(table).tryGet<0>(0) }
+          , query{ task.query<const StableIDRow, Events::EventsRow>(table) }
         {
         }
 
@@ -135,9 +136,10 @@ namespace Test {
           size_t b = modifier->addElements(count);
           ConstraintStatEffect::Builder builder{ args };
           std::vector<ElementRef> objs;
+          auto [stable, events] = query.get(0);
           for(size_t i = 0; i < count; ++i) {
             objs.push_back(stable->at(b + i));
-            Events::onNewElement(objs.back(), args);
+            events->getOrAdd(b + i).setCreate();
 
             //builder.createStatEffects(1).setLifetime(4);
             //builder.constraintBuilder().setJointType({ Constraints::MotorJoint{
@@ -161,7 +163,7 @@ namespace Test {
         TableID table;
         TestScenes* scenes{};
         std::shared_ptr<ITableModifier> modifier;
-        const StableIDRow* stable{};
+        QueryResult<const StableIDRow, Events::EventsRow> query;
       };
 
       void init(IAppBuilder& builder) {
@@ -196,85 +198,6 @@ namespace Test {
 
       void createDatabase(RuntimeDatabaseArgs& args) {
         DBReflect::addDatabase<Database<Table<SharedRow<TestScenes>>>>(args);
-      }
-    };
-
-    struct EventValidator : IAppModule {
-      struct Base {
-        Base(RuntimeDatabaseTaskBuilder& task)
-          : events{ Events::getPublishedEvents(task) }
-          , id{ task.getIDResolver()->getRefResolver() }
-          , resolver{ task.getResolver(stable) }
-        {}
-
-        void assertExists(const ElementRef& e) {
-          Assert::IsNotNull(e.tryGet());
-          Assert::IsNotNull(resolver->tryGetOrSwapRowElement(stable, id.tryUnpack(e)));
-        }
-
-        const DBEvents& events;
-        CachedRow<const StableIDRow> stable;
-        ElementRefResolver id;
-        std::shared_ptr<ITableResolver> resolver;
-      };
-
-      struct PreValidator : Base {
-        using Base::Base;
-
-        void execute(AppTaskArgs&) {
-          for(const auto& cmd : events.toBeMovedElements) {
-            auto from = std::get_if<ElementRef>(&cmd.source);
-            auto to = std::get_if<ElementRef>(&cmd.destination);
-            Assert::IsTrue(from || to, L"Event should always refer to an element");
-            if(from) {
-              //Move or destroy. The element should still exist because it hasn't happened yet
-              assertExists(*from);
-              Assert::IsNull(to, L"Event should only refer to a single element");
-            }
-            if(to) {
-              //New element created, should exist as they are emitted upon creation of the element
-              assertExists(*to);
-              Assert::IsNull(from, L"Event should only refer to a single element");
-            }
-          }
-        }
-      };
-
-      struct PostValidator : Base {
-        using Base::Base;
-
-        void execute(AppTaskArgs&) {
-          for(const auto& cmd : events.toBeMovedElements) {
-            auto from = std::get_if<ElementRef>(&cmd.source);
-            auto to = std::get_if<ElementRef>(&cmd.destination);
-            Assert::IsTrue(from || to);
-            if(to) {
-              //New element should exist
-              assertExists(*to);
-              Assert::IsNull(from);
-            }
-            if(from) {
-              //If it moved, make sure it's at the specified table
-              if(auto toID = std::get_if<TableID>(&cmd.destination)) {
-                Assert::IsTrue(static_cast<bool>(*from));
-                Assert::AreEqual(toID->getTableIndex(), from->getMapping()->getTableIndex());
-              }
-              //If it was a destroy command, ensure it was destroyed
-              else if(std::holds_alternative<std::monostate>(cmd.destination)) {
-                Assert::IsFalse(static_cast<bool>(*from));
-              }
-              Assert::IsNull(to);
-            }
-          }
-        }
-      };
-
-      void preProcessEvents(IAppBuilder& builder) {
-        builder.submitTask(TLSTask::create<PreValidator>("pre"));
-      }
-
-      void postProcessEvents(IAppBuilder& builder) {
-        builder.submitTask(TLSTask::create<PostValidator>("post"));
       }
     };
 
@@ -341,7 +264,7 @@ namespace Test {
     TEST_METHOD(Basic) {
       Game::GameArgs args = GameDefaults::createDefaultGameArgs();
       args.modules.push_back(std::make_unique<TestModule>());
-      args.modules.push_back(std::make_unique<EventValidator>());
+      args.modules.push_back(EventValidator::createModule("test"));
       std::unique_ptr<IGame> game = Game::createGame(std::move(args));
       game->init();
       RuntimeDatabase& db = game->getDatabase().getRuntime();
@@ -407,7 +330,7 @@ namespace Test {
     TEST_METHOD(DoubleDelete) {
       Game::GameArgs args = GameDefaults::createDefaultGameArgs();
       args.modules.push_back(std::make_unique<TestModule>());
-      args.modules.push_back(std::make_unique<EventValidator>());
+      args.modules.push_back(EventValidator::createModule("test"));
       std::unique_ptr<IGame> game = Game::createGame(std::move(args));
       game->init();
       RuntimeDatabase& db = game->getDatabase().getRuntime();
@@ -415,10 +338,10 @@ namespace Test {
 
       GameDatabase::Tables tables{ db };
       RuntimeTable* objs = db.tryGet(tables.physicsObjsWithZ);
-      StableIDRow* stable = objs->tryGet<StableIDRow>();
+      Events::EventsRow* events = objs->tryGet<Events::EventsRow>();
       const size_t i = objs->addElements(1);
       std::unique_ptr<AppTaskArgs> taskArgs = game->createAppTaskArgs();
-      Events::onRemovedElement(stable->at(i), *taskArgs);
+      events->getOrAdd(i).setDestroy();
 
       navigateToScene(*game, scenes->physics);
     }

@@ -5,7 +5,7 @@
 #include "SceneNavigator.h"
 #include "AppBuilder.h"
 #include "ConstraintSolver.h"
-#include "DBEvents.h"
+#include "Events.h"
 #include "TableAdapters.h"
 #include "Physics.h"
 
@@ -22,7 +22,7 @@ namespace Scenes {
         Tags::ScaleYRow,
         AccelerationY,
         ConstraintSolver::MassRow,
-        const StableIDRow
+        Events::EventsRow
       >();
       auto terrain = task.query<
         Tags::TerrainRow,
@@ -33,7 +33,7 @@ namespace Scenes {
         Tags::ScaleXRow,
         Tags::ScaleYRow,
         ConstraintSolver::SharedMassRow,
-        const StableIDRow
+        Events::EventsRow
       >();
       if(!objs.size() || !terrain.size()) {
         task.discard();
@@ -43,7 +43,7 @@ namespace Scenes {
       auto terrainModifier = task.getModifierForTable(terrain[0]);
       auto ids = task.getIDResolver();
 
-      task.setCallback([ids, objs, terrain, objsModifier, terrainModifier](AppTaskArgs& args) mutable {
+      task.setCallback([ids, objs, terrain, objsModifier, terrainModifier](AppTaskArgs&) mutable {
         constexpr size_t countX = 100;
         constexpr size_t countY = 100;
         const glm::vec2 size{ 1, 1 };
@@ -52,7 +52,6 @@ namespace Scenes {
         const Geo::BodyMass infMass = Geo::computeQuadMass(size.x, size.y, 0.0f);
         const float gravity = -0.005f;
         objsModifier->resize(countX*countY);
-        Events::CreatePublisher create{ &args };
         {
           auto [tag, px, py, sx, sy, gy, mass, stable] = objs.get(0);
           for(size_t x = 0; x < countX; ++x) {
@@ -62,7 +61,7 @@ namespace Scenes {
                 pos.y += 3.0f;
               }
               const size_t i = x*countX + y;
-              create(stable->at(i));
+              stable->getOrAdd(i).setCreate();
               TableAdapters::write(i, pos, *px, *py);
               TableAdapters::write(i, size, *sx, *sy);
               mass->at(i) = quadMass;
@@ -87,7 +86,7 @@ namespace Scenes {
           };
           terrainModifier->resize(positions.size());
           for(size_t i = 0; i < positions.size(); ++i) {
-            create(stable->at(i));
+            stable->getOrAdd(i).setCreate();
             TableAdapters::write(i, positions[i], *px, *py);
             TableAdapters::write(i, rotations[i], *rx, *ry);
             TableAdapters::write(i, groundSize, *sx, *sy);

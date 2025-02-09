@@ -10,6 +10,8 @@
 
 namespace Events {
   struct EventsStorage : ChainedRuntimeStorage {
+    using ChainedRuntimeStorage::ChainedRuntimeStorage;
+
     std::vector<Events::EventsRow> rows;
   };
 

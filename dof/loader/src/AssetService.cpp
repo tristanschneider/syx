@@ -2,6 +2,7 @@
 #include "loader/AssetService.h"
 
 #include "AppBuilder.h"
+#include "Events.h"
 #include "loader/AssetLoader.h"
 #include "loader/SceneAsset.h"
 #include "AssetTables.h"
@@ -101,9 +102,7 @@ namespace Loader {
     RuntimeDatabase& db,
     std::vector<std::pair<AssetLoadTask*, AssetOperations>>& assets,
     ElementRefResolver& res,
-    const TableID& sourceTable,
-    const Events& events,
-    AppTaskArgs& args
+    const TableID& sourceTable
   ) {
     for(auto&& [task, ops] : assets) {
       //Types that don't count as failures but also don't have a destination are skipped
@@ -142,8 +141,9 @@ namespace Loader {
       }
 
       //Broadcast notification of this
-      if(events.notifyCreate) {
-        events.notifyCreate(task->taskArgs.self.asset, args);
+      //TODO: use local database to do this
+      if(auto events = dest->tryGet<Events::EventsRow>()) {
+        events->getOrAdd(dstIndex).setCreate();
       }
 
       //Move the asset itself to the destination
@@ -177,7 +177,7 @@ namespace Loader {
   }
 
   //Look through loading assets and see if their tasks are complete. If so, either moves them to the success or failure tables
-  void updateRequestProgress(IAppBuilder& builder, const Events& events) {
+  void updateRequestProgress(IAppBuilder& builder) {
     auto task = builder.createTask();
     RuntimeDatabase& db = task.getDatabase();
     auto query = task.query<LoadingAssetRow>();
@@ -188,7 +188,7 @@ namespace Loader {
     assert(globals);
     auto res = task.getIDResolver()->getRefResolver();
 
-    task.setCallback([query, &db, failedTable, globals, res, events](AppTaskArgs& args) mutable {
+    task.setCallback([query, &db, failedTable, globals, res](AppTaskArgs&) mutable {
       if(!globals->assetCompletionLimit.tryUpdate()) {
         return;
       }
@@ -218,7 +218,7 @@ namespace Loader {
 
           //If all succeeded, move them over to the succeeded table
           if(allSucceeded) {
-            moveSucceededAssets(db, operations, res, thisTable, events, args);
+            moveSucceededAssets(db, operations, res, thisTable);
           }
           else {
             moveFailedAssets(db, operations, res, thisTable, *failedTable);
@@ -231,21 +231,20 @@ namespace Loader {
   }
 
   //Look at all UsageTrackerBlockRows for expired tracker blocks
-  void garbageCollectAssets(IAppBuilder& builder, const Events& events) {
+  void garbageCollectAssets(IAppBuilder& builder) {
     auto task = builder.createTask();
-    auto q = task.query<const StableIDRow, const UsageTrackerBlockRow>();
+    auto q = task.query<Events::EventsRow, const UsageTrackerBlockRow>();
     Globals* globals = getGlobals(task);
 
-    task.setCallback([q, globals, events](AppTaskArgs& args) mutable {
+    task.setCallback([q, globals](AppTaskArgs&) mutable {
       if(!globals->assetGCLimit.tryUpdate()) {
         return;
       }
       for(size_t t = 0; t < q.size(); ++t) {
-        auto [ids, usages] = q.get(t);
+        auto [events, usages] = q.get(t);
         for(size_t i = 0; i < usages->size(); ++i) {
           if(usages->at(i).tracker.expired()) {
-            assert(events.requestDestroy);
-            events.requestDestroy(ids->at(i), args);
+            events->getOrAdd(i).setDestroy();
           }
         }
       }
@@ -254,10 +253,10 @@ namespace Loader {
     builder.submitTask(std::move(task.setName("gc assets")));
   }
 
-  void processRequests(IAppBuilder& builder, const Events& events) {
+  void processRequests(IAppBuilder& builder) {
     startRequests(builder);
-    updateRequestProgress(builder, events);
-    garbageCollectAssets(builder, events);
+    updateRequestProgress(builder);
+    garbageCollectAssets(builder);
   }
 
   void createDB(RuntimeDatabaseArgs& args) {

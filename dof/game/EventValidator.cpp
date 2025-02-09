@@ -4,7 +4,7 @@
 #include "IAppModule.h"
 #include "AppBuilder.h"
 #include "TLSTaskImpl.h"
-#include "DBEvents.h"
+#include "Events.h"
 #include "RowTags.h"
 
 namespace EventValidator {
@@ -26,6 +26,7 @@ namespace EventValidator {
   };
 
   struct ElementLookup {
+    ElementRef element;
     TableID table{};
     bool existsInTable{};
     EventValidatorGroup::TrackingIterator tracked;
@@ -51,43 +52,51 @@ namespace EventValidator {
     }
   }
 
-  void logCreate([[maybe_unused]] const ElementLookup& lookup, const ElementRef& e) {
+  void logCreate([[maybe_unused]] const ElementLookup& lookup) {
     if constexpr(enableLogs) {
-      printf("Create %p,%d in %s\n", e.uncheckedGet(), (int)e.getExpectedVersion(), lookup.tableName.data());
+      printf("Create %p,%d in %s\n", lookup.element.uncheckedGet(), (int)lookup.element.getExpectedVersion(), lookup.tableName.data());
     }
   }
 
-  void logMove([[maybe_unused]] const ElementLookup& lookup, const ElementRef& e) {
+  void logMove([[maybe_unused]] const ElementLookup& lookup) {
     if constexpr(enableLogs) {
-      printf("Move %p,%d to %s\n", e.uncheckedGet(), e.getExpectedVersion(), lookup.tableName.data());
+      printf("Move %p,%d to %s\n", lookup.element.uncheckedGet(), lookup.element.getExpectedVersion(), lookup.tableName.data());
     }
   }
 
-  void logDestroy([[maybe_unused]] const ElementLookup& lookup, const ElementRef& e) {
+  void logDestroy([[maybe_unused]] const ElementLookup& lookup) {
     if constexpr(enableLogs) {
-      printf("Destroy %p,%d from %s\n", e.uncheckedGet(), e.getExpectedVersion(), lookup.tableName.data());
+      printf("Destroy %p,%d from %s\n", lookup.element.uncheckedGet(), lookup.element.getExpectedVersion(), lookup.tableName.data());
     }
   }
 
   struct EventValidatorBase {
     EventValidatorBase(RuntimeDatabaseTaskBuilder& task)
-      : events{ Events::getPublishedEvents(task) }
-      , res{ task.getResolver(stable, tableName) }
+      : query{ task }
+      , res{ task.getResolver(tableName) }
       , ids{ task.getIDResolver()->getRefResolver() }
     {
     }
 
-    ElementLookup find(const ElementRef& e, EventValidatorGroup& group) {
-      ElementLookup result;
-      const UnpackedDatabaseElementID id = ids.unpack(e);
-      result.table = TableID{ id };
-      if(const ElementRef* found = res->tryGetOrSwapRowElement(stable, id)) {
-        result.existsInTable = *found == e;
-        if(const Tags::TableName* name = res->tryGetOrSwapRowElement(tableName, id)) {
-          result.tableName = name->name;
-        }
+    ElementLookup find(EventValidatorGroup& group, size_t tableIndex, size_t elementIndex) {
+      auto [events, stables, names] = query.get(tableIndex);
+      if(elementIndex >= stables->size()) {
+        return {};
       }
+
+      ElementLookup result;
+      const ElementRef& e = stables->at(elementIndex);
+      const UnpackedDatabaseElementID id = ids.unpack(e);
+      result.existsInTable = static_cast<bool>(e);
+      if(result.existsInTable) {
+        assert(e.getMapping()->getTableIndex() == query[tableIndex].getTableIndex());
+        assert(e.getMapping()->getElementIndex() == elementIndex);
+      }
+      result.table = TableID{ id };
+      result.existsInTable = true;
+      result.tableName = names->at(id.getElementIndex()).name;
       result.tracked = group.trackedElements.find(e);
+      result.element = e;
       return result;
     }
 
@@ -95,33 +104,34 @@ namespace EventValidator {
       return res->tryGetOrSwapRow(tableName, table) ? std::string_view{ tableName->at().name } : std::string_view{ "?" };
     }
 
-    void validateNewElement(const DBEvents::MoveCommand& cmd, EventValidatorGroup& group, bool doLogs) {
-      auto from = std::get_if<ElementRef>(&cmd.source);
-      auto to = std::get_if<ElementRef>(&cmd.destination);
-      assert(to);
-      if(!to) {
-        return;
-      }
+    void validateNewElement(EventValidatorGroup& group, size_t tableIndex, size_t elementIndex, bool doLogs) {
+      auto [events, stables, names] = query.get(tableIndex);
+      const ElementRef& newElement = stables->at(elementIndex);
 
       //New element created, should exist as they are emitted upon creation of the element
-      const ElementLookup lookup = find(*to, group);
+      const ElementLookup lookup = find(group, tableIndex, elementIndex);
       assert(lookup.existsInTable);
-      assert(!from && "Event should only refer to a single element");
-      assert(std::holds_alternative<std::monostate>(cmd.source) && "When destination exists it should be a new event");
       assert(lookup.tracked == group.trackedElements.end() && "New element should be new");
 
       if(doLogs) {
-        logCreate(lookup, *to);
+        logCreate(lookup);
       }
 
-      group.trackedElements[*to] = EventTracker{
+      group.trackedElements[newElement] = EventTracker{
         .lastKnownTable = lookup.table,
         .tableName = lookup.tableName
       };
     }
 
-    const DBEvents& events;
-    CachedRow<const StableIDRow> stable;
+    static void assertValidEvent(const Events::ElementEvent& e) {
+      assert(e.isCreate() || e.isMove() || e.isDestroy());
+    }
+
+    QueryResult<
+      const Events::EventsRow,
+      const StableIDRow,
+      const Tags::TableNameRow
+    > query;
     CachedRow<const Tags::TableNameRow> tableName;
     std::shared_ptr<ITableResolver> res;
     ElementRefResolver ids;
@@ -132,35 +142,36 @@ namespace EventValidator {
 
     void execute(EventValidatorGroup& group, AppTaskArgs&) {
       logBegin();
-      for(const auto& cmd : events.toBeMovedElements) {
-        auto from = std::get_if<ElementRef>(&cmd.source);
-        auto to = std::get_if<ElementRef>(&cmd.destination);
-        assert(from || to && L"Event should always refer to an element");
-        if(from) {
-          //Move or destroy. The element should still exist because it hasn't happened yet
-          const ElementLookup lookup = find(*from, group);
-          assert(lookup.existsInTable);
-          assert(lookup.tracked != group.trackedElements.end() && "Element must exist to be moved or destroyed");
-          if(lookup.tracked != group.trackedElements.end()) {
-            assert(lookup.table == lookup.tracked->second.lastKnownTable && "Table should match last event");
+      for(size_t t = 0; t < query.size(); ++t) {
+        auto [events, stables, names] = query.get(t);
+        for(auto event : *events) {
+          const Events::ElementEvent& e = event.second;
+          assertValidEvent(e);
+          if(e.isCreate()) {
+            validateNewElement(group, t, event.first, true);
           }
-          assert(!to && "Event should only refer to a single element");
+          if(e.isDestroy() || e.isMove()) {
+            //Move or destroy. The element should still exist because it hasn't happened yet
+            const ElementLookup lookup = find(group, t, event.first);
+            assert(lookup.existsInTable);
+            assert(lookup.tracked != group.trackedElements.end() && "Element must exist to be moved or destroyed");
+            if(lookup.tracked != group.trackedElements.end()) {
+              assert(lookup.table == lookup.tracked->second.lastKnownTable && "Table should match last event");
+            }
 
-          if(lookup.tracked != group.trackedElements.end()) {
-            if(std::holds_alternative<std::monostate>(cmd.destination)) {
-              logDestroy(lookup, *from);
-              group.trackedElements.erase(lookup.tracked);
-            }
-            else {
-              const TableID newTable = std::get<TableID>(cmd.destination);
-              lookup.tracked->second.lastKnownTable = newTable;
-              lookup.tracked->second.tableName = getTableName(newTable);
-              logMove(lookup, *from);
+            if(lookup.tracked != group.trackedElements.end()) {
+              if(e.isDestroy()) {
+                logDestroy(lookup);
+                group.trackedElements.erase(lookup.tracked);
+              }
+              else {
+                const TableID newTable = event.second.getTableID();
+                lookup.tracked->second.lastKnownTable = newTable;
+                lookup.tracked->second.tableName = getTableName(newTable);
+                logMove(lookup);
+              }
             }
           }
-        }
-        else if(to) {
-          validateNewElement(cmd, group, true);
         }
       }
       logEnd();
@@ -171,35 +182,33 @@ namespace EventValidator {
     using EventValidatorBase::EventValidatorBase;
 
     void execute(EventValidatorGroup& group, AppTaskArgs&) {
-      for(const auto& cmd : events.toBeMovedElements) {
-        auto from = std::get_if<ElementRef>(&cmd.source);
-        auto to = std::get_if<ElementRef>(&cmd.destination);
-        assert(from || to && L"Event should always refer to an element");
-        if(from) {
-          //Move or destroy. The element should now either be at the new location or destroyed.
-          const ElementLookup lookup = find(*from, group);
-          assert(lookup.tracked != group.trackedElements.end() && "Element must exist to be moved or destroyed");
+      for(size_t t = 0; t < query.size(); ++t) {
+        auto [events, stables, names] = query.get(t);
+        for(auto event : *events) {
+          assertValidEvent(event.second);
 
-          assert(!to && "Event should only refer to a single element");
+          if(event.second.isCreate()) {
+            validateNewElement(group, t, event.first, false);
+          }
 
-          if(lookup.tracked != group.trackedElements.end()) {
-            size_t h = std::hash<ElementRef>{}(lookup.tracked->first);
-            h;
+          if(event.second.isMove() || event.second.isDestroy()) {
+            //Move or destroy. The element should now either be at the new location or destroyed.
+            const ElementLookup lookup = find(group, t, event.first);
+            assert(lookup.tracked != group.trackedElements.end() && "Element must exist to be moved or destroyed");
 
-            if(std::holds_alternative<std::monostate>(cmd.destination)) {
-              assert(!lookup.existsInTable && "Element should have been destroyed");
-              group.trackedElements.erase(lookup.tracked);
-            }
-            else {
-              const TableID newTable = std::get<TableID>(cmd.destination);
-              lookup.tracked->second.lastKnownTable = newTable;
-              lookup.tracked->second.tableName = getTableName(newTable);
-              assert(lookup.table == newTable && "Element should have arrived in the table it indicated to move to");
+            if(lookup.tracked != group.trackedElements.end()) {
+              if(event.second.isDestroy()) {
+                assert(!lookup.existsInTable && "Element should have been destroyed");
+                group.trackedElements.erase(lookup.tracked);
+              }
+              else {
+                const TableID newTable = event.second.getTableID();
+                lookup.tracked->second.lastKnownTable = newTable;
+                lookup.tracked->second.tableName = getTableName(newTable);
+                assert(lookup.table == newTable && "Element should have arrived in the table it indicated to move to");
+              }
             }
           }
-        }
-        else if(to) {
-          validateNewElement(cmd, group, false);
         }
       }
     }
@@ -207,14 +216,15 @@ namespace EventValidator {
 
   struct ProcessValidator {
     ProcessValidator(RuntimeDatabaseTaskBuilder& task)
-      : events{ Events::getPublishedEvents(task) } {
+      : events{ task } {
     }
 
     void execute(AppTaskArgs&) {
       logProcess();
     }
 
-    const DBEvents& events;
+    //Artificial dependency to ensure the scheduler doesn't skip this past other events
+    QueryResult<const Events::EventsRow> events;
   };
 
   struct EventValidatorModule : IAppModule {

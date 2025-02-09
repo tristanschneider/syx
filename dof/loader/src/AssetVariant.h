@@ -2,6 +2,7 @@
 
 #include "loader/SceneAsset.h"
 #include "QueryAlias.h"
+#include <variant>
 
 class IRow;
 

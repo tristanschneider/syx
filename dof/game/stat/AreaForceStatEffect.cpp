@@ -1,7 +1,7 @@
 #include "Precompile.h"
 #include "stat/AreaForceStatEffect.h"
 
-#include "DBEvents.h"
+#include "Events.h"
 #include "Simulation.h"
 #include "stat/AllStatEffects.h"
 #include "stat/DamageStatEffect.h"
@@ -312,7 +312,8 @@ namespace AreaForceStatEffect {
       FloatRow<GLinImpulse, X>, FloatRow<GLinImpulse, Y>,
       FloatRow<GAngImpulse, Angle>,
       const StableIDRow,
-      const FragmentGoalFoundTableTag
+      const FragmentGoalFoundTableTag,
+      Events::EventsRow
     >();
     const TableID fragmentTable = builder.queryTables<FragmentGoalFoundRow>()[0];
 
@@ -327,7 +328,7 @@ namespace AreaForceStatEffect {
       CachedRow<FloatRow<GAngImpulse, Angle>> impulseA;
       CachedRow<const StableIDRow> stableRow;
       CachedRow<const FragmentGoalFoundTableTag> isCompletedFragment;
-      Events::MovePublisher moveCompletedFragment{ &args };
+      CachedRow<Events::EventsRow> events;
 
       for(size_t t = 0; t < query.size(); ++t) {
         auto&& [commands] = query.get(t);
@@ -387,8 +388,8 @@ namespace AreaForceStatEffect {
               continue;
             }
             //If it doesn't have velocity, is a completed fragment, and the command is supposed to dislodge it, then dislodge it
-            else if(command.dislodgeFragments && resolver->tryGetOrSwapRow(isCompletedFragment, hit.id)) {
-              moveCompletedFragment(stableRow->at(id), fragmentTable);
+            else if(command.dislodgeFragments && resolver->tryGetOrSwapAllRows(hit.id, isCompletedFragment, events)) {
+              events->getOrAdd(hit.id.getElementIndex()).setMove(fragmentTable);
             }
           }
 

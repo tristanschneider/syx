@@ -2,6 +2,7 @@
 #include "CppUnitTest.h"
 
 #include "AppBuilder.h"
+#include "Events.h"
 #include "Narrowphase.h"
 #include "Simulation.h"
 #include "SceneNavigator.h"
@@ -37,7 +38,8 @@ namespace Test {
           FloatRow<Pos, Z>,
           ScaleXRow,
           ScaleYRow,
-          const StableIDRow
+          const StableIDRow,
+          Events::EventsRow
         >();
         auto terrainModifier = task.getModifiersForTables(terrain.getMatchingTableIDs());
         auto ids = task.getIDResolver();
@@ -50,16 +52,17 @@ namespace Test {
           ScaleXRow,
           ScaleYRow,
           ConstraintSolver::MassRow,
-          const StableIDRow
+          const StableIDRow,
+          Events::EventsRow
         >();
         auto dynamicsModifier = task.getModifiersForTables(dynamics);
 
-        task.setCallback([=](AppTaskArgs& taskArgs) mutable {
+        task.setCallback([=](AppTaskArgs&) mutable {
           {
             const size_t ground = terrainModifier[0]->addElements(1);
-            auto [_, px, py, pz, sx, sy, stable] = terrain.get(0);
+            auto [_, px, py, pz, sx, sy, stable, events] = terrain.get(0);
             data.ground = stable->at(ground);
-            Events::onNewElement(data.ground, taskArgs);
+            events->getOrAdd(ground).setCreate();
             const glm::vec2 scale{ 2.0f };
             const glm::vec2 center{ 0.0f };
             TableAdapters::write(ground, center, *px, *py);
@@ -68,9 +71,9 @@ namespace Test {
           }
           {
             const size_t dy = dynamicsModifier[0]->addElements(1);
-            auto [_, px, py, pz, sx, sy, mass, stable] = dynamics.get(0);
+            auto [_, px, py, pz, sx, sy, mass, stable, events] = dynamics.get(0);
             data.dynamicObject = stable->at(dy);
-            Events::onNewElement(data.dynamicObject, taskArgs);
+            events->getOrAdd(dy).setCreate();
             const glm::vec2 scale{ 1.0f };
             const glm::vec2 center{ 0.0f };
             TableAdapters::write(dy, center, *px, *py);

@@ -2,6 +2,7 @@
 #include "SceneNavigator.h"
 
 #include "AppBuilder.h"
+#include "Events.h"
 #include "GameInput.h"
 #include "Simulation.h"
 #include "TableAdapters.h"
@@ -27,12 +28,12 @@ namespace Scenes {
       FloatRow<Tags::Pos, Tags::X>,
       FloatRow<Tags::Pos, Tags::Y>,
       GameInput::PlayerInputRow,
-      const StableIDRow>();
+      Events::EventsRow>();
     Config::GameConfig* config = task.query<SharedRow<Config::GameConfig>>().tryGetSingletonElement();
     std::shared_ptr<ITableModifier> playerModifier = task.getModifierForTable(players[0]);
     const SceneState* scene = task.query<const SharedRow<SceneState>>().tryGetSingletonElement();
 
-    task.setCallback([scene, cameras, cameraModifier, players, playerModifier, config](AppTaskArgs& args) mutable {
+    task.setCallback([scene, cameras, cameraModifier, players, playerModifier, config](AppTaskArgs&) mutable {
       if(!config->fragment.playerSpawn) {
         return;
       }
@@ -46,10 +47,10 @@ namespace Scenes {
       mainCamera.zoom = 1.5f;
 
       playerModifier->resize(1);
-      const StableIDRow& playerStableRow = *players.get<const StableIDRow>(0);
+      Events::EventsRow& playerEvents = *players.get<Events::EventsRow>(0);
       //TODO: this could be built into the modifier itself
       const size_t playerIndex = 0;
-      Events::onNewElement(playerStableRow.at(playerIndex), args);
+      playerEvents.getOrAdd(playerIndex).setCreate();
 
       TableAdapters::write(0, *config->fragment.playerSpawn, *posX, *posY);
 
@@ -70,7 +71,7 @@ namespace Scenes {
       FloatRow<FragmentGoal, X>,
       FloatRow<FragmentGoal, Y>,
       Row<CubeSprite>,
-      const StableIDRow
+      Events::EventsRow
     >();
     auto terrain = task.query<
       const TerrainRow,
@@ -79,7 +80,7 @@ namespace Scenes {
       FloatRow<Pos, Z>,
       ScaleXRow,
       ScaleYRow,
-      const StableIDRow
+      Events::EventsRow
     >();
     auto modifiers = task.getModifiersForTables(fragments.getMatchingTableIDs());
     auto terrainModifier = task.getModifiersForTables(terrain.getMatchingTableIDs());
@@ -89,7 +90,7 @@ namespace Scenes {
       return;
     }
 
-    task.setCallback([scene, fragments, modifiers, args, terrain, terrainModifier, foundTable](AppTaskArgs& taskArgs) mutable {
+    task.setCallback([scene, fragments, modifiers, args, terrain, terrainModifier, foundTable](AppTaskArgs&) mutable {
       std::random_device device;
       std::mt19937 generator(device());
 
@@ -109,7 +110,7 @@ namespace Scenes {
         modifiers[t]->resize(total);
         auto [posX, posY, goalX, goalY, sprites, stableIDs] = fragments.get(t);
         for(size_t s = 0; s < stableIDs->size(); ++s) {
-          Events::onNewElement(stableIDs->at(s), taskArgs);
+          stableIDs->getOrAdd(s).setCreate();
         }
 
         //Shuffle indices randomly
@@ -127,7 +128,7 @@ namespace Scenes {
         for(size_t j = 0; j < total; ++j) {
           //Immediately complete the desired amount of fragments
           if(j < totalCompleted && foundTable.size()) {
-            Events::onMovedElement(stableIDs->at(j), foundTable[0], taskArgs);
+            stableIDs->getOrAdd(j).setMove(foundTable[0]);
           }
 
           const size_t shuffleIndex = indices[j];
@@ -164,7 +165,7 @@ namespace Scenes {
       if(terrain.size() && args->addGround) {
         const size_t ground = terrainModifier[0]->addElements(1);
         auto [_, px, py, pz, sx, sy, stable] = terrain.get(0);
-        Events::onNewElement(stable->at(ground), taskArgs);
+        stable->getOrAdd(ground).setCreate();
         const glm::vec2 scale = scene->mBoundaryMax - scene->mBoundaryMin;
         const glm::vec2 center = (scene->mBoundaryMin + scene->mBoundaryMax) * 0.5f;
         TableAdapters::write(ground, center, *px, *py);

@@ -162,7 +162,6 @@ namespace Tasks {
 };
 
 struct IRandom;
-class IDBEvents;
 
 struct AppTaskArgs {
   virtual ~AppTaskArgs() = default;
@@ -176,7 +175,6 @@ struct AppTaskArgs {
   virtual RuntimeDatabase& getLocalDB() = 0;
   virtual std::unique_ptr<AppTaskArgs> clone() const = 0;
   virtual IRandom* getRandom() = 0;
-  virtual IDBEvents* getEvents() = 0;
 };
 using AppTaskCallback = std::function<void(AppTaskArgs&)>;
 
@@ -318,9 +316,9 @@ public:
 
   //Modifiers allow immediately adding or removing elements from tables.
   //Deferred alternatives exist:
-  //Add: add to the local database on AppTaskArgs and it'll be migrated to the main database by CommonTasks. This will also emit the migration as a creation DBEvent
-  //Move: use IDBEvents to emit an event from one table to another. TableService will then perform this move
-  //Delete: use IDBEvents to emit an event from the current table to no destination. The deletion will be performed by TableService
+  //Add: add to the local database on AppTaskArgs and it'll be migrated to the main database by CommonTasks. This will also emit the migration as a creation event.
+  //Move: use Events::EventsRow to emit an event from one table to another. Events module will then perform this move.
+  //Delete: use Events::EventsRow to mark for deletion. The deletion will be performed by events module.
   std::shared_ptr<ITableModifier> getModifierForTable(const TableID& table);
   std::vector<std::shared_ptr<ITableModifier>> getModifiersForTables(const std::vector<TableID>& tables);
   std::vector<std::shared_ptr<ITableModifier>> getModifiersForTables(const QueryResultBase& tables);

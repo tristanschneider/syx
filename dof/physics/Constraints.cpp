@@ -3,6 +3,7 @@
 
 #include "AppBuilder.h"
 
+#include "Events.h"
 #include "SpatialPairsStorage.h"
 #include "generics/Enum.h"
 #include "generics/Container.h"
@@ -10,6 +11,7 @@
 #include "TransformResolver.h"
 #include "Geometric.h"
 #include "ConstraintSolver.h"
+#include "TLSTaskImpl.h"
 
 namespace Constraints {
   constexpr size_t GC_TRACK_LIMIT = 200;
@@ -732,9 +734,7 @@ namespace Constraints {
 
   //Use the constraint definition to assign constraint storage for newly created elements that have AutoManageJointTag
   //The definition is used to determine what the constraint targets are
-  void autoInitInternalJoints(RuntimeDatabaseTaskBuilder& task, const DBEvents& events) {
-    task.setName("auto init joints");
-    auto q = task.query<const Constraints::TableConstraintDefinitionsRow, const AutoManageJointTag>();
+  struct AutoInitInternalJoints {
     struct Managed {
       struct Definition {
         //Modifier to create the storage
@@ -744,47 +744,56 @@ namespace Constraints {
       };
       std::vector<Definition> definitions;
     };
-    std::unordered_map<TableID, Managed> managedTables;
-    for(size_t i = 0; i < q.size(); ++i) {
-      const auto& [def, _] = q.get(i);
-      const TableID& table = q[i];
-      Managed& managed = managedTables[table];
-      ResolveConstTarget resolveTarget{ task, table };
-      for(size_t c = 0; c < def->at().definitions.size(); ++c) {
-        const Definition& definition = def->at().definitions[c];
-        managed.definitions.push_back(Managed::Definition{
-          .modifier = Constraints::createConstraintStorageModifier(task, c, table),
-          .targetA = std::visit(resolveTarget, definition.targetA),
-          .targetB = std::visit(resolveTarget, definition.targetB),
-        });
+
+    AutoInitInternalJoints(RuntimeDatabaseTaskBuilder& task)
+      : query{ task }
+      , managedTables(query.size())
+    {
+      for(size_t i = 0; i < query.size(); ++i) {
+        const auto& [def, x, y, z] = query.get(i);
+        const TableID& table = query[i];
+        Managed& managed = managedTables[i];
+        ResolveConstTarget resolveTarget{ task, table };
+        for(size_t c = 0; c < def->at().definitions.size(); ++c) {
+          const Definition& definition = def->at().definitions[c];
+          managed.definitions.push_back(Managed::Definition{
+            .modifier = Constraints::createConstraintStorageModifier(task, c, table),
+            .targetA = std::visit(resolveTarget, definition.targetA),
+            .targetB = std::visit(resolveTarget, definition.targetB),
+          });
+        }
       }
     }
 
-    auto ids = task.getIDResolver()->getRefResolver();
-    task.setCallback([&events, ids, managedTables](AppTaskArgs&) mutable {
-      CachedRow<const AutoManageJointTag> managed;
-
+    void execute(AppTaskArgs&) {
       //If any elements are created in a tracked table, inform the constraint modifiers
       //An equivalent removal is not necessary as GC will see it
-      for(const auto& cmd : events.toBeMovedElements) {
-        if(cmd.isCreate()) {
-          const auto& newElement = std::get<ElementRef>(cmd.destination);
-          const auto id = ids.tryUnpack(newElement);
-          auto it = id ? managedTables.find(TableID{ *id }) : managedTables.end();
-          if(it != managedTables.end()) {
-            ResolveTargetElement resolveElement{ newElement };
-            for(const Managed::Definition& def : it->second.definitions) {
+      for(size_t t = 0; t < query.size(); ++t) {
+        auto [defs, tag, events, stable] = query.get(t);
+        for(auto event : *events) {
+          //TODO: isn't this also relevant if an element moved here?
+          if(event.second.isCreate()) {
+            const size_t si = event.first;
+            ResolveTargetElement resolveElement{ stable->at(si) };
+            for(const Managed::Definition& def : managedTables[t].definitions) {
               const ElementRef a = std::visit(resolveElement, def.targetA);
               const ElementRef b = std::visit(resolveElement, def.targetB);
-              def.modifier->insert(id->getElementIndex(), a, b);
+              def.modifier->insert(si, a, b);
             }
           }
         }
       }
-    });
-  }
+    }
 
-  void postProcessEvents(RuntimeDatabaseTaskBuilder& task, const DBEvents& events) {
-    autoInitInternalJoints(task, events);
+    QueryResult<const TableConstraintDefinitionsRow,
+      const AutoManageJointTag,
+      const Events::EventsRow,
+      const StableIDRow
+    > query;
+    std::vector<Managed> managedTables;
+  };
+
+  void postProcessEvents(IAppBuilder& builder) {
+    builder.submitTask(std::move(TLSTask::create<AutoInitInternalJoints>("auto init joints")));
   }
 }

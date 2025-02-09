@@ -2,7 +2,7 @@
 
 #include "StableElementID.h"
 #include "AppBuilder.h"
-#include "DBEvents.h"
+#include "Events.h"
 
 namespace SM {
   struct StateBucket {
@@ -163,36 +163,27 @@ namespace SM {
 
     auto task = builder.createTask();
     task.setName("process state migrations");
-    auto resolver = task.getResolver<StateRow, GlobalsRow>();
-    auto ids = task.getIDResolver();
-    const DBEvents& events = Events::getPublishedEvents(task);
+    auto query = task.query<StateRow, GlobalsRow, const Events::EventsRow>();
 
     //If a goal would be lost, trigger the exit callback by transitioning to the empty state
     //and putting it in the exiting bucket of the state it came from
-    task.setCallback([resolver, ids, &events](AppTaskArgs&) mutable {
-      CachedRow<StateRow> fromState, toState;
-      CachedRow<GlobalsRow> globals;
-      auto res = ids->getRefResolver();
-      for(const DBEvents::MoveCommand& cmd : events.toBeMovedElements) {
-        const ElementRef* source = std::get_if<ElementRef>(&cmd.source);
-        const TableID* destination = std::get_if<TableID>(&cmd.destination);
-        //Not a move we care about
-        if(!source || !destination) {
-          continue;
-        }
-        const UnpackedDatabaseElementID sourceID = res.tryUnpack(*source).value_or(UnpackedDatabaseElementID{});
-        resolver->tryGetOrSwapRow(fromState, sourceID);
-        resolver->tryGetOrSwapRow(toState, *destination);
-        if(fromState && !toState) {
-          resolver->tryGetOrSwapRow(globals, sourceID);
-          assert(globals);
-
-          auto& state = fromState->at(sourceID.getElementIndex());
-          auto& currentState = state.currentState;
-          const size_t stateIndex = currentState.index();
-          globals->at().buckets[stateIndex].exiting.push_back(sourceID.getElementIndex());
-          state.previousState = currentState;
-          currentState = {};
+    task.setCallback([query](AppTaskArgs& args) mutable {
+      for(size_t t = 0; t < query.size(); ++t) {
+        auto [states, globals, events] = query.get(t);
+        for(auto event : *events) {
+          if(event.second.isMove()) {
+            RuntimeTable* dst = args.getLocalDB().tryGet(event.second.getTableID());
+            //If the table it's going to move to doesn't have a state row, move to the exit state
+            if(dst && !dst->tryGet<const StateRow>()) {
+              const size_t si = event.first;
+              auto& state = states->at(si);
+              auto& currentState = state.currentState;
+              const size_t stateIndex = currentState.index();
+              globals->at().buckets[stateIndex].exiting.push_back(si);
+              state.previousState = currentState;
+              currentState = {};
+            }
+          }
         }
       }
     });

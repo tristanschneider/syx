@@ -172,7 +172,7 @@ namespace SpatialQuery {
   //Next, gameplay submits all updates to the physics table which includes updating the values of the queries as well as adding and removing entries
 
   //Physics processes the requests by leveraging the normal broadphase flow.
-  //This means the DBEvents for add and remove will automatically add the queries to the broadphase
+  //This means the events for add and remove will automatically add the queries to the broadphase
   //physicsUpdateBoundaries runs before the broadphase update to update the boundaries that will be written to the broadphase
   //physicsProcessQueries then refines the output collision pairs to ensure they fit in the actual volume
 

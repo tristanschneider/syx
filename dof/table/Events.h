@@ -22,7 +22,7 @@ namespace Events {
       table = dst.getTableIndex();
     }
 
-    ElementEvent& setDestroy() {
+    void setDestroy() {
       eventType |= DESTROY_EVENT;
     }
 

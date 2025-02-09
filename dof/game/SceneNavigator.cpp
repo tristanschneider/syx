@@ -3,7 +3,7 @@
 
 #include "AppBuilder.h"
 #include "RuntimeDatabase.h"
-#include "DBEvents.h"
+#include "Events.h"
 #include "IAppModule.h"
 #include "ChainedTaskImpl.h"
 
@@ -216,16 +216,15 @@ namespace SceneNavigator {
   void defaultCleanup(IAppBuilder& builder) {
     auto task = builder.createTask();
     task.setName("Default Scene Cleanup");
-    auto query = task.query<const IsClearedWithSceneTag, const StableIDRow>();
+    auto query = task.query<const IsClearedWithSceneTag, Events::EventsRow>();
     auto globals = task.query<const GlobalsRow>().tryGetSingletonElement<0>();
 
-    task.setCallback([globals, query](AppTaskArgs& args) mutable {
+    task.setCallback([globals, query](AppTaskArgs&) mutable {
       if(globals->sceneState == SceneState::NeedsUninit) {
-        Events::DestroyPublisher remove{ &args };
         for(size_t t = 0; t < query.size(); ++t) {
-          auto [_, stable] = query.get(t);
-          for(const auto& s : *stable) {
-            remove(s);
+          auto [_, events] = query.get(t);
+          for(size_t i = 0; i < events.size; ++i) {
+            events->getOrAdd(i).setDestroy();
           }
         }
       }

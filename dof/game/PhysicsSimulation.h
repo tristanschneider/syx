@@ -6,7 +6,6 @@ class IAppBuilder;
 struct TaskRange;
 struct GameDB;
 struct PhysicsTableIds;
-struct DBEvents;
 struct PhysicsAliases;
 class RuntimeDatabaseTaskBuilder;
 struct UnpackedDatabaseElementID;

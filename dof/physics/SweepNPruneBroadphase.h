@@ -9,7 +9,6 @@
 #include "AppBuilder.h"
 
 class RuntimeDatabaseTaskBuilder;
-struct DBEvents;
 struct PhysicsAliases;
 
 //SweepNPrune is the base data structure containing no dependencies on table,

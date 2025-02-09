@@ -4,7 +4,7 @@
 #include "TableAdapters.h"
 #include "AppBuilder.h"
 #include "curve/CurveSolver.h"
-#include "DBEvents.h"
+#include "Events.h"
 
 namespace StatEffect {
   //Each set of commands must begin with this, creates the range of effects in this table
@@ -30,9 +30,9 @@ namespace StatEffect {
   void tickLifetime(IAppBuilder* builder, const TableID& table, size_t removeOnTick) {
     auto task = builder->createTask();
     task.setName("tick stat lifetime");
-    auto query = task.query<Lifetime, const StableIDRow>(table);
+    auto query = task.query<Lifetime, Events::EventsRow>(table);
 
-    task.setCallback([query, removeOnTick](AppTaskArgs& args) mutable {
+    task.setCallback([query, removeOnTick](AppTaskArgs&) mutable {
       auto&& [lifetime, stableRow] = query.get(0);
       for(size_t i = 0; i < lifetime->size(); ++i) {
         size_t& remaining = lifetime->at(i);
@@ -42,7 +42,7 @@ namespace StatEffect {
           }
         }
         else {
-          Events::onRemovedElement(stableRow->at(i), args);
+          stableRow->getOrAdd(i).setDestroy();
         }
       }
     });

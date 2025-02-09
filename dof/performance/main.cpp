@@ -1,6 +1,7 @@
 #include "Precompile.h"
 
 #include <cstdio>
+#include "Events.h"
 #include "Simulation.h"
 #include "GameBuilder.h"
 #include "GameScheduler.h"
@@ -33,14 +34,14 @@ namespace Performance {
     return app;
   }
 
-  void initStaticScene(IAppBuilder& builder, AppTaskArgs& args) {
+  void initStaticScene(IAppBuilder& builder, AppTaskArgs&) {
     auto task = builder.createTask();
     task.discard();
     auto q = task.query<
       const SharedMassObjectTableTag,
       Tags::PosXRow,
       Tags::PosYRow,
-      const StableIDRow
+      Events::EventsRow
     >();
     auto modifiers = task.getModifiersForTables(q.getMatchingTableIDs());
     for(size_t t = 0; t < q.size(); ++t) {
@@ -52,7 +53,7 @@ namespace Performance {
         for(size_t y = 0; y < sy; ++y) {
           const size_t i = x + sx*y;
           TableAdapters::write(i, glm::vec2{ static_cast<float>(x), static_cast<float>(y) }, *px, *py);
-          Events::onNewElement(stable->at(i), args);
+          stable->getOrAdd(i).setCreate();
         }
       }
     }

@@ -14,7 +14,7 @@
 #include "RowTags.h"
 #include "Narrowphase.h"
 #include "ConstraintSolver.h"
-#include "DBEvents.h"
+#include "Events.h"
 #include "Simulation.h"
 #include "GraphicsTables.h"
 #include "FragmentSpawner.h"
@@ -139,20 +139,13 @@ namespace Scenes {
   };
 
   struct EventPublisher {
-    EventPublisher(AppTaskArgs& a)
-      : args{ a }
-    {
-    }
-
-    void broadcastNewElements(const RuntimeTable& table) {
-      if (const StableIDRow* ids = table.tryGet<const StableIDRow>()) {
-        for (const ElementRef& e : *ids) {
-          Events::onNewElement(e, args);
+    void broadcastNewElements(RuntimeTable& table) {
+      if(Events::EventsRow* events = table.tryGet<Events::EventsRow>()) {
+        for(size_t i = 0; i < table.size(); ++i) {
+          events->getOrAdd(i).setCreate();
         }
       }
     }
-
-    AppTaskArgs& args;
   };
 
   struct SceneAssets {
@@ -333,10 +326,10 @@ namespace Scenes {
     RuntimeDatabase* db = &task.getDatabase();
     GameDatabase::Tables tables{ task };
 
-    task.setCallback([globals, sceneView, db, tables](AppTaskArgs& args) mutable {
+    task.setCallback([globals, sceneView, db, tables](AppTaskArgs&) mutable {
       printf("instantiate scene\n");
       if(const Loader::SceneAsset* scene = sceneView.tryGet(globals->toLoad)) {
-        EventPublisher publisher{ args };
+        EventPublisher publisher;
         SceneAssets assets{ *scene };
         createPlayers(scene->player, *db, tables, assets, publisher);
         createTerrain(scene->terrain, *db, tables, assets, publisher);

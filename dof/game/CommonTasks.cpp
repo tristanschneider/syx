@@ -11,7 +11,7 @@ namespace CommonTasks {
     RuntimeDatabase& main = task.getDatabase();
     ThreadLocals& tls = TableAdapters::getThreadLocals(task);
 
-    task.setCallback([&main, &tls](AppTaskArgs& args) {
+    task.setCallback([&main, &tls](AppTaskArgs&) {
       for(size_t i = 0; i < tls.getThreadCount(); ++i) {
         RuntimeDatabase& threadDB = *tls.get(i).statEffects;
         for(auto [t, v] : threadDB.getDirtyTables()) {

@@ -5,7 +5,7 @@
 #include "TableAdapters.h"
 
 #include "CommonTasks.h"
-#include "DBEvents.h"
+#include "Events.h"
 
 #include "glm/glm.hpp"
 #include "glm/gtc/matrix_inverse.hpp"
@@ -399,6 +399,7 @@ namespace SpatialQuery {
     builder.submitTask(std::move(task));
   }
 
+  //TODO: use thread-local database to create these
   template<class ShapeRow>
   struct CommandVisitor {
     using ShapeT = typename ShapeRow::ElementT;
@@ -412,22 +413,22 @@ namespace SpatialQuery {
       gameplayQueries.at(index) = std::get<INDEX>(command.query.shape);
       physicsQueries.at(index) = std::get<INDEX>(command.query.shape);
       gameplayLifetimes.at(index) = command.lifetime;
-      publishNewElement(command.id);
+      events.getOrAdd(index).setCreate();
     }
 
     void operator()(const Command::DeleteQuery& command) {
       //Publish the removal event which will cause removal from the broadphase and removal from the table
-      publishRemovedElement(command.id);
+      if(auto i = ids.unpack(command.id)) {
+        events.getOrAdd(i.getElementIndex()).setDestroy();
+      }
     }
 
     ITableModifier& modifier;
     Gameplay<ShapeRow>& gameplayQueries;
     Gameplay<LifetimeRow>& gameplayLifetimes;
     ShapeRow& physicsQueries;
-
-    Events::CreatePublisher& publishNewElement;
-    Events::DestroyPublisher& publishRemovedElement;
-    IIDResolver& ids;
+    Events::EventsRow& events;
+    ElementRefResolver ids;
   };
 
   template<class ShapeRow>
@@ -442,21 +443,19 @@ namespace SpatialQuery {
       Gameplay<GlobalsRow>,
       Gameplay<ShapeRow>,
       Gameplay<LifetimeRow>,
-      ShapeRow
+      ShapeRow,
+      Events::EventsRow
     >(table);
-    auto ids = task.getIDResolver();
+    ElementRefResolver ids = task.getIDResolver()->getRefResolver();
 
-    task.setCallback([ids, query, modifier](AppTaskArgs& args)  mutable {
-      Events::CreatePublisher create({ &args });
-      Events::DestroyPublisher destroy({ &args });
+    task.setCallback([ids, query, modifier](AppTaskArgs&)  mutable {
       CommandVisitor visitor {
         *modifier,
         *query.getSingleton<1>(),
         *query.getSingleton<2>(),
         *query.getSingleton<3>(),
-        create,
-        destroy,
-        *ids
+        *query.getSingleton<4>(),
+        ids
       };
 
       Globals& globals = query.getSingleton<0>()->at();

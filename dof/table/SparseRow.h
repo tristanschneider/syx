@@ -515,6 +515,16 @@ public:
     onResize(0, PackedIndexArray::MIN_SIZE);
   }
 
+  SparseRow(SparseRow&& rhs) {
+    swap(rhs);
+  }
+
+  void swap(SparseRow& rhs) {
+    std::swap(sparseToDense, rhs.sparseToDense);
+    std::swap(denseToSparse, rhs.denseToSparse);
+    std::swap(packedValues, rhs.packedValues);
+  }
+
   ~SparseRow() {
     delete [] packedValues;
     packedValues = nullptr;

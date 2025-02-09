@@ -7,7 +7,6 @@
 #include "IslandGraph.h"
 
 class IAppBuilder;
-struct DBEvents;
 class RuntimeDatabaseTaskBuilder;
 class ITableModifier;
 

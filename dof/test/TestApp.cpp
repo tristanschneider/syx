@@ -36,7 +36,7 @@ namespace Test {
         }
       }
       if(!hasThreadLocals) {
-        DBReflect::addDatabase<Database<Table<ThreadLocalsRow, SharedRow<Scheduler>, Events::EventsRow>>>(args);
+        DBReflect::addDatabase<Database<Table<ThreadLocalsRow, SharedRow<Scheduler>>>>(args);
       }
     }
 

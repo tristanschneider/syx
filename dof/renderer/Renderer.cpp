@@ -11,6 +11,7 @@
 
 #include "sokol_gfx.h"
 #include "Game.h"
+#include "Events.h"
 
 namespace DS {
   #include "shaders/DebugShader.h"
@@ -25,6 +26,7 @@ namespace TMS {
 #include "FontPass.h"
 #include "loader/SceneAsset.h"
 #include "GraphicsTables.h"
+#include "TLSTaskImpl.h"
 
 namespace QuadPassTable {
   using Transform = TMS::MW_t;
@@ -627,126 +629,91 @@ struct RenderAssetReader {
   std::shared_ptr<ITableResolver> resolver;
 };
 
-struct RenderAssetWriter {
-  RenderAssetWriter(RuntimeDatabaseTaskBuilder& task)
-    : res{ task.getIDResolver()->getRefResolver() }
-    , resolver{ task.getResolver(
-        materialCPU,
-        materialGPU,
-        meshCPU,
-        meshGPU
-      )
-    }
-  {
-  }
-
-  //Either material or mesh, shows both for ease of access
-  struct Asset {
-    bool isMaterial() const { return materialCPU && materialGPU; }
-    bool isMesh() const { return meshCPU && meshGPU; }
-
-    const Loader::MaterialAsset* materialCPU{};
-    MaterialGPUAsset* materialGPU{};
-
-    const Loader::MeshAsset* meshCPU{};
-    MeshGPUAsset* meshGPU{};
-  };
-
-  Asset tryGetAsset(const ElementRef& e) {
-    if(auto id = res.tryUnpack(e)) {
-      const size_t i = id->getElementIndex();
-      if(resolver->tryGetOrSwapAllRows(*id, meshCPU, meshGPU)) {
-        return Asset{
-          .meshCPU = &meshCPU->at(i),
-          .meshGPU = &meshGPU->at(i)
-        };
-      }
-      if(resolver->tryGetOrSwapAllRows(*id, materialCPU, materialGPU)) {
-        return Asset{
-          .materialCPU = &materialCPU->at(i),
-          .materialGPU = &materialGPU->at(i)
-        };
-      }
-    }
-    return {};
-  }
-
-  ElementRefResolver res;
-  CachedRow<const Loader::MaterialAssetRow> materialCPU;
-  CachedRow<const Loader::MeshAssetRow> meshCPU;
-  CachedRow<MaterialGPUAssetRow> materialGPU;
-  CachedRow<MeshGPUAssetRow> meshGPU;
-  std::shared_ptr<ITableResolver> resolver;
-};
-
-void onMaterialCreated(RenderAssetWriter::Asset& asset) {
-  const Loader::TextureAsset& tex = asset.materialCPU->texture;
+void onMaterialCreated(const Loader::MaterialAsset& cpu, MaterialGPUAsset& gpu) {
+  const Loader::TextureAsset& tex = cpu.texture;
   sg_image_desc desc{
     .width = (int)tex.width,
     .height = (int)tex.height,
     .pixel_format = SG_PIXELFORMAT_RGBA8
   };
   desc.data.subimage[0][0] = sg_range{ tex.buffer.data(), tex.buffer.size() };
-  asset.materialGPU->image = sg_make_image(desc);
+  gpu.image = sg_make_image(desc);
 }
 
-void onMaterialDestroyed(RenderAssetWriter::Asset& asset) {
-  sg_destroy_image(asset.materialGPU->image);
-  asset.materialGPU->image = {};
+void onMaterialDestroyed(MaterialGPUAsset& gpu) {
+  sg_destroy_image(gpu.image);
+  gpu.image = {};
 }
 
-void onMeshCreated(RenderAssetWriter::Asset& asset) {
+void onMeshCreated(const Loader::MeshAsset& cpu, MeshGPUAsset& gpu) {
   //These are already in the 2 pos 2 uv format that textured mesh pipeline expects
-  *asset.meshGPU = MeshGPUAsset{
+  gpu = MeshGPUAsset{
     .vertexBuffer = sg_make_buffer(sg_buffer_desc{
       .type = SG_BUFFERTYPE_VERTEXBUFFER,
       .usage = SG_USAGE_IMMUTABLE,
-      .data = sg_range{ asset.meshCPU->verts.data(), asset.meshCPU->verts.size()*sizeof(Loader::MeshVertex) }
+      .data = sg_range{ cpu.verts.data(), cpu.verts.size()*sizeof(Loader::MeshVertex) }
     }),
-    .vertexCount = asset.meshCPU->verts.size()
+    .vertexCount = cpu.verts.size()
   };
 }
 
-void onMeshDestroyed(RenderAssetWriter::Asset& asset) {
-  sg_destroy_buffer(asset.meshGPU->vertexBuffer);
-  asset.meshGPU->vertexBuffer = {};
+void onMeshDestroyed(MeshGPUAsset& gpu) {
+  sg_destroy_buffer(gpu.vertexBuffer);
+  gpu.vertexBuffer = {};
 }
 
-//Monitor assets for GPU resources that need to be created or destroyed
-void Renderer::preProcessEvents(IAppBuilder& builder) {
-  auto task = builder.createTask();
-  const DBEvents& events = Events::getPublishedEvents(task);
-  RenderAssetWriter assets{ task };
+struct AddRemoveAssets {
+  AddRemoveAssets(RuntimeDatabaseTaskBuilder& task)
+    : materials{ task }
+    , meshes{ task }
+  {
+  }
 
-  task.setCallback([&events, assets](AppTaskArgs&) mutable {
-    for(const auto& cmd : events.toBeMovedElements) {
-      const ElementRef* srcRef = std::get_if<ElementRef>(&cmd.source);
-      const ElementRef* dstRef = std::get_if<ElementRef>(&cmd.destination);
-      //Asset creation is technically moves but they are notified as creation events
-      //Something destroyed
-      if(!dstRef && srcRef) {
-        auto asset = assets.tryGetAsset(*srcRef);
-        if(asset.isMaterial()) {
-          onMaterialDestroyed(asset);
+  void execute(AppTaskArgs&) {
+    for(size_t t = 0; t < materials.size(); ++t) {
+      auto [events, cpu, gpu] = materials.get(t);
+      for(auto event : *events) {
+        if(event.second.isDestroy()) {
+          onMaterialDestroyed(gpu->at(event.first));
         }
-        else if(asset.isMesh()) {
-          onMeshDestroyed(asset);
+        else if(event.second.isCreate()) {
+          onMaterialCreated(cpu->at(event.first), gpu->at(event.first));
         }
-      }
-      //Something created
-      else if(!srcRef && dstRef) {
-        auto asset = assets.tryGetAsset(*dstRef);
-        if(asset.isMaterial()) {
-          onMaterialCreated(asset);
-        }
-        else if(asset.isMesh()) {
-          onMeshCreated(asset);
+        else {
+          assert(false && "Unexpected for assets");
         }
       }
     }
-  });
 
-  builder.submitTask(std::move(task.setName("render requests").setPinning(AppTaskPinning::MainThread{})));
+    for(size_t t = 0; t < meshes.size(); ++t) {
+      auto [events, cpu, gpu] = meshes.get(t);
+      for(auto event : *events) {
+        if(event.second.isDestroy()) {
+          onMeshDestroyed(gpu->at(event.first));
+        }
+        else if(event.second.isCreate()) {
+          onMeshCreated(cpu->at(event.first), gpu->at(event.first));
+        }
+        else {
+          assert(false && "Unexpected for assets");
+        }
+      }
+    }
+  }
+
+  QueryResult<const Events::EventsRow,
+    const Loader::MaterialAssetRow,
+    MaterialGPUAssetRow
+  > materials;
+  QueryResult<const Events::EventsRow,
+    const Loader::MeshAssetRow,
+    MeshGPUAssetRow
+  > meshes;
+};
+
+//Monitor assets for GPU resources that need to be created or destroyed
+void Renderer::preProcessEvents(IAppBuilder& builder) {
+  builder.submitTask(TLSTask::create<AddRemoveAssets>("renderer assets"));
 }
 
 void Renderer::render(IAppBuilder& builder) {

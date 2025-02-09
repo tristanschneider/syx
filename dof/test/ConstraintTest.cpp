@@ -2,6 +2,7 @@
 #include "CppUnitTest.h"
 
 #include "AppBuilder.h"
+#include "Events.h"
 #include "TestGame.h"
 #include "SceneNavigator.h"
 #include "RowTags.h"
@@ -90,6 +91,15 @@ namespace Test {
       void awaitConstraintGC() {
         for(size_t i = 0; i < 101; ++i) {
           game.update();
+        }
+      }
+
+      void markForDestruction(const ElementRef& e) {
+        CachedRow<Events::EventsRow> events;
+        ElementRefResolver ids = game.builder().getRefResolver();
+        const auto id = ids.unpack(e);
+        if(game.builder().getResolver(events)->tryGetOrSwapRow(events, id)) {
+          events->getOrAdd(id.getElementIndex()).setDestroy();
         }
       }
 
@@ -497,8 +507,7 @@ namespace Test {
       Solver solver{ game, a, b, joint.localCenterToPinA, joint.localCenterToPinB };
       trySolve(solver, 5, expectWithinDistanceAndAngle(0.0f, 0.0f));
 
-      AppTaskArgs& args{ game->sharedArgs() };
-      Events::DestroyPublisher{ &args }(a);
+      game.markForDestruction(a);
 
       //Process removal
       game->update();
@@ -519,8 +528,7 @@ namespace Test {
       Solver solver{ game, a, b, joint.localCenterToPinA, joint.localCenterToPinB };
       trySolve(solver, 5, expectWithinDistanceAndAngle(0.0f, 0.0f));
 
-      AppTaskArgs& args{ game->sharedArgs() };
-      Events::DestroyPublisher{ &args }(b);
+      game.markForDestruction(b);
 
       //Process removal
       game->update();
