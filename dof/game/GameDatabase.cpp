@@ -52,7 +52,6 @@ namespace GameDatabase {
     SharedRow<Scheduler>,
     SharedRow<Config::GameConfig>,
     GameInput::GlobalMappingsRow,
-    Events::EventsRow,
 
     ThreadLocalsRow
   >;

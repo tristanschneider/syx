@@ -33,6 +33,10 @@ RuntimeTable::RuntimeTable(RuntimeTableArgs&& args)
 
 size_t RuntimeTable::migrate(size_t i, RuntimeTable& from, RuntimeTable& to, size_t count) {
   const UnpackedDatabaseElementID fromID = from.tableID.remakeElement(i);
+  if(from.getID() == to.getID()) {
+    assert(false && "Moving an element in place was likely unintentional");
+    return i;
+  }
 
   const size_t fromSize = from.size();
   const size_t dstBegin = to.size();

@@ -188,8 +188,11 @@ namespace Constraints {
     //Force to counteract motion orthogonal to the target. Higher values prevent overshooting the target rotation
     float orthogonalForce{};
   };
+  struct DisabledJoint {};
+
   struct JointVariant {
     using Variant = std::variant<
+      DisabledJoint,
       CustomJoint,
       PinJoint1D,
       PinJoint2D,

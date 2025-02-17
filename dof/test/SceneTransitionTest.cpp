@@ -341,6 +341,7 @@ namespace Test {
       Events::EventsRow* events = objs->tryGet<Events::EventsRow>();
       const size_t i = objs->addElements(1);
       std::unique_ptr<AppTaskArgs> taskArgs = game->createAppTaskArgs();
+      events->getOrAdd(i).setCreate();
       events->getOrAdd(i).setDestroy();
 
       navigateToScene(*game, scenes->physics);

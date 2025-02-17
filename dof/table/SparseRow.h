@@ -352,7 +352,7 @@ protected:
       sparseToDense.at(*it) = 0;
     }
     //Reset packed values
-    onReset(0, sparseToDense.size() - SENTINEL_OFFSET);
+    onReset(0, denseToSparse.size() - SENTINEL_OFFSET);
     //Erase packed mappings
     denseToSparse.clear();
     //Put back the sentinel element that was cleared
@@ -629,7 +629,9 @@ protected:
 
   void onMove(size_t from, size_t to, size_t count) final {
     for(size_t i = 0; i < count; ++i) {
-      packedValues[to + i] = std::move(packedValues[from + i]);
+      ElementT& toSwap = packedValues[from + i];
+      packedValues[to + i] = std::move(toSwap);
+      toSwap = {};
     }
   }
 

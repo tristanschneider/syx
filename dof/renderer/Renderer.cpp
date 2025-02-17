@@ -667,6 +667,7 @@ struct AddRemoveAssets {
     : materials{ task }
     , meshes{ task }
   {
+    task.setPinning({ AppTaskPinning::MainThread{} });
   }
 
   void execute(AppTaskArgs&) {

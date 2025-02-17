@@ -78,6 +78,7 @@ namespace Test {
     struct Game {
       Game() {
         game.update();
+        game.update();
       }
 
       TestGame* operator->() {

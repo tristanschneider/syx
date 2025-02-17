@@ -95,6 +95,9 @@ public:
     //The rest after first could copy rather than constructing from RDTB but that's annoying to write
     AppTaskWithMetadata meta = std::move(builder).finalize();
     meta.data.name = name;
+    if (std::holds_alternative<AppTaskPinning::None>(pinning)) {
+      pinning = meta.task.pinning;
+    }
     return meta.data;
   }
 

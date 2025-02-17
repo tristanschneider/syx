@@ -65,6 +65,7 @@ namespace SweepNPruneBroadphase {
     AddAndRemoveFromBroadphase(RuntimeDatabaseTaskBuilder& task)
       : query{ task }
       , ids{ task.getRefResolver() }
+      , spatialPairs{ SP::createStorageModifier(task) }
       , grid{ *task.query<SharedRow<Broadphase::SweepGrid::Grid>>().tryGetSingletonElement() }
     {
     }
@@ -74,8 +75,12 @@ namespace SweepNPruneBroadphase {
         auto [events, stables, keys] = query.get(t);
         for(auto event : *events) {
           const size_t i = event.first;
-          //Insert new elements
+          //Insert new elements.
           if(event.second.isCreate()) {
+            //If they were created and destroyed on the same frame don't bother creating the key
+            if(event.second.isDestroy()) {
+              continue;
+            }
             Broadphase::BroadphaseKey& key = keys->at(i);
             const Broadphase::UserKey userKey = stables->at(i);
             Broadphase::SweepGrid::insertRange(grid, &userKey, &key, 1);

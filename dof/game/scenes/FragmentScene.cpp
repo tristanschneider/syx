@@ -109,7 +109,7 @@ namespace Scenes {
         }
         modifiers[t]->resize(total);
         auto [posX, posY, goalX, goalY, sprites, stableIDs] = fragments.get(t);
-        for(size_t s = 0; s < stableIDs->size(); ++s) {
+        for(size_t s = 0; s < total; ++s) {
           stableIDs->getOrAdd(s).setCreate();
         }
 

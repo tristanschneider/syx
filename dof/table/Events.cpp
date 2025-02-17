@@ -33,10 +33,8 @@ namespace Events {
           assert(it.first < stable->size());
           const ElementRef& element = stable->at(it.first);
           const ElementEvent& event = it.second;
-          if(event.isCreate()) {
-            //Nothing currently, may want to support this in the future
-          }
-          else if(event.isDestroy()) {
+          //Nothing currently for create, may want to support this in the future
+          if(event.isDestroy()) {
             toRemove.push_back(element);
           }
           else if(event.isMove()) {
@@ -107,7 +105,7 @@ namespace Events {
       EventsStorage* storage = RuntimeStorage::addToChain<EventsStorage>(args);
       storage->rows.resize(tables.size());
       for(size_t i = 0; i < storage->rows.size(); ++i) {
-        DBReflect::addRow(storage->rows[i], args.tables[i]);
+        DBReflect::addRow(storage->rows[i], *tables[i]);
       }
     }
 

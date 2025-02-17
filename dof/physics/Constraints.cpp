@@ -337,6 +337,10 @@ namespace Constraints {
   };
 
   struct ConfigureJoint {
+    void operator()(DisabledJoint) {
+      manifold->setEnd(0);
+    }
+
     void operator()(const CustomJoint&) const {
       if(table.custom) {
         //Copy as-is, preserving warm starts in manifold

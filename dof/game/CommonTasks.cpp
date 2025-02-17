@@ -23,10 +23,10 @@ namespace CommonTasks {
           RuntimeTable& mainTable = main[t];
           assert(mainTable.getType() == threadTable.getType());
 
+          Events::EventsRow* events = mainTable.tryGet<Events::EventsRow>();
           //Migrate everything from the local table to the main table
           size_t m = RuntimeTable::migrate(0, threadTable, mainTable, elements);
           StableIDRow* stable = mainTable.tryGet<StableIDRow>();
-          Events::EventsRow* events = mainTable.tryGet<Events::EventsRow>();
           if(!stable || !events) {
             continue;
           }
