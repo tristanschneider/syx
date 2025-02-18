@@ -135,6 +135,8 @@ namespace Test {
     b.query<AccelerationZ>().forEachRow([](auto& v) { v.setDefaultValue(0.0f); });
 
     //Update once to run events which will populate the broadphase
+    //I have accidentally introduced delays multiple times that I don't know the source of but am not concerned about it at the moment.
+    update();
     update();
     update();
     update();

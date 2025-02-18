@@ -106,6 +106,7 @@ namespace EventValidator {
 
     void validateNewElement(EventValidatorGroup& group, size_t tableIndex, size_t elementIndex, bool doLogs) {
       auto [events, stables, names] = query.get(tableIndex);
+      assert(elementIndex < stables->size());
       const ElementRef& newElement = stables->at(elementIndex);
 
       //New element created, should exist as they are emitted upon creation of the element

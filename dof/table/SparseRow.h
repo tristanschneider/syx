@@ -360,11 +360,13 @@ protected:
   }
 
   //Reassociate the dense mapping with a new sparse mapping
-  //This means the table index changed but the value should change the same. Intended for moving
+  //This means the table index changed but the value should remain the same. Intended for moving
   void remap(size_t fromSparse, size_t toSparse) {
     if(auto dense = sparseToDense.at(fromSparse); *dense) {
       //Point the new sparse mapping at the dense element the previous was pointing at
       sparseToDense.at(toSparse) = *dense;
+      //Point the dense mapping at the sparse index that was remapped
+      denseToSparse.at(*dense) = toSparse;
       //Clear the previous sparse mapping
       dense = 0;
     }

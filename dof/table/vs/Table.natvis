@@ -36,4 +36,10 @@
     <Intrinsic Name="packedIndex" Expression="(*((const size_t*)wrapped.buffer))&amp;wrapped.mask"/>
     <DisplayString>"[{packedIndex()}], {*packed}"</DisplayString>
   </Type>
+  <Type Name="UnpackedDatabaseElementID">
+    <DisplayString>"Table {tableIndex}, Idx {elementIndex} Ver {(int)version} DB {(int)dbIndex}"</DisplayString>
+  </Type>
+  <Type Name="TableID">
+    <DisplayString>"Table {tableIndex}, DB {(int)dbIndex}"</DisplayString>
+  </Type>
 </AutoVisualizer>

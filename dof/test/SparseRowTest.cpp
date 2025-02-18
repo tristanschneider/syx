@@ -303,5 +303,69 @@ namespace Test {
         Assert::IsTrue(it != rb->end() && *it == 13);
       }
     }
+
+    TEST_METHOD(DestructionAndReuse) {
+      RuntimeDatabase db = createDatabase<Database<
+        Table<SparseRow<int>>,
+        Table<SparseRow<int>>
+      >>();
+      RuntimeTable& a = db[0];
+      RuntimeTable& b = db[1];
+
+      a.resize(100);
+
+      auto ra = a.tryGet<SparseRow<int>>();
+
+      ra->getOrAdd(1) = 1;
+      ra->erase(1);
+      Assert::AreEqual(0, ra->getOrAdd(1));
+
+      ra->getOrAdd(0) = 2;
+      RuntimeTable::migrate(0, a, b, 1);
+
+      Assert::IsFalse(ra->contains(0));
+      Assert::AreEqual(0, ra->getOrAdd(0));
+
+      ra->getOrAdd(1) = 3;
+      a.resize(0);
+      a.resize(100);
+      Assert::IsFalse(ra->contains(1));
+      Assert::AreEqual(0, ra->getOrAdd(1));
+
+      a.resize(10);
+      for(int i = 0; i < 5; ++i) {
+        ra->getOrAdd(i) = 4;
+      }
+      RuntimeTable::migrate(0, a, b, 5);
+      for(int i = 0; i < 5; ++i) {
+        Assert::IsFalse(ra->contains(i));
+        Assert::AreEqual(0, ra->getOrAdd(i));
+      }
+    }
+
+    TEST_METHOD(SwapRemove) {
+      SparseRow<int> row;
+      row.resize(0, 2);
+      row.getOrAdd(0) = 1;
+      row.getOrAdd(1) = 2;
+
+      row.swapRemove(0, 1, 2);
+
+      Assert::IsTrue(row.contains(0));
+      Assert::AreEqual(2, row.getOrAdd(0));
+      for(auto it : row) {
+        Assert::AreEqual(size_t(0), it.first);
+        Assert::AreEqual(2, it.second);
+      }
+
+      row.swapRemove(0, 1, 1);
+
+      Assert::AreEqual(size_t(0), row.size());
+      bool found = false;
+      for(auto it : row) {
+        found = true;
+      }
+      Assert::IsFalse(found);
+    }
   };
 }

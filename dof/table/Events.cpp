@@ -37,7 +37,9 @@ namespace Events {
           if(event.isDestroy()) {
             toRemove.push_back(element);
           }
-          else if(event.isMove()) {
+          //Move this unless it's already at the destination, which would presumably be for a move performed here
+          //on one of the other tables.
+          else if(event.isMove() && event.getTableID() != srcTable->getID()) {
             if(RuntimeTable* dstTable = db.tryGet(event.getTableID())) {
               toMove.push_back(std::make_pair(element, dstTable));
             }
