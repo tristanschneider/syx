@@ -452,11 +452,16 @@ namespace ConstraintSolver {
 
   void fillIslandBodies(
     IslandSolver& solver,
-    Resolver::ShapeResolverContext& resolver,
+    const Resolver::ShapeResolver& res,
     const ElementRefResolver& ids,
     size_t begin,
     size_t end
   ) {
+    Resolver::ShapeResolverCache cache;
+    Resolver::ShapeResolverContext resolver{
+      res,
+      cache
+    };
     PROFILE_SCOPE("physics", "fillislandbodies");
     for(size_t i = begin; i < end; ++i) {
       IslandBody& body = solver.bodies[i];
@@ -962,7 +967,7 @@ namespace ConstraintSolver {
     initCreateBodyMappings(context);
     //Fill in constraints and body velocity in parallel
     std::array initSteps{
-      context.scheduler.queueTask([&](AppTaskArgs& args) { fillIslandBodies(context.solver, context.shapeContext, context.resolver, args.begin, args.end); }, context.solver.getTaskSizeForBodies()),
+      context.scheduler.queueTask([&](AppTaskArgs& args) { fillIslandBodies(context.solver, context.shapeContext.resolver, context.resolver, args.begin, args.end); }, context.solver.getTaskSizeForBodies()),
       context.scheduler.queueTask([&](AppTaskArgs& args) { initSolvingConstraints(args, context); }, {})
     };
     context.scheduler.awaitTasks(initSteps.data(), initSteps.size(), {});

@@ -124,10 +124,12 @@ public:
       row.row = tryGetRowAlias(alias, id);
       row.tableID = id.getTableIndex();
     }
+    [[maybe_unused]] const auto original = row;
     decltype(&row->at(0)) result{};
     if(row) {
       result = &row->at(id.getElementIndex());
     }
+    assert(row.tableID == original.tableID && row.row == original.row && "ID Changed presumably due to race condition");
     return result;
   }
 

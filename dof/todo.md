@@ -1,12 +1,11 @@
 # Table Framework
 
-- Replace DBEvents with sparse row(s?) that indicate the desired change. This makes event processing more efficient as it's scoped to the tables that change. Also might be a bit more intuitive/consistent with the rest of the framework.
-  - Deletion can add a flag to the element
-  - Move can add a sparse element with a table id
-  - New can add a flag to the element
-  - Might be a bit more confusing in terms of what table is expected in "pre" vs "post" events
-- - Easier way to manage a copy of a table like renderables. Could be done with a table-scoped version so copies are skipped if on the same version.
+- Easier way to manage a copy of a table like renderables. Could be done with a table-scoped version so copies are skipped if on the same version.
 - Allow migrate+modify operations through thread-local DB? Tricky and inefficient so probably better albeit cumbersome to manually do via events.
+
+# Asset Pipeline
+
+- Load into a RuntimeDatabase created based on the keys in the scene then match those against the game database for instantiation.
 
 # Graphics
 

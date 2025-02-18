@@ -4,6 +4,9 @@
 #include "generics/DynamicBitset.h"
 #include <cassert>
 
+//An array whose element size is the smallest needed to fit up to the indicated index
+//The max is indicated on resize or assureWidthFor.
+//TODO: This allowing odd widths might not make sense and it doesn't max out past 8 bytes
 class PackedIndexArray {
 public:
   using IndexBase = size_t;
@@ -146,6 +149,14 @@ public:
     return at(i);
   }
 
+  //Grow or decrease width to fit an index up to this big
+  void assureWidthFor(size_t maxIndex) {
+    const IndexBase neededWidth = computeByteWidth(maxIndex);
+    if(neededWidth != byteWidth) {
+      reallocateWidth(capacity(), neededWidth);
+    }
+  }
+
   void resize(IndexBase newSize, size_t maxIndex) {
     //If there is enough capacity for the size, use the current buffer
     if(canReuseForCapacity(newSize, maxIndex)) {
@@ -200,10 +211,15 @@ public:
   }
 
   void push_back(IndexBase i) {
+    const IndexBase neededWidth = computeByteWidth(i);
+    size_t neededCapacity = capacity();
     if(capacity() <= size()) {
-      const size_t newSize = std::max(MIN_SIZE, capacity()*2);
-      reallocate(newSize, byteWidth);
+      neededCapacity = std::max(MIN_SIZE, capacity()*2);
     }
+    if(neededCapacity != capacity() || neededWidth != byteWidth) {
+      reallocateWidth(neededCapacity, neededWidth);
+    }
+
     const size_t e = size();
     ++bufferSize;
     at(e) = i;
@@ -218,11 +234,11 @@ public:
 
 private:
   bool canReuseForCapacity(size_t newSize, size_t maxIndex) const {
-    return newSize <= capacity() && getByteWidth(maxIndex) == byteWidth;
+    return newSize <= capacity() && computeByteWidth(maxIndex) == getByteWidth();
   }
 
   void reallocate(size_t newSize, size_t maxIndex) {
-    reallocateWidth(newSize, getByteWidth(maxIndex));
+    reallocateWidth(newSize, computeByteWidth(maxIndex));
   }
 
   void reallocateWidth(size_t newSize, size_t newWidth) {
@@ -238,12 +254,13 @@ private:
     }
   }
 
-  static constexpr uint8_t getByteWidth(IndexBase size) {
-    return static_cast<uint8_t>((std::bit_width(size) + 7) / 8);
+  static constexpr uint8_t computeByteWidth(IndexBase size) {
+    //+8 to round up, / 2 because bit width is to fit in signed but index is unsigned
+    return static_cast<uint8_t>((std::bit_width(size / 2) + 8) / 8);
   }
 
   uint8_t getByteWidth() const {
-    return getByteWidth(bufferCapacity);
+    return byteWidth;
   }
 
   void reset() {
@@ -282,7 +299,8 @@ public:
   ConstIteratorBase endBase() const { return denseToSparse.cend(); }
 
   ConstIteratorBase findBase(size_t sparse) const {
-    const PackedIndexArray::IndexBase denseIndex = *sparseToDense.at(sparse);
+    const auto it = sparseToDense.at(sparse);
+    const PackedIndexArray::IndexBase denseIndex = *it;
     return denseIndex ? denseToSparse.at(denseIndex) : denseToSparse.cend();
   }
 
@@ -377,7 +395,10 @@ protected:
     CapacityEventScope scope{ *this };
 
     const size_t dense = denseToSparse.size();
+    //Pushing ensures value fits
     denseToSparse.push_back(sparseIndex);
+    //Need to manually assure for assignment
+    sparseToDense.assureWidthFor(dense);
     sparseToDense.at(sparseIndex) = dense;
 
     return dense - SENTINEL_OFFSET;

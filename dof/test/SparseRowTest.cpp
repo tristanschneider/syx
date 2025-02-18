@@ -367,5 +367,27 @@ namespace Test {
       }
       Assert::IsFalse(found);
     }
+
+    TEST_METHOD(BitWidthIncrease) {
+      SparseRow<int> row;
+      row.resize(0, 500);
+
+      for(size_t i = 0; i < 500; ++i) {
+        row.getOrAdd(i) = i + 1;
+      }
+
+      for(size_t i = 0; i < 500; ++i) {
+        Assert::IsTrue(row.contains(i));
+        Assert::AreEqual(int(i + 1), row.getOrAdd(i));
+      }
+
+      int i{};
+      for(auto it : row) {
+        Assert::AreEqual(size_t(it.first), it.first);
+        ++i;
+        Assert::AreEqual(i, it.second);
+      }
+      Assert::AreEqual(500, i);
+    }
   };
 }
