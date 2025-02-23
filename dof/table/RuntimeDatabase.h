@@ -288,7 +288,14 @@ struct ChainedRuntimeStorage : IRuntimeStorage {
 
 namespace RuntimeStorage {
   template<class T>
-  concept ChainedStorage = std::is_base_of_v<ChainedRuntimeStorage, T>;
+  concept HasChainedStorageBase = std::is_base_of_v<ChainedRuntimeStorage, T>;
+  template<class T>
+  concept IsRuntimeArgsConstructable = requires(RuntimeDatabaseArgs& args) {
+    T{ args };
+  };
+
+  template<class T>
+  concept ChainedStorage = HasChainedStorageBase<T> && IsRuntimeArgsConstructable<T>;
 
   template<ChainedStorage T>
   T* addToChain(RuntimeDatabaseArgs& args) {

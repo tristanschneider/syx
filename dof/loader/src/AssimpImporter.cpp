@@ -106,6 +106,17 @@ namespace Loader {
     scaleValue.scale = toVec2(scale);
   }
 
+  Transform loadTransform(const aiMatrix4x4& data) {
+    aiVector3D scale, axis, translate;
+    ai_real angle{};
+    data.Decompose(scale, axis, angle, translate);
+    return Transform{
+      .pos = glm::vec3{ translate.x, translate.y, translate.z },
+      .scale = glm::vec3{ scale.x, scale.y, scale.z },
+      .rot = angle
+    };
+  }
+
   //These are stored using a bool array property which parses as a metadata with an array of bool values
   void loadMask(const aiMetadataEntry& entry, uint8_t& mask) {
     if(entry.mType != AI_AIMETADATA) {
@@ -183,6 +194,13 @@ namespace Loader {
     if(!m.isSet() && e.mNumMeshes) {
       m = context.meshMap->remap(e.mMeshes[0]);
     }
+  }
+
+  std::optional<MeshIndex> tryLoadMeshIndex(const aiNode& e, const SceneLoadContext& context) {
+    if(e.mNumMeshes) {
+      return context.meshMap->remap(e.mMeshes[0]);
+    }
+    return {};
   }
 
   void load(const aiMetadataEntry& e, Thickness& v) {
@@ -478,6 +496,371 @@ namespace Loader {
     }
   }
 
+  //Boolean in blender
+  struct BoolRow : Row<uint8_t> {};
+  //Boolean array in blender. Only allows up to 64 array size
+  struct BitfieldRow : Row<uint64_t> {};
+  //Integer in blender
+  struct IntRow : Row<int32_t> {};
+  //Float in blender
+  struct FloatRow : Row<float> {};
+  //Float arrays of various sizes in blender
+  struct Vec2Row : Row<glm::vec2> {};
+  struct Vec3Row : Row<glm::vec3> {};
+  struct Vec4Row : Row<glm::vec4> {};
+  //String in blender
+  struct StringRow : Row<std::string> {};
+
+  struct SharedBoolRow : SharedRow<uint8_t> {};
+  struct SharedBitfieldRow : SharedRow<uint64_t> {};
+  struct SharedIntRow : SharedRow<int32_t> {};
+  struct SharedFloatRow : SharedRow<float> {};
+  struct SharedVec2Row : SharedRow<glm::vec2> {};
+  struct SharedVec3Row : SharedRow<glm::vec3> {};
+  struct SharedVec4Row : SharedRow<glm::vec4> {};
+  struct SharedStringRow : SharedRow<std::string> {};
+
+  struct TransformRow : Row<Transform> {};
+
+  struct NoValue {
+    static constexpr std::false_type HAS_VALUE;
+  };
+  template<IsRow ERow, IsRow SRow>
+  struct ValueT {
+    using row_type = ERow;
+    using shared_row_type = SRow;
+    using element_type = typename ERow::ElementT;
+    static constexpr std::true_type HAS_VALUE;
+    static constexpr bool hasValue() { return true; }
+
+    element_type value{};
+  };
+  struct BoolValue : ValueT<BoolRow, SharedBoolRow> {};
+  struct BitfieldValue : ValueT<BitfieldRow, SharedBitfieldRow> {};
+  struct IntValue : ValueT<IntRow, SharedIntRow> {};
+  struct FloatValue : ValueT<FloatRow, SharedFloatRow> {};
+  struct Vec2Value : ValueT<Vec2Row, SharedVec2Row> {};
+  struct Vec3Value : ValueT<Vec3Row, SharedVec3Row> {};
+  struct Vec4Value : ValueT<Vec4Row, SharedVec4Row> {};
+  struct StringValue : ValueT<StringRow, SharedStringRow> {};
+
+  using SingleElementVariant = std::variant<
+    NoValue,
+    BoolValue,
+    BitfieldValue,
+    IntValue,
+    FloatValue,
+    Vec2Value,
+    Vec3Value,
+    Vec4Value,
+    StringValue
+  >;
+
+  std::optional<float> tryReadFloat(const aiMetadataEntry& data) {
+    switch(data.mType) {
+      case AI_FLOAT: return *static_cast<float*>(data.mData);
+      case AI_DOUBLE: return static_cast<float>(*static_cast<double*>(data.mData));
+    }
+    return {};
+  }
+
+  std::optional<bool> tryReadBool(const aiMetadataEntry& data) {
+    switch(data.mType) {
+      case AI_BOOL: return *static_cast<bool*>(data.mData);
+    }
+    return {};
+  }
+
+  std::optional<int32_t> tryReadInt(const aiMetadataEntry& data) {
+    switch(data.mType) {
+      case AI_INT32: return *static_cast<int32_t*>(data.mData);
+      case AI_UINT64: return static_cast<int32_t>(*static_cast<uint64_t*>(data.mData));
+      case AI_INT64: return static_cast<int32_t>(*static_cast<int64_t*>(data.mData));
+      case AI_UINT32: return static_cast<int32_t>(*static_cast<uint32_t*>(data.mData));
+    }
+    return {};
+  }
+
+  std::optional<std::string> tryReadString(const aiMetadataEntry& data) {
+    switch(data.mType) {
+      case AI_AISTRING: return std::string{ static_cast<aiString*>(data.mData)->C_Str() };
+    }
+    return {};
+  }
+
+  std::optional<glm::vec3> tryReadVec3(const aiMetadataEntry& data) {
+    switch(data.mType) {
+      case AI_AIVECTOR3D: {
+        auto* v = static_cast<aiVector3D*>(data.mData);
+        return glm::vec3{ v->x, v->y, v->z };
+      }
+    }
+    return {};
+  }
+
+  SingleElementVariant readSingleElement(const aiMetadataEntry& data) {
+    if(const auto v = tryReadBool(data)) {
+      return BoolValue{ *v };
+    }
+    if(const auto v = tryReadInt(data)) {
+      return IntValue{ *v };
+    }
+    if(const auto v = tryReadFloat(data)) {
+      return FloatValue{ *v };
+    }
+    if(const auto v = tryReadString(data)) {
+      return StringValue{ *v };
+    }
+    if(const auto v = tryReadVec3(data)) {
+      return Vec3Value{ *v };
+    }
+    if(data.mType != AI_AIMETADATA) {
+      return NoValue{};
+    }
+
+    //Metadata could be bitfield or one of the float types, figure out which based on size and type
+    const auto* meta = static_cast<const aiMetadata*>(data.mData);
+    const size_t count = static_cast<size_t>(meta->mNumProperties);
+    if(!count) {
+      return NoValue{};
+    }
+    //If the first value is a float, try to read all values as a float
+    //Fail if any are the wrong type
+    //Interpret as float if it's an array of one, otherwise vec2,3,4. Bigger than that is not supported.
+    if(tryReadFloat(meta->mValues[0])) {
+      if(count > 4) {
+        return NoValue{};
+      }
+      std::array<float, 4> values;
+      for(int i = 0; i < 3; ++i) {
+        if(auto v = tryReadFloat(meta->mValues[i])) {
+          values[i] = *v;
+        }
+        else {
+          return NoValue{};
+        }
+      }
+
+      if(count == 1) {
+        return FloatValue{ values[0] };
+      }
+      if(count == 2) {
+        return Vec2Value{ glm::vec2{ values[0], values[1] } };
+      }
+      if(count == 3) {
+        return Vec3Value{ glm::vec3{ values[0], values[1], values[2] } };
+      }
+      if(count == 4) {
+        return Vec4Value{ glm::vec4{ values[0], values[1], values[2], values[3] } };
+      }
+      //Unreachable
+      return NoValue{};
+    }
+    //Interpret as a bitfield up to 64 size
+    else if(tryReadBool(meta->mValues[0])) {
+      uint64_t result{};
+      uint64_t currentMask = 1;
+      //Start at top bit going down so that the blender checkboxes go from most significant (top) to least (bottom)
+      const size_t bitfieldSize = std::min(size_t(64), count);
+      for(unsigned i = 0; i < bitfieldSize; ++i) {
+        if(auto v = tryReadBool(meta->mValues[bitfieldSize - (i + 1)])) {
+          if(*v) {
+            result |= currentMask;
+          }
+        }
+        //Exit if the bool failed to read (invalid type, not false)
+        else {
+          return NoValue{};
+        }
+
+        currentMask = currentMask << 1;
+      }
+
+      return BitfieldValue{ result };
+    }
+
+    return NoValue{};
+  }
+
+  template<IsRow T>
+  constexpr DBTypeID getDynamicRowKey(size_t rowName) {
+    return { gnx::Hash::combine(rowName, DBTypeID::get<std::decay_t<T>>().value) };
+  }
+
+  template<IsRow T>
+  constexpr DBTypeID getDynamicRowKey(std::string_view rowName) {
+    return getDynamicRowKey<T>(gnx::Hash::constHash(rowName));
+  }
+
+  template<IsRow T>
+  struct DynamicRowStorage : ChainedRuntimeStorage {
+    using SelfT = DynamicRowStorage<T>;
+    using ChainedRuntimeStorage::ChainedRuntimeStorage;
+
+    static T& addRowToChain(DBTypeID key, RuntimeTableRowBuilder& table, RuntimeDatabaseArgs& storage) {
+      SelfT* self = RuntimeStorage::addToChain<SelfT>(storage);
+      table.rows.push_back(RuntimeTableRowBuilder::Row{
+        .type = key,
+        .row = &self->row
+      });
+      return self->row;
+    }
+    T row;
+  };
+
+  //I need to end up with identifiers that can query a name plus type
+  //RuntimeTable assume unique types as tryGet can only return one result
+  //This deserialization will add the same table types with different associated names
+  RuntimeTableRowBuilder& getOrCreateTable(size_t hash, LoadingSceneAsset& scene) {
+    RuntimeDatabaseArgs& storage = scene.loadingArgs;
+
+    if(auto it = std::find_if(storage.tables.begin(), storage.tables.end(), [&hash](const RuntimeTableRowBuilder& t) { return t.tableType.value == hash; }); it != storage.tables.end()) {
+      return *it;
+    }
+
+    storage.tables.push_back(RuntimeTableRowBuilder{ .tableType = hash });
+    RuntimeTableRowBuilder& result = storage.tables.back();
+    return result;
+  }
+
+  RuntimeTableRowBuilder& getOrCreateTable(const std::string_view tableName, LoadingSceneAsset& scene) {
+    return getOrCreateTable(gnx::Hash::constHash(tableName), scene);
+  }
+
+  template<IsRow T>
+  T& getOrCreateRow(size_t rowName, RuntimeTableRowBuilder& table, LoadingSceneAsset& scene) {
+    RuntimeDatabaseArgs& storage = scene.loadingArgs;
+    const DBTypeID key = getDynamicRowKey<T>(rowName);
+
+    if(auto it = std::find_if(table.rows.begin(), table.rows.end(), [&key](const auto& row) { return row.type == key; }); it != table.rows.end()) {
+      return static_cast<T&>(*it->row);
+    }
+
+    return DynamicRowStorage<T>::addRowToChain(key, table, storage);
+  }
+
+  //TODO: do I need the string versions?
+  template<IsRow T>
+  T& getOrCreateRow(const std::string_view rowName, RuntimeTableRowBuilder& table, LoadingSceneAsset& scene) {
+    return getOrCreateRow<T>(gnx::Hash::constHash(rowName), table, scene);
+  }
+
+  struct TableInfo {
+    size_t size{};
+  };
+  struct TableInfoRow : SharedRow<TableInfo> {};
+  struct MeshIndexRow : Row<MeshIndex> {};
+
+  TableInfo& getTableInfo(RuntimeTableRowBuilder& table, LoadingSceneAsset& scene) {
+    return getOrCreateRow<TableInfoRow>("__info__", table, scene).at();
+  }
+
+  namespace New {
+    template<class T>
+    void assignElement(BasicRow<T>& row, size_t i, T&& value) {
+      if(i <= row.size()) {
+        row.resize(row.size(), i + 1);
+      }
+      row.at(i) = std::move(value);
+    }
+
+  //Read all userdata keys under a table as individual row elements in that table
+  //Transforms are always read
+  void loadObject(size_t tableName, const NodeTraversal& node, SceneLoadContext& ctx, LoadingSceneAsset& scene) {
+    RuntimeTableRowBuilder& table = getOrCreateTable(tableName, scene);
+    TableInfo& info = getTableInfo(table, scene);
+    const size_t i = info.size++;
+
+    TransformRow& transform = getOrCreateRow<TransformRow>("transform", table, scene);
+    assignElement(transform, i, loadTransform(node.transform));
+
+    if(auto mesh = tryLoadMeshIndex(*node.node, ctx)) {
+      assignElement(getOrCreateRow<MeshIndexRow>("mesh", table, scene), i, std::move(*mesh));
+    }
+
+    readMetadata(*node.node, ctx, [&](size_t hash, const aiMetadataEntry& data, SceneLoadContext&) {
+      SingleElementVariant element = readSingleElement(data);
+      std::visit([&](auto& v) {
+        using This = std::decay_t<decltype(v)>;
+        if constexpr(This::HAS_VALUE) {
+          using T = typename This::row_type;
+          using E = typename This::element_type;
+          T& thisRow = getOrCreateRow<T>(hash, table, scene);
+          assignElement(thisRow, i, std::move(v.value));
+        }
+      }, element);
+    });
+  }
+
+  //Read all userdata keys of a table as SharedRows of the table
+  //Nested table userdata will be ignored
+  void loadTable(size_t tableName, const NodeTraversal& node, SceneLoadContext& ctx, LoadingSceneAsset& scene) {
+    RuntimeTableRowBuilder& table = getOrCreateTable(tableName, scene);
+    readMetadata(*node.node, ctx, [&](size_t hash, const aiMetadataEntry& data, SceneLoadContext&) {
+      const SingleElementVariant element = readSingleElement(data);
+      std::visit([&](auto& v) {
+        using This = std::decay_t<decltype(v)>;
+        if constexpr(This::HAS_VALUE) {
+          using T = typename This::shared_row_type;
+          T& thisRow = getOrCreateRow<T>(hash, table, scene);
+          thisRow.at() = v.value;
+        }
+      }, element);
+    });
+  }
+
+  void loadSceneAsset(const aiScene& scene, SceneLoadContext& ctx, LoadingSceneAsset& result) {
+    //Enqueue all material/mesh loads
+    loadMaterials(scene, ctx, result.finalAsset);
+    loadMeshes(scene, ctx, result.finalAsset);
+
+    //Await material/mesh to finish, then deduplicate the results
+    awaitModelsAndMaterials(ctx);
+
+    ModelsAndMaterials modelsAndMats;
+    gatherModelsAndMaterials(ctx, result.finalAsset, modelsAndMats);
+
+    //Compute the deduplicated results using the temporary ModelsAndMaterials container
+    ctx.meshMap = MeshRemapper::createRemapping(modelsAndMats.meshes, ctx.tempMeshMaterials, modelsAndMats.materials);
+    //Store the results of deduplication in the final result location from the temporary ModelsAndMaterials container
+    assignDeduplicatedModelsAndMaterials(result.finalAsset, modelsAndMats);
+
+    ctx.nodesToTraverse.push_back({ scene.mRootNode });
+    while(ctx.nodesToTraverse.size()) {
+      //Currently ignoring hierarchy, so depth or breadth first doesn't matter
+      NodeTraversal node = ctx.nodesToTraverse.back();
+      ctx.nodesToTraverse.pop_back();
+      if(node.node) {
+        //If this isn't a child of a table, try to find the table metadata and parse as table
+        if(!node.tableHash) {
+          readMetadata(*node.node, ctx, [&node](size_t hash, const aiMetadataEntry& data, SceneLoadContext&) {
+           switch(hash) {
+           case gnx::Hash::constHash("Table"):
+             if(data.mType == AI_AISTRING) {
+               node.tableHash = gnx::Hash::constHash(toView(*static_cast<const aiString*>(data.mData)));
+             }
+             break;
+           }
+          });
+
+          if(node.tableHash) {
+            loadTable(node.tableHash, node, ctx, result);
+          }
+        }
+        else {
+          loadObject(node.tableHash, node, ctx, result);
+        }
+        for(unsigned i = 0; i < node.node->mNumChildren; ++i) {
+          if(const aiNode* child = node.node->mChildren[i]) {
+            ctx.nodesToTraverse.push_back({ child, node.transform * child->mTransformation, node.tableHash });
+          }
+        }
+      }
+    }
+
+    //TODO: finalize by setting all rows to the appropriate size and putting meshes/materials somewhere useful
+  }
+  }
   class AssimpReaderImpl : public IAssetImporter {
   public:
     AssimpReaderImpl(AssetLoadTask& task, const AppTaskArgs& taskArgs)
@@ -494,8 +877,8 @@ namespace Loader {
         ctx.importer.ReadFileFromMemory(request.contents.data(), request.contents.size(), 0) :
         ctx.importer.ReadFile(request.location.filename, 0);
       if(scene) {
-        ctx.task.asset.v = SceneAsset{};
-        loadSceneAsset(*scene, ctx, std::get<SceneAsset>(ctx.task.asset.v));
+        ctx.task.asset.v = LoadingSceneAsset{};
+        New::loadSceneAsset(*scene, ctx, std::get<LoadingSceneAsset>(ctx.task.asset.v));
       }
     }
 

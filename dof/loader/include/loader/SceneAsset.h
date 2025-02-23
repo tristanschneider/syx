@@ -8,8 +8,16 @@
 #include "glm/vec2.hpp"
 #include "glm/vec3.hpp"
 
+class RuntimeDatabase;
+
 namespace Loader {
   struct AssetHandle;
+
+  struct Transform {
+    glm::vec3 pos{};
+    glm::vec3 scale{};
+    float rot{};
+  };
 
   //Matches blender transform discarding Z axis
   struct Transform2D {
@@ -132,8 +140,13 @@ namespace Loader {
   };
 
   struct SceneAsset {
+    SceneAsset();
+    SceneAsset(SceneAsset&&);
     ~SceneAsset();
 
+    SceneAsset& operator=(SceneAsset&&);
+
+    std::unique_ptr<RuntimeDatabase> db;
     PlayerTable player;
     TerrainTable terrain;
     FragmentSpawnerTable fragmentSpawners;
@@ -141,6 +154,7 @@ namespace Loader {
     std::vector<AssetHandle> materials;
     //Pointing at a table with MeshAssets
     std::vector<AssetHandle> meshes;
+    
   };
 
   struct SceneAssetRow : Row<SceneAsset> {};

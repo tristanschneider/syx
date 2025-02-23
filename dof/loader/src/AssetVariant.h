@@ -2,6 +2,7 @@
 
 #include "loader/SceneAsset.h"
 #include "QueryAlias.h"
+#include "RuntimeDatabase.h"
 #include <variant>
 
 class IRow;
@@ -11,6 +12,11 @@ namespace Loader {
   //Similar to a load failure but allows the load of other assets in the group to succeed
   struct EmptyAsset {};
 
+  struct LoadingSceneAsset {
+    SceneAsset finalAsset;
+    RuntimeDatabaseArgs loadingArgs;
+  };
+
   struct AssetVariant {
     using Variant = std::variant<
       std::monostate,
@@ -18,7 +24,7 @@ namespace Loader {
       EmptyAsset,
       MaterialAsset,
       MeshAsset,
-      SceneAsset
+      LoadingSceneAsset
     >;
 
     Variant& operator*() { return v; }
