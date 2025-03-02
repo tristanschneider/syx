@@ -47,6 +47,38 @@ public:
 
   RuntimeTable(RuntimeTableArgs&& args);
 
+  class iterator {
+  public:
+    using WrapT = std::unordered_map<DBTypeID, IRow*>::const_iterator;
+
+    using value_type = std::pair<DBTypeID, const IRow*>;
+    using pointer = value_type;
+    using reference = value_type;
+    using iterator_category = std::bidirectional_iterator_tag;
+
+    iterator(WrapT w)
+      : wrapped{ w } {
+    }
+
+    auto operator<=>(const iterator&) const = default;
+
+    value_type operator*() const { return value_type{ *wrapped }; }
+
+    iterator& operator++() {
+      ++wrapped;
+      return *this;
+    }
+
+    iterator operator++(int) {
+      iterator tmp{ *this };
+      ++*this;
+      return tmp;
+    }
+
+  private:
+    std::unordered_map<DBTypeID, IRow*>::const_iterator wrapped;
+  };
+
   const TableID& getID() const {
     return tableID;
   }
@@ -96,6 +128,9 @@ public:
   void resize(size_t newSize, const ElementRef* reservedKeys = nullptr);
   size_t addElements(size_t count, const ElementRef* reservedKeys = nullptr);
   void swapRemove(size_t i);
+
+  iterator begin() const { return rows.begin(); }
+  iterator end() const { return rows.end(); }
 
 private:
   //Optional, for when this table has a StableIDRow

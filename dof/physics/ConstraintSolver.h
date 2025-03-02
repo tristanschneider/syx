@@ -57,7 +57,9 @@ namespace ConstraintSolver {
   struct SharedMaterialRow : SharedRow<Material> {};
   struct SharedMassRow : SharedRow<BodyMass> {};
   struct MassRow : Row<BodyMass> {};
-  struct ConstraintMaskRow : Row<ConstraintMask> {};
+  struct ConstraintMaskRow : Row<ConstraintMask> {
+    static constexpr std::string_view KEY = "ConstraintMask";
+  };
 
   //Uses the islands from SpatialQueryStorage and the narrowphase information stored there from the narrowphase
   //to solve the constraints. The velocities for it are extracted from the corresponding physics aliases then written back out

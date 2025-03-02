@@ -1,25 +1,14 @@
 #pragma once
 
+#include "generics/Hash.h"
+
 #ifdef _MSC_VER
 #define FUNC_NAME __FUNCSIG__
 #elif
-#define FNC_NAME __PRETTY_FUNCTION__
+#define FUNC_NAME __PRETTY_FUNCTION__
 #else
 static_assert(false, "implement this");
 #endif
-
-template<class Category>
-struct TypeID {
-  template<class T>
-  static TypeID get() {
-    static TypeID result{ std::hash<std::string>()(FUNC_NAME) };
-    return result;
-  }
-
-  auto operator<=>(const TypeID&) const = default;
-
-  size_t value{};
-};
 
 template<class T>
 struct TypeName {
@@ -42,6 +31,17 @@ struct TypeName {
   }
 };
 
+template<class Category>
+struct TypeID {
+  template<class T>
+  static constexpr TypeID get() {
+    return { gnx::Hash::constHash(FUNC_NAME) };
+  }
+
+  auto operator<=>(const TypeID&) const = default;
+
+  size_t value{};
+};
 
 namespace std {
   template<class Category>

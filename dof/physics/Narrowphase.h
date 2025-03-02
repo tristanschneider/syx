@@ -28,7 +28,9 @@ namespace Narrowphase {
 
   using CollisionMask = uint8_t;
 
-  struct CollisionMaskRow : Row<CollisionMask> {};
+  struct CollisionMaskRow : Row<CollisionMask> {
+    static constexpr std::string_view KEY = "CollisionMask";
+  };
   //Any of the above shapes can optionally have a thickness and Z coordinate
   //Without it, shapes are considered to have zero thickness at z=0
   //The value represents the distance from the bottom of the shape to the top of the shape.

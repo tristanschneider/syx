@@ -28,6 +28,9 @@ namespace Loader {
     std::unique_ptr<MeshRemapper::IRemapping> meshMap;
     //Index from meshes stored temporarily here before meshMap is created
     std::vector<uint32_t> tempMeshMaterials;
+    //Materials and meshes corresponding ot what meshMap produces
+    const std::vector<AssetHandle>* resolvedMaterials{};
+    const std::vector<AssetHandle>* resolvedMeshes{};
   };
 
   std::string_view toView(const aiString& str) {
@@ -76,34 +79,9 @@ namespace Loader {
     }
   }
 
-  glm::vec3 toVec3(const aiVector3D& v) {
-    return { v.x, v.y, v.z };
-  }
-
-  glm::vec2 toVec2(const aiVector3D& v) {
-    return { v.x, v.y };
-  }
-
   //TODO: assuming axis/angle, is that right?
   float toRot(const aiVector3D& axis, ai_real angle) {
     return axis.z > 0 ? angle : -angle;
-  }
-
-  void load(const aiMatrix4x4& data, Transform3D& value) {
-    aiVector3D scale, axis, translate;
-    ai_real angle{};
-    data.Decompose(scale, axis, angle, translate);
-    value.pos = toVec3(translate);
-    value.rot = toRot(axis, angle);
-  }
-
-  void load(const aiMatrix4x4& data, Transform3D& value, Scale2D& scaleValue) {
-    aiVector3D scale, axis, translate;
-    ai_real angle{};
-    data.Decompose(scale, axis, angle, translate);
-    value.pos = toVec3(translate);
-    value.rot = toRot(axis, angle);
-    scaleValue.scale = toVec2(scale);
   }
 
   Transform loadTransform(const aiMatrix4x4& data) {
@@ -113,177 +91,23 @@ namespace Loader {
     return Transform{
       .pos = glm::vec3{ translate.x, translate.y, translate.z },
       .scale = glm::vec3{ scale.x, scale.y, scale.z },
-      .rot = angle
+      .rot = toRot(axis, angle)
     };
   }
 
-  //These are stored using a bool array property which parses as a metadata with an array of bool values
-  void loadMask(const aiMetadataEntry& entry, uint8_t& mask) {
-    if(entry.mType != AI_AIMETADATA) {
-      return;
-    }
-    const aiMetadata* data = static_cast<aiMetadata*>(entry.mData);
-    //Start at top bit going down so that the blender checkboxes go from most significant (top) to least (bottom)
-    uint8_t currentMask = 1 << 7;
-    for(unsigned i = 0; i < std::min((unsigned)8, data->mNumProperties); ++i) {
-      const aiMetadataEntry& e = data->mValues[i];
-      //Assume starting with 't' means this string is "true"
-      if(const bool* b = static_cast<const bool*>(e.mData); e.mType == AI_BOOL && *b) {
-        mask |= currentMask;
-      }
-      currentMask = currentMask >> 1;
-    }
+  AssetHandle tryGetIndex(const std::vector<AssetHandle>& container, uint32_t i) {
+    return i < container.size() ? container[i] : AssetHandle{};
   }
 
-  bool isNumberChar(char c) {
-    return c == '-' || std::isdigit(static_cast<int>(c));
-  }
-
-  size_t loadSize(const aiMetadataEntry& e) {
-    switch(e.mType) {
-      case AI_INT32: return static_cast<size_t>(*static_cast<int32_t*>(e.mData));
-      case AI_INT64: return static_cast<size_t>(*static_cast<int64_t*>(e.mData));
-      case AI_UINT32: return static_cast<size_t>(*static_cast<uint32_t*>(e.mData));
-      case AI_UINT64: return static_cast<size_t>(*static_cast<uint64_t*>(e.mData));
-      //Float values don't make sense for size but probably more annoying to ignore than truncate
-      case AI_FLOAT: return static_cast<size_t>(*static_cast<float*>(e.mData));
-      case AI_DOUBLE: return static_cast<size_t>(*static_cast<double*>(e.mData));
-      default: return 0;
-    }
-  }
-
-  //These are stored as an array of  floats: [1.0, 1.0, 1.0, 1.0]
-  glm::vec4 loadVec4(const aiMetadataEntry& e) {
-    if(e.mType != AI_AIMETADATA) {
-      return {};
-    }
-    const aiMetadata* data = static_cast<const aiMetadata*>(e.mData);
-    glm::vec4 result{};
-    for(unsigned i = 0; i < std::min(unsigned(4), data->mNumProperties); ++i) {
-      double d{};
-      data->Get(i, d);
-      result[i] = static_cast<float>(d);
-    }
-    return result;
-  }
-
-  float loadFloat(const aiMetadataEntry& e) {
-    switch(e.mType) {
-      case AI_FLOAT: return *static_cast<const float*>(e.mData);
-      case AI_DOUBLE: return static_cast<float>(*static_cast<const double*>(e.mData));
-    }
-    return {};
-  }
-
-  void load(const aiMetadataEntry& e, CollisionMask& mask) {
-    loadMask(e, mask.mask);
-  }
-
-  void load(const aiMetadataEntry& e, ConstraintMask& mask) {
-    loadMask(e, mask.mask);
-  }
-
-  void load(const aiMetadataEntry& e, Velocity3D& v) {
-    const glm::vec4 raw = loadVec4(e);
-    v.linear = { raw.x, raw.y, raw.z };
-    v.angular = raw.w;
-  }
-
-  //Attempt to reference the mesh, assuming there is only one
-  void load(const aiNode& e, MeshIndex& m, const SceneLoadContext& context) {
-    if(!m.isSet() && e.mNumMeshes) {
-      m = context.meshMap->remap(e.mMeshes[0]);
-    }
-  }
-
-  std::optional<MeshIndex> tryLoadMeshIndex(const aiNode& e, const SceneLoadContext& context) {
+  std::optional<MatMeshRef> tryLoadMeshIndex(const aiNode& e, const SceneLoadContext& context) {
     if(e.mNumMeshes) {
-      return context.meshMap->remap(e.mMeshes[0]);
+      const Loader::MeshIndex index = context.meshMap->remap(e.mMeshes[0]);
+      return MatMeshRef{
+        .material = tryGetIndex(*context.resolvedMaterials, index.materialIndex),
+        .mesh = tryGetIndex(*context.resolvedMeshes, index.meshIndex)
+      };
     }
     return {};
-  }
-
-  void load(const aiMetadataEntry& e, Thickness& v) {
-    v.thickness = loadFloat(e);
-  }
-
-  void loadPlayerElement(const NodeTraversal& node, SceneLoadContext& context, PlayerTable& player) {
-    player.players.emplace_back();
-    load(*node.node, player.meshIndex, context);
-    Player& p = player.players.back();
-
-    load(node.transform, p.transform);
-    readMetadata(*node.node, context, [&p](size_t hash, const aiMetadataEntry& data, SceneLoadContext&) {
-      switch(hash) {
-        case(CollisionMask::KEY): return load(data, p.collisionMask);
-        case(ConstraintMask::KEY): return load(data, p.constraintMask);
-        case(Velocity3D::KEY): return load(data, p.velocity);
-      }
-    });
-  }
-
-  void loadPlayerTable(const NodeTraversal& node, SceneLoadContext& context, PlayerTable& player) {
-    readMetadata(*node.node, context, [&player](size_t hash, const aiMetadataEntry& data, SceneLoadContext&) {
-      switch(hash) {
-        case(Thickness::KEY): return load(data, player.thickness);
-      }
-    });
-  }
-
-  void loadTerrainElement(const NodeTraversal& node, SceneLoadContext& context, TerrainTable& terrain) {
-    terrain.terrains.emplace_back();
-    load(*node.node, terrain.meshIndex, context);
-    Terrain& t = terrain.terrains.back();
-
-    load(node.transform, t.transform, t.scale);
-    readMetadata(*node.node, context, [&t](size_t hash, const aiMetadataEntry& data, SceneLoadContext&) {
-      switch(hash) {
-        case(CollisionMask::KEY): return load(data, t.collisionMask);
-        case(ConstraintMask::KEY): return load(data, t.constraintMask);
-      }
-    });
-  }
-
-  void loadTerrainTable(const NodeTraversal& node, SceneLoadContext& context, TerrainTable& terrain) {
-    readMetadata(*node.node, context, [&terrain](size_t hash, const aiMetadataEntry& data, SceneLoadContext&) {
-      switch(hash) {
-        case(Thickness::KEY): return load(data, terrain.thickness);
-      }
-    });
-  }
-
-  void loadFragmentSpawnerElement(const NodeTraversal& node, SceneLoadContext& context, FragmentSpawnerTable& spawners) {
-    spawners.spawners.emplace_back();
-    FragmentSpawner& s = spawners.spawners.back();
-
-    load(node.transform, s.transform, s.scale);
-    load(*node.node, s.meshIndex, context);
-    readMetadata(*node.node, context, [&](size_t hash, const aiMetadataEntry& data, SceneLoadContext&) {
-      switch(hash) {
-        case(FragmentCount::KEY): s.fragmentCount = { loadSize(data) }; break;
-        case(CollisionMask::KEY): return load(data, s.collisionMask);
-      }
-    });
-  }
-
-  void loadFragmentSpawnerTable(const NodeTraversal& node, SceneLoadContext& context, FragmentSpawnerTable& spawner) {
-    node;context;spawner;
-  }
-
-  void loadObject(size_t tableName, const NodeTraversal& node, SceneLoadContext& ctx, SceneAsset& scene) {
-    switch(tableName) {
-      case PlayerTable::KEY: return loadPlayerElement(node, ctx, scene.player);
-      case TerrainTable::KEY: return loadTerrainElement(node, ctx, scene.terrain);
-      case FragmentSpawnerTable::KEY: return loadFragmentSpawnerElement(node, ctx, scene.fragmentSpawners);
-    }
-  }
-
-  void loadTable(size_t tableName, const NodeTraversal& node, SceneLoadContext& ctx, SceneAsset& scene) {
-    switch(tableName) {
-      case PlayerTable::KEY: return loadPlayerTable(node, ctx, scene.player);
-      case TerrainTable::KEY: return loadTerrainTable(node, ctx, scene.terrain);
-      case FragmentSpawnerTable::KEY: return loadFragmentSpawnerTable(node, ctx, scene.fragmentSpawners);
-    }
   }
 
   void loadMaterialTask(const aiMaterial& mat, const aiScene& scene, AssetLoadTask& task) {
@@ -445,83 +269,6 @@ namespace Loader {
     std::transform(toAssign.materials.begin(), toAssign.materials.end(), scene.materials.begin(), MeshRemapper::RemapRefUnwrapper{});
   }
 
-  void loadSceneAsset(const aiScene& scene, SceneLoadContext& ctx, SceneAsset& result) {
-    ctx.task.mDebug = "main";
-    //Enqueue all material/mesh loads
-    loadMaterials(scene, ctx, result);
-    loadMeshes(scene, ctx, result);
-
-    //Await material/mesh to finish, then deduplicate the results
-    awaitModelsAndMaterials(ctx);
-
-    ModelsAndMaterials modelsAndMats;
-    gatherModelsAndMaterials(ctx, result, modelsAndMats);
-
-    //Compute the deduplicated results using the temporary ModelsAndMaterials container
-    ctx.meshMap = MeshRemapper::createRemapping(modelsAndMats.meshes, ctx.tempMeshMaterials, modelsAndMats.materials);
-    //Store the results of deduplication in the final result location from the temporary ModelsAndMaterials container
-    assignDeduplicatedModelsAndMaterials(result, modelsAndMats);
-
-    ctx.nodesToTraverse.push_back({ scene.mRootNode });
-    while(ctx.nodesToTraverse.size()) {
-      //Currently ignoring hierarchy, so depth or breadth first doesn't matter
-      NodeTraversal node = ctx.nodesToTraverse.back();
-      ctx.nodesToTraverse.pop_back();
-      if(node.node) {
-        //If this isn't a child of a table, try to find the table metadata and parse as table
-        if(!node.tableHash) {
-          readMetadata(*node.node, ctx, [&node](size_t hash, const aiMetadataEntry& data, SceneLoadContext&) {
-           switch(hash) {
-           case gnx::Hash::constHash("Table"):
-             if(data.mType == AI_AISTRING) {
-               node.tableHash = gnx::Hash::constHash(toView(*static_cast<const aiString*>(data.mData)));
-             }
-             break;
-           }
-          });
-
-          if(node.tableHash) {
-            loadTable(node.tableHash, node, ctx, result);
-          }
-        }
-        else {
-          loadObject(node.tableHash, node, ctx, result);
-        }
-        for(unsigned i = 0; i < node.node->mNumChildren; ++i) {
-          if(const aiNode* child = node.node->mChildren[i]) {
-            ctx.nodesToTraverse.push_back({ child, node.transform * child->mTransformation, node.tableHash });
-          }
-        }
-      }
-    }
-  }
-
-  //Boolean in blender
-  struct BoolRow : Row<uint8_t> {};
-  //Boolean array in blender. Only allows up to 64 array size
-  struct BitfieldRow : Row<uint64_t> {};
-  //Integer in blender
-  struct IntRow : Row<int32_t> {};
-  //Float in blender
-  struct FloatRow : Row<float> {};
-  //Float arrays of various sizes in blender
-  struct Vec2Row : Row<glm::vec2> {};
-  struct Vec3Row : Row<glm::vec3> {};
-  struct Vec4Row : Row<glm::vec4> {};
-  //String in blender
-  struct StringRow : Row<std::string> {};
-
-  struct SharedBoolRow : SharedRow<uint8_t> {};
-  struct SharedBitfieldRow : SharedRow<uint64_t> {};
-  struct SharedIntRow : SharedRow<int32_t> {};
-  struct SharedFloatRow : SharedRow<float> {};
-  struct SharedVec2Row : SharedRow<glm::vec2> {};
-  struct SharedVec3Row : SharedRow<glm::vec3> {};
-  struct SharedVec4Row : SharedRow<glm::vec4> {};
-  struct SharedStringRow : SharedRow<std::string> {};
-
-  struct TransformRow : Row<Transform> {};
-
   struct NoValue {
     static constexpr std::false_type HAS_VALUE;
   };
@@ -682,15 +429,6 @@ namespace Loader {
     return NoValue{};
   }
 
-  template<IsRow T>
-  constexpr DBTypeID getDynamicRowKey(size_t rowName) {
-    return { gnx::Hash::combine(rowName, DBTypeID::get<std::decay_t<T>>().value) };
-  }
-
-  template<IsRow T>
-  constexpr DBTypeID getDynamicRowKey(std::string_view rowName) {
-    return getDynamicRowKey<T>(gnx::Hash::constHash(rowName));
-  }
 
   template<IsRow T>
   struct DynamicRowStorage : ChainedRuntimeStorage {
@@ -708,9 +446,12 @@ namespace Loader {
     T row;
   };
 
-  //I need to end up with identifiers that can query a name plus type
-  //RuntimeTable assume unique types as tryGet can only return one result
-  //This deserialization will add the same table types with different associated names
+  //TODO: do I need the string versions?
+  template<IsRow T>
+  T& getOrCreateRow(const std::string_view rowName, RuntimeTableRowBuilder& table, LoadingSceneAsset& scene) {
+    return getOrCreateRow<T>(gnx::Hash::constHash(rowName), table, scene);
+  }
+
   RuntimeTableRowBuilder& getOrCreateTable(size_t hash, LoadingSceneAsset& scene) {
     RuntimeDatabaseArgs& storage = scene.loadingArgs;
 
@@ -739,30 +480,22 @@ namespace Loader {
     return DynamicRowStorage<T>::addRowToChain(key, table, storage);
   }
 
-  //TODO: do I need the string versions?
-  template<IsRow T>
-  T& getOrCreateRow(const std::string_view rowName, RuntimeTableRowBuilder& table, LoadingSceneAsset& scene) {
-    return getOrCreateRow<T>(gnx::Hash::constHash(rowName), table, scene);
-  }
-
   struct TableInfo {
     size_t size{};
   };
   struct TableInfoRow : SharedRow<TableInfo> {};
-  struct MeshIndexRow : Row<MeshIndex> {};
 
   TableInfo& getTableInfo(RuntimeTableRowBuilder& table, LoadingSceneAsset& scene) {
     return getOrCreateRow<TableInfoRow>("__info__", table, scene).at();
   }
 
-  namespace New {
-    template<class T>
-    void assignElement(BasicRow<T>& row, size_t i, T&& value) {
-      if(i <= row.size()) {
-        row.resize(row.size(), i + 1);
-      }
-      row.at(i) = std::move(value);
+  template<class T>
+  void assignElement(BasicRow<T>& row, size_t i, T&& value) {
+    if(i <= row.size()) {
+      row.resize(row.size(), i + 1);
     }
+    row.at(i) = std::move(value);
+  }
 
   //Read all userdata keys under a table as individual row elements in that table
   //Transforms are always read
@@ -771,11 +504,11 @@ namespace Loader {
     TableInfo& info = getTableInfo(table, scene);
     const size_t i = info.size++;
 
-    TransformRow& transform = getOrCreateRow<TransformRow>("transform", table, scene);
+    TransformRow& transform = getOrCreateRow<TransformRow>(TransformRow::KEY, table, scene);
     assignElement(transform, i, loadTransform(node.transform));
 
     if(auto mesh = tryLoadMeshIndex(*node.node, ctx)) {
-      assignElement(getOrCreateRow<MeshIndexRow>("mesh", table, scene), i, std::move(*mesh));
+      assignElement(getOrCreateRow<MatMeshRefRow>(MatMeshRefRow::KEY, table, scene), i, std::move(*mesh));
     }
 
     readMetadata(*node.node, ctx, [&](size_t hash, const aiMetadataEntry& data, SceneLoadContext&) {
@@ -809,6 +542,19 @@ namespace Loader {
     });
   }
 
+  std::unique_ptr<RuntimeDatabase> createSceneDatabase(LoadingSceneAsset& scene) {
+    auto result = std::make_unique<RuntimeDatabase>(std::move(scene.loadingArgs));
+    //All rows were parsed independently so could be missing elements. Resize them all to consistent table sizes now
+    //Doing this after the runtime tables are created ensures the size members on the table itself are also in sync with the pre-filled rows
+    for(size_t i = 0 ; i < result->size(); ++i) {
+      RuntimeTable& table = (*result)[i];
+      if(const TableInfoRow* info = table.tryGet<TableInfoRow>()) {
+        table.resize(info->at().size);
+      }
+    }
+    return result;
+  }
+
   void loadSceneAsset(const aiScene& scene, SceneLoadContext& ctx, LoadingSceneAsset& result) {
     //Enqueue all material/mesh loads
     loadMaterials(scene, ctx, result.finalAsset);
@@ -825,6 +571,9 @@ namespace Loader {
     //Store the results of deduplication in the final result location from the temporary ModelsAndMaterials container
     assignDeduplicatedModelsAndMaterials(result.finalAsset, modelsAndMats);
 
+    ctx.resolvedMaterials = &result.finalAsset.materials;
+    ctx.resolvedMeshes = &result.finalAsset.meshes;
+
     ctx.nodesToTraverse.push_back({ scene.mRootNode });
     while(ctx.nodesToTraverse.size()) {
       //Currently ignoring hierarchy, so depth or breadth first doesn't matter
@@ -835,7 +584,7 @@ namespace Loader {
         if(!node.tableHash) {
           readMetadata(*node.node, ctx, [&node](size_t hash, const aiMetadataEntry& data, SceneLoadContext&) {
            switch(hash) {
-           case gnx::Hash::constHash("Table"):
+           case gnx::Hash::constHash(TableNameRow::KEY):
              if(data.mType == AI_AISTRING) {
                node.tableHash = gnx::Hash::constHash(toView(*static_cast<const aiString*>(data.mData)));
              }
@@ -858,9 +607,9 @@ namespace Loader {
       }
     }
 
-    //TODO: finalize by setting all rows to the appropriate size and putting meshes/materials somewhere useful
+    result.finalAsset.db = createSceneDatabase(result);
   }
-  }
+
   class AssimpReaderImpl : public IAssetImporter {
   public:
     AssimpReaderImpl(AssetLoadTask& task, const AppTaskArgs& taskArgs)
@@ -878,7 +627,7 @@ namespace Loader {
         ctx.importer.ReadFile(request.location.filename, 0);
       if(scene) {
         ctx.task.asset.v = LoadingSceneAsset{};
-        New::loadSceneAsset(*scene, ctx, std::get<LoadingSceneAsset>(ctx.task.asset.v));
+        loadSceneAsset(*scene, ctx, std::get<LoadingSceneAsset>(ctx.task.asset.v));
       }
     }
 

@@ -18,6 +18,7 @@
 #include "Simulation.h"
 #include "GraphicsTables.h"
 #include "FragmentSpawner.h"
+#include "generics/IndexRange.h"
 
 namespace Scenes {
   struct ImportedSceneGlobals {
@@ -319,6 +320,144 @@ namespace Scenes {
     publisher.broadcastNewElements(*table);
   }
 
+  struct RowLoader {
+    void(*loadMulti)(const IRow& src, RuntimeTable& dst, gnx::IndexRange range){};
+  };
+
+  template<IsRow Src, Loader::IsLoadableRow Dst>
+  struct DirectRowLoader {
+    static constexpr size_t HASH = Loader::getDynamicRowKey<Src>(Dst::KEY).value;
+
+    static void load(const IRow& src, RuntimeTable& dst, gnx::IndexRange range) {
+      const Src& s = static_cast<const Src&>(src);
+      if(Dst* dstRow = dst.tryGet<Dst>()) {
+        for(size_t i : range) {
+          dstRow->at(i) = static_cast<typename Dst::ElementT>(s.at(i));
+        }
+      }
+    }
+  };
+
+  template<class R, class S, class FN>
+  void tryLoadRow(const S& s, RuntimeTable& dst, gnx::IndexRange range, FN fn) {
+    if(auto row = dst.tryGet<R>()) {
+      for(size_t i : range) {
+        row->at(i) = fn(s.at(i));
+      }
+    }
+  }
+
+  struct GetX { template<class T> float operator()(const T& t) const { return t.x; } };
+  struct GetY { template<class T> float operator()(const T& t) const { return t.y; } };
+  struct GetZ { template<class T> float operator()(const T& t) const { return t.z; } };
+  struct GetW { template<class T> float operator()(const T& t) const { return t.w; } };
+  struct Cos { float operator()(float f) const { return std::cos(f); } };
+  struct Sin { float operator()(float f) const { return std::sin(f); } };
+
+  template<auto T>
+  struct GetMember {};
+  template<class C, class M, M(C::*Ptr)>
+  struct GetMember<Ptr> { const M& operator()(const C& c) const { return c.*Ptr; } };
+
+  template<class A, class B>
+  struct FMap {
+    template<class T>
+    auto operator()(const T& t) const {
+      return B{}(A{}(t));
+    }
+  };
+
+  struct TransformLoader {
+    static constexpr size_t HASH = gnx::Hash::constHash(Loader::TransformRow::KEY);
+
+    static void load(const IRow& src, RuntimeTable& dst, gnx::IndexRange range) {
+      const Loader::TransformRow& s = static_cast<const Loader::TransformRow&>(src);
+      using Pos = GetMember<&Loader::Transform::pos>;
+      tryLoadRow<Tags::PosXRow>(s, dst, range, FMap<Pos, GetX>{});
+      tryLoadRow<Tags::PosYRow>(s, dst, range, FMap<Pos, GetY>{});
+      tryLoadRow<Tags::PosZRow>(s, dst, range, FMap<Pos, GetZ>{});
+
+      using Rot = GetMember<&Loader::Transform::rot>;
+      tryLoadRow<Tags::RotXRow>(s, dst, range, FMap<Rot, Cos>{});
+      tryLoadRow<Tags::RotYRow>(s, dst, range, FMap<Rot, Sin>{});
+
+      using Scale = GetMember<&Loader::Transform::scale>;
+      tryLoadRow<Tags::ScaleXRow>(s, dst, range, FMap<Scale, GetX>{});
+      tryLoadRow<Tags::ScaleYRow>(s, dst, range, FMap<Scale, GetY>{});
+    }
+  };
+
+  struct VelocityLoader {
+    static constexpr size_t HASH = gnx::Hash::constHash(Loader::TransformRow::KEY);
+
+    static void load(const IRow& src, RuntimeTable& dst, gnx::IndexRange range) {
+      const Loader::Vec4Row& s = static_cast<const Loader::Vec4Row&>(src);
+      tryLoadRow<Tags::LinVelXRow>(s, dst, range, GetX{});
+      tryLoadRow<Tags::LinVelYRow>(s, dst, range, GetY{});
+      tryLoadRow<Tags::LinVelZRow>(s, dst, range, GetZ{});
+
+      tryLoadRow<Tags::AngVelRow>(s, dst, range, GetW{});
+    }
+  };
+
+  template<class T>
+  concept HasHash = requires() {
+    { T::HASH } -> std::convertible_to<size_t>;
+  };
+  template<class T>
+  concept HasSimpleLoad = requires(const IRow& s, IRow& dst, gnx::IndexRange range) {
+    T::load(s, dst, range);
+  };
+  template<class T>
+  concept HasMultiLoad = requires(const IRow& s, RuntimeTable& dst, gnx::IndexRange range) {
+    T::load(s, dst, range);
+  };
+  template<class T> concept MultiLoader = HasHash<T> && HasMultiLoad<T>;
+
+  template<MultiLoader L>
+  std::pair<const size_t, RowLoader> createRowLoader(L) {
+    return {
+      L::HASH,
+      RowLoader{
+        .loadMulti = &L::load
+      }
+    };
+  }
+
+  const std::unordered_map<size_t, RowLoader> LOADERS = {
+    createRowLoader(TransformLoader{}),
+    createRowLoader(VelocityLoader{}),
+    createRowLoader(DirectRowLoader<Loader::BitfieldRow, ConstraintSolver::ConstraintMaskRow>{})
+  };
+
+  void copySceneTable(RuntimeTable& src, RuntimeTable& dst) {
+    const size_t begin = dst.addElements(src.size());
+    const auto range = gnx::makeIndexRangeBeginCount(begin, src.size());
+    for(auto [type, row] : src) {
+      if(auto loader = LOADERS.find(type.value); loader != LOADERS.end()) {
+        if(loader->second.loadMulti) {
+          loader->second.loadMulti(*row, dst, range);
+        }
+      }
+    }
+  }
+
+  void copySceneDatabase(RuntimeDatabase& scene, RuntimeDatabase& game) {
+    //TODO: precompute and store
+    std::unordered_map<size_t, RuntimeTable*> hashToTable;
+    auto names = game.query<Tags::TableNameRow>();
+    for(size_t i = 0; i < names.size(); ++i) {
+      hashToTable[gnx::Hash::constHash(names.get<0>(i).at().name)] = game.tryGet(names[i]);
+    }
+
+    for(size_t i = 0; i < scene.size(); ++i) {
+      RuntimeTable& src = scene[i];
+      if(auto found = hashToTable.find(src.getType().value); found != hashToTable.end() && found->second) {
+        copySceneTable(src, *found->second);
+      }
+    }
+  }
+
   void instantiateScene(IAppBuilder& builder) {
     auto task = builder.createTask();
     ImportedSceneGlobals* globals = getImportedSceneGlobals(task);
@@ -331,9 +470,10 @@ namespace Scenes {
       if(const Loader::SceneAsset* scene = sceneView.tryGet(globals->toLoad)) {
         EventPublisher publisher;
         SceneAssets assets{ *scene };
-        createPlayers(scene->player, *db, tables, assets, publisher);
-        createTerrain(scene->terrain, *db, tables, assets, publisher);
-        createFragmentSpawners(scene->fragmentSpawners, *db, tables, assets, publisher);
+        publisher;assets;
+        //createPlayers(scene->player, *db, tables, assets, publisher);
+        //createTerrain(scene->terrain, *db, tables, assets, publisher);
+        //createFragmentSpawners(scene->fragmentSpawners, *db, tables, assets, publisher);
       }
 
       //Load is finished, release asset handle
