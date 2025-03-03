@@ -35,7 +35,9 @@ namespace Narrowphase {
   //Without it, shapes are considered to have zero thickness at z=0
   //The value represents the distance from the bottom of the shape to the top of the shape.
   //The center of the object on the Z axis is the Z position + half thickness
-  struct SharedThicknessRow : SharedRow<float> {};
+  struct SharedThicknessRow : SharedRow<float> {
+    static constexpr std::string_view KEY = "Thickness";
+  };
   struct ThicknessRow : Row<float> {};
   constexpr float DEFAULT_THICKNESS = 0.0f;
   constexpr float Z_OVERLAP_TOLERANCE = 0.01f;

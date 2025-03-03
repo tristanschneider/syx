@@ -378,8 +378,8 @@ namespace Loader {
       if(count > 4) {
         return NoValue{};
       }
-      std::array<float, 4> values;
-      for(int i = 0; i < 3; ++i) {
+      std::array<float, 4> values{};
+      for(int i = 0; i < count; ++i) {
         if(auto v = tryReadFloat(meta->mValues[i])) {
           values[i] = *v;
         }
@@ -483,10 +483,12 @@ namespace Loader {
   struct TableInfo {
     size_t size{};
   };
-  struct TableInfoRow : SharedRow<TableInfo> {};
+  struct TableInfoRow : SharedRow<TableInfo> {
+    static constexpr std::string_view KEY = "__info__";
+  };
 
   TableInfo& getTableInfo(RuntimeTableRowBuilder& table, LoadingSceneAsset& scene) {
-    return getOrCreateRow<TableInfoRow>("__info__", table, scene).at();
+    return getOrCreateRow<TableInfoRow>(TableInfoRow::KEY, table, scene).at();
   }
 
   template<class T>
@@ -548,7 +550,7 @@ namespace Loader {
     //Doing this after the runtime tables are created ensures the size members on the table itself are also in sync with the pre-filled rows
     for(size_t i = 0 ; i < result->size(); ++i) {
       RuntimeTable& table = (*result)[i];
-      if(const TableInfoRow* info = table.tryGet<TableInfoRow>()) {
+      if(const TableInfoRow* info = tryGetDynamicRow<TableInfoRow>(table)) {
         table.resize(info->at().size);
       }
     }

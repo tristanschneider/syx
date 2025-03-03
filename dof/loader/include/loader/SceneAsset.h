@@ -11,6 +11,7 @@
 #include "DBTypeID.h"
 
 class RuntimeDatabase;
+class RuntimeTable;
 
 namespace Loader {
   struct AssetHandle;
@@ -33,6 +34,14 @@ namespace Loader {
 
   struct SceneAssetRow : Row<SceneAsset> {};
 
+  template<class T>
+  concept HasKey = requires() {
+    { T::KEY } -> std::convertible_to<std::string_view>;
+  };
+
+  template<class T>
+  concept IsLoadableRow = IsRow<T> && HasKey<T>;
+
   template<IsRow T>
   constexpr DBTypeID getDynamicRowKey(size_t rowName) {
     return { gnx::Hash::combineHashes(rowName, DBTypeID::get<std::decay_t<T>>().value) };
@@ -43,13 +52,24 @@ namespace Loader {
     return getDynamicRowKey<T>(gnx::Hash::constHash(rowName));
   }
 
-  template<class T>
-  concept HasKey = requires() {
-    { T::KEY } -> std::convertible_to<std::string_view>;
-  };
+  template<IsLoadableRow T>
+  constexpr DBTypeID getDynamicRowKey() {
+    return getDynamicRowKey<T>(T::KEY);
+  }
 
-  template<class T>
-  concept IsLoadableRow = IsRow<T> && HasKey<T>;
+  namespace details {
+    IRow* tryGetRow(RuntimeTable& table, DBTypeID id);
+  }
+
+  template<IsRow R>
+  R* tryGetDynamicRow(RuntimeTable& table, std::string_view key) {
+    return static_cast<R*>(details::tryGetRow(table, getDynamicRowKey<R>(key)));
+  }
+
+  template<IsLoadableRow R>
+  R* tryGetDynamicRow(RuntimeTable& table) {
+    return tryGetDynamicRow<R>(table, R::KEY);
+  }
 
   //Contents of the scene are exposed in the RuntimeDatabase. The table names are parsed directly
   //The row names for generic types are one of the below types with a string key provided by the asset

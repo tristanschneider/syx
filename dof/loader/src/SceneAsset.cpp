@@ -11,4 +11,8 @@ namespace Loader {
   SceneAsset::SceneAsset(SceneAsset&&) = default;
 
   SceneAsset& SceneAsset::operator=(SceneAsset&&) = default;
+
+  IRow* details::tryGetRow(RuntimeTable& table, DBTypeID id) {
+    return table.tryGet(id);
+  }
 }

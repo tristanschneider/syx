@@ -59,7 +59,8 @@ namespace Scenes {
 
   template<IsRow Src, Loader::IsLoadableRow Dst>
   struct DirectRowLoader {
-    static constexpr size_t HASH = Loader::getDynamicRowKey<Src>(Dst::KEY).value;
+    using src_row = Src;
+    static constexpr std::string_view NAME = Dst::KEY;
 
     static void load(const IRow& src, RuntimeTable& dst, gnx::IndexRange range) {
       const Src& s = static_cast<const Src&>(src);
@@ -83,7 +84,8 @@ namespace Scenes {
   }
 
   struct TransformLoader {
-    static constexpr size_t HASH = gnx::Hash::constHash(Loader::TransformRow::KEY);
+    using src_row = Loader::TransformRow;
+    static constexpr std::string_view NAME = src_row::KEY;
 
     static void load(const IRow& src, RuntimeTable& dst, gnx::IndexRange range) {
       using namespace gnx::func;
@@ -111,7 +113,10 @@ namespace Scenes {
   };
 
   struct VelocityLoader {
-    static constexpr size_t HASH = gnx::Hash::constHash("Velocity");
+    using src_row = Loader::Vec4Row;
+    static constexpr std::string_view NAME = "Velocity";
+
+    static constexpr DBTypeID HASH = Loader::getDynamicRowKey<Loader::Vec4Row>("Velocity");
 
     static void load(const IRow& src, RuntimeTable& dst, gnx::IndexRange range) {
       using namespace gnx::func;
@@ -126,7 +131,8 @@ namespace Scenes {
   };
 
   struct MatMeshLoader {
-    static constexpr size_t HASH = gnx::Hash::constHash(Loader::MatMeshRefRow::KEY);
+    using src_row = Loader::MatMeshRefRow;
+    static constexpr std::string_view NAME = src_row::KEY;
 
     static void load(const IRow& src, RuntimeTable& dst, gnx::IndexRange) {
       using namespace gnx::func;
@@ -141,11 +147,8 @@ namespace Scenes {
 
   template<class T>
   concept HasHash = requires() {
-    { T::HASH } -> std::convertible_to<size_t>;
-  };
-  template<class T>
-  concept HasSimpleLoad = requires(const IRow& s, IRow& dst, gnx::IndexRange range) {
-    T::load(s, dst, range);
+    typename T::src_row;
+    { T::NAME } -> std::convertible_to<std::string_view>;
   };
   template<class T>
   concept HasMultiLoad = requires(const IRow& s, RuntimeTable& dst, gnx::IndexRange range) {
@@ -154,21 +157,29 @@ namespace Scenes {
   template<class T> concept MultiLoader = HasHash<T> && HasMultiLoad<T>;
 
   template<MultiLoader L>
-  std::pair<const size_t, RowLoader> createRowLoader(L) {
+  std::pair<const DBTypeID, RowLoader> createRowLoader(L, std::string_view name) {
     return {
-      L::HASH,
+      Loader::getDynamicRowKey<typename L::src_row>(name),
       RowLoader{
         .loadMulti = &L::load
       }
     };
   }
 
-  const std::unordered_map<size_t, RowLoader> LOADERS = {
+  template<MultiLoader L>
+  std::pair<const DBTypeID, RowLoader> createRowLoader(L l) {
+    return createRowLoader(l, L::NAME);
+  }
+
+  const std::unordered_map<DBTypeID, RowLoader> LOADERS = {
     createRowLoader(TransformLoader{}),
     createRowLoader(VelocityLoader{}),
+    createRowLoader(VelocityLoader{}, "Velocity3D"),
     createRowLoader(DirectRowLoader<Loader::BitfieldRow, ConstraintSolver::ConstraintMaskRow>{}),
     createRowLoader(MatMeshLoader{}),
-    createRowLoader(DirectRowLoader<Loader::IntRow, FragmentSpawner::FragmentSpawnerCountRow>{})
+    createRowLoader(DirectRowLoader<Loader::IntRow, FragmentSpawner::FragmentSpawnerCountRow>{}),
+    //TODO: this is a bit weird since it'll get set from transform and this
+    createRowLoader(DirectRowLoader<Loader::SharedFloatRow, Narrowphase::SharedThicknessRow>{})
   };
 
   void copySceneTable(RuntimeTable& src, RuntimeTable& dst) {
@@ -182,7 +193,7 @@ namespace Scenes {
     //Read elements row by row
     const auto range = gnx::makeIndexRangeBeginCount(begin, src.size());
     for(auto [type, row] : src) {
-      if(auto loader = LOADERS.find(type.value); loader != LOADERS.end()) {
+      if(auto loader = LOADERS.find(type); loader != LOADERS.end()) {
         if(loader->second.loadMulti) {
           loader->second.loadMulti(*row, dst, range);
         }

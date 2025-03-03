@@ -187,9 +187,11 @@ namespace Test {
         Assert::AreEqual(uint8_t(0b01111011), static_cast<uint8_t>(collisionMask));
         const Loader::Bitfield constraintMask = getOrAssertRow<Loader::BitfieldRow, ConstraintSolver::ConstraintMaskRow>(players).at(0);
         Assert::AreEqual(uint8_t(0b10001001), static_cast<uint8_t>(constraintMask));
-        const glm::vec4 v = getOrAssertRow<Loader::Vec4Row>(players, "Velocity").at(0);
+        const glm::vec4 v = getOrAssertRow<Loader::Vec4Row>(players, "Velocity3D").at(0);
         assertEq(glm::vec4{ 0.371f, 0.f, 0.175f, 0.1f }, v);
-        assertEq(glm::vec3{ 1.f, 1.f, 0.1f }, t.scale);
+        assertEq(glm::vec3{ 1.f, 1.f, 1.0f }, t.scale);
+        const float sharedThickness = getOrAssertRow<Loader::SharedFloatRow, Narrowphase::SharedThicknessRow>(players).at();
+        Assert::AreEqual(0.1f, sharedThickness, 0.001f);
       }
 
       {
@@ -203,7 +205,9 @@ namespace Test {
         const Loader::Transform& t = getOrAssertRow<Loader::TransformRow>(terrains).at(0);
         assertEq(glm::vec3{ 0.f, 0.f, -0.1f }, t.pos);
         Assert::AreEqual(0.0f, t.rot);
-        assertEq(glm::vec3{ 28.f, 29.f, 0.2f }, t.scale);
+        assertEq(glm::vec3{ 28.f, 29.f, 1.f }, t.scale);
+        const float sharedThickness = getOrAssertRow<Loader::SharedFloatRow, Narrowphase::SharedThicknessRow>(terrains).at();
+        Assert::AreEqual(0.2f, sharedThickness, 0.001f);
       }
     }
 
