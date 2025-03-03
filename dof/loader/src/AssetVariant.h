@@ -15,6 +15,10 @@ namespace Loader {
   struct LoadingSceneAsset {
     SceneAsset finalAsset;
     RuntimeDatabaseArgs loadingArgs;
+    //Pointing at a table with MaterialAssets
+    std::vector<AssetHandle> materials;
+    //Pointing at a table with MeshAssets
+    std::vector<AssetHandle> meshes;
   };
 
   struct AssetVariant {

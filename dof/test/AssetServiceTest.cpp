@@ -11,6 +11,9 @@
 #include "loader/AssetLoader.h"
 #include "loader/AssetReader.h"
 #include "loader/SceneAsset.h"
+#include "TestAssert.h"
+#include "ConstraintSolver.h"
+#include "Narrowphase.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -109,38 +112,46 @@ namespace Test {
       }
     };
 
-    static void assertEq(const glm::vec3& a, const glm::vec3& b, float e = 0.0001f) {
-      Assert::AreEqual(a.x, b.x, e);
-      Assert::AreEqual(a.y, b.y, e);
-      Assert::AreEqual(a.z, b.z, e);
-    }
-
-    static void assertEq(const glm::vec2& a, const glm::vec2& b, float e = 0.0001f) {
-      Assert::AreEqual(a.x, b.x, e);
-      Assert::AreEqual(a.y, b.y, e);
-    }
-
-    struct SceneAssets {
-      SceneAssets(RuntimeDatabaseTaskBuilder& task, const Loader::SceneAsset& scene) {
-        CachedRow<Loader::MaterialAssetRow> materialRow;
-        CachedRow<Loader::MeshAssetRow> meshRow;
-        auto resolver = task.getResolver(materialRow, meshRow);
-        ElementRefResolver res = task.getIDResolver()->getRefResolver();
-
-        materials.resize(scene.materials.size());
-        std::transform(scene.materials.begin(), scene.materials.end(), materials.begin(), [&](const Loader::AssetHandle& handle) {
-          return resolver->tryGetOrSwapRowElement(materialRow, res.tryUnpack(handle.asset));
-        });
-
-        meshes.resize(scene.meshes.size());
-        std::transform(scene.meshes.begin(), scene.meshes.end(), meshes.begin(), [&](const Loader::AssetHandle& handle) {
-          return resolver->tryGetOrSwapRowElement(meshRow, res.tryUnpack(handle.asset));
-        });
+    static RuntimeTable& getOrAssertTable(RuntimeDatabase& db, std::string_view name) {
+      const size_t hash = gnx::Hash::constHash(name);
+      for(size_t i = 0; i < db.size(); ++i) {
+        if(db[i].getType().value == hash) {
+          return db[i];
+        }
       }
+      Assert::Fail(L"Should have found table");
+    }
 
-      std::vector<Loader::MaterialAsset*> materials;
-      std::vector<Loader::MeshAsset*> meshes;
-    };
+    template<IsRow Src>
+    Src& getOrAssertRow(RuntimeTable& table, std::string_view name) {
+      const DBTypeID hash = Loader::getDynamicRowKey<Src>(name);
+      auto result = table.tryGet(hash);
+      Assert::IsNotNull(result);
+      return static_cast<Src&>(*result);
+    }
+
+    template<IsRow Src, Loader::IsLoadableRow Dst>
+    Src& getOrAssertRow(RuntimeTable& table) {
+      return getOrAssertRow<Src>(table, Dst::KEY);
+    }
+
+    template<Loader::IsLoadableRow Dst>
+    Dst& getOrAssertRow(RuntimeTable& table) {
+      return getOrAssertRow<Dst, Dst>(table);
+    }
+
+    static void assertMaterialMatch(const Loader::MaterialAsset* actual, const Loader::MaterialAsset& expected) {
+      Assert::IsNotNull(actual);
+      Loader::MaterialAsset copy{ *actual };
+      //Hack to compare only container sizes, expected are all zeroes
+      std::fill(copy.texture.buffer.begin(), copy.texture.buffer.end(), uint8_t{});
+      Assert::IsTrue(copy == expected);
+    }
+
+    static void assertMeshMatch(const Loader::MeshAsset* actual, const Loader::MeshAsset& expected) {
+      Assert::IsNotNull(actual);
+      Assert::IsTrue(*actual == expected);
+    }
 
     TEST_METHOD(LoadTestScene) {
       const std::string_view rawScene = TestAssets::getTestScene();
@@ -158,40 +169,42 @@ namespace Test {
       Assert::IsTrue(resultRef.has_value());
       Assert::IsTrue(res->tryGetOrSwapRow(result, *resultRef));
       Loader::SceneAsset& scene = result->at(resultRef->getElementIndex());
-      SceneAssets assets{ task, scene };
+      RuntimeDatabase& sdb = *scene.db;
 
-      Assert::AreEqual(size_t(3), scene.materials.size());
-      //Hack to compare only container sizes, expected are all zeroes
-      for(Loader::MaterialAsset* m : assets.materials) {
-        if(m) {
-          std::fill(m->texture.buffer.begin(), m->texture.buffer.end(), uint8_t{});
-        }
+      CachedRow<Loader::MeshAssetRow> meshes;
+      CachedRow<Loader::MaterialAssetRow> materials;
+
+      {
+        RuntimeTable& players = getOrAssertTable(sdb, "Player");
+        Assert::AreEqual(size_t(1), players.size());
+        const Loader::MatMeshRef& matMesh = getOrAssertRow<Loader::MatMeshRefRow>(players).at(0);
+        assertMeshMatch(res->tryGetOrSwapRowElement(meshes, ref.unpack(matMesh.mesh.asset)), PLAYER_MESH);
+        assertMaterialMatch(res->tryGetOrSwapRowElement(materials, ref.unpack(matMesh.material.asset)), PLAYER_MATERIAL);
+        const Loader::Transform& t = getOrAssertRow<Loader::TransformRow>(players).at(0);
+        assertEq(glm::vec3{ 14.6805, -12.0115, 9.118 }, t.pos);
+        Assert::AreEqual(-0.275905281f, t.rot);
+        const Loader::Bitfield collisionMask = getOrAssertRow<Loader::BitfieldRow, Narrowphase::CollisionMaskRow>(players).at(0);
+        Assert::AreEqual(uint8_t(0b01111011), static_cast<uint8_t>(collisionMask));
+        const Loader::Bitfield constraintMask = getOrAssertRow<Loader::BitfieldRow, ConstraintSolver::ConstraintMaskRow>(players).at(0);
+        Assert::AreEqual(uint8_t(0b10001001), static_cast<uint8_t>(constraintMask));
+        const glm::vec4 v = getOrAssertRow<Loader::Vec4Row>(players, "Velocity").at(0);
+        assertEq(glm::vec4{ 0.371f, 0.f, 0.175f, 0.1f }, v);
+        assertEq(glm::vec3{ 1.f, 1.f, 0.1f }, t.scale);
       }
-      Assert::IsTrue(PLAYER_MATERIAL == *assets.materials[0]);
-      Assert::IsTrue(GROUND_MATERIAL == *assets.materials[1]);
 
-      Assert::AreEqual(size_t(2), assets.meshes.size());
-      Assert::IsTrue(assets.meshes[0] && PLAYER_MESH == *assets.meshes[0]);
-      Assert::IsTrue(assets.meshes[1] && GROUND_MESH == *assets.meshes[1]);
+      {
+        RuntimeTable& terrains = getOrAssertTable(sdb, "Terrain");
+        Assert::AreEqual(size_t(1), terrains.size());
 
-      Assert::AreEqual(size_t(1), scene.player.players.size());
-      Assert::IsTrue(Loader::MeshIndex{ 0, 0 } == scene.player.meshIndex);
-      const Loader::Player& p = scene.player.players[0];
-      assertEq(glm::vec3{ 14.6805, -12.0115, 9.118 }, p.transform.pos);
-      Assert::AreEqual(-0.275905281f, p.transform.rot);
-      Assert::AreEqual(uint8_t(0b01111011), p.collisionMask.mask);
-      Assert::AreEqual(uint8_t(0b10001001), p.constraintMask.mask);
-      assertEq(glm::vec3{ 0.371f, 0.f, 0.175f }, p.velocity.linear);
-      Assert::AreEqual(0.1f, p.velocity.angular, 0.001f);
-      Assert::AreEqual(0.1f, scene.player.thickness.thickness);
+        const Loader::MatMeshRef& matMesh = getOrAssertRow<Loader::MatMeshRefRow>(terrains).at(0);
+        assertMeshMatch(res->tryGetOrSwapRowElement(meshes, ref.unpack(matMesh.mesh.asset)), GROUND_MESH);
+        assertMaterialMatch(res->tryGetOrSwapRowElement(materials, ref.unpack(matMesh.material.asset)), GROUND_MATERIAL);
 
-      Assert::AreEqual(size_t(1), scene.terrain.terrains.size());
-      Assert::IsTrue(Loader::MeshIndex{ 1, 1 } == scene.terrain.meshIndex);
-      const Loader::Terrain& t = scene.terrain.terrains[0];
-      assertEq(glm::vec3{ 0.f, 0.f, -0.1f }, t.transform.pos);
-      Assert::AreEqual(0.0f, t.transform.rot);
-      assertEq(glm::vec2{ 28, 29 }, t.scale.scale);
-      Assert::AreEqual(0.2f, scene.terrain.thickness.thickness);
+        const Loader::Transform& t = getOrAssertRow<Loader::TransformRow>(terrains).at(0);
+        assertEq(glm::vec3{ 0.f, 0.f, -0.1f }, t.pos);
+        Assert::AreEqual(0.0f, t.rot);
+        assertEq(glm::vec3{ 28.f, 29.f, 0.2f }, t.scale);
+      }
     }
 
     TEST_METHOD(LoadUnsupportedFileType) {

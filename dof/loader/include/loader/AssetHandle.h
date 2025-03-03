@@ -16,6 +16,10 @@ namespace Loader {
       };
     }
 
+    explicit operator bool() const {
+      return use != nullptr;
+    }
+
     bool operator==(const AssetHandle& h) const { return asset == h.asset; }
     bool operator!=(const AssetHandle& h) const { return !(*this == h); }
 

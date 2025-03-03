@@ -10,6 +10,11 @@
 #include <random>
 #include "TLSTaskImpl.h"
 
+#include "Events.h"
+#include "GameDatabase.h"
+#include "GraphicsTables.h"
+#include "Narrowphase.h"
+
 namespace FragmentSpawner {
   struct UpdateLocals {
     UpdateLocals(AppTaskArgs& args)
@@ -82,7 +87,8 @@ namespace FragmentSpawner {
       };
     }
 
-    void spawnNewFragments(UpdateLocals& locals, const FragmentSpawnerConfig&, const pt::FullTransform& spawnerTransform, AppTaskArgs& args) {
+    void spawnNewFragments(UpdateLocals& locals, const FragmentSpawnerCount&, const Narrowphase::CollisionMask collisionMask, const pt::FullTransform& spawnerTransform, AppTaskArgs& args) {
+      collisionMask;
       //if(!config.fragmentCount) {
       //  return;
       //}
@@ -144,11 +150,11 @@ namespace FragmentSpawner {
       }
 
       for(size_t t = 0; t < q.size(); ++t) {
-        auto [stables, states, configs] = q.get(t);
+        auto [stables, states, configs, collisionMasks] = q.get(t);
         for(size_t e = 0; e < stables.size; ++e) {
           switch(states->at(e)) {
           case FragmentSpawnState::New:
-            spawnNewFragments(locals, configs->at(e), transform.resolve(stables->at(e)), args);
+            spawnNewFragments(locals, configs->at(e), collisionMasks->at(e), transform.resolve(stables->at(e)), args);
             states->at(e) = FragmentSpawnState::Spawned;
             break;
           case FragmentSpawnState::Spawned:
@@ -161,14 +167,61 @@ namespace FragmentSpawner {
     QueryResult<
       const StableIDRow,
       FragmentSpawnStateRow,
-      const FragmentSpawnerConfigRow
+      const FragmentSpawnerCountRow,
+      const Narrowphase::CollisionMaskRow
     > q;
     pt::FullTransformResolver transform;
+  };
+
+  struct ForwardConfigToFragments {
+    ForwardConfigToFragments(RuntimeDatabaseTaskBuilder& task)
+      : tables{ task }
+      , res{ task.getResolver(dstTextures, dstMeshes) }
+      , query{ task }
+    {
+    }
+
+    void execute(AppTaskArgs&) {
+      for(size_t t = 0; t < query.size(); ++t) {
+        auto [events, srcTextures, srcMeshes, tag] = query.get(t);
+        //If no events happened, there must be nothing to forward
+        if(!events->size()) {
+          continue;
+        }
+        //If there are no assets, there's nothing to forward
+        if(!srcTextures->at().asset && !srcMeshes->at().asset) {
+          continue;
+        }
+
+        for (TableID table : { tables.activeFragment, tables.completedFragment }) {
+          if(res->tryGetOrSwapRow(dstTextures, table)) {
+            dstTextures->at() = srcTextures->at();
+          }
+          if(res->tryGetOrSwapRow(dstMeshes, table)) {
+            dstMeshes->at() = srcMeshes->at();
+          }
+        }
+
+        //Once they have been forwarded, the originals are no longer necessary
+        srcTextures->at() = {};
+        srcMeshes->at() = {};
+      }
+    }
+
+    GameDatabase::Tables tables;
+    CachedRow<SharedTextureRow> dstTextures;
+    CachedRow<SharedMeshRow> dstMeshes;
+    std::shared_ptr<ITableResolver> res;
+    QueryResult<const Events::EventsRow, SharedTextureRow, SharedMeshRow, const FragmentSpawnerTagRow> query;
   };
 
   struct Module : IAppModule {
     void update(IAppBuilder& builder) final {
       builder.submitTask(TLSTask::create<Update, DefaultTaskGroup, UpdateLocals>("update fragment spawner"));
+    }
+
+    void preProcessEvents(IAppBuilder& builder) final {
+      builder.submitTask(TLSTask::create<ForwardConfigToFragments>("fwdfragment"));
     }
   };
 

@@ -160,7 +160,7 @@ namespace Loader {
     }
   }
 
-  void loadMaterials(const aiScene& scene, SceneLoadContext& ctx, SceneAsset& result) {
+  void loadMaterials(const aiScene& scene, SceneLoadContext& ctx, LoadingSceneAsset& result) {
     result.materials.resize(scene.mNumMaterials);
     for(unsigned i = 0; i < scene.mNumMaterials; ++i) {
       const aiMaterial* mat = scene.mMaterials[i];
@@ -198,7 +198,7 @@ namespace Loader {
     }
   }
 
-  void loadMeshes(const aiScene& scene, SceneLoadContext& ctx, SceneAsset& result) {
+  void loadMeshes(const aiScene& scene, SceneLoadContext& ctx, LoadingSceneAsset& result) {
     result.meshes.resize(scene.mNumMeshes);
     ctx.tempMeshMaterials.resize(scene.mNumMeshes);
 
@@ -240,7 +240,7 @@ namespace Loader {
     return nullptr;
   }
 
-  void gatherModelsAndMaterials(SceneLoadContext& ctx, SceneAsset& scene, ModelsAndMaterials& result) {
+  void gatherModelsAndMaterials(SceneLoadContext& ctx, LoadingSceneAsset& scene, ModelsAndMaterials& result) {
     result.materials.resize(scene.materials.size());
     for(size_t i = 0; i < result.materials.size(); ++i) {
       AssetLoadTask* task = findTask(&ctx.task, scene.materials[i]);
@@ -264,7 +264,7 @@ namespace Loader {
     }
   }
 
-  void assignDeduplicatedModelsAndMaterials(SceneAsset& scene, ModelsAndMaterials& toAssign) {
+  void assignDeduplicatedModelsAndMaterials(LoadingSceneAsset& scene, ModelsAndMaterials& toAssign) {
     scene.materials.resize(toAssign.materials.size());
     std::transform(toAssign.materials.begin(), toAssign.materials.end(), scene.materials.begin(), MeshRemapper::RemapRefUnwrapper{});
   }
@@ -557,22 +557,22 @@ namespace Loader {
 
   void loadSceneAsset(const aiScene& scene, SceneLoadContext& ctx, LoadingSceneAsset& result) {
     //Enqueue all material/mesh loads
-    loadMaterials(scene, ctx, result.finalAsset);
-    loadMeshes(scene, ctx, result.finalAsset);
+    loadMaterials(scene, ctx, result);
+    loadMeshes(scene, ctx, result);
 
     //Await material/mesh to finish, then deduplicate the results
     awaitModelsAndMaterials(ctx);
 
     ModelsAndMaterials modelsAndMats;
-    gatherModelsAndMaterials(ctx, result.finalAsset, modelsAndMats);
+    gatherModelsAndMaterials(ctx, result, modelsAndMats);
 
     //Compute the deduplicated results using the temporary ModelsAndMaterials container
     ctx.meshMap = MeshRemapper::createRemapping(modelsAndMats.meshes, ctx.tempMeshMaterials, modelsAndMats.materials);
     //Store the results of deduplication in the final result location from the temporary ModelsAndMaterials container
-    assignDeduplicatedModelsAndMaterials(result.finalAsset, modelsAndMats);
+    assignDeduplicatedModelsAndMaterials(result, modelsAndMats);
 
-    ctx.resolvedMaterials = &result.finalAsset.materials;
-    ctx.resolvedMeshes = &result.finalAsset.meshes;
+    ctx.resolvedMaterials = &result.materials;
+    ctx.resolvedMeshes = &result.meshes;
 
     ctx.nodesToTraverse.push_back({ scene.mRootNode });
     while(ctx.nodesToTraverse.size()) {
@@ -584,7 +584,7 @@ namespace Loader {
         if(!node.tableHash) {
           readMetadata(*node.node, ctx, [&node](size_t hash, const aiMetadataEntry& data, SceneLoadContext&) {
            switch(hash) {
-           case gnx::Hash::constHash(TableNameRow::KEY):
+           case gnx::Hash::constHash("Table"):
              if(data.mType == AI_AISTRING) {
                node.tableHash = gnx::Hash::constHash(toView(*static_cast<const aiString*>(data.mData)));
              }

@@ -392,8 +392,11 @@ namespace GameDatabase {
 
   using FragmentSpawnerTable = Table<
     FragmentSpawner::FragmentSpawnerTagRow,
-    FragmentSpawner::FragmentSpawnerConfigRow,
+    FragmentSpawner::FragmentSpawnerCountRow,
     FragmentSpawner::FragmentSpawnStateRow,
+    SharedTextureRow,
+    SharedMeshRow,
+    Narrowphase::CollisionMaskRow,
     Tags::PosXRow,
     Tags::PosYRow,
     Tags::PosZRow,
@@ -499,9 +502,10 @@ namespace GameDatabase {
     setName<SharedMassObjectTableTag>(builder, { "Active Fragments" });
     setName<ZeroMassObjectTableTag, FragmentGoalFoundTableTag>(builder, { "Completed Fragments" });
     setName<Tags::TerrainRow>(builder, { "Terrain" });
-    setName<IsPlayer>(builder, { "Players" });
+    setName<IsPlayer>(builder, { "Player" });
     setName<Row<Camera>>(builder, { "Cameras" });
     setName<Tags::DynamicPhysicsObjectsWithMotorTag>(builder, { "Dynamic With Motor" });
+    setName<FragmentSpawner::FragmentSpawnerTagRow>(builder, { "FragmentSpawner" });
 
     configureSelfMotor<Tags::DynamicPhysicsObjectsWithMotorTag>(builder);
     configureSelfMotor<FragmentSeekingGoalTagRow>(builder);

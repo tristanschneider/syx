@@ -281,7 +281,7 @@ namespace gnx {
       std::memcpy(getStorage(), rhs.getStorage(), bitops::bytesToContainBits(size()));
     }
 
-    DynamicBitset(DynamicBitset&& rhs)
+    DynamicBitset(DynamicBitset&& rhs) noexcept
       : storage{ rhs.storage }
       , sizeBits{ rhs.sizeBits }
     {
@@ -301,7 +301,7 @@ namespace gnx {
       return *this;
     }
 
-    DynamicBitset& operator=(DynamicBitset&& rhs) {
+    DynamicBitset& operator=(DynamicBitset&& rhs) noexcept {
       DynamicBitset temp{ std::move(rhs) };
       swap(temp);
       return *this;

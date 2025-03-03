@@ -19,6 +19,7 @@
 #include "GraphicsTables.h"
 #include "FragmentSpawner.h"
 #include "generics/IndexRange.h"
+#include "generics/Functional.h"
 
 namespace Scenes {
   struct ImportedSceneGlobals {
@@ -52,274 +53,6 @@ namespace Scenes {
     ElementRefResolver res;
   };
 
-  struct TransformRows {
-    TransformRows(RuntimeTable& table)
-      : posX{ table.tryGet<Tags::PosXRow>() }
-      , posY{ table.tryGet<Tags::PosYRow>() }
-      , posZ{ table.tryGet<Tags::PosZRow>() }
-      , rotX{ table.tryGet<Tags::RotXRow>() }
-      , rotY{ table.tryGet<Tags::RotYRow>() }
-      , scaleX{ table.tryGet<Tags::ScaleXRow>() }
-      , scaleY{ table.tryGet<Tags::ScaleYRow>() }
-    {
-    }
-
-    void read(size_t i, const Loader::Transform3D& t) {
-      if(posX && posY && posZ) {
-        posX->at(i) = t.pos.x;
-        posY->at(i) = t.pos.y;
-        posZ->at(i) = t.pos.z;
-      }
-      if(rotX && rotY) {
-        rotX->at(i) = std::cos(t.rot);
-        rotY->at(i) = std::sin(t.rot);
-      }
-    }
-
-    void read(size_t i, const Loader::Scale2D& s) {
-      if(scaleX && scaleY) {
-        scaleX->at(i) = s.scale.x;
-        scaleY->at(i) = s.scale.y;
-      }
-    }
-
-    Tags::PosXRow* posX{};
-    Tags::PosYRow* posY{};
-    Tags::PosZRow* posZ{};
-    Tags::RotXRow* rotX{};
-    Tags::RotYRow* rotY{};
-    Tags::ScaleXRow* scaleX{};
-    Tags::ScaleYRow* scaleY{};
-  };
-
-  struct PhysicsRows {
-    PhysicsRows(RuntimeTable& table)
-      : velX{ table.tryGet<Tags::LinVelXRow>() }
-      , velY{ table.tryGet<Tags::LinVelYRow>() }
-      , velZ{ table.tryGet<Tags::LinVelZRow>() }
-      , velA{ table.tryGet<Tags::AngVelRow>() }
-      , collisionMask{ table.tryGet<Narrowphase::CollisionMaskRow>() }
-      , constraintMask{ table.tryGet<ConstraintSolver::ConstraintMaskRow>() }
-    {
-    }
-
-    void read(size_t i, const Loader::Velocity3D& v) {
-      if(velX && velY && velZ) {
-        velX->at(i) = v.linear.x;
-        velY->at(i) = v.linear.y;
-        velZ->at(i) = v.linear.z;
-        velA->at(i) = v.angular;
-      }
-    }
-
-    void read(size_t i, const Loader::CollisionMask& m) {
-      if(collisionMask && m.isSet()) {
-        collisionMask->at(i) = m.mask;
-      }
-    }
-
-    void read(size_t i, const Loader::ConstraintMask& m) {
-      if(constraintMask && m.isSet()) {
-        constraintMask->at(i) = m.mask;
-      }
-    }
-
-    void read(const Loader::Thickness& t) {
-      if(sharedThickness && t.isSet()) {
-        sharedThickness->at() = t.thickness;
-      }
-    }
-
-    Tags::LinVelXRow* velX{};
-    Tags::LinVelYRow* velY{};
-    Tags::LinVelZRow* velZ{};
-    Tags::AngVelRow* velA{};
-    Narrowphase::CollisionMaskRow* collisionMask{};
-    Narrowphase::SharedThicknessRow* sharedThickness{};
-    ConstraintSolver::ConstraintMaskRow* constraintMask{};
-  };
-
-  struct EventPublisher {
-    void broadcastNewElements(RuntimeTable& table) {
-      if(Events::EventsRow* events = table.tryGet<Events::EventsRow>()) {
-        for(size_t i = 0; i < table.size(); ++i) {
-          events->getOrAdd(i).setCreate();
-        }
-      }
-    }
-  };
-
-  struct SceneAssets {
-    SceneAssets(const Loader::SceneAsset& scene)
-      : materials{ scene.materials }
-      , meshes{ scene.meshes }
-    {
-    }
-
-    const Loader::AssetHandle* tryGetMesh(size_t i) const {
-      return i < meshes.size() ? &meshes[i] : nullptr;
-    }
-
-    const Loader::AssetHandle* tryGetMaterial(size_t i) const {
-      return i < materials.size() ? &materials[i] : nullptr;
-    }
-
-    const std::vector<Loader::AssetHandle>& materials;
-    const std::vector<Loader::AssetHandle>& meshes;
-  };
-
-  //TODO:
-  struct GraphicsRows {
-    GraphicsRows(RuntimeTable& table, const SceneAssets& sceneAssets)
-      : assets{ sceneAssets }
-      , sharedTexture{ table.tryGet<SharedTextureRow>() }
-      , sharedMesh{ table.tryGet<SharedMeshRow>() }
-    {
-    }
-
-    void read(size_t, const Loader::QuadUV&) {
-    }
-
-    struct AssetPair {
-      const Loader::AssetHandle* mesh{};
-      const Loader::AssetHandle* material{};
-    };
-
-    AssetPair getAsset(const Loader::MeshIndex& i) const {
-      return AssetPair{
-        .mesh = assets.tryGetMesh(i.meshIndex),
-        .material = assets.tryGetMaterial(i.materialIndex)
-      };
-    }
-
-    void read(const Loader::MeshIndex& indices) {
-      const auto pair = getAsset(indices);
-      if(sharedMesh && pair.mesh) {
-        sharedMesh->at().asset = *pair.mesh;
-      }
-      if(sharedTexture && pair.material) {
-        sharedTexture->at().asset = *pair.material;
-      }
-    }
-
-    SceneAssets assets;
-    SharedTextureRow* sharedTexture{};
-    SharedMeshRow* sharedMesh{};
-  };
-
-  void createPlayers(const Loader::PlayerTable& players,
-    RuntimeDatabase& db,
-    const GameDatabase::Tables& tables,
-    const SceneAssets& assets,
-    EventPublisher& publisher
-  ) {
-    RuntimeTable* playerTable = db.tryGet(tables.player);
-    assert(playerTable);
-
-    playerTable->resize(players.players.size(), nullptr);
-
-    TransformRows transform{ *playerTable };
-    PhysicsRows physics{ *playerTable };
-    GraphicsRows graphics{ *playerTable, assets };
-    for(size_t i = 0; i < players.players.size(); ++i) {
-      const Loader::Player& p = players.players[i];
-      transform.read(i, p.transform);
-      physics.read(i, p.velocity);
-      physics.read(i, p.constraintMask);
-      physics.read(i, p.collisionMask);
-      graphics.read(i, p.uv);
-    }
-    graphics.read(players.meshIndex);
-    physics.read(players.thickness);
-
-    publisher.broadcastNewElements(*playerTable);
-  }
-
-  void createTerrain(const Loader::TerrainTable& terrain,
-    RuntimeDatabase& db,
-    const GameDatabase::Tables& tables,
-    const SceneAssets& assets,
-    EventPublisher& publisher
-  ) {
-    RuntimeTable* table = db.tryGet(tables.terrain);
-    assert(table);
-
-    table->resize(terrain.terrains.size(), nullptr);
-
-    TransformRows transform{ *table };
-    PhysicsRows physics{ *table };
-    GraphicsRows graphics{ *table, assets };
-    for(size_t i = 0; i < terrain.terrains.size(); ++i) {
-      const Loader::Terrain& t = terrain.terrains[i];
-      transform.read(i, t.transform);
-      transform.read(i, t.scale);
-      physics.read(i, t.collisionMask);
-      physics.read(i, t.constraintMask);
-      graphics.read(i, t.uv);
-    }
-    graphics.read(terrain.meshIndex);
-    physics.read(terrain.thickness);
-
-    publisher.broadcastNewElements(*table);
-  }
-
-  struct FragmentSpawnerRows {
-    FragmentSpawnerRows(RuntimeTable& table) {
-      table.tryGet(config)
-        .tryGet(state);
-    }
-
-    void read(size_t i, Loader::CollisionMask m) {
-      if(config) {
-        config->at(i).fragmentCollisionMask = m.mask;
-      }
-    }
-
-    void read(size_t i, Loader::FragmentCount c) {
-      if(config) {
-        config->at(i).fragmentCount = c.count;
-      }
-    }
-
-    FragmentSpawner::FragmentSpawnerConfigRow* config{};
-    FragmentSpawner::FragmentSpawnStateRow* state{};
-  };
-
-  void createFragmentSpawners(const Loader::FragmentSpawnerTable& loaded,
-    RuntimeDatabase& db,
-    const GameDatabase::Tables& tables,
-    const SceneAssets& assets,
-    EventPublisher& publisher
-  ) {
-    RuntimeTable* table = db.tryGet(tables.fragmentSpawner);
-    RuntimeTable* activeFragments = db.tryGet(tables.activeFragment);
-    RuntimeTable* completedFragments = db.tryGet(tables.completedFragment);
-    std::array<GraphicsRows, 2> graphics{
-      GraphicsRows{ *activeFragments, assets },
-      GraphicsRows{ *completedFragments, assets }
-    };
-    assert(table);
-
-    table->resize(loaded.spawners.size(), nullptr);
-
-    TransformRows transform{ *table };
-    PhysicsRows physics{ *table };
-    for(size_t i = 0; i < loaded.spawners.size(); ++i) {
-      const Loader::FragmentSpawner& t = loaded.spawners[i];
-      transform.read(i, t.transform);
-      transform.read(i, t.scale);
-      physics.read(i, t.collisionMask);
-      //Forward the material to the fragment tables it'll spawn into
-      if(const Loader::AssetHandle* material = assets.tryGetMaterial(t.meshIndex.meshIndex)) {
-        for(GraphicsRows& rows : graphics) {
-          rows.sharedTexture->at().asset = *material;
-        }
-      }
-    }
-
-    publisher.broadcastNewElements(*table);
-  }
-
   struct RowLoader {
     void(*loadMulti)(const IRow& src, RuntimeTable& dst, gnx::IndexRange range){};
   };
@@ -339,38 +72,21 @@ namespace Scenes {
   };
 
   template<class R, class S, class FN>
-  void tryLoadRow(const S& s, RuntimeTable& dst, gnx::IndexRange range, FN fn) {
+  bool tryLoadRow(const S& s, RuntimeTable& dst, gnx::IndexRange range, FN fn) {
     if(auto row = dst.tryGet<R>()) {
       for(size_t i : range) {
-        row->at(i) = fn(s.at(i));
+        row->at(i) = typename R::ElementT{ fn(s.at(i)) };
       }
+      return true;
     }
+    return false;
   }
-
-  struct GetX { template<class T> float operator()(const T& t) const { return t.x; } };
-  struct GetY { template<class T> float operator()(const T& t) const { return t.y; } };
-  struct GetZ { template<class T> float operator()(const T& t) const { return t.z; } };
-  struct GetW { template<class T> float operator()(const T& t) const { return t.w; } };
-  struct Cos { float operator()(float f) const { return std::cos(f); } };
-  struct Sin { float operator()(float f) const { return std::sin(f); } };
-
-  template<auto T>
-  struct GetMember {};
-  template<class C, class M, M(C::*Ptr)>
-  struct GetMember<Ptr> { const M& operator()(const C& c) const { return c.*Ptr; } };
-
-  template<class A, class B>
-  struct FMap {
-    template<class T>
-    auto operator()(const T& t) const {
-      return B{}(A{}(t));
-    }
-  };
 
   struct TransformLoader {
     static constexpr size_t HASH = gnx::Hash::constHash(Loader::TransformRow::KEY);
 
     static void load(const IRow& src, RuntimeTable& dst, gnx::IndexRange range) {
+      using namespace gnx::func;
       const Loader::TransformRow& s = static_cast<const Loader::TransformRow&>(src);
       using Pos = GetMember<&Loader::Transform::pos>;
       tryLoadRow<Tags::PosXRow>(s, dst, range, FMap<Pos, GetX>{});
@@ -384,19 +100,42 @@ namespace Scenes {
       using Scale = GetMember<&Loader::Transform::scale>;
       tryLoadRow<Tags::ScaleXRow>(s, dst, range, FMap<Scale, GetX>{});
       tryLoadRow<Tags::ScaleYRow>(s, dst, range, FMap<Scale, GetY>{});
+
+      using GetThickness = FMap<Scale, GetZ>;
+      //First try full thickness row. If not present, try shared instead
+      if(!tryLoadRow<Narrowphase::ThicknessRow>(s, dst, range, GetThickness{})) {
+        //If using shared thickness, arbitrary load the Z scale from the first element
+        tryLoadRow<Narrowphase::SharedThicknessRow>(s, dst, gnx::makeIndexRangeBeginCount<size_t>(0, 1), GetThickness{});
+      }
     }
   };
 
   struct VelocityLoader {
-    static constexpr size_t HASH = gnx::Hash::constHash(Loader::TransformRow::KEY);
+    static constexpr size_t HASH = gnx::Hash::constHash("Velocity");
 
     static void load(const IRow& src, RuntimeTable& dst, gnx::IndexRange range) {
+      using namespace gnx::func;
+
       const Loader::Vec4Row& s = static_cast<const Loader::Vec4Row&>(src);
       tryLoadRow<Tags::LinVelXRow>(s, dst, range, GetX{});
       tryLoadRow<Tags::LinVelYRow>(s, dst, range, GetY{});
       tryLoadRow<Tags::LinVelZRow>(s, dst, range, GetZ{});
 
       tryLoadRow<Tags::AngVelRow>(s, dst, range, GetW{});
+    }
+  };
+
+  struct MatMeshLoader {
+    static constexpr size_t HASH = gnx::Hash::constHash(Loader::MatMeshRefRow::KEY);
+
+    static void load(const IRow& src, RuntimeTable& dst, gnx::IndexRange) {
+      using namespace gnx::func;
+
+      const Loader::MatMeshRefRow& s = static_cast<const Loader::MatMeshRefRow&>(src);
+      //Currently there are only shared meshes and textures, so pick one asset and use that for the table
+      const auto one = gnx::makeIndexRangeBeginCount<size_t>(0, 1);
+      tryLoadRow<SharedMeshRow>(s, dst, one, GetMember<&Loader::MatMeshRef::mesh>{});
+      tryLoadRow<SharedTextureRow>(s, dst, one, GetMember<&Loader::MatMeshRef::material>{});
     }
   };
 
@@ -427,17 +166,33 @@ namespace Scenes {
   const std::unordered_map<size_t, RowLoader> LOADERS = {
     createRowLoader(TransformLoader{}),
     createRowLoader(VelocityLoader{}),
-    createRowLoader(DirectRowLoader<Loader::BitfieldRow, ConstraintSolver::ConstraintMaskRow>{})
+    createRowLoader(DirectRowLoader<Loader::BitfieldRow, ConstraintSolver::ConstraintMaskRow>{}),
+    createRowLoader(MatMeshLoader{}),
+    createRowLoader(DirectRowLoader<Loader::IntRow, FragmentSpawner::FragmentSpawnerCountRow>{})
   };
 
   void copySceneTable(RuntimeTable& src, RuntimeTable& dst) {
+    if(!src.size()) {
+      return;
+    }
+
+    //Default construct all the elements
     const size_t begin = dst.addElements(src.size());
+
+    //Read elements row by row
     const auto range = gnx::makeIndexRangeBeginCount(begin, src.size());
     for(auto [type, row] : src) {
       if(auto loader = LOADERS.find(type.value); loader != LOADERS.end()) {
         if(loader->second.loadMulti) {
           loader->second.loadMulti(*row, dst, range);
         }
+      }
+    }
+
+    //Flag creation of all the newly added elements
+    if(Events::EventsRow* events = dst.tryGet<Events::EventsRow>()) {
+      for(size_t i = begin; i < dst.size(); ++i) {
+        events->getOrAdd(i).setCreate();
       }
     }
   }
@@ -467,13 +222,8 @@ namespace Scenes {
 
     task.setCallback([globals, sceneView, db, tables](AppTaskArgs&) mutable {
       printf("instantiate scene\n");
-      if(const Loader::SceneAsset* scene = sceneView.tryGet(globals->toLoad)) {
-        EventPublisher publisher;
-        SceneAssets assets{ *scene };
-        publisher;assets;
-        //createPlayers(scene->player, *db, tables, assets, publisher);
-        //createTerrain(scene->terrain, *db, tables, assets, publisher);
-        //createFragmentSpawners(scene->fragmentSpawners, *db, tables, assets, publisher);
+      if(const Loader::SceneAsset* scene = sceneView.tryGet(globals->toLoad); scene && scene->db) {
+        copySceneDatabase(*scene->db, *db);
       }
 
       //Load is finished, release asset handle
