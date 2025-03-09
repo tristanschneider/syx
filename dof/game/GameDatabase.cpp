@@ -391,6 +391,7 @@ namespace GameDatabase {
   >;
 
   using FragmentSpawnerTable = Table<
+    TableNameRow,
     FragmentSpawner::FragmentSpawnerTagRow,
     FragmentSpawner::FragmentSpawnerCountRow,
     FragmentSpawner::FragmentSpawnStateRow,

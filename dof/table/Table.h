@@ -240,3 +240,11 @@ struct Table {
 
   std::tuple<Rows...> mRows;
 };
+
+// Table can choose to expose a name for debugging purposes
+struct TableName {
+  std::string name;
+};
+struct TableNameRow : SharedRow<TableName> {
+  static constexpr std::string_view KEY = "TableName";
+};

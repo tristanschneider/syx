@@ -22,6 +22,8 @@
 #include "generics/Functional.h"
 
 namespace Scenes {
+  constexpr bool DEBUG_LOAD = true;
+
   struct ImportedSceneGlobals {
     Loader::AssetHandle toLoad;
   };
@@ -75,8 +77,11 @@ namespace Scenes {
   template<class R, class S, class FN>
   bool tryLoadRow(const S& s, RuntimeTable& dst, gnx::IndexRange range, FN fn) {
     if(auto row = dst.tryGet<R>()) {
+      //Source is transferring all elements so is 0 to max
+      //Destination is shifted by any previously existing elements
+      size_t srcI{};
       for(size_t i : range) {
-        row->at(i) = typename R::ElementT{ fn(s.at(i)) };
+        row->at(i) = typename R::ElementT{ fn(s.at(srcI++)) };
       }
       return true;
     }
@@ -218,6 +223,11 @@ namespace Scenes {
 
     for(size_t i = 0; i < scene.size(); ++i) {
       RuntimeTable& src = scene[i];
+      if constexpr(DEBUG_LOAD) {
+        if (const TableNameRow* name = Loader::tryGetDynamicRow<TableNameRow>(src)) {
+          printf("%s: %d", name->at().name.c_str(), static_cast<int>(src.size()));
+        }
+      }
       if(auto found = hashToTable.find(src.getType().value); found != hashToTable.end() && found->second) {
         copySceneTable(src, *found->second);
       }

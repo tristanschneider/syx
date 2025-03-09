@@ -76,10 +76,8 @@ namespace Tags {
   struct DynamicPhysicsObjectsWithZTag : TagRow {};
 
   // Table can choose to expose a name for debugging purposes
-  struct TableName {
-    std::string name;
-  };
-  struct TableNameRow : SharedRow<TableName> {};
+  using TableName = TableName;
+  using TableNameRow = TableNameRow;
 
   struct ElementNeedsInitRow : BoolRow {};
 };

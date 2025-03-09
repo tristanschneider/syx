@@ -529,8 +529,11 @@ namespace Loader {
 
   //Read all userdata keys of a table as SharedRows of the table
   //Nested table userdata will be ignored
-  void loadTable(size_t tableName, const NodeTraversal& node, SceneLoadContext& ctx, LoadingSceneAsset& scene) {
-    RuntimeTableRowBuilder& table = getOrCreateTable(tableName, scene);
+  void loadTable(std::string_view tableName, const NodeTraversal& node, SceneLoadContext& ctx, LoadingSceneAsset& scene) {
+    RuntimeTableRowBuilder& table = getOrCreateTable(node.tableHash, scene);
+    if(table.rows.empty()) {
+      getOrCreateRow<TableNameRow>(TableNameRow::KEY, table, scene).at().name = tableName;
+    }
     readMetadata(*node.node, ctx, [&](size_t hash, const aiMetadataEntry& data, SceneLoadContext&) {
       const SingleElementVariant element = readSingleElement(data);
       std::visit([&](auto& v) {
@@ -584,18 +587,20 @@ namespace Loader {
       if(node.node) {
         //If this isn't a child of a table, try to find the table metadata and parse as table
         if(!node.tableHash) {
-          readMetadata(*node.node, ctx, [&node](size_t hash, const aiMetadataEntry& data, SceneLoadContext&) {
+          std::string_view tableName;
+          readMetadata(*node.node, ctx, [&tableName](size_t hash, const aiMetadataEntry& data, SceneLoadContext&) {
            switch(hash) {
            case gnx::Hash::constHash("Table"):
              if(data.mType == AI_AISTRING) {
-               node.tableHash = gnx::Hash::constHash(toView(*static_cast<const aiString*>(data.mData)));
+               tableName = toView(*static_cast<const aiString*>(data.mData));
              }
              break;
            }
           });
 
-          if(node.tableHash) {
-            loadTable(node.tableHash, node, ctx, result);
+          if(tableName.size()) {
+            node.tableHash = gnx::Hash::constHash(tableName);
+            loadTable(tableName, node, ctx, result);
           }
         }
         else {
