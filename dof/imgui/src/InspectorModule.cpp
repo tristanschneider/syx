@@ -26,6 +26,8 @@ namespace InspectorModule {
           posX, posY, posZ,
           rotX, rotY,
           scaleX, scaleY,
+          thickness, sharedThickness,
+          collisionMask,
           velX, velY, velZ, velA,
           tableNames,
           goalX, goalY,
@@ -69,6 +71,9 @@ namespace InspectorModule {
     CachedRow<Tags::RotYRow> rotY;
     CachedRow<Tags::ScaleXRow> scaleX;
     CachedRow<Tags::ScaleYRow> scaleY;
+    CachedRow<Narrowphase::ThicknessRow> thickness;
+    CachedRow<Narrowphase::SharedThicknessRow> sharedThickness;
+    CachedRow<Narrowphase::CollisionMaskRow> collisionMask;
     CachedRow<Tags::LinVelXRow> velX;
     CachedRow<Tags::LinVelYRow> velY;
     CachedRow<Tags::LinVelZRow> velZ;
@@ -151,6 +156,45 @@ namespace InspectorModule {
         ctx.scale = TableAdapters::read(i, *ctx.scaleX, *ctx.scaleY);
         if(ImGui::InputFloat2("Scale", &ctx.scale.x)) {
           TableAdapters::write(i, ctx.scale, *ctx.scaleX, *ctx.scaleY);
+        }
+      }
+
+      if(float* thickness = ctx.resolver->tryGetOrSwapRowElement(ctx.thickness, *unpacked)) {
+        ImGui::InputFloat("Thickness", thickness);
+      }
+      if(ctx.resolver->tryGetOrSwapRow(ctx.sharedThickness, *unpacked)) {
+        ImGui::InputFloat("Shared Thickness", &ctx.sharedThickness->at());
+      }
+
+      if(Narrowphase::CollisionMask* mask = ctx.resolver->tryGetOrSwapRowElement(ctx.collisionMask, *unpacked)) {
+        if(ImGui::TreeNode("Collision Mask")) {
+          constexpr std::array<std::string_view, 8> names = {
+            std::string_view("Default"),
+            std::string_view("Path"),
+            std::string_view("?"),
+            std::string_view("?"),
+            std::string_view("?"),
+            std::string_view("?"),
+            std::string_view("?"),
+            std::string_view("?")
+          };
+          for (int b = 0; b < 8; ++b) {
+            ImGui::PushID(b);
+            const uint8_t bit = (1 << b);
+            bool enabled = (*mask) & bit;
+            if(ImGui::Checkbox(names[b].data(), &enabled)) {
+              *mask &= ~bit;
+              if(enabled) {
+                *mask |= bit;
+              }
+            }
+            ImGui::PopID();
+          }
+          int iMask = static_cast<int>(*mask);
+          if(ImGui::CheckboxFlags("All", &iMask, 255)) {
+            *mask = static_cast<uint8_t>(iMask);
+          }
+          ImGui::TreePop();
         }
       }
     }

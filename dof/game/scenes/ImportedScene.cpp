@@ -181,6 +181,7 @@ namespace Scenes {
     createRowLoader(VelocityLoader{}),
     createRowLoader(VelocityLoader{}, "Velocity3D"),
     createRowLoader(DirectRowLoader<Loader::BitfieldRow, ConstraintSolver::ConstraintMaskRow>{}),
+    createRowLoader(DirectRowLoader<Loader::BitfieldRow, Narrowphase::CollisionMaskRow>{}),
     createRowLoader(MatMeshLoader{}),
     createRowLoader(DirectRowLoader<Loader::IntRow, FragmentSpawner::FragmentSpawnerCountRow>{}),
     //TODO: this is a bit weird since it'll get set from transform and this

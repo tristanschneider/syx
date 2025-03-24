@@ -407,10 +407,9 @@ namespace Loader {
     else if(tryReadBool(meta->mValues[0])) {
       uint64_t result{};
       uint64_t currentMask = 1;
-      //Start at top bit going down so that the blender checkboxes go from most significant (top) to least (bottom)
       const size_t bitfieldSize = std::min(size_t(64), count);
       for(unsigned i = 0; i < bitfieldSize; ++i) {
-        if(auto v = tryReadBool(meta->mValues[bitfieldSize - (i + 1)])) {
+        if(auto v = tryReadBool(meta->mValues[i])) {
           if(*v) {
             result |= currentMask;
           }
@@ -493,7 +492,7 @@ namespace Loader {
 
   template<class T>
   void assignElement(BasicRow<T>& row, size_t i, T&& value) {
-    if(i <= row.size()) {
+    if(i >= row.size()) {
       row.resize(row.size(), i + 1);
     }
     row.at(i) = std::move(value);

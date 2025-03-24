@@ -71,6 +71,7 @@ namespace Tags {
   using ScaleYRow = FloatRow<Scale, Y>;
 
   struct TerrainRow : TagRow {};
+  struct InvisibleTerrainRow : TagRow {};
   struct DynamicPhysicsObjectsTag : TagRow {};
   struct DynamicPhysicsObjectsWithMotorTag : TagRow {};
   struct DynamicPhysicsObjectsWithZTag : TagRow {};

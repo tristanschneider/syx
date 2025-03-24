@@ -33,7 +33,7 @@ namespace EventValidator {
     std::string_view tableName{ "?" };
   };
 
-  constexpr bool enableLogs = true;
+  constexpr bool enableLogs = false;
 
   void logBegin() {
     if constexpr(enableLogs) {

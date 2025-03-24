@@ -326,6 +326,40 @@ namespace GameDatabase {
     StableIDRow
   >;
 
+  using InvisibleTerrainTable = Table<
+    Tags::TableNameRow,
+    SceneNavigator::IsClearedWithSceneTag,
+    FragmentBurstStatEffect::CanTriggerFragmentBurstRow,
+    ZeroMassObjectTableTag,
+    Tags::InvisibleTerrainRow,
+    Shapes::SharedRectangleRow,
+    FloatRow<Tags::Pos, Tags::X>,
+    FloatRow<Tags::Pos, Tags::Y>,
+    FloatRow<Tags::Pos, Tags::Z>,
+    FloatRow<Tags::Rot, Tags::CosAngle>,
+    FloatRow<Tags::Rot, Tags::SinAngle>,
+    Tags::ScaleXRow,
+    Tags::ScaleYRow,
+
+    //Gameplay data extracted from above
+    //TODO: take advantage of immobility to avoid the need for this
+    FloatRow<Tags::GPos, Tags::X>,
+    FloatRow<Tags::GPos, Tags::Y>,
+    FloatRow<Tags::GPos, Tags::Z>,
+    FloatRow<Tags::GRot, Tags::CosAngle>,
+    FloatRow<Tags::GRot, Tags::SinAngle>,
+
+    SweepNPruneBroadphase::BroadphaseKeys,
+    Narrowphase::CollisionMaskRow,
+    Narrowphase::SharedThicknessRow,
+    ConstraintSolver::ConstraintMaskRow,
+    ConstraintSolver::SharedMassRow,
+    ConstraintSolver::SharedMaterialRow,
+
+    IsImmobile,
+    StableIDRow
+  >;
+
   using PlayerTable = Table<
     Tags::TableNameRow,
     SceneNavigator::IsClearedWithSceneTag,
@@ -423,6 +457,7 @@ namespace GameDatabase {
     BroadphaseTable,
     SP::SpatialPairsTable,
     TerrainTable,
+    InvisibleTerrainTable,
     GameObjectTable,
     StaticGameObjectTable,
     PlayerTable,
@@ -507,6 +542,7 @@ namespace GameDatabase {
     setName<Row<Camera>>(builder, { "Cameras" });
     setName<Tags::DynamicPhysicsObjectsWithMotorTag>(builder, { "Dynamic With Motor" });
     setName<FragmentSpawner::FragmentSpawnerTagRow>(builder, { "FragmentSpawner" });
+    setName<Tags::InvisibleTerrainRow>(builder, { "InvisibleTerrain" });
 
     configureSelfMotor<Tags::DynamicPhysicsObjectsWithMotorTag>(builder);
     configureSelfMotor<FragmentSeekingGoalTagRow>(builder);

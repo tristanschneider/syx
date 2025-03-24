@@ -31,7 +31,8 @@ namespace FragmentSpawner {
         .tryGet(goalX)
         .tryGet(goalY)
         .tryGet(sprite)
-        .tryGet(stable);
+        .tryGet(stable)
+        .tryGet(collisionMask);
     }
 
     explicit operator bool() const {
@@ -44,6 +45,7 @@ namespace FragmentSpawner {
     Tags::PosZRow* posZ{};
     Tags::FragmentGoalXRow* goalX{};
     Tags::FragmentGoalYRow* goalY{};
+    Narrowphase::CollisionMaskRow* collisionMask{};
     Row<CubeSprite>* sprite{};
     StableIDRow* stable{};
   };
@@ -80,15 +82,15 @@ namespace FragmentSpawner {
     }
 
     static Grid computeGridFromScale(const glm::vec2& scale) {
+      scale;
       return Grid{
-        .rows = static_cast<size_t>(std::ceil(scale.x*2.f)),
-        .columns = static_cast<size_t>(std::ceil(scale.y*2.f)),
+        .rows = 1,// static_cast<size_t>(std::ceil(scale.x*2.f)),
+        .columns = 1,//static_cast<size_t>(std::ceil(scale.y*2.f)),
         .fragmentScale = 1.f
       };
     }
 
     void spawnNewFragments(UpdateLocals& locals, const FragmentSpawnerCount&, const Narrowphase::CollisionMask collisionMask, const pt::FullTransform& spawnerTransform, AppTaskArgs& args) {
-      collisionMask;
       //if(!config.fragmentCount) {
       //  return;
       //}
@@ -141,6 +143,8 @@ namespace FragmentSpawner {
         locals.posX->at(i) = startX + shuffleColumn;
         locals.posY->at(i) = startY + shuffleRow;
         //locals.posZ->at(i) = spawnerTransform.pos.z;
+
+        locals.collisionMask->at(i) = collisionMask;
       }
     }
 
