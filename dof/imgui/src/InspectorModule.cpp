@@ -17,6 +17,7 @@
 #include "Random.h"
 #include "Geometric.h"
 #include "Fragment.h"
+#include "generics/IntMath.h"
 
 namespace InspectorModule {
   struct InspectContext {
@@ -258,7 +259,7 @@ namespace InspectorModule {
       }
       //Start at the selected id then keep going in that direction until something is found or all ids are exhausted
       const int totalIds = all.size();
-      raw = raw % totalIds;
+      raw = gnx::IntMath::wrap(raw, totalIds);
 
       while(searched++ < totalIds) {
         found = all[raw];

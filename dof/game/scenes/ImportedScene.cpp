@@ -67,8 +67,9 @@ namespace Scenes {
     static void load(const IRow& src, RuntimeTable& dst, gnx::IndexRange range) {
       const Src& s = static_cast<const Src&>(src);
       if(Dst* dstRow = dst.tryGet<Dst>()) {
+        size_t srcI{};
         for(size_t i : range) {
-          dstRow->at(i) = static_cast<typename Dst::ElementT>(s.at(i));
+          dstRow->at(i) = static_cast<typename Dst::ElementT>(s.at(srcI));
         }
       }
     }
@@ -226,7 +227,7 @@ namespace Scenes {
       RuntimeTable& src = scene[i];
       if constexpr(DEBUG_LOAD) {
         if (const TableNameRow* name = Loader::tryGetDynamicRow<TableNameRow>(src)) {
-          printf("%s: %d", name->at().name.c_str(), static_cast<int>(src.size()));
+          printf("%s: %d\n", name->at().name.c_str(), static_cast<int>(src.size()));
         }
       }
       if(auto found = hashToTable.find(src.getType().value); found != hashToTable.end() && found->second) {
