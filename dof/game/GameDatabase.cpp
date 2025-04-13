@@ -28,13 +28,14 @@
 #include "Constraints.h"
 #include "loader/AssetService.h"
 #include "GraphicsTables.h"
+#include "TableName.h"
 
 namespace GameDatabase {
   using BroadphaseTable = SweepNPruneBroadphase::BroadphaseTable;
 
   //Table to hold positions to be referenced by stable element id
   using TargetPosTable = Table<
-    Tags::TableNameRow,
+    TableName::TableNameRow,
     SceneNavigator::IsClearedWithSceneTag,
     TargetTableTag,
     FloatRow<Tags::Pos, Tags::X>,
@@ -43,7 +44,7 @@ namespace GameDatabase {
   >;
 
   using GlobalGameData = Table<
-    Tags::TableNameRow,
+    TableName::TableNameRow,
     ShapeRegistry::GlobalRow,
     SceneList::ScenesRow,
     SharedRow<SceneState>,
@@ -57,7 +58,7 @@ namespace GameDatabase {
   >;
 
   using DynamicPhysicsObjects = Table<
-    Tags::TableNameRow,
+    TableName::TableNameRow,
     Tags::DynamicPhysicsObjectsTag,
     SceneNavigator::IsClearedWithSceneTag,
     //Data viewed by physics, not to be used by gameplay
@@ -103,7 +104,7 @@ namespace GameDatabase {
   >;
 
   using DynamicPhysicsObjectsWithMotor = Table<
-    Tags::TableNameRow,
+    TableName::TableNameRow,
     Tags::DynamicPhysicsObjectsWithMotorTag,
     SceneNavigator::IsClearedWithSceneTag,
     //Data viewed by physics, not to be used by gameplay
@@ -140,7 +141,7 @@ namespace GameDatabase {
   >;
 
   using DynamicPhysicsObjectsWithZ = Table<
-    Tags::TableNameRow,
+    TableName::TableNameRow,
     Tags::DynamicPhysicsObjectsWithZTag,
     SceneNavigator::IsClearedWithSceneTag,
     //Data viewed by physics, not to be used by gameplay
@@ -189,7 +190,7 @@ namespace GameDatabase {
   >;
 
   using GameObjectTable = Table<
-    Tags::TableNameRow,
+    TableName::TableNameRow,
     SceneNavigator::IsClearedWithSceneTag,
     FragmentSeekingGoalTagRow,
     SharedMassObjectTableTag,
@@ -252,7 +253,7 @@ namespace GameDatabase {
   >;
 
   using StaticGameObjectTable = Table<
-    Tags::TableNameRow,
+    TableName::TableNameRow,
     SceneNavigator::IsClearedWithSceneTag,
     FragmentBurstStatEffect::CanTriggerFragmentBurstRow,
     ZeroMassObjectTableTag,
@@ -289,7 +290,7 @@ namespace GameDatabase {
   >;
 
   using TerrainTable = Table<
-    Tags::TableNameRow,
+    TableName::TableNameRow,
     SceneNavigator::IsClearedWithSceneTag,
     FragmentBurstStatEffect::CanTriggerFragmentBurstRow,
     ZeroMassObjectTableTag,
@@ -327,7 +328,7 @@ namespace GameDatabase {
   >;
 
   using InvisibleTerrainTable = Table<
-    Tags::TableNameRow,
+    TableName::TableNameRow,
     SceneNavigator::IsClearedWithSceneTag,
     FragmentBurstStatEffect::CanTriggerFragmentBurstRow,
     ZeroMassObjectTableTag,
@@ -361,7 +362,7 @@ namespace GameDatabase {
   >;
 
   using PlayerTable = Table<
-    Tags::TableNameRow,
+    TableName::TableNameRow,
     SceneNavigator::IsClearedWithSceneTag,
     IsPlayer,
     Tags::ElementNeedsInitRow,
@@ -415,7 +416,7 @@ namespace GameDatabase {
     StableIDRow
   >;
   using CameraTable = Table<
-    Tags::TableNameRow,
+    TableName::TableNameRow,
     Row<Camera>,
     FloatRow<Tags::Pos, Tags::X>,
     FloatRow<Tags::Pos, Tags::Y>,
@@ -425,7 +426,7 @@ namespace GameDatabase {
   >;
 
   using FragmentSpawnerTable = Table<
-    TableNameRow,
+    TableName::TableNameRow,
     FragmentSpawner::FragmentSpawnerTagRow,
     FragmentSpawner::FragmentSpawnerCountRow,
     FragmentSpawner::FragmentSpawnStateRow,
@@ -493,19 +494,8 @@ namespace GameDatabase {
 
   //Set the name of the table that matches the filter
   template<class... Filter>
-  void setName(IAppBuilder& builder, Tags::TableName name) {
-    auto task = builder.createTask();
-    task.setName("set table names");
-    auto q = task.query<Tags::TableNameRow, const Filter...>();
-    assert(q.size() <= 1);
-    if(!q.size()) {
-      task.discard();
-      return;
-    }
-    task.setCallback([q, n{std::move(name)}](AppTaskArgs&) mutable {
-      q.get<0>(0).at() = std::move(n);
-    });
-    builder.submitTask(std::move(task));
+  void setName(IAppBuilder& builder, TableName::TableName name) {
+    TableName::setName<Filter...>(builder, std::move(name));
   }
 
   template<class... Filter>

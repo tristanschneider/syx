@@ -6,7 +6,6 @@
 #include "AppBuilder.h"
 #include "scenes/LoadingScene.h"
 #include "scenes/SceneList.h"
-#include "SceneNavigator.h"
 #include "loader/AssetHandle.h"
 #include "loader/AssetLoader.h"
 #include "loader/SceneAsset.h"
@@ -20,6 +19,8 @@
 #include "FragmentSpawner.h"
 #include "generics/IndexRange.h"
 #include "generics/Functional.h"
+#include "TableName.h"
+#include "RespawnArea.h"
 
 namespace Scenes {
   constexpr bool DEBUG_LOAD = true;
@@ -177,6 +178,7 @@ namespace Scenes {
     return createRowLoader(l, L::NAME);
   }
 
+  //TODO: being able to register these from an IAppModule would be nice
   const std::unordered_map<DBTypeID, RowLoader> LOADERS = {
     createRowLoader(TransformLoader{}),
     createRowLoader(VelocityLoader{}),
@@ -186,7 +188,8 @@ namespace Scenes {
     createRowLoader(MatMeshLoader{}),
     createRowLoader(DirectRowLoader<Loader::IntRow, FragmentSpawner::FragmentSpawnerCountRow>{}),
     //TODO: this is a bit weird since it'll get set from transform and this
-    createRowLoader(DirectRowLoader<Loader::SharedFloatRow, Narrowphase::SharedThicknessRow>{})
+    createRowLoader(DirectRowLoader<Loader::SharedFloatRow, Narrowphase::SharedThicknessRow>{}),
+    createRowLoader(DirectRowLoader<Loader::FloatRow, RespawnArea::RespawnBurstRadius>{})
   };
 
   void copySceneTable(RuntimeTable& src, RuntimeTable& dst) {
@@ -218,7 +221,7 @@ namespace Scenes {
   void copySceneDatabase(RuntimeDatabase& scene, RuntimeDatabase& game) {
     //TODO: precompute and store
     std::unordered_map<size_t, RuntimeTable*> hashToTable;
-    auto names = game.query<Tags::TableNameRow>();
+    auto names = game.query<TableName::TableNameRow>();
     for(size_t i = 0; i < names.size(); ++i) {
       hashToTable[gnx::Hash::constHash(names.get<0>(i).at().name)] = game.tryGet(names[i]);
     }
@@ -226,7 +229,7 @@ namespace Scenes {
     for(size_t i = 0; i < scene.size(); ++i) {
       RuntimeTable& src = scene[i];
       if constexpr(DEBUG_LOAD) {
-        if (const TableNameRow* name = Loader::tryGetDynamicRow<TableNameRow>(src)) {
+        if (const TableName::TableNameRow* name = Loader::tryGetDynamicRow<TableName::TableNameRow>(src)) {
           printf("%s: %d\n", name->at().name.c_str(), static_cast<int>(src.size()));
         }
       }

@@ -18,6 +18,7 @@
 #include "Geometric.h"
 #include "Fragment.h"
 #include "generics/IntMath.h"
+#include "TableName.h"
 
 namespace InspectorModule {
   struct InspectContext {
@@ -79,7 +80,7 @@ namespace InspectorModule {
     CachedRow<Tags::LinVelYRow> velY;
     CachedRow<Tags::LinVelZRow> velZ;
     CachedRow<Tags::AngVelRow> velA;
-    CachedRow<const Tags::TableNameRow> tableNames;
+    CachedRow<const TableName::TableNameRow> tableNames;
     CachedRow<const Tags::FragmentGoalXRow> goalX;
     CachedRow<const Tags::FragmentGoalYRow> goalY;
     CachedRow<const FragmentGoalFoundTableTag> goalFound;

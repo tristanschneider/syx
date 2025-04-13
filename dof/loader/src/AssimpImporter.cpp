@@ -11,6 +11,7 @@
 #include "AssetLoadTask.h"
 #include "AssetTables.h"
 #include "MaterialImporter.h"
+#include "TableName.h"
 
 namespace Loader {
   struct NodeTraversal {
@@ -531,7 +532,7 @@ namespace Loader {
   void loadTable(std::string_view tableName, const NodeTraversal& node, SceneLoadContext& ctx, LoadingSceneAsset& scene) {
     RuntimeTableRowBuilder& table = getOrCreateTable(node.tableHash, scene);
     if(table.rows.empty()) {
-      getOrCreateRow<TableNameRow>(TableNameRow::KEY, table, scene).at().name = tableName;
+      getOrCreateRow<TableName::TableNameRow>(TableName::TableNameRow::KEY, table, scene).at().name = tableName;
     }
     readMetadata(*node.node, ctx, [&](size_t hash, const aiMetadataEntry& data, SceneLoadContext&) {
       const SingleElementVariant element = readSingleElement(data);

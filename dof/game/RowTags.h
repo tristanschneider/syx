@@ -76,10 +76,6 @@ namespace Tags {
   struct DynamicPhysicsObjectsWithMotorTag : TagRow {};
   struct DynamicPhysicsObjectsWithZTag : TagRow {};
 
-  // Table can choose to expose a name for debugging purposes
-  using TableName = TableName;
-  using TableNameRow = TableNameRow;
-
   struct ElementNeedsInitRow : BoolRow {};
 };
 

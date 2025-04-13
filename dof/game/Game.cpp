@@ -221,6 +221,7 @@ namespace Game {
 #include "scenes/SceneList.h"
 #include "FragmentSpawner.h"
 #include "EventValidator.h"
+#include "RespawnArea.h"
 
 namespace GameDefaults {
   MultithreadedDeps DefaultGameDatabaseReader::getMultithreadedDeps(IDatabase& db) {
@@ -243,6 +244,7 @@ namespace GameDefaults {
     args.modules.push_back(FragmentSpawner::createModule());
     args.modules.push_back(SceneNavigator::createModule());
     args.modules.push_back(SceneList::createModule());
+    args.modules.push_back(RespawnArea::createModule());
     assert((args.modules.push_back(EventValidator::createModule("last")), true));
     args.modules.push_back(Events::createModule());
     //Rendering is from a separate project so "default" exposed here is empty

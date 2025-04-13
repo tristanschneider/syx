@@ -6,6 +6,7 @@
 #include "TLSTaskImpl.h"
 #include "Events.h"
 #include "RowTags.h"
+#include "TableName.h"
 
 namespace EventValidator {
   struct EventTracker {
@@ -131,9 +132,9 @@ namespace EventValidator {
     QueryResult<
       const Events::EventsRow,
       const StableIDRow,
-      const Tags::TableNameRow
+      const TableName::TableNameRow
     > query;
-    CachedRow<const Tags::TableNameRow> tableName;
+    CachedRow<const TableName::TableNameRow> tableName;
     std::shared_ptr<ITableResolver> res;
     ElementRefResolver ids;
   };
