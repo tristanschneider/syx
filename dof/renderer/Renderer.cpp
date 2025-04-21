@@ -663,10 +663,9 @@ void onMeshDestroyed(MeshGPUAsset& gpu) {
 }
 
 struct AddRemoveAssets {
-  AddRemoveAssets(RuntimeDatabaseTaskBuilder& task)
-    : materials{ task }
-    , meshes{ task }
-  {
+  void init(RuntimeDatabaseTaskBuilder& task) {
+    materials = task;
+    meshes = task;
     task.setPinning({ AppTaskPinning::MainThread{} });
   }
 

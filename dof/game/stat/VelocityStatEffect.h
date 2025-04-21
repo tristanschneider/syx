@@ -23,6 +23,7 @@ namespace VelocityStatEffect {
 
   class Builder : public StatEffect::BuilderBase {
   public:
+    Builder() = default;
     Builder(AppTaskArgs& args);
 
     Builder& addImpulse(const ImpulseCommand& cmd);

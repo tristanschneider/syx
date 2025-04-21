@@ -26,6 +26,7 @@ public:
 
 class ElementRefResolver {
 public:
+  ElementRefResolver() = default;
   ElementRefResolver(const DatabaseDescription& desc)
     : description{ desc }
   {}

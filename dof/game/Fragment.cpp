@@ -90,14 +90,13 @@ namespace Fragment {
   //This event triggers just before the table service runs to prepare the state of the object for migration
   //It is not done when the event is queued because other forces could change the object before then and when the migration happens
   struct PrepareFragmentMigration {
-    PrepareFragmentMigration(RuntimeDatabaseTaskBuilder& task)
-      : query{ task }
-      , ids{ task.getRefResolver() }
-      , res{ task.getResolver(fragmentFound) }
-    {
+    void init(RuntimeDatabaseTaskBuilder& task) {
+      query = task;
+      ids = task.getRefResolver();
+      res = task.getResolver(fragmentFound);
     }
 
-    void execute(AppTaskArgs&) {
+    void execute() {
       for(size_t t = 0; t < query.size(); ++t) {
         auto [events, posX, posY, goalX, goalY, rotX, rotY] = query.get(t);
         for(auto event : *events) {
@@ -126,12 +125,11 @@ namespace Fragment {
   };
 
   struct CheckForFragmentReactivation {
-    CheckForFragmentReactivation(RuntimeDatabaseTaskBuilder& task)
-      : query{ task }
-    {
+    void init(RuntimeDatabaseTaskBuilder& task) {
+      query = task;
     }
 
-    void execute(AppTaskArgs&) {
+    void execute() {
       //Query all events in the active table that were moves. Presumably they moved from the completed table into the active table
       for(size_t t = 0; t < query.size(); ++t) {
         auto [events, goalCooldown] = query.get(t);

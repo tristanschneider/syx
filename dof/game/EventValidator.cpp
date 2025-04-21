@@ -18,9 +18,9 @@ namespace EventValidator {
     using TrackingMap = std::unordered_map<ElementRef, EventTracker>;
     using TrackingIterator = typename TrackingMap::iterator;
 
-    EventValidatorGroup(RuntimeDatabaseTaskBuilder&, std::string_view name)
-      : moduleName{ name }
-    {}
+    void init(std::string_view name) {
+      moduleName = name;
+    }
 
     TrackingMap trackedElements;
     std::string_view moduleName;
@@ -72,11 +72,10 @@ namespace EventValidator {
   }
 
   struct EventValidatorBase {
-    EventValidatorBase(RuntimeDatabaseTaskBuilder& task)
-      : query{ task }
-      , res{ task.getResolver(tableName) }
-      , ids{ task.getIDResolver()->getRefResolver() }
-    {
+    void init(RuntimeDatabaseTaskBuilder& task) {
+      query = task;
+      res = task.getResolver(tableName);
+      ids = task.getIDResolver()->getRefResolver();
     }
 
     ElementLookup find(EventValidatorGroup& group, size_t tableIndex, size_t elementIndex) {
@@ -140,9 +139,7 @@ namespace EventValidator {
   };
 
   struct PreValidator : EventValidatorBase {
-    using EventValidatorBase::EventValidatorBase;
-
-    void execute(EventValidatorGroup& group, AppTaskArgs&) {
+    void execute(EventValidatorGroup& group) {
       logBegin();
       for(size_t t = 0; t < query.size(); ++t) {
         auto [events, stables, names] = query.get(t);
@@ -181,9 +178,7 @@ namespace EventValidator {
   };
 
   struct PostValidator : EventValidatorBase {
-    using EventValidatorBase::EventValidatorBase;
-
-    void execute(EventValidatorGroup& group, AppTaskArgs&) {
+    void execute(EventValidatorGroup& group) {
       for(size_t t = 0; t < query.size(); ++t) {
         auto [events, stables, names] = query.get(t);
         for(auto event : *events) {
@@ -217,11 +212,11 @@ namespace EventValidator {
   };
 
   struct ProcessValidator {
-    ProcessValidator(RuntimeDatabaseTaskBuilder& task)
-      : events{ task } {
+    void init(RuntimeDatabaseTaskBuilder& task) {
+      events = task;
     }
 
-    void execute(AppTaskArgs&) {
+    void execute() {
       logProcess();
     }
 
@@ -235,7 +230,7 @@ namespace EventValidator {
     }
 
     void preProcessEvents(IAppBuilder& builder) final {
-      builder.submitTask(TLSTask::createWithArgs<PreValidator, EventValidatorGroup, DefaultTaskLocals>("prevalidate", moduleName));
+      builder.submitTask(TLSTask::createWithArgs<PreValidator, EventValidatorGroup>("prevalidate", moduleName));
     }
 
     void processEvents(IAppBuilder& builder) final {
@@ -243,7 +238,7 @@ namespace EventValidator {
     }
 
     void postProcessEvents(IAppBuilder& builder) final {
-      builder.submitTask(TLSTask::createWithArgs<PostValidator, EventValidatorGroup, DefaultTaskLocals>("postvalidate", moduleName));
+      builder.submitTask(TLSTask::createWithArgs<PostValidator, EventValidatorGroup>("postvalidate", moduleName));
     }
 
     std::string_view moduleName;

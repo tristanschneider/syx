@@ -12,6 +12,7 @@ struct AppTaskArgs;
 
 namespace GameDatabase {
   struct Tables {
+    Tables() = default;
     Tables(RuntimeDatabaseTaskBuilder& task);
     Tables(RuntimeDatabase& db);
     Tables(AppTaskArgs& args);

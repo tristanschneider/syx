@@ -48,13 +48,12 @@ namespace SceneList {
 
   struct StartingSceneModule : IAppModule {
     struct Task {
-      Task(RuntimeDatabaseTaskBuilder& task)
-        : scenes{ task.query<const ScenesRow>().tryGetSingletonElement() }
-        , navigator{ ::Scenes::createLoadingNavigator(task) }
-      {
+      void init(RuntimeDatabaseTaskBuilder& task) {
+        scenes = task.query<const ScenesRow>().tryGetSingletonElement();
+        navigator = ::Scenes::createLoadingNavigator(task);
       }
 
-      void execute(AppTaskArgs&) {
+      void execute() {
         //Default start on fragment scene
         navigator->awaitLoadRequest(::Scenes::LoadRequest{
           .onSuccess = scenes->fragment,

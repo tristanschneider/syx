@@ -43,35 +43,39 @@ namespace RespawnArea {
       FragmentBurstStatEffect::Builder burst;
     };
 
-    DoRespawn(RuntimeDatabaseTaskBuilder& task)
-      : others{ task }
-      , areas{ task } {
+    void init(RuntimeDatabaseTaskBuilder& task) {
+      others = task;
+      areas = task;
     }
 
-    void execute(TLS& tls, AppTaskArgs&) {
+    void init(AppTaskArgs& args) {
+      tls.emplace(args);
+    }
+
+    void execute() {
       for(size_t t = 0; t < areas.size(); ++t) {
         auto [_, areaZ, areaThickness, burstRadius] = areas.get(t);
         for(size_t i = 0; i < areaZ->size(); ++i) {
           const float zMin = areaZ->at(i);
           const float zMax = zMin + areaThickness->at(i);
           const float radius = burstRadius->at(i);
-          checkRespawn(zMin, zMax, radius, tls);
+          checkRespawn(zMin, zMax, radius);
         }
       }
     }
 
-    void checkRespawn(float zMin, float zMax, float burstRadius, TLS& tls) {
+    void checkRespawn(float zMin, float zMax, float burstRadius) {
       for(size_t t = 0; t < others.size(); ++t) {
         auto [posZ, stable] = others.get(t);
         for(size_t i = 0; i < posZ->size(); ++i) {
           if(posZ->at(i) < zMin) {
             const auto* stableID = &stable->at(i);
-            tls.position.createStatEffects(1).setLifetime(StatEffect::INSTANT).setOwner(*stableID);
-            tls.position.setZ(zMax);
-            tls.velocity.createStatEffects(1).setLifetime(StatEffect::INSTANT).setOwner(*stableID);
-            tls.velocity.setZ({ 0.0f });
-            tls.burst.createStatEffects(1).setLifetime(StatEffect::INFINITE).setOwner(*stableID);
-            tls.burst.setRadius(burstRadius);
+            tls->position.createStatEffects(1).setLifetime(StatEffect::INSTANT).setOwner(*stableID);
+            tls->position.setZ(zMax);
+            tls->velocity.createStatEffects(1).setLifetime(StatEffect::INSTANT).setOwner(*stableID);
+            tls->velocity.setZ({ 0.0f });
+            tls->burst.createStatEffects(1).setLifetime(StatEffect::INFINITE).setOwner(*stableID);
+            tls->burst.setRadius(burstRadius);
           }
         }
       }
@@ -84,6 +88,7 @@ namespace RespawnArea {
       const Narrowphase::ThicknessRow,
       const RespawnBurstRadius
     > areas;
+    std::optional<TLS> tls;
   };
 
   struct RespawnModule : IAppModule {
@@ -96,7 +101,7 @@ namespace RespawnArea {
     }
 
     void update(IAppBuilder& builder) final {
-      builder.submitTask(TLSTask::create<DoRespawn, DefaultTaskGroup, DoRespawn::TLS>("DoRespawn"));
+      builder.submitTask(TLSTask::create<DoRespawn>("DoRespawn"));
     }
   };
 

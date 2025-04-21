@@ -17,6 +17,7 @@
 
 namespace FragmentSpawner {
   struct UpdateLocals {
+    UpdateLocals() = default;
     UpdateLocals(AppTaskArgs& args)
     {
       RuntimeDatabase& db = args.getLocalDB();
@@ -51,10 +52,13 @@ namespace FragmentSpawner {
   };
 
   struct Update {
-    Update(RuntimeDatabaseTaskBuilder& task)
-      : q{ task}
-      , transform{ PhysicsSimulation::createGameplayFullTransformResolver(task) }
-    {
+    void init(RuntimeDatabaseTaskBuilder& task) {
+      q = task;
+      transform = PhysicsSimulation::createGameplayFullTransformResolver(task);
+    }
+
+    void init(AppTaskArgs& args) {
+      loc = UpdateLocals{ args };
     }
 
     struct Grid {
@@ -148,7 +152,8 @@ namespace FragmentSpawner {
       }
     }
 
-    void execute(UpdateLocals& locals, AppTaskArgs& args) {
+    void execute(AppTaskArgs& args) {
+      UpdateLocals& locals = loc;
       if(!locals) {
         return;
       }
@@ -175,17 +180,17 @@ namespace FragmentSpawner {
       const Narrowphase::CollisionMaskRow
     > q;
     pt::FullTransformResolver transform;
+    UpdateLocals loc;
   };
 
   struct ForwardConfigToFragments {
-    ForwardConfigToFragments(RuntimeDatabaseTaskBuilder& task)
-      : tables{ task }
-      , res{ task.getResolver(dstTextures, dstMeshes) }
-      , query{ task }
-    {
+    void init(RuntimeDatabaseTaskBuilder& task) {
+      tables = task;
+      res = task.getResolver(dstTextures, dstMeshes);
+      query = task;
     }
 
-    void execute(AppTaskArgs&) {
+    void execute() {
       for(size_t t = 0; t < query.size(); ++t) {
         auto [events, srcTextures, srcMeshes, tag] = query.get(t);
         //If no events happened, there must be nothing to forward
@@ -221,7 +226,7 @@ namespace FragmentSpawner {
 
   struct Module : IAppModule {
     void update(IAppBuilder& builder) final {
-      builder.submitTask(TLSTask::create<Update, DefaultTaskGroup, UpdateLocals>("update fragment spawner"));
+      builder.submitTask(TLSTask::create<Update>("update fragment spawner"));
     }
 
     void preProcessEvents(IAppBuilder& builder) final {

@@ -16,17 +16,16 @@ namespace Events {
   };
 
   struct ProcessCommands {
-    ProcessCommands(RuntimeDatabaseTaskBuilder& task)
-      : db{ task.getDatabase() }
-      , ids{ task.getRefResolver() }
-      , query{ task }
-    {
+    void init(RuntimeDatabaseTaskBuilder& task) {
+      db = &task.getDatabase();
+      ids = task.getRefResolver();
+      query = task;
     }
 
-    void execute(AppTaskArgs&) {
+    void execute() {
       for(size_t t = 0; t < query.size(); ++t) {
         auto [stable, events] = query.get(t);
-        RuntimeTable* srcTable = db.tryGet(query.getTableID(t));
+        RuntimeTable* srcTable = db->tryGet(query.getTableID(t));
         //Moving the table contents while iterating over this sparse row would require more complex sparse row iterator support.
         //Instead, modifications are gathered into vectors and performed in a second pass.
         for(auto it : *events) {
@@ -40,7 +39,7 @@ namespace Events {
           //Move this unless it's already at the destination, which would presumably be for a move performed here
           //on one of the other tables.
           else if(event.isMove() && event.getTableID() != srcTable->getID()) {
-            if(RuntimeTable* dstTable = db.tryGet(event.getTableID())) {
+            if(RuntimeTable* dstTable = db->tryGet(event.getTableID())) {
               toMove.push_back(std::make_pair(element, dstTable));
             }
           }
@@ -71,7 +70,7 @@ namespace Events {
       }
     }
 
-    RuntimeDatabase& db;
+    RuntimeDatabase* db{};
     QueryResult<const StableIDRow, const EventsRow> query;
     ElementRefResolver ids;
     std::vector<ElementRef> toRemove;
@@ -79,11 +78,11 @@ namespace Events {
   };
 
   struct ClearEvents {
-    ClearEvents(RuntimeDatabaseTaskBuilder& task)
-      : query{ task }
-    {}
+    void init(RuntimeDatabaseTaskBuilder& task) {
+      query = task;
+    }
 
-    void execute(AppTaskArgs&) {
+    void execute() {
       for(size_t t = 0; t < query.size(); ++t) {
         auto [events] = query.get(t);
         events->clear();

@@ -35,6 +35,7 @@ namespace pt {
   };
 
   struct TransformAlias {
+    TransformAlias() = default;
     TransformAlias(const PhysicsAliases& tables);
 
     using Q = QueryAlias<const Row<float>>;
@@ -42,12 +43,14 @@ namespace pt {
   };
 
   struct FullTransformAlias : TransformAlias {
+    FullTransformAlias() = default;
     FullTransformAlias(const PhysicsAliases& tables);
 
     Q posZ, scaleX, scaleY;
   };
 
   struct TransformResolver {
+    TransformResolver() = default;
     TransformResolver(RuntimeDatabaseTaskBuilder& task, const TransformAlias& a);
 
     Transform resolve(const ElementRef& ref);
@@ -60,6 +63,7 @@ namespace pt {
   };
 
   struct FullTransformResolver {
+    FullTransformResolver() = default;
     FullTransformResolver(RuntimeDatabaseTaskBuilder& task, const FullTransformAlias& a);
 
     FullTransform resolve(const ElementRef& ref);

@@ -62,15 +62,14 @@ namespace SweepNPruneBroadphase {
   }
 
   struct AddAndRemoveFromBroadphase {
-    AddAndRemoveFromBroadphase(RuntimeDatabaseTaskBuilder& task)
-      : query{ task }
-      , ids{ task.getRefResolver() }
-      , spatialPairs{ SP::createStorageModifier(task) }
-      , grid{ *task.query<SharedRow<Broadphase::SweepGrid::Grid>>().tryGetSingletonElement() }
-    {
+    void init(RuntimeDatabaseTaskBuilder& task) {
+      query = task;
+      ids = task.getRefResolver();
+      spatialPairs = SP::createStorageModifier(task);
+      grid = task.query<SharedRow<Broadphase::SweepGrid::Grid>>().tryGetSingletonElement();
     }
 
-    void execute(AppTaskArgs&) {
+    void execute() {
       for(size_t t = 0; t < query.size(); ++t) {
         auto [events, stables, keys] = query.get(t);
         for(auto event : *events) {
@@ -83,13 +82,13 @@ namespace SweepNPruneBroadphase {
             }
             Broadphase::BroadphaseKey& key = keys->at(i);
             const Broadphase::UserKey userKey = stables->at(i);
-            Broadphase::SweepGrid::insertRange(grid, &userKey, &key, 1);
+            Broadphase::SweepGrid::insertRange(*grid, &userKey, &key, 1);
             spatialPairs->addSpatialNode(userKey, false);
           }
           else if(event.second.isDestroy()) {
             //Remove elements that are about to be destroyed
             Broadphase::BroadphaseKey& key = keys->at(i);
-            Broadphase::SweepGrid::eraseRange(grid, &key, 1);
+            Broadphase::SweepGrid::eraseRange(*grid, &key, 1);
             spatialPairs->removeSpatialNode(stables->at(i));
             key = {};
           }
@@ -103,7 +102,7 @@ namespace SweepNPruneBroadphase {
     > query;
     ElementRefResolver ids;
     std::shared_ptr<SP::IStorageModifier> spatialPairs;
-    Broadphase::SweepGrid::Grid& grid;
+    Broadphase::SweepGrid::Grid* grid{};
   };
 
   void preProcessEvents(IAppBuilder& builder) {
@@ -112,26 +111,26 @@ namespace SweepNPruneBroadphase {
 
   struct ProcessImmobileMigrations {
     struct Group {
-      Group(RuntimeDatabaseTaskBuilder& task, const PhysicsAliases& a, const BoundariesConfig& c)
-        : physicsAliases{ a }
-        , config{ c }
-        , query{
-          task.queryAlias(
-            QueryAlias<Events::EventsRow>::create().read(),
-            QueryAlias<StableIDRow>::create().read(),
-            a.posX.read(), a.posY.read(),
-            QueryAlias<BroadphaseKeys>::create()
-          )
-        }
-        , res{ task.getAliasResolver(a.isImmobile.read()) }
-        , ids{ task.getRefResolver() }
-        , spatialPairs{ SP::createStorageModifier(task) }
-        , grid{ *task.query<SharedRow<Broadphase::SweepGrid::Grid>>().tryGetSingletonElement() }
-      {
+      void init(const PhysicsAliases& a, const BoundariesConfig& c) {
+        physicsAliases = a;
+        config = c;
       }
 
-      const PhysicsAliases physicsAliases;
-      const BoundariesConfig config;
+      void init(RuntimeDatabaseTaskBuilder& task) {
+        query = task.queryAlias(
+            QueryAlias<Events::EventsRow>::create().read(),
+            QueryAlias<StableIDRow>::create().read(),
+            physicsAliases.posX.read(), physicsAliases.posY.read(),
+            QueryAlias<BroadphaseKeys>::create()
+          );
+        res = task.getAliasResolver(physicsAliases.isImmobile.read());
+        ids = task.getRefResolver();
+        spatialPairs = SP::createStorageModifier(task);
+        grid = task.query<SharedRow<Broadphase::SweepGrid::Grid>>().tryGetSingletonElement();
+      }
+
+      PhysicsAliases physicsAliases;
+      BoundariesConfig config;
       QueryResult<
         const Events::EventsRow,
         const StableIDRow,
@@ -139,15 +138,14 @@ namespace SweepNPruneBroadphase {
         BroadphaseKeys
       > query;
       std::shared_ptr<ITableResolver> res;
-      Broadphase::SweepGrid::Grid& grid;
+      Broadphase::SweepGrid::Grid* grid{};
       std::shared_ptr<SP::IStorageModifier> spatialPairs;
       ElementRefResolver ids;
     };
 
-    ProcessImmobileMigrations(RuntimeDatabaseTaskBuilder&)
-    {}
+    void init() {}
 
-    void execute(Group& group, AppTaskArgs&) {
+    void execute(Group& group) {
       CachedRow<const TagRow> isImmobile;
       for(size_t t = 0; t < group.query.size(); ++t) {
         auto [events, stable, posX, posY, keys] = group.query.get(t);
@@ -163,7 +161,7 @@ namespace SweepNPruneBroadphase {
               glm::vec2 min{ posX->at(i) - halfSize, posY->at(i) - halfSize };
               glm::vec2 max{ posX->at(i) + halfSize, posY->at(i) + halfSize };
               Broadphase::BroadphaseKey& key = keys->at(i);
-              Broadphase::SweepGrid::updateBoundaries(group.grid, &min.x, &max.x, &min.y, &max.y, &key, 1);
+              Broadphase::SweepGrid::updateBoundaries(*group.grid, &min.x, &max.x, &min.y, &max.y, &key, 1);
 
               //Change node to immobile
               group.spatialPairs->changeMobility(self, true);
@@ -179,6 +177,6 @@ namespace SweepNPruneBroadphase {
   };
 
   void postProcessEvents(IAppBuilder& builder, const PhysicsAliases& aliases, const BoundariesConfig& cfg) {
-    builder.submitTask(TLSTask::createWithArgs<ProcessImmobileMigrations, ProcessImmobileMigrations::Group, DefaultTaskLocals>("physics post events", aliases, cfg));
+    builder.submitTask(TLSTask::createWithArgs<ProcessImmobileMigrations, ProcessImmobileMigrations::Group>("physics post events", aliases, cfg));
   }
 }

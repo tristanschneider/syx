@@ -749,10 +749,10 @@ namespace Constraints {
       std::vector<Definition> definitions;
     };
 
-    AutoInitInternalJoints(RuntimeDatabaseTaskBuilder& task)
-      : query{ task }
-      , managedTables(query.size())
-    {
+    void init(RuntimeDatabaseTaskBuilder& task) {
+      query = task;
+      managedTables.resize(query.size());
+
       for(size_t i = 0; i < query.size(); ++i) {
         const auto& [def, x, y, z] = query.get(i);
         const TableID& table = query[i];
@@ -769,7 +769,7 @@ namespace Constraints {
       }
     }
 
-    void execute(AppTaskArgs&) {
+    void execute() {
       //If any elements are created in a tracked table, inform the constraint modifiers
       //An equivalent removal is not necessary as GC will see it
       for(size_t t = 0; t < query.size(); ++t) {

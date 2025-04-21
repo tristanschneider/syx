@@ -47,20 +47,23 @@ namespace Test {
       };
 
       struct InitTask {
-        InitTask(RuntimeDatabaseTaskBuilder& task)
-          : scenes{ TestScenes::get(task) }
-        {
+        void init(RuntimeDatabaseTaskBuilder& task) {
+          scenes = TestScenes::get(task);
         }
 
-        void execute(InitTaskLocal& locals, AppTaskArgs& args) {
+        void init(AppTaskArgs& args) {
+          locals.emplace(args);
+        }
+
+        void execute(AppTaskArgs& args) {
           const size_t count = 5;
-          Assert::AreEqual(size_t(0), locals.objects->size());
-          size_t b = locals.objects->addElements(count);
-          args.getLocalDB().setTableDirty(locals.objects->getID());
+          Assert::AreEqual(size_t(0), locals->objects->size());
+          size_t b = locals->objects->addElements(count);
+          args.getLocalDB().setTableDirty(locals->objects->getID());
           ConstraintStatEffect::Builder builder{ args };
           std::vector<ElementRef> objs;
           for(size_t i = 0; i < count; ++i) {
-            objs.push_back(locals.stable->at(b + i));
+            objs.push_back(locals->stable->at(b + i));
             builder.createStatEffects(1).setLifetime(4);
             builder.constraintBuilder().setJointType({ Constraints::MotorJoint{
               .linearTarget = glm::vec2{ 0.1f },
@@ -81,10 +84,11 @@ namespace Test {
         }
 
         TestScenes* scenes{};
+        std::optional<InitTaskLocal> locals;
       };
 
       void init(IAppBuilder& builder) {
-        auto task = TLSTask::create<InitTask, DefaultTaskGroup, InitTaskLocal>("init");
+        auto task = TLSTask::create<InitTask>("init");
         task->setPinning(AppTaskPinning::ThreadID{ 2 });
         builder.submitTask(std::move(task));
       }
@@ -93,27 +97,27 @@ namespace Test {
     //Multithreaded use of thread local db to add elements
     struct MultithreadedScene : SceneNavigator::IScene {
       struct ConfigTaskGroup {
-        ConfigTaskGroup(RuntimeDatabaseTaskBuilder&, std::shared_ptr<AppTaskConfig> cfg)
-          : config{ cfg } {
+        void init(std::shared_ptr<AppTaskConfig> cfg) {
+          config = cfg;
         }
 
         std::shared_ptr<AppTaskConfig> config;
       };
       struct ConfigTask {
-        ConfigTask(RuntimeDatabaseTaskBuilder& task) {
+        void init(RuntimeDatabaseTaskBuilder& task) {
           //Force dependency for child tasks
           TestScenes::get(task);
         }
 
-        void execute(ConfigTaskGroup& group, AppTaskArgs&) {
+        void execute(ConfigTaskGroup& group) {
           group.config->setSize(AppTaskSize{ .workItemCount = 10, .batchSize = 1 });
         }
       };
 
       void init(IAppBuilder& builder) {
-        auto task = TLSTask::create<PhysicsScene::InitTask, DefaultTaskGroup, PhysicsScene::InitTaskLocal>("mt");
+        auto task = TLSTask::create<PhysicsScene::InitTask>("mt");
         auto cfg = task->getOrAddConfig();
-        auto configTask = TLSTask::createWithArgs<ConfigTask, ConfigTaskGroup, DefaultTaskLocals>("cfg", cfg);
+        auto configTask = TLSTask::createWithArgs<ConfigTask, ConfigTaskGroup>("cfg", cfg);
 
         builder.submitTask(std::move(configTask));
         builder.submitTask(std::move(task));
@@ -123,12 +127,11 @@ namespace Test {
     //Pinned use of modifier to add elements
     struct PhysicsModifierScene : SceneNavigator::IScene {
       struct InitTask {
-        InitTask(RuntimeDatabaseTaskBuilder& task)
-          : scenes{ TestScenes::get(task) }
-          , table{ GameDatabase::Tables{ task }.physicsObjsWithZ }
-          , modifier{ task.getModifierForTable(table) }
-          , query{ task.query<const StableIDRow, Events::EventsRow>(table) }
-        {
+        void init(RuntimeDatabaseTaskBuilder& task) {
+          scenes = TestScenes::get(task);
+          table = GameDatabase::Tables{ task }.physicsObjsWithZ;
+          modifier = task.getModifierForTable(table);
+          query = task.query<const StableIDRow, Events::EventsRow>(table);
         }
 
         void execute(AppTaskArgs& args) {
@@ -175,13 +178,12 @@ namespace Test {
 
     struct TestModule : IAppModule {
       struct RegisterScenes {
-        RegisterScenes(RuntimeDatabaseTaskBuilder& task)
-          : registry{ SceneNavigator::createRegistry(task) }
-          , scenes{ TestScenes::get(task) }
-        {
+        void init(RuntimeDatabaseTaskBuilder& task) {
+          registry = SceneNavigator::createRegistry(task);
+          scenes = TestScenes::get(task);
         }
 
-        void execute(AppTaskArgs&) {
+        void execute() {
           scenes->empty = registry->registerScene(std::make_unique<SceneNavigator::IScene>());
           scenes->physics = registry->registerScene(std::make_unique<PhysicsScene>());
           scenes->multithreaded = registry->registerScene(std::make_unique<MultithreadedScene>());
