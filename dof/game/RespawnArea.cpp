@@ -11,9 +11,13 @@
 #include "stat/VelocityStatEffect.h"
 #include "stat/PositionStatEffect.h"
 #include "stat/FragmentBurstStatEffect.h"
+#include "loader/ReflectionModule.h"
 
 namespace RespawnArea {
   struct RespawnTagRow : TagRow {};
+  struct RespawnBurstRadius : Row<float> {
+    static constexpr std::string_view KEY = "RespawnBurstRadius";
+  };
 
   using RespawnDB = Database<
     Table<
@@ -97,6 +101,7 @@ namespace RespawnArea {
     }
 
     void init(IAppBuilder& builder) final {
+      Reflection::registerLoaders(builder, Reflection::createDirectRowLoader<Loader::FloatRow, RespawnArea::RespawnBurstRadius>());
       TableName::setName<RespawnTagRow>(builder, { "RespawnArea" });
     }
 

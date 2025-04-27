@@ -14,6 +14,7 @@ class RuntimeDatabaseTaskBuilder;
 struct IDatabase;
 struct StableElementMappings;
 struct RuntimeDatabaseArgs;
+class IAppModule;
 
 namespace Scenes {
   struct IImportedSceneNavigator {
@@ -30,4 +31,8 @@ namespace Scenes {
 
   std::unique_ptr<SceneNavigator::IScene> createImportedScene();
   void createImportedSceneDB(RuntimeDatabaseArgs& args);
+}
+
+namespace BasicLoaders {
+  std::unique_ptr<IAppModule> createModule();
 }
