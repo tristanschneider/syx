@@ -33,6 +33,22 @@
 namespace GameDatabase {
   using BroadphaseTable = SweepNPruneBroadphase::BroadphaseTable;
 
+  StorageTableBuilder& addPosXY(StorageTableBuilder& storage) {
+    return storage.addRows<Tags::PosXRow, Tags::PosYRow>();
+  }
+
+  StorageTableBuilder createTargetPosTable() {
+    StorageTableBuilder table;
+    addPosXY(table)
+    .addRows<
+      SceneNavigator::IsClearedWithSceneTag,
+      TargetTableTag
+    >()
+    .setStable()
+    .setTableName({ "Targets" });
+    return table;
+  }
+
   //Table to hold positions to be referenced by stable element id
   using TargetPosTable = Table<
     TableName::TableNameRow,
@@ -42,6 +58,22 @@ namespace GameDatabase {
     FloatRow<Tags::Pos, Tags::Y>,
     StableIDRow
   >;
+
+  StorageTableBuilder createGlobalTable() {
+    StorageTableBuilder table;
+    table.addRows<
+      ShapeRegistry::GlobalRow,
+      SceneList::ScenesRow,
+      SharedRow<SceneState>,
+      SharedRow<FileSystem>,
+      SharedRow<StableElementMappings>,
+      SharedRow<Scheduler>,
+      SharedRow<Config::GameConfig>,
+      GameInput::GlobalMappingsRow,
+      ThreadLocalsRow
+    >().setTableName({ "Globals" });
+    return table;
+  }
 
   using GlobalGameData = Table<
     TableName::TableNameRow,
@@ -57,423 +89,358 @@ namespace GameDatabase {
     ThreadLocalsRow
   >;
 
-  using DynamicPhysicsObjects = Table<
-    TableName::TableNameRow,
-    Tags::DynamicPhysicsObjectsTag,
-    SceneNavigator::IsClearedWithSceneTag,
-    //Data viewed by physics, not to be used by gameplay
-    FloatRow<Tags::Pos, Tags::X>,
-    FloatRow<Tags::Pos, Tags::Y>,
-    FloatRow<Tags::Rot, Tags::CosAngle>,
-    FloatRow<Tags::Rot, Tags::SinAngle>,
-    FloatRow<Tags::LinVel, Tags::X>,
-    FloatRow<Tags::LinVel, Tags::Y>,
-    FloatRow<Tags::AngVel, Tags::Angle>,
-    Tags::ScaleXRow,
-    Tags::ScaleYRow,
+  StorageTableBuilder& addTransform2D(StorageTableBuilder& table) {
+    return table.addRows<
+      Tags::PosXRow,
+      Tags::PosYRow,
+      Tags::RotXRow,
+      Tags::RotYRow,
+      Tags::ScaleXRow,
+      Tags::ScaleYRow
+    >();
+  }
 
-    //Gameplay data extracted from above
-    FloatRow<Tags::GPos, Tags::X>,
-    FloatRow<Tags::GPos, Tags::Y>,
-    FloatRow<Tags::GRot, Tags::CosAngle>,
-    FloatRow<Tags::GRot, Tags::SinAngle>,
-    FloatRow<Tags::GLinVel, Tags::X>,
-    FloatRow<Tags::GLinVel, Tags::Y>,
-    FloatRow<Tags::GAngVel, Tags::Angle>,
+  StorageTableBuilder& addTransform2DNoScale(StorageTableBuilder& table) {
+    return table.addRows<
+      Tags::PosXRow,
+      Tags::PosYRow,
+      Tags::RotXRow,
+      Tags::RotYRow
+    >();
+  }
 
-    //Impulses requested from gameplay
-    FloatRow<Tags::GLinImpulse, Tags::X>,
-    FloatRow<Tags::GLinImpulse, Tags::Y>,
-    FloatRow<Tags::GAngImpulse, Tags::Angle>,
+  StorageTableBuilder& addTransform25D(StorageTableBuilder& table) {
+    return table.addRows<
+      Tags::PosXRow,
+      Tags::PosYRow,
+      Tags::PosZRow,
+      Tags::RotXRow,
+      Tags::RotYRow,
+      Tags::ScaleXRow,
+      Tags::ScaleYRow
+    >();
+  }
 
-    AccelerationY,
+  StorageTableBuilder& addVelocity2D(StorageTableBuilder& table) {
+    return table.addRows<
+      Tags::LinVelXRow,
+      Tags::LinVelYRow,
+      Tags::AngVelRow
+    >();
+  }
 
-    SweepNPruneBroadphase::BroadphaseKeys,
-    Narrowphase::CollisionMaskRow,
-    Narrowphase::SharedThicknessRow,
-    Shapes::SharedRectangleRow,
-    ConstraintSolver::ConstraintMaskRow,
-    ConstraintSolver::MassRow,
-    ConstraintSolver::SharedMaterialRow,
+  StorageTableBuilder& addVelocity25D(StorageTableBuilder& table) {
+    return table.addRows<
+      Tags::LinVelXRow,
+      Tags::LinVelYRow,
+      Tags::LinVelZRow,
+      Tags::AngVelRow
+    >();
+  }
 
-    Row<CubeSprite>,
-    SharedTextureRow,
-    SharedMeshRow,
+  template<class C, class T>
+  StorageTableBuilder& addIf(StorageTableBuilder& table) {
+    if(table->contains<C>()) {
+      table.addRows<T>();
+    }
+    return table;
+  }
 
-    StableIDRow
-  >;
+  StorageTableBuilder& addGameplayCopy(StorageTableBuilder& table) {
+    addIf<Tags::PosXRow, Tags::GPosXRow>(table);
+    addIf<Tags::PosYRow, Tags::GPosYRow>(table);
+    addIf<Tags::PosZRow, Tags::GPosZRow>(table);
+    addIf<Tags::RotXRow, Tags::GRotXRow>(table);
+    addIf<Tags::RotYRow, Tags::GRotYRow>(table);
+    addIf<Tags::LinVelXRow, Tags::GLinVelXRow>(table);
+    addIf<Tags::LinVelYRow, Tags::GLinVelYRow>(table);
+    addIf<Tags::AngVelRow, Tags::GAngVelRow>(table);
+    return table;
+  }
 
-  using DynamicPhysicsObjectsWithMotor = Table<
-    TableName::TableNameRow,
-    Tags::DynamicPhysicsObjectsWithMotorTag,
-    SceneNavigator::IsClearedWithSceneTag,
-    //Data viewed by physics, not to be used by gameplay
-    FloatRow<Tags::Pos, Tags::X>,
-    FloatRow<Tags::Pos, Tags::Y>,
-    FloatRow<Tags::Rot, Tags::CosAngle>,
-    FloatRow<Tags::Rot, Tags::SinAngle>,
-    FloatRow<Tags::LinVel, Tags::X>,
-    FloatRow<Tags::LinVel, Tags::Y>,
-    FloatRow<Tags::LinVel, Tags::Z>,
-    FloatRow<Tags::AngVel, Tags::Angle>,
-    Tags::ScaleXRow,
-    Tags::ScaleYRow,
+  StorageTableBuilder& addGameplayImpulse(StorageTableBuilder& table) {
+    addIf<Tags::LinVelXRow, Tags::GLinImpulseXRow>(table);
+    addIf<Tags::LinVelYRow, Tags::GLinImpulseYRow>(table);
+    addIf<Tags::LinVelZRow, Tags::GLinImpulseZRow>(table);
+    addIf<Tags::AngVelRow, Tags::GAngImpulseRow>(table);
+    return table;
+  }
 
-    SweepNPruneBroadphase::BroadphaseKeys,
-    Narrowphase::CollisionMaskRow,
-    Narrowphase::SharedThicknessRow,
-    Shapes::SharedRectangleRow,
-    ConstraintSolver::ConstraintMaskRow,
-    ConstraintSolver::MassRow,
-    ConstraintSolver::SharedMaterialRow,
+  StorageTableBuilder& addCollider(StorageTableBuilder& table) {
+    return table.addRows<
+      SweepNPruneBroadphase::BroadphaseKeys,
+      Narrowphase::CollisionMaskRow
+    >();
+  }
 
-    Constraints::AutoManageJointTag,
-    Constraints::TableConstraintDefinitionsRow,
-    Constraints::ConstraintChangesRow,
-    Constraints::JointRow,
-    Constraints::ConstraintStorageRow,
+  StorageTableBuilder& addRigidbody(StorageTableBuilder& table) {
+    return table.addRows<
+      ConstraintSolver::ConstraintMaskRow,
+      ConstraintSolver::MassRow,
+      ConstraintSolver::SharedMaterialRow
+    >();
+  }
 
-    Row<CubeSprite>,
-    SharedTextureRow,
-    SharedMeshRow,
+  StorageTableBuilder& addRigidbodySharedMass(StorageTableBuilder& table) {
+    return table.addRows<
+      ConstraintSolver::ConstraintMaskRow,
+      ConstraintSolver::SharedMassRow,
+      ConstraintSolver::SharedMaterialRow
+    >();
+  }
 
-    StableIDRow
-  >;
+  StorageTableBuilder createDynamicPhysicsObjects() {
+    StorageTableBuilder table;
+    addTransform2D(table);
+    addVelocity2D(table);
+    addCollider(table);
+    addRigidbody(table);
+    table.addRows<
+      Tags::DynamicPhysicsObjectsTag,
+      SceneNavigator::IsClearedWithSceneTag,
+      AccelerationY,
+      Narrowphase::SharedThicknessRow,
+      Shapes::SharedRectangleRow,
+      Row<CubeSprite>,
+      SharedTextureRow,
+      SharedMeshRow
+    >().setStable().setTableName({ "Physics Objects" });
+    addGameplayCopy(table);
+    addGameplayImpulse(table);
+    return table;
+  }
 
-  using DynamicPhysicsObjectsWithZ = Table<
-    TableName::TableNameRow,
-    Tags::DynamicPhysicsObjectsWithZTag,
-    SceneNavigator::IsClearedWithSceneTag,
-    //Data viewed by physics, not to be used by gameplay
-    FloatRow<Tags::Pos, Tags::X>,
-    FloatRow<Tags::Pos, Tags::Y>,
-    FloatRow<Tags::Pos, Tags::Z>,
-    FloatRow<Tags::Rot, Tags::CosAngle>,
-    FloatRow<Tags::Rot, Tags::SinAngle>,
-    FloatRow<Tags::LinVel, Tags::X>,
-    FloatRow<Tags::LinVel, Tags::Y>,
-    FloatRow<Tags::LinVel, Tags::Z>,
-    FloatRow<Tags::AngVel, Tags::Angle>,
-    Tags::ScaleXRow,
-    Tags::ScaleYRow,
+  StorageTableBuilder& addAutoManagedJoint(StorageTableBuilder& table) {
+    return table.addRows<
+      Constraints::AutoManageJointTag,
+      Constraints::TableConstraintDefinitionsRow,
+      Constraints::ConstraintChangesRow,
+      Constraints::JointRow,
+      Constraints::ConstraintStorageRow
+    >();
+  }
 
-    //Gameplay data extracted from above
-    FloatRow<Tags::GPos, Tags::X>,
-    FloatRow<Tags::GPos, Tags::Y>,
-    FloatRow<Tags::GPos, Tags::Z>,
-    FloatRow<Tags::GRot, Tags::CosAngle>,
-    FloatRow<Tags::GRot, Tags::SinAngle>,
-    FloatRow<Tags::GLinVel, Tags::X>,
-    FloatRow<Tags::GLinVel, Tags::Y>,
-    FloatRow<Tags::GLinVel, Tags::Z>,
-    FloatRow<Tags::GAngVel, Tags::Angle>,
+  StorageTableBuilder& addAutoManagedCustomJoint(StorageTableBuilder& table) {
+    addAutoManagedJoint(table);
+    return table.addRows<Constraints::CustomConstraintRow>();
+  }
 
-    //Impulses requested from gameplay
-    FloatRow<Tags::GLinImpulse, Tags::X>,
-    FloatRow<Tags::GLinImpulse, Tags::Y>,
-    FloatRow<Tags::GLinImpulse, Tags::Z>,
-    FloatRow<Tags::GAngImpulse, Tags::Angle>,
+  StorageTableBuilder createDynamicPhysicsObjectsWithMotor() {
+    StorageTableBuilder table;
+    addTransform2D(table);
+    addVelocity25D(table);
+    addCollider(table);
+    addRigidbody(table);
+    addAutoManagedJoint(table);
+    table.addRows<
+      Tags::DynamicPhysicsObjectsWithMotorTag,
+      SceneNavigator::IsClearedWithSceneTag,
+      Narrowphase::SharedThicknessRow,
+      Shapes::SharedRectangleRow,
+      Row<CubeSprite>,
+      SharedTextureRow,
+      SharedMeshRow
+    >().setStable().setTableName({ "Dynamic With Motor" });
+    return table;
+  }
 
-    SweepNPruneBroadphase::BroadphaseKeys,
-    Narrowphase::CollisionMaskRow,
-    Narrowphase::SharedThicknessRow,
-    Shapes::SharedRectangleRow,
-    ConstraintSolver::ConstraintMaskRow,
-    ConstraintSolver::MassRow,
-    ConstraintSolver::SharedMaterialRow,
+  StorageTableBuilder createDynamicPhysicsObjectsWithZ() {
+    StorageTableBuilder table;
+    addTransform25D(table);
+    addVelocity25D(table);
+    addCollider(table);
+    addRigidbody(table);
+    table.addRows<
+      Tags::DynamicPhysicsObjectsWithZTag,
+      SceneNavigator::IsClearedWithSceneTag,
+      Narrowphase::SharedThicknessRow,
+      Shapes::SharedRectangleRow,
+      Row<CubeSprite>,
+      SharedTextureRow,
+      SharedMeshRow
+    >().setStable().setTableName({ "Physics Objects Z" });
+    addGameplayCopy(table);
+    addGameplayImpulse(table);
+    return table;
+  }
 
-    Row<CubeSprite>,
-    SharedTextureRow,
-    SharedMeshRow,
+  StorageTableBuilder createFragmentSeekingGoal() {
+    StorageTableBuilder table;
+    addTransform2DNoScale(table);
+    addVelocity2D(table);
+    addAutoManagedCustomJoint(table);
+    addCollider(table);
+    addRigidbody(table);
+    addGameplayCopy(table);
+    addGameplayImpulse(table);
+    table.addRows<
+      SceneNavigator::IsClearedWithSceneTag,
+      FragmentSeekingGoalTagRow,
+      SharedMassObjectTableTag,
 
-    StableIDRow
-  >;
+      FloatRow<Tags::FragmentGoal, Tags::X>,
+      FloatRow<Tags::FragmentGoal, Tags::Y>,
+      Fragment::FragmentGoalCooldownDefinitionRow,
+      Fragment::FragmentGoalCooldownRow,
+      FragmentGoalFoundRow,
 
-  using GameObjectTable = Table<
-    TableName::TableNameRow,
-    SceneNavigator::IsClearedWithSceneTag,
-    FragmentSeekingGoalTagRow,
-    SharedMassObjectTableTag,
-    //Data viewed by physics, not to be used by gameplay
-    FloatRow<Tags::Pos, Tags::X>,
-    FloatRow<Tags::Pos, Tags::Y>,
-    FloatRow<Tags::Rot, Tags::CosAngle>,
-    FloatRow<Tags::Rot, Tags::SinAngle>,
-    FloatRow<Tags::LinVel, Tags::X>,
-    FloatRow<Tags::LinVel, Tags::Y>,
-    FloatRow<Tags::AngVel, Tags::Angle>,
+      DamageTaken,
+      Tint,
+      FragmentFlagsRow,
+      FragmentStateMachine::StateRow,
+      FragmentStateMachine::GlobalsRow,
 
-    //Gameplay data extracted from above
-    FloatRow<Tags::GPos, Tags::X>,
-    FloatRow<Tags::GPos, Tags::Y>,
-    FloatRow<Tags::GRot, Tags::CosAngle>,
-    FloatRow<Tags::GRot, Tags::SinAngle>,
-    FloatRow<Tags::GLinVel, Tags::X>,
-    FloatRow<Tags::GLinVel, Tags::Y>,
-    FloatRow<Tags::GAngVel, Tags::Angle>,
+      Narrowphase::SharedThicknessRow,
+      Shapes::SharedRectangleRow,
 
-    //Impulses requested from gameplay
-    FloatRow<Tags::GLinImpulse, Tags::X>,
-    FloatRow<Tags::GLinImpulse, Tags::Y>,
-    FloatRow<Tags::GAngImpulse, Tags::Angle>,
+      Row<CubeSprite>,
+      SharedTextureRow,
+      SharedMeshRow,
+      IsFragment
+    >().setStable().setTableName({ "Active Fragments" });
+    return table;
+  }
 
-    Constraints::AutoManageJointTag,
-    Constraints::TableConstraintDefinitionsRow,
-    Constraints::ConstraintChangesRow,
-    Constraints::CustomConstraintRow,
-    Constraints::JointRow,
-    Constraints::ConstraintStorageRow,
+  StorageTableBuilder& addImmobile(StorageTableBuilder& table) {
+    return table.addRows<
+      ZeroMassObjectTableTag,
+      IsImmobile
+    >();
+  }
 
-    FloatRow<Tags::FragmentGoal, Tags::X>,
-    FloatRow<Tags::FragmentGoal, Tags::Y>,
-    Fragment::FragmentGoalCooldownDefinitionRow,
-    Fragment::FragmentGoalCooldownRow,
-    FragmentGoalFoundRow,
+  StorageTableBuilder createCompletedFragments() {
+    StorageTableBuilder table;
+    addTransform2DNoScale(table);
+    addCollider(table);
+    addRigidbodySharedMass(table);
+    addImmobile(table);
+    addGameplayCopy(table);
+    table.addRows<
+      SceneNavigator::IsClearedWithSceneTag,
+      FragmentBurstStatEffect::CanTriggerFragmentBurstRow,
+      FragmentGoalFoundTableTag,
 
-    DamageTaken,
-    Tint,
-    FragmentFlagsRow,
-    FragmentStateMachine::StateRow,
-    FragmentStateMachine::GlobalsRow,
+      Narrowphase::SharedThicknessRow,
+      Shapes::SharedRectangleRow,
 
-    SweepNPruneBroadphase::BroadphaseKeys,
-    Narrowphase::CollisionMaskRow,
-    Narrowphase::SharedThicknessRow,
-    Shapes::SharedRectangleRow,
-    ConstraintSolver::ConstraintMaskRow,
-    ConstraintSolver::SharedMassRow,
-    ConstraintSolver::SharedMaterialRow,
+      Row<CubeSprite>,
+      SharedTextureRow,
+      SharedMeshRow,
+      IsFragment
+    >().setStable().setTableName({ "Completed Fragments" });
+    return table;
+  }
 
-    Row<CubeSprite>,
-    SharedTextureRow,
-    SharedMeshRow,
-    IsFragment,
+  StorageTableBuilder createTerrain() {
+    StorageTableBuilder table;
+    addTransform25D(table);
+    addImmobile(table);
+    addCollider(table);
+    addRigidbodySharedMass(table);
+    addGameplayCopy(table);
+    table.addRows<
+      SceneNavigator::IsClearedWithSceneTag,
+      FragmentBurstStatEffect::CanTriggerFragmentBurstRow,
+      Tags::TerrainRow,
+      Shapes::SharedRectangleRow,
+      Narrowphase::SharedThicknessRow,
+      Row<CubeSprite>,
+      SharedTextureRow,
+      SharedMeshRow
+    >().setStable().setTableName({ "Terrain" });
+    return table;
+  }
 
-    StableIDRow
-  >;
+  StorageTableBuilder createInvisibleTerrain() {
+    StorageTableBuilder table;
+    addTransform25D(table);
+    addImmobile(table);
+    addCollider(table);
+    addRigidbodySharedMass(table);
+    addGameplayCopy(table);
+    table.addRows<
+      SceneNavigator::IsClearedWithSceneTag,
+      FragmentBurstStatEffect::CanTriggerFragmentBurstRow,
+      Tags::InvisibleTerrainRow,
+      Shapes::SharedRectangleRow,
+      Narrowphase::SharedThicknessRow
+    >().setStable().setTableName({ "InvisibleTerrain" });
+    return table;
+  }
 
-  using StaticGameObjectTable = Table<
-    TableName::TableNameRow,
-    SceneNavigator::IsClearedWithSceneTag,
-    FragmentBurstStatEffect::CanTriggerFragmentBurstRow,
-    ZeroMassObjectTableTag,
-    FragmentGoalFoundTableTag,
-    FloatRow<Tags::Pos, Tags::X>,
-    FloatRow<Tags::Pos, Tags::Y>,
-    FloatRow<Tags::Rot, Tags::CosAngle>,
-    FloatRow<Tags::Rot, Tags::SinAngle>,
+  StorageTableBuilder createPlayer() {
+    StorageTableBuilder table;
+    addTransform25D(table);
+    addVelocity25D(table);
+    addCollider(table);
+    addRigidbodySharedMass(table);
+    addAutoManagedJoint(table);
+    addGameplayCopy(table);
+    addGameplayImpulse(table);
+    table.addRows<
+      SceneNavigator::IsClearedWithSceneTag,
+      IsPlayer,
+      Tags::ElementNeedsInitRow,
+      AccelerationZ,
+      Narrowphase::SharedThicknessRow,
+      Shapes::SharedRectangleRow,
+      Row<CubeSprite>,
+      GameInput::PlayerInputRow,
+      GameInput::StateMachineRow,
+      SharedTextureRow,
+      SharedMeshRow
+    >().setStable().setTableName({ "Player" });
+    return table;
+  }
 
-    //Gameplay data extracted from above
-    //TODO: take advantage of immobility to avoid the need for this
-    FloatRow<Tags::GPos, Tags::X>,
-    FloatRow<Tags::GPos, Tags::Y>,
-    FloatRow<Tags::GRot, Tags::CosAngle>,
-    FloatRow<Tags::GRot, Tags::SinAngle>,
+  StorageTableBuilder createCamera() {
+    StorageTableBuilder table;
+    table.addRows<
+      Row<Camera>,
+      Tags::PosXRow,
+      Tags::PosYRow,
+      GameInput::StateMachineRow,
+      GameInput::CameraDebugInputRow
+    >().setStable().setTableName({ "Cameras" });
+    return table;
+  }
 
-    SweepNPruneBroadphase::BroadphaseKeys,
-    Narrowphase::CollisionMaskRow,
-    Narrowphase::SharedThicknessRow,
-    Shapes::SharedRectangleRow,
-    ConstraintSolver::ConstraintMaskRow,
-    ConstraintSolver::SharedMassRow,
-    ConstraintSolver::SharedMaterialRow,
-
-    //Only requires broadphase key to know how to remove it, don't need to store boundaries
-    //for efficient updates because it won't move
-    Row<CubeSprite>,
-    SharedTextureRow,
-    SharedMeshRow,
-    IsImmobile,
-    IsFragment,
-
-    StableIDRow
-  >;
-
-  using TerrainTable = Table<
-    TableName::TableNameRow,
-    SceneNavigator::IsClearedWithSceneTag,
-    FragmentBurstStatEffect::CanTriggerFragmentBurstRow,
-    ZeroMassObjectTableTag,
-    Tags::TerrainRow,
-    Shapes::SharedRectangleRow,
-    FloatRow<Tags::Pos, Tags::X>,
-    FloatRow<Tags::Pos, Tags::Y>,
-    FloatRow<Tags::Pos, Tags::Z>,
-    FloatRow<Tags::Rot, Tags::CosAngle>,
-    FloatRow<Tags::Rot, Tags::SinAngle>,
-    Tags::ScaleXRow,
-    Tags::ScaleYRow,
-
-    //Gameplay data extracted from above
-    //TODO: take advantage of immobility to avoid the need for this
-    FloatRow<Tags::GPos, Tags::X>,
-    FloatRow<Tags::GPos, Tags::Y>,
-    FloatRow<Tags::GPos, Tags::Z>,
-    FloatRow<Tags::GRot, Tags::CosAngle>,
-    FloatRow<Tags::GRot, Tags::SinAngle>,
-
-    SweepNPruneBroadphase::BroadphaseKeys,
-    Narrowphase::CollisionMaskRow,
-    Narrowphase::SharedThicknessRow,
-    ConstraintSolver::ConstraintMaskRow,
-    ConstraintSolver::SharedMassRow,
-    ConstraintSolver::SharedMaterialRow,
-
-    Row<CubeSprite>,
-    SharedTextureRow,
-    SharedMeshRow,
-    IsImmobile,
-
-    StableIDRow
-  >;
-
-  using InvisibleTerrainTable = Table<
-    TableName::TableNameRow,
-    SceneNavigator::IsClearedWithSceneTag,
-    FragmentBurstStatEffect::CanTriggerFragmentBurstRow,
-    ZeroMassObjectTableTag,
-    Tags::InvisibleTerrainRow,
-    Shapes::SharedRectangleRow,
-    FloatRow<Tags::Pos, Tags::X>,
-    FloatRow<Tags::Pos, Tags::Y>,
-    FloatRow<Tags::Pos, Tags::Z>,
-    FloatRow<Tags::Rot, Tags::CosAngle>,
-    FloatRow<Tags::Rot, Tags::SinAngle>,
-    Tags::ScaleXRow,
-    Tags::ScaleYRow,
-
-    //Gameplay data extracted from above
-    //TODO: take advantage of immobility to avoid the need for this
-    FloatRow<Tags::GPos, Tags::X>,
-    FloatRow<Tags::GPos, Tags::Y>,
-    FloatRow<Tags::GPos, Tags::Z>,
-    FloatRow<Tags::GRot, Tags::CosAngle>,
-    FloatRow<Tags::GRot, Tags::SinAngle>,
-
-    SweepNPruneBroadphase::BroadphaseKeys,
-    Narrowphase::CollisionMaskRow,
-    Narrowphase::SharedThicknessRow,
-    ConstraintSolver::ConstraintMaskRow,
-    ConstraintSolver::SharedMassRow,
-    ConstraintSolver::SharedMaterialRow,
-
-    IsImmobile,
-    StableIDRow
-  >;
-
-  using PlayerTable = Table<
-    TableName::TableNameRow,
-    SceneNavigator::IsClearedWithSceneTag,
-    IsPlayer,
-    Tags::ElementNeedsInitRow,
-
-    FloatRow<Tags::Pos, Tags::X>,
-    FloatRow<Tags::Pos, Tags::Y>,
-    FloatRow<Tags::Pos, Tags::Z>,
-    FloatRow<Tags::Rot, Tags::CosAngle>,
-    FloatRow<Tags::Rot, Tags::SinAngle>,
-    FloatRow<Tags::LinVel, Tags::X>,
-    FloatRow<Tags::LinVel, Tags::Y>,
-    FloatRow<Tags::LinVel, Tags::Z>,
-    FloatRow<Tags::AngVel, Tags::Angle>,
-    AccelerationZ,
-
-    //Gameplay data extracted from above
-    FloatRow<Tags::GPos, Tags::X>,
-    FloatRow<Tags::GPos, Tags::Y>,
-    FloatRow<Tags::GPos, Tags::Z>,
-    FloatRow<Tags::GRot, Tags::CosAngle>,
-    FloatRow<Tags::GRot, Tags::SinAngle>,
-    FloatRow<Tags::GLinVel, Tags::X>,
-    FloatRow<Tags::GLinVel, Tags::Y>,
-    FloatRow<Tags::GAngVel, Tags::Angle>,
-
-    //Impulses requested from gameplay
-    FloatRow<Tags::GLinImpulse, Tags::X>,
-    FloatRow<Tags::GLinImpulse, Tags::Y>,
-    FloatRow<Tags::GLinImpulse, Tags::Z>,
-    FloatRow<Tags::GAngImpulse, Tags::Angle>,
-
-    SweepNPruneBroadphase::BroadphaseKeys,
-    Narrowphase::CollisionMaskRow,
-    Narrowphase::SharedThicknessRow,
-    Shapes::SharedRectangleRow,
-    ConstraintSolver::ConstraintMaskRow,
-    ConstraintSolver::SharedMassRow,
-    ConstraintSolver::SharedMaterialRow,
-
-    Constraints::AutoManageJointTag,
-    Constraints::TableConstraintDefinitionsRow,
-    Constraints::ConstraintChangesRow,
-    Constraints::JointRow,
-    Constraints::ConstraintStorageRow,
-
-    Row<CubeSprite>,
-    GameInput::PlayerInputRow,
-    GameInput::StateMachineRow,
-    SharedTextureRow,
-    SharedMeshRow,
-    StableIDRow
-  >;
-  using CameraTable = Table<
-    TableName::TableNameRow,
-    Row<Camera>,
-    FloatRow<Tags::Pos, Tags::X>,
-    FloatRow<Tags::Pos, Tags::Y>,
-    GameInput::StateMachineRow,
-    GameInput::CameraDebugInputRow,
-    StableIDRow
-  >;
-
-  using FragmentSpawnerTable = Table<
-    TableName::TableNameRow,
-    FragmentSpawner::FragmentSpawnerTagRow,
-    FragmentSpawner::FragmentSpawnerCountRow,
-    FragmentSpawner::FragmentSpawnStateRow,
-    SharedTextureRow,
-    SharedMeshRow,
-    Narrowphase::CollisionMaskRow,
-    Tags::PosXRow,
-    Tags::PosYRow,
-    Tags::PosZRow,
-    Tags::RotXRow,
-    Tags::RotYRow,
-    Tags::ScaleXRow,
-    Tags::ScaleYRow,
-
-    Tags::GPosXRow,
-    Tags::GPosYRow,
-    Tags::GPosZRow,
-    Tags::GRotXRow,
-    Tags::GRotYRow,
-
-    StableIDRow
-  >;
-
-  using GameDatabase = Database<
-    GlobalGameData,
-    SpatialQuery::AABBSpatialQueriesTable,
-    SpatialQuery::CircleSpatialQueriesTable,
-    SpatialQuery::RaycastSpatialQueriesTable,
-    BroadphaseTable,
-    SP::SpatialPairsTable,
-    TerrainTable,
-    InvisibleTerrainTable,
-    GameObjectTable,
-    StaticGameObjectTable,
-    PlayerTable,
-    CameraTable,
-    DebugLineTable,
-    DebugTextTable,
-    TargetPosTable,
-    DynamicPhysicsObjects,
-    DynamicPhysicsObjectsWithZ,
-    DynamicPhysicsObjectsWithMotor,
-    FragmentSpawnerTable
-  >;
+  StorageTableBuilder createFragmentSpawner() {
+    StorageTableBuilder table;
+    addTransform25D(table);
+    addGameplayCopy(table);
+    table.addRows<
+      FragmentSpawner::FragmentSpawnerTagRow,
+      FragmentSpawner::FragmentSpawnerCountRow,
+      FragmentSpawner::FragmentSpawnStateRow,
+      SharedTextureRow,
+      SharedMeshRow,
+      Narrowphase::CollisionMaskRow
+    >().setStable().setTableName({ "FragmentSpawner" });
+    return table;
+  }
 
   void create(RuntimeDatabaseArgs& args) {
-    DBReflect::addDatabase<GameDatabase>(args);
+    createGlobalTable().finalize(args);
+    DBReflect::addTable<SpatialQuery::AABBSpatialQueriesTable>(args);
+    DBReflect::addTable<SpatialQuery::CircleSpatialQueriesTable>(args);
+    DBReflect::addTable<SpatialQuery::RaycastSpatialQueriesTable>(args);
+    DBReflect::addTable<BroadphaseTable>(args);
+    DBReflect::addTable<SP::SpatialPairsTable>(args);
+    createTerrain().finalize(args);
+    createInvisibleTerrain().finalize(args);
+    createFragmentSeekingGoal().finalize(args);
+    createCompletedFragments().finalize(args);
+    createPlayer().finalize(args);
+    createCamera().finalize(args);
+    DBReflect::addTable<DebugLineTable>(args);
+    DBReflect::addTable<DebugTextTable>(args);
+    DBReflect::addTable<TargetPosTable>(args);
+    createDynamicPhysicsObjects().finalize(args);
+    createDynamicPhysicsObjectsWithZ().finalize(args);
+    createDynamicPhysicsObjectsWithMotor().finalize(args);
+    createFragmentSpawner().finalize(args);
+
     StatEffect::createDatabase(args);
     Scenes::createImportedSceneDB(args);
     Scenes::createLoadingSceneDB(args);
@@ -521,19 +488,6 @@ namespace GameDatabase {
   }
 
   void configureDefaults(IAppBuilder& builder) {
-    setName<TargetTableTag>(builder, { "Targets" });
-    setName<ShapeRegistry::GlobalRow>(builder, { "Globals" });
-    setName<Tags::DynamicPhysicsObjectsTag>(builder, { "Physics Objects" });
-    setName<Tags::DynamicPhysicsObjectsWithZTag>(builder, { "Physics Objects Z" });
-    setName<SharedMassObjectTableTag>(builder, { "Active Fragments" });
-    setName<ZeroMassObjectTableTag, FragmentGoalFoundTableTag>(builder, { "Completed Fragments" });
-    setName<Tags::TerrainRow>(builder, { "Terrain" });
-    setName<IsPlayer>(builder, { "Player" });
-    setName<Row<Camera>>(builder, { "Cameras" });
-    setName<Tags::DynamicPhysicsObjectsWithMotorTag>(builder, { "Dynamic With Motor" });
-    setName<FragmentSpawner::FragmentSpawnerTagRow>(builder, { "FragmentSpawner" });
-    setName<Tags::InvisibleTerrainRow>(builder, { "InvisibleTerrain" });
-
     configureSelfMotor<Tags::DynamicPhysicsObjectsWithMotorTag>(builder);
     configureSelfMotor<FragmentSeekingGoalTagRow>(builder);
 

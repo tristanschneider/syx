@@ -44,6 +44,7 @@ namespace Tags {
 
   using GLinImpulseXRow = FloatRow<GLinImpulse, X>;
   using GLinImpulseYRow = FloatRow<GLinImpulse, Y>;
+  using GLinImpulseZRow = FloatRow<GLinImpulse, Z>;
   using GAngImpulseRow = FloatRow<GAngImpulse, Angle>;
 
   using FragmentGoalXRow = FloatRow<FragmentGoal, X>;

@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include "StableElementID.h"
+#include "TableName.h"
 
 QueryResultBase RuntimeDatabase::query() {
   std::vector<const RuntimeTable*> result(tables.size());
@@ -109,4 +110,22 @@ RuntimeDatabase::RuntimeDatabase(RuntimeDatabaseArgs&& args)
   }
 
   dirtyTables.resize(tables.size());
+}
+
+StorageTableBuilder& StorageTableBuilder::setTableName(TableName::TableName&& name) {
+  addRow<TableName::TableNameRow>().at() = std::move(name);
+  return *this;
+}
+
+StorageTableBuilder& StorageTableBuilder::setStable() {
+  return addRows<StableIDRow>();
+}
+
+void StorageTableBuilder::finalize(RuntimeDatabaseArgs& args)&& {
+  //Shouldn't matter what this is as long as it's unique
+  mBuilder.tableType.value = std::accumulate(mBuilder.rows.begin(), mBuilder.rows.end(), size_t{}, [](size_t h, const RuntimeTableRowBuilder::Row& row) {
+    return gnx::Hash::combine(h, row.type.value);
+  });
+  args.tables.push_back(std::move(mBuilder));
+  RuntimeStorage::addToChain<TChainedRuntimeStorage<std::unique_ptr<IRuntimeStorage>>>(args)->value = std::move(mStorage);
 }

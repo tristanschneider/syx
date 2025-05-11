@@ -4,6 +4,10 @@
 #include "RuntimeTable.h"
 #include "generics/DynamicBitset.h"
 
+namespace TableName {
+  struct TableName;
+}
+
 template<class RowT>
 using QueryResultRow = std::vector<RowT*>;
 
@@ -280,29 +284,41 @@ struct RuntimeDatabaseArgs {
 };
 
 struct ChainedRuntimeStorage : IRuntimeStorage {
-  ChainedRuntimeStorage(RuntimeDatabaseArgs& args)
-    : child{ std::move(args.storage) } {
+  ChainedRuntimeStorage(std::unique_ptr<IRuntimeStorage> root)
+    : child{ std::move(root) } {
   }
+
   std::unique_ptr<IRuntimeStorage> child;
+};
+
+template<class T>
+struct TChainedRuntimeStorage : ChainedRuntimeStorage {
+  using ChainedRuntimeStorage::ChainedRuntimeStorage;
+  T value;
 };
 
 namespace RuntimeStorage {
   template<class T>
   concept HasChainedStorageBase = std::is_base_of_v<ChainedRuntimeStorage, T>;
   template<class T>
-  concept IsRuntimeArgsConstructable = requires(RuntimeDatabaseArgs& args) {
-    T{ args };
+  concept IsRuntimeArgsConstructable = requires(std::unique_ptr<IRuntimeStorage> args) {
+    T{ std::move(args) };
   };
 
   template<class T>
   concept ChainedStorage = HasChainedStorageBase<T> && IsRuntimeArgsConstructable<T>;
 
   template<ChainedStorage T>
-  T* addToChain(RuntimeDatabaseArgs& args) {
-    std::unique_ptr<T> result = std::make_unique<T>(args);
+  T* addToChain(std::unique_ptr<IRuntimeStorage>& root) {
+    std::unique_ptr<T> result = std::make_unique<T>(std::move(root));
     T* ptr = result.get();
-    args.storage = std::move(result);
+    root = std::move(result);
     return ptr;
+  }
+
+  template<ChainedStorage T>
+  T* addToChain(RuntimeDatabaseArgs& args) {
+    return addToChain<T>(args.storage);
   }
 }
 
@@ -476,17 +492,53 @@ namespace DBReflect {
 
   template<class DB>
   void addDatabase(RuntimeDatabaseArgs& args) {
-    //Create a class to store the database
-    struct Storage : ChainedRuntimeStorage {
-      using ChainedRuntimeStorage::ChainedRuntimeStorage;
-      DB db;
-    };
     //Add the storage to the args
-    Storage* s = RuntimeStorage::addToChain<Storage>(args);
+    DB& s = RuntimeStorage::addToChain<TChainedRuntimeStorage<DB>>(args)->value;
     //Add the tables in the new database to args
-    reflect(s->db, args);
+    reflect(s, args);
+  }
+
+  template<class T>
+  void addTable(RuntimeDatabaseArgs& args) {
+    addTable(RuntimeStorage::addToChain<TChainedRuntimeStorage<T>>(args)->value, args);
   }
 
   void addStableMappings(RuntimeDatabaseArgs& args, std::unique_ptr<StableElementMappings> mappings);
   RuntimeDatabaseArgs createArgsWithMappings();
 }
+
+//Allows incrementally building up a table through addRow calls that can then be inserted into
+//RuntimeDatabaseArgs with `finalize`
+class StorageTableBuilder {
+public:
+  template<IsRow... Rows>
+  StorageTableBuilder& addRows() {
+    (addRow<Rows>(), ...);
+    return *this;
+  }
+
+  RuntimeTableRowBuilder& operator*() { return mBuilder; }
+  const RuntimeTableRowBuilder& operator*() const { return mBuilder; }
+  RuntimeTableRowBuilder* operator->() { return &mBuilder; }
+  const RuntimeTableRowBuilder* operator->() const { return &mBuilder; }
+
+  StorageTableBuilder& setTableName(TableName::TableName&& name);
+  StorageTableBuilder& setStable();
+
+  void finalize(RuntimeDatabaseArgs& args)&&;
+
+private:
+  template<IsRow R>
+  R& addRow() {
+    struct RowStorage : ChainedRuntimeStorage {
+      using ChainedRuntimeStorage::ChainedRuntimeStorage;
+      R row;
+    };
+    R& result = RuntimeStorage::addToChain<RowStorage>(mStorage)->row;
+    DBReflect::addRow(result, mBuilder);
+    return result;
+  }
+
+  RuntimeTableRowBuilder mBuilder;
+  std::unique_ptr<IRuntimeStorage> mStorage;
+};
