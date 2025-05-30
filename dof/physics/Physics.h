@@ -7,6 +7,8 @@
 #include "Table.h"
 #include "AppBuilder.h"
 
+class IAppModule;
+
 struct ZeroMassObjectTableTag : SharedRow<char> {};
 struct SpatialQueriesTableTag : SharedRow<char> {};
 
@@ -44,6 +46,8 @@ namespace Physics {
   constexpr float DEFAULT_Z = 0;
 
   //TODO: expose createDatabase here rather than having gameplay create the physics tables
+
+  std::unique_ptr<IAppModule> createModule(const PhysicsAliases& aliases);
 
   void integrateVelocity(IAppBuilder& builder, const PhysicsAliases& aliases);
   void integratePosition(IAppBuilder& builder, const PhysicsAliases& aliases);

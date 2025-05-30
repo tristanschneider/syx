@@ -10,7 +10,25 @@ namespace Geo {
   constexpr float RADDEG = 180.f/PI;
   constexpr float DEGRAD = PI/180.f;
 
+  constexpr glm::vec3 toVec3(const glm::vec2& v) {
+    return { v.x, v.y, 0.0f };
+  }
+
   struct AABB {
+    glm::vec2 center() const {
+      return (min + max) * 0.5f;
+    }
+
+    constexpr void buildInit() {
+      min = glm::vec2{ std::numeric_limits<float>::max() };
+      max = glm::vec2{ std::numeric_limits<float>::lowest() };
+    }
+
+    constexpr void buildAdd(const glm::vec2& p) {
+      min = glm::min(min, p);
+      max = glm::max(max, p);
+    }
+
     glm::vec2 min{ 0 };
     glm::vec2 max{ 0 };
   };

@@ -6,8 +6,32 @@
 
 #include "NotIspc.h"
 #include "Profile.h"
+#include <IAppModule.h>
+#include <shapes/Mesh.h>
 
 namespace Physics {
+  class ModuleImpl : public IAppModule {
+  public:
+    ModuleImpl(const PhysicsAliases& a)
+      : aliases{ a }
+    {
+    }
+
+    void createDependentDatabase(RuntimeDatabaseArgs& args) {
+      Shapes::MeshModule::createDependentDatabase(args);
+    }
+
+    virtual void postProcessEvents(IAppBuilder& builder) {
+      Shapes::MeshModule::postProcessEvents(builder);
+    }
+
+    const PhysicsAliases aliases;
+  };
+
+  std::unique_ptr<IAppModule> createModule(const PhysicsAliases& aliases) {
+    return std::make_unique<ModuleImpl>(aliases);
+  }
+
   void _integratePositionAxis(const float* velocity, float* position, size_t count) {
     ispc::integratePosition(position, velocity, uint32_t(count));
   }

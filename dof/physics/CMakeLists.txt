@@ -18,6 +18,7 @@ target_link_libraries(physics
     table
     profile
     config
+    loader
 )
 
 # Include this directory to anyone that includes this cmakelists

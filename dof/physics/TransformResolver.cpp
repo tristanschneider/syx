@@ -108,32 +108,35 @@ namespace pt {
   }
 
   FullTransform FullTransformResolver::resolve(const ElementRef& ref) {
-    if(auto raw = res.tryUnpack(ref)) {
-      const size_t i = raw->getElementIndex();
-      if(resolver->tryGetOrSwapRowAlias(alias.posX, posX, *raw) &&
-        resolver->tryGetOrSwapRowAlias(alias.posY, posY, *raw) &&
-        resolver->tryGetOrSwapRowAlias(alias.rotX, rotX, *raw) &&
-        resolver->tryGetOrSwapRowAlias(alias.rotY, rotY, *raw)
-      ) {
-        FullTransform result;
-        if(resolver->tryGetOrSwapRowAlias(alias.posZ, posZ, *raw)) {
-          result.pos.z = posZ->at(i);
-        }
-        if(resolver->tryGetOrSwapRowAlias(alias.scaleX, scaleX, *raw) &&
-          resolver->tryGetOrSwapRowAlias(alias.scaleY, scaleY, *raw)
-        ) {
-          result.scale = { scaleX->at(i), scaleY->at(i) };
-        }
-        else {
-          result.scale = { 1, 1 };
-        }
+    auto raw = res.tryUnpack(ref);
+    return raw ? resolve(*raw) : FullTransform{};
+  }
 
-        result.pos.x = posX->at(i);
-        result.pos.y = posY->at(i);
-        result.rot = { rotX->at(i), rotY->at(i) };
-
-        return result;
+  FullTransform FullTransformResolver::resolve(const UnpackedDatabaseElementID& ref) {
+    const size_t i = ref.getElementIndex();
+    if(resolver->tryGetOrSwapRowAlias(alias.posX, posX, ref) &&
+      resolver->tryGetOrSwapRowAlias(alias.posY, posY, ref) &&
+      resolver->tryGetOrSwapRowAlias(alias.rotX, rotX, ref) &&
+      resolver->tryGetOrSwapRowAlias(alias.rotY, rotY, ref)
+    ) {
+      FullTransform result;
+      if(resolver->tryGetOrSwapRowAlias(alias.posZ, posZ, ref)) {
+        result.pos.z = posZ->at(i);
       }
+      if(resolver->tryGetOrSwapRowAlias(alias.scaleX, scaleX, ref) &&
+        resolver->tryGetOrSwapRowAlias(alias.scaleY, scaleY, ref)
+      ) {
+        result.scale = { scaleX->at(i), scaleY->at(i) };
+      }
+      else {
+        result.scale = { 1, 1 };
+      }
+
+      result.pos.x = posX->at(i);
+      result.pos.y = posY->at(i);
+      result.rot = { rotX->at(i), rotY->at(i) };
+
+      return result;
     }
     return {};
   }

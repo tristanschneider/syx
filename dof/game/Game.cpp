@@ -225,6 +225,8 @@ namespace Game {
 #include "loader/ReflectionModule.h"
 #include "scenes/ImportedScene.h"
 #include "test/PhysicsTestModule.h"
+#include <Physics.h>
+#include <PhysicsSimulation.h>
 
 namespace GameDefaults {
   MultithreadedDeps DefaultGameDatabaseReader::getMultithreadedDeps(IDatabase& db) {
@@ -243,6 +245,7 @@ namespace GameDefaults {
     args.dbSource = std::make_unique<DefaultGameDatabaseReader>();
     //Add event validator if asserts are enabled. Best if registered early so that it can assert on bad events before they crash on a consumer.
     assert((args.modules.push_back(EventValidator::createModule("first")), true));
+    args.modules.push_back(Physics::createModule(PhysicsSimulation::getPhysicsAliases()));
     args.modules.push_back(Simulation::createModule(config));
     args.modules.push_back(FragmentSpawner::createModule());
     args.modules.push_back(SceneNavigator::createModule());

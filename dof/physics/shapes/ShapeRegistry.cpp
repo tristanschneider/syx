@@ -30,6 +30,9 @@ namespace ShapeRegistry {
     glm::vec2 operator()(const std::monostate&) const {
       return { 0, 0 };
     }
+    glm::vec2 operator()(const Mesh& m) const {
+      return m.transform.transformPoint(Geo::toVec3(m.aabb.center()));
+    }
   };
 
   glm::vec2 getCenter(const BodyType& shape) {

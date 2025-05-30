@@ -67,6 +67,7 @@ namespace pt {
     FullTransformResolver(RuntimeDatabaseTaskBuilder& task, const FullTransformAlias& a);
 
     FullTransform resolve(const ElementRef& ref);
+    FullTransform resolve(const UnpackedDatabaseElementID& ref);
 
     using FRow = CachedRow<const Row<float>>;
     FRow posX, posY, posZ, rotX, rotY, scaleX, scaleY;

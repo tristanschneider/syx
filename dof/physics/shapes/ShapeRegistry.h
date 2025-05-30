@@ -5,6 +5,8 @@
 #include <variant>
 #include "QueryAlias.h"
 #include "DatabaseID.h"
+#include <TransformResolver.h>
+#include <Geometric.h>
 
 struct UnpackedDatabaseElementID;
 class IAppBuilder;
@@ -30,7 +32,12 @@ namespace ShapeRegistry {
     glm::vec2 pos{};
     float radius{};
   };
-  using Variant = std::variant<std::monostate, Rectangle, Raycast, AABB, Circle>;
+  struct Mesh {
+    const std::vector<glm::vec2>& points;
+    Geo::AABB aabb;
+    pt::FullTransform transform;
+  };
+  using Variant = std::variant<std::monostate, Rectangle, Raycast, AABB, Circle, Mesh>;
 
   struct BodyType {
     Variant shape;
