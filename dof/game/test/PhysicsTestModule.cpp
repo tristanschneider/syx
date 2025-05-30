@@ -11,7 +11,7 @@
 #include <TLSTaskImpl.h>
 #include <TableName.h>
 #include <Narrowphase.h>
-
+#include <shapes/Rectangle.h>
 
 namespace PhysicsTestModule {
   //Objects with collision being checked for correctness
@@ -44,7 +44,8 @@ namespace PhysicsTestModule {
         addBase(table);
         GameDatabase::addCollider(table);
         table.addRows<
-          ValidationTargetRow
+          ValidationTargetRow,
+          Shapes::SharedRectangleRow
         >().setTableName({ "CollisionToValidate" });
         return table;
       }).finalize(args);

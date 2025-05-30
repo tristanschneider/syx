@@ -15,7 +15,7 @@ class ITableResolver;
 namespace ShapeRegistry {
   struct Rectangle {
     glm::vec2 center{};
-    glm::vec2 right{};
+    glm::vec2 right{ 1, 0 };
     glm::vec2 halfWidth{ 0.5f };
   };
   struct Raycast {
