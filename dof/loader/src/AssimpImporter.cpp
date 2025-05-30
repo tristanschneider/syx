@@ -291,6 +291,7 @@ namespace Loader {
   struct Vec3Value : ValueT<Vec3Row, SharedVec3Row> {};
   struct Vec4Value : ValueT<Vec4Row, SharedVec4Row> {};
   struct StringValue : ValueT<StringRow, SharedStringRow> {};
+  struct IDRefValue : ValueT<IDRefRow, SharedIDRefRow> {};
 
   using SingleElementVariant = std::variant<
     NoValue,
@@ -301,7 +302,8 @@ namespace Loader {
     Vec2Value,
     Vec3Value,
     Vec4Value,
-    StringValue
+    StringValue,
+    IDRefValue
   >;
 
   std::optional<float> tryReadFloat(const aiMetadataEntry& data) {
@@ -329,11 +331,13 @@ namespace Loader {
     return {};
   }
 
+  const char* readCStr(const aiMetadataEntry& data) {
+    return data.mType == AI_AISTRING ? static_cast<const aiString*>(data.mData)->C_Str() : nullptr;
+  }
+
   std::optional<std::string> tryReadString(const aiMetadataEntry& data) {
-    switch(data.mType) {
-      case AI_AISTRING: return std::string{ static_cast<aiString*>(data.mData)->C_Str() };
-    }
-    return {};
+    const char* str = readCStr(data);
+    return str ? std::make_optional(std::string{ str }) : std::nullopt;
   }
 
   std::optional<glm::vec3> tryReadVec3(const aiMetadataEntry& data) {
@@ -344,6 +348,22 @@ namespace Loader {
       }
     }
     return {};
+  }
+
+  std::optional<ObjID> tryReadObjID(const aiMetadata& meta) {
+    if(meta.mNumProperties != 2) {
+      return {};
+    }
+    const char* key = readCStr(meta.mValues[1]);
+    const char* value = readCStr(meta.mValues[0]);
+    if(!(key && value)) {
+      return {};
+    }
+    constexpr std::string_view objectKey = "Object";
+    if(std::strncmp(objectKey.data(), key, objectKey.size())) {
+      return {};
+    }
+    return ObjID{ ObjID::RawViewHash{}(std::string_view{ value }) };
   }
 
   SingleElementVariant readSingleElement(const aiMetadataEntry& data) {
@@ -372,6 +392,10 @@ namespace Loader {
     if(!count) {
       return NoValue{};
     }
+    if(const auto v = tryReadObjID(*meta)) {
+      return IDRefValue{ *v };
+    }
+
     //If the first value is a float, try to read all values as a float
     //Fail if any are the wrong type
     //Interpret as float if it's an array of one, otherwise vec2,3,4. Bigger than that is not supported.
@@ -428,7 +452,6 @@ namespace Loader {
 
     return NoValue{};
   }
-
 
   template<IsRow T>
   struct DynamicRowStorage : ChainedRuntimeStorage {
@@ -508,6 +531,8 @@ namespace Loader {
 
     TransformRow& transform = getOrCreateRow<TransformRow>(TransformRow::KEY, table, scene);
     assignElement(transform, i, loadTransform(node.transform));
+    IDRow& id = getOrCreateRow<IDRow>(IDRow::KEY, table, scene);
+    assignElement(id, i, ObjID{ ObjID::RawViewHash{}(std::string_view{ node.node->mName.C_Str() }) });
 
     if(auto mesh = tryLoadMeshIndex(*node.node, ctx)) {
       assignElement(getOrCreateRow<MatMeshRefRow>(MatMeshRefRow::KEY, table, scene), i, std::move(*mesh));

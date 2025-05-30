@@ -45,7 +45,8 @@ namespace QuadPassTable {
     IsImmobileRow,
     PassRow,
     SharedTextureRow,
-    SharedMeshRow
+    SharedMeshRow,
+    MeshRow
   >;
 };
 
@@ -486,6 +487,7 @@ void Renderer::extractRenderables(IAppBuilder& builder) {
 
   //Quads
   for(size_t pass = 0; pass < passes.size(); ++pass) {
+    QuadPass& passConfig = passes.get<0>(pass).at();
     const TableID& passID = passes[pass];
     const TableID& spriteID = sharedTextureSprites[pass];
 
@@ -505,7 +507,14 @@ void Renderer::extractRenderables(IAppBuilder& builder) {
     extractUV(builder, spriteID, passID);
 
     CommonTasks::moveOrCopyRowSameSize<SharedTextureRow, SharedTextureRow>(builder, spriteID, passID);
-    CommonTasks::moveOrCopyRowSameSize<SharedMeshRow, SharedMeshRow>(builder, spriteID, passID);
+    if(temp.query<SharedMeshRow>(spriteID).size()) {
+      passConfig.sharedMesh = true;
+      CommonTasks::moveOrCopyRowSameSize<SharedMeshRow, SharedMeshRow>(builder, spriteID, passID);
+    }
+    else if(temp.query<MeshRow>(spriteID).size()) {
+      passConfig.sharedMesh = false;
+      CommonTasks::moveOrCopyRowSameSize<MeshRow, MeshRow>(builder, spriteID, passID);
+    }
 
     //Tint is optional
     if(temp.query<Tint>(spriteID).size()) {
@@ -716,6 +725,25 @@ void Renderer::preProcessEvents(IAppBuilder& builder) {
   builder.submitTask(TLSTask::create<AddRemoveAssets>("renderer assets"));
 }
 
+struct GetMeshOps {
+  RenderAssetReader& assets;
+  const SharedMeshRow& sharedMeshes;
+  const MeshRow& individualMeshes;
+  const MeshGPUAsset& fallback;
+};
+
+const MeshGPUAsset& getIndividualMesh(size_t e, const GetMeshOps& ops) {
+  const MeshGPUAsset* meshAsset = ops.assets.tryGetMesh(ops.individualMeshes.at(e).asset);
+  //Fall back to quad mesh if supplied mesh isn't valid
+  return MeshGPUAsset::isValid(meshAsset) ? *meshAsset : ops.fallback;
+}
+
+const MeshGPUAsset& getSharedMesh(size_t, const GetMeshOps& ops) {
+  const MeshGPUAsset* meshAsset = ops.assets.tryGetMesh(ops.sharedMeshes.at().asset);
+  //Fall back to quad mesh if supplied mesh isn't valid
+  return MeshGPUAsset::isValid(meshAsset) ? *meshAsset : ops.fallback;
+}
+
 void Renderer::render(IAppBuilder& builder) {
   auto task = builder.createTask();
   task.setName("Render");
@@ -724,6 +752,7 @@ void Renderer::render(IAppBuilder& builder) {
     const QuadPassTable::UVOffsetRow,
     const SharedTextureRow,
     const SharedMeshRow,
+    const MeshRow,
     const QuadPassTable::TintRow,
     QuadPassTable::PassRow>();
   RenderAssetReader assets{ task };
@@ -767,7 +796,7 @@ void Renderer::render(IAppBuilder& builder) {
     for(const auto& renderCamera : cameras) {
       PROFILE_SCOPE("renderer", "geometry");
       for(size_t i = 0; i < quads.size(); ++i) {
-        auto [transforms, uvOffsets, textureIDs, meshes, tints, passes] = quads.get(i);
+        auto [transforms, uvOffsets, textureIDs, sharedMeshes, individualMeshes, tints, passes] = quads.get(i);
         QuadPass& pass = passes->at();
 
         size_t count = transforms->size();
@@ -776,30 +805,58 @@ void Renderer::render(IAppBuilder& builder) {
         }
 
         const MaterialGPUAsset* material = assets.tryGetMaterial(textureIDs->at().asset);
-        const MeshGPUAsset* meshAsset = assets.tryGetMesh(meshes->at().asset);
-        //Fall back to quad mesh if supplied mesh isn't valid
-        const MeshGPUAsset& mesh = MeshGPUAsset::isValid(meshAsset) ? *meshAsset : state->quadMesh;
         //Don't render anything if material is missing
         if(!MaterialGPUAsset::isValid(material)) {
           continue;
         }
-        pass.mQuadUniforms.bindings.images[IMG_tex] = material->image;
-        pass.mQuadUniforms.bindings.vertex_buffers[0] = mesh.vertexBuffer;
+
+        const GetMeshOps meshOps{
+          .assets = assets,
+          .sharedMeshes = *sharedMeshes,
+          .individualMeshes = *individualMeshes,
+          .fallback = state->quadMesh
+        };
+        struct MeshInfo {
+          decltype(&getSharedMesh) getMesh{};
+          size_t stride{};
+        };
+        //Either draw the entire table at once as the same mesh, or draw each mesh one by one.
+        //The is of course inefficient but good enough for now.
+        const MeshInfo meshInfo = std::invoke([&]{
+          return pass.sharedMesh ?
+            MeshInfo{
+              .getMesh = &getSharedMesh,
+              .stride = transforms->size()
+            }
+            :
+            MeshInfo{
+              .getMesh = &getIndividualMesh,
+              .stride = 1
+            };
+        });
 
         sg_update_buffer(pass.mQuadUniforms.bindings.storage_buffers[SBUF_mw], sg_range{ transforms->data(), sizeof(TMS::MW_t)*transforms->size() });
         //TODO: these rarely change, only upload when needed
         sg_update_buffer(pass.mQuadUniforms.bindings.storage_buffers[SBUF_tint], sg_range{ tints->data(), sizeof(TMS::TINT_t)*tints->size() });
         sg_update_buffer(pass.mQuadUniforms.bindings.storage_buffers[SBUF_uv], sg_range{ uvOffsets->data(), sizeof(TMS::UV_t)*uvOffsets->size() });
 
-        const glm::mat4& worldToView = renderCamera.worldToView;
+        for(size_t e = 0; e < transforms->size(); e += meshInfo.stride) {
+          const MeshGPUAsset& mesh = meshInfo.getMesh(e, meshOps);
 
-        TMS::uniforms_t uniforms{};
-        std::memcpy(uniforms.worldToView, &worldToView, sizeof(glm::mat4));
+          pass.mQuadUniforms.bindings.images[IMG_tex] = material->image;
+          pass.mQuadUniforms.bindings.vertex_buffers[0] = mesh.vertexBuffer;
 
-        sg_apply_bindings(pass.mQuadUniforms.bindings);
-        sg_apply_uniforms(UB_uniforms, sg_range{ &uniforms, sizeof(uniforms) });
+          const glm::mat4& worldToView = renderCamera.worldToView;
 
-        sg_draw(0, static_cast<int>(mesh.vertexCount), transforms->size());
+          TMS::uniforms_t uniforms{};
+          std::memcpy(uniforms.worldToView, &worldToView, sizeof(glm::mat4));
+          uniforms.instanceOffset = static_cast<int>(e);
+
+          sg_apply_bindings(pass.mQuadUniforms.bindings);
+          sg_apply_uniforms(UB_uniforms, sg_range{ &uniforms, sizeof(uniforms) });
+
+          sg_draw(0, static_cast<int>(mesh.vertexCount), meshInfo.stride);
+        }
       }
     }
   });

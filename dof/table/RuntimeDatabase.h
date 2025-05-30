@@ -11,33 +11,25 @@ namespace TableName {
 template<class RowT>
 using QueryResultRow = std::vector<RowT*>;
 
-template<class T> struct TestT : std::true_type {};
-
 template<class T>
-concept AddableIterator = requires(const T& it, size_t i) {
-  T{ it + i };
+concept UsesBeginEndIterators = requires(T t) {
+  { t.begin() };
+  { t.end() };
+};
+template<class T>
+concept UsesRandomAccessIterator = !UsesBeginEndIterators<T> && requires(T t, size_t i) {
+  { t.begin() + i };
 };
 
 template<class T>
-struct IterableRow {
+struct IterableRowBase {
+  IterableRowBase(T* r, size_t sz)
+    : row{ r }
+    , size{ sz }
+  {}
+
   T* row{};
   size_t size{};
-
-  typename T::IteratorT begin() const {
-    return row->begin();
-  }
-
-  typename T::IteratorT end() const {
-    return row->begin() + size;
-  }
-
-  typename T::ConstIteratorT cbegin() const {
-    return row->begin();
-  }
-
-  typename T::ConstIteratorT cend() const {
-    return row->begin() + size;
-  }
 
   T* operator->() const {
     return row;
@@ -53,6 +45,57 @@ struct IterableRow {
 
   explicit operator bool() const {
     return row != nullptr;
+  }
+};
+
+//Default doesn't expose iterators, just the underlying row
+template<class T>
+struct IterableRow : IterableRowBase<T> {
+  using IterableRowBase<T>::IterableRowBase;
+};
+
+//If end iterator is exposed, use that
+template<UsesBeginEndIterators T>
+struct IterableRow<T> : IterableRowBase<T> {
+  using IterableRowBase<T>::IterableRowBase;
+
+  //May be iterator or const iterator depending on if the wrapped row is const
+  auto begin() const {
+    return this->row->begin();
+  }
+
+  auto end() const {
+    return this->row->end();
+  }
+
+  typename T::ConstIteratorT cbegin() const {
+    return this->row->begin();
+  }
+
+  typename T::ConstIteratorT cend() const {
+    return this->row->end();
+  }
+};
+
+//If it's a random access iterator, use that to generate a range based off of begin and size
+template<UsesRandomAccessIterator T>
+struct IterableRow<T> : IterableRowBase<T> {
+  using IterableRowBase<T>::IterableRowBase;
+
+  typename T::IteratorT begin() const {
+    return this->row->begin();
+  }
+
+  typename T::IteratorT end() const {
+    return this->row->begin() + this->size;
+  }
+
+  typename T::ConstIteratorT cbegin() const {
+    return this->row->begin();
+  }
+
+  typename T::ConstIteratorT cend() const {
+    return this->row->begin() + this->size;
   }
 };
 

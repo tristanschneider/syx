@@ -37,6 +37,7 @@ struct QueryAlias : QueryAliasBase {
     using MutableSourceT = std::remove_const_t<SourceT>;
 
     struct Caster {
+      //TODO: isn't it valid to cast directly to the result? If so that simplifies a lot
       static MutableT* cast(void* p) {
         return static_cast<MutableT*>(static_cast<MutableSourceT*>(p));
       }

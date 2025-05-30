@@ -3,6 +3,7 @@
 #include "generics/IndexRange.h"
 #include "loader/Reflection.h"
 #include "RuntimeTable.h"
+#include <QueryAlias.h>
 
 class IAppBuilder;
 class IAppModule;
@@ -14,9 +15,41 @@ namespace Reflection {
   public:
     virtual ~IRowLoader() = default;
 
+    //Determines the type of the row that will be loaded if specified in a scene
     virtual DBTypeID getTypeID() const = 0;
+    //The name that is used as the row key in the scene, which is the source of the DBTypeID (hashed)
     virtual std::string_view getName() const = 0;
+    //Will be called on when any elements are loaded that contain the type from getTypeID
     virtual void load(const IRow& src, RuntimeTable& dst, gnx::IndexRange range) const = 0;
+    //Optionally register tasks to do initialization beyond the data copy performed by instantiating the objects.
+    //Query EventsRow in the desired tables to find newly added/moved/removed elements
+    virtual void postProcessEvents(IAppBuilder&) const {}
+  };
+
+  //Use to load an IDRefRow into a PersistentElementRefRow
+  class ObjIDLoaderBase : public IRowLoader {
+  public:
+    ObjIDLoaderBase(QueryAlias<Loader::PersistentElementRefRow> dstType, std::string_view name);
+
+    void load(const IRow& src, RuntimeTable& dst, gnx::IndexRange range) const final;
+    void postProcessEvents(IAppBuilder&) const final;
+    DBTypeID getTypeID() const final;
+    std::string_view getName() const final;
+  private:
+    const std::string_view name;
+    const DBTypeID srcType;
+    QueryAlias<Loader::PersistentElementRefRow> dstQuery;
+  };
+
+  template<class T>
+  concept IsIDRow = Loader::IsLoadableRow<T> && std::is_base_of_v<Loader::PersistentElementRefRow, T>;
+
+  template<IsIDRow R>
+  class ObjIDLoader : public ObjIDLoaderBase {
+  public:
+    ObjIDLoader()
+      : ObjIDLoaderBase{ QueryAlias<Loader::PersistentElementRefRow>::create<R>(), R::KEY } {
+    }
   };
 
   template<class T>

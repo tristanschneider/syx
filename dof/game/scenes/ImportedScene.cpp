@@ -190,7 +190,7 @@ namespace BasicLoaders {
     using src_row = Loader::MatMeshRefRow;
     static constexpr std::string_view NAME = src_row::KEY;
 
-    static void load(const IRow& src, RuntimeTable& dst, gnx::IndexRange) {
+    static void load(const IRow& src, RuntimeTable& dst, gnx::IndexRange range) {
       using namespace gnx::func;
       using namespace Reflection;
 
@@ -198,6 +198,7 @@ namespace BasicLoaders {
       //Currently there are only shared meshes and textures, so pick one asset and use that for the table
       const auto one = gnx::makeIndexRangeBeginCount<size_t>(0, 1);
       tryLoadRow<SharedMeshRow>(s, dst, one, GetMember<&Loader::MatMeshRef::mesh>{});
+      tryLoadRow<MeshRow>(s, dst, range, GetMember<&Loader::MatMeshRef::mesh>{});
       tryLoadRow<SharedTextureRow>(s, dst, one, GetMember<&Loader::MatMeshRef::material>{});
     }
   };

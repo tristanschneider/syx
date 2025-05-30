@@ -4,6 +4,7 @@ in vec2 vertUV;
 
 layout(binding=0) uniform uniforms{
   mat4 worldToView;
+  int instanceOffset;
 };
 
 struct MW {
@@ -28,7 +29,7 @@ out vec2 fragUV;
 out vec4 fragTint;
 
 void main() {
-  int i = gl_InstanceIndex;
+  int i = gl_InstanceIndex + instanceOffset;
   UV objUV = uvCoords[i];
   TINT objTint = tints[i];
   MW objMW = modelToWorld[i];

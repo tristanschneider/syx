@@ -14,3 +14,4 @@ struct MeshReference {
 
 using SharedTextureRow = SharedRow<TextureReference>;
 using SharedMeshRow = SharedRow<MeshReference>;
+struct MeshRow : Row<MeshReference> {};

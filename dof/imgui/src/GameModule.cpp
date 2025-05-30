@@ -149,6 +149,9 @@ namespace Scenes {
     if(ImGui::Button("Imported")) {
       importer.importScene({ fs.mRoot + "scene.glb" });
     }
+    if(ImGui::Button("Physics Validation")) {
+      importer.importScene({ fs.mRoot + "physics_validation.glb" });
+    }
     ImGui::End();
   }
 }

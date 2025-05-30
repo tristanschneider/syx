@@ -8,4 +8,6 @@ struct QuadUniforms {
 
 struct QuadPass {
   QuadUniforms mQuadUniforms;
+  //Indicates if mesh comes from SharedMeshRow (true) or MeshRow (false)
+  bool sharedMesh{ true };
 };

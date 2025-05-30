@@ -181,6 +181,21 @@ namespace GameDatabase {
     >();
   }
 
+  StorageTableBuilder& addRenderable(StorageTableBuilder& table, const RenderableOptions& ops) {
+    assert(ops.sharedTexture && "Individual textures not currently supported");
+    if(ops.sharedTexture) {
+      table.addRows<SharedTextureRow>();
+    }
+    if(ops.sharedMesh) {
+      table.addRows<SharedMeshRow>();
+    }
+    else {
+      table.addRows<MeshRow>();
+    }
+    //Currently this plus the presence of a model and mesh are what the renderer look for to render any type of mesh
+    return table.addRows<Row<CubeSprite>>();
+  }
+
   StorageTableBuilder& addRigidbodySharedMass(StorageTableBuilder& table) {
     return table.addRows<
       ConstraintSolver::ConstraintMaskRow,
@@ -195,15 +210,13 @@ namespace GameDatabase {
     addVelocity2D(table);
     addCollider(table);
     addRigidbody(table);
+    addRenderable(table, {});
     table.addRows<
       Tags::DynamicPhysicsObjectsTag,
       SceneNavigator::IsClearedWithSceneTag,
       AccelerationY,
       Narrowphase::SharedThicknessRow,
-      Shapes::SharedRectangleRow,
-      Row<CubeSprite>,
-      SharedTextureRow,
-      SharedMeshRow
+      Shapes::SharedRectangleRow
     >().setStable().setTableName({ "Physics Objects" });
     addGameplayCopy(table);
     addGameplayImpulse(table);
@@ -232,14 +245,12 @@ namespace GameDatabase {
     addCollider(table);
     addRigidbody(table);
     addAutoManagedJoint(table);
+    addRenderable(table, {});
     table.addRows<
       Tags::DynamicPhysicsObjectsWithMotorTag,
       SceneNavigator::IsClearedWithSceneTag,
       Narrowphase::SharedThicknessRow,
-      Shapes::SharedRectangleRow,
-      Row<CubeSprite>,
-      SharedTextureRow,
-      SharedMeshRow
+      Shapes::SharedRectangleRow
     >().setStable().setTableName({ "Dynamic With Motor" });
     return table;
   }
@@ -250,14 +261,12 @@ namespace GameDatabase {
     addVelocity25D(table);
     addCollider(table);
     addRigidbody(table);
+    addRenderable(table, {});
     table.addRows<
       Tags::DynamicPhysicsObjectsWithZTag,
       SceneNavigator::IsClearedWithSceneTag,
       Narrowphase::SharedThicknessRow,
-      Shapes::SharedRectangleRow,
-      Row<CubeSprite>,
-      SharedTextureRow,
-      SharedMeshRow
+      Shapes::SharedRectangleRow
     >().setStable().setTableName({ "Physics Objects Z" });
     addGameplayCopy(table);
     addGameplayImpulse(table);
@@ -273,6 +282,7 @@ namespace GameDatabase {
     addRigidbody(table);
     addGameplayCopy(table);
     addGameplayImpulse(table);
+    addRenderable(table, {});
     table.addRows<
       SceneNavigator::IsClearedWithSceneTag,
       FragmentSeekingGoalTagRow,
@@ -293,9 +303,6 @@ namespace GameDatabase {
       Narrowphase::SharedThicknessRow,
       Shapes::SharedRectangleRow,
 
-      Row<CubeSprite>,
-      SharedTextureRow,
-      SharedMeshRow,
       IsFragment
     >().setStable().setTableName({ "Active Fragments" });
     return table;
@@ -315,6 +322,7 @@ namespace GameDatabase {
     addRigidbodySharedMass(table);
     addImmobile(table);
     addGameplayCopy(table);
+    addRenderable(table, {});
     table.addRows<
       SceneNavigator::IsClearedWithSceneTag,
       FragmentBurstStatEffect::CanTriggerFragmentBurstRow,
@@ -323,9 +331,6 @@ namespace GameDatabase {
       Narrowphase::SharedThicknessRow,
       Shapes::SharedRectangleRow,
 
-      Row<CubeSprite>,
-      SharedTextureRow,
-      SharedMeshRow,
       IsFragment
     >().setStable().setTableName({ "Completed Fragments" });
     return table;
@@ -338,15 +343,13 @@ namespace GameDatabase {
     addCollider(table);
     addRigidbodySharedMass(table);
     addGameplayCopy(table);
+    addRenderable(table, {});
     table.addRows<
       SceneNavigator::IsClearedWithSceneTag,
       FragmentBurstStatEffect::CanTriggerFragmentBurstRow,
       Tags::TerrainRow,
       Shapes::SharedRectangleRow,
-      Narrowphase::SharedThicknessRow,
-      Row<CubeSprite>,
-      SharedTextureRow,
-      SharedMeshRow
+      Narrowphase::SharedThicknessRow
     >().setStable().setTableName({ "Terrain" });
     return table;
   }
@@ -377,6 +380,7 @@ namespace GameDatabase {
     addAutoManagedJoint(table);
     addGameplayCopy(table);
     addGameplayImpulse(table);
+    addRenderable(table, {});
     table.addRows<
       SceneNavigator::IsClearedWithSceneTag,
       IsPlayer,
@@ -384,11 +388,8 @@ namespace GameDatabase {
       AccelerationZ,
       Narrowphase::SharedThicknessRow,
       Shapes::SharedRectangleRow,
-      Row<CubeSprite>,
       GameInput::PlayerInputRow,
-      GameInput::StateMachineRow,
-      SharedTextureRow,
-      SharedMeshRow
+      GameInput::StateMachineRow
     >().setStable().setTableName({ "Player" });
     return table;
   }
@@ -413,6 +414,7 @@ namespace GameDatabase {
       FragmentSpawner::FragmentSpawnerTagRow,
       FragmentSpawner::FragmentSpawnerCountRow,
       FragmentSpawner::FragmentSpawnStateRow,
+      //Atypical use of these not to render itself but to pass down to the created fragments
       SharedTextureRow,
       SharedMeshRow,
       Narrowphase::CollisionMaskRow
@@ -465,6 +467,7 @@ namespace GameDatabase {
     TableName::setName<Filter...>(builder, std::move(name));
   }
 
+  //TODO: a nicer way to expose this may be for the physics module to expose a method that takes a StorageTableBuilder that can configure these as they're added.
   template<class... Filter>
   void configureSelfMotor(IAppBuilder& builder) {
     auto task = builder.createTask();

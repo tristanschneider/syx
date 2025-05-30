@@ -172,9 +172,12 @@ private:
 class ElementRef {
 public:
   ElementRef() = default;
+  ElementRef(StableElementMappingPtr m, StableElementVersion v)
+    : ref{ m }
+    , expectedVersion{ v } {
+  }
   ElementRef(StableElementMappingPtr mapping)
-    : ref{ mapping }
-    , expectedVersion{ mapping ? mapping->getVersion() : StableElementVersion{} } {
+    : ElementRef{ mapping, mapping ? mapping->getVersion() : StableElementVersion{} } {
   }
 
   explicit operator bool() const {

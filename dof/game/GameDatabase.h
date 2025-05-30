@@ -8,6 +8,7 @@ class IAppBuilder;
 class RuntimeDatabaseTaskBuilder;
 struct RuntimeDatabaseArgs;
 class RuntimeDatabase;
+class StorageTableBuilder;
 struct AppTaskArgs;
 
 namespace GameDatabase {
@@ -24,6 +25,19 @@ namespace GameDatabase {
     TableID physicsObjsWithZ;
     TableID fragmentSpawner;
   };
+
+  struct RenderableOptions {
+    //All objects in this table use the same texture
+    bool sharedTexture = true;
+    bool sharedMesh = true;
+  };
+
+  StorageTableBuilder& addTransform25D(StorageTableBuilder& table);
+  StorageTableBuilder& addVelocity25D(StorageTableBuilder& table);
+  StorageTableBuilder& addGameplayCopy(StorageTableBuilder& table);
+  StorageTableBuilder& addCollider(StorageTableBuilder& table);
+  StorageTableBuilder& addRigidbody(StorageTableBuilder& table);
+  StorageTableBuilder& addRenderable(StorageTableBuilder& table, const RenderableOptions& ops);
 
   void create(RuntimeDatabaseArgs& args);
   void configureDefaults(IAppBuilder& builder);

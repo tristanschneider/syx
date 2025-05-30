@@ -224,6 +224,7 @@ namespace Game {
 #include "RespawnArea.h"
 #include "loader/ReflectionModule.h"
 #include "scenes/ImportedScene.h"
+#include "test/PhysicsTestModule.h"
 
 namespace GameDefaults {
   MultithreadedDeps DefaultGameDatabaseReader::getMultithreadedDeps(IDatabase& db) {
@@ -249,6 +250,7 @@ namespace GameDefaults {
     args.modules.push_back(RespawnArea::createModule());
     args.modules.push_back(BasicLoaders::createModule());
     args.modules.push_back(ReflectionModule::create());
+    args.modules.push_back(PhysicsTestModule::create());
     assert((args.modules.push_back(EventValidator::createModule("last")), true));
     args.modules.push_back(Events::createModule());
     //Rendering is from a separate project so "default" exposed here is empty
