@@ -12,7 +12,7 @@ namespace Reflection {
   constexpr bool DEBUG_LOAD = true;
 
   struct Mappings {
-    std::unordered_map<DBTypeID, std::unique_ptr<const IRowLoader>> loaders;
+    std::unordered_map<DBTypeID, std::vector<std::unique_ptr<const IRowLoader>>> loaders;
     //TableName::TableNameRow hash to the corresponding table in the game database
     std::unordered_map<size_t, RuntimeTable*> nameHashToTable;
   };
@@ -38,7 +38,7 @@ namespace Reflection {
       if(group.mappings) {
         for(auto&& loader : group.loaders) {
           const DBTypeID id = loader->getTypeID();
-          group.mappings->loaders.emplace(std::make_pair(id, std::move(loader)));
+          group.mappings->loaders[id].push_back(std::move(loader));
         }
       }
     }
@@ -78,8 +78,8 @@ namespace Reflection {
     //Read elements row by row
     for(auto [type, row] : src) {
       if(auto loader = mappings.loaders.find(type); loader != mappings.loaders.end()) {
-        if(loader->second) {
-          loader->second->load(*row, dst, range);
+        for(auto&& l : loader->second) {
+          l->load(*row, dst, range);
         }
       }
     }
@@ -155,7 +155,6 @@ namespace Reflection {
     }
   }
 
-  
   struct InitIDS {
     struct Group {
       void init(QueryAlias<Loader::PersistentElementRefRow> q) {
@@ -248,7 +247,9 @@ namespace ReflectionModule {
       auto temp = builder.createTask();
       const Reflection::Mappings* mappings = temp.query<const Reflection::MappingsRow>().tryGetSingletonElement();
       for(auto&& loader : mappings->loaders) {
-        loader.second->postProcessEvents(builder);
+        for(auto&& l : loader.second) {
+          l->postProcessEvents(builder);
+        }
       }
       temp.discard();
     }

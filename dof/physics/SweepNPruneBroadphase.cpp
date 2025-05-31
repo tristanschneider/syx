@@ -26,11 +26,11 @@ namespace SweepNPruneBroadphase {
     const auto& lookup = ShapeRegistry::get(task)->lookup();
     taskDatas->reserve(lookup.size());
     for(auto&& [table, impl] : lookup) {
-      TaskData& data = taskDatas->emplace_back();
       auto kq = task.queryAlias(table, keyAlias);
       if(!kq.size()) {
         continue;
       }
+      TaskData& data = taskDatas->emplace_back();
       data.keys = &kq.get<0>(0);
       data.bounds.table = table;
       data.bounds.requiredDependency = QueryAliasBase{ gridAlias };

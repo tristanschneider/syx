@@ -10,26 +10,10 @@
 #include <shapes/Mesh.h>
 
 namespace Physics {
-  class ModuleImpl : public IAppModule {
-  public:
-    ModuleImpl(const PhysicsAliases& a)
-      : aliases{ a }
-    {
-    }
-
-    void createDependentDatabase(RuntimeDatabaseArgs& args) {
-      Shapes::MeshModule::createDependentDatabase(args);
-    }
-
-    virtual void postProcessEvents(IAppBuilder& builder) {
-      Shapes::MeshModule::postProcessEvents(builder);
-    }
-
-    const PhysicsAliases aliases;
-  };
-
-  std::unique_ptr<IAppModule> createModule(const PhysicsAliases& aliases) {
-    return std::make_unique<ModuleImpl>(aliases);
+  std::unique_ptr<IAppModule> createModule(const PhysicsAliases&) {
+    std::vector<std::unique_ptr<IAppModule>> modules;
+    modules.push_back(Shapes::createMeshModule());
+    return std::make_unique<CompositeAppModule>(std::move(modules));
   }
 
   void _integratePositionAxis(const float* velocity, float* position, size_t count) {

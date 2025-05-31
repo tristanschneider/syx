@@ -10,9 +10,8 @@ namespace Geo {
   constexpr float RADDEG = 180.f/PI;
   constexpr float DEGRAD = PI/180.f;
 
-  constexpr glm::vec3 toVec3(const glm::vec2& v) {
-    return { v.x, v.y, 0.0f };
-  }
+  constexpr glm::vec3 toVec3(const glm::vec2& v) { return { v.x, v.y, 0.0f }; }
+  constexpr glm::vec2 toVec2(const glm::vec3& v) { return { v.x, v.y }; }
 
   struct AABB {
     glm::vec2 center() const {

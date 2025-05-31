@@ -11,7 +11,17 @@
 #include <TLSTaskImpl.h>
 #include <TableName.h>
 #include <Narrowphase.h>
+#include <shapes/Mesh.h>
 #include <shapes/Rectangle.h>
+#include <shapes/ShapeRegistry.h>
+#include <SpatialQueries.h>
+#include <TransformResolver.h>
+#include <PhysicsSimulation.h>
+#include <RowTags.h>
+#include <DebugDrawer.h>
+#include <glm/glm.hpp>
+#include <glm/gtx/norm.hpp>
+#include <format>
 
 namespace PhysicsTestModule {
   //Objects with collision being checked for correctness
@@ -20,8 +30,126 @@ namespace PhysicsTestModule {
   };
   //Markers indicating the correct collision information for objects in the ValidationTargetRow
   struct ValidationMarkerRow : TagRow{};
-  //Table of static physics objects with collision
-  //Table of marker objects indicating the correct collision area
+
+  struct ValidateTask {
+    struct ValidationError {
+      explicit operator bool() const {
+        return message.size();
+      }
+
+      std::string message;
+    };
+
+    struct ValidationStats {
+      size_t total() const { return pass + fail; }
+
+      size_t pass{};
+      size_t fail{};
+    };
+
+    void init(RuntimeDatabaseTaskBuilder& task) {
+      toValidate = task;
+      shapes = ShapeRegistry::get(task)->createShapeClassifier(task);
+      spatialQuery = SpatialQuery::createReader(task);
+      drawer = DebugDrawer::createDebugDrawer(task);
+      res = task.getRefResolver();
+    }
+
+    static ValidationError getMarkerMatchError(const glm::vec2& pos, const SpatialQuery::Result& result, const ShapeRegistry::Mesh& mesh) {
+      const SpatialQuery::ContactXY* contact = std::get_if<SpatialQuery::ContactXY>(&result.contact);
+      if(!contact) {
+        return ValidationError{ .message = "Unexpected contact type" };
+      }
+      constexpr float threshold = 0.01f;
+      constexpr float threshold2 = threshold*threshold;
+      float closest = std::numeric_limits<float>::max();
+      //Assume that valid collision points are vertices on the mesh.
+      //More forgiving would be to project the point onto the boundary.
+      for(size_t i = 0; i < contact->size; ++i) {
+        const glm::vec2 c = contact->points[i].point + pos;
+        for(const glm::vec2& m : mesh.points) {
+          closest = glm::min(closest, glm::distance2(c, Geo::toVec2(mesh.transform.transformPoint(Geo::toVec3(m)))));
+          if(closest <= threshold2) {
+            return {};
+          }
+        }
+      }
+
+      return ValidationError{
+        .message = std::format("No matching contact found, closest distance was {}", closest)
+      };
+    }
+
+    void displayValidationError(ValidationStats& stats, size_t t, size_t i, ValidationError error) {
+      ++stats.fail;
+      auto [targets, ids, x, y] = toValidate.get(t);
+      const glm::vec2 pos{ x->at(i), y->at(i) };
+      const glm::vec2 scale{ 1.f };
+      drawer->drawAABB(pos - scale, pos + scale, glm::vec3{ 1, 1, 1 });
+      drawer->drawText(pos - glm::vec2{ 0, -scale.y }, std::move(error.message));
+    }
+
+    void displayValidationSuccess(ValidationStats& stats) {
+      ++stats.pass;
+    }
+
+    void displayResults(const ValidationStats& stats) {
+      const glm::vec2 pos{ 0, -20 };
+      drawer->drawText(glm::vec2{ 0, -5 }, std::format("{}/{} succeeded", stats.pass, stats.total()));
+    }
+
+    void execute() {
+      ValidationStats stats;
+      for(size_t t = 0; t < toValidate.size(); ++t) {
+        auto [targets, targetIDS, x, y] = toValidate.get(t);
+        for(size_t i = 0; i < targets.size; ++i) {
+          const UnpackedDatabaseElementID marker = res.unpack(targets->at(i).tryGetRef());
+          const UnpackedDatabaseElementID self = res.unpack(targetIDS->at(i));
+          const ShapeRegistry::BodyType shapeType = shapes->classifyShape(marker);
+          const ShapeRegistry::Mesh* markerMesh = std::get_if<ShapeRegistry::Mesh>(&shapeType.shape);
+          const glm::vec2 pos{ x->at(i), y->at(i) };
+          if(!markerMesh) {
+            displayValidationError(stats, t, i, ValidationError{ .message = "Unable to resolve marker" });
+            continue;
+          }
+
+          spatialQuery->begin(targetIDS->at(i));
+          size_t count{};
+          bool matchFound{};
+          while(const SpatialQuery::Result* result = spatialQuery->tryIterate()) {
+            ++count;
+            if(!getMarkerMatchError(pos, *result, *markerMesh)) {
+              matchFound = true;
+              break;
+            }
+          }
+
+          if(matchFound) {
+            displayValidationSuccess(stats);
+          }
+          else {
+            ValidationError error;
+            if(count) {
+              error.message = "Collisions found, but none matching marker";
+            }
+            else {
+              error.message = "No collision found";
+            }
+            displayValidationError(stats, t, i, std::move(error));
+          }
+        }
+      }
+
+      displayResults(stats);
+    }
+
+    QueryResult<const ValidationTargetRow, const StableIDRow, const Tags::GPosXRow, const Tags::GPosYRow> toValidate;
+    std::shared_ptr<ShapeRegistry::IShapeClassifier> shapes;
+    std::shared_ptr<SpatialQuery::IReader> spatialQuery;
+    std::unique_ptr<DebugDrawer::IDebugDrawer> drawer;
+    ElementRefResolver res;
+  };
+
   class Module : public IAppModule {
   public:
     static void addBase(StorageTableBuilder& table) {
@@ -54,7 +182,8 @@ namespace PhysicsTestModule {
         StorageTableBuilder table;
         addBase(table);
         table.addRows<
-          ValidationMarkerRow
+          ValidationMarkerRow,
+          Shapes::MeshReferenceRow
         >().setTableName({ "CollisionMarkers" });
         return table;
       }).finalize(args);
@@ -62,6 +191,10 @@ namespace PhysicsTestModule {
 
     void init(IAppBuilder& builder) {
       Reflection::registerLoaders(builder, std::make_unique<Reflection::ObjIDLoader<ValidationTargetRow>>());
+    }
+
+    void update(IAppBuilder& builder) {
+      builder.submitTask(TLSTask::create<ValidateTask>("validate"));
     }
   };
 

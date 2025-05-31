@@ -69,4 +69,42 @@ namespace DebugDrawer {
     t.pos = p;
     t.text = std::move(text);
   }
+
+  class DebugDrawerImpl : public IDebugDrawer {
+  public:
+    DebugDrawerImpl(RuntimeDatabaseTaskBuilder& task)
+      : debug{ TableAdapters::getDebugLines(task) }
+    {
+    }
+
+    void drawLine(const glm::vec2& a, const glm::vec2& b, const glm::vec3& color) final {
+      DebugDrawer::drawLine(debug, a, b, color);
+    }
+
+    void drawDirectedLine(const glm::vec2& a, const glm::vec2& b, const glm::vec3& color) final {
+      DebugDrawer::drawDirectedLine(debug, a, b, color);
+    }
+
+    void drawVector(const glm::vec2& point, const glm::vec2& dir, const glm::vec3& color) final {
+      DebugDrawer::drawVector(debug, point, dir, color);
+    }
+
+    void drawPoint(const glm::vec2& p, float size, const glm::vec3& color) final {
+      DebugDrawer::drawPoint(debug, p, size, color);
+    }
+
+    void drawText(const glm::vec2& p, std::string text) final {
+      DebugDrawer::drawText(debug, p, std::move(text));
+    }
+
+    void drawAABB(const glm::vec2& min, const glm::vec2& max, const glm::vec3& color) final {
+      DebugDrawer::drawAABB(debug, min, max, color);
+    }
+
+    DebugLineAdapter debug;
+  };
+
+  std::unique_ptr<IDebugDrawer> createDebugDrawer(RuntimeDatabaseTaskBuilder& task) {
+    return std::make_unique<DebugDrawerImpl>(task);
+  }
 }

@@ -6,6 +6,10 @@
 #include <Events.h>
 #include <TLSTaskImpl.h>
 #include <shapes/ShapeRegistry.h>
+#include <IAppModule.h>
+#include <generics/Functional.h>
+#include <loader/ReflectionModule.h>
+#include <loader/SceneAsset.h>
 
 namespace Shapes {
   struct MeshStorage : ChainedRuntimeStorage {
@@ -21,7 +25,7 @@ namespace Shapes {
 
     static MeshAsset createMesh(const Loader::MeshAsset& mesh) {
       MeshAsset result;
-      result.points.reserve(mesh.verts.size());
+      result.points.resize(mesh.verts.size());
       std::transform(mesh.verts.begin(), mesh.verts.end(), result.points.begin(), [](const Loader::MeshVertex& v) {
         return glm::vec2{ v.pos.x, v.pos.y };
       });
@@ -54,23 +58,48 @@ namespace Shapes {
     > query;
   };
 
-  void MeshModule::postProcessEvents(IAppBuilder& builder) {
-    builder.submitTask(TLSTask::create<ImportMeshTask>("import mesh"));
-  }
+  class MeshModule : public IAppModule {
+  public:
+    void postProcessEvents(IAppBuilder& builder) override {
+      builder.submitTask(TLSTask::create<ImportMeshTask>("import mesh"));
+    }
 
-  //Add MeshAssetRow to all tables with Loader::MeshAssetRow
-  void MeshModule::createDependentDatabase(RuntimeDatabaseArgs& args) {
-    std::vector<RuntimeTableRowBuilder*> tables;
-    for(auto&& t : args.tables) {
-      if(t.contains<Loader::MeshAssetRow>()) {
-        tables.push_back(&t);
+    //Add MeshAssetRow to all tables with Loader::MeshAssetRow
+    void createDependentDatabase(RuntimeDatabaseArgs& args) override {
+      std::vector<RuntimeTableRowBuilder*> tables;
+      for(auto&& t : args.tables) {
+        if(t.contains<Loader::MeshAssetRow>()) {
+          tables.push_back(&t);
+        }
+      }
+      MeshStorage* storage = RuntimeStorage::addToChain<MeshStorage>(args);
+      storage->meshAssets.resize(tables.size());
+      for(size_t i = 0; i < tables.size(); ++i) {
+        DBReflect::details::reflectRow(storage->meshAssets[i], *tables[i]);
       }
     }
-    MeshStorage* storage = RuntimeStorage::addToChain<MeshStorage>(args);
-    storage->meshAssets.resize(tables.size());
-    for(size_t i = 0; i < tables.size(); ++i) {
-      DBReflect::details::reflectRow(storage->meshAssets[i], *tables[i]);
+
+    //For any objects that load with MatMeshRefRow, copy that mesh reference into MeshReferenceRow if it exists to use for collision.
+    struct MatMeshLoader {
+      using src_row = Loader::MatMeshRefRow;
+      static constexpr std::string_view NAME = src_row::KEY;
+
+      static void load(const IRow& src, RuntimeTable& dst, gnx::IndexRange range) {
+        using namespace gnx::func;
+        using namespace Reflection;
+
+        const Loader::MatMeshRefRow& s = static_cast<const Loader::MatMeshRefRow&>(src);
+        tryLoadRow<MeshReferenceRow>(s, dst, range, GetMember<&Loader::MatMeshRef::mesh>{});
+      }
+    };
+
+    void init(IAppBuilder& builder) override {
+      Reflection::registerLoaders(builder, Reflection::createRowLoader(MatMeshLoader{}));
     }
+  };
+
+  std::unique_ptr<IAppModule> createMeshModule() {
+    return std::make_unique<MeshModule>();
   }
 
   pt::FullTransformAlias getTransformAlias(const MeshTransform& t) {

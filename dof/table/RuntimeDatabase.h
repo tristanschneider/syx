@@ -472,7 +472,7 @@ private:
   void _tryAddAliasResult(size_t index, QueryResultBuilder<Rows...>& result, const Aliases&... aliases) {
     constexpr auto indices = std::index_sequence_for<Rows...>{};
     RuntimeTable& table = tables[index];
-    std::tuple<Rows*...> rows{ aliases.cast(table.tryGet(aliases.type))... };
+    std::tuple<Rows*...> rows{ (aliases ? aliases.cast(table.tryGet(aliases.type)) : nullptr)... };
     if(areAllNotNull(rows, indices)) {
       result.tables.push_back(&table);
       copyAll(rows, result.tuple, indices);

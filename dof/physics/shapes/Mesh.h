@@ -11,6 +11,7 @@ namespace ShapeRegistry {
 }
 
 class IAppBuilder;
+class IAppModule;
 
 namespace Shapes {
   struct MeshTransform {
@@ -38,10 +39,7 @@ namespace Shapes {
   };
   struct MeshAssetRow : Row<MeshAsset> {};
 
-  namespace MeshModule {
-    void postProcessEvents(IAppBuilder& builder);
-    void createDependentDatabase(RuntimeDatabaseArgs& args);
-  }
+  std::unique_ptr<IAppModule> createMeshModule();
 
   std::unique_ptr<ShapeRegistry::IShapeImpl> createMesh(const MeshTransform& transform);
 }

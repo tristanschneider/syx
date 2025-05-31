@@ -34,7 +34,8 @@ namespace InspectorModule {
           tableNames,
           goalX, goalY,
           goalFound,
-          seekingGoal
+          seekingGoal,
+          camera
         )
       }
       , refResolver{ ids->getRefResolver() }
@@ -44,6 +45,7 @@ namespace InspectorModule {
       , debugLines{ TableAdapters::getDebugLines(task) }
       , fragmentMigrator{ Fragment::createFragmentMigrator(task) }
       , fragmentIds{ task.query<const StableIDRow, const IsFragment>().get<0>() }
+      , cameraIds{ task.query<const StableIDRow, const Row<Camera>>().get<0>() }
     {
     }
 
@@ -85,9 +87,11 @@ namespace InspectorModule {
     CachedRow<const Tags::FragmentGoalYRow> goalY;
     CachedRow<const FragmentGoalFoundTableTag> goalFound;
     CachedRow<const FragmentSeekingGoalTagRow> seekingGoal;
+    CachedRow<Row<Camera>> camera;
     std::vector<const StableIDRow*> playerIds;
     std::vector<const StableIDRow*> stableRows;
     std::vector<const StableIDRow*> fragmentIds;
+    std::vector<const StableIDRow*> cameraIds;
     std::shared_ptr<Fragment::IFragmentMigrator> fragmentMigrator;
     InspectorData* data{};
     DebugLineAdapter debugLines;
@@ -116,6 +120,12 @@ namespace InspectorModule {
           ctx.fragmentMigrator->moveCompleteToActive(ctx.self, *ctx.args);
         }
       }
+    }
+  }
+
+  void presentCamera(InspectContext& ctx, const UnpackedDatabaseElementID& self) {
+    if(Camera* cam = ctx.resolver->tryGetOrSwapRowElement(ctx.camera, self)) {
+      ImGui::InputFloat("Zoom", &cam->zoom, 0.1f, 0.5f);
     }
   }
 
@@ -202,6 +212,7 @@ namespace InspectorModule {
     }
 
     presentFragmentFields(ctx, *unpacked);
+    presentCamera(ctx, *unpacked);
 
     ImGui::PopID();
     return true;
@@ -290,6 +301,9 @@ namespace InspectorModule {
     }
     if(ImGui::Button("Select Fragment")) {
       trySelect(ctx, ctx.fragmentIds);
+    }
+    if(ImGui::Button("Select Camera")) {
+      trySelect(ctx, ctx.cameraIds);
     }
     if(ImGui::Button("Clear Selection")) {
       clearSelection(ctx);

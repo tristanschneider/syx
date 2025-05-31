@@ -73,7 +73,7 @@ public:
 
   template<class Row>
   Row* tryGetRowAlias(const QueryAlias<Row>& alias, const UnpackedDatabaseElementID& id) {
-    return alias.cast(tryGetRow(id, alias.type));
+    return alias ? alias.cast(tryGetRow(id, alias.type)) : nullptr;
   }
 
   template<class Row>
