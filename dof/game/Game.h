@@ -60,6 +60,26 @@ namespace GameDefaults {
   public:
     virtual MultithreadedDeps getMultithreadedDeps(IDatabase&);
   };
+
+  struct DefaultGameBuilder {
+    Game::GameArgs build()&&;
+
+    std::unique_ptr<IGameDatabaseReader> dbSource;
+    std::unique_ptr<IAppModule> initialEventValidator,
+      physics,
+      simulation,
+      fragmentSpawner,
+      sceneNavigator,
+      sceneList,
+      respawnArea,
+      basicLoaders,
+      reflection,
+      physicsTest,
+      finalEventValidator,
+      events;
+  };
+
+  DefaultGameBuilder createDefaultGameBuilder();
   Game::GameArgs createDefaultGameArgs();
   Game::GameArgs createDefaultGameArgs(const Simulation::UpdateConfig& config);
 }

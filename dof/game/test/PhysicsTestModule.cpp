@@ -31,20 +31,40 @@ namespace PhysicsTestModule {
   //Markers indicating the correct collision information for objects in the ValidationTargetRow
   struct ValidationMarkerRow : TagRow{};
 
+  class DebugLogger : public ILogger {
+  public:
+    DebugLogger(RuntimeDatabaseTaskBuilder& task)
+      : drawer{ DebugDrawer::createDebugDrawer(task) }
+    {}
+
+    void logValidationError(const ValidationStats&, const glm::vec2& pos, ValidationError error) {
+      const glm::vec2 scale{ 1.f };
+      drawer->drawAABB(pos - scale, pos + scale, glm::vec3{ 1, 1, 1 });
+      drawer->drawText(pos - glm::vec2{ 0, -scale.y }, std::move(error.message));
+    }
+
+    void logValidationSuccess(const ValidationStats&) {}
+
+    void logResults(const ValidationStats& stats) {
+      const glm::vec2 pos{ 0, -20 };
+      drawer->drawText(glm::vec2{ 0, -5 }, std::format("{}/{} succeeded", stats.pass, stats.total()));
+    }
+
+    std::unique_ptr<DebugDrawer::IDebugDrawer> drawer;
+  };
+
   struct ValidateTask {
-    struct ValidationError {
-      explicit operator bool() const {
-        return message.size();
+    struct Group {
+      void init(LogFactory&& f) {
+        factory = std::move(f);
       }
 
-      std::string message;
-    };
+      void init(RuntimeDatabaseTaskBuilder& task) {
+        logger = factory(task);
+      }
 
-    struct ValidationStats {
-      size_t total() const { return pass + fail; }
-
-      size_t pass{};
-      size_t fail{};
+      LogFactory factory;
+      std::shared_ptr<ILogger> logger;
     };
 
     void init(RuntimeDatabaseTaskBuilder& task) {
@@ -53,6 +73,10 @@ namespace PhysicsTestModule {
       spatialQuery = SpatialQuery::createReader(task);
       drawer = DebugDrawer::createDebugDrawer(task);
       res = task.getRefResolver();
+    }
+
+    void init(const Group& group) {
+      logger = group.logger;
     }
 
     static ValidationError getMarkerMatchError(const glm::vec2& pos, const SpatialQuery::Result& result, const ShapeRegistry::Mesh& mesh) {
@@ -82,20 +106,24 @@ namespace PhysicsTestModule {
 
     void displayValidationError(ValidationStats& stats, size_t t, size_t i, ValidationError error) {
       ++stats.fail;
-      auto [targets, ids, x, y] = toValidate.get(t);
-      const glm::vec2 pos{ x->at(i), y->at(i) };
-      const glm::vec2 scale{ 1.f };
-      drawer->drawAABB(pos - scale, pos + scale, glm::vec3{ 1, 1, 1 });
-      drawer->drawText(pos - glm::vec2{ 0, -scale.y }, std::move(error.message));
+      if(logger) {
+        auto [targets, ids, x, y] = toValidate.get(t);
+        const glm::vec2 pos{ x->at(i), y->at(i) };
+        logger->logValidationError(stats, pos, std::move(error));
+      }
     }
 
     void displayValidationSuccess(ValidationStats& stats) {
       ++stats.pass;
+      if(logger) {
+        logger->logValidationSuccess(stats);
+      }
     }
 
     void displayResults(const ValidationStats& stats) {
-      const glm::vec2 pos{ 0, -20 };
-      drawer->drawText(glm::vec2{ 0, -5 }, std::format("{}/{} succeeded", stats.pass, stats.total()));
+      if(logger) {
+        logger->logResults(stats);
+      }
     }
 
     void execute() {
@@ -140,18 +168,26 @@ namespace PhysicsTestModule {
         }
       }
 
-      displayResults(stats);
+      if(stats.total()) {
+        displayResults(stats);
+      }
     }
 
     QueryResult<const ValidationTargetRow, const StableIDRow, const Tags::GPosXRow, const Tags::GPosYRow> toValidate;
     std::shared_ptr<ShapeRegistry::IShapeClassifier> shapes;
     std::shared_ptr<SpatialQuery::IReader> spatialQuery;
     std::unique_ptr<DebugDrawer::IDebugDrawer> drawer;
+    std::shared_ptr<ILogger> logger;
     ElementRefResolver res;
   };
 
   class Module : public IAppModule {
   public:
+    Module(LogFactory _factory)
+      : factory{ std::move(_factory) }
+    {
+    }
+
     static void addBase(StorageTableBuilder& table) {
       table.setStable();
       table.addRows<
@@ -194,11 +230,19 @@ namespace PhysicsTestModule {
     }
 
     void update(IAppBuilder& builder) {
-      builder.submitTask(TLSTask::create<ValidateTask>("validate"));
+      builder.submitTask(TLSTask::createWithArgs<ValidateTask, ValidateTask::Group>("validate", std::move(factory)));
     }
+
+    LogFactory factory;
   };
 
-  std::unique_ptr<IAppModule> create() {
-    return std::make_unique<Module>();
+  std::unique_ptr<IAppModule> create(LogFactory factory) {
+    return std::make_unique<Module>(std::move(factory));
+  }
+
+  LogFactory createDebugLogger() {
+    return [](RuntimeDatabaseTaskBuilder& task) {
+      return std::make_unique<DebugLogger>(task);
+    };
   }
 }

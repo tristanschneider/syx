@@ -240,28 +240,58 @@ namespace GameDefaults {
     };
   }
 
-  Game::GameArgs createDefaultGameArgs(const Simulation::UpdateConfig& config) {
+  Game::GameArgs DefaultGameBuilder::build()&& {
     Game::GameArgs args;
     args.dbSource = std::make_unique<DefaultGameDatabaseReader>();
+    auto tryAdd = [this, &args](std::unique_ptr<IAppModule>& m) {
+      if(m) {
+        args.modules.push_back(std::move(m));
+      }
+      return true;
+    };
+
     //Add event validator if asserts are enabled. Best if registered early so that it can assert on bad events before they crash on a consumer.
-    assert((args.modules.push_back(EventValidator::createModule("first")), true));
-    args.modules.push_back(Physics::createModule(PhysicsSimulation::getPhysicsAliases()));
-    args.modules.push_back(Simulation::createModule(config));
-    args.modules.push_back(FragmentSpawner::createModule());
-    args.modules.push_back(SceneNavigator::createModule());
-    args.modules.push_back(SceneList::createModule());
-    args.modules.push_back(RespawnArea::createModule());
-    args.modules.push_back(BasicLoaders::createModule());
-    args.modules.push_back(ReflectionModule::create());
-    args.modules.push_back(PhysicsTestModule::create());
-    assert((args.modules.push_back(EventValidator::createModule("last")), true));
-    args.modules.push_back(Events::createModule());
+    assert(tryAdd(initialEventValidator));
+    tryAdd(physics);
+    tryAdd(simulation);
+    tryAdd(fragmentSpawner);
+    tryAdd(sceneNavigator);
+    tryAdd(sceneList);
+    tryAdd(respawnArea);
+    tryAdd(basicLoaders);
+    tryAdd(reflection);
+    tryAdd(physicsTest);
+    assert(tryAdd(finalEventValidator));
+    tryAdd(events);
     //Rendering is from a separate project so "default" exposed here is empty
     return args;
+  }
+
+  DefaultGameBuilder createDefaultGameBuilder() {
+    return DefaultGameBuilder{
+      .dbSource = std::make_unique<DefaultGameDatabaseReader>(),
+      .initialEventValidator = EventValidator::createModule("first"),
+      .physics = Physics::createModule(PhysicsSimulation::getPhysicsAliases()),
+      .simulation = Simulation::createModule({}),
+      .fragmentSpawner = FragmentSpawner::createModule(),
+      .sceneNavigator = SceneNavigator::createModule(),
+      .sceneList = SceneList::createModule(),
+      .respawnArea = RespawnArea::createModule(),
+      .basicLoaders = BasicLoaders::createModule(),
+      .reflection = ReflectionModule::create(),
+      .physicsTest = PhysicsTestModule::create(),
+      .finalEventValidator = EventValidator::createModule("last"),
+      .events = Events::createModule(),
+    };
+  }
+
+  Game::GameArgs createDefaultGameArgs(const Simulation::UpdateConfig& config) {
+    DefaultGameBuilder builder = createDefaultGameBuilder();
+    builder.simulation = Simulation::createModule(config);
+    return std::move(builder).build();
   }
 
   Game::GameArgs createDefaultGameArgs() {
     return createDefaultGameArgs({});
   }
-
 }

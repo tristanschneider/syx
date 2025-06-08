@@ -13,6 +13,9 @@
 #include "IGame.h"
 #include "Game.h"
 
+#include <loader/AssetLoader.h>
+#include <scenes/ImportedScene.h>
+
 namespace Test {
   void addPassthroughMappings(Input::InputMapper& mapper) {
     mapper.addPassthroughAxis2D(GameInput::Keys::MOVE_2D);
@@ -64,11 +67,20 @@ namespace Test {
     , completedFragments{ builder.queryTables<FragmentGoalFoundTableTag>()[0] }
   {}
 
-  TestGame::TestGame(GameConstructArgs args) {
+  std::unique_ptr<IGame> gameFromArgs(GameConstructArgs&& args) {
     Game::GameArgs gameArgs = GameDefaults::createDefaultGameArgs(args.updateConfig);
     gameArgs.modules.insert(gameArgs.modules.begin(), std::make_unique<InjectArgs>(std::move(args)));
-    game = Game::createGame(std::move(gameArgs));
+    return Game::createGame(std::move(gameArgs));
+  }
 
+  TestGame::TestGame(GameConstructArgs args)
+    : TestGame{ gameFromArgs(std::move(args)) }
+  {
+  }
+
+  TestGame::TestGame(std::unique_ptr<IGame> _game)
+    : game{ std::move(_game) }
+  {
     game->init();
 
     testBuilder = GameBuilder::create(game->getDatabase(), { AppEnvType::UpdateMain });
@@ -78,7 +90,6 @@ namespace Test {
     temp.discard();
     test = std::make_unique<RuntimeDatabaseTaskBuilder>(std::move(temp));
     test->discard();
-    //TODO: args.updateConfig for Simulation?
 
     tables = KnownTables{ *testBuilder };
 
@@ -163,5 +174,9 @@ namespace Test {
 
   ElementRef TestGame::getFromTable(const TableID& id, size_t index) {
     return builder().query<StableIDRow>(id).get<0>(0).at(index);
+  }
+
+  void TestGame::loadSceneFromFile(std::string_view file) {
+    Scenes::createImportedSceneNavigator(builder())->importScene(Loader::AssetLocation{ std::string{ file } });
   }
 }

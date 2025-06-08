@@ -43,6 +43,7 @@ namespace Test {
     TestGame(GameConstructArgs args = {});
     TestGame(const GameArgs& args);
     TestGame(std::unique_ptr<SceneNavigator::IScene> scene);
+    TestGame(std::unique_ptr<IGame> _game);
     ~TestGame();
 
     RuntimeDatabaseTaskBuilder& builder();
@@ -52,6 +53,8 @@ namespace Test {
     void execute(std::unique_ptr<IAppBuilder> toExecute);
     void execute(TaskRange range);
     ElementRef getFromTable(const TableID& id, size_t index);
+
+    void loadSceneFromFile(std::string_view file);
 
     std::unique_ptr<IGame> game;
     std::unique_ptr<IAppBuilder> testBuilder;
