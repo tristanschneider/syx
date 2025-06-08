@@ -184,9 +184,9 @@ namespace Test {
         assertEq(glm::vec3{ 14.6805, -12.0115, 9.118 }, t.pos);
         Assert::AreEqual(-0.275905281f, t.rot);
         const Loader::Bitfield collisionMask = getOrAssertRow<Loader::BitfieldRow, Narrowphase::CollisionMaskRow>(players).at(0);
-        Assert::AreEqual(uint8_t(0b01111011), static_cast<uint8_t>(collisionMask));
+        Assert::AreEqual(uint8_t(0b11011110), static_cast<uint8_t>(collisionMask));
         const Loader::Bitfield constraintMask = getOrAssertRow<Loader::BitfieldRow, ConstraintSolver::ConstraintMaskRow>(players).at(0);
-        Assert::AreEqual(uint8_t(0b10001001), static_cast<uint8_t>(constraintMask));
+        Assert::AreEqual(uint8_t(0b10010001), static_cast<uint8_t>(constraintMask));
         const glm::vec4 v = getOrAssertRow<Loader::Vec4Row>(players, "Velocity3D").at(0);
         assertEq(glm::vec4{ 0.371f, 0.f, 0.175f, 0.1f }, v);
         assertEq(glm::vec3{ 1.f, 1.f, 1.0f }, t.scale);
