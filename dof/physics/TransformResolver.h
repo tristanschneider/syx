@@ -4,6 +4,7 @@
 #include "glm/vec3.hpp"
 #include "Physics.h"
 #include "QueryAlias.h"
+#include "Transform.h"
 
 class ITableResolver;
 class RuntimeDatabaseTaskBuilder;
