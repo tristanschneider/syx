@@ -266,7 +266,7 @@ namespace Narrowphase {
       //Either way it's the same as incident entirely inside case, clamp to sides
       return getIncident(ref, incident, normal);
     }
-    //Within neither, incident is entierly outside or entirely inside
+    //Within neither, incident is entirely outside or entirely inside
     //Assume inside given that this is a collision
     return getIncident(ref, incident, normal);
   }
@@ -310,7 +310,10 @@ namespace Narrowphase {
       incident = getIncidentEdge(bestAxis.supportA, bestAxis.direction, pair.a, normal);
     }
 
-    ClipResult result = clipEdgeToEdge(normal, reference, incident);
+    storeResult(clipEdgeToEdge(normal, reference, incident), normal, pair.a.pos, pair.b.pos, isOnA, manifold);
+  }
+
+  void storeResult(const ClipResult& result, glm::vec2 normal, const glm::vec2& posA, const glm::vec2& posB, bool isOnA, SP::ContactManifold& manifold) {
     if(result.overlap.max >= 0.0f || result.overlap.min >= 0.0f) {
       manifold.size = 2;
       //Normal is supposed to go away from A. Right now it is going away from the reference edge
@@ -319,11 +322,11 @@ namespace Narrowphase {
         normal = -normal;
       }
       manifold.points[0].normal = manifold.points[1].normal = normal;
-      manifold[0].centerToContactA = result.edge.start - pair.a.pos;
-      manifold[0].centerToContactB = result.edge.start - pair.b.pos;
+      manifold[0].centerToContactA = result.edge.start - posA;
+      manifold[0].centerToContactB = result.edge.start - posB;
       manifold[0].overlap = result.overlap.min;
-      manifold[1].centerToContactA = result.edge.end - pair.a.pos;
-      manifold[1].centerToContactB = result.edge.end - pair.b.pos;
+      manifold[1].centerToContactA = result.edge.end - posA;
+      manifold[1].centerToContactB = result.edge.end - posB;
       manifold[1].overlap = result.overlap.max;
     }
   }

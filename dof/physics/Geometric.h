@@ -101,6 +101,14 @@ namespace Geo {
     return a * b <= 0;
   }
 
+  constexpr float normalized(float v) {
+    return v > 0.f ? 1.f : -1.f;
+  }
+
+  constexpr float makeSameSign(float v, float sign) {
+    return v * normalized(sign);
+  }
+
   inline glm::vec2 orthogonal(const glm::vec2& v) {
     //Cross product with unit Z since everything in 2D is orthogonal to Z
     //[x] [0] [ y]

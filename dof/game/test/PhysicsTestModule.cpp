@@ -92,7 +92,7 @@ namespace PhysicsTestModule {
       for(size_t i = 0; i < contact->size; ++i) {
         const glm::vec2 c = contact->points[i].point + pos;
         for(const glm::vec2& m : mesh.points) {
-          closest = glm::min(closest, glm::distance2(c, Geo::toVec2(mesh.transform.transformPoint(Geo::toVec3(m)))));
+          closest = glm::min(closest, glm::distance2(c, mesh.modelToWorld.transformPoint(m)));
           if(closest <= threshold2) {
             return {};
           }

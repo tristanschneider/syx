@@ -30,7 +30,9 @@ namespace Narrowphase {
   };
 
   SeparatingAxis getLeastOverlappingAxis(const BoxPair& pair);
+  //TODO: support computing nearest and intersect rather than assuming intersect
   ClipResult clipEdgeToEdge(const glm::vec2& normal, const Geo::LineSegment& reference, const Geo::LineSegment& incident);
+  void storeResult(const ClipResult& result, glm::vec2 normal, const glm::vec2& posA, const glm::vec2& posB, bool isOnA, SP::ContactManifold& manifold);
 
   void boxBox(SP::ContactManifold& manifold, const BoxPair& pair);
 };

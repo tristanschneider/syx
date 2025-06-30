@@ -57,7 +57,7 @@ namespace SP {
     //Valid if SP::PairTypeRow indicates ContactZ
     ZInfo info;
   };
-  //Up to 3 constraints between the pair of objects as configured by Contraints.cpp
+  //Up to 3 constraints between the pair of objects as configured by Constraints.cpp
   //Since there are 3 degrees of freedom in 2D more should not be needed
   struct ConstraintManifold : Constraints::Constraint3DOF {
   };

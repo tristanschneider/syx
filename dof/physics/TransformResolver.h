@@ -30,6 +30,19 @@ namespace pt {
     glm::vec3 inverseTransformPoint(const glm::vec3& p) const;
     glm::vec3 inverseTransformVector(const glm::vec3& v) const;
 
+    Parts toParts() const {
+      return Parts{ .rot = rot, .scale = scale, .translate = pos };
+    }
+
+    PackedTransform toPacked() const {
+      return PackedTransform::build(toParts());
+    }
+
+    std::pair<PackedTransform, PackedTransform> toPackedWithInverse() const {
+      const auto parts = toParts();
+      return std::make_pair(PackedTransform::build(parts), PackedTransform::inverse(parts));
+    }
+
     glm::vec3 pos{};
     glm::vec2 rot{};
     glm::vec2 scale{};

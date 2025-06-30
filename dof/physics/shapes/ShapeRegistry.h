@@ -35,7 +35,7 @@ namespace ShapeRegistry {
   struct Mesh {
     const std::vector<glm::vec2>& points;
     Geo::AABB aabb;
-    pt::FullTransform transform;
+    pt::PackedTransform modelToWorld, worldToModel;
   };
   using Variant = std::variant<std::monostate, Rectangle, Raycast, AABB, Circle, Mesh>;
 

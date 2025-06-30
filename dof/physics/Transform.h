@@ -67,6 +67,14 @@ namespace pt {
       };
     }
 
+    constexpr glm::vec2 pos2() const {
+      return { tx, ty };
+    }
+
+    constexpr glm::vec3 pos3() const {
+      return { tx, ty, tz };
+    }
+
     static constexpr PackedTransform build(const Parts& parts) {
       //Multiplication of these, except a and b are rot and orthogonal to rot [-y, x]
       //[1 0 tx][ax bx 0][sx  0 0] [ax*sx, -ay*sy, tx]
@@ -79,8 +87,7 @@ namespace pt {
       };
     }
 
-    PackedTransform inverse() const {
-      const Parts p = decompose();
+    static PackedTransform inverse(const Parts& p) {
       //Multiplication of transform, rotate, scale, all inverse, all in reverse order
       //[1/sx 0 0][ax  ay 0][1 0 -tx] [ax/sx, ay/sx, -ax*tx/sx - ay*ty/sx]
       //[0 1/sy 0][-ay ax 0][0 1 -ty]=[-ay/sy, ax/sy, ay*tx/sy - ax*ty/sy]
@@ -90,6 +97,10 @@ namespace pt {
         -p.rot.y/p.scale.y, p.rot.x/p.scale.y, (p.rot.y*p.translate.x - p.rot.x*p.translate.y)/p.scale.y,
                                                                                           -p.translate.z
       };
+    }
+
+    PackedTransform inverse() const {
+      return inverse(decompose());
     }
 
     float ax{1.f}; float bx{};    /*0*/ float tx{};

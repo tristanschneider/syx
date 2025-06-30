@@ -127,11 +127,14 @@ namespace Shapes {
       const MeshReference* ref = tableResolver.tryGetOrSwapRowElement(meshRef, id);
       const Shapes::MeshAsset* asset = ref ? tableResolver.tryGetOrSwapRowElement(meshAsset, ids.tryUnpack(ref->meshAsset.asset)) : nullptr;
       const pt::FullTransform transform = transformResolver.resolve(id);
+      //TODO: avoid recomputing by storing in table with the objects and making transformResolver deal with this
+      auto [mToW, wToM] = transform.toPackedWithInverse();
       if(asset) {
         return { ShapeRegistry::Mesh{
           .points = asset->points,
           .aabb = asset->aabb,
-          .transform = transform,
+          .modelToWorld = mToW,
+          .worldToModel = wToM
         }};
       }
       return {};
