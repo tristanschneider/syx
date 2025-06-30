@@ -271,6 +271,15 @@ namespace Geo {
     return { inverseOrZero(v.x), inverseOrZero(v.y) };
   }
 
+  template<class T>
+  constexpr T cabs(T v) {
+    return v < static_cast<T>(0) ? -v : v;
+  }
+
+  constexpr float manhattanDistance(const glm::vec2& v) {
+    return cabs(v.x) + cabs(v.y);
+  }
+
   //Transpose of a rotation matrix from the first basis vector. Transpose is the inverse of a rotation matrix.
   inline glm::vec2 transposeRot(const glm::vec2 basisX) {
     //[basisX.x, -basisX.y] to [basisX.x , basisX.y]
