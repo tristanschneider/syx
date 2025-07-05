@@ -16,7 +16,6 @@ namespace Math {
     };
   }
 
-
   ConstraintImpulse solveConstraint(const Constraint& c) {
     const float constraintMass = c.objMass.a.inverseMass*glm::dot(c.jacobian.a.linear, c.jacobian.a.linear)
       + c.objMass.b.inverseMass*glm::dot(c.jacobian.b.linear, c.jacobian.b.linear)
@@ -43,7 +42,7 @@ namespace Math {
     };
   }
 
-  Impulse computePointConstraint(const glm::vec2& objectAttach, const glm::vec2& objectCenter, const glm::vec2& attachPoint, const HalfVelocityVector& objectVelocity, const glm::vec2& pointVelocity, float bias, const Mass& mass) {
+  Impulse computePointConstraint(const glm::vec2& objectAttach, const glm::vec2& objectCenter, const glm::vec2& attachPoint, const HalfVelocityVector& objectVelocity, const glm::vec2& pointVelocity, float bias, const Mass::OriginMass& mass) {
     const glm::vec2 r = objectAttach - objectCenter;
     const glm::vec2 errorVec = objectAttach - attachPoint;
     Impulse result;
@@ -137,14 +136,14 @@ namespace Math {
     return intersect.x < intersect.y ? glm::vec2{ -1, 0 } : glm::vec2{ 0, -1 };
   }
 
-  Impulse computeImpulseAtPoint(const glm::vec2& r, const glm::vec2& impulse, const Mass& mass) {
+  Impulse computeImpulseAtPoint(const glm::vec2& r, const glm::vec2& impulse, const Mass::OriginMass& mass) {
     return {
       impulse * mass.inverseMass,
       cross(r, impulse) * mass.inverseInertia
     };
   }
 
-  Impulse computeImpulseAtPoint(const glm::vec2& centerOfMass, const glm::vec2& impulsePoint, const glm::vec2& impulse, const Mass& mass) {
+  Impulse computeImpulseAtPoint(const glm::vec2& centerOfMass, const glm::vec2& impulsePoint, const glm::vec2& impulse, const Mass::OriginMass& mass) {
     return computeImpulseAtPoint(impulsePoint - centerOfMass, impulse, mass);
   }
 

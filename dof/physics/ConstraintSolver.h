@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Geometric.h"
+#include "Mass.h"
 #include "Table.h"
 
 class IAppBuilder;
@@ -31,7 +31,7 @@ namespace ConstraintSolver {
   static constexpr ConstraintMask MASK_SOLVE_NONE{};
   static constexpr ConstraintMask MASK_SOLVE_ALL{ static_cast<ConstraintMask>(~MASK_SOLVE_NONE) };
 
-  using BodyMass = Geo::BodyMass;
+  using BodyMass = Mass::OriginMass;
 
   struct BodyVelocity {
     operator bool() const {

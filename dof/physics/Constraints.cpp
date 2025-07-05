@@ -369,7 +369,7 @@ namespace Constraints {
       const glm::vec2 worldB = bToPin + tb.pos;
       glm::vec2 axis = worldA - worldB;
       const float error = glm::length(axis);
-      if(error < Geo::EPSILON) {
+      if(error < Constants::EPSILON) {
         // Arbitrary axis 
         axis = glm::vec2{ 1, 0 };
       }
@@ -397,7 +397,7 @@ namespace Constraints {
       glm::vec2 axis = worldA - worldB;
       float distance = glm::length(axis);
       //Avoid division by zero below with an arbitrary axis if it is zero
-      if(distance < Geo::EPSILON) {
+      if(distance < Constants::EPSILON) {
         axis = { 1, 0 };
         distance = 1;
       }
@@ -437,7 +437,7 @@ namespace Constraints {
       glm::vec2 axis = worldA - worldB;
       float distance = glm::length(axis);
       //Avoid division by zero below with an arbitrary axis if it is zero
-      if(distance < Geo::EPSILON) {
+      if(distance < Constants::EPSILON) {
         axis = { 1, 0 };
         distance = 1;
       }
@@ -452,7 +452,7 @@ namespace Constraints {
       const glm::vec2 referenceB = glm::normalize(-bToPin);
       const float cosAngle = glm::dot(referenceA, referenceB);
       const float sinAngle = Geo::cross(aToPin, bToPin);
-      const float angularErrorAbs = cosAngle > 0.0f ? std::acos(cosAngle) : std::acos(-cosAngle) + Geo::PI2;
+      const float angularErrorAbs = cosAngle > 0.0f ? std::acos(cosAngle) : std::acos(-cosAngle) + Constants::PI2;
       float angularError = Geo::reduce(angularErrorAbs, *globals.slop);
       if(sinAngle > 0) {
         angularError = -angularError;
@@ -509,7 +509,7 @@ namespace Constraints {
         }
 
         const float linearLen = glm::length(linear);
-        if(linearLen > Geo::EPSILON) {
+        if(linearLen > Constants::EPSILON) {
           manifold->sideA[c].linear = linear/linearLen;
           manifold->sideA[c].angular = 0;
           manifold->common[c].bias = linearLen;
@@ -572,7 +572,7 @@ namespace Constraints {
       const glm::vec2 worldCenterToPinA = ta.transformVector(pin.localCenterToPinA);
       glm::vec2 worldMotorDir = pin.targetVelocity;
       const float targetSpeed = glm::length(worldMotorDir);
-      if(targetSpeed > Geo::EPSILON) {
+      if(targetSpeed > Constants::EPSILON) {
         worldMotorDir /= targetSpeed;
       }
 
@@ -608,7 +608,7 @@ namespace Constraints {
     float computeAngularError(const glm::vec2& referenceA, const glm::vec2& referenceB) const {
       const float cosAngle = glm::dot(referenceA, referenceB);
       const float sinAngle = Geo::cross(referenceA, referenceB);
-      const float angularErrorAbs = cosAngle > 0.0f ? std::acos(cosAngle) : std::acos(-cosAngle) + Geo::PI2;
+      const float angularErrorAbs = cosAngle > 0.0f ? std::acos(cosAngle) : std::acos(-cosAngle) + Constants::PI2;
       float angularError = Geo::reduce(angularErrorAbs, *globals.slop);
       if(sinAngle > 0) {
         angularError = -angularError;

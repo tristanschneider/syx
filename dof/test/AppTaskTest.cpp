@@ -80,8 +80,8 @@ namespace Test {
           Assert::IsFalse(res.tryUnpack(dynamicObj).has_value(), L"Refs shouldn't be accessible in the main DB until they are migrated there");
 
           //Compute masses
-          const Geo::BodyMass regularMass = Geo::computeQuadMass(1, 1, 1);
-          const Geo::BodyMass zeroMass = Geo::computeQuadMass(1, 1, 0);
+          const Mass::OriginMass regularMass = Mass::computeQuadMass(Mass::Quad{ .fullSize = glm::vec2{ 1.f } }).body;
+          const Mass::OriginMass zeroMass{};
           for(size_t e : objs) {
             pr.mass->at(e) = regularMass;
           }

@@ -1,15 +1,9 @@
 #pragma once
 
+#include <Constants.h>
 #include "glm/glm.hpp"
 
 namespace Geo {
-  constexpr float EPSILON = 0.001f;
-  constexpr float PI = 3.14159265359f;
-  constexpr float PI2 = 3.14159265359f/2.0f;
-  constexpr float TAU = PI*2.0f;
-  constexpr float RADDEG = 180.f/PI;
-  constexpr float DEGRAD = PI/180.f;
-
   constexpr glm::vec3 toVec3(const glm::vec2& v) { return { v.x, v.y, 0.0f }; }
   constexpr glm::vec2 toVec2(const glm::vec3& v) { return { v.x, v.y }; }
 
@@ -30,11 +24,6 @@ namespace Geo {
 
     glm::vec2 min{ 0 };
     glm::vec2 max{ 0 };
-  };
-
-  struct BodyMass {
-    float inverseMass{};
-    float inverseInertia{};
   };
 
   struct LineSegment {
@@ -59,19 +48,19 @@ namespace Geo {
     return col1.x*col2.y - col1.y*col2.x;
   }
 
-  inline bool near(float a, float b, float epsilon = EPSILON) {
+  inline bool near(float a, float b, float epsilon = Constants::EPSILON) {
     return std::abs(a - b) <= epsilon;
   }
 
-  inline bool near(const glm::vec2& a, const glm::vec2& b, float epsilon = EPSILON) {
+  inline bool near(const glm::vec2& a, const glm::vec2& b, float epsilon = Constants::EPSILON) {
     return near(a.x, b.x, epsilon) && near(a.y, b.y, epsilon);
   }
 
-  inline bool nearZero(const glm::vec2& a, float epsilon = EPSILON) {
+  inline bool nearZero(const glm::vec2& a, float epsilon = Constants::EPSILON) {
     return std::abs(a.x + a.y) <= epsilon;
   }
 
-  inline bool nearZero(float a, float epsilon = EPSILON) {
+  inline bool nearZero(float a, float epsilon = Constants::EPSILON) {
     return std::abs(a) <= epsilon;
   }
 
@@ -115,6 +104,11 @@ namespace Geo {
     //[y]x[0]=[-x]
     //[0] [1] [ 0]
     return { v.y, -v.x };
+  }
+
+  //v x z
+  inline glm::vec2 crossZ(const glm::vec2& v) {
+    return orthogonal(v);
   }
 
   constexpr bool between(float v, float min, float max) {
@@ -190,17 +184,6 @@ namespace Geo {
     // b- a- a+ b+
     // b- a- b+ a+
     return a.max < b.max ? RangeOverlap::BAAB : RangeOverlap::BABA;
-  }
-
-  constexpr BodyMass computeQuadMass(float w, float h, float density) {
-    BodyMass result;
-    result.inverseMass = w*h*density;
-    result.inverseInertia = result.inverseMass*(h*h + w*w)/12.0f;
-    if(result.inverseMass > 0.0f) {
-      result.inverseMass = 1.0f/result.inverseMass;
-      result.inverseInertia = 1.0f/result.inverseInertia;
-    }
-    return result;
   }
 
   inline glm::mat3 buildTranslate(const glm::vec2& t, float z = 1.0f) {
@@ -287,9 +270,17 @@ namespace Geo {
     return { basisX.x, -basisX.y };
   }
 
-  inline glm::vec2 normalizedOrAny(const glm::vec2& v, float E = EPSILON) {
+  inline glm::vec2 normalizedOr(const glm::vec2& v, const glm::vec2& fallback, float E = Constants::EPSILON) {
     const float l = glm::length(v);
-    return l > E ? v/l : glm::vec2{ 1, 0 };
+    return l > E ? v/l : fallback;
+  }
+
+  inline glm::vec2 normalizedOrAny(const glm::vec2& v, float E = Constants::EPSILON) {
+    return normalizedOr(v, glm::vec2{ 1, 0 }, E);
+  }
+
+  inline glm::vec2 normalizedOrZero(const glm::vec2& v, float E = Constants::EPSILON) {
+    return normalizedOr(v, glm::vec2{ 0 }, E);
   }
 
   //Make a value smaller towards zero without passing it

@@ -8,6 +8,7 @@
 #include "Events.h"
 #include "TableAdapters.h"
 #include "Physics.h"
+#include <Geometric.h>
 
 namespace Scenes {
   struct SingleStack : SceneNavigator::IScene {
@@ -48,8 +49,8 @@ namespace Scenes {
         constexpr size_t countY = 100;
         const glm::vec2 size{ 1, 1 };
         const glm::vec2 origin{ 0, 0 };
-        const Geo::BodyMass quadMass = Geo::computeQuadMass(size.x, size.y, 1.0f);
-        const Geo::BodyMass infMass = Geo::computeQuadMass(size.x, size.y, 0.0f);
+        const Mass::OriginMass quadMass = Mass::computeQuadMass(Mass::Quad{ .fullSize = size }).body;
+        const Mass::OriginMass infMass = Mass::computeQuadMass(Mass::Quad{ .fullSize = size, .density = 0.f }).body;
         const float gravity = -0.005f;
         objsModifier->resize(countX*countY);
         {
@@ -81,8 +82,8 @@ namespace Scenes {
           };
           std::array rotations = {
             glm::vec2{ 1, 0 },
-            Geo::directionFromAngle(Geo::PI2 + 0.1f),
-            Geo::directionFromAngle(Geo::PI2 - 0.1f)
+            Geo::directionFromAngle(Constants::PI2 + 0.1f),
+            Geo::directionFromAngle(Constants::PI2 - 0.1f)
           };
           terrainModifier->resize(positions.size());
           for(size_t i = 0; i < positions.size(); ++i) {

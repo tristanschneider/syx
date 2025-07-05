@@ -2,6 +2,7 @@
 
 #include "glm/vec2.hpp"
 #include "glm/mat3x3.hpp"
+#include <Mass.h>
 
 namespace Math {
   template<class T>
@@ -42,13 +43,8 @@ namespace Math {
     float bias{};
   };
 
-  struct Mass {
-    float inverseMass{};
-    float inverseInertia{};
-  };
-
   struct MassPair {
-    Mass a, b;
+    Mass::OriginMass a, b;
   };
 
   struct Constraint {
@@ -58,24 +54,18 @@ namespace Math {
     MassPair objMass;
   };
 
-  //TODO: store this somewhere
-  constexpr Mass computeQuadMass(float w, float h, float density) {
-    Mass result;
-    result.inverseMass = w*h*density;
-    result.inverseInertia = result.inverseMass*(h*h + w*w)/12.0f;
-    if(result.inverseMass > 0.0f) {
-      result.inverseMass = 1.0f/result.inverseMass;
-      result.inverseInertia = 1.0f/result.inverseInertia;
-    }
-    return result;
+  constexpr Mass::OriginMass computePlayerMass() {
+    return Mass::computeQuadMass(Mass::Quad{
+      .fullSize = glm::vec2{ 1.f },
+      .density = 1.f
+    }).body;
   }
 
-  constexpr Mass computePlayerMass() {
-    return computeQuadMass(1.0f, 1.0f, 1.0f);
-  }
-
-  constexpr Mass computeFragmentMass() {
-    return computeQuadMass(1.0f, 1.0f, 1.0f);
+  constexpr Mass::OriginMass computeFragmentMass() {
+    return Mass::computeQuadMass(Mass::Quad{
+      .fullSize = glm::vec2{ 1.f },
+      .density = 1.f
+    }).body;
   }
 
   constexpr glm::vec2 getFragmentExtents() {
@@ -175,13 +165,13 @@ namespace Math {
     return between(v.x, min.x, max.x) && between(v.y, min.y, max.y);
   }
 
-  Impulse computeImpulseAtPoint(const glm::vec2& r, const glm::vec2& impulse, const Mass& mass);
-  Impulse computeImpulseAtPoint(const glm::vec2& centerOfMass, const glm::vec2& impulsePoint, const glm::vec2& impulse, const Mass& mass);
+  Impulse computeImpulseAtPoint(const glm::vec2& r, const glm::vec2& impulse, const Mass::OriginMass& mass);
+  Impulse computeImpulseAtPoint(const glm::vec2& centerOfMass, const glm::vec2& impulsePoint, const glm::vec2& impulse, const Mass::OriginMass& mass);
 
   Impulse computeSpringImpulse(const glm::vec2& objectAttach, const glm::vec2& objectCenter, const glm::vec2& springAttach, float springConstant);
 
   ConstraintImpulse solveConstraint(const Constraint& c);
-  Impulse computePointConstraint(const glm::vec2& objectAttach, const glm::vec2& objectCenter, const glm::vec2& attachPoint, const HalfVelocityVector& objectVelocity, const glm::vec2& pointVelocity, float bias, const Mass& mass);
+  Impulse computePointConstraint(const glm::vec2& objectAttach, const glm::vec2& objectCenter, const glm::vec2& attachPoint, const HalfVelocityVector& objectVelocity, const glm::vec2& pointVelocity, float bias, const Mass::OriginMass& mass);
 
 
   bool unitAABBLineIntersect(const glm::vec2& origin, const glm::vec2& dir, float* resultTIn, float* resultTOut);

@@ -152,10 +152,10 @@ namespace SM {
 
     static std::optional<glm::vec2> findUnobstructedDirection(const std::vector<Clip::StartAndDir>& obstacles, const glm::vec2& pos, const glm::vec2& startDir) {
       constexpr int maxAttempts = 5;
-      constexpr float angleIncrement = Geo::PI / static_cast<float>(maxAttempts);
+      constexpr float angleIncrement = Constants::PI / static_cast<float>(maxAttempts);
       //Search alternating angles rotated away from the current wander direction for the first that is unobstructed
       Clip::StartAndDir myDir{ .start{ pos } };
-      for(float a = 0; a < Geo::PI; a += angleIncrement) {
+      for(float a = 0; a < Constants::PI; a += angleIncrement) {
         const glm::vec2 r = Geo::directionFromAngle(angleIncrement * static_cast<float>(a));
         for(const auto rotation : { r, Geo::transposeRot(r) }) {
           myDir.dir = Geo::rotate(rotation, startDir);

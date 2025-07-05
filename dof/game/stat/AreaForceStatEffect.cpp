@@ -365,7 +365,7 @@ namespace AreaForceStatEffect {
           castRays(rays, shapes, hits);
 
           //TODO: read from SharedMassRow
-          constexpr Math::Mass objMass = Math::computeFragmentMass();
+          constexpr Mass::OriginMass objMass = Math::computeFragmentMass();
           for(const HitResult& hit : hits) {
             const size_t id = hit.id.getElementIndex();
             //If fundamental information is missing, skip it

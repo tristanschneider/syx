@@ -80,7 +80,7 @@ namespace Test {
         });
         TableIds ids{ builder() };
         ConstraintSolver::BodyMass* dynamicMass = builder().query<ConstraintSolver::SharedMassRow>(ids.dynamicBodies).tryGetSingletonElement();
-        *dynamicMass = Geo::computeQuadMass(1, 1, 1);
+        *dynamicMass = Mass::computeQuadMass(Mass::Quad{ .fullSize = glm::vec2{ 1.f } }).body;
         //Static mass is already zero as desired
 
         builder().query<ConstraintSolver::ConstraintMaskRow>().forEachRow([](auto& row) {

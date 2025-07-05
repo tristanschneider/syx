@@ -99,7 +99,7 @@ namespace Clip {
     const glm::vec2 col3 = lB.start - lA.start;
     const float determinant = Geo::det(col1, col2);
     //Parallel lines
-    if(std::abs(determinant) <= Geo::EPSILON) {
+    if(std::abs(determinant) <= Constants::EPSILON) {
       return {};
     }
     const float t = Geo::det(col3, col2)/determinant;
@@ -113,7 +113,7 @@ namespace Clip {
     const glm::vec2 col3 = lB.start - lA.start;
     const float determinant = Geo::det(col1, col2);
     //Parallel lines
-    if(std::abs(determinant) <= Geo::EPSILON) {
+    if(std::abs(determinant) <= Constants::EPSILON) {
       return {};
     }
     return Geo::det(col3, col2)/determinant;

@@ -550,7 +550,7 @@ namespace Test {
           const glm::vec2 sp = p - e.start;
           if(Geo::nearZero(glm::dot(sp, e.normal))) {
             //Point's projection on normal is zero, make sure it is also within this edge
-            return glm::dot(sp, p - e.end) <= Geo::EPSILON;
+            return glm::dot(sp, p - e.end) <= Constants::EPSILON;
           }
           return false;
         });
@@ -596,7 +596,7 @@ namespace Test {
         e.start = context.clipper.result[i];
         e.end = context.clipper.result[(i + 1) % context.clipper.result.size()];
         e.normal = Geo::orthogonal(e.end - e.start);
-        if(!Geo::nearZero(e.normal, Geo::EPSILON/2.0f)) {
+        if(!Geo::nearZero(e.normal, Constants::EPSILON/2.0f)) {
           e.normal = glm::normalize(e.normal);
           context.edges.push_back(e);
         }
@@ -612,7 +612,7 @@ namespace Test {
           //All clipped points are the same which is the single corner point which should bethe contact
           ASSERT_TRUE(Geo::near(pointA, context.clipper.result[0]));
           ASSERT_TRUE(glm::dot(manifold.points[i].centerToContactA, manifold.points[i].normal) < 0.0f);
-          Assert::AreEqual(0.0f, manifold.points[i].overlap, Geo::EPSILON);
+          Assert::AreEqual(0.0f, manifold.points[i].overlap, Constants::EPSILON);
         }
         return;
       }
@@ -878,7 +878,7 @@ namespace Test {
       ValidationContext context;
       for(size_t w = 0; w < angleIncrement; ++w) {
         const float pw = static_cast<float>(w)/static_cast<float>(angleIncrement);
-        const float angle = Geo::TAU*pw;
+        const float angle = Constants::TAU*pw;
         const glm::vec2 rot{ std::cos(angle), std::sin(angle) };
         glm::vec2 pos{};
         for(size_t x = 0; x < posIncrement; ++x) {

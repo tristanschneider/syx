@@ -157,9 +157,9 @@ namespace InspectorModule {
         }
       }
       if(ctx.resolver->tryGetOrSwapAllRows(*unpacked, ctx.rotX, ctx.rotY)) {
-        float angle = Geo::RADDEG * std::atan2f(ctx.rotY->at(i), ctx.rotX->at(i));
+        float angle = Constants::RADDEG * std::atan2f(ctx.rotY->at(i), ctx.rotX->at(i));
         if(ImGui::InputFloat("Rotation", &angle)) {
-          const float rad = Geo::DEGRAD * angle;
+          const float rad = Constants::DEGRAD * angle;
           ctx.rotX->at(i) = std::cos(rad);
           ctx.rotY->at(i) = std::sin(rad);
         }

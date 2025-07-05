@@ -166,7 +166,7 @@ namespace Narrowphase {
     //Far point is outside of left edge and presumably near is inside, as all axes should be overlapping
     if(farProj > lProj) {
       //Clip far to left normal
-      if(const float len = farProj - nearProj; len > Geo::EPSILON) {
+      if(const float len = farProj - nearProj; len > Constants::EPSILON) {
         const float t = (farProj - lProj)/len;
         farPoint = farPoint + t*(nearPoint - farPoint);
         farProj = lProj;
@@ -176,7 +176,7 @@ namespace Narrowphase {
     //Near point is outside right edge and presumably far is inside
     if(nearProj < rProj) {
       //Clip near to the right normal
-      if(const float len = farProj - nearProj; len > Geo::EPSILON) {
+      if(const float len = farProj - nearProj; len > Constants::EPSILON) {
         const float t = (rProj - nearProj)/len;
         nearPoint = nearPoint + t*(farPoint - nearPoint);
       }
@@ -191,7 +191,7 @@ namespace Narrowphase {
     const glm::vec2 offStart = point - edge.start;
     const float edgeLen2 = glm::dot(edge.dir, edge.dir);
     //Shouldn't happen for boxes of nonzero size
-    if(edgeLen2 < Geo::EPSILON) {
+    if(edgeLen2 < Constants::EPSILON) {
       return point;
     }
     const float proj = glm::dot(offStart, edge.dir)/edgeLen2;

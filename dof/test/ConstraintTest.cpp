@@ -137,7 +137,7 @@ namespace Test {
         const glm::vec2 referenceA = timepoint.ta.transformVector(solver.localCenterToPinA);
         const glm::vec2 referenceB = -timepoint.tb.transformVector(solver.localCenterToPinB);
         const float cosAngle = glm::dot(referenceA, referenceB);
-        return cosAngle > 0.0f ? std::acos(cosAngle) : Geo::PI2 + std::acos(-cosAngle);
+        return cosAngle > 0.0f ? std::acos(cosAngle) : Constants::PI2 + std::acos(-cosAngle);
       };
     }
 

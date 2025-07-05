@@ -494,7 +494,7 @@ namespace GameDatabase {
     configureSelfMotor<Tags::DynamicPhysicsObjectsWithMotorTag>(builder);
     configureSelfMotor<FragmentSeekingGoalTagRow>(builder);
 
-    const auto defaultQuadMass = Geo::computeQuadMass(1.0f, 1.0f, 1.0f);
+    const auto defaultQuadMass = Mass::computeQuadMass(Mass::Quad{ .fullSize = glm::vec2{ 1.0f } }).body;
     setDefaultValue<ConstraintSolver::MassRow, Shapes::SharedRectangleRow>(builder, "rect", defaultQuadMass);
     setDefaultValue<Tags::ScaleXRow>(builder, "sx", 1.0f);
     setDefaultValue<Tags::ScaleYRow>(builder, "sy", 1.0f);
@@ -502,8 +502,8 @@ namespace GameDatabase {
     setDefaultValue<FloatRow<Tags::GRot, Tags::CosAngle>>(builder, "setDefault GRot", 1.0f);
     setDefaultValue<Narrowphase::CollisionMaskRow>(builder, "setDefault Mask", uint8_t(~0));
     setDefaultValue<ConstraintSolver::ConstraintMaskRow>(builder, "setDefault Constraint Mask", ConstraintSolver::MASK_SOLVE_ALL);
-    setDefaultValue<ConstraintSolver::SharedMassRow, Shapes::SharedRectangleRow>(builder, "setDefault mass", Geo::computeQuadMass(1, 1, 1));
-    setDefaultValue<ConstraintSolver::SharedMassRow, ZeroMassObjectTableTag>(builder, "set zero mass", Geo::BodyMass{});
+    setDefaultValue<ConstraintSolver::SharedMassRow, Shapes::SharedRectangleRow>(builder, "setDefault mass", defaultQuadMass);
+    setDefaultValue<ConstraintSolver::SharedMassRow, ZeroMassObjectTableTag>(builder, "set zero mass", Mass::OriginMass{});
     //Fragments in particular start opaque then reveal the texture as they take damage
     setDefaultValue<Tint, const IsFragment>(builder, "setDefault Tint", glm::vec4(0, 0, 0, 1));
     setDefaultValue<AccelerationZ>(builder, "set acceleration", -0.01f);

@@ -78,7 +78,7 @@ namespace Test {
             const glm::vec2 center{ 0.0f };
             TableAdapters::write(dy, center, *px, *py);
             TableAdapters::write(dy, scale, *sx, *sy);
-            mass->at(dy) = Geo::computeQuadMass(scale.x, scale.y, 1.0f);
+            mass->at(dy) = Mass::computeQuadMass(Mass::Quad{ .fullSize = scale }).body;
             pz->at(dy) = 10.0f;
           }
         });

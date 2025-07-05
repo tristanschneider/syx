@@ -88,7 +88,7 @@ namespace FragmentBurstStatEffect {
               .setOrigin(pos)
               .setDirection(glm::vec2{ 1, 0 })
               //Actually a circle but that's not implemented so using a very wide cone
-              .setShape(AreaForceStatEffect::Command::Cone{ Geo::PI, cmd.radius })
+              .setShape(AreaForceStatEffect::Command::Cone{ Constants::PI, cmd.radius })
               .setRayCount(360)
               //TODO: make configurable
               .setImpulse(AreaForceStatEffect::Command::FlatImpulse{ 0.0005f })
