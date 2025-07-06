@@ -270,9 +270,12 @@ namespace Geo {
     return { basisX.x, -basisX.y };
   }
 
+  inline glm::vec2 divideOr(const glm::vec2& v, float divisor, const glm::vec2& fallback, float E = Constants::EPSILON) {
+    return divisor > E ? v/divisor : fallback;
+  }
+
   inline glm::vec2 normalizedOr(const glm::vec2& v, const glm::vec2& fallback, float E = Constants::EPSILON) {
-    const float l = glm::length(v);
-    return l > E ? v/l : fallback;
+    return divideOr(v, glm::length(v), fallback, E);
   }
 
   inline glm::vec2 normalizedOrAny(const glm::vec2& v, float E = Constants::EPSILON) {

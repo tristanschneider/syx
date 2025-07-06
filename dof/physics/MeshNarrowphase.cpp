@@ -22,12 +22,12 @@ namespace Narrowphase {
     float distanceAlongNormal{};
   };
 
-  //Get the point furthest in direction on the mesh. Direction should be transformed into the mesh's space
+  //Get the point furthest in the opposite direction on the mesh. Direction should be transformed into the mesh's space
   SupportPoint getSupportPoint(const glm::vec2& direction, const ShapeRegistry::Mesh& mesh) {
-    SupportPoint result{ .minDistance = std::numeric_limits<float>::lowest() };
+    SupportPoint result{ .minDistance = std::numeric_limits<float>::max() };
     for(size_t i = 0; i < mesh.points.size(); ++i) {
       const float currentDistance = glm::dot(direction, mesh.points[i]);
-      if(currentDistance > result.minDistance) {
+      if(currentDistance < result.minDistance) {
         result.minDistance = currentDistance;
         result.index = i;
       }
@@ -47,8 +47,8 @@ namespace Narrowphase {
     glm::vec2 beginInB = aToB.transformPoint(a.points[aPointCount - 1]);
     for(size_t e = 0; e < aPointCount; ++e) {
       glm::vec2 endInB = aToB.transformPoint(a.points[e]);
-      //Cross edge with z, since edge is counterclockwise that's the outward facing normal, turn inward to get the closest point.
-      glm::vec2 normalInB = -Geo::orthogonal(endInB - beginInB);
+      //Cross edge with z, since edge is counterclockwise that's the outward facing normal.
+      glm::vec2 normalInB = Geo::orthogonal(endInB - beginInB);
 
       const float length = glm::length(normalInB);
       //If the normal is nonsense count this is no-collision with this edge
@@ -60,8 +60,8 @@ namespace Narrowphase {
         const SupportPoint supportB = getSupportPoint(normalInB, b);
         //Either begin or end are valid support points, as they are on the boundary of the shape
         const float supportA = glm::dot(normalInB, endInB);
-        //Since the supports are projected onto an inward facing normal, the distance is positive (separating) if A > B
-        const float aToBDistance = supportA - supportB.minDistance;
+        //Since the supports are projected onto an outward facing normal, the distance is positive (separating) if B > A
+        const float aToBDistance = supportB.minDistance - supportA;
         if(aToBDistance > result.distanceAlongNormal) {
           result.distanceAlongNormal = aToBDistance;
           result.referenceEdge = e;
@@ -74,12 +74,16 @@ namespace Narrowphase {
       beginInB = endInB;
     }
 
-    //Take the unit length normal, flip it outward, and scale it to the length of a to b
-    result.normalWorld *= -result.distanceAlongNormal;
+    //Take the unit length normal, and scale it to the length of a to b
+    result.normalWorld *= std::abs(result.distanceAlongNormal);
     //Transform to world. This could change the length of the vector (distance between points) if either object has non-unit scale
-    b.modelToWorld.transformVector(result.normalWorld);
+    result.normalWorld = b.modelToWorld.transformVector(result.normalWorld);
     //Normalize and compute world space distance, preserving sign so caller knows if it's separating or not
-    result.distanceAlongNormal = Geo::makeSameSign(glm::length(result.normalWorld), result.distanceAlongNormal);
+    const float normalLength = glm::length(result.normalWorld);
+    result.distanceAlongNormal = Geo::makeSameSign(normalLength, result.distanceAlongNormal);
+    //Normalize or arbitrary vector. Zero shouldn't be possible as edge epsilon should prevent selecting an edge with a zero normal.
+    //Still better to choose an arbitrary direction to try to resolve than to divide by zero or miss the collision entirely.
+    result.normalWorld = Geo::divideOr(result.normalWorld, normalLength, glm::vec2{ 1, 0 });
 
     return result;
   }
@@ -123,7 +127,8 @@ namespace Narrowphase {
     Geo::LineSegment reference, incident;
     bool isOnA{};
     glm::vec2 normal{};
-    if(bestA.distanceAlongNormal < bestB.distanceAlongNormal) {
+    //Bias towards one arbitrarily to avoid numerical instability flipping between near-equivalent results.
+    if(bestA.distanceAlongNormal + ops.edgeEpsilon > bestB.distanceAlongNormal) {
       normal = bestA.normalWorld;
       reference = getReferenceSegment(bestA.referenceEdge, a);
       incident = getIncidentSegment(bestA.incidentPoint, normal, b);

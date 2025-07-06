@@ -75,6 +75,17 @@ namespace pt {
       return { tx, ty, tz };
     }
 
+    constexpr void setPos(const glm::vec2& t) {
+      tx = t.x;
+      ty = t.y;
+    }
+
+    constexpr void setPos(const glm::vec3& t) {
+      tx = t.x;
+      ty = t.y;
+      tz = t.z;
+    }
+
     static constexpr PackedTransform build(const Parts& parts) {
       //Multiplication of these, except a and b are rot and orthogonal to rot [-y, x]
       //[1 0 tx][ax bx 0][sx  0 0] [ax*sx, -ay*sy, tx]
