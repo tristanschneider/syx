@@ -305,6 +305,7 @@ public:
   }
 
   size_t size() const { return denseToSparse.size() - SENTINEL_OFFSET; }
+  bool empty() const { return size() != 0; }
 
 protected:
   virtual void onMove(size_t from, size_t to, size_t count) = 0;
@@ -705,6 +706,10 @@ public:
     for(size_t i = 0; i < end - begin; ++i) {
       trySwapRemove(end - (i + 1), --tableSize);
     }
+  }
+
+  void clear() {
+    SparseRowBase::clear();
   }
 
   ConstIteratorT begin() const {

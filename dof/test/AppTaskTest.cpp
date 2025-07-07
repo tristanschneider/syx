@@ -11,6 +11,7 @@
 #include "stat/ConstraintStatEffect.h"
 #include "TransformResolver.h"
 #include "PhysicsSimulation.h"
+#include <module/MassModule.h>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -22,7 +23,7 @@ namespace Test {
         , posX{ table.tryGet<Tags::PosXRow>() }
         , posY{ table.tryGet<Tags::PosYRow>() }
         , linVelX{ table.tryGet<Tags::LinVelXRow>() }
-        , mass{ table.tryGet<ConstraintSolver::MassRow>() }
+        , mass{ table.tryGet<MassModule::MassRow>() }
       {
       }
 
@@ -30,7 +31,7 @@ namespace Test {
       Tags::PosXRow* posX{};
       Tags::PosYRow* posY{};
       Tags::LinVelXRow* linVelX{};
-      ConstraintSolver::MassRow* mass{};
+      MassModule::MassRow* mass{};
     };
 
     struct Indices {
@@ -155,10 +156,11 @@ namespace Test {
     };
 
     TEST_METHOD(AppTask_CreatePhysicsObjects) {
-      TestGame game{ std::make_unique<PhysicsLocalDBTask>() };
-      for(size_t i = 0; i < PhysicsLocalDBTask::END_TICKS + 10; ++i) {
-        game.update();
-      }
+      Assert::Fail(L"todo");
+      //TestGame game{ std::make_unique<PhysicsLocalDBTask>() };
+      //for(size_t i = 0; i < PhysicsLocalDBTask::END_TICKS + 10; ++i) {
+      //  game.update();
+      //}
     }
   };
 }

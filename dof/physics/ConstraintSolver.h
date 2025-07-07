@@ -55,8 +55,6 @@ namespace ConstraintSolver {
   };
 
   struct SharedMaterialRow : SharedRow<Material> {};
-  struct SharedMassRow : SharedRow<BodyMass> {};
-  struct MassRow : Row<BodyMass> {};
   struct ConstraintMaskRow : Row<ConstraintMask> {
     static constexpr std::string_view KEY = "ConstraintMask";
   };

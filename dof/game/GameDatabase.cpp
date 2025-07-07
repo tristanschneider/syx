@@ -29,6 +29,8 @@
 #include "loader/AssetService.h"
 #include "GraphicsTables.h"
 #include "TableName.h"
+#include <module/MassModule.h>
+#include <module/PhysicsEvents.h>
 
 namespace GameDatabase {
   using BroadphaseTable = SweepNPruneBroadphase::BroadphaseTable;
@@ -173,10 +175,16 @@ namespace GameDatabase {
     >();
   }
 
-  StorageTableBuilder& addRigidbody(StorageTableBuilder& table) {
+  StorageTableBuilder& addMass(StorageTableBuilder& table) {
     return table.addRows<
+      MassModule::MassRow,
+      PhysicsEvents::RecomputeMassRow
+    >();
+  }
+
+  StorageTableBuilder& addRigidbody(StorageTableBuilder& table) {
+    return addMass(table).addRows<
       ConstraintSolver::ConstraintMaskRow,
-      ConstraintSolver::MassRow,
       ConstraintSolver::SharedMaterialRow
     >();
   }
@@ -197,9 +205,8 @@ namespace GameDatabase {
   }
 
   StorageTableBuilder& addRigidbodySharedMass(StorageTableBuilder& table) {
-    return table.addRows<
+    return addMass(table).addRows<
       ConstraintSolver::ConstraintMaskRow,
-      ConstraintSolver::SharedMassRow,
       ConstraintSolver::SharedMaterialRow
     >();
   }
@@ -495,15 +502,12 @@ namespace GameDatabase {
     configureSelfMotor<FragmentSeekingGoalTagRow>(builder);
 
     const auto defaultQuadMass = Mass::computeQuadMass(Mass::Quad{ .fullSize = glm::vec2{ 1.0f } }).body;
-    setDefaultValue<ConstraintSolver::MassRow, Shapes::SharedRectangleRow>(builder, "rect", defaultQuadMass);
     setDefaultValue<Tags::ScaleXRow>(builder, "sx", 1.0f);
     setDefaultValue<Tags::ScaleYRow>(builder, "sy", 1.0f);
     setDefaultValue<FloatRow<Tags::Rot, Tags::CosAngle>>(builder, "setDefault Rot", 1.0f);
     setDefaultValue<FloatRow<Tags::GRot, Tags::CosAngle>>(builder, "setDefault GRot", 1.0f);
     setDefaultValue<Narrowphase::CollisionMaskRow>(builder, "setDefault Mask", uint8_t(~0));
     setDefaultValue<ConstraintSolver::ConstraintMaskRow>(builder, "setDefault Constraint Mask", ConstraintSolver::MASK_SOLVE_ALL);
-    setDefaultValue<ConstraintSolver::SharedMassRow, Shapes::SharedRectangleRow>(builder, "setDefault mass", defaultQuadMass);
-    setDefaultValue<ConstraintSolver::SharedMassRow, ZeroMassObjectTableTag>(builder, "set zero mass", Mass::OriginMass{});
     //Fragments in particular start opaque then reveal the texture as they take damage
     setDefaultValue<Tint, const IsFragment>(builder, "setDefault Tint", glm::vec4(0, 0, 0, 1));
     setDefaultValue<AccelerationZ>(builder, "set acceleration", -0.01f);

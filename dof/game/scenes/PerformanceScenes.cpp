@@ -22,7 +22,6 @@ namespace Scenes {
         Tags::ScaleXRow,
         Tags::ScaleYRow,
         AccelerationY,
-        ConstraintSolver::MassRow,
         Events::EventsRow
       >();
       auto terrain = task.query<
@@ -33,7 +32,6 @@ namespace Scenes {
         Tags::RotYRow,
         Tags::ScaleXRow,
         Tags::ScaleYRow,
-        ConstraintSolver::SharedMassRow,
         Events::EventsRow
       >();
       if(!objs.size() || !terrain.size()) {
@@ -49,12 +47,10 @@ namespace Scenes {
         constexpr size_t countY = 100;
         const glm::vec2 size{ 1, 1 };
         const glm::vec2 origin{ 0, 0 };
-        const Mass::OriginMass quadMass = Mass::computeQuadMass(Mass::Quad{ .fullSize = size }).body;
-        const Mass::OriginMass infMass = Mass::computeQuadMass(Mass::Quad{ .fullSize = size, .density = 0.f }).body;
         const float gravity = -0.005f;
         objsModifier->resize(countX*countY);
         {
-          auto [tag, px, py, sx, sy, gy, mass, stable] = objs.get(0);
+          auto [tag, px, py, sx, sy, gy, stable] = objs.get(0);
           for(size_t x = 0; x < countX; ++x) {
             for(size_t y = 0; y < countY; ++y) {
               glm::vec2 pos = origin + size * glm::vec2{ static_cast<float>(x), static_cast<float>(y) };
@@ -65,13 +61,12 @@ namespace Scenes {
               stable->getOrAdd(i).setCreate();
               TableAdapters::write(i, pos, *px, *py);
               TableAdapters::write(i, size, *sx, *sy);
-              mass->at(i) = quadMass;
               gy->at(i) = gravity;
             }
           }
         }
         {
-          auto [tag, px, py, rx, ry, sx, sy, mass, stable] = terrain.get(0);
+          auto [tag, px, py, rx, ry, sx, sy, stable] = terrain.get(0);
           const float groundHeight = 2.0f;
           const float widthBuffer = 3.0f;
           const glm::vec2 groundSize{ widthBuffer*2.0f + static_cast<float>(countX)*size.x, groundHeight };
@@ -91,7 +86,6 @@ namespace Scenes {
             TableAdapters::write(i, positions[i], *px, *py);
             TableAdapters::write(i, rotations[i], *rx, *ry);
             TableAdapters::write(i, groundSize, *sx, *sy);
-            mass->at(i) = infMass;
           }
         }
       });

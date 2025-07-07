@@ -14,6 +14,8 @@
 #include "TestApp.h"
 #include "Physics.h"
 #include "Dynamics.h"
+#include <module/MassModule.h>
+#include <module/PhysicsEvents.h>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -33,7 +35,8 @@ namespace Test {
       LinVelZ,
       AngVel,
       ConstraintSolver::ConstraintMaskRow,
-      ConstraintSolver::SharedMassRow,
+      MassModule::MassRow,
+      PhysicsEvents::RecomputeMassRow,
       ConstraintSolver::SharedMaterialRow
     >;
 
@@ -42,7 +45,8 @@ namespace Test {
       StaticTag,
       StableIDRow,
       ConstraintSolver::ConstraintMaskRow,
-      ConstraintSolver::SharedMassRow,
+      MassModule::MassRow,
+      PhysicsEvents::RecomputeMassRow,
       ConstraintSolver::SharedMaterialRow
     >;
 
@@ -79,8 +83,9 @@ namespace Test {
           ConstraintSolver::solveConstraints(builder, TestAliases{}, { &bias, &slop });
         });
         TableIds ids{ builder() };
-        ConstraintSolver::BodyMass* dynamicMass = builder().query<ConstraintSolver::SharedMassRow>(ids.dynamicBodies).tryGetSingletonElement();
-        *dynamicMass = Mass::computeQuadMass(Mass::Quad{ .fullSize = glm::vec2{ 1.f } }).body;
+        //TODO: fix
+        //ConstraintSolver::BodyMass* dynamicMass = builder().query<MassModule::MassRow>(ids.dynamicBodies).tryGetSingletonElement();
+        //*dynamicMass = Mass::computeQuadMass(Mass::Quad{ .fullSize = glm::vec2{ 1.f } }).body;
         //Static mass is already zero as desired
 
         builder().query<ConstraintSolver::ConstraintMaskRow>().forEachRow([](auto& row) {

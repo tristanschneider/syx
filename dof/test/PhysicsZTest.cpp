@@ -51,7 +51,6 @@ namespace Test {
           FloatRow<Pos, Z>,
           ScaleXRow,
           ScaleYRow,
-          ConstraintSolver::MassRow,
           const StableIDRow,
           Events::EventsRow
         >();
@@ -71,14 +70,13 @@ namespace Test {
           }
           {
             const size_t dy = dynamicsModifier[0]->addElements(1);
-            auto [_, px, py, pz, sx, sy, mass, stable, events] = dynamics.get(0);
+            auto [_, px, py, pz, sx, sy, stable, events] = dynamics.get(0);
             data.dynamicObject = stable->at(dy);
             events->getOrAdd(dy).setCreate();
             const glm::vec2 scale{ 1.0f };
             const glm::vec2 center{ 0.0f };
             TableAdapters::write(dy, center, *px, *py);
             TableAdapters::write(dy, scale, *sx, *sy);
-            mass->at(dy) = Mass::computeQuadMass(Mass::Quad{ .fullSize = scale }).body;
             pz->at(dy) = 10.0f;
           }
         });

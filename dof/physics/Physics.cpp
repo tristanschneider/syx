@@ -9,10 +9,15 @@
 #include <IAppModule.h>
 #include <shapes/Mesh.h>
 
+#include <module/MassModule.h>
+#include <module/PhysicsEvents.h>
+
 namespace Physics {
-  std::unique_ptr<IAppModule> createModule(const PhysicsAliases&) {
+  std::unique_ptr<IAppModule> createModule(const PhysicsAliases& aliases) {
     std::vector<std::unique_ptr<IAppModule>> modules;
     modules.push_back(Shapes::createMeshModule());
+    modules.push_back(MassModule::createModule(aliases));
+    modules.push_back(PhysicsEvents::clearEvents());
     return std::make_unique<CompositeAppModule>(std::move(modules));
   }
 

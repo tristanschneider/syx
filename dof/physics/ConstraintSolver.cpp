@@ -12,6 +12,7 @@
 #include "generics/HashMap.h"
 #include "ILocalScheduler.h"
 #include "generics/IndexRange.h"
+#include <module/MassModule.h>
 
 namespace ConstraintSolver {
   using ConstraintIndex = PGS::ConstraintIndex;
@@ -19,8 +20,7 @@ namespace ConstraintSolver {
 
   namespace Resolver {
     struct ShapeResolverCommonCache {
-      CachedRow<const SharedMassRow> sharedMass;
-      CachedRow<const MassRow> individualMass;
+      CachedRow<const MassModule::MassRow> individualMass;
       CachedRow<const ConstraintMaskRow> constraintMask;
       CachedRow<const SharedMaterialRow> material;
     };
@@ -52,7 +52,7 @@ namespace ConstraintSolver {
       }
 
       static std::shared_ptr<ITableResolver> createCommonResolver(RuntimeDatabaseTaskBuilder& task) {
-        return task.getResolver<const SharedMassRow, const MassRow, const SharedMaterialRow, const ConstraintMaskRow>();
+        return task.getResolver<const MassModule::MassRow, const SharedMaterialRow, const ConstraintMaskRow>();
       }
 
       PhysicsAliases tables;
@@ -85,10 +85,7 @@ namespace ConstraintSolver {
     };
 
     std::optional<BodyMass> resolveBodyMass(CommonShapeResolverContext& ctx, const UnpackedDatabaseElementID& id) {
-      const BodyMass* result = ctx.resolver.tryGetOrSwapRowElement(ctx.cache.sharedMass, id);
-      if(!result) {
-        result = ctx.resolver.tryGetOrSwapRowElement(ctx.cache.individualMass, id);
-      }
+      const BodyMass* result = result = ctx.resolver.tryGetOrSwapRowElement(ctx.cache.individualMass, id);
       //Having explicit zero mass is the same as not having any
       return result && (result->inverseInertia || result->inverseMass) ? std::make_optional(*result) : std::nullopt;
     }
