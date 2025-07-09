@@ -23,7 +23,6 @@ namespace Test {
         , posX{ table.tryGet<Tags::PosXRow>() }
         , posY{ table.tryGet<Tags::PosYRow>() }
         , linVelX{ table.tryGet<Tags::LinVelXRow>() }
-        , mass{ table.tryGet<MassModule::MassRow>() }
       {
       }
 
@@ -31,19 +30,16 @@ namespace Test {
       Tags::PosXRow* posX{};
       Tags::PosYRow* posY{};
       Tags::LinVelXRow* linVelX{};
-      MassModule::MassRow* mass{};
     };
 
     struct Indices {
       Indices(size_t base)
         : d{ base }
-        , s{ base + 1 }
-        , ca{ base + 2 }
-        , cb{ base + 3 }
+        , ca{ base + 1 }
+        , cb{ base + 2 }
       {
       }
       const size_t d;
-      const size_t s;
       const size_t ca;
       const size_t cb;
     };
@@ -61,36 +57,37 @@ namespace Test {
         task.setCallback([=](AppTaskArgs& args) {
           RuntimeDatabase& db = args.getLocalDB();
           RuntimeTable* table = db.tryGet(tables.physicsObjsWithZ);
+          RuntimeTable* terrain = db.tryGet(tables.terrain);
           db.setTableDirty(tables.physicsObjsWithZ);
+          db.setTableDirty(tables.terrain);
 
           Assert::IsNotNull(table);
           PhysicsRows pr{ *table };
+          PhysicsRows prs{ *terrain };
           //Create the objects
-          const Indices i = table->addElements(4);
-          auto objs = { i.d, i.s, i.ca, i.cb };
+          const Indices i = table->addElements(3);
+          const size_t si = terrain->addElements(1);
+          auto objs = { i.d, si, i.ca, i.cb };
           auto handles = getHandleArray();
           //Gather ElementRefs for the new objects
           {
             auto co = objs.begin();
             auto ch = handles.begin();
             for(; co != objs.end(); ++co, ++ch) {
-              **ch = pr.stable->at(*co);
+              if(*ch == &staticObj) {
+                **ch = prs.stable->at(si);
+              }
+              else {
+                **ch = pr.stable->at(*co);
+              }
             }
           }
 
           Assert::IsFalse(res.tryUnpack(dynamicObj).has_value(), L"Refs shouldn't be accessible in the main DB until they are migrated there");
 
-          //Compute masses
-          const Mass::OriginMass regularMass = Mass::computeQuadMass(Mass::Quad{ .fullSize = glm::vec2{ 1.f } }).body;
-          const Mass::OriginMass zeroMass{};
-          for(size_t e : objs) {
-            pr.mass->at(e) = regularMass;
-          }
-          pr.mass->at(i.s) = zeroMass;
-
           //Position dynamic object going towards static one
-          pr.posX->at(i.s) = 1;
-          pr.posY->at(i.s) = pr.posY->at(i.d) = 1;
+          prs.posX->at(si) = 1;
+          prs.posY->at(si) = pr.posY->at(i.d) = 1;
           pr.posX->at(i.d) = -1;
           pr.linVelX->at(i.d) = 0.5f;
 
@@ -118,23 +115,26 @@ namespace Test {
         task.setCallback([=](AppTaskArgs&) mutable {
           std::array<pt::Transform, 4> transforms;
           log.push_back(LogE{ transforms });
-          const Indices i{ 0 };
           auto handles = getHandleArray();
+          const size_t dynamicI = 0;
+          const size_t staticI = 1;
+          const size_t constraintAI = 2;
+          const size_t constraintBI = 3;
           std::transform(handles.begin(), handles.end(), transforms.begin(), [&](ElementRef* e) {
             return tr.resolve(*e);
           });
 
-          if(transforms[i.d].pos.x > transforms[i.s].pos.x) {
+          if(transforms[dynamicI].pos.x > transforms[staticI].pos.x) {
             Assert::Fail(L"Dynamic object should have collided with static object and stopped");
           }
 
           if(++currentTick > END_TICKS) {
             constexpr float e = 0.01f;
-            Assert::AreEqual(transforms[i.s].pos.x, 1, e);
-            Assert::AreEqual(transforms[i.s].pos.y, 1, e);
-            Assert::IsTrue(transforms[i.d].pos.x > -1, L"Dynamic object should have moved due to velocity");
+            Assert::AreEqual(transforms[staticI].pos.x, 1, e);
+            Assert::AreEqual(transforms[staticI].pos.y, 1, e);
+            Assert::IsTrue(transforms[dynamicI].pos.x > -1, L"Dynamic object should have moved due to velocity");
 
-            const float dist = glm::distance(transforms[i.ca].pos, transforms[i.cb].pos);
+            const float dist = glm::distance(transforms[constraintAI].pos, transforms[constraintBI].pos);
             const float distError = std::abs(2.0f - dist);
             Assert::IsTrue(distError < e, L"Constraint should have moved the objects and stabilized");
             currentTick = 0;
@@ -156,11 +156,10 @@ namespace Test {
     };
 
     TEST_METHOD(AppTask_CreatePhysicsObjects) {
-      Assert::Fail(L"todo");
-      //TestGame game{ std::make_unique<PhysicsLocalDBTask>() };
-      //for(size_t i = 0; i < PhysicsLocalDBTask::END_TICKS + 10; ++i) {
-      //  game.update();
-      //}
+      TestGame game{ std::make_unique<PhysicsLocalDBTask>() };
+      for(size_t i = 0; i < PhysicsLocalDBTask::END_TICKS + 10; ++i) {
+        game.update();
+      }
     }
   };
 }
