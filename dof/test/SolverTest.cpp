@@ -36,7 +36,6 @@ namespace Test {
       AngVel,
       ConstraintSolver::ConstraintMaskRow,
       MassModule::MassRow,
-      PhysicsEvents::RecomputeMassRow,
       ConstraintSolver::SharedMaterialRow
     >;
 
@@ -45,8 +44,6 @@ namespace Test {
       StaticTag,
       StableIDRow,
       ConstraintSolver::ConstraintMaskRow,
-      MassModule::MassRow,
-      PhysicsEvents::RecomputeMassRow,
       ConstraintSolver::SharedMaterialRow
     >;
 
@@ -82,11 +79,6 @@ namespace Test {
           static float slop = ConstraintSolver::SolverGlobals::SLOP_DEFAULT;
           ConstraintSolver::solveConstraints(builder, TestAliases{}, { &bias, &slop });
         });
-        TableIds ids{ builder() };
-        //TODO: fix
-        //ConstraintSolver::BodyMass* dynamicMass = builder().query<MassModule::MassRow>(ids.dynamicBodies).tryGetSingletonElement();
-        //*dynamicMass = Mass::computeQuadMass(Mass::Quad{ .fullSize = glm::vec2{ 1.f } }).body;
-        //Static mass is already zero as desired
 
         builder().query<ConstraintSolver::ConstraintMaskRow>().forEachRow([](auto& row) {
           row.setDefaultValue(ConstraintSolver::MASK_SOLVE_ALL);
@@ -94,6 +86,16 @@ namespace Test {
         builder().query<ConstraintSolver::SharedMaterialRow>().forEachRow([](auto& row) {
           row.setDefaultValue(ConstraintSolver::Material{ 0, 0 });
         });
+      }
+
+      ElementRef createInTableWithMass(TableID id) {
+        ElementRef result = this->createInTable(id);
+        if(RuntimeTable* table = this->builder().getDatabase().tryGet(id)) {
+          if(auto* masses = table->tryGet<MassModule::MassRow>()) {
+            masses->at(result.getMapping()->getElementIndex()) = Mass::computeQuadMass(Mass::Quad{ .fullSize = glm::vec2{ 1.f } }).body;
+          }
+        }
+        return result;
       }
     };
 
@@ -126,7 +128,7 @@ namespace Test {
       auto res = ids->getRefResolver();
 
       const ElementRef staticA = app.createInTable(tables.staticBodies);
-      const ElementRef dynamicB = app.createInTable(tables.dynamicBodies);
+      const ElementRef dynamicB = app.createInTableWithMass(tables.dynamicBodies);
       const size_t ib = res.uncheckedUnpack(dynamicB).getElementIndex();
 
       auto ar = staticA;
@@ -159,7 +161,7 @@ namespace Test {
       }
 
       //Simulate another object C moving downwards and colliding with A but not B
-      const ElementRef dynamicC = app.createInTable(tables.dynamicBodies);
+      const ElementRef dynamicC = app.createInTableWithMass(tables.dynamicBodies);
       const size_t ic = res.uncheckedUnpack(dynamicC).getElementIndex();
       auto cr = dynamicC;
       IslandGraph::addNode(graph, cr);
@@ -218,8 +220,8 @@ namespace Test {
       auto ids = task.getIDResolver();
       auto res = ids->getRefResolver();
 
-      const ElementRef a = app.createInTable(tables.dynamicBodies);
-      const ElementRef b = app.createInTable(tables.dynamicBodies);
+      const ElementRef a = app.createInTableWithMass(tables.dynamicBodies);
+      const ElementRef b = app.createInTableWithMass(tables.dynamicBodies);
 
       const size_t ai = res.uncheckedUnpack(a).getElementIndex();
       const size_t bi = res.uncheckedUnpack(b).getElementIndex();
