@@ -25,6 +25,7 @@
 #include "shapes/Circle.h"
 #include "shapes/Rectangle.h"
 #include "shapes/Line.h"
+#include <shapes/Mesh.h>
 #include "Constraints.h"
 #include "loader/AssetService.h"
 #include "GraphicsTables.h"
@@ -280,6 +281,26 @@ namespace GameDatabase {
     return table;
   }
 
+  StorageTableBuilder createConvexPhysicsObjects() {
+    StorageTableBuilder table;
+    addTransform25D(table);
+    addVelocity25D(table);
+    addCollider(table);
+    addRigidbody(table);
+    addRenderable(table, RenderableOptions{
+      .sharedTexture = true,
+      .sharedMesh = false,
+    });
+    table.addRows<
+      Tags::DynamicPhysicsObjectsTag,
+      SceneNavigator::IsClearedWithSceneTag,
+      AccelerationZ,
+      Narrowphase::SharedThicknessRow,
+      Shapes::MeshReferenceRow
+    >().setStable().setTableName({ "Physics Convex" });
+    return table;
+  }
+
   StorageTableBuilder createFragmentSeekingGoal() {
     StorageTableBuilder table;
     addTransform2DNoScale(table);
@@ -448,6 +469,7 @@ namespace GameDatabase {
     createDynamicPhysicsObjects().finalize(args);
     createDynamicPhysicsObjectsWithZ().finalize(args);
     createDynamicPhysicsObjectsWithMotor().finalize(args);
+    createConvexPhysicsObjects().finalize(args);
     createFragmentSpawner().finalize(args);
 
     StatEffect::createDatabase(args);

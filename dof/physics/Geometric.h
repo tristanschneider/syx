@@ -22,6 +22,15 @@ namespace Geo {
       max = glm::max(max, p);
     }
 
+    constexpr std::array<glm::vec2, 4> points() const {
+      return {
+        min,
+        glm::vec2{ max.x, min.y },
+        max,
+        glm::vec2{ min.x, max.y }
+      };
+    }
+
     glm::vec2 min{ 0 };
     glm::vec2 max{ 0 };
   };

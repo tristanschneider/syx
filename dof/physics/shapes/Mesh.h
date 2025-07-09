@@ -35,6 +35,7 @@ namespace Shapes {
   //Populated by the physics module when it sees the mesh asset load
   struct MeshAsset {
     std::vector<glm::vec2> points;
+    std::vector<glm::vec2> convexHull;
     Geo::AABB aabb;
   };
   struct MeshAssetRow : Row<MeshAsset> {};

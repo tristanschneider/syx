@@ -9,19 +9,89 @@
 #include "Geometric.h"
 #include "glm/gtc/matrix_inverse.hpp"
 #include "BoxBox.h"
+#include <MeshNarrowphase.h>
+#include <shapes/Mesh.h>
 
 namespace Narrowphase {
   //TODO: need to be able to know how much contact info is desired
 
   struct ContactArgs {
+    std::vector<glm::vec2> tempA, tempB;
     SP::ContactManifold& manifold;
     SP::ZContactManifold& zManifold;
     SP::PairType& pairType;
   };
 
-  //Non-implemented fallback
+  ShapeRegistry::Mesh toMesh(const ShapeRegistry::Rectangle& v, std::vector<glm::vec2>& storage) {
+    pt::Parts parts{
+      .rot = v.right,
+      .scale = v.halfWidth,
+      .translate = Geo::toVec3(v.center)
+    };
+    storage.clear();
+    storage.insert(storage.end(), {
+      glm::vec2{ -1.f, -1.f },
+      glm::vec2{ 1.f, -1.f },
+      glm::vec2{ 1.f, 1.f },
+      glm::vec2{ -1.f, 1.f }
+    });
+    return ShapeRegistry::Mesh{
+      .points = storage,
+      .modelToWorld = pt::PackedTransform::build(parts),
+      .worldToModel = pt::PackedTransform::inverse(parts)
+    };
+  }
+
+  ShapeRegistry::Mesh toMesh(const ShapeRegistry::AABB& v, std::vector<glm::vec2>& storage) {
+    auto points = Geo::AABB{ v.min, v.max }.points();
+    storage.clear();
+    storage.insert(storage.end(), points.begin(), points.end());
+    //Identity transform since points are already in world space
+    return ShapeRegistry::Mesh{
+      .points = storage
+    };
+  }
+
+  ShapeRegistry::Mesh toMesh(const ShapeRegistry::Raycast& v, std::vector<glm::vec2>& storage) {
+    storage.clear();
+    storage.insert(storage.begin(), {
+      v.start,
+      v.end
+    });
+    //Identity transform since points are already in world space
+    return ShapeRegistry::Mesh{
+      .points = storage
+    };
+  }
+
+  //TODO: only works once mesh can have radius
+  ShapeRegistry::Mesh toMesh(const ShapeRegistry::Circle& v, std::vector<glm::vec2>& storage) {
+    storage.clear();
+    storage.insert(storage.begin(), v.pos);
+    //Identity transform since points are already in world space
+    return ShapeRegistry::Mesh{
+      .points = storage
+    };
+  }
+
+  ShapeRegistry::Mesh toMesh(std::monostate, std::vector<glm::vec2>& storage) {
+    storage.clear();
+    return {
+      .points = storage
+    };
+  }
+
+  ShapeRegistry::Mesh toMesh(const ShapeRegistry::Mesh& mesh, std::vector<glm::vec2>&) {
+    return mesh;
+  }
+
+  void generateContacts(ShapeRegistry::Mesh& a, ShapeRegistry::Mesh& b, ContactArgs& result);
+
   template<class A, class B>
-  void generateContacts(A&, B&, ContactArgs&) {
+  void generateContacts(A& a, B& b, ContactArgs& args) {
+    ShapeRegistry::Mesh meshA = toMesh(a, args.tempA);
+    ShapeRegistry::Mesh meshB = toMesh(b, args.tempB);
+    generateContacts(meshA, meshB, args);
   }
 
   void swapAB(ContactArgs& result) {
@@ -53,6 +123,10 @@ namespace Narrowphase {
       glm::vec2{ 1.0f, 0.0f },
       halfSize
     };
+  }
+
+  void generateContacts(ShapeRegistry::Mesh& a, ShapeRegistry::Mesh& b, ContactArgs& result) {
+    Narrowphase::generateContactsConvex(a, b, {}, result.manifold);
   }
 
   void generateContacts(Shape::Rectangle& a, Shape::Rectangle& b, ContactArgs& result) {
@@ -286,6 +360,7 @@ namespace Narrowphase {
         if(args.begin >= thisTableEnd) {
           continue;
         }
+        std::vector<glm::vec2> tempA, tempB;
         for(size_t ri = args.begin; ri < std::min(args.end, thisTableEnd); ++ri) {
           const size_t i = ri - thisTableStart;
           const ElementRef& stableA = a->at(i);
@@ -319,7 +394,7 @@ namespace Narrowphase {
           //TODO: is non-const because of ispc signature, should be const
           Shape::BodyType shapeA = classifier.classifyShape(*resolvedA);
           Shape::BodyType shapeB = classifier.classifyShape(*resolvedB);
-          ContactArgs cargs{ man, zMan, pairT };
+          ContactArgs cargs{ tempA, tempB, man, zMan, pairT };
           generateContacts(shapeA, shapeB, cargs);
           tryCheckZ(*resolvedA, *resolvedB, shapeQuery, cargs);
         }
