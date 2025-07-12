@@ -67,6 +67,7 @@ namespace GameDefaults {
     std::unique_ptr<IGameDatabaseReader> dbSource;
     std::unique_ptr<IAppModule> initialEventValidator,
       physics,
+      relation,
       simulation,
       fragmentSpawner,
       sceneNavigator,

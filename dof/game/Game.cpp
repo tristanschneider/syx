@@ -227,6 +227,7 @@ namespace Game {
 #include "test/PhysicsTestModule.h"
 #include <Physics.h>
 #include <PhysicsSimulation.h>
+#include <RelationModule.h>
 
 namespace GameDefaults {
   MultithreadedDeps DefaultGameDatabaseReader::getMultithreadedDeps(IDatabase& db) {
@@ -253,6 +254,7 @@ namespace GameDefaults {
     //Add event validator if asserts are enabled. Best if registered early so that it can assert on bad events before they crash on a consumer.
     assert(tryAdd(initialEventValidator));
     tryAdd(physics);
+    tryAdd(relation);
     tryAdd(simulation);
     tryAdd(fragmentSpawner);
     tryAdd(sceneNavigator);
@@ -272,6 +274,7 @@ namespace GameDefaults {
       .dbSource = std::make_unique<DefaultGameDatabaseReader>(),
       .initialEventValidator = EventValidator::createModule("first"),
       .physics = Physics::createModule(PhysicsSimulation::getPhysicsAliases()),
+      .relation = Relation::createModule(),
       .simulation = Simulation::createModule({}),
       .fragmentSpawner = FragmentSpawner::createModule(),
       .sceneNavigator = SceneNavigator::createModule(),
