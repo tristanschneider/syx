@@ -33,12 +33,13 @@ namespace Relation {
       const ElementRef* childRefs{};
     };
 
+    RelationWriter() = default;
     RelationWriter(AppTaskArgs& args);
 
     NewChildren addChildren(const ElementRef& parent, ChildrenEntry& children, TableID childTable, size_t count);
 
   private:
-    RuntimeDatabase& localDB;
+    RuntimeDatabase* localDB{};
   };
 
   std::unique_ptr<IAppModule> createModule();

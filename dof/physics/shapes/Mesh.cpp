@@ -11,17 +11,52 @@
 #include <generics/Functional.h>
 #include <loader/ReflectionModule.h>
 #include <loader/SceneAsset.h>
+#include <RelationModule.h>
 
 namespace Shapes {
+  //This is equivalent to Relation::HasChildrenRow but allows children of mesh asset entries to exist unrelated to composite meshes.
+  struct CompositeMesh {
+    std::vector<ElementRef> parts;
+  };
+  struct CompositeMeshRow : Row<CompositeMesh> {};
+  struct CompositeMeshTagRow : TagRow {};
+
   struct MeshStorage : ChainedRuntimeStorage {
     using ChainedRuntimeStorage::ChainedRuntimeStorage;
+    struct Rows {
+      MeshAssetRow mesh;
+      //Reference to elements in th ecompositeAssets table for composite meshes
+      CompositeMeshRow composite;
+    };
 
-    std::vector<MeshAssetRow> meshAssets;
+    std::vector<Rows> rows;
+    Table<
+      CompositeMeshTagRow,
+      StableIDRow,
+      Relation::HasParentRow,
+      MeshAssetRow
+    > compositeAssets;
   };
 
   struct ImportMeshTask {
     void init(RuntimeDatabaseTaskBuilder& task) {
       query = task;
+      compositeMeshTable = task.queryTables<CompositeMeshTagRow>().getTableID(0);
+    }
+
+    void init(AppTaskArgs& args) {
+      relations = args;
+    }
+
+    static Geo::AABB computeAABB(const MeshAsset& mesh) {
+      Geo::AABB result;
+      if(mesh.convexHull.size()) {
+        result.buildInit();
+        for(const glm::vec2& p : mesh.convexHull) {
+          result.buildAdd(p);
+        }
+      }
+      return result;
     }
 
     static MeshAsset createMesh(const Loader::MeshAsset& mesh) {
@@ -38,33 +73,88 @@ namespace Shapes {
       std::transform(ctx.result.begin(), ctx.result.end(), result.convexHull.begin(), ConvexHull::GetPoints{ result.points });
       //Mass properties will be computed based on convex hull by MassModule
 
-      //Not center of mass, just a reference point
-      if(result.convexHull.size()) {
-        result.aabb.buildInit();
-        for(const glm::vec2& p : result.convexHull) {
-          result.aabb.buildAdd(p);
+      result.aabb = computeAABB(result);
+      return result;
+    }
+
+    static void createCompositeMesh(
+      TableID childTable,
+      const ElementRef& parentMesh,
+      const MeshAsset& mesh,
+      CompositeMesh& parentComposite,
+      Relation::ChildrenEntry& meshChildren,
+      Relation::RelationWriter& writer) {
+      std::vector<size_t> triIndices;
+      triIndices.reserve(mesh.points.size() / 3);
+
+      //Find all "valid" triangles as ones that have some amount of area with counter-clockwise winding.
+      //Points are assumed to be in triplets
+      for(size_t i = 0; i + 2 < mesh.points.size(); i += 3) {
+        const glm::vec2& a = mesh.points[i];
+        const glm::vec2& b = mesh.points[i + 1];
+        const glm::vec2& c = mesh.points[i + 2];
+        const float ccwArea = Geo::cross(b - a, c - a);
+        if(ccwArea > 0.01f) {
+          triIndices.push_back(i);
         }
       }
-      return result;
+
+      if(triIndices.empty()) {
+        return;
+      }
+
+      //Add child elements
+      Relation::RelationWriter::NewChildren result = writer.addChildren(parentMesh, meshChildren, childTable, triIndices.size());
+      //Fill in child meshes
+      MeshAssetRow* childMeshes = result.table->tryGet<MeshAssetRow>();
+      parentComposite.parts.resize(triIndices.size());
+      for(size_t i = 0; i < triIndices.size(); ++i) {
+        MeshAsset& childMesh = childMeshes->at(i + result.startIndex);
+        const size_t ti = triIndices[i];
+        childMesh.points.insert(childMesh.points.end(), {
+          mesh.points[ti],
+          mesh.points[ti + 1],
+          mesh.points[ti + 2]
+        });
+        //Triangle is already its own convex hull
+        childMesh.convexHull = childMesh.points;
+        childMesh.aabb = computeAABB(childMesh);
+        //Store references to the chldren on the parent
+        parentComposite.parts[i] = result.childRefs[i];
+      }
     }
 
     void execute() {
       for(size_t t = 0; t < query.size(); ++t) {
-        auto [events, baseMeshes, physicsMeshes] = query.get(t);
+        auto [stables, events, baseMeshes, children, compositeMeshes, physicsMeshes] = query.get(t);
         for(auto it : events) {
           if(it.second.isCreate()) {
             const size_t i = it.first;
             physicsMeshes->at(i) = createMesh(baseMeshes->at(i));
+            //Always create composite mesh data for now. Could be done on-demand in the future if needed.
+            createCompositeMesh(
+              compositeMeshTable,
+              stables->at(i),
+              physicsMeshes->at(i),
+              compositeMeshes->at(i),
+              children->at(i),
+              relations
+            );
           }
         }
       }
     }
 
     QueryResult<
+      const StableIDRow,
       const Events::EventsRow,
       const Loader::MeshAssetRow,
+      Relation::HasChildrenRow,
+      CompositeMeshRow,
       MeshAssetRow
     > query;
+    Relation::RelationWriter relations;
+    TableID compositeMeshTable;
   };
 
   class MeshModule : public IAppModule {
@@ -82,10 +172,14 @@ namespace Shapes {
         }
       }
       MeshStorage* storage = RuntimeStorage::addToChain<MeshStorage>(args);
-      storage->meshAssets.resize(tables.size());
+      storage->rows.resize(tables.size());
       for(size_t i = 0; i < tables.size(); ++i) {
-        DBReflect::details::reflectRow(storage->meshAssets[i], *tables[i]);
+        DBReflect::details::reflectRow(storage->rows[i].mesh, *tables[i]);
+        DBReflect::details::reflectRow(storage->rows[i].composite, *tables[i]);
       }
+      //Add table for all the child meshes of a composite mesh
+      args.tables.emplace_back();
+      DBReflect::details::reflectTable(args.tables.back(), storage->compositeAssets);
     }
 
     //For any objects that load with MatMeshRefRow, copy that mesh reference into MeshReferenceRow if it exists to use for collision.

@@ -6,6 +6,7 @@
 #include "loader/SceneAsset.h"
 #include "AssetIndex.h"
 #include "Database.h"
+#include <RelationModule.h>
 
 namespace Loader {
   namespace db {
@@ -20,6 +21,8 @@ namespace Loader {
       StableIDRow,
       SucceededTagRow,
       UsageTrackerBlockRow,
+      //Asset implementations are allowed to optionally add asset information as child elements
+      Relation::HasChildrenRow,
       T
     >;
     using LoaderDB = Database<

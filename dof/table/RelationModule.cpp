@@ -8,12 +8,12 @@
 
 namespace Relation {
   RelationWriter::RelationWriter(AppTaskArgs& args)
-    : localDB{ args.getLocalDB() } {
+    : localDB{ &args.getLocalDB() } {
   }
 
   RelationWriter::NewChildren RelationWriter::addChildren(const ElementRef& parent, ChildrenEntry& children, TableID childTable, size_t count) {
     NewChildren result;
-    result.table = localDB.tryGet(childTable);
+    result.table = localDB ? localDB->tryGet(childTable) : nullptr;
     const StableIDRow* stable = result.table ? result.table->tryGet<const StableIDRow>() : nullptr;
     if(!result.table || !stable || !count) {
       return {};
