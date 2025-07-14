@@ -10,4 +10,5 @@ namespace PhysicsTableBuilder {
   StorageTableBuilder& addRigidbodySharedMass(StorageTableBuilder& table);
   StorageTableBuilder& addAutoManagedJoint(StorageTableBuilder& table);
   StorageTableBuilder& addAutoManagedCustomJoint(StorageTableBuilder& table);
+  StorageTableBuilder& addStaticTriangleMesh(StorageTableBuilder& table);
 }

@@ -105,7 +105,9 @@ namespace Loader {
       const Loader::MeshIndex index = context.meshMap->remap(e.mMeshes[0]);
       return MatMeshRef{
         .material = tryGetIndex(*context.resolvedMaterials, index.materialIndex),
-        .mesh = tryGetIndex(*context.resolvedMeshes, index.meshIndex)
+        //Ignoring deduplicated meshes for now.
+        //TODO: remove deduplication or fix it by ensuring resolvedMeshes is the deduplicated contents, right now it's the original
+        .mesh = tryGetIndex(*context.resolvedMeshes, e.mMeshes[0])
       };
     }
     return {};

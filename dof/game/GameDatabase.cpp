@@ -339,6 +339,22 @@ namespace GameDatabase {
     return table;
   }
 
+  StorageTableBuilder createMeshTerrain() {
+    StorageTableBuilder table;
+    addTransform25D(table);
+    PhysicsTableBuilder::addStaticTriangleMesh(table);
+    PhysicsTableBuilder::addCollider(table);
+    PhysicsTableBuilder::addRigidbodySharedMass(table);
+    addRenderable(table, RenderableOptions{ .sharedMesh = false });
+    table.addRows<
+      SceneNavigator::IsClearedWithSceneTag,
+      FragmentBurstStatEffect::CanTriggerFragmentBurstRow,
+      Tags::TerrainRow,
+      Narrowphase::SharedThicknessRow
+    >().setStable().setTableName({ "Terrain Mesh" });
+    return table;
+  }
+
   StorageTableBuilder createInvisibleTerrain() {
     StorageTableBuilder table;
     addTransform25D(table);
@@ -415,6 +431,7 @@ namespace GameDatabase {
     DBReflect::addTable<BroadphaseTable>(args);
     DBReflect::addTable<SP::SpatialPairsTable>(args);
     createTerrain().finalize(args);
+    createMeshTerrain().finalize(args);
     createInvisibleTerrain().finalize(args);
     createFragmentSeekingGoal().finalize(args);
     createCompletedFragments().finalize(args);

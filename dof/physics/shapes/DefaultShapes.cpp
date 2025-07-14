@@ -23,5 +23,6 @@ namespace Shapes {
       .scaleX = rect.scaleX,
       .scaleY = rect.scaleY
     }));
+    registry.registerImpl(createStaticTriangleMesh());
   }
 }

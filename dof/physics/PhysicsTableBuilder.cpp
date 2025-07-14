@@ -8,6 +8,8 @@
 #include <SweepNPruneBroadphase.h>
 #include <Narrowphase.h>
 #include <Constraints.h>
+#include <shapes/Mesh.h>
+#include <RelationModule.h>
 
 namespace PhysicsTableBuilder {
   StorageTableBuilder& addRigidbody(StorageTableBuilder& table) {
@@ -55,5 +57,12 @@ namespace PhysicsTableBuilder {
   StorageTableBuilder& addAutoManagedCustomJoint(StorageTableBuilder& table) {
     addAutoManagedJoint(table);
     return table.addRows<Constraints::CustomConstraintRow>();
+  }
+
+  StorageTableBuilder& addStaticTriangleMesh(StorageTableBuilder& table) {
+    return addImmobile(table).addRows<
+      Shapes::StaticTriangleMeshReferenceRow,
+      Relation::HasChildrenRow
+    >();
   }
 }

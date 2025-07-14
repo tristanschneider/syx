@@ -47,4 +47,5 @@ namespace Shapes {
   std::unique_ptr<IAppModule> createMeshModule(const MeshTransform& meshTransform);
 
   std::unique_ptr<ShapeRegistry::IShapeImpl> createMesh(const MeshTransform& transform);
+  std::unique_ptr<ShapeRegistry::IShapeImpl> createStaticTriangleMesh();
 }

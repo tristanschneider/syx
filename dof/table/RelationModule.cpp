@@ -20,6 +20,7 @@ namespace Relation {
     }
 
     result.startIndex = result.table->addElements(count);
+    localDB->setTableDirty(childTable);
     result.childRefs = &stable->at(result.startIndex);
     result.count = count;
 

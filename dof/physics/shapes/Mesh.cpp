@@ -13,6 +13,7 @@
 #include <loader/SceneAsset.h>
 #include <RelationModule.h>
 #include <PhysicsTableBuilder.h>
+#include <TableName.h>
 
 #include <ConstraintSolver.h>
 #include <Narrowphase.h>
@@ -29,7 +30,7 @@ namespace Shapes {
     TriangleMesh() = default;
     TriangleMesh(const pt::PackedTransform& t, const glm::vec2& a, const glm::vec2& b, const glm::vec2& c)
       : points{ t.transformPoint(a), t.transformPoint(b), t.transformPoint(c) }
-      , aabb{ Geo::AABB::build({ a, b, c }) }
+      , aabb{ Geo::AABB::build({ points[0], points[1], points[2] }) }
     {
     }
 
@@ -86,6 +87,13 @@ namespace Shapes {
       return result;
     }
 
+    static void fillModelFromPoints(MeshAsset& mesh, ConvexHull::Context& ctx) {
+      ConvexHull::compute(mesh.points, ctx);
+      mesh.convexHull.resize(ctx.result.size());
+      std::transform(ctx.result.begin(), ctx.result.end(), mesh.convexHull.begin(), ConvexHull::GetPoints{ mesh.points });
+      mesh.aabb = computeAABB(mesh);
+    }
+
     static MeshAsset createMesh(const Loader::MeshAsset& mesh) {
       MeshAsset result;
       result.points.resize(mesh.verts.size());
@@ -93,14 +101,9 @@ namespace Shapes {
       std::transform(mesh.verts.begin(), mesh.verts.end(), result.points.begin(), [](const Loader::MeshVertex& v) {
         return glm::vec2{ v.pos.x, v.pos.y };
       });
-      //Compute convex hull and store in convexHull
       ConvexHull::Context ctx;
-      ConvexHull::compute(result.points, ctx);
-      result.convexHull.resize(ctx.result.size());
-      std::transform(ctx.result.begin(), ctx.result.end(), result.convexHull.begin(), ConvexHull::GetPoints{ result.points });
+      fillModelFromPoints(result, ctx);
       //Mass properties will be computed based on convex hull by MassModule
-
-      result.aabb = computeAABB(result);
       return result;
     }
 
@@ -114,14 +117,14 @@ namespace Shapes {
       std::vector<size_t> triIndices;
       triIndices.reserve(mesh.points.size() / 3);
 
-      //Find all "valid" triangles as ones that have some amount of area with counter-clockwise winding.
+      //Find all "valid" triangles as ones that have some amount of area.
       //Points are assumed to be in triplets
       for(size_t i = 0; i + 2 < mesh.points.size(); i += 3) {
         const glm::vec2& a = mesh.points[i];
         const glm::vec2& b = mesh.points[i + 1];
         const glm::vec2& c = mesh.points[i + 2];
-        const float ccwArea = Geo::cross(b - a, c - a);
-        if(ccwArea > 0.01f) {
+        const float area = std::abs(Geo::cross(b - a, c - a));
+        if(area > 0.01f) {
           triIndices.push_back(i);
         }
       }
@@ -135,6 +138,8 @@ namespace Shapes {
       //Fill in child meshes
       MeshAssetRow* childMeshes = result.table->tryGet<MeshAssetRow>();
       parentComposite.parts.resize(triIndices.size());
+      ConvexHull::Context ctx;
+
       for(size_t i = 0; i < triIndices.size(); ++i) {
         MeshAsset& childMesh = childMeshes->at(i + result.startIndex);
         const size_t ti = triIndices[i];
@@ -143,9 +148,8 @@ namespace Shapes {
           mesh.points[ti + 1],
           mesh.points[ti + 2]
         });
-        //Triangle is already its own convex hull
-        childMesh.convexHull = childMesh.points;
-        childMesh.aabb = computeAABB(childMesh);
+        fillModelFromPoints(childMesh, ctx);
+
         //Store references to the chldren on the parent
         parentComposite.parts[i] = result.childRefs[i];
       }
@@ -260,7 +264,7 @@ namespace Shapes {
             }
             const size_t ci = c + newChildren.startIndex;
             //Copy points for this child mesh to world space TriangleMesh using parent transform
-            newRows.triangleMeshes->at(ci) = TriangleMesh{ parentTransform, childMesh->points[0], childMesh->points[1], childMesh->points[2] };
+            newRows.triangleMeshes->at(ci) = TriangleMesh{ parentTransform, childMesh->convexHull[0], childMesh->convexHull[1], childMesh->convexHull[2] };
             //Copy over parent masks
             newRows.collisionMasks->at(ci) = parentCollisionMask;
             newRows.constraintMasks->at(ci) = parentConstraintMask;
@@ -338,7 +342,7 @@ namespace Shapes {
           //So that pt::FullTransformResolver uses this.
           //It will always be identity since points are in world space
           pt::TransformRow
-        >();
+        >().setStable().setTableName({ "Triangle Instances" });
         return table;
       }).finalize(args);
     }
@@ -354,11 +358,14 @@ namespace Shapes {
 
         const Loader::MatMeshRefRow& s = static_cast<const Loader::MatMeshRefRow&>(src);
         tryLoadRow<MeshReferenceRow>(s, dst, range, GetMember<&Loader::MatMeshRef::mesh>{});
+        tryLoadRow<StaticTriangleMeshReferenceRow>(s, dst, range, GetMember<&Loader::MatMeshRef::mesh>{});
       }
     };
 
     void init(IAppBuilder& builder) override {
-      Reflection::registerLoaders(builder, Reflection::createRowLoader(MatMeshLoader{}));
+      Reflection::registerLoaders(builder,
+        Reflection::createRowLoader(MatMeshLoader{})
+      );
     }
 
     const pt::FullTransformAlias transformAlias;
@@ -401,6 +408,42 @@ namespace Shapes {
     ElementRefResolver ids;
   };
 
+  class StaticTriangleMeshClassifier : public ShapeRegistry::IShapeClassifier {
+  public:
+    StaticTriangleMeshClassifier(RuntimeDatabaseTaskBuilder& task, ITableResolver& res)
+      : tableResolver{ res }
+    {
+      task.getResolver(meshRef);
+    }
+
+    ShapeRegistry::BodyType classifyShape(const UnpackedDatabaseElementID& id) final {
+      if(const TriangleMesh* ref = tableResolver.tryGetOrSwapRowElement(meshRef, id)) {
+        return { ShapeRegistry::Mesh{
+          .points = ref->points,
+          .aabb = ref->aabb
+        }};
+      }
+      return {};
+    }
+
+    CachedRow<const TriangleMeshRow> meshRef;
+    ITableResolver& tableResolver;
+  };
+
+  void resizeBounds(ShapeRegistry::BroadphaseBounds& bounds, size_t size) {
+    bounds.minX.resize(size);
+    bounds.minY.resize(size);
+    bounds.maxX.resize(size);
+    bounds.maxY.resize(size);
+  }
+
+  void writeWorldBounds(ShapeRegistry::BroadphaseBounds& bounds, size_t i, const Geo::AABB& bb) {
+    bounds.minX.at(i) = bb.min.x;
+    bounds.minY.at(i) = bb.min.y;
+    bounds.maxX.at(i) = bb.max.x;
+    bounds.maxY.at(i) = bb.max.y;
+  }
+
   struct UpdateBoundaries {
     struct Args {
       const MeshTransform& transform;
@@ -423,25 +466,8 @@ namespace Shapes {
           alias.scaleX.read(),
           alias.scaleY.read()
         );
-        childMeshQuery = task.query<
-          const TriangleMeshRow
-        >(bounds->table);
         resolver = task.getResolver<const Shapes::MeshAssetRow>();
         ids = task.getRefResolver();
-      }
-
-      void resizeBounds(size_t size) {
-        bounds->minX.resize(size);
-        bounds->minY.resize(size);
-        bounds->maxX.resize(size);
-        bounds->maxY.resize(size);
-      }
-
-      void writeWorldBounds(size_t i, const Geo::AABB& bb) {
-        bounds->minX.at(i) = bb.min.x;
-        bounds->minY.at(i) = bb.min.y;
-        bounds->maxX.at(i) = bb.max.x;
-        bounds->maxY.at(i) = bb.max.y;
       }
 
       MeshTransform alias;
@@ -455,9 +481,6 @@ namespace Shapes {
         const Row<float>,
         const Row<float>
       > query;
-      QueryResult<
-        const TriangleMeshRow
-      > childMeshQuery;
       std::shared_ptr<ITableResolver> resolver;
       ElementRefResolver ids;
     };
@@ -469,7 +492,7 @@ namespace Shapes {
       assert(g.query.size() <= 1);
       for(size_t t = 0; t < g.query.size(); ++t) {
         auto&& [shape, px, py, rx, ry, sx, sy] = g.query.get(t);
-        g.resizeBounds(px->size());
+        resizeBounds(*g.bounds, px->size());
 
         for(size_t i = 0; i < px->size(); ++i) {
           //Resolve mesh
@@ -489,18 +512,47 @@ namespace Shapes {
               worldBB.buildAdd(transform.transformPoint(point));
             }
 
-            g.writeWorldBounds(i, worldBB);
+            writeWorldBounds(*g.bounds, i, worldBB);
           }
         }
       }
+    }
 
+    std::optional<MeshClassifier> classifier;
+  };
+
+  struct UpdateStaticTriangleMeshBoundaries {
+    struct Args {
+      ShapeRegistry::BroadphaseBounds& bounds;
+    };
+    struct Group {
+      void init(const Args& args) {
+        bounds = &args.bounds;
+      }
+
+      void init(RuntimeDatabaseTaskBuilder& task) {
+        task.logDependency({ bounds->requiredDependency });
+        childMeshQuery = task.query<
+          const TriangleMeshRow
+        >(bounds->table);
+      }
+
+      ShapeRegistry::BroadphaseBounds* bounds{};
+      QueryResult<
+        const TriangleMeshRow
+      > childMeshQuery;
+    };
+
+    void init() {}
+
+    void execute(Group& g) {
       //TODO: do nothing because they're static
       for(size_t t = 0; t < g.childMeshQuery.size(); ++t) {
         auto&& [mesh] = g.childMeshQuery.get(t);
-        g.resizeBounds(mesh->size());
+        resizeBounds(*g.bounds, mesh->size());
 
         for(size_t i = 0; i < mesh->size(); ++i) {
-          g.writeWorldBounds(i, mesh->at(i).aabb);
+          writeWorldBounds(*g.bounds, i, mesh->at(i).aabb);
         }
       }
     }
@@ -533,7 +585,27 @@ namespace Shapes {
     const MeshTransform transform;
   };
 
+  class StaticTriangleMeshImpl : public ShapeRegistry::IShapeImpl {
+    std::vector<TableID> queryTables(IAppBuilder& builder) const final {
+      return builder.queryTables<TriangleMeshRow>().getMatchingTableIDs();
+    }
+
+    std::shared_ptr<ShapeRegistry::IShapeClassifier> createShapeClassifier(RuntimeDatabaseTaskBuilder& task, ITableResolver& resolver) const final {
+      return std::make_shared<StaticTriangleMeshClassifier>(task, resolver);
+    }
+
+    void writeBoundaries(IAppBuilder& builder, ShapeRegistry::BroadphaseBounds& bounds) const final {
+      builder.submitTask(TLSTask::createWithArgs<UpdateStaticTriangleMeshBoundaries, UpdateStaticTriangleMeshBoundaries::Group>("UpdateMeshBounds", UpdateStaticTriangleMeshBoundaries::Args{
+        .bounds = bounds
+      }));
+    }
+  };
+
   std::unique_ptr<ShapeRegistry::IShapeImpl> createMesh(const MeshTransform& transform) {
     return std::make_unique<MeshImpl>(transform);
+  }
+
+  std::unique_ptr<ShapeRegistry::IShapeImpl> createStaticTriangleMesh() {
+    return std::make_unique<StaticTriangleMeshImpl>();
   }
 }
