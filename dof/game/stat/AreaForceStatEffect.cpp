@@ -15,7 +15,7 @@
 #include "glm/gtc/matrix_inverse.hpp"
 #include "glm/gtc/matrix_transform.hpp"
 #include "AppBuilder.h"
-
+#include <module/MassModule.h>
 #include "DebugDrawer.h"
 
 namespace AreaForceStatEffect {
@@ -216,7 +216,7 @@ namespace AreaForceStatEffect {
     FloatRow<Tags::GLinImpulse, Tags::X>* impulseX{};
     FloatRow<Tags::GLinImpulse, Tags::Y>* impulseY{};
     FloatRow<Tags::GAngImpulse, Tags::Angle>* impulseA{};
-    const IsImmobile* isImmobile{};
+    const MassModule::IsImmobile* isImmobile{};
   };
 
   //TODO: replace with SpatialQueries
@@ -307,7 +307,7 @@ namespace AreaForceStatEffect {
       const IsFragment
     >();
     auto resolver = task.getResolver<
-      const IsImmobile,
+      const MassModule::IsImmobile,
       const FloatRow<GPos, X>, const FloatRow<GPos, Y>,
       FloatRow<GLinImpulse, X>, FloatRow<GLinImpulse, Y>,
       FloatRow<GAngImpulse, Angle>,
@@ -341,7 +341,7 @@ namespace AreaForceStatEffect {
             auto&& [posXs, posYs, rotXs, rotYs, f] = shapesQuery.get(s);
             const UnpackedDatabaseElementID table = shapesQuery[s];
             ShapesQuery shapeTable {
-              table, posXs.get(), posYs.get(), rotXs.get(), rotYs.get(), nullptr, nullptr, nullptr, resolver->tryGetRow<const IsImmobile>(table)
+              table, posXs.get(), posYs.get(), rotXs.get(), rotYs.get(), nullptr, nullptr, nullptr, resolver->tryGetRow<const MassModule::IsImmobile>(table)
             };
             std::visit([&](const auto& shape) {
               gatherResultsInShape(command, shape, shapeTable, shapes);

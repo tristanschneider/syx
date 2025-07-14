@@ -29,8 +29,12 @@ namespace Shapes {
   struct MeshReference {
     Loader::AssetHandle meshAsset;
   };
-  //Add this to tables that want mesh collision
+  //Same as MeshReference, but interprets the mesh as a composite mesh for each triangle.
+  //Such meshes are not allowed to move (static), so are intended for terrain.
+  struct StaticTriangleMeshReference : MeshReference {};
+  //Add this to tables that want mesh collision. The table must also have Relation::HasChildrenRow as the composite uses children.
   struct MeshReferenceRow : Row<MeshReference> {};
+  struct StaticTriangleMeshReferenceRow : Row<StaticTriangleMeshReference> {};
 
   //Populated by the physics module when it sees the mesh asset load
   struct MeshAsset {
@@ -40,7 +44,7 @@ namespace Shapes {
   };
   struct MeshAssetRow : Row<MeshAsset> {};
 
-  std::unique_ptr<IAppModule> createMeshModule();
+  std::unique_ptr<IAppModule> createMeshModule(const MeshTransform& meshTransform);
 
   std::unique_ptr<ShapeRegistry::IShapeImpl> createMesh(const MeshTransform& transform);
 }

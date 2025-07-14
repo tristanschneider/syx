@@ -27,6 +27,7 @@ namespace TMS {
 #include "loader/SceneAsset.h"
 #include "GraphicsTables.h"
 #include "TLSTaskImpl.h"
+#include <module/MassModule.h>
 
 namespace QuadPassTable {
   using Transform = TMS::MW_t;
@@ -307,7 +308,7 @@ namespace Renderer {
     auto task = builder.createTask();
     task.setName("renderer initGame").setPinning(AppTaskPinning::MainThread{});
     auto sprites = task.query<const Row<CubeSprite>>();
-    auto resolver = task.getResolver<const IsImmobile>();
+    auto resolver = task.getResolver<const MassModule::IsImmobile>();
     auto quadPasses = task.query<QuadPassTable::PassRow, QuadPassTable::IsImmobileRow>();
     auto oglState = task.query<Row<RendererState>>();
     task.setCallback([sprites, resolver, quadPasses, oglState](AppTaskArgs&) mutable {
@@ -324,7 +325,7 @@ namespace Renderer {
       //Fill in the quad pass tables
       for(size_t i = 0 ; i < sprites.size(); ++i) {
         quadPasses.get<0>(i).at().mQuadUniforms = _createQuadUniforms();
-        quadPasses.get<1>(i).at() = resolver->tryGetRow<const IsImmobile>(sprites[i]) != nullptr;
+        quadPasses.get<1>(i).at() = resolver->tryGetRow<const MassModule::IsImmobile>(sprites[i]) != nullptr;
       }
     });
 

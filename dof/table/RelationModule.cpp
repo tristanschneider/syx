@@ -21,6 +21,7 @@ namespace Relation {
 
     result.startIndex = result.table->addElements(count);
     result.childRefs = &stable->at(result.startIndex);
+    result.count = count;
 
     //Add children references in parent container so they can be used to find children for removal
     children.children.insert(children.children.end(), stable->begin() + result.startIndex, stable->begin() + result.startIndex + count);

@@ -22,6 +22,15 @@ namespace Geo {
       max = glm::max(max, p);
     }
 
+    static constexpr AABB build(std::initializer_list<glm::vec2> points) {
+      AABB result;
+      result.buildInit();
+      for(const auto& p : points) {
+        result.buildAdd(p);
+      }
+      return result;
+    }
+
     constexpr std::array<glm::vec2, 4> points() const {
       return {
         min,

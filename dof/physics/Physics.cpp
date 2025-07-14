@@ -15,7 +15,14 @@
 namespace Physics {
   std::unique_ptr<IAppModule> createModule(const PhysicsAliases& aliases) {
     std::vector<std::unique_ptr<IAppModule>> modules;
-    modules.push_back(Shapes::createMeshModule());
+    modules.push_back(Shapes::createMeshModule(Shapes::MeshTransform{
+      .centerX = aliases.posX,
+      .centerY = aliases.posY,
+      .rotX = aliases.rotX,
+      .rotY = aliases.rotY,
+      .scaleX = aliases.scaleX,
+      .scaleY = aliases.scaleY
+    }));
     modules.push_back(MassModule::createModule(aliases));
     modules.push_back(PhysicsEvents::clearEvents());
     return std::make_unique<CompositeAppModule>(std::move(modules));

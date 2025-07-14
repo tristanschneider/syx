@@ -571,7 +571,7 @@ public:
   void finalize(RuntimeDatabaseArgs& args)&&;
 
 private:
-  template<IsRow R>
+  template<IsDefaultConstructibleRow R>
   R& addRow() {
     struct RowStorage : ChainedRuntimeStorage {
       using ChainedRuntimeStorage::ChainedRuntimeStorage;

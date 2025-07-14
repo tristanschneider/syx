@@ -11,6 +11,7 @@ struct PhysicsAliases;
 //Mass is updated whenever an element is added and when PhysicsEvents::RecomputeMassRow is flagged
 namespace MassModule {
   struct MassRow : Row<Mass::OriginMass> {};
+  struct IsImmobile : TagRow{};
 
   std::unique_ptr<IAppModule> createModule(const PhysicsAliases& aliases);
 }

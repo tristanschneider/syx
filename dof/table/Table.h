@@ -200,6 +200,8 @@ template<class T>
 concept IsRow = std::is_base_of_v<IRow, T>;
 static_assert(IsRow<BasicRow<int>>);
 static_assert(IsRow<SharedRow<int>>);
+template<class T>
+concept IsDefaultConstructibleRow = IsRow<T> && std::is_default_constructible_v<T>;
 
 template<class T>
 constexpr bool isRow() {

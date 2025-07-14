@@ -12,7 +12,13 @@ struct PhysicsAliases;
 class ElementRef;
 class ElementRefResolver;
 
+//TODO: this is annoying, should just have a single way to store transforms and stick to that rather than the alias abstraction. Probably even the entire pt::PackedTransform all in one
 namespace pt {
+  struct TransformPair {
+    pt::PackedTransform modelToWorld, worldToModel;
+  };
+  struct TransformRow : Row<TransformPair> {};
+
   //Intended for light use or random access of transform data. For heavier uses manual queries may be more applicable
   struct Transform {
     glm::vec2 transformPoint(const glm::vec2& p) const;
@@ -38,9 +44,12 @@ namespace pt {
       return PackedTransform::build(toParts());
     }
 
-    std::pair<PackedTransform, PackedTransform> toPackedWithInverse() const {
+    TransformPair toPackedWithInverse() const {
       const auto parts = toParts();
-      return std::make_pair(PackedTransform::build(parts), PackedTransform::inverse(parts));
+      return TransformPair{
+        .modelToWorld = PackedTransform::build(parts),
+        .worldToModel = PackedTransform::inverse(parts)
+      };
     }
 
     glm::vec3 pos{};
@@ -82,9 +91,11 @@ namespace pt {
 
     FullTransform resolve(const ElementRef& ref);
     FullTransform resolve(const UnpackedDatabaseElementID& ref);
+    TransformPair resolvePair(const UnpackedDatabaseElementID& ref);
 
     using FRow = CachedRow<const Row<float>>;
     FRow posX, posY, posZ, rotX, rotY, scaleX, scaleY;
+    CachedRow<const TransformRow> transformRow;
     std::shared_ptr<ITableResolver> resolver;
     ElementRefResolver res;
     FullTransformAlias alias;

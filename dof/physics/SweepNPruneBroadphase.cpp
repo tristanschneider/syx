@@ -8,6 +8,7 @@
 #include "shapes/ShapeRegistry.h"
 #include "Events.h"
 #include "TLSTaskImpl.h"
+#include <module/MassModule.h>
 
 namespace SweepNPruneBroadphase {
   void registryUpdate(IAppBuilder& builder) {
@@ -123,7 +124,7 @@ namespace SweepNPruneBroadphase {
             physicsAliases.posX.read(), physicsAliases.posY.read(),
             QueryAlias<BroadphaseKeys>::create()
           );
-        res = task.getAliasResolver(physicsAliases.isImmobile.read());
+        res = task.getResolver<const MassModule::IsImmobile>();
         ids = task.getRefResolver();
         spatialPairs = SP::createStorageModifier(task);
         grid = task.query<SharedRow<Broadphase::SweepGrid::Grid>>().tryGetSingletonElement();
@@ -146,7 +147,7 @@ namespace SweepNPruneBroadphase {
     void init() {}
 
     void execute(Group& group) {
-      CachedRow<const TagRow> isImmobile;
+      CachedRow<const MassModule::IsImmobile> isImmobile;
       for(size_t t = 0; t < group.query.size(); ++t) {
         auto [events, stable, posX, posY, keys] = group.query.get(t);
         //If the table it moved to (this table) is immobile, mark as immoble, otherwise do the opposite

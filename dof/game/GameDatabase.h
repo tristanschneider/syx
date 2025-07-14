@@ -35,8 +35,6 @@ namespace GameDatabase {
   StorageTableBuilder& addTransform25D(StorageTableBuilder& table);
   StorageTableBuilder& addVelocity25D(StorageTableBuilder& table);
   StorageTableBuilder& addGameplayCopy(StorageTableBuilder& table);
-  StorageTableBuilder& addCollider(StorageTableBuilder& table);
-  StorageTableBuilder& addRigidbody(StorageTableBuilder& table);
   StorageTableBuilder& addRenderable(StorageTableBuilder& table, const RenderableOptions& ops);
 
   void create(RuntimeDatabaseArgs& args);

@@ -14,6 +14,7 @@
 #include "shapes/Rectangle.h"
 #include "Constraints.h"
 #include "TransformResolver.h"
+#include <module/MassModule.h>
 
 namespace PhysicsSimulation {
   using PosX = FloatRow<Tags::Pos, Tags::X>;
@@ -203,9 +204,6 @@ namespace PhysicsSimulation {
     aliases.broadphaseMinY = FloatAlias::create<SpatialQuery::Physics<SpatialQuery::MinY>>();
     aliases.broadphaseMaxY = FloatAlias::create<SpatialQuery::Physics<SpatialQuery::MaxY>>();
 
-    using TagAlias = QueryAlias<TagRow>;
-    aliases.isImmobile = TagAlias::create<IsImmobile>();
-
     return aliases;
   }
 
@@ -228,7 +226,6 @@ namespace PhysicsSimulation {
       .broadphaseMinY = F::create<SpatialQuery::Physics<SpatialQuery::MinY>>(),
       .broadphaseMaxX = F::create<SpatialQuery::Physics<SpatialQuery::MaxX>>(),
       .broadphaseMaxY = F::create<SpatialQuery::Physics<SpatialQuery::MaxY>>(),
-      .isImmobile = T::create<IsImmobile>(),
     };
   }
 

@@ -12,6 +12,10 @@
 #include <loader/ReflectionModule.h>
 #include <loader/SceneAsset.h>
 #include <RelationModule.h>
+#include <PhysicsTableBuilder.h>
+
+#include <ConstraintSolver.h>
+#include <Narrowphase.h>
 
 namespace Shapes {
   //This is equivalent to Relation::HasChildrenRow but allows children of mesh asset entries to exist unrelated to composite meshes.
@@ -21,15 +25,38 @@ namespace Shapes {
   struct CompositeMeshRow : Row<CompositeMesh> {};
   struct CompositeMeshTagRow : TagRow {};
 
+  struct TriangleMesh {
+    TriangleMesh() = default;
+    TriangleMesh(const pt::PackedTransform& t, const glm::vec2& a, const glm::vec2& b, const glm::vec2& c)
+      : points{ t.transformPoint(a), t.transformPoint(b), t.transformPoint(c) }
+      , aabb{ Geo::AABB::build({ a, b, c }) }
+    {
+    }
+
+    ShapeRegistry::Mesh toMesh() const {
+      //Points are in world space, so transforms are identity
+      return ShapeRegistry::Mesh{
+        .points = points,
+        .aabb = aabb,
+      };
+    }
+
+    std::vector<glm::vec2> points;
+    Geo::AABB aabb;
+  };
+  struct TriangleMeshRow : Row<TriangleMesh> {};
+
   struct MeshStorage : ChainedRuntimeStorage {
     using ChainedRuntimeStorage::ChainedRuntimeStorage;
     struct Rows {
       MeshAssetRow mesh;
-      //Reference to elements in th ecompositeAssets table for composite meshes
+      //Reference to elements in the compositeAssets table for composite meshes
       CompositeMeshRow composite;
     };
 
     std::vector<Rows> rows;
+    //Pieces of the full model broken down into a bunch of smaller ones.
+    //These are assets referenced by MeshReferenceRow
     Table<
       CompositeMeshTagRow,
       StableIDRow,
@@ -157,10 +184,128 @@ namespace Shapes {
     TableID compositeMeshTable;
   };
 
+  struct InitCompositeMeshTask {
+    struct Group {
+      void init(const pt::FullTransformAlias& a) {
+        transformAlias = a;
+      }
+
+      void init(RuntimeDatabaseTaskBuilder& task) {
+        transformResolver = pt::FullTransformResolver{ task, transformAlias };
+      }
+
+      pt::FullTransformAlias transformAlias;
+      pt::FullTransformResolver transformResolver;
+    };
+
+    void init(RuntimeDatabaseTaskBuilder& task) {
+      triangleMeshTable = task.queryTables<TriangleMeshRow>().getTableID(0);
+      query = task;
+      ids = task.getRefResolver();
+      resolver = task.getResolver(meshAssets, compositeMeshAssets);
+    }
+
+    void init(AppTaskArgs& args) {
+      relation = args;
+    }
+
+    struct ChildRows {
+      ChildRows() = default;
+      ChildRows(RuntimeTable& table)
+        : triangleMeshes{ table.tryGet<TriangleMeshRow>() }
+        , constraintMasks{ table.tryGet<ConstraintSolver::ConstraintMaskRow>() }
+        , collisionMasks{ table.tryGet<Narrowphase::CollisionMaskRow>() }
+      {}
+
+      explicit operator bool() const {
+        return triangleMeshes && constraintMasks && collisionMasks;
+      }
+
+      TriangleMeshRow* triangleMeshes{};
+      ConstraintSolver::ConstraintMaskRow* constraintMasks{};
+      Narrowphase::CollisionMaskRow* collisionMasks{};
+    };
+
+    void execute(Group& g) {
+      for(size_t t = 0; t < query.size(); ++t) {
+        auto&& [events, stables, meshRefs, constraintMasks, collisionMasks, children] = query.get(t);
+        for(auto event : events) {
+          if(!event.second.isCreate()) {
+            continue;
+          }
+          const size_t si = event.first;
+          const UnpackedDatabaseElementID assetID = ids.unpack(meshRefs->at(si).meshAsset.asset);
+          const CompositeMesh* composite = resolver->tryGetOrSwapRowElement(compositeMeshAssets, assetID);
+          if(!composite || composite->parts.empty()) {
+            continue;
+          }
+
+          Relation::RelationWriter::NewChildren newChildren = relation.addChildren(stables->at(si), children->at(si), triangleMeshTable, composite->parts.size());
+          ChildRows newRows = newChildren.table ? ChildRows{ *newChildren.table } : ChildRows{};
+          if(!newChildren.count || !newRows) {
+            continue;
+          }
+
+          const ElementRef& parentID = stables->at(si);
+          const pt::PackedTransform parentTransform = g.transformResolver.resolve(ids.unpack(parentID)).toPacked();
+          const Narrowphase::CollisionMask parentCollisionMask = collisionMasks->at(si);
+          const ConstraintSolver::ConstraintMask parentConstraintMask = constraintMasks->at(si);
+
+          for(size_t c = 0; c < newChildren.count; ++c) {
+            const MeshAsset* childMesh = resolver->tryGetOrSwapRowElement(meshAssets, ids.unpack(composite->parts[c]));
+            //Skip meshes that fail to resolve. This shouldn't happen. If it does, the new child will be useless but also shouldn't cause problems.
+            //If they resolved, they should have 3 points as constructed by ImportMeshTask.
+            if(!childMesh || childMesh->points.size() != 3) {
+              continue;
+            }
+            const size_t ci = c + newChildren.startIndex;
+            //Copy points for this child mesh to world space TriangleMesh using parent transform
+            newRows.triangleMeshes->at(ci) = TriangleMesh{ parentTransform, childMesh->points[0], childMesh->points[1], childMesh->points[2] };
+            //Copy over parent masks
+            newRows.collisionMasks->at(ci) = parentCollisionMask;
+            newRows.constraintMasks->at(ci) = parentConstraintMask;
+          }
+        }
+      }
+    }
+
+    QueryResult<
+      const Events::EventsRow,
+      const StableIDRow,
+      const StaticTriangleMeshReferenceRow,
+      const ConstraintSolver::ConstraintMaskRow,
+      const Narrowphase::CollisionMaskRow,
+      Relation::HasChildrenRow
+    > query;
+    Relation::RelationWriter relation;
+    TableID triangleMeshTable;
+    CachedRow<const CompositeMeshRow> compositeMeshAssets;
+    CachedRow<const MeshAssetRow> meshAssets;
+    std::shared_ptr<ITableResolver> resolver;
+    ElementRefResolver ids;
+  };
+
+  pt::FullTransformAlias getTransformAlias(const MeshTransform& t) {
+    pt::FullTransformAlias result;
+    result.posX = t.centerX;
+    result.posY = t.centerY;
+    result.rotX = t.rotX;
+    result.rotY = t.rotY;
+    result.scaleX = t.scaleX;
+    result.scaleY = t.scaleY;
+    return result;
+  }
+
   class MeshModule : public IAppModule {
   public:
+    MeshModule(const MeshTransform& meshTransform)
+      : transformAlias{ getTransformAlias(meshTransform) }
+    {
+    }
+
     void postProcessEvents(IAppBuilder& builder) override {
       builder.submitTask(TLSTask::create<ImportMeshTask>("import mesh"));
+      builder.submitTask(TLSTask::createWithArgs<InitCompositeMeshTask, InitCompositeMeshTask::Group>("InitCompositeMesh", transformAlias));
     }
 
     //Add MeshAssetRow to all tables with Loader::MeshAssetRow
@@ -180,6 +325,22 @@ namespace Shapes {
       //Add table for all the child meshes of a composite mesh
       args.tables.emplace_back();
       DBReflect::details::reflectTable(args.tables.back(), storage->compositeAssets);
+
+      //Add table for instances of those child meshes.
+      std::invoke([] {
+        StorageTableBuilder table;
+        //Add rows needed for collision, omit mass which means a static (infinite mass) mesh
+        PhysicsTableBuilder::addRigidbody(table);
+        PhysicsTableBuilder::addCollider(table);
+        PhysicsTableBuilder::addImmobile(table);
+        table.addRows<
+          TriangleMeshRow,
+          //So that pt::FullTransformResolver uses this.
+          //It will always be identity since points are in world space
+          pt::TransformRow
+        >();
+        return table;
+      }).finalize(args);
     }
 
     //For any objects that load with MatMeshRefRow, copy that mesh reference into MeshReferenceRow if it exists to use for collision.
@@ -199,21 +360,12 @@ namespace Shapes {
     void init(IAppBuilder& builder) override {
       Reflection::registerLoaders(builder, Reflection::createRowLoader(MatMeshLoader{}));
     }
+
+    const pt::FullTransformAlias transformAlias;
   };
 
-  std::unique_ptr<IAppModule> createMeshModule() {
-    return std::make_unique<MeshModule>();
-  }
-
-  pt::FullTransformAlias getTransformAlias(const MeshTransform& t) {
-    pt::FullTransformAlias result;
-    result.posX = t.centerX;
-    result.posY = t.centerY;
-    result.rotX = t.rotX;
-    result.rotY = t.rotY;
-    result.scaleX = t.scaleX;
-    result.scaleY = t.scaleY;
-    return result;
+  std::unique_ptr<IAppModule> createMeshModule(const MeshTransform& meshTransform) {
+    return std::make_unique<MeshModule>(meshTransform);
   }
 
   class MeshClassifier : public ShapeRegistry::IShapeClassifier {
@@ -229,15 +381,14 @@ namespace Shapes {
     ShapeRegistry::BodyType classifyShape(const UnpackedDatabaseElementID& id) final {
       const MeshReference* ref = tableResolver.tryGetOrSwapRowElement(meshRef, id);
       const Shapes::MeshAsset* asset = ref ? tableResolver.tryGetOrSwapRowElement(meshAsset, ids.tryUnpack(ref->meshAsset.asset)) : nullptr;
-      const pt::FullTransform transform = transformResolver.resolve(id);
       //TODO: avoid recomputing by storing in table with the objects and making transformResolver deal with this
-      auto [mToW, wToM] = transform.toPackedWithInverse();
+      const pt::TransformPair transform = transformResolver.resolvePair(id);
       if(asset) {
         return { ShapeRegistry::Mesh{
           .points = asset->convexHull,
           .aabb = asset->aabb,
-          .modelToWorld = mToW,
-          .worldToModel = wToM
+          .modelToWorld = transform.modelToWorld,
+          .worldToModel = transform.worldToModel
         }};
       }
       return {};
@@ -272,8 +423,25 @@ namespace Shapes {
           alias.scaleX.read(),
           alias.scaleY.read()
         );
+        childMeshQuery = task.query<
+          const TriangleMeshRow
+        >(bounds->table);
         resolver = task.getResolver<const Shapes::MeshAssetRow>();
         ids = task.getRefResolver();
+      }
+
+      void resizeBounds(size_t size) {
+        bounds->minX.resize(size);
+        bounds->minY.resize(size);
+        bounds->maxX.resize(size);
+        bounds->maxY.resize(size);
+      }
+
+      void writeWorldBounds(size_t i, const Geo::AABB& bb) {
+        bounds->minX.at(i) = bb.min.x;
+        bounds->minY.at(i) = bb.min.y;
+        bounds->maxX.at(i) = bb.max.x;
+        bounds->maxY.at(i) = bb.max.y;
       }
 
       MeshTransform alias;
@@ -287,6 +455,9 @@ namespace Shapes {
         const Row<float>,
         const Row<float>
       > query;
+      QueryResult<
+        const TriangleMeshRow
+      > childMeshQuery;
       std::shared_ptr<ITableResolver> resolver;
       ElementRefResolver ids;
     };
@@ -298,10 +469,7 @@ namespace Shapes {
       assert(g.query.size() <= 1);
       for(size_t t = 0; t < g.query.size(); ++t) {
         auto&& [shape, px, py, rx, ry, sx, sy] = g.query.get(t);
-        g.bounds->minX.resize(px->size());
-        g.bounds->minY.resize(px->size());
-        g.bounds->maxX.resize(px->size());
-        g.bounds->maxY.resize(px->size());
+        g.resizeBounds(px->size());
 
         for(size_t i = 0; i < px->size(); ++i) {
           //Resolve mesh
@@ -321,12 +489,18 @@ namespace Shapes {
               worldBB.buildAdd(transform.transformPoint(point));
             }
 
-            //Write world bounds
-            g.bounds->minX.at(i) = worldBB.min.x;
-            g.bounds->minY.at(i) = worldBB.min.y;
-            g.bounds->maxX.at(i) = worldBB.max.x;
-            g.bounds->maxY.at(i) = worldBB.max.y;
+            g.writeWorldBounds(i, worldBB);
           }
+        }
+      }
+
+      //TODO: do nothing because they're static
+      for(size_t t = 0; t < g.childMeshQuery.size(); ++t) {
+        auto&& [mesh] = g.childMeshQuery.get(t);
+        g.resizeBounds(mesh->size());
+
+        for(size_t i = 0; i < mesh->size(); ++i) {
+          g.writeWorldBounds(i, mesh->at(i).aabb);
         }
       }
     }

@@ -29,6 +29,7 @@ namespace Relation {
       RuntimeTable* table{};
       //Index of the first child in table, the rest are after this is order
       size_t startIndex{};
+      size_t count{};
       //Array of refs to the new child entries, count matches the requested child count
       const ElementRef* childRefs{};
     };

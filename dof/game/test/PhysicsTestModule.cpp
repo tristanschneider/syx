@@ -22,6 +22,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtx/norm.hpp>
 #include <format>
+#include <PhysicsTableBuilder.h>
 
 namespace PhysicsTestModule {
   //Objects with collision being checked for correctness
@@ -206,7 +207,7 @@ namespace PhysicsTestModule {
       std::invoke([]{
         StorageTableBuilder table;
         addBase(table);
-        GameDatabase::addCollider(table);
+        PhysicsTableBuilder::addCollider(table);
         table.addRows<
           ValidationTargetRow,
           Shapes::SharedRectangleRow

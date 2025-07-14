@@ -99,7 +99,8 @@ namespace pt {
         tables.rotX.read(),
         tables.rotY.read(),
         tables.scaleX.read(),
-        tables.scaleY.read()
+        tables.scaleY.read(),
+        QueryAlias<TransformRow>::create().read()
       )
     }
     , res{ task.getIDResolver()->getRefResolver() }
@@ -139,5 +140,10 @@ namespace pt {
       return result;
     }
     return {};
+  }
+
+  TransformPair FullTransformResolver::resolvePair(const UnpackedDatabaseElementID& ref) {
+    const pt::TransformPair* result = resolver->tryGetOrSwapRowElement(transformRow, ref);
+    return result ? *result : resolve(ref).toPackedWithInverse();
   }
 }

@@ -48,7 +48,6 @@ struct ThreadLocalsInstance {
 struct ThreadLocalsRow : SharedRow<ThreadLocalsInstance> {};
 
 struct IDatabase;
-struct IsImmobile : TagRow{};
 struct IsFragment : TagRow{};
 struct DamageTaken : Row<float>{};
 struct Tint : Row<glm::vec4>{};

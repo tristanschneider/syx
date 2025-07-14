@@ -38,8 +38,6 @@ struct PhysicsAliases {
   FloatAlias broadphaseMinY;
   FloatAlias broadphaseMaxX;
   FloatAlias broadphaseMaxY;
-
-  TagAlias isImmobile;
 };
 
 namespace Physics {

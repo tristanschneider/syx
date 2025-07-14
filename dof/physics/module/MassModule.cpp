@@ -83,30 +83,18 @@ namespace MassModule {
   };
 
   struct UpdateMasses {
-    struct Group {
-      void init(const PhysicsAliases& a) {
-        aliases = a;
-      }
-
-      void init(RuntimeDatabaseTaskBuilder& task) {
-        resolver = task.getAliasResolver(aliases.isImmobile.read());
-      }
-
-      PhysicsAliases aliases;
-      std::shared_ptr<ITableResolver> resolver;
-    };
-
     void init(RuntimeDatabaseTaskBuilder& task) {
       query = task;
       shapes = ShapeRegistry::get(task)->createShapeClassifier(task);
+      resolver = task.getResolver<const MassModule::IsImmobile>();
       ref = task.getIDResolver()->getRefResolver();
     }
 
-    void execute(Group& g) {
+    void execute() {
       PointCache cache;
       for(size_t t = 0; t < query.size(); ++t) {
         auto&& [flags, ids, masses] = query.get(t);
-        CachedRow<const TagRow> isImmobile;
+        CachedRow<const MassModule::IsImmobile> isImmobile;
         for(size_t index : flags) {
           const ElementRef& element = ids->at(index);
           const UnpackedDatabaseElementID rawId = ref.unpack(element);
@@ -115,7 +103,7 @@ namespace MassModule {
 
           //For now, immobile tables are zero mass and everything else assumes 1 density.
           //Eventually, both should be done from a material, or even skip shape lookups for immobile
-          const float density = g.resolver->tryGetOrSwapRowAlias(g.aliases.isImmobile, isImmobile, rawId) ? 0.f : 1.f;
+          const float density = resolver->tryGetOrSwapRow(isImmobile, rawId) ? 0.f : 1.f;
 
           masses->at(index) = std::visit(ComputeMass{ .density = density, .cache = cache }, shape.shape);
         }
@@ -124,6 +112,7 @@ namespace MassModule {
 
     QueryResult<const PhysicsEvents::RecomputeMassRow, const StableIDRow, MassRow> query;
     std::shared_ptr<ShapeRegistry::IShapeClassifier> shapes;
+    std::shared_ptr<ITableResolver> resolver;
     ElementRefResolver ref;
   };
 
@@ -138,7 +127,7 @@ namespace MassModule {
     }
 
     void update(IAppBuilder& builder) final {
-      builder.submitTask(TLSTask::createWithArgs<UpdateMasses, UpdateMasses::Group>("UpdateMass", aliases));
+      builder.submitTask(TLSTask::create<UpdateMasses>("UpdateMass"));
     }
 
     const PhysicsAliases aliases;

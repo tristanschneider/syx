@@ -32,6 +32,7 @@
 #include "TableName.h"
 #include <module/MassModule.h>
 #include <module/PhysicsEvents.h>
+#include <PhysicsTableBuilder.h>
 
 namespace GameDatabase {
   using BroadphaseTable = SweepNPruneBroadphase::BroadphaseTable;
@@ -169,27 +170,6 @@ namespace GameDatabase {
     return table;
   }
 
-  StorageTableBuilder& addCollider(StorageTableBuilder& table) {
-    return table.addRows<
-      SweepNPruneBroadphase::BroadphaseKeys,
-      Narrowphase::CollisionMaskRow
-    >();
-  }
-
-  StorageTableBuilder& addMass(StorageTableBuilder& table) {
-    return table.addRows<
-      MassModule::MassRow,
-      PhysicsEvents::RecomputeMassRow
-    >();
-  }
-
-  StorageTableBuilder& addRigidbody(StorageTableBuilder& table) {
-    return addMass(table).addRows<
-      ConstraintSolver::ConstraintMaskRow,
-      ConstraintSolver::SharedMaterialRow
-    >();
-  }
-
   StorageTableBuilder& addRenderable(StorageTableBuilder& table, const RenderableOptions& ops) {
     assert(ops.sharedTexture && "Individual textures not currently supported");
     if(ops.sharedTexture) {
@@ -205,19 +185,12 @@ namespace GameDatabase {
     return table.addRows<Row<CubeSprite>>();
   }
 
-  StorageTableBuilder& addRigidbodySharedMass(StorageTableBuilder& table) {
-    return addMass(table).addRows<
-      ConstraintSolver::ConstraintMaskRow,
-      ConstraintSolver::SharedMaterialRow
-    >();
-  }
-
   StorageTableBuilder createDynamicPhysicsObjects() {
     StorageTableBuilder table;
     addTransform2D(table);
     addVelocity2D(table);
-    addCollider(table);
-    addRigidbody(table);
+    PhysicsTableBuilder::addCollider(table);
+    PhysicsTableBuilder::addRigidbody(table);
     addRenderable(table, {});
     table.addRows<
       Tags::DynamicPhysicsObjectsTag,
@@ -231,28 +204,13 @@ namespace GameDatabase {
     return table;
   }
 
-  StorageTableBuilder& addAutoManagedJoint(StorageTableBuilder& table) {
-    return table.addRows<
-      Constraints::AutoManageJointTag,
-      Constraints::TableConstraintDefinitionsRow,
-      Constraints::ConstraintChangesRow,
-      Constraints::JointRow,
-      Constraints::ConstraintStorageRow
-    >();
-  }
-
-  StorageTableBuilder& addAutoManagedCustomJoint(StorageTableBuilder& table) {
-    addAutoManagedJoint(table);
-    return table.addRows<Constraints::CustomConstraintRow>();
-  }
-
   StorageTableBuilder createDynamicPhysicsObjectsWithMotor() {
     StorageTableBuilder table;
     addTransform2D(table);
     addVelocity25D(table);
-    addCollider(table);
-    addRigidbody(table);
-    addAutoManagedJoint(table);
+    PhysicsTableBuilder::addCollider(table);
+    PhysicsTableBuilder::addRigidbody(table);
+    PhysicsTableBuilder::addAutoManagedJoint(table);
     addRenderable(table, {});
     table.addRows<
       Tags::DynamicPhysicsObjectsWithMotorTag,
@@ -267,8 +225,8 @@ namespace GameDatabase {
     StorageTableBuilder table;
     addTransform25D(table);
     addVelocity25D(table);
-    addCollider(table);
-    addRigidbody(table);
+    PhysicsTableBuilder::addCollider(table);
+    PhysicsTableBuilder::addRigidbody(table);
     addRenderable(table, {});
     table.addRows<
       Tags::DynamicPhysicsObjectsWithZTag,
@@ -285,8 +243,8 @@ namespace GameDatabase {
     StorageTableBuilder table;
     addTransform25D(table);
     addVelocity25D(table);
-    addCollider(table);
-    addRigidbody(table);
+    PhysicsTableBuilder::addCollider(table);
+    PhysicsTableBuilder::addRigidbody(table);
     addRenderable(table, RenderableOptions{
       .sharedTexture = true,
       .sharedMesh = false,
@@ -305,9 +263,9 @@ namespace GameDatabase {
     StorageTableBuilder table;
     addTransform2DNoScale(table);
     addVelocity2D(table);
-    addAutoManagedCustomJoint(table);
-    addCollider(table);
-    addRigidbody(table);
+    PhysicsTableBuilder::addAutoManagedCustomJoint(table);
+    PhysicsTableBuilder::addCollider(table);
+    PhysicsTableBuilder::addRigidbody(table);
     addGameplayCopy(table);
     addGameplayImpulse(table);
     addRenderable(table, {});
@@ -337,17 +295,16 @@ namespace GameDatabase {
   }
 
   StorageTableBuilder& addImmobile(StorageTableBuilder& table) {
-    return table.addRows<
-      ZeroMassObjectTableTag,
-      IsImmobile
+    return PhysicsTableBuilder::addImmobile(table).addRows<
+      ZeroMassObjectTableTag
     >();
   }
 
   StorageTableBuilder createCompletedFragments() {
     StorageTableBuilder table;
     addTransform2DNoScale(table);
-    addCollider(table);
-    addRigidbodySharedMass(table);
+    PhysicsTableBuilder::addCollider(table);
+    PhysicsTableBuilder::addRigidbodySharedMass(table);
     addImmobile(table);
     addGameplayCopy(table);
     addRenderable(table, {});
@@ -368,8 +325,8 @@ namespace GameDatabase {
     StorageTableBuilder table;
     addTransform25D(table);
     addImmobile(table);
-    addCollider(table);
-    addRigidbodySharedMass(table);
+    PhysicsTableBuilder::addCollider(table);
+    PhysicsTableBuilder::addRigidbodySharedMass(table);
     addGameplayCopy(table);
     addRenderable(table, {});
     table.addRows<
@@ -386,8 +343,8 @@ namespace GameDatabase {
     StorageTableBuilder table;
     addTransform25D(table);
     addImmobile(table);
-    addCollider(table);
-    addRigidbodySharedMass(table);
+    PhysicsTableBuilder::addCollider(table);
+    PhysicsTableBuilder::addRigidbodySharedMass(table);
     addGameplayCopy(table);
     table.addRows<
       SceneNavigator::IsClearedWithSceneTag,
@@ -403,9 +360,9 @@ namespace GameDatabase {
     StorageTableBuilder table;
     addTransform25D(table);
     addVelocity25D(table);
-    addCollider(table);
-    addRigidbodySharedMass(table);
-    addAutoManagedJoint(table);
+    PhysicsTableBuilder::addCollider(table);
+    PhysicsTableBuilder::addRigidbodySharedMass(table);
+    PhysicsTableBuilder::addAutoManagedJoint(table);
     addGameplayCopy(table);
     addGameplayImpulse(table);
     addRenderable(table, {});
