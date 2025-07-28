@@ -337,6 +337,7 @@ namespace Shapes {
         PhysicsTableBuilder::addRigidbody(table);
         PhysicsTableBuilder::addCollider(table);
         PhysicsTableBuilder::addImmobile(table);
+        //TODO: these need thickness and Z position
         table.addRows<
           TriangleMeshRow,
           //So that pt::FullTransformResolver uses this.

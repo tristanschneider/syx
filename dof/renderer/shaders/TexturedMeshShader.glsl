@@ -38,6 +38,7 @@ void main() {
   gl_Position = worldToView*world;
 
   fragUV = vertUV*objUV.scale + objUV.offset;
+  fragUV.y = 1 - fragUV.y;
   fragTint = objTint.color;
 }
 @end
