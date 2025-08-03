@@ -64,10 +64,12 @@ add_subdirectory(font)
 add_subdirectory(ispc)
 
 # With dependencies
+add_subdirectory(math)
 add_subdirectory(sokol)
 add_subdirectory(table)
 add_subdirectory(loader)
 add_subdirectory(curve)
+add_subdirectory(transform)
 add_subdirectory(physics)
 add_subdirectory(config)
 add_subdirectory(game)

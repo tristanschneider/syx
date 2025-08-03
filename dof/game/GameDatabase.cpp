@@ -33,17 +33,14 @@
 #include <module/MassModule.h>
 #include <module/PhysicsEvents.h>
 #include <PhysicsTableBuilder.h>
+#include <transform/TransformModule.h>
 
 namespace GameDatabase {
   using BroadphaseTable = SweepNPruneBroadphase::BroadphaseTable;
 
-  StorageTableBuilder& addPosXY(StorageTableBuilder& storage) {
-    return storage.addRows<Tags::PosXRow, Tags::PosYRow>();
-  }
-
   StorageTableBuilder createTargetPosTable() {
     StorageTableBuilder table;
-    addPosXY(table)
+    Transform::addPosXY(table)
     .addRows<
       SceneNavigator::IsClearedWithSceneTag,
       TargetTableTag
@@ -52,16 +49,6 @@ namespace GameDatabase {
     .setTableName({ "Targets" });
     return table;
   }
-
-  //Table to hold positions to be referenced by stable element id
-  using TargetPosTable = Table<
-    TableName::TableNameRow,
-    SceneNavigator::IsClearedWithSceneTag,
-    TargetTableTag,
-    FloatRow<Tags::Pos, Tags::X>,
-    FloatRow<Tags::Pos, Tags::Y>,
-    StableIDRow
-  >;
 
   StorageTableBuilder createGlobalTable() {
     StorageTableBuilder table;
@@ -93,38 +80,6 @@ namespace GameDatabase {
     ThreadLocalsRow
   >;
 
-  StorageTableBuilder& addTransform2D(StorageTableBuilder& table) {
-    return table.addRows<
-      Tags::PosXRow,
-      Tags::PosYRow,
-      Tags::RotXRow,
-      Tags::RotYRow,
-      Tags::ScaleXRow,
-      Tags::ScaleYRow
-    >();
-  }
-
-  StorageTableBuilder& addTransform2DNoScale(StorageTableBuilder& table) {
-    return table.addRows<
-      Tags::PosXRow,
-      Tags::PosYRow,
-      Tags::RotXRow,
-      Tags::RotYRow
-    >();
-  }
-
-  StorageTableBuilder& addTransform25D(StorageTableBuilder& table) {
-    return table.addRows<
-      Tags::PosXRow,
-      Tags::PosYRow,
-      Tags::PosZRow,
-      Tags::RotXRow,
-      Tags::RotYRow,
-      Tags::ScaleXRow,
-      Tags::ScaleYRow
-    >();
-  }
-
   StorageTableBuilder& addVelocity2D(StorageTableBuilder& table) {
     return table.addRows<
       Tags::LinVelXRow,
@@ -151,11 +106,6 @@ namespace GameDatabase {
   }
 
   StorageTableBuilder& addGameplayCopy(StorageTableBuilder& table) {
-    addIf<Tags::PosXRow, Tags::GPosXRow>(table);
-    addIf<Tags::PosYRow, Tags::GPosYRow>(table);
-    addIf<Tags::PosZRow, Tags::GPosZRow>(table);
-    addIf<Tags::RotXRow, Tags::GRotXRow>(table);
-    addIf<Tags::RotYRow, Tags::GRotYRow>(table);
     addIf<Tags::LinVelXRow, Tags::GLinVelXRow>(table);
     addIf<Tags::LinVelYRow, Tags::GLinVelYRow>(table);
     addIf<Tags::AngVelRow, Tags::GAngVelRow>(table);
@@ -187,7 +137,7 @@ namespace GameDatabase {
 
   StorageTableBuilder createDynamicPhysicsObjects() {
     StorageTableBuilder table;
-    addTransform2D(table);
+    Transform::addTransform2D(table);
     addVelocity2D(table);
     PhysicsTableBuilder::addCollider(table);
     PhysicsTableBuilder::addRigidbody(table);
@@ -206,7 +156,7 @@ namespace GameDatabase {
 
   StorageTableBuilder createDynamicPhysicsObjectsWithMotor() {
     StorageTableBuilder table;
-    addTransform2D(table);
+    Transform::addTransform2D(table);
     addVelocity25D(table);
     PhysicsTableBuilder::addCollider(table);
     PhysicsTableBuilder::addRigidbody(table);
@@ -223,7 +173,7 @@ namespace GameDatabase {
 
   StorageTableBuilder createDynamicPhysicsObjectsWithZ() {
     StorageTableBuilder table;
-    addTransform25D(table);
+    Transform::addTransform25D(table);
     addVelocity25D(table);
     PhysicsTableBuilder::addCollider(table);
     PhysicsTableBuilder::addRigidbody(table);
@@ -241,7 +191,7 @@ namespace GameDatabase {
 
   StorageTableBuilder createConvexPhysicsObjects() {
     StorageTableBuilder table;
-    addTransform25D(table);
+    Transform::addTransform25D(table);
     addVelocity25D(table);
     PhysicsTableBuilder::addCollider(table);
     PhysicsTableBuilder::addRigidbody(table);
@@ -261,7 +211,7 @@ namespace GameDatabase {
 
   StorageTableBuilder createFragmentSeekingGoal() {
     StorageTableBuilder table;
-    addTransform2DNoScale(table);
+    Transform::addTransform2DNoScale(table);
     addVelocity2D(table);
     PhysicsTableBuilder::addAutoManagedCustomJoint(table);
     PhysicsTableBuilder::addCollider(table);
@@ -302,7 +252,7 @@ namespace GameDatabase {
 
   StorageTableBuilder createCompletedFragments() {
     StorageTableBuilder table;
-    addTransform2DNoScale(table);
+    Transform::addTransform2DNoScale(table);
     PhysicsTableBuilder::addCollider(table);
     PhysicsTableBuilder::addRigidbodySharedMass(table);
     addImmobile(table);
@@ -323,7 +273,7 @@ namespace GameDatabase {
 
   StorageTableBuilder createTerrain() {
     StorageTableBuilder table;
-    addTransform25D(table);
+    Transform::addTransform25D(table);
     addImmobile(table);
     PhysicsTableBuilder::addCollider(table);
     PhysicsTableBuilder::addRigidbodySharedMass(table);
@@ -341,7 +291,7 @@ namespace GameDatabase {
 
   StorageTableBuilder createMeshTerrain() {
     StorageTableBuilder table;
-    addTransform25D(table);
+    Transform::addTransform25D(table);
     PhysicsTableBuilder::addStaticTriangleMesh(table);
     PhysicsTableBuilder::addCollider(table);
     PhysicsTableBuilder::addRigidbodySharedMass(table);
@@ -357,7 +307,7 @@ namespace GameDatabase {
 
   StorageTableBuilder createInvisibleTerrain() {
     StorageTableBuilder table;
-    addTransform25D(table);
+    Transform::addTransform25D(table);
     addImmobile(table);
     PhysicsTableBuilder::addCollider(table);
     PhysicsTableBuilder::addRigidbodySharedMass(table);
@@ -374,7 +324,7 @@ namespace GameDatabase {
 
   StorageTableBuilder createPlayer() {
     StorageTableBuilder table;
-    addTransform25D(table);
+    Transform::addTransform25D(table);
     addVelocity25D(table);
     PhysicsTableBuilder::addCollider(table);
     PhysicsTableBuilder::addRigidbodySharedMass(table);
@@ -397,10 +347,8 @@ namespace GameDatabase {
 
   StorageTableBuilder createCamera() {
     StorageTableBuilder table;
-    table.addRows<
+    Transform::addPosXY(table).addRows<
       Row<Camera>,
-      Tags::PosXRow,
-      Tags::PosYRow,
       GameInput::StateMachineRow,
       GameInput::CameraDebugInputRow
     >().setStable().setTableName({ "Cameras" });
@@ -409,7 +357,7 @@ namespace GameDatabase {
 
   StorageTableBuilder createFragmentSpawner() {
     StorageTableBuilder table;
-    addTransform25D(table);
+    Transform::addTransform25D(table);
     addGameplayCopy(table);
     table.addRows<
       FragmentSpawner::FragmentSpawnerTagRow,
@@ -439,7 +387,7 @@ namespace GameDatabase {
     createCamera().finalize(args);
     DBReflect::addTable<DebugLineTable>(args);
     DBReflect::addTable<DebugTextTable>(args);
-    DBReflect::addTable<TargetPosTable>(args);
+    createTargetPosTable().finalize(args);
     createDynamicPhysicsObjects().finalize(args);
     createDynamicPhysicsObjectsWithZ().finalize(args);
     createDynamicPhysicsObjectsWithMotor().finalize(args);
@@ -498,10 +446,6 @@ namespace GameDatabase {
     configureSelfMotor<FragmentSeekingGoalTagRow>(builder);
 
     const auto defaultQuadMass = Mass::computeQuadMass(Mass::Quad{ .fullSize = glm::vec2{ 1.0f } }).body;
-    setDefaultValue<Tags::ScaleXRow>(builder, "sx", 1.0f);
-    setDefaultValue<Tags::ScaleYRow>(builder, "sy", 1.0f);
-    setDefaultValue<FloatRow<Tags::Rot, Tags::CosAngle>>(builder, "setDefault Rot", 1.0f);
-    setDefaultValue<FloatRow<Tags::GRot, Tags::CosAngle>>(builder, "setDefault GRot", 1.0f);
     setDefaultValue<Narrowphase::CollisionMaskRow>(builder, "setDefault Mask", uint8_t(~0));
     setDefaultValue<ConstraintSolver::ConstraintMaskRow>(builder, "setDefault Constraint Mask", ConstraintSolver::MASK_SOLVE_ALL);
     //Fragments in particular start opaque then reveal the texture as they take damage

@@ -10,20 +10,10 @@ struct FloatRow : Row<float> {
 };
 
 namespace Tags {
-  //Position in X and Y
-  struct Pos{};
-  //Rotation is stored as cos(angle) sin(angle), which is the first column of the rotation matrix and can be used to construct the full
-  //rotation matrix since it's symmetric
-  //They must be initialized to valid values, like cos 1 sin 0
-  struct Rot{};
   //Linear velocity in X and Y
   struct LinVel{};
   //Angular velocity in Angle
   struct AngVel{};
-  struct Scale{};
-
-  struct GPos{};
-  struct GRot{};
   struct GLinVel{};
   struct GAngVel{};
 
@@ -53,23 +43,11 @@ namespace Tags {
   using GLinVelXRow = FloatRow<GLinVel, X>;
   using GLinVelYRow = FloatRow<GLinVel, Y>;
   using GAngVelRow = FloatRow<GAngVel, Angle>;
-  using GPosXRow = FloatRow<GPos, X>;
-  using GPosYRow = FloatRow<GPos, Y>;
-  using GPosZRow = FloatRow<GPos, Z>;
-  using GRotXRow = FloatRow<GRot, CosAngle>;
-  using GRotYRow = FloatRow<GRot, SinAngle>;
 
   using LinVelXRow = FloatRow<LinVel, X>;
   using LinVelYRow = FloatRow<LinVel, Y>;
   using LinVelZRow = FloatRow<LinVel, Z>;
   using AngVelRow = FloatRow<AngVel, Angle>;
-  using PosXRow = FloatRow<Pos, X>;
-  using PosYRow = FloatRow<Pos, Y>;
-  using PosZRow = FloatRow<Pos, Z>;
-  using RotXRow = FloatRow<Rot, CosAngle>;
-  using RotYRow = FloatRow<Rot, SinAngle>;
-  using ScaleXRow = FloatRow<Scale, X>;
-  using ScaleYRow = FloatRow<Scale, Y>;
 
   struct TerrainRow : TagRow {};
   struct InvisibleTerrainRow : TagRow {};

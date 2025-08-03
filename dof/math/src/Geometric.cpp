@@ -1,5 +1,4 @@
-#include "Precompile.h"
-#include "Geometric.h"
+#include <math/Geometric.h>
 
 namespace Geo {
   bool unitAABBLineIntersect(const glm::vec2& origin, const glm::vec2& dir, float* resultTIn, float* resultTOut) {

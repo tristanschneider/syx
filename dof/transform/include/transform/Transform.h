@@ -4,7 +4,7 @@
 #include "glm/vec3.hpp"
 #include <glm/gtx/norm.hpp>
 
-namespace pt {
+namespace Transform {
   struct Parts {
     glm::vec2 rot{ 1, 0 };
     glm::vec2 scale{ 1, 1 };

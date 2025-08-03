@@ -16,6 +16,7 @@ target_link_libraries(physics
     ${ispc_objs}
     glm
     table
+    transform
     profile
     config
     loader

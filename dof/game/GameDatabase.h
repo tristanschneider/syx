@@ -32,7 +32,6 @@ namespace GameDatabase {
     bool sharedMesh = true;
   };
 
-  StorageTableBuilder& addTransform25D(StorageTableBuilder& table);
   StorageTableBuilder& addVelocity25D(StorageTableBuilder& table);
   StorageTableBuilder& addGameplayCopy(StorageTableBuilder& table);
   StorageTableBuilder& addRenderable(StorageTableBuilder& table, const RenderableOptions& ops);

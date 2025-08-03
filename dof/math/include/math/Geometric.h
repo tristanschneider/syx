@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Constants.h>
+#include <math/Constants.h>
 #include "glm/glm.hpp"
 
 namespace Geo {
