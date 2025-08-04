@@ -7,9 +7,9 @@
 #include "ThreadLocals.h"
 #include "GameDatabase.h"
 #include "ConstraintSolver.h"
-#include "Geometric.h"
+#include <math/Geometric.h>
 #include "stat/ConstraintStatEffect.h"
-#include "TransformResolver.h"
+#include <transform/TransformResolver.h>
 #include "PhysicsSimulation.h"
 #include <module/MassModule.h>
 
@@ -110,10 +110,10 @@ namespace Test {
 
       void update(IAppBuilder& builder) final {
         auto task = builder.createTask();
-        pt::TransformResolver tr = PhysicsSimulation::createTransformResolver(task);
+        Transform::PackedTransformResolver tr = PhysicsSimulation::createTransformResolver(task);
 
         task.setCallback([=](AppTaskArgs&) mutable {
-          std::array<pt::Transform, 4> transforms;
+          std::array<Transform::PackedTransform, 4> transforms;
           log.push_back(LogE{ transforms });
           auto handles = getHandleArray();
           const size_t dynamicI = 0;
@@ -147,7 +147,7 @@ namespace Test {
       static constexpr size_t END_TICKS = 200;
 
       struct LogE {
-        std::array<pt::Transform, 4> transforms;
+        std::array<Transform::PackedTransform, 4> transforms;
       };
       size_t currentTick{};
       std::vector<LogE> log;

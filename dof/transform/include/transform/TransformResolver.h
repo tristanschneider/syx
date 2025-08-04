@@ -18,6 +18,16 @@ namespace Transform {
   };
 
   struct ResolveOps {
+    constexpr ResolveOps addInverse() const {
+      auto result = *this;
+      return result.resolveWorldInverse = true, result;
+    }
+
+    constexpr ResolveOps addForceUpdate() const {
+      auto result = *this;
+      return result.forceUpToDate = true, result;
+    }
+
     bool resolveWorld{ true };
     bool resolveWorldInverse{ false };
     bool forceUpToDate{ false };
@@ -26,7 +36,7 @@ namespace Transform {
   class Resolver {
   public:
     Resolver() = default;
-    Resolver(RuntimeDatabaseTaskBuilder& task, const ResolveOps& ops);
+    Resolver(RuntimeDatabaseTaskBuilder& task, const ResolveOps& ops = {});
 
     PackedTransform resolve(const ElementRef& ref);
     PackedTransform resolve(const UnpackedDatabaseElementID& ref);

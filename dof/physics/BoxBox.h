@@ -1,7 +1,7 @@
 #pragma once
 
 #include <glm/vec2.hpp>
-#include "Geometric.h"
+#include <math/Geometric.h>
 
 namespace SP {
   struct ContactManifold;

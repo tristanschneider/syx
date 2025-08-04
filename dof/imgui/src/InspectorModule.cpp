@@ -15,7 +15,7 @@
 #include "SpatialPairsStorage.h"
 #include "ThreadLocals.h"
 #include "Random.h"
-#include "Geometric.h"
+#include <math/Geometric.h>
 #include "Fragment.h"
 #include "generics/IntMath.h"
 #include "TableName.h"

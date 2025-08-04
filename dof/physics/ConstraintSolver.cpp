@@ -6,7 +6,7 @@
 #include "PGSSolver1D.h"
 #include "Physics.h"
 #include "SpatialPairsStorage.h"
-#include "Geometric.h"
+#include <math/Geometric.h>
 #include <bitset>
 #include "generics/Enum.h"
 #include "generics/HashMap.h"

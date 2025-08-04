@@ -1,4 +1,3 @@
-#include "Precompile.h"
 #include "GameDatabase.h"
 
 #include "RuntimeDatabase.h"
@@ -26,7 +25,7 @@
 #include "shapes/Rectangle.h"
 #include "shapes/Line.h"
 #include <shapes/Mesh.h>
-#include "Constraints.h"
+#include <math/Constants.h>
 #include "loader/AssetService.h"
 #include "GraphicsTables.h"
 #include "TableName.h"
@@ -147,7 +146,7 @@ namespace GameDatabase {
       SceneNavigator::IsClearedWithSceneTag,
       AccelerationY,
       Narrowphase::SharedThicknessRow,
-      Shapes::SharedRectangleRow
+      Shapes::RectangleRow
     >().setStable().setTableName({ "Physics Objects" });
     addGameplayCopy(table);
     addGameplayImpulse(table);
@@ -166,7 +165,7 @@ namespace GameDatabase {
       Tags::DynamicPhysicsObjectsWithMotorTag,
       SceneNavigator::IsClearedWithSceneTag,
       Narrowphase::SharedThicknessRow,
-      Shapes::SharedRectangleRow
+      Shapes::RectangleRow
     >().setStable().setTableName({ "Dynamic With Motor" });
     return table;
   }
@@ -182,7 +181,7 @@ namespace GameDatabase {
       Tags::DynamicPhysicsObjectsWithZTag,
       SceneNavigator::IsClearedWithSceneTag,
       Narrowphase::SharedThicknessRow,
-      Shapes::SharedRectangleRow
+      Shapes::RectangleRow
     >().setStable().setTableName({ "Physics Objects Z" });
     addGameplayCopy(table);
     addGameplayImpulse(table);
@@ -237,7 +236,7 @@ namespace GameDatabase {
       FragmentStateMachine::GlobalsRow,
 
       Narrowphase::SharedThicknessRow,
-      Shapes::SharedRectangleRow,
+      Shapes::RectangleRow,
 
       IsFragment
     >().setStable().setTableName({ "Active Fragments" });
@@ -264,7 +263,7 @@ namespace GameDatabase {
       FragmentGoalFoundTableTag,
 
       Narrowphase::SharedThicknessRow,
-      Shapes::SharedRectangleRow,
+      Shapes::RectangleRow,
 
       IsFragment
     >().setStable().setTableName({ "Completed Fragments" });
@@ -283,7 +282,7 @@ namespace GameDatabase {
       SceneNavigator::IsClearedWithSceneTag,
       FragmentBurstStatEffect::CanTriggerFragmentBurstRow,
       Tags::TerrainRow,
-      Shapes::SharedRectangleRow,
+      Shapes::RectangleRow,
       Narrowphase::SharedThicknessRow
     >().setStable().setTableName({ "Terrain" });
     return table;
@@ -316,7 +315,7 @@ namespace GameDatabase {
       SceneNavigator::IsClearedWithSceneTag,
       FragmentBurstStatEffect::CanTriggerFragmentBurstRow,
       Tags::InvisibleTerrainRow,
-      Shapes::SharedRectangleRow,
+      Shapes::RectangleRow,
       Narrowphase::SharedThicknessRow
     >().setStable().setTableName({ "InvisibleTerrain" });
     return table;
@@ -338,7 +337,7 @@ namespace GameDatabase {
       Tags::ElementNeedsInitRow,
       AccelerationZ,
       Narrowphase::SharedThicknessRow,
-      Shapes::SharedRectangleRow,
+      Shapes::RectangleRow,
       GameInput::PlayerInputRow,
       GameInput::StateMachineRow
     >().setStable().setTableName({ "Player" });

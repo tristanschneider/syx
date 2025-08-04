@@ -19,7 +19,7 @@
 #include "PGSSolver.h"
 #include "generics/Timer.h"
 #include "ConstraintSolver.h"
-#include "Geometric.h"
+#include <math/Geometric.h>
 #include "Constraints.h"
 #include "Clip.h"
 

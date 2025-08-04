@@ -1,7 +1,7 @@
 #include <Precompile.h>
 #include <ConvexHull.h>
 
-#include <Geometric.h>
+#include <math/Geometric.h>
 
 namespace ConvexHull {
   //Find a reference point on the boundary to sort the other points relative to

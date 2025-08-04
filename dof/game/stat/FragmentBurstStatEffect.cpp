@@ -8,7 +8,7 @@
 #include "TableAdapters.h"
 #include "stat/AreaForceStatEffect.h"
 
-#include "Geometric.h"
+#include <math/Geometric.h>
 
 namespace FragmentBurstStatEffect {
   RuntimeTable& getArgs(AppTaskArgs& args) {

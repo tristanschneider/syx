@@ -8,7 +8,7 @@
 #include "Events.h"
 #include "TableAdapters.h"
 #include "Physics.h"
-#include <Geometric.h>
+#include <math/Geometric.h>
 
 namespace Scenes {
   struct SingleStack : SceneNavigator::IScene {

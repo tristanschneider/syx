@@ -20,18 +20,11 @@ struct PhysicsAliases {
   using FloatAlias = QueryAlias<Row<float>>;
   using TagAlias = QueryAlias<TagRow>;
 
-  FloatAlias posX;
-  FloatAlias posY;
-  FloatAlias rotX;
-  FloatAlias rotY;
-  FloatAlias scaleX;
-  FloatAlias scaleY;
   FloatAlias linVelX;
   FloatAlias linVelY;
   FloatAlias angVel;
 
   //Optional, without this bodies are considered to be at z=0 and immobile along z
-  FloatAlias posZ;
   FloatAlias linVelZ;
 
   FloatAlias broadphaseMinX;
@@ -45,7 +38,7 @@ namespace Physics {
 
   //TODO: expose createDatabase here rather than having gameplay create the physics tables
 
-  std::unique_ptr<IAppModule> createModule(const PhysicsAliases& aliases);
+  std::unique_ptr<IAppModule> createModule();
 
   void integrateVelocity(IAppBuilder& builder, const PhysicsAliases& aliases);
   void integratePosition(IAppBuilder& builder, const PhysicsAliases& aliases);

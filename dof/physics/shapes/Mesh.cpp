@@ -1,4 +1,3 @@
-#include <Precompile.h>
 #include <shapes/Mesh.h>
 
 #include <AppBuilder.h>
@@ -14,7 +13,7 @@
 #include <RelationModule.h>
 #include <PhysicsTableBuilder.h>
 #include <TableName.h>
-
+#include <transform/TransformModule.h>
 #include <ConstraintSolver.h>
 #include <Narrowphase.h>
 
@@ -28,7 +27,7 @@ namespace Shapes {
 
   struct TriangleMesh {
     TriangleMesh() = default;
-    TriangleMesh(const pt::PackedTransform& t, const glm::vec2& a, const glm::vec2& b, const glm::vec2& c)
+    TriangleMesh(const Transform::PackedTransform& t, const glm::vec2& a, const glm::vec2& b, const glm::vec2& c)
       : points{ t.transformPoint(a), t.transformPoint(b), t.transformPoint(c) }
       , aabb{ Geo::AABB::build({ points[0], points[1], points[2] }) }
     {
@@ -189,24 +188,12 @@ namespace Shapes {
   };
 
   struct InitCompositeMeshTask {
-    struct Group {
-      void init(const pt::FullTransformAlias& a) {
-        transformAlias = a;
-      }
-
-      void init(RuntimeDatabaseTaskBuilder& task) {
-        transformResolver = pt::FullTransformResolver{ task, transformAlias };
-      }
-
-      pt::FullTransformAlias transformAlias;
-      pt::FullTransformResolver transformResolver;
-    };
-
     void init(RuntimeDatabaseTaskBuilder& task) {
       triangleMeshTable = task.queryTables<TriangleMeshRow>().getTableID(0);
       query = task;
       ids = task.getRefResolver();
       resolver = task.getResolver(meshAssets, compositeMeshAssets);
+      transformResolver = { task };
     }
 
     void init(AppTaskArgs& args) {
@@ -230,7 +217,7 @@ namespace Shapes {
       Narrowphase::CollisionMaskRow* collisionMasks{};
     };
 
-    void execute(Group& g) {
+    void execute() {
       for(size_t t = 0; t < query.size(); ++t) {
         auto&& [events, stables, meshRefs, constraintMasks, collisionMasks, children] = query.get(t);
         for(auto event : events) {
@@ -251,7 +238,7 @@ namespace Shapes {
           }
 
           const ElementRef& parentID = stables->at(si);
-          const pt::PackedTransform parentTransform = g.transformResolver.resolve(ids.unpack(parentID)).toPacked();
+          const Transform::PackedTransform parentTransform = transformResolver.resolve(ids.unpack(parentID));
           const Narrowphase::CollisionMask parentCollisionMask = collisionMasks->at(si);
           const ConstraintSolver::ConstraintMask parentConstraintMask = constraintMasks->at(si);
 
@@ -285,31 +272,16 @@ namespace Shapes {
     TableID triangleMeshTable;
     CachedRow<const CompositeMeshRow> compositeMeshAssets;
     CachedRow<const MeshAssetRow> meshAssets;
+    Transform::Resolver transformResolver;
     std::shared_ptr<ITableResolver> resolver;
     ElementRefResolver ids;
   };
 
-  pt::FullTransformAlias getTransformAlias(const MeshTransform& t) {
-    pt::FullTransformAlias result;
-    result.posX = t.centerX;
-    result.posY = t.centerY;
-    result.rotX = t.rotX;
-    result.rotY = t.rotY;
-    result.scaleX = t.scaleX;
-    result.scaleY = t.scaleY;
-    return result;
-  }
-
   class MeshModule : public IAppModule {
   public:
-    MeshModule(const MeshTransform& meshTransform)
-      : transformAlias{ getTransformAlias(meshTransform) }
-    {
-    }
-
     void postProcessEvents(IAppBuilder& builder) override {
       builder.submitTask(TLSTask::create<ImportMeshTask>("import mesh"));
-      builder.submitTask(TLSTask::createWithArgs<InitCompositeMeshTask, InitCompositeMeshTask::Group>("InitCompositeMesh", transformAlias));
+      builder.submitTask(TLSTask::create<InitCompositeMeshTask>("InitCompositeMesh"));
     }
 
     //Add MeshAssetRow to all tables with Loader::MeshAssetRow
@@ -337,12 +309,10 @@ namespace Shapes {
         PhysicsTableBuilder::addRigidbody(table);
         PhysicsTableBuilder::addCollider(table);
         PhysicsTableBuilder::addImmobile(table);
-        //TODO: these need thickness and Z position
+        //TODO: these need thickness
+        Transform::addTransform25D(table);
         table.addRows<
-          TriangleMeshRow,
-          //So that pt::FullTransformResolver uses this.
-          //It will always be identity since points are in world space
-          pt::TransformRow
+          TriangleMeshRow
         >().setStable().setTableName({ "Triangle Instances" });
         return table;
       }).finalize(args);
@@ -368,18 +338,16 @@ namespace Shapes {
         Reflection::createRowLoader(MatMeshLoader{})
       );
     }
-
-    const pt::FullTransformAlias transformAlias;
   };
 
-  std::unique_ptr<IAppModule> createMeshModule(const MeshTransform& meshTransform) {
-    return std::make_unique<MeshModule>(meshTransform);
+  std::unique_ptr<IAppModule> createMeshModule() {
+    return std::make_unique<MeshModule>();
   }
 
   class MeshClassifier : public ShapeRegistry::IShapeClassifier {
   public:
-    MeshClassifier(RuntimeDatabaseTaskBuilder& task, ITableResolver& res, const MeshTransform& t)
-      : transformResolver{ task, getTransformAlias(t) }
+    MeshClassifier(RuntimeDatabaseTaskBuilder& task, ITableResolver& res)
+      : transformResolver{ task, Transform::ResolveOps{}.addForceUpdate().addInverse() }
       , tableResolver{ res }
       , ids{ task.getIDResolver()->getRefResolver() }
     {
@@ -389,8 +357,7 @@ namespace Shapes {
     ShapeRegistry::BodyType classifyShape(const UnpackedDatabaseElementID& id) final {
       const MeshReference* ref = tableResolver.tryGetOrSwapRowElement(meshRef, id);
       const Shapes::MeshAsset* asset = ref ? tableResolver.tryGetOrSwapRowElement(meshAsset, ids.tryUnpack(ref->meshAsset.asset)) : nullptr;
-      //TODO: avoid recomputing by storing in table with the objects and making transformResolver deal with this
-      const pt::TransformPair transform = transformResolver.resolvePair(id);
+      const Transform::TransformPair transform = transformResolver.resolvePair(id);
       if(asset) {
         return { ShapeRegistry::Mesh{
           .points = asset->convexHull,
@@ -402,7 +369,7 @@ namespace Shapes {
       return {};
     }
 
-    pt::FullTransformResolver transformResolver;
+    Transform::Resolver transformResolver;
     ITableResolver& tableResolver;
     CachedRow<const MeshReferenceRow> meshRef;
     CachedRow<const MeshAssetRow> meshAsset;
@@ -447,40 +414,24 @@ namespace Shapes {
 
   struct UpdateBoundaries {
     struct Args {
-      const MeshTransform& transform;
       ShapeRegistry::BroadphaseBounds& bounds;
     };
     struct Group {
       void init(const Args& args) {
-        alias = args.transform;
         bounds = &args.bounds;
       }
 
       void init(RuntimeDatabaseTaskBuilder& task) {
         task.logDependency({ bounds->requiredDependency });
-        query = task.queryAlias(bounds->table,
-          QueryAlias<MeshReferenceRow>::create().read(),
-          alias.centerX.read(),
-          alias.centerY.read(),
-          alias.rotX.read(),
-          alias.rotY.read(),
-          alias.scaleX.read(),
-          alias.scaleY.read()
-        );
+        query = task;
         resolver = task.getResolver<const Shapes::MeshAssetRow>();
         ids = task.getRefResolver();
       }
 
-      MeshTransform alias;
       ShapeRegistry::BroadphaseBounds* bounds{};
       QueryResult<
         const MeshReferenceRow,
-        const Row<float>,
-        const Row<float>,
-        const Row<float>,
-        const Row<float>,
-        const Row<float>,
-        const Row<float>
+        const Transform::WorldTransformRow
       > query;
       std::shared_ptr<ITableResolver> resolver;
       ElementRefResolver ids;
@@ -492,19 +443,14 @@ namespace Shapes {
       CachedRow<const MeshAssetRow> assets;
       assert(g.query.size() <= 1);
       for(size_t t = 0; t < g.query.size(); ++t) {
-        auto&& [shape, px, py, rx, ry, sx, sy] = g.query.get(t);
-        resizeBounds(*g.bounds, px->size());
+        auto&& [shape, transforms] = g.query.get(t);
+        resizeBounds(*g.bounds, transforms->size());
 
-        for(size_t i = 0; i < px->size(); ++i) {
+        for(size_t i = 0; i < transforms->size(); ++i) {
           //Resolve mesh
           if(const MeshAsset* mesh = g.resolver->tryGetOrSwapRowElement(assets, g.ids.unpack(shape->at(i).meshAsset.asset))) {
             //Resolve transform
-            pt::Parts parts{
-              .rot = glm::vec2{ rx->at(i), ry->at(i) },
-              .scale = glm::vec2{ sx->at(i), sy->at(i) },
-              .translate = glm::vec3{ px->at(i), py->at(i), 0.f }
-            };
-            const pt::PackedTransform transform{ pt::PackedTransform::build(parts) };
+            const Transform::PackedTransform& transform = transforms->at(i);
             //Transform aabb to world
             auto points = mesh->aabb.points();
             Geo::AABB worldBB;
@@ -563,27 +509,19 @@ namespace Shapes {
 
   class MeshImpl : public ShapeRegistry::IShapeImpl {
   public:
-    MeshImpl(const MeshTransform& t)
-      : transform{ t }
-    {
-    }
-
     std::vector<TableID> queryTables(IAppBuilder& builder) const final {
       return builder.queryTables<MeshReferenceRow>().getMatchingTableIDs();
     }
 
     std::shared_ptr<ShapeRegistry::IShapeClassifier> createShapeClassifier(RuntimeDatabaseTaskBuilder& task, ITableResolver& resolver) const final {
-      return std::make_shared<MeshClassifier>(task, resolver, transform);
+      return std::make_shared<MeshClassifier>(task, resolver);
     }
 
     void writeBoundaries(IAppBuilder& builder, ShapeRegistry::BroadphaseBounds& bounds) const final {
       builder.submitTask(TLSTask::createWithArgs<UpdateBoundaries, UpdateBoundaries::Group>("UpdateMeshBounds", UpdateBoundaries::Args{
-        .transform = transform,
         .bounds = bounds
       }));
     }
-
-    const MeshTransform transform;
   };
 
   class StaticTriangleMeshImpl : public ShapeRegistry::IShapeImpl {
@@ -602,8 +540,8 @@ namespace Shapes {
     }
   };
 
-  std::unique_ptr<ShapeRegistry::IShapeImpl> createMesh(const MeshTransform& transform) {
-    return std::make_unique<MeshImpl>(transform);
+  std::unique_ptr<ShapeRegistry::IShapeImpl> createMesh() {
+    return std::make_unique<MeshImpl>();
   }
 
   std::unique_ptr<ShapeRegistry::IShapeImpl> createStaticTriangleMesh() {

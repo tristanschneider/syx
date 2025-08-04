@@ -8,11 +8,11 @@
 #include "RowTags.h"
 #include "TableAdapters.h"
 #include "stat/ConstraintStatEffect.h"
-#include "TransformResolver.h"
+#include <transform/TransformResolver.h>
 #include "PhysicsSimulation.h"
 #include "glm/glm.hpp"
 #include "NotifyingTableModifier.h"
-#include "Geometric.h"
+#include <math/Geometric.h>
 #include "VelocityResolver.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -112,7 +112,7 @@ namespace Test {
     };
 
     struct SolveTimepoint {
-      pt::Transform ta, tb;
+      Transform::PackedTransform ta, tb;
       glm::vec2 worldA, worldB;
       pt::Velocities vA, vB;
       float error{};
@@ -185,12 +185,12 @@ namespace Test {
     std::vector<SolveTimepoint> trySolve(const Solver& solver, size_t maxIterations, const ErrorFN& computeError) {
       std::vector<SolveTimepoint> result;
       result.reserve(maxIterations);
-      pt::TransformResolver transform{ solver.game->builder(), PhysicsSimulation::getPhysicsAliases() };
+      Transform::PackedTransformResolver transform{ solver.game->builder(), PhysicsSimulation::getPhysicsAliases() };
       pt::VelocityResolver velocity{ solver.game->builder(), pt::ConstVelocities::create(PhysicsSimulation::getPhysicsAliases()) };
       for(size_t i = 0; i < maxIterations; ++i) {
         solver.game->update();
-        const pt::Transform ta = transform.resolve(solver.a);
-        const pt::Transform tb = transform.resolve(solver.b);
+        const Transform::PackedTransform ta = transform.resolve(solver.a);
+        const Transform::PackedTransform tb = transform.resolve(solver.b);
         SolveTimepoint solve{
           .ta = ta,
           .tb = tb,
@@ -217,7 +217,7 @@ namespace Test {
       const ElementRef b = game.scene->objectB;
       constexpr size_t lifetime = 2000;
       Constraints::PinJoint1D joint{ .localCenterToPinA{ 1.0f, 0.0f }, .localCenterToPinB{ -1.0f, 0.0f } };
-      pt::TransformResolver transform{ game->builder(), PhysicsSimulation::getPhysicsAliases() };
+      Transform::PackedTransformResolver transform{ game->builder(), PhysicsSimulation::getPhysicsAliases() };
 
       game.constraintStat.createStatEffects(1).setOwner(a).setLifetime(lifetime);
       game.constraintStat.constraintBuilder().setJointType({ joint }).setTargets(a, b);
@@ -234,7 +234,7 @@ namespace Test {
       const ElementRef b = game.scene->objectB;
       constexpr size_t lifetime = 2000;
       Constraints::PinJoint1D joint{ .localCenterToPinA{ 1.0f, 0.0f }, .localCenterToPinB{ -1.0f, 0.0f }, .distance{ 1.0f } };
-      pt::TransformResolver transform{ game->builder(), PhysicsSimulation::getPhysicsAliases() };
+      Transform::PackedTransformResolver transform{ game->builder(), PhysicsSimulation::getPhysicsAliases() };
 
       game.constraintStat.createStatEffects(1).setOwner(a).setLifetime(lifetime);
       game.constraintStat.constraintBuilder().setJointType({ joint }).setTargets(a, b);
@@ -251,7 +251,7 @@ namespace Test {
       const ElementRef b = game.scene->objectB;
       constexpr size_t lifetime = 2000;
       Constraints::PinJoint2D joint{ .localCenterToPinA{ 1.0f, 0.0f }, .localCenterToPinB{ -1.0f, 0.0f } };
-      pt::TransformResolver transform{ game->builder(), PhysicsSimulation::getPhysicsAliases() };
+      Transform::PackedTransformResolver transform{ game->builder(), PhysicsSimulation::getPhysicsAliases() };
 
       game.constraintStat.createStatEffects(1).setOwner(a).setLifetime(lifetime);
       game.constraintStat.constraintBuilder().setJointType({ joint }).setTargets(a, b);
@@ -268,7 +268,7 @@ namespace Test {
       const ElementRef b = game.scene->objectB;
       constexpr size_t lifetime = 2000;
       Constraints::PinJoint2D joint{ .localCenterToPinA{ 1.0f, 0.0f }, .localCenterToPinB{ -1.0f, 0.0f }, .distance{ 1.0f } };
-      pt::TransformResolver transform{ game->builder(), PhysicsSimulation::getPhysicsAliases() };
+      Transform::PackedTransformResolver transform{ game->builder(), PhysicsSimulation::getPhysicsAliases() };
 
       game.constraintStat.createStatEffects(1).setOwner(a).setLifetime(lifetime);
       game.constraintStat.constraintBuilder().setJointType({ joint }).setTargets(a, b);
@@ -285,7 +285,7 @@ namespace Test {
       const ElementRef b = game.scene->objectB;
       constexpr size_t lifetime = 2000;
       Constraints::WeldJoint joint{ .localCenterToPinA{ 1.0f, 0.0f }, .localCenterToPinB{ -1.0f, 0.0f } };
-      pt::TransformResolver transform{ game->builder(), PhysicsSimulation::getPhysicsAliases() };
+      Transform::PackedTransformResolver transform{ game->builder(), PhysicsSimulation::getPhysicsAliases() };
 
       game.constraintStat.createStatEffects(1).setOwner(a).setLifetime(lifetime);
       game.constraintStat.constraintBuilder().setJointType({ joint }).setTargets(a, b);
@@ -302,7 +302,7 @@ namespace Test {
       const ElementRef b = game.scene->objectB;
       constexpr size_t lifetime = 2000;
       Constraints::WeldJoint joint{ .localCenterToPinA{ 1.0f, 0.0f }, .localCenterToPinB{ -1.0f, 0.0f }, .allowedRotationRad{ 1.0f } };
-      pt::TransformResolver transform{ game->builder(), PhysicsSimulation::getPhysicsAliases() };
+      Transform::PackedTransformResolver transform{ game->builder(), PhysicsSimulation::getPhysicsAliases() };
 
       game.constraintStat.createStatEffects(1).setOwner(a).setLifetime(lifetime);
       game.constraintStat.constraintBuilder().setJointType({ joint }).setTargets(a, b);
@@ -320,7 +320,7 @@ namespace Test {
       Constraints::MotorJoint joint{ .linearTarget{ 1, 2 }, .angularTarget{ 0.5f }, .linearForce{ 1.0f }, .angularForce{ 1.0f } };
       joint.flags.set(gnx::enumCast(Constraints::MotorJoint::Flags::WorldSpaceLinear));
       joint.flags.set(gnx::enumCast(Constraints::MotorJoint::Flags::CanPull));
-      pt::TransformResolver transform{ game->builder(), PhysicsSimulation::getPhysicsAliases() };
+      Transform::PackedTransformResolver transform{ game->builder(), PhysicsSimulation::getPhysicsAliases() };
 
       game.constraintStat.createStatEffects(1).setOwner(a).setLifetime(lifetime);
       game.constraintStat.constraintBuilder().setJointType({ joint }).setTargets(a, {});
@@ -339,7 +339,7 @@ namespace Test {
       joint.flags.set(gnx::enumCast(Constraints::MotorJoint::Flags::WorldSpaceLinear));
       joint.flags.set(gnx::enumCast(Constraints::MotorJoint::Flags::AngularOrientationTarget));
       joint.flags.set(gnx::enumCast(Constraints::MotorJoint::Flags::CanPull));
-      pt::TransformResolver transform{ game->builder(), PhysicsSimulation::getPhysicsAliases() };
+      Transform::PackedTransformResolver transform{ game->builder(), PhysicsSimulation::getPhysicsAliases() };
 
       game.constraintStat.createStatEffects(1).setOwner(a).setLifetime(lifetime);
       game.constraintStat.constraintBuilder().setJointType({ joint }).setTargets(a, {});
@@ -356,7 +356,7 @@ namespace Test {
       constexpr size_t lifetime = 2000;
       Constraints::MotorJoint joint{ .linearTargetZ{ 0.5f }, .zForce{ 1.0f } };
       joint.flags.set(gnx::enumCast(Constraints::MotorJoint::Flags::CanPull));
-      pt::TransformResolver transform{ game->builder(), PhysicsSimulation::getPhysicsAliases() };
+      Transform::PackedTransformResolver transform{ game->builder(), PhysicsSimulation::getPhysicsAliases() };
 
       game.constraintStat.createStatEffects(1).setOwner(a).setLifetime(lifetime);
       game.constraintStat.constraintBuilder().setJointType({ joint }).setTargets(a, {});
@@ -375,7 +375,7 @@ namespace Test {
       joint.flags.set(gnx::enumCast(Constraints::MotorJoint::Flags::WorldSpaceLinear));
       joint.flags.set(gnx::enumCast(Constraints::MotorJoint::Flags::AngularOrientationTarget));
       joint.flags.set(gnx::enumCast(Constraints::MotorJoint::Flags::CanPull));
-      pt::TransformResolver transform{ game->builder(), PhysicsSimulation::getPhysicsAliases() };
+      Transform::PackedTransformResolver transform{ game->builder(), PhysicsSimulation::getPhysicsAliases() };
 
       game.constraintStat.createStatEffects(1).setOwner(a).setLifetime(lifetime);
       game.constraintStat.constraintBuilder().setJointType({ joint }).setTargets(a, {});
@@ -396,7 +396,7 @@ namespace Test {
       auto task = game->builder();
       TableID table = getAutoManagedConstraintTable(game);
       NotifyingTableModifier mod{ task, table };
-      pt::TransformResolver transform{ task, PhysicsSimulation::getPhysicsAliases() };
+      Transform::PackedTransformResolver transform{ task, PhysicsSimulation::getPhysicsAliases() };
       mod.initTask(game.args);
       const ElementRef* result = mod.addElements(1);
       const size_t i = mod.toIndex(*result);
@@ -417,7 +417,7 @@ namespace Test {
       Constraints::Rows rows = Constraints::Definition::resolve(task, table, 0);
       Constraints::Builder builder{ rows };
       Assert::IsTrue(rows.joint && rows.joint->size() == 1);
-      pt::TransformResolver transform{ game->builder(), PhysicsSimulation::getPhysicsAliases() };
+      Transform::PackedTransformResolver transform{ game->builder(), PhysicsSimulation::getPhysicsAliases() };
       const size_t i = 0;
 
       Constraints::MotorJoint joint{ .linearTarget{ 2, 1 }, .angularTarget{ 0 }, .linearForce{ 1.0f }, .angularForce{ 0 } };
@@ -442,7 +442,7 @@ namespace Test {
       auto task = game->builder();
       Constraints::Rows rows = Constraints::Definition::resolve(task, table, 0);
       Constraints::Builder builder{ rows };
-      pt::TransformResolver transform{ game->builder(), PhysicsSimulation::getPhysicsAliases() };
+      Transform::PackedTransformResolver transform{ game->builder(), PhysicsSimulation::getPhysicsAliases() };
       const size_t i = 0;
 
       Constraints::MotorJoint joint{ .linearTarget{ 2, 1 }, .angularTarget{ 1 }, .linearForce{ 1.0f }, .angularForce{ 1 } };
@@ -483,7 +483,7 @@ namespace Test {
       const ElementRef b = game.scene->objectB;
       constexpr size_t lifetime = 5;
       Constraints::WeldJoint joint{ .localCenterToPinA{ 1.0f, 0.0f }, .localCenterToPinB{ -1.0f, 0.0f } };
-      pt::TransformResolver transform{ game->builder(), PhysicsSimulation::getPhysicsAliases() };
+      Transform::PackedTransformResolver transform{ game->builder(), PhysicsSimulation::getPhysicsAliases() };
 
       game.constraintStat.createStatEffects(1).setOwner(a).setLifetime(lifetime);
       game.constraintStat.constraintBuilder().setJointType({ joint }).setTargets(a, b);
@@ -500,7 +500,7 @@ namespace Test {
       const ElementRef a = game.scene->objectA;
       const ElementRef b = game.scene->objectB;
       Constraints::WeldJoint joint{ .localCenterToPinA{ 1.0f, 0.0f }, .localCenterToPinB{ -1.0f, 0.0f } };
-      pt::TransformResolver transform{ game->builder(), PhysicsSimulation::getPhysicsAliases() };
+      Transform::PackedTransformResolver transform{ game->builder(), PhysicsSimulation::getPhysicsAliases() };
 
       game.constraintStat.createStatEffects(1).setOwner(a).setLifetime(1000);
       game.constraintStat.constraintBuilder().setJointType({ joint }).setTargets(a, b);
@@ -521,7 +521,7 @@ namespace Test {
       const ElementRef a = game.scene->objectA;
       const ElementRef b = game.scene->objectB;
       Constraints::WeldJoint joint{ .localCenterToPinA{ 1.0f, 0.0f }, .localCenterToPinB{ -1.0f, 0.0f } };
-      pt::TransformResolver transform{ game->builder(), PhysicsSimulation::getPhysicsAliases() };
+      Transform::PackedTransformResolver transform{ game->builder(), PhysicsSimulation::getPhysicsAliases() };
 
       game.constraintStat.createStatEffects(1).setOwner(a).setLifetime(1000);
       game.constraintStat.constraintBuilder().setJointType({ joint }).setTargets(a, b);

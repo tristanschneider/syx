@@ -27,7 +27,6 @@ namespace Transform {
   }
 
   PackedTransform Resolver::resolve(const UnpackedDatabaseElementID& ref) {
-    const size_t i = ref.getElementIndex();
     assert(ops.resolveWorld);
     const PackedTransform* result = resolver->tryGetOrSwapRowElement(world, ref);
     return result ? *result : PackedTransform{};

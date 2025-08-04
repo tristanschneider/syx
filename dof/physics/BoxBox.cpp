@@ -2,7 +2,7 @@
 #include "BoxBox.h"
 
 #include "Clip.h"
-#include "Geometric.h"
+#include <math/Geometric.h>
 #include "Narrowphase.h"
 #include "SpatialPairsStorage.h"
 

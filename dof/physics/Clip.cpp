@@ -1,7 +1,7 @@
 #include "Precompile.h"
 #include "Clip.h"
 
-#include "Geometric.h"
+#include <math/Geometric.h>
 
 namespace Clip {
   void clipShapes(const std::vector<glm::vec2>& a, const std::vector<glm::vec2>& b, ClipContext& context) {

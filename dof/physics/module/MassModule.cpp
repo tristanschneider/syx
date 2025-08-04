@@ -1,4 +1,3 @@
-#include <Precompile.h>
 #include <module/MassModule.h>
 
 #include <IAppModule.h>
@@ -118,10 +117,6 @@ namespace MassModule {
 
   class MassModuleImpl : public IAppModule {
   public:
-    MassModuleImpl(const PhysicsAliases& _aliases)
-      : aliases{ _aliases } {
-    }
-
     void preProcessEvents(IAppBuilder& builder) final {
       builder.submitTask(TLSTask::create<FlagNewElements>("MassEvents"));
     }
@@ -129,11 +124,9 @@ namespace MassModule {
     void update(IAppBuilder& builder) final {
       builder.submitTask(TLSTask::create<UpdateMasses>("UpdateMass"));
     }
-
-    const PhysicsAliases aliases;
   };
 
-  std::unique_ptr<IAppModule> createModule(const PhysicsAliases& aliases) {
-    return std::make_unique<MassModuleImpl>(aliases);
+  std::unique_ptr<IAppModule> createModule() {
+    return std::make_unique<MassModuleImpl>();
   }
 }

@@ -1,7 +1,7 @@
 #include <Precompile.h>
 #include <Mass.h>
 
-#include <Geometric.h>
+#include <math/Geometric.h>
 
 namespace Mass {
   MassProps computeCapsuleMass(const Capsule& c) {

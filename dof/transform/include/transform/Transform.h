@@ -75,6 +75,22 @@ namespace Transform {
       return { tx, ty, tz };
     }
 
+    glm::vec2 rot() const {
+      return glm::normalize(glm::vec2{ ax, ay });
+    }
+
+    constexpr glm::vec2 basisX() const {
+      return { ax, ay };
+    }
+
+    constexpr glm::vec2 basisY() const {
+      return { bx, by };
+    }
+
+    glm::vec2 scale() const {
+      return { glm::length(glm::vec2{ ax, ay }), glm::length(glm::vec2{ bx, by }) };
+    }
+
     constexpr void setPos(const glm::vec2& t) {
       tx = t.x;
       ty = t.y;

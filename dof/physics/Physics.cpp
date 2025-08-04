@@ -11,19 +11,13 @@
 
 #include <module/MassModule.h>
 #include <module/PhysicsEvents.h>
+#include <transform/TransformRows.h>
 
 namespace Physics {
-  std::unique_ptr<IAppModule> createModule(const PhysicsAliases& aliases) {
+  std::unique_ptr<IAppModule> createModule() {
     std::vector<std::unique_ptr<IAppModule>> modules;
-    modules.push_back(Shapes::createMeshModule(Shapes::MeshTransform{
-      .centerX = aliases.posX,
-      .centerY = aliases.posY,
-      .rotX = aliases.rotX,
-      .rotY = aliases.rotY,
-      .scaleX = aliases.scaleX,
-      .scaleY = aliases.scaleY
-    }));
-    modules.push_back(MassModule::createModule(aliases));
+    modules.push_back(Shapes::createMeshModule());
+    modules.push_back(MassModule::createModule());
     modules.push_back(PhysicsEvents::clearEvents());
     return std::make_unique<CompositeAppModule>(std::move(modules));
   }
@@ -69,6 +63,23 @@ namespace Physics {
     }
   }
 
+  void integratePositionAxis(IAppBuilder& builder, float(Transform::PackedTransform::*axis), const QueryAlias<const Row<float>>& velocity) {
+    const auto transformAlias = QueryAlias<Transform::WorldTransformRow>::create().write();
+    for(const TableID& table : builder.queryAliasTables(transformAlias, velocity)) {
+      auto task = builder.createTask();
+      task.setName("Integrate Position");
+      auto query = task.queryAlias(table, transformAlias, velocity.read());
+      task.setCallback([query, axis](AppTaskArgs&) mutable {
+        auto [transforms, velocities] = query.get(0);
+        for(size_t i = 0; i < transforms->size(); ++i) {
+          Transform::PackedTransform& t = transforms->at(i);
+          t.*axis += velocities->at(i);
+        }
+      });
+      builder.submitTask(std::move(task));
+    }
+  }
+
   void integrateVelocity(IAppBuilder& builder, const PhysicsAliases& aliases) {
     //Misleading name but the math is the same, add acceleration to velocity
     integratePositionAxis(builder, aliases.linVelX, ConstFloatQueryAlias::create<const AccelerationX>());
@@ -76,18 +87,22 @@ namespace Physics {
     integratePositionAxis(builder, aliases.linVelZ, ConstFloatQueryAlias::create<const AccelerationZ>());
   }
 
+
+  //TODO: integrate all at once and determine if they moved
   void integratePosition(IAppBuilder& builder, const PhysicsAliases& aliases) {
-    integratePositionAxis(builder, aliases.posX, aliases.linVelX.read());
-    integratePositionAxis(builder, aliases.posY, aliases.linVelY.read());
-    integratePositionAxis(builder, aliases.posZ, aliases.linVelZ.read());
+    integratePositionAxis(builder, &Transform::PackedTransform::tx, aliases.linVelX.read());
+    integratePositionAxis(builder, &Transform::PackedTransform::ty, aliases.linVelY.read());
+    integratePositionAxis(builder, &Transform::PackedTransform::tz, aliases.linVelZ.read());
   }
 
   void integrateRotation(IAppBuilder& builder, const PhysicsAliases& aliases) {
-    for(const TableID& table : builder.queryAliasTables(aliases.rotX, aliases.rotY, aliases.angVel.read())) {
+    const auto transformAlias = QueryAlias<Transform::WorldTransformRow>::create();
+    for(const TableID& table : builder.queryAliasTables(transformAlias, aliases.angVel.read())) {
       auto task = builder.createTask();
-      auto query = task.queryAlias(table, aliases.rotX, aliases.rotY, aliases.angVel.read());
+      auto query = task.queryAlias(table, transformAlias, aliases.angVel.read());
       task.setName("integrate rotation");
       task.setCallback([query](AppTaskArgs&) mutable {
+
         _integrateRotation(
           query.get<0>(0).data(),
           query.get<1>(0).data(),

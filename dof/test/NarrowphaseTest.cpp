@@ -8,7 +8,7 @@
 #include "GameScheduler.h"
 #include "SpatialPairsStorage.h"
 #include "TableAdapters.h"
-#include "Geometric.h"
+#include <math/Geometric.h>
 #include "TestApp.h"
 #include "Physics.h"
 #include "Clip.h"

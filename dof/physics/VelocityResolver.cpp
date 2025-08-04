@@ -5,7 +5,7 @@
 #include "QueryAlias.h"
 #include "Physics.h"
 
-#include "Geometric.h"
+#include <math/Geometric.h>
 
 namespace pt {
   bool Velocities::lessThan(float epsilon) const {

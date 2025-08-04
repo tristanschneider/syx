@@ -1,8 +1,7 @@
-#include <Precompile.h>
 #include <MeshNarrowphase.h>
 
 #include <BoxBox.h>
-#include <Geometric.h>
+#include <math/Geometric.h>
 #include <generics/IntMath.h>
 #include <shapes/ShapeRegistry.h>
 #include <SpatialPairsStorage.h>
@@ -40,7 +39,7 @@ namespace Narrowphase {
     FurthestEdge result{ .distanceAlongNormal = std::numeric_limits<float>::lowest() };
 
     //Transform edges on A into space B to search for closest along the edge normals in B space
-    const pt::PackedTransform aToB = b.worldToModel * a.modelToWorld;
+    const Transform::PackedTransform aToB = b.worldToModel * a.modelToWorld;
     const size_t aPointCount = a.points.size();
     //All the points are wound around the center in counterclockwise order.
     //Subtracting two neighboring points produces an edge on the boundary.

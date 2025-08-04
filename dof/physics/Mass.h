@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Constants.h>
+#include <math/Constants.h>
 #include <glm/vec2.hpp>
 #include <glm/gtx/norm.hpp>
 

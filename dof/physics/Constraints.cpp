@@ -8,8 +8,8 @@
 #include "generics/Enum.h"
 #include "generics/Container.h"
 #include "Physics.h"
-#include "TransformResolver.h"
-#include "Geometric.h"
+#include <transform/TransformResolver.h>
+#include <math/Geometric.h>
 #include "ConstraintSolver.h"
 #include "TLSTaskImpl.h"
 
@@ -361,12 +361,12 @@ namespace Constraints {
     }
 
     void operator()(const PinJoint1D& pin) const {
-      const pt::Transform ta = transform.resolve(a);
-      const pt::Transform tb = transform.resolve(b);
+      const Transform::PackedTransform ta = transform.resolve(a);
+      const Transform::PackedTransform tb = transform.resolve(b);
       const glm::vec2 aToPin = ta.transformVector(pin.localCenterToPinA);
-      const glm::vec2 worldA = aToPin + ta.pos;
+      const glm::vec2 worldA = aToPin + ta.pos2();
       const glm::vec2 bToPin = tb.transformVector(pin.localCenterToPinB);
-      const glm::vec2 worldB = bToPin + tb.pos;
+      const glm::vec2 worldB = bToPin + tb.pos2();
       glm::vec2 axis = worldA - worldB;
       const float error = glm::length(axis);
       if(error < Constants::EPSILON) {
@@ -388,12 +388,12 @@ namespace Constraints {
     }
 
     void operator()(const PinJoint2D& pin) const {
-      const pt::Transform ta = transform.resolve(a);
-      const pt::Transform tb = transform.resolve(b);
+      const Transform::PackedTransform ta = transform.resolve(a);
+      const Transform::PackedTransform tb = transform.resolve(b);
       const glm::vec2 aToPin = ta.transformVector(pin.localCenterToPinA);
-      const glm::vec2 worldA = aToPin + ta.pos;
+      const glm::vec2 worldA = aToPin + ta.pos2();
       const glm::vec2 bToPin = tb.transformVector(pin.localCenterToPinB);
-      const glm::vec2 worldB = bToPin + tb.pos;
+      const glm::vec2 worldB = bToPin + tb.pos2();
       glm::vec2 axis = worldA - worldB;
       float distance = glm::length(axis);
       //Avoid division by zero below with an arbitrary axis if it is zero
@@ -428,12 +428,12 @@ namespace Constraints {
     }
 
     void operator()(const WeldJoint& pin) const {
-      const pt::Transform ta = transform.resolve(a);
-      const pt::Transform tb = transform.resolve(b);
+      const Transform::PackedTransform ta = transform.resolve(a);
+      const Transform::PackedTransform tb = transform.resolve(b);
       const glm::vec2 aToPin = ta.transformVector(pin.localCenterToPinA);
-      const glm::vec2 worldA = aToPin + ta.pos;
+      const glm::vec2 worldA = aToPin + ta.pos2();
       const glm::vec2 bToPin = tb.transformVector(pin.localCenterToPinB);
-      const glm::vec2 worldB = bToPin + tb.pos;
+      const glm::vec2 worldB = bToPin + tb.pos2();
       glm::vec2 axis = worldA - worldB;
       float distance = glm::length(axis);
       //Avoid division by zero below with an arbitrary axis if it is zero
@@ -499,7 +499,7 @@ namespace Constraints {
         return;
       }
       //For now solving as a one-sided constraint until I see a use case for a two sided motor
-      const pt::Transform ta = transform.resolve(a);
+      const Transform::PackedTransform ta = transform.resolve(a);
       size_t c = 0;
 
       if(pin.linearForce) {
@@ -539,7 +539,7 @@ namespace Constraints {
 
         //Try to point at target orientation
         if(pin.flags.test(gnx::enumCast(MotorJoint::Flags::AngularOrientationTarget))) {
-          const float error = computeAngularError(Geo::directionFromAngle(pin.angularTarget), ta.rot);
+          const float error = computeAngularError(Geo::directionFromAngle(pin.angularTarget), ta.rot());
           manifold->common[c].bias = error*pin.biasScalar;
         }
         //Absolute rotation in a given direction
@@ -568,7 +568,7 @@ namespace Constraints {
         manifold->setEnd(0);
         return;
       }
-      const pt::Transform ta = transform.resolve(a);
+      const Transform::PackedTransform ta = transform.resolve(a);
       const glm::vec2 worldCenterToPinA = ta.transformVector(pin.localCenterToPinA);
       glm::vec2 worldMotorDir = pin.targetVelocity;
       const float targetSpeed = glm::length(worldMotorDir);
@@ -620,7 +620,7 @@ namespace Constraints {
     SP::ConstraintManifold* manifold{};
     SP::ZConstraintManifold* zManifold{};
     SP::PairType* pairType{};
-    pt::TransformResolver& transform;
+    Transform::Resolver& transform;
     size_t i{};
     //TODO: optimize for self target lookup
     ElementRef a, b;
@@ -636,7 +636,7 @@ namespace Constraints {
     const ConstraintTable& table;
     SpatialPairsTable& spatialPairs;
     const IslandGraph::Graph& graph;
-    pt::TransformResolver& transformResolver;
+    Transform::Resolver& transformResolver;
     const ConstraintSolver::SolverGlobals& globals;
   };
 
@@ -686,7 +686,7 @@ namespace Constraints {
     }
   }
 
-  void constraintNarrowphase(IAppBuilder& builder, const PhysicsAliases& aliases, const ConstraintSolver::SolverGlobals& globals) {
+  void constraintNarrowphase(IAppBuilder& builder, const ConstraintSolver::SolverGlobals& globals) {
     auto task = builder.createTask();
     std::vector<ConstraintTable> constraintTables = queryConstraintTables<ConstraintTable>(task);
     auto sp = task.query<const SP::IslandGraphRow, SP::PairTypeRow, SP::ConstraintRow, SP::ZConstraintRow>();
@@ -694,7 +694,7 @@ namespace Constraints {
     auto [g, p, c, cz] = sp.get(0);
     SpatialPairsTable spatialPairs{ c.get(), cz.get(), p.get() };
     const IslandGraph::Graph* graph = &g->at();
-    pt::TransformResolver tr{ task, aliases };
+    Transform::Resolver tr{ task };
 
     task.setCallback([constraintTables, spatialPairs, graph, tr, globals](AppTaskArgs&) mutable {
       //TODO: multithreaded task

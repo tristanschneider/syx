@@ -45,8 +45,8 @@ namespace PhysicsSimulation {
 
   std::shared_ptr<ShapeRegistry::IShapeClassifier> createShapeClassifier(RuntimeDatabaseTaskBuilder& task);
   std::shared_ptr<IPhysicsBodyResolver> createPhysicsBodyResolver(RuntimeDatabaseTaskBuilder& task);
-  pt::TransformResolver createTransformResolver(RuntimeDatabaseTaskBuilder& task);
-  pt::TransformResolver createGameplayTransformResolver(RuntimeDatabaseTaskBuilder& task);
+  Transform::PackedTransformResolver createTransformResolver(RuntimeDatabaseTaskBuilder& task);
+  Transform::PackedTransformResolver createGameplayTransformResolver(RuntimeDatabaseTaskBuilder& task);
   pt::FullTransformResolver createGameplayFullTransformResolver(RuntimeDatabaseTaskBuilder& task);
 
   void init(IAppBuilder& builder);

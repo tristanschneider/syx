@@ -5,8 +5,8 @@
 #include <variant>
 #include "QueryAlias.h"
 #include "DatabaseID.h"
-#include <TransformResolver.h>
-#include <Geometric.h>
+#include <transform/TransformResolver.h>
+#include <math/Geometric.h>
 
 struct UnpackedDatabaseElementID;
 class IAppBuilder;
@@ -35,7 +35,7 @@ namespace ShapeRegistry {
   struct Mesh {
     const std::vector<glm::vec2>& points;
     Geo::AABB aabb;
-    pt::PackedTransform modelToWorld, worldToModel;
+    Transform::PackedTransform modelToWorld, worldToModel;
   };
   using Variant = std::variant<std::monostate, Rectangle, Raycast, AABB, Circle, Mesh>;
 

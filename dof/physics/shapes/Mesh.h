@@ -4,7 +4,7 @@
 #include <StableElementID.h>
 #include <glm/vec2.hpp>
 #include <loader/AssetHandle.h>
-#include <Geometric.h>
+#include <math/Geometric.h>
 
 namespace ShapeRegistry {
   struct IShapeImpl;
@@ -14,17 +14,6 @@ class IAppBuilder;
 class IAppModule;
 
 namespace Shapes {
-  struct MeshTransform {
-    //Required
-    ConstFloatQueryAlias centerX;
-    ConstFloatQueryAlias centerY;
-    //Optional, default no rotation
-    ConstFloatQueryAlias rotX;
-    ConstFloatQueryAlias rotY;
-    //Optional, default unit square
-    ConstFloatQueryAlias scaleX;
-    ConstFloatQueryAlias scaleY;
-  };
   //Point this at the loaded Loader::MeshAsset asset handle
   struct MeshReference {
     Loader::AssetHandle meshAsset;
@@ -44,8 +33,8 @@ namespace Shapes {
   };
   struct MeshAssetRow : Row<MeshAsset> {};
 
-  std::unique_ptr<IAppModule> createMeshModule(const MeshTransform& meshTransform);
+  std::unique_ptr<IAppModule> createMeshModule();
 
-  std::unique_ptr<ShapeRegistry::IShapeImpl> createMesh(const MeshTransform& transform);
+  std::unique_ptr<ShapeRegistry::IShapeImpl> createMesh();
   std::unique_ptr<ShapeRegistry::IShapeImpl> createStaticTriangleMesh();
 }

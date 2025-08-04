@@ -5,7 +5,7 @@
 #include "IAppModule.h"
 #include "RowTags.h"
 #include "PhysicsSimulation.h"
-#include "TransformResolver.h"
+#include <transform/TransformResolver.h>
 #include "Simulation.h"
 #include <random>
 #include "TLSTaskImpl.h"

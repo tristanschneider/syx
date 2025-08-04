@@ -60,12 +60,12 @@ namespace Transform {
     }
 
     void postProcessEvents(IAppBuilder& builder) final {
-      builder.submitTask(TLSTask::create<FlagNewAndMoved>("TransformEvents");
+      builder.submitTask(TLSTask::create<FlagNewAndMoved>("TransformEvents"));
     }
   };
 
   StorageTableBuilder& addTransform25D(StorageTableBuilder& table) {
-    table.addRows<
+    return table.addRows<
       WorldTransformRow,
       WorldInverseTransformRow,
       TransformNeedsUpdateRow
