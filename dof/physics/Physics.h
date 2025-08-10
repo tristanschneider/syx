@@ -41,7 +41,6 @@ namespace Physics {
   std::unique_ptr<IAppModule> createModule();
 
   void integrateVelocity(IAppBuilder& builder, const PhysicsAliases& aliases);
-  void integratePosition(IAppBuilder& builder, const PhysicsAliases& aliases);
-  void integrateRotation(IAppBuilder& builder, const PhysicsAliases& aliases);
+  void integratePositionAndRotation(IAppBuilder& builder, const PhysicsAliases& aliases);
   void applyDampingMultiplier(IAppBuilder& builder, const PhysicsAliases& aliases, const float& linearMultiplier, const float& angularMultiplier);
 };

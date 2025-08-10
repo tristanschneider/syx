@@ -67,6 +67,20 @@ namespace Transform {
       };
     }
 
+    //Return a transform that is at the same position and scale as `this` rotated by `rad`
+    PackedTransform rotatedInPlace(float rad) const {
+      const float sa = std::sin(rad);
+      const float ca = std::cos(rad);
+      //2D matrix multiply rotation portion
+      //[ax, bx][ca, -sa]
+      //[ay, by][sa,  ca]
+      return {
+        ax*ca + bx*sa, -ax*sa + bx*ca, tx,
+        ay*ca + by*sa, -ay*sa + by*ca, ty,
+                                       tz
+      };
+    }
+
     constexpr glm::vec2 pos2() const {
       return { tx, ty };
     }
