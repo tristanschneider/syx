@@ -11,19 +11,21 @@
 #include "BoxBox.h"
 #include <MeshNarrowphase.h>
 #include <shapes/Mesh.h>
+#include <transform/TransformRows.h>
 
 namespace Narrowphase {
   //TODO: need to be able to know how much contact info is desired
 
   struct ContactArgs {
-    std::vector<glm::vec2> tempA, tempB;
+    std::vector<glm::vec2>& tempA;
+    std::vector<glm::vec2>& tempB;
     SP::ContactManifold& manifold;
     SP::ZContactManifold& zManifold;
     SP::PairType& pairType;
   };
 
   ShapeRegistry::Mesh toMesh(const ShapeRegistry::Rectangle& v, std::vector<glm::vec2>& storage) {
-    pt::Parts parts{
+    Transform::Parts parts{
       .rot = v.right,
       .scale = v.halfWidth,
       .translate = Geo::toVec3(v.center)
@@ -37,8 +39,8 @@ namespace Narrowphase {
     });
     return ShapeRegistry::Mesh{
       .points = storage,
-      .modelToWorld = pt::PackedTransform::build(parts),
-      .worldToModel = pt::PackedTransform::inverse(parts)
+      .modelToWorld = Transform::PackedTransform::build(parts),
+      .worldToModel = Transform::PackedTransform::inverse(parts)
     };
   }
 
@@ -229,7 +231,6 @@ namespace Narrowphase {
     ShapeQueries createThreadLocalCopy() {
       ShapeQueries result;
       result.resolver = resolver;
-      result.posZAlias = posZAlias;
       return result;
     }
 
@@ -237,16 +238,11 @@ namespace Narrowphase {
     CachedRow<const CollisionMaskRow> collisionMasksRow;
     CachedRow<const ThicknessRow> thicknessRow;
     CachedRow<const SharedThicknessRow> sharedThickness;
-    ConstFloatQueryAlias posZAlias;
-    CachedRow<const Row<float>> posZ;
+    CachedRow<const Transform::WorldTransformRow> transform;
     std::shared_ptr<ITableResolver> ownedResolver;
   };
 
-  Geo::Range1D getZRange(const UnpackedDatabaseElementID& e, ShapeQueries& queries) {
-    float z = Physics::DEFAULT_Z;
-    if(const float* pz = queries.resolver->tryGetOrSwapRowAliasElement(queries.posZAlias, queries.posZ, e)) {
-      z = *pz;
-    }
+  Geo::Range1D getZRange(const UnpackedDatabaseElementID& e, ShapeQueries& queries, const Transform::PackedTransform& transform) {
     float thickness = DEFAULT_THICKNESS;
     if(const float* shared = queries.resolver->tryGetOrSwapRowElement(queries.sharedThickness, e)) {
       thickness = *shared;
@@ -254,18 +250,18 @@ namespace Narrowphase {
     else if(const float* individual = queries.resolver->tryGetOrSwapRowElement(queries.thicknessRow, e)) {
       thickness = *individual;
     }
-    return { z, z + thickness };
+    return { transform.tz, transform.tz + thickness };
   }
 
-  void tryCheckZ(const UnpackedDatabaseElementID& a, const UnpackedDatabaseElementID& b, ShapeQueries& queries, ContactArgs& result) {
+  void tryCheckZ(const UnpackedDatabaseElementID& a, const UnpackedDatabaseElementID& b, ShapeQueries& queries, ContactArgs& result, const Transform::PackedTransform& ta, const Transform::PackedTransform& tb) {
     //If it's already not colliding on XY then Z doesn't matter
     if(!result.manifold.size) {
       //Default to XY if both are empty since Z can't indicate empty
       result.pairType = SP::PairType::ContactXY;
       return;
     }
-    const Geo::Range1D rangeA = getZRange(a, queries);
-    const Geo::Range1D rangeB = getZRange(b, queries);
+    const Geo::Range1D rangeA = getZRange(a, queries, ta);
+    const Geo::Range1D rangeB = getZRange(b, queries, tb);
     //If they are overlapping, solve on XZ only. If not overlapping, solve Z to ensure they don't pass through each-other on the Z axis
     const Geo::RangeOverlap overlap = Geo::classifyRangeOverlap(rangeA, rangeB);
     float distance = Geo::getRangeDistance(overlap, rangeA, rangeB);
@@ -288,16 +284,15 @@ namespace Narrowphase {
     }
   }
 
-  ShapeQueries buildShapeQueries(RuntimeDatabaseTaskBuilder& task, const PhysicsAliases& aliases) {
+  ShapeQueries buildShapeQueries(RuntimeDatabaseTaskBuilder& task) {
     ShapeQueries result;
     result.ownedResolver = task.getResolver<
       const CollisionMaskRow,
       const ThicknessRow,
-      const SharedThicknessRow
+      const SharedThicknessRow,
+      const Transform::WorldTransformRow,
+      const Transform::WorldInverseTransformRow
     >();
-    //Log dependency, use the resolver above
-    task.getAliasResolver(aliases.posZ);
-    result.posZAlias = aliases.posZ.read();
 
     result.resolver = result.ownedResolver.get();
     return result;
@@ -314,7 +309,7 @@ namespace Narrowphase {
     return getCollisionMask(queries, a) & getCollisionMask(queries, b);
   }
 
-  void generateInline(IAppBuilder& builder, const PhysicsAliases& aliases, size_t threadCount) {
+  void generateInline(IAppBuilder& builder, size_t threadCount) {
     auto task = builder.createTask();
     std::vector<std::shared_ptr<ShapeRegistry::IShapeClassifier>> classifiers(threadCount, nullptr);
     const auto* reg = ShapeRegistry::get(task);
@@ -340,7 +335,7 @@ namespace Narrowphase {
       builder.submitTask(std::move(setup));
     }
 
-    auto sq = buildShapeQueries(task, aliases);
+    auto sq = buildShapeQueries(task);
     auto query = task.query<const SP::ObjA, const SP::ObjB, SP::ManifoldRow, SP::ZManifoldRow, SP::PairTypeRow>();
     auto ids = task.getIDResolver();
 
@@ -349,6 +344,8 @@ namespace Narrowphase {
       ShapeRegistry::IShapeClassifier& classifier = *classifiers[args.threadIndex];
       auto resolver = ids->getRefResolver();
       size_t currentIndex = 0;
+      CachedRow<const Transform::WorldTransformRow> wta, wtb;
+      CachedRow<const Transform::WorldInverseTransformRow> ita, itb;
       for(size_t t = 0; t < query.size(); ++t) {
         auto [a, b, manifold, zManifold, pairType] = query.get(t);
         const size_t thisTableStart = currentIndex;
@@ -390,13 +387,24 @@ namespace Narrowphase {
           if(!shouldCompareShapes(shapeQuery, *resolvedA, *resolvedB)) {
             continue;
           }
+          if(!shapeQuery.resolver->tryGetOrSwapAllRows(*resolvedA, wta, ita) ||
+            !shapeQuery.resolver->tryGetOrSwapAllRows(*resolvedB, wtb, itb)) {
+            continue;
+          }
+
+          const size_t ia = resolvedA->getElementIndex();
+          const size_t ib = resolvedB->getElementIndex();
+          const Transform::PackedTransform& transformA = wta->at(ia);
+          const Transform::PackedTransform& inverseA = ita->at(ia);
+          const Transform::PackedTransform& transformB = wtb->at(ib);
+          const Transform::PackedTransform& inverseB = itb->at(ib);
 
           //TODO: is non-const because of ispc signature, should be const
-          Shape::BodyType shapeA = classifier.classifyShape(*resolvedA);
-          Shape::BodyType shapeB = classifier.classifyShape(*resolvedB);
+          Shape::BodyType shapeA = classifier.classifyShape(*resolvedA, transformA, inverseA);
+          Shape::BodyType shapeB = classifier.classifyShape(*resolvedB, transformB, inverseB);
           ContactArgs cargs{ tempA, tempB, man, zMan, pairT };
           generateContacts(shapeA, shapeB, cargs);
-          tryCheckZ(*resolvedA, *resolvedB, shapeQuery, cargs);
+          tryCheckZ(*resolvedA, *resolvedB, shapeQuery, cargs, transformA, transformB);
         }
       }
     });
@@ -404,7 +412,7 @@ namespace Narrowphase {
     builder.submitTask(std::move(task));
   }
 
-  void generateContactsFromSpatialPairs(IAppBuilder& builder, const PhysicsAliases& aliases, size_t threadCount) {
-    generateInline(builder, aliases, threadCount);
+  void generateContactsFromSpatialPairs(IAppBuilder& builder, size_t threadCount) {
+    generateInline(builder, threadCount);
   }
 }

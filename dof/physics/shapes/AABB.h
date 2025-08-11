@@ -8,7 +8,10 @@ namespace ShapeRegistry {
 }
 
 namespace Shapes {
-  struct AABBRow : Row<ShapeRegistry::AABB> {};
+  struct AABBRow : TagRow {};
+
+  ShapeRegistry::AABB aabbFromTransform(const Transform::PackedTransform& t);
+  const Transform::PackedTransform toTransform(const ShapeRegistry::AABB& bb, float z = 0);
 
   std::unique_ptr<ShapeRegistry::IShapeImpl> createIndividualAABB();
 }

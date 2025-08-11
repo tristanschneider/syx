@@ -8,7 +8,10 @@ namespace ShapeRegistry {
 }
 
 namespace Shapes {
-  struct LineRow : Row<ShapeRegistry::Raycast> {};
+  struct LineRow : TagRow {};
+
+  ShapeRegistry::Raycast lineFromTransform(const Transform::PackedTransform& transform);
+  Transform::PackedTransform toTransform(const ShapeRegistry::Raycast& v, float z = 0);
 
   std::unique_ptr<ShapeRegistry::IShapeImpl> createIndividualLine();
 }

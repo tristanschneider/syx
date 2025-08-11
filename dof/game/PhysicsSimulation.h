@@ -18,9 +18,6 @@ namespace SweepNPruneBroadphase {
 namespace ShapeRegistry {
   struct IShapeClassifier;
 }
-namespace Shapes {
-  struct RectDefinition;
-}
 
 namespace pt {
   struct FullTransformResolver;
@@ -39,15 +36,11 @@ public:
 };
 
 namespace PhysicsSimulation {
-  Shapes::RectDefinition getRectDefinition();
   PhysicsAliases getPhysicsAliases();
   PhysicsAliases getGameplayPhysicsAliases();
 
   std::shared_ptr<ShapeRegistry::IShapeClassifier> createShapeClassifier(RuntimeDatabaseTaskBuilder& task);
   std::shared_ptr<IPhysicsBodyResolver> createPhysicsBodyResolver(RuntimeDatabaseTaskBuilder& task);
-  Transform::PackedTransformResolver createTransformResolver(RuntimeDatabaseTaskBuilder& task);
-  Transform::PackedTransformResolver createGameplayTransformResolver(RuntimeDatabaseTaskBuilder& task);
-  pt::FullTransformResolver createGameplayFullTransformResolver(RuntimeDatabaseTaskBuilder& task);
 
   void init(IAppBuilder& builder);
   void initFromConfig(IAppBuilder& builder);

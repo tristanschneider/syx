@@ -29,11 +29,6 @@ namespace GameplayExtract {
   }
 
   void extractGameplayData(IAppBuilder& builder) {
-    tryGExtract<Pos, GPos, X>(builder);
-    tryGExtract<Pos, GPos, Y>(builder);
-    tryGExtract<Pos, GPos, Z>(builder);
-    tryGExtract<Rot, GRot, CosAngle>(builder);
-    tryGExtract<Rot, GRot, SinAngle>(builder);
     tryGExtract<LinVel, GLinVel, X>(builder);
     tryGExtract<LinVel, GLinVel, Y>(builder);
     tryGExtract<LinVel, GLinVel, Z>(builder);

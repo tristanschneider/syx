@@ -9,6 +9,7 @@
 #include "TableAdapters.h"
 #include "Physics.h"
 #include <math/Geometric.h>
+#include <transform/TransformRows.h>
 
 namespace Scenes {
   struct SingleStack : SceneNavigator::IScene {
@@ -17,21 +18,13 @@ namespace Scenes {
       task.setName("singlestack init");
       auto objs = task.query<
         Tags::DynamicPhysicsObjectsTag,
-        Tags::PosXRow,
-        Tags::PosYRow,
-        Tags::ScaleXRow,
-        Tags::ScaleYRow,
+        Transform::WorldTransformRow,
         AccelerationY,
         Events::EventsRow
       >();
       auto terrain = task.query<
         Tags::TerrainRow,
-        Tags::PosXRow,
-        Tags::PosYRow,
-        Tags::RotXRow,
-        Tags::RotYRow,
-        Tags::ScaleXRow,
-        Tags::ScaleYRow,
+        Transform::WorldTransformRow,
         Events::EventsRow
       >();
       if(!objs.size() || !terrain.size()) {
@@ -50,7 +43,7 @@ namespace Scenes {
         const float gravity = -0.005f;
         objsModifier->resize(countX*countY);
         {
-          auto [tag, px, py, sx, sy, gy, stable] = objs.get(0);
+          auto [tag, transforms, gy, stable] = objs.get(0);
           for(size_t x = 0; x < countX; ++x) {
             for(size_t y = 0; y < countY; ++y) {
               glm::vec2 pos = origin + size * glm::vec2{ static_cast<float>(x), static_cast<float>(y) };
@@ -59,14 +52,16 @@ namespace Scenes {
               }
               const size_t i = x*countX + y;
               stable->getOrAdd(i).setCreate();
-              TableAdapters::write(i, pos, *px, *py);
-              TableAdapters::write(i, size, *sx, *sy);
+              transforms->at(i) = Transform::PackedTransform::build(Transform::Parts{
+                .scale = size,
+                .translate = Geo::toVec3(pos)
+              });
               gy->at(i) = gravity;
             }
           }
         }
         {
-          auto [tag, px, py, rx, ry, sx, sy, stable] = terrain.get(0);
+          auto [tag, transforms, stable] = terrain.get(0);
           const float groundHeight = 2.0f;
           const float widthBuffer = 3.0f;
           const glm::vec2 groundSize{ widthBuffer*2.0f + static_cast<float>(countX)*size.x, groundHeight };
@@ -83,9 +78,11 @@ namespace Scenes {
           terrainModifier->resize(positions.size());
           for(size_t i = 0; i < positions.size(); ++i) {
             stable->getOrAdd(i).setCreate();
-            TableAdapters::write(i, positions[i], *px, *py);
-            TableAdapters::write(i, rotations[i], *rx, *ry);
-            TableAdapters::write(i, groundSize, *sx, *sy);
+            transforms->at(i) = Transform::PackedTransform::build(Transform::Parts{
+              .rot = rotations[i],
+              .scale = groundSize,
+              .translate = Geo::toVec3(positions[i])
+            });
           }
         }
       });

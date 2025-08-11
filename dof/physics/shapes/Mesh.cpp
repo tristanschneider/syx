@@ -55,14 +55,6 @@ namespace Shapes {
     };
 
     std::vector<Rows> rows;
-    //Pieces of the full model broken down into a bunch of smaller ones.
-    //These are assets referenced by MeshReferenceRow
-    Table<
-      CompositeMeshTagRow,
-      StableIDRow,
-      Relation::HasParentRow,
-      MeshAssetRow
-    > compositeAssets;
   };
 
   struct ImportMeshTask {
@@ -300,7 +292,19 @@ namespace Shapes {
       }
       //Add table for all the child meshes of a composite mesh
       args.tables.emplace_back();
-      DBReflect::details::reflectTable(args.tables.back(), storage->compositeAssets);
+      std::invoke([] {
+        StorageTableBuilder table;
+        //Pieces of the full model broken down into a bunch of smaller ones.
+        //These are assets referenced by MeshReferenceRow
+        table.addRows<
+          CompositeMeshTagRow,
+          StableIDRow,
+          Relation::HasParentRow,
+          MeshAssetRow
+        >().setTableName({ "Triangles" });
+        Transform::addTransform25D(table);
+        return table;
+      }).finalize(args);
 
       //Add table for instances of those child meshes.
       std::invoke([] {
@@ -347,23 +351,21 @@ namespace Shapes {
   class MeshClassifier : public ShapeRegistry::IShapeClassifier {
   public:
     MeshClassifier(RuntimeDatabaseTaskBuilder& task, ITableResolver& res)
-      : transformResolver{ task, Transform::ResolveOps{}.addForceUpdate().addInverse() }
-      , tableResolver{ res }
+      : tableResolver{ res }
       , ids{ task.getIDResolver()->getRefResolver() }
     {
       task.getResolver(meshRef, meshAsset);
     }
 
-    ShapeRegistry::BodyType classifyShape(const UnpackedDatabaseElementID& id) final {
+    ShapeRegistry::BodyType classifyShape(const UnpackedDatabaseElementID& id, const Transform::PackedTransform& transform, const Transform::PackedTransform& inverse) final {
       const MeshReference* ref = tableResolver.tryGetOrSwapRowElement(meshRef, id);
       const Shapes::MeshAsset* asset = ref ? tableResolver.tryGetOrSwapRowElement(meshAsset, ids.tryUnpack(ref->meshAsset.asset)) : nullptr;
-      const Transform::TransformPair transform = transformResolver.resolvePair(id);
       if(asset) {
         return { ShapeRegistry::Mesh{
           .points = asset->convexHull,
           .aabb = asset->aabb,
-          .modelToWorld = transform.modelToWorld,
-          .worldToModel = transform.worldToModel
+          .modelToWorld = transform,
+          .worldToModel = inverse
         }};
       }
       return {};
@@ -384,11 +386,13 @@ namespace Shapes {
       task.getResolver(meshRef);
     }
 
-    ShapeRegistry::BodyType classifyShape(const UnpackedDatabaseElementID& id) final {
+    ShapeRegistry::BodyType classifyShape(const UnpackedDatabaseElementID& id, const Transform::PackedTransform& transform, const Transform::PackedTransform& inverse) final {
       if(const TriangleMesh* ref = tableResolver.tryGetOrSwapRowElement(meshRef, id)) {
         return { ShapeRegistry::Mesh{
           .points = ref->points,
-          .aabb = ref->aabb
+          .aabb = ref->aabb,
+          .modelToWorld = transform,
+          .worldToModel = inverse
         }};
       }
       return {};

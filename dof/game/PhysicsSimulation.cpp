@@ -75,17 +75,6 @@ namespace PhysicsSimulation {
     builder.submitTask(std::move(task));
   }
 
-  Shapes::RectDefinition getRectDefinition() {
-    return {
-      ConstFloatQueryAlias::create<const FloatRow<Tags::Pos, Tags::X>>(),
-      ConstFloatQueryAlias::create<const FloatRow<Tags::Pos, Tags::Y>>(),
-      ConstFloatQueryAlias::create<const FloatRow<Tags::Rot, Tags::CosAngle>>(),
-      ConstFloatQueryAlias::create<const FloatRow<Tags::Rot, Tags::SinAngle>>(),
-      ConstFloatQueryAlias::create<const Tags::ScaleXRow>(),
-      ConstFloatQueryAlias::create<const Tags::ScaleYRow>()
-    };
-  }
-
   std::shared_ptr<ShapeRegistry::IShapeClassifier> createShapeClassifier(RuntimeDatabaseTaskBuilder& task) {
     return ShapeRegistry::get(task)->createShapeClassifier(task);
   }
@@ -96,6 +85,7 @@ namespace PhysicsSimulation {
       : shape(createShapeClassifier(task))
       , ids(task.getIDResolver())
       , resolver(task.getResolver(lvx, lvy, av))
+      , transformResolver{ task, Transform::ResolveOps{}.addInverse() }
     {}
 
     std::optional<Key> tryResolve(const ElementRef& e) final {
@@ -106,7 +96,8 @@ namespace PhysicsSimulation {
     }
 
     glm::vec2 getCenter(const Key& e) final {
-      return ShapeRegistry::getCenter(shape->classifyShape(e));
+      const Transform::TransformPair pair = transformResolver.resolvePair(e);
+      return ShapeRegistry::getCenter(shape->classifyShape(e, pair.modelToWorld, pair.worldToModel));
     }
 
     glm::vec2 getLinearVelocity(const Key& e) final {
@@ -122,6 +113,7 @@ namespace PhysicsSimulation {
     }
 
     std::shared_ptr<Narrowphase::IShapeClassifier> shape;
+    Transform::Resolver transformResolver;
     CachedRow<const FloatRow<Tags::GLinVel, Tags::X>> lvx;
     CachedRow<const FloatRow<Tags::GLinVel, Tags::Y>> lvy;
     CachedRow<const FloatRow<Tags::GAngVel, Tags::Angle>> av;
@@ -131,18 +123,6 @@ namespace PhysicsSimulation {
 
   std::shared_ptr<IPhysicsBodyResolver> createPhysicsBodyResolver(RuntimeDatabaseTaskBuilder& task) {
     return std::make_shared<PhysicsBodyResolver>(task);
-  }
-
-  Transform::PackedTransformResolver createTransformResolver(RuntimeDatabaseTaskBuilder& task) {
-    return { task, getPhysicsAliases() };
-  }
-
-  Transform::PackedTransformResolver createGameplayTransformResolver(RuntimeDatabaseTaskBuilder& task) {
-    return { task, getGameplayPhysicsAliases() };
-  }
-
-  pt::FullTransformResolver createGameplayFullTransformResolver(RuntimeDatabaseTaskBuilder& task) {
-    return { task, getGameplayPhysicsAliases() };
   }
 
   void init(IAppBuilder& builder) {
@@ -157,7 +137,7 @@ namespace PhysicsSimulation {
     auto temp = builder.createTask();
     temp.discard();
     ShapeRegistry::IShapeRegistry* reg = ShapeRegistry::getMutable(temp);
-    Shapes::registerDefaultShapes(*reg, getRectDefinition());
+    Shapes::registerDefaultShapes(*reg);
     ShapeRegistry::finalizeRegisteredShapes(builder);
     Constraints::init(builder);
   }
@@ -230,11 +210,10 @@ namespace PhysicsSimulation {
     SweepNPruneBroadphase::updateBroadphase(builder, _getBoundariesConfig(builder), aliases);
     Constraints::update(builder, aliases, globals);
 
-    Narrowphase::generateContactsFromSpatialPairs(builder, aliases, TableAdapters::getThreadCount(temp));
+    Narrowphase::generateContactsFromSpatialPairs(builder, TableAdapters::getThreadCount(temp));
     ConstraintSolver::solveConstraints(builder, aliases, globals);
 
-    Physics::integratePosition(builder, aliases);
-    Physics::integrateRotation(builder, aliases);
+    Physics::integratePositionAndRotation(builder, aliases);
 
     _debugUpdate(builder, config);
   }

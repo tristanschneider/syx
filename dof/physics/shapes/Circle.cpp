@@ -3,28 +3,23 @@
 #include "AppBuilder.h"
 
 namespace Shapes {
+  ShapeRegistry::Circle circleFromTransform(const Transform::PackedTransform& t) {
+    return { glm::vec2{ t.tx, t.ty }, glm::length(t.basisX()) };
+  }
+
   struct IndividualCircleShape : ShapeRegistry::IShapeImpl {
     std::vector<TableID> queryTables(IAppBuilder& builder) const final {
       return builder.queryTables<const CircleRow>().getMatchingTableIDs();
     }
 
     struct Classifier : ShapeRegistry::IShapeClassifier {
-      Classifier(RuntimeDatabaseTaskBuilder& task, ITableResolver& res)
-        : resolver{ res }
+      Classifier(RuntimeDatabaseTaskBuilder&, ITableResolver&)
       {
-        //Log the dependency with get, but use the shared resolver
-        task.getResolver(row);
       }
 
-      ShapeRegistry::BodyType classifyShape(const UnpackedDatabaseElementID& id) final {
-        if(const ShapeRegistry::Circle* circle = resolver.tryGetOrSwapRowElement(row, id)) {
-          return { { *circle } };
-        }
-        return {};
+      ShapeRegistry::BodyType classifyShape(const UnpackedDatabaseElementID&, const Transform::PackedTransform& transform, const Transform::PackedTransform&) final {
+        return { circleFromTransform(transform) };
       }
-
-      ITableResolver& resolver;
-      CachedRow<const CircleRow> row;
     };
 
     std::shared_ptr<ShapeRegistry::IShapeClassifier> createShapeClassifier(RuntimeDatabaseTaskBuilder& task, ITableResolver& resolver) const final {
@@ -36,16 +31,16 @@ namespace Shapes {
       task.setName("write circle indiv bounds");
       task.logDependency({ bounds.requiredDependency });
 
-      auto query = task.query<const CircleRow>(bounds.table);
+      auto query = task.query<const Transform::WorldTransformRow, const CircleRow>(bounds.table);
       task.setCallback([query, &bounds](AppTaskArgs&) mutable {
-        auto [circles] = query.get(0);
+        auto [transforms, circles] = query.get(0);
         const size_t s = circles->size();
         bounds.minX.resize(s);
         bounds.minY.resize(s);
         bounds.maxX.resize(s);
         bounds.maxY.resize(s);
         for(size_t i = 0; i < circles->size(); ++i) {
-          const ShapeRegistry::Circle& circle = circles->at(i);
+          const ShapeRegistry::Circle circle = circleFromTransform(transforms->at(i));
           bounds.minX[i] = circle.pos.x - circle.radius;
           bounds.maxX[i] = circle.pos.x + circle.radius;
           bounds.minY[i] = circle.pos.y - circle.radius;

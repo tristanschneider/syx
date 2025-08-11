@@ -45,7 +45,7 @@ namespace ShapeRegistry {
 
   struct IShapeClassifier {
     virtual ~IShapeClassifier() = default;
-    virtual BodyType classifyShape(const UnpackedDatabaseElementID& id) = 0;
+    virtual BodyType classifyShape(const UnpackedDatabaseElementID& id, const Transform::PackedTransform& transform, const Transform::PackedTransform& inverse) = 0;
   };
 
   //The center that "centerToContact" in the manifold is relative to

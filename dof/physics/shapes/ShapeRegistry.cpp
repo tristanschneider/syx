@@ -48,9 +48,9 @@ namespace ShapeRegistry {
     };
 
     struct ClassifierCollection : IShapeClassifier {
-      BodyType classifyShape(const UnpackedDatabaseElementID& id) final {
+      BodyType classifyShape(const UnpackedDatabaseElementID& id, const Transform::PackedTransform& transform, const Transform::PackedTransform& inverse) final {
         if(const size_t ti = id.getTableIndex(); ti < lookup.size() && lookup[ti]) {
-          return lookup[ti]->classifyShape(id);
+          return lookup[ti]->classifyShape(id, transform, inverse);
         }
         return {};
       }

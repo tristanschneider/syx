@@ -15,9 +15,12 @@ namespace Transform {
 
     void execute() {
       for(size_t t = 0; t < query.size(); ++t) {
-        auto [worlds, inverses, updates] = query.get(t);
+        auto [worlds, inverses, updates, notifications] = query.get(t);
+        //Clear notifications since last frame, then write the new ones for the current frame.
+        notifications->clear();
         for(size_t i : *updates) {
           inverses->at(i) = worlds->at(i).inverse();
+          notifications->getOrAdd(i);
         }
         updates->clear();
       }
@@ -26,7 +29,8 @@ namespace Transform {
     QueryResult<
       const WorldTransformRow,
       WorldInverseTransformRow,
-      TransformNeedsUpdateRow
+      TransformNeedsUpdateRow,
+      TransformHasUpdatedRow
     > query;
   };
 

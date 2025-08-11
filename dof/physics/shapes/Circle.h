@@ -8,7 +8,9 @@ namespace ShapeRegistry {
 }
 
 namespace Shapes {
-  struct CircleRow : Row<ShapeRegistry::Circle> {};
+  struct CircleRow : TagRow {};
+
+  ShapeRegistry::Circle circleFromTransform(const Transform::PackedTransform& t);
 
   std::unique_ptr<ShapeRegistry::IShapeImpl> createIndividualCircle();
 }

@@ -273,7 +273,7 @@ namespace GameDefaults {
     return DefaultGameBuilder{
       .dbSource = std::make_unique<DefaultGameDatabaseReader>(),
       .initialEventValidator = EventValidator::createModule("first"),
-      .physics = Physics::createModule(PhysicsSimulation::getPhysicsAliases()),
+      .physics = Physics::createModule(),
       .relation = Relation::createModule(),
       .simulation = Simulation::createModule({}),
       .fragmentSpawner = FragmentSpawner::createModule(),

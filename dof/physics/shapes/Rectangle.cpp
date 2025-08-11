@@ -17,29 +17,20 @@ namespace Shapes {
     }
 
     struct Classifier : ShapeRegistry::IShapeClassifier {
-      Classifier(RuntimeDatabaseTaskBuilder& task, ITableResolver& res)
-        : resolver{ res }
+      Classifier(RuntimeDatabaseTaskBuilder&, ITableResolver&)
       {
-        //Log the dependency with get, but use the shared resolver
-        task.getResolver(row);
       }
 
-      ShapeRegistry::BodyType classifyShape(const UnpackedDatabaseElementID& id) final {
-        if(const Transform::PackedTransform* rect = resolver.tryGetOrSwapRowElement(row, id)) {
-          const Transform::Parts parts = rect->decompose();
-          return {
-            ShapeRegistry::Rectangle{
-              .center = parts.translate,
-              .right = parts.rot,
-              .halfWidth = parts.scale
-            }
-          };
-        }
-        return {};
+      ShapeRegistry::BodyType classifyShape(const UnpackedDatabaseElementID&, const Transform::PackedTransform& transform, const Transform::PackedTransform&) final {
+        const Transform::Parts parts = transform.decompose();
+        return {
+          ShapeRegistry::Rectangle{
+            .center = parts.translate,
+            .right = parts.rot,
+            .halfWidth = parts.scale
+          }
+        };
       }
-
-      ITableResolver& resolver;
-      CachedRow<const Transform::WorldTransformRow> row;
     };
 
     std::shared_ptr<ShapeRegistry::IShapeClassifier> createShapeClassifier(RuntimeDatabaseTaskBuilder& task, ITableResolver& resolver) const final {

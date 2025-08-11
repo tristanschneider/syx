@@ -92,13 +92,13 @@ namespace MassModule {
     void execute() {
       PointCache cache;
       for(size_t t = 0; t < query.size(); ++t) {
-        auto&& [flags, ids, masses] = query.get(t);
+        auto&& [flags, ids, masses, wts, ivs] = query.get(t);
         CachedRow<const MassModule::IsImmobile> isImmobile;
         for(size_t index : flags) {
           const ElementRef& element = ids->at(index);
           const UnpackedDatabaseElementID rawId = ref.unpack(element);
 
-          ShapeRegistry::BodyType shape = shapes->classifyShape(ref.unpack(element));
+          ShapeRegistry::BodyType shape = shapes->classifyShape(ref.unpack(element), wts->at(index), ivs->at(index));
 
           //For now, immobile tables are zero mass and everything else assumes 1 density.
           //Eventually, both should be done from a material, or even skip shape lookups for immobile
@@ -109,7 +109,7 @@ namespace MassModule {
       }
     }
 
-    QueryResult<const PhysicsEvents::RecomputeMassRow, const StableIDRow, MassRow> query;
+    QueryResult<const PhysicsEvents::RecomputeMassRow, const StableIDRow, MassRow, const Transform::WorldTransformRow, const Transform::WorldInverseTransformRow> query;
     std::shared_ptr<ShapeRegistry::IShapeClassifier> shapes;
     std::shared_ptr<ITableResolver> resolver;
     ElementRefResolver ref;

@@ -7,7 +7,6 @@
 #include "shapes/ShapeRegistry.h"
 
 class IAppBuilder;
-struct PhysicsAliases;
 class RuntimeDatabaseTaskBuilder;
 
 namespace ShapeRegistry {
@@ -44,5 +43,5 @@ namespace Narrowphase {
 
   //Takes the pairs stored in SpatialPairsTable and generates the contacts needed to resolve the spatial
   //queries or constraint solving
-  void generateContactsFromSpatialPairs(IAppBuilder& builder, const PhysicsAliases& aliases, size_t threadCount);
+  void generateContactsFromSpatialPairs(IAppBuilder& builder, size_t threadCount);
 }

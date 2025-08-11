@@ -118,12 +118,7 @@ namespace SweepNPruneBroadphase {
       }
 
       void init(RuntimeDatabaseTaskBuilder& task) {
-        query = task.queryAlias(
-            QueryAlias<Events::EventsRow>::create().read(),
-            QueryAlias<StableIDRow>::create().read(),
-            physicsAliases.posX.read(), physicsAliases.posY.read(),
-            QueryAlias<BroadphaseKeys>::create()
-          );
+        query = task;
         res = task.getResolver<const MassModule::IsImmobile>();
         ids = task.getRefResolver();
         spatialPairs = SP::createStorageModifier(task);
@@ -135,8 +130,7 @@ namespace SweepNPruneBroadphase {
       QueryResult<
         const Events::EventsRow,
         const StableIDRow,
-        const Row<float>, const Row<float>,
-        BroadphaseKeys
+        const BroadphaseKeys
       > query;
       std::shared_ptr<ITableResolver> res;
       Broadphase::SweepGrid::Grid* grid{};
@@ -149,7 +143,7 @@ namespace SweepNPruneBroadphase {
     void execute(Group& group) {
       CachedRow<const MassModule::IsImmobile> isImmobile;
       for(size_t t = 0; t < group.query.size(); ++t) {
-        auto [events, stable, posX, posY, keys] = group.query.get(t);
+        auto [events, stable, keys] = group.query.get(t);
         //If the table it moved to (this table) is immobile, mark as immoble, otherwise do the opposite
         const bool isTableImmobile = group.res->tryGetOrSwapRow(isImmobile, group.query.getTableID(t));
         for(auto event : *events) {
@@ -157,13 +151,6 @@ namespace SweepNPruneBroadphase {
           const ElementRef& self = stable->at(i);
           if(event.second.isMove()) {
             if(isTableImmobile) {
-              //Final update at last position before marking as immobile
-              const float halfSize = group.config.mHalfSize + group.config.mPadding;
-              glm::vec2 min{ posX->at(i) - halfSize, posY->at(i) - halfSize };
-              glm::vec2 max{ posX->at(i) + halfSize, posY->at(i) + halfSize };
-              Broadphase::BroadphaseKey& key = keys->at(i);
-              Broadphase::SweepGrid::updateBoundaries(*group.grid, &min.x, &max.x, &min.y, &max.y, &key, 1);
-
               //Change node to immobile
               group.spatialPairs->changeMobility(self, true);
             }
