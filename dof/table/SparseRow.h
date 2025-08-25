@@ -109,14 +109,14 @@ public:
   };
 
   PackedIndexArray() = default;
-  ~PackedIndexArray() {
+  ~PackedIndexArray() noexcept {
     reset();
   }
-  PackedIndexArray(PackedIndexArray&& rhs) {
+  PackedIndexArray(PackedIndexArray&& rhs) noexcept {
     swap(rhs);
   }
 
-  PackedIndexArray& operator=(PackedIndexArray&& rhs) {
+  PackedIndexArray& operator=(PackedIndexArray&& rhs) noexcept {
     if(this != &rhs) {
       PackedIndexArray temp{ std::move(rhs) };
       swap(temp);
@@ -124,7 +124,7 @@ public:
     return *this;
   }
 
-  void swap(PackedIndexArray& rhs) {
+  void swap(PackedIndexArray& rhs) noexcept {
     std::swap(buffer, rhs.buffer);
     std::swap(bufferSize, rhs.bufferSize);
     std::swap(bufferCapacity, rhs.bufferCapacity);

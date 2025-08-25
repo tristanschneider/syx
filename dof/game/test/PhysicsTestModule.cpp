@@ -15,7 +15,6 @@
 #include <shapes/Rectangle.h>
 #include <shapes/ShapeRegistry.h>
 #include <SpatialQueries.h>
-#include <TransformResolver.h>
 #include <PhysicsSimulation.h>
 #include <RowTags.h>
 #include <DebugDrawer.h>
@@ -23,6 +22,7 @@
 #include <glm/gtx/norm.hpp>
 #include <format>
 #include <PhysicsTableBuilder.h>
+#include <transform/TransformModule.h>
 
 namespace PhysicsTestModule {
   //Objects with collision being checked for correctness
@@ -74,6 +74,7 @@ namespace PhysicsTestModule {
       spatialQuery = SpatialQuery::createReader(task);
       drawer = DebugDrawer::createDebugDrawer(task);
       res = task.getRefResolver();
+      transformResolver = Transform::Resolver{ task, Transform::ResolveOps{}.addInverse() };
     }
 
     void init(const Group& group) {
@@ -108,9 +109,8 @@ namespace PhysicsTestModule {
     void displayValidationError(ValidationStats& stats, size_t t, size_t i, ValidationError error) {
       ++stats.fail;
       if(logger) {
-        auto [targets, ids, x, y] = toValidate.get(t);
-        const glm::vec2 pos{ x->at(i), y->at(i) };
-        logger->logValidationError(stats, pos, std::move(error));
+        auto [targets, ids, transforms] = toValidate.get(t);
+        logger->logValidationError(stats, transforms->at(i).pos2(), std::move(error));
       }
     }
 
@@ -130,13 +130,14 @@ namespace PhysicsTestModule {
     void execute() {
       ValidationStats stats;
       for(size_t t = 0; t < toValidate.size(); ++t) {
-        auto [targets, targetIDS, x, y] = toValidate.get(t);
+        auto [targets, targetIDS, transforms] = toValidate.get(t);
         for(size_t i = 0; i < targets.size; ++i) {
           const UnpackedDatabaseElementID marker = res.unpack(targets->at(i).tryGetRef());
           const UnpackedDatabaseElementID self = res.unpack(targetIDS->at(i));
-          const ShapeRegistry::BodyType shapeType = shapes->classifyShape(marker);
+          auto pair = transformResolver.resolvePair(marker);
+          const ShapeRegistry::BodyType shapeType = shapes->classifyShape(marker, pair.modelToWorld, pair.worldToModel);
           const ShapeRegistry::Mesh* markerMesh = std::get_if<ShapeRegistry::Mesh>(&shapeType.shape);
-          const glm::vec2 pos{ x->at(i), y->at(i) };
+          const glm::vec2 pos{ transforms->at(i).pos2() };
           if(!markerMesh) {
             displayValidationError(stats, t, i, ValidationError{ .message = "Unable to resolve marker" });
             continue;
@@ -174,11 +175,12 @@ namespace PhysicsTestModule {
       }
     }
 
-    QueryResult<const ValidationTargetRow, const StableIDRow, const Tags::GPosXRow, const Tags::GPosYRow> toValidate;
+    QueryResult<const ValidationTargetRow, const StableIDRow, const Transform::WorldTransformRow> toValidate;
     std::shared_ptr<ShapeRegistry::IShapeClassifier> shapes;
     std::shared_ptr<SpatialQuery::IReader> spatialQuery;
     std::unique_ptr<DebugDrawer::IDebugDrawer> drawer;
     std::shared_ptr<ILogger> logger;
+    Transform::Resolver transformResolver;
     ElementRefResolver res;
   };
 
@@ -195,7 +197,7 @@ namespace PhysicsTestModule {
         SceneNavigator::IsClearedWithSceneTag,
         Narrowphase::SharedThicknessRow
       >();
-      GameDatabase::addTransform25D(table);
+      Transform::addTransform25D(table);
       GameDatabase::addRenderable(table, GameDatabase::RenderableOptions{
         .sharedTexture = true,
         .sharedMesh = false,
@@ -210,7 +212,7 @@ namespace PhysicsTestModule {
         PhysicsTableBuilder::addCollider(table);
         table.addRows<
           ValidationTargetRow,
-          Shapes::SharedRectangleRow
+          Shapes::RectangleRow
         >().setTableName({ "CollisionToValidate" });
         return table;
       }).finalize(args);

@@ -13,6 +13,7 @@ target_link_libraries(transform
     table
     glm
     math
+    loader
 )
 
 # Include directories for this

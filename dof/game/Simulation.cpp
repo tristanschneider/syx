@@ -14,7 +14,6 @@
 #include "PhysicsSimulation.h"
 #include "Player.h"
 #include "DebugInput.h"
-#include "World.h"
 #include "ability/PlayerAbility.h"
 #include "AppBuilder.h"
 #include "FragmentStateMachine.h"

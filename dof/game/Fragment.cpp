@@ -14,6 +14,7 @@
 #include "GameTime.h"
 #include "Events.h"
 #include "TLSTaskImpl.h"
+#include <transform/TransformRows.h>
 
 namespace Fragment {
   using namespace Tags;
@@ -98,16 +99,19 @@ namespace Fragment {
 
     void execute() {
       for(size_t t = 0; t < query.size(); ++t) {
-        auto [events, posX, posY, goalX, goalY, rotX, rotY] = query.get(t);
+        auto [events, transforms, goalX, goalY] = query.get(t);
         for(auto event : *events) {
           //If it's a move event into the fragment foal found table
           if(event.second.isMove() && res->tryGetOrSwapRow(fragmentFound, event.second.getTableID())) {
             const size_t si = event.first;
             //Snap to destination
             //TODO: effects to celebrate transition
-            TableAdapters::write(si, TableAdapters::read(si, *goalX, *goalY), *posX, *posY);
+            Transform::PackedTransform& transform = transforms->at(si);
+            Transform::Parts parts = transform.decompose();
+            parts.translate = { goalX->at(si), goalY->at(si), parts.translate.z };
             //This is no rotation, which will align with the image
-            TableAdapters::write(si, glm::vec2{ 1, 0 }, *rotX, *rotY);
+            parts.rot = { 1, 0 };
+            transform = Transform::PackedTransform::build(parts);
           }
         }
       }
@@ -115,9 +119,8 @@ namespace Fragment {
 
     QueryResult<
       const Events::EventsRow,
-      Tags::PosXRow, Tags::PosYRow,
-      const Tags::FragmentGoalXRow, const Tags::FragmentGoalYRow,
-      Tags::RotXRow, Tags::RotYRow
+      Transform::WorldTransformRow,
+      const Tags::FragmentGoalXRow, const Tags::FragmentGoalYRow
     > query;
     ElementRefResolver ids;
     CachedRow<const FragmentGoalFoundTableTag> fragmentFound;
@@ -153,13 +156,14 @@ namespace Fragment {
     builder.submitTask(TLSTask::create<CheckForFragmentReactivation>("fragment reactivation"));
   }
 
+  //TODO: should use trigger volumes
   //Check to see if each fragment has reached its goal
   void checkFragmentGoals(IAppBuilder& builder) {
     auto task = builder.createTask();
     task.setName("check fragment goals");
     using namespace Tags;
     auto query = task.query<
-      const FloatRow<GPos, X>, const FloatRow<GPos, Y>,
+      const Transform::WorldTransformRow,
       const FloatRow<FragmentGoal, X>, const FloatRow<FragmentGoal, Y>,
       FragmentGoalFoundRow
     >();
@@ -167,13 +171,15 @@ namespace Fragment {
 
     task.setCallback([config, query](AppTaskArgs&) mutable {
       for(size_t t = 0; t < query.size(); ++t) {
-        auto&& [posX, posY, goalX, goalY, goalFound] = query.get(t);
-
-        ispc::UniformConstVec2 pos{ posX->data(), posY->data() };
-        ispc::UniformConstVec2 goal{ goalX->data(), goalY->data() };
+        auto&& [transforms, goalX, goalY, goalFound] = query.get(t);
         const float minDistance = config->fragment.fragmentGoalDistance;
 
-        ispc::checkFragmentGoals(pos, goal, goalFound->data(), minDistance, posX->size());
+        for(size_t i = 0; i < transforms->size(); ++i) {
+          const Transform::PackedTransform& pt = transforms->at(i);
+          if(std::abs(pt.tx - goalX->at(i)) < minDistance && std::abs(pt.ty - goalY->at(i))) {
+            goalFound->at(i) = 1;
+          }
+        }
       }
     });
 

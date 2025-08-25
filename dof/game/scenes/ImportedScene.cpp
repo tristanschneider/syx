@@ -23,6 +23,7 @@
 #include "TableName.h"
 #include "RespawnArea.h"
 #include "loader/ReflectionModule.h"
+#include <transform/TransformRows.h>
 
 namespace Scenes {
   struct ImportedSceneGlobals {
@@ -145,19 +146,7 @@ namespace BasicLoaders {
       using namespace gnx::func;
       using namespace Reflection;
       const Loader::TransformRow& s = static_cast<const Loader::TransformRow&>(src);
-      using Pos = GetMember<&Loader::Transform::pos>;
-      tryLoadRow<Tags::PosXRow>(s, dst, range, FMap<Pos, GetX>{});
-      tryLoadRow<Tags::PosYRow>(s, dst, range, FMap<Pos, GetY>{});
-      tryLoadRow<Tags::PosZRow>(s, dst, range, FMap<Pos, GetZ>{});
-
-      using Rot = GetMember<&Loader::Transform::rot>;
-      tryLoadRow<Tags::RotXRow>(s, dst, range, FMap<Rot, Cos>{});
-      tryLoadRow<Tags::RotYRow>(s, dst, range, FMap<Rot, Sin>{});
-
       using Scale = GetMember<&Loader::Transform::scale>;
-      tryLoadRow<Tags::ScaleXRow>(s, dst, range, FMap<Scale, GetX>{});
-      tryLoadRow<Tags::ScaleYRow>(s, dst, range, FMap<Scale, GetY>{});
-
       using GetThickness = FMap<Scale, GetZ>;
       //First try full thickness row. If not present, try shared instead
       if(!tryLoadRow<Narrowphase::ThicknessRow>(s, dst, range, GetThickness{})) {

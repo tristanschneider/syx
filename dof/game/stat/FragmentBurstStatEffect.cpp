@@ -7,7 +7,7 @@
 #include "SpatialQueries.h"
 #include "TableAdapters.h"
 #include "stat/AreaForceStatEffect.h"
-
+#include <transform/TransformRows.h>
 #include <math/Geometric.h>
 
 namespace FragmentBurstStatEffect {
@@ -38,7 +38,7 @@ namespace FragmentBurstStatEffect {
     >();
     using namespace Tags;
     auto resolver = task.getResolver<
-      const GPosXRow, const GPosYRow,
+      const Transform::WorldTransformRow,
       const CanTriggerFragmentBurstRow
     >();
     auto ids = task.getIDResolver();
@@ -46,8 +46,7 @@ namespace FragmentBurstStatEffect {
 
     task.setCallback([query, resolver, ids, reader](AppTaskArgs& args) mutable {
       CachedRow<const CanTriggerFragmentBurstRow> canTriggerBurst;
-      CachedRow<const GPosXRow> gPosX;
-      CachedRow<const GPosYRow> gPosY;
+      CachedRow<const Transform::WorldTransformRow> transforms;
       ElementRefResolver idResolver = ids->getRefResolver();
       AreaForceStatEffect::Builder burst{ args };
       for(size_t t = 0; t < query.size(); ++t) {
@@ -71,11 +70,11 @@ namespace FragmentBurstStatEffect {
 
           if(triggerBurst) {
             const auto self = *owner;
-            if(!resolver->tryGetOrSwapAllRows(self, gPosX, gPosY)) {
+            if(!resolver->tryGetOrSwapAllRows(self, transforms)) {
               continue;
             }
 
-            const glm::vec2 pos = TableAdapters::read(self.getElementIndex(), *gPosX, *gPosY);
+            const glm::vec2 pos = transforms->at(self.getElementIndex()).pos2();
             printf("trigger burst\n");
             //Trigger removal of this effect
             lifetime->at(i) = 0;

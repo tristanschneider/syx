@@ -16,8 +16,9 @@
 #include "AppBuilder.h"
 #include "ConstraintSolver.h"
 #include "SpatialQueries.h"
-
 #include "Constraints.h"
+#include <transform/TransformRows.h>
+
 namespace Player {
   using namespace Tags;
 
@@ -180,15 +181,14 @@ namespace Player {
     auto players = task.query<
       GameInput::PlayerInputRow,
       const GameInput::StateMachineRow,
-      const FloatRow<GPos, X>, FloatRow<GPos, Y>,
-      const FloatRow<GRot, CosAngle>, FloatRow<GRot, SinAngle>
+      const Transform::WorldTransformRow
     >();
     auto debug = TableAdapters::getDebugLines(task);
     Constraints::Builder motorBuilder{ Constraints::Definition::resolve(task, players[0], MOTOR_KEY) };
 
     task.setCallback([players, config, debug, motorBuilder](AppTaskArgs& args) mutable {
       for(size_t t = 0; t < players.size(); ++t) {
-        auto&& [input, machines, posX, posY, rotX, rotY] = players.get(t);
+        auto&& [input, machines, transforms] = players.get(t);
         for(size_t i = 0; i < input->size(); ++i) {
           GameInput::PlayerInput& playerInput = input->at(i);
           const Input::StateMachine& sm = machines->at(i);
@@ -289,8 +289,9 @@ namespace Player {
           for(Ability::TriggerResult& shouldTrigger : triggers) {
             if(const auto withPower = std::get_if<Ability::TriggerWithPower>(&shouldTrigger)) {
               ab.createStatEffects(1).setLifetime(StatEffect::INSTANT);
-              ab.setOrigin(TableAdapters::read(i, *posX, *posY))
-                .setDirection(TableAdapters::read(i, *rotX, *rotY))
+              const Transform::PackedTransform& transform = transforms->at(i);
+              ab.setOrigin(transform.pos2())
+                .setDirection(transform.rot())
                 .setPiercing(config->ability.pushAbility.dynamicPiercing, config->ability.pushAbility.terrainPiercing)
                 .setRayCount(config->ability.pushAbility.rayCount);
               AreaForceStatEffect::Command::Cone cone;

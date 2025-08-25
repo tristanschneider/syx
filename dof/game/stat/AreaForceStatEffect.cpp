@@ -17,6 +17,7 @@
 #include "AppBuilder.h"
 #include <module/MassModule.h>
 #include "DebugDrawer.h"
+#include <transform/TransformResolver.h>
 
 namespace AreaForceStatEffect {
   RuntimeTable& getTable(AppTaskArgs& args) {
@@ -209,10 +210,7 @@ namespace AreaForceStatEffect {
 
   struct ShapesQuery {
     UnpackedDatabaseElementID table;
-    const FloatRow<Tags::GPos, Tags::X>* posX{};
-    const FloatRow<Tags::GPos, Tags::Y>* posY{};
-    const FloatRow<Tags::GRot, Tags::CosAngle>* rotX{};
-    const FloatRow<Tags::GRot, Tags::SinAngle>* rotY{};
+    const Transform::WorldTransformRow* transform{};
     FloatRow<Tags::GLinImpulse, Tags::X>* impulseX{};
     FloatRow<Tags::GLinImpulse, Tags::Y>* impulseY{};
     FloatRow<Tags::GAngImpulse, Tags::Angle>* impulseA{};
@@ -234,8 +232,9 @@ namespace AreaForceStatEffect {
     const float paddedConeLength = cone.length + 0.5f;
     const float coneLength2 = paddedConeLength*paddedConeLength;
 
-    for(size_t i = 0; i < query.posX->size(); ++i) {
-      const glm::vec2 pos{ query.posX->at(i), query.posY->at(i) };
+    for(size_t i = 0; i < query.transform->size(); ++i) {
+      const Transform::PackedTransform& transform = query.transform->at(i);
+      const glm::vec2 pos{ transform.pos2() };
       const glm::vec2 toTarget = pos - coneBase;
       const float len2 = glm::length2(toTarget);
       if(len2 > coneLength2) {
@@ -266,10 +265,8 @@ namespace AreaForceStatEffect {
       ShapeResult hit;
       hit.id = query.table.remakeElement(i);
       hit.pos = pos;
-      hit.extentX = glm::vec2{ query.rotX->at(i), query.rotY->at(i) };// * 0.5f;
-      //TODO: this is probably an incorrect assumption now
-      //Since they're unit cubes this is the case, otherwise scale wouldn't be 0.5 for both
-      hit.extentY = Math::orthogonal(hit.extentX);
+      hit.extentX = transform.basisX();
+      hit.extentX = transform.basisY();
       hit.isTerrain = isTerrain;
       hit.distance = len2;
       results.push_back(hit);
@@ -302,13 +299,12 @@ namespace AreaForceStatEffect {
     DebugLineAdapter debug = TableAdapters::getDebugLines(task);
     using namespace Tags;
     auto shapesQuery = task.query<
-      const FloatRow<GPos, X>, const FloatRow<GPos, Y>,
-      const FloatRow<GRot, CosAngle>, const FloatRow<GRot, SinAngle>,
+      const Transform::WorldTransformRow,
       const IsFragment
     >();
     auto resolver = task.getResolver<
       const MassModule::IsImmobile,
-      const FloatRow<GPos, X>, const FloatRow<GPos, Y>,
+      const Transform::WorldTransformRow,
       FloatRow<GLinImpulse, X>, FloatRow<GLinImpulse, Y>,
       FloatRow<GAngImpulse, Angle>,
       const StableIDRow,
@@ -321,8 +317,7 @@ namespace AreaForceStatEffect {
       std::vector<ShapeResult> shapes;
       std::vector<HitResult> hits;
       std::vector<Ray> rays;
-      CachedRow<const FloatRow<GPos, X>> posX;
-      CachedRow<const FloatRow<GPos, Y>> posY;
+      CachedRow<const Transform::WorldTransformRow> hitTransforms;
       CachedRow<FloatRow<GLinImpulse, X>> impulseX;
       CachedRow<FloatRow<GLinImpulse, Y>> impulseY;
       CachedRow<FloatRow<GAngImpulse, Angle>> impulseA;
@@ -338,10 +333,10 @@ namespace AreaForceStatEffect {
           hits.clear();
           rays.clear();
           for(size_t s = 0; s < shapesQuery.size(); ++s) {
-            auto&& [posXs, posYs, rotXs, rotYs, f] = shapesQuery.get(s);
+            auto&& [transforms, f] = shapesQuery.get(s);
             const UnpackedDatabaseElementID table = shapesQuery[s];
             ShapesQuery shapeTable {
-              table, posXs.get(), posYs.get(), rotXs.get(), rotYs.get(), nullptr, nullptr, nullptr, resolver->tryGetRow<const MassModule::IsImmobile>(table)
+              table, transforms.get(), nullptr, nullptr, nullptr, resolver->tryGetRow<const MassModule::IsImmobile>(table)
             };
             std::visit([&](const auto& shape) {
               gatherResultsInShape(command, shape, shapeTable, shapes);
@@ -369,13 +364,13 @@ namespace AreaForceStatEffect {
           for(const HitResult& hit : hits) {
             const size_t id = hit.id.getElementIndex();
             //If fundamental information is missing, skip it
-            if(!resolver->tryGetOrSwapAllRows(hit.id, posX, posY, stableRow)) {
+            if(!resolver->tryGetOrSwapAllRows(hit.id, hitTransforms, stableRow)) {
               continue;
             }
             //If it has velocity, apply an impulse
             if(resolver->tryGetOrSwapAllRows(hit.id, impulseX, impulseY, impulseA)) {
               //Compute and apply impulse
-              const glm::vec2 pos = TableAdapters::read(id, *posX, *posY);
+              const glm::vec2 pos = hitTransforms->at(id).pos2();
               const glm::vec2 baseImpulse = std::visit([&hit](const auto& type) { return computeImpulseType(type, hit); }, command.impulseType);
 
               const Math::Impulse impulse = Math::computeImpulseAtPoint(pos, hit.hitPoint, baseImpulse, objMass);

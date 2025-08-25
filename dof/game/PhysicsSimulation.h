@@ -19,11 +19,6 @@ namespace ShapeRegistry {
   struct IShapeClassifier;
 }
 
-namespace pt {
-  struct FullTransformResolver;
-  struct TransformResolver;
-};
-
 class IPhysicsBodyResolver {
 public:
   using Key = UnpackedDatabaseElementID;

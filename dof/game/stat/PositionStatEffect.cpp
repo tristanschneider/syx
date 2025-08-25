@@ -5,6 +5,7 @@
 #include "AppBuilder.h"
 #include "Simulation.h"
 #include "TableAdapters.h"
+#include <transform/TransformRows.h>
 
 namespace PositionStatEffect {
   RuntimeTable& getArgs(AppTaskArgs& args) {
@@ -45,42 +46,40 @@ namespace PositionStatEffect {
       const CommandRow,
       const StatEffect::Owner
     >();
-    auto ids = task.getIDResolver();
+    auto res = task.getRefResolver();
     using namespace Tags;
 
-    auto resolver = task.getResolver<
-      FloatRow<Pos, X>, FloatRow<Pos, Y>, FloatRow<Pos, Z>,
-      FloatRow<Rot, CosAngle>, FloatRow<Rot, SinAngle>
-    >();
+    auto resolver = task.getResolver<Transform::WorldTransformRow, Transform::TransformNeedsUpdateRow>();
 
-    task.setCallback([query, ids, resolver](AppTaskArgs&) mutable {
-      CachedRow<FloatRow<Pos, X>> px;
-      CachedRow<FloatRow<Pos, Y>> py;
-      CachedRow<FloatRow<Pos, Z>> pz;
-      CachedRow<FloatRow<Rot, CosAngle>> rx;
-      CachedRow<FloatRow<Rot, SinAngle>> ry;
-      auto res = ids->getRefResolver();
+    task.setCallback([query, res, resolver](AppTaskArgs&) mutable {
+      CachedRow<Transform::WorldTransformRow> dst;
+      CachedRow<Transform::TransformNeedsUpdateRow> needsUpdate;
 
       for(size_t t = 0; t < query.size(); ++t) {
         auto&& [commands, owners] = query.get(t);
         for(size_t i = 0; i < commands->size(); ++i) {
-          const auto owner = res.tryUnpack(owners->at(i));
-          if(!owner) {
+          const auto owner = res.unpack(owners->at(i));
+          if(!resolver->tryGetOrSwapAllRows(owner, dst, needsUpdate)) {
             continue;
           }
-          const UnpackedDatabaseElementID self = *owner;
-          const size_t si = self.getElementIndex();
+          const size_t si = owner.getElementIndex();
 
           const PositionStatEffect::PositionCommand& cmd = commands->at(i);
-          if(cmd.pos && resolver->tryGetOrSwapAllRows(self, px, py)) {
-            TableAdapters::write(si, *cmd.pos, *px, *py);
+          Transform::PackedTransform& transform = dst->at(si);
+          Transform::Parts parts = transform.decompose();
+          if(cmd.pos) {
+            parts.translate.x = cmd.pos->x;
+            parts.translate.y = cmd.pos->y;
           }
-          if(cmd.rot && resolver->tryGetOrSwapAllRows(self, rx, ry)) {
-            TableAdapters::write(si, *cmd.rot, *rx, *ry);
+          if(cmd.posZ) {
+            parts.translate.z = *cmd.posZ;
           }
-          if(cmd.posZ && resolver->tryGetOrSwapRow(pz, self)) {
-            pz->at(si) = *cmd.posZ;
+          if(cmd.rot) {
+            parts.rot = parts.rot;
           }
+          //Assume a command always changes something
+          transform = Transform::PackedTransform::build(parts);
+          needsUpdate->getOrAdd(si);
         }
       }
     });

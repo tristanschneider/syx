@@ -22,6 +22,7 @@
 #include <math/Geometric.h>
 #include "Constraints.h"
 #include "Clip.h"
+#include <transform/TransformRows.h>
 
 namespace SM {
   using namespace FragmentStateMachine;
@@ -176,10 +177,7 @@ namespace SM {
         StateRow,
         const StableIDRow,
         Constraints::JointRow,
-        const FloatRow<Tags::GRot, Tags::CosAngle>,
-        const FloatRow<Tags::GRot, Tags::SinAngle>,
-        const FloatRow<Tags::GPos, Tags::X>,
-        const FloatRow<Tags::GPos, Tags::Y>
+        const Transform::WorldTransformRow
       >(table);
       auto spatialQueryR = SpatialQuery::createReader(task);
       auto spatialQueryW = SpatialQuery::createWriter(task);
@@ -187,10 +185,11 @@ namespace SM {
       auto ids = task.getIDResolver();
 
       task.setCallback([ids, query, spatialQueryR, spatialQueryW, bucket, bodyResolver](AppTaskArgs&) mutable {
-        auto&& [globals, state, stableRow, joints, rotX, rotY, posX, posY] = query.get(0);
+        auto&& [globals, state, stableRow, joints, transforms] = query.get(0);
         for(size_t si : globals->at().buckets[bucket].updating) {
+          const Transform::PackedTransform& pt = transforms->at(si);
           const ElementRef stableID = stableRow->at(si);
-          const glm::vec2 pos = TableAdapters::read(si, *posX, *posY);
+          const glm::vec2 pos = pt.pos2();
 
           Wander& wander = std::get<Wander>(state->at(si).currentState);
           spatialQueryR->begin(wander.spatialQuery);
@@ -231,31 +230,22 @@ namespace SM {
         const GlobalsRow,
         const StateRow,
         const StableIDRow,
-        const FloatRow<Tags::GPos, Tags::X>,
-        const FloatRow<Tags::GPos, Tags::Y>,
-        const FloatRow<Tags::GRot, Tags::CosAngle>,
-        const FloatRow<Tags::GRot, Tags::SinAngle>
+        const Transform::WorldTransformRow
       >(table);
-      auto resolver = task.getResolver<
-        FloatRow<Tags::GPos, Tags::X>,
-        FloatRow<Tags::GPos, Tags::Y>
-      >();
-      auto ids = task.getIDResolver();
       auto spatialQuery = SpatialQuery::createReader(task);
       auto debug = TableAdapters::getDebugLines(task);
       const bool* shouldDrawAI = getShouldDrawAI(task);
 
-      task.setCallback([debug, query, spatialQuery, bucket, shouldDrawAI, resolver, ids](AppTaskArgs&) mutable {
+      task.setCallback([debug, query, spatialQuery, bucket, shouldDrawAI](AppTaskArgs&) mutable {
         if(!*shouldDrawAI) {
           return;
         }
-        auto&& [globals, state, stableRow, posX, posY, rotX, rotY] = query.get(0);
-        CachedRow<FloatRow<Tags::GPos, Tags::X>> resolvedX;
-        CachedRow<FloatRow<Tags::GPos, Tags::Y>> resolvedY;
+        auto&& [globals, state, stableRow, transforms] = query.get(0);
         for(size_t si : globals->at().buckets[bucket].updating) {
           const Wander& wander = std::get<Wander>(state->at(si).currentState);
-          const glm::vec2 myPos = TableAdapters::read(si, *posX, *posY);
-          const glm::vec2 myForward = TableAdapters::read(si, *rotX, *rotY);
+          const Transform::PackedTransform& transform = transforms->at(si);
+          const glm::vec2 myPos = transform.pos2();
+          const glm::vec2 myForward = glm::normalize(transform.basisX());
           const ElementRef myID = stableRow->at(si);
 
           //Draw the spatial query volume
@@ -325,8 +315,7 @@ namespace SM {
       auto query = task.query<
         const GlobalsRow,
         StateRow,
-        const Tags::GPosXRow,
-        const Tags::GPosYRow,
+        const Transform::WorldTransformRow,
         Constraints::JointRow,
         Constraints::CustomConstraintRow,
         const Tags::FragmentGoalXRow,
@@ -334,7 +323,7 @@ namespace SM {
       >(table);
 
       task.setCallback([query, bucket](AppTaskArgs&) mutable {
-        auto&& [globals, state, posX, posY, joints, customs, goalX, goalY] = query.get(0);
+        auto&& [globals, state, transforms, joints, customs, goalX, goalY] = query.get(0);
 
         for(size_t i : globals->at().buckets[bucket].updating) {
           SeekHome& seek = std::get<SeekHome>(state->at(i).currentState);
@@ -343,7 +332,7 @@ namespace SM {
             continue;
           }
 
-          const glm::vec2 myPos = TableAdapters::read(i, *posX, *posY);
+          const glm::vec2 myPos = transforms->at(i).pos2();
           const glm::vec2 goal = TableAdapters::read(i, *goalX, *goalY);
           const glm::vec2 toGoal = goal - myPos;
           const float distance = glm::length(toGoal);
@@ -401,8 +390,7 @@ namespace SM {
       auto query = task.query<
         const GlobalsRow,
         const StateRow,
-        const Tags::GPosXRow,
-        const Tags::GPosYRow,
+        const Transform::WorldTransformRow,
         const Tags::FragmentGoalXRow,
         const Tags::FragmentGoalYRow
       >(table);
@@ -413,9 +401,9 @@ namespace SM {
         if(!*shouldDrawAI) {
           return;
         }
-        auto&& [globals, state, posX, posY, goalX, goalY] = query.get(0);
+        auto&& [globals, state, transforms, goalX, goalY] = query.get(0);
         for(size_t si : globals->at().buckets[bucket].updating) {
-          const glm::vec2 myPos = TableAdapters::read(si, *posX, *posY);
+          const glm::vec2 myPos = transforms->at(si).pos2();
           const glm::vec2 goal = TableAdapters::read(si, *goalX, *goalY);
           DebugDrawer::drawLine(debug, myPos, goal, glm::vec3{ 0, 1, 0 });
         }
@@ -468,8 +456,7 @@ namespace SM {
         const GlobalsRow,
         StateRow,
         const StableIDRow,
-        const Tags::GPosXRow,
-        const Tags::GPosYRow,
+        const Transform::WorldTransformRow,
         Tags::GLinImpulseXRow,
         Tags::GLinImpulseYRow
       >(table);
@@ -479,7 +466,7 @@ namespace SM {
       auto spatialQueryW = SpatialQuery::createWriter(task);
       auto spatialQueryR = SpatialQuery::createReader(task);
       task.setCallback([query, bucket, spatialQueryR, spatialQueryW, resolver, ids](AppTaskArgs&) mutable {
-        auto&& [globals, state, stableRow, posX, posY, ix, iy] = query.get(0);
+        auto&& [globals, state, stableRow, transforms, ix, iy] = query.get(0);
         CachedRow<const StateRow> stateLookup;
         CachedRow<const SpatialQueriesTableTag> spatialQueryLookup;
 
@@ -489,7 +476,7 @@ namespace SM {
           //Keep going in some direction so this doesn't get stuck forever
           TableAdapters::add(i, seek.direction, *ix, *iy);
 
-          const glm::vec2 myPos = TableAdapters::read(i, *posX, *posY);
+          const glm::vec2 myPos = transforms->at(i).pos2();
           auto key = spatialQueryW->getKey(seek.spatialQuery);
           if(!key) {
             //Shouldn't happen
@@ -567,8 +554,7 @@ namespace SM {
       task.setName("seekhome debug");
       auto query = task.query<
         const GlobalsRow,
-        const Tags::GPosXRow,
-        const Tags::GPosYRow
+        const Transform::WorldTransformRow
       >(table);
       auto debug = TableAdapters::getDebugLines(task);
       const bool* shouldDrawAI = getShouldDrawAI(task);
@@ -577,9 +563,9 @@ namespace SM {
         if(!*shouldDrawAI) {
           return;
         }
-        auto&& [globals, posX, posY] = query.get(0);
+        auto&& [globals, transforms] = query.get(0);
         for(size_t si : globals->at().buckets[bucket].updating) {
-          const auto bb = getQueryAABB(TableAdapters::read(si, *posX, *posY));
+          const auto bb = getQueryAABB(transforms->at(si).pos2());
           DebugDrawer::drawAABB(debug, bb.min, bb.max, glm::vec3{ 0.5f, 0.5f, 0.5f });
         }
       });
@@ -600,19 +586,16 @@ namespace SM {
     task.setName("print state names");
     auto debug = TableAdapters::getDebugLines(task);
     auto cfg = TableAdapters::getGameConfig(task);
-    auto query = task.query<const FragmentStateMachine::StateRow,
-      const FloatRow<Tags::GPos, Tags::X>,
-      const FloatRow<Tags::GPos, Tags::Y>
-    >();
+    auto query = task.query<const FragmentStateMachine::StateRow, const Transform::WorldTransformRow>();
     task.setCallback([debug, cfg, query](AppTaskArgs&) mutable {
       if(!cfg->fragment.drawAI) {
         return;
       }
       for(size_t t = 0; t < query.size(); ++t) {
-        auto [state, posX, posY] = query.get(t);
+        auto [state, transforms] = query.get(t);
         for(size_t i = 0; i < state->size(); ++i) {
           constexpr glm::vec2 offset{ -1.0f, -1.0f };
-          const glm::vec2 pos = TableAdapters::read(i, *posX, *posY);
+          const glm::vec2 pos = transforms->at(i).pos2();
           DebugDrawer::drawText(debug, pos + offset, std::string{ std::visit(GetStateName{}, state->at(i).currentState) });
         }
       }

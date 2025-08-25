@@ -12,7 +12,7 @@
 #include <random>
 #include "Player.h"
 #include "Fragment.h"
-#include "World.h"
+#include <transform/TransformRows.h>
 
 namespace Scenes {
   void setupPlayer(IAppBuilder& builder) {
@@ -25,8 +25,8 @@ namespace Scenes {
     }
     std::shared_ptr<ITableModifier> cameraModifier = task.getModifierForTable(cameras[0]);
     auto players = task.query<
-      FloatRow<Tags::Pos, Tags::X>,
-      FloatRow<Tags::Pos, Tags::Y>,
+      Transform::WorldTransformRow,
+      Transform::TransformNeedsUpdateRow,
       GameInput::PlayerInputRow,
       Events::EventsRow>();
     Config::GameConfig* config = task.query<SharedRow<Config::GameConfig>>().tryGetSingletonElement();
@@ -37,7 +37,7 @@ namespace Scenes {
       if(!config->fragment.playerSpawn) {
         return;
       }
-      auto [posX, posY, input, stableId] = players.get(0);
+      auto [transforms, needUpdates, input, stableId] = players.get(0);
       std::random_device device;
       std::mt19937 generator(device());
       cameraModifier->resize(1);
@@ -52,7 +52,9 @@ namespace Scenes {
       const size_t playerIndex = 0;
       playerEvents.getOrAdd(playerIndex).setCreate();
 
-      TableAdapters::write(0, *config->fragment.playerSpawn, *posX, *posY);
+      Transform::PackedTransform& playerTransform = transforms->at(0);
+      playerTransform.setPos(*config->fragment.playerSpawn);
+      needUpdates->getOrAdd(0);
 
       //Player.cpp will connect the camera to the player and initialize abilities
     });
@@ -66,8 +68,7 @@ namespace Scenes {
     SceneState* scene = task.query<SharedRow<SceneState>>().tryGetSingletonElement();
     const Config::FragmentConfig* args = &task.query<const SharedRow<Config::GameConfig>>().tryGetSingletonElement()->fragment;
     auto fragments = task.query<
-      FloatRow<Pos, X>,
-      FloatRow<Pos, Y>,
+      Transform::WorldTransformRow,
       FloatRow<FragmentGoal, X>,
       FloatRow<FragmentGoal, Y>,
       Row<CubeSprite>,
@@ -75,11 +76,7 @@ namespace Scenes {
     >();
     auto terrain = task.query<
       const TerrainRow,
-      FloatRow<Pos, X>,
-      FloatRow<Pos, Y>,
-      FloatRow<Pos, Z>,
-      ScaleXRow,
-      ScaleYRow,
+      Transform::WorldTransformRow,
       Events::EventsRow
     >();
     auto modifiers = task.getModifiersForTables(fragments.getMatchingTableIDs());
@@ -108,7 +105,7 @@ namespace Scenes {
           continue;
         }
         modifiers[t]->resize(total);
-        auto [posX, posY, goalX, goalY, sprites, stableIDs] = fragments.get(t);
+        auto [fragmentTransforms, goalX, goalY, sprites, stableIDs] = fragments.get(t);
         for(size_t s = 0; s < total; ++s) {
           stableIDs->getOrAdd(s).setCreate();
         }
@@ -151,8 +148,9 @@ namespace Scenes {
           sprite.vMin = 1.f - sprite.vMin;
           std::swap(sprite.vMax, sprite.vMin);
 
-          posX->at(j) = startX + shuffleColumn;
-          posY->at(j) = startY + shuffleRow;
+          Transform::PackedTransform& ft = fragmentTransforms->at(j);
+          ft.tx = startX + shuffleColumn;
+          ft.ty = startY + shuffleRow;
         }
 
         const float boundaryPadding = 10.0f;
@@ -164,13 +162,14 @@ namespace Scenes {
 
       if(terrain.size() && args->addGround) {
         const size_t ground = terrainModifier[0]->addElements(1);
-        auto [_, px, py, pz, sx, sy, stable] = terrain.get(0);
+        auto [_, transforms, stable] = terrain.get(0);
         stable->getOrAdd(ground).setCreate();
         const glm::vec2 scale = scene->mBoundaryMax - scene->mBoundaryMin;
         const glm::vec2 center = (scene->mBoundaryMin + scene->mBoundaryMax) * 0.5f;
-        TableAdapters::write(ground, center, *px, *py);
-        TableAdapters::write(ground, scale, *sx, *sy);
-        pz->at(ground) = -0.1f;
+        Transform::Parts parts;
+        parts.translate = { center.x, center.y, -0.1f };
+        parts.scale = scale;
+        transforms->at(ground) = Transform::PackedTransform::build(parts);
       }
     });
     builder.submitTask(std::move(task));
@@ -186,7 +185,7 @@ namespace Scenes {
     auto task = builder.createTask();
     task.setName("outOfWorldRespawn");
     auto query = task.query<
-      const FloatRow<Tags::GPos, Tags::Z>,
+      const Transform::WorldTransformRow,
       const StableIDRow
     >();
     RespawnSettings settings;
@@ -198,7 +197,7 @@ namespace Scenes {
       for(size_t t = 0; t < query.size(); ++t) {
         auto [zs, stable] = query.get(t);
         for(size_t i = 0; i < zs->size(); ++i) {
-          if(zs->at(i) < settings.outOfBoundsZ) {
+          if(zs->at(i).tz < settings.outOfBoundsZ) {
             const auto* stableID = &stable->at(i);
             position.createStatEffects(1).setLifetime(StatEffect::INSTANT).setOwner(*stableID);
             position.setZ(settings.respawnZ);
@@ -220,7 +219,6 @@ namespace Scenes {
       setupFragmentScene(builder);
     }
     void update(IAppBuilder& builder) final {
-      World::enforceWorldBoundary(builder);
       outOfWorldRespawn(builder);
     }
     void uninit(IAppBuilder&) final {}

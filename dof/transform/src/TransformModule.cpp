@@ -4,7 +4,10 @@
 #include <RuntimeDatabase.h>
 #include <TLSTaskImpl.h>
 #include <transform/TransformRows.h>
+#include <loader/ReflectionModule.h>
+#include <loader/SceneAsset.h>
 #include <Events.h>
+#include <math/Geometric.h>
 
 namespace Transform {
   //Recompute inverse transform for any elements that moved, then reset the flag
@@ -57,8 +60,32 @@ namespace Transform {
     > query;
   };
 
+  struct TransformLoader {
+    using src_row = Loader::TransformRow;
+    static constexpr std::string_view NAME = src_row::KEY;
+
+    static Transform::PackedTransform toTransform(const Loader::Transform& t) {
+      return Transform::PackedTransform::build(Transform::Parts{
+        .rot = { std::cos(t.rot), std::sin(t.rot) },
+        .scale = Geo::toVec2(t.scale),
+        .translate = t.pos
+      });
+    }
+
+    static void load(const IRow& src, RuntimeTable& dst, gnx::IndexRange range) {
+      const Loader::TransformRow& s = static_cast<const Loader::TransformRow&>(src);
+      Reflection::tryLoadRow<Transform::WorldTransformRow>(s, dst, range, &toTransform);
+    }
+  };
+
   class Impl : public IAppModule {
   public:
+    void init(IAppBuilder& builder) final {
+      Reflection::registerLoaders(builder,
+        Reflection::createRowLoader(TransformLoader{})
+      );
+    }
+
     void update(IAppBuilder& builder) final {
       builder.submitTask(TLSTask::create<UpdateTransform>("UpdateTransform"));
     }

@@ -3,10 +3,9 @@
 
 #include "AllStatEffects.h"
 #include "glm/glm.hpp"
-#include "Simulation.h"
-#include "TableAdapters.h"
 
 #include "AppBuilder.h"
+#include <transform/TransformRows.h>
 
 namespace FollowTargetByPositionStatEffect {
   RuntimeTable& getArgs(AppTaskArgs& args) {
@@ -45,7 +44,6 @@ namespace FollowTargetByPositionStatEffect {
   void processStat(IAppBuilder& builder) {
     auto task = builder.createTask();
     task.setName("FollowTargetByPosition Stat");
-    using namespace Tags;
     auto query = task.query<
       const CommandRow,
       const StatEffect::Owner,
@@ -53,16 +51,17 @@ namespace FollowTargetByPositionStatEffect {
       const StatEffect::CurveOutput<>,
       StatEffect::CurveInput<>
     >();
-    auto ids = task.getIDResolver();
+    auto res = task.getRefResolver();
     auto resolver = task.getResolver<
-      FloatRow<Pos, X>,
-      FloatRow<Pos, Y>
+      Transform::WorldTransformRow,
+      Transform::TransformNeedsUpdateRow
     >();
 
-    task.setCallback([query, ids, resolver](AppTaskArgs&) mutable {
-      CachedRow<FloatRow<Pos, X>> srcPosX, dstPosX;
-      CachedRow<FloatRow<Pos, Y>> srcPosY, dstPosY;
-      auto res = ids->getRefResolver();
+    task.setCallback([query, res, resolver](AppTaskArgs&) mutable {
+      CachedRow<Transform::WorldTransformRow> srcTransform;
+      CachedRow<const Transform::WorldTransformRow> dstTransform;
+      CachedRow<Transform::TransformNeedsUpdateRow> srcUpdate;
+
       for(size_t t = 0; t < query.size(); ++t) {
         auto&& [commands, owners, targets, curveOutputs, curveInputs] = query.get(t);
         for(size_t i = 0; i < commands->size(); ++i) {
@@ -75,10 +74,12 @@ namespace FollowTargetByPositionStatEffect {
           const auto rawTarget = *target;
 
           const Command& cmd = commands->at(i);
-          if(resolver->tryGetOrSwapAllRows(rawSelf, srcPosX, srcPosY) &&
-            resolver->tryGetOrSwapAllRows(rawTarget, dstPosX, dstPosY)) {
-            glm::vec2 src = TableAdapters::read(rawSelf.getElementIndex(), *srcPosX, *srcPosY);
-            const glm::vec2 dst = TableAdapters::read(rawTarget.getElementIndex(), *dstPosX, *dstPosY);
+          if(resolver->tryGetOrSwapAllRows(rawSelf, srcTransform, srcUpdate) &&
+            resolver->tryGetOrSwapAllRows(rawTarget, dstTransform)) {
+            Transform::PackedTransform& srcT = srcTransform->at(rawSelf.getElementIndex());
+            const Transform::PackedTransform& dstT = dstTransform->at(rawTarget.getElementIndex());
+            glm::vec2 src = srcT.pos2();
+            const glm::vec2 dst = dstT.pos2();
             const float curveOutput = curveOutputs->at(i);
 
             const glm::vec2 toDst = dst - src;
@@ -97,7 +98,8 @@ namespace FollowTargetByPositionStatEffect {
                 }
               }
 
-              TableAdapters::write(rawSelf.getElementIndex(), src, *srcPosX, *srcPosY);
+              srcT.setPos(src);
+              srcUpdate->getOrAdd(rawSelf.getElementIndex());
             }
             else {
               //Reset curve input when reaching destination

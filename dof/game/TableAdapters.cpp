@@ -35,32 +35,6 @@ size_t TableAdapters::getThreadCount(RuntimeDatabaseTaskBuilder& task) {
   return task.query<const ThreadLocalsRow>().tryGetSingletonElement()->instance->getThreadCount();
 }
 
-TransformAdapter TableAdapters::getTransform(RuntimeDatabaseTaskBuilder& task, const TableID& table) {
-  TransformAdapter result;
-  auto [px, py, rx, ry] = task.query<
-    FloatRow<Tags::Pos, Tags::X>, FloatRow<Tags::Pos, Tags::Y>,
-    FloatRow<Tags::Rot, Tags::CosAngle>, FloatRow<Tags::Rot, Tags::SinAngle>
-  >(table).get(0);
-  result.posX = px.get();
-  result.posY = py.get();
-  result.rotX = rx.get();
-  result.rotY = ry.get();
-  return result;
-}
-
-TransformAdapter TableAdapters::getGameplayTransform(RuntimeDatabaseTaskBuilder& task, const TableID& table) {
-  TransformAdapter result;
-  auto [px, py, rx, ry] = task.query<
-    FloatRow<Tags::GPos, Tags::X>, FloatRow<Tags::GPos, Tags::Y>,
-    FloatRow<Tags::GRot, Tags::CosAngle>, FloatRow<Tags::GRot, Tags::SinAngle>
-  >(table).get(0);
-  result.posX = px.get();
-  result.posY = py.get();
-  result.rotX = rx.get();
-  result.rotY = ry.get();
-  return result;
-}
-
 PhysicsObjectAdapter TableAdapters::getPhysics(RuntimeDatabaseTaskBuilder& task, const TableID& table) {
   auto q = task.query<
     FloatRow<Tags::LinVel, Tags::X>, FloatRow<Tags::LinVel, Tags::Y>,
@@ -108,17 +82,15 @@ PhysicsObjectAdapter TableAdapters::getGameplayPhysics(RuntimeDatabaseTaskBuilde
 }
 
 GameObjectAdapter TableAdapters::getGameObject(RuntimeDatabaseTaskBuilder& task, const TableID& table) {
-  auto t = getTransform(task, table);
   auto p = getPhysics(task, table);
   auto& stable = task.query<const StableIDRow>(table).get<0>(0);
-  return { t, p, &stable };
+  return { p, &stable };
 }
 
 GameObjectAdapter TableAdapters::getGameplayGameObject(RuntimeDatabaseTaskBuilder& task, const TableID& table) {
-  auto t = getGameplayTransform(task, table);
   auto p = getGameplayPhysics(task, table);
   auto& stable = task.query<const StableIDRow>(table).get<0>(0);
-  return { t, p, &stable };
+  return { p, &stable };
 }
 
 DebugLineAdapter TableAdapters::getDebugLines(RuntimeDatabaseTaskBuilder& task) {

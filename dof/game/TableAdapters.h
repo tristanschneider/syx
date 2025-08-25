@@ -27,13 +27,6 @@ struct ConfigAdapter {
   Config::GameConfig* game{};
 };
 
-struct TransformAdapter {
-  BasicRow<float>* posX{};
-  BasicRow<float>* posY{};
-  BasicRow<float>* rotX{};
-  BasicRow<float>* rotY{};
-};
-
 struct PhysicsObjectAdapter {
   BasicRow<float>* linVelX{};
   BasicRow<float>* linVelY{};
@@ -47,7 +40,6 @@ struct PhysicsObjectAdapter {
 };
 
 struct GameObjectAdapter {
-  TransformAdapter transform;
   PhysicsObjectAdapter physics;
   const StableIDRow* stable{};
 };
@@ -73,8 +65,6 @@ namespace TableAdapters {
   DebugLineAdapter getDebugLines(RuntimeDatabaseTaskBuilder& task);
   const float* getDeltaTime(RuntimeDatabaseTaskBuilder& task);
 
-  TransformAdapter getTransform(RuntimeDatabaseTaskBuilder& task, const TableID& table);
-  TransformAdapter getGameplayTransform(RuntimeDatabaseTaskBuilder& task, const TableID& table);
   PhysicsObjectAdapter getPhysics(RuntimeDatabaseTaskBuilder& task, const TableID& table);
   PhysicsObjectAdapter getGameplayPhysics(RuntimeDatabaseTaskBuilder& task, const TableID& table);
   GameObjectAdapter getGameObject(RuntimeDatabaseTaskBuilder& task, const TableID& table);

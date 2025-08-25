@@ -14,6 +14,7 @@
 #include "GameDatabase.h"
 #include "GraphicsTables.h"
 #include "Narrowphase.h"
+#include <transform/TransformResolver.h>
 
 namespace FragmentSpawner {
   struct UpdateLocals {
@@ -26,9 +27,7 @@ namespace FragmentSpawner {
       if(!fragmentTable) {
         return;
       }
-      fragmentTable->tryGet(posX)
-        .tryGet(posY)
-        .tryGet(posZ)
+      fragmentTable->tryGet(transform)
         .tryGet(goalX)
         .tryGet(goalY)
         .tryGet(sprite)
@@ -37,13 +36,11 @@ namespace FragmentSpawner {
     }
 
     explicit operator bool() const {
-      return fragmentTable && posX && posY /*&& posZ*/ && goalX && goalY && sprite && stable;
+      return fragmentTable && transform && goalX && goalY && sprite && stable;
     }
 
     RuntimeTable* fragmentTable{};
-    Tags::PosXRow* posX{};
-    Tags::PosYRow* posY{};
-    Tags::PosZRow* posZ{};
+    Transform::WorldTransformRow* transform{};
     Tags::FragmentGoalXRow* goalX{};
     Tags::FragmentGoalYRow* goalY{};
     Narrowphase::CollisionMaskRow* collisionMask{};
@@ -54,7 +51,7 @@ namespace FragmentSpawner {
   struct Update {
     void init(RuntimeDatabaseTaskBuilder& task) {
       q = task;
-      transform = PhysicsSimulation::createGameplayFullTransformResolver(task);
+      transform = Transform::Resolver{ task, {} };
     }
 
     void init(AppTaskArgs& args) {
@@ -94,14 +91,20 @@ namespace FragmentSpawner {
       };
     }
 
-    void spawnNewFragments(UpdateLocals& locals, const FragmentSpawnerCount&, const Narrowphase::CollisionMask collisionMask, const pt::FullTransform& spawnerTransform, AppTaskArgs& args) {
+    void spawnNewFragments(
+      UpdateLocals& locals,
+      const FragmentSpawnerCount&,
+      const Narrowphase::CollisionMask collisionMask,
+      const Transform::PackedTransform& spawnerTransform,
+      AppTaskArgs& args
+    ) {
       //if(!config.fragmentCount) {
       //  return;
       //}
       args.getLocalDB().setTableDirty(locals.fragmentTable->getID());
 
       //const Grid grid = computeGridFromScale(spawnerTransform.scale, config.fragmentCount);
-      const Grid grid = computeGridFromScale(spawnerTransform.scale);
+      const Grid grid = computeGridFromScale(spawnerTransform.scale());
       std::vector<size_t> indices(grid.rows*grid.columns);
       const size_t total = indices.size();
       size_t begin = locals.fragmentTable->addElements(indices.size());
@@ -144,8 +147,9 @@ namespace FragmentSpawner {
         sprite.vMin = 1.f - sprite.vMin;
         std::swap(sprite.vMax, sprite.vMin);
 
-        locals.posX->at(i) = startX + shuffleColumn;
-        locals.posY->at(i) = startY + shuffleRow;
+        Transform::PackedTransform& localTransform = locals.transform->at(i);
+        localTransform.tx = startX + shuffleColumn;
+        localTransform.ty = startY + shuffleRow;
         //locals.posZ->at(i) = spawnerTransform.pos.z;
 
         locals.collisionMask->at(i) = collisionMask;
@@ -179,7 +183,7 @@ namespace FragmentSpawner {
       const FragmentSpawnerCountRow,
       const Narrowphase::CollisionMaskRow
     > q;
-    pt::FullTransformResolver transform;
+    Transform::Resolver transform;
     UpdateLocals loc;
   };
 

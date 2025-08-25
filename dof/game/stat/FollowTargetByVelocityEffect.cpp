@@ -7,6 +7,7 @@
 #include "TableAdapters.h"
 #include "GameMath.h"
 #include "AppBuilder.h"
+#include <transform/TransformRows.h>
 
 namespace FollowTargetByVelocityStatEffect {
   RuntimeTable& getArgs(AppTaskArgs& args) {
@@ -48,7 +49,7 @@ namespace FollowTargetByVelocityStatEffect {
   void processStat(IAppBuilder& builder) {
     auto task = builder.createTask();
     task.setName("FollowTargetByVelocity Stat");
-    auto ids = task.getIDResolver();
+    auto res = task.getRefResolver();
     auto query = task.query<
       const CommandRow,
       const StatEffect::Owner,
@@ -57,15 +58,13 @@ namespace FollowTargetByVelocityStatEffect {
     using namespace Tags;
     auto resolver = task.getResolver<
       FloatRow<GLinImpulse, X>, FloatRow<GLinImpulse, Y>,
-      const FloatRow<Pos, X>, const FloatRow<Pos, Y>
+      const Transform::WorldTransformRow
     >();
 
-    task.setCallback([ids, query, resolver](AppTaskArgs&) mutable {
+    task.setCallback([res, query, resolver](AppTaskArgs&) mutable {
       CachedRow<FloatRow<GLinImpulse, X>> impulseX;
       CachedRow<FloatRow<GLinImpulse, Y>> impulseY;
-      CachedRow<const FloatRow<Pos, X>> srcPosX, dstPosX;
-      CachedRow<const FloatRow<Pos, Y>> srcPosY, dstPosY;
-      auto res = ids->getRefResolver();
+      CachedRow<const Transform::WorldTransformRow> srcTransform, dstTransform;
       for(size_t t = 0; t < query.size(); ++t) {
         auto&& [commands, owners, targets] = query.get(t);
         for(size_t i = 0; i < commands->size(); ++i) {
@@ -77,15 +76,15 @@ namespace FollowTargetByVelocityStatEffect {
           const auto rawSelf = *self;
           const auto rawTarget = *target;
 
-          if(resolver->tryGetOrSwapAllRows(rawSelf, impulseX, impulseY, srcPosX, srcPosY) &&
-            resolver->tryGetOrSwapAllRows(rawTarget, dstPosX, dstPosY)) {
+          if(resolver->tryGetOrSwapAllRows(rawSelf, impulseX, impulseY, srcTransform) &&
+            resolver->tryGetOrSwapAllRows(rawTarget, dstTransform)) {
             const size_t selfI = rawSelf.getElementIndex();
             const size_t targetI = rawTarget.getElementIndex();
             const Command& cmd = commands->at(i);
 
             VisitArgs args {
-              TableAdapters::read(selfI, *srcPosX, *srcPosY),
-              TableAdapters::read(targetI, *dstPosX, *dstPosY)
+              srcTransform->at(selfI).pos2(),
+              dstTransform->at(targetI).pos2()
             };
             const Math::Impulse impulse = std::visit([&](const auto& c) { return visitComputeImpulse(c, args); }, cmd.mode);
 
