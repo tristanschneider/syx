@@ -14,10 +14,65 @@
 #include "GameMath.h"
 #include "Physics.h"
 #include "SpatialPairsStorage.h"
+#include <transform/TransformModule.h>
+#include <TableName.h>
 
 namespace SpatialQuery {
-  template<class ShapeRow>
-  struct ShapeID {};
+  //The wrapping types are used to indicate which part of the table is intended to be accessed by gameplay or physics
+  //They make sense to be in the same table since the elements should always map to each other but due to multithreading
+  //the appropriate side must make sure to only read from data appropriate for it.
+  template<class T> struct Gameplay : T{};
+  template<class T> struct Physics : T{};
+
+  struct LifetimeRow : Row<size_t> {};
+  //Set if this element needs to be rewritten from gameplay to physics
+  struct NeedsResubmitRow : SparseFlagRow{};
+
+  struct Globals {
+    //Mutable is hack to be able to use this as const which makes the scheduler see it as parallel due to manual thread-safety
+    //via mutex. Without it the scheduler will instead avoid overlapping tasks
+    mutable std::vector<Command> commandBuffer;
+    mutable std::mutex mutex;
+  };
+  struct GlobalsRow : SharedRow<Globals> {};
+
+  struct QueryTransform {
+    Transform::PackedTransform operator()(const Raycast& shape) const {
+      return Shapes::toTransform(ShapeRegistry::Raycast{ .start = shape.start, .end = shape.end }, 0);
+    }
+
+    Transform::PackedTransform operator()(const AABB& shape) const {
+      return Shapes::toTransform(ShapeRegistry::AABB{ .min = shape.min, .max = shape.max }, 0);
+    }
+
+    Transform::PackedTransform operator()(const Circle& shape) const {
+      return Shapes::toTransform(ShapeRegistry::Circle{ .pos = shape.pos, .radius = shape.radius }, 0);
+    }
+
+    Raycast operator()(const Raycast&, const Transform::PackedTransform& transform) const {
+      const ShapeRegistry::Raycast result = Shapes::lineFromTransform(transform);
+      return Raycast{
+        .start = result.start,
+        .end = result.end
+      };
+    }
+
+    AABB operator()(const AABB&, const Transform::PackedTransform& transform) const {
+      const ShapeRegistry::AABB result = Shapes::aabbFromTransform(transform);
+      return AABB{
+        .min = result.min,
+        .max = result.max
+      };
+    }
+
+    Circle operator()(const Circle&, const Transform::PackedTransform& transform) const {
+      const ShapeRegistry::Circle result = Shapes::circleFromTransform(transform);
+      return Circle{
+        .pos = result.pos,
+        .radius = result.radius
+      };
+    }
+  };
 
   struct VisitIsCollision {
     //Currently the manifold is only populated if they are overlapping. If this changes then positive overlap could be checked here
@@ -32,14 +87,6 @@ namespace SpatialQuery {
 
   bool Result::isCollision() const {
     return std::visit(VisitIsCollision{}, contact);
-  }
-
-
-  template<class Callback>
-  void visitShapes(const Callback& cb) {
-    cb(ShapeID<Shapes::AABBRow>{});
-    cb(ShapeID<Shapes::CircleRow>{});
-    cb(ShapeID<Shapes::LineRow>{});
   }
 
   struct SQShapeTables {
@@ -62,25 +109,32 @@ namespace SpatialQuery {
     std::shared_ptr<IIDResolver> ids;
     const Globals* globals{};
   };
-  template<class ShapeRow>
+
   struct WriteData {
     WriteData() = default;
-    WriteData(RuntimeDatabaseTaskBuilder& task) {
+    WriteData(RuntimeDatabaseTaskBuilder& task, TableID tid) {
       auto q = task.query<
-        Gameplay<ShapeRow>,
+        Gameplay<Transform::WorldTransformRow>,
         Gameplay<LifetimeRow>,
         Gameplay<NeedsResubmitRow>
-      >();
-      table = q[0];
+      >(tid);
+      table = tid;
       auto [s, l, n] = q.get(0);
-      shapes = s.get();
+      transforms = s.get();
       lifetimes = l.get();
       needsResubmit = n.get();
       ids = task.getIDResolver();
     }
+
+    template<IsRow ShapeRow>
+    static WriteData create(RuntimeDatabaseTaskBuilder& task) {
+      //Arbitrary query to uniquely identify the query table
+      return WriteData{ task, task.queryTables<Gameplay<LifetimeRow>, ShapeRow>().getTableID(0) };
+    }
+
     UnpackedDatabaseElementID table;
     std::shared_ptr<IIDResolver> ids;
-    Gameplay<ShapeRow>* shapes{};
+    Gameplay<Transform::WorldTransformRow>* transforms{};
     Gameplay<LifetimeRow>* lifetimes{};
     Gameplay<NeedsResubmitRow>* needsResubmit{};
   };
@@ -98,37 +152,31 @@ namespace SpatialQuery {
     return result;
   }
 
-  template<class QueryShape>
-  constexpr size_t indexOfNarrowphaseShape() {
-    //TODO: probably a nicer thing I could do here
-    if constexpr(std::is_same_v<Narrowphase::Shape::AABB, QueryShape>) {
-      return 1;
-    }
-    else if constexpr(std::is_same_v<Narrowphase::Shape::Circle, QueryShape>) {
-      return 2;
-    }
-    else if constexpr(std::is_same_v<Narrowphase::Shape::Raycast, QueryShape>) {
-      return 0;
-    }
-  }
-
-  template<class T, class Op>
-  void modifyQuery(WriteData<T>& data, size_t index, Query& query, size_t newLifetime, Op&& op) {
-    using ShapeT = typename T::ElementT;
-    constexpr size_t INDEX = indexOfNarrowphaseShape<ShapeT>();
-    assert(query.shape.index() == INDEX && "Query shape must stay the same");
-    op(data.shapes->at(index), std::get<INDEX>(query.shape));
-    data.needsResubmit->at(index) = true;
+  void updateLifetime(WriteData& data, size_t index, size_t newLifetime) {
+    data.needsResubmit->getOrAdd(index);
     data.lifetimes->at(index) = newLifetime;
   }
 
-  template<class T>
-  void refreshQuery(WriteData<T>& data, size_t index, Query&& query, size_t newLifetime) {
+  template<class Op>
+  void modifyQuery(WriteData& data, size_t index, Query& query, size_t newLifetime, Op&& op) {
+    Transform::PackedTransform& dstTransform = data.transforms->at(index);
+    std::visit([&](auto& srcShape) {
+      //Convert stored transform to the same shape as the input query
+      auto dstShape = QueryTransform{}(srcShape, dstTransform);
+      //Presumably write to the temporary shape
+      op(dstShape, srcShape);
+      //Convert the changed shape back to a transform and store it
+      dstTransform = QueryTransform{}(dstShape);
+    }, query.shape);
+
+    updateLifetime(data, index, newLifetime);
+  }
+
+  void refreshQuery(WriteData& data, size_t index, Query&& query, size_t newLifetime) {
     modifyQuery(data, index, query, newLifetime, [](auto& dst, auto& src) { dst = std::move(src); });
   }
 
-  template<class T>
-  void swapQuery(WriteData<T>& data, size_t index, Query& inout, size_t newLifetime) {
+  void swapQuery(WriteData& data, size_t index, Query& inout, size_t newLifetime) {
     modifyQuery(data, index, inout, newLifetime, [](auto& dst, auto& src) {
       auto temp = src;
       src = dst;
@@ -136,8 +184,7 @@ namespace SpatialQuery {
     });
   }
 
-  template<class T>
-  void refreshQuery(WriteData<T>& data, size_t index, size_t newLifetime) {
+  void refreshQuery(WriteData& data, size_t index, size_t newLifetime) {
     //Lifetime updates by themselves don't need to set the resubmit flag because all of these are checked
     //anyway during the lifetime update
     data.lifetimes->at(index) = newLifetime;
@@ -285,9 +332,9 @@ namespace SpatialQuery {
 
   struct Writer : IWriter {
     Writer(RuntimeDatabaseTaskBuilder& task)
-      : writeAABB{ task }
-      , writeCircle{ task }
-      , writeRay{ task }
+      : writeAABB{ WriteData::create<Shapes::AABBRow>(task) }
+      , writeCircle{ WriteData::create<Shapes::CircleRow>(task) }
+      , writeRay{ WriteData::create<Shapes::LineRow>(task) }
     {
     }
 
@@ -332,9 +379,9 @@ namespace SpatialQuery {
       }
     }
 
-    WriteData<Shapes::AABBRow> writeAABB;
-    WriteData<Shapes::CircleRow> writeCircle;
-    WriteData<Shapes::LineRow> writeRay;
+    WriteData writeAABB;
+    WriteData writeCircle;
+    WriteData writeRay;
   };
 
   std::shared_ptr<ICreator> createCreator(RuntimeDatabaseTaskBuilder& task) {
@@ -373,45 +420,41 @@ namespace SpatialQuery {
     builder.submitTask(std::move(task));
   }
 
-  template<class ShapeRow>
-  void submitQueryUpdates(ShapeID<ShapeRow>, IAppBuilder& builder, const TableID& table) {
-    if(!builder.queryTable<ShapeRow>(table)) {
+  void submitQueryUpdates(IAppBuilder& builder, const TableID& table) {
+    if(!builder.queryTable<Gameplay<Transform::WorldTransformRow>>(table)) {
       return;
     }
     auto task = builder.createTask();
     task.setName("Spatial query updates");
     auto query = task.query<
-      const Gameplay<ShapeRow>,
-      ShapeRow,
+      const Gameplay<Transform::WorldTransformRow>,
+      Transform::WorldTransformRow,
+      Transform::TransformNeedsUpdateRow,
       Gameplay<NeedsResubmitRow>
     >(table);
     task.setCallback([query](AppTaskArgs&) mutable {
-      auto&& [ gameplay, physics, needsResubmit ] = query.get(0);
-      for(size_t i = 0; i < physics->size(); ++i) {
-        //This assumes resubmits are frequent.
-        //If not, it may be faster to add a command to point at the index of what needs to be resubmitted
-        if(needsResubmit->at(i)) {
-          needsResubmit->at(i) = false;
-          physics->at(i) = gameplay->at(i);
-        }
+      auto&& [ gameplay, physics, transformUpdate, needsResubmit ] = query.get(0);
+      for(size_t i : needsResubmit) {
+        physics->at(i) = gameplay->at(i);
+        transformUpdate->getOrAdd(i);
       }
+      needsResubmit->clear();
     });
     builder.submitTask(std::move(task));
   }
 
   //TODO: use thread-local database to create these
-  template<class ShapeRow>
   struct CommandVisitor {
-    using ShapeT = typename ShapeRow::ElementT;
     void operator()(const Command::NewQuery& command) {
       const size_t index = gameplayQueries.size();
       modifier.resizeWithIDs(index + 1, &command.id);
-      constexpr size_t INDEX = indexOfNarrowphaseShape<ShapeT>();
       //Add to physics and gameplay locations now
       //Using the NeedsResubmitRow not feasible here because it's after that has already been processed
       //The appropriate shapes were dispatched to this table so at this point the variant should only have these
-      gameplayQueries.at(index) = std::get<INDEX>(command.query.shape);
-      physicsQueries.at(index) = std::get<INDEX>(command.query.shape);
+      Transform::PackedTransform transform = std::visit(QueryTransform{}, command.query.shape);
+      gameplayQueries.at(index) = transform;
+      //No need to set TransformNeedsUpdate because new elements are automatically flagged for update
+      physicsQueries.at(index) = transform;
       gameplayLifetimes.at(index) = command.lifetime;
       events.getOrAdd(index).setCreate();
     }
@@ -424,16 +467,15 @@ namespace SpatialQuery {
     }
 
     ITableModifier& modifier;
-    Gameplay<ShapeRow>& gameplayQueries;
+    Gameplay<Transform::WorldTransformRow>& gameplayQueries;
     Gameplay<LifetimeRow>& gameplayLifetimes;
-    ShapeRow& physicsQueries;
+    Transform::WorldTransformRow& physicsQueries;
     Events::EventsRow& events;
     ElementRefResolver ids;
   };
 
-  template<class ShapeRow>
-  void processCommandBuffer(ShapeID<ShapeRow>, IAppBuilder& builder, const TableID& table) {
-    if(!builder.queryTable<ShapeRow>(table)) {
+  void processCommandBuffer(IAppBuilder& builder, const TableID& table) {
+    if(!builder.queryTable<Gameplay<GlobalsRow>>(table)) {
       return;
     }
     auto task = builder.createTask();
@@ -441,9 +483,9 @@ namespace SpatialQuery {
     auto modifier = task.getModifierForTable(table);
     auto query = task.query<
       Gameplay<GlobalsRow>,
-      Gameplay<ShapeRow>,
+      Gameplay<Transform::WorldTransformRow>,
       Gameplay<LifetimeRow>,
-      ShapeRow,
+      Transform::WorldTransformRow,
       Events::EventsRow
     >(table);
     ElementRefResolver ids = task.getIDResolver()->getRefResolver();
@@ -476,10 +518,38 @@ namespace SpatialQuery {
     for(size_t i = 0; i < tables.size(); ++i) {
       const TableID& table = tables[i];
       processLifetime(builder, table);
-      visitShapes([&](auto shape) {
-        submitQueryUpdates(shape, builder, table);
-        processCommandBuffer(shape, builder, table);
-      });
+      submitQueryUpdates(builder, table);
+      processCommandBuffer(builder, table);
     }
+  }
+
+  StorageTableBuilder createBaseQueryTable() {
+    StorageTableBuilder table;
+    table.addRows<
+      SpatialQueriesTableTag,
+      SweepNPruneBroadphase::BroadphaseKeys,
+      //Gameplay writes to this then updates are submitted to the actual transform row added by Transform::addTransform25D
+      Gameplay<Transform::WorldTransformRow>,
+      Gameplay<LifetimeRow>,
+      Gameplay<NeedsResubmitRow>,
+      Gameplay<GlobalsRow>,
+      //Collision mask row to detect collisions, no constraint row since solving isn't desired
+      Narrowphase::CollisionMaskRow
+    >().setStable();
+    Transform::addTransform25D(table);
+    return table;
+  }
+
+  template<IsRow ShapeRow>
+  StorageTableBuilder createShapeQueryTable(std::string_view name) {
+    StorageTableBuilder result = createBaseQueryTable();
+    result.addRows<ShapeRow>().setTableName({ std::string{ name } });
+    return result;
+  }
+
+  void createSpatialQueryTables(RuntimeDatabaseArgs& args) {
+    createShapeQueryTable<Shapes::AABBRow>("AABBQueries").finalize(args);
+    createShapeQueryTable<Shapes::CircleRow>("CircleQueries").finalize(args);
+    createShapeQueryTable<Shapes::LineRow>("LineQueries").finalize(args);
   }
 }

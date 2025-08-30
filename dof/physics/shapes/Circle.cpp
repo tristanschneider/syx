@@ -7,6 +7,15 @@ namespace Shapes {
     return { glm::vec2{ t.tx, t.ty }, glm::length(t.basisX()) };
   }
 
+  Transform::PackedTransform toTransform(const ShapeRegistry::Circle& c, float z) {
+    Transform::PackedTransform result;
+    result.tx = c.pos.x;
+    result.ty = c.pos.y;
+    result.tz = z;
+    result.ax = c.radius;
+    return result;
+  }
+
   struct IndividualCircleShape : ShapeRegistry::IShapeImpl {
     std::vector<TableID> queryTables(IAppBuilder& builder) const final {
       return builder.queryTables<const CircleRow>().getMatchingTableIDs();

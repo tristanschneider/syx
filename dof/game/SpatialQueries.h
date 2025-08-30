@@ -108,10 +108,6 @@ namespace SpatialQuery {
     Variant contact;
   };
 
-  struct LifetimeRow : Row<size_t> {};
-  //True if this element needs to be rewritten from gameplay to physics
-  struct NeedsResubmitRow : Row<uint8_t> {};
-
   struct Command {
     struct NewQuery {
       ElementRef id;
@@ -125,44 +121,7 @@ namespace SpatialQuery {
     Variant data;
   };
 
-  struct Globals {
-    //Mutable is hack to be able to use this as const which makes the scheduler see it as parallel due to manual thread-safety
-    //via mutex. Without it the scheduler will instead avoid overlapping tasks
-    mutable std::vector<Command> commandBuffer;
-    mutable std::mutex mutex;
-  };
-  struct GlobalsRow : SharedRow<Globals> {};
-
-  //The wrapping types are used to indicate which part of the table is intended to be accessed by gameplay or physics
-  //They make sense to be in the same table since the elements should always map to each other but due to multithreading
-  //the appropriate side must make sure to only read from data appropriate for it.
-  template<class T> struct Gameplay : T{};
-  template<class T> struct Physics : T{};
-
-  struct MinX : Row<float> {};
-  struct MaxX : Row<float> {};
-  struct MinY : Row<float> {};
-  struct MaxY : Row<float> {};
-
-  template<class ShapeRow>
-  struct SpatialQueriesTableT : Table<
-    SpatialQueriesTableTag,
-    //Conceptually this is Physics<ShapeRow> but Physics does not allow an alias for this row type so it must be exact
-    ShapeRow,
-    SweepNPruneBroadphase::BroadphaseKeys,
-
-    Gameplay<ShapeRow>,
-    Gameplay<LifetimeRow>,
-    Gameplay<NeedsResubmitRow>,
-    Gameplay<GlobalsRow>,
-    StableIDRow,
-    //Collision mask row to detect collisions, no constraint row since solving isn't desired
-    Narrowphase::CollisionMaskRow
-  > {};
-
-  struct AABBSpatialQueriesTable : SpatialQueriesTableT<Shapes::AABBRow> {};
-  struct CircleSpatialQueriesTable : SpatialQueriesTableT<Shapes::CircleRow> {};
-  struct RaycastSpatialQueriesTable : SpatialQueriesTableT<Shapes::LineRow> {};
+  void createSpatialQueryTables(RuntimeDatabaseArgs& args);
 
   //Physics and gameplay both have their sides of the spatial query table
   //Gameplay modifies its side and keeps track of a queue of new entries to submit
