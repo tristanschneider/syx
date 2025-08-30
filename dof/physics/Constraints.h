@@ -12,7 +12,6 @@
 
 class IAppBuilder;
 class RuntimeDatabaseTaskBuilder;
-struct PhysicsAliases;
 
 namespace Constraints {
   struct ConstraintPair {
@@ -328,11 +327,11 @@ namespace Constraints {
 
   //The constraint equivalent of a narrowphase for collision detection
   //This populates the ConstraintManifold for all manually added constraints
-  void constraintNarrowphase(IAppBuilder& builder, const PhysicsAliases& aliases, const ConstraintSolver::SolverGlobals& globals);
+  void constraintNarrowphase(IAppBuilder& builder, const ConstraintSolver::SolverGlobals& globals);
   void garbageCollect(IAppBuilder& builder);
   void assignStorage(IAppBuilder& builder);
 
-  void update(IAppBuilder& builder, const PhysicsAliases& aliases, const ConstraintSolver::SolverGlobals& globals);
+  void update(IAppBuilder& builder, const ConstraintSolver::SolverGlobals& globals);
 
   void postProcessEvents(IAppBuilder& builder);
 }

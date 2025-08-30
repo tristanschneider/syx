@@ -713,10 +713,10 @@ namespace Constraints {
     builder.submitTask(std::move(task.setName("constraint narrowphase")));
   }
 
-  void update(IAppBuilder& builder, const PhysicsAliases& aliases, const ConstraintSolver::SolverGlobals& globals) {
+  void update(IAppBuilder& builder, const ConstraintSolver::SolverGlobals& globals) {
     Constraints::garbageCollect(builder);
     Constraints::assignStorage(builder);
-    Constraints::constraintNarrowphase(builder, aliases, globals);
+    Constraints::constraintNarrowphase(builder, globals);
   }
 
   //ResolveTarget resolves a definition into the row variant. This takes the row variant and resolves to a concrete ElementRef

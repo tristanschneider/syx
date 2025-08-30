@@ -372,9 +372,7 @@ namespace GameDatabase {
 
   void create(RuntimeDatabaseArgs& args) {
     createGlobalTable().finalize(args);
-    DBReflect::addTable<SpatialQuery::AABBSpatialQueriesTable>(args);
-    DBReflect::addTable<SpatialQuery::CircleSpatialQueriesTable>(args);
-    DBReflect::addTable<SpatialQuery::RaycastSpatialQueriesTable>(args);
+    SpatialQuery::createSpatialQueryTables(args);
     DBReflect::addTable<BroadphaseTable>(args);
     DBReflect::addTable<SP::SpatialPairsTable>(args);
     createTerrain().finalize(args);

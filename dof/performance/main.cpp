@@ -12,6 +12,7 @@
 #include "Game.h"
 #include "IGame.h"
 #include "IAppModule.h"
+#include <transform/TransformRows.h>
 
 //TODO: this doesn't make much sense anymore
 //Better approach is likely to measure performance of particular imported scenes using the default game db
@@ -39,20 +40,20 @@ namespace Performance {
     task.discard();
     auto q = task.query<
       const SharedMassObjectTableTag,
-      Tags::PosXRow,
-      Tags::PosYRow,
+      Transform::WorldTransformRow,
       Events::EventsRow
     >();
     auto modifiers = task.getModifiersForTables(q.getMatchingTableIDs());
     for(size_t t = 0; t < q.size(); ++t) {
-      auto [_, px, py, stable] = q.get(t);
+      auto [_, transforms, stable] = q.get(t);
       constexpr size_t sx = 100;
       constexpr size_t sy = 100;
       modifiers[t]->resize(sx*sy);
       for(size_t x = 0; x < sx; ++x) {
         for(size_t y = 0; y < sy; ++y) {
           const size_t i = x + sx*y;
-          TableAdapters::write(i, glm::vec2{ static_cast<float>(x), static_cast<float>(y) }, *px, *py);
+          Transform::PackedTransform& transform = transforms->at(i);
+          transform.setPos(glm::vec2{ static_cast<float>(x), static_cast<float>(y) });
           stable->getOrAdd(i).setCreate();
         }
       }

@@ -1,7 +1,7 @@
 #include <Precompile.h>
 #include <CppUnitTest.h>
 
-#include <Transform.h>
+#include <transform/Transform.h>
 #include <glm/gtx/transform.hpp>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -29,8 +29,8 @@ namespace Test {
       const glm::mat4 rm = glm::rotate(rotRad, glm::vec3{ 0, 0, 1 });
       const glm::mat4 sm = glm::scale(scale);
       const glm::mat4 glmTransform = tm*rm*sm;
-      const pt::PackedTransform transform = pt::PackedTransform::build(
-        pt::Parts{
+      const Transform::PackedTransform transform = Transform::PackedTransform::build(
+        Transform::Parts{
           .rot = glm::vec2{ std::cos(rotRad), std::sin(rotRad) },
           .scale = glm::vec2{ scale.x, scale.y },
           .translate = pos
@@ -51,26 +51,26 @@ namespace Test {
       eq(glmVec, ptVec2);
 
       const glm::mat4 glmInvTransform = glm::inverse(glmTransform);
-      const pt::PackedTransform invPtTransform = transform.inverse();
+      const Transform::PackedTransform invPtTransform = transform.inverse();
       const glm::vec3 glmInvPoint = glmInvTransform * glm::vec4{ sample.x, sample.y, sample.z, 1.f };
       const glm::vec3 ptInvPoint = invPtTransform.transformPoint(sample);
 
       eq(glmInvPoint, ptInvPoint);
 
       const glm::mat4 glmComposed = glmInvTransform * glmTransform;
-      const pt::PackedTransform ptComposed = invPtTransform * transform;
+      const Transform::PackedTransform ptComposed = invPtTransform * transform;
 
       eq(glmComposed * glm::vec4{ sample.x, sample.y, sample.z, 1.f }, ptComposed.transformPoint(sample));
 
-      const pt::Parts parts = transform.decompose();
+      const Transform::Parts parts = transform.decompose();
       eq(pos, parts.translate);
       eq(glm::vec3{ std::cos(rotRad), std::sin(rotRad), 0.f }, parts.rot);
       eq(scale, parts.scale);
     }
 
     TEST_METHOD(Default) {
-      eq(glm::vec3{1, 2, 3 }, pt::PackedTransform{}.transformPoint(glm::vec3{ 1, 2, 3 }));
-      eq(glm::vec3{1, 2, 3 }, pt::PackedTransform::build({}).transformPoint(glm::vec3{ 1, 2, 3 }));
+      eq(glm::vec3{1, 2, 3 }, Transform::PackedTransform{}.transformPoint(glm::vec3{ 1, 2, 3 }));
+      eq(glm::vec3{1, 2, 3 }, Transform::PackedTransform::build({}).transformPoint(glm::vec3{ 1, 2, 3 }));
     };
   };
 }

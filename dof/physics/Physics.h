@@ -26,11 +26,6 @@ struct PhysicsAliases {
 
   //Optional, without this bodies are considered to be at z=0 and immobile along z
   FloatAlias linVelZ;
-
-  FloatAlias broadphaseMinX;
-  FloatAlias broadphaseMinY;
-  FloatAlias broadphaseMaxX;
-  FloatAlias broadphaseMaxY;
 };
 
 namespace Physics {

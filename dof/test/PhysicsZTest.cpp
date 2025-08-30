@@ -10,6 +10,7 @@
 #include "TestGame.h"
 #include "ConstraintSolver.h"
 #include "IGame.h"
+#include <transform/TransformRows.h>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -33,11 +34,7 @@ namespace Test {
 
         auto terrain = task.query<
           const TerrainRow,
-          FloatRow<Pos, X>,
-          FloatRow<Pos, Y>,
-          FloatRow<Pos, Z>,
-          ScaleXRow,
-          ScaleYRow,
+          Transform::WorldTransformRow,
           const StableIDRow,
           Events::EventsRow
         >();
@@ -46,11 +43,7 @@ namespace Test {
 
         auto dynamics = task.query<
           const DynamicPhysicsObjectsWithZTag,
-          FloatRow<Pos, X>,
-          FloatRow<Pos, Y>,
-          FloatRow<Pos, Z>,
-          ScaleXRow,
-          ScaleYRow,
+          Transform::WorldTransformRow,
           const StableIDRow,
           Events::EventsRow
         >();
@@ -59,25 +52,27 @@ namespace Test {
         task.setCallback([=](AppTaskArgs&) mutable {
           {
             const size_t ground = terrainModifier[0]->addElements(1);
-            auto [_, px, py, pz, sx, sy, stable, events] = terrain.get(0);
+            auto [_, transforms, stable, events] = terrain.get(0);
             data.ground = stable->at(ground);
             events->getOrAdd(ground).setCreate();
             const glm::vec2 scale{ 2.0f };
             const glm::vec2 center{ 0.0f };
-            TableAdapters::write(ground, center, *px, *py);
-            TableAdapters::write(ground, scale, *sx, *sy);
-            pz->at(ground) = 0.f;
+            Transform::Parts parts;
+            parts.translate = Geo::toVec3(center);
+            parts.scale = scale;
+            transforms->at(ground) = Transform::PackedTransform::build(parts);
           }
           {
             const size_t dy = dynamicsModifier[0]->addElements(1);
-            auto [_, px, py, pz, sx, sy, stable, events] = dynamics.get(0);
+            auto [_, transforms, stable, events] = dynamics.get(0);
             data.dynamicObject = stable->at(dy);
             events->getOrAdd(dy).setCreate();
             const glm::vec2 scale{ 1.0f };
             const glm::vec2 center{ 0.0f };
-            TableAdapters::write(dy, center, *px, *py);
-            TableAdapters::write(dy, scale, *sx, *sy);
-            pz->at(dy) = 10.0f;
+            transforms->at(dy) = Transform::PackedTransform::build(Transform::Parts{
+              .scale = scale,
+              .translate = glm::vec3{ center.x, center.y, 10.f }
+            });
           }
         });
 
@@ -113,16 +108,12 @@ namespace Test {
 
     struct TestObject {
       TestObject(ITableResolver& resolver, const UnpackedDatabaseElementID& d) {
-        CachedRow<Tags::PosZRow> posZ;
-        CachedRow<Tags::PosXRow> posX;
-        CachedRow<Tags::PosYRow> posY;
+        CachedRow<Transform::WorldTransformRow> transform;
         CachedRow<Tags::LinVelZRow> linVelZ;
         CachedRow<Tags::LinVelXRow> linVelX;
         CachedRow<Tags::LinVelYRow> linVelY;
         CachedRow<Narrowphase::SharedThicknessRow> sharedThickness;
-        dPosX = resolver.tryGetOrSwapRowElement(posX, d);
-        dPosY = resolver.tryGetOrSwapRowElement(posY, d);
-        dPos = resolver.tryGetOrSwapRowElement(posZ, d);
+        dTransform = resolver.tryGetOrSwapRowElement(transform, d);
         dVel = resolver.tryGetOrSwapRowElement(linVelZ, d);
         dVelX = resolver.tryGetOrSwapRowElement(linVelX, d);
         dVelY = resolver.tryGetOrSwapRowElement(linVelY, d);
@@ -130,11 +121,12 @@ namespace Test {
       }
 
       void reset() {
-        *dPosX = *dPosY = *dPos = *dVel = *dVelX = *dVelY = 0.0f;
+        dTransform->setPos(glm::vec3{});
+        *dVel = *dVelX = *dVelY = 0.0f;
       }
 
       glm::vec2 getPos() const {
-        return { *dPosX, *dPosY };
+        return dTransform->pos2();
       }
 
       glm::vec2 getVelocity() const {
@@ -142,16 +134,16 @@ namespace Test {
       }
 
       const TestObject& assertCollisionAtZWithVelocity(TestGame& game, float expectedPos, float expectedVelocity) const {
-        Assert::AreEqual(expectedPos, *dPos, E, L"Should collide with ground");
+        Assert::AreEqual(expectedPos, dTransform->tz, E, L"Should collide with ground");
         Assert::AreEqual(expectedVelocity, *dVel, E, L"Velocity should have been truncated to collision distance");
         game.update();
-        Assert::AreEqual(expectedPos, *dPos, E);
+        Assert::AreEqual(expectedPos, dTransform->tz, E);
         Assert::AreEqual(0.0f, *dVel, E);
         return *this;
       }
 
       const TestObject& assertZUnimpeded(float expectedPos, float expectedVel) const {
-        Assert::AreEqual(expectedPos, *dPos, E, L"Should have been unchanged since no Z solving should take place");
+        Assert::AreEqual(expectedPos, dTransform->tz, E, L"Should have been unchanged since no Z solving should take place");
         Assert::AreEqual(expectedVel, *dVel, E, L"Should be unchanged");
         return *this;
       }
@@ -162,9 +154,7 @@ namespace Test {
         return *this;
       }
 
-      float* dPosX{};
-      float* dPosY{};
-      float* dPos{};
+      Transform::PackedTransform* dTransform{};
       float* dVel{};
       float* dVelX{};
       float* dVelY{};
@@ -180,7 +170,7 @@ namespace Test {
 
       //Speed to go through the ground
       for(float dir : POS_AND_NEG) {
-        *dy.dPos = 10.0f*dir;
+        dy.dTransform->tz = 10.0f*dir;
         *dy.dVel = -20.0f*dir;
 
         game.game.update();
@@ -190,7 +180,7 @@ namespace Test {
 
       //Speed to exactly hit the ground
       for(float dir : POS_AND_NEG) {
-        *dy.dPos = 10.0f*dir;
+        dy.dTransform->tz = 10.0f*dir;
         *dy.dVel = -10.0f*dir;
 
         game.game.update();
@@ -201,7 +191,7 @@ namespace Test {
       //Exactly touching
       for(float dir : POS_AND_NEG) {
         dy.reset();
-        *dy.dPos = 0.0f;
+        dy.dTransform->tz = 0.0f;
         *dy.dVel = 1.0f*dir;
 
         game.game.update();
@@ -219,7 +209,7 @@ namespace Test {
 
       //Speed to go down through the ground
       {
-        *dy.dPos = 10.0f;
+        dy.dTransform->tz = 10.0f;
         *dy.dVel = -20.0f;
 
         game.game.update();
@@ -228,7 +218,7 @@ namespace Test {
       }
       //Speed to go up through the ground
       {
-        *dy.dPos = -10.0f;
+        dy.dTransform->tz = -10.0f;
         *dy.dVel = 20.0f;
 
         game.game.update();
@@ -238,7 +228,7 @@ namespace Test {
 
       //Speed to exactly hit the ground downward
       {
-        *dy.dPos = 10.0f;
+        dy.dTransform->tz = 10.0f;
         *dy.dVel = -9.0f;
 
         game.game.update();
@@ -247,7 +237,7 @@ namespace Test {
       }
       //Speed to exactly hit the ground upward
       {
-        *dy.dPos = -10.0f;
+        dy.dTransform->tz = -10.0f;
         *dy.dVel = 10.0f;
 
         game.game.update();
@@ -260,7 +250,7 @@ namespace Test {
         for(float dir : POS_AND_NEG) {
           dy.reset();
 
-          *dy.dPos = pos;
+          dy.dTransform->tz = pos;
           *dy.dVel = dir;
 
           game.game.update();
@@ -281,7 +271,7 @@ namespace Test {
 
       //Speed to go down through the ground
       {
-        *dy.dPos = 10.0f;
+        dy.dTransform->tz = 10.0f;
         *dy.dVel = -20.0f;
 
         game.game.update();
@@ -290,7 +280,7 @@ namespace Test {
       }
       //Speed to go up through the ground
       {
-        *dy.dPos = -10.0f;
+        dy.dTransform->tz = -10.0f;
         *dy.dVel = 20.0f;
 
         game.game.update();
@@ -300,7 +290,7 @@ namespace Test {
 
       //Speed to exactly hit the ground downward
       {
-        *dy.dPos = 10.0f;
+        dy.dTransform->tz = 10.0f;
         *dy.dVel = -10.0f + tb;
 
         game.game.update();
@@ -309,7 +299,7 @@ namespace Test {
       }
       //Speed to exactly hit the ground upward
       {
-        *dy.dPos = -10.0f;
+        dy.dTransform->tz = -10.0f;
         *dy.dVel = 10.0f - ta;
 
         game.game.update();
@@ -322,7 +312,7 @@ namespace Test {
         for(float dir : POS_AND_NEG) {
           dy.reset();
 
-          *dy.dPos = pos;
+          dy.dTransform->tz = pos;
           *dy.dVel = dir;
 
           game.game.update();

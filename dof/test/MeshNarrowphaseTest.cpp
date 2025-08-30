@@ -5,6 +5,7 @@
 #include <glm/vec2.hpp>
 #include <shapes/ShapeRegistry.h>
 #include <SpatialPairsStorage.h>
+#include <transform/Transform.h>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -52,17 +53,17 @@ namespace Test {
       void setRot(float r) {
         auto parts = transform.decompose();
         parts.rot = glm::vec2{ std::cos(r), std::sin(r) };
-        transform = pt::PackedTransform::build(parts);
+        transform = Transform::PackedTransform::build(parts);
       }
 
       void setScale(const glm::vec2& scale) {
         auto parts = transform.decompose();
         parts.scale = scale;
-        transform = pt::PackedTransform::build(parts);
+        transform = Transform::PackedTransform::build(parts);
       }
 
       std::vector<glm::vec2> points;
-      pt::PackedTransform transform;
+      Transform::PackedTransform transform;
     };
 
     struct TestPair {

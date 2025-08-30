@@ -116,6 +116,19 @@ namespace Transform {
       tz = t.z;
     }
 
+    void setScale(const glm::vec2& s) {
+      //Resize the vector by multiplying by newSize/oldSize
+      const float sx = std::sqrt(ax*ax + ay*ay);
+      const float ma = s.x/sx;
+      ax *= ma;
+      ay *= ma;
+
+      const float sy = std::sqrt(bx*bx + by*by);
+      const float mb = s.y/sy;
+      bx *= mb;
+      by *= mb;
+    }
+
     static constexpr PackedTransform build(const Parts& parts) {
       //Multiplication of these, except a and b are rot and orthogonal to rot [-y, x]
       //[1 0 tx][ax bx 0][sx  0 0] [ax*sx, -ay*sy, tx]

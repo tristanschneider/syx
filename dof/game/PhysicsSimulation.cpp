@@ -168,10 +168,6 @@ namespace PhysicsSimulation {
     aliases.linVelY = FloatAlias::create<FloatRow<Tags::LinVel, Tags::Y>>();
     aliases.linVelZ = FloatAlias::create<FloatRow<Tags::LinVel, Tags::Z>>();
     aliases.angVel = FloatAlias::create<FloatRow<Tags::AngVel, Tags::Angle>>();
-    aliases.broadphaseMinX = FloatAlias::create<SpatialQuery::Physics<SpatialQuery::MinX>>();
-    aliases.broadphaseMaxX = FloatAlias::create<SpatialQuery::Physics<SpatialQuery::MaxX>>();
-    aliases.broadphaseMinY = FloatAlias::create<SpatialQuery::Physics<SpatialQuery::MinY>>();
-    aliases.broadphaseMaxY = FloatAlias::create<SpatialQuery::Physics<SpatialQuery::MaxY>>();
 
     return aliases;
   }
@@ -184,10 +180,6 @@ namespace PhysicsSimulation {
       .linVelY = F::create<FloatRow<Tags::GLinVel, Tags::Y>>(),
       .angVel = F::create<FloatRow<Tags::GAngVel, Tags::Angle>>(),
       .linVelZ = F::create<FloatRow<Tags::GLinVel, Tags::Z>>(),
-      .broadphaseMinX = F::create<SpatialQuery::Physics<SpatialQuery::MinX>>(),
-      .broadphaseMinY = F::create<SpatialQuery::Physics<SpatialQuery::MinY>>(),
-      .broadphaseMaxX = F::create<SpatialQuery::Physics<SpatialQuery::MaxX>>(),
-      .broadphaseMaxY = F::create<SpatialQuery::Physics<SpatialQuery::MaxY>>(),
     };
   }
 
@@ -208,7 +200,7 @@ namespace PhysicsSimulation {
     Physics::integrateVelocity(builder, aliases);
     Physics::applyDampingMultiplier(builder, aliases, config.linearDragMultiplier, config.angularDragMultiplier);
     SweepNPruneBroadphase::updateBroadphase(builder, _getBoundariesConfig(builder), aliases);
-    Constraints::update(builder, aliases, globals);
+    Constraints::update(builder, globals);
 
     Narrowphase::generateContactsFromSpatialPairs(builder, TableAdapters::getThreadCount(temp));
     ConstraintSolver::solveConstraints(builder, aliases, globals);

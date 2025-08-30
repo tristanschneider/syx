@@ -14,6 +14,7 @@
 #include "stat/ConstraintStatEffect.h"
 #include "Events.h"
 #include "EventValidator.h"
+#include <transform/TransformRows.h>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -233,7 +234,7 @@ namespace Test {
       GameTask t{ game };
       TestScenes* scenes = t.db.query<SharedRow<TestScenes>>().tryGetSingletonElement();
 
-      CachedRow<Tags::PosXRow> row;
+      CachedRow<Transform::WorldTransformRow> row;
       auto res = t.task.getResolver(row);
       auto id = t.task.getIDResolver()->getRefResolver();
       for(const ElementRef& e : scenes->objects) {

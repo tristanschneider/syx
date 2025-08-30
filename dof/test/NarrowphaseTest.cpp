@@ -19,6 +19,8 @@
 #include "shapes/AABB.h"
 #include "shapes/Line.h"
 #include "shapes/DefaultShapes.h"
+#include <transform/TransformModule.h>
+#include <TableName.h>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -30,90 +32,46 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 }
 
 namespace Test {
-  struct PosX : Row<float> {};
-  struct PosY : Row<float> {};
-  struct RotX : Row<float> {};
-  struct RotY : Row<float> {};
-  struct PosZ : Row<float> {};
-  struct ScaleX : Row<float> {};
-  struct ScaleY : Row<float> {};
-  using SharedUnitCubeTable = Table<
-    ShapeRegistry::GlobalRow,
-    StableIDRow,
-    Narrowphase::CollisionMaskRow,
-    Shapes::SharedRectangleRow,
-    PosX,
-    PosY,
-    RotX,
-    RotY
-  >;
-  using UnitCubeTable = Table<
-    StableIDRow,
-    Narrowphase::CollisionMaskRow,
-    Shapes::RectangleRow
-  >;
-  using UnitCube3DTable = Table<
-    StableIDRow,
-    Narrowphase::CollisionMaskRow,
-    Shapes::RectangleRow,
-    Narrowphase::SharedThicknessRow,
-    PosZ
-  >;
-  using CircleTable = Table<
-    StableIDRow,
-    Narrowphase::CollisionMaskRow,
-    Shapes::CircleRow
-  >;
-  using AABBTable = Table<
-    StableIDRow,
-    Narrowphase::CollisionMaskRow,
-    Shapes::AABBRow
-  >;
-  using RaycastTable = Table<
-    StableIDRow,
-    Narrowphase::CollisionMaskRow,
-    Shapes::LineRow
-  >;
-  struct RectDef : Shapes::RectDefinition{
-    RectDef() {
-      centerX = FloatQueryAlias::create<PosX>().read();
-      centerY = FloatQueryAlias::create<PosY>().read();
-      rotX = FloatQueryAlias::create<RotX>().read();
-      rotY = FloatQueryAlias::create<RotY>().read();
-      scaleX = FloatQueryAlias::create<ScaleX>().read();
-      scaleY = FloatQueryAlias::create<ScaleY>().read();
-    }
-  };
-  struct PhysicsAlias : PhysicsAliases {
-    PhysicsAlias() {
-      posZ = FloatQueryAlias::create<PosZ>();
-    }
-  };
-  using NarrowphaseDBT = Database<
-    SP::SpatialPairsTable,
-    SharedUnitCubeTable,
-    UnitCubeTable,
-    UnitCube3DTable,
-    CircleTable,
-    AABBTable,
-    RaycastTable
-  >;
+  StorageTableBuilder createShapeBase(std::string_view name) {
+    StorageTableBuilder result;
+    Transform::addTransform25D(result)
+      .setStable()
+      .setTableName({ std::string{ name } })
+      .addRows<Narrowphase::CollisionMaskRow>();
+    return result;
+  }
+
+  StorageTableBuilder createGlobals() {
+    StorageTableBuilder result;
+    result.addRows<
+      ShapeRegistry::GlobalRow
+    >().setTableName({ "globals" });
+    return result;
+  }
+
+  void createDB(RuntimeDatabaseArgs& args) {
+    DBReflect::addTable<SP::SpatialPairsTable>(args);
+    std::move(createShapeBase("Rect").addRows<Shapes::RectangleRow>()).finalize(args);
+    std::move(createShapeBase("Rect3D").addRows<Shapes::RectangleRow, Narrowphase::SharedThicknessRow>()).finalize(args);
+    std::move(createShapeBase("Circle").addRows<Shapes::CircleRow>()).finalize(args);
+    std::move(createShapeBase("AABB").addRows<Shapes::AABBRow>()).finalize(args);
+    std::move(createShapeBase("Line").addRows<Shapes::LineRow>()).finalize(args);
+    createGlobals().finalize(args);
+  }
 
   struct NarrowphaseTableIds {
     NarrowphaseTableIds(RuntimeDatabaseTaskBuilder& task)
       : spatialPairs{ task.query<SP::ManifoldRow>()[0] }
-      , sharedUnitCubes{ task.query<Shapes::SharedRectangleRow>()[0] }
-      , unitCubes3D{ task.query<Narrowphase::SharedThicknessRow>()[0] }
       , unitCubes{ task.query<Shapes::RectangleRow>()[0] }
+      , unitCubes3D{ task.query<Narrowphase::SharedThicknessRow>()[0] }
       , circles{ task.query<Shapes::CircleRow>()[0] }
       , aabbs{ task.query<Shapes::AABBRow>()[0] }
       , raycasts{ task.query<Shapes::LineRow>()[0] }
     {}
 
     TableID spatialPairs;
-    TableID sharedUnitCubes;
-    TableID unitCubes3D;
     TableID unitCubes;
+    TableID unitCubes3D;
     TableID circles;
     TableID aabbs;
     TableID raycasts;
@@ -121,14 +79,14 @@ namespace Test {
 
   struct NarrowphaseDB : TestApp {
     NarrowphaseDB() {
-      initSTFromDB<NarrowphaseDBT>([](IAppBuilder& builder) {
+      initST(&createDB, [](IAppBuilder& builder) {
         auto temp = builder.createTask();
         temp.discard();
         ShapeRegistry::IShapeRegistry* reg = ShapeRegistry::getMutable(temp);
-        Shapes::registerDefaultShapes(*reg, RectDef{});
+        Shapes::registerDefaultShapes(*reg);
         ShapeRegistry::finalizeRegisteredShapes(builder);
 
-        Narrowphase::generateContactsFromSpatialPairs(builder, PhysicsAlias{}, 1);
+        Narrowphase::generateContactsFromSpatialPairs(builder, 1);
       });
     }
 
@@ -183,18 +141,25 @@ namespace Test {
       NarrowphaseTableIds tables{ task };
       auto modifier = task.getModifierForTable(tables.circles);
       const size_t i = modifier->addElements(2);
-      auto [stable, mask, circles] = task.query<
+      auto [stable, mask, circles, transforms] = task.query<
         StableIDRow,
         Narrowphase::CollisionMaskRow,
-        Shapes::CircleRow
+        Shapes::CircleRow,
+        Transform::WorldTransformRow
       >().get(0);
       SpatialQueriesAdapter queries{ task };
       const size_t a = i;
       const size_t b = i + 1;
       const size_t q = queries.addPair(stable->at(a), stable->at(b));
       mask->at(a) = mask->at(b) = 1;
-      ShapeRegistry::Circle& circleA = circles->at(a);
-      ShapeRegistry::Circle& circleB = circles->at(b);
+      Transform::PackedTransform& transformA = transforms->at(a);
+      Transform::PackedTransform& transformB = transforms->at(b);
+      ShapeRegistry::Circle circleA;
+      ShapeRegistry::Circle circleB;
+      auto setTransforms = [&] {
+        transformA = Shapes::toTransform(circleA);
+        transformB = Shapes::toTransform(circleB);
+      };
       SP::ContactManifold& manifold = queries.manifold->at(q);
       const SP::ContactPoint& contact = manifold[0];
 
@@ -203,6 +168,7 @@ namespace Test {
       circleA.radius = 1.0f;
       circleB.pos = { 4, 2 };
       circleB.radius = 2.0f;
+      setTransforms();
 
       db.doNarrowphase();
 
@@ -214,6 +180,7 @@ namespace Test {
 
       //Not touching
       circleB.pos.x = 4.1f;
+      setTransforms();
 
       db.doNarrowphase();
 
@@ -221,6 +188,7 @@ namespace Test {
 
       //Overlapping a bit
       circleB.pos.x = 3.9f;
+      setTransforms();
 
       db.doNarrowphase();
 
@@ -232,6 +200,7 @@ namespace Test {
 
       //Exactly overlapping
       circleA.pos = circleB.pos = { 0, 0 };
+      setTransforms();
 
       db.doNarrowphase();
 
@@ -276,12 +245,12 @@ namespace Test {
       NarrowphaseTableIds tables{ task };
       auto modifier = task.getModifierForTable(tables.unitCubes3D);
       const size_t i = modifier->addElements(2);
-      auto [stable, mask, cube, thickness, posZ] = task.query<
+      auto [stable, mask, cube, thickness, transforms] = task.query<
         StableIDRow,
         Narrowphase::CollisionMaskRow,
         Shapes::RectangleRow,
         Narrowphase::SharedThicknessRow,
-        PosZ
+        Transform::WorldTransformRow
       >().get(0);
       SpatialQueriesAdapter queries{ task };
       const size_t a = i;
@@ -289,15 +258,15 @@ namespace Test {
       const size_t q = queries.addPair(stable->at(a), stable->at(b));
       mask->at(a) = mask->at(b) = 1;
       //Default of no rotation, cos(0) = 1
-      Narrowphase::Shape::Rectangle& cA = cube->at(a);
-      Narrowphase::Shape::Rectangle& cB = cube->at(b);
-      cA.right.x = cB.right.x = 1.f;
+      Transform::PackedTransform& cA = transforms->at(a);
+      Transform::PackedTransform& cB = transforms->at(b);
+      cA.ax = cB.ax = 0.5f;
       SP::ContactManifold& manifold = queries.manifold->at(q);
       SP::ZContactManifold& zManifold = queries.zManifold->at(q);
 
       //Exactly touching
-      cA.center.x = 1.0f;
-      cB.center.x = 2.0f;
+      cA.tx = 1.0f;
+      cB.tx = 2.0f;
 
       db.doNarrowphase();
 
@@ -323,8 +292,8 @@ namespace Test {
       Assert::IsFalse(zManifold.isSet());
 
       //Separated by 1 on Z
-      posZ->at(a) = 1.0f;
-      posZ->at(b) = 2.0f;
+      cA.tz = 1.0f;
+      cB.tz = 2.0f;
 
       db.doNarrowphase();
 
@@ -337,8 +306,8 @@ namespace Test {
       //0.1 of overlap
       thickness->at() = 0.5f;
       //Z position is bottom of the shape, top of the shape is bottom + thickness
-      posZ->at(a) = 2.0f;
-      posZ->at(b) = 1.6f;
+      cA.tz = 2.0f;
+      cB.tz = 1.6f;
 
       db.doNarrowphase();
 
@@ -348,7 +317,7 @@ namespace Test {
 
       //Exact overlap on Z with thickness
       thickness->at() = 0.5f;
-      posZ->at(a) = posZ->at(b) = 2.0f;
+      cA.tz = cB.tz = 2.0f;
 
       db.doNarrowphase();
 
@@ -360,30 +329,30 @@ namespace Test {
       NarrowphaseDB db;
       auto& task = db.builder();
       NarrowphaseTableIds tables{ task };
-      auto modifier = task.getModifierForTable(tables.sharedUnitCubes);
+      auto modifier = task.getModifierForTable(tables.unitCubes);
       const size_t i = modifier->addElements(2);
-      auto [stable, mask, posX, posY, rotX, rotY] = task.query<
+      auto [stable, mask, transforms] = task.query<
         StableIDRow,
         Narrowphase::CollisionMaskRow,
-        PosX,
-        PosY,
-        RotX,
-        RotY
+        Transform::WorldTransformRow
       >().get(0);
       SpatialQueriesAdapter queries{ task };
       const size_t a = i;
       const size_t b = i + 1;
       const size_t q = queries.addPair(stable->at(a), stable->at(b));
+      Transform::PackedTransform& tA = transforms->at(a);
+      Transform::PackedTransform& tB = transforms->at(b);
+
       mask->at(a) = mask->at(b) = 1;
-      //Default of no rotation, cos(0) = 1
-      rotX->at(a) = rotX->at(b) = 1.f;
+      //Default of no rotation, cos(0) = 1, scale 0.5 so it is unit size
+      tA.ax = tB.ax = 0.5f;
       //Something nonzero so local vs world space bugs would fail tests
-      posY->at(a) = posY->at(b) = 2.f;
+      tA.ty = tB.ty = 2.f;
       SP::ContactManifold& manifold = queries.manifold->at(q);
 
       //Exactly touching
-      posX->at(a) = 1.0f;
-      posX->at(b) = 2.0f;
+      tA.tx = 1.0f;
+      tA.tx = 2.0f;
 
       db.doNarrowphase();
 
@@ -405,14 +374,14 @@ namespace Test {
       });
 
       //Not touching
-      posX->at(b) = 2.1f;
+      tB.tx = 2.1f;
 
       db.doNarrowphase();
 
       Assert::AreEqual(uint32_t{ 0 }, manifold.size);
 
       //Overlapping a bit
-      posX->at(b) = 1.9f;
+      tB.tx = 1.9f;
 
       db.doNarrowphase();
 
@@ -436,7 +405,7 @@ namespace Test {
 
 
       //Exactly overlapping
-      posX->at(a) = posX->at(b) = 1.f;
+      tA.tx = tB.tx = 1.f;
 
       db.doNarrowphase();
 
@@ -456,9 +425,16 @@ namespace Test {
         const float cornerDistance = std::sqrt(0.5f*0.5f + 0.5f*0.5f);
         const glm::vec2 corner = aPos + glm::vec2{ 0.5f, 0.5f };
         const glm::vec2 bPos = corner;
-        TableAdapters::write(a, aPos, *posX, *posY);
-        TableAdapters::write(b, bPos, *posX, *posY);
-        TableAdapters::write(b, rot, *rotX, *rotY);
+        tA = Transform::PackedTransform::build(Transform::Parts{
+          .rot = glm::vec2{ 1, 0 },
+          .scale = glm::vec2{ 0.5f },
+          .translate = Geo::toVec3(aPos)
+        });
+        tB = Transform::PackedTransform::build(Transform::Parts{
+          .rot = rot,
+          .scale = glm::vec2{ 0.5f },
+          .translate = Geo::toVec3(bPos)
+        });
 
         db.doNarrowphase();
 
@@ -839,15 +815,12 @@ namespace Test {
       NarrowphaseDB db;
       auto& task = db.builder();
       NarrowphaseTableIds tables{ task };
-      auto modifier = task.getModifierForTable(tables.sharedUnitCubes);
+      auto modifier = task.getModifierForTable(tables.unitCubes);
       const size_t i = modifier->addElements(2);
-      auto [stable, mask, posX, posY, rotX, rotY] = task.query<
+      auto [stable, mask, transforms] = task.query<
         StableIDRow,
         Narrowphase::CollisionMaskRow,
-        PosX,
-        PosY,
-        RotX,
-        RotY
+        Transform::WorldTransformRow
       >().get(0);
       SpatialQueriesAdapter queries{ task };
       const size_t a = i;
@@ -858,8 +831,13 @@ namespace Test {
       SP::ContactManifold& manifold = queries.manifold->at(q);
       const glm::vec2 sizeA{ 2, 2 };
       const glm::vec2 sizeB{ sizeA };
-      TableAdapters::write(b, origin, *posX, *posY);
-      rotX->at(b) = 1.0f;
+      Transform::PackedTransform& transformA = transforms->at(a);
+      Transform::PackedTransform& transformB = transforms->at(b);
+      transformB.setPos(origin);
+      transformB.setScale(glm::vec2{ 0.5f });
+      Transform::Parts partsA{
+        .scale = glm::vec2{ 0.5f }
+      };
 
       std::vector<glm::vec2> localShape{
         glm::vec2{ -0.5f, -0.5f },
@@ -888,8 +866,10 @@ namespace Test {
             const float py = static_cast<float>(y)/static_cast<float>(posIncrement);
             pos.y = min.y + size.y*py;
 
-            TableAdapters::write(a, pos, *posX, *posY);
-            TableAdapters::write(a, rot, *rotX, *rotY);
+            partsA.translate.x = pos.x;
+            partsA.translate.y = pos.y;
+            partsA.rot = rot;
+            transformA = Transform::PackedTransform::build(partsA);
 
             db.doNarrowphase();
 
