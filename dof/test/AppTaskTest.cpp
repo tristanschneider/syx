@@ -12,6 +12,7 @@
 #include <transform/TransformResolver.h>
 #include "PhysicsSimulation.h"
 #include <module/MassModule.h>
+#include <transform/TransformModule.h>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -20,15 +21,13 @@ namespace Test {
     struct PhysicsRows {
       PhysicsRows(RuntimeTable& table)
         : stable{ table.tryGet<StableIDRow>() }
-        , posX{ table.tryGet<Tags::PosXRow>() }
-        , posY{ table.tryGet<Tags::PosYRow>() }
+        , transform{ table.tryGet<Transform::WorldTransformRow>() }
         , linVelX{ table.tryGet<Tags::LinVelXRow>() }
       {
       }
 
       StableIDRow* stable{};
-      Tags::PosXRow* posX{};
-      Tags::PosYRow* posY{};
+      Transform::WorldTransformRow* transform{};
       Tags::LinVelXRow* linVelX{};
     };
 
@@ -86,15 +85,15 @@ namespace Test {
           Assert::IsFalse(res.tryUnpack(dynamicObj).has_value(), L"Refs shouldn't be accessible in the main DB until they are migrated there");
 
           //Position dynamic object going towards static one
-          prs.posX->at(si) = 1;
-          prs.posY->at(si) = pr.posY->at(i.d) = 1;
-          pr.posX->at(i.d) = -1;
+          prs.transform->at(si).tx = 1;
+          prs.transform->at(si).ty = pr.transform->at(i.d).ty = 1;
+          pr.transform->at(i.d).tx = -1;
           pr.linVelX->at(i.d) = 0.5f;
 
           //Position constraint pair away from the above
-          pr.posY->at(i.ca) = pr.posY->at(i.cb) = -5;
-          pr.posX->at(i.ca) = 5;
-          pr.posX->at(i.cb) = 7;
+          pr.transform->at(i.ca).ty = pr.transform->at(i.cb).ty = -5;
+          pr.transform->at(i.ca).tx = 5;
+          pr.transform->at(i.cb).tx = 7;
 
           ConstraintStatEffect::Builder builder{ args };
           builder.createStatEffects(1).setLifetime(StatEffect::INFINITE);
@@ -110,7 +109,7 @@ namespace Test {
 
       void update(IAppBuilder& builder) final {
         auto task = builder.createTask();
-        Transform::PackedTransformResolver tr = PhysicsSimulation::createTransformResolver(task);
+        Transform::Resolver tr{ task, {} };
 
         task.setCallback([=](AppTaskArgs&) mutable {
           std::array<Transform::PackedTransform, 4> transforms;
@@ -124,17 +123,17 @@ namespace Test {
             return tr.resolve(*e);
           });
 
-          if(transforms[dynamicI].pos.x > transforms[staticI].pos.x) {
+          if(transforms[dynamicI].tx > transforms[staticI].tx) {
             Assert::Fail(L"Dynamic object should have collided with static object and stopped");
           }
 
           if(++currentTick > END_TICKS) {
             constexpr float e = 0.01f;
-            Assert::AreEqual(transforms[staticI].pos.x, 1, e);
-            Assert::AreEqual(transforms[staticI].pos.y, 1, e);
-            Assert::IsTrue(transforms[dynamicI].pos.x > -1, L"Dynamic object should have moved due to velocity");
+            Assert::AreEqual(transforms[staticI].tx, 1, e);
+            Assert::AreEqual(transforms[staticI].ty, 1, e);
+            Assert::IsTrue(transforms[dynamicI].tx > -1, L"Dynamic object should have moved due to velocity");
 
-            const float dist = glm::distance(transforms[constraintAI].pos, transforms[constraintBI].pos);
+            const float dist = glm::distance(transforms[constraintAI].pos2(), transforms[constraintBI].pos2());
             const float distError = std::abs(2.0f - dist);
             Assert::IsTrue(distError < e, L"Constraint should have moved the objects and stabilized");
             currentTick = 0;

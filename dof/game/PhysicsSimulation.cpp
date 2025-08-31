@@ -15,6 +15,7 @@
 #include "Constraints.h"
 #include <transform/TransformResolver.h>
 #include <module/MassModule.h>
+#include <Physics.h>
 
 namespace PhysicsSimulation {
   using LinVelX = FloatRow<Tags::LinVel, Tags::X>;

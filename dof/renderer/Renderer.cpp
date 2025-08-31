@@ -28,6 +28,7 @@ namespace TMS {
 #include "GraphicsTables.h"
 #include "TLSTaskImpl.h"
 #include <module/MassModule.h>
+#include <transform/TransformRows.h>
 
 namespace QuadPassTable {
   using Transform = TMS::MW_t;
@@ -404,50 +405,22 @@ void extractTransform(IAppBuilder& builder, const TableID& src, const TableID& d
   auto task = builder.createTask();
 
   QuadPassTable::TransformRow* transforms = task.query<QuadPassTable::TransformRow>(dst).tryGet<0>(0);
-  auto srcQuery = task.query<
-    const Tags::PosXRow, const Tags::PosYRow,
-    const Tags::RotXRow, const Tags::RotYRow
-  >(src);
+  auto srcQuery = task.query<const Transform::WorldTransformRow>(src);
   if(!transforms || !srcQuery.size()) {
     return task.discard();
   }
-  const Tags::PosZRow* zRow = task.query<const Tags::PosZRow>(src).tryGet<0>(0);
-  const Tags::ScaleXRow* xScaleRow = task.query<const Tags::ScaleXRow>(src).tryGet<0>(0);
-  const Tags::ScaleYRow* yScaleRow = task.query<const Tags::ScaleYRow>(src).tryGet<0>(0);
 
   task.setCallback([=](AppTaskArgs&) mutable {
-    auto [px, py, rx, ry] = srcQuery.get(0);
+    auto [srcTransforms] = srcQuery.get(0);
     //Previous task ensures that the sizes of src and dst match
     for(size_t i = 0; i < transforms->size(); ++i) {
       QuadPassTable::Transform& transform = transforms->at(i);
-      transform.pos[0] = px->at(i);
-      transform.pos[1] = py->at(i);
-      if (zRow) {
-        transform.pos[2] = zRow->at(i);
-      }
-      const float c = rx->at(i);
-      const float s = ry->at(i);
-      //2D rotation matrix in column major order
-      float* m = transform.scaleRot;
-      m[0] = c; m[2] = -s;
-      m[1] = s; m[3] =  c;
-
-      //Matrix multiply by scale one element at a time, skipping zeroes
-      if(xScaleRow) {
-        const float sx = xScaleRow->at(i);
-        //[a b][x 0] = [ax b]
-        //[c d][0 1]   [cx d]
-        m[0] *= sx;
-        m[1] *= sx;
-      }
-
-      if(yScaleRow) {
-        const float sy = yScaleRow->at(i);
-        //[a b][1 0] = [a by]
-        //[c d][0 y]   [c dy]
-        m[2] *= sy;
-        m[3] *= sy;
-      }
+      const Transform::PackedTransform& src = srcTransforms->at(i);
+      transform.pos[0] = src.tx;
+      transform.pos[1] = src.ty;
+      transform.pos[2] = src.tz;
+      transform.scaleRot[0] = src.ax; transform.scaleRot[1] = src.bx;
+      transform.scaleRot[2] = src.ay; transform.scaleRot[2] = src.by;
     }
   });
 
@@ -567,9 +540,7 @@ void Renderer::extractRenderables(IAppBuilder& builder) {
   //Cameras
   {
     auto task = builder.createTask();
-    auto src = task.query<const Row<Camera>,
-      const FloatRow<Tags::Pos, Tags::X>,
-      const FloatRow<Tags::Pos, Tags::Y>>();
+    auto src = task.query<const Row<Camera>, const Transform::WorldTransformRow>();
     auto dst = task.query<Row<RendererState>>();
     assert(dst.size() == 1);
     task.setName("extract cameras");
@@ -580,8 +551,8 @@ void Renderer::extractRenderables(IAppBuilder& builder) {
         return;
       }
       state->mCameras.clear();
-      src.forEachElement([state](const Camera& camera, const float& posX, const float& posY) {
-        state->mCameras.push_back({ glm::vec2{ posX, posY }, camera });
+      src.forEachElement([state](const Camera& camera, const Transform::PackedTransform& src) {
+        state->mCameras.push_back({ src.pos2(), camera });
       });
     });
     builder.submitTask(std::move(task));

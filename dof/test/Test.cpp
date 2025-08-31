@@ -29,6 +29,7 @@
 #include "scenes/SceneList.h"
 #include "SceneNavigator.h"
 #include "TestGame.h"
+#include <transform/TransformModule.h>
 
 #include "stat/VelocityStatEffect.h"
 #include "stat/PositionStatEffect.h"
@@ -400,15 +401,19 @@ namespace Test {
       std::shared_ptr<IIDResolver> ids;
     };
 
+    Transform::WorldTransformRow* getTransform(RuntimeDatabaseTaskBuilder& task, const TableID& tid) {
+      return task.query<Transform::WorldTransformRow>(tid).getSingleton<0>().row;
+    }
+
     TEST_METHOD(CollidingPair_PopulateNarrowphase_IsPopulated) {
       TestGame game;
       GameArgs args;
       args.fragmentCount = 2;
       game.init(args);
 
-      TransformAdapter transform = TableAdapters::getTransform(game.builder(), game.tables.fragments);
-      transform.posX->at(0) = 1.1f;
-      transform.posX->at(1) = 1.2f;
+      auto transform = getTransform(game.builder(), game.tables.fragments);
+      transform->at(0).tx = 1.1f;
+      transform->at(1).tx = 1.2f;
 
       game.update();
 
@@ -425,9 +430,9 @@ namespace Test {
       args.fragmentCount = 2;
       game.init(args);
 
-      auto transform = TableAdapters::getTransform(game.builder(), game.tables.fragments);
-      transform.posX->at(0) = 1.0f;
-      transform.posX->at(1) = 5.0f;
+      auto transform = getTransform(game.builder(), game.tables.fragments);
+      transform->at(0).tx = 1.0f;
+      transform->at(1).tx = 5.0f;
 
       game.update();
 
@@ -444,17 +449,16 @@ namespace Test {
       game.init(args);
       auto& stable = game.builder().query<StableIDRow>(game.tables.fragments).get<0>(0);
 
-      auto transform = TableAdapters::getTransform(game.builder(), game.tables.fragments);
+      auto transform = getTransform(game.builder(), game.tables.fragments);
       for(int i = 0; i < args.fragmentCount; ++i) {
-        transform.posY->at(i) = 0;
+        transform->at(i).ty = 0;
       }
-      auto& posX = *transform.posX;
       //This one to collide with both
-      posX.at(0) = 5.0f;
+      transform->at(0).tx = 5.0f;
       //This one to the left to collide with 1 but not 2
-      posX.at(1) = 4.0f;
+      transform->at(1).tx = 4.0f;
       //To the right, colliding with 0 but not 1
-      posX.at(2) = 6.0f + SweepNPruneBroadphase::BoundariesConfig{}.mPadding;
+      transform->at(2).tx = 6.0f + SweepNPruneBroadphase::BoundariesConfig{}.mPadding;
 
       game.update();
 
@@ -472,12 +476,11 @@ namespace Test {
       GameArgs args;
       args.fragmentCount = 2;
       game.init(args);
-      TransformAdapter transform = TableAdapters::getTransform(game.builder(), game.tables.fragments);
-      auto& posX = *transform.posX;
+      auto transform = getTransform(game.builder(), game.tables.fragments);
       const float expectedOverlap = 0.1f;
-      posX.at(0) = 5.0f;
-      posX.at(1) = 6.0f - expectedOverlap;
-      transform.posY->at(0) = transform.posY->at(1) = 0.0f;
+      transform->at(0).tx = 5.0f;
+      transform->at(1).tx = 6.0f - expectedOverlap;
+      transform->at(0).ty = transform->at(1).ty = 0.0f;
 
       game.update();
 
@@ -496,12 +499,12 @@ namespace Test {
       GameArgs args;
       args.fragmentCount = 2;
       game.init(args);
-      auto transform = TableAdapters::getTransform(game.builder(), game.tables.fragments);
+      auto transform = getTransform(game.builder(), game.tables.fragments);
       auto physics = TableAdapters::getPhysics(game.builder(), game.tables.fragments);
       const float expectedOverlap = 0.1f;
-      transform.posX->at(0) = 5.0f;
+      transform->at(0).tx = 5.0f;
       physics.linVelX->at(0) = 1.0f;
-      transform.posX->at(1) = 6.0f - expectedOverlap;
+      transform->at(1).tx = 6.0f - expectedOverlap;
       physics.linVelX->at(1) = -1.0f;
 
       game.update();
@@ -675,16 +678,16 @@ namespace Test {
       ElementRef objectId = game.getFromTable(game.tables.fragments, 0);
       auto res = game.builder().getIDResolver()->getRefResolver();
       const float minCorrection = 0.1f;
-      TransformAdapter playerTransform = TableAdapters::getTransform(game.builder(), game.tables.player);
-      TransformAdapter fragmentTransform = TableAdapters::getTransform(game.builder(), game.tables.fragments);
-      TransformAdapter completedFragmentTransform = TableAdapters::getTransform(game.builder(), game.tables.completedFragments);
+      auto playerTransform = getTransform(game.builder(), game.tables.player);
+      auto fragmentTransform = getTransform(game.builder(), game.tables.fragments);
+      auto completedFragmentTransform = getTransform(game.builder(), game.tables.completedFragments);
       PhysicsObjectAdapter playerPhysics = TableAdapters::getPhysics(game.builder(), game.tables.player);
       PhysicsObjectAdapter fragmentPhysics = TableAdapters::getPhysics(game.builder(), game.tables.fragments);
       SpatialPairsData pairs{ game.builder() };
 
       auto setInitialPos = [&] {
-        TableAdapters::write(0, { 1.5f, 0.0f }, *playerTransform.posX, *playerTransform.posY);
-        TableAdapters::write(0, { 1.0f, 0.0f }, *fragmentTransform.posX, *fragmentTransform.posY);
+        playerTransform->at(0).setPos({ 1.5f, 0.0f });
+        fragmentTransform->at(0).setPos({ 1.0f, 0.0f });
         playerPhysics.linVelX->at(0) = -0.5f;
         fragmentPhysics.linVelX->at(0) = 0.5f;
       };
@@ -700,7 +703,7 @@ namespace Test {
       };
       assertInitialResolution();
 
-      playerTransform.posX->at(0) = 100.0f;
+      playerTransform->at(0).tx = 100.0f;
       game.update();
 
       auto assertNoPairs = [&] {
@@ -719,8 +722,8 @@ namespace Test {
 
       //Migrate will also snap the fragment to its goal, so recenter the player in collision with the new location
       auto setNewPos = [&] {
-        const glm::vec2 dest = TableAdapters::read(0, *completedFragmentTransform.posX, *completedFragmentTransform.posY);
-        TableAdapters::write(0, dest, *playerTransform.posX, *playerTransform.posY);
+        const glm::vec2 dest = completedFragmentTransform->at(0).pos2();
+        playerTransform->at(0).setPos(dest);
       };
       setNewPos();
 
@@ -742,7 +745,7 @@ namespace Test {
       };
       assertStaticCollision();
 
-      playerTransform.posX->at(0) = 100.0f;
+      playerTransform->at(0).tx = 100.0f;
       game.update();
       assertNoPairs();
 
@@ -787,7 +790,7 @@ namespace Test {
       auto task = game.builder();
       const Broadphase::SweepGrid::Grid& grid = *task.query<SharedRow<Broadphase::SweepGrid::Grid>>().tryGetSingletonElement();
 
-      TransformAdapter objs = TableAdapters::getTransform(task, game.tables.fragments);
+      auto objs = getTransform(task, game.tables.fragments);
       std::array bounds = {
         glm::vec2{ 50.0f, 0.0f },
         glm::vec2{ -50.0f, 0.0f },
@@ -799,8 +802,7 @@ namespace Test {
       for(const glm::vec2& b : bounds) {
         //Try putting them outside the grid to make sure it clamps properly
         for(size_t i = 0; i < args.fragmentCount; ++i) {
-          objs.posX->at(i) = b.x;
-          objs.posY->at(i) = b.y;
+          objs->at(i).setPos(b);
         }
 
         game.update();
@@ -810,13 +812,13 @@ namespace Test {
 
       //One in left cell, one in right, and one on the boundary, all touching
       for(size_t i = 0; i < args.fragmentCount; ++i) {
-        objs.posY->at(i) = 0.0f;
+        objs->at(i).ty = 0.0f;
       }
       const float halfSize = 0.5f;
       const float padding = 0.1f;
-      objs.posX->at(0) = cfg.broadphase.cellSizeX - halfSize - padding;
-      objs.posX->at(1) = cfg.broadphase.cellSizeX;
-      objs.posX->at(2) = cfg.broadphase.cellSizeX + halfSize + padding;
+      objs->at(0).tx = cfg.broadphase.cellSizeX - halfSize - padding;
+      objs->at(1).ty = cfg.broadphase.cellSizeX;
+      objs->at(2).tx = cfg.broadphase.cellSizeX + halfSize + padding;
 
       game.update();
 
@@ -827,9 +829,9 @@ namespace Test {
       assertEnabledContactConstraintCount(game, 2);
 
       //Move boundary object to the right cell
-      objs.posX->at(1) = cfg.broadphase.cellSizeX + halfSize*2;
-      objs.posX->at(0) = cfg.broadphase.cellSizeX - halfSize - padding;
-      objs.posX->at(2) = cfg.broadphase.cellSizeX + halfSize + padding;
+      objs->at(1).tx = cfg.broadphase.cellSizeX + halfSize*2;
+      objs->at(0).tx = cfg.broadphase.cellSizeX - halfSize - padding;
+      objs->at(2).tx = cfg.broadphase.cellSizeX + halfSize + padding;
 
       game.update();
 
@@ -840,9 +842,9 @@ namespace Test {
       assertEnabledContactConstraintCount(game, 1);
 
       //Move boundary object to the left cell
-      objs.posX->at(1) = cfg.broadphase.cellSizeX - halfSize*2;
-      objs.posX->at(0) = cfg.broadphase.cellSizeX - halfSize - padding;
-      objs.posX->at(2) = cfg.broadphase.cellSizeX + halfSize + padding;
+      objs->at(1).tx = cfg.broadphase.cellSizeX - halfSize*2;
+      objs->at(0).tx = cfg.broadphase.cellSizeX - halfSize - padding;
+      objs->at(2).tx = cfg.broadphase.cellSizeX + halfSize + padding;
 
       game.update();
 
@@ -854,9 +856,9 @@ namespace Test {
 
       //Two objects on a boundary
       auto setBoundary = [&] {
-        objs.posX->at(0) = cfg.broadphase.cellSizeX;
-        objs.posX->at(1) = cfg.broadphase.cellSizeX;
-        objs.posX->at(2) = 100.0f;
+        objs->at(0).tx = cfg.broadphase.cellSizeX;
+        objs->at(1).tx = cfg.broadphase.cellSizeX;
+        objs->at(2).tx = 100.0f;
         game.update();
       };
 
@@ -869,7 +871,7 @@ namespace Test {
       assertEnabledContactConstraintCount(game, 1);
 
       setBoundary();
-      objs.posX->at(0) = cfg.broadphase.cellSizeX + halfSize + padding;
+      objs->at(0).tx = cfg.broadphase.cellSizeX + halfSize + padding;
 
       game.update();
 
@@ -891,9 +893,9 @@ namespace Test {
       game.init(gameArgs);
       auto task = game.builder();
       auto ids = task.getIDResolver();
-      TransformAdapter fragmentTransform = TableAdapters::getTransform(task, game.tables.fragments);
+      auto fragmentTransform = getTransform(task, game.tables.fragments);
       PhysicsObjectAdapter fragmentPhysics = TableAdapters::getPhysics(task, game.tables.fragments);
-      TransformAdapter playerTransform = TableAdapters::getTransform(task, game.tables.player);
+      auto playerTransform = getTransform(task, game.tables.player);
       PhysicsObjectAdapter playerPhysics = TableAdapters::getPhysics(task, game.tables.player);
 
       StableIDRow& stablePlayer = task.query<StableIDRow>(game.tables.player).get<0>(0);
@@ -905,15 +907,13 @@ namespace Test {
       float initialX[] = { 1.0f, 2.0f, 1.5f };
       float initialY[] = { 1.0f, 1.0f, 1.75f };
       for(size_t i = 0; i < 2; ++i) {
-        fragmentTransform.posX->at(i) = initialX[i];
-        fragmentTransform.posY->at(i) = initialY[i];
+        fragmentTransform->at(i).setPos(glm::vec2{ initialX[i], initialY[i] });
         fragmentPhysics.linVelY->at(i) = 0.5f;
       }
-      glm::vec2 initialRight{ TableAdapters::read(1, *fragmentTransform.posX, *fragmentTransform.posY) };
+      glm::vec2 initialRight{ fragmentTransform->at(1).pos2() };
 
       auto setInitialPlayerPos = [&] {
-        playerTransform.posX->at(0) = initialX[2];
-        playerTransform.posY->at(0) = initialY[2];
+        playerTransform->at(0).setPos({ initialX[2], initialY[2] });
         playerPhysics.linVelY->at(0) = -0.5f;
       };
       setInitialPlayerPos();
@@ -941,8 +941,7 @@ namespace Test {
 
       auto resetStaticPos = [&] {
         setInitialPlayerPos();
-        fragmentTransform.posX->at(0) = initialRight.x;
-        fragmentTransform.posY->at(0) = initialRight.y + 0.1f;
+        fragmentTransform->at(0).setPos({ initialRight.x, initialRight.y + 0.1f });
         fragmentPhysics.linVelY->at(0) = 0.5f;
       };
 
@@ -964,7 +963,7 @@ namespace Test {
       assertStaticCollision();
 
       resetStaticPos();
-      playerTransform.posX->at(0) = 100.0f;
+      playerTransform->at(0).tx = 100.0f;
       game.update();
 
       assertEnabledContactConstraintCount(game, 0);
@@ -1048,11 +1047,10 @@ namespace Test {
       game.init(args);
 
       PhysicsObjectAdapter fragmentPhysics = TableAdapters::getPhysics(game.builder(), game.tables.fragments);
-      TransformAdapter fragmentTransform = TableAdapters::getTransform(game.builder(), game.tables.fragments);
+      auto fragmentTransform = getTransform(game.builder(), game.tables.fragments);
       for(size_t i = 0; i < OBJ_COUNT; ++i) {
         //Need to move them away from the fragment completion location
-        fragmentTransform.posX->at(i) = 4.0f;
-        fragmentTransform.posY->at(i) = 0;
+        fragmentTransform->at(i).setPos({ 4.f, 0.f });
       }
 
       auto velQuery = game.builder().query<VelocityStatEffect::CommandRow, StatEffect::Lifetime>();
@@ -1071,15 +1069,15 @@ namespace Test {
       Assert::AreEqual(size_t(1), velLife->size());
       Assert::AreEqual(size_t(0), velLife->at(0));
 
-      Assert::AreEqual(5.0f, fragmentTransform.posX->at(2));
-      Assert::AreEqual(5.0f, fragmentTransform.posY->at(2));
-      Assert::AreEqual(0.0f, fragmentTransform.rotX->at(2));
-      Assert::AreEqual(1.0f, fragmentTransform.rotY->at(2));
+      Assert::AreEqual(5.0f, fragmentTransform->at(2).tx);
+      Assert::AreEqual(5.0f, fragmentTransform->at(2).ty);
+      Assert::AreEqual(0.0f, fragmentTransform->at(2).rot().x);
+      Assert::AreEqual(1.0f, fragmentTransform->at(2).rot().y);
       Assert::AreEqual(size_t(0), posLife->size());
 
       //Set the values to something to show they don't change after the next update
       fragmentPhysics.linVelX->at(1) = 0.0f;
-      fragmentTransform.posX->at(2) = 10.0f;
+      fragmentTransform->at(2).tx = 10.0f;
 
       //After this pos and lambda should be removed and should not have executed again before removal
       game.update();
@@ -1088,7 +1086,7 @@ namespace Test {
       Assert::AreEqual(size_t(0), velLife->size());
       //Assert the unchanged values
       Assert::AreEqual(1.0f, fragmentPhysics.linVelX->at(1), 0.2f);
-      Assert::AreEqual(10.0f, fragmentTransform.posX->at(2), 0.1f);
+      Assert::AreEqual(10.0f, fragmentTransform->at(2).tx, 0.1f);
 
       fragmentPhysics.linVelX->at(1) = 0.0f;
 
@@ -1102,7 +1100,7 @@ namespace Test {
       GameArgs args;
       args.playerPos = glm::vec2{ 0.0f };
       TestGame game{ args };
-      auto [playerInput, stateMachine, posX] = game.builder().query<GameInput::PlayerInputRow, GameInput::StateMachineRow, FloatRow<Tags::Pos, Tags::X>>().get(0);
+      auto [playerInput, stateMachine, transforms] = game.builder().query<GameInput::PlayerInputRow, GameInput::StateMachineRow, Transform::WorldTransformRow>().get(0);
       const Input::InputMapper& mapper = stateMachine->at(0).getMapper();
       stateMachine->at(0).traverse(mapper.onPassthroughAxis2DAbsolute(GameInput::Keys::MOVE_2D, { 1, 0 }));
 
@@ -1110,7 +1108,7 @@ namespace Test {
       game.update();
       game.update();
 
-      Assert::IsTrue(posX->at(0) > 0.0f);
+      Assert::IsTrue(transforms->at(0).tx > 0.0f);
     }
 
     TEST_METHOD(GameplayExtract) {
@@ -1124,10 +1122,6 @@ namespace Test {
       GameObjectAdapter completedFragment = TableAdapters::getGameObject(game.builder(), game.tables.completedFragments);
       GameObjectAdapter player = TableAdapters::getGameObject(game.builder(), game.tables.player);
       auto setValues = [](GameObjectAdapter obj, float offset) {
-        obj.transform.posX->at(0) = 1.0f + offset;
-        obj.transform.posY->at(0) = 2.0f + offset;
-        obj.transform.rotX->at(0) = std::cos(3.0f + offset);
-        obj.transform.rotY->at(0) = std::sin(3.0f + offset);
         if(obj.physics.linVelX) {
           obj.physics.linVelX->at(0) = 0.1f + offset;
           obj.physics.linVelY->at(0) = 0.2f + offset;
@@ -1142,10 +1136,6 @@ namespace Test {
       game.update();
 
       auto assertValues = [](GameObjectAdapter obj, float offset) {
-        Assert::AreEqual(1.0f + offset, obj.transform.posX->at(0));
-        Assert::AreEqual(2.0f + offset, obj.transform.posY->at(0));
-        Assert::AreEqual(std::cos(3.0f + offset), obj.transform.rotX->at(0));
-        Assert::AreEqual(std::sin(3.0f + offset), obj.transform.rotY->at(0));
         if(obj.physics.linVelX) {
           Assert::AreEqual(0.1f + offset, obj.physics.linVelX->at(0));
           Assert::AreEqual(0.2f + offset, obj.physics.linVelY->at(0));
@@ -1191,8 +1181,8 @@ namespace Test {
       game.init(args);
 
       GameObjectAdapter fragment = TableAdapters::getGameObject(game.builder(), game.tables.fragments);
-      fragment.transform.posX->at(0) = 5.0f;
-      fragment.transform.rotX->at(0) = 1.0f;
+      auto fragmentTransform = getTransform(game.builder(), game.tables.fragments);
+      fragmentTransform->at(0).tx = 5.f;
 
       //One update to request the impulse, then the next to apply it
       test.shouldRun = true;
@@ -1256,6 +1246,7 @@ namespace Test {
       TestGame game{ args };
 
       auto objs = TableAdapters::getGameObject(game.builder(), game.tables.fragments);
+      auto objTransforms = getTransform(game.builder(), game.tables.fragments);
       const ElementRef objID = objs.stable->at(0);
       auto creator = SpatialQuery::createCreator(game.builder());
       ElementRef bb = creator->createQuery({ SpatialQuery::AABB{ glm::vec2(2.0f), glm::vec2(3.5f) } }, 10);
@@ -1265,7 +1256,7 @@ namespace Test {
       game.update();
 
       //Move object into aabb
-      TableAdapters::write(0, glm::vec2(2.5f), *objs.transform.posX, *objs.transform.posY);
+      objTransforms->at(0).setPos(glm::vec2{ 2.5f });
       game.update();
 
       assertQueryHasObject(game, bb, objID);
@@ -1283,7 +1274,7 @@ namespace Test {
       assertQueryNoObjects(game, cast);
 
       //Move object to raycast and circle with it
-      TableAdapters::write(0, glm::vec2(2.f, -1.f), *objs.transform.posX, *objs.transform.posY);
+      objTransforms->at(0).setPos(glm::vec2(2.f, -1.f));
       writer->refreshQuery(circle, { SpatialQuery::Circle{ glm::vec2(2, -1), 0.5f } }, 10);
       tickQueryUpdate(game);
 
@@ -1324,10 +1315,12 @@ namespace Test {
       args.fragmentCount = 2;
       TestGame game{ args };
       GameObjectAdapter objs = TableAdapters::getGameObject(game.builder(), game.tables.fragments);
+      auto objTransforms = getTransform(game.builder(), game.tables.fragments);
 
-      objs.transform.posX->at(0) = 1;
-      objs.transform.posX->at(1) = 1.1f;
-      objs.transform.posY->at(0) = objs.transform.posY->at(1) = 0.0f;
+      //objTransforms->at(0).setPos({ 1.f, 1.1f });
+      objTransforms->at(0).tx = 1;
+      objTransforms->at(1).tx = 1.1f;
+      objTransforms->at(0).ty = objTransforms->at(1).ty = 0.0f;
       objs.physics.collisionMask->at(0) = 1 << 2;
       objs.physics.collisionMask->at(1) = 1 << 1;
 

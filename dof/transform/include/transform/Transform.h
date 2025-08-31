@@ -129,6 +129,19 @@ namespace Transform {
       by *= mb;
     }
 
+    void setRot(const glm::vec2& basisX) {
+      const glm::vec2 s = scale();
+      const glm::vec2 basisY{ -basisX.y, basisX.x };
+      ax = basisX.x;
+      ay = basisX.y;
+      bx = basisY.x;
+      by = basisY.y;
+    }
+
+    void setRot(float rad) {
+      setRot(glm::vec2{ std::cos(rad), std::sin(rad) });
+    }
+
     static constexpr PackedTransform build(const Parts& parts) {
       //Multiplication of these, except a and b are rot and orthogonal to rot [-y, x]
       //[1 0 tx][ax bx 0][sx  0 0] [ax*sx, -ay*sy, tx]

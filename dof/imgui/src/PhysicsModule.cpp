@@ -15,6 +15,7 @@
 #include "SpatialPairsStorage.h"
 #include "ThreadLocals.h"
 #include "Random.h"
+#include <transform/TransformResolver.h>
 
 namespace PhysicsModule {
   void drawIslands(IAppBuilder& builder) {
@@ -29,8 +30,9 @@ namespace PhysicsModule {
     auto shapes = PhysicsSimulation::createShapeClassifier(task);
     Config::PhysicsConfig* config = TableAdapters::getPhysicsConfigMutable(task);
     const bool* enabled = ImguiModule::queryIsEnabled(task);
+    Transform::Resolver transformResolver{ task, Transform::ResolveOps{}.addInverse() };
 
-    task.setCallback([query, drawer, ids, shapes, config, enabled](AppTaskArgs&) mutable {
+    task.setCallback([query, drawer, ids, shapes, config, enabled, transformResolver](AppTaskArgs&) mutable {
       if(!*enabled) {
         return;
       }
@@ -69,8 +71,10 @@ namespace PhysicsModule {
             auto resolvedA = resolver.tryUnpack(g.nodes[e.nodeA].data);
             auto resolvedB = resolver.tryUnpack(g.nodes[e.nodeB].data);
             if(resolvedA && resolvedB) {
-              const glm::vec2 centerA = ShapeRegistry::getCenter(shapes->classifyShape(*resolvedA));
-              const glm::vec2 centerB = ShapeRegistry::getCenter(shapes->classifyShape(*resolvedB));
+              auto pairA = transformResolver.resolvePair(*resolvedA);
+              auto pairB = transformResolver.resolvePair(*resolvedB);
+              const glm::vec2 centerA = ShapeRegistry::getCenter(shapes->classifyShape(*resolvedA, pairA.modelToWorld, pairA.worldToModel));
+              const glm::vec2 centerB = ShapeRegistry::getCenter(shapes->classifyShape(*resolvedB, pairB.modelToWorld, pairB.worldToModel));
 
               if(drawIslandEdges) {
                 const glm::vec2 currentIslandEdge = (centerA + centerB)*0.5f;

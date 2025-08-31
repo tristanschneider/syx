@@ -19,15 +19,14 @@
 #include "Fragment.h"
 #include "generics/IntMath.h"
 #include "TableName.h"
+#include <transform/TransformModule.h>
 
 namespace InspectorModule {
   struct InspectContext {
     InspectContext(RuntimeDatabaseTaskBuilder& task)
       : ids{ task.getIDResolver() }
       , resolver{ task.getResolver(
-          posX, posY, posZ,
-          rotX, rotY,
-          scaleX, scaleY,
+          transform, transformUpdate,
           thickness, sharedThickness,
           collisionMask,
           velX, velY, velZ, velA,
@@ -68,13 +67,8 @@ namespace InspectorModule {
     std::shared_ptr<IIDResolver> ids;
     std::shared_ptr<ITableResolver> resolver;
     ElementRefResolver refResolver;
-    CachedRow<Tags::PosXRow> posX;
-    CachedRow<Tags::PosYRow> posY;
-    CachedRow<Tags::PosZRow> posZ;
-    CachedRow<Tags::RotXRow> rotX;
-    CachedRow<Tags::RotYRow> rotY;
-    CachedRow<Tags::ScaleXRow> scaleX;
-    CachedRow<Tags::ScaleYRow> scaleY;
+    CachedRow<Transform::WorldTransformRow> transform;
+    CachedRow<Transform::TransformNeedsUpdateRow> transformUpdate;
     CachedRow<Narrowphase::ThicknessRow> thickness;
     CachedRow<Narrowphase::SharedThicknessRow> sharedThickness;
     CachedRow<Narrowphase::CollisionMaskRow> collisionMask;
@@ -142,32 +136,27 @@ namespace InspectorModule {
     ImGui::PushID(obj.ref.unversionedHash());
     {
       ImGui::Text(ctx.getPrettyName(obj).c_str());
-      if(ctx.resolver->tryGetOrSwapAllRows(*unpacked, ctx.posX, ctx.posY, ctx.posZ)) {
-        std::array value{ ctx.posX->at(i), ctx.posY->at(i), ctx.posZ->at(i) };
+      if(ctx.resolver->tryGetOrSwapAllRows(*unpacked, ctx.transform, ctx.transformUpdate)) {
+        Transform::PackedTransform& transform = ctx.transform->at(i);
+        auto flagUpdate = [&] { ctx.transformUpdate->getOrAdd(i); };
+
+        std::array value{ transform.tx, transform.ty, transform.tx };
         if(ImGui::InputFloat3("Position", value.data())) {
-          ctx.posX->at(i) = value[0];
-          ctx.posY->at(i) = value[1];
-          ctx.posZ->at(i) = value[2];
+          transform.tx = value[0];
+          transform.ty = value[1];
+          transform.tz = value[2];
+          flagUpdate();
         }
-      }
-      else if(ctx.resolver->tryGetOrSwapAllRows(*unpacked, ctx.posX, ctx.posY)) {
-        ctx.pos = TableAdapters::read(i, *ctx.posX, *ctx.posY);
-        if(ImGui::InputFloat2("Position", &ctx.pos.x)) {
-          TableAdapters::write(i, ctx.pos, *ctx.posX, *ctx.posY);
-        }
-      }
-      if(ctx.resolver->tryGetOrSwapAllRows(*unpacked, ctx.rotX, ctx.rotY)) {
-        float angle = Constants::RADDEG * std::atan2f(ctx.rotY->at(i), ctx.rotX->at(i));
+        const glm::vec2 rot = transform.rot();
+        float angle = Constants::RADDEG * std::atan2f(rot.y, rot.x);
         if(ImGui::InputFloat("Rotation", &angle)) {
-          const float rad = Constants::DEGRAD * angle;
-          ctx.rotX->at(i) = std::cos(rad);
-          ctx.rotY->at(i) = std::sin(rad);
+          transform.setRot(Constants::DEGRAD * angle);
+          flagUpdate();
         }
-      }
-      if(ctx.resolver->tryGetOrSwapAllRows(*unpacked, ctx.scaleX, ctx.scaleY)) {
-        ctx.scale = TableAdapters::read(i, *ctx.scaleX, *ctx.scaleY);
+        ctx.scale = transform.scale();
         if(ImGui::InputFloat2("Scale", &ctx.scale.x)) {
-          TableAdapters::write(i, ctx.scale, *ctx.scaleX, *ctx.scaleY);
+          transform.setScale(ctx.scale);
+          flagUpdate();
         }
       }
 
@@ -317,10 +306,10 @@ namespace InspectorModule {
         continue;
       }
       const size_t i = unpacked->getElementIndex();
-      if(ctx.resolver->tryGetOrSwapAllRows(*unpacked, ctx.posX, ctx.posY)) {
+      if(ctx.resolver->tryGetOrSwapAllRows(*unpacked, ctx.transform)) {
         //Draw a little box at the center of the object
-        const glm::vec2 pos = TableAdapters::read(i, *ctx.posX, *ctx.posY);
-        const glm::vec2 s{ 0.25f };
+        const glm::vec2 pos = ctx.transform->at(i).pos2();
+        const glm::vec2 s = ctx.transform->at(i).scale();
         DebugDrawer::drawAABB(ctx.debugLines, pos - s, pos + s, { 0, 1, 0 });
       }
     }
