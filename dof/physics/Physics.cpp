@@ -97,7 +97,7 @@ namespace Physics {
 
       void init(RuntimeDatabaseTaskBuilder& task) {
         integrateIndex = 0;
-        int currentBit = 0;
+        int currentBit = 1;
         auto tryQuery = [&](const QueryAlias<const Row<float>>& alias) {
           QueryResult<const Row<float>> q = task.queryAlias(table, alias);
           const Row<float>* result{};

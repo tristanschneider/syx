@@ -92,9 +92,9 @@ namespace SpatialQuery {
   struct SQShapeTables {
     SQShapeTables() = default;
     SQShapeTables(RuntimeDatabaseTaskBuilder& task)
-      : aabb{ task.queryTables<SpatialQueriesTableTag, Gameplay<Shapes::AABBRow>>()[0] }
-      , circle{ task.queryTables<SpatialQueriesTableTag, Gameplay<Shapes::CircleRow>>()[0] }
-      , raycast{ task.queryTables<SpatialQueriesTableTag, Gameplay<Shapes::LineRow>>()[0] }
+      : aabb{ task.queryTables<SpatialQueriesTableTag, Shapes::AABBRow>()[0] }
+      , circle{ task.queryTables<SpatialQueriesTableTag, Shapes::CircleRow>()[0] }
+      , raycast{ task.queryTables<SpatialQueriesTableTag, Shapes::LineRow>()[0] }
     {}
 
     TableID aabb, circle, raycast;

@@ -275,12 +275,18 @@ public:
 
   template<class... Rows>
   QueryResult<Rows...> query(const TableID& table) {
-    QueryResult<Rows...> result = db.query<Rows...>(table);
+    QueryResult<Rows...> result;
+    query(table, result);
+    return result;
+  }
+
+  template<class... Rows>
+  void query(const TableID& table, QueryResult<Rows...>& result) {
+    result = db.query<Rows...>(table);
     if(result.size()) {
       const std::vector<TableID> t{ table };
       (log<Rows>(t), ...);
     }
-    return result;
   }
 
   //Allows having a Query as a member of a class and initialize it with a RDTB

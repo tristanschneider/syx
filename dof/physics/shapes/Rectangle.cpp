@@ -11,6 +11,8 @@ namespace TableExt {
 };
 
 namespace Shapes {
+  constexpr float RECT_SCALE = 0.5f;
+
   struct RectShape : ShapeRegistry::IShapeImpl {
     std::vector<TableID> queryTables(IAppBuilder& builder) const final {
       return builder.queryTables<const RectangleRow>().getMatchingTableIDs();
@@ -27,7 +29,7 @@ namespace Shapes {
           ShapeRegistry::Rectangle{
             .center = parts.translate,
             .right = parts.rot,
-            .halfWidth = parts.scale
+            .halfWidth = parts.scale * RECT_SCALE,
           }
         };
       }
@@ -52,7 +54,7 @@ namespace Shapes {
         bounds.maxY.resize(s);
         for(size_t i = 0; i < transforms->size(); ++i) {
           const Transform::PackedTransform& t = transforms->at(i);
-          const glm::vec2 extents = glm::abs(t.basisX()) + glm::abs(t.basisY());
+          const glm::vec2 extents = (glm::abs(t.basisX()) + glm::abs(t.basisY()))*RECT_SCALE;
           const glm::vec2 center = t.pos2();
           bounds.minX[i] = center.x - extents.x;
           bounds.maxX[i] = center.x + extents.x;

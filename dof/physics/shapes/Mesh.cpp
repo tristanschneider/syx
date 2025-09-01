@@ -427,7 +427,7 @@ namespace Shapes {
 
       void init(RuntimeDatabaseTaskBuilder& task) {
         task.logDependency({ bounds->requiredDependency });
-        query = task;
+        task.query(bounds->table, query);
         resolver = task.getResolver<const Shapes::MeshAssetRow>();
         ids = task.getRefResolver();
       }

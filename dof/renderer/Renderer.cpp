@@ -419,8 +419,8 @@ void extractTransform(IAppBuilder& builder, const TableID& src, const TableID& d
       transform.pos[0] = src.tx;
       transform.pos[1] = src.ty;
       transform.pos[2] = src.tz;
-      transform.scaleRot[0] = src.ax; transform.scaleRot[1] = src.bx;
-      transform.scaleRot[2] = src.ay; transform.scaleRot[2] = src.by;
+      transform.scaleRot[0] = src.ax; transform.scaleRot[2] = src.bx;
+      transform.scaleRot[1] = src.ay; transform.scaleRot[3] = src.by;
     }
   });
 
