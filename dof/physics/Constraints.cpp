@@ -235,7 +235,7 @@ namespace Constraints {
           if(it != graph.edgesEnd()) {
             const auto edgeHandle = graph.edges.getHandle(*it);
             //Assign storage so it can be used for configureConstraints.
-            if(auto self = res.tryUnpack(p.owner)) {
+            if(auto self = res.tryUnpack(p.owner); self && self->getTableIndex() == table.tableID.getTableIndex()) {
               ConstraintStorage& ownerStorage = table.storage->at(self->getElementIndex());
               if(ownerStorage.isPending()) {
                 ownerStorage.assign(edgeHandle);

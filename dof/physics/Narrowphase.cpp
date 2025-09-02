@@ -27,7 +27,7 @@ namespace Narrowphase {
   ShapeRegistry::Mesh toMesh(const ShapeRegistry::Rectangle& v, std::vector<glm::vec2>& storage) {
     Transform::Parts parts{
       .rot = v.right,
-      .scale = v.halfWidth,
+      .scale = v.halfWidth*0.5f,
       .translate = Geo::toVec3(v.center)
     };
     storage.clear();

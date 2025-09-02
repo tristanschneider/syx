@@ -108,6 +108,16 @@ namespace Narrowphase {
       : Geo::LineSegment{ .start = b, .end = root };
   }
 
+  void validate(const ShapeRegistry::Mesh& m) {
+    auto testA = m.modelToWorld * m.worldToModel;
+    static constexpr float E = 0.001f;
+    const auto z = [](float v) { return std::abs(v) < E; };
+    const auto o = [](float v) { return std::abs(1.0f - v) < E; };
+    assert(o(testA.ax)); assert(z(testA.bx)); assert(z(testA.tx));
+    assert(z(testA.ay)); assert(o(testA.by)); assert(z(testA.ty));
+                                              assert(z(testA.tz));
+  }
+
   void generateContactsConvex(
     const ShapeRegistry::Mesh& a,
     const ShapeRegistry::Mesh& b,
@@ -118,6 +128,9 @@ namespace Narrowphase {
     if(a.points.empty() || b.points.empty()) {
       return;
     }
+
+    validate(a);
+    validate(b);
 
     //Find the most-separating edges relative to the normals on both bodies
     const FurthestEdge bestA = findFurthestEdgeOnA(a, b, ops);

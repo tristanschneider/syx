@@ -31,6 +31,18 @@ RuntimeTable::RuntimeTable(RuntimeTableArgs&& args)
   }
 }
 
+namespace Debug {
+  constexpr bool DEBUG_TABLES = true;
+  void checkTable([[maybe_unused]] std::unordered_map<DBTypeID, IRow*>& rows, [[maybe_unused]] size_t size) {
+    if constexpr(DEBUG_TABLES) {
+      for(auto& pair : rows) {
+        pair.second->debugCheck(size);
+      }
+    }
+  }
+}
+
+
 size_t RuntimeTable::migrate(size_t i, RuntimeTable& from, RuntimeTable& to, size_t count) {
   const UnpackedDatabaseElementID fromID = from.tableID.remakeElement(i);
   if(from.getID() == to.getID()) {
@@ -41,6 +53,11 @@ size_t RuntimeTable::migrate(size_t i, RuntimeTable& from, RuntimeTable& to, siz
   const size_t fromSize = from.size();
   const size_t dstBegin = to.size();
   const size_t dstEnd = dstBegin + count;
+
+  if constexpr(Debug::DEBUG_TABLES) {
+    Debug::checkTable(from.rows, from.size());
+    Debug::checkTable(to.rows, to.size());
+  }
 
   //Move all common rows to the destination
   for(auto& pair : to.rows) {
@@ -84,10 +101,20 @@ size_t RuntimeTable::migrate(size_t i, RuntimeTable& from, RuntimeTable& to, siz
 
   from.tableSize -= count;
   to.tableSize += count;
+
+  if constexpr(Debug::DEBUG_TABLES) {
+    Debug::checkTable(from.rows, from.size());
+    Debug::checkTable(to.rows, to.size());
+  }
+
   return dstBegin;
 }
 
 void RuntimeTable::resize(size_t newSize, const ElementRef* reservedKeys) {
+  if constexpr(Debug::DEBUG_TABLES) {
+    Debug::checkTable(rows, size());
+  }
+
   for(auto& pair : rows) {
     if(pair.first == DBTypeID::get<StableIDRow>()) {
       assert(mappings);
@@ -120,6 +147,10 @@ void RuntimeTable::resize(size_t newSize, const ElementRef* reservedKeys) {
   }
 
   tableSize = newSize;
+
+  if constexpr(Debug::DEBUG_TABLES) {
+    Debug::checkTable(rows, size());
+  }
 }
 
 size_t RuntimeTable::addElements(size_t count, const ElementRef* reservedKeys) {

@@ -33,4 +33,6 @@ public:
   //The caller also ensures the size fits, as this doesn't change the size of either row
   //`fromRow` can also be null, which then means just add one
   virtual void migrateElements(const MigrateArgs& args) = 0;
+
+  virtual void debugCheck([[maybe_unused]] size_t tableSize) {}
 };

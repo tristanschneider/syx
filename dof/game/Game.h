@@ -76,6 +76,7 @@ namespace GameDefaults {
       basicLoaders,
       reflection,
       physicsTest,
+      transform,
       finalEventValidator,
       events;
   };

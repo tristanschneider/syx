@@ -368,6 +368,20 @@ namespace Test {
       Assert::IsFalse(found);
     }
 
+    TEST_METHOD(EmptySwap) {
+      SparseRow<int> row;
+      row.resize(0, 4);
+      row.getOrAdd(3) = 3;
+      Assert::AreEqual(size_t(4), row.sparseSize());
+
+      row.swapRemove(1, 2, 4);
+      for(auto it : row) {
+        Assert::AreEqual(size_t(1), it.first);
+        Assert::AreEqual(3, it.second);
+      }
+      Assert::AreEqual(size_t(3), row.sparseSize());
+    }
+
     TEST_METHOD(BitWidthIncrease) {
       SparseRow<int> row;
       row.resize(0, 500);

@@ -305,6 +305,7 @@ public:
   }
 
   size_t size() const { return denseToSparse.size() - SENTINEL_OFFSET; }
+  size_t sparseSize() const { return sparseToDense.size(); }
   bool empty() const { return size() != 0; }
 
 protected:
@@ -312,6 +313,7 @@ protected:
   virtual void onReset(size_t index, size_t count) = 0;
   virtual void onResize(size_t oldSize, size_t newSize) = 0;
 
+  //TODO: the uses of erase here probably don't make sense since any swap after the first is meaningless
   void resizeBase(size_t newSize) {
     if(newSize < sparseToDense.size()) {
       const size_t toRemove = sparseToDense.size() - newSize;
@@ -340,6 +342,7 @@ protected:
     sparseToDense.resize(newSize, denseToSparse.size());
   }
 
+  //TODO: this leaves the sparseToDense mapping in a size bigger than the table and might not work with multiple swaps in a row without resizing.
   size_t erase(size_t sparseIndex) {
     auto it = sparseToDense.at(sparseIndex);
     if(*it) {
@@ -747,6 +750,13 @@ public:
           getOrAdd(toSparse);
         }
       }
+    }
+  }
+
+  void debugCheck(size_t tableSize) final {
+    assert(static_cast<size_t>(sparseToDense.size() == tableSize));
+    for(size_t i : *this) {
+      assert(i < tableSize);
     }
   }
 
