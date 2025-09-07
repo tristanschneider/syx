@@ -40,6 +40,17 @@ public:
       return tmp;
     }
 
+    ConstIterator& operator--() {
+      advance(-1);
+      return *this;
+    }
+
+    ConstIterator operator--(int) {
+      ConstIterator tmp{ *this };
+      --*this;
+      return tmp;
+    }
+
     value_type operator*() const {
       return reinterpret_cast<const IndexBase&>(*buffer) & mask;
     }
@@ -57,7 +68,7 @@ public:
     }
 
   protected:
-    void advance(IndexBase i) {
+    void advance(int i) {
       buffer += (i*byteWidth);
     }
 
@@ -281,6 +292,10 @@ private:
   uint8_t byteWidth = 1;
 };
 
+//Exposes a row that can have empty elements such that random access and iterating over non-empty elements is efficient
+//`sparse` refers to the addressible table size, while `dense` refers to all entries that have values
+//insert/erase/clear all clear the dense entires while leaving the sparse size as-is
+//resize changes the sparse size, as this is what the table uses to change size
 class SparseRowBase : public IRow {
 public:
   using IteratorBase = PackedIndexArray::Iterator;
@@ -293,24 +308,32 @@ public:
     denseToSparse.push_back(0);
   }
 
+  //Iterate over dense elements
   IteratorBase beginBase() { return denseToSparse.begin() + SENTINEL_OFFSET; }
   IteratorBase endBase() { return denseToSparse.end(); }
   ConstIteratorBase beginBase() const { return denseToSparse.cbegin() + SENTINEL_OFFSET; }
   ConstIteratorBase endBase() const { return denseToSparse.cend(); }
 
+  //Find a dense element from a sparse table index
   ConstIteratorBase findBase(size_t sparse) const {
     const auto it = sparseToDense.at(sparse);
     const PackedIndexArray::IndexBase denseIndex = *it;
     return denseIndex ? denseToSparse.at(denseIndex) : denseToSparse.cend();
   }
 
+  //Size of dense elements
   size_t size() const { return denseToSparse.size() - SENTINEL_OFFSET; }
   size_t sparseSize() const { return sparseToDense.size(); }
+  //True if there are any dense elements
   bool empty() const { return size() != 0; }
 
 protected:
+  //These all refer to the dense indices
+  //Implementation is expected to move `count` elements starting at dense index `from` to dense index `to`
   virtual void onMove(size_t from, size_t to, size_t count) = 0;
+  //Implementation is expected to default initialize `count` elements starting at dense index `index`
   virtual void onReset(size_t index, size_t count) = 0;
+  //Implementation is expected to ensure that dense indices less than `newSize` are addressible
   virtual void onResize(size_t oldSize, size_t newSize) = 0;
 
   //TODO: the uses of erase here probably don't make sense since any swap after the first is meaningless
@@ -328,12 +351,20 @@ protected:
         }
       }
       else {
-        for(auto it = beginBase(); it != endBase();) {
-          if(*it >= newSize) {
-            erase(*it);
-          }
-          else {
-            ++it;
+        //Iterate backwards so iterator isn't invalidated by swap removes from `erase`
+        auto it = endBase();
+        auto rback = beginBase();
+        if(it != rback) {
+          while(true) {
+            --it;
+
+            if(*it >= newSize) {
+              erase(*it);
+            }
+
+            if(it == rback) {
+              break;
+            }
           }
         }
       }
@@ -343,7 +374,11 @@ protected:
   }
 
   //TODO: this leaves the sparseToDense mapping in a size bigger than the table and might not work with multiple swaps in a row without resizing.
-  size_t erase(size_t sparseIndex) {
+  //Erase a dense entry corresponding to this sparse index if it exists
+  //If it does, it is swap-removed, meaning the dense storage location of the data is swapped.
+  //This does not change the sparse location of the object in the table.
+  //As this operates on dense entries, it does not change the sparse size, and does nothing if there is no dense entry.
+  bool erase(size_t sparseIndex) {
     auto it = sparseToDense.at(sparseIndex);
     if(*it) {
       const PackedIndexArray::IndexBase freeDenseIndex = *it;
@@ -363,11 +398,12 @@ protected:
         sparseToDense.at(*toSwap) = freeDenseIndex;
       }
       denseToSparse.pop_back();
-      return freeDenseIndex;
+      return true;
     }
-    return {};
+    return false;
   }
 
+  //Clear all dense entries. Sparse table size is unchanged.
   void clear() {
     //Erase sparse mappings
     for(auto it = beginBase(); it != endBase(); ++it) {
@@ -394,6 +430,7 @@ protected:
     }
   }
 
+  //Emplace an element at the sparse index to the back of the dense array. Sparse size is unchanged.
   size_t emplace_back(size_t sparseIndex) {
     assert(sparseIndex < sparseToDense.size());
     CapacityEventScope scope{ *this };
@@ -408,15 +445,36 @@ protected:
     return dense - SENTINEL_OFFSET;
   }
 
-  void trySwapRemove(size_t toRemove, size_t toSwap) {
-    //Erase the original element
-    size_t removed = erase(toRemove);
-    if(removed) {
-      //Remap the last element to the new swap location. Doesn't need to change the dense element itself
-      if(toRemove != toSwap) {
-        remap(toSwap, toRemove);
+  //Swap remove from the perspective of sparse indices.
+  //If removing I, then afterwards I should contain the value at the back of the table (last sparse index)
+  //and the sparse table size is reduced by `count`
+  //The number of sparse entries removed is always `count`. The number of dense entries removed depends on if any of the removed sparse indices had values.
+  void swapRemoveBase(size_t start, size_t count) {
+    if(!count) {
+      return;
+    }
+    const size_t oldSize = sparseSize();
+    assert(oldSize >= count && "Table must have elements to be able to remove");
+    size_t tableBack = sparseSize() - 1;
+    size_t i = start + count;
+    while(true) {
+      --i;
+      //Erase the dense element corresponding to this sparse index
+      erase(i);
+      //Regardless of if `i` had a value, swap the value at the last sparse index to the erased location, unless that is itself.
+      //If toSwap has no dense value, does nothing.
+      size_t toSwap = tableBack--;
+      if(i != toSwap) {
+        remap(toSwap, i);
+      }
+      if(i == start) {
+        break;
       }
     }
+
+    //Downsize the sparse mappings to match the new table size.
+    //Swince all dense entries were swapped in the loop above, we know they should be empty.
+    sparseToDense.resize(oldSize - count, denseToSparse.size());
   }
 
   struct CapacityEventScope {
@@ -571,10 +629,8 @@ public:
     resizeBase(newSize);
   }
 
-  void swapRemove(size_t begin, size_t end, size_t tableSize) final {
-    for(size_t i = 0; i < end - begin; ++i) {
-      trySwapRemove(end - (i + 1), --tableSize);
-    }
+  void swapRemove(size_t begin, size_t end, size_t) final {
+    swapRemoveBase(begin, end - begin);
   }
 
   Iterator begin() {
@@ -676,6 +732,15 @@ protected:
     }
   }
 
+  void debugCheck(size_t tableSize) final {
+    assert(static_cast<size_t>(sparseToDense.size() == tableSize));
+    for(const auto& pair : *this) {
+      assert(pair.first < tableSize);
+      const auto dense = *findBase(pair.first);
+      assert(dense == pair.first);
+    }
+  }
+
 private:
   ElementT* packedValues{};
 };
@@ -705,10 +770,8 @@ public:
     resizeBase(newSize);
   }
 
-  void swapRemove(size_t begin, size_t end, size_t tableSize) final {
-    for(size_t i = 0; i < end - begin; ++i) {
-      trySwapRemove(end - (i + 1), --tableSize);
-    }
+  void swapRemove(size_t begin, size_t end, size_t) final {
+    swapRemoveBase(begin, end - begin);
   }
 
   void clear() {

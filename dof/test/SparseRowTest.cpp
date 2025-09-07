@@ -368,6 +368,38 @@ namespace Test {
       Assert::IsFalse(found);
     }
 
+    TEST_METHOD(EmptySwap_EndMovesToSwapLocation) {
+      SparseRow<int> row;
+      row.resize(0, 3);
+      //Add element at back
+      row.getOrAdd(2) = 5;
+      //Remove a nonexistent element in the middle.
+      //This should swap the sparse index at the end to the removed location and reduce sparse table size by one.
+      row.swapRemove(1, 2, 3);
+      auto it = row.find(1);
+      Assert::IsTrue(it != row.end());
+      Assert::AreEqual(5, it.value());
+      Assert::AreEqual(size_t(1), it.key());
+      Assert::AreEqual(size_t(2), row.sparseSize());
+      Assert::AreEqual(size_t(1), row.size());
+    }
+
+    TEST_METHOD(ResizeDown_ElementsRemain) {
+      SparseRow<int> row;
+      row.resize(0, 100);
+      for(int i = 0; i < 100; ++i) {
+        row.getOrAdd(i) = 100 - i;
+      }
+
+      row.resize(100, 1);
+
+      Assert::AreEqual(size_t(1), row.size());
+      Assert::AreEqual(size_t(1), row.sparseSize());
+      auto it = row.find(0);
+      Assert::AreEqual(size_t(0), it.key());
+      Assert::AreEqual(100, it.value());
+    }
+
     TEST_METHOD(EmptySwap) {
       SparseRow<int> row;
       row.resize(0, 4);
