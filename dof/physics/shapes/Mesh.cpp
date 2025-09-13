@@ -198,6 +198,7 @@ namespace Shapes {
         : triangleMeshes{ table.tryGet<TriangleMeshRow>() }
         , constraintMasks{ table.tryGet<ConstraintSolver::ConstraintMaskRow>() }
         , collisionMasks{ table.tryGet<Narrowphase::CollisionMaskRow>() }
+        , thicknesses{ table.tryGet<Narrowphase::ThicknessRow>() }
       {}
 
       explicit operator bool() const {
@@ -207,11 +208,12 @@ namespace Shapes {
       TriangleMeshRow* triangleMeshes{};
       ConstraintSolver::ConstraintMaskRow* constraintMasks{};
       Narrowphase::CollisionMaskRow* collisionMasks{};
+      Narrowphase::ThicknessRow* thicknesses{};
     };
 
     void execute() {
       for(size_t t = 0; t < query.size(); ++t) {
-        auto&& [events, stables, meshRefs, constraintMasks, collisionMasks, children] = query.get(t);
+        auto&& [events, stables, meshRefs, constraintMasks, collisionMasks, thicknesses, children] = query.get(t);
         for(auto event : events) {
           if(!event.second.isCreate()) {
             continue;
@@ -223,6 +225,7 @@ namespace Shapes {
             continue;
           }
 
+          //TODO: should relation have a feature that automatically tries to copy from any matching parent rows?
           Relation::RelationWriter::NewChildren newChildren = relation.addChildren(stables->at(si), children->at(si), triangleMeshTable, composite->parts.size());
           ChildRows newRows = newChildren.table ? ChildRows{ *newChildren.table } : ChildRows{};
           if(!newChildren.count || !newRows) {
@@ -233,6 +236,7 @@ namespace Shapes {
           const Transform::PackedTransform parentTransform = transformResolver.resolve(ids.unpack(parentID));
           const Narrowphase::CollisionMask parentCollisionMask = collisionMasks->at(si);
           const ConstraintSolver::ConstraintMask parentConstraintMask = constraintMasks->at(si);
+          const float parentThickness = thicknesses->at(si);
 
           for(size_t c = 0; c < newChildren.count; ++c) {
             const MeshAsset* childMesh = resolver->tryGetOrSwapRowElement(meshAssets, ids.unpack(composite->parts[c]));
@@ -247,6 +251,7 @@ namespace Shapes {
             //Copy over parent masks
             newRows.collisionMasks->at(ci) = parentCollisionMask;
             newRows.constraintMasks->at(ci) = parentConstraintMask;
+            newRows.thicknesses->at(ci) = parentThickness;
           }
         }
       }
@@ -258,6 +263,7 @@ namespace Shapes {
       const StaticTriangleMeshReferenceRow,
       const ConstraintSolver::ConstraintMaskRow,
       const Narrowphase::CollisionMaskRow,
+      const Narrowphase::ThicknessRow,
       Relation::HasChildrenRow
     > query;
     Relation::RelationWriter relation;
@@ -313,10 +319,10 @@ namespace Shapes {
         PhysicsTableBuilder::addRigidbody(table);
         PhysicsTableBuilder::addCollider(table);
         PhysicsTableBuilder::addImmobile(table);
-        //TODO: these need thickness
         Transform::addTransform25D(table);
         table.addRows<
-          TriangleMeshRow
+          TriangleMeshRow,
+          Narrowphase::ThicknessRow
         >().setStable().setTableName({ "Triangle Instances" });
         return table;
       }).finalize(args);

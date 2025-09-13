@@ -110,12 +110,12 @@ namespace Narrowphase {
 
   void validate(const ShapeRegistry::Mesh& m) {
     auto testA = m.modelToWorld * m.worldToModel;
+    auto testB = m.modelToWorld * m.modelToWorld.inverse();
     static constexpr float E = 0.001f;
-    const auto z = [](float v) { return std::abs(v) < E; };
-    const auto o = [](float v) { return std::abs(1.0f - v) < E; };
-    assert(o(testA.ax)); assert(z(testA.bx)); assert(z(testA.tx));
-    assert(z(testA.ay)); assert(o(testA.by)); assert(z(testA.ty));
-                                              assert(z(testA.tz));
+    const auto eq = [](float a, float b) { return std::abs(a - b) < 0.001f; };
+    assert(eq(testA.ax, testB.ax)); assert(eq(testA.bx, testB.bx)); assert(eq(testA.tx, testB.tx));
+    assert(eq(testA.ay, testB.ay)); assert(eq(testA.by, testB.by)); assert(eq(testA.ty, testB.ty));
+                                                                    assert(eq(testA.tz, testB.tz));
   }
 
   void generateContactsConvex(

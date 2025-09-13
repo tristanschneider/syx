@@ -62,6 +62,7 @@ namespace PhysicsTableBuilder {
   StorageTableBuilder& addStaticTriangleMesh(StorageTableBuilder& table) {
     return addImmobile(table).addRows<
       Shapes::StaticTriangleMeshReferenceRow,
+      Narrowphase::ThicknessRow,
       Relation::HasChildrenRow
     >();
   }

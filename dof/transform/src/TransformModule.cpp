@@ -12,16 +12,31 @@
 namespace Transform {
   //Recompute inverse transform for any elements that moved, then reset the flag
   struct UpdateTransform {
-    void init(RuntimeDatabaseTaskBuilder& task) {
-      query = task;
+    struct Group {
+      void init(TableID t) {
+        table = t;
+      }
+
+      void init(RuntimeDatabaseTaskBuilder& task) {
+        task.query(table, query);
+      }
+
+      QueryResult<
+        const WorldTransformRow,
+        WorldInverseTransformRow,
+        TransformNeedsUpdateRow,
+        TransformHasUpdatedRow
+      > query;
+      TableID table;
+    };
+
+    void init() {
     }
 
-    void execute() {
-      for(size_t t = 0; t < query.size(); ++t) {
-        auto [worlds, inverses, updates, notifications] = query.get(t);
-        updates->debugCheck(worlds->size());
-        //Clear notifications since last frame, then write the new ones for the current frame.
-        notifications->clear();
+    void execute(Group& group) {
+      for(size_t t = 0; t < group.query.size(); ++t) {
+        auto [worlds, inverses, updates, notifications] = group.query.get(t);
+
         for(size_t i : *updates) {
           inverses->at(i) = worlds->at(i).inverse();
           notifications->getOrAdd(i);
@@ -29,13 +44,21 @@ namespace Transform {
         updates->clear();
       }
     }
+  };
 
-    QueryResult<
-      const WorldTransformRow,
-      WorldInverseTransformRow,
-      TransformNeedsUpdateRow,
-      TransformHasUpdatedRow
-    > query;
+  struct ClearNotifications {
+    void init(RuntimeDatabaseTaskBuilder& task) {
+      query = task;
+    }
+
+    void execute() {
+      for(size_t t = 0; t < query.size(); ++t) {
+        auto [updates] = query.get(t);
+        updates->clear();
+      }
+    }
+
+    QueryResult<TransformHasUpdatedRow> query;
   };
 
   //Flag any newly created or moved elements as needing a transform update
@@ -88,7 +111,11 @@ namespace Transform {
     }
 
     void update(IAppBuilder& builder) final {
-      builder.submitTask(TLSTask::create<UpdateTransform>("UpdateTransform"));
+      //Clear notifications since last frame, then write the new ones for the current frame.
+      builder.submitTask(TLSTask::create<ClearNotifications>("ClearTransformNotifications"));
+      for(TableID table : builder.queryTables<TransformNeedsUpdateRow>()) {
+        updateInverse(builder, table);
+      }
     }
 
     void postProcessEvents(IAppBuilder& builder) final {
@@ -119,5 +146,9 @@ namespace Transform {
 
   std::unique_ptr<IAppModule> createModule() {
     return std::make_unique<Impl>();
+  }
+
+  void updateInverse(IAppBuilder& builder, TableID table) {
+    builder.submitTask(TLSTask::createWithArgs<UpdateTransform, UpdateTransform::Group>("UpdateTransform", table));
   }
 }

@@ -140,7 +140,7 @@ namespace InspectorModule {
         Transform::PackedTransform& transform = ctx.transform->at(i);
         auto flagUpdate = [&] { ctx.transformUpdate->getOrAdd(i); };
 
-        std::array value{ transform.tx, transform.ty, transform.tx };
+        std::array value{ transform.tx, transform.ty, transform.tz };
         if(ImGui::InputFloat3("Position", value.data())) {
           transform.tx = value[0];
           transform.ty = value[1];

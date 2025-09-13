@@ -11,6 +11,8 @@
 #include "BoxBox.h"
 #include <MeshNarrowphase.h>
 #include <shapes/Mesh.h>
+#include <SweepNPruneBroadphase.h>
+#include <transform/TransformModule.h>
 #include <transform/TransformRows.h>
 
 namespace Narrowphase {

@@ -122,7 +122,9 @@ namespace Physics {
         }
 
         bool didMove() const {
-          return total > Constants::EPSILON;
+          //Currently needs to be zero or transform updates will slowly slip off course.
+          //This should be reevaluated when sleep is added.
+          return total > 0; //Constants::EPSILON;
         }
 
         float total{};
