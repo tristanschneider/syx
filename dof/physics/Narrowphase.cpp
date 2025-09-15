@@ -19,6 +19,10 @@ namespace Narrowphase {
   //TODO: need to be able to know how much contact info is desired
 
   struct ContactArgs {
+    const Transform::PackedTransform& modelToWorldA{};
+    const Transform::PackedTransform& worldToModelA{};
+    const Transform::PackedTransform& modelToWorldB{};
+    const Transform::PackedTransform& worldToModelB{};
     std::vector<glm::vec2>& tempA;
     std::vector<glm::vec2>& tempB;
     SP::ContactManifold& manifold;
@@ -26,28 +30,21 @@ namespace Narrowphase {
     SP::PairType& pairType;
   };
 
-  ShapeRegistry::Mesh toMesh(const ShapeRegistry::Rectangle& v, std::vector<glm::vec2>& storage) {
-    Transform::Parts parts{
-      .rot = v.right,
-      .scale = v.halfWidth*0.5f,
-      .translate = Geo::toVec3(v.center)
-    };
+  ShapeRegistry::Mesh toMesh(const ShapeRegistry::Rectangle&, std::vector<glm::vec2>& storage) {
     storage.clear();
     storage.insert(storage.end(), {
-      glm::vec2{ -1.f, -1.f },
-      glm::vec2{ 1.f, -1.f },
-      glm::vec2{ 1.f, 1.f },
-      glm::vec2{ -1.f, 1.f }
+      glm::vec2{ -0.5f, -0.5f },
+      glm::vec2{ 0.5f, -0.5f },
+      glm::vec2{ 0.5f, 0.5f },
+      glm::vec2{ -0.5f, 0.5f }
     });
     return ShapeRegistry::Mesh{
       .points = storage,
-      .modelToWorld = Transform::PackedTransform::build(parts),
-      .worldToModel = Transform::PackedTransform::inverse(parts)
     };
   }
 
-  ShapeRegistry::Mesh toMesh(const ShapeRegistry::AABB& v, std::vector<glm::vec2>& storage) {
-    auto points = Geo::AABB{ v.min, v.max }.points();
+  ShapeRegistry::Mesh toMesh(const ShapeRegistry::AABB&, std::vector<glm::vec2>& storage) {
+    auto points = Geo::AABB{ glm::vec2{ 0 }, glm::vec2{ 1 } }.points();
     storage.clear();
     storage.insert(storage.end(), points.begin(), points.end());
     //Identity transform since points are already in world space
@@ -56,11 +53,11 @@ namespace Narrowphase {
     };
   }
 
-  ShapeRegistry::Mesh toMesh(const ShapeRegistry::Raycast& v, std::vector<glm::vec2>& storage) {
+  ShapeRegistry::Mesh toMesh(const ShapeRegistry::Raycast&, std::vector<glm::vec2>& storage) {
     storage.clear();
     storage.insert(storage.begin(), {
-      v.start,
-      v.end
+      glm::vec2{ 0 },
+      glm::vec2{ 1 }
     });
     //Identity transform since points are already in world space
     return ShapeRegistry::Mesh{
@@ -69,9 +66,9 @@ namespace Narrowphase {
   }
 
   //TODO: only works once mesh can have radius
-  ShapeRegistry::Mesh toMesh(const ShapeRegistry::Circle& v, std::vector<glm::vec2>& storage) {
+  ShapeRegistry::Mesh toMesh(const ShapeRegistry::Circle&, std::vector<glm::vec2>& storage) {
     storage.clear();
-    storage.insert(storage.begin(), v.pos);
+    storage.insert(storage.begin(), glm::vec2{ 0 });
     //Identity transform since points are already in world space
     return ShapeRegistry::Mesh{
       .points = storage
@@ -130,6 +127,10 @@ namespace Narrowphase {
   }
 
   void generateContacts(ShapeRegistry::Mesh& a, ShapeRegistry::Mesh& b, ContactArgs& result) {
+    a.modelToWorld = &result.modelToWorldA;
+    a.worldToModel = &result.worldToModelA;
+    b.modelToWorld = &result.modelToWorldB;
+    b.worldToModel = &result.worldToModelB;
     Narrowphase::generateContactsConvex(a, b, {}, result.manifold);
   }
 
@@ -404,7 +405,17 @@ namespace Narrowphase {
           //TODO: is non-const because of ispc signature, should be const
           Shape::BodyType shapeA = classifier.classifyShape(*resolvedA, transformA, inverseA);
           Shape::BodyType shapeB = classifier.classifyShape(*resolvedB, transformB, inverseB);
-          ContactArgs cargs{ tempA, tempB, man, zMan, pairT };
+          ContactArgs cargs{
+            .modelToWorldA = transformA,
+            .worldToModelA = inverseA,
+            .modelToWorldB = transformB,
+            .worldToModelB = inverseB,
+            .tempA = tempA,
+            .tempB = tempB,
+            .manifold = man,
+            .zManifold = zMan,
+            .pairType = pairT
+          };
           generateContacts(shapeA, shapeB, cargs);
           tryCheckZ(*resolvedA, *resolvedB, shapeQuery, cargs, transformA, transformB);
         }

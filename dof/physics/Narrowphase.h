@@ -44,4 +44,11 @@ namespace Narrowphase {
   //Takes the pairs stored in SpatialPairsTable and generates the contacts needed to resolve the spatial
   //queries or constraint solving
   void generateContactsFromSpatialPairs(IAppBuilder& builder, size_t threadCount);
+
+  ShapeRegistry::Mesh toMesh(const ShapeRegistry::Rectangle& v, std::vector<glm::vec2>& storage);
+  ShapeRegistry::Mesh toMesh(const ShapeRegistry::AABB& v, std::vector<glm::vec2>& storage);
+  ShapeRegistry::Mesh toMesh(const ShapeRegistry::Raycast& v, std::vector<glm::vec2>& storage);
+  ShapeRegistry::Mesh toMesh(const ShapeRegistry::Circle& v, std::vector<glm::vec2>& storage);
+  ShapeRegistry::Mesh toMesh(std::monostate, std::vector<glm::vec2>& storage);
+  ShapeRegistry::Mesh toMesh(const ShapeRegistry::Mesh& mesh, std::vector<glm::vec2>&);
 }

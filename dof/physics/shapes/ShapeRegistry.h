@@ -33,9 +33,10 @@ namespace ShapeRegistry {
     float radius{};
   };
   struct Mesh {
+    const Transform::PackedTransform* modelToWorld{};
+    const Transform::PackedTransform* worldToModel{};
     const std::vector<glm::vec2>& points;
     Geo::AABB aabb;
-    Transform::PackedTransform modelToWorld, worldToModel;
   };
   using Variant = std::variant<std::monostate, Rectangle, Raycast, AABB, Circle, Mesh>;
 

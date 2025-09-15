@@ -39,7 +39,7 @@ namespace Narrowphase {
     FurthestEdge result{ .distanceAlongNormal = std::numeric_limits<float>::lowest() };
 
     //Transform edges on A into space B to search for closest along the edge normals in B space
-    const Transform::PackedTransform aToB = b.worldToModel * a.modelToWorld;
+    const Transform::PackedTransform aToB = *b.worldToModel * *a.modelToWorld;
     const size_t aPointCount = a.points.size();
     //All the points are wound around the center in counterclockwise order.
     //Subtracting two neighboring points produces an edge on the boundary.
@@ -76,7 +76,7 @@ namespace Narrowphase {
     //Take the unit length normal, and scale it to the length of a to b
     result.normalWorld *= std::abs(result.distanceAlongNormal);
     //Transform to world. This could change the length of the vector (distance between points) if either object has non-unit scale
-    result.normalWorld = b.modelToWorld.transformVector(result.normalWorld);
+    result.normalWorld = b.modelToWorld->transformVector(result.normalWorld);
     //Normalize and compute world space distance, preserving sign so caller knows if it's separating or not
     const float normalLength = glm::length(result.normalWorld);
     result.distanceAlongNormal = Geo::makeSameSign(normalLength, result.distanceAlongNormal);
@@ -90,17 +90,17 @@ namespace Narrowphase {
   //Reconstructs the reference edge similar to how it was when traversing in findFurthestEdgeOnA
   Geo::LineSegment getReferenceSegment(uint32_t index, const ShapeRegistry::Mesh& mesh) {
     return Geo::LineSegment{
-      .start = mesh.modelToWorld.transformPoint(mesh.points[index]),
-      .end = mesh.modelToWorld.transformPoint(mesh.points[gnx::IntMath::wrappedDecrement(index, gnx::IntMath::Nonzero{ static_cast<uint32_t>(mesh.points.size()) })]),
+      .start = mesh.modelToWorld->transformPoint(mesh.points[index]),
+      .end = mesh.modelToWorld->transformPoint(mesh.points[gnx::IntMath::wrappedDecrement(index, gnx::IntMath::Nonzero{ static_cast<uint32_t>(mesh.points.size()) })]),
     };
   }
 
   //Computes incident edge from incident point, finding the connected edge that is more orthogonal to the reference edge normal
   Geo::LineSegment getIncidentSegment(uint32_t index, const glm::vec2& referenceNormal, const ShapeRegistry::Mesh& mesh) {
     const gnx::IntMath::Nonzero size{ static_cast<uint32_t>(mesh.points.size()) };
-    const glm::vec2 root = mesh.modelToWorld.transformPoint(mesh.points[index]);
-    const glm::vec2 a = mesh.modelToWorld.transformPoint(mesh.points[gnx::IntMath::wrappedIncrement(index, size)]);
-    const glm::vec2 b = mesh.modelToWorld.transformPoint(mesh.points[gnx::IntMath::wrappedDecrement(index, size)]);
+    const glm::vec2 root = mesh.modelToWorld->transformPoint(mesh.points[index]);
+    const glm::vec2 a = mesh.modelToWorld->transformPoint(mesh.points[gnx::IntMath::wrappedIncrement(index, size)]);
+    const glm::vec2 b = mesh.modelToWorld->transformPoint(mesh.points[gnx::IntMath::wrappedDecrement(index, size)]);
     const glm::vec2 edgeA = glm::normalize(root - a);
     const glm::vec2 edgeB = glm::normalize(root - b);
     return std::abs(glm::dot(referenceNormal, edgeA)) < std::abs(glm::dot(referenceNormal, edgeB))
@@ -109,8 +109,8 @@ namespace Narrowphase {
   }
 
   void validate(const ShapeRegistry::Mesh& m) {
-    auto testA = m.modelToWorld * m.worldToModel;
-    auto testB = m.modelToWorld * m.modelToWorld.inverse();
+    auto testA = *m.modelToWorld * *m.worldToModel;
+    auto testB = *m.modelToWorld * m.modelToWorld->inverse();
     static constexpr float E = 0.001f;
     const auto eq = [](float a, float b) { return std::abs(a - b) < 0.001f; };
     assert(eq(testA.ax, testB.ax)); assert(eq(testA.bx, testB.bx)); assert(eq(testA.tx, testB.tx));
@@ -154,7 +154,7 @@ namespace Narrowphase {
     }
 
     //Clip incident edge against reference and store in manifold
-    Narrowphase::storeResult(Narrowphase::clipEdgeToEdge(normal, reference, incident), normal, a.modelToWorld.pos2(), b.modelToWorld.pos2(), isOnA, result);
+    Narrowphase::storeResult(Narrowphase::clipEdgeToEdge(normal, reference, incident), normal, a.modelToWorld->pos2(), b.modelToWorld->pos2(), isOnA, result);
 
     //TODO: adjust contacts for mesh radius
   }

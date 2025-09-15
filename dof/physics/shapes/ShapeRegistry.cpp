@@ -31,7 +31,7 @@ namespace ShapeRegistry {
       return { 0, 0 };
     }
     glm::vec2 operator()(const Mesh& m) const {
-      return m.modelToWorld.transformPoint(m.aabb.center());
+      return m.modelToWorld->transformPoint(m.aabb.center());
     }
   };
 

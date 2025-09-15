@@ -57,7 +57,7 @@ namespace MassModule {
 
     Mass::OriginMass operator()(const ShapeRegistry::Mesh& v) const {
       //Scale affects resulting mass, the rest of the transform doesn't
-      const glm::vec2 scale = v.modelToWorld.decompose().scale;
+      const glm::vec2 scale = v.modelToWorld->decompose().scale;
       cache.points.resize(v.points.size());
       cache.temp.resize(v.points.size());
       std::transform(v.points.begin(), v.points.end(), cache.points.begin(), [&](const glm::vec2& p) {

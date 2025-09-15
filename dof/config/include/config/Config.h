@@ -60,6 +60,7 @@ namespace Config {
     float angularDragMultiplier = 0.99f;
     bool drawCollisionPairs{};
     bool drawContacts{};
+    bool drawMesh{};
     int solveIterations = 5;
     float frictionCoeff = 0.5f;
 

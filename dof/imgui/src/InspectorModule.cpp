@@ -20,6 +20,7 @@
 #include "generics/IntMath.h"
 #include "TableName.h"
 #include <transform/TransformModule.h>
+#include <Events.h>
 
 namespace InspectorModule {
   struct InspectContext {
@@ -34,7 +35,8 @@ namespace InspectorModule {
           goalX, goalY,
           goalFound,
           seekingGoal,
-          camera
+          camera,
+          events
         )
       }
       , refResolver{ ids->getRefResolver() }
@@ -82,6 +84,7 @@ namespace InspectorModule {
     CachedRow<const FragmentGoalFoundTableTag> goalFound;
     CachedRow<const FragmentSeekingGoalTagRow> seekingGoal;
     CachedRow<Row<Camera>> camera;
+    CachedRow<Events::EventsRow> events;
     std::vector<const StableIDRow*> playerIds;
     std::vector<const StableIDRow*> stableRows;
     std::vector<const StableIDRow*> fragmentIds;
@@ -295,6 +298,15 @@ namespace InspectorModule {
       trySelect(ctx, ctx.cameraIds);
     }
     if(ImGui::Button("Clear Selection")) {
+      clearSelection(ctx);
+    }
+    if(ctx.data->selected.size() && ImGui::Button("Delete Selected")) {
+      for(auto&& s : ctx.data->selected) {
+        const auto id = ctx.refResolver.unpack(s.ref);
+        if(ctx.resolver->tryGetOrSwapRow(ctx.events, id)) {
+          ctx.events->getOrAdd(id.getElementIndex()).setDestroy();
+        }
+      }
       clearSelection(ctx);
     }
   }

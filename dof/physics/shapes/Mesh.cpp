@@ -368,10 +368,10 @@ namespace Shapes {
       const Shapes::MeshAsset* asset = ref ? tableResolver.tryGetOrSwapRowElement(meshAsset, ids.tryUnpack(ref->meshAsset.asset)) : nullptr;
       if(asset) {
         return { ShapeRegistry::Mesh{
+          .modelToWorld = &transform,
+          .worldToModel = &inverse,
           .points = asset->convexHull,
           .aabb = asset->aabb,
-          .modelToWorld = transform,
-          .worldToModel = inverse
         }};
       }
       return {};
@@ -395,10 +395,10 @@ namespace Shapes {
     ShapeRegistry::BodyType classifyShape(const UnpackedDatabaseElementID& id, const Transform::PackedTransform& transform, const Transform::PackedTransform& inverse) final {
       if(const TriangleMesh* ref = tableResolver.tryGetOrSwapRowElement(meshRef, id)) {
         return { ShapeRegistry::Mesh{
+          .modelToWorld = &transform,
+          .worldToModel = &inverse,
           .points = ref->points,
           .aabb = ref->aabb,
-          .modelToWorld = transform,
-          .worldToModel = inverse
         }};
       }
       return {};

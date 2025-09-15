@@ -13,10 +13,11 @@ namespace Test {
   TEST_CLASS(MeshNarrowphaseTest) {
     struct TestMesh {
       operator ShapeRegistry::Mesh() const {
+        inverse = transform.inverse();
         return ShapeRegistry::Mesh{
+          .modelToWorld = &transform,
+          .worldToModel = &inverse,
           .points = points,
-          .modelToWorld = transform,
-          .worldToModel = transform.inverse()
         };
       }
 
@@ -64,6 +65,7 @@ namespace Test {
 
       std::vector<glm::vec2> points;
       Transform::PackedTransform transform;
+      mutable Transform::PackedTransform inverse;
     };
 
     struct TestPair {

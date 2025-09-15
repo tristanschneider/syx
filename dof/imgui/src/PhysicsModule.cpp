@@ -16,6 +16,8 @@
 #include "ThreadLocals.h"
 #include "Random.h"
 #include <transform/TransformResolver.h>
+#include <shapes/ShapeRegistry.h>
+#include <TLSTaskImpl.h>
 
 namespace PhysicsModule {
   void drawIslands(IAppBuilder& builder) {
@@ -108,8 +110,64 @@ namespace PhysicsModule {
     builder.submitTask(std::move(task));
   }
 
+  struct DrawMeshes {
+    void init(RuntimeDatabaseTaskBuilder& task) {
+      res = task.getRefResolver();
+      classifier = PhysicsSimulation::createShapeClassifier(task);
+      query = task;
+      debug = TableAdapters::getDebugLines(task);
+      enabled = ImguiModule::queryIsEnabled(task);
+      config = TableAdapters::getPhysicsConfigMutable(task);
+    }
+
+    void execute() {
+      if(!enabled || !*enabled || !config || !config->drawMesh) {
+        return;
+      }
+      std::vector<glm::vec2> buffer;
+      for(size_t t = 0; t < query.size(); ++t) {
+        auto [_, stables, transforms, inverses] = query.get(t);
+        for(size_t i = 0; i < stables->size(); ++i) {
+          const auto id = res.unpack(stables->at(i));
+          const auto& transform = transforms->at(i);
+
+          const ShapeRegistry::Mesh mesh = std::visit([&](const auto& shape) {
+            return Narrowphase::toMesh(shape, buffer);
+          }, classifier->classifyShape(id, transform, inverses->at(i)).shape);
+
+          if(mesh.points.size()) {
+            //Not all implementations write to buffer, put them here so they can be transformed
+            buffer = mesh.points;
+            for(glm::vec2& p : buffer) {
+              p = transform.transformPoint(p);
+            }
+
+            const glm::vec2* last = &buffer.back();
+            for(const glm::vec2& current : buffer) {
+              DebugDrawer::drawLine(debug, *last, current, glm::vec3{ 1, 0, 0 });
+              last = &current;
+            }
+          }
+        }
+      }
+    }
+
+    ElementRefResolver res;
+    std::shared_ptr<ShapeRegistry::IShapeClassifier> classifier;
+    QueryResult<
+      const Narrowphase::CollisionMaskRow,
+      const StableIDRow,
+      const Transform::WorldTransformRow,
+      const Transform::WorldInverseTransformRow
+    > query;
+    DebugLineAdapter debug;
+    Config::PhysicsConfig* config{};
+    const bool* enabled{};
+  };
+
   void update(IAppBuilder& builder) {
     drawIslands(builder);
+    builder.submitTask(TLSTask::create<DrawMeshes>("Draw Physics Meshes"));
 
     auto task = builder.createTask();
     task.setName("Imgui Physics").setPinning(AppTaskPinning::MainThread{});
@@ -135,6 +193,7 @@ namespace PhysicsModule {
       ImGui::Checkbox("Draw Collision Pairs", &config->drawCollisionPairs);
       ImGui::Checkbox("Draw Contacts", &config->drawContacts);
       ImGui::Checkbox("Draw Broadphase", &config->broadphase.draw);
+      ImGui::Checkbox("Draw Physics Meshes", &config->drawMesh);
       ImGui::End();
     });
     builder.submitTask(std::move(task));
