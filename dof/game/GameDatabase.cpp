@@ -33,6 +33,7 @@
 #include <module/PhysicsEvents.h>
 #include <PhysicsTableBuilder.h>
 #include <transform/TransformModule.h>
+#include <math/AxisFlags.h>
 
 namespace GameDatabase {
   using BroadphaseTable = SweepNPruneBroadphase::BroadphaseTable;
@@ -80,20 +81,11 @@ namespace GameDatabase {
   >;
 
   StorageTableBuilder& addVelocity2D(StorageTableBuilder& table) {
-    return table.addRows<
-      Tags::LinVelXRow,
-      Tags::LinVelYRow,
-      Tags::AngVelRow
-    >();
+    return PhysicsTableBuilder::addVelocity(table, math::AxisFlags::XY().addA());
   }
 
   StorageTableBuilder& addVelocity25D(StorageTableBuilder& table) {
-    return table.addRows<
-      Tags::LinVelXRow,
-      Tags::LinVelYRow,
-      Tags::LinVelZRow,
-      Tags::AngVelRow
-    >();
+    return PhysicsTableBuilder::addVelocity(table, math::AxisFlags::XYZA());
   }
 
   template<class C, class T>
@@ -140,11 +132,11 @@ namespace GameDatabase {
     addVelocity2D(table);
     PhysicsTableBuilder::addCollider(table);
     PhysicsTableBuilder::addRigidbody(table);
+    PhysicsTableBuilder::addAcceleration(table, math::AxisFlags::Y());
     addRenderable(table, {});
     table.addRows<
       Tags::DynamicPhysicsObjectsTag,
       SceneNavigator::IsClearedWithSceneTag,
-      AccelerationY,
       Narrowphase::SharedThicknessRow,
       Shapes::RectangleRow
     >().setStable().setTableName({ "Physics Objects" });
@@ -194,6 +186,7 @@ namespace GameDatabase {
     addVelocity25D(table);
     PhysicsTableBuilder::addCollider(table);
     PhysicsTableBuilder::addRigidbody(table);
+    PhysicsTableBuilder::addAcceleration(table, math::AxisFlags::Z());
     addRenderable(table, RenderableOptions{
       .sharedTexture = true,
       .sharedMesh = false,
@@ -201,7 +194,6 @@ namespace GameDatabase {
     table.addRows<
       Tags::DynamicPhysicsObjectsTag,
       SceneNavigator::IsClearedWithSceneTag,
-      AccelerationZ,
       Narrowphase::SharedThicknessRow,
       Shapes::MeshReferenceRow
     >().setStable().setTableName({ "Physics Convex" });
@@ -244,9 +236,7 @@ namespace GameDatabase {
   }
 
   StorageTableBuilder& addImmobile(StorageTableBuilder& table) {
-    return PhysicsTableBuilder::addImmobile(table).addRows<
-      ZeroMassObjectTableTag
-    >();
+    return PhysicsTableBuilder::addImmobile(table);
   }
 
   StorageTableBuilder createCompletedFragments() {
@@ -328,6 +318,7 @@ namespace GameDatabase {
     PhysicsTableBuilder::addCollider(table);
     PhysicsTableBuilder::addRigidbodySharedMass(table);
     PhysicsTableBuilder::addAutoManagedJoint(table);
+    PhysicsTableBuilder::addAcceleration(table, math::AxisFlags::Z());
     addGameplayCopy(table);
     addGameplayImpulse(table);
     addRenderable(table, {});
@@ -335,7 +326,6 @@ namespace GameDatabase {
       SceneNavigator::IsClearedWithSceneTag,
       IsPlayer,
       Tags::ElementNeedsInitRow,
-      AccelerationZ,
       Narrowphase::SharedThicknessRow,
       Shapes::RectangleRow,
       GameInput::PlayerInputRow,
@@ -447,7 +437,7 @@ namespace GameDatabase {
     setDefaultValue<ConstraintSolver::ConstraintMaskRow>(builder, "setDefault Constraint Mask", ConstraintSolver::MASK_SOLVE_ALL);
     //Fragments in particular start opaque then reveal the texture as they take damage
     setDefaultValue<Tint, const IsFragment>(builder, "setDefault Tint", glm::vec4(0, 0, 0, 1));
-    setDefaultValue<AccelerationZ>(builder, "set acceleration", -0.01f);
+    setDefaultValue<AccelZ>(builder, "set acceleration", -0.01f);
     setDefaultValue<Narrowphase::SharedThicknessRow>(builder, "thickness", 0.1f);
     setDefaultValue<Narrowphase::SharedThicknessRow, const Tags::TerrainRow>(builder, "terrainthickness", 0.0f);
     setDefaultValue<Tags::ElementNeedsInitRow>(builder, "setDefault needsInit", (uint8_t)1);

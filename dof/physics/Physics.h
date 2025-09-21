@@ -9,24 +9,16 @@
 
 class IAppModule;
 
-struct ZeroMassObjectTableTag : SharedRow<char> {};
 struct SpatialQueriesTableTag : SharedRow<char> {};
 
-struct AccelerationX : Row<float> {};
-struct AccelerationY : Row<float> {};
-struct AccelerationZ : Row<float> {};
-
-struct PhysicsAliases {
-  using FloatAlias = QueryAlias<Row<float>>;
-  using TagAlias = QueryAlias<TagRow>;
-
-  FloatAlias linVelX;
-  FloatAlias linVelY;
-  FloatAlias angVel;
-
-  //Optional, without this bodies are considered to be at z=0 and immobile along z
-  FloatAlias linVelZ;
-};
+struct AccelX : Row<float> {};
+struct AccelY : Row<float> {};
+struct AccelZ : Row<float> {};
+struct VelX : Row<float> {};
+struct VelY : Row<float> {};
+//Optional, without this bodies are considered to be at z=0 and immobile along z
+struct VelZ : Row<float> {};
+struct VelA : Row<float> {};
 
 namespace Physics {
   constexpr float DEFAULT_Z = 0;
@@ -35,7 +27,7 @@ namespace Physics {
 
   std::unique_ptr<IAppModule> createModule();
 
-  void integrateVelocity(IAppBuilder& builder, const PhysicsAliases& aliases);
-  void integratePositionAndRotation(IAppBuilder& builder, const PhysicsAliases& aliases);
-  void applyDampingMultiplier(IAppBuilder& builder, const PhysicsAliases& aliases, const float& linearMultiplier, const float& angularMultiplier);
+  void integrateVelocity(IAppBuilder& builder);
+  void integratePositionAndRotation(IAppBuilder& builder);
+  void applyDampingMultiplier(IAppBuilder& builder, const float& linearMultiplier, const float& angularMultiplier);
 };

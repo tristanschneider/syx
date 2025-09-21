@@ -81,18 +81,17 @@ namespace Physics {
     }
   }
 
-  void integrateVelocity(IAppBuilder& builder, const PhysicsAliases& aliases) {
+  void integrateVelocity(IAppBuilder& builder) {
     //Misleading name but the math is the same, add acceleration to velocity
-    integratePositionAxis(builder, aliases.linVelX, ConstFloatQueryAlias::create<const AccelerationX>());
-    integratePositionAxis(builder, aliases.linVelY, ConstFloatQueryAlias::create<const AccelerationY>());
-    integratePositionAxis(builder, aliases.linVelZ, ConstFloatQueryAlias::create<const AccelerationZ>());
+    integratePositionAxis(builder, FloatQueryAlias::create<VelX>(), ConstFloatQueryAlias::create<const AccelX>());
+    integratePositionAxis(builder, FloatQueryAlias::create<VelY>(), ConstFloatQueryAlias::create<const AccelY>());
+    integratePositionAxis(builder, FloatQueryAlias::create<VelZ>(), ConstFloatQueryAlias::create<const AccelZ>());
   }
 
   struct Integrator {
     struct Group {
-      void init(const TableID& _table, const PhysicsAliases& _aliases) {
+      void init(const TableID& _table) {
         table = _table;
-        aliases = _aliases;
       }
 
       void init(RuntimeDatabaseTaskBuilder& task) {
@@ -108,10 +107,10 @@ namespace Physics {
           currentBit <<= 1;
           return result;
         };
-        angVel = tryQuery(aliases.angVel.read());
-        linVelZ = tryQuery(aliases.linVelZ.read());
-        linVelY = tryQuery(aliases.linVelY.read());
-        linVelX = tryQuery(aliases.linVelX.read());
+        angVel = tryQuery(ConstFloatQueryAlias::create<const VelA>());
+        linVelZ = tryQuery(ConstFloatQueryAlias::create<const VelZ>());
+        linVelY = tryQuery(ConstFloatQueryAlias::create<const VelY>());
+        linVelX = tryQuery(ConstFloatQueryAlias::create<const VelX>());
         transformQuery = task.query<Transform::WorldTransformRow, Transform::TransformNeedsUpdateRow>(table);
       }
 
@@ -215,7 +214,6 @@ namespace Physics {
       const Row<float>* linVelZ{};
       const Row<float>* angVel{};
       TableID table;
-      PhysicsAliases aliases;
     };
 
     void init() {}
@@ -228,7 +226,7 @@ namespace Physics {
     std::array<bool, 3> hasAxis{};
   };
 
-  void integratePositionAndRotation(IAppBuilder& builder, const PhysicsAliases& aliases) {
+  void integratePositionAndRotation(IAppBuilder& builder) {
     std::unordered_set<TableID> tables;
     const auto t = QueryAlias<Transform::WorldTransformRow>::create();
     auto addTables = [&](const QueryAlias<Row<float>>& alias) {
@@ -236,20 +234,20 @@ namespace Physics {
         tables.insert(table);
       }
     };
-    addTables(aliases.linVelX);
-    addTables(aliases.linVelY);
-    addTables(aliases.linVelZ);
-    addTables(aliases.angVel);
+    addTables(FloatQueryAlias::create<VelX>());
+    addTables(FloatQueryAlias::create<VelY>());
+    addTables(FloatQueryAlias::create<VelZ>());
+    addTables(FloatQueryAlias::create<VelA>());
 
     for(const TableID& table : tables) {
-      builder.submitTask(TLSTask::createWithArgs<Integrator, Integrator::Group>("IntegratePosition", table, aliases));
+      builder.submitTask(TLSTask::createWithArgs<Integrator, Integrator::Group>("IntegratePosition", table));
     }
   }
 
-  void applyDampingMultiplier(IAppBuilder& builder, const PhysicsAliases& aliases, const float& linearMultiplier, const float& angularMultiplier) {
-    applyDampingMultiplierAxis(builder, aliases.linVelX, linearMultiplier);
-    applyDampingMultiplierAxis(builder, aliases.linVelY, linearMultiplier);
+  void applyDampingMultiplier(IAppBuilder& builder, const float& linearMultiplier, const float& angularMultiplier) {
+    applyDampingMultiplierAxis(builder, FloatQueryAlias::create<VelX>(), linearMultiplier);
+    applyDampingMultiplierAxis(builder, FloatQueryAlias::create<VelY>(), linearMultiplier);
     //Damping on Z doesn't really matter because the primary use case is simple upwards impulses counteracted by gravity
-    applyDampingMultiplierAxis(builder, aliases.angVel, angularMultiplier);
+    applyDampingMultiplierAxis(builder, FloatQueryAlias::create<VelA>(), angularMultiplier);
   }
 }

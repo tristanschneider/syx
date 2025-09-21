@@ -10,8 +10,39 @@
 #include <Constraints.h>
 #include <shapes/Mesh.h>
 #include <RelationModule.h>
+#include <math/AxisFlags.h>
+#include <Physics.h>
 
 namespace PhysicsTableBuilder {
+  StorageTableBuilder& addVelocity(StorageTableBuilder& table, math::AxisFlags axes) {
+    if(axes.hasX()) {
+      table.addRows<VelX>();
+    }
+    if(axes.hasY()) {
+      table.addRows<VelY>();
+    }
+    if(axes.hasZ()) {
+      table.addRows<VelZ>();
+    }
+    if(axes.hasA()) {
+      table.addRows<VelA>();
+    }
+    return table;
+  }
+
+  StorageTableBuilder& addAcceleration(StorageTableBuilder& table, math::AxisFlags axes) {
+    if(axes.hasX()) {
+      table.addRows<AccelX>();
+    }
+    if(axes.hasY()) {
+      table.addRows<AccelY>();
+    }
+    if(axes.hasZ()) {
+      table.addRows<AccelZ>();
+    }
+    return table;
+  }
+
   StorageTableBuilder& addRigidbody(StorageTableBuilder& table) {
     return addMass(table).addRows<
       ConstraintSolver::ConstraintMaskRow,
