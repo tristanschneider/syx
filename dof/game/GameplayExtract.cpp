@@ -7,6 +7,7 @@
 #include "stat/AllStatEffects.h"
 #include "stat/VelocityStatEffect.h"
 #include "AppBuilder.h"
+#include <Physics.h>
 
 namespace GameplayExtract {
   using namespace Tags;
@@ -29,10 +30,10 @@ namespace GameplayExtract {
   }
 
   void extractGameplayData(IAppBuilder& builder) {
-    tryGExtract<LinVel, GLinVel, X>(builder);
-    tryGExtract<LinVel, GLinVel, Y>(builder);
-    tryGExtract<LinVel, GLinVel, Z>(builder);
-    tryGExtract<AngVel, GAngVel, Angle>(builder);
+    tryExtract<VelX, GLinVelXRow>(builder);
+    tryExtract<VelY, GLinVelYRow>(builder);
+    tryExtract<VelZ, FloatRow<GLinVel, Z>>(builder);
+    tryExtract<VelA, FloatRow<GLinVel, Angle>>(builder);
   }
 
   void applyGameplayImpulses(IAppBuilder& builder) {

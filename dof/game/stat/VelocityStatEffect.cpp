@@ -2,6 +2,7 @@
 #include "stat/VelocityStatEffect.h"
 
 #include "AppBuilder.h"
+#include "Physics.h"
 #include "Simulation.h"
 #include "TableAdapters.h"
 
@@ -52,10 +53,10 @@ namespace VelocityStatEffect {
     }
 
     ITableResolver& resolver;
-    CachedRow<FloatRow<Tags::LinVel, Tags::X>> vx;
-    CachedRow<FloatRow<Tags::LinVel, Tags::Y>> vy;
-    CachedRow<FloatRow<Tags::LinVel, Tags::Z>> vz;
-    CachedRow<FloatRow<Tags::AngVel, Tags::Angle>> va;
+    CachedRow<VelX> vx;
+    CachedRow<VelY> vy;
+    CachedRow<VelZ> vz;
+    CachedRow<VelA> va;
     UnpackedDatabaseElementID self;
   };
 
@@ -67,10 +68,7 @@ namespace VelocityStatEffect {
       const VelocityStatEffect::CommandRow
     >();
     using namespace Tags;
-    auto resolver = task.getResolver<
-      FloatRow<LinVel, X>, FloatRow<LinVel, Y>, FloatRow<LinVel, Z>,
-      FloatRow<AngVel, Angle>
-    >();
+    auto resolver = task.getResolver<VelX, VelY, VelZ, VelA>();
     auto ids = task.getIDResolver();
 
     task.setCallback([query, resolver, ids](AppTaskArgs&) mutable {

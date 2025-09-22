@@ -1,12 +1,11 @@
 #pragma once
 
-#include "glm/vec2.hpp"
+#include "glm/vec3.hpp"
 #include "QueryAlias.h"
 #include "AppBuilder.h"
 
 class ITableResolver;
 class RuntimeDatabaseTaskBuilder;
-struct PhysicsAliases;
 class ElementRef;
 class ElementRefResolver;
 
@@ -16,8 +15,7 @@ namespace pt {
   struct Velocities {
     bool lessThan(float epsilon) const;
 
-    glm::vec2 linear{};
-    float linearZ{};
+    glm::vec3 linear{};
     float angular{};
   };
   //Junk to allow sharing code between const and mutable versions of the resolver
@@ -26,14 +24,14 @@ namespace pt {
   struct VelocitiesAlias {
     using Q = QueryAlias<QT>;
 
-    static VelocitiesAlias<QT> create(const PhysicsAliases&);
+    static VelocitiesAlias<QT> create();
 
     Q qLinearX, qLinearY, qLinearZ, qAngular;
     CachedRow<QT> rLinearX, rLinearY, rLinearZ, rAngular;
   };
 
-  template<> static VelocitiesAlias<const Row<float>> VelocitiesAlias<const Row<float>>::create(const PhysicsAliases&);
-  template<> static VelocitiesAlias<Row<float>> VelocitiesAlias<Row<float>>::create(const PhysicsAliases&);
+  template<> static VelocitiesAlias<const Row<float>> VelocitiesAlias<const Row<float>>::create();
+  template<> static VelocitiesAlias<Row<float>> VelocitiesAlias<Row<float>>::create();
 
   using ConstVelocities = VelocitiesAlias<const Row<float>>;
   using MutableVelocities = VelocitiesAlias<Row<float>>;

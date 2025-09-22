@@ -27,23 +27,6 @@ struct ConfigAdapter {
   Config::GameConfig* game{};
 };
 
-struct PhysicsObjectAdapter {
-  BasicRow<float>* linVelX{};
-  BasicRow<float>* linVelY{};
-  BasicRow<float>* angVel{};
-
-  BasicRow<float>* linImpulseX{};
-  BasicRow<float>* linImpulseY{};
-  BasicRow<float>* angImpulse{};
-
-  BasicRow<uint8_t>* collisionMask{};
-};
-
-struct GameObjectAdapter {
-  PhysicsObjectAdapter physics;
-  const StableIDRow* stable{};
-};
-
 struct DebugLineAdapter {
   ~DebugLineAdapter();
 
@@ -64,11 +47,6 @@ namespace TableAdapters {
 
   DebugLineAdapter getDebugLines(RuntimeDatabaseTaskBuilder& task);
   const float* getDeltaTime(RuntimeDatabaseTaskBuilder& task);
-
-  PhysicsObjectAdapter getPhysics(RuntimeDatabaseTaskBuilder& task, const TableID& table);
-  PhysicsObjectAdapter getGameplayPhysics(RuntimeDatabaseTaskBuilder& task, const TableID& table);
-  GameObjectAdapter getGameObject(RuntimeDatabaseTaskBuilder& task, const TableID& table);
-  GameObjectAdapter getGameplayGameObject(RuntimeDatabaseTaskBuilder& task, const TableID& table);
 
   inline glm::vec2 read(size_t i, const Row<float>& a, const Row<float>& b) {
     return { a.at(i), b.at(i) };

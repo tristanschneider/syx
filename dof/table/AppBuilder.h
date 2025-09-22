@@ -235,6 +235,19 @@ struct AppTaskWithMetadata {
   AppTaskMetadata data;
 };
 
+template<IsRow... Rows>
+struct RowTypeList {
+  template<class C>
+  static constexpr auto visit(C&& c) {
+    return c(RowTypeList<Rows...>{});
+  }
+};
+
+template<class T>
+concept IsRowTypeList = requires(T t) {
+  { t.visit([]<IsRow... Rows>(RowTypeList<Rows...>) {}) };
+};
+
 //This is used at configuration time to fetch all data dependences as well as set the callback for the work
 //the work callback uses only the dependencies it previously fetched
 class RuntimeDatabaseTaskBuilder {
@@ -278,6 +291,21 @@ public:
     QueryResult<Rows...> result;
     query(table, result);
     return result;
+  }
+
+  //TODO: compiles but doesn't work with intellisense. Either fix or remove.
+  template<IsRowTypeList T>
+  auto queryList() {
+    return T::visit([this]<IsRow... Rows>(RowTypeList<Rows...>) {
+      return query<Rows...>();
+    });
+  }
+
+  template<IsRowTypeList T>
+  auto queryList(const TableID& table) {
+    return T::visit([&]<IsRow... Rows>(RowTypeList<Rows...>) {
+      return query<Rows...>(table);
+    });
   }
 
   template<class... Rows>
@@ -344,6 +372,10 @@ public:
   void discard();
 
   void logDependency(std::initializer_list<QueryAliasBase> aliases);
+  template<class... Deps>
+  void logDependency() {
+    logDependency({ QueryAlias<Deps>::create()... });
+  }
 
 private:
   template<class T>

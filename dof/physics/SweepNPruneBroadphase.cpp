@@ -56,7 +56,7 @@ namespace SweepNPruneBroadphase {
     builder.submitTask(std::move(task));
   }
 
-  void updateBroadphase(IAppBuilder& builder, const BoundariesConfig&, const PhysicsAliases&) {
+  void updateBroadphase(IAppBuilder& builder, const PhysicsAliases&) {
     registryUpdate(builder);
     Broadphase::SweepGrid::recomputePairs(builder);
     SP::updateSpatialPairsFromBroadphase(builder);
@@ -112,11 +112,6 @@ namespace SweepNPruneBroadphase {
 
   struct ProcessImmobileMigrations {
     struct Group {
-      void init(const PhysicsAliases& a, const BoundariesConfig& c) {
-        physicsAliases = a;
-        config = c;
-      }
-
       void init(RuntimeDatabaseTaskBuilder& task) {
         query = task;
         res = task.getResolver<const MassModule::IsImmobile>();
@@ -125,8 +120,6 @@ namespace SweepNPruneBroadphase {
         grid = task.query<SharedRow<Broadphase::SweepGrid::Grid>>().tryGetSingletonElement();
       }
 
-      PhysicsAliases physicsAliases;
-      BoundariesConfig config;
       QueryResult<
         const Events::EventsRow,
         const StableIDRow,
@@ -164,7 +157,7 @@ namespace SweepNPruneBroadphase {
     }
   };
 
-  void postProcessEvents(IAppBuilder& builder, const PhysicsAliases& aliases, const BoundariesConfig& cfg) {
-    builder.submitTask(TLSTask::createWithArgs<ProcessImmobileMigrations, ProcessImmobileMigrations::Group>("physics post events", aliases, cfg));
+  void postProcessEvents(IAppBuilder& builder) {
+    builder.submitTask(TLSTask::create<ProcessImmobileMigrations, ProcessImmobileMigrations::Group>("physics post events"));
   }
 }

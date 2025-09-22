@@ -458,7 +458,7 @@ namespace Test {
       //This one to the left to collide with 1 but not 2
       transform->at(1).tx = 4.0f;
       //To the right, colliding with 0 but not 1
-      transform->at(2).tx = 6.0f + SweepNPruneBroadphase::BoundariesConfig{}.mPadding;
+      transform->at(2).tx = 6.0f;
 
       game.update();
 
@@ -500,12 +500,12 @@ namespace Test {
       args.fragmentCount = 2;
       game.init(args);
       auto transform = getTransform(game.builder(), game.tables.fragments);
-      auto physics = TableAdapters::getPhysics(game.builder(), game.tables.fragments);
+      auto [vx, va] = game.builder().query<VelX, VelA>(game.tables.fragments).get(0);
       const float expectedOverlap = 0.1f;
       transform->at(0).tx = 5.0f;
-      physics.linVelX->at(0) = 1.0f;
+      vx->at(0) = 1.0f;
       transform->at(1).tx = 6.0f - expectedOverlap;
-      physics.linVelX->at(1) = -1.0f;
+      vx->at(1) = -1.0f;
 
       game.update();
 
@@ -513,8 +513,8 @@ namespace Test {
       const glm::vec2 centerBToContact{ -0.5f, 0.5f };
       const glm::vec2 normal{ -1.0f, 0.0f };
       //Velocity of contact point as velocity of center plus the angular component which is angular velocity cross the center to contact projected onto the x axis
-      const float xVelocityOfAAtContactA = physics.linVelX->at(0) - physics.angVel->at(0)*centerAToContact.y;
-      const float xVelocityOfBAtContactA = physics.linVelX->at(1) - physics.angVel->at(1)*centerBToContact.y;
+      const float xVelocityOfAAtContactA = vx->at(0) - va->at(0)*centerAToContact.y;
+      const float xVelocityOfBAtContactA = vx->at(1) - va->at(1)*centerBToContact.y;
       const float velocityDifference = xVelocityOfAAtContactA + xVelocityOfBAtContactA;
 
       //Need to be pretty loose on the comparison because friction makes the rotation part not completely zero
@@ -620,7 +620,7 @@ namespace Test {
 
     static void assertEnabledContactConstraintCount(TestGame& game, size_t expected) {
       SpatialPairsData pairs{ game.builder() };
-      auto resolver = ConstraintSolver::createResolver(game.builder(), PhysicsSimulation::getPhysicsAliases());
+      auto resolver = ConstraintSolver::createResolver(game.builder());
       size_t actualCount{};
       auto ref = pairs.ids->getRefResolver();
       for(size_t i = 0; i < pairs.manifold->size(); ++i) {
@@ -645,7 +645,7 @@ namespace Test {
 
     static void assertEnabledStaticContactConstraintCount(TestGame& game, size_t expected) {
       SpatialPairsData pairs{ game.builder() };
-      auto resolver = ConstraintSolver::createResolver(game.builder(), PhysicsSimulation::getPhysicsAliases());
+      auto resolver = ConstraintSolver::createResolver(game.builder());
       size_t actualCount{};
       auto ref = pairs.ids->getRefResolver();
       for(size_t i = 0; i < pairs.manifold->size(); ++i) {
@@ -681,15 +681,15 @@ namespace Test {
       auto playerTransform = getTransform(game.builder(), game.tables.player);
       auto fragmentTransform = getTransform(game.builder(), game.tables.fragments);
       auto completedFragmentTransform = getTransform(game.builder(), game.tables.completedFragments);
-      PhysicsObjectAdapter playerPhysics = TableAdapters::getPhysics(game.builder(), game.tables.player);
-      PhysicsObjectAdapter fragmentPhysics = TableAdapters::getPhysics(game.builder(), game.tables.fragments);
+      auto [playerVX] = game.builder().query<VelX>(game.tables.player).get(0);
+      auto [fragmentVX] = game.builder().query<VelX>(game.tables.fragments).get(0);
       SpatialPairsData pairs{ game.builder() };
 
       auto setInitialPos = [&] {
         playerTransform->at(0).setPos({ 1.5f, 0.0f });
         fragmentTransform->at(0).setPos({ 1.0f, 0.0f });
-        playerPhysics.linVelX->at(0) = -0.5f;
-        fragmentPhysics.linVelX->at(0) = 0.5f;
+        playerVX->at(0) = -0.5f;
+        fragmentVX->at(0) = 0.5f;
       };
       setInitialPos();
       game.update();
@@ -698,8 +698,8 @@ namespace Test {
         assertEnabledContactConstraintCount(game, 1);
         assertEnabledStaticContactConstraintCount(game, 0);
         Assert::IsTrue(pairs.tryFindPair(playerId, objectId).has_value());
-        Assert::IsTrue(playerPhysics.linVelX->at(0) > -0.5f + minCorrection, L"Player should be pushed away from object");
-        Assert::IsTrue(fragmentPhysics.linVelX->at(0) < 0.5f - minCorrection, L"Object should be pushed away from player");
+        Assert::IsTrue(playerVX->at(0) > -0.5f + minCorrection, L"Player should be pushed away from object");
+        Assert::IsTrue(fragmentVX->at(0) < 0.5f - minCorrection, L"Object should be pushed away from player");
       };
       assertInitialResolution();
 
@@ -741,7 +741,7 @@ namespace Test {
         assertEnabledStaticContactConstraintCount(game, 1);
         Assert::IsTrue(pairs.tryFindPair(playerId, objectId).has_value());
 
-        Assert::IsTrue(playerPhysics.linVelX->at(0) > -0.5f, L"Player should be pushed away from object");
+        Assert::IsTrue(playerVX->at(0) > -0.5f, L"Player should be pushed away from object");
       };
       assertStaticCollision();
 
@@ -781,7 +781,7 @@ namespace Test {
       cfg.broadphase.cellSizeX = 10.0f;
       cfg.broadphase.cellSizeY = 10.0f;
       //Use negative padding to make the cell size 0.5 instead of 0.7 so overlapping cells are also colliding
-      cfg.broadphase.cellPadding = 0.5f - SweepNPruneBroadphase::BoundariesConfig::UNIT_CUBE_EXTENTS;
+      cfg.broadphase.cellPadding = 0.5f;
       gca.updateConfig.enableFragmentStateMachine = false;
       TestGame game{ std::move(gca) };
       GameArgs args;
@@ -893,28 +893,24 @@ namespace Test {
       game.init(gameArgs);
       auto task = game.builder();
       auto ids = task.getIDResolver();
-      auto fragmentTransform = getTransform(task, game.tables.fragments);
-      PhysicsObjectAdapter fragmentPhysics = TableAdapters::getPhysics(task, game.tables.fragments);
-      auto playerTransform = getTransform(task, game.tables.player);
-      PhysicsObjectAdapter playerPhysics = TableAdapters::getPhysics(task, game.tables.player);
+      auto [fragmentTransform, fvx, fvy, fs] = game.builder().query<Transform::WorldTransformRow, VelX, VelY, StableIDRow>(game.tables.fragments).get(0);
+      auto [playerTransform, pvy, ps] = game.builder().query<Transform::WorldTransformRow, VelY, StableIDRow>(game.tables.player).get(0);
 
-      StableIDRow& stablePlayer = task.query<StableIDRow>(game.tables.player).get<0>(0);
-      StableIDRow& stableFragment = task.query<StableIDRow>(game.tables.fragments).get<0>(0);
-      ElementRef playerId = stablePlayer.at(0);
-      ElementRef objectLeftId = stableFragment.at(0);
-      ElementRef objectRightId = stableFragment.at(1);
+      ElementRef playerId = ps->at(0);
+      ElementRef objectLeftId = fs->at(0);
+      ElementRef objectRightId = fs->at(1);
 
       float initialX[] = { 1.0f, 2.0f, 1.5f };
       float initialY[] = { 1.0f, 1.0f, 1.75f };
       for(size_t i = 0; i < 2; ++i) {
         fragmentTransform->at(i).setPos(glm::vec2{ initialX[i], initialY[i] });
-        fragmentPhysics.linVelY->at(i) = 0.5f;
+        fvy->at(i) = 0.5f;
       }
       glm::vec2 initialRight{ fragmentTransform->at(1).pos2() };
 
       auto setInitialPlayerPos = [&] {
         playerTransform->at(0).setPos({ initialX[2], initialY[2] });
-        playerPhysics.linVelY->at(0) = -0.5f;
+        pvy->at(0) = -0.5f;
       };
       setInitialPlayerPos();
 
@@ -930,9 +926,9 @@ namespace Test {
 
       //Min ia a bit weirder here since the impulse is spread between the two objects and at an angle
       const float minCorrection = 0.05f;
-      Assert::IsTrue(playerPhysics.linVelY->at(0) > -0.5f + minCorrection, L"Player should be pushed away from object");
-      Assert::IsTrue(fragmentPhysics.linVelY->at(0) < 0.5f - minCorrection, L"Object should be pushed away from player");
-      Assert::IsTrue(fragmentPhysics.linVelY->at(1) < 0.5f - minCorrection, L"Object should be pushed away from player");
+      Assert::IsTrue(pvy->at(0) > -0.5f + minCorrection, L"Player should be pushed away from object");
+      Assert::IsTrue(fvy->at(0) < 0.5f - minCorrection, L"Object should be pushed away from player");
+      Assert::IsTrue(fvy->at(1) < 0.5f - minCorrection, L"Object should be pushed away from player");
 
       auto&& [goalFound, goalX, goalY] = task.query<FragmentGoalFoundRow, FloatRow<Tags::FragmentGoal, Tags::X>, FloatRow<Tags::FragmentGoal, Tags::Y>>().get(0);
       goalFound->at(0) = true;
@@ -942,7 +938,7 @@ namespace Test {
       auto resetStaticPos = [&] {
         setInitialPlayerPos();
         fragmentTransform->at(0).setPos({ initialRight.x, initialRight.y + 0.1f });
-        fragmentPhysics.linVelY->at(0) = 0.5f;
+        fvy->at(0) = 0.5f;
       };
 
       resetStaticPos();
@@ -957,8 +953,8 @@ namespace Test {
           { objectLeftId, objectRightId, objectLeftId }
         );
 
-        Assert::IsTrue(playerPhysics.linVelY->at(0) > -0.5f + minCorrection, L"Player should be pushed away from object");
-        Assert::IsTrue(fragmentPhysics.linVelY->at(0) < 0.5f - minCorrection, L"Object should be pushed away from player");
+        Assert::IsTrue(pvy->at(0) > -0.5f + minCorrection, L"Player should be pushed away from object");
+        Assert::IsTrue(fvy->at(0) < 0.5f - minCorrection, L"Object should be pushed away from player");
       };
       assertStaticCollision();
 
@@ -1046,8 +1042,7 @@ namespace Test {
       TestGame game{ std::move(construct) };
       game.init(args);
 
-      PhysicsObjectAdapter fragmentPhysics = TableAdapters::getPhysics(game.builder(), game.tables.fragments);
-      auto fragmentTransform = getTransform(game.builder(), game.tables.fragments);
+      auto [fragmentTransform, fvx, fvy, fva] = game.builder().query<Transform::WorldTransformRow, VelX, VelY, VelA>(game.tables.fragments).get(0);
       for(size_t i = 0; i < OBJ_COUNT; ++i) {
         //Need to move them away from the fragment completion location
         fragmentTransform->at(i).setPos({ 4.f, 0.f });
@@ -1063,9 +1058,9 @@ namespace Test {
       test.shouldRun = false;
       game.update();
 
-      Assert::AreEqual(1.0f, fragmentPhysics.linVelX->at(1), 0.2f);
-      Assert::AreEqual(1.0f, fragmentPhysics.linVelY->at(1), 0.2f);
-      Assert::AreEqual(1.0f, fragmentPhysics.angVel->at(1), 0.2f);
+      Assert::AreEqual(1.0f, fvx->at(1), 0.2f);
+      Assert::AreEqual(1.0f, fvy->at(1), 0.2f);
+      Assert::AreEqual(1.0f, fva->at(1), 0.2f);
       Assert::AreEqual(size_t(1), velLife->size());
       Assert::AreEqual(size_t(0), velLife->at(0));
 
@@ -1076,7 +1071,7 @@ namespace Test {
       Assert::AreEqual(size_t(0), posLife->size());
 
       //Set the values to something to show they don't change after the next update
-      fragmentPhysics.linVelX->at(1) = 0.0f;
+      fvx->at(1) = 0.0f;
       fragmentTransform->at(2).tx = 10.0f;
 
       //After this pos and lambda should be removed and should not have executed again before removal
@@ -1085,15 +1080,15 @@ namespace Test {
       Assert::AreEqual(size_t(0), posLife->size());
       Assert::AreEqual(size_t(0), velLife->size());
       //Assert the unchanged values
-      Assert::AreEqual(1.0f, fragmentPhysics.linVelX->at(1), 0.2f);
+      Assert::AreEqual(1.0f, fvx->at(1), 0.2f);
       Assert::AreEqual(10.0f, fragmentTransform->at(2).tx, 0.1f);
 
-      fragmentPhysics.linVelX->at(1) = 0.0f;
+      fvx->at(1) = 0.0f;
 
       //Should remove velocity
       game.update();
 
-      Assert::AreEqual(0.0f, fragmentPhysics.linVelX->at(1), 0.1f);
+      Assert::AreEqual(0.0f, fvx->at(1), 0.1f);
     }
 
     TEST_METHOD(PlayerInputTest) {
@@ -1118,14 +1113,16 @@ namespace Test {
       args.playerPos = glm::vec2{ 0.0f };
       TestGame game{ args };
 
-      GameObjectAdapter fragment = TableAdapters::getGameObject(game.builder(), game.tables.fragments);
-      GameObjectAdapter completedFragment = TableAdapters::getGameObject(game.builder(), game.tables.completedFragments);
-      GameObjectAdapter player = TableAdapters::getGameObject(game.builder(), game.tables.player);
-      auto setValues = [](GameObjectAdapter obj, float offset) {
-        if(obj.physics.linVelX) {
-          obj.physics.linVelX->at(0) = 0.1f + offset;
-          obj.physics.linVelY->at(0) = 0.2f + offset;
-          obj.physics.angVel->at(0) = 0.3f + offset;
+      using Query = RowTypeList<VelX, VelY, VelA, Tags::GVelXRow, Tags::GVelYRow, Tags::GVelARow>;
+      auto fragment = game.builder().queryList<Query>(game.tables.fragments).get(0);
+      auto completedFragment = game.builder().queryList<Query>(game.tables.completedFragments).get(0);
+      auto player = game.builder().queryList<Query>(game.tables.player).get(0);
+      std::get<0>(fragment)->at(0);
+      auto setValues = [](auto& obj, float offset) {
+        if(std::get<0>(obj)) {
+          std::get<0>(obj)->at(0) = 0.1f + offset;
+          std::get<1>(obj)->at(0) = 0.2f + offset;
+          std::get<2>(obj)->at(0) = 0.3f + offset;
         }
       };
 
@@ -1135,17 +1132,17 @@ namespace Test {
 
       game.update();
 
-      auto assertValues = [](GameObjectAdapter obj, float offset) {
-        if(obj.physics.linVelX) {
-          Assert::AreEqual(0.1f + offset, obj.physics.linVelX->at(0));
-          Assert::AreEqual(0.2f + offset, obj.physics.linVelY->at(0));
-          Assert::AreEqual(0.3f + offset, obj.physics.angVel->at(0));
+      auto assertValues = [](auto& obj, float offset) {
+        if(std::get<0>(obj)) {
+          Assert::AreEqual(0.1f + offset, std::get<3>(obj)->at(0));
+          Assert::AreEqual(0.2f + offset, std::get<4>(obj)->at(0));
+          Assert::AreEqual(0.3f + offset, std::get<5>(obj)->at(0));
         }
       };
 
-      assertValues(TableAdapters::getGameplayGameObject(game.builder(), game.tables.fragments), 1.0f);
-      assertValues(TableAdapters::getGameplayGameObject(game.builder(), game.tables.completedFragments), 2.0f);
-      assertValues(TableAdapters::getGameplayGameObject(game.builder(), game.tables.player), 3.0f);
+      assertValues(fragment, 1.0f);
+      assertValues(completedFragment, 2.0f);
+      assertValues(player, 3.0f);
     }
 
     static auto addGlobalPointForce(TestStatInfo& test) {
@@ -1180,8 +1177,7 @@ namespace Test {
       TestGame game{ std::move(construct) };
       game.init(args);
 
-      GameObjectAdapter fragment = TableAdapters::getGameObject(game.builder(), game.tables.fragments);
-      auto fragmentTransform = getTransform(game.builder(), game.tables.fragments);
+      auto [fragmentTransform, fvx] = game.builder().query<Transform::WorldTransformRow, VelX>(game.tables.fragments).get(0);
       fragmentTransform->at(0).tx = 5.f;
 
       //One update to request the impulse, then the next to apply it
@@ -1193,7 +1189,7 @@ namespace Test {
       game.update();
 
       auto&& [cmd] = game.builder().query<AreaForceStatEffect::CommandRow>().get(0);
-      Assert::IsTrue(fragment.physics.linVelX->at(0) > 0.0f);
+      Assert::IsTrue(fvx->at(0) > 0.0f);
       Assert::AreEqual(size_t(0), cmd->size());
     }
 
@@ -1245,9 +1241,8 @@ namespace Test {
       args.fragmentCount = 1;
       TestGame game{ args };
 
-      auto objs = TableAdapters::getGameObject(game.builder(), game.tables.fragments);
-      auto objTransforms = getTransform(game.builder(), game.tables.fragments);
-      const ElementRef objID = objs.stable->at(0);
+      auto [fs, objTransforms] = game.builder().query<StableIDRow, Transform::WorldTransformRow>(game.tables.fragments).get(0);
+      const ElementRef objID = fs->at(0);
       auto creator = SpatialQuery::createCreator(game.builder());
       ElementRef bb = creator->createQuery({ SpatialQuery::AABB{ glm::vec2(2.0f), glm::vec2(3.5f) } }, 10);
       ElementRef circle = creator->createQuery({ SpatialQuery::Circle{ glm::vec2(0, 5), 1.5f } }, 10);
@@ -1314,27 +1309,26 @@ namespace Test {
       GameArgs args;
       args.fragmentCount = 2;
       TestGame game{ args };
-      GameObjectAdapter objs = TableAdapters::getGameObject(game.builder(), game.tables.fragments);
-      auto objTransforms = getTransform(game.builder(), game.tables.fragments);
+      auto [objTransforms, fcm, fvx] = game.builder().query<Transform::WorldTransformRow, Narrowphase::CollisionMaskRow, VelX>(game.tables.fragments).get(0);
 
       //objTransforms->at(0).setPos({ 1.f, 1.1f });
       objTransforms->at(0).tx = 1;
       objTransforms->at(1).tx = 1.1f;
       objTransforms->at(0).ty = objTransforms->at(1).ty = 0.0f;
-      objs.physics.collisionMask->at(0) = 1 << 2;
-      objs.physics.collisionMask->at(1) = 1 << 1;
+      fcm->at(0) = 1 << 2;
+      fcm->at(1) = 1 << 1;
 
       game.update();
 
-      Assert::AreEqual(0.0f, objs.physics.linVelX->at(0));
-      Assert::AreEqual(0.0f, objs.physics.linVelX->at(1));
+      Assert::AreEqual(0.0f, fvx->at(0));
+      Assert::AreEqual(0.0f, fvx->at(1));
 
-      objs.physics.collisionMask->at(0) |= 1 << 1;
+      fcm->at(0) |= 1 << 1;
 
       game.update();
 
-      Assert::AreNotEqual(0.0f, objs.physics.linVelX->at(0));
-      Assert::AreNotEqual(0.0f, objs.physics.linVelX->at(1));
+      Assert::AreNotEqual(0.0f, fvx->at(0));
+      Assert::AreNotEqual(0.0f, fvx->at(1));
     }
 
     /* TODO

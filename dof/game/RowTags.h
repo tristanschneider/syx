@@ -10,15 +10,11 @@ struct FloatRow : Row<float> {
 };
 
 namespace Tags {
-  //Linear velocity in X and Y
-  struct LinVel{};
-  //Angular velocity in Angle
-  struct AngVel{};
   struct GLinVel{};
   struct GAngVel{};
 
   //Impulses from gameplay to apply. In other words a desired change to LinVel
-  //Equivalent to making a velocity stat effect targeting this elemtn of lifetime 1
+  //Equivalent to making a velocity stat effect targeting this element of lifetime 1
   struct GLinImpulse{};
   struct GAngImpulse{};
 
@@ -43,11 +39,10 @@ namespace Tags {
   using GLinVelXRow = FloatRow<GLinVel, X>;
   using GLinVelYRow = FloatRow<GLinVel, Y>;
   using GAngVelRow = FloatRow<GAngVel, Angle>;
-
-  using LinVelXRow = FloatRow<LinVel, X>;
-  using LinVelYRow = FloatRow<LinVel, Y>;
-  using LinVelZRow = FloatRow<LinVel, Z>;
-  using AngVelRow = FloatRow<AngVel, Angle>;
+  using GVelXRow = GLinVelXRow;
+  using GVelYRow = GLinVelYRow;
+  using GVelZRow = FloatRow<GLinVel, Z>;
+  using GVelARow = GAngVelRow;
 
   struct TerrainRow : TagRow {};
   struct InvisibleTerrainRow : TagRow {};

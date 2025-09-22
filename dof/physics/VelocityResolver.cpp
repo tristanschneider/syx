@@ -4,7 +4,6 @@
 #include "AppBuilder.h"
 #include "QueryAlias.h"
 #include "Physics.h"
-
 #include <math/Geometric.h>
 
 namespace pt {
@@ -13,20 +12,20 @@ namespace pt {
   }
 
   template<class T>
-  VelocitiesAlias<T> createAlias(const PhysicsAliases& tables) {
+  VelocitiesAlias<T> createAlias() {
     return VelocitiesAlias<T> {
-      .qLinearX{ tables.linVelX },
-      .qLinearY{ tables.linVelY },
-      .qLinearZ{ tables.linVelZ },
-      .qAngular{ tables.angVel }
+      .qLinearX{ FloatQueryAlias::create<VelX>() },
+      .qLinearY{ FloatQueryAlias::create<VelY>() },
+      .qLinearZ{ FloatQueryAlias::create<VelZ>() },
+      .qAngular{ FloatQueryAlias::create<VelA>() }
     };
   }
 
-  template<> static VelocitiesAlias<const Row<float>> VelocitiesAlias<const Row<float>>::create(const PhysicsAliases& tables) {
-    return createAlias<const Row<float>>(tables);
+  template<> static VelocitiesAlias<const Row<float>> VelocitiesAlias<const Row<float>>::create() {
+    return createAlias<const Row<float>>();
   }
-  template<> static VelocitiesAlias<Row<float>> VelocitiesAlias<Row<float>>::create(const PhysicsAliases& tables) {
-    return createAlias<Row<float>>(tables);
+  template<> static VelocitiesAlias<Row<float>> VelocitiesAlias<Row<float>>::create() {
+    return createAlias<Row<float>>();
   }
 
   std::shared_ptr<ITableResolver> getResolver(RuntimeDatabaseTaskBuilder& task, const VelocitiesVariant& tables) {
@@ -59,8 +58,7 @@ namespace pt {
             z = alias.rLinearZ->at(i);
           }
           return Velocities{
-            .linear{ alias.rLinearX->at(i), alias.rLinearY->at(i) },
-            .linearZ{ z },
+            .linear{ alias.rLinearX->at(i), alias.rLinearY->at(i), z },
             .angular{ alias.rAngular->at(i) }
           };
         }
@@ -77,7 +75,7 @@ namespace pt {
       a.rLinearX->at(i) = v.linear.x;
       a.rLinearY->at(i) = v.linear.y;
       if(a.rLinearZ) {
-        a.rLinearZ->at(i) = v.linearZ;
+        a.rLinearZ->at(i) = v.linear.z;
       }
       a.rAngular->at(i) = v.angular;
     }

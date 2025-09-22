@@ -19,7 +19,7 @@ namespace Scenes {
       auto objs = task.query<
         Tags::DynamicPhysicsObjectsTag,
         Transform::WorldTransformRow,
-        AccelerationY,
+        AccelY,
         Events::EventsRow
       >();
       auto terrain = task.query<

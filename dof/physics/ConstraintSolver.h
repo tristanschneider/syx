@@ -4,7 +4,6 @@
 #include "Table.h"
 
 class IAppBuilder;
-struct PhysicsAliases;
 class RuntimeDatabaseTaskBuilder;
 struct UnpackedDatabaseElementID;
 
@@ -61,7 +60,7 @@ namespace ConstraintSolver {
 
   //Uses the islands from SpatialQueryStorage and the narrowphase information stored there from the narrowphase
   //to solve the constraints. The velocities for it are extracted from the corresponding physics aliases then written back out
-  void solveConstraints(IAppBuilder& builder, const PhysicsAliases& tables, const SolverGlobals& globals);
+  void solveConstraints(IAppBuilder& builder, const SolverGlobals& globals);
 
-  std::unique_ptr<IBodyResolver> createResolver(RuntimeDatabaseTaskBuilder& task, const PhysicsAliases& tables);
+  std::unique_ptr<IBodyResolver> createResolver(RuntimeDatabaseTaskBuilder& task);
 }

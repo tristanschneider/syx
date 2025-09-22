@@ -26,38 +26,38 @@ namespace ConstraintSolver {
     };
     struct ShapeResolverCache {
       ShapeResolverCommonCache common;
-      CachedRow<Row<float>> linVelX;
-      CachedRow<Row<float>> linVelY;
-      CachedRow<Row<float>> angVel;
+      CachedRow<VelX> linVelX;
+      CachedRow<VelY> linVelY;
+      CachedRow<VelA> angVel;
     };
     struct ZShapeResolverCache {
       ShapeResolverCommonCache common;
-      CachedRow<Row<float>> linVelZ;
+      CachedRow<VelZ> linVelZ;
     };
     struct ShapeResolver {
-      static ShapeResolver createXYResolver(RuntimeDatabaseTaskBuilder& task, const PhysicsAliases& tableIds) {
+      static ShapeResolver createXYResolver(RuntimeDatabaseTaskBuilder& task) {
+        task.logDependency<VelX, VelY, VelA>();
         return {
-          tableIds,
           createCommonResolver(task),
-          task.getAliasResolver(tableIds.linVelX, tableIds.linVelY, tableIds.angVel)
         };
       }
 
-      static ShapeResolver createZResolver(RuntimeDatabaseTaskBuilder& task, const PhysicsAliases& tableIds) {
+      static ShapeResolver createZResolver(RuntimeDatabaseTaskBuilder& task) {
+        task.logDependency<VelZ>();
         return {
-          tableIds,
           createCommonResolver(task),
-          task.getAliasResolver(tableIds.linVelZ)
         };
       }
 
       static std::shared_ptr<ITableResolver> createCommonResolver(RuntimeDatabaseTaskBuilder& task) {
-        return task.getResolver<const MassModule::MassRow, const SharedMaterialRow, const ConstraintMaskRow>();
+        return task.getResolver<
+          const MassModule::MassRow,
+          const SharedMaterialRow,
+          const ConstraintMaskRow
+        >();
       }
 
-      PhysicsAliases tables;
       std::shared_ptr<ITableResolver> resolver;
-      std::shared_ptr<ITableResolver> aliasResolver;
     };
     struct ShapeResolverContext {
       const ShapeResolver& resolver;
@@ -72,15 +72,11 @@ namespace ConstraintSolver {
       static CommonShapeResolverContext create(Context& c) {
         return {
           *c.resolver.resolver,
-          *c.resolver.aliasResolver,
-          c.resolver.tables,
           c.cache.common
         };
       }
 
       ITableResolver& resolver;
-      ITableResolver& aliasResolver;
-      const PhysicsAliases& tables;
       ShapeResolverCommonCache& cache;
     };
 
@@ -92,14 +88,14 @@ namespace ConstraintSolver {
 
     BodyVelocity resolveBodyVelocity(ShapeResolverContext& ctx, const UnpackedDatabaseElementID& id) {
       BodyVelocity result;
-      result.linearX = ctx.resolver.resolver->tryGetOrSwapRowAliasElement(ctx.resolver.tables.linVelX, ctx.cache.linVelX, id);
-      result.linearY = ctx.resolver.resolver->tryGetOrSwapRowAliasElement(ctx.resolver.tables.linVelY, ctx.cache.linVelY, id);
-      result.angular = ctx.resolver.resolver->tryGetOrSwapRowAliasElement(ctx.resolver.tables.angVel, ctx.cache.angVel, id);
+      result.linearX = ctx.resolver.resolver->tryGetOrSwapRowElement(ctx.cache.linVelX, id);
+      result.linearY = ctx.resolver.resolver->tryGetOrSwapRowElement(ctx.cache.linVelY, id);
+      result.angular = ctx.resolver.resolver->tryGetOrSwapRowElement(ctx.cache.angVel, id);
       return result;
     }
 
     float* resolveBodyVelocity(ZShapeResolverContext& ctx, const UnpackedDatabaseElementID& id) {
-      return ctx.resolver.resolver->tryGetOrSwapRowAliasElement(ctx.resolver.tables.linVelZ, ctx.cache.linVelZ, id);
+      return ctx.resolver.resolver->tryGetOrSwapRowElement(ctx.cache.linVelZ, id);
     }
 
     ConstraintMask resolveConstraintMask(CommonShapeResolverContext& ctx, const UnpackedDatabaseElementID& id) {
@@ -834,7 +830,7 @@ namespace ConstraintSolver {
     }
   }
 
-  void solveIslandZ(RuntimeDatabaseTaskBuilder& task, std::shared_ptr<IslandSolverCollection> collection, const PhysicsAliases& tables, const SolverGlobals& globals) {
+  void solveIslandZ(RuntimeDatabaseTaskBuilder& task, std::shared_ptr<IslandSolverCollection> collection, const SolverGlobals& globals) {
     task.setName("solve Z islands");
     const IslandGraph::Graph* graph = task.query<const SP::IslandGraphRow>().tryGetSingletonElement();
     auto pairs = task.query<
@@ -843,7 +839,7 @@ namespace ConstraintSolver {
       const SP::PairTypeRow
     >();
     auto ids = task.getIDResolver();
-    Resolver::ShapeResolver shapes{ Resolver::ShapeResolver::createZResolver(task, tables) };
+    Resolver::ShapeResolver shapes{ Resolver::ShapeResolver::createZResolver(task) };
 
     //Gather all pairs that require Z solving into an array
     //Gather all bodies in those pairs into an array with a mapping
@@ -1065,7 +1061,7 @@ namespace ConstraintSolver {
     }
   }
 
-  void solveIsland(IAppBuilder& builder, const PhysicsAliases& tables, const SolverGlobals& globals) {
+  void solveIsland(IAppBuilder& builder, const SolverGlobals& globals) {
     auto task = builder.createTask();
     task.setName("solve islands");
     auto collection = std::make_shared<IslandSolverCollection>();
@@ -1074,7 +1070,7 @@ namespace ConstraintSolver {
     //Evaluate islands and create the tasks, Narrowphase can be in progress while this is running
     createSolvers(builder, collection, { task.getConfig(), solveZ.getConfig() });
     //Z solving is configured by createSolvers and can run in parallel to the normal XZ solving below
-    solveIslandZ(solveZ, collection, tables, globals);
+    solveIslandZ(solveZ, collection, globals);
     builder.submitTask(std::move(solveZ));
 
     const IslandGraph::Graph* graph = task.query<const SP::IslandGraphRow>().tryGetSingletonElement();
@@ -1083,7 +1079,7 @@ namespace ConstraintSolver {
       SP::ConstraintRow,
       const SP::PairTypeRow
     >();
-    Resolver::ShapeResolver shapes{ Resolver::ShapeResolver::createXYResolver(task, tables) };
+    Resolver::ShapeResolver shapes{ Resolver::ShapeResolver::createXYResolver(task) };
     auto ids = task.getIDResolver();
 
     task.setCallback([shapes, pairs, graph, collection, ids, globals](AppTaskArgs& args) mutable {
@@ -1133,11 +1129,11 @@ namespace ConstraintSolver {
     builder.submitTask(std::move(task));
   }
 
-  void solveConstraints(IAppBuilder& builder, const PhysicsAliases& tables, const SolverGlobals& globals) {
-    solveIsland(builder, tables, globals);
+  void solveConstraints(IAppBuilder& builder, const SolverGlobals& globals) {
+    solveIsland(builder, globals);
   }
 
-  std::unique_ptr<IBodyResolver> createResolver(RuntimeDatabaseTaskBuilder& task, const PhysicsAliases& tables) {
-    return std::make_unique<Resolver::BodyResolver>(Resolver::ShapeResolver::createXYResolver(task, tables));
+  std::unique_ptr<IBodyResolver> createResolver(RuntimeDatabaseTaskBuilder& task) {
+    return std::make_unique<Resolver::BodyResolver>(Resolver::ShapeResolver::createXYResolver(task));
   }
 }

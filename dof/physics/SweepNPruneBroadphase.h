@@ -9,7 +9,6 @@
 #include "AppBuilder.h"
 
 class RuntimeDatabaseTaskBuilder;
-struct PhysicsAliases;
 
 //SweepNPrune is the base data structure containing no dependencies on table,
 //this is the wrapper around it to facilitate use within Simulation
@@ -30,15 +29,7 @@ namespace SweepNPruneBroadphase {
     SharedRow<PairChanges>
   >;
 
-  struct BoundariesConfig {
-    const static inline float UNIT_CUBE_EXTENTS = std::sqrt(0.5f*0.5f + 0.5f*0.5f);
-    //Distance from pos to extent used to compute where this is relative to its boundaries
-    float mHalfSize = UNIT_CUBE_EXTENTS;
-    //The amount the boundaries are extended past the size when modifying boundaries
-    float mPadding = 0.0f;
-  };
-
-  void updateBroadphase(IAppBuilder& builder, const BoundariesConfig& cfg, const PhysicsAliases& aliases);
+  void updateBroadphase(IAppBuilder& builder);
 
   //Before table service
   //New elements are added to the broadphase if they have a broadphase key row
@@ -47,5 +38,5 @@ namespace SweepNPruneBroadphase {
   void preProcessEvents(IAppBuilder& builder);
 
   //After table service
-  void postProcessEvents(IAppBuilder& builder, const PhysicsAliases& aliases, const BoundariesConfig& cfg);
+  void postProcessEvents(IAppBuilder& builder);
 };
