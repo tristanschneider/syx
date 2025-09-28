@@ -11,6 +11,7 @@
 #include "ConstraintSolver.h"
 #include "IGame.h"
 #include <transform/TransformRows.h>
+#include <Physics.h>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -109,9 +110,9 @@ namespace Test {
     struct TestObject {
       TestObject(ITableResolver& resolver, const UnpackedDatabaseElementID& d) {
         CachedRow<Transform::WorldTransformRow> transform;
-        CachedRow<Tags::LinVelZRow> linVelZ;
-        CachedRow<Tags::LinVelXRow> linVelX;
-        CachedRow<Tags::LinVelYRow> linVelY;
+        CachedRow<VelZ> linVelZ;
+        CachedRow<VelX> linVelX;
+        CachedRow<VelY> linVelY;
         CachedRow<Narrowphase::SharedThicknessRow> sharedThickness;
         dTransform = resolver.tryGetOrSwapRowElement(transform, d);
         dVel = resolver.tryGetOrSwapRowElement(linVelZ, d);

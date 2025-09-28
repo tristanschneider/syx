@@ -13,6 +13,7 @@
 #include "PhysicsSimulation.h"
 #include <module/MassModule.h>
 #include <transform/TransformModule.h>
+#include <Physics.h>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -22,13 +23,13 @@ namespace Test {
       PhysicsRows(RuntimeTable& table)
         : stable{ table.tryGet<StableIDRow>() }
         , transform{ table.tryGet<Transform::WorldTransformRow>() }
-        , linVelX{ table.tryGet<Tags::LinVelXRow>() }
+        , linVelX{ table.tryGet<VelX>() }
       {
       }
 
       StableIDRow* stable{};
       Transform::WorldTransformRow* transform{};
-      Tags::LinVelXRow* linVelX{};
+      VelX* linVelX{};
     };
 
     struct Indices {

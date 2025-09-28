@@ -97,17 +97,17 @@ namespace GameDatabase {
   }
 
   StorageTableBuilder& addGameplayCopy(StorageTableBuilder& table) {
-    addIf<Tags::LinVelXRow, Tags::GLinVelXRow>(table);
-    addIf<Tags::LinVelYRow, Tags::GLinVelYRow>(table);
-    addIf<Tags::AngVelRow, Tags::GAngVelRow>(table);
+    addIf<VelX, Tags::GLinVelXRow>(table);
+    addIf<VelY, Tags::GLinVelYRow>(table);
+    addIf<VelA, Tags::GAngVelRow>(table);
     return table;
   }
 
   StorageTableBuilder& addGameplayImpulse(StorageTableBuilder& table) {
-    addIf<Tags::LinVelXRow, Tags::GLinImpulseXRow>(table);
-    addIf<Tags::LinVelYRow, Tags::GLinImpulseYRow>(table);
-    addIf<Tags::LinVelZRow, Tags::GLinImpulseZRow>(table);
-    addIf<Tags::AngVelRow, Tags::GAngImpulseRow>(table);
+    addIf<VelX, Tags::GLinImpulseXRow>(table);
+    addIf<VelY, Tags::GLinImpulseYRow>(table);
+    addIf<VelZ, Tags::GLinImpulseZRow>(table);
+    addIf<VelA, Tags::GAngImpulseRow>(table);
     return table;
   }
 

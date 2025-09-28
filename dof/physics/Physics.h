@@ -20,14 +20,19 @@ struct VelY : Row<float> {};
 struct VelZ : Row<float> {};
 struct VelA : Row<float> {};
 
+namespace ShapeRegistry {
+  struct IShapeClassifier;
+}
+
 namespace Physics {
   constexpr float DEFAULT_Z = 0;
 
   //TODO: expose createDatabase here rather than having gameplay create the physics tables
 
-  std::unique_ptr<IAppModule> createModule();
+  std::unique_ptr<IAppModule> createModule(std::function<size_t(RuntimeDatabaseTaskBuilder&)> threadCount);
 
   void integrateVelocity(IAppBuilder& builder);
   void integratePositionAndRotation(IAppBuilder& builder);
   void applyDampingMultiplier(IAppBuilder& builder, const float& linearMultiplier, const float& angularMultiplier);
+  std::shared_ptr<ShapeRegistry::IShapeClassifier> createShapeClassifier(RuntimeDatabaseTaskBuilder& task);
 };

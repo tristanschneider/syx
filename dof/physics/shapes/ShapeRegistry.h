@@ -10,7 +10,6 @@
 
 struct UnpackedDatabaseElementID;
 class IAppBuilder;
-struct PhysicsAliases;
 class RuntimeDatabaseTaskBuilder;
 class ITableResolver;
 

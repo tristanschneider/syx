@@ -29,8 +29,6 @@ ThreadLocalsInstance::ThreadLocalsInstance() = default;
 ThreadLocalsInstance::~ThreadLocalsInstance() = default;
 
 void Simulation::buildUpdateTasks(IAppBuilder& builder, const UpdateConfig& config) {
-  GameplayExtract::extractGameplayData(builder);
-
   Loader::processRequests(builder);
 
   PhysicsSimulation::updatePhysics(builder);
@@ -97,26 +95,6 @@ void Simulation::init(IAppBuilder& builder) {
   GameDatabase::configureDefaults(builder);
   StatEffect::init(builder);
   Player::init(builder);
-  PhysicsSimulation::init(builder);
-
-  {
-    auto task = builder.createTask();
-    task.setName("load config");
-    Config::GameConfig* gameConfig = TableAdapters::getGameConfigMutable(task);
-    FileSystem* fs = task.query<SharedRow<FileSystem>>().tryGetSingletonElement();
-    task.setCallback([gameConfig, fs](AppTaskArgs&) mutable {
-      if(std::optional<std::string> buffer = fs ? File::readEntireFile(*fs, Simulation::getConfigName()) : std::nullopt) {
-        ConfigIO::Result result = ConfigIO::deserializeJson(*buffer, *Config::createFactory());
-        std::visit([&](auto&& r) { tryInitFromConfig(*gameConfig, std::move(r)); }, std::move(result.value));
-      }
-      else if(gameConfig) {
-        tryInitFromConfig(*gameConfig, ConfigIO::Result::Error{});
-      }
-    });
-    builder.submitTask(std::move(task));
-  }
-
-  PhysicsSimulation::initFromConfig(builder);
 }
 
 void resetInput(IAppBuilder& builder) {
@@ -132,6 +110,43 @@ void resetInput(IAppBuilder& builder) {
     });
   });
   builder.submitTask(std::move(task));
+}
+
+class ConfigModule : public IAppModule {
+public:
+  //Read config file to populate Config::GameConfig which other modules can read in their init.
+  //As such, this module is registered early.
+  void init(IAppBuilder& builder) {
+    auto task = builder.createTask();
+    task.setName("load config");
+    Config::GameConfig* gameConfig = TableAdapters::getGameConfigMutable(task);
+    FileSystem* fs = task.query<SharedRow<FileSystem>>().tryGetSingletonElement();
+    task.setCallback([gameConfig, fs](AppTaskArgs&) mutable {
+      if(std::optional<std::string> buffer = fs ? File::readEntireFile(*fs, Simulation::getConfigName()) : std::nullopt) {
+        ConfigIO::Result result = ConfigIO::deserializeJson(*buffer, *Config::createFactory());
+        std::visit([&](auto&& r) { tryInitFromConfig(*gameConfig, std::move(r)); }, std::move(result.value));
+      }
+      else if(gameConfig) {
+        tryInitFromConfig(*gameConfig, ConfigIO::Result::Error{});
+      }
+    });
+    builder.submitTask(std::move(task));
+  }
+};
+
+std::unique_ptr<IAppModule> Simulation::createConfigModule() {
+  return std::make_unique<ConfigModule>();
+}
+
+class GameplayExtractModule : public IAppModule {
+public:
+  void update(IAppBuilder& builder) final {
+    GameplayExtract::extractGameplayData(builder);
+  }
+};
+
+std::unique_ptr<IAppModule> Simulation::createGameplayExtract() {
+  return std::make_unique<GameplayExtractModule>();
 }
 
 class SimulationModule : public IAppModule {
@@ -161,13 +176,8 @@ public:
   }
 
   virtual void preProcessEvents(IAppBuilder& builder) {
-    PhysicsSimulation::preProcessEvents(builder);
     Fragment::preProcessEvents(builder);
     FragmentStateMachine::preProcessEvents(builder);
-  }
-
-  virtual void postProcessEvents(IAppBuilder& builder) {
-    PhysicsSimulation::postProcessEvents(builder);
   }
 
   Simulation::UpdateConfig config;

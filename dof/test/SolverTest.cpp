@@ -63,21 +63,12 @@ namespace Test {
       TableID dynamicBodies, staticBodies, spatialPairs;
     };
 
-    struct TestAliases : PhysicsAliases {
-      TestAliases() {
-        linVelX = FloatQueryAlias::create<LinVelX>();
-        linVelY = FloatQueryAlias::create<LinVelY>();
-        linVelZ = FloatQueryAlias::create<LinVelZ>();
-        angVel = FloatQueryAlias::create<AngVel>();
-      }
-    };
-
     struct SolverApp : TestApp {
       SolverApp() {
         initMTFromDB<SolverDB>([](IAppBuilder& builder) {
           static float bias = ConstraintSolver::SolverGlobals::BIAS_DEFAULT;
           static float slop = ConstraintSolver::SolverGlobals::SLOP_DEFAULT;
-          ConstraintSolver::solveConstraints(builder, TestAliases{}, { &bias, &slop });
+          ConstraintSolver::solveConstraints(builder, { &bias, &slop });
         });
 
         builder().query<ConstraintSolver::ConstraintMaskRow>().forEachRow([](auto& row) {

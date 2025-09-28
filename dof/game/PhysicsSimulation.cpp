@@ -18,21 +18,6 @@
 #include <Physics.h>
 
 namespace PhysicsSimulation {
-  using LinVelX = FloatRow<Tags::LinVel, Tags::X>;
-  using LinVelY = FloatRow<Tags::LinVel, Tags::Y>;
-  using AngVel = FloatRow<Tags::AngVel, Tags::Angle>;
-  //For now use the existence of this row to indicate that the given object should participate in collision
-  using HasCollision = Row<CubeSprite>;
-
-  SweepNPruneBroadphase::BoundariesConfig _getBoundariesConfig(IAppBuilder& builder) {
-    auto temp = builder.createTask();
-    const Config::GameConfig& cfg = *temp.query<const SharedRow<Config::GameConfig>>().tryGetSingletonElement();
-    temp.discard();
-    SweepNPruneBroadphase::BoundariesConfig result;
-    result.mPadding = cfg.physics.broadphase.cellPadding;
-    return result;
-  }
-
   void _debugUpdate(IAppBuilder& builder, const Config::PhysicsConfig& config) {
     auto task = builder.createTask();
     task.setName("physics debug");
@@ -76,14 +61,10 @@ namespace PhysicsSimulation {
     builder.submitTask(std::move(task));
   }
 
-  std::shared_ptr<ShapeRegistry::IShapeClassifier> createShapeClassifier(RuntimeDatabaseTaskBuilder& task) {
-    return ShapeRegistry::get(task)->createShapeClassifier(task);
-  }
-
   class PhysicsBodyResolver : public IPhysicsBodyResolver {
   public:
     PhysicsBodyResolver(RuntimeDatabaseTaskBuilder& task)
-      : shape(createShapeClassifier(task))
+      : shape(Physics::createShapeClassifier(task))
       , ids(task.getIDResolver())
       , resolver(task.getResolver(lvx, lvy, av))
       , transformResolver{ task, Transform::ResolveOps{}.addInverse() }
@@ -126,97 +107,11 @@ namespace PhysicsSimulation {
     return std::make_shared<PhysicsBodyResolver>(task);
   }
 
-  void init(IAppBuilder& builder) {
-    auto task = builder.createTask();
-    task.setName("init physics");
-    auto query = task.query<SweepNPruneBroadphase::BroadphaseKeys>();
-    task.setCallback([query](AppTaskArgs&) mutable {
-      query.forEachRow([](auto& row) { row.setDefaultValue(Broadphase::SweepGrid::EMPTY_KEY); });
-    });
-    builder.submitTask(std::move(task));
-
-    auto temp = builder.createTask();
-    temp.discard();
-    ShapeRegistry::IShapeRegistry* reg = ShapeRegistry::getMutable(temp);
-    Shapes::registerDefaultShapes(*reg);
-    ShapeRegistry::finalizeRegisteredShapes(builder);
-    Constraints::init(builder);
-  }
-
-  void initFromConfig(IAppBuilder& builder) {
-    auto task = builder.createTask();
-    task.setName("init physics from config");
-    const Config::PhysicsConfig* config = TableAdapters::getPhysicsConfig(task);
-    auto query = task.query<SharedRow<Broadphase::SweepGrid::Grid>>();
-    task.setCallback([query, config](AppTaskArgs&) mutable {
-      for(size_t t = 0; t < query.size(); ++t) {
-        auto& grid = query.get<0>(t).at();
-        grid.definition.bottomLeft = { config->broadphase.bottomLeftX, config->broadphase.bottomLeftY };
-        grid.definition.cellSize = { config->broadphase.cellSizeX, config->broadphase.cellSizeY };
-        grid.definition.cellsX = config->broadphase.cellCountX;
-        grid.definition.cellsY = config->broadphase.cellCountY;
-        Broadphase::SweepGrid::init(grid);
-      }
-    });
-    builder.submitTask(std::move(task));
-  }
-
-  PhysicsAliases getPhysicsAliases() {
-    PhysicsAliases aliases;
-
-    using FloatAlias = QueryAlias<Row<float>>;
-    aliases.linVelX = FloatAlias::create<FloatRow<Tags::LinVel, Tags::X>>();
-    aliases.linVelY = FloatAlias::create<FloatRow<Tags::LinVel, Tags::Y>>();
-    aliases.linVelZ = FloatAlias::create<FloatRow<Tags::LinVel, Tags::Z>>();
-    aliases.angVel = FloatAlias::create<FloatRow<Tags::AngVel, Tags::Angle>>();
-
-    return aliases;
-  }
-
-  PhysicsAliases getGameplayPhysicsAliases() {
-    using F = QueryAlias<Row<float>>;
-    using T = QueryAlias<TagRow>;
-    return PhysicsAliases {
-      .linVelX = F::create<FloatRow<Tags::GLinVel, Tags::X>>(),
-      .linVelY = F::create<FloatRow<Tags::GLinVel, Tags::Y>>(),
-      .angVel = F::create<FloatRow<Tags::GAngVel, Tags::Angle>>(),
-      .linVelZ = F::create<FloatRow<Tags::GLinVel, Tags::Z>>(),
-    };
-  }
-
   void updatePhysics(IAppBuilder& builder) {
     auto temp = builder.createTask();
-    const Config::PhysicsConfig& config = temp.query<SharedRow<Config::GameConfig>>().tryGetSingletonElement()->physics;
-
-    //TODO: move to config
-    static float biasTerm = ConstraintSolver::SolverGlobals::BIAS_DEFAULT;
-    static float slop = ConstraintSolver::SolverGlobals::SLOP_DEFAULT;
-    ConstraintSolver::SolverGlobals globals{
-      &biasTerm,
-      &slop
-    };
     temp.discard();
-
-    const PhysicsAliases aliases = getPhysicsAliases();
-    Physics::integrateVelocity(builder, aliases);
-    Physics::applyDampingMultiplier(builder, aliases, config.linearDragMultiplier, config.angularDragMultiplier);
-    SweepNPruneBroadphase::updateBroadphase(builder, _getBoundariesConfig(builder), aliases);
-    Constraints::update(builder, globals);
-
-    Narrowphase::generateContactsFromSpatialPairs(builder, TableAdapters::getThreadCount(temp));
-    ConstraintSolver::solveConstraints(builder, aliases, globals);
-
-    Physics::integratePositionAndRotation(builder, aliases);
-
+    const Config::PhysicsConfig& config = temp.query<SharedRow<Config::GameConfig>>().tryGetSingletonElement()->physics;
+    //TODO: diagnostics module that physics can depend on so this moves to Physics project
     _debugUpdate(builder, config);
-  }
-
-  void preProcessEvents(IAppBuilder& builder) {
-    SweepNPruneBroadphase::preProcessEvents(builder);
-  }
-
-  void postProcessEvents(IAppBuilder& builder) {
-    SweepNPruneBroadphase::postProcessEvents(builder, getPhysicsAliases(), _getBoundariesConfig(builder));
-    Constraints::postProcessEvents(builder);
   }
 }

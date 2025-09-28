@@ -143,7 +143,7 @@ namespace Test {
     nav.navigator->navigateTo(nav.scenes->fragment);
 
     //Needed for Test.cpp tests written before Z was introduced
-    b.query<AccelerationZ>().forEachRow([](auto& v) { v.setDefaultValue(0.0f); });
+    b.query<AccelZ>().forEachRow([](auto& v) { v.setDefaultValue(0.0f); });
 
     //Update once to run events which will populate the broadphase
     //I have accidentally introduced delays multiple times that I don't know the source of but am not concerned about it at the moment.

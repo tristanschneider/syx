@@ -156,25 +156,6 @@ namespace BasicLoaders {
     }
   };
 
-  struct VelocityLoader {
-    using src_row = Loader::Vec4Row;
-    static constexpr std::string_view NAME = "Velocity";
-
-    static constexpr DBTypeID HASH = Loader::getDynamicRowKey<Loader::Vec4Row>("Velocity");
-
-    static void load(const IRow& src, RuntimeTable& dst, gnx::IndexRange range) {
-      using namespace gnx::func;
-      using namespace Reflection;
-
-      const Loader::Vec4Row& s = static_cast<const Loader::Vec4Row&>(src);
-      tryLoadRow<Tags::LinVelXRow>(s, dst, range, GetX{});
-      tryLoadRow<Tags::LinVelYRow>(s, dst, range, GetY{});
-      tryLoadRow<Tags::LinVelZRow>(s, dst, range, GetZ{});
-
-      tryLoadRow<Tags::AngVelRow>(s, dst, range, GetW{});
-    }
-  };
-
   struct MatMeshLoader {
     using src_row = Loader::MatMeshRefRow;
     static constexpr std::string_view NAME = src_row::KEY;
@@ -197,10 +178,6 @@ namespace BasicLoaders {
       using namespace Reflection;
       Reflection::registerLoaders(builder,
         createRowLoader(TransformLoader{}),
-        createRowLoader(VelocityLoader{}),
-        createRowLoader(VelocityLoader{}, "Velocity3D"),
-        createRowLoader(DirectRowLoader<Loader::BitfieldRow, ConstraintSolver::ConstraintMaskRow>{}),
-        createRowLoader(DirectRowLoader<Loader::BitfieldRow, Narrowphase::CollisionMaskRow>{}),
         createRowLoader(MatMeshLoader{}),
         createRowLoader(DirectRowLoader<Loader::IntRow, FragmentSpawner::FragmentSpawnerCountRow>{}),
         //TODO: this is a bit weird since it'll get set from transform and this

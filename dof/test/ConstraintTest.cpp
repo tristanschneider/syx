@@ -145,14 +145,14 @@ namespace Test {
 
     static ErrorFN expectTargetLinearVelocity(const glm::vec2& target) {
       return [target](const SolveTimepoint& timepoint, const Solver&) {
-        const glm::vec2 v = target - (timepoint.vA.linear - timepoint.vB.linear);
+        const glm::vec2 v = target - Geo::toVec2(timepoint.vA.linear - timepoint.vB.linear);
         return std::abs(glm::length(v));
       };
     }
 
     static ErrorFN expectTargetZVelocity(float target) {
       return [target](const SolveTimepoint& timepoint, const Solver&) {
-        const float v = target - (timepoint.vA.linearZ - timepoint.vB.linearZ);
+        const float v = target - (timepoint.vA.linear.z - timepoint.vB.linear.z);
         return std::abs(v);
       };
     }
@@ -188,7 +188,7 @@ namespace Test {
       std::vector<SolveTimepoint> result;
       result.reserve(maxIterations);
       Transform::Resolver transform{ solver.game->builder(), {} };
-      pt::VelocityResolver velocity{ solver.game->builder(), pt::ConstVelocities::create(PhysicsSimulation::getPhysicsAliases()) };
+      pt::VelocityResolver velocity{ solver.game->builder(), pt::ConstVelocities::create() };
       for(size_t i = 0; i < maxIterations; ++i) {
         solver.game->update();
         const Transform::PackedTransform ta = transform.resolve(solver.a);
@@ -447,7 +447,7 @@ namespace Test {
     }
 
     static void assertUnconstrainted(Game& game, const std::vector<ElementRef>& bodies) {
-      pt::VelocityResolver velocity{ game->builder(), pt::MutableVelocities::create(PhysicsSimulation::getPhysicsAliases()) };
+      pt::VelocityResolver velocity{ game->builder(), pt::MutableVelocities::create() };
       for(const ElementRef& b : bodies) {
         auto v = velocity.resolve(b);
         //Make sure the resolver works

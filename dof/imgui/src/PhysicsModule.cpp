@@ -11,7 +11,7 @@
 
 #include "DebugDrawer.h"
 #include "Narrowphase.h"
-#include "PhysicsSimulation.h"
+#include "Physics.h"
 #include "SpatialPairsStorage.h"
 #include "ThreadLocals.h"
 #include "Random.h"
@@ -29,7 +29,7 @@ namespace PhysicsModule {
     >();
     auto drawer = TableAdapters::getDebugLines(task);
     auto ids = task.getIDResolver();
-    auto shapes = PhysicsSimulation::createShapeClassifier(task);
+    auto shapes = Physics::createShapeClassifier(task);
     Config::PhysicsConfig* config = TableAdapters::getPhysicsConfigMutable(task);
     const bool* enabled = ImguiModule::queryIsEnabled(task);
     Transform::Resolver transformResolver{ task, Transform::ResolveOps{}.addInverse() };
@@ -113,7 +113,7 @@ namespace PhysicsModule {
   struct DrawMeshes {
     void init(RuntimeDatabaseTaskBuilder& task) {
       res = task.getRefResolver();
-      classifier = PhysicsSimulation::createShapeClassifier(task);
+      classifier = Physics::createShapeClassifier(task);
       query = task;
       debug = TableAdapters::getDebugLines(task);
       enabled = ImguiModule::queryIsEnabled(task);

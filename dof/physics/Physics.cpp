@@ -12,11 +12,130 @@
 #include <module/MassModule.h>
 #include <module/PhysicsEvents.h>
 #include <transform/TransformRows.h>
+#include <loader/ReflectionModule.h>
+#include <generics/Functional.h>
 #include <TLSTaskImpl.h>
+#include <Narrowphase.h>
+#include <ConstraintSolver.h>
+#include <SweepNPruneBroadphase.h>
+#include <Constraints.h>
+#include <shapes/DefaultShapes.h>
 
 namespace Physics {
-  std::unique_ptr<IAppModule> createModule() {
+  struct VelocityLoader {
+    using src_row = Loader::Vec4Row;
+    static constexpr std::string_view NAME = "Velocity";
+
+    static constexpr DBTypeID HASH = Loader::getDynamicRowKey<Loader::Vec4Row>("Velocity");
+
+    static void load(const IRow& src, RuntimeTable& dst, gnx::IndexRange range) {
+      using namespace gnx::func;
+      using namespace Reflection;
+
+      const Loader::Vec4Row& s = static_cast<const Loader::Vec4Row&>(src);
+      tryLoadRow<VelX>(s, dst, range, GetX{});
+      tryLoadRow<VelY>(s, dst, range, GetY{});
+      tryLoadRow<VelZ>(s, dst, range, GetZ{});
+      tryLoadRow<VelA>(s, dst, range, GetW{});
+    }
+  };
+
+  void initFromConfig(IAppBuilder& builder) {
+    auto task = builder.createTask();
+    task.setName("init physics from config");
+    const Config::PhysicsConfig* config = &task.query<const SharedRow<Config::GameConfig>>().tryGetSingletonElement()->physics;
+    auto query = task.query<SharedRow<Broadphase::SweepGrid::Grid>>();
+    task.setCallback([query, config](AppTaskArgs&) mutable {
+      for(size_t t = 0; t < query.size(); ++t) {
+        auto& grid = query.get<0>(t).at();
+        grid.definition.bottomLeft = { config->broadphase.bottomLeftX, config->broadphase.bottomLeftY };
+        grid.definition.cellSize = { config->broadphase.cellSizeX, config->broadphase.cellSizeY };
+        grid.definition.cellsX = config->broadphase.cellCountX;
+        grid.definition.cellsY = config->broadphase.cellCountY;
+        Broadphase::SweepGrid::init(grid);
+      }
+    });
+    builder.submitTask(std::move(task));
+  }
+
+  void updatePhysics(IAppBuilder& builder, size_t threadCount) {
+    auto temp = builder.createTask();
+    const Config::PhysicsConfig& config = temp.query<SharedRow<Config::GameConfig>>().tryGetSingletonElement()->physics;
+
+    //TODO: move to config
+    static float biasTerm = ConstraintSolver::SolverGlobals::BIAS_DEFAULT;
+    static float slop = ConstraintSolver::SolverGlobals::SLOP_DEFAULT;
+    ConstraintSolver::SolverGlobals globals{
+      &biasTerm,
+      &slop
+    };
+    temp.discard();
+
+    Physics::integrateVelocity(builder);
+    Physics::applyDampingMultiplier(builder, config.linearDragMultiplier, config.angularDragMultiplier);
+    SweepNPruneBroadphase::updateBroadphase(builder);
+    Constraints::update(builder, globals);
+
+    Narrowphase::generateContactsFromSpatialPairs(builder, threadCount);
+    ConstraintSolver::solveConstraints(builder, globals);
+
+    Physics::integratePositionAndRotation(builder);
+  }
+
+  class UpdateModule : public IAppModule {
+  public:
+    UpdateModule(std::function<size_t(RuntimeDatabaseTaskBuilder&)> _threadCount)
+      : threadCount{ std::move(_threadCount) } {
+    }
+
+    void init(IAppBuilder& builder) final {
+      using namespace Reflection;
+      Reflection::registerLoaders(builder,
+        createRowLoader(VelocityLoader{}),
+        createRowLoader(VelocityLoader{}, "Velocity3D"),
+        createRowLoader(DirectRowLoader<Loader::BitfieldRow, ConstraintSolver::ConstraintMaskRow>{}),
+        createRowLoader(DirectRowLoader<Loader::BitfieldRow, Narrowphase::CollisionMaskRow>{})
+      );
+      initFromConfig(builder);
+
+      auto task = builder.createTask();
+      task.setName("init physics");
+      auto query = task.query<SweepNPruneBroadphase::BroadphaseKeys>();
+      task.setCallback([query](AppTaskArgs&) mutable {
+        query.forEachRow([](auto& row) { row.setDefaultValue(Broadphase::SweepGrid::EMPTY_KEY); });
+      });
+      builder.submitTask(std::move(task));
+
+      auto temp = builder.createTask();
+      temp.discard();
+      ShapeRegistry::IShapeRegistry* reg = ShapeRegistry::getMutable(temp);
+      Shapes::registerDefaultShapes(*reg);
+      ShapeRegistry::finalizeRegisteredShapes(builder);
+      Constraints::init(builder);
+    }
+
+    virtual void update(IAppBuilder& builder) {
+      auto temp = builder.createTask();
+      temp.discard();
+      updatePhysics(builder, threadCount(temp));
+    }
+
+    virtual void preProcessEvents(IAppBuilder& builder) {
+      SweepNPruneBroadphase::preProcessEvents(builder);
+    }
+
+    virtual void postProcessEvents(IAppBuilder& builder) {
+      SweepNPruneBroadphase::postProcessEvents(builder);
+      Constraints::postProcessEvents(builder);
+    }
+
+  private:
+    std::function<size_t(RuntimeDatabaseTaskBuilder&)> threadCount;
+  };
+
+  std::unique_ptr<IAppModule> createModule(std::function<size_t(RuntimeDatabaseTaskBuilder&)> threadCount) {
     std::vector<std::unique_ptr<IAppModule>> modules;
+    modules.push_back(std::make_unique<UpdateModule>(std::move(threadCount)));
     modules.push_back(Shapes::createMeshModule());
     modules.push_back(MassModule::createModule());
     modules.push_back(PhysicsEvents::clearEvents());
@@ -249,5 +368,9 @@ namespace Physics {
     applyDampingMultiplierAxis(builder, FloatQueryAlias::create<VelY>(), linearMultiplier);
     //Damping on Z doesn't really matter because the primary use case is simple upwards impulses counteracted by gravity
     applyDampingMultiplierAxis(builder, FloatQueryAlias::create<VelA>(), angularMultiplier);
+  }
+
+  std::shared_ptr<ShapeRegistry::IShapeClassifier> createShapeClassifier(RuntimeDatabaseTaskBuilder& task) {
+    return ShapeRegistry::get(task)->createShapeClassifier(task);
   }
 }

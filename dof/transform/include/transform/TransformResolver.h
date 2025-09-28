@@ -8,7 +8,6 @@
 
 class ITableResolver;
 class RuntimeDatabaseTaskBuilder;
-struct PhysicsAliases;
 class ElementRef;
 class ElementRefResolver;
 

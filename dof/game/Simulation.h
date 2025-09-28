@@ -108,5 +108,7 @@ namespace Simulation {
 
   const char* getConfigName();
 
+  std::unique_ptr<IAppModule> createConfigModule();
+  std::unique_ptr<IAppModule> createGameplayExtract();
   std::unique_ptr<IAppModule> createModule(UpdateConfig cfg);
 };

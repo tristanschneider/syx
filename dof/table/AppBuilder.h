@@ -243,10 +243,9 @@ struct RowTypeList {
   }
 };
 
-template<class T>
-concept IsRowTypeList = requires(T t) {
-  { t.visit([]<IsRow... Rows>(RowTypeList<Rows...>) {}) };
-};
+template<class T> struct IsRowTypeListT : std::false_type {};
+template<class... T> struct IsRowTypeListT<RowTypeList<T...>> : std::true_type {};
+template<class T> concept IsRowTypeList = IsRowTypeListT<T>::value;
 
 //This is used at configuration time to fetch all data dependences as well as set the callback for the work
 //the work callback uses only the dependencies it previously fetched
@@ -293,7 +292,6 @@ public:
     return result;
   }
 
-  //TODO: compiles but doesn't work with intellisense. Either fix or remove.
   template<IsRowTypeList T>
   auto queryList() {
     return T::visit([this]<IsRow... Rows>(RowTypeList<Rows...>) {

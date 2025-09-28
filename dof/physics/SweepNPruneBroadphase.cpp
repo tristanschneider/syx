@@ -56,7 +56,7 @@ namespace SweepNPruneBroadphase {
     builder.submitTask(std::move(task));
   }
 
-  void updateBroadphase(IAppBuilder& builder, const PhysicsAliases&) {
+  void updateBroadphase(IAppBuilder& builder) {
     registryUpdate(builder);
     Broadphase::SweepGrid::recomputePairs(builder);
     SP::updateSpatialPairsFromBroadphase(builder);

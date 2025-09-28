@@ -21,6 +21,7 @@
 #include "TableName.h"
 #include <transform/TransformModule.h>
 #include <Events.h>
+#include <Physics.h>
 
 namespace InspectorModule {
   struct InspectContext {
@@ -74,10 +75,10 @@ namespace InspectorModule {
     CachedRow<Narrowphase::ThicknessRow> thickness;
     CachedRow<Narrowphase::SharedThicknessRow> sharedThickness;
     CachedRow<Narrowphase::CollisionMaskRow> collisionMask;
-    CachedRow<Tags::LinVelXRow> velX;
-    CachedRow<Tags::LinVelYRow> velY;
-    CachedRow<Tags::LinVelZRow> velZ;
-    CachedRow<Tags::AngVelRow> velA;
+    CachedRow<VelX> velX;
+    CachedRow<VelY> velY;
+    CachedRow<VelZ> velZ;
+    CachedRow<VelA> velA;
     CachedRow<const TableName::TableNameRow> tableNames;
     CachedRow<const Tags::FragmentGoalXRow> goalX;
     CachedRow<const Tags::FragmentGoalYRow> goalY;
