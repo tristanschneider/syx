@@ -111,20 +111,24 @@ namespace Physics {
       ShapeRegistry::IShapeRegistry* reg = ShapeRegistry::getMutable(temp);
       Shapes::registerDefaultShapes(*reg);
       ShapeRegistry::finalizeRegisteredShapes(builder);
+    }
+
+    void dependentInit(IAppBuilder& builder) final {
+      //Dependent init because this requires users to have filled in their constraint definitions in their own inits
       Constraints::init(builder);
     }
 
-    virtual void update(IAppBuilder& builder) {
+    void update(IAppBuilder& builder) final {
       auto temp = builder.createTask();
       temp.discard();
       updatePhysics(builder, threadCount(temp));
     }
 
-    virtual void preProcessEvents(IAppBuilder& builder) {
+    void preProcessEvents(IAppBuilder& builder) final {
       SweepNPruneBroadphase::preProcessEvents(builder);
     }
 
-    virtual void postProcessEvents(IAppBuilder& builder) {
+    void postProcessEvents(IAppBuilder& builder) final {
       SweepNPruneBroadphase::postProcessEvents(builder);
       Constraints::postProcessEvents(builder);
     }
