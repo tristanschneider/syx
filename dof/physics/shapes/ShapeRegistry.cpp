@@ -13,32 +13,6 @@ namespace ShapeRegistry {
     return task.query<GlobalRow>().tryGetSingletonElement()->registry.get();
   }
 
-  //Not the actual center, more like the reference point
-  struct CenterVisitor {
-    glm::vec2 operator()(const Rectangle& v) const {
-      return v.center;
-    }
-    glm::vec2 operator()(const Raycast& v) const {
-      return v.start;
-    }
-    glm::vec2 operator()(const AABB& v) const {
-      return v.min;
-    }
-    glm::vec2 operator()(const Circle& v) const {
-      return v.pos;
-    }
-    glm::vec2 operator()(const std::monostate&) const {
-      return { 0, 0 };
-    }
-    glm::vec2 operator()(const Mesh& m) const {
-      return m.modelToWorld->transformPoint(m.aabb.center());
-    }
-  };
-
-  glm::vec2 getCenter(const BodyType& shape) {
-    return std::visit(CenterVisitor{}, shape.shape);
-  }
-
   struct ShapeRegistryImpl : IShapeRegistry {
     struct ShapeImpl {
       std::unique_ptr<IShapeImpl> impl;

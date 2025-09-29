@@ -75,8 +75,8 @@ namespace PhysicsModule {
             if(resolvedA && resolvedB) {
               auto pairA = transformResolver.resolvePair(*resolvedA);
               auto pairB = transformResolver.resolvePair(*resolvedB);
-              const glm::vec2 centerA = ShapeRegistry::getCenter(shapes->classifyShape(*resolvedA, pairA.modelToWorld, pairA.worldToModel));
-              const glm::vec2 centerB = ShapeRegistry::getCenter(shapes->classifyShape(*resolvedB, pairB.modelToWorld, pairB.worldToModel));
+              const glm::vec2 centerA = pairA.modelToWorld.pos2();
+              const glm::vec2 centerB = pairB.modelToWorld.pos2();
 
               if(drawIslandEdges) {
                 const glm::vec2 currentIslandEdge = (centerA + centerB)*0.5f;

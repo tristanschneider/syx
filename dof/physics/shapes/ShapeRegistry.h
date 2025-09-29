@@ -48,9 +48,6 @@ namespace ShapeRegistry {
     virtual BodyType classifyShape(const UnpackedDatabaseElementID& id, const Transform::PackedTransform& transform, const Transform::PackedTransform& inverse) = 0;
   };
 
-  //The center that "centerToContact" in the manifold is relative to
-  glm::vec2 getCenter(const BodyType& shape);
-
   struct BroadphaseBounds {
     QueryAliasBase requiredDependency;
     TableID table;

@@ -67,7 +67,7 @@ namespace PhysicsSimulation {
       : shape(Physics::createShapeClassifier(task))
       , ids(task.getIDResolver())
       , resolver(task.getResolver(lvx, lvy, av))
-      , transformResolver{ task, Transform::ResolveOps{}.addInverse() }
+      , transformResolver{ task, {} }
     {}
 
     std::optional<Key> tryResolve(const ElementRef& e) final {
@@ -78,8 +78,7 @@ namespace PhysicsSimulation {
     }
 
     glm::vec2 getCenter(const Key& e) final {
-      const Transform::TransformPair pair = transformResolver.resolvePair(e);
-      return ShapeRegistry::getCenter(shape->classifyShape(e, pair.modelToWorld, pair.worldToModel));
+      return transformResolver.resolve(e).pos2();
     }
 
     glm::vec2 getLinearVelocity(const Key& e) final {
