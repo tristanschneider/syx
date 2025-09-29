@@ -10,7 +10,7 @@ namespace math {
     static constexpr AxisFlags Z() { return AxisFlags{}.addZ(); }
     static constexpr AxisFlags A() { return AxisFlags{}.addA(); }
     static constexpr AxisFlags XY() { return X().addY(); }
-    static constexpr AxisFlags XYZ() { return XY().addX().addZ(); }
+    static constexpr AxisFlags XYZ() { return XY().addZ(); }
     static constexpr AxisFlags XYZA() { return XYZ().addA(); }
 
     constexpr AxisFlags addX() const { return { Storage(axes | MASK_X) }; }

@@ -251,7 +251,11 @@ namespace PGS {
         const float* jmb = jma + Jacobian::BLOCK_SIZE;
         const float* ja = solver.jacobian.getJacobianIndex(i);
         const float* jb = ja + Jacobian::BLOCK_SIZE;
-        solver.diagonal[i] = 1.0f / (dot(ja, jma) + dot(jb, jmb));
+        const float denom = dot(ja, jma) + dot(jb, jmb);
+        //A pair of immobile objects generally shouldn't make it here if they have been flagged as immobile in the contact graph.
+        //However, if mass is being recomputed or initialized they may be zero here momentarily.
+        //An epsilon may make sense for near zero division but at the moment no masses are that large.
+        solver.diagonal[i] = denom ? 1.0f / denom : 0.0f;
       }
     }
 
