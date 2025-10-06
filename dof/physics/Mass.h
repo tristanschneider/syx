@@ -7,6 +7,11 @@
 namespace Mass {
   constexpr float DEFAULT_DENSITY = 1.f;
   struct OriginMass {
+    //If true, island graph should see this as mobile
+    explicit operator bool() const {
+      return inverseMass || inverseInertia;
+    }
+
     float inverseMass{};
     float inverseInertia{};
   };

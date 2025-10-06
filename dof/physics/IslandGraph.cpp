@@ -305,6 +305,15 @@ namespace IslandGraph {
     return didChange;
   }
 
+  void addNewIsland(Graph& graph, IslandIndex islandIndex) {
+    assert(graph.islands.getValues().size() < INVALID_ISLAND);
+    assert(graph.changedIslands.size() == islandIndex);
+    graph.changedIslands.push_back(false);
+    graph.publishedIslandEdgesChanged.push_back(true);
+    graph.publishedIslandNodesChanged.push_back(true);
+    graph.forceChangedIslands.push_back(false);
+  }
+
   void rebuildIslands(Graph& graph) {
     graph.scratchBuffer.clear();
 
@@ -346,7 +355,19 @@ namespace IslandGraph {
       else {
         //Edges must have changed or this wouldn't have been marked as a changed island
         graph.publishedIslandEdgesChanged[i] = true;
-        if(nodesChanged) {
+        const bool publishEvent = std::invoke([&] {
+          if(nodesChanged) {
+            return true;
+          }
+          //Check the force flag if this didn't naturally emit an event.
+          //Avoids needing to check the flag most of the time.
+          if(graph.forceChangedIslands[i]) {
+            graph.forceChangedIslands[i] = false;
+            return true;
+          }
+          return false;
+        });
+        if(publishEvent) {
           graph.publishedIslandNodesChanged[i] = true;
         }
       }
@@ -370,11 +391,7 @@ namespace IslandGraph {
         //Ensure there's a matching entry for the changed islands bitset.
         //No action needed if island was from the free list since it would already be non-changed
         if(islandIndex >= graph.changedIslands.size()) {
-          assert(graph.islands.getValues().size() < INVALID_ISLAND);
-          assert(graph.changedIslands.size() == islandIndex);
-          graph.changedIslands.push_back(false);
-          graph.publishedIslandEdgesChanged.push_back(true);
-          graph.publishedIslandNodesChanged.push_back(true);
+          addNewIsland(graph, islandIndex);
         }
         else {
           //These are new islands so everything is considered "changed"
@@ -571,12 +588,22 @@ namespace IslandGraph {
     }
   }
 
-  void setPropagation(Graph& graph, Graph::NodeIterator it, IslandPropagationMask propagation) {
+  void forceNotifyNodeChanged(Graph& graph, Graph::NodeIterator it) {
+    if(it != graph.nodesEnd()) {
+      const Node& node = graph.nodes[it.node];
+      if(node.islandIndex != INVALID_ISLAND) {
+        logChangedNode(graph, node);
+        graph.forceChangedIslands[node.islandIndex] = true;
+      }
+    }
+  }
+
+  void setPropagation(Graph& graph, Graph::NodeIterator it, const PropagationOps& ops) {
     if(it != graph.nodesEnd()) {
       Node& node = graph.nodes[it.node];
       //If this is going from a propagating node to non-propagating it can no longer be the root
       //of any islands nor store an island index
-      if(node.propagation && !propagation) {
+      if(node.propagation && !ops.mask) {
         //This will mark as changed and move the head of the island
         logRemovedNode(graph, node);
         uint32_t current = node.edges;
@@ -594,10 +621,13 @@ namespace IslandGraph {
         }
       }
       //For any other propagation changes they can get picked up by marking as changed
+      else if(ops.forceEvent) {
+        forceNotifyNodeChanged(graph, it);
+      }
       else {
         notifyNodeChanged(graph, it);
       }
-      node.propagation = propagation;
+      node.propagation = ops.mask;
     }
   }
 

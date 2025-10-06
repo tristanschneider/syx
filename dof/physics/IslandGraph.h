@@ -508,7 +508,7 @@ namespace IslandGraph {
     gnx::VectorFreeList<Island> islands;
     //Assuming bitset optimization
     //Islands that have changed for internal tracking of work to do in rebuildIslands
-    std::vector<bool> changedIslands;
+    std::vector<bool> changedIslands, forceChangedIslands;
     std::vector<bool> visitedNodes, visitedEdges;
     //Information about which islands have changed nodes or edges for external use after rebuildIslands
     std::vector<bool> publishedIslandNodesChanged, publishedIslandEdgesChanged;
@@ -524,8 +524,15 @@ namespace IslandGraph {
   void removeEdge(Graph& graph, const Graph::ConstEdgeIterator& it);
   void addNode(Graph& graph, const NodeUserdata& data, IslandPropagationMask propagation = PROPAGATE_ALL);
   void removeNode(Graph& graph, const NodeUserdata& data);
+  //Notify the need to recompute island conditions which MAY result in publish events.
   void notifyNodeChanged(Graph& graph, Graph::NodeIterator it);
-  void setPropagation(Graph& graph, Graph::NodeIterator it, IslandPropagationMask propagation);
+  //Notiyf the need to recompute island conditions and always publish an island changed event.
+  void forceNotifyNodeChanged(Graph& graph, Graph::NodeIterator it);
+  struct PropagationOps {
+    IslandPropagationMask mask{};
+    bool forceEvent{};
+  };
+  void setPropagation(Graph& graph, Graph::NodeIterator it, const PropagationOps& ops);
 
   void rebuildIslands(Graph& graph);
 

@@ -452,7 +452,7 @@ namespace Constraints {
       const glm::vec2 referenceB = glm::normalize(-bToPin);
       const float cosAngle = glm::dot(referenceA, referenceB);
       const float sinAngle = Geo::cross(aToPin, bToPin);
-      const float angularErrorAbs = cosAngle > 0.0f ? std::acos(cosAngle) : std::acos(-cosAngle) + Constants::PI2;
+      const float angularErrorAbs = cosAngle > 0.0f ? Geo::acosSafe(cosAngle) : Geo::acosSafe(-cosAngle) + Constants::PI2;
       float angularError = Geo::reduce(angularErrorAbs, *globals.slop);
       if(sinAngle > 0) {
         angularError = -angularError;
@@ -608,7 +608,7 @@ namespace Constraints {
     float computeAngularError(const glm::vec2& referenceA, const glm::vec2& referenceB) const {
       const float cosAngle = glm::dot(referenceA, referenceB);
       const float sinAngle = Geo::cross(referenceA, referenceB);
-      const float angularErrorAbs = cosAngle > 0.0f ? std::acos(cosAngle) : std::acos(-cosAngle) + Constants::PI2;
+      const float angularErrorAbs = cosAngle > 0.0f ? Geo::acosSafe(cosAngle) : Geo::acosSafe(-cosAngle) + Constants::PI2;
       float angularError = Geo::reduce(angularErrorAbs, *globals.slop);
       if(sinAngle > 0) {
         angularError = -angularError;

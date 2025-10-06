@@ -159,10 +159,21 @@ namespace SP {
       IslandGraph::removeNode(graph, node);
     }
 
-    void changeMobility(const ElementRef& node, bool isImmobile) override {
+    void _changeMobility(const ElementRef& node, bool isImmobile, bool forceEvent) {
       assert(node);
       auto it = graph.findNode(node);
-      IslandGraph::setPropagation(graph, it, getMask(isImmobile));
+      IslandGraph::setPropagation(graph, it, IslandGraph::PropagationOps{
+        .mask = getMask(isImmobile),
+        .forceEvent = forceEvent
+      });
+    }
+
+    void changeMobility(const ElementRef& node, bool isImmobile) override {
+      _changeMobility(node, isImmobile, false);
+    }
+
+    void forceChangeMobility(const ElementRef& node, bool isImmobile) final {
+      _changeMobility(node, isImmobile, true);
     }
 
     size_t nodeCount() const final {

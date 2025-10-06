@@ -130,7 +130,7 @@ namespace Test {
 
     static ErrorFN expectPointsMatchDistance(float distance) {
       return [distance](const SolveTimepoint& timepoint, const Solver&) {
-        return std::abs(glm::distance(timepoint.worldA, timepoint.worldB) - distance);
+        return assertFinite(std::abs(glm::distance(timepoint.worldA, timepoint.worldB) - distance));
       };
     }
 
@@ -139,40 +139,45 @@ namespace Test {
         const glm::vec2 referenceA = timepoint.ta.transformVector(solver.localCenterToPinA);
         const glm::vec2 referenceB = -timepoint.tb.transformVector(solver.localCenterToPinB);
         const float cosAngle = glm::dot(referenceA, referenceB);
-        return cosAngle > 0.0f ? std::acos(cosAngle) : Constants::PI2 + std::acos(-cosAngle);
+        return assertFinite(cosAngle > 0.0f ? Geo::acosSafe(cosAngle) : Constants::PI2 + Geo::acosSafe(-cosAngle));
       };
     }
 
     static ErrorFN expectTargetLinearVelocity(const glm::vec2& target) {
       return [target](const SolveTimepoint& timepoint, const Solver&) {
         const glm::vec2 v = target - Geo::toVec2(timepoint.vA.linear - timepoint.vB.linear);
-        return std::abs(glm::length(v));
+        return assertFinite(std::abs(glm::length(v)));
       };
     }
 
     static ErrorFN expectTargetZVelocity(float target) {
       return [target](const SolveTimepoint& timepoint, const Solver&) {
         const float v = target - (timepoint.vA.linear.z - timepoint.vB.linear.z);
-        return std::abs(v);
+        return assertFinite(std::abs(v));
       };
     }
 
     static ErrorFN expectTargetAngularVelocity(float target) {
       return [target](const SolveTimepoint& timepoint, const Solver&) {
         const float v = target - (timepoint.vA.angular - timepoint.vB.angular);
-        return std::abs(v);
+        return assertFinite(std::abs(v));
       };
     }
 
     static ErrorFN expectOneSidedOrientation(float angle) {
       return [target{Geo::directionFromAngle(angle)}](const SolveTimepoint& timepoint, const Solver&) {
-        return std::abs(1.0f - glm::dot(target, timepoint.ta.rot()));
+        return assertFinite(std::abs(1.0f - glm::dot(target, timepoint.ta.rot())));
       };
+    }
+
+    static float assertFinite(float v) {
+      Assert::IsTrue(std::isfinite(v));
+      return v;
     }
 
     static ErrorFN expectAnd(const ErrorFN& fnA, const ErrorFN& fnB) {
       return [fnA, fnB](const SolveTimepoint& timepoint, const Solver& solver) {
-        return fnA(timepoint, solver) + fnB(timepoint, solver);
+        return assertFinite(fnA(timepoint, solver)) + assertFinite(fnB(timepoint, solver));
       };
     }
 

@@ -6,6 +6,7 @@
 #include <shapes/ShapeRegistry.h>
 #include <TLSTaskImpl.h>
 #include <Events.h>
+#include <SpatialPairsStorage.h>
 
 namespace MassModule {
   struct FlagNewElements {
@@ -87,6 +88,7 @@ namespace MassModule {
       shapes = ShapeRegistry::get(task)->createShapeClassifier(task);
       resolver = task.getResolver<const MassModule::IsImmobile>();
       ref = task.getIDResolver()->getRefResolver();
+      spatial = SP::createStorageModifier(task);
     }
 
     void execute() {
@@ -104,7 +106,11 @@ namespace MassModule {
           //Eventually, both should be done from a material, or even skip shape lookups for immobile
           const float density = resolver->tryGetOrSwapRow(isImmobile, rawId) ? 0.f : 1.f;
 
-          masses->at(index) = std::visit(ComputeMass{ .density = density, .cache = cache }, shape.shape);
+          const Mass::OriginMass newMass = std::visit(ComputeMass{ .density = density, .cache = cache }, shape.shape);
+          masses->at(index) = newMass;
+          //Inform island graph of potential mobility change. This needs to be a forced event to also ensure constraints recompute their mass.
+          const bool isNewImmobile = !newMass;
+          spatial->forceChangeMobility(element, isNewImmobile);
         }
       }
     }
@@ -113,6 +119,7 @@ namespace MassModule {
     std::shared_ptr<ShapeRegistry::IShapeClassifier> shapes;
     std::shared_ptr<ITableResolver> resolver;
     ElementRefResolver ref;
+    std::shared_ptr<SP::IStorageModifier> spatial;
   };
 
   class MassModuleImpl : public IAppModule {
