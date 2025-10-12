@@ -21,6 +21,13 @@
 #include "shapes/DefaultShapes.h"
 #include <transform/TransformModule.h>
 #include <TableName.h>
+#include <TestGame.h>
+#include <IAppModule.h>
+#include <NotifyingTableModifier.h>
+#include <SpatialQueries.h>
+#include <PhysicsTableBuilder.h>
+#include <Game.h>
+#include <generics/Container.h>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -32,20 +39,15 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 }
 
 namespace Test {
+  struct NarrowphaseTestTag : TagRow{};
+
   StorageTableBuilder createShapeBase(std::string_view name) {
     StorageTableBuilder result;
+    PhysicsTableBuilder::addCollider(result);
     Transform::addTransform25D(result)
+      .addRows<NarrowphaseTestTag>()
       .setStable()
-      .setTableName({ std::string{ name } })
-      .addRows<Narrowphase::CollisionMaskRow>();
-    return result;
-  }
-
-  StorageTableBuilder createGlobals() {
-    StorageTableBuilder result;
-    result.addRows<
-      ShapeRegistry::GlobalRow
-    >().setTableName({ "globals" });
+      .setTableName({ std::string{ name } });
     return result;
   }
 
@@ -56,17 +58,16 @@ namespace Test {
     std::move(createShapeBase("Circle").addRows<Shapes::CircleRow>()).finalize(args);
     std::move(createShapeBase("AABB").addRows<Shapes::AABBRow>()).finalize(args);
     std::move(createShapeBase("Line").addRows<Shapes::LineRow>()).finalize(args);
-    createGlobals().finalize(args);
   }
 
   struct NarrowphaseTableIds {
     NarrowphaseTableIds(RuntimeDatabaseTaskBuilder& task)
-      : spatialPairs{ task.query<SP::ManifoldRow>()[0] }
-      , unitCubes{ task.query<Shapes::RectangleRow>()[0] }
-      , unitCubes3D{ task.query<Narrowphase::SharedThicknessRow>()[0] }
-      , circles{ task.query<Shapes::CircleRow>()[0] }
-      , aabbs{ task.query<Shapes::AABBRow>()[0] }
-      , raycasts{ task.query<Shapes::LineRow>()[0] }
+      : spatialPairs{ task.query<SP::ManifoldRow, NarrowphaseTestTag>()[0] }
+      , unitCubes{ task.query<Shapes::RectangleRow, NarrowphaseTestTag>()[0] }
+      , unitCubes3D{ task.query<Narrowphase::SharedThicknessRow, NarrowphaseTestTag>()[0] }
+      , circles{ task.query<Shapes::CircleRow, NarrowphaseTestTag>()[0] }
+      , aabbs{ task.query<Shapes::AABBRow, NarrowphaseTestTag>()[0] }
+      , raycasts{ task.query<Shapes::LineRow, NarrowphaseTestTag>()[0] }
     {}
 
     TableID spatialPairs;
@@ -77,17 +78,19 @@ namespace Test {
     TableID raycasts;
   };
 
-  struct NarrowphaseDB : TestApp {
-    NarrowphaseDB() {
-      initST(&createDB, [](IAppBuilder& builder) {
-        auto temp = builder.createTask();
-        temp.discard();
-        ShapeRegistry::IShapeRegistry* reg = ShapeRegistry::getMutable(temp);
-        Shapes::registerDefaultShapes(*reg);
-        ShapeRegistry::finalizeRegisteredShapes(builder);
+  struct TestModule : IAppModule {
+    void createDatabase(RuntimeDatabaseArgs& db) final {
+      createDB(db);
+    }
+  };
 
-        Narrowphase::generateContactsFromSpatialPairs(builder, 1);
-      });
+  struct NarrowphaseDB : TestGame {
+    NarrowphaseDB()
+      : TestGame{
+        GameConstructArgs{
+          .modules = gnx::Container::makeVector<std::unique_ptr<IAppModule>>(std::make_unique<TestModule>())
+        }
+      } {
     }
 
     void doNarrowphase() {
@@ -95,6 +98,7 @@ namespace Test {
     }
   };
 
+  //TODO: avoid using this and go through the realistic broadphase path.
   struct SpatialQueriesAdapter {
     SpatialQueriesAdapter(RuntimeDatabaseTaskBuilder& task) {
       auto q = task.query<
@@ -135,22 +139,51 @@ namespace Test {
       Assert::AreEqual(l.y, r.y, E);
     }
 
+    SP::ContactManifold getManifold(SpatialQuery::IReader& query, ElementRef a, ElementRef b) {
+      SP::ContactManifold result;
+      query.begin(a);
+      if(const SpatialQuery::Result* r = query.tryIterate()) {
+        if(const SpatialQuery::ContactXY* xy = std::get_if<SpatialQuery::ContactXY>(&r->contact)) {
+          result.size = xy->size;
+          for(size_t i = 0; i < xy->size; ++i) {
+            result.points[i].normal = xy->points[i].normal;
+            result.points[i].overlap = xy->points[i].overlap;
+            result.points[i].centerToContactA = xy->points[i].point;
+          }
+        }
+      }
+
+      query.begin(b);
+      if(const SpatialQuery::Result* r = query.tryIterate()) {
+        if(const SpatialQuery::ContactXY* xy = std::get_if<SpatialQuery::ContactXY>(&r->contact)) {
+          Assert::AreEqual(static_cast<size_t>(result.size), static_cast<size_t>(xy->size));
+          for(size_t i = 0; i < xy->size; ++i) {
+            result.points[i].centerToContactB = xy->points[i].point;
+          }
+        }
+      }
+
+      return result;
+    }
+
+    //TODO: this is using the spatial queries table. Need to either go back to a custom table or fully set up the query so it isn't destroyed after one tick.
     TEST_METHOD(CircleToCircle) {
       NarrowphaseDB db;
       auto& task = db.builder();
       NarrowphaseTableIds tables{ task };
-      auto modifier = task.getModifierForTable(tables.circles);
-      const size_t i = modifier->addElements(2);
+      NotifyingTableModifier modifier{ task, tables.circles };
+      const ElementRef* ref = modifier.addElements(2);
       auto [stable, mask, circles, transforms] = task.query<
         StableIDRow,
         Narrowphase::CollisionMaskRow,
         Shapes::CircleRow,
         Transform::WorldTransformRow
-      >().get(0);
-      SpatialQueriesAdapter queries{ task };
-      const size_t a = i;
-      const size_t b = i + 1;
-      const size_t q = queries.addPair(stable->at(a), stable->at(b));
+      >(tables.circles).get(0);
+      auto queries = SpatialQuery::createReader(task);
+      //SpatialQueriesAdapter queries{ task };
+      const size_t a = ref->getMapping()->getElementIndex();
+      const size_t b = (ref + 1)->getMapping()->getElementIndex();
+      //const size_t q = queries.addPair(stable->at(a), stable->at(b));
       mask->at(a) = mask->at(b) = 1;
       Transform::PackedTransform& transformA = transforms->at(a);
       Transform::PackedTransform& transformB = transforms->at(b);
@@ -160,8 +193,11 @@ namespace Test {
         transformA = Shapes::toTransform(circleA);
         transformB = Shapes::toTransform(circleB);
       };
-      SP::ContactManifold& manifold = queries.manifold->at(q);
-      const SP::ContactPoint& contact = manifold[0];
+      auto getABManifold = [&] {
+        return getManifold(*queries, stable->at(a), stable->at(b));
+      };
+      //Initialize broadphase entries
+      db.update();
 
       //Exactly touching
       circleA.pos = { 1, 2 };
@@ -172,6 +208,8 @@ namespace Test {
 
       db.doNarrowphase();
 
+      SP::ContactManifold manifold = getABManifold();
+      SP::ContactPoint contact = manifold[0];
       Assert::AreEqual(uint32_t{ 1 }, manifold.size);
       Assert::AreEqual(0.0f, contact.overlap, E);
       assertEq({ -1, 0 }, contact.normal);
@@ -184,6 +222,7 @@ namespace Test {
 
       db.doNarrowphase();
 
+      manifold = getABManifold();
       Assert::AreEqual(uint32_t{ 0 }, manifold.size);
 
       //Overlapping a bit
@@ -192,6 +231,8 @@ namespace Test {
 
       db.doNarrowphase();
 
+      manifold = getABManifold();
+      contact = manifold[0];
       Assert::AreEqual(uint32_t{ 1 }, manifold.size);
       Assert::AreEqual(0.1f, contact.overlap, E);
       assertEq({ -1, 0 }, contact.normal);
@@ -204,6 +245,8 @@ namespace Test {
 
       db.doNarrowphase();
 
+      manifold = getABManifold();
+      contact = manifold[0];
       Assert::AreEqual(uint32_t{ 1 }, manifold.size);
       Assert::AreEqual(3.f, contact.overlap, E);
       assertEq({ 1, 0 }, contact.normal);
@@ -215,6 +258,7 @@ namespace Test {
 
       db.doNarrowphase();
 
+      manifold = getABManifold();
       Assert::AreEqual(uint32_t{ 0 }, manifold.size);
     }
 
@@ -251,16 +295,16 @@ namespace Test {
         Shapes::RectangleRow,
         Narrowphase::SharedThicknessRow,
         Transform::WorldTransformRow
-      >().get(0);
+      >(tables.unitCubes3D).get(0);
       SpatialQueriesAdapter queries{ task };
       const size_t a = i;
       const size_t b = i + 1;
       const size_t q = queries.addPair(stable->at(a), stable->at(b));
       mask->at(a) = mask->at(b) = 1;
+      thickness->at(a) = thickness->at(b) = 0;
       //Default of no rotation, cos(0) = 1
       Transform::PackedTransform& cA = transforms->at(a);
       Transform::PackedTransform& cB = transforms->at(b);
-      cA.ax = cB.ax = 0.5f;
       SP::ContactManifold& manifold = queries.manifold->at(q);
       SP::ZContactManifold& zManifold = queries.zManifold->at(q);
 
@@ -335,7 +379,7 @@ namespace Test {
         StableIDRow,
         Narrowphase::CollisionMaskRow,
         Transform::WorldTransformRow
-      >().get(0);
+      >(tables.unitCubes).get(0);
       SpatialQueriesAdapter queries{ task };
       const size_t a = i;
       const size_t b = i + 1;
@@ -344,15 +388,14 @@ namespace Test {
       Transform::PackedTransform& tB = transforms->at(b);
 
       mask->at(a) = mask->at(b) = 1;
-      //Default of no rotation, cos(0) = 1, scale 0.5 so it is unit size
-      tA.ax = tB.ax = 0.5f;
+      //Default of no rotation, cos(0) = 1, unit size
       //Something nonzero so local vs world space bugs would fail tests
       tA.ty = tB.ty = 2.f;
       SP::ContactManifold& manifold = queries.manifold->at(q);
 
       //Exactly touching
       tA.tx = 1.0f;
-      tA.tx = 2.0f;
+      tB.tx = 2.0f;
 
       db.doNarrowphase();
 
@@ -427,12 +470,12 @@ namespace Test {
         const glm::vec2 bPos = corner;
         tA = Transform::PackedTransform::build(Transform::Parts{
           .rot = glm::vec2{ 1, 0 },
-          .scale = glm::vec2{ 0.5f },
+          .scale = glm::vec2{ 1.f },
           .translate = Geo::toVec3(aPos)
         });
         tB = Transform::PackedTransform::build(Transform::Parts{
           .rot = rot,
-          .scale = glm::vec2{ 0.5f },
+          .scale = glm::vec2{ 1.f },
           .translate = Geo::toVec3(bPos)
         });
 
@@ -821,7 +864,7 @@ namespace Test {
         StableIDRow,
         Narrowphase::CollisionMaskRow,
         Transform::WorldTransformRow
-      >().get(0);
+      >(tables.unitCubes).get(0);
       SpatialQueriesAdapter queries{ task };
       const size_t a = i;
       const size_t b = i + 1;
@@ -834,9 +877,9 @@ namespace Test {
       Transform::PackedTransform& transformA = transforms->at(a);
       Transform::PackedTransform& transformB = transforms->at(b);
       transformB.setPos(origin);
-      transformB.setScale(glm::vec2{ 0.5f });
+      transformB.setScale(glm::vec2{ 1.f });
       Transform::Parts partsA{
-        .scale = glm::vec2{ 0.5f }
+        .scale = glm::vec2{ 1.f }
       };
 
       std::vector<glm::vec2> localShape{

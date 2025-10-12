@@ -3,6 +3,7 @@
 #include "SceneNavigator.h"
 #include "Simulation.h"
 #include "ThreadLocals.h"
+#include <IAppModule.h>
 
 struct IDatabase;
 class IGame;
@@ -29,6 +30,7 @@ namespace Test {
     Config::PhysicsConfig physics;
     Simulation::UpdateConfig updateConfig;
     std::unique_ptr<SceneNavigator::IScene> scene;
+    std::vector<std::unique_ptr<IAppModule>> modules;
   };
 
   struct KnownTables {

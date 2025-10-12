@@ -69,6 +69,7 @@ namespace Test {
 
   std::unique_ptr<IGame> gameFromArgs(GameConstructArgs&& args) {
     Game::GameArgs gameArgs = GameDefaults::createDefaultGameArgs(args.updateConfig);
+    gameArgs.modules.insert(gameArgs.modules.end(), std::make_move_iterator(args.modules.begin()), std::make_move_iterator(args.modules.end()));
     gameArgs.modules.insert(gameArgs.modules.begin(), std::make_unique<InjectArgs>(std::move(args)));
     return Game::createGame(std::move(gameArgs));
   }

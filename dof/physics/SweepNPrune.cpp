@@ -233,6 +233,7 @@ namespace Broadphase {
 
       //Write the new bounds so that the key is out of the way
       for(size_t d = 0; d < ObjectDB::S; ++d) {
+        assert(db.bounds[d].size() > k.value && "Keys must be initialized before being removed, this may indicate creating an element without sending a creation event");
         db.bounds[d][k.value] = { ObjectDB::REMOVED, ObjectDB::REMOVED };
       }
       //User key needs to be left as-is so it can show up for removal of pairs
