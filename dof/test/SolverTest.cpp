@@ -16,13 +16,22 @@
 #include "Dynamics.h"
 #include <module/MassModule.h>
 #include <module/PhysicsEvents.h>
+#include <TestGame.h>
+#include <PhysicsTableBuilder.h>
+#include <math/AxisFlags.h>
+#include <TableName.h>
+#include <generics/Container.h>
+#include <NotifyingTableModifier.h>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 namespace Test {
   TEST_CLASS(SolverTest) {
     static constexpr float E = 0.01f;
+    struct StaticTag : TagRow {};
+    struct DynamicTag : TagRow {};
 
+    /*
     struct LinVelX : Row<float> {};
     struct LinVelY : Row<float> {};
     struct LinVelZ : Row<float> {};
@@ -39,7 +48,6 @@ namespace Test {
       ConstraintSolver::SharedMaterialRow
     >;
 
-    struct StaticTag : TagRow {};
     using StaticObjects = Table<
       StaticTag,
       StableIDRow,
@@ -52,10 +60,10 @@ namespace Test {
       StaticObjects,
       SP::SpatialPairsTable
     >;
-
+    */
     struct TableIds {
       TableIds(RuntimeDatabaseTaskBuilder& task)
-        : dynamicBodies{ task.query<LinVelX>()[0] }
+        : dynamicBodies{ task.query<DynamicTag>()[0] }
         , staticBodies{ task.query<StaticTag>()[0] }
         , spatialPairs{ task.query<SP::ManifoldRow>()[0] }
       {}
@@ -63,30 +71,54 @@ namespace Test {
       TableID dynamicBodies, staticBodies, spatialPairs;
     };
 
-    struct SolverApp : TestApp {
-      SolverApp() {
-        initMTFromDB<SolverDB>([](IAppBuilder& builder) {
-          static float bias = ConstraintSolver::SolverGlobals::BIAS_DEFAULT;
-          static float slop = ConstraintSolver::SolverGlobals::SLOP_DEFAULT;
-          ConstraintSolver::solveConstraints(builder, { &bias, &slop });
-        });
+    static StorageTableBuilder createDynamicTable() {
+      StorageTableBuilder table;
+      PhysicsTableBuilder::addRigidbody(table);
+      PhysicsTableBuilder::addVelocity(table, math::AxisFlags::XYZA());
+      table.setStable().addRows<DynamicTag>().setTableName({ "a" });
+      return table;
+    }
 
-        builder().query<ConstraintSolver::ConstraintMaskRow>().forEachRow([](auto& row) {
-          row.setDefaultValue(ConstraintSolver::MASK_SOLVE_ALL);
-        });
-        builder().query<ConstraintSolver::SharedMaterialRow>().forEachRow([](auto& row) {
-          row.setDefaultValue(ConstraintSolver::Material{ 0, 0 });
-        });
+    static StorageTableBuilder createStaticTable() {
+      StorageTableBuilder table;
+      PhysicsTableBuilder::addRigidbody(table);
+      PhysicsTableBuilder::addImmobile(table);
+      table.setStable().addRows<StaticTag>().setTableName({ "b" });
+      return table;
+    }
+
+    struct TestModule : IAppModule {
+      void createDatabase(RuntimeDatabaseArgs& args) final {
+        createDynamicTable().finalize(args);
+        createStaticTable().finalize(args);
+      }
+    };
+
+    struct SolverApp : TestGame {
+      SolverApp()
+        : TestGame{
+            GameConstructArgs{
+              .modules = gnx::Container::makeVector<std::unique_ptr<IAppModule>>(std::make_unique<TestModule>())
+            }
+          }
+      {
+        //initMTFromDB<SolverDB>([](IAppBuilder& builder) {
+        //  static float bias = ConstraintSolver::SolverGlobals::BIAS_DEFAULT;
+        //  static float slop = ConstraintSolver::SolverGlobals::SLOP_DEFAULT;
+        //  ConstraintSolver::solveConstraints(builder, { &bias, &slop });
+        //});
+        //
+        //builder().query<ConstraintSolver::ConstraintMaskRow>().forEachRow([](auto& row) {
+        //  row.setDefaultValue(ConstraintSolver::MASK_SOLVE_ALL);
+        //});
+        //builder().query<ConstraintSolver::SharedMaterialRow>().forEachRow([](auto& row) {
+        //  row.setDefaultValue(ConstraintSolver::Material{ 0, 0 });
+        //});
       }
 
-      ElementRef createInTableWithMass(TableID id) {
-        ElementRef result = this->createInTable(id);
-        if(RuntimeTable* table = this->builder().getDatabase().tryGet(id)) {
-          if(auto* masses = table->tryGet<MassModule::MassRow>()) {
-            masses->at(result.getMapping()->getElementIndex()) = Mass::computeQuadMass(Mass::Quad{ .fullSize = glm::vec2{ 1.f } }).body;
-          }
-        }
-        return result;
+      ElementRef createInTable(TableID id) {
+        NotifyingTableModifier modifier{ builder(), id };
+        return *modifier.addElements(1);
       }
     };
 
@@ -111,15 +143,16 @@ namespace Test {
       auto modifier = task.getModifierForTable(tables.spatialPairs);
       auto [dynamicStableId, dvx, dvy, dva] = task.query<
         StableIDRow,
-        LinVelX,
-        LinVelY,
-        AngVel
-      >().get(0);
+        VelX,
+        VelY,
+        VelA
+      >(tables.dynamicBodies).get(0);
       auto ids = task.getIDResolver();
       auto res = ids->getRefResolver();
 
       const ElementRef staticA = app.createInTable(tables.staticBodies);
-      const ElementRef dynamicB = app.createInTableWithMass(tables.dynamicBodies);
+      const ElementRef dynamicB = app.createInTable(tables.dynamicBodies);
+      app.update();
       const size_t ib = res.uncheckedUnpack(dynamicB).getElementIndex();
 
       auto ar = staticA;
@@ -128,6 +161,8 @@ namespace Test {
       IslandGraph::addNode(graph, br);
       const size_t edgeAB = SP::addIslandEdge(*modifier, graph, *pairA, *pairB, *pairTypeRow, ar, br, SP::PairType::ContactXY);
 
+      //TODO: This doesn't work with TestGame as narrowphase will generate the contacts
+      //Probably easiest to use real shapes and let narrowphase actually compute the collisions.
       //Simulate B moving right towards A and hitting with two contact points on the corners of A
       dvx->at(ib) = 1.0f;
       SP::ContactManifold& manifoldAB = manifold->at(edgeAB);
@@ -152,7 +187,7 @@ namespace Test {
       }
 
       //Simulate another object C moving downwards and colliding with A but not B
-      const ElementRef dynamicC = app.createInTableWithMass(tables.dynamicBodies);
+      const ElementRef dynamicC = app.createInTable(tables.dynamicBodies);
       const size_t ic = res.uncheckedUnpack(dynamicC).getElementIndex();
       auto cr = dynamicC;
       IslandGraph::addNode(graph, cr);
@@ -205,14 +240,14 @@ namespace Test {
       IslandGraph::Graph& graph = islandGraph->at();
       auto [dynamicStableId, dvz, dva] = task.query<
         StableIDRow,
-        LinVelZ,
-        AngVel
+        VelZ,
+        VelA
       >().get(0);
       auto ids = task.getIDResolver();
       auto res = ids->getRefResolver();
 
-      const ElementRef a = app.createInTableWithMass(tables.dynamicBodies);
-      const ElementRef b = app.createInTableWithMass(tables.dynamicBodies);
+      const ElementRef a = app.createInTable(tables.dynamicBodies);
+      const ElementRef b = app.createInTable(tables.dynamicBodies);
 
       const size_t ai = res.uncheckedUnpack(a).getElementIndex();
       const size_t bi = res.uncheckedUnpack(b).getElementIndex();
