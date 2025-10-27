@@ -27,9 +27,15 @@ namespace Transform {
       return result.forceUpToDate = true, result;
     }
 
+    constexpr ResolveOps addWrite() const {
+      auto result = *this;
+      return result.writable = true, result;
+    }
+
     bool resolveWorld{ true };
     bool resolveWorldInverse{ false };
     bool forceUpToDate{ false };
+    bool writable{ false };
   };
 
   class Resolver {
@@ -41,6 +47,7 @@ namespace Transform {
     PackedTransform resolve(const UnpackedDatabaseElementID& ref);
     TransformPair resolvePair(const UnpackedDatabaseElementID& ref);
     TransformPair forceResolvePair(const UnpackedDatabaseElementID& ref);
+    void write(const ElementRef& ref, const PackedTransform& value);
 
   private:
     ResolveOps ops;

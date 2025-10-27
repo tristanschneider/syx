@@ -22,6 +22,8 @@
 #include <TableName.h>
 #include <generics/Container.h>
 #include <NotifyingTableModifier.h>
+#include <SpatialQueries.h>
+#include <transform/TransformModule.h>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -31,36 +33,6 @@ namespace Test {
     struct StaticTag : TagRow {};
     struct DynamicTag : TagRow {};
 
-    /*
-    struct LinVelX : Row<float> {};
-    struct LinVelY : Row<float> {};
-    struct LinVelZ : Row<float> {};
-    struct AngVel : Row<float> {};
-
-    using DynamicObjects = Table<
-      StableIDRow,
-      LinVelX,
-      LinVelY,
-      LinVelZ,
-      AngVel,
-      ConstraintSolver::ConstraintMaskRow,
-      MassModule::MassRow,
-      ConstraintSolver::SharedMaterialRow
-    >;
-
-    using StaticObjects = Table<
-      StaticTag,
-      StableIDRow,
-      ConstraintSolver::ConstraintMaskRow,
-      ConstraintSolver::SharedMaterialRow
-    >;
-
-    using SolverDB = Database<
-      DynamicObjects,
-      StaticObjects,
-      SP::SpatialPairsTable
-    >;
-    */
     struct TableIds {
       TableIds(RuntimeDatabaseTaskBuilder& task)
         : dynamicBodies{ task.query<DynamicTag>()[0] }
@@ -75,6 +47,9 @@ namespace Test {
       StorageTableBuilder table;
       PhysicsTableBuilder::addRigidbody(table);
       PhysicsTableBuilder::addVelocity(table, math::AxisFlags::XYZA());
+      PhysicsTableBuilder::addColliderMaskAll(table);
+      PhysicsTableBuilder::addRectangle(table);
+      Transform::addTransform2D(table);
       table.setStable().addRows<DynamicTag>().setTableName({ "a" });
       return table;
     }
@@ -83,6 +58,9 @@ namespace Test {
       StorageTableBuilder table;
       PhysicsTableBuilder::addRigidbody(table);
       PhysicsTableBuilder::addImmobile(table);
+      PhysicsTableBuilder::addColliderMaskAll(table);
+      PhysicsTableBuilder::addRectangle(table);
+      Transform::addTransform2D(table);
       table.setStable().addRows<StaticTag>().setTableName({ "b" });
       return table;
     }
@@ -102,18 +80,6 @@ namespace Test {
             }
           }
       {
-        //initMTFromDB<SolverDB>([](IAppBuilder& builder) {
-        //  static float bias = ConstraintSolver::SolverGlobals::BIAS_DEFAULT;
-        //  static float slop = ConstraintSolver::SolverGlobals::SLOP_DEFAULT;
-        //  ConstraintSolver::solveConstraints(builder, { &bias, &slop });
-        //});
-        //
-        //builder().query<ConstraintSolver::ConstraintMaskRow>().forEachRow([](auto& row) {
-        //  row.setDefaultValue(ConstraintSolver::MASK_SOLVE_ALL);
-        //});
-        //builder().query<ConstraintSolver::SharedMaterialRow>().forEachRow([](auto& row) {
-        //  row.setDefaultValue(ConstraintSolver::Material{ 0, 0 });
-        //});
       }
 
       ElementRef createInTable(TableID id) {
@@ -131,14 +97,6 @@ namespace Test {
       SolverApp app;
       auto& task = app.builder();
       const TableIds tables{ task };
-      auto [islandGraph, manifold, pairA, pairB, pairTypeRow] = task.query<
-        SP::IslandGraphRow,
-        SP::ManifoldRow,
-        SP::ObjA,
-        SP::ObjB,
-        SP::PairTypeRow
-      >().get(0);
-      IslandGraph::Graph& graph = islandGraph->at();
       auto [staticStableID] = task.query<StableIDRow>(tables.staticBodies).get(0);
       auto modifier = task.getModifierForTable(tables.spatialPairs);
       auto [dynamicStableId, dvx, dvy, dva] = task.query<
@@ -152,55 +110,44 @@ namespace Test {
 
       const ElementRef staticA = app.createInTable(tables.staticBodies);
       const ElementRef dynamicB = app.createInTable(tables.dynamicBodies);
+      Transform::Resolver transforms{ app.builder(), Transform::ResolveOps{}.addWrite() };
       app.update();
       const size_t ib = res.uncheckedUnpack(dynamicB).getElementIndex();
-
-      auto ar = staticA;
-      auto br = dynamicB;
-      IslandGraph::addNode(graph, ar);
-      IslandGraph::addNode(graph, br);
-      const size_t edgeAB = SP::addIslandEdge(*modifier, graph, *pairA, *pairB, *pairTypeRow, ar, br, SP::PairType::ContactXY);
-
-      //TODO: This doesn't work with TestGame as narrowphase will generate the contacts
-      //Probably easiest to use real shapes and let narrowphase actually compute the collisions.
-      //Simulate B moving right towards A and hitting with two contact points on the corners of A
-      dvx->at(ib) = 1.0f;
-      SP::ContactManifold& manifoldAB = manifold->at(edgeAB);
-      constexpr float overlap = 0.05f;
-      manifoldAB.size = 2;
-      manifoldAB[0].centerToContactB = { 0.5f, 0.5f };
-      manifoldAB[0].normal = { 1, 0 };
-      manifoldAB[0].overlap = overlap;
-      manifoldAB[1].centerToContactB = { 0.5f, -0.5f };
-      manifoldAB[1].normal = { 1, 0 };
-      manifoldAB[1].overlap = overlap;
+      Transform::PackedTransform dyt = transforms.resolve(dynamicB);
+      //Static at 0 with half length of 0.5, put dynamic on the left side exactly touching
+      dyt.tx = -1;
+      transforms.write(dynamicB, dyt);
+      auto spatial = SpatialQuery::createReader(task);
 
       app.update();
 
       {
+        spatial->begin(dynamicB);
+        const SpatialQuery::Result* hit = spatial->tryIterate();
+        Assert::IsNotNull(hit);
+        const SpatialQuery::ContactXY& c = std::get<SpatialQuery::ContactXY>(hit->contact);
         const glm::vec2 lv{ dvx->at(ib), dvy->at(ib) };
         const float av{ dva->at(ib) };
         for(int i = 0; i < 2; ++i) {
-          const float relativeVelocity = glm::dot(manifoldAB[i].normal, Dyn::velocityAtPoint(manifoldAB[i].centerToContactB, lv, av));
+          const float relativeVelocity = glm::dot(c.points[i].normal, Dyn::velocityAtPoint(c.points[i].point, lv, av));
           Assert::IsTrue(relativeVelocity <= 0.0f);
         }
       }
 
-      //Simulate another object C moving downwards and colliding with A but not B
+      //Simulate another object C moving downwards and colliding with B but not A
       const ElementRef dynamicC = app.createInTable(tables.dynamicBodies);
+      app.update();
       const size_t ic = res.uncheckedUnpack(dynamicC).getElementIndex();
-      auto cr = dynamicC;
-      IslandGraph::addNode(graph, cr);
-      const size_t edgeBC = SP::addIslandEdge(*modifier, graph, *pairA, *pairB, *pairTypeRow, br, cr, SP::PairType::ContactXY);
+
+      dyt.tx = -1;
+      dyt.ty = 0;
+      transforms.write(dynamicB, dyt);
+      Transform::PackedTransform dyct = transforms.resolve(dynamicC);
+      dyct.tx = dyt.tx;
+      dyct.ty = 1.f;
+      transforms.write(dynamicC, dyct);
 
       dvy->at(ic) = -0.75f;
-
-      SP::ContactManifold& manifoldBC = manifold->at(edgeBC);
-      manifoldBC.size = 1;
-      manifoldBC[0].centerToContactA = { 0.5f, 0.5f };
-      manifoldBC[0].centerToContactB = { 0.5f, -0.5f };
-      manifoldBC[0].normal = { 0, -1 };
-      manifoldBC[0].overlap = overlap;
 
       app.update();
 
@@ -209,18 +156,37 @@ namespace Test {
         const float avB{ dva->at(ib) };
         const glm::vec2 lvC{ dvx->at(ic), dvy->at(ic) };
         const float avC{ dva->at(ic) };
-        for(int i = 0; i < 2; ++i) {
-          const float relativeVelocity = glm::dot(manifoldAB[i].normal, Dyn::velocityAtPoint(manifoldAB[i].centerToContactB, lvB, avB));
-          Assert::IsTrue(relativeVelocity <= 0.0f);
+        spatial->begin(dynamicB);
+        int hitCount{};
+        while(const SpatialQuery::Result* hit = spatial->tryIterate()) {
+          ++hitCount;
+          const SpatialQuery::ContactXY* c = &std::get<SpatialQuery::ContactXY>(hit->contact);
+          if(hit->other == staticA) {
+            for(int i = 0; i < 2; ++i) {
+              const float relativeVelocity = glm::dot(c->points[i].normal, Dyn::velocityAtPoint(c->points[i].point, lvB, avB));
+              Assert::IsTrue(relativeVelocity <= 0.0f);
+            }
+          }
+          else if(hit->other == dynamicC) {
+            dyt = transforms.resolve(dynamicB);
+            dyct = transforms.resolve(dynamicC);
+            const glm::vec2 bToC = dyt.pos2() - dyct.pos2();
+
+            //const float rv = glm::dot(manifoldBC[0].normal,
+            //  Dyn::velocityAtPoint(manifoldBC[0].centerToContactA, lvB, avB) - Dyn::velocityAtPoint(manifoldBC[0].centerToContactB, lvC, avC));
+            const glm::vec2 vpA = Dyn::velocityAtPoint(c->points[0].point, lvB, avB);
+            const glm::vec2 vpB = Dyn::velocityAtPoint(c->points[0].point + bToC, lvC, avC);
+            const float rvA = glm::dot(c->points[0].normal, vpA);
+            const float rvB = glm::dot(-c->points[0].normal, vpB);
+            const float rv = rvA + rvB;
+            Assert::IsTrue(rv <= 0.0f);
+          }
+          else {
+            Assert::Fail(L"B should only collide with C and A");
+          }
         }
-        //const float rv = glm::dot(manifoldBC[0].normal,
-        //  Dyn::velocityAtPoint(manifoldBC[0].centerToContactA, lvB, avB) - Dyn::velocityAtPoint(manifoldBC[0].centerToContactB, lvC, avC));
-        const glm::vec2 vpA = Dyn::velocityAtPoint(manifoldBC[0].centerToContactA, lvB, avB);
-        const glm::vec2 vpB = Dyn::velocityAtPoint(manifoldBC[0].centerToContactB, lvC, avC);
-        const float rvA = glm::dot(manifoldBC[0].normal, vpA);
-        const float rvB = glm::dot(-manifoldBC[0].normal, vpB);
-        const float rv = rvA + rvB;
-        Assert::IsTrue(rv <= 0.0f);
+
+        Assert::AreEqual(2, hitCount, L"B should hit A and C");
       }
     }
 

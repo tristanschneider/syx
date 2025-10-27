@@ -9,11 +9,21 @@
 #include <Narrowphase.h>
 #include <Constraints.h>
 #include <shapes/Mesh.h>
+#include <shapes/Circle.h>
+#include <shapes/Rectangle.h>
 #include <RelationModule.h>
 #include <math/AxisFlags.h>
 #include <Physics.h>
 
 namespace PhysicsTableBuilder {
+  StorageTableBuilder& addCircle(StorageTableBuilder& table) {
+    return table.addRows<Shapes::CircleRow>();
+  }
+
+  StorageTableBuilder& addRectangle(StorageTableBuilder& table) {
+    return table.addRows<Shapes::RectangleRow>();
+  }
+
   StorageTableBuilder& addVelocity(StorageTableBuilder& table, math::AxisFlags axes) {
     if(axes.hasX()) {
       table.addRows<VelX>();
@@ -62,10 +72,20 @@ namespace PhysicsTableBuilder {
   }
 
   StorageTableBuilder& addCollider(StorageTableBuilder& table) {
-    return table.addRows<
-      SweepNPruneBroadphase::BroadphaseKeys,
-      Narrowphase::CollisionMaskRow
+    return addCollider(table, Narrowphase::CollisionMask{});
+  }
+
+  StorageTableBuilder& addColliderMaskAll(StorageTableBuilder& table) {
+    return addCollider(table, static_cast<Narrowphase::CollisionMask>(~0));
+  }
+
+  StorageTableBuilder& addCollider(StorageTableBuilder& table, Narrowphase::CollisionMask mask) {
+    auto [maskRow, keys] = table.addAndGetRows<
+      Narrowphase::CollisionMaskRow,
+      SweepNPruneBroadphase::BroadphaseKeys
     >();
+    maskRow->setDefaultValue(mask);
+    return table;
   }
 
   StorageTableBuilder& addRigidbodySharedMass(StorageTableBuilder& table) {

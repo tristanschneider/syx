@@ -19,6 +19,12 @@ namespace Transform {
     if(o.forceUpToDate) {
       task.logDependency({ QueryAlias<TransformNeedsUpdateRow>::create().read() });
     }
+    if(o.writable) {
+      task.logDependency({
+        QueryAlias<WorldTransformRow>::create().write(),
+        QueryAlias<TransformNeedsUpdateRow>::create().write()
+      });
+    }
   }
 
   PackedTransform Resolver::resolve(const ElementRef& ref) {
@@ -39,6 +45,19 @@ namespace Transform {
       ? TransformPair{ world->at(i), worldInverse->at(i) }
       : TransformPair{};
   }
+
+  void Resolver::write(const ElementRef& ref, const PackedTransform& value) {
+    assert(ops.writable);
+    CachedRow<WorldTransformRow> writeWorld;
+    CachedRow<TransformNeedsUpdateRow> writeUpdate;
+    const auto raw = res.unpack(ref);
+    if(resolver->tryGetOrSwapAllRows(raw, writeWorld, writeUpdate)) {
+      const size_t i = raw.getElementIndex();
+      writeWorld->at(i) = value;
+      writeUpdate->getOrAdd(i);
+    }
+  }
+
 
   TransformPair Resolver::forceResolvePair(const UnpackedDatabaseElementID& ref) {
     assert(ops.resolveWorld && ops.resolveWorldInverse && ops.forceUpToDate);

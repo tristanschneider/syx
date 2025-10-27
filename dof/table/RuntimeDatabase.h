@@ -560,6 +560,11 @@ public:
     return *this;
   }
 
+  template<IsRow... Rows>
+  std::tuple<Rows*...> addAndGetRows() {
+    return std::make_tuple(&addRow<Rows>()...);
+  }
+
   RuntimeTableRowBuilder& operator*() { return mBuilder; }
   const RuntimeTableRowBuilder& operator*() const { return mBuilder; }
   RuntimeTableRowBuilder* operator->() { return &mBuilder; }
