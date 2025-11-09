@@ -47,7 +47,6 @@ namespace Narrowphase {
     auto points = Geo::AABB{ glm::vec2{ 0 }, glm::vec2{ 1 } }.points();
     storage.clear();
     storage.insert(storage.end(), points.begin(), points.end());
-    //Identity transform since points are already in world space
     return ShapeRegistry::Mesh{
       .points = storage
     };
@@ -57,9 +56,8 @@ namespace Narrowphase {
     storage.clear();
     storage.insert(storage.begin(), {
       glm::vec2{ 0 },
-      glm::vec2{ 1 }
+      glm::vec2{ 1, 0 }
     });
-    //Identity transform since points are already in world space
     return ShapeRegistry::Mesh{
       .points = storage
     };
@@ -69,7 +67,6 @@ namespace Narrowphase {
   ShapeRegistry::Mesh toMesh(const ShapeRegistry::Circle&, std::vector<glm::vec2>& storage) {
     storage.clear();
     storage.insert(storage.begin(), glm::vec2{ 0 });
-    //Identity transform since points are already in world space
     return ShapeRegistry::Mesh{
       .points = storage
     };

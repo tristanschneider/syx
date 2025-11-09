@@ -4,15 +4,28 @@
 
 namespace Shapes {
   ShapeRegistry::Raycast lineFromTransform(const Transform::PackedTransform& transform) {
-    return { transform.pos2(), transform.pos2() + transform.basisX() };
+    return { transform.pos2(), transform.transformPoint(glm::vec2{ 1, 0 }) };
   }
 
   Transform::PackedTransform toTransform(const ShapeRegistry::Raycast& v, float z) {
     Transform::PackedTransform t;
-    t.setPos(glm::vec3{ v.start.x, v.start.y, z });
-    const glm::vec2 scale = v.end - v.start;
-    t.ax = scale.x;
-    t.by = scale.y;
+    // Transform that causes 1,0 to go to end and the translate to be start
+    const glm::vec2 dir = v.end - v.start;
+    const float len = std::max(0.01f, glm::length(dir));
+    constexpr float minScale = 0.01f;
+    if(len > 0) {
+      Transform::Parts parts;
+      parts.translate = glm::vec3{ v.start.x, v.start.y, z };
+      parts.rot = dir / len;
+      parts.scale = glm::vec2{ len, len };
+      t = Transform::PackedTransform::build(parts);
+    }
+    else {
+      //Hack to avoid uninvertible transform for zero length rays
+      t.setPos(glm::vec3{ v.start.x, v.start.y, z });
+      t.ax = minScale;
+      t.by = minScale;
+    }
     return t;
   }
 
