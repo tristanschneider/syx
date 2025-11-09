@@ -266,7 +266,7 @@ namespace AreaForceStatEffect {
       hit.id = query.table.remakeElement(i);
       hit.pos = pos;
       hit.extentX = transform.basisX();
-      hit.extentX = transform.basisY();
+      hit.extentY = transform.basisY();
       hit.isTerrain = isTerrain;
       hit.distance = len2;
       results.push_back(hit);
