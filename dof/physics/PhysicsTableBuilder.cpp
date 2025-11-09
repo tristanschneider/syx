@@ -117,4 +117,17 @@ namespace PhysicsTableBuilder {
       Relation::HasChildrenRow
     >();
   }
+
+  StorageTableBuilder& addThickness(StorageTableBuilder& table, float defaultThickness) {
+    auto [thickness] = table.addAndGetRows<Narrowphase::ThicknessRow>();
+    thickness->setDefaultValue(defaultThickness);
+    return table;
+  }
+
+  StorageTableBuilder& addSharedThickness(StorageTableBuilder& table, float defaultThickness) {
+    auto [thickness] = table.addAndGetRows<Narrowphase::SharedThicknessRow>();
+    thickness->setDefaultValue(defaultThickness);
+    thickness->at() = defaultThickness;
+    return table;
+  }
 }

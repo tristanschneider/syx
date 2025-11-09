@@ -27,4 +27,6 @@ namespace PhysicsTableBuilder {
   StorageTableBuilder& addAutoManagedJoint(StorageTableBuilder& table);
   StorageTableBuilder& addAutoManagedCustomJoint(StorageTableBuilder& table);
   StorageTableBuilder& addStaticTriangleMesh(StorageTableBuilder& table);
+  StorageTableBuilder& addThickness(StorageTableBuilder& table, float defaultThickness = 0);
+  StorageTableBuilder& addSharedThickness(StorageTableBuilder& table, float defaultThickness = 0);
 }

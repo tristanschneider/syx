@@ -49,6 +49,7 @@ namespace Test {
       PhysicsTableBuilder::addVelocity(table, math::AxisFlags::XYZA());
       PhysicsTableBuilder::addColliderMaskAll(table);
       PhysicsTableBuilder::addRectangle(table);
+      PhysicsTableBuilder::addThickness(table);
       Transform::addTransform2D(table);
       table.setStable().addRows<DynamicTag>().setTableName({ "a" });
       return table;
@@ -98,7 +99,6 @@ namespace Test {
       auto& task = app.builder();
       const TableIds tables{ task };
       auto [staticStableID] = task.query<StableIDRow>(tables.staticBodies).get(0);
-      auto modifier = task.getModifierForTable(tables.spatialPairs);
       auto [dynamicStableId, dvx, dvy, dva] = task.query<
         StableIDRow,
         VelX,
@@ -194,52 +194,48 @@ namespace Test {
       SolverApp app;
       auto& task = app.builder();
       const TableIds tables{ task };
-      auto [islandGraph, manifold, zManifold, pairA, pairB, pairTypeRow] = task.query<
-        SP::IslandGraphRow,
-        SP::ManifoldRow,
-        SP::ZManifoldRow,
-        SP::ObjA,
-        SP::ObjB,
-        SP::PairTypeRow
-      >().get(0);
-      auto modifier = task.getModifierForTable(tables.spatialPairs);
-      IslandGraph::Graph& graph = islandGraph->at();
-      auto [dynamicStableId, dvz, dva] = task.query<
+      auto [dynamicStableId, dvz, dva, thickness] = task.query<
         StableIDRow,
         VelZ,
-        VelA
+        VelA,
+        Narrowphase::ThicknessRow
       >().get(0);
+      Transform::Resolver transforms{ task, Transform::ResolveOps{}.addWrite() };
       auto ids = task.getIDResolver();
       auto res = ids->getRefResolver();
+      auto spatial = SpatialQuery::createReader(task);
 
       const ElementRef a = app.createInTable(tables.dynamicBodies);
       const ElementRef b = app.createInTable(tables.dynamicBodies);
+      app.update();
 
       const size_t ai = res.uncheckedUnpack(a).getElementIndex();
       const size_t bi = res.uncheckedUnpack(b).getElementIndex();
 
-      auto ar = a;
-      auto br = b;
-      IslandGraph::addNode(graph, ar);
-      IslandGraph::addNode(graph, br);
-      const size_t edgeAB = SP::addIslandEdge(*modifier, graph, *pairA, *pairB, *pairTypeRow, ar, br, SP::PairType::ContactZ);
-
       //A moving up towards B but not fast enough to collide
       dvz->at(ai) = 1.0f;
       dvz->at(bi) = -1.0f;
-      SP::ZContactManifold& manifoldAB = zManifold->at(edgeAB);
-      manifoldAB.info.normal = -1.0f;
-      manifoldAB.info.separation = 4.f;
+      Transform::PackedTransform ta = transforms.resolve(a);
+      Transform::PackedTransform tb = transforms.resolve(b);
+      auto updateTransforms = [&] {
+        transforms.write(a, ta);
+        transforms.write(b, tb);
+      };
+      thickness->at(ai) = 1;
+      thickness->at(bi) = 0;
+      ta.tz = 0;
+      tb.tz = 5;
+      updateTransforms();
 
       app.update();
 
-      //A moving up towards B and going to collide
       constexpr float e = 0.01f;
       Assert::AreEqual(1.0f, dvz->at(ai), e, L"No collision so velocity should be unchanged");
       Assert::AreEqual(-1.0f, dvz->at(bi), e);
 
-      manifoldAB.info.normal = -1.0f;
-      manifoldAB.info.separation = 1.0f;
+      //A moving up towards B and going to collide
+      ta.tz = 3;
+      updateTransforms();
 
       app.update();
 
@@ -247,8 +243,9 @@ namespace Test {
       Assert::AreEqual(-0.5f, dvz->at(bi), e);
 
       //A overlapping with B
-      manifoldAB.info.normal = 1.0f;
-      manifoldAB.info.separation = -0.1f;
+      ta.tz = 1;
+      tb.tz = 1.9f;
+      updateTransforms();
 
       app.update();
 
