@@ -817,7 +817,7 @@ namespace Test {
       const float halfSize = 0.5f;
       const float padding = 0.1f;
       objs->at(0).tx = cfg.broadphase.cellSizeX - halfSize - padding;
-      objs->at(1).ty = cfg.broadphase.cellSizeX;
+      objs->at(1).tx = cfg.broadphase.cellSizeX;
       objs->at(2).tx = cfg.broadphase.cellSizeX + halfSize + padding;
 
       game.update();
