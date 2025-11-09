@@ -33,7 +33,7 @@ namespace GameplayExtract {
     tryExtract<VelX, GLinVelXRow>(builder);
     tryExtract<VelY, GLinVelYRow>(builder);
     tryExtract<VelZ, FloatRow<GLinVel, Z>>(builder);
-    tryExtract<VelA, FloatRow<GLinVel, Angle>>(builder);
+    tryExtract<VelA, FloatRow<GAngVel, Angle>>(builder);
   }
 
   void applyGameplayImpulses(IAppBuilder& builder) {

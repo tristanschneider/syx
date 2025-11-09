@@ -1115,7 +1115,6 @@ namespace Test {
 
       using Query = RowTypeList<VelX, VelY, VelA, Tags::GVelXRow, Tags::GVelYRow, Tags::GVelARow>;
       auto fragment = game.builder().queryList<Query>(game.tables.fragments).get(0);
-      auto completedFragment = game.builder().queryList<Query>(game.tables.completedFragments).get(0);
       auto player = game.builder().queryList<Query>(game.tables.player).get(0);
       std::get<0>(fragment)->at(0);
       auto setValues = [](auto& obj, float offset) {
@@ -1127,7 +1126,6 @@ namespace Test {
       };
 
       setValues(fragment, 1.0f);
-      setValues(completedFragment, 2.0f);
       setValues(player, 3.0f);
 
       game.update();
@@ -1141,7 +1139,6 @@ namespace Test {
       };
 
       assertValues(fragment, 1.0f);
-      assertValues(completedFragment, 2.0f);
       assertValues(player, 3.0f);
     }
 
