@@ -75,7 +75,7 @@ namespace PositionStatEffect {
             parts.translate.z = *cmd.posZ;
           }
           if(cmd.rot) {
-            parts.rot = parts.rot;
+            parts.rot = *cmd.rot;
           }
           //Assume a command always changes something
           transform = Transform::PackedTransform::build(parts);
