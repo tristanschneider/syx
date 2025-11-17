@@ -139,6 +139,11 @@ namespace Test {
       Assert::AreEqual(l.y, r.y, E);
     }
 
+    static void assertEq(const ShapeRegistry::Raycast& l, const ShapeRegistry::Raycast& r) {
+      assertEq(l.start, r.start);
+      assertEq(l.end, r.end);
+    }
+
     SP::ContactManifold getManifold(SpatialQuery::IReader& query, ElementRef a, ElementRef b) {
       SP::ContactManifold result;
       query.begin(a);
@@ -166,7 +171,15 @@ namespace Test {
       return result;
     }
 
-    //TODO: this is using the spatial queries table. Need to either go back to a custom table or fully set up the query so it isn't destroyed after one tick.
+    TEST_METHOD(ShapeTransform) {
+      ShapeRegistry::Raycast cast{
+        .start = { 1, 2 },
+        .end = { 3, 4 }
+      };
+      assertEq(cast, Shapes::lineFromTransform(Shapes::toTransform(cast)));
+      assertEq(ShapeRegistry::Raycast{}, Shapes::lineFromTransform(Shapes::toTransform(ShapeRegistry::Raycast{})));
+    }
+
     TEST_METHOD(CircleToCircle) {
       NarrowphaseDB db;
       auto& task = db.builder();

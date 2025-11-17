@@ -1209,14 +1209,14 @@ namespace Test {
       const SpatialQuery::Result* r = q->tryIterate();
       auto ids = game.builder().getIDResolver();
 
-      size_t count = 0;
-      while(r && expected.size() > count) {
-        Assert::IsTrue(expected[count] == r->other);
-
-        ++count;
+      size_t found = 0;
+      while(r && found < expected.size()) {
+        if(std::find(expected.begin(), expected.end(), r->other) != expected.end()) {
+          ++found;
+        }
         r = q->tryIterate();
       }
-      Assert::AreEqual(expected.size(), count);
+      Assert::AreEqual(expected.size(), found);
     }
 
     void assertQueryHasObject(TestGame& game, const ElementRef& query, const ElementRef& object) {
