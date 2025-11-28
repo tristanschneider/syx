@@ -42,32 +42,10 @@ namespace Player {
   }
 
   void init(IAppBuilder& builder) {
+    if(builder.getEnv().isThreadLocal()) {
+      return;
+    }
     configurePlayerMotor(builder);
-
-    auto task = builder.createTask();
-    task.setName("init player");
-    Config::GameConfig* config = TableAdapters::getGameConfigMutable(task);
-
-    task.setCallback([config](AppTaskArgs&) {
-      Config::PlayerConfig& player = config->player;
-      auto& force = Config::getCurve(player.linearForceCurve);
-      force.params.duration = 0.4f;
-      force.params.scale = 0.21f;
-      force.function = CurveMath::getFunction(CurveMath::CurveType::One);
-
-      auto& speed = Config::getCurve(player.linearSpeedCurve);
-      speed.params.duration = 0.691f;
-      speed.params.scale = 0.162f;
-      speed.function = CurveMath::getFunction(CurveMath::CurveType::ElasticEaseOut);
-
-      auto& stopping = Config::getCurve(player.linearStoppingSpeedCurve);
-      stopping.params.duration = 0.5f;
-      stopping.params.scale = 0.1f;
-      stopping.params.flipInput = true;
-      stopping.function = CurveMath::getFunction(CurveMath::CurveType::QuadraticEaseIn);
-    });
-
-    builder.submitTask(std::move(task));
   }
 
   void initAbility(Config::GameConfig& config, GameInput::PlayerInput& in) {

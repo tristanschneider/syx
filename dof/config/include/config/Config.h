@@ -78,6 +78,8 @@ namespace Config {
   };
 
   struct PlayerConfig {
+    PlayerConfig();
+
     bool drawMove{};
     CurveConfigExt linearSpeedCurve;
     CurveConfigExt linearForceCurve;

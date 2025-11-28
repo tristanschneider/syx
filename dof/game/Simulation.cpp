@@ -117,6 +117,9 @@ public:
   //Read config file to populate Config::GameConfig which other modules can read in their init.
   //As such, this module is registered early.
   void init(IAppBuilder& builder) {
+    if(builder.getEnv().isThreadLocal()) {
+      return;
+    }
     auto task = builder.createTask();
     task.setName("load config");
     Config::GameConfig* gameConfig = TableAdapters::getGameConfigMutable(task);

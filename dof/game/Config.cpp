@@ -135,4 +135,22 @@ namespace Config {
   CurveDefinition& getCurve(CurveConfigExt& ext) {
     return getExt<GameCurveConfig>(ext);
   }
+
+  PlayerConfig::PlayerConfig() {
+    auto& force = getCurve(linearForceCurve);
+    force.params.duration = 0.4f;
+    force.params.scale = 0.21f;
+    force.function = CurveMath::getFunction(CurveMath::CurveType::One);
+
+    auto& speed = getCurve(linearSpeedCurve);
+    speed.params.duration = 0.691f;
+    speed.params.scale = 0.162f;
+    speed.function = CurveMath::getFunction(CurveMath::CurveType::ElasticEaseOut);
+
+    auto& stopping = getCurve(linearStoppingSpeedCurve);
+    stopping.params.duration = 0.5f;
+    stopping.params.scale = 0.1f;
+    stopping.params.flipInput = true;
+    stopping.function = CurveMath::getFunction(CurveMath::CurveType::QuadraticEaseIn);
+  }
 }
