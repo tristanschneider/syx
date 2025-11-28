@@ -129,14 +129,6 @@ namespace cereal {
       value.drawAI
     );
   }
-  
-  template<class Archive>
-  void serialize(Archive& archive, Config::WorldConfig& value) {
-    ARCHIVE(archive,
-      value.deltaTime,
-      value.boundarySpringConstant
-    );
-  }
 
   template<class Archive, class T>
   T beforeConfigExtArchive(Archive& archive, Config::ConfigExt<Config::IAdapter<T>>& value) {
@@ -202,8 +194,7 @@ namespace cereal {
       value.camera,
       value.fragment,
       value.physics,
-      value.player,
-      value.world
+      value.player
     );
   }
 }

@@ -121,17 +121,11 @@ namespace Config {
     bool addGround{ true };
   };
 
-  struct WorldConfig {
-    float deltaTime = 1.0f/60.0f;
-    float boundarySpringConstant = 0.01f;
-  };
-
   struct GameConfig {
     PlayerConfig player;
     PlayerAbilityConfig ability;
     CameraConfig camera;
     FragmentConfig fragment;
-    WorldConfig world;
     PhysicsConfig physics;
   };
 }

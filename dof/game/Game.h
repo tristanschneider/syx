@@ -79,6 +79,7 @@ namespace GameDefaults {
       reflection,
       physicsTest,
       transform,
+      time,
       finalEventValidator,
       events;
   };

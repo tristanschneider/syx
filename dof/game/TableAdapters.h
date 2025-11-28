@@ -46,7 +46,6 @@ namespace TableAdapters {
   size_t getThreadCount(RuntimeDatabaseTaskBuilder& task);
 
   DebugLineAdapter getDebugLines(RuntimeDatabaseTaskBuilder& task);
-  const float* getDeltaTime(RuntimeDatabaseTaskBuilder& task);
 
   inline glm::vec2 read(size_t i, const Row<float>& a, const Row<float>& b) {
     return { a.at(i), b.at(i) };

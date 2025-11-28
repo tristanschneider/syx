@@ -18,6 +18,7 @@
 #include "SpatialQueries.h"
 #include "Constraints.h"
 #include <transform/TransformRows.h>
+#include <time/TimeModule.h>
 
 namespace Player {
   using namespace Tags;
@@ -163,8 +164,9 @@ namespace Player {
     >();
     auto debug = TableAdapters::getDebugLines(task);
     Constraints::Builder motorBuilder{ Constraints::Definition::resolve(task, players[0], MOTOR_KEY) };
+    const Time::TimeTransform* time = TimeModule::getSimTime(task);
 
-    task.setCallback([players, config, debug, motorBuilder](AppTaskArgs& args) mutable {
+    task.setCallback([players, config, debug, motorBuilder, time](AppTaskArgs& args) mutable {
       for(size_t t = 0; t < players.size(); ++t) {
         auto&& [input, machines, transforms] = players.get(t);
         for(size_t i = 0; i < input->size(); ++i) {
@@ -178,7 +180,7 @@ namespace Player {
 
           constexpr float epsilon = 0.0001f;
           const bool hasMoveInput = glm::length2(move) > epsilon;
-          const float rawDT = config->world.deltaTime;
+          const float rawDT = time->getSecondsToTicks();
 
           constexpr CurveSolver::CurveUniforms curveUniforms{ 1 };
           float curveOutput{};

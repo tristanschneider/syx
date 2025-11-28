@@ -1,10 +1,10 @@
 #include "Precompile.h"
 #include "stat/StatEffectBase.h"
 
-#include "TableAdapters.h"
 #include "AppBuilder.h"
 #include "curve/CurveSolver.h"
 #include "Events.h"
+#include <time/TimeModule.h>
 
 namespace StatEffect {
   //Each set of commands must begin with this, creates the range of effects in this table
@@ -55,20 +55,20 @@ namespace StatEffect {
       auto task = builder.createTask();
       task.setName("advance curve time");
       auto query = task.queryAlias(table, alias.curveIn, alias.curveDef.read());
-      const float* dt = TableAdapters::getDeltaTime(task);
+      const Time::TimeTransform* time = TimeModule::getSimTime(task);
       if(!query.size()) {
         task.discard();
         return;
       }
 
-      task.setCallback([query, dt](AppTaskArgs&) mutable {
+      task.setCallback([query, time](AppTaskArgs&) mutable {
         auto&& [curveInput, definition] = query.get(0);
         for(size_t i = 0; i < curveInput->size(); ++i) {
           //Another possibility would be scanning forward to look for matching definitions so they can be solved in groups
           CurveSolver::CurveUniforms uniforms{ 1 };
           //Update input time in place
           CurveSolver::CurveVaryings varyings{ &curveInput->at(i), &curveInput->at(i) };
-          CurveSolver::advanceTime(*definition->at(i), uniforms, varyings, *dt);
+          CurveSolver::advanceTime(*definition->at(i), uniforms, varyings, time->getSecondsToTicks());
         }
       });
 

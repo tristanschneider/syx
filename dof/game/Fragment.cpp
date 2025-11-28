@@ -11,7 +11,7 @@
 #include "stat/AllStatEffects.h"
 #include "AppBuilder.h"
 #include "Narrowphase.h"
-#include "GameTime.h"
+#include "time/TimeModule.h"
 #include "Events.h"
 #include "TLSTaskImpl.h"
 #include <transform/TransformRows.h>
@@ -193,17 +193,17 @@ namespace Fragment {
       FragmentGoalCooldownDefinitionRow,
       FragmentGoalCooldownRow
     >();
-    const float* dt = GameTime::getDeltaTime(task);
-    if(!dt) {
+    const Time::TimeTransform* time = TimeModule::getSimTime(task);
+    if(!time) {
       task.discard();
       return;
     }
 
-    task.setCallback([query, dt](AppTaskArgs&) mutable {
+    task.setCallback([query, time](AppTaskArgs&) mutable {
       for(size_t t = 0; t < query.size(); ++t) {
         auto&& [def, cooldowns] = query.get(t);
         FragmentGoalCooldownDefinition& d = def->at();
-        d.currentTime += *dt;
+        d.currentTime += time->getSecondsToTicks();
         if(d.currentTime < d.timeToTick) {
           continue;
         }

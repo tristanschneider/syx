@@ -246,7 +246,6 @@ void GameModule::update(IAppBuilder& builder) {
     ImGui::Checkbox("Draw Move", &config->player.drawMove);
 
     ImGui::SliderFloat("Camera Zoom Speed", &config->camera.cameraZoomSpeed, 0.0f, 1.0f);
-    ImGui::SliderFloat("Boundary Spring Force", &config->world.boundarySpringConstant, 0.0f, 1.0f);
     ImGui::SliderFloat("Fragment Goal Distance", &config->fragment.fragmentGoalDistance, 0.0f, 5.0f);
     ImguiExt::inputSizeT("Fragment Rows", &config->fragment.fragmentRows);
     ImguiExt::inputSizeT("Fragment Columns", &config->fragment.fragmentColumns);

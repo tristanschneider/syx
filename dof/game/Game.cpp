@@ -230,6 +230,7 @@ namespace Game {
 #include <RelationModule.h>
 #include <transform/TransformModule.h>
 #include <TableAdapters.h>
+#include <time/TimeModule.h>
 
 namespace GameDefaults {
   MultithreadedDeps DefaultGameDatabaseReader::getMultithreadedDeps(IDatabase& db) {
@@ -268,6 +269,7 @@ namespace GameDefaults {
     tryAdd(basicLoaders);
     tryAdd(reflection);
     tryAdd(physicsTest);
+    tryAdd(time);
     assert(tryAdd(finalEventValidator));
     tryAdd(events);
     //Rendering is from a separate project so "default" exposed here is empty
@@ -291,6 +293,7 @@ namespace GameDefaults {
       .reflection = ReflectionModule::create(),
       .physicsTest = PhysicsTestModule::create(),
       .transform = Transform::createModule(),
+      .time = TimeModule::createModule(),
       .finalEventValidator = EventValidator::createModule("last"),
       .events = Events::createModule(),
     };

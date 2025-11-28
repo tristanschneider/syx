@@ -46,7 +46,3 @@ DebugLineAdapter TableAdapters::getDebugLines(RuntimeDatabaseTaskBuilder& task) 
   }
   return result;
 }
-
-const float* TableAdapters::getDeltaTime(RuntimeDatabaseTaskBuilder& task) {
-  return &getGameConfig(task)->world.deltaTime;
-}
