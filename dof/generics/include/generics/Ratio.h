@@ -47,6 +47,30 @@ namespace math {
       } : Ratio{};
     }
 
+    constexpr Ratio& operator+=(const Ratio& rhs) {
+      return *this = *this + rhs;
+    }
+
+    constexpr explicit operator float() const {
+      return den ? static_cast<float>(num) / static_cast<float>(den) : 0.f;
+    }
+
+    constexpr bool operator<(const Ratio& rhs) const {
+      if(num >= 0 && rhs.num >= 0) {
+        return num*rhs.den < rhs.num*den;
+      }
+
+      if(num < 0 && rhs.num < 0) {
+        return -num*rhs.den < -rhs.num*den;
+      }
+
+      return num < rhs.num;
+    }
+
+    constexpr bool operator>(const Ratio& rhs) const {
+      return rhs < *this;
+    }
+
     //Inverse without simplification
     constexpr Ratio inverse() const {
       return Ratio{ den, num };
@@ -83,6 +107,10 @@ namespace math {
         return result;
       }
       return {};
+    }
+
+    constexpr bool nonzero() const {
+      return num != Int(0);
     }
 
     Int num{};

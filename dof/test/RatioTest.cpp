@@ -1,6 +1,6 @@
 #include <CppUnitTest.h>
 
-#include <math/Ratio.h>
+#include <generics/Ratio.h>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
