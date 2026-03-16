@@ -4,9 +4,13 @@ file(GLOB_RECURSE source_files *.cpp *.h)
 # Test runner expects a dll (SHARED)
 add_library(test SHARED ${source_files})
 
-target_link_libraries(test PUBLIC game)
-target_link_libraries(test PUBLIC physics)
-target_link_libraries(test PUBLIC table)
+target_link_libraries(test
+PUBLIC
+    game
+    physics
+    table
+    c_std
+)
 
 target_include_directories(test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
