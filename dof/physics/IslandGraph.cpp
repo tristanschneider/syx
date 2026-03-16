@@ -305,7 +305,7 @@ namespace IslandGraph {
     return didChange;
   }
 
-  void addNewIsland(Graph& graph, IslandIndex islandIndex) {
+  void addNewIsland(Graph& graph, [[maybe_unused]] IslandIndex islandIndex) {
     assert(graph.islands.getValues().size() < INVALID_ISLAND);
     assert(graph.changedIslands.size() == islandIndex);
     graph.changedIslands.push_back(false);

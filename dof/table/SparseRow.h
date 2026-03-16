@@ -732,11 +732,11 @@ protected:
     }
   }
 
-  void debugCheck(size_t tableSize) final {
+  void debugCheck([[maybe_unused]] size_t tableSize) final {
     assert(static_cast<size_t>(sparseToDense.size() == tableSize));
     for(const auto& pair : *this) {
       assert(pair.first < tableSize);
-      const auto dense = *findBase(pair.first);
+      [[maybe_unused]] const auto dense = *findBase(pair.first);
       assert(dense == pair.first);
     }
   }
@@ -816,9 +816,9 @@ public:
     }
   }
 
-  void debugCheck(size_t tableSize) final {
+  void debugCheck([[maybe_unused]] size_t tableSize) final {
     assert(static_cast<size_t>(sparseToDense.size() == tableSize));
-    for(size_t i : *this) {
+    for([[maybe_unused]] size_t i : *this) {
       assert(i < tableSize);
     }
   }

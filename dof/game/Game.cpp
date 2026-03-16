@@ -50,7 +50,7 @@ namespace Game {
     }
   }
 
-  void assertEqual(RuntimeDatabase& original, RuntimeDatabase& copy) {
+  void assertEqual(RuntimeDatabase& original, [[maybe_unused]] RuntimeDatabase& copy) {
     assert(original.size() == copy.size());
     for(size_t i = 0; i < original.size(); ++i) {
       assert(original[i].getType() == copy[i].getType());

@@ -124,7 +124,7 @@ namespace EventValidator {
       };
     }
 
-    static void assertValidEvent(const Events::ElementEvent& e) {
+    static void assertValidEvent([[maybe_unused]] const Events::ElementEvent& e) {
       assert(e.isCreate() || e.isMove() || e.isDestroy());
     }
 
