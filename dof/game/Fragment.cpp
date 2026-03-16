@@ -193,7 +193,7 @@ namespace Fragment {
       FragmentGoalCooldownDefinitionRow,
       FragmentGoalCooldownRow
     >();
-    const Time::TimeTransform* time = TimeModule::getSimTime(task);
+    const Time::TimeSlice* time = TimeModule::getSimTime(task);
     if(!time) {
       task.discard();
       return;
@@ -203,7 +203,7 @@ namespace Fragment {
       for(size_t t = 0; t < query.size(); ++t) {
         auto&& [def, cooldowns] = query.get(t);
         FragmentGoalCooldownDefinition& d = def->at();
-        d.currentTime += time->getSecondsToTicks();
+        d.currentTime += time->secondsToTicks;
         if(d.currentTime < d.timeToTick) {
           continue;
         }

@@ -164,7 +164,7 @@ namespace Player {
     >();
     auto debug = TableAdapters::getDebugLines(task);
     Constraints::Builder motorBuilder{ Constraints::Definition::resolve(task, players[0], MOTOR_KEY) };
-    const Time::TimeTransform* time = TimeModule::getSimTime(task);
+    const Time::TimeSlice* time = TimeModule::getSimTime(task);
 
     task.setCallback([players, config, debug, motorBuilder, time](AppTaskArgs& args) mutable {
       for(size_t t = 0; t < players.size(); ++t) {
@@ -180,7 +180,7 @@ namespace Player {
 
           constexpr float epsilon = 0.0001f;
           const bool hasMoveInput = glm::length2(move) > epsilon;
-          const float rawDT = time->getSecondsToTicks();
+          const float rawDT = time->secondsToTicks;
 
           constexpr CurveSolver::CurveUniforms curveUniforms{ 1 };
           float curveOutput{};

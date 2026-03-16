@@ -55,7 +55,7 @@ namespace StatEffect {
       auto task = builder.createTask();
       task.setName("advance curve time");
       auto query = task.queryAlias(table, alias.curveIn, alias.curveDef.read());
-      const Time::TimeTransform* time = TimeModule::getSimTime(task);
+      const Time::TimeSlice* time = TimeModule::getSimTime(task);
       if(!query.size()) {
         task.discard();
         return;
@@ -68,7 +68,7 @@ namespace StatEffect {
           CurveSolver::CurveUniforms uniforms{ 1 };
           //Update input time in place
           CurveSolver::CurveVaryings varyings{ &curveInput->at(i), &curveInput->at(i) };
-          CurveSolver::advanceTime(*definition->at(i), uniforms, varyings, time->getSecondsToTicks());
+          CurveSolver::advanceTime(*definition->at(i), uniforms, varyings, time->secondsToTicks);
         }
       });
 
