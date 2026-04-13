@@ -8,6 +8,7 @@ struct std_Buffer_t;
 typedef struct std_Allocator_t std_Allocator;
 typedef struct std_Buffer_t std_Buffer;
 
+//Can be zero initialized
 struct std_Vector_t {
   void* data;
   uint32_t size;
@@ -57,6 +58,9 @@ typedef struct std_VectorCtxA_t std_VectorCtxA;
 std_VectorCtxC std_Vector_ctxmc(std_VectorCtxM* ctx);
 std_VectorCtxM std_Vector_ctxam(std_VectorCtxA* ctx);
 std_VectorCtxC std_Vector_ctxac(std_VectorCtxA* ctx);
+
+//ctor may be zero initialized
+void std_Vector_dtor(std_VectorCtxA* ctx);
 
 std_VectorTraits std_Vector_defaultTraits(uint32_t size);
 

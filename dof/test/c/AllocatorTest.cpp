@@ -4,7 +4,6 @@ extern "C" {
 #include <std/Allocator.h>
 #include <std/CountingAllocator.h>
 #include <std/MallocAllocator.h>
-#include <std/Vector.h>
 }
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;

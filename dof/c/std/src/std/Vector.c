@@ -26,6 +26,14 @@ std_VectorCtxC std_Vector_ctxac(std_VectorCtxA* ctx) {
   return result;
 }
 
+void std_Vector_dtor(std_VectorCtxA* ctx) {
+  if(ctx->vector->data) {
+    std_Allocator_dealloc(ctx->traits->allocator, ctx->vector->data);
+    ctx->vector->data = NULL;
+    ctx->vector->size = ctx->vector->capacity = 0;
+  }
+}
+
 std_VectorTraits std_Vector_defaultTraits(uint32_t size) {
   std_VectorTraits result = {
     .elementSize = size,
@@ -53,11 +61,11 @@ size_t std_Vector_sizeBytes(const std_VectorCtxC* vector) {
 
 void* std_Vector_get(std_VectorCtxM* vector, uint32_t i) {
   STD_ASSERT(i < vector->vector->size);
-  return std_Buffer_get(vector->vector, i*vector->traits->elementSize);
+  return std_Buffer_get(vector->vector->data, i*vector->traits->elementSize);
 }
 
 void* std_Vector_end(std_VectorCtxM* vector) {
-  return std_Buffer_get(vector->vector, vector->vector->size*vector->traits->elementSize);
+  return std_Buffer_get(vector->vector->data, vector->vector->size*vector->traits->elementSize);
 }
 
 const void* std_Vector_cget(const std_VectorCtxC* vector, uint32_t i) {
@@ -109,13 +117,13 @@ bool std_details_Vector_tryGrow(std_VectorCtxA* vector, uint32_t neededElements)
   if(neededElements >= vector->vector->capacity) {
     std_details_Vector_grow(vector, neededElements);
   }
-  return neededElements < vector->vector->capacity;
+  return neededElements <= vector->vector->capacity;
 }
 
 bool std_Vector_pushBack(std_VectorCtxA* vector, const void* element) {
   if(std_details_Vector_tryGrow(vector, vector->vector->size + 1)) {
     //Write the new element at old size before incrementing it
-    memcpy(std_Vector_get(&vctx_am(vector), vector->vector->size), element, vector->traits->traits->elementSize);
+    memcpy(std_Vector_end(&vctx_am(vector)), element, vector->traits->traits->elementSize);
     ++vector->vector->size;
     return true;
   }
@@ -164,6 +172,7 @@ bool std_Vector_insert(std_VectorCtxA* ctx, uint32_t at, const void* elements, u
   STD_ASSERT(at < ctx->vector->size);
   const uint32_t begin = at;
   const uint32_t end = at + count;
+  const uint32_t oldSize = ctx->vector->size;
   if(!std_Vector_resize(ctx, ctx->vector->size + count)) {
     return false;
   }
@@ -172,8 +181,9 @@ bool std_Vector_insert(std_VectorCtxA* ctx, uint32_t at, const void* elements, u
   uint8_t* beginPtr = (uint8_t*)std_Vector_get(&ctxm, begin);
   uint8_t* endPtr = (uint8_t*)std_Vector_get(&ctxm, end);
   uint8_t* vectorEnd = (uint8_t*)std_Vector_end(&ctxm);
-  //Shift over everything to the right of `at` to the newly resized space
-  const errno_t errMove = memmove_s(endPtr, vectorEnd - endPtr, beginPtr, endPtr - beginPtr);
+  uint8_t* oldVectorEnd = (uint8_t*)std_Vector_get(&ctxm, oldSize);
+  //Shift over `at` and everything to the right to the newly resized space
+  const errno_t errMove = memmove_s(endPtr, vectorEnd - endPtr, beginPtr, oldVectorEnd - beginPtr);
   //Error would indicate invalid buffer sizes provided above which would be a logic error within the vector
   STD_ASSERT(errMove == 0);
 
@@ -189,8 +199,9 @@ void std_Vector_erase(std_VectorCtxM* ctx, uint32_t at, uint32_t count) {
   uint8_t* holeBegin = (uint8_t*)std_Vector_get(ctx, at);
   uint8_t* holeEnd = holeBegin + count*ctx->traits->elementSize;
   uint8_t* vectorEnd = (uint8_t*)std_Vector_end(ctx);
+  uint8_t* newEnd = (uint8_t*)std_Vector_get(ctx, ctx->vector->size - count);
   //Copy the elements to the right of the erased range into the erased range
-  memmove_s(holeBegin, holeEnd - holeBegin, holeEnd, vectorEnd - holeEnd);
+  memmove_s(holeBegin, newEnd - holeBegin, holeEnd, vectorEnd - holeEnd);
   //Trim off the end now that everything has been moved down
   ctx->vector->size -= count;
 }
