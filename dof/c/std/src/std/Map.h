@@ -4,24 +4,69 @@
 #include <stdbool.h>
 #include <std/Allocator.h>
 
+//True when this bucket is available to accept a new value
+#define STD_MAP_FLAG_AVAILABLE ((uint32_t)1)
+//True when bucket iteration should continue on this bucket
+#define STD_MAP_FLAG_IN_BUCKET ((uint32_t)(1 << 1))
+//True when this is the end of the bucket container
+#define STD_MAP_FLAG_END ((uint32_t)(1 << 2))
+//Set by the caller into generic method to indicate the key matches
+#define STD_MAP_FLAG_KEY_MATCH ((uint32_t)(1 << 3))
+
+#define STD_MAP_EMPTY STD_MAP_FLAG_AVAILABLE
+#define STD_MAP_TOMBSTONE (STD_MAP_FLAG_AVAILABLE | STD_MAP_FLAG_IN_BUCKET)
+#define STD_MAP_SENTRY STD_MAP_FLAG_END
+#define STD_MAP_OCCUPIED STD_MAP_FLAG_IN_BUCKET
+
 enum std_MapLookupAction {
+  std_MapLookupAction_Continue = 0,
+  std_MapLookupAction_FoundExisting,
+  std_MapLookupAction_FoundNew,
+  std_MapLookupAction_Abort,
 };
+typedef enum std_MapLookupAction std_MapLookupAction;
 
 struct std_ProbeCtx {
   uint64_t hash;
   size_t bucket;
+  size_t bucketMask;
   size_t iterationCount;
+  void* result;
+  std_MapLookupAction action;
 };
 typedef struct std_ProbeCtx std_ProbeCtx;
 
+//Generalization of the storage type accessed by probing
+struct std_ProbeItem {
+  //MAP_FLAG bitset
+  uint32_t flags;
+  //The desired value in `result` when finding a match through probe operations
+  void* item;
+};
+typedef struct std_ProbeItem std_ProbeItem;
+
+struct std_MapRehashCtx {
+  //Get the number of bytes required to store the indicated number of buckets.
+  size_t(*bytesForBuckets)(size_t bucketCount);
+  //Migrate the contents from the original map into this new bucket buffer
+  //Memory will be zeroed before this is called.
+  //Returns the previous buffer
+  void*(*migrateContents)(void* map, size_t bucketCount, void* buckets);
+};
+typedef struct std_MapRehashCtx std_MapRehashCtx;
+
 //Storage-agnostic methods for operating on maps
 //Takes a zero-initialized context and returns the probe indicating the matching bucket or null if there are none.
-std_ProbeCtx* std_map_probe(std_ProbeCtx* ctx, const void* key, size_t keySize, size_t bucketMask);
-std_ProbeCtx* std_map_probe_linear(std_ProbeCtx* ctx, size_t bucketMask);
-
-//Assure the amount of buckets needed for the element count given the target load factor
-//Returns nonzero if the bucket count needs to change and returns enough buckets for the target load factor.
-size_t std_map_assure(size_t bucketCount, size_t elementCount, float targetLoadFactor);
+std_ProbeCtx std_map_probe(const void* key, size_t keySize, size_t bucketMask);
+std_MapLookupAction std_map_probe_linear(std_ProbeCtx* ctx);
+std_MapLookupAction std_map_next(uint32_t flags);
+void std_map_tryInsert(std_ProbeCtx* probe, std_ProbeItem item);
+void std_map_find(std_ProbeCtx* probe, std_ProbeItem item);
+//Returns the number of buckets needed to respect the given load factor for the desired number of elements
+size_t std_map_reserve(size_t elementCount, float targetLoadFactor);
+//Rehash the given map if needed, allocating new storage and copying the contents over using the ctx functions.
+//Returns the map if succsesful, otherwise null.
+void* std_map_rehash(std_MapRehashCtx* ctx, void* map, size_t bucketCount, size_t currentSize, std_Allocator* alloc);
 
 //Implementation of size_t -> void* map using tombstones
 struct std_VoidMapPair {
