@@ -20,10 +20,10 @@ size_t maskToSize(size_t size) {
 }
 
 size_t computeNewSizeBase2(size_t currentSize, size_t desiredSize) {
-  while(currentSize < desiredSize) {
+  while(currentSize < sizeToMask(desiredSize)) {
     currentSize = (currentSize << 1) | 1;
   }
-  return currentSize;
+  return maskToSize(currentSize);
 }
 
 std_ProbeCtx std_map_probe(const void* key, size_t keySize, size_t bucketMask) {
@@ -147,6 +147,9 @@ void* std_VoidMap_migrateContents(void* vMap, size_t bucketCount, void* buckets)
   std_VoidMapPair* newBuckets = (std_VoidMapPair*)buckets;
   std_VoidMap* map = (std_VoidMap*)vMap;
 
+  for(size_t i = 0; i < bucketCount; ++i) {
+    newBuckets[i].flags = STD_MAP_EMPTY;
+  }
   //Set the sentry
   newBuckets[bucketCount] = (std_VoidMapPair){
     .key = 0,
@@ -182,7 +185,7 @@ std_VoidMap* std_VoidMap_rehash(std_VoidMap* map, size_t bucketCount, std_Alloca
   return (std_VoidMap*)std_map_rehash(&ctx, map, bucketCount, maskToSize(map->bucketMask), alloc);
 }
 
-std_VoidMapPair* std_VoidMap_tryInsert(std_VoidMap* map, uint32_t key, void* value) {
+std_VoidMapInsertPair std_VoidMap_tryInsert(std_VoidMap* map, uint32_t key, void* value) {
   std_ProbeCtx probe = std_map_probe(&key, sizeof(key), map->bucketMask);
 
   while(probe.action == std_MapLookupAction_Continue) {
@@ -190,31 +193,36 @@ std_VoidMapPair* std_VoidMap_tryInsert(std_VoidMap* map, uint32_t key, void* val
   }
 
   //Assign the new value if a bucket was found, return without modifying if it already existed
-  std_VoidMapPair* result = (std_VoidMapPair*)probe.result;
-  if(result && probe.action == std_MapLookupAction_FoundNew) {
-    result->key = key;
-    result->value = value;
-    result->flags = STD_MAP_OCCUPIED;
+  std_VoidMapInsertPair result = { 0 };
+  result.inserted = (std_VoidMapPair*)probe.result;
+  if(result.inserted && probe.action == std_MapLookupAction_FoundNew) {
+    result.inserted->key = key;
+    result.inserted->value = value;
+    result.inserted->flags = STD_MAP_OCCUPIED;
+    result.isNew = true;
     map->elementCount++;
   }
   return result;
 }
 
-std_VoidMapPair* std_VoidMap_insert(std_VoidMap* map, uint32_t key, void* value, float targetLoadFactor, std_Allocator* alloc) {
+std_VoidMapInsertPair std_VoidMap_insert(std_VoidMap* map, uint32_t key, void* value, float targetLoadFactor, std_Allocator* alloc) {
   std_VoidMap* rmap = std_VoidMap_reserve(map, map->elementCount + 1, targetLoadFactor, alloc);
-  return rmap ? std_VoidMap_tryInsert(rmap, key, value) : NULL;
+  return rmap ? std_VoidMap_tryInsert(rmap, key, value) : (std_VoidMapInsertPair){ 0 };
 }
 
-bool std_VoidMap_erase(std_VoidMap* map, uint32_t key) {
-  std_VoidMapPair* pair = std_VoidMap_find(map, key);
-  if(pair) {
-    pair->flags = STD_MAP_TOMBSTONE;
-    pair->key = 0;
-    pair->value = NULL;
+bool std_VoidMap_eraseIt(std_VoidMap* map, std_VoidMapPair* it) {
+  if(it) {
+    it->flags = STD_MAP_TOMBSTONE;
+    it->key = 0;
+    it->value = NULL;
     map->elementCount--;
     return true;
   }
   return false;
+}
+
+bool std_VoidMap_eraseKey(std_VoidMap* map, uint32_t key) {
+  return std_VoidMap_eraseIt(map, std_VoidMap_find(map, key));
 }
 
 void std_VoidMap_clear(std_VoidMap* map) {
@@ -224,6 +232,7 @@ void std_VoidMap_clear(std_VoidMap* map) {
     .flags = STD_MAP_EMPTY
   };
 
+  //TODO: clear tombstones
   std_VoidMapPair* it = std_VoidMap_begin(map);
   while(it) {
     *it = empty;

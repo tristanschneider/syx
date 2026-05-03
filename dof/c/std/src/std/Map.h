@@ -76,6 +76,12 @@ struct std_VoidMapPair {
 };
 typedef struct std_VoidMapPair std_VoidMapPair;
 
+struct std_VoidMapInsertPair {
+  std_VoidMapPair* inserted;
+  bool isNew;
+};
+typedef struct std_VoidMapInsertPair std_VoidMapInsertPair;
+
 //May be zero initialized
 struct std_VoidMap {
   std_VoidMapPair* buckets;
@@ -96,11 +102,12 @@ std_VoidMap* std_VoidMap_rehash(std_VoidMap* map, size_t bucketCount, std_Alloca
 
 //Insert into the map ignoring the target load factor. Caller is expected to have reserved the required space.
 //Returns null if insertion is impossible.
-std_VoidMapPair* std_VoidMap_tryInsert(std_VoidMap* map, uint32_t key, void* value);
+std_VoidMapInsertPair std_VoidMap_tryInsert(std_VoidMap* map, uint32_t key, void* value);
 //Shorthand for reserve+tryInsert
-std_VoidMapPair* std_VoidMap_insert(std_VoidMap* map, uint32_t key, void* value, float targetLoadFactor, std_Allocator* alloc);
+std_VoidMapInsertPair std_VoidMap_insert(std_VoidMap* map, uint32_t key, void* value, float targetLoadFactor, std_Allocator* alloc);
 //Erase the given element, returning true if it existed
-bool std_VoidMap_erase(std_VoidMap* map, uint32_t key);
+bool std_VoidMap_eraseKey(std_VoidMap* map, uint32_t key);
+bool std_VoidMap_eraseIt(std_VoidMap* map, std_VoidMapPair* it);
 void std_VoidMap_clear(std_VoidMap* map);
 
 std_VoidMapPair* std_VoidMap_find(std_VoidMap* map, uint32_t key);

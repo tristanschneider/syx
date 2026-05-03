@@ -6,6 +6,7 @@ extern "C" {
 #include <std/MallocAllocator.h>
 #include <std/Vector.h>
 }
+#include <c/TestAllocator.h>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -24,24 +25,6 @@ namespace Test {
 
       Assert::AreEqual(size_t(0), counter.bytesInUse);
     }
-
-    class TestAllocator {
-    public:
-      ~TestAllocator() {
-        Assert::AreEqual(size_t(0), counting.bytesInUse, L"Test should end with no used bytes");
-      }
-
-      std_Allocator* get() {
-        return &wrapped;
-      }
-
-    private:
-      std_Allocator base = std_MallocAllocator_ctor();
-      std_CountingAllocator counting{
-        .parent = &base
-      };
-      std_Allocator wrapped = std_CountingAllocator_toAlloc(&counting);
-    };
 
     class TestVector {
     public:
@@ -148,6 +131,8 @@ namespace Test {
     }
 
     TEST_METHOD(Vector_PushBack) {
+      std::unordered_map<int, int> asdf;
+      [[maybe_unused]] float lf = asdf.max_load_factor();
       TestVector v{ sizeof(int) };
 
       for(int i = 0; i < 1000; ++i) {
