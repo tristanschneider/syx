@@ -27,7 +27,6 @@ enum std_MapLookupAction {
 typedef enum std_MapLookupAction std_MapLookupAction;
 
 struct std_ProbeCtx {
-  uint64_t hash;
   size_t bucket;
   size_t bucketMask;
   size_t iterationCount;
@@ -56,8 +55,10 @@ struct std_MapRehashCtx {
 typedef struct std_MapRehashCtx std_MapRehashCtx;
 
 //Storage-agnostic methods for operating on maps
-//Takes a zero-initialized context and returns the probe indicating the matching bucket or null if there are none.
+//Start a probing operation at the bucket corresponding to the given key.
 std_ProbeCtx std_map_probe(const void* key, size_t keySize, size_t bucketMask);
+//Start a probing operation at the bucket indicatd by its index
+std_ProbeCtx std_map_probeIndex(size_t bucketIndex, size_t bucketMask);
 std_MapLookupAction std_map_probe_linear(std_ProbeCtx* ctx);
 std_MapLookupAction std_map_next(uint32_t flags);
 void std_map_tryInsert(std_ProbeCtx* probe, std_ProbeItem item);
@@ -68,7 +69,16 @@ size_t std_map_reserve(size_t elementCount, float targetLoadFactor);
 //Returns the map if succsesful, otherwise null.
 void* std_map_rehash(std_MapRehashCtx* ctx, void* map, size_t bucketCount, size_t currentSize, std_Allocator* alloc);
 
-//Implementation of size_t -> void* map using tombstones
+//A bucket can be trimmed if it ends in a tombstone.
+//This goes right and tries to find that.
+//If it finds an occupied element it sets the action to Abort
+//If it finds a bucket that can be trimmed it returns FoundExisting
+void std_map_tryTrimBucket(std_ProbeCtx* probe, uint32_t flags);
+//Intended to be used after tryTrimBucket has returned FoundExisting
+//Clears all tombstones off the end of the bucket until abort is returned.
+void std_map_trimBucket(std_ProbeCtx* probe, uint32_t* flags);
+
+//Implementation of uint32_t -> void* map using tombstones
 struct std_VoidMapPair {
   void* value;
   uint32_t key;

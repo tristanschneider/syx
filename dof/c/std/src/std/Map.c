@@ -20,31 +20,47 @@ size_t maskToSize(size_t size) {
 }
 
 size_t computeNewSizeBase2(size_t currentSize, size_t desiredSize) {
-  while(currentSize < sizeToMask(desiredSize)) {
-    currentSize = (currentSize << 1) | 1;
+  currentSize = std_max(currentSize, (size_t)1);
+  while(currentSize < desiredSize) {
+    currentSize <<= 1;
   }
-  return maskToSize(currentSize);
+  return currentSize;
 }
 
 std_ProbeCtx std_map_probe(const void* key, size_t keySize, size_t bucketMask) {
   std_ProbeCtx ctx = {
-    .hash = std_hash64((const uint8_t*)key, keySize),
     .bucketMask = bucketMask,
     //Abort immediately if there are no buckets
     .action = bucketMask ? std_MapLookupAction_Continue : std_MapLookupAction_Abort
   };
-  ctx.bucket = ctx.hash & bucketMask;
+  ctx.bucket = std_hash64((const uint8_t*)key, keySize) & bucketMask;
   return ctx;
 }
 
-std_MapLookupAction std_map_probe_linear(std_ProbeCtx* ctx) {
+std_ProbeCtx std_map_probeIndex(size_t bucketIndex, size_t bucketMask) {
+  return (std_ProbeCtx){
+    .bucket = bucketIndex,
+    .bucketMask = bucketMask,
+    .action = bucketMask ? std_MapLookupAction_Continue : std_MapLookupAction_Abort
+  };
+}
+
+void std_map_probe_advance(std_ProbeCtx* ctx, int direction) {
+  ctx->bucket = (ctx->bucket + (size_t)direction) & ctx->bucketMask;
+}
+
+std_MapLookupAction _std_map_probe_linear(std_ProbeCtx* ctx, std_MapLookupAction abortAction) {
   const size_t size = maskToSize(ctx->bucketMask);
-  ctx->bucket = (ctx->bucket + 1) % size;
+  std_map_probe_advance(ctx, 1);
   //Prevent infinite loop when all buckets have been exhausted
-  if(++ctx->iterationCount > size) {
-    ctx->action = std_MapLookupAction_Abort;
+  if(++ctx->iterationCount >= size) {
+    ctx->action = abortAction;
   }
   return ctx->action;
+}
+
+std_MapLookupAction std_map_probe_linear(std_ProbeCtx* ctx) {
+  return _std_map_probe_linear(ctx, std_MapLookupAction_Abort);
 }
 
 size_t std_map_reserve(size_t elementCount, float targetLoadFactor) {
@@ -91,6 +107,37 @@ void std_map_find(std_ProbeCtx* probe, std_ProbeItem item) {
     else {
       probe->action = std_MapLookupAction_Abort;
     }
+  }
+}
+
+void std_map_tryTrimBucket(std_ProbeCtx* probe, uint32_t flags) {
+  switch (flags) {
+  case STD_MAP_TOMBSTONE:
+    //Keep probing unless this wrapped around without finding anything which would mean the entire container is tombstones which can be trimmed.
+    _std_map_probe_linear(probe, std_MapLookupAction_FoundExisting);
+    break;
+  case STD_MAP_OCCUPIED:
+    //Bucket doesn't end in a tombstone, leave it
+    probe->action = std_MapLookupAction_Abort;
+    break;
+  case STD_MAP_EMPTY:
+    //Bucket has a free spot on its right meaning it can be trimmed
+    probe->action = std_MapLookupAction_FoundExisting;
+    //Go back one for input to the trim operation
+    std_map_probe_advance(probe, -1);
+    break;
+  }
+}
+
+//Intended to be used after tryTrimBucket has returned FoundExisting
+//Clears all tombstones off the end of the bucket until abort is returned.
+void std_map_trimBucket(std_ProbeCtx* probe, uint32_t* flags) {
+  if(*flags == STD_MAP_TOMBSTONE) {
+    *flags = STD_MAP_EMPTY;
+    std_map_probe_advance(probe, -1);
+  }
+  else {
+    probe->action = std_MapLookupAction_Abort;
   }
 }
 
@@ -216,6 +263,14 @@ bool std_VoidMap_eraseIt(std_VoidMap* map, std_VoidMapPair* it) {
     it->key = 0;
     it->value = NULL;
     map->elementCount--;
+
+    std_ProbeCtx probe = std_map_probeIndex((size_t)(it - map->buckets), map->bucketMask);
+    while(probe.action == std_MapLookupAction_Continue) {
+      std_map_tryTrimBucket(&probe, map->buckets[probe.bucket].flags);
+    }
+    while(probe.action == std_MapLookupAction_FoundExisting) {
+      std_map_trimBucket(&probe, &map->buckets[probe.bucket].flags);
+    }
     return true;
   }
   return false;
@@ -232,11 +287,8 @@ void std_VoidMap_clear(std_VoidMap* map) {
     .flags = STD_MAP_EMPTY
   };
 
-  //TODO: clear tombstones
-  std_VoidMapPair* it = std_VoidMap_begin(map);
-  while(it) {
-    *it = empty;
-    it = std_VoidMap_next(it);
+  for(size_t i = 0; i < maskToSize(map->bucketMask); ++i) {
+    map->buckets[i] = empty;
   }
 
   map->elementCount = 0;

@@ -114,5 +114,40 @@ namespace Test {
       std_VoidMap_clear(map);
       map.assertEmpty();
     }
+
+    //Validate that a map that has been filled then emptied returns to constant time lookup cost.
+    TEST_METHOD(EmptiedMapO1) {
+      VoidMap map;
+      map.loadFactor = 1;
+      const int elements = 2;
+      map.reserve(elements);
+
+      for(int i = 0; i < 2; ++i) {
+        //Fill
+        for(int e = 0; e < elements; ++e) {
+          map.insert(e, e);
+        }
+        //Empty
+        switch(i) {
+        case 0:
+          std_VoidMap_clear(map);
+          break;
+        case 1:
+          while(std_VoidMapPair* it = std_VoidMap_begin(map)) {
+            std_VoidMap_eraseIt(map, it);
+          }
+          break;
+        }
+
+        uint32_t key = 3;
+        std_ProbeCtx probe = std_map_probe(&key, sizeof(key), map.map.bucketMask);
+        while(probe.action == std_MapLookupAction_Continue) {
+          std_VoidMapPair& pair = map.map.buckets[probe.bucket];
+          std_map_find(&probe, { .flags = pair.flags, .item = &pair });
+        }
+
+        Assert::AreEqual(size_t(0), probe.iterationCount, L"Lookup cost should be constant on empty map");
+      }
+    }
   };
 }
