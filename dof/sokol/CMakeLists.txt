@@ -31,7 +31,7 @@ function(compile_shaders target files)
 endfunction()
 
 file(GLOB_RECURSE impl_files
-    src/*.cpp
+    src/*.c
     src/*.h
 )
 
