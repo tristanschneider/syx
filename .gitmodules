@@ -25,3 +25,6 @@
 [submodule "dof/font/fontstash"]
 	path = dof/font/fontstash
 	url = https://github.com/memononen/fontstash.git
+[submodule "dof/nuklear/Nuklear"]
+	path = dof/nuklear/Nuklear
+	url = https://github.com/Immediate-Mode-UI/Nuklear.git
