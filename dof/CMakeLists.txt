@@ -99,5 +99,7 @@ if(PERFORMANCE_ENABLED)
 endif()
 
 if(SANDBOX_ENABLED)
+    add_compile_options(/wd4116 /wd5287)
+    add_subdirectory(nuklear)
     add_subdirectory(sandbox)
 endif()

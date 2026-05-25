@@ -4,12 +4,15 @@
 #include <sokol_gfx.h>
 #include <sokol_log.h>
 #include <sokol_glue.h>
-//#include "fontstash.h"
-//#include <util/sokol_fontstash.h>
 #include <util/sokol_gl.h>
 #include <std/Diagnostics.h>
 
+#include <Nuklear/nuklear.h>
+#include <util/sokol_nuklear.h>
+
 void onEvent(const sapp_event* event) {
+  snk_handle_event(event);
+
   switch(event->type) {
     case SAPP_EVENTTYPE_RESIZED:
     case SAPP_EVENTTYPE_FOCUSED:
@@ -53,28 +56,62 @@ void init(void) {
       .func = slog_func,
     }
   });
-  //sfons_desc_t fd = {
-  //  .width = 1024,
-  //  .height = 1024,
-  //};
-  //state.fontContext = sfons_create(&fd);
+  snk_setup(&(snk_desc_t){
+      .enable_set_mouse_cursor = false,
+      .dpi_scale = sapp_dpi_scale(),
+      .logger.func = slog_func,
+  });
+}
+
+void drawUI(struct nk_context* ctx) {
+  nk_style_hide_cursor(ctx);
+
+  nk_flags flags = NK_HEADER_RIGHT | NK_WINDOW_BORDER | NK_WINDOW_SCALABLE | NK_WINDOW_MOVABLE;
+  if (nk_begin(ctx, "test", nk_rect(10, 10, 400, 400), flags)) {
+    nk_layout_row_dynamic(ctx, 10, 1);
+    nk_label(ctx, "label A", NK_TEXT_LEFT);
+
+    if (nk_tree_push(ctx, NK_TREE_NODE, "tree", NK_MINIMIZED)) {
+      nk_label(ctx, "label B", NK_TEXT_LEFT);
+      if(nk_button_label(ctx, "button")) {
+        LOGI("clicked");
+      }
+
+      nk_tree_pop(ctx);
+    }
+  }
+  nk_end(ctx);
 }
 
 void frame(void) {
+
+  struct nk_context *ctx = snk_new_frame();
+  drawUI(ctx);
+
+  sg_begin_pass(&(sg_pass){
+    .action = {
+      .colors[0] = {
+        .load_action = SG_LOADACTION_CLEAR, .clear_value = { 0.25f, 0.5f, 0.7f, 1.0f }
+      }
+    },
+    .swapchain = sglue_swapchain()
+  });
+  snk_render(sapp_width(), sapp_height());
+
+  sg_end_pass();
+  sg_commit();
 }
 
 void cleanup(void) {
   //sfons_destroy(state.fontContext);
   //state.fontContext = nullptr;
+  snk_shutdown();
   sgl_shutdown();
   sg_shutdown();
 }
 
 sapp_desc sokol_main(int argc, char* argv[]) {
   STD_UNUSED(argc, argv);
-  //for(int i = 0; i < argc; ++i) {
-  //  state.args.emplace_back(argv[i]);
-  //}
   return (sapp_desc) {
     .init_cb = init,
     .frame_cb = frame,
@@ -82,8 +119,6 @@ sapp_desc sokol_main(int argc, char* argv[]) {
     .event_cb = onEvent,
     .width = 640,
     .height = 480,
-    //Match monitor refresh rate one to one
-    //If I knew how to ask what the refresh rate was I would use a ratio to put it at 60fps
     .swap_interval = 1,
     .window_title = "Sandbox",
     .icon = (sapp_icon_desc) {

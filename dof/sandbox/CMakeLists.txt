@@ -8,6 +8,7 @@ target_link_libraries(sandbox
 PRIVATE
     sokol
     c_std
+    nuklear
 )
 
 add_executable(sandboxMain WIN32 main.c)
