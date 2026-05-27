@@ -18,6 +18,8 @@
 #define STD_MAP_SENTRY STD_MAP_FLAG_END
 #define STD_MAP_OCCUPIED STD_MAP_FLAG_IN_BUCKET
 
+#define STD_MAP_LOAD_FACTOR 0.6f
+
 enum std_MapLookupAction {
   std_MapLookupAction_Continue = 0,
   std_MapLookupAction_FoundExisting,

@@ -69,6 +69,7 @@ void* std_Vector_data(std_Vector* vector);
 const void* std_Vector_cdata(const std_Vector* vector);
 size_t std_Vector_sizeBytes(const std_VectorCtxC* vector);
 void* std_Vector_get(std_VectorCtxM* vector, uint32_t i);
+void* std_Vector_back(std_VectorCtxM* vector);
 void* std_Vector_end(std_VectorCtxM* vector);
 const void* std_Vector_cget(const std_VectorCtxC* vector, uint32_t i);
 
@@ -85,7 +86,8 @@ void std_Vector_clear(std_Vector* vector);
 std_Vector std_Vector_clone(const std_VectorCtxC* src, std_Allocator* alloc);
 bool std_Vector_insert(std_VectorCtxA* ctx, uint32_t at, const void* elements, uint32_t count);
 void std_Vector_erase(std_VectorCtxM* ctx, uint32_t at, uint32_t count);
-
+//Swap remove and return the index of the removed element, which is also the new size
+uint32_t std_Vector_swapRemove(std_VectorCtxM* ctx, uint32_t at);
 
 //Reallocate the buffer to at least `neededCap`.
 //Capacity is updated while size remains the same.

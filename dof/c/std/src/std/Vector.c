@@ -64,6 +64,10 @@ void* std_Vector_get(std_VectorCtxM* vector, uint32_t i) {
   return std_Buffer_get(vector->vector->data, i*vector->traits->elementSize);
 }
 
+void* std_Vector_back(std_VectorCtxM* vector) {
+  return std_Vector_get(vector, vector->vector->size - 1);
+}
+
 void* std_Vector_end(std_VectorCtxM* vector) {
   return std_Buffer_get(vector->vector->data, vector->vector->size*vector->traits->elementSize);
 }
@@ -204,4 +208,15 @@ void std_Vector_erase(std_VectorCtxM* ctx, uint32_t at, uint32_t count) {
   memmove_s(holeBegin, newEnd - holeBegin, holeEnd, vectorEnd - holeEnd);
   //Trim off the end now that everything has been moved down
   ctx->vector->size -= count;
+}
+
+uint32_t std_Vector_swapRemove(std_VectorCtxM* ctx, uint32_t at) {
+  STD_ASSERT(at < ctx->vector->size);
+  //Copy element from end into slot unless this is the last element
+  if(at + 1 < ctx->vector->size) {
+    memcpy(std_Vector_get(ctx, at), std_Vector_back(ctx), ctx->traits->elementSize);
+  }
+  //Erase the newly swapped-from element
+  std_Vector_popBack(ctx->vector);
+  return ctx->vector->size;
 }

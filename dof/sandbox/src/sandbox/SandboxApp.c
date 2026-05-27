@@ -9,6 +9,23 @@
 
 #include <Nuklear/nuklear.h>
 #include <util/sokol_nuklear.h>
+#include <sandbox/Renderer.h>
+#include <std/MallocAllocator.h>
+#include <std/Allocator.h>
+
+struct SandboxApp {
+  sbx_Renderer* renderer;
+  sbx_Model quad;
+  sbx_Renderable renderable;
+  std_Allocator allocator;
+};
+typedef struct SandboxApp SandboxApp;
+
+SandboxApp SANDBOX_APP;
+
+SandboxApp* sbx_getApp() {
+  return &SANDBOX_APP;
+}
 
 void onEvent(const sapp_event* event) {
   snk_handle_event(event);
@@ -42,6 +59,10 @@ void onEvent(const sapp_event* event) {
 }
 
 void init(void) {
+  *sbx_getApp() = (SandboxApp){
+    .allocator = std_MallocAllocator_ctor()
+  };
+
   //Initialize the graphics device
   sg_setup(&(sg_desc){
     .logger = {
@@ -83,23 +104,43 @@ void drawUI(struct nk_context* ctx) {
   nk_end(ctx);
 }
 
-void frame(void) {
+void initRenderer(SandboxApp* app) {
+  app->renderer = sbx_Renderer_ctor(&app->allocator);
+  app->quad = sbx_Renderer_createModel(app->renderer);
+  app->renderable = sbx_Renderer_createRenderable(app->renderer);
 
+  const float s = 0.5f;
+  sbx_ModelVertex v[6] = { 0 };
+  v[0].pos = clm_vec3_ctor(-s, s, 0.f);
+  v[1].pos = clm_vec3_ctor(s, s, 0.f);
+  v[2].pos = clm_vec3_ctor(s, -s, 0.f);
+
+  v[3].pos = clm_vec3_ctor(-s, s, 0.f);
+  v[4].pos = clm_vec3_ctor(s, -s, 0.f);
+  v[5].pos = clm_vec3_ctor(-s, -s, 0.f);
+  for(int i = 0; i < 6; ++i) {
+    v[i].color = clm_vec4_splat(1.f);
+  }
+  v[0].color = clm_vec4_ctor(1, 0, 0, 1);
+  sbx_Renderer_setModelVertices(app->renderer, app->quad, &(sbx_ModelVertices){
+    .data = v,
+    .count = (size_t)6
+  });
+
+  sbx_Renderer_setRenderableModel(app->renderer, app->renderable, app->quad);
+}
+
+void frame(void) {
   struct nk_context *ctx = snk_new_frame();
+  SandboxApp* app = sbx_getApp();
+
+  if(!app->renderer) {
+    initRenderer(app);
+  }
+
   drawUI(ctx);
 
-  sg_begin_pass(&(sg_pass){
-    .action = {
-      .colors[0] = {
-        .load_action = SG_LOADACTION_CLEAR, .clear_value = { 0.25f, 0.5f, 0.7f, 1.0f }
-      }
-    },
-    .swapchain = sglue_swapchain()
-  });
-  snk_render(sapp_width(), sapp_height());
-
-  sg_end_pass();
-  sg_commit();
+  sbx_Renderer_render(app->renderer);
 }
 
 void cleanup(void) {
