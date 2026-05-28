@@ -73,6 +73,33 @@ inline clm_mat4 clm_mat4_perspective(float fovY, float aspect, float zNear, floa
                                            0,          0,                    -1.f,                             0);
 }
 
+inline clm_mat4 clm_mat4_transform_translate(const clm_vec4* t) {
+  return clm_mat4_ctor(1, 0, 0, t->x,
+                       0, 1, 0, t->y,
+                       0, 0, 1, t->z,
+                       0, 0, 0, 1);
+}
+
+inline clm_mat4 clm_mat4_transform_rotateZCS(float cosAngle, float sinAngle) {
+  return clm_mat4_ctor(cosAngle, -sinAngle, 0, 0,
+                       sinAngle,  cosAngle, 0, 0,
+                              0,         0, 1, 0,
+                              0,         0, 0, 1);
+}
+
+inline clm_mat4 clm_mat4_transform_rotateZ(float rad) {
+  return clm_mat4_transform_rotateZCS(cosf(rad), sinf(rad));
+}
+
+inline clm_mat4 clm_mat4_transform_scale(const clm_vec4* s) {
+  return clm_mat4_ctor(
+    s->x,    0,    0, 0,
+       0, s->y,    0, 0,
+       0,    0, s->z, 0,
+       0,    0,    0, 1
+  );
+}
+
 inline clm_mat4 clm_mat4_transpose(const clm_mat4* m) {
   return clm_mat4_ctor(m->r0[0], m->r1[0], m->r2[0], m->r3[0],
                        m->r0[1], m->r1[1], m->r2[1], m->r3[1],
