@@ -181,7 +181,8 @@ void sbx_renderMeshPass(sbx_Renderer* renderer) {
   sg_apply_pipeline(pass->pipeline);
 
   //Set uniform
-  clm_mat4 worldToView = clm_mat4_identity();
+  clm_mat4 worldToView = clm_mat4_perspective(3.14f/2.f, 1.f, 0.1f, 100.f);
+  worldToView = clm_mat4_inverse(&worldToView);
   uniforms_t uniforms;
   uniforms.instanceOffset = 0;
   memcpy(&uniforms.worldToView, &worldToView, sizeof(clm_mat4));

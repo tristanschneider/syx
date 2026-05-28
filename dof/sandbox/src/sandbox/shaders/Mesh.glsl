@@ -21,7 +21,7 @@ void main() {
   int i = gl_InstanceIndex + instanceOffset;
   INSTANCE instance = instanceData[i];
 
-  gl_Position = instance.transform * vec4(vertPos, 1);
+  gl_Position = (worldToView * instance.transform) * vec4(vertPos, 1);
   fragUV = vertUV;
   fragTint = vertColor;
 }

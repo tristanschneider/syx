@@ -14,6 +14,12 @@ struct clm_vec4 {
 };
 typedef struct clm_vec4 clm_vec4;
 
+//Perform an element-wise expression on a vec4:
+//clm_vec4_expr(i, v, a[i] * b[i] + c[i] - d[i]);
+//Performs the expression on each element of abcd and assigns the result to v
+#define clm_vec4_expr(it, dst, expr) for(int it = 0; it < 4; ++it) { dst.xyzw[it] = expr; }
+#define clm_vec4_expri(dst, expr) clm_vec4_expr(i,dst, expr)
+
 inline clm_vec4 clm_vec4_ctor(float x, float y, float z, float w) {
   clm_vec4 result;
   result.x = x;
@@ -21,6 +27,10 @@ inline clm_vec4 clm_vec4_ctor(float x, float y, float z, float w) {
   result.z = z;
   result.w = w;
   return result;
+}
+
+inline clm_vec4 clm_vec4_ptr(const float* v) {
+  return clm_vec4_ctor(v[0], v[1], v[2], v[3]);
 }
 
 inline clm_vec4 clm_vec4_splat(float v) {
@@ -53,6 +63,10 @@ inline clm_vec4 clm_vec4_add(const clm_vec4* a, const clm_vec4* b) {
 
 inline clm_vec4 clm_vec4_sub(const clm_vec4* a, const clm_vec4* b) {
   return clm_vec4_ctor(a->x - b->x, a->y - b->y, a->z - b->z, a->w - b->w);
+}
+
+inline clm_vec4 clm_vec4_mul(const clm_vec4* a, const clm_vec4* b) {
+  return clm_vec4_ctor(a->x * b->x, a->y * b->y, a->z * b->z, a->w * b->w);
 }
 
 inline clm_vec4 clm_vec4_scale(const clm_vec4* v, float s) {
