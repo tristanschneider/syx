@@ -5,6 +5,7 @@
 #include <std/Map.h>
 #include <std/Vector.h>
 #include <clm/mat4.h>
+#include <clm/transform25.h>
 #include <sandbox/Camera.h>
 
 #include <sokol_gfx.h>
@@ -36,6 +37,7 @@ typedef struct sbx_RendererModel sbx_RendererModel;
 struct sbx_RendererRenderable {
   const uint32_t id;
   sbx_RendererModel* model;
+  clm_transform25 transform;
 };
 typedef struct sbx_RendererRenderable sbx_RendererRenderable;
 
@@ -166,10 +168,13 @@ void sbx_updateInstanceData(sbx_Renderer* renderer) {
   const uint32_t maxInstanceCount = renderer->meshPass.instanceData.sizeBytes / sizeof(INSTANCE_t);
   const uint32_t instanceCount = std_min(renderer->renderables.size, maxInstanceCount);
   INSTANCE_t* instances = renderer->meshPass.instanceData.data;
+  const sbx_RendererRenderable* renderables = renderer->renderables.data;
 
   for(uint32_t i = 0; i < instanceCount; ++i) {
     INSTANCE_t* instance = &instances[i];
-    clm_mat4 m = clm_mat4_identity();
+    const sbx_RendererRenderable* renderable = &renderables[i];
+    clm_mat4 m = clm_transform25_toMatrix(&renderable->transform);
+    m = clm_mat4_transpose(&m);
     memcpy(instance->transform, &m, sizeof(clm_mat4));
   }
   sg_update_buffer(renderer->meshPass.bindings.storage_buffers[SBUF_instance], &(sg_range){
@@ -314,7 +319,10 @@ sbx_Renderable sbx_Renderer_createRenderable(sbx_Renderer* renderer) {
 
   //Allocate storage for the new element
   uint32_t index = renderer->renderables.size;
-  std_Vector_pushBack(&sbx_renderableCtxA(renderer), &(sbx_RendererRenderable) { .id = id });
+  std_Vector_pushBack(&sbx_renderableCtxA(renderer), &(sbx_RendererRenderable) {
+    .id = id,
+    .transform = clm_transform25_identity()
+  });
 
   //Map the id to the index of the new storage
   std_VoidMap_insert(&renderer->renderableMap, id, (void*)(uint64_t)index, STD_MAP_LOAD_FACTOR, renderer->alloc);
@@ -360,6 +368,19 @@ void sbx_Renderer_setRenderableModel(sbx_Renderer* renderer, sbx_Renderable rend
   if(r && m) {
     r->model = m;
   }
+}
+
+clm_transform25 sbx_Renderer_getTransform(sbx_Renderer* renderer, sbx_Renderable renderable) {
+  sbx_RendererRenderable* r = sbx_tryGetRenderable(renderer, renderable);
+  return r ? r->transform : clm_transform25_identity();
+}
+
+void sbx_Renderer_setTransform(sbx_Renderer* renderer, sbx_Renderable renderable, const clm_transform25* transform) {
+  sbx_RendererRenderable* r = sbx_tryGetRenderable(renderer, renderable);
+  if(r) {
+    r->transform = *transform;
+  }
+  sbx_setInstanceChanged(renderer);
 }
 
 const sbx_Camera* sbx_Renderer_getCamera(sbx_Renderer* renderer) {

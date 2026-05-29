@@ -1,0 +1,21 @@
+#pragma once
+
+#include <stdbool.h>
+
+//Extensions for nuklear (nk)
+
+struct clm_vec2;
+struct clm_vec3;
+struct clm_transform25;
+struct nk_context;
+
+typedef struct clm_vec2 clm_vec2;
+typedef struct clm_vec3 clm_vec3;
+typedef struct nk_context nk_context;
+typedef struct clm_transform25 clm_transform25;
+
+bool nkx_property_vecN(nk_context* ctx, const char* groupLabel, const char** names, float* values, int count, float min, float max, float step, float pixelInc);
+bool nkx_property_vec2(nk_context* ctx, const char* name, clm_vec2* v, float min, float max, float step, float pixelInc);
+bool nkx_property_vec3(nk_context* ctx, const char* name, clm_vec3* v, float min, float max, float step, float pixelInc);
+bool nkx_property_rotation(nk_context* ctx, const char* name, clm_vec2* r);
+bool nkx_property_transform25(nk_context* ctx, const char* name, clm_transform25* transform);

@@ -5,6 +5,7 @@
 #include <clm/vec3.h>
 #include <clm/vec2.h>
 
+struct clm_transform25;
 struct sbx_Camera;
 struct sbx_Renderer;
 
@@ -33,6 +34,7 @@ struct sbx_Renderable {
   void* data;
 };
 
+typedef struct clm_transform25 clm_transform25;
 typedef struct sbx_Camera sbx_Camera;
 typedef struct sbx_Renderer sbx_Renderer;
 typedef struct sbx_Model sbx_Model;
@@ -53,6 +55,8 @@ void sbx_Renderer_setModelVertices(sbx_Renderer* renderer, sbx_Model model, cons
 sbx_Renderable sbx_Renderer_createRenderable(sbx_Renderer* renderer);
 void sbx_Renderer_destroyRenderable(sbx_Renderer* renderer, sbx_Renderable renderable);
 void sbx_Renderer_setRenderableModel(sbx_Renderer* renderer, sbx_Renderable renderable, sbx_Model model);
+clm_transform25 sbx_Renderer_getTransform(sbx_Renderer* renderer, sbx_Renderable renderable);
+void sbx_Renderer_setTransform(sbx_Renderer* renderer, sbx_Renderable renderable, const clm_transform25* transform);
 
 const sbx_Camera* sbx_Renderer_getCamera(sbx_Renderer* renderer);
 void sbx_Renderer_setCamera(sbx_Renderer* renderer, const sbx_Camera* camera);

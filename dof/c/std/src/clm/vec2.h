@@ -28,6 +28,11 @@ inline clm_vec2 clm_vec2_rad(float rad) {
   return clm_vec2_ctor(cosf(rad), sinf(rad));
 }
 
+//Inverse of clm_vec2_rad
+inline float clm_vec2_getRad(const clm_vec2* v) {
+  return atan2f(v->y, v->x);
+}
+
 //Rotate v by rot where rot is of the same form as clm_vec2_rad
 inline clm_vec2 clm_vec2_rotate(const clm_vec2* v, const clm_vec2* rot) {
   //[rx,-ry]*[x]=[rx*x-ry*y]

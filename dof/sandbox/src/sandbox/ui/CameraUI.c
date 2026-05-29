@@ -4,19 +4,7 @@
 #include <sandbox/Camera.h>
 #include <Nuklear/nuklear.h>
 #include <clm/constants.h>
-
-#include <stdbool.h>
-
-//TODO: nk extensions header
-//TODO: ui to reflect a transform as it'll be used here and renderables
-bool nkx_property_vec3(nk_context* ctx, const char* name, clm_vec3* v, float min, float max, float step, float pixelInc) {
-  nk_layout_row_dynamic(ctx, 30, 4);
-  nk_label(ctx, name, NK_TEXT_ALIGN_LEFT);
-  const bool x = nk_property_float(ctx, "X", min, &v->x, max, step, pixelInc);
-  const bool y = nk_property_float(ctx, "Y", min, &v->y, max, step, pixelInc);
-  const bool z = nk_property_float(ctx, "Z", min, &v->z, max, step, pixelInc);
-  return x || y || z;
-}
+#include <sandbox/ui/nkExt.h>
 
 void sbx_CameraUI_draw(nk_context* ctx, sbx_Renderer* renderer) {
   sbx_Camera camera = *sbx_Renderer_getCamera(renderer);
