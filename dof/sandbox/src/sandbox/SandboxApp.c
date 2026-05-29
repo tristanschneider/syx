@@ -12,6 +12,7 @@
 #include <sandbox/Renderer.h>
 #include <std/MallocAllocator.h>
 #include <std/Allocator.h>
+#include <sandbox/ui/CameraUI.h>
 
 struct SandboxApp {
   sbx_Renderer* renderer;
@@ -138,7 +139,8 @@ void frame(void) {
     initRenderer(app);
   }
 
-  drawUI(ctx);
+  nk_style_hide_cursor(ctx);
+  sbx_CameraUI_draw(ctx, app->renderer);
 
   sbx_Renderer_render(app->renderer);
 }

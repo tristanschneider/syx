@@ -5,6 +5,7 @@
 #include <clm/vec3.h>
 #include <clm/vec2.h>
 
+struct sbx_Camera;
 struct sbx_Renderer;
 
 //Handle to a model that can be assigned to renderables
@@ -32,6 +33,7 @@ struct sbx_Renderable {
   void* data;
 };
 
+typedef struct sbx_Camera sbx_Camera;
 typedef struct sbx_Renderer sbx_Renderer;
 typedef struct sbx_Model sbx_Model;
 typedef struct sbx_Renderable sbx_Renderable;
@@ -51,3 +53,6 @@ void sbx_Renderer_setModelVertices(sbx_Renderer* renderer, sbx_Model model, cons
 sbx_Renderable sbx_Renderer_createRenderable(sbx_Renderer* renderer);
 void sbx_Renderer_destroyRenderable(sbx_Renderer* renderer, sbx_Renderable renderable);
 void sbx_Renderer_setRenderableModel(sbx_Renderer* renderer, sbx_Renderable renderable, sbx_Model model);
+
+const sbx_Camera* sbx_Renderer_getCamera(sbx_Renderer* renderer);
+void sbx_Renderer_setCamera(sbx_Renderer* renderer, const sbx_Camera* camera);

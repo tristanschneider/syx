@@ -73,7 +73,7 @@ inline clm_mat4 clm_mat4_perspective(float fovY, float aspect, float zNear, floa
                                            0,          0,                    -1.f,                             0);
 }
 
-inline clm_mat4 clm_mat4_transform_translate(const clm_vec4* t) {
+inline clm_mat4 clm_mat4_transform_translate(const clm_vec3* t) {
   return clm_mat4_ctor(1, 0, 0, t->x,
                        0, 1, 0, t->y,
                        0, 0, 1, t->z,
@@ -91,13 +91,39 @@ inline clm_mat4 clm_mat4_transform_rotateZ(float rad) {
   return clm_mat4_transform_rotateZCS(cosf(rad), sinf(rad));
 }
 
-inline clm_mat4 clm_mat4_transform_scale(const clm_vec4* s) {
+inline clm_mat4 clm_mat4_transform_scalef(float x, float y, float z) {
   return clm_mat4_ctor(
-    s->x,    0,    0, 0,
-       0, s->y,    0, 0,
-       0,    0, s->z, 0,
+       x,    0,    0, 0,
+       0,    y,    0, 0,
+       0,    0,    z, 0,
        0,    0,    0, 1
   );
+}
+
+inline clm_mat4 clm_mat4_transform_build25(const clm_vec3* pos, const clm_vec2* rot, const clm_vec3* scale) {
+  //Translate * Rotate * Scale
+  //R = Translate * Rotate
+  //[1,0,0,x] [c,-s,0,0] [c,-s,0,x]
+  //[0,1,0,y]*[s, c,0,0]=[s, c,0,y]
+  //[0,0,1,z] [0, 0,1,0] [0, 0,0,z]
+  //[0,0,0,1] [0, 0,0,1] [0, 0,0,1]
+  //R * Scale
+  //[c,-s,0,x] [q,0,0,0] [cq,-sr,0,x]
+  //[s, c,0,y]*[0,r,0,0]=[sq, cr,0,y]
+  //[0, 0,0,z] [0,0,t,0] [ 0,  0,0,z]
+  //[0, 0,0,1] [0,0,0,1] [ 0,  0,0,1]
+  const float c = rot->x;
+  const float s = rot->y;
+  return clm_mat4_ctor(
+    c*scale->x, -s*scale->y, 0, pos->x,
+    s*scale->x,  c*scale->y, 0, pos->y,
+             0,           0, 1, pos->z,
+             0,           0, 0,      1
+  );
+}
+
+inline clm_mat4 clm_mat4_transform_scale(const clm_vec3* s) {
+  return clm_mat4_transform_scalef(s->x, s->y, s->z);
 }
 
 inline clm_mat4 clm_mat4_transpose(const clm_mat4* m) {

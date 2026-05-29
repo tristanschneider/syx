@@ -5,10 +5,11 @@
 #include <std/Map.h>
 #include <std/Vector.h>
 #include <clm/mat4.h>
+#include <sandbox/Camera.h>
+
 #include <sokol_gfx.h>
 #include <sokol_glue.h>
 #include <sandbox/shaders/Mesh.h>
-
 #include <sokol_app.h>
 #include <Nuklear/nuklear.h>
 #include <util/sokol_nuklear.h>
@@ -45,6 +46,7 @@ struct sbx_Renderer {
   std_VoidMap renderableMap;
   uint32_t idGen;
   sg_image emptyImage;
+  sbx_Camera camera;
 };
 
 void sbx_setInstanceChanged(sbx_Renderer* renderer) {
@@ -137,6 +139,7 @@ void renderer_init(sbx_Renderer* renderer) {
   };
   renderer->meshPass = renderer_createMeshPass(renderer->alloc);
   renderer->emptyImage = renderer_createEmptyImage();
+  renderer->camera = sbx_Camera_ctor();
 }
 
 sbx_Renderer* sbx_Renderer_ctor(std_Allocator* alloc) {
@@ -181,8 +184,9 @@ void sbx_renderMeshPass(sbx_Renderer* renderer) {
   sg_apply_pipeline(pass->pipeline);
 
   //Set uniform
-  clm_mat4 worldToView = clm_mat4_perspective(3.14f/2.f, 1.f, 0.1f, 100.f);
-  worldToView = clm_mat4_inverse(&worldToView);
+  const float aspectRatio = 1.f;
+  clm_mat4 worldToView = sbx_Camera_worldToView(sbx_Renderer_getCamera(renderer), aspectRatio);
+  worldToView = clm_mat4_transpose(&worldToView);
   uniforms_t uniforms;
   uniforms.instanceOffset = 0;
   memcpy(&uniforms.worldToView, &worldToView, sizeof(clm_mat4));
@@ -356,4 +360,13 @@ void sbx_Renderer_setRenderableModel(sbx_Renderer* renderer, sbx_Renderable rend
   if(r && m) {
     r->model = m;
   }
+}
+
+const sbx_Camera* sbx_Renderer_getCamera(sbx_Renderer* renderer) {
+  return &renderer->camera;
+}
+
+void sbx_Renderer_setCamera(sbx_Renderer* renderer, const sbx_Camera* camera) {
+  //Don't need to dirty anything because matrix is recomputed every frame
+  renderer->camera = *camera;
 }
