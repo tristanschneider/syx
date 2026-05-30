@@ -3,9 +3,9 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-struct std_Allocator_t;
+struct std_Allocator;
 struct std_Buffer_t;
-typedef struct std_Allocator_t std_Allocator;
+typedef struct std_Allocator std_Allocator;
 typedef struct std_Buffer_t std_Buffer;
 
 //Can be zero initialized

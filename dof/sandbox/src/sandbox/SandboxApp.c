@@ -16,6 +16,7 @@
 
 #include <clm/transform25.h>
 #include <sandbox/ui/nkExt.h>
+#include <sandbox/ui/ModelUI.h>
 
 struct SandboxApp {
   sbx_Renderer* renderer;
@@ -145,11 +146,17 @@ void frame(void) {
   nk_style_hide_cursor(ctx);
   sbx_CameraUI_draw(ctx, app->renderer);
 
-  nk_flags flags = NK_HEADER_RIGHT | NK_WINDOW_BORDER | NK_WINDOW_SCALABLE | NK_WINDOW_MOVABLE;
+  nk_flags flags = NK_HEADER_RIGHT | NK_WINDOW_BORDER | NK_WINDOW_SCALABLE | NK_WINDOW_MOVABLE | NK_WINDOW_TITLE;
   if(nk_begin_titled(ctx, "obj", "Object", nk_rect(9, 9, 300, 200), flags)) {
+    nk_layout_row_dynamic(ctx, 0, 1);
     clm_transform25 transform = sbx_Renderer_getTransform(app->renderer, app->renderable);
     if(nkx_property_transform25(ctx, "Transform", &transform)) {
       sbx_Renderer_setTransform(app->renderer, app->renderable, &transform);
+    }
+    sbx_ModelVertices* newVerts = sbx_ModelUI_draw(ctx, sbx_Renderer_getModelVertices(app->renderer, app->quad), &app->allocator);
+    if(newVerts) {
+      sbx_Renderer_setModelVertices(app->renderer, app->quad, newVerts);
+      std_Allocator_dealloc(&app->allocator, newVerts);
     }
   }
   nk_end(ctx);

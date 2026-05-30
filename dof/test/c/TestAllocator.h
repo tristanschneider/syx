@@ -2,8 +2,8 @@
 
 #include <memory>
 
-struct std_Allocator_t;
-typedef struct std_Allocator_t std_Allocator;
+struct std_Allocator;
+typedef struct std_Allocator std_Allocator;
 
 class TestAllocator {
 public:

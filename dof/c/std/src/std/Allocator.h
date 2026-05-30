@@ -3,12 +3,12 @@
 #include <stdint.h>
 #include <string.h>
 
-struct std_Allocator_t {
+struct std_Allocator {
   void* data;
   void*(*alloc)(void*, size_t);
   void(*dealloc)(void*, void*);
 };
-typedef struct std_Allocator_t std_Allocator;
+typedef struct std_Allocator std_Allocator;
 
 inline void* std_Allocator_alloc(std_Allocator* allocator, size_t size) {
   return allocator->alloc(allocator->data, size);
