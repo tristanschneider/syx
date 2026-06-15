@@ -12,17 +12,15 @@
 #include <sandbox/Renderer.h>
 #include <std/MallocAllocator.h>
 #include <std/Allocator.h>
-#include <sandbox/ui/CameraUI.h>
 
-#include <clm/transform25.h>
-#include <sandbox/ui/nkExt.h>
-#include <sandbox/ui/ModelUI.h>
+#include <sandbox/scene/Scene.h>
+#include <sandbox/scene/NarrowphaseScene.h>
 
 struct SandboxApp {
   sbx_Renderer* renderer;
-  sbx_Model quad;
-  sbx_Renderable renderable;
+  sbx_Scene* scene;
   std_Allocator allocator;
+  bool sceneNeedsInit;
 };
 typedef struct SandboxApp SandboxApp;
 
@@ -30,6 +28,17 @@ SandboxApp SANDBOX_APP;
 
 SandboxApp* sbx_getApp() {
   return &SANDBOX_APP;
+}
+
+void sbx_setScene(SandboxApp* app, sbx_Scene* newScene) {
+  if(app->scene) {
+    sbx_Scene_dtor(&(sbx_SceneDtorArgs){
+      .scene = app->scene,
+      .renderer = app->renderer
+    });
+  }
+  app->scene = newScene;
+  app->sceneNeedsInit = true;
 }
 
 void onEvent(const sapp_event* event) {
@@ -64,9 +73,11 @@ void onEvent(const sapp_event* event) {
 }
 
 void init(void) {
-  *sbx_getApp() = (SandboxApp){
+  SandboxApp* app = sbx_getApp();
+  *app = (SandboxApp){
     .allocator = std_MallocAllocator_ctor()
   };
+  sbx_setScene(app, sbx_NarrowphaseScene_ctor(&app->allocator));
 
   //Initialize the graphics device
   sg_setup(&(sg_desc){
@@ -111,32 +122,10 @@ void drawUI(struct nk_context* ctx) {
 
 void initRenderer(SandboxApp* app) {
   app->renderer = sbx_Renderer_ctor(&app->allocator);
-  app->quad = sbx_Renderer_createModel(app->renderer);
-  app->renderable = sbx_Renderer_createRenderable(app->renderer);
-
-  const float s = 0.5f;
-  sbx_ModelVertex v[6] = { 0 };
-  v[0].pos = clm_vec3_ctor(-s, s, 0.f);
-  v[1].pos = clm_vec3_ctor(s, s, 0.f);
-  v[2].pos = clm_vec3_ctor(s, -s, 0.f);
-
-  v[3].pos = clm_vec3_ctor(-s, s, 0.f);
-  v[4].pos = clm_vec3_ctor(s, -s, 0.f);
-  v[5].pos = clm_vec3_ctor(-s, -s, 0.f);
-  for(int i = 0; i < 6; ++i) {
-    v[i].color = clm_vec4_splat(1.f);
-  }
-  v[0].color = clm_vec4_ctor(1, 0, 0, 1);
-  sbx_Renderer_setModelVertices(app->renderer, app->quad, &(sbx_ModelVertices){
-    .data = v,
-    .count = (size_t)6
-  });
-
-  sbx_Renderer_setRenderableModel(app->renderer, app->renderable, app->quad);
 }
 
 void frame(void) {
-  struct nk_context *ctx = snk_new_frame();
+  struct nk_context* ctx = snk_new_frame();
   SandboxApp* app = sbx_getApp();
 
   if(!app->renderer) {
@@ -144,27 +133,32 @@ void frame(void) {
   }
 
   nk_style_hide_cursor(ctx);
-  sbx_CameraUI_draw(ctx, app->renderer);
 
-  nk_flags flags = NK_HEADER_RIGHT | NK_WINDOW_BORDER | NK_WINDOW_SCALABLE | NK_WINDOW_MOVABLE | NK_WINDOW_TITLE;
-  if(nk_begin_titled(ctx, "obj", "Object", nk_rect(9, 9, 300, 200), flags)) {
-    nk_layout_row_dynamic(ctx, 0, 1);
-    clm_transform25 transform = sbx_Renderer_getTransform(app->renderer, app->renderable);
-    if(nkx_property_transform25(ctx, "Transform", &transform)) {
-      sbx_Renderer_setTransform(app->renderer, app->renderable, &transform);
+  if(app->scene) {
+    if(app->sceneNeedsInit) {
+      app->sceneNeedsInit = false;
+      sbx_Scene_init(&(sbx_SceneInitArgs){
+        .scene = app->scene,
+        .renderer = app->renderer,
+      });
     }
-    sbx_ModelVertices* newVerts = sbx_ModelUI_draw(ctx, sbx_Renderer_getModelVertices(app->renderer, app->quad), &app->allocator);
-    if(newVerts) {
-      sbx_Renderer_setModelVertices(app->renderer, app->quad, newVerts);
-      std_Allocator_dealloc(&app->allocator, newVerts);
-    }
+
+    sbx_Scene_frame(&(sbx_SceneFrameArgs){
+      .scene = app->scene,
+      .renderer = app->renderer,
+      .ctx = ctx
+    });
   }
+
   nk_end(ctx);
 
   sbx_Renderer_render(app->renderer);
 }
 
 void cleanup(void) {
+  SandboxApp* app = sbx_getApp();
+  sbx_setScene(app, NULL);
+
   //sfons_destroy(state.fontContext);
   //state.fontContext = nullptr;
   snk_shutdown();
