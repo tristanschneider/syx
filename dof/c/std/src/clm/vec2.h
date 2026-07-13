@@ -19,6 +19,10 @@ inline clm_vec2 clm_vec2_ctor(float x, float y) {
   return result;
 }
 
+inline clm_vec2 clm_vec2_zero() {
+  return clm_vec2_ctor(0, 0);
+}
+
 inline clm_vec2 clm_vec2_splat(float v) {
   return clm_vec2_ctor(v, v);
 }
@@ -41,4 +45,12 @@ inline clm_vec2 clm_vec2_rotate(const clm_vec2* v, const clm_vec2* rot) {
     rot->x*v->x - rot->y*v->y,
     rot->y*v->x + rot->x*v->y
   );
+}
+
+inline clm_vec2 clm_vec2_scale(const clm_vec2* v, float s) {
+  return clm_vec2_ctor(v->x * s, v->y * s);
+}
+
+inline clm_vec2 clm_vec2_add(const clm_vec2* a, const clm_vec2* b) {
+  return clm_vec2_ctor(a->x + b->x, a->y + b->y);
 }
