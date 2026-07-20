@@ -34,12 +34,25 @@ struct sbx_Renderable {
   void* data;
 };
 
+struct sbx_Texture {
+  void* data;
+};
+
+struct sbx_TextureContents {
+  //rgba8 contents
+  const void* data;
+  uint32_t width;
+  uint32_t height;
+};
+
 typedef struct clm_transform25 clm_transform25;
 typedef struct sbx_Camera sbx_Camera;
 typedef struct sbx_Renderer sbx_Renderer;
 typedef struct sbx_Model sbx_Model;
 typedef struct sbx_Renderable sbx_Renderable;
 typedef struct sbx_ModelVertices sbx_ModelVertices;
+typedef struct sbx_Texture sbx_Texture;
+typedef struct sbx_TextureContents sbx_TextureContents;
 
 //Allocator must outlive the renderer as renderer will use it.
 sbx_Renderer* sbx_Renderer_ctor(std_Allocator* alloc);
@@ -52,9 +65,14 @@ sbx_ModelVertices sbx_Renderer_getModelVertices(sbx_Renderer* renderer, sbx_Mode
 //Set vertices by copy
 void sbx_Renderer_setModelVertices(sbx_Renderer* renderer, sbx_Model model, const sbx_ModelVertices* vertices);
 
+sbx_Texture sbx_Renderer_createTexture(sbx_Renderer* renderer);
+void sbx_Renderer_destroyTexture(sbx_Renderer* renderer, sbx_Texture texture);
+void sbx_Renderer_setTexture(sbx_Renderer* renderer, sbx_Texture texture, const sbx_TextureContents* contents);
+
 sbx_Renderable sbx_Renderer_createRenderable(sbx_Renderer* renderer);
 void sbx_Renderer_destroyRenderable(sbx_Renderer* renderer, sbx_Renderable renderable);
 void sbx_Renderer_setRenderableModel(sbx_Renderer* renderer, sbx_Renderable renderable, sbx_Model model);
+void sbx_Renderer_setRenderableTexture(sbx_Renderer* renderer, sbx_Renderable renderable, sbx_Texture texture);
 clm_transform25 sbx_Renderer_getTransform(sbx_Renderer* renderer, sbx_Renderable renderable);
 void sbx_Renderer_setTransform(sbx_Renderer* renderer, sbx_Renderable renderable, const clm_transform25* transform);
 

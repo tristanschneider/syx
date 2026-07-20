@@ -34,9 +34,15 @@ struct sbx_RendererModel {
 };
 typedef struct sbx_RendererModel sbx_RendererModel;
 
+struct sbx_RendererTexture {
+  sg_image buffer;
+};
+typedef struct sbx_RendererTexture sbx_RendererTexture;
+
 struct sbx_RendererRenderable {
   const uint32_t id;
   sbx_RendererModel* model;
+  sbx_RendererTexture* tex;
   clm_transform25 transform;
 };
 typedef struct sbx_RendererRenderable sbx_RendererRenderable;
@@ -57,6 +63,10 @@ void sbx_setInstanceChanged(sbx_Renderer* renderer) {
 
 sbx_RendererModel* sbx_unwrapModel(sbx_Model model) {
   return (sbx_RendererModel*)model.data;
+}
+
+sbx_RendererTexture* sbx_unwrapTexture(sbx_Texture tex) {
+  return tex.data;
 }
 
 uint32_t sbx_unwrapRenderable(sbx_Renderable renderable) {
@@ -84,6 +94,13 @@ sbx_RendererRenderable* sbx_tryGetRenderable(sbx_Renderer* renderer, sbx_Rendera
 void sbx_setBuffer(sg_buffer* dst, sg_buffer src) {
   if (dst->id) {
     sg_destroy_buffer(*dst);
+  }
+  *dst = src;
+}
+
+void sbx_setImage(sg_image* dst, sg_image src) {
+  if (dst->id) {
+    sg_destroy_image(*dst);
   }
   *dst = src;
 }
@@ -207,7 +224,7 @@ void sbx_renderMeshPass(sbx_Renderer* renderer) {
     uniforms.instanceOffset = (int)i;
     sg_apply_uniforms(UB_uniforms, &(sg_range){ &uniforms, sizeof(uniforms) });
 
-    pass->bindings.images[IMG_tex] = renderer->emptyImage;
+    pass->bindings.images[IMG_tex] = r->tex ? r->tex->buffer : renderer->emptyImage;
     pass->bindings.vertex_buffers[0] = r->model->buffer;
     sg_apply_bindings(&renderer->meshPass.bindings);
 
@@ -242,7 +259,6 @@ void sbx_Renderer_render(sbx_Renderer* renderer) {
 }
 
 sbx_Model sbx_Renderer_createModel(sbx_Renderer* renderer) {
-  STD_UNUSED(renderer);
   sbx_RendererModel* model = std_Allocator_zalloc(renderer->alloc, sizeof(sbx_RendererModel));
   return (sbx_Model){
     .data = model
@@ -308,6 +324,50 @@ void sbx_Renderer_setModelVertices(sbx_Renderer* renderer, sbx_Model model, cons
   }));
 }
 
+sbx_Texture sbx_Renderer_createTexture(sbx_Renderer* renderer) {
+  sbx_RendererTexture* tex = std_Allocator_zalloc(renderer->alloc, sizeof(sbx_RendererTexture));
+  return (sbx_Texture){
+    .data = tex
+  };
+}
+
+void sbx_Renderer_destroyTexture(sbx_Renderer* renderer, sbx_Texture texture) {
+  sbx_RendererTexture* t = sbx_unwrapTexture(texture);
+  if(!t) {
+    return;
+  }
+
+  //Unlink renderables pointing at this texture
+  std_VectorCtxM ctx = sbx_renderableCtxM(renderer);
+  for(uint32_t i = 0; i < renderer->renderables.size; ++i) {
+    sbx_RendererRenderable* e = (sbx_RendererRenderable*)std_Vector_get(&ctx, i);
+    if(e->tex == t) {
+      e->tex = NULL;
+    }
+  }
+
+  //Destroy sg resource which would exist unless none was ever assigned after createTexture
+  sbx_setImage(&t->buffer, (sg_image){ 0 });
+  //Destroy the texture itself
+  std_Allocator_dealloc(renderer->alloc, texture.data);
+  texture.data = NULL;
+}
+
+void sbx_Renderer_setTexture(sbx_Renderer* renderer, sbx_Texture texture, const sbx_TextureContents* contents) {
+  STD_UNUSED(renderer);
+  sbx_RendererTexture* t = sbx_unwrapTexture(texture);
+  if(!t) {
+    return;
+  }
+  sg_image_desc desc = {
+    .width = (int)contents->width,
+    .height = (int)contents->height,
+    .pixel_format = SG_PIXELFORMAT_RGBA8
+  };
+  desc.data.subimage[0][0] = (sg_range){ contents->data, contents->height*contents->width*4 };
+  sbx_setImage(&t->buffer, sg_make_image(&desc));
+}
+
 sbx_Renderable sbx_Renderer_createRenderable(sbx_Renderer* renderer) {
   //Generate a new id
   uint32_t id = ++renderer->idGen;
@@ -367,6 +427,14 @@ void sbx_Renderer_setRenderableModel(sbx_Renderer* renderer, sbx_Renderable rend
   sbx_RendererModel* m = sbx_unwrapModel(model);
   if(r && m) {
     r->model = m;
+  }
+}
+
+void sbx_Renderer_setRenderableTexture(sbx_Renderer* renderer, sbx_Renderable renderable, sbx_Texture texture) {
+  sbx_RendererRenderable* r = sbx_tryGetRenderable(renderer, renderable);
+  sbx_RendererTexture* t = sbx_unwrapTexture(texture);
+  if(r && t) {
+    r->tex = t;
   }
 }
 
