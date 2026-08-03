@@ -11,6 +11,7 @@ public:
   ~TestAllocator();
 
   std_Allocator* get();
+  operator std_Allocator*();
 
 private:
   struct Impl;

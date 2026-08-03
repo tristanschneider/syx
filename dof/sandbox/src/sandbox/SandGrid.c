@@ -46,8 +46,8 @@ struct sbx_CollisionNeighbors {
 typedef struct sbx_CollisionNeighbors sbx_CollisionNeighbors;
 
 void sbx_buildCollisionNeighbors(sbx_CollisionNeighbors result[SBX_CR_COUNT], int32_t stride) {
-  const int32_t n = stride;
-  const int32_t s = -stride;
+  const int32_t n = -stride;
+  const int32_t s = stride;
   const int32_t e = 1;
   const int32_t w = -1;
   const uint8_t x = 0;
@@ -107,6 +107,8 @@ struct sbx_SandGrain {
   clm_vec2 position;
   uint8_t mass;
   uint8_t type;
+  //ID to avoid integrating the same grain twice at once
+  uint8_t age;
 };
 typedef struct sbx_SandGrain sbx_SandGrain;
 
@@ -119,6 +121,7 @@ struct sbx_SandGrid {
   clm_irect rect;
   sbx_SandGridConfig config;
   clm_byte4* bitmap;
+  uint8_t age;
 };
 
 struct sbx_GrainIt {
@@ -185,7 +188,7 @@ sbx_SandGrid* sbx_SandGrid_ctor(std_Allocator* alloc, sbx_SandGridConfig config)
     result->grains[rowBegin + result->grainStride - 1] = sentry;
   }
   //Sentry on first and last row
-  const int32_t lastRow = result->grainStride * config.height;
+  const int32_t lastRow = result->grainStride * (config.height + 1);
   for(int32_t c = 0; c < result->grainStride; ++c) {
     result->grains[c] = sentry;
     result->grains[lastRow + c] = sentry;
@@ -286,8 +289,8 @@ struct sbx_IntegrateData {
 };
 typedef struct sbx_IntegrateData sbx_IntegrateData;
 
-bool sbx_shouldIntegrate(const sbx_SandGrain* grain) {
-  return grain->mass != 0.f;
+bool sbx_shouldIntegrate(const sbx_SandGrain* grain, uint8_t age) {
+  return grain->mass != 0.f && grain->age != age;
 }
 
 //TODO: get dominant axis for desired move direction and collision normal
@@ -326,9 +329,11 @@ sbx_CollisionRegion sbx_classifyRegion(clm_vec2* v) {
 
 void sbx_integrateGrain(const sbx_GrainIt* it) {
   sbx_SandGrain* grain = &it->grid->grains[it->e];
-  if(!sbx_shouldIntegrate(grain)) {
+  if(!sbx_shouldIntegrate(grain, it->grid->age)) {
     return;
   }
+  //Prevent this from being iterated again
+  grain->age = it->grid->age;
 
   const sbx_IntegrateData* data = it->data;
   //Integrate velocity. Gravity already contains dt
@@ -365,7 +370,7 @@ void sbx_integrateGrain(const sbx_GrainIt* it) {
       const int32_t bmpSrc = sbx_grainToBitmap(it->grid, it->e);
       const int32_t bmpDst = sbx_grainToBitmap(it->grid, neighborIndex);
       //Write pixel to new location
-      memcpy(&it->grid->bitmap[bmpDst], &it->grid->bitmap[bmpSrc], sizeof(clm_byte4));
+      it->grid->bitmap[bmpDst] = it->grid->bitmap[bmpSrc];
       //Clear old location
       it->grid->bitmap[bmpSrc] = it->grid->config.clearColor;
 
@@ -416,6 +421,7 @@ void sbx_integrateGrain(const sbx_GrainIt* it) {
 }
 
 void sbx_SandGrid_integrate(sbx_SandGrid* grid, const clm_irect* rect, float dt) {
+  grid->age++;
   sbx_IntegrateData data = {
     .gravity = clm_vec2_scale(&grid->config.gravity, dt),
     .dt = dt

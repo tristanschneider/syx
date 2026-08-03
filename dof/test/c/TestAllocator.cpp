@@ -28,3 +28,7 @@ TestAllocator::~TestAllocator() = default;
 std_Allocator* TestAllocator::get() {
   return &impl->wrapped;
 }
+
+TestAllocator::operator std_Allocator*() {
+  return get();
+}

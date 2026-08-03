@@ -10,6 +10,7 @@ PUBLIC
     physics
     table
     c_std
+    sandbox
 )
 
 target_include_directories(test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
