@@ -17,3 +17,9 @@ void sbx_Scene_frame(sbx_SceneFrameArgs* args) {
     args->scene->frame(args);
   }
 }
+
+void sbx_Scene_event(sbx_SceneEventArgs* args) {
+  if(args && args->scene && args->scene->event) {
+    args->scene->event(args);
+  }
+}

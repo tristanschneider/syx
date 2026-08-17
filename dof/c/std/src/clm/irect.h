@@ -17,6 +17,15 @@ inline clm_irect clm_irect_fromMinMax(int minX, int minY, int maxX, int maxY) {
   return result;
 }
 
+inline clm_irect clm_irect_fromMinSize(int minX, int minY, int sizeX, int sizeY) {
+  clm_irect result;
+  result.minX = minX;
+  result.minY = minY;
+  result.maxX = minX + sizeX;
+  result.maxY = minY + sizeY;
+  return result;
+}
+
 inline clm_irect clm_irect_limits() {
   return clm_irect_fromMinMax(INT32_MIN, INT32_MIN, INT32_MAX, INT32_MAX);
 }

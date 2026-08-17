@@ -15,6 +15,8 @@
 
 #include <sandbox/scene/Scene.h>
 #include <sandbox/scene/NarrowphaseScene.h>
+#include <sandbox/scene/SandGridScene.h>
+#include <sandbox/ui/nkExt.h>
 
 struct SandboxApp {
   sbx_Renderer* renderer;
@@ -41,19 +43,61 @@ void sbx_setScene(SandboxApp* app, sbx_Scene* newScene) {
   app->sceneNeedsInit = true;
 }
 
+sbx_ButtonType mouseToButton(sapp_mousebutton mouse) {
+  switch(mouse) {
+    case SAPP_MOUSEBUTTON_LEFT: return SBX_BUTTON_LMB;
+    case SAPP_MOUSEBUTTON_MIDDLE: return SBX_BUTTON_MMB;
+    case SAPP_MOUSEBUTTON_RIGHT: return SBX_BUTTON_RMB;
+  }
+  return 0;
+}
+
+//0-1 to -1-1
+float toNDC(float v) {
+  return v * 2 - 1.f;
+}
+
+void fillMouse(sbx_SceneEventArgs* args, const sapp_event* event) {
+  args->mouseX = event->mouse_x;
+  args->mouseY = event->mouse_y;
+  //Transform to NDC so using this on the view matrix will map directy to world space
+  if(event->window_width) {
+    args->mouseX /= (float)event->window_width;
+  }
+  if(event->window_height) {
+    args->mouseY /= (float)event->window_height;
+  }
+  args->mouseX = toNDC(args->mouseX);
+  args->mouseY = -toNDC(args->mouseY);
+}
+
 void onEvent(const sapp_event* event) {
   snk_handle_event(event);
+
+  sbx_SceneEventArgs e;
+  e.type = SBX_SCENEEVENT_INVALID;
 
   switch(event->type) {
     case SAPP_EVENTTYPE_RESIZED:
     case SAPP_EVENTTYPE_FOCUSED:
     case SAPP_EVENTTYPE_UNFOCUSED:
     case SAPP_EVENTTYPE_MOUSE_DOWN:
+      e.type = SBX_SCENEEVENT_MOUSE_DOWN;
+      e.button = mouseToButton(event->mouse_button);
+      fillMouse(&e, event);
+      break;
     case SAPP_EVENTTYPE_MOUSE_UP:
+      e.type = SBX_SCENEEVENT_MOUSE_UP;
+      e.button = mouseToButton(event->mouse_button);
+      fillMouse(&e, event);
+      break;
     case SAPP_EVENTTYPE_KEY_DOWN:
     case SAPP_EVENTTYPE_KEY_UP:
     case SAPP_EVENTTYPE_MOUSE_SCROLL:
     case SAPP_EVENTTYPE_MOUSE_MOVE:
+      e.type = SBX_SCENEEVENT_MOUSE_MOVE;
+      fillMouse(&e, event);
+      break;
     case SAPP_EVENTTYPE_CHAR:
     case SAPP_EVENTTYPE_MOUSE_ENTER:
     case SAPP_EVENTTYPE_MOUSE_LEAVE:
@@ -70,6 +114,15 @@ void onEvent(const sapp_event* event) {
     case SAPP_EVENTTYPE_FILES_DROPPED:
       break;
   }
+
+  if(e.type != SBX_SCENEEVENT_INVALID) {
+    SandboxApp* app = sbx_getApp();
+    if(app) {
+      e.scene = app->scene;
+      e.renderer = app->renderer;
+      sbx_Scene_event(&e);
+    }
+  }
 }
 
 void init(void) {
@@ -77,7 +130,7 @@ void init(void) {
   *app = (SandboxApp){
     .allocator = std_MallocAllocator_ctor()
   };
-  sbx_setScene(app, sbx_NarrowphaseScene_ctor(&app->allocator));
+  sbx_setScene(app, sbx_SandGridScene_ctor(&app->allocator));
 
   //Initialize the graphics device
   sg_setup(&(sg_desc){
@@ -100,21 +153,15 @@ void init(void) {
   });
 }
 
-void drawUI(struct nk_context* ctx) {
-  nk_style_hide_cursor(ctx);
-
-  nk_flags flags = NK_HEADER_RIGHT | NK_WINDOW_BORDER | NK_WINDOW_SCALABLE | NK_WINDOW_MOVABLE;
-  if (nk_begin(ctx, "test", nk_rect(10, 10, 400, 400), flags)) {
+void drawSceneSelector(SandboxApp* app, struct nk_context* ctx) {
+  nk_flags flags = NK_HEADER_RIGHT | NK_WINDOW_TITLE | NK_WINDOW_BORDER | NK_WINDOW_SCALABLE | NK_WINDOW_MOVABLE;
+  if (nk_begin_titled(ctx, "scene_selector", "Scene Selector", nk_rect(400, 10, 150, 100), flags)) {
     nk_layout_row_dynamic(ctx, 10, 1);
-    nk_label(ctx, "label A", NK_TEXT_LEFT);
-
-    if (nk_tree_push(ctx, NK_TREE_NODE, "tree", NK_MINIMIZED)) {
-      nk_label(ctx, "label B", NK_TEXT_LEFT);
-      if(nk_button_label(ctx, "button")) {
-        LOGI("clicked");
-      }
-
-      nk_tree_pop(ctx);
+    if (nk_button_label(ctx, "Narrowphase")) {
+      sbx_setScene(app, sbx_NarrowphaseScene_ctor(&app->allocator));
+    }
+    if (nk_button_label(ctx, "Sand Grid")) {
+      sbx_setScene(app, sbx_SandGridScene_ctor(&app->allocator));
     }
   }
   nk_end(ctx);
@@ -133,6 +180,8 @@ void frame(void) {
   }
 
   nk_style_hide_cursor(ctx);
+
+  drawSceneSelector(app, ctx);
 
   if(app->scene) {
     if(app->sceneNeedsInit) {

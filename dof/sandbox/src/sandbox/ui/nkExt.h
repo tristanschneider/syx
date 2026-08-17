@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stdint.h>
 
 //Extensions for nuklear (nk)
 
@@ -26,3 +27,6 @@ bool nkx_property_transform25(nk_context* ctx, const char* name, clm_transform25
 
 nk_color nkx_vec4ToColor(clm_vec4 color);
 clm_vec4 nkx_colorToVec4(nk_color color);
+
+uint32_t nkx_titledWindow();
+uint32_t nkx_basicWindow();

@@ -11,9 +11,13 @@ sbx_Camera sbx_Camera_ctor() {
   };
 }
 
-clm_mat4 sbx_Camera_worldToView(const sbx_Camera* c, float aspect) {
+clm_mat4 sbx_Camera_viewToWorld(const sbx_Camera* c, float aspect) {
   const clm_mat4 proj = clm_mat4_perspective(c->fovY, aspect, c->zNear, c->zFar);
   const clm_mat4 world = clm_transform25_toMatrix(&c->transform);
-  const clm_mat4 projWorld = clm_mat4_mul(&world, &proj);
+  return clm_mat4_mul(&world, &proj);
+}
+
+clm_mat4 sbx_Camera_worldToView(const sbx_Camera* c, float aspect) {
+  const clm_mat4 projWorld = sbx_Camera_viewToWorld(c, aspect);
   return clm_mat4_inverse(&projWorld);
 }

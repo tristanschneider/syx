@@ -79,3 +79,11 @@ clm_vec4 nkx_colorToVec4(nk_color color) {
   }
   return result;
 }
+
+uint32_t nkx_titledWindow() {
+  return nkx_basicWindow() | NK_WINDOW_TITLE;
+}
+
+uint32_t nkx_basicWindow() {
+  return NK_WINDOW_MINIMIZABLE | NK_HEADER_RIGHT | NK_WINDOW_BORDER | NK_WINDOW_SCALABLE | NK_WINDOW_MOVABLE;
+}

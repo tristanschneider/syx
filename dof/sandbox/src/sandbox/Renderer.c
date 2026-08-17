@@ -200,14 +200,17 @@ void sbx_updateInstanceData(sbx_Renderer* renderer) {
   });
 }
 
+float sbx_getAspectRatio() {
+  return 1.f;
+}
+
 void sbx_renderMeshPass(sbx_Renderer* renderer) {
   sbx_MeshPass* pass = &renderer->meshPass;
   //Activate mesh pass pipeline
   sg_apply_pipeline(pass->pipeline);
 
   //Set uniform
-  const float aspectRatio = 1.f;
-  clm_mat4 worldToView = sbx_Camera_worldToView(sbx_Renderer_getCamera(renderer), aspectRatio);
+  clm_mat4 worldToView = sbx_Camera_worldToView(sbx_Renderer_getCamera(renderer), sbx_getAspectRatio());
   worldToView = clm_mat4_transpose(&worldToView);
   uniforms_t uniforms;
   uniforms.instanceOffset = 0;
@@ -224,7 +227,7 @@ void sbx_renderMeshPass(sbx_Renderer* renderer) {
     uniforms.instanceOffset = (int)i;
     sg_apply_uniforms(UB_uniforms, &(sg_range){ &uniforms, sizeof(uniforms) });
 
-    pass->bindings.images[IMG_tex] = r->tex ? r->tex->buffer : renderer->emptyImage;
+    pass->bindings.images[IMG_tex] = r->tex && r->tex->buffer.id ? r->tex->buffer : renderer->emptyImage;
     pass->bindings.vertex_buffers[0] = r->model->buffer;
     sg_apply_bindings(&renderer->meshPass.bindings);
 
@@ -362,9 +365,10 @@ void sbx_Renderer_setTexture(sbx_Renderer* renderer, sbx_Texture texture, const 
   sg_image_desc desc = {
     .width = (int)contents->width,
     .height = (int)contents->height,
-    .pixel_format = SG_PIXELFORMAT_RGBA8
+    .pixel_format = SG_PIXELFORMAT_RGBA8,
   };
   desc.data.subimage[0][0] = (sg_range){ contents->data, contents->height*contents->width*4 };
+  //TODO: sg_update_image if compatible
   sbx_setImage(&t->buffer, sg_make_image(&desc));
 }
 
@@ -458,4 +462,9 @@ const sbx_Camera* sbx_Renderer_getCamera(sbx_Renderer* renderer) {
 void sbx_Renderer_setCamera(sbx_Renderer* renderer, const sbx_Camera* camera) {
   //Don't need to dirty anything because matrix is recomputed every frame
   renderer->camera = *camera;
+}
+
+clm_mat4 sbx_Renderer_getScreenToWorld(sbx_Renderer* renderer) {
+  clm_mat4 viewToWorld = sbx_Camera_viewToWorld(sbx_Renderer_getCamera(renderer), sbx_getAspectRatio());
+  return viewToWorld;
 }

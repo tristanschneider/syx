@@ -5,6 +5,7 @@
 #include <clm/vec3.h>
 #include <clm/vec2.h>
 
+struct clm_mat4;
 struct clm_transform25;
 struct sbx_Camera;
 struct sbx_Renderer;
@@ -45,6 +46,7 @@ struct sbx_TextureContents {
   uint32_t height;
 };
 
+typedef struct clm_mat4 clm_mat4;
 typedef struct clm_transform25 clm_transform25;
 typedef struct sbx_Camera sbx_Camera;
 typedef struct sbx_Renderer sbx_Renderer;
@@ -78,3 +80,4 @@ void sbx_Renderer_setTransform(sbx_Renderer* renderer, sbx_Renderable renderable
 
 const sbx_Camera* sbx_Renderer_getCamera(sbx_Renderer* renderer);
 void sbx_Renderer_setCamera(sbx_Renderer* renderer, const sbx_Camera* camera);
+clm_mat4 sbx_Renderer_getScreenToWorld(sbx_Renderer* renderer);
