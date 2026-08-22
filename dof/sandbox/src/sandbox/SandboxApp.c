@@ -23,6 +23,7 @@ struct SandboxApp {
   sbx_Scene* scene;
   std_Allocator allocator;
   bool sceneNeedsInit;
+  bool isNKHovered;
 };
 typedef struct SandboxApp SandboxApp;
 
@@ -71,6 +72,11 @@ void fillMouse(sbx_SceneEventArgs* args, const sapp_event* event) {
   args->mouseY = -toNDC(args->mouseY);
 }
 
+bool isNKHovered() {
+  SandboxApp* app = sbx_getApp();
+  return app && app->isNKHovered;
+}
+
 void onEvent(const sapp_event* event) {
   snk_handle_event(event);
 
@@ -81,15 +87,21 @@ void onEvent(const sapp_event* event) {
     case SAPP_EVENTTYPE_RESIZED:
     case SAPP_EVENTTYPE_FOCUSED:
     case SAPP_EVENTTYPE_UNFOCUSED:
+    //Mouse buttons are forwarded to the scene unless the button was on an nk window.
+    //This prevents accidental input when interacting with a window.
     case SAPP_EVENTTYPE_MOUSE_DOWN:
-      e.type = SBX_SCENEEVENT_MOUSE_DOWN;
-      e.button = mouseToButton(event->mouse_button);
-      fillMouse(&e, event);
+      if(!isNKHovered()) {
+        e.type = SBX_SCENEEVENT_MOUSE_DOWN;
+        e.button = mouseToButton(event->mouse_button);
+        fillMouse(&e, event);
+      }
       break;
     case SAPP_EVENTTYPE_MOUSE_UP:
-      e.type = SBX_SCENEEVENT_MOUSE_UP;
-      e.button = mouseToButton(event->mouse_button);
-      fillMouse(&e, event);
+      if(!isNKHovered()) {
+        e.type = SBX_SCENEEVENT_MOUSE_UP;
+        e.button = mouseToButton(event->mouse_button);
+        fillMouse(&e, event);
+      }
       break;
     case SAPP_EVENTTYPE_KEY_DOWN:
     case SAPP_EVENTTYPE_KEY_UP:
@@ -174,6 +186,7 @@ void initRenderer(SandboxApp* app) {
 void frame(void) {
   struct nk_context* ctx = snk_new_frame();
   SandboxApp* app = sbx_getApp();
+  app->isNKHovered = nk_window_is_any_hovered(ctx);
 
   if(!app->renderer) {
     initRenderer(app);
