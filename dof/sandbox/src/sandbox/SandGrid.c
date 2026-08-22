@@ -255,8 +255,12 @@ void sbx_SandGrid_replace(const sbx_GrainIt* it) {
   sbx_SandGrid_setGridGrain(it->grid, it->e, sbx_InsertData_getAndAdvanceInput(it->data));
 }
 
+bool sbx_SandGrain_isValidRect(const sbx_SandGrid* grid, const clm_irect* rect) {
+  return grid->config.width >= rect->maxX && grid->config.height >= rect->maxY;
+}
+
 void sbx_SandGrid_assertRect(const sbx_SandGrid* grid, const clm_irect* rect) {
-  STD_ASSERT(grid->config.width >= rect->maxX && grid->config.height >= rect->maxY);
+  STD_ASSERT(sbx_SandGrain_isValidRect(grid, rect));
 }
 
 bool sbx_SandGrid_insert(const sbx_SandGridInsertOps* ops) {
@@ -427,4 +431,22 @@ void sbx_SandGrid_integrate(sbx_SandGrid* grid, const clm_irect* rect, float dt)
     .dt = dt
   };
   sbx_iterate_grains(grid, rect, &sbx_integrateGrain, &data);
+}
+
+void sbx_doQuery(const sbx_GrainIt* it) {
+  sbx_SandQueryResult** result = it->data;
+  sbx_SandGrain* grain = &it->grid->grains[it->e];
+  **result = (sbx_SandQueryResult){
+    .velocity = grain->velocity,
+    .position = grain->position,
+    .shape = grain->type,
+    .color = it->grid->bitmap[sbx_grainToBitmap(it->grid, it->e)],
+    .mass = grain->mass
+  };
+  (*result)++;
+}
+
+void sbx_SandGrid_query(sbx_SandGrid* grid, const clm_irect* rect, sbx_SandQueryResult* result) {
+  sbx_SandGrid_assertRect(grid, rect);
+  sbx_iterate_grains(grid, rect, &sbx_doQuery, &result);
 }

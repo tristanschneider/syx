@@ -41,6 +41,15 @@ struct sbx_SandGridGrain {
 };
 typedef struct sbx_SandGridGrain sbx_SandGridGrain;
 
+struct sbx_SandQueryResult {
+  clm_vec2 velocity;
+  clm_vec2 position;
+  sbx_SandGridShape shape;
+  clm_byte4 color;
+  uint8_t mass;
+};
+typedef struct sbx_SandQueryResult sbx_SandQueryResult;
+
 enum sbx_SandGridInsertMode {
   //Try to insert at the given coordinates and fail if they are occupied
   SBX_SGI_TRY,
@@ -67,5 +76,10 @@ bool sbx_SandGrid_insert(const sbx_SandGridInsertOps* ops);
 
 //Integrate the area of the grid specified by rect. Use clm_irect_limits to integrate the entire grid.
 void sbx_SandGrid_integrate(sbx_SandGrid* grid, const clm_irect* rect, float dt);
+
 //Get an rgba bitmap of the size specified by sbx_SandGridConfig
 const clm_byte4* sbx_SandGrid_getTexture(const sbx_SandGrid* grid);
+
+bool sbx_SandGrain_isValidRect(const sbx_SandGrid* grid, const clm_irect* rect);
+//Query the region of `rect` and put the results in `result`. Area must be within grid.
+void sbx_SandGrid_query(sbx_SandGrid* grid, const clm_irect* rect, sbx_SandQueryResult* result);

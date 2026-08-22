@@ -13,6 +13,12 @@
 #include <sandbox/ui/nkExt.h>
 #include <sandbox/SandGrid.h>
 
+struct sbx_SelectedGrain {
+  sbx_SandQueryResult query;
+  clm_irect area;
+};
+typedef struct sbx_SelectedGrain sbx_SelectedGrain;
+
 struct sbx_SandGridScene {
   sbx_Scene base;
   std_Allocator* alloc;
@@ -21,6 +27,7 @@ struct sbx_SandGridScene {
   sbx_SandGridConfig config;
   sbx_SandGrid* sandGrid;
   sbx_Texture texture;
+  sbx_SelectedGrain selected;
 };
 typedef struct sbx_SandGridScene sbx_SandGridScene;
 
@@ -61,7 +68,7 @@ void sbx_SandGridScene_init(sbx_SceneInitArgs* args) {
   self->config = (sbx_SandGridConfig){
     .width = 10,
     .height = 10,
-    .gravity = clm_vec2_ctor(0, -1.f)
+    .gravity = clm_vec2_ctor(0, -10.f)
   };
   self->sandGrid = sbx_createSandGrid(self->sandGrid, self->alloc, self->config);
 
@@ -70,6 +77,8 @@ void sbx_SandGridScene_init(sbx_SceneInitArgs* args) {
   rt.scale = clm_vec2_ctor(10, 10);
   rt.pos = clm_vec3_ctor(-s * 5.f, -s * 5.f, -0.1f);
   sbx_Renderer_setTransform(args->renderer, self->renderable, &rt);
+
+  self->selected.area = clm_irect_limits();
 }
 
 void sbx_SandGridScene_dtor(sbx_SceneDtorArgs* args) {
@@ -85,7 +94,7 @@ void sbx_SandGridScene_dtor(sbx_SceneDtorArgs* args) {
   std_Allocator_dealloc(self->alloc, self);
 }
 
-void sbx_tryInsertAtMouse(sbx_SceneEventArgs* args) {
+clm_irect sbx_getMouseRect(sbx_SceneEventArgs* args) {
   sbx_SandGridScene* scene = (sbx_SandGridScene*)args->scene;
   clm_mat4 screenToWorld = sbx_Renderer_getScreenToWorld(args->renderer);
   clm_mat4 worldToScreen = clm_mat4_inverse(&screenToWorld);
@@ -110,51 +119,107 @@ void sbx_tryInsertAtMouse(sbx_SceneEventArgs* args) {
   worldToRenderable = clm_mat4_inverse(&worldToRenderable);
   mouseWorld = clm_mat4_mul4(&worldToRenderable, &mouseWorld);
   mouseWorld.y = 1.f - mouseWorld.y;
-  //See if this was in the renderable
-  if(std_between(mouseWorld.x, 0, 1) && std_between(mouseWorld.y, 0, 1)) {
+
+  const int ix = (int)(mouseWorld.x * (float)scene->config.width);
+  const int iy = (int)(mouseWorld.y * (float)scene->config.height);
+  return clm_irect_fromMinSize(ix, iy, 1, 1);
+}
+
+void sbx_tryInsertAtMouse(sbx_SceneEventArgs* args) {
+  sbx_SandGridScene* scene = (sbx_SandGridScene*)args->scene;
+  clm_irect mouseRect = sbx_getMouseRect(args);
+  if(sbx_SandGrain_isValidRect(scene->sandGrid, &mouseRect)) {
     sbx_SandGridGrain grain = {
       .mass = 1,
       .shape = { SBX_GT_GRAIN },
       .color = clm_byte4_ctor(255, 0, 0, 0)
     };
-    const int ix = (int)(mouseWorld.x * (float)scene->config.width);
-    const int iy = (int)(mouseWorld.y * (float)scene->config.height);
-    clm_irect rect = clm_irect_fromMinSize(ix, iy, 1, 1);
     sbx_SandGrid_insert(&(sbx_SandGridInsertOps){
       .grid = scene->sandGrid,
       .grains = &grain,
       .grainCount = 1,
-      .rect = &rect,
+      .rect = &mouseRect,
       .mode = SBX_SGI_TRY
     });
+  }
+}
+
+void sbx_trySelectAtMouse(sbx_SceneEventArgs* args) {
+  sbx_SandGridScene* scene = (sbx_SandGridScene*)args->scene;
+  clm_irect mouseRect = sbx_getMouseRect(args);
+  //Will either be valid and populated with new data below or be invalid meaning the selected data is irrelevant.
+  scene->selected.area = mouseRect;
+  if(sbx_SandGrain_isValidRect(scene->sandGrid, &mouseRect)) {
+    STD_ASSERT(clm_irect_area(&mouseRect) == 1);
+    sbx_SandGrid_query(scene->sandGrid, &mouseRect, &scene->selected.query);
   }
 }
 
 void sbx_SandGridScene_event(sbx_SceneEventArgs* args) {
   switch(args->type) {
   case SBX_SCENEEVENT_MOUSE_DOWN:
-    if(args->button == SBX_BUTTON_LMB) {
-      sbx_tryInsertAtMouse(args);
+    switch(args->button) {
+      case SBX_BUTTON_LMB:
+        sbx_tryInsertAtMouse(args);
+        break;
+      case SBX_BUTTON_RMB:
+        sbx_trySelectAtMouse(args);
+        break;
     }
     break;
   }
+}
+
+void sbx_SandGridScene_integrate(sbx_SandGridScene* scene) {
+  clm_irect rect = clm_irect_limits();
+  sbx_SandGrid_integrate(scene->sandGrid, &rect, 1.f/60.f);
+}
+
+const char* sbx_grainTypeToString(sbx_GrainType type) {
+  switch(type) {
+    case SBX_GT_GRAIN: return "grain";
+    case SBX_GT_STATIC: return "static";
+    case SBX_GT_EMPTY: return "empty";
+    default: return "invalid";
+  }
+}
+
+void sbx_drawSelected(sbx_SceneFrameArgs* args) {
+  sbx_SandGridScene* scene = (sbx_SandGridScene*)args->scene;
+  nk_context* ctx = args->ctx;
+  if(!sbx_SandGrain_isValidRect(scene->sandGrid, &scene->selected.area)) {
+    return;
+  }
+  sbx_SandQueryResult* q = &scene->selected.query;
+
+  //Refresh the query data in case it changed
+  sbx_SandGrid_query(scene->sandGrid, &scene->selected.area, q);
+
+  //Display query data
+  nkx_label_format(ctx, "Type: %s", sbx_grainTypeToString(q->shape.type), 0);
+  nkx_readonly_vec2(ctx, "Position", q->position);
+  nkx_readonly_vec2(ctx, "Velocity", q->velocity);
+  nkx_label_format(ctx, "Mass: %d", (int32_t)q->mass);
+  nkx_label_format(ctx, "color %.8X", q->color);
 }
 
 void sbx_SandGridScene_frame(sbx_SceneFrameArgs* args) {
   sbx_SandGridScene* scene = (sbx_SandGridScene*)args->scene;
   nk_context* ctx = args->ctx;
 
-  nk_flags flags = NK_HEADER_RIGHT | NK_WINDOW_BORDER | NK_WINDOW_SCALABLE | NK_WINDOW_MOVABLE | NK_WINDOW_TITLE;
   bool shouldDraw = false;
-  if(nk_begin_titled(ctx, "sand", "Sand Grid", nk_rect(9, 9, 300, 400), flags)) {
+  if(nk_begin_titled(ctx, "sand", "Sand Grid", nk_rect(9, 9, 300, 400), nkx_titledWindow())) {
     nk_layout_row_dynamic(ctx, 0, 1);
     if(nk_button_label(ctx, "Step")) {
+      sbx_SandGridScene_integrate(scene);
       shouldDraw = true;
     }
     if(nk_button_label(ctx, "Reset")) {
       shouldDraw = true;
     }
+    sbx_drawSelected(args);
   }
+
   shouldDraw = true;
   if(shouldDraw) {
     const clm_byte4* data = sbx_SandGrid_getTexture(scene->sandGrid);

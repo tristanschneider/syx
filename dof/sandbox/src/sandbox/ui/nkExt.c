@@ -6,6 +6,7 @@
 #include <string.h>
 #include <std/Compare.h>
 #include <stdio.h>
+#include <stdarg.h>
 
 //Can be used to generate a unique id for nk_group_begin which doesn't have the same # unique generation that nk_property does.
 struct nkx_UniqueString {
@@ -60,6 +61,19 @@ bool nkx_property_transform25(nk_context* ctx, const char* name, clm_transform25
   nk_layout_row_dynamic(ctx, 0, 3);
   result = nkx_property_vec2(ctx, "Scale", &transform->scale, 0.1f, 100.f, 0.1f, 0.05f) || result;
   return result;
+}
+
+void nkx_label_format(nk_context* ctx, const char* format, ...) {
+  char buffer[255];
+  va_list list;
+  va_start(list, format);
+  vsnprintf(buffer, sizeof(buffer), format, list);
+  va_end(list);
+  nk_label(ctx, buffer, 0);
+}
+
+void nkx_readonly_vec2(nk_context* ctx, const char* name, clm_vec2 v) {
+  nkx_label_format(ctx, "%s (%f, %f)", name, v.x, v.y);
 }
 
 nk_color nkx_vec4ToColor(clm_vec4 color) {

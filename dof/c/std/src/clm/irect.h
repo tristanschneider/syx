@@ -2,6 +2,7 @@
 
 #include <std/Compare.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 struct clm_irect {
   int32_t minX, minY, maxX, maxY;
@@ -36,6 +37,10 @@ inline clm_irect clm_irect_zero() {
 
 inline int32_t clm_irect_area(const clm_irect* rect) {
   return (rect->maxX - rect->minX) * (rect->maxY - rect->minY);
+}
+
+inline bool clm_irect_eq(const clm_irect* a, const clm_irect* b) {
+  return memcmp(a, b, sizeof(clm_irect)) == 0;
 }
 
 //Returns a rect containing the common area between the two (intersect)
