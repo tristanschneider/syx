@@ -26,6 +26,7 @@ struct sbx_SceneFrameArgs {
   sbx_Scene* scene;
   sbx_Renderer* renderer;
   nk_context* ctx;
+  float dt;
 };
 typedef struct sbx_SceneFrameArgs sbx_SceneFrameArgs;
 

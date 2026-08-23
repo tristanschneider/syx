@@ -80,6 +80,7 @@ void sbx_SandGrid_integrate(sbx_SandGrid* grid, const clm_irect* rect, float dt)
 //Get an rgba bitmap of the size specified by sbx_SandGridConfig
 const clm_byte4* sbx_SandGrid_getTexture(const sbx_SandGrid* grid);
 
-bool sbx_SandGrain_isValidRect(const sbx_SandGrid* grid, const clm_irect* rect);
+bool sbx_SandGrid_isValidRect(const sbx_SandGrid* grid, const clm_irect* rect);
+clm_irect sbx_SandGrid_clipToGrid(const sbx_SandGrid* grid, const clm_irect* toClip);
 //Query the region of `rect` and put the results in `result`. Area must be within grid.
 void sbx_SandGrid_query(sbx_SandGrid* grid, const clm_irect* rect, sbx_SandQueryResult* result);

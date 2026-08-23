@@ -208,7 +208,8 @@ void frame(void) {
     sbx_Scene_frame(&(sbx_SceneFrameArgs){
       .scene = app->scene,
       .renderer = app->renderer,
-      .ctx = ctx
+      .ctx = ctx,
+      .dt = (float)sapp_frame_duration()
     });
   }
 

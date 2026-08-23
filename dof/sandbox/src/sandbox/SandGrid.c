@@ -215,7 +215,7 @@ typedef struct sbx_InsertData sbx_InsertData;
 
 const sbx_SandGridGrain* sbx_InsertData_getAndAdvanceInput(sbx_InsertData* data) {
   const sbx_SandGridGrain* result = &data->toInsert[data->insertIndex];
-  if(data->insertIndex < data->insertCount) {
+  if(data->insertIndex + 1 < data->insertCount) {
     ++data->insertIndex;
   }
   return result;
@@ -255,12 +255,12 @@ void sbx_SandGrid_replace(const sbx_GrainIt* it) {
   sbx_SandGrid_setGridGrain(it->grid, it->e, sbx_InsertData_getAndAdvanceInput(it->data));
 }
 
-bool sbx_SandGrain_isValidRect(const sbx_SandGrid* grid, const clm_irect* rect) {
+bool sbx_SandGrid_isValidRect(const sbx_SandGrid* grid, const clm_irect* rect) {
   return grid->config.width >= rect->maxX && grid->config.height >= rect->maxY;
 }
 
 void sbx_SandGrid_assertRect(const sbx_SandGrid* grid, const clm_irect* rect) {
-  STD_ASSERT(sbx_SandGrain_isValidRect(grid, rect));
+  STD_ASSERT(sbx_SandGrid_isValidRect(grid, rect));
 }
 
 bool sbx_SandGrid_insert(const sbx_SandGridInsertOps* ops) {
@@ -449,4 +449,8 @@ void sbx_doQuery(const sbx_GrainIt* it) {
 void sbx_SandGrid_query(sbx_SandGrid* grid, const clm_irect* rect, sbx_SandQueryResult* result) {
   sbx_SandGrid_assertRect(grid, rect);
   sbx_iterate_grains(grid, rect, &sbx_doQuery, &result);
+}
+
+clm_irect sbx_SandGrid_clipToGrid(const sbx_SandGrid* grid, const clm_irect* toClip) {
+  return clm_irect_intersect(&grid->rect, toClip);
 }
