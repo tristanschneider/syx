@@ -412,10 +412,10 @@ void sbx_integrateGrain(const sbx_GrainIt* it) {
 
     //Apply impulse to both objects. Since they divide by their mass, impulse should be zero if they have no mass
     if (ma) {
-      va += impulse * mb;
+      va += impulse / ma;
     }
     if (mb) {
-      vb += impulse * ma;
+      vb -= impulse / mb;
     }
 
     //Write final velocities.
