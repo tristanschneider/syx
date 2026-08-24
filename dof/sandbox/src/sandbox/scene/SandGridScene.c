@@ -20,6 +20,35 @@ struct sbx_SelectedGrain {
 };
 typedef struct sbx_SelectedGrain sbx_SelectedGrain;
 
+enum sbx_InteractType {
+  SBX_INTERACTTYPE_INSERT,
+  SBX_INTERACTTYPE_REPEL,
+  SBX_INTERACTTYPE_SELECT,
+  SBX_INTERACTTYPE_COUNT
+};
+typedef enum sbx_InteractType sbx_InteractType;
+
+enum sbx_MouseMode {
+  SBX_MOUSEMODE_CLICK,
+  SBX_MOUSEMODE_CLICKANDHOLD,
+  SBX_MOUSEMODE_TOGGLE,
+};
+typedef enum sbx_MouseMode sbx_MouseMode;
+
+struct sbx_Interaction {
+  bool isOn;
+  bool isAlwaysOn;
+};
+typedef struct sbx_Interaction sbx_Interaction;
+
+struct sbx_InteractMode {
+  sbx_MouseMode mouse;
+  sbx_InteractType lmbInteract;
+  sbx_InteractType rmbInteract;
+  sbx_Interaction types[SBX_INTERACTTYPE_COUNT];
+};
+typedef struct sbx_InteractMode sbx_InteractMode;
+
 struct sbx_SandGridScene {
   sbx_Scene base;
   std_Allocator* alloc;
@@ -30,6 +59,8 @@ struct sbx_SandGridScene {
   sbx_Texture texture;
   sbx_SelectedGrain selected;
   sbx_TimeControlUI timeControl;
+  sbx_InteractMode interact;
+  clm_vec2 lastMouse;
 };
 typedef struct sbx_SandGridScene sbx_SandGridScene;
 
@@ -83,6 +114,14 @@ void sbx_SandGridScene_init(sbx_SceneInitArgs* args) {
   self->selected.area = clm_irect_limits();
 
   self->timeControl.timePerTick = 1.f/60.f;
+
+  self->interact.mouse = SBX_MOUSEMODE_CLICKANDHOLD;
+  self->interact.lmbInteract = SBX_INTERACTTYPE_INSERT;
+  self->interact.rmbInteract = SBX_INTERACTTYPE_SELECT;
+  self->interact.types[SBX_INTERACTTYPE_SELECT] = (sbx_Interaction){
+    .isOn = true,
+    .isAlwaysOn = true
+  };
 }
 
 void sbx_SandGridScene_dtor(sbx_SceneDtorArgs* args) {
@@ -98,13 +137,12 @@ void sbx_SandGridScene_dtor(sbx_SceneDtorArgs* args) {
   std_Allocator_dealloc(self->alloc, self);
 }
 
-clm_irect sbx_getMouseRect(sbx_SceneEventArgs* args) {
-  sbx_SandGridScene* scene = (sbx_SandGridScene*)args->scene;
-  clm_mat4 screenToWorld = sbx_Renderer_getScreenToWorld(args->renderer);
+clm_irect sbx_getMouseRect(sbx_SandGridScene* scene, sbx_Renderer* renderer) {
+  clm_mat4 screenToWorld = sbx_Renderer_getScreenToWorld(renderer);
   clm_mat4 worldToScreen = clm_mat4_inverse(&screenToWorld);
 
   //Get the Z of the renderable in screen space
-  const clm_transform25 rt = sbx_Renderer_getTransform(args->renderer, scene->renderable);
+  const clm_transform25 rt = sbx_Renderer_getTransform(renderer, scene->renderable);
   const clm_vec3 objPos = rt.pos;
   clm_vec4 objZ = clm_vec4_ctor(0, 0, objPos.z, 1.f);
   objZ = clm_mat4_mul4(&worldToScreen, &objZ);
@@ -112,7 +150,7 @@ clm_irect sbx_getMouseRect(sbx_SceneEventArgs* args) {
 
   //Transform mouse position at Z depth of renderable in screen space back out to world
   //This means the mouse is in world space on the Z plane of the renderable
-  const clm_vec4 mousePos = clm_vec4_ctor(args->mouseX, args->mouseY, objZ.z, 1);
+  const clm_vec4 mousePos = clm_vec4_ctor(scene->lastMouse.x, scene->lastMouse.y, objZ.z, 1);
   clm_vec4 mouseWorld = clm_mat4_mul4(&screenToWorld, &mousePos);
   mouseWorld.x /= mouseWorld.w;
   mouseWorld.y /= mouseWorld.w;
@@ -129,9 +167,7 @@ clm_irect sbx_getMouseRect(sbx_SceneEventArgs* args) {
   return clm_irect_fromMinSize(ix, iy, 1, 1);
 }
 
-void sbx_tryInsertAtMouse(sbx_SceneEventArgs* args) {
-  sbx_SandGridScene* scene = (sbx_SandGridScene*)args->scene;
-  clm_irect mouseRect = sbx_getMouseRect(args);
+void sbx_tryInsertAtMouse(sbx_SandGridScene* scene, clm_irect mouseRect) {
   if(sbx_SandGrid_isValidRect(scene->sandGrid, &mouseRect)) {
     sbx_SandGridGrain grain = {
       .mass = 1,
@@ -148,29 +184,95 @@ void sbx_tryInsertAtMouse(sbx_SceneEventArgs* args) {
   }
 }
 
-void sbx_trySelectAtMouse(sbx_SceneEventArgs* args) {
-  sbx_SandGridScene* scene = (sbx_SandGridScene*)args->scene;
-  clm_irect mouseRect = sbx_getMouseRect(args);
+void sbx_repelAtMouse(sbx_SandGridScene* scene, clm_irect mouseRect) {
+  STD_UNUSED(scene, mouseRect);
+}
+
+void sbx_trySelectAtMouse(sbx_SandGridScene* scene, clm_irect mouseRect, bool startNewInteraction) {
   //Will either be valid and populated with new data below or be invalid meaning the selected data is irrelevant.
-  scene->selected.area = mouseRect;
-  if(sbx_SandGrid_isValidRect(scene->sandGrid, &mouseRect)) {
+  if(startNewInteraction) {
+    scene->selected.area = mouseRect;
+  }
+
+  if(sbx_SandGrid_isValidRect(scene->sandGrid, &scene->selected.area)) {
     STD_ASSERT(clm_irect_area(&mouseRect) == 1);
-    sbx_SandGrid_query(scene->sandGrid, &mouseRect, &scene->selected.query);
+    sbx_SandGrid_query(scene->sandGrid, &scene->selected.area, &scene->selected.query);
+  }
+}
+
+void sbx_tryInteractAtMouse(sbx_SandGridScene* scene, sbx_Renderer* renderer, sbx_InteractType type, bool startNewInteraction) {
+  //If this shouldn't start a new interaction and one isn't active, nothing to do
+  sbx_Interaction* interaction = &scene->interact.types[type];
+  if(!startNewInteraction && !interaction->isOn) {
+    return;
+  }
+  clm_irect mouseRect = sbx_getMouseRect(scene, renderer);
+
+  switch(type) {
+    case SBX_INTERACTTYPE_INSERT:
+      sbx_tryInsertAtMouse(scene, mouseRect);
+      break;
+    case SBX_INTERACTTYPE_REPEL:
+      break;
+    case SBX_INTERACTTYPE_SELECT:
+      sbx_trySelectAtMouse(scene, mouseRect, startNewInteraction);
+      break;
+  }
+}
+
+sbx_Interaction* sbx_getInteraction(sbx_InteractType type, sbx_InteractMode* mode) {
+  return type < SBX_INTERACTTYPE_COUNT ? &mode->types[type] : NULL;
+}
+
+sbx_InteractType sbx_getInteractionType(const sbx_Interaction* type, const sbx_InteractMode* mode) {
+  return (sbx_InteractType)(type - &mode->types[0]);
+}
+
+sbx_Interaction* sbx_getInteractFromButton(sbx_InteractMode* mode, sbx_ButtonType type) {
+  switch(type) {
+    case SBX_BUTTON_LMB: return sbx_getInteraction(mode->lmbInteract, mode);
+    case SBX_BUTTON_RMB: return sbx_getInteraction(mode->rmbInteract, mode);
+    default: return NULL;
+  }
+}
+
+void sbx_updateInteractModeEnabled(sbx_Interaction* interaction, bool down, sbx_MouseMode mouseMode) {
+  if(!interaction) {
+    return;
+  }
+  switch(mouseMode) {
+    case SBX_MOUSEMODE_CLICK:
+      break;
+    case SBX_MOUSEMODE_CLICKANDHOLD:
+      interaction->isOn = down || interaction->isAlwaysOn;
+      break;
+    case SBX_MOUSEMODE_TOGGLE:
+      if(down) {
+        interaction->isOn = !interaction->isOn || interaction->isAlwaysOn;
+      }
+      break;
   }
 }
 
 void sbx_SandGridScene_event(sbx_SceneEventArgs* args) {
+  sbx_SandGridScene* scene = (sbx_SandGridScene*)args->scene;
+  scene->lastMouse = clm_vec2_ctor(args->mouseX, args->mouseY);
+
+  sbx_Interaction* interactDown = NULL;
+  sbx_Interaction* interactUp = NULL;
   switch(args->type) {
-  case SBX_SCENEEVENT_MOUSE_DOWN:
-    switch(args->button) {
-      case SBX_BUTTON_LMB:
-        sbx_tryInsertAtMouse(args);
-        break;
-      case SBX_BUTTON_RMB:
-        sbx_trySelectAtMouse(args);
-        break;
-    }
-    break;
+    case SBX_SCENEEVENT_MOUSE_DOWN:
+      interactDown = sbx_getInteractFromButton(&scene->interact, args->button);
+      break;
+    case SBX_SCENEEVENT_MOUSE_UP:
+      interactUp = sbx_getInteractFromButton(&scene->interact, args->button);
+      break;
+  }
+
+  sbx_updateInteractModeEnabled(interactDown, true, scene->interact.mouse);
+  sbx_updateInteractModeEnabled(interactUp, false, scene->interact.mouse);
+  if(interactDown) {
+    sbx_tryInteractAtMouse(scene, args->renderer, sbx_getInteractionType(interactDown, &scene->interact), true);
   }
 }
 
@@ -207,9 +309,6 @@ void sbx_drawSelected(sbx_SceneFrameArgs* args) {
   }
   sbx_SandQueryResult* q = &scene->selected.query;
 
-  //Refresh the query data in case it changed
-  sbx_SandGrid_query(scene->sandGrid, &scene->selected.area, q);
-
   //Display query data
   nkx_label_format(ctx, "Type: %s", sbx_grainTypeToString(q->shape.type), 0);
   nkx_readonly_vec2(ctx, "Position", q->position);
@@ -221,6 +320,10 @@ void sbx_drawSelected(sbx_SceneFrameArgs* args) {
 void sbx_SandGridScene_frame(sbx_SceneFrameArgs* args) {
   sbx_SandGridScene* scene = (sbx_SandGridScene*)args->scene;
   nk_context* ctx = args->ctx;
+
+  for(int i = 0; i < SBX_INTERACTTYPE_COUNT; ++i) {
+    sbx_tryInteractAtMouse(scene, args->renderer, (sbx_InteractType)i, false);
+  }
 
   bool shouldDraw = false;
   if(nk_begin_titled(ctx, "sand", "Sand Grid", nk_rect(9, 9, 300, 400), nkx_titledWindow())) {
