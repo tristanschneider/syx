@@ -53,3 +53,7 @@ inline clm_irect clm_irect_intersect(const clm_irect* a, const clm_irect* b) {
     std_min(a->maxY, b->maxY)
   );
 }
+
+inline clm_irect clm_irect_grow(const clm_irect* r, int32_t x, int32_t y) {
+  return clm_irect_fromMinMax(r->minX - x, r->minY - y, r->maxX + x, r->maxY + y);
+}

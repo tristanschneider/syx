@@ -2,6 +2,7 @@
 
 #include <std/Diagnostics.h>
 #include <clm/vec2.h>
+#include <sandbox/SandGridImpulseIterator.h>
 
 const int32_t SENTRY_PADDING = 2;
 //Offset to convert user space x,y coordinates to sentry space coordinates
@@ -398,7 +399,7 @@ void sbx_integrateGrain(const sbx_GrainIt* it) {
       continue;
     }
 
-    const float restitution = 0;
+    const float restitution = 0.2f;
     //TODO: could limit masses to a few values and use a lookup table
     //One of the objects must have nonzero mass as they are moving
     const float impulseMass = 1.0f / (ma + mb);
@@ -431,6 +432,25 @@ void sbx_SandGrid_integrate(sbx_SandGrid* grid, const clm_irect* rect, float dt)
     .dt = dt
   };
   sbx_iterate_grains(grid, rect, &sbx_integrateGrain, &data);
+}
+
+void sbx_applyImpulseIterator(const sbx_GrainIt* it) {
+  sbx_SandGridImpulseIterator* impulse = it->data;
+  const clm_vec2 pos = clm_vec2_ctor((float)it->x, (float)it->y);
+  sbx_SandGrain* grain = &it->grid->grains[it->e];
+  if(grain->mass) {
+    clm_vec2 i = impulse->computeImpulse(&pos, impulse->data);
+    if(!clm_vec2_isZero(&i)) {
+      i = clm_vec2_scale(&i, 1.f/(float)grain->mass);
+
+      grain->velocity = clm_vec2_add(&grain->velocity, &i);
+    }
+  }
+}
+
+void sbx_SandGrid_applyImpulse(sbx_SandGrid* grid, const clm_irect* rect, sbx_SandGridImpulseIterator it) {
+  clm_irect query = sbx_SandGrid_clipToGrid(grid, rect);
+  sbx_iterate_grains(grid, &query, &sbx_applyImpulseIterator, &it);
 }
 
 void sbx_doQuery(const sbx_GrainIt* it) {

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <math.h>
+#include <stdbool.h>
 
 struct clm_vec2 {
   union {
@@ -53,4 +54,24 @@ inline clm_vec2 clm_vec2_scale(const clm_vec2* v, float s) {
 
 inline clm_vec2 clm_vec2_add(const clm_vec2* a, const clm_vec2* b) {
   return clm_vec2_ctor(a->x + b->x, a->y + b->y);
+}
+
+inline clm_vec2 clm_vec2_sub(const clm_vec2* a, const clm_vec2* b) {
+  return clm_vec2_ctor(a->x - b->x, a->y - b->y);
+}
+
+inline bool clm_vec2_isZero(const clm_vec2* v) {
+  return v->x == 0 && v->y == 0;
+}
+
+inline float clm_vec2_dot(const clm_vec2* a, const clm_vec2* b) {
+  return a->x * b->x + a->y * b->y;
+}
+
+inline float clm_vec2_len2(const clm_vec2* v) {
+  return clm_vec2_dot(v, v);
+}
+
+inline float clm_vec2_len(const clm_vec2* v) {
+  return sqrtf(clm_vec2_len2(v));
 }

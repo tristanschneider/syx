@@ -13,6 +13,7 @@
 #include <sandbox/ui/nkExt.h>
 #include <sandbox/SandGrid.h>
 #include <sandbox/ui/TimeControlUI.h>
+#include <sandbox/SandGridImpulse.h>
 
 struct sbx_SelectedGrain {
   sbx_SandQueryResult query;
@@ -38,6 +39,7 @@ typedef enum sbx_MouseMode sbx_MouseMode;
 struct sbx_Interaction {
   bool isOn;
   bool isAlwaysOn;
+  const char* name;
 };
 typedef struct sbx_Interaction sbx_Interaction;
 
@@ -122,6 +124,8 @@ void sbx_SandGridScene_init(sbx_SceneInitArgs* args) {
     .isOn = true,
     .isAlwaysOn = true
   };
+  self->interact.types[SBX_INTERACTTYPE_INSERT].name = "insert";
+  self->interact.types[SBX_INTERACTTYPE_REPEL].name = "repel";
 }
 
 void sbx_SandGridScene_dtor(sbx_SceneDtorArgs* args) {
@@ -185,7 +189,13 @@ void sbx_tryInsertAtMouse(sbx_SandGridScene* scene, clm_irect mouseRect) {
 }
 
 void sbx_repelAtMouse(sbx_SandGridScene* scene, clm_irect mouseRect) {
-  STD_UNUSED(scene, mouseRect);
+  clm_irect repelRect = clm_irect_grow(&mouseRect, 10, 10);
+  sbx_SandGridImpulse_Radial impulse = {
+    .center = clm_vec2_ctor((float)mouseRect.minX, (float)mouseRect.minY),
+    .radius = 10,
+    .scalar = 0.1f
+  };
+  sbx_SandGrid_applyImpulse(scene->sandGrid, &repelRect, sbx_SandGridImpulse_createRadial(&impulse));
 }
 
 void sbx_trySelectAtMouse(sbx_SandGridScene* scene, clm_irect mouseRect, bool startNewInteraction) {
@@ -213,6 +223,7 @@ void sbx_tryInteractAtMouse(sbx_SandGridScene* scene, sbx_Renderer* renderer, sb
       sbx_tryInsertAtMouse(scene, mouseRect);
       break;
     case SBX_INTERACTTYPE_REPEL:
+      sbx_repelAtMouse(scene, mouseRect);
       break;
     case SBX_INTERACTTYPE_SELECT:
       sbx_trySelectAtMouse(scene, mouseRect, startNewInteraction);
@@ -221,7 +232,7 @@ void sbx_tryInteractAtMouse(sbx_SandGridScene* scene, sbx_Renderer* renderer, sb
 }
 
 sbx_Interaction* sbx_getInteraction(sbx_InteractType type, sbx_InteractMode* mode) {
-  return type < SBX_INTERACTTYPE_COUNT ? &mode->types[type] : NULL;
+  return (uint32_t)type < SBX_INTERACTTYPE_COUNT ? &mode->types[type] : NULL;
 }
 
 sbx_InteractType sbx_getInteractionType(const sbx_Interaction* type, const sbx_InteractMode* mode) {
@@ -330,6 +341,17 @@ void sbx_SandGridScene_frame(sbx_SceneFrameArgs* args) {
     nk_layout_row_dynamic(ctx, 0, 1);
 
     sbx_TimeControlUI_drawInline(ctx, &scene->timeControl, args->dt);
+
+    nk_bool nkTrue = true;
+    nk_bool nkFalse = false;
+    for(int i = 0; i < SBX_INTERACTTYPE_COUNT; ++i) {
+      sbx_Interaction* interaction = &scene->interact.types[i];
+      if(interaction->name) {
+        if(nk_radio_label(ctx, interaction->name, i == scene->interact.lmbInteract ? &nkTrue : &nkFalse)) {
+          scene->interact.lmbInteract = i;
+        }
+      }
+    }
 
     sbx_drawSelected(args);
   }

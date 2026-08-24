@@ -9,9 +9,11 @@
 #include <stdbool.h>
 
 struct sbx_SandGrid;
+struct sbx_SandGridImpulseIterator;
 struct sbx_ModelVertices;
 
 typedef struct sbx_SandGrid sbx_SandGrid;
+typedef struct sbx_SandGridImpulseIterator sbx_SandGridImpulseIterator;
 typedef struct sbx_ModelVertices sbx_ModelVertices;
 
 struct sbx_SandGridConfig {
@@ -69,6 +71,7 @@ struct sbx_SandGridInsertOps {
 };
 typedef struct sbx_SandGridInsertOps sbx_SandGridInsertOps;
 
+
 //Allocates a block of memory that can be freed with the provided allocator
 sbx_SandGrid* sbx_SandGrid_ctor(std_Allocator* alloc, sbx_SandGridConfig config);
 
@@ -76,6 +79,7 @@ bool sbx_SandGrid_insert(const sbx_SandGridInsertOps* ops);
 
 //Integrate the area of the grid specified by rect. Use clm_irect_limits to integrate the entire grid.
 void sbx_SandGrid_integrate(sbx_SandGrid* grid, const clm_irect* rect, float dt);
+void sbx_SandGrid_applyImpulse(sbx_SandGrid* grid, const clm_irect* rect, sbx_SandGridImpulseIterator it);
 
 //Get an rgba bitmap of the size specified by sbx_SandGridConfig
 const clm_byte4* sbx_SandGrid_getTexture(const sbx_SandGrid* grid);
