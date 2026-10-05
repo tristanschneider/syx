@@ -78,7 +78,7 @@ sbx_SandGrid* sbx_SandGrid_ctor(std_Allocator* alloc, sbx_SandGridConfig config)
 bool sbx_SandGrid_insert(const sbx_SandGridInsertOps* ops);
 
 //Integrate the area of the grid specified by rect. Use clm_irect_limits to integrate the entire grid.
-void sbx_SandGrid_integrate(sbx_SandGrid* grid, const clm_irect* rect, float dt);
+void sbx_SandGrid_integrate(sbx_SandGrid* grid, float dt);
 void sbx_SandGrid_applyImpulse(sbx_SandGrid* grid, const clm_irect* rect, sbx_SandGridImpulseIterator it);
 
 //Get an rgba bitmap of the size specified by sbx_SandGridConfig

@@ -288,8 +288,7 @@ void sbx_SandGridScene_event(sbx_SceneEventArgs* args) {
 }
 
 void sbx_SandGridScene_integrate(sbx_SandGridScene* scene) {
-  clm_irect rect = clm_irect_limits();
-  sbx_SandGrid_integrate(scene->sandGrid, &rect, scene->timeControl.timePerTick);
+  sbx_SandGrid_integrate(scene->sandGrid, scene->timeControl.timePerTick);
 }
 
 void sbx_SandGridScene_reset(sbx_SandGridScene* scene) {
