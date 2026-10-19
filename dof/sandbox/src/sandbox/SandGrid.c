@@ -3,52 +3,10 @@
 #include <std/Diagnostics.h>
 #include <clm/vec2.h>
 #include <sandbox/SandGridImpulseIterator.h>
-
-const int32_t SENTRY_PADDING = 2;
-//Offset to convert user space x,y coordinates to sentry space coordinates
-const int32_t USER_TO_SENTRY = 1;
+#include <sandbox/GrainStack.h>
 
 const float GRAIN_DAMPING = 0.99f;
 const float GRAIN_MOVE_EPSILON = 1.f;
-
-struct sbx_indexlist {
-  int32_t* array;
-  int32_t size;
-};
-typedef struct sbx_indexlist sbx_indexlist;
-
-void sbx_pushBack(sbx_indexlist* list, int32_t value) {
-  list->array[(list->size)++] = value;
-}
-
-void sbx_swapRemove(sbx_indexlist* list, int32_t index) {
-  assert(list->size);
-  assert(index < list->size);
-  list->array[index] = list->array[list->size - 1];
-  --(list->size);
-}
-
-enum SBX_GRID_PHASE {
-  //Integrate internal position and velocity of nodes
-  //Nodes sholud be added here after moving
-  SBX_GP_INTEGRATION,
-  //Narrowphase, check neighboring entries to see if islands need to be added or combined
-  //Nodes should be added here after moving
-  SBX_GP_ISLAND_ADD,
-  //Visits neighbors to see if island can be split
-  //Nodes should be added here if the lose neighboring edges
-  SBX_GP_ISLAND_SPLIT,
-  //Solve nodes in an island. Once a solution is found, all nodes in an island are put in the move phase
-  SBX_GP_SOLVE,
-  //Moves entire islands at once by trying to reserve (flag on node) a spot for them all to move then
-  //moving them all if the reservation succeeded
-  //If so, they are all moved and added to the integration and island add phases
-  //Otherwise, they are moved back to the solve phase
-  SBX_GP_MOVE,
-  //A temporary list for use within any of the other phases
-  SBX_GP_TEMP,
-  SBX_GP_COUNT
-};
 
 //Given a reference point X the enum indicates the respective combinations of neighbors
 //123
@@ -138,38 +96,11 @@ void sbx_buildCollisionNeighbors(sbx_CollisionNeighbors result[SBX_CR_COUNT], in
   };
 }
 
-bool sbx_isVacant(sbx_GrainType type) {
-  return type == SBX_GT_EMPTY;
-}
-
-bool sbx_isActive(sbx_GrainType type) {
-  return type == SBX_GT_GRAIN;
-}
-
-struct sbx_SandGrain {
-  clm_vec2 velocity;
-  clm_vec2 position;
-  uint8_t mass;
-  uint8_t type;
-  //ID to avoid integrating the same grain twice at once
-  uint8_t age;
-};
-typedef struct sbx_SandGrain sbx_SandGrain;
-
-bool sbx_shouldIntegrate(const sbx_SandGrain* grain) {
-  return grain->mass != 0.f;
-}
-
 struct sbx_SandGrid {
-  sbx_SandGrain* grains;
-  //Index stride of grains, so the width of the grain array including sentry columns
-  int32_t grainStride;
-  int32_t grainCount;
+  struct sbx_GrainStack stack;
   sbx_CollisionNeighbors collisionNeighbors[SBX_CR_COUNT];
   clm_irect rect;
   sbx_SandGridConfig config;
-  sbx_indexlist phases[SBX_GP_COUNT];
-  clm_byte4* bitmap;
   uint8_t age;
 };
 
@@ -196,7 +127,7 @@ void sbx_iterate_grains(sbx_SandGrid* grid, const clm_irect* rect, sbx_GrainIter
     //Shift the x and y over one to account for the sentry row and column
     //The x and y coordinates are in user space ignoring the sentry elements.
     //e is the direct index which needs to account for sentry elements.
-    data.e = (it.minX + USER_TO_SENTRY + grid->grainStride * (data.y + USER_TO_SENTRY));
+    data.e = sbx_GrainStack_uxytoi(&grid->stack, it.minX, data.y);
     for(data.x = it.minX; data.x < it.maxX; ++data.x, ++data.e) {
       callback(&data);
     }
@@ -204,56 +135,40 @@ void sbx_iterate_grains(sbx_SandGrid* grid, const clm_irect* rect, sbx_GrainIter
 }
 
 sbx_SandGrid* sbx_SandGrid_ctor(std_Allocator* alloc, sbx_SandGridConfig config) {
-  const int32_t grainCount = config.width * config.height;
-  //Grain area padded by sentry elements so neighbors can always be indexed without bounds checks
-  //This is not reflected to the user, the rect refers to the inner space
-  const int32_t paddedGrainCount = (config.width + SENTRY_PADDING) * (config.height + SENTRY_PADDING);
-  const int32_t bitmapBytes = grainCount * sizeof(clm_byte4);
-  const int32_t grainBytes = paddedGrainCount * sizeof(sbx_SandGrain);
   const int32_t gridBytes = sizeof(sbx_SandGrid);
-  const int32_t singlePhaseBytes = paddedGrainCount * sizeof(int32_t);
-  const int32_t allPhaseBytes = singlePhaseBytes * SBX_GP_COUNT;
-  sbx_SandGrid* result = std_Allocator_zalloc(alloc, gridBytes + grainBytes + bitmapBytes + allPhaseBytes);
+  size_t stackBytes = 0;
+  sbx_GrainStack_ctor(NULL, NULL, config.width, config.height, &stackBytes);
+
+  sbx_SandGrid* result = std_Allocator_zalloc(alloc, gridBytes + stackBytes);
   //Start of extra data packed onto the end of the grid struct
   uint8_t* extra = (uint8_t*)(void*)(result + 1);
-  result->grains = (void*)extra;
-  extra += grainBytes;
-  result->bitmap = (void*)extra;
-  extra += bitmapBytes;
-  for(int i = 0; i < SBX_GP_COUNT; ++i) {
-    result->phases[i].array = (void*)extra;
-    extra += singlePhaseBytes;
-  }
+  sbx_GrainStack_ctor(&result->stack, extra, config.width, config.height, &stackBytes);
+  extra += stackBytes;
 
-  result->grainStride = config.width + 2;
-  result->grainCount = grainCount;
   result->config = config;
   result->rect = clm_irect_fromMinMax(0, 0, config.width, config.height);
-  sbx_buildCollisionNeighbors(result->collisionNeighbors, result->grainStride);
-
-  //Zero memory for all grains, which is zero velocity, zero mass, empty type
-  memset(result->grains, 0, grainBytes);
+  sbx_buildCollisionNeighbors(result->collisionNeighbors, result->stack.internalWidth);
 
   //Create sentry rows/columns
-  const sbx_SandGrain sentry = {
+  const struct sbx_SandGrain sentry = {
     .type = SBX_GT_STATIC
   };
   //Sentry on each column going row by row and setting first and last of the row
-  for(int32_t r = 0; r < config.height + SENTRY_PADDING; ++r) {
-    const int32_t rowBegin = r * result->grainStride;
-    result->grains[rowBegin] = sentry;
-    result->grains[rowBegin + result->grainStride - 1] = sentry;
+  for(uint32_t r = 0; r < (uint32_t)config.height + sbx_GrainStack_getSentryPadding(); ++r) {
+    const uint32_t rowBegin = r * result->stack.internalWidth;
+    *sbx_GrainStack_getGrainI(&result->stack, rowBegin) = sentry;
+    *sbx_GrainStack_getGrainI(&result->stack, rowBegin + result->stack.internalWidth - 1) = sentry;
   }
   //Sentry on first and last row
-  const int32_t lastRow = result->grainStride * (config.height + 1);
-  for(int32_t c = 0; c < result->grainStride; ++c) {
-    result->grains[c] = sentry;
-    result->grains[lastRow + c] = sentry;
+  const int32_t lastRow = result->stack.internalWidth * (config.height + 1);
+  for(uint32_t c = 0; c < result->stack.internalWidth; ++c) {
+    *sbx_GrainStack_getGrainI(&result->stack, c) = sentry;
+    *sbx_GrainStack_getGrainI(&result->stack, lastRow + c) = sentry;
   }
 
   //Set to clear color
-  for(int32_t i = 0; i < grainCount; ++i) {
-    result->bitmap[i] = config.clearColor;
+  for(uint32_t i = 0; i < result->stack.userCount; ++i) {
+    *sbx_GrainStack_getColorU(&result->stack, i) = config.clearColor;
   }
 
   return result;
@@ -278,28 +193,18 @@ const sbx_SandGridGrain* sbx_InsertData_getAndAdvanceInput(sbx_InsertData* data)
   return result;
 }
 
-int32_t sbx_grainToBitmap(const sbx_SandGrid* grid, int32_t i) {
-  const int32_t rows = i / grid->grainStride;
-  //Sentry row count without counting the portions of the sentry columns that cut into it
-  const int32_t sentryRow = grid->grainStride - SENTRY_PADDING;
-  //Every row passed means two sentry columns, and the current row has one more on the left
-  const int32_t sentryColumns = rows * 2 + 1;
-  return i - sentryRow - sentryColumns;
-}
-
 void sbx_SandGrid_setGridGrain(sbx_SandGrid* grid, int32_t i, const sbx_SandGridGrain* value) {
-  sbx_SandGrain* grain = &grid->grains[i];
-  const bool wasActive = sbx_isActive(grain->type);
+  const bool wasActive = sbx_GrainStack_isActive(&grid->stack, i);
 
-  grain->type = value->shape.type;
-  grain->mass = value->mass;
-  grain->velocity = clm_vec2_zero();
+  struct sbx_SandGrain grain = {
+    .type = value->shape.type,
+    .mass = value->mass
+  };
+  sbx_GrainStack_setGrainI(&grid->stack, i, &grain, &grid->config.clearColor, &value->color);
 
-  if(sbx_shouldIntegrate(grain) && !wasActive && sbx_isActive(value->shape.type)) {
-    sbx_pushBack(&grid->phases[SBX_GP_INTEGRATION], i);
+  if(sbx_GrainStack_shouldIntegrateI(&grid->stack, i) && !wasActive && sbx_GrainStack_isActive(&grid->stack, i)) {
+    sbx_PhaseIndexList_pushBack(sbx_GrainStack_getPhase(&grid->stack, SBX_GLI_INTEGRATION_PHASE), i);
   }
-
-  grid->bitmap[sbx_grainToBitmap(grid, i)] = sbx_isVacant(grain->type) ? grid->config.clearColor : value->color;
 }
 
 void sbx_SandGrid_tryInsert(const sbx_GrainIt* it) {
@@ -307,7 +212,7 @@ void sbx_SandGrid_tryInsert(const sbx_GrainIt* it) {
   const sbx_SandGridGrain* input = sbx_InsertData_getAndAdvanceInput(data);
 
   //Insert if empty
-  if(sbx_isVacant(it->grid->grains[it->e].type)) {
+  if(sbx_GrainStack_isVacant(&it->grid->stack, it->e)) {
     //Any insert counts as success
     data->result = true;
     sbx_SandGrid_setGridGrain(it->grid, it->e, input);
@@ -347,7 +252,7 @@ bool sbx_SandGrid_insert(const sbx_SandGridInsertOps* ops) {
 }
 
 const clm_byte4* sbx_SandGrid_getTexture(const sbx_SandGrid* grid) {
-  return grid->bitmap;
+  return sbx_GrainStack_getColorUC(&grid->stack, 0);
 }
 
 //TODO: get dominant axis for desired move direction and collision normal
@@ -479,12 +384,12 @@ void sbx_integrateGrain(const sbx_GrainIt* it) {
 }
 */
 
-void sbx_SandGrid_integration_phase(sbx_SandGrid* grid, sbx_indexlist* list, float dt) {
+void sbx_SandGrid_integration_phase(sbx_SandGrid* grid, struct sbx_PhaseIndexList* list, float dt) {
   const clm_vec2 gravity = clm_vec2_scale(&grid->config.gravity, dt);
 
-  for(int32_t i = 0; i < list->size; ++i) {
-    sbx_SandGrain* grain = &grid->grains[list->array[i]];
-    assert(sbx_shouldIntegrate(grain));
+  for(uint32_t i = 0; i < list->size; ++i) {
+    struct sbx_SandGrain* grain =  sbx_GrainStack_getGrainI(&grid->stack, list->array[i]);
+    STD_ASSERT(sbx_GrainStack_shouldIntegrateI(&grid->stack, list->array[i]));
 
     //Integrate velocity. Gravity already contains dt
     grain->velocity = clm_vec2_add(&grain->velocity, &gravity);
@@ -499,9 +404,9 @@ void sbx_SandGrid_integration_phase(sbx_SandGrid* grid, sbx_indexlist* list, flo
   list->size = 0;
 }
 
-void sbx_SandGrid_island_add_phase(sbx_SandGrid* grid, sbx_indexlist* list) {
-  for(int32_t i = 0; i < list->size; ++i) {
-    sbx_SandGrain* grain = &grid->grains[list->array[i]];
+void sbx_SandGrid_island_add_phase(sbx_SandGrid* grid, struct sbx_PhaseIndexList* list) {
+  for(uint32_t i = 0; i < list->size; ++i) {
+    struct sbx_SandGrain* grain =  sbx_GrainStack_getGrainI(&grid->stack, list->array[i]);
     STD_UNUSED(grain);
     //Visit all direct neighbors and compute neighbor bitfield
     //If there are none, add to move_phase
@@ -512,9 +417,9 @@ void sbx_SandGrid_island_add_phase(sbx_SandGrid* grid, sbx_indexlist* list) {
   }
 }
 
-void sbx_SandGrid_island_split_phase(sbx_SandGrid* grid, sbx_indexlist* list) {
-  for(int32_t i = 0; i < list->size; ++i) {
-    sbx_SandGrain* grain = &grid->grains[list->array[i]];
+void sbx_SandGrid_island_split_phase(sbx_SandGrid* grid, struct sbx_PhaseIndexList* list) {
+  for(uint32_t i = 0; i < list->size; ++i) {
+    struct sbx_SandGrain* grain =  sbx_GrainStack_getGrainI(&grid->stack, list->array[i]);
     STD_UNUSED(grain);
     //Nodes in this list have lost edges.
     //Visit all neighbors using a pending island index, visiting any neighbors that don't have it set yet, then setting it.
@@ -523,9 +428,9 @@ void sbx_SandGrid_island_split_phase(sbx_SandGrid* grid, sbx_indexlist* list) {
   }
 }
 
-void sbx_SandGrid_solve_phase(sbx_SandGrid* grid, sbx_indexlist* list) {
-  for(int32_t i = 0; i < list->size; ++i) {
-    sbx_SandGrain* grain = &grid->grains[list->array[i]];
+void sbx_SandGrid_solve_phase(sbx_SandGrid* grid, struct sbx_PhaseIndexList* list) {
+  for(uint32_t i = 0; i < list->size; ++i) {
+    struct sbx_SandGrain* grain =  sbx_GrainStack_getGrainI(&grid->stack, list->array[i]);
     STD_UNUSED(grain);
     //Solve all constraints stored on this as computed by the island_add_phase.
     //The error is accumulated on the island root node.
@@ -534,9 +439,9 @@ void sbx_SandGrid_solve_phase(sbx_SandGrid* grid, sbx_indexlist* list) {
   }
 }
 
-void sbx_SandGrid_island_move_phase(sbx_SandGrid* grid, sbx_indexlist* list) {
-  for(int32_t i = 0; i < list->size; ++i) {
-    sbx_SandGrain* grain = &grid->grains[list->array[i]];
+void sbx_SandGrid_island_move_phase(sbx_SandGrid* grid, struct sbx_PhaseIndexList* list) {
+  for(uint32_t i = 0; i < list->size; ++i) {
+    struct sbx_SandGrain* grain =  sbx_GrainStack_getGrainI(&grid->stack, list->array[i]);
     STD_UNUSED(grain);
     //Compute the move destination index from position, then attempt to write a reserved flag there.
     //Accumulate a count of successful reservations on the island node.
@@ -547,17 +452,18 @@ void sbx_SandGrid_island_move_phase(sbx_SandGrid* grid, sbx_indexlist* list) {
 }
 
 void sbx_SandGrid_integrate(sbx_SandGrid* grid, float dt) {
-  sbx_SandGrid_integration_phase(grid, &grid->phases[SBX_GP_INTEGRATION], dt);
-  sbx_SandGrid_island_add_phase(grid, &grid->phases[SBX_GP_ISLAND_ADD]);
-  sbx_SandGrid_island_split_phase(grid, &grid->phases[SBX_GP_ISLAND_SPLIT]);
-  sbx_SandGrid_solve_phase(grid, &grid->phases[SBX_GP_SOLVE]);
-  sbx_SandGrid_island_move_phase(grid, &grid->phases[SBX_GP_MOVE]);
+  struct sbx_GrainStack* stack = &grid->stack;
+  sbx_SandGrid_integration_phase(grid, sbx_GrainStack_getPhase(stack, SBX_GLI_INTEGRATION_PHASE), dt);
+  sbx_SandGrid_island_add_phase(grid, sbx_GrainStack_getPhase(stack, SBX_GLI_ISLAND_ADD_PHASE));
+  sbx_SandGrid_island_split_phase(grid, sbx_GrainStack_getPhase(stack, SBX_GLI_ISLAND_SPLIT_PHASE));
+  sbx_SandGrid_solve_phase(grid, sbx_GrainStack_getPhase(stack, SBX_GLI_SOLVE_PHASE));
+  sbx_SandGrid_island_move_phase(grid, sbx_GrainStack_getPhase(stack, SBX_GLI_MOVE_PHASE));
 }
 
 void sbx_applyImpulseIterator(const sbx_GrainIt* it) {
   sbx_SandGridImpulseIterator* impulse = it->data;
   const clm_vec2 pos = clm_vec2_ctor((float)it->x, (float)it->y);
-  sbx_SandGrain* grain = &it->grid->grains[it->e];
+  struct sbx_SandGrain* grain = sbx_GrainStack_getGrainI(&it->grid->stack, it->e);
   if(grain->mass) {
     clm_vec2 i = impulse->computeImpulse(&pos, impulse->data);
     if(!clm_vec2_isZero(&i)) {
@@ -575,12 +481,12 @@ void sbx_SandGrid_applyImpulse(sbx_SandGrid* grid, const clm_irect* rect, sbx_Sa
 
 void sbx_doQuery(const sbx_GrainIt* it) {
   sbx_SandQueryResult** result = it->data;
-  sbx_SandGrain* grain = &it->grid->grains[it->e];
+  struct sbx_SandGrain* grain = sbx_GrainStack_getGrainI(&it->grid->stack, it->e);
   **result = (sbx_SandQueryResult){
     .velocity = grain->velocity,
     .position = grain->position,
     .shape = grain->type,
-    .color = it->grid->bitmap[sbx_grainToBitmap(it->grid, it->e)],
+    .color = *sbx_GrainStack_getColorIC(&it->grid->stack, it->e),
     .mass = grain->mass
   };
   (*result)++;
