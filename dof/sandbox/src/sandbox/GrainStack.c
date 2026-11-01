@@ -4,8 +4,14 @@
 
 #include <clm/byte4.h>
 #include <std/Diagnostics.h>
+#include <std/Swap.h>
+
+struct sbx_ConstraintStorage {
+  struct sbx_ConstraintSlot slots[8];
+};
 
 typedef struct sbx_SandGrain sbx_GrainT;
+typedef struct sbx_ConstraintStorage sbx_ConstraintStorageT;
 typedef uint32_t sbx_IdToIndexT;
 typedef uint32_t sbx_IndexToIdT;
 typedef clm_byte4 sbx_BitmapT;
@@ -77,6 +83,8 @@ struct sbx_LayerTraits sbx_GrainStack_getLayerTraits(enum sbx_GrainLayer layer) 
       return (struct sbx_LayerTraits){ sizeof(sbx_IdToIndexT), &sbx_initInternalLayer };
     case SBX_GLI_INDEX_TO_ID:
       return (struct sbx_LayerTraits){ sizeof(sbx_IndexToIdT), &sbx_initInternalLayer };
+    case SBX_GLI_CONSTRAINT_STORAGE:
+      return (struct sbx_LayerTraits){ sizeof(sbx_ConstraintStorageT), &sbx_initInternalLayer };
     case SBX_GLU_BITMAP:
       return (struct sbx_LayerTraits){ sizeof(sbx_BitmapT), &sbx_initUserLayer};
     case SBX_GLI_INTEGRATION_PHASE:
@@ -182,7 +190,52 @@ bool sbx_GrainStack_isActive(const struct sbx_GrainStack* stack, uint32_t ii) {
 }
 
 bool sbx_GrainStack_shouldIntegrateI(const struct sbx_GrainStack* stack, uint32_t ii) {
-  return sbx_GrainStack_getGrainIC(stack, ii)->mass != 0.f;
+  return sbx_GrainStack_getGrainIC(stack, ii)->inverseMass != 0.f;
+}
+
+bool sbx_GrainStack_trySetAge(struct sbx_GrainStack* stack, uint32_t ii, uint8_t age) {
+  struct sbx_SandGrain* grain = sbx_GrainStack_getGrainI(stack, ii);
+  bool result = grain->age != age;
+  grain->age = age;
+  return result;
+}
+
+bool sbx_GrainStack_isOldAge(const struct sbx_GrainStack* stack, uint32_t ii, uint8_t age) {
+  return sbx_GrainStack_getGrainIC(stack, ii)->age != age;
+}
+
+uint8_t sbx_getConstraintSlotIndex(uint32_t stride, uint32_t ia, uint32_t ib) {
+  uint8_t slot = 0;
+  const uint32_t cornerA = ia - 1 - stride;
+  //Address slots around A like this where A is at 4:
+  //0 1 2
+  //3 4 5
+  //6 7 8
+  for(uint32_t y = 0; y < 3; ++y) {
+    for(uint32_t x = 0; x < 3; ++x) {
+      //Middle is wher A is, skip it, and don't count it as a slot
+      if(y == 1 && x == 1) {
+        continue;
+      }
+      if(ib == cornerA + x + stride * y) {
+        return slot;
+      }
+      ++slot;
+    }
+  }
+  STD_UNREACHABLE();
+  return 0;
+}
+
+struct sbx_ConstraintSlot* sbx_GrainStack_getConstraintSlot(struct sbx_GrainStack* stack, uint32_t ia, uint32_t ib) {
+  //So this always produces the same result regardless of parameter order
+  if(ia > ib) {
+    STD_SWAP_U32(ia, ib);
+  }
+  //TODO: wasted space, can make each grain only store constraints in its lower half
+  const uint8_t slotIndex = sbx_getConstraintSlotIndex(stack->internalWidth, ia, ib);
+  sbx_ConstraintStorageT* storage = stack->layers[SBX_GLI_CONSTRAINT_STORAGE];
+  return &storage[ia].slots[slotIndex];
 }
 
 struct sbx_PhaseIndexList* sbx_GrainStack_getPhase(struct sbx_GrainStack* stack, enum sbx_GrainLayer phase) {
@@ -213,4 +266,8 @@ void sbx_PhaseIndexList_swapRemove(struct sbx_PhaseIndexList* list, uint32_t ind
   STD_ASSERT(index < list->size);
   list->array[index] = list->array[list->size - 1];
   --(list->size);
+}
+
+void sbx_PhaseIndexList_clear(struct sbx_PhaseIndexList* list) {
+  list->size = 0;
 }

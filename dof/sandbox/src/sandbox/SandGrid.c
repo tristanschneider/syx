@@ -4,9 +4,11 @@
 #include <clm/vec2.h>
 #include <sandbox/SandGridImpulseIterator.h>
 #include <sandbox/GrainStack.h>
+#include <float.h>
 
 const float GRAIN_DAMPING = 0.99f;
 const float GRAIN_MOVE_EPSILON = 1.f;
+const float ISLAND_SOLVE_THRESHOLD = 0.001f;
 
 //Given a reference point X the enum indicates the respective combinations of neighbors
 //123
@@ -198,7 +200,7 @@ void sbx_SandGrid_setGridGrain(sbx_SandGrid* grid, int32_t i, const sbx_SandGrid
 
   struct sbx_SandGrain grain = {
     .type = value->shape.type,
-    .mass = value->mass
+    .inverseMass = value->mass ? 1.f/((float)value->mass) : 0.f
   };
   sbx_GrainStack_setGrainI(&grid->stack, i, &grain, &grid->config.clearColor, &value->color);
 
@@ -258,7 +260,7 @@ const clm_byte4* sbx_SandGrid_getTexture(const sbx_SandGrid* grid) {
 //TODO: get dominant axis for desired move direction and collision normal
 //Return the region type for when the position exceeds the epsilon in any of the directions.
 //This is the direction a cell wants to move and must check collisions against
-sbx_CollisionRegion sbx_classifyRegion(clm_vec2* v) {
+sbx_CollisionRegion sbx_classifyRegion(const clm_vec2* v) {
   //North
   if(v->y > GRAIN_MOVE_EPSILON) {
    if(v->x > GRAIN_MOVE_EPSILON) {
@@ -428,14 +430,115 @@ void sbx_SandGrid_island_split_phase(sbx_SandGrid* grid, struct sbx_PhaseIndexLi
   }
 }
 
+struct IslandData {
+  float islandError;
+  struct sbx_GrainStack* stack;
+  uint8_t age;
+};
+
+void sbx_SandGrid_solveIslandPair(struct IslandData* data, uint32_t a, uint32_t b, int8_t normalAxis, int8_t normalDir) {
+  //Skip if this doesn't need solving
+  //TODO: avoid visiting this in the first place
+  if(sbx_GrainStack_isVacant(data->stack, b)) {
+    return;
+  }
+
+  //Visit constraint once
+  struct sbx_ConstraintSlot* constraint = sbx_GrainStack_getConstraintSlot(data->stack, a, b);
+  if(constraint->age == data->age) {
+    return;
+  }
+  constraint->age = data->age;
+
+  struct sbx_SandGrain* ga = sbx_GrainStack_getGrainI(data->stack, a);
+  struct sbx_SandGrain* gb = sbx_GrainStack_getGrainI(data->stack, b);
+
+  float* va = &ga->velocity.xy[normalAxis];
+  float* vb = &gb->velocity.xy[normalAxis];
+  const float ja = normalDir > 0 ? 1.f : -1.f;
+  const float jb = -ja;
+  const float ma = ga->inverseMass;
+  const float mb = gb->inverseMass;
+  STD_ASSERT(ma && mb);
+  //Normally 1 / (ja*jma + jb+jmb)
+  //But the jacobian is the normal axis 1 or -1, meaning only the mass is relevant.
+  //This can't be division by zero because a static pair should have been skipped by the caller.
+  //TODO: this could be a lookup table if allowed mass range were limited
+  const float constraintMass = 1.f / (ma + mb);
+  const float bias = 0;
+  const float lambdaMin = 0;
+  const float lambdaMax = FLT_MAX;
+
+  float lambda = (bias - (ja * *va) + (jb * *vb)) * constraintMass;
+  const float prevLambda = constraint->lambdaSum;
+  constraint->lambdaSum = std_max(lambdaMin, std_min(prevLambda + lambda, lambdaMax));
+  lambda = constraint->lambdaSum - prevLambda;
+
+  //Apply impulse
+  *va += ja*ma*lambda;
+  *vb += jb*mb*lambda;
+
+  data->islandError += fabsf(lambda);
+}
+
+void sbx_tryVisitIslandNode(sbx_SandGrid* grid, struct sbx_PhaseIndexList* temp, uint32_t node, uint8_t age) {
+  //Visit if it hasn't been visited, and if it is non-static.
+  //Adding to the list sets the visited flag (age), meaning it can't be added twice, and that the loop processing indices doesn't need to double-check.
+  if(sbx_GrainStack_trySetAge(&grid->stack, node, age) && sbx_GrainStack_isActive(&grid->stack, node)) {
+    sbx_PhaseIndexList_pushBack(temp, node);
+  }
+}
+
+void sbx_SandGrid_solveIsland(sbx_SandGrid* grid, uint32_t islandRoot, uint8_t age) {
+  struct sbx_PhaseIndexList* temp = sbx_GrainStack_getPhase(&grid->stack, SBX_GLI_TEMP_PHASE);
+  sbx_PhaseIndexList_clear(temp);
+  sbx_PhaseIndexList_pushBack(temp, islandRoot);
+  sbx_tryVisitIslandNode(grid, temp, islandRoot, age);
+  struct IslandData data = {
+    .age = age,
+    .stack = &grid->stack,
+  };
+
+  for(uint32_t i = 0; i < temp->size; ++i) {
+    //We know this is not visited yet and active otherwise it wouldn't have been in the list.
+    const uint32_t e = temp->array[i];
+
+    //Push all neighbors into temp list for visiting
+    //TODO: cache to limit traversal and avoid visiting redundant pairs
+    sbx_tryVisitIslandNode(grid, temp, e - grid->stack.internalWidth - 1, age);
+    sbx_tryVisitIslandNode(grid, temp, e - grid->stack.internalWidth, age);
+    sbx_tryVisitIslandNode(grid, temp, e - grid->stack.internalWidth + 1, age);
+    sbx_tryVisitIslandNode(grid, temp, e - 1, age);
+    sbx_tryVisitIslandNode(grid, temp, e + 1, age);
+    sbx_tryVisitIslandNode(grid, temp, e + grid->stack.internalWidth - 1, age);
+    sbx_tryVisitIslandNode(grid, temp, e + grid->stack.internalWidth, age);
+    sbx_tryVisitIslandNode(grid, temp, e + grid->stack.internalWidth + 1, age);
+
+    //Solve contact constraints in the direction of velocity
+    const struct sbx_SandGrain* grain = sbx_GrainStack_getGrainIC(&grid->stack, e);
+    const sbx_CollisionRegion region = sbx_classifyRegion(&grain->velocity);
+    const sbx_CollisionNeighbors* neighborInfo = &grid->collisionNeighbors[region];
+    for(int r = 0; neighborInfo->indices[r]; ++r) {
+      const uint32_t n = neighborInfo->indices[r] + e;
+      sbx_SandGrid_solveIslandPair(&data, e, n, neighborInfo->normalAxis[r], neighborInfo->normalDirection[r]);
+    }
+  }
+
+  if(data.islandError < ISLAND_SOLVE_THRESHOLD) {
+    //TODO: enqueue for move
+  }
+}
+
 void sbx_SandGrid_solve_phase(sbx_SandGrid* grid, struct sbx_PhaseIndexList* list) {
+  const uint8_t age = ++grid->age;
   for(uint32_t i = 0; i < list->size; ++i) {
-    struct sbx_SandGrain* grain =  sbx_GrainStack_getGrainI(&grid->stack, list->array[i]);
-    STD_UNUSED(grain);
-    //Solve all constraints stored on this as computed by the island_add_phase.
-    //The error is accumulated on the island root node.
-    //For the first element in the island, see if the error from the previous frame is below the acceptable margin. If so, add to move_phase and remove from here.
-    //Use the age parameter on the root node to do this check
+    const uint32_t islandRoot = list->array[i];
+    //If it's already solved, skip it
+    if(!sbx_GrainStack_isOldAge(&grid->stack, islandRoot, age)) {
+      continue;
+    }
+    //Traverse and solve the island
+    sbx_SandGrid_solveIsland(grid, islandRoot, age);
   }
 }
 
@@ -464,10 +567,10 @@ void sbx_applyImpulseIterator(const sbx_GrainIt* it) {
   sbx_SandGridImpulseIterator* impulse = it->data;
   const clm_vec2 pos = clm_vec2_ctor((float)it->x, (float)it->y);
   struct sbx_SandGrain* grain = sbx_GrainStack_getGrainI(&it->grid->stack, it->e);
-  if(grain->mass) {
+  if(grain->inverseMass) {
     clm_vec2 i = impulse->computeImpulse(&pos, impulse->data);
     if(!clm_vec2_isZero(&i)) {
-      i = clm_vec2_scale(&i, 1.f/(float)grain->mass);
+      i = clm_vec2_scale(&i, grain->inverseMass);
 
       grain->velocity = clm_vec2_add(&grain->velocity, &i);
     }
@@ -487,7 +590,7 @@ void sbx_doQuery(const sbx_GrainIt* it) {
     .position = grain->position,
     .shape = grain->type,
     .color = *sbx_GrainStack_getColorIC(&it->grid->stack, it->e),
-    .mass = grain->mass
+    .mass = grain->inverseMass ? (uint8_t)(1.0f/grain->inverseMass) : 0
   };
   (*result)++;
 }

@@ -18,6 +18,7 @@ enum sbx_GrainLayer {
   SBX_GLI_GRAIN,
   SBX_GLI_ID_TO_INDEX,
   SBX_GLI_INDEX_TO_ID,
+  SBX_GLI_CONSTRAINT_STORAGE,
   SBX_GLU_BITMAP,
   SBX_GLI_PHASE_BEGIN = SBX_GLU_BITMAP,
   //Integrate internal position and velocity of nodes
@@ -42,10 +43,15 @@ enum sbx_GrainLayer {
   SBX_GLI_PHASE_END = SBX_GL_COUNT,
 };
 
+struct sbx_ConstraintSlot {
+  float lambdaSum;
+  uint8_t age;
+};
+
 struct sbx_SandGrain {
   clm_vec2 velocity;
   clm_vec2 position;
-  uint8_t mass;
+  float inverseMass;
   uint8_t type;
   //ID to avoid integrating the same grain twice at once
   uint8_t age;
@@ -94,6 +100,12 @@ clm_byte4* sbx_GrainStack_getColorU(struct sbx_GrainStack* stack, uint32_t ui);
 bool sbx_GrainStack_isVacant(const struct sbx_GrainStack* stack, uint32_t ii);
 bool sbx_GrainStack_isActive(const struct sbx_GrainStack* stack, uint32_t ii);
 bool sbx_GrainStack_shouldIntegrateI(const struct sbx_GrainStack* stack, uint32_t ii);
+//Set the age to the value and return true if it was different.
+bool sbx_GrainStack_trySetAge(struct sbx_GrainStack* stack, uint32_t ii, uint8_t age);
+bool sbx_GrainStack_isOldAge(const struct sbx_GrainStack* stack, uint32_t ii, uint8_t age);
+
+//Get the constraint slot for this pair of objects
+struct sbx_ConstraintSlot* sbx_GrainStack_getConstraintSlot(struct sbx_GrainStack* stack, uint32_t ia, uint32_t ib);
 
 struct sbx_PhaseIndexList* sbx_GrainStack_getPhase(struct sbx_GrainStack* stack, enum sbx_GrainLayer phase);
 
@@ -107,3 +119,4 @@ void sbx_GrainStack_setGrainI(
 
 void sbx_PhaseIndexList_pushBack(struct sbx_PhaseIndexList* list, uint32_t value);
 void sbx_PhaseIndexList_swapRemove(struct sbx_PhaseIndexList* list, uint32_t index);
+void sbx_PhaseIndexList_clear(struct sbx_PhaseIndexList* list);
