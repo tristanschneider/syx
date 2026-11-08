@@ -5,36 +5,12 @@
 #include <sandbox/SandGridImpulseIterator.h>
 #include <sandbox/GrainStack.h>
 #include <float.h>
+#include <clm/quadrant.h>
 
 const float GRAIN_DAMPING = 0.99f;
 const float GRAIN_MOVE_EPSILON = 1.f;
 const float ISLAND_SOLVE_THRESHOLD = 0.001f;
 
-//Given a reference point X the enum indicates the respective combinations of neighbors
-//123
-//4X5
-//678
-enum sbx_CollisionRegion {
-  SBX_CR_NONE,
-  //124
-  SBX_CR_NW,
-  //2
-  SBX_CR_N,
-  //235
-  SBX_CR_NE,
-  //5
-  SBX_CR_E,
-  //578
-  SBX_CR_SE,
-  //7
-  SBX_CR_S,
-  //467
-  SBX_CR_SW,
-  //4
-  SBX_CR_W,
-  SBX_CR_COUNT,
-};
-typedef enum sbx_CollisionRegion sbx_CollisionRegion;
 struct sbx_CollisionNeighbors {
   //Up to 3 neighbors as indicated by sbx_CollisionRegion with 0 indicating the end of the sequence.
   int32_t indices[3];
@@ -45,7 +21,7 @@ struct sbx_CollisionNeighbors {
 };
 typedef struct sbx_CollisionNeighbors sbx_CollisionNeighbors;
 
-void sbx_buildCollisionNeighbors(sbx_CollisionNeighbors result[SBX_CR_COUNT], int32_t stride) {
+void sbx_buildCollisionNeighbors(sbx_CollisionNeighbors result[CLM_QUADRANT_COUNT], int32_t stride) {
   const int32_t n = -stride;
   const int32_t s = stride;
   const int32_t e = 1;
@@ -54,44 +30,44 @@ void sbx_buildCollisionNeighbors(sbx_CollisionNeighbors result[SBX_CR_COUNT], in
   const uint8_t y = 1;
   const int8_t pos = 1;
   const int8_t neg = -1;
-  result[SBX_CR_NONE] = (sbx_CollisionNeighbors){ 0 };
+  result[CLM_QUADRANT_INSIDE] = (sbx_CollisionNeighbors){ 0 };
   // Diagonals favor Y
-  result[SBX_CR_NW] = (sbx_CollisionNeighbors){
+  result[CLM_QUADRANT_NW] = (sbx_CollisionNeighbors){
     .indices = { n + w, n, w },
     .normalAxis = { y, y, x },
     .normalDirection = { neg, neg, pos }
   };
-  result[SBX_CR_N] = (sbx_CollisionNeighbors){
+  result[CLM_QUADRANT_N] = (sbx_CollisionNeighbors){
     .indices = { n },
     .normalAxis = { y },
     .normalDirection = { neg }
   };
-  result[SBX_CR_NE] = (sbx_CollisionNeighbors){
+  result[CLM_QUADRANT_NE] = (sbx_CollisionNeighbors){
     .indices = { n, n + e, e },
     .normalAxis = { y, y, x },
     .normalDirection = { neg, neg, neg }
   };
-  result[SBX_CR_E] = (sbx_CollisionNeighbors){
+  result[CLM_QUADRANT_E] = (sbx_CollisionNeighbors){
     .indices = { e },
     .normalAxis = { x },
     .normalDirection = { neg }
   };
-  result[SBX_CR_SE] = (sbx_CollisionNeighbors){
+  result[CLM_QUADRANT_SW] = (sbx_CollisionNeighbors){
     .indices = { e, s, s + e },
     .normalAxis = { x, y, y },
     .normalDirection = { neg, pos, pos }
   };
-  result[SBX_CR_S] = (sbx_CollisionNeighbors){
+  result[CLM_QUADRANT_S] = (sbx_CollisionNeighbors){
     .indices = { s },
     .normalAxis = { y },
     .normalDirection = { pos }
   };
-  result[SBX_CR_SW] = (sbx_CollisionNeighbors){
+  result[CLM_QUADRANT_SW] = (sbx_CollisionNeighbors){
     .indices = { w, w + s, s },
     .normalAxis = { x, y, y },
     .normalDirection = { pos, pos, pos }
   };
-  result[SBX_CR_W] = (sbx_CollisionNeighbors){
+  result[CLM_QUADRANT_W] = (sbx_CollisionNeighbors){
     .indices = { w },
     .normalAxis = { x },
     .normalDirection = { pos }
@@ -100,7 +76,7 @@ void sbx_buildCollisionNeighbors(sbx_CollisionNeighbors result[SBX_CR_COUNT], in
 
 struct sbx_SandGrid {
   struct sbx_GrainStack stack;
-  sbx_CollisionNeighbors collisionNeighbors[SBX_CR_COUNT];
+  sbx_CollisionNeighbors collisionNeighbors[CLM_QUADRANT_COUNT];
   clm_irect rect;
   sbx_SandGridConfig config;
   uint8_t age;
@@ -257,40 +233,6 @@ const clm_byte4* sbx_SandGrid_getTexture(const sbx_SandGrid* grid) {
   return sbx_GrainStack_getColorUC(&grid->stack, 0);
 }
 
-//TODO: get dominant axis for desired move direction and collision normal
-//Return the region type for when the position exceeds the epsilon in any of the directions.
-//This is the direction a cell wants to move and must check collisions against
-sbx_CollisionRegion sbx_classifyRegion(const clm_vec2* v) {
-  //North
-  if(v->y > GRAIN_MOVE_EPSILON) {
-   if(v->x > GRAIN_MOVE_EPSILON) {
-     return SBX_CR_NE;
-   }
-   if(v->x < -GRAIN_MOVE_EPSILON) {
-     return SBX_CR_NW;
-   }
-   return SBX_CR_N;
-  }
-  //South
-  if(v->y < -GRAIN_MOVE_EPSILON) {
-   if(v->x > GRAIN_MOVE_EPSILON) {
-     return SBX_CR_SE;
-   }
-   if(v->x < -GRAIN_MOVE_EPSILON) {
-     return SBX_CR_SW;
-   }
-   return SBX_CR_S;
-  }
-  //East and West
-  if(v->x > GRAIN_MOVE_EPSILON) {
-    return SBX_CR_E;
-  }
-  if(v->x < -GRAIN_MOVE_EPSILON) {
-    return SBX_CR_W;
-  }
-  return SBX_CR_NONE;
-}
-
 /*
 void sbx_integrateGrain(const sbx_GrainIt* it) {
   sbx_SandGrain* grain = &it->grid->grains[it->e];
@@ -398,10 +340,6 @@ void sbx_SandGrid_integration_phase(sbx_SandGrid* grid, struct sbx_PhaseIndexLis
 
     //Apply damping
     grain->velocity = clm_vec2_scale(&grain->velocity, GRAIN_DAMPING);
-
-    //Itegrate position
-    const clm_vec2 vt = clm_vec2_scale(&grain->velocity, dt);
-    grain->position = clm_vec2_add(&grain->position, &vt);
   }
   list->size = 0;
 }
@@ -516,7 +454,7 @@ void sbx_SandGrid_solveIsland(sbx_SandGrid* grid, uint32_t islandRoot, uint8_t a
 
     //Solve contact constraints in the direction of velocity
     const struct sbx_SandGrain* grain = sbx_GrainStack_getGrainIC(&grid->stack, e);
-    const sbx_CollisionRegion region = sbx_classifyRegion(&grain->velocity);
+    const enum clm_quadrant_region region = clm_quadrant_getRegion(&grain->velocity, 0.f);
     const sbx_CollisionNeighbors* neighborInfo = &grid->collisionNeighbors[region];
     for(int r = 0; neighborInfo->indices[r]; ++r) {
       const uint32_t n = neighborInfo->indices[r] + e;
@@ -525,7 +463,11 @@ void sbx_SandGrid_solveIsland(sbx_SandGrid* grid, uint32_t islandRoot, uint8_t a
   }
 
   if(data.islandError < ISLAND_SOLVE_THRESHOLD) {
-    //TODO: enqueue for move
+    struct sbx_PhaseIndexList* toMove = sbx_GrainStack_getPhase(data.stack, SBX_GLI_MOVE_PHASE);
+    //Go back over the island and put them all in the move list
+    for(uint32_t i = 0; i < temp->size; ++i) {
+      sbx_PhaseIndexList_pushBack(toMove, temp->array[i]);
+    }
   }
 }
 
@@ -534,6 +476,7 @@ void sbx_SandGrid_solve_phase(sbx_SandGrid* grid, struct sbx_PhaseIndexList* lis
   for(uint32_t i = 0; i < list->size; ++i) {
     const uint32_t islandRoot = list->array[i];
     //If it's already solved, skip it
+    //TODO: need to remove islands when they are solved. I think that would mean removing these from the list
     if(!sbx_GrainStack_isOldAge(&grid->stack, islandRoot, age)) {
       continue;
     }
@@ -542,25 +485,51 @@ void sbx_SandGrid_solve_phase(sbx_SandGrid* grid, struct sbx_PhaseIndexList* lis
   }
 }
 
-void sbx_SandGrid_island_move_phase(sbx_SandGrid* grid, struct sbx_PhaseIndexList* list) {
+void sbx_SandGrid_island_move_phase(sbx_SandGrid* grid, struct sbx_PhaseIndexList* list, float dt) {
+  const float cellHalfSize = 0.5f;
+
   for(uint32_t i = 0; i < list->size; ++i) {
+    const uint32_t e = list->array[i];
     struct sbx_SandGrain* grain =  sbx_GrainStack_getGrainI(&grid->stack, list->array[i]);
     STD_UNUSED(grain);
-    //Compute the move destination index from position, then attempt to write a reserved flag there.
-    //Accumulate a count of successful reservations on the island node.
-    //On a second pass, move all nodes whose island root success reservations matches the island size.
-    //Moves are added to the integration and add phases
-    //Failed moves are put back in the solve_phase
+    //This approach will attempt to move into a space and fail if the destination is taken.
+    //It means motion will be skipped unnecessarily when grains are swapping places, like a stack falling down.
+    //In that case, each node is falling down into the one below it, which is fine, because they too will move out of the way,
+    //but attempting to move top to bottom would seem them all as skipped except the top one.
+
+    //Itegrate position
+    const clm_vec2 vt = clm_vec2_scale(&grain->velocity, dt);
+    grain->position = clm_vec2_add(&grain->position, &vt);
+
+    //Compute the region of their position within the cell.
+    //Any value other than INSIDE means the grain needs to move in that direction.
+    enum clm_quadrant_region moveDir = clm_quadrant_getRegion(&grain->position, cellHalfSize);
+    uint32_t destination = e + clm_quadrant_index2D(moveDir, (int32_t)grid->stack.internalWidth);
+
+    //TODO: add to the proper phases, even if they don't move
+
+    //Spot is taken, move is not allowed
+    if(!sbx_GrainStack_isVacant(&grid->stack, destination)) {
+      //TODO: should this undo position? It could build up strangely.
+      continue;
+    }
+
+    //Subtract the direction moved, making the position cell-relative
+    const clm_vec2 translation = clm_quadrant_vec2FromRegion(moveDir, cellHalfSize);
+    grain->position = clm_vec2_sub(&grain->position, &translation);
+
+    sbx_GrainStack_moveI(&grid->stack, e, destination, &grid->config.clearColor);
   }
+
+  //Everything moved or tried to, clear the list
+  sbx_PhaseIndexList_clear(list);
 }
 
 void sbx_SandGrid_integrate(sbx_SandGrid* grid, float dt) {
   struct sbx_GrainStack* stack = &grid->stack;
   sbx_SandGrid_integration_phase(grid, sbx_GrainStack_getPhase(stack, SBX_GLI_INTEGRATION_PHASE), dt);
-  sbx_SandGrid_island_add_phase(grid, sbx_GrainStack_getPhase(stack, SBX_GLI_ISLAND_ADD_PHASE));
-  sbx_SandGrid_island_split_phase(grid, sbx_GrainStack_getPhase(stack, SBX_GLI_ISLAND_SPLIT_PHASE));
   sbx_SandGrid_solve_phase(grid, sbx_GrainStack_getPhase(stack, SBX_GLI_SOLVE_PHASE));
-  sbx_SandGrid_island_move_phase(grid, sbx_GrainStack_getPhase(stack, SBX_GLI_MOVE_PHASE));
+  sbx_SandGrid_island_move_phase(grid, sbx_GrainStack_getPhase(stack, SBX_GLI_MOVE_PHASE), dt);
 }
 
 void sbx_applyImpulseIterator(const sbx_GrainIt* it) {

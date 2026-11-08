@@ -24,12 +24,6 @@ enum sbx_GrainLayer {
   //Integrate internal position and velocity of nodes
   //Nodes sholud be added here after moving
   SBX_GLI_INTEGRATION_PHASE,
-  //Narrowphase, check neighboring entries to see if islands need to be added or combined
-  //Nodes should be added here after moving
-  SBX_GLI_ISLAND_ADD_PHASE,
-  //Visits neighbors to see if island can be split
-  //Nodes should be added here if the lose neighboring edges
-  SBX_GLI_ISLAND_SPLIT_PHASE,
   //Solve nodes in an island. Once a solution is found, all nodes in an island are put in the move phase
   SBX_GLI_SOLVE_PHASE,
   //Moves entire islands at once by trying to reserve (flag on node) a spot for them all to move then
@@ -103,6 +97,8 @@ bool sbx_GrainStack_shouldIntegrateI(const struct sbx_GrainStack* stack, uint32_
 //Set the age to the value and return true if it was different.
 bool sbx_GrainStack_trySetAge(struct sbx_GrainStack* stack, uint32_t ii, uint8_t age);
 bool sbx_GrainStack_isOldAge(const struct sbx_GrainStack* stack, uint32_t ii, uint8_t age);
+
+void sbx_GrainStack_moveI(struct sbx_GrainStack* stack, uint32_t srcII, uint32_t dstII, const clm_byte4* clearColor);
 
 //Get the constraint slot for this pair of objects
 struct sbx_ConstraintSlot* sbx_GrainStack_getConstraintSlot(struct sbx_GrainStack* stack, uint32_t ia, uint32_t ib);

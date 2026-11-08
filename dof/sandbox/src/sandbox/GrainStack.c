@@ -34,6 +34,7 @@ struct sbx_LayerTraits {
   size_t stride;
   //Initialize layer and layerData if non-null, and always return size required to do so
   size_t(*initLayer)(struct sbx_InitLayerData*);
+  bool isUserLayer;
 };
 
 struct sbx_InitLayerData {
@@ -76,29 +77,31 @@ size_t sbx_initPhase(struct sbx_InitLayerData* layer) {
 }
 
 struct sbx_LayerTraits sbx_GrainStack_getLayerTraits(enum sbx_GrainLayer layer) {
+  const bool userLayer = true;
+  const bool internalLayer = false;
   switch(layer) {
     case SBX_GLI_GRAIN:
-      return (struct sbx_LayerTraits){ sizeof(sbx_GrainT), &sbx_initInternalLayer };
+      return (struct sbx_LayerTraits){ sizeof(sbx_GrainT), &sbx_initInternalLayer, internalLayer };
     case SBX_GLI_ID_TO_INDEX:
-      return (struct sbx_LayerTraits){ sizeof(sbx_IdToIndexT), &sbx_initInternalLayer };
+      return (struct sbx_LayerTraits){ sizeof(sbx_IdToIndexT), &sbx_initInternalLayer, internalLayer };
     case SBX_GLI_INDEX_TO_ID:
-      return (struct sbx_LayerTraits){ sizeof(sbx_IndexToIdT), &sbx_initInternalLayer };
+      return (struct sbx_LayerTraits){ sizeof(sbx_IndexToIdT), &sbx_initInternalLayer, internalLayer };
     case SBX_GLI_CONSTRAINT_STORAGE:
-      return (struct sbx_LayerTraits){ sizeof(sbx_ConstraintStorageT), &sbx_initInternalLayer };
+      return (struct sbx_LayerTraits){ sizeof(sbx_ConstraintStorageT), &sbx_initInternalLayer, internalLayer };
     case SBX_GLU_BITMAP:
-      return (struct sbx_LayerTraits){ sizeof(sbx_BitmapT), &sbx_initUserLayer};
+      return (struct sbx_LayerTraits){ sizeof(sbx_BitmapT), &sbx_initUserLayer, userLayer };
     case SBX_GLI_INTEGRATION_PHASE:
-      return (struct sbx_LayerTraits){ sizeof(sbx_IntegrationPhaseT), &sbx_initPhase};
+      return (struct sbx_LayerTraits){ sizeof(sbx_IntegrationPhaseT), &sbx_initPhase, internalLayer };
     case SBX_GLI_ISLAND_ADD_PHASE:
-      return (struct sbx_LayerTraits){ sizeof(sbx_IslandAddPhaseT), &sbx_initPhase};
+      return (struct sbx_LayerTraits){ sizeof(sbx_IslandAddPhaseT), &sbx_initPhase, internalLayer };
     case SBX_GLI_ISLAND_SPLIT_PHASE:
-      return (struct sbx_LayerTraits){ sizeof(sbx_IslandSplitPhaseT), &sbx_initPhase};
+      return (struct sbx_LayerTraits){ sizeof(sbx_IslandSplitPhaseT), &sbx_initPhase, internalLayer };
     case SBX_GLI_SOLVE_PHASE:
-      return (struct sbx_LayerTraits){ sizeof(sbx_SolvePhaseT), &sbx_initPhase};
+      return (struct sbx_LayerTraits){ sizeof(sbx_SolvePhaseT), &sbx_initPhase, internalLayer };
     case SBX_GLI_MOVE_PHASE:
-      return (struct sbx_LayerTraits){ sizeof(sbx_MovePhaseT), &sbx_initPhase};
+      return (struct sbx_LayerTraits){ sizeof(sbx_MovePhaseT), &sbx_initPhase, internalLayer };
     case SBX_GLI_TEMP_PHASE:
-      return (struct sbx_LayerTraits){ sizeof(sbx_TempPhaseT), &sbx_initPhase};
+      return (struct sbx_LayerTraits){ sizeof(sbx_TempPhaseT), &sbx_initPhase, internalLayer };
     case SBX_GL_COUNT:
       break;
   }
@@ -202,6 +205,30 @@ bool sbx_GrainStack_trySetAge(struct sbx_GrainStack* stack, uint32_t ii, uint8_t
 
 bool sbx_GrainStack_isOldAge(const struct sbx_GrainStack* stack, uint32_t ii, uint8_t age) {
   return sbx_GrainStack_getGrainIC(stack, ii)->age != age;
+}
+
+void sbx_GrainStack_moveI(struct sbx_GrainStack* stack, uint32_t srcII, uint32_t dstII, const clm_byte4* clearColor) {
+  const uint32_t srcUI = sbx_GrainStack_itou(stack, srcII);
+  const uint32_t dstUI = sbx_GrainStack_itou(stack, dstII);
+  for(int i = 0; i < SBX_GL_COUNT; ++i) {
+    struct sbx_LayerTraits traits = sbx_GrainStack_getLayerTraits(i);
+    const uint32_t src = traits.isUserLayer ? srcUI : srcII;
+    const uint32_t dst = traits.isUserLayer ? dstUI : dstII;
+    uint8_t* layer = stack->layers[i];
+    void* pSrc = &layer[src];
+    void* pDst = &layer[dst];
+
+    //Copy src to dst
+    memcpy(pDst, pSrc, traits.stride);
+    //Clear src. Hack for clear color as everything else is zero-initialized.
+    //Zero bytes could be a layer trait if more nonzero cases arise.
+    if(i == SBX_GLU_BITMAP) {
+      *((clm_byte4*)pSrc) = *clearColor;
+    }
+    else {
+      memset(pSrc, 0, traits.stride);
+    }
+  }
 }
 
 uint8_t sbx_getConstraintSlotIndex(uint32_t stride, uint32_t ia, uint32_t ib) {
