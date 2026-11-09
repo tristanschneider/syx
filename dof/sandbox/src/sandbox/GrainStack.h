@@ -116,3 +116,9 @@ void sbx_GrainStack_setGrainI(
 void sbx_PhaseIndexList_pushBack(struct sbx_PhaseIndexList* list, uint32_t value);
 void sbx_PhaseIndexList_swapRemove(struct sbx_PhaseIndexList* list, uint32_t index);
 void sbx_PhaseIndexList_clear(struct sbx_PhaseIndexList* list);
+//Iterate over the list while removing elements along the way
+//Each iteration moves elements into a previously created hole
+void sbx_PhaseIndexList_sweepBegin(uint32_t* hole);
+void sbx_PhaseIndexList_sweepAdvance(struct sbx_PhaseIndexList* list, uint32_t i, uint32_t* hole);
+void sbx_PhaseIndexList_sweepRemove(struct sbx_PhaseIndexList* list, uint32_t i, uint32_t* hole);
+void sbx_PhaseIndexList_sweepEnd(struct sbx_PhaseIndexList* list, uint32_t* hole);

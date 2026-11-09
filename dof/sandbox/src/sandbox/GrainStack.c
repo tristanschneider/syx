@@ -30,11 +30,18 @@ const int32_t USER_TO_SENTRY = 1;
 
 struct sbx_InitLayerData;
 
+enum sbx_LayerIndexSpace {
+  SBX_LAYER_INDEX_INTERNAL,
+  SBX_LAYER_INDEX_USER,
+  SBX_LAYER_INDEX_ID,
+  SBX_LAYER_INDEX_CUSTOM
+};
+
 struct sbx_LayerTraits {
   size_t stride;
   //Initialize layer and layerData if non-null, and always return size required to do so
   size_t(*initLayer)(struct sbx_InitLayerData*);
-  bool isUserLayer;
+  enum sbx_LayerIndexSpace indexSpace;
 };
 
 struct sbx_InitLayerData {
@@ -77,31 +84,27 @@ size_t sbx_initPhase(struct sbx_InitLayerData* layer) {
 }
 
 struct sbx_LayerTraits sbx_GrainStack_getLayerTraits(enum sbx_GrainLayer layer) {
-  const bool userLayer = true;
-  const bool internalLayer = false;
   switch(layer) {
     case SBX_GLI_GRAIN:
-      return (struct sbx_LayerTraits){ sizeof(sbx_GrainT), &sbx_initInternalLayer, internalLayer };
+      return (struct sbx_LayerTraits){ sizeof(sbx_GrainT), &sbx_initInternalLayer, SBX_LAYER_INDEX_INTERNAL };
     case SBX_GLI_ID_TO_INDEX:
-      return (struct sbx_LayerTraits){ sizeof(sbx_IdToIndexT), &sbx_initInternalLayer, internalLayer };
+      //Custom space due to special case handling in move
+      return (struct sbx_LayerTraits){ sizeof(sbx_IdToIndexT), &sbx_initInternalLayer, SBX_LAYER_INDEX_CUSTOM };
     case SBX_GLI_INDEX_TO_ID:
-      return (struct sbx_LayerTraits){ sizeof(sbx_IndexToIdT), &sbx_initInternalLayer, internalLayer };
+      //Custom space due to special case handling in move
+      return (struct sbx_LayerTraits){ sizeof(sbx_IndexToIdT), &sbx_initInternalLayer, SBX_LAYER_INDEX_CUSTOM };
     case SBX_GLI_CONSTRAINT_STORAGE:
-      return (struct sbx_LayerTraits){ sizeof(sbx_ConstraintStorageT), &sbx_initInternalLayer, internalLayer };
+      return (struct sbx_LayerTraits){ sizeof(sbx_ConstraintStorageT), &sbx_initInternalLayer, SBX_LAYER_INDEX_INTERNAL };
     case SBX_GLU_BITMAP:
-      return (struct sbx_LayerTraits){ sizeof(sbx_BitmapT), &sbx_initUserLayer, userLayer };
+      return (struct sbx_LayerTraits){ sizeof(sbx_BitmapT), &sbx_initUserLayer, SBX_LAYER_INDEX_USER };
     case SBX_GLI_INTEGRATION_PHASE:
-      return (struct sbx_LayerTraits){ sizeof(sbx_IntegrationPhaseT), &sbx_initPhase, internalLayer };
-    case SBX_GLI_ISLAND_ADD_PHASE:
-      return (struct sbx_LayerTraits){ sizeof(sbx_IslandAddPhaseT), &sbx_initPhase, internalLayer };
-    case SBX_GLI_ISLAND_SPLIT_PHASE:
-      return (struct sbx_LayerTraits){ sizeof(sbx_IslandSplitPhaseT), &sbx_initPhase, internalLayer };
+      return (struct sbx_LayerTraits){ sizeof(sbx_IntegrationPhaseT), &sbx_initPhase, SBX_LAYER_INDEX_CUSTOM };
     case SBX_GLI_SOLVE_PHASE:
-      return (struct sbx_LayerTraits){ sizeof(sbx_SolvePhaseT), &sbx_initPhase, internalLayer };
+      return (struct sbx_LayerTraits){ sizeof(sbx_SolvePhaseT), &sbx_initPhase, SBX_LAYER_INDEX_CUSTOM };
     case SBX_GLI_MOVE_PHASE:
-      return (struct sbx_LayerTraits){ sizeof(sbx_MovePhaseT), &sbx_initPhase, internalLayer };
+      return (struct sbx_LayerTraits){ sizeof(sbx_MovePhaseT), &sbx_initPhase, SBX_LAYER_INDEX_CUSTOM };
     case SBX_GLI_TEMP_PHASE:
-      return (struct sbx_LayerTraits){ sizeof(sbx_TempPhaseT), &sbx_initPhase, internalLayer };
+      return (struct sbx_LayerTraits){ sizeof(sbx_TempPhaseT), &sbx_initPhase, SBX_LAYER_INDEX_CUSTOM };
     case SBX_GL_COUNT:
       break;
   }
@@ -210,13 +213,40 @@ bool sbx_GrainStack_isOldAge(const struct sbx_GrainStack* stack, uint32_t ii, ui
 void sbx_GrainStack_moveI(struct sbx_GrainStack* stack, uint32_t srcII, uint32_t dstII, const clm_byte4* clearColor) {
   const uint32_t srcUI = sbx_GrainStack_itou(stack, srcII);
   const uint32_t dstUI = sbx_GrainStack_itou(stack, dstII);
+
+  //Special case to update id to index mapping.
+  //Get id with src index as this is before anything has moved
+  sbx_IndexToIdT* itoid = stack->layers[SBX_GLI_INDEX_TO_ID];
+  const uint32_t srcID = itoid[srcII];
+  //Do the move while we're already accessing the memory
+  itoid[srcII] = 0;
+  itoid[dstII] = srcID;
+  //Use id to point at the destination index
+  sbx_IdToIndexT* idtoi = stack->layers[SBX_GLI_ID_TO_INDEX];
+  idtoi[srcID] = dstII;
+  //The loop below will skip the layers due to a custom index space
+
   for(int i = 0; i < SBX_GL_COUNT; ++i) {
     struct sbx_LayerTraits traits = sbx_GrainStack_getLayerTraits(i);
-    const uint32_t src = traits.isUserLayer ? srcUI : srcII;
-    const uint32_t dst = traits.isUserLayer ? dstUI : dstII;
+
+    uint32_t src, dst;
+
+    switch(traits.indexSpace) {
+    case SBX_LAYER_INDEX_INTERNAL:
+      src = srcII;
+      dst = dstII;
+      break;
+    case SBX_LAYER_INDEX_USER:
+      src = srcUI;
+      dst = dstUI;
+      break;
+    default:
+      continue;
+    }
+
     uint8_t* layer = stack->layers[i];
-    void* pSrc = &layer[src];
-    void* pDst = &layer[dst];
+    void* pSrc = &layer[src * traits.stride];
+    void* pDst = &layer[dst * traits.stride];
 
     //Copy src to dst
     memcpy(pDst, pSrc, traits.stride);
@@ -297,4 +327,29 @@ void sbx_PhaseIndexList_swapRemove(struct sbx_PhaseIndexList* list, uint32_t ind
 
 void sbx_PhaseIndexList_clear(struct sbx_PhaseIndexList* list) {
   list->size = 0;
+}
+
+void sbx_PhaseIndexList_sweepBegin(uint32_t* hole) {
+  *hole = UINT32_MAX;
+}
+
+void sbx_PhaseIndexList_sweepAdvance(struct sbx_PhaseIndexList* list, uint32_t i, uint32_t* hole) {
+  //If there is a hole, fill it while advancing
+  if((*hole) < list->size) {
+    list->array[(*hole)++] = list->array[i];
+  }
+}
+
+void sbx_PhaseIndexList_sweepRemove(struct sbx_PhaseIndexList* list, uint32_t i, uint32_t* hole) {
+  //If the hole hasn't been set, set it here, otherwise do nothing.
+  //Nothing will keep the hole where it is and mean one less element was copied to the new location.
+  if(*hole > list->size) {
+    *hole = i;
+  }
+}
+
+void sbx_PhaseIndexList_sweepEnd(struct sbx_PhaseIndexList* list, uint32_t* hole) {
+  if(*hole < list->size) {
+    list->size = *hole;
+  }
 }
