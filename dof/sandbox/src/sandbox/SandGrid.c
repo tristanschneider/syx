@@ -361,7 +361,7 @@ bool sbx_SandGrid_solveIsland(sbx_SandGrid* grid, uint32_t islandRoot, uint8_t a
     const struct sbx_SandGrain* grain = sbx_GrainStack_getGrainIC(&grid->stack, e);
     const enum clm_quadrant_region region = clm_quadrant_getRegion(&grain->velocity, 0.f);
     const sbx_CollisionNeighbors* neighborInfo = &grid->collisionNeighbors[region];
-    for(int r = 0; neighborInfo->indices[r]; ++r) {
+    for(int r = 0; r < 3 && neighborInfo->indices[r]; ++r) {
       const uint32_t n = neighborInfo->indices[r] + e;
       sbx_SandGrid_solveIslandPair(&data, e, n, neighborInfo->normalAxis[r], neighborInfo->normalDirection[r]);
     }
