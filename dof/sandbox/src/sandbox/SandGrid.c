@@ -7,9 +7,11 @@
 #include <float.h>
 #include <clm/quadrant.h>
 
+#include <stdio.h>
+
 const float GRAIN_DAMPING = 0.99f;
 const float GRAIN_MOVE_EPSILON = 1.f;
-const float ISLAND_SOLVE_THRESHOLD = 0.001f;
+const float ISLAND_SOLVE_THRESHOLD = 0.1f;
 
 struct sbx_CollisionNeighbors {
   //Up to 3 neighbors as indicated by sbx_CollisionRegion with 0 indicating the end of the sequence.
@@ -21,7 +23,19 @@ struct sbx_CollisionNeighbors {
 };
 typedef struct sbx_CollisionNeighbors sbx_CollisionNeighbors;
 
-void sbx_buildCollisionNeighbors(sbx_CollisionNeighbors result[CLM_QUADRANT_COUNT], int32_t stride) {
+struct sbx_AllCollisionNeighbors {
+  uint32_t indices[CLM_QUADRANT_COUNT];
+  uint8_t normalAxis[CLM_QUADRANT_COUNT];
+  int8_t normalDirection[CLM_QUADRANT_COUNT];
+};
+
+void sbx_setAllNeighbor(struct sbx_AllCollisionNeighbors* result, enum clm_quadrant_region region, uint32_t index, uint8_t normalAxis, int8_t normalDirection) {
+  result->indices[region] = index;
+  result->normalAxis[region] = normalAxis;
+  result->normalDirection[region] = normalDirection;
+}
+
+void sbx_buildAllCollisionNeighbors(struct sbx_AllCollisionNeighbors* result, int32_t stride) {
   const int32_t n = -stride;
   const int32_t s = stride;
   const int32_t e = 1;
@@ -30,53 +44,51 @@ void sbx_buildCollisionNeighbors(sbx_CollisionNeighbors result[CLM_QUADRANT_COUN
   const uint8_t y = 1;
   const int8_t pos = 1;
   const int8_t neg = -1;
-  result[CLM_QUADRANT_INSIDE] = (sbx_CollisionNeighbors){ 0 };
   // Diagonals favor Y
-  result[CLM_QUADRANT_NW] = (sbx_CollisionNeighbors){
-    .indices = { n + w, n, w },
-    .normalAxis = { y, y, x },
-    .normalDirection = { neg, neg, pos }
-  };
-  result[CLM_QUADRANT_N] = (sbx_CollisionNeighbors){
-    .indices = { n },
-    .normalAxis = { y },
-    .normalDirection = { neg }
-  };
-  result[CLM_QUADRANT_NE] = (sbx_CollisionNeighbors){
-    .indices = { n, n + e, e },
-    .normalAxis = { y, y, x },
-    .normalDirection = { neg, neg, neg }
-  };
-  result[CLM_QUADRANT_E] = (sbx_CollisionNeighbors){
-    .indices = { e },
-    .normalAxis = { x },
-    .normalDirection = { neg }
-  };
-  result[CLM_QUADRANT_SW] = (sbx_CollisionNeighbors){
-    .indices = { e, s, s + e },
-    .normalAxis = { x, y, y },
-    .normalDirection = { neg, pos, pos }
-  };
-  result[CLM_QUADRANT_S] = (sbx_CollisionNeighbors){
-    .indices = { s },
-    .normalAxis = { y },
-    .normalDirection = { pos }
-  };
-  result[CLM_QUADRANT_SW] = (sbx_CollisionNeighbors){
-    .indices = { w, w + s, s },
-    .normalAxis = { x, y, y },
-    .normalDirection = { pos, pos, pos }
-  };
-  result[CLM_QUADRANT_W] = (sbx_CollisionNeighbors){
-    .indices = { w },
-    .normalAxis = { x },
-    .normalDirection = { pos }
-  };
+  sbx_setAllNeighbor(result, CLM_QUADRANT_INSIDE, 0, 0, 0);
+  sbx_setAllNeighbor(result, CLM_QUADRANT_NW, n + w, y, neg);
+  sbx_setAllNeighbor(result, CLM_QUADRANT_N, n, y, neg);
+  sbx_setAllNeighbor(result, CLM_QUADRANT_NE, n + e, y, neg);
+  sbx_setAllNeighbor(result, CLM_QUADRANT_E, e, x, neg);
+  sbx_setAllNeighbor(result, CLM_QUADRANT_SE, s + e, y, pos);
+  sbx_setAllNeighbor(result, CLM_QUADRANT_S, s, y, pos);
+  sbx_setAllNeighbor(result, CLM_QUADRANT_SW, s + w, y, pos);
+  sbx_setAllNeighbor(result, CLM_QUADRANT_W, w, x, pos);
+}
+
+void sbx_copyNeighbors(
+  const struct sbx_AllCollisionNeighbors* src,
+  sbx_CollisionNeighbors* dst,
+  enum clm_quadrant_region ra,
+  enum clm_quadrant_region rb,
+  enum clm_quadrant_region rc
+) {
+  enum clm_quadrant_region regions[3] = { ra, rb, rc };
+  for(int i = 0; i < 3; ++i) {
+    enum clm_quadrant_region region = regions[i];
+    dst->indices[i] = src->indices[region];
+    dst->normalAxis[i] = src->normalAxis[region];
+    dst->normalDirection[i] = src->normalDirection[region];
+  }
+}
+
+void sbx_buildCollisionNeighbors(const struct sbx_AllCollisionNeighbors* src, sbx_CollisionNeighbors result[CLM_QUADRANT_COUNT]) {
+  const enum clm_quadrant_region _ = CLM_QUADRANT_INSIDE;
+  sbx_copyNeighbors(src, &result[CLM_QUADRANT_INSIDE], _, _, _);
+  sbx_copyNeighbors(src, &result[CLM_QUADRANT_NW], CLM_QUADRANT_NW, CLM_QUADRANT_N, CLM_QUADRANT_W);
+  sbx_copyNeighbors(src, &result[CLM_QUADRANT_N], CLM_QUADRANT_N, _, _);
+  sbx_copyNeighbors(src, &result[CLM_QUADRANT_NE], CLM_QUADRANT_N, CLM_QUADRANT_NE, CLM_QUADRANT_E);
+  sbx_copyNeighbors(src, &result[CLM_QUADRANT_E], CLM_QUADRANT_E, _, _);
+  sbx_copyNeighbors(src, &result[CLM_QUADRANT_SE], CLM_QUADRANT_E, CLM_QUADRANT_S, CLM_QUADRANT_SE);
+  sbx_copyNeighbors(src, &result[CLM_QUADRANT_S], CLM_QUADRANT_S, _, _);
+  sbx_copyNeighbors(src, &result[CLM_QUADRANT_SW], CLM_QUADRANT_W, CLM_QUADRANT_SW, CLM_QUADRANT_S);
+  sbx_copyNeighbors(src, &result[CLM_QUADRANT_W], CLM_QUADRANT_W, _, _);
 }
 
 struct sbx_SandGrid {
   struct sbx_GrainStack stack;
   sbx_CollisionNeighbors collisionNeighbors[CLM_QUADRANT_COUNT];
+  struct sbx_AllCollisionNeighbors allCollisionNeighbors;
   clm_irect rect;
   sbx_SandGridConfig config;
   uint8_t age;
@@ -125,7 +137,8 @@ sbx_SandGrid* sbx_SandGrid_ctor(std_Allocator* alloc, sbx_SandGridConfig config)
 
   result->config = config;
   result->rect = clm_irect_fromMinMax(0, 0, config.width, config.height);
-  sbx_buildCollisionNeighbors(result->collisionNeighbors, result->stack.internalWidth);
+  sbx_buildAllCollisionNeighbors(&result->allCollisionNeighbors, result->stack.internalWidth);
+  sbx_buildCollisionNeighbors(&result->allCollisionNeighbors, result->collisionNeighbors);
 
   //Create sentry rows/columns
   const struct sbx_SandGrain sentry = {
@@ -174,6 +187,7 @@ const sbx_SandGridGrain* sbx_InsertData_getAndAdvanceInput(sbx_InsertData* data)
 void sbx_addMovedToPhases(struct sbx_GrainStack* stack, uint32_t moved) {
   sbx_PhaseIndexList_pushBack(sbx_GrainStack_getPhase(stack, SBX_GLI_INTEGRATION_PHASE), moved);
   sbx_PhaseIndexList_pushBack(sbx_GrainStack_getPhase(stack, SBX_GLI_SOLVE_PHASE), moved);
+  sbx_GrainStack_setNeedsWarmStart(stack, moved);
 }
 
 void sbx_SandGrid_setGridGrain(sbx_SandGrid* grid, int32_t i, const sbx_SandGridGrain* value) {
@@ -260,16 +274,15 @@ struct IslandData {
   uint8_t age;
 };
 
+void sbx_applyConstraintImpulse(float* va, float* vb, float ma, float mb, float ja, float jb, float lambda) {
+    *va += ja*ma*lambda;
+    *vb += jb*mb*lambda;
+}
+
 //Solve contact constraint
 //TODO: friction
 //TODO: other constraint types
 void sbx_SandGrid_solveIslandPair(struct IslandData* data, uint32_t a, uint32_t b, int8_t normalAxis, int8_t normalDir) {
-  //Skip if this doesn't need solving
-  //TODO: avoid visiting this in the first place
-  if(sbx_GrainStack_isVacant(data->stack, b)) {
-    return;
-  }
-
   //Visit constraint once
   struct sbx_ConstraintSlot* constraint = sbx_GrainStack_getConstraintSlot(data->stack, a, b);
   if(constraint->age == data->age) {
@@ -292,6 +305,7 @@ void sbx_SandGrid_solveIslandPair(struct IslandData* data, uint32_t a, uint32_t 
   const float ma = ga->inverseMass;
   const float mb = gb->inverseMass;
   STD_ASSERT(ma || mb);
+
   //Normally 1 / (ja*jma + jb+jmb)
   //But the jacobian is the normal axis 1 or -1, meaning only the mass is relevant.
   //This can't be division by zero because a static pair should have been skipped by the caller.
@@ -300,6 +314,31 @@ void sbx_SandGrid_solveIslandPair(struct IslandData* data, uint32_t a, uint32_t 
   const float bias = 0;
   const float lambdaMin = 0;
   const float lambdaMax = FLT_MAX;
+
+  //On first iteration, warm start using the sum from the last iteration.
+  //This assumes the constraint is similar, even though right now it only guarantees the same neighbor direction.
+  //The sum is then accurate as this amount has been applied, and future iterations can add or subtract from it.
+  if(constraint->needsWarmStart) {
+    constraint->needsWarmStart = false;
+    const bool DO_WARM_START = false;
+    if(DO_WARM_START) {
+      //TODO: this isn't determining if there is a meaningful warm start vs first solve
+      sbx_applyConstraintImpulse(va, vb, ma, mb, ja, jb, constraint->lambdaSum);
+
+      //Compute error without applying another impulse, as warm start must apply to the entire island before real solve iterations.
+      //Error calculation must clamp to lambda bounds for full correctness, although if it takes enough time perhaps just the pre-clamped lambda could be used.
+      //In that case, the constraint mass also wouldn't be relevant.
+      float lambda = (bias - ((ja * *va) + (jb * *vb))) * constraintMass;
+      const float prevLambda = constraint->lambdaSum;
+      const float newSum = std_max(lambdaMin, std_min(prevLambda + lambda, lambdaMax));
+      lambda = newSum - prevLambda;
+
+      data->islandError += fabsf(lambda);
+      return;
+    }
+
+    constraint->lambdaSum = 0.f;
+  }
 
   float lambda = (bias - ((ja * *va) + (jb * *vb))) * constraintMass;
   const float debugLambda = lambda;
@@ -312,9 +351,7 @@ void sbx_SandGrid_solveIslandPair(struct IslandData* data, uint32_t a, uint32_t 
   //  __debugbreak();
   //}
 
-  //Apply impulse
-  *va += ja*ma*lambda;
-  *vb += jb*mb*lambda;
+  sbx_applyConstraintImpulse(va, vb, ma, mb, ja, jb, lambda);
 
   //float postLambda = (bias - (ja * *va) + (jb * *vb)) * constraintMass;
   //if(fabsf(postLambda) > 0.1f) {
@@ -333,14 +370,10 @@ void sbx_tryVisitIslandNode(sbx_SandGrid* grid, struct sbx_PhaseIndexList* temp,
   }
 }
 
-bool sbx_SandGrid_solveIsland(sbx_SandGrid* grid, uint32_t islandRoot, uint8_t age) {
+void sbx_SandGrid_solveIsland(struct IslandData* data, sbx_SandGrid* grid, uint32_t islandRoot, uint8_t age) {
   struct sbx_PhaseIndexList* temp = sbx_GrainStack_getPhase(&grid->stack, SBX_GLI_TEMP_PHASE);
   sbx_PhaseIndexList_clear(temp);
   sbx_tryVisitIslandNode(grid, temp, islandRoot, age);
-  struct IslandData data = {
-    .age = age,
-    .stack = &grid->stack,
-  };
 
   for(uint32_t i = 0; i < temp->size; ++i) {
     //We know this is not visited yet and active otherwise it wouldn't have been in the list.
@@ -357,17 +390,43 @@ bool sbx_SandGrid_solveIsland(sbx_SandGrid* grid, uint32_t islandRoot, uint8_t a
     sbx_tryVisitIslandNode(grid, temp, e + grid->stack.internalWidth, age);
     sbx_tryVisitIslandNode(grid, temp, e + grid->stack.internalWidth + 1, age);
 
-    //Solve contact constraints in the direction of velocity
+    //Add contact constraints in the direction of velocity
+    //TODO: more efficient to consider all of them once rather than always retrying in these directions?
     const struct sbx_SandGrain* grain = sbx_GrainStack_getGrainIC(&grid->stack, e);
     const enum clm_quadrant_region region = clm_quadrant_getRegion(&grain->velocity, 0.f);
     const sbx_CollisionNeighbors* neighborInfo = &grid->collisionNeighbors[region];
     for(int r = 0; r < 3 && neighborInfo->indices[r]; ++r) {
       const uint32_t n = neighborInfo->indices[r] + e;
-      sbx_SandGrid_solveIslandPair(&data, e, n, neighborInfo->normalAxis[r], neighborInfo->normalDirection[r]);
+      //Skip if this doesn't need solving
+      //TODO: avoid visiting this in the first place
+      if(sbx_GrainStack_isVacant(&grid->stack, n)) {
+        continue;
+      }
+
+      sbx_GrainStack_getConstraintSlot(&grid->stack, e, n)->isActive = true;
+    }
+
+    //Solve all active constraints.
+    //Required even when velocity is pointing a different direction to ensure overshooting can be corrected.
+    //An easy way to run into this is with a warm start from a previous frame.
+    //TODO: so inefficient
+    for(int q = 0; q < CLM_QUADRANT_COUNT; ++q) {
+      if(q == CLM_QUADRANT_INSIDE) {
+        continue;
+      }
+      const uint32_t n = grid->allCollisionNeighbors.indices[q] + e;
+      struct sbx_ConstraintSlot* slot = sbx_GrainStack_getConstraintSlot(&grid->stack, e, n);
+      if(slot->isActive) {
+        sbx_SandGrid_solveIslandPair(
+          data,
+          e,
+          n,
+          grid->allCollisionNeighbors.normalAxis[q],
+          grid->allCollisionNeighbors.normalDirection[q]
+        );
+      }
     }
   }
-
-  return data.islandError < ISLAND_SOLVE_THRESHOLD;
 }
 
 void sbx_SandGrid_solve_phase(sbx_SandGrid* grid, struct sbx_PhaseIndexList* list) {
@@ -377,6 +436,8 @@ void sbx_SandGrid_solve_phase(sbx_SandGrid* grid, struct sbx_PhaseIndexList* lis
   bool isIslandSolved = false;
   uint32_t hole;
   sbx_PhaseIndexList_sweepBegin(&hole);
+  int islandIndex = 0;
+  STD_UNUSED(islandIndex);
 
   for(uint32_t i = 0; i < list->size; ++i) {
     const uint32_t islandRoot = list->array[i];
@@ -389,7 +450,14 @@ void sbx_SandGrid_solve_phase(sbx_SandGrid* grid, struct sbx_PhaseIndexList* lis
     }
 
     //Traverse and solve the island
-    isIslandSolved = sbx_SandGrid_solveIsland(grid, islandRoot, age);
+    struct IslandData data = {
+      .age = age,
+      .stack = &grid->stack,
+    };
+    sbx_SandGrid_solveIsland(&data, grid, islandRoot, age);
+    isIslandSolved = data.islandError < ISLAND_SOLVE_THRESHOLD;
+
+    //printf("Island %d, size %d, error %f\n", islandIndex, (int)temp->size, data.islandError);
 
     //Island is solved, add them all to the moved list. The solving put the island in temp.
     if(isIslandSolved) {

@@ -40,6 +40,8 @@ enum sbx_GrainLayer {
 struct sbx_ConstraintSlot {
   float lambdaSum;
   uint8_t age;
+  bool needsWarmStart;
+  bool isActive;
 };
 
 struct sbx_SandGrain {
@@ -102,8 +104,12 @@ void sbx_GrainStack_moveI(struct sbx_GrainStack* stack, uint32_t srcII, uint32_t
 
 //Get the constraint slot for this pair of objects
 struct sbx_ConstraintSlot* sbx_GrainStack_getConstraintSlot(struct sbx_GrainStack* stack, uint32_t ia, uint32_t ib);
+void sbx_GrainStack_setNeedsWarmStart(struct sbx_GrainStack* stack, uint32_t ii);
 
 struct sbx_PhaseIndexList* sbx_GrainStack_getPhase(struct sbx_GrainStack* stack, enum sbx_GrainLayer phase);
+//Get and post-increment constraint solver iteration count.
+uint8_t sbx_GrainStack_getAndIncrementSolveIteration(struct sbx_GrainStack* stack, uint32_t ii);
+void sbx_GrainStack_clearSolveIteration(struct sbx_GrainStack* stack, uint32_t ii);
 
 void sbx_GrainStack_setGrainI(
   struct sbx_GrainStack* stack,

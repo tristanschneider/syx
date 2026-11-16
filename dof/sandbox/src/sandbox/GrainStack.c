@@ -295,6 +295,15 @@ struct sbx_ConstraintSlot* sbx_GrainStack_getConstraintSlot(struct sbx_GrainStac
   return &storage[ia].slots[slotIndex];
 }
 
+void sbx_GrainStack_setNeedsWarmStart(struct sbx_GrainStack* stack, uint32_t ii) {
+  sbx_ConstraintStorageT* storage = stack->layers[SBX_GLI_CONSTRAINT_STORAGE];
+  for(int i = 0; i < 8; ++i) {
+    storage[ii].slots[i].needsWarmStart = true;
+    //Reset this upon move, will be reactivated as part of solving as-needed
+    storage[ii].slots[i].isActive = false;
+  }
+}
+
 struct sbx_PhaseIndexList* sbx_GrainStack_getPhase(struct sbx_GrainStack* stack, enum sbx_GrainLayer phase) {
   return &stack->layerData[phase].phase;
 }
