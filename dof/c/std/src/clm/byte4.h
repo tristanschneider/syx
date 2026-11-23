@@ -26,3 +26,7 @@ inline clm_byte4 clm_byte4_ctor(uint8_t x, uint8_t y, uint8_t z, uint8_t w) {
 inline clm_byte4 clm_byte4_splat(uint8_t v) {
   return clm_byte4_ctor(v, v, v, v);
 }
+
+inline float clm_byte4_toFloat(const clm_byte4* b, uint32_t i) {
+  return (float)b->rgba[i] / 255.f;
+}

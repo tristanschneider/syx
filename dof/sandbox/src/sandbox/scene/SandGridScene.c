@@ -2,6 +2,8 @@
 
 #include <sandbox/Renderer.h>
 #include <sandbox/scene/Scene.h>
+#include <sandbox/SandGridDiagnostics.h>
+#include <sandbox/SandGridDiagnosticsImpl.h>
 #include <std/Allocator.h>
 #include <std/Diagnostics.h>
 #include <clm/transform25.h>
@@ -63,6 +65,7 @@ struct sbx_SandGridScene {
   sbx_TimeControlUI timeControl;
   sbx_InteractMode interact;
   clm_vec2 lastMouse;
+  struct sbx_SandGridDiagnostics diagnostics;
 };
 typedef struct sbx_SandGridScene sbx_SandGridScene;
 
@@ -106,6 +109,8 @@ void sbx_SandGridScene_init(sbx_SceneInitArgs* args) {
     .gravity = clm_vec2_ctor(0, -10.f)
   };
   self->sandGrid = sbx_createSandGrid(self->sandGrid, self->alloc, self->config);
+
+  self->diagnostics = sbx_SandGridDiagnosticsImpl_ctor(self->alloc, args->renderer, 10000);
 
   clm_transform25 rt = clm_transform25_identity();
   //Big enough to fill the screen, offset it centered in the screen, undoing the corner origin in the model above.
@@ -356,6 +361,24 @@ void sbx_SandGridScene_frame(sbx_SceneFrameArgs* args) {
   }
 
   sbx_TimeControlUpdate update = sbx_TimeControlUI_tryUpdate(&scene->timeControl);
+  if(update.tick || update.reset) {
+    shouldDraw = true;
+    sbx_SandGridDiagnosticsImpl_clear(&scene->diagnostics);
+
+    STD_DEBUG_CALL(sbx_SandGridDiagnostics_print, &scene->diagnostics, "test %d", 5);
+
+    STD_DEBUG_CALL(sbx_SandGridDiagnostics_setColor, &scene->diagnostics, clm_byte4_ctor(0, 255, 255, 255));
+    STD_DEBUG_CALL(sbx_SandGridDiagnostics_startLineStrip, &scene->diagnostics, clm_vec2_ctor(0, 0));
+    STD_DEBUG_CALL(sbx_SandGridDiagnostics_addLineStrip, &scene->diagnostics, clm_vec2_ctor(1, 1));
+
+    STD_DEBUG_CALL(sbx_SandGridDiagnostics_setColor, &scene->diagnostics, clm_byte4_ctor(0, 255, 0, 255));
+    STD_DEBUG_CALL(sbx_SandGridDiagnostics_startLineStrip, &scene->diagnostics, clm_vec2_ctor(0, 1));
+    STD_DEBUG_CALL(sbx_SandGridDiagnostics_addLineStrip, &scene->diagnostics, clm_vec2_ctor(1, 2));
+    STD_DEBUG_CALL(sbx_SandGridDiagnostics_addLineStrip, &scene->diagnostics, clm_vec2_ctor(0, 2));
+    STD_DEBUG_CALL(sbx_SandGridDiagnostics_addLineStrip, &scene->diagnostics, clm_vec2_ctor(0, 3));
+    STD_DEBUG_CALL(sbx_SandGridDiagnostics_addLineStrip, &scene->diagnostics, clm_vec2_ctor(1, 3));
+  }
+
   if(update.tick) {
     sbx_SandGridScene_integrate(scene);
     shouldDraw = true;
@@ -374,6 +397,8 @@ void sbx_SandGridScene_frame(sbx_SceneFrameArgs* args) {
       .height = (uint32_t)scene->config.height
     });
   }
+
+  sbx_SandGridDiagnosticsImpl_update(&scene->diagnostics, args->renderer);
 }
 
 sbx_Scene* sbx_SandGridScene_ctor(std_Allocator* alloc) {

@@ -75,3 +75,11 @@ inline float clm_vec2_len2(const clm_vec2* v) {
 inline float clm_vec2_len(const clm_vec2* v) {
   return sqrtf(clm_vec2_len2(v));
 }
+
+//3d cross product with z axis
+// [v.x]   [0]
+// [v.y] x [0]
+// [0  ]   [1]
+inline clm_vec2 clm_vec2_ortho(const clm_vec2* v) {
+  return clm_vec2_ctor(v->y, -v->x);
+}

@@ -41,6 +41,7 @@ typedef struct sbx_RendererTexture sbx_RendererTexture;
 
 struct sbx_RendererRenderable {
   const uint32_t id;
+  enum sbx_RenderPipeline pipeline;
   sbx_RendererModel* model;
   sbx_RendererTexture* tex;
   clm_transform25 transform;
@@ -50,6 +51,7 @@ typedef struct sbx_RendererRenderable sbx_RendererRenderable;
 struct sbx_Renderer {
   std_Allocator* alloc;
   sbx_MeshPass meshPass;
+  sg_pipeline triangleStripPipeline;
   std_Vector renderables;
   std_VoidMap renderableMap;
   uint32_t idGen;
@@ -105,18 +107,22 @@ void sbx_setImage(sg_image* dst, sg_image src) {
   *dst = src;
 }
 
-sbx_MeshPass renderer_createMeshPass(std_Allocator* alloc) {
-  sg_pipeline_desc desc = { 0 };
-  desc.shader = sg_make_shader(Mesh_shader_desc(sg_query_backend()));
-  desc.layout.attrs[ATTR_Mesh_vertPos].format = SG_VERTEXFORMAT_FLOAT3;
-  desc.layout.attrs[ATTR_Mesh_vertUV].format = SG_VERTEXFORMAT_FLOAT2;
-  desc.layout.attrs[ATTR_Mesh_vertColor].format = SG_VERTEXFORMAT_FLOAT4;
-  desc.color_count = 1;
-  desc.depth = (sg_depth_state) {
+void renderer_createMeshPipelineDescription(sg_pipeline_desc* desc) {
+  desc->shader = sg_make_shader(Mesh_shader_desc(sg_query_backend()));
+  desc->layout.attrs[ATTR_Mesh_vertPos].format = SG_VERTEXFORMAT_FLOAT3;
+  desc->layout.attrs[ATTR_Mesh_vertUV].format = SG_VERTEXFORMAT_FLOAT2;
+  desc->layout.attrs[ATTR_Mesh_vertColor].format = SG_VERTEXFORMAT_FLOAT4;
+  desc->color_count = 1;
+  desc->depth = (sg_depth_state) {
     .pixel_format = SG_PIXELFORMAT_DEPTH_STENCIL,
     .compare = SG_COMPAREFUNC_LESS,
     .write_enabled = true
   };
+}
+
+sbx_MeshPass renderer_createMeshPass(std_Allocator* alloc) {
+  sg_pipeline_desc desc = { 0 };
+  renderer_createMeshPipelineDescription(&desc);
   sg_pipeline pipeline = sg_make_pipeline(&desc);
 
   sg_bindings bindings = { 0 };
@@ -139,6 +145,13 @@ sbx_MeshPass renderer_createMeshPass(std_Allocator* alloc) {
   };
 }
 
+sg_pipeline renderer_createTriangleStripPass() {
+  sg_pipeline_desc desc = { 0 };
+  renderer_createMeshPipelineDescription(&desc);
+  desc.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP;
+  return sg_make_pipeline(&desc);
+}
+
 sg_image renderer_createEmptyImage() {
   sg_image_desc desc = {
     .width = 1,
@@ -157,6 +170,8 @@ void renderer_init(sbx_Renderer* renderer) {
     .initialCapacity = 100
   };
   renderer->meshPass = renderer_createMeshPass(renderer->alloc);
+  renderer->triangleStripPipeline = renderer_createTriangleStripPass();
+
   renderer->emptyImage = renderer_createEmptyImage();
   renderer->camera = sbx_Camera_ctor();
 }
@@ -204,10 +219,14 @@ float sbx_getAspectRatio() {
   return 1.f;
 }
 
-void sbx_renderMeshPass(sbx_Renderer* renderer) {
-  sbx_MeshPass* pass = &renderer->meshPass;
+void sbx_renderMeshPass(
+  sbx_Renderer* renderer,
+  enum sbx_RenderPipeline pipelineFilter,
+  sg_pipeline pipeline,
+  sg_bindings* bindings
+) {
   //Activate mesh pass pipeline
-  sg_apply_pipeline(pass->pipeline);
+  sg_apply_pipeline(pipeline);
 
   //Set uniform
   clm_mat4 worldToView = sbx_Camera_worldToView(sbx_Renderer_getCamera(renderer), sbx_getAspectRatio());
@@ -220,15 +239,15 @@ void sbx_renderMeshPass(sbx_Renderer* renderer) {
   sbx_RendererRenderable* renderables = (sbx_RendererRenderable*)renderer->renderables.data;
   for(uint32_t i = 0; i < renderer->renderables.size; ++i) {
     sbx_RendererRenderable* r = &renderables[i];
-    if(!r->model) {
+    if(!r->model || !r->model->vertices.count || r->pipeline != pipelineFilter) {
       continue;
     }
 
     uniforms.instanceOffset = (int)i;
     sg_apply_uniforms(UB_uniforms, &(sg_range){ &uniforms, sizeof(uniforms) });
 
-    pass->bindings.images[IMG_tex] = r->tex && r->tex->buffer.id ? r->tex->buffer : renderer->emptyImage;
-    pass->bindings.vertex_buffers[0] = r->model->buffer;
+    bindings->images[IMG_tex] = r->tex && r->tex->buffer.id ? r->tex->buffer : renderer->emptyImage;
+    bindings->vertex_buffers[0] = r->model->buffer;
     sg_apply_bindings(&renderer->meshPass.bindings);
 
     sg_draw(0, (int)r->model->vertices.count, 1);
@@ -254,7 +273,8 @@ void sbx_Renderer_render(sbx_Renderer* renderer) {
     .swapchain = sglue_swapchain()
   });
 
-  sbx_renderMeshPass(renderer);
+  //sbx_renderMeshPass(renderer, SBX_RENDERPIPELINE_MESH, renderer->meshPass.pipeline, &renderer->meshPass.bindings);
+  sbx_renderMeshPass(renderer, SBX_RENDERPIPELINE_STRIP, renderer->triangleStripPipeline, &renderer->meshPass.bindings);
   snk_render(sapp_width(), sapp_height());
 
   sg_end_pass();
@@ -424,6 +444,13 @@ void sbx_Renderer_destroyRenderable(sbx_Renderer* renderer, sbx_Renderable rende
   STD_ASSERT(swappedPair);
   //Point the swapped element at its new location
   swappedPair->value = (void*)(uint64_t)removedIndex;
+}
+
+void sbx_Renderer_setRenderablePipeline(sbx_Renderer* renderer, sbx_Renderable renderable, enum sbx_RenderPipeline pipeline) {
+  sbx_RendererRenderable* r = sbx_tryGetRenderable(renderer, renderable);
+  if(r) {
+    r->pipeline = pipeline;
+  }
 }
 
 void sbx_Renderer_setRenderableModel(sbx_Renderer* renderer, sbx_Renderable renderable, sbx_Model model) {

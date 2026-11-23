@@ -46,6 +46,11 @@ struct sbx_TextureContents {
   uint32_t height;
 };
 
+enum sbx_RenderPipeline {
+  SBX_RENDERPIPELINE_MESH,
+  SBX_RENDERPIPELINE_STRIP
+};
+
 typedef struct clm_mat4 clm_mat4;
 typedef struct clm_transform25 clm_transform25;
 typedef struct sbx_Camera sbx_Camera;
@@ -73,6 +78,7 @@ void sbx_Renderer_setTexture(sbx_Renderer* renderer, sbx_Texture texture, const 
 
 sbx_Renderable sbx_Renderer_createRenderable(sbx_Renderer* renderer);
 void sbx_Renderer_destroyRenderable(sbx_Renderer* renderer, sbx_Renderable renderable);
+void sbx_Renderer_setRenderablePipeline(sbx_Renderer* renderer, sbx_Renderable renderable, enum sbx_RenderPipeline pipeline);
 void sbx_Renderer_setRenderableModel(sbx_Renderer* renderer, sbx_Renderable renderable, sbx_Model model);
 void sbx_Renderer_setRenderableTexture(sbx_Renderer* renderer, sbx_Renderable renderable, sbx_Texture texture);
 clm_transform25 sbx_Renderer_getTransform(sbx_Renderer* renderer, sbx_Renderable renderable);
