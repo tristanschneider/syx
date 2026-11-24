@@ -273,7 +273,7 @@ void sbx_Renderer_render(sbx_Renderer* renderer) {
     .swapchain = sglue_swapchain()
   });
 
-  //sbx_renderMeshPass(renderer, SBX_RENDERPIPELINE_MESH, renderer->meshPass.pipeline, &renderer->meshPass.bindings);
+  sbx_renderMeshPass(renderer, SBX_RENDERPIPELINE_MESH, renderer->meshPass.pipeline, &renderer->meshPass.bindings);
   sbx_renderMeshPass(renderer, SBX_RENDERPIPELINE_STRIP, renderer->triangleStripPipeline, &renderer->meshPass.bindings);
   snk_render(sapp_width(), sapp_height());
 

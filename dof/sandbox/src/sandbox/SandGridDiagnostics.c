@@ -42,7 +42,7 @@ void sbx_SandGridDiagnostics_addLineStrip(struct sbx_SandGridDiagnostics* d, clm
     len = 1.f;
     normal = clm_vec2_ctor(1, 0);
   }
-  const float lineThickness = 0.05f;
+  const float lineThickness = 0.005f;
   normal = clm_vec2_scale(&normal, lineThickness);
 
   //Start of strip needs to push the starting points that were deferred by startLineStrip

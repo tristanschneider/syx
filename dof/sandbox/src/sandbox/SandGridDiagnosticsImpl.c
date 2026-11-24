@@ -85,12 +85,6 @@ struct sbx_SandGridDiagnostics sbx_SandGridDiagnosticsImpl_ctor(std_Allocator* a
   impl->renderable = sbx_Renderer_createRenderable(renderer);
   sbx_Renderer_setRenderablePipeline(renderer, impl->renderable, SBX_RENDERPIPELINE_STRIP);
   sbx_Renderer_setRenderableModel(renderer, impl->renderable, impl->model);
-  //TODO: make this match the desired coordinate space for sand grid
-  clm_transform25 transform = clm_transform25_identity();
-  const float s = 1.f;
-  transform.scale = clm_vec2_ctor(10 / 3.f, 10 / 3.f);
-  transform.pos = clm_vec3_ctor(-s * 5.f, -s * 5.f, -0.1f);
-  sbx_Renderer_setTransform(renderer, impl->renderable, &transform);
 
   return (struct sbx_SandGridDiagnostics) {
     .data = impl,
@@ -107,6 +101,31 @@ void sbx_SandGridDiagnosticsImpl_dtor(struct sbx_SandGridDiagnostics* self, std_
   sbx_Renderer_destroyModel(renderer, impl->model);
   std_Allocator_dealloc(alloc, impl);
   self->data = NULL;
+}
+
+void sbx_SandGridDiagnosticsImpl_setTransform(
+  struct sbx_SandGridDiagnostics* self,
+  int32_t gridWidth,
+  int32_t gridHeight,
+  const clm_transform25* gridTransform,
+  sbx_Renderer* renderer
+) {
+  struct sbx_SandGridDiagnosticsImpl* impl = self->data;
+  //Flip y axis to go downwards
+  const clm_mat4 flip = clm_mat4_transform_scale(&(clm_vec3){ 1, -1, 1 });
+  //Scale to grid size
+  const clm_mat4 scale = clm_mat4_transform_scale(&(clm_vec3){ 1.f/(float)gridWidth, 1.f/(float)gridHeight, 1 });
+  //Move origin from center to top left
+  //TODO: turn off depth tests so Z coordinate can be zero without Z fighting
+  const clm_mat4 translate = clm_mat4_transform_translate(&(clm_vec3){ -0.5f, 0.5f, -0.08f });
+  //Apply transform of the grid renderable itself to scale this drawing to it
+  const clm_mat4 sandGrid = clm_transform25_toMatrix(gridTransform);
+
+  clm_mat4 transform = clm_mat4_mul(&sandGrid, &translate);
+  transform = clm_mat4_mul(&transform, &scale);
+  transform = clm_mat4_mul(&transform, &flip);
+  clm_transform25 t25 = clm_transform25_fromMatrix(&transform);
+  sbx_Renderer_setTransform(renderer, impl->renderable, &t25);
 }
 
 void sbx_SandGridDiagnosticsImpl_clear(struct sbx_SandGridDiagnostics* self) {

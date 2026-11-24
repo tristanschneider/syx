@@ -104,19 +104,29 @@ void sbx_SandGridScene_init(sbx_SceneInitArgs* args) {
   sbx_Renderer_setRenderableTexture(args->renderer, self->renderable, self->texture);
 
   self->config = (sbx_SandGridConfig){
-    .width = 100,
-    .height = 100,
+    .width = 6,
+    .height = 6,
     .gravity = clm_vec2_ctor(0, -10.f)
   };
   self->sandGrid = sbx_createSandGrid(self->sandGrid, self->alloc, self->config);
-
-  self->diagnostics = sbx_SandGridDiagnosticsImpl_ctor(self->alloc, args->renderer, 10000);
 
   clm_transform25 rt = clm_transform25_identity();
   //Big enough to fill the screen, offset it centered in the screen, undoing the corner origin in the model above.
   rt.scale = clm_vec2_ctor(10, 10);
   rt.pos = clm_vec3_ctor(-s * 5.f, -s * 5.f, -0.1f);
   sbx_Renderer_setTransform(args->renderer, self->renderable, &rt);
+
+  //Match grid transform but ignore the scale offset used to center the mesh
+  clm_transform25 diagTransform = rt;
+  diagTransform.pos = clm_vec3_splat(0.f);
+  self->diagnostics = sbx_SandGridDiagnosticsImpl_ctor(self->alloc, args->renderer, 10000);
+  sbx_SandGridDiagnosticsImpl_setTransform(
+    &self->diagnostics,
+    self->config.width,
+    self->config.height,
+    &diagTransform,
+    args->renderer
+  );
 
   self->selected.area = clm_irect_limits();
 
@@ -369,14 +379,15 @@ void sbx_SandGridScene_frame(sbx_SceneFrameArgs* args) {
 
     STD_DEBUG_CALL(sbx_SandGridDiagnostics_setColor, &scene->diagnostics, clm_byte4_ctor(0, 255, 255, 255));
     STD_DEBUG_CALL(sbx_SandGridDiagnostics_startLineStrip, &scene->diagnostics, clm_vec2_ctor(0, 0));
-    STD_DEBUG_CALL(sbx_SandGridDiagnostics_addLineStrip, &scene->diagnostics, clm_vec2_ctor(1, 1));
+    STD_DEBUG_CALL(sbx_SandGridDiagnostics_addLineStrip, &scene->diagnostics, clm_vec2_ctor(0.5f, 0.5f));
+    STD_DEBUG_CALL(sbx_SandGridDiagnostics_addLineStrip, &scene->diagnostics, clm_vec2_ctor(0.5f, 1.0f));
 
     STD_DEBUG_CALL(sbx_SandGridDiagnostics_setColor, &scene->diagnostics, clm_byte4_ctor(0, 255, 0, 255));
-    STD_DEBUG_CALL(sbx_SandGridDiagnostics_startLineStrip, &scene->diagnostics, clm_vec2_ctor(0, 1));
-    STD_DEBUG_CALL(sbx_SandGridDiagnostics_addLineStrip, &scene->diagnostics, clm_vec2_ctor(1, 2));
-    STD_DEBUG_CALL(sbx_SandGridDiagnostics_addLineStrip, &scene->diagnostics, clm_vec2_ctor(0, 2));
-    STD_DEBUG_CALL(sbx_SandGridDiagnostics_addLineStrip, &scene->diagnostics, clm_vec2_ctor(0, 3));
-    STD_DEBUG_CALL(sbx_SandGridDiagnostics_addLineStrip, &scene->diagnostics, clm_vec2_ctor(1, 3));
+    STD_DEBUG_CALL(sbx_SandGridDiagnostics_startLineStrip, &scene->diagnostics, clm_vec2_ctor(5, 1));
+    STD_DEBUG_CALL(sbx_SandGridDiagnostics_addLineStrip, &scene->diagnostics, clm_vec2_ctor(6, 0));
+
+    STD_DEBUG_CALL(sbx_SandGridDiagnostics_startLineStrip, &scene->diagnostics, clm_vec2_ctor(5, 0));
+    STD_DEBUG_CALL(sbx_SandGridDiagnostics_addLineStrip, &scene->diagnostics, clm_vec2_ctor(6, 1));
   }
 
   if(update.tick) {

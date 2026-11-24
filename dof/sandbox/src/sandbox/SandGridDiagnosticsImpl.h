@@ -2,6 +2,7 @@
 
 #include <std/Allocator.h>
 
+struct clm_transform25;
 struct sbx_Renderer;
 struct sbx_SandGridDiagnostics;
 
@@ -13,3 +14,11 @@ void sbx_SandGridDiagnosticsImpl_dtor(struct sbx_SandGridDiagnostics* self, std_
 void sbx_SandGridDiagnosticsImpl_clear(struct sbx_SandGridDiagnostics* self);
 //Upload latest buffer to gpu if needed
 void sbx_SandGridDiagnosticsImpl_update(struct sbx_SandGridDiagnostics* self, sbx_Renderer* renderer);
+//Set the transform so that grid coordinates can be used to draw in the grid, where each cell is width/height 1
+void sbx_SandGridDiagnosticsImpl_setTransform(
+  struct sbx_SandGridDiagnostics* self,
+  int32_t gridWidth,
+  int32_t gridHeight,
+  const clm_transform25* gridTransform,
+  sbx_Renderer* renderer
+);

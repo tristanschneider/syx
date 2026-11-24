@@ -23,6 +23,11 @@ inline clm_transform25 clm_transform25_identity() {
 }
 
 inline clm_mat4 clm_transform25_toMatrix(const clm_transform25* t) {
-  const clm_vec3 scale = clm_vec3_ctor(t->scale.x, t->scale.y, 1.f);
-  return clm_mat4_transform_build25(&t->pos, &t->rot, &scale);
+  return clm_mat4_transform_build25(&t->pos, &t->rot, &t->scale);
+}
+
+inline clm_transform25 clm_transform25_fromMatrix(const clm_mat4* m) {
+  clm_transform25 result;
+  clm_mat4_transform_decompose25(m, &result.pos, &result.rot, &result.scale);
+  return result;
 }

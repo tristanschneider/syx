@@ -100,7 +100,7 @@ inline clm_mat4 clm_mat4_transform_scalef(float x, float y, float z) {
   );
 }
 
-inline clm_mat4 clm_mat4_transform_build25(const clm_vec3* pos, const clm_vec2* rot, const clm_vec3* scale) {
+inline clm_mat4 clm_mat4_transform_build25(const clm_vec3* pos, const clm_vec2* rot, const clm_vec2* scale) {
   //Translate * Rotate * Scale
   //R = Translate * Rotate
   //[1,0,0,x] [c,-s,0,0] [c,-s,0,x]
@@ -120,6 +120,28 @@ inline clm_mat4 clm_mat4_transform_build25(const clm_vec3* pos, const clm_vec2* 
              0,           0, 1, pos->z,
              0,           0, 0,      1
   );
+}
+
+//Inverse of build25
+inline void clm_mat4_transform_decompose25(const clm_mat4* src, clm_vec3* pos, clm_vec2* rot, clm_vec2* scale) {
+  if(pos) {
+    *pos = clm_vec3_ctor(src->c3x, src->c3y, src->c3z);
+  }
+  clm_vec2 rx = clm_vec2_ctor(src->c0x, src->c0y);
+  clm_vec2 ry = clm_vec2_ctor(src->c1x, src->c1y);
+  const float sx = clm_vec2_len(&rx);
+  //If an element was negative, detect this with the sign of the determinant and flip the result
+  const float determinant = src->c0x*src->c1y - src->c1x*src->c0y;
+  const float angle = determinant >= 0 ? atan2f(src->c0y, src->c0x) : atan2f(-src->c0y, -src->c0x);
+  if(rot) {
+    *rot = clm_vec2_ctor(cosf(angle), sinf(angle));
+  }
+  if(scale) {
+    *scale = clm_vec2_ctor(sx, clm_vec2_len(&ry));
+    if(determinant < 0) {
+      scale->x = -scale->x;
+    }
+  }
 }
 
 inline clm_mat4 clm_mat4_transform_scale(const clm_vec3* s) {
