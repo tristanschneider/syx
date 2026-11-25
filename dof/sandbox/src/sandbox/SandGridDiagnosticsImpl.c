@@ -116,8 +116,7 @@ void sbx_SandGridDiagnosticsImpl_setTransform(
   //Scale to grid size
   const clm_mat4 scale = clm_mat4_transform_scale(&(clm_vec3){ 1.f/(float)gridWidth, 1.f/(float)gridHeight, 1 });
   //Move origin from center to top left
-  //TODO: turn off depth tests so Z coordinate can be zero without Z fighting
-  const clm_mat4 translate = clm_mat4_transform_translate(&(clm_vec3){ -0.5f, 0.5f, -0.08f });
+  const clm_mat4 translate = clm_mat4_transform_translate(&(clm_vec3){ -0.5f, 0.5f, 0 });
   //Apply transform of the grid renderable itself to scale this drawing to it
   const clm_mat4 sandGrid = clm_transform25_toMatrix(gridTransform);
 

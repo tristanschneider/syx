@@ -149,6 +149,8 @@ sg_pipeline renderer_createTriangleStripPass() {
   sg_pipeline_desc desc = { 0 };
   renderer_createMeshPipelineDescription(&desc);
   desc.primitive_type = SG_PRIMITIVETYPE_TRIANGLE_STRIP;
+  //Disable depth test/write, want this to always write on top
+  desc.depth = (sg_depth_state){ 0 };
   return sg_make_pipeline(&desc);
 }
 

@@ -118,7 +118,8 @@ void sbx_SandGridScene_init(sbx_SceneInitArgs* args) {
 
   //Match grid transform but ignore the scale offset used to center the mesh
   clm_transform25 diagTransform = rt;
-  diagTransform.pos = clm_vec3_splat(0.f);
+  diagTransform.pos.x = 0;
+  diagTransform.pos.y = 0;
   self->diagnostics = sbx_SandGridDiagnosticsImpl_ctor(self->alloc, args->renderer, 10000);
   sbx_SandGridDiagnosticsImpl_setTransform(
     &self->diagnostics,
