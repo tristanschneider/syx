@@ -332,21 +332,25 @@ void sbx_Renderer_setModelVertices(sbx_Renderer* renderer, sbx_Model model, cons
   //Convert to buffer for convenient reallocation
   std_Buffer storage = sbx_modelToBuffer(&r->vertices);
   std_Buffer_assign(&storage, sbx_modelToBuffer(vertices), renderer->alloc);
+  const bool isEmptyModel = !vertices->count;
   //I don't know what to do if this fails
-  STD_ASSERT(storage.data);
+  STD_ASSERT(storage.data || isEmptyModel);
 
   //Store new buffer, old one was freed above
   r->vertices = (sbx_ModelVertices){
     .data = (sbx_ModelVertex*)storage.data,
     .count = vertices->count
   };
-  //Update sg resource, which frees the old one if applicable
-  sbx_setBuffer(&r->buffer, sg_make_buffer(&(sg_buffer_desc) {
+
+  sg_buffer newBuffer = isEmptyModel ? (sg_buffer){ 0 } : sg_make_buffer(&(sg_buffer_desc) {
     .data = (sg_range) {
       .ptr = storage.data,
       .size = storage.sizeBytes
     }
-  }));
+  });
+
+  //Update sg resource, which frees the old one if applicable
+  sbx_setBuffer(&r->buffer, newBuffer);
 }
 
 sbx_Texture sbx_Renderer_createTexture(sbx_Renderer* renderer) {
