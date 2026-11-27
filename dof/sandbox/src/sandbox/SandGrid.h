@@ -9,6 +9,7 @@
 #include <stdbool.h>
 
 struct sbx_SandGrid;
+struct sbx_SandGridDiagnostics;
 struct sbx_SandGridImpulseIterator;
 struct sbx_ModelVertices;
 
@@ -88,3 +89,5 @@ bool sbx_SandGrid_isValidRect(const sbx_SandGrid* grid, const clm_irect* rect);
 clm_irect sbx_SandGrid_clipToGrid(const sbx_SandGrid* grid, const clm_irect* toClip);
 //Query the region of `rect` and put the results in `result`. Area must be within grid.
 void sbx_SandGrid_query(sbx_SandGrid* grid, const clm_irect* rect, sbx_SandQueryResult* result);
+
+void sbx_SandGrid_diagnosticUpdate(sbx_SandGrid* grid, struct sbx_SandGridDiagnostics* diag);

@@ -4,8 +4,11 @@
 #include <clm/vec2.h>
 #include <sandbox/SandGridImpulseIterator.h>
 #include <sandbox/GrainStack.h>
+#include <sandbox/SandGridDiagnostics.h>
 #include <float.h>
 #include <clm/quadrant.h>
+#include <clm/vec4.h>
+#include <std/Hash.h>
 
 #include <stdio.h>
 
@@ -282,13 +285,10 @@ void sbx_applyConstraintImpulse(float* va, float* vb, float ma, float mb, float 
 //Solve contact constraint
 //TODO: friction
 //TODO: other constraint types
-void sbx_SandGrid_solveIslandPair(struct IslandData* data, uint32_t a, uint32_t b, int8_t normalAxis, int8_t normalDir) {
+void sbx_SandGrid_solveIslandPair(void* userdata, uint32_t a, uint32_t b, int8_t normalAxis, int8_t normalDir) {
+  struct IslandData* data = userdata;
   //Visit constraint once
   struct sbx_ConstraintSlot* constraint = sbx_GrainStack_getConstraintSlot(data->stack, a, b);
-  if(constraint->age == data->age) {
-    return;
-  }
-  constraint->age = data->age;
 
   struct sbx_SandGrain* ga = sbx_GrainStack_getGrainI(data->stack, a);
   struct sbx_SandGrain* gb = sbx_GrainStack_getGrainI(data->stack, b);
@@ -370,7 +370,13 @@ void sbx_tryVisitIslandNode(sbx_SandGrid* grid, struct sbx_PhaseIndexList* temp,
   }
 }
 
-void sbx_SandGrid_solveIsland(struct IslandData* data, sbx_SandGrid* grid, uint32_t islandRoot, uint8_t age) {
+void sbx_SandGrid_visitIsland(
+  void* data,
+  sbx_SandGrid* grid,
+  uint32_t islandRoot,
+  uint8_t age,
+  void (*visitConstraint)(void*, uint32_t, uint32_t, int8_t, int8_t)
+) {
   struct sbx_PhaseIndexList* temp = sbx_GrainStack_getPhase(&grid->stack, SBX_GLI_TEMP_PHASE);
   sbx_PhaseIndexList_clear(temp);
   sbx_tryVisitIslandNode(grid, temp, islandRoot, age);
@@ -416,8 +422,9 @@ void sbx_SandGrid_solveIsland(struct IslandData* data, sbx_SandGrid* grid, uint3
       }
       const uint32_t n = grid->allCollisionNeighbors.indices[q] + e;
       struct sbx_ConstraintSlot* slot = sbx_GrainStack_getConstraintSlot(&grid->stack, e, n);
-      if(slot->isActive) {
-        sbx_SandGrid_solveIslandPair(
+      if(slot->isActive && slot->age != age) {
+        slot->age = age;
+        visitConstraint(
           data,
           e,
           n,
@@ -427,6 +434,10 @@ void sbx_SandGrid_solveIsland(struct IslandData* data, sbx_SandGrid* grid, uint3
       }
     }
   }
+}
+
+void sbx_SandGrid_solveIsland(struct IslandData* data, sbx_SandGrid* grid, uint32_t islandRoot, uint8_t age) {
+  sbx_SandGrid_visitIsland(data, grid, islandRoot, age, &sbx_SandGrid_solveIslandPair);
 }
 
 void sbx_SandGrid_solve_phase(sbx_SandGrid* grid, struct sbx_PhaseIndexList* list) {
@@ -573,4 +584,68 @@ void sbx_SandGrid_query(sbx_SandGrid* grid, const clm_irect* rect, sbx_SandQuery
 
 clm_irect sbx_SandGrid_clipToGrid(const sbx_SandGrid* grid, const clm_irect* toClip) {
   return clm_irect_intersect(&grid->rect, toClip);
+}
+
+struct sbx_DrawData {
+  sbx_SandGrid* grid;
+  struct sbx_SandGridDiagnostics* diag;
+  clm_byte4 islandColor;
+  uint32_t islandCount;
+};
+
+void sbx_drawConstraint(void* userdata, uint32_t a, uint32_t b, int8_t normalAxis, int8_t normalDir) {
+  struct sbx_DrawData* draw = userdata;
+  STD_UNUSED(draw, a, b, normalAxis, normalDir);
+}
+
+void sbx_drawNode(struct sbx_DrawData* draw, uint32_t node) {
+  if(!draw->diag->drawIslandGraph) {
+    return;
+  }
+  clm_vec2 pos = sbx_GrainStack_itoxyf(&draw->grid->stack, node);
+  if(draw->islandCount++) {
+    sbx_SandGridDiagnostics_addLineStrip(draw->diag, pos);
+  }
+  else {
+    sbx_SandGridDiagnostics_setColor(draw->diag, draw->islandColor);
+    sbx_SandGridDiagnostics_startLineStrip(draw->diag, pos);
+  }
+};
+
+void sbx_SandGrid_diagnosticUpdate(sbx_SandGrid* grid, struct sbx_SandGridDiagnostics* diag) {
+  struct sbx_PhaseIndexList* temp = sbx_GrainStack_getPhase(&grid->stack, SBX_GLI_TEMP_PHASE);
+  struct sbx_PhaseIndexList* list = sbx_GrainStack_getPhase(&grid->stack, SBX_GLI_SOLVE_PHASE);
+
+  const uint8_t age = ++grid->age;
+  int islandIndex = 0;
+  STD_UNUSED(islandIndex);
+  struct sbx_DrawData data = {
+    .grid = grid,
+    .diag = diag,
+    .islandColor = clm_byte4_ctor(0, 255, 0, 255)
+  };
+
+  for(uint32_t i = 0; i < list->size; ++i) {
+    const uint32_t islandRoot = list->array[i];
+    //Age is set during a previous solveIsland call within this loop.
+    //That means only the island root needs to be in this loop, so any others can be removed.
+    //They need to be removed anyway if solved, and before then it avoids wasted iterations on future loops here.
+    if(!sbx_GrainStack_isOldAge(&grid->stack, islandRoot, age)) {
+      continue;
+    }
+
+    data.islandCount = 0;
+    //Hash color to produce a new color with high entropy
+    void* colorBytes = &data.islandColor;
+    uint32_t* uintBytes = colorBytes;
+    *uintBytes = std_hash32Append(*uintBytes, colorBytes, 4);
+    data.islandColor.a = 255;
+
+    sbx_SandGrid_visitIsland(&data, grid, islandRoot, age, &sbx_drawConstraint);
+
+    //After visitation, the temp list has all nodes in the island
+    for(uint32_t t = 0; t < temp->size; ++t) {
+      sbx_drawNode(&data, temp->array[t]);
+    }
+  }
 }

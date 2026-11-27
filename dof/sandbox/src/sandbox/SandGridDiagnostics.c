@@ -42,7 +42,7 @@ void sbx_SandGridDiagnostics_addLineStrip(struct sbx_SandGridDiagnostics* d, clm
     len = 1.f;
     normal = clm_vec2_ctor(1, 0);
   }
-  const float lineThickness = 0.005f;
+  const float lineThickness = 0.008f;
   normal = clm_vec2_scale(&normal, lineThickness);
 
   //Start of strip needs to push the starting points that were deferred by startLineStrip
@@ -58,4 +58,9 @@ void sbx_SandGridDiagnostics_addLineStrip(struct sbx_SandGridDiagnostics* d, clm
   //Push the far end of the quad
   d->addTriStrip(d->data, clm_vec2_add(&b, &normal));
   d->addTriStrip(d->data, clm_vec2_sub(&b, &normal));
+}
+
+void sbx_SandGridDiagnostics_addLine(struct sbx_SandGridDiagnostics* d, clm_vec2 a, clm_vec2 b) {
+  sbx_SandGridDiagnostics_startLineStrip(d, a);
+  sbx_SandGridDiagnostics_addLineStrip(d, b);
 }

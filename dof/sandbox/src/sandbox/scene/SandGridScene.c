@@ -369,28 +369,14 @@ void sbx_SandGridScene_frame(sbx_SceneFrameArgs* args) {
     }
 
     sbx_drawSelected(args);
+
+    nk_bool draw = (nk_bool)scene->diagnostics.drawIslandGraph;
+    if(nk_checkbox_label(ctx, "Draw Island Graph", &draw)) {
+      scene->diagnostics.drawIslandGraph = (bool)draw;
+    }
   }
 
   sbx_TimeControlUpdate update = sbx_TimeControlUI_tryUpdate(&scene->timeControl);
-  if(update.tick || update.reset) {
-    shouldDraw = true;
-    sbx_SandGridDiagnosticsImpl_clear(&scene->diagnostics);
-
-    STD_DEBUG_CALL(sbx_SandGridDiagnostics_print, &scene->diagnostics, "test %d", 5);
-
-    STD_DEBUG_CALL(sbx_SandGridDiagnostics_setColor, &scene->diagnostics, clm_byte4_ctor(0, 255, 255, 255));
-    STD_DEBUG_CALL(sbx_SandGridDiagnostics_startLineStrip, &scene->diagnostics, clm_vec2_ctor(0, 0));
-    STD_DEBUG_CALL(sbx_SandGridDiagnostics_addLineStrip, &scene->diagnostics, clm_vec2_ctor(0.5f, 0.5f));
-    STD_DEBUG_CALL(sbx_SandGridDiagnostics_addLineStrip, &scene->diagnostics, clm_vec2_ctor(0.5f, 1.0f));
-
-    STD_DEBUG_CALL(sbx_SandGridDiagnostics_setColor, &scene->diagnostics, clm_byte4_ctor(0, 255, 0, 255));
-    STD_DEBUG_CALL(sbx_SandGridDiagnostics_startLineStrip, &scene->diagnostics, clm_vec2_ctor(5, 1));
-    STD_DEBUG_CALL(sbx_SandGridDiagnostics_addLineStrip, &scene->diagnostics, clm_vec2_ctor(6, 0));
-
-    STD_DEBUG_CALL(sbx_SandGridDiagnostics_startLineStrip, &scene->diagnostics, clm_vec2_ctor(5, 0));
-    STD_DEBUG_CALL(sbx_SandGridDiagnostics_addLineStrip, &scene->diagnostics, clm_vec2_ctor(6, 1));
-  }
-
   if(update.tick) {
     sbx_SandGridScene_integrate(scene);
     shouldDraw = true;
@@ -402,6 +388,9 @@ void sbx_SandGridScene_frame(sbx_SceneFrameArgs* args) {
 
   shouldDraw = true;
   if(shouldDraw) {
+    sbx_SandGridDiagnosticsImpl_clear(&scene->diagnostics);
+    sbx_SandGrid_diagnosticUpdate(scene->sandGrid, &scene->diagnostics);
+
     const clm_byte4* data = sbx_SandGrid_getTexture(scene->sandGrid);
     sbx_Renderer_setTexture(args->renderer, scene->texture, &(sbx_TextureContents){
       .data = data,

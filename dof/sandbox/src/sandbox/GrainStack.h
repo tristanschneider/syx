@@ -81,6 +81,8 @@ void sbx_GrainStack_ctor(struct sbx_GrainStack* dst, uint8_t* buffer, uint32_t u
 
 //Convert internal space index to user space index
 uint32_t sbx_GrainStack_itou(const struct sbx_GrainStack* stack, uint32_t ii);
+//Internal space index to xy float coordinates, center of cell
+clm_vec2 sbx_GrainStack_itoxyf(const struct sbx_GrainStack* stack, uint32_t ii);
 //Convert user space index to internal space index
 //uint32_t sbx_GrainStack_utoi(const struct sbx_GrainStack* stack, uint32_t ui);
 //Convert user space xy coordinates to internal index

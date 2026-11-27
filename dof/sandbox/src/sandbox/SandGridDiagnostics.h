@@ -17,6 +17,9 @@ struct sbx_SandGridDiagnostics {
   //Set the color that all subsequent drawing operations use.
   void(*setColor)(void*, clm_byte4);
 
+  //Configuration set by user
+  bool drawIslandGraph;
+
   //Convenience for implementation of the wrapping methods
   clm_vec2 temp;
   bool inStrip;
@@ -29,3 +32,4 @@ void sbx_SandGridDiagnostics_addTriStrip(struct sbx_SandGridDiagnostics* d, clm_
 void sbx_SandGridDiagnostics_setColor(struct sbx_SandGridDiagnostics* d, clm_byte4 color);
 void sbx_SandGridDiagnostics_startLineStrip(struct sbx_SandGridDiagnostics* d, clm_vec2 p);
 void sbx_SandGridDiagnostics_addLineStrip(struct sbx_SandGridDiagnostics* d, clm_vec2 p);
+void sbx_SandGridDiagnostics_addLine(struct sbx_SandGridDiagnostics* d, clm_vec2 a, clm_vec2 b);

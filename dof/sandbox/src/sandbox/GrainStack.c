@@ -155,6 +155,14 @@ uint32_t sbx_GrainStack_itou(const struct sbx_GrainStack* stack, uint32_t ii) {
   return ii - sentryRow - sentryColumns;
 }
 
+clm_vec2 sbx_GrainStack_itoxyf(const struct sbx_GrainStack* stack, uint32_t ii) {
+  // +0.5 to make it the center of the cell, -1 to ignore the sentry row/column
+  return clm_vec2_ctor(
+    -0.5f + (float)(ii % stack->internalWidth),
+    -0.5f + (float)(ii / stack->internalWidth)
+  );
+}
+
 uint32_t sbx_GrainStack_uxytoi(const struct sbx_GrainStack* stack, uint32_t ux, uint32_t uy) {
   return ux + USER_TO_SENTRY + stack->internalWidth * (uy + USER_TO_SENTRY);
 }

@@ -2,10 +2,10 @@
 
 #include <stdint.h>
 
-const uint64_t STD_FNV1A64_BASIS = 14695981039346656037ULL;
-const uint64_t STD_FNV1A64_PRIME = 1099511628211ULL;
-const uint32_t STD_FNV1A32_BASIS = 2166136261U;
-const uint32_t STD_FNV1A32_PRIME = 16777619U;
+static const uint64_t STD_FNV1A64_BASIS = 14695981039346656037ULL;
+static const uint64_t STD_FNV1A64_PRIME = 1099511628211ULL;
+static const uint32_t STD_FNV1A32_BASIS = 2166136261U;
+static const uint32_t STD_FNV1A32_PRIME = 16777619U;
 
 inline uint64_t std_fnv1a64Append(uint64_t value, const uint8_t* bytes, size_t count) {
   for(size_t i = 0; i < count; ++i) {
@@ -44,6 +44,6 @@ inline uint64_t std_hash64Append(uint64_t value, const uint8_t* bytes, size_t co
   return std_fnv1a64Append(value, bytes, count);
 }
 
-inline uint64_t std_hash32Append(uint32_t value, const uint8_t* bytes, size_t count) {
+inline uint32_t std_hash32Append(uint32_t value, const uint8_t* bytes, size_t count) {
   return std_fnv1a32Append(value, bytes, count);
 }
