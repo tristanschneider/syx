@@ -49,6 +49,7 @@ struct sbx_SandQueryResult {
   clm_vec2 position;
   sbx_SandGridShape shape;
   clm_byte4 color;
+  uint32_t index;
   uint8_t mass;
 };
 typedef struct sbx_SandQueryResult sbx_SandQueryResult;

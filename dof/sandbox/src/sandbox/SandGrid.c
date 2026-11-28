@@ -599,6 +599,7 @@ void sbx_doQuery(const sbx_GrainIt* it) {
     .position = grain->position,
     .shape = grain->type,
     .color = *sbx_GrainStack_getColorIC(&it->grid->stack, it->e),
+    .index = it->e,
     .mass = grain->inverseMass ? (uint8_t)(1.0f/grain->inverseMass) : 0
   };
   (*result)++;

@@ -341,6 +341,7 @@ void sbx_drawSelected(sbx_SceneFrameArgs* args) {
   nkx_readonly_vec2(ctx, "Velocity", q->velocity);
   nkx_label_format(ctx, "Mass: %d", (int32_t)q->mass);
   nkx_label_format(ctx, "color %.8X", q->color);
+  nkx_label_format(ctx, "Index: %d", (int)q->index);
 }
 
 void sbx_SandGridScene_frame(sbx_SceneFrameArgs* args) {
