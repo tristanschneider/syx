@@ -595,7 +595,17 @@ struct sbx_DrawData {
 
 void sbx_drawConstraint(void* userdata, uint32_t a, uint32_t b, int8_t normalAxis, int8_t normalDir) {
   struct sbx_DrawData* draw = userdata;
-  STD_UNUSED(draw, a, b, normalAxis, normalDir);
+  struct sbx_GrainStack* stack = &draw->grid->stack;
+  const clm_vec2 posA = sbx_GrainStack_itoxyf(stack, a);
+  const clm_vec2 posB = sbx_GrainStack_itoxyf(stack, b);
+  const clm_byte4 color = clm_byte4_ctor(0, 255, 0, 255);
+  clm_vec2 normal = clm_vec2_splat(0);
+  normal.xy[normalAxis] = (float)normalDir;
+
+  if(draw->diag->drawContactGraph) {
+    sbx_SandGridDiagnostics_setColor(draw->diag, color);
+    sbx_SandGridDiagnostics_addLine(draw->diag, posA, posB);
+  }
 }
 
 void sbx_drawNode(struct sbx_DrawData* draw, uint32_t node) {

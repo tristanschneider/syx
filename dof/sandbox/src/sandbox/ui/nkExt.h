@@ -26,6 +26,9 @@ bool nkx_property_rotation(nk_context* ctx, const char* name, clm_vec2* r);
 bool nkx_property_transform25(nk_context* ctx, const char* name, clm_transform25* transform);
 void nkx_label_format(nk_context* ctx, const char* format, ...);
 void nkx_readonly_vec2(nk_context* ctx, const char* name, clm_vec2 v);
+//A checkbox with a lable.
+//Same as nk version but converts from nk_bool to bool.
+bool nkx_checkbox_label(nk_context* ctx, const char* label, bool* v);
 
 nk_color nkx_vec4ToColor(clm_vec4 color);
 clm_vec4 nkx_colorToVec4(nk_color color);

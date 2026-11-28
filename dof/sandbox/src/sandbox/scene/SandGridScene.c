@@ -370,10 +370,8 @@ void sbx_SandGridScene_frame(sbx_SceneFrameArgs* args) {
 
     sbx_drawSelected(args);
 
-    nk_bool draw = (nk_bool)scene->diagnostics.drawIslandGraph;
-    if(nk_checkbox_label(ctx, "Draw Island Graph", &draw)) {
-      scene->diagnostics.drawIslandGraph = (bool)draw;
-    }
+    nkx_checkbox_label(ctx, "Draw Island Graph", &scene->diagnostics.drawIslandGraph);
+    nkx_checkbox_label(ctx, "Draw Contact Graph", &scene->diagnostics.drawContactGraph);
   }
 
   sbx_TimeControlUpdate update = sbx_TimeControlUI_tryUpdate(&scene->timeControl);

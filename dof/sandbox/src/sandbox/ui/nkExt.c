@@ -76,6 +76,15 @@ void nkx_readonly_vec2(nk_context* ctx, const char* name, clm_vec2 v) {
   nkx_label_format(ctx, "%s (%f, %f)", name, v.x, v.y);
 }
 
+bool nkx_checkbox_label(nk_context* ctx, const char* label, bool* v) {
+  nk_bool nkV = *v;
+  if(nk_checkbox_label(ctx, label, &nkV)) {
+    *v = (bool)nkV;
+    return true;
+  }
+  return false;
+}
+
 nk_color nkx_vec4ToColor(clm_vec4 color) {
   nk_color result;
   nk_byte* r = &result.r;

@@ -19,6 +19,7 @@ struct sbx_SandGridDiagnostics {
 
   //Configuration set by user
   bool drawIslandGraph;
+  bool drawContactGraph;
 
   //Convenience for implementation of the wrapping methods
   clm_vec2 temp;
