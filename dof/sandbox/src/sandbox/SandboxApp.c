@@ -61,12 +61,13 @@ float toNDC(float v) {
 void fillMouse(sbx_SceneEventArgs* args, const sapp_event* event) {
   args->mouseX = event->mouse_x;
   args->mouseY = event->mouse_y;
+  const float dpi = sapp_dpi_scale();
   //Transform to NDC so using this on the view matrix will map directy to world space
   if(event->window_width) {
-    args->mouseX /= (float)event->window_width;
+    args->mouseX /= (float)event->window_width * dpi;
   }
   if(event->window_height) {
-    args->mouseY /= (float)event->window_height;
+    args->mouseY /= (float)event->window_height * dpi;
   }
   args->mouseX = toNDC(args->mouseX);
   args->mouseY = -toNDC(args->mouseY);
@@ -239,6 +240,7 @@ sapp_desc sokol_main(int argc, char* argv[]) {
     .width = 640,
     .height = 480,
     .swap_interval = 1,
+    .high_dpi = true,
     .window_title = "Sandbox",
     .icon = (sapp_icon_desc) {
       .sokol_default = true,
