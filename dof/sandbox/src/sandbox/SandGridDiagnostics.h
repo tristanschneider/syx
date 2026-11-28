@@ -20,6 +20,8 @@ struct sbx_SandGridDiagnostics {
   //Configuration set by user
   bool drawIslandGraph;
   bool drawContactGraph;
+  float drawConstraintError;
+  float lineThickness;
 
   //Convenience for implementation of the wrapping methods
   clm_vec2 temp;
@@ -34,3 +36,4 @@ void sbx_SandGridDiagnostics_setColor(struct sbx_SandGridDiagnostics* d, clm_byt
 void sbx_SandGridDiagnostics_startLineStrip(struct sbx_SandGridDiagnostics* d, clm_vec2 p);
 void sbx_SandGridDiagnostics_addLineStrip(struct sbx_SandGridDiagnostics* d, clm_vec2 p);
 void sbx_SandGridDiagnostics_addLine(struct sbx_SandGridDiagnostics* d, clm_vec2 a, clm_vec2 b);
+void sbx_SandGridDiagnostics_addVector(struct sbx_SandGridDiagnostics* d, clm_vec2 start, clm_vec2 dir);

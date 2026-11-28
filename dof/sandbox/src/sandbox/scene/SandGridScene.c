@@ -104,8 +104,8 @@ void sbx_SandGridScene_init(sbx_SceneInitArgs* args) {
   sbx_Renderer_setRenderableTexture(args->renderer, self->renderable, self->texture);
 
   self->config = (sbx_SandGridConfig){
-    .width = 6,
-    .height = 6,
+    .width = 100,
+    .height = 100,
     .gravity = clm_vec2_ctor(0, -10.f)
   };
   self->sandGrid = sbx_createSandGrid(self->sandGrid, self->alloc, self->config);
@@ -372,6 +372,10 @@ void sbx_SandGridScene_frame(sbx_SceneFrameArgs* args) {
 
     nkx_checkbox_label(ctx, "Draw Island Graph", &scene->diagnostics.drawIslandGraph);
     nkx_checkbox_label(ctx, "Draw Contact Graph", &scene->diagnostics.drawContactGraph);
+    nk_label(ctx, "Constraint Error Scale", 0);
+    nk_slider_float(ctx, 0.f, &scene->diagnostics.drawConstraintError, 1000.f, 1.f);
+    nk_label(ctx, "Line Thickness", 0);
+    nk_slider_float(ctx, 0.108f, &scene->diagnostics.lineThickness, 0.5f, 0.008f);
   }
 
   sbx_TimeControlUpdate update = sbx_TimeControlUI_tryUpdate(&scene->timeControl);

@@ -277,9 +277,71 @@ struct IslandData {
   uint8_t age;
 };
 
-void sbx_applyConstraintImpulse(float* va, float* vb, float ma, float mb, float ja, float jb, float lambda) {
-    *va += ja*ma*lambda;
-    *vb += jb*mb*lambda;
+struct ConstraintPair {
+  float* va;
+  float* vb;
+  float ma;
+  float mb;
+  float ja;
+  float jb;
+
+  float constraintMass;
+  float bias;
+  float lambdaMin;
+  float lambdaMax;
+  float lambdaSum;
+};
+
+void sbx_ConstraintPair_setPair(
+  struct sbx_GrainStack* stack,
+  struct ConstraintPair* pair,
+  uint32_t a,
+  uint32_t b,
+  uint8_t axis
+) {
+  struct sbx_SandGrain* ga = sbx_GrainStack_getGrainI(stack, a);
+  struct sbx_SandGrain* gb = sbx_GrainStack_getGrainI(stack, b);
+
+  pair->va = &ga->velocity.xy[axis];
+  pair->ma = ga->inverseMass;
+
+  pair->vb = &gb->velocity.xy[axis];
+  pair->mb = gb->inverseMass;
+}
+
+//Called after setPair
+void sbx_ConstraintPair_setContact(
+  struct sbx_ConstraintSlot* constraint,
+  struct ConstraintPair* pair,
+  int8_t normalDir
+) {
+  pair->ja = normalDir > 0 ? 1.f : -1.f;
+  pair->jb = -pair->ja;
+  STD_ASSERT(pair->ma || pair->mb);
+  //Normally 1 / (ja*jma + jb+jmb)
+  //But the jacobian is the normal axis 1 or -1, meaning only the mass is relevant.
+  //This can't be division by zero because a static pair should have been skipped by the caller.
+  //TODO: this could be a lookup table if allowed mass range were limited
+  pair->constraintMass = 1.f / (pair->ma + pair->mb);
+
+  pair->bias = 0;
+  pair->lambdaMin = 0;
+  pair->lambdaMax = FLT_MAX;
+  pair->lambdaSum = constraint->lambdaSum;
+}
+
+float sbx_ConstraintPair_computeLambda(struct ConstraintPair* pair) {
+  const float lambda = (pair->bias - ((pair->ja * *pair->va) + (pair->jb * *pair->vb))) * pair->constraintMass;
+  const float prevLambda = pair->lambdaSum;
+  const float newSum = std_max(pair->lambdaMin, std_min(prevLambda + lambda, pair->lambdaMax));
+
+  pair->lambdaSum = newSum;
+  return newSum - prevLambda;
+}
+
+void sbx_ConstraintPair_applyImpulse(struct ConstraintPair* pair, float lambda) {
+  *pair->va += pair->ja * pair->ma * lambda;
+  *pair->vb += pair->jb * pair->mb * lambda;
 }
 
 //Solve contact constraint
@@ -287,33 +349,15 @@ void sbx_applyConstraintImpulse(float* va, float* vb, float ma, float mb, float 
 //TODO: other constraint types
 void sbx_SandGrid_solveIslandPair(void* userdata, uint32_t a, uint32_t b, int8_t normalAxis, int8_t normalDir) {
   struct IslandData* data = userdata;
-  //Visit constraint once
   struct sbx_ConstraintSlot* constraint = sbx_GrainStack_getConstraintSlot(data->stack, a, b);
 
-  struct sbx_SandGrain* ga = sbx_GrainStack_getGrainI(data->stack, a);
-  struct sbx_SandGrain* gb = sbx_GrainStack_getGrainI(data->stack, b);
+  struct ConstraintPair pair;
+  sbx_ConstraintPair_setPair(data->stack, &pair, a, b, normalAxis);
+  sbx_ConstraintPair_setContact(constraint, &pair, normalDir);
 
-  float* va = &ga->velocity.xy[normalAxis];
-  float* vb = &gb->velocity.xy[normalAxis];
-
-  const float prevA = *va;
-  const float prevB = *vb;
+  const float prevA = *pair.va;
+  const float prevB = *pair.vb;
   STD_UNUSED(prevA, prevB);
-
-  const float ja = normalDir > 0 ? 1.f : -1.f;
-  const float jb = -ja;
-  const float ma = ga->inverseMass;
-  const float mb = gb->inverseMass;
-  STD_ASSERT(ma || mb);
-
-  //Normally 1 / (ja*jma + jb+jmb)
-  //But the jacobian is the normal axis 1 or -1, meaning only the mass is relevant.
-  //This can't be division by zero because a static pair should have been skipped by the caller.
-  //TODO: this could be a lookup table if allowed mass range were limited
-  const float constraintMass = 1.f / (ma + mb);
-  const float bias = 0;
-  const float lambdaMin = 0;
-  const float lambdaMax = FLT_MAX;
 
   //On first iteration, warm start using the sum from the last iteration.
   //This assumes the constraint is similar, even though right now it only guarantees the same neighbor direction.
@@ -323,41 +367,24 @@ void sbx_SandGrid_solveIslandPair(void* userdata, uint32_t a, uint32_t b, int8_t
     const bool DO_WARM_START = false;
     if(DO_WARM_START) {
       //TODO: this isn't determining if there is a meaningful warm start vs first solve
-      sbx_applyConstraintImpulse(va, vb, ma, mb, ja, jb, constraint->lambdaSum);
+      sbx_ConstraintPair_applyImpulse(&pair, pair.lambdaSum);
 
       //Compute error without applying another impulse, as warm start must apply to the entire island before real solve iterations.
       //Error calculation must clamp to lambda bounds for full correctness, although if it takes enough time perhaps just the pre-clamped lambda could be used.
       //In that case, the constraint mass also wouldn't be relevant.
-      float lambda = (bias - ((ja * *va) + (jb * *vb))) * constraintMass;
-      const float prevLambda = constraint->lambdaSum;
-      const float newSum = std_max(lambdaMin, std_min(prevLambda + lambda, lambdaMax));
-      lambda = newSum - prevLambda;
+      const float lambda = sbx_ConstraintPair_computeLambda(&pair);
 
       data->islandError += fabsf(lambda);
       return;
     }
 
-    constraint->lambdaSum = 0.f;
+    pair.lambdaSum = 0.f;
   }
 
-  float lambda = (bias - ((ja * *va) + (jb * *vb))) * constraintMass;
-  const float debugLambda = lambda;
-  STD_UNUSED(debugLambda);
-  const float prevLambda = constraint->lambdaSum;
-  constraint->lambdaSum = std_max(lambdaMin, std_min(prevLambda + lambda, lambdaMax));
-  lambda = constraint->lambdaSum - prevLambda;
+  const float lambda = sbx_ConstraintPair_computeLambda(&pair);
+  constraint->lambdaSum = pair.lambdaSum;
 
-  //if(fabsf(lambda) > 1000) {
-  //  __debugbreak();
-  //}
-
-  sbx_applyConstraintImpulse(va, vb, ma, mb, ja, jb, lambda);
-
-  //float postLambda = (bias - (ja * *va) + (jb * *vb)) * constraintMass;
-  //if(fabsf(postLambda) > 0.1f) {
-  //  __debugbreak();
-  //}
-  //TODO: forgot to clear lambda sum
+  sbx_ConstraintPair_applyImpulse(&pair, lambda);
 
   data->islandError += fabsf(lambda);
 }
@@ -605,6 +632,24 @@ void sbx_drawConstraint(void* userdata, uint32_t a, uint32_t b, int8_t normalAxi
   if(draw->diag->drawContactGraph) {
     sbx_SandGridDiagnostics_setColor(draw->diag, color);
     sbx_SandGridDiagnostics_addLine(draw->diag, posA, posB);
+  }
+  if(draw->diag->drawConstraintError) {
+    struct sbx_ConstraintSlot* constraint = sbx_GrainStack_getConstraintSlot(stack, a, b);
+
+    struct ConstraintPair pair;
+    sbx_ConstraintPair_setPair(stack, &pair, a, b, normalAxis);
+    sbx_ConstraintPair_setContact(constraint, &pair, normalDir);
+    const float lambda = sbx_ConstraintPair_computeLambda(&pair);
+    if(!lambda) {
+      return;
+    }
+
+    sbx_SandGridDiagnostics_setColor(draw->diag, color);
+    clm_vec2 mid = clm_vec2_add(&posA, &posB);
+    mid = clm_vec2_scale(&mid, 0.5f);
+
+    clm_vec2 error = clm_vec2_scale(&normal, lambda * draw->diag->drawConstraintError);
+    sbx_SandGridDiagnostics_addVector(draw->diag, mid, error);
   }
 }
 
